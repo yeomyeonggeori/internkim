@@ -1,2 +1,4 @@
 .factory/
 .DS_Store
+board-bin/
+quick-claw
