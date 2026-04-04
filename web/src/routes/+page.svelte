@@ -20,6 +20,8 @@
 		input = '';
 		loading = true;
 
+		const assistantMsg: Message = { role: 'assistant', content: '' };
+
 		try {
 			const res = await fetch('/v1/chat/completions', {
 				method: 'POST',
@@ -27,7 +29,7 @@
 				body: JSON.stringify({
 					model: 'qwen-free',
 					messages: messages.map((m) => ({ role: m.role, content: m.content })),
-					stream: false
+					stream: true
 				})
 			});
 
@@ -36,11 +38,52 @@
 				return;
 			}
 
-			const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-			const reply = data.choices?.[0]?.message?.content ?? 'No response';
-			messages.push({ role: 'assistant', content: reply });
+			messages.push(assistantMsg);
+			loading = false;
+
+			const reader = res.body?.getReader();
+			if (!reader) return;
+
+			const decoder = new TextDecoder();
+			let buffer = '';
+
+			while (true) {
+				const { done, value } = await reader.read();
+				if (done) break;
+
+				buffer += decoder.decode(value, { stream: true });
+				const lines = buffer.split('\n');
+				buffer = lines.pop() ?? '';
+
+				for (const line of lines) {
+					const trimmed = line.trim();
+					if (!trimmed.startsWith('data: ')) continue;
+					const payload = trimmed.slice(6);
+					if (payload === '[DONE]') break;
+
+					try {
+						const chunk = JSON.parse(payload) as {
+							choices?: { delta?: { content?: string } }[];
+						};
+						const token = chunk.choices?.[0]?.delta?.content;
+						if (token) {
+							assistantMsg.content += token;
+						}
+					} catch {
+						// skip malformed chunks
+					}
+				}
+			}
+
+			if (!assistantMsg.content) {
+				assistantMsg.content = 'No response';
+			}
 		} catch (e) {
-			messages.push({ role: 'assistant', content: `Connection error: ${e}` });
+			if (assistantMsg.content) {
+				assistantMsg.content += `\n\n[Connection lost: ${e}]`;
+			} else {
+				messages.push({ role: 'assistant', content: `Connection error: ${e}` });
+			}
 		} finally {
 			loading = false;
 		}
