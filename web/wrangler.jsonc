@@ -1,0 +1,14 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "quick-claw",
+	"compatibility_date": "2026-04-04",
+	"compatibility_flags": [
+		"nodejs_als"
+	],
+	"pages_build_output_dir": ".svelte-kit/cloudflare",
+	// KV namespace - create with: wrangler kv namespace create KV
+	// Then update the id below
+	"kv_namespaces": [
+		{ "binding": "KV", "id": "placeholder" }
+	]
+}
