@@ -1,0 +1,125 @@
+const CF_API = 'https://api.cloudflare.com/client/v4';
+
+interface CFEnv {
+	CF_API_TOKEN: string;
+	CF_ACCOUNT_ID: string;
+	CF_ZONE_ID: string;
+	CF_DOMAIN: string;
+}
+
+async function cfFetch(env: CFEnv, path: string, init?: RequestInit) {
+	const res = await fetch(`${CF_API}${path}`, {
+		...init,
+		headers: {
+			Authorization: `Bearer ${env.CF_API_TOKEN}`,
+			'Content-Type': 'application/json',
+			...init?.headers
+		}
+	});
+	const data = await res.json() as { success: boolean; result: any; errors: any[] };
+	if (!data.success) {
+		throw new Error(`CF API error: ${JSON.stringify(data.errors)}`);
+	}
+	return data.result;
+}
+
+export async function createTunnel(env: CFEnv, deviceId: string) {
+	const tunnelSecret = btoa(crypto.getRandomValues(new Uint8Array(32)).toString());
+
+	const tunnel = await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/cfd_tunnel`, {
+		method: 'POST',
+		body: JSON.stringify({
+			name: `qc-${deviceId}`,
+			tunnel_secret: tunnelSecret,
+			config_src: 'cloudflare'
+		})
+	});
+
+	return { tunnelId: tunnel.id as string, tunnelToken: tunnel.token as string };
+}
+
+export async function configureTunnel(env: CFEnv, tunnelId: string, deviceId: string) {
+	const hostname = `${deviceId}.${env.CF_DOMAIN}`;
+
+	await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/cfd_tunnel/${tunnelId}/configurations`, {
+		method: 'PUT',
+		body: JSON.stringify({
+			config: {
+				ingress: [
+					{ hostname, service: 'http://localhost:18790' },
+					{ service: 'http_status:404' }
+				]
+			}
+		})
+	});
+}
+
+export async function createDNSRecord(env: CFEnv, tunnelId: string, deviceId: string) {
+	const record = await cfFetch(env, `/zones/${env.CF_ZONE_ID}/dns_records`, {
+		method: 'POST',
+		body: JSON.stringify({
+			type: 'CNAME',
+			name: `${deviceId}.${env.CF_DOMAIN}`,
+			content: `${tunnelId}.cfargotunnel.com`,
+			proxied: true
+		})
+	});
+
+	return record.id as string;
+}
+
+export async function createAccessApplication(env: CFEnv, deviceId: string) {
+	const hostname = `${deviceId}.${env.CF_DOMAIN}`;
+
+	const app = await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`, {
+		method: 'POST',
+		body: JSON.stringify({
+			name: `qc-${deviceId}`,
+			domain: hostname,
+			type: 'self_hosted',
+			session_duration: '720h'
+		})
+	});
+
+	return app.id as string;
+}
+
+export async function createAccessPolicy(env: CFEnv, appId: string, adminEmail: string) {
+	await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${appId}/policies`, {
+		method: 'POST',
+		body: JSON.stringify({
+			name: 'allowed-users',
+			decision: 'allow',
+			include: [{ email: { email: adminEmail } }]
+		})
+	});
+}
+
+export async function addEmailToPolicy(env: CFEnv, appId: string, emails: string[]) {
+	const policies = await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${appId}/policies`);
+	const policy = policies[0];
+	if (!policy) return;
+
+	const include = emails.map((email) => ({ email: { email } }));
+
+	await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${appId}/policies/${policy.id}`, {
+		method: 'PUT',
+		body: JSON.stringify({
+			name: policy.name,
+			decision: 'allow',
+			include
+		})
+	});
+}
+
+export async function deleteTunnel(env: CFEnv, tunnelId: string) {
+	await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/cfd_tunnel/${tunnelId}`, {
+		method: 'DELETE'
+	});
+}
+
+export async function deleteDNSRecord(env: CFEnv, recordId: string) {
+	await cfFetch(env, `/zones/${env.CF_ZONE_ID}/dns_records/${recordId}`, {
+		method: 'DELETE'
+	});
+}

@@ -1,30 +1,57 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { kv } from '$lib/kv';
+import { createTunnel, configureTunnel, createDNSRecord, createAccessApplication, createAccessPolicy } from '$lib/cloudflare';
 import type { Device } from '$lib/types';
 
 export const POST: RequestHandler = async ({ request, platform }) => {
-	const KV = platform?.env?.KV;
-	if (!KV) throw error(500, 'KV not available');
+	const env = platform?.env;
+	if (!env?.KV) throw error(500, 'KV not available');
 
-	const { device_id } = (await request.json()) as { device_id: string };
-	if (!device_id) throw error(400, 'device_id required');
+	const auth = request.headers.get('authorization');
+	if (auth !== `Bearer ${env.REGISTER_SECRET}`) {
+		throw error(401, 'Invalid registration secret');
+	}
 
-	const existing = await kv.getDevice(KV, device_id);
+	const { device_id, admin_email } = (await request.json()) as {
+		device_id: string;
+		admin_email: string;
+	};
+	if (!device_id || !admin_email) throw error(400, 'device_id and admin_email required');
+
+	const existing = await kv.getDevice(env.KV, device_id);
 	if (existing) throw error(409, 'Device already registered');
 
-	// TODO: Cloudflare API calls to create tunnel + DNS + Access policy
+	const cfEnv = {
+		CF_API_TOKEN: env.CF_API_TOKEN,
+		CF_ACCOUNT_ID: env.CF_ACCOUNT_ID,
+		CF_ZONE_ID: env.CF_ZONE_ID,
+		CF_DOMAIN: env.CF_DOMAIN
+	};
+
+	const { tunnelId, tunnelToken } = await createTunnel(cfEnv, device_id);
+	await configureTunnel(cfEnv, tunnelId, device_id);
+	const dnsRecordId = await createDNSRecord(cfEnv, tunnelId, device_id);
+	const accessAppId = await createAccessApplication(cfEnv, device_id);
+	await createAccessPolicy(cfEnv, accessAppId, admin_email);
+
 	const device: Device = {
 		device_id,
-		tunnel_id: '',
-		tunnel_token: '',
-		dns_record_id: '',
-		admin_email: '',
+		tunnel_id: tunnelId,
+		tunnel_token: tunnelToken,
+		dns_record_id: dnsRecordId,
+		access_app_id: accessAppId,
+		admin_email,
 		created_at: new Date().toISOString(),
 		versions: { picoclaw: '0.2.5', cli: '0.0.1' }
 	};
 
-	await kv.putDevice(KV, device_id, device);
+	await kv.putDevice(env.KV, device_id, device);
+	await kv.putUsers(env.KV, device_id, [admin_email]);
 
-	return json({ device_id, tunnel_token: device.tunnel_token, url: `https://${device_id}.quickclaw.io` });
+	return json({
+		device_id,
+		tunnel_token: tunnelToken,
+		url: `https://${device_id}.${env.CF_DOMAIN}`
+	});
 };

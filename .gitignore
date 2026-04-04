@@ -2,3 +2,5 @@
 .DS_Store
 board-bin/
 quick-claw
+.env
+.dev.vars
