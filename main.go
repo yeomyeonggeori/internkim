@@ -24,8 +24,8 @@ var (
 	boardPass = "root"
 	usbNCMIPs = []string{"10.11.60.1"}
 
-	picoclawModelName = "qwen-free"
-	picoclawModel     = "openrouter/qwen/qwen3.6-plus:free"
+	picoclawModelName = "openrouter"
+	picoclawModel     = "google/gemini-3.1-flash-lite-preview"
 	picoclawAPIBase   = "https://openrouter.ai/api/v1"
 )
 
@@ -394,10 +394,10 @@ fi`)
 
 // --- Subcommands (stubs) ---
 
-func runInvite()  { fmt.Println("TODO: invite") }
-func runUsers()   { fmt.Println("TODO: users") }
-func runStatus()  { fmt.Println("TODO: status") }
-func runUpdate()  { fmt.Println("TODO: update") }
+func runInvite() { fmt.Println("TODO: invite") }
+func runUsers()  { fmt.Println("TODO: users") }
+func runStatus() { fmt.Println("TODO: status") }
+func runUpdate() { fmt.Println("TODO: update") }
 
 // --- Device registration ---
 
