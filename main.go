@@ -2,12 +2,18 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -24,18 +30,64 @@ var (
 	picoclawAPIBase   = "https://openrouter.ai/api/v1"
 )
 
+type config struct {
+	APIBaseURL     string
+	RegisterSecret string
+	CFDomain       string
+}
+
+func loadConfig() config {
+	return config{
+		APIBaseURL:     envOr("QC_API_URL", "https://quick-claw.pages.dev"),
+		RegisterSecret: envOr("QC_REGISTER_SECRET", ""),
+		CFDomain:       envOr("QC_DOMAIN", "dawn.kim"),
+	}
+}
+
 func main() {
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "setup":
+			runSetup()
+		case "invite":
+			runInvite()
+		case "users":
+			runUsers()
+		case "status":
+			runStatus()
+		case "update":
+			runUpdate()
+		default:
+			printUsage()
+		}
+		return
+	}
+	runSetup()
+}
+
+func printUsage() {
+	fmt.Println("Usage: quick-claw <command>")
+	fmt.Println()
+	fmt.Println("Commands:")
+	fmt.Println("  setup    Full device provisioning")
+	fmt.Println("  invite   Generate invite QR code")
+	fmt.Println("  users    Manage allowed users")
+	fmt.Println("  status   Check board and tunnel status")
+	fmt.Println("  update   OTA update")
+}
+
+func runSetup() {
 	lang := "ko"
-	if len(os.Args) > 1 && os.Args[1] == "--en" {
-		lang = "en"
+	for _, a := range os.Args {
+		if a == "--en" {
+			lang = "en"
+		}
 	}
 	m := newMsg(lang)
+	cfg := loadConfig()
+	stateDir := quickclawDir()
 
-	scriptDir, _ := os.Executable()
-	scriptDir = filepath.Dir(scriptDir)
-	if d, err := os.Getwd(); err == nil {
-		scriptDir = d
-	}
+	scriptDir, _ := os.Getwd()
 	binDir := filepath.Join(scriptDir, "bin")
 	boardBinDir := filepath.Join(scriptDir, "board-bin")
 	sshpassBin := filepath.Join(binDir, "sshpass")
@@ -124,7 +176,7 @@ sleep 3`, wpaConf))
 		fmt.Printf("  picoclaw %s %s\n", localVer, m.t("설치 완료", "installed"))
 	}
 
-	// 6. OpenRouter API key
+	// 6. OpenRouter API key + picoclaw config
 	step(6, totalSteps, m.t("OpenRouter API 키 설정...", "Configuring OpenRouter API key..."))
 	apiKey := ""
 	existingKey := strings.TrimSpace(ssh.run("grep 'sk-or-' /root/.picoclaw/.security.yml 2>/dev/null | head -1"))
@@ -138,43 +190,16 @@ sleep 3`, wpaConf))
 	if !skipAPIKey {
 		fmt.Printf("\n  %s\n", m.t("OpenRouter API 키가 필요합니다.", "An OpenRouter API key is required."))
 		fmt.Printf("  %s: https://openrouter.ai/keys\n\n", m.t("발급", "Get one at"))
-		apiKey = readSecret(m.t("API 키 입력: ", "Enter API key: "))
+		apiKey = readSecret(m.t("  API 키 입력: ", "  Enter API key: "))
 		if apiKey == "" {
 			fatal(m.t("API 키가 입력되지 않았습니다.", "No API key provided."))
 		}
 		fmt.Printf("  %s: %s\n", m.t("API 키", "API key"), maskKey(apiKey))
 	}
 
-	// 7. Telegram bot token
-	step(7, totalSteps, m.t("텔레그램 봇 설정...", "Configuring Telegram bot..."))
-	telegramToken := ""
-	existingTG := strings.TrimSpace(ssh.run("grep 'token:' /root/.picoclaw/.security.yml 2>/dev/null | grep -v '{}' | head -1"))
-	skipTelegram := false
-	if existingTG != "" && !strings.Contains(existingTG, "your-") {
-		fmt.Printf("  %s\n", m.t("텔레그램 봇이 이미 설정되어 있습니다.", "Telegram bot already configured."))
-		if !promptYN(m.t("다시 설정하시겠습니까?", "Reconfigure?")) {
-			skipTelegram = true
-		}
-	}
-	if !skipTelegram {
-		fmt.Printf("\n  %s\n", m.t("텔레그램 봇 토큰이 필요합니다.", "A Telegram bot token is required."))
-		fmt.Printf("  %s:\n", m.t("발급 방법", "How to get one"))
-		fmt.Printf("    1. %s @BotFather %s\n", m.t("텔레그램에서", "Open"), m.t("열기", "@BotFather on Telegram"))
-		fmt.Printf("    2. /newbot %s\n", m.t("명령 입력", "command"))
-		fmt.Printf("    3. %s\n\n", m.t("토큰 복사", "Copy the token"))
-		telegramToken = readSecret(m.t("봇 토큰 입력: ", "Enter bot token: "))
-		if telegramToken == "" {
-			fmt.Printf("  %s\n", m.t("텔레그램 설정을 건너뜁니다.", "Skipping Telegram setup."))
-			skipTelegram = true
-		} else {
-			fmt.Printf("  %s: %s\n", m.t("봇 토큰", "Bot token"), maskKey(telegramToken))
-		}
-	}
-
-	// Write config + security to board
-	if !skipAPIKey || !skipTelegram {
-		configJSON := buildConfig(picoclawModelName, picoclawModel, picoclawAPIBase, !skipTelegram)
-		securityYML := buildSecurity(picoclawModelName, apiKey, telegramToken)
+	if !skipAPIKey {
+		configJSON := buildPicoclawConfig(picoclawModelName, picoclawModel, picoclawAPIBase)
+		securityYML := buildPicoclawSecurity(picoclawModelName, apiKey)
 
 		ssh.run(fmt.Sprintf(`/usr/local/bin/picoclaw onboard 2>/dev/null || true
 cat > /root/.picoclaw/config.json <<'CFGEOF'
@@ -184,6 +209,37 @@ cat > /root/.picoclaw/.security.yml <<'SECEOF'
 %s
 SECEOF
 chmod 600 /root/.picoclaw/.security.yml`, configJSON, securityYML))
+	}
+
+	// 7. Register device + cloudflared
+	step(7, totalSteps, m.t("기기 등록 + 터널 설정 중...", "Registering device + tunnel setup..."))
+
+	deviceID := loadOrCreateDeviceID(stateDir)
+	fmt.Printf("  %s: %s\n", m.t("기기 ID", "Device ID"), deviceID)
+
+	adminEmail := readLine(m.t("  관리자 이메일 (구글 계정): ", "  Admin email (Google account): "))
+	if adminEmail == "" {
+		fatal(m.t("이메일이 입력되지 않았습니다.", "No email provided."))
+	}
+
+	regResp, err := registerDevice(cfg, deviceID, adminEmail)
+	if err != nil {
+		if strings.Contains(err.Error(), "409") {
+			fmt.Printf("  %s\n", m.t("이미 등록된 기기입니다.", "Device already registered."))
+		} else {
+			fatal(fmt.Sprintf("%s: %v", m.t("기기 등록 실패", "Registration failed"), err))
+		}
+	} else {
+		saveState(stateDir, "tunnel_token", regResp.TunnelToken)
+		saveState(stateDir, "device_url", regResp.URL)
+		fmt.Printf("  %s: %s\n", m.t("터널 생성 완료", "Tunnel created"), regResp.URL)
+	}
+
+	tunnelToken := loadState(stateDir, "tunnel_token")
+	if tunnelToken != "" {
+		ensureCloudflared()
+		startCloudflared(stateDir, tunnelToken)
+		fmt.Printf("  %s\n", m.t("cloudflared 실행 중", "cloudflared running"))
 	}
 
 	// 8. Gateway autostart + swap
@@ -223,11 +279,9 @@ sleep 2`)
 	if strings.HasPrefix(gwStatus, "running") {
 		fmt.Printf("  %s (%s)\n", m.t("gateway 실행 중", "Gateway running"), gwStatus)
 	} else {
-		fmt.Printf("  %s\n", m.t("gateway 시작 실패 — 로그 확인: ssh root@"+boardIP+" 'cat /var/log/picoclaw.log'",
-			"Gateway failed — check: ssh root@"+boardIP+" 'cat /var/log/picoclaw.log'"))
+		fmt.Printf("  %s\n", m.t("gateway 시작 실패", "Gateway failed"))
 	}
 
-	// Swap
 	ssh.run(`if ! grep -q '/swapfile' /proc/swaps 2>/dev/null; then
   if [ ! -f /swapfile ]; then
     dd if=/dev/zero of=/swapfile bs=1M count=256 2>/dev/null
@@ -238,6 +292,7 @@ sleep 2`)
 fi`)
 
 	// Done
+	deviceURL := loadState(stateDir, "device_url")
 	fmt.Println()
 	fmt.Println("========================================")
 	fmt.Printf("  %s\n", m.t("Quick Claw 설정 완료!", "Quick Claw Setup Complete!"))
@@ -245,18 +300,123 @@ fi`)
 	fmt.Println()
 	fmt.Printf("  USB:     %s\n", boardIP)
 	fmt.Printf("  Wi-Fi:   %s\n", wifiIP)
-	fmt.Println()
-	if !skipTelegram && telegramToken != "" {
-		fmt.Printf("  %s\n", m.t(
-			"텔레그램에서 봇에게 메시지를 보내보세요!",
-			"Send a message to your bot on Telegram!",
-		))
+	if deviceURL != "" {
+		fmt.Printf("  URL:     %s\n", deviceURL)
 	}
+	fmt.Println()
 	fmt.Printf("  %s:\n", m.t("SSH 접속", "SSH access"))
 	fmt.Printf("    ssh root@%s\n", wifiIP)
-	fmt.Println()
-	fmt.Printf("  %s:\n", m.t("상태 확인", "Check status"))
-	fmt.Printf("    ssh root@%s '/etc/init.d/S99picoclaw status'\n", wifiIP)
+}
+
+// --- Subcommands (stubs) ---
+
+func runInvite()  { fmt.Println("TODO: invite") }
+func runUsers()   { fmt.Println("TODO: users") }
+func runStatus()  { fmt.Println("TODO: status") }
+func runUpdate()  { fmt.Println("TODO: update") }
+
+// --- Device registration ---
+
+type registerResponse struct {
+	DeviceID    string `json:"device_id"`
+	TunnelToken string `json:"tunnel_token"`
+	URL         string `json:"url"`
+}
+
+func registerDevice(cfg config, deviceID, adminEmail string) (*registerResponse, error) {
+	body, _ := json.Marshal(map[string]string{
+		"device_id":   deviceID,
+		"admin_email": adminEmail,
+	})
+
+	req, _ := http.NewRequest("POST", cfg.APIBaseURL+"/api/register", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+cfg.RegisterSecret)
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	var result registerResponse
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("parse error: %w", err)
+	}
+	return &result, nil
+}
+
+// --- cloudflared ---
+
+func ensureCloudflared() {
+	if _, err := exec.LookPath("cloudflared"); err == nil {
+		return
+	}
+	fmt.Println("  Installing cloudflared...")
+	if runtime.GOOS == "darwin" {
+		exec.Command("brew", "install", "cloudflared").Run()
+	}
+}
+
+func startCloudflared(stateDir, tunnelToken string) {
+	pidFile := filepath.Join(stateDir, "cloudflared.pid")
+
+	// Kill existing
+	if pidData, err := os.ReadFile(pidFile); err == nil {
+		pid := strings.TrimSpace(string(pidData))
+		exec.Command("kill", pid).Run()
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	cmd := exec.Command("cloudflared", "tunnel", "run", "--token", tunnelToken)
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	if err := cmd.Start(); err != nil {
+		fmt.Printf("  cloudflared start failed: %v\n", err)
+		return
+	}
+
+	os.WriteFile(pidFile, []byte(fmt.Sprintf("%d", cmd.Process.Pid)), 0644)
+	go cmd.Wait()
+}
+
+// --- State management (~/.quickclaw/) ---
+
+func quickclawDir() string {
+	home, _ := os.UserHomeDir()
+	dir := filepath.Join(home, ".quickclaw")
+	os.MkdirAll(dir, 0700)
+	return dir
+}
+
+func loadOrCreateDeviceID(stateDir string) string {
+	id := loadState(stateDir, "device_id")
+	if id != "" {
+		return id
+	}
+	b := make([]byte, 4)
+	rand.Read(b)
+	id = hex.EncodeToString(b)
+	saveState(stateDir, "device_id", id)
+	return id
+}
+
+func saveState(dir, key, value string) {
+	os.WriteFile(filepath.Join(dir, key), []byte(value), 0600)
+}
+
+func loadState(dir, key string) string {
+	data, err := os.ReadFile(filepath.Join(dir, key))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
 }
 
 // --- Board detection ---
@@ -334,36 +494,20 @@ func (s *sshClient) scp(localPath, remotePath string) {
 
 // --- Config builders ---
 
-func buildConfig(modelName, model, apiBase string, telegramEnabled bool) string {
+func buildPicoclawConfig(modelName, model, apiBase string) string {
 	cfg := map[string]any{
 		"version": 2,
 		"agents": map[string]any{
 			"defaults": map[string]any{
-				"workspace":                    "/root/.picoclaw/workspace",
-				"model_name":                   modelName,
-				"max_tokens":                   16384,
-				"max_tool_iterations":          30,
-				"summarize_message_threshold":  15,
+				"workspace":                   "/root/.picoclaw/workspace",
+				"model_name":                  modelName,
+				"max_tokens":                  16384,
+				"max_tool_iterations":         30,
+				"summarize_message_threshold": 15,
 			},
 		},
 		"model_list": []map[string]any{
 			{"model_name": modelName, "model": model, "api_base": apiBase},
-		},
-		"channels": map[string]any{
-			"telegram": map[string]any{
-				"enabled":   telegramEnabled,
-				"allow_from": []string{},
-				"typing":    map[string]any{"enabled": true},
-				"placeholder": map[string]any{
-					"enabled": true,
-					"text":    []string{"..."},
-				},
-				"streaming": map[string]any{
-					"enabled":          true,
-					"throttle_seconds": 3,
-					"min_growth_chars": 100,
-				},
-			},
 		},
 		"gateway": map[string]any{
 			"host":      "0.0.0.0",
@@ -380,20 +524,11 @@ func buildConfig(modelName, model, apiBase string, telegramEnabled bool) string 
 	return string(b)
 }
 
-func buildSecurity(modelName, apiKey, telegramToken string) string {
-	var lines []string
-	if apiKey != "" {
-		lines = append(lines, "model_list:")
-		lines = append(lines, fmt.Sprintf("  %s:", modelName))
-		lines = append(lines, "    api_keys:")
-		lines = append(lines, fmt.Sprintf("      - \"%s\"", apiKey))
-	}
-	if telegramToken != "" {
-		lines = append(lines, "channels:")
-		lines = append(lines, "  telegram:")
-		lines = append(lines, fmt.Sprintf("    token: \"%s\"", telegramToken))
-	}
-	return strings.Join(lines, "\n")
+func buildPicoclawSecurity(modelName, apiKey string) string {
+	return fmt.Sprintf(`model_list:
+  %s:
+    api_keys:
+      - "%s"`, modelName, apiKey)
 }
 
 // --- UI helpers ---
@@ -428,6 +563,13 @@ func readSecret(prompt string) string {
 	return strings.TrimSpace(string(b))
 }
 
+func readLine(prompt string) string {
+	fmt.Print(prompt)
+	reader := bufio.NewReader(os.Stdin)
+	line, _ := reader.ReadString('\n')
+	return strings.TrimSpace(line)
+}
+
 func promptYN(question string) bool {
 	fmt.Printf("  %s (y/N): ", question)
 	reader := bufio.NewReader(os.Stdin)
@@ -445,4 +587,11 @@ func maskKey(s string) string {
 		return strings.Repeat("*", len(s))
 	}
 	return s[:8] + strings.Repeat("*", len(s)-12) + s[len(s)-4:]
+}
+
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
 }
