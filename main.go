@@ -13,7 +13,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -159,21 +158,27 @@ sleep 3`, wpaConf))
 	}
 	fmt.Printf("  %s: %s\n", m.t("Wi-Fi 연결 성공", "Wi-Fi connected"), wifiIP)
 
-	// 5. Install picoclaw
-	step(5, totalSteps, m.t("picoclaw 설치 중...", "Installing picoclaw..."))
-	if _, err := os.Stat(picoclawBin); os.IsNotExist(err) {
-		fatal(m.t("picoclaw 바이너리를 찾을 수 없습니다: "+picoclawBin, "picoclaw binary not found: "+picoclawBin))
-	}
+	// 5. Install picoclaw + cloudflared on board
+	step(5, totalSteps, m.t("picoclaw + cloudflared 설치 중...", "Installing picoclaw + cloudflared..."))
+	cloudflaredBin := filepath.Join(boardBinDir, "cloudflared")
 
-	installedVer := strings.TrimSpace(ssh.run("/usr/local/bin/picoclaw version 2>/dev/null | grep -o 'picoclaw [0-9.]*' | awk '{print $2}'"))
-	localVer := "0.2.5"
-	if installedVer == localVer {
-		fmt.Printf("  picoclaw %s %s\n", localVer, m.t("이미 설치됨", "already installed"))
-	} else {
-		ssh.run("mkdir -p /usr/local/bin")
-		ssh.scp(picoclawBin, "/usr/local/bin/picoclaw")
-		ssh.run("chmod +x /usr/local/bin/picoclaw")
-		fmt.Printf("  picoclaw %s %s\n", localVer, m.t("설치 완료", "installed"))
+	for _, bin := range []struct{ local, remote, name string }{
+		{picoclawBin, "/usr/local/bin/picoclaw", "picoclaw"},
+		{cloudflaredBin, "/usr/local/bin/cloudflared", "cloudflared"},
+	} {
+		if _, err := os.Stat(bin.local); os.IsNotExist(err) {
+			fatal(fmt.Sprintf("%s not found: %s", bin.name, bin.local))
+		}
+		existing := strings.TrimSpace(ssh.run(fmt.Sprintf("md5sum %s 2>/dev/null | awk '{print $1}'", bin.remote)))
+		localHash := strings.TrimSpace(runCmd("md5", "-q", bin.local))
+		if existing != "" && existing == localHash {
+			fmt.Printf("  %s %s\n", bin.name, m.t("이미 최신", "up to date"))
+		} else {
+			ssh.run("mkdir -p /usr/local/bin")
+			ssh.scp(bin.local, bin.remote)
+			ssh.run(fmt.Sprintf("chmod +x %s", bin.remote))
+			fmt.Printf("  %s %s\n", bin.name, m.t("설치 완료", "installed"))
+		}
 	}
 
 	// 6. OpenRouter API key + picoclaw config
@@ -237,9 +242,42 @@ chmod 600 /root/.picoclaw/.security.yml`, configJSON, securityYML))
 
 	tunnelToken := loadState(stateDir, "tunnel_token")
 	if tunnelToken != "" {
-		ensureCloudflared()
-		startCloudflared(stateDir, tunnelToken)
-		fmt.Printf("  %s\n", m.t("cloudflared 실행 중", "cloudflared running"))
+		ssh.run(fmt.Sprintf(`cat > /etc/init.d/S98cloudflared <<'INITEOF'
+#!/bin/sh
+CLOUDFLARED_BIN="/usr/local/bin/cloudflared"
+CLOUDFLARED_LOG="/var/log/cloudflared.log"
+CLOUDFLARED_PID="/var/run/cloudflared.pid"
+TUNNEL_TOKEN="%s"
+case "$1" in
+  start)
+    if [ -f "$CLOUDFLARED_PID" ] && kill -0 "$(cat $CLOUDFLARED_PID)" 2>/dev/null; then
+      echo "cloudflared already running"; exit 0
+    fi
+    echo "Starting cloudflared tunnel..."
+    start-stop-daemon -S -b -m -p "$CLOUDFLARED_PID" -x /bin/sh -- -c "exec $CLOUDFLARED_BIN tunnel run --token $TUNNEL_TOKEN >> $CLOUDFLARED_LOG 2>&1"
+    ;;
+  stop) start-stop-daemon -K -p "$CLOUDFLARED_PID" 2>/dev/null; rm -f "$CLOUDFLARED_PID" ;;
+  restart) $0 stop; sleep 1; $0 start ;;
+  status)
+    if [ -f "$CLOUDFLARED_PID" ] && kill -0 "$(cat $CLOUDFLARED_PID)" 2>/dev/null; then
+      echo "running $(cat $CLOUDFLARED_PID)"
+    else echo "stopped"; fi ;;
+  *) echo "Usage: $0 {start|stop|restart|status}"; exit 1 ;;
+esac
+INITEOF
+chmod +x /etc/init.d/S98cloudflared
+killall cloudflared 2>/dev/null || true
+rm -f /var/run/cloudflared.pid
+/etc/init.d/S98cloudflared start
+sleep 3`, tunnelToken))
+
+		cfStatus := strings.TrimSpace(ssh.run("/etc/init.d/S98cloudflared status"))
+		if strings.HasPrefix(cfStatus, "running") {
+			fmt.Printf("  %s (%s)\n", m.t("cloudflared 실행 중", "cloudflared running"), cfStatus)
+		} else {
+			fmt.Printf("  %s\n", m.t("cloudflared 시작 실패 — 로그: ssh root@"+boardIP+" 'cat /var/log/cloudflared.log'",
+				"cloudflared failed — log: ssh root@"+boardIP+" 'cat /var/log/cloudflared.log'"))
+		}
 	}
 
 	// 8. Gateway autostart + swap
@@ -352,38 +390,11 @@ func registerDevice(cfg config, deviceID, adminEmail string) (*registerResponse,
 	return &result, nil
 }
 
-// --- cloudflared ---
+// --- Command helper ---
 
-func ensureCloudflared() {
-	if _, err := exec.LookPath("cloudflared"); err == nil {
-		return
-	}
-	fmt.Println("  Installing cloudflared...")
-	if runtime.GOOS == "darwin" {
-		exec.Command("brew", "install", "cloudflared").Run()
-	}
-}
-
-func startCloudflared(stateDir, tunnelToken string) {
-	pidFile := filepath.Join(stateDir, "cloudflared.pid")
-
-	// Kill existing
-	if pidData, err := os.ReadFile(pidFile); err == nil {
-		pid := strings.TrimSpace(string(pidData))
-		exec.Command("kill", pid).Run()
-		time.Sleep(500 * time.Millisecond)
-	}
-
-	cmd := exec.Command("cloudflared", "tunnel", "run", "--token", tunnelToken)
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-	if err := cmd.Start(); err != nil {
-		fmt.Printf("  cloudflared start failed: %v\n", err)
-		return
-	}
-
-	os.WriteFile(pidFile, []byte(fmt.Sprintf("%d", cmd.Process.Pid)), 0644)
-	go cmd.Wait()
+func runCmd(name string, args ...string) string {
+	out, _ := exec.Command(name, args...).CombinedOutput()
+	return string(out)
 }
 
 // --- State management (~/.quickclaw/) ---
