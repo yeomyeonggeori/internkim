@@ -36,10 +36,33 @@ type config struct {
 }
 
 func loadConfig() config {
+	loadEnvFile()
 	return config{
 		APIBaseURL:     envOr("QC_API_URL", "https://quick-claw.pages.dev"),
 		RegisterSecret: envOr("QC_REGISTER_SECRET", ""),
 		CFDomain:       envOr("QC_DOMAIN", "example.com"),
+	}
+}
+
+func loadEnvFile() {
+	for _, path := range []string{".env", "../.env"} {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			if k, v, ok := strings.Cut(line, "="); ok {
+				k = strings.TrimSpace(k)
+				v = strings.TrimSpace(v)
+				if os.Getenv(k) == "" {
+					os.Setenv(k, v)
+				}
+			}
+		}
 	}
 }
 
