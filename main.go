@@ -92,6 +92,7 @@ func runSetup() {
 	sshpassBin := filepath.Join(binDir, "sshpass")
 	getSSIDBin := filepath.Join(binDir, "get-ssid")
 	picoclawBin := filepath.Join(boardBinDir, "picoclaw")
+	boardUIDir := filepath.Join(scriptDir, "board-ui")
 
 	totalSteps := 8
 	fmt.Println("=== Quick Claw Setup ===")
@@ -179,6 +180,13 @@ sleep 3`, wpaConf))
 			ssh.run(fmt.Sprintf("chmod +x %s", bin.remote))
 			fmt.Printf("  %s %s\n", bin.name, m.t("설치 완료", "installed"))
 		}
+	}
+
+	// 5b. Deploy chat UI to board
+	if _, err := os.Stat(boardUIDir); err == nil {
+		ssh.run("rm -rf /var/www && mkdir -p /var/www")
+		ssh.scpDir(boardUIDir, "/var/www")
+		fmt.Printf("  %s\n", m.t("채팅 UI 배포 완료", "Chat UI deployed"))
 	}
 
 	// 6. OpenRouter API key + picoclaw config
@@ -280,8 +288,23 @@ sleep 3`, tunnelToken))
 		}
 	}
 
-	// 8. Gateway autostart + swap
-	step(8, totalSteps, m.t("picoclaw gateway 시작 중...", "Starting picoclaw gateway..."))
+	// 8. Services autostart + swap
+	step(8, totalSteps, m.t("서비스 시작 중...", "Starting services..."))
+
+	// httpd for static UI
+	ssh.run(`cat > /etc/init.d/S97httpd <<'INITEOF'
+#!/bin/sh
+case "$1" in
+  start) httpd -p 8080 -h /var/www ;;
+  stop) killall httpd 2>/dev/null ;;
+  restart) $0 stop; sleep 1; $0 start ;;
+  *) echo "Usage: $0 {start|stop|restart}"; exit 1 ;;
+esac
+INITEOF
+chmod +x /etc/init.d/S97httpd
+killall httpd 2>/dev/null || true
+/etc/init.d/S97httpd start`)
+	fmt.Printf("  %s\n", m.t("httpd 시작됨 (port 8080)", "httpd started (port 8080)"))
 
 	ssh.run(`cat > /etc/init.d/S99picoclaw <<'INITEOF'
 #!/bin/sh
@@ -499,6 +522,17 @@ func (s *sshClient) scp(localPath, remotePath string) {
 		"-o", "LogLevel=ERROR",
 		localPath,
 		fmt.Sprintf("%s@%s:%s", s.user, s.host, remotePath),
+	}
+	exec.Command(s.sshpassBin, args...).Run()
+}
+
+func (s *sshClient) scpDir(localDir, remoteDir string) {
+	args := []string{"-p", s.pass, "scp", "-r",
+		"-o", "StrictHostKeyChecking=no",
+		"-o", "UserKnownHostsFile=/dev/null",
+		"-o", "LogLevel=ERROR",
+		localDir + "/.",
+		fmt.Sprintf("%s@%s:%s", s.user, s.host, remoteDir),
 	}
 	exec.Command(s.sshpassBin, args...).Run()
 }
