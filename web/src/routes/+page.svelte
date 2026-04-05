@@ -1,10 +1,14 @@
 <script lang="ts">
 	import * as Chat from '$lib/components/ui/chat';
+	import * as Avatar from '$lib/components/ui/avatar';
+	import { Button } from '$lib/components/ui/button';
 	import SendIcon from '@lucide/svelte/icons/send';
 	import BotIcon from '@lucide/svelte/icons/bot';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
+	import { marked } from 'marked';
+	import DOMPurify from 'dompurify';
 
 	type Message = {
 		role: 'user' | 'assistant';
@@ -21,11 +25,15 @@
 	let pendingResolve: ((value: string) => void) | null = null;
 	let currentContent = $state('');
 
-	// Model settings
 	let currentModel = $state('');
 	let modelInput = $state('');
 	let showSettings = $state(false);
 	let modelSaving = $state(false);
+
+	function renderMarkdown(text: string): string {
+		const raw = marked.parse(text, { async: false }) as string;
+		return DOMPurify.sanitize(raw);
+	}
 
 	async function loadModel() {
 		try {
@@ -53,7 +61,6 @@
 			if (res.ok) {
 				const data = await res.json();
 				currentModel = data.new;
-				// Reconnect WS since picoclaw restarted
 				if (ws) {
 					ws.close();
 					ws = null;
@@ -186,102 +193,122 @@
 </svelte:head>
 
 <div class="flex h-svh flex-col">
-	<header class="border-b px-4 py-3">
-		<div class="mx-auto flex max-w-2xl items-center gap-2">
-			<BotIcon class="size-5 text-primary" />
-			<h1 class="text-lg font-semibold">Quick Claw</h1>
-			<span class="flex-1"></span>
+	<div class="bg-background flex items-center justify-between border-b p-2">
+		<div class="flex items-center gap-2 pl-1">
+			<Avatar.Root class="size-8">
+				<Avatar.Fallback class="bg-primary text-primary-foreground text-xs">
+					<BotIcon class="size-4" />
+				</Avatar.Fallback>
+			</Avatar.Root>
+			<div class="flex flex-col">
+				<span class="text-sm font-medium">Quick Claw</span>
+				{#if currentModel}
+					<span class="text-muted-foreground text-xs">{currentModel}</span>
+				{/if}
+			</div>
+		</div>
+		<div class="flex items-center">
 			{#if showSettings}
 				<div class="flex items-center gap-1">
 					<input
 						bind:value={modelInput}
 						onkeydown={onModelKeydown}
-						placeholder="model ID"
-						class="border-input bg-background w-56 rounded border px-2 py-1 text-xs outline-none"
+						placeholder="model ID (e.g. google/gemini-3.1-flash-lite-preview)"
+						class="border-input bg-background w-64 rounded-lg border px-2.5 py-1.5 text-xs outline-none"
 					/>
-					<button
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						class="rounded-full"
 						onclick={saveModel}
 						disabled={modelSaving}
-						class="text-muted-foreground hover:text-foreground inline-flex size-7 items-center justify-center rounded"
 					>
 						{#if modelSaving}
-							<LoaderIcon class="size-3.5 animate-spin" />
+							<LoaderIcon class="animate-spin" />
 						{:else}
-							<CheckIcon class="size-3.5" />
+							<CheckIcon />
 						{/if}
-					</button>
+					</Button>
 				</div>
 			{:else}
-				<button
+				<Button
+					variant="ghost"
+					size="icon"
+					class="rounded-full"
 					onclick={() => {
 						showSettings = true;
 						modelInput = currentModel;
 					}}
-					class="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs"
 				>
-					{#if currentModel}
-						<span class="max-w-40 truncate">{currentModel}</span>
-					{/if}
-					<SettingsIcon class="size-4" />
-				</button>
+					<SettingsIcon />
+				</Button>
 			{/if}
 		</div>
-	</header>
-
-	<div class="flex-1 overflow-hidden">
-		<div class="mx-auto h-full max-w-2xl">
-			<Chat.List class="h-full">
-				{#if messages.length === 0}
-					<div class="flex h-full items-center justify-center text-muted-foreground">
-						<p>Send a message to start chatting.</p>
-					</div>
-				{/if}
-
-				{#each messages as msg}
-					<Chat.Bubble variant={msg.role === 'user' ? 'sent' : 'received'}>
-						{#if msg.role === 'assistant'}
-							<Chat.BubbleAvatar>
-								<Chat.BubbleAvatarFallback>
-									<BotIcon class="size-4" />
-								</Chat.BubbleAvatarFallback>
-							</Chat.BubbleAvatar>
-						{/if}
-						<Chat.BubbleMessage>
-							{msg.content}
-						</Chat.BubbleMessage>
-					</Chat.Bubble>
-				{/each}
-
-				{#if loading}
-					<Chat.Bubble variant="received">
-						<Chat.BubbleAvatar>
-							<Chat.BubbleAvatarFallback>
-								<BotIcon class="size-4" />
-							</Chat.BubbleAvatarFallback>
-						</Chat.BubbleAvatar>
-						<Chat.BubbleMessage typing />
-					</Chat.Bubble>
-				{/if}
-			</Chat.List>
-		</div>
 	</div>
 
-	<div class="border-t px-4 py-3">
-		<div class="mx-auto flex max-w-2xl gap-2">
-			<textarea
-				bind:value={input}
-				{onkeydown}
-				placeholder="Type a message..."
-				rows={1}
-				class="border-input bg-background ring-ring/10 flex-1 resize-none rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
-			></textarea>
-			<button
-				onclick={send}
-				disabled={loading || !input.trim()}
-				class="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex size-10 shrink-0 items-center justify-center rounded-lg disabled:opacity-50"
-			>
-				<SendIcon class="size-4" />
-			</button>
-		</div>
-	</div>
+	<Chat.List class="flex-1">
+		{#if messages.length === 0}
+			<div class="text-muted-foreground flex h-full items-center justify-center">
+				<p>Send a message to start chatting.</p>
+			</div>
+		{/if}
+
+		{#each messages as msg}
+			<Chat.Bubble variant={msg.role === 'user' ? 'sent' : 'received'}>
+				{#if msg.role === 'assistant'}
+					<Chat.BubbleAvatar>
+						<Chat.BubbleAvatarFallback>
+							<BotIcon class="size-4" />
+						</Chat.BubbleAvatarFallback>
+					</Chat.BubbleAvatar>
+				{/if}
+				<Chat.BubbleMessage>
+					{#if msg.role === 'assistant'}
+						<div class="markdown max-w-none text-sm">
+							{@html renderMarkdown(msg.content)}
+						</div>
+					{:else}
+						{msg.content}
+					{/if}
+				</Chat.BubbleMessage>
+			</Chat.Bubble>
+		{/each}
+
+		{#if loading}
+			<Chat.Bubble variant="received">
+				<Chat.BubbleAvatar>
+					<Chat.BubbleAvatarFallback>
+						<BotIcon class="size-4" />
+					</Chat.BubbleAvatarFallback>
+				</Chat.BubbleAvatar>
+				<Chat.BubbleMessage typing />
+			</Chat.Bubble>
+		{/if}
+	</Chat.List>
+
+	<form
+		onsubmit={(e) => {
+			e.preventDefault();
+			send();
+		}}
+		class="flex items-center gap-2 border-t p-2"
+	>
+		<input
+			bind:value={input}
+			{onkeydown}
+			placeholder="Type a message..."
+			class="border-input bg-background flex-1 rounded-full border px-4 py-2 text-sm outline-none"
+		/>
+		<Button
+			type="submit"
+			variant="default"
+			size="icon"
+			class="shrink-0 rounded-full"
+			disabled={loading || !input.trim()}
+		>
+			<SendIcon />
+		</Button>
+	</form>
 </div>
+
+
