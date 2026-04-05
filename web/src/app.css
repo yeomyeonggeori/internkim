@@ -117,3 +117,33 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  .markdown pre {
+    @apply bg-muted overflow-x-auto rounded-md p-3 my-2;
+  }
+  .markdown code {
+    @apply bg-muted rounded px-1 py-0.5 text-xs;
+  }
+  .markdown pre code {
+    @apply bg-transparent p-0;
+  }
+  .markdown p {
+    @apply my-1;
+  }
+  .markdown ul {
+    @apply my-1 pl-4 list-disc;
+  }
+  .markdown ol {
+    @apply my-1 pl-4 list-decimal;
+  }
+  .markdown blockquote {
+    @apply border-border my-1 border-l-2 pl-3 italic;
+  }
+  .markdown h1, .markdown h2, .markdown h3 {
+    @apply font-semibold mt-2 mb-1;
+  }
+  .markdown a {
+    @apply text-primary underline;
+  }
+}
