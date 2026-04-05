@@ -291,6 +291,11 @@ func main() {
 	mux.HandleFunc("/pico/token", handleToken(home))
 	mux.HandleFunc("/pico/model", handleModel(home))
 	mux.HandleFunc("/pico/history/", handleHistory(home))
+	mux.HandleFunc("/pico/me", func(w http.ResponseWriter, r *http.Request) {
+		email := r.Header.Get("Cf-Access-Authenticated-User-Email")
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"email": email})
+	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"status":"ok"}`))
 	})

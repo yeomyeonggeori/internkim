@@ -24,13 +24,12 @@
 
 	const apiBase = () => (location.port === '5173' ? 'http://192.168.0.141:8080' : '');
 
-	function getCurrentUserEmail(): string {
+	async function fetchCurrentUserEmail(): Promise<string> {
 		try {
-			const cookie = document.cookie.split(';').find((c) => c.trim().startsWith('CF_Authorization='));
-			if (!cookie) return '';
-			const token = cookie.split('=')[1];
-			const payload = JSON.parse(atob(token.split('.')[1]));
-			return payload.email || '';
+			const response = await fetch(`${apiBase()}/pico/me`);
+			if (!response.ok) return '';
+			const data = await response.json();
+			return data.email || '';
 		} catch {
 			return '';
 		}
@@ -196,8 +195,8 @@
 		loading = false;
 	}
 
-	onMount(() => {
-		currentUser = getCurrentUserEmail();
+	onMount(async () => {
+		currentUser = await fetchCurrentUserEmail();
 		sessionId = currentUser
 			? `user-${currentUser.replace(/[^a-z0-9]/gi, '-')}`
 			: `chat-${crypto.randomUUID().slice(0, 8)}`;
