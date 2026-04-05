@@ -150,14 +150,20 @@ func runSetup() {
 		"Enter your Mac credentials when the keychain popup appears.",
 	))
 	wifiPass := getKeychainPassword(ssid)
-	if wifiPass == "" {
-		fatal(m.t("키체인에서 비밀번호를 가져올 수 없습니다.", "Failed to retrieve password from keychain."))
-	}
-	fmt.Printf("  %s: %s\n", m.t("비밀번호", "Password"), maskString(wifiPass))
 
-	// 3. Configure Wi-Fi on board
-	step(3, totalSteps, m.t("보드에 Wi-Fi 설정 중...", "Configuring Wi-Fi on board..."))
-	wpaConf := fmt.Sprintf(`ctrl_interface=/var/run/wpa_supplicant
+	var wpaConf string
+	if wifiPass == "" {
+		fmt.Printf("  %s\n", m.t("오픈 네트워크 (비밀번호 없음)", "Open network (no password)"))
+		wpaConf = fmt.Sprintf(`ctrl_interface=/var/run/wpa_supplicant
+ap_scan=1
+network={
+  ssid="%s"
+  scan_ssid=1
+  key_mgmt=NONE
+}`, ssid)
+	} else {
+		fmt.Printf("  %s: %s\n", m.t("비밀번호", "Password"), maskString(wifiPass))
+		wpaConf = fmt.Sprintf(`ctrl_interface=/var/run/wpa_supplicant
 ap_scan=1
 network={
   ssid="%s"
@@ -165,19 +171,32 @@ network={
   key_mgmt=WPA-PSK
   psk="%s"
 }`, ssid, wifiPass)
+	}
+
+	// 3. Configure Wi-Fi on board
+	step(3, totalSteps, m.t("보드에 Wi-Fi 설정 중...", "Configuring Wi-Fi on board..."))
 
 	ssh.run(fmt.Sprintf(`killall wpa_supplicant 2>/dev/null || true
 cat > /etc/wpa_supplicant.conf <<'WPAEOF'
 %s
 WPAEOF
 wpa_supplicant -i wlan0 -c /etc/wpa_supplicant.conf -B
-sleep 2
-udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true
-sleep 3`, wpaConf))
+sleep 3
+udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true`, wpaConf))
 
-	// 4. Verify Wi-Fi
+	// 4. Verify Wi-Fi (retry up to 3 times)
 	step(4, totalSteps, m.t("Wi-Fi 연결 확인 중...", "Verifying Wi-Fi connection..."))
-	wifiIP := strings.TrimSpace(ssh.run("ip -4 addr show wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d/ -f1"))
+	var wifiIP string
+	for attempt := 0; attempt < 3; attempt++ {
+		wifiIP = strings.TrimSpace(ssh.run("ip -4 addr show wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d/ -f1"))
+		if wifiIP != "" {
+			break
+		}
+		if attempt < 2 {
+			fmt.Printf("  %s (%d/3)\n", m.t("재시도 중...", "Retrying..."), attempt+2)
+			ssh.run("udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true")
+		}
+	}
 	if wifiIP == "" {
 		fmt.Printf("  %s\n", m.t("Wi-Fi 연결 실패.", "Wi-Fi connection failed."))
 		fmt.Printf("  %s: ssh root@%s\n", m.t("USB로 디버깅", "Debug via USB"), boardIP)
@@ -328,6 +347,11 @@ chmod +x /etc/init.d/S97httpd
 /etc/init.d/S97httpd stop 2>/dev/null
 /etc/init.d/S97httpd start`)
 	fmt.Printf("  %s\n", m.t("httpd 시작됨 (port 8080)", "httpd started (port 8080)"))
+
+	// Remove skills whose required binaries are not available on this device
+	ssh.run(`cd /root/.picoclaw/workspace/skills 2>/dev/null && \
+rm -rf agent-browser github summarize skill-creator 2>/dev/null; \
+echo "Cleaned unavailable skills"`)
 
 	ssh.run(`cat > /etc/init.d/S99picoclaw <<'INITEOF'
 #!/bin/sh
