@@ -74,10 +74,11 @@ export async function createAccessApplication(env: CFEnv, deviceId: string) {
 	const app = await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`, {
 		method: 'POST',
 		body: JSON.stringify({
-			name: `qc-${deviceId}`,
+			name: 'intern kim',
 			domain: hostname,
 			type: 'self_hosted',
-			session_duration: '720h'
+			session_duration: '720h',
+			logo_url: `https://${hostname}/logo.svg`
 		})
 	});
 
