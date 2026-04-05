@@ -2,15 +2,19 @@
 	import * as Chat from '$lib/components/ui/chat';
 
 	import * as InputGroup from '$lib/components/ui/input-group';
+	import * as ButtonGroup from '$lib/components/ui/button-group';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Button } from '$lib/components/ui/button';
+	import { Input } from '$lib/components/ui/input';
+	import { Badge } from '$lib/components/ui/badge';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
 	const logoSrc = '/logo.svg';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
+	import MailIcon from '@lucide/svelte/icons/mail';
 	import { Separator } from '$lib/components/ui/separator';
 	import { onMount } from 'svelte';
 	import { marked } from 'marked';
@@ -324,16 +328,16 @@
 </script>
 
 <svelte:head>
-	<title>Quick Claw</title>
+	<title>blueclaw</title>
 </svelte:head>
 
 <!-- Settings Sheet -->
 <Sheet.Root bind:open={showSettingsSheet}>
-	<Sheet.Content side="right" class="flex flex-col">
-		<Sheet.Header>
+	<Sheet.Content side="right" class="flex flex-col p-6">
+		<Sheet.Header class="px-0">
 			<Sheet.Title>Settings</Sheet.Title>
 		</Sheet.Header>
-		<div class="flex flex-1 flex-col gap-6 overflow-y-auto pt-4">
+		<div class="flex flex-1 flex-col gap-6 overflow-y-auto p-1 -m-1 pt-4">
 			{#if currentUser}
 				<section class="flex flex-col gap-1.5">
 					<h3 class="text-muted-foreground text-xs font-medium uppercase tracking-wider">Account</h3>
@@ -354,7 +358,7 @@
 								<div class="flex items-center gap-2 text-sm">
 									<span>{email}</span>
 									{#if i === 0}
-										<span class="text-muted-foreground bg-muted rounded px-1.5 py-0.5 text-[10px] font-medium">admin</span>
+										<Badge variant="secondary" class="text-[10px]">admin</Badge>
 									{/if}
 								</div>
 								{#if i > 0}
@@ -377,21 +381,27 @@
 						e.preventDefault();
 						addEmail();
 					}}
-					class="flex gap-2"
+					
 				>
-					<input
-						bind:value={newEmail}
-						type="email"
-						placeholder="Add email..."
-						class="border-input bg-background flex-1 rounded-md border px-2.5 py-1.5 text-sm outline-none"
-					/>
-					<Button type="submit" size="sm" disabled={emailLoading || !newEmail.trim()}>
-						{#if emailLoading}
-							<LoaderIcon class="size-3.5 animate-spin" />
-						{:else}
-							Add
-						{/if}
-					</Button>
+					<ButtonGroup.Root class="flex w-full">
+						<InputGroup.Root class="flex-1">
+							<InputGroup.Addon>
+								<MailIcon />
+							</InputGroup.Addon>
+							<InputGroup.Input
+								bind:value={newEmail}
+								type="email"
+								placeholder="Add email..."
+							/>
+						</InputGroup.Root>
+						<Button type="submit" size="icon" disabled={emailLoading || !newEmail.trim()}>
+							{#if emailLoading}
+								<LoaderIcon class="size-4 animate-spin" />
+							{:else}
+								<PlusIcon class="size-4" />
+							{/if}
+						</Button>
+					</ButtonGroup.Root>
 				</form>
 			</section>
 		</div>
@@ -440,8 +450,8 @@
 	<!-- Header -->
 	<div class="bg-background flex items-center justify-between border-b p-2">
 		<div class="flex items-center gap-2 pl-1">
-			<img src={logoSrc} alt="Quick Claw" class="size-8" />
-			<span class="text-sm font-medium">Quick Claw</span>
+			<img src={logoSrc} alt="blueclaw" class="size-8" />
+			<span class="text-sm font-medium">blueclaw</span>
 		</div>
 		<Button variant="ghost" size="icon" onclick={() => (showSettingsSheet = true)}>
 			<SettingsIcon />
@@ -462,7 +472,7 @@
 					<Chat.Bubble variant={msg.role === 'user' ? 'sent' : 'received'}>
 						{#if msg.role === 'assistant'}
 							<Chat.BubbleAvatar>
-								<Chat.BubbleAvatarImage src={logoSrc} alt="Quick Claw" />
+								<Chat.BubbleAvatarImage src={logoSrc} alt="blueclaw" />
 							</Chat.BubbleAvatar>
 						{/if}
 						<Chat.BubbleMessage>
@@ -489,7 +499,7 @@
 				{#if loading}
 					<Chat.Bubble variant="received">
 						<Chat.BubbleAvatar>
-							<Chat.BubbleAvatarImage src={logoSrc} alt="Quick Claw" />
+							<Chat.BubbleAvatarImage src={logoSrc} alt="blueclaw" />
 						</Chat.BubbleAvatar>
 						<Chat.BubbleMessage typing />
 					</Chat.Bubble>
