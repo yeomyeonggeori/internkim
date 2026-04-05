@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -14,8 +15,9 @@ import (
 
 const (
 	picoTokenPrefix = "pico-"
-	defaultPort     = "8090"
+	defaultPort     = "8080"
 	defaultHome     = "/root/.picoclaw"
+	defaultWebRoot  = "/var/www"
 )
 
 type pidFileData struct {
@@ -179,6 +181,90 @@ func ensurePrefix(model string) string {
 	return "openrouter/" + model
 }
 
+func handleHistory(home string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cors(w)
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(200)
+			return
+		}
+		sid := strings.TrimPrefix(r.URL.Path, "/pico/history/")
+		if sid == "" {
+			http.Error(w, "session_id required", 400)
+			return
+		}
+
+		sessDir := filepath.Join(home, "workspace", "sessions")
+		// Session file pattern: agent_main_pico_direct_pico_{session_id}.jsonl
+		pattern := filepath.Join(sessDir, "agent_main_pico_direct_pico_"+sid+".jsonl")
+		raw, err := os.ReadFile(pattern)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]any{"messages": []any{}})
+			return
+		}
+
+		var messages []map[string]string
+		for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+			if line == "" {
+				continue
+			}
+			var msg map[string]string
+			if err := json.Unmarshal([]byte(line), &msg); err != nil {
+				continue
+			}
+			role := msg["role"]
+			if role == "user" || role == "assistant" {
+				messages = append(messages, map[string]string{
+					"role":    role,
+					"content": msg["content"],
+				})
+			}
+		}
+		if messages == nil {
+			messages = []map[string]string{}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"messages": messages})
+	}
+}
+
+func handleWSProxy(w http.ResponseWriter, r *http.Request) {
+	backend, err := net.Dial("tcp", "localhost:18790")
+	if err != nil {
+		http.Error(w, "backend unavailable", http.StatusBadGateway)
+		return
+	}
+
+	hijacker, ok := w.(http.Hijacker)
+	if !ok {
+		backend.Close()
+		http.Error(w, "hijack not supported", http.StatusInternalServerError)
+		return
+	}
+
+	// Forward the original request to backend
+	r.URL.Path = "/pico/ws"
+	r.URL.Scheme = "http"
+	r.URL.Host = "localhost:18790"
+	r.Header.Set("Host", "localhost:18790")
+	if err := r.Write(backend); err != nil {
+		backend.Close()
+		http.Error(w, "failed to write to backend", http.StatusBadGateway)
+		return
+	}
+
+	client, _, err := hijacker.Hijack()
+	if err != nil {
+		backend.Close()
+		return
+	}
+
+	go func() { io.Copy(backend, client); backend.Close() }()
+	go func() { io.Copy(client, backend); client.Close() }()
+}
+
 func cors(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, PUT, OPTIONS")
@@ -195,14 +281,31 @@ func main() {
 		home = h
 	}
 
+	webRoot := defaultWebRoot
+	if w := os.Getenv("WEB_ROOT"); w != "" {
+		webRoot = w
+	}
+
 	mux := http.NewServeMux()
+	mux.HandleFunc("/pico/ws", handleWSProxy)
 	mux.HandleFunc("/pico/token", handleToken(home))
 	mux.HandleFunc("/pico/model", handleModel(home))
+	mux.HandleFunc("/pico/history/", handleHistory(home))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"status":"ok"}`))
 	})
+	// Static file serving with SPA fallback
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		path := filepath.Join(webRoot, r.URL.Path)
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			http.ServeFile(w, r, path)
+			return
+		}
+		// SPA fallback
+		http.ServeFile(w, r, filepath.Join(webRoot, "index.html"))
+	})
 
-	fmt.Fprintf(os.Stderr, "pico-token-server listening on :%s\n", port)
+	fmt.Fprintf(os.Stderr, "pico-bridge listening on :%s (web: %s)\n", port, webRoot)
 	if err := http.ListenAndServe(":"+port, mux); err != nil {
 		fmt.Fprintf(os.Stderr, "fatal: %v\n", err)
 		os.Exit(1)
