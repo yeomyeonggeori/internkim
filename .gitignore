@@ -1,6 +1,7 @@
 .factory/
 .DS_Store
 board-bin/
+board-ui/
 quick-claw
 .env
 .dev.vars
