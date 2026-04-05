@@ -173,16 +173,7 @@ func handleModel(home string) http.HandlerFunc {
 }
 
 func ensurePrefix(model string) string {
-	parts := strings.SplitN(model, "/", 2)
-	if len(parts) < 2 {
-		return model
-	}
-	known := map[string]bool{
-		"openrouter": true, "openai": true, "anthropic": true, "gemini": true,
-		"azure": true, "bedrock": true, "ollama": true, "groq": true,
-		"deepseek": true, "mistral": true, "qwen": true,
-	}
-	if known[parts[0]] {
+	if strings.HasPrefix(model, "openrouter/") {
 		return model
 	}
 	return "openrouter/" + model
