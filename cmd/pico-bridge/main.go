@@ -1,156 +1,104 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
-	"regexp"
-	"strings"
-	"time"
+	"path/filepath"
 )
 
-var (
-	picoclaw = "/usr/local/bin/picoclaw"
-	port     = "8090"
-	ansiRe   = regexp.MustCompile(`\x1b\[[0-9;]*m|\x1b\[K`)
+const (
+	picoTokenPrefix = "pico-"
+	defaultPort     = "8090"
+	defaultHome     = "/root/.picoclaw"
 )
 
-type chatRequest struct {
-	Messages  []message `json:"messages"`
-	SessionID string    `json:"session_id,omitempty"`
+type pidFileData struct {
+	Token string `json:"token"`
+	Port  int    `json:"port"`
+	Host  string `json:"host"`
 }
 
-type message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+type picoConfig struct {
+	Channels struct {
+		Pico struct {
+			Token string `json:"token"`
+		} `json:"pico"`
+	} `json:"channels"`
 }
 
-type chatResponse struct {
-	ID      string   `json:"id"`
-	Object  string   `json:"object"`
-	Choices []choice `json:"choices"`
+func buildPicoToken(home string) (string, int, error) {
+	pidPath := filepath.Join(home, ".picoclaw.pid")
+	pidRaw, err := os.ReadFile(pidPath)
+	if err != nil {
+		return "", 0, fmt.Errorf("read pid file: %w", err)
+	}
+	var pid pidFileData
+	if err := json.Unmarshal(pidRaw, &pid); err != nil {
+		return "", 0, fmt.Errorf("parse pid file: %w", err)
+	}
+
+	cfgPath := filepath.Join(home, "config.json")
+	cfgRaw, err := os.ReadFile(cfgPath)
+	if err != nil {
+		return "", 0, fmt.Errorf("read config: %w", err)
+	}
+	var cfg picoConfig
+	if err := json.Unmarshal(cfgRaw, &cfg); err != nil {
+		return "", 0, fmt.Errorf("parse config: %w", err)
+	}
+
+	token := picoTokenPrefix + pid.Token + cfg.Channels.Pico.Token
+	return token, pid.Port, nil
 }
 
-type choice struct {
-	Index        int     `json:"index"`
-	Message      message `json:"message"`
-	FinishReason string  `json:"finish_reason"`
-}
-
-func callAgent(text, sessionID string) string {
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, picoclaw, "agent", "-m", text, "-s", sessionID)
-	out, _ := cmd.CombinedOutput()
-	return cleanOutput(string(out))
-}
-
-func cleanOutput(raw string) string {
-	raw = ansiRe.ReplaceAllString(raw, "")
-	var lines []string
-	for _, line := range strings.Split(raw, "\n") {
-		if strings.ContainsAny(line, "██╗╝═") {
-			continue
+func handleToken(home string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodOptions {
+			cors(w)
+			w.WriteHeader(200)
+			return
 		}
-		trimmed := strings.TrimSpace(line)
-		// Strip 🦞 prefix if present
-		trimmed = strings.TrimPrefix(trimmed, "🦞")
-		trimmed = strings.TrimSpace(trimmed)
-		if strings.HasPrefix(trimmed, "ERR ") || strings.HasPrefix(trimmed, "WRN ") ||
-			strings.HasPrefix(trimmed, "INF ") || strings.HasPrefix(trimmed, "DBG ") ||
-			strings.Contains(trimmed, "Usage:") || strings.Contains(trimmed, "Flags:") ||
-			strings.Contains(trimmed, "picoclaw agent") ||
-			strings.HasPrefix(trimmed, "-m, ") || strings.HasPrefix(trimmed, "-d, ") ||
-			strings.HasPrefix(trimmed, "-h, ") || strings.HasPrefix(trimmed, "-s, ") {
-			continue
+
+		token, port, err := buildPicoToken(home)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
 		}
-		if trimmed != "" {
-			lines = append(lines, trimmed)
-		}
+
+		cors(w)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"token":  token,
+			"ws_url": fmt.Sprintf("ws://localhost:%d/pico/ws", port),
+		})
 	}
-	if len(lines) == 0 {
-		return "(no response)"
-	}
-	return strings.Join(lines, "\n")
 }
 
-func handleChat(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodOptions {
-		corsHeaders(w)
-		w.WriteHeader(200)
-		return
-	}
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", 405)
-		return
-	}
-
-	var req chatRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", 400)
-		return
-	}
-
-	var text string
-	for i := len(req.Messages) - 1; i >= 0; i-- {
-		if req.Messages[i].Role == "user" {
-			text = req.Messages[i].Content
-			break
-		}
-	}
-	if text == "" {
-		http.Error(w, "no user message", 400)
-		return
-	}
-
-	sid := req.SessionID
-	if sid == "" {
-		sid = fmt.Sprintf("web:%d", time.Now().UnixMilli())
-	}
-
-	content := callAgent(text, sid)
-
-	resp := chatResponse{
-		ID:     fmt.Sprintf("chatcmpl-%d", time.Now().UnixMilli()),
-		Object: "chat.completion",
-		Choices: []choice{{
-			Index:        0,
-			Message:      message{Role: "assistant", Content: content},
-			FinishReason: "stop",
-		}},
-	}
-
-	corsHeaders(w)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
-func corsHeaders(w http.ResponseWriter) {
+func cors(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-}
-
-func handleHealth(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte(`{"status":"ok"}`))
+	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 }
 
 func main() {
+	port := defaultPort
 	if p := os.Getenv("BRIDGE_PORT"); p != "" {
 		port = p
 	}
-	if p := os.Getenv("PICOCLAW_BIN"); p != "" {
-		picoclaw = p
+	home := defaultHome
+	if h := os.Getenv("PICOCLAW_HOME"); h != "" {
+		home = h
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/v1/chat/completions", handleChat)
-	mux.HandleFunc("/health", handleHealth)
+	mux.HandleFunc("/pico/token", handleToken(home))
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"status":"ok"}`))
+	})
 
-	fmt.Fprintf(os.Stderr, "pico-bridge listening on :%s\n", port)
+	fmt.Fprintf(os.Stderr, "pico-token-server listening on :%s\n", port)
 	if err := http.ListenAndServe(":"+port, mux); err != nil {
 		fmt.Fprintf(os.Stderr, "fatal: %v\n", err)
 		os.Exit(1)

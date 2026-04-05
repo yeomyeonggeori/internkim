@@ -6,11 +6,73 @@
 	type Message = {
 		role: 'user' | 'assistant';
 		content: string;
+		id?: string;
 	};
 
 	let messages = $state<Message[]>([]);
 	let input = $state('');
 	let loading = $state(false);
+	let ws = $state<WebSocket | null>(null);
+	let sessionId = $state('chat-' + crypto.randomUUID().slice(0, 8));
+	let pendingResolve: ((value: string) => void) | null = null;
+	let currentContent = $state('');
+
+	async function getToken(): Promise<{ token: string; ws_url: string }> {
+		const base = location.port === '5173' ? 'http://192.168.0.141:8090' : '';
+		const res = await fetch(`${base}/pico/token`);
+		return res.json();
+	}
+
+	async function connectWs() {
+		const { token } = await getToken();
+		const host = location.port === '5173' ? '192.168.0.141:18790' : location.host;
+		const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+		const url = `${proto}://${host}/pico/ws?session_id=${sessionId}`;
+
+		return new Promise<WebSocket>((resolve, reject) => {
+			const socket = new WebSocket(url, [`token.${token}`]);
+			socket.onopen = () => resolve(socket);
+			socket.onerror = () => reject(new Error('WebSocket connection failed'));
+			socket.onmessage = (e) => {
+				const data = JSON.parse(e.data);
+				handlePicoMessage(data);
+			};
+			socket.onclose = () => {
+				ws = null;
+			};
+		});
+	}
+
+	function handlePicoMessage(data: { type: string; payload?: Record<string, unknown> }) {
+		switch (data.type) {
+			case 'typing.start':
+				loading = true;
+				break;
+			case 'typing.stop':
+				break;
+			case 'message.create': {
+				const content = (data.payload?.content as string) || '';
+				if (pendingResolve) {
+					pendingResolve(content);
+					pendingResolve = null;
+				}
+				break;
+			}
+			case 'message.update': {
+				const content = (data.payload?.content as string) || '';
+				currentContent = content;
+				break;
+			}
+			case 'error': {
+				const msg = (data.payload?.message as string) || 'Unknown error';
+				if (pendingResolve) {
+					pendingResolve(`Error: ${msg}`);
+					pendingResolve = null;
+				}
+				break;
+			}
+		}
+	}
 
 	async function send() {
 		const text = input.trim();
@@ -19,40 +81,33 @@
 		messages.push({ role: 'user', content: text });
 		input = '';
 		loading = true;
-
-		const assistantMsg: Message = { role: 'assistant', content: '' };
+		currentContent = '';
 
 		try {
-			const res = await fetch('/v1/chat/completions', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					model: 'default',
-					messages: messages.map((m) => ({ role: m.role, content: m.content })),
-					stream: false
-				})
+			if (!ws || ws.readyState !== WebSocket.OPEN) {
+				ws = await connectWs();
+			}
+
+			const content = await new Promise<string>((resolve) => {
+				pendingResolve = resolve;
+				const msg = {
+					type: 'message.send',
+					id: crypto.randomUUID(),
+					payload: { content: text }
+				};
+				ws!.send(JSON.stringify(msg));
+
+				setTimeout(() => {
+					if (pendingResolve === resolve) {
+						resolve(currentContent || '(timeout)');
+						pendingResolve = null;
+					}
+				}, 120000);
 			});
 
-			if (!res.ok) {
-				const errText = await res.text();
-				messages.push({
-					role: 'assistant',
-					content: `Error: ${res.status} ${errText.slice(0, 200)}`
-				});
-				return;
-			}
-
-			const data = (await res.json()) as {
-				choices?: { message?: { content?: string } }[];
-			};
-			assistantMsg.content = data.choices?.[0]?.message?.content || 'No response';
-			messages.push(assistantMsg);
+			messages.push({ role: 'assistant', content });
 		} catch (e) {
-			if (assistantMsg.content) {
-				assistantMsg.content += `\n\n[Connection lost: ${e}]`;
-			} else {
-				messages.push({ role: 'assistant', content: `Connection error: ${e}` });
-			}
+			messages.push({ role: 'assistant', content: `Connection error: ${e}` });
 		} finally {
 			loading = false;
 		}
