@@ -25,7 +25,7 @@ var (
 	usbNCMIPs = []string{"10.11.60.1"}
 
 	picoclawModelName = "openrouter"
-	picoclawModel     = "google/gemini-3.1-flash-lite-preview"
+	picoclawModel     = "qwen/qwen3.6-plus:free"
 	picoclawAPIBase   = "https://openrouter.ai/api/v1"
 )
 
@@ -71,6 +71,8 @@ func main() {
 		switch os.Args[1] {
 		case "setup":
 			runSetup()
+		case "model":
+			runModel()
 		case "invite":
 			runInvite()
 		case "users":
@@ -92,6 +94,7 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("Commands:")
 	fmt.Println("  setup    Full device provisioning")
+	fmt.Println("  model    Manage LLM model (current/set/list)")
 	fmt.Println("  invite   Generate invite QR code")
 	fmt.Println("  users    Manage allowed users")
 	fmt.Println("  status   Check board and tunnel status")
@@ -234,17 +237,14 @@ sleep 3`, wpaConf))
 	}
 
 	if !skipAPIKey {
-		configJSON := buildPicoclawConfig(picoclawModelName, picoclawModel, picoclawAPIBase)
-		securityYML := buildPicoclawSecurity(picoclawModelName, apiKey)
+		configJSON := buildPicoclawConfig(picoclawModelName, picoclawModel, picoclawAPIBase, apiKey)
 
 		ssh.run(fmt.Sprintf(`/usr/local/bin/picoclaw onboard 2>/dev/null || true
 cat > /root/.picoclaw/config.json <<'CFGEOF'
 %s
 CFGEOF
-cat > /root/.picoclaw/.security.yml <<'SECEOF'
-%s
-SECEOF
-chmod 600 /root/.picoclaw/.security.yml`, configJSON, securityYML))
+chmod 600 /root/.picoclaw/config.json
+rm -f /root/.picoclaw/.security.yml`, configJSON))
 	}
 
 	// 7. Register device + cloudflared
@@ -318,14 +318,14 @@ sleep 3`, tunnelToken))
 	ssh.run(`cat > /etc/init.d/S97httpd <<'INITEOF'
 #!/bin/sh
 case "$1" in
-  start) httpd -p 8080 -h /var/www ;;
-  stop) killall httpd 2>/dev/null ;;
+  start) cd /var/www && python3 -m http.server 8080 >> /var/log/httpd.log 2>&1 & ;;
+  stop) kill $(ps | grep "python3 -m http.server" | grep -v grep | awk '{print $1}') 2>/dev/null ;;
   restart) $0 stop; sleep 1; $0 start ;;
   *) echo "Usage: $0 {start|stop|restart}"; exit 1 ;;
 esac
 INITEOF
 chmod +x /etc/init.d/S97httpd
-killall httpd 2>/dev/null || true
+/etc/init.d/S97httpd stop 2>/dev/null
 /etc/init.d/S97httpd start`)
 	fmt.Printf("  %s\n", m.t("httpd 시작됨 (port 8080)", "httpd started (port 8080)"))
 
@@ -390,6 +390,151 @@ fi`)
 	fmt.Println()
 	fmt.Printf("  %s:\n", m.t("SSH 접속", "SSH access"))
 	fmt.Printf("    ssh root@%s\n", wifiIP)
+}
+
+// --- Model management ---
+
+func runModel() {
+	sub := ""
+	if len(os.Args) > 2 {
+		sub = os.Args[2]
+	}
+
+	scriptDir, _ := os.Getwd()
+	sshpassBin := filepath.Join(scriptDir, "bin", "sshpass")
+
+	boardIP := detectBoard(usbNCMIPs)
+	if boardIP == "" {
+		boardIP = detectBoardWifi(sshpassBin)
+	}
+	if boardIP == "" {
+		fatal("Board not found. Connect via USB or ensure Wi-Fi is reachable.")
+	}
+
+	ssh := newSSH(sshpassBin, boardUser, boardPass, boardIP)
+
+	switch sub {
+	case "current", "":
+		modelCurrentCmd(ssh)
+	case "set":
+		if len(os.Args) < 4 {
+			fmt.Println("Usage: quick-claw model set <model-id>")
+			fmt.Println("Example: quick-claw model set google/gemini-2.5-flash-lite-preview")
+			os.Exit(1)
+		}
+		modelSetCmd(ssh, os.Args[3])
+	case "list":
+		modelListCmd(ssh)
+	default:
+		fmt.Println("Usage: quick-claw model <current|set|list>")
+	}
+}
+
+func modelCurrentCmd(ssh *sshClient) {
+	raw := ssh.run("cat /root/.picoclaw/config.json")
+	var cfg map[string]any
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		fatal("Failed to read config: " + err.Error())
+	}
+	models, _ := cfg["model_list"].([]any)
+	if len(models) == 0 {
+		fmt.Println("No model configured.")
+		return
+	}
+	m, _ := models[0].(map[string]any)
+	fmt.Printf("Model: %s\n", m["model"])
+}
+
+func modelSetCmd(ssh *sshClient, modelID string) {
+	raw := ssh.run("cat /root/.picoclaw/config.json")
+	var cfg map[string]any
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		fatal("Failed to read config: " + err.Error())
+	}
+
+	models, _ := cfg["model_list"].([]any)
+	if len(models) == 0 {
+		fatal("No model_list in config.")
+	}
+	m, _ := models[0].(map[string]any)
+	old := m["model"]
+	m["model"] = modelID
+	models[0] = m
+	cfg["model_list"] = models
+
+	b, _ := json.MarshalIndent(cfg, "", "  ")
+	ssh.run(fmt.Sprintf("cat > /root/.picoclaw/config.json <<'EOF'\n%s\nEOF", string(b)))
+
+	// Restart picoclaw
+	ssh.run("killall picoclaw 2>/dev/null; rm -f /root/.picoclaw/.picoclaw.pid; sleep 1; /etc/init.d/S99picoclaw start 2>/dev/null")
+	fmt.Printf("Model changed: %s -> %s\n", old, modelID)
+	fmt.Println("picoclaw restarted.")
+}
+
+func modelListCmd(ssh *sshClient) {
+	// Read current API key from security.yml to query OpenRouter
+	keyLine := strings.TrimSpace(ssh.run(`grep 'sk-or-' /root/.picoclaw/.security.yml 2>/dev/null | head -1`))
+	apiKey := strings.Trim(strings.TrimSpace(strings.TrimPrefix(keyLine, "- ")), `"`)
+	if apiKey == "" {
+		fatal("No OpenRouter API key found on board.")
+	}
+
+	req, _ := http.NewRequest("GET", "https://openrouter.ai/api/v1/models", nil)
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	resp, err := (&http.Client{Timeout: 15 * time.Second}).Do(req)
+	if err != nil {
+		fatal("Failed to fetch models: " + err.Error())
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+
+	var result struct {
+		Data []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		fatal("Failed to parse models: " + err.Error())
+	}
+
+	// Show popular free/cheap models
+	keywords := []string{"gemini", "flash", "qwen", "llama", "mistral", "deepseek", "gemma"}
+	fmt.Printf("%-50s %s\n", "MODEL ID", "NAME")
+	fmt.Println(strings.Repeat("-", 80))
+	count := 0
+	for _, m := range result.Data {
+		id := strings.ToLower(m.ID)
+		for _, kw := range keywords {
+			if strings.Contains(id, kw) {
+				fmt.Printf("%-50s %s\n", m.ID, m.Name)
+				count++
+				break
+			}
+		}
+		if count >= 30 {
+			break
+		}
+	}
+	fmt.Printf("\n%d models shown. Use 'quick-claw model set <model-id>' to switch.\n", count)
+}
+
+func detectBoardWifi(sshpassBin string) string {
+	stateDir := quickclawDir()
+	// Try to find board via stored Wi-Fi IP or common IPs
+	candidates := []string{}
+	if wifiIP := loadState(stateDir, "board_wifi_ip"); wifiIP != "" {
+		candidates = append(candidates, wifiIP)
+	}
+	candidates = append(candidates, "192.168.0.141", "192.168.1.141")
+	for _, ip := range candidates {
+		conn, err := net.DialTimeout("tcp", ip+":22", 2*time.Second)
+		if err == nil {
+			conn.Close()
+			return ip
+		}
+	}
+	return ""
 }
 
 // --- Subcommands (stubs) ---
@@ -562,7 +707,7 @@ func (s *sshClient) scpDir(localDir, remoteDir string) {
 
 // --- Config builders ---
 
-func buildPicoclawConfig(modelName, model, apiBase string) string {
+func buildPicoclawConfig(modelName, model, apiBase, apiKey string) string {
 	cfg := map[string]any{
 		"version": 2,
 		"agents": map[string]any{
@@ -575,7 +720,7 @@ func buildPicoclawConfig(modelName, model, apiBase string) string {
 			},
 		},
 		"model_list": []map[string]any{
-			{"model_name": modelName, "model": model, "api_base": apiBase},
+			{"model_name": modelName, "model": model, "api_base": apiBase, "api_keys": []string{apiKey}},
 		},
 		"gateway": map[string]any{
 			"host":      "0.0.0.0",
@@ -587,16 +732,20 @@ func buildPicoclawConfig(modelName, model, apiBase string) string {
 			"exec": map[string]any{"enabled": true, "timeout_seconds": 30},
 			"cron": map[string]any{"enabled": true},
 		},
+		"channels": map[string]any{
+			"pico": map[string]any{
+				"enabled":           true,
+				"token":             "quickclaw",
+				"allow_token_query": true,
+				"allow_origins":     []string{"*"},
+				"ping_interval":     30,
+				"read_timeout":      60,
+				"max_connections":   100,
+			},
+		},
 	}
 	b, _ := json.MarshalIndent(cfg, "", "  ")
 	return string(b)
-}
-
-func buildPicoclawSecurity(modelName, apiKey string) string {
-	return fmt.Sprintf(`model_list:
-  %s:
-    api_keys:
-      - "%s"`, modelName, apiKey)
 }
 
 // --- UI helpers ---

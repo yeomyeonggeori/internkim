@@ -3,8 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 )
 
@@ -20,17 +22,25 @@ type pidFileData struct {
 	Host  string `json:"host"`
 }
 
-type picoConfig struct {
-	Channels struct {
-		Pico struct {
-			Token string `json:"token"`
-		} `json:"pico"`
-	} `json:"channels"`
+func readConfig(home string) (map[string]any, error) {
+	raw, err := os.ReadFile(filepath.Join(home, "config.json"))
+	if err != nil {
+		return nil, err
+	}
+	var cfg map[string]any
+	return cfg, json.Unmarshal(raw, &cfg)
+}
+
+func writeConfig(home string, cfg map[string]any) error {
+	b, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(home, "config.json"), b, 0644)
 }
 
 func buildPicoToken(home string) (string, int, error) {
-	pidPath := filepath.Join(home, ".picoclaw.pid")
-	pidRaw, err := os.ReadFile(pidPath)
+	pidRaw, err := os.ReadFile(filepath.Join(home, ".picoclaw.pid"))
 	if err != nil {
 		return "", 0, fmt.Errorf("read pid file: %w", err)
 	}
@@ -39,18 +49,45 @@ func buildPicoToken(home string) (string, int, error) {
 		return "", 0, fmt.Errorf("parse pid file: %w", err)
 	}
 
-	cfgPath := filepath.Join(home, "config.json")
-	cfgRaw, err := os.ReadFile(cfgPath)
+	cfg, err := readConfig(home)
 	if err != nil {
-		return "", 0, fmt.Errorf("read config: %w", err)
-	}
-	var cfg picoConfig
-	if err := json.Unmarshal(cfgRaw, &cfg); err != nil {
-		return "", 0, fmt.Errorf("parse config: %w", err)
+		return "", 0, err
 	}
 
-	token := picoTokenPrefix + pid.Token + cfg.Channels.Pico.Token
-	return token, pid.Port, nil
+	picoToken := ""
+	if ch, ok := cfg["channels"].(map[string]any); ok {
+		if pico, ok := ch["pico"].(map[string]any); ok {
+			picoToken, _ = pico["token"].(string)
+		}
+	}
+	return picoTokenPrefix + pid.Token + picoToken, pid.Port, nil
+}
+
+func getModel(cfg map[string]any) string {
+	models, _ := cfg["model_list"].([]any)
+	if len(models) == 0 {
+		return ""
+	}
+	m, _ := models[0].(map[string]any)
+	s, _ := m["model"].(string)
+	return s
+}
+
+func setModel(cfg map[string]any, model string) {
+	models, _ := cfg["model_list"].([]any)
+	if len(models) == 0 {
+		return
+	}
+	m, _ := models[0].(map[string]any)
+	m["model"] = model
+	models[0] = m
+	cfg["model_list"] = models
+}
+
+func restartPicoclaw() {
+	exec.Command("killall", "picoclaw").Run()
+	exec.Command("rm", "-f", "/root/.picoclaw/.picoclaw.pid").Run()
+	exec.Command("sh", "-c", "/etc/init.d/S99picoclaw start 2>/dev/null &").Run()
 }
 
 func handleToken(home string) http.HandlerFunc {
@@ -60,13 +97,11 @@ func handleToken(home string) http.HandlerFunc {
 			w.WriteHeader(200)
 			return
 		}
-
 		token, port, err := buildPicoToken(home)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-
 		cors(w)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
@@ -76,9 +111,53 @@ func handleToken(home string) http.HandlerFunc {
 	}
 }
 
+func handleModel(home string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cors(w)
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(200)
+			return
+		}
+
+		cfg, err := readConfig(home)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+
+		switch r.Method {
+		case http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"model": getModel(cfg)})
+
+		case http.MethodPut:
+			body, _ := io.ReadAll(r.Body)
+			var req struct {
+				Model string `json:"model"`
+			}
+			if err := json.Unmarshal(body, &req); err != nil || req.Model == "" {
+				http.Error(w, "invalid request", 400)
+				return
+			}
+			old := getModel(cfg)
+			setModel(cfg, req.Model)
+			if err := writeConfig(home, cfg); err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
+			restartPicoclaw()
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"old": old, "new": req.Model})
+
+		default:
+			http.Error(w, "method not allowed", 405)
+		}
+	}
+}
+
 func cors(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, PUT, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 }
 
@@ -94,6 +173,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/pico/token", handleToken(home))
+	mux.HandleFunc("/pico/model", handleModel(home))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"status":"ok"}`))
 	})
