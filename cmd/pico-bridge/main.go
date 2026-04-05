@@ -6,8 +6,10 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"os/exec"
 	"path/filepath"
+	"time"
 )
 
 const (
@@ -84,10 +86,23 @@ func setModel(cfg map[string]any, model string) {
 	cfg["model_list"] = models
 }
 
-func restartPicoclaw() {
+func restartPicoclaw() error {
 	exec.Command("killall", "picoclaw").Run()
 	exec.Command("rm", "-f", "/root/.picoclaw/.picoclaw.pid").Run()
-	exec.Command("sh", "-c", "/etc/init.d/S99picoclaw start 2>/dev/null &").Run()
+	exec.Command("sh", "-c", "/etc/init.d/S99picoclaw start 2>/dev/null").Run()
+
+	// Wait up to 5s for gateway to come up
+	for i := 0; i < 10; i++ {
+		time.Sleep(500 * time.Millisecond)
+		resp, err := http.Get("http://localhost:18790/health")
+		if err == nil {
+			resp.Body.Close()
+			if resp.StatusCode == 200 {
+				return nil
+			}
+		}
+	}
+	return fmt.Errorf("picoclaw failed to start")
 }
 
 func handleToken(home string) http.HandlerFunc {
@@ -128,7 +143,9 @@ func handleModel(home string) http.HandlerFunc {
 		switch r.Method {
 		case http.MethodGet:
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]string{"model": getModel(cfg)})
+			m := getModel(cfg)
+			m = strings.TrimPrefix(m, "openrouter/")
+			json.NewEncoder(w).Encode(map[string]string{"model": m})
 
 		case http.MethodPut:
 			body, _ := io.ReadAll(r.Body)
@@ -140,7 +157,7 @@ func handleModel(home string) http.HandlerFunc {
 				return
 			}
 			old := getModel(cfg)
-			setModel(cfg, req.Model)
+			setModel(cfg, ensurePrefix(req.Model))
 			if err := writeConfig(home, cfg); err != nil {
 				http.Error(w, err.Error(), 500)
 				return
@@ -153,6 +170,22 @@ func handleModel(home string) http.HandlerFunc {
 			http.Error(w, "method not allowed", 405)
 		}
 	}
+}
+
+func ensurePrefix(model string) string {
+	parts := strings.SplitN(model, "/", 2)
+	if len(parts) < 2 {
+		return model
+	}
+	known := map[string]bool{
+		"openrouter": true, "openai": true, "anthropic": true, "gemini": true,
+		"azure": true, "bedrock": true, "ollama": true, "groq": true,
+		"deepseek": true, "mistral": true, "qwen": true,
+	}
+	if known[parts[0]] {
+		return model
+	}
+	return "openrouter/" + model
 }
 
 func cors(w http.ResponseWriter) {

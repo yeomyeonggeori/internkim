@@ -25,7 +25,7 @@ var (
 	usbNCMIPs = []string{"10.11.60.1"}
 
 	picoclawModelName = "openrouter"
-	picoclawModel     = "qwen/qwen3.6-plus:free"
+	picoclawModel     = "openrouter/google/gemini-3.1-flash-lite-preview"
 	picoclawAPIBase   = "https://openrouter.ai/api/v1"
 )
 
@@ -419,10 +419,10 @@ func runModel() {
 	case "set":
 		if len(os.Args) < 4 {
 			fmt.Println("Usage: quick-claw model set <model-id>")
-			fmt.Println("Example: quick-claw model set google/gemini-2.5-flash-lite-preview")
+			fmt.Println("Example: quick-claw model set google/gemini-3.1-flash-lite-preview")
 			os.Exit(1)
 		}
-		modelSetCmd(ssh, os.Args[3])
+		modelSetCmd(ssh, ensureOpenRouterPrefix(os.Args[3]))
 	case "list":
 		modelListCmd(ssh)
 	default:
@@ -442,7 +442,8 @@ func modelCurrentCmd(ssh *sshClient) {
 		return
 	}
 	m, _ := models[0].(map[string]any)
-	fmt.Printf("Model: %s\n", m["model"])
+	model, _ := m["model"].(string)
+	fmt.Printf("Model: %s\n", strings.TrimPrefix(model, "openrouter/"))
 }
 
 func modelSetCmd(ssh *sshClient, modelID string) {
@@ -469,6 +470,25 @@ func modelSetCmd(ssh *sshClient, modelID string) {
 	ssh.run("killall picoclaw 2>/dev/null; rm -f /root/.picoclaw/.picoclaw.pid; sleep 1; /etc/init.d/S99picoclaw start 2>/dev/null")
 	fmt.Printf("Model changed: %s -> %s\n", old, modelID)
 	fmt.Println("picoclaw restarted.")
+}
+
+func ensureOpenRouterPrefix(model string) string {
+	// picoclaw uses the first segment as protocol.
+	// OpenRouter model IDs like "google/gemini-..." need "openrouter/" prefix
+	// so picoclaw routes them through the openrouter protocol handler.
+	parts := strings.SplitN(model, "/", 2)
+	if len(parts) < 2 {
+		return model
+	}
+	known := map[string]bool{
+		"openrouter": true, "openai": true, "anthropic": true, "gemini": true,
+		"azure": true, "bedrock": true, "ollama": true, "groq": true,
+		"deepseek": true, "mistral": true, "qwen": true,
+	}
+	if known[parts[0]] {
+		return model
+	}
+	return "openrouter/" + model
 }
 
 func modelListCmd(ssh *sshClient) {
