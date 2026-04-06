@@ -6,9 +6,9 @@
 	let { size = 4 }: Props = $props();
 </script>
 
-<div style:--loading-dots-size="{size}px" class="inline-flex items-center gap-1">
+<div style:--loading-dots-size="{size}px" class="inline-flex items-center gap-[3px]">
 	{#each { length: 3 } as _, i (i)}
-		<span class="bg-primary inline-block size-(--loading-dots-size) rounded-full"></span>
+		<span class="bg-muted-foreground inline-block size-(--loading-dots-size) rounded-full"></span>
 	{/each}
 </div>
 
