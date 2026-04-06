@@ -17,47 +17,14 @@
 	import MailIcon from '@lucide/svelte/icons/mail';
 	import FileIcon from '@lucide/svelte/icons/file';
 	import DownloadIcon from '@lucide/svelte/icons/download';
-	import CopyIcon from '@lucide/svelte/icons/copy';
-	import CheckIcon from '@lucide/svelte/icons/check';
 	import MaximizeIcon from '@lucide/svelte/icons/maximize-2';
 	import QrCode from 'svelte-qrcode';
 	import { Separator } from '$lib/components/ui/separator';
+	import * as Code from '$lib/components/ui/code';
+	import type { SupportedLanguage } from '$lib/components/ui/code/shiki';
+	import { CopyButton } from '$lib/components/ui/copy-button';
 	import { onMount } from 'svelte';
-	import { marked } from 'marked';
-	import DOMPurify from 'dompurify';
-	import hljs from 'highlight.js/lib/core';
-	import javascript from 'highlight.js/lib/languages/javascript';
-	import typescript from 'highlight.js/lib/languages/typescript';
-	import python from 'highlight.js/lib/languages/python';
-	import bash from 'highlight.js/lib/languages/bash';
-	import json from 'highlight.js/lib/languages/json';
-	import css from 'highlight.js/lib/languages/css';
-	import xml from 'highlight.js/lib/languages/xml';
-	import sql from 'highlight.js/lib/languages/sql';
-	import go from 'highlight.js/lib/languages/go';
-	import rust from 'highlight.js/lib/languages/rust';
-	import yaml from 'highlight.js/lib/languages/yaml';
-	import markdown from 'highlight.js/lib/languages/markdown';
-	hljs.registerLanguage('javascript', javascript);
-	hljs.registerLanguage('js', javascript);
-	hljs.registerLanguage('typescript', typescript);
-	hljs.registerLanguage('ts', typescript);
-	hljs.registerLanguage('python', python);
-	hljs.registerLanguage('py', python);
-	hljs.registerLanguage('bash', bash);
-	hljs.registerLanguage('sh', bash);
-	hljs.registerLanguage('shell', bash);
-	hljs.registerLanguage('json', json);
-	hljs.registerLanguage('css', css);
-	hljs.registerLanguage('html', xml);
-	hljs.registerLanguage('xml', xml);
-	hljs.registerLanguage('sql', sql);
-	hljs.registerLanguage('go', go);
-	hljs.registerLanguage('rust', rust);
-	hljs.registerLanguage('yaml', yaml);
-	hljs.registerLanguage('yml', yaml);
-	hljs.registerLanguage('markdown', markdown);
-	hljs.registerLanguage('md', markdown);
+	import { parseMarkdownSegments } from '$lib/markdown';
 
 	type Message = {
 		role: 'user' | 'assistant';
@@ -96,8 +63,7 @@
 	// Code fullscreen
 	let codeFullscreen = $state(false);
 	let codeFullscreenContent = $state('');
-	let codeFullscreenLanguage = $state('');
-	let codeCopied = $state(false);
+	let codeFullscreenLanguage = $state<SupportedLanguage | undefined>(undefined);
 
 	// Image viewer
 	let imageViewerOpen = $state(false);
@@ -182,53 +148,10 @@
 		return parts[parts.length - 1] || currentModel;
 	});
 
-	const imageExtensions = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg']);
-
-	function isFileLink(href: string): boolean {
-		return href.startsWith('/pico/files/');
-	}
-
-	function getFileExtension(path: string): string {
-		return path.split('.').pop()?.toLowerCase() || '';
-	}
-
-	function getFileName(path: string): string {
-		return path.split('/').pop() || path;
-	}
-
-	function renderMarkdown(text: string): string {
-		const renderer = new marked.Renderer();
-
-		renderer.image = ({ href, title, text: alt }) => {
-			if (isFileLink(href)) {
-				return `<span class="file-preview file-preview-image expandable-image" data-src="${href}"><img src="${href}" alt="${alt || ''}" /></span>`;
-			}
-			return `<img src="${href}" alt="${alt || ''}" title="${title || ''}" class="expandable-image" data-src="${href}" />`;
-		};
-
-		renderer.link = ({ href, title, text: linkText }) => {
-			if (isFileLink(href)) {
-				const extension = getFileExtension(href);
-				const fileName = getFileName(href);
-				if (imageExtensions.has(extension)) {
-					return `<span class="file-preview file-preview-image expandable-image" data-src="${href}"><img src="${href}" alt="${fileName}" /></span>`;
-				}
-				return `<a href="${href}" download class="file-preview file-preview-doc" target="_blank"><span class="file-icon">📄</span><span class="file-info"><span class="file-name">${fileName}</span><span class="file-ext">${extension.toUpperCase()}</span></span><span class="file-action">↓</span></a>`;
-			}
-			return `<a href="${href}" title="${title || ''}" target="_blank" rel="noopener">${linkText}</a>`;
-		};
-
-		renderer.code = ({ text, lang }) => {
-			const highlighted = lang && hljs.getLanguage(lang)
-				? hljs.highlight(text, { language: lang }).value
-				: text;
-			const escapedRaw = text.replace(/"/g, '&quot;').replace(/</g, '&lt;');
-			const langLabel = lang ? `<span class="code-lang">${lang}</span>` : '';
-			return `<div class="code-block-wrapper">${langLabel}<button class="code-expand-btn" data-code="${escapedRaw}" data-lang="${lang || ''}"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button><pre><code class="hljs language-${lang || ''}">${highlighted}</code></pre></div>`;
-		};
-
-		const raw = marked.parse(text, { async: false, renderer }) as string;
-		return DOMPurify.sanitize(raw, { ADD_ATTR: ['data-code', 'data-lang', 'data-src'] });
+	function openCodeFullscreen(code: string, lang: string) {
+		codeFullscreenContent = code;
+		codeFullscreenLanguage = lang as SupportedLanguage | undefined;
+		codeFullscreen = true;
 	}
 
 	function handleFileSelect(e: Event) {
@@ -305,17 +228,7 @@
 		loadUsers();
 
 		document.addEventListener('click', (e) => {
-			const target = e.target as HTMLElement;
-			const codeButton = target.closest('.code-expand-btn') as HTMLElement | null;
-			if (codeButton) {
-				const code = codeButton.dataset.code?.replace(/&quot;/g, '"').replace(/&lt;/g, '<') || '';
-				codeFullscreenContent = code;
-				codeFullscreenLanguage = codeButton.dataset.lang || '';
-				codeCopied = false;
-				codeFullscreen = true;
-				return;
-			}
-			const expandableImage = target.closest('.expandable-image') as HTMLElement | null;
+			const expandableImage = (e.target as HTMLElement).closest('.expandable-image') as HTMLElement | null;
 			if (expandableImage) {
 				e.preventDefault();
 				const source = expandableImage.dataset.src || expandableImage.querySelector('img')?.src || '';
@@ -465,19 +378,6 @@
 		document.body.appendChild(link);
 		link.click();
 		document.body.removeChild(link);
-	}
-
-	function highlightedFullscreenCode(): string {
-		if (codeFullscreenLanguage && hljs.getLanguage(codeFullscreenLanguage)) {
-			return hljs.highlight(codeFullscreenContent, { language: codeFullscreenLanguage }).value;
-		}
-		return codeFullscreenContent.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-	}
-
-	async function copyCode() {
-		await navigator.clipboard.writeText(codeFullscreenContent);
-		codeCopied = true;
-		setTimeout(() => (codeCopied = false), 2000);
 	}
 
 	function onkeydown(e: KeyboardEvent) {
@@ -633,20 +533,13 @@
 <Dialog.Root bind:open={codeFullscreen}>
 	<Dialog.Content class="max-w-3xl max-h-[80vh] flex flex-col">
 		<Dialog.Header>
-			<div class="flex items-center justify-between">
-				<Dialog.Title>{codeFullscreenLanguage || 'Code'}</Dialog.Title>
-				<Button variant="ghost" size="sm" class="gap-1.5" onclick={copyCode}>
-					{#if codeCopied}
-						<CheckIcon class="size-3.5" />
-						Copied
-					{:else}
-						<CopyIcon class="size-3.5" />
-						Copy
-					{/if}
-				</Button>
-			</div>
+			<Dialog.Title>{codeFullscreenLanguage || 'Code'}</Dialog.Title>
 		</Dialog.Header>
-		<pre class="flex-1 overflow-auto rounded-md bg-muted p-4 text-xs"><code class="hljs">{@html highlightedFullscreenCode()}</code></pre>
+		<div class="flex-1 overflow-auto">
+			<Code.Root code={codeFullscreenContent} lang={codeFullscreenLanguage} class="border-0">
+				<Code.CopyButton />
+			</Code.Root>
+		</div>
 	</Dialog.Content>
 </Dialog.Root>
 
@@ -709,19 +602,23 @@
 	<div class="min-h-0 flex-1 overflow-hidden">
 		<div class="mx-auto h-full max-w-2xl">
 			<Chat.List class="h-full">
-				{#if messages.length === 0}
-					<div class="text-muted-foreground flex h-full items-center justify-center">
-						<p>Send a message to start chatting.</p>
+				{#if messages.length === 0 && loading}
+					<div class="flex flex-col gap-4 p-4">
+						{#each [1, 2] as _}
+							<div class="flex items-start gap-3">
+								<div class="bg-muted size-8 shrink-0 animate-pulse rounded-full"></div>
+								<div class="flex flex-col gap-2">
+									<div class="bg-muted h-4 w-48 animate-pulse rounded"></div>
+									<div class="bg-muted h-4 w-64 animate-pulse rounded"></div>
+									<div class="bg-muted h-4 w-40 animate-pulse rounded"></div>
+								</div>
+							</div>
+						{/each}
 					</div>
 				{/if}
 
 				{#each messages as msg}
 					<Chat.Bubble variant={msg.role === 'user' ? 'sent' : 'received'}>
-						{#if msg.role === 'assistant'}
-							<Chat.BubbleAvatar>
-								<Chat.BubbleAvatarImage src={logoSrc} alt="intern kim" />
-							</Chat.BubbleAvatar>
-						{/if}
 						<Chat.BubbleMessage>
 							{#if msg.role === 'user'}
 								{#if msg.imageUrl}
@@ -746,7 +643,24 @@
 								{/if}
 							{:else}
 								<div class="markdown text-sm">
-									{@html renderMarkdown(msg.content)}
+									{#each parseMarkdownSegments(msg.content) as segment}
+										{#if segment.type === 'html'}
+											{@html segment.content}
+										{:else}
+											<div class="my-2 overflow-hidden rounded-lg border">
+												<div class="bg-muted flex items-center justify-between border-b pl-2.5 pr-0 py-1">
+													<span class="text-muted-foreground font-mono text-xs">{segment.lang || 'text'}</span>
+													<div class="flex items-center">
+														<CopyButton text={segment.code} variant="ghost" size="icon" />
+														<Button variant="ghost" size="icon" onclick={() => openCodeFullscreen(segment.code, segment.lang)}>
+															<MaximizeIcon />
+														</Button>
+													</div>
+												</div>
+												<Code.Root code={segment.code} lang={segment.lang as SupportedLanguage} class="border-0 rounded-none bg-transparent text-xs" />
+											</div>
+										{/if}
+									{/each}
 								</div>
 							{/if}
 						</Chat.BubbleMessage>
@@ -755,9 +669,6 @@
 
 				{#if loading}
 					<Chat.Bubble variant="received">
-						<Chat.BubbleAvatar>
-							<Chat.BubbleAvatarImage src={logoSrc} alt="intern kim" />
-						</Chat.BubbleAvatar>
 						<Chat.BubbleMessage typing />
 					</Chat.Bubble>
 				{/if}
