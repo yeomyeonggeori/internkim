@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "highlight.js/styles/github.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -120,10 +121,18 @@
 
 @layer components {
   .markdown pre {
-    @apply bg-muted overflow-x-auto rounded-md p-3 my-2;
+    @apply overflow-x-auto rounded-md p-3 my-2 text-xs;
+    background-color: rgba(0, 0, 0, 0.06);
+  }
+  :is(.dark) .markdown pre {
+    background-color: rgba(0, 0, 0, 0.3);
   }
   .markdown code {
-    @apply bg-muted rounded px-1 py-0.5 text-xs;
+    @apply rounded px-1 py-0.5 text-xs;
+    background-color: rgba(0, 0, 0, 0.06);
+  }
+  :is(.dark) .markdown code {
+    background-color: rgba(255, 255, 255, 0.1);
   }
   .markdown pre code {
     @apply bg-transparent p-0;
@@ -206,6 +215,40 @@
   [data-variant='received'] .chat-bubble-msg::after {
     left: -26px;
     border-bottom-right-radius: 10px;
+  }
+
+  /* Typing indicator — iMessage thought bubble */
+  .typing-wrapper {
+    position: relative;
+    display: inline-flex;
+    margin-bottom: 14px;
+  }
+
+  .typing-wrapper .chat-bubble-msg::before,
+  .typing-wrapper .chat-bubble-msg::after {
+    display: none !important;
+  }
+
+  .typing-dot {
+    position: absolute;
+    border-radius: 50%;
+    background: hsl(var(--secondary));
+  }
+
+  .typing-dot-lg {
+    width: 11px;
+    height: 11px;
+    bottom: 2px;
+    left: -3.5px;
+    z-index: 1;
+  }
+
+  .typing-dot-sm {
+    width: 6px;
+    height: 6px;
+    bottom: -1px;
+    left: -8px;
+    z-index: 1;
   }
 
   /* File preview styles */
