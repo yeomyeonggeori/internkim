@@ -402,7 +402,10 @@
 			{#if deviceId()}
 				<section class="flex flex-col items-center gap-3">
 					<QrCode value={`https://${deviceId()}.example.test`} size="180" />
-					<p class="text-muted-foreground text-xs">{deviceId()}.example.test</p>
+					<div class="flex items-center gap-1">
+						<p class="text-muted-foreground text-xs">https://{deviceId()}.example.test</p>
+						<CopyButton text={`https://${deviceId()}.example.test`} variant="ghost" size="icon" class="size-6 text-muted-foreground [&_svg]:size-3" />
+					</div>
 				</section>
 				<Separator />
 			{/if}
@@ -431,13 +434,15 @@
 									{/if}
 								</div>
 								{#if i > 0}
-									<button
+									<Button
+										variant="ghost"
+										size="icon"
 										onclick={() => removeEmail(email)}
 										disabled={emailLoading}
-										class="text-muted-foreground hover:text-destructive cursor-pointer opacity-0 transition-all group-hover:opacity-100"
+										class="size-7 opacity-0 transition-opacity group-hover:opacity-100"
 									>
 										<XIcon class="size-3.5" />
-									</button>
+									</Button>
 								{/if}
 							</div>
 						{/each}
