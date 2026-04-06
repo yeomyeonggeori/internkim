@@ -214,10 +214,11 @@ func handleHistory(home string) http.HandlerFunc {
 				continue
 			}
 			role := msg["role"]
-			if role == "user" || role == "assistant" {
+			content := strings.TrimSpace(msg["content"])
+			if (role == "user" || role == "assistant") && content != "" {
 				messages = append(messages, map[string]string{
 					"role":    role,
-					"content": msg["content"],
+					"content": content,
 				})
 			}
 		}
@@ -227,6 +228,23 @@ func handleHistory(home string) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"messages": messages})
+	}
+}
+
+func handleFiles(home string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		relPath := strings.TrimPrefix(r.URL.Path, "/pico/files/")
+		if relPath == "" || strings.Contains(relPath, "..") {
+			http.Error(w, "invalid path", http.StatusBadRequest)
+			return
+		}
+		filePath := filepath.Join(home, "workspace", relPath)
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filepath.Base(filePath)))
+		http.ServeFile(w, r, filePath)
 	}
 }
 
@@ -296,6 +314,7 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"email": email})
 	})
+	mux.HandleFunc("/pico/files/", handleFiles(home))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"status":"ok"}`))
 	})
