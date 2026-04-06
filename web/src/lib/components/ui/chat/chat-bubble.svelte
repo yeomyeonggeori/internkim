@@ -15,7 +15,7 @@
 	{...rest}
 	bind:this={ref}
 	class={cn(
-		"group/chat-bubble flex max-w-[80%] flex-row place-items-end gap-2 data-[variant='sent']:place-self-end",
+		"group/chat-bubble flex max-w-[75%] flex-row place-items-end gap-1.5 data-[variant='sent']:place-self-end",
 		className
 	)}
 	data-variant={variant}

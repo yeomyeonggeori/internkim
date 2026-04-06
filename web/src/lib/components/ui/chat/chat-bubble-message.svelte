@@ -16,12 +16,12 @@
 	{...rest}
 	bind:this={ref}
 	class={cn(
-		"bg-secondary group-data-[variant='sent']/chat-bubble:bg-primary group-data-[variant='sent']/chat-bubble:text-primary-foreground order-2 rounded-lg p-4 text-sm group-data-[variant='received']/chat-bubble:rounded-bl-none group-data-[variant='sent']/chat-bubble:order-1 group-data-[variant='sent']/chat-bubble:rounded-br-none",
+		"chat-bubble-msg order-2 text-sm group-data-[variant='sent']/chat-bubble:order-1",
 		className
 	)}
 >
 	{#if typing}
-		<div class="flex size-full place-items-center justify-center">
+		<div class="flex items-center" style="height: calc(1lh);">
 			<LoadingDots />
 		</div>
 	{:else}

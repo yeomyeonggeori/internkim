@@ -146,4 +146,107 @@
   .markdown a {
     @apply text-primary underline;
   }
+
+  /* iMessage chat bubbles */
+  .chat-bubble-msg {
+    position: relative;
+    padding: 6px 12px;
+    border-radius: 18px;
+    word-wrap: break-word;
+    line-height: 1.4;
+  }
+
+  .chat-bubble-msg::before,
+  .chat-bubble-msg::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+  }
+
+  .chat-bubble-msg::before {
+    width: 20px;
+    height: 20px;
+    z-index: 2;
+  }
+
+  .chat-bubble-msg::after {
+    width: 26px;
+    height: 20px;
+    background-color: hsl(var(--background));
+    z-index: 3;
+  }
+
+  [data-variant='sent'] .chat-bubble-msg {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+
+  [data-variant='sent'] .chat-bubble-msg::before {
+    right: -7px;
+    background-color: var(--primary);
+    border-bottom-left-radius: 16px 14px;
+  }
+
+  [data-variant='sent'] .chat-bubble-msg::after {
+    right: -26px;
+    border-bottom-left-radius: 10px;
+  }
+
+  [data-variant='received'] .chat-bubble-msg {
+    background: hsl(var(--secondary));
+    color: hsl(var(--secondary-foreground));
+  }
+
+  [data-variant='received'] .chat-bubble-msg::before {
+    left: -7px;
+    background-color: hsl(var(--secondary));
+    border-bottom-right-radius: 16px 14px;
+  }
+
+  [data-variant='received'] .chat-bubble-msg::after {
+    left: -26px;
+    border-bottom-right-radius: 10px;
+  }
+
+  /* File preview styles */
+  .file-preview {
+    @apply inline-block no-underline overflow-hidden my-1;
+    text-decoration: none !important;
+  }
+
+  .file-preview-image {
+    @apply block rounded-2xl overflow-hidden cursor-pointer max-w-72;
+  }
+
+  .file-preview-image img {
+    @apply block w-full;
+  }
+
+  .file-preview-doc {
+    @apply bg-muted/50 border border-border items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors;
+  }
+
+  .file-preview-doc:hover {
+    @apply bg-muted;
+  }
+
+  .file-icon {
+    @apply text-2xl;
+  }
+
+  .file-info {
+    @apply flex flex-col flex-1 min-w-0;
+  }
+
+  .file-name {
+    @apply text-foreground text-sm font-medium truncate;
+  }
+
+  .file-ext {
+    @apply text-muted-foreground text-xs;
+  }
+
+  .file-action {
+    @apply text-primary text-lg font-bold;
+  }
 }
