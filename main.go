@@ -81,6 +81,8 @@ func main() {
 			runStatus()
 		case "update":
 			runUpdate()
+		case "deploy":
+			runDeploy()
 		default:
 			printUsage()
 		}
@@ -99,6 +101,7 @@ func printUsage() {
 	fmt.Println("  users    Manage allowed users")
 	fmt.Println("  status   Check board and tunnel status")
 	fmt.Println("  update   OTA update")
+	fmt.Println("  deploy   Build and deploy web UI + pico-bridge to board")
 }
 
 func runSetup() {
@@ -570,6 +573,99 @@ func detectBoardWifi(sshpassBin string) string {
 }
 
 // --- Subcommands (stubs) ---
+
+func runDeploy() {
+	stateDir := quickclawDir()
+	scriptDir, _ := os.Getwd()
+	binDir := filepath.Join(scriptDir, "bin")
+	sshpassBin := filepath.Join(binDir, "sshpass")
+	webDir := filepath.Join(scriptDir, "web")
+	boardBinDir := filepath.Join(scriptDir, "board-bin")
+	boardUIDir := filepath.Join(scriptDir, "board-ui")
+
+	boardIP := findBoardIP(sshpassBin, stateDir)
+	if boardIP == "" {
+		fatal("Board not reachable. Check USB or Wi-Fi connection.")
+	}
+	fmt.Printf("Board: %s\n", boardIP)
+	ssh := newSSH(sshpassBin, boardUser, boardPass, boardIP)
+
+	buildUI := true
+	buildBridge := true
+	for _, arg := range os.Args[2:] {
+		switch arg {
+		case "--ui":
+			buildBridge = false
+		case "--bridge":
+			buildUI = false
+		}
+	}
+
+	if buildUI {
+		fmt.Print("Building web UI... ")
+		cmd := exec.Command("bun", "run", "build")
+		cmd.Dir = webDir
+		cmd.Env = append(os.Environ(), "BUILD_TARGET=board")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			fmt.Println("FAILED")
+			fmt.Println(string(out))
+			os.Exit(1)
+		}
+		fmt.Println("ok")
+	}
+
+	if buildBridge {
+		fmt.Print("Building pico-bridge... ")
+		cmd := exec.Command("go", "build", "-o", filepath.Join(boardBinDir, "pico-bridge"), "./cmd/pico-bridge/")
+		cmd.Dir = scriptDir
+		cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=riscv64")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			fmt.Println("FAILED")
+			fmt.Println(string(out))
+			os.Exit(1)
+		}
+		fmt.Println("ok")
+	}
+
+	if buildUI {
+		fmt.Print("Deploying web UI... ")
+		tarPath := filepath.Join(os.TempDir(), "qc-ui.tar")
+		cmd := exec.Command("tar", "cf", tarPath, "-C", boardUIDir, ".")
+		if err := cmd.Run(); err != nil {
+			fatal("Failed to create tar: " + err.Error())
+		}
+		ssh.scp(tarPath, "/tmp/qc-ui.tar")
+		ssh.run("rm -rf /var/www/* && tar xf /tmp/qc-ui.tar -C /var/www/ && rm /tmp/qc-ui.tar")
+		os.Remove(tarPath)
+		fmt.Println("ok")
+	}
+
+	if buildBridge {
+		fmt.Print("Deploying pico-bridge... ")
+		ssh.run("killall pico-bridge 2>/dev/null; sleep 1")
+		ssh.scp(filepath.Join(boardBinDir, "pico-bridge"), "/usr/local/bin/pico-bridge")
+		ssh.run("chmod +x /usr/local/bin/pico-bridge && nohup /usr/local/bin/pico-bridge > /var/log/pico-bridge.log 2>&1 &")
+		fmt.Println("ok")
+	}
+
+	fmt.Println("Deploy complete.")
+}
+
+func findBoardIP(sshpassBin, stateDir string) string {
+	candidates := usbNCMIPs
+	if wifiIP := loadState(stateDir, "board_wifi_ip"); wifiIP != "" {
+		candidates = append(candidates, wifiIP)
+	}
+	candidates = append(candidates, "192.168.0.141", "192.168.1.141")
+	for _, ip := range candidates {
+		conn, err := net.DialTimeout("tcp", ip+":22", 2*time.Second)
+		if err == nil {
+			conn.Close()
+			return ip
+		}
+	}
+	return ""
+}
 
 func runInvite() { fmt.Println("TODO: invite") }
 func runUsers()  { fmt.Println("TODO: users") }
