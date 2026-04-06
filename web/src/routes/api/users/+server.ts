@@ -3,6 +3,16 @@ import type { RequestHandler } from './$types';
 import { kv } from '$lib/kv';
 import { addEmailToPolicy } from '$lib/cloudflare';
 
+const corsHeaders = {
+	'Access-Control-Allow-Origin': '*',
+	'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+	'Access-Control-Allow-Headers': 'Content-Type'
+};
+
+export const OPTIONS: RequestHandler = async () => {
+	return new Response(null, { headers: corsHeaders });
+};
+
 export const GET: RequestHandler = async ({ url, platform }) => {
 	const env = platform?.env;
 	if (!env?.KV) throw error(500, 'KV not available');
@@ -12,7 +22,7 @@ export const GET: RequestHandler = async ({ url, platform }) => {
 	if (!device_id) throw error(400, 'device_id required');
 
 	const users = await kv.getUsers(env.KV, device_id);
-	return json({ users });
+	return json({ users }, { headers: corsHeaders });
 };
 
 export const POST: RequestHandler = async ({ request, platform }) => {
@@ -43,5 +53,5 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 		);
 	}
 
-	return json({ users });
+	return json({ users }, { headers: corsHeaders });
 };
