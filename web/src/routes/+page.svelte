@@ -71,7 +71,7 @@
 
 	const pagesApi = () => {
 		const id = deviceId();
-		return id ? `https://example.test/api` : '';
+		return id ? `https://api.example.test/api` : '';
 	};
 
 	async function loadUsers() {
