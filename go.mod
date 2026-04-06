@@ -1,4 +1,4 @@
-module github.com/anthropic-lab/quick-claw
+module github.com/anthropic-lab/internkim
 
 go 1.26.1
 

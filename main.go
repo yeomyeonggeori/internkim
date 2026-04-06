@@ -38,7 +38,7 @@ type config struct {
 func loadConfig() config {
 	loadEnvFile()
 	return config{
-		APIBaseURL:     envOr("QC_API_URL", "https://quick-claw.pages.dev"),
+		APIBaseURL:     envOr("QC_API_URL", "https://internkim.pages.dev"),
 		RegisterSecret: envOr("QC_REGISTER_SECRET", ""),
 		CFDomain:       envOr("QC_DOMAIN", "example.test"),
 	}
@@ -92,7 +92,7 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Println("Usage: quick-claw <command>")
+	fmt.Println("Usage: internkim <command>")
 	fmt.Println()
 	fmt.Println("Commands:")
 	fmt.Println("  setup    Full device provisioning")
@@ -128,7 +128,7 @@ func runSetup() {
 	boardUIDir := filepath.Join(scriptDir, "board-ui")
 
 	totalSteps := 8
-	fmt.Println("=== Quick Claw Setup ===")
+	fmt.Println("=== Intern Kim Setup ===")
 	fmt.Println()
 
 	// 1. Board detection
@@ -431,7 +431,7 @@ fi`)
 	deviceURL := loadState(stateDir, "device_url")
 	fmt.Println()
 	fmt.Println("========================================")
-	fmt.Printf("  %s\n", m.t("Quick Claw 설정 완료!", "Quick Claw Setup Complete!"))
+	fmt.Printf("  %s\n", m.t("Intern Kim 설정 완료!", "Intern Kim Setup Complete!"))
 	fmt.Println("========================================")
 	fmt.Println()
 	fmt.Printf("  USB:     %s\n", boardIP)
@@ -470,15 +470,15 @@ func runModel() {
 		modelCurrentCmd(ssh)
 	case "set":
 		if len(os.Args) < 4 {
-			fmt.Println("Usage: quick-claw model set <model-id>")
-			fmt.Println("Example: quick-claw model set google/gemini-3.1-flash-lite-preview")
+			fmt.Println("Usage: internkim model set <model-id>")
+			fmt.Println("Example: internkim model set google/gemini-3.1-flash-lite-preview")
 			os.Exit(1)
 		}
 		modelSetCmd(ssh, ensureOpenRouterPrefix(os.Args[3]))
 	case "list":
 		modelListCmd(ssh)
 	default:
-		fmt.Println("Usage: quick-claw model <current|set|list>")
+		fmt.Println("Usage: internkim model <current|set|list>")
 	}
 }
 
@@ -576,7 +576,7 @@ func modelListCmd(ssh *sshClient) {
 			break
 		}
 	}
-	fmt.Printf("\n%d models shown. Use 'quick-claw model set <model-id>' to switch.\n", count)
+	fmt.Printf("\n%d models shown. Use 'internkim model set <model-id>' to switch.\n", count)
 }
 
 func detectBoardWifi(sshpassBin string) string {
