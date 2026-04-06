@@ -106,9 +106,13 @@ func printUsage() {
 
 func runSetup() {
 	lang := "ko"
+	force := false
 	for _, a := range os.Args {
 		if a == "--en" {
 			lang = "en"
+		}
+		if a == "--force" {
+			force = true
 		}
 	}
 	m := newMsg(lang)
@@ -148,25 +152,32 @@ func runSetup() {
 	}
 	fmt.Printf("  SSID: %s\n", ssid)
 
-	fmt.Printf("  %s\n", m.t(
-		"키체인 접근 팝업이 뜨면 맥 계정/비밀번호를 입력하세요.",
-		"Enter your Mac credentials when the keychain popup appears.",
-	))
-	wifiPass := getKeychainPassword(ssid)
+	boardSSID := strings.TrimSpace(ssh.run(`grep 'ssid="' /etc/wpa_supplicant.conf 2>/dev/null | head -1 | sed 's/.*ssid="//;s/".*//'`))
+	wifiIP := strings.TrimSpace(ssh.run("ip -4 addr show wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d/ -f1"))
+	skipWifi := !force && boardSSID == ssid && wifiIP != ""
 
-	var wpaConf string
-	if wifiPass == "" {
-		fmt.Printf("  %s\n", m.t("오픈 네트워크 (비밀번호 없음)", "Open network (no password)"))
-		wpaConf = fmt.Sprintf(`ctrl_interface=/var/run/wpa_supplicant
+	if skipWifi {
+		fmt.Printf("  %s (SSID: %s, IP: %s)\n", m.t("이미 설정됨 — 건너뜀", "Already configured — skipping"), boardSSID, wifiIP)
+	} else {
+		fmt.Printf("  %s\n", m.t(
+			"키체인 접근 팝업이 뜨면 맥 계정/비밀번호를 입력하세요.",
+			"Enter your Mac credentials when the keychain popup appears.",
+		))
+		wifiPass := getKeychainPassword(ssid)
+
+		var wpaConf string
+		if wifiPass == "" {
+			fmt.Printf("  %s\n", m.t("오픈 네트워크 (비밀번호 없음)", "Open network (no password)"))
+			wpaConf = fmt.Sprintf(`ctrl_interface=/var/run/wpa_supplicant
 ap_scan=1
 network={
   ssid="%s"
   scan_ssid=1
   key_mgmt=NONE
 }`, ssid)
-	} else {
-		fmt.Printf("  %s: %s\n", m.t("비밀번호", "Password"), maskString(wifiPass))
-		wpaConf = fmt.Sprintf(`ctrl_interface=/var/run/wpa_supplicant
+		} else {
+			fmt.Printf("  %s: %s\n", m.t("비밀번호", "Password"), maskString(wifiPass))
+			wpaConf = fmt.Sprintf(`ctrl_interface=/var/run/wpa_supplicant
 ap_scan=1
 network={
   ssid="%s"
@@ -174,12 +185,12 @@ network={
   key_mgmt=WPA-PSK
   psk="%s"
 }`, ssid, wifiPass)
-	}
+		}
 
-	// 3. Configure Wi-Fi on board
-	step(3, totalSteps, m.t("보드에 Wi-Fi 설정 중...", "Configuring Wi-Fi on board..."))
+		// 3. Configure Wi-Fi on board
+		step(3, totalSteps, m.t("보드에 Wi-Fi 설정 중...", "Configuring Wi-Fi on board..."))
 
-	ssh.run(fmt.Sprintf(`killall wpa_supplicant 2>/dev/null || true
+		ssh.run(fmt.Sprintf(`killall wpa_supplicant 2>/dev/null || true
 cat > /etc/wpa_supplicant.conf <<'WPAEOF'
 %s
 WPAEOF
@@ -187,34 +198,53 @@ wpa_supplicant -i wlan0 -c /etc/wpa_supplicant.conf -B
 sleep 3
 udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true`, wpaConf))
 
-	// 4. Verify Wi-Fi (retry up to 3 times)
-	step(4, totalSteps, m.t("Wi-Fi 연결 확인 중...", "Verifying Wi-Fi connection..."))
-	var wifiIP string
-	for attempt := 0; attempt < 3; attempt++ {
-		wifiIP = strings.TrimSpace(ssh.run("ip -4 addr show wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d/ -f1"))
-		if wifiIP != "" {
-			break
+		// 4. Verify Wi-Fi (retry up to 3 times)
+		step(4, totalSteps, m.t("Wi-Fi 연결 확인 중...", "Verifying Wi-Fi connection..."))
+		wifiIP = ""
+		for attempt := 0; attempt < 3; attempt++ {
+			wifiIP = strings.TrimSpace(ssh.run("ip -4 addr show wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d/ -f1"))
+			if wifiIP != "" {
+				break
+			}
+			if attempt < 2 {
+				fmt.Printf("  %s (%d/3)\n", m.t("재시도 중...", "Retrying..."), attempt+2)
+				ssh.run("udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true")
+			}
 		}
-		if attempt < 2 {
-			fmt.Printf("  %s (%d/3)\n", m.t("재시도 중...", "Retrying..."), attempt+2)
-			ssh.run("udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true")
+		if wifiIP == "" {
+			fmt.Printf("  %s\n", m.t("Wi-Fi 연결 실패.", "Wi-Fi connection failed."))
+			fmt.Printf("  %s: ssh root@%s\n", m.t("USB로 디버깅", "Debug via USB"), boardIP)
+			os.Exit(1)
 		}
+		fmt.Printf("  %s: %s\n", m.t("Wi-Fi 연결 성공", "Wi-Fi connected"), wifiIP)
 	}
-	if wifiIP == "" {
-		fmt.Printf("  %s\n", m.t("Wi-Fi 연결 실패.", "Wi-Fi connection failed."))
-		fmt.Printf("  %s: ssh root@%s\n", m.t("USB로 디버깅", "Debug via USB"), boardIP)
-		os.Exit(1)
-	}
-	fmt.Printf("  %s: %s\n", m.t("Wi-Fi 연결 성공", "Wi-Fi connected"), wifiIP)
 
 	// 5. Install picoclaw + cloudflared on board
 	step(5, totalSteps, m.t("picoclaw + cloudflared 설치 중...", "Installing picoclaw + cloudflared..."))
 	cloudflaredBin := filepath.Join(boardBinDir, "cloudflared")
 
-	for _, bin := range []struct{ local, remote, name string }{
-		{picoclawBin, "/usr/local/bin/picoclaw", "picoclaw"},
-		{cloudflaredBin, "/usr/local/bin/cloudflared", "cloudflared"},
-	} {
+	toolBins := []string{"download"}
+	for _, tool := range toolBins {
+		toolPath := filepath.Join(boardBinDir, tool)
+		if _, err := os.Stat(toolPath); os.IsNotExist(err) {
+			fmt.Printf("  %s %s... ", m.t("빌드 중", "Building"), tool)
+			cmd := exec.Command("go", "build", "-o", toolPath, "./cmd/"+tool+"/")
+			cmd.Dir = scriptDir
+			cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=riscv64")
+			if out, err := cmd.CombinedOutput(); err != nil {
+				fmt.Printf("FAILED: %s\n", string(out))
+			} else {
+				fmt.Println("ok")
+			}
+		}
+	}
+	for _, bin := range append(
+		[]struct{ local, remote, name string }{
+			{picoclawBin, "/usr/local/bin/picoclaw", "picoclaw"},
+			{cloudflaredBin, "/usr/local/bin/cloudflared", "cloudflared"},
+		},
+		toolBinEntries(boardBinDir, toolBins)...,
+	) {
 		if _, err := os.Stat(bin.local); os.IsNotExist(err) {
 			fatal(fmt.Sprintf("%s not found: %s", bin.name, bin.local))
 		}
@@ -230,6 +260,12 @@ udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true`, wpaConf))
 		}
 	}
 
+	// 5a-2. Prepare workspace directories and copy tools
+	ssh.run("mkdir -p /root/.picoclaw/workspace/bin /root/.picoclaw/workspace/downloads && chmod 755 /root/.picoclaw/workspace/bin /root/.picoclaw/workspace/downloads")
+	for _, tool := range toolBins {
+		ssh.run("cp /usr/local/bin/" + tool + " /root/.picoclaw/workspace/bin/ && chmod 755 /root/.picoclaw/workspace/bin/" + tool)
+	}
+
 	// 5b. Deploy chat UI to board
 	if _, err := os.Stat(boardUIDir); err == nil {
 		ssh.run("rm -rf /var/www && mkdir -p /var/www")
@@ -239,28 +275,20 @@ udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true`, wpaConf))
 
 	// 6. OpenRouter API key + picoclaw config
 	step(6, totalSteps, m.t("OpenRouter API 키 설정...", "Configuring OpenRouter API key..."))
-	apiKey := ""
-	existingKey := strings.TrimSpace(ssh.run("grep 'sk-or-' /root/.picoclaw/.security.yml 2>/dev/null | head -1"))
-	skipAPIKey := false
-	if existingKey != "" {
-		fmt.Printf("  %s\n", m.t("API 키가 이미 설정되어 있습니다.", "API key already configured."))
-		if !promptYN(m.t("다시 설정하시겠습니까?", "Reconfigure?")) {
-			skipAPIKey = true
-		}
-	}
-	if !skipAPIKey {
+	existingConfig := strings.TrimSpace(ssh.run("cat /root/.picoclaw/config.json 2>/dev/null"))
+	skipAPIKey := !force && existingConfig != "" && strings.Contains(existingConfig, "sk-or-")
+	if skipAPIKey {
+		fmt.Printf("  %s\n", m.t("이미 설정됨 — 건너뜀", "Already configured — skipping"))
+	} else {
 		fmt.Printf("\n  %s\n", m.t("OpenRouter API 키가 필요합니다.", "An OpenRouter API key is required."))
 		fmt.Printf("  %s: https://openrouter.ai/keys\n\n", m.t("발급", "Get one at"))
-		apiKey = readSecret(m.t("  API 키 입력: ", "  Enter API key: "))
+		apiKey := readSecret(m.t("  API 키 입력: ", "  Enter API key: "))
 		if apiKey == "" {
 			fatal(m.t("API 키가 입력되지 않았습니다.", "No API key provided."))
 		}
 		fmt.Printf("  %s: %s\n", m.t("API 키", "API key"), maskKey(apiKey))
-	}
 
-	if !skipAPIKey {
 		configJSON := buildPicoclawConfig(picoclawModelName, picoclawModel, picoclawAPIBase, apiKey)
-
 		ssh.run(fmt.Sprintf(`/usr/local/bin/picoclaw onboard 2>/dev/null || true
 cat > /root/.picoclaw/config.json <<'CFGEOF'
 %s
@@ -275,25 +303,30 @@ rm -f /root/.picoclaw/.security.yml`, configJSON))
 	deviceID := loadOrCreateDeviceID(stateDir)
 	fmt.Printf("  %s: %s\n", m.t("기기 ID", "Device ID"), deviceID)
 
-	adminEmail := readLine(m.t("  관리자 이메일 (구글 계정): ", "  Admin email (Google account): "))
-	if adminEmail == "" {
-		fatal(m.t("이메일이 입력되지 않았습니다.", "No email provided."))
-	}
-
-	regResp, err := registerDevice(cfg, deviceID, adminEmail)
-	if err != nil {
-		if strings.Contains(err.Error(), "409") {
-			fmt.Printf("  %s\n", m.t("이미 등록된 기기입니다.", "Device already registered."))
-		} else {
-			fatal(fmt.Sprintf("%s: %v", m.t("기기 등록 실패", "Registration failed"), err))
-		}
-	} else {
-		saveState(stateDir, "tunnel_token", regResp.TunnelToken)
-		saveState(stateDir, "device_url", regResp.URL)
-		fmt.Printf("  %s: %s\n", m.t("터널 생성 완료", "Tunnel created"), regResp.URL)
-	}
-
 	tunnelToken := loadState(stateDir, "tunnel_token")
+	skipRegistration := !force && tunnelToken != ""
+	if skipRegistration {
+		fmt.Printf("  %s\n", m.t("이미 등록됨 — 건너뜀", "Already registered — skipping"))
+	} else {
+		adminEmail := readLine(m.t("  관리자 이메일 (구글 계정): ", "  Admin email (Google account): "))
+		if adminEmail == "" {
+			fatal(m.t("이메일이 입력되지 않았습니다.", "No email provided."))
+		}
+
+		regResp, err := registerDevice(cfg, deviceID, adminEmail)
+		if err != nil {
+			if strings.Contains(err.Error(), "409") {
+				fmt.Printf("  %s\n", m.t("이미 등록된 기기입니다.", "Device already registered."))
+			} else {
+				fatal(fmt.Sprintf("%s: %v", m.t("기기 등록 실패", "Registration failed"), err))
+			}
+		} else {
+			saveState(stateDir, "tunnel_token", regResp.TunnelToken)
+			saveState(stateDir, "device_url", regResp.URL)
+			fmt.Printf("  %s: %s\n", m.t("터널 생성 완료", "Tunnel created"), regResp.URL)
+		}
+		tunnelToken = loadState(stateDir, "tunnel_token")
+	}
 	if tunnelToken != "" {
 		ssh.run(fmt.Sprintf(`cat > /etc/init.d/S98cloudflared <<'INITEOF'
 #!/bin/sh
@@ -336,20 +369,8 @@ sleep 3`, tunnelToken))
 	// 8. Services autostart + swap
 	step(8, totalSteps, m.t("서비스 시작 중...", "Starting services..."))
 
-	// httpd for static UI
-	ssh.run(`cat > /etc/init.d/S97httpd <<'INITEOF'
-#!/bin/sh
-case "$1" in
-  start) cd /var/www && python3 -m http.server 8080 >> /var/log/httpd.log 2>&1 & ;;
-  stop) kill $(ps | grep "python3 -m http.server" | grep -v grep | awk '{print $1}') 2>/dev/null ;;
-  restart) $0 stop; sleep 1; $0 start ;;
-  *) echo "Usage: $0 {start|stop|restart}"; exit 1 ;;
-esac
-INITEOF
-chmod +x /etc/init.d/S97httpd
-/etc/init.d/S97httpd stop 2>/dev/null
-/etc/init.d/S97httpd start`)
-	fmt.Printf("  %s\n", m.t("httpd 시작됨 (port 8080)", "httpd started (port 8080)"))
+	// Remove stale httpd init script (pico-bridge handles static serving now)
+	ssh.run("rm -f /etc/init.d/S97httpd; kill $(ps | grep 'python3 -m http.server' | grep -v grep | awk '{print $1}') 2>/dev/null || true")
 
 	// Remove skills whose required binaries are not available on this device
 	ssh.run(`cd /root/.picoclaw/workspace/skills 2>/dev/null && \
@@ -361,7 +382,7 @@ echo "Cleaned unavailable skills"`)
 PICOCLAW_BIN="/usr/local/bin/picoclaw"
 PICOCLAW_LOG="/var/log/picoclaw.log"
 PICOCLAW_PID="/var/run/picoclaw.pid"
-export PATH="/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin"
+export PATH="/root/.picoclaw/workspace/bin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin"
 export HOME="/root"
 case "$1" in
   start)
@@ -401,6 +422,10 @@ sleep 2`)
   swapon /swapfile 2>/dev/null || true
   grep -q '/swapfile' /etc/fstab 2>/dev/null || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi`)
+
+	// 9. Deploy latest build
+	step(totalSteps+1, totalSteps+1, m.t("최신 빌드 배포 중...", "Deploying latest build..."))
+	runDeploy()
 
 	// Done
 	deviceURL := loadState(stateDir, "device_url")
@@ -590,14 +615,24 @@ func runDeploy() {
 	fmt.Printf("Board: %s\n", boardIP)
 	ssh := newSSH(sshpassBin, boardUser, boardPass, boardIP)
 
+	boardTools := []string{"download"}
+
 	buildUI := true
 	buildBridge := true
-	for _, arg := range os.Args[2:] {
-		switch arg {
-		case "--ui":
-			buildBridge = false
-		case "--bridge":
-			buildUI = false
+	buildTools := true
+	if len(os.Args) > 2 {
+		for _, arg := range os.Args[2:] {
+			switch arg {
+			case "--ui":
+				buildBridge = false
+				buildTools = false
+			case "--bridge":
+				buildUI = false
+				buildTools = false
+			case "--tools":
+				buildUI = false
+				buildBridge = false
+			}
 		}
 	}
 
@@ -646,6 +681,42 @@ func runDeploy() {
 		ssh.scp(filepath.Join(boardBinDir, "pico-bridge"), "/usr/local/bin/pico-bridge")
 		ssh.run("chmod +x /usr/local/bin/pico-bridge && nohup /usr/local/bin/pico-bridge > /var/log/pico-bridge.log 2>&1 &")
 		fmt.Println("ok")
+	}
+
+	if buildTools {
+		fmt.Print("Deploying skills... ")
+		skillsDir := filepath.Join(scriptDir, "board-scripts", "skills")
+		if _, err := os.Stat(skillsDir); err == nil {
+			ssh.run("mkdir -p /root/.picoclaw/workspace/skills")
+			entries, _ := os.ReadDir(skillsDir)
+			for _, entry := range entries {
+				if entry.IsDir() {
+					ssh.run("mkdir -p /root/.picoclaw/workspace/skills/" + entry.Name())
+					skillFile := filepath.Join(skillsDir, entry.Name(), "SKILL.md")
+					if _, err := os.Stat(skillFile); err == nil {
+						ssh.scp(skillFile, "/root/.picoclaw/workspace/skills/"+entry.Name()+"/SKILL.md")
+					}
+				}
+			}
+		}
+		fmt.Println("ok")
+
+		for _, tool := range boardTools {
+			fmt.Printf("Building %s... ", tool)
+			cmd := exec.Command("go", "build", "-o", filepath.Join(boardBinDir, tool), "./cmd/"+tool+"/")
+			cmd.Dir = scriptDir
+			cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=riscv64")
+			if out, err := cmd.CombinedOutput(); err != nil {
+				fmt.Println("FAILED")
+				fmt.Println(string(out))
+				continue
+			}
+			fmt.Print("ok, deploying... ")
+			ssh.scp(filepath.Join(boardBinDir, tool), "/usr/local/bin/"+tool)
+			ssh.run("chmod +x /usr/local/bin/" + tool)
+			ssh.run("mkdir -p /root/.picoclaw/workspace/bin /root/.picoclaw/workspace/downloads && cp /usr/local/bin/" + tool + " /root/.picoclaw/workspace/bin/ && chmod 755 /root/.picoclaw/workspace/bin /root/.picoclaw/workspace/bin/" + tool)
+			fmt.Println("ok")
+		}
 	}
 
 	fmt.Println("Deploy complete.")
@@ -717,6 +788,18 @@ func runCmd(name string, args ...string) string {
 }
 
 // --- State management (~/.quickclaw/) ---
+
+func toolBinEntries(boardBinDir string, names []string) []struct{ local, remote, name string } {
+	var entries []struct{ local, remote, name string }
+	for _, name := range names {
+		entries = append(entries, struct{ local, remote, name string }{
+			filepath.Join(boardBinDir, name),
+			"/usr/local/bin/" + name,
+			name,
+		})
+	}
+	return entries
+}
 
 func quickclawDir() string {
 	home, _ := os.UserHomeDir()
@@ -841,6 +924,7 @@ func buildPicoclawConfig(modelName, model, apiBase, apiKey string) string {
 		"agents": map[string]any{
 			"defaults": map[string]any{
 				"workspace":                   "/root/.picoclaw/workspace",
+
 				"model_name":                  modelName,
 				"max_tokens":                  16384,
 				"max_tool_iterations":         30,
@@ -857,7 +941,7 @@ func buildPicoclawConfig(modelName, model, apiBase, apiKey string) string {
 		},
 		"tools": map[string]any{
 			"web":  map[string]any{"enabled": true, "duckduckgo": map[string]any{"enabled": true, "max_results": 3}},
-			"exec": map[string]any{"enabled": true, "timeout_seconds": 30},
+			"exec": map[string]any{"enabled": true, "timeout_seconds": 30, "allow_remote": true},
 			"cron": map[string]any{"enabled": true},
 		},
 		"channels": map[string]any{
