@@ -12,6 +12,6 @@
 
 <Root
 	bind:ref
-	class={cn("order-1 group-data-[variant='sent']/chat-bubble:order-2", className)}
+	class={cn("order-1 group-data-[variant='sent']/chat-bubble:order-2 z-10", className)}
 	{...restProps}
 />

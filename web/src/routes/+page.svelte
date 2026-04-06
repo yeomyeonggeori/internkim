@@ -15,6 +15,8 @@
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
 	import MailIcon from '@lucide/svelte/icons/mail';
+	import FileIcon from '@lucide/svelte/icons/file';
+	import DownloadIcon from '@lucide/svelte/icons/download';
 	import { Separator } from '$lib/components/ui/separator';
 	import { onMount } from 'svelte';
 	import { marked } from 'marked';
@@ -130,8 +132,43 @@
 		return parts[parts.length - 1] || currentModel;
 	});
 
+	const imageExtensions = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg']);
+
+	function isFileLink(href: string): boolean {
+		return href.startsWith('/pico/files/');
+	}
+
+	function getFileExtension(path: string): string {
+		return path.split('.').pop()?.toLowerCase() || '';
+	}
+
+	function getFileName(path: string): string {
+		return path.split('/').pop() || path;
+	}
+
 	function renderMarkdown(text: string): string {
-		const raw = marked.parse(text, { async: false }) as string;
+		const renderer = new marked.Renderer();
+
+		renderer.image = ({ href, title, text: alt }) => {
+			if (isFileLink(href)) {
+				return `<a href="${href}" download class="file-preview file-preview-image" target="_blank"><img src="${href}" alt="${alt || ''}" /></a>`;
+			}
+			return `<img src="${href}" alt="${alt || ''}" title="${title || ''}" />`;
+		};
+
+		renderer.link = ({ href, title, text: linkText }) => {
+			if (isFileLink(href)) {
+				const extension = getFileExtension(href);
+				const fileName = getFileName(href);
+				if (imageExtensions.has(extension)) {
+					return `<a href="${href}" download class="file-preview file-preview-image" target="_blank"><img src="${href}" alt="${fileName}" /></a>`;
+				}
+				return `<a href="${href}" download class="file-preview file-preview-doc" target="_blank"><span class="file-icon">📄</span><span class="file-info"><span class="file-name">${fileName}</span><span class="file-ext">${extension.toUpperCase()}</span></span><span class="file-action">↓</span></a>`;
+			}
+			return `<a href="${href}" title="${title || ''}" target="_blank" rel="noopener">${linkText}</a>`;
+		};
+
+		const raw = marked.parse(text, { async: false, renderer }) as string;
 		return DOMPurify.sanitize(raw);
 	}
 
@@ -451,7 +488,12 @@
 	<div class="bg-background flex items-center justify-between border-b p-2">
 		<div class="flex items-center gap-2 pl-1">
 			<img src={logoSrc} alt="intern kim" class="size-8" />
-			<span class="text-sm font-medium">intern kim</span>
+			<div class="flex flex-col">
+				<span class="text-sm font-medium leading-tight">intern kim</span>
+				{#if currentUser}
+					<span class="text-muted-foreground text-[10px] leading-tight">{currentUser}</span>
+				{/if}
+			</div>
 		</div>
 		<Button variant="ghost" size="icon" onclick={() => (showSettingsSheet = true)}>
 			<SettingsIcon />
