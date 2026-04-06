@@ -40,7 +40,7 @@ func loadConfig() config {
 	return config{
 		APIBaseURL:     envOr("QC_API_URL", "https://quick-claw.pages.dev"),
 		RegisterSecret: envOr("QC_REGISTER_SECRET", ""),
-		CFDomain:       envOr("QC_DOMAIN", "example.com"),
+		CFDomain:       envOr("QC_DOMAIN", "example.test"),
 	}
 }
 
