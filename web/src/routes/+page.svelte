@@ -17,11 +17,47 @@
 	import MailIcon from '@lucide/svelte/icons/mail';
 	import FileIcon from '@lucide/svelte/icons/file';
 	import DownloadIcon from '@lucide/svelte/icons/download';
+	import CopyIcon from '@lucide/svelte/icons/copy';
+	import CheckIcon from '@lucide/svelte/icons/check';
+	import MaximizeIcon from '@lucide/svelte/icons/maximize-2';
 	import QrCode from 'svelte-qrcode';
 	import { Separator } from '$lib/components/ui/separator';
 	import { onMount } from 'svelte';
 	import { marked } from 'marked';
 	import DOMPurify from 'dompurify';
+	import hljs from 'highlight.js/lib/core';
+	import javascript from 'highlight.js/lib/languages/javascript';
+	import typescript from 'highlight.js/lib/languages/typescript';
+	import python from 'highlight.js/lib/languages/python';
+	import bash from 'highlight.js/lib/languages/bash';
+	import json from 'highlight.js/lib/languages/json';
+	import css from 'highlight.js/lib/languages/css';
+	import xml from 'highlight.js/lib/languages/xml';
+	import sql from 'highlight.js/lib/languages/sql';
+	import go from 'highlight.js/lib/languages/go';
+	import rust from 'highlight.js/lib/languages/rust';
+	import yaml from 'highlight.js/lib/languages/yaml';
+	import markdown from 'highlight.js/lib/languages/markdown';
+	hljs.registerLanguage('javascript', javascript);
+	hljs.registerLanguage('js', javascript);
+	hljs.registerLanguage('typescript', typescript);
+	hljs.registerLanguage('ts', typescript);
+	hljs.registerLanguage('python', python);
+	hljs.registerLanguage('py', python);
+	hljs.registerLanguage('bash', bash);
+	hljs.registerLanguage('sh', bash);
+	hljs.registerLanguage('shell', bash);
+	hljs.registerLanguage('json', json);
+	hljs.registerLanguage('css', css);
+	hljs.registerLanguage('html', xml);
+	hljs.registerLanguage('xml', xml);
+	hljs.registerLanguage('sql', sql);
+	hljs.registerLanguage('go', go);
+	hljs.registerLanguage('rust', rust);
+	hljs.registerLanguage('yaml', yaml);
+	hljs.registerLanguage('yml', yaml);
+	hljs.registerLanguage('markdown', markdown);
+	hljs.registerLanguage('md', markdown);
 
 	type Message = {
 		role: 'user' | 'assistant';
@@ -56,6 +92,12 @@
 	let modelInput = $state('');
 	let showModelDialog = $state(false);
 	let modelSaving = $state(false);
+
+	// Code fullscreen
+	let codeFullscreen = $state(false);
+	let codeFullscreenContent = $state('');
+	let codeFullscreenLanguage = $state('');
+	let codeCopied = $state(false);
 
 	// Settings sheet
 	let showSettingsSheet = $state(false);
@@ -169,8 +211,17 @@
 			return `<a href="${href}" title="${title || ''}" target="_blank" rel="noopener">${linkText}</a>`;
 		};
 
+		renderer.code = ({ text, lang }) => {
+			const highlighted = lang && hljs.getLanguage(lang)
+				? hljs.highlight(text, { language: lang }).value
+				: text;
+			const escapedRaw = text.replace(/"/g, '&quot;').replace(/</g, '&lt;');
+			const langLabel = lang ? `<span class="code-lang">${lang}</span>` : '';
+			return `<div class="code-block-wrapper">${langLabel}<button class="code-expand-btn" data-code="${escapedRaw}" data-lang="${lang || ''}"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button><pre><code class="hljs language-${lang || ''}">${highlighted}</code></pre></div>`;
+		};
+
 		const raw = marked.parse(text, { async: false, renderer }) as string;
-		return DOMPurify.sanitize(raw);
+		return DOMPurify.sanitize(raw, { ADD_ATTR: ['data-code', 'data-lang'] });
 	}
 
 	function handleFileSelect(e: Event) {
@@ -245,6 +296,16 @@
 		loadHistory();
 		loadModel();
 		loadUsers();
+
+		document.addEventListener('click', (e) => {
+			const btn = (e.target as HTMLElement).closest('.code-expand-btn') as HTMLElement | null;
+			if (!btn) return;
+			const code = btn.dataset.code?.replace(/&quot;/g, '"').replace(/&lt;/g, '<') || '';
+			codeFullscreenContent = code;
+			codeFullscreenLanguage = btn.dataset.lang || '';
+			codeCopied = false;
+			codeFullscreen = true;
+		});
 	});
 
 	async function getToken(): Promise<{ token: string; ws_url: string }> {
@@ -357,6 +418,19 @@
 		}
 	}
 
+	function highlightedFullscreenCode(): string {
+		if (codeFullscreenLanguage && hljs.getLanguage(codeFullscreenLanguage)) {
+			return hljs.highlight(codeFullscreenContent, { language: codeFullscreenLanguage }).value;
+		}
+		return codeFullscreenContent.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+	}
+
+	async function copyCode() {
+		await navigator.clipboard.writeText(codeFullscreenContent);
+		codeCopied = true;
+		setTimeout(() => (codeCopied = false), 2000);
+	}
+
 	function onkeydown(e: KeyboardEvent) {
 		if (e.key === 'Enter' && !e.shiftKey) {
 			e.preventDefault();
@@ -453,6 +527,27 @@
 		</div>
 	</Sheet.Content>
 </Sheet.Root>
+
+<!-- Code Fullscreen Dialog -->
+<Dialog.Root bind:open={codeFullscreen}>
+	<Dialog.Content class="max-w-3xl max-h-[80vh] flex flex-col">
+		<Dialog.Header>
+			<div class="flex items-center justify-between">
+				<Dialog.Title>{codeFullscreenLanguage || 'Code'}</Dialog.Title>
+				<Button variant="ghost" size="sm" class="gap-1.5" onclick={copyCode}>
+					{#if codeCopied}
+						<CheckIcon class="size-3.5" />
+						Copied
+					{:else}
+						<CopyIcon class="size-3.5" />
+						Copy
+					{/if}
+				</Button>
+			</div>
+		</Dialog.Header>
+		<pre class="flex-1 overflow-auto rounded-md bg-muted p-4 text-xs"><code class="hljs">{@html highlightedFullscreenCode()}</code></pre>
+	</Dialog.Content>
+</Dialog.Root>
 
 <!-- Model Dialog -->
 <Dialog.Root bind:open={showModelDialog}>
