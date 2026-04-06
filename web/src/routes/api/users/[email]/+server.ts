@@ -3,6 +3,16 @@ import type { RequestHandler } from './$types';
 import { kv } from '$lib/kv';
 import { addEmailToPolicy } from '$lib/cloudflare';
 
+const corsHeaders = {
+	'Access-Control-Allow-Origin': '*',
+	'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+	'Access-Control-Allow-Headers': 'Content-Type'
+};
+
+export const OPTIONS: RequestHandler = async () => {
+	return new Response(null, { headers: corsHeaders });
+};
+
 export const DELETE: RequestHandler = async ({ params, url, platform }) => {
 	const env = platform?.env;
 	if (!env?.KV) throw error(500, 'KV not available');
@@ -30,5 +40,5 @@ export const DELETE: RequestHandler = async ({ params, url, platform }) => {
 		filtered
 	);
 
-	return json({ users: filtered });
+	return json({ users: filtered }, { headers: corsHeaders });
 };
