@@ -17,6 +17,7 @@
 	import MailIcon from '@lucide/svelte/icons/mail';
 	import FileIcon from '@lucide/svelte/icons/file';
 	import DownloadIcon from '@lucide/svelte/icons/download';
+	import QrCode from 'svelte-qrcode';
 	import { Separator } from '$lib/components/ui/separator';
 	import { onMount } from 'svelte';
 	import { marked } from 'marked';
@@ -375,6 +376,14 @@
 			<Sheet.Title>Settings</Sheet.Title>
 		</Sheet.Header>
 		<div class="flex flex-1 flex-col gap-6 overflow-y-auto p-1 -m-1 pt-4">
+			{#if deviceId()}
+				<section class="flex flex-col items-center gap-3">
+					<QrCode value={`https://${deviceId()}.intern.kim`} size="180" />
+					<p class="text-muted-foreground text-xs">{deviceId()}.intern.kim</p>
+				</section>
+				<Separator />
+			{/if}
+
 			{#if currentUser}
 				<section class="flex flex-col gap-1.5">
 					<h3 class="text-muted-foreground text-xs font-medium uppercase tracking-wider">Account</h3>
