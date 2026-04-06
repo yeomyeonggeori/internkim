@@ -2,6 +2,6 @@
 .DS_Store
 board-bin/
 board-ui/
-quick-claw
+internkim
 .env
 .dev.vars

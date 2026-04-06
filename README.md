@@ -1,4 +1,4 @@
-# Quick Claw
+# Intern Kim
 
 LicheeRV Nano 보드에 [PicoClaw](https://github.com/picoclaw/picoclaw) AI 에이전트를 탑재하고, Cloudflare Tunnel로 어디서든 접속 가능한 턴키 하드웨어.
 
@@ -54,8 +54,8 @@ Cloudflare (Access + Pages)
 ### Go CLI 빌드 & 실행
 
 ```bash
-go build -o quick-claw .
-./quick-claw setup
+go build -o internkim .
+./internkim setup
 ```
 
 8단계 자동 진행:
@@ -108,7 +108,7 @@ REGISTER_SECRET=...
 ## 디렉토리 구조
 
 ```
-quick-claw/
+internkim/
 ├── main.go              Go CLI (초기 셋업)
 ├── go.mod / go.sum
 ├── bin/                 macOS 유틸 (get-ssid, sshpass)
