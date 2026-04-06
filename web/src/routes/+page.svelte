@@ -328,7 +328,7 @@
 </script>
 
 <svelte:head>
-	<title>blueclaw</title>
+	<title>intern kim</title>
 </svelte:head>
 
 <!-- Settings Sheet -->
@@ -450,8 +450,8 @@
 	<!-- Header -->
 	<div class="bg-background flex items-center justify-between border-b p-2">
 		<div class="flex items-center gap-2 pl-1">
-			<img src={logoSrc} alt="blueclaw" class="size-8" />
-			<span class="text-sm font-medium">blueclaw</span>
+			<img src={logoSrc} alt="intern kim" class="size-8" />
+			<span class="text-sm font-medium">intern kim</span>
 		</div>
 		<Button variant="ghost" size="icon" onclick={() => (showSettingsSheet = true)}>
 			<SettingsIcon />
@@ -472,7 +472,7 @@
 					<Chat.Bubble variant={msg.role === 'user' ? 'sent' : 'received'}>
 						{#if msg.role === 'assistant'}
 							<Chat.BubbleAvatar>
-								<Chat.BubbleAvatarImage src={logoSrc} alt="blueclaw" />
+								<Chat.BubbleAvatarImage src={logoSrc} alt="intern kim" />
 							</Chat.BubbleAvatar>
 						{/if}
 						<Chat.BubbleMessage>
@@ -499,7 +499,7 @@
 				{#if loading}
 					<Chat.Bubble variant="received">
 						<Chat.BubbleAvatar>
-							<Chat.BubbleAvatarImage src={logoSrc} alt="blueclaw" />
+							<Chat.BubbleAvatarImage src={logoSrc} alt="intern kim" />
 						</Chat.BubbleAvatar>
 						<Chat.BubbleMessage typing />
 					</Chat.Bubble>
