@@ -99,6 +99,13 @@
 	let codeFullscreenLanguage = $state('');
 	let codeCopied = $state(false);
 
+	// Image viewer
+	let imageViewerOpen = $state(false);
+	let imageViewerSource = $state('');
+	let imageMenuOpen = $state(false);
+	let imageMenuPosition = $state({ x: 0, y: 0 });
+	let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+
 	// Settings sheet
 	let showSettingsSheet = $state(false);
 	let userEmails = $state<string[]>([]);
@@ -194,9 +201,9 @@
 
 		renderer.image = ({ href, title, text: alt }) => {
 			if (isFileLink(href)) {
-				return `<a href="${href}" download class="file-preview file-preview-image" target="_blank"><img src="${href}" alt="${alt || ''}" /></a>`;
+				return `<span class="file-preview file-preview-image expandable-image" data-src="${href}"><img src="${href}" alt="${alt || ''}" /></span>`;
 			}
-			return `<img src="${href}" alt="${alt || ''}" title="${title || ''}" />`;
+			return `<img src="${href}" alt="${alt || ''}" title="${title || ''}" class="expandable-image" data-src="${href}" />`;
 		};
 
 		renderer.link = ({ href, title, text: linkText }) => {
@@ -204,7 +211,7 @@
 				const extension = getFileExtension(href);
 				const fileName = getFileName(href);
 				if (imageExtensions.has(extension)) {
-					return `<a href="${href}" download class="file-preview file-preview-image" target="_blank"><img src="${href}" alt="${fileName}" /></a>`;
+					return `<span class="file-preview file-preview-image expandable-image" data-src="${href}"><img src="${href}" alt="${fileName}" /></span>`;
 				}
 				return `<a href="${href}" download class="file-preview file-preview-doc" target="_blank"><span class="file-icon">📄</span><span class="file-info"><span class="file-name">${fileName}</span><span class="file-ext">${extension.toUpperCase()}</span></span><span class="file-action">↓</span></a>`;
 			}
@@ -221,7 +228,7 @@
 		};
 
 		const raw = marked.parse(text, { async: false, renderer }) as string;
-		return DOMPurify.sanitize(raw, { ADD_ATTR: ['data-code', 'data-lang'] });
+		return DOMPurify.sanitize(raw, { ADD_ATTR: ['data-code', 'data-lang', 'data-src'] });
 	}
 
 	function handleFileSelect(e: Event) {
@@ -298,13 +305,22 @@
 		loadUsers();
 
 		document.addEventListener('click', (e) => {
-			const btn = (e.target as HTMLElement).closest('.code-expand-btn') as HTMLElement | null;
-			if (!btn) return;
-			const code = btn.dataset.code?.replace(/&quot;/g, '"').replace(/&lt;/g, '<') || '';
-			codeFullscreenContent = code;
-			codeFullscreenLanguage = btn.dataset.lang || '';
-			codeCopied = false;
-			codeFullscreen = true;
+			const target = e.target as HTMLElement;
+			const codeButton = target.closest('.code-expand-btn') as HTMLElement | null;
+			if (codeButton) {
+				const code = codeButton.dataset.code?.replace(/&quot;/g, '"').replace(/&lt;/g, '<') || '';
+				codeFullscreenContent = code;
+				codeFullscreenLanguage = codeButton.dataset.lang || '';
+				codeCopied = false;
+				codeFullscreen = true;
+				return;
+			}
+			const expandableImage = target.closest('.expandable-image') as HTMLElement | null;
+			if (expandableImage) {
+				e.preventDefault();
+				const source = expandableImage.dataset.src || expandableImage.querySelector('img')?.src || '';
+				if (source) openImageViewer(source);
+			}
 		});
 	});
 
@@ -418,6 +434,39 @@
 		}
 	}
 
+	function openImageViewer(source: string) {
+		imageViewerSource = source;
+		imageViewerOpen = true;
+	}
+
+	function handleImageLongPressStart(event: TouchEvent | MouseEvent, source: string) {
+		longPressTimer = setTimeout(() => {
+			event.preventDefault();
+			const { clientX, clientY } = 'touches' in event ? event.touches[0] : event;
+			imageMenuPosition = { x: clientX, y: clientY };
+			imageViewerSource = source;
+			imageMenuOpen = true;
+			longPressTimer = null;
+		}, 500);
+	}
+
+	function handleImageLongPressEnd() {
+		if (longPressTimer) {
+			clearTimeout(longPressTimer);
+			longPressTimer = null;
+		}
+	}
+
+	async function saveImage() {
+		imageMenuOpen = false;
+		const link = document.createElement('a');
+		link.href = imageViewerSource;
+		link.download = imageViewerSource.split('/').pop() || 'image';
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+	}
+
 	function highlightedFullscreenCode(): string {
 		if (codeFullscreenLanguage && hljs.getLanguage(codeFullscreenLanguage)) {
 			return hljs.highlight(codeFullscreenContent, { language: codeFullscreenLanguage }).value;
@@ -528,6 +577,58 @@
 	</Sheet.Content>
 </Sheet.Root>
 
+<!-- Image Viewer Dialog -->
+<Dialog.Root bind:open={imageViewerOpen}>
+	<Dialog.Content class="max-w-[90vw] max-h-[90vh] flex flex-col items-center p-2 sm:p-4">
+		<Dialog.Header class="sr-only">
+			<Dialog.Title>Image</Dialog.Title>
+		</Dialog.Header>
+		{#if imageViewerSource}
+			<img
+				src={imageViewerSource}
+				alt="Expanded"
+				class="max-h-[80vh] max-w-full rounded-md object-contain"
+			/>
+		{/if}
+		<div class="mt-2 flex gap-2">
+			<Button variant="ghost" size="sm" class="gap-1.5" onclick={saveImage}>
+				<DownloadIcon class="size-3.5" />
+				Save
+			</Button>
+		</div>
+	</Dialog.Content>
+</Dialog.Root>
+
+<!-- Image Long-Press Menu -->
+{#if imageMenuOpen}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		class="fixed inset-0 z-50"
+		onclick={() => (imageMenuOpen = false)}
+		oncontextmenu={(e) => { e.preventDefault(); imageMenuOpen = false; }}
+	>
+		<div
+			class="bg-popover text-popover-foreground absolute rounded-lg border p-1 shadow-md"
+			style="left: {imageMenuPosition.x}px; top: {imageMenuPosition.y}px; transform: translate(-50%, -100%);"
+		>
+			<button
+				class="hover:bg-accent hover:text-accent-foreground flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-sm cursor-pointer"
+				onclick={saveImage}
+			>
+				<DownloadIcon class="size-3.5" />
+				Save Image
+			</button>
+			<button
+				class="hover:bg-accent hover:text-accent-foreground flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-sm cursor-pointer"
+				onclick={() => { imageMenuOpen = false; openImageViewer(imageViewerSource); }}
+			>
+				<MaximizeIcon class="size-3.5" />
+				Expand
+			</button>
+		</div>
+	</div>
+{/if}
+
 <!-- Code Fullscreen Dialog -->
 <Dialog.Root bind:open={codeFullscreen}>
 	<Dialog.Content class="max-w-3xl max-h-[80vh] flex flex-col">
@@ -624,17 +725,27 @@
 						<Chat.BubbleMessage>
 							{#if msg.role === 'user'}
 								{#if msg.imageUrl}
+									<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 									<img
 										src={msg.imageUrl}
-										alt="Sent image"
-										class="mb-1.5 max-h-48 rounded-lg object-contain"
+										alt="Attached"
+										class="mb-1.5 max-h-48 cursor-pointer rounded-lg object-contain"
+										onclick={() => openImageViewer(msg.imageUrl!)}
+										ontouchstart={(e) => handleImageLongPressStart(e, msg.imageUrl!)}
+										ontouchend={handleImageLongPressEnd}
+										oncontextmenu={(e) => {
+											e.preventDefault();
+											imageMenuPosition = { x: e.clientX, y: e.clientY };
+											imageViewerSource = msg.imageUrl!;
+											imageMenuOpen = true;
+										}}
 									/>
 								{/if}
 								{#if msg.content}
 									<span>{msg.content}</span>
 								{/if}
 							{:else}
-								<div class="markdown max-w-none text-sm">
+								<div class="markdown text-sm">
 									{@html renderMarkdown(msg.content)}
 								</div>
 							{/if}
