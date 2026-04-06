@@ -71,7 +71,7 @@
 
 	const pagesApi = () => {
 		const id = deviceId();
-		return id ? `https://intern.kim/api` : '';
+		return id ? `https://api.intern.kim/api` : '';
 	};
 
 	async function loadUsers() {
