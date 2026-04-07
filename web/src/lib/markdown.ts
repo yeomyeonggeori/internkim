@@ -3,7 +3,8 @@ import DOMPurify from 'dompurify';
 
 export type HtmlSegment = { type: 'html'; content: string };
 export type CodeSegment = { type: 'code'; lang: string; code: string };
-export type Segment = HtmlSegment | CodeSegment;
+export type FileSegment = { type: 'file'; href: string; name: string; ext: string; isImage: boolean };
+export type Segment = HtmlSegment | CodeSegment | FileSegment;
 
 const imageExtensions = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg']);
 
@@ -19,45 +20,62 @@ function getFileName(path: string): string {
 	return path.split('/').pop() || path;
 }
 
-function createRenderer(): marked.Renderer {
+const FILE_PLACEHOLDER = '__PICO_FILE__';
+
+function createRenderer(fileSegments: FileSegment[]): marked.Renderer {
 	const renderer = new marked.Renderer();
 	renderer.image = ({ href, text: alt }) => {
 		if (isFileLink(href)) {
-			return `<span class="file-preview file-preview-image expandable-image" data-src="${href}"><img src="${href}" alt="${alt || ''}" /></span>`;
+			const ext = getFileExtension(href);
+			const name = getFileName(href);
+			fileSegments.push({ type: 'file', href, name: alt || name, ext, isImage: true });
+			return `<span data-pico-file="${fileSegments.length - 1}">${FILE_PLACEHOLDER}</span>`;
 		}
 		return `<img src="${href}" alt="${alt || ''}" class="expandable-image" data-src="${href}" />`;
 	};
 	renderer.link = ({ href, title, text: linkText }) => {
 		if (isFileLink(href)) {
-			const extension = getFileExtension(href);
-			const fileName = getFileName(href);
-			if (imageExtensions.has(extension)) {
-				return `<span class="file-preview file-preview-image expandable-image" data-src="${href}"><img src="${href}" alt="${fileName}" /></span>`;
-			}
-			return `<a href="${href}" download class="file-preview file-preview-doc" target="_blank"><span class="file-icon">📄</span><span class="file-info"><span class="file-name">${fileName}</span><span class="file-ext">${extension.toUpperCase()}</span></span><span class="file-action">↓</span></a>`;
+			const ext = getFileExtension(href);
+			const name = getFileName(href);
+			const isImage = imageExtensions.has(ext);
+			fileSegments.push({ type: 'file', href, name: linkText || name, ext, isImage });
+			return `<span data-pico-file="${fileSegments.length - 1}">${FILE_PLACEHOLDER}</span>`;
 		}
 		return `<a href="${href}" title="${title || ''}" target="_blank" rel="noopener">${linkText}</a>`;
 	};
 	return renderer;
 }
 
-function flushHtmlTokens(tokens: Token[]): HtmlSegment | null {
-	if (tokens.length === 0) return null;
+function flushHtmlTokens(tokens: Token[], fileSegments: FileSegment[]): Segment[] {
+	if (tokens.length === 0) return [];
 	const tokenList = tokens as Token[] & { links: Record<string, { href: string; title: string }> };
 	tokenList.links = {};
-	const raw = marked.parser(tokenList, { renderer: createRenderer() });
-	const sanitized = DOMPurify.sanitize(raw, { ADD_ATTR: ['data-src'] });
-	return sanitized.trim() ? { type: 'html', content: sanitized } : null;
+	const raw = marked.parser(tokenList, { renderer: createRenderer(fileSegments) });
+	const sanitized = DOMPurify.sanitize(raw, { ADD_ATTR: ['data-src', 'data-pico-file'] });
+	if (!sanitized.trim()) return [];
+
+	// Split on file placeholders and emit FileSegments inline
+	const result: Segment[] = [];
+	const parts = sanitized.split(/<span data-pico-file="(\d+)">__PICO_FILE__<\/span>/);
+	for (let i = 0; i < parts.length; i++) {
+		if (i % 2 === 0) {
+			if (parts[i].trim()) result.push({ type: 'html', content: parts[i] });
+		} else {
+			const seg = fileSegments[parseInt(parts[i])];
+			if (seg) result.push(seg);
+		}
+	}
+	return result;
 }
 
 export function parseMarkdownSegments(text: string): Segment[] {
 	const tokens = marked.lexer(text);
 	const segments: Segment[] = [];
+	const fileSegments: FileSegment[] = [];
 	let buffer: Token[] = [];
 	for (const token of tokens) {
 		if (token.type === 'code') {
-			const htmlSegment = flushHtmlTokens(buffer);
-			if (htmlSegment) segments.push(htmlSegment);
+			segments.push(...flushHtmlTokens(buffer, fileSegments));
 			buffer = [];
 			segments.push({
 				type: 'code',
@@ -68,7 +86,6 @@ export function parseMarkdownSegments(text: string): Segment[] {
 			buffer.push(token);
 		}
 	}
-	const htmlSegment = flushHtmlTokens(buffer);
-	if (htmlSegment) segments.push(htmlSegment);
+	segments.push(...flushHtmlTokens(buffer, fileSegments));
 	return segments;
 }
