@@ -26,6 +26,8 @@
 	import { onMount } from 'svelte';
 	import { parseMarkdownSegments } from '$lib/markdown';
 
+	import ImageIcon from '@lucide/svelte/icons/image';
+
 	type Message = {
 		role: 'user' | 'assistant';
 		content: string;
@@ -651,6 +653,55 @@
 									{#each parseMarkdownSegments(msg.content) as segment}
 										{#if segment.type === 'html'}
 											{@html segment.content}
+										{:else if segment.type === 'file'}
+											{#if segment.isImage}
+												<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+												<img
+													src={segment.href}
+													alt={segment.name}
+													class="my-2 max-h-64 cursor-pointer rounded-lg object-contain"
+													onclick={() => openImageViewer(segment.href)}
+													ontouchstart={(e) => handleImageLongPressStart(e, segment.href)}
+													ontouchend={handleImageLongPressEnd}
+												/>
+											{:else}
+												<Button
+													variant="outline"
+													class="my-2 h-auto w-full max-w-xs justify-start gap-2 px-2.5 py-3 hover:bg-white/60! cursor-pointer hover:text-inherit"
+													onclick={() => {
+														const a = document.createElement('a');
+														a.href = segment.href;
+														a.download = segment.name;
+														a.click();
+													}}
+												>
+													<FileIcon class="text-muted-foreground size-10" strokeWidth={1} />
+													<div class="min-w-0 flex-1 text-left gap-1">
+														<p class="m-0 truncate text-sm font-medium">{segment.name}</p>
+														<div class="text-muted-foreground flex items-center gap-1 text-[11px] uppercase">
+															<span>{segment.ext}</span>
+															{#await fetch(segment.href, { method: 'HEAD' }).then(r => {
+																const bytes = parseInt(r.headers.get('content-length') || '0');
+																if (!bytes) return '';
+																if (bytes < 1024) return `${bytes} B`;
+																if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+																return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+															})}
+																<span>·</span>
+																<span>...</span>
+															{:then size}
+																{#if size}
+																	<span>·</span>
+																	<span>{size}</span>
+																{/if}
+															{/await}
+														</div>
+													</div>
+													<div class="bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-full">
+														<DownloadIcon class="size-4" />
+													</div>
+												</Button>
+											{/if}
 										{:else}
 											<div class="my-2 overflow-hidden rounded-lg border">
 												<div class="bg-muted flex items-center justify-between border-b pl-2.5 pr-0 py-1">
