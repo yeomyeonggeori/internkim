@@ -23,7 +23,7 @@
 	<div
 		{...rest}
 		bind:this={ref}
-		class={cn('no-scrollbar flex h-full w-full flex-col gap-1.5 overflow-y-auto p-4', className, {
+		class={cn('no-scrollbar flex h-full w-full flex-col gap-1.5 overflow-y-auto overflow-x-hidden py-4 px-2', className, {
 			'scroll-smooth': canScrollSmooth
 		})}
 		bind:this={autoScroll.ref}
