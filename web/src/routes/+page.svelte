@@ -333,12 +333,7 @@
 						payload
 					})
 				);
-				setTimeout(() => {
-					if (pendingResolve === resolve) {
-						resolve(currentContent || '(timeout)');
-						pendingResolve = null;
-					}
-				}, 120000);
+	
 			});
 
 			messages.push({ role: 'assistant', content });
