@@ -93,14 +93,17 @@ func restartPicoclaw() error {
 	exec.Command("rm", "-f", "/root/.picoclaw/.picoclaw.pid").Run()
 	exec.Command("sh", "-c", "/etc/init.d/S99picoclaw start 2>/dev/null").Run()
 
-	// Wait up to 5s for gateway to come up
-	for i := 0; i < 10; i++ {
+	// Wait up to 10s for gateway to come up and pid file to be written
+	for i := 0; i < 20; i++ {
 		time.Sleep(500 * time.Millisecond)
 		resp, err := http.Get("http://localhost:18790/health")
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode == 200 {
-				return nil
+				// Also wait for pid file so token generation works
+				if _, err := os.Stat("/root/.picoclaw/.picoclaw.pid"); err == nil {
+					return nil
+				}
 			}
 		}
 	}
@@ -164,7 +167,6 @@ func handleModel(home string) http.HandlerFunc {
 				http.Error(w, err.Error(), 500)
 				return
 			}
-			restartPicoclaw()
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]string{"old": old, "new": req.Model})
 
