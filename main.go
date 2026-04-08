@@ -684,6 +684,10 @@ func runDeploy() {
 	}
 
 	if buildTools {
+		fmt.Print("Installing skill dependencies... ")
+		ssh.run("pip3 install --quiet fpdf2 pypdf 2>&1 | tail -1")
+		fmt.Println("ok")
+
 		fmt.Print("Deploying skills... ")
 		skillsDir := filepath.Join(scriptDir, "board-scripts", "skills")
 		if _, err := os.Stat(skillsDir); err == nil {
