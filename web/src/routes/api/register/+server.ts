@@ -19,9 +19,6 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	};
 	if (!device_id || !admin_email) throw error(400, 'device_id and admin_email required');
 
-	const existing = await kv.getDevice(env.KV, device_id);
-	if (existing) throw error(409, 'Device already registered');
-
 	const cfEnv = {
 		CF_API_TOKEN: env.CF_API_TOKEN,
 		CF_ACCOUNT_ID: env.CF_ACCOUNT_ID,
@@ -29,8 +26,18 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 		CF_DOMAIN: env.CF_DOMAIN
 	};
 
+	const existing = await kv.getDevice(env.KV, device_id);
+	if (existing) {
+		// Re-configure tunnel ingress (fixes port mismatches from older registrations)
+		await configureTunnel(cfEnv, existing.tunnel_id, device_id);
+		return json({
+			device_id,
+			tunnel_token: existing.tunnel_token,
+			url: `https://${device_id}.${env.CF_DOMAIN}`
+		});
+	}
+
 	const { tunnelId, tunnelToken } = await createTunnel(cfEnv, device_id);
-	// Tunnel points to Mattermost — Mattermost handles all auth
 	await configureTunnel(cfEnv, tunnelId, device_id);
 	const dnsRecordId = await createDNSRecord(cfEnv, tunnelId, device_id);
 
