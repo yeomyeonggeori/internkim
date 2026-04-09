@@ -1288,26 +1288,27 @@ exec /lib/systemd/systemd`
 		os.Exit(1)
 	}
 
-	fmt.Print("Waiting for SSH")
+	fmt.Print("Waiting for SSH (package install may take a few minutes)")
 	simIP := ""
-	for i := 0; i < 60; i++ {
-		if i < 10 {
-			time.Sleep(1 * time.Second)
-		} else {
-			time.Sleep(2 * time.Second)
-		}
+	sshOK := false
+	for i := 0; i < 120; i++ { // up to ~5 minutes
+		time.Sleep(3 * time.Second)
 		fmt.Print(".")
-		simIP = simContainerIP()
+		if simIP == "" {
+			simIP = simContainerIP()
+		}
 		if simIP != "" {
-			test := exec.Command("ssh", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=2", "-o", "BatchMode=yes", "root@"+simIP, "echo ok")
+			test := exec.Command("ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "ConnectTimeout=3", "-o", "BatchMode=yes", "root@"+simIP, "echo ok")
 			if out, _ := test.Output(); strings.TrimSpace(string(out)) == "ok" {
+				sshOK = true
 				break
 			}
 		}
 	}
 	fmt.Println()
-	if simIP == "" {
-		fmt.Println("Simulator SSH not ready. Try: internkim sim ssh")
+	if !sshOK {
+		fmt.Println("Simulator SSH not ready after 5 minutes.")
+		fmt.Println("Packages may still be installing. Try: internkim sim ssh")
 		os.Exit(1)
 	}
 	fmt.Printf("Simulator ready at %s\n\n", simIP)
