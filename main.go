@@ -1772,8 +1772,9 @@ func allowSAKeyCreation(client *http.Client, accessToken, projectID string) erro
 		bytes.NewReader(enableBody))
 	enableReq.Header.Set("Authorization", "Bearer "+accessToken)
 	enableReq.Header.Set("Content-Type", "application/json")
+	enableReq.Header.Set("X-Goog-User-Project", projectID)
 	client.Do(enableReq) // best-effort
-	time.Sleep(2 * time.Second)
+	time.Sleep(3 * time.Second)
 
 	// Set project-level policy to NOT enforce the constraint
 	policyBody, _ := json.Marshal(map[string]any{
@@ -1789,6 +1790,7 @@ func allowSAKeyCreation(client *http.Client, accessToken, projectID string) erro
 		bytes.NewReader(policyBody))
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Goog-User-Project", projectID)
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
