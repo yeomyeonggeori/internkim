@@ -80,6 +80,8 @@
 	let newEmail = $state('');
 	let emailLoading = $state(false);
 	let adminEmail = $state('');
+	let isAdmin = $state(false);
+	let isAllowed = $state(true);
 
 	const deviceId = () => {
 		const host = location.hostname;
@@ -101,8 +103,11 @@
 			if (res.ok) {
 				const data = await res.json();
 				userEmails = data.users || [];
-				if (userEmails.length > 0 && !adminEmail) {
-					adminEmail = userEmails[0];
+				isAdmin = data.isAdmin ?? false;
+				adminEmail = userEmails[0] ?? '';
+				// Check if current user is in the allowed list
+				if (currentUser && userEmails.length > 0) {
+					isAllowed = userEmails.includes(currentUser);
 				}
 			}
 		} catch { /* ignore */ }
@@ -415,9 +420,10 @@
 				<Separator />
 			{/if}
 
+			{#if isAdmin}
 			<section class="flex flex-col gap-3">
 				<div class="flex items-center justify-between">
-					<h3 class="text-muted-foreground text-xs font-medium uppercase tracking-wider">Allowed Users</h3>
+					<h3 class="text-muted-foreground text-xs font-medium uppercase tracking-wider">허용된 사용자</h3>
 					<span class="text-muted-foreground text-xs">{userEmails.length}</span>
 				</div>
 				{#if userEmails.length > 0}
@@ -445,14 +451,13 @@
 						{/each}
 					</div>
 				{:else}
-					<p class="text-muted-foreground text-xs">No users configured.</p>
+					<p class="text-muted-foreground text-xs">등록된 사용자 없음</p>
 				{/if}
 				<form
 					onsubmit={(e) => {
 						e.preventDefault();
 						addEmail();
 					}}
-					
 				>
 					<ButtonGroup.Root class="flex w-full">
 						<InputGroup.Root class="flex-1">
@@ -462,7 +467,7 @@
 							<InputGroup.Input
 								bind:value={newEmail}
 								type="email"
-								placeholder="Add email..."
+								placeholder="이메일로 초대..."
 							/>
 						</InputGroup.Root>
 						<Button type="submit" size="icon" disabled={emailLoading || !newEmail.trim()}>
@@ -475,6 +480,7 @@
 					</ButtonGroup.Root>
 				</form>
 			</section>
+			{/if}
 		</div>
 	</Sheet.Content>
 </Sheet.Root>
@@ -583,6 +589,16 @@
 	</Dialog.Content>
 </Dialog.Root>
 
+{#if !isAllowed && currentUser && userEmails.length > 0}
+<div class="flex h-svh flex-col items-center justify-center gap-4 p-8 text-center">
+	<div class="text-4xl">🔒</div>
+	<h1 class="text-xl font-semibold">접근 권한이 없습니다</h1>
+	<p class="text-muted-foreground text-sm">
+		<span class="font-medium">{currentUser}</span> 계정은 초대되지 않았습니다.<br />
+		관리자에게 초대를 요청하세요.
+	</p>
+</div>
+{:else}
 <div class="flex h-svh flex-col">
 	<!-- Header -->
 	<div class="bg-background flex items-center justify-between border-b p-2">
@@ -793,3 +809,4 @@
 		</InputGroup.Root>
 	</div>
 </div>
+{/if}

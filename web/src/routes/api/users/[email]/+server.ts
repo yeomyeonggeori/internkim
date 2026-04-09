@@ -13,11 +13,11 @@ export const OPTIONS: RequestHandler = async () => {
 	return new Response(null, { headers: corsHeaders });
 };
 
-export const DELETE: RequestHandler = async ({ params, url, platform }) => {
+export const DELETE: RequestHandler = async ({ params, request, url, platform }) => {
 	const env = platform?.env;
 	if (!env?.KV) throw error(500, 'KV not available');
 
-	// TODO: verify admin JWT
+	const callerEmail = request.headers.get('Cf-Access-Authenticated-User-Email') ?? '';
 	const device_id = url.searchParams.get('device_id');
 	const email = decodeURIComponent(params.email);
 	if (!device_id || !email) throw error(400, 'device_id and email required');
@@ -26,6 +26,9 @@ export const DELETE: RequestHandler = async ({ params, url, platform }) => {
 	if (!device) throw error(404, 'Device not found');
 
 	const users = await kv.getUsers(env.KV, device_id);
+	if (users[0] !== callerEmail) throw error(403, 'Admin only');
+	if (email === users[0]) throw error(400, 'Cannot remove admin');
+
 	const filtered = users.filter((u) => u !== email);
 	await kv.putUsers(env.KV, device_id, filtered);
 
