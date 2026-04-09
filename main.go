@@ -109,19 +109,11 @@ func printUsage() {
 
 func runSetup() {
 	lang := "ko"
-	force := false
-	sim := false
-	for _, a := range os.Args {
-		if a == "--en" {
-			lang = "en"
-		}
-		if a == "--force" {
-			force = true
-		}
-		if a == "--sim" {
-			sim = true
-		}
+	if containsArg("--en") {
+		lang = "en"
 	}
+	force := containsArg("--force")
+	sim := containsArg("--sim")
 	m := newMsg(lang)
 	cfg := loadConfig()
 	stateDir := quickclawDir()
@@ -634,12 +626,19 @@ func runDeploy() {
 	boardBinDir := filepath.Join(scriptDir, "board-bin")
 	boardUIDir := filepath.Join(scriptDir, "board-ui")
 
-	boardIP := findBoardIP(sshpassBin, stateDir)
-	if boardIP == "" {
-		fatal("Board not reachable. Check USB or Wi-Fi connection.")
+	var ssh *sshClient
+	var boardIP string
+	if containsArg("--sim") {
+		boardIP = "localhost (sim)"
+		ssh = newSSHWithPort(sshpassBin, boardUser, "", "localhost", "2222")
+	} else {
+		boardIP = findBoardIP(sshpassBin, stateDir)
+		if boardIP == "" {
+			fatal("Board not reachable. Check USB or Wi-Fi connection.")
+		}
+		ssh = newSSH(sshpassBin, boardUser, boardPass, boardIP)
 	}
 	fmt.Printf("Board: %s\n", boardIP)
-	ssh := newSSH(sshpassBin, boardUser, boardPass, boardIP)
 
 	boardTools := []string{"download"}
 
@@ -1277,4 +1276,13 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func containsArg(flag string) bool {
+	for _, a := range os.Args {
+		if a == flag {
+			return true
+		}
+	}
+	return false
 }
