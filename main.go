@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -24,9 +25,9 @@ var (
 	boardPass = "root"
 	usbNCMIPs = []string{"10.11.60.1"}
 
-	picoclawModelName = "openrouter"
-	picoclawModel     = "openrouter/google/gemini-3.1-flash-lite-preview"
-	picoclawAPIBase   = "https://openrouter.ai/api/v1"
+	zeroclawModelName = "openrouter"
+	zeroclawModel     = "openrouter/google/gemini-flash-1.5"
+	zeroclawAPIBase   = "https://openrouter.ai/api/v1"
 )
 
 type config struct {
@@ -83,6 +84,8 @@ func main() {
 			runUpdate()
 		case "deploy":
 			runDeploy()
+		case "sim":
+			runSim()
 		default:
 			printUsage()
 		}
@@ -101,7 +104,8 @@ func printUsage() {
 	fmt.Println("  users    Manage allowed users")
 	fmt.Println("  status   Check board and tunnel status")
 	fmt.Println("  update   OTA update")
-	fmt.Println("  deploy   Build and deploy web UI + pico-bridge to board")
+	fmt.Println("  deploy   Build and deploy web UI + board-bridge to board")
+	fmt.Println("  sim      Connect to ARM hardware simulator via SSH")
 }
 
 func runSetup() {
@@ -124,10 +128,11 @@ func runSetup() {
 	boardBinDir := filepath.Join(scriptDir, "board-bin")
 	sshpassBin := filepath.Join(binDir, "sshpass")
 	getSSIDBin := filepath.Join(binDir, "get-ssid")
-	picoclawBin := filepath.Join(boardBinDir, "picoclaw")
+	zeroclawBin := filepath.Join(boardBinDir, "zeroclaw")
+	gwsBin := filepath.Join(boardBinDir, "gws")
 	boardUIDir := filepath.Join(scriptDir, "board-ui")
 
-	totalSteps := 8
+	totalSteps := 10
 	fmt.Println("=== Intern Kim Setup ===")
 	fmt.Println()
 
@@ -219,8 +224,8 @@ udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true`, wpaConf))
 		fmt.Printf("  %s: %s\n", m.t("Wi-Fi 연결 성공", "Wi-Fi connected"), wifiIP)
 	}
 
-	// 5. Install picoclaw + cloudflared on board
-	step(5, totalSteps, m.t("picoclaw + cloudflared 설치 중...", "Installing picoclaw + cloudflared..."))
+	// 5. Install zeroclaw + gws + cloudflared on board
+	step(5, totalSteps, m.t("zeroclaw + gws + cloudflared 설치 중...", "Installing zeroclaw + gws + cloudflared..."))
 	cloudflaredBin := filepath.Join(boardBinDir, "cloudflared")
 
 	toolBins := []string{"download"}
@@ -230,7 +235,7 @@ udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true`, wpaConf))
 			fmt.Printf("  %s %s... ", m.t("빌드 중", "Building"), tool)
 			cmd := exec.Command("go", "build", "-o", toolPath, "./cmd/"+tool+"/")
 			cmd.Dir = scriptDir
-			cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=riscv64")
+			cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=arm64")
 			if out, err := cmd.CombinedOutput(); err != nil {
 				fmt.Printf("FAILED: %s\n", string(out))
 			} else {
@@ -240,13 +245,15 @@ udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true`, wpaConf))
 	}
 	for _, bin := range append(
 		[]struct{ local, remote, name string }{
-			{picoclawBin, "/usr/local/bin/picoclaw", "picoclaw"},
+			{zeroclawBin, "/usr/local/bin/zeroclaw", "zeroclaw"},
+			{gwsBin, "/usr/local/bin/gws", "gws"},
 			{cloudflaredBin, "/usr/local/bin/cloudflared", "cloudflared"},
 		},
 		toolBinEntries(boardBinDir, toolBins)...,
 	) {
 		if _, err := os.Stat(bin.local); os.IsNotExist(err) {
-			fatal(fmt.Sprintf("%s not found: %s", bin.name, bin.local))
+			fmt.Printf("  %s %s\n", bin.name, m.t("없음 — 건너뜀", "not found — skipping"))
+			continue
 		}
 		existing := strings.TrimSpace(ssh.run(fmt.Sprintf("md5sum %s 2>/dev/null | awk '{print $1}'", bin.remote)))
 		localHash := strings.TrimSpace(runCmd("md5", "-q", bin.local))
@@ -260,23 +267,43 @@ udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true`, wpaConf))
 		}
 	}
 
-	// 5a-2. Prepare workspace directories and copy tools
-	ssh.run("mkdir -p /root/.picoclaw/workspace/bin /root/.picoclaw/workspace/downloads && chmod 755 /root/.picoclaw/workspace/bin /root/.picoclaw/workspace/downloads")
+	// 5a. Setup system users and secrets directory
+	ssh.run(`
+id gws &>/dev/null || useradd -r -s /sbin/nologin gws
+id zeroclaw &>/dev/null || useradd -r -s /sbin/nologin zeroclaw
+mkdir -p /root/.internkim/secrets
+chmod 700 /root/.internkim/secrets
+mkdir -p /root/.zeroclaw/workspace/bin /root/.zeroclaw/workspace/downloads
+chmod 755 /root/.zeroclaw/workspace/bin /root/.zeroclaw/workspace/downloads`)
+
+	// Create gws-mcp wrapper (runs gws as gws uid, keeps SA key path out of zeroclaw config)
+	ssh.run(`cat > /usr/local/bin/gws-mcp <<'WRAPEOF'
+#!/bin/bash
+export GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE=/root/.internkim/secrets/google-sa.json
+exec sudo -u gws /usr/local/bin/gws mcp
+WRAPEOF
+chmod 755 /usr/local/bin/gws-mcp`)
+
+	// sudoers: allow zeroclaw to run gws as gws uid without password
+	ssh.run(`echo 'zeroclaw ALL=(gws) NOPASSWD: /usr/local/bin/gws' > /etc/sudoers.d/zeroclaw-gws
+chmod 440 /etc/sudoers.d/zeroclaw-gws`)
+
+	// 5b. Prepare workspace tools
 	for _, tool := range toolBins {
-		ssh.run("cp /usr/local/bin/" + tool + " /root/.picoclaw/workspace/bin/ && chmod 755 /root/.picoclaw/workspace/bin/" + tool)
+		ssh.run("cp /usr/local/bin/" + tool + " /root/.zeroclaw/workspace/bin/ && chmod 755 /root/.zeroclaw/workspace/bin/" + tool)
 	}
 
-	// 5b. Deploy chat UI to board
+	// 5c. Deploy chat UI to board
 	if _, err := os.Stat(boardUIDir); err == nil {
 		ssh.run("rm -rf /var/www && mkdir -p /var/www")
 		ssh.scpDir(boardUIDir, "/var/www")
 		fmt.Printf("  %s\n", m.t("채팅 UI 배포 완료", "Chat UI deployed"))
 	}
 
-	// 6. OpenRouter API key + picoclaw config
+	// 6. OpenRouter API key + zeroclaw config
 	step(6, totalSteps, m.t("OpenRouter API 키 설정...", "Configuring OpenRouter API key..."))
-	existingConfig := strings.TrimSpace(ssh.run("cat /root/.picoclaw/config.json 2>/dev/null"))
-	skipAPIKey := !force && existingConfig != "" && strings.Contains(existingConfig, "sk-or-")
+	existingKey := strings.TrimSpace(ssh.run("cat /root/.internkim/secrets/openrouter-api-key 2>/dev/null"))
+	skipAPIKey := !force && existingKey != ""
 	if skipAPIKey {
 		fmt.Printf("  %s\n", m.t("이미 설정됨 — 건너뜀", "Already configured — skipping"))
 	} else {
@@ -288,13 +315,18 @@ udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true`, wpaConf))
 		}
 		fmt.Printf("  %s: %s\n", m.t("API 키", "API key"), maskKey(apiKey))
 
-		configJSON := buildPicoclawConfig(picoclawModelName, picoclawModel, picoclawAPIBase, apiKey)
-		ssh.run(fmt.Sprintf(`/usr/local/bin/picoclaw onboard 2>/dev/null || true
-cat > /root/.picoclaw/config.json <<'CFGEOF'
+		// Store API key in secrets dir, owned by zeroclaw uid
+		ssh.run(fmt.Sprintf(`printf '%%s' '%s' > /root/.internkim/secrets/openrouter-api-key
+chown zeroclaw /root/.internkim/secrets/openrouter-api-key
+chmod 640 /root/.internkim/secrets/openrouter-api-key`, apiKey))
+
+		// Write zeroclaw config.toml (no credentials inside)
+		zeroclawConfig := buildZeroclawConfig(zeroclawModelName, zeroclawModel, zeroclawAPIBase)
+		ssh.run(fmt.Sprintf(`mkdir -p /root/.zeroclaw
+cat > /root/.zeroclaw/config.toml <<'CFGEOF'
 %s
 CFGEOF
-chmod 600 /root/.picoclaw/config.json
-rm -f /root/.picoclaw/.security.yml`, configJSON))
+chmod 600 /root/.zeroclaw/config.toml`, zeroclawConfig))
 	}
 
 	// 7. Register device + cloudflared
@@ -366,50 +398,70 @@ sleep 3`, tunnelToken))
 		}
 	}
 
-	// 8. Services autostart + swap
-	step(8, totalSteps, m.t("서비스 시작 중...", "Starting services..."))
+	// 8. Google Workspace service account setup
+	step(8, totalSteps, m.t("Google Workspace 서비스 계정 설정...", "Setting up Google Workspace service account..."))
+	existingSAKey := strings.TrimSpace(ssh.run("test -f /root/.internkim/secrets/google-sa.json && echo yes || echo no"))
+	if !force && existingSAKey == "yes" {
+		fmt.Printf("  %s\n", m.t("이미 설정됨 — 건너뜀", "Already configured — skipping"))
+	} else {
+		deviceID := loadState(stateDir, "device_id")
+		saKey, err := createGoogleServiceAccount(deviceID)
+		if err != nil {
+			fmt.Printf("  %s: %v\n", m.t("서비스 계정 생성 실패 (나중에 수동 설정 가능)", "SA creation failed (can configure manually later)"), err)
+		} else {
+			tmpSA := filepath.Join(os.TempDir(), "gsa-"+deviceID+".json")
+			os.WriteFile(tmpSA, []byte(saKey), 0600)
+			ssh.scp(tmpSA, "/root/.internkim/secrets/google-sa.json")
+			os.Remove(tmpSA)
+			ssh.run(`chown gws /root/.internkim/secrets/google-sa.json
+chmod 640 /root/.internkim/secrets/google-sa.json`)
+			fmt.Printf("  %s\n", m.t("서비스 계정 생성 완료", "Service account created"))
+		}
+	}
+
+	// 9. Mattermost push notification privacy
+	step(9, totalSteps, m.t("Mattermost 푸시 알림 설정...", "Configuring Mattermost push notifications..."))
+	configureMattermostPush(m, ssh)
+
+	// 10. Services autostart + swap
+	step(10, totalSteps, m.t("서비스 시작 중...", "Starting services..."))
 
 	// Remove stale httpd init script (pico-bridge handles static serving now)
 	ssh.run("rm -f /etc/init.d/S97httpd; kill $(ps | grep 'python3 -m http.server' | grep -v grep | awk '{print $1}') 2>/dev/null || true")
 
+	// Remove stale httpd init script
+	ssh.run("rm -f /etc/init.d/S97httpd; kill $(ps | grep 'python3 -m http.server' | grep -v grep | awk '{print $1}') 2>/dev/null || true")
+
 	// Remove skills whose required binaries are not available on this device
-	ssh.run(`cd /root/.picoclaw/workspace/skills 2>/dev/null && \
+	ssh.run(`cd /root/.zeroclaw/workspace/skills 2>/dev/null && \
 rm -rf agent-browser github summarize skill-creator 2>/dev/null; \
 echo "Cleaned unavailable skills"`)
 
-	ssh.run(`cat > /etc/init.d/S99picoclaw <<'INITEOF'
-#!/bin/sh
-PICOCLAW_BIN="/usr/local/bin/picoclaw"
-PICOCLAW_LOG="/var/log/picoclaw.log"
-PICOCLAW_PID="/var/run/picoclaw.pid"
-export PATH="/root/.picoclaw/workspace/bin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin"
-export HOME="/root"
-case "$1" in
-  start)
-    if [ -f "$PICOCLAW_PID" ] && kill -0 "$(cat $PICOCLAW_PID)" 2>/dev/null; then
-      echo "picoclaw already running"; exit 0
-    fi
-    echo "Starting picoclaw gateway..."
-    start-stop-daemon -S -b -m -p "$PICOCLAW_PID" -x /bin/sh -- -c "exec $PICOCLAW_BIN gateway >> $PICOCLAW_LOG 2>&1"
-    ;;
-  stop) start-stop-daemon -K -p "$PICOCLAW_PID" 2>/dev/null; rm -f "$PICOCLAW_PID" ;;
-  restart) $0 stop; sleep 1; $0 start ;;
-  status)
-    if [ -f "$PICOCLAW_PID" ] && kill -0 "$(cat $PICOCLAW_PID)" 2>/dev/null; then
-      echo "running $(cat $PICOCLAW_PID)"
-    else echo "stopped"; fi ;;
-  *) echo "Usage: $0 {start|stop|restart|status}"; exit 1 ;;
-esac
-INITEOF
-chmod +x /etc/init.d/S99picoclaw
-killall picoclaw 2>/dev/null || true
-rm -f /var/run/picoclaw.pid
-/etc/init.d/S99picoclaw start
+	// zeroclaw systemd service — reads OpenRouter key from secrets file
+	ssh.run(`cat > /etc/systemd/system/zeroclaw.service <<'SVCEOF'
+[Unit]
+Description=ZeroClaw AI Gateway
+After=network.target
+
+[Service]
+User=zeroclaw
+ExecStartPre=/bin/sh -c 'export OPENROUTER_API_KEY=$(cat /root/.internkim/secrets/openrouter-api-key)'
+ExecStart=/usr/local/bin/zeroclaw gateway
+Restart=on-failure
+Environment=HOME=/root
+EnvironmentFile=-/root/.internkim/secrets/openrouter-api-key
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+systemctl daemon-reload
+systemctl enable zeroclaw
+systemctl restart zeroclaw
 sleep 2`)
 
-	gwStatus := strings.TrimSpace(ssh.run("/etc/init.d/S99picoclaw status"))
-	if strings.HasPrefix(gwStatus, "running") {
-		fmt.Printf("  %s (%s)\n", m.t("gateway 실행 중", "Gateway running"), gwStatus)
+	gwStatus := strings.TrimSpace(ssh.run("systemctl is-active zeroclaw"))
+	if gwStatus == "active" {
+		fmt.Printf("  %s\n", m.t("zeroclaw gateway 실행 중", "zeroclaw gateway running"))
 	} else {
 		fmt.Printf("  %s\n", m.t("gateway 시작 실패", "Gateway failed"))
 	}
@@ -423,7 +475,7 @@ sleep 2`)
   grep -q '/swapfile' /etc/fstab 2>/dev/null || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi`)
 
-	// 9. Deploy latest build
+	// 10. Deploy latest build
 	step(totalSteps+1, totalSteps+1, m.t("최신 빌드 배포 중...", "Deploying latest build..."))
 	runDeploy()
 
@@ -483,45 +535,21 @@ func runModel() {
 }
 
 func modelCurrentCmd(ssh *sshClient) {
-	raw := ssh.run("cat /root/.picoclaw/config.json")
-	var cfg map[string]any
-	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
-		fatal("Failed to read config: " + err.Error())
-	}
-	models, _ := cfg["model_list"].([]any)
-	if len(models) == 0 {
+	raw := ssh.run("grep 'default_model' /root/.zeroclaw/config.toml 2>/dev/null | head -1")
+	model := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(raw, "default_model = "), "\""))
+	model = strings.Trim(model, "\"")
+	if model == "" {
 		fmt.Println("No model configured.")
 		return
 	}
-	m, _ := models[0].(map[string]any)
-	model, _ := m["model"].(string)
 	fmt.Printf("Model: %s\n", strings.TrimPrefix(model, "openrouter/"))
 }
 
 func modelSetCmd(ssh *sshClient, modelID string) {
-	raw := ssh.run("cat /root/.picoclaw/config.json")
-	var cfg map[string]any
-	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
-		fatal("Failed to read config: " + err.Error())
-	}
-
-	models, _ := cfg["model_list"].([]any)
-	if len(models) == 0 {
-		fatal("No model_list in config.")
-	}
-	m, _ := models[0].(map[string]any)
-	old := m["model"]
-	m["model"] = modelID
-	models[0] = m
-	cfg["model_list"] = models
-
-	b, _ := json.MarshalIndent(cfg, "", "  ")
-	ssh.run(fmt.Sprintf("cat > /root/.picoclaw/config.json <<'EOF'\n%s\nEOF", string(b)))
-
-	// Restart picoclaw
-	ssh.run("killall picoclaw 2>/dev/null; rm -f /root/.picoclaw/.picoclaw.pid; sleep 1; /etc/init.d/S99picoclaw start 2>/dev/null")
-	fmt.Printf("Model changed: %s -> %s\n", old, modelID)
-	fmt.Println("picoclaw restarted.")
+	ssh.run(fmt.Sprintf(`sed -i 's|^default_model = .*|default_model = "%s"|' /root/.zeroclaw/config.toml`, modelID))
+	ssh.run("systemctl restart zeroclaw 2>/dev/null")
+	fmt.Printf("Model changed to: %s\n", modelID)
+	fmt.Println("zeroclaw restarted.")
 }
 
 func ensureOpenRouterPrefix(model string) string {
@@ -650,10 +678,10 @@ func runDeploy() {
 	}
 
 	if buildBridge {
-		fmt.Print("Building pico-bridge... ")
-		cmd := exec.Command("go", "build", "-o", filepath.Join(boardBinDir, "pico-bridge"), "./cmd/pico-bridge/")
+		fmt.Print("Building board-bridge... ")
+		cmd := exec.Command("go", "build", "-o", filepath.Join(boardBinDir, "board-bridge"), "./cmd/board-bridge/")
 		cmd.Dir = scriptDir
-		cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=riscv64")
+		cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=arm64")
 		if out, err := cmd.CombinedOutput(); err != nil {
 			fmt.Println("FAILED")
 			fmt.Println(string(out))
@@ -676,10 +704,10 @@ func runDeploy() {
 	}
 
 	if buildBridge {
-		fmt.Print("Deploying pico-bridge... ")
-		ssh.run("killall pico-bridge 2>/dev/null; sleep 1")
-		ssh.scp(filepath.Join(boardBinDir, "pico-bridge"), "/usr/local/bin/pico-bridge")
-		ssh.run("chmod +x /usr/local/bin/pico-bridge && nohup /usr/local/bin/pico-bridge > /var/log/pico-bridge.log 2>&1 &")
+		fmt.Print("Deploying board-bridge... ")
+		ssh.run("killall board-bridge 2>/dev/null; sleep 1")
+		ssh.scp(filepath.Join(boardBinDir, "board-bridge"), "/usr/local/bin/board-bridge")
+		ssh.run("chmod +x /usr/local/bin/board-bridge && nohup /usr/local/bin/board-bridge > /var/log/board-bridge.log 2>&1 &")
 		fmt.Println("ok")
 	}
 
@@ -691,14 +719,14 @@ func runDeploy() {
 		fmt.Print("Deploying skills... ")
 		skillsDir := filepath.Join(scriptDir, "board-scripts", "skills")
 		if _, err := os.Stat(skillsDir); err == nil {
-			ssh.run("mkdir -p /root/.picoclaw/workspace/skills")
+			ssh.run("mkdir -p /root/.zeroclaw/workspace/skills")
 			entries, _ := os.ReadDir(skillsDir)
 			for _, entry := range entries {
 				if entry.IsDir() {
-					ssh.run("mkdir -p /root/.picoclaw/workspace/skills/" + entry.Name())
+					ssh.run("mkdir -p /root/.zeroclaw/workspace/skills/" + entry.Name())
 					skillFile := filepath.Join(skillsDir, entry.Name(), "SKILL.md")
 					if _, err := os.Stat(skillFile); err == nil {
-						ssh.scp(skillFile, "/root/.picoclaw/workspace/skills/"+entry.Name()+"/SKILL.md")
+						ssh.scp(skillFile, "/root/.zeroclaw/workspace/skills/"+entry.Name()+"/SKILL.md")
 					}
 				}
 			}
@@ -709,7 +737,7 @@ func runDeploy() {
 			fmt.Printf("Building %s... ", tool)
 			cmd := exec.Command("go", "build", "-o", filepath.Join(boardBinDir, tool), "./cmd/"+tool+"/")
 			cmd.Dir = scriptDir
-			cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=riscv64")
+			cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=arm64")
 			if out, err := cmd.CombinedOutput(); err != nil {
 				fmt.Println("FAILED")
 				fmt.Println(string(out))
@@ -718,7 +746,7 @@ func runDeploy() {
 			fmt.Print("ok, deploying... ")
 			ssh.scp(filepath.Join(boardBinDir, tool), "/usr/local/bin/"+tool)
 			ssh.run("chmod +x /usr/local/bin/" + tool)
-			ssh.run("mkdir -p /root/.picoclaw/workspace/bin /root/.picoclaw/workspace/downloads && cp /usr/local/bin/" + tool + " /root/.picoclaw/workspace/bin/ && chmod 755 /root/.picoclaw/workspace/bin /root/.picoclaw/workspace/bin/" + tool)
+			ssh.run("mkdir -p /root/.zeroclaw/workspace/bin /root/.zeroclaw/workspace/downloads && cp /usr/local/bin/" + tool + " /root/.zeroclaw/workspace/bin/ && chmod 755 /root/.zeroclaw/workspace/bin /root/.zeroclaw/workspace/bin/" + tool)
 			fmt.Println("ok")
 		}
 	}
@@ -746,6 +774,80 @@ func runInvite() { fmt.Println("TODO: invite") }
 func runUsers()  { fmt.Println("TODO: users") }
 func runStatus() { fmt.Println("TODO: status") }
 func runUpdate() { fmt.Println("TODO: update") }
+
+func configureMattermostPush(m *msg, ssh *sshClient) {
+	mmURL := strings.TrimSpace(ssh.run("cat /root/.internkim/mattermost-url 2>/dev/null"))
+	mmToken := strings.TrimSpace(ssh.run("cat /root/.internkim/mattermost-admin-token 2>/dev/null"))
+	if mmURL == "" || mmToken == "" {
+		fmt.Printf("  %s\n", m.t(
+			"Mattermost URL/토큰 미설정 — 건너뜀 (나중에 internkim mattermost 커맨드로 설정)",
+			"Mattermost URL/token not configured — skipping (use internkim mattermost later)",
+		))
+		return
+	}
+
+	fmt.Println()
+	fmt.Printf("  %s\n", m.t("푸시 알림 페이로드 공개 수준을 선택하세요:", "Choose push notification payload visibility:"))
+	fmt.Printf("  1. %s\n", m.t("전체 공개  — 알림에 메시지 내용 포함 (push.mattermost.com 경유)", "Full       — message content in notification (via push.mattermost.com)"))
+	fmt.Printf("  2. %s\n", m.t("발신자만   — \"ZeroClaw에서 메시지가 왔습니다\" (내용 미포함)", "Sender     — \"Message from ZeroClaw\" (no content)"))
+	fmt.Printf("  3. %s\n", m.t("완전 비공개 — 알림은 오지만 앱이 서버에서 직접 내용 가져옴 (권장)", "Private    — notification arrives, app fetches content directly from server (recommended)"))
+	fmt.Println()
+
+	choice := readLine(m.t("  선택 (1/2/3) [3]: ", "  Choice (1/2/3) [3]: "))
+	if choice == "" {
+		choice = "3"
+	}
+
+	var contents string
+	switch choice {
+	case "1":
+		contents = "full"
+	case "2":
+		contents = "generic"
+	default:
+		contents = "id_loaded"
+	}
+
+	body, _ := json.Marshal(map[string]any{
+		"EmailSettings": map[string]string{
+			"PushNotificationContents": contents,
+		},
+	})
+	req, _ := http.NewRequest("PUT", mmURL+"/api/v4/config/patch", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+mmToken)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
+	if err != nil || resp.StatusCode != 200 {
+		fmt.Printf("  %s\n", m.t("설정 실패 — Mattermost 관리자 콘솔에서 수동 설정 필요", "Failed — configure manually in Mattermost admin console"))
+		return
+	}
+	resp.Body.Close()
+
+	label := map[string]string{"full": m.t("전체 공개", "Full"), "generic": m.t("발신자만", "Sender only"), "id_loaded": m.t("완전 비공개", "Private")}[contents]
+	fmt.Printf("  %s: %s\n", m.t("설정 완료", "Configured"), label)
+}
+
+func runSim() {
+	sub := ""
+	if len(os.Args) > 2 {
+		sub = os.Args[2]
+	}
+
+	switch sub {
+	case "ssh":
+		cmd := exec.Command("ssh",
+			"-o", "StrictHostKeyChecking=no",
+			"-o", "UserKnownHostsFile=/dev/null",
+			"-p", "2222", "root@localhost")
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Run()
+	default:
+		fmt.Println("Usage: internkim sim <ssh>")
+		fmt.Println("  ssh  Connect to simulator via SSH (localhost:2222)")
+	}
+}
 
 // --- Device registration ---
 
@@ -921,6 +1023,188 @@ func (s *sshClient) scpDir(localDir, remoteDir string) {
 }
 
 // --- Config builders ---
+
+// buildZeroclawConfig generates zeroclaw config.toml (no credentials inside)
+// API key is read at runtime from /root/.internkim/secrets/openrouter-api-key
+func buildZeroclawConfig(modelName, model, apiBase string) string {
+	return fmt.Sprintf(`# ZeroClaw configuration — credentials are NOT stored here
+# API key is injected by systemd from /root/.internkim/secrets/openrouter-api-key
+
+default_provider = "openai-compatible:%s"
+default_model = "%s"
+
+[runtime]
+kind = "native"
+
+[runtime.native]
+sandbox = "landlock"  # Landlock + Bubblewrap (커널 레벨 격리, Docker 데몬 불필요)
+
+[[mcp.servers]]
+name = "google-workspace"
+command = "/usr/local/bin/gws-mcp"
+args = []
+
+[channels.board]
+enabled = true
+token = "quickclaw"
+allow_token_query = true
+allow_origins = ["*"]
+ping_interval = 30
+read_timeout = 60
+max_connections = 100
+`, apiBase, model)
+}
+
+// createGoogleServiceAccount creates a service account via Google IAM REST API.
+// Opens browser for OAuth consent (once), then creates SA + key, returns SA key JSON.
+func createGoogleServiceAccount(deviceID string) (string, error) {
+	fmt.Println("  Opening browser for Google Cloud OAuth consent...")
+	fmt.Println("  Scope: https://www.googleapis.com/auth/cloud-platform")
+	fmt.Printf("  Service account name: internkim-%s\n", deviceID)
+	fmt.Println()
+	fmt.Println("  NOTE: Automated SA creation requires a Google Cloud project.")
+	fmt.Println("  If you don't have one, create it at https://console.cloud.google.com")
+	fmt.Println()
+
+	projectID := readLine("  Google Cloud Project ID: ")
+	if projectID == "" {
+		return "", fmt.Errorf("project ID required")
+	}
+
+	// OAuth2 device flow to get access token
+	accessToken, err := googleDeviceAuth()
+	if err != nil {
+		return "", fmt.Errorf("OAuth failed: %w", err)
+	}
+
+	saName := fmt.Sprintf("internkim-%s", deviceID)
+	saEmail := fmt.Sprintf("%s@%s.iam.gserviceaccount.com", saName, projectID)
+
+	client := &http.Client{Timeout: 30 * time.Second}
+
+	// Create service account
+	createBody, _ := json.Marshal(map[string]any{
+		"accountId": saName,
+		"serviceAccount": map[string]string{
+			"displayName": "Intern Kim " + deviceID,
+		},
+	})
+	req, _ := http.NewRequest("POST",
+		fmt.Sprintf("https://iam.googleapis.com/v1/projects/%s/serviceAccounts", projectID),
+		bytes.NewReader(createBody))
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("create SA request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		// 409 = already exists, continue to key creation
+		if resp.StatusCode != 409 {
+			return "", fmt.Errorf("create SA HTTP %d: %s", resp.StatusCode, string(body))
+		}
+	}
+
+	// Create SA key
+	keyReq, _ := http.NewRequest("POST",
+		fmt.Sprintf("https://iam.googleapis.com/v1/projects/%s/serviceAccounts/%s/keys", projectID, saEmail),
+		strings.NewReader(`{"keyAlgorithm":"KEY_ALG_RSA_2048","privateKeyType":"TYPE_GOOGLE_CREDENTIALS_FILE"}`))
+	keyReq.Header.Set("Authorization", "Bearer "+accessToken)
+	keyReq.Header.Set("Content-Type", "application/json")
+	keyResp, err := client.Do(keyReq)
+	if err != nil {
+		return "", fmt.Errorf("create key request failed: %w", err)
+	}
+	defer keyResp.Body.Close()
+	keyBody, _ := io.ReadAll(keyResp.Body)
+	if keyResp.StatusCode != 200 {
+		return "", fmt.Errorf("create key HTTP %d: %s", keyResp.StatusCode, string(keyBody))
+	}
+
+	var keyResult struct {
+		PrivateKeyData string `json:"privateKeyData"`
+	}
+	if err := json.Unmarshal(keyBody, &keyResult); err != nil {
+		return "", fmt.Errorf("parse key response: %w", err)
+	}
+
+	// privateKeyData is base64-encoded JSON
+	import64 := keyResult.PrivateKeyData
+	decoded := make([]byte, len(import64))
+	n, err := decodeBase64(import64, decoded)
+	if err != nil {
+		return "", fmt.Errorf("decode key: %w", err)
+	}
+	return string(decoded[:n]), nil
+}
+
+// googleDeviceAuth performs OAuth2 device authorization flow and returns an access token.
+func googleDeviceAuth() (string, error) {
+	clientID := "32555940559.apps.googleusercontent.com" // gcloud SDK public client
+	scope := "https://www.googleapis.com/auth/cloud-platform"
+
+	// Step 1: request device code
+	resp, err := http.PostForm("https://oauth2.googleapis.com/device/code", map[string][]string{
+		"client_id": {clientID},
+		"scope":     {scope},
+	})
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	var dc struct {
+		DeviceCode      string `json:"device_code"`
+		UserCode        string `json:"user_code"`
+		VerificationURL string `json:"verification_url"`
+		Interval        int    `json:"interval"`
+	}
+	if err := json.Unmarshal(body, &dc); err != nil {
+		return "", err
+	}
+
+	fmt.Printf("\n  Visit: %s\n", dc.VerificationURL)
+	fmt.Printf("  Code:  %s\n\n", dc.UserCode)
+	exec.Command("open", dc.VerificationURL).Start()
+
+	interval := dc.Interval
+	if interval == 0 {
+		interval = 5
+	}
+
+	// Step 2: poll for token
+	for i := 0; i < 60; i++ {
+		time.Sleep(time.Duration(interval) * time.Second)
+		pollResp, err := http.PostForm("https://oauth2.googleapis.com/token", map[string][]string{
+			"client_id":   {clientID},
+			"device_code": {dc.DeviceCode},
+			"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
+		})
+		if err != nil {
+			continue
+		}
+		pollBody, _ := io.ReadAll(pollResp.Body)
+		pollResp.Body.Close()
+		var token struct {
+			AccessToken string `json:"access_token"`
+			Error       string `json:"error"`
+		}
+		json.Unmarshal(pollBody, &token)
+		if token.AccessToken != "" {
+			return token.AccessToken, nil
+		}
+		if token.Error != "authorization_pending" && token.Error != "slow_down" {
+			return "", fmt.Errorf("auth error: %s", token.Error)
+		}
+	}
+	return "", fmt.Errorf("timed out waiting for authorization")
+}
+
+func decodeBase64(src string, dst []byte) (int, error) {
+	return base64.StdEncoding.Decode(dst, []byte(src))
+}
 
 func buildPicoclawConfig(modelName, model, apiBase, apiKey string) string {
 	cfg := map[string]any{
