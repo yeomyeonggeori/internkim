@@ -322,7 +322,7 @@ chown zeroclaw /root/.internkim/secrets/openrouter-api-key
 chmod 640 /root/.internkim/secrets/openrouter-api-key`, apiKey))
 
 		// Write zeroclaw config.toml (no credentials inside)
-		zeroclawConfig := buildZeroclawConfig(zeroclawModel, zeroclawAPIBase)
+		zeroclawConfig := buildZeroclawConfig(zeroclawModel, zeroclawAPIBase, nil)
 		ssh.run(fmt.Sprintf(`mkdir -p /root/.zeroclaw
 cat > /root/.zeroclaw/config.toml <<'CFGEOF'
 %s
@@ -420,9 +420,9 @@ chmod 640 /root/.internkim/secrets/google-sa.json`)
 		}
 	}
 
-	// 9. Mattermost push notification privacy
-	step(9, totalSteps, m.t("Mattermost 푸시 알림 설정...", "Configuring Mattermost push notifications..."))
-	configureMattermostPush(m, ssh)
+	// 9. Mattermost setup
+	step(9, totalSteps, m.t("Mattermost 설정...", "Configuring Mattermost..."))
+	setupMattermost(m, ssh, stateDir, force)
 
 	// 10. Services autostart + swap
 	step(10, totalSteps, m.t("서비스 시작 중...", "Starting services..."))
@@ -772,6 +772,83 @@ func runUsers()  { fmt.Println("TODO: users") }
 func runStatus() { fmt.Println("TODO: status") }
 func runUpdate() { fmt.Println("TODO: update") }
 
+func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
+	existingURL := strings.TrimSpace(ssh.run("cat /root/.internkim/mattermost-url 2>/dev/null"))
+	if !force && existingURL != "" {
+		fmt.Printf("  %s (%s)\n", m.t("이미 설정됨 — 건너뜀", "Already configured — skipping"), existingURL)
+		return
+	}
+
+	fmt.Println()
+	fmt.Printf("  %s\n", m.t(
+		"Mattermost 서버를 보드에 설치한 후 아래 정보를 입력하세요.",
+		"Install Mattermost on the board first, then enter the details below.",
+	))
+	fmt.Printf("  %s\n", m.t(
+		"(설정 생략: Enter만 누르세요)",
+		"(Skip setup: press Enter)",
+	))
+	fmt.Println()
+
+	mmURL := readLine(m.t("  Mattermost URL (예: https://chat.intern.kim): ", "  Mattermost URL (e.g. https://chat.intern.kim): "))
+	if mmURL == "" {
+		fmt.Printf("  %s\n", m.t("건너뜀", "Skipped"))
+		return
+	}
+	mmURL = strings.TrimRight(mmURL, "/")
+
+	adminToken := readSecret(m.t("  관리자 토큰 (System Console → Integrations → Personal Access Tokens): ",
+		"  Admin token (System Console → Integrations → Personal Access Tokens): "))
+	if adminToken == "" {
+		fmt.Printf("  %s\n", m.t("관리자 토큰 없음 — 건너뜀", "No admin token — skipping"))
+		return
+	}
+
+	botToken := readSecret(m.t("  봇 토큰 (System Console → Integrations → Bot Accounts): ",
+		"  Bot token (System Console → Integrations → Bot Accounts): "))
+	if botToken == "" {
+		fmt.Printf("  %s\n", m.t("봇 토큰 없음 — 건너뜀", "No bot token — skipping"))
+		return
+	}
+
+	channelID := readLine(m.t("  채널 ID (채널 URL의 마지막 부분): ", "  Channel ID (last part of channel URL): "))
+	if channelID == "" {
+		fmt.Printf("  %s\n", m.t("채널 ID 없음 — 건너뜀", "No channel ID — skipping"))
+		return
+	}
+
+	threadReply := promptYN(m.t("스레드로 답장? (권장)", "Reply in thread? (recommended)"))
+	mentionOnly := promptYN(m.t("@멘션에만 응답?", "Only respond to @mentions?"))
+
+	// Store credentials in secrets dir
+	ssh.run(fmt.Sprintf(`printf '%%s' '%s' > /root/.internkim/mattermost-url
+printf '%%s' '%s' > /root/.internkim/mattermost-admin-token
+printf '%%s' '%s' > /root/.internkim/secrets/mattermost-bot-token
+chmod 600 /root/.internkim/mattermost-url /root/.internkim/mattermost-admin-token
+chown zeroclaw /root/.internkim/secrets/mattermost-bot-token
+chmod 640 /root/.internkim/secrets/mattermost-bot-token`,
+		mmURL, adminToken, botToken))
+
+	// Update zeroclaw config.toml with Mattermost channel
+	mm := &mattermostConfig{
+		BaseURL:     mmURL,
+		BotToken:    botToken,
+		ChannelID:   channelID,
+		ThreadReply: threadReply,
+		MentionOnly: mentionOnly,
+	}
+	zeroclawConfig := buildZeroclawConfig(zeroclawModel, zeroclawAPIBase, mm)
+	ssh.run(fmt.Sprintf(`cat > /root/.zeroclaw/config.toml <<'CFGEOF'
+%s
+CFGEOF
+chmod 600 /root/.zeroclaw/config.toml`, zeroclawConfig))
+
+	fmt.Printf("  %s\n", m.t("Mattermost 채널 설정 완료", "Mattermost channel configured"))
+
+	// Configure push notification privacy
+	configureMattermostPush(m, ssh)
+}
+
 func configureMattermostPush(m *msg, ssh *sshClient) {
 	mmURL := strings.TrimSpace(ssh.run("cat /root/.internkim/mattermost-url 2>/dev/null"))
 	mmToken := strings.TrimSpace(ssh.run("cat /root/.internkim/mattermost-admin-token 2>/dev/null"))
@@ -1031,9 +1108,31 @@ func (s *sshClient) scpDir(localDir, remoteDir string) {
 
 // --- Config builders ---
 
+type mattermostConfig struct {
+	BaseURL     string
+	BotToken    string
+	ChannelID   string
+	ThreadReply bool
+	MentionOnly bool
+}
+
 // buildZeroclawConfig generates zeroclaw config.toml (no credentials inside)
 // API key is read at runtime from /root/.internkim/secrets/openrouter-api-key
-func buildZeroclawConfig(model, apiBase string) string {
+func buildZeroclawConfig(model, apiBase string, mm *mattermostConfig) string {
+	mmSection := ""
+	if mm != nil && mm.BaseURL != "" && mm.BotToken != "" && mm.ChannelID != "" {
+		mmSection = fmt.Sprintf(`
+[channels.mattermost]
+enabled = true
+base_url = "%s"
+bot_token = "%s"
+channel_id = "%s"
+thread_replies = %v
+mention_only = %v
+allowed_users = ["*"]
+`, mm.BaseURL, mm.BotToken, mm.ChannelID, mm.ThreadReply, mm.MentionOnly)
+	}
+
 	return fmt.Sprintf(`# ZeroClaw configuration — credentials are NOT stored here
 # API key is injected by systemd from /root/.internkim/secrets/openrouter-api-key
 
@@ -1044,7 +1143,7 @@ default_model = "%s"
 kind = "native"
 
 [runtime.native]
-sandbox = "landlock"  # Landlock + Bubblewrap (커널 레벨 격리, Docker 데몬 불필요)
+sandbox = "landlock"
 
 [[mcp.servers]]
 name = "google-workspace"
@@ -1059,7 +1158,7 @@ allow_origins = ["*"]
 ping_interval = 30
 read_timeout = 60
 max_connections = 100
-`, apiBase, model)
+%s`, apiBase, model, mmSection)
 }
 
 // createGoogleServiceAccount creates a service account via Google IAM REST API.
