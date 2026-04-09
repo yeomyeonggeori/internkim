@@ -25,8 +25,7 @@ var (
 	boardPass = "root"
 	usbNCMIPs = []string{"10.11.60.1"}
 
-	zeroclawModelName = "openrouter"
-	zeroclawModel     = "openrouter/google/gemini-flash-1.5"
+	zeroclawModel     = "google/gemini-3.1-flash-lite-preview"
 	zeroclawAPIBase   = "https://openrouter.ai/api/v1"
 )
 
@@ -321,7 +320,7 @@ chown zeroclaw /root/.internkim/secrets/openrouter-api-key
 chmod 640 /root/.internkim/secrets/openrouter-api-key`, apiKey))
 
 		// Write zeroclaw config.toml (no credentials inside)
-		zeroclawConfig := buildZeroclawConfig(zeroclawModelName, zeroclawModel, zeroclawAPIBase)
+		zeroclawConfig := buildZeroclawConfig(zeroclawModel, zeroclawAPIBase)
 		ssh.run(fmt.Sprintf(`mkdir -p /root/.zeroclaw
 cat > /root/.zeroclaw/config.toml <<'CFGEOF'
 %s
@@ -526,7 +525,7 @@ func runModel() {
 			fmt.Println("Example: internkim model set google/gemini-3.1-flash-lite-preview")
 			os.Exit(1)
 		}
-		modelSetCmd(ssh, ensureOpenRouterPrefix(os.Args[3]))
+		modelSetCmd(ssh, os.Args[3])
 	case "list":
 		modelListCmd(ssh)
 	default:
@@ -542,7 +541,7 @@ func modelCurrentCmd(ssh *sshClient) {
 		fmt.Println("No model configured.")
 		return
 	}
-	fmt.Printf("Model: %s\n", strings.TrimPrefix(model, "openrouter/"))
+	fmt.Printf("Model: %s\n", model)
 }
 
 func modelSetCmd(ssh *sshClient, modelID string) {
@@ -552,17 +551,10 @@ func modelSetCmd(ssh *sshClient, modelID string) {
 	fmt.Println("zeroclaw restarted.")
 }
 
-func ensureOpenRouterPrefix(model string) string {
-	if strings.HasPrefix(model, "openrouter/") {
-		return model
-	}
-	return "openrouter/" + model
-}
+
 
 func modelListCmd(ssh *sshClient) {
-	// Read current API key from security.yml to query OpenRouter
-	keyLine := strings.TrimSpace(ssh.run(`grep 'sk-or-' /root/.picoclaw/.security.yml 2>/dev/null | head -1`))
-	apiKey := strings.Trim(strings.TrimSpace(strings.TrimPrefix(keyLine, "- ")), `"`)
+	apiKey := strings.TrimSpace(ssh.run("cat /root/.internkim/secrets/openrouter-api-key 2>/dev/null"))
 	if apiKey == "" {
 		fatal("No OpenRouter API key found on board.")
 	}
@@ -1026,7 +1018,7 @@ func (s *sshClient) scpDir(localDir, remoteDir string) {
 
 // buildZeroclawConfig generates zeroclaw config.toml (no credentials inside)
 // API key is read at runtime from /root/.internkim/secrets/openrouter-api-key
-func buildZeroclawConfig(modelName, model, apiBase string) string {
+func buildZeroclawConfig(model, apiBase string) string {
 	return fmt.Sprintf(`# ZeroClaw configuration — credentials are NOT stored here
 # API key is injected by systemd from /root/.internkim/secrets/openrouter-api-key
 
@@ -1204,48 +1196,6 @@ func googleDeviceAuth() (string, error) {
 
 func decodeBase64(src string, dst []byte) (int, error) {
 	return base64.StdEncoding.Decode(dst, []byte(src))
-}
-
-func buildPicoclawConfig(modelName, model, apiBase, apiKey string) string {
-	cfg := map[string]any{
-		"version": 2,
-		"agents": map[string]any{
-			"defaults": map[string]any{
-				"workspace":                   "/root/.picoclaw/workspace",
-
-				"model_name":                  modelName,
-				"max_tokens":                  16384,
-				"max_tool_iterations":         30,
-				"summarize_message_threshold": 15,
-			},
-		},
-		"model_list": []map[string]any{
-			{"model_name": modelName, "model": model, "api_base": apiBase, "api_keys": []string{apiKey}},
-		},
-		"gateway": map[string]any{
-			"host":      "0.0.0.0",
-			"port":      18790,
-			"log_level": "warn",
-		},
-		"tools": map[string]any{
-			"web":  map[string]any{"enabled": true, "duckduckgo": map[string]any{"enabled": true, "max_results": 3}},
-			"exec": map[string]any{"enabled": true, "timeout_seconds": 30, "allow_remote": true},
-			"cron": map[string]any{"enabled": true},
-		},
-		"channels": map[string]any{
-			"pico": map[string]any{
-				"enabled":           true,
-				"token":             "quickclaw",
-				"allow_token_query": true,
-				"allow_origins":     []string{"*"},
-				"ping_interval":     30,
-				"read_timeout":      60,
-				"max_connections":   100,
-			},
-		},
-	}
-	b, _ := json.MarshalIndent(cfg, "", "  ")
-	return string(b)
 }
 
 // --- UI helpers ---
