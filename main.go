@@ -1648,6 +1648,42 @@ require_pairing = false
 [channels_config]
 cli = false
 %s
+[autonomy]
+level = "supervised"
+auto_approve = [
+    "file_read",
+    "file_write",
+    "memory_recall",
+    "web_search_tool",
+    "web_fetch",
+    "calculator",
+    "glob_search",
+    "content_search",
+    "image_info",
+    "weather",
+    "browser",
+    "browser_open",
+]
+forbidden_paths = [
+    "/etc",
+    "/root",
+    "/home",
+    "/usr",
+    "/bin",
+    "/sbin",
+    "/lib",
+    "/opt",
+    "/boot",
+    "/dev",
+    "/proc",
+    "/sys",
+    "/var",
+    "~/.ssh",
+    "~/.gnupg",
+    "~/.aws",
+    "~/.config",
+]
+
 [browser]
 enabled = true
 backend = "cdp"
