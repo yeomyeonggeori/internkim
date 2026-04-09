@@ -13,6 +13,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -486,7 +487,27 @@ sleep 3`, tunnelToken))
 		}
 		saKey, err := createGoogleServiceAccount(deviceID, accessToken)
 		if err != nil {
-			fmt.Printf("  %s: %v\n", m.t("서비스 계정 생성 실패 (나중에 수동 설정 가능)", "SA creation failed (can configure manually later)"), err)
+			fmt.Printf("  %s: %v\n", m.t("서비스 계정 키 생성 실패", "SA key creation failed"), err)
+			if strings.Contains(err.Error(), "disableServiceAccountKeyCreation") || strings.Contains(err.Error(), "Key creation is not allowed") {
+				fmt.Println()
+				fmt.Println(m.t(
+					"  ⚠ 조직 정책(iam.disableServiceAccountKeyCreation)에 의해 차단되었습니다.\n"+
+						"  Google Workspace 관리자에게 아래 작업을 요청하세요:\n"+
+						"  1. https://console.cloud.google.com 접속\n"+
+						"  2. 프로젝트 선택기에서 '조직' 선택\n"+
+						"  3. IAM → 사용자에게 'Organization Policy Administrator' 역할 부여\n"+
+						"  4. 조직 정책 → iam.disableServiceAccountKeyCreation → 시행 안함으로 변경\n"+
+						"  5. 변경 후 이 setup을 다시 실행하세요 (internkim setup --force)",
+					"  ⚠ Blocked by org policy (iam.disableServiceAccountKeyCreation).\n"+
+						"  Ask your Google Workspace admin to:\n"+
+						"  1. Go to https://console.cloud.google.com\n"+
+						"  2. Select your Organization in the project picker\n"+
+						"  3. IAM → Grant 'Organization Policy Administrator' role to your user\n"+
+						"  4. Organization Policies → iam.disableServiceAccountKeyCreation → Not enforced\n"+
+						"  5. Re-run setup after the change (internkim setup --force)",
+				))
+				fmt.Println()
+			}
 		} else {
 			tmpSA := filepath.Join(os.TempDir(), "gsa-"+deviceID+".json")
 			os.WriteFile(tmpSA, []byte(saKey), 0600)
@@ -1647,21 +1668,16 @@ func createGoogleServiceAccount(deviceID, accessToken string) (string, error) {
 
 	client := &http.Client{Timeout: 30 * time.Second}
 
-	// Resolve project: use "internkim" if it exists, otherwise create it
-	projectID, err := resolveGoogleProject(client, accessToken)
+	// Resolve project: use "internkim-{deviceID}" if it exists, otherwise create it
+	projectID, err := resolveGoogleProject(client, accessToken, deviceID)
 	if err != nil {
 		return "", fmt.Errorf("project setup failed: %w", err)
-	}
-
-	// Remove org policy that blocks SA key creation (new projects inherit this constraint)
-	if err := allowSAKeyCreation(client, accessToken, projectID); err != nil {
-		fmt.Printf("  org policy override failed (will try anyway): %v\n", err)
 	}
 
 	saName := fmt.Sprintf("internkim-%s", deviceID)
 	saEmail := fmt.Sprintf("%s@%s.iam.gserviceaccount.com", saName, projectID)
 
-	// Create service account
+	// Create service account (409 = already exists, that's fine)
 	createBody, _ := json.Marshal(map[string]any{
 		"accountId": saName,
 		"serviceAccount": map[string]string{
@@ -1678,15 +1694,28 @@ func createGoogleServiceAccount(deviceID, accessToken string) (string, error) {
 		return "", fmt.Errorf("create SA request failed: %w", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != 200 && resp.StatusCode != 409 {
 		body, _ := io.ReadAll(resp.Body)
-		// 409 = already exists, continue to key creation
-		if resp.StatusCode != 409 {
-			return "", fmt.Errorf("create SA HTTP %d: %s", resp.StatusCode, string(body))
-		}
+		return "", fmt.Errorf("create SA HTTP %d: %s", resp.StatusCode, string(body))
 	}
 
-	// Create SA key
+	// Try to create SA key; if blocked, delete existing keys first and retry
+	saKeyJSON, err := createSAKey(client, accessToken, projectID, saEmail)
+	if err != nil {
+		// Delete existing user-managed keys and retry once
+		fmt.Printf("  Key creation blocked — deleting existing keys and retrying...\n")
+		deleteExistingSAKeys(client, accessToken, projectID, saEmail)
+		time.Sleep(3 * time.Second)
+		saKeyJSON, err = createSAKey(client, accessToken, projectID, saEmail)
+	}
+	if err != nil {
+		return "", err
+	}
+	return saKeyJSON, nil
+}
+
+// createSAKey creates a new JSON key for the given service account and returns the decoded JSON.
+func createSAKey(client *http.Client, accessToken, projectID, saEmail string) (string, error) {
 	keyReq, _ := http.NewRequest("POST",
 		fmt.Sprintf("https://iam.googleapis.com/v1/projects/%s/serviceAccounts/%s/keys", projectID, saEmail),
 		strings.NewReader(`{"keyAlgorithm":"KEY_ALG_RSA_2048","privateKeyType":"TYPE_GOOGLE_CREDENTIALS_FILE"}`))
@@ -1709,19 +1738,47 @@ func createGoogleServiceAccount(deviceID, accessToken string) (string, error) {
 		return "", fmt.Errorf("parse key response: %w", err)
 	}
 
-	// privateKeyData is base64-encoded JSON
-	import64 := keyResult.PrivateKeyData
-	decoded := make([]byte, len(import64))
-	n, err := decodeBase64(import64, decoded)
+	decoded, err := base64.StdEncoding.DecodeString(keyResult.PrivateKeyData)
 	if err != nil {
 		return "", fmt.Errorf("decode key: %w", err)
 	}
-	return string(decoded[:n]), nil
+	return string(decoded), nil
+}
+
+// deleteExistingSAKeys deletes all user-managed keys on the service account.
+func deleteExistingSAKeys(client *http.Client, accessToken, projectID, saEmail string) {
+	listReq, _ := http.NewRequest("GET",
+		fmt.Sprintf("https://iam.googleapis.com/v1/projects/%s/serviceAccounts/%s/keys?keyTypes=USER_MANAGED", projectID, saEmail),
+		nil)
+	listReq.Header.Set("Authorization", "Bearer "+accessToken)
+	listResp, err := client.Do(listReq)
+	if err != nil {
+		return
+	}
+	defer listResp.Body.Close()
+	var listResult struct {
+		Keys []struct {
+			Name string `json:"name"`
+		} `json:"keys"`
+	}
+	body, _ := io.ReadAll(listResp.Body)
+	if json.Unmarshal(body, &listResult) != nil {
+		return
+	}
+	for _, key := range listResult.Keys {
+		delReq, _ := http.NewRequest("DELETE", "https://iam.googleapis.com/v1/"+key.Name, nil)
+		delReq.Header.Set("Authorization", "Bearer "+accessToken)
+		delResp, err := client.Do(delReq)
+		if err == nil {
+			delResp.Body.Close()
+			fmt.Printf("  Deleted existing key: %s\n", key.Name)
+		}
+	}
 }
 
 // resolveGoogleProject returns "internkim" project ID if it exists, otherwise creates it.
-func resolveGoogleProject(client *http.Client, accessToken string) (string, error) {
-	const projectID = "internkim"
+func resolveGoogleProject(client *http.Client, accessToken, deviceID string) (string, error) {
+	projectID := "internkim-" + deviceID
 
 	// Check if project exists
 	req, _ := http.NewRequest("GET", "https://cloudresourcemanager.googleapis.com/v1/projects/"+projectID, nil)
@@ -1751,6 +1808,11 @@ func resolveGoogleProject(client *http.Client, accessToken string) (string, erro
 		return "", err
 	}
 	defer createResp.Body.Close()
+	if createResp.StatusCode == 409 {
+		// Already exists — GET failed earlier (e.g. API not enabled), but project is there
+		fmt.Printf("  Google Cloud project: %s (existing)\n", projectID)
+		return projectID, nil
+	}
 	if createResp.StatusCode != 200 {
 		b, _ := io.ReadAll(createResp.Body)
 		return "", fmt.Errorf("create project HTTP %d: %s", createResp.StatusCode, string(b))
@@ -1773,48 +1835,6 @@ func resolveGoogleProject(client *http.Client, accessToken string) (string, erro
 		fmt.Print(".")
 	}
 	return "", fmt.Errorf("project creation timed out")
-}
-
-// allowSAKeyCreation removes the iam.disableServiceAccountKeyCreation org policy on the project.
-func allowSAKeyCreation(client *http.Client, accessToken, projectID string) error {
-	// First enable orgpolicy API
-	enableBody, _ := json.Marshal(map[string]any{"serviceIds": []string{"orgpolicy.googleapis.com", "iam.googleapis.com"}})
-	enableReq, _ := http.NewRequest("POST",
-		fmt.Sprintf("https://serviceusage.googleapis.com/v1/projects/%s/services:batchEnable", projectID),
-		bytes.NewReader(enableBody))
-	enableReq.Header.Set("Authorization", "Bearer "+accessToken)
-	enableReq.Header.Set("Content-Type", "application/json")
-	enableReq.Header.Set("X-Goog-User-Project", projectID)
-	client.Do(enableReq) // best-effort
-	time.Sleep(3 * time.Second)
-
-	// Set project-level policy to NOT enforce the constraint
-	policyBody, _ := json.Marshal(map[string]any{
-		"name": fmt.Sprintf("projects/%s/policies/iam.disableServiceAccountKeyCreation", projectID),
-		"spec": map[string]any{
-			"rules": []map[string]any{
-				{"enforce": false},
-			},
-		},
-	})
-	req, _ := http.NewRequest("PATCH",
-		fmt.Sprintf("https://orgpolicy.googleapis.com/v2/projects/%s/policies/iam.disableServiceAccountKeyCreation", projectID),
-		bytes.NewReader(policyBody))
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Goog-User-Project", projectID)
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		b, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(b))
-	}
-	fmt.Printf("  SA key creation policy unlocked (waiting for propagation...)\n")
-	time.Sleep(5 * time.Second)
-	return nil
 }
 
 type googleTokens struct {
@@ -1854,7 +1874,7 @@ func googleOAuthLoopback() (accessToken, email string, err error) {
 
 	authURL := fmt.Sprintf(
 		"https://accounts.google.com/o/oauth2/auth?client_id=%s&redirect_uri=%s&response_type=code&scope=%s&access_type=offline",
-		clientID, redirectURI, scope,
+		clientID, url.QueryEscape(redirectURI), url.QueryEscape(scope),
 	)
 
 	fmt.Printf("\n  Opening browser for Google login...\n")
@@ -1920,10 +1940,6 @@ func googleOAuthLoopback() (accessToken, email string, err error) {
 	}
 
 	return token.AccessToken, email, nil
-}
-
-func decodeBase64(src string, dst []byte) (int, error) {
-	return base64.StdEncoding.Decode(dst, []byte(src))
 }
 
 // --- UI helpers ---
