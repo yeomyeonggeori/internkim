@@ -28,8 +28,7 @@ var (
 	boardPass = "root"
 	usbNCMIPs = []string{"10.11.60.1"}
 
-	zeroclawModel     = "google/gemini-3.1-flash-lite-preview"
-	zeroclawAPIBase   = "https://openrouter.ai/api/v1"
+	zeroclawModel = "google/gemini-3.1-flash-lite-preview"
 )
 
 type config struct {
@@ -41,7 +40,7 @@ type config struct {
 func loadConfig() config {
 	loadEnvFile()
 	return config{
-		APIBaseURL:     envOr("QC_API_URL", "https://internkim.pages.dev"),
+		APIBaseURL:     envOr("QC_API_URL", "https://api.example.test"),
 		RegisterSecret: envOr("QC_REGISTER_SECRET", ""),
 		CFDomain:       envOr("QC_DOMAIN", "example.test"),
 	}
@@ -383,18 +382,22 @@ chmod 440 /etc/sudoers.d/zeroclaw-gws`)
 		}
 		fmt.Printf("  %s: %s\n", m.t("API 키", "API key"), maskKey(apiKey))
 
-		// Store API key as KEY=VALUE for systemd EnvironmentFile, owned by zeroclaw uid
+		// Store API key for reference (modelListCmd reads it)
 		ssh.run(fmt.Sprintf(`printf 'OPENROUTER_API_KEY=%%s' '%s' > /root/.internkim/secrets/openrouter-api-key
 chown zeroclaw /root/.internkim/secrets/openrouter-api-key
 chmod 640 /root/.internkim/secrets/openrouter-api-key`, apiKey))
 
-		// Write zeroclaw config.toml (no credentials inside)
-		zeroclawConfig := buildZeroclawConfig(zeroclawModel, zeroclawAPIBase, nil)
+		// Write zeroclaw config.toml
+		zeroclawConfig := buildZeroclawConfig(zeroclawModel, nil)
 		ssh.run(fmt.Sprintf(`mkdir -p /root/.zeroclaw
 cat > /root/.zeroclaw/config.toml <<'CFGEOF'
 %s
 CFGEOF
+chown -R zeroclaw:zeroclaw /root/.zeroclaw
 chmod 600 /root/.zeroclaw/config.toml`, zeroclawConfig))
+
+		// Set API key in zeroclaw encrypted secret store
+		ssh.run(fmt.Sprintf(`HOME=/root zeroclaw props set api-key '%s' --no-interactive 2>/dev/null || true`, apiKey))
 	}
 
 	// 7. Register device + cloudflared
@@ -423,16 +426,11 @@ chmod 600 /root/.zeroclaw/config.toml`, zeroclawConfig))
 
 		regResp, err := registerDevice(cfg, deviceID, adminEmail)
 		if err != nil {
-			if strings.Contains(err.Error(), "409") {
-				fmt.Printf("  %s\n", m.t("이미 등록된 기기입니다.", "Device already registered."))
-			} else {
-				fatal(fmt.Sprintf("%s: %v", m.t("기기 등록 실패", "Registration failed"), err))
-			}
-		} else {
-			saveState(stateDir, "tunnel_token", regResp.TunnelToken)
-			saveState(stateDir, "device_url", regResp.URL)
-			fmt.Printf("  %s: %s\n", m.t("터널 생성 완료", "Tunnel created"), regResp.URL)
+			fatal(fmt.Sprintf("%s: %v", m.t("기기 등록 실패", "Registration failed"), err))
 		}
+		saveState(stateDir, "tunnel_token", regResp.TunnelToken)
+		saveState(stateDir, "device_url", regResp.URL)
+		fmt.Printf("  %s: %s\n", m.t("터널 설정 완료", "Tunnel configured"), regResp.URL)
 		tunnelToken = loadState(stateDir, "tunnel_token")
 	}
 	if tunnelToken != "" {
@@ -545,7 +543,7 @@ After=network.target
 User=zeroclaw
 EnvironmentFile=/root/.internkim/secrets/openrouter-api-key
 Environment=HOME=/root
-ExecStart=/usr/local/bin/zeroclaw gateway
+ExecStart=/usr/local/bin/zeroclaw daemon
 Restart=on-failure
 
 [Install]
@@ -929,8 +927,15 @@ func extractFromTarGz(r io.Reader, localPath, entryName string) error {
 // Uses the official Mattermost tarball for arm64 and postgresql via apt.
 func installMattermost(m *msg, ssh *sshClient, force bool) {
 	already := strings.TrimSpace(ssh.run("test -f /opt/mattermost/bin/mattermost && echo yes || echo no"))
-	if !force && already == "yes" {
+	if already == "yes" {
 		fmt.Printf("  %s\n", m.t("Mattermost 이미 설치됨 — 건너뜀", "Mattermost already installed — skipping"))
+		// Ensure DB password and config are in sync
+		mmDBPass := strings.TrimSpace(ssh.run("cat /root/.internkim/secrets/mm-db-pass 2>/dev/null"))
+		if mmDBPass != "" {
+			ssh.run(fmt.Sprintf(`su - postgres -c "psql -c \"ALTER USER mmuser WITH PASSWORD '%s'\"" 2>/dev/null || true`, mmDBPass))
+			ssh.run(fmt.Sprintf(`jq --arg ds 'postgres://mmuser:%s@localhost/mattermost?sslmode=disable&connect_timeout=10' '.SqlSettings.DataSource = $ds' /opt/mattermost/config/config.json > /tmp/mm-cfg.tmp && mv /tmp/mm-cfg.tmp /opt/mattermost/config/config.json && chown mattermost:mattermost /opt/mattermost/config/config.json`, mmDBPass))
+			ssh.run("systemctl restart mattermost 2>/dev/null || true")
+		}
 		return
 	}
 
@@ -938,7 +943,7 @@ func installMattermost(m *msg, ssh *sshClient, force bool) {
 	out := ssh.run(`
 which pg_isready 2>/dev/null && echo already || {
   apt-get update -qq 2>&1 | tail -1
-  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq postgresql postgresql-contrib 2>&1 | tail -3
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq postgresql postgresql-contrib jq 2>&1 | tail -3
 }`)
 	if strings.Contains(out, "already") {
 		fmt.Printf("  %s\n", m.t("PostgreSQL 이미 설치됨", "PostgreSQL already installed"))
@@ -946,8 +951,12 @@ which pg_isready 2>/dev/null && echo already || {
 		fmt.Printf("  %s\n", m.t("PostgreSQL 설치 완료", "PostgreSQL installed"))
 	}
 
-	// Start PostgreSQL and create mattermost DB/user
-	mmDBPass := "mmpass_" + hex.EncodeToString(func() []byte { b := make([]byte, 6); rand.Read(b); return b }())
+	// Start PostgreSQL and create mattermost DB/user (reuse saved password if exists)
+	mmDBPass := strings.TrimSpace(ssh.run("cat /root/.internkim/secrets/mm-db-pass 2>/dev/null"))
+	if mmDBPass == "" {
+		mmDBPass = "mmpass_" + hex.EncodeToString(func() []byte { b := make([]byte, 6); rand.Read(b); return b }())
+		ssh.run(fmt.Sprintf("mkdir -p /root/.internkim/secrets && printf '%%s' '%s' > /root/.internkim/secrets/mm-db-pass && chmod 600 /root/.internkim/secrets/mm-db-pass", mmDBPass))
+	}
 	ssh.run(fmt.Sprintf(`
 systemctl start postgresql 2>/dev/null || service postgresql start 2>/dev/null || true
 sleep 2
@@ -982,10 +991,11 @@ chmod -R g+w /opt/mattermost
 cd /opt/mattermost
 cp config/config.defaults.json config/config.json 2>/dev/null || cp config/config.json config/config.json.bak 2>/dev/null || true
 SITE_URL="http://localhost:8065"
-sed -i "s|\"DriverName\": \".*\"|\"DriverName\": \"postgres\"|" config/config.json
-sed -i "s|\"DataSource\": \".*\"|\"DataSource\": \"postgres://mmuser:%s@localhost/mattermost?sslmode=disable\u0026connect_timeout=10\"|" config/config.json
-sed -i "s|\"SiteURL\": \".*\"|\"SiteURL\": \"$SITE_URL\"|" config/config.json
-
+DB_PASS="%s"
+jq --arg ds "postgres://mmuser:${DB_PASS}@localhost/mattermost?sslmode=disable&connect_timeout=10" \
+   --arg url "$SITE_URL" \
+   '.SqlSettings.DriverName = "postgres" | .SqlSettings.DataSource = $ds | .ServiceSettings.SiteURL = $url' \
+   config/config.json > config/config.tmp && mv config/config.tmp config/config.json
 # Systemd service
 cat > /etc/systemd/system/mattermost.service <<'SVCEOF'
 [Unit]
@@ -995,7 +1005,7 @@ BindsTo=postgresql.service
 
 [Service]
 Type=notify
-ExecStart=/opt/mattermost/bin/mattermost
+ExecStart=/opt/mattermost/bin/mattermost server
 TimeoutStartSec=3600
 KillMode=mixed
 Restart=always
@@ -1033,10 +1043,10 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 	// For local API calls during setup, use localhost:8065 via SSH tunnel
 	localURL := "http://localhost:8065"
 
-	// Wait for Mattermost to be ready (up to 60s)
+	// Wait for Mattermost to be ready (up to 3 minutes — first boot runs DB migrations)
 	fmt.Printf("  %s\n", m.t("Mattermost 준비 대기 중...", "Waiting for Mattermost..."))
 	ready := false
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 60; i++ {
 		ping := strings.TrimSpace(ssh.run(`curl -sf http://localhost:8065/api/v4/system/ping 2>/dev/null | grep -o '"status":"OK"' || echo ""`))
 		if ping != "" {
 			ready = true
@@ -1077,9 +1087,13 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 	}
 	_ = client
 
-	// 1. Create initial admin account
-	adminUser := "internkim-admin"
-	adminPass := generatePassword(20)
+	// 1. Create initial admin account (reuse saved password if exists)
+	adminUser := "admin"
+	adminPass := strings.TrimSpace(ssh.run("cat /root/.internkim/secrets/mm-admin-pass 2>/dev/null"))
+	if adminPass == "" {
+		adminPass = generatePassword(20)
+		ssh.run(fmt.Sprintf("printf '%%s' '%s' > /root/.internkim/secrets/mm-admin-pass && chmod 600 /root/.internkim/secrets/mm-admin-pass", adminPass))
+	}
 	adminEmail := strings.TrimSpace(ssh.run("cat /root/.internkim/admin-email 2>/dev/null"))
 	if adminEmail == "" {
 		adminEmail = "admin@example.test"
@@ -1205,17 +1219,21 @@ chmod 640 /root/.internkim/secrets/mattermost-bot-token`,
 
 	// 9. Write zeroclaw config with Mattermost channel
 	mm := &mattermostConfig{
-		BaseURL:     deviceURL,
-		BotToken:    botToken,
+		BaseURL:     "http://localhost:8065",
 		ChannelID:   channelID,
 		ThreadReply: true,
 		MentionOnly: false,
 	}
-	zeroclawConfig := buildZeroclawConfig(zeroclawModel, zeroclawAPIBase, mm)
+	zeroclawConfig := buildZeroclawConfig(zeroclawModel, mm)
 	ssh.run(fmt.Sprintf(`cat > /root/.zeroclaw/config.toml <<'CFGEOF'
 %s
 CFGEOF
+chown zeroclaw:zeroclaw /root/.zeroclaw/config.toml
 chmod 600 /root/.zeroclaw/config.toml`, zeroclawConfig))
+	// Set secrets via zeroclaw props (secret fields use encrypted storage)
+	if botToken != "" {
+		ssh.run(fmt.Sprintf(`HOME=/root zeroclaw props set channels.mattermost.bot-token '%s' --no-interactive 2>/dev/null || true`, botToken))
+	}
 
 	fmt.Printf("  %s\n", m.t("Mattermost 자동 설정 완료", "Mattermost configured automatically"))
 	fmt.Printf("  admin: %s / %s\n", adminUser, adminPass)
@@ -1594,40 +1612,33 @@ func (s *sshClient) scpDir(localDir, remoteDir string) {
 
 type mattermostConfig struct {
 	BaseURL     string
-	BotToken    string
 	ChannelID   string
 	ThreadReply bool
 	MentionOnly bool
 }
 
-// buildZeroclawConfig generates zeroclaw config.toml (no credentials inside)
-// API key is read at runtime from /root/.internkim/secrets/openrouter-api-key
-func buildZeroclawConfig(model, apiBase string, mm *mattermostConfig) string {
+// buildZeroclawConfig generates zeroclaw config.toml.
+// Secrets (api-key, bot-token) are set separately via `zeroclaw props set --no-interactive`.
+func buildZeroclawConfig(model string, mm *mattermostConfig) string {
 	mmSection := ""
-	if mm != nil && mm.BaseURL != "" && mm.BotToken != "" && mm.ChannelID != "" {
+	if mm != nil && mm.BaseURL != "" && mm.ChannelID != "" {
 		mmSection = fmt.Sprintf(`
-[channels.mattermost]
+[channels_config.mattermost]
 enabled = true
-base_url = "%s"
-bot_token = "%s"
+url = "%s"
+bot_token = ""
 channel_id = "%s"
+allowed_users = ["*"]
 thread_replies = %v
 mention_only = %v
-allowed_users = ["*"]
-`, mm.BaseURL, mm.BotToken, mm.ChannelID, mm.ThreadReply, mm.MentionOnly)
+`, mm.BaseURL, mm.ChannelID, mm.ThreadReply, mm.MentionOnly)
 	}
 
-	return fmt.Sprintf(`# ZeroClaw configuration — credentials are NOT stored here
-# API key is injected by systemd from /root/.internkim/secrets/openrouter-api-key
-
-default_provider = "openai-compatible:%s"
+	return fmt.Sprintf(`default_provider = "openrouter"
 default_model = "%s"
 
 [runtime]
 kind = "native"
-
-[runtime.native]
-sandbox = "landlock"
 
 [gateway]
 port = 18790
@@ -1636,10 +1647,7 @@ require_pairing = false
 
 [channels_config]
 cli = false
-
-[channels_config.webhook]
-secret = "quickclaw"
-
+%s
 [browser]
 enabled = true
 backend = "cdp"
@@ -1649,7 +1657,7 @@ cdp_url = "ws://127.0.0.1:9222"
 name = "google-workspace"
 command = "/usr/local/bin/gws-mcp"
 args = []
-%s`, apiBase, model, mmSection)
+`, model, mmSection)
 }
 
 // createGoogleServiceAccount creates a service account via Google IAM REST API.
