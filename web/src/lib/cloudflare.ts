@@ -46,7 +46,8 @@ export async function configureTunnel(env: CFEnv, tunnelId: string, deviceId: st
 		body: JSON.stringify({
 			config: {
 				ingress: [
-					{ hostname, service: 'http://localhost:8080' },
+					// Mattermost serves web UI, iOS/Android apps, and API directly
+					{ hostname, service: 'http://localhost:8065' },
 					{ service: 'http_status:404' }
 				]
 			}
