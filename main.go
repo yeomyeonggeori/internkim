@@ -127,7 +127,6 @@ func runSetup() {
 	getSSIDBin := filepath.Join(binDir, "get-ssid")
 	zeroclawBin := filepath.Join(boardBinDir, "zeroclaw")
 	gwsBin := filepath.Join(boardBinDir, "gws")
-	boardUIDir := filepath.Join(scriptDir, "board-ui")
 
 	totalSteps := 10
 	fmt.Println("=== Intern Kim Setup ===")
@@ -336,13 +335,6 @@ chmod 440 /etc/sudoers.d/zeroclaw-gws`)
 		ssh.run("cp /usr/local/bin/" + tool + " /root/.zeroclaw/workspace/bin/ && chmod 755 /root/.zeroclaw/workspace/bin/" + tool)
 	}
 
-	// 5c. Deploy chat UI to board
-	if _, err := os.Stat(boardUIDir); err == nil {
-		ssh.run("rm -rf /var/www && mkdir -p /var/www")
-		ssh.scpDir(boardUIDir, "/var/www")
-		fmt.Printf("  %s\n", m.t("채팅 UI 배포 완료", "Chat UI deployed"))
-	}
-
 	// 6. OpenRouter API key + zeroclaw config
 	step(6, totalSteps, m.t("OpenRouter API 키 설정...", "Configuring OpenRouter API key..."))
 	existingKey := strings.TrimSpace(ssh.run("test -f /root/.internkim/secrets/openrouter-api-key && echo yes || echo no"))
@@ -470,8 +462,8 @@ chmod 640 /root/.internkim/secrets/google-sa.json`)
 	// 10. Services autostart + swap
 	step(10, totalSteps, m.t("서비스 시작 중...", "Starting services..."))
 
-	// Remove stale httpd init script (board-bridge handles static serving now)
-	ssh.run("rm -f /etc/init.d/S97httpd; kill $(ps | grep 'python3 -m http.server' | grep -v grep | awk '{print $1}') 2>/dev/null || true")
+	// Remove stale httpd / board-bridge
+	ssh.run("rm -f /etc/init.d/S97httpd; killall board-bridge 2>/dev/null; kill $(ps | grep 'python3 -m http.server' | grep -v grep | awk '{print $1}') 2>/dev/null || true")
 
 	// Remove skills whose required binaries are not available on this device
 	ssh.run(`cd /root/.zeroclaw/workspace/skills 2>/dev/null && \
@@ -515,12 +507,20 @@ sleep 2`)
   grep -q '/swapfile' /etc/fstab 2>/dev/null || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi`)
 
-	// 10. Deploy latest build
-	step(totalSteps+1, totalSteps+1, m.t("최신 빌드 배포 중...", "Deploying latest build..."))
-	runDeploy()
+	// 10b. Update Mattermost SiteURL to tunnel URL
+	deviceURL := loadState(stateDir, "device_url")
+	if deviceURL != "" {
+		ssh.run(fmt.Sprintf(`
+if [ -f /opt/mattermost/config/config.json ]; then
+  sed -i 's|"SiteURL": "[^"]*"|"SiteURL": "%s"|' /opt/mattermost/config/config.json
+  systemctl restart mattermost 2>/dev/null || true
+  echo "Mattermost SiteURL updated to %s"
+fi`, deviceURL, deviceURL))
+		fmt.Printf("  %s: %s\n", m.t("Mattermost URL 설정", "Mattermost URL"), deviceURL)
+	}
 
 	// Done
-	deviceURL := loadState(stateDir, "device_url")
+	finalURL := loadState(stateDir, "device_url")
 	fmt.Println()
 	fmt.Println("========================================")
 	fmt.Printf("  %s\n", m.t("Intern Kim 설정 완료!", "Intern Kim Setup Complete!"))
@@ -528,8 +528,9 @@ fi`)
 	fmt.Println()
 	fmt.Printf("  USB:     %s\n", boardIP)
 	fmt.Printf("  Wi-Fi:   %s\n", wifiIP)
-	if deviceURL != "" {
-		fmt.Printf("  URL:     %s\n", deviceURL)
+	if finalURL != "" {
+		fmt.Printf("  Mattermost: %s\n", finalURL)
+		fmt.Printf("  %s\n", m.t("  → iOS/Android Mattermost 앱에서 위 URL로 서버 추가", "  → Add server URL in iOS/Android Mattermost app"))
 	}
 	fmt.Println()
 	fmt.Printf("  %s:\n", m.t("SSH 접속", "SSH access"))
@@ -665,9 +666,7 @@ func runDeploy() {
 	scriptDir, _ := os.Getwd()
 	binDir := filepath.Join(scriptDir, "bin")
 	sshpassBin := filepath.Join(binDir, "sshpass")
-	webDir := filepath.Join(scriptDir, "web")
 	boardBinDir := filepath.Join(scriptDir, "board-bin")
-	boardUIDir := filepath.Join(scriptDir, "board-ui")
 
 	var ssh *sshClient
 	var boardIP string
@@ -685,110 +684,42 @@ func runDeploy() {
 
 	boardTools := []string{"download"}
 
-	buildUI := true
-	buildBridge := true
-	buildTools := true
-	if len(os.Args) > 2 {
-		for _, arg := range os.Args[2:] {
-			switch arg {
-			case "--ui":
-				buildBridge = false
-				buildTools = false
-			case "--bridge":
-				buildUI = false
-				buildTools = false
-			case "--tools":
-				buildUI = false
-				buildBridge = false
+	fmt.Print("Installing skill dependencies... ")
+	ssh.run("pip3 install --quiet fpdf2 pypdf 2>&1 | tail -1")
+	fmt.Println("ok")
+
+	fmt.Print("Deploying skills... ")
+	skillsDir := filepath.Join(scriptDir, "board-scripts", "skills")
+	if _, err := os.Stat(skillsDir); err == nil {
+		ssh.run("mkdir -p /root/.zeroclaw/workspace/skills")
+		entries, _ := os.ReadDir(skillsDir)
+		for _, entry := range entries {
+			if entry.IsDir() {
+				ssh.run("mkdir -p /root/.zeroclaw/workspace/skills/" + entry.Name())
+				skillFile := filepath.Join(skillsDir, entry.Name(), "SKILL.md")
+				if _, err := os.Stat(skillFile); err == nil {
+					ssh.scp(skillFile, "/root/.zeroclaw/workspace/skills/"+entry.Name()+"/SKILL.md")
+				}
 			}
 		}
 	}
+	fmt.Println("ok")
 
-	if buildUI {
-		fmt.Print("Building web UI... ")
-		cmd := exec.Command("bun", "run", "build")
-		cmd.Dir = webDir
-		cmd.Env = append(os.Environ(), "BUILD_TARGET=board")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			fmt.Println("FAILED")
-			fmt.Println(string(out))
-			os.Exit(1)
-		}
-		fmt.Println("ok")
-	}
-
-	if buildBridge {
-		fmt.Print("Building board-bridge... ")
-		cmd := exec.Command("go", "build", "-o", filepath.Join(boardBinDir, "board-bridge"), "./cmd/board-bridge/")
+	for _, tool := range boardTools {
+		fmt.Printf("Building %s... ", tool)
+		cmd := exec.Command("go", "build", "-o", filepath.Join(boardBinDir, tool), "./cmd/"+tool+"/")
 		cmd.Dir = scriptDir
 		cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=arm64")
 		if out, err := cmd.CombinedOutput(); err != nil {
 			fmt.Println("FAILED")
 			fmt.Println(string(out))
-			os.Exit(1)
+			continue
 		}
+		fmt.Print("ok, deploying... ")
+		ssh.scp(filepath.Join(boardBinDir, tool), "/usr/local/bin/"+tool)
+		ssh.run("chmod +x /usr/local/bin/" + tool)
+		ssh.run("mkdir -p /root/.zeroclaw/workspace/bin /root/.zeroclaw/workspace/downloads && cp /usr/local/bin/" + tool + " /root/.zeroclaw/workspace/bin/ && chmod 755 /root/.zeroclaw/workspace/bin /root/.zeroclaw/workspace/bin/" + tool)
 		fmt.Println("ok")
-	}
-
-	if buildUI {
-		fmt.Print("Deploying web UI... ")
-		tarPath := filepath.Join(os.TempDir(), "qc-ui.tar")
-		cmd := exec.Command("tar", "cf", tarPath, "-C", boardUIDir, ".")
-		if err := cmd.Run(); err != nil {
-			fatal("Failed to create tar: " + err.Error())
-		}
-		ssh.scp(tarPath, "/tmp/qc-ui.tar")
-		ssh.run("rm -rf /var/www/* && tar xf /tmp/qc-ui.tar -C /var/www/ && rm /tmp/qc-ui.tar")
-		os.Remove(tarPath)
-		fmt.Println("ok")
-	}
-
-	if buildBridge {
-		fmt.Print("Deploying board-bridge... ")
-		ssh.run("killall board-bridge 2>/dev/null; sleep 1")
-		ssh.scp(filepath.Join(boardBinDir, "board-bridge"), "/usr/local/bin/board-bridge")
-		ssh.run("chmod +x /usr/local/bin/board-bridge && nohup /usr/local/bin/board-bridge > /var/log/board-bridge.log 2>&1 &")
-		fmt.Println("ok")
-	}
-
-	if buildTools {
-		fmt.Print("Installing skill dependencies... ")
-		ssh.run("pip3 install --quiet fpdf2 pypdf 2>&1 | tail -1")
-		fmt.Println("ok")
-
-		fmt.Print("Deploying skills... ")
-		skillsDir := filepath.Join(scriptDir, "board-scripts", "skills")
-		if _, err := os.Stat(skillsDir); err == nil {
-			ssh.run("mkdir -p /root/.zeroclaw/workspace/skills")
-			entries, _ := os.ReadDir(skillsDir)
-			for _, entry := range entries {
-				if entry.IsDir() {
-					ssh.run("mkdir -p /root/.zeroclaw/workspace/skills/" + entry.Name())
-					skillFile := filepath.Join(skillsDir, entry.Name(), "SKILL.md")
-					if _, err := os.Stat(skillFile); err == nil {
-						ssh.scp(skillFile, "/root/.zeroclaw/workspace/skills/"+entry.Name()+"/SKILL.md")
-					}
-				}
-			}
-		}
-		fmt.Println("ok")
-
-		for _, tool := range boardTools {
-			fmt.Printf("Building %s... ", tool)
-			cmd := exec.Command("go", "build", "-o", filepath.Join(boardBinDir, tool), "./cmd/"+tool+"/")
-			cmd.Dir = scriptDir
-			cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=arm64")
-			if out, err := cmd.CombinedOutput(); err != nil {
-				fmt.Println("FAILED")
-				fmt.Println(string(out))
-				continue
-			}
-			fmt.Print("ok, deploying... ")
-			ssh.scp(filepath.Join(boardBinDir, tool), "/usr/local/bin/"+tool)
-			ssh.run("chmod +x /usr/local/bin/" + tool)
-			ssh.run("mkdir -p /root/.zeroclaw/workspace/bin /root/.zeroclaw/workspace/downloads && cp /usr/local/bin/" + tool + " /root/.zeroclaw/workspace/bin/ && chmod 755 /root/.zeroclaw/workspace/bin /root/.zeroclaw/workspace/bin/" + tool)
-			fmt.Println("ok")
-		}
 	}
 
 	fmt.Println("Deploy complete.")

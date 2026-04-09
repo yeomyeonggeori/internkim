@@ -1,7 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { kv } from '$lib/kv';
-import { createTunnel, configureTunnel, createDNSRecord, createAccessApplication, createAccessPolicy } from '$lib/cloudflare';
+import { createTunnel, configureTunnel, createDNSRecord } from '$lib/cloudflare';
 import type { Device } from '$lib/types';
 
 export const POST: RequestHandler = async ({ request, platform }) => {
@@ -30,24 +30,20 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	};
 
 	const { tunnelId, tunnelToken } = await createTunnel(cfEnv, device_id);
+	// Tunnel points to Mattermost — Mattermost handles all auth
 	await configureTunnel(cfEnv, tunnelId, device_id);
 	const dnsRecordId = await createDNSRecord(cfEnv, tunnelId, device_id);
-	const accessAppId = await createAccessApplication(cfEnv, device_id);
-	await createAccessPolicy(cfEnv, accessAppId, admin_email);
 
 	const device: Device = {
 		device_id,
 		tunnel_id: tunnelId,
 		tunnel_token: tunnelToken,
 		dns_record_id: dnsRecordId,
-		access_app_id: accessAppId,
 		admin_email,
-		created_at: new Date().toISOString(),
-		versions: { picoclaw: '0.2.5', cli: '0.0.1' }
+		created_at: new Date().toISOString()
 	};
 
 	await kv.putDevice(env.KV, device_id, device);
-	await kv.putUsers(env.KV, device_id, [admin_email]);
 
 	return json({
 		device_id,
