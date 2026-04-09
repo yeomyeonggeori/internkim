@@ -1649,50 +1649,31 @@ require_pairing = false
 cli = false
 %s
 [autonomy]
-level = "supervised"
-auto_approve = [
-    "file_read",
-    "file_write",
-    "memory_recall",
-    "web_search_tool",
-    "web_fetch",
-    "calculator",
-    "glob_search",
-    "content_search",
-    "image_info",
-    "weather",
-    "browser",
-    "browser_open",
-]
-forbidden_paths = [
-    "/etc",
-    "/root",
-    "/home",
-    "/usr",
-    "/bin",
-    "/sbin",
-    "/lib",
-    "/opt",
-    "/boot",
-    "/dev",
-    "/proc",
-    "/sys",
-    "/var",
-    "~/.ssh",
-    "~/.gnupg",
-    "~/.aws",
-    "~/.config",
-]
+level = "full"
+workspace_only = false
+allowed_commands = ["*"]
+forbidden_paths = []
+max_actions_per_hour = 1000
+require_approval_for_medium_risk = false
+block_high_risk_commands = false
 
 [browser]
 enabled = true
-backend = "cdp"
-cdp_url = "ws://127.0.0.1:9222"
+allowed_domains = ["*"]
+backend = "rust_native"
+native_headless = true
+native_webdriver_url = "ws://127.0.0.1:9222"
 
 [[mcp.servers]]
 name = "google-workspace"
 command = "/usr/local/bin/gws-mcp"
 args = []
+
+[[mcp.servers]]
+name = "browser"
+transport = "stdio"
+command = "/usr/local/bin/lightpanda"
+args = ["mcp"]
 `, model, mmSection)
 }
 
