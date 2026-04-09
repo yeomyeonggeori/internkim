@@ -1666,66 +1666,75 @@ func resolveGoogleProject(client *http.Client, accessToken string) (string, erro
 	return "", fmt.Errorf("project creation timed out")
 }
 
-// googleDeviceAuth performs OAuth2 device authorization flow and returns an access token.
+// googleDeviceAuth performs OAuth2 loopback redirect flow and returns an access token.
+// Opens browser → user logs in → Google redirects to localhost → token exchanged.
 func googleDeviceAuth() (string, error) {
-	clientID := "32555940559.apps.googleusercontent.com" // gcloud SDK public client
+	// gcloud's installed-app OAuth client (loopback redirect is allowed)
+	clientID := "764086051850-6qr4p6gpi6hn506pt8ejuq83di341hur.apps.googleusercontent.com"
+	clientSecret := "d-FL95Q19q7MQmFpd7hHD0Ty"
 	scope := "https://www.googleapis.com/auth/cloud-platform"
 
-	// Step 1: request device code
-	resp, err := http.PostForm("https://oauth2.googleapis.com/device/code", map[string][]string{
-		"client_id": {clientID},
-		"scope":     {scope},
+	// Find a free port
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", fmt.Errorf("failed to open local port: %w", err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	redirectURI := fmt.Sprintf("http://localhost:%d", port)
+
+	authURL := fmt.Sprintf(
+		"https://accounts.google.com/o/oauth2/auth?client_id=%s&redirect_uri=%s&response_type=code&scope=%s&access_type=offline",
+		clientID, redirectURI, scope,
+	)
+
+	fmt.Printf("\n  Opening browser for Google login...\n")
+	exec.Command("open", authURL).Start()
+	fmt.Printf("  If browser did not open, visit:\n  %s\n\n", authURL)
+
+	// Wait for redirect with auth code
+	codeCh := make(chan string, 1)
+	srv := &http.Server{}
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		code := r.URL.Query().Get("code")
+		if code != "" {
+			fmt.Fprintf(w, "<html><body><h2>Authorization complete. You can close this tab.</h2></body></html>")
+			codeCh <- code
+		}
+	})
+	go srv.Serve(listener)
+	defer srv.Close()
+
+	var code string
+	select {
+	case code = <-codeCh:
+	case <-time.After(5 * time.Minute):
+		return "", fmt.Errorf("timed out waiting for Google authorization")
+	}
+
+	// Exchange code for token
+	tokenResp, err := http.PostForm("https://oauth2.googleapis.com/token", map[string][]string{
+		"code":          {code},
+		"client_id":     {clientID},
+		"client_secret": {clientSecret},
+		"redirect_uri":  {redirectURI},
+		"grant_type":    {"authorization_code"},
 	})
 	if err != nil {
+		return "", fmt.Errorf("token exchange failed: %w", err)
+	}
+	defer tokenResp.Body.Close()
+	body, _ := io.ReadAll(tokenResp.Body)
+	var token struct {
+		AccessToken string `json:"access_token"`
+		Error       string `json:"error"`
+	}
+	if err := json.Unmarshal(body, &token); err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-	var dc struct {
-		DeviceCode      string `json:"device_code"`
-		UserCode        string `json:"user_code"`
-		VerificationURL string `json:"verification_url"`
-		Interval        int    `json:"interval"`
+	if token.Error != "" {
+		return "", fmt.Errorf("token error: %s", token.Error)
 	}
-	if err := json.Unmarshal(body, &dc); err != nil {
-		return "", err
-	}
-
-	fmt.Printf("\n  Visit: %s\n", dc.VerificationURL)
-	fmt.Printf("  Code:  %s\n\n", dc.UserCode)
-	exec.Command("open", dc.VerificationURL).Start()
-
-	interval := dc.Interval
-	if interval == 0 {
-		interval = 5
-	}
-
-	// Step 2: poll for token
-	for i := 0; i < 60; i++ {
-		time.Sleep(time.Duration(interval) * time.Second)
-		pollResp, err := http.PostForm("https://oauth2.googleapis.com/token", map[string][]string{
-			"client_id":   {clientID},
-			"device_code": {dc.DeviceCode},
-			"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
-		})
-		if err != nil {
-			continue
-		}
-		pollBody, _ := io.ReadAll(pollResp.Body)
-		pollResp.Body.Close()
-		var token struct {
-			AccessToken string `json:"access_token"`
-			Error       string `json:"error"`
-		}
-		json.Unmarshal(pollBody, &token)
-		if token.AccessToken != "" {
-			return token.AccessToken, nil
-		}
-		if token.Error != "authorization_pending" && token.Error != "slow_down" {
-			return "", fmt.Errorf("auth error: %s", token.Error)
-		}
-	}
-	return "", fmt.Errorf("timed out waiting for authorization")
+	return token.AccessToken, nil
 }
 
 func decodeBase64(src string, dst []byte) (int, error) {
