@@ -1539,22 +1539,33 @@ func (s *sshClient) run(cmd string) string {
 	return string(out)
 }
 
+func (s *sshClient) scpArgs(extra ...string) []string {
+	base := []string{
+		"-o", "StrictHostKeyChecking=no",
+		"-o", "UserKnownHostsFile=/dev/null",
+		"-o", "ConnectTimeout=10",
+		"-o", "LogLevel=ERROR",
+		"-P", s.port,
+	}
+	return append(base, extra...)
+}
+
 func (s *sshClient) scp(localPath, remotePath string) {
 	target := fmt.Sprintf("%s@%s:%s", s.user, s.host, remotePath)
 	if s.pass != "" {
-		exec.Command(s.sshpassBin, append([]string{"-p", s.pass, "scp"}, s.sshArgs(localPath, target)...)...).Run()
+		exec.Command(s.sshpassBin, append([]string{"-p", s.pass, "scp"}, s.scpArgs(localPath, target)...)...).Run()
 		return
 	}
-	exec.Command("scp", s.sshArgs(localPath, target)...).Run()
+	exec.Command("scp", s.scpArgs(localPath, target)...).Run()
 }
 
 func (s *sshClient) scpDir(localDir, remoteDir string) {
 	target := fmt.Sprintf("%s@%s:%s", s.user, s.host, remoteDir)
 	if s.pass != "" {
-		exec.Command(s.sshpassBin, append([]string{"-p", s.pass, "scp", "-r"}, s.sshArgs(localDir+"/.", target)...)...).Run()
+		exec.Command(s.sshpassBin, append([]string{"-p", s.pass, "scp", "-r"}, s.scpArgs(localDir+"/.", target)...)...).Run()
 		return
 	}
-	exec.Command("scp", append([]string{"-r"}, s.sshArgs(localDir+"/.", target)...)...).Run()
+	exec.Command("scp", append([]string{"-r"}, s.scpArgs(localDir+"/.", target)...)...).Run()
 }
 
 // --- Config builders ---
