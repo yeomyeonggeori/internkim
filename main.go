@@ -1766,7 +1766,7 @@ func resolveGoogleProject(client *http.Client, accessToken string) (string, erro
 // allowSAKeyCreation removes the iam.disableServiceAccountKeyCreation org policy on the project.
 func allowSAKeyCreation(client *http.Client, accessToken, projectID string) error {
 	// First enable orgpolicy API
-	enableBody, _ := json.Marshal(map[string]any{"serviceIds": []string{"orgpolicy.googleapis.com"}})
+	enableBody, _ := json.Marshal(map[string]any{"serviceIds": []string{"orgpolicy.googleapis.com", "iam.googleapis.com"}})
 	enableReq, _ := http.NewRequest("POST",
 		fmt.Sprintf("https://serviceusage.googleapis.com/v1/projects/%s/services:batchEnable", projectID),
 		bytes.NewReader(enableBody))
@@ -1777,16 +1777,15 @@ func allowSAKeyCreation(client *http.Client, accessToken, projectID string) erro
 
 	// Set project-level policy to NOT enforce the constraint
 	policyBody, _ := json.Marshal(map[string]any{
-		"policy": map[string]any{
-			"spec": map[string]any{
-				"rules": []map[string]any{
-					{"allowAll": true},
-				},
+		"name": fmt.Sprintf("projects/%s/policies/iam.disableServiceAccountKeyCreation", projectID),
+		"spec": map[string]any{
+			"rules": []map[string]any{
+				{"enforce": false},
 			},
 		},
 	})
 	req, _ := http.NewRequest("PATCH",
-		fmt.Sprintf("https://orgpolicy.googleapis.com/v2/projects/%s/policies/constraints%%2Fiam.disableServiceAccountKeyCreation", projectID),
+		fmt.Sprintf("https://orgpolicy.googleapis.com/v2/projects/%s/policies/iam.disableServiceAccountKeyCreation", projectID),
 		bytes.NewReader(policyBody))
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("Content-Type", "application/json")
@@ -1799,7 +1798,8 @@ func allowSAKeyCreation(client *http.Client, accessToken, projectID string) erro
 		b, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(b))
 	}
-	fmt.Printf("  SA key creation policy unlocked\n")
+	fmt.Printf("  SA key creation policy unlocked (waiting for propagation...)\n")
+	time.Sleep(5 * time.Second)
 	return nil
 }
 
