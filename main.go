@@ -137,10 +137,9 @@ func runSetup() {
 	var boardIP string
 	var ssh *sshClient
 	if sim {
-		ipOut, _ := exec.Command("container", "inspect", simContainerName, "--format", "{{.Network.IPAddress}}").Output()
-		boardIP = strings.TrimSpace(string(ipOut))
+		boardIP = simContainerIP()
 		if boardIP == "" {
-			fatal("Simulator not running. Start it with: internkim sim start")
+			fatal("Simulator not running. Start it with: internkim sim")
 		}
 		ssh = newSSH(sshpassBin, boardUser, "", boardIP)
 	} else {
@@ -752,10 +751,9 @@ func runDeploy() {
 	var ssh *sshClient
 	var boardIP string
 	if containsArg("--sim") {
-		ipOut, _ := exec.Command("container", "inspect", simContainerName, "--format", "{{.Network.IPAddress}}").Output()
-		boardIP = strings.TrimSpace(string(ipOut))
+		boardIP = simContainerIP()
 		if boardIP == "" {
-			fatal("Simulator not running. Start it with: internkim sim start")
+			fatal("Simulator not running. Start it with: internkim sim")
 		}
 		ssh = newSSH(sshpassBin, boardUser, "", boardIP)
 	} else {
@@ -1153,8 +1151,7 @@ func runSim() {
 func simEnsureRunning() string {
 	out, _ := exec.Command("container", "list").Output()
 	if strings.Contains(string(out), simContainerName) {
-		ipOut, _ := exec.Command("container", "inspect", simContainerName, "--format", "{{.Network.IPAddress}}").Output()
-		if ip := strings.TrimSpace(string(ipOut)); ip != "" {
+		if ip := simContainerIP(); ip != "" {
 			fmt.Printf("Simulator already running at %s\n", ip)
 			return ip
 		}
@@ -1208,8 +1205,7 @@ exec /lib/systemd/systemd`
 			time.Sleep(2 * time.Second)
 		}
 		fmt.Print(".")
-		ipOut, _ := exec.Command("container", "inspect", simContainerName, "--format", "{{.Network.IPAddress}}").Output()
-		simIP = strings.TrimSpace(string(ipOut))
+		simIP = simContainerIP()
 		if simIP != "" {
 			test := exec.Command("ssh", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=2", "-o", "BatchMode=yes", "root@"+simIP, "echo ok")
 			if out, _ := test.Output(); strings.TrimSpace(string(out)) == "ok" {
@@ -1235,12 +1231,11 @@ func simStop() {
 
 
 func simSSH() {
-	ipOut, err := exec.Command("container", "inspect", simContainerName, "--format", "{{.Network.IPAddress}}").Output()
-	if err != nil || strings.TrimSpace(string(ipOut)) == "" {
-		fmt.Println("Simulator not running. Start it with: internkim sim start")
+	simIP := simContainerIP()
+	if simIP == "" {
+		fmt.Println("Simulator not running. Start it with: internkim sim")
 		return
 	}
-	simIP := strings.TrimSpace(string(ipOut))
 	cmd := exec.Command("ssh",
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "UserKnownHostsFile=/dev/null",
@@ -1249,6 +1244,30 @@ func simSSH() {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Run()
+}
+
+// simContainerIP returns the IPv4 address of the sim container by parsing JSON output.
+// apple/container does not support --format, so we parse the raw JSON.
+func simContainerIP() string {
+	out, err := exec.Command("container", "inspect", simContainerName).Output()
+	if err != nil {
+		return ""
+	}
+	// JSON: [{"networks":[{"ipv4Address":"x.x.x.x/24",...}],...}]
+	var result []struct {
+		Networks []struct {
+			IPAddress string `json:"ipv4Address"`
+		} `json:"networks"`
+	}
+	if err := json.Unmarshal(out, &result); err != nil || len(result) == 0 || len(result[0].Networks) == 0 {
+		return ""
+	}
+	// Strip CIDR suffix (e.g. "192.168.64.2/24" → "192.168.64.2")
+	ip := result[0].Networks[0].IPAddress
+	if idx := strings.Index(ip, "/"); idx != -1 {
+		ip = ip[:idx]
+	}
+	return ip
 }
 
 func getLocalSSHPubKey() string {
