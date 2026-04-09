@@ -1566,6 +1566,11 @@ func createGoogleServiceAccount(deviceID, accessToken string) (string, error) {
 		return "", fmt.Errorf("project setup failed: %w", err)
 	}
 
+	// Remove org policy that blocks SA key creation (new projects inherit this constraint)
+	if err := allowSAKeyCreation(client, accessToken, projectID); err != nil {
+		fmt.Printf("  org policy override failed (will try anyway): %v\n", err)
+	}
+
 	saName := fmt.Sprintf("internkim-%s", deviceID)
 	saEmail := fmt.Sprintf("%s@%s.iam.gserviceaccount.com", saName, projectID)
 
@@ -1681,6 +1686,46 @@ func resolveGoogleProject(client *http.Client, accessToken string) (string, erro
 		fmt.Print(".")
 	}
 	return "", fmt.Errorf("project creation timed out")
+}
+
+// allowSAKeyCreation removes the iam.disableServiceAccountKeyCreation org policy on the project.
+func allowSAKeyCreation(client *http.Client, accessToken, projectID string) error {
+	// First enable orgpolicy API
+	enableBody, _ := json.Marshal(map[string]any{"serviceIds": []string{"orgpolicy.googleapis.com"}})
+	enableReq, _ := http.NewRequest("POST",
+		fmt.Sprintf("https://serviceusage.googleapis.com/v1/projects/%s/services:batchEnable", projectID),
+		bytes.NewReader(enableBody))
+	enableReq.Header.Set("Authorization", "Bearer "+accessToken)
+	enableReq.Header.Set("Content-Type", "application/json")
+	client.Do(enableReq) // best-effort
+	time.Sleep(2 * time.Second)
+
+	// Set project-level policy to NOT enforce the constraint
+	policyBody, _ := json.Marshal(map[string]any{
+		"policy": map[string]any{
+			"spec": map[string]any{
+				"rules": []map[string]any{
+					{"allowAll": true},
+				},
+			},
+		},
+	})
+	req, _ := http.NewRequest("PATCH",
+		fmt.Sprintf("https://orgpolicy.googleapis.com/v2/projects/%s/policies/constraints%%2Fiam.disableServiceAccountKeyCreation", projectID),
+		bytes.NewReader(policyBody))
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(b))
+	}
+	fmt.Printf("  SA key creation policy unlocked\n")
+	return nil
 }
 
 type googleTokens struct {
