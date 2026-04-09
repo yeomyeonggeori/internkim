@@ -137,8 +137,12 @@ func runSetup() {
 	var boardIP string
 	var ssh *sshClient
 	if sim {
-		boardIP = "localhost"
-		ssh = newSSHWithPort(sshpassBin, boardUser, "", boardIP, "2222")
+		ipOut, _ := exec.Command("container", "inspect", simContainerName, "--format", "{{.Network.IPAddress}}").Output()
+		boardIP = strings.TrimSpace(string(ipOut))
+		if boardIP == "" {
+			fatal("Simulator not running. Start it with: internkim sim start")
+		}
+		ssh = newSSH(sshpassBin, boardUser, "", boardIP)
 	} else {
 		boardIP = detectBoard(usbNCMIPs)
 		if boardIP == "" {
@@ -739,8 +743,12 @@ func runDeploy() {
 	var ssh *sshClient
 	var boardIP string
 	if containsArg("--sim") {
-		boardIP = "localhost (sim)"
-		ssh = newSSHWithPort(sshpassBin, boardUser, "", "localhost", "2222")
+		ipOut, _ := exec.Command("container", "inspect", simContainerName, "--format", "{{.Network.IPAddress}}").Output()
+		boardIP = strings.TrimSpace(string(ipOut))
+		if boardIP == "" {
+			fatal("Simulator not running. Start it with: internkim sim start")
+		}
+		ssh = newSSH(sshpassBin, boardUser, "", boardIP)
 	} else {
 		boardIP = findBoardIP(sshpassBin, stateDir)
 		if boardIP == "" {
@@ -1096,6 +1104,10 @@ func configureMattermostPush(m *msg, ssh *sshClient) {
 	fmt.Printf("  %s: %s\n", m.t("설정 완료", "Configured"), label)
 }
 
+const simContainerName = "internkim-sim"
+const simImage = "debian:bookworm-slim"
+const simSharedDir = "~/.internkim/shared"
+
 func runSim() {
 	sub := ""
 	if len(os.Args) > 2 {
@@ -1103,19 +1115,138 @@ func runSim() {
 	}
 
 	switch sub {
+	case "start":
+		simStart()
+	case "stop":
+		simStop()
 	case "ssh":
-		cmd := exec.Command("ssh",
-			"-o", "StrictHostKeyChecking=no",
-			"-o", "UserKnownHostsFile=/dev/null",
-			"-p", "2222", "root@localhost")
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Run()
+		simSSH()
+	case "status":
+		out, _ := exec.Command("container", "list").Output()
+		if strings.Contains(string(out), simContainerName) {
+			fmt.Println("running")
+		} else {
+			fmt.Println("stopped")
+		}
 	default:
-		fmt.Println("Usage: internkim sim <ssh>")
-		fmt.Println("  ssh  Connect to simulator via SSH (localhost:2222)")
+		fmt.Println("Usage: internkim sim <command>")
+		fmt.Println("  start   Start ARM64 Debian simulator container")
+		fmt.Println("  stop    Stop and remove simulator container")
+		fmt.Println("  ssh     Connect to simulator via SSH")
+		fmt.Println("  status  Show simulator status")
 	}
+}
+
+func simStart() {
+	// Check if already running
+	out, _ := exec.Command("container", "list").Output()
+	if strings.Contains(string(out), simContainerName) {
+		fmt.Println("Simulator already running.")
+		simSSH()
+		return
+	}
+
+	// Ensure shared directory exists on Mac
+	sharedDir := os.ExpandEnv("$HOME/.internkim/shared")
+	os.MkdirAll(sharedDir, 0755)
+	fmt.Printf("Shared directory: %s → /root/shared\n", sharedDir)
+
+	// Build init script: install openssh-server + systemd
+	initScript := `#!/bin/sh
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq
+apt-get install -y -qq openssh-server systemd systemd-sysv dbus curl wget ca-certificates gnupg 2>/dev/null
+mkdir -p /root/.ssh /run/sshd
+echo "PermitRootLogin yes" >> /etc/ssh/sshd_config
+echo "PasswordAuthentication no" >> /etc/ssh/sshd_config
+cat > /root/.ssh/authorized_keys <<'KEYEOF'
+` + getLocalSSHPubKey() + `
+KEYEOF
+chmod 600 /root/.ssh/authorized_keys
+mkdir -p /root/shared
+exec /lib/systemd/systemd`
+
+	// Write init script to shared dir so container can access it
+	initPath := sharedDir + "/.sim-init.sh"
+	os.WriteFile(initPath, []byte(initScript), 0755)
+
+	fmt.Println("Starting ARM64 Debian simulator...")
+	fmt.Println("(First run may take a few minutes to pull image and install packages)")
+
+	cmd := exec.Command("container", "run",
+		"--name", simContainerName,
+		"--volume", sharedDir+":/root/shared",
+		"--detach",
+		simImage,
+		"/root/shared/.sim-init.sh",
+	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		fmt.Printf("Failed to start container: %v\n", err)
+		fmt.Println("Try: container system start")
+		return
+	}
+
+	// Wait for SSH to be ready
+	fmt.Print("Waiting for SSH...")
+	simIP := ""
+	for i := 0; i < 30; i++ {
+		time.Sleep(2 * time.Second)
+		fmt.Print(".")
+		ipOut, _ := exec.Command("container", "inspect", simContainerName, "--format", "{{.Network.IPAddress}}").Output()
+		simIP = strings.TrimSpace(string(ipOut))
+		if simIP != "" {
+			// Try connecting
+			test := exec.Command("ssh", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=2", "-o", "BatchMode=yes", "root@"+simIP, "echo ok")
+			if out, _ := test.Output(); strings.TrimSpace(string(out)) == "ok" {
+				break
+			}
+		}
+	}
+	fmt.Println()
+	if simIP == "" {
+		fmt.Println("Could not get container IP. Try: internkim sim ssh")
+		return
+	}
+	fmt.Printf("Simulator ready at %s\n", simIP)
+	fmt.Printf("Run: internkim setup --sim\n")
+}
+
+func simStop() {
+	fmt.Printf("Stopping %s...\n", simContainerName)
+	exec.Command("container", "stop", simContainerName).Run()
+	exec.Command("container", "rm", simContainerName).Run()
+	fmt.Println("Simulator stopped.")
+}
+
+func simSSH() {
+	ipOut, err := exec.Command("container", "inspect", simContainerName, "--format", "{{.Network.IPAddress}}").Output()
+	if err != nil || strings.TrimSpace(string(ipOut)) == "" {
+		fmt.Println("Simulator not running. Start it with: internkim sim start")
+		return
+	}
+	simIP := strings.TrimSpace(string(ipOut))
+	cmd := exec.Command("ssh",
+		"-o", "StrictHostKeyChecking=no",
+		"-o", "UserKnownHostsFile=/dev/null",
+		"root@"+simIP)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Run()
+}
+
+func getLocalSSHPubKey() string {
+	// Try common public key locations
+	home, _ := os.UserHomeDir()
+	for _, name := range []string{"id_ed25519.pub", "id_rsa.pub", "id_ecdsa.pub"} {
+		data, err := os.ReadFile(filepath.Join(home, ".ssh", name))
+		if err == nil {
+			return strings.TrimSpace(string(data))
+		}
+	}
+	return ""
 }
 
 // --- Device registration ---
