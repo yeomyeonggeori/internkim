@@ -155,40 +155,46 @@ func runSetup() {
 	}
 	fmt.Printf("  %s: %s\n", m.t("보드 발견", "Board found"), boardIP)
 
-	// 2. Wi-Fi detection
-	step(2, totalSteps, m.t("Wi-Fi 정보 감지 중...", "Detecting Wi-Fi..."))
-	ssid := detectSSID(getSSIDBin)
-	if ssid == "" {
-		fatal(m.t("Wi-Fi에 연결되어 있지 않습니다.", "Not connected to Wi-Fi."))
-	}
-	fmt.Printf("  SSID: %s\n", ssid)
-
-	boardSSID := strings.TrimSpace(ssh.run(`grep 'ssid="' /etc/wpa_supplicant.conf 2>/dev/null | head -1 | sed 's/.*ssid="//;s/".*//'`))
-	wifiIP := strings.TrimSpace(ssh.run("ip -4 addr show wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d/ -f1"))
-	skipWifi := !force && boardSSID == ssid && wifiIP != ""
-
-	if skipWifi {
-		fmt.Printf("  %s (SSID: %s, IP: %s)\n", m.t("이미 설정됨 — 건너뜀", "Already configured — skipping"), boardSSID, wifiIP)
+	// 2-4. Wi-Fi (skipped in sim mode — container already has network)
+	if sim {
+		step(2, totalSteps, m.t("Wi-Fi 설정 건너뜀 (시뮬레이터)", "Wi-Fi skipped (simulator)"))
+		fmt.Printf("  %s\n", m.t("컨테이너는 네트워크가 이미 연결되어 있습니다.", "Container already has network."))
+		step(3, totalSteps, m.t("Wi-Fi 설정 건너뜀 (시뮬레이터)", "Wi-Fi skipped (simulator)"))
+		step(4, totalSteps, m.t("Wi-Fi 확인 건너뜀 (시뮬레이터)", "Wi-Fi check skipped (simulator)"))
 	} else {
-		fmt.Printf("  %s\n", m.t(
-			"키체인 접근 팝업이 뜨면 맥 계정/비밀번호를 입력하세요.",
-			"Enter your Mac credentials when the keychain popup appears.",
-		))
-		wifiPass := getKeychainPassword(ssid)
+		step(2, totalSteps, m.t("Wi-Fi 정보 감지 중...", "Detecting Wi-Fi..."))
+		ssid := detectSSID(getSSIDBin)
+		if ssid == "" {
+			fatal(m.t("Wi-Fi에 연결되어 있지 않습니다.", "Not connected to Wi-Fi."))
+		}
+		fmt.Printf("  SSID: %s\n", ssid)
 
-		var wpaConf string
-		if wifiPass == "" {
-			fmt.Printf("  %s\n", m.t("오픈 네트워크 (비밀번호 없음)", "Open network (no password)"))
-			wpaConf = fmt.Sprintf(`ctrl_interface=/var/run/wpa_supplicant
+		boardSSID := strings.TrimSpace(ssh.run(`grep 'ssid="' /etc/wpa_supplicant.conf 2>/dev/null | head -1 | sed 's/.*ssid="//;s/".*//'`))
+		wifiIP := strings.TrimSpace(ssh.run("ip -4 addr show wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d/ -f1"))
+		skipWifi := !force && boardSSID == ssid && wifiIP != ""
+
+		if skipWifi {
+			fmt.Printf("  %s (SSID: %s, IP: %s)\n", m.t("이미 설정됨 — 건너뜀", "Already configured — skipping"), boardSSID, wifiIP)
+		} else {
+			fmt.Printf("  %s\n", m.t(
+				"키체인 접근 팝업이 뜨면 맥 계정/비밀번호를 입력하세요.",
+				"Enter your Mac credentials when the keychain popup appears.",
+			))
+			wifiPass := getKeychainPassword(ssid)
+
+			var wpaConf string
+			if wifiPass == "" {
+				fmt.Printf("  %s\n", m.t("오픈 네트워크 (비밀번호 없음)", "Open network (no password)"))
+				wpaConf = fmt.Sprintf(`ctrl_interface=/var/run/wpa_supplicant
 ap_scan=1
 network={
   ssid="%s"
   scan_ssid=1
   key_mgmt=NONE
 }`, ssid)
-		} else {
-			fmt.Printf("  %s: %s\n", m.t("비밀번호", "Password"), maskString(wifiPass))
-			wpaConf = fmt.Sprintf(`ctrl_interface=/var/run/wpa_supplicant
+			} else {
+				fmt.Printf("  %s: %s\n", m.t("비밀번호", "Password"), maskString(wifiPass))
+				wpaConf = fmt.Sprintf(`ctrl_interface=/var/run/wpa_supplicant
 ap_scan=1
 network={
   ssid="%s"
@@ -196,12 +202,11 @@ network={
   key_mgmt=WPA-PSK
   psk="%s"
 }`, ssid, wifiPass)
-		}
+			}
 
-		// 3. Configure Wi-Fi on board
-		step(3, totalSteps, m.t("보드에 Wi-Fi 설정 중...", "Configuring Wi-Fi on board..."))
-
-		ssh.run(fmt.Sprintf(`killall wpa_supplicant 2>/dev/null || true
+			// 3. Configure Wi-Fi on board
+			step(3, totalSteps, m.t("보드에 Wi-Fi 설정 중...", "Configuring Wi-Fi on board..."))
+			ssh.run(fmt.Sprintf(`killall wpa_supplicant 2>/dev/null || true
 cat > /etc/wpa_supplicant.conf <<'WPAEOF'
 %s
 WPAEOF
@@ -209,25 +214,26 @@ wpa_supplicant -i wlan0 -c /etc/wpa_supplicant.conf -B
 sleep 3
 udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true`, wpaConf))
 
-		// 4. Verify Wi-Fi (retry up to 3 times)
-		step(4, totalSteps, m.t("Wi-Fi 연결 확인 중...", "Verifying Wi-Fi connection..."))
-		wifiIP = ""
-		for attempt := 0; attempt < 3; attempt++ {
-			wifiIP = strings.TrimSpace(ssh.run("ip -4 addr show wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d/ -f1"))
-			if wifiIP != "" {
-				break
+			// 4. Verify Wi-Fi (retry up to 3 times)
+			step(4, totalSteps, m.t("Wi-Fi 연결 확인 중...", "Verifying Wi-Fi connection..."))
+			wifiIP = ""
+			for attempt := 0; attempt < 3; attempt++ {
+				wifiIP = strings.TrimSpace(ssh.run("ip -4 addr show wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d/ -f1"))
+				if wifiIP != "" {
+					break
+				}
+				if attempt < 2 {
+					fmt.Printf("  %s (%d/3)\n", m.t("재시도 중...", "Retrying..."), attempt+2)
+					ssh.run("udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true")
+				}
 			}
-			if attempt < 2 {
-				fmt.Printf("  %s (%d/3)\n", m.t("재시도 중...", "Retrying..."), attempt+2)
-				ssh.run("udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true")
+			if wifiIP == "" {
+				fmt.Printf("  %s\n", m.t("Wi-Fi 연결 실패.", "Wi-Fi connection failed."))
+				fmt.Printf("  %s: ssh root@%s\n", m.t("USB로 디버깅", "Debug via USB"), boardIP)
+				os.Exit(1)
 			}
+			fmt.Printf("  %s: %s\n", m.t("Wi-Fi 연결 성공", "Wi-Fi connected"), wifiIP)
 		}
-		if wifiIP == "" {
-			fmt.Printf("  %s\n", m.t("Wi-Fi 연결 실패.", "Wi-Fi connection failed."))
-			fmt.Printf("  %s: ssh root@%s\n", m.t("USB로 디버깅", "Debug via USB"), boardIP)
-			os.Exit(1)
-		}
-		fmt.Printf("  %s: %s\n", m.t("Wi-Fi 연결 성공", "Wi-Fi connected"), wifiIP)
 	}
 
 	// 5. Install zeroclaw + gws + cloudflared on board
@@ -598,15 +604,18 @@ fi`, deviceURL, deviceURL))
 	fmt.Printf("  %s\n", m.t("Intern Kim 설정 완료!", "Intern Kim Setup Complete!"))
 	fmt.Println("========================================")
 	fmt.Println()
-	fmt.Printf("  USB:     %s\n", boardIP)
-	fmt.Printf("  Wi-Fi:   %s\n", wifiIP)
+	if sim {
+		fmt.Printf("  Simulator: %s\n", boardIP)
+	} else {
+		fmt.Printf("  USB:     %s\n", boardIP)
+	}
 	if finalURL != "" {
 		fmt.Printf("  Mattermost: %s\n", finalURL)
 		fmt.Printf("  %s\n", m.t("  → iOS/Android Mattermost 앱에서 위 URL로 서버 추가", "  → Add server URL in iOS/Android Mattermost app"))
 	}
 	fmt.Println()
 	fmt.Printf("  %s:\n", m.t("SSH 접속", "SSH access"))
-	fmt.Printf("    ssh root@%s\n", wifiIP)
+	fmt.Printf("    ssh root@%s\n", boardIP)
 }
 
 // --- Model management ---
