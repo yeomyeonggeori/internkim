@@ -1534,14 +1534,6 @@ func createGoogleServiceAccount(deviceID string) (string, error) {
 	fmt.Println("  Scope: https://www.googleapis.com/auth/cloud-platform")
 	fmt.Printf("  Service account name: internkim-%s\n", deviceID)
 	fmt.Println()
-	fmt.Println("  NOTE: Automated SA creation requires a Google Cloud project.")
-	fmt.Println("  If you don't have one, create it at https://console.cloud.google.com")
-	fmt.Println()
-
-	projectID := readLine("  Google Cloud Project ID: ")
-	if projectID == "" {
-		return "", fmt.Errorf("project ID required")
-	}
 
 	// OAuth2 device flow to get access token
 	accessToken, err := googleDeviceAuth()
@@ -1549,10 +1541,16 @@ func createGoogleServiceAccount(deviceID string) (string, error) {
 		return "", fmt.Errorf("OAuth failed: %w", err)
 	}
 
+	client := &http.Client{Timeout: 30 * time.Second}
+
+	// Resolve project: use "internkim" if it exists, otherwise create it
+	projectID, err := resolveGoogleProject(client, accessToken)
+	if err != nil {
+		return "", fmt.Errorf("project setup failed: %w", err)
+	}
+
 	saName := fmt.Sprintf("internkim-%s", deviceID)
 	saEmail := fmt.Sprintf("%s@%s.iam.gserviceaccount.com", saName, projectID)
-
-	client := &http.Client{Timeout: 30 * time.Second}
 
 	// Create service account
 	createBody, _ := json.Marshal(map[string]any{
@@ -1610,6 +1608,62 @@ func createGoogleServiceAccount(deviceID string) (string, error) {
 		return "", fmt.Errorf("decode key: %w", err)
 	}
 	return string(decoded[:n]), nil
+}
+
+// resolveGoogleProject returns "internkim" project ID if it exists, otherwise creates it.
+func resolveGoogleProject(client *http.Client, accessToken string) (string, error) {
+	const projectID = "internkim"
+
+	// Check if project exists
+	req, _ := http.NewRequest("GET", "https://cloudresourcemanager.googleapis.com/v1/projects/"+projectID, nil)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode == 200 {
+		fmt.Printf("  Google Cloud project: %s (existing)\n", projectID)
+		return projectID, nil
+	}
+
+	// Project doesn't exist — create it
+	fmt.Printf("  Creating Google Cloud project: %s...\n", projectID)
+	body, _ := json.Marshal(map[string]string{
+		"projectId": projectID,
+		"name":      "Intern Kim",
+	})
+	createReq, _ := http.NewRequest("POST", "https://cloudresourcemanager.googleapis.com/v1/projects", bytes.NewReader(body))
+	createReq.Header.Set("Authorization", "Bearer "+accessToken)
+	createReq.Header.Set("Content-Type", "application/json")
+	createResp, err := client.Do(createReq)
+	if err != nil {
+		return "", err
+	}
+	defer createResp.Body.Close()
+	if createResp.StatusCode != 200 {
+		b, _ := io.ReadAll(createResp.Body)
+		return "", fmt.Errorf("create project HTTP %d: %s", createResp.StatusCode, string(b))
+	}
+
+	// Wait for project creation operation to complete (up to 30s)
+	for i := 0; i < 10; i++ {
+		time.Sleep(3 * time.Second)
+		chk, _ := http.NewRequest("GET", "https://cloudresourcemanager.googleapis.com/v1/projects/"+projectID, nil)
+		chk.Header.Set("Authorization", "Bearer "+accessToken)
+		chkResp, err := client.Do(chk)
+		if err == nil && chkResp.StatusCode == 200 {
+			chkResp.Body.Close()
+			fmt.Printf("  Google Cloud project created: %s\n", projectID)
+			return projectID, nil
+		}
+		if chkResp != nil {
+			chkResp.Body.Close()
+		}
+		fmt.Print(".")
+	}
+	return "", fmt.Errorf("project creation timed out")
 }
 
 // googleDeviceAuth performs OAuth2 device authorization flow and returns an access token.
