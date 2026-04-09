@@ -227,8 +227,10 @@ udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true`, wpaConf))
 	}
 
 	// 5. Install zeroclaw + gws + cloudflared on board
-	step(5, totalSteps, m.t("zeroclaw + gws + cloudflared 설치 중...", "Installing zeroclaw + gws + cloudflared..."))
+	step(5, totalSteps, m.t("zeroclaw + gws + cloudflared + rtk + lightpanda 설치 중...", "Installing zeroclaw + gws + cloudflared + rtk + lightpanda..."))
 	cloudflaredBin := filepath.Join(boardBinDir, "cloudflared")
+	rtkBin := filepath.Join(boardBinDir, "rtk")
+	lightpandaBin := filepath.Join(boardBinDir, "lightpanda")
 
 	// Auto-download binaries from GitHub releases if not present locally
 	type binarySpec struct {
@@ -255,6 +257,18 @@ udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true`, wpaConf))
 			url:       "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64",
 			tarEntry:  "",
 			name:      "cloudflared",
+		},
+		{
+			localPath: rtkBin,
+			url:       "https://github.com/rtk-ai/rtk/releases/latest/download/rtk-aarch64-unknown-linux-gnu.tar.gz",
+			tarEntry:  "rtk",
+			name:      "rtk",
+		},
+		{
+			localPath: lightpandaBin,
+			url:       "https://github.com/lightpanda-io/browser/releases/download/nightly/lightpanda-aarch64-linux",
+			tarEntry:  "",
+			name:      "lightpanda",
 		},
 	}
 	os.MkdirAll(boardBinDir, 0755)
@@ -290,6 +304,8 @@ udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true`, wpaConf))
 			{zeroclawBin, "/usr/local/bin/zeroclaw", "zeroclaw"},
 			{gwsBin, "/usr/local/bin/gws", "gws"},
 			{cloudflaredBin, "/usr/local/bin/cloudflared", "cloudflared"},
+			{rtkBin, "/usr/local/bin/rtk", "rtk"},
+			{lightpandaBin, "/usr/local/bin/lightpanda", "lightpanda"},
 		},
 		toolBinEntries(boardBinDir, toolBins)...,
 	) {
@@ -497,6 +513,58 @@ sleep 2`)
 	} else {
 		fmt.Printf("  %s\n", m.t("gateway 시작 실패", "Gateway failed"))
 	}
+
+	// lightpanda systemd service (CDP server on 127.0.0.1:9222)
+	ssh.run(`cat > /etc/systemd/system/lightpanda.service <<'SVCEOF'
+[Unit]
+Description=Lightpanda Headless Browser (CDP)
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/lightpanda serve --host 127.0.0.1 --port 9222
+Restart=on-failure
+Environment=LIGHTPANDA_DISABLE_TELEMETRY=true
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+systemctl daemon-reload
+systemctl enable lightpanda
+systemctl restart lightpanda`)
+
+	lpStatus := strings.TrimSpace(ssh.run("systemctl is-active lightpanda"))
+	if lpStatus == "active" {
+		fmt.Printf("  %s\n", m.t("lightpanda CDP 서버 실행 중 (port 9222)", "lightpanda CDP server running (port 9222)"))
+	} else {
+		fmt.Printf("  %s\n", m.t("lightpanda 시작 실패 (건너뜀)", "lightpanda failed to start (skipped)"))
+	}
+
+	// rtk hook: install OpenClaw plugin for token optimization
+	ssh.run(`if command -v rtk >/dev/null 2>&1 && command -v zeroclaw >/dev/null 2>&1; then
+  mkdir -p /root/.zeroclaw/plugins
+  cat > /root/.zeroclaw/plugins/rtk-rewrite.ts <<'PLUGEOF'
+import { Plugin, PluginHookBeforeToolCallResult } from "zeroclaw";
+import { execSync } from "child_process";
+
+export default {
+  name: "rtk-rewrite",
+  hooks: {
+    before_tool_call: (tool: string, input: Record<string, unknown>): PluginHookBeforeToolCallResult => {
+      if (tool !== "exec" || typeof input.command !== "string") return {};
+      try {
+        const rewritten = execSync("rtk rewrite " + JSON.stringify(input.command), { encoding: "utf8" }).trim();
+        if (rewritten && rewritten !== input.command) {
+          return { updated_input: { ...input, command: rewritten } };
+        }
+      } catch (_) {}
+      return {};
+    },
+  },
+} satisfies Plugin;
+PLUGEOF
+  echo "rtk plugin installed"
+fi`)
+	fmt.Printf("  %s\n", m.t("rtk hook 설치 완료", "rtk hook installed"))
 
 	ssh.run(`if ! grep -q '/swapfile' /proc/swaps 2>/dev/null; then
   if [ ! -f /swapfile ]; then
@@ -1282,6 +1350,11 @@ cli = false
 
 [channels_config.webhook]
 secret = "quickclaw"
+
+[browser]
+enabled = true
+backend = "cdp"
+cdp_url = "ws://127.0.0.1:9222"
 
 [[mcp.servers]]
 name = "google-workspace"
