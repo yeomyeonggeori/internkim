@@ -106,7 +106,7 @@ func printUsage() {
 	fmt.Println("  status   Check board and tunnel status")
 	fmt.Println("  update   OTA update")
 	fmt.Println("  deploy   Build and deploy web UI + board-bridge to board")
-	fmt.Println("  sim      Connect to ARM hardware simulator via SSH")
+	fmt.Println("  sim      Start ARM64 simulator and run setup (sim reset|ssh|stop|status)")
 }
 
 func runSetup() {
@@ -1124,8 +1124,11 @@ func runSim() {
 	}
 
 	switch sub {
-	case "start":
-		simStart()
+	case "reset":
+		simStop()
+		simEnsureRunning()
+		os.Args = append(os.Args, "--sim")
+		runSetup()
 	case "stop":
 		simStop()
 	case "ssh":
@@ -1138,75 +1141,76 @@ func runSim() {
 			fmt.Println("stopped")
 		}
 	default:
-		fmt.Println("Usage: internkim sim <command>")
-		fmt.Println("  start   Start ARM64 Debian simulator container")
-		fmt.Println("  stop    Stop and remove simulator container")
-		fmt.Println("  ssh     Connect to simulator via SSH")
-		fmt.Println("  status  Show simulator status")
+		// No subcommand: start (if needed) + setup
+		simEnsureRunning()
+		os.Args = append(os.Args, "--sim")
+		runSetup()
 	}
 }
 
-func simStart() {
-	// Check if already running
+// simEnsureRunning starts the container if not already running and waits for SSH.
+// Returns the container IP, or exits on failure.
+func simEnsureRunning() string {
 	out, _ := exec.Command("container", "list").Output()
 	if strings.Contains(string(out), simContainerName) {
-		fmt.Println("Simulator already running.")
-		simSSH()
-		return
+		ipOut, _ := exec.Command("container", "inspect", simContainerName, "--format", "{{.Network.IPAddress}}").Output()
+		if ip := strings.TrimSpace(string(ipOut)); ip != "" {
+			fmt.Printf("Simulator already running at %s\n", ip)
+			return ip
+		}
 	}
 
-	// Ensure shared directory exists on Mac
 	sharedDir := os.ExpandEnv("$HOME/.internkim/shared")
 	os.MkdirAll(sharedDir, 0755)
 	fmt.Printf("Shared directory: %s → /root/shared\n", sharedDir)
 
-	// Build init script: install openssh-server + systemd
-	initScript := `#!/bin/sh
-export DEBIAN_FRONTEND=noninteractive
+	pubKey := getLocalSSHPubKey()
+	if pubKey == "" {
+		fmt.Println("No SSH public key found (~/.ssh/id_ed25519.pub or id_rsa.pub). Generate one with: ssh-keygen")
+		os.Exit(1)
+	}
+
+	initScript := `export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq openssh-server systemd systemd-sysv dbus curl wget ca-certificates gnupg 2>/dev/null
 mkdir -p /root/.ssh /run/sshd
 echo "PermitRootLogin yes" >> /etc/ssh/sshd_config
 echo "PasswordAuthentication no" >> /etc/ssh/sshd_config
-cat > /root/.ssh/authorized_keys <<'KEYEOF'
-` + getLocalSSHPubKey() + `
-KEYEOF
+printf '%s\n' '` + pubKey + `' > /root/.ssh/authorized_keys
 chmod 600 /root/.ssh/authorized_keys
 mkdir -p /root/shared
 exec /lib/systemd/systemd`
 
-	// Write init script to shared dir so container can access it
-	initPath := sharedDir + "/.sim-init.sh"
-	os.WriteFile(initPath, []byte(initScript), 0755)
-
 	fmt.Println("Starting ARM64 Debian simulator...")
-	fmt.Println("(First run may take a few minutes to pull image and install packages)")
+	fmt.Println("(First run may take a few minutes to install packages)")
 
 	cmd := exec.Command("container", "run",
 		"--name", simContainerName,
 		"--volume", sharedDir+":/root/shared",
 		"--detach",
 		simImage,
-		"/root/shared/.sim-init.sh",
+		"/bin/sh", "-c", initScript,
 	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("Failed to start container: %v\n", err)
 		fmt.Println("Try: container system start")
-		return
+		os.Exit(1)
 	}
 
-	// Wait for SSH to be ready
-	fmt.Print("Waiting for SSH...")
+	fmt.Print("Waiting for SSH")
 	simIP := ""
-	for i := 0; i < 30; i++ {
-		time.Sleep(2 * time.Second)
+	for i := 0; i < 60; i++ {
+		if i < 10 {
+			time.Sleep(1 * time.Second)
+		} else {
+			time.Sleep(2 * time.Second)
+		}
 		fmt.Print(".")
 		ipOut, _ := exec.Command("container", "inspect", simContainerName, "--format", "{{.Network.IPAddress}}").Output()
 		simIP = strings.TrimSpace(string(ipOut))
 		if simIP != "" {
-			// Try connecting
 			test := exec.Command("ssh", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=2", "-o", "BatchMode=yes", "root@"+simIP, "echo ok")
 			if out, _ := test.Output(); strings.TrimSpace(string(out)) == "ok" {
 				break
@@ -1215,11 +1219,11 @@ exec /lib/systemd/systemd`
 	}
 	fmt.Println()
 	if simIP == "" {
-		fmt.Println("Could not get container IP. Try: internkim sim ssh")
-		return
+		fmt.Println("Simulator SSH not ready. Try: internkim sim ssh")
+		os.Exit(1)
 	}
-	fmt.Printf("Simulator ready at %s\n", simIP)
-	fmt.Printf("Run: internkim setup --sim\n")
+	fmt.Printf("Simulator ready at %s\n\n", simIP)
+	return simIP
 }
 
 func simStop() {
@@ -1228,6 +1232,7 @@ func simStop() {
 	exec.Command("container", "rm", simContainerName).Run()
 	fmt.Println("Simulator stopped.")
 }
+
 
 func simSSH() {
 	ipOut, err := exec.Command("container", "inspect", simContainerName, "--format", "{{.Network.IPAddress}}").Output()
