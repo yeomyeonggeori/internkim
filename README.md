@@ -1,6 +1,6 @@
 # Intern Kim
 
-ARM 보드(Radxa 5c / RPi 5)에 [ZeroClaw](https://github.com/qwibitai/nanoclaw) AI 에이전트를 탑재하고, Cloudflare Tunnel로 어디서든 접속 가능한 턴키 하드웨어.
+ARM 보드(Radxa 5c / RPi 5)에 [ZeroClaw](https://github.com/zeroclaw-labs/zeroclaw) AI 에이전트를 탑재하고, Cloudflare Tunnel로 어디서든 접속 가능한 턴키 하드웨어.
 
 전원만 꽂으면 보드가 독립적으로 동작한다. 별도 컴퓨터 불필요.
 
@@ -16,25 +16,34 @@ Cloudflare Access (SAML SSO)
 ┌─────────────────────────────────────────┐
 │  ARM 보드 (Radxa 5c / RPi 5)           │
 │                                         │
-│  zeroclaw.service (uid: zeroclaw)       │
-│  ┌─────────────────────────┐            │
-│  │ ZeroClaw gateway :18790 │            │
-│  │ (OpenRouter — 전체 모델) │            │
-│  └────────────┬────────────┘            │
-│               │ stdio MCP               │
-│               ▼                         │
+│  board-bridge :8080 ← Cloudflare 터널  │
+│  ┌─────────────────────────────────┐   │
+│  │ /board/chat → ZeroClaw /webhook │   │
+│  │ SPA 정적 파일 서빙               │   │
+│  └──────────────────┬──────────────┘   │
+│                     │ HTTP POST         │
+│  zeroclaw.service :18790               │
+│  ┌─────────────────────────────────┐   │
+│  │ ZeroClaw gateway                │   │
+│  │ (OpenRouter — 전체 모델)         │   │
+│  └──────────────┬──────────────────┘   │
+│                 │ stdio MCP             │
+│                 ▼                       │
 │  /usr/local/bin/gws-mcp (root:755)      │
-│    └── sudo -u gws gws mcp             │
-│          (uid: gws, SA 키 소유)          │
+│    └── sudo -u gws gws mcp            │
+│          (uid: gws)                     │
 │                                         │
 │  /root/.internkim/secrets/              │
-│    google-sa.json   (owner: gws  640)   │
-│    openrouter-api-key (owner: zeroclaw 640) │
+│    google-sa.json   (gws:640)           │
+│    openrouter-api-key (zeroclaw:640)    │
 └─────────────────────────────────────────┘
-    │
-    ▼
-Google Drive / Docs / Gmail
-OpenRouter API
+    │                         │
+    ▼                         ▼
+OpenRouter API         Google Drive/Docs/Gmail
+
+사용자 (Mattermost 모바일 앱)
+    └─▶ Mattermost 서버 (온보드)
+             └─▶ ZeroClaw (REST 폴링)
 ```
 
 ## 보안 설계
@@ -52,10 +61,11 @@ LLM이 실행되는 Docker 컨테이너는 `nobody` uid로 동작하며 secrets 
 
 | 구성 | 설명 |
 |------|------|
-| **Go CLI** (`main.go`) | 셋업 도구. Wi-Fi → ZeroClaw/gws 설치 → API 키 → Google SA → 기기 등록 |
+| **Go CLI** (`main.go`) | 셋업 도구. Wi-Fi → ZeroClaw/gws 설치 → API 키 → Google SA → Mattermost → 기기 등록 |
 | **ZeroClaw** | Rust 단일 바이너리. OpenRouter 전체 모델, Landlock + Bubblewrap 커널 레벨 격리 |
 | **gws** | Google Workspace CLI. Drive/Docs/Gmail/Sheets 조작. MCP 서버 모드 지원 |
-| **board-bridge** (`cmd/board-bridge/`) | Go HTTP 브릿지. `/board/*` 경로로 ZeroClaw 게이트웨이 프록시 |
+| **board-bridge** (`cmd/board-bridge/`) | Go HTTP 브릿지. `/board/*` → ZeroClaw gateway HTTP 프록시, SPA 정적 파일 서빙 |
+| **Mattermost** | 온보드 채팅 서버. ZeroClaw REST 폴링 연동, 모바일 앱 푸시 알림 지원 |
 | **SvelteKit 웹앱** (`web/`) | Cloudflare Pages. 기기 등록 API, 사용자 관리, OTA |
 | **보드 바이너리** (`board-bin/`) | ARM64 정적 링크 바이너리 [gitignored] |
 | **맥 유틸** (`bin/`) | get-ssid + sshpass, macOS universal binary |
@@ -77,7 +87,7 @@ go build -o internkim .
 ./internkim setup
 ```
 
-9단계 자동 진행:
+10단계 자동 진행:
 1. 보드 감지 (USB NCM)
 2. Wi-Fi 감지 + 키체인 비밀번호
 3. 보드 Wi-Fi 설정
@@ -86,7 +96,8 @@ go build -o internkim .
 6. OpenRouter API 키 → `/root/.internkim/secrets/openrouter-api-key`
 7. 기기 등록 + Cloudflare 터널 시작
 8. Google 서비스 계정 자동 생성 → `/root/.internkim/secrets/google-sa.json`
-9. ZeroClaw systemd 서비스 시작 + 스왑
+9. Mattermost 설정 (URL / admin token / bot token / channel ID, 건너뛰기 가능)
+10. ZeroClaw systemd 서비스 시작 + 스왑 + 최신 빌드 배포
 
 ### 개발 시뮬레이터
 
@@ -121,12 +132,13 @@ REGISTER_SECRET=...
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| GET/WS | `/board/ws` | ZeroClaw WebSocket 프록시 |
-| GET | `/board/token` | 인증 토큰 발급 |
+| POST | `/board/chat` | ZeroClaw gateway `/webhook`으로 메시지 전달 |
+| POST | `/board/chat/stream` | SSE 스트리밍 (ZeroClaw 지원 시) |
+| GET | `/board/token` | webhook secret 반환 |
 | GET/PUT | `/board/model` | 현재 모델 조회/변경 |
-| GET | `/board/history/{id}` | 세션 히스토리 |
 | GET | `/board/me` | CF Access 사용자 정보 |
 | GET | `/board/files/{path}` | workspace 파일 다운로드 |
+| GET | `/health` | ZeroClaw health check 전달 |
 
 ## 디렉토리 구조
 

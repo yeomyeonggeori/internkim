@@ -1145,19 +1145,21 @@ kind = "native"
 [runtime.native]
 sandbox = "landlock"
 
+[gateway]
+port = 18790
+host = "127.0.0.1"
+require_pairing = false
+
+[channels_config]
+cli = false
+
+[channels_config.webhook]
+secret = "quickclaw"
+
 [[mcp.servers]]
 name = "google-workspace"
 command = "/usr/local/bin/gws-mcp"
 args = []
-
-[channels.board]
-enabled = true
-token = "quickclaw"
-allow_token_query = true
-allow_origins = ["*"]
-ping_interval = 30
-read_timeout = 60
-max_connections = 100
 %s`, apiBase, model, mmSection)
 }
 
