@@ -1,8 +1,10 @@
 package main
 
 import (
+	"archive/tar"
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
@@ -229,6 +231,46 @@ udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true`, wpaConf))
 	step(5, totalSteps, m.t("zeroclaw + gws + cloudflared 설치 중...", "Installing zeroclaw + gws + cloudflared..."))
 	cloudflaredBin := filepath.Join(boardBinDir, "cloudflared")
 
+	// Auto-download binaries from GitHub releases if not present locally
+	type binarySpec struct {
+		localPath string
+		url       string
+		tarEntry  string // non-empty = extract this file from tar.gz
+		name      string
+	}
+	autoDownloads := []binarySpec{
+		{
+			localPath: zeroclawBin,
+			url:       "https://github.com/zeroclaw-labs/zeroclaw/releases/latest/download/zeroclaw-aarch64-unknown-linux-gnu.tar.gz",
+			tarEntry:  "zeroclaw",
+			name:      "zeroclaw",
+		},
+		{
+			localPath: gwsBin,
+			url:       "https://github.com/googleworkspace/cli/releases/latest/download/google-workspace-cli-aarch64-unknown-linux-gnu.tar.gz",
+			tarEntry:  "gws",
+			name:      "gws",
+		},
+		{
+			localPath: cloudflaredBin,
+			url:       "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64",
+			tarEntry:  "",
+			name:      "cloudflared",
+		},
+	}
+	os.MkdirAll(boardBinDir, 0755)
+	for _, spec := range autoDownloads {
+		if _, err := os.Stat(spec.localPath); err == nil {
+			continue // already present
+		}
+		fmt.Printf("  %s %s... ", m.t("다운로드 중", "Downloading"), spec.name)
+		if err := downloadBinary(spec.url, spec.localPath, spec.tarEntry); err != nil {
+			fmt.Printf("FAILED: %v\n", err)
+		} else {
+			fmt.Println("ok")
+		}
+	}
+
 	toolBins := []string{"download"}
 	for _, tool := range toolBins {
 		toolPath := filepath.Join(boardBinDir, tool)
@@ -420,8 +462,9 @@ chmod 640 /root/.internkim/secrets/google-sa.json`)
 		}
 	}
 
-	// 9. Mattermost setup
-	step(9, totalSteps, m.t("Mattermost 설정...", "Configuring Mattermost..."))
+	// 9. Mattermost install + setup
+	step(9, totalSteps, m.t("Mattermost 설치 및 설정...", "Installing and configuring Mattermost..."))
+	installMattermost(m, ssh, force)
 	setupMattermost(m, ssh, stateDir, force)
 
 	// 10. Services autostart + swap
@@ -772,6 +815,159 @@ func runUsers()  { fmt.Println("TODO: users") }
 func runStatus() { fmt.Println("TODO: status") }
 func runUpdate() { fmt.Println("TODO: update") }
 
+// downloadBinary downloads a binary (or extracts one from a tar.gz) to localPath.
+// tarEntry is the filename inside the archive to extract; empty means direct binary download.
+func downloadBinary(url, localPath, tarEntry string) error {
+	resp, err := (&http.Client{Timeout: 5 * time.Minute}).Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("HTTP %d from %s", resp.StatusCode, url)
+	}
+
+	if tarEntry == "" {
+		// Direct binary download
+		f, err := os.OpenFile(localPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		_, err = io.Copy(f, resp.Body)
+		return err
+	}
+
+	// Extract specific file from tar.gz
+	return extractFromTarGz(resp.Body, localPath, tarEntry)
+}
+
+func extractFromTarGz(r io.Reader, localPath, entryName string) error {
+	gzReader, err := gzip.NewReader(r)
+	if err != nil {
+		return fmt.Errorf("gzip open: %w", err)
+	}
+	defer gzReader.Close()
+
+	tarReader := tar.NewReader(gzReader)
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("tar read: %w", err)
+		}
+		if filepath.Base(header.Name) == entryName {
+			f, err := os.OpenFile(localPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			_, err = io.Copy(f, tarReader)
+			return err
+		}
+	}
+	return fmt.Errorf("entry %q not found in archive", entryName)
+}
+
+// installMattermost installs PostgreSQL + Mattermost on the board if not already present.
+// Uses the official Mattermost tarball for arm64 and postgresql via apt.
+func installMattermost(m *msg, ssh *sshClient, force bool) {
+	already := strings.TrimSpace(ssh.run("test -f /opt/mattermost/bin/mattermost && echo yes || echo no"))
+	if !force && already == "yes" {
+		fmt.Printf("  %s\n", m.t("Mattermost 이미 설치됨 — 건너뜀", "Mattermost already installed — skipping"))
+		return
+	}
+
+	fmt.Printf("  %s\n", m.t("PostgreSQL 설치 중...", "Installing PostgreSQL..."))
+	out := ssh.run(`
+which pg_isready 2>/dev/null && echo already || {
+  apt-get update -qq 2>&1 | tail -1
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq postgresql postgresql-contrib 2>&1 | tail -3
+}`)
+	if strings.Contains(out, "already") {
+		fmt.Printf("  %s\n", m.t("PostgreSQL 이미 설치됨", "PostgreSQL already installed"))
+	} else {
+		fmt.Printf("  %s\n", m.t("PostgreSQL 설치 완료", "PostgreSQL installed"))
+	}
+
+	// Start PostgreSQL and create mattermost DB/user
+	mmDBPass := "mmpass_" + hex.EncodeToString(func() []byte { b := make([]byte, 6); rand.Read(b); return b }())
+	ssh.run(fmt.Sprintf(`
+systemctl start postgresql 2>/dev/null || service postgresql start 2>/dev/null || true
+sleep 2
+su - postgres -c "psql -c \"SELECT 1 FROM pg_roles WHERE rolname='mmuser'\" | grep -q 1 || psql -c \"CREATE USER mmuser WITH PASSWORD '%s'\"" 2>/dev/null || true
+su - postgres -c "psql -c \"SELECT 1 FROM pg_database WHERE datname='mattermost'\" | grep -q 1 || psql -c \"CREATE DATABASE mattermost OWNER mmuser\"" 2>/dev/null || true
+su - postgres -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE mattermost TO mmuser\"" 2>/dev/null || true`, mmDBPass))
+
+	// Download and install Mattermost (arm64 tarball)
+	fmt.Printf("  %s\n", m.t("Mattermost 다운로드 중 (arm64)...", "Downloading Mattermost (arm64)..."))
+	installOut := ssh.run(`
+cd /tmp
+MMVER=$(curl -s https://api.github.com/repos/mattermost/mattermost/releases/latest 2>/dev/null | grep '"tag_name"' | head -1 | sed 's/.*"v//;s/".*//')
+[ -z "$MMVER" ] && MMVER="11.5.1"
+URL="https://releases.mattermost.com/${MMVER}/mattermost-${MMVER}-linux-arm64.tar.gz"
+echo "Downloading Mattermost $MMVER..."
+curl -fsSL -o /tmp/mattermost.tar.gz "$URL" 2>&1 | tail -1 && echo "download_ok" || echo "download_failed"`)
+	if strings.Contains(installOut, "download_failed") {
+		fmt.Printf("  %s\n", m.t("Mattermost 다운로드 실패 — 건너뜀", "Mattermost download failed — skipping"))
+		return
+	}
+
+	ssh.run(fmt.Sprintf(`
+cd /tmp && tar -xzf mattermost.tar.gz
+rm -rf /opt/mattermost
+mv /tmp/mattermost /opt/mattermost
+mkdir -p /opt/mattermost/data
+id mattermost &>/dev/null || useradd --system --user-group mattermost
+chown -R mattermost:mattermost /opt/mattermost
+chmod -R g+w /opt/mattermost
+
+# Write config
+cd /opt/mattermost
+cp config/config.defaults.json config/config.json 2>/dev/null || cp config/config.json config/config.json.bak 2>/dev/null || true
+SITE_URL="http://localhost:8065"
+sed -i "s|\"DriverName\": \".*\"|\"DriverName\": \"postgres\"|" config/config.json
+sed -i "s|\"DataSource\": \".*\"|\"DataSource\": \"postgres://mmuser:%s@localhost/mattermost?sslmode=disable\u0026connect_timeout=10\"|" config/config.json
+sed -i "s|\"SiteURL\": \".*\"|\"SiteURL\": \"$SITE_URL\"|" config/config.json
+
+# Systemd service
+cat > /etc/systemd/system/mattermost.service <<'SVCEOF'
+[Unit]
+Description=Mattermost
+After=network.target postgresql.service
+BindsTo=postgresql.service
+
+[Service]
+Type=notify
+ExecStart=/opt/mattermost/bin/mattermost
+TimeoutStartSec=3600
+KillMode=mixed
+Restart=always
+RestartSec=10
+WorkingDirectory=/opt/mattermost
+User=mattermost
+Group=mattermost
+LimitNOFILE=49152
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+systemctl daemon-reload
+systemctl enable mattermost
+systemctl start mattermost
+sleep 5
+curl -s http://localhost:8065/api/v4/system/ping 2>/dev/null | grep -q "OK" && echo "mattermost_running" || echo "mattermost_starting"`, mmDBPass))
+
+	status := strings.TrimSpace(ssh.run(`systemctl is-active mattermost 2>/dev/null`))
+	if status == "active" {
+		fmt.Printf("  %s\n", m.t("Mattermost 실행 중 (:8065)", "Mattermost running (:8065)"))
+	} else {
+		fmt.Printf("  %s\n", m.t("Mattermost 시작 중... (systemctl status mattermost 로 확인)", "Mattermost starting... (check: systemctl status mattermost)"))
+	}
+}
+
 func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 	existingURL := strings.TrimSpace(ssh.run("cat /root/.internkim/mattermost-url 2>/dev/null"))
 	if !force && existingURL != "" {
@@ -1084,7 +1280,7 @@ func (s *sshClient) run(cmd string) string {
 		out, _ := exec.Command(s.sshpassBin, args...).CombinedOutput()
 		return string(out)
 	}
-	out, _ := exec.Command("ssh", append(s.sshArgs(fmt.Sprintf("%s@%s", s.user, s.host), cmd))...).CombinedOutput()
+	out, _ := exec.Command("ssh", s.sshArgs(fmt.Sprintf("%s@%s", s.user, s.host), cmd)...).CombinedOutput()
 	return string(out)
 }
 
