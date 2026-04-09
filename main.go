@@ -417,6 +417,8 @@ chmod 600 /root/.zeroclaw/config.toml`, zeroclawConfig))
 				fatal(m.t("이메일이 입력되지 않았습니다.", "No email provided."))
 			}
 		}
+		// Save admin email for Mattermost setup in step 9
+		ssh.run(fmt.Sprintf(`printf '%%s' '%s' > /root/.internkim/admin-email`, adminEmail))
 
 		regResp, err := registerDevice(cfg, deviceID, adminEmail)
 		if err != nil {
@@ -1006,63 +1008,187 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 		return
 	}
 
-	fmt.Println()
-	fmt.Printf("  %s\n", m.t(
-		"Mattermost 서버를 보드에 설치한 후 아래 정보를 입력하세요.",
-		"Install Mattermost on the board first, then enter the details below.",
-	))
-	fmt.Printf("  %s\n", m.t(
-		"(설정 생략: Enter만 누르세요)",
-		"(Skip setup: press Enter)",
-	))
-	fmt.Println()
+	// Use tunnel URL as Mattermost SiteURL (set in step 10b)
+	// For local API calls during setup, use localhost:8065 via SSH tunnel
+	localURL := "http://localhost:8065"
 
-	mmURL := readLine(m.t("  Mattermost URL (예: https://chat.intern.kim): ", "  Mattermost URL (e.g. https://chat.intern.kim): "))
-	if mmURL == "" {
-		fmt.Printf("  %s\n", m.t("건너뜀", "Skipped"))
+	// Wait for Mattermost to be ready (up to 60s)
+	fmt.Printf("  %s\n", m.t("Mattermost 준비 대기 중...", "Waiting for Mattermost..."))
+	ready := false
+	for i := 0; i < 20; i++ {
+		ping := strings.TrimSpace(ssh.run(`curl -sf http://localhost:8065/api/v4/system/ping 2>/dev/null | grep -o '"status":"OK"' || echo ""`))
+		if ping != "" {
+			ready = true
+			break
+		}
+		time.Sleep(3 * time.Second)
+	}
+	if !ready {
+		fmt.Printf("  %s\n", m.t("Mattermost 시작 실패 — 건너뜀", "Mattermost not ready — skipping"))
 		return
 	}
-	mmURL = strings.TrimRight(mmURL, "/")
 
-	adminToken := readSecret(m.t("  관리자 토큰 (System Console → Integrations → Personal Access Tokens): ",
-		"  Admin token (System Console → Integrations → Personal Access Tokens): "))
+	client := &http.Client{Timeout: 15 * time.Second}
+
+	// Helper: forward localhost:8065 via SSH so we can call Mattermost API from Mac
+	// We use ssh.run to call curl on the board instead
+	mmAPI := func(method, path string, body []byte, token string) (int, []byte) {
+		authFlag := ""
+		if token != "" {
+			authFlag = fmt.Sprintf(` -H 'Authorization: Bearer %s'`, token)
+		}
+		bodyFlag := ""
+		if body != nil {
+			escaped := strings.ReplaceAll(string(body), "'", `'"'"'`)
+			bodyFlag = fmt.Sprintf(` -d '%s'`, escaped)
+		}
+		out := ssh.run(fmt.Sprintf(
+			`curl -sf -w '\n%%{http_code}' -X %s%s -H 'Content-Type: application/json'%s '%s%s' 2>/dev/null`,
+			method, authFlag, bodyFlag, localURL, path,
+		))
+		lines := strings.Split(strings.TrimSpace(out), "\n")
+		if len(lines) < 2 {
+			return 0, []byte(out)
+		}
+		code := 0
+		fmt.Sscanf(lines[len(lines)-1], "%d", &code)
+		return code, []byte(strings.Join(lines[:len(lines)-1], "\n"))
+	}
+	_ = client
+
+	// 1. Create initial admin account
+	adminUser := "internkim-admin"
+	adminPass := generatePassword(20)
+	adminEmail := strings.TrimSpace(ssh.run("cat /root/.internkim/admin-email 2>/dev/null"))
+	if adminEmail == "" {
+		adminEmail = "admin@intern.kim"
+	}
+
+	adminBody, _ := json.Marshal(map[string]string{
+		"email":     adminEmail,
+		"username":  adminUser,
+		"password":  adminPass,
+		"auth_data": "",
+	})
+	code, resp := mmAPI("POST", "/api/v4/users", adminBody, "")
+	if code != 201 && code != 200 {
+		// Already exists — try to login
+		loginBody, _ := json.Marshal(map[string]string{"login_id": adminUser, "password": adminPass})
+		code, resp = mmAPI("POST", "/api/v4/users/login", loginBody, "")
+		if code != 200 {
+			fmt.Printf("  %s\n", m.t("admin 계정 생성/로그인 실패 — 건너뜀", "Admin account failed — skipping"))
+			return
+		}
+	}
+	var adminUserResp struct{ ID string `json:"id"` }
+	json.Unmarshal(resp, &adminUserResp)
+
+	// 2. Login to get session token
+	loginBody, _ := json.Marshal(map[string]string{"login_id": adminUser, "password": adminPass})
+	loginOut := ssh.run(fmt.Sprintf(
+		`curl -sf -D - -X POST -H 'Content-Type: application/json' -d '%s' '%s/api/v4/users/login' 2>/dev/null`,
+		strings.ReplaceAll(string(loginBody), "'", `'"'"'`), localURL,
+	))
+	adminToken := ""
+	for _, line := range strings.Split(loginOut, "\n") {
+		if strings.HasPrefix(strings.ToLower(line), "token:") {
+			adminToken = strings.TrimSpace(line[6:])
+		}
+	}
 	if adminToken == "" {
-		fmt.Printf("  %s\n", m.t("관리자 토큰 없음 — 건너뜀", "No admin token — skipping"))
+		fmt.Printf("  %s\n", m.t("admin 토큰 획득 실패 — 건너뜀", "Could not get admin token — skipping"))
 		return
 	}
 
-	botToken := readSecret(m.t("  봇 토큰 (System Console → Integrations → Bot Accounts): ",
-		"  Bot token (System Console → Integrations → Bot Accounts): "))
-	if botToken == "" {
-		fmt.Printf("  %s\n", m.t("봇 토큰 없음 — 건너뜀", "No bot token — skipping"))
-		return
+	// 3. Enable personal access tokens + bot accounts in config
+	configBody, _ := json.Marshal(map[string]any{
+		"ServiceSettings": map[string]any{
+			"EnableUserAccessTokens": true,
+			"EnableBotAccountCreation": true,
+		},
+		"EmailSettings": map[string]string{
+			"PushNotificationContents": "id_loaded",
+		},
+	})
+	mmAPI("PUT", "/api/v4/config/patch", configBody, adminToken)
+
+	// 4. Grant admin role
+	if adminUserResp.ID != "" {
+		roleBody, _ := json.Marshal(map[string]string{"roles": "system_admin system_user"})
+		mmAPI("PUT", "/api/v4/users/"+adminUserResp.ID+"/roles", roleBody, adminToken)
 	}
 
-	channelID := readLine(m.t("  채널 ID (채널 URL의 마지막 부분): ", "  Channel ID (last part of channel URL): "))
-	if channelID == "" {
-		fmt.Printf("  %s\n", m.t("채널 ID 없음 — 건너뜀", "No channel ID — skipping"))
-		return
+	// 5. Create personal access token for admin
+	if adminUserResp.ID == "" {
+		// Re-fetch user ID
+		_, userResp := mmAPI("GET", "/api/v4/users/username/"+adminUser, nil, adminToken)
+		json.Unmarshal(userResp, &adminUserResp)
+	}
+	patBody, _ := json.Marshal(map[string]string{"description": "internkim-setup"})
+	_, patResp := mmAPI("POST", "/api/v4/users/"+adminUserResp.ID+"/tokens", patBody, adminToken)
+	var patResult struct{ Token string `json:"token"` }
+	json.Unmarshal(patResp, &patResult)
+	if patResult.Token != "" {
+		adminToken = patResult.Token // use PAT going forward
 	}
 
-	threadReply := promptYN(m.t("스레드로 답장? (권장)", "Reply in thread? (recommended)"))
-	mentionOnly := promptYN(m.t("@멘션에만 응답?", "Only respond to @mentions?"))
+	// 6. Create bot account
+	botBody, _ := json.Marshal(map[string]string{
+		"username":     "internkim",
+		"display_name": "Intern Kim",
+		"description":  "AI assistant",
+	})
+	_, botResp := mmAPI("POST", "/api/v4/bots", botBody, adminToken)
+	var botResult struct{ UserID string `json:"user_id"` }
+	json.Unmarshal(botResp, &botResult)
 
-	// Store credentials in secrets dir
-	ssh.run(fmt.Sprintf(`printf '%%s' '%s' > /root/.internkim/mattermost-url
+	botToken := ""
+	if botResult.UserID != "" {
+		botPatBody, _ := json.Marshal(map[string]string{"description": "internkim-bot"})
+		_, botPatResp := mmAPI("POST", "/api/v4/users/"+botResult.UserID+"/tokens", botPatBody, adminToken)
+		var botPat struct{ Token string `json:"token"` }
+		json.Unmarshal(botPatResp, &botPat)
+		botToken = botPat.Token
+	}
+
+	// 7. Get town-square channel ID
+	_, teamResp := mmAPI("GET", "/api/v4/teams/name/internkim", nil, adminToken)
+	var teamResult struct{ ID string `json:"id"` }
+	if err := json.Unmarshal(teamResp, &teamResult); err != nil || teamResult.ID == "" {
+		// Create team
+		teamBody, _ := json.Marshal(map[string]string{"name": "internkim", "display_name": "Intern Kim", "type": "I"})
+		_, teamResp = mmAPI("POST", "/api/v4/teams", teamBody, adminToken)
+		json.Unmarshal(teamResp, &teamResult)
+	}
+	channelID := ""
+	if teamResult.ID != "" {
+		_, chResp := mmAPI("GET", "/api/v4/teams/"+teamResult.ID+"/channels/name/town-square", nil, adminToken)
+		var chResult struct{ ID string `json:"id"` }
+		json.Unmarshal(chResp, &chResult)
+		channelID = chResult.ID
+	}
+
+	// 8. Store credentials
+	deviceURL := loadState(stateDir, "device_url")
+	if deviceURL == "" {
+		deviceURL = localURL
+	}
+	ssh.run(fmt.Sprintf(`mkdir -p /root/.internkim/secrets
+printf '%%s' '%s' > /root/.internkim/mattermost-url
 printf '%%s' '%s' > /root/.internkim/mattermost-admin-token
 printf '%%s' '%s' > /root/.internkim/secrets/mattermost-bot-token
 chmod 600 /root/.internkim/mattermost-url /root/.internkim/mattermost-admin-token
-chown zeroclaw /root/.internkim/secrets/mattermost-bot-token
+chown zeroclaw /root/.internkim/secrets/mattermost-bot-token 2>/dev/null || true
 chmod 640 /root/.internkim/secrets/mattermost-bot-token`,
-		mmURL, adminToken, botToken))
+		deviceURL, adminToken, botToken))
 
-	// Update zeroclaw config.toml with Mattermost channel
+	// 9. Write zeroclaw config with Mattermost channel
 	mm := &mattermostConfig{
-		BaseURL:     mmURL,
+		BaseURL:     deviceURL,
 		BotToken:    botToken,
 		ChannelID:   channelID,
-		ThreadReply: threadReply,
-		MentionOnly: mentionOnly,
+		ThreadReply: true,
+		MentionOnly: false,
 	}
 	zeroclawConfig := buildZeroclawConfig(zeroclawModel, zeroclawAPIBase, mm)
 	ssh.run(fmt.Sprintf(`cat > /root/.zeroclaw/config.toml <<'CFGEOF'
@@ -1070,62 +1196,11 @@ chmod 640 /root/.internkim/secrets/mattermost-bot-token`,
 CFGEOF
 chmod 600 /root/.zeroclaw/config.toml`, zeroclawConfig))
 
-	fmt.Printf("  %s\n", m.t("Mattermost 채널 설정 완료", "Mattermost channel configured"))
-
-	// Configure push notification privacy
-	configureMattermostPush(m, ssh)
-}
-
-func configureMattermostPush(m *msg, ssh *sshClient) {
-	mmURL := strings.TrimSpace(ssh.run("cat /root/.internkim/mattermost-url 2>/dev/null"))
-	mmToken := strings.TrimSpace(ssh.run("cat /root/.internkim/mattermost-admin-token 2>/dev/null"))
-	if mmURL == "" || mmToken == "" {
-		fmt.Printf("  %s\n", m.t(
-			"Mattermost URL/토큰 미설정 — 건너뜀 (나중에 internkim mattermost 커맨드로 설정)",
-			"Mattermost URL/token not configured — skipping (use internkim mattermost later)",
-		))
-		return
+	fmt.Printf("  %s\n", m.t("Mattermost 자동 설정 완료", "Mattermost configured automatically"))
+	fmt.Printf("  admin: %s / %s\n", adminUser, adminPass)
+	if channelID != "" {
+		fmt.Printf("  channel: town-square (%s)\n", channelID)
 	}
-
-	fmt.Println()
-	fmt.Printf("  %s\n", m.t("푸시 알림 페이로드 공개 수준을 선택하세요:", "Choose push notification payload visibility:"))
-	fmt.Printf("  1. %s\n", m.t("전체 공개  — 알림에 메시지 내용 포함 (push.mattermost.com 경유)", "Full       — message content in notification (via push.mattermost.com)"))
-	fmt.Printf("  2. %s\n", m.t("발신자만   — \"ZeroClaw에서 메시지가 왔습니다\" (내용 미포함)", "Sender     — \"Message from ZeroClaw\" (no content)"))
-	fmt.Printf("  3. %s\n", m.t("완전 비공개 — 알림은 오지만 앱이 서버에서 직접 내용 가져옴 (권장)", "Private    — notification arrives, app fetches content directly from server (recommended)"))
-	fmt.Println()
-
-	choice := readLine(m.t("  선택 (1/2/3) [3]: ", "  Choice (1/2/3) [3]: "))
-	if choice == "" {
-		choice = "3"
-	}
-
-	var contents string
-	switch choice {
-	case "1":
-		contents = "full"
-	case "2":
-		contents = "generic"
-	default:
-		contents = "id_loaded"
-	}
-
-	body, _ := json.Marshal(map[string]any{
-		"EmailSettings": map[string]string{
-			"PushNotificationContents": contents,
-		},
-	})
-	req, _ := http.NewRequest("PUT", mmURL+"/api/v4/config/patch", bytes.NewReader(body))
-	req.Header.Set("Authorization", "Bearer "+mmToken)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
-	if err != nil || resp.StatusCode != 200 {
-		fmt.Printf("  %s\n", m.t("설정 실패 — Mattermost 관리자 콘솔에서 수동 설정 필요", "Failed — configure manually in Mattermost admin console"))
-		return
-	}
-	resp.Body.Close()
-
-	label := map[string]string{"full": m.t("전체 공개", "Full"), "generic": m.t("발신자만", "Sender only"), "id_loaded": m.t("완전 비공개", "Private")}[contents]
-	fmt.Printf("  %s: %s\n", m.t("설정 완료", "Configured"), label)
 }
 
 const simContainerName = "internkim-sim"
@@ -1867,6 +1942,18 @@ func readSecret(prompt string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(b))
+}
+
+func generatePassword(n int) string {
+	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
+	for i, v := range b {
+		b[i] = chars[int(v)%len(chars)]
+	}
+	return string(b)
 }
 
 func readLine(prompt string) string {
