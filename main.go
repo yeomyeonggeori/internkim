@@ -132,6 +132,13 @@ func runSetup() {
 	fmt.Println("=== Intern Kim Setup ===")
 	fmt.Println()
 
+	// Google OAuth — done once, tokens reused in step 7 (email) and step 8 (SA creation)
+	gauth, err := googleAuth()
+	if err != nil {
+		fmt.Printf("  Google 로그인 실패: %v\n", err)
+		fmt.Println("  Google Workspace 연동 없이 계속합니다.")
+	}
+
 	// 1. Board detection
 	step(1, totalSteps, m.t("보드 연결 확인 중...", "Detecting board..."))
 	var boardIP string
@@ -400,9 +407,15 @@ chmod 600 /root/.zeroclaw/config.toml`, zeroclawConfig))
 	if skipRegistration {
 		fmt.Printf("  %s\n", m.t("이미 등록됨 — 건너뜀", "Already registered — skipping"))
 	} else {
-		adminEmail := readLine(m.t("  관리자 이메일 (구글 계정): ", "  Admin email (Google account): "))
-		if adminEmail == "" {
-			fatal(m.t("이메일이 입력되지 않았습니다.", "No email provided."))
+		adminEmail := ""
+		if gauth != nil {
+			adminEmail = gauth.Email
+			fmt.Printf("  %s: %s\n", m.t("관리자 이메일", "Admin email"), adminEmail)
+		} else {
+			adminEmail = readLine(m.t("  관리자 이메일 (구글 계정): ", "  Admin email (Google account): "))
+			if adminEmail == "" {
+				fatal(m.t("이메일이 입력되지 않았습니다.", "No email provided."))
+			}
 		}
 
 		regResp, err := registerDevice(cfg, deviceID, adminEmail)
@@ -465,7 +478,11 @@ sleep 3`, tunnelToken))
 		fmt.Printf("  %s\n", m.t("이미 설정됨 — 건너뜀", "Already configured — skipping"))
 	} else {
 		deviceID := loadState(stateDir, "device_id")
-		saKey, err := createGoogleServiceAccount(deviceID)
+		var accessToken string
+		if gauth != nil {
+			accessToken = gauth.AccessToken
+		}
+		saKey, err := createGoogleServiceAccount(deviceID, accessToken)
 		if err != nil {
 			fmt.Printf("  %s: %v\n", m.t("서비스 계정 생성 실패 (나중에 수동 설정 가능)", "SA creation failed (can configure manually later)"), err)
 		} else {
@@ -1529,16 +1546,16 @@ args = []
 
 // createGoogleServiceAccount creates a service account via Google IAM REST API.
 // Opens browser for OAuth consent (once), then creates SA + key, returns SA key JSON.
-func createGoogleServiceAccount(deviceID string) (string, error) {
-	fmt.Println("  Opening browser for Google Cloud OAuth consent...")
-	fmt.Println("  Scope: https://www.googleapis.com/auth/cloud-platform")
+func createGoogleServiceAccount(deviceID, accessToken string) (string, error) {
 	fmt.Printf("  Service account name: internkim-%s\n", deviceID)
-	fmt.Println()
 
-	// OAuth2 device flow to get access token
-	accessToken, err := googleDeviceAuth()
-	if err != nil {
-		return "", fmt.Errorf("OAuth failed: %w", err)
+	if accessToken == "" {
+		// Fallback: OAuth not done yet (e.g. --force re-run without gauth)
+		g, err := googleAuth()
+		if err != nil {
+			return "", fmt.Errorf("OAuth failed: %w", err)
+		}
+		accessToken = g.AccessToken
 	}
 
 	client := &http.Client{Timeout: 30 * time.Second}
@@ -1666,18 +1683,37 @@ func resolveGoogleProject(client *http.Client, accessToken string) (string, erro
 	return "", fmt.Errorf("project creation timed out")
 }
 
-// googleDeviceAuth performs OAuth2 loopback redirect flow and returns an access token.
-// Opens browser → user logs in → Google redirects to localhost → token exchanged.
+type googleTokens struct {
+	AccessToken string
+	Email       string
+}
+
+// googleAuth performs OAuth2 loopback redirect and returns access token + email.
+func googleAuth() (*googleTokens, error) {
+	accessToken, email, err := googleOAuthLoopback()
+	if err != nil {
+		return nil, err
+	}
+	return &googleTokens{AccessToken: accessToken, Email: email}, nil
+}
+
+// googleDeviceAuth is kept for backward compatibility — delegates to googleOAuthLoopback.
 func googleDeviceAuth() (string, error) {
-	// gcloud's installed-app OAuth client (loopback redirect is allowed)
+	token, _, err := googleOAuthLoopback()
+	return token, err
+}
+
+// googleOAuthLoopback performs OAuth2 loopback redirect flow.
+// Returns access token + email extracted from userinfo.
+// Opens browser → user logs in → Google redirects to localhost → token exchanged.
+func googleOAuthLoopback() (accessToken, email string, err error) {
 	clientID := "764086051850-6qr4p6gpi6hn506pt8ejuq83di341hur.apps.googleusercontent.com"
 	clientSecret := "d-FL95Q19q7MQmFpd7hHD0Ty"
-	scope := "https://www.googleapis.com/auth/cloud-platform"
+	scope := "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email"
 
-	// Find a free port
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		return "", fmt.Errorf("failed to open local port: %w", err)
+		return "", "", fmt.Errorf("failed to open local port: %w", err)
 	}
 	port := listener.Addr().(*net.TCPAddr).Port
 	redirectURI := fmt.Sprintf("http://localhost:%d", port)
@@ -1691,10 +1727,10 @@ func googleDeviceAuth() (string, error) {
 	exec.Command("open", authURL).Start()
 	fmt.Printf("  If browser did not open, visit:\n  %s\n\n", authURL)
 
-	// Wait for redirect with auth code
 	codeCh := make(chan string, 1)
-	srv := &http.Server{}
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+	srv := &http.Server{Handler: mux}
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		code := r.URL.Query().Get("code")
 		if code != "" {
 			fmt.Fprintf(w, "<html><body><h2>Authorization complete. You can close this tab.</h2></body></html>")
@@ -1708,7 +1744,7 @@ func googleDeviceAuth() (string, error) {
 	select {
 	case code = <-codeCh:
 	case <-time.After(5 * time.Minute):
-		return "", fmt.Errorf("timed out waiting for Google authorization")
+		return "", "", fmt.Errorf("timed out waiting for Google authorization")
 	}
 
 	// Exchange code for token
@@ -1720,7 +1756,7 @@ func googleDeviceAuth() (string, error) {
 		"grant_type":    {"authorization_code"},
 	})
 	if err != nil {
-		return "", fmt.Errorf("token exchange failed: %w", err)
+		return "", "", fmt.Errorf("token exchange failed: %w", err)
 	}
 	defer tokenResp.Body.Close()
 	body, _ := io.ReadAll(tokenResp.Body)
@@ -1729,12 +1765,27 @@ func googleDeviceAuth() (string, error) {
 		Error       string `json:"error"`
 	}
 	if err := json.Unmarshal(body, &token); err != nil {
-		return "", err
+		return "", "", err
 	}
 	if token.Error != "" {
-		return "", fmt.Errorf("token error: %s", token.Error)
+		return "", "", fmt.Errorf("token error: %s", token.Error)
 	}
-	return token.AccessToken, nil
+
+	// Fetch email from userinfo
+	req, _ := http.NewRequest("GET", "https://www.googleapis.com/oauth2/v2/userinfo", nil)
+	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
+	uResp, err := http.DefaultClient.Do(req)
+	if err == nil {
+		defer uResp.Body.Close()
+		var ui struct {
+			Email string `json:"email"`
+		}
+		if b, _ := io.ReadAll(uResp.Body); json.Unmarshal(b, &ui) == nil {
+			email = ui.Email
+		}
+	}
+
+	return token.AccessToken, email, nil
 }
 
 func decodeBase64(src string, dst []byte) (int, error) {
