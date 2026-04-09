@@ -10,23 +10,22 @@ ARM64 Debian 컨테이너를 사용해 실제 보드 없이 provisioning을 테�
 - `container system start` 로 서비스 실행 중
 - `~/.ssh/id_ed25519.pub` (또는 `id_rsa.pub`) — 컨테이너 SSH 인증에 사용
 
-## 시뮬레이터 시작
+## 시뮬레이터 시작 + Provisioning
 
 ```bash
 # 빌드
 go build -o internkim .
 
-# 시뮬레이터 시작 (첫 실행은 패키지 설치로 2-3분 소요)
-./internkim sim start
+# 시뮬레이터 시작 + setup 자동 실행 (첫 실행은 패키지 설치로 2-3분 소요)
+./internkim sim
 ```
 
-컨테이너가 뜨면 `~/.internkim/shared/` 디렉토리가 컨테이너 `/root/shared`에 마운트됩니다.
+컨테이너가 뜨면 `~/.internkim/shared/` 디렉토리가 컨테이너 `/root/shared`에 마운트되고, setup이 자동으로 이어집니다.
 
-## Provisioning 테스트
+처음부터 다시 테스트하려면:
 
 ```bash
-# 시뮬레이터에 전체 setup 실행
-./internkim setup --sim
+./internkim sim reset   # 컨테이너 초기화 후 setup 재실행
 ```
 
 setup은 실제 보드와 동일한 10단계를 실행합니다:
@@ -69,17 +68,13 @@ container inspect internkim-sim --format '{{.Network.IPAddress}}'
 ssh root@<IP>
 ```
 
-## 시뮬레이터 상태 확인
+## 기타 명령
 
 ```bash
+./internkim sim ssh      # 실행 중인 컨테이너에 SSH 접속
 ./internkim sim status   # running / stopped
+./internkim sim stop     # 컨테이너 정리
 container list           # 실행 중인 컨테이너 목록
-```
-
-## 시뮬레이터 종료
-
-```bash
-./internkim sim stop
 ```
 
 ## 자주 쓰는 검증 명령
