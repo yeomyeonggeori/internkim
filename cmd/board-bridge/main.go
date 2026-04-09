@@ -1,113 +1,111 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
-	"strings"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
 const (
-	picoTokenPrefix = "pico-"
-	defaultPort     = "8080"
-	defaultHome     = "/root/.zeroclaw"
-	defaultWebRoot  = "/var/www"
+	defaultPort    = "8080"
+	defaultHome    = "/root/.zeroclaw"
+	defaultWebRoot = "/var/www"
+	zeroclawPort   = "8080"
 )
 
-type pidFileData struct {
-	Token string `json:"token"`
-	Port  int    `json:"port"`
-	Host  string `json:"host"`
-}
-
-func readConfig(home string) (map[string]any, error) {
-	raw, err := os.ReadFile(filepath.Join(home, "config.json"))
-	if err != nil {
-		return nil, err
+// zeroclawGatewayURL returns the ZeroClaw gateway base URL.
+// ZeroClaw gateway runs on port 8080 internally, board-bridge runs on the
+// same port exposed to Cloudflare. We use an internal port for ZeroClaw.
+func zeroclawGatewayURL() string {
+	port := os.Getenv("ZEROCLAW_GATEWAY_PORT")
+	if port == "" {
+		port = "18790"
 	}
-	var cfg map[string]any
-	return cfg, json.Unmarshal(raw, &cfg)
+	return "http://localhost:" + port
 }
 
-func writeConfig(home string, cfg map[string]any) error {
-	b, err := json.MarshalIndent(cfg, "", "  ")
+func readTOMLValue(home, key string) string {
+	path := filepath.Join(home, "config.toml")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, key+" =") || strings.HasPrefix(line, key+"=") {
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) == 2 {
+				v := strings.TrimSpace(parts[1])
+				v = strings.Trim(v, `"`)
+				return v
+			}
+		}
+	}
+	return ""
+}
+
+func writeTOMLValue(home, key, value string) error {
+	path := filepath.Join(home, "config.toml")
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(home, "config.json"), b, 0644)
-}
-
-func buildPicoToken(home string) (string, int, error) {
-	pidRaw, err := os.ReadFile(filepath.Join(home, ".zeroclaw.pid"))
-	if err != nil {
-		return "", 0, fmt.Errorf("read pid file: %w", err)
-	}
-	var pid pidFileData
-	if err := json.Unmarshal(pidRaw, &pid); err != nil {
-		return "", 0, fmt.Errorf("parse pid file: %w", err)
-	}
-
-	cfg, err := readConfig(home)
-	if err != nil {
-		return "", 0, err
-	}
-
-	picoToken := ""
-	if ch, ok := cfg["channels"].(map[string]any); ok {
-		if pico, ok := ch["pico"].(map[string]any); ok {
-			picoToken, _ = pico["token"].(string)
+	lines := strings.Split(string(data), "\n")
+	found := false
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, key+" =") || strings.HasPrefix(trimmed, key+"=") {
+			lines[i] = key + ` = "` + value + `"`
+			found = true
+			break
 		}
 	}
-	return picoTokenPrefix + pid.Token + picoToken, pid.Port, nil
+	if !found {
+		lines = append(lines, key+` = "`+value+`"`)
+	}
+	return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0600)
 }
 
-func getModel(cfg map[string]any) string {
-	models, _ := cfg["model_list"].([]any)
-	if len(models) == 0 {
-		return ""
+func webhookSecret(home string) string {
+	// Read from config.toml: channels_config.webhook.secret
+	// or fall back to reading the hardcoded token we set during setup
+	secret := readTOMLValue(home, "token")
+	if secret == "" {
+		secret = "quickclaw"
 	}
-	m, _ := models[0].(map[string]any)
-	s, _ := m["model"].(string)
-	return s
-}
-
-func setModel(cfg map[string]any, model string) {
-	models, _ := cfg["model_list"].([]any)
-	if len(models) == 0 {
-		return
-	}
-	m, _ := models[0].(map[string]any)
-	m["model"] = model
-	models[0] = m
-	cfg["model_list"] = models
+	return secret
 }
 
 func restartZeroclaw() error {
-	exec.Command("killall", "zeroclaw").Run()
-	exec.Command("rm", "-f", "/root/.zeroclaw/.zeroclaw.pid").Run()
-	exec.Command("sh", "-c", "systemctl start zeroclaw 2>/dev/null").Run()
-
+	exec.Command("systemctl", "restart", "zeroclaw").Run()
 	for i := 0; i < 20; i++ {
 		time.Sleep(500 * time.Millisecond)
-		resp, err := http.Get("http://localhost:18790/health")
+		resp, err := http.Get(zeroclawGatewayURL() + "/health")
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode == 200 {
-				if _, err := os.Stat("/root/.zeroclaw/.zeroclaw.pid"); err == nil {
-					return nil
-				}
+				return nil
 			}
 		}
 	}
 	return fmt.Errorf("zeroclaw failed to start")
 }
 
+func cors(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Webhook-Secret")
+}
+
+// handleToken returns the webhook secret so the web UI can authenticate.
 func handleToken(home string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
@@ -115,17 +113,119 @@ func handleToken(home string) http.HandlerFunc {
 			w.WriteHeader(200)
 			return
 		}
-		token, port, err := buildPicoToken(home)
-		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
 		cors(w)
 		w.Header().Set("Content-Type", "application/json")
+		secret := webhookSecret(home)
 		json.NewEncoder(w).Encode(map[string]any{
-			"token":  token,
-			"ws_url": fmt.Sprintf("ws://localhost:%d/board/ws", port),
+			"token":       secret,
+			"webhook_url": zeroclawGatewayURL() + "/webhook",
 		})
+	}
+}
+
+// handleChat proxies POST {message} to ZeroClaw gateway /webhook and returns the response.
+// The web UI sends messages here; board-bridge forwards to ZeroClaw and streams the reply.
+func handleChat(home string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cors(w)
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(200)
+			return
+		}
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", 405)
+			return
+		}
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "read error", 500)
+			return
+		}
+
+		// Forward to ZeroClaw gateway
+		secret := webhookSecret(home)
+		req, err := http.NewRequest("POST", zeroclawGatewayURL()+"/webhook", bytes.NewReader(body))
+		if err != nil {
+			http.Error(w, "request error", 500)
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Webhook-Secret", secret)
+
+		client := &http.Client{Timeout: 120 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			http.Error(w, "zeroclaw unreachable: "+err.Error(), 502)
+			return
+		}
+		defer resp.Body.Close()
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(resp.StatusCode)
+		io.Copy(w, resp.Body)
+	}
+}
+
+// handleChatStream uses ZeroClaw gateway SSE streaming if available,
+// otherwise falls back to a non-streaming request.
+func handleChatStream(home string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cors(w)
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(200)
+			return
+		}
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", 405)
+			return
+		}
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "read error", 500)
+			return
+		}
+
+		secret := webhookSecret(home)
+		req, err := http.NewRequest("POST", zeroclawGatewayURL()+"/webhook", bytes.NewReader(body))
+		if err != nil {
+			http.Error(w, "request error", 500)
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Webhook-Secret", secret)
+		req.Header.Set("Accept", "text/event-stream")
+
+		client := &http.Client{Timeout: 300 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			http.Error(w, "zeroclaw unreachable: "+err.Error(), 502)
+			return
+		}
+		defer resp.Body.Close()
+
+		// Pass through SSE headers if ZeroClaw supports streaming
+		if ct := resp.Header.Get("Content-Type"); strings.Contains(ct, "text/event-stream") {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("X-Accel-Buffering", "no")
+			w.WriteHeader(200)
+			flusher, _ := w.(http.Flusher)
+			scanner := bufio.NewScanner(resp.Body)
+			for scanner.Scan() {
+				fmt.Fprintf(w, "%s\n", scanner.Text())
+				if flusher != nil {
+					flusher.Flush()
+				}
+			}
+			return
+		}
+
+		// Non-streaming fallback
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(resp.StatusCode)
+		io.Copy(w, resp.Body)
 	}
 }
 
@@ -136,19 +236,11 @@ func handleModel(home string) http.HandlerFunc {
 			w.WriteHeader(200)
 			return
 		}
-
-		cfg, err := readConfig(home)
-		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-
 		switch r.Method {
 		case http.MethodGet:
+			model := readTOMLValue(home, "default_model")
 			w.Header().Set("Content-Type", "application/json")
-			m := getModel(cfg)
-			m = strings.TrimPrefix(m, "openrouter/")
-			json.NewEncoder(w).Encode(map[string]string{"model": m})
+			json.NewEncoder(w).Encode(map[string]string{"model": model})
 
 		case http.MethodPut:
 			body, _ := io.ReadAll(r.Body)
@@ -159,75 +251,18 @@ func handleModel(home string) http.HandlerFunc {
 				http.Error(w, "invalid request", 400)
 				return
 			}
-			old := getModel(cfg)
-			setModel(cfg, ensurePrefix(req.Model))
-			if err := writeConfig(home, cfg); err != nil {
+			old := readTOMLValue(home, "default_model")
+			if err := writeTOMLValue(home, "default_model", req.Model); err != nil {
 				http.Error(w, err.Error(), 500)
 				return
 			}
+			restartZeroclaw()
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]string{"old": old, "new": req.Model})
 
 		default:
 			http.Error(w, "method not allowed", 405)
 		}
-	}
-}
-
-func ensurePrefix(model string) string {
-	if strings.HasPrefix(model, "openrouter/") {
-		return model
-	}
-	return "openrouter/" + model
-}
-
-func handleHistory(home string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		cors(w)
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(200)
-			return
-		}
-		sid := strings.TrimPrefix(r.URL.Path, "/board/history/")
-		if sid == "" {
-			http.Error(w, "session_id required", 400)
-			return
-		}
-
-		sessDir := filepath.Join(home, "workspace", "sessions")
-		// Session file pattern: agent_main_pico_direct_pico_{session_id}.jsonl
-		pattern := filepath.Join(sessDir, "agent_main_pico_direct_pico_"+sid+".jsonl")
-		raw, err := os.ReadFile(pattern)
-		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]any{"messages": []any{}})
-			return
-		}
-
-		var messages []map[string]string
-		for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
-			if line == "" {
-				continue
-			}
-			var msg map[string]string
-			if err := json.Unmarshal([]byte(line), &msg); err != nil {
-				continue
-			}
-			role := msg["role"]
-			content := strings.TrimSpace(msg["content"])
-			if (role == "user" || role == "assistant") && content != "" {
-				messages = append(messages, map[string]string{
-					"role":    role,
-					"content": content,
-				})
-			}
-		}
-		if messages == nil {
-			messages = []map[string]string{}
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"messages": messages})
 	}
 }
 
@@ -243,50 +278,34 @@ func handleFiles(home string) http.HandlerFunc {
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
-		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filepath.Base(filePath)))
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filepath.Base(filePath)))
 		http.ServeFile(w, r, filePath)
 	}
 }
 
-func handleWSProxy(w http.ResponseWriter, r *http.Request) {
-	backend, err := net.Dial("tcp", "localhost:18790")
-	if err != nil {
-		http.Error(w, "backend unavailable", http.StatusBadGateway)
-		return
+func handleMe() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		email := r.Header.Get("Cf-Access-Authenticated-User-Email")
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"email": email})
 	}
-
-	hijacker, ok := w.(http.Hijacker)
-	if !ok {
-		backend.Close()
-		http.Error(w, "hijack not supported", http.StatusInternalServerError)
-		return
-	}
-
-	// Forward the original request to backend
-	r.URL.Path = "/board/ws"
-	r.URL.Scheme = "http"
-	r.URL.Host = "localhost:18790"
-	r.Header.Set("Host", "localhost:18790")
-	if err := r.Write(backend); err != nil {
-		backend.Close()
-		http.Error(w, "failed to write to backend", http.StatusBadGateway)
-		return
-	}
-
-	client, _, err := hijacker.Hijack()
-	if err != nil {
-		backend.Close()
-		return
-	}
-
-	go func() { io.Copy(backend, client); backend.Close() }()
-	go func() { io.Copy(client, backend); client.Close() }()
 }
 
-func cors(w http.ResponseWriter) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, PUT, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+func handleHealth() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Forward to ZeroClaw health check
+		resp, err := http.Get(zeroclawGatewayURL() + "/health")
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(502)
+			json.NewEncoder(w).Encode(map[string]string{"status": "zeroclaw_unreachable"})
+			return
+		}
+		defer resp.Body.Close()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(resp.StatusCode)
+		io.Copy(w, resp.Body)
+	}
 }
 
 func main() {
@@ -298,26 +317,24 @@ func main() {
 	if h := os.Getenv("ZEROCLAW_HOME"); h != "" {
 		home = h
 	}
-
 	webRoot := defaultWebRoot
 	if w := os.Getenv("WEB_ROOT"); w != "" {
 		webRoot = w
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/board/ws", handleWSProxy)
+
+	// ZeroClaw gateway proxy endpoints
+	mux.HandleFunc("/board/chat", handleChat(home))
+	mux.HandleFunc("/board/chat/stream", handleChatStream(home))
 	mux.HandleFunc("/board/token", handleToken(home))
 	mux.HandleFunc("/board/model", handleModel(home))
-	mux.HandleFunc("/board/history/", handleHistory(home))
-	mux.HandleFunc("/board/me", func(w http.ResponseWriter, r *http.Request) {
-		email := r.Header.Get("Cf-Access-Authenticated-User-Email")
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"email": email})
-	})
 	mux.HandleFunc("/board/files/", handleFiles(home))
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"status":"ok"}`))
-	})
+	mux.HandleFunc("/board/me", handleMe())
+
+	// Health check (forwards to ZeroClaw)
+	mux.HandleFunc("/health", handleHealth())
+
 	// Static file serving with SPA fallback
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		path := filepath.Join(webRoot, r.URL.Path)
@@ -325,11 +342,11 @@ func main() {
 			http.ServeFile(w, r, path)
 			return
 		}
-		// SPA fallback
 		http.ServeFile(w, r, filepath.Join(webRoot, "index.html"))
 	})
 
-	fmt.Fprintf(os.Stderr, "board-bridge listening on :%s (web: %s)\n", port, webRoot)
+	fmt.Fprintf(os.Stderr, "board-bridge listening on :%s (web: %s, zeroclaw: %s)\n",
+		port, webRoot, zeroclawGatewayURL())
 	if err := http.ListenAndServe(":"+port, mux); err != nil {
 		fmt.Fprintf(os.Stderr, "fatal: %v\n", err)
 		os.Exit(1)

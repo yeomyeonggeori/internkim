@@ -1,6 +1,6 @@
 # ZeroClaw 아키텍처 — feat/zeroclaw 브랜치
 
-> 이 문서는 `feat/zeroclaw` 브랜치의 설계 결정과 보안 아키텍처를 정리한 스펙 문서입니다.
+> `feat/zeroclaw` 브랜치의 설계 결정과 보안 아키텍처 스펙 문서.
 
 ## 배경 및 전환 이유
 
@@ -13,6 +13,7 @@
 | HTTP 브릿지 | `cmd/pico-bridge` `/pico/*` | `cmd/board-bridge` `/board/*` |
 | Google Workspace | 없음 | gws MCP 서버 |
 | 크리덴셜 관리 | config에 인라인 | `/root/.internkim/secrets/` 분리 |
+| 채팅 UI | 웹 UI 전용 | 웹 UI + Mattermost |
 
 ## 전체 아키텍처
 
@@ -23,35 +24,53 @@
 Cloudflare Access (SAML SSO)
     │
     ▼  Argo Tunnel
-┌─────────────────────────────────────┐
-│  ARM 보드                           │
-│                                     │
-│  zeroclaw.service  (uid: zeroclaw)  │
-│  ┌───────────────────────────────┐  │
-│  │ ZeroClaw gateway :18790       │  │
-│  │ OpenRouter (전체 모델)         │  │
-│  │ native runtime (Landlock)     │  │
-│  └──────────────┬────────────────┘  │
-│                 │ stdio MCP         │
-│                 ▼                   │
-│  /usr/local/bin/gws-mcp (root:755)  │
-│    └─ sudo -u gws /usr/local/bin/gws mcp │
-│         (uid: gws)                  │
-│                                     │
-│  /root/.internkim/secrets/          │
-│    google-sa.json   (gws:640)       │  ← gws만 읽기 가능
-│    openrouter-api-key (zeroclaw:640)│  ← zeroclaw만 읽기 가능
-└─────────────────────────────────────┘
-    │                    │
-    ▼                    ▼
-OpenRouter API    Google Drive/Docs/Gmail
+┌─────────────────────────────────────────────┐
+│  ARM 보드 (Radxa 5c / RPi 5)               │
+│                                             │
+│  board-bridge :8080   ←── Cloudflare 터널  │
+│  ┌─────────────────────────────────────┐   │
+│  │ /board/chat   → ZeroClaw /webhook   │   │
+│  │ /board/token  → webhook secret      │   │
+│  │ /board/model  → config.toml 읽기/쓰기│   │
+│  │ /             → SPA 정적 파일 서빙   │   │
+│  └─────────────────────────────────────┘   │
+│                   │                         │
+│                   ▼ HTTP POST               │
+│  zeroclaw.service :18790 (uid: zeroclaw)    │
+│  ┌─────────────────────────────────────┐   │
+│  │ ZeroClaw gateway                    │   │
+│  │ OpenRouter (전체 모델)               │   │
+│  │ native runtime (Landlock)           │   │
+│  └──────────────┬──────────────────────┘   │
+│                 │ stdio MCP                 │
+│                 ▼                           │
+│  /usr/local/bin/gws-mcp (root:755)          │
+│    └─ sudo -u gws /usr/local/bin/gws mcp   │
+│         (uid: gws)                          │
+│                                             │
+│  /root/.internkim/secrets/                  │
+│    google-sa.json     (gws:640)             │
+│    openrouter-api-key (zeroclaw:640)        │
+│    mattermost-bot-token (zeroclaw:640)      │
+└─────────────────────────────────────────────┘
+    │                         │
+    ▼                         ▼
+OpenRouter API         Google Drive/Docs/Gmail
+
+사용자 (Mattermost 앱)
+    │
+    ▼ REST polling (3s)
+Mattermost 서버 (온보드)
+    │
+    ▼
+ZeroClaw (channels.mattermost)
 ```
 
 ## 보안 격리 설계
 
 ### 핵심 원칙
 
-LLM이 실행되는 컨테이너가 크리덴셜에 접근하는 모든 경로를 OS 레벨에서 차단.
+LLM이 실행되는 샌드박스가 크리덴셜에 접근하는 모든 경로를 OS 레벨에서 차단.
 
 ### 파일 권한
 
@@ -59,10 +78,15 @@ LLM이 실행되는 컨테이너가 크리덴셜에 접근하는 모든 경로�
 /root/.internkim/secrets/          owner: root  mode: 700
   google-sa.json                   owner: gws   mode: 640
   openrouter-api-key               owner: zeroclaw mode: 640
+  mattermost-bot-token             owner: zeroclaw mode: 640
+
+/root/.internkim/
+  mattermost-url                   owner: root  mode: 600
+  mattermost-admin-token           owner: root  mode: 600
 ```
 
-- **LLM 컨테이너** (`nobody` uid): secrets 디렉토리 자체가 마운트되지 않음 → 경로를 알아도 접근 불가
-- **zeroclaw 프로세스**: `openrouter-api-key`만 읽기 가능, `google-sa.json`은 `Permission denied`
+- **Landlock 샌드박스** (zeroclaw 내 LLM 실행 영역): secrets 디렉토리가 허용 경로에 없음 → 경로를 알아도 접근 불가
+- **zeroclaw 프로세스**: `openrouter-api-key`, `mattermost-bot-token`만 읽기 가능
 - **gws 프로세스**: `google-sa.json`만 읽기 가능
 
 ### gws-mcp wrapper
@@ -82,7 +106,7 @@ ZeroClaw config.toml:
 name = "google-workspace"
 command = "/usr/local/bin/gws-mcp"
 args = []
-# 크리덴셜 경로 없음
+# SA 키 경로 없음
 ```
 
 sudoers:
@@ -108,7 +132,7 @@ zeroclaw.service systemd unit이 시작 시 파일에서 읽어 환경변수로 
 ```ini
 [Service]
 User=zeroclaw
-EnvironmentFile=-/root/.internkim/secrets/openrouter-api-key
+EnvironmentFile=/root/.internkim/secrets/openrouter-api-key
 ExecStart=/usr/local/bin/zeroclaw gateway
 ```
 
@@ -116,7 +140,7 @@ ExecStart=/usr/local/bin/zeroclaw gateway
 
 ```toml
 default_provider = "openai-compatible:https://openrouter.ai/api/v1"
-default_model = "openrouter/google/gemini-flash-1.5"
+default_model = "google/gemini-3.1-flash-lite-preview"
 
 [runtime]
 kind = "native"
@@ -124,17 +148,77 @@ kind = "native"
 [runtime.native]
 sandbox = "landlock"  # Landlock + Bubblewrap, Docker 데몬 불필요
 
+[gateway]
+port = 18790
+host = "127.0.0.1"
+require_pairing = false
+
+[channels_config]
+cli = false
+
+[channels_config.webhook]
+secret = "quickclaw"
+
+# Mattermost 채널 (setup에서 설정 시 추가됨)
+[channels.mattermost]
+enabled = true
+base_url = "https://chat.intern.kim"
+bot_token = "..."
+channel_id = "..."
+thread_replies = true
+mention_only = false
+allowed_users = ["*"]
+
 [[mcp.servers]]
 name = "google-workspace"
 command = "/usr/local/bin/gws-mcp"
 args = []
-
-[channels.board]
-enabled = true
-token = "quickclaw"
-allow_token_query = true
-allow_origins = ["*"]
 ```
+
+## board-bridge API 경로
+
+board-bridge는 ZeroClaw gateway(`localhost:18790`)의 HTTP 프록시입니다.
+
+| 경로 | 메서드 | 설명 |
+|------|--------|------|
+| `/board/chat` | POST | ZeroClaw `/webhook`으로 메시지 전달 (JSON `{"message":"..."}`) |
+| `/board/chat/stream` | POST | SSE 스트리밍 (ZeroClaw 지원 시) |
+| `/board/token` | GET | webhook secret 반환 |
+| `/board/model` | GET/PUT | 현재 모델 조회/변경 (config.toml 직접 수정 + 재시작) |
+| `/board/files/{path}` | GET | workspace 파일 다운로드 |
+| `/board/me` | GET | CF Access 사용자 이메일 |
+| `/health` | GET | ZeroClaw health check 전달 |
+
+### 메시지 흐름
+
+```
+웹 UI
+  └─ POST /board/chat {"message": "..."}
+       └─ board-bridge
+            └─ POST http://localhost:18790/webhook
+                 X-Webhook-Secret: quickclaw
+                 {"message": "..."}
+                 └─ ZeroClaw LLM 처리
+                 └─ {"response": "...", "model": "..."}
+            └─ JSON 응답 → 웹 UI
+```
+
+## Mattermost 설정
+
+ZeroClaw가 Mattermost REST API v4를 3초마다 폴링합니다. bot token + channel_id 필요.
+
+### 준비 사항
+
+1. Mattermost 서버 설치 (온보드 또는 외부)
+2. 봇 계정 생성: System Console → Integrations → Bot Accounts
+3. 채널 ID 확인: 채널 URL의 마지막 부분
+
+### 푸시 알림 프라이버시
+
+`internkim setup` step 9에서 선택:
+- `full` — 메시지 내용 포함 (push.mattermost.com 경유)
+- `generic` — "새 메시지가 있습니다" (내용 미포함)
+- `id_loaded` — 알림만 전달, 앱이 서버에서 직접 내용 가져옴 (권장, 기본값)
 
 ## Google 서비스 계정 자동 생성
 
@@ -145,11 +229,7 @@ allow_origins = ["*"]
 3. SA 키 JSON 발급 → 보드 SCP → `/root/.internkim/secrets/google-sa.json`
 4. `chown gws`, `chmod 640` 적용
 
-이후 ZeroClaw가 gws MCP를 통해 Google Workspace 작업 수행. 생성된 파일은 서비스 계정 소유 → 사용자 이메일로 공유 필요 시 `gws drive files share` 사용.
-
 ## 개발 시뮬레이터
-
-별도 ARM 환경(SSH 접속 가능)을 시뮬레이터로 사용:
 
 ```bash
 # SSH 접속 (localhost:2222)
@@ -157,33 +237,21 @@ allow_origins = ["*"]
 
 # 시뮬레이터에 provisioning
 ./internkim setup --sim
+./internkim deploy --sim
 ```
-
-`--sim` 플래그는 `detectBoard()`에서 `localhost:2222`를 우선 사용.
-
-## board-bridge API 경로
-
-| 경로 | 설명 |
-|------|------|
-| `GET/WS /board/ws` | ZeroClaw WebSocket 프록시 (:18790) |
-| `GET /board/token` | 인증 토큰 (`pico-{pid_token}{channel_token}`) |
-| `GET/PUT /board/model` | 현재 모델 조회/변경 |
-| `GET /board/history/{session_id}` | 세션 대화 히스토리 |
-| `GET /board/me` | CF Access 사용자 이메일 |
-| `GET /board/files/{path}` | workspace 파일 다운로드 |
 
 ## 변경된 파일
 
 | 파일 | 변경 내용 |
 |------|----------|
-| `main.go` | GOARCH arm64, zeroclaw 경로, ZeroClaw+gws 배포, Google SA 자동생성, sim 커맨드 |
-| `cmd/board-bridge/main.go` | pico-bridge에서 복사 후 `/pico/*` → `/board/*`, 경로 zeroclaw |
-| `README.md` | 전체 업데이트 |
+| `main.go` | GOARCH arm64, zeroclaw 설치, Google SA, Mattermost setup, sim 커맨드 |
+| `cmd/board-bridge/main.go` | ZeroClaw gateway HTTP 프록시 (/board/* 경로) |
+| `README.md` | ARM64/ZeroClaw/gws/Mattermost 스택 업데이트 |
 | `docs/architecture.md` | 이 문서 |
 
 ## 소스 수정 없는 외부 컴포넌트
 
-- **ZeroClaw**: `cargo build --target aarch64-unknown-linux-gnu --release` 크로스컴파일
-- **gws (googleworkspace/cli)**: Rust, ARM64 크로스컴파일
+- **ZeroClaw**: `cargo build --target aarch64-unknown-linux-gnu --release`
+- **gws (Google Workspace CLI)**: `cargo build --target aarch64-unknown-linux-gnu --release`
 - **Mattermost**: Cloudflare Access SAML SSO 설정만, 소스 수정 없음
 - **cloudflared**: 기존과 동일
