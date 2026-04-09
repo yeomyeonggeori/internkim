@@ -110,12 +110,16 @@ func printUsage() {
 func runSetup() {
 	lang := "ko"
 	force := false
+	sim := false
 	for _, a := range os.Args {
 		if a == "--en" {
 			lang = "en"
 		}
 		if a == "--force" {
 			force = true
+		}
+		if a == "--sim" {
+			sim = true
 		}
 	}
 	m := newMsg(lang)
@@ -137,16 +141,22 @@ func runSetup() {
 
 	// 1. Board detection
 	step(1, totalSteps, m.t("보드 연결 확인 중...", "Detecting board..."))
-	boardIP := detectBoard(usbNCMIPs)
-	if boardIP == "" {
-		fatal(m.t(
-			"보드를 찾을 수 없습니다.\nUSB-C 데이터 케이블로 보드와 컴퓨터를 연결하고 30초 기다린 후 다시 시도하세요.",
-			"Board not found.\nConnect the board with a USB-C data cable and wait 30 seconds.",
-		))
+	var boardIP string
+	var ssh *sshClient
+	if sim {
+		boardIP = "localhost"
+		ssh = newSSHWithPort(sshpassBin, boardUser, "", boardIP, "2222")
+	} else {
+		boardIP = detectBoard(usbNCMIPs)
+		if boardIP == "" {
+			fatal(m.t(
+				"보드를 찾을 수 없습니다.\nUSB-C 데이터 케이블로 보드와 컴퓨터를 연결하고 30초 기다린 후 다시 시도하세요.",
+				"Board not found.\nConnect the board with a USB-C data cable and wait 30 seconds.",
+			))
+		}
+		ssh = newSSH(sshpassBin, boardUser, boardPass, boardIP)
 	}
 	fmt.Printf("  %s: %s\n", m.t("보드 발견", "Board found"), boardIP)
-
-	ssh := newSSH(sshpassBin, boardUser, boardPass, boardIP)
 
 	// 2. Wi-Fi detection
 	step(2, totalSteps, m.t("Wi-Fi 정보 감지 중...", "Detecting Wi-Fi..."))
@@ -301,8 +311,8 @@ chmod 440 /etc/sudoers.d/zeroclaw-gws`)
 
 	// 6. OpenRouter API key + zeroclaw config
 	step(6, totalSteps, m.t("OpenRouter API 키 설정...", "Configuring OpenRouter API key..."))
-	existingKey := strings.TrimSpace(ssh.run("cat /root/.internkim/secrets/openrouter-api-key 2>/dev/null"))
-	skipAPIKey := !force && existingKey != ""
+	existingKey := strings.TrimSpace(ssh.run("test -f /root/.internkim/secrets/openrouter-api-key && echo yes || echo no"))
+	skipAPIKey := !force && existingKey == "yes"
 	if skipAPIKey {
 		fmt.Printf("  %s\n", m.t("이미 설정됨 — 건너뜀", "Already configured — skipping"))
 	} else {
@@ -314,8 +324,8 @@ chmod 440 /etc/sudoers.d/zeroclaw-gws`)
 		}
 		fmt.Printf("  %s: %s\n", m.t("API 키", "API key"), maskKey(apiKey))
 
-		// Store API key in secrets dir, owned by zeroclaw uid
-		ssh.run(fmt.Sprintf(`printf '%%s' '%s' > /root/.internkim/secrets/openrouter-api-key
+		// Store API key as KEY=VALUE for systemd EnvironmentFile, owned by zeroclaw uid
+		ssh.run(fmt.Sprintf(`printf 'OPENROUTER_API_KEY=%%s' '%s' > /root/.internkim/secrets/openrouter-api-key
 chown zeroclaw /root/.internkim/secrets/openrouter-api-key
 chmod 640 /root/.internkim/secrets/openrouter-api-key`, apiKey))
 
@@ -425,10 +435,7 @@ chmod 640 /root/.internkim/secrets/google-sa.json`)
 	// 10. Services autostart + swap
 	step(10, totalSteps, m.t("서비스 시작 중...", "Starting services..."))
 
-	// Remove stale httpd init script (pico-bridge handles static serving now)
-	ssh.run("rm -f /etc/init.d/S97httpd; kill $(ps | grep 'python3 -m http.server' | grep -v grep | awk '{print $1}') 2>/dev/null || true")
-
-	// Remove stale httpd init script
+	// Remove stale httpd init script (board-bridge handles static serving now)
 	ssh.run("rm -f /etc/init.d/S97httpd; kill $(ps | grep 'python3 -m http.server' | grep -v grep | awk '{print $1}') 2>/dev/null || true")
 
 	// Remove skills whose required binaries are not available on this device
@@ -444,11 +451,10 @@ After=network.target
 
 [Service]
 User=zeroclaw
-ExecStartPre=/bin/sh -c 'export OPENROUTER_API_KEY=$(cat /root/.internkim/secrets/openrouter-api-key)'
+EnvironmentFile=/root/.internkim/secrets/openrouter-api-key
+Environment=HOME=/root
 ExecStart=/usr/local/bin/zeroclaw gateway
 Restart=on-failure
-Environment=HOME=/root
-EnvironmentFile=-/root/.internkim/secrets/openrouter-api-key
 
 [Install]
 WantedBy=multi-user.target
@@ -554,7 +560,7 @@ func modelSetCmd(ssh *sshClient, modelID string) {
 
 
 func modelListCmd(ssh *sshClient) {
-	apiKey := strings.TrimSpace(ssh.run("cat /root/.internkim/secrets/openrouter-api-key 2>/dev/null"))
+	apiKey := strings.TrimPrefix(strings.TrimSpace(ssh.run("cat /root/.internkim/secrets/openrouter-api-key 2>/dev/null")), "OPENROUTER_API_KEY=")
 	if apiKey == "" {
 		fatal("No OpenRouter API key found on board.")
 	}
@@ -973,45 +979,55 @@ type sshClient struct {
 	user       string
 	pass       string
 	host       string
+	port       string
 }
 
 func newSSH(sshpassBin, user, pass, host string) *sshClient {
-	return &sshClient{sshpassBin: sshpassBin, user: user, pass: pass, host: host}
+	return &sshClient{sshpassBin: sshpassBin, user: user, pass: pass, host: host, port: "22"}
 }
 
-func (s *sshClient) run(cmd string) string {
-	args := []string{"-p", s.pass, "ssh",
+func newSSHWithPort(sshpassBin, user, pass, host, port string) *sshClient {
+	return &sshClient{sshpassBin: sshpassBin, user: user, pass: pass, host: host, port: port}
+}
+
+func (s *sshClient) sshArgs(extra ...string) []string {
+	base := []string{
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "UserKnownHostsFile=/dev/null",
 		"-o", "ConnectTimeout=10",
 		"-o", "LogLevel=ERROR",
-		fmt.Sprintf("%s@%s", s.user, s.host),
-		cmd,
+		"-p", s.port,
 	}
-	out, _ := exec.Command(s.sshpassBin, args...).CombinedOutput()
+	return append(base, extra...)
+}
+
+func (s *sshClient) run(cmd string) string {
+	var args []string
+	if s.pass != "" {
+		args = append([]string{"-p", s.pass, "ssh"}, s.sshArgs(fmt.Sprintf("%s@%s", s.user, s.host), cmd)...)
+		out, _ := exec.Command(s.sshpassBin, args...).CombinedOutput()
+		return string(out)
+	}
+	out, _ := exec.Command("ssh", append(s.sshArgs(fmt.Sprintf("%s@%s", s.user, s.host), cmd))...).CombinedOutput()
 	return string(out)
 }
 
 func (s *sshClient) scp(localPath, remotePath string) {
-	args := []string{"-p", s.pass, "scp",
-		"-o", "StrictHostKeyChecking=no",
-		"-o", "UserKnownHostsFile=/dev/null",
-		"-o", "LogLevel=ERROR",
-		localPath,
-		fmt.Sprintf("%s@%s:%s", s.user, s.host, remotePath),
+	target := fmt.Sprintf("%s@%s:%s", s.user, s.host, remotePath)
+	if s.pass != "" {
+		exec.Command(s.sshpassBin, append([]string{"-p", s.pass, "scp"}, s.sshArgs(localPath, target)...)...).Run()
+		return
 	}
-	exec.Command(s.sshpassBin, args...).Run()
+	exec.Command("scp", s.sshArgs(localPath, target)...).Run()
 }
 
 func (s *sshClient) scpDir(localDir, remoteDir string) {
-	args := []string{"-p", s.pass, "scp", "-r",
-		"-o", "StrictHostKeyChecking=no",
-		"-o", "UserKnownHostsFile=/dev/null",
-		"-o", "LogLevel=ERROR",
-		localDir + "/.",
-		fmt.Sprintf("%s@%s:%s", s.user, s.host, remoteDir),
+	target := fmt.Sprintf("%s@%s:%s", s.user, s.host, remoteDir)
+	if s.pass != "" {
+		exec.Command(s.sshpassBin, append([]string{"-p", s.pass, "scp", "-r"}, s.sshArgs(localDir+"/.", target)...)...).Run()
+		return
 	}
-	exec.Command(s.sshpassBin, args...).Run()
+	exec.Command("scp", append([]string{"-r"}, s.sshArgs(localDir+"/.", target)...)...).Run()
 }
 
 // --- Config builders ---
