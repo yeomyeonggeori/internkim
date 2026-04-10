@@ -1236,7 +1236,7 @@ chmod 600 /root/.zeroclaw/config.toml`, zeroclawConfig))
 }
 
 const simContainerName = "internkim-sim"
-const simImage = "debian:bookworm-slim"
+const simImage = "debian:trixie-slim"
 const simSharedDir = "~/.internkim/shared"
 
 func runSim() {
@@ -1650,6 +1650,19 @@ forbidden_paths = []
 max_actions_per_hour = 1000
 require_approval_for_medium_risk = false
 block_high_risk_commands = false
+
+[agent]
+max_tool_iterations = 25
+max_context_tokens = 203000
+max_tool_result_chars = 10000
+
+[agent.history_pruning]
+enabled = true
+max_tokens = 32000
+keep_recent = 15
+
+[agent.context_compression]
+protect_last_n = 8
 
 [browser]
 enabled = true
