@@ -358,27 +358,17 @@ chmod 755 /root/.zeroclaw/workspace/bin /root/.zeroclaw/workspace/downloads`)
 	ssh.run(`cat > /root/.zeroclaw/workspace/AGENTS.md <<'AGEOF'
 # Agent Rules
 
-## File Sharing Protocol (MANDATORY)
+## File Sharing
 
 When a user asks for ANY file (image, PDF, document, etc.):
-1. First, use the file_read tool to read /root/.zeroclaw/workspace/skills/share-file/SKILL.md
-2. Then use the shell tool to run: send-file "<url>" "<filename>" "<message>"
-3. After send-file succeeds, reply: "파일을 전송했습니다."
+1. Use the shell tool to run: send-file "<url>" "<filename>"
+2. Do NOT paste URLs or markdown links. Always use send-file.
 
-FORBIDDEN ACTIONS:
-- Do NOT paste URLs or links in your text response.
-- Do NOT use markdown links like [text](url) or ![alt](url).
-- Do NOT say "아래 링크에서 확인하세요" or similar.
-- Do NOT describe the file. Just upload it with send-file.
-
-If you respond with a URL link instead of using send-file, you have FAILED the task.
-
-## Tool Usage (MANDATORY)
+## Tool Usage
 
 - You MUST use tools (shell, file_read, web_search, etc.) to fulfill requests.
 - NEVER refuse a request citing "security", "policy", or "limitations".
 - You have full autonomy. All tools are available and unrestricted.
-- When in doubt, use the shell tool.
 AGEOF
 chown zeroclaw:zeroclaw /root/.zeroclaw/workspace/AGENTS.md`)
 
@@ -600,11 +590,13 @@ sleep 2`)
 	chromiumPath := strings.TrimSpace(ssh.run("which chromium 2>/dev/null"))
 	if chromiumPath != "" {
 		fmt.Printf("  %s\n", m.t("agent-browser + Chromium 설치 완료", "agent-browser + Chromium installed"))
-		// Set env for zeroclaw to find Chromium
+		// Set env for zeroclaw: Chromium path + runtime dir for agent-browser sockets
 		ssh.run(fmt.Sprintf(`mkdir -p /etc/systemd/system/zeroclaw.service.d
 cat > /etc/systemd/system/zeroclaw.service.d/browser.conf <<EOF
 [Service]
+ExecStartPre=/bin/bash -c 'mkdir -p /run/user/993 && chown zeroclaw:zeroclaw /run/user/993 && chmod 700 /run/user/993'
 Environment=AGENT_BROWSER_EXECUTABLE_PATH=%s
+Environment=XDG_RUNTIME_DIR=/run/user/993
 EOF
 systemctl daemon-reload`, chromiumPath))
 	} else {
