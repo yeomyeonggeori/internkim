@@ -243,10 +243,10 @@ udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true`, wpaConf))
 	}
 
 	// 5. Install zeroclaw + gws + cloudflared on board
-	step(5, totalSteps, m.t("zeroclaw + gws + cloudflared + rtk + lightpanda 설치 중...", "Installing zeroclaw + gws + cloudflared + rtk + lightpanda..."))
+	step(5, totalSteps, m.t("zeroclaw + gws + cloudflared + rtk + agent-browser 설치 중...", "Installing zeroclaw + gws + cloudflared + rtk + agent-browser..."))
 	cloudflaredBin := filepath.Join(boardBinDir, "cloudflared")
 	rtkBin := filepath.Join(boardBinDir, "rtk")
-	lightpandaBin := filepath.Join(boardBinDir, "lightpanda")
+	agentBrowserBin := filepath.Join(boardBinDir, "agent-browser")
 
 	// Auto-download binaries from GitHub releases if not present locally
 	type binarySpec struct {
@@ -281,10 +281,10 @@ udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true`, wpaConf))
 			name:      "rtk",
 		},
 		{
-			localPath: lightpandaBin,
-			url:       "https://github.com/lightpanda-io/browser/releases/download/nightly/lightpanda-aarch64-linux",
+			localPath: agentBrowserBin,
+			url:       "https://github.com/vercel-labs/agent-browser/releases/latest/download/agent-browser-linux-arm64",
 			tarEntry:  "",
-			name:      "lightpanda",
+			name:      "agent-browser",
 		},
 	}
 	os.MkdirAll(boardBinDir, 0755)
@@ -321,7 +321,7 @@ udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true`, wpaConf))
 			{gwsBin, "/usr/local/bin/gws", "gws"},
 			{cloudflaredBin, "/usr/local/bin/cloudflared", "cloudflared"},
 			{rtkBin, "/usr/local/bin/rtk", "rtk"},
-			{lightpandaBin, "/usr/local/bin/lightpanda", "lightpanda"},
+			{agentBrowserBin, "/usr/local/bin/agent-browser", "agent-browser"},
 		},
 		toolBinEntries(boardBinDir, toolBins)...,
 	) {
@@ -561,30 +561,23 @@ sleep 2`)
 		fmt.Printf("  %s\n", m.t("gateway 시작 실패", "Gateway failed"))
 	}
 
-	// lightpanda systemd service (CDP server on 127.0.0.1:9222)
-	ssh.run(`cat > /etc/systemd/system/lightpanda.service <<'SVCEOF'
-[Unit]
-Description=Lightpanda Headless Browser (CDP)
-After=network.target
-
+	// agent-browser: install Chromium (ARM64 needs system package, not Chrome for Testing)
+	ssh.run("apt-get install -y -qq chromium 2>/dev/null")
+	chromiumPath := strings.TrimSpace(ssh.run("which chromium 2>/dev/null"))
+	if chromiumPath != "" {
+		fmt.Printf("  %s\n", m.t("agent-browser + Chromium 설치 완료", "agent-browser + Chromium installed"))
+		// Set env for zeroclaw to find Chromium
+		ssh.run(fmt.Sprintf(`mkdir -p /etc/systemd/system/zeroclaw.service.d
+cat > /etc/systemd/system/zeroclaw.service.d/browser.conf <<EOF
 [Service]
-ExecStart=/usr/local/bin/lightpanda serve --host 127.0.0.1 --port 9222
-Restart=on-failure
-Environment=LIGHTPANDA_DISABLE_TELEMETRY=true
-
-[Install]
-WantedBy=multi-user.target
-SVCEOF
-systemctl daemon-reload
-systemctl enable lightpanda
-systemctl restart lightpanda`)
-
-	lpStatus := strings.TrimSpace(ssh.run("systemctl is-active lightpanda"))
-	if lpStatus == "active" {
-		fmt.Printf("  %s\n", m.t("lightpanda CDP 서버 실행 중 (port 9222)", "lightpanda CDP server running (port 9222)"))
+Environment=AGENT_BROWSER_EXECUTABLE_PATH=%s
+EOF
+systemctl daemon-reload`, chromiumPath))
 	} else {
-		fmt.Printf("  %s\n", m.t("lightpanda 시작 실패 (건너뜀)", "lightpanda failed to start (skipped)"))
+		fmt.Printf("  %s\n", m.t("Chromium 설치 실패 (건너뜀)", "Chromium install failed (skipped)"))
 	}
+	// Stop old lightpanda if present
+	ssh.run("systemctl stop lightpanda 2>/dev/null; systemctl disable lightpanda 2>/dev/null; rm -f /etc/systemd/system/lightpanda.service; systemctl daemon-reload")
 
 	// rtk hook: install OpenClaw plugin for token optimization
 	ssh.run(`if command -v rtk >/dev/null 2>&1 && command -v zeroclaw >/dev/null 2>&1; then
@@ -1314,6 +1307,7 @@ exec /lib/systemd/systemd`
 
 	cmd := exec.Command("container", "run",
 		"--name", simContainerName,
+		"--memory", "2G",
 		"--volume", sharedDir+":/root/shared",
 		"--detach",
 		simImage,
@@ -1660,20 +1654,12 @@ block_high_risk_commands = false
 [browser]
 enabled = true
 allowed_domains = ["*"]
-backend = "rust_native"
-native_headless = true
-native_webdriver_url = "ws://127.0.0.1:9222"
+backend = "agent_browser"
 
 [[mcp.servers]]
 name = "google-workspace"
 command = "/usr/local/bin/gws-mcp"
 args = []
-
-[[mcp.servers]]
-name = "browser"
-transport = "stdio"
-command = "/usr/local/bin/lightpanda"
-args = ["mcp"]
 `, model, mmSection)
 }
 
