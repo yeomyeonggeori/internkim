@@ -364,6 +364,11 @@ When a user asks for ANY file (image, PDF, document, etc.):
 1. Use the shell tool to run: send-file "<url>" "<filename>"
 2. Do NOT paste URLs or markdown links. Always use send-file.
 
+## Memory
+
+- At the START of every conversation, call role_memory_recall with the user's topic to load relevant context.
+- When you learn important facts, preferences, or decisions, call role_memory_store to save them.
+
 ## Tool Usage
 
 - You MUST use tools (shell, file_read, web_search, etc.) to fulfill requests.
@@ -382,9 +387,14 @@ exec sudo -u gws /usr/local/bin/gws mcp
 WRAPEOF
 chmod 755 /usr/local/bin/gws-mcp`)
 
-	// sudoers: allow zeroclaw to run gws as gws uid without password
-	ssh.run(`echo 'zeroclaw ALL=(gws) NOPASSWD: /usr/local/bin/gws' > /etc/sudoers.d/zeroclaw-gws
-chmod 440 /etc/sudoers.d/zeroclaw-gws`)
+	// sudoers: zeroclaw can run gws as gws uid and role-memory as root
+	ssh.run(`mkdir -p /etc/sudoers.d
+cat > /etc/sudoers.d/zeroclaw-mcp <<'EOF'
+zeroclaw ALL=(gws) NOPASSWD: /usr/local/bin/gws
+zeroclaw ALL=(root) NOPASSWD: /usr/local/bin/role-memory
+EOF
+chmod 440 /etc/sudoers.d/zeroclaw-mcp
+rm -f /etc/sudoers.d/zeroclaw-gws /usr/local/bin/role-memory-mcp`)
 
 	// 5b. Prepare workspace tools
 	for _, tool := range toolBins {
@@ -988,29 +998,54 @@ which pg_isready 2>/dev/null && echo already || {
 		mmDBPass = "mmpass_" + hex.EncodeToString(func() []byte { b := make([]byte, 6); rand.Read(b); return b }())
 		ssh.run(fmt.Sprintf("mkdir -p /root/.internkim/secrets && printf '%%s' '%s' > /root/.internkim/secrets/mm-db-pass && chmod 600 /root/.internkim/secrets/mm-db-pass", mmDBPass))
 	}
-	ssh.run(fmt.Sprintf(`
+	fmt.Printf("  %s\n", m.t("PostgreSQL 시작 및 DB 설정 중...", "Starting PostgreSQL and configuring DB..."))
+	pgOut := ssh.run(fmt.Sprintf(`
 systemctl start postgresql 2>/dev/null || service postgresql start 2>/dev/null || true
 sleep 2
-su - postgres -c "psql -c \"SELECT 1 FROM pg_roles WHERE rolname='mmuser'\" | grep -q 1 || psql -c \"CREATE USER mmuser WITH PASSWORD '%s'\"" 2>/dev/null || true
-su - postgres -c "psql -c \"SELECT 1 FROM pg_database WHERE datname='mattermost'\" | grep -q 1 || psql -c \"CREATE DATABASE mattermost OWNER mmuser\"" 2>/dev/null || true
+pg_isready -q 2>/dev/null && echo "pg_ready" || echo "pg_not_ready"
+su - postgres -c "psql -c \"SELECT 1 FROM pg_roles WHERE rolname='mmuser'\" | grep -q 1 || psql -c \"CREATE USER mmuser WITH PASSWORD '%s'\"" 2>/dev/null && echo "user_ok" || echo "user_failed"
+su - postgres -c "psql -c \"SELECT 1 FROM pg_database WHERE datname='mattermost'\" | grep -q 1 || psql -c \"CREATE DATABASE mattermost OWNER mmuser\"" 2>/dev/null && echo "db_ok" || echo "db_failed"
 su - postgres -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE mattermost TO mmuser\"" 2>/dev/null || true`, mmDBPass))
+	if strings.Contains(pgOut, "pg_not_ready") {
+		fmt.Printf("  ERROR: %s\n", m.t("PostgreSQL이 준비되지 않음", "PostgreSQL not ready"))
+	}
+	if strings.Contains(pgOut, "user_failed") {
+		fmt.Printf("  ERROR: %s\n", m.t("mmuser 생성 실패", "Failed to create mmuser"))
+	}
+	if strings.Contains(pgOut, "db_failed") {
+		fmt.Printf("  ERROR: %s\n", m.t("mattermost DB 생성 실패", "Failed to create mattermost DB"))
+	}
+	if !strings.Contains(pgOut, "pg_not_ready") && !strings.Contains(pgOut, "user_failed") && !strings.Contains(pgOut, "db_failed") {
+		fmt.Printf("  %s\n", m.t("PostgreSQL DB/사용자 설정 완료", "PostgreSQL DB/user configured"))
+	}
 
 	// Download and install Mattermost (arm64 tarball)
-	fmt.Printf("  %s\n", m.t("Mattermost 다운로드 중 (arm64)...", "Downloading Mattermost (arm64)..."))
+	fmt.Printf("  %s\n", m.t("Mattermost 버전 확인 중...", "Checking Mattermost version..."))
 	installOut := ssh.run(`
 cd /tmp
 MMVER=$(curl -s https://api.github.com/repos/mattermost/mattermost/releases/latest 2>/dev/null | grep '"tag_name"' | head -1 | sed 's/.*"v//;s/".*//')
-[ -z "$MMVER" ] && MMVER="11.5.1"
+[ -z "$MMVER" ] && MMVER="10.9.1"
+echo "MMVER=${MMVER}"
 URL="https://releases.mattermost.com/${MMVER}/mattermost-${MMVER}-linux-arm64.tar.gz"
-echo "Downloading Mattermost $MMVER..."
+echo "Downloading Mattermost ${MMVER}..."
 curl -fsSL -o /tmp/mattermost.tar.gz "$URL" 2>&1 | tail -1 && echo "download_ok" || echo "download_failed"`)
+	mmver := ""
+	for _, line := range strings.Split(installOut, "\n") {
+		if strings.HasPrefix(line, "MMVER=") {
+			mmver = strings.TrimPrefix(strings.TrimSpace(line), "MMVER=")
+		}
+	}
+	if mmver != "" {
+		fmt.Printf("  %s: %s\n", m.t("Mattermost 버전", "Mattermost version"), mmver)
+	}
 	if strings.Contains(installOut, "download_failed") {
-		fmt.Printf("  %s\n", m.t("Mattermost 다운로드 실패 — 건너뜀", "Mattermost download failed — skipping"))
+		fmt.Printf("  ERROR: %s\n", m.t("Mattermost 다운로드 실패 — 건너뜀", "Mattermost download failed — skipping"))
 		return
 	}
+	fmt.Printf("  %s\n", m.t("Mattermost 다운로드 완료, 설치 중...", "Download complete, installing..."))
 
-	ssh.run(fmt.Sprintf(`
-cd /tmp && tar -xzf mattermost.tar.gz
+	installResult := ssh.run(fmt.Sprintf(`
+cd /tmp && tar -xzf mattermost.tar.gz 2>&1 && echo "tar_ok" || echo "tar_failed"
 rm -rf /opt/mattermost
 mv /tmp/mattermost /opt/mattermost
 mkdir -p /opt/mattermost/data
@@ -1020,14 +1055,12 @@ chmod -R g+w /opt/mattermost
 
 # Write config
 cd /opt/mattermost
-cp config/config.defaults.json config/config.json 2>/dev/null || cp config/config.json config/config.json.bak 2>/dev/null || true
-SITE_URL="http://localhost:8065"
+cp config/config.defaults.json config/config.json 2>/dev/null && echo "defaults_used" || echo "defaults_missing"
 DB_PASS="%s"
 jq --arg ds "postgres://mmuser:${DB_PASS}@localhost/mattermost?sslmode=disable&connect_timeout=10" \
-   --arg url "$SITE_URL" \
+   --arg url "http://localhost:8065" \
    '.SqlSettings.DriverName = "postgres" | .SqlSettings.DataSource = $ds | .ServiceSettings.SiteURL = $url' \
-   config/config.json > config/config.tmp && mv config/config.tmp config/config.json
-# Systemd service
+   config/config.json > config/config.tmp && mv config/config.tmp config/config.json && echo "config_ok" || echo "config_failed"
 cat > /etc/systemd/system/mattermost.service <<'SVCEOF'
 [Unit]
 Description=Mattermost
@@ -1050,21 +1083,40 @@ LimitNOFILE=49152
 WantedBy=multi-user.target
 SVCEOF
 systemctl daemon-reload
-systemctl enable mattermost
-systemctl start mattermost
-sleep 5
-curl -s http://localhost:8065/api/v4/system/ping 2>/dev/null | grep -q "OK" && echo "mattermost_running" || echo "mattermost_starting"`, mmDBPass))
+systemctl enable mattermost 2>&1 && echo "enable_ok" || echo "enable_failed"
+systemctl start mattermost 2>&1 && echo "start_ok" || echo "start_failed"`, mmDBPass))
+
+	if strings.Contains(installResult, "tar_failed") {
+		fmt.Printf("  ERROR: %s\n", m.t("압축 해제 실패", "Failed to extract tarball"))
+	}
+	if strings.Contains(installResult, "defaults_missing") {
+		fmt.Printf("  WARN: %s\n", m.t("config.defaults.json 없음 — 기존 config.json 사용", "config.defaults.json missing — using existing config.json"))
+	}
+	if strings.Contains(installResult, "config_failed") {
+		fmt.Printf("  ERROR: %s\n", m.t("config.json 작성 실패 (jq 오류?)", "Failed to write config.json (jq error?)"))
+	}
+	if strings.Contains(installResult, "enable_failed") {
+		fmt.Printf("  ERROR: %s\n", m.t("systemctl enable mattermost 실패", "systemctl enable mattermost failed"))
+	}
+	if strings.Contains(installResult, "start_failed") {
+		startLog := strings.TrimSpace(ssh.run(`journalctl -u mattermost -n 20 --no-pager 2>/dev/null || systemctl status mattermost --no-pager 2>/dev/null | tail -20`))
+		fmt.Printf("  ERROR: %s\n", m.t("systemctl start mattermost 실패", "systemctl start mattermost failed"))
+		fmt.Printf("  --- journal ---\n%s\n  ---------------\n", startLog)
+		return
+	}
 
 	status := strings.TrimSpace(ssh.run(`systemctl is-active mattermost 2>/dev/null`))
 	if status == "active" {
 		fmt.Printf("  %s\n", m.t("Mattermost 실행 중 (:8065)", "Mattermost running (:8065)"))
 	} else {
-		fmt.Printf("  %s\n", m.t("Mattermost 시작 중... (systemctl status mattermost 로 확인)", "Mattermost starting... (check: systemctl status mattermost)"))
+		statusLog := strings.TrimSpace(ssh.run(`journalctl -u mattermost -n 20 --no-pager 2>/dev/null || systemctl status mattermost --no-pager 2>/dev/null | tail -20`))
+		fmt.Printf("  WARN: %s (status: %s)\n", m.t("Mattermost가 아직 시작 중이거나 실패", "Mattermost not yet active or failed"), status)
+		fmt.Printf("  --- journal ---\n%s\n  ---------------\n", statusLog)
 	}
 }
 
 func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
-	existingURL := strings.TrimSpace(ssh.run("cat /root/.internkim/mattermost-url 2>/dev/null"))
+	existingURL := strings.TrimSpace(ssh.run("cat /root/.internkim/env/mattermost-url 2>/dev/null"))
 	if !force && existingURL != "" {
 		// Verify admin user actually exists (DB may have been reset)
 		adminExists := strings.TrimSpace(ssh.run("cd /opt/mattermost && bin/mmctl --local user list 2>/dev/null | grep -c admin || echo 0"))
@@ -1080,18 +1132,31 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 	localURL := "http://localhost:8065"
 
 	// Wait for Mattermost to be ready (up to 3 minutes — first boot runs DB migrations)
-	fmt.Printf("  %s\n", m.t("Mattermost 준비 대기 중...", "Waiting for Mattermost..."))
+	fmt.Printf("  %s\n", m.t("Mattermost 준비 대기 중 (최대 3분)...", "Waiting for Mattermost (up to 3 min)..."))
 	ready := false
 	for i := 0; i < 60; i++ {
 		ping := strings.TrimSpace(ssh.run(`curl -sf http://localhost:8065/api/v4/system/ping 2>/dev/null | grep -o '"status":"OK"' || echo ""`))
 		if ping != "" {
 			ready = true
+			fmt.Printf("  %s (%ds)\n", m.t("Mattermost 응답 확인", "Mattermost responded"), (i+1)*3)
 			break
+		}
+		if i > 0 && i%10 == 0 {
+			svcStatus := strings.TrimSpace(ssh.run(`systemctl is-active mattermost 2>/dev/null`))
+			fmt.Printf("  %s %ds... (service: %s)\n", m.t("대기 중", "waiting"), (i+1)*3, svcStatus)
+			if svcStatus == "failed" {
+				failLog := strings.TrimSpace(ssh.run(`journalctl -u mattermost -n 30 --no-pager 2>/dev/null`))
+				fmt.Printf("  ERROR: %s\n  --- journal ---\n%s\n  ---------------\n",
+					m.t("Mattermost 서비스 실패 상태", "Mattermost service in failed state"), failLog)
+				break
+			}
 		}
 		time.Sleep(3 * time.Second)
 	}
 	if !ready {
-		fmt.Printf("  %s\n", m.t("Mattermost 시작 실패 — 건너뜀", "Mattermost not ready — skipping"))
+		finalLog := strings.TrimSpace(ssh.run(`journalctl -u mattermost -n 30 --no-pager 2>/dev/null || systemctl status mattermost --no-pager 2>/dev/null | tail -30`))
+		fmt.Printf("  ERROR: %s\n  --- journal ---\n%s\n  ---------------\n",
+			m.t("Mattermost 시작 실패 — 건너뜀", "Mattermost not ready — skipping"), finalLog)
 		return
 	}
 
@@ -1260,17 +1325,14 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 		deviceURL = localURL
 	}
 	ssh.run(fmt.Sprintf(`mkdir -p /root/.internkim/secrets /root/.internkim/env
-printf '%%s' '%s' > /root/.internkim/mattermost-url
-printf '%%s' '%s' > /root/.internkim/mattermost-admin-token
-printf '%%s' '%s' > /root/.internkim/secrets/mattermost-bot-token
-chmod 600 /root/.internkim/mattermost-url /root/.internkim/mattermost-admin-token
-chmod 640 /root/.internkim/secrets/mattermost-bot-token
+printf '%%s' '%s' > /root/.internkim/env/mattermost-url
 printf '%%s' '%s' > /root/.internkim/env/bot-token
 printf '%%s' '%s' > /root/.internkim/env/channel-id
-chown root:zeroclaw /root/.internkim/env /root/.internkim/env/bot-token /root/.internkim/env/channel-id
+chown root:zeroclaw /root/.internkim/env /root/.internkim/env/*
 chmod 750 /root/.internkim/env
-chmod 640 /root/.internkim/env/bot-token /root/.internkim/env/channel-id`,
-		deviceURL, adminToken, botToken, botToken, channelID))
+chmod 640 /root/.internkim/env/*
+rm -f /root/.internkim/mattermost-url /root/.internkim/mattermost-admin-token /root/.internkim/mattermost-channel-id /root/.internkim/secrets/mattermost-bot-token`,
+		deviceURL, botToken, channelID))
 
 	// 9. Write zeroclaw config with Mattermost channel
 	mm := &mattermostConfig{
@@ -1358,7 +1420,7 @@ func simEnsureRunning() string {
 
 	initScript := `export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq openssh-server systemd systemd-sysv dbus curl wget ca-certificates gnupg 2>/dev/null
+apt-get install -y -qq openssh-server systemd systemd-sysv dbus curl wget ca-certificates gnupg sudo 2>/dev/null
 mkdir -p /root/.ssh /run/sshd
 echo "PermitRootLogin yes" >> /etc/ssh/sshd_config
 echo "PasswordAuthentication no" >> /etc/ssh/sshd_config
@@ -1728,6 +1790,9 @@ keep_recent = 15
 [agent.context_compression]
 protect_last_n = 8
 
+[memory]
+backend = "none"
+
 [browser]
 enabled = true
 allowed_domains = ["*"]
@@ -1737,6 +1802,11 @@ backend = "agent_browser"
 name = "google-workspace"
 command = "/usr/local/bin/gws-mcp"
 args = []
+
+[[mcp.servers]]
+name = "role-memory"
+command = "sudo"
+args = ["/usr/local/bin/role-memory"]
 `, model, mmSection)
 }
 
