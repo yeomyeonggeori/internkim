@@ -140,7 +140,7 @@ ExecStart=/usr/local/bin/zeroclaw gateway
 
 ```toml
 default_provider = "openai-compatible:https://openrouter.ai/api/v1"
-default_model = "google/gemini-3.1-flash-lite-preview"
+default_model = "google/gemma-4-31b-it"
 
 [runtime]
 kind = "native"
