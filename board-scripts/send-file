@@ -1,0 +1,66 @@
+#!/bin/bash
+set -e
+
+URL="$1"
+FILENAME="$2"
+MESSAGE="${3:-}"
+
+if [ -z "$URL" ] || [ -z "$FILENAME" ]; then
+  echo "Usage: send-file <url> <filename> [message]"
+  exit 1
+fi
+
+CHANNEL_ID=$(cat /root/.internkim/env/channel-id 2>/dev/null)
+BOT_TOKEN=$(cat /root/.internkim/env/bot-token 2>/dev/null)
+MM_URL="http://localhost:8065"
+DL_DIR="/root/.zeroclaw/workspace/downloads"
+SESSIONS_DIR="/root/.zeroclaw/workspace/sessions"
+
+mkdir -p "$DL_DIR"
+
+# Resolve root_id from the most recently modified session file.
+# Session filenames: mattermost_{channel_id}_{root_id}_{sender_id}.jsonl
+# The active conversation's session file is being written to right now,
+# so it will always be the most recently modified.
+ROOT_ID=""
+LATEST_SESSION=$(ls -t "$SESSIONS_DIR"/mattermost_*.jsonl 2>/dev/null | head -1)
+if [ -n "$LATEST_SESSION" ]; then
+  BASENAME=$(basename "$LATEST_SESSION" .jsonl)
+  ROOT_ID=$(echo "$BASENAME" | cut -d_ -f3)
+fi
+
+curl -fsSL -o "$DL_DIR/$FILENAME" "$URL"
+
+UPLOAD_RESPONSE=$(curl -sf \
+  -H "Authorization: Bearer $BOT_TOKEN" \
+  -F "files=@$DL_DIR/$FILENAME" \
+  -F "channel_id=$CHANNEL_ID" \
+  "$MM_URL/api/v4/files")
+
+FILE_ID=$(echo "$UPLOAD_RESPONSE" | jq -r '.file_infos[0].id // empty')
+
+if [ -z "$FILE_ID" ]; then
+  echo "ERROR: File upload failed"
+  echo "$UPLOAD_RESPONSE"
+  exit 1
+fi
+
+POST_BODY=$(jq -n \
+  --arg ch "$CHANNEL_ID" \
+  --arg msg "$MESSAGE" \
+  --arg fid "$FILE_ID" \
+  --arg root "$ROOT_ID" \
+  'if $root != "" then
+    {channel_id: $ch, message: $msg, file_ids: [$fid], root_id: $root}
+  else
+    {channel_id: $ch, message: $msg, file_ids: [$fid]}
+  end')
+
+curl -sf -X POST \
+  -H "Authorization: Bearer $BOT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "$POST_BODY" \
+  "$MM_URL/api/v4/posts" > /dev/null
+
+echo "File sent: $FILENAME (file_id: $FILE_ID)"
+rm -f "$DL_DIR/$FILENAME"
