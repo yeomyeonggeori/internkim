@@ -1,39 +1,32 @@
 ---
 name: share-file
-description: "Share any file with the user via a direct download link. Use whenever a file has been created, generated, or downloaded — PDFs, images, CSVs, zips, etc. Always call this instead of printing a local file path."
+description: "Share files as attachments. MUST use when user asks for files, images, PDFs, etc. Run: send-file <url> <filename>"
 ---
 
-# Sharing Files with the User
+# Sharing Files
 
-**Always share files via `/pico/files/` links. Never say "the file is saved at [path]" — always send a clickable link.**
+Use the `send-file` command to download a file and send it as an attachment.
+The file will automatically be posted in the same thread as your current conversation.
 
-The web server maps `/pico/files/` → `/root/.picoclaw/workspace/`. Any file in the workspace can be shared as a direct download link.
+## Usage
 
-## How to share a file
+```bash
+send-file "<url>" "<filename>"
+```
 
-- Image: `![alt](/pico/files/RELATIVE_PATH)`
-- Any file (PDF, zip, csv, etc.): `[filename](/pico/files/RELATIVE_PATH)`
+Arguments:
+1. URL to download
+2. Filename for the attachment
 
-`RELATIVE_PATH` is the path relative to `/root/.picoclaw/workspace/`.
+## Examples
 
-### Examples
-
-| File location | Markdown link |
-|---|---|
-| `/root/.picoclaw/workspace/report.pdf` | `[report.pdf](/pico/files/report.pdf)` |
-| `/root/.picoclaw/workspace/downloads/photo.jpg` | `![photo](/pico/files/downloads/photo.jpg)` |
-| `/root/.picoclaw/workspace/data/export.csv` | `[export.csv](/pico/files/data/export.csv)` |
+```bash
+send-file "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf" "test.pdf"
+send-file "https://placecats.com/300/200" "cat.jpg"
+```
 
 ## Rules
 
-- The moment a file is created or downloaded, share it with a `/pico/files/` link in the same reply.
-- `/pico/files/` URLs are real, publicly accessible URLs — not local paths. The user can open them directly in their browser.
-- NEVER output a raw file path like `/root/.picoclaw/workspace/business_plan.pdf`. Always convert it to a `/pico/files/` link.
-
-## Downloading a file from a URL
-
-Use the `download` tool (available in PATH):
-```
-download "https://example.com/file.pdf" ./downloads/file.pdf
-```
-Then immediately share: `[file.pdf](/pico/files/downloads/file.pdf)`
+- ALWAYS use send-file when the user wants a file sent as an attachment.
+- Do NOT just paste a URL link. Use send-file to send the actual file.
+- The file will appear as a native attachment in the correct thread automatically.
