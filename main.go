@@ -28,7 +28,7 @@ var (
 	boardPass = "root"
 	usbNCMIPs = []string{"10.11.60.1"}
 
-	zeroclawModel = "google/gemini-3.1-flash-lite-preview"
+	zeroclawModel = "google/gemma-4-31b-it"
 )
 
 type config struct {
@@ -345,6 +345,7 @@ udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true`, wpaConf))
 	ssh.run(`
 id gws &>/dev/null || useradd -r -s /sbin/nologin gws
 id zeroclaw &>/dev/null || useradd -r -s /sbin/nologin zeroclaw
+chmod 711 /root
 mkdir -p /root/.internkim/secrets
 chmod 700 /root/.internkim/secrets
 mkdir -p /root/.zeroclaw/workspace/bin /root/.zeroclaw/workspace/downloads
@@ -398,6 +399,10 @@ chmod 600 /root/.zeroclaw/config.toml`, zeroclawConfig))
 
 		// Set API key in zeroclaw encrypted secret store
 		ssh.run(fmt.Sprintf(`HOME=/root zeroclaw props set api-key '%s' --no-interactive 2>/dev/null || true`, apiKey))
+		// config.toml + .secret_key: root-owned read-only, rest: zeroclaw-owned
+		ssh.run(`chown -R zeroclaw:zeroclaw /root/.zeroclaw
+chown root:zeroclaw /root/.zeroclaw/config.toml /root/.zeroclaw/.secret_key
+chmod 640 /root/.zeroclaw/config.toml /root/.zeroclaw/.secret_key`)
 	}
 
 	// 7. Register device + cloudflared
@@ -430,6 +435,7 @@ chmod 600 /root/.zeroclaw/config.toml`, zeroclawConfig))
 		}
 		saveState(stateDir, "tunnel_token", regResp.TunnelToken)
 		saveState(stateDir, "device_url", regResp.URL)
+		saveState(stateDir, "google_email", adminEmail)
 		fmt.Printf("  %s: %s\n", m.t("터널 설정 완료", "Tunnel configured"), regResp.URL)
 		tunnelToken = loadState(stateDir, "tunnel_token")
 	}
@@ -642,6 +648,14 @@ fi`, deviceURL, deviceURL))
 	if finalURL != "" {
 		fmt.Printf("  Mattermost: %s\n", finalURL)
 		fmt.Printf("  %s\n", m.t("  → iOS/Android Mattermost 앱에서 위 URL로 서버 추가", "  → Add server URL in iOS/Android Mattermost app"))
+		adminEmail := loadState(stateDir, "google_email")
+		adminPass := strings.TrimSpace(ssh.run("cat /root/.internkim/secrets/mm-admin-pass 2>/dev/null"))
+		if adminEmail != "" && adminPass != "" {
+			fmt.Println()
+			fmt.Printf("  %s:\n", m.t("로그인 정보", "Login"))
+			fmt.Printf("    %s: %s\n", m.t("이메일", "Email"), adminEmail)
+			fmt.Printf("    %s: %s\n", m.t("비밀번호", "Password"), adminPass)
+		}
 	}
 	fmt.Println()
 	fmt.Printf("  %s:\n", m.t("SSH 접속", "SSH access"))
@@ -703,8 +717,6 @@ func modelSetCmd(ssh *sshClient, modelID string) {
 	fmt.Printf("Model changed to: %s\n", modelID)
 	fmt.Println("zeroclaw restarted.")
 }
-
-
 
 func modelListCmd(ssh *sshClient) {
 	apiKey := strings.TrimPrefix(strings.TrimSpace(ssh.run("cat /root/.internkim/secrets/openrouter-api-key 2>/dev/null")), "OPENROUTER_API_KEY=")
@@ -1028,8 +1040,13 @@ curl -s http://localhost:8065/api/v4/system/ping 2>/dev/null | grep -q "OK" && e
 func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 	existingURL := strings.TrimSpace(ssh.run("cat /root/.internkim/mattermost-url 2>/dev/null"))
 	if !force && existingURL != "" {
-		fmt.Printf("  %s (%s)\n", m.t("이미 설정됨 — 건너뜀", "Already configured — skipping"), existingURL)
-		return
+		// Verify admin user actually exists (DB may have been reset)
+		adminExists := strings.TrimSpace(ssh.run("cd /opt/mattermost && bin/mmctl --local user list 2>/dev/null | grep -c admin || echo 0"))
+		if adminExists != "0" {
+			fmt.Printf("  %s (%s)\n", m.t("이미 설정됨 — 건너뜀", "Already configured — skipping"), existingURL)
+			return
+		}
+		fmt.Printf("  %s\n", m.t("DB 초기화 감지 — 재설정 중...", "DB reset detected — reconfiguring..."))
 	}
 
 	// Use tunnel URL as Mattermost SiteURL (set in step 10b)
@@ -1089,6 +1106,9 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 	}
 	adminEmail := strings.TrimSpace(ssh.run("cat /root/.internkim/admin-email 2>/dev/null"))
 	if adminEmail == "" {
+		adminEmail = loadState(stateDir, "google_email")
+	}
+	if adminEmail == "" {
 		adminEmail = "admin@intern.kim"
 	}
 
@@ -1108,7 +1128,9 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 			return
 		}
 	}
-	var adminUserResp struct{ ID string `json:"id"` }
+	var adminUserResp struct {
+		ID string `json:"id"`
+	}
 	json.Unmarshal(resp, &adminUserResp)
 
 	// 2. Login to get session token
@@ -1131,7 +1153,7 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 	// 3. Enable personal access tokens + bot accounts in config
 	configBody, _ := json.Marshal(map[string]any{
 		"ServiceSettings": map[string]any{
-			"EnableUserAccessTokens": true,
+			"EnableUserAccessTokens":   true,
 			"EnableBotAccountCreation": true,
 		},
 		"EmailSettings": map[string]string{
@@ -1154,7 +1176,9 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 	}
 	patBody, _ := json.Marshal(map[string]string{"description": "internkim-setup"})
 	_, patResp := mmAPI("POST", "/api/v4/users/"+adminUserResp.ID+"/tokens", patBody, adminToken)
-	var patResult struct{ Token string `json:"token"` }
+	var patResult struct {
+		Token string `json:"token"`
+	}
 	json.Unmarshal(patResp, &patResult)
 	if patResult.Token != "" {
 		adminToken = patResult.Token // use PAT going forward
@@ -1167,21 +1191,27 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 		"description":  "AI assistant",
 	})
 	_, botResp := mmAPI("POST", "/api/v4/bots", botBody, adminToken)
-	var botResult struct{ UserID string `json:"user_id"` }
+	var botResult struct {
+		UserID string `json:"user_id"`
+	}
 	json.Unmarshal(botResp, &botResult)
 
 	botToken := ""
 	if botResult.UserID != "" {
 		botPatBody, _ := json.Marshal(map[string]string{"description": "internkim-bot"})
 		_, botPatResp := mmAPI("POST", "/api/v4/users/"+botResult.UserID+"/tokens", botPatBody, adminToken)
-		var botPat struct{ Token string `json:"token"` }
+		var botPat struct {
+			Token string `json:"token"`
+		}
 		json.Unmarshal(botPatResp, &botPat)
 		botToken = botPat.Token
 	}
 
 	// 7. Get town-square channel ID
 	_, teamResp := mmAPI("GET", "/api/v4/teams/name/internkim", nil, adminToken)
-	var teamResult struct{ ID string `json:"id"` }
+	var teamResult struct {
+		ID string `json:"id"`
+	}
 	if err := json.Unmarshal(teamResp, &teamResult); err != nil || teamResult.ID == "" {
 		// Create team
 		teamBody, _ := json.Marshal(map[string]string{"name": "internkim", "display_name": "Intern Kim", "type": "I"})
@@ -1191,7 +1221,9 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 	channelID := ""
 	if teamResult.ID != "" {
 		_, chResp := mmAPI("GET", "/api/v4/teams/"+teamResult.ID+"/channels/name/town-square", nil, adminToken)
-		var chResult struct{ ID string `json:"id"` }
+		var chResult struct {
+			ID string `json:"id"`
+		}
 		json.Unmarshal(chResp, &chResult)
 		channelID = chResult.ID
 	}
@@ -1227,6 +1259,9 @@ chmod 600 /root/.zeroclaw/config.toml`, zeroclawConfig))
 	if botToken != "" {
 		ssh.run(fmt.Sprintf(`HOME=/root zeroclaw props set channels.mattermost.bot-token '%s' --no-interactive 2>/dev/null || true`, botToken))
 	}
+	ssh.run(`chown -R zeroclaw:zeroclaw /root/.zeroclaw
+chown root:zeroclaw /root/.zeroclaw/config.toml /root/.zeroclaw/.secret_key
+chmod 640 /root/.zeroclaw/config.toml /root/.zeroclaw/.secret_key`)
 
 	fmt.Printf("  %s\n", m.t("Mattermost 자동 설정 완료", "Mattermost configured automatically"))
 	fmt.Printf("  admin: %s / %s\n", adminUser, adminPass)
@@ -1354,7 +1389,6 @@ func simStop() {
 	exec.Command("container", "rm", simContainerName).Run()
 	fmt.Println("Simulator stopped.")
 }
-
 
 func simSSH() {
 	simIP := simContainerIP()
