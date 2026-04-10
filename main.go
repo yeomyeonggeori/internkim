@@ -473,41 +473,36 @@ chmod 640 /root/.zeroclaw/config.toml /root/.zeroclaw/.secret_key`)
 		tunnelToken = loadState(stateDir, "tunnel_token")
 	}
 	if tunnelToken != "" {
-		ssh.run(fmt.Sprintf(`cat > /etc/init.d/S98cloudflared <<'INITEOF'
-#!/bin/sh
-CLOUDFLARED_BIN="/usr/local/bin/cloudflared"
-CLOUDFLARED_LOG="/var/log/cloudflared.log"
-CLOUDFLARED_PID="/var/run/cloudflared.pid"
-TUNNEL_TOKEN="%s"
-case "$1" in
-  start)
-    if [ -f "$CLOUDFLARED_PID" ] && kill -0 "$(cat $CLOUDFLARED_PID)" 2>/dev/null; then
-      echo "cloudflared already running"; exit 0
-    fi
-    echo "Starting cloudflared tunnel..."
-    start-stop-daemon -S -b -m -p "$CLOUDFLARED_PID" -x /bin/sh -- -c "exec $CLOUDFLARED_BIN tunnel run --token $TUNNEL_TOKEN >> $CLOUDFLARED_LOG 2>&1"
-    ;;
-  stop) start-stop-daemon -K -p "$CLOUDFLARED_PID" 2>/dev/null; rm -f "$CLOUDFLARED_PID" ;;
-  restart) $0 stop; sleep 1; $0 start ;;
-  status)
-    if [ -f "$CLOUDFLARED_PID" ] && kill -0 "$(cat $CLOUDFLARED_PID)" 2>/dev/null; then
-      echo "running $(cat $CLOUDFLARED_PID)"
-    else echo "stopped"; fi ;;
-  *) echo "Usage: $0 {start|stop|restart|status}"; exit 1 ;;
-esac
-INITEOF
-chmod +x /etc/init.d/S98cloudflared
+		ssh.run(fmt.Sprintf(`cat > /etc/systemd/system/cloudflared.service <<'SVCEOF'
+[Unit]
+Description=Cloudflare Tunnel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/cloudflared tunnel run --token %%s
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+sed -i 's|%%s|%s|' /etc/systemd/system/cloudflared.service
+rm -f /etc/init.d/S98cloudflared 2>/dev/null
 killall cloudflared 2>/dev/null || true
-rm -f /var/run/cloudflared.pid
-/etc/init.d/S98cloudflared start
+systemctl daemon-reload
+systemctl enable --now cloudflared
 sleep 3`, tunnelToken))
 
-		cfStatus := strings.TrimSpace(ssh.run("/etc/init.d/S98cloudflared status"))
-		if strings.HasPrefix(cfStatus, "running") {
-			fmt.Printf("  %s (%s)\n", m.t("cloudflared 실행 중", "cloudflared running"), cfStatus)
+		cfStatus := strings.TrimSpace(ssh.run("systemctl is-active cloudflared"))
+		if cfStatus == "active" {
+			fmt.Printf("  %s\n", m.t("cloudflared 실행 중", "cloudflared running"))
 		} else {
-			fmt.Printf("  %s\n", m.t("cloudflared 시작 실패 — 로그: ssh root@"+boardIP+" 'cat /var/log/cloudflared.log'",
-				"cloudflared failed — log: ssh root@"+boardIP+" 'cat /var/log/cloudflared.log'"))
+			fmt.Printf("  %s\n", m.t("cloudflared 시작 실패 — 로그: ssh root@"+boardIP+" 'journalctl -u cloudflared'",
+				"cloudflared failed — log: ssh root@"+boardIP+" 'journalctl -u cloudflared'"))
 		}
 	}
 
