@@ -1060,7 +1060,7 @@ DB_PASS="%s"
 jq --arg ds "postgres://mmuser:${DB_PASS}@localhost/mattermost?sslmode=disable&connect_timeout=10" \
    --arg url "http://localhost:8065" \
    '.SqlSettings.DriverName = "postgres" | .SqlSettings.DataSource = $ds | .ServiceSettings.SiteURL = $url' \
-   config/config.json > config/config.tmp && mv config/config.tmp config/config.json && echo "config_ok" || echo "config_failed"
+   config/config.json > config/config.tmp && mv config/config.tmp config/config.json && chown mattermost:mattermost config/config.json && echo "config_ok" || echo "config_failed"
 cat > /etc/systemd/system/mattermost.service <<'SVCEOF'
 [Unit]
 Description=Mattermost
