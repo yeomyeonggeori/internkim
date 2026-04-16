@@ -37,6 +37,20 @@
 | e2fsprogs 버전 충돌 해결 (Armbian rootfs chroot 방식) | ✅ |
 | bot→team 추가 curl `|| true` (set -e 대응) | ✅ |
 | resolv.conf dangling symlink 처리 (rm -f + echo) | ✅ |
+| bot team 멤버십 — request body에 team_id 추가 | ✅ |
+| Dawn-kim-official zeroclaw (websocket, channel_id 불필요) | ✅ |
+| zeroclaw props → config 명령어 변경 | ✅ |
+| zeroclaw [memory] auto_save 필드 추가 | ✅ |
+| bot Mattermost websocket 연결 + 응답 동작 확인 | ✅ |
+| watchdog 서비스 (매 부팅 Wi-Fi/DNS/SSH/LED 보장) | ✅ |
+| watchdog firstboot 중 건너뛰기 | ✅ |
+| LED heartbeat — 서비스 전부 active 후에만 전환 | ✅ |
+| NetworkManager/dhcpcd 비활성화 (Wi-Fi 충돌 방지) | ✅ |
+| --reset 시 계정 비밀번호 보존 (boot FAT32 → macOS 백업) | ✅ |
+| --reset 시 workspace 보존 (debugfs 파일별 추출) | ✅ |
+| --reset 시 DB 보존 (watchdog pg_dump → debugfs 추출) | ✅ |
+| --hard-reset 플래그 (완전 초기화) | ✅ |
+| XML tool_result 채널 응답 누출 수정 (upstream PR #5796) | ✅ |
 
 ## 해결한 이슈 기록
 
@@ -63,6 +77,38 @@
 **원인**: Armbian rootfs의 `/etc/resolv.conf`가 systemd-resolved로의 dangling symlink
 
 **해결**: `cp` 대신 `rm -f` + `echo "nameserver 8.8.8.8"` 로 덮어쓰기
+
+### bot team 멤버십 API 실패 (무응답)
+
+**증상**: firstboot 로그에 "Bot added to team" 출력되지만 실제 team에 미추가
+
+**원인**: `POST /api/v4/teams/{id}/members` request body에 `team_id` 필드 누락
+
+**해결**: `{"team_id":"...","user_id":"..."}` 형태로 수정
+
+### zeroclaw config 파싱 실패
+
+**증상**: zeroclaw 서비스 시작 즉시 실패 — `missing field auto_save`
+
+**원인**: Dawn-kim-official 버전이 `[memory]` 섹션에 `auto_save` 필수
+
+**해결**: config.toml에 `auto_save = false` 추가
+
+### zeroclaw Mattermost websocket 즉시 끊김
+
+**증상**: "connected and authenticated" 직후 "Connection reset without closing handshake" 반복
+
+**원인**: bot_token이 config에 설정 안 됨 (`zeroclaw props` → `zeroclaw config`으로 명령어 변경됨)
+
+**해결**: `zeroclaw props set` → `zeroclaw config set`으로 전부 변경
+
+### XML tool_result 채널 응답 누출
+
+**증상**: bot 응답에 `<tool_result>{"command":"ls"}...</tool_result>` raw 출력 포함
+
+**원인**: `sanitize_channel_response()`가 XML `<tool_result>` 태그를 제거하지 않음 (JSON만 처리)
+
+**해결**: `strip_tool_result_content()` 호출 추가 (upstream PR zeroclaw-labs/zeroclaw#5796)
 
 ### Mattermost SiteURL에 이메일이 들어감
 
@@ -141,23 +187,29 @@ macOS (./internkim setup [--reset] [--from N])
 RPi5 부팅:
   1차: 파티션 확장 → 재부팅
   2차: firstboot →
-    Wi-Fi → SSH → DNS → 시계(HTTP) → Swap 2GB →
-    dpkg -i (오프라인) → PostgreSQL → Mattermost → ZeroClaw →
-    LED 하트비트 → 스크립트 삭제
+    Wi-Fi (NM/dhcpcd mask) → SSH → DNS → 시계(HTTP) → Swap 2GB →
+    dpkg -i (오프라인) → PostgreSQL (+ DB 복원) → Mattermost →
+    Bot 생성 + team 추가 → ZeroClaw (Dawn websocket) →
+    서비스 전부 active 확인 → LED 하트비트 → 스크립트 삭제
+  이후 매 부팅: watchdog →
+    Wi-Fi 보장 → DNS → SSH → board-ip 기록 → pg_dump → LED 하트비트
+
+--reset 데이터 보존:
+  비밀번호: boot FAT32 → ~/.quickclaw/backup/
+  workspace: ext4 debugfs 파일별 추출
+  DB: watchdog pg_dump (ext4) → debugfs 추출
+  --hard-reset: 백업 전부 삭제, 완전 초기화
 ```
 
 ## 현재 블로커
 
-### admin 유저가 team에 자동 추가 안 됨
+### Wi-Fi가 firstboot 후 시간 경과 시 끊김
 
-firstboot에서 team "internkim"을 생성하고 bot을 추가하지만, admin 유저는 team에 추가하지 않음. 수동으로 team에 join해야 함.
+firstboot 완료 후 모든 서비스 active, SSH 가능. 그러나 일정 시간 후 Wi-Fi 연결 끊김 (ping 불가, SSH 불가, 터널 끊김). 재부팅 아님 — 전원이 켜진 상태에서 발생.
 
-### bot이 응답하지 않음
-
-ZeroClaw 서비스는 active이나 bot이 Mattermost 메시지에 응답하지 않음. zeroclaw 바이너리 버전 확인 필요 (현재: `zeroclaw-labs/zeroclaw`, `Dawn-kim-official` 버전 확인 필요).
+**가설**: NetworkManager 또는 dhcpcd가 wpa_supplicant@wlan0과 충돌. 현재 둘 다 mask하는 코드 추가됨, 테스트 필요.
 
 ## 다음 단계
 
-1. admin 유저를 team에 자동 추가
-2. bot 미응답 원인 조사 (zeroclaw 버전/설정 확인)
-3. Orange Pi 5 지원
+1. Wi-Fi 끊김 원인 확인 및 해결
+2. Orange Pi 5 지원
