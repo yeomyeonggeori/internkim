@@ -334,6 +334,7 @@ udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true`, wpaConf))
 		},
 	}
 	os.MkdirAll(boardBinDir, 0755)
+	useDawnZeroclawBuild(zeroclawBin)
 	for _, spec := range autoDownloads {
 		if _, err := os.Stat(spec.localPath); err == nil {
 			continue // already present
@@ -477,7 +478,7 @@ chown -R zeroclaw:zeroclaw /root/.zeroclaw
 chmod 600 /root/.zeroclaw/config.toml`, zeroclawConfig))
 
 		// Set API key in zeroclaw encrypted secret store
-		ssh.run(fmt.Sprintf(`HOME=/root zeroclaw props set api-key '%s' --no-interactive 2>/dev/null || true`, apiKey))
+		ssh.run(fmt.Sprintf(`HOME=/root zeroclaw config set api-key '%s' --no-interactive 2>/dev/null || true`, apiKey))
 		// config.toml + .secret_key: root-owned read-only, rest: zeroclaw-owned
 		ssh.run(`chown -R zeroclaw:zeroclaw /root/.zeroclaw
 chown root:zeroclaw /root/.zeroclaw/config.toml /root/.zeroclaw/.secret_key
@@ -1035,6 +1036,20 @@ func printBoardStatus(m *msg, ip string, stateDir string) {
 }
 func runUpdate() { fmt.Println("TODO: update") }
 
+// useDawnZeroclawBuild copies the Dawn-kim-official zeroclaw build to targetPath
+// if the local build exists and targetPath does not. Temporary until upstream merge.
+func useDawnZeroclawBuild(targetPath string) {
+	if _, err := os.Stat(targetPath); err == nil {
+		return
+	}
+	dawnPath := filepath.Join(quickclawDir(), "cache", "zeroclaw-dawn-arm64")
+	if data, err := os.ReadFile(dawnPath); err == nil {
+		os.MkdirAll(filepath.Dir(targetPath), 0755)
+		os.WriteFile(targetPath, data, 0755)
+		fmt.Println("  zeroclaw (Dawn-kim-official)... ok")
+	}
+}
+
 // downloadBinary downloads a binary (or extracts one from a tar.gz) to localPath.
 // tarEntry is the filename inside the archive to extract; empty means direct binary download.
 func downloadBinary(url, localPath, tarEntry string) error {
@@ -1445,9 +1460,9 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 		json.Unmarshal(chResp, &chResult)
 		channelID = chResult.ID
 
-		// Add bot to team so it doesn't send "Please add me to teams" message
+		// Add bot to team
 		if botResult.UserID != "" {
-			botMemberBody, _ := json.Marshal(map[string]string{"user_id": botResult.UserID})
+			botMemberBody, _ := json.Marshal(map[string]string{"team_id": teamResult.ID, "user_id": botResult.UserID})
 			mmAPI("POST", "/api/v4/teams/"+teamResult.ID+"/members", botMemberBody, adminToken)
 		}
 	}
@@ -1479,9 +1494,9 @@ rm -f /root/.internkim/mattermost-url /root/.internkim/mattermost-admin-token /r
 CFGEOF
 chown zeroclaw:zeroclaw /root/.zeroclaw/config.toml
 chmod 600 /root/.zeroclaw/config.toml`, zeroclawConfig))
-	// Set secrets via zeroclaw props (secret fields use encrypted storage)
+	// Set secrets via zeroclaw config (secret fields use encrypted storage)
 	if botToken != "" {
-		ssh.run(fmt.Sprintf(`HOME=/root zeroclaw props set channels.mattermost.bot-token '%s' --no-interactive 2>/dev/null || true`, botToken))
+		ssh.run(fmt.Sprintf(`HOME=/root zeroclaw config set channels.mattermost.bot-token '%s' --no-interactive 2>/dev/null || true`, botToken))
 	}
 	ssh.run(`chown -R zeroclaw:zeroclaw /root/.zeroclaw
 chown root:zeroclaw /root/.zeroclaw/config.toml /root/.zeroclaw/.secret_key
@@ -2211,6 +2226,7 @@ func runSetupSD(m *msg) {
 	fmt.Printf("  %s: %s\n", m.t("Wi-Fi 설정 준비 완료", "Wi-Fi config staged"), ssid)
 
 	// 8c. Binaries — download to local cache, then copy to boot partition
+	useDawnZeroclawBuild(filepath.Join(boardBinDir, "zeroclaw"))
 	binaries := []struct{ name, url, tarEntry string }{
 		{"zeroclaw", "https://github.com/zeroclaw-labs/zeroclaw/releases/latest/download/zeroclaw-aarch64-unknown-linux-gnu.tar.gz", "zeroclaw"},
 		{"gws", "https://github.com/googleworkspace/cli/releases/latest/download/google-workspace-cli-aarch64-unknown-linux-gnu.tar.gz", "gws"},
@@ -2653,6 +2669,8 @@ func injectFilesIntoImage(imgRaw, ssid, wifiPass, pubKey, stageDir string) error
 	// ── 7. Watchdog service (runs every boot — ensures Wi-Fi, DNS, SSH, LED) ──
 	fmt.Println("    watchdog service")
 	watchdogScript := `#!/bin/bash
+# Skip if firstboot is still pending
+[ -f /usr/local/bin/internkim-firstboot.sh ] && exit 0
 systemctl stop wpa_supplicant.service 2>/dev/null
 systemctl mask wpa_supplicant.service 2>/dev/null
 rm -f /run/wpa_supplicant/wlan0
@@ -3220,7 +3238,7 @@ if [ -n "$TEAM_ID" ] && [ -n "$BOT_USER_ID" ]; then
   curl -sf -X POST "$MM_URL/api/v4/teams/$TEAM_ID/members" \
     -H "Authorization: Bearer $ADMIN_TOKEN" \
     -H 'Content-Type: application/json' \
-    -d "{\"user_id\":\"$BOT_USER_ID\"}" >/dev/null 2>&1 || true
+    -d "{\"team_id\":\"$TEAM_ID\",\"user_id\":\"$BOT_USER_ID\"}" >/dev/null 2>&1 || true
   echo "Bot added to team"
 fi
 
@@ -3234,9 +3252,9 @@ fi
 # ── zeroclaw secrets ──
 echo "Configuring zeroclaw secrets..."
 API_KEY=$(sed 's/^OPENROUTER_API_KEY=//' /root/.internkim/secrets/openrouter-api-key)
-HOME=/root zeroclaw props set api-key "$API_KEY" --no-interactive 2>/dev/null || true
+HOME=/root zeroclaw config set api-key "$API_KEY" --no-interactive 2>/dev/null || true
 if [ -n "$BOT_TOKEN" ]; then
-  HOME=/root zeroclaw props set channels.mattermost.bot-token "$BOT_TOKEN" --no-interactive 2>/dev/null || true
+  HOME=/root zeroclaw config set channels.mattermost.bot-token "$BOT_TOKEN" --no-interactive 2>/dev/null || true
 fi
 chown -R zeroclaw:zeroclaw /root/.zeroclaw
 chown root:zeroclaw /root/.zeroclaw/config.toml /root/.zeroclaw/.secret_key 2>/dev/null || true
@@ -3263,16 +3281,22 @@ systemctl daemon-reload
 systemctl enable zeroclaw
 systemctl start zeroclaw
 
-# ── Signal completion via LED ──
-LED="/sys/class/leds/ACT/brightness"
-if [ -f "$LED" ]; then
-  echo none > /sys/class/leds/ACT/trigger 2>/dev/null || true
-  for i in $(seq 1 10); do
-    echo 1 > "$LED"; sleep 0.15
-    echo 0 > "$LED"; sleep 0.15
+# ── Wait for all services to be active ──
+echo "Waiting for services..."
+for attempt in $(seq 1 150); do
+  ALL_ACTIVE=true
+  for svc in mattermost zeroclaw cloudflared postgresql; do
+    if ! systemctl is-active --quiet "$svc" 2>/dev/null; then
+      ALL_ACTIVE=false
+      break
+    fi
   done
-  echo default-on > /sys/class/leds/ACT/trigger 2>/dev/null || true
-fi
+  if [ "$ALL_ACTIVE" = true ]; then
+    echo "All services active"
+    break
+  fi
+  sleep 2
+done
 
 # ── Disable first-boot ──
 systemctl disable internkim-firstboot
@@ -3280,7 +3304,7 @@ rm -f /usr/local/bin/internkim-firstboot.sh
 echo "=== Intern Kim first-boot complete ==="
 date
 
-# LED: switch to heartbeat (slow, calm) = provisioning done
+# LED: heartbeat only after all services confirmed active
 if [ -f /sys/class/leds/ACT/trigger ]; then
   echo heartbeat > /sys/class/leds/ACT/trigger 2>/dev/null || true
 fi
@@ -3302,7 +3326,7 @@ type mattermostConfig struct {
 }
 
 // buildZeroclawConfig generates zeroclaw config.toml.
-// Secrets (api-key, bot-token) are set separately via `zeroclaw props set --no-interactive`.
+// Secrets (api-key, bot-token) are set separately via `zeroclaw config set --no-interactive`.
 func buildZeroclawConfig(model string, mm *mattermostConfig) string {
 	mmSection := ""
 	if mm != nil && mm.BaseURL != "" {
