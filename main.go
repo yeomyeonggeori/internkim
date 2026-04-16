@@ -1036,6 +1036,66 @@ func printBoardStatus(m *msg, ip string, stateDir string) {
 }
 func runUpdate() { fmt.Println("TODO: update") }
 
+// backupFromExt4 extracts workspace files from the SD card's ext4 partition
+// using debugfs (file-by-file, no full partition copy).
+func backupFromExt4(disk, backupDir string, messenger *msg) {
+	partDevice := ""
+	out, _ := exec.Command("diskutil", "list", disk).Output()
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.Contains(line, "Linux") {
+			fields := strings.Fields(line)
+			if len(fields) > 0 {
+				partDevice = "/dev/" + fields[len(fields)-1]
+			}
+		}
+	}
+	if partDevice == "" {
+		return
+	}
+	debugfsBin := filepath.Join(e2fsprogsBinDir(), "debugfs")
+	if e2fsprogsBinDir() == "" {
+		debugfsBin = "debugfs"
+	}
+	fmt.Printf("    %s\n", messenger.t("워크스페이스 백업 중 (debugfs)...", "Backing up workspace (debugfs)..."))
+	// List workspace files
+	listCommand := exec.Command("sudo", debugfsBin, "-R", "ls -p /root/.zeroclaw/workspace", partDevice)
+	listOutput, err := listCommand.Output()
+	if err != nil {
+		fmt.Printf("    %s\n", messenger.t("워크스페이스 읽기 실패 — 건너뜀", "Failed to read workspace — skipping"))
+		return
+	}
+	wsBackupDir := filepath.Join(backupDir, "workspace")
+	os.MkdirAll(wsBackupDir, 0755)
+	for _, line := range strings.Split(string(listOutput), "\n") {
+		parts := strings.Split(line, "/")
+		if len(parts) < 7 {
+			continue
+		}
+		name := parts[5]
+		if name == "" || name == "." || name == ".." || name == "bin" || name == "downloads" {
+			continue
+		}
+		destPath := filepath.Join(wsBackupDir, name)
+		dumpCommand := exec.Command("sudo", debugfsBin, "-R",
+			fmt.Sprintf("dump /root/.zeroclaw/workspace/%s %s", name, destPath), partDevice)
+		dumpCommand.Run()
+	}
+	// Count backed up files
+	entries, _ := os.ReadDir(wsBackupDir)
+	if len(entries) > 0 {
+		fmt.Printf("    %s (%d files)\n", messenger.t("워크스페이스 백업 완료", "Workspace backed up"), len(entries))
+	}
+	// DB dump (written by watchdog to ext4)
+	dbDumpDest := filepath.Join(backupDir, "mattermost-db.sql")
+	dumpCommand := exec.Command("sudo", debugfsBin, "-R",
+		"dump /var/cache/internkim/mattermost-db.sql "+dbDumpDest, partDevice)
+	if err := dumpCommand.Run(); err == nil {
+		if info, err := os.Stat(dbDumpDest); err == nil && info.Size() > 0 {
+			fmt.Printf("    %s (%dMB)\n", messenger.t("DB 백업 완료", "DB backed up"), info.Size()/1024/1024)
+		}
+	}
+}
+
 // useDawnZeroclawBuild copies the Dawn-kim-official zeroclaw build to targetPath
 // if the local build exists and targetPath does not. Temporary until upstream merge.
 func useDawnZeroclawBuild(targetPath string) {
@@ -1894,7 +1954,8 @@ func runSetupSD(m *msg) {
 	scriptDir, _ := os.Getwd()
 	boardBinDir := filepath.Join(scriptDir, "board-bin")
 	getSSIDBin := filepath.Join(scriptDir, "bin", "get-ssid")
-	reset := containsArg("--reset")
+	hardReset := containsArg("--hard-reset")
+	reset := hardReset || containsArg("--reset")
 	fromStep := argInt("--from", 0)
 	shouldRun := func(n int) bool { return fromStep == 0 || n >= fromStep }
 	totalSteps := 9
@@ -2155,6 +2216,28 @@ func runSetupSD(m *msg) {
 		)) {
 			fatal(m.t("취소됨.", "Cancelled."))
 		}
+		// Backup data before flash (unless --hard-reset)
+		backupDir := filepath.Join(stateDir, "backup")
+		if !hardReset {
+			os.MkdirAll(backupDir, 0700)
+			// Secrets from boot partition (FAT32, macOS-readable)
+			for _, vol := range []string{"/Volumes/RPICFG", "/Volumes/bootfs", "/Volumes/boot"} {
+				secretsDir := filepath.Join(vol, "internkim", "secrets")
+				if _, err := os.Stat(secretsDir); err == nil {
+					for _, name := range []string{"mm-admin-pass", "mm-db-pass"} {
+						if data, err := os.ReadFile(filepath.Join(secretsDir, name)); err == nil {
+							os.WriteFile(filepath.Join(backupDir, name), data, 0600)
+						}
+					}
+					break
+				}
+			}
+			// Workspace + DB from ext4 via debugfs (file-by-file, no full dd)
+			backupFromExt4(disk, backupDir, m)
+			fmt.Printf("  %s\n", m.t("백업 완료", "Backup complete"))
+		} else {
+			os.RemoveAll(backupDir)
+		}
 
 		// Always extract fresh image (inject needs clean ext4)
 		os.Remove(imgRaw)
@@ -2259,8 +2342,24 @@ func runSetupSD(m *msg) {
 	if saKeyJSON != "" {
 		os.WriteFile(filepath.Join(bootStageDir, "secrets", "google-sa.json"), []byte(saKeyJSON), 0644)
 	}
-	adminPass := generatePassword(20)
+	backupDir := filepath.Join(stateDir, "backup")
+	adminPass := ""
+	if data, err := os.ReadFile(filepath.Join(backupDir, "mm-admin-pass")); err == nil && len(data) > 0 {
+		adminPass = string(data)
+		fmt.Printf("  %s\n", m.t("기존 관리자 비밀번호 복원", "Restored existing admin password"))
+	}
+	if adminPass == "" {
+		adminPass = generatePassword(20)
+	}
 	os.WriteFile(filepath.Join(bootStageDir, "secrets", "mm-admin-pass"), []byte(adminPass), 0644)
+	dbPass := ""
+	if data, err := os.ReadFile(filepath.Join(backupDir, "mm-db-pass")); err == nil && len(data) > 0 {
+		dbPass = string(data)
+	}
+	if dbPass == "" {
+		dbPass = generatePassword(20)
+	}
+	os.WriteFile(filepath.Join(bootStageDir, "secrets", "mm-db-pass"), []byte(dbPass), 0644)
 	os.WriteFile(filepath.Join(bootStageDir, "admin-email"), []byte(adminEmail), 0644)
 	if deviceURL != "" {
 		os.WriteFile(filepath.Join(bootStageDir, "device-url"), []byte(deviceURL), 0644)
@@ -2296,6 +2395,19 @@ When a user asks for ANY file (image, PDF, document, etc.):
 - You have full autonomy. All tools are available and unrestricted.
 `
 	os.WriteFile(filepath.Join(bootStageDir, "AGENTS.md"), []byte(agentsMD), 0644)
+	// Restore workspace from backup if available
+	wsBackupDir := filepath.Join(stateDir, "backup", "workspace")
+	if _, err := os.Stat(wsBackupDir); err == nil {
+		restoreDir := filepath.Join(bootStageDir, "workspace-restore")
+		exec.Command("cp", "-a", wsBackupDir, restoreDir).Run()
+		fmt.Printf("  %s\n", m.t("워크스페이스 백업 복원", "Workspace restored from backup"))
+	}
+	// Restore DB dump if available
+	dbDumpBackup := filepath.Join(stateDir, "backup", "mattermost-db.sql")
+	if _, err := os.Stat(dbDumpBackup); err == nil {
+		exec.Command("cp", dbDumpBackup, filepath.Join(bootStageDir, "mattermost-db.sql")).Run()
+		fmt.Printf("  %s\n", m.t("DB 백업 복원", "DB backup restored"))
+	}
 	fmt.Printf("  %s\n", m.t("zeroclaw 설정 준비 완료", "zeroclaw config staged"))
 
 	// 8f. sysconf.txt — Debian raspi standard first-boot config
@@ -2673,6 +2785,10 @@ func injectFilesIntoImage(imgRaw, ssid, wifiPass, pubKey, stageDir string) error
 [ -f /usr/local/bin/internkim-firstboot.sh ] && exit 0
 systemctl stop wpa_supplicant.service 2>/dev/null
 systemctl mask wpa_supplicant.service 2>/dev/null
+systemctl stop NetworkManager 2>/dev/null
+systemctl mask NetworkManager 2>/dev/null
+systemctl stop dhcpcd 2>/dev/null
+systemctl mask dhcpcd 2>/dev/null
 rm -f /run/wpa_supplicant/wlan0
 rm -f /etc/systemd/network/10-netplan-wlan0.network
 systemctl restart wpa_supplicant@wlan0
@@ -2692,6 +2808,10 @@ if [ -n "$CURRENT_IP" ]; then
   mountpoint -q /boot/firmware || mount /boot/firmware 2>/dev/null
   mkdir -p /boot/firmware/internkim
   echo "$CURRENT_IP" > /boot/firmware/internkim/board-ip
+fi
+# Dump Mattermost DB for backup recovery
+if systemctl is-active --quiet postgresql 2>/dev/null; then
+  su - postgres -c "pg_dump mattermost" > /var/cache/internkim/mattermost-db.sql 2>/dev/null || true
 fi
 if [ -f /sys/class/leds/ACT/trigger ]; then
   echo heartbeat > /sys/class/leds/ACT/trigger 2>/dev/null || true
@@ -2936,6 +3056,11 @@ fi
 if [ -f "$STAGE/AGENTS.md" ]; then
   cp -f "$STAGE/AGENTS.md" /root/.zeroclaw/workspace/AGENTS.md
 fi
+# Restore workspace from backup (overrides defaults)
+if [ -d "$STAGE/workspace-restore" ]; then
+  cp -af "$STAGE/workspace-restore/." /root/.zeroclaw/workspace/
+  echo "Workspace restored from backup"
+fi
 
 echo "Staged files installed."
 
@@ -2987,11 +3112,16 @@ for rf in /sys/class/rfkill/rfkill*; do
 done
 iw reg set KR 2>/dev/null || true
 
-# Stop global wpa_supplicant (conflicts with wpa_supplicant@wlan0 over ctrl_interface)
+# Disable all competing network managers
 systemctl stop wpa_supplicant.service 2>/dev/null || true
 systemctl mask wpa_supplicant.service 2>/dev/null || true
+systemctl stop NetworkManager 2>/dev/null || true
+systemctl disable NetworkManager 2>/dev/null || true
+systemctl mask NetworkManager 2>/dev/null || true
+systemctl stop dhcpcd 2>/dev/null || true
+systemctl disable dhcpcd 2>/dev/null || true
+systemctl mask dhcpcd 2>/dev/null || true
 rm -f /run/wpa_supplicant/wlan0 2>/dev/null || true
-# Remove netplan wlan0 config to prevent reconfigure conflicts (we use 20-wlan0.network)
 rm -f /run/systemd/network/10-netplan-wlan0.network 2>/dev/null || true
 # Restart interface-specific service
 systemctl restart wpa_supplicant@wlan0 2>/dev/null || true
@@ -3092,6 +3222,14 @@ rm -f /var/cache/internkim/debs.tar
 echo "Setting up PostgreSQL..."
 systemctl start postgresql
 sleep 2
+# Restore DB from backup if available (overwrites fresh DB)
+if [ -f "$STAGE/mattermost-db.sql" ]; then
+  echo "  Restoring Mattermost DB from backup..."
+  su - postgres -c "psql -c \"SELECT 1 FROM pg_database WHERE datname='mattermost'\" | grep -q 1 || psql -c \"CREATE DATABASE mattermost\""
+  su - postgres -c "psql mattermost" < "$STAGE/mattermost-db.sql" 2>/dev/null || true
+  rm -f "$STAGE/mattermost-db.sql"
+  echo "  DB restored"
+fi
 MM_DB_PASS=$(cat /root/.internkim/secrets/mm-db-pass 2>/dev/null || echo "")
 if [ -z "$MM_DB_PASS" ]; then
   MM_DB_PASS=$(head -c 12 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 16)
