@@ -2650,7 +2650,42 @@ func injectFilesIntoImage(imgRaw, ssid, wifiPass, pubKey, stageDir string) error
 	mkSymlink("/etc/systemd/system/multi-user.target.wants/cloudflared.service",
 		"/etc/systemd/system/cloudflared.service")
 
-	// ── 7. Expand raw image, update MBR, and write partition back ──
+	// ── 7. Watchdog service (runs every boot — ensures Wi-Fi, DNS, SSH, LED) ──
+	fmt.Println("    watchdog service")
+	watchdogScript := `#!/bin/bash
+systemctl stop wpa_supplicant.service 2>/dev/null
+systemctl mask wpa_supplicant.service 2>/dev/null
+rm -f /run/wpa_supplicant/wlan0
+rm -f /etc/systemd/network/10-netplan-wlan0.network
+systemctl restart wpa_supplicant@wlan0
+systemctl restart systemd-networkd
+for i in $(seq 1 30); do
+  ip addr show wlan0 | grep -q 'inet ' && break
+  sleep 2
+done
+if ! host google.com >/dev/null 2>&1; then
+  DHCP_DNS=$(networkctl status wlan0 2>/dev/null | grep 'DNS:' | awk '{print $2}' | head -1)
+  [ -n "$DHCP_DNS" ] && echo "nameserver $DHCP_DNS" > /etc/resolv.conf
+  [ -z "$DHCP_DNS" ] && echo "nameserver 8.8.8.8" > /etc/resolv.conf
+fi
+systemctl start ssh 2>/dev/null || systemctl start sshd 2>/dev/null
+CURRENT_IP=$(ip -4 addr show wlan0 | grep -oP 'inet \K[^/]+' | head -1)
+if [ -n "$CURRENT_IP" ]; then
+  mountpoint -q /boot/firmware || mount /boot/firmware 2>/dev/null
+  mkdir -p /boot/firmware/internkim
+  echo "$CURRENT_IP" > /boot/firmware/internkim/board-ip
+fi
+if [ -f /sys/class/leds/ACT/trigger ]; then
+  echo heartbeat > /sys/class/leds/ACT/trigger 2>/dev/null || true
+fi
+`
+	writeContent(watchdogScript, "/usr/local/bin/internkim-watchdog.sh", "0100755")
+	watchdogService := "[Unit]\nDescription=Intern Kim Watchdog\nAfter=network-pre.target\nWants=network-pre.target\n\n[Service]\nType=oneshot\nExecStart=/usr/local/bin/internkim-watchdog.sh\nRemainAfterExit=yes\nTimeoutStartSec=120\n\n[Install]\nWantedBy=multi-user.target\n"
+	writeContent(watchdogService, "/etc/systemd/system/internkim-watchdog.service", "0100644")
+	mkSymlink("/etc/systemd/system/multi-user.target.wants/internkim-watchdog.service",
+		"/etc/systemd/system/internkim-watchdog.service")
+
+	// ── 8. Expand raw image, update MBR, and write partition back ──
 	fmt.Println("    writing partition back")
 	newImgSize := partOffset + partSize
 	if fi, err := os.Stat(imgRaw); err == nil && fi.Size() < newImgSize {
@@ -3320,6 +3355,7 @@ protect_last_n = 8
 
 [memory]
 backend = "none"
+auto_save = false
 
 [browser]
 enabled = true
