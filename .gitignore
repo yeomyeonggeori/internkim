@@ -5,3 +5,4 @@ board-ui/
 internkim
 .env
 .dev.vars
+.dependency/
