@@ -1528,7 +1528,9 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 		botToken = botPat.Token
 	}
 
-	// 6b. Delete Mattermost's default bot welcome DM ("Please add me to teams...")
+	// 6b. Delete Mattermost's default bot welcome DM — only if the oldest post
+	// in the admin↔bot DM matches the exact welcome message, so user/bot
+	// conversation history is preserved on re-runs.
 	if botResult.UserID != "" && adminUserResp.ID != "" {
 		dmBody, _ := json.Marshal([]string{adminUserResp.ID, botResult.UserID})
 		_, dmResp := mmAPI("POST", "/api/v4/channels/direct", dmBody, adminToken)
@@ -1537,13 +1539,17 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 		}
 		json.Unmarshal(dmResp, &dmCh)
 		if dmCh.ID != "" {
-			_, postsResp := mmAPI("GET", "/api/v4/channels/"+dmCh.ID+"/posts?per_page=50", nil, adminToken)
+			_, postsResp := mmAPI("GET", "/api/v4/channels/"+dmCh.ID+"/posts?per_page=200", nil, adminToken)
 			var posts struct {
-				Order []string `json:"order"`
+				Order []string                      `json:"order"`
+				Posts map[string]struct{ Message string } `json:"posts"`
 			}
 			json.Unmarshal(postsResp, &posts)
-			for _, id := range posts.Order {
-				mmAPI("DELETE", "/api/v4/posts/"+id, nil, adminToken)
+			if n := len(posts.Order); n > 0 {
+				oldestID := posts.Order[n-1] // order is newest→oldest
+				if posts.Posts[oldestID].Message == "Please add me to teams and channels you want me to interact in. To do this, use the browser or Mattermost Desktop App." {
+					mmAPI("DELETE", "/api/v4/posts/"+oldestID, nil, adminToken)
+				}
 			}
 		}
 	}
@@ -3436,7 +3442,7 @@ if [ -n "$BOT_USER_ID" ]; then
   BOT_TOKEN=$(echo "$BOT_PAT" | jq -r '.token // empty')
 fi
 
-# ── Delete Mattermost default bot welcome DM ──
+# ── Delete Mattermost default bot welcome DM (only if oldest post matches) ──
 if [ -n "$BOT_USER_ID" ] && [ -n "$ADMIN_ID" ]; then
   DM_RESP=$(curl -sf -X POST "$MM_URL/api/v4/channels/direct" \
     -H "Authorization: Bearer $ADMIN_TOKEN" \
@@ -3444,13 +3450,17 @@ if [ -n "$BOT_USER_ID" ] && [ -n "$ADMIN_ID" ]; then
     -d "[\"$ADMIN_ID\",\"$BOT_USER_ID\"]" 2>/dev/null || true)
   DM_ID=$(echo "$DM_RESP" | jq -r '.id // empty')
   if [ -n "$DM_ID" ]; then
-    curl -sf "$MM_URL/api/v4/channels/$DM_ID/posts?per_page=50" \
-      -H "Authorization: Bearer $ADMIN_TOKEN" 2>/dev/null \
-      | jq -r '.order[]? // empty' \
-      | while read -r POST_ID; do
-          [ -n "$POST_ID" ] && curl -sf -X DELETE "$MM_URL/api/v4/posts/$POST_ID" \
-            -H "Authorization: Bearer $ADMIN_TOKEN" >/dev/null 2>&1 || true
-        done
+    POSTS=$(curl -sf "$MM_URL/api/v4/channels/$DM_ID/posts?per_page=200" \
+      -H "Authorization: Bearer $ADMIN_TOKEN" 2>/dev/null || true)
+    OLDEST_ID=$(echo "$POSTS" | jq -r '.order[-1] // empty')
+    if [ -n "$OLDEST_ID" ]; then
+      OLDEST_MSG=$(echo "$POSTS" | jq -r ".posts[\"$OLDEST_ID\"].message // empty")
+      WELCOME="Please add me to teams and channels you want me to interact in. To do this, use the browser or Mattermost Desktop App."
+      if [ "$OLDEST_MSG" = "$WELCOME" ]; then
+        curl -sf -X DELETE "$MM_URL/api/v4/posts/$OLDEST_ID" \
+          -H "Authorization: Bearer $ADMIN_TOKEN" >/dev/null 2>&1 || true
+      fi
+    fi
   fi
 fi
 
