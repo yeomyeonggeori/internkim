@@ -951,11 +951,12 @@ func runStatus() {
 		return
 	}
 	if boardIP != "" && !sshOK {
-		fmt.Printf("\r  %s %s\n", m.t("보드 발견 (SSH 없음):", "Board found (no SSH):"), boardIP)
-		fmt.Printf("  %s\n", m.t("프로비저닝 진행 중일 수 있습니다. LED 상태를 확인하세요.", "Provisioning may be in progress. Check LED status."))
-		fmt.Printf("    %s: %s\n", m.t("빠른 점멸", "Fast blink"), m.t("프로비저닝 중", "provisioning"))
-		fmt.Printf("    %s: %s\n", m.t("하트비트", "Heartbeat"), m.t("완료", "complete"))
-		fmt.Printf("    %s: %s\n", m.t("느린 점멸", "Slow blink"), m.t("실패", "failed"))
+		fmt.Printf("\r  %s %s\n", m.t("보드 발견 (SSH 연결 불가):", "Board found (SSH unreachable):"), boardIP)
+		fmt.Printf("  %s\n", m.t("LED 상태로 의미가 달라집니다:", "Meaning depends on the LED:"))
+		fmt.Printf("    %s: %s\n", m.t("빠른 점멸", "Fast blink"), m.t("프로비저닝 진행 중 — 잠시 후 다시 시도", "provisioning in progress — retry shortly"))
+		fmt.Printf("    %s: %s\n", m.t("하트비트", "Heartbeat"), m.t("프로비저닝 완료 — IP가 바뀌었거나 Wi-Fi/방화벽 문제일 수 있습니다", "provisioning complete — IP may have changed, or Wi-Fi/firewall blocking SSH"))
+		fmt.Printf("    %s: %s\n", m.t("느린 점멸", "Slow blink"), m.t("프로비저닝 실패 — /var/log/internkim-firstboot.log 확인", "provisioning failed — check /var/log/internkim-firstboot.log"))
+		fmt.Printf("  %s\n", m.t("하트비트라면: internkim sim 에서 사용하거나, SD에서 board-ip 파일을 확인하고 재시도하세요.", "If heartbeat: use `internkim sim` instead, or re-check the board-ip file on the SD card and retry."))
 		return
 	}
 
@@ -1855,7 +1856,7 @@ func sshCheckHostname(ip string) bool {
 	out, err := exec.Command("ssh",
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "UserKnownHostsFile=/dev/null",
-		"-o", "ConnectTimeout=2",
+		"-o", "ConnectTimeout=5",
 		"-o", "LogLevel=ERROR",
 		"-o", "BatchMode=yes",
 		"root@"+ip, "hostname").CombinedOutput()
@@ -1883,9 +1884,25 @@ func detectBoardRPi(_ string, stateDir string) (string, bool) {
 	if saved := loadState(stateDir, "board_wifi_ip"); saved != "" {
 		candidates = append(candidates, saved)
 	}
+	// mDNS resolve (avahi-daemon on RPi)
+	if out, err := exec.Command("dns-sd", "-timeout", "3", "-Q", "internkim.local").Output(); err == nil {
+		for _, line := range strings.Split(string(out), "\n") {
+			if strings.Contains(line, "internkim.local") && strings.Contains(line, "192.168") {
+				fields := strings.Fields(line)
+				for _, f := range fields {
+					if strings.HasPrefix(f, "192.168") {
+						candidates = append([]string{f}, candidates...)
+					}
+				}
+			}
+		}
+	}
+	if out, err := net.LookupHost("internkim.local"); err == nil && len(out) > 0 {
+		candidates = append([]string{out[0]}, candidates...)
+	}
 	// Try known candidates first (fast path)
 	for _, ip := range candidates {
-		conn, err := net.DialTimeout("tcp", ip+":22", 2*time.Second)
+		conn, err := net.DialTimeout("tcp", ip+":22", 3*time.Second)
 		if err == nil {
 			conn.Close()
 			saveState(stateDir, "board_ip", ip)
@@ -1944,7 +1961,7 @@ func detectBoardRPi(_ string, stateDir string) (string, bool) {
 			saveState(stateDir, "board_ip", r.ip)
 			return r.ip, r.ssh
 		case <-done:
-		case <-time.After(5 * time.Second):
+		case <-time.After(15 * time.Second):
 		}
 	}
 
@@ -2801,26 +2818,33 @@ func injectFilesIntoImage(imgRaw, ssid, wifiPass, pubKey, stageDir string) error
 	watchdogScript := `#!/bin/bash
 # Skip if firstboot is still pending
 [ -f /usr/local/bin/internkim-firstboot.sh ] && exit 0
-systemctl stop wpa_supplicant.service 2>/dev/null
+# Mask competing network managers (idempotent)
 systemctl mask wpa_supplicant.service 2>/dev/null
-systemctl stop NetworkManager 2>/dev/null
 systemctl mask NetworkManager 2>/dev/null
-systemctl stop dhcpcd 2>/dev/null
 systemctl mask dhcpcd 2>/dev/null
-rm -f /run/wpa_supplicant/wlan0
-rm -f /etc/systemd/network/10-netplan-wlan0.network
-systemctl restart wpa_supplicant@wlan0
-systemctl restart systemd-networkd
-for i in $(seq 1 30); do
-  ip addr show wlan0 | grep -q 'inet ' && break
-  sleep 2
-done
-if ! host google.com >/dev/null 2>&1; then
+# Check if Wi-Fi is connected
+if ip addr show wlan0 | grep -q 'inet '; then
+  : # Wi-Fi OK
+else
+  # Wi-Fi down — reconnect
+  rm -f /run/wpa_supplicant/wlan0
+  rm -f /etc/systemd/network/10-netplan-wlan0.network
+  systemctl restart wpa_supplicant@wlan0
+  systemctl restart systemd-networkd
+  for i in $(seq 1 30); do
+    ip addr show wlan0 | grep -q 'inet ' && break
+    sleep 2
+  done
+fi
+# Ensure DNS
+if ! getent hosts google.com >/dev/null 2>&1; then
   DHCP_DNS=$(networkctl status wlan0 2>/dev/null | grep 'DNS:' | awk '{print $2}' | head -1)
   [ -n "$DHCP_DNS" ] && echo "nameserver $DHCP_DNS" > /etc/resolv.conf
   [ -z "$DHCP_DNS" ] && echo "nameserver 8.8.8.8" > /etc/resolv.conf
 fi
+# Ensure SSH
 systemctl start ssh 2>/dev/null || systemctl start sshd 2>/dev/null
+# Record IP to boot partition
 CURRENT_IP=$(ip -4 addr show wlan0 | grep -oP 'inet \K[^/]+' | head -1)
 if [ -n "$CURRENT_IP" ]; then
   mountpoint -q /boot/firmware || mount /boot/firmware 2>/dev/null
@@ -2831,15 +2855,18 @@ fi
 if systemctl is-active --quiet postgresql 2>/dev/null; then
   su - postgres -c "pg_dump mattermost" > /var/cache/internkim/mattermost-db.sql 2>/dev/null || true
 fi
+# LED heartbeat
 if [ -f /sys/class/leds/ACT/trigger ]; then
   echo heartbeat > /sys/class/leds/ACT/trigger 2>/dev/null || true
 fi
 `
 	writeContent(watchdogScript, "/usr/local/bin/internkim-watchdog.sh", "0100755")
-	watchdogService := "[Unit]\nDescription=Intern Kim Watchdog\nAfter=network-pre.target\nWants=network-pre.target\n\n[Service]\nType=oneshot\nExecStart=/usr/local/bin/internkim-watchdog.sh\nRemainAfterExit=yes\nTimeoutStartSec=120\n\n[Install]\nWantedBy=multi-user.target\n"
+	watchdogService := "[Unit]\nDescription=Intern Kim Watchdog\n\n[Service]\nType=oneshot\nExecStart=/usr/local/bin/internkim-watchdog.sh\nTimeoutStartSec=120\n"
 	writeContent(watchdogService, "/etc/systemd/system/internkim-watchdog.service", "0100644")
-	mkSymlink("/etc/systemd/system/multi-user.target.wants/internkim-watchdog.service",
-		"/etc/systemd/system/internkim-watchdog.service")
+	watchdogTimer := "[Unit]\nDescription=Intern Kim Watchdog Timer\n\n[Timer]\nOnBootSec=30\nOnUnitActiveSec=300\n\n[Install]\nWantedBy=timers.target\n"
+	writeContent(watchdogTimer, "/etc/systemd/system/internkim-watchdog.timer", "0100644")
+	mkSymlink("/etc/systemd/system/timers.target.wants/internkim-watchdog.timer",
+		"/etc/systemd/system/internkim-watchdog.timer")
 
 	// ── 8. Expand raw image, update MBR, and write partition back ──
 	fmt.Println("    writing partition back")
