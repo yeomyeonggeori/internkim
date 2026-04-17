@@ -32,8 +32,8 @@ var (
 
 	// Armbian Trixie Minimal images per board
 	armbianImages = map[string]string{
-		"rpi":       "https://dl.armbian.com/rpi4b/Trixie_current_minimal",       // RPi 3/4/5
-		"orangepi5": "https://dl.armbian.com/orangepi5/Trixie_current_minimal",   // Orange Pi 5 (RK3588S)
+		"rpi":       "https://dl.armbian.com/rpi4b/Trixie_current_minimal",     // RPi 3/4/5
+		"orangepi5": "https://dl.armbian.com/orangepi5/Trixie_current_minimal", // Orange Pi 5 (RK3588S)
 	}
 )
 
@@ -1541,7 +1541,7 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 		if dmCh.ID != "" {
 			_, postsResp := mmAPI("GET", "/api/v4/channels/"+dmCh.ID+"/posts?per_page=200", nil, adminToken)
 			var posts struct {
-				Order []string                      `json:"order"`
+				Order []string                            `json:"order"`
 				Posts map[string]struct{ Message string } `json:"posts"`
 			}
 			json.Unmarshal(postsResp, &posts)
@@ -1958,8 +1958,8 @@ func detectBoardRPi(_ string, stateDir string) (string, bool) {
 	}
 	if subnet != "" {
 		type result struct {
-			ip    string
-			ssh   bool
+			ip  string
+			ssh bool
 		}
 		found := make(chan result, 254)
 		var wg sync.WaitGroup
@@ -2481,7 +2481,7 @@ When a user asks for ANY file (image, PDF, document, etc.):
 	fmt.Printf("  %s\n", m.t("zeroclaw 설정 준비 완료", "zeroclaw config staged"))
 
 	// 8f. sysconf.txt — Debian raspi standard first-boot config
-	sysconf := fmt.Sprintf("hostname=internkim\n")
+	sysconf := "hostname=internkim\n"
 	if pubKey != "" {
 		sysconf += fmt.Sprintf("root_authorized_key=%s\n", pubKey)
 	}
