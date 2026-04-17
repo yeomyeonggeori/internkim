@@ -1096,17 +1096,35 @@ func backupFromExt4(disk, backupDir string, messenger *msg) {
 	}
 }
 
-// useDawnZeroclawBuild copies the Dawn-kim-official zeroclaw build to targetPath
-// if the local build exists and targetPath does not. Temporary until upstream merge.
+// useDawnZeroclawBuild copies the Dawn-kim-official zeroclaw build to targetPath.
+// Prefers the repo-local .dependency/zeroclaw build, falling back to the legacy
+// quickclaw cache. Re-copies when the source is newer than targetPath so rebuilds
+// propagate automatically; skips when targetPath is already up-to-date.
 func useDawnZeroclawBuild(targetPath string) {
-	if _, err := os.Stat(targetPath); err == nil {
-		return
+	scriptDir, _ := os.Getwd()
+	candidates := []string{
+		filepath.Join(scriptDir, ".dependency", "zeroclaw", "target", "aarch64-unknown-linux-gnu", "release", "zeroclaw"),
+		filepath.Join(quickclawDir(), "cache", "zeroclaw-dawn-arm64"),
 	}
-	dawnPath := filepath.Join(quickclawDir(), "cache", "zeroclaw-dawn-arm64")
-	if data, err := os.ReadFile(dawnPath); err == nil {
+	targetInfo, targetErr := os.Stat(targetPath)
+	for _, src := range candidates {
+		srcInfo, err := os.Stat(src)
+		if err != nil {
+			continue
+		}
+		if targetErr == nil && !srcInfo.ModTime().After(targetInfo.ModTime()) {
+			return // target already at-or-newer than this source
+		}
+		data, err := os.ReadFile(src)
+		if err != nil {
+			continue
+		}
 		os.MkdirAll(filepath.Dir(targetPath), 0755)
-		os.WriteFile(targetPath, data, 0755)
-		fmt.Println("  zeroclaw (Dawn-kim-official)... ok")
+		if err := os.WriteFile(targetPath, data, 0755); err == nil {
+			os.Chtimes(targetPath, srcInfo.ModTime(), srcInfo.ModTime())
+			fmt.Printf("  zeroclaw (Dawn-kim-official, %s)... ok\n", filepath.Base(filepath.Dir(src)))
+			return
+		}
 	}
 }
 
