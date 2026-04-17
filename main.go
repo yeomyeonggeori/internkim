@@ -1507,6 +1507,15 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 		UserID string `json:"user_id"`
 	}
 	json.Unmarshal(botResp, &botResult)
+	if botResult.UserID == "" {
+		// Bot already exists — fetch by username
+		_, existing := mmAPI("GET", "/api/v4/users/username/internkim", nil, adminToken)
+		var u struct {
+			ID string `json:"id"`
+		}
+		json.Unmarshal(existing, &u)
+		botResult.UserID = u.ID
+	}
 
 	botToken := ""
 	if botResult.UserID != "" {
@@ -1517,6 +1526,26 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 		}
 		json.Unmarshal(botPatResp, &botPat)
 		botToken = botPat.Token
+	}
+
+	// 6b. Delete Mattermost's default bot welcome DM ("Please add me to teams...")
+	if botResult.UserID != "" && adminUserResp.ID != "" {
+		dmBody, _ := json.Marshal([]string{adminUserResp.ID, botResult.UserID})
+		_, dmResp := mmAPI("POST", "/api/v4/channels/direct", dmBody, adminToken)
+		var dmCh struct {
+			ID string `json:"id"`
+		}
+		json.Unmarshal(dmResp, &dmCh)
+		if dmCh.ID != "" {
+			_, postsResp := mmAPI("GET", "/api/v4/channels/"+dmCh.ID+"/posts?per_page=50", nil, adminToken)
+			var posts struct {
+				Order []string `json:"order"`
+			}
+			json.Unmarshal(postsResp, &posts)
+			for _, id := range posts.Order {
+				mmAPI("DELETE", "/api/v4/posts/"+id, nil, adminToken)
+			}
+		}
 	}
 
 	// 7. Get town-square channel ID
@@ -3392,6 +3421,11 @@ BOT_RESP=$(curl -sf -X POST "$MM_URL/api/v4/bots" \
   -H 'Content-Type: application/json' \
   -d '{"username":"internkim","display_name":"Intern Kim","description":"AI assistant"}')
 BOT_USER_ID=$(echo "$BOT_RESP" | jq -r '.user_id // empty')
+if [ -z "$BOT_USER_ID" ]; then
+  # Bot already exists — fetch by username
+  BOT_USER_ID=$(curl -sf "$MM_URL/api/v4/users/username/internkim" \
+    -H "Authorization: Bearer $ADMIN_TOKEN" 2>/dev/null | jq -r '.id // empty')
+fi
 
 BOT_TOKEN=""
 if [ -n "$BOT_USER_ID" ]; then
@@ -3400,6 +3434,24 @@ if [ -n "$BOT_USER_ID" ]; then
     -H 'Content-Type: application/json' \
     -d '{"description":"internkim-bot"}')
   BOT_TOKEN=$(echo "$BOT_PAT" | jq -r '.token // empty')
+fi
+
+# ── Delete Mattermost default bot welcome DM ──
+if [ -n "$BOT_USER_ID" ] && [ -n "$ADMIN_ID" ]; then
+  DM_RESP=$(curl -sf -X POST "$MM_URL/api/v4/channels/direct" \
+    -H "Authorization: Bearer $ADMIN_TOKEN" \
+    -H 'Content-Type: application/json' \
+    -d "[\"$ADMIN_ID\",\"$BOT_USER_ID\"]" 2>/dev/null || true)
+  DM_ID=$(echo "$DM_RESP" | jq -r '.id // empty')
+  if [ -n "$DM_ID" ]; then
+    curl -sf "$MM_URL/api/v4/channels/$DM_ID/posts?per_page=50" \
+      -H "Authorization: Bearer $ADMIN_TOKEN" 2>/dev/null \
+      | jq -r '.order[]? // empty' \
+      | while read -r POST_ID; do
+          [ -n "$POST_ID" ] && curl -sf -X DELETE "$MM_URL/api/v4/posts/$POST_ID" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" >/dev/null 2>&1 || true
+        done
+  fi
 fi
 
 # ── Create team + add bot ──
