@@ -448,6 +448,11 @@ rm -f /etc/sudoers.d/zeroclaw-gws /usr/local/bin/role-memory-mcp`)
 		ssh.run("cp /usr/local/bin/" + tool + " /root/.zeroclaw/workspace/bin/ && chmod 755 /root/.zeroclaw/workspace/bin/" + tool)
 	}
 
+	// 5c. Install gws-cli agent skills (symlink from sparse clone of googleworkspace/cli)
+	if out := strings.TrimSpace(ssh.run(gwsSkillsInstallScript)); out != "" {
+		fmt.Printf("  %s\n", out)
+	}
+
 	// 6. OpenRouter API key + zeroclaw config
 	step(6, totalSteps, m.t("OpenRouter API 키 설정...", "Configuring OpenRouter API key..."))
 	existingKey := strings.TrimSpace(ssh.run("test -f /root/.internkim/secrets/openrouter-api-key && echo yes || echo no"))
@@ -1128,6 +1133,29 @@ func useDawnZeroclawBuild(targetPath string) {
 		}
 	}
 }
+
+// gwsSkillsInstallScript sparse-clones (or updates) googleworkspace/cli into
+// /opt/gws-cli and symlinks skills/gws-* into the zeroclaw workspace skills dir.
+// Matches the OpenClaw setup pattern documented in the gws-cli README.
+const gwsSkillsInstallScript = `mkdir -p /opt /root/.zeroclaw/workspace/skills
+if [ -d /opt/gws-cli/.git ]; then
+  git -C /opt/gws-cli fetch --depth 1 origin main >/dev/null 2>&1 && \
+    git -C /opt/gws-cli reset --hard origin/main >/dev/null 2>&1 || true
+else
+  rm -rf /opt/gws-cli
+  git clone --depth 1 --filter=blob:none --sparse \
+    https://github.com/googleworkspace/cli.git /opt/gws-cli >/dev/null 2>&1
+  git -C /opt/gws-cli sparse-checkout set skills >/dev/null 2>&1
+fi
+COUNT=0
+for d in /opt/gws-cli/skills/gws-*; do
+  [ -d "$d" ] || continue
+  ln -sfn "$d" "/root/.zeroclaw/workspace/skills/$(basename "$d")"
+  COUNT=$((COUNT + 1))
+done
+chown -R zeroclaw:zeroclaw /root/.zeroclaw/workspace/skills 2>/dev/null || true
+echo "gws-skills: $COUNT symlinked"
+`
 
 // downloadBinary downloads a binary (or extracts one from a tar.gz) to localPath.
 // tarEntry is the filename inside the archive to extract; empty means direct binary download.
@@ -3177,6 +3205,26 @@ zeroclaw ALL=(gws) NOPASSWD: /usr/local/bin/gws
 zeroclaw ALL=(root) NOPASSWD: /usr/local/bin/role-memory
 EOF
 chmod 440 /etc/sudoers.d/zeroclaw-mcp
+
+# ── gws-cli agent skills (symlink from sparse clone) ──
+mkdir -p /opt /root/.zeroclaw/workspace/skills
+if [ -d /opt/gws-cli/.git ]; then
+  git -C /opt/gws-cli fetch --depth 1 origin main >/dev/null 2>&1 && \
+    git -C /opt/gws-cli reset --hard origin/main >/dev/null 2>&1 || true
+else
+  rm -rf /opt/gws-cli
+  git clone --depth 1 --filter=blob:none --sparse \
+    https://github.com/googleworkspace/cli.git /opt/gws-cli >/dev/null 2>&1
+  git -C /opt/gws-cli sparse-checkout set skills >/dev/null 2>&1
+fi
+GWS_COUNT=0
+for d in /opt/gws-cli/skills/gws-*; do
+  [ -d "$d" ] || continue
+  ln -sfn "$d" "/root/.zeroclaw/workspace/skills/$(basename "$d")"
+  GWS_COUNT=$((GWS_COUNT + 1))
+done
+chown -R zeroclaw:zeroclaw /root/.zeroclaw/workspace/skills 2>/dev/null || true
+echo "gws-skills: $GWS_COUNT symlinked"
 
 # ── Wi-Fi ──
 echo "Setting up Wi-Fi..."
