@@ -165,9 +165,10 @@ func runSetup() {
 	sim := containsArg("--sim")
 	m := newMsg(lang)
 
-	// Pipeline mode: selective re-run against already-provisioned board via SSH.
-	// Triggered by --live, --only, --from, or --skip. Skips SD flash entirely.
-	if containsArg("--live") || containsArg("--only") || containsArg("--from") || containsArg("--skip") {
+	// Pipeline mode: selective re-run (auto/ssh/sd backend).
+	// Triggered by --only/--from/--skip/--ssh/--sd/--live.
+	if containsArg("--only") || containsArg("--from") || containsArg("--skip") ||
+		containsArg("--ssh") || containsArg("--sd") || containsArg("--live") {
 		runSetupLive(m)
 		return
 	}
@@ -4158,7 +4159,7 @@ func argString(flag, fallback string) string {
 	return fallback
 }
 
-// --- Setup pipeline wiring (selective re-run of already-provisioned board) ---
+// --- Setup pipeline wiring (selective re-run with SSH / SD backends) ---
 
 // sshConnAdapter exposes *sshClient as setup.BoardConn.
 type sshConnAdapter struct{ c *sshClient }
@@ -4169,31 +4170,104 @@ func (a sshConnAdapter) SCP(local, remote string) error {
 	return nil
 }
 
-// runSetupLive runs the setup pipeline via SSH against an already-provisioned
-// board, with optional --only/--from/--skip step selection.
+// sdStageAdapter exposes the mounted SD card's /internkim dir as setup.SDStage.
+type sdStageAdapter struct{ root string }
+
+func (a sdStageAdapter) RootPath() string { return a.root }
+func (a sdStageAdapter) WriteFile(stagePath string, data []byte, mode int) error {
+	full := filepath.Join(a.root, stagePath)
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(full, data, os.FileMode(mode))
+}
+
+// detectSDStageRoot finds a mounted SD-card's /internkim staging dir, or "".
+func detectSDStageRoot() string {
+	for _, d := range []string{"/Volumes/RPICFG", "/Volumes/bootfs", "/Volumes/boot", "/Volumes/NO NAME", "/Volumes/RASPIFIRM"} {
+		stage := filepath.Join(d, "internkim")
+		if fi, err := os.Stat(stage); err == nil && fi.IsDir() {
+			return stage
+		}
+	}
+	return ""
+}
+
+// runSetupLive runs the setup pipeline with optional --only/--from/--skip
+// step selection and --ssh/--sd backend selection (default: auto — SSH first,
+// fall back to SD staging).
 func runSetupLive(m *msg) {
 	stateDir := quickclawDir()
 	scriptDir, _ := os.Getwd()
 	sshpassBin := filepath.Join(scriptDir, "bin", "sshpass")
+
+	wantSSH := containsArg("--ssh")
+	wantSD := containsArg("--sd")
+	if wantSSH && wantSD {
+		fatal("--ssh and --sd are mutually exclusive")
+	}
 	sim := containsArg("--sim")
 
-	var boardIP string
-	if sim {
-		boardIP = simContainerIP()
-		if boardIP == "" {
-			fatal("Simulator not running. Start it with: internkim sim")
+	var (
+		backend setup.Backend
+		ssh     *sshClient
+		sdRoot  string
+		boardIP string
+	)
+
+	tryBackend := func(kind setup.Backend) bool {
+		switch kind {
+		case setup.BackendSSH:
+			if sim {
+				boardIP = simContainerIP()
+			} else {
+				boardIP = findBoardIP(sshpassBin, stateDir)
+			}
+			if boardIP == "" {
+				return false
+			}
+			ssh = newSSH(sshpassBin, boardUser, "", boardIP)
+			return true
+		case setup.BackendSD:
+			sdRoot = detectSDStageRoot()
+			return sdRoot != ""
 		}
-	} else {
-		boardIP = findBoardIP(sshpassBin, stateDir)
-		if boardIP == "" {
-			fatal(m.t("보드를 찾을 수 없습니다.", "Board not reachable."))
+		return false
+	}
+
+	switch {
+	case wantSSH:
+		if !tryBackend(setup.BackendSSH) {
+			fatal(m.t("보드를 찾을 수 없습니다 (SSH).", "Board not reachable (SSH)."))
+		}
+		backend = setup.BackendSSH
+	case wantSD:
+		if !tryBackend(setup.BackendSD) {
+			fatal(m.t("SD 카드가 꽂혀있지 않거나 internkim 디렉토리가 없습니다.", "No SD card mounted with an internkim staging dir."))
+		}
+		backend = setup.BackendSD
+	default: // auto
+		if tryBackend(setup.BackendSSH) {
+			backend = setup.BackendSSH
+		} else if tryBackend(setup.BackendSD) {
+			backend = setup.BackendSD
+		} else {
+			fatal(m.t(
+				"타겟을 찾을 수 없습니다 — 보드에 SSH도 안 되고, SD 카드도 없습니다.\n  --ssh 또는 --sd 를 명시하거나, 대상을 준비해 주세요.",
+				"No target — board unreachable via SSH and no SD mounted.\n  Pass --ssh or --sd explicitly, or prepare a target.",
+			))
 		}
 	}
-	ssh := newSSH(sshpassBin, boardUser, "", boardIP)
-	fmt.Printf("Target: %s\n", boardIP)
+
+	switch backend {
+	case setup.BackendSSH:
+		fmt.Printf("Target: %s (ssh)\n", boardIP)
+	case setup.BackendSD:
+		fmt.Printf("Target: %s (sd staging)\n", sdRoot)
+	}
 
 	ctx := &setup.Context{
-		SSH:       sshConnAdapter{c: ssh},
+		Backend:   backend,
 		Lang:      m.lang,
 		StateDir:  stateDir,
 		ScriptDir: scriptDir,
@@ -4215,6 +4289,11 @@ func runSetupLive(m *msg) {
 			EnableGoogleAPIs:     enableGoogleAPIs,
 			CreateGoogleSA:       createGoogleServiceAccount,
 		},
+	}
+	if backend == setup.BackendSSH {
+		ctx.SSH = sshConnAdapter{c: ssh}
+	} else {
+		ctx.SD = sdStageAdapter{root: sdRoot}
 	}
 
 	sel := setup.Selector{

@@ -24,10 +24,28 @@ type Step struct {
 	// IsSatisfied returns true when the step's output is already present and
 	// re-running is redundant. When the caller passes --force, this is ignored.
 	// Safe to leave nil — treated as "never satisfied, always run".
+	// The check should respect ctx.Backend (e.g. SSH checks the board via
+	// ctx.SSH; SD checks the staging dir via ctx.SD).
 	IsSatisfied func(ctx *Context) bool
 
-	// Run performs the step. Returning an error halts the pipeline.
+	// Run is the SSH backend body (applied to a running board).
+	// Nil → step not supported on SSH (rare).
 	Run func(ctx *Context) error
+
+	// RunSD is the SD staging backend body (writes to the boot partition
+	// for firstboot to apply on next boot). Nil → step not supported on SD.
+	RunSD func(ctx *Context) error
+}
+
+// body returns the appropriate Run body for ctx.Backend, or nil if the
+// step has no implementation for that backend.
+func (s Step) body(ctx *Context) func(*Context) error {
+	switch ctx.Backend {
+	case BackendSD:
+		return s.RunSD
+	default:
+		return s.Run
+	}
 }
 
 // Selector controls which steps execute.
@@ -155,14 +173,34 @@ func (r Registry) Run(ctx *Context, sel Selector) error {
 			fmt.Println("  이미 설정됨 — 건너뜀")
 			continue
 		}
-		if step.Run == nil {
+		body := step.body(ctx)
+		if body == nil {
+			// User asked for this step but no body for the chosen backend.
+			// Only error if step was explicitly named in --only / --from;
+			// dep-pulled stubs are silently skipped.
+			if explicit(name, sel) {
+				return fmt.Errorf("step %s: %w (%s)", name, ErrUnsupportedBackend, ctx.Backend)
+			}
 			continue
 		}
-		if err := step.Run(ctx); err != nil {
+		if err := body(ctx); err != nil {
 			return fmt.Errorf("step %s: %w", name, err)
 		}
 	}
 	return nil
+}
+
+// explicit reports whether name was explicitly named in sel (not auto-dep).
+func explicit(name string, sel Selector) bool {
+	for _, n := range sel.Only {
+		if n == name {
+			return true
+		}
+	}
+	if sel.From == name {
+		return true
+	}
+	return false
 }
 
 // ParseNames splits a comma-separated list, trimming whitespace and dropping empties.
