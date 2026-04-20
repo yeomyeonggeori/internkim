@@ -13,7 +13,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -4041,123 +4040,199 @@ func (tokens *googleTokens) AuthorizedUserJSON() string {
 	return string(payload)
 }
 
+// googleAuthScopes are the OAuth scopes the on-device agent needs across
+// its full lifetime: GCP admin (cloud-platform) for project / SA / API-enable
+// operations, plus the narrower "sensitive" (not "restricted") Workspace
+// scopes that gws-cli uses to create Slides / Docs / Sheets, send Gmail, and
+// write Calendar events on the user's behalf.
+var googleAuthScopes = []string{
+	"https://www.googleapis.com/auth/cloud-platform",
+	"https://www.googleapis.com/auth/userinfo.email",
+	"https://www.googleapis.com/auth/drive.file",
+	"https://www.googleapis.com/auth/presentations",
+	"https://www.googleapis.com/auth/documents",
+	"https://www.googleapis.com/auth/spreadsheets",
+	"https://www.googleapis.com/auth/calendar.events",
+	"https://www.googleapis.com/auth/gmail.send",
+	"https://www.googleapis.com/auth/tasks",
+	"https://www.googleapis.com/auth/forms.body",
+}
+
+// googleAuth obtains the user's OAuth tokens by delegating to gcloud's
+// application-default login. The hardcoded loopback client previously used
+// here was gcloud CLI's embedded client ID — Google now blocks non-gcloud
+// callers of it for personal accounts. Delegating to gcloud sidesteps that
+// block and gives us a long-lived refresh_token in ADC format, which we
+// then re-use on-device via GOOGLE_APPLICATION_CREDENTIALS.
 func googleAuth() (*googleTokens, error) {
-	return googleOAuthLoopback()
+	if err := ensureGcloudInstalled(); err != nil {
+		return nil, err
+	}
+	tokens, err := readGcloudADC()
+	if err != nil || tokens.RefreshToken == "" || !gcloudADCHasAllScopes(tokens) {
+		if err := runGcloudAuthLogin(); err != nil {
+			return nil, err
+		}
+		tokens, err = readGcloudADC()
+		if err != nil {
+			return nil, fmt.Errorf("read ADC after login: %w", err)
+		}
+	}
+	accessToken, err := refreshAccessToken(tokens.ClientID, tokens.ClientSecret, tokens.RefreshToken)
+	if err != nil {
+		return nil, fmt.Errorf("refresh access token: %w", err)
+	}
+	tokens.AccessToken = accessToken
+	tokens.Email = fetchGoogleEmail(accessToken)
+	return tokens, nil
 }
 
 func googleDeviceAuth() (string, error) {
-	tokens, err := googleOAuthLoopback()
+	tokens, err := googleAuth()
 	if err != nil {
 		return "", err
 	}
 	return tokens.AccessToken, nil
 }
 
-// googleOAuthLoopback performs OAuth2 loopback redirect flow requesting the
-// full set of Workspace scopes so the resulting refresh token can be reused
-// on-device by gws-cli for Drive / Slides / Docs / etc. operations.
-func googleOAuthLoopback() (*googleTokens, error) {
-	clientID := "764086051850-6qr4p6gpi6hn506pt8ejuq83di341hur.apps.googleusercontent.com"
-	clientSecret := "d-FL95Q19q7MQmFpd7hHD0Ty"
-	scope := strings.Join([]string{
-		"https://www.googleapis.com/auth/cloud-platform",
-		"https://www.googleapis.com/auth/userinfo.email",
-		"https://www.googleapis.com/auth/drive",
-		"https://www.googleapis.com/auth/presentations",
-		"https://www.googleapis.com/auth/documents",
-		"https://www.googleapis.com/auth/spreadsheets",
-		"https://www.googleapis.com/auth/calendar",
-		"https://www.googleapis.com/auth/gmail.modify",
-		"https://www.googleapis.com/auth/tasks",
-		"https://www.googleapis.com/auth/contacts",
-		"https://www.googleapis.com/auth/chat.messages",
-		"https://www.googleapis.com/auth/forms.body",
-	}, " ")
+func applicationDefaultCredentialsPath() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".config", "gcloud", "application_default_credentials.json")
+}
 
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+func ensureGcloudInstalled() error {
+	if _, err := exec.LookPath("gcloud"); err == nil {
+		return nil
+	}
+	if _, err := exec.LookPath("brew"); err != nil {
+		return fmt.Errorf("gcloud not installed and Homebrew not available — install gcloud manually: https://cloud.google.com/sdk/docs/install")
+	}
+	fmt.Println("  gcloud not found — installing via Homebrew (brew install --cask google-cloud-sdk)...")
+	install := exec.Command("brew", "install", "--cask", "google-cloud-sdk")
+	install.Stdout = os.Stdout
+	install.Stderr = os.Stderr
+	if err := install.Run(); err != nil {
+		return fmt.Errorf("brew install google-cloud-sdk failed: %w", err)
+	}
+	if _, err := exec.LookPath("gcloud"); err != nil {
+		return fmt.Errorf("gcloud still not on PATH after brew install — open a new shell and rerun, or install manually")
+	}
+	return nil
+}
+
+func runGcloudAuthLogin() error {
+	fmt.Println("  Launching `gcloud auth application-default login` for Workspace scopes...")
+	login := exec.Command("gcloud", "auth", "application-default", "login",
+		"--scopes="+strings.Join(googleAuthScopes, ","))
+	login.Stdin = os.Stdin
+	login.Stdout = os.Stdout
+	login.Stderr = os.Stderr
+	return login.Run()
+}
+
+// readGcloudADC parses ~/.config/gcloud/application_default_credentials.json
+// into a googleTokens. Missing file is reported as an error so callers can
+// distinguish "no credentials yet" from "credentials malformed".
+func readGcloudADC() (*googleTokens, error) {
+	data, err := os.ReadFile(applicationDefaultCredentialsPath())
 	if err != nil {
-		return nil, fmt.Errorf("failed to open local port: %w", err)
-	}
-	port := listener.Addr().(*net.TCPAddr).Port
-	redirectURI := fmt.Sprintf("http://localhost:%d", port)
-
-	// prompt=consent forces Google to re-issue a refresh_token even when
-	// the user has previously granted access; without it, subsequent logins
-	// return only an access_token and we'd have no long-lived credential
-	// to store on the board.
-	authURL := fmt.Sprintf(
-		"https://accounts.google.com/o/oauth2/auth?client_id=%s&redirect_uri=%s&response_type=code&scope=%s&access_type=offline&prompt=consent",
-		clientID, url.QueryEscape(redirectURI), url.QueryEscape(scope),
-	)
-
-	fmt.Printf("\n  Opening browser for Google login...\n")
-	exec.Command("open", authURL).Start()
-	fmt.Printf("  If browser did not open, visit:\n  %s\n\n", authURL)
-
-	codeChannel := make(chan string, 1)
-	callbackMux := http.NewServeMux()
-	callbackServer := &http.Server{Handler: callbackMux}
-	callbackMux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		authorizationCode := request.URL.Query().Get("code")
-		if authorizationCode != "" {
-			fmt.Fprintf(writer, "<html><body><h2>Authorization complete. You can close this tab.</h2></body></html>")
-			codeChannel <- authorizationCode
-		}
-	})
-	go callbackServer.Serve(listener)
-	defer callbackServer.Close()
-
-	var authorizationCode string
-	select {
-	case authorizationCode = <-codeChannel:
-	case <-time.After(5 * time.Minute):
-		return nil, fmt.Errorf("timed out waiting for Google authorization")
-	}
-
-	tokenResponse, err := http.PostForm("https://oauth2.googleapis.com/token", map[string][]string{
-		"code":          {authorizationCode},
-		"client_id":     {clientID},
-		"client_secret": {clientSecret},
-		"redirect_uri":  {redirectURI},
-		"grant_type":    {"authorization_code"},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("token exchange failed: %w", err)
-	}
-	defer tokenResponse.Body.Close()
-	responseBody, _ := io.ReadAll(tokenResponse.Body)
-	var parsedToken struct {
-		AccessToken  string `json:"access_token"`
-		RefreshToken string `json:"refresh_token"`
-		Error        string `json:"error"`
-	}
-	if err := json.Unmarshal(responseBody, &parsedToken); err != nil {
 		return nil, err
 	}
-	if parsedToken.Error != "" {
-		return nil, fmt.Errorf("token error: %s", parsedToken.Error)
+	var adc struct {
+		Type         string   `json:"type"`
+		ClientID     string   `json:"client_id"`
+		ClientSecret string   `json:"client_secret"`
+		RefreshToken string   `json:"refresh_token"`
+		Scopes       []string `json:"scopes"`
 	}
-
-	userEmail := ""
-	userInfoRequest, _ := http.NewRequest("GET", "https://www.googleapis.com/oauth2/v2/userinfo", nil)
-	userInfoRequest.Header.Set("Authorization", "Bearer "+parsedToken.AccessToken)
-	if userInfoResponse, userInfoError := http.DefaultClient.Do(userInfoRequest); userInfoError == nil {
-		defer userInfoResponse.Body.Close()
-		var userInfo struct {
-			Email string `json:"email"`
-		}
-		if userInfoBody, _ := io.ReadAll(userInfoResponse.Body); json.Unmarshal(userInfoBody, &userInfo) == nil {
-			userEmail = userInfo.Email
-		}
+	if err := json.Unmarshal(data, &adc); err != nil {
+		return nil, err
 	}
-
+	if adc.Type != "" && adc.Type != "authorized_user" {
+		return nil, fmt.Errorf("unsupported ADC type %q — expected authorized_user (run `gcloud auth application-default login`)", adc.Type)
+	}
 	return &googleTokens{
-		AccessToken:  parsedToken.AccessToken,
-		RefreshToken: parsedToken.RefreshToken,
-		Email:        userEmail,
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
+		ClientID:     adc.ClientID,
+		ClientSecret: adc.ClientSecret,
+		RefreshToken: adc.RefreshToken,
 	}, nil
+}
+
+// gcloudADCHasAllScopes verifies the stored ADC covers every scope we need.
+// gcloud only writes a scopes array when `--scopes=...` was passed; an older
+// default-scopes login returns an empty array, which we treat as "needs
+// re-login" so we surface missing scopes early rather than getting a 403 at
+// the Slides API.
+func gcloudADCHasAllScopes(tokens *googleTokens) bool {
+	if tokens == nil {
+		return false
+	}
+	data, err := os.ReadFile(applicationDefaultCredentialsPath())
+	if err != nil {
+		return false
+	}
+	var envelope struct {
+		Scopes []string `json:"scopes"`
+	}
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		return false
+	}
+	have := map[string]bool{}
+	for _, scope := range envelope.Scopes {
+		have[scope] = true
+	}
+	for _, required := range googleAuthScopes {
+		if !have[required] {
+			return false
+		}
+	}
+	return true
+}
+
+// refreshAccessToken exchanges a long-lived refresh_token for a short-lived
+// access_token against Google's OAuth2 token endpoint. Used whenever the
+// caller needs to make a one-off authenticated request without shelling out
+// to `gcloud auth application-default print-access-token`.
+func refreshAccessToken(clientID, clientSecret, refreshToken string) (string, error) {
+	response, err := http.PostForm("https://oauth2.googleapis.com/token", map[string][]string{
+		"client_id":     {clientID},
+		"client_secret": {clientSecret},
+		"refresh_token": {refreshToken},
+		"grant_type":    {"refresh_token"},
+	})
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+	body, _ := io.ReadAll(response.Body)
+	var payload struct {
+		AccessToken string `json:"access_token"`
+		Error       string `json:"error"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return "", err
+	}
+	if payload.Error != "" {
+		return "", fmt.Errorf("refresh token endpoint: %s", payload.Error)
+	}
+	return payload.AccessToken, nil
+}
+
+func fetchGoogleEmail(accessToken string) string {
+	request, _ := http.NewRequest("GET", "https://www.googleapis.com/oauth2/v2/userinfo", nil)
+	request.Header.Set("Authorization", "Bearer "+accessToken)
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return ""
+	}
+	defer response.Body.Close()
+	var userInfo struct {
+		Email string `json:"email"`
+	}
+	if body, _ := io.ReadAll(response.Body); json.Unmarshal(body, &userInfo) == nil {
+		return userInfo.Email
+	}
+	return ""
 }
 
 // --- UI helpers ---
