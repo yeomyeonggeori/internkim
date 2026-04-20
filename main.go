@@ -22,6 +22,8 @@ import (
 	"time"
 
 	"golang.org/x/term"
+
+	"github.com/anthropic-lab/internkim/setup"
 )
 
 var (
@@ -162,6 +164,13 @@ func runSetup() {
 	}
 	sim := containsArg("--sim")
 	m := newMsg(lang)
+
+	// Pipeline mode: selective re-run against already-provisioned board via SSH.
+	// Triggered by --live, --only, --from, or --skip. Skips SD flash entirely.
+	if containsArg("--live") || containsArg("--only") || containsArg("--from") || containsArg("--skip") {
+		runSetupLive(m)
+		return
+	}
 
 	if !sim {
 		runSetupSD(m)
@@ -390,8 +399,9 @@ udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true`, wpaConf))
 
 	// 5a. Setup system users and secrets directory
 	ssh.run(`
-id gws &>/dev/null || useradd -r -s /sbin/nologin gws
+id gws &>/dev/null || useradd -r -m -d /home/gws -s /sbin/nologin gws
 id zeroclaw &>/dev/null || useradd -r -s /sbin/nologin zeroclaw
+install -d -o gws -g gws -m 750 /home/gws /home/gws/.cache /home/gws/.config
 chmod 711 /root
 mkdir -p /root/.internkim/secrets
 chmod 700 /root/.internkim/secrets
@@ -2907,6 +2917,19 @@ if ! getent hosts google.com >/dev/null 2>&1; then
 fi
 # Ensure SSH
 systemctl start ssh 2>/dev/null || systemctl start sshd 2>/dev/null
+# Force NTP sync (RPi5 has no RTC — JWTs fail if clock is stale)
+if ! timedatectl show --property=NTPSynchronized --value | grep -q '^yes$'; then
+  systemctl restart systemd-timesyncd 2>/dev/null || true
+  for i in $(seq 1 15); do
+    [ "$(timedatectl show --property=NTPSynchronized --value)" = "yes" ] && break
+    sleep 1
+  done
+fi
+# Ensure /etc/hosts maps the hostname (sudo uses this; missing entry trips gws)
+HN=$(hostname)
+if [ -n "$HN" ] && ! grep -qw "$HN" /etc/hosts; then
+  echo "127.0.1.1 $HN" >> /etc/hosts
+fi
 # Record IP to boot partition
 CURRENT_IP=$(ip -4 addr show wlan0 | grep -oP 'inet \K[^/]+' | head -1)
 if [ -n "$CURRENT_IP" ]; then
@@ -3173,8 +3196,9 @@ fi
 echo "Staged files installed."
 
 # ── System users ──
-id gws &>/dev/null || useradd -r -s /sbin/nologin gws
+id gws &>/dev/null || useradd -r -m -d /home/gws -s /sbin/nologin gws
 id zeroclaw &>/dev/null || useradd -r -s /sbin/nologin zeroclaw
+install -d -o gws -g gws -m 750 /home/gws /home/gws/.cache /home/gws/.config
 chmod 711 /root
 mkdir -p /root/.internkim/env
 chown root:zeroclaw /root/.internkim/env
@@ -3758,13 +3782,23 @@ func createGoogleServiceAccount(deviceID, accessToken string) (string, error) {
 	return saKeyJSON, nil
 }
 
-// enableGoogleAPIs enables required Google Workspace APIs for the project.
+// enableGoogleAPIs enables the Google Workspace APIs that gws-cli skills exercise.
 func enableGoogleAPIs(client *http.Client, accessToken, projectID string) error {
 	apis := []string{
 		"drive.googleapis.com",
 		"docs.googleapis.com",
 		"sheets.googleapis.com",
+		"slides.googleapis.com",
 		"gmail.googleapis.com",
+		"calendar-json.googleapis.com",
+		"tasks.googleapis.com",
+		"people.googleapis.com",
+		"chat.googleapis.com",
+		"forms.googleapis.com",
+		"script.googleapis.com",
+		"classroom.googleapis.com",
+		"meet.googleapis.com",
+		"keep.googleapis.com",
 	}
 	body, _ := json.Marshal(map[string]any{
 		"serviceIds": apis,
@@ -3783,7 +3817,7 @@ func enableGoogleAPIs(client *http.Client, accessToken, projectID string) error 
 		b, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("API 활성화 HTTP %d: %s", resp.StatusCode, string(b))
 	}
-	fmt.Printf("  Google Workspace API 활성화 완료 (Drive, Docs, Sheets, Calendar, Gmail)\n")
+	fmt.Printf("  Google Workspace API 활성화 완료 (%d개: Drive/Docs/Sheets/Slides/Gmail/Calendar/Tasks/People/Chat/Forms/Script/Classroom/Meet/Keep)\n", len(apis))
 	return nil
 }
 
@@ -4110,4 +4144,88 @@ func argInt(flag string, fallback int) int {
 		}
 	}
 	return fallback
+}
+
+func argString(flag, fallback string) string {
+	for i, a := range os.Args {
+		if a == flag && i+1 < len(os.Args) {
+			return os.Args[i+1]
+		}
+		if strings.HasPrefix(a, flag+"=") {
+			return strings.TrimPrefix(a, flag+"=")
+		}
+	}
+	return fallback
+}
+
+// --- Setup pipeline wiring (selective re-run of already-provisioned board) ---
+
+// sshConnAdapter exposes *sshClient as setup.BoardConn.
+type sshConnAdapter struct{ c *sshClient }
+
+func (a sshConnAdapter) Run(cmd string) string { return a.c.run(cmd) }
+func (a sshConnAdapter) SCP(local, remote string) error {
+	a.c.scp(local, remote)
+	return nil
+}
+
+// runSetupLive runs the setup pipeline via SSH against an already-provisioned
+// board, with optional --only/--from/--skip step selection.
+func runSetupLive(m *msg) {
+	stateDir := quickclawDir()
+	scriptDir, _ := os.Getwd()
+	sshpassBin := filepath.Join(scriptDir, "bin", "sshpass")
+	sim := containsArg("--sim")
+
+	var boardIP string
+	if sim {
+		boardIP = simContainerIP()
+		if boardIP == "" {
+			fatal("Simulator not running. Start it with: internkim sim")
+		}
+	} else {
+		boardIP = findBoardIP(sshpassBin, stateDir)
+		if boardIP == "" {
+			fatal(m.t("보드를 찾을 수 없습니다.", "Board not reachable."))
+		}
+	}
+	ssh := newSSH(sshpassBin, boardUser, "", boardIP)
+	fmt.Printf("Target: %s\n", boardIP)
+
+	ctx := &setup.Context{
+		SSH:       sshConnAdapter{c: ssh},
+		Lang:      m.lang,
+		StateDir:  stateDir,
+		ScriptDir: scriptDir,
+		BoardIP:   boardIP,
+		Force:     containsArg("--force"),
+		HTTP:      &http.Client{Timeout: 30 * time.Second},
+		Cb: setup.Callbacks{
+			T:         func(ko, en string) string { return m.t(ko, en) },
+			LoadState: func(k string) string { return loadState(stateDir, k) },
+			SaveState: func(k, v string) { saveState(stateDir, k, v) },
+			GoogleAuth: func() (*setup.GoogleAuth, error) {
+				g, err := googleAuth()
+				if err != nil {
+					return nil, err
+				}
+				return &setup.GoogleAuth{AccessToken: g.AccessToken, Email: g.Email}, nil
+			},
+			ResolveGoogleProject: resolveGoogleProject,
+			EnableGoogleAPIs:     enableGoogleAPIs,
+			CreateGoogleSA:       createGoogleServiceAccount,
+		},
+	}
+
+	sel := setup.Selector{
+		Only:  setup.ParseNames(argString("--only", "")),
+		From:  argString("--from", ""),
+		Skip:  setup.ParseNames(argString("--skip", "")),
+		Force: ctx.Force,
+	}
+
+	reg := setup.DefaultRegistry()
+	if err := reg.Run(ctx, sel); err != nil {
+		fatal(err.Error())
+	}
 }
