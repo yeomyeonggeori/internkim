@@ -132,14 +132,19 @@ chmod 640 /root/.internkim/env/sa-email`,
 }
 
 // stageGasWebhookURL fetches the user's deployed Apps Script Web App URL
-// (prompting for it interactively on first run) and stages it to the target
-// so the on-device agent can POST to it for Slides / Docs / Sheets creation
-// as the user. See board-scripts/gas/Code.gs for the script the user deploys.
+// (deploying it on first run using the access token we already have) and
+// stages it to the target so the on-device agent can POST to it for
+// Slides / Docs / Sheets creation as the user. See board-scripts/gas/Code.gs
+// for the script contents.
 func stageGasWebhookURL(context *Context) error {
 	if context.Callbacks.GetGasWebhookURL == nil {
 		return errors.New("GAS webhook URL callback missing")
 	}
-	webhookURL, err := context.Callbacks.GetGasWebhookURL()
+	accessToken := ""
+	if context.Google != nil {
+		accessToken = context.Google.AccessToken
+	}
+	webhookURL, err := context.Callbacks.GetGasWebhookURL(accessToken)
 	if err != nil {
 		return err
 	}

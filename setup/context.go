@@ -43,10 +43,13 @@ type Callbacks struct {
 	GetOpenRouterKey func(force bool) (string, error)
 
 	// GetGasWebhookURL returns the user's deployed Google Apps Script Web
-	// App URL, prompting interactively on first run and persisting the
-	// result. Implementations should write the URL under the host state
-	// directory so subsequent invocations don't re-prompt.
-	GetGasWebhookURL func() (string, error)
+	// App URL. accessToken is the OAuth token the caller already holds
+	// (typically from a prior GoogleAuth() call in the same run), so this
+	// implementation does not trigger a second browser consent flow.
+	// When no token is known, pass "" — implementations may obtain their
+	// own. Implementations persist the URL under the host state directory
+	// so subsequent invocations short-circuit.
+	GetGasWebhookURL func(accessToken string) (string, error)
 
 	GwsSkillsInstallScript string
 

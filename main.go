@@ -4077,16 +4077,17 @@ type googleTokens struct {
 	Email       string
 }
 
-// googleAuthScopes are intentionally narrow: only what's needed to run the
-// one-off GCP admin operations (create project, enable APIs, create SA,
-// issue SA key). Workspace scopes (drive, slides, docs, etc.) are NOT
-// requested here — Google blocks personal-account consent to those on
-// unverified apps. Workspace write operations instead route through a
-// Google Apps Script webhook that the user deploys from their own account;
-// see gasDeployURL below.
+// googleAuthScopes are intentionally narrow: just enough to run the one-off
+// GCP admin operations (create project, enable APIs, create SA, issue SA key)
+// plus the Apps Script management scope that lets us programmatically deploy
+// the webhook bridge. Workspace scopes (drive, slides, docs, gmail, calendar)
+// are NOT requested here — the Apps Script manifest declares those and the
+// user authorizes them once by opening the deployed /exec URL.
 var googleAuthScopes = []string{
 	"https://www.googleapis.com/auth/cloud-platform",
 	"https://www.googleapis.com/auth/userinfo.email",
+	"https://www.googleapis.com/auth/script.projects",
+	"https://www.googleapis.com/auth/script.deployments",
 }
 
 // googleAuth performs an OAuth2 loopback flow requesting only cloud-platform
@@ -4264,30 +4265,37 @@ func loadGasWebhookURL() (string, error) {
 // the user to click "Allow" on the consent screen, waits for them to
 // confirm, and persists the URL locally. Subsequent invocations of
 // loadGasWebhookURL hit the saved path immediately.
-func provisionGasWebhook() (string, error) {
-	tokens, err := googleAuth()
-	if err != nil {
-		return "", fmt.Errorf("oauth: %w", err)
+//
+// accessToken reuses the OAuth token a prior step already obtained so the
+// user does not see a second browser consent. If empty, this runs googleAuth
+// itself.
+func provisionGasWebhook(accessToken string) (string, error) {
+	if accessToken == "" {
+		freshTokens, err := googleAuth()
+		if err != nil {
+			return "", fmt.Errorf("oauth: %w", err)
+		}
+		accessToken = freshTokens.AccessToken
 	}
 	httpClient := &http.Client{Timeout: 60 * time.Second}
 
-	scriptID, err := gasCreateProject(httpClient, tokens.AccessToken, "internkim-bridge")
+	scriptID, err := gasCreateProject(httpClient, accessToken, "internkim-bridge")
 	if err != nil {
 		return "", fmt.Errorf("create Apps Script project: %w", err)
 	}
 	fmt.Printf("  Apps Script project created (%s)\n", scriptID)
 
-	if err := gasUploadContent(httpClient, tokens.AccessToken, scriptID, gasBridgeCode, gasBridgeManifest); err != nil {
+	if err := gasUploadContent(httpClient, accessToken, scriptID, gasBridgeCode, gasBridgeManifest); err != nil {
 		return "", fmt.Errorf("upload project content: %w", err)
 	}
 	fmt.Println("  Code + manifest uploaded.")
 
-	versionNumber, err := gasCreateVersion(httpClient, tokens.AccessToken, scriptID, "internkim-bridge initial deploy")
+	versionNumber, err := gasCreateVersion(httpClient, accessToken, scriptID, "internkim-bridge initial deploy")
 	if err != nil {
 		return "", fmt.Errorf("create version: %w", err)
 	}
 
-	deploymentID, err := gasCreateDeployment(httpClient, tokens.AccessToken, scriptID, versionNumber)
+	deploymentID, err := gasCreateDeployment(httpClient, accessToken, scriptID, versionNumber)
 	if err != nil {
 		return "", fmt.Errorf("create deployment: %w", err)
 	}
@@ -4678,11 +4686,11 @@ func runSetupLive(messenger *msg) {
 			CreateGoogleSA:       createGoogleServiceAccount,
 
 			GetOpenRouterKey:       buildOpenRouterKeyCallback(stateDir, messenger),
-			GetGasWebhookURL: func() (string, error) {
+			GetGasWebhookURL: func(accessToken string) (string, error) {
 				if existing, err := loadGasWebhookURL(); err == nil {
 					return existing, nil
 				}
-				return provisionGasWebhook()
+				return provisionGasWebhook(accessToken)
 			},
 			GwsSkillsInstallScript: gwsSkillsInstallScript,
 
