@@ -427,25 +427,55 @@ When a user asks for ANY file (image, PDF, document, etc.):
 - At the START of every conversation, call role_memory_recall with the user's topic to load relevant context.
 - When you learn important facts, preferences, or decisions, call role_memory_store to save them.
 
-## Google Workspace Identity (Slides, Docs, Sheets, Drive)
+## Google Workspace (Slides, Docs, Sheets, Drive, Calendar, Gmail)
 
-Two credentials are available on-device:
+There are two identity paths, and the rule for which to use depends on
+whether you're **creating** a new file or **editing** one.
 
-- Default ` + "`gws ...`" + ` command → acts as the **user**. Files it creates are owned by the user and count against the user's Drive quota. Revision history records the user.
-- ` + "`gws-bot ...`" + ` command → acts as the **Intern Kim service account**. Has no Drive quota of its own, so it cannot CREATE files. It can only modify files where the SA has been granted writer access. Revision history records "Intern Kim" as the editor.
+### Creating (as the user, via Apps Script webhook)
 
-**Rules for file operations:**
+Google does not allow unverified third-party apps to consent to Drive or
+Slides scopes on personal accounts, so all file creation is routed through
+a Google Apps Script web app the user has already deployed from their own
+account. POST to the webhook URL:
 
-1. **Creation** (` + "`presentations.create`, `documents.create`, `spreadsheets.create`, `drive.files.create`" + `): always use the default ` + "`gws`" + `.
-2. **Immediately after creating a file**, share it with the bot so later edits have a clear audit trail:
-   ` + "```bash" + `
-   SA_EMAIL=$(cat /root/.internkim/env/sa-email)
-   gws drive permissions create \
-     --params "{\"fileId\":\"<FILE_ID>\",\"sendNotificationEmail\":\"false\"}" \
-     --json "{\"role\":\"writer\",\"type\":\"user\",\"emailAddress\":\"$SA_EMAIL\"}"
-   ` + "```" + `
-3. **Subsequent edits** (` + "`batchUpdate`, `files.update`" + `, etc.): use ` + "`gws-bot`" + ` so the revision history shows "Intern Kim" rather than the user. This lets the user distinguish bot-made changes from their own edits later.
-4. **Read-only operations** (` + "`files.list`, `documents.get`" + `, etc.): either identity is fine — prefer ` + "`gws`" + ` (user).
+` + "```bash" + `
+WEBHOOK=$(cat "$INTERNKIM_GAS_WEBHOOK_URL_FILE")
+SA_EMAIL=$(cat /root/.internkim/env/sa-email)
+curl -fsSL "$WEBHOOK" \
+  -d "action=slides.create&title=My Deck&share_to=$SA_EMAIL"
+` + "```" + `
+
+Supported actions:
+- ` + "`slides.create`" + ` — params: ` + "`title`, `share_to`" + ` (optional SA email); returns ` + "`{id, url}`" + `.
+- ` + "`docs.create`" + ` — same shape as above.
+- ` + "`sheets.create`" + ` — same shape as above.
+- ` + "`calendar.event`" + ` — params: ` + "`title`, `start`, `end`, `attendees`" + `.
+- ` + "`gmail.send`" + ` — params: ` + "`to`, `subject`, `body`" + `.
+
+The script runs under the user's identity, so the file is owned by the
+user and counts against their Drive quota. Passing ` + "`share_to=$SA_EMAIL`" + `
+also grants the service account writer access so subsequent bot edits
+work (step below).
+
+### Editing (as the bot, via gws-bot)
+
+For ` + "`batchUpdate`, `files.update`" + `, etc. on an existing file the user has
+shared with the SA: use ` + "`gws-bot`" + ` (never plain ` + "`gws`" + `). This pins
+credentials to the SA's key and makes the edit show up in the file's
+revision history as "Intern Kim" — the user can distinguish bot-made
+changes from their own later edits.
+
+` + "```bash" + `
+gws-bot slides presentations batchUpdate \
+  --params '{"presentationId":"<FILE_ID>"}' \
+  --json '{"requests":[{"createSlide":{}}]}'
+` + "```" + `
+
+### Read-only lookups (` + "`files.list`, `documents.get`, etc." + `)
+
+Either identity works. Prefer ` + "`gws-bot`" + ` (SA) since it doesn't touch the
+user's quota.
 
 ## Tool Usage
 
@@ -668,8 +698,7 @@ Wants=network-online.target time-sync.target
 User=zeroclaw
 EnvironmentFile=/root/.internkim/secrets/openrouter-api-key
 Environment=HOME=/home/zeroclaw
-Environment=GOOGLE_APPLICATION_CREDENTIALS=/root/.internkim/secrets/google-user-creds.json
-Environment=GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE=/root/.internkim/secrets/google-user-creds.json
+Environment=INTERNKIM_GAS_WEBHOOK_URL_FILE=/root/.internkim/secrets/gas-webhook-url
 ExecStart=/usr/local/bin/zeroclaw daemon
 Restart=on-failure
 
@@ -2492,19 +2521,12 @@ func runSetupSD(m *msg) {
 	if saKeyJSON != "" {
 		os.WriteFile(filepath.Join(bootStageDir, "secrets", "google-sa.json"), []byte(saKeyJSON), 0644)
 	}
-	if gauth != nil {
-		userCreds := (&googleTokens{
-			RefreshToken: gauth.RefreshToken,
-			ClientID:     gauth.ClientID,
-			ClientSecret: gauth.ClientSecret,
-		}).AuthorizedUserJSON()
-		if userCreds != "" {
-			os.WriteFile(filepath.Join(bootStageDir, "secrets", "google-user-creds.json"), []byte(userCreds), 0644)
-		}
-	}
 	if currentDeviceID := loadOrCreateDeviceID(stateDir); currentDeviceID != "" {
 		saEmail := fmt.Sprintf("internkim-%s@internkim-%s.iam.gserviceaccount.com", currentDeviceID, currentDeviceID)
 		os.WriteFile(filepath.Join(bootStageDir, "sa-email"), []byte(saEmail), 0644)
+	}
+	if webhookURL, err := loadGasWebhookURL(); err == nil && webhookURL != "" {
+		os.WriteFile(filepath.Join(bootStageDir, "secrets", "gas-webhook-url"), []byte(webhookURL+"\n"), 0644)
 	}
 	backupDir := filepath.Join(stateDir, "backup")
 	adminPass := ""
@@ -2547,21 +2569,44 @@ func runSetupSD(m *msg) {
 		"## Memory\n\n" +
 		"- At the START of every conversation, call role_memory_recall with the user's topic to load relevant context.\n" +
 		"- When you learn important facts, preferences, or decisions, call role_memory_store to save them.\n\n" +
-		"## Google Workspace Identity (Slides, Docs, Sheets, Drive)\n\n" +
-		"Two credentials are available on-device:\n\n" +
-		"- Default `gws ...` command → acts as the **user**. Files it creates are owned by the user and count against the user's Drive quota. Revision history records the user.\n" +
-		"- `gws-bot ...` command → acts as the **Intern Kim service account**. Has no Drive quota of its own, so it cannot CREATE files. It can only modify files where the SA has been granted writer access. Revision history records \"Intern Kim\" as the editor.\n\n" +
-		"**Rules for file operations:**\n\n" +
-		"1. **Creation** (`presentations.create`, `documents.create`, `spreadsheets.create`, `drive.files.create`): always use the default `gws`.\n" +
-		"2. **Immediately after creating a file**, share it with the bot so later edits have a clear audit trail:\n" +
-		"   ```bash\n" +
-		"   SA_EMAIL=$(cat /root/.internkim/env/sa-email)\n" +
-		"   gws drive permissions create \\\n" +
-		"     --params \"{\\\"fileId\\\":\\\"<FILE_ID>\\\",\\\"sendNotificationEmail\\\":\\\"false\\\"}\" \\\n" +
-		"     --json \"{\\\"role\\\":\\\"writer\\\",\\\"type\\\":\\\"user\\\",\\\"emailAddress\\\":\\\"$SA_EMAIL\\\"}\"\n" +
-		"   ```\n" +
-		"3. **Subsequent edits** (`batchUpdate`, `files.update`, etc.): use `gws-bot` so the revision history shows \"Intern Kim\" rather than the user. This lets the user distinguish bot-made changes from their own edits later.\n" +
-		"4. **Read-only operations** (`files.list`, `documents.get`, etc.): either identity is fine — prefer `gws` (user).\n\n" +
+		"## Google Workspace (Slides, Docs, Sheets, Drive, Calendar, Gmail)\n\n" +
+		"There are two identity paths, and the rule for which to use depends on\n" +
+		"whether you're **creating** a new file or **editing** one.\n\n" +
+		"### Creating (as the user, via Apps Script webhook)\n\n" +
+		"Google does not allow unverified third-party apps to consent to Drive or\n" +
+		"Slides scopes on personal accounts, so all file creation is routed through\n" +
+		"a Google Apps Script web app the user has already deployed from their own\n" +
+		"account. POST to the webhook URL:\n\n" +
+		"```bash\n" +
+		"WEBHOOK=$(cat \"$INTERNKIM_GAS_WEBHOOK_URL_FILE\")\n" +
+		"SA_EMAIL=$(cat /root/.internkim/env/sa-email)\n" +
+		"curl -fsSL \"$WEBHOOK\" \\\n" +
+		"  -d \"action=slides.create&title=My Deck&share_to=$SA_EMAIL\"\n" +
+		"```\n\n" +
+		"Supported actions:\n" +
+		"- `slides.create` — params: `title`, `share_to` (optional SA email); returns `{id, url}`.\n" +
+		"- `docs.create` — same shape as above.\n" +
+		"- `sheets.create` — same shape as above.\n" +
+		"- `calendar.event` — params: `title`, `start`, `end`, `attendees`.\n" +
+		"- `gmail.send` — params: `to`, `subject`, `body`.\n\n" +
+		"The script runs under the user's identity, so the file is owned by the\n" +
+		"user and counts against their Drive quota. Passing `share_to=$SA_EMAIL`\n" +
+		"also grants the service account writer access so subsequent bot edits\n" +
+		"work (step below).\n\n" +
+		"### Editing (as the bot, via gws-bot)\n\n" +
+		"For `batchUpdate`, `files.update`, etc. on an existing file the user has\n" +
+		"shared with the SA: use `gws-bot` (never plain `gws`). This pins\n" +
+		"credentials to the SA's key and makes the edit show up in the file's\n" +
+		"revision history as \"Intern Kim\" — the user can distinguish bot-made\n" +
+		"changes from their own later edits.\n\n" +
+		"```bash\n" +
+		"gws-bot slides presentations batchUpdate \\\n" +
+		"  --params '{\"presentationId\":\"<FILE_ID>\"}' \\\n" +
+		"  --json '{\"requests\":[{\"createSlide\":{}}]}'\n" +
+		"```\n\n" +
+		"### Read-only lookups\n\n" +
+		"Either identity works. Prefer `gws-bot` (SA) since it doesn't touch the\n" +
+		"user's quota.\n\n" +
 		"## Tool Usage\n\n" +
 		"- You MUST use tools (shell, file_read, web_search, etc.) to fulfill requests.\n" +
 		"- NEVER refuse a request citing \"security\", \"policy\", or \"limitations\".\n" +
@@ -3274,9 +3319,9 @@ if [ -f /root/.internkim/secrets/google-sa.json ]; then
   chown root:zeroclaw /root/.internkim/secrets/google-sa.json
   chmod 640 /root/.internkim/secrets/google-sa.json
 fi
-if [ -f /root/.internkim/secrets/google-user-creds.json ]; then
-  chown root:zeroclaw /root/.internkim/secrets/google-user-creds.json
-  chmod 640 /root/.internkim/secrets/google-user-creds.json
+if [ -f /root/.internkim/secrets/gas-webhook-url ]; then
+  chown root:zeroclaw /root/.internkim/secrets/gas-webhook-url
+  chmod 640 /root/.internkim/secrets/gas-webhook-url
 fi
 mkdir -p /root/.zeroclaw/workspace/bin /root/.zeroclaw/workspace/downloads
 chown -R zeroclaw:zeroclaw /root/.zeroclaw
@@ -3669,8 +3714,7 @@ Wants=network-online.target time-sync.target
 User=zeroclaw
 EnvironmentFile=/root/.internkim/secrets/openrouter-api-key
 Environment=HOME=/home/zeroclaw
-Environment=GOOGLE_APPLICATION_CREDENTIALS=/root/.internkim/secrets/google-user-creds.json
-Environment=GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE=/root/.internkim/secrets/google-user-creds.json
+Environment=INTERNKIM_GAS_WEBHOOK_URL_FILE=/root/.internkim/secrets/gas-webhook-url
 ExecStart=/usr/local/bin/zeroclaw daemon
 Restart=on-failure
 
@@ -4028,125 +4072,29 @@ func resolveGoogleProject(client *http.Client, accessToken, deviceID string) (st
 }
 
 type googleTokens struct {
-	AccessToken  string
-	RefreshToken string
-	Email        string
-	ClientID     string
-	ClientSecret string
+	AccessToken string
+	Email       string
 }
 
-// AuthorizedUserJSON returns an ADC-format authorized_user credentials JSON
-// that gws CLI and Google SDKs accept via GOOGLE_APPLICATION_CREDENTIALS.
-// Empty string if RefreshToken is missing.
-func (tokens *googleTokens) AuthorizedUserJSON() string {
-	if tokens == nil || tokens.RefreshToken == "" {
-		return ""
-	}
-	payload, _ := json.MarshalIndent(map[string]string{
-		"type":          "authorized_user",
-		"client_id":     tokens.ClientID,
-		"client_secret": tokens.ClientSecret,
-		"refresh_token": tokens.RefreshToken,
-	}, "", "  ")
-	return string(payload)
-}
-
-// googleAuthScopes are the OAuth scopes the on-device agent needs across
-// its full lifetime: GCP admin (cloud-platform) for project / SA / API-enable
-// operations, plus the narrower "sensitive" (not "restricted") Workspace
-// scopes that gws-cli uses to create Slides / Docs / Sheets, send Gmail, and
-// write Calendar events on the user's behalf.
+// googleAuthScopes are intentionally narrow: only what's needed to run the
+// one-off GCP admin operations (create project, enable APIs, create SA,
+// issue SA key). Workspace scopes (drive, slides, docs, etc.) are NOT
+// requested here — Google blocks personal-account consent to those on
+// unverified apps. Workspace write operations instead route through a
+// Google Apps Script webhook that the user deploys from their own account;
+// see gasDeployURL below.
 var googleAuthScopes = []string{
 	"https://www.googleapis.com/auth/cloud-platform",
 	"https://www.googleapis.com/auth/userinfo.email",
-	"https://www.googleapis.com/auth/drive.file",
-	"https://www.googleapis.com/auth/presentations",
-	"https://www.googleapis.com/auth/documents",
-	"https://www.googleapis.com/auth/spreadsheets",
-	"https://www.googleapis.com/auth/calendar.events",
-	"https://www.googleapis.com/auth/gmail.send",
-	"https://www.googleapis.com/auth/tasks",
-	"https://www.googleapis.com/auth/forms.body",
 }
 
-// googleAuth obtains the user's OAuth tokens via a loopback flow that uses
-// a user-owned OAuth client from ~/.quickclaw/client_secret.json.
-//
-// Why a user-owned client: Google now blocks consent requests that combine
-// the gcloud CLI's embedded client with custom sensitive scopes (such as
-// drive.file, presentations, etc.), even when the caller *is* gcloud itself,
-// and does not permit programmatic creation of Desktop-type OAuth clients.
-// The only reliable path for personal gmail accounts is for the user to
-// create their own OAuth client in their GCP project — Google lets unverified
-// user-owned clients consent to sensitive scopes after an "Advanced"
-// click-through, and the refresh token stays valid.
+// googleAuth performs an OAuth2 loopback flow requesting only cloud-platform
+// and userinfo.email. The client ID is Google's gcloud CLI client, which
+// Google still accepts for these two scopes on personal accounts.
 func googleAuth() (*googleTokens, error) {
-	clientID, clientSecret, err := loadUserOAuthClient()
-	if err != nil {
-		return nil, err
-	}
-	return runLoopbackOAuth(clientID, clientSecret)
-}
+	clientID := "764086051850-6qr4p6gpi6hn506pt8ejuq83di341hur.apps.googleusercontent.com"
+	clientSecret := "d-FL95Q19q7MQmFpd7hHD0Ty"
 
-func googleDeviceAuth() (string, error) {
-	tokens, err := googleAuth()
-	if err != nil {
-		return "", err
-	}
-	return tokens.AccessToken, nil
-}
-
-// loadUserOAuthClient reads the user's Desktop OAuth client JSON downloaded
-// from the GCP Console. Returns a clear how-to-create message when the file
-// is missing so the caller can surface it to the operator.
-func loadUserOAuthClient() (clientID, clientSecret string, err error) {
-	path := filepath.Join(internkimHomeDir(), "client_secret.json")
-	data, readError := os.ReadFile(path)
-	if readError != nil {
-		return "", "", fmt.Errorf(`OAuth client file missing: %s
-
-Create one in your GCP project:
-  1. Go to https://console.cloud.google.com/apis/credentials/consent and configure
-     the OAuth consent screen:
-       - User Type: External
-       - App name: internkim
-       - Scopes: add cloud-platform, userinfo.email, drive.file, presentations,
-         documents, spreadsheets, calendar.events, gmail.send, tasks, forms.body
-       - Test users: add your own email
-  2. Go to https://console.cloud.google.com/apis/credentials and click
-     "Create credentials" → "OAuth client ID" → Application type "Desktop app".
-  3. Download the JSON and save it as %s
-  4. Re-run this command.`, path, path)
-	}
-	var wrapper struct {
-		Installed struct {
-			ClientID     string `json:"client_id"`
-			ClientSecret string `json:"client_secret"`
-		} `json:"installed"`
-		Web struct {
-			ClientID     string `json:"client_id"`
-			ClientSecret string `json:"client_secret"`
-		} `json:"web"`
-	}
-	if err := json.Unmarshal(data, &wrapper); err != nil {
-		return "", "", fmt.Errorf("parse %s: %w", path, err)
-	}
-	clientID = wrapper.Installed.ClientID
-	clientSecret = wrapper.Installed.ClientSecret
-	if clientID == "" {
-		clientID = wrapper.Web.ClientID
-		clientSecret = wrapper.Web.ClientSecret
-	}
-	if clientID == "" {
-		return "", "", fmt.Errorf("%s has no installed.client_id or web.client_id — did you pick the Desktop app type?", path)
-	}
-	return clientID, clientSecret, nil
-}
-
-// runLoopbackOAuth performs the OAuth2 authorization-code flow with a
-// user-owned client. Access is granted via a short-lived local HTTP callback
-// that captures the authorization code from the redirect.
-func runLoopbackOAuth(clientID, clientSecret string) (*googleTokens, error) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, fmt.Errorf("open local port: %w", err)
@@ -4159,7 +4107,7 @@ func runLoopbackOAuth(clientID, clientSecret string) (*googleTokens, error) {
 		"&redirect_uri=" + redirectURI +
 		"&response_type=code" +
 		"&scope=" + encodeQueryValue(strings.Join(googleAuthScopes, " ")) +
-		"&access_type=offline&prompt=consent"
+		"&access_type=offline"
 
 	fmt.Println()
 	fmt.Println("  Opening browser for Google login...")
@@ -4199,9 +4147,8 @@ func runLoopbackOAuth(clientID, clientSecret string) (*googleTokens, error) {
 	defer tokenResponse.Body.Close()
 	body, _ := io.ReadAll(tokenResponse.Body)
 	var parsed struct {
-		AccessToken  string `json:"access_token"`
-		RefreshToken string `json:"refresh_token"`
-		Error        string `json:"error"`
+		AccessToken string `json:"access_token"`
+		Error       string `json:"error"`
 	}
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return nil, err
@@ -4211,12 +4158,17 @@ func runLoopbackOAuth(clientID, clientSecret string) (*googleTokens, error) {
 	}
 
 	return &googleTokens{
-		AccessToken:  parsed.AccessToken,
-		RefreshToken: parsed.RefreshToken,
-		Email:        fetchGoogleEmail(parsed.AccessToken),
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
+		AccessToken: parsed.AccessToken,
+		Email:       fetchGoogleEmail(parsed.AccessToken),
 	}, nil
+}
+
+func googleDeviceAuth() (string, error) {
+	tokens, err := googleAuth()
+	if err != nil {
+		return "", err
+	}
+	return tokens.AccessToken, nil
 }
 
 func encodeQueryValue(value string) string {
@@ -4238,155 +4190,6 @@ func encodeQueryValue(value string) string {
 	return builder.String()
 }
 
-func applicationDefaultCredentialsPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "gcloud", "application_default_credentials.json")
-}
-
-func ensureGcloudInstalled() error {
-	if _, err := exec.LookPath("gcloud"); err == nil {
-		return nil
-	}
-	home, _ := os.UserHomeDir()
-	candidateBins := []string{
-		filepath.Join(home, "google-cloud-sdk", "bin"),
-		"/opt/homebrew/share/google-cloud-sdk/bin",
-		"/usr/local/share/google-cloud-sdk/bin",
-	}
-	for _, candidate := range candidateBins {
-		if _, err := os.Stat(filepath.Join(candidate, "gcloud")); err == nil {
-			os.Setenv("PATH", candidate+":"+os.Getenv("PATH"))
-			return nil
-		}
-	}
-	fmt.Println("  gcloud not found — installing Google Cloud SDK via official installer...")
-	fmt.Println("  (Skipping Homebrew cask — its post-install needs Python virtualenv which fails on newer macOS.)")
-	installScript := fmt.Sprintf(`set -e
-cd %q
-ARCH=$(uname -m)
-case "$ARCH" in
-  arm64)  ARCHIVE="google-cloud-cli-darwin-arm.tar.gz" ;;
-  x86_64) ARCHIVE="google-cloud-cli-darwin-x86_64.tar.gz" ;;
-  *)      echo "unsupported arch: $ARCH" >&2; exit 1 ;;
-esac
-curl -fsSL -o /tmp/gcloud-sdk.tar.gz "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/$ARCHIVE"
-rm -rf google-cloud-sdk
-tar -xzf /tmp/gcloud-sdk.tar.gz
-rm /tmp/gcloud-sdk.tar.gz
-./google-cloud-sdk/install.sh --quiet --usage-reporting=false --path-update=true --command-completion=true
-`, home)
-	install := exec.Command("bash", "-c", installScript)
-	install.Stdout = os.Stdout
-	install.Stderr = os.Stderr
-	if err := install.Run(); err != nil {
-		return fmt.Errorf("gcloud SDK install failed: %w", err)
-	}
-	freshBin := filepath.Join(home, "google-cloud-sdk", "bin")
-	if _, err := os.Stat(filepath.Join(freshBin, "gcloud")); err != nil {
-		return fmt.Errorf("gcloud still missing after install — check /tmp/gcloud-sdk.tar.gz extraction and ~/google-cloud-sdk/")
-	}
-	os.Setenv("PATH", freshBin+":"+os.Getenv("PATH"))
-	return nil
-}
-
-func runGcloudAuthLogin() error {
-	fmt.Println("  Launching `gcloud auth application-default login` for Workspace scopes...")
-	login := exec.Command("gcloud", "auth", "application-default", "login",
-		"--scopes="+strings.Join(googleAuthScopes, ","))
-	login.Stdin = os.Stdin
-	login.Stdout = os.Stdout
-	login.Stderr = os.Stderr
-	return login.Run()
-}
-
-// readGcloudADC parses ~/.config/gcloud/application_default_credentials.json
-// into a googleTokens. Missing file is reported as an error so callers can
-// distinguish "no credentials yet" from "credentials malformed".
-func readGcloudADC() (*googleTokens, error) {
-	data, err := os.ReadFile(applicationDefaultCredentialsPath())
-	if err != nil {
-		return nil, err
-	}
-	var adc struct {
-		Type         string   `json:"type"`
-		ClientID     string   `json:"client_id"`
-		ClientSecret string   `json:"client_secret"`
-		RefreshToken string   `json:"refresh_token"`
-		Scopes       []string `json:"scopes"`
-	}
-	if err := json.Unmarshal(data, &adc); err != nil {
-		return nil, err
-	}
-	if adc.Type != "" && adc.Type != "authorized_user" {
-		return nil, fmt.Errorf("unsupported ADC type %q — expected authorized_user (run `gcloud auth application-default login`)", adc.Type)
-	}
-	return &googleTokens{
-		ClientID:     adc.ClientID,
-		ClientSecret: adc.ClientSecret,
-		RefreshToken: adc.RefreshToken,
-	}, nil
-}
-
-// gcloudADCHasAllScopes verifies the stored ADC covers every scope we need.
-// gcloud only writes a scopes array when `--scopes=...` was passed; an older
-// default-scopes login returns an empty array, which we treat as "needs
-// re-login" so we surface missing scopes early rather than getting a 403 at
-// the Slides API.
-func gcloudADCHasAllScopes(tokens *googleTokens) bool {
-	if tokens == nil {
-		return false
-	}
-	data, err := os.ReadFile(applicationDefaultCredentialsPath())
-	if err != nil {
-		return false
-	}
-	var envelope struct {
-		Scopes []string `json:"scopes"`
-	}
-	if err := json.Unmarshal(data, &envelope); err != nil {
-		return false
-	}
-	have := map[string]bool{}
-	for _, scope := range envelope.Scopes {
-		have[scope] = true
-	}
-	for _, required := range googleAuthScopes {
-		if !have[required] {
-			return false
-		}
-	}
-	return true
-}
-
-// refreshAccessToken exchanges a long-lived refresh_token for a short-lived
-// access_token against Google's OAuth2 token endpoint. Used whenever the
-// caller needs to make a one-off authenticated request without shelling out
-// to `gcloud auth application-default print-access-token`.
-func refreshAccessToken(clientID, clientSecret, refreshToken string) (string, error) {
-	response, err := http.PostForm("https://oauth2.googleapis.com/token", map[string][]string{
-		"client_id":     {clientID},
-		"client_secret": {clientSecret},
-		"refresh_token": {refreshToken},
-		"grant_type":    {"refresh_token"},
-	})
-	if err != nil {
-		return "", err
-	}
-	defer response.Body.Close()
-	body, _ := io.ReadAll(response.Body)
-	var payload struct {
-		AccessToken string `json:"access_token"`
-		Error       string `json:"error"`
-	}
-	if err := json.Unmarshal(body, &payload); err != nil {
-		return "", err
-	}
-	if payload.Error != "" {
-		return "", fmt.Errorf("refresh token endpoint: %s", payload.Error)
-	}
-	return payload.AccessToken, nil
-}
-
 func fetchGoogleEmail(accessToken string) string {
 	request, _ := http.NewRequest("GET", "https://www.googleapis.com/oauth2/v2/userinfo", nil)
 	request.Header.Set("Authorization", "Bearer "+accessToken)
@@ -4402,6 +4205,72 @@ func fetchGoogleEmail(accessToken string) string {
 		return userInfo.Email
 	}
 	return ""
+}
+
+// gasDeployURL is a new-project link that pre-fills Apps Script with the
+// content of board-scripts/gas/Code.gs. Clicking it drops the script into
+// the user's own Drive; they then click Deploy → New deployment and the
+// resulting Web App URL becomes the webhook the on-device agent calls.
+const gasDeployURL = "https://script.google.com/home/start"
+
+// gasWebhookURLPath is the Mac-side file internkim reads for the user's
+// deployed Apps Script Web App URL.
+func gasWebhookURLPath() string {
+	return filepath.Join(internkimHomeDir(), "gas-webhook-url")
+}
+
+// loadGasWebhookURL returns the stored GAS webhook URL, or an error whose
+// message instructs the caller through the deploy + paste ritual.
+func loadGasWebhookURL() (string, error) {
+	data, err := os.ReadFile(gasWebhookURLPath())
+	if err != nil {
+		return "", err
+	}
+	url := strings.TrimSpace(string(data))
+	if url == "" {
+		return "", fmt.Errorf("empty webhook URL at %s", gasWebhookURLPath())
+	}
+	return url, nil
+}
+
+// promptForGasWebhookURL opens the deploy URL in the user's browser,
+// reads one line of stdin for the Web App URL they paste back, stores it
+// under ~/.internkim/gas-webhook-url, and returns it.
+func promptForGasWebhookURL() (string, error) {
+	scriptPath := filepath.Join(".", "board-scripts", "gas", "Code.gs")
+	fmt.Println()
+	fmt.Println("  Google Apps Script webhook not configured yet.")
+	fmt.Println("  One-time setup (~30 seconds):")
+	fmt.Printf("    1. Open %s in your browser.\n", gasDeployURL)
+	fmt.Println("    2. Paste the contents of", scriptPath, "into the editor.")
+	fmt.Println("    3. Click Deploy → New deployment → Web app.")
+	fmt.Println("       - Execute as: Me")
+	fmt.Println("       - Who has access: Only myself")
+	fmt.Println("    4. Authorize when prompted.")
+	fmt.Println("    5. Copy the Web App URL shown after deploy.")
+	fmt.Println()
+	exec.Command("open", gasDeployURL).Start()
+	fmt.Print("  Paste the Web App URL here: ")
+	reader := bufio.NewReader(os.Stdin)
+	line, err := reader.ReadString('\n')
+	if err != nil && line == "" {
+		return "", fmt.Errorf("read webhook URL: %w", err)
+	}
+	url := strings.TrimSpace(line)
+	if url == "" {
+		return "", fmt.Errorf("no URL entered")
+	}
+	if !strings.HasPrefix(url, "https://script.google.com/") {
+		return "", fmt.Errorf("not a script.google.com URL: %s", url)
+	}
+	if err := os.MkdirAll(internkimHomeDir(), 0o700); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(gasWebhookURLPath(), []byte(url+"\n"), 0o600); err != nil {
+		return "", err
+	}
+	fmt.Println("  Saved to", gasWebhookURLPath())
+	return url, nil
 }
 
 // --- UI helpers ---
@@ -4646,11 +4515,8 @@ func runSetupLive(messenger *msg) {
 					return nil, err
 				}
 				return &setup.GoogleAuth{
-					AccessToken:  authResult.AccessToken,
-					RefreshToken: authResult.RefreshToken,
-					Email:        authResult.Email,
-					ClientID:     authResult.ClientID,
-					ClientSecret: authResult.ClientSecret,
+					AccessToken: authResult.AccessToken,
+					Email:       authResult.Email,
 				}, nil
 			},
 			ResolveGoogleProject: resolveGoogleProject,
@@ -4658,6 +4524,12 @@ func runSetupLive(messenger *msg) {
 			CreateGoogleSA:       createGoogleServiceAccount,
 
 			GetOpenRouterKey:       buildOpenRouterKeyCallback(stateDir, messenger),
+			GetGasWebhookURL: func() (string, error) {
+				if existing, err := loadGasWebhookURL(); err == nil {
+					return existing, nil
+				}
+				return promptForGasWebhookURL()
+			},
 			GwsSkillsInstallScript: gwsSkillsInstallScript,
 
 			InstallBinariesSSH: unmigratedCallback("binaries (ssh)"),
