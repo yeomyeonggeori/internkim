@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -32,6 +33,16 @@ func DeployAppsScriptViaBrowser(codeGs, manifest string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("prepare Chrome profile: %w", err)
 	}
+
+	// The OAuth step may have left a Chrome window open on this same profile
+	// for the user to sign in; chromedp will hit a SingletonLock conflict if
+	// we don't clear that first. pkill by command-line match closes only the
+	// Chrome processes pointed at our dedicated user-data-dir.
+	exec.Command("pkill", "-f", profileDir).Run()
+	time.Sleep(600 * time.Millisecond)
+	os.Remove(filepath.Join(profileDir, "SingletonLock"))
+	os.Remove(filepath.Join(profileDir, "SingletonCookie"))
+	os.Remove(filepath.Join(profileDir, "SingletonSocket"))
 
 	allocatorContext, cancelAllocator := chromedp.NewExecAllocator(context.Background(),
 		append(
