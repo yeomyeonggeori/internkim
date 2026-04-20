@@ -536,11 +536,12 @@ chmod 640 /root/.zeroclaw/config.toml /root/.zeroclaw/.secret_key`)
 		tunnelToken = loadState(stateDir, "tunnel_token")
 	}
 	if tunnelToken != "" {
-		ssh.run(fmt.Sprintf(`cat > /etc/systemd/system/cloudflared.service <<'SVCEOF'
+		ssh.run(fmt.Sprintf(`systemctl enable systemd-time-wait-sync.service 2>/dev/null
+cat > /etc/systemd/system/cloudflared.service <<'SVCEOF'
 [Unit]
 Description=Cloudflare Tunnel
-After=network-online.target
-Wants=network-online.target
+After=network-online.target time-sync.target
+Wants=network-online.target time-sync.target
 
 [Service]
 Type=simple
@@ -631,10 +632,12 @@ rm -rf agent-browser github summarize skill-creator 2>/dev/null; \
 echo "Cleaned unavailable skills"`)
 
 	// zeroclaw systemd service — reads OpenRouter key from secrets file
-	ssh.run(`cat > /etc/systemd/system/zeroclaw.service <<'SVCEOF'
+	ssh.run(`systemctl enable systemd-time-wait-sync.service 2>/dev/null
+cat > /etc/systemd/system/zeroclaw.service <<'SVCEOF'
 [Unit]
 Description=ZeroClaw AI Gateway
-After=network.target
+After=network-online.target time-sync.target
+Wants=network-online.target time-sync.target
 
 [Service]
 User=zeroclaw
@@ -2882,7 +2885,7 @@ func injectFilesIntoImage(imgRaw, ssid, wifiPass, pubKey, stageDir string) error
 
 	// ── 6. Cloudflared service ──
 	fmt.Println("    cloudflared service")
-	cfService := "[Unit]\nDescription=Cloudflare Tunnel\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=simple\nExecStart=/bin/sh -c '/usr/local/bin/cloudflared tunnel run --token \"$(cat /root/.internkim/secrets/tunnel-token)\"'\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\n"
+	cfService := "[Unit]\nDescription=Cloudflare Tunnel\nAfter=network-online.target time-sync.target\nWants=network-online.target time-sync.target\n\n[Service]\nType=simple\nExecStart=/bin/sh -c '/usr/local/bin/cloudflared tunnel run --token \"$(cat /root/.internkim/secrets/tunnel-token)\"'\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\n"
 	writeContent(cfService, "/etc/systemd/system/cloudflared.service", "0100644")
 	mkSymlink("/etc/systemd/system/multi-user.target.wants/cloudflared.service",
 		"/etc/systemd/system/cloudflared.service")
@@ -3580,10 +3583,12 @@ chmod 640 /root/.zeroclaw/config.toml
 chmod 640 /root/.zeroclaw/.secret_key 2>/dev/null || true
 
 # ── zeroclaw service ──
+systemctl enable systemd-time-wait-sync.service 2>/dev/null
 cat > /etc/systemd/system/zeroclaw.service <<'SVCEOF'
 [Unit]
 Description=ZeroClaw AI Gateway
-After=network.target
+After=network-online.target time-sync.target
+Wants=network-online.target time-sync.target
 
 [Service]
 User=zeroclaw
