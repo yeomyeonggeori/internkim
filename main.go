@@ -4122,10 +4122,17 @@ func googleAuth() (*googleTokens, error) {
 	callbackServer := &http.Server{Handler: callbackMux}
 	callbackMux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		code := request.URL.Query().Get("code")
-		if code != "" {
-			fmt.Fprintf(writer, "<html><body><h2>Authorization complete. You can close this tab.</h2></body></html>")
-			codeChannel <- code
+		if code == "" {
+			return
 		}
+		// Redirect the OAuth tab to the Apps Script home page instead of
+		// showing "close this tab". Closing the tab would kill Chrome
+		// (it's the only window), which tears down the CDP session
+		// chromedp is about to connect to. Home avoids creating an
+		// extra untitled project — chromedp creates its own.
+		writer.Header().Set("Location", "https://script.google.com/home?hl=en")
+		writer.WriteHeader(http.StatusFound)
+		codeChannel <- code
 	})
 	go callbackServer.Serve(listener)
 	defer callbackServer.Close()
