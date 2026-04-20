@@ -23,6 +23,7 @@ import (
 
 	"golang.org/x/term"
 
+	"github.com/anthropic-lab/internkim/auth"
 	"github.com/anthropic-lab/internkim/setup"
 )
 
@@ -4077,17 +4078,17 @@ type googleTokens struct {
 	Email       string
 }
 
-// googleAuthScopes are intentionally narrow: just enough to run the one-off
-// GCP admin operations (create project, enable APIs, create SA, issue SA key)
-// plus the Apps Script management scope that lets us programmatically deploy
-// the webhook bridge. Workspace scopes (drive, slides, docs, gmail, calendar)
-// are NOT requested here — the Apps Script manifest declares those and the
-// user authorizes them once by opening the deployed /exec URL.
+// googleAuthScopes are the narrow set Google still accepts on personal
+// @gmail.com accounts through the gcloud embedded client: enough for the
+// one-off GCP admin operations (create project, enable APIs, create SA,
+// issue SA key). Workspace scopes (drive, slides, docs, gmail, calendar)
+// and Apps Script management scopes are deliberately NOT here — Google
+// hard-blocks the consent when those appear on unverified apps. The Apps
+// Script webhook bridge is provisioned instead via Chrome-profile browser
+// automation; see auth.DeployAppsScriptViaBrowser.
 var googleAuthScopes = []string{
 	"https://www.googleapis.com/auth/cloud-platform",
 	"https://www.googleapis.com/auth/userinfo.email",
-	"https://www.googleapis.com/auth/script.projects",
-	"https://www.googleapis.com/auth/script.deployments",
 }
 
 // googleAuth performs an OAuth2 loopback flow requesting only cloud-platform
@@ -4259,58 +4260,16 @@ func loadGasWebhookURL() (string, error) {
 	return url, nil
 }
 
-// provisionGasWebhook drives the full auto-deploy flow for the Apps Script
-// bridge: it creates the project in the user's Drive, uploads Code.gs +
-// manifest, cuts a deployment, opens the /exec URL in the browser once for
-// the user to click "Allow" on the consent screen, waits for them to
-// confirm, and persists the URL locally. Subsequent invocations of
-// loadGasWebhookURL hit the saved path immediately.
-//
-// accessToken reuses the OAuth token a prior step already obtained so the
-// user does not see a second browser consent. If empty, this runs googleAuth
-// itself.
-func provisionGasWebhook(accessToken string) (string, error) {
-	if accessToken == "" {
-		freshTokens, err := googleAuth()
-		if err != nil {
-			return "", fmt.Errorf("oauth: %w", err)
-		}
-		accessToken = freshTokens.AccessToken
-	}
-	httpClient := &http.Client{Timeout: 60 * time.Second}
-
-	scriptID, err := gasCreateProject(httpClient, accessToken, "internkim-bridge")
+// provisionGasWebhook drives the Apps Script bridge through the user's own
+// Chrome session. See auth.DeployAppsScriptViaBrowser for the chromedp flow.
+// The accessToken argument is accepted for interface compatibility but
+// unused — the browser automation uses Chrome's session cookies, which
+// already carry whatever credentials are needed to talk to Google.
+func provisionGasWebhook(_ string) (string, error) {
+	webAppURL, err := auth.DeployAppsScriptViaBrowser(gasBridgeCode, gasBridgeManifest)
 	if err != nil {
-		return "", fmt.Errorf("create Apps Script project: %w", err)
+		return "", fmt.Errorf("browser deploy: %w", err)
 	}
-	fmt.Printf("  Apps Script project created (%s)\n", scriptID)
-
-	if err := gasUploadContent(httpClient, accessToken, scriptID, gasBridgeCode, gasBridgeManifest); err != nil {
-		return "", fmt.Errorf("upload project content: %w", err)
-	}
-	fmt.Println("  Code + manifest uploaded.")
-
-	versionNumber, err := gasCreateVersion(httpClient, accessToken, scriptID, "internkim-bridge initial deploy")
-	if err != nil {
-		return "", fmt.Errorf("create version: %w", err)
-	}
-
-	deploymentID, err := gasCreateDeployment(httpClient, accessToken, scriptID, versionNumber)
-	if err != nil {
-		return "", fmt.Errorf("create deployment: %w", err)
-	}
-	webAppURL := fmt.Sprintf("https://script.google.com/macros/s/%s/exec", deploymentID)
-
-	fmt.Println()
-	fmt.Println("  Apps Script deployed. Opening it in your browser for one-time authorization.")
-	fmt.Println("  When Google asks \"This app wants to access your Google Account\", click Allow.")
-	fmt.Println("  (On an unverified-app warning: Advanced → Continue → Allow.)")
-	fmt.Println("  The tab will show a JSON response when authorization is complete.")
-	fmt.Println()
-	exec.Command("open", webAppURL).Start()
-	fmt.Print("  Press Enter here once the tab shows a JSON response: ")
-	bufio.NewReader(os.Stdin).ReadString('\n')
-
 	if err := os.MkdirAll(internkimHomeDir(), 0o700); err != nil {
 		return "", err
 	}
@@ -4319,120 +4278,6 @@ func provisionGasWebhook(accessToken string) (string, error) {
 	}
 	fmt.Printf("  Webhook URL saved to %s\n", gasWebhookURLPath())
 	return webAppURL, nil
-}
-
-// gasCreateProject creates a blank Apps Script project in the user's Drive
-// and returns its scriptId. The API requires cloud-platform scope, which
-// the OAuth flow already grants.
-func gasCreateProject(client *http.Client, accessToken, title string) (string, error) {
-	body, _ := json.Marshal(map[string]string{"title": title})
-	request, _ := http.NewRequest("POST", "https://script.googleapis.com/v1/projects", bytes.NewReader(body))
-	request.Header.Set("Authorization", "Bearer "+accessToken)
-	request.Header.Set("Content-Type", "application/json")
-	response, err := client.Do(request)
-	if err != nil {
-		return "", err
-	}
-	defer response.Body.Close()
-	if response.StatusCode != 200 {
-		responseBody, _ := io.ReadAll(response.Body)
-		return "", fmt.Errorf("HTTP %d: %s", response.StatusCode, string(responseBody))
-	}
-	var parsed struct {
-		ScriptID string `json:"scriptId"`
-	}
-	if err := json.NewDecoder(response.Body).Decode(&parsed); err != nil {
-		return "", err
-	}
-	if parsed.ScriptID == "" {
-		return "", fmt.Errorf("missing scriptId in response")
-	}
-	return parsed.ScriptID, nil
-}
-
-// gasUploadContent replaces the project's files with our Code.gs and the
-// appsscript.json manifest. Apps Script requires the manifest file name to
-// be "appsscript" with type "JSON".
-func gasUploadContent(client *http.Client, accessToken, scriptID, code, manifest string) error {
-	body, _ := json.Marshal(map[string]any{
-		"files": []map[string]string{
-			{"name": "appsscript", "type": "JSON", "source": manifest},
-			{"name": "Code", "type": "SERVER_JS", "source": code},
-		},
-	})
-	request, _ := http.NewRequest("PUT", "https://script.googleapis.com/v1/projects/"+scriptID+"/content", bytes.NewReader(body))
-	request.Header.Set("Authorization", "Bearer "+accessToken)
-	request.Header.Set("Content-Type", "application/json")
-	response, err := client.Do(request)
-	if err != nil {
-		return err
-	}
-	defer response.Body.Close()
-	if response.StatusCode != 200 {
-		responseBody, _ := io.ReadAll(response.Body)
-		return fmt.Errorf("HTTP %d: %s", response.StatusCode, string(responseBody))
-	}
-	return nil
-}
-
-// gasCreateVersion snapshots the current project contents and returns the
-// numeric version number required by the deployment API.
-func gasCreateVersion(client *http.Client, accessToken, scriptID, description string) (int, error) {
-	body, _ := json.Marshal(map[string]string{"description": description})
-	request, _ := http.NewRequest("POST", "https://script.googleapis.com/v1/projects/"+scriptID+"/versions", bytes.NewReader(body))
-	request.Header.Set("Authorization", "Bearer "+accessToken)
-	request.Header.Set("Content-Type", "application/json")
-	response, err := client.Do(request)
-	if err != nil {
-		return 0, err
-	}
-	defer response.Body.Close()
-	if response.StatusCode != 200 {
-		responseBody, _ := io.ReadAll(response.Body)
-		return 0, fmt.Errorf("HTTP %d: %s", response.StatusCode, string(responseBody))
-	}
-	var parsed struct {
-		VersionNumber int `json:"versionNumber"`
-	}
-	if err := json.NewDecoder(response.Body).Decode(&parsed); err != nil {
-		return 0, err
-	}
-	if parsed.VersionNumber == 0 {
-		return 0, fmt.Errorf("missing versionNumber in response")
-	}
-	return parsed.VersionNumber, nil
-}
-
-// gasCreateDeployment publishes the given version as a web app and returns
-// the deploymentId used in the /macros/s/{ID}/exec public URL.
-func gasCreateDeployment(client *http.Client, accessToken, scriptID string, versionNumber int) (string, error) {
-	body, _ := json.Marshal(map[string]any{
-		"versionNumber":    versionNumber,
-		"manifestFileName": "appsscript",
-		"description":      "internkim-bridge",
-	})
-	request, _ := http.NewRequest("POST", "https://script.googleapis.com/v1/projects/"+scriptID+"/deployments", bytes.NewReader(body))
-	request.Header.Set("Authorization", "Bearer "+accessToken)
-	request.Header.Set("Content-Type", "application/json")
-	response, err := client.Do(request)
-	if err != nil {
-		return "", err
-	}
-	defer response.Body.Close()
-	if response.StatusCode != 200 {
-		responseBody, _ := io.ReadAll(response.Body)
-		return "", fmt.Errorf("HTTP %d: %s", response.StatusCode, string(responseBody))
-	}
-	var parsed struct {
-		DeploymentID string `json:"deploymentId"`
-	}
-	if err := json.NewDecoder(response.Body).Decode(&parsed); err != nil {
-		return "", err
-	}
-	if parsed.DeploymentID == "" {
-		return "", fmt.Errorf("missing deploymentId in response")
-	}
-	return parsed.DeploymentID, nil
 }
 
 // --- UI helpers ---
