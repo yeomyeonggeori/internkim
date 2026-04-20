@@ -143,7 +143,7 @@ func runGoogleEnableAPIs() {
 		os.Exit(1)
 	}
 	client := &http.Client{Timeout: 30 * time.Second}
-	stateDir := quickclawDir()
+	stateDir := internkimHomeDir()
 	deviceID := loadOrCreateDeviceID(stateDir)
 	projectID, err := resolveGoogleProject(client, g.AccessToken, deviceID)
 	if err != nil {
@@ -179,7 +179,7 @@ func runSetup() {
 
 	force := containsArg("--force")
 	cfg := loadConfig()
-	stateDir := quickclawDir()
+	stateDir := internkimHomeDir()
 
 	scriptDir, _ := os.Getwd()
 	binDir := filepath.Join(scriptDir, "bin")
@@ -796,7 +796,7 @@ func runModel() {
 	scriptDir, _ := os.Getwd()
 	sshpassBin := filepath.Join(scriptDir, "bin", "sshpass")
 
-	stateDir := quickclawDir()
+	stateDir := internkimHomeDir()
 	boardIP, _ := detectBoardRPi(sshpassBin, stateDir)
 	if boardIP == "" {
 		fatal("Board not found. Run 'internkim setup' first or ensure the board is on the network.")
@@ -886,14 +886,14 @@ func modelListCmd(ssh *sshClient) {
 }
 
 func detectBoardWifi(_ string) string {
-	ip, _ := detectBoardRPi("", quickclawDir())
+	ip, _ := detectBoardRPi("", internkimHomeDir())
 	return ip
 }
 
 // --- Subcommands (stubs) ---
 
 func runDeploy() {
-	stateDir := quickclawDir()
+	stateDir := internkimHomeDir()
 	scriptDir, _ := os.Getwd()
 	binDir := filepath.Join(scriptDir, "bin")
 	sshpassBin := filepath.Join(binDir, "sshpass")
@@ -973,7 +973,7 @@ func findBoardIP(sshpassBin, stateDir string) string {
 func runInvite() { fmt.Println("TODO: invite") }
 func runUsers()  { fmt.Println("TODO: users") }
 func runStatus() {
-	stateDir := quickclawDir()
+	stateDir := internkimHomeDir()
 	lang := "ko"
 	if containsArg("--en") {
 		lang = "en"
@@ -1144,14 +1144,15 @@ func backupFromExt4(disk, backupDir string, messenger *msg) {
 }
 
 // useDawnZeroclawBuild copies the Dawn-kim-official zeroclaw build to targetPath.
-// Prefers the repo-local .dependency/zeroclaw build, falling back to the legacy
-// quickclaw cache. Re-copies when the source is newer than targetPath so rebuilds
-// propagate automatically; skips when targetPath is already up-to-date.
+// Prefers the repo-local .dependency/zeroclaw build, falling back to the
+// legacy ~/.internkim/cache (historically ~/.quickclaw/cache). Re-copies when
+// the source is newer than targetPath so rebuilds propagate automatically;
+// skips when targetPath is already up-to-date.
 func useDawnZeroclawBuild(targetPath string) {
 	scriptDir, _ := os.Getwd()
 	candidates := []string{
 		filepath.Join(scriptDir, ".dependency", "zeroclaw", "target", "aarch64-unknown-linux-gnu", "release", "zeroclaw"),
-		filepath.Join(quickclawDir(), "cache", "zeroclaw-dawn-arm64"),
+		filepath.Join(internkimHomeDir(), "cache", "zeroclaw-dawn-arm64"),
 	}
 	targetInfo, targetErr := os.Stat(targetPath)
 	for _, src := range candidates {
@@ -1908,7 +1909,7 @@ func runCmd(name string, args ...string) string {
 	return string(out)
 }
 
-// --- State management (~/.quickclaw/) ---
+// --- State management (~/.internkim/) ---
 
 func toolBinEntries(boardBinDir string, names []string) []struct{ local, remote, name string } {
 	var entries []struct{ local, remote, name string }
@@ -1922,11 +1923,21 @@ func toolBinEntries(boardBinDir string, names []string) []struct{ local, remote,
 	return entries
 }
 
-func quickclawDir() string {
+// internkimHomeDir returns the Mac-side state directory. Historically
+// the project was named "quickclaw" and state lived at ~/.quickclaw; the
+// first call here migrates that directory to ~/.internkim if the new
+// location does not already exist, preserving existing state.
+func internkimHomeDir() string {
 	home, _ := os.UserHomeDir()
-	dir := filepath.Join(home, ".quickclaw")
-	os.MkdirAll(dir, 0700)
-	return dir
+	newDir := filepath.Join(home, ".internkim")
+	if _, err := os.Stat(newDir); os.IsNotExist(err) {
+		legacyDir := filepath.Join(home, ".quickclaw")
+		if _, err := os.Stat(legacyDir); err == nil {
+			os.Rename(legacyDir, newDir)
+		}
+	}
+	os.MkdirAll(newDir, 0700)
+	return newDir
 }
 
 func loadOrCreateDeviceID(stateDir string) string {
@@ -2089,7 +2100,7 @@ func detectBoardRPi(_ string, stateDir string) (string, bool) {
 // runSetupSD handles the full SD card provisioning flow for Raspberry Pi 5.
 func runSetupSD(m *msg) {
 	cfg := loadConfig()
-	stateDir := quickclawDir()
+	stateDir := internkimHomeDir()
 	scriptDir, _ := os.Getwd()
 	boardBinDir := filepath.Join(scriptDir, "board-bin")
 	getSSIDBin := filepath.Join(scriptDir, "bin", "get-ssid")
@@ -4058,33 +4069,23 @@ var googleAuthScopes = []string{
 	"https://www.googleapis.com/auth/forms.body",
 }
 
-// googleAuth obtains the user's OAuth tokens by delegating to gcloud's
-// application-default login. The hardcoded loopback client previously used
-// here was gcloud CLI's embedded client ID — Google now blocks non-gcloud
-// callers of it for personal accounts. Delegating to gcloud sidesteps that
-// block and gives us a long-lived refresh_token in ADC format, which we
-// then re-use on-device via GOOGLE_APPLICATION_CREDENTIALS.
+// googleAuth obtains the user's OAuth tokens via a loopback flow that uses
+// a user-owned OAuth client from ~/.quickclaw/client_secret.json.
+//
+// Why a user-owned client: Google now blocks consent requests that combine
+// the gcloud CLI's embedded client with custom sensitive scopes (such as
+// drive.file, presentations, etc.), even when the caller *is* gcloud itself,
+// and does not permit programmatic creation of Desktop-type OAuth clients.
+// The only reliable path for personal gmail accounts is for the user to
+// create their own OAuth client in their GCP project — Google lets unverified
+// user-owned clients consent to sensitive scopes after an "Advanced"
+// click-through, and the refresh token stays valid.
 func googleAuth() (*googleTokens, error) {
-	if err := ensureGcloudInstalled(); err != nil {
+	clientID, clientSecret, err := loadUserOAuthClient()
+	if err != nil {
 		return nil, err
 	}
-	tokens, err := readGcloudADC()
-	if err != nil || tokens.RefreshToken == "" || !gcloudADCHasAllScopes(tokens) {
-		if err := runGcloudAuthLogin(); err != nil {
-			return nil, err
-		}
-		tokens, err = readGcloudADC()
-		if err != nil {
-			return nil, fmt.Errorf("read ADC after login: %w", err)
-		}
-	}
-	accessToken, err := refreshAccessToken(tokens.ClientID, tokens.ClientSecret, tokens.RefreshToken)
-	if err != nil {
-		return nil, fmt.Errorf("refresh access token: %w", err)
-	}
-	tokens.AccessToken = accessToken
-	tokens.Email = fetchGoogleEmail(accessToken)
-	return tokens, nil
+	return runLoopbackOAuth(clientID, clientSecret)
 }
 
 func googleDeviceAuth() (string, error) {
@@ -4093,6 +4094,148 @@ func googleDeviceAuth() (string, error) {
 		return "", err
 	}
 	return tokens.AccessToken, nil
+}
+
+// loadUserOAuthClient reads the user's Desktop OAuth client JSON downloaded
+// from the GCP Console. Returns a clear how-to-create message when the file
+// is missing so the caller can surface it to the operator.
+func loadUserOAuthClient() (clientID, clientSecret string, err error) {
+	path := filepath.Join(internkimHomeDir(), "client_secret.json")
+	data, readError := os.ReadFile(path)
+	if readError != nil {
+		return "", "", fmt.Errorf(`OAuth client file missing: %s
+
+Create one in your GCP project:
+  1. Go to https://console.cloud.google.com/apis/credentials/consent and configure
+     the OAuth consent screen:
+       - User Type: External
+       - App name: internkim
+       - Scopes: add cloud-platform, userinfo.email, drive.file, presentations,
+         documents, spreadsheets, calendar.events, gmail.send, tasks, forms.body
+       - Test users: add your own email
+  2. Go to https://console.cloud.google.com/apis/credentials and click
+     "Create credentials" → "OAuth client ID" → Application type "Desktop app".
+  3. Download the JSON and save it as %s
+  4. Re-run this command.`, path, path)
+	}
+	var wrapper struct {
+		Installed struct {
+			ClientID     string `json:"client_id"`
+			ClientSecret string `json:"client_secret"`
+		} `json:"installed"`
+		Web struct {
+			ClientID     string `json:"client_id"`
+			ClientSecret string `json:"client_secret"`
+		} `json:"web"`
+	}
+	if err := json.Unmarshal(data, &wrapper); err != nil {
+		return "", "", fmt.Errorf("parse %s: %w", path, err)
+	}
+	clientID = wrapper.Installed.ClientID
+	clientSecret = wrapper.Installed.ClientSecret
+	if clientID == "" {
+		clientID = wrapper.Web.ClientID
+		clientSecret = wrapper.Web.ClientSecret
+	}
+	if clientID == "" {
+		return "", "", fmt.Errorf("%s has no installed.client_id or web.client_id — did you pick the Desktop app type?", path)
+	}
+	return clientID, clientSecret, nil
+}
+
+// runLoopbackOAuth performs the OAuth2 authorization-code flow with a
+// user-owned client. Access is granted via a short-lived local HTTP callback
+// that captures the authorization code from the redirect.
+func runLoopbackOAuth(clientID, clientSecret string) (*googleTokens, error) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, fmt.Errorf("open local port: %w", err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	redirectURI := fmt.Sprintf("http://localhost:%d", port)
+
+	authURL := "https://accounts.google.com/o/oauth2/auth" +
+		"?client_id=" + clientID +
+		"&redirect_uri=" + redirectURI +
+		"&response_type=code" +
+		"&scope=" + encodeQueryValue(strings.Join(googleAuthScopes, " ")) +
+		"&access_type=offline&prompt=consent"
+
+	fmt.Println()
+	fmt.Println("  Opening browser for Google login...")
+	exec.Command("open", authURL).Start()
+	fmt.Printf("  If browser did not open, visit:\n  %s\n\n", authURL)
+
+	codeChannel := make(chan string, 1)
+	callbackMux := http.NewServeMux()
+	callbackServer := &http.Server{Handler: callbackMux}
+	callbackMux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+		code := request.URL.Query().Get("code")
+		if code != "" {
+			fmt.Fprintf(writer, "<html><body><h2>Authorization complete. You can close this tab.</h2></body></html>")
+			codeChannel <- code
+		}
+	})
+	go callbackServer.Serve(listener)
+	defer callbackServer.Close()
+
+	var authorizationCode string
+	select {
+	case authorizationCode = <-codeChannel:
+	case <-time.After(5 * time.Minute):
+		return nil, fmt.Errorf("timed out waiting for Google authorization")
+	}
+
+	tokenResponse, err := http.PostForm("https://oauth2.googleapis.com/token", map[string][]string{
+		"code":          {authorizationCode},
+		"client_id":     {clientID},
+		"client_secret": {clientSecret},
+		"redirect_uri":  {redirectURI},
+		"grant_type":    {"authorization_code"},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("token exchange: %w", err)
+	}
+	defer tokenResponse.Body.Close()
+	body, _ := io.ReadAll(tokenResponse.Body)
+	var parsed struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		Error        string `json:"error"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return nil, err
+	}
+	if parsed.Error != "" {
+		return nil, fmt.Errorf("token endpoint: %s", parsed.Error)
+	}
+
+	return &googleTokens{
+		AccessToken:  parsed.AccessToken,
+		RefreshToken: parsed.RefreshToken,
+		Email:        fetchGoogleEmail(parsed.AccessToken),
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+	}, nil
+}
+
+func encodeQueryValue(value string) string {
+	var builder strings.Builder
+	for _, character := range value {
+		if character == ' ' {
+			builder.WriteByte('+')
+			continue
+		}
+		if (character >= 'a' && character <= 'z') ||
+			(character >= 'A' && character <= 'Z') ||
+			(character >= '0' && character <= '9') ||
+			character == '-' || character == '_' || character == '.' || character == '~' {
+			builder.WriteRune(character)
+			continue
+		}
+		builder.WriteString(fmt.Sprintf("%%%02X", character))
+	}
+	return builder.String()
 }
 
 func applicationDefaultCredentialsPath() string {
@@ -4416,7 +4559,7 @@ func findSDStagingRoot() string {
 }
 
 func runSetupLive(messenger *msg) {
-	stateDir := quickclawDir()
+	stateDir := internkimHomeDir()
 	scriptDir, _ := os.Getwd()
 	sshpassBin := filepath.Join(scriptDir, "bin", "sshpass")
 
