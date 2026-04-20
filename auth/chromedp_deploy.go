@@ -11,6 +11,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -76,9 +78,11 @@ func DeployAppsScriptViaBrowser(codeGs, manifest string) (string, error) {
 		waitForTextDeep("Please select a deployment type", 15*time.Second),
 		selectDeploymentType("Web app"),
 		waitForTextDeep("Who has access", 15*time.Second),
+		fillDialogField("Description", "internkim-bridge"),
 		setWebAppAccess("Anyone"),
-		clickByTextDeep("Deploy"),
+		clickDialogButton("Deploy"),
 	); err != nil {
+		saveFailureScreenshot(runContext, "ui-automation")
 		return "", fmt.Errorf("UI automation: %w", err)
 	}
 
@@ -89,6 +93,7 @@ func DeployAppsScriptViaBrowser(codeGs, manifest string) (string, error) {
 	if err := chromedp.Run(runContext,
 		waitForWebAppURL(&webAppURL),
 	); err != nil {
+		saveFailureScreenshot(runContext, "wait-url")
 		return "", fmt.Errorf("read deployment URL: %w", err)
 	}
 	if webAppURL == "" {
@@ -352,6 +357,140 @@ func waitForWebAppURL(out *string) chromedp.Action {
 	})
 }
 
+// fillDialogField fills the input/textarea associated with the given
+// label inside the currently-open dialog. Walks shadow roots so
+// material-web fields are reachable.
+func fillDialogField(label, value string) chromedp.Action {
+	return chromedp.ActionFunc(func(ctx context.Context) error {
+		script := fmt.Sprintf(`
+			(() => {
+				function* walk(root) {
+					const queue = [root];
+					while (queue.length) {
+						const node = queue.shift();
+						if (!node) continue;
+						if (node.nodeType === 1) yield node;
+						if (node.shadowRoot) queue.push(node.shadowRoot);
+						for (const child of node.children || []) queue.push(child);
+					}
+				}
+				const needle = %s.toLowerCase();
+
+				// Find dialog open at the moment.
+				let dialog = null;
+				for (const el of walk(document)) {
+					if (el.getAttribute && el.getAttribute('role') === 'dialog' && el.offsetParent) {
+						dialog = el;
+					}
+				}
+				const scope = dialog || document;
+
+				// Locate an input/textarea near the label text.
+				let targetInput = null;
+				for (const el of walk(scope)) {
+					if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || /md-(outlined|filled)-(text|textarea)/i.test(el.tagName)) {
+						const labelText = (el.getAttribute('aria-label') || el.getAttribute('label') || el.getAttribute('placeholder') || '').toLowerCase();
+						if (labelText.includes(needle)) { targetInput = el; break; }
+					}
+				}
+				if (!targetInput) {
+					// Fallback: find <label> text matching and follow to sibling input.
+					for (const el of walk(scope)) {
+						const text = (el.textContent || '').toLowerCase().trim();
+						if (text === needle || text.includes(needle)) {
+							const parent = el.closest('div, section, label, form') || el.parentElement;
+							if (!parent) continue;
+							const input = [...walk(parent)].find(n => n.tagName === 'INPUT' || n.tagName === 'TEXTAREA');
+							if (input) { targetInput = input; break; }
+						}
+					}
+				}
+				if (!targetInput) return "no-input";
+				targetInput.focus();
+				// For material-web text-field, setting .value is not enough —
+				// we also need to dispatch an 'input' event so Apps Script's
+				// form validation sees the new value.
+				const nativeSetter = Object.getOwnPropertyDescriptor(targetInput.__proto__, 'value')?.set;
+				if (nativeSetter) nativeSetter.call(targetInput, %s);
+				else targetInput.value = %s;
+				targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+				targetInput.dispatchEvent(new Event('change', { bubbles: true }));
+				return "set";
+			})()
+		`, jsString(label), jsString(value), jsString(value))
+		var outcome string
+		if err := chromedp.Run(ctx, chromedp.Evaluate(script, &outcome)); err != nil {
+			return err
+		}
+		if outcome != "set" {
+			// Non-fatal — some deployment types don't require description;
+			// log and continue.
+			fmt.Printf("  (could not fill %q field: %s)\n", label, outcome)
+		}
+		return chromedp.Sleep(400 * time.Millisecond).Do(ctx)
+	})
+}
+
+// clickDialogButton clicks the button whose text matches label that lives
+// INSIDE the currently-open dialog. Prevents us from re-clicking the
+// editor's top-toolbar Deploy when we meant the dialog's Deploy at the
+// final submit step.
+func clickDialogButton(label string) chromedp.Action {
+	return chromedp.ActionFunc(func(ctx context.Context) error {
+		script := fmt.Sprintf(`
+			(() => {
+				const needle = %s.toLowerCase().trim();
+				function* walk(root) {
+					const queue = [root];
+					while (queue.length) {
+						const node = queue.shift();
+						if (!node) continue;
+						if (node.nodeType === 1) yield node;
+						if (node.shadowRoot) queue.push(node.shadowRoot);
+						for (const child of node.children || []) queue.push(child);
+					}
+				}
+				let dialog = null;
+				for (const el of walk(document)) {
+					if (el.getAttribute && el.getAttribute('role') === 'dialog' && el.offsetParent) {
+						dialog = el;
+					}
+				}
+				if (!dialog) return "no-dialog";
+				let target = null;
+				for (const el of walk(dialog)) {
+					const text = (el.innerText || el.textContent || '').trim().toLowerCase();
+					const aria = (el.getAttribute && (el.getAttribute('aria-label') || '')).toLowerCase();
+					if ((text === needle || aria === needle) && !el.disabled) {
+						const clickable = el.closest('button, [role="button"], md-outlined-button, md-filled-button, md-text-button') || el;
+						if (clickable.offsetParent !== null) { target = clickable; break; }
+					}
+				}
+				if (!target) return "not-found";
+				target.scrollIntoView({ block: 'center' });
+				const rect = target.getBoundingClientRect();
+				const opts = { bubbles: true, cancelable: true, view: window,
+					clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2,
+					button: 0, buttons: 1 };
+				target.dispatchEvent(new PointerEvent('pointerdown', opts));
+				target.dispatchEvent(new MouseEvent('mousedown', opts));
+				target.dispatchEvent(new PointerEvent('pointerup', opts));
+				target.dispatchEvent(new MouseEvent('mouseup', opts));
+				target.dispatchEvent(new MouseEvent('click', opts));
+				return "clicked";
+			})()
+		`, jsString(label))
+		var outcome string
+		if err := chromedp.Run(ctx, chromedp.Evaluate(script, &outcome)); err != nil {
+			return err
+		}
+		if outcome != "clicked" {
+			return fmt.Errorf("clickDialogButton %q: %s", label, outcome)
+		}
+		return chromedp.Sleep(800 * time.Millisecond).Do(ctx)
+	})
+}
+
 // waitForTextDeep polls the rendered page (including shadow roots) for
 // any element whose visible text or aria-label contains label. Returns
 // when the element appears, or errors after timeout. Use this to guard
@@ -397,6 +536,32 @@ func waitForTextDeep(label string, timeout time.Duration) chromedp.Action {
 		}
 		return fmt.Errorf("text %q did not appear within %s", label, timeout)
 	})
+}
+
+// saveFailureScreenshot grabs the current Chrome viewport and writes it
+// to ~/.internkim/debug-screenshots/<stage>-<timestamp>.png. Best-effort —
+// any failure here is silently swallowed so the caller's original error
+// is still what bubbles up to the user.
+func saveFailureScreenshot(ctx context.Context, stage string) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	dir := filepath.Join(home, ".internkim", "debug-screenshots")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return
+	}
+	var imageBytes []byte
+	screenshotCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if err := chromedp.Run(screenshotCtx, chromedp.CaptureScreenshot(&imageBytes)); err != nil || len(imageBytes) == 0 {
+		return
+	}
+	path := filepath.Join(dir, fmt.Sprintf("%s-%s.png", stage, time.Now().Format("20060102-150405")))
+	if err := os.WriteFile(path, imageBytes, 0o600); err != nil {
+		return
+	}
+	fmt.Printf("  Saved failure screenshot → %s\n", path)
 }
 
 // waitForDebugPort blocks until Chrome's CDP endpoint accepts TCP
