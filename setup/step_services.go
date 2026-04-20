@@ -25,10 +25,12 @@ var StepServices = Step{
 rm -rf agent-browser github summarize skill-creator 2>/dev/null; \
 echo "Cleaned unavailable skills"`)
 
-		connection.Run(`cat > /etc/systemd/system/zeroclaw.service <<'SVCEOF'
+		connection.Run(`systemctl enable systemd-time-wait-sync.service 2>/dev/null
+cat > /etc/systemd/system/zeroclaw.service <<'SVCEOF'
 [Unit]
 Description=ZeroClaw AI Gateway
-After=network.target
+After=network-online.target time-sync.target
+Wants=network-online.target time-sync.target
 
 [Service]
 User=zeroclaw
