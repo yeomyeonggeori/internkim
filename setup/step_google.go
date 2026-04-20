@@ -17,11 +17,17 @@ var StepGoogle = Step{
 	IsSatisfied: func(context *Context) bool {
 		switch context.Backend {
 		case BackendSD:
-			_, statError := os.Stat(filepath.Join(context.SD.RootPath(), "secrets", "google-sa.json"))
-			return statError == nil
+			for _, name := range []string{"secrets/google-sa.json", "sa-email", "secrets/gas-webhook-url"} {
+				if _, statError := os.Stat(filepath.Join(context.SD.RootPath(), name)); statError != nil {
+					return false
+				}
+			}
+			return true
 		default:
 			output := strings.TrimSpace(context.SSH.Run(
-				"test -f /root/.internkim/secrets/google-sa.json && echo yes || echo no",
+				`test -f /root/.internkim/secrets/google-sa.json && ` +
+					`test -f /root/.internkim/env/sa-email && ` +
+					`test -f /root/.internkim/secrets/gas-webhook-url && echo yes || echo no`,
 			))
 			return output == "yes"
 		}
@@ -69,11 +75,11 @@ func runGoogleSSH(context *Context) error {
 chmod 640 /root/.internkim/secrets/google-sa.json`)
 	fmt.Println("  " + context.T("서비스 계정 생성 완료 (live)", "Service account created (live)"))
 
-	if err := stageAuthorizedUserCreds(context); err != nil {
-		fmt.Println("  " + context.T("사용자 OAuth 자격증명 저장 실패 (계속)", "User OAuth creds save failed (continuing)"))
-	}
 	if err := exposeSAEmail(context); err != nil {
 		fmt.Println("  " + context.T("SA 이메일 노출 실패 (계속)", "SA email expose failed (continuing)"))
+	}
+	if err := stageGasWebhookURL(context); err != nil {
+		return fmt.Errorf("gas webhook: %w", err)
 	}
 	return nil
 }
@@ -90,45 +96,11 @@ func runGoogleSD(context *Context) error {
 		context.T("SA 키를 SD에 스테이지함 — 다음 부팅에 적용됨", "SA key staged to SD — applies on next boot"),
 		filepath.Join(context.SD.RootPath(), "secrets", "google-sa.json"))
 
-	if err := stageAuthorizedUserCreds(context); err != nil {
-		fmt.Println("  " + context.T("사용자 OAuth 자격증명 저장 실패 (계속)", "User OAuth creds save failed (continuing)"))
-	}
 	if err := exposeSAEmail(context); err != nil {
 		fmt.Println("  " + context.T("SA 이메일 노출 실패 (계속)", "SA email expose failed (continuing)"))
 	}
-	return nil
-}
-
-// stageAuthorizedUserCreds writes the user's OAuth refresh_token to the target
-// in ADC authorized_user format. The zeroclaw service reads this path via
-// GOOGLE_APPLICATION_CREDENTIALS so the on-device gws CLI can act as the user
-// (which has a real Drive quota, unlike the SA).
-func stageAuthorizedUserCreds(context *Context) error {
-	if context.Google == nil {
-		return fmt.Errorf("google auth not performed")
-	}
-	authorizedUserJSON := context.Google.AuthorizedUserJSON()
-	if authorizedUserJSON == "" {
-		return fmt.Errorf("no refresh_token available — re-run with a fresh OAuth consent")
-	}
-	switch context.Backend {
-	case BackendSSH:
-		temporaryPath := filepath.Join(os.TempDir(), "google-user-creds.json")
-		if err := os.WriteFile(temporaryPath, []byte(authorizedUserJSON), 0o600); err != nil {
-			return err
-		}
-		defer os.Remove(temporaryPath)
-		if err := context.SSH.SCP(temporaryPath, "/root/.internkim/secrets/google-user-creds.json"); err != nil {
-			return err
-		}
-		context.SSH.Run(`chown root:zeroclaw /root/.internkim/secrets/google-user-creds.json
-chmod 640 /root/.internkim/secrets/google-user-creds.json`)
-		fmt.Println("  " + context.T("사용자 OAuth 자격증명 설치 완료", "User OAuth creds installed"))
-	case BackendSD:
-		if err := context.SD.WriteFile("secrets/google-user-creds.json", []byte(authorizedUserJSON), 0o644); err != nil {
-			return err
-		}
-		fmt.Println("  " + context.T("사용자 OAuth 자격증명 SD에 스테이지함", "User OAuth creds staged to SD"))
+	if err := stageGasWebhookURL(context); err != nil {
+		return fmt.Errorf("gas webhook: %w", err)
 	}
 	return nil
 }
@@ -155,6 +127,40 @@ chmod 640 /root/.internkim/env/sa-email`,
 		if err := context.SD.WriteFile("sa-email", []byte(saEmail), 0o644); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// stageGasWebhookURL fetches the user's deployed Apps Script Web App URL
+// (prompting for it interactively on first run) and stages it to the target
+// so the on-device agent can POST to it for Slides / Docs / Sheets creation
+// as the user. See board-scripts/gas/Code.gs for the script the user deploys.
+func stageGasWebhookURL(context *Context) error {
+	if context.Callbacks.GetGasWebhookURL == nil {
+		return errors.New("GAS webhook URL callback missing")
+	}
+	webhookURL, err := context.Callbacks.GetGasWebhookURL()
+	if err != nil {
+		return err
+	}
+	switch context.Backend {
+	case BackendSSH:
+		temporaryPath := filepath.Join(os.TempDir(), "gas-webhook-url")
+		if err := os.WriteFile(temporaryPath, []byte(webhookURL+"\n"), 0o600); err != nil {
+			return err
+		}
+		defer os.Remove(temporaryPath)
+		if err := context.SSH.SCP(temporaryPath, "/root/.internkim/secrets/gas-webhook-url"); err != nil {
+			return err
+		}
+		context.SSH.Run(`chown root:zeroclaw /root/.internkim/secrets/gas-webhook-url
+chmod 640 /root/.internkim/secrets/gas-webhook-url`)
+		fmt.Println("  " + context.T("GAS 웹훅 URL 설치 완료", "GAS webhook URL installed"))
+	case BackendSD:
+		if err := context.SD.WriteFile("secrets/gas-webhook-url", []byte(webhookURL+"\n"), 0o644); err != nil {
+			return err
+		}
+		fmt.Println("  " + context.T("GAS 웹훅 URL SD에 스테이지함", "GAS webhook URL staged to SD"))
 	}
 	return nil
 }

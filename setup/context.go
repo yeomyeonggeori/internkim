@@ -25,27 +25,8 @@ type SDStage interface {
 }
 
 type GoogleAuth struct {
-	AccessToken  string
-	RefreshToken string
-	Email        string
-	ClientID     string
-	ClientSecret string
-}
-
-// AuthorizedUserJSON returns an ADC-format authorized_user credentials JSON
-// that gws CLI reads via GOOGLE_APPLICATION_CREDENTIALS. Empty string when
-// RefreshToken is missing (e.g. when OAuth was not consented offline).
-func (auth *GoogleAuth) AuthorizedUserJSON() string {
-	if auth == nil || auth.RefreshToken == "" {
-		return ""
-	}
-	return `{
-  "type": "authorized_user",
-  "client_id": "` + auth.ClientID + `",
-  "client_secret": "` + auth.ClientSecret + `",
-  "refresh_token": "` + auth.RefreshToken + `"
-}
-`
+	AccessToken string
+	Email       string
 }
 
 type Callbacks struct {
@@ -60,6 +41,12 @@ type Callbacks struct {
 	CreateGoogleSA       func(deviceID, accessToken string) (string, error)
 
 	GetOpenRouterKey func(force bool) (string, error)
+
+	// GetGasWebhookURL returns the user's deployed Google Apps Script Web
+	// App URL, prompting interactively on first run and persisting the
+	// result. Implementations should write the URL under the host state
+	// directory so subsequent invocations don't re-prompt.
+	GetGasWebhookURL func() (string, error)
 
 	GwsSkillsInstallScript string
 
