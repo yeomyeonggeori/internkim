@@ -53,8 +53,12 @@ func DeployAppsScriptViaBrowser(codeGs, manifest string) (string, error) {
 
 	fmt.Println("  Attaching to the Chrome window you just signed in on...")
 
+	// hl=en forces the Apps Script UI into English regardless of the user's
+	// Google-account language preference. Our clickByText selectors target
+	// English labels ("Deploy", "New deployment", "Web app", "Anyone"), so
+	// this keeps automation stable across locales.
 	if err := chromedp.Run(runContext,
-		chromedp.Navigate("https://script.google.com/home/projects/create"),
+		chromedp.Navigate("https://script.google.com/home/projects/create?hl=en"),
 	); err != nil {
 		return "", fmt.Errorf("navigate: %w", err)
 	}
@@ -139,10 +143,12 @@ func saveEditor() chromedp.Action {
 	})
 }
 
-// clickByTextDeep finds the first element whose visible text (or aria-
-// label) case-insensitively contains label and clicks it. Walks both the
-// normal DOM and shadow roots so material-web-style buttons (which Apps
-// Script uses) are reachable.
+// clickByTextDeep finds an element whose visible text (or aria-label)
+// matches label and clicks it. Walks both the normal DOM and shadow
+// roots. Prefers elements with a clickable role but falls back to
+// clicking the smallest visible text-bearing match when no clickable
+// ancestor is found — enough for material-web items whose <span>s
+// delegate their own click handler.
 func clickByTextDeep(label string) chromedp.Action {
 	return chromedp.ActionFunc(func(ctx context.Context) error {
 		script := fmt.Sprintf(`
@@ -160,35 +166,53 @@ func clickByTextDeep(label string) chromedp.Action {
 					}
 				}
 
-				const matches = [];
-				for (const el of walk(document)) {
-					const text = (el.innerText || el.textContent || '').trim().toLowerCase();
-					const label = (el.getAttribute && (el.getAttribute('aria-label') || '')).trim().toLowerCase();
-					if (text === needle || label === needle || text.includes(needle) || label.includes(needle)) {
-						matches.push(el);
-					}
-				}
-
-				const clickable = matches.find(el => {
+				const visible = (el) => {
 					if (el.disabled) return false;
 					if (el.offsetParent === null && el.getClientRects().length === 0) return false;
-					const tag = el.tagName.toLowerCase();
-					if (tag === 'button' || el.getAttribute('role') === 'button' || el.getAttribute('role') === 'menuitem') return true;
-					return el.closest('button, [role="button"], [role="menuitem"]');
-				});
-				if (!clickable) return false;
-				const target = clickable.closest('button, [role="button"], [role="menuitem"]') || clickable;
-				target.scrollIntoView({ block: 'center' });
-				target.click();
-				return true;
+					return true;
+				};
+				const textMatches = (el) => {
+					const text = (el.innerText || el.textContent || '').trim().toLowerCase();
+					const aria = (el.getAttribute && (el.getAttribute('aria-label') || '')).trim().toLowerCase();
+					return (text === needle || aria === needle || text.includes(needle) || aria.includes(needle));
+				};
+
+				const matches = [];
+				for (const el of walk(document)) {
+					if (textMatches(el) && visible(el)) matches.push(el);
+				}
+				if (!matches.length) return "nothing-matches";
+
+				// Prefer an ancestor that's an actual button / menuitem / link.
+				const clickableRoles = 'button, [role="button"], [role="menuitem"], [role="option"], [role="tab"], a';
+				const withAncestor = matches
+					.map(el => el.closest(clickableRoles))
+					.find(el => el && visible(el));
+				if (withAncestor) {
+					withAncestor.scrollIntoView({ block: 'center' });
+					withAncestor.click();
+					return "ancestor";
+				}
+
+				// Otherwise pick the deepest (most specific) match and click it directly.
+				const deepest = matches.reduce((best, el) => {
+					if (!best) return el;
+					let depthBest = 0, depthEl = 0;
+					for (let n = best; n; n = n.parentElement) depthBest++;
+					for (let n = el; n; n = n.parentElement) depthEl++;
+					return depthEl > depthBest ? el : best;
+				}, null);
+				deepest.scrollIntoView({ block: 'center' });
+				deepest.click();
+				return "direct";
 			})()
 		`, jsString(label))
-		var ok bool
-		if err := chromedp.Run(ctx, chromedp.Evaluate(script, &ok)); err != nil {
+		var outcome string
+		if err := chromedp.Run(ctx, chromedp.Evaluate(script, &outcome)); err != nil {
 			return err
 		}
-		if !ok {
-			return fmt.Errorf("could not find clickable element with text %q", label)
+		if outcome == "nothing-matches" {
+			return fmt.Errorf("could not find element with text %q", label)
 		}
 		return chromedp.Sleep(900 * time.Millisecond).Do(ctx)
 	})
@@ -205,25 +229,40 @@ func jsString(s string) string {
 }
 
 // selectDeploymentType clicks the gear icon in the deploy dialog and picks
-// the requested deployment type (e.g. "Web app").
+// the requested deployment type (e.g. "Web app"). Walks shadow roots to
+// find the gear (Apps Script renders it via material-web).
 func selectDeploymentType(label string) chromedp.Action {
 	return chromedp.ActionFunc(func(ctx context.Context) error {
-		// The gear icon has an aria-label like "Select type". After clicking
-		// a menu appears; pick the entry whose text matches label.
-		script := fmt.Sprintf(`
+		script := `
 			(() => {
-				const gear = [...document.querySelectorAll('button, [role="button"]')]
-					.find(b => /select type|deployment type|type/i.test(b.getAttribute('aria-label') || ''));
-				if (!gear) return "no-gear";
-				gear.click();
-				return "gear-clicked";
-			})();
-		`)
-		var _r string
-		if err := chromedp.Run(ctx, chromedp.Evaluate(script, &_r)); err != nil {
+				function* walk(root) {
+					const queue = [root];
+					while (queue.length) {
+						const node = queue.shift();
+						if (!node) continue;
+						if (node.nodeType === 1) yield node;
+						if (node.shadowRoot) queue.push(node.shadowRoot);
+						for (const child of node.children || []) queue.push(child);
+					}
+				}
+				for (const el of walk(document)) {
+					const aria = (el.getAttribute && (el.getAttribute('aria-label') || '')).toLowerCase();
+					if (/select type|deployment type/.test(aria)) {
+						el.click();
+						return "clicked:" + aria;
+					}
+				}
+				return "no-gear";
+			})()
+		`
+		var outcome string
+		if err := chromedp.Run(ctx, chromedp.Evaluate(script, &outcome)); err != nil {
 			return err
 		}
-		if err := chromedp.Run(ctx, chromedp.Sleep(700*time.Millisecond)); err != nil {
+		if outcome == "no-gear" {
+			return fmt.Errorf("selectDeploymentType: could not find 'Select type' gear button")
+		}
+		if err := chromedp.Run(ctx, chromedp.Sleep(1500*time.Millisecond)); err != nil {
 			return err
 		}
 		return clickByTextDeep(label).Do(ctx)
