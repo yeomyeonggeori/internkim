@@ -4113,9 +4113,9 @@ func googleAuth() (*googleTokens, error) {
 		"&access_type=offline"
 
 	fmt.Println()
-	fmt.Println("  Opening browser for Google login...")
-	exec.Command("open", authURL).Start()
-	fmt.Printf("  If browser did not open, visit:\n  %s\n\n", authURL)
+	fmt.Println("  Opening Chrome for Google login...")
+	launchInternkimChrome(authURL)
+	fmt.Printf("  If the window did not open, visit:\n  %s\n\n", authURL)
 
 	codeChannel := make(chan string, 1)
 	callbackMux := http.NewServeMux()
@@ -4172,6 +4172,45 @@ func googleDeviceAuth() (string, error) {
 		return "", err
 	}
 	return tokens.AccessToken, nil
+}
+
+// internkimChromeBinary returns the path to Google Chrome's executable on
+// macOS, or "" when Chrome is not installed. Only macOS is supported for
+// now; the host running `./internkim setup` is always the maintainer's Mac.
+func internkimChromeBinary() string {
+	candidates := []string{
+		"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+		"/Applications/Chromium.app/Contents/MacOS/Chromium",
+	}
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+	return ""
+}
+
+// launchInternkimChrome opens the given URL in Chrome using the dedicated
+// ~/.internkim/chrome-profile user-data-dir, so the OAuth cookies left
+// behind survive into the later chromedp-driven deploy step and the user
+// only signs in to Google once per device. Falls back to macOS `open` when
+// Chrome is missing — the OAuth loopback still works in any browser.
+func launchInternkimChrome(openURL string) {
+	home, _ := os.UserHomeDir()
+	profileDir := filepath.Join(home, ".internkim", "chrome-profile")
+	os.MkdirAll(profileDir, 0o700)
+
+	chromeBinary := internkimChromeBinary()
+	if chromeBinary == "" {
+		exec.Command("open", openURL).Start()
+		return
+	}
+	exec.Command(chromeBinary,
+		"--user-data-dir="+profileDir,
+		"--no-first-run",
+		"--no-default-browser-check",
+		openURL,
+	).Start()
 }
 
 func encodeQueryValue(value string) string {
