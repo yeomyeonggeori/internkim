@@ -11,9 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -30,11 +28,10 @@ import (
 // selectors so it survives minor DOM renames; severe UI changes surface as a
 // clear error rather than silent hangs.
 func DeployAppsScriptViaBrowser(codeGs, manifest string) (string, error) {
-	profileDir, cleanup, err := stageChromeProfile()
+	profileDir, err := dedicatedChromeProfileDir()
 	if err != nil {
-		return "", fmt.Errorf("stage Chrome profile: %w", err)
+		return "", fmt.Errorf("prepare Chrome profile: %w", err)
 	}
-	defer cleanup()
 
 	allocatorContext, cancelAllocator := chromedp.NewExecAllocator(context.Background(),
 		append(
@@ -51,14 +48,22 @@ func DeployAppsScriptViaBrowser(codeGs, manifest string) (string, error) {
 	browserContext, cancelBrowser := chromedp.NewContext(allocatorContext)
 	defer cancelBrowser()
 
-	runContext, cancelRun := context.WithTimeout(browserContext, 5*time.Minute)
+	runContext, cancelRun := context.WithTimeout(browserContext, 15*time.Minute)
 	defer cancelRun()
 
-	fmt.Println("  Launching Chrome with your logged-in profile...")
+	fmt.Println("  Launching Chrome (dedicated internkim profile at " + profileDir + ")...")
 
 	if err := chromedp.Run(runContext,
 		chromedp.Navigate("https://script.google.com/home/projects/create"),
-		waitForEditor(),
+	); err != nil {
+		return "", fmt.Errorf("navigate: %w", err)
+	}
+
+	if err := waitForAppsScriptEditor(runContext); err != nil {
+		return "", err
+	}
+
+	if err := chromedp.Run(runContext,
 		replaceFile("Code.gs", codeGs),
 		replaceFile("appsscript.json", manifest),
 		clickByText("button", "Deploy"),
@@ -260,33 +265,65 @@ func waitForWebAppURL(out *string) chromedp.Action {
 	})
 }
 
-// stageChromeProfile returns an isolated copy of the user's default Chrome
-// profile chromedp can open without fighting Chrome's profile lock. The
-// returned cleanup removes the copy when the caller is done.
-func stageChromeProfile() (string, func(), error) {
-	if runtime.GOOS != "darwin" {
-		return "", func() {}, fmt.Errorf("Chrome profile staging only implemented on macOS")
-	}
-	home, _ := os.UserHomeDir()
-	source := filepath.Join(home, "Library", "Application Support", "Google", "Chrome")
-	if _, err := os.Stat(source); err != nil {
-		return "", func() {}, fmt.Errorf("Chrome is not installed at %s", source)
-	}
-	stagingDir, err := os.MkdirTemp("", "internkim-chrome-profile-")
+// dedicatedChromeProfileDir returns a persistent, internkim-specific Chrome
+// profile directory. First use starts empty: the user signs in to Google in
+// the launched Chrome window once. The cookies survive in this directory so
+// every subsequent deploy skips the login step. Living outside the user's
+// real Chrome profile means we don't fight Chrome's singleton lock and we
+// don't need the user to be a Chrome user at all — Safari users welcome.
+func dedicatedChromeProfileDir() (string, error) {
+	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", func() {}, err
+		return "", err
 	}
-	copyCommand := exec.Command("cp", "-a", source+"/.", stagingDir)
-	if output, err := copyCommand.CombinedOutput(); err != nil {
-		os.RemoveAll(stagingDir)
-		return "", func() {}, fmt.Errorf("cp Chrome profile: %w: %s", err, string(output))
+	dir := filepath.Join(home, ".internkim", "chrome-profile")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
 	}
-	// Chrome refuses to open a user-data-dir that already holds singleton
-	// lock symlinks (they point at the running Chrome instance's PID).
-	// The fresh copy inherited them — strip them so Chrome treats this
-	// profile as its own exclusive use.
-	for _, lock := range []string{"SingletonLock", "SingletonCookie", "SingletonSocket"} {
-		os.Remove(filepath.Join(stagingDir, lock))
+	return dir, nil
+}
+
+// waitForAppsScriptEditor polls the page until the Apps Script editor is
+// loaded. If Google redirects to a sign-in screen (no session cookie in the
+// dedicated profile yet), prints instructions and waits up to 10 min for the
+// user to finish signing in.
+func waitForAppsScriptEditor(ctx context.Context) error {
+	fmt.Println("  Waiting for the Apps Script editor to load...")
+	deadline := time.Now().Add(10 * time.Minute)
+	notifiedSignIn := false
+	for {
+		if time.Now().After(deadline) {
+			return errors.New("timed out waiting for Apps Script editor")
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		var currentURL, editorSelector string
+		_ = chromedp.Run(ctx,
+			chromedp.Location(&currentURL),
+			chromedp.Evaluate(`
+				(() => {
+					const el = document.querySelector('div[role="code"], .monaco-editor');
+					return el ? 'ready' : '';
+				})()
+			`, &editorSelector),
+		)
+		if editorSelector == "ready" {
+			fmt.Println("  Editor ready.")
+			return nil
+		}
+		if strings.Contains(currentURL, "accounts.google.com") {
+			if !notifiedSignIn {
+				fmt.Println()
+				fmt.Println("  The Chrome window needs you to sign in to Google.")
+				fmt.Println("  Click through the sign-in screens in the window that opened.")
+				fmt.Println("  Once done, the editor will load automatically (no action in this terminal).")
+				fmt.Println()
+				notifiedSignIn = true
+			}
+		}
+		time.Sleep(2 * time.Second)
 	}
-	return stagingDir, func() { os.RemoveAll(stagingDir) }, nil
 }
