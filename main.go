@@ -4104,19 +4104,45 @@ func ensureGcloudInstalled() error {
 	if _, err := exec.LookPath("gcloud"); err == nil {
 		return nil
 	}
-	if _, err := exec.LookPath("brew"); err != nil {
-		return fmt.Errorf("gcloud not installed and Homebrew not available — install gcloud manually: https://cloud.google.com/sdk/docs/install")
+	home, _ := os.UserHomeDir()
+	candidateBins := []string{
+		filepath.Join(home, "google-cloud-sdk", "bin"),
+		"/opt/homebrew/share/google-cloud-sdk/bin",
+		"/usr/local/share/google-cloud-sdk/bin",
 	}
-	fmt.Println("  gcloud not found — installing via Homebrew (brew install --cask google-cloud-sdk)...")
-	install := exec.Command("brew", "install", "--cask", "google-cloud-sdk")
+	for _, candidate := range candidateBins {
+		if _, err := os.Stat(filepath.Join(candidate, "gcloud")); err == nil {
+			os.Setenv("PATH", candidate+":"+os.Getenv("PATH"))
+			return nil
+		}
+	}
+	fmt.Println("  gcloud not found — installing Google Cloud SDK via official installer...")
+	fmt.Println("  (Skipping Homebrew cask — its post-install needs Python virtualenv which fails on newer macOS.)")
+	installScript := fmt.Sprintf(`set -e
+cd %q
+ARCH=$(uname -m)
+case "$ARCH" in
+  arm64)  ARCHIVE="google-cloud-cli-darwin-arm.tar.gz" ;;
+  x86_64) ARCHIVE="google-cloud-cli-darwin-x86_64.tar.gz" ;;
+  *)      echo "unsupported arch: $ARCH" >&2; exit 1 ;;
+esac
+curl -fsSL -o /tmp/gcloud-sdk.tar.gz "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/$ARCHIVE"
+rm -rf google-cloud-sdk
+tar -xzf /tmp/gcloud-sdk.tar.gz
+rm /tmp/gcloud-sdk.tar.gz
+./google-cloud-sdk/install.sh --quiet --usage-reporting=false --path-update=true --command-completion=true
+`, home)
+	install := exec.Command("bash", "-c", installScript)
 	install.Stdout = os.Stdout
 	install.Stderr = os.Stderr
 	if err := install.Run(); err != nil {
-		return fmt.Errorf("brew install google-cloud-sdk failed: %w", err)
+		return fmt.Errorf("gcloud SDK install failed: %w", err)
 	}
-	if _, err := exec.LookPath("gcloud"); err != nil {
-		return fmt.Errorf("gcloud still not on PATH after brew install — open a new shell and rerun, or install manually")
+	freshBin := filepath.Join(home, "google-cloud-sdk", "bin")
+	if _, err := os.Stat(filepath.Join(freshBin, "gcloud")); err != nil {
+		return fmt.Errorf("gcloud still missing after install — check /tmp/gcloud-sdk.tar.gz extraction and ~/google-cloud-sdk/")
 	}
+	os.Setenv("PATH", freshBin+":"+os.Getenv("PATH"))
 	return nil
 }
 
