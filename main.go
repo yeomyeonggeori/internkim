@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"crypto/rand"
+	_ "embed"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -4207,20 +4208,44 @@ func fetchGoogleEmail(accessToken string) string {
 	return ""
 }
 
-// gasDeployURL is a new-project link that pre-fills Apps Script with the
-// content of board-scripts/gas/Code.gs. Clicking it drops the script into
-// the user's own Drive; they then click Deploy → New deployment and the
-// resulting Web App URL becomes the webhook the on-device agent calls.
-const gasDeployURL = "https://script.google.com/home/start"
+// gasBridgeCode is the full content of the Apps Script web app. Embedded so
+// internkim can create + upload the project via the Apps Script API without
+// asking the user to paste anything.
+//
+//go:embed board-scripts/gas/Code.gs
+var gasBridgeCode string
 
-// gasWebhookURLPath is the Mac-side file internkim reads for the user's
-// deployed Apps Script Web App URL.
+// gasBridgeManifest declares the scopes the script runs under and configures
+// it as a public-anonymous web app so the on-device agent can POST without
+// authenticating from the board. oauthScopes enumerates everything the
+// script touches; Google asks the deployer (the user) to authorize all of
+// them in a single consent screen when they first open the web app URL.
+const gasBridgeManifest = `{
+  "timeZone": "Etc/UTC",
+  "dependencies": {},
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/drive.file",
+    "https://www.googleapis.com/auth/presentations",
+    "https://www.googleapis.com/auth/documents",
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/calendar",
+    "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/script.external_request"
+  ],
+  "webapp": {
+    "executeAs": "USER_DEPLOYING",
+    "access": "ANYONE_ANONYMOUS"
+  }
+}`
+
 func gasWebhookURLPath() string {
 	return filepath.Join(internkimHomeDir(), "gas-webhook-url")
 }
 
-// loadGasWebhookURL returns the stored GAS webhook URL, or an error whose
-// message instructs the caller through the deploy + paste ritual.
+// loadGasWebhookURL returns the stored GAS webhook URL or an error when
+// no URL is on disk yet.
 func loadGasWebhookURL() (string, error) {
 	data, err := os.ReadFile(gasWebhookURLPath())
 	if err != nil {
@@ -4233,44 +4258,173 @@ func loadGasWebhookURL() (string, error) {
 	return url, nil
 }
 
-// promptForGasWebhookURL opens the deploy URL in the user's browser,
-// reads one line of stdin for the Web App URL they paste back, stores it
-// under ~/.internkim/gas-webhook-url, and returns it.
-func promptForGasWebhookURL() (string, error) {
-	scriptPath := filepath.Join(".", "board-scripts", "gas", "Code.gs")
+// provisionGasWebhook drives the full auto-deploy flow for the Apps Script
+// bridge: it creates the project in the user's Drive, uploads Code.gs +
+// manifest, cuts a deployment, opens the /exec URL in the browser once for
+// the user to click "Allow" on the consent screen, waits for them to
+// confirm, and persists the URL locally. Subsequent invocations of
+// loadGasWebhookURL hit the saved path immediately.
+func provisionGasWebhook() (string, error) {
+	tokens, err := googleAuth()
+	if err != nil {
+		return "", fmt.Errorf("oauth: %w", err)
+	}
+	httpClient := &http.Client{Timeout: 60 * time.Second}
+
+	scriptID, err := gasCreateProject(httpClient, tokens.AccessToken, "internkim-bridge")
+	if err != nil {
+		return "", fmt.Errorf("create Apps Script project: %w", err)
+	}
+	fmt.Printf("  Apps Script project created (%s)\n", scriptID)
+
+	if err := gasUploadContent(httpClient, tokens.AccessToken, scriptID, gasBridgeCode, gasBridgeManifest); err != nil {
+		return "", fmt.Errorf("upload project content: %w", err)
+	}
+	fmt.Println("  Code + manifest uploaded.")
+
+	versionNumber, err := gasCreateVersion(httpClient, tokens.AccessToken, scriptID, "internkim-bridge initial deploy")
+	if err != nil {
+		return "", fmt.Errorf("create version: %w", err)
+	}
+
+	deploymentID, err := gasCreateDeployment(httpClient, tokens.AccessToken, scriptID, versionNumber)
+	if err != nil {
+		return "", fmt.Errorf("create deployment: %w", err)
+	}
+	webAppURL := fmt.Sprintf("https://script.google.com/macros/s/%s/exec", deploymentID)
+
 	fmt.Println()
-	fmt.Println("  Google Apps Script webhook not configured yet.")
-	fmt.Println("  One-time setup (~30 seconds):")
-	fmt.Printf("    1. Open %s in your browser.\n", gasDeployURL)
-	fmt.Println("    2. Paste the contents of", scriptPath, "into the editor.")
-	fmt.Println("    3. Click Deploy → New deployment → Web app.")
-	fmt.Println("       - Execute as: Me")
-	fmt.Println("       - Who has access: Only myself")
-	fmt.Println("    4. Authorize when prompted.")
-	fmt.Println("    5. Copy the Web App URL shown after deploy.")
+	fmt.Println("  Apps Script deployed. Opening it in your browser for one-time authorization.")
+	fmt.Println("  When Google asks \"This app wants to access your Google Account\", click Allow.")
+	fmt.Println("  (On an unverified-app warning: Advanced → Continue → Allow.)")
+	fmt.Println("  The tab will show a JSON response when authorization is complete.")
 	fmt.Println()
-	exec.Command("open", gasDeployURL).Start()
-	fmt.Print("  Paste the Web App URL here: ")
-	reader := bufio.NewReader(os.Stdin)
-	line, err := reader.ReadString('\n')
-	if err != nil && line == "" {
-		return "", fmt.Errorf("read webhook URL: %w", err)
-	}
-	url := strings.TrimSpace(line)
-	if url == "" {
-		return "", fmt.Errorf("no URL entered")
-	}
-	if !strings.HasPrefix(url, "https://script.google.com/") {
-		return "", fmt.Errorf("not a script.google.com URL: %s", url)
-	}
+	exec.Command("open", webAppURL).Start()
+	fmt.Print("  Press Enter here once the tab shows a JSON response: ")
+	bufio.NewReader(os.Stdin).ReadString('\n')
+
 	if err := os.MkdirAll(internkimHomeDir(), 0o700); err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(gasWebhookURLPath(), []byte(url+"\n"), 0o600); err != nil {
+	if err := os.WriteFile(gasWebhookURLPath(), []byte(webAppURL+"\n"), 0o600); err != nil {
 		return "", err
 	}
-	fmt.Println("  Saved to", gasWebhookURLPath())
-	return url, nil
+	fmt.Printf("  Webhook URL saved to %s\n", gasWebhookURLPath())
+	return webAppURL, nil
+}
+
+// gasCreateProject creates a blank Apps Script project in the user's Drive
+// and returns its scriptId. The API requires cloud-platform scope, which
+// the OAuth flow already grants.
+func gasCreateProject(client *http.Client, accessToken, title string) (string, error) {
+	body, _ := json.Marshal(map[string]string{"title": title})
+	request, _ := http.NewRequest("POST", "https://script.googleapis.com/v1/projects", bytes.NewReader(body))
+	request.Header.Set("Authorization", "Bearer "+accessToken)
+	request.Header.Set("Content-Type", "application/json")
+	response, err := client.Do(request)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != 200 {
+		responseBody, _ := io.ReadAll(response.Body)
+		return "", fmt.Errorf("HTTP %d: %s", response.StatusCode, string(responseBody))
+	}
+	var parsed struct {
+		ScriptID string `json:"scriptId"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&parsed); err != nil {
+		return "", err
+	}
+	if parsed.ScriptID == "" {
+		return "", fmt.Errorf("missing scriptId in response")
+	}
+	return parsed.ScriptID, nil
+}
+
+// gasUploadContent replaces the project's files with our Code.gs and the
+// appsscript.json manifest. Apps Script requires the manifest file name to
+// be "appsscript" with type "JSON".
+func gasUploadContent(client *http.Client, accessToken, scriptID, code, manifest string) error {
+	body, _ := json.Marshal(map[string]any{
+		"files": []map[string]string{
+			{"name": "appsscript", "type": "JSON", "source": manifest},
+			{"name": "Code", "type": "SERVER_JS", "source": code},
+		},
+	})
+	request, _ := http.NewRequest("PUT", "https://script.googleapis.com/v1/projects/"+scriptID+"/content", bytes.NewReader(body))
+	request.Header.Set("Authorization", "Bearer "+accessToken)
+	request.Header.Set("Content-Type", "application/json")
+	response, err := client.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != 200 {
+		responseBody, _ := io.ReadAll(response.Body)
+		return fmt.Errorf("HTTP %d: %s", response.StatusCode, string(responseBody))
+	}
+	return nil
+}
+
+// gasCreateVersion snapshots the current project contents and returns the
+// numeric version number required by the deployment API.
+func gasCreateVersion(client *http.Client, accessToken, scriptID, description string) (int, error) {
+	body, _ := json.Marshal(map[string]string{"description": description})
+	request, _ := http.NewRequest("POST", "https://script.googleapis.com/v1/projects/"+scriptID+"/versions", bytes.NewReader(body))
+	request.Header.Set("Authorization", "Bearer "+accessToken)
+	request.Header.Set("Content-Type", "application/json")
+	response, err := client.Do(request)
+	if err != nil {
+		return 0, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != 200 {
+		responseBody, _ := io.ReadAll(response.Body)
+		return 0, fmt.Errorf("HTTP %d: %s", response.StatusCode, string(responseBody))
+	}
+	var parsed struct {
+		VersionNumber int `json:"versionNumber"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&parsed); err != nil {
+		return 0, err
+	}
+	if parsed.VersionNumber == 0 {
+		return 0, fmt.Errorf("missing versionNumber in response")
+	}
+	return parsed.VersionNumber, nil
+}
+
+// gasCreateDeployment publishes the given version as a web app and returns
+// the deploymentId used in the /macros/s/{ID}/exec public URL.
+func gasCreateDeployment(client *http.Client, accessToken, scriptID string, versionNumber int) (string, error) {
+	body, _ := json.Marshal(map[string]any{
+		"versionNumber":    versionNumber,
+		"manifestFileName": "appsscript",
+		"description":      "internkim-bridge",
+	})
+	request, _ := http.NewRequest("POST", "https://script.googleapis.com/v1/projects/"+scriptID+"/deployments", bytes.NewReader(body))
+	request.Header.Set("Authorization", "Bearer "+accessToken)
+	request.Header.Set("Content-Type", "application/json")
+	response, err := client.Do(request)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != 200 {
+		responseBody, _ := io.ReadAll(response.Body)
+		return "", fmt.Errorf("HTTP %d: %s", response.StatusCode, string(responseBody))
+	}
+	var parsed struct {
+		DeploymentID string `json:"deploymentId"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&parsed); err != nil {
+		return "", err
+	}
+	if parsed.DeploymentID == "" {
+		return "", fmt.Errorf("missing deploymentId in response")
+	}
+	return parsed.DeploymentID, nil
 }
 
 // --- UI helpers ---
@@ -4528,7 +4682,7 @@ func runSetupLive(messenger *msg) {
 				if existing, err := loadGasWebhookURL(); err == nil {
 					return existing, nil
 				}
-				return promptForGasWebhookURL()
+				return provisionGasWebhook()
 			},
 			GwsSkillsInstallScript: gwsSkillsInstallScript,
 
