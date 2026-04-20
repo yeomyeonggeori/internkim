@@ -10,9 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
+	"net"
 	"strings"
 	"time"
 
@@ -28,31 +26,22 @@ import (
 // request without OAuth. Each step has accessibility-label / text-based
 // selectors so it survives minor DOM renames; severe UI changes surface as a
 // clear error rather than silent hangs.
+// DebugPort is the CDP port the OAuth-launch side opens on Chrome. Kept
+// here (and duplicated in main.go as internkimChromeDebugPort) so the two
+// sides stay wired to the same number.
+const DebugPort = 9335
+
 func DeployAppsScriptViaBrowser(codeGs, manifest string) (string, error) {
-	profileDir, err := dedicatedChromeProfileDir()
-	if err != nil {
-		return "", fmt.Errorf("prepare Chrome profile: %w", err)
+	// Attach to the Chrome instance the OAuth step already started on the
+	// dedicated ~/.internkim/chrome-profile — no relaunch, no profile lock
+	// fight, no cookie flush race.
+	if err := waitForDebugPort(fmt.Sprintf("localhost:%d", DebugPort), 15*time.Second); err != nil {
+		return "", fmt.Errorf("Chrome CDP endpoint not reachable on port %d: %w (was OAuth step run first?)", DebugPort, err)
 	}
 
-	// The OAuth step may have left a Chrome window open on this same profile
-	// for the user to sign in; chromedp will hit a SingletonLock conflict if
-	// we don't clear that first. pkill by command-line match closes only the
-	// Chrome processes pointed at our dedicated user-data-dir.
-	exec.Command("pkill", "-f", profileDir).Run()
-	time.Sleep(600 * time.Millisecond)
-	os.Remove(filepath.Join(profileDir, "SingletonLock"))
-	os.Remove(filepath.Join(profileDir, "SingletonCookie"))
-	os.Remove(filepath.Join(profileDir, "SingletonSocket"))
-
-	allocatorContext, cancelAllocator := chromedp.NewExecAllocator(context.Background(),
-		append(
-			chromedp.DefaultExecAllocatorOptions[:],
-			chromedp.Flag("headless", false),
-			chromedp.Flag("no-first-run", true),
-			chromedp.Flag("no-default-browser-check", true),
-			chromedp.Flag("disable-blink-features", "AutomationControlled"),
-			chromedp.UserDataDir(profileDir),
-		)...,
+	allocatorContext, cancelAllocator := chromedp.NewRemoteAllocator(
+		context.Background(),
+		fmt.Sprintf("http://localhost:%d", DebugPort),
 	)
 	defer cancelAllocator()
 
@@ -62,7 +51,7 @@ func DeployAppsScriptViaBrowser(codeGs, manifest string) (string, error) {
 	runContext, cancelRun := context.WithTimeout(browserContext, 15*time.Minute)
 	defer cancelRun()
 
-	fmt.Println("  Launching Chrome (dedicated internkim profile at " + profileDir + ")...")
+	fmt.Println("  Attaching to the Chrome window you just signed in on...")
 
 	if err := chromedp.Run(runContext,
 		chromedp.Navigate("https://script.google.com/home/projects/create"),
@@ -276,22 +265,19 @@ func waitForWebAppURL(out *string) chromedp.Action {
 	})
 }
 
-// dedicatedChromeProfileDir returns a persistent, internkim-specific Chrome
-// profile directory. First use starts empty: the user signs in to Google in
-// the launched Chrome window once. The cookies survive in this directory so
-// every subsequent deploy skips the login step. Living outside the user's
-// real Chrome profile means we don't fight Chrome's singleton lock and we
-// don't need the user to be a Chrome user at all — Safari users welcome.
-func dedicatedChromeProfileDir() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
+// waitForDebugPort blocks until Chrome's CDP endpoint accepts TCP
+// connections on addr, or the timeout elapses.
+func waitForDebugPort(address string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		connection, err := net.DialTimeout("tcp", address, 500*time.Millisecond)
+		if err == nil {
+			connection.Close()
+			return nil
+		}
+		time.Sleep(250 * time.Millisecond)
 	}
-	dir := filepath.Join(home, ".internkim", "chrome-profile")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", err
-	}
-	return dir, nil
+	return fmt.Errorf("no response at %s within %s", address, timeout)
 }
 
 // waitForAppsScriptEditor polls the page until the Apps Script editor is

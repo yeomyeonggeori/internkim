@@ -4190,11 +4190,18 @@ func internkimChromeBinary() string {
 	return ""
 }
 
+// internkimChromeDebugPort is the remote-debugging port Chrome listens on
+// for CDP connections. We fix it so the chromedp-driven deploy step can
+// attach to the very same Chrome instance the user just signed in on,
+// avoiding a kill/relaunch cycle that drops unflushed cookies.
+const internkimChromeDebugPort = 9335
+
 // launchInternkimChrome opens the given URL in Chrome using the dedicated
-// ~/.internkim/chrome-profile user-data-dir, so the OAuth cookies left
-// behind survive into the later chromedp-driven deploy step and the user
-// only signs in to Google once per device. Falls back to macOS `open` when
-// Chrome is missing — the OAuth loopback still works in any browser.
+// ~/.internkim/chrome-profile user-data-dir and enables CDP on a fixed
+// port. The OAuth cookies set in this window are immediately visible to
+// chromedp's later RemoteAllocator connection — no profile copy, no
+// process kill, no second login. Falls back to macOS `open` when Chrome
+// is missing; the OAuth loopback itself works in any browser.
 func launchInternkimChrome(openURL string) {
 	home, _ := os.UserHomeDir()
 	profileDir := filepath.Join(home, ".internkim", "chrome-profile")
@@ -4207,6 +4214,7 @@ func launchInternkimChrome(openURL string) {
 	}
 	exec.Command(chromeBinary,
 		"--user-data-dir="+profileDir,
+		fmt.Sprintf("--remote-debugging-port=%d", internkimChromeDebugPort),
 		"--no-first-run",
 		"--no-default-browser-check",
 		openURL,
