@@ -1,14 +1,40 @@
 package setup
 
-import "net/http"
+import (
+	"errors"
+	"net/http"
+)
 
-// BoardConn abstracts the connection to the target board (SSH / sim).
-// The concrete implementation lives in the main package.
+// Backend identifies which target the pipeline writes to.
+type Backend string
+
+const (
+	BackendSSH Backend = "ssh" // live running board via SSH
+	BackendSD  Backend = "sd"  // SD card staging dir (/Volumes/RPICFG/internkim)
+)
+
+// ErrUnsupportedBackend is returned when a step has no body for the selected backend.
+var ErrUnsupportedBackend = errors.New("step does not support this backend")
+
+// BoardConn abstracts the connection to a running board (SSH / sim).
+// The concrete implementation lives in the main package. Nil when
+// Backend == BackendSD.
 type BoardConn interface {
 	// Run executes cmd and returns combined stdout+stderr.
 	Run(cmd string) string
 	// SCP copies a local file to remote on the board.
 	SCP(localPath, remotePath string) error
+}
+
+// SDStage abstracts the SD-card-staging target.
+// Nil when Backend == BackendSSH.
+type SDStage interface {
+	// WriteFile places data at staging-path (relative to /internkim root,
+	// e.g. "secrets/google-sa.json") with the given mode.
+	WriteFile(stagePath string, data []byte, mode int) error
+	// RootPath returns the absolute path of the staging root on the host
+	// (e.g. "/Volumes/RPICFG/internkim"), primarily for informative messages.
+	RootPath() string
 }
 
 // GoogleAuth carries the access token obtained from Google OAuth.
@@ -37,7 +63,12 @@ type Callbacks struct {
 
 // Context is the shared state passed to every Step.Run.
 type Context struct {
-	SSH       BoardConn
+	// Backend selects which Run body executes for each step.
+	Backend Backend
+
+	SSH       BoardConn // populated when Backend == BackendSSH
+	SD        SDStage   // populated when Backend == BackendSD
+
 	Lang      string
 	StateDir  string
 	ScriptDir string
