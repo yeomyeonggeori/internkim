@@ -25,8 +25,27 @@ type SDStage interface {
 }
 
 type GoogleAuth struct {
-	AccessToken string
-	Email       string
+	AccessToken  string
+	RefreshToken string
+	Email        string
+	ClientID     string
+	ClientSecret string
+}
+
+// AuthorizedUserJSON returns an ADC-format authorized_user credentials JSON
+// that gws CLI reads via GOOGLE_APPLICATION_CREDENTIALS. Empty string when
+// RefreshToken is missing (e.g. when OAuth was not consented offline).
+func (auth *GoogleAuth) AuthorizedUserJSON() string {
+	if auth == nil || auth.RefreshToken == "" {
+		return ""
+	}
+	return `{
+  "type": "authorized_user",
+  "client_id": "` + auth.ClientID + `",
+  "client_secret": "` + auth.ClientSecret + `",
+  "refresh_token": "` + auth.RefreshToken + `"
+}
+`
 }
 
 type Callbacks struct {
