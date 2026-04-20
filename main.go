@@ -401,8 +401,9 @@ udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true`, wpaConf))
 	// 5a. Setup system users and secrets directory
 	ssh.run(`
 id gws &>/dev/null || useradd -r -m -d /home/gws -s /sbin/nologin gws
-id zeroclaw &>/dev/null || useradd -r -s /sbin/nologin zeroclaw
+id zeroclaw &>/dev/null || useradd -r -m -d /home/zeroclaw -s /sbin/nologin zeroclaw
 install -d -o gws -g gws -m 750 /home/gws /home/gws/.cache /home/gws/.config
+install -d -o zeroclaw -g zeroclaw -m 750 /home/zeroclaw /home/zeroclaw/.cache /home/zeroclaw/.config
 chmod 711 /root
 mkdir -p /root/.internkim/secrets
 chmod 700 /root/.internkim/secrets
@@ -609,7 +610,7 @@ sleep 3`, tunnelToken))
 			os.WriteFile(tmpSA, []byte(saKey), 0600)
 			ssh.scp(tmpSA, "/root/.internkim/secrets/google-sa.json")
 			os.Remove(tmpSA)
-			ssh.run(`chown gws /root/.internkim/secrets/google-sa.json
+			ssh.run(`chown root:zeroclaw /root/.internkim/secrets/google-sa.json
 chmod 640 /root/.internkim/secrets/google-sa.json`)
 			fmt.Printf("  %s\n", m.t("서비스 계정 생성 완료", "Service account created"))
 		}
@@ -642,7 +643,9 @@ Wants=network-online.target time-sync.target
 [Service]
 User=zeroclaw
 EnvironmentFile=/root/.internkim/secrets/openrouter-api-key
-Environment=HOME=/root
+Environment=HOME=/home/zeroclaw
+Environment=GOOGLE_APPLICATION_CREDENTIALS=/root/.internkim/secrets/google-sa.json
+Environment=GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE=/root/.internkim/secrets/google-sa.json
 ExecStart=/usr/local/bin/zeroclaw daemon
 Restart=on-failure
 
@@ -3201,8 +3204,9 @@ echo "Staged files installed."
 
 # ── System users ──
 id gws &>/dev/null || useradd -r -m -d /home/gws -s /sbin/nologin gws
-id zeroclaw &>/dev/null || useradd -r -s /sbin/nologin zeroclaw
+id zeroclaw &>/dev/null || useradd -r -m -d /home/zeroclaw -s /sbin/nologin zeroclaw
 install -d -o gws -g gws -m 750 /home/gws /home/gws/.cache /home/gws/.config
+install -d -o zeroclaw -g zeroclaw -m 750 /home/zeroclaw /home/zeroclaw/.cache /home/zeroclaw/.config
 chmod 711 /root
 mkdir -p /root/.internkim/env
 chown root:zeroclaw /root/.internkim/env
@@ -3210,7 +3214,7 @@ chmod 750 /root/.internkim/env
 chown zeroclaw /root/.internkim/secrets/openrouter-api-key 2>/dev/null || true
 chmod 640 /root/.internkim/secrets/openrouter-api-key 2>/dev/null || true
 if [ -f /root/.internkim/secrets/google-sa.json ]; then
-  chown gws /root/.internkim/secrets/google-sa.json
+  chown root:zeroclaw /root/.internkim/secrets/google-sa.json
   chmod 640 /root/.internkim/secrets/google-sa.json
 fi
 mkdir -p /root/.zeroclaw/workspace/bin /root/.zeroclaw/workspace/downloads
@@ -3593,7 +3597,9 @@ Wants=network-online.target time-sync.target
 [Service]
 User=zeroclaw
 EnvironmentFile=/root/.internkim/secrets/openrouter-api-key
-Environment=HOME=/root
+Environment=HOME=/home/zeroclaw
+Environment=GOOGLE_APPLICATION_CREDENTIALS=/root/.internkim/secrets/google-sa.json
+Environment=GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE=/root/.internkim/secrets/google-sa.json
 ExecStart=/usr/local/bin/zeroclaw daemon
 Restart=on-failure
 

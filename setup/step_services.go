@@ -35,7 +35,9 @@ Wants=network-online.target time-sync.target
 [Service]
 User=zeroclaw
 EnvironmentFile=/root/.internkim/secrets/openrouter-api-key
-Environment=HOME=/root
+Environment=HOME=/home/zeroclaw
+Environment=GOOGLE_APPLICATION_CREDENTIALS=/root/.internkim/secrets/google-sa.json
+Environment=GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE=/root/.internkim/secrets/google-sa.json
 ExecStart=/usr/local/bin/zeroclaw daemon
 Restart=on-failure
 
