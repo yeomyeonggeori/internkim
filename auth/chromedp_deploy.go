@@ -71,8 +71,11 @@ func DeployAppsScriptViaBrowser(codeGs, manifest string) (string, error) {
 		setMonacoValue(codeGs),
 		saveEditor(),
 		clickByTextDeep("Deploy"),
+		waitForTextDeep("New deployment", 10*time.Second),
 		clickByTextDeep("New deployment"),
+		waitForTextDeep("Please select a deployment type", 15*time.Second),
 		selectDeploymentType("Web app"),
+		waitForTextDeep("Who has access", 15*time.Second),
 		setWebAppAccess("Anyone"),
 		clickByTextDeep("Deploy"),
 	); err != nil {
@@ -334,6 +337,53 @@ func waitForWebAppURL(out *string) chromedp.Action {
 			}
 			time.Sleep(2 * time.Second)
 		}
+	})
+}
+
+// waitForTextDeep polls the rendered page (including shadow roots) for
+// any element whose visible text or aria-label contains label. Returns
+// when the element appears, or errors after timeout. Use this to guard
+// the transition between UI states so clickByTextDeep never targets a
+// half-rendered dialog.
+func waitForTextDeep(label string, timeout time.Duration) chromedp.Action {
+	return chromedp.ActionFunc(func(ctx context.Context) error {
+		script := fmt.Sprintf(`
+			(() => {
+				const needle = %s.toLowerCase();
+				function* walk(root) {
+					const queue = [root];
+					while (queue.length) {
+						const node = queue.shift();
+						if (!node) continue;
+						if (node.nodeType === 1) yield node;
+						if (node.shadowRoot) queue.push(node.shadowRoot);
+						for (const child of node.children || []) queue.push(child);
+					}
+				}
+				for (const el of walk(document)) {
+					const text = (el.innerText || el.textContent || '').toLowerCase();
+					const aria = (el.getAttribute && (el.getAttribute('aria-label') || '')).toLowerCase();
+					if (text.includes(needle) || aria.includes(needle)) {
+						if (el.offsetParent !== null || el.getClientRects().length > 0) return true;
+					}
+				}
+				return false;
+			})()
+		`, jsString(label))
+		deadline := time.Now().Add(timeout)
+		for time.Now().Before(deadline) {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
+			var found bool
+			if err := chromedp.Run(ctx, chromedp.Evaluate(script, &found)); err == nil && found {
+				return nil
+			}
+			time.Sleep(300 * time.Millisecond)
+		}
+		return fmt.Errorf("text %q did not appear within %s", label, timeout)
 	})
 }
 
