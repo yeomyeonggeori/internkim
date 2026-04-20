@@ -108,7 +108,7 @@ func replaceFile(name, newContent string) chromedp.Action {
 	return chromedp.ActionFunc(func(ctx context.Context) error {
 		// If the file doesn't exist yet, add it via the "+" button.
 		script := fmt.Sprintf(`
-			(async () => {
+			(() => {
 				const rows = [...document.querySelectorAll('[role="treeitem"], [aria-label*="file"]')];
 				const target = rows.find(row => (row.textContent || '').trim() === %q);
 				if (target) { target.click(); return "opened"; }
@@ -116,10 +116,10 @@ func replaceFile(name, newContent string) chromedp.Action {
 					.find(b => /add file|new file|\+/i.test((b.getAttribute('aria-label') || b.textContent || '').toLowerCase()));
 				if (addButton) addButton.click();
 				return "add-clicked";
-			})();
+			})()
 		`, name)
-		var _r string
-		if err := chromedp.Run(ctx, chromedp.Evaluate(script, &_r)); err != nil {
+		var outcome string
+		if err := chromedp.Run(ctx, chromedp.Evaluate(script, &outcome)); err != nil {
 			return err
 		}
 		// Wait briefly for the tab to focus.
