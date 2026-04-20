@@ -187,27 +187,39 @@ func clickByTextDeep(label string) chromedp.Action {
 				if (!matches.length) return "nothing-matches";
 
 				// Prefer an ancestor that's an actual button / menuitem / link.
-				const clickableRoles = 'button, [role="button"], [role="menuitem"], [role="option"], [role="tab"], a';
+				const clickableRoles = 'button, [role="button"], [role="menuitem"], [role="option"], [role="tab"], a, md-menu-item, md-outlined-button, md-filled-button';
 				const withAncestor = matches
 					.map(el => el.closest(clickableRoles))
 					.find(el => el && visible(el));
-				if (withAncestor) {
-					withAncestor.scrollIntoView({ block: 'center' });
-					withAncestor.click();
-					return "ancestor";
-				}
-
-				// Otherwise pick the deepest (most specific) match and click it directly.
-				const deepest = matches.reduce((best, el) => {
+				const target = withAncestor || matches.reduce((best, el) => {
 					if (!best) return el;
 					let depthBest = 0, depthEl = 0;
 					for (let n = best; n; n = n.parentElement) depthBest++;
 					for (let n = el; n; n = n.parentElement) depthEl++;
 					return depthEl > depthBest ? el : best;
 				}, null);
-				deepest.scrollIntoView({ block: 'center' });
-				deepest.click();
-				return "direct";
+
+				target.scrollIntoView({ block: 'center' });
+				const rect = target.getBoundingClientRect();
+				const opts = {
+					bubbles: true,
+					cancelable: true,
+					view: window,
+					clientX: rect.left + rect.width / 2,
+					clientY: rect.top + rect.height / 2,
+					button: 0,
+					buttons: 1,
+				};
+				// Material-web components listen for pointer events, not
+				// just the synthetic click(). Fire the full sequence so
+				// every gesture-detecting listener in the component tree
+				// agrees the element was activated.
+				target.dispatchEvent(new PointerEvent('pointerdown', opts));
+				target.dispatchEvent(new MouseEvent('mousedown', opts));
+				target.dispatchEvent(new PointerEvent('pointerup', opts));
+				target.dispatchEvent(new MouseEvent('mouseup', opts));
+				target.dispatchEvent(new MouseEvent('click', opts));
+				return withAncestor ? "ancestor" : "direct";
 			})()
 		`, jsString(label))
 		var outcome string
