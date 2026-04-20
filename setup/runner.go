@@ -18,33 +18,30 @@ type Step struct {
 	// Deps are names of steps whose output this step requires.
 	Deps []string
 
-	// Title returns a human-readable progress line (called once per execution).
-	Title func(ctx *Context) string
+	// Title returns a human-readable progress line.
+	Title func(context *Context) string
 
 	// IsSatisfied returns true when the step's output is already present and
 	// re-running is redundant. When the caller passes --force, this is ignored.
 	// Safe to leave nil — treated as "never satisfied, always run".
-	// The check should respect ctx.Backend (e.g. SSH checks the board via
-	// ctx.SSH; SD checks the staging dir via ctx.SD).
-	IsSatisfied func(ctx *Context) bool
+	IsSatisfied func(context *Context) bool
 
 	// Run is the SSH backend body (applied to a running board).
-	// Nil → step not supported on SSH (rare).
-	Run func(ctx *Context) error
+	Run func(context *Context) error
 
 	// RunSD is the SD staging backend body (writes to the boot partition
 	// for firstboot to apply on next boot). Nil → step not supported on SD.
-	RunSD func(ctx *Context) error
+	RunSD func(context *Context) error
 }
 
-// body returns the appropriate Run body for ctx.Backend, or nil if the
+// body returns the appropriate Run body for context.Backend, or nil if the
 // step has no implementation for that backend.
-func (s Step) body(ctx *Context) func(*Context) error {
-	switch ctx.Backend {
+func (step Step) body(context *Context) func(*Context) error {
+	switch context.Backend {
 	case BackendSD:
-		return s.RunSD
+		return step.RunSD
 	default:
-		return s.Run
+		return step.Run
 	}
 }
 
@@ -53,108 +50,100 @@ type Selector struct {
 	Only  []string // run exactly these (+ their unsatisfied deps)
 	From  string   // run this step and everything after in registry order
 	Skip  []string // exclude these, regardless of Only/From
-	Force bool     // ignore IsSatisfied, run unconditionally
+	Force bool     // ignore IsSatisfied on seed steps (not on auto-deps)
 }
 
-// Registry is the ordered list of steps the pipeline executes. Callers populate
-// it (typically once at startup) and pass it to Run.
+// Registry is the ordered list of steps the pipeline executes.
 type Registry []Step
 
-// byName returns the step with the given name, or nil.
-func (r Registry) byName(name string) *Step {
-	for i := range r {
-		if r[i].Name == name {
-			return &r[i]
+func (registry Registry) byName(name string) *Step {
+	for index := range registry {
+		if registry[index].Name == name {
+			return &registry[index]
 		}
 	}
 	return nil
 }
 
-// resolve returns the ordered list of step names to execute for sel, including
-// transitive unsatisfied dependencies.
-func (r Registry) resolve(ctx *Context, sel Selector) ([]string, error) {
-	skip := map[string]bool{}
-	for _, s := range sel.Skip {
-		skip[s] = true
+func (registry Registry) resolve(context *Context, selector Selector) ([]string, error) {
+	skippedSteps := map[string]bool{}
+	for _, name := range selector.Skip {
+		skippedSteps[name] = true
 	}
 
-	// Validate referenced names.
-	for _, n := range append(append([]string{}, sel.Only...), sel.Skip...) {
-		if r.byName(n) == nil {
-			return nil, fmt.Errorf("unknown step: %s", n)
+	for _, name := range append(append([]string{}, selector.Only...), selector.Skip...) {
+		if registry.byName(name) == nil {
+			return nil, fmt.Errorf("unknown step: %s", name)
 		}
 	}
-	if sel.From != "" && r.byName(sel.From) == nil {
-		return nil, fmt.Errorf("unknown step: %s", sel.From)
+	if selector.From != "" && registry.byName(selector.From) == nil {
+		return nil, fmt.Errorf("unknown step: %s", selector.From)
 	}
 
-	// Seed candidates.
 	var seeds []string
 	switch {
-	case len(sel.Only) > 0:
-		seeds = append(seeds, sel.Only...)
-	case sel.From != "":
+	case len(selector.Only) > 0:
+		seeds = append(seeds, selector.Only...)
+	case selector.From != "":
 		started := false
-		for _, s := range r {
-			if s.Name == sel.From {
+		for _, step := range registry {
+			if step.Name == selector.From {
 				started = true
 			}
 			if started {
-				seeds = append(seeds, s.Name)
+				seeds = append(seeds, step.Name)
 			}
 		}
 	default:
-		for _, s := range r {
-			seeds = append(seeds, s.Name)
+		for _, step := range registry {
+			seeds = append(seeds, step.Name)
 		}
 	}
 
-	// Expand with unsatisfied deps (transitive). Deps run BEFORE the seeds
-	// that need them. Registry order is preserved as tiebreaker.
-	planned := map[string]bool{}
-	var addWithDeps func(name string)
-	addWithDeps = func(name string) {
-		if skip[name] || planned[name] {
+	// --force applies only to explicitly-seeded steps. Auto-included deps
+	// always honour IsSatisfied so a rebuild of one step doesn't cascade
+	// and re-do work that is already done.
+	plannedSteps := map[string]bool{}
+	var includeStepAndDeps func(name string)
+	includeStepAndDeps = func(name string) {
+		if skippedSteps[name] || plannedSteps[name] {
 			return
 		}
-		step := r.byName(name)
+		step := registry.byName(name)
 		if step == nil {
 			return
 		}
-		// Auto-include unsatisfied deps — unless caller explicitly used --only
-		// and the dep appears satisfied, in which case we skip it entirely.
-		for _, d := range step.Deps {
-			if skip[d] {
+		for _, dependencyName := range step.Deps {
+			if skippedSteps[dependencyName] {
 				continue
 			}
-			depStep := r.byName(d)
-			if depStep == nil {
+			dependencyStep := registry.byName(dependencyName)
+			if dependencyStep == nil {
 				continue
 			}
-			if !sel.Force && depStep.IsSatisfied != nil && depStep.IsSatisfied(ctx) {
-				continue // dep already done, skip
+			if dependencyStep.IsSatisfied != nil && dependencyStep.IsSatisfied(context) {
+				continue
 			}
-			addWithDeps(d)
+			includeStepAndDeps(dependencyName)
 		}
-		planned[name] = true
+		plannedSteps[name] = true
 	}
-	for _, s := range seeds {
-		addWithDeps(s)
+	for _, seedName := range seeds {
+		includeStepAndDeps(seedName)
 	}
 
-	// Emit in registry order.
-	var out []string
-	for _, s := range r {
-		if planned[s.Name] {
-			out = append(out, s.Name)
+	var orderedPlan []string
+	for _, step := range registry {
+		if plannedSteps[step.Name] {
+			orderedPlan = append(orderedPlan, step.Name)
 		}
 	}
-	return out, nil
+	return orderedPlan, nil
 }
 
 // Run executes the resolved step plan. Progress is printed to stdout.
-func (r Registry) Run(ctx *Context, sel Selector) error {
-	plan, err := r.resolve(ctx, sel)
+func (registry Registry) Run(context *Context, selector Selector) error {
+	plan, err := registry.resolve(context, selector)
 	if err != nil {
 		return err
 	}
@@ -162,57 +151,54 @@ func (r Registry) Run(ctx *Context, sel Selector) error {
 		fmt.Println("  no steps selected")
 		return nil
 	}
-	for i, name := range plan {
-		step := r.byName(name)
+	for index, name := range plan {
+		step := registry.byName(name)
 		title := step.Name
 		if step.Title != nil {
-			title = step.Title(ctx)
+			title = step.Title(context)
 		}
-		fmt.Printf("\n[%d/%d] %s  (%s)\n", i+1, len(plan), title, step.Name)
-		if !sel.Force && step.IsSatisfied != nil && step.IsSatisfied(ctx) {
+		fmt.Printf("\n[%d/%d] %s  (%s)\n", index+1, len(plan), title, step.Name)
+		shouldForce := selector.Force && isExplicitlySeeded(name, selector)
+		if !shouldForce && step.IsSatisfied != nil && step.IsSatisfied(context) {
 			fmt.Println("  이미 설정됨 — 건너뜀")
 			continue
 		}
-		body := step.body(ctx)
+		body := step.body(context)
 		if body == nil {
-			// User asked for this step but no body for the chosen backend.
-			// Only error if step was explicitly named in --only / --from;
-			// dep-pulled stubs are silently skipped.
-			if explicit(name, sel) {
-				return fmt.Errorf("step %s: %w (%s)", name, ErrUnsupportedBackend, ctx.Backend)
+			if isExplicitlySeeded(name, selector) {
+				return fmt.Errorf("step %s: %w (%s)", name, ErrUnsupportedBackend, context.Backend)
 			}
 			continue
 		}
-		if err := body(ctx); err != nil {
+		if err := body(context); err != nil {
 			return fmt.Errorf("step %s: %w", name, err)
 		}
 	}
 	return nil
 }
 
-// explicit reports whether name was explicitly named in sel (not auto-dep).
-func explicit(name string, sel Selector) bool {
-	for _, n := range sel.Only {
-		if n == name {
+func isExplicitlySeeded(name string, selector Selector) bool {
+	for _, explicitName := range selector.Only {
+		if explicitName == name {
 			return true
 		}
 	}
-	if sel.From == name {
+	if selector.From == name {
 		return true
 	}
 	return false
 }
 
 // ParseNames splits a comma-separated list, trimming whitespace and dropping empties.
-func ParseNames(s string) []string {
-	if s == "" {
+func ParseNames(value string) []string {
+	if value == "" {
 		return nil
 	}
-	var out []string
-	for _, p := range strings.Split(s, ",") {
-		if t := strings.TrimSpace(p); t != "" {
-			out = append(out, t)
+	var names []string
+	for _, part := range strings.Split(value, ",") {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			names = append(names, trimmed)
 		}
 	}
-	return out
+	return names
 }

@@ -4161,64 +4161,72 @@ func argString(flag, fallback string) string {
 
 // --- Setup pipeline wiring (selective re-run with SSH / SD backends) ---
 
-// sshConnAdapter exposes *sshClient as setup.BoardConn.
-type sshConnAdapter struct{ c *sshClient }
+type sshBoardConnection struct {
+	client *sshClient
+}
 
-func (a sshConnAdapter) Run(cmd string) string { return a.c.run(cmd) }
-func (a sshConnAdapter) SCP(local, remote string) error {
-	a.c.scp(local, remote)
+func (connection sshBoardConnection) Run(command string) string {
+	return connection.client.run(command)
+}
+
+func (connection sshBoardConnection) SCP(localPath, remotePath string) error {
+	connection.client.scp(localPath, remotePath)
 	return nil
 }
 
-// sdStageAdapter exposes the mounted SD card's /internkim dir as setup.SDStage.
-type sdStageAdapter struct{ root string }
-
-func (a sdStageAdapter) RootPath() string { return a.root }
-func (a sdStageAdapter) WriteFile(stagePath string, data []byte, mode int) error {
-	full := filepath.Join(a.root, stagePath)
-	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(full, data, os.FileMode(mode))
+type sdStagingTarget struct {
+	stagingRoot string
 }
 
-// detectSDStageRoot finds a mounted SD-card's /internkim staging dir, or "".
-func detectSDStageRoot() string {
-	for _, d := range []string{"/Volumes/RPICFG", "/Volumes/bootfs", "/Volumes/boot", "/Volumes/NO NAME", "/Volumes/RASPIFIRM"} {
-		stage := filepath.Join(d, "internkim")
-		if fi, err := os.Stat(stage); err == nil && fi.IsDir() {
-			return stage
+func (target sdStagingTarget) RootPath() string {
+	return target.stagingRoot
+}
+
+func (target sdStagingTarget) WriteFile(stagePath string, data []byte, mode int) error {
+	fullPath := filepath.Join(target.stagingRoot, stagePath)
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(fullPath, data, os.FileMode(mode))
+}
+
+func findSDStagingRoot() string {
+	candidates := []string{
+		"/Volumes/RPICFG", "/Volumes/bootfs", "/Volumes/boot",
+		"/Volumes/NO NAME", "/Volumes/RASPIFIRM",
+	}
+	for _, volume := range candidates {
+		stagingDirectory := filepath.Join(volume, "internkim")
+		if info, err := os.Stat(stagingDirectory); err == nil && info.IsDir() {
+			return stagingDirectory
 		}
 	}
 	return ""
 }
 
-// runSetupLive runs the setup pipeline with optional --only/--from/--skip
-// step selection and --ssh/--sd backend selection (default: auto — SSH first,
-// fall back to SD staging).
-func runSetupLive(m *msg) {
+func runSetupLive(messenger *msg) {
 	stateDir := quickclawDir()
 	scriptDir, _ := os.Getwd()
 	sshpassBin := filepath.Join(scriptDir, "bin", "sshpass")
 
-	wantSSH := containsArg("--ssh")
-	wantSD := containsArg("--sd")
-	if wantSSH && wantSD {
+	requestedSSH := containsArg("--ssh")
+	requestedSD := containsArg("--sd")
+	if requestedSSH && requestedSD {
 		fatal("--ssh and --sd are mutually exclusive")
 	}
-	sim := containsArg("--sim")
+	useSimulator := containsArg("--sim")
 
 	var (
-		backend setup.Backend
-		ssh     *sshClient
-		sdRoot  string
-		boardIP string
+		selectedBackend setup.Backend
+		sshConnection   *sshClient
+		stagingRoot     string
+		boardIP         string
 	)
 
-	tryBackend := func(kind setup.Backend) bool {
+	attemptBackend := func(kind setup.Backend) bool {
 		switch kind {
 		case setup.BackendSSH:
-			if sim {
+			if useSimulator {
 				boardIP = simContainerIP()
 			} else {
 				boardIP = findBoardIP(sshpassBin, stateDir)
@@ -4226,85 +4234,128 @@ func runSetupLive(m *msg) {
 			if boardIP == "" {
 				return false
 			}
-			ssh = newSSH(sshpassBin, boardUser, "", boardIP)
+			sshConnection = newSSH(sshpassBin, boardUser, "", boardIP)
 			return true
 		case setup.BackendSD:
-			sdRoot = detectSDStageRoot()
-			return sdRoot != ""
+			stagingRoot = findSDStagingRoot()
+			return stagingRoot != ""
 		}
 		return false
 	}
 
 	switch {
-	case wantSSH:
-		if !tryBackend(setup.BackendSSH) {
-			fatal(m.t("보드를 찾을 수 없습니다 (SSH).", "Board not reachable (SSH)."))
+	case requestedSSH:
+		if !attemptBackend(setup.BackendSSH) {
+			fatal(messenger.t("보드를 찾을 수 없습니다 (SSH).", "Board not reachable (SSH)."))
 		}
-		backend = setup.BackendSSH
-	case wantSD:
-		if !tryBackend(setup.BackendSD) {
-			fatal(m.t("SD 카드가 꽂혀있지 않거나 internkim 디렉토리가 없습니다.", "No SD card mounted with an internkim staging dir."))
+		selectedBackend = setup.BackendSSH
+	case requestedSD:
+		if !attemptBackend(setup.BackendSD) {
+			fatal(messenger.t("SD 카드가 꽂혀있지 않거나 internkim 디렉토리가 없습니다.", "No SD card mounted with an internkim staging dir."))
 		}
-		backend = setup.BackendSD
-	default: // auto
-		if tryBackend(setup.BackendSSH) {
-			backend = setup.BackendSSH
-		} else if tryBackend(setup.BackendSD) {
-			backend = setup.BackendSD
+		selectedBackend = setup.BackendSD
+	default:
+		if attemptBackend(setup.BackendSSH) {
+			selectedBackend = setup.BackendSSH
+		} else if attemptBackend(setup.BackendSD) {
+			selectedBackend = setup.BackendSD
 		} else {
-			fatal(m.t(
+			fatal(messenger.t(
 				"타겟을 찾을 수 없습니다 — 보드에 SSH도 안 되고, SD 카드도 없습니다.\n  --ssh 또는 --sd 를 명시하거나, 대상을 준비해 주세요.",
 				"No target — board unreachable via SSH and no SD mounted.\n  Pass --ssh or --sd explicitly, or prepare a target.",
 			))
 		}
 	}
 
-	switch backend {
+	switch selectedBackend {
 	case setup.BackendSSH:
 		fmt.Printf("Target: %s (ssh)\n", boardIP)
 	case setup.BackendSD:
-		fmt.Printf("Target: %s (sd staging)\n", sdRoot)
+		fmt.Printf("Target: %s (sd staging)\n", stagingRoot)
 	}
 
-	ctx := &setup.Context{
-		Backend:   backend,
-		Lang:      m.lang,
+	pipelineContext := &setup.Context{
+		Backend:   selectedBackend,
+		Language:  messenger.lang,
 		StateDir:  stateDir,
 		ScriptDir: scriptDir,
 		BoardIP:   boardIP,
 		Force:     containsArg("--force"),
 		HTTP:      &http.Client{Timeout: 30 * time.Second},
-		Cb: setup.Callbacks{
-			T:         func(ko, en string) string { return m.t(ko, en) },
-			LoadState: func(k string) string { return loadState(stateDir, k) },
-			SaveState: func(k, v string) { saveState(stateDir, k, v) },
+		Callbacks: setup.Callbacks{
+			Translate: func(korean, english string) string { return messenger.t(korean, english) },
+			LoadState: func(key string) string { return loadState(stateDir, key) },
+			SaveState: func(key, value string) { saveState(stateDir, key, value) },
 			GoogleAuth: func() (*setup.GoogleAuth, error) {
-				g, err := googleAuth()
+				authResult, err := googleAuth()
 				if err != nil {
 					return nil, err
 				}
-				return &setup.GoogleAuth{AccessToken: g.AccessToken, Email: g.Email}, nil
+				return &setup.GoogleAuth{AccessToken: authResult.AccessToken, Email: authResult.Email}, nil
 			},
 			ResolveGoogleProject: resolveGoogleProject,
 			EnableGoogleAPIs:     enableGoogleAPIs,
 			CreateGoogleSA:       createGoogleServiceAccount,
+
+			GetOpenRouterKey:       buildOpenRouterKeyCallback(stateDir, messenger),
+			GwsSkillsInstallScript: gwsSkillsInstallScript,
+
+			InstallBinariesSSH: unmigratedCallback("binaries (ssh)"),
+			StageBinariesSD:    unmigratedCallback("binaries (sd)"),
+
+			ConfigureWifiSSH: unmigratedCallback("wifi (ssh)"),
+			StageWifiSD:      unmigratedCallback("wifi (sd)"),
+
+			ProvisionTunnelSSH: unmigratedCallback("tunnel (ssh)"),
+			StageTunnelSD:      unmigratedCallback("tunnel (sd)"),
+
+			InstallMattermost: func(context *setup.Context) error {
+				installMattermost(messenger, sshConnection, context.Force)
+				return nil
+			},
+			SetupMattermost: func(context *setup.Context) error {
+				setupMattermost(messenger, sshConnection, stateDir, context.Force)
+				return nil
+			},
 		},
 	}
-	if backend == setup.BackendSSH {
-		ctx.SSH = sshConnAdapter{c: ssh}
+	if selectedBackend == setup.BackendSSH {
+		pipelineContext.SSH = sshBoardConnection{client: sshConnection}
 	} else {
-		ctx.SD = sdStageAdapter{root: sdRoot}
+		pipelineContext.SD = sdStagingTarget{stagingRoot: stagingRoot}
 	}
 
-	sel := setup.Selector{
+	selector := setup.Selector{
 		Only:  setup.ParseNames(argString("--only", "")),
 		From:  argString("--from", ""),
 		Skip:  setup.ParseNames(argString("--skip", "")),
-		Force: ctx.Force,
+		Force: pipelineContext.Force,
 	}
 
-	reg := setup.DefaultRegistry()
-	if err := reg.Run(ctx, sel); err != nil {
+	registry := setup.DefaultRegistry()
+	if err := registry.Run(pipelineContext, selector); err != nil {
 		fatal(err.Error())
+	}
+}
+
+func buildOpenRouterKeyCallback(stateDir string, messenger *msg) func(force bool) (string, error) {
+	return func(force bool) (string, error) {
+		if envKey := strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY")); !force && envKey != "" {
+			return envKey, nil
+		}
+		if savedKey := loadState(stateDir, "openrouter_api_key"); !force && savedKey != "" {
+			return savedKey, nil
+		}
+		promptedKey := strings.TrimSpace(readLine(messenger.t("  OpenRouter API 키: ", "  OpenRouter API key: ")))
+		if promptedKey != "" {
+			saveState(stateDir, "openrouter_api_key", promptedKey)
+		}
+		return promptedKey, nil
+	}
+}
+
+func unmigratedCallback(stepName string) func(*setup.Context) error {
+	return func(*setup.Context) error {
+		return fmt.Errorf("step %s body not migrated yet — run full `internkim setup` without --only", stepName)
 	}
 }
