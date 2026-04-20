@@ -281,5 +281,12 @@ func stageChromeProfile() (string, func(), error) {
 		os.RemoveAll(stagingDir)
 		return "", func() {}, fmt.Errorf("cp Chrome profile: %w: %s", err, string(output))
 	}
+	// Chrome refuses to open a user-data-dir that already holds singleton
+	// lock symlinks (they point at the running Chrome instance's PID).
+	// The fresh copy inherited them — strip them so Chrome treats this
+	// profile as its own exclusive use.
+	for _, lock := range []string{"SingletonLock", "SingletonCookie", "SingletonSocket"} {
+		os.Remove(filepath.Join(stagingDir, lock))
+	}
 	return stagingDir, func() { os.RemoveAll(stagingDir) }, nil
 }
