@@ -64,13 +64,13 @@ func DeployAppsScriptViaBrowser(codeGs, manifest string) (string, error) {
 	}
 
 	if err := chromedp.Run(runContext,
-		replaceFile("Code.gs", codeGs),
-		replaceFile("appsscript.json", manifest),
-		clickByText("button", "Deploy"),
-		clickByText("[role=menuitem]", "New deployment"),
+		setMonacoValue(codeGs),
+		saveEditor(),
+		clickByTextDeep("Deploy"),
+		clickByTextDeep("New deployment"),
 		selectDeploymentType("Web app"),
 		setWebAppAccess("Anyone"),
-		clickByText("button", "Deploy"),
+		clickByTextDeep("Deploy"),
 	); err != nil {
 		return "", fmt.Errorf("UI automation: %w", err)
 	}
@@ -100,75 +100,108 @@ func waitForEditor() chromedp.Action {
 	})
 }
 
-// replaceFile opens (or creates) the named file in the Apps Script editor and
-// replaces its content with newContent. Apps Script lists files in the left
-// rail; clicking one focuses its tab. Uses the Files API exposed via the
-// editor's model where possible, falling back to keyboard entry.
-func replaceFile(name, newContent string) chromedp.Action {
+// setMonacoValue replaces the contents of the currently-focused Monaco
+// editor model with newContent via the Apps Script editor's in-page
+// Monaco API. This bypasses keyboard typing (which fights Monaco's
+// auto-indent) and cleanly wipes whatever boilerplate Apps Script's
+// "new project" flow inserted.
+func setMonacoValue(newContent string) chromedp.Action {
 	return chromedp.ActionFunc(func(ctx context.Context) error {
-		// If the file doesn't exist yet, add it via the "+" button.
 		script := fmt.Sprintf(`
 			(() => {
-				const rows = [...document.querySelectorAll('[role="treeitem"], [aria-label*="file"]')];
-				const target = rows.find(row => (row.textContent || '').trim() === %q);
-				if (target) { target.click(); return "opened"; }
-				const addButton = [...document.querySelectorAll('button[aria-label], button')]
-					.find(b => /add file|new file|\+/i.test((b.getAttribute('aria-label') || b.textContent || '').toLowerCase()));
-				if (addButton) addButton.click();
-				return "add-clicked";
+				if (!window.monaco || !monaco.editor) return "no-monaco";
+				const editors = monaco.editor.getEditors ? monaco.editor.getEditors() : [];
+				if (editors.length === 0) return "no-editors";
+				editors[0].setValue(%s);
+				editors[0].focus();
+				return "set";
 			})()
-		`, name)
+		`, jsString(newContent))
 		var outcome string
 		if err := chromedp.Run(ctx, chromedp.Evaluate(script, &outcome)); err != nil {
 			return err
 		}
-		// Wait briefly for the tab to focus.
-		if err := chromedp.Run(ctx, chromedp.Sleep(1*time.Second)); err != nil {
-			return err
+		if outcome != "set" {
+			return fmt.Errorf("setMonacoValue: %s (Apps Script editor likely still loading or Monaco API absent)", outcome)
 		}
-		// Click into the editor and replace the content.
+		return chromedp.Sleep(500 * time.Millisecond).Do(ctx)
+	})
+}
+
+// saveEditor sends Cmd+S and waits for Apps Script's save indicator to
+// settle so the Deploy button becomes enabled.
+func saveEditor() chromedp.Action {
+	return chromedp.ActionFunc(func(ctx context.Context) error {
 		return chromedp.Run(ctx,
-			chromedp.Click(`div[role="code"], .monaco-editor`, chromedp.ByQuery),
-			chromedp.Sleep(300*time.Millisecond),
-			chromedp.KeyEvent("\x01"), // Ctrl/Cmd+A
-			chromedp.Sleep(100*time.Millisecond),
-			chromedp.KeyEvent("\b"),
-			chromedp.Sleep(100*time.Millisecond),
-			chromedp.KeyEvent(newContent),
-			chromedp.Sleep(500*time.Millisecond),
 			chromedp.KeyEvent("\x13"), // Ctrl/Cmd+S
-			chromedp.Sleep(1500*time.Millisecond),
+			chromedp.Sleep(2*time.Second),
 		)
 	})
 }
 
-// clickByText finds the first element matching cssOrRoleSelector whose
-// visible text equals (case-insensitive) the given label, and clicks it.
-func clickByText(selector, label string) chromedp.Action {
+// clickByTextDeep finds the first element whose visible text (or aria-
+// label) case-insensitively contains label and clicks it. Walks both the
+// normal DOM and shadow roots so material-web-style buttons (which Apps
+// Script uses) are reachable.
+func clickByTextDeep(label string) chromedp.Action {
 	return chromedp.ActionFunc(func(ctx context.Context) error {
 		script := fmt.Sprintf(`
 			(() => {
-				const needle = %q.toLowerCase();
-				const candidates = [...document.querySelectorAll(%q)];
-				const hit = candidates.find(el => {
-					const text = (el.innerText || el.textContent || el.getAttribute('aria-label') || '').trim().toLowerCase();
-					return text === needle || text.includes(needle);
+				const needle = %s.toLowerCase().trim();
+
+				function* walk(root) {
+					const queue = [root];
+					while (queue.length) {
+						const node = queue.shift();
+						if (!node) continue;
+						if (node.nodeType === 1) yield node;
+						if (node.shadowRoot) queue.push(node.shadowRoot);
+						for (const child of node.children || []) queue.push(child);
+					}
+				}
+
+				const matches = [];
+				for (const el of walk(document)) {
+					const text = (el.innerText || el.textContent || '').trim().toLowerCase();
+					const label = (el.getAttribute && (el.getAttribute('aria-label') || '')).trim().toLowerCase();
+					if (text === needle || label === needle || text.includes(needle) || label.includes(needle)) {
+						matches.push(el);
+					}
+				}
+
+				const clickable = matches.find(el => {
+					if (el.disabled) return false;
+					if (el.offsetParent === null && el.getClientRects().length === 0) return false;
+					const tag = el.tagName.toLowerCase();
+					if (tag === 'button' || el.getAttribute('role') === 'button' || el.getAttribute('role') === 'menuitem') return true;
+					return el.closest('button, [role="button"], [role="menuitem"]');
 				});
-				if (!hit) return false;
-				hit.scrollIntoView({ block: 'center' });
-				hit.click();
+				if (!clickable) return false;
+				const target = clickable.closest('button, [role="button"], [role="menuitem"]') || clickable;
+				target.scrollIntoView({ block: 'center' });
+				target.click();
 				return true;
-			})();
-		`, label, selector)
+			})()
+		`, jsString(label))
 		var ok bool
 		if err := chromedp.Run(ctx, chromedp.Evaluate(script, &ok)); err != nil {
 			return err
 		}
 		if !ok {
-			return fmt.Errorf("could not find %q matching %q", label, selector)
+			return fmt.Errorf("could not find clickable element with text %q", label)
 		}
-		return chromedp.Sleep(800 * time.Millisecond).Do(ctx)
+		return chromedp.Sleep(900 * time.Millisecond).Do(ctx)
 	})
+}
+
+// jsString renders s as a JavaScript string literal safe to embed inside
+// an IIFE passed to chromedp.Evaluate. Uses JSON.stringify semantics
+// (Go's encoding/json produces a valid JS string literal for all inputs).
+func jsString(s string) string {
+	quoted := strings.ReplaceAll(s, "\\", "\\\\")
+	quoted = strings.ReplaceAll(quoted, "`", "\\`")
+	quoted = strings.ReplaceAll(quoted, "${", "\\${")
+	return "`" + quoted + "`"
 }
 
 // selectDeploymentType clicks the gear icon in the deploy dialog and picks
@@ -193,7 +226,7 @@ func selectDeploymentType(label string) chromedp.Action {
 		if err := chromedp.Run(ctx, chromedp.Sleep(700*time.Millisecond)); err != nil {
 			return err
 		}
-		return clickByText(`[role="menuitem"], [role="option"], li, .picker-item`, label).Do(ctx)
+		return clickByTextDeep(label).Do(ctx)
 	})
 }
 
@@ -221,7 +254,7 @@ func setWebAppAccess(option string) chromedp.Action {
 		if err := chromedp.Run(ctx, chromedp.Sleep(600*time.Millisecond)); err != nil {
 			return err
 		}
-		return clickByText(`[role="option"], [role="menuitem"], li`, option).Do(ctx)
+		return clickByTextDeep(option).Do(ctx)
 	})
 }
 
