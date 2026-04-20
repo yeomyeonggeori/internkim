@@ -65,7 +65,7 @@ func runGoogleSSH(context *Context) error {
 	if err := context.SSH.SCP(temporaryPath, "/root/.internkim/secrets/google-sa.json"); err != nil {
 		return fmt.Errorf("scp sa.json: %w", err)
 	}
-	context.SSH.Run(`chown gws /root/.internkim/secrets/google-sa.json
+	context.SSH.Run(`chown root:zeroclaw /root/.internkim/secrets/google-sa.json
 chmod 640 /root/.internkim/secrets/google-sa.json`)
 	fmt.Println("  " + context.T("서비스 계정 생성 완료 (live)", "Service account created (live)"))
 	return nil
