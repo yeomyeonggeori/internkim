@@ -4507,22 +4507,33 @@ func runSetupLive(messenger *msg) {
 		boardIP         string
 	)
 
+	// Board detection over Wi-Fi has a short TCP dial timeout (3s per
+	// saved IP) and occasionally loses the first round — the ARP cache may
+	// be cold or the router can hold a half-open path after the board goes
+	// idle. Retry detection once after a short pause before falling back
+	// to the next backend.
 	attemptBackend := func(kind setup.Backend) bool {
-		switch kind {
-		case setup.BackendSSH:
-			if useSimulator {
-				boardIP = simContainerIP()
-			} else {
-				boardIP = findBoardIP(sshpassBin, stateDir)
+		for attempt := 0; attempt < 3; attempt++ {
+			switch kind {
+			case setup.BackendSSH:
+				if useSimulator {
+					boardIP = simContainerIP()
+				} else {
+					boardIP = findBoardIP(sshpassBin, stateDir)
+				}
+				if boardIP != "" {
+					sshConnection = newSSH(sshpassBin, boardUser, "", boardIP)
+					return true
+				}
+			case setup.BackendSD:
+				stagingRoot = findSDStagingRoot()
+				if stagingRoot != "" {
+					return true
+				}
 			}
-			if boardIP == "" {
-				return false
+			if attempt < 2 {
+				time.Sleep(2 * time.Second)
 			}
-			sshConnection = newSSH(sshpassBin, boardUser, "", boardIP)
-			return true
-		case setup.BackendSD:
-			stagingRoot = findSDStagingRoot()
-			return stagingRoot != ""
 		}
 		return false
 	}
