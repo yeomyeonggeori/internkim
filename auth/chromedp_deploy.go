@@ -76,6 +76,21 @@ func DeployAppsScriptViaBrowser(codeGs, manifest string) (string, error) {
 
 	fmt.Println("  Running headless Chrome against your signed-in profile...")
 
+	// If a previous run left a project behind, remove it first so the
+	// user's Drive does not pile up duplicate Apps Script projects on
+	// every re-run. Best-effort — failures don't block the new create.
+	scriptIDPath := filepath.Join(home, ".internkim", "gas-script-id")
+	if savedScriptID, readError := os.ReadFile(scriptIDPath); readError == nil {
+		stale := strings.TrimSpace(string(savedScriptID))
+		if stale != "" {
+			fmt.Printf("  Removing previous Apps Script project %s...\n", stale)
+			if err := trashAppsScriptProject(runContext, stale); err != nil {
+				fmt.Printf("  (removal failed: %v — continuing)\n", err)
+			}
+			_ = os.Remove(scriptIDPath)
+		}
+	}
+
 	// hl=en forces the Apps Script UI into English regardless of the user's
 	// Google-account language preference. Our clickByText selectors target
 	// English labels ("Deploy", "New deployment", "Web app", "Anyone"), so
@@ -88,6 +103,15 @@ func DeployAppsScriptViaBrowser(codeGs, manifest string) (string, error) {
 
 	if err := waitForAppsScriptEditor(runContext); err != nil {
 		return "", err
+	}
+
+	// Remember the new project's scriptId so the next run's cleanup can
+	// target it.
+	var currentURL string
+	if err := chromedp.Run(runContext, chromedp.Location(&currentURL)); err == nil {
+		if scriptID := extractScriptID(currentURL); scriptID != "" {
+			_ = os.WriteFile(scriptIDPath, []byte(scriptID+"\n"), 0o600)
+		}
 	}
 
 	if err := chromedp.Run(runContext,
@@ -581,6 +605,106 @@ func clickDialogButton(label string) chromedp.Action {
 			chromedp.Sleep(1200*time.Millisecond),
 		)
 	})
+}
+
+// trashAppsScriptProject moves a previously-deployed Apps Script project
+// to the user's Drive trash via the script.google.com home UI. The home
+// page renders a project list; each row has a "More actions" (kebab)
+// button that opens a menu with "Remove" as one of the entries. We drive
+// that menu via chromedp.
+func trashAppsScriptProject(ctx context.Context, scriptID string) error {
+	if err := chromedp.Run(ctx,
+		chromedp.Navigate("https://script.google.com/home?hl=en"),
+	); err != nil {
+		return fmt.Errorf("navigate home: %w", err)
+	}
+	// Wait for the project list to render — any row will do as a sentinel.
+	if err := chromedp.Run(ctx, waitForTextDeep("My projects", 15*time.Second)); err != nil {
+		return fmt.Errorf("home did not render: %w", err)
+	}
+
+	// The row is an <a> / <tr> carrying the scriptId in its href or data-id.
+	// Click its kebab, then the "Remove" menuitem, then the confirmation.
+	clickKebab := fmt.Sprintf(`
+		(() => {
+			const id = %s;
+			function* walk(root) {
+				const queue = [root];
+				while (queue.length) {
+					const node = queue.shift();
+					if (!node) continue;
+					if (node.nodeType === 1) yield node;
+					if (node.shadowRoot) queue.push(node.shadowRoot);
+					for (const child of node.children || []) queue.push(child);
+				}
+			}
+			let row = null;
+			for (const el of walk(document)) {
+				const href = (el.getAttribute && el.getAttribute('href')) || '';
+				if (href.includes('/projects/' + id + '/')) { row = el; break; }
+			}
+			if (!row) return "no-row";
+			const container = row.closest('[role="row"], tr, .project-row, .RrEUbf') || row.parentElement;
+			if (!container) return "no-container";
+			const kebab = [...walk(container)].find(el => /more actions|more|options/i.test(
+				(el.getAttribute && (el.getAttribute('aria-label') || '')) || ''
+			));
+			if (!kebab) return "no-kebab";
+			kebab.scrollIntoView({ block: 'center' });
+			const rect = kebab.getBoundingClientRect();
+			return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+		})()
+	`, jsString(scriptID))
+	var kebabResult struct {
+		Error string  `json:"error"`
+		X     float64 `json:"x"`
+		Y     float64 `json:"y"`
+	}
+	if err := chromedp.Run(ctx, chromedp.Evaluate(clickKebab, &kebabResult)); err != nil {
+		return err
+	}
+	// Some responses come back as a bare string if the expression returned
+	// a plain value; we only care whether coords are valid.
+	if kebabResult.X == 0 && kebabResult.Y == 0 {
+		return fmt.Errorf("could not locate More-actions button for %s", scriptID)
+	}
+	if err := chromedp.Run(ctx, chromedp.MouseClickXY(kebabResult.X, kebabResult.Y)); err != nil {
+		return err
+	}
+	time.Sleep(700 * time.Millisecond)
+
+	if err := chromedp.Run(ctx, clickByTextDeep("Remove")); err != nil {
+		return fmt.Errorf("click Remove menuitem: %w", err)
+	}
+	time.Sleep(700 * time.Millisecond)
+
+	// Confirmation dialog — the confirm button is usually labeled "Remove"
+	// again or "OK". Try Remove first.
+	if err := chromedp.Run(ctx, clickDialogButton("Remove")); err != nil {
+		if err := chromedp.Run(ctx, clickDialogButton("OK")); err != nil {
+			// No confirmation dialog present — some Apps Script builds
+			// remove immediately after the menu click.
+		}
+	}
+	time.Sleep(1 * time.Second)
+	return nil
+}
+
+// extractScriptID pulls the project scriptId out of an Apps Script editor
+// URL like https://script.google.com/home/projects/<id>/edit. Returns ""
+// when the URL does not match — we treat that as "don't cache anything".
+func extractScriptID(rawURL string) string {
+	const marker = "/home/projects/"
+	index := strings.Index(rawURL, marker)
+	if index < 0 {
+		return ""
+	}
+	tail := rawURL[index+len(marker):]
+	end := strings.IndexAny(tail, "/?#")
+	if end < 0 {
+		return tail
+	}
+	return tail[:end]
 }
 
 // waitForTextDeep polls the rendered page (including shadow roots) for
