@@ -8,9 +8,11 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -48,13 +50,29 @@ func DeployAppsScriptViaBrowser(codeGs, manifest string) (string, error) {
 	)
 	defer cancelAllocator()
 
-	browserContext, cancelBrowser := chromedp.NewContext(allocatorContext)
+	// Reuse the Chrome tab the user just signed in on instead of opening a
+	// new one. Query Chrome's /json/list endpoint for the existing page
+	// targets and attach to the one Google redirected us to after OAuth.
+	existingTargetID, err := findExistingGoogleTab()
+	if err != nil {
+		return "", fmt.Errorf("locate existing tab: %w", err)
+	}
+	var browserContext context.Context
+	var cancelBrowser context.CancelFunc
+	if existingTargetID != "" {
+		browserContext, cancelBrowser = chromedp.NewContext(
+			allocatorContext,
+			chromedp.WithTargetID(target.ID(existingTargetID)),
+		)
+	} else {
+		browserContext, cancelBrowser = chromedp.NewContext(allocatorContext)
+	}
 	defer cancelBrowser()
 
 	runContext, cancelRun := context.WithTimeout(browserContext, 15*time.Minute)
 	defer cancelRun()
 
-	fmt.Println("  Attaching to the Chrome window you just signed in on...")
+	fmt.Println("  Attaching to the Chrome tab you just signed in on...")
 
 	// hl=en forces the Apps Script UI into English regardless of the user's
 	// Google-account language preference. Our clickByText selectors target
@@ -606,6 +624,42 @@ func waitForTextDeep(label string, timeout time.Duration) chromedp.Action {
 	})
 }
 
+// findExistingGoogleTab queries Chrome's devtools /json/list endpoint and
+// returns the first page target whose URL is already on a google.com host.
+// Returns "" (without error) if no matching target exists yet — the caller
+// will fall back to opening a new tab.
+func findExistingGoogleTab() (string, error) {
+	endpoint := fmt.Sprintf("http://localhost:%d/json/list", DebugPort)
+	response, err := http.Get(endpoint)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+	var targets []struct {
+		ID   string `json:"id"`
+		Type string `json:"type"`
+		URL  string `json:"url"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&targets); err != nil {
+		return "", err
+	}
+	// Prefer a tab already on script.google.com; otherwise any google.com
+	// page. Skip about:blank / devtools pages / service workers.
+	var best string
+	for _, info := range targets {
+		if info.Type != "page" {
+			continue
+		}
+		if strings.Contains(info.URL, "script.google.com") {
+			return info.ID, nil
+		}
+		if strings.Contains(info.URL, "google.com") && best == "" {
+			best = info.ID
+		}
+	}
+	return best, nil
+}
+
 // authorizeAccessFlow clicks the "Authorize access" button in the open
 // New deployment dialog, waits for the OAuth consent popup to appear,
 // drives account selection + the "unverified app" advanced-continue
@@ -613,11 +667,18 @@ func waitForTextDeep(label string, timeout time.Duration) chromedp.Action {
 // On return, the original dialog in the main tab will show the web app
 // URL.
 func authorizeAccessFlow(browserContext, runContext context.Context) error {
+	// Apps Script takes a beat to swap the dialog contents from the
+	// deployment form to the "Authorize access" state after Deploy is
+	// clicked. Poll until the button text shows up.
+	if err := chromedp.Run(runContext, waitForTextDeep("Authorize access", 20*time.Second)); err != nil {
+		return fmt.Errorf("wait Authorize access button: %w", err)
+	}
+
 	// Set up a channel to catch the new popup target before clicking the
 	// Authorize access button, so we don't miss a fast-opening window.
 	popupCh := chromedp.WaitNewTarget(browserContext, func(info *target.Info) bool {
 		return strings.Contains(info.URL, "accounts.google.com") ||
-			strings.Contains(info.URL, "script.google.com") && info.Type == "page"
+			(strings.Contains(info.URL, "script.google.com") && info.Type == "page")
 	})
 
 	if err := chromedp.Run(runContext, clickByTextDeep("Authorize access")); err != nil {
