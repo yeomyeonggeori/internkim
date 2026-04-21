@@ -511,7 +511,10 @@ func fillDialogField(label, value string) chromedp.Action {
 // clickDialogButton clicks the button whose text matches label that lives
 // INSIDE the currently-open dialog. Prevents us from re-clicking the
 // editor's top-toolbar Deploy when we meant the dialog's Deploy at the
-// final submit step.
+// final submit step. Uses CDP's Input.dispatchMouseEvent so the click
+// carries isTrusted=true — required for window.open() popups (e.g. the
+// Authorize access OAuth window) to survive Chrome's popup-blocker
+// heuristics.
 func clickDialogButton(label string) chromedp.Action {
 	return chromedp.ActionFunc(func(ctx context.Context) error {
 		script := fmt.Sprintf(`
@@ -533,11 +536,9 @@ func clickDialogButton(label string) chromedp.Action {
 						dialog = el;
 					}
 				}
-				if (!dialog) return "no-dialog";
+				if (!dialog) return {error: "no-dialog"};
 
 				const clickableSelector = 'button, [role="button"], md-outlined-button, md-filled-button, md-text-button, md-filled-tonal-button';
-				// Look specifically at button-like elements inside the dialog
-				// and match if their own text / aria-label contains the label.
 				const buttons = [...walk(dialog)].filter(el => el.matches && el.matches(clickableSelector));
 				const candidates = buttons.filter(el => {
 					if (el.disabled || el.getAttribute('aria-disabled') === 'true') return false;
@@ -546,34 +547,37 @@ func clickDialogButton(label string) chromedp.Action {
 					const aria = (el.getAttribute('aria-label') || '').trim().toLowerCase();
 					return text === needle || aria === needle || text.includes(needle) || aria.includes(needle);
 				});
-				// Prefer buttons at the bottom of the dialog (footer), by
-				// largest clientY. The final "Deploy" submit lives in the
-				// dialog's action bar below the form.
 				candidates.sort((a, b) => b.getBoundingClientRect().top - a.getBoundingClientRect().top);
 				const target = candidates[0];
-				if (!target) return "not-found";
+				if (!target) return {error: "not-found"};
 
 				target.scrollIntoView({ block: 'center' });
 				const rect = target.getBoundingClientRect();
-				const opts = { bubbles: true, cancelable: true, view: window,
-					clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2,
-					button: 0, buttons: 1 };
-				target.dispatchEvent(new PointerEvent('pointerdown', opts));
-				target.dispatchEvent(new MouseEvent('mousedown', opts));
-				target.dispatchEvent(new PointerEvent('pointerup', opts));
-				target.dispatchEvent(new MouseEvent('mouseup', opts));
-				target.dispatchEvent(new MouseEvent('click', opts));
-				return "clicked";
+				return {
+					x: rect.left + rect.width / 2,
+					y: rect.top + rect.height / 2,
+				};
 			})()
 		`, jsString(label))
-		var outcome string
-		if err := chromedp.Run(ctx, chromedp.Evaluate(script, &outcome)); err != nil {
+		var result struct {
+			Error string  `json:"error"`
+			X     float64 `json:"x"`
+			Y     float64 `json:"y"`
+		}
+		if err := chromedp.Run(ctx, chromedp.Evaluate(script, &result)); err != nil {
 			return err
 		}
-		if outcome != "clicked" {
-			return fmt.Errorf("clickDialogButton %q: %s", label, outcome)
+		if result.Error != "" {
+			return fmt.Errorf("clickDialogButton %q: %s", label, result.Error)
 		}
-		return chromedp.Sleep(1200 * time.Millisecond).Do(ctx)
+		// MouseClickXY dispatches via CDP Input.dispatchMouseEvent, which
+		// produces a trusted event; window.open() called from the button's
+		// click handler is therefore allowed (synthetic dispatchEvent would
+		// hit the popup-blocker).
+		return chromedp.Run(ctx,
+			chromedp.MouseClickXY(result.X, result.Y),
+			chromedp.Sleep(1200*time.Millisecond),
+		)
 	})
 }
 
