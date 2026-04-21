@@ -745,10 +745,12 @@ func authorizeAccessFlow(browserContext, runContext context.Context) error {
 	return nil
 }
 
-// saveFailureScreenshot grabs the current Chrome viewport and writes it
-// to ~/.internkim/debug-screenshots/<stage>-<timestamp>.png. Best-effort —
-// any failure here is silently swallowed so the caller's original error
-// is still what bubbles up to the user.
+// saveFailureScreenshot grabs the current Chrome viewport + a HTML dump
+// and writes them to ~/.internkim/debug-screenshots/<stage>-<ts>.{png,html}.
+// Best-effort — any failure here is silently swallowed so the caller's
+// original error is still what bubbles up to the user. The HTML dump
+// walks shadow roots so custom-element contents (material-web) are
+// included.
 func saveFailureScreenshot(ctx context.Context, stage string) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -758,17 +760,67 @@ func saveFailureScreenshot(ctx context.Context, stage string) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return
 	}
+	timestamp := time.Now().Format("20060102-150405")
+
+	// Screenshot
+	screenshotCtx, cancelScreenshot := context.WithTimeout(ctx, 10*time.Second)
 	var imageBytes []byte
-	screenshotCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	if err := chromedp.Run(screenshotCtx, chromedp.CaptureScreenshot(&imageBytes)); err != nil || len(imageBytes) == 0 {
-		return
+	_ = chromedp.Run(screenshotCtx, chromedp.CaptureScreenshot(&imageBytes))
+	cancelScreenshot()
+	if len(imageBytes) > 0 {
+		pngPath := filepath.Join(dir, fmt.Sprintf("%s-%s.png", stage, timestamp))
+		if err := os.WriteFile(pngPath, imageBytes, 0o600); err == nil {
+			fmt.Printf("  Saved failure screenshot → %s\n", pngPath)
+		}
 	}
-	path := filepath.Join(dir, fmt.Sprintf("%s-%s.png", stage, time.Now().Format("20060102-150405")))
-	if err := os.WriteFile(path, imageBytes, 0o600); err != nil {
-		return
+
+	// HTML dump (with shadow roots expanded).
+	htmlCtx, cancelHTML := context.WithTimeout(ctx, 10*time.Second)
+	var html string
+	_ = chromedp.Run(htmlCtx, chromedp.Evaluate(`
+		(() => {
+			function serialize(node, indent) {
+				const pad = '  '.repeat(indent);
+				if (node.nodeType === 3) {
+					const text = node.textContent.trim();
+					return text ? pad + text : '';
+				}
+				if (node.nodeType !== 1) return '';
+				const tag = node.tagName.toLowerCase();
+				const attrs = [...node.attributes || []]
+					.map(a => a.name + '="' + a.value.replace(/"/g, '&quot;') + '"')
+					.join(' ');
+				const open = pad + '<' + tag + (attrs ? ' ' + attrs : '') + '>';
+				if (node.shadowRoot) {
+					const shadowChildren = [...node.shadowRoot.childNodes]
+						.map(c => serialize(c, indent + 1))
+						.filter(s => s)
+						.join('\n');
+					const lightChildren = [...node.childNodes]
+						.map(c => serialize(c, indent + 1))
+						.filter(s => s)
+						.join('\n');
+					return open + '\n' + pad + '  #shadow-root\n' + shadowChildren
+						+ (lightChildren ? '\n' + lightChildren : '')
+						+ '\n' + pad + '</' + tag + '>';
+				}
+				const children = [...node.childNodes]
+					.map(c => serialize(c, indent + 1))
+					.filter(s => s)
+					.join('\n');
+				if (!children) return open + '</' + tag + '>';
+				return open + '\n' + children + '\n' + pad + '</' + tag + '>';
+			}
+			return serialize(document.documentElement, 0);
+		})()
+	`, &html))
+	cancelHTML()
+	if html != "" {
+		htmlPath := filepath.Join(dir, fmt.Sprintf("%s-%s.html", stage, timestamp))
+		if err := os.WriteFile(htmlPath, []byte(html), 0o600); err == nil {
+			fmt.Printf("  Saved failure HTML dump → %s\n", htmlPath)
+		}
 	}
-	fmt.Printf("  Saved failure screenshot → %s\n", path)
 }
 
 // waitForDebugPort blocks until Chrome's CDP endpoint accepts TCP
