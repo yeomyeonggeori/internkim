@@ -674,14 +674,14 @@ func authorizeAccessFlow(browserContext, runContext context.Context) error {
 		return fmt.Errorf("wait Authorize access button: %w", err)
 	}
 
-	// Set up a channel to catch the new popup target before clicking the
-	// Authorize access button, so we don't miss a fast-opening window.
+	// Catch any new page target that opens after clicking. At creation the
+	// URL may still be 'about:blank'; don't filter by URL here or we'll
+	// miss the popup.
 	popupCh := chromedp.WaitNewTarget(browserContext, func(info *target.Info) bool {
-		return strings.Contains(info.URL, "accounts.google.com") ||
-			(strings.Contains(info.URL, "script.google.com") && info.Type == "page")
+		return info.Type == "page"
 	})
 
-	if err := chromedp.Run(runContext, clickByTextDeep("Authorize access")); err != nil {
+	if err := chromedp.Run(runContext, clickDialogButton("Authorize access")); err != nil {
 		return fmt.Errorf("click Authorize access: %w", err)
 	}
 
