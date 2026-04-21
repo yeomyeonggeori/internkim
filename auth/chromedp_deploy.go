@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 )
 
@@ -86,8 +87,13 @@ func DeployAppsScriptViaBrowser(codeGs, manifest string) (string, error) {
 		return "", fmt.Errorf("UI automation: %w", err)
 	}
 
-	fmt.Println("  Deploy submitted. If an \"Access\" prompt appears, click through it.")
-	fmt.Println("  The Web app URL will appear in a dialog when authorization finishes.")
+	// Apps Script prompts for consent the first time a deployment needs the
+	// declared scopes. Drive the consent popup (choose account → 'Advanced'
+	// → 'Go to internkim-bridge (unsafe)' → 'Allow') automatically.
+	if err := authorizeAccessFlow(browserContext, runContext); err != nil {
+		saveFailureScreenshot(runContext, "authorize-access")
+		return "", fmt.Errorf("authorize access: %w", err)
+	}
 
 	var webAppURL string
 	if err := chromedp.Run(runContext,
@@ -598,6 +604,84 @@ func waitForTextDeep(label string, timeout time.Duration) chromedp.Action {
 		}
 		return fmt.Errorf("text %q did not appear within %s", label, timeout)
 	})
+}
+
+// authorizeAccessFlow clicks the "Authorize access" button in the open
+// New deployment dialog, waits for the OAuth consent popup to appear,
+// drives account selection + the "unverified app" advanced-continue
+// detour + the final Allow click, and waits for the popup to close.
+// On return, the original dialog in the main tab will show the web app
+// URL.
+func authorizeAccessFlow(browserContext, runContext context.Context) error {
+	// Set up a channel to catch the new popup target before clicking the
+	// Authorize access button, so we don't miss a fast-opening window.
+	popupCh := chromedp.WaitNewTarget(browserContext, func(info *target.Info) bool {
+		return strings.Contains(info.URL, "accounts.google.com") ||
+			strings.Contains(info.URL, "script.google.com") && info.Type == "page"
+	})
+
+	if err := chromedp.Run(runContext, clickByTextDeep("Authorize access")); err != nil {
+		return fmt.Errorf("click Authorize access: %w", err)
+	}
+
+	var popupTargetID target.ID
+	select {
+	case popupTargetID = <-popupCh:
+	case <-time.After(15 * time.Second):
+		return errors.New("Authorize-access popup did not open")
+	case <-runContext.Done():
+		return runContext.Err()
+	}
+
+	popupContext, cancelPopup := chromedp.NewContext(browserContext, chromedp.WithTargetID(popupTargetID))
+	defer cancelPopup()
+	popupRun, cancelRun := context.WithTimeout(popupContext, 3*time.Minute)
+	defer cancelRun()
+
+	// 1. Account picker — click the first visible email row.
+	_ = chromedp.Run(popupRun, clickByTextDeep("@"))
+	time.Sleep(2 * time.Second)
+
+	// 2. "This app isn't verified" warning.
+	//    Click "Advanced", then "Go to internkim-bridge (unsafe)".
+	_ = chromedp.Run(popupRun, clickByTextDeep("Advanced"))
+	time.Sleep(1500 * time.Millisecond)
+	_ = chromedp.Run(popupRun, clickByTextDeep("Go to"))
+	time.Sleep(2 * time.Second)
+
+	// 3. Scopes consent page — click Allow.
+	//    Apps Script lists the scopes the script declared, plus a final
+	//    Continue/Allow button. Try both labels.
+	if err := chromedp.Run(popupRun, clickByTextDeep("Allow")); err != nil {
+		if err := chromedp.Run(popupRun, clickByTextDeep("Continue")); err != nil {
+			return fmt.Errorf("click final consent: %w", err)
+		}
+	}
+
+	// 4. Popup should close shortly after Allow. Wait up to 30s.
+	closed := false
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		targets, err := chromedp.Targets(browserContext)
+		if err == nil {
+			found := false
+			for _, t := range targets {
+				if t.TargetID == popupTargetID {
+					found = true
+					break
+				}
+			}
+			if !found {
+				closed = true
+				break
+			}
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	if !closed {
+		return errors.New("consent popup did not close after Allow")
+	}
+	return nil
 }
 
 // saveFailureScreenshot grabs the current Chrome viewport and writes it
