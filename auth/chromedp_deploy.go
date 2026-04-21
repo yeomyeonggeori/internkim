@@ -191,8 +191,17 @@ func clickByTextDeep(label string) chromedp.Action {
 				}
 				if (!matches.length) return "nothing-matches";
 
+				// Prefer exact-text matches first ('Anyone' beats 'Anyone
+				// with Google account'), then prefix matches, then contains.
+				matches.sort((a, b) => {
+					const aText = (a.innerText || a.textContent || '').trim().toLowerCase();
+					const bText = (b.innerText || b.textContent || '').trim().toLowerCase();
+					const score = (t) => t === needle ? 0 : t.startsWith(needle) ? 1 : 2;
+					return score(aText) - score(bText);
+				});
+
 				// Prefer an ancestor that's an actual button / menuitem / link.
-				const clickableRoles = 'button, [role="button"], [role="menuitem"], [role="option"], [role="tab"], a, md-menu-item, md-outlined-button, md-filled-button';
+				const clickableRoles = 'button, [role="button"], [role="menuitem"], [role="option"], [role="tab"], a, md-menu-item, md-outlined-button, md-filled-button, md-select-option';
 				const withAncestor = matches
 					.map(el => el.closest(clickableRoles))
 					.find(el => el && visible(el));
@@ -501,16 +510,25 @@ func clickDialogButton(label string) chromedp.Action {
 					}
 				}
 				if (!dialog) return "no-dialog";
-				let target = null;
-				for (const el of walk(dialog)) {
+
+				const clickableSelector = 'button, [role="button"], md-outlined-button, md-filled-button, md-text-button, md-filled-tonal-button';
+				// Look specifically at button-like elements inside the dialog
+				// and match if their own text / aria-label contains the label.
+				const buttons = [...walk(dialog)].filter(el => el.matches && el.matches(clickableSelector));
+				const candidates = buttons.filter(el => {
+					if (el.disabled || el.getAttribute('aria-disabled') === 'true') return false;
+					if (el.offsetParent === null && el.getClientRects().length === 0) return false;
 					const text = (el.innerText || el.textContent || '').trim().toLowerCase();
-					const aria = (el.getAttribute && (el.getAttribute('aria-label') || '')).toLowerCase();
-					if ((text === needle || aria === needle) && !el.disabled) {
-						const clickable = el.closest('button, [role="button"], md-outlined-button, md-filled-button, md-text-button') || el;
-						if (clickable.offsetParent !== null) { target = clickable; break; }
-					}
-				}
+					const aria = (el.getAttribute('aria-label') || '').trim().toLowerCase();
+					return text === needle || aria === needle || text.includes(needle) || aria.includes(needle);
+				});
+				// Prefer buttons at the bottom of the dialog (footer), by
+				// largest clientY. The final "Deploy" submit lives in the
+				// dialog's action bar below the form.
+				candidates.sort((a, b) => b.getBoundingClientRect().top - a.getBoundingClientRect().top);
+				const target = candidates[0];
 				if (!target) return "not-found";
+
 				target.scrollIntoView({ block: 'center' });
 				const rect = target.getBoundingClientRect();
 				const opts = { bubbles: true, cancelable: true, view: window,
@@ -531,7 +549,7 @@ func clickDialogButton(label string) chromedp.Action {
 		if outcome != "clicked" {
 			return fmt.Errorf("clickDialogButton %q: %s", label, outcome)
 		}
-		return chromedp.Sleep(800 * time.Millisecond).Do(ctx)
+		return chromedp.Sleep(1200 * time.Millisecond).Do(ctx)
 	})
 }
 
