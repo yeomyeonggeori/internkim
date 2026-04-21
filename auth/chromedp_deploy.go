@@ -628,6 +628,37 @@ func waitForTextDeep(label string, timeout time.Duration) chromedp.Action {
 	})
 }
 
+// checkAllConsentScopes ticks every unchecked permission checkbox on the
+// OAuth consent page so that clicking Continue / Allow actually grants the
+// scopes. Google's Granular Consent rollout means checkboxes default to
+// unchecked; submitting empty triggers the "You did not allow any access"
+// modal and leaves the deployment unauthorized.
+func checkAllConsentScopes() chromedp.Action {
+	return chromedp.ActionFunc(func(ctx context.Context) error {
+		script := `
+			(() => {
+				const boxes = [
+					...document.querySelectorAll('[role="checkbox"]'),
+					...document.querySelectorAll('input[type="checkbox"]'),
+				];
+				let clicked = 0;
+				for (const box of boxes) {
+					const state = box.getAttribute('aria-checked');
+					const isChecked = box.checked || state === 'true';
+					if (isChecked) continue;
+					if (box.disabled || box.getAttribute('aria-disabled') === 'true') continue;
+					if (box.offsetParent === null && box.getClientRects().length === 0) continue;
+					box.click();
+					clicked++;
+				}
+				return clicked;
+			})()
+		`
+		var clicked int
+		return chromedp.Run(ctx, chromedp.Evaluate(script, &clicked))
+	})
+}
+
 // findExistingGoogleTab queries Chrome's devtools /json/list endpoint and
 // returns the first page target whose URL is already on a google.com host.
 // Returns "" (without error) if no matching target exists yet — the caller
@@ -714,11 +745,18 @@ func authorizeAccessFlow(browserContext, runContext context.Context) error {
 	_ = chromedp.Run(popupRun, clickByTextDeep("Go to"))
 	time.Sleep(2 * time.Second)
 
-	// 3. Scopes consent page — click Allow.
-	//    Apps Script lists the scopes the script declared, plus a final
-	//    Continue/Allow button. Try both labels.
-	if err := chromedp.Run(popupRun, clickByTextDeep("Allow")); err != nil {
-		if err := chromedp.Run(popupRun, clickByTextDeep("Continue")); err != nil {
+	// 3. Scope consent page — Google's Granular Consent shows a checkbox
+	//    per scope, defaulting to unchecked. Continue without checking any
+	//    leads to a "You did not allow any access" modal. Check every
+	//    unchecked checkbox first.
+	if err := chromedp.Run(popupRun, checkAllConsentScopes()); err != nil {
+		return fmt.Errorf("tick consent checkboxes: %w", err)
+	}
+	time.Sleep(1 * time.Second)
+
+	// 4. Final Continue / Allow.
+	if err := chromedp.Run(popupRun, clickByTextDeep("Continue")); err != nil {
+		if err := chromedp.Run(popupRun, clickByTextDeep("Allow")); err != nil {
 			return fmt.Errorf("click final consent: %w", err)
 		}
 	}
