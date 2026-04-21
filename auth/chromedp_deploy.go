@@ -37,42 +37,44 @@ import (
 const DebugPort = 9335
 
 func DeployAppsScriptViaBrowser(codeGs, manifest string) (string, error) {
-	// Attach to the Chrome instance the OAuth step already started on the
-	// dedicated ~/.internkim/chrome-profile — no relaunch, no profile lock
-	// fight, no cookie flush race.
-	if err := waitForDebugPort(fmt.Sprintf("localhost:%d", DebugPort), 15*time.Second); err != nil {
-		return "", fmt.Errorf("Chrome CDP endpoint not reachable on port %d: %w (was OAuth step run first?)", DebugPort, err)
+	// Phase 2: the OAuth step already killed the visible Chrome we used
+	// for sign-in. Relaunch Chrome in headless mode on the same
+	// ~/.internkim/chrome-profile directory — cookies from the sign-in
+	// persist there, so the headless session is already authenticated.
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	profileDir := filepath.Join(home, ".internkim", "chrome-profile")
+	// Strip any Singleton* symlinks the freshly-killed Chrome left behind;
+	// the new instance would otherwise refuse to open the profile.
+	for _, lock := range []string{"SingletonLock", "SingletonCookie", "SingletonSocket"} {
+		os.Remove(filepath.Join(profileDir, lock))
 	}
 
-	allocatorContext, cancelAllocator := chromedp.NewRemoteAllocator(
+	allocatorContext, cancelAllocator := chromedp.NewExecAllocator(
 		context.Background(),
-		fmt.Sprintf("http://localhost:%d", DebugPort),
+		append(chromedp.DefaultExecAllocatorOptions[:],
+			// "new" headless mode (Chrome 109+) ships a real browser
+			// under the hood rather than the stripped legacy headless,
+			// so Material-web and Google's anti-automation heuristics
+			// behave the same as in a visible run.
+			chromedp.Flag("headless", "new"),
+			chromedp.Flag("no-first-run", true),
+			chromedp.Flag("no-default-browser-check", true),
+			chromedp.Flag("disable-blink-features", "AutomationControlled"),
+			chromedp.UserDataDir(profileDir),
+		)...,
 	)
 	defer cancelAllocator()
 
-	// Reuse the Chrome tab the user just signed in on instead of opening a
-	// new one. Query Chrome's /json/list endpoint for the existing page
-	// targets and attach to the one Google redirected us to after OAuth.
-	existingTargetID, err := findExistingGoogleTab()
-	if err != nil {
-		return "", fmt.Errorf("locate existing tab: %w", err)
-	}
-	var browserContext context.Context
-	var cancelBrowser context.CancelFunc
-	if existingTargetID != "" {
-		browserContext, cancelBrowser = chromedp.NewContext(
-			allocatorContext,
-			chromedp.WithTargetID(target.ID(existingTargetID)),
-		)
-	} else {
-		browserContext, cancelBrowser = chromedp.NewContext(allocatorContext)
-	}
+	browserContext, cancelBrowser := chromedp.NewContext(allocatorContext)
 	defer cancelBrowser()
 
 	runContext, cancelRun := context.WithTimeout(browserContext, 15*time.Minute)
 	defer cancelRun()
 
-	fmt.Println("  Attaching to the Chrome tab you just signed in on...")
+	fmt.Println("  Running headless Chrome against your signed-in profile...")
 
 	// hl=en forces the Apps Script UI into English regardless of the user's
 	// Google-account language preference. Our clickByText selectors target
