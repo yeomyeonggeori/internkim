@@ -290,27 +290,71 @@ func selectDeploymentType(label string) chromedp.Action {
 }
 
 // setWebAppAccess picks the "Who has access" dropdown option. Apps Script
-// renders this as a material dropdown; the option list appears after the
-// control is clicked.
+// renders this as a Material Outlined Select — a plain .click() on the
+// trigger does not open it; we dispatch the full pointer event sequence
+// the same way clickByTextDeep does for menu items.
 func setWebAppAccess(option string) chromedp.Action {
 	return chromedp.ActionFunc(func(ctx context.Context) error {
 		script := `
 			(() => {
-				const labels = [...document.querySelectorAll('label, legend, span')]
-					.filter(e => /who has access/i.test(e.textContent || ''));
-				if (!labels.length) return "no-label";
-				const near = labels[0].closest('[role="group"], div, section, form') || labels[0].parentElement;
-				const trigger = near ? near.querySelector('button, [role="combobox"], select') : null;
+				function* walk(root) {
+					const queue = [root];
+					while (queue.length) {
+						const node = queue.shift();
+						if (!node) continue;
+						if (node.nodeType === 1) yield node;
+						if (node.shadowRoot) queue.push(node.shadowRoot);
+						for (const child of node.children || []) queue.push(child);
+					}
+				}
+				// Narrow to labels that literally read "Who has access", not
+				// merely contain the phrase somewhere in a subtree.
+				let label = null;
+				for (const el of walk(document)) {
+					const own = (el.textContent || '').trim().toLowerCase();
+					if (own === 'who has access') { label = el; break; }
+				}
+				if (!label) return "no-label";
+
+				const field = label.closest('label, [role="group"], md-outlined-select, div, section, form') || label.parentElement;
+				if (!field) return "no-field";
+
+				// Prefer a real form-control inside the same field wrapper.
+				const candidates = [
+					...field.querySelectorAll('md-outlined-select, [role="combobox"], button, [role="button"], .goog-flat-menu-button, .select-trigger')
+				];
+				let trigger = candidates.find(el => el.offsetParent !== null) || candidates[0];
+				if (!trigger) {
+					// Last-ditch: whichever descendant actually displays the
+					// current value ("Only myself" / "Anyone").
+					trigger = [...walk(field)].find(el => /only myself|anyone/i.test(el.textContent || ''));
+				}
 				if (!trigger) return "no-trigger";
-				trigger.click();
+
+				trigger.scrollIntoView({ block: 'center' });
+				const rect = trigger.getBoundingClientRect();
+				const opts = {
+					bubbles: true, cancelable: true, view: window,
+					clientX: rect.left + rect.width / 2,
+					clientY: rect.top + rect.height / 2,
+					button: 0, buttons: 1,
+				};
+				trigger.dispatchEvent(new PointerEvent('pointerdown', opts));
+				trigger.dispatchEvent(new MouseEvent('mousedown', opts));
+				trigger.dispatchEvent(new PointerEvent('pointerup', opts));
+				trigger.dispatchEvent(new MouseEvent('mouseup', opts));
+				trigger.dispatchEvent(new MouseEvent('click', opts));
 				return "trigger-clicked";
-			})();
+			})()
 		`
-		var _r string
-		if err := chromedp.Run(ctx, chromedp.Evaluate(script, &_r)); err != nil {
+		var outcome string
+		if err := chromedp.Run(ctx, chromedp.Evaluate(script, &outcome)); err != nil {
 			return err
 		}
-		if err := chromedp.Run(ctx, chromedp.Sleep(600*time.Millisecond)); err != nil {
+		if outcome != "trigger-clicked" {
+			return fmt.Errorf("setWebAppAccess trigger: %s", outcome)
+		}
+		if err := chromedp.Run(ctx, chromedp.Sleep(1500*time.Millisecond)); err != nil {
 			return err
 		}
 		return clickByTextDeep(option).Do(ctx)
