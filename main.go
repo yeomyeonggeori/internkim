@@ -4125,13 +4125,18 @@ func googleAuth() (*googleTokens, error) {
 		if code == "" {
 			return
 		}
-		// Redirect the OAuth tab to the Apps Script home page instead of
-		// showing "close this tab". Closing the tab would kill Chrome
-		// (it's the only window), which tears down the CDP session
-		// chromedp is about to connect to. Home avoids creating an
-		// extra untitled project — chromedp creates its own.
-		writer.Header().Set("Location", "https://script.google.com/home?hl=en")
-		writer.WriteHeader(http.StatusFound)
+		// Show a brief confirmation then close the tab — chromedp is
+		// about to kill this visible Chrome and relaunch it in headless
+		// mode on the same profile so the rest of the automation runs
+		// without stealing focus.
+		writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprint(writer, `<!doctype html><meta charset="utf-8">
+<title>internkim</title>
+<style>body{font:14px -apple-system,sans-serif;padding:2em;color:#333}</style>
+<h2>Authorization complete.</h2>
+<p>internkim will continue in the background.</p>
+<p>You can close this window; it will also close by itself in a few seconds.</p>
+<script>setTimeout(() => window.close(), 3000)</script>`)
 		codeChannel <- code
 	})
 	go callbackServer.Serve(listener)
@@ -4142,6 +4147,21 @@ func googleAuth() (*googleTokens, error) {
 	case authorizationCode = <-codeChannel:
 	case <-time.After(5 * time.Minute):
 		return nil, fmt.Errorf("timed out waiting for Google authorization")
+	}
+
+	// Close the visible Chrome we opened for sign-in. chromedp will launch
+	// a fresh headless Chrome on the same ~/.internkim/chrome-profile so
+	// the remainder of the automation runs without stealing focus or
+	// inviting the user to accidentally click Continue/Cancel mid-flow.
+	// SIGTERM lets Chrome flush cookies and session state gracefully.
+	home, _ := os.UserHomeDir()
+	profileDir := filepath.Join(home, ".internkim", "chrome-profile")
+	exec.Command("pkill", "-TERM", "-f", profileDir).Run()
+	for attempt := 0; attempt < 20; attempt++ {
+		if exec.Command("pgrep", "-f", profileDir).Run() != nil {
+			break
+		}
+		time.Sleep(300 * time.Millisecond)
 	}
 
 	tokenResponse, err := http.PostForm("https://oauth2.googleapis.com/token", map[string][]string{
