@@ -4617,8 +4617,10 @@ func runSetupLive(messenger *msg) {
 
 			GetOpenRouterKey:       buildOpenRouterKeyCallback(stateDir, messenger),
 			GetGasWebhookURL: func(accessToken string) (string, error) {
-				if existing, err := loadGasWebhookURL(); err == nil {
-					return existing, nil
+				if !containsArg("--force") {
+					if existing, err := loadGasWebhookURL(); err == nil {
+						return existing, nil
+					}
 				}
 				return provisionGasWebhook(accessToken)
 			},
