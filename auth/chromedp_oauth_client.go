@@ -366,26 +366,27 @@ func waitForText(ctx context.Context, needle string, timeout time.Duration) erro
 	return fmt.Errorf("waitForText %q timed out", needle)
 }
 
-// fillFieldByLabel types value into the input/textarea associated with
-// a label whose text contains labelText. Uses the native value setter
-// so Angular/React change detection picks up the update.
+// fillFieldByLabel types value into the <input>/<textarea> inside the
+// mat-form-field whose <mat-label> or <label> matches labelText
+// exactly. Strictly scoped to the enclosing form-field container so
+// an unbounded ancestor walk can't escape the form and land on the
+// Cloud Console top-bar search input.
 func fillFieldByLabel(ctx context.Context, labelText, value string) error {
 	params, _ := json.Marshal(map[string]string{"label": labelText, "value": value})
 	js := fmt.Sprintf(`(() => {
 	  const p = %s;
-	  const needle = p.label.toLowerCase();
-	  const labels = [...document.querySelectorAll('label, span, div')];
-	  const label = labels.find(l => (l.textContent || '').trim().toLowerCase().includes(needle));
+	  const needle = p.label.trim().toLowerCase();
+	  const labels = [
+	    ...document.querySelectorAll('mat-label'),
+	    ...document.querySelectorAll('label'),
+	  ];
+	  const label = labels.find(l => (l.textContent || '').trim().toLowerCase() === needle);
 	  if (!label) return false;
-	  let input = null;
-	  if (label.htmlFor) input = document.getElementById(label.htmlFor);
-	  if (!input) {
-	    let scope = label;
-	    for (let i = 0; i < 4 && scope && !input; i++) {
-	      input = scope.querySelector('input:not([type=hidden]):not([type=button]):not([type=submit]), textarea');
-	      scope = scope.parentElement;
-	    }
-	  }
+	  const scope = label.closest('mat-form-field, apis-email-chip-list, cfc-select, [formcontrolname]');
+	  if (!scope) return false;
+	  const input = scope.querySelector(
+	    'input:not([type=hidden]):not([type=button]):not([type=submit]):not([type=search]), textarea'
+	  );
 	  if (!input) return false;
 	  input.focus();
 	  const proto = Object.getPrototypeOf(input);
@@ -401,7 +402,7 @@ func fillFieldByLabel(ctx context.Context, labelText, value string) error {
 		return err
 	}
 	if !ok {
-		return fmt.Errorf("no input near label %q", labelText)
+		return fmt.Errorf("no input in form-field for mat-label/label %q", labelText)
 	}
 	return nil
 }
@@ -433,61 +434,66 @@ func readFieldByLabel(ctx context.Context, labelText string) (string, error) {
 	return strings.TrimSpace(value), nil
 }
 
-// pickFromSelect opens the combobox associated with the given label,
-// then clicks the option whose visible text contains optionText. Works
-// against Cloud Console's cfc-select + listbox overlay where plain
-// fillFieldByLabel can't type into a role="combobox" element.
+// pickFromSelect opens the combobox inside the mat-form-field whose
+// <mat-label> or <label> matches labelText exactly, then clicks the
+// option whose visible text contains optionText. Strictly scoped to
+// the enclosing form-field so we don't click the top-bar search
+// combobox instead of the one we actually want.
 func pickFromSelect(ctx context.Context, labelText, optionText string) error {
 	openParams, _ := json.Marshal(labelText)
 	openJS := fmt.Sprintf(`(() => {
-	  const needle = %s.toLowerCase();
-	  const labels = [...document.querySelectorAll('label, mat-label, span, div')];
-	  const label = labels.find(l => (l.textContent || '').trim().toLowerCase().includes(needle));
+	  const needle = %s.trim().toLowerCase();
+	  const labels = [
+	    ...document.querySelectorAll('mat-label'),
+	    ...document.querySelectorAll('label'),
+	  ];
+	  const label = labels.find(l => (l.textContent || '').trim().toLowerCase() === needle);
 	  if (!label) return false;
-	  let scope = label;
-	  for (let i = 0; i < 6 && scope; i++) {
-	    const combo = scope.querySelector('[role="combobox"], cfc-select, mat-select, select');
-	    if (combo) {
-	      combo.scrollIntoView({block: 'center', behavior: 'instant'});
-	      combo.click();
-	      return true;
-	    }
-	    scope = scope.parentElement;
-	  }
-	  return false;
+	  const scope = label.closest('mat-form-field, cfc-select, [formcontrolname]');
+	  if (!scope) return false;
+	  const combo = scope.querySelector('[role="combobox"], cfc-select, mat-select, select');
+	  if (!combo) return false;
+	  combo.scrollIntoView({block: 'center', behavior: 'instant'});
+	  combo.click();
+	  return true;
 	})()`, string(openParams))
 	var opened bool
 	if err := chromedp.Run(ctx, chromedp.Evaluate(openJS, &opened)); err != nil {
 		return err
 	}
 	if !opened {
-		return fmt.Errorf("no combobox near label %q", labelText)
+		return fmt.Errorf("no combobox in form-field for mat-label/label %q", labelText)
 	}
 	time.Sleep(800 * time.Millisecond)
 	return pollClick(ctx, "", optionText, 10*time.Second)
 }
 
 // fillChipListByLabel types value into the input of a chip-list
-// component (e.g. apis-email-chip-list) whose visible label or
-// label="" attribute matches labelText, then dispatches an Enter
-// keydown to commit the chip. Angular Material chip-lists observe
-// keydown on the input, so synthetic events are enough.
+// component (e.g. apis-email-chip-list) whose label="" attribute or
+// <mat-label> matches labelText, then dispatches Enter key events to
+// commit the chip. Strictly scoped — won't fall back to generic text
+// match that could land on the top-bar search input.
 func fillChipListByLabel(ctx context.Context, labelText, value string) error {
 	params, _ := json.Marshal(map[string]string{"label": labelText, "value": value})
 	js := fmt.Sprintf(`(() => {
 	  const p = %s;
-	  const needle = p.label.toLowerCase();
-	  // apis-email-chip-list and friends expose a label="" attribute.
-	  const attrHit = [...document.querySelectorAll('[label]')].find(
-	    n => (n.getAttribute('label') || '').toLowerCase().includes(needle));
-	  let scope = attrHit;
+	  const needle = p.label.trim().toLowerCase();
+	  let scope = [...document.querySelectorAll('[label]')].find(
+	    n => (n.getAttribute('label') || '').trim().toLowerCase() === needle
+	  );
 	  if (!scope) {
-	    const labels = [...document.querySelectorAll('label, mat-label, span, div')];
-	    const lbl = labels.find(l => (l.textContent || '').trim().toLowerCase().includes(needle));
+	    const labels = [
+	      ...document.querySelectorAll('mat-label'),
+	      ...document.querySelectorAll('label'),
+	    ];
+	    const lbl = labels.find(l => (l.textContent || '').trim().toLowerCase() === needle);
 	    if (!lbl) return false;
-	    scope = lbl.closest('mat-form-field, apis-email-chip-list, cfc-select') || lbl.parentElement;
+	    scope = lbl.closest('apis-email-chip-list, mat-form-field, cfc-select, [formcontrolname]');
+	    if (!scope) return false;
 	  }
-	  const input = scope.querySelector('input:not([type=hidden]):not([type=button]):not([type=submit])');
+	  const input = scope.querySelector(
+	    'input:not([type=hidden]):not([type=button]):not([type=submit]):not([type=search])'
+	  );
 	  if (!input) return false;
 	  input.focus();
 	  const proto = Object.getPrototypeOf(input);
