@@ -7,9 +7,9 @@ import (
 	"compress/gzip"
 	"crypto/rand"
 	_ "embed"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -23,7 +23,6 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/anthropic-lab/internkim/auth"
 	"github.com/anthropic-lab/internkim/setup"
 )
 
@@ -96,8 +95,6 @@ func main() {
 			runDeploy()
 		case "sim":
 			runSim()
-		case "google":
-			runGoogle()
 		default:
 			printUsage()
 		}
@@ -118,44 +115,6 @@ func printUsage() {
 	fmt.Println("  update   OTA update")
 	fmt.Println("  deploy   Build and deploy web UI + board-bridge to board")
 	fmt.Println("  sim      Start ARM64 simulator and run setup (sim reset|ssh|stop|status)")
-	fmt.Println("  google   Google Workspace utilities (enable-apis)")
-}
-
-func runGoogle() {
-	if len(os.Args) < 3 {
-		fmt.Println("Usage: internkim google <subcommand>")
-		fmt.Println("  enable-apis   Enable required Google Workspace APIs via OAuth")
-		os.Exit(1)
-	}
-	switch os.Args[2] {
-	case "enable-apis":
-		runGoogleEnableAPIs()
-	default:
-		fmt.Printf("Unknown subcommand: %s\n", os.Args[2])
-		os.Exit(1)
-	}
-}
-
-func runGoogleEnableAPIs() {
-	fmt.Println("Google Workspace API 활성화")
-	fmt.Println()
-	g, err := googleAuth()
-	if err != nil {
-		fmt.Printf("Google 로그인 실패: %v\n", err)
-		os.Exit(1)
-	}
-	client := &http.Client{Timeout: 30 * time.Second}
-	stateDir := internkimHomeDir()
-	deviceID := loadOrCreateDeviceID(stateDir)
-	projectID, err := resolveGoogleProject(client, g.AccessToken, deviceID)
-	if err != nil {
-		fmt.Printf("프로젝트 조회 실패: %v\n", err)
-		os.Exit(1)
-	}
-	if err := enableGoogleAPIs(client, g.AccessToken, projectID); err != nil {
-		fmt.Printf("API 활성화 실패: %v\n", err)
-		os.Exit(1)
-	}
 }
 
 func runSetup() {
@@ -194,13 +153,6 @@ func runSetup() {
 	totalSteps := 10
 	fmt.Println("=== Intern Kim Setup ===")
 	fmt.Println()
-
-	// Google OAuth — done once, tokens reused in step 7 (email) and step 8 (SA creation)
-	gauth, err := googleAuth()
-	if err != nil {
-		fmt.Printf("  Google 로그인 실패: %v\n", err)
-		fmt.Println("  Google Workspace 연동 없이 계속합니다.")
-	}
 
 	// 1. Board detection
 	step(1, totalSteps, m.t("보드 연결 확인 중...", "Detecting board..."))
@@ -430,27 +382,17 @@ chmod 755 /root/.zeroclaw/workspace/bin /root/.zeroclaw/workspace/downloads`)
 		identityMarkdown +
 		"IDEOF\nchown zeroclaw:zeroclaw /root/.zeroclaw/workspace/IDENTITY.md")
 
-	// gws-bot wrapper: runs gws with the service-account credentials so Docs /
-	// Slides / Sheets edits show "Intern Kim" in revision history. Inline env
-	// assignment (VAR=val exec ...) keeps the override confined to the one
-	// child process and does not leak back to callers.
-	ssh.run(`cat > /usr/local/bin/gws-bot <<'WRAPEOF'
-#!/bin/sh
-GOOGLE_APPLICATION_CREDENTIALS=/root/.internkim/secrets/google-sa.json \
-GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE=/root/.internkim/secrets/google-sa.json \
-exec /usr/local/bin/gws "$@"
-WRAPEOF
-chmod 755 /usr/local/bin/gws-bot
-rm -f /usr/local/bin/gws-mcp`)
+	// Remove relics from the Apps Script / service-account era so stale
+	// wrappers stop shadowing the direct gws flow.
+	ssh.run(`rm -f /usr/local/bin/gws-bot /usr/local/bin/gws-mcp /etc/sudoers.d/zeroclaw-gws /usr/local/bin/role-memory-mcp`)
 
-	// sudoers: zeroclaw can run gws as gws uid and role-memory as root.
+	// sudoers: zeroclaw can run role-memory as root. gws runs directly as
+	// zeroclaw using credentials at ~/.config/gws/credentials.json.
 	ssh.run(`mkdir -p /etc/sudoers.d
 cat > /etc/sudoers.d/zeroclaw-mcp <<'EOF'
-zeroclaw ALL=(gws) NOPASSWD: /usr/local/bin/gws
 zeroclaw ALL=(root) NOPASSWD: /usr/local/bin/role-memory
 EOF
-chmod 440 /etc/sudoers.d/zeroclaw-mcp
-rm -f /etc/sudoers.d/zeroclaw-gws /usr/local/bin/role-memory-mcp`)
+chmod 440 /etc/sudoers.d/zeroclaw-mcp`)
 
 	// 5b. Prepare workspace tools
 	for _, tool := range toolBins {
@@ -510,15 +452,9 @@ chmod 640 /root/.zeroclaw/config.toml /root/.zeroclaw/.secret_key`)
 	if skipRegistration {
 		fmt.Printf("  %s\n", m.t("이미 등록됨 — 건너뜀", "Already registered — skipping"))
 	} else {
-		adminEmail := ""
-		if gauth != nil {
-			adminEmail = gauth.Email
-			fmt.Printf("  %s: %s\n", m.t("관리자 이메일", "Admin email"), adminEmail)
-		} else {
-			adminEmail = readLine(m.t("  관리자 이메일 (구글 계정): ", "  Admin email (Google account): "))
-			if adminEmail == "" {
-				fatal(m.t("이메일이 입력되지 않았습니다.", "No email provided."))
-			}
+		adminEmail := readLine(m.t("  관리자 이메일 (구글 계정): ", "  Admin email (Google account): "))
+		if adminEmail == "" {
+			fatal(m.t("이메일이 입력되지 않았습니다.", "No email provided."))
 		}
 		// Save admin email for Mattermost setup in step 9
 		ssh.run(fmt.Sprintf(`printf '%%s' '%s' > /root/.internkim/admin-email`, adminEmail))
@@ -568,50 +504,20 @@ sleep 3`, tunnelToken))
 		}
 	}
 
-	// 8. Google Workspace service account setup
-	step(8, totalSteps, m.t("Google Workspace 서비스 계정 설정...", "Setting up Google Workspace service account..."))
-	existingSAKey := strings.TrimSpace(ssh.run("test -f /root/.internkim/secrets/google-sa.json && echo yes || echo no"))
-	if !force && existingSAKey == "yes" {
+	// 8. Google Workspace credentials (user OAuth via gws CLI on the maintainer's Mac)
+	step(8, totalSteps, m.t("Google Workspace 자격증명 설치...", "Installing Google Workspace credentials..."))
+	existingCreds := strings.TrimSpace(ssh.run("test -f /home/zeroclaw/.config/gws/credentials.json && echo yes || echo no"))
+	if !force && existingCreds == "yes" {
 		fmt.Printf("  %s\n", m.t("이미 설정됨 — 건너뜀", "Already configured — skipping"))
 	} else {
-		deviceID := loadState(stateDir, "device_id")
-		var accessToken string
-		if gauth != nil {
-			accessToken = gauth.AccessToken
-		}
-		saKey, err := createGoogleServiceAccount(deviceID, accessToken)
-		if err != nil {
-			fmt.Printf("  %s: %v\n", m.t("서비스 계정 키 생성 실패", "SA key creation failed"), err)
-			if strings.Contains(err.Error(), "disableServiceAccountKeyCreation") || strings.Contains(err.Error(), "Key creation is not allowed") {
-				fmt.Println()
-				fmt.Println(m.t(
-					"  ⚠ 조직 정책(iam.disableServiceAccountKeyCreation)에 의해 차단되었습니다.\n"+
-						"  Google Workspace 관리자에게 아래 작업을 요청하세요:\n"+
-						"  1. https://console.cloud.google.com 접속\n"+
-						"  2. 프로젝트 선택기에서 '조직' 선택\n"+
-						"  3. IAM → 사용자에게 'Organization Policy Administrator' 역할 부여\n"+
-						"  4. 조직 정책 → iam.disableServiceAccountKeyCreation → 시행 안함으로 변경\n"+
-						"  5. 변경 후 이 setup을 다시 실행하세요 (internkim setup --force)",
-					"  ⚠ Blocked by org policy (iam.disableServiceAccountKeyCreation).\n"+
-						"  Ask your Google Workspace admin to:\n"+
-						"  1. Go to https://console.cloud.google.com\n"+
-						"  2. Select your Organization in the project picker\n"+
-						"  3. IAM → Grant 'Organization Policy Administrator' role to your user\n"+
-						"  4. Organization Policies → iam.disableServiceAccountKeyCreation → Not enforced\n"+
-						"  5. Re-run setup after the change (internkim setup --force)",
-				))
-				fmt.Println()
-			}
+		if err := installGwsCredentials(ssh); err != nil {
+			fmt.Printf("  %s: %v\n", m.t("자격증명 설치 실패", "Credential install failed"), err)
 		} else {
-			tmpSA := filepath.Join(os.TempDir(), "gsa-"+deviceID+".json")
-			os.WriteFile(tmpSA, []byte(saKey), 0600)
-			ssh.scp(tmpSA, "/root/.internkim/secrets/google-sa.json")
-			os.Remove(tmpSA)
-			ssh.run(`chown root:zeroclaw /root/.internkim/secrets/google-sa.json
-chmod 640 /root/.internkim/secrets/google-sa.json`)
-			fmt.Printf("  %s\n", m.t("서비스 계정 생성 완료", "Service account created"))
+			fmt.Printf("  %s\n", m.t("gws 자격증명 설치 완료", "gws credentials installed"))
 		}
 	}
+	// Clean up relics from the old SA / Apps Script architecture.
+	ssh.run(`rm -f /root/.internkim/secrets/google-sa.json /root/.internkim/secrets/gas-webhook-url /root/.internkim/env/sa-email`)
 
 	// 9. Mattermost install + setup
 	step(9, totalSteps, m.t("Mattermost 설치 및 설정...", "Installing and configuring Mattermost..."))
@@ -641,13 +547,15 @@ Wants=network-online.target time-sync.target
 User=zeroclaw
 EnvironmentFile=/root/.internkim/secrets/openrouter-api-key
 Environment=HOME=/home/zeroclaw
-Environment=INTERNKIM_GAS_WEBHOOK_URL_FILE=/root/.internkim/secrets/gas-webhook-url
+Environment=GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE=/home/zeroclaw/.config/gws/credentials.json
 %sExecStart=/usr/local/bin/zeroclaw daemon
 Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
 SVCEOF
+# Remove stale drop-ins that pointed at the old SA key.
+rm -f /etc/systemd/system/zeroclaw.service.d/gws-auth.conf
 systemctl daemon-reload
 systemctl enable zeroclaw
 systemctl restart zeroclaw
@@ -946,14 +854,8 @@ func runDeploy() {
 			"chmod +x /usr/local/bin/%s && cp /usr/local/bin/%s /root/.zeroclaw/workspace/bin/%s && chmod +x /root/.zeroclaw/workspace/bin/%s",
 			script, script, script, script))
 	}
-	// Each skill that uses gas-call ships its own copy under scripts/.
-	// No global /usr/local/bin/gas-call — the skill directory owns the
-	// script, and SKILL.md documents the skill-relative path.
-	ssh.run(`for skill in calendar create-gws-file simple-slides; do
-  f="/root/.zeroclaw/workspace/skills/$skill/scripts/gas-call"
-  [ -f "$f" ] && chmod +x "$f"
-done
-rm -f /usr/local/bin/gas-call
+	// Clean up gas-call scripts leftover from the Apps Script era.
+	ssh.run(`rm -f /usr/local/bin/gas-call /root/.zeroclaw/workspace/skills/*/scripts/gas-call
 chown -R zeroclaw:zeroclaw /root/.zeroclaw/workspace/skills 2>/dev/null || true`)
 	fmt.Println("ok")
 
@@ -1189,10 +1091,9 @@ func useDawnZeroclawBuild(targetPath string) {
 }
 
 // agentsMarkdown is the canonical AGENTS.md content used by both the SD and
-// SSH provisioning paths. Workspace-specific rules (create-as-user via Apps
-// Script webhook, edit-as-bot via gws-bot) live in the gws-user-create skill
-// bundled under board-scripts/skills rather than here, so the agent can
-// discover them through its normal skill catalog.
+// SSH provisioning paths. Workspace tooling guidance lives inside each
+// skill's own SKILL.md (simple-slides, share-file, etc.), so the agent
+// discovers it through the regular skill catalog.
 const agentsMarkdown = `# Agent Rules
 
 ## File Sharing
@@ -2315,30 +2216,38 @@ func runSetupSD(m *msg) {
 		fmt.Printf("  SSID: %s (%s)\n", ssid, m.t("저장된 값 사용", "using saved"))
 	}
 
-	// 3. Google OAuth (skip if SA key already exists and not --reset)
-	// 3. Google OAuth
-	step(3, totalSteps, m.t("Google 로그인...", "Google login..."))
-	saKeyPath := filepath.Join(stateDir, "google-sa.json")
-	var gauth *googleTokens
-	needGoogle := reset && shouldRun(3)
-	if !needGoogle {
-		if data, err := os.ReadFile(saKeyPath); err != nil || len(data) < 10 {
-			needGoogle = shouldRun(3)
+	// 3. Google Workspace credentials (gws auth export from local Mac)
+	step(3, totalSteps, m.t("Google Workspace 자격증명...", "Google Workspace credentials..."))
+	gwsCredsPath := filepath.Join(stateDir, "gws-credentials.json")
+	var gwsCredsJSON []byte
+	needCreds := reset && shouldRun(3)
+	if !needCreds {
+		if data, err := os.ReadFile(gwsCredsPath); err != nil || !strings.Contains(string(data), `"refresh_token"`) {
+			needCreds = shouldRun(3)
+		} else {
+			gwsCredsJSON = data
+			fmt.Printf("  %s\n", m.t("저장된 자격증명 사용", "Using saved credentials"))
 		}
 	}
 	adminEmail := loadState(stateDir, "google_email")
-	if needGoogle {
-		var err error
-		gauth, err = googleAuth()
-		if err != nil {
-			fmt.Printf("  Google 로그인 실패: %v\n", err)
-			fmt.Println("  Google Workspace 연동 없이 계속합니다.")
-		} else if gauth != nil {
-			adminEmail = gauth.Email
-			saveState(stateDir, "google_email", adminEmail)
+	if needCreds {
+		exportOut, err := exec.Command("gws", "auth", "export", "--unmasked").Output()
+		if err != nil || !strings.Contains(string(exportOut), `"refresh_token"`) {
+			fmt.Println("  gws 자격증명을 새로 발급합니다. 브라우저 창에서 Google 계정 로그인 + Allow 눌러주세요.")
+			setupCmd := exec.Command("gws", "auth", "setup")
+			setupCmd.Stdin = os.Stdin
+			setupCmd.Stdout = os.Stdout
+			setupCmd.Stderr = os.Stderr
+			if err := setupCmd.Run(); err != nil {
+				fmt.Printf("  gws auth setup 실패: %v\n", err)
+			} else {
+				exportOut, _ = exec.Command("gws", "auth", "export", "--unmasked").Output()
+			}
 		}
-	} else {
-		fmt.Printf("  %s\n", m.t("저장된 인증 사용", "Using saved credentials"))
+		if strings.Contains(string(exportOut), `"refresh_token"`) {
+			os.WriteFile(gwsCredsPath, exportOut, 0o600)
+			gwsCredsJSON = exportOut
+		}
 	}
 
 	// 4. OpenRouter API key
@@ -2381,35 +2290,13 @@ func runSetupSD(m *msg) {
 		fmt.Printf("  %s\n", m.t("이미 등록됨", "Already registered"))
 	}
 	if adminEmail == "" {
-		fmt.Printf("  %s\n", m.t("이메일 확인을 위해 Google 로그인...", "Google login to retrieve email..."))
-		if g, err := googleAuth(); err == nil && g.Email != "" {
-			adminEmail = g.Email
-		} else {
-			adminEmail = readLine(m.t("  관리자 이메일 (구글 계정): ", "  Admin email (Google account): "))
-		}
+		adminEmail = readLine(m.t("  관리자 이메일 (구글 계정): ", "  Admin email (Google account): "))
 		saveState(stateDir, "google_email", adminEmail)
 	}
 	fmt.Printf("  URL: %s\n", deviceURL)
 
-	// 6. Google SA key
-	step(6, totalSteps, m.t("Google Workspace 서비스 계정...", "Google Workspace service account..."))
-	var saKeyJSON string
-	if data, err := os.ReadFile(saKeyPath); err == nil && len(data) > 10 {
-		fmt.Printf("  %s\n", m.t("저장된 키 사용", "Using saved key"))
-		saKeyJSON = string(data)
-	} else {
-		var accessToken string
-		if gauth != nil {
-			accessToken = gauth.AccessToken
-		}
-		saKey, err := createGoogleServiceAccount(deviceID, accessToken)
-		if err != nil {
-			fmt.Printf("  %s: %v\n", m.t("SA 키 생성 실패 — 건너뜀", "SA key creation failed — skipping"), err)
-		} else {
-			saKeyJSON = saKey
-			os.WriteFile(saKeyPath, []byte(saKey), 0600)
-		}
-	}
+	// Step 3 already handled gws credentials; gwsCredsJSON carries them.
+	_ = gwsCredsJSON
 
 	// Pre-generate firstboot script (needed by image injection in step 7)
 	firstbootScript := generateFirstbootScript(deviceURL, adminEmail)
@@ -2628,15 +2515,8 @@ func runSetupSD(m *msg) {
 	if tunnelToken != "" {
 		os.WriteFile(filepath.Join(bootStageDir, "secrets", "tunnel-token"), []byte(tunnelToken), 0644)
 	}
-	if saKeyJSON != "" {
-		os.WriteFile(filepath.Join(bootStageDir, "secrets", "google-sa.json"), []byte(saKeyJSON), 0644)
-	}
-	if currentDeviceID := loadOrCreateDeviceID(stateDir); currentDeviceID != "" {
-		saEmail := fmt.Sprintf("internkim-%s@internkim-%s.iam.gserviceaccount.com", currentDeviceID, currentDeviceID)
-		os.WriteFile(filepath.Join(bootStageDir, "sa-email"), []byte(saEmail), 0644)
-	}
-	if webhookURL, err := loadGasWebhookURL(); err == nil && webhookURL != "" {
-		os.WriteFile(filepath.Join(bootStageDir, "secrets", "gas-webhook-url"), []byte(webhookURL+"\n"), 0644)
+	if len(gwsCredsJSON) > 0 {
+		os.WriteFile(filepath.Join(bootStageDir, "secrets", "gws-credentials.json"), gwsCredsJSON, 0600)
 	}
 	backupDir := filepath.Join(stateDir, "backup")
 	adminPass := ""
@@ -3189,6 +3069,48 @@ type sshClient struct {
 	port       string
 }
 
+// installGwsCredentials runs `gws auth export --unmasked` on the local
+// Mac (running `gws auth setup` interactively the first time if no
+// credentials exist yet) and scp's the resulting portable JSON to the
+// zeroclaw user's ~/.config/gws/credentials.json on the board.
+func installGwsCredentials(ssh *sshClient) error {
+	if _, err := exec.LookPath("gws"); err != nil {
+		return errors.New("gws CLI not on PATH — install from https://github.com/googleworkspace/cli")
+	}
+
+	exportOut, exportErr := exec.Command("gws", "auth", "export", "--unmasked").Output()
+	if exportErr != nil || !strings.Contains(string(exportOut), `"refresh_token"`) {
+		fmt.Println("  gws 자격증명을 새로 발급합니다. 브라우저 창에서 Google 계정 로그인 + Allow 눌러주세요.")
+		setup := exec.Command("gws", "auth", "setup")
+		setup.Stdin = os.Stdin
+		setup.Stdout = os.Stdout
+		setup.Stderr = os.Stderr
+		if err := setup.Run(); err != nil {
+			return fmt.Errorf("gws auth setup failed: %w", err)
+		}
+		exportOut, exportErr = exec.Command("gws", "auth", "export", "--unmasked").Output()
+		if exportErr != nil {
+			return fmt.Errorf("gws auth export failed: %w", exportErr)
+		}
+		if !strings.Contains(string(exportOut), `"refresh_token"`) {
+			return errors.New("gws auth export output missing refresh_token")
+		}
+	}
+
+	tmpPath := filepath.Join(os.TempDir(), "internkim-gws-credentials.json")
+	if err := os.WriteFile(tmpPath, exportOut, 0o600); err != nil {
+		return err
+	}
+	defer os.Remove(tmpPath)
+
+	ssh.run(`mkdir -p /home/zeroclaw/.config/gws
+chown -R zeroclaw:zeroclaw /home/zeroclaw/.config`)
+	ssh.scp(tmpPath, "/home/zeroclaw/.config/gws/credentials.json")
+	ssh.run(`chown zeroclaw:zeroclaw /home/zeroclaw/.config/gws/credentials.json
+chmod 600 /home/zeroclaw/.config/gws/credentials.json`)
+	return nil
+}
+
 func newSSH(sshpassBin, user, pass, host string) *sshClient {
 	return &sshClient{sshpassBin: sshpassBin, user: user, pass: pass, host: host, port: "22"}
 }
@@ -3383,41 +3305,29 @@ chown root:zeroclaw /root/.internkim/env
 chmod 750 /root/.internkim/env
 chown zeroclaw /root/.internkim/secrets/openrouter-api-key 2>/dev/null || true
 chmod 640 /root/.internkim/secrets/openrouter-api-key 2>/dev/null || true
-if [ -f /root/.internkim/secrets/google-sa.json ]; then
-  chown root:zeroclaw /root/.internkim/secrets/google-sa.json
-  chmod 640 /root/.internkim/secrets/google-sa.json
-fi
-if [ -f /root/.internkim/secrets/gas-webhook-url ]; then
-  chown root:zeroclaw /root/.internkim/secrets/gas-webhook-url
-  chmod 640 /root/.internkim/secrets/gas-webhook-url
-fi
 mkdir -p /root/.zeroclaw/workspace/bin /root/.zeroclaw/workspace/downloads
 chown -R zeroclaw:zeroclaw /root/.zeroclaw
 chown root:zeroclaw /root/.zeroclaw/config.toml 2>/dev/null || true
 chmod 640 /root/.zeroclaw/config.toml 2>/dev/null || true
 
-# ── gws-bot wrapper (runs gws under the service-account identity) ──
-cat > /usr/local/bin/gws-bot <<'WRAPEOF'
-#!/bin/sh
-GOOGLE_APPLICATION_CREDENTIALS=/root/.internkim/secrets/google-sa.json \
-GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE=/root/.internkim/secrets/google-sa.json \
-exec /usr/local/bin/gws "$@"
-WRAPEOF
-chmod 755 /usr/local/bin/gws-bot
-rm -f /usr/local/bin/gws-mcp
-
-# ── SA email for the agent to reference when sharing new files ──
-SA_EMAIL_FILE="$STAGE/sa-email"
-if [ -f "$SA_EMAIL_FILE" ]; then
-  cp -f "$SA_EMAIL_FILE" /root/.internkim/env/sa-email
-  chown root:zeroclaw /root/.internkim/env/sa-email
-  chmod 640 /root/.internkim/env/sa-email
+# ── gws credentials (user OAuth, exported on Mac via "gws auth export") ──
+if [ -f "$STAGE/secrets/gws-credentials.json" ]; then
+  mkdir -p /home/zeroclaw/.config/gws
+  cp -f "$STAGE/secrets/gws-credentials.json" /home/zeroclaw/.config/gws/credentials.json
+  chown -R zeroclaw:zeroclaw /home/zeroclaw/.config
+  chmod 600 /home/zeroclaw/.config/gws/credentials.json
 fi
+# Clean up relics from the old SA / Apps Script architecture.
+rm -f /root/.internkim/secrets/google-sa.json \
+      /root/.internkim/secrets/gas-webhook-url \
+      /root/.internkim/env/sa-email \
+      /usr/local/bin/gws-bot \
+      /usr/local/bin/gws-mcp \
+      /usr/local/bin/role-memory-mcp
 
 # ── sudoers ──
 mkdir -p /etc/sudoers.d
 cat > /etc/sudoers.d/zeroclaw-mcp <<'EOF'
-zeroclaw ALL=(gws) NOPASSWD: /usr/local/bin/gws
 zeroclaw ALL=(root) NOPASSWD: /usr/local/bin/role-memory
 EOF
 chmod 440 /etc/sudoers.d/zeroclaw-mcp
@@ -3455,12 +3365,7 @@ fi
 ln -sf /home/zeroclaw/.bun/bin/marp /usr/local/bin/marp
 echo "bun + marp: $(command -v marp >/dev/null && echo ok || echo missing)"
 
-# Mark gas-call script executable in every skill that ships it.
-for skill in calendar create-gws-file simple-slides; do
-  f="/root/.zeroclaw/workspace/skills/$skill/scripts/gas-call"
-  [ -f "$f" ] && chmod +x "$f"
-done
-rm -f /usr/local/bin/gas-call
+rm -f /usr/local/bin/gas-call /root/.zeroclaw/workspace/skills/*/scripts/gas-call
 chown -R zeroclaw:zeroclaw /root/.zeroclaw/workspace/skills 2>/dev/null || true
 
 # ── Wi-Fi ──
@@ -3803,7 +3708,7 @@ Wants=network-online.target time-sync.target
 User=zeroclaw
 EnvironmentFile=/root/.internkim/secrets/openrouter-api-key
 Environment=HOME=/home/zeroclaw
-Environment=INTERNKIM_GAS_WEBHOOK_URL_FILE=/root/.internkim/secrets/gas-webhook-url
+Environment=GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE=/home/zeroclaw/.config/gws/credentials.json
 %sExecStart=/usr/local/bin/zeroclaw daemon
 Restart=on-failure
 
@@ -3947,494 +3852,7 @@ args = ["/usr/local/bin/role-memory"]
 `, model, mmSection)
 }
 
-// createGoogleServiceAccount creates a service account via Google IAM REST API.
-// Opens browser for OAuth consent (once), then creates SA + key, returns SA key JSON.
-func createGoogleServiceAccount(deviceID, accessToken string) (string, error) {
-	fmt.Printf("  Service account name: internkim-%s\n", deviceID)
 
-	if accessToken == "" {
-		// Fallback: OAuth not done yet (e.g. --force re-run without gauth)
-		g, err := googleAuth()
-		if err != nil {
-			return "", fmt.Errorf("OAuth failed: %w", err)
-		}
-		accessToken = g.AccessToken
-	}
-
-	client := &http.Client{Timeout: 30 * time.Second}
-
-	// Resolve project: use "internkim-{deviceID}" if it exists, otherwise create it
-	projectID, err := resolveGoogleProject(client, accessToken, deviceID)
-	if err != nil {
-		return "", fmt.Errorf("project setup failed: %w", err)
-	}
-
-	saName := fmt.Sprintf("internkim-%s", deviceID)
-	saEmail := fmt.Sprintf("%s@%s.iam.gserviceaccount.com", saName, projectID)
-
-	// Create service account (409 = already exists, that's fine)
-	createBody, _ := json.Marshal(map[string]any{
-		"accountId": saName,
-		"serviceAccount": map[string]string{
-			"displayName": "Intern Kim " + deviceID,
-		},
-	})
-	req, _ := http.NewRequest("POST",
-		fmt.Sprintf("https://iam.googleapis.com/v1/projects/%s/serviceAccounts", projectID),
-		bytes.NewReader(createBody))
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("create SA request failed: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 && resp.StatusCode != 409 {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("create SA HTTP %d: %s", resp.StatusCode, string(body))
-	}
-
-	// Enable required Google Workspace APIs
-	if err := enableGoogleAPIs(client, accessToken, projectID); err != nil {
-		fmt.Printf("  API 활성화 실패 (무시하고 계속): %v\n", err)
-	}
-
-	// Try to create SA key; if blocked, delete existing keys first and retry
-	saKeyJSON, err := createSAKey(client, accessToken, projectID, saEmail)
-	if err != nil {
-		// Delete existing user-managed keys and retry once
-		fmt.Printf("  Key creation blocked — deleting existing keys and retrying...\n")
-		deleteExistingSAKeys(client, accessToken, projectID, saEmail)
-		time.Sleep(3 * time.Second)
-		saKeyJSON, err = createSAKey(client, accessToken, projectID, saEmail)
-	}
-	if err != nil {
-		return "", err
-	}
-	return saKeyJSON, nil
-}
-
-// enableGoogleAPIs enables the Google Workspace APIs that gws-cli skills exercise.
-func enableGoogleAPIs(client *http.Client, accessToken, projectID string) error {
-	apis := []string{
-		"drive.googleapis.com",
-		"docs.googleapis.com",
-		"sheets.googleapis.com",
-		"slides.googleapis.com",
-		"gmail.googleapis.com",
-		"calendar-json.googleapis.com",
-		"tasks.googleapis.com",
-		"people.googleapis.com",
-		"chat.googleapis.com",
-		"forms.googleapis.com",
-		"script.googleapis.com",
-		"classroom.googleapis.com",
-		"meet.googleapis.com",
-		"keep.googleapis.com",
-	}
-	body, _ := json.Marshal(map[string]any{
-		"serviceIds": apis,
-	})
-	req, _ := http.NewRequest("POST",
-		fmt.Sprintf("https://serviceusage.googleapis.com/v1/projects/%s/services:batchEnable", projectID),
-		bytes.NewReader(body))
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("API 활성화 요청 실패: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		b, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API 활성화 HTTP %d: %s", resp.StatusCode, string(b))
-	}
-	fmt.Printf("  Google Workspace API 활성화 완료 (%d개: Drive/Docs/Sheets/Slides/Gmail/Calendar/Tasks/People/Chat/Forms/Script/Classroom/Meet/Keep)\n", len(apis))
-	return nil
-}
-
-// createSAKey creates a new JSON key for the given service account and returns the decoded JSON.
-func createSAKey(client *http.Client, accessToken, projectID, saEmail string) (string, error) {
-	keyReq, _ := http.NewRequest("POST",
-		fmt.Sprintf("https://iam.googleapis.com/v1/projects/%s/serviceAccounts/%s/keys", projectID, saEmail),
-		strings.NewReader(`{"keyAlgorithm":"KEY_ALG_RSA_2048","privateKeyType":"TYPE_GOOGLE_CREDENTIALS_FILE"}`))
-	keyReq.Header.Set("Authorization", "Bearer "+accessToken)
-	keyReq.Header.Set("Content-Type", "application/json")
-	keyResp, err := client.Do(keyReq)
-	if err != nil {
-		return "", fmt.Errorf("create key request failed: %w", err)
-	}
-	defer keyResp.Body.Close()
-	keyBody, _ := io.ReadAll(keyResp.Body)
-	if keyResp.StatusCode != 200 {
-		return "", fmt.Errorf("create key HTTP %d: %s", keyResp.StatusCode, string(keyBody))
-	}
-
-	var keyResult struct {
-		PrivateKeyData string `json:"privateKeyData"`
-	}
-	if err := json.Unmarshal(keyBody, &keyResult); err != nil {
-		return "", fmt.Errorf("parse key response: %w", err)
-	}
-
-	decoded, err := base64.StdEncoding.DecodeString(keyResult.PrivateKeyData)
-	if err != nil {
-		return "", fmt.Errorf("decode key: %w", err)
-	}
-	return string(decoded), nil
-}
-
-// deleteExistingSAKeys deletes all user-managed keys on the service account.
-func deleteExistingSAKeys(client *http.Client, accessToken, projectID, saEmail string) {
-	listReq, _ := http.NewRequest("GET",
-		fmt.Sprintf("https://iam.googleapis.com/v1/projects/%s/serviceAccounts/%s/keys?keyTypes=USER_MANAGED", projectID, saEmail),
-		nil)
-	listReq.Header.Set("Authorization", "Bearer "+accessToken)
-	listResp, err := client.Do(listReq)
-	if err != nil {
-		return
-	}
-	defer listResp.Body.Close()
-	var listResult struct {
-		Keys []struct {
-			Name string `json:"name"`
-		} `json:"keys"`
-	}
-	body, _ := io.ReadAll(listResp.Body)
-	if json.Unmarshal(body, &listResult) != nil {
-		return
-	}
-	for _, key := range listResult.Keys {
-		delReq, _ := http.NewRequest("DELETE", "https://iam.googleapis.com/v1/"+key.Name, nil)
-		delReq.Header.Set("Authorization", "Bearer "+accessToken)
-		delResp, err := client.Do(delReq)
-		if err == nil {
-			delResp.Body.Close()
-			fmt.Printf("  Deleted existing key: %s\n", key.Name)
-		}
-	}
-}
-
-// resolveGoogleProject returns "internkim" project ID if it exists, otherwise creates it.
-func resolveGoogleProject(client *http.Client, accessToken, deviceID string) (string, error) {
-	projectID := "internkim-" + deviceID
-
-	// Check if project exists
-	req, _ := http.NewRequest("GET", "https://cloudresourcemanager.googleapis.com/v1/projects/"+projectID, nil)
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	resp.Body.Close()
-
-	if resp.StatusCode == 200 {
-		fmt.Printf("  Google Cloud project: %s (existing)\n", projectID)
-		return projectID, nil
-	}
-
-	// Project doesn't exist — create it
-	fmt.Printf("  Creating Google Cloud project: %s...\n", projectID)
-	body, _ := json.Marshal(map[string]string{
-		"projectId": projectID,
-		"name":      "Intern Kim",
-	})
-	createReq, _ := http.NewRequest("POST", "https://cloudresourcemanager.googleapis.com/v1/projects", bytes.NewReader(body))
-	createReq.Header.Set("Authorization", "Bearer "+accessToken)
-	createReq.Header.Set("Content-Type", "application/json")
-	createResp, err := client.Do(createReq)
-	if err != nil {
-		return "", err
-	}
-	defer createResp.Body.Close()
-	if createResp.StatusCode == 409 {
-		// Already exists — GET failed earlier (e.g. API not enabled), but project is there
-		fmt.Printf("  Google Cloud project: %s (existing)\n", projectID)
-		return projectID, nil
-	}
-	if createResp.StatusCode != 200 {
-		b, _ := io.ReadAll(createResp.Body)
-		return "", fmt.Errorf("create project HTTP %d: %s", createResp.StatusCode, string(b))
-	}
-
-	// Wait for project creation operation to complete (up to 30s)
-	for i := 0; i < 10; i++ {
-		time.Sleep(3 * time.Second)
-		chk, _ := http.NewRequest("GET", "https://cloudresourcemanager.googleapis.com/v1/projects/"+projectID, nil)
-		chk.Header.Set("Authorization", "Bearer "+accessToken)
-		chkResp, err := client.Do(chk)
-		if err == nil && chkResp.StatusCode == 200 {
-			chkResp.Body.Close()
-			fmt.Printf("  Google Cloud project created: %s\n", projectID)
-			return projectID, nil
-		}
-		if chkResp != nil {
-			chkResp.Body.Close()
-		}
-		fmt.Print(".")
-	}
-	return "", fmt.Errorf("project creation timed out")
-}
-
-type googleTokens struct {
-	AccessToken string
-	Email       string
-}
-
-// googleAuthScopes are the narrow set Google still accepts on personal
-// @gmail.com accounts through the gcloud embedded client: enough for the
-// one-off GCP admin operations (create project, enable APIs, create SA,
-// issue SA key). Workspace scopes (drive, slides, docs, gmail, calendar)
-// and Apps Script management scopes are deliberately NOT here — Google
-// hard-blocks the consent when those appear on unverified apps. The Apps
-// Script webhook bridge is provisioned instead via Chrome-profile browser
-// automation; see auth.DeployAppsScriptViaBrowser.
-var googleAuthScopes = []string{
-	"https://www.googleapis.com/auth/cloud-platform",
-	"https://www.googleapis.com/auth/userinfo.email",
-}
-
-// googleAuth performs an OAuth2 loopback flow requesting only cloud-platform
-// and userinfo.email. The client ID is Google's gcloud CLI client, which
-// Google still accepts for these two scopes on personal accounts.
-func googleAuth() (*googleTokens, error) {
-	clientID := "764086051850-6qr4p6gpi6hn506pt8ejuq83di341hur.apps.googleusercontent.com"
-	clientSecret := "d-FL95Q19q7MQmFpd7hHD0Ty"
-
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return nil, fmt.Errorf("open local port: %w", err)
-	}
-	port := listener.Addr().(*net.TCPAddr).Port
-	redirectURI := fmt.Sprintf("http://localhost:%d", port)
-
-	authURL := "https://accounts.google.com/o/oauth2/auth" +
-		"?client_id=" + clientID +
-		"&redirect_uri=" + redirectURI +
-		"&response_type=code" +
-		"&scope=" + encodeQueryValue(strings.Join(googleAuthScopes, " ")) +
-		"&access_type=offline"
-
-	fmt.Println()
-	fmt.Println("  Opening Chrome for Google login...")
-	launchInternkimChrome(authURL)
-	fmt.Printf("  If the window did not open, visit:\n  %s\n\n", authURL)
-
-	codeChannel := make(chan string, 1)
-	callbackMux := http.NewServeMux()
-	callbackServer := &http.Server{Handler: callbackMux}
-	callbackMux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		code := request.URL.Query().Get("code")
-		if code == "" {
-			return
-		}
-		// Redirect to Apps Script home so the tab (and the Chrome
-		// process that owns it) stays alive while chromedp attaches via
-		// CDP and drives the deploy flow. A window.close() here would
-		// take Chrome down with it.
-		writer.Header().Set("Location", "https://script.google.com/home?hl=en")
-		writer.WriteHeader(http.StatusFound)
-		codeChannel <- code
-	})
-	go callbackServer.Serve(listener)
-	defer callbackServer.Close()
-
-	var authorizationCode string
-	select {
-	case authorizationCode = <-codeChannel:
-	case <-time.After(5 * time.Minute):
-		return nil, fmt.Errorf("timed out waiting for Google authorization")
-	}
-
-	tokenResponse, err := http.PostForm("https://oauth2.googleapis.com/token", map[string][]string{
-		"code":          {authorizationCode},
-		"client_id":     {clientID},
-		"client_secret": {clientSecret},
-		"redirect_uri":  {redirectURI},
-		"grant_type":    {"authorization_code"},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("token exchange: %w", err)
-	}
-	defer tokenResponse.Body.Close()
-	body, _ := io.ReadAll(tokenResponse.Body)
-	var parsed struct {
-		AccessToken string `json:"access_token"`
-		Error       string `json:"error"`
-	}
-	if err := json.Unmarshal(body, &parsed); err != nil {
-		return nil, err
-	}
-	if parsed.Error != "" {
-		return nil, fmt.Errorf("token endpoint: %s", parsed.Error)
-	}
-
-	return &googleTokens{
-		AccessToken: parsed.AccessToken,
-		Email:       fetchGoogleEmail(parsed.AccessToken),
-	}, nil
-}
-
-func googleDeviceAuth() (string, error) {
-	tokens, err := googleAuth()
-	if err != nil {
-		return "", err
-	}
-	return tokens.AccessToken, nil
-}
-
-// internkimChromeBinary returns the path to Google Chrome's executable on
-// macOS, or "" when Chrome is not installed. Only macOS is supported for
-// now; the host running `./internkim setup` is always the maintainer's Mac.
-func internkimChromeBinary() string {
-	candidates := []string{
-		"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-		"/Applications/Chromium.app/Contents/MacOS/Chromium",
-	}
-	for _, candidate := range candidates {
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate
-		}
-	}
-	return ""
-}
-
-// internkimChromeDebugPort is the remote-debugging port Chrome listens on
-// for CDP connections. We fix it so the chromedp-driven deploy step can
-// attach to the very same Chrome instance the user just signed in on,
-// avoiding a kill/relaunch cycle that drops unflushed cookies.
-const internkimChromeDebugPort = 9335
-
-// launchInternkimChrome opens the given URL in Chrome using the dedicated
-// ~/.internkim/chrome-profile user-data-dir and enables CDP on a fixed
-// port. The OAuth cookies set in this window are immediately visible to
-// chromedp's later RemoteAllocator connection — no profile copy, no
-// process kill, no second login. Falls back to macOS `open` when Chrome
-// is missing; the OAuth loopback itself works in any browser.
-func launchInternkimChrome(openURL string) {
-	home, _ := os.UserHomeDir()
-	profileDir := filepath.Join(home, ".internkim", "chrome-profile")
-	os.MkdirAll(profileDir, 0o700)
-
-	chromeBinary := internkimChromeBinary()
-	if chromeBinary == "" {
-		exec.Command("open", openURL).Start()
-		return
-	}
-	exec.Command(chromeBinary,
-		"--user-data-dir="+profileDir,
-		fmt.Sprintf("--remote-debugging-port=%d", internkimChromeDebugPort),
-		"--no-first-run",
-		"--no-default-browser-check",
-		openURL,
-	).Start()
-}
-
-func encodeQueryValue(value string) string {
-	var builder strings.Builder
-	for _, character := range value {
-		if character == ' ' {
-			builder.WriteByte('+')
-			continue
-		}
-		if (character >= 'a' && character <= 'z') ||
-			(character >= 'A' && character <= 'Z') ||
-			(character >= '0' && character <= '9') ||
-			character == '-' || character == '_' || character == '.' || character == '~' {
-			builder.WriteRune(character)
-			continue
-		}
-		builder.WriteString(fmt.Sprintf("%%%02X", character))
-	}
-	return builder.String()
-}
-
-func fetchGoogleEmail(accessToken string) string {
-	request, _ := http.NewRequest("GET", "https://www.googleapis.com/oauth2/v2/userinfo", nil)
-	request.Header.Set("Authorization", "Bearer "+accessToken)
-	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		return ""
-	}
-	defer response.Body.Close()
-	var userInfo struct {
-		Email string `json:"email"`
-	}
-	if body, _ := io.ReadAll(response.Body); json.Unmarshal(body, &userInfo) == nil {
-		return userInfo.Email
-	}
-	return ""
-}
-
-// gasBridgeCode is the full content of the Apps Script web app. Embedded so
-// internkim can create + upload the project via the Apps Script API without
-// asking the user to paste anything.
-//
-//go:embed board-scripts/gas/Code.gs
-var gasBridgeCode string
-
-// gasBridgeManifest declares the scopes the script runs under and configures
-// it as a public-anonymous web app so the on-device agent can POST without
-// authenticating from the board. oauthScopes enumerates everything the
-// script touches; Google asks the deployer (the user) to authorize all of
-// them in a single consent screen when they first open the web app URL.
-const gasBridgeManifest = `{
-  "timeZone": "Etc/UTC",
-  "dependencies": {},
-  "exceptionLogging": "STACKDRIVER",
-  "runtimeVersion": "V8",
-  "oauthScopes": [
-    "https://www.googleapis.com/auth/drive.file",
-    "https://www.googleapis.com/auth/presentations",
-    "https://www.googleapis.com/auth/documents",
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/calendar",
-    "https://www.googleapis.com/auth/gmail.send",
-    "https://www.googleapis.com/auth/script.external_request"
-  ],
-  "webapp": {
-    "executeAs": "USER_DEPLOYING",
-    "access": "ANYONE_ANONYMOUS"
-  }
-}`
-
-func gasWebhookURLPath() string {
-	return filepath.Join(internkimHomeDir(), "gas-webhook-url")
-}
-
-// loadGasWebhookURL returns the stored GAS webhook URL or an error when
-// no URL is on disk yet.
-func loadGasWebhookURL() (string, error) {
-	data, err := os.ReadFile(gasWebhookURLPath())
-	if err != nil {
-		return "", err
-	}
-	url := strings.TrimSpace(string(data))
-	if url == "" {
-		return "", fmt.Errorf("empty webhook URL at %s", gasWebhookURLPath())
-	}
-	return url, nil
-}
-
-// provisionGasWebhook drives the Apps Script bridge through the user's own
-// Chrome session. See auth.DeployAppsScriptViaBrowser for the chromedp flow.
-// The accessToken argument is accepted for interface compatibility but
-// unused — the browser automation uses Chrome's session cookies, which
-// already carry whatever credentials are needed to talk to Google.
-func provisionGasWebhook(_ string) (string, error) {
-	webAppURL, err := auth.DeployAppsScriptViaBrowser(gasBridgeCode, gasBridgeManifest)
-	if err != nil {
-		return "", fmt.Errorf("browser deploy: %w", err)
-	}
-	if err := os.MkdirAll(internkimHomeDir(), 0o700); err != nil {
-		return "", err
-	}
-	if err := os.WriteFile(gasWebhookURLPath(), []byte(webAppURL+"\n"), 0o600); err != nil {
-		return "", err
-	}
-	fmt.Printf("  Webhook URL saved to %s\n", gasWebhookURLPath())
-	return webAppURL, nil
-}
 
 // --- UI helpers ---
 
@@ -4683,29 +4101,7 @@ func runSetupLive(messenger *msg) {
 			Translate: func(korean, english string) string { return messenger.t(korean, english) },
 			LoadState: func(key string) string { return loadState(stateDir, key) },
 			SaveState: func(key, value string) { saveState(stateDir, key, value) },
-			GoogleAuth: func() (*setup.GoogleAuth, error) {
-				authResult, err := googleAuth()
-				if err != nil {
-					return nil, err
-				}
-				return &setup.GoogleAuth{
-					AccessToken: authResult.AccessToken,
-					Email:       authResult.Email,
-				}, nil
-			},
-			ResolveGoogleProject: resolveGoogleProject,
-			EnableGoogleAPIs:     enableGoogleAPIs,
-			CreateGoogleSA:       createGoogleServiceAccount,
-
 			GetOpenRouterKey:       buildOpenRouterKeyCallback(stateDir, messenger),
-			GetGasWebhookURL: func(accessToken string) (string, error) {
-				if !containsArg("--force") {
-					if existing, err := loadGasWebhookURL(); err == nil {
-						return existing, nil
-					}
-				}
-				return provisionGasWebhook(accessToken)
-			},
 			GwsSkillsInstallScript: gwsSkillsInstallScript,
 
 			InstallBinariesSSH: unmigratedCallback("binaries (ssh)"),

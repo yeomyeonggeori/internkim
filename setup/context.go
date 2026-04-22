@@ -24,32 +24,13 @@ type SDStage interface {
 	RootPath() string
 }
 
-type GoogleAuth struct {
-	AccessToken string
-	Email       string
-}
-
 type Callbacks struct {
 	Translate func(korean, english string) string
 
 	LoadState func(key string) string
 	SaveState func(key, value string)
 
-	GoogleAuth           func() (*GoogleAuth, error)
-	ResolveGoogleProject func(httpClient *http.Client, accessToken, deviceID string) (string, error)
-	EnableGoogleAPIs     func(httpClient *http.Client, accessToken, projectID string) error
-	CreateGoogleSA       func(deviceID, accessToken string) (string, error)
-
 	GetOpenRouterKey func(force bool) (string, error)
-
-	// GetGasWebhookURL returns the user's deployed Google Apps Script Web
-	// App URL. accessToken is the OAuth token the caller already holds
-	// (typically from a prior GoogleAuth() call in the same run), so this
-	// implementation does not trigger a second browser consent flow.
-	// When no token is known, pass "" — implementations may obtain their
-	// own. Implementations persist the URL under the host state directory
-	// so subsequent invocations short-circuit.
-	GetGasWebhookURL func(accessToken string) (string, error)
 
 	GwsSkillsInstallScript string
 
@@ -77,8 +58,6 @@ type Context struct {
 	ScriptDir string
 	BoardIP   string
 	Force     bool
-
-	Google *GoogleAuth
 
 	Callbacks Callbacks
 
