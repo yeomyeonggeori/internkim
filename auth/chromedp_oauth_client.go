@@ -210,18 +210,21 @@ func gcloudAccount() string {
 	return value
 }
 
-// clickByText clicks the first visible element whose own text matches
-// needle (case-insensitive), walking up to the nearest genuinely
-// interactive ancestor. tagCSV is retained in the signature for
-// call-site compatibility; universal text search is more robust than
-// tag filtering.
+// clickByText finds the first visible interactive element whose own
+// text matches needle and dispatches a real CDP mouse click at its
+// center. Using CDP (not synthetic el.click()) is critical for
+// Material / Angular apps whose (click) handlers react to the full
+// pointerdown → mouseup → click sequence; a bare el.click() fires
+// only the final click event and often gets ignored.
 //
-// Ancestry walk is strict: the ancestor must be a real click target —
-// <button>, <a href>, <input>, <label>, <option>, <summary>, a Material
-// component that wraps an actual button, or an element with an explicit
-// interactive role / jslog track attribute. Generic cfc-* / mat-card /
-// container wrappers are NOT treated as clickable; they match too many
-// non-interactive elements (empty-state cards, list containers).
+// Ancestor walk is strict: the clickable must be a real interactive
+// tag (<button>, <a href>, <input>, <label>, <option>, <summary>),
+// a specific Material button component, or an element with an explicit
+// interactive role / jslog track attribute. Generic container
+// wrappers (cfc-*, mat-card, etc.) are NOT considered clickable.
+//
+// tagCSV is retained for call-site compatibility but unused — universal
+// text search + clickable-ancestor walk is more robust.
 func clickByText(ctx context.Context, tagCSV, needle string) error {
 	_ = tagCSV
 	encoded, _ := json.Marshal(needle)
@@ -279,8 +282,6 @@ func clickByText(ctx context.Context, tagCSV, needle string) error {
 	    if (text === needle) exact.push(n);
 	    else loose.push(n);
 	  }
-	  // Prefer candidates with the shortest total text — a <span> that
-	  // is just "External" beats a paragraph that happens to mention it.
 	  const byLen = (a, b) => (a.textContent || '').length - (b.textContent || '').length;
 	  exact.sort(byLen);
 	  loose.sort(byLen);
@@ -290,20 +291,22 @@ func clickByText(ctx context.Context, tagCSV, needle string) error {
 	      const target = clickableAncestor(candidate);
 	      if (!target || !visible(target)) continue;
 	      target.scrollIntoView({block: 'center', behavior: 'instant'});
-	      target.click();
-	      return true;
+	      const rect = target.getBoundingClientRect();
+	      return [rect.left + rect.width/2, rect.top + rect.height/2];
 	    }
 	  }
-	  return false;
+	  return null;
 	})()`, string(encoded))
-	var clicked bool
-	if err := chromedp.Run(ctx, chromedp.Evaluate(js, &clicked)); err != nil {
+	var coords []float64
+	if err := chromedp.Run(ctx, chromedp.Evaluate(js, &coords)); err != nil {
 		return err
 	}
-	if !clicked {
+	if len(coords) != 2 {
 		return fmt.Errorf("no clickable element matching %q", needle)
 	}
-	return nil
+	// Small settle delay after scroll before dispatching the CDP click.
+	time.Sleep(120 * time.Millisecond)
+	return chromedp.Run(ctx, chromedp.MouseClickXY(coords[0], coords[1]))
 }
 
 // waitForURL blocks until window.location.href contains needle (case
@@ -449,9 +452,10 @@ func readFieldByLabel(ctx context.Context, labelText string) (string, error) {
 
 // pickFromSelect opens the combobox inside the mat-form-field whose
 // <mat-label> or <label> matches labelText exactly, then clicks the
-// option whose visible text contains optionText. Strictly scoped to
-// the enclosing form-field so we don't click the top-bar search
-// combobox instead of the one we actually want.
+// option whose visible text contains optionText. Scoped strictly to
+// the enclosing form-field. Uses a CDP mouse click at the combobox
+// coordinates — synthetic el.click() doesn't always open a
+// cfc-select/mat-select overlay.
 func pickFromSelect(ctx context.Context, labelText, optionText string) error {
 	openParams, _ := json.Marshal(labelText)
 	openJS := fmt.Sprintf(`(() => {
@@ -461,21 +465,25 @@ func pickFromSelect(ctx context.Context, labelText, optionText string) error {
 	    ...document.querySelectorAll('label'),
 	  ];
 	  const label = labels.find(l => (l.textContent || '').trim().toLowerCase() === needle);
-	  if (!label) return false;
+	  if (!label) return null;
 	  const scope = label.closest('mat-form-field, cfc-select, [formcontrolname]');
-	  if (!scope) return false;
+	  if (!scope) return null;
 	  const combo = scope.querySelector('[role="combobox"], cfc-select, mat-select, select');
-	  if (!combo) return false;
+	  if (!combo) return null;
 	  combo.scrollIntoView({block: 'center', behavior: 'instant'});
-	  combo.click();
-	  return true;
+	  const rect = combo.getBoundingClientRect();
+	  return [rect.left + rect.width/2, rect.top + rect.height/2];
 	})()`, string(openParams))
-	var opened bool
-	if err := chromedp.Run(ctx, chromedp.Evaluate(openJS, &opened)); err != nil {
+	var coords []float64
+	if err := chromedp.Run(ctx, chromedp.Evaluate(openJS, &coords)); err != nil {
 		return err
 	}
-	if !opened {
+	if len(coords) != 2 {
 		return fmt.Errorf("no combobox in form-field for mat-label/label %q", labelText)
+	}
+	time.Sleep(120 * time.Millisecond)
+	if err := chromedp.Run(ctx, chromedp.MouseClickXY(coords[0], coords[1])); err != nil {
+		return err
 	}
 	time.Sleep(800 * time.Millisecond)
 	return pollClick(ctx, "", optionText, 10*time.Second)
