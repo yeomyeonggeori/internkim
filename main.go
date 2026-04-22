@@ -3161,7 +3161,7 @@ func acquireGwsCredentialsJSON() ([]byte, error) {
 		"script.googleapis.com")
 	exec.Command("gcloud", enableArgs...).Run()
 
-	consoleURL := "https://console.cloud.google.com/apis/credentials?project=" + projectID
+	consoleURL := "https://console.cloud.google.com/apis/credentials?project=" + projectID + "&hl=en"
 	if err := auth.LaunchChrome(consoleURL); err != nil {
 		return nil, fmt.Errorf("launch chrome: %w", err)
 	}
