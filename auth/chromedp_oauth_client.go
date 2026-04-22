@@ -81,17 +81,30 @@ func chromeBinary() string {
 	return ""
 }
 
-// LaunchChrome opens the user-profile Chrome on DebugPort, navigating to
-// openURL. Subsequent calls re-use the same process — the caller just
-// re-launches with a new URL. Returns immediately; chromedp attaches
-// separately.
+// LaunchChrome makes sure a Chrome with our internkim profile is
+// running on DebugPort. If the port is already reachable — meaning
+// our Chrome is still running from a previous invocation — the
+// function returns immediately without spawning a second Chrome,
+// which would fight the first for the profile lock and surface as
+// the "Something went wrong when opening your profile" dialog. The
+// caller navigates to the target URL via chromedp once attached, so
+// the openURL here is only needed when a truly fresh Chrome starts.
 func LaunchChrome(openURL string) error {
+	// Already-running Chrome with our profile? Reuse it.
+	address := fmt.Sprintf("localhost:%d", DebugPort)
+	if conn, err := net.DialTimeout("tcp", address, 500*time.Millisecond); err == nil {
+		conn.Close()
+		return nil
+	}
+
 	profileDir := chromeProfileDir()
 	if err := os.MkdirAll(profileDir, 0o700); err != nil {
 		return err
 	}
-	// Strip Chrome's singleton lock files left over from a hard kill so
-	// the next launch doesn't refuse the profile.
+	// Strip singleton lock files left behind by a hard-killed Chrome
+	// so the fresh launch doesn't refuse the profile. Safe to remove
+	// only because we already confirmed the debug port is unreachable
+	// (no live Chrome is using it).
 	for _, name := range []string{"SingletonLock", "SingletonCookie", "SingletonSocket"} {
 		os.Remove(filepath.Join(profileDir, name))
 	}
