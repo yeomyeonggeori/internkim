@@ -981,11 +981,12 @@ func automateClientCreate(ctx context.Context) (string, string, error) {
 }
 
 // downloadAndParseClientJSON clicks the "Download JSON" button in the
-// OAuth-client-created modal, waits for the resulting client_secret_
-// *.json file to appear in a dedicated download dir, and parses out
-// client_id + client_secret. This is stable; the modal's DOM
-// structure for Client ID / Client secret labels shifts between
-// Console revisions but the JSON schema does not.
+// OAuth-client-created modal, waits for the resulting
+// client_secret_*.apps.googleusercontent.com.json file to appear in
+// the user's ~/Downloads, and parses out client_id + client_secret.
+// Also tries a CDP-directed download dir as a best-effort short-circuit
+// — if that takes effect we find the file there; otherwise we fall
+// back to watching ~/Downloads where Chrome defaults.
 func downloadAndParseClientJSON(ctx context.Context) (string, string, error) {
 	downloadDir, err := os.MkdirTemp("", "internkim-oauth-*")
 	if err != nil {
@@ -993,38 +994,25 @@ func downloadAndParseClientJSON(ctx context.Context) (string, string, error) {
 	}
 	defer os.RemoveAll(downloadDir)
 
-	if err := chromedp.Run(ctx,
+	// Best-effort: redirect downloads to our temp dir. Not all Chrome
+	// versions honor this so we also watch ~/Downloads below.
+	chromedp.Run(ctx,
 		browser.SetDownloadBehavior(browser.SetDownloadBehaviorBehaviorAllowAndName).
 			WithDownloadPath(downloadDir).
 			WithEventsEnabled(true),
-	); err != nil {
-		return "", "", fmt.Errorf("set download behavior: %w", err)
-	}
+	)
+
+	home, _ := os.UserHomeDir()
+	userDownloads := filepath.Join(home, "Downloads")
+	clickAt := time.Now()
 
 	if err := pollClick(ctx, "", "Download JSON", 10*time.Second); err != nil {
 		return "", "", fmt.Errorf("click Download JSON: %w", err)
 	}
 
-	// Poll the download dir for a .json file, tolerating the ".crdownload"
-	// temporary name Chrome uses while writing.
-	var jsonPath string
-	deadline := time.Now().Add(20 * time.Second)
-	for time.Now().Before(deadline) {
-		entries, _ := os.ReadDir(downloadDir)
-		for _, entry := range entries {
-			name := entry.Name()
-			if strings.HasSuffix(name, ".json") && !strings.HasSuffix(name, ".crdownload") {
-				jsonPath = filepath.Join(downloadDir, name)
-				break
-			}
-		}
-		if jsonPath != "" {
-			break
-		}
-		time.Sleep(300 * time.Millisecond)
-	}
-	if jsonPath == "" {
-		return "", "", errors.New("no JSON file appeared in download dir within 20s")
+	jsonPath, err := waitForClientJSON(clickAt, 20*time.Second, downloadDir, userDownloads)
+	if err != nil {
+		return "", "", err
 	}
 
 	data, err := os.ReadFile(jsonPath)
@@ -1040,7 +1028,45 @@ func downloadAndParseClientJSON(ctx context.Context) (string, string, error) {
 	if err := json.Unmarshal(data, &parsed); err != nil {
 		return "", "", fmt.Errorf("parse JSON: %w", err)
 	}
+	// Clean up the downloaded secret file from the user's Downloads —
+	// credentials should not linger outside our state dir.
+	os.Remove(jsonPath)
 	return parsed.Installed.ClientID, parsed.Installed.ClientSecret, nil
+}
+
+// waitForClientJSON scans the given dirs for a client_secret_*.json
+// file modified at or after since, returning its path as soon as one
+// appears or timeout elapses. Tolerates Chrome's .crdownload temp
+// suffix while the transfer is in-flight.
+func waitForClientJSON(since time.Time, timeout time.Duration, dirs ...string) (string, error) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		for _, dir := range dirs {
+			entries, _ := os.ReadDir(dir)
+			for _, entry := range entries {
+				name := entry.Name()
+				if strings.HasSuffix(name, ".crdownload") {
+					continue
+				}
+				if !strings.HasSuffix(name, ".json") {
+					continue
+				}
+				if !strings.HasPrefix(name, "client_secret") {
+					continue
+				}
+				info, err := entry.Info()
+				if err != nil {
+					continue
+				}
+				if info.ModTime().Before(since.Add(-2 * time.Second)) {
+					continue
+				}
+				return filepath.Join(dir, name), nil
+			}
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+	return "", fmt.Errorf("no client_secret_*.json appeared in %v within %s", dirs, timeout)
 }
 
 // saveFailureSnapshot drops a PNG screenshot + the current page's
