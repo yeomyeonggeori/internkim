@@ -188,16 +188,36 @@ func gcloudAccount() string {
 }
 
 // clickByText clicks the first visible element whose own text matches
-// needle (case-insensitive), walking up to the nearest clickable
-// ancestor (button / label / option / mat-* component / role=button
-// et al). tagCSV is retained in the signature for call-site
-// compatibility but is no longer consulted — universal search with
-// ancestor-walk is more robust against arbitrary Material wrappers.
+// needle (case-insensitive), walking up to the nearest genuinely
+// interactive ancestor. tagCSV is retained in the signature for
+// call-site compatibility; universal text search is more robust than
+// tag filtering.
+//
+// Ancestry walk is strict: the ancestor must be a real click target —
+// <button>, <a href>, <input>, <label>, <option>, <summary>, a Material
+// component that wraps an actual button, or an element with an explicit
+// interactive role / jslog track attribute. Generic cfc-* / mat-card /
+// container wrappers are NOT treated as clickable; they match too many
+// non-interactive elements (empty-state cards, list containers).
 func clickByText(ctx context.Context, tagCSV, needle string) error {
 	_ = tagCSV
 	encoded, _ := json.Marshal(needle)
 	js := fmt.Sprintf(`(() => {
 	  const needle = %s.toLowerCase();
+	  const clickableTags = new Set([
+	    'button','a','input','label','option','summary',
+	    'mat-button','mat-flat-button','mat-raised-button','mat-stroked-button',
+	    'mat-icon-button','mat-fab','mat-mini-fab',
+	    'mat-menu-item','mat-option','mat-radio-button','mat-checkbox',
+	    'mat-chip','mat-tab','mat-list-option','mat-expansion-panel-header'
+	  ]);
+	  const clickableRoles = new Set([
+	    'button','radio','option','menuitem','menuitemradio','link','tab','checkbox','switch'
+	  ]);
+	  const materialButtonAttrs = [
+	    'mat-button','mat-raised-button','mat-flat-button','mat-stroked-button',
+	    'mat-icon-button','mat-fab','mat-mini-fab'
+	  ];
 	  const visible = el => {
 	    const rect = el.getBoundingClientRect();
 	    return rect.width > 0 && rect.height > 0;
@@ -206,11 +226,23 @@ func clickByText(ctx context.Context, tagCSV, needle string) error {
 	    let cur = el;
 	    for (let i = 0; i < 8 && cur; i++) {
 	      const tag = (cur.tagName || '').toLowerCase();
-	      if (['button', 'a', 'label', 'option', 'summary'].includes(tag)) return cur;
-	      if (tag.startsWith('mat-') || tag.startsWith('cfc-') || tag.startsWith('pan-')) return cur;
-	      const role = cur.getAttribute && cur.getAttribute('role');
-	      if (role && ['button','radio','option','menuitem','menuitemradio','link','tab','checkbox','listitem'].includes(role)) return cur;
-	      if (cur.onclick || cur.getAttribute('jsaction')) return cur;
+	      if (clickableTags.has(tag)) {
+	        if (tag === 'a' && !cur.hasAttribute('href') && !cur.hasAttribute('jslog')) {
+	          // bare <a> without href and without a tracked click target
+	          // is a span-in-disguise; keep walking
+	        } else {
+	          return cur;
+	        }
+	      }
+	      if (cur.getAttribute) {
+	        const role = cur.getAttribute('role');
+	        if (role && clickableRoles.has(role)) return cur;
+	        for (const attr of materialButtonAttrs) {
+	          if (cur.hasAttribute(attr)) return cur;
+	        }
+	        const jslog = cur.getAttribute('jslog');
+	        if (jslog && jslog.includes('track:')) return cur;
+	      }
 	      cur = cur.parentElement;
 	    }
 	    return null;
@@ -224,10 +256,11 @@ func clickByText(ctx context.Context, tagCSV, needle string) error {
 	    if (text === needle) exact.push(n);
 	    else loose.push(n);
 	  }
-	  // Shortest text first among loose matches so we prefer a span
-	  // containing "External" over a section containing an "External"
-	  // paragraph of marketing copy.
-	  loose.sort((a, b) => (a.textContent || '').length - (b.textContent || '').length);
+	  // Prefer candidates with the shortest total text — a <span> that
+	  // is just "External" beats a paragraph that happens to mention it.
+	  const byLen = (a, b) => (a.textContent || '').length - (b.textContent || '').length;
+	  exact.sort(byLen);
+	  loose.sort(byLen);
 	  for (const list of [exact, loose]) {
 	    for (const candidate of list) {
 	      if (!visible(candidate)) continue;
@@ -248,6 +281,23 @@ func clickByText(ctx context.Context, tagCSV, needle string) error {
 		return fmt.Errorf("no clickable element matching %q", needle)
 	}
 	return nil
+}
+
+// waitForURL blocks until window.location.href contains needle (case
+// insensitive), or timeout elapses. Used to detect whether a click
+// that was *supposed* to navigate actually did.
+func waitForURL(ctx context.Context, needle string, timeout time.Duration) error {
+	encoded, _ := json.Marshal(strings.ToLower(needle))
+	js := fmt.Sprintf(`(window.location.href || '').toLowerCase().includes(%s)`, string(encoded))
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		var present bool
+		if err := chromedp.Run(ctx, chromedp.Evaluate(js, &present)); err == nil && present {
+			return nil
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	return fmt.Errorf("waitForURL %q timed out", needle)
 }
 
 // pollClick retries clickByText every 500ms until it succeeds or
@@ -458,43 +508,68 @@ func configureConsentIfNeeded(ctx context.Context, projectID string) error {
 }
 
 func automateConsent(ctx context.Context) error {
-	if err := pollClick(ctx, "button|span", consentGetStarted, 10*time.Second); err != nil {
+	if err := pollClick(ctx, "", consentGetStarted, 10*time.Second); err != nil {
 		return fmt.Errorf("click Get started: %w", err)
 	}
-	if err := pollClick(ctx, "label|span|div", consentExternal, 10*time.Second); err != nil {
-		return fmt.Errorf("select External: %w", err)
+	// The Get started CTA is an <a href="/auth/overview/create">. If
+	// the click lands on the wrong wrapper element the URL will never
+	// change — catch that explicitly rather than waiting out the next
+	// step's timeout.
+	if err := waitForURL(ctx, "/auth/overview/create", 10*time.Second); err != nil {
+		snapshot(ctx, "after-get-started", true)
+		return fmt.Errorf("Get started did not navigate: %w", err)
 	}
-	if err := pollClick(ctx, "button", consentCreate, 10*time.Second); err != nil {
-		return fmt.Errorf("click Create: %w", err)
-	}
+	time.Sleep(2 * time.Second)
+
+	// App name first — it's always on step 1 of the create wizard.
 	if err := fillFieldByLabel(ctx, consentAppNameLabel, "Intern Kim"); err != nil {
 		return fmt.Errorf("fill app name: %w", err)
 	}
 	email := gcloudAccount()
 	if email != "" {
 		if err := fillFieldByLabel(ctx, consentSupportEmail, email); err != nil {
-			clickByText(ctx, "div|input", consentSupportEmail)
-			clickByText(ctx, "span|li", email)
-		}
-		if err := fillFieldByLabel(ctx, consentDeveloperEmail, email); err != nil {
-			clickByText(ctx, "div|input", consentDeveloperEmail)
-			clickByText(ctx, "span|li", email)
+			clickByText(ctx, "", consentSupportEmail)
+			clickByText(ctx, "", email)
 		}
 	}
-	// Walk through the multi-page wizard ("Save and continue" →
-	// Scopes → Test users → Summary). Bail as soon as the overview
-	// page's "Back to dashboard"/"Edit app" confirms completion.
-	for i := 0; i < 5; i++ {
+
+	// Audience: pick External. On personal @gmail the radio may be
+	// pre-selected or the only option. Best-effort click.
+	if err := pollClick(ctx, "", consentExternal, 5*time.Second); err != nil {
+		snapshot(ctx, "before-external", true)
+		// Not fatal — External may be pre-selected.
+	}
+
+	if email != "" {
+		if err := fillFieldByLabel(ctx, consentDeveloperEmail, email); err != nil {
+			clickByText(ctx, "", consentDeveloperEmail)
+			clickByText(ctx, "", email)
+		}
+	}
+
+	// Accept the user-data-policy agreement if a checkbox is present.
+	clickByText(ctx, "", "I agree")
+
+	// Walk through the multi-page wizard ("Create" / "Save and
+	// continue" → Scopes → Test users → Summary). Bail as soon as the
+	// overview page's "Back to dashboard" / "Edit app" confirms the
+	// project now has a consent screen configured.
+	for i := 0; i < 6; i++ {
 		if err := waitForText(ctx, consentBackToDashboard, 2*time.Second); err == nil {
 			return nil
 		}
 		if err := waitForText(ctx, consentEditApp, 1*time.Second); err == nil {
 			return nil
 		}
-		if err := pollClick(ctx, "button", consentSaveContinue, 15*time.Second); err != nil {
-			return fmt.Errorf("save-and-continue step %d: %w", i, err)
+		// "Create" on step 1, "Save and continue" on subsequent steps.
+		clickErr := clickByText(ctx, "", consentSaveContinue)
+		if clickErr != nil {
+			if err := clickByText(ctx, "", consentCreate); err != nil {
+				snapshot(ctx, fmt.Sprintf("step-%d", i), true)
+				return fmt.Errorf("advance step %d: no Save/Create button", i)
+			}
 		}
-		time.Sleep(1500 * time.Millisecond)
+		time.Sleep(2 * time.Second)
 	}
 	return nil
 }
