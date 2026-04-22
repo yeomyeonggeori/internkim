@@ -72,7 +72,7 @@ func main() {
 	dbPath := envOr("ROLE_MEMORY_DB", "/root/.internkim/role-brain.db")
 	sessionsDir = envOr("ZEROCLAW_SESSIONS_DIR", "/root/.zeroclaw/workspace/sessions")
 	embeddingKey = loadAPIKey()
-	embeddingModel = envOr("EMBEDDING_MODEL", "google/gemini-embedding-001")
+	embeddingModel = envOr("EMBEDDING_MODEL", "google/gemini-embedding-2-preview")
 
 	mmURL = loadFile(envOr("MM_URL_FILE", "/root/.internkim/env/mattermost-url"))
 	mmBotToken = loadFile(envOr("MM_BOT_TOKEN_FILE", "/root/.internkim/env/bot-token"))
