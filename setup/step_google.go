@@ -256,7 +256,7 @@ func exportGwsCredentials(context *Context) ([]byte, error) {
 // client_secret) pair — the only things Google blocks us from getting any
 // other way for sensitive Workspace scopes on personal accounts.
 func obtainUserOAuthClient(context *Context, projectID string) (string, string, error) {
-	consoleURL := "https://console.cloud.google.com/apis/credentials?project=" + projectID
+	consoleURL := "https://console.cloud.google.com/apis/credentials?project=" + projectID + "&hl=en"
 	if err := auth.LaunchChrome(consoleURL); err != nil {
 		return "", "", fmt.Errorf("launch chrome: %w", err)
 	}

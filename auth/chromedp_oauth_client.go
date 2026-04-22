@@ -187,42 +187,72 @@ func gcloudAccount() string {
 	return value
 }
 
-// clickByText clicks the first visible element matching any of the
-// pipe-separated tags whose trimmed textContent contains needle
-// (case-insensitive). Returns an error when nothing matches.
+// clickByText clicks the first visible element whose own text matches
+// needle (case-insensitive), walking up to the nearest clickable
+// ancestor (button / label / option / mat-* component / role=button
+// et al). tagCSV is retained in the signature for call-site
+// compatibility but is no longer consulted — universal search with
+// ancestor-walk is more robust against arbitrary Material wrappers.
 func clickByText(ctx context.Context, tagCSV, needle string) error {
-	params, _ := json.Marshal(map[string]string{"tag": tagCSV, "needle": needle})
+	_ = tagCSV
+	encoded, _ := json.Marshal(needle)
 	js := fmt.Sprintf(`(() => {
-	  const p = %s;
-	  const tags = p.tag.split('|');
-	  const needle = p.needle.toLowerCase();
-	  for (const t of tags) {
-	    const nodes = [...document.querySelectorAll(t)];
-	    const el = nodes.find(n => {
-	      if (n.offsetParent === null && n.tagName !== 'OPTION') return false;
-	      const text = (n.innerText || n.textContent || '').trim().toLowerCase();
-	      return text && text.includes(needle);
-	    });
-	    if (el) {
-	      el.scrollIntoView({block: 'center', behavior: 'instant'});
-	      el.click();
+	  const needle = %s.toLowerCase();
+	  const visible = el => {
+	    const rect = el.getBoundingClientRect();
+	    return rect.width > 0 && rect.height > 0;
+	  };
+	  const clickableAncestor = el => {
+	    let cur = el;
+	    for (let i = 0; i < 8 && cur; i++) {
+	      const tag = (cur.tagName || '').toLowerCase();
+	      if (['button', 'a', 'label', 'option', 'summary'].includes(tag)) return cur;
+	      if (tag.startsWith('mat-') || tag.startsWith('cfc-') || tag.startsWith('pan-')) return cur;
+	      const role = cur.getAttribute && cur.getAttribute('role');
+	      if (role && ['button','radio','option','menuitem','menuitemradio','link','tab','checkbox','listitem'].includes(role)) return cur;
+	      if (cur.onclick || cur.getAttribute('jsaction')) return cur;
+	      cur = cur.parentElement;
+	    }
+	    return null;
+	  };
+	  const all = document.querySelectorAll('*');
+	  const exact = [];
+	  const loose = [];
+	  for (const n of all) {
+	    const text = (n.innerText || n.textContent || '').trim().toLowerCase();
+	    if (!text || !text.includes(needle)) continue;
+	    if (text === needle) exact.push(n);
+	    else loose.push(n);
+	  }
+	  // Shortest text first among loose matches so we prefer a span
+	  // containing "External" over a section containing an "External"
+	  // paragraph of marketing copy.
+	  loose.sort((a, b) => (a.textContent || '').length - (b.textContent || '').length);
+	  for (const list of [exact, loose]) {
+	    for (const candidate of list) {
+	      if (!visible(candidate)) continue;
+	      const target = clickableAncestor(candidate);
+	      if (!target || !visible(target)) continue;
+	      target.scrollIntoView({block: 'center', behavior: 'instant'});
+	      target.click();
 	      return true;
 	    }
 	  }
 	  return false;
-	})()`, string(params))
+	})()`, string(encoded))
 	var clicked bool
 	if err := chromedp.Run(ctx, chromedp.Evaluate(js, &clicked)); err != nil {
 		return err
 	}
 	if !clicked {
-		return fmt.Errorf("no %s element matching %q", tagCSV, needle)
+		return fmt.Errorf("no clickable element matching %q", needle)
 	}
 	return nil
 }
 
 // pollClick retries clickByText every 500ms until it succeeds or
-// timeout elapses.
+// timeout elapses. In debug mode, dumps a screenshot on timeout so
+// the implementer can see which element the automation missed.
 func pollClick(ctx context.Context, tagCSV, needle string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	var lastErr error
@@ -234,7 +264,30 @@ func pollClick(ctx context.Context, tagCSV, needle string, timeout time.Duration
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
-	return fmt.Errorf("pollClick %s/%q timed out: %w", tagCSV, needle, lastErr)
+	snapshot(ctx, "pollClick-"+sanitizeStage(needle), false)
+	return fmt.Errorf("pollClick %q timed out: %w", needle, lastErr)
+}
+
+// sanitizeStage produces a filename-safe suffix from an arbitrary
+// needle string used in debug screenshot filenames.
+func sanitizeStage(value string) string {
+	var builder strings.Builder
+	for _, r := range strings.ToLower(value) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			builder.WriteRune(r)
+		case r == ' ' || r == '-' || r == '_':
+			builder.WriteRune('-')
+		}
+	}
+	result := builder.String()
+	if result == "" {
+		return "unknown"
+	}
+	if len(result) > 40 {
+		result = result[:40]
+	}
+	return result
 }
 
 // waitForText polls document.body.innerText for needle
@@ -375,7 +428,7 @@ func EnsureUserOAuthClient(projectID string) (string, string, error) {
 // consent is already set up. Falls through to manual prompts on any
 // automation failure so the user is never stuck.
 func configureConsentIfNeeded(ctx context.Context, projectID string) error {
-	consentURL := "https://console.cloud.google.com/auth/overview?project=" + projectID
+	consentURL := "https://console.cloud.google.com/auth/overview?project=" + projectID + "&hl=en"
 	if err := chromedp.Run(ctx,
 		chromedp.Navigate(consentURL),
 		chromedp.Sleep(3*time.Second),
@@ -389,7 +442,7 @@ func configureConsentIfNeeded(ctx context.Context, projectID string) error {
 	}
 	if err := waitForText(ctx, consentGetStarted, 10*time.Second); err != nil {
 		// Some projects land on the legacy credentials/consent path.
-		fallbackURL := "https://console.cloud.google.com/apis/credentials/consent?project=" + projectID
+		fallbackURL := "https://console.cloud.google.com/apis/credentials/consent?project=" + projectID + "&hl=en"
 		chromedp.Run(ctx, chromedp.Navigate(fallbackURL), chromedp.Sleep(3*time.Second))
 		if err := waitForText(ctx, consentGetStarted, 10*time.Second); err != nil {
 			return nil
@@ -466,7 +519,7 @@ func manualConsentPrompt() error {
 // resulting modal. Falls back to terminal paste prompts on any
 // automation failure so the user is never stuck.
 func createOAuthDesktopClient(ctx context.Context, projectID string) (string, string, error) {
-	credentialsURL := "https://console.cloud.google.com/apis/credentials?project=" + projectID
+	credentialsURL := "https://console.cloud.google.com/apis/credentials?project=" + projectID + "&hl=en"
 	if err := chromedp.Run(ctx,
 		chromedp.Navigate(credentialsURL),
 		chromedp.Sleep(3*time.Second),
