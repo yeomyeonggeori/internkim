@@ -3069,19 +3069,108 @@ type sshClient struct {
 	port       string
 }
 
+// ensureInternkimGcpProject returns the GCP project id usable for `gws
+// auth setup --project`. Deterministic per device: derives the id from
+// the stored device_id so re-runs always land on the same project. Only
+// falls back to a random suffix when device_id isn't assigned yet.
+func ensureInternkimGcpProject() string {
+	if out, err := exec.Command("gcloud", "config", "get-value", "project", "--quiet").Output(); err == nil {
+		if projectID := strings.TrimSpace(string(out)); projectID != "" && projectID != "(unset)" {
+			return projectID
+		}
+	}
+	stateDir := internkimHomeDir()
+	deviceID := strings.TrimSpace(loadState(stateDir, "device_id"))
+	var projectID string
+	if deviceID != "" {
+		projectID = "internkim-" + deviceID
+	} else {
+		randomBytes := make([]byte, 4)
+		if _, err := rand.Read(randomBytes); err != nil {
+			return ""
+		}
+		projectID = "internkim-" + hex.EncodeToString(randomBytes)
+	}
+
+	// Reuse the project if it already exists; otherwise create it.
+	if out, err := exec.Command("gcloud", "projects", "describe", projectID, "--quiet", "--format=value(projectId)").Output(); err == nil && strings.TrimSpace(string(out)) == projectID {
+		exec.Command("gcloud", "config", "set", "project", projectID, "--quiet").Run()
+		return projectID
+	}
+	fmt.Printf("  새 GCP 프로젝트 생성: %s\n", projectID)
+	create := exec.Command("gcloud", "projects", "create", projectID,
+		"--name=Intern Kim", "--quiet")
+	create.Stdout = os.Stdout
+	create.Stderr = os.Stderr
+	if err := create.Run(); err != nil {
+		return ""
+	}
+	exec.Command("gcloud", "config", "set", "project", projectID, "--quiet").Run()
+	return projectID
+}
+
+// ensureGcloudOnPathSim prepends the Google Cloud SDK bin directory to
+// PATH when gcloud isn't already discoverable. Mirrors setup.ensureGcloudOnPath
+// for the sim / pre-setup code paths.
+func ensureGcloudOnPathSim() {
+	if _, err := exec.LookPath("gcloud"); err == nil {
+		return
+	}
+	home, _ := os.UserHomeDir()
+	for _, candidate := range []string{
+		filepath.Join(home, "google-cloud-sdk", "bin"),
+		"/opt/homebrew/share/google-cloud-sdk/bin",
+		"/usr/local/share/google-cloud-sdk/bin",
+	} {
+		if info, err := os.Stat(filepath.Join(candidate, "gcloud")); err == nil && !info.IsDir() {
+			os.Setenv("PATH", candidate+string(os.PathListSeparator)+os.Getenv("PATH"))
+			return
+		}
+	}
+}
+
 // installGwsCredentials runs `gws auth export --unmasked` on the local
 // Mac (running `gws auth setup` interactively the first time if no
 // credentials exist yet) and scp's the resulting portable JSON to the
 // zeroclaw user's ~/.config/gws/credentials.json on the board.
 func installGwsCredentials(ssh *sshClient) error {
 	if _, err := exec.LookPath("gws"); err != nil {
-		return errors.New("gws CLI not on PATH — install from https://github.com/googleworkspace/cli")
+		return errors.New("gws CLI not on PATH — install with: brew install googleworkspace-cli")
 	}
+	ensureGcloudOnPathSim()
 
 	exportOut, exportErr := exec.Command("gws", "auth", "export", "--unmasked").Output()
 	if exportErr != nil || !strings.Contains(string(exportOut), `"refresh_token"`) {
-		fmt.Println("  gws 자격증명을 새로 발급합니다. 브라우저 창에서 Google 계정 로그인 + Allow 눌러주세요.")
-		setup := exec.Command("gws", "auth", "setup")
+		if _, err := exec.LookPath("gcloud"); err != nil {
+			exec.Command("open", "https://cloud.google.com/sdk/docs/install").Start()
+			return errors.New("gcloud CLI required by `gws auth setup`. Install: brew install --cask google-cloud-sdk, then re-run this step.")
+		}
+		// Ensure gcloud is authenticated before gws auth setup reaches for it.
+		if out, _ := exec.Command("gcloud", "auth", "list",
+			"--filter=status:ACTIVE", "--format=value(account)").Output(); strings.TrimSpace(string(out)) == "" {
+			fmt.Println("  gcloud 인증 필요 — 브라우저에서 Google 계정으로 로그인해주세요.")
+			login := exec.Command("gcloud", "auth", "login")
+			login.Stdin = os.Stdin
+			login.Stdout = os.Stdout
+			login.Stderr = os.Stderr
+			if err := login.Run(); err != nil {
+				return fmt.Errorf("gcloud auth login failed: %w", err)
+			}
+		}
+		projectID := strings.TrimSpace(ensureInternkimGcpProject())
+		if projectID == "" {
+			return errors.New("could not determine or create a GCP project for Intern Kim")
+		}
+		// Pre-enable the Workspace APIs so gws auth setup has less to do.
+		enableArgs := append([]string{"services", "enable", "--project", projectID, "--quiet"},
+			"drive.googleapis.com", "sheets.googleapis.com", "gmail.googleapis.com",
+			"calendar-json.googleapis.com", "docs.googleapis.com", "slides.googleapis.com",
+			"tasks.googleapis.com", "people.googleapis.com", "forms.googleapis.com",
+			"keep.googleapis.com", "meet.googleapis.com", "chat.googleapis.com",
+			"script.googleapis.com")
+		exec.Command("gcloud", enableArgs...).Run()
+		fmt.Println("  gws 자격증명을 새로 발급합니다. API 목록이 뜨면 'a' + Enter, 이어서 브라우저 Allow 눌러주세요.")
+		setup := exec.Command("gws", "auth", "setup", "--login", "--project", projectID)
 		setup.Stdin = os.Stdin
 		setup.Stdout = os.Stdout
 		setup.Stderr = os.Stderr
