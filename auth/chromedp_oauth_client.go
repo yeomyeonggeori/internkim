@@ -951,10 +951,7 @@ func automateClientCreate(ctx context.Context) (string, string, error) {
 	if err := waitForText(ctx, credentialsAppType, 15*time.Second); err != nil {
 		return "", "", fail(ctx, "application-type-page", err)
 	}
-	if err := pollClick(ctx, "", credentialsAppType, 5*time.Second); err != nil {
-		return "", "", fail(ctx, "open-app-type-select", err)
-	}
-	if err := pollClick(ctx, "", credentialsDesktop, 10*time.Second); err != nil {
+	if err := pickFromSelect(ctx, credentialsAppType, credentialsDesktop); err != nil {
 		return "", "", fail(ctx, "pick-desktop-app", err)
 	}
 	if err := fillFieldByLabel(ctx, credentialsName, "Intern Kim Desktop"); err != nil {
