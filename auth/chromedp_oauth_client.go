@@ -682,6 +682,42 @@ func configureConsentIfNeeded(ctx context.Context, projectID string) error {
 	return automateConsent(ctx)
 }
 
+// pickSoleEnabledRadio clicks the inner <input type="radio"> of the
+// only non-disabled mat-radio-button inside the given form group. Use
+// this when a radio choice is selected by elimination (e.g. Audience
+// External on a personal @gmail account where Internal is
+// aria-disabled) — avoids text matching that would otherwise grab the
+// disabled radio's tooltip copy containing the target word.
+func pickSoleEnabledRadio(ctx context.Context, formGroupName string) error {
+	encoded, _ := json.Marshal(formGroupName)
+	js := fmt.Sprintf(`(() => {
+	  const name = %s;
+	  const group = document.querySelector('[formgroupname="' + name + '"]');
+	  if (!group) return false;
+	  const radios = [...group.querySelectorAll('mat-radio-button')];
+	  const enabled = radios.find(r =>
+	    r.getAttribute('aria-disabled') !== 'true' &&
+	    !r.classList.contains('mat-mdc-radio-disabled'));
+	  if (!enabled) return false;
+	  const input = enabled.querySelector('input[type="radio"]');
+	  if (!input) return false;
+	  input.scrollIntoView({block: 'center', behavior: 'instant'});
+	  input.focus({preventScroll: true});
+	  input.click();
+	  input.dispatchEvent(new Event('change', {bubbles: true}));
+	  enabled.dispatchEvent(new FocusEvent('blur', {bubbles: true, composed: true}));
+	  return true;
+	})()`, string(encoded))
+	var ok bool
+	if err := chromedp.Run(ctx, chromedp.Evaluate(js, &ok)); err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("no enabled radio in form group %q", formGroupName)
+	}
+	return nil
+}
+
 func automateConsent(ctx context.Context) error {
 	if err := pollClick(ctx, "", consentGetStarted, 10*time.Second); err != nil {
 		return fail(ctx, "click-get-started", err)
@@ -712,9 +748,15 @@ func automateConsent(ctx context.Context) error {
 		return fail(ctx, "step1-next", err)
 	}
 
-	// Step 2: Audience — External radio.
-	if err := pollClick(ctx, "", consentExternal, 10*time.Second); err != nil {
-		return fail(ctx, "pick-external", err)
+	// Step 2: Audience — External radio. On personal @gmail the
+	// Internal option is aria-disabled, so External is the only
+	// selectable choice. Pick the sole enabled radio in the audience
+	// group by property (not by text match, which could hit Internal's
+	// disabled tooltip that also contains the word "external"). Treat
+	// the click as best-effort: if it misses, advanceStep's expansion
+	// check will surface a real failure.
+	if err := pickSoleEnabledRadio(ctx, "audienceGroup"); err != nil {
+		snapshot(ctx, "pick-external-miss", false)
 	}
 	time.Sleep(500 * time.Millisecond)
 	if err := advanceStep(ctx, "developerEmailsGroup"); err != nil {
