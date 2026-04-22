@@ -686,12 +686,12 @@ func automateConsent(ctx context.Context) error {
 	if err := pollClick(ctx, "", consentGetStarted, 10*time.Second); err != nil {
 		return fail(ctx, "click-get-started", err)
 	}
-	// The Get started CTA is an <a href="/auth/overview/create">. If
-	// the click lands on the wrong wrapper element the URL will never
-	// change — catch that immediately rather than waiting out the next
-	// step's timeout.
+	// Get started CTA target is /auth/overview/create, which now
+	// redirects to /auth/branding. Accept either.
 	if err := waitForURL(ctx, "/auth/overview/create", 10*time.Second); err != nil {
-		return fail(ctx, "after-get-started", err)
+		if err := waitForURL(ctx, "/auth/branding", 3*time.Second); err != nil {
+			return fail(ctx, "after-get-started", err)
+		}
 	}
 	time.Sleep(2 * time.Second)
 
@@ -701,7 +701,6 @@ func automateConsent(ctx context.Context) error {
 	}
 
 	// Step 1: App Information — App name + User support email.
-	// Steps 2-4 are collapsed (display: none) until step 1 advances.
 	if err := fillFieldByLabel(ctx, consentAppNameLabel, "Intern Kim"); err != nil {
 		return fail(ctx, "fill-app-name", err)
 	}
@@ -709,30 +708,27 @@ func automateConsent(ctx context.Context) error {
 		return fail(ctx, "pick-support-email", err)
 	}
 	time.Sleep(500 * time.Millisecond)
-	if err := pollClick(ctx, "", consentNext, 10*time.Second); err != nil {
+	if err := advanceStep(ctx, "audienceGroup"); err != nil {
 		return fail(ctx, "step1-next", err)
 	}
-	time.Sleep(1500 * time.Millisecond)
 
 	// Step 2: Audience — External radio.
 	if err := pollClick(ctx, "", consentExternal, 10*time.Second); err != nil {
 		return fail(ctx, "pick-external", err)
 	}
 	time.Sleep(500 * time.Millisecond)
-	if err := pollClick(ctx, "", consentNext, 10*time.Second); err != nil {
+	if err := advanceStep(ctx, "developerEmailsGroup"); err != nil {
 		return fail(ctx, "step2-next", err)
 	}
-	time.Sleep(1500 * time.Millisecond)
 
 	// Step 3: Contact Information — Email addresses chip-list.
 	if err := fillChipListByLabel(ctx, consentEmailAddresses, email); err != nil {
 		return fail(ctx, "fill-email-addresses", err)
 	}
 	time.Sleep(500 * time.Millisecond)
-	if err := pollClick(ctx, "", consentNext, 10*time.Second); err != nil {
+	if err := advanceStep(ctx, "termsAgreementGroup"); err != nil {
 		return fail(ctx, "step3-next", err)
 	}
-	time.Sleep(1500 * time.Millisecond)
 
 	// Step 4: Finish — agree checkbox + Create.
 	if err := pollClick(ctx, "", consentAgree, 10*time.Second); err != nil {
@@ -750,6 +746,65 @@ func automateConsent(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// advanceStep focuses the current stepper's Next button and presses
+// Enter via CDP. Keyboard Enter on a focused button fires a real
+// trusted click event that Angular Material's stepper reliably acts
+// on — synthetic mouse events weren't advancing the stepper even when
+// the underlying form was valid + touched. Verifies the advance by
+// waiting for the next step's form group to become expanded (its
+// .cfc-stepper-step-content-and-continue child no longer display:none).
+func advanceStep(ctx context.Context, nextFormGroupName string) error {
+	focusJS := `(() => {
+	  const buttons = [...document.querySelectorAll('.cfc-stepper-step-continue-button')];
+	  const visible = buttons.find(b => {
+	    const r = b.getBoundingClientRect();
+	    return r.width > 0 && r.height > 0;
+	  });
+	  if (!visible) return false;
+	  visible.scrollIntoView({block: 'center', behavior: 'instant'});
+	  visible.focus({preventScroll: true});
+	  return true;
+	})()`
+	var focused bool
+	if err := chromedp.Run(ctx, chromedp.Evaluate(focusJS, &focused)); err != nil {
+		return err
+	}
+	if !focused {
+		return errors.New("no visible cfc-stepper-step-continue-button")
+	}
+	time.Sleep(120 * time.Millisecond)
+	if err := chromedp.Run(ctx, chromedp.KeyEvent("\r")); err != nil {
+		return err
+	}
+	return waitForStepExpanded(ctx, nextFormGroupName, 15*time.Second)
+}
+
+// waitForStepExpanded polls for the cfc-stepper step identified by
+// formGroupName becoming visible (its content-and-continue container
+// leaving display:none). Definitive signal that the stepper actually
+// advanced rather than the previous step staying expanded.
+func waitForStepExpanded(ctx context.Context, formGroupName string, timeout time.Duration) error {
+	encoded, _ := json.Marshal(formGroupName)
+	js := fmt.Sprintf(`(() => {
+	  const name = %s;
+	  const step = document.querySelector('[formgroupname="' + name + '"]');
+	  if (!step) return false;
+	  const content = step.querySelector('.cfc-stepper-step-content-and-continue');
+	  if (!content) return false;
+	  if (content.style.display === 'none') return false;
+	  return getComputedStyle(content).display !== 'none';
+	})()`, string(encoded))
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		var expanded bool
+		if err := chromedp.Run(ctx, chromedp.Evaluate(js, &expanded)); err == nil && expanded {
+			return nil
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	return fmt.Errorf("step %q did not expand within %s", formGroupName, timeout)
 }
 
 // createOAuthDesktopClient drives the Console Credentials page to
