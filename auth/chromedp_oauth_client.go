@@ -42,8 +42,9 @@ const (
 	consentCreate          = "Create"
 	consentAppNameLabel    = "App name"
 	consentSupportEmail    = "User support email"
-	consentDeveloperEmail  = "Developer contact"
-	consentSaveContinue    = "Save and continue"
+	consentEmailAddresses  = "Email addresses"
+	consentNext            = "Next"
+	consentAgree           = "I agree to the Google API Services"
 	consentBackToDashboard = "Back to dashboard"
 	consentEditApp         = "Edit app"
 
@@ -423,6 +424,86 @@ func readFieldByLabel(ctx context.Context, labelText string) (string, error) {
 	return strings.TrimSpace(value), nil
 }
 
+// pickFromSelect opens the combobox associated with the given label,
+// then clicks the option whose visible text contains optionText. Works
+// against Cloud Console's cfc-select + listbox overlay where plain
+// fillFieldByLabel can't type into a role="combobox" element.
+func pickFromSelect(ctx context.Context, labelText, optionText string) error {
+	openParams, _ := json.Marshal(labelText)
+	openJS := fmt.Sprintf(`(() => {
+	  const needle = %s.toLowerCase();
+	  const labels = [...document.querySelectorAll('label, mat-label, span, div')];
+	  const label = labels.find(l => (l.textContent || '').trim().toLowerCase().includes(needle));
+	  if (!label) return false;
+	  let scope = label;
+	  for (let i = 0; i < 6 && scope; i++) {
+	    const combo = scope.querySelector('[role="combobox"], cfc-select, mat-select, select');
+	    if (combo) {
+	      combo.scrollIntoView({block: 'center', behavior: 'instant'});
+	      combo.click();
+	      return true;
+	    }
+	    scope = scope.parentElement;
+	  }
+	  return false;
+	})()`, string(openParams))
+	var opened bool
+	if err := chromedp.Run(ctx, chromedp.Evaluate(openJS, &opened)); err != nil {
+		return err
+	}
+	if !opened {
+		return fmt.Errorf("no combobox near label %q", labelText)
+	}
+	time.Sleep(800 * time.Millisecond)
+	return pollClick(ctx, "", optionText, 10*time.Second)
+}
+
+// fillChipListByLabel types value into the input of a chip-list
+// component (e.g. apis-email-chip-list) whose visible label or
+// label="" attribute matches labelText, then dispatches an Enter
+// keydown to commit the chip. Angular Material chip-lists observe
+// keydown on the input, so synthetic events are enough.
+func fillChipListByLabel(ctx context.Context, labelText, value string) error {
+	params, _ := json.Marshal(map[string]string{"label": labelText, "value": value})
+	js := fmt.Sprintf(`(() => {
+	  const p = %s;
+	  const needle = p.label.toLowerCase();
+	  // apis-email-chip-list and friends expose a label="" attribute.
+	  const attrHit = [...document.querySelectorAll('[label]')].find(
+	    n => (n.getAttribute('label') || '').toLowerCase().includes(needle));
+	  let scope = attrHit;
+	  if (!scope) {
+	    const labels = [...document.querySelectorAll('label, mat-label, span, div')];
+	    const lbl = labels.find(l => (l.textContent || '').trim().toLowerCase().includes(needle));
+	    if (!lbl) return false;
+	    scope = lbl.closest('mat-form-field, apis-email-chip-list, cfc-select') || lbl.parentElement;
+	  }
+	  const input = scope.querySelector('input:not([type=hidden]):not([type=button]):not([type=submit])');
+	  if (!input) return false;
+	  input.focus();
+	  const proto = Object.getPrototypeOf(input);
+	  const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+	  if (desc && desc.set) desc.set.call(input, p.value);
+	  else input.value = p.value;
+	  input.dispatchEvent(new Event('input', {bubbles: true}));
+	  const enterInit = {key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true};
+	  input.dispatchEvent(new KeyboardEvent('keydown', enterInit));
+	  input.dispatchEvent(new KeyboardEvent('keypress', enterInit));
+	  input.dispatchEvent(new KeyboardEvent('keyup', enterInit));
+	  input.dispatchEvent(new Event('change', {bubbles: true}));
+	  input.dispatchEvent(new Event('blur', {bubbles: true}));
+	  return true;
+	})()`, string(params))
+	var ok bool
+	if err := chromedp.Run(ctx, chromedp.Evaluate(js, &ok)); err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("no chip-list near label %q", labelText)
+	}
+	return nil
+}
+
 // EnsureUserOAuthClient returns a (clientID, clientSecret) pair for the
 // user's own OAuth 2.0 Desktop client in the given GCP project,
 // creating the client if one does not already exist.
@@ -519,42 +600,61 @@ func automateConsent(ctx context.Context) error {
 	}
 	time.Sleep(2 * time.Second)
 
-	if err := fillFieldByLabel(ctx, consentAppNameLabel, "Intern Kim"); err != nil {
-		return fail(ctx, "fill-app-name", err)
-	}
 	email := gcloudAccount()
 	if email == "" {
 		return fail(ctx, "gcloud-account", errors.New("gcloud has no active account"))
 	}
-	if err := fillFieldByLabel(ctx, consentSupportEmail, email); err != nil {
-		return fail(ctx, "fill-support-email", err)
+
+	// Step 1: App Information — App name + User support email.
+	// Steps 2-4 are collapsed (display: none) until step 1 advances.
+	if err := fillFieldByLabel(ctx, consentAppNameLabel, "Intern Kim"); err != nil {
+		return fail(ctx, "fill-app-name", err)
 	}
-	if err := pollClick(ctx, "", consentExternal, 5*time.Second); err != nil {
+	if err := pickFromSelect(ctx, consentSupportEmail, email); err != nil {
+		return fail(ctx, "pick-support-email", err)
+	}
+	time.Sleep(500 * time.Millisecond)
+	if err := pollClick(ctx, "", consentNext, 10*time.Second); err != nil {
+		return fail(ctx, "step1-next", err)
+	}
+	time.Sleep(1500 * time.Millisecond)
+
+	// Step 2: Audience — External radio.
+	if err := pollClick(ctx, "", consentExternal, 10*time.Second); err != nil {
 		return fail(ctx, "pick-external", err)
 	}
-	if err := fillFieldByLabel(ctx, consentDeveloperEmail, email); err != nil {
-		return fail(ctx, "fill-developer-email", err)
+	time.Sleep(500 * time.Millisecond)
+	if err := pollClick(ctx, "", consentNext, 10*time.Second); err != nil {
+		return fail(ctx, "step2-next", err)
+	}
+	time.Sleep(1500 * time.Millisecond)
+
+	// Step 3: Contact Information — Email addresses chip-list.
+	if err := fillChipListByLabel(ctx, consentEmailAddresses, email); err != nil {
+		return fail(ctx, "fill-email-addresses", err)
+	}
+	time.Sleep(500 * time.Millisecond)
+	if err := pollClick(ctx, "", consentNext, 10*time.Second); err != nil {
+		return fail(ctx, "step3-next", err)
+	}
+	time.Sleep(1500 * time.Millisecond)
+
+	// Step 4: Finish — agree checkbox + Create.
+	if err := pollClick(ctx, "", consentAgree, 10*time.Second); err != nil {
+		return fail(ctx, "agree-terms", err)
+	}
+	time.Sleep(500 * time.Millisecond)
+	if err := pollClick(ctx, "", consentCreate, 10*time.Second); err != nil {
+		return fail(ctx, "final-create", err)
 	}
 
-	// Walk through the multi-page wizard: the current step advances
-	// on "Create" (step 1) or "Save and continue" (later steps). Exit
-	// when the overview page is reached.
-	for i := 0; i < 6; i++ {
-		if err := waitForText(ctx, consentBackToDashboard, 2*time.Second); err == nil {
-			return nil
+	// Confirm we land back on the overview page.
+	if err := waitForText(ctx, consentEditApp, 20*time.Second); err != nil {
+		if err := waitForText(ctx, consentBackToDashboard, 2*time.Second); err != nil {
+			return fail(ctx, "after-create", err)
 		}
-		if err := waitForText(ctx, consentEditApp, 1*time.Second); err == nil {
-			return nil
-		}
-		if err := clickByText(ctx, "", consentSaveContinue); err != nil {
-			if err := clickByText(ctx, "", consentCreate); err != nil {
-				return fail(ctx, fmt.Sprintf("advance-step-%d", i), err)
-			}
-		}
-		time.Sleep(2 * time.Second)
 	}
-	return fail(ctx, "consent-loop-exhausted",
-		errors.New("consent wizard did not reach overview page after 6 advance clicks"))
+	return nil
 }
 
 // createOAuthDesktopClient drives the Console Credentials page to
