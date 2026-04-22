@@ -23,6 +23,7 @@ import (
 
 	"golang.org/x/term"
 
+	"github.com/anthropic-lab/internkim/auth"
 	"github.com/anthropic-lab/internkim/setup"
 )
 
@@ -2231,20 +2232,10 @@ func runSetupSD(m *msg) {
 	}
 	adminEmail := loadState(stateDir, "google_email")
 	if needCreds {
-		exportOut, err := exec.Command("gws", "auth", "export", "--unmasked").Output()
-		if err != nil || !strings.Contains(string(exportOut), `"refresh_token"`) {
-			fmt.Println("  gws 자격증명을 새로 발급합니다. 브라우저 창에서 Google 계정 로그인 + Allow 눌러주세요.")
-			setupCmd := exec.Command("gws", "auth", "setup")
-			setupCmd.Stdin = os.Stdin
-			setupCmd.Stdout = os.Stdout
-			setupCmd.Stderr = os.Stderr
-			if err := setupCmd.Run(); err != nil {
-				fmt.Printf("  gws auth setup 실패: %v\n", err)
-			} else {
-				exportOut, _ = exec.Command("gws", "auth", "export", "--unmasked").Output()
-			}
-		}
-		if strings.Contains(string(exportOut), `"refresh_token"`) {
+		exportOut, err := acquireGwsCredentialsJSON()
+		if err != nil {
+			fmt.Printf("  %s: %v\n", m.t("gws 자격증명 발급 실패", "gws credential acquisition failed"), err)
+		} else if strings.Contains(string(exportOut), `"refresh_token"`) {
 			os.WriteFile(gwsCredsPath, exportOut, 0o600)
 			gwsCredsJSON = exportOut
 		}
@@ -3129,61 +3120,88 @@ func ensureGcloudOnPathSim() {
 	}
 }
 
-// installGwsCredentials runs `gws auth export --unmasked` on the local
-// Mac (running `gws auth setup` interactively the first time if no
-// credentials exist yet) and scp's the resulting portable JSON to the
-// zeroclaw user's ~/.config/gws/credentials.json on the board.
-func installGwsCredentials(ssh *sshClient) error {
+// acquireGwsCredentialsJSON returns a portable gws credentials JSON,
+// creating one via the chromedp-driven Cloud Console flow on first run
+// and re-exporting the cached copy on subsequent runs.
+func acquireGwsCredentialsJSON() ([]byte, error) {
 	if _, err := exec.LookPath("gws"); err != nil {
-		return errors.New("gws CLI not on PATH — install with: brew install googleworkspace-cli")
+		return nil, errors.New("gws CLI not on PATH — install with: brew install googleworkspace-cli")
 	}
 	ensureGcloudOnPathSim()
 
 	exportOut, exportErr := exec.Command("gws", "auth", "export", "--unmasked").Output()
-	if exportErr != nil || !strings.Contains(string(exportOut), `"refresh_token"`) {
-		if _, err := exec.LookPath("gcloud"); err != nil {
-			exec.Command("open", "https://cloud.google.com/sdk/docs/install").Start()
-			return errors.New("gcloud CLI required by `gws auth setup`. Install: brew install --cask google-cloud-sdk, then re-run this step.")
+	if exportErr == nil && strings.Contains(string(exportOut), `"refresh_token"`) {
+		return exportOut, nil
+	}
+
+	if _, err := exec.LookPath("gcloud"); err != nil {
+		exec.Command("open", "https://cloud.google.com/sdk/docs/install").Start()
+		return nil, errors.New("gcloud CLI required. Install: brew install --cask google-cloud-sdk, then re-run this step.")
+	}
+	if out, _ := exec.Command("gcloud", "auth", "list",
+		"--filter=status:ACTIVE", "--format=value(account)").Output(); strings.TrimSpace(string(out)) == "" {
+		fmt.Println("  gcloud 인증 필요 — 브라우저에서 Google 계정으로 로그인해주세요.")
+		login := exec.Command("gcloud", "auth", "login")
+		login.Stdin = os.Stdin
+		login.Stdout = os.Stdout
+		login.Stderr = os.Stderr
+		if err := login.Run(); err != nil {
+			return nil, fmt.Errorf("gcloud auth login failed: %w", err)
 		}
-		// Ensure gcloud is authenticated before gws auth setup reaches for it.
-		if out, _ := exec.Command("gcloud", "auth", "list",
-			"--filter=status:ACTIVE", "--format=value(account)").Output(); strings.TrimSpace(string(out)) == "" {
-			fmt.Println("  gcloud 인증 필요 — 브라우저에서 Google 계정으로 로그인해주세요.")
-			login := exec.Command("gcloud", "auth", "login")
-			login.Stdin = os.Stdin
-			login.Stdout = os.Stdout
-			login.Stderr = os.Stderr
-			if err := login.Run(); err != nil {
-				return fmt.Errorf("gcloud auth login failed: %w", err)
-			}
-		}
-		projectID := strings.TrimSpace(ensureInternkimGcpProject())
-		if projectID == "" {
-			return errors.New("could not determine or create a GCP project for Intern Kim")
-		}
-		// Pre-enable the Workspace APIs so gws auth setup has less to do.
-		enableArgs := append([]string{"services", "enable", "--project", projectID, "--quiet"},
-			"drive.googleapis.com", "sheets.googleapis.com", "gmail.googleapis.com",
-			"calendar-json.googleapis.com", "docs.googleapis.com", "slides.googleapis.com",
-			"tasks.googleapis.com", "people.googleapis.com", "forms.googleapis.com",
-			"keep.googleapis.com", "meet.googleapis.com", "chat.googleapis.com",
-			"script.googleapis.com")
-		exec.Command("gcloud", enableArgs...).Run()
-		fmt.Println("  gws 자격증명을 새로 발급합니다. API 목록이 뜨면 'a' + Enter, 이어서 브라우저 Allow 눌러주세요.")
-		setup := exec.Command("gws", "auth", "setup", "--login", "--project", projectID)
-		setup.Stdin = os.Stdin
-		setup.Stdout = os.Stdout
-		setup.Stderr = os.Stderr
-		if err := setup.Run(); err != nil {
-			return fmt.Errorf("gws auth setup failed: %w", err)
-		}
-		exportOut, exportErr = exec.Command("gws", "auth", "export", "--unmasked").Output()
-		if exportErr != nil {
-			return fmt.Errorf("gws auth export failed: %w", exportErr)
-		}
-		if !strings.Contains(string(exportOut), `"refresh_token"`) {
-			return errors.New("gws auth export output missing refresh_token")
-		}
+	}
+	projectID := strings.TrimSpace(ensureInternkimGcpProject())
+	if projectID == "" {
+		return nil, errors.New("could not determine or create a GCP project for Intern Kim")
+	}
+	enableArgs := append([]string{"services", "enable", "--project", projectID, "--quiet"},
+		"drive.googleapis.com", "sheets.googleapis.com", "gmail.googleapis.com",
+		"calendar-json.googleapis.com", "docs.googleapis.com", "slides.googleapis.com",
+		"tasks.googleapis.com", "people.googleapis.com", "forms.googleapis.com",
+		"keep.googleapis.com", "meet.googleapis.com", "chat.googleapis.com",
+		"script.googleapis.com")
+	exec.Command("gcloud", enableArgs...).Run()
+
+	consoleURL := "https://console.cloud.google.com/apis/credentials?project=" + projectID
+	if err := auth.LaunchChrome(consoleURL); err != nil {
+		return nil, fmt.Errorf("launch chrome: %w", err)
+	}
+	fmt.Println("  Chrome 창이 열립니다. 처음이라면 Google 계정으로 로그인해주세요 (한 번만).")
+	clientID, clientSecret, err := auth.EnsureUserOAuthClient(projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("  브라우저에서 Allow만 클릭해주세요.")
+	login := exec.Command("gws", "auth", "login", "--full")
+	login.Env = append(os.Environ(),
+		"GOOGLE_WORKSPACE_CLI_CLIENT_ID="+clientID,
+		"GOOGLE_WORKSPACE_CLI_CLIENT_SECRET="+clientSecret,
+	)
+	login.Stdin = os.Stdin
+	login.Stdout = os.Stdout
+	login.Stderr = os.Stderr
+	if err := login.Run(); err != nil {
+		return nil, fmt.Errorf("gws auth login failed: %w", err)
+	}
+
+	exportOut, exportErr = exec.Command("gws", "auth", "export", "--unmasked").Output()
+	if exportErr != nil {
+		return nil, fmt.Errorf("gws auth export failed: %w", exportErr)
+	}
+	if !strings.Contains(string(exportOut), `"refresh_token"`) {
+		return nil, errors.New("gws auth export output missing refresh_token")
+	}
+	return exportOut, nil
+}
+
+// installGwsCredentials obtains Google Workspace credentials for the local
+// maintainer (creating them via the chromedp-driven Cloud Console flow the
+// first time) and scp's the portable JSON to the zeroclaw user's
+// ~/.config/gws/credentials.json on the board.
+func installGwsCredentials(ssh *sshClient) error {
+	exportOut, err := acquireGwsCredentialsJSON()
+	if err != nil {
+		return err
 	}
 
 	tmpPath := filepath.Join(os.TempDir(), "internkim-gws-credentials.json")
