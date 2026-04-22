@@ -125,39 +125,48 @@ func waitForDebugPort(timeout time.Duration) error {
 	return fmt.Errorf("chrome CDP not reachable at %s within %s", address, timeout)
 }
 
-// findGoogleTab returns the first Chrome target already on a google.com
-// host so chromedp attaches to the user's signed-in session rather than
-// opening a fresh context.
-func findGoogleTab() (target.ID, error) {
-	response, err := http.Get(fmt.Sprintf("http://localhost:%d/json/list", DebugPort))
-	if err != nil {
-		return "", err
-	}
-	defer response.Body.Close()
-	var targets []struct {
-		ID   string `json:"id"`
-		Type string `json:"type"`
-		URL  string `json:"url"`
-	}
-	if err := json.NewDecoder(response.Body).Decode(&targets); err != nil {
-		return "", err
-	}
-	var best string
-	for _, info := range targets {
-		if info.Type != "page" {
+// findGoogleTab polls Chrome's /json/list until a page target on a
+// google.com host (ideally console.cloud.google.com) appears, or
+// timeout elapses. Needed because Chrome opens the CDP port before
+// the initial tab has finished navigating — a one-shot check races
+// the launch.
+func findGoogleTab(timeout time.Duration) (target.ID, error) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		response, err := http.Get(fmt.Sprintf("http://localhost:%d/json/list", DebugPort))
+		if err != nil {
+			time.Sleep(500 * time.Millisecond)
 			continue
 		}
-		if strings.Contains(info.URL, "console.cloud.google.com") {
-			return target.ID(info.ID), nil
+		var targets []struct {
+			ID   string `json:"id"`
+			Type string `json:"type"`
+			URL  string `json:"url"`
 		}
-		if strings.Contains(info.URL, "google.com") && best == "" {
-			best = info.ID
+		decodeErr := json.NewDecoder(response.Body).Decode(&targets)
+		response.Body.Close()
+		if decodeErr != nil {
+			time.Sleep(500 * time.Millisecond)
+			continue
 		}
+		var best string
+		for _, info := range targets {
+			if info.Type != "page" {
+				continue
+			}
+			if strings.Contains(info.URL, "console.cloud.google.com") {
+				return target.ID(info.ID), nil
+			}
+			if strings.Contains(info.URL, "google.com") && best == "" {
+				best = info.ID
+			}
+		}
+		if best != "" {
+			return target.ID(best), nil
+		}
+		time.Sleep(500 * time.Millisecond)
 	}
-	if best == "" {
-		return "", errors.New("no google.com tab found in Chrome")
-	}
-	return target.ID(best), nil
+	return "", errors.New("no google.com tab found in Chrome within " + timeout.String())
 }
 
 // debugEnabled returns true when INTERNKIM_CHROMEDP_DEBUG=1.
@@ -521,7 +530,7 @@ func EnsureUserOAuthClient(projectID string) (string, string, error) {
 	if err := waitForDebugPort(15 * time.Second); err != nil {
 		return "", "", err
 	}
-	tabID, err := findGoogleTab()
+	tabID, err := findGoogleTab(60 * time.Second)
 	if err != nil {
 		return "", "", err
 	}
