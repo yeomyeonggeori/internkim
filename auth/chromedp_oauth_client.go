@@ -957,7 +957,8 @@ func automateClientCreate(ctx context.Context) (string, string, error) {
 	if err := fillFieldByLabel(ctx, credentialsName, "Intern Kim Desktop"); err != nil {
 		return "", "", fail(ctx, "fill-client-name", err)
 	}
-	if err := pollClick(ctx, "", credentialsCreate, 10*time.Second); err != nil {
+	time.Sleep(500 * time.Millisecond)
+	if err := pressFinalCreate(ctx); err != nil {
 		return "", "", fail(ctx, "click-final-create", err)
 	}
 	if err := waitForText(ctx, credentialsIDLabel, 20*time.Second); err != nil {
