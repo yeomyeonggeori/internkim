@@ -292,21 +292,38 @@ func clickByText(ctx context.Context, tagCSV, needle string) error {
 	      if (!target || !visible(target)) continue;
 	      target.scrollIntoView({block: 'center', behavior: 'instant'});
 	      const rect = target.getBoundingClientRect();
-	      return [rect.left + rect.width/2, rect.top + rect.height/2];
+	      const x = rect.left + rect.width / 2;
+	      const y = rect.top + rect.height / 2;
+	      const pInit = {pointerId: 1, pointerType: 'mouse', isPrimary: true,
+	        bubbles: true, cancelable: true, composed: true, view: window,
+	        clientX: x, clientY: y, screenX: x, screenY: y,
+	        button: 0, buttons: 1};
+	      const mInit = {bubbles: true, cancelable: true, composed: true, view: window,
+	        clientX: x, clientY: y, screenX: x, screenY: y,
+	        button: 0, buttons: 1, detail: 1};
+	      try { target.focus({preventScroll: true}); } catch (e) {}
+	      target.dispatchEvent(new PointerEvent('pointerover', pInit));
+	      target.dispatchEvent(new MouseEvent('mouseover', mInit));
+	      target.dispatchEvent(new PointerEvent('pointerenter', pInit));
+	      target.dispatchEvent(new MouseEvent('mouseenter', mInit));
+	      target.dispatchEvent(new PointerEvent('pointerdown', pInit));
+	      target.dispatchEvent(new MouseEvent('mousedown', mInit));
+	      target.dispatchEvent(new PointerEvent('pointerup', {...pInit, buttons: 0}));
+	      target.dispatchEvent(new MouseEvent('mouseup', {...mInit, buttons: 0}));
+	      target.dispatchEvent(new MouseEvent('click', {...mInit, buttons: 0}));
+	      return true;
 	    }
 	  }
-	  return null;
+	  return false;
 	})()`, string(encoded))
-	var coords []float64
-	if err := chromedp.Run(ctx, chromedp.Evaluate(js, &coords)); err != nil {
+	var clicked bool
+	if err := chromedp.Run(ctx, chromedp.Evaluate(js, &clicked)); err != nil {
 		return err
 	}
-	if len(coords) != 2 {
+	if !clicked {
 		return fmt.Errorf("no clickable element matching %q", needle)
 	}
-	// Small settle delay after scroll before dispatching the CDP click.
-	time.Sleep(120 * time.Millisecond)
-	return chromedp.Run(ctx, chromedp.MouseClickXY(coords[0], coords[1]))
+	return nil
 }
 
 // waitForURL blocks until window.location.href contains needle (case
@@ -452,10 +469,10 @@ func readFieldByLabel(ctx context.Context, labelText string) (string, error) {
 
 // pickFromSelect opens the combobox inside the mat-form-field whose
 // <mat-label> or <label> matches labelText exactly, then clicks the
-// option whose visible text contains optionText. Scoped strictly to
-// the enclosing form-field. Uses a CDP mouse click at the combobox
-// coordinates — synthetic el.click() doesn't always open a
-// cfc-select/mat-select overlay.
+// option whose visible text contains optionText. Dispatches a full
+// PointerEvent + MouseEvent sequence so Angular Material's cfc-select
+// / mat-select overlays actually open (synthetic .click() alone is
+// ignored by the CDK overlay trigger).
 func pickFromSelect(ctx context.Context, labelText, optionText string) error {
 	openParams, _ := json.Marshal(labelText)
 	openJS := fmt.Sprintf(`(() => {
@@ -465,28 +482,64 @@ func pickFromSelect(ctx context.Context, labelText, optionText string) error {
 	    ...document.querySelectorAll('label'),
 	  ];
 	  const label = labels.find(l => (l.textContent || '').trim().toLowerCase() === needle);
-	  if (!label) return null;
+	  if (!label) return false;
 	  const scope = label.closest('mat-form-field, cfc-select, [formcontrolname]');
-	  if (!scope) return null;
+	  if (!scope) return false;
 	  const combo = scope.querySelector('[role="combobox"], cfc-select, mat-select, select');
-	  if (!combo) return null;
+	  if (!combo) return false;
 	  combo.scrollIntoView({block: 'center', behavior: 'instant'});
 	  const rect = combo.getBoundingClientRect();
-	  return [rect.left + rect.width/2, rect.top + rect.height/2];
+	  const x = rect.left + rect.width / 2;
+	  const y = rect.top + rect.height / 2;
+	  const pInit = {pointerId: 1, pointerType: 'mouse', isPrimary: true,
+	    bubbles: true, cancelable: true, composed: true, view: window,
+	    clientX: x, clientY: y, screenX: x, screenY: y,
+	    button: 0, buttons: 1};
+	  const mInit = {bubbles: true, cancelable: true, composed: true, view: window,
+	    clientX: x, clientY: y, screenX: x, screenY: y,
+	    button: 0, buttons: 1, detail: 1};
+	  try { combo.focus({preventScroll: true}); } catch (e) {}
+	  combo.dispatchEvent(new PointerEvent('pointerdown', pInit));
+	  combo.dispatchEvent(new MouseEvent('mousedown', mInit));
+	  combo.dispatchEvent(new PointerEvent('pointerup', {...pInit, buttons: 0}));
+	  combo.dispatchEvent(new MouseEvent('mouseup', {...mInit, buttons: 0}));
+	  combo.dispatchEvent(new MouseEvent('click', {...mInit, buttons: 0}));
+	  return true;
 	})()`, string(openParams))
-	var coords []float64
-	if err := chromedp.Run(ctx, chromedp.Evaluate(openJS, &coords)); err != nil {
+	var opened bool
+	if err := chromedp.Run(ctx, chromedp.Evaluate(openJS, &opened)); err != nil {
 		return err
 	}
-	if len(coords) != 2 {
+	if !opened {
 		return fmt.Errorf("no combobox in form-field for mat-label/label %q", labelText)
 	}
-	time.Sleep(120 * time.Millisecond)
-	if err := chromedp.Run(ctx, chromedp.MouseClickXY(coords[0], coords[1])); err != nil {
+	time.Sleep(800 * time.Millisecond)
+	if err := pollClick(ctx, "", optionText, 10*time.Second); err != nil {
 		return err
 	}
-	time.Sleep(800 * time.Millisecond)
-	return pollClick(ctx, "", optionText, 10*time.Second)
+	// Mark the combobox ng-touched by dispatching blur — Angular reactive
+	// forms flip ng-untouched → ng-touched on blur, and the cfc-stepper's
+	// Next button sometimes stays gated until the whole form group is
+	// touched.
+	blurParams, _ := json.Marshal(labelText)
+	blurJS := fmt.Sprintf(`(() => {
+	  const needle = %s.trim().toLowerCase();
+	  const labels = [
+	    ...document.querySelectorAll('mat-label'),
+	    ...document.querySelectorAll('label'),
+	  ];
+	  const label = labels.find(l => (l.textContent || '').trim().toLowerCase() === needle);
+	  if (!label) return false;
+	  const scope = label.closest('mat-form-field, cfc-select, [formcontrolname]');
+	  if (!scope) return false;
+	  const combo = scope.querySelector('[role="combobox"], cfc-select, mat-select, select');
+	  if (!combo) return false;
+	  combo.dispatchEvent(new FocusEvent('blur', {bubbles: true, composed: true}));
+	  combo.dispatchEvent(new Event('change', {bubbles: true}));
+	  return true;
+	})()`, string(blurParams))
+	chromedp.Run(ctx, chromedp.Evaluate(blurJS, new(bool)))
+	return nil
 }
 
 // fillChipListByLabel types value into the input of a chip-list
