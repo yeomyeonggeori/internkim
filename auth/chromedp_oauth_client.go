@@ -669,17 +669,17 @@ func configureConsentIfNeeded(ctx context.Context, projectID string) error {
 	); err != nil {
 		return err
 	}
-	// Already configured → the overview page shows "Edit app" instead
-	// of "Get started".
-	if err := waitForText(ctx, consentEditApp, 3*time.Second); err == nil {
-		return nil
+	// If the page shows "Get started" within a short window, consent
+	// is NOT configured and we need to run the wizard.
+	if err := waitForText(ctx, consentGetStarted, 5*time.Second); err == nil {
+		return automateConsent(ctx)
 	}
-	if err := waitForText(ctx, consentGetStarted, 10*time.Second); err != nil {
-		// Neither signal present — the page layout changed, or we are
-		// on a locale/variant we do not recognise. Snapshot and abort.
-		return fail(ctx, "consent-landing", err)
-	}
-	return automateConsent(ctx)
+	// Otherwise assume consent is already configured: the overview
+	// page renders with "OAuth Overview" / "Create OAuth client" /
+	// "Edit app" etc. depending on Console revision. If the assumption
+	// is wrong, client creation will fail with its own snapshot and
+	// a clearer error than we could produce here.
+	return nil
 }
 
 // checkAgreementBox finds the "I agree to the Google API Services"
