@@ -1,39 +1,57 @@
 #!/bin/bash
 set -e
 
-URL="$1"
+SOURCE="$1"
 FILENAME="$2"
 MESSAGE="${3:-}"
 
-if [ -z "$URL" ] || [ -z "$FILENAME" ]; then
-  echo "Usage: send-file <url> <filename> [message]"
+if [ -z "$SOURCE" ] || [ -z "$FILENAME" ]; then
+  echo "Usage: send-file <url-or-local-path> <filename> [message]"
   exit 1
 fi
 
-CHANNEL_ID=$(cat /root/.internkim/env/channel-id 2>/dev/null)
+CHANNEL_ID=$(cat /root/.internkim/env/channel-id 2>/dev/null || true)
 BOT_TOKEN=$(cat /root/.internkim/env/bot-token 2>/dev/null)
 MM_URL="http://localhost:8065"
 DL_DIR="/root/.zeroclaw/workspace/downloads"
-SESSIONS_DIR="/root/.zeroclaw/workspace/sessions"
+SESSIONS_DIR="/home/zeroclaw/.zeroclaw/workspace/sessions"
+if [ ! -d "$SESSIONS_DIR" ]; then
+  SESSIONS_DIR="/root/.zeroclaw/workspace/sessions"
+fi
 
 mkdir -p "$DL_DIR"
 
-# Resolve root_id from the most recently modified session file.
+# Resolve channel_id and root_id from the most recently modified session file.
 # Session filenames: mattermost_{channel_id}_{root_id}_{sender_id}.jsonl
-# The active conversation's session file is being written to right now,
-# so it will always be the most recently modified.
 ROOT_ID=""
 LATEST_SESSION=$(ls -t "$SESSIONS_DIR"/mattermost_*.jsonl 2>/dev/null | head -1)
 if [ -n "$LATEST_SESSION" ]; then
   BASENAME=$(basename "$LATEST_SESSION" .jsonl)
+  [ -z "$CHANNEL_ID" ] && CHANNEL_ID=$(echo "$BASENAME" | cut -d_ -f2)
   ROOT_ID=$(echo "$BASENAME" | cut -d_ -f3)
 fi
 
-curl -fsSL -o "$DL_DIR/$FILENAME" "$URL"
+if [ -z "$CHANNEL_ID" ]; then
+  echo "ERROR: could not determine Mattermost channel_id (no env file, no active session)"
+  exit 1
+fi
+
+# Accept either a remote URL or a local file path.
+if [[ "$SOURCE" =~ ^https?:// ]]; then
+  UPLOAD_PATH="$DL_DIR/$FILENAME"
+  curl -fsSL -o "$UPLOAD_PATH" "$SOURCE"
+  CLEANUP_UPLOAD=1
+elif [ -f "$SOURCE" ]; then
+  UPLOAD_PATH="$SOURCE"
+  CLEANUP_UPLOAD=0
+else
+  echo "ERROR: '$SOURCE' is neither an http(s) URL nor a readable local file"
+  exit 1
+fi
 
 UPLOAD_RESPONSE=$(curl -sf \
   -H "Authorization: Bearer $BOT_TOKEN" \
-  -F "files=@$DL_DIR/$FILENAME" \
+  -F "files=@$UPLOAD_PATH;filename=$FILENAME" \
   -F "channel_id=$CHANNEL_ID" \
   "$MM_URL/api/v4/files")
 
@@ -42,6 +60,7 @@ FILE_ID=$(echo "$UPLOAD_RESPONSE" | jq -r '.file_infos[0].id // empty')
 if [ -z "$FILE_ID" ]; then
   echo "ERROR: File upload failed"
   echo "$UPLOAD_RESPONSE"
+  [ "$CLEANUP_UPLOAD" -eq 1 ] && rm -f "$UPLOAD_PATH"
   exit 1
 fi
 
@@ -63,4 +82,6 @@ curl -sf -X POST \
   "$MM_URL/api/v4/posts" > /dev/null
 
 echo "File sent: $FILENAME (file_id: $FILE_ID)"
-rm -f "$DL_DIR/$FILENAME"
+if [ "$CLEANUP_UPLOAD" -eq 1 ]; then
+  rm -f "$UPLOAD_PATH"
+fi

@@ -14,10 +14,13 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/chromedp/cdproto/browser"
+	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 )
@@ -37,44 +40,79 @@ import (
 const DebugPort = 9335
 
 func DeployAppsScriptViaBrowser(codeGs, manifest string) (string, error) {
-	// Phase 2: the OAuth step already killed the visible Chrome we used
-	// for sign-in. Relaunch Chrome in headless mode on the same
-	// ~/.internkim/chrome-profile directory — cookies from the sign-in
-	// persist there, so the headless session is already authenticated.
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	profileDir := filepath.Join(home, ".internkim", "chrome-profile")
-	// Strip any Singleton* symlinks the freshly-killed Chrome left behind;
-	// the new instance would otherwise refuse to open the profile.
-	for _, lock := range []string{"SingletonLock", "SingletonCookie", "SingletonSocket"} {
-		os.Remove(filepath.Join(profileDir, lock))
+
+	// Attach to the Chrome process launched earlier in googleAuth() — it
+	// already opened on ~/.internkim/chrome-profile with CDP exposed on
+	// DebugPort, and the user has signed in to Google in that window. A
+	// fresh headless launch can't reuse the profile (Chrome locks it) and
+	// misses the sensitive-scope warm-up the visible sign-in produced, so
+	// remote-attach is the only option.
+	debugAddress := fmt.Sprintf("localhost:%d", DebugPort)
+	if err := waitForDebugPort(debugAddress, 20*time.Second); err != nil {
+		return "", fmt.Errorf("chrome CDP not reachable at %s: %w (did googleAuth run first?)", debugAddress, err)
+	}
+	existingTargetID, err := findExistingGoogleTab()
+	if err != nil {
+		return "", fmt.Errorf("list Chrome tabs: %w", err)
+	}
+	if existingTargetID == "" {
+		return "", errors.New("no google.com tab found in Chrome — sign-in callback may have failed")
 	}
 
-	allocatorContext, cancelAllocator := chromedp.NewExecAllocator(
+	allocatorContext, cancelAllocator := chromedp.NewRemoteAllocator(
 		context.Background(),
-		append(chromedp.DefaultExecAllocatorOptions[:],
-			// "new" headless mode (Chrome 109+) ships a real browser
-			// under the hood rather than the stripped legacy headless,
-			// so Material-web and Google's anti-automation heuristics
-			// behave the same as in a visible run.
-			chromedp.Flag("headless", "new"),
-			chromedp.Flag("no-first-run", true),
-			chromedp.Flag("no-default-browser-check", true),
-			chromedp.Flag("disable-blink-features", "AutomationControlled"),
-			chromedp.UserDataDir(profileDir),
-		)...,
+		fmt.Sprintf("http://%s", debugAddress),
 	)
 	defer cancelAllocator()
 
-	browserContext, cancelBrowser := chromedp.NewContext(allocatorContext)
+	browserContext, cancelBrowser := chromedp.NewContext(
+		allocatorContext,
+		chromedp.WithTargetID(target.ID(existingTargetID)),
+	)
 	defer cancelBrowser()
 
 	runContext, cancelRun := context.WithTimeout(browserContext, 15*time.Minute)
 	defer cancelRun()
 
-	fmt.Println("  Running headless Chrome against your signed-in profile...")
+	// Shrink the Chrome window to a small corner position so the user
+	// can see automation is happening but can't accidentally click on
+	// dialogs chromedp is driving. We can't fully minimize because CDP
+	// Input.dispatchMouseEvent (used for trusted clicks that open the
+	// Authorize-access popup) requires the window to be in a painted
+	// state — a minimized window silently drops those events. Use
+	// Emulation.setDeviceMetricsOverride so the page's layout viewport
+	// stays at 1280x800 even though the native window is 400x260, so
+	// the Apps Script dialog and its buttons render at normal positions
+	// for CDP's coordinate-based clicks.
+	if err := chromedp.Run(runContext, chromedp.ActionFunc(func(ctx context.Context) error {
+		windowID, _, err := browser.GetWindowForTarget().WithTargetID(target.ID(existingTargetID)).Do(ctx)
+		if err != nil {
+			return err
+		}
+		if err := browser.SetWindowBounds(windowID, &browser.Bounds{
+			Left:        20,
+			Top:         20,
+			Width:       400,
+			Height:      260,
+			WindowState: browser.WindowStateNormal,
+		}).Do(ctx); err != nil {
+			return err
+		}
+		return emulation.SetDeviceMetricsOverride(1280, 800, 1, false).Do(ctx)
+	})); err != nil {
+		fmt.Printf("  (could not resize Chrome window: %v — continuing)\n", err)
+	}
+
+	notifyUser(
+		"internkim 자동 설정 중",
+		"Apps Script 배포를 자동으로 진행하고 있어요. 브라우저 창은 건드리지 않아도 됩니다.",
+	)
+
+	fmt.Println("  Driving Apps Script UI in your signed-in Chrome...")
 
 	// If a previous run left a project behind, remove it first so the
 	// user's Drive does not pile up duplicate Apps Script projects on
@@ -295,6 +333,23 @@ func clickByTextDeep(label string) chromedp.Action {
 		}
 		return chromedp.Sleep(900 * time.Millisecond).Do(ctx)
 	})
+}
+
+// notifyUser shows a brief macOS alert that auto-dismisses after two
+// seconds — no OK click required. We intentionally avoid osascript's
+// `display notification`: on Big Sur and later, Notification Center
+// silently drops it unless the user has granted Script Editor
+// notification permission in System Settings, which is off by default.
+// `display dialog ... giving up after` works without any permission.
+func notifyUser(title, message string) {
+	escape := func(value string) string {
+		return strings.ReplaceAll(strings.ReplaceAll(value, `\`, `\\`), `"`, `\"`)
+	}
+	script := fmt.Sprintf(
+		`display dialog "%s" with title "%s" buttons {"OK"} default button "OK" giving up after 2`,
+		escape(message), escape(title),
+	)
+	_ = exec.Command("osascript", "-e", script).Start()
 }
 
 // jsString renders s as a JavaScript string literal safe to embed inside

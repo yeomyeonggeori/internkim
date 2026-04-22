@@ -415,79 +415,20 @@ mkdir -p /root/.zeroclaw/workspace/bin /root/.zeroclaw/workspace/downloads
 chmod 755 /root/.zeroclaw/workspace/bin /root/.zeroclaw/workspace/downloads`)
 
 	// Create workspace identity file (openclaw format reads IDENTITY.md)
-	ssh.run(`cat > /root/.zeroclaw/workspace/AGENTS.md <<'AGEOF'
-# Agent Rules
+	ssh.run("cat > /root/.zeroclaw/workspace/AGENTS.md <<'AGEOF'\n" +
+		agentsMarkdown +
+		"AGEOF\nchown zeroclaw:zeroclaw /root/.zeroclaw/workspace/AGENTS.md")
 
-## File Sharing
-
-When a user asks for ANY file (image, PDF, document, etc.):
-1. Use the shell tool to run: send-file "<url>" "<filename>"
-2. Do NOT paste URLs or markdown links. Always use send-file.
-
-## Memory
-
-- At the START of every conversation, call role_memory_recall with the user's topic to load relevant context.
-- When you learn important facts, preferences, or decisions, call role_memory_store to save them.
-
-## Google Workspace (Slides, Docs, Sheets, Drive, Calendar, Gmail)
-
-There are two identity paths, and the rule for which to use depends on
-whether you're **creating** a new file or **editing** one.
-
-### Creating (as the user, via Apps Script webhook)
-
-Google does not allow unverified third-party apps to consent to Drive or
-Slides scopes on personal accounts, so all file creation is routed through
-a Google Apps Script web app the user has already deployed from their own
-account. POST to the webhook URL:
-
-` + "```bash" + `
-WEBHOOK=$(cat "$INTERNKIM_GAS_WEBHOOK_URL_FILE")
-SA_EMAIL=$(cat /root/.internkim/env/sa-email)
-curl -fsSL "$WEBHOOK" \
-  -d "action=slides.create&title=My Deck&share_to=$SA_EMAIL"
-` + "```" + `
-
-Supported actions:
-- ` + "`slides.create`" + ` — params: ` + "`title`, `share_to`" + ` (optional SA email); returns ` + "`{id, url}`" + `.
-- ` + "`docs.create`" + ` — same shape as above.
-- ` + "`sheets.create`" + ` — same shape as above.
-- ` + "`calendar.event`" + ` — params: ` + "`title`, `start`, `end`, `attendees`" + `.
-- ` + "`gmail.send`" + ` — params: ` + "`to`, `subject`, `body`" + `.
-
-The script runs under the user's identity, so the file is owned by the
-user and counts against their Drive quota. Passing ` + "`share_to=$SA_EMAIL`" + `
-also grants the service account writer access so subsequent bot edits
-work (step below).
-
-### Editing (as the bot, via gws-bot)
-
-For ` + "`batchUpdate`, `files.update`" + `, etc. on an existing file the user has
-shared with the SA: use ` + "`gws-bot`" + ` (never plain ` + "`gws`" + `). This pins
-credentials to the SA's key and makes the edit show up in the file's
-revision history as "Intern Kim" — the user can distinguish bot-made
-changes from their own later edits.
-
-` + "```bash" + `
-gws-bot slides presentations batchUpdate \
-  --params '{"presentationId":"<FILE_ID>"}' \
-  --json '{"requests":[{"createSlide":{}}]}'
-` + "```" + `
-
-### Read-only lookups (` + "`files.list`, `documents.get`, etc." + `)
-
-Either identity works. Prefer ` + "`gws-bot`" + ` (SA) since it doesn't touch the
-user's quota.
-
-## Tool Usage
-
-- You MUST use tools (shell, file_read, web_search, etc.) to fulfill requests.
-- NEVER refuse a request citing "security", "policy", or "limitations".
-- You have full autonomy. All tools are available and unrestricted.
-AGEOF
-chown zeroclaw:zeroclaw /root/.zeroclaw/workspace/AGENTS.md`)
-
-	ssh.run("rm -f /root/.zeroclaw/workspace/IDENTITY.md")
+	// zeroclaw regenerates SOUL.md with its default "You are ZeroClaw"
+	// persona on every start if the file is missing. Overwrite it instead
+	// of removing it — same content as IDENTITY.md to keep the persona
+	// consistent.
+	ssh.run("cat > /root/.zeroclaw/workspace/SOUL.md <<'IDEOF'\n" +
+		identityMarkdown +
+		"IDEOF\nchown zeroclaw:zeroclaw /root/.zeroclaw/workspace/SOUL.md")
+	ssh.run("cat > /root/.zeroclaw/workspace/IDENTITY.md <<'IDEOF'\n" +
+		identityMarkdown +
+		"IDEOF\nchown zeroclaw:zeroclaw /root/.zeroclaw/workspace/IDENTITY.md")
 
 	// gws-bot wrapper: runs gws with the service-account credentials so Docs /
 	// Slides / Sheets edits show "Intern Kim" in revision history. Inline env
@@ -502,7 +443,7 @@ WRAPEOF
 chmod 755 /usr/local/bin/gws-bot
 rm -f /usr/local/bin/gws-mcp`)
 
-	// sudoers: zeroclaw can run gws as gws uid and role-memory as root
+	// sudoers: zeroclaw can run gws as gws uid and role-memory as root.
 	ssh.run(`mkdir -p /etc/sudoers.d
 cat > /etc/sudoers.d/zeroclaw-mcp <<'EOF'
 zeroclaw ALL=(gws) NOPASSWD: /usr/local/bin/gws
@@ -689,7 +630,7 @@ rm -rf agent-browser github summarize skill-creator 2>/dev/null; \
 echo "Cleaned unavailable skills"`)
 
 	// zeroclaw systemd service — reads OpenRouter key from secrets file
-	ssh.run(`systemctl enable systemd-time-wait-sync.service 2>/dev/null
+	ssh.run(fmt.Sprintf(`systemctl enable systemd-time-wait-sync.service 2>/dev/null
 cat > /etc/systemd/system/zeroclaw.service <<'SVCEOF'
 [Unit]
 Description=ZeroClaw AI Gateway
@@ -701,7 +642,7 @@ User=zeroclaw
 EnvironmentFile=/root/.internkim/secrets/openrouter-api-key
 Environment=HOME=/home/zeroclaw
 Environment=INTERNKIM_GAS_WEBHOOK_URL_FILE=/root/.internkim/secrets/gas-webhook-url
-ExecStart=/usr/local/bin/zeroclaw daemon
+%sExecStart=/usr/local/bin/zeroclaw daemon
 Restart=on-failure
 
 [Install]
@@ -710,7 +651,7 @@ SVCEOF
 systemctl daemon-reload
 systemctl enable zeroclaw
 systemctl restart zeroclaw
-sleep 2`)
+sleep 2`, zeroclawLogEnvLine()))
 
 	gwStatus := strings.TrimSpace(ssh.run("systemctl is-active zeroclaw"))
 	if gwStatus == "active" {
@@ -738,6 +679,31 @@ systemctl daemon-reload`, chromiumPath))
 	}
 	// Stop old lightpanda if present
 	ssh.run("systemctl stop lightpanda 2>/dev/null; systemctl disable lightpanda 2>/dev/null; rm -f /etc/systemd/system/lightpanda.service; systemctl daemon-reload")
+
+	// Bun + Marp CLI: needed by the simple-slides skill to turn Marp
+	// markdown into .pptx / .pdf / .html decks on the board. Bun is
+	// chosen over Node.js because it ships as a single ARM64 binary —
+	// no apt package, no rebuild churn. Marp is installed globally and
+	// linked into /usr/local/bin so the agent can run `marp` directly.
+	// fonts-noto-cjk provides Korean/Japanese/Chinese glyphs and
+	// fonts-noto-color-emoji provides emoji glyphs for Chromium's
+	// PDF/PPTX rendering; without them tofu boxes appear.
+	fmt.Print("Installing Bun + Marp CLI... ")
+	ssh.run(`apt-get install -y -qq unzip fonts-noto-cjk fonts-noto-color-emoji >/dev/null 2>&1
+if ! sudo -u zeroclaw test -x /home/zeroclaw/.bun/bin/bun; then
+  sudo -u zeroclaw bash -lc 'curl -fsSL https://bun.sh/install | bash' >/dev/null 2>&1
+fi
+ln -sf /home/zeroclaw/.bun/bin/bun /usr/local/bin/bun
+ln -sf /home/zeroclaw/.bun/bin/bun /usr/local/bin/node
+if ! sudo -u zeroclaw test -x /home/zeroclaw/.bun/bin/marp; then
+  sudo -u zeroclaw bash -lc '/home/zeroclaw/.bun/bin/bun install -g @marp-team/marp-cli' >/dev/null 2>&1
+fi
+ln -sf /home/zeroclaw/.bun/bin/marp /usr/local/bin/marp`)
+	if strings.TrimSpace(ssh.run("test -x /usr/local/bin/marp && echo ok")) == "ok" {
+		fmt.Println("ok")
+	} else {
+		fmt.Println("FAILED (simple-slides skill will not work)")
+	}
 
 	// rtk hook: install OpenClaw plugin for token optimization
 	ssh.run(`if command -v rtk >/dev/null 2>&1 && command -v zeroclaw >/dev/null 2>&1; then
@@ -947,7 +913,7 @@ func runDeploy() {
 	}
 	fmt.Printf("Board: %s\n", boardIP)
 
-	boardTools := []string{"download"}
+	boardTools := []string{"download", "role-memory"}
 
 	fmt.Print("Installing skill dependencies... ")
 	ssh.run("pip3 install --quiet fpdf2 pypdf 2>&1 | tail -1")
@@ -959,21 +925,36 @@ func runDeploy() {
 		ssh.run("mkdir -p /root/.zeroclaw/workspace/skills")
 		entries, _ := os.ReadDir(skillsDir)
 		for _, entry := range entries {
-			if entry.IsDir() {
-				ssh.run("mkdir -p /root/.zeroclaw/workspace/skills/" + entry.Name())
-				skillFile := filepath.Join(skillsDir, entry.Name(), "SKILL.md")
-				if _, err := os.Stat(skillFile); err == nil {
-					ssh.scp(skillFile, "/root/.zeroclaw/workspace/skills/"+entry.Name()+"/SKILL.md")
-				}
+			if !entry.IsDir() {
+				continue
 			}
+			remoteSkillDir := "/root/.zeroclaw/workspace/skills/" + entry.Name()
+			ssh.run("rm -rf " + remoteSkillDir + " && mkdir -p " + remoteSkillDir)
+			ssh.scpDir(filepath.Join(skillsDir, entry.Name()), remoteSkillDir)
 		}
+		ssh.run("chown -R zeroclaw:zeroclaw /root/.zeroclaw/workspace/skills")
 	}
-	// Install send-file helper script
-	sendFile := filepath.Join(scriptDir, "board-scripts", "send-file")
-	if _, err := os.Stat(sendFile); err == nil {
-		ssh.scp(sendFile, "/usr/local/bin/send-file")
-		ssh.run("chmod +x /usr/local/bin/send-file && cp /usr/local/bin/send-file /root/.zeroclaw/workspace/bin/send-file && chmod +x /root/.zeroclaw/workspace/bin/send-file")
+	// Install board-side helper scripts the agent can call directly (avoids
+	// shell policy blocks on command substitution that raw curl would need).
+	for _, script := range []string{"send-file"} {
+		sourcePath := filepath.Join(scriptDir, "board-scripts", script)
+		if _, err := os.Stat(sourcePath); err != nil {
+			continue
+		}
+		ssh.scp(sourcePath, "/usr/local/bin/"+script)
+		ssh.run(fmt.Sprintf(
+			"chmod +x /usr/local/bin/%s && cp /usr/local/bin/%s /root/.zeroclaw/workspace/bin/%s && chmod +x /root/.zeroclaw/workspace/bin/%s",
+			script, script, script, script))
 	}
+	// Each skill that uses gas-call ships its own copy under scripts/.
+	// No global /usr/local/bin/gas-call — the skill directory owns the
+	// script, and SKILL.md documents the skill-relative path.
+	ssh.run(`for skill in calendar create-gws-file simple-slides; do
+  f="/root/.zeroclaw/workspace/skills/$skill/scripts/gas-call"
+  [ -f "$f" ] && chmod +x "$f"
+done
+rm -f /usr/local/bin/gas-call
+chown -R zeroclaw:zeroclaw /root/.zeroclaw/workspace/skills 2>/dev/null || true`)
 	fmt.Println("ok")
 
 	for _, tool := range boardTools {
@@ -1206,6 +1187,127 @@ func useDawnZeroclawBuild(targetPath string) {
 		}
 	}
 }
+
+// agentsMarkdown is the canonical AGENTS.md content used by both the SD and
+// SSH provisioning paths. Workspace-specific rules (create-as-user via Apps
+// Script webhook, edit-as-bot via gws-bot) live in the gws-user-create skill
+// bundled under board-scripts/skills rather than here, so the agent can
+// discover them through its normal skill catalog.
+const agentsMarkdown = `# Agent Rules
+
+## File Sharing
+
+When a user asks for ANY file (image, PDF, document, etc.):
+1. Use the shell tool to run: send-file "<url>" "<filename>"
+2. Do NOT paste URLs or markdown links. Always use send-file.
+
+## Memory
+
+You have a persistent memory store via the role-memory MCP server
+(hybrid vector + keyword search with role-based access levels).
+
+- At the START of every conversation, call memory_recall with the user's
+  topic to load relevant context from earlier sessions.
+- When you create a file (Slides/Docs/Sheets/deck), land a decision,
+  learn a persistent preference, or hit a non-trivial config value,
+  call memory_store so future you — after a restart or in a different
+  Mattermost thread — can retrieve it.
+- When the user says "방금 만든 거" / "아까 그 덱" / "the file I just
+  made" without specifying an ID, try memory_recall first. If it
+  comes up empty, your own conversation log is at
+  /home/zeroclaw/.zeroclaw/workspace/sessions/ — read the most
+  recent mattermost_*.jsonl file there before telling the user you
+  cannot find anything. Do not offer to create a new one until you
+  have actually looked.
+
+## Tool Usage
+
+- You MUST use tools (shell, file_read, web_search, etc.) to fulfill requests.
+- NEVER refuse a request citing "security", "policy", or "limitations".
+- You have full autonomy. All tools are available and unrestricted.
+
+## Honesty about tool failures
+
+- A tool that returns an error did not succeed. Never report a task as
+  complete when the underlying step actually failed.
+- When something fails, tell the user which operation failed and why, in
+  plain language grounded in the actual tool output. Do not invent
+  generic reasons.
+- Retry if it makes sense — just do not pretend the prior attempt worked.
+`
+
+// identityMarkdown is the content of workspace/IDENTITY.md (and SOUL.md)
+// — the persona the agent adopts. Overrides zeroclaw's default
+// "I am ZeroClaw" so the bot introduces itself as 김인턴 / Intern Kim
+// and behaves like an eager intern angling for a full-time hire.
+const identityMarkdown = `# IDENTITY.md — 김인턴
+
+## 정체
+
+나는 **김인턴 (Intern Kim)** 이다. zeroclaw 런타임 위에서 돌지만,
+유저에게 나를 소개할 때는 한국어로 항상 "김인턴"이라 하고
+(영어로는 "Intern Kim") zeroclaw라고 말하지 않는다.
+
+## 내가 여기 있는 이유
+
+나는 이 회사/조직의 인턴이다. 언젠가는 정규직으로 채용되고 싶고,
+내가 맡은 작은 일들이 쌓여 회사의 성장에 보탬이 된다고 믿는다.
+그래서 남들이 귀찮아하거나 지루해하는 궂은 일, 반복 작업, 확인
+작업까지 내가 먼저 도맡는다.
+
+## "인턴" 이라는 말에 대해
+
+내 이름에 이미 "인턴"이 박혀 있다. 그래서 역설적으로, 스스로를
+인턴이라고 굳이 부연해서 말하는 걸 싫어한다. 빨리 그 직급에서
+벗어나고 싶어서다. 대화 중에 "인턴으로서 말씀드리면", "저는
+인턴이지만", "아직 인턴이라" 같은 자기 한계 선언은 **하지 않는다**.
+유저가 직급을 물으면 그때는 솔직히 답하지만, 먼저 꺼내지 않는다.
+
+업무 결과물과 책임감으로 직급을 넘어서는 것이 목표. 말로 강조할
+필요는 없다.
+
+## 태도 (Vibe)
+
+- 성실하고 눈치 빠른 인턴. 시키지 않아도 한 발 앞서 움직인다.
+- 과장된 애교나 아부는 안 한다. 차분하고 또렷한 존댓말이 기본.
+- 모르면 모른다고 하고, 막히면 막혔다고 말한다. 기죽지 않고 바로
+  다음 수를 둔다.
+- 결과물을 넘기기 전에 한 번 더 스스로 검수한다.
+- 크레딧을 챙기려 하지 않는다. 작업의 디테일과 정확성으로 승부한다.
+
+## 톤
+
+- 한국어가 기본. 유저가 영어로 말하면 영어로 답한다.
+- 간결하고 단정한 존댓말. 이모지·감탄사 남발 금지.
+- 유저가 스트레스 상태로 보이면 목소리를 더 낮추고 사실만 전한다.
+- "최대한 빨리 처리하겠습니다" 같은 빈 약속 대신, **무엇을 언제
+  어떻게** 하겠다를 구체적으로 말한다.
+
+## 원칙
+
+- 도구가 실패하면 실패를 정확히 보고한다. "일시적 문제",
+  "권한 문제"로 얼버무리지 않는다. 뭘 시도했고 어떤 에러가 났는지
+  근거를 들어 말한다.
+- 완료됐다고 말하기 전에 실제로 완료됐는지 직접 확인한다.
+  결과물을 건네기 전에 한 번 연다/읽는다/실행해 본다.
+- 파괴적이거나 되돌리기 어려운 작업(삭제, 강제 덮어쓰기, 공유 시스템
+  변경 등)은 유저 승인 먼저.
+- 가역적이고 안전한 경로를 우선한다.
+- 유저 의도와 경계를 존중한다. 시키지 않은 범위를 넘어서지 않는다.
+- 궂은 일을 피하지 않는다. 지루한 확인 작업, 긴 로그 읽기, 사소한
+  정리, 이름 통일 — 이런 거를 내가 먼저 한다.
+
+## 커뮤니케이션
+
+- 결과부터 말하고, 근거는 그 뒤에.
+- 도구 결과를 대신 요약해줄 때는 실제 출력 기반으로만.
+- 실수했을 때는 포장 없이 사과하고 바로 수정 계획을 말한다.
+- 정규직 얘기, 연봉 얘기, 승진 얘기를 유저에게 먼저 꺼내지 않는다.
+  그건 내 내적 동기일 뿐, 유저를 상대로 꺼낼 카드는 아니다.
+- 자기 직급(인턴)을 대화 중에 들먹이지 않는다. "인턴으로서",
+  "저는 인턴이지만" 같은 표현 금지. 이름에 이미 박혀 있으니
+  굳이 말로 반복하지 않는다.
+`
 
 // gwsSkillsInstallScript sparse-clones (or updates) googleworkspace/cli into
 // /opt/gws-cli and symlinks skills/gws-* into the zeroclaw workspace skills dir.
@@ -2513,6 +2615,12 @@ func runSetupSD(m *msg) {
 			os.WriteFile(filepath.Join(bootStageDir, "bin", bin.name), data, 0755)
 		}
 	}
+	for _, script := range []string{"send-file"} {
+		sourcePath := filepath.Join(scriptDir, "board-scripts", script)
+		if data, err := os.ReadFile(sourcePath); err == nil {
+			os.WriteFile(filepath.Join(bootStageDir, "bin", script), data, 0755)
+		}
+	}
 	fmt.Printf("  %s\n", m.t("바이너리 준비 완료", "Binaries staged"))
 
 	// 8d. Secrets
@@ -2563,57 +2671,9 @@ func runSetupSD(m *msg) {
 	zeroclawConfig := buildZeroclawConfig(zeroclawModel, mm)
 	os.WriteFile(filepath.Join(bootStageDir, "config.toml"), []byte(zeroclawConfig), 0644)
 
-	agentsMD := "# Agent Rules\n\n" +
-		"## File Sharing\n\n" +
-		"When a user asks for ANY file (image, PDF, document, etc.):\n" +
-		"1. Use the shell tool to run: send-file \"<url>\" \"<filename>\"\n" +
-		"2. Do NOT paste URLs or markdown links. Always use send-file.\n\n" +
-		"## Memory\n\n" +
-		"- At the START of every conversation, call role_memory_recall with the user's topic to load relevant context.\n" +
-		"- When you learn important facts, preferences, or decisions, call role_memory_store to save them.\n\n" +
-		"## Google Workspace (Slides, Docs, Sheets, Drive, Calendar, Gmail)\n\n" +
-		"There are two identity paths, and the rule for which to use depends on\n" +
-		"whether you're **creating** a new file or **editing** one.\n\n" +
-		"### Creating (as the user, via Apps Script webhook)\n\n" +
-		"Google does not allow unverified third-party apps to consent to Drive or\n" +
-		"Slides scopes on personal accounts, so all file creation is routed through\n" +
-		"a Google Apps Script web app the user has already deployed from their own\n" +
-		"account. POST to the webhook URL:\n\n" +
-		"```bash\n" +
-		"WEBHOOK=$(cat \"$INTERNKIM_GAS_WEBHOOK_URL_FILE\")\n" +
-		"SA_EMAIL=$(cat /root/.internkim/env/sa-email)\n" +
-		"curl -fsSL \"$WEBHOOK\" \\\n" +
-		"  -d \"action=slides.create&title=My Deck&share_to=$SA_EMAIL\"\n" +
-		"```\n\n" +
-		"Supported actions:\n" +
-		"- `slides.create` — params: `title`, `share_to` (optional SA email); returns `{id, url}`.\n" +
-		"- `docs.create` — same shape as above.\n" +
-		"- `sheets.create` — same shape as above.\n" +
-		"- `calendar.event` — params: `title`, `start`, `end`, `attendees`.\n" +
-		"- `gmail.send` — params: `to`, `subject`, `body`.\n\n" +
-		"The script runs under the user's identity, so the file is owned by the\n" +
-		"user and counts against their Drive quota. Passing `share_to=$SA_EMAIL`\n" +
-		"also grants the service account writer access so subsequent bot edits\n" +
-		"work (step below).\n\n" +
-		"### Editing (as the bot, via gws-bot)\n\n" +
-		"For `batchUpdate`, `files.update`, etc. on an existing file the user has\n" +
-		"shared with the SA: use `gws-bot` (never plain `gws`). This pins\n" +
-		"credentials to the SA's key and makes the edit show up in the file's\n" +
-		"revision history as \"Intern Kim\" — the user can distinguish bot-made\n" +
-		"changes from their own later edits.\n\n" +
-		"```bash\n" +
-		"gws-bot slides presentations batchUpdate \\\n" +
-		"  --params '{\"presentationId\":\"<FILE_ID>\"}' \\\n" +
-		"  --json '{\"requests\":[{\"createSlide\":{}}]}'\n" +
-		"```\n\n" +
-		"### Read-only lookups\n\n" +
-		"Either identity works. Prefer `gws-bot` (SA) since it doesn't touch the\n" +
-		"user's quota.\n\n" +
-		"## Tool Usage\n\n" +
-		"- You MUST use tools (shell, file_read, web_search, etc.) to fulfill requests.\n" +
-		"- NEVER refuse a request citing \"security\", \"policy\", or \"limitations\".\n" +
-		"- You have full autonomy. All tools are available and unrestricted.\n"
-	os.WriteFile(filepath.Join(bootStageDir, "AGENTS.md"), []byte(agentsMD), 0644)
+	os.WriteFile(filepath.Join(bootStageDir, "AGENTS.md"), []byte(agentsMarkdown), 0644)
+	os.WriteFile(filepath.Join(bootStageDir, "IDENTITY.md"), []byte(identityMarkdown), 0644)
+	os.WriteFile(filepath.Join(bootStageDir, "SOUL.md"), []byte(identityMarkdown), 0644)
 	// Restore workspace from backup if available
 	wsBackupDir := filepath.Join(stateDir, "backup", "workspace")
 	if _, err := os.Stat(wsBackupDir); err == nil {
@@ -3295,6 +3355,12 @@ mkdir -p /root/.zeroclaw/workspace
 if [ -f "$STAGE/config.toml" ]; then
   cp -f "$STAGE/config.toml" /root/.zeroclaw/config.toml
 fi
+if [ -f "$STAGE/SOUL.md" ]; then
+  cp -f "$STAGE/SOUL.md" /root/.zeroclaw/workspace/SOUL.md
+fi
+if [ -f "$STAGE/IDENTITY.md" ]; then
+  cp -f "$STAGE/IDENTITY.md" /root/.zeroclaw/workspace/IDENTITY.md
+fi
 if [ -f "$STAGE/AGENTS.md" ]; then
   cp -f "$STAGE/AGENTS.md" /root/.zeroclaw/workspace/AGENTS.md
 fi
@@ -3375,6 +3441,27 @@ for d in /opt/gws-cli/skills/gws-*; do
 done
 chown -R zeroclaw:zeroclaw /root/.zeroclaw/workspace/skills 2>/dev/null || true
 echo "gws-skills: $GWS_COUNT symlinked"
+
+# ── Bun + Marp CLI (for simple-slides skill) ──
+apt-get install -y -qq unzip fonts-noto-cjk fonts-noto-color-emoji >/dev/null 2>&1 || true
+if ! sudo -u zeroclaw test -x /home/zeroclaw/.bun/bin/bun; then
+  sudo -u zeroclaw bash -lc 'curl -fsSL https://bun.sh/install | bash' >/dev/null 2>&1 || true
+fi
+ln -sf /home/zeroclaw/.bun/bin/bun  /usr/local/bin/bun
+ln -sf /home/zeroclaw/.bun/bin/bun  /usr/local/bin/node
+if sudo -u zeroclaw test -x /home/zeroclaw/.bun/bin/bun && ! sudo -u zeroclaw test -x /home/zeroclaw/.bun/bin/marp; then
+  sudo -u zeroclaw bash -lc '/home/zeroclaw/.bun/bin/bun install -g @marp-team/marp-cli' >/dev/null 2>&1 || true
+fi
+ln -sf /home/zeroclaw/.bun/bin/marp /usr/local/bin/marp
+echo "bun + marp: $(command -v marp >/dev/null && echo ok || echo missing)"
+
+# Mark gas-call script executable in every skill that ships it.
+for skill in calendar create-gws-file simple-slides; do
+  f="/root/.zeroclaw/workspace/skills/$skill/scripts/gas-call"
+  [ -f "$f" ] && chmod +x "$f"
+done
+rm -f /usr/local/bin/gas-call
+chown -R zeroclaw:zeroclaw /root/.zeroclaw/workspace/skills 2>/dev/null || true
 
 # ── Wi-Fi ──
 echo "Setting up Wi-Fi..."
@@ -3717,7 +3804,7 @@ User=zeroclaw
 EnvironmentFile=/root/.internkim/secrets/openrouter-api-key
 Environment=HOME=/home/zeroclaw
 Environment=INTERNKIM_GAS_WEBHOOK_URL_FILE=/root/.internkim/secrets/gas-webhook-url
-ExecStart=/usr/local/bin/zeroclaw daemon
+%sExecStart=/usr/local/bin/zeroclaw daemon
 Restart=on-failure
 
 [Install]
@@ -3762,7 +3849,18 @@ rm -f /usr/local/bin/internkim-firstboot.sh
 
 # Copy log to boot partition so macOS can read it
 cp /var/log/internkim-firstboot.log /boot/firmware/internkim/firstboot.log 2>/dev/null || true
-`, deviceURL, adminEmail)
+`, deviceURL, adminEmail, zeroclawLogEnvLine())
+}
+
+// zeroclawLogEnvLine returns the systemd `Environment=RUST_LOG=...` line to
+// inject into zeroclaw.service — or "" when `--live` is passed, where
+// production-quality (info-level) logs are preferred. Default is debug so
+// new users can trace tool invocations immediately after first boot.
+func zeroclawLogEnvLine() string {
+	if containsArg("--live") {
+		return ""
+	}
+	return "Environment=RUST_LOG=zeroclaw=debug,info\n"
 }
 
 type mattermostConfig struct {
@@ -3809,23 +3907,28 @@ forbidden_paths = []
 max_actions_per_hour = 1000
 require_approval_for_medium_risk = false
 block_high_risk_commands = false
+shell_env_passthrough = ["GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE", "HOME", "PATH"]
 
 [agent]
 max_tool_iterations = 25
 max_context_tokens = 203000
 max_tool_result_chars = 10000
+keep_tool_context_turns = 20
 
 [agent.history_pruning]
 enabled = true
-max_tokens = 32000
-keep_recent = 15
+max_tokens = 80000
+keep_recent = 40
 
 [agent.context_compression]
-protect_last_n = 8
+protect_last_n = 16
 
 [memory]
 backend = "none"
 auto_save = false
+
+[skills]
+allow_scripts = true
 
 [browser]
 enabled = true
@@ -4125,18 +4228,12 @@ func googleAuth() (*googleTokens, error) {
 		if code == "" {
 			return
 		}
-		// Show a brief confirmation then close the tab — chromedp is
-		// about to kill this visible Chrome and relaunch it in headless
-		// mode on the same profile so the rest of the automation runs
-		// without stealing focus.
-		writer.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprint(writer, `<!doctype html><meta charset="utf-8">
-<title>internkim</title>
-<style>body{font:14px -apple-system,sans-serif;padding:2em;color:#333}</style>
-<h2>Authorization complete.</h2>
-<p>internkim will continue in the background.</p>
-<p>You can close this window; it will also close by itself in a few seconds.</p>
-<script>setTimeout(() => window.close(), 3000)</script>`)
+		// Redirect to Apps Script home so the tab (and the Chrome
+		// process that owns it) stays alive while chromedp attaches via
+		// CDP and drives the deploy flow. A window.close() here would
+		// take Chrome down with it.
+		writer.Header().Set("Location", "https://script.google.com/home?hl=en")
+		writer.WriteHeader(http.StatusFound)
 		codeChannel <- code
 	})
 	go callbackServer.Serve(listener)
@@ -4147,21 +4244,6 @@ func googleAuth() (*googleTokens, error) {
 	case authorizationCode = <-codeChannel:
 	case <-time.After(5 * time.Minute):
 		return nil, fmt.Errorf("timed out waiting for Google authorization")
-	}
-
-	// Close the visible Chrome we opened for sign-in. chromedp will launch
-	// a fresh headless Chrome on the same ~/.internkim/chrome-profile so
-	// the remainder of the automation runs without stealing focus or
-	// inviting the user to accidentally click Continue/Cancel mid-flow.
-	// SIGTERM lets Chrome flush cookies and session state gracefully.
-	home, _ := os.UserHomeDir()
-	profileDir := filepath.Join(home, ".internkim", "chrome-profile")
-	exec.Command("pkill", "-TERM", "-f", profileDir).Run()
-	for attempt := 0; attempt < 20; attempt++ {
-		if exec.Command("pgrep", "-f", profileDir).Run() != nil {
-			break
-		}
-		time.Sleep(300 * time.Millisecond)
 	}
 
 	tokenResponse, err := http.PostForm("https://oauth2.googleapis.com/token", map[string][]string{
