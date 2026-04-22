@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chromedp/cdproto/browser"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 )
@@ -961,18 +962,12 @@ func automateClientCreate(ctx context.Context) (string, string, error) {
 	if err := pressFinalCreate(ctx); err != nil {
 		return "", "", fail(ctx, "click-final-create", err)
 	}
-	if err := waitForText(ctx, credentialsIDLabel, 20*time.Second); err != nil {
-		if err := waitForText(ctx, credentialsCreated, 5*time.Second); err != nil {
-			return "", "", fail(ctx, "result-modal", err)
-		}
+	if err := waitForText(ctx, credentialsCreated, 20*time.Second); err != nil {
+		return "", "", fail(ctx, "result-modal", err)
 	}
-	clientID, err := readFieldByLabel(ctx, credentialsIDLabel)
-	if err != nil || clientID == "" {
-		return "", "", fail(ctx, "read-client-id", err)
-	}
-	clientSecret, err := readFieldByLabel(ctx, credentialsSecret)
-	if err != nil || clientSecret == "" {
-		return "", "", fail(ctx, "read-client-secret", err)
+	clientID, clientSecret, err := downloadAndParseClientJSON(ctx)
+	if err != nil {
+		return "", "", fail(ctx, "download-client-json", err)
 	}
 	if !strings.HasSuffix(clientID, ".apps.googleusercontent.com") {
 		return "", "", fail(ctx, "validate-client-id",
@@ -983,6 +978,69 @@ func automateClientCreate(ctx context.Context) (string, string, error) {
 			fmt.Errorf("client secret too short (%d chars)", len(clientSecret)))
 	}
 	return clientID, clientSecret, nil
+}
+
+// downloadAndParseClientJSON clicks the "Download JSON" button in the
+// OAuth-client-created modal, waits for the resulting client_secret_
+// *.json file to appear in a dedicated download dir, and parses out
+// client_id + client_secret. This is stable; the modal's DOM
+// structure for Client ID / Client secret labels shifts between
+// Console revisions but the JSON schema does not.
+func downloadAndParseClientJSON(ctx context.Context) (string, string, error) {
+	downloadDir, err := os.MkdirTemp("", "internkim-oauth-*")
+	if err != nil {
+		return "", "", fmt.Errorf("mktemp download dir: %w", err)
+	}
+	defer os.RemoveAll(downloadDir)
+
+	if err := chromedp.Run(ctx,
+		browser.SetDownloadBehavior(browser.SetDownloadBehaviorBehaviorAllowAndName).
+			WithDownloadPath(downloadDir).
+			WithEventsEnabled(true),
+	); err != nil {
+		return "", "", fmt.Errorf("set download behavior: %w", err)
+	}
+
+	if err := pollClick(ctx, "", "Download JSON", 10*time.Second); err != nil {
+		return "", "", fmt.Errorf("click Download JSON: %w", err)
+	}
+
+	// Poll the download dir for a .json file, tolerating the ".crdownload"
+	// temporary name Chrome uses while writing.
+	var jsonPath string
+	deadline := time.Now().Add(20 * time.Second)
+	for time.Now().Before(deadline) {
+		entries, _ := os.ReadDir(downloadDir)
+		for _, entry := range entries {
+			name := entry.Name()
+			if strings.HasSuffix(name, ".json") && !strings.HasSuffix(name, ".crdownload") {
+				jsonPath = filepath.Join(downloadDir, name)
+				break
+			}
+		}
+		if jsonPath != "" {
+			break
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+	if jsonPath == "" {
+		return "", "", errors.New("no JSON file appeared in download dir within 20s")
+	}
+
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return "", "", fmt.Errorf("read JSON: %w", err)
+	}
+	var parsed struct {
+		Installed struct {
+			ClientID     string `json:"client_id"`
+			ClientSecret string `json:"client_secret"`
+		} `json:"installed"`
+	}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		return "", "", fmt.Errorf("parse JSON: %w", err)
+	}
+	return parsed.Installed.ClientID, parsed.Installed.ClientSecret, nil
 }
 
 // saveFailureSnapshot drops a PNG screenshot + the current page's
