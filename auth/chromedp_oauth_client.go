@@ -605,9 +605,10 @@ func manualClientPrompt() (string, string, error) {
 	return strings.TrimSpace(clientID), strings.TrimSpace(clientSecret), nil
 }
 
-// saveFailureSnapshot drops a PNG screenshot of the current page under
-// ~/.internkim/debug-screenshots for post-mortem when the automation
-// misses a selector. Best-effort.
+// saveFailureSnapshot drops a PNG screenshot + the current page's
+// outerHTML under ~/.internkim/debug-screenshots for post-mortem when
+// the automation misses a selector. Best-effort; ignores any write or
+// capture errors since it's purely diagnostic.
 func saveFailureSnapshot(ctx context.Context, stage string) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -618,11 +619,21 @@ func saveFailureSnapshot(ctx context.Context, stage string) {
 		return
 	}
 	timestamp := time.Now().Format("20060102-150405")
+	base := filepath.Join(dir, fmt.Sprintf("%s-%s", stage, timestamp))
+
+	captureCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
 	var imageBytes []byte
-	screenshotCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	_ = chromedp.Run(screenshotCtx, chromedp.CaptureScreenshot(&imageBytes))
-	cancel()
+	var html string
+	_ = chromedp.Run(captureCtx,
+		chromedp.CaptureScreenshot(&imageBytes),
+		chromedp.Evaluate(`document.documentElement.outerHTML`, &html),
+	)
 	if len(imageBytes) > 0 {
-		os.WriteFile(filepath.Join(dir, fmt.Sprintf("%s-%s.png", stage, timestamp)), imageBytes, 0o600)
+		os.WriteFile(base+".png", imageBytes, 0o600)
+	}
+	if html != "" {
+		os.WriteFile(base+".html", []byte(html), 0o600)
 	}
 }
