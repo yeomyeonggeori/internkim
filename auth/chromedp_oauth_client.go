@@ -473,10 +473,18 @@ func EnsureUserOAuthClient(projectID string) (string, string, error) {
 	return clientID, clientSecret, nil
 }
 
-// configureConsentIfNeeded drives the OAuth consent screen wizard if
-// the project doesn't have one configured yet. Idempotent: no-ops when
-// consent is already set up. Falls through to manual prompts on any
-// automation failure so the user is never stuck.
+// fail snapshots the page and wraps the given error so the caller can
+// just `return "", "", fail(ctx, "stage", err)`. No manual fallback —
+// the user explicitly asked that any automation miss abort the run
+// with enough artifacts to debug.
+func fail(ctx context.Context, stage string, err error) error {
+	saveFailureSnapshot(ctx, stage)
+	return fmt.Errorf("%s: %w", stage, err)
+}
+
+// configureConsentIfNeeded drives the OAuth consent screen wizard when
+// the project doesn't have one configured yet. No-ops when consent is
+// already set up.
 func configureConsentIfNeeded(ctx context.Context, projectID string) error {
 	consentURL := "https://console.cloud.google.com/auth/overview?project=" + projectID + "&hl=en"
 	if err := chromedp.Run(ctx,
@@ -491,69 +499,46 @@ func configureConsentIfNeeded(ctx context.Context, projectID string) error {
 		return nil
 	}
 	if err := waitForText(ctx, consentGetStarted, 10*time.Second); err != nil {
-		// Some projects land on the legacy credentials/consent path.
-		fallbackURL := "https://console.cloud.google.com/apis/credentials/consent?project=" + projectID + "&hl=en"
-		chromedp.Run(ctx, chromedp.Navigate(fallbackURL), chromedp.Sleep(3*time.Second))
-		if err := waitForText(ctx, consentGetStarted, 10*time.Second); err != nil {
-			return nil
-		}
+		// Neither signal present — the page layout changed, or we are
+		// on a locale/variant we do not recognise. Snapshot and abort.
+		return fail(ctx, "consent-landing", err)
 	}
-	if err := automateConsent(ctx); err != nil {
-		fmt.Println()
-		fmt.Printf("  동의 화면 자동화 실패 (%v) — 수동 진행으로 전환합니다.\n", err)
-		snapshot(ctx, "consent-fail", true)
-		return manualConsentPrompt()
-	}
-	return nil
+	return automateConsent(ctx)
 }
 
 func automateConsent(ctx context.Context) error {
 	if err := pollClick(ctx, "", consentGetStarted, 10*time.Second); err != nil {
-		return fmt.Errorf("click Get started: %w", err)
+		return fail(ctx, "click-get-started", err)
 	}
 	// The Get started CTA is an <a href="/auth/overview/create">. If
 	// the click lands on the wrong wrapper element the URL will never
-	// change — catch that explicitly rather than waiting out the next
+	// change — catch that immediately rather than waiting out the next
 	// step's timeout.
 	if err := waitForURL(ctx, "/auth/overview/create", 10*time.Second); err != nil {
-		snapshot(ctx, "after-get-started", true)
-		return fmt.Errorf("Get started did not navigate: %w", err)
+		return fail(ctx, "after-get-started", err)
 	}
 	time.Sleep(2 * time.Second)
 
-	// App name first — it's always on step 1 of the create wizard.
 	if err := fillFieldByLabel(ctx, consentAppNameLabel, "Intern Kim"); err != nil {
-		return fmt.Errorf("fill app name: %w", err)
+		return fail(ctx, "fill-app-name", err)
 	}
 	email := gcloudAccount()
-	if email != "" {
-		if err := fillFieldByLabel(ctx, consentSupportEmail, email); err != nil {
-			clickByText(ctx, "", consentSupportEmail)
-			clickByText(ctx, "", email)
-		}
+	if email == "" {
+		return fail(ctx, "gcloud-account", errors.New("gcloud has no active account"))
 	}
-
-	// Audience: pick External. On personal @gmail the radio may be
-	// pre-selected or the only option. Best-effort click.
+	if err := fillFieldByLabel(ctx, consentSupportEmail, email); err != nil {
+		return fail(ctx, "fill-support-email", err)
+	}
 	if err := pollClick(ctx, "", consentExternal, 5*time.Second); err != nil {
-		snapshot(ctx, "before-external", true)
-		// Not fatal — External may be pre-selected.
+		return fail(ctx, "pick-external", err)
+	}
+	if err := fillFieldByLabel(ctx, consentDeveloperEmail, email); err != nil {
+		return fail(ctx, "fill-developer-email", err)
 	}
 
-	if email != "" {
-		if err := fillFieldByLabel(ctx, consentDeveloperEmail, email); err != nil {
-			clickByText(ctx, "", consentDeveloperEmail)
-			clickByText(ctx, "", email)
-		}
-	}
-
-	// Accept the user-data-policy agreement if a checkbox is present.
-	clickByText(ctx, "", "I agree")
-
-	// Walk through the multi-page wizard ("Create" / "Save and
-	// continue" → Scopes → Test users → Summary). Bail as soon as the
-	// overview page's "Back to dashboard" / "Edit app" confirms the
-	// project now has a consent screen configured.
+	// Walk through the multi-page wizard: the current step advances
+	// on "Create" (step 1) or "Save and continue" (later steps). Exit
+	// when the overview page is reached.
 	for i := 0; i < 6; i++ {
 		if err := waitForText(ctx, consentBackToDashboard, 2*time.Second); err == nil {
 			return nil
@@ -561,38 +546,20 @@ func automateConsent(ctx context.Context) error {
 		if err := waitForText(ctx, consentEditApp, 1*time.Second); err == nil {
 			return nil
 		}
-		// "Create" on step 1, "Save and continue" on subsequent steps.
-		clickErr := clickByText(ctx, "", consentSaveContinue)
-		if clickErr != nil {
+		if err := clickByText(ctx, "", consentSaveContinue); err != nil {
 			if err := clickByText(ctx, "", consentCreate); err != nil {
-				snapshot(ctx, fmt.Sprintf("step-%d", i), true)
-				return fmt.Errorf("advance step %d: no Save/Create button", i)
+				return fail(ctx, fmt.Sprintf("advance-step-%d", i), err)
 			}
 		}
 		time.Sleep(2 * time.Second)
 	}
-	return nil
+	return fail(ctx, "consent-loop-exhausted",
+		errors.New("consent wizard did not reach overview page after 6 advance clicks"))
 }
 
-func manualConsentPrompt() error {
-	fmt.Println()
-	fmt.Println("  Cloud Console의 OAuth 동의 화면 설정이 필요합니다.")
-	fmt.Println("  열린 Chrome 창에서 아래 순서로 진행해주세요:")
-	fmt.Println("  1. User type: External → Create")
-	fmt.Println("  2. App information: 앱 이름 아무거나 (예: Intern Kim), 지원 이메일에 본인 이메일")
-	fmt.Println("  3. Developer contact에 본인 이메일")
-	fmt.Println("  4. Save and continue 계속 (Scopes 비워두고 Save, Test users에 본인 이메일 추가 후 Save)")
-	fmt.Println("  5. Back to Dashboard")
-	fmt.Println()
-	fmt.Println("  완료 후 Enter를 눌러주세요...")
-	fmt.Scanln()
-	return nil
-}
-
-// createOAuthDesktopClient drives the Console Credentials page to create
-// a Desktop OAuth client and returns the ID/secret shown in the
-// resulting modal. Falls back to terminal paste prompts on any
-// automation failure so the user is never stuck.
+// createOAuthDesktopClient drives the Console Credentials page to
+// create a Desktop OAuth client and returns the ID/secret shown in the
+// resulting modal.
 func createOAuthDesktopClient(ctx context.Context, projectID string) (string, string, error) {
 	credentialsURL := "https://console.cloud.google.com/apis/credentials?project=" + projectID + "&hl=en"
 	if err := chromedp.Run(ctx,
@@ -601,83 +568,60 @@ func createOAuthDesktopClient(ctx context.Context, projectID string) (string, st
 	); err != nil {
 		return "", "", err
 	}
-	clientID, clientSecret, err := automateClientCreate(ctx)
-	if err == nil && clientID != "" && clientSecret != "" {
-		return clientID, clientSecret, nil
-	}
-	if err != nil {
-		fmt.Println()
-		fmt.Printf("  클라이언트 생성 자동화 실패 (%v) — 수동 진행으로 전환합니다.\n", err)
-		snapshot(ctx, "client-fail", true)
-	}
-	return manualClientPrompt()
+	return automateClientCreate(ctx)
 }
 
 func automateClientCreate(ctx context.Context) (string, string, error) {
 	if err := waitForText(ctx, credentialsHeading, 15*time.Second); err != nil {
-		return "", "", fmt.Errorf("wait for credentials page: %w", err)
+		return "", "", fail(ctx, "credentials-page", err)
 	}
-	if err := pollClick(ctx, "button|span|a", credentialsCreate, 10*time.Second); err != nil {
-		return "", "", fmt.Errorf("open Create credentials menu: %w", err)
+	if err := pollClick(ctx, "", credentialsCreate, 10*time.Second); err != nil {
+		return "", "", fail(ctx, "open-create-credentials", err)
 	}
-	if err := pollClick(ctx, "li|span|div", credentialsOAuth, 10*time.Second); err != nil {
-		return "", "", fmt.Errorf("pick OAuth client ID: %w", err)
+	// Wait for the dropdown menu to render before picking the OAuth
+	// item, otherwise we might match a text occurrence elsewhere on
+	// the page (existing client rows, docs links).
+	time.Sleep(1 * time.Second)
+	if err := pollClick(ctx, "", credentialsOAuth, 10*time.Second); err != nil {
+		return "", "", fail(ctx, "pick-oauth-client", err)
 	}
 	if err := waitForText(ctx, credentialsAppType, 15*time.Second); err != nil {
-		return "", "", fmt.Errorf("wait for Application type: %w", err)
+		return "", "", fail(ctx, "application-type-page", err)
 	}
-	// Open the select, then pick Desktop app. Best-effort on the select
-	// click since the combobox sometimes opens on focus alone.
-	pollClick(ctx, "div|mat-select|span", credentialsAppType, 5*time.Second)
-	if err := pollClick(ctx, "li|mat-option|span", credentialsDesktop, 10*time.Second); err != nil {
-		return "", "", fmt.Errorf("pick Desktop app: %w", err)
+	if err := pollClick(ctx, "", credentialsAppType, 5*time.Second); err != nil {
+		return "", "", fail(ctx, "open-app-type-select", err)
+	}
+	if err := pollClick(ctx, "", credentialsDesktop, 10*time.Second); err != nil {
+		return "", "", fail(ctx, "pick-desktop-app", err)
 	}
 	if err := fillFieldByLabel(ctx, credentialsName, "Intern Kim Desktop"); err != nil {
-		// Name field is sometimes auto-populated; not fatal.
-		snapshot(ctx, "client-name", false)
+		return "", "", fail(ctx, "fill-client-name", err)
 	}
-	if err := pollClick(ctx, "button", credentialsCreate, 10*time.Second); err != nil {
-		return "", "", fmt.Errorf("click final Create: %w", err)
+	if err := pollClick(ctx, "", credentialsCreate, 10*time.Second); err != nil {
+		return "", "", fail(ctx, "click-final-create", err)
 	}
 	if err := waitForText(ctx, credentialsIDLabel, 20*time.Second); err != nil {
 		if err := waitForText(ctx, credentialsCreated, 5*time.Second); err != nil {
-			return "", "", fmt.Errorf("wait for result modal: %w", err)
+			return "", "", fail(ctx, "result-modal", err)
 		}
 	}
 	clientID, err := readFieldByLabel(ctx, credentialsIDLabel)
 	if err != nil || clientID == "" {
-		return "", "", fmt.Errorf("read client id: %w", err)
+		return "", "", fail(ctx, "read-client-id", err)
 	}
 	clientSecret, err := readFieldByLabel(ctx, credentialsSecret)
 	if err != nil || clientSecret == "" {
-		return "", "", fmt.Errorf("read client secret: %w", err)
+		return "", "", fail(ctx, "read-client-secret", err)
 	}
 	if !strings.HasSuffix(clientID, ".apps.googleusercontent.com") {
-		return "", "", fmt.Errorf("client id %q does not look valid", clientID)
+		return "", "", fail(ctx, "validate-client-id",
+			fmt.Errorf("client id %q does not match *.apps.googleusercontent.com", clientID))
 	}
 	if len(clientSecret) < 20 {
-		return "", "", fmt.Errorf("client secret too short (%d chars)", len(clientSecret))
+		return "", "", fail(ctx, "validate-client-secret",
+			fmt.Errorf("client secret too short (%d chars)", len(clientSecret)))
 	}
-	// Best-effort modal dismiss so the Console is clean for the next run.
-	pollClick(ctx, "button", "OK", 3*time.Second)
 	return clientID, clientSecret, nil
-}
-
-func manualClientPrompt() (string, string, error) {
-	fmt.Println()
-	fmt.Println("  Chrome 창에서 OAuth Desktop client를 생성해주세요:")
-	fmt.Println("  1. '+ Create Credentials' → 'OAuth client ID'")
-	fmt.Println("  2. Application type: Desktop app")
-	fmt.Println("  3. Name: 아무거나 (예: Intern Kim Desktop)")
-	fmt.Println("  4. Create 클릭")
-	fmt.Println("  5. 뜨는 모달에서 Client ID / Client Secret 복사해 아래 붙여넣기")
-	fmt.Println()
-	fmt.Print("  Client ID: ")
-	var clientID, clientSecret string
-	fmt.Scanln(&clientID)
-	fmt.Print("  Client Secret: ")
-	fmt.Scanln(&clientSecret)
-	return strings.TrimSpace(clientID), strings.TrimSpace(clientSecret), nil
 }
 
 // saveFailureSnapshot drops a PNG screenshot + the current page's
