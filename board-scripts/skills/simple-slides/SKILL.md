@@ -242,10 +242,9 @@ Common fixes:
 
 When the user says "수정해줘", "다시 만들어봐", "v2 더 멋지게",
 "차트 더 크게" — or otherwise refers to a deck you already produced —
-**update the existing Google Slides file in place**. Do not call
-`skills/simple-slides/scripts/gas-call drive.import_pptx` again; that uploads the pptx as a new
-file with a new URL and forces the user to re-share, re-bookmark,
-re-open. Same for `skills/simple-slides/scripts/gas-call slides.create`.
+**update the existing Google Slides file in place**. Re-uploading the
+pptx as a new Drive file gives the user a new URL and forces them to
+re-share, re-bookmark, re-open.
 
 Update flow:
 
@@ -255,7 +254,7 @@ Update flow:
 3. Replace the Drive file's contents while keeping its ID and URL:
 
    ```bash
-   gws-bot drive files update \
+   gws drive files update \
      --params '{"fileId":"<ID>","supportsAllDrives":true}' \
      --upload ./kim_intern_v3.pptx
    ```
@@ -263,28 +262,27 @@ Update flow:
    Google auto-converts the uploaded pptx back into the existing
    Slides file. The URL does not change.
 
-4. Tell the user the link is the same one as before (so they know
-   not to re-open), and summarise what changed.
+4. Tell the user the link is the same one as before, and summarise
+   what changed.
 
 A truly new deck should only be created when the user explicitly asks
-for a new one ("새 덱 만들어", "별도 파일로") or when the topic is
-unrelated to the prior deck.
-
-**Do not tell the user Google Slides cannot be updated.** It can.
-The `gws-bot drive files update --params '{"fileId":"..."}' --upload <pptx>`
-command works and you have used it before. If it returns an error,
-paste the literal error and retry; do not give up and fall back to
-local-file-only delivery while pretending the Slides update is
-impossible.
+for a new one ("새 덱 만들어", "별도 파일로").
 
 ### 5.6. Upload + remember (mandatory before delivery)
 
-The URL you hand the user must be **the URL `skills/simple-slides/scripts/gas-call drive.import_pptx`
-actually returned**, not a placeholder, not a "(가상 링크)" annotation,
-not a made-up format like `1Xy_Jv9e-p8N-...`. If the user asked for a
-Google Slides link and you haven't run `skills/simple-slides/scripts/gas-call drive.import_pptx`
-yet, you don't have a link to give. Run it. Parse the JSON. Use the
-exact `url` field. Never fabricate.
+For a brand-new deck the user wants in Google Slides, upload via
+`gws drive files create --convert`:
+
+```bash
+gws drive files create \
+  --params '{"supportsAllDrives":true}' \
+  --json '{"name":"Deck Title","mimeType":"application/vnd.google-apps.presentation"}' \
+  --upload ./<name>.pptx
+```
+
+Returns `{"id":"...","webViewLink":"..."}`. The `webViewLink` is the
+Google Slides URL. Share that — never fabricate a URL and never hand
+over a placeholder.
 
 Immediately after the upload succeeds, call `memory_store` so you (or
 a future turn) can recall this deck:
@@ -298,42 +296,30 @@ memory_store(
 
 Key examples: `deck_zeroclaw_v2_20260421`, `deck_q4_review_20260420`.
 
-This is non-negotiable. When the user later says "방금 만든 거
-수정해줘" or "아까 그 덱 슬라이드 하나 추가해줘", you retrieve the
-URL / id from memory and update that file in place (see section 5.55
-above) rather than creating a fresh deck.
+When the user later says "방금 만든 거 수정해줘" or "아까 그 덱 슬라이드
+하나 추가해줘", retrieve the URL / id from memory and update that file
+in place (see section 5.55 above) rather than creating a fresh deck.
 
 ### 6. Deliver to the user
 
-Deliver **only** the format the user asked for. Do not bundle
-pptx + pdf + html + Slides together by default — that creates
-clutter. Build all formats locally (cheap, already handled by
-`./build.sh`), but send only what was requested.
+Deliver **only** the format the user asked for. Build all formats
+locally (cheap, handled by `./build.sh`), but send only what was
+requested.
 
 Matching:
 
-- **"Google Slides" / "슬라이드 링크" / "구글 슬라이드"** — upload the
-  `.pptx` and share the native Slides URL:
-  ```bash
-  skills/simple-slides/scripts/gas-call drive.import_pptx title="<Deck Title>" pptx=./<name>.pptx
-  ```
-  Prints `{"id":"...","url":"https://docs.google.com/presentation/d/.../edit"}`.
-  Share just the URL. Do not also attach the pptx/pdf/html.
+- **"Google Slides" / "슬라이드 링크" / "구글 슬라이드"** — upload via
+  `gws drive files create --convert=true` (section 5.6) and share the
+  returned `webViewLink` URL. Do not also attach the pptx/pdf/html.
 - **"PowerPoint" / "PPTX" / "Keynote"** — `send-file ./<name>.pptx <name>.pptx`. Just the pptx.
 - **"PDF"** — `send-file ./<name>.pdf <name>.pdf`. Just the pdf.
 - **"HTML" / "link I can share"** — `send-file ./<name>.html <name>.html`. Just the html.
 - **"전부 다" / "all formats"** — only then send everything.
 - **Ambiguous ("make me a deck about X")** — default to a Google
-  Slides URL only (the most common ask). If the user then wants
-  another format, send only that.
+  Slides URL only. If the user then wants another format, send that.
 
-Don't claim the deck is done before `./build.sh` (or `gas-call`) finished
-without error.
-
-Never fall back to `skills/simple-slides/scripts/gas-call slides.create` or
-`gws-bot slides presentations batchUpdate` — those produce empty shells.
-Don't run `base64`, `$(cat ...)`, or compose your own curl for the
-upload. `skills/simple-slides/scripts/gas-call drive.import_pptx pptx=<path>` handles the encoding.
+Don't claim the deck is done before `./build.sh` (or the upload)
+finished without error.
 
 **Never link a local file as `sandbox:/tmp/...`, `file:///tmp/...`, or
 a plain local path in your Mattermost reply.** Those links are dead
