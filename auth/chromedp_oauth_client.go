@@ -536,10 +536,6 @@ func EnsureUserOAuthClient(projectID string) (string, string, error) {
 	if err := waitForDebugPort(15 * time.Second); err != nil {
 		return "", "", err
 	}
-	tabID, err := findGoogleTab(60 * time.Second)
-	if err != nil {
-		return "", "", err
-	}
 
 	allocator, cancelAllocator := chromedp.NewRemoteAllocator(
 		context.Background(),
@@ -547,8 +543,18 @@ func EnsureUserOAuthClient(projectID string) (string, string, error) {
 	)
 	defer cancelAllocator()
 
-	browserCtx, cancelBrowser := chromedp.NewContext(allocator,
-		chromedp.WithTargetID(tabID))
+	// Prefer attaching to an already-open google.com tab so chromedp
+	// drives the visible window the user can see. If no such tab
+	// exists (Chrome has other tabs, or none), open a fresh tab in the
+	// same profile — cookies and signed-in session are shared.
+	var browserCtx context.Context
+	var cancelBrowser context.CancelFunc
+	if tabID, findErr := findGoogleTab(10 * time.Second); findErr == nil {
+		browserCtx, cancelBrowser = chromedp.NewContext(allocator,
+			chromedp.WithTargetID(tabID))
+	} else {
+		browserCtx, cancelBrowser = chromedp.NewContext(allocator)
+	}
 	defer cancelBrowser()
 
 	runCtx, cancelRun := context.WithTimeout(browserCtx, 10*time.Minute)
