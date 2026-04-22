@@ -682,6 +682,71 @@ func configureConsentIfNeeded(ctx context.Context, projectID string) error {
 	return automateConsent(ctx)
 }
 
+// checkAgreementBox finds the "I agree to the Google API Services"
+// checkbox (by proximity to the "I agree" label text), clicks its
+// inner <input type="checkbox"> — synthetic clicks on the surrounding
+// <label> don't always flip the underlying checkbox state — and
+// returns an error unless the checkbox ends up checked.
+func checkAgreementBox(ctx context.Context) error {
+	js := `(() => {
+	  const labels = [...document.querySelectorAll('label')];
+	  const label = labels.find(l => (l.textContent || '').toLowerCase().includes('i agree'));
+	  if (!label) return false;
+	  const scope = label.closest('mat-checkbox') || label.parentElement;
+	  if (!scope) return false;
+	  const input = scope.querySelector('input[type="checkbox"]');
+	  if (!input) return false;
+	  input.scrollIntoView({block: 'center', behavior: 'instant'});
+	  input.focus({preventScroll: true});
+	  if (!input.checked) input.click();
+	  input.dispatchEvent(new Event('change', {bubbles: true}));
+	  input.dispatchEvent(new FocusEvent('blur', {bubbles: true, composed: true}));
+	  return input.checked;
+	})()`
+	var checked bool
+	if err := chromedp.Run(ctx, chromedp.Evaluate(js, &checked)); err != nil {
+		return err
+	}
+	if !checked {
+		return errors.New("agreement checkbox did not become checked")
+	}
+	return nil
+}
+
+// pressFinalCreate focuses the cfc-stepper submit button (text "Create"
+// at the bottom of the stepper, marked by the stepper-submit-button
+// class) and triggers it via a real keyboard Enter event — same
+// technique as advanceStep for the stepper's Next clicks, needed
+// because synthetic mouse events don't fire Angular's (click) here.
+func pressFinalCreate(ctx context.Context) error {
+	focusJS := `(() => {
+	  const candidates = [
+	    ...document.querySelectorAll('.cfc-stepper-submit-button'),
+	    ...document.querySelectorAll('button[type="submit"]'),
+	    ...document.querySelectorAll('button'),
+	  ];
+	  const target = candidates.find(b => {
+	    const r = b.getBoundingClientRect();
+	    if (r.width === 0 || r.height === 0) return false;
+	    const t = (b.innerText || b.textContent || '').trim().toLowerCase();
+	    return t === 'create';
+	  });
+	  if (!target) return false;
+	  target.scrollIntoView({block: 'center', behavior: 'instant'});
+	  target.focus({preventScroll: true});
+	  return true;
+	})()`
+	var focused bool
+	if err := chromedp.Run(ctx, chromedp.Evaluate(focusJS, &focused)); err != nil {
+		return err
+	}
+	if !focused {
+		return errors.New("no visible Create button")
+	}
+	time.Sleep(120 * time.Millisecond)
+	return chromedp.Run(ctx, chromedp.KeyEvent("\r"))
+}
+
 // pickSoleEnabledRadio clicks the inner <input type="radio"> of the
 // only non-disabled mat-radio-button inside the given form group. Use
 // this when a radio choice is selected by elimination (e.g. Audience
@@ -772,22 +837,28 @@ func automateConsent(ctx context.Context) error {
 		return fail(ctx, "step3-next", err)
 	}
 
-	// Step 4: Finish — agree checkbox + Create.
-	if err := pollClick(ctx, "", consentAgree, 10*time.Second); err != nil {
+	// Step 4: Finish — agree checkbox + Create submit button.
+	if err := checkAgreementBox(ctx); err != nil {
 		return fail(ctx, "agree-terms", err)
 	}
 	time.Sleep(500 * time.Millisecond)
-	if err := pollClick(ctx, "", consentCreate, 10*time.Second); err != nil {
+	if err := pressFinalCreate(ctx); err != nil {
 		return fail(ctx, "final-create", err)
 	}
 
-	// Confirm we land back on the overview page.
-	if err := waitForText(ctx, consentEditApp, 20*time.Second); err != nil {
-		if err := waitForText(ctx, consentBackToDashboard, 2*time.Second); err != nil {
-			return fail(ctx, "after-create", err)
-		}
+	// Confirm the form was accepted: URL leaves /auth/branding (the
+	// create wizard) and returns to the overview, or the overview's
+	// "Edit app" / "Back to dashboard" signal text shows up.
+	if err := waitForURL(ctx, "/auth/overview", 20*time.Second); err == nil {
+		return nil
 	}
-	return nil
+	if err := waitForText(ctx, consentEditApp, 5*time.Second); err == nil {
+		return nil
+	}
+	if err := waitForText(ctx, consentBackToDashboard, 2*time.Second); err == nil {
+		return nil
+	}
+	return fail(ctx, "after-create", errors.New("create did not navigate away from wizard"))
 }
 
 // advanceStep focuses the current stepper's Next button and presses
