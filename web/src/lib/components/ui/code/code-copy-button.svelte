@@ -8,8 +8,7 @@
 		ref = $bindable(null),
 		variant = 'ghost',
 		size = 'icon',
-		class: className,
-		...rest
+		class: className
 	}: CodeCopyButtonProps = $props();
 
 	const copyButton = useCodeCopyButton();
@@ -21,5 +20,4 @@
 	text={copyButton.code}
 	{variant}
 	{size}
-	{...rest}
 />

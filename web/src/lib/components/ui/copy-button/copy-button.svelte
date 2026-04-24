@@ -18,8 +18,8 @@
 		onCopy,
 		class: className,
 		tabindex = -1,
+		disabled = false,
 		children,
-		...rest
 	}: CopyButtonProps = $props();
 
 	if (size === 'icon' && children) {
@@ -30,11 +30,11 @@
 </script>
 
 <Button
-	{...rest}
 	bind:ref
 	{variant}
 	{size}
 	{tabindex}
+	{disabled}
 	class={cn('flex items-center gap-2', className)}
 	type="button"
 	name="copy"

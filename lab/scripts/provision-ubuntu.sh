@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+sudo_password="$1"
+mount_directory_path="$2"
+
+test -n "$sudo_password"
+test -n "$mount_directory_path"
+
+printf '%s\n' "$sudo_password" | sudo -S apt-get update
+printf '%s\n' "$sudo_password" | sudo -S apt-get install -y openssh-server curl jq iproute2 ca-certificates
+printf '%s\n' "$sudo_password" | sudo -S mkdir -p "$mount_directory_path"
+if ! mount | grep -q "com.apple.virtio-fs.automount on $mount_directory_path "; then
+  printf '%s\n' "$sudo_password" | sudo -S mount -t virtiofs com.apple.virtio-fs.automount "$mount_directory_path"
+fi
+printf '%s\n' "$sudo_password" | sudo -S systemctl enable ssh
+printf '%s\n' "$sudo_password" | sudo -S systemctl start ssh
+printf '%s\n' "$sudo_password" | sudo -S bash -c 'printf "%s\n" "admin ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/internkim-lab-admin'
+printf '%s\n' "$sudo_password" | sudo -S chmod 440 /etc/sudoers.d/internkim-lab-admin

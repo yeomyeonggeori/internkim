@@ -19,8 +19,7 @@ export type CodeRootProps = CodeRootPropsWithoutHTML &
 
 export type CodeCopyButtonPropsWithoutHTML = Omit<CopyButtonPropsWithoutHTML, 'text'>;
 
-export type CodeCopyButtonProps = CodeCopyButtonPropsWithoutHTML &
-	WithoutChildren<HTMLAttributes<HTMLButtonElement>>;
+export type CodeCopyButtonProps = CodeCopyButtonPropsWithoutHTML;
 
 export type CodeOverflowPropsWithoutHTML = WithChildren<{
 	collapsed?: boolean;

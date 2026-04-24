@@ -16,7 +16,7 @@ const config = {
 	},
 	kit: {
 		adapter: isBoard
-			? adapterStatic({ pages: '../board-ui', assets: '../board-ui', fallback: 'index.html' })
+			? adapterStatic({ pages: '../build/board-ui', assets: '../build/board-ui', fallback: 'index.html' })
 			: adapterCloudflare(),
 		...(isBoard && { paths: { relative: true } })
 	}

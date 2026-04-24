@@ -17,7 +17,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	if (success) {
 		const device = await kv.getDevice(KV, device_id);
 		if (device) {
-			if (component === 'picoclaw') device.versions.picoclaw = version;
+			if (component === 'blueclaw') device.versions.blueclaw = version;
 			if (component === 'cli') device.versions.cli = version;
 			await kv.putDevice(KV, device_id, device);
 		}

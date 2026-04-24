@@ -1,0 +1,119 @@
+package blueclaw
+
+import "fmt"
+
+const (
+	InternKimUsersSyncScriptPath  = "/usr/local/bin/internkim-users-sync"
+	InternKimUsersSyncServicePath = "/etc/systemd/system/internkim-users-sync.service"
+	InternKimUsersSyncTimerPath   = "/etc/systemd/system/internkim-users-sync.timer"
+	InternKimUsersSyncStatePath   = "/root/.internkim/state/users-sync.json"
+	InternKimAPIURLPath           = "/root/.internkim/env/api-url"
+	InternKimDeviceIDPath         = "/root/.internkim/env/device-id"
+	InternKimDeviceSecretPath     = "/root/.internkim/secrets/device-secret"
+)
+
+func InternKimUsersSyncScript() string {
+	return `#!/bin/sh
+set -eu
+
+API_URL="$(cat /root/.internkim/env/api-url 2>/dev/null || echo https://api.intern.kim)"
+DEVICE_ID="$(cat /root/.internkim/env/device-id 2>/dev/null || true)"
+DEVICE_SECRET="$(cat /root/.internkim/secrets/device-secret 2>/dev/null || true)"
+STATE_PATH="/root/.internkim/state/users-sync.json"
+BLUECLAW_URL="http://127.0.0.1:8080"
+
+if [ -z "$DEVICE_ID" ] || [ -z "$DEVICE_SECRET" ]; then
+  echo "users-sync: missing device credentials" >&2
+  exit 1
+fi
+
+install -d -m 700 /root/.internkim/state
+response_path="$(mktemp)"
+desired_path="$(mktemp)"
+previous_path="$(mktemp)"
+next_state_path="$(mktemp)"
+cleanup() {
+  rm -f "$response_path" "$desired_path" "$previous_path" "$next_state_path"
+}
+trap cleanup EXIT
+
+curl -fsS \
+  -H "X-InternKim-Device-ID: $DEVICE_ID" \
+  -H "X-InternKim-Device-Secret: $DEVICE_SECRET" \
+  "$API_URL/api/users?device_id=$DEVICE_ID" > "$response_path"
+
+revision="$(jq -r '.revision // empty' "$response_path")"
+last_revision="$(jq -r '.revision // empty' "$STATE_PATH" 2>/dev/null || true)"
+if [ -n "$revision" ] && [ "$revision" = "$last_revision" ]; then
+  echo "users-sync: unchanged"
+  exit 0
+fi
+
+jq -r '.users[]?' "$response_path" | awk 'NF' | sort -u > "$desired_path"
+jq -r '.users[]?' "$STATE_PATH" 2>/dev/null | awk 'NF' | sort -u > "$previous_path" || true
+admin_email="$(cat /root/.internkim/admin-email 2>/dev/null || true)"
+
+while IFS= read -r email; do
+  [ -n "$email" ] || continue
+  body="$(jq -cn --arg email "$email" '{email:$email}')"
+  curl -fsS -X POST \
+    -H "Content-Type: application/json" \
+    -d "$body" \
+    "$BLUECLAW_URL/admin/api/people/invite" >/dev/null
+done < "$desired_path"
+
+if [ -s "$STATE_PATH" ]; then
+  while IFS= read -r email; do
+    [ -n "$email" ] || continue
+    [ "$email" = "$admin_email" ] && continue
+    if ! grep -Fxq "$email" "$desired_path"; then
+      encoded_email="$(printf '%s' "$email" | jq -sRr @uri)"
+      status_code="$(curl -sS -X DELETE \
+        --output /dev/null \
+        --write-out '%{http_code}' \
+        "$BLUECLAW_URL/admin/api/people?email=$encoded_email" || true)"
+      case "$status_code" in
+        200|404) ;;
+        *) echo "users-sync: failed to remove $email ($status_code)" >&2; exit 1 ;;
+      esac
+    fi
+  done < "$previous_path"
+fi
+
+jusers="$(jq -R . "$desired_path" | jq -s .)"
+jq -cn \
+  --arg revision "$revision" \
+  --argjson users "$jusers" \
+  '{revision:$revision, users:$users}' > "$next_state_path"
+install -m 600 "$next_state_path" "$STATE_PATH"
+echo "users-sync: applied $(wc -l < "$desired_path" | tr -d ' ') users"
+`
+}
+
+func InternKimUsersSyncServiceUnit() string {
+	return fmt.Sprintf(`[Unit]
+Description=Intern Kim users sync
+After=%s.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=%s
+`, BlueclawServiceName, InternKimUsersSyncScriptPath)
+}
+
+func InternKimUsersSyncTimerUnit() string {
+	return `[Unit]
+Description=Intern Kim users sync timer
+
+[Timer]
+OnBootSec=45s
+OnUnitActiveSec=2m
+AccuracySec=30s
+Unit=internkim-users-sync.service
+
+[Install]
+WantedBy=timers.target
+`
+}

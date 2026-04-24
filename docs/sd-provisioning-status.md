@@ -1,11 +1,13 @@
 # SD Card Provisioning Status
 
+> Legacy note: this document records the older ZeroClaw-era provisioning failures and fixes. Current runtime setup uses Blueclaw; keep any `zeroclaw` references here as historical context only.
+
 ## 목표
 
 `./internkim setup` 한 번으로 SD 카드를 구워서 RPi5에 꽂으면, 전원만 연결하면 자동으로:
 1. Wi-Fi 연결
 2. 패키지 설치 (PostgreSQL, Mattermost, chromium, avahi-daemon 등)
-3. 서비스 시작 (Mattermost, ZeroClaw, Cloudflared)
+3. 서비스 시작 (Mattermost, Blueclaw, Cloudflared)
 4. SSH 접속 가능 → `./internkim status`로 상태 확인
 
 ## 해결된 것
@@ -158,7 +160,7 @@ Armbian 이미지에서 ext4 rootfs를 추출 → Apple Container 안에서 loop
 - 실제 Armbian 환경에서 의존성 해결 (버전 충돌 원천 차단)
 - 396개 .deb 파일, 275MB (debs.tar)
 - 캐시 재사용: 버전 바뀌기 전까지 다운로드 안 함
-- `--reset`과도 무관 (캐시는 ~/.quickclaw/cache/)
+- `--reset`과도 무관 (캐시는 ~/.internkim/cache/)
 
 ## 아키텍처
 
@@ -189,13 +191,13 @@ RPi5 부팅:
   2차: firstboot →
     Wi-Fi (NM/dhcpcd mask) → SSH → DNS → 시계(HTTP) → Swap 2GB →
     dpkg -i (오프라인) → PostgreSQL (+ DB 복원) → Mattermost →
-    Bot 생성 + team 추가 → ZeroClaw (Dawn websocket) →
+    Bot 생성 + team 추가 → Blueclaw →
     서비스 전부 active 확인 → LED 하트비트 → 스크립트 삭제
   이후 매 부팅: watchdog →
     Wi-Fi 보장 → DNS → SSH → board-ip 기록 → pg_dump → LED 하트비트
 
 --reset 데이터 보존:
-  비밀번호: boot FAT32 → ~/.quickclaw/backup/
+  비밀번호: boot FAT32 → ~/.internkim/backup/
   workspace: ext4 debugfs 파일별 추출
   DB: watchdog pg_dump (ext4) → debugfs 추출
   --hard-reset: 백업 전부 삭제, 완전 초기화

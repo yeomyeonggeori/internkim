@@ -7,10 +7,15 @@ declare global {
 				CF_ACCOUNT_ID: string;
 				CF_ZONE_ID: string;
 				CF_DOMAIN: string;
-				REGISTER_SECRET: string;
+				INTERNKIM_REGISTER_SECRET: string;
 			};
 		}
 	}
+}
+
+declare module 'svelte-qrcode' {
+	const QrCode: unknown;
+	export default QrCode;
 }
 
 export {};

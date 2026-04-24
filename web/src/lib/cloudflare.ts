@@ -29,7 +29,7 @@ export async function createTunnel(env: CFEnv, deviceId: string) {
 	const tunnel = await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/cfd_tunnel`, {
 		method: 'POST',
 		body: JSON.stringify({
-			name: `qc-${deviceId}`,
+			name: `internkim-${deviceId}`,
 			tunnel_secret: tunnelSecret,
 			config_src: 'cloudflare'
 		})
@@ -46,8 +46,7 @@ export async function configureTunnel(env: CFEnv, tunnelId: string, deviceId: st
 		body: JSON.stringify({
 			config: {
 				ingress: [
-					// Mattermost serves web UI, iOS/Android apps, and API directly
-					{ hostname, service: 'http://localhost:8065' },
+					{ hostname, service: 'http://127.0.0.1:8065' },
 					{ service: 'http_status:404' }
 				]
 			}
@@ -87,20 +86,30 @@ export async function createAccessApplication(env: CFEnv, deviceId: string) {
 }
 
 export async function createAccessPolicy(env: CFEnv, appId: string, adminEmail: string) {
-	await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${appId}/policies`, {
+	return createAccessPolicyForEmails(env, appId, [adminEmail]);
+}
+
+async function createAccessPolicyForEmails(env: CFEnv, appId: string, emails: string[]) {
+	const policy = await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${appId}/policies`, {
 		method: 'POST',
 		body: JSON.stringify({
 			name: 'allowed-users',
 			decision: 'allow',
-			include: [{ email: { email: adminEmail } }]
+			include: emails.map((email) => ({ email: { email } }))
 		})
 	});
+
+	return policy.id as string;
 }
 
-export async function addEmailToPolicy(env: CFEnv, appId: string, emails: string[]) {
+export async function syncAccessPolicyEmails(env: CFEnv, appId: string, emails: string[]) {
+	if (emails.length === 0) return null;
+
 	const policies = await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${appId}/policies`);
 	const policy = policies[0];
-	if (!policy) return;
+	if (!policy) {
+		return createAccessPolicyForEmails(env, appId, emails);
+	}
 
 	const include = emails.map((email) => ({ email: { email } }));
 
@@ -112,6 +121,8 @@ export async function addEmailToPolicy(env: CFEnv, appId: string, emails: string
 			include
 		})
 	});
+
+	return policy.id as string;
 }
 
 export async function deleteTunnel(env: CFEnv, tunnelId: string) {
