@@ -121,6 +121,12 @@ make deps-sim
 # 또는 한 번에
 ./internkim setup --sim
 
+# 설치 후 API/Mattermost connector 검증
+./internkim setup --sim --verify
+
+# API/Mattermost 검증 + 브라우저 smoke
+./internkim setup --sim --verify-browser
+
 # VM SSH 접속
 ./internkim lab vm-ssh
 ```
@@ -129,8 +135,8 @@ make deps-sim
 
 ```bash
 cd web
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
 환경변수 (`.dev.vars`):

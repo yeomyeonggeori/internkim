@@ -21,6 +21,7 @@ DEVICE_ID="$(cat /root/.internkim/env/device-id 2>/dev/null || true)"
 DEVICE_SECRET="$(cat /root/.internkim/secrets/device-secret 2>/dev/null || true)"
 STATE_PATH="/root/.internkim/state/users-sync.json"
 BLUECLAW_URL="http://127.0.0.1:8080"
+POLICY_PATH="/root/.blueclaw/config/policy.json"
 
 if [ -z "$DEVICE_ID" ] || [ -z "$DEVICE_SECRET" ]; then
   echo "users-sync: missing device credentials" >&2
@@ -31,9 +32,12 @@ install -d -m 700 /root/.internkim/state
 response_path="$(mktemp)"
 desired_path="$(mktemp)"
 previous_path="$(mktemp)"
+policy_all_path="$(mktemp)"
+policy_removable_path="$(mktemp)"
+removal_source_path="$(mktemp)"
 next_state_path="$(mktemp)"
 cleanup() {
-  rm -f "$response_path" "$desired_path" "$previous_path" "$next_state_path"
+  rm -f "$response_path" "$desired_path" "$previous_path" "$policy_all_path" "$policy_removable_path" "$removal_source_path" "$next_state_path"
 }
 trap cleanup EXIT
 
@@ -44,14 +48,20 @@ curl -fsS \
 
 revision="$(jq -r '.revision // empty' "$response_path")"
 last_revision="$(jq -r '.revision // empty' "$STATE_PATH" 2>/dev/null || true)"
-if [ -n "$revision" ] && [ "$revision" = "$last_revision" ]; then
-  echo "users-sync: unchanged"
-  exit 0
-fi
-
-jq -r '.users[]?' "$response_path" | awk 'NF' | sort -u > "$desired_path"
-jq -r '.users[]?' "$STATE_PATH" 2>/dev/null | awk 'NF' | sort -u > "$previous_path" || true
 admin_email="$(cat /root/.internkim/admin-email 2>/dev/null || true)"
+jq -r '.users[]?' "$response_path" | awk 'NF {print tolower($0)}' | sort -u > "$desired_path"
+jq -r '.users[]?' "$STATE_PATH" 2>/dev/null | awk 'NF {print tolower($0)}' | sort -u > "$previous_path" || true
+jq -r '.people[]?.emails[]?' "$POLICY_PATH" 2>/dev/null | awk 'NF {print tolower($0)}' | sort -u > "$policy_all_path" || true
+jq -r '.people[]? | select(.isAdmin != true) | .emails[]?' "$POLICY_PATH" 2>/dev/null | awk 'NF {print tolower($0)}' | sort -u > "$policy_removable_path" || true
+
+if [ -n "$revision" ] && [ "$revision" = "$last_revision" ]; then
+  missing_policy_count="$(comm -23 "$desired_path" "$policy_all_path" | wc -l | tr -d ' ')"
+  extra_policy_count="$(comm -23 "$policy_removable_path" "$desired_path" | wc -l | tr -d ' ')"
+  if [ "$missing_policy_count" = "0" ] && [ "$extra_policy_count" = "0" ]; then
+    echo "users-sync: unchanged"
+    exit 0
+  fi
+fi
 
 while IFS= read -r email; do
   [ -n "$email" ] || continue
@@ -62,7 +72,8 @@ while IFS= read -r email; do
     "$BLUECLAW_URL/admin/api/people/invite" >/dev/null
 done < "$desired_path"
 
-if [ -s "$STATE_PATH" ]; then
+cat "$previous_path" "$policy_removable_path" | sort -u > "$removal_source_path"
+if [ -s "$removal_source_path" ]; then
   while IFS= read -r email; do
     [ -n "$email" ] || continue
     [ "$email" = "$admin_email" ] && continue
@@ -77,7 +88,7 @@ if [ -s "$STATE_PATH" ]; then
         *) echo "users-sync: failed to remove $email ($status_code)" >&2; exit 1 ;;
       esac
     fi
-  done < "$previous_path"
+  done < "$removal_source_path"
 fi
 
 jusers="$(jq -R . "$desired_path" | jq -s .)"
