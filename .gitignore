@@ -1,8 +1,9 @@
 .factory/
 .DS_Store
-board-bin/
-board-ui/
+build/
 internkim
 .env
 .dev.vars
-.dependency/
+.dependency/*
+!.dependency/blueclaw
+!.dependency/blueclaw/

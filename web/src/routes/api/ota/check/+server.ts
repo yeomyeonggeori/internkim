@@ -7,7 +7,7 @@ export const GET: RequestHandler = async ({ platform }) => {
 	if (!KV) throw error(500, 'KV not available');
 
 	const latest = await KV.get('ota:latest', 'json') as OTAInfo | null;
-	if (!latest) return json({ picoclaw: null, cli: null });
+	if (!latest) return json({ blueclaw: null, cli: null });
 
 	return json(latest);
 };

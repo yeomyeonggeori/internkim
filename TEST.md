@@ -1,108 +1,122 @@
-# Testing with Simulator
+# Testing with Tart Lab
 
-ARM64 Debian 컨테이너를 사용해 실제 보드 없이 provisioning을 테스트합니다.
-[apple/container](https://github.com/apple/container)를 사용하므로 systemd, systemctl, landlock이 실제로 동작합니다.
+`internkim`의 macOS 소프트웨어 테스트 환경은 이제 Tart 기반입니다. 목표는 Blueclaw lab과 비슷한 토폴로지로, macOS host 위에 Tart ARM Linux VM을 올리고 그 VM 안에서 `blueclaw`, `mattermost`, `cloudflared`, Google 연동을 실제처럼 검증하는 것입니다.
 
 ## 요구사항
 
-- macOS 26 이상 (Apple Silicon)
-- `apple/container` 설치: https://github.com/apple/container/releases
-- `container system start` 로 서비스 실행 중
-- `~/.ssh/id_ed25519.pub` (또는 `id_rsa.pub`) — 컨테이너 SSH 인증에 사용
+- Apple Silicon macOS
+- `tart` 설치: `make deps-sim`
+- `ssh`, `sshpass`
+- 실서비스 자격증명
+  - `INTERNKIM_REGISTER_SECRET`
+  - Cloudflare 관련 환경변수
+  - Google 설정에 필요한 계정/자격증명
 
-## 시뮬레이터 시작 + Provisioning
+기본 설정은 [config/lab.example.json](/Users/lee/Developer/work/internkim/config/lab.example.json)에 있습니다.
+
+## 기본 흐름
 
 ```bash
 # 빌드
-go build -o internkim .
+make build
 
-# 시뮬레이터 시작 + setup 자동 실행 (첫 실행은 패키지 설치로 2-3분 소요)
-./internkim sim
+# Tart 이미지 준비
+./internkim lab image-build
+
+# VM 부팅
+./internkim lab vm-up
+
+# Ubuntu provision + internkim setup
+./internkim lab setup
+
+# 전체 acceptance
+./internkim lab scenario-e2e
+
+# 또는 전체 시뮬레이션을 한 번에
+./internkim setup --sim
 ```
 
-컨테이너가 뜨면 `~/.internkim/shared/` 디렉토리가 컨테이너 `/root/shared`에 마운트되고, setup이 자동으로 이어집니다.
+`scenario-e2e`는 다음을 순서대로 확인합니다.
 
-처음부터 다시 테스트하려면:
+- VM 기동 및 SSH 가능 여부
+- Ubuntu provisioning 스크립트 실행
+- `internkim setup --ssh --host <vm-ip>` 실행
+- `blueclaw.service`, `mattermost`, `cloudflared` 활성 상태
+- `/root/.blueclaw/config/runtime.json`, `/root/.blueclaw/config/policy.json`
+- Google 연동 시나리오
+- Mattermost bot/channel 시나리오
+- Cloudflare URL 도달 가능 여부
+
+## 개별 명령
 
 ```bash
-./internkim sim reset   # 컨테이너 초기화 후 setup 재실행
+./internkim lab image-build
+./internkim lab vm-up
+./internkim lab vm-down
+./internkim lab vm-ssh
+./internkim lab status
+./internkim lab setup
+./internkim lab scenario-mattermost
+./internkim lab scenario-google
+./internkim lab scenario-cloudflare
+./internkim lab scenario-e2e
 ```
 
-setup은 실제 보드와 동일한 10단계를 실행합니다:
-
-| 단계 | 내용 | 시뮬레이터 동작 |
-|------|------|----------------|
-| 1 | 보드 감지 | container inspect로 IP 자동 감지 |
-| 2 | Wi-Fi 감지 | 스킵 (컨테이너는 이미 네트워크 연결) |
-| 3 | Wi-Fi 설정 | 스킵 |
-| 4 | Wi-Fi 확인 | 스킵 |
-| 5 | 바이너리 설치 | zeroclaw / gws / cloudflared / rtk / lightpanda 다운로드 및 설치 |
-| 6 | OpenRouter API 키 | 입력 프롬프트 |
-| 7 | 기기 등록 + 터널 | Cloudflare 터널 설정 |
-| 8 | Google Workspace | 서비스 계정 설정 |
-| 9 | Mattermost | 설치 및 설정 |
-| 10 | 서비스 시작 | zeroclaw / lightpanda systemd 서비스 등록 및 시작 |
-
-## 파일 공유 (shared 디렉토리)
-
-Mac의 `~/.internkim/shared/`는 컨테이너 `/root/shared`에 실시간 마운트됩니다.
-
-```
-Mac Finder에서 파일 드래그  →  ~/.internkim/shared/  →  컨테이너 /root/shared/
-```
-
-Finder에서 `~/.internkim/shared/`를 사이드바에 즐겨찾기로 등록해두면 편리합니다.
-
-## SSH 직접 접속
+기본 설정 파일을 바꾸려면:
 
 ```bash
-./internkim sim ssh
+./internkim lab scenario-e2e --config /path/to/lab.json
 ```
 
-또는 수동으로:
+타임아웃을 늘리려면:
 
 ```bash
-# 컨테이너 IP 확인
-container inspect internkim-sim --format '{{.Network.IPAddress}}'
-
-ssh root@<IP>
+./internkim lab scenario-e2e --timeout 90m
 ```
 
-## 기타 명령
+## VM 내부 검증
 
 ```bash
-./internkim sim ssh      # 실행 중인 컨테이너에 SSH 접속
-./internkim sim status   # running / stopped
-./internkim sim stop     # 컨테이너 정리
-container list           # 실행 중인 컨테이너 목록
+./internkim lab vm-ssh
 ```
 
-## 자주 쓰는 검증 명령
-
-시뮬레이터에 SSH 접속 후:
+VM에 들어간 뒤 자주 쓰는 검증 명령:
 
 ```bash
-# 서비스 상태
-systemctl status zeroclaw
-systemctl status lightpanda
+systemctl status blueclaw
 systemctl status mattermost
 systemctl status cloudflared
 
-# 바이너리 확인
-which zeroclaw rtk lightpanda gws cloudflared
+curl -fsS http://127.0.0.1:8080/health
 
-# ZeroClaw 설정 확인
-cat ~/.zeroclaw/config.toml
+cat /root/.blueclaw/config/runtime.json
+cat /root/.blueclaw/config/policy.json
 
-# 공유 디렉토리
-ls /root/shared/
-
-# lightpanda CDP 포트
-ss -tlnp | grep 9222
+ls /root/.blueclaw/workspace
+ls /root/.internkim/env
+ls /root/.internkim/secrets
 ```
 
-## 주의사항
+## 단계별 검증 모델
 
-- 시뮬레이터는 인터넷에 연결되므로 실제 Cloudflare 터널, OpenRouter API 키가 필요합니다
-- 테스트 후 `./internkim sim stop`으로 반드시 정리하세요
-- 컨테이너를 재시작하면 설치된 패키지가 초기화됩니다 (`--force` 플래그로 재설치 가능)
+### Phase A
+
+macOS + Tart 기반 소프트웨어 E2E.
+
+- 모든 로컬 개발자는 먼저 이 경로를 통과시킵니다.
+- Google, Mattermost, Cloudflare는 실제 자격증명 기준으로 검증합니다.
+
+### Phase B
+
+Raspberry Pi 하드웨어 검증.
+
+- Tart에서 통과한 같은 acceptance 체크리스트를 실제 보드에 적용합니다.
+- 하드웨어 검증은 후속 단계이며, 현재 문서는 소프트웨어 E2E까지만 다룹니다.
+
+## 정리
+
+```bash
+./internkim lab vm-down
+```
+
+기존 `internkim sim ...` 경로는 deprecated alias이며, 새 테스트 문서와 운영 가이드는 모두 `internkim lab ...` 기준입니다.

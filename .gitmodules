@@ -1,0 +1,4 @@
+[submodule ".dependency/blueclaw"]
+	path = .dependency/blueclaw
+	url = git@gitlab.com:eastriver/blueclaw.git
+	branch = main
