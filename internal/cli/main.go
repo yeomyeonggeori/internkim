@@ -177,6 +177,8 @@ func Main() {
 			runDeploy()
 		case "doctor":
 			runDoctor()
+		case "verify":
+			runVerify()
 		case "lab":
 			runLab()
 		case "sim":
@@ -201,6 +203,7 @@ func printUsage() {
 	fmt.Println("  update   OTA update")
 	fmt.Println("  deploy   Build and deploy web UI + board-bridge to board")
 	fmt.Println("  doctor   Check host dependencies")
+	fmt.Println("  verify   Run API, Mattermost, and browser verification")
 	fmt.Println("  lab      Run Tart-based Blueclaw-aligned lab workflows")
 	fmt.Println("  sim      Deprecated alias for lab")
 }
@@ -1342,8 +1345,38 @@ func runSetupSimulation(setupArguments []string) {
 		return
 	}
 
-	if errorValue := service.ScenarioEndToEnd(ctx, executablePath, setupArguments); errorValue != nil {
+	filteredSetupArguments, shouldVerify, shouldVerifyBrowser := splitSimulationVerifyArguments(setupArguments)
+	setupArguments = filteredSetupArguments
+
+	if errorValue := service.Setup(ctx, executablePath, setupArguments); errorValue != nil {
 		fatal(errorValue.Error())
+	}
+
+	if !shouldVerify && !shouldVerifyBrowser {
+		return
+	}
+	if errorValue := service.Setup(ctx, executablePath, []string{"--only", "binaries,services,users-sync,health", "--force-all"}); errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	virtualMachineIPAddress, errorValue := service.VirtualMachineIPAddress(ctx)
+	if errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	verifyArguments := []string{"api", "--host", virtualMachineIPAddress, "--user", configuration.VirtualMachine.SSHUsername, "--password", configuration.VirtualMachine.SSHPassword}
+	if errorValue := runVerifyArguments(verifyArguments); errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	verifyArguments[0] = "mattermost"
+	if errorValue := runVerifyArguments(verifyArguments); errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	if shouldVerifyBrowser {
+		if errorValue := runVerifyArguments([]string{"browser", "--local", "--host", virtualMachineIPAddress, "--user", configuration.VirtualMachine.SSHUsername, "--password", configuration.VirtualMachine.SSHPassword}); errorValue != nil {
+			fatal(errorValue.Error())
+		}
+		if errorValue := runVerifyArguments([]string{"browser", "--public", "--host", virtualMachineIPAddress, "--user", configuration.VirtualMachine.SSHUsername, "--password", configuration.VirtualMachine.SSHPassword}); errorValue != nil {
+			fatal(errorValue.Error())
+		}
 	}
 }
 
@@ -1355,6 +1388,24 @@ func containsSetupPlan(arguments []string) bool {
 	}
 
 	return false
+}
+
+func splitSimulationVerifyArguments(arguments []string) ([]string, bool, bool) {
+	var filteredArguments []string
+	shouldVerify := false
+	shouldVerifyBrowser := false
+	for _, argument := range arguments {
+		switch argument {
+		case "--verify":
+			shouldVerify = true
+		case "--verify-browser":
+			shouldVerify = true
+			shouldVerifyBrowser = true
+		default:
+			filteredArguments = append(filteredArguments, argument)
+		}
+	}
+	return filteredArguments, shouldVerify, shouldVerifyBrowser
 }
 
 type hostDependency struct {
@@ -1408,7 +1459,8 @@ func runDoctor() {
 
 	dependencies := []hostDependency{
 		{name: "go", purpose: "CLI build/test", installHint: "brew install go"},
-		{name: "npm", purpose: "Pages web checks", installHint: "brew install node"},
+		{name: "bun", purpose: "Pages checks and browser tests", installHint: "brew install oven-sh/bun/bun"},
+		{name: "bunx", purpose: "Playwright browser test runner", installHint: "brew install oven-sh/bun/bun"},
 		{name: "ssh", purpose: "board access", installHint: "included with macOS"},
 	}
 	dependencies = append(dependencies, simulationDependencies(configuration)...)
@@ -1425,9 +1477,39 @@ func runDoctor() {
 		fmt.Printf("        install: %s\n", dependency.installHint)
 	}
 
+	if _, lookupError := exec.LookPath("bunx"); lookupError == nil {
+		if !printPlaywrightBrowserStatus(repositoryRootPath) {
+			hasMissingDependency = true
+		}
+	}
+
 	if hasMissingDependency {
 		os.Exit(1)
 	}
+}
+
+func printPlaywrightBrowserStatus(repositoryRootPath string) bool {
+	command := exec.Command("bunx", "playwright", "install", "--list")
+	command.Dir = filepath.Join(repositoryRootPath, "web")
+	output, errorValue := command.CombinedOutput()
+	localPlaywrightPath := filepath.Join(repositoryRootPath, "web", "node_modules", "playwright-core")
+	if errorValue == nil && hasPlaywrightChromiumReference(string(output), localPlaywrightPath) {
+		fmt.Printf("ok      %-12s %s\n", "chromium", "Playwright browser installed")
+		return true
+	}
+
+	fmt.Printf("missing %-12s %s\n", "chromium", "Playwright browser")
+	fmt.Println("        install: cd web && bunx playwright install chromium")
+	return false
+}
+
+func hasPlaywrightChromiumReference(output string, localPlaywrightPath string) bool {
+	for _, block := range strings.Split(output, "\nPlaywright version:") {
+		if strings.Contains(block, localPlaywrightPath) && strings.Contains(block, "/chromium-") {
+			return true
+		}
+	}
+	return false
 }
 
 func setupControlArguments(arguments []string) []string {
@@ -1455,7 +1537,7 @@ func setupControlArguments(arguments []string) []string {
 				index++
 				filteredArguments = append(filteredArguments, arguments[index])
 			}
-		case "--force", "--force-all", "--plan", "--list-steps", "--en", "--non-interactive":
+		case "--force", "--force-all", "--plan", "--list-steps", "--en", "--non-interactive", "--verify", "--verify-browser":
 			filteredArguments = append(filteredArguments, argument)
 		default:
 			if strings.HasPrefix(argument, "--only=") ||
