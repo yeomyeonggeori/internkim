@@ -19,6 +19,7 @@ username="labmattermost$timestamp"
 password="LabMattermost!$timestamp"
 channel_id="$(cat /root/.internkim/env/channel-id)"
 admin_password="$(cat /root/.internkim/secrets/mm-admin-pass)"
+bot_token="$(cat /root/.internkim/env/bot-token)"
 
 login_headers="$(mktemp)"
 login_body="$(jq -cn --arg login_id admin --arg password "$admin_password" '{login_id:$login_id,password:$password}')"
@@ -28,6 +29,8 @@ curl --silent --show-error --fail -D "$login_headers" -o /tmp/internkim-lab-admi
   "http://$mattermost_listen_address/api/v4/users/login" >/dev/null
 admin_token="$(awk 'tolower($1) == "token:" {print $2}' "$login_headers" | tr -d '\r')"
 test -n "$admin_token"
+bot_user_id="$(curl --silent --show-error --fail -H "Authorization: Bearer $bot_token" "http://$mattermost_listen_address/api/v4/users/me" | jq -r '.id // empty')"
+test -n "$bot_user_id"
 
 user_body="$(jq -cn --arg email "$email" --arg username "$username" --arg password "$password" '{email:$email,username:$username,password:$password}')"
 user_id="$(curl --silent --show-error --fail -H "Authorization: Bearer $admin_token" -H "Content-Type: application/json" \
@@ -67,16 +70,28 @@ post="$(curl --silent --show-error --fail -H "Authorization: Bearer $user_token"
   -d "$(jq -cn --arg channel_id "$channel_id" --arg message "$message" '{channel_id:$channel_id,message:$message}')" \
   "http://$mattermost_listen_address/api/v4/posts")"
 post_id="$(printf '%s' "$post" | jq -r '.id')"
+test -n "$post_id"
 
-event="$(jq -cn --arg user_id "$user_id" --arg channel_id "$channel_id" --arg post_id "$post_id" --arg message "$message" '{event:"posted",user_id:$user_id,channel_id:$channel_id,post_id:$post_id,message:$message}')"
-result="$(curl --silent --show-error --fail -H "Content-Type: application/json" -d "$event" http://127.0.0.1:8080/connectors/mattermost/events)"
-printf '%s' "$result" | jq -e '.isAllowed == true and (.reply | startswith("Working on it: ")) and .taskRunID != ""' >/dev/null
+for _ in $(seq 1 30); do
+  after_count="$(curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/task | jq 'length')"
+  if [ "$after_count" -ge "$((before_count + 1))" ]; then
+    break
+  fi
+  sleep 1
+done
 
 after_count="$(curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/task | jq 'length')"
-test "$after_count" -eq "$((before_count + 1))"
+test "$after_count" -ge "$((before_count + 1))"
 
-duplicate_result="$(curl --silent --show-error --fail -H "Content-Type: application/json" -d "$event" http://127.0.0.1:8080/connectors/mattermost/events)"
-printf '%s' "$duplicate_result" | jq -e '.isDuplicate == true and .taskRunID != ""' >/dev/null
+for _ in $(seq 1 30); do
+  if curl --silent --show-error --fail -H "Authorization: Bearer $admin_token" \
+    "http://$mattermost_listen_address/api/v4/channels/$channel_id/posts?per_page=30" |
+    jq -e --arg bot_user_id "$bot_user_id" \
+      '.posts[] | select(.user_id == $bot_user_id and (.message | contains("Working on it:")))' >/dev/null; then
+    exit 0
+  fi
+  sleep 1
+done
 
-final_count="$(curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/task | jq 'length')"
-test "$final_count" -eq "$after_count"
+echo "expected Mattermost live listener bot reply" >&2
+exit 1
