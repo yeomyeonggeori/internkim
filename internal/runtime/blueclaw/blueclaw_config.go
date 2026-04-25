@@ -5,21 +5,21 @@ import "encoding/json"
 func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 	document := map[string]any{
 		"baseURL": BlueclawBaseURL,
+		"capability": map[string]any{
+			"transport":  "unix",
+			"socketPath": CapabilitySocketPath,
+			"endpoint":   "http://internkim",
+			"vsockCID":   52,
+			"vsockPort":  7000,
+		},
 		"languageModel": map[string]any{
-			"defaultProvider":  "openRouter",
+			"defaultProvider":  "capability",
 			"fallbackProvider": "",
-			"openRouter": map[string]any{
-				"baseURL":               BlueclawOpenRouterCompletionsURL,
-				"modelName":             modelName,
+			"capability": map[string]any{
+				"model":                 modelName,
+				"executionMode":         "auto",
 				"requireParameters":     true,
 				"enableResponseHealing": true,
-			},
-			"liteRTLM": map[string]any{
-				"wrapperPath":        BlueclawLiteRTLMWrapperPath,
-				"wrapperArguments":   []string{"--stdio"},
-				"modelPath":          BlueclawLiteRTLMModelPath(),
-				"backend":            "cpu",
-				"constraintProvider": "llguidance",
 			},
 		},
 		"firecracker": map[string]any{
@@ -42,12 +42,10 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 		},
 		"connectors": map[string]any{
 			"mattermost": map[string]any{
-				"baseURL":      "http://localhost:8065",
-				"botTokenPath": BlueclawMattermostTokenPath,
+				"baseURL": "http://localhost:8065",
 			},
 			"slack": map[string]any{
-				"baseURL":      BlueclawSlackAPIBaseURL,
-				"botTokenPath": BlueclawSlackTokenPath,
+				"baseURL": BlueclawSlackAPIBaseURL,
 			},
 		},
 		"agentProfiles": []map[string]any{},

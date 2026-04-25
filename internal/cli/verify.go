@@ -264,11 +264,15 @@ curl --silent --show-error --fail -D "$login_headers" -o /tmp/internkim-admin-lo
 admin_token="$(awk 'tolower($1) == "token:" {print $2}' "$login_headers" | tr -d '\r')"
 test -n "$admin_token"
 
-echo "checking bot token profile lookup"
-bot_token="$(cat /root/.internkim/env/bot-token)"
-bot_user_id="$(curl --silent --show-error --fail -H "Authorization: Bearer $bot_token" http://localhost:8065/api/v4/users/me | jq -r '.id // empty')"
+echo "checking capability profile lookup"
+bot_body="$(jq -cn '{}')"
+bot_user_id="$(curl --silent --show-error --fail --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$bot_body" http://internkim/v1/platform/mattermost/bot.resolve | jq -r '.userID // empty')"
 test -n "$bot_user_id"
-curl --silent --show-error --fail -H "Authorization: Bearer $bot_token" "http://localhost:8065/api/v4/users/$bot_user_id" | jq -e '.email != null' >/dev/null
+lookup_body="$(jq -cn --arg externalUserID "$bot_user_id" '{externalUserID:$externalUserID}')"
+curl --silent --show-error --fail --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$lookup_body" http://internkim/v1/platform/mattermost/identity.resolve | jq -e '.email != null' >/dev/null
+
+echo "checking secret isolation"
+! su -s /bin/sh blueclaw -c 'test -r /root/.internkim/secrets/openrouter-api-key || test -r /root/.internkim/secrets/mattermost-bot-token || test -r /root/.internkim/secrets/device-secret' 2>/dev/null
 
 echo "checking blueclaw health"
 curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/policy >/dev/null
@@ -402,8 +406,8 @@ cleanup() {
 trap cleanup EXIT
 
 echo "preparing verify users"
-bot_token="$(cat /root/.internkim/env/bot-token)"
-bot_user_id="$(curl --silent --show-error --fail -H "Authorization: Bearer $bot_token" http://localhost:8065/api/v4/users/me | jq -r '.id // empty')"
+bot_body="$(jq -cn '{}')"
+bot_user_id="$(curl --silent --show-error --fail --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$bot_body" http://internkim/v1/platform/mattermost/bot.resolve | jq -r '.userID // empty')"
 test -n "$bot_user_id"
 invited_user_id="$(create_user "$invited_email" "$invited_username")"
 uninvited_user_id="$(create_user "$uninvited_email" "$uninvited_username")"

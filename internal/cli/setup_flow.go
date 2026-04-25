@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -92,6 +94,7 @@ func (state *setupFlowState) callbacks() setup.Callbacks {
 		GetOpenRouterKey:       buildOpenRouterKeyCallback(state.stateDir, state.messenger, state.parameters.OpenRouterAPIKey, state.nonInteractive),
 		GetGasWebhookURL:       state.provisionGasWebhook,
 		GwsSkillsInstallScript: gwsSkillsInstallScript,
+		BinariesVersion:        state.binariesVersion,
 		InstallBinariesSSH:     state.installBinariesSSH,
 		StageBinariesSD:        state.stageBinariesSD,
 		ConfigureWifiSSH:       state.configureWifiSSH,
@@ -324,6 +327,11 @@ func (state *setupFlowState) requiredBinaryAssets() []localBinaryAsset {
 			remotePath: "/usr/local/bin/download",
 		},
 		{
+			name:       blueclaw.CapabilitydName,
+			localPath:  filepath.Join(state.boardBinDir, blueclaw.CapabilitydName),
+			remotePath: blueclaw.CapabilitydBinaryPath,
+		},
+		{
 			name:       "send-file",
 			localPath:  board.SendFilePath(state.scriptDir),
 			remotePath: "/usr/local/bin/send-file",
@@ -349,21 +357,22 @@ func (state *setupFlowState) ensureLocalBinaryAssets() ([]localBinaryAsset, erro
 			continue
 		}
 
+		if asset.name == blueclaw.CapabilitydName {
+			if err := buildGoBinaryAsset(state, asset); err != nil {
+				return nil, err
+			}
+			continue
+		}
+
 		if _, statError := os.Stat(asset.localPath); statError == nil {
 			continue
 		}
 
 		switch asset.name {
 		case "download":
-			fmt.Printf("  %s %s... ", state.messenger.t("빌드 중", "Building"), asset.name)
-			buildCommand := exec.Command("go", "build", "-o", asset.localPath, "./cmd/"+asset.name+"/")
-			buildCommand.Dir = state.scriptDir
-			buildCommand.Env = append(os.Environ(), "GOOS=linux", "GOARCH=arm64")
-			if output, buildError := buildCommand.CombinedOutput(); buildError != nil {
-				fmt.Println("FAILED")
-				return nil, fmt.Errorf("build %s: %s", asset.name, strings.TrimSpace(string(output)))
+			if err := buildGoBinaryAsset(state, asset); err != nil {
+				return nil, err
 			}
-			fmt.Println("ok")
 		case "send-file":
 			return nil, fmt.Errorf("missing board script: %s", asset.localPath)
 		default:
@@ -377,6 +386,52 @@ func (state *setupFlowState) ensureLocalBinaryAssets() ([]localBinaryAsset, erro
 	}
 
 	return assets, nil
+}
+
+func buildGoBinaryAsset(state *setupFlowState, asset localBinaryAsset) error {
+	fmt.Printf("  %s %s... ", state.messenger.t("빌드 중", "Building"), asset.name)
+	buildCommand := exec.Command("go", "build", "-o", asset.localPath, "./cmd/"+asset.name+"/")
+	buildCommand.Dir = state.scriptDir
+	buildCommand.Env = append(os.Environ(), "GOOS=linux", "GOARCH=arm64")
+	if output, buildError := buildCommand.CombinedOutput(); buildError != nil {
+		fmt.Println("FAILED")
+		return fmt.Errorf("build %s: %s", asset.name, strings.TrimSpace(string(output)))
+	}
+	fmt.Println("ok")
+	return nil
+}
+
+func (state *setupFlowState) binariesVersion() string {
+	hash := sha256.New()
+	for _, path := range []string{
+		filepath.Join(state.scriptDir, "cmd", blueclaw.CapabilitydName),
+		filepath.Join(state.scriptDir, "internal", "capabilityd"),
+	} {
+		state.writeDirectoryHash(hash, path)
+	}
+	blueclawRevision := strings.TrimSpace(runCmd("git", "-C", blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "rev-parse", "HEAD"))
+	_, _ = hash.Write([]byte("blueclaw:" + blueclawRevision + "\n"))
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
+func (state *setupFlowState) writeDirectoryHash(hash io.Writer, rootPath string) {
+	_ = filepath.WalkDir(rootPath, func(path string, entry os.DirEntry, walkError error) error {
+		if walkError != nil || entry.IsDir() {
+			return nil
+		}
+		relativePath, relativeError := filepath.Rel(rootPath, path)
+		if relativeError != nil {
+			return nil
+		}
+		document, readError := os.ReadFile(path)
+		if readError != nil {
+			return nil
+		}
+		_, _ = hash.Write([]byte(relativePath + "\n"))
+		_, _ = hash.Write(document)
+		_, _ = hash.Write([]byte("\n"))
+		return nil
+	})
 }
 
 func (state *setupFlowState) installBinariesSSH(context *setup.Context) error {
@@ -410,6 +465,7 @@ install -d -o gws -g gws -m 750 /home/gws /home/gws/.cache /home/gws/.config
 install -d -o blueclaw -g blueclaw -m 750 /home/blueclaw /home/blueclaw/.cache /home/blueclaw/.config
 chmod 711 /root
 mkdir -p /root/.internkim/secrets /root/.internkim/env
+chown root:root /root/.internkim/secrets
 chmod 700 /root/.internkim/secrets
 chown root:blueclaw /root/.internkim/env
 chmod 750 /root/.internkim/env
@@ -439,6 +495,10 @@ chmod 440 /etc/sudoers.d/blueclaw-mcp`)
 		state.sshClient.run(
 			"cp /usr/local/bin/" + binaryName + " " + blueclaw.BlueclawWorkspaceBinaryPath(binaryName) + " && chmod 755 " + blueclaw.BlueclawWorkspaceBinaryPath(binaryName),
 		)
+	}
+
+	if version := state.binariesVersion(); version != "" {
+		state.sshClient.run("mkdir -p /root/.internkim/state && printf '%s' " + quoteShellValue(version) + " > /root/.internkim/state/binaries-version")
 	}
 
 	skillsDir := board.SkillsPath(state.scriptDir)
@@ -706,8 +766,8 @@ func (state *setupFlowState) configureSlackTokenSSH(context *setup.Context) erro
 
 	state.sshClient.run(fmt.Sprintf(`mkdir -p /root/.internkim/secrets
 printf '%%s' %s > /root/.internkim/secrets/slack-bot-token
-chown root:blueclaw /root/.internkim/secrets/slack-bot-token
-chmod 640 /root/.internkim/secrets/slack-bot-token`,
+chown root:root /root/.internkim/secrets/slack-bot-token
+chmod 600 /root/.internkim/secrets/slack-bot-token`,
 		quoteShellValue(slackBotToken),
 	))
 	fmt.Printf("  %s\n", state.messenger.t("Slack 토큰 저장 완료", "Slack token installed"))

@@ -17,9 +17,28 @@ var StepServices = Step{
 		if context.Backend != BackendSSH {
 			return false
 		}
+		runtimeCheck := trimmedRun(context, `python3 - <<'PY'
+import json
+try:
+    with open("/root/.blueclaw/config/runtime.json") as file:
+        document = json.dumps(json.load(file))
+except Exception:
+    print("missing")
+    raise SystemExit
+for forbidden in ("apiKeyPath", "botTokenPath", "signingSecretPath", "OPENROUTER_API_KEY", "wrapperPath", "modelPath", "backend"):
+    if forbidden in document:
+        print("legacy")
+        raise SystemExit
+if '"endpoint": "http://internkim"' not in document or '"transport": "unix"' not in document:
+    print("stale")
+    raise SystemExit
+print("ok")
+PY`)
 		return trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
+			trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
 			trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
-			trimmedRun(context, "systemctl is-active mattermost") == "active"
+			trimmedRun(context, "systemctl is-active mattermost") == "active" &&
+			runtimeCheck == "ok"
 	},
 	Run: func(context *Context) error {
 		connection := context.SSH
@@ -52,6 +71,15 @@ chmod 640 %s %s`,
 		connection.Run("rm -f /etc/init.d/S97httpd; killall board-bridge 2>/dev/null; " +
 			"kill $(ps | grep 'python3 -m http.server' | grep -v grep | awk '{print $1}') 2>/dev/null || true")
 
+		connection.Run(`mkdir -p /root/.internkim/secrets
+if [ ! -s /root/.internkim/secrets/mattermost-bot-token ] && [ -s /root/.internkim/env/bot-token ]; then
+  cp /root/.internkim/env/bot-token /root/.internkim/secrets/mattermost-bot-token
+fi
+chown root:root /root/.internkim/secrets /root/.internkim/secrets/mattermost-bot-token 2>/dev/null || true
+chmod 700 /root/.internkim/secrets 2>/dev/null || true
+chmod 600 /root/.internkim/secrets/mattermost-bot-token 2>/dev/null || true
+rm -f /root/.internkim/env/bot-token`)
+
 		connection.Run(`cd /root/.blueclaw/workspace/skills 2>/dev/null && \
 rm -rf agent-browser github summarize skill-creator 2>/dev/null; \
 echo "Cleaned unavailable skills"`)
@@ -63,14 +91,28 @@ rm -rf /etc/systemd/system/zeroclaw.service.d
 systemctl enable systemd-time-wait-sync.service 2>/dev/null
 cat > %s <<'SVCEOF'
 %sSVCEOF
+cat > %s <<'CAPABILITYEOF'
+%sCAPABILITYEOF
 systemctl daemon-reload
 systemctl enable %s
 systemctl restart %s
-sleep 2`, blueclaw.BlueclawServicePath, blueclaw.BlueclawServiceUnit(), blueclaw.BlueclawServiceName, blueclaw.BlueclawServiceName))
+systemctl enable %s
+systemctl restart %s
+sleep 2`,
+			blueclaw.BlueclawServicePath,
+			blueclaw.BlueclawServiceUnit(),
+			blueclaw.CapabilitydServicePath,
+			blueclaw.CapabilitydServiceUnit(),
+			blueclaw.CapabilitydServiceName,
+			blueclaw.CapabilitydServiceName,
+			blueclaw.BlueclawServiceName,
+			blueclaw.BlueclawServiceName,
+		))
 
 		isBlueclawHealthy := false
 		for attempt := 0; attempt < 15; attempt++ {
 			isBlueclawHealthy = trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
+				trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
 				trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok"
 			if isBlueclawHealthy {
 				break

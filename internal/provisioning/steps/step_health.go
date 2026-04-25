@@ -28,7 +28,10 @@ var StepHealth = Step{
 		var failedChecks []string
 		checkService(context, "mattermost", &failedChecks)
 		checkService(context, "cloudflared", &failedChecks)
+		checkService(context, blueclaw.CapabilitydServiceName, &failedChecks)
 		checkBlueclaw(context, &failedChecks)
+		checkSecretIsolation(context, &failedChecks)
+		checkCapabilityHealth(context, &failedChecks)
 		checkMattermostPing(context, &failedChecks)
 		checkMattermostURL(context, &failedChecks)
 		checkMattermostPublic(context, &failedChecks)
@@ -43,6 +46,56 @@ var StepHealth = Step{
 		fmt.Println("  " + context.T("최종 상태 정상", "Final health checks passed"))
 		return nil
 	},
+}
+
+func checkSecretIsolation(context *Context, failedChecks *[]string) {
+	check := strings.TrimSpace(context.SSH.Run(`runtime_check="$(python3 - <<'PY'
+import json
+
+try:
+    with open("/root/.blueclaw/config/runtime.json") as file:
+        runtime_configuration = json.load(file)
+except Exception:
+    print("runtime-config")
+    raise SystemExit
+
+document = json.dumps(runtime_configuration)
+for forbidden in ("apiKeyPath", "botTokenPath", "signingSecretPath", "OPENROUTER_API_KEY", "wrapperPath", "modelPath", "backend"):
+    if forbidden in document:
+        print("runtime-secret-reference")
+        raise SystemExit
+
+print("ok")
+PY
+)"
+if [ "$runtime_check" != "ok" ]; then
+  echo "$runtime_check"
+  exit 0
+fi
+if su -s /bin/sh blueclaw -c 'test -r /root/.internkim/secrets/openrouter-api-key || test -r /root/.internkim/secrets/mattermost-bot-token || test -r /root/.internkim/secrets/slack-bot-token || test -r /root/.internkim/secrets/device-secret || test -r /root/.internkim/secrets/google-sa.json || test -r /root/.internkim/secrets/gas-webhook-url' 2>/dev/null; then
+  echo readable
+else
+  echo ok
+fi`))
+	if check == "ok" {
+		fmt.Println("  secret isolation: ok")
+		return
+	}
+	*failedChecks = append(*failedChecks, "secret-isolation")
+	fmt.Printf("  secret isolation: %s\n", check)
+}
+
+func checkCapabilityHealth(context *Context, failedChecks *[]string) {
+	check := strings.TrimSpace(context.SSH.Run(`curl --silent --show-error --fail --unix-socket /run/internkim/capability.sock http://internkim/health 2>/dev/null || true`))
+	if check == "ok" {
+		fmt.Println("  capabilityd: ok")
+		return
+	}
+	*failedChecks = append(*failedChecks, "capabilityd")
+	if check == "" {
+		check = "failed"
+	}
+	fmt.Printf("  capabilityd: %s\n", check)
 }
 
 func checkBlueclawUsersPolicy(context *Context, failedChecks *[]string) {
@@ -80,14 +133,14 @@ PY`))
 }
 
 func checkMattermostProfileLookup(context *Context, failedChecks *[]string) {
-	check := strings.TrimSpace(context.SSH.Run(`admin_email="$(cat /root/.internkim/admin-email 2>/dev/null || true)"
-bot_token="$(cat /root/.internkim/env/bot-token 2>/dev/null || true)"
-if [ -z "$admin_email" ] || [ -z "$bot_token" ]; then
+	check := strings.TrimSpace(context.SSH.Run(`bot_body="$(jq -cn '{}')"
+bot_user_id="$(curl -fsS --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$bot_body" http://internkim/v1/platform/mattermost/bot.resolve 2>/dev/null | jq -r '.userID // empty')"
+if [ -z "$bot_user_id" ]; then
   echo missing
   exit 0
 fi
-encoded_email="$(printf '%s' "$admin_email" | jq -sRr @uri)"
-curl -fsS -H "Authorization: Bearer $bot_token" "http://localhost:8065/api/v4/users/email/$encoded_email" 2>/dev/null | jq -e '.email != null' >/dev/null && echo ok || echo failed`))
+body="$(jq -cn --arg externalUserID "$bot_user_id" '{externalUserID:$externalUserID}')"
+curl -fsS --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$body" http://internkim/v1/platform/mattermost/identity.resolve 2>/dev/null | jq -e '.email != null' >/dev/null && echo ok || echo failed`))
 	if check == "ok" {
 		fmt.Println("  mattermost profile lookup: ok")
 		return
@@ -97,18 +150,18 @@ curl -fsS -H "Authorization: Bearer $bot_token" "http://localhost:8065/api/v4/us
 }
 
 func checkSlackProfileLookup(context *Context, failedChecks *[]string) {
-	check := strings.TrimSpace(context.SSH.Run(`token="$(cat /root/.internkim/secrets/slack-bot-token 2>/dev/null || true)"
-if [ -z "$token" ]; then
+	check := strings.TrimSpace(context.SSH.Run(`if [ ! -f /root/.internkim/secrets/slack-bot-token ]; then
   echo skipped
   exit 0
 fi
-auth="$(curl -fsS -H "Authorization: Bearer $token" https://slack.com/api/auth.test 2>/dev/null || true)"
-user_id="$(printf '%s' "$auth" | jq -r 'select(.ok == true) | .user_id // empty' 2>/dev/null)"
+auth_body="$(jq -cn '{}')"
+user_id="$(curl -fsS --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$auth_body" http://internkim/v1/platform/slack/bot.resolve 2>/dev/null | jq -r '.userID // empty')"
 if [ -z "$user_id" ]; then
   echo failed
   exit 0
 fi
-curl -fsS -H "Authorization: Bearer $token" "https://slack.com/api/users.info?user=$user_id" 2>/dev/null | jq -e '.ok == true and .user.id != null' >/dev/null && echo ok || echo failed`))
+lookup_body="$(jq -cn --arg externalUserID "$user_id" '{externalUserID:$externalUserID}')"
+curl -fsS --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$lookup_body" http://internkim/v1/platform/slack/identity.resolve 2>/dev/null | jq -e '.externalUserID != null' >/dev/null && echo ok || echo failed`))
 	if check == "skipped" {
 		fmt.Println("  slack profile lookup: skipped")
 		return

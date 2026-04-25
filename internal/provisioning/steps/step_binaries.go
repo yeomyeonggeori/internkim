@@ -9,10 +9,21 @@ var StepBinaries = Step{
 		return context.T("바이너리 설치 중...", "Installing binaries...")
 	},
 	IsSatisfied: func(context *Context) bool {
+		version := ""
+		if context.Callbacks.BinariesVersion != nil {
+			version = context.Callbacks.BinariesVersion()
+		}
 		switch context.Backend {
 		case BackendSSH:
-			return sshFileExists(context, "/usr/local/bin/blueclaw") &&
-				sshFileExists(context, "/usr/local/bin/gws")
+			if !sshFileExists(context, "/usr/local/bin/blueclaw") ||
+				!sshFileExists(context, "/usr/local/bin/gws") ||
+				!sshFileExists(context, "/usr/local/bin/internkim-capabilityd") {
+				return false
+			}
+			if version == "" {
+				return true
+			}
+			return trimmedRun(context, "cat /root/.internkim/state/binaries-version 2>/dev/null") == version
 		case BackendSD:
 			return stagedFileExists(context, "bin/blueclaw")
 		}

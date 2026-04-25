@@ -46,6 +46,7 @@ type Callbacks struct {
 
 	GwsSkillsInstallScript string
 
+	BinariesVersion    func() string
 	InstallBinariesSSH func(context *Context) error
 	StageBinariesSD    func(context *Context) error
 
