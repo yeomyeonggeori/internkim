@@ -73,13 +73,27 @@ func loadEnvFile() {
 			}
 			if k, v, ok := strings.Cut(line, "="); ok {
 				k = strings.TrimSpace(k)
-				v = strings.TrimSpace(v)
+				v = normalizeEnvValue(v)
 				if os.Getenv(k) == "" {
 					os.Setenv(k, v)
 				}
 			}
 		}
 	}
+}
+
+func normalizeEnvValue(value string) string {
+	value = strings.TrimSpace(value)
+	if len(value) < 2 {
+		return value
+	}
+	if strings.HasPrefix(value, `"`) && strings.HasSuffix(value, `"`) {
+		return strings.Trim(value, `"`)
+	}
+	if strings.HasPrefix(value, `'`) && strings.HasSuffix(value, `'`) {
+		return strings.Trim(value, `'`)
+	}
+	return value
 }
 
 func currentExecutableFingerprint() string {
@@ -159,6 +173,8 @@ func resolveLabVirtualMachineIPAddress() string {
 }
 
 func Main() {
+	loadEnvFile()
+
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "setup":
