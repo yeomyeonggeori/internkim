@@ -15,9 +15,9 @@ var StepOpenRouter = Step{
 	IsSatisfied: func(context *Context) bool {
 		switch context.Backend {
 		case BackendSSH:
-			return sshFileExists(context, "/root/.internkim/secrets/openrouter-api-key")
+			return sshOpenRouterKeyIsUsable(context)
 		case BackendSD:
-			return stagedFileExists(context, "secrets/openrouter-api-key")
+			return stagedOpenRouterKeyIsUsable(context)
 		}
 		return false
 	},
@@ -64,5 +64,32 @@ func resolveOpenRouterKey(context *Context) (string, error) {
 	if apiKey == "" {
 		return "", errors.New("openrouter API key is empty")
 	}
+	if isPlaceholderOpenRouterKey(apiKey) {
+		return "", errors.New("openrouter API key is a simulation placeholder; pass --openrouter-api-key or set OPENROUTER_API_KEY")
+	}
 	return apiKey, nil
+}
+
+func sshOpenRouterKeyIsUsable(context *Context) bool {
+	value := trimmedRun(context, "cat /root/.internkim/secrets/openrouter-api-key 2>/dev/null || true")
+	return openRouterKeyIsUsable(value)
+}
+
+func stagedOpenRouterKeyIsUsable(context *Context) bool {
+	document, errorValue := readStagedFile(context, "secrets/openrouter-api-key")
+	if errorValue != nil {
+		return false
+	}
+	return openRouterKeyIsUsable(string(document))
+}
+
+func openRouterKeyIsUsable(value string) bool {
+	apiKey := strings.TrimSpace(strings.TrimPrefix(value, "OPENROUTER_API_KEY="))
+	return apiKey != "" && !isPlaceholderOpenRouterKey(apiKey)
+}
+
+func isPlaceholderOpenRouterKey(value string) bool {
+	normalizedValue := strings.ToLower(strings.TrimSpace(value))
+	return strings.Contains(normalizedValue, "internkim-simulation-openrouter-api-key") ||
+		strings.Contains(normalizedValue, "simulation-openrouter")
 }

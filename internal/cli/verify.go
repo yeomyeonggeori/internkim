@@ -271,6 +271,20 @@ test -n "$bot_user_id"
 lookup_body="$(jq -cn --arg externalUserID "$bot_user_id" '{externalUserID:$externalUserID}')"
 curl --silent --show-error --fail --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$lookup_body" http://internkim/v1/platform/mattermost/identity.resolve | jq -e '.email != null' >/dev/null
 
+echo "checking llm capability"
+model="$(jq -r '.languageModel.capability.model // "google/gemini-3-flash-preview"' /root/.blueclaw/config/runtime.json)"
+schema='{"type":"object","properties":{"content":{"type":"string"}},"required":["content"],"additionalProperties":false}'
+llm_body="$(jq -cn --arg model "$model" --arg schema "$schema" '{
+  model: $model,
+  executionMode: "remote",
+  messages: [{role:"user", content:"Return JSON only with content set to ok."}],
+  structuredOutputSchema: {name:"plain_text_response", document:$schema, isStrictlyEnforced:true},
+  requireParameters: true,
+  enableResponseHealing: true
+}')"
+llm_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$llm_body" http://internkim/v1/llm/structured)"
+printf '%s' "$llm_response" | jq -e '.content | fromjson | .content | type == "string"' >/dev/null
+
 echo "checking secret isolation"
 ! su -s /bin/sh blueclaw -c 'test -r /root/.internkim/secrets/openrouter-api-key || test -r /root/.internkim/secrets/mattermost-bot-token || test -r /root/.internkim/secrets/device-secret' 2>/dev/null
 
@@ -400,6 +414,26 @@ wait_for_bot_reply() {
   return 1
 }
 
+wait_for_model_reply() {
+  local posted_after="$1"
+  for _ in $(seq 1 45); do
+    if curl --silent --show-error --fail -H "Authorization: Bearer $admin_token" \
+      "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=60" |
+      jq -e --arg bot_user_id "$bot_user_id" --argjson posted_after "$posted_after" \
+        '.posts[] | select(
+          .user_id == $bot_user_id and
+          .create_at >= $posted_after and
+          (.message | contains("I am having trouble reaching the language model") | not) and
+          (.message | contains("has not invited") | not)
+        )' >/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "expected model-generated bot reply after post timestamp: $posted_after" >&2
+  return 1
+}
+
 cleanup() {
   curl --silent --show-error -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$invited_email" >/dev/null || true
 }
@@ -426,9 +460,11 @@ before_count="$(task_count)"
 invited_message="verify invited $timestamp"
 invited_post="$(post_message "$invited_token" "$invited_message")"
 invited_post_id="$(printf '%s' "$invited_post" | jq -r '.id')"
+invited_post_create_at="$(printf '%s' "$invited_post" | jq -r '.create_at')"
 test -n "$invited_post_id"
+test -n "$invited_post_create_at"
 wait_for_task_count "$((before_count + 1))"
-wait_for_bot_reply "Working on it:"
+wait_for_model_reply "$invited_post_create_at"
 after_count="$(task_count)"
 
 uninvited_message="verify uninvited $timestamp"

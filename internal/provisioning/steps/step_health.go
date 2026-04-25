@@ -37,6 +37,7 @@ var StepHealth = Step{
 		checkMattermostPublic(context, &failedChecks)
 		checkBlueclawUsersPolicy(context, &failedChecks)
 		checkMattermostProfileLookup(context, &failedChecks)
+		checkLLMCapability(context, &failedChecks)
 		checkSlackProfileLookup(context, &failedChecks)
 
 		if len(failedChecks) > 0 {
@@ -147,6 +148,38 @@ curl -fsS --unix-socket /run/internkim/capability.sock -H "Content-Type: applica
 	}
 	*failedChecks = append(*failedChecks, "mattermost-profile-lookup")
 	fmt.Printf("  mattermost profile lookup: %s\n", check)
+}
+
+func checkLLMCapability(context *Context, failedChecks *[]string) {
+	check := strings.TrimSpace(context.SSH.Run(`model="$(jq -r '.languageModel.capability.model // "google/gemini-3-flash-preview"' /root/.blueclaw/config/runtime.json 2>/dev/null)"
+schema='{"type":"object","properties":{"content":{"type":"string"}},"required":["content"],"additionalProperties":false}'
+body="$(jq -cn --arg model "$model" --arg schema "$schema" '{
+  model: $model,
+  executionMode: "remote",
+  messages: [{role:"user", content:"Return JSON only with content set to ok."}],
+  structuredOutputSchema: {name:"plain_text_response", document:$schema, isStrictlyEnforced:true},
+  requireParameters: true,
+  enableResponseHealing: true
+}')"
+response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$body" http://internkim/v1/llm/structured 2>/tmp/internkim-llm-smoke-error || true)"
+if printf '%s' "$response" | jq -e '.content | fromjson | .content | type == "string"' >/dev/null 2>&1; then
+  echo ok
+  exit 0
+fi
+if [ -n "$response" ]; then
+  printf '%s' "$response" | tr '\n' ' ' | cut -c1-180
+else
+  tr '\n' ' ' </tmp/internkim-llm-smoke-error | cut -c1-180
+fi`))
+	if check == "ok" {
+		fmt.Println("  llm capability: ok")
+		return
+	}
+	*failedChecks = append(*failedChecks, "llm-capability")
+	if check == "" {
+		check = "failed"
+	}
+	fmt.Printf("  llm capability: failed (%s)\n", check)
 }
 
 func checkSlackProfileLookup(context *Context, failedChecks *[]string) {
