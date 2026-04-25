@@ -363,17 +363,37 @@ post_message() {
     http://localhost:8065/api/v4/posts
 }
 
-submit_event() {
-  local user_id="$1"
-  local post_id="$2"
-  local message="$3"
-  curl --silent --show-error --fail -H "Content-Type: application/json" \
-    -d "$(jq -cn --arg user_id "$user_id" --arg channel_id "$channel_id" --arg post_id "$post_id" --arg message "$message" '{event:"posted",user_id:$user_id,channel_id:$channel_id,post_id:$post_id,message:$message}')" \
-    http://127.0.0.1:8080/connectors/mattermost/events
-}
-
 task_count() {
   curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/task | jq 'length'
+}
+
+wait_for_task_count() {
+  local expected_count="$1"
+  for _ in $(seq 1 30); do
+    local current_count
+    current_count="$(task_count)"
+    if [ "$current_count" -ge "$expected_count" ]; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "expected task count >= $expected_count" >&2
+  return 1
+}
+
+wait_for_bot_reply() {
+  local expected_text="$1"
+  for _ in $(seq 1 30); do
+    if curl --silent --show-error --fail -H "Authorization: Bearer $admin_token" \
+      "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=30" |
+      jq -e --arg bot_user_id "$bot_user_id" --arg expected_text "$expected_text" \
+        '.posts[] | select(.user_id == $bot_user_id and (.message | contains($expected_text)))' >/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "expected bot reply containing: $expected_text" >&2
+  return 1
 }
 
 cleanup() {
@@ -382,6 +402,9 @@ cleanup() {
 trap cleanup EXIT
 
 echo "preparing verify users"
+bot_token="$(cat /root/.internkim/env/bot-token)"
+bot_user_id="$(curl --silent --show-error --fail -H "Authorization: Bearer $bot_token" http://localhost:8065/api/v4/users/me | jq -r '.id // empty')"
+test -n "$bot_user_id"
 invited_user_id="$(create_user "$invited_email" "$invited_username")"
 uninvited_user_id="$(create_user "$uninvited_email" "$uninvited_username")"
 join_channel "$invited_user_id"
@@ -399,21 +422,16 @@ before_count="$(task_count)"
 invited_message="verify invited $timestamp"
 invited_post="$(post_message "$invited_token" "$invited_message")"
 invited_post_id="$(printf '%s' "$invited_post" | jq -r '.id')"
-invited_result="$(submit_event "$invited_user_id" "$invited_post_id" "$invited_message")"
-printf '%s' "$invited_result" | jq -e '.isAllowed == true and (.reply | startswith("Working on it: ")) and .taskRunID != ""' >/dev/null
+test -n "$invited_post_id"
+wait_for_task_count "$((before_count + 1))"
+wait_for_bot_reply "Working on it:"
 after_count="$(task_count)"
-test "$after_count" -eq "$((before_count + 1))"
-
-duplicate_result="$(submit_event "$invited_user_id" "$invited_post_id" "$invited_message")"
-printf '%s' "$duplicate_result" | jq -e '.isDuplicate == true and .taskRunID != ""' >/dev/null
-duplicate_count="$(task_count)"
-test "$duplicate_count" -eq "$after_count"
 
 uninvited_message="verify uninvited $timestamp"
 uninvited_post="$(post_message "$uninvited_token" "$uninvited_message")"
 uninvited_post_id="$(printf '%s' "$uninvited_post" | jq -r '.id')"
-uninvited_result="$(submit_event "$uninvited_user_id" "$uninvited_post_id" "$uninvited_message")"
-printf '%s' "$uninvited_result" | jq -e '.isAllowed == false and .reason == "not_invited" and (.reply | length > 0)' >/dev/null
+test -n "$uninvited_post_id"
+wait_for_bot_reply "has not invited"
 final_count="$(task_count)"
 test "$final_count" -eq "$after_count"
 

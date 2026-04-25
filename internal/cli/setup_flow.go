@@ -414,6 +414,9 @@ chmod 700 /root/.internkim/secrets
 chown root:blueclaw /root/.internkim/env
 chmod 750 /root/.internkim/env
 mkdir -p /root/.blueclaw/config /root/.blueclaw/workspace/bin /root/.blueclaw/workspace/downloads
+chmod 755 /root/.blueclaw
+chown -R blueclaw:blueclaw /root/.blueclaw/workspace
+chmod 750 /root/.blueclaw/workspace
 chmod 755 /root/.blueclaw/workspace/bin /root/.blueclaw/workspace/downloads`)
 
 	state.writeWorkspaceDocumentsSSH(loadWorkspaceAgentsMarkdown(state.scriptDir))
