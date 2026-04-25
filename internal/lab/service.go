@@ -553,11 +553,5 @@ func (service Service) sharedWorkspacePath() string {
 }
 
 func (service Service) setupEnvironmentVariables() map[string]string {
-	if strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY")) != "" {
-		return nil
-	}
-
-	return map[string]string{
-		"OPENROUTER_API_KEY": "internkim-simulation-openrouter-api-key",
-	}
+	return nil
 }

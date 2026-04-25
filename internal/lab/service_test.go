@@ -177,8 +177,8 @@ func TestSetupUsesCurrentExecutableWithHostOverride(t *testing.T) {
 	if strings.Join(setupCommand.Arguments, " ") != "setup --ssh --host 10.0.0.5 --user admin --password admin --skip wifi" {
 		t.Fatalf("unexpected setup arguments: %v", setupCommand.Arguments)
 	}
-	if setupCommand.EnvironmentVariables["OPENROUTER_API_KEY"] == "" {
-		t.Fatalf("expected simulation setup to provide an OpenRouter key")
+	if setupCommand.EnvironmentVariables != nil {
+		t.Fatalf("expected simulation setup to inherit host environment without fake values")
 	}
 }
 

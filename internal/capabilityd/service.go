@@ -238,6 +238,9 @@ func (service Service) completeRemote(ctx context.Context, request llmRequest) (
 	if apiKey == "" {
 		return nil, errors.New("openrouter api key is not configured")
 	}
+	if isPlaceholderOpenRouterKey(apiKey) {
+		return nil, errors.New("openrouter api key is a simulation placeholder; set OPENROUTER_API_KEY or rerun setup --only openrouter --force")
+	}
 
 	requestDocument, errorValue := buildOpenRouterRequest(request)
 	if errorValue != nil {
@@ -590,6 +593,12 @@ func readSecretValue(path string) string {
 	}
 	value := strings.TrimSpace(string(document))
 	return strings.TrimPrefix(value, "OPENROUTER_API_KEY=")
+}
+
+func isPlaceholderOpenRouterKey(value string) bool {
+	normalizedValue := strings.ToLower(strings.TrimSpace(value))
+	return strings.Contains(normalizedValue, "internkim-simulation-openrouter-api-key") ||
+		strings.Contains(normalizedValue, "simulation-openrouter")
 }
 
 func lookupGroupID(name string) (int, error) {
