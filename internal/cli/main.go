@@ -282,8 +282,8 @@ func modelCurrentCmd(ssh *sshClient) {
 	_ = json.Unmarshal([]byte(raw), &document)
 	model := ""
 	if languageModel, ok := document["languageModel"].(map[string]any); ok {
-		if openRouter, ok := languageModel["openRouter"].(map[string]any); ok {
-			if value, ok := openRouter["modelName"].(string); ok {
+		if capabilityModel, ok := languageModel["capability"].(map[string]any); ok {
+			if value, ok := capabilityModel["model"].(string); ok {
 				model = strings.TrimSpace(value)
 			}
 		}
@@ -306,12 +306,12 @@ func modelSetCmd(ssh *sshClient, modelID string) {
 		languageModel = map[string]any{}
 		document["languageModel"] = languageModel
 	}
-	openRouter, _ := languageModel["openRouter"].(map[string]any)
-	if openRouter == nil {
-		openRouter = map[string]any{}
-		languageModel["openRouter"] = openRouter
+	capabilityModel, _ := languageModel["capability"].(map[string]any)
+	if capabilityModel == nil {
+		capabilityModel = map[string]any{}
+		languageModel["capability"] = capabilityModel
 	}
-	openRouter["modelName"] = modelID
+	capabilityModel["model"] = modelID
 	updatedDocument, err := json.MarshalIndent(document, "", "  ")
 	if err != nil {
 		fatal("Failed to write blueclaw runtime config: " + err.Error())
@@ -1262,12 +1262,15 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 	}
 	ssh.run(fmt.Sprintf(`mkdir -p /root/.internkim/secrets /root/.internkim/env
 printf '%%s' '%s' > /root/.internkim/env/mattermost-url
-printf '%%s' '%s' > /root/.internkim/env/bot-token
+printf '%%s' '%s' > /root/.internkim/secrets/mattermost-bot-token
 printf '%%s' '%s' > /root/.internkim/env/channel-id
+chown root:root /root/.internkim/secrets /root/.internkim/secrets/mattermost-bot-token
+chmod 700 /root/.internkim/secrets
+chmod 600 /root/.internkim/secrets/mattermost-bot-token
 chown root:blueclaw /root/.internkim/env /root/.internkim/env/*
 chmod 750 /root/.internkim/env
 chmod 640 /root/.internkim/env/*
-rm -f /root/.internkim/mattermost-url /root/.internkim/mattermost-admin-token /root/.internkim/mattermost-channel-id /root/.internkim/secrets/mattermost-bot-token`,
+rm -f /root/.internkim/mattermost-url /root/.internkim/mattermost-admin-token /root/.internkim/mattermost-channel-id /root/.internkim/env/bot-token`,
 		deviceURL, botToken, channelID))
 
 	fmt.Printf("  %s\n", m.t("Mattermost 자동 설정 완료", "Mattermost configured automatically"))

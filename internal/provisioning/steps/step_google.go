@@ -71,8 +71,8 @@ func runGoogleSSH(context *Context) error {
 	if err := context.SSH.SCP(temporaryPath, "/root/.internkim/secrets/google-sa.json"); err != nil {
 		return fmt.Errorf("scp sa.json: %w", err)
 	}
-	context.SSH.Run(`chown root:blueclaw /root/.internkim/secrets/google-sa.json
-chmod 640 /root/.internkim/secrets/google-sa.json`)
+	context.SSH.Run(`chown root:root /root/.internkim/secrets/google-sa.json
+chmod 600 /root/.internkim/secrets/google-sa.json`)
 	fmt.Println("  " + context.T("서비스 계정 생성 완료 (live)", "Service account created (live)"))
 
 	if err := exposeSAEmail(context); err != nil {
@@ -162,8 +162,8 @@ func stageGasWebhookURL(context *Context) error {
 		if err := context.SSH.SCP(temporaryPath, "/root/.internkim/secrets/gas-webhook-url"); err != nil {
 			return err
 		}
-		context.SSH.Run(`chown root:blueclaw /root/.internkim/secrets/gas-webhook-url
-chmod 640 /root/.internkim/secrets/gas-webhook-url`)
+		context.SSH.Run(`chown root:root /root/.internkim/secrets/gas-webhook-url
+chmod 600 /root/.internkim/secrets/gas-webhook-url`)
 		fmt.Println("  " + context.T("GAS 웹훅 URL 설치 완료", "GAS webhook URL installed"))
 	case BackendSD:
 		if err := context.SD.WriteFile("secrets/gas-webhook-url", []byte(webhookURL+"\n"), 0o644); err != nil {

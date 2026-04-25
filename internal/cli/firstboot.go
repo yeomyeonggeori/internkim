@@ -291,22 +291,24 @@ id blueclaw &>/dev/null || useradd -r -g blueclaw -m -d /home/blueclaw -s "$NOLO
 install -d -o gws -g gws -m 750 /home/gws /home/gws/.cache /home/gws/.config
 install -d -o blueclaw -g blueclaw -m 750 /home/blueclaw /home/blueclaw/.cache /home/blueclaw/.config
 chmod 711 /root
-mkdir -p /root/.internkim/env
+mkdir -p /root/.internkim/secrets /root/.internkim/env
+chown root:root /root/.internkim/secrets
+chmod 700 /root/.internkim/secrets
 chown root:blueclaw /root/.internkim/env
 chmod 750 /root/.internkim/env
-chown blueclaw /root/.internkim/secrets/openrouter-api-key 2>/dev/null || true
-chmod 640 /root/.internkim/secrets/openrouter-api-key 2>/dev/null || true
+chown root:root /root/.internkim/secrets/openrouter-api-key 2>/dev/null || true
+chmod 600 /root/.internkim/secrets/openrouter-api-key 2>/dev/null || true
 if [ -f /root/.internkim/secrets/google-sa.json ]; then
-  chown root:blueclaw /root/.internkim/secrets/google-sa.json
-  chmod 640 /root/.internkim/secrets/google-sa.json
+  chown root:root /root/.internkim/secrets/google-sa.json
+  chmod 600 /root/.internkim/secrets/google-sa.json
 fi
 if [ -f /root/.internkim/secrets/gas-webhook-url ]; then
-  chown root:blueclaw /root/.internkim/secrets/gas-webhook-url
-  chmod 640 /root/.internkim/secrets/gas-webhook-url
+  chown root:root /root/.internkim/secrets/gas-webhook-url
+  chmod 600 /root/.internkim/secrets/gas-webhook-url
 fi
 if [ -f /root/.internkim/secrets/slack-bot-token ]; then
-  chown root:blueclaw /root/.internkim/secrets/slack-bot-token
-  chmod 640 /root/.internkim/secrets/slack-bot-token
+  chown root:root /root/.internkim/secrets/slack-bot-token
+  chmod 600 /root/.internkim/secrets/slack-bot-token
 fi
 mkdir -p /root/.blueclaw/workspace/bin /root/.blueclaw/workspace/downloads
 chown -R blueclaw:blueclaw /root/.blueclaw
@@ -653,9 +655,9 @@ SVCEOF
   fi
 
   if [ -n "$BOT_TOKEN" ]; then
-    printf '%s' "$BOT_TOKEN" > /root/.internkim/env/bot-token
-    chown root:blueclaw /root/.internkim/env/bot-token
-    chmod 640 /root/.internkim/env/bot-token
+    printf '%s' "$BOT_TOKEN" > /root/.internkim/secrets/mattermost-bot-token
+    chown root:root /root/.internkim/secrets/mattermost-bot-token
+    chmod 600 /root/.internkim/secrets/mattermost-bot-token
   fi
 
   mark_phase_done apps
@@ -682,6 +684,8 @@ else
   rm -rf /etc/systemd/system/zeroclaw.service.d
   cat > %s <<'SVCEOF'
 %sSVCEOF
+  cat > %s <<'CAPABILITYEOF'
+%sCAPABILITYEOF
   cat > %s <<'SYNCEOF'
 %sSYNCEOF
   chmod 755 %s
@@ -692,12 +696,14 @@ else
   systemctl daemon-reload
   systemctl enable %s
   systemctl start %s
+  systemctl enable %s
+  systemctl start %s
   systemctl enable --now internkim-users-sync.timer
 
   echo "Waiting for services..."
   for attemptIndex in $(seq 1 150); do
     allServicesActive=true
-    for serviceName in mattermost %s cloudflared postgresql; do
+    for serviceName in mattermost %s %s cloudflared postgresql; do
       if ! systemctl is-active --quiet "$serviceName" 2>/dev/null; then
         allServicesActive=false
         break
@@ -716,6 +722,8 @@ else
 fi`,
 		blueclaw.BlueclawServicePath,
 		blueclaw.BlueclawServiceUnit(),
+		blueclaw.CapabilitydServicePath,
+		blueclaw.CapabilitydServiceUnit(),
 		blueclaw.InternKimUsersSyncScriptPath,
 		blueclaw.InternKimUsersSyncScript(),
 		blueclaw.InternKimUsersSyncScriptPath,
@@ -723,8 +731,11 @@ fi`,
 		blueclaw.InternKimUsersSyncServiceUnit(),
 		blueclaw.InternKimUsersSyncTimerPath,
 		blueclaw.InternKimUsersSyncTimerUnit(),
+		blueclaw.CapabilitydServiceName,
+		blueclaw.CapabilitydServiceName,
 		blueclaw.BlueclawServiceName,
 		blueclaw.BlueclawServiceName,
+		blueclaw.CapabilitydServiceName,
 		blueclaw.BlueclawServiceName,
 	))
 	return section

@@ -1,0 +1,26 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"os"
+
+	"github.com/anthropic-lab/internkim/internal/capabilityd"
+)
+
+func main() {
+	defaultConfiguration := capabilityd.DefaultConfiguration()
+	configuration := capabilityd.Configuration{}
+	flag.StringVar(&configuration.SocketPath, "socket", defaultConfiguration.SocketPath, "capability socket path")
+	flag.StringVar(&configuration.OpenRouterKeyPath, "openrouter-key", defaultConfiguration.OpenRouterKeyPath, "OpenRouter key path")
+	flag.StringVar(&configuration.MattermostBaseURL, "mattermost-url", defaultConfiguration.MattermostBaseURL, "Mattermost base URL")
+	flag.StringVar(&configuration.MattermostTokenPath, "mattermost-token", defaultConfiguration.MattermostTokenPath, "Mattermost bot token path")
+	flag.StringVar(&configuration.SlackTokenPath, "slack-token", defaultConfiguration.SlackTokenPath, "Slack bot token path")
+	flag.StringVar(&configuration.BlueclawBaseURL, "blueclaw-url", defaultConfiguration.BlueclawBaseURL, "Blueclaw base URL")
+	flag.Parse()
+
+	if errorValue := capabilityd.Run(configuration); errorValue != nil {
+		fmt.Fprintln(os.Stderr, errorValue.Error())
+		os.Exit(1)
+	}
+}

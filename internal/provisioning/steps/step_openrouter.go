@@ -28,9 +28,11 @@ var StepOpenRouter = Step{
 		}
 		context.SSH.Run(fmt.Sprintf(
 			`mkdir -p /root/.internkim/secrets
-printf 'OPENROUTER_API_KEY=%%s' %s > /root/.internkim/secrets/openrouter-api-key
-chown blueclaw /root/.internkim/secrets/openrouter-api-key
-chmod 640 /root/.internkim/secrets/openrouter-api-key`,
+chown root:root /root/.internkim/secrets
+chmod 700 /root/.internkim/secrets
+printf '%%s' %s > /root/.internkim/secrets/openrouter-api-key
+chown root:root /root/.internkim/secrets/openrouter-api-key
+chmod 600 /root/.internkim/secrets/openrouter-api-key`,
 			shellQuote(apiKey),
 		))
 		fmt.Println("  " + context.T("API 키 설치 완료", "API key installed"))
@@ -42,7 +44,7 @@ chmod 640 /root/.internkim/secrets/openrouter-api-key`,
 			return err
 		}
 		if err := context.SD.WriteFile("secrets/openrouter-api-key",
-			[]byte("OPENROUTER_API_KEY="+apiKey), 0o644); err != nil {
+			[]byte(apiKey), 0o644); err != nil {
 			return err
 		}
 		fmt.Println("  " + context.T("API 키 스테이지 완료", "API key staged"))

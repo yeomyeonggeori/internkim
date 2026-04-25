@@ -5,6 +5,8 @@ import "path/filepath"
 const (
 	BlueclawName                       = "blueclaw"
 	BlueclawServiceName                = "blueclaw"
+	CapabilitydName                    = "internkim-capabilityd"
+	CapabilitydServiceName             = "internkim-capabilityd"
 	BlueclawUser                       = "blueclaw"
 	BlueclawHomePath                   = "/home/blueclaw"
 	BlueclawRootPath                   = "/root/.blueclaw"
@@ -13,19 +15,20 @@ const (
 	BlueclawRuntimeConfigPath          = "/root/.blueclaw/config/runtime.json"
 	BlueclawPolicyConfigPath           = "/root/.blueclaw/config/policy.json"
 	BlueclawServicePath                = "/etc/systemd/system/blueclaw.service"
+	CapabilitydServicePath             = "/etc/systemd/system/internkim-capabilityd.service"
 	BlueclawBinaryPath                 = "/usr/local/bin/blueclaw"
+	CapabilitydBinaryPath              = "/usr/local/bin/internkim-capabilityd"
 	BlueclawBaseURL                    = "http://127.0.0.1:8080"
 	BlueclawHealthCheckPath            = "/admin/api/policy"
 	BlueclawSubmodulePath              = ".dependency/blueclaw"
 	BlueclawPolicyAdminID              = "00000000-0000-0000-0000-000000000001"
 	BlueclawRuntimeLogLevel            = "debug"
 	BlueclawSessionDirectory           = "/root/.blueclaw/workspace/sessions"
-	BlueclawOpenRouterEnvFile          = "/root/.internkim/secrets/openrouter-api-key"
+	CapabilitySocketPath               = "/run/internkim/capability.sock"
 	BlueclawMattermostURLPath          = "/root/.internkim/env/mattermost-url"
-	BlueclawMattermostTokenPath        = "/root/.internkim/env/bot-token"
+	BlueclawMattermostTokenPath        = "/root/.internkim/secrets/mattermost-bot-token"
 	BlueclawSlackTokenPath             = "/root/.internkim/secrets/slack-bot-token"
 	BlueclawDefaultModelName           = "google/gemini-3-flash-preview"
-	BlueclawLiteRTLMWrapperPath        = "/usr/local/bin/blueclaw-litert-wrapper"
 	BlueclawFirecrackerPath            = "/usr/local/bin/firecracker"
 	BlueclawJailerPath                 = "/usr/local/bin/jailer"
 	BlueclawKernelImagePath            = "/opt/blueclaw/vmlinux.bin"
@@ -34,9 +37,7 @@ const (
 	BlueclawSupervisorLogDirectoryPath = "/var/log/blueclaw-supervisor"
 	BlueclawBridgeAuthorizedKeysPath   = "/var/lib/blueclaw/authorized_companions"
 	BlueclawBridgeListenAddress        = "127.0.0.1:7778"
-	BlueclawOpenRouterCompletionsURL   = "https://openrouter.ai/api/v1/chat/completions"
 	BlueclawSlackAPIBaseURL            = "https://slack.com/api"
-	BlueclawLiteRTLMModelRelativePath  = ".blueclaw/models/gemma-3n-E2B-it-int4.litertlm"
 )
 
 var BlueclawAllowedExecutables = []string{
@@ -138,8 +139,4 @@ func BlueclawWorkspaceBinaryPath(binaryName string) string {
 
 func BlueclawSubmoduleRoot(scriptDir string) string {
 	return filepath.Join(scriptDir, BlueclawSubmodulePath)
-}
-
-func BlueclawLiteRTLMModelPath() string {
-	return filepath.Join(BlueclawWorkspacePath, BlueclawLiteRTLMModelRelativePath)
 }
