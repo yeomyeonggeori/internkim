@@ -1,0 +1,188 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"strings"
+	"time"
+)
+
+type message struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type schemaRequest struct {
+	Name               string `json:"name"`
+	Document           string `json:"document"`
+	IsStrictlyEnforced bool   `json:"isStrictlyEnforced"`
+}
+
+type requestDocument struct {
+	ModelPath              string        `json:"modelPath"`
+	Backend                string        `json:"backend"`
+	Messages               []message     `json:"messages"`
+	StructuredOutputSchema schemaRequest `json:"structuredOutputSchema"`
+}
+
+type responseDocument struct {
+	Content string `json:"content"`
+}
+
+func main() {
+	if errorValue := run(); errorValue != nil {
+		fmt.Fprintln(os.Stderr, errorValue.Error())
+		os.Exit(1)
+	}
+}
+
+func run() error {
+	payload, errorValue := io.ReadAll(os.Stdin)
+	if errorValue != nil {
+		return errorValue
+	}
+
+	var request requestDocument
+	if errorValue := json.Unmarshal(payload, &request); errorValue != nil {
+		return errorValue
+	}
+	if strings.TrimSpace(request.ModelPath) == "" {
+		return errors.New("modelPath is required")
+	}
+	if strings.TrimSpace(request.Backend) == "" {
+		return errors.New("backend is required")
+	}
+
+	content, errorValue := runLiteRT(request)
+	if errorValue != nil {
+		return errorValue
+	}
+	if !isStructuredContentValid(content, request.StructuredOutputSchema.Document) {
+		return errors.New("litert-lm output was not valid structured JSON")
+	}
+
+	return json.NewEncoder(os.Stdout).Encode(responseDocument{Content: content})
+}
+
+func runLiteRT(request requestDocument) (string, error) {
+	output, errorValue := runLiteRTCommand([]string{
+		"run",
+		"--backend=" + strings.TrimSpace(request.Backend),
+		strings.TrimSpace(request.ModelPath),
+		"--prompt=" + renderPrompt(request),
+	})
+	if errorValue != nil && isUnsupportedBackendFlag(output) {
+		if strings.TrimSpace(request.Backend) != "cpu" {
+			return "", fmt.Errorf("litert-lm backend flag is unsupported for %s", strings.TrimSpace(request.Backend))
+		}
+		output, errorValue = runLiteRTCommand([]string{
+			"run",
+			strings.TrimSpace(request.ModelPath),
+			"--prompt=" + renderPrompt(request),
+		})
+	}
+	if errorValue != nil {
+		return "", fmt.Errorf("litert-lm run failed: %w: %s", errorValue, strings.TrimSpace(string(output)))
+	}
+	return extractJSONContent(string(output))
+}
+
+func runLiteRTCommand(arguments []string) ([]byte, error) {
+	command := exec.Command("litert-lm", arguments...)
+	command.Stdin = bytes.NewReader(nil)
+
+	timer := time.AfterFunc(10*time.Minute, func() {
+		if command.Process != nil {
+			_ = command.Process.Kill()
+		}
+	})
+	defer timer.Stop()
+
+	output, errorValue := command.CombinedOutput()
+	return output, errorValue
+}
+
+func isUnsupportedBackendFlag(output []byte) bool {
+	normalizedOutput := strings.ToLower(string(output))
+	return strings.Contains(normalizedOutput, "no such option") ||
+		strings.Contains(normalizedOutput, "unknown option") ||
+		strings.Contains(normalizedOutput, "unrecognized arguments") ||
+		strings.Contains(normalizedOutput, "flag provided but not defined")
+}
+
+func renderPrompt(request requestDocument) string {
+	var builder strings.Builder
+	builder.WriteString("You are Intern Kim. Reply with JSON only.\n\n")
+	for _, message := range request.Messages {
+		role := strings.TrimSpace(message.Role)
+		if role == "" {
+			role = "user"
+		}
+		builder.WriteString(role)
+		builder.WriteString(": ")
+		builder.WriteString(strings.TrimSpace(message.Content))
+		builder.WriteString("\n")
+	}
+	if strings.TrimSpace(request.StructuredOutputSchema.Document) != "" {
+		builder.WriteString("\nJSON schema:\n")
+		builder.WriteString(strings.TrimSpace(request.StructuredOutputSchema.Document))
+		builder.WriteString("\n")
+	}
+	return builder.String()
+}
+
+func extractJSONContent(output string) (string, error) {
+	trimmedOutput := strings.TrimSpace(output)
+	if isJSONDocument(trimmedOutput) {
+		return trimmedOutput, nil
+	}
+
+	startIndex := strings.Index(trimmedOutput, "{")
+	endIndex := strings.LastIndex(trimmedOutput, "}")
+	if startIndex < 0 || endIndex <= startIndex {
+		return "", errors.New("litert-lm output did not include JSON")
+	}
+
+	candidate := strings.TrimSpace(trimmedOutput[startIndex : endIndex+1])
+	if !isJSONDocument(candidate) {
+		return "", errors.New("litert-lm output JSON could not be parsed")
+	}
+	return candidate, nil
+}
+
+func isStructuredContentValid(content string, schemaDocument string) bool {
+	var parsedContent any
+	if json.Unmarshal([]byte(content), &parsedContent) != nil {
+		return false
+	}
+	if strings.TrimSpace(schemaDocument) == "" {
+		return true
+	}
+
+	var schema struct {
+		Required []string `json:"required"`
+	}
+	if json.Unmarshal([]byte(schemaDocument), &schema) != nil {
+		return true
+	}
+	contentMap, isMap := parsedContent.(map[string]any)
+	if !isMap {
+		return len(schema.Required) == 0
+	}
+	for _, requiredKey := range schema.Required {
+		if _, isFound := contentMap[requiredKey]; !isFound {
+			return false
+		}
+	}
+	return true
+}
+
+func isJSONDocument(value string) bool {
+	var document any
+	return json.Unmarshal([]byte(value), &document) == nil
+}

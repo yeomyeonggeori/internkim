@@ -38,6 +38,7 @@ var StepHealth = Step{
 		checkBlueclawUsersPolicy(context, &failedChecks)
 		checkMattermostProfileLookup(context, &failedChecks)
 		checkLLMCapability(context, &failedChecks)
+		checkLiteRTCapability(context, &failedChecks)
 		checkSlackProfileLookup(context, &failedChecks)
 
 		if len(failedChecks) > 0 {
@@ -73,7 +74,7 @@ if [ "$runtime_check" != "ok" ]; then
   echo "$runtime_check"
   exit 0
 fi
-if su -s /bin/sh blueclaw -c 'test -r /root/.internkim/secrets/openrouter-api-key || test -r /root/.internkim/secrets/mattermost-bot-token || test -r /root/.internkim/secrets/slack-bot-token || test -r /root/.internkim/secrets/device-secret || test -r /root/.internkim/secrets/google-sa.json || test -r /root/.internkim/secrets/gas-webhook-url' 2>/dev/null; then
+if su -s /bin/sh blueclaw -c 'test -r /root/.internkim/secrets/openrouter-api-key || test -r /root/.internkim/secrets/mattermost-bot-token || test -r /root/.internkim/secrets/slack-bot-token || test -r /root/.internkim/secrets/device-secret || test -r /root/.internkim/secrets/google-sa.json || test -r /root/.internkim/secrets/gas-webhook-url || test -r /root/.internkim/models/gemma-4-E4B-it.litertlm' 2>/dev/null; then
   echo readable
 else
   echo ok
@@ -180,6 +181,45 @@ fi`))
 		check = "failed"
 	}
 	fmt.Printf("  llm capability: failed (%s)\n", check)
+}
+
+func checkLiteRTCapability(context *Context, failedChecks *[]string) {
+	check := strings.TrimSpace(context.SSH.Run(`if ! command -v litert-lm >/dev/null 2>&1 || [ ! -s /root/.internkim/models/gemma-4-E4B-it.litertlm ]; then
+  echo skipped
+  exit 0
+fi
+schema='{"type":"object","properties":{"content":{"type":"string"}},"required":["content"],"additionalProperties":false}'
+body="$(jq -cn --arg schema "$schema" '{
+  model: "local/gemma-4-E4B-it-litert-lm",
+  executionMode: "local",
+  messages: [{role:"user", content:"Return JSON only with content set to ok."}],
+  structuredOutputSchema: {name:"plain_text_response", document:$schema, isStrictlyEnforced:true},
+  requireParameters: true,
+  enableResponseHealing: true
+}')"
+response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$body" http://internkim/v1/llm/structured 2>/tmp/internkim-litert-smoke-error || true)"
+if printf '%s' "$response" | jq -e '.selectedBackend as $backend | ($backend == "gpu" or $backend == "cpu") and (.content | fromjson | .content | type == "string")' >/dev/null 2>&1; then
+  echo ok
+  exit 0
+fi
+if [ -n "$response" ]; then
+  printf '%s' "$response" | tr '\n' ' ' | cut -c1-180
+else
+  tr '\n' ' ' </tmp/internkim-litert-smoke-error | cut -c1-180
+fi`))
+	if check == "skipped" {
+		fmt.Println("  litert capability: skipped")
+		return
+	}
+	if check == "ok" {
+		fmt.Println("  litert capability: ok")
+		return
+	}
+	*failedChecks = append(*failedChecks, "litert-capability")
+	if check == "" {
+		check = "failed"
+	}
+	fmt.Printf("  litert capability: failed (%s)\n", check)
 }
 
 func checkSlackProfileLookup(context *Context, failedChecks *[]string) {

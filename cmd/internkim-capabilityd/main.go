@@ -17,6 +17,8 @@ func main() {
 	flag.StringVar(&configuration.MattermostTokenPath, "mattermost-token", defaultConfiguration.MattermostTokenPath, "Mattermost bot token path")
 	flag.StringVar(&configuration.SlackTokenPath, "slack-token", defaultConfiguration.SlackTokenPath, "Slack bot token path")
 	flag.StringVar(&configuration.BlueclawBaseURL, "blueclaw-url", defaultConfiguration.BlueclawBaseURL, "Blueclaw base URL")
+	flag.StringVar(&configuration.LiteRTModelPath, "litert-model", defaultConfiguration.LiteRTModelPath, "LiteRT-LM model path")
+	flag.StringVar(&configuration.LiteRTWrapperPath, "litert-wrapper", defaultConfiguration.LiteRTWrapperPath, "LiteRT-LM wrapper path")
 	flag.Parse()
 
 	if errorValue := capabilityd.Run(configuration); errorValue != nil {

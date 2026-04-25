@@ -285,8 +285,24 @@ llm_body="$(jq -cn --arg model "$model" --arg schema "$schema" '{
 llm_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$llm_body" http://internkim/v1/llm/structured)"
 printf '%s' "$llm_response" | jq -e '.content | fromjson | .content | type == "string"' >/dev/null
 
+echo "checking litert capability"
+if command -v litert-lm >/dev/null 2>&1 && [ -s /root/.internkim/models/gemma-4-E4B-it.litertlm ]; then
+  litert_body="$(jq -cn --arg schema "$schema" '{
+    model: "local/gemma-4-E4B-it-litert-lm",
+    executionMode: "local",
+    messages: [{role:"user", content:"Return JSON only with content set to ok."}],
+    structuredOutputSchema: {name:"plain_text_response", document:$schema, isStrictlyEnforced:true},
+    requireParameters: true,
+    enableResponseHealing: true
+  }')"
+  litert_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$litert_body" http://internkim/v1/llm/structured)"
+  printf '%s' "$litert_response" | jq -e '.selectedBackend as $backend | ($backend == "gpu" or $backend == "cpu") and (.content | fromjson | .content | type == "string")' >/dev/null
+else
+  echo "litert capability: skipped"
+fi
+
 echo "checking secret isolation"
-! su -s /bin/sh blueclaw -c 'test -r /root/.internkim/secrets/openrouter-api-key || test -r /root/.internkim/secrets/mattermost-bot-token || test -r /root/.internkim/secrets/device-secret' 2>/dev/null
+! su -s /bin/sh blueclaw -c 'test -r /root/.internkim/secrets/openrouter-api-key || test -r /root/.internkim/secrets/mattermost-bot-token || test -r /root/.internkim/secrets/device-secret || test -r /root/.internkim/models/gemma-4-E4B-it.litertlm' 2>/dev/null
 
 echo "checking blueclaw health"
 curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/policy >/dev/null

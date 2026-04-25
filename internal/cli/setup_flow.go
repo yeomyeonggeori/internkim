@@ -43,6 +43,7 @@ type setupFlowState struct {
 type setupParameterValues struct {
 	AdminEmail        string
 	OpenRouterAPIKey  string
+	LiteRTModelPath   string
 	GasWebhookURL     string
 	GoogleAccessToken string
 	SlackBotToken     string
@@ -92,6 +93,7 @@ func (state *setupFlowState) callbacks() setup.Callbacks {
 		EnableGoogleAPIs:       enableGoogleAPIs,
 		CreateGoogleSA:         createGoogleServiceAccount,
 		GetOpenRouterKey:       buildOpenRouterKeyCallback(state.stateDir, state.messenger, state.parameters.OpenRouterAPIKey, state.nonInteractive),
+		GetLiteRTModelPath:     buildLiteRTModelPathCallback(state.parameters.LiteRTModelPath),
 		GetGasWebhookURL:       state.provisionGasWebhook,
 		GwsSkillsInstallScript: gwsSkillsInstallScript,
 		BinariesVersion:        state.binariesVersion,
@@ -332,6 +334,11 @@ func (state *setupFlowState) requiredBinaryAssets() []localBinaryAsset {
 			remotePath: blueclaw.CapabilitydBinaryPath,
 		},
 		{
+			name:       blueclaw.LiteRTWrapperName,
+			localPath:  filepath.Join(state.boardBinDir, blueclaw.LiteRTWrapperName),
+			remotePath: blueclaw.LiteRTWrapperBinaryPath,
+		},
+		{
 			name:       "send-file",
 			localPath:  board.SendFilePath(state.scriptDir),
 			remotePath: "/usr/local/bin/send-file",
@@ -357,7 +364,7 @@ func (state *setupFlowState) ensureLocalBinaryAssets() ([]localBinaryAsset, erro
 			continue
 		}
 
-		if asset.name == blueclaw.CapabilitydName {
+		if asset.name == blueclaw.CapabilitydName || asset.name == blueclaw.LiteRTWrapperName {
 			if err := buildGoBinaryAsset(state, asset); err != nil {
 				return nil, err
 			}
@@ -405,6 +412,7 @@ func (state *setupFlowState) binariesVersion() string {
 	hash := sha256.New()
 	for _, path := range []string{
 		filepath.Join(state.scriptDir, "cmd", blueclaw.CapabilitydName),
+		filepath.Join(state.scriptDir, "cmd", blueclaw.LiteRTWrapperName),
 		filepath.Join(state.scriptDir, "internal", "capabilityd"),
 	} {
 		state.writeDirectoryHash(hash, path)
