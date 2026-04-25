@@ -7,6 +7,7 @@ func DefaultRegistry() Registry {
 		StepBinaries,
 		StepSkills,
 		StepOpenRouter,
+		StepLiteRT,
 		StepTunnel,
 		StepGoogle,
 		StepStaging,

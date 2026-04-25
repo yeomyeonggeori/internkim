@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/user"
 	"strconv"
 	"strings"
@@ -27,11 +28,14 @@ type Configuration struct {
 	BlueclawBaseURL     string
 	OpenRouterBaseURL   string
 	SocketGroupName     string
+	LiteRTModelPath     string
+	LiteRTWrapperPath   string
 }
 
 type Service struct {
 	Configuration Configuration
 	HTTPClient    *http.Client
+	RunCommand    func(context.Context, string, []string, []byte) ([]byte, error)
 }
 
 type message struct {
@@ -52,6 +56,17 @@ type schemaRequest struct {
 	Name               string `json:"name"`
 	Document           string `json:"document"`
 	IsStrictlyEnforced bool   `json:"isStrictlyEnforced"`
+}
+
+type litertRequest struct {
+	ModelPath              string        `json:"modelPath"`
+	Backend                string        `json:"backend"`
+	Messages               []message     `json:"messages"`
+	StructuredOutputSchema schemaRequest `json:"structuredOutputSchema"`
+}
+
+type litertResponse struct {
+	Content string `json:"content"`
 }
 
 type userLookupRequest struct {
@@ -84,6 +99,8 @@ func DefaultConfiguration() Configuration {
 		BlueclawBaseURL:     "http://127.0.0.1:8080",
 		OpenRouterBaseURL:   "https://openrouter.ai/api/v1/chat/completions",
 		SocketGroupName:     "blueclaw",
+		LiteRTModelPath:     "/root/.internkim/models/gemma-4-E4B-it.litertlm",
+		LiteRTWrapperPath:   "/usr/local/bin/internkim-litert-wrapper",
 	}
 }
 
@@ -225,12 +242,67 @@ func (service Service) completeStructured(ctx context.Context, request llmReques
 	executionMode := firstNonEmpty(request.ExecutionMode, "auto")
 	switch executionMode {
 	case "local":
-		return nil, errors.New("local litert capability is not installed")
-	case "remote", "auto":
+		return service.completeLocal(ctx, request)
+	case "remote":
+		return service.completeRemote(ctx, request)
+	case "auto":
+		response, errorValue := service.completeLocal(ctx, request)
+		if errorValue == nil {
+			return response, nil
+		}
+		log.Printf("litert local capability failed; falling back to remote: %v", errorValue)
 		return service.completeRemote(ctx, request)
 	default:
 		return nil, errors.New("llm execution mode is not supported")
 	}
+}
+
+func (service Service) completeLocal(ctx context.Context, request llmRequest) (any, error) {
+	var lastError error
+	for _, backend := range []string{"gpu", "cpu"} {
+		response, errorValue := service.completeLiteRT(ctx, request, backend)
+		if errorValue == nil {
+			return map[string]string{
+				"provider":        "litert",
+				"model":           "gemma-4-E4B-it-litert-lm",
+				"content":         response.Content,
+				"selectedBackend": backend,
+			}, nil
+		}
+		lastError = errorValue
+	}
+	if lastError == nil {
+		lastError = errors.New("litert backend list is empty")
+	}
+	return nil, lastError
+}
+
+func (service Service) completeLiteRT(ctx context.Context, request llmRequest, backend string) (litertResponse, error) {
+	modelPath := firstNonEmpty(service.Configuration.LiteRTModelPath, DefaultConfiguration().LiteRTModelPath)
+	wrapperPath := firstNonEmpty(service.Configuration.LiteRTWrapperPath, DefaultConfiguration().LiteRTWrapperPath)
+	document, errorValue := json.Marshal(litertRequest{
+		ModelPath:              modelPath,
+		Backend:                backend,
+		Messages:               request.Messages,
+		StructuredOutputSchema: request.StructuredOutputSchema,
+	})
+	if errorValue != nil {
+		return litertResponse{}, errorValue
+	}
+
+	output, errorValue := service.runCommand(ctx, wrapperPath, nil, document)
+	if errorValue != nil {
+		return litertResponse{}, errorValue
+	}
+
+	var response litertResponse
+	if errorValue := json.Unmarshal(output, &response); errorValue != nil {
+		return litertResponse{}, errorValue
+	}
+	if !isStructuredContentValid(response.Content, request.StructuredOutputSchema.Document) {
+		return litertResponse{}, errors.New("litert response did not satisfy structured output schema")
+	}
+	return response, nil
 }
 
 func (service Service) completeRemote(ctx context.Context, request llmRequest) (any, error) {
@@ -559,6 +631,23 @@ func (service Service) httpClient() *http.Client {
 	return &http.Client{Timeout: 120 * time.Second}
 }
 
+func (service Service) runCommand(ctx context.Context, executablePath string, arguments []string, standardInput []byte) ([]byte, error) {
+	if service.RunCommand != nil {
+		return service.RunCommand(ctx, executablePath, arguments, standardInput)
+	}
+
+	commandContext, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
+
+	command := exec.CommandContext(commandContext, executablePath, arguments...)
+	command.Stdin = bytes.NewReader(standardInput)
+	output, errorValue := command.CombinedOutput()
+	if errorValue != nil {
+		return nil, fmt.Errorf("%s failed: %w: %s", executablePath, errorValue, strings.TrimSpace(string(output)))
+	}
+	return output, nil
+}
+
 func buildOpenRouterRequest(request llmRequest) ([]byte, error) {
 	var schema json.RawMessage
 	if strings.TrimSpace(request.StructuredOutputSchema.Document) != "" {
@@ -584,6 +673,33 @@ func buildOpenRouterRequest(request llmRequest) ([]byte, error) {
 		document["plugins"] = []map[string]string{{"id": "response-healing"}}
 	}
 	return json.Marshal(document)
+}
+
+func isStructuredContentValid(content string, schemaDocument string) bool {
+	var parsedContent any
+	if json.Unmarshal([]byte(content), &parsedContent) != nil {
+		return false
+	}
+	if strings.TrimSpace(schemaDocument) == "" {
+		return true
+	}
+
+	var schema struct {
+		Required []string `json:"required"`
+	}
+	if json.Unmarshal([]byte(schemaDocument), &schema) != nil {
+		return true
+	}
+	contentMap, isMap := parsedContent.(map[string]any)
+	if !isMap {
+		return len(schema.Required) == 0
+	}
+	for _, requiredKey := range schema.Required {
+		if _, isFound := contentMap[requiredKey]; !isFound {
+			return false
+		}
+	}
+	return true
 }
 
 func readSecretValue(path string) string {
@@ -801,6 +917,12 @@ func (configuration Configuration) WithDefaults() Configuration {
 	}
 	if configuration.SocketGroupName == "" {
 		configuration.SocketGroupName = defaultConfiguration.SocketGroupName
+	}
+	if configuration.LiteRTModelPath == "" {
+		configuration.LiteRTModelPath = defaultConfiguration.LiteRTModelPath
+	}
+	if configuration.LiteRTWrapperPath == "" {
+		configuration.LiteRTWrapperPath = defaultConfiguration.LiteRTWrapperPath
 	}
 	return configuration
 }

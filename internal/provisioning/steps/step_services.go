@@ -9,7 +9,7 @@ import (
 
 var StepServices = Step{
 	Name: "services",
-	Deps: []string{"binaries", "openrouter", "mattermost"},
+	Deps: []string{"binaries", "openrouter", "litert", "mattermost"},
 	Title: func(context *Context) string {
 		return context.T("서비스 시작 중...", "Starting services...")
 	},

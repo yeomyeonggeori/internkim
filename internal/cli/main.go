@@ -1540,7 +1540,7 @@ func setupControlArguments(arguments []string) []string {
 			if argument != "--sim" && index+1 < len(arguments) {
 				index++
 			}
-		case "--password", "--admin-email", "--openrouter-api-key", "--gas-webhook-url", "--google-access-token", "--slack-bot-token":
+		case "--password", "--admin-email", "--openrouter-api-key", "--litert-model-path", "--gas-webhook-url", "--google-access-token", "--slack-bot-token":
 			if index+1 < len(arguments) {
 				if argument != "--password" {
 					filteredArguments = append(filteredArguments, argument)
@@ -1564,6 +1564,7 @@ func setupControlArguments(arguments []string) []string {
 				strings.HasPrefix(argument, "--skip=") ||
 				strings.HasPrefix(argument, "--admin-email=") ||
 				strings.HasPrefix(argument, "--openrouter-api-key=") ||
+				strings.HasPrefix(argument, "--litert-model-path=") ||
 				strings.HasPrefix(argument, "--gas-webhook-url=") ||
 				strings.HasPrefix(argument, "--google-access-token=") ||
 				strings.HasPrefix(argument, "--slack-bot-token=") {
@@ -3743,6 +3744,7 @@ func collectSetupParameterValues() setupParameterValues {
 	return setupParameterValues{
 		AdminEmail:        strings.TrimSpace(argString("--admin-email", "")),
 		OpenRouterAPIKey:  strings.TrimSpace(argString("--openrouter-api-key", "")),
+		LiteRTModelPath:   strings.TrimSpace(argString("--litert-model-path", "")),
 		GasWebhookURL:     strings.TrimSpace(argString("--gas-webhook-url", "")),
 		GoogleAccessToken: strings.TrimSpace(argString("--google-access-token", "")),
 		SlackBotToken:     strings.TrimSpace(argString("--slack-bot-token", "")),
@@ -3768,5 +3770,15 @@ func buildOpenRouterKeyCallback(stateDir string, messenger *msg, openRouterAPIKe
 			saveState(stateDir, "openrouter_api_key", promptedKey)
 		}
 		return promptedKey, nil
+	}
+}
+
+func buildLiteRTModelPathCallback(liteRTModelPath string) func(force bool) (string, error) {
+	return func(force bool) (string, error) {
+		_ = force
+		if liteRTModelPath != "" {
+			return liteRTModelPath, nil
+		}
+		return strings.TrimSpace(os.Getenv("INTERNKIM_LITERT_MODEL_PATH")), nil
 	}
 }

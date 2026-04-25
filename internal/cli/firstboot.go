@@ -310,6 +310,12 @@ if [ -f /root/.internkim/secrets/slack-bot-token ]; then
   chown root:root /root/.internkim/secrets/slack-bot-token
   chmod 600 /root/.internkim/secrets/slack-bot-token
 fi
+install -d -o root -g root -m 700 /root/.internkim/models
+if [ -f "$STAGE/models/gemma-4-E4B-it.litertlm" ]; then
+  cp -f "$STAGE/models/gemma-4-E4B-it.litertlm" /root/.internkim/models/gemma-4-E4B-it.litertlm
+  chown root:root /root/.internkim/models/gemma-4-E4B-it.litertlm
+  chmod 600 /root/.internkim/models/gemma-4-E4B-it.litertlm
+fi
 mkdir -p /root/.blueclaw/workspace/bin /root/.blueclaw/workspace/downloads
 chown -R blueclaw:blueclaw /root/.blueclaw
 chown root:blueclaw /root/.blueclaw/config 2>/dev/null || true
@@ -438,7 +444,7 @@ else
     retry_later "waiting for outbound connectivity before tools phase"
   fi`),
 		strings.TrimSpace(gwsSkillsInstallScript),
-		strings.TrimSpace(`apt-get install -y -qq unzip fonts-noto-cjk fonts-noto-color-emoji >/dev/null 2>&1 || true
+		strings.TrimSpace(fmt.Sprintf(`apt-get install -y -qq unzip fonts-noto-cjk fonts-noto-color-emoji >/dev/null 2>&1 || true
 if ! sudo -u blueclaw test -x /home/blueclaw/.bun/bin/bun; then
   sudo -u blueclaw bash -lc 'curl -fsSL https://bun.sh/install | bash' >/dev/null 2>&1 || true
 fi
@@ -461,8 +467,31 @@ for skill in calendar create-gws-file simple-slides; do
 done
 chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills 2>/dev/null || true
 
+if ! command -v uv >/dev/null 2>&1; then
+  curl -LsSf https://astral.sh/uv/install.sh -o /tmp/internkim-uv-install.sh
+  sh /tmp/internkim-uv-install.sh
+  ln -sf /root/.local/bin/uv /usr/local/bin/uv
+fi
+uv tool install --upgrade litert-lm >/dev/null
+ln -sf /root/.local/bin/litert-lm /usr/local/bin/litert-lm
+if [ ! -s %s ]; then
+  curl -L --fail --retry 3 --output %s.tmp %s
+  mv %s.tmp %s
+fi
+chown root:root /root/.internkim/models %s
+chmod 700 /root/.internkim/models
+chmod 600 %s
+
 mark_phase_done tools
-fi`),
+fi`,
+			blueclaw.LiteRTModelPath,
+			blueclaw.LiteRTModelPath,
+			blueclaw.LiteRTModelSourceURL,
+			blueclaw.LiteRTModelPath,
+			blueclaw.LiteRTModelPath,
+			blueclaw.LiteRTModelPath,
+			blueclaw.LiteRTModelPath,
+		)),
 	}
 
 	return strings.Join(parts, "\n\n")

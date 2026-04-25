@@ -17,7 +17,8 @@ var StepBinaries = Step{
 		case BackendSSH:
 			if !sshFileExists(context, "/usr/local/bin/blueclaw") ||
 				!sshFileExists(context, "/usr/local/bin/gws") ||
-				!sshFileExists(context, "/usr/local/bin/internkim-capabilityd") {
+				!sshFileExists(context, "/usr/local/bin/internkim-capabilityd") ||
+				!sshFileExists(context, "/usr/local/bin/internkim-litert-wrapper") {
 				return false
 			}
 			if version == "" {
