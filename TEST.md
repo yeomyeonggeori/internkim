@@ -48,9 +48,12 @@ make build
 ```bash
 ./internkim reset blueclaw-history --plan
 ./internkim reset blueclaw-history --confirm <deviceID>
+./internkim reset blueclaw-history --keep-mattermost-posts --confirm <deviceID>
 ```
 
-이 reset은 Blueclaw task, raw event, conversation, legacy memory, Graphiti mirror, Kuzu memory files를 지웁니다. 초대 사용자, policy, platform account link, secrets, Mattermost 계정과 Mattermost에 이미 보이는 일반 채팅 글은 유지합니다.
+기본 reset은 Blueclaw task, raw event, conversation, legacy memory, Graphiti mirror, Kuzu memory files와 Mattermost 화면에 보이는 post/reaction/thread 기록을 함께 지웁니다. 초대 사용자, policy, platform account link, secrets, Mattermost 사용자, 팀, 채널은 유지합니다. 디버깅 때문에 Mattermost 화면 기록만 남겨야 하는 테스트는 `--keep-mattermost-posts`를 함께 사용합니다.
+
+Slack과 Signal은 외부 플랫폼이므로 reset 명령이 원격 서비스의 전체 메시지 기록을 보장해서 지우지는 않습니다. 테스트가 만든 Slack/Signal 메시지는 connector별 삭제 권한이 있는 범위에서 즉시 삭제하고, 삭제 실패 시 남은 artifact를 출력해야 합니다.
 
 `scenario-e2e`는 다음을 순서대로 확인합니다.
 
