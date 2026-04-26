@@ -374,6 +374,7 @@ uninvited_username="verifyuninvited$timestamp"
 password="VerifyPass!$timestamp"
 channel_id="$(cat /root/.internkim/env/channel-id)"
 admin_password="$(cat /root/.internkim/secrets/mm-admin-pass)"
+test_started_at="$(date +%s%3N)"
 
 login_headers="$(mktemp)"
 login_body="$(jq -cn --arg login_id admin --arg password "$admin_password" '{login_id:$login_id,password:$password}')"
@@ -481,7 +482,35 @@ wait_for_model_reply() {
   return 1
 }
 
+delete_post() {
+  local token="$1"
+  local post_id="$2"
+  if [ -z "$post_id" ] || [ "$post_id" = "null" ]; then
+    return 0
+  fi
+  if [ -z "$token" ]; then
+    echo "cleanup warning: missing token for Mattermost post $post_id" >&2
+    return 0
+  fi
+  curl --silent --show-error -X DELETE -H "Authorization: Bearer $token" \
+    "http://localhost:8065/api/v4/posts/$post_id" >/dev/null || echo "cleanup warning: failed to delete Mattermost post $post_id" >&2
+}
+
+delete_verify_replies() {
+  local token="$1"
+  curl --silent --show-error --fail -H "Authorization: Bearer $admin_token" \
+    "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=100" |
+    jq -r --arg bot_user_id "$bot_user_id" --argjson test_started_at "$test_started_at" \
+      '.posts[] | select(.user_id == $bot_user_id and .create_at >= $test_started_at) | .id' |
+    while read -r post_id; do
+      delete_post "$token" "$post_id"
+    done || echo "cleanup warning: failed to enumerate Mattermost bot replies" >&2
+}
+
 cleanup() {
+  delete_post "${invited_token:-}" "${invited_post_id:-}"
+  delete_post "${uninvited_token:-}" "${uninvited_post_id:-}"
+  delete_verify_replies "${mattermost_token:-}"
   curl --silent --show-error -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$invited_email" >/dev/null || true
 }
 trap cleanup EXIT

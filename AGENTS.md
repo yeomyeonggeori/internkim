@@ -17,6 +17,16 @@ Always apply the code style preferences below. The only exception is when workin
 3. **Efficiency** - no redundant operations
 4. **Simplicity** - minimal code that solves the problem
 
+## Runtime Test Hygiene
+
+When testing against real platform surfaces such as Mattermost, Slack, or Signal:
+
+- Use clearly identifiable test messages, users, and channels.
+- After verifying behavior, delete test messages and bot replies created by the test.
+- If deletion fails, report exactly which artifacts remain.
+- Do not leave test-only memories in Blueclaw. For memory tests, either isolate the test state or run `internkim reset blueclaw-history --confirm <deviceID>` after verification.
+- Keep people, policy, platform account links, and secrets intact unless the task explicitly asks to reset them.
+
 ## Code Style
 
 ### No Comments
