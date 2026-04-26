@@ -25,6 +25,8 @@ When testing against real platform surfaces such as Mattermost, Slack, or Signal
 - After verifying behavior, delete test messages and bot replies created by the test.
 - If deletion fails, report exactly which artifacts remain.
 - Do not leave test-only memories in Blueclaw. For memory tests, either isolate the test state or run `internkim reset blueclaw-history --confirm <deviceID>` after verification.
+- `internkim reset blueclaw-history --confirm <deviceID>` clears Blueclaw history and visible Mattermost post history by default. Use `--keep-mattermost-posts` only for debugging when visible Mattermost posts must remain.
+- Slack and Signal are external platforms. Delete test messages and bot replies when the connector has permission, and report any remote platform artifacts that cannot be removed.
 - Keep people, policy, platform account links, and secrets intact unless the task explicitly asks to reset them.
 
 ## Code Style

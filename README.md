@@ -151,9 +151,12 @@ make verify-graphiti-local
 ```bash
 ./internkim reset blueclaw-history --plan
 ./internkim reset blueclaw-history --confirm <deviceID>
+./internkim reset blueclaw-history --keep-mattermost-posts --confirm <deviceID>
 ```
 
-이 명령은 초대 사용자, policy, platform account link, secrets, Mattermost 계정과 Mattermost에 이미 보이는 일반 채팅 글은 유지합니다. Mattermost/Slack/Signal 검증에서 만든 테스트 메시지와 봇 답변은 검증 직후 삭제해야 합니다.
+기본 reset은 Blueclaw task, raw event, conversation, legacy memory, Graphiti mirror, Kuzu memory files와 Mattermost 화면에 보이는 post/reaction/thread 기록을 함께 지웁니다. 초대 사용자, policy, platform account link, secrets, Mattermost 사용자, 팀, 채널은 유지합니다. 디버깅 때문에 Mattermost 화면 기록만 남겨야 할 때는 `--keep-mattermost-posts`를 명시합니다. Mattermost/Slack/Signal 검증에서 만든 테스트 메시지와 봇 답변은 검증 직후 삭제해야 합니다.
+
+Slack과 Signal은 외부 플랫폼이므로 이 reset이 원격 서비스의 전체 메시지 기록을 강제로 비우지는 않습니다. InternKim이 만든 테스트 메시지와 봇 답변은 가능한 범위에서 삭제하고, Blueclaw/Graphiti 쪽 기억과 작업 기록은 항상 reset 대상에 포함합니다.
 
 ### 웹앱 (Cloudflare Pages)
 
