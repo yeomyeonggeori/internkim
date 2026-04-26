@@ -42,6 +42,9 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if memory["graphitiKuzuPath"] != GraphitiKuzuPath {
 		t.Fatalf("expected Graphiti Kuzu path, got %q", memory["graphitiKuzuPath"])
 	}
+	if memory["timeoutSecond"] != float64(60) {
+		t.Fatalf("expected Graphiti timeout, got %v", memory["timeoutSecond"])
+	}
 	connectors := runtimeConfiguration["connectors"].(map[string]any)
 	mattermost := connectors["mattermost"].(map[string]any)
 	if _, isFound := mattermost["botTokenPath"]; isFound {

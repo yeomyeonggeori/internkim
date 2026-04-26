@@ -50,7 +50,7 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 			"workspaceID":      "default",
 			"graphitiEndpoint": GraphitiEndpoint,
 			"graphitiKuzuPath": GraphitiKuzuPath,
-			"timeoutSecond":    15,
+			"timeoutSecond":    60,
 		},
 		"connectors": map[string]any{
 			"mattermost": map[string]any{
