@@ -19,7 +19,8 @@ var StepBinaries = Step{
 				!sshFileExists(context, "/usr/local/bin/gws") ||
 				!sshFileExists(context, "/usr/local/bin/internkim-capabilityd") ||
 				!sshFileExists(context, "/usr/local/bin/internkim-admind") ||
-				!sshFileExists(context, "/usr/local/bin/internkim-litert-wrapper") {
+				!sshFileExists(context, "/usr/local/bin/internkim-litert-wrapper") ||
+				!sshFileExists(context, "/usr/local/bin/graphiti-memoryd") {
 				return false
 			}
 			if version == "" {

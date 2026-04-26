@@ -267,6 +267,11 @@ if [ -d "$STAGE/blueclaw-migrations" ]; then
   mkdir -p /root/.blueclaw/migrations
   cp -af "$STAGE/blueclaw-migrations/." /root/.blueclaw/migrations/
 fi
+if [ -d "$STAGE/graphiti_memoryd" ]; then
+  rm -rf /opt/internkim/graphiti_memoryd
+  mkdir -p /opt/internkim/graphiti_memoryd
+  cp -af "$STAGE/graphiti_memoryd/." /opt/internkim/graphiti_memoryd/
+fi
 if [ -f "$STAGE/SOUL.md" ]; then
   cp -f "$STAGE/SOUL.md" /root/.blueclaw/workspace/SOUL.md
 fi
@@ -496,6 +501,17 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 uv tool install --upgrade litert-lm >/dev/null
 ln -sf /root/.local/bin/litert-lm /usr/local/bin/litert-lm
+if [ -f /opt/internkim/graphiti_memoryd/requirements.txt ]; then
+  uv venv /opt/internkim/graphiti-venv >/dev/null
+  uv pip install --python /opt/internkim/graphiti-venv/bin/python -r /opt/internkim/graphiti_memoryd/requirements.txt >/dev/null
+  cat > /usr/local/bin/graphiti-memoryd <<'WRAPEOF'
+#!/bin/sh
+PYTHONPATH=/opt/internkim exec /opt/internkim/graphiti-venv/bin/python -m graphiti_memoryd "$@"
+WRAPEOF
+  chmod 755 /usr/local/bin/graphiti-memoryd
+  chown -R root:blueclaw /opt/internkim
+  chmod -R u=rwX,g=rX,o=rX /opt/internkim
+fi
 if [ ! -s %s ]; then
   curl -L --fail --retry 3 --output %s.tmp %s
   mv %s.tmp %s
@@ -747,6 +763,8 @@ else
 %sSVCEOF
   cat > %s <<'CAPABILITYEOF'
 %sCAPABILITYEOF
+  cat > %s <<'GRAPHITIEOF'
+%sGRAPHITIEOF
   cat > %s <<'ADMINDEOF'
 %sADMINDEOF
   cat > %s <<'SYNCEOF'
@@ -763,12 +781,14 @@ else
   systemctl start %s
   systemctl enable %s
   systemctl start %s
+  systemctl enable %s
+  systemctl start %s
   systemctl enable --now internkim-users-sync.timer
 
   echo "Waiting for services..."
   for attemptIndex in $(seq 1 150); do
     allServicesActive=true
-    for serviceName in mattermost %s %s %s cloudflared postgresql; do
+    for serviceName in mattermost %s %s %s %s cloudflared postgresql; do
       if ! systemctl is-active --quiet "$serviceName" 2>/dev/null; then
         allServicesActive=false
         break
@@ -789,6 +809,8 @@ fi`,
 		blueclaw.BlueclawServiceUnit(),
 		blueclaw.CapabilitydServicePath,
 		blueclaw.CapabilitydServiceUnit(),
+		blueclaw.GraphitiMemorydServicePath,
+		blueclaw.GraphitiMemorydServiceUnit(),
 		blueclaw.AdmindServicePath,
 		blueclaw.AdmindServiceUnit(),
 		blueclaw.InternKimUsersSyncScriptPath,
@@ -802,10 +824,13 @@ fi`,
 		blueclaw.CapabilitydServiceName,
 		blueclaw.AdmindServiceName,
 		blueclaw.AdmindServiceName,
+		blueclaw.GraphitiMemorydServiceName,
+		blueclaw.GraphitiMemorydServiceName,
 		blueclaw.BlueclawServiceName,
 		blueclaw.BlueclawServiceName,
 		blueclaw.CapabilitydServiceName,
 		blueclaw.AdmindServiceName,
+		blueclaw.GraphitiMemorydServiceName,
 		blueclaw.BlueclawServiceName,
 	))
 	return section

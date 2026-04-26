@@ -29,10 +29,12 @@ var StepHealth = Step{
 		checkService(context, "mattermost", &failedChecks)
 		checkService(context, "cloudflared", &failedChecks)
 		checkService(context, blueclaw.CapabilitydServiceName, &failedChecks)
+		checkService(context, blueclaw.GraphitiMemorydServiceName, &failedChecks)
 		checkService(context, blueclaw.AdmindServiceName, &failedChecks)
 		checkBlueclaw(context, &failedChecks)
 		checkSecretIsolation(context, &failedChecks)
 		checkCapabilityHealth(context, &failedChecks)
+		checkGraphitiHealth(context, &failedChecks)
 		checkAdminHealth(context, &failedChecks)
 		checkMattermostPing(context, &failedChecks)
 		checkMattermostURL(context, &failedChecks)
@@ -83,6 +85,10 @@ for forbidden in ("apiKeyPath", "botTokenPath", "signingSecretPath", "OPENROUTER
         print("runtime-secret-reference")
         raise SystemExit
 
+if runtime_configuration.get("memory", {}).get("graphitiEndpoint") != "http://127.0.0.1:7791":
+    print("runtime-graphiti-endpoint")
+    raise SystemExit
+
 print("ok")
 PY
 )"
@@ -101,6 +107,19 @@ fi`))
 	}
 	*failedChecks = append(*failedChecks, "secret-isolation")
 	fmt.Printf("  secret isolation: %s\n", check)
+}
+
+func checkGraphitiHealth(context *Context, failedChecks *[]string) {
+	check := strings.TrimSpace(context.SSH.Run(`curl --silent --show-error --fail http://127.0.0.1:7791/health 2>/dev/null | jq -r '.status // empty' || true`))
+	if check == "ok" {
+		fmt.Println("  graphiti memory: ok")
+		return
+	}
+	*failedChecks = append(*failedChecks, "graphiti-memoryd")
+	if check == "" {
+		check = "failed"
+	}
+	fmt.Printf("  graphiti memory: %s\n", check)
 }
 
 func checkCapabilityHealth(context *Context, failedChecks *[]string) {

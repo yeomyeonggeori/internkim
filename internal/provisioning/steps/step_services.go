@@ -32,11 +32,15 @@ for forbidden in ("apiKeyPath", "botTokenPath", "signingSecretPath", "OPENROUTER
 if '"endpoint": "http://internkim"' not in document or '"unixSocketPath": "/run/internkim/capability.sock"' not in document:
     print("stale")
     raise SystemExit
+if '"graphitiEndpoint": "http://127.0.0.1:7791"' not in document or '"graphitiKuzuPath": "/root/.blueclaw/workspace/.blueclaw/graphiti/kuzu"' not in document:
+    print("stale")
+    raise SystemExit
 print("ok")
 PY`)
 		databaseCheck := trimmedRun(context, `test -d /root/.blueclaw/migrations && su -s /bin/sh blueclaw -c 'test -r /root/.blueclaw/migrations/001_extension.sql' 2>/dev/null && su - postgres -c "psql -tAc \"SELECT 1 FROM pg_database WHERE datname='blueclaw'\"" 2>/dev/null | grep -q 1 && echo ok || echo missing`)
 		return trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
+			trimmedRun(context, "systemctl is-active "+blueclaw.GraphitiMemorydServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
 			trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
 			trimmedRun(context, "systemctl is-active mattermost") == "active" &&
@@ -97,6 +101,13 @@ if [ -d /root/.blueclaw/migrations ]; then
   chmod 750 /root/.blueclaw/migrations 2>/dev/null || true
 fi`)
 
+		connection.Run(`if [ -f /opt/internkim/graphiti_memoryd/requirements.txt ]; then
+  uv venv /opt/internkim/graphiti-venv >/dev/null
+  uv pip install --python /opt/internkim/graphiti-venv/bin/python -r /opt/internkim/graphiti_memoryd/requirements.txt >/dev/null
+  chown -R root:blueclaw /opt/internkim
+  chmod -R u=rwX,g=rX,o=rX /opt/internkim
+fi`)
+
 		connection.Run(fmt.Sprintf(`systemctl stop zeroclaw 2>/dev/null || true
 systemctl disable zeroclaw 2>/dev/null || true
 rm -f /etc/systemd/system/zeroclaw.service
@@ -106,9 +117,13 @@ cat > %s <<'SVCEOF'
 %sSVCEOF
 cat > %s <<'CAPABILITYEOF'
 %sCAPABILITYEOF
+cat > %s <<'GRAPHITIEOF'
+%sGRAPHITIEOF
 cat > %s <<'ADMINDEOF'
 %sADMINDEOF
 systemctl daemon-reload
+systemctl enable %s
+systemctl restart %s
 systemctl enable %s
 systemctl restart %s
 systemctl enable %s
@@ -120,10 +135,14 @@ sleep 2`,
 			blueclaw.BlueclawServiceUnit(),
 			blueclaw.CapabilitydServicePath,
 			blueclaw.CapabilitydServiceUnit(),
+			blueclaw.GraphitiMemorydServicePath,
+			blueclaw.GraphitiMemorydServiceUnit(),
 			blueclaw.AdmindServicePath,
 			blueclaw.AdmindServiceUnit(),
 			blueclaw.CapabilitydServiceName,
 			blueclaw.CapabilitydServiceName,
+			blueclaw.GraphitiMemorydServiceName,
+			blueclaw.GraphitiMemorydServiceName,
 			blueclaw.AdmindServiceName,
 			blueclaw.AdmindServiceName,
 			blueclaw.BlueclawServiceName,
@@ -134,6 +153,7 @@ sleep 2`,
 		for attempt := 0; attempt < 15; attempt++ {
 			isBlueclawHealthy = trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
 				trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
+				trimmedRun(context, "systemctl is-active "+blueclaw.GraphitiMemorydServiceName) == "active" &&
 				trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
 				trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok"
 			if isBlueclawHealthy {

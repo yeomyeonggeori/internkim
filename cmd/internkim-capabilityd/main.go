@@ -22,6 +22,8 @@ func main() {
 	flag.StringVar(&configuration.BlueclawBaseURL, "blueclaw-url", defaultConfiguration.BlueclawBaseURL, "Blueclaw base URL")
 	flag.StringVar(&configuration.LiteRTModelPath, "litert-model", defaultConfiguration.LiteRTModelPath, "LiteRT-LM model path")
 	flag.StringVar(&configuration.LiteRTWrapperPath, "litert-wrapper", defaultConfiguration.LiteRTWrapperPath, "LiteRT-LM wrapper path")
+	flag.StringVar(&configuration.OpenRouterEmbeddingBaseURL, "openrouter-embedding-url", defaultConfiguration.OpenRouterEmbeddingBaseURL, "OpenRouter embedding URL")
+	flag.StringVar(&configuration.OpenRouterEmbeddingModel, "openrouter-embedding-model", defaultConfiguration.OpenRouterEmbeddingModel, "OpenRouter embedding model")
 	flag.Parse()
 
 	if errorValue := capabilityd.Run(configuration); errorValue != nil {
