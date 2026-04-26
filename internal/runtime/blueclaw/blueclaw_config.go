@@ -52,6 +52,11 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 			"graphitiKuzuPath": GraphitiKuzuPath,
 			"timeoutSecond":    60,
 		},
+		"agent": map[string]any{
+			"maxIterations":      8,
+			"turnTimeoutSecond":  120,
+			"toolResultMaxBytes": 32768,
+		},
 		"connectors": map[string]any{
 			"mattermost": map[string]any{
 				"baseURL": "http://localhost:8065",
@@ -60,8 +65,13 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 				"baseURL": BlueclawSlackAPIBaseURL,
 			},
 		},
-		"agentProfiles": []map[string]any{},
-		"mcpServers":    []map[string]any{},
+		"agentProfiles": []map[string]any{
+			{
+				"name":             "default",
+				"allowedToolNames": []string{"conversation.history", "memory.search"},
+			},
+		},
+		"mcpServers": []map[string]any{},
 		"terminal": map[string]any{
 			"mode":                   "native",
 			"sandboxProvider":        "",

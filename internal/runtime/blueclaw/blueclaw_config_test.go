@@ -45,6 +45,22 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if memory["timeoutSecond"] != float64(60) {
 		t.Fatalf("expected Graphiti timeout, got %v", memory["timeoutSecond"])
 	}
+	agent := runtimeConfiguration["agent"].(map[string]any)
+	if agent["maxIterations"] != float64(8) {
+		t.Fatalf("expected agent max iterations, got %v", agent["maxIterations"])
+	}
+	if agent["turnTimeoutSecond"] != float64(120) {
+		t.Fatalf("expected agent turn timeout, got %v", agent["turnTimeoutSecond"])
+	}
+	if agent["toolResultMaxBytes"] != float64(32768) {
+		t.Fatalf("expected agent tool result limit, got %v", agent["toolResultMaxBytes"])
+	}
+	agentProfiles := runtimeConfiguration["agentProfiles"].([]any)
+	defaultProfile := agentProfiles[0].(map[string]any)
+	allowedToolNames := defaultProfile["allowedToolNames"].([]any)
+	if !containsStringValue(allowedToolNames, "conversation.history") || !containsStringValue(allowedToolNames, "memory.search") {
+		t.Fatalf("expected default agent profile to allow internal tools, got %+v", allowedToolNames)
+	}
 	connectors := runtimeConfiguration["connectors"].(map[string]any)
 	mattermost := connectors["mattermost"].(map[string]any)
 	if _, isFound := mattermost["botTokenPath"]; isFound {
@@ -56,6 +72,15 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 			t.Fatalf("expected runtime config to omit %q", fragment)
 		}
 	}
+}
+
+func containsStringValue(values []any, expectedValue string) bool {
+	for _, value := range values {
+		if value == expectedValue {
+			return true
+		}
+	}
+	return false
 }
 
 func TestBlueclawServiceDoesNotExposeOpenRouterKeyAsEnvironmentFile(t *testing.T) {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -75,6 +76,26 @@ func TestLocalStructuredCompletionRejectsInvalidStructuredOutput(t *testing.T) {
 	})
 	if errorValue == nil {
 		t.Fatalf("expected invalid structured output to fail")
+	}
+}
+
+func TestToolInvokeDoesNotExposeSecretsForUnconfiguredTool(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "sk-must-not-leak")
+	service := Service{Configuration: DefaultConfiguration()}
+	request := httptest.NewRequest(http.MethodPost, "/v1/tools/google.search/invoke", strings.NewReader(`{"input":{"query":"hello"}}`))
+	responseRecorder := httptest.NewRecorder()
+
+	service.router().ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusBadGateway {
+		t.Fatalf("expected unconfigured tool to fail safely, got %d", responseRecorder.Code)
+	}
+	responseBody := responseRecorder.Body.String()
+	if strings.Contains(responseBody, "sk-must-not-leak") {
+		t.Fatalf("expected tool error to omit secrets, got %q", responseBody)
+	}
+	if !strings.Contains(responseBody, "capability tool is not configured") {
+		t.Fatalf("expected safe tool error, got %q", responseBody)
 	}
 }
 
