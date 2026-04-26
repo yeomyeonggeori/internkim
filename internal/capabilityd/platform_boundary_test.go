@@ -196,6 +196,89 @@ func TestMattermostProgressStartPublishesTypingUntilStopped(t *testing.T) {
 	}
 }
 
+func TestMattermostReplyStopsProgressBeforeSendingPost(t *testing.T) {
+	typingRequests := make(chan map[string]string, 1)
+	postRequests := make(chan map[string]string, 1)
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1"}), nil
+		case "/api/v4/users/bot-1/typing":
+			var payload map[string]string
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatalf("expected typing request to decode: %v", errorValue)
+			}
+			typingRequests <- payload
+			return testJSONResponse(http.StatusOK, map[string]string{}), nil
+		case "/api/v4/posts":
+			var payload map[string]string
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatalf("expected post request to decode: %v", errorValue)
+			}
+			postRequests <- payload
+			return testJSONResponse(http.StatusOK, map[string]string{"id": "post-1"}), nil
+		default:
+			t.Fatalf("unexpected Mattermost request: %s", request.URL.Path)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+
+	tokenPath := t.TempDir() + "/mattermost-token"
+	if errorValue := os.WriteFile(tokenPath, []byte("test-token\n"), 0o600); errorValue != nil {
+		t.Fatalf("expected token file to be written: %v", errorValue)
+	}
+	replyTargetID, errorValue := encodePlatformHandle(platformHandle{
+		Platform:  "mattermost",
+		ChannelID: "channel-1",
+		RootID:    "root-1",
+	})
+	if errorValue != nil {
+		t.Fatalf("expected reply target to encode: %v", errorValue)
+	}
+
+	progressManager := newPlatformProgressManager()
+	configuration := DefaultConfiguration()
+	configuration.MattermostBaseURL = "http://mattermost.test"
+	configuration.MattermostTokenPath = tokenPath
+	service := Service{
+		Configuration:   configuration,
+		HTTPClient:      httpClient,
+		ProgressManager: progressManager,
+	}
+
+	_, errorValue = service.mattermostStartProgressFromRequest(context.Background(), strings.NewReader(`{"replyTargetID":"`+replyTargetID+`"}`))
+	if errorValue != nil {
+		t.Fatalf("expected progress start to succeed: %v", errorValue)
+	}
+	defer service.progressManager().Stop("mattermost:" + replyTargetID)
+
+	select {
+	case <-typingRequests:
+	case <-time.After(time.Second):
+		t.Fatal("expected typing request")
+	}
+
+	_, errorValue = service.mattermostReply(context.Background(), json.RawMessage(`{"replyTargetID":"`+replyTargetID+`","message":"done"}`))
+	if errorValue != nil {
+		t.Fatalf("expected reply to succeed: %v", errorValue)
+	}
+
+	select {
+	case payload := <-postRequests:
+		if payload["channel_id"] != "channel-1" || payload["root_id"] != "root-1" || payload["message"] != "done" {
+			t.Fatalf("unexpected post payload: %+v", payload)
+		}
+	default:
+		t.Fatal("expected post request")
+	}
+	progressManager.mutex.Lock()
+	_, isActive := progressManager.cancelByKey["mattermost:"+replyTargetID]
+	progressManager.mutex.Unlock()
+	if isActive {
+		t.Fatal("expected reply send to stop Mattermost progress")
+	}
+}
+
 func handleTestBlueclawForward(t *testing.T, request *http.Request) (*http.Response, error) {
 	t.Helper()
 	var event platformInboundEvent
