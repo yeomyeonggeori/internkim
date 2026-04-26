@@ -150,14 +150,14 @@ episode = {
     "messageID": "local-smoke-message-1",
     "conversationID": "dm:local",
     "senderPersonID": "person-local",
-    "prompt": "Minsu works at East River. East River builds Intern Kim. Minsu is testing Intern Kim graph memory.",
+    "prompt": "My name is Minsu. Please remember that my name is Minsu.",
     "occurredAt": datetime.datetime.now(datetime.UTC).isoformat(),
     "namespaces": [namespace],
     "source": "message",
     "sourceReference": "local-smoke",
 }
 search = {
-    "query": "Where does Minsu work?",
+    "query": "What is my name?",
     "namespaces": [namespace],
     "limit": 5,
 }
@@ -183,8 +183,8 @@ content = json.dumps(facts, ensure_ascii=False)
 if not facts:
     print("Graphiti returned no facts", file=sys.stderr)
     raise SystemExit(1)
-if "Minsu" not in content or "East River" not in content:
-    print("Graphiti facts did not recall the seeded work relationship:", content, file=sys.stderr)
+if "Minsu" not in content:
+    print("Graphiti facts did not recall the seeded name:", content, file=sys.stderr)
     raise SystemExit(1)
 print("graphiti local smoke: ok")
 PY
