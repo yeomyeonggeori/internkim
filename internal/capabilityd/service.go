@@ -173,12 +173,23 @@ func (service Service) router() http.Handler {
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/history.fetch", service.handleHistoryFetch)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.start", service.handleProgressStart)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.stop", service.handleProgressStop)
+	multiplexer.HandleFunc("POST /v1/tools/{toolName}/invoke", service.handleToolInvoke)
 	multiplexer.HandleFunc("GET /health", func(responseWriter http.ResponseWriter, request *http.Request) {
 		_ = request
 		responseWriter.WriteHeader(http.StatusOK)
 		_, _ = responseWriter.Write([]byte("ok\n"))
 	})
 	return multiplexer
+}
+
+func (service Service) handleToolInvoke(responseWriter http.ResponseWriter, request *http.Request) {
+	_ = service
+	toolName := strings.TrimSpace(request.PathValue("toolName"))
+	if toolName == "" {
+		http.Error(responseWriter, "tool name is required", http.StatusBadRequest)
+		return
+	}
+	service.writeResponse(responseWriter, nil, errors.New("capability tool is not configured: "+toolName))
 }
 
 func (service Service) handleStructuredLLM(responseWriter http.ResponseWriter, request *http.Request) {
