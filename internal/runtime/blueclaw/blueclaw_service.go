@@ -30,7 +30,6 @@ Wants=network-online.target time-sync.target internkim-capabilityd.service
 [Service]
 User=%s
 Environment=HOME=%s
-Environment=INTERNKIM_CAPABILITY_ENDPOINT=http+unix://%%%%2Frun%%%%2Finternkim%%%%2Fcapability.sock
 Environment=BLUECLAW_GRAPHITI_KUZU_PATH=%s
 Environment=BLUECLAW_GRAPHITI_LISTEN_ADDRESS=127.0.0.1
 Environment=BLUECLAW_GRAPHITI_PORT=7791
