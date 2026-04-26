@@ -46,11 +46,24 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 		t.Fatalf("expected Graphiti timeout, got %v", memory["timeoutSecond"])
 	}
 	agent := runtimeConfiguration["agent"].(map[string]any)
-	if agent["maxIterations"] != float64(8) {
-		t.Fatalf("expected agent max iterations, got %v", agent["maxIterations"])
+	intake := agent["intake"].(map[string]any)
+	if intake["enabled"] != true {
+		t.Fatalf("expected agent intake enabled, got %v", intake["enabled"])
 	}
-	if agent["turnTimeoutSecond"] != float64(120) {
-		t.Fatalf("expected agent turn timeout, got %v", agent["turnTimeoutSecond"])
+	if intake["model"] != "local/gemma-4-E4B-it-litert-lm" {
+		t.Fatalf("expected agent intake model, got %v", intake["model"])
+	}
+	if intake["executionMode"] != "local" {
+		t.Fatalf("expected agent intake execution mode, got %v", intake["executionMode"])
+	}
+	if agent["maxIterationsPerRequest"] != float64(8) {
+		t.Fatalf("expected agent max iterations, got %v", agent["maxIterationsPerRequest"])
+	}
+	if agent["maxToolCallsPerRequest"] != float64(8) {
+		t.Fatalf("expected agent max tool calls, got %v", agent["maxToolCallsPerRequest"])
+	}
+	if agent["maxWallClockSecond"] != float64(120) {
+		t.Fatalf("expected agent wall clock budget, got %v", agent["maxWallClockSecond"])
 	}
 	if agent["toolResultMaxBytes"] != float64(32768) {
 		t.Fatalf("expected agent tool result limit, got %v", agent["toolResultMaxBytes"])
