@@ -321,7 +321,8 @@ curl -fsS --unix-socket /run/internkim/capability.sock -H "Content-Type: applica
 }
 
 func checkService(context *Context, serviceName string, failedChecks *[]string) {
-	if strings.TrimSpace(context.SSH.Run("systemctl is-active "+serviceName+" 2>/dev/null")) == "active" {
+	command := "for attempt in $(seq 1 20); do if [ \"$(systemctl is-active " + serviceName + " 2>/dev/null)\" = active ]; then echo active; exit 0; fi; sleep 1; done; systemctl is-active " + serviceName + " 2>/dev/null || true"
+	if strings.TrimSpace(context.SSH.Run(command)) == "active" {
 		fmt.Printf("  %s: active\n", serviceName)
 		return
 	}
