@@ -19,10 +19,12 @@ Cloudflare Access (Google 로그인)
 │  Mattermost :8065 ← Cloudflare 터널    │
 │          │                              │
 │          ▼                              │
+│  internkim-capabilityd                 │
+│  graphiti-memoryd :7791                │
 │  blueclaw.service :8080                │
 │  ┌─────────────────────────────────┐   │
 │  │ Blueclaw runtime                │   │
-│  │ policy / memory / task / DB     │   │
+│  │ policy / task / ACL / prompt    │   │
 │  └──────────────┬──────────────────┘   │
 │                 │ stdio MCP             │
 │                 ▼                       │
@@ -30,7 +32,7 @@ Cloudflare Access (Google 로그인)
 │                                         │
 │  /root/.internkim/secrets/              │
 │    google-sa.json   (gws:640)           │
-│    openrouter-api-key (blueclaw:640)    │
+│    openrouter-api-key (root only)       │
 │                                         │
 │  /root/.blueclaw/                       │
 │    config/runtime.json                  │
@@ -43,7 +45,8 @@ OpenRouter API         Google Drive/Docs/Gmail
 
 사용자 (Slack)
     └─▶ Slack App / Events API
-             └─▶ Blueclaw connector
+             └─▶ InternKim platform sidecar
+                    └─▶ Blueclaw connector
 ```
 
 ## 보안 설계
@@ -53,9 +56,9 @@ OpenRouter API         Google Drive/Docs/Gmail
 | 파일 | owner | mode | 접근 가능 |
 |------|-------|------|----------|
 | `google-sa.json` | gws | 640 | gws 프로세스만 |
-| `openrouter-api-key` | blueclaw | 640 | blueclaw 프로세스만 |
+| `openrouter-api-key` | root | 600 | internkim-capabilityd만 |
 
-LLM이 실행되는 런타임 샌드박스는 secrets 디렉토리를 직접 읽지 못하도록 분리되어 있어, 경로를 알더라도 접근할 수 없습니다.
+Blueclaw와 Graphiti는 secrets 디렉토리를 직접 읽지 않습니다. LLM, embedding, platform reply 같은 secret-bearing 작업은 `internkim-capabilityd`의 local capability API를 통해서만 실행합니다.
 
 ## 구성 요소
 
@@ -63,6 +66,8 @@ LLM이 실행되는 런타임 샌드박스는 secrets 디렉토리를 직접 읽
 |------|------|
 | **Go CLI** (`cmd/internkim/main.go`) | 셋업 도구. Wi-Fi → Blueclaw/gws 설치 → API 키 → Google SA → Mattermost → 기기 등록 |
 | **Blueclaw** | 런타임 바이너리. `/usr/local/bin/blueclaw`, `/root/.blueclaw/config/*.json`, `/root/.blueclaw/workspace/*` 계약을 사용 |
+| **Graphiti memoryd** | Blueclaw memory sidecar. `graphiti-core[kuzu]`로 episode ingestion, temporal graph extraction, hybrid graph search 수행 |
+| **internkim-capabilityd** | OpenRouter, LiteRT, Mattermost, Slack, Signal credential을 보유하고 capability API만 노출 |
 | **gws** | Google Workspace CLI. Drive/Docs/Gmail/Sheets 조작. MCP 서버 모드 지원 |
 | **Mattermost** | 온보드 채팅 서버. 기기 협업 채널과 모바일 알림에 사용 |
 | **Slack connector** | Slack workspace에서 들어오는 DM/channel 이벤트를 Blueclaw 작업으로 전달 |
@@ -129,6 +134,14 @@ make deps-sim
 
 # VM SSH 접속
 ./internkim lab vm-ssh
+```
+
+### 로컬 Graphiti Smoke
+
+보드 없이 macOS 로컬에서 실제 `graphiti-core[kuzu]` sidecar, InternKim capabilityd, OpenRouter LLM/embedding 경로를 함께 검증합니다. `.env` 또는 환경변수에 `OPENROUTER_API_KEY`가 필요합니다.
+
+```bash
+make verify-graphiti-local
 ```
 
 ### 웹앱 (Cloudflare Pages)

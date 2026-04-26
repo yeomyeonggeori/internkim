@@ -1,7 +1,7 @@
 GO_CACHE ?= /tmp/internkim-go-cache
 BLUECLAW_GO_CACHE ?= /tmp/blueclaw-go-cache
 
-.PHONY: build check test doctor deps-sim deps-browser setup-sim verify-api verify-browser
+.PHONY: build check test doctor deps-sim deps-browser deps-graphiti setup-sim verify-api verify-browser verify-graphiti-local
 
 build:
 	GOCACHE=$(GO_CACHE) go build -o internkim ./cmd/internkim
@@ -23,6 +23,10 @@ deps-browser:
 	cd web && bun install
 	cd web && bunx playwright install chromium
 
+deps-graphiti:
+	cd .dependency/blueclaw && test -x .venv-graphiti/bin/python || uv venv .venv-graphiti
+	cd .dependency/blueclaw && uv pip install --python .venv-graphiti/bin/python -r tools/graphiti_memoryd/requirements.txt
+
 setup-sim: build
 	./internkim setup --sim
 
@@ -33,3 +37,6 @@ verify-api: build
 verify-browser: build
 	./internkim verify browser --local
 	./internkim verify browser --public
+
+verify-graphiti-local:
+	tools/verify-graphiti-local
