@@ -523,6 +523,7 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 	if handle.Platform != "mattermost" {
 		return nil, errors.New("reply target platform mismatch")
 	}
+	service.stopMattermostProgress(request.ReplyTargetID)
 	body := map[string]string{
 		"channel_id": handle.ChannelID,
 		"message":    request.Message,
@@ -535,6 +536,10 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 	}
 	errorValue = service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", body, &response)
 	return map[string]string{"dispatchID": response.ID}, errorValue
+}
+
+func (service Service) stopMattermostProgress(replyTargetID string) {
+	service.progressManager().Stop("mattermost:" + replyTargetID)
 }
 
 func (service Service) mattermostStartProgressFromRequest(_ context.Context, reader io.Reader) (any, error) {
