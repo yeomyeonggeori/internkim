@@ -185,6 +185,8 @@ func Main() {
 			runInvite()
 		case "users":
 			runUsers()
+		case "reset":
+			runReset()
 		case "status":
 			runStatus()
 		case "update":
@@ -215,6 +217,7 @@ func printUsage() {
 	fmt.Println("  model    Manage LLM model (current/set/list)")
 	fmt.Println("  invite   Generate invite QR code")
 	fmt.Println("  users    Manage allowed users")
+	fmt.Println("  reset    Reset board runtime data")
 	fmt.Println("  status   Check board and tunnel status")
 	fmt.Println("  update   OTA update")
 	fmt.Println("  deploy   Build and deploy web UI + board-bridge to board")
