@@ -34,7 +34,7 @@ if '"endpoint": "http://internkim"' not in document or '"unixSocketPath": "/run/
     raise SystemExit
 print("ok")
 PY`)
-		databaseCheck := trimmedRun(context, `test -d /root/.blueclaw/migrations && su - postgres -c "psql -tAc \"SELECT 1 FROM pg_database WHERE datname='blueclaw'\"" 2>/dev/null | grep -q 1 && echo ok || echo missing`)
+		databaseCheck := trimmedRun(context, `test -d /root/.blueclaw/migrations && su -s /bin/sh blueclaw -c 'test -r /root/.blueclaw/migrations/001_extension.sql' 2>/dev/null && su - postgres -c "psql -tAc \"SELECT 1 FROM pg_database WHERE datname='blueclaw'\"" 2>/dev/null | grep -q 1 && echo ok || echo missing`)
 		return trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
@@ -90,7 +90,12 @@ echo "Cleaned unavailable skills"`)
 		connection.Run(`systemctl start postgresql 2>/dev/null || service postgresql start 2>/dev/null || true
 su - postgres -c "psql -tAc \"SELECT 1 FROM pg_roles WHERE rolname='blueclaw'\" | grep -q 1 || createuser blueclaw" 2>/dev/null || true
 su - postgres -c "psql -tAc \"SELECT 1 FROM pg_database WHERE datname='blueclaw'\" | grep -q 1 || createdb -O blueclaw blueclaw" 2>/dev/null || true
-su - postgres -c "psql -c \"ALTER DATABASE blueclaw OWNER TO blueclaw\"" 2>/dev/null || true`)
+su - postgres -c "psql -c \"ALTER DATABASE blueclaw OWNER TO blueclaw\"" 2>/dev/null || true
+if [ -d /root/.blueclaw/migrations ]; then
+  chown -R root:blueclaw /root/.blueclaw/migrations 2>/dev/null || true
+  chmod -R u=rwX,g=rX,o= /root/.blueclaw/migrations 2>/dev/null || true
+  chmod 750 /root/.blueclaw/migrations 2>/dev/null || true
+fi`)
 
 		connection.Run(fmt.Sprintf(`systemctl stop zeroclaw 2>/dev/null || true
 systemctl disable zeroclaw 2>/dev/null || true
