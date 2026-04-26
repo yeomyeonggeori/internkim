@@ -27,6 +27,8 @@ type MattermostWebSocketForwarder struct {
 	BlueclawURL  string
 	HTTPClient   *http.Client
 	EventBuilder func(context.Context, []byte) (platformInboundEvent, bool, error)
+	AfterForward func(context.Context, []byte)
+	PollFallback func(context.Context)
 }
 
 func (forwarder MattermostWebSocketForwarder) Start(ctx context.Context) {
@@ -40,6 +42,9 @@ func (forwarder MattermostWebSocketForwarder) Start(ctx context.Context) {
 		errorValue := forwarder.runOnce(ctx)
 		if errorValue != nil && ctx.Err() == nil {
 			log.Printf("mattermost forwarder disconnected: %v", errorValue)
+			if forwarder.PollFallback != nil {
+				forwarder.PollFallback(ctx)
+			}
 		}
 		timer := time.NewTimer(backoff)
 		select {
@@ -196,6 +201,9 @@ func (forwarder MattermostWebSocketForwarder) forward(ctx context.Context, paylo
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		responseDocument, _ := io.ReadAll(response.Body)
 		return errors.New(string(responseDocument))
+	}
+	if forwarder.AfterForward != nil {
+		forwarder.AfterForward(ctx, payload)
 	}
 	return nil
 }

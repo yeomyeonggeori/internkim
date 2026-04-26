@@ -16,6 +16,7 @@ import (
 	"os/user"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -38,9 +39,11 @@ type Configuration struct {
 }
 
 type Service struct {
-	Configuration Configuration
-	HTTPClient    *http.Client
-	RunCommand    func(context.Context, string, []string, []byte) ([]byte, error)
+	Configuration   Configuration
+	HTTPClient      *http.Client
+	RunCommand      func(context.Context, string, []string, []byte) ([]byte, error)
+	EventLocker     *platformEventLocker
+	ProgressManager *platformProgressManager
 }
 
 type message struct {
@@ -87,6 +90,25 @@ type historyFetchRequest struct {
 type replyRequest struct {
 	ReplyTargetID string `json:"replyTargetID"`
 	Message       string `json:"message"`
+}
+
+type progressRequest struct {
+	ReplyTargetID string `json:"replyTargetID"`
+}
+
+type mattermostPolledPost struct {
+	ID        string `json:"id"`
+	UserID    string `json:"user_id"`
+	ChannelID string `json:"channel_id"`
+	Message   string `json:"message"`
+	RootID    string `json:"root_id"`
+	Type      string `json:"type"`
+	CreateAt  int64  `json:"create_at"`
+}
+
+type mattermostPostsResponse struct {
+	Order []string                        `json:"order"`
+	Posts map[string]mattermostPolledPost `json:"posts"`
 }
 
 func DefaultConfiguration() Configuration {
@@ -139,6 +161,8 @@ func (service Service) router() http.Handler {
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/identity.resolve", service.handleIdentityResolve)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/reply.send", service.handleReplySend)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/history.fetch", service.handleHistoryFetch)
+	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.start", service.handleProgressStart)
+	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.stop", service.handleProgressStop)
 	multiplexer.HandleFunc("GET /health", func(responseWriter http.ResponseWriter, request *http.Request) {
 		_ = request
 		responseWriter.WriteHeader(http.StatusOK)
@@ -201,6 +225,36 @@ func (service Service) handleHistoryFetch(responseWriter http.ResponseWriter, re
 		response, errorValue = service.slackHistoryFromRequest(request.Context(), request.Body)
 	case "signal":
 		response, errorValue = service.signalHistoryFromRequest(request.Context(), request.Body)
+	default:
+		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
+		return
+	}
+	service.writeResponse(responseWriter, response, errorValue)
+}
+
+func (service Service) handleProgressStart(responseWriter http.ResponseWriter, request *http.Request) {
+	var response any
+	var errorValue error
+	switch request.PathValue("platform") {
+	case "mattermost":
+		response, errorValue = service.mattermostStartProgressFromRequest(request.Context(), request.Body)
+	case "slack", "signal":
+		response = map[string]string{"status": "noop"}
+	default:
+		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
+		return
+	}
+	service.writeResponse(responseWriter, response, errorValue)
+}
+
+func (service Service) handleProgressStop(responseWriter http.ResponseWriter, request *http.Request) {
+	var response any
+	var errorValue error
+	switch request.PathValue("platform") {
+	case "mattermost":
+		response, errorValue = service.mattermostStopProgressFromRequest(request.Context(), request.Body)
+	case "slack", "signal":
+		response = map[string]string{"status": "noop"}
 	default:
 		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
 		return
@@ -406,6 +460,79 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 	}
 	errorValue = service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", body, &response)
 	return map[string]string{"dispatchID": response.ID}, errorValue
+}
+
+func (service Service) mattermostStartProgressFromRequest(_ context.Context, reader io.Reader) (any, error) {
+	payload, errorValue := io.ReadAll(reader)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	var request progressRequest
+	if errorValue := json.Unmarshal(payload, &request); errorValue != nil {
+		return nil, errorValue
+	}
+	handle, errorValue := decodePlatformHandle(request.ReplyTargetID)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	if handle.Platform != "mattermost" {
+		return nil, errors.New("progress target platform mismatch")
+	}
+	service.progressManager().Start("mattermost:"+request.ReplyTargetID, func(progressContext context.Context) {
+		service.runMattermostTyping(progressContext, handle)
+	})
+	return map[string]string{"status": "started"}, nil
+}
+
+func (service Service) mattermostStopProgressFromRequest(_ context.Context, reader io.Reader) (any, error) {
+	payload, errorValue := io.ReadAll(reader)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	var request progressRequest
+	if errorValue := json.Unmarshal(payload, &request); errorValue != nil {
+		return nil, errorValue
+	}
+	if _, errorValue := decodePlatformHandle(request.ReplyTargetID); errorValue != nil {
+		return nil, errorValue
+	}
+	service.progressManager().Stop("mattermost:" + request.ReplyTargetID)
+	return map[string]string{"status": "stopped"}, nil
+}
+
+func (service Service) runMattermostTyping(ctx context.Context, handle platformHandle) {
+	service.sendMattermostTyping(ctx, handle)
+	ticker := time.NewTicker(4 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			service.sendMattermostTyping(ctx, handle)
+		}
+	}
+}
+
+func (service Service) sendMattermostTyping(ctx context.Context, handle platformHandle) {
+	var botUser struct {
+		ID string `json:"id"`
+	}
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", nil, &botUser); errorValue != nil {
+		log.Printf("mattermost typing bot lookup failed: %v", errorValue)
+		return
+	}
+	if strings.TrimSpace(botUser.ID) == "" || strings.TrimSpace(handle.ChannelID) == "" {
+		return
+	}
+
+	body := map[string]string{"channel_id": handle.ChannelID}
+	if strings.TrimSpace(handle.RootID) != "" {
+		body["parent_id"] = handle.RootID
+	}
+	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/users/"+url.PathEscape(botUser.ID)+"/typing", body, nil); errorValue != nil {
+		log.Printf("mattermost typing failed: %v", errorValue)
+	}
 }
 
 func (service Service) mattermostHistoryFromRequest(ctx context.Context, reader io.Reader) (any, error) {
@@ -756,6 +883,85 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
+var fallbackPlatformEventLocker = newPlatformEventLocker()
+var fallbackPlatformProgressManager = newPlatformProgressManager()
+
+type platformEventLocker struct {
+	mutex      sync.Mutex
+	lockByName map[string]*sync.Mutex
+}
+
+func newPlatformEventLocker() *platformEventLocker {
+	return &platformEventLocker{lockByName: map[string]*sync.Mutex{}}
+}
+
+func (locker *platformEventLocker) WithLock(name string, work func() error) error {
+	lock := locker.lockForName(name)
+	lock.Lock()
+	defer lock.Unlock()
+	return work()
+}
+
+func (locker *platformEventLocker) lockForName(name string) *sync.Mutex {
+	locker.mutex.Lock()
+	defer locker.mutex.Unlock()
+	lock, isFound := locker.lockByName[name]
+	if isFound {
+		return lock
+	}
+	lock = &sync.Mutex{}
+	locker.lockByName[name] = lock
+	return lock
+}
+
+type platformProgressManager struct {
+	mutex       sync.Mutex
+	cancelByKey map[string]context.CancelFunc
+}
+
+func newPlatformProgressManager() *platformProgressManager {
+	return &platformProgressManager{cancelByKey: map[string]context.CancelFunc{}}
+}
+
+func (manager *platformProgressManager) Start(key string, run func(context.Context)) {
+	manager.mutex.Lock()
+	if _, isFound := manager.cancelByKey[key]; isFound {
+		manager.mutex.Unlock()
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	manager.cancelByKey[key] = cancel
+	manager.mutex.Unlock()
+
+	go run(ctx)
+}
+
+func (manager *platformProgressManager) Stop(key string) {
+	manager.mutex.Lock()
+	cancel, isFound := manager.cancelByKey[key]
+	if isFound {
+		delete(manager.cancelByKey, key)
+	}
+	manager.mutex.Unlock()
+	if isFound {
+		cancel()
+	}
+}
+
+func (service Service) eventLocker() *platformEventLocker {
+	if service.EventLocker != nil {
+		return service.EventLocker
+	}
+	return fallbackPlatformEventLocker
+}
+
+func (service Service) progressManager() *platformProgressManager {
+	if service.ProgressManager != nil {
+		return service.ProgressManager
+	}
+	return fallbackPlatformProgressManager
+}
+
 func (request llmRequest) model() string {
 	return strings.TrimSpace(request.Model)
 }
@@ -771,9 +977,10 @@ func (service Service) startMattermostForwarder(ctx context.Context) {
 	}
 	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", nil, &botUser); errorValue != nil {
 		log.Printf("mattermost websocket forwarder disabled: bot lookup failed: %v", errorValue)
-		go service.startMattermostPoller(ctx)
 		return
 	}
+	lastSeenByChannel := map[string]int64{}
+	var lastSeenMutex sync.Mutex
 	listener := MattermostWebSocketForwarder{
 		URL:         deriveMattermostWebSocketURL(service.Configuration.MattermostBaseURL),
 		BotToken:    token,
@@ -787,26 +994,26 @@ func (service Service) startMattermostForwarder(ctx context.Context) {
 			}
 			return service.enrichMattermostEvent(ctx, event), true, nil
 		},
+		AfterForward: func(_ context.Context, payload []byte) {
+			post, _, hasPost, errorValue := mattermostWebSocketPost(payload)
+			if errorValue != nil || !hasPost || strings.TrimSpace(post.ChannelID) == "" || post.CreateAt <= 0 {
+				return
+			}
+			lastSeenMutex.Lock()
+			if post.CreateAt > lastSeenByChannel[post.ChannelID] {
+				lastSeenByChannel[post.ChannelID] = post.CreateAt
+			}
+			lastSeenMutex.Unlock()
+		},
+		PollFallback: func(ctx context.Context) {
+			lastSeenMutex.Lock()
+			defer lastSeenMutex.Unlock()
+			if errorValue := service.pollMattermost(ctx, lastSeenByChannel); errorValue != nil {
+				log.Printf("mattermost fallback poll failed: %v", errorValue)
+			}
+		},
 	}
 	go listener.Start(ctx)
-	go service.startMattermostPoller(ctx)
-}
-
-func (service Service) startMattermostPoller(ctx context.Context) {
-	lastSeenByChannel := map[string]int64{}
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-
-	for ctx.Err() == nil {
-		if errorValue := service.pollMattermost(ctx, lastSeenByChannel); errorValue != nil {
-			log.Printf("mattermost poll failed: %v", errorValue)
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-		}
-	}
 }
 
 func (service Service) pollMattermost(ctx context.Context, lastSeenByChannel map[string]int64) error {
@@ -833,7 +1040,14 @@ func (service Service) pollMattermost(ctx context.Context, lastSeenByChannel map
 			continue
 		}
 		if _, isFound := lastSeenByChannel[channel.ID]; !isFound {
-			lastSeenByChannel[channel.ID] = time.Now().Add(-60 * time.Second).UnixMilli()
+			latestCreateAt, errorValue := service.latestMattermostChannelPostCreateAt(ctx, channel.ID)
+			if errorValue != nil {
+				log.Printf("mattermost channel watermark failed: %s: %v", channel.ID, errorValue)
+				lastSeenByChannel[channel.ID] = time.Now().UnixMilli()
+				continue
+			}
+			lastSeenByChannel[channel.ID] = latestCreateAt
+			continue
 		}
 		nextSeen, errorValue := service.forwardMattermostChannelPosts(ctx, botUser.ID, channel.ID, channel.Type, lastSeenByChannel[channel.ID])
 		if errorValue != nil {
@@ -847,19 +1061,27 @@ func (service Service) pollMattermost(ctx context.Context, lastSeenByChannel map
 	return nil
 }
 
-func (service Service) forwardMattermostChannelPosts(ctx context.Context, botUserID string, channelID string, channelType string, since int64) (int64, error) {
-	var response struct {
-		Order []string `json:"order"`
-		Posts map[string]struct {
-			ID        string `json:"id"`
-			UserID    string `json:"user_id"`
-			ChannelID string `json:"channel_id"`
-			Message   string `json:"message"`
-			RootID    string `json:"root_id"`
-			Type      string `json:"type"`
-			CreateAt  int64  `json:"create_at"`
-		} `json:"posts"`
+func (service Service) latestMattermostChannelPostCreateAt(ctx context.Context, channelID string) (int64, error) {
+	var response mattermostPostsResponse
+	path := "/api/v4/channels/" + url.PathEscape(channelID) + "/posts?per_page=1"
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, nil, &response); errorValue != nil {
+		return 0, errorValue
 	}
+	return latestMattermostPostCreateAt(response), nil
+}
+
+func latestMattermostPostCreateAt(response mattermostPostsResponse) int64 {
+	latestCreateAt := int64(0)
+	for _, post := range response.Posts {
+		if post.CreateAt > latestCreateAt {
+			latestCreateAt = post.CreateAt
+		}
+	}
+	return latestCreateAt
+}
+
+func (service Service) forwardMattermostChannelPosts(ctx context.Context, botUserID string, channelID string, channelType string, since int64) (int64, error) {
+	var response mattermostPostsResponse
 	path := "/api/v4/channels/" + url.PathEscape(channelID) + "/posts?since=" + strconv.FormatInt(since, 10)
 	if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, nil, &response); errorValue != nil {
 		return since, errorValue
@@ -903,6 +1125,13 @@ func (service Service) forwardMattermostEvent(ctx context.Context, event platfor
 }
 
 func (service Service) forwardPlatformEvent(ctx context.Context, platform string, event platformInboundEvent) error {
+	lockName := platform + ":" + event.ConversationID
+	return service.eventLocker().WithLock(lockName, func() error {
+		return service.forwardPlatformEventWithoutLock(ctx, platform, event)
+	})
+}
+
+func (service Service) forwardPlatformEventWithoutLock(ctx context.Context, platform string, event platformInboundEvent) error {
 	document, errorValue := json.Marshal(event)
 	if errorValue != nil {
 		return errorValue

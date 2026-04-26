@@ -21,24 +21,32 @@ type mattermostWebSocketMessage struct {
 }
 
 func normalizeMattermostWebSocketPayload(payload []byte, botUserID string) (platformInboundEvent, bool, error) {
-	var message mattermostWebSocketMessage
-	if errorValue := json.Unmarshal(payload, &message); errorValue != nil {
+	post, channelType, hasPost, errorValue := mattermostWebSocketPost(payload)
+	if errorValue != nil || !hasPost {
 		return platformInboundEvent{}, false, errorValue
 	}
+	return normalizeMattermostPost(post, botUserID, channelType)
+}
+
+func mattermostWebSocketPost(payload []byte) (mattermostPost, string, bool, error) {
+	var message mattermostWebSocketMessage
+	if errorValue := json.Unmarshal(payload, &message); errorValue != nil {
+		return mattermostPost{}, "", false, errorValue
+	}
 	if message.Event != "posted" {
-		return platformInboundEvent{}, false, nil
+		return mattermostPost{}, "", false, nil
 	}
 
 	postDocument, isFound := message.Data["post"].(string)
 	if !isFound || strings.TrimSpace(postDocument) == "" {
-		return platformInboundEvent{}, false, nil
+		return mattermostPost{}, "", false, nil
 	}
 	var post mattermostPost
 	if errorValue := json.Unmarshal([]byte(postDocument), &post); errorValue != nil {
-		return platformInboundEvent{}, false, errorValue
+		return mattermostPost{}, "", false, errorValue
 	}
 	channelType, _ := message.Data["channel_type"].(string)
-	return normalizeMattermostPost(post, botUserID, channelType)
+	return post, channelType, true, nil
 }
 
 func normalizeMattermostPost(post mattermostPost, botUserID string, channelType string) (platformInboundEvent, bool, error) {
