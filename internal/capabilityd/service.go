@@ -59,7 +59,7 @@ type llmRequest struct {
 
 type schemaRequest struct {
 	Name               string `json:"name"`
-	Document           string `json:"document"`
+	Document           any    `json:"document"`
 	IsStrictlyEnforced bool   `json:"isStrictlyEnforced"`
 }
 
@@ -282,7 +282,7 @@ func (service Service) completeLiteRT(ctx context.Context, request llmRequest, b
 	if errorValue := json.Unmarshal(output, &response); errorValue != nil {
 		return litertResponse{}, errorValue
 	}
-	if !isStructuredContentValid(response.Content, request.StructuredOutputSchema.Document) {
+	if !isStructuredContentValid(response.Content, schemaDocumentString(request.StructuredOutputSchema.Document)) {
 		return litertResponse{}, errors.New("litert response did not satisfy structured output schema")
 	}
 	return response, nil
@@ -640,8 +640,9 @@ func (service Service) runCommand(ctx context.Context, executablePath string, ar
 
 func buildOpenRouterRequest(request llmRequest) ([]byte, error) {
 	var schema json.RawMessage
-	if strings.TrimSpace(request.StructuredOutputSchema.Document) != "" {
-		schema = json.RawMessage(request.StructuredOutputSchema.Document)
+	schemaDocument := schemaDocumentString(request.StructuredOutputSchema.Document)
+	if strings.TrimSpace(schemaDocument) != "" {
+		schema = json.RawMessage(schemaDocument)
 	}
 	document := map[string]any{
 		"model":    request.model(),
@@ -690,6 +691,25 @@ func isStructuredContentValid(content string, schemaDocument string) bool {
 		}
 	}
 	return true
+}
+
+func schemaDocumentString(document any) string {
+	switch value := document.(type) {
+	case nil:
+		return ""
+	case string:
+		return value
+	case json.RawMessage:
+		return string(value)
+	case []byte:
+		return string(value)
+	default:
+		documentBytes, errorValue := json.Marshal(value)
+		if errorValue != nil {
+			return ""
+		}
+		return string(documentBytes)
+	}
 }
 
 func readSecretValue(path string) string {

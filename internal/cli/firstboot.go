@@ -342,7 +342,7 @@ chmod 770 /root/.blueclaw/config 2>/dev/null || true
 chown root:blueclaw /root/.blueclaw/config/runtime.json /root/.blueclaw/config/policy.json 2>/dev/null || true
 chmod 640 /root/.blueclaw/config/runtime.json /root/.blueclaw/config/policy.json 2>/dev/null || true
 chown -R root:blueclaw /root/.blueclaw/migrations 2>/dev/null || true
-chmod -R go-rwx /root/.blueclaw/migrations 2>/dev/null || true
+chmod -R u=rwX,g=rX,o= /root/.blueclaw/migrations 2>/dev/null || true
 chmod 750 /root/.blueclaw/migrations 2>/dev/null || true
 
 # ── gws-bot wrapper (runs gws under the service-account identity) ──
