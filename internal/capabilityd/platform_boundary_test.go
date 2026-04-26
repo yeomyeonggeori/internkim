@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestMattermostNormalizeSkipsSelfAndBuildsMinimalThreadEvent(t *testing.T) {
@@ -82,6 +85,178 @@ func TestMattermostDirectMessageDoesNotUseThreadRoot(t *testing.T) {
 	if replyHandle.RootID != "" {
 		t.Fatalf("expected DM reply root to be empty, got %q", replyHandle.RootID)
 	}
+}
+
+func TestMattermostPollerSeedsWatermarkWithoutReplayingDirectMessage(t *testing.T) {
+	forwardedCount := 0
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Host == "blueclaw.test" {
+			forwardedCount++
+			return handleTestBlueclawForward(t, request)
+		}
+		if request.URL.Host != "mattermost.test" {
+			t.Fatalf("unexpected request host: %s", request.URL.Host)
+		}
+		return handleTestMattermostPoll(t, request), nil
+	})}
+
+	tokenPath := t.TempDir() + "/mattermost-token"
+	if errorValue := os.WriteFile(tokenPath, []byte("test-token\n"), 0o600); errorValue != nil {
+		t.Fatalf("expected token file to be written: %v", errorValue)
+	}
+
+	configuration := DefaultConfiguration()
+	configuration.MattermostBaseURL = "http://mattermost.test"
+	configuration.MattermostTokenPath = tokenPath
+	configuration.BlueclawBaseURL = "http://blueclaw.test"
+	service := Service{Configuration: configuration, HTTPClient: httpClient}
+	lastSeenByChannel := map[string]int64{}
+
+	if errorValue := service.pollMattermost(context.Background(), lastSeenByChannel); errorValue != nil {
+		t.Fatalf("expected first poll to seed watermark: %v", errorValue)
+	}
+	if forwardedCount != 0 {
+		t.Fatalf("expected first poll not to replay old dm, got %d forwards", forwardedCount)
+	}
+	if lastSeenByChannel["dm-1"] != 1000 {
+		t.Fatalf("expected dm watermark to seed at latest existing post, got %d", lastSeenByChannel["dm-1"])
+	}
+
+	if errorValue := service.pollMattermost(context.Background(), lastSeenByChannel); errorValue != nil {
+		t.Fatalf("expected second poll to forward new message: %v", errorValue)
+	}
+	if forwardedCount != 1 {
+		t.Fatalf("expected only new dm to be forwarded once, got %d forwards", forwardedCount)
+	}
+	if lastSeenByChannel["dm-1"] != 2000 {
+		t.Fatalf("expected dm watermark to advance, got %d", lastSeenByChannel["dm-1"])
+	}
+}
+
+func TestMattermostProgressStartPublishesTypingUntilStopped(t *testing.T) {
+	typingRequests := make(chan map[string]string, 1)
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1"}), nil
+		case "/api/v4/users/bot-1/typing":
+			var payload map[string]string
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatalf("expected typing request to decode: %v", errorValue)
+			}
+			typingRequests <- payload
+			return testJSONResponse(http.StatusOK, map[string]string{}), nil
+		default:
+			t.Fatalf("unexpected Mattermost request: %s", request.URL.Path)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+
+	tokenPath := t.TempDir() + "/mattermost-token"
+	if errorValue := os.WriteFile(tokenPath, []byte("test-token\n"), 0o600); errorValue != nil {
+		t.Fatalf("expected token file to be written: %v", errorValue)
+	}
+	replyTargetID, errorValue := encodePlatformHandle(platformHandle{
+		Platform:  "mattermost",
+		ChannelID: "channel-1",
+		RootID:    "root-1",
+	})
+	if errorValue != nil {
+		t.Fatalf("expected reply target to encode: %v", errorValue)
+	}
+
+	configuration := DefaultConfiguration()
+	configuration.MattermostBaseURL = "http://mattermost.test"
+	configuration.MattermostTokenPath = tokenPath
+	service := Service{
+		Configuration:   configuration,
+		HTTPClient:      httpClient,
+		ProgressManager: newPlatformProgressManager(),
+	}
+
+	requestBody := strings.NewReader(`{"replyTargetID":"` + replyTargetID + `"}`)
+	_, errorValue = service.mattermostStartProgressFromRequest(context.Background(), requestBody)
+	if errorValue != nil {
+		t.Fatalf("expected progress start to succeed: %v", errorValue)
+	}
+	defer service.progressManager().Stop("mattermost:" + replyTargetID)
+
+	select {
+	case payload := <-typingRequests:
+		if payload["channel_id"] != "channel-1" || payload["parent_id"] != "root-1" {
+			t.Fatalf("unexpected typing payload: %+v", payload)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected typing request")
+	}
+
+	_, errorValue = service.mattermostStopProgressFromRequest(context.Background(), strings.NewReader(`{"replyTargetID":"`+replyTargetID+`"}`))
+	if errorValue != nil {
+		t.Fatalf("expected progress stop to succeed: %v", errorValue)
+	}
+}
+
+func handleTestBlueclawForward(t *testing.T, request *http.Request) (*http.Response, error) {
+	t.Helper()
+	var event platformInboundEvent
+	if errorValue := json.NewDecoder(request.Body).Decode(&event); errorValue != nil {
+		return testJSONResponse(http.StatusBadRequest, map[string]string{"error": errorValue.Error()}), nil
+	}
+	if event.Prompt != "new dm" {
+		t.Fatalf("expected only new dm to be forwarded, got %q", event.Prompt)
+	}
+	return testJSONResponse(http.StatusOK, map[string]string{}), nil
+}
+
+func handleTestMattermostPoll(t *testing.T, request *http.Request) *http.Response {
+	t.Helper()
+	switch {
+	case request.URL.Path == "/api/v4/users/me":
+		return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1"})
+	case request.URL.Path == "/api/v4/users/bot-1/channels":
+		return testJSONResponse(http.StatusOK, []map[string]string{{"id": "dm-1", "type": "D"}})
+	case request.URL.Path == "/api/v4/channels/dm-1/posts" && request.URL.Query().Get("per_page") == "1":
+		return testJSONResponse(http.StatusOK, mattermostPostsResponse{
+			Order: []string{"old-1"},
+			Posts: map[string]mattermostPolledPost{
+				"old-1": {ID: "old-1", UserID: "user-1", ChannelID: "dm-1", Message: "old dm", CreateAt: 1000},
+			},
+		})
+	case request.URL.Path == "/api/v4/channels/dm-1/posts" && request.URL.Query().Get("since") == "1000":
+		return testJSONResponse(http.StatusOK, mattermostPostsResponse{
+			Order: []string{"new-1", "old-1"},
+			Posts: map[string]mattermostPolledPost{
+				"old-1": {ID: "old-1", UserID: "user-1", ChannelID: "dm-1", Message: "old dm", CreateAt: 1000},
+				"new-1": {ID: "new-1", UserID: "user-1", ChannelID: "dm-1", Message: "new dm", CreateAt: 2000},
+			},
+		})
+	case request.URL.Path == "/api/v4/channels/dm-1/posts" && request.URL.Query().Get("per_page") == "21":
+		return testJSONResponse(http.StatusOK, mattermostPostsResponse{
+			Order: []string{"new-1"},
+			Posts: map[string]mattermostPolledPost{
+				"new-1": {ID: "new-1", UserID: "user-1", ChannelID: "dm-1", Message: "new dm", CreateAt: 2000},
+			},
+		})
+	default:
+		t.Fatalf("unexpected Mattermost request: %s?%s", request.URL.Path, request.URL.RawQuery)
+		return testJSONResponse(http.StatusNotFound, map[string]string{})
+	}
+}
+
+func testJSONResponse(statusCode int, response any) *http.Response {
+	var responseBody bytes.Buffer
+	_ = json.NewEncoder(&responseBody).Encode(response)
+	return &http.Response{
+		StatusCode: statusCode,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(&responseBody),
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (function roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return function(request)
 }
 
 func TestSlackNormalizeUsesThreadForChannelAndNoThreadForDM(t *testing.T) {
