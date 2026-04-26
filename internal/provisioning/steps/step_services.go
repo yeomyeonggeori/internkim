@@ -29,16 +29,19 @@ for forbidden in ("apiKeyPath", "botTokenPath", "signingSecretPath", "OPENROUTER
     if forbidden in document:
         print("legacy")
         raise SystemExit
-if '"endpoint": "http://internkim"' not in document or '"transport": "unix"' not in document:
+if '"endpoint": "http://internkim"' not in document or '"unixSocketPath": "/run/internkim/capability.sock"' not in document:
     print("stale")
     raise SystemExit
 print("ok")
 PY`)
+		databaseCheck := trimmedRun(context, `test -d /root/.blueclaw/migrations && su - postgres -c "psql -tAc \"SELECT 1 FROM pg_database WHERE datname='blueclaw'\"" 2>/dev/null | grep -q 1 && echo ok || echo missing`)
 		return trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
+			trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
 			trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
 			trimmedRun(context, "systemctl is-active mattermost") == "active" &&
-			runtimeCheck == "ok"
+			runtimeCheck == "ok" &&
+			databaseCheck == "ok"
 	},
 	Run: func(context *Context) error {
 		connection := context.SSH
@@ -84,6 +87,11 @@ rm -f /root/.internkim/env/bot-token`)
 rm -rf agent-browser github summarize skill-creator 2>/dev/null; \
 echo "Cleaned unavailable skills"`)
 
+		connection.Run(`systemctl start postgresql 2>/dev/null || service postgresql start 2>/dev/null || true
+su - postgres -c "psql -tAc \"SELECT 1 FROM pg_roles WHERE rolname='blueclaw'\" | grep -q 1 || createuser blueclaw" 2>/dev/null || true
+su - postgres -c "psql -tAc \"SELECT 1 FROM pg_database WHERE datname='blueclaw'\" | grep -q 1 || createdb -O blueclaw blueclaw" 2>/dev/null || true
+su - postgres -c "psql -c \"ALTER DATABASE blueclaw OWNER TO blueclaw\"" 2>/dev/null || true`)
+
 		connection.Run(fmt.Sprintf(`systemctl stop zeroclaw 2>/dev/null || true
 systemctl disable zeroclaw 2>/dev/null || true
 rm -f /etc/systemd/system/zeroclaw.service
@@ -93,7 +101,11 @@ cat > %s <<'SVCEOF'
 %sSVCEOF
 cat > %s <<'CAPABILITYEOF'
 %sCAPABILITYEOF
+cat > %s <<'ADMINDEOF'
+%sADMINDEOF
 systemctl daemon-reload
+systemctl enable %s
+systemctl restart %s
 systemctl enable %s
 systemctl restart %s
 systemctl enable %s
@@ -103,8 +115,12 @@ sleep 2`,
 			blueclaw.BlueclawServiceUnit(),
 			blueclaw.CapabilitydServicePath,
 			blueclaw.CapabilitydServiceUnit(),
+			blueclaw.AdmindServicePath,
+			blueclaw.AdmindServiceUnit(),
 			blueclaw.CapabilitydServiceName,
 			blueclaw.CapabilitydServiceName,
+			blueclaw.AdmindServiceName,
+			blueclaw.AdmindServiceName,
 			blueclaw.BlueclawServiceName,
 			blueclaw.BlueclawServiceName,
 		))
@@ -113,6 +129,7 @@ sleep 2`,
 		for attempt := 0; attempt < 15; attempt++ {
 			isBlueclawHealthy = trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
 				trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
+				trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
 				trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok"
 			if isBlueclawHealthy {
 				break

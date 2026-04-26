@@ -5,15 +5,16 @@ import "encoding/json"
 func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 	document := map[string]any{
 		"baseURL": BlueclawBaseURL,
-		"capability": map[string]any{
-			"transport":  "unix",
-			"socketPath": CapabilitySocketPath,
-			"endpoint":   "http://internkim",
-			"vsockCID":   52,
-			"vsockPort":  7000,
+		"capabilities": map[string]any{
+			"transport":      "unix",
+			"unixSocketPath": CapabilitySocketPath,
+			"endpoint":       "http://internkim",
+			"timeoutSecond":  120,
+			"vsockCID":       52,
+			"vsockPort":      7000,
 		},
 		"languageModel": map[string]any{
-			"defaultProvider":  "capability",
+			"defaultProvider":  "capabilityLLM",
 			"fallbackProvider": "",
 			"capability": map[string]any{
 				"model":                 modelName,
@@ -39,6 +40,11 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 			"authMode":                 "sshKeyReuse",
 			"authorizedPublicKeysPath": BlueclawBridgeAuthorizedKeysPath,
 			"listenAddress":            BlueclawBridgeListenAddress,
+		},
+		"database": map[string]any{
+			"driver":                 "postgres",
+			"connectionString":       BlueclawDatabaseConnectionString,
+			"migrationDirectoryPath": BlueclawMigrationPath,
 		},
 		"connectors": map[string]any{
 			"mattermost": map[string]any{

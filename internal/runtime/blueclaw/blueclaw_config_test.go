@@ -18,8 +18,12 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	}
 
 	languageModel := runtimeConfiguration["languageModel"].(map[string]any)
-	if languageModel["defaultProvider"] != "capability" {
+	if languageModel["defaultProvider"] != "capabilityLLM" {
 		t.Fatalf("expected capability default provider, got %q", languageModel["defaultProvider"])
+	}
+	capabilities := runtimeConfiguration["capabilities"].(map[string]any)
+	if capabilities["unixSocketPath"] != CapabilitySocketPath {
+		t.Fatalf("expected capability unix socket path, got %q", capabilities["unixSocketPath"])
 	}
 	capabilityLanguageModel := languageModel["capability"].(map[string]any)
 	if capabilityLanguageModel["executionMode"] != "auto" {

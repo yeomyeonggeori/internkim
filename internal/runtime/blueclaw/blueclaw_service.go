@@ -5,8 +5,8 @@ import "fmt"
 func BlueclawServiceUnit() string {
 	return fmt.Sprintf(`[Unit]
 Description=Blueclaw
-After=network-online.target time-sync.target
-Wants=network-online.target time-sync.target
+After=network-online.target time-sync.target postgresql.service
+Wants=network-online.target time-sync.target postgresql.service
 
 [Service]
 User=%s
@@ -37,4 +37,21 @@ RestartSec=2
 [Install]
 WantedBy=multi-user.target
 `, CapabilitydBinaryPath)
+}
+
+func AdmindServiceUnit() string {
+	return fmt.Sprintf(`[Unit]
+Description=InternKim Admin Gateway
+After=network-online.target time-sync.target mattermost.service
+Wants=network-online.target time-sync.target
+
+[Service]
+User=root
+ExecStart=%s
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+`, AdmindBinaryPath)
 }

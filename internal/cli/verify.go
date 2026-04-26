@@ -248,7 +248,11 @@ func verifyAPIScript() string {
 echo "checking services"
 systemctl is-active mattermost | grep -q '^active$'
 systemctl is-active blueclaw | grep -q '^active$'
+systemctl is-active internkim-admind | grep -q '^active$'
 systemctl is-active cloudflared | grep -q '^active$'
+
+echo "checking admin gateway"
+curl --silent --show-error --fail http://127.0.0.1:18080/_internkim/admin/health | jq -e '.status == "ok"' >/dev/null
 
 echo "checking mattermost ping"
 curl --silent --show-error --fail http://localhost:8065/api/v4/system/ping | jq -e '.status == "OK"' >/dev/null
@@ -265,10 +269,10 @@ admin_token="$(awk 'tolower($1) == "token:" {print $2}' "$login_headers" | tr -d
 test -n "$admin_token"
 
 echo "checking capability profile lookup"
-bot_body="$(jq -cn '{}')"
-bot_user_id="$(curl --silent --show-error --fail --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$bot_body" http://internkim/v1/platform/mattermost/bot.resolve | jq -r '.userID // empty')"
+mattermost_token="$(cat /root/.internkim/secrets/mattermost-bot-token)"
+bot_user_id="$(curl --silent --show-error --fail -H "Authorization: Bearer $mattermost_token" http://localhost:8065/api/v4/users/me | jq -r '.id // empty')"
 test -n "$bot_user_id"
-lookup_body="$(jq -cn --arg externalUserID "$bot_user_id" '{externalUserID:$externalUserID}')"
+lookup_body="$(jq -cn --arg senderID "$bot_user_id" '{senderID:$senderID}')"
 curl --silent --show-error --fail --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$lookup_body" http://internkim/v1/platform/mattermost/identity.resolve | jq -e '.email != null' >/dev/null
 
 echo "checking llm capability"
@@ -302,10 +306,33 @@ else
 fi
 
 echo "checking secret isolation"
-! su -s /bin/sh blueclaw -c 'test -r /root/.internkim/secrets/openrouter-api-key || test -r /root/.internkim/secrets/mattermost-bot-token || test -r /root/.internkim/secrets/device-secret || test -r /root/.internkim/models/gemma-4-E4B-it.litertlm' 2>/dev/null
+! su -s /bin/sh blueclaw -c 'test -r /root/.internkim/secrets/openrouter-api-key || test -r /root/.internkim/secrets/mattermost-bot-token || test -r /root/.internkim/secrets/slack-bot-token || test -r /root/.internkim/secrets/slack-app-token || test -r /root/.internkim/secrets/device-secret || test -r /root/.internkim/config/signal-jsonrpc-url || test -r /root/.internkim/config/signal-account || test -r /root/.internkim/models/gemma-4-E4B-it.litertlm' 2>/dev/null
 
 echo "checking blueclaw health"
 curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/policy >/dev/null
+
+echo "checking blueclaw backup manifest"
+manifest_path="$(mktemp)"
+curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/backup/manifest > "$manifest_path"
+python3 - "$manifest_path" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1]) as file:
+    manifest = json.load(file)
+
+document = json.dumps(manifest)
+for forbidden in ("token", "Authorization", "passphrase", "OpenRouter", "apiKey", "signingSecret"):
+    if forbidden in document:
+        print("backup manifest contains secret reference: " + forbidden, file=sys.stderr)
+        sys.exit(1)
+if manifest.get("contractVersion") != 1:
+    print("unexpected backup contract version", file=sys.stderr)
+    sys.exit(1)
+if "blueclaw-postgres-dump" not in manifest.get("requiredBackupArtifacts", []):
+    print("missing blueclaw postgres backup artifact", file=sys.stderr)
+    sys.exit(1)
+PY
 
 echo "checking users sync"
 systemctl start internkim-users-sync.service || journalctl -u internkim-users-sync -n 40 --no-pager
@@ -456,8 +483,8 @@ cleanup() {
 trap cleanup EXIT
 
 echo "preparing verify users"
-bot_body="$(jq -cn '{}')"
-bot_user_id="$(curl --silent --show-error --fail --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$bot_body" http://internkim/v1/platform/mattermost/bot.resolve | jq -r '.userID // empty')"
+mattermost_token="$(cat /root/.internkim/secrets/mattermost-bot-token)"
+bot_user_id="$(curl --silent --show-error --fail -H "Authorization: Bearer $mattermost_token" http://localhost:8065/api/v4/users/me | jq -r '.id // empty')"
 test -n "$bot_user_id"
 invited_user_id="$(create_user "$invited_email" "$invited_username")"
 uninvited_user_id="$(create_user "$uninvited_email" "$uninvited_username")"

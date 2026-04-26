@@ -1,0 +1,1169 @@
+package admind
+
+import (
+	"archive/tar"
+	"compress/gzip"
+	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"io"
+	"log"
+	"net"
+	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+)
+
+type Configuration struct {
+	ListenAddress     string
+	MattermostBaseURL string
+	BlueclawBaseURL   string
+	StateDirectory    string
+	AdminEmailPath    string
+	DeviceIDPath      string
+	RepositoryRoot    string
+}
+
+type Service struct {
+	Configuration Configuration
+	HTTPClient    *http.Client
+	RunCommand    func(context.Context, string, ...string) ([]byte, error)
+
+	mutex   sync.Mutex
+	jobs    map[string]*Job
+	uploads map[string]*RestoreUpload
+}
+
+type Job struct {
+	JobID        string            `json:"jobID"`
+	Type         string            `json:"type"`
+	Status       string            `json:"status"`
+	Phase        string            `json:"phase"`
+	Error        string            `json:"error,omitempty"`
+	CreatedAt    time.Time         `json:"createdAt"`
+	UpdatedAt    time.Time         `json:"updatedAt"`
+	DownloadURL  string            `json:"downloadURL,omitempty"`
+	Manifest     *BackupManifest   `json:"manifest,omitempty"`
+	Logs         []string          `json:"logs"`
+	Result       map[string]string `json:"result,omitempty"`
+	artifactPath string
+}
+
+type BackupManifest struct {
+	FormatVersion  int               `json:"formatVersion"`
+	DeviceID       string            `json:"deviceID"`
+	CreatedAt      time.Time         `json:"createdAt"`
+	Components     []string          `json:"components"`
+	Checksums      map[string]string `json:"checksums"`
+	InternKim      map[string]string `json:"internKim"`
+	Blueclaw       map[string]any    `json:"blueclaw,omitempty"`
+	MattermostDump bool              `json:"mattermostDump"`
+	BlueclawDump   bool              `json:"blueclawDump"`
+}
+
+type RestoreUpload struct {
+	UploadID       string       `json:"uploadID"`
+	Filename       string       `json:"filename"`
+	Size           int64        `json:"size"`
+	CreatedAt      time.Time    `json:"createdAt"`
+	DirectoryPath  string       `json:"-"`
+	ReceivedChunks map[int]bool `json:"-"`
+}
+
+type backupRequest struct {
+	Passphrase string `json:"passphrase"`
+}
+
+type restoreRequest struct {
+	Passphrase string `json:"passphrase"`
+	Confirm    string `json:"confirm"`
+}
+
+type restoreUploadRequest struct {
+	Filename string `json:"filename"`
+	Size     int64  `json:"size"`
+}
+
+type restoreUploadResponse struct {
+	UploadID  string `json:"uploadID"`
+	ChunkSize int64  `json:"chunkSize"`
+}
+
+type restoreUploadCompleteRequest struct {
+	Passphrase string `json:"passphrase"`
+	Confirm    string `json:"confirm"`
+	Chunks     int    `json:"chunks"`
+}
+
+func DefaultConfiguration() Configuration {
+	return Configuration{
+		ListenAddress:     "127.0.0.1:18080",
+		MattermostBaseURL: "http://127.0.0.1:8065",
+		BlueclawBaseURL:   "http://127.0.0.1:8080",
+		StateDirectory:    "/root/.internkim/admin",
+		AdminEmailPath:    "/root/.internkim/admin-email",
+		DeviceIDPath:      "/root/.internkim/env/device-id",
+		RepositoryRoot:    "/",
+	}
+}
+
+func NewService(configuration Configuration) *Service {
+	configuration = configuration.withDefaults()
+	return &Service{
+		Configuration: configuration,
+		jobs:          map[string]*Job{},
+		uploads:       map[string]*RestoreUpload{},
+	}
+}
+
+func (service *Service) Run(ctx context.Context) error {
+	server := &http.Server{
+		Addr:    service.Configuration.ListenAddress,
+		Handler: service.router(),
+	}
+	go func() {
+		<-ctx.Done()
+		shutdownContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = server.Shutdown(shutdownContext)
+	}()
+	errorValue := server.ListenAndServe()
+	if errorValue != nil && !errors.Is(errorValue, http.ErrServerClosed) {
+		return errorValue
+	}
+	return nil
+}
+
+func (service *Service) router() http.Handler {
+	multiplexer := http.NewServeMux()
+	multiplexer.HandleFunc("/_internkim/admin/", service.handleAdmin)
+	multiplexer.Handle("/", service.mattermostProxy())
+	return service.withCORS(multiplexer)
+}
+
+func (service *Service) withCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		origin := request.Header.Get("Origin")
+		if isAllowedOrigin(origin) {
+			responseWriter.Header().Set("Access-Control-Allow-Origin", origin)
+			responseWriter.Header().Set("Access-Control-Allow-Credentials", "true")
+			responseWriter.Header().Set("Access-Control-Allow-Headers", "Content-Type, CF-Access-Authenticated-User-Email")
+			responseWriter.Header().Set("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+		}
+		if request.Method == http.MethodOptions {
+			responseWriter.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(responseWriter, request)
+	})
+}
+
+func (service *Service) mattermostProxy() http.Handler {
+	targetURL, errorValue := url.Parse(service.Configuration.MattermostBaseURL)
+	if errorValue != nil {
+		return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		})
+	}
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+	if service.HTTPClient != nil && service.HTTPClient.Transport != nil {
+		proxy.Transport = service.HTTPClient.Transport
+	}
+	return proxy
+}
+
+func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request *http.Request) {
+	if !service.isAuthorized(request) {
+		http.Error(responseWriter, "admin access required", http.StatusForbidden)
+		return
+	}
+
+	path := strings.TrimPrefix(request.URL.Path, "/_internkim/admin")
+	switch {
+	case request.Method == http.MethodGet && path == "/health":
+		service.writeJSON(responseWriter, map[string]string{"status": "ok"})
+	case request.Method == http.MethodPost && path == "/backups":
+		service.createBackup(responseWriter, request)
+	case request.Method == http.MethodGet && strings.HasPrefix(path, "/backups/") && strings.HasSuffix(path, "/status"):
+		service.writeJob(responseWriter, strings.TrimSuffix(strings.TrimPrefix(path, "/backups/"), "/status"))
+	case request.Method == http.MethodGet && strings.HasPrefix(path, "/backups/") && strings.HasSuffix(path, "/download"):
+		service.downloadBackup(responseWriter, request, strings.TrimSuffix(strings.TrimPrefix(path, "/backups/"), "/download"))
+	case request.Method == http.MethodPost && path == "/restore/uploads":
+		service.createRestoreUpload(responseWriter, request)
+	case request.Method == http.MethodPut && strings.HasPrefix(path, "/restore/uploads/") && strings.Contains(path, "/chunks/"):
+		service.writeRestoreUploadChunk(responseWriter, request, path)
+	case request.Method == http.MethodPost && strings.HasPrefix(path, "/restore/uploads/") && strings.HasSuffix(path, "/complete"):
+		service.completeRestoreUpload(responseWriter, request, path)
+	case request.Method == http.MethodPost && path == "/restore":
+		service.createRestore(responseWriter, request)
+	case request.Method == http.MethodGet && strings.HasPrefix(path, "/restore/") && strings.HasSuffix(path, "/status"):
+		service.writeJob(responseWriter, strings.TrimSuffix(strings.TrimPrefix(path, "/restore/"), "/status"))
+	default:
+		http.NotFound(responseWriter, request)
+	}
+}
+
+func (service *Service) createRestoreUpload(responseWriter http.ResponseWriter, request *http.Request) {
+	var payload restoreUploadRequest
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	uploadID := randomHex(16)
+	directoryPath := filepath.Join(service.Configuration.StateDirectory, "uploads", uploadID)
+	if errorValue := os.MkdirAll(filepath.Join(directoryPath, "chunks"), 0o700); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	service.mutex.Lock()
+	service.uploads[uploadID] = &RestoreUpload{
+		UploadID:       uploadID,
+		Filename:       filepath.Base(payload.Filename),
+		Size:           payload.Size,
+		CreatedAt:      time.Now().UTC(),
+		DirectoryPath:  directoryPath,
+		ReceivedChunks: map[int]bool{},
+	}
+	service.mutex.Unlock()
+	service.writeJSON(responseWriter, restoreUploadResponse{UploadID: uploadID, ChunkSize: 4 << 20})
+}
+
+func (service *Service) writeRestoreUploadChunk(responseWriter http.ResponseWriter, request *http.Request, path string) {
+	uploadID, chunkIndex, isValid := parseRestoreUploadChunkPath(path)
+	if !isValid {
+		http.NotFound(responseWriter, request)
+		return
+	}
+	upload, isFound := service.findUpload(uploadID)
+	if !isFound {
+		http.NotFound(responseWriter, request)
+		return
+	}
+	chunkPath := filepath.Join(upload.DirectoryPath, "chunks", strconv.Itoa(chunkIndex))
+	chunkFile, errorValue := os.OpenFile(chunkPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	_, copyErrorValue := io.Copy(chunkFile, io.LimitReader(request.Body, 16<<20))
+	closeErrorValue := chunkFile.Close()
+	if copyErrorValue != nil {
+		http.Error(responseWriter, copyErrorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	if closeErrorValue != nil {
+		http.Error(responseWriter, closeErrorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	service.markUploadChunk(uploadID, chunkIndex)
+	service.writeJSON(responseWriter, map[string]string{"status": "ok"})
+}
+
+func (service *Service) completeRestoreUpload(responseWriter http.ResponseWriter, request *http.Request, path string) {
+	uploadID := strings.TrimSuffix(strings.TrimPrefix(path, "/restore/uploads/"), "/complete")
+	upload, isFound := service.findUpload(uploadID)
+	if !isFound {
+		http.NotFound(responseWriter, request)
+		return
+	}
+	var payload restoreUploadCompleteRequest
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(payload.Passphrase) == "" {
+		http.Error(responseWriter, "passphrase is required", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(payload.Confirm) != "RESTORE" {
+		http.Error(responseWriter, "confirm must be RESTORE", http.StatusBadRequest)
+		return
+	}
+	if payload.Chunks <= 0 {
+		http.Error(responseWriter, "chunks is required", http.StatusBadRequest)
+		return
+	}
+	bundlePath := filepath.Join(upload.DirectoryPath, firstNonEmpty(upload.Filename, "restore.ikbak"))
+	if errorValue := service.assembleRestoreUpload(upload, payload.Chunks, bundlePath); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	job := service.newJob("restore")
+	service.writeJSON(responseWriter, job)
+	go service.runRestoreJob(context.Background(), job.JobID, bundlePath, payload.Passphrase)
+}
+
+func (service *Service) createBackup(responseWriter http.ResponseWriter, request *http.Request) {
+	var payload backupRequest
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(payload.Passphrase) == "" {
+		http.Error(responseWriter, "passphrase is required", http.StatusBadRequest)
+		return
+	}
+	job := service.newJob("backup")
+	service.writeJSON(responseWriter, job)
+	go service.runBackupJob(context.Background(), job.JobID, payload.Passphrase)
+}
+
+func (service *Service) createRestore(responseWriter http.ResponseWriter, request *http.Request) {
+	if errorValue := request.ParseMultipartForm(64 << 20); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	payload := restoreRequest{
+		Passphrase: request.FormValue("passphrase"),
+		Confirm:    request.FormValue("confirm"),
+	}
+	if strings.TrimSpace(payload.Passphrase) == "" {
+		http.Error(responseWriter, "passphrase is required", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(payload.Confirm) != "RESTORE" {
+		http.Error(responseWriter, "confirm must be RESTORE", http.StatusBadRequest)
+		return
+	}
+	file, header, errorValue := request.FormFile("bundle")
+	if errorValue != nil {
+		http.Error(responseWriter, "bundle is required", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	job := service.newJob("restore")
+	uploadPath := filepath.Join(service.jobDirectory(job.JobID), filepath.Base(header.Filename))
+	if errorValue := os.MkdirAll(filepath.Dir(uploadPath), 0o700); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	uploadFile, errorValue := os.Create(uploadPath)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	_, copyErrorValue := io.Copy(uploadFile, file)
+	closeErrorValue := uploadFile.Close()
+	if copyErrorValue != nil {
+		http.Error(responseWriter, copyErrorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	if closeErrorValue != nil {
+		http.Error(responseWriter, closeErrorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	service.writeJSON(responseWriter, job)
+	go service.runRestoreJob(context.Background(), job.JobID, uploadPath, payload.Passphrase)
+}
+
+func (service *Service) runBackupJob(ctx context.Context, jobID string, passphrase string) {
+	job := service.mustJob(jobID)
+	service.updateJob(jobID, "running", "collecting", "")
+	jobDirectory := service.jobDirectory(jobID)
+	plainPath := filepath.Join(jobDirectory, "internkim-backup.tar.gz")
+	encryptedPath := filepath.Join(jobDirectory, "internkim-backup.ikbak")
+
+	blueclawManifest, completeBlueclawBackup := service.prepareBlueclawBackup(ctx)
+	defer completeBlueclawBackup()
+	manifest, errorValue := service.createPlainBackup(ctx, plainPath, blueclawManifest)
+	if errorValue != nil {
+		service.updateJob(jobID, "failed", "collecting", errorValue.Error())
+		return
+	}
+	service.updateJobManifest(jobID, manifest)
+	service.updateJob(jobID, "running", "encrypting", "")
+	if errorValue := encryptFile(plainPath, encryptedPath, passphrase); errorValue != nil {
+		service.updateJob(jobID, "failed", "encrypting", errorValue.Error())
+		return
+	}
+	_ = os.Remove(plainPath)
+
+	job.artifactPath = encryptedPath
+	job.DownloadURL = "/_internkim/admin/backups/" + jobID + "/download"
+	service.updateJob(jobID, "completed", "ready", "")
+}
+
+func (service *Service) createPlainBackup(ctx context.Context, plainPath string, blueclawManifest map[string]any) (*BackupManifest, error) {
+	if errorValue := os.MkdirAll(filepath.Dir(plainPath), 0o700); errorValue != nil {
+		return nil, errorValue
+	}
+	manifest := &BackupManifest{
+		FormatVersion: 1,
+		DeviceID:      readTrimmedFile(service.Configuration.DeviceIDPath),
+		CreatedAt:     time.Now().UTC(),
+		Components: []string{
+			"internkim",
+			"blueclaw",
+			"mattermost",
+			"cloudflared",
+		},
+		Checksums: map[string]string{},
+		InternKim: map[string]string{
+			"backupFormat": "internkim-admin-v1",
+		},
+		Blueclaw: blueclawManifest,
+	}
+
+	plainFile, errorValue := os.Create(plainPath)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer plainFile.Close()
+	gzipWriter := gzip.NewWriter(plainFile)
+	defer gzipWriter.Close()
+	tarWriter := tar.NewWriter(gzipWriter)
+	defer tarWriter.Close()
+
+	for _, includedPath := range backupIncludedPaths() {
+		if errorValue := addPathToTar(tarWriter, includedPath, manifest); errorValue != nil && !os.IsNotExist(errorValue) {
+			return nil, errorValue
+		}
+	}
+	dumpPath, errorValue := service.dumpMattermostDatabase(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	if dumpPath != "" {
+		defer os.Remove(dumpPath)
+		manifest.MattermostDump = true
+		if errorValue := addNamedFileToTar(tarWriter, dumpPath, "mattermost-db.sql", manifest); errorValue != nil {
+			return nil, errorValue
+		}
+	}
+	blueclawDumpPath, errorValue := service.dumpBlueclawDatabase(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	if blueclawDumpPath != "" {
+		defer os.Remove(blueclawDumpPath)
+		manifest.BlueclawDump = true
+		if errorValue := addNamedFileToTar(tarWriter, blueclawDumpPath, "blueclaw-db.sql", manifest); errorValue != nil {
+			return nil, errorValue
+		}
+	}
+	if errorValue := addManifestToTar(tarWriter, manifest); errorValue != nil {
+		return nil, errorValue
+	}
+	return manifest, nil
+}
+
+func (service *Service) runRestoreJob(ctx context.Context, jobID string, encryptedPath string, passphrase string) {
+	jobDirectory := service.jobDirectory(jobID)
+	plainPath := filepath.Join(jobDirectory, "restore.tar.gz")
+	extractDirectory := filepath.Join(jobDirectory, "extract")
+
+	service.updateJob(jobID, "running", "decrypting", "")
+	if errorValue := decryptFile(encryptedPath, plainPath, passphrase); errorValue != nil {
+		service.updateJob(jobID, "failed", "decrypting", errorValue.Error())
+		return
+	}
+	service.updateJob(jobID, "running", "extracting", "")
+	manifest, errorValue := extractBundle(plainPath, extractDirectory)
+	if errorValue != nil {
+		service.updateJob(jobID, "failed", "extracting", errorValue.Error())
+		return
+	}
+	service.updateJobManifest(jobID, manifest)
+
+	service.updateJob(jobID, "running", "applying", "")
+	if errorValue := service.applyRestore(ctx, extractDirectory); errorValue != nil {
+		service.updateJob(jobID, "failed", "applying", errorValue.Error())
+		return
+	}
+	service.updateJob(jobID, "completed", "restarting", "")
+}
+
+func (service *Service) applyRestore(ctx context.Context, extractDirectory string) error {
+	commands := [][]string{
+		{"systemctl", "stop", "blueclaw", "internkim-capabilityd", "mattermost", "internkim-users-sync.timer", "internkim-users-sync.service"},
+	}
+	for _, arguments := range commands {
+		_, _ = service.runCommand(ctx, arguments[0], arguments[1:]...)
+	}
+
+	for _, relativePath := range []string{"root/.internkim", "root/.blueclaw", "opt/mattermost/config", "opt/mattermost/data", "etc/cloudflared"} {
+		sourcePath := filepath.Join(extractDirectory, relativePath)
+		if _, errorValue := os.Stat(sourcePath); errorValue == nil {
+			targetPath := "/" + relativePath
+			if errorValue := copyDirectory(sourcePath, targetPath); errorValue != nil {
+				return errorValue
+			}
+		}
+	}
+	for _, relativePath := range []string{"root/.internkim/admin-email"} {
+		sourcePath := filepath.Join(extractDirectory, relativePath)
+		if _, errorValue := os.Stat(sourcePath); errorValue == nil {
+			if errorValue := copyRegularFile(sourcePath, "/"+relativePath); errorValue != nil {
+				return errorValue
+			}
+		}
+	}
+
+	databaseDumpPath := filepath.Join(extractDirectory, "mattermost-db.sql")
+	if _, errorValue := os.Stat(databaseDumpPath); errorValue == nil {
+		_, _ = service.runCommand(ctx, "systemctl", "start", "postgresql")
+		if _, errorValue := service.runCommand(ctx, "su", "-", "postgres", "-c", "dropdb --if-exists mattermost && createdb mattermost"); errorValue != nil {
+			return errorValue
+		}
+		if _, errorValue := service.runCommand(ctx, "su", "-", "postgres", "-c", "psql mattermost < "+shellQuote(databaseDumpPath)); errorValue != nil {
+			return errorValue
+		}
+	}
+	blueclawDatabaseDumpPath := filepath.Join(extractDirectory, "blueclaw-db.sql")
+	if _, errorValue := os.Stat(blueclawDatabaseDumpPath); errorValue == nil {
+		_, _ = service.runCommand(ctx, "systemctl", "start", "postgresql")
+		_, _ = service.runCommand(ctx, "su", "-", "postgres", "-c", "psql -tAc "+shellQuote("SELECT 1 FROM pg_roles WHERE rolname='blueclaw'")+" | grep -q 1 || createuser blueclaw")
+		if _, errorValue := service.runCommand(ctx, "su", "-", "postgres", "-c", "dropdb --if-exists blueclaw && createdb -O blueclaw blueclaw"); errorValue != nil {
+			return errorValue
+		}
+		if _, errorValue := service.runCommand(ctx, "su", "-", "postgres", "-c", "psql blueclaw < "+shellQuote(blueclawDatabaseDumpPath)); errorValue != nil {
+			return errorValue
+		}
+	}
+
+	_, _ = service.runCommand(ctx, "systemctl", "daemon-reload")
+	_, _ = service.runCommand(ctx, "systemctl", "restart", "mattermost", "internkim-capabilityd", "blueclaw", "cloudflared")
+	_, _ = service.runCommand(ctx, "systemctl", "enable", "--now", "internkim-users-sync.timer")
+	return nil
+}
+
+func (service *Service) writeJob(responseWriter http.ResponseWriter, jobID string) {
+	job, isFound := service.findJob(jobID)
+	if !isFound {
+		http.NotFound(responseWriter, nil)
+		return
+	}
+	service.writeJSON(responseWriter, job)
+}
+
+func (service *Service) downloadBackup(responseWriter http.ResponseWriter, request *http.Request, jobID string) {
+	job, isFound := service.findJob(jobID)
+	if !isFound || job.Status != "completed" || strings.TrimSpace(job.artifactPath) == "" {
+		http.NotFound(responseWriter, nil)
+		return
+	}
+	responseWriter.Header().Set("Content-Type", "application/octet-stream")
+	responseWriter.Header().Set("Content-Disposition", `attachment; filename="internkim-backup-`+jobID+`.ikbak"`)
+	http.ServeFile(responseWriter, request, job.artifactPath)
+}
+
+func (service *Service) newJob(jobType string) *Job {
+	jobID := randomHex(16)
+	now := time.Now().UTC()
+	job := &Job{
+		JobID:     jobID,
+		Type:      jobType,
+		Status:    "queued",
+		Phase:     "queued",
+		CreatedAt: now,
+		UpdatedAt: now,
+		Logs:      []string{},
+		Result:    map[string]string{},
+	}
+	service.mutex.Lock()
+	service.jobs[jobID] = job
+	service.mutex.Unlock()
+	return job
+}
+
+func (service *Service) mustJob(jobID string) *Job {
+	job, _ := service.findJob(jobID)
+	return job
+}
+
+func (service *Service) findJob(jobID string) (*Job, bool) {
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	job, isFound := service.jobs[jobID]
+	return job, isFound
+}
+
+func (service *Service) findUpload(uploadID string) (*RestoreUpload, bool) {
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	upload, isFound := service.uploads[uploadID]
+	return upload, isFound
+}
+
+func (service *Service) markUploadChunk(uploadID string, chunkIndex int) {
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	upload := service.uploads[uploadID]
+	if upload == nil {
+		return
+	}
+	upload.ReceivedChunks[chunkIndex] = true
+}
+
+func (service *Service) assembleRestoreUpload(upload *RestoreUpload, chunkCount int, bundlePath string) error {
+	bundleFile, errorValue := os.OpenFile(bundlePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer bundleFile.Close()
+	for chunkIndex := 0; chunkIndex < chunkCount; chunkIndex++ {
+		chunkPath := filepath.Join(upload.DirectoryPath, "chunks", strconv.Itoa(chunkIndex))
+		chunkFile, errorValue := os.Open(chunkPath)
+		if errorValue != nil {
+			return errors.New("restore upload is missing chunk " + strconv.Itoa(chunkIndex))
+		}
+		_, copyErrorValue := io.Copy(bundleFile, chunkFile)
+		closeErrorValue := chunkFile.Close()
+		if copyErrorValue != nil {
+			return copyErrorValue
+		}
+		if closeErrorValue != nil {
+			return closeErrorValue
+		}
+	}
+	return nil
+}
+
+func (service *Service) updateJob(jobID string, status string, phase string, errorMessage string) {
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	job := service.jobs[jobID]
+	if job == nil {
+		return
+	}
+	job.Status = status
+	job.Phase = phase
+	job.Error = errorMessage
+	job.UpdatedAt = time.Now().UTC()
+	job.Logs = append(job.Logs, phase)
+}
+
+func (service *Service) updateJobManifest(jobID string, manifest *BackupManifest) {
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	job := service.jobs[jobID]
+	if job == nil {
+		return
+	}
+	job.Manifest = manifest
+	job.UpdatedAt = time.Now().UTC()
+}
+
+func (service *Service) jobDirectory(jobID string) string {
+	return filepath.Join(service.Configuration.StateDirectory, "jobs", jobID)
+}
+
+func (service *Service) isAuthorized(request *http.Request) bool {
+	if isLocalRequest(request) {
+		return true
+	}
+	adminEmail := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.AdminEmailPath)))
+	callerEmail := strings.ToLower(strings.TrimSpace(firstNonEmpty(
+		request.Header.Get("Cf-Access-Authenticated-User-Email"),
+		request.Header.Get("CF-Access-Authenticated-User-Email"),
+		request.Header.Get("X-Forwarded-Email"),
+	)))
+	if adminEmail == "" {
+		return false
+	}
+	return callerEmail == adminEmail
+}
+
+func isLocalRequest(request *http.Request) bool {
+	host, _, splitError := net.SplitHostPort(request.RemoteAddr)
+	if splitError != nil {
+		host = request.RemoteAddr
+	}
+	return host == "127.0.0.1" || host == "::1" || host == "localhost"
+}
+
+func (service *Service) dumpMattermostDatabase(ctx context.Context) (string, error) {
+	dumpPath := filepath.Join(os.TempDir(), "internkim-mattermost-"+randomHex(8)+".sql")
+	command := "pg_dump mattermost > " + shellQuote(dumpPath)
+	_, errorValue := service.runCommand(ctx, "su", "-", "postgres", "-c", command)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	return dumpPath, nil
+}
+
+func (service *Service) dumpBlueclawDatabase(ctx context.Context) (string, error) {
+	output, errorValue := service.runCommand(ctx, "su", "-", "postgres", "-c", "psql -tAc "+shellQuote("SELECT 1 FROM pg_database WHERE datname='blueclaw'"))
+	if errorValue != nil {
+		return "", nil
+	}
+	exists := strings.TrimSpace(string(output))
+	if exists != "1" {
+		return "", nil
+	}
+	dumpPath := filepath.Join(os.TempDir(), "internkim-blueclaw-"+randomHex(8)+".sql")
+	command := "pg_dump blueclaw > " + shellQuote(dumpPath)
+	_, errorValue = service.runCommand(ctx, "su", "-", "postgres", "-c", command)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	return dumpPath, nil
+}
+
+func (service *Service) prepareBlueclawBackup(ctx context.Context) (map[string]any, func()) {
+	manifest := service.fetchBlueclawManifest(ctx)
+	if manifest == nil {
+		return nil, func() {}
+	}
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, service.Configuration.BlueclawBaseURL+"/admin/api/backup/prepare", strings.NewReader(`{"holder":"internkim-admind"}`))
+	if errorValue != nil {
+		return manifest, func() {}
+	}
+	request.Header.Set("Content-Type", "application/json")
+	client := service.httpClient()
+	response, errorValue := client.Do(request)
+	if errorValue != nil {
+		return manifest, func() {}
+	}
+	_ = response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return manifest, func() {}
+	}
+	return manifest, func() {
+		completeRequest, errorValue := http.NewRequestWithContext(context.Background(), http.MethodPost, service.Configuration.BlueclawBaseURL+"/admin/api/backup/complete", nil)
+		if errorValue != nil {
+			return
+		}
+		completeResponse, errorValue := client.Do(completeRequest)
+		if errorValue == nil {
+			_ = completeResponse.Body.Close()
+		}
+	}
+}
+
+func (service *Service) fetchBlueclawManifest(ctx context.Context) map[string]any {
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, service.Configuration.BlueclawBaseURL+"/admin/api/backup/manifest", nil)
+	if errorValue != nil {
+		return nil
+	}
+	response, errorValue := service.httpClient().Do(request)
+	if errorValue != nil {
+		return nil
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return nil
+	}
+	var manifest map[string]any
+	if errorValue := json.NewDecoder(response.Body).Decode(&manifest); errorValue != nil {
+		return nil
+	}
+	return manifest
+}
+
+func (service *Service) httpClient() *http.Client {
+	if service.HTTPClient != nil {
+		return service.HTTPClient
+	}
+	return http.DefaultClient
+}
+
+func (service *Service) runCommand(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+	if service.RunCommand != nil {
+		return service.RunCommand(ctx, name, arguments...)
+	}
+	commandContext, cancel := context.WithTimeout(ctx, 30*time.Minute)
+	defer cancel()
+	command := exec.CommandContext(commandContext, name, arguments...)
+	return command.CombinedOutput()
+}
+
+func (service *Service) writeJSON(responseWriter http.ResponseWriter, value any) {
+	responseWriter.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(responseWriter).Encode(value)
+}
+
+func (configuration Configuration) withDefaults() Configuration {
+	defaultConfiguration := DefaultConfiguration()
+	if configuration.ListenAddress == "" {
+		configuration.ListenAddress = defaultConfiguration.ListenAddress
+	}
+	if configuration.MattermostBaseURL == "" {
+		configuration.MattermostBaseURL = defaultConfiguration.MattermostBaseURL
+	}
+	if configuration.BlueclawBaseURL == "" {
+		configuration.BlueclawBaseURL = defaultConfiguration.BlueclawBaseURL
+	}
+	if configuration.StateDirectory == "" {
+		configuration.StateDirectory = defaultConfiguration.StateDirectory
+	}
+	if configuration.AdminEmailPath == "" {
+		configuration.AdminEmailPath = defaultConfiguration.AdminEmailPath
+	}
+	if configuration.DeviceIDPath == "" {
+		configuration.DeviceIDPath = defaultConfiguration.DeviceIDPath
+	}
+	if configuration.RepositoryRoot == "" {
+		configuration.RepositoryRoot = defaultConfiguration.RepositoryRoot
+	}
+	return configuration
+}
+
+func backupIncludedPaths() []string {
+	return []string{
+		"/root/.internkim/env",
+		"/root/.internkim/config",
+		"/root/.internkim/secrets",
+		"/root/.internkim/state",
+		"/root/.internkim/admin-email",
+		"/root/.blueclaw/config",
+		"/root/.blueclaw/workspace",
+		"/var/lib/blueclaw/workspace.ext4",
+		"/opt/mattermost/config",
+		"/opt/mattermost/data",
+		"/etc/cloudflared",
+	}
+}
+
+func addManifestToTar(tarWriter *tar.Writer, manifest *BackupManifest) error {
+	document, errorValue := json.MarshalIndent(manifest, "", "  ")
+	if errorValue != nil {
+		return errorValue
+	}
+	return addBytesToTar(tarWriter, "manifest.json", document)
+}
+
+func addPathToTar(tarWriter *tar.Writer, includedPath string, manifest *BackupManifest) error {
+	fileInfo, errorValue := os.Stat(includedPath)
+	if errorValue != nil {
+		return errorValue
+	}
+	if fileInfo.IsDir() {
+		return filepath.Walk(includedPath, func(path string, information os.FileInfo, walkError error) error {
+			if walkError != nil || information.IsDir() {
+				return walkError
+			}
+			return addFileToTar(tarWriter, path, tarName(path), manifest)
+		})
+	}
+	return addFileToTar(tarWriter, includedPath, tarName(includedPath), manifest)
+}
+
+func addNamedFileToTar(tarWriter *tar.Writer, filePath string, tarPath string, manifest *BackupManifest) error {
+	return addFileToTar(tarWriter, filePath, tarPath, manifest)
+}
+
+func addFileToTar(tarWriter *tar.Writer, filePath string, tarPath string, manifest *BackupManifest) error {
+	fileInfo, errorValue := os.Stat(filePath)
+	if errorValue != nil {
+		return errorValue
+	}
+	if !fileInfo.Mode().IsRegular() {
+		return nil
+	}
+	file, errorValue := os.Open(filePath)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer file.Close()
+	header, errorValue := tar.FileInfoHeader(fileInfo, "")
+	if errorValue != nil {
+		return errorValue
+	}
+	header.Name = tarPath
+	if errorValue := tarWriter.WriteHeader(header); errorValue != nil {
+		return errorValue
+	}
+	hasher := sha256.New()
+	_, errorValue = io.Copy(tarWriter, io.TeeReader(file, hasher))
+	if errorValue != nil {
+		return errorValue
+	}
+	manifest.Checksums[tarPath] = hex.EncodeToString(hasher.Sum(nil))
+	return nil
+}
+
+func addBytesToTar(tarWriter *tar.Writer, tarPath string, document []byte) error {
+	header := &tar.Header{Name: tarPath, Mode: 0o600, Size: int64(len(document)), ModTime: time.Now()}
+	if errorValue := tarWriter.WriteHeader(header); errorValue != nil {
+		return errorValue
+	}
+	_, errorValue := tarWriter.Write(document)
+	return errorValue
+}
+
+func extractBundle(bundlePath string, targetDirectoryPath string) (*BackupManifest, error) {
+	bundleFile, errorValue := os.Open(bundlePath)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer bundleFile.Close()
+	gzipReader, errorValue := gzip.NewReader(bundleFile)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer gzipReader.Close()
+	tarReader := tar.NewReader(gzipReader)
+	var manifest *BackupManifest
+	for {
+		header, nextErrorValue := tarReader.Next()
+		if nextErrorValue == io.EOF {
+			break
+		}
+		if nextErrorValue != nil {
+			return nil, nextErrorValue
+		}
+		if !isSafeTarPath(header.Name) {
+			return nil, errors.New("unsafe backup path: " + header.Name)
+		}
+		targetPath := filepath.Join(targetDirectoryPath, header.Name)
+		if header.Name == "manifest.json" {
+			document, errorValue := io.ReadAll(tarReader)
+			if errorValue != nil {
+				return nil, errorValue
+			}
+			var parsedManifest BackupManifest
+			if errorValue := json.Unmarshal(document, &parsedManifest); errorValue != nil {
+				return nil, errorValue
+			}
+			manifest = &parsedManifest
+			continue
+		}
+		if errorValue := os.MkdirAll(filepath.Dir(targetPath), 0o755); errorValue != nil {
+			return nil, errorValue
+		}
+		file, errorValue := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(header.Mode))
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		_, copyErrorValue := io.Copy(file, tarReader)
+		closeErrorValue := file.Close()
+		if copyErrorValue != nil {
+			return nil, copyErrorValue
+		}
+		if closeErrorValue != nil {
+			return nil, closeErrorValue
+		}
+	}
+	if manifest == nil {
+		return nil, errors.New("backup manifest is missing")
+	}
+	return manifest, nil
+}
+
+func encryptFile(inputPath string, outputPath string, passphrase string) error {
+	plainDocument, errorValue := os.ReadFile(inputPath)
+	if errorValue != nil {
+		return errorValue
+	}
+	salt := randomBytes(16)
+	nonce := randomBytes(12)
+	key := deriveKey([]byte(passphrase), salt, 200000, 32)
+	block, errorValue := aes.NewCipher(key)
+	if errorValue != nil {
+		return errorValue
+	}
+	aead, errorValue := cipher.NewGCM(block)
+	if errorValue != nil {
+		return errorValue
+	}
+	ciphertext := aead.Seal(nil, nonce, plainDocument, []byte("internkim-backup-v1"))
+	outputDocument := append([]byte("IKBAK1\n"), salt...)
+	outputDocument = append(outputDocument, nonce...)
+	outputDocument = append(outputDocument, ciphertext...)
+	return os.WriteFile(outputPath, outputDocument, 0o600)
+}
+
+func decryptFile(inputPath string, outputPath string, passphrase string) error {
+	encryptedDocument, errorValue := os.ReadFile(inputPath)
+	if errorValue != nil {
+		return errorValue
+	}
+	if len(encryptedDocument) < len("IKBAK1\n")+16+12 || string(encryptedDocument[:7]) != "IKBAK1\n" {
+		return errors.New("backup format is not supported")
+	}
+	offset := 7
+	salt := encryptedDocument[offset : offset+16]
+	offset += 16
+	nonce := encryptedDocument[offset : offset+12]
+	offset += 12
+	ciphertext := encryptedDocument[offset:]
+	key := deriveKey([]byte(passphrase), salt, 200000, 32)
+	block, errorValue := aes.NewCipher(key)
+	if errorValue != nil {
+		return errorValue
+	}
+	aead, errorValue := cipher.NewGCM(block)
+	if errorValue != nil {
+		return errorValue
+	}
+	plainDocument, errorValue := aead.Open(nil, nonce, ciphertext, []byte("internkim-backup-v1"))
+	if errorValue != nil {
+		return errors.New("backup passphrase is incorrect or bundle is corrupted")
+	}
+	return os.WriteFile(outputPath, plainDocument, 0o600)
+}
+
+func deriveKey(password []byte, salt []byte, iterations int, keyLength int) []byte {
+	var derivedKey []byte
+	var block []byte
+	blockIndex := 1
+	for len(derivedKey) < keyLength {
+		mac := hmac.New(sha256.New, password)
+		mac.Write(salt)
+		mac.Write([]byte{byte(blockIndex >> 24), byte(blockIndex >> 16), byte(blockIndex >> 8), byte(blockIndex)})
+		block = mac.Sum(nil)
+		accumulator := append([]byte{}, block...)
+		for iteration := 1; iteration < iterations; iteration++ {
+			mac = hmac.New(sha256.New, password)
+			mac.Write(block)
+			block = mac.Sum(nil)
+			for index := range accumulator {
+				accumulator[index] ^= block[index]
+			}
+		}
+		derivedKey = append(derivedKey, accumulator...)
+		blockIndex++
+	}
+	return derivedKey[:keyLength]
+}
+
+func copyDirectory(sourceRoot string, targetRoot string) error {
+	return filepath.Walk(sourceRoot, func(sourcePath string, information os.FileInfo, walkError error) error {
+		if walkError != nil {
+			return walkError
+		}
+		relativePath, errorValue := filepath.Rel(sourceRoot, sourcePath)
+		if errorValue != nil || relativePath == "." {
+			return errorValue
+		}
+		targetPath := filepath.Join(targetRoot, relativePath)
+		if information.IsDir() {
+			return os.MkdirAll(targetPath, information.Mode())
+		}
+		if !information.Mode().IsRegular() {
+			return nil
+		}
+		if errorValue := os.MkdirAll(filepath.Dir(targetPath), 0o755); errorValue != nil {
+			return errorValue
+		}
+		sourceFile, errorValue := os.Open(sourcePath)
+		if errorValue != nil {
+			return errorValue
+		}
+		defer sourceFile.Close()
+		targetFile, errorValue := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, information.Mode())
+		if errorValue != nil {
+			return errorValue
+		}
+		_, copyErrorValue := io.Copy(targetFile, sourceFile)
+		closeErrorValue := targetFile.Close()
+		if copyErrorValue != nil {
+			return copyErrorValue
+		}
+		return closeErrorValue
+	})
+}
+
+func copyRegularFile(sourcePath string, targetPath string) error {
+	sourceFile, errorValue := os.Open(sourcePath)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer sourceFile.Close()
+	sourceInfo, errorValue := sourceFile.Stat()
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := os.MkdirAll(filepath.Dir(targetPath), 0o755); errorValue != nil {
+		return errorValue
+	}
+	targetFile, errorValue := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, sourceInfo.Mode())
+	if errorValue != nil {
+		return errorValue
+	}
+	_, copyErrorValue := io.Copy(targetFile, sourceFile)
+	closeErrorValue := targetFile.Close()
+	if copyErrorValue != nil {
+		return copyErrorValue
+	}
+	return closeErrorValue
+}
+
+func isAllowedOrigin(origin string) bool {
+	if origin == "" {
+		return false
+	}
+	parsedURL, errorValue := url.Parse(origin)
+	if errorValue != nil {
+		return false
+	}
+	host := strings.ToLower(parsedURL.Hostname())
+	return host == "example.test" || strings.HasSuffix(host, ".example.test") || host == "localhost" || host == "127.0.0.1"
+}
+
+func isSafeTarPath(path string) bool {
+	cleanPath := filepath.Clean(path)
+	return cleanPath == path && !strings.HasPrefix(cleanPath, "..") && !filepath.IsAbs(cleanPath)
+}
+
+func parseRestoreUploadChunkPath(path string) (string, int, bool) {
+	trimmedPath := strings.TrimPrefix(path, "/restore/uploads/")
+	parts := strings.Split(trimmedPath, "/chunks/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", 0, false
+	}
+	chunkIndex, errorValue := strconv.Atoi(parts[1])
+	if errorValue != nil || chunkIndex < 0 {
+		return "", 0, false
+	}
+	return parts[0], chunkIndex, true
+}
+
+func tarName(path string) string {
+	return strings.TrimPrefix(filepath.ToSlash(filepath.Clean(path)), "/")
+}
+
+func randomHex(size int) string {
+	return hex.EncodeToString(randomBytes(size))
+}
+
+func randomBytes(size int) []byte {
+	value := make([]byte, size)
+	_, _ = rand.Read(value)
+	return value
+}
+
+func readTrimmedFile(path string) string {
+	document, errorValue := os.ReadFile(path)
+	if errorValue != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(document))
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		trimmedValue := strings.TrimSpace(value)
+		if trimmedValue != "" {
+			return trimmedValue
+		}
+	}
+	return ""
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
+func Run(configuration Configuration) error {
+	ctx := context.Background()
+	service := NewService(configuration)
+	log.Printf("internkim admind listening on %s", service.Configuration.ListenAddress)
+	return service.Run(ctx)
+}
