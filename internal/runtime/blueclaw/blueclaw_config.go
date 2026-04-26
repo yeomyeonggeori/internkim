@@ -46,6 +46,12 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 			"connectionString":       BlueclawDatabaseConnectionString,
 			"migrationDirectoryPath": BlueclawMigrationPath,
 		},
+		"memory": map[string]any{
+			"workspaceID":      "default",
+			"graphitiEndpoint": GraphitiEndpoint,
+			"graphitiKuzuPath": GraphitiKuzuPath,
+			"timeoutSecond":    15,
+		},
 		"connectors": map[string]any{
 			"mattermost": map[string]any{
 				"baseURL": "http://localhost:8065",

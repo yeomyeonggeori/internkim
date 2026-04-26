@@ -35,6 +35,13 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if _, isFound := languageModel["liteRTLM"]; isFound {
 		t.Fatal("expected LiteRT runtime details to be omitted")
 	}
+	memory := runtimeConfiguration["memory"].(map[string]any)
+	if memory["graphitiEndpoint"] != GraphitiEndpoint {
+		t.Fatalf("expected Graphiti endpoint, got %q", memory["graphitiEndpoint"])
+	}
+	if memory["graphitiKuzuPath"] != GraphitiKuzuPath {
+		t.Fatalf("expected Graphiti Kuzu path, got %q", memory["graphitiKuzuPath"])
+	}
 	connectors := runtimeConfiguration["connectors"].(map[string]any)
 	mattermost := connectors["mattermost"].(map[string]any)
 	if _, isFound := mattermost["botTokenPath"]; isFound {

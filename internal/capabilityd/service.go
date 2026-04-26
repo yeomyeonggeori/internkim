@@ -21,21 +21,23 @@ import (
 )
 
 type Configuration struct {
-	SocketPath           string
-	OpenRouterKeyPath    string
-	MattermostBaseURL    string
-	MattermostTokenPath  string
-	SlackTokenPath       string
-	SlackAppTokenPath    string
-	SignalJSONRPCURL     string
-	SignalAccount        string
-	SignalJSONRPCURLPath string
-	SignalAccountPath    string
-	BlueclawBaseURL      string
-	OpenRouterBaseURL    string
-	SocketGroupName      string
-	LiteRTModelPath      string
-	LiteRTWrapperPath    string
+	SocketPath                 string
+	OpenRouterKeyPath          string
+	MattermostBaseURL          string
+	MattermostTokenPath        string
+	SlackTokenPath             string
+	SlackAppTokenPath          string
+	SignalJSONRPCURL           string
+	SignalAccount              string
+	SignalJSONRPCURLPath       string
+	SignalAccountPath          string
+	BlueclawBaseURL            string
+	OpenRouterBaseURL          string
+	OpenRouterEmbeddingBaseURL string
+	OpenRouterEmbeddingModel   string
+	SocketGroupName            string
+	LiteRTModelPath            string
+	LiteRTWrapperPath          string
 }
 
 type Service struct {
@@ -77,6 +79,11 @@ type litertResponse struct {
 	Content string `json:"content"`
 }
 
+type embeddingRequest struct {
+	Input any    `json:"input"`
+	Model string `json:"model"`
+}
+
 type userLookupRequest struct {
 	SenderID string `json:"senderID"`
 }
@@ -113,19 +120,21 @@ type mattermostPostsResponse struct {
 
 func DefaultConfiguration() Configuration {
 	return Configuration{
-		SocketPath:           "/run/internkim/capability.sock",
-		OpenRouterKeyPath:    "/root/.internkim/secrets/openrouter-api-key",
-		MattermostBaseURL:    "http://localhost:8065",
-		MattermostTokenPath:  "/root/.internkim/secrets/mattermost-bot-token",
-		SlackTokenPath:       "/root/.internkim/secrets/slack-bot-token",
-		SlackAppTokenPath:    "/root/.internkim/secrets/slack-app-token",
-		SignalJSONRPCURLPath: "/root/.internkim/config/signal-jsonrpc-url",
-		SignalAccountPath:    "/root/.internkim/config/signal-account",
-		BlueclawBaseURL:      "http://127.0.0.1:8080",
-		OpenRouterBaseURL:    "https://openrouter.ai/api/v1/chat/completions",
-		SocketGroupName:      "blueclaw",
-		LiteRTModelPath:      "/root/.internkim/models/gemma-4-E4B-it.litertlm",
-		LiteRTWrapperPath:    "/usr/local/bin/internkim-litert-wrapper",
+		SocketPath:                 "/run/internkim/capability.sock",
+		OpenRouterKeyPath:          "/root/.internkim/secrets/openrouter-api-key",
+		MattermostBaseURL:          "http://localhost:8065",
+		MattermostTokenPath:        "/root/.internkim/secrets/mattermost-bot-token",
+		SlackTokenPath:             "/root/.internkim/secrets/slack-bot-token",
+		SlackAppTokenPath:          "/root/.internkim/secrets/slack-app-token",
+		SignalJSONRPCURLPath:       "/root/.internkim/config/signal-jsonrpc-url",
+		SignalAccountPath:          "/root/.internkim/config/signal-account",
+		BlueclawBaseURL:            "http://127.0.0.1:8080",
+		OpenRouterBaseURL:          "https://openrouter.ai/api/v1/chat/completions",
+		OpenRouterEmbeddingBaseURL: "https://openrouter.ai/api/v1/embeddings",
+		OpenRouterEmbeddingModel:   "text-embedding-3-small",
+		SocketGroupName:            "blueclaw",
+		LiteRTModelPath:            "/root/.internkim/models/gemma-4-E4B-it.litertlm",
+		LiteRTWrapperPath:          "/usr/local/bin/internkim-litert-wrapper",
 	}
 }
 
@@ -158,6 +167,7 @@ func (service Service) Run(ctx context.Context) error {
 func (service Service) router() http.Handler {
 	multiplexer := http.NewServeMux()
 	multiplexer.HandleFunc("POST /v1/llm/structured", service.handleStructuredLLM)
+	multiplexer.HandleFunc("POST /v1/embedding/create", service.handleEmbeddingCreate)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/identity.resolve", service.handleIdentityResolve)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/reply.send", service.handleReplySend)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/history.fetch", service.handleHistoryFetch)
@@ -178,6 +188,16 @@ func (service Service) handleStructuredLLM(responseWriter http.ResponseWriter, r
 		return
 	}
 	response, errorValue := service.completeStructured(request.Context(), llmRequest)
+	service.writeResponse(responseWriter, response, errorValue)
+}
+
+func (service Service) handleEmbeddingCreate(responseWriter http.ResponseWriter, request *http.Request) {
+	var embeddingRequest embeddingRequest
+	if errorValue := json.NewDecoder(request.Body).Decode(&embeddingRequest); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	response, errorValue := service.createEmbedding(request.Context(), embeddingRequest)
 	service.writeResponse(responseWriter, response, errorValue)
 }
 
@@ -391,6 +411,61 @@ func (service Service) completeRemote(ctx context.Context, request llmRequest) (
 		"content":         parsedResponse.Choices[0].Message.Content,
 		"selectedBackend": "remote",
 	}, nil
+}
+
+func (service Service) createEmbedding(ctx context.Context, request embeddingRequest) (any, error) {
+	apiKey := readSecretValue(service.Configuration.OpenRouterKeyPath)
+	if apiKey == "" {
+		return nil, errors.New("openrouter api key is not configured")
+	}
+	if isPlaceholderOpenRouterKey(apiKey) {
+		return nil, errors.New("openrouter api key is a simulation placeholder; set OPENROUTER_API_KEY or rerun setup --only openrouter --force")
+	}
+
+	requestDocument, errorValue := json.Marshal(map[string]any{
+		"model": firstNonEmpty(request.Model, service.Configuration.OpenRouterEmbeddingModel, DefaultConfiguration().OpenRouterEmbeddingModel),
+		"input": request.Input,
+	})
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, service.Configuration.OpenRouterEmbeddingBaseURL, bytes.NewReader(requestDocument))
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	httpRequest.Header.Set("Authorization", "Bearer "+apiKey)
+	httpRequest.Header.Set("Content-Type", "application/json")
+
+	httpResponse, errorValue := service.httpClient().Do(httpRequest)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer httpResponse.Body.Close()
+	responseDocument, _ := io.ReadAll(httpResponse.Body)
+	if httpResponse.StatusCode >= http.StatusBadRequest {
+		return nil, errors.New(string(responseDocument))
+	}
+
+	var parsedResponse struct {
+		Data []struct {
+			Embedding []float64 `json:"embedding"`
+		} `json:"data"`
+		Model string `json:"model"`
+	}
+	if errorValue := json.Unmarshal(responseDocument, &parsedResponse); errorValue != nil {
+		return nil, errorValue
+	}
+	if len(parsedResponse.Data) == 0 {
+		return nil, errors.New("openrouter embedding response did not include data")
+	}
+	if _, isBatch := request.Input.([]any); isBatch {
+		embeddings := [][]float64{}
+		for _, item := range parsedResponse.Data {
+			embeddings = append(embeddings, item.Embedding)
+		}
+		return map[string]any{"provider": "openrouter", "model": parsedResponse.Model, "embeddings": embeddings}, nil
+	}
+	return map[string]any{"provider": "openrouter", "model": parsedResponse.Model, "embedding": parsedResponse.Data[0].Embedding}, nil
 }
 
 func (service Service) mattermostLookupUserFromRequest(ctx context.Context, reader io.Reader) (any, error) {
@@ -1206,6 +1281,12 @@ func (configuration Configuration) WithDefaults() Configuration {
 	}
 	if configuration.OpenRouterBaseURL == "" {
 		configuration.OpenRouterBaseURL = defaultConfiguration.OpenRouterBaseURL
+	}
+	if configuration.OpenRouterEmbeddingBaseURL == "" {
+		configuration.OpenRouterEmbeddingBaseURL = defaultConfiguration.OpenRouterEmbeddingBaseURL
+	}
+	if configuration.OpenRouterEmbeddingModel == "" {
+		configuration.OpenRouterEmbeddingModel = defaultConfiguration.OpenRouterEmbeddingModel
 	}
 	if configuration.SocketGroupName == "" {
 		configuration.SocketGroupName = defaultConfiguration.SocketGroupName

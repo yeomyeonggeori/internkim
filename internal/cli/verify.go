@@ -249,6 +249,7 @@ echo "checking services"
 systemctl is-active mattermost | grep -q '^active$'
 systemctl is-active blueclaw | grep -q '^active$'
 systemctl is-active internkim-admind | grep -q '^active$'
+systemctl is-active graphiti-memoryd | grep -q '^active$'
 systemctl is-active cloudflared | grep -q '^active$'
 
 echo "checking admin gateway"
@@ -310,6 +311,9 @@ echo "checking secret isolation"
 
 echo "checking blueclaw health"
 curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/policy >/dev/null
+
+echo "checking graphiti memory health"
+curl --silent --show-error --fail http://127.0.0.1:7791/health | jq -e '.status == "ok"' >/dev/null
 
 echo "checking blueclaw backup manifest"
 manifest_path="$(mktemp)"
