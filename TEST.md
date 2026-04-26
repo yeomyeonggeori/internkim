@@ -36,6 +36,22 @@ make build
 ./internkim setup --sim
 ```
 
+## 테스트 흔적 정리
+
+실제 Mattermost, Slack, Signal 같은 플랫폼 표면을 사용하는 테스트는 테스트 메시지와 봇 답변을 남기면 안 됩니다.
+
+- 테스트 메시지는 `verify ... <timestamp>`처럼 식별 가능한 문자열을 사용합니다.
+- 테스트가 만든 사용자 메시지와 봇 답변은 검증 직후 삭제합니다.
+- 삭제가 실패하면 어떤 post/message가 남았는지 출력합니다.
+- Blueclaw memory를 검증한 뒤 상태를 비워야 하면 아래 명령을 사용합니다.
+
+```bash
+./internkim reset blueclaw-history --plan
+./internkim reset blueclaw-history --confirm <deviceID>
+```
+
+이 reset은 Blueclaw task, raw event, conversation, legacy memory, Graphiti mirror, Kuzu memory files를 지웁니다. 초대 사용자, policy, platform account link, secrets, Mattermost 계정과 Mattermost에 이미 보이는 일반 채팅 글은 유지합니다.
+
 `scenario-e2e`는 다음을 순서대로 확인합니다.
 
 - VM 기동 및 SSH 가능 여부

@@ -144,6 +144,17 @@ make deps-sim
 make verify-graphiti-local
 ```
 
+### Blueclaw 기록/메모리 초기화
+
+테스트 중 만든 Blueclaw task, conversation, raw event, legacy memory, Graphiti mirror, Kuzu memory files를 지우려면:
+
+```bash
+./internkim reset blueclaw-history --plan
+./internkim reset blueclaw-history --confirm <deviceID>
+```
+
+이 명령은 초대 사용자, policy, platform account link, secrets, Mattermost 계정과 Mattermost에 이미 보이는 일반 채팅 글은 유지합니다. Mattermost/Slack/Signal 검증에서 만든 테스트 메시지와 봇 답변은 검증 직후 삭제해야 합니다.
+
 ### 웹앱 (Cloudflare Pages)
 
 ```bash
