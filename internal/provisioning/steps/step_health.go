@@ -29,12 +29,15 @@ var StepHealth = Step{
 		checkService(context, "mattermost", &failedChecks)
 		checkService(context, "cloudflared", &failedChecks)
 		checkService(context, blueclaw.CapabilitydServiceName, &failedChecks)
+		checkService(context, blueclaw.AdmindServiceName, &failedChecks)
 		checkBlueclaw(context, &failedChecks)
 		checkSecretIsolation(context, &failedChecks)
 		checkCapabilityHealth(context, &failedChecks)
+		checkAdminHealth(context, &failedChecks)
 		checkMattermostPing(context, &failedChecks)
 		checkMattermostURL(context, &failedChecks)
 		checkMattermostPublic(context, &failedChecks)
+		checkBlueclawBackupManifest(context, &failedChecks)
 		checkBlueclawUsersPolicy(context, &failedChecks)
 		checkMattermostProfileLookup(context, &failedChecks)
 		checkLLMCapability(context, &failedChecks)
@@ -48,6 +51,19 @@ var StepHealth = Step{
 		fmt.Println("  " + context.T("최종 상태 정상", "Final health checks passed"))
 		return nil
 	},
+}
+
+func checkAdminHealth(context *Context, failedChecks *[]string) {
+	check := strings.TrimSpace(context.SSH.Run(`curl --silent --show-error --fail http://127.0.0.1:18080/_internkim/admin/health 2>/dev/null | jq -r '.status // empty' || true`))
+	if check == "ok" {
+		fmt.Println("  admind: ok")
+		return
+	}
+	*failedChecks = append(*failedChecks, "admind")
+	if check == "" {
+		check = "failed"
+	}
+	fmt.Printf("  admind: %s\n", check)
 }
 
 func checkSecretIsolation(context *Context, failedChecks *[]string) {
@@ -74,7 +90,7 @@ if [ "$runtime_check" != "ok" ]; then
   echo "$runtime_check"
   exit 0
 fi
-if su -s /bin/sh blueclaw -c 'test -r /root/.internkim/secrets/openrouter-api-key || test -r /root/.internkim/secrets/mattermost-bot-token || test -r /root/.internkim/secrets/slack-bot-token || test -r /root/.internkim/secrets/device-secret || test -r /root/.internkim/secrets/google-sa.json || test -r /root/.internkim/secrets/gas-webhook-url || test -r /root/.internkim/models/gemma-4-E4B-it.litertlm' 2>/dev/null; then
+if su -s /bin/sh blueclaw -c 'test -r /root/.internkim/secrets/openrouter-api-key || test -r /root/.internkim/secrets/mattermost-bot-token || test -r /root/.internkim/secrets/slack-bot-token || test -r /root/.internkim/secrets/slack-app-token || test -r /root/.internkim/secrets/device-secret || test -r /root/.internkim/secrets/google-sa.json || test -r /root/.internkim/secrets/gas-webhook-url || test -r /root/.internkim/config/signal-jsonrpc-url || test -r /root/.internkim/config/signal-account || test -r /root/.internkim/models/gemma-4-E4B-it.litertlm' 2>/dev/null; then
   echo readable
 else
   echo ok
@@ -134,14 +150,52 @@ PY`))
 	fmt.Printf("  blueclaw users policy: failed (%s)\n", check)
 }
 
+func checkBlueclawBackupManifest(context *Context, failedChecks *[]string) {
+	check := strings.TrimSpace(context.SSH.Run(`manifest_path="/tmp/internkim-blueclaw-backup-manifest.json"
+curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/backup/manifest > "$manifest_path" 2>/dev/null || exit 0
+python3 - "$manifest_path" <<'PY'
+import json
+import sys
+
+try:
+    with open(sys.argv[1]) as file:
+        manifest = json.load(file)
+except Exception:
+    print("invalid-json")
+    raise SystemExit
+
+document = json.dumps(manifest)
+for forbidden in ("token", "Authorization", "passphrase", "OpenRouter", "apiKey", "signingSecret"):
+    if forbidden in document:
+        print("secret-reference")
+        raise SystemExit
+if manifest.get("contractVersion") != 1:
+    print("contract-version")
+    raise SystemExit
+if "blueclaw-postgres-dump" not in manifest.get("requiredBackupArtifacts", []):
+    print("postgres-artifact")
+    raise SystemExit
+print("ok")
+PY`))
+	if check == "ok" {
+		fmt.Println("  blueclaw backup manifest: ok")
+		return
+	}
+	*failedChecks = append(*failedChecks, "blueclaw-backup-manifest")
+	if check == "" {
+		check = "failed"
+	}
+	fmt.Printf("  blueclaw backup manifest: %s\n", check)
+}
+
 func checkMattermostProfileLookup(context *Context, failedChecks *[]string) {
-	check := strings.TrimSpace(context.SSH.Run(`bot_body="$(jq -cn '{}')"
-bot_user_id="$(curl -fsS --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$bot_body" http://internkim/v1/platform/mattermost/bot.resolve 2>/dev/null | jq -r '.userID // empty')"
+	check := strings.TrimSpace(context.SSH.Run(`mattermost_token="$(cat /root/.internkim/secrets/mattermost-bot-token 2>/dev/null)"
+bot_user_id="$(curl -fsS -H "Authorization: Bearer $mattermost_token" http://localhost:8065/api/v4/users/me 2>/dev/null | jq -r '.id // empty')"
 if [ -z "$bot_user_id" ]; then
   echo missing
   exit 0
 fi
-body="$(jq -cn --arg externalUserID "$bot_user_id" '{externalUserID:$externalUserID}')"
+body="$(jq -cn --arg senderID "$bot_user_id" '{senderID:$senderID}')"
 curl -fsS --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$body" http://internkim/v1/platform/mattermost/identity.resolve 2>/dev/null | jq -e '.email != null' >/dev/null && echo ok || echo failed`))
 	if check == "ok" {
 		fmt.Println("  mattermost profile lookup: ok")
@@ -227,14 +281,14 @@ func checkSlackProfileLookup(context *Context, failedChecks *[]string) {
   echo skipped
   exit 0
 fi
-auth_body="$(jq -cn '{}')"
-user_id="$(curl -fsS --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$auth_body" http://internkim/v1/platform/slack/bot.resolve 2>/dev/null | jq -r '.userID // empty')"
+slack_token="$(cat /root/.internkim/secrets/slack-bot-token)"
+user_id="$(curl -fsS -H "Authorization: Bearer $slack_token" https://slack.com/api/auth.test 2>/dev/null | jq -r '.user_id // empty')"
 if [ -z "$user_id" ]; then
   echo failed
   exit 0
 fi
-lookup_body="$(jq -cn --arg externalUserID "$user_id" '{externalUserID:$externalUserID}')"
-curl -fsS --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$lookup_body" http://internkim/v1/platform/slack/identity.resolve 2>/dev/null | jq -e '.externalUserID != null' >/dev/null && echo ok || echo failed`))
+lookup_body="$(jq -cn --arg senderID "$user_id" '{senderID:$senderID}')"
+curl -fsS --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$lookup_body" http://internkim/v1/platform/slack/identity.resolve 2>/dev/null | jq -e '.senderID != null' >/dev/null && echo ok || echo failed`))
 	if check == "skipped" {
 		fmt.Println("  slack profile lookup: skipped")
 		return

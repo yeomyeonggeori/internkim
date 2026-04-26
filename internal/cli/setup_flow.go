@@ -47,6 +47,9 @@ type setupParameterValues struct {
 	GasWebhookURL     string
 	GoogleAccessToken string
 	SlackBotToken     string
+	SlackAppToken     string
+	SignalJSONRPCURL  string
+	SignalAccount     string
 }
 
 type localBinaryAsset struct {
@@ -171,6 +174,27 @@ func (state *setupFlowState) resolveSlackBotToken() string {
 		return state.parameters.SlackBotToken
 	}
 	return strings.TrimSpace(os.Getenv("INTERNKIM_SLACK_BOT_TOKEN"))
+}
+
+func (state *setupFlowState) resolveSlackAppToken() string {
+	if state.parameters.SlackAppToken != "" {
+		return state.parameters.SlackAppToken
+	}
+	return strings.TrimSpace(os.Getenv("INTERNKIM_SLACK_APP_TOKEN"))
+}
+
+func (state *setupFlowState) resolveSignalJSONRPCURL() string {
+	if state.parameters.SignalJSONRPCURL != "" {
+		return state.parameters.SignalJSONRPCURL
+	}
+	return strings.TrimSpace(os.Getenv("INTERNKIM_SIGNAL_JSONRPC_URL"))
+}
+
+func (state *setupFlowState) resolveSignalAccount() string {
+	if state.parameters.SignalAccount != "" {
+		return state.parameters.SignalAccount
+	}
+	return strings.TrimSpace(os.Getenv("INTERNKIM_SIGNAL_ACCOUNT"))
 }
 
 func (state *setupFlowState) ensureWiFiCredentials() error {
@@ -334,6 +358,11 @@ func (state *setupFlowState) requiredBinaryAssets() []localBinaryAsset {
 			remotePath: blueclaw.CapabilitydBinaryPath,
 		},
 		{
+			name:       blueclaw.AdmindName,
+			localPath:  filepath.Join(state.boardBinDir, blueclaw.AdmindName),
+			remotePath: blueclaw.AdmindBinaryPath,
+		},
+		{
 			name:       blueclaw.LiteRTWrapperName,
 			localPath:  filepath.Join(state.boardBinDir, blueclaw.LiteRTWrapperName),
 			remotePath: blueclaw.LiteRTWrapperBinaryPath,
@@ -364,7 +393,7 @@ func (state *setupFlowState) ensureLocalBinaryAssets() ([]localBinaryAsset, erro
 			continue
 		}
 
-		if asset.name == blueclaw.CapabilitydName || asset.name == blueclaw.LiteRTWrapperName {
+		if asset.name == blueclaw.CapabilitydName || asset.name == blueclaw.AdmindName || asset.name == blueclaw.LiteRTWrapperName {
 			if err := buildGoBinaryAsset(state, asset); err != nil {
 				return nil, err
 			}
@@ -412,7 +441,9 @@ func (state *setupFlowState) binariesVersion() string {
 	hash := sha256.New()
 	for _, path := range []string{
 		filepath.Join(state.scriptDir, "cmd", blueclaw.CapabilitydName),
+		filepath.Join(state.scriptDir, "cmd", blueclaw.AdmindName),
 		filepath.Join(state.scriptDir, "cmd", blueclaw.LiteRTWrapperName),
+		filepath.Join(state.scriptDir, "internal", "admind"),
 		filepath.Join(state.scriptDir, "internal", "capabilityd"),
 	} {
 		state.writeDirectoryHash(hash, path)
@@ -483,6 +514,10 @@ chown -R blueclaw:blueclaw /root/.blueclaw/workspace
 chmod 750 /root/.blueclaw/workspace
 chmod 755 /root/.blueclaw/workspace/bin /root/.blueclaw/workspace/downloads`)
 
+	if err := state.installBlueclawMigrationsSSH(); err != nil {
+		return err
+	}
+
 	state.writeWorkspaceDocumentsSSH(loadWorkspaceAgentsMarkdown(state.scriptDir))
 
 	state.sshClient.run(`mkdir -p /etc/sudoers.d
@@ -532,6 +567,17 @@ done
 chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills 2>/dev/null || true`)
 	}
 
+	return nil
+}
+
+func (state *setupFlowState) installBlueclawMigrationsSSH() error {
+	migrationPath := filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "migrations")
+	if fileInfo, errorValue := os.Stat(migrationPath); errorValue != nil || !fileInfo.IsDir() {
+		return fmt.Errorf("blueclaw migrations missing at %s", migrationPath)
+	}
+	state.sshClient.run("rm -rf " + quoteShellValue(blueclaw.BlueclawMigrationPath) + " && mkdir -p " + quoteShellValue(blueclaw.BlueclawMigrationPath))
+	state.sshClient.scpDir(migrationPath, blueclaw.BlueclawMigrationPath)
+	state.sshClient.run("chown -R root:blueclaw " + quoteShellValue(blueclaw.BlueclawMigrationPath) + " && chmod -R go-rwx " + quoteShellValue(blueclaw.BlueclawMigrationPath) + " && chmod 750 " + quoteShellValue(blueclaw.BlueclawMigrationPath))
 	return nil
 }
 
@@ -767,31 +813,74 @@ func (state *setupFlowState) stageTunnelSD(context *setup.Context) error {
 
 func (state *setupFlowState) configureSlackTokenSSH(context *setup.Context) error {
 	slackBotToken := state.resolveSlackBotToken()
-	if slackBotToken == "" {
-		fmt.Printf("  %s\n", state.messenger.t("Slack 토큰 없음 — Slack connector 비활성", "No Slack token — Slack connector disabled"))
-		return nil
-	}
-
-	state.sshClient.run(fmt.Sprintf(`mkdir -p /root/.internkim/secrets
+	slackAppToken := state.resolveSlackAppToken()
+	signalJSONRPCURL := state.resolveSignalJSONRPCURL()
+	signalAccount := state.resolveSignalAccount()
+	state.sshClient.run("mkdir -p /root/.internkim/secrets /root/.internkim/config")
+	if slackBotToken != "" {
+		state.sshClient.run(fmt.Sprintf(`mkdir -p /root/.internkim/secrets
 printf '%%s' %s > /root/.internkim/secrets/slack-bot-token
 chown root:root /root/.internkim/secrets/slack-bot-token
 chmod 600 /root/.internkim/secrets/slack-bot-token`,
-		quoteShellValue(slackBotToken),
-	))
-	fmt.Printf("  %s\n", state.messenger.t("Slack 토큰 저장 완료", "Slack token installed"))
+			quoteShellValue(slackBotToken),
+		))
+	}
+	if slackAppToken != "" {
+		state.sshClient.run(fmt.Sprintf(`printf '%%s' %s > /root/.internkim/secrets/slack-app-token
+chown root:root /root/.internkim/secrets/slack-app-token
+chmod 600 /root/.internkim/secrets/slack-app-token`,
+			quoteShellValue(slackAppToken),
+		))
+	}
+	if signalJSONRPCURL != "" && signalAccount != "" {
+		state.sshClient.run(fmt.Sprintf(`printf '%%s' %s > /root/.internkim/config/signal-jsonrpc-url
+printf '%%s' %s > /root/.internkim/config/signal-account
+chown root:root /root/.internkim/config/signal-jsonrpc-url /root/.internkim/config/signal-account
+chmod 600 /root/.internkim/config/signal-jsonrpc-url /root/.internkim/config/signal-account`,
+			quoteShellValue(signalJSONRPCURL),
+			quoteShellValue(signalAccount),
+		))
+	}
+	if slackBotToken == "" && slackAppToken == "" && (signalJSONRPCURL == "" || signalAccount == "") {
+		fmt.Printf("  %s\n", state.messenger.t("플랫폼 connector 추가 설정 없음", "No additional platform connector configuration"))
+		return nil
+	}
+	fmt.Printf("  %s\n", state.messenger.t("플랫폼 connector 설정 저장 완료", "Platform connector settings installed"))
 	return nil
 }
 
 func (state *setupFlowState) stageSlackTokenSD(context *setup.Context) error {
 	slackBotToken := state.resolveSlackBotToken()
-	if slackBotToken == "" {
-		fmt.Printf("  %s\n", state.messenger.t("Slack 토큰 없음 — Slack connector 비활성", "No Slack token — Slack connector disabled"))
+	slackAppToken := state.resolveSlackAppToken()
+	signalJSONRPCURL := state.resolveSignalJSONRPCURL()
+	signalAccount := state.resolveSignalAccount()
+	hasConfiguration := false
+	if slackBotToken != "" {
+		if err := context.SD.WriteFile("secrets/slack-bot-token", []byte(slackBotToken), 0o600); err != nil {
+			return err
+		}
+		hasConfiguration = true
+	}
+	if slackAppToken != "" {
+		if err := context.SD.WriteFile("secrets/slack-app-token", []byte(slackAppToken), 0o600); err != nil {
+			return err
+		}
+		hasConfiguration = true
+	}
+	if signalJSONRPCURL != "" && signalAccount != "" {
+		if err := context.SD.WriteFile("config/signal-jsonrpc-url", []byte(signalJSONRPCURL), 0o600); err != nil {
+			return err
+		}
+		if err := context.SD.WriteFile("config/signal-account", []byte(signalAccount), 0o600); err != nil {
+			return err
+		}
+		hasConfiguration = true
+	}
+	if !hasConfiguration {
+		fmt.Printf("  %s\n", state.messenger.t("플랫폼 connector 추가 설정 없음", "No additional platform connector configuration"))
 		return nil
 	}
-	if err := context.SD.WriteFile("secrets/slack-bot-token", []byte(slackBotToken), 0o644); err != nil {
-		return err
-	}
-	fmt.Printf("  %s\n", state.messenger.t("Slack 토큰 준비 완료", "Slack token staged"))
+	fmt.Printf("  %s\n", state.messenger.t("플랫폼 connector 설정 준비 완료", "Platform connector settings staged"))
 	return nil
 }
 
@@ -868,6 +957,9 @@ func (state *setupFlowState) stageBootstrapSD(context *setup.Context) error {
 	if err := context.SD.WriteFile("SOUL.md", []byte(identityMarkdown), 0o644); err != nil {
 		return err
 	}
+	if err := state.stageBlueclawMigrationsSD(context.SD.RootPath()); err != nil {
+		return err
+	}
 
 	adminPassword := state.restorePasswordFromBackup("mm-admin-pass")
 	if adminPassword == "" {
@@ -923,12 +1015,25 @@ func (state *setupFlowState) restorePasswordFromBackup(name string) string {
 	return strings.TrimSpace(string(passwordBytes))
 }
 
+func (state *setupFlowState) stageBlueclawMigrationsSD(stageRoot string) error {
+	sourcePath := filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "migrations")
+	targetPath := filepath.Join(stageRoot, "blueclaw-migrations")
+	fileInfo, errorValue := os.Stat(sourcePath)
+	if errorValue != nil || !fileInfo.IsDir() {
+		return fmt.Errorf("blueclaw migrations missing at %s", sourcePath)
+	}
+	_ = os.RemoveAll(targetPath)
+	return copyDirectoryContents(sourcePath, targetPath)
+}
+
 func (state *setupFlowState) stageBackupArtifacts(stageRoot string) error {
 	workspaceTarget := filepath.Join(stageRoot, "workspace-restore")
 	databaseTarget := filepath.Join(stageRoot, "mattermost-db.sql")
+	blueclawDatabaseTarget := filepath.Join(stageRoot, "blueclaw-db.sql")
 
 	_ = os.RemoveAll(workspaceTarget)
 	_ = os.Remove(databaseTarget)
+	_ = os.Remove(blueclawDatabaseTarget)
 
 	workspaceSource := filepath.Join(state.stateDir, "backup", "workspace")
 	if info, err := os.Stat(workspaceSource); err == nil && info.IsDir() {
@@ -944,6 +1049,13 @@ func (state *setupFlowState) stageBackupArtifacts(stageRoot string) error {
 			return err
 		}
 		fmt.Printf("  %s\n", state.messenger.t("DB 백업 복원", "DB backup restored"))
+	}
+	blueclawDatabaseSource := filepath.Join(state.stateDir, "backup", "blueclaw-db.sql")
+	if info, err := os.Stat(blueclawDatabaseSource); err == nil && info.Mode().IsRegular() {
+		if err := copyRegularFile(blueclawDatabaseSource, blueclawDatabaseTarget, 0o644); err != nil {
+			return err
+		}
+		fmt.Printf("  %s\n", state.messenger.t("Blueclaw DB 백업 복원", "Blueclaw DB backup restored"))
 	}
 
 	return nil

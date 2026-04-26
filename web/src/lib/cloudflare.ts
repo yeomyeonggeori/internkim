@@ -46,7 +46,7 @@ export async function configureTunnel(env: CFEnv, tunnelId: string, deviceId: st
 		body: JSON.stringify({
 			config: {
 				ingress: [
-					{ hostname, service: 'http://127.0.0.1:8065' },
+					{ hostname, service: 'http://127.0.0.1:18080' },
 					{ service: 'http_status:404' }
 				]
 			}

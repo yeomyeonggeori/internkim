@@ -248,6 +248,8 @@ func runSetup() {
 		containsArg("--force") || containsArg("--force-all") || containsArg("--plan") ||
 		containsArg("--ssh") || containsArg("--sd") || containsArg("--live") ||
 		argString("--host", "") != "" || argString("--slack-bot-token", "") != "" ||
+		argString("--slack-app-token", "") != "" || argString("--signal-jsonrpc-url", "") != "" ||
+		argString("--signal-account", "") != "" ||
 		argString("--board", "") == "jetson-orin-nano" {
 		runSetupLive(m)
 		return
@@ -1540,7 +1542,7 @@ func setupControlArguments(arguments []string) []string {
 			if argument != "--sim" && index+1 < len(arguments) {
 				index++
 			}
-		case "--password", "--admin-email", "--openrouter-api-key", "--litert-model-path", "--gas-webhook-url", "--google-access-token", "--slack-bot-token":
+		case "--password", "--admin-email", "--openrouter-api-key", "--litert-model-path", "--gas-webhook-url", "--google-access-token", "--slack-bot-token", "--slack-app-token", "--signal-jsonrpc-url", "--signal-account":
 			if index+1 < len(arguments) {
 				if argument != "--password" {
 					filteredArguments = append(filteredArguments, argument)
@@ -1567,7 +1569,10 @@ func setupControlArguments(arguments []string) []string {
 				strings.HasPrefix(argument, "--litert-model-path=") ||
 				strings.HasPrefix(argument, "--gas-webhook-url=") ||
 				strings.HasPrefix(argument, "--google-access-token=") ||
-				strings.HasPrefix(argument, "--slack-bot-token=") {
+				strings.HasPrefix(argument, "--slack-bot-token=") ||
+				strings.HasPrefix(argument, "--slack-app-token=") ||
+				strings.HasPrefix(argument, "--signal-jsonrpc-url=") ||
+				strings.HasPrefix(argument, "--signal-account=") {
 				filteredArguments = append(filteredArguments, argument)
 			}
 		}
@@ -3748,6 +3753,9 @@ func collectSetupParameterValues() setupParameterValues {
 		GasWebhookURL:     strings.TrimSpace(argString("--gas-webhook-url", "")),
 		GoogleAccessToken: strings.TrimSpace(argString("--google-access-token", "")),
 		SlackBotToken:     strings.TrimSpace(argString("--slack-bot-token", "")),
+		SlackAppToken:     strings.TrimSpace(argString("--slack-app-token", "")),
+		SignalJSONRPCURL:  strings.TrimSpace(argString("--signal-jsonrpc-url", "")),
+		SignalAccount:     strings.TrimSpace(argString("--signal-account", "")),
 	}
 }
 

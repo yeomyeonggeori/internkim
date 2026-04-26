@@ -20,16 +20,21 @@ import (
 )
 
 type Configuration struct {
-	SocketPath          string
-	OpenRouterKeyPath   string
-	MattermostBaseURL   string
-	MattermostTokenPath string
-	SlackTokenPath      string
-	BlueclawBaseURL     string
-	OpenRouterBaseURL   string
-	SocketGroupName     string
-	LiteRTModelPath     string
-	LiteRTWrapperPath   string
+	SocketPath           string
+	OpenRouterKeyPath    string
+	MattermostBaseURL    string
+	MattermostTokenPath  string
+	SlackTokenPath       string
+	SlackAppTokenPath    string
+	SignalJSONRPCURL     string
+	SignalAccount        string
+	SignalJSONRPCURLPath string
+	SignalAccountPath    string
+	BlueclawBaseURL      string
+	OpenRouterBaseURL    string
+	SocketGroupName      string
+	LiteRTModelPath      string
+	LiteRTWrapperPath    string
 }
 
 type Service struct {
@@ -70,37 +75,35 @@ type litertResponse struct {
 }
 
 type userLookupRequest struct {
-	ExternalUserID string `json:"externalUserID"`
+	SenderID string `json:"senderID"`
 }
 
-type conversationRequest struct {
-	ConversationID string `json:"conversationID"`
+type historyFetchRequest struct {
+	HistoryCursor string `json:"historyCursor"`
+	Limit         int    `json:"limit"`
+	Direction     string `json:"direction"`
 }
 
 type replyRequest struct {
-	ConversationID string `json:"conversationID"`
-	ParentID       string `json:"parentID"`
-	Message        string `json:"message"`
-}
-
-type typingRequest struct {
-	BotUserID      string `json:"botUserID"`
-	ConversationID string `json:"conversationID"`
-	ParentID       string `json:"parentID"`
+	ReplyTargetID string `json:"replyTargetID"`
+	Message       string `json:"message"`
 }
 
 func DefaultConfiguration() Configuration {
 	return Configuration{
-		SocketPath:          "/run/internkim/capability.sock",
-		OpenRouterKeyPath:   "/root/.internkim/secrets/openrouter-api-key",
-		MattermostBaseURL:   "http://localhost:8065",
-		MattermostTokenPath: "/root/.internkim/secrets/mattermost-bot-token",
-		SlackTokenPath:      "/root/.internkim/secrets/slack-bot-token",
-		BlueclawBaseURL:     "http://127.0.0.1:8080",
-		OpenRouterBaseURL:   "https://openrouter.ai/api/v1/chat/completions",
-		SocketGroupName:     "blueclaw",
-		LiteRTModelPath:     "/root/.internkim/models/gemma-4-E4B-it.litertlm",
-		LiteRTWrapperPath:   "/usr/local/bin/internkim-litert-wrapper",
+		SocketPath:           "/run/internkim/capability.sock",
+		OpenRouterKeyPath:    "/root/.internkim/secrets/openrouter-api-key",
+		MattermostBaseURL:    "http://localhost:8065",
+		MattermostTokenPath:  "/root/.internkim/secrets/mattermost-bot-token",
+		SlackTokenPath:       "/root/.internkim/secrets/slack-bot-token",
+		SlackAppTokenPath:    "/root/.internkim/secrets/slack-app-token",
+		SignalJSONRPCURLPath: "/root/.internkim/config/signal-jsonrpc-url",
+		SignalAccountPath:    "/root/.internkim/config/signal-account",
+		BlueclawBaseURL:      "http://127.0.0.1:8080",
+		OpenRouterBaseURL:    "https://openrouter.ai/api/v1/chat/completions",
+		SocketGroupName:      "blueclaw",
+		LiteRTModelPath:      "/root/.internkim/models/gemma-4-E4B-it.litertlm",
+		LiteRTWrapperPath:    "/usr/local/bin/internkim-litert-wrapper",
 	}
 }
 
@@ -112,6 +115,8 @@ func (service Service) Run(ctx context.Context) error {
 	defer listener.Close()
 
 	go service.startMattermostForwarder(ctx)
+	go service.startSlackSocketMode(ctx)
+	go service.startSignalJSONRPCReceiver(ctx)
 
 	server := &http.Server{Handler: service.router()}
 	go func() {
@@ -132,10 +137,8 @@ func (service Service) router() http.Handler {
 	multiplexer := http.NewServeMux()
 	multiplexer.HandleFunc("POST /v1/llm/structured", service.handleStructuredLLM)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/identity.resolve", service.handleIdentityResolve)
-	multiplexer.HandleFunc("POST /v1/platform/{platform}/bot.resolve", service.handleBotResolve)
-	multiplexer.HandleFunc("POST /v1/platform/{platform}/conversation.kind", service.handleConversationKind)
-	multiplexer.HandleFunc("POST /v1/platform/{platform}/typing.publish", service.handleTypingPublish)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/reply.send", service.handleReplySend)
+	multiplexer.HandleFunc("POST /v1/platform/{platform}/history.fetch", service.handleHistoryFetch)
 	multiplexer.HandleFunc("GET /health", func(responseWriter http.ResponseWriter, request *http.Request) {
 		_ = request
 		responseWriter.WriteHeader(http.StatusOK)
@@ -162,47 +165,8 @@ func (service Service) handleIdentityResolve(responseWriter http.ResponseWriter,
 		response, errorValue = service.mattermostLookupUserFromRequest(request.Context(), request.Body)
 	case "slack":
 		response, errorValue = service.slackLookupUserFromRequest(request.Context(), request.Body)
-	default:
-		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
-		return
-	}
-	service.writeResponse(responseWriter, response, errorValue)
-}
-
-func (service Service) handleBotResolve(responseWriter http.ResponseWriter, request *http.Request) {
-	var response any
-	var errorValue error
-	switch request.PathValue("platform") {
-	case "mattermost":
-		response, errorValue = service.mattermostBotUser(request.Context())
-	case "slack":
-		response, errorValue = service.slackBotUser(request.Context())
-	default:
-		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
-		return
-	}
-	service.writeResponse(responseWriter, response, errorValue)
-}
-
-func (service Service) handleConversationKind(responseWriter http.ResponseWriter, request *http.Request) {
-	var response any
-	var errorValue error
-	switch request.PathValue("platform") {
-	case "mattermost":
-		response, errorValue = service.mattermostChannelTypeFromRequest(request.Context(), request.Body)
-	default:
-		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
-		return
-	}
-	service.writeResponse(responseWriter, response, errorValue)
-}
-
-func (service Service) handleTypingPublish(responseWriter http.ResponseWriter, request *http.Request) {
-	var response any
-	var errorValue error
-	switch request.PathValue("platform") {
-	case "mattermost":
-		response, errorValue = service.mattermostTypingFromRequest(request.Context(), request.Body)
+	case "signal":
+		response, errorValue = service.signalLookupUserFromRequest(request.Context(), request.Body)
 	default:
 		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
 		return
@@ -218,6 +182,25 @@ func (service Service) handleReplySend(responseWriter http.ResponseWriter, reque
 		response, errorValue = service.mattermostReplyFromRequest(request.Context(), request.Body)
 	case "slack":
 		response, errorValue = service.slackReplyFromRequest(request.Context(), request.Body)
+	case "signal":
+		response, errorValue = service.signalReplyFromRequest(request.Context(), request.Body)
+	default:
+		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
+		return
+	}
+	service.writeResponse(responseWriter, response, errorValue)
+}
+
+func (service Service) handleHistoryFetch(responseWriter http.ResponseWriter, request *http.Request) {
+	var response any
+	var errorValue error
+	switch request.PathValue("platform") {
+	case "mattermost":
+		response, errorValue = service.mattermostHistoryFromRequest(request.Context(), request.Body)
+	case "slack":
+		response, errorValue = service.slackHistoryFromRequest(request.Context(), request.Body)
+	case "signal":
+		response, errorValue = service.signalHistoryFromRequest(request.Context(), request.Body)
 	default:
 		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
 		return
@@ -356,14 +339,6 @@ func (service Service) completeRemote(ctx context.Context, request llmRequest) (
 	}, nil
 }
 
-func (service Service) mattermostBotUser(ctx context.Context) (any, error) {
-	var response struct {
-		ID string `json:"id"`
-	}
-	errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", nil, &response)
-	return map[string]string{"userID": response.ID}, errorValue
-}
-
 func (service Service) mattermostLookupUserFromRequest(ctx context.Context, reader io.Reader) (any, error) {
 	payload, errorValue := io.ReadAll(reader)
 	if errorValue != nil {
@@ -377,6 +352,10 @@ func (service Service) mattermostLookupUser(ctx context.Context, payload json.Ra
 	if errorValue := json.Unmarshal(payload, &request); errorValue != nil {
 		return nil, errorValue
 	}
+	senderID := strings.TrimSpace(request.SenderID)
+	if senderID == "" {
+		return nil, errors.New("senderID is required")
+	}
 	var response struct {
 		ID        string `json:"id"`
 		Email     string `json:"email"`
@@ -385,55 +364,14 @@ func (service Service) mattermostLookupUser(ctx context.Context, payload json.Ra
 		FirstName string `json:"first_name"`
 		LastName  string `json:"last_name"`
 	}
-	errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/"+url.PathEscape(request.ExternalUserID), nil, &response)
+	errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/"+url.PathEscape(senderID), nil, &response)
 	return map[string]string{
-		"platform":       "mattermost",
-		"externalUserID": response.ID,
-		"userID":         response.ID,
-		"email":          response.Email,
-		"displayName":    firstNonEmpty(strings.TrimSpace(response.FirstName+" "+response.LastName), response.Nickname, response.Username),
+		"platform":    "mattermost",
+		"senderID":    response.ID,
+		"userID":      response.ID,
+		"email":       response.Email,
+		"displayName": firstNonEmpty(strings.TrimSpace(response.FirstName+" "+response.LastName), response.Nickname, response.Username),
 	}, errorValue
-}
-
-func (service Service) mattermostChannelTypeFromRequest(ctx context.Context, reader io.Reader) (any, error) {
-	payload, errorValue := io.ReadAll(reader)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	return service.mattermostChannelType(ctx, payload)
-}
-
-func (service Service) mattermostChannelType(ctx context.Context, payload json.RawMessage) (any, error) {
-	var request conversationRequest
-	if errorValue := json.Unmarshal(payload, &request); errorValue != nil {
-		return nil, errorValue
-	}
-	var response struct {
-		Type string `json:"type"`
-	}
-	errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/channels/"+url.PathEscape(request.ConversationID), nil, &response)
-	return map[string]string{"channelType": response.Type, "conversationKind": response.Type}, errorValue
-}
-
-func (service Service) mattermostTypingFromRequest(ctx context.Context, reader io.Reader) (any, error) {
-	payload, errorValue := io.ReadAll(reader)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	return service.mattermostTyping(ctx, payload)
-}
-
-func (service Service) mattermostTyping(ctx context.Context, payload json.RawMessage) (any, error) {
-	var request typingRequest
-	if errorValue := json.Unmarshal(payload, &request); errorValue != nil {
-		return nil, errorValue
-	}
-	body := map[string]string{"channel_id": request.ConversationID}
-	if strings.TrimSpace(request.ParentID) != "" {
-		body["parent_id"] = request.ParentID
-	}
-	errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/users/"+url.PathEscape(request.BotUserID)+"/typing", body, nil)
-	return map[string]string{"ok": "true"}, errorValue
 }
 
 func (service Service) mattermostReplyFromRequest(ctx context.Context, reader io.Reader) (any, error) {
@@ -449,34 +387,50 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 	if errorValue := json.Unmarshal(payload, &request); errorValue != nil {
 		return nil, errorValue
 	}
+	handle, errorValue := decodePlatformHandle(request.ReplyTargetID)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	if handle.Platform != "mattermost" {
+		return nil, errors.New("reply target platform mismatch")
+	}
 	body := map[string]string{
-		"channel_id": request.ConversationID,
+		"channel_id": handle.ChannelID,
 		"message":    request.Message,
 	}
-	if strings.TrimSpace(request.ParentID) != "" {
-		body["root_id"] = request.ParentID
+	if strings.TrimSpace(handle.RootID) != "" {
+		body["root_id"] = handle.RootID
 	}
 	var response struct {
 		ID string `json:"id"`
 	}
-	errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", body, &response)
+	errorValue = service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", body, &response)
 	return map[string]string{"dispatchID": response.ID}, errorValue
 }
 
-func (service Service) slackBotUser(ctx context.Context) (any, error) {
-	var response struct {
-		IsOK   bool   `json:"ok"`
-		UserID string `json:"user_id"`
-		Error  string `json:"error"`
-	}
-	errorValue := service.slackRequest(ctx, http.MethodPost, "/auth.test", nil, &response)
+func (service Service) mattermostHistoryFromRequest(ctx context.Context, reader io.Reader) (any, error) {
+	payload, errorValue := io.ReadAll(reader)
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	if !response.IsOK {
-		return nil, errors.New("slack auth failed: " + response.Error)
+	var request historyFetchRequest
+	if errorValue := json.Unmarshal(payload, &request); errorValue != nil {
+		return nil, errorValue
 	}
-	return map[string]string{"userID": response.UserID}, nil
+	handle, errorValue := decodePlatformHandle(request.HistoryCursor)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	if handle.Platform != "mattermost" {
+		return nil, errors.New("history cursor platform mismatch")
+	}
+
+	contextValue := service.mattermostContext(ctx, handle, request.Limit)
+	return map[string]any{
+		"messages":      contextValue.Messages,
+		"hasMoreBefore": contextValue.HasMoreBefore,
+		"historyCursor": contextValue.HistoryCursor,
+	}, nil
 }
 
 func (service Service) slackLookupUserFromRequest(ctx context.Context, reader io.Reader) (any, error) {
@@ -492,6 +446,10 @@ func (service Service) slackLookupUser(ctx context.Context, payload json.RawMess
 	if errorValue := json.Unmarshal(payload, &request); errorValue != nil {
 		return nil, errorValue
 	}
+	senderID := strings.TrimSpace(request.SenderID)
+	if senderID == "" {
+		return nil, errors.New("senderID is required")
+	}
 	var response struct {
 		IsOK bool `json:"ok"`
 		User struct {
@@ -504,7 +462,7 @@ func (service Service) slackLookupUser(ctx context.Context, payload json.RawMess
 		} `json:"user"`
 		Error string `json:"error"`
 	}
-	errorValue := service.slackRequest(ctx, http.MethodGet, "/users.info?user="+url.QueryEscape(request.ExternalUserID), nil, &response)
+	errorValue := service.slackRequest(ctx, http.MethodGet, "/users.info?user="+url.QueryEscape(senderID), nil, &response)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -512,11 +470,11 @@ func (service Service) slackLookupUser(ctx context.Context, payload json.RawMess
 		return nil, errors.New("slack user lookup failed: " + response.Error)
 	}
 	return map[string]string{
-		"platform":       "slack",
-		"externalUserID": response.User.ID,
-		"userID":         response.User.ID,
-		"email":          response.User.Profile.Email,
-		"displayName":    firstNonEmpty(response.User.RealName, response.User.Name),
+		"platform":    "slack",
+		"senderID":    response.User.ID,
+		"userID":      response.User.ID,
+		"email":       response.User.Profile.Email,
+		"displayName": firstNonEmpty(response.User.RealName, response.User.Name),
 	}, nil
 }
 
@@ -533,19 +491,26 @@ func (service Service) slackReply(ctx context.Context, payload json.RawMessage) 
 	if errorValue := json.Unmarshal(payload, &request); errorValue != nil {
 		return nil, errorValue
 	}
+	handle, errorValue := decodePlatformHandle(request.ReplyTargetID)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	if handle.Platform != "slack" {
+		return nil, errors.New("reply target platform mismatch")
+	}
 	body := map[string]string{
-		"channel": request.ConversationID,
+		"channel": handle.ChannelID,
 		"text":    request.Message,
 	}
-	if strings.TrimSpace(request.ParentID) != "" {
-		body["thread_ts"] = request.ParentID
+	if strings.TrimSpace(handle.ThreadTimestamp) != "" {
+		body["thread_ts"] = handle.ThreadTimestamp
 	}
 	var response struct {
 		IsOK  bool   `json:"ok"`
 		TS    string `json:"ts"`
 		Error string `json:"error"`
 	}
-	errorValue := service.slackRequest(ctx, http.MethodPost, "/chat.postMessage", body, &response)
+	errorValue = service.slackRequest(ctx, http.MethodPost, "/chat.postMessage", body, &response)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -553,6 +518,31 @@ func (service Service) slackReply(ctx context.Context, payload json.RawMessage) 
 		return nil, errors.New("slack reply failed: " + response.Error)
 	}
 	return map[string]string{"dispatchID": response.TS}, nil
+}
+
+func (service Service) slackHistoryFromRequest(ctx context.Context, reader io.Reader) (any, error) {
+	payload, errorValue := io.ReadAll(reader)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	var request historyFetchRequest
+	if errorValue := json.Unmarshal(payload, &request); errorValue != nil {
+		return nil, errorValue
+	}
+	handle, errorValue := decodePlatformHandle(request.HistoryCursor)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	if handle.Platform != "slack" {
+		return nil, errors.New("history cursor platform mismatch")
+	}
+
+	contextValue := service.slackContext(ctx, handle, request.Limit)
+	return map[string]any{
+		"messages":      contextValue.Messages,
+		"hasMoreBefore": contextValue.HasMoreBefore,
+		"historyCursor": contextValue.HistoryCursor,
+	}, nil
 }
 
 func (service Service) mattermostRequest(ctx context.Context, method string, path string, body any, responseValue any) error {
@@ -711,6 +701,17 @@ func readSecretValue(path string) string {
 	return strings.TrimPrefix(value, "OPENROUTER_API_KEY=")
 }
 
+func readOptionalFileValue(path string) string {
+	if strings.TrimSpace(path) == "" {
+		return ""
+	}
+	document, errorValue := os.ReadFile(path)
+	if errorValue != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(document))
+}
+
 func isPlaceholderOpenRouterKey(value string) bool {
 	normalizedValue := strings.ToLower(strings.TrimSpace(value))
 	return strings.Contains(normalizedValue, "internkim-simulation-openrouter-api-key") ||
@@ -745,11 +746,27 @@ func (service Service) startMattermostForwarder(ctx context.Context) {
 		log.Print("mattermost forwarder disabled: token missing")
 		return
 	}
+	var botUser struct {
+		ID string `json:"id"`
+	}
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", nil, &botUser); errorValue != nil {
+		log.Printf("mattermost websocket forwarder disabled: bot lookup failed: %v", errorValue)
+		go service.startMattermostPoller(ctx)
+		return
+	}
 	listener := MattermostWebSocketForwarder{
 		URL:         deriveMattermostWebSocketURL(service.Configuration.MattermostBaseURL),
 		BotToken:    token,
+		BotUserID:   botUser.ID,
 		BlueclawURL: strings.TrimRight(service.Configuration.BlueclawBaseURL, "/") + "/connectors/mattermost/events",
 		HTTPClient:  service.httpClient(),
+		EventBuilder: func(ctx context.Context, payload []byte) (platformInboundEvent, bool, error) {
+			event, hasEvent, errorValue := normalizeMattermostWebSocketPayload(payload, botUser.ID)
+			if errorValue != nil || !hasEvent {
+				return event, hasEvent, errorValue
+			}
+			return service.enrichMattermostEvent(ctx, event), true, nil
+		},
 	}
 	go listener.Start(ctx)
 	go service.startMattermostPoller(ctx)
@@ -798,7 +815,7 @@ func (service Service) pollMattermost(ctx context.Context, lastSeenByChannel map
 		if _, isFound := lastSeenByChannel[channel.ID]; !isFound {
 			lastSeenByChannel[channel.ID] = time.Now().Add(-60 * time.Second).UnixMilli()
 		}
-		nextSeen, errorValue := service.forwardMattermostChannelPosts(ctx, channel.ID, channel.Type, lastSeenByChannel[channel.ID])
+		nextSeen, errorValue := service.forwardMattermostChannelPosts(ctx, botUser.ID, channel.ID, channel.Type, lastSeenByChannel[channel.ID])
 		if errorValue != nil {
 			log.Printf("mattermost channel poll failed: %s: %v", channel.ID, errorValue)
 			continue
@@ -810,7 +827,7 @@ func (service Service) pollMattermost(ctx context.Context, lastSeenByChannel map
 	return nil
 }
 
-func (service Service) forwardMattermostChannelPosts(ctx context.Context, channelID string, channelType string, since int64) (int64, error) {
+func (service Service) forwardMattermostChannelPosts(ctx context.Context, botUserID string, channelID string, channelType string, since int64) (int64, error) {
 	var response struct {
 		Order []string `json:"order"`
 		Posts map[string]struct {
@@ -837,16 +854,23 @@ func (service Service) forwardMattermostChannelPosts(ctx context.Context, channe
 		if post.CreateAt > nextSeen {
 			nextSeen = post.CreateAt
 		}
-		event := map[string]string{
-			"event":        "posted",
-			"user_id":      post.UserID,
-			"channel_id":   post.ChannelID,
-			"channel_type": channelType,
-			"post_id":      post.ID,
-			"message":      post.Message,
-			"root_id":      post.RootID,
-			"type":         post.Type,
+		event, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
+			ID:        post.ID,
+			UserID:    post.UserID,
+			ChannelID: post.ChannelID,
+			Message:   post.Message,
+			RootID:    post.RootID,
+			Type:      post.Type,
+			CreateAt:  post.CreateAt,
+		}, botUserID, channelType)
+		if errorValue != nil {
+			log.Printf("mattermost post normalize failed: %s: %v", post.ID, errorValue)
+			continue
 		}
+		if !hasEvent {
+			continue
+		}
+		event = service.enrichMattermostEvent(ctx, event)
 		if errorValue := service.forwardMattermostEvent(ctx, event); errorValue != nil {
 			log.Printf("mattermost post forward failed: %s: %v", post.ID, errorValue)
 		}
@@ -854,12 +878,16 @@ func (service Service) forwardMattermostChannelPosts(ctx context.Context, channe
 	return nextSeen, nil
 }
 
-func (service Service) forwardMattermostEvent(ctx context.Context, event map[string]string) error {
+func (service Service) forwardMattermostEvent(ctx context.Context, event platformInboundEvent) error {
+	return service.forwardPlatformEvent(ctx, "mattermost", event)
+}
+
+func (service Service) forwardPlatformEvent(ctx context.Context, platform string, event platformInboundEvent) error {
 	document, errorValue := json.Marshal(event)
 	if errorValue != nil {
 		return errorValue
 	}
-	requestURL := strings.TrimRight(service.Configuration.BlueclawBaseURL, "/") + "/connectors/mattermost/events"
+	requestURL := strings.TrimRight(service.Configuration.BlueclawBaseURL, "/") + "/connectors/" + url.PathEscape(platform) + "/events"
 	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(document))
 	if errorValue != nil {
 		return errorValue
@@ -908,6 +936,21 @@ func (configuration Configuration) WithDefaults() Configuration {
 	}
 	if configuration.SlackTokenPath == "" {
 		configuration.SlackTokenPath = defaultConfiguration.SlackTokenPath
+	}
+	if configuration.SlackAppTokenPath == "" {
+		configuration.SlackAppTokenPath = defaultConfiguration.SlackAppTokenPath
+	}
+	if configuration.SignalJSONRPCURLPath == "" {
+		configuration.SignalJSONRPCURLPath = defaultConfiguration.SignalJSONRPCURLPath
+	}
+	if configuration.SignalAccountPath == "" {
+		configuration.SignalAccountPath = defaultConfiguration.SignalAccountPath
+	}
+	if configuration.SignalJSONRPCURL == "" {
+		configuration.SignalJSONRPCURL = readOptionalFileValue(configuration.SignalJSONRPCURLPath)
+	}
+	if configuration.SignalAccount == "" {
+		configuration.SignalAccount = readOptionalFileValue(configuration.SignalAccountPath)
 	}
 	if configuration.BlueclawBaseURL == "" {
 		configuration.BlueclawBaseURL = defaultConfiguration.BlueclawBaseURL

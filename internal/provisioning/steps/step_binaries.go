@@ -18,6 +18,7 @@ var StepBinaries = Step{
 			if !sshFileExists(context, "/usr/local/bin/blueclaw") ||
 				!sshFileExists(context, "/usr/local/bin/gws") ||
 				!sshFileExists(context, "/usr/local/bin/internkim-capabilityd") ||
+				!sshFileExists(context, "/usr/local/bin/internkim-admind") ||
 				!sshFileExists(context, "/usr/local/bin/internkim-litert-wrapper") {
 				return false
 			}
@@ -26,7 +27,10 @@ var StepBinaries = Step{
 			}
 			return trimmedRun(context, "cat /root/.internkim/state/binaries-version 2>/dev/null") == version
 		case BackendSD:
-			return stagedFileExists(context, "bin/blueclaw")
+			return stagedFileExists(context, "bin/blueclaw") &&
+				stagedFileExists(context, "bin/internkim-capabilityd") &&
+				stagedFileExists(context, "bin/internkim-admind") &&
+				stagedFileExists(context, "bin/internkim-litert-wrapper")
 		}
 		return false
 	},

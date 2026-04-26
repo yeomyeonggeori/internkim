@@ -262,6 +262,11 @@ fi
 if [ -f "$STAGE/config/policy.json" ]; then
   cp -f "$STAGE/config/policy.json" /root/.blueclaw/config/policy.json
 fi
+if [ -d "$STAGE/blueclaw-migrations" ]; then
+  rm -rf /root/.blueclaw/migrations
+  mkdir -p /root/.blueclaw/migrations
+  cp -af "$STAGE/blueclaw-migrations/." /root/.blueclaw/migrations/
+fi
 if [ -f "$STAGE/SOUL.md" ]; then
   cp -f "$STAGE/SOUL.md" /root/.blueclaw/workspace/SOUL.md
 fi
@@ -291,9 +296,11 @@ id blueclaw &>/dev/null || useradd -r -g blueclaw -m -d /home/blueclaw -s "$NOLO
 install -d -o gws -g gws -m 750 /home/gws /home/gws/.cache /home/gws/.config
 install -d -o blueclaw -g blueclaw -m 750 /home/blueclaw /home/blueclaw/.cache /home/blueclaw/.config
 chmod 711 /root
-mkdir -p /root/.internkim/secrets /root/.internkim/env
+mkdir -p /root/.internkim/secrets /root/.internkim/env /root/.internkim/config
 chown root:root /root/.internkim/secrets
 chmod 700 /root/.internkim/secrets
+chown root:root /root/.internkim/config
+chmod 700 /root/.internkim/config
 chown root:blueclaw /root/.internkim/env
 chmod 750 /root/.internkim/env
 chown root:root /root/.internkim/secrets/openrouter-api-key 2>/dev/null || true
@@ -310,6 +317,18 @@ if [ -f /root/.internkim/secrets/slack-bot-token ]; then
   chown root:root /root/.internkim/secrets/slack-bot-token
   chmod 600 /root/.internkim/secrets/slack-bot-token
 fi
+if [ -f /root/.internkim/secrets/slack-app-token ]; then
+  chown root:root /root/.internkim/secrets/slack-app-token
+  chmod 600 /root/.internkim/secrets/slack-app-token
+fi
+if [ -f /root/.internkim/config/signal-jsonrpc-url ]; then
+  chown root:root /root/.internkim/config/signal-jsonrpc-url
+  chmod 600 /root/.internkim/config/signal-jsonrpc-url
+fi
+if [ -f /root/.internkim/config/signal-account ]; then
+  chown root:root /root/.internkim/config/signal-account
+  chmod 600 /root/.internkim/config/signal-account
+fi
 install -d -o root -g root -m 700 /root/.internkim/models
 if [ -f "$STAGE/models/gemma-4-E4B-it.litertlm" ]; then
   cp -f "$STAGE/models/gemma-4-E4B-it.litertlm" /root/.internkim/models/gemma-4-E4B-it.litertlm
@@ -322,6 +341,9 @@ chown root:blueclaw /root/.blueclaw/config 2>/dev/null || true
 chmod 770 /root/.blueclaw/config 2>/dev/null || true
 chown root:blueclaw /root/.blueclaw/config/runtime.json /root/.blueclaw/config/policy.json 2>/dev/null || true
 chmod 640 /root/.blueclaw/config/runtime.json /root/.blueclaw/config/policy.json 2>/dev/null || true
+chown -R root:blueclaw /root/.blueclaw/migrations 2>/dev/null || true
+chmod -R go-rwx /root/.blueclaw/migrations 2>/dev/null || true
+chmod 750 /root/.blueclaw/migrations 2>/dev/null || true
 
 # ── gws-bot wrapper (runs gws under the service-account identity) ──
 cat > /usr/local/bin/gws-bot <<'WRAPEOF'
@@ -522,6 +544,16 @@ else
   su - postgres -c "psql -c \"SELECT 1 FROM pg_roles WHERE rolname='mmuser'\" | grep -q 1 || psql -c \"CREATE USER mmuser WITH PASSWORD '$MM_DB_PASS'\""
   su - postgres -c "psql -c \"SELECT 1 FROM pg_database WHERE datname='mattermost'\" | grep -q 1 || psql -c \"CREATE DATABASE mattermost OWNER mmuser\""
   su - postgres -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE mattermost TO mmuser\""
+  su - postgres -c "psql -c \"SELECT 1 FROM pg_roles WHERE rolname='blueclaw'\" | grep -q 1 || createuser blueclaw"
+  if [ -f "$STAGE/blueclaw-db.sql" ]; then
+    echo "  Restoring Blueclaw DB from backup..."
+    su - postgres -c "dropdb --if-exists blueclaw && createdb -O blueclaw blueclaw"
+    su - postgres -c "psql blueclaw" < "$STAGE/blueclaw-db.sql" 2>/dev/null || true
+    rm -f "$STAGE/blueclaw-db.sql"
+    echo "  Blueclaw DB restored"
+  else
+    su - postgres -c "psql -c \"SELECT 1 FROM pg_database WHERE datname='blueclaw'\" | grep -q 1 || createdb -O blueclaw blueclaw"
+  fi
 
   echo "Installing Mattermost..."
   if [ ! -f /var/cache/internkim/mattermost.tar.gz ] || [ ! -s /var/cache/internkim/mattermost.tar.gz ]; then
@@ -715,6 +747,8 @@ else
 %sSVCEOF
   cat > %s <<'CAPABILITYEOF'
 %sCAPABILITYEOF
+  cat > %s <<'ADMINDEOF'
+%sADMINDEOF
   cat > %s <<'SYNCEOF'
 %sSYNCEOF
   chmod 755 %s
@@ -727,12 +761,14 @@ else
   systemctl start %s
   systemctl enable %s
   systemctl start %s
+  systemctl enable %s
+  systemctl start %s
   systemctl enable --now internkim-users-sync.timer
 
   echo "Waiting for services..."
   for attemptIndex in $(seq 1 150); do
     allServicesActive=true
-    for serviceName in mattermost %s %s cloudflared postgresql; do
+    for serviceName in mattermost %s %s %s cloudflared postgresql; do
       if ! systemctl is-active --quiet "$serviceName" 2>/dev/null; then
         allServicesActive=false
         break
@@ -753,6 +789,8 @@ fi`,
 		blueclaw.BlueclawServiceUnit(),
 		blueclaw.CapabilitydServicePath,
 		blueclaw.CapabilitydServiceUnit(),
+		blueclaw.AdmindServicePath,
+		blueclaw.AdmindServiceUnit(),
 		blueclaw.InternKimUsersSyncScriptPath,
 		blueclaw.InternKimUsersSyncScript(),
 		blueclaw.InternKimUsersSyncScriptPath,
@@ -762,9 +800,12 @@ fi`,
 		blueclaw.InternKimUsersSyncTimerUnit(),
 		blueclaw.CapabilitydServiceName,
 		blueclaw.CapabilitydServiceName,
+		blueclaw.AdmindServiceName,
+		blueclaw.AdmindServiceName,
 		blueclaw.BlueclawServiceName,
 		blueclaw.BlueclawServiceName,
 		blueclaw.CapabilitydServiceName,
+		blueclaw.AdmindServiceName,
 		blueclaw.BlueclawServiceName,
 	))
 	return section
