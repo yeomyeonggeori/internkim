@@ -23,6 +23,7 @@ When testing against real platform surfaces such as Mattermost, Slack, or Signal
 
 - Use clearly identifiable test messages, users, and channels.
 - After verifying behavior, delete test messages and bot replies created by the test.
+- Mattermost self-hosted has a default team member cap: `TeamSettings.MaxUsersPerTeam = 50`, counting active and inactive users. Delete Mattermost test users as well as messages so repeated tests do not exhaust the team membership limit.
 - If deletion fails, report exactly which artifacts remain.
 - Do not leave test-only memories in Blueclaw. For memory tests, either isolate the test state or run `internkim reset blueclaw-history --confirm <deviceID>` after verification.
 - `internkim reset blueclaw-history --confirm <deviceID>` clears Blueclaw history and visible Mattermost post history by default. Use `--keep-mattermost-posts` only for debugging when visible Mattermost posts must remain.

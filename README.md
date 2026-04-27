@@ -104,6 +104,8 @@ make build
 9. Mattermost 설정 (URL / admin token / bot token / channel ID, 건너뛰기 가능)
 10. `blueclaw.service` 시작 + 스왑 + 최신 빌드 배포
 
+Mattermost self-hosted는 기본적으로 한 team의 총 멤버 수에 제한이 있습니다. 기본값은 `TeamSettings.MaxUsersPerTeam = 50`이며, 활성/비활성 사용자를 포함합니다. 반복 검증에서 테스트 사용자를 지우지 않으면 이 제한에 걸려 team/channel join API가 실패할 수 있습니다. 필요하면 운영 환경에서 이 값을 늘릴 수 있지만, 테스트 코드는 생성한 Mattermost 테스트 사용자를 정리해야 합니다.
+
 ### Tart Lab
 
 실제 보드 대신 macOS + Tart ARM Linux VM에서 Blueclaw와 Mattermost를 포함한 소프트웨어 E2E를 테스트합니다:
