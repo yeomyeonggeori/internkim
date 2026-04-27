@@ -39,6 +39,7 @@ var StepHealth = Step{
 		checkMattermostPing(context, &failedChecks)
 		checkMattermostURL(context, &failedChecks)
 		checkMattermostPublic(context, &failedChecks)
+		checkAgentBrowser(context, &failedChecks)
 		checkBlueclawBackupManifest(context, &failedChecks)
 		checkBlueclawUsersPolicy(context, &failedChecks)
 		checkMattermostProfileLookup(context, &failedChecks)
@@ -53,6 +54,16 @@ var StepHealth = Step{
 		fmt.Println("  " + context.T("최종 상태 정상", "Final health checks passed"))
 		return nil
 	},
+}
+
+func checkAgentBrowser(context *Context, failedChecks *[]string) {
+	check := strings.TrimSpace(context.SSH.Run(`command -v agent-browser >/dev/null 2>&1 && agent-browser doctor --offline --quick >/dev/null 2>&1 && echo ok || true`))
+	if check == "ok" {
+		fmt.Println("  agent-browser: ready")
+		return
+	}
+	*failedChecks = append(*failedChecks, "agent-browser")
+	fmt.Println("  agent-browser: unavailable")
 }
 
 func checkAdminHealth(context *Context, failedChecks *[]string) {

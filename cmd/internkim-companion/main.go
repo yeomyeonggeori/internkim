@@ -11,10 +11,13 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 
+	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
 	"github.com/anthropic-lab/internkim/internal/capabilities"
 	companionruntime "github.com/anthropic-lab/internkim/internal/companion"
 )
@@ -100,11 +103,13 @@ type companionJob struct {
 }
 
 type companionStatusDocument struct {
-	Paired       bool                      `json:"paired"`
-	DeviceURL    string                    `json:"deviceURL,omitempty"`
-	CompanionID  string                    `json:"companionID,omitempty"`
-	LocalOnly    bool                      `json:"localOnly,omitempty"`
-	Capabilities []capabilities.Descriptor `json:"capabilities,omitempty"`
+	Paired               bool                      `json:"paired"`
+	DeviceURL            string                    `json:"deviceURL,omitempty"`
+	CompanionID          string                    `json:"companionID,omitempty"`
+	LocalOnly            bool                      `json:"localOnly,omitempty"`
+	Capabilities         []capabilities.Descriptor `json:"capabilities,omitempty"`
+	BrowserRuntimeStatus string                    `json:"browserRuntimeStatus,omitempty"`
+	BrowserRuntimeError  string                    `json:"browserRuntimeError,omitempty"`
 }
 
 type companionFileUploader struct {
@@ -198,13 +203,18 @@ func runStatus(arguments []string) error {
 		return errorValue
 	}
 	if *jsonOutput {
-		writeJSONDocument(os.Stdout, companionStatusFromState(state))
+		agentBrowserPath := resolveAgentBrowserPath("")
+		readiness := browserruntime.AgentBrowserRuntime{CommandPath: agentBrowserPath}.Check(context.Background())
+		writeJSONDocument(os.Stdout, companionStatusFromState(state, readiness))
 		return nil
 	}
 	fmt.Println("device: " + state.DeviceURL)
 	fmt.Println("companion: " + state.CompanionID)
 	fmt.Printf("localOnly: %t\n", state.LocalOnly)
 	fmt.Printf("capabilities: %d\n", len(state.Capabilities))
+	agentBrowserPath := resolveAgentBrowserPath("")
+	readiness := browserruntime.AgentBrowserRuntime{CommandPath: agentBrowserPath}.Check(context.Background())
+	fmt.Println("browserRuntime: " + firstNonEmpty(readiness.Status, "unknown"))
 	return nil
 }
 
@@ -220,6 +230,8 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	allowStdinPrompts := flags.Bool("allow-stdin-prompts", false, "allow terminal prompts for user input capabilities")
 	shellBridgeURL := flags.String("shell-bridge-url", "", "local companion shell bridge URL")
 	controlListenAddress := flags.String("control-listen", "", "local companion shell control address")
+	agentBrowserPath := flags.String("agent-browser-path", "", "agent-browser executable path")
+	browserProfilePath := flags.String("browser-profile", defaultBrowserProfilePath(), "InternKim companion browser profile path")
 	if errorValue := flags.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
@@ -234,11 +246,25 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	if *devMockLLM {
 		state.Capabilities = defaultCapabilities(state.LocalOnly, true)
 	}
+	resolvedAgentBrowserPath := resolveAgentBrowserPath(*agentBrowserPath)
+	browserRuntime := browserruntime.AgentBrowserRuntime{
+		CommandPath: resolvedAgentBrowserPath,
+		ProfilePath: *browserProfilePath,
+		SessionName: "internkim",
+		Headed:      true,
+	}
+	readiness := browserRuntime.EnsureInstalled(context.Background())
+	if readiness.Status != "ready" {
+		state.Capabilities = capabilitiesWithoutBrowser(state.Capabilities)
+	}
 	grantStore := companionruntime.NewMemoryGrantStore()
 	executor := companionruntime.Executor{
-		DevMockLLM:    *devMockLLM,
-		BrowserOpener: companionruntime.SystemBrowserOpener{},
-		GrantStore:    grantStore,
+		DevMockLLM:     *devMockLLM,
+		BrowserRuntime: browserRuntime,
+		GrantStore:     grantStore,
+	}
+	if readiness.Status != "ready" {
+		executor.BrowserRuntime = nil
 	}
 	controlServer, errorValue := startControlServer(*controlListenAddress, grantStore)
 	if errorValue != nil {
@@ -372,6 +398,17 @@ func defaultCapabilities(localOnly bool, devMockLLM bool) []capabilities.Descrip
 		descriptors = append(descriptors, capabilities.CompanionLLMDescriptors()...)
 	}
 	return descriptors
+}
+
+func capabilitiesWithoutBrowser(descriptors []capabilities.Descriptor) []capabilities.Descriptor {
+	filteredDescriptors := []capabilities.Descriptor{}
+	for _, descriptor := range descriptors {
+		if strings.HasPrefix(descriptor.Name, "browser.") {
+			continue
+		}
+		filteredDescriptors = append(filteredDescriptors, descriptor)
+	}
+	return filteredDescriptors
 }
 
 func llmHandler(isEnabled bool, isStructured bool) http.HandlerFunc {
@@ -585,13 +622,19 @@ func loadStateAndMigrateSecrets(ctx context.Context, path string, secureStore co
 	return state, nil
 }
 
-func companionStatusFromState(state companionState) companionStatusDocument {
+func companionStatusFromState(state companionState, readiness browserruntime.RuntimeReadiness) companionStatusDocument {
+	capabilityList := state.Capabilities
+	if readiness.Status != "" && readiness.Status != "ready" {
+		capabilityList = capabilitiesWithoutBrowser(capabilityList)
+	}
 	return companionStatusDocument{
-		Paired:       state.DeviceURL != "" && state.CompanionID != "" && state.Token != "",
-		DeviceURL:    state.DeviceURL,
-		CompanionID:  state.CompanionID,
-		LocalOnly:    state.LocalOnly,
-		Capabilities: state.Capabilities,
+		Paired:               state.DeviceURL != "" && state.CompanionID != "" && state.Token != "",
+		DeviceURL:            state.DeviceURL,
+		CompanionID:          state.CompanionID,
+		LocalOnly:            state.LocalOnly,
+		Capabilities:         capabilityList,
+		BrowserRuntimeStatus: readiness.Status,
+		BrowserRuntimeError:  readiness.Error,
 	}
 }
 
@@ -601,6 +644,75 @@ func defaultStatePath() string {
 		return ".internkim-companion.json"
 	}
 	return filepath.Join(homeDirectory, ".internkim-companion", "state.json")
+}
+
+func defaultBrowserProfilePath() string {
+	configurationDirectory, errorValue := os.UserConfigDir()
+	if errorValue == nil && strings.TrimSpace(configurationDirectory) != "" {
+		return filepath.Join(configurationDirectory, "InternKim", "BrowserProfile")
+	}
+	homeDirectory, homeError := os.UserHomeDir()
+	if homeError == nil && strings.TrimSpace(homeDirectory) != "" {
+		return filepath.Join(homeDirectory, ".internkim-companion", "browser-profile")
+	}
+	return filepath.Join(os.TempDir(), "internkim-companion-browser-profile")
+}
+
+func resolveAgentBrowserPath(flagValue string) string {
+	if strings.TrimSpace(flagValue) != "" {
+		return strings.TrimSpace(flagValue)
+	}
+	if environmentValue := strings.TrimSpace(os.Getenv("INTERNKIM_AGENT_BROWSER_PATH")); environmentValue != "" {
+		return environmentValue
+	}
+	if bundledPath := bundledAgentBrowserPath(); bundledPath != "" {
+		return bundledPath
+	}
+	if lookupPath, errorValue := exec.LookPath("agent-browser"); errorValue == nil {
+		return lookupPath
+	}
+	return "agent-browser"
+}
+
+func bundledAgentBrowserPath() string {
+	executablePath, errorValue := os.Executable()
+	if errorValue != nil || strings.TrimSpace(executablePath) == "" {
+		return ""
+	}
+	executableDirectory := filepath.Dir(executablePath)
+	for _, filename := range bundledAgentBrowserFilenames() {
+		path := filepath.Join(executableDirectory, filename)
+		if isExecutableFile(path) {
+			return path
+		}
+	}
+	return ""
+}
+
+func bundledAgentBrowserFilenames() []string {
+	names := []string{"agent-browser"}
+	switch runtime.GOOS {
+	case "darwin":
+		if runtime.GOARCH == "arm64" {
+			names = append(names, "agent-browser-aarch64-apple-darwin", "agent-browser-darwin-arm64")
+		} else {
+			names = append(names, "agent-browser-x86_64-apple-darwin", "agent-browser-darwin-x64")
+		}
+	case "linux":
+		if runtime.GOARCH == "arm64" {
+			names = append(names, "agent-browser-aarch64-unknown-linux-gnu", "agent-browser-linux-arm64")
+		} else {
+			names = append(names, "agent-browser-x86_64-unknown-linux-gnu", "agent-browser-linux-x64")
+		}
+	case "windows":
+		names = append(names, "agent-browser.exe", "agent-browser-x86_64-pc-windows-msvc.exe", "agent-browser-win32-x64.exe")
+	}
+	return names
+}
+
+func isExecutableFile(path string) bool {
+	information, errorValue := os.Stat(path)
+	return errorValue == nil && !information.IsDir() && information.Mode()&0o111 != 0
 }
 
 func companionPrivateKeyID(companionID string) string {

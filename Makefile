@@ -2,8 +2,9 @@ GO_CACHE ?= /tmp/internkim-go-cache
 GO_MOD_CACHE ?= /tmp/internkim-go-mod-cache
 BLUECLAW_GO_CACHE ?= /tmp/blueclaw-go-cache
 COMPANION_TARGET_TRIPLE ?= $(shell rustc -vV 2>/dev/null | sed -n 's/host: //p')
+AGENT_BROWSER_VERSION ?= 0.26.0
 
-.PHONY: build build-companion build-companion-shell check test doctor deps-sim deps-browser deps-companion deps-graphiti setup-sim verify-api verify-browser verify-graphiti-local
+.PHONY: build build-companion build-companion-shell check test doctor deps-sim deps-browser deps-companion deps-companion-browser deps-graphiti setup-sim verify-api verify-browser verify-graphiti-local
 
 build:
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim ./cmd/internkim
@@ -13,6 +14,7 @@ build-companion:
 	mkdir -p companion/src-tauri/binaries
 	cp internkim-companion companion/src-tauri/binaries/internkim-companion
 	if [ -n "$(COMPANION_TARGET_TRIPLE)" ]; then cp internkim-companion companion/src-tauri/binaries/internkim-companion-$(COMPANION_TARGET_TRIPLE); fi
+	tools/prepare-companion-agent-browser companion/src-tauri/binaries "$(COMPANION_TARGET_TRIPLE)" "$(AGENT_BROWSER_VERSION)"
 
 build-companion-shell: build-companion
 	cd companion && bun run build:tauri
@@ -37,6 +39,11 @@ deps-browser:
 
 deps-companion:
 	cd companion && bun install
+
+deps-companion-browser:
+	tools/prepare-companion-agent-browser companion/src-tauri/binaries "$(COMPANION_TARGET_TRIPLE)" "$(AGENT_BROWSER_VERSION)"
+	companion/src-tauri/binaries/agent-browser --version
+	companion/src-tauri/binaries/agent-browser install
 
 deps-graphiti:
 	cd .dependency/blueclaw && test -x .venv-graphiti/bin/python || uv venv .venv-graphiti

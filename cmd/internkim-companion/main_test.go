@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
 	"github.com/anthropic-lab/internkim/internal/capabilities"
 	companionruntime "github.com/anthropic-lab/internkim/internal/companion"
 )
@@ -310,7 +311,7 @@ func TestCompanionStatusFromState(t *testing.T) {
 		LocalOnly:   true,
 	}
 
-	document, errorValue := json.Marshal(companionStatusFromState(state))
+	document, errorValue := json.Marshal(companionStatusFromState(state, browserruntime.RuntimeReadiness{Status: "ready"}))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -319,6 +320,50 @@ func TestCompanionStatusFromState(t *testing.T) {
 	}
 	if strings.Contains(string(document), "privateKey") || strings.Contains(string(document), "token-1") {
 		t.Fatalf("expected status JSON to omit secrets, got %s", string(document))
+	}
+}
+
+func TestCompanionStatusFiltersBrowserCapabilitiesWhenRuntimeUnavailable(t *testing.T) {
+	state := companionState{
+		DeviceURL:    "https://device.intern.kim",
+		CompanionID:  "companion-1",
+		Token:        "token-1",
+		Capabilities: defaultCapabilities(false, false),
+	}
+
+	document := companionStatusFromState(state, browserruntime.RuntimeReadiness{
+		Status: "unavailable",
+		Error:  "companion browser runtime unavailable",
+	})
+
+	if hasCapability(document.Capabilities, "browser.navigate") {
+		t.Fatal("expected browser capabilities to be hidden when runtime is unavailable")
+	}
+	if document.BrowserRuntimeStatus != "unavailable" {
+		t.Fatalf("unexpected browser runtime status: %s", document.BrowserRuntimeStatus)
+	}
+	if strings.Contains(document.BrowserRuntimeError, "token-1") {
+		t.Fatalf("expected sanitized browser runtime error, got %s", document.BrowserRuntimeError)
+	}
+}
+
+func TestResolveAgentBrowserPathUsesFlagBeforeEnvironment(t *testing.T) {
+	t.Setenv("INTERNKIM_AGENT_BROWSER_PATH", "/env/agent-browser")
+
+	path := resolveAgentBrowserPath("/flag/agent-browser")
+
+	if path != "/flag/agent-browser" {
+		t.Fatalf("expected flag path, got %s", path)
+	}
+}
+
+func TestResolveAgentBrowserPathUsesEnvironmentWhenFlagEmpty(t *testing.T) {
+	t.Setenv("INTERNKIM_AGENT_BROWSER_PATH", "/env/agent-browser")
+
+	path := resolveAgentBrowserPath("")
+
+	if path != "/env/agent-browser" {
+		t.Fatalf("expected environment path, got %s", path)
 	}
 }
 
