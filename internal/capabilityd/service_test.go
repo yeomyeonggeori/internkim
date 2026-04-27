@@ -35,24 +35,23 @@ func TestLocalStructuredCompletionUsesCPUAfterGPUFailure(t *testing.T) {
 		},
 	}
 
-	response, errorValue := service.completeStructured(context.Background(), llmRequest{
+	response, errorValue := service.completeStructured(context.Background(), StructuredLLMRequest{
 		ExecutionMode: "local",
-		Messages:      []message{{Role: "user", Content: "hello"}},
-		StructuredOutputSchema: schemaRequest{
+		Messages:      []LLMMessage{{Role: "user", Content: "hello"}},
+		StructuredOutputSchema: StructuredOutputSchema{
 			Name:     "plain_text_response",
-			Document: `{"type":"object","properties":{"content":{"type":"string"}},"required":["content"],"additionalProperties":false}`,
+			Document: json.RawMessage(`{"type":"object","properties":{"content":{"type":"string"}},"required":["content"],"additionalProperties":false}`),
 		},
 	})
 	if errorValue != nil {
 		t.Fatalf("expected local completion to succeed: %v", errorValue)
 	}
 
-	responseMap, isMap := response.(map[string]string)
-	if !isMap {
-		t.Fatalf("expected map response, got %T", response)
+	if response.SelectedBackend != "cpu" {
+		t.Fatalf("expected cpu backend, got %q", response.SelectedBackend)
 	}
-	if responseMap["selectedBackend"] != "cpu" {
-		t.Fatalf("expected cpu backend, got %q", responseMap["selectedBackend"])
+	if response.ConstraintMode != "prompt_validation" {
+		t.Fatalf("expected prompt validation constraint mode, got %q", response.ConstraintMode)
 	}
 	if strings.Join(backends, ",") != "gpu,cpu" {
 		t.Fatalf("expected gpu then cpu, got %v", backends)
@@ -67,15 +66,98 @@ func TestLocalStructuredCompletionRejectsInvalidStructuredOutput(t *testing.T) {
 		},
 	}
 
-	_, errorValue := service.completeStructured(context.Background(), llmRequest{
+	_, errorValue := service.completeStructured(context.Background(), StructuredLLMRequest{
 		ExecutionMode: "local",
-		StructuredOutputSchema: schemaRequest{
+		StructuredOutputSchema: StructuredOutputSchema{
 			Name:     "plain_text_response",
-			Document: `{"type":"object","properties":{"content":{"type":"string"}},"required":["content"],"additionalProperties":false}`,
+			Document: json.RawMessage(`{"type":"object","properties":{"content":{"type":"string"}},"required":["content"],"additionalProperties":false}`),
 		},
 	})
 	if errorValue == nil {
 		t.Fatalf("expected invalid structured output to fail")
+	}
+}
+
+func TestTextCompletionReturnsPlainContent(t *testing.T) {
+	service := Service{
+		Configuration: DefaultConfiguration(),
+		RunCommand: func(context.Context, string, []string, []byte) ([]byte, error) {
+			return []byte(`{"content":"{\"content\":\"plain reply\"}"}`), nil
+		},
+	}
+
+	response, errorValue := service.completeText(context.Background(), TextLLMRequest{
+		ExecutionMode: "local",
+		Messages:      []LLMMessage{{Role: "user", Content: "hello"}},
+	})
+	if errorValue != nil {
+		t.Fatalf("expected text completion to succeed: %v", errorValue)
+	}
+	if response.Content != "plain reply" {
+		t.Fatalf("expected plain text content, got %q", response.Content)
+	}
+}
+
+func TestStructuredEndpointRemainsCompatible(t *testing.T) {
+	service := Service{
+		Configuration: DefaultConfiguration(),
+		RunCommand: func(context.Context, string, []string, []byte) ([]byte, error) {
+			return []byte(`{"content":"{\"reply\":\"hello\"}"}`), nil
+		},
+	}
+	request := httptest.NewRequest(http.MethodPost, "/v1/llm/structured", strings.NewReader(`{
+		"model":"local/gemma",
+		"executionMode":"local",
+		"messages":[{"role":"user","content":"hello"}],
+		"structuredOutputSchema":{
+			"name":"reply",
+			"document":{"type":"object","properties":{"reply":{"type":"string"}},"required":["reply"],"additionalProperties":false},
+			"isStrictlyEnforced":true
+		}
+	}`))
+	responseRecorder := httptest.NewRecorder()
+
+	service.router().ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("expected structured endpoint success, got %d: %s", responseRecorder.Code, responseRecorder.Body.String())
+	}
+	var response LLMResponse
+	if errorValue := json.NewDecoder(responseRecorder.Body).Decode(&response); errorValue != nil {
+		t.Fatalf("expected response to decode: %v", errorValue)
+	}
+	if response.Content != `{"reply":"hello"}` {
+		t.Fatalf("expected structured content, got %q", response.Content)
+	}
+	if response.ConstraintMode != "prompt_validation" {
+		t.Fatalf("expected prompt validation mode, got %q", response.ConstraintMode)
+	}
+}
+
+func TestTextEndpointReturnsPlainContent(t *testing.T) {
+	service := Service{
+		Configuration: DefaultConfiguration(),
+		RunCommand: func(context.Context, string, []string, []byte) ([]byte, error) {
+			return []byte(`{"content":"{\"content\":\"plain endpoint reply\"}"}`), nil
+		},
+	}
+	request := httptest.NewRequest(http.MethodPost, "/v1/llm/text", strings.NewReader(`{
+		"executionMode":"local",
+		"messages":[{"role":"user","content":"hello"}]
+	}`))
+	responseRecorder := httptest.NewRecorder()
+
+	service.router().ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("expected text endpoint success, got %d: %s", responseRecorder.Code, responseRecorder.Body.String())
+	}
+	var response LLMResponse
+	if errorValue := json.NewDecoder(responseRecorder.Body).Decode(&response); errorValue != nil {
+		t.Fatalf("expected response to decode: %v", errorValue)
+	}
+	if response.Content != "plain endpoint reply" {
+		t.Fatalf("expected plain response content, got %q", response.Content)
 	}
 }
 

@@ -48,37 +48,6 @@ type Service struct {
 	ProgressManager *platformProgressManager
 }
 
-type message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-type llmRequest struct {
-	Model                  string        `json:"model"`
-	ExecutionMode          string        `json:"executionMode"`
-	Messages               []message     `json:"messages"`
-	StructuredOutputSchema schemaRequest `json:"structuredOutputSchema"`
-	RequireParameters      bool          `json:"requireParameters"`
-	EnableResponseHealing  bool          `json:"enableResponseHealing"`
-}
-
-type schemaRequest struct {
-	Name               string `json:"name"`
-	Document           any    `json:"document"`
-	IsStrictlyEnforced bool   `json:"isStrictlyEnforced"`
-}
-
-type litertRequest struct {
-	ModelPath              string        `json:"modelPath"`
-	Backend                string        `json:"backend"`
-	Messages               []message     `json:"messages"`
-	StructuredOutputSchema schemaRequest `json:"structuredOutputSchema"`
-}
-
-type litertResponse struct {
-	Content string `json:"content"`
-}
-
 type embeddingRequest struct {
 	Input any    `json:"input"`
 	Model string `json:"model"`
@@ -167,6 +136,7 @@ func (service Service) Run(ctx context.Context) error {
 func (service Service) router() http.Handler {
 	multiplexer := http.NewServeMux()
 	multiplexer.HandleFunc("POST /v1/llm/structured", service.handleStructuredLLM)
+	multiplexer.HandleFunc("POST /v1/llm/text", service.handleTextLLM)
 	multiplexer.HandleFunc("POST /v1/embedding/create", service.handleEmbeddingCreate)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/identity.resolve", service.handleIdentityResolve)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/reply.send", service.handleReplySend)
@@ -193,12 +163,22 @@ func (service Service) handleToolInvoke(responseWriter http.ResponseWriter, requ
 }
 
 func (service Service) handleStructuredLLM(responseWriter http.ResponseWriter, request *http.Request) {
-	var llmRequest llmRequest
-	if errorValue := json.NewDecoder(request.Body).Decode(&llmRequest); errorValue != nil {
+	var structuredRequest StructuredLLMRequest
+	if errorValue := json.NewDecoder(request.Body).Decode(&structuredRequest); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	response, errorValue := service.completeStructured(request.Context(), llmRequest)
+	response, errorValue := service.completeStructured(request.Context(), structuredRequest)
+	service.writeResponse(responseWriter, response, errorValue)
+}
+
+func (service Service) handleTextLLM(responseWriter http.ResponseWriter, request *http.Request) {
+	var textRequest TextLLMRequest
+	if errorValue := json.NewDecoder(request.Body).Decode(&textRequest); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	response, errorValue := service.completeText(request.Context(), textRequest)
 	service.writeResponse(responseWriter, response, errorValue)
 }
 
@@ -304,124 +284,6 @@ func (service Service) writeResponse(responseWriter http.ResponseWriter, respons
 func (service Service) writeJSON(responseWriter http.ResponseWriter, response any) {
 	responseWriter.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(responseWriter).Encode(response)
-}
-
-func (service Service) completeStructured(ctx context.Context, request llmRequest) (any, error) {
-	executionMode := firstNonEmpty(request.ExecutionMode, "auto")
-	switch executionMode {
-	case "local":
-		return service.completeLocal(ctx, request)
-	case "remote":
-		return service.completeRemote(ctx, request)
-	case "auto":
-		response, errorValue := service.completeLocal(ctx, request)
-		if errorValue == nil {
-			return response, nil
-		}
-		log.Printf("litert local capability failed; falling back to remote: %v", errorValue)
-		return service.completeRemote(ctx, request)
-	default:
-		return nil, errors.New("llm execution mode is not supported")
-	}
-}
-
-func (service Service) completeLocal(ctx context.Context, request llmRequest) (any, error) {
-	var lastError error
-	for _, backend := range []string{"gpu", "cpu"} {
-		response, errorValue := service.completeLiteRT(ctx, request, backend)
-		if errorValue == nil {
-			return map[string]string{
-				"provider":        "litert",
-				"model":           "gemma-4-E4B-it-litert-lm",
-				"content":         response.Content,
-				"selectedBackend": backend,
-			}, nil
-		}
-		lastError = errorValue
-	}
-	if lastError == nil {
-		lastError = errors.New("litert backend list is empty")
-	}
-	return nil, lastError
-}
-
-func (service Service) completeLiteRT(ctx context.Context, request llmRequest, backend string) (litertResponse, error) {
-	modelPath := firstNonEmpty(service.Configuration.LiteRTModelPath, DefaultConfiguration().LiteRTModelPath)
-	wrapperPath := firstNonEmpty(service.Configuration.LiteRTWrapperPath, DefaultConfiguration().LiteRTWrapperPath)
-	document, errorValue := json.Marshal(litertRequest{
-		ModelPath:              modelPath,
-		Backend:                backend,
-		Messages:               request.Messages,
-		StructuredOutputSchema: request.StructuredOutputSchema,
-	})
-	if errorValue != nil {
-		return litertResponse{}, errorValue
-	}
-
-	output, errorValue := service.runCommand(ctx, wrapperPath, nil, document)
-	if errorValue != nil {
-		return litertResponse{}, errorValue
-	}
-
-	var response litertResponse
-	if errorValue := json.Unmarshal(output, &response); errorValue != nil {
-		return litertResponse{}, errorValue
-	}
-	if !isStructuredContentValid(response.Content, schemaDocumentString(request.StructuredOutputSchema.Document)) {
-		return litertResponse{}, errors.New("litert response did not satisfy structured output schema")
-	}
-	return response, nil
-}
-
-func (service Service) completeRemote(ctx context.Context, request llmRequest) (any, error) {
-	apiKey := readSecretValue(service.Configuration.OpenRouterKeyPath)
-	if apiKey == "" {
-		return nil, errors.New("openrouter api key is not configured")
-	}
-	if isPlaceholderOpenRouterKey(apiKey) {
-		return nil, errors.New("openrouter api key is a simulation placeholder; set OPENROUTER_API_KEY or rerun setup --only openrouter --force")
-	}
-
-	requestDocument, errorValue := buildOpenRouterRequest(request)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, service.Configuration.OpenRouterBaseURL, bytes.NewReader(requestDocument))
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	httpRequest.Header.Set("Authorization", "Bearer "+apiKey)
-	httpRequest.Header.Set("Content-Type", "application/json")
-
-	httpResponse, errorValue := service.httpClient().Do(httpRequest)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	defer httpResponse.Body.Close()
-	responseDocument, _ := io.ReadAll(httpResponse.Body)
-	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return nil, errors.New(string(responseDocument))
-	}
-
-	var parsedResponse struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-	}
-	if errorValue := json.Unmarshal(responseDocument, &parsedResponse); errorValue != nil {
-		return nil, errorValue
-	}
-	if len(parsedResponse.Choices) == 0 {
-		return nil, errors.New("openrouter response did not include choices")
-	}
-	return map[string]string{
-		"provider":        "openrouter",
-		"model":           request.model(),
-		"content":         parsedResponse.Choices[0].Message.Content,
-		"selectedBackend": "remote",
-	}, nil
 }
 
 func (service Service) createEmbedding(ctx context.Context, request embeddingRequest) (any, error) {
@@ -856,80 +718,6 @@ func (service Service) runCommand(ctx context.Context, executablePath string, ar
 	return output, nil
 }
 
-func buildOpenRouterRequest(request llmRequest) ([]byte, error) {
-	var schema json.RawMessage
-	schemaDocument := schemaDocumentString(request.StructuredOutputSchema.Document)
-	if strings.TrimSpace(schemaDocument) != "" {
-		schema = json.RawMessage(schemaDocument)
-	}
-	document := map[string]any{
-		"model":    request.model(),
-		"messages": request.Messages,
-		"response_format": map[string]any{
-			"type": "json_schema",
-			"json_schema": map[string]any{
-				"name":   request.StructuredOutputSchema.Name,
-				"strict": request.StructuredOutputSchema.IsStrictlyEnforced,
-				"schema": schema,
-			},
-		},
-		"stream": false,
-	}
-	if request.RequireParameters {
-		document["provider"] = map[string]bool{"require_parameters": true}
-	}
-	if request.EnableResponseHealing {
-		document["plugins"] = []map[string]string{{"id": "response-healing"}}
-	}
-	return json.Marshal(document)
-}
-
-func isStructuredContentValid(content string, schemaDocument string) bool {
-	var parsedContent any
-	if json.Unmarshal([]byte(content), &parsedContent) != nil {
-		return false
-	}
-	if strings.TrimSpace(schemaDocument) == "" {
-		return true
-	}
-
-	var schema struct {
-		Required []string `json:"required"`
-	}
-	if json.Unmarshal([]byte(schemaDocument), &schema) != nil {
-		return true
-	}
-	contentMap, isMap := parsedContent.(map[string]any)
-	if !isMap {
-		return len(schema.Required) == 0
-	}
-	for _, requiredKey := range schema.Required {
-		if _, isFound := contentMap[requiredKey]; !isFound {
-			return false
-		}
-	}
-	return true
-}
-
-func schemaDocumentString(document any) string {
-	switch value := document.(type) {
-	case nil:
-		return ""
-	case string:
-		return value
-	case json.RawMessage:
-		return string(value)
-	case []byte:
-		return string(value)
-	default:
-		documentBytes, errorValue := json.Marshal(value)
-		if errorValue != nil {
-			return ""
-		}
-		return string(documentBytes)
-	}
-}
-
 func readSecretValue(path string) string {
 	document, errorValue := os.ReadFile(path)
 	if errorValue != nil {
@@ -1051,10 +839,6 @@ func (service Service) progressManager() *platformProgressManager {
 		return service.ProgressManager
 	}
 	return fallbackPlatformProgressManager
-}
-
-func (request llmRequest) model() string {
-	return strings.TrimSpace(request.Model)
 }
 
 func (service Service) startMattermostForwarder(ctx context.Context) {
