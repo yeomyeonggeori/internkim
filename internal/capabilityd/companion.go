@@ -115,8 +115,21 @@ func (service Service) companionProvider() companionProvider {
 }
 
 func (provider companionProvider) CompleteStructured(ctx context.Context, request StructuredLLMRequest) (LLMResponse, error) {
+	document, errorValue := json.Marshal(request)
+	if errorValue != nil {
+		return LLMResponse{}, errorValue
+	}
+	toolResponse, errorValue := provider.InvokeTool(ctx, capabilities.ToolInvokeRequest{
+		ToolName:      "llm.structured",
+		Input:         document,
+		ExecutionMode: capabilities.ExecutionModeCompanion,
+		PrivacyClass:  "model_input",
+	})
+	if errorValue != nil {
+		return LLMResponse{}, errorValue
+	}
 	var response LLMResponse
-	if errorValue := provider.postJSON(ctx, "/v1/llm/structured", request, &response); errorValue != nil {
+	if errorValue := json.Unmarshal(toolResponse.Result, &response); errorValue != nil {
 		return LLMResponse{}, errorValue
 	}
 	if response.SelectedBackend == "" {
@@ -129,8 +142,21 @@ func (provider companionProvider) CompleteStructured(ctx context.Context, reques
 }
 
 func (provider companionProvider) CompleteText(ctx context.Context, request TextLLMRequest) (LLMResponse, error) {
+	document, errorValue := json.Marshal(request)
+	if errorValue != nil {
+		return LLMResponse{}, errorValue
+	}
+	toolResponse, errorValue := provider.InvokeTool(ctx, capabilities.ToolInvokeRequest{
+		ToolName:      "llm.text",
+		Input:         document,
+		ExecutionMode: capabilities.ExecutionModeCompanion,
+		PrivacyClass:  "model_input",
+	})
+	if errorValue != nil {
+		return LLMResponse{}, errorValue
+	}
 	var response LLMResponse
-	if errorValue := provider.postJSON(ctx, "/v1/llm/text", request, &response); errorValue != nil {
+	if errorValue := json.Unmarshal(toolResponse.Result, &response); errorValue != nil {
 		return LLMResponse{}, errorValue
 	}
 	if response.SelectedBackend == "" {
@@ -150,7 +176,7 @@ func (provider companionProvider) InvokeTool(ctx context.Context, request capabi
 		request.Input = json.RawMessage(`{}`)
 	}
 	var response capabilities.ToolInvokeResponse
-	if errorValue := provider.postJSON(ctx, "/v1/tools/invoke", request, &response); errorValue != nil {
+	if errorValue := provider.postJSON(ctx, "/jobs", request, &response); errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	if response.Provider == "" {
@@ -169,7 +195,7 @@ func (provider companionProvider) capabilities(ctx context.Context) ([]capabilit
 	if provider.BaseURL == "" {
 		return nil, errors.New("companion base url is not configured")
 	}
-	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, provider.BaseURL+"/v1/capabilities", nil)
+	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, provider.BaseURL+"/capabilities", nil)
 	if errorValue != nil {
 		return nil, errorValue
 	}

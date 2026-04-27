@@ -157,11 +157,21 @@ make verify-graphiti-local
 
 ```bash
 make build-companion
-./internkim-companion --listen 127.0.0.1:7979 --local-only
-./internkim-companion --listen 127.0.0.1:7979 --local-only --dev-mock-llm
+./internkim-companion pair --device-url https://dc719d8e.intern.kim --code ABCD-1234
+./internkim-companion run
+./internkim-companion status
 ```
 
-InternKim `capabilityd`는 companion이 설정되어 있으면 `browser.*`, `user.*`, `file.pick`, companion LLM capability를 provider-neutral하게 라우팅할 수 있습니다. Blueclaw는 provider 구현, 브라우저 바이너리, 로컬 모델 경로, 사용자 브라우저 쿠키를 보지 않습니다.
+Primary flow는 Pages 관리자 화면의 Companion App 섹션입니다. 관리자는 다운로드 버튼으로 OS별 companion을 받고, `Connect to this Intern Kim`으로 10분짜리 one-time pairing code를 만든 뒤 deep link 또는 CLI fallback으로 연결합니다. 연결된 companion은 inbound port를 열지 않고 device broker를 long-poll합니다.
+
+개발용 mock LLM은 명시적으로만 켭니다.
+
+```bash
+./internkim-companion pair --device-url https://dc719d8e.intern.kim --code ABCD-1234 --dev-mock-llm
+./internkim-companion run --dev-mock-llm
+```
+
+InternKim `capabilityd`는 companion URL을 직접 호출하지 않고 local `internkim-admind` broker로 job을 생성합니다. companion이 online이고 capability를 advertise할 때만 `browser.*`, `user.*`, `file.pick`, companion LLM capability를 provider-neutral하게 라우팅합니다. Blueclaw는 provider 구현, 브라우저 바이너리, 로컬 모델 경로, 사용자 브라우저 쿠키를 보지 않습니다.
 
 후속 정리 대상: Blueclaw의 기본 runtime config에는 아직 native terminal profile이 남아 있습니다. 제품 기본 경로는 typed capability/MCP tool이어야 하며, terminal은 dev/admin profile 전용으로 낮춰야 합니다.
 

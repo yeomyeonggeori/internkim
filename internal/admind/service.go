@@ -42,9 +42,12 @@ type Service struct {
 	HTTPClient    *http.Client
 	RunCommand    func(context.Context, string, ...string) ([]byte, error)
 
-	mutex   sync.Mutex
-	jobs    map[string]*Job
-	uploads map[string]*RestoreUpload
+	mutex         sync.Mutex
+	jobs          map[string]*Job
+	uploads       map[string]*RestoreUpload
+	pairingCodes  map[string]*CompanionPairingCode
+	companions    map[string]*CompanionRecord
+	companionJobs map[string]*CompanionJob
 }
 
 type Job struct {
@@ -122,11 +125,16 @@ func DefaultConfiguration() Configuration {
 
 func NewService(configuration Configuration) *Service {
 	configuration = configuration.withDefaults()
-	return &Service{
+	service := &Service{
 		Configuration: configuration,
 		jobs:          map[string]*Job{},
 		uploads:       map[string]*RestoreUpload{},
+		pairingCodes:  map[string]*CompanionPairingCode{},
+		companions:    map[string]*CompanionRecord{},
+		companionJobs: map[string]*CompanionJob{},
 	}
+	service.loadCompanions()
+	return service
 }
 
 func (service *Service) Run(ctx context.Context) error {
@@ -150,6 +158,7 @@ func (service *Service) Run(ctx context.Context) error {
 func (service *Service) router() http.Handler {
 	multiplexer := http.NewServeMux()
 	multiplexer.HandleFunc("/_internkim/admin/", service.handleAdmin)
+	multiplexer.HandleFunc("/_internkim/companion/", service.handleCompanion)
 	multiplexer.Handle("/", service.mattermostProxy())
 	return service.withCORS(multiplexer)
 }
@@ -160,8 +169,8 @@ func (service *Service) withCORS(next http.Handler) http.Handler {
 		if isAllowedOrigin(origin) {
 			responseWriter.Header().Set("Access-Control-Allow-Origin", origin)
 			responseWriter.Header().Set("Access-Control-Allow-Credentials", "true")
-			responseWriter.Header().Set("Access-Control-Allow-Headers", "Content-Type, CF-Access-Authenticated-User-Email")
-			responseWriter.Header().Set("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+			responseWriter.Header().Set("Access-Control-Allow-Headers", "Content-Type, CF-Access-Authenticated-User-Email, X-InternKim-Companion-ID, X-InternKim-Companion-Token")
+			responseWriter.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
 		}
 		if request.Method == http.MethodOptions {
 			responseWriter.WriteHeader(http.StatusNoContent)
@@ -195,6 +204,12 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 	switch {
 	case request.Method == http.MethodGet && path == "/health":
 		service.writeJSON(responseWriter, map[string]string{"status": "ok"})
+	case request.Method == http.MethodPost && path == "/companion/pairing-codes":
+		service.createCompanionPairingCode(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/companion/status":
+		service.writeCompanionStatus(responseWriter, request)
+	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/companion/"):
+		service.revokeCompanion(responseWriter, request, strings.TrimPrefix(path, "/companion/"))
 	case request.Method == http.MethodPost && path == "/backups":
 		service.createBackup(responseWriter, request)
 	case request.Method == http.MethodGet && strings.HasPrefix(path, "/backups/") && strings.HasSuffix(path, "/status"):

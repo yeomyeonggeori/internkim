@@ -15,20 +15,18 @@ const testCompanionBackend = capabilities.LLMBackendCompanionLocal
 
 func TestCapabilitiesReportCompanionStatus(t *testing.T) {
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.Path != "/v1/capabilities" {
+		if request.URL.Path != "/capabilities" {
 			t.Fatalf("unexpected companion path: %s", request.URL.Path)
 		}
-		return jsonResponse(map[string]any{
-			"capabilities": []map[string]any{
-				{
-					"name":                 "llm.structured",
-					"version":              "1",
-					"privacyClass":         "model_input",
-					"estimatedLatency":     "low",
-					"requiresUserPresence": false,
-					"worksOffline":         true,
-				},
-			},
+		return jsonResponse(capabilities.RegistryResponse{
+			Capabilities: []capabilities.Descriptor{{
+				Name:                 "llm.structured",
+				Version:              "1",
+				PrivacyClass:         "model_input",
+				EstimatedLatency:     "low",
+				RequiresUserPresence: false,
+				WorksOffline:         true,
+			}},
 		}), nil
 	})}
 
@@ -54,23 +52,24 @@ func TestCapabilitiesReportCompanionStatus(t *testing.T) {
 
 func TestCompanionStructuredProviderUsesSharedPrototype(t *testing.T) {
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.Path != "/v1/llm/structured" {
+		if request.URL.Path != "/jobs" {
 			t.Fatalf("unexpected companion path: %s", request.URL.Path)
 		}
-		var structuredRequest StructuredLLMRequest
-		if errorValue := json.NewDecoder(request.Body).Decode(&structuredRequest); errorValue != nil {
-			t.Fatalf("expected structured request: %v", errorValue)
+		var toolRequest capabilities.ToolInvokeRequest
+		if errorValue := json.NewDecoder(request.Body).Decode(&toolRequest); errorValue != nil {
+			t.Fatalf("expected tool request: %v", errorValue)
 		}
-		if structuredRequest.StructuredOutputSchema.Name != "reply" {
-			t.Fatalf("expected schema name to be preserved, got %q", structuredRequest.StructuredOutputSchema.Name)
+		if toolRequest.ToolName != "llm.structured" {
+			t.Fatalf("expected structured tool, got %q", toolRequest.ToolName)
 		}
-		return jsonResponse(LLMResponse{
+		result, _ := json.Marshal(LLMResponse{
 			Provider:        "companion",
 			Model:           "local-model",
 			Content:         `{"reply":"ok"}`,
 			SelectedBackend: testCompanionBackend,
 			ConstraintMode:  "prompt_validation",
-		}), nil
+		})
+		return jsonResponse(capabilities.ToolInvokeResponse{ToolName: "llm.structured", Result: result}), nil
 	})}
 
 	response, errorValue := (companionProvider{
@@ -147,7 +146,7 @@ func TestCapabilityRouterUsesDescriptors(t *testing.T) {
 
 func TestHumanInputToolRoutesToCompanion(t *testing.T) {
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.Path != "/v1/tools/invoke" {
+		if request.URL.Path != "/jobs" {
 			t.Fatalf("unexpected companion path: %s", request.URL.Path)
 		}
 		var forwardedRequest capabilities.ToolInvokeRequest
