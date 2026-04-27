@@ -79,14 +79,22 @@ type companionState struct {
 	DeviceURL    string                    `json:"deviceURL"`
 	CompanionID  string                    `json:"companionID"`
 	Token        string                    `json:"token"`
+	PublicKey    string                    `json:"publicKey"`
+	PrivateKey   string                    `json:"privateKey"`
 	LocalOnly    bool                      `json:"localOnly"`
 	Capabilities []capabilities.Descriptor `json:"capabilities"`
 }
 
 type companionJob struct {
-	JobID   string                         `json:"jobID"`
-	Status  string                         `json:"status"`
-	Request capabilities.ToolInvokeRequest `json:"request"`
+	JobID         string                         `json:"jobID"`
+	ParentJobID   string                         `json:"parentJobID"`
+	GrantID       string                         `json:"grantID"`
+	Status        string                         `json:"status"`
+	ToolName      string                         `json:"toolName"`
+	PrivacyClass  string                         `json:"privacyClass"`
+	ResourceScope capabilities.ResourceScope     `json:"resourceScope"`
+	Depth         int                            `json:"depth"`
+	Request       capabilities.ToolInvokeRequest `json:"request"`
 }
 
 type companionStatusDocument struct {
@@ -118,11 +126,15 @@ func runPair(arguments []string, httpClient *http.Client) error {
 	if *deviceURL == "" || *code == "" {
 		return fmt.Errorf("pair requires --device-url and --code")
 	}
+	keyPair, errorValue := companionruntime.GenerateKeyPair()
+	if errorValue != nil {
+		return errorValue
+	}
 	capabilityList := defaultCapabilities(*localOnly, *devMockLLM)
 	requestBody := map[string]any{
 		"code":         strings.TrimSpace(*code),
 		"displayName":  defaultDisplayName(),
-		"publicKey":    "development-public-key",
+		"publicKey":    keyPair.PublicKey,
 		"capabilities": capabilityList,
 		"localOnly":    *localOnly,
 	}
@@ -137,6 +149,8 @@ func runPair(arguments []string, httpClient *http.Client) error {
 		DeviceURL:    strings.TrimRight(*deviceURL, "/"),
 		CompanionID:  response.CompanionID,
 		Token:        response.Token,
+		PublicKey:    keyPair.PublicKey,
+		PrivateKey:   keyPair.PrivateKey,
 		LocalOnly:    *localOnly,
 		Capabilities: capabilityList,
 	}
@@ -193,12 +207,17 @@ func runCompanion(arguments []string, httpClient *http.Client) error {
 	executor := companionruntime.Executor{
 		DevMockLLM:    *devMockLLM,
 		BrowserOpener: companionruntime.SystemBrowserOpener{},
+		GrantStore:    companionruntime.NewMemoryGrantStore(),
 	}
 	if *allowStdinPrompts {
 		executor.PromptHandler = companionruntime.TerminalPromptHandler{Reader: os.Stdin, Writer: os.Stdout}
 	}
 	if strings.TrimSpace(*shellBridgeURL) != "" {
 		executor.PromptHandler = companionruntime.ShellBridgePromptHandler{
+			BaseURL:    *shellBridgeURL,
+			HTTPClient: httpClient,
+		}
+		executor.ApprovalHandler = companionruntime.ShellBridgePromptHandler{
 			BaseURL:    *shellBridgeURL,
 			HTTPClient: httpClient,
 		}
@@ -217,9 +236,22 @@ func runCompanion(arguments []string, httpClient *http.Client) error {
 			}
 			continue
 		}
-		response, executionError := executor.Execute(context.Background(), job.Request)
+		response, executionError := executor.ExecuteJob(context.Background(), companionruntime.JobEnvelope{
+			JobID:         job.JobID,
+			ParentJobID:   job.ParentJobID,
+			GrantID:       job.GrantID,
+			ToolName:      firstNonEmpty(job.ToolName, job.Request.ToolName),
+			PrivacyClass:  job.PrivacyClass,
+			ResourceScope: job.ResourceScope,
+			Depth:         job.Depth,
+		}, job.Request)
 		if executionError != nil {
-			_ = failJob(httpClient, state, job.JobID, executionError.Error())
+			var denialError companionruntime.DenialError
+			if errors.As(executionError, &denialError) {
+				_ = denyJob(httpClient, state, job.JobID, denialError.Denial)
+			} else {
+				_ = failJob(httpClient, state, job.JobID, executionError.Error())
+			}
 		} else {
 			_ = completeJob(httpClient, state, job.JobID, response)
 		}
@@ -278,7 +310,7 @@ func writeJSONDocument(writer io.Writer, response any) {
 }
 
 func sendHeartbeat(httpClient *http.Client, state companionState) error {
-	return postJSON(httpClient, state.DeviceURL+"/_internkim/companion/heartbeat", companionHeaders(state), map[string]any{
+	return postSignedJSON(httpClient, state, state.DeviceURL+"/_internkim/companion/heartbeat", map[string]any{
 		"capabilities": state.Capabilities,
 		"localOnly":    state.LocalOnly,
 	}, &map[string]any{})
@@ -291,6 +323,11 @@ func nextJob(httpClient *http.Client, state companionState) (*companionJob, erro
 	}
 	for key, value := range companionHeaders(state) {
 		request.Header.Set(key, value)
+	}
+	if state.PrivateKey != "" {
+		if errorValue := companionruntime.SignRequest(request, nil, state.PrivateKey); errorValue != nil {
+			return nil, errorValue
+		}
 	}
 	response, errorValue := httpClient.Do(request)
 	if errorValue != nil {
@@ -312,11 +349,15 @@ func nextJob(httpClient *http.Client, state companionState) (*companionJob, erro
 }
 
 func completeJob(httpClient *http.Client, state companionState, jobID string, response capabilities.ToolInvokeResponse) error {
-	return postJSON(httpClient, state.DeviceURL+"/_internkim/companion/jobs/"+url.PathEscape(jobID)+"/complete", companionHeaders(state), response, &map[string]any{})
+	return postSignedJSON(httpClient, state, state.DeviceURL+"/_internkim/companion/jobs/"+url.PathEscape(jobID)+"/complete", response, &map[string]any{})
 }
 
 func failJob(httpClient *http.Client, state companionState, jobID string, errorMessage string) error {
-	return postJSON(httpClient, state.DeviceURL+"/_internkim/companion/jobs/"+url.PathEscape(jobID)+"/fail", companionHeaders(state), map[string]string{"error": errorMessage}, &map[string]any{})
+	return postSignedJSON(httpClient, state, state.DeviceURL+"/_internkim/companion/jobs/"+url.PathEscape(jobID)+"/fail", map[string]string{"error": errorMessage}, &map[string]any{})
+}
+
+func denyJob(httpClient *http.Client, state companionState, jobID string, denial capabilities.DenialResult) error {
+	return postSignedJSON(httpClient, state, state.DeviceURL+"/_internkim/companion/jobs/"+url.PathEscape(jobID)+"/deny", denial, &map[string]any{})
 }
 
 func postJSON(httpClient *http.Client, endpoint string, headers map[string]string, requestBody any, responseBody any) error {
@@ -331,6 +372,36 @@ func postJSON(httpClient *http.Client, endpoint string, headers map[string]strin
 	request.Header.Set("Content-Type", "application/json")
 	for key, value := range headers {
 		request.Header.Set(key, value)
+	}
+	response, errorValue := httpClient.Do(request)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode >= http.StatusBadRequest {
+		body, _ := io.ReadAll(response.Body)
+		return errors.New(string(body))
+	}
+	return json.NewDecoder(response.Body).Decode(responseBody)
+}
+
+func postSignedJSON(httpClient *http.Client, state companionState, endpoint string, requestBody any, responseBody any) error {
+	document, errorValue := json.Marshal(requestBody)
+	if errorValue != nil {
+		return errorValue
+	}
+	request, errorValue := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(document))
+	if errorValue != nil {
+		return errorValue
+	}
+	request.Header.Set("Content-Type", "application/json")
+	for key, value := range companionHeaders(state) {
+		request.Header.Set(key, value)
+	}
+	if state.PrivateKey != "" {
+		if errorValue := companionruntime.SignRequest(request, document, state.PrivateKey); errorValue != nil {
+			return errorValue
+		}
 	}
 	response, errorValue := httpClient.Do(request)
 	if errorValue != nil {

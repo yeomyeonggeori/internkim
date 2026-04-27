@@ -170,6 +170,45 @@ func TestRunOnceCompletesShellBridgeConfirmJob(t *testing.T) {
 	}
 }
 
+func TestRunOnceDeniesBrowserJobWithReason(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	state := companionState{
+		DeviceURL:    "https://device.intern.kim",
+		CompanionID:  "companion-1",
+		Token:        "token-1",
+		LocalOnly:    true,
+		Capabilities: defaultCapabilities(true, false),
+	}
+	if errorValue := saveState(statePath, state); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	seenDeny := false
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/v1/security/approval":
+			return textResponse(http.StatusOK, `{"allowed":false,"userReason":"not now","suggestedConstraint":"ask for text"}`), nil
+		case "/_internkim/companion/heartbeat":
+			return textResponse(http.StatusOK, `{}`), nil
+		case "/_internkim/companion/jobs/next":
+			return textResponse(http.StatusOK, `{"jobID":"job-1","status":"running","toolName":"browser.navigate","resourceScope":{"kind":"web_origin","value":"https://github.com"},"request":{"toolName":"browser.navigate","input":{"url":"https://github.com"}}}`), nil
+		case "/_internkim/companion/jobs/job-1/deny":
+			seenDeny = true
+			return textResponse(http.StatusOK, `{}`), nil
+		default:
+			t.Fatalf("unexpected run path: %s", request.URL.Path)
+			return nil, nil
+		}
+	})}
+
+	errorValue := runCompanion([]string{"--state", statePath, "--once", "--shell-bridge-url", "http://127.0.0.1:1234"}, httpClient)
+	if errorValue == nil {
+		t.Fatal("expected denied browser job to return denial error")
+	}
+	if !seenDeny {
+		t.Fatal("expected companion to send a denial result")
+	}
+}
+
 func TestStatusRequiresPairedState(t *testing.T) {
 	errorValue := runStatus([]string{"--state", filepath.Join(t.TempDir(), "missing.json")})
 	if errorValue == nil {

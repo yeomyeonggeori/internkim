@@ -23,12 +23,23 @@ struct PromptRequest {
     kind: String,
     message: String,
     default: Option<bool>,
+    tool_name: Option<String>,
+    capability_scope: Option<String>,
+    resource_scope: Option<Value>,
 }
 
 #[derive(Deserialize)]
 struct PromptInput {
     message: Option<String>,
     default: Option<bool>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ApprovalInput {
+    tool_name: Option<String>,
+    capability_scope: Option<String>,
+    resource_scope: Option<Value>,
 }
 
 #[tauri::command]
@@ -81,14 +92,14 @@ fn handle_prompt_stream(app: AppHandle, mut stream: TcpStream) -> Result<(), Str
     let kind = match request.path.as_str() {
         "/v1/user/confirm" => "confirm",
         "/v1/user/input" => "input",
+        "/v1/security/approval" => "approval",
         _ => {
             write_http_json(&mut stream, 404, json!({"error":"not found"}))?;
             return Ok(());
         }
     };
-    let input: PromptInput =
-        serde_json::from_slice(&request.body).map_err(|error| error.to_string())?;
     let request_id = new_request_id();
+    let prompt_request = prompt_request_from_body(kind, request.body, request_id.clone())?;
     let (sender, receiver) = mpsc::channel();
     let state = app.state::<PromptBridgeState>();
     state
@@ -99,12 +110,7 @@ fn handle_prompt_stream(app: AppHandle, mut stream: TcpStream) -> Result<(), Str
     let _ = show_prompt_window(&app);
     app.emit(
         "prompt-request",
-        PromptRequest {
-            request_id: request_id.clone(),
-            kind: kind.to_string(),
-            message: input.message.unwrap_or_else(|| "Continue?".to_string()),
-            default: input.default,
-        },
+        prompt_request.with_request_id(request_id.clone()),
     )
     .map_err(|error| error.to_string())?;
     match receiver.recv_timeout(Duration::from_secs(600)) {
@@ -123,6 +129,56 @@ fn handle_prompt_stream(app: AppHandle, mut stream: TcpStream) -> Result<(), Str
         }
     }
     Ok(())
+}
+
+impl PromptRequest {
+    fn with_request_id(mut self, request_id: String) -> Self {
+        self.request_id = request_id;
+        self
+    }
+}
+
+fn prompt_request_from_body(
+    kind: &str,
+    body: Vec<u8>,
+    request_id: String,
+) -> Result<PromptRequest, String> {
+    if kind == "approval" {
+        let input: ApprovalInput =
+            serde_json::from_slice(&body).map_err(|error| error.to_string())?;
+        let resource_value = input
+            .resource_scope
+            .as_ref()
+            .and_then(|value| value.get("value"))
+            .and_then(Value::as_str)
+            .unwrap_or("this resource");
+        return Ok(PromptRequest {
+            request_id,
+            kind: kind.to_string(),
+            message: format!(
+                "Allow {} work on {} for this task?",
+                input
+                    .capability_scope
+                    .clone()
+                    .unwrap_or_else(|| "companion".to_string()),
+                resource_value
+            ),
+            default: None,
+            tool_name: input.tool_name,
+            capability_scope: input.capability_scope,
+            resource_scope: input.resource_scope,
+        });
+    }
+    let input: PromptInput = serde_json::from_slice(&body).map_err(|error| error.to_string())?;
+    Ok(PromptRequest {
+        request_id,
+        kind: kind.to_string(),
+        message: input.message.unwrap_or_else(|| "Continue?".to_string()),
+        default: input.default,
+        tool_name: None,
+        capability_scope: None,
+        resource_scope: None,
+    })
 }
 
 struct HttpRequest {

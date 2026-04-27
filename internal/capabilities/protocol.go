@@ -39,6 +39,9 @@ type ToolInvokeRequest struct {
 	RequiresUserPresence bool            `json:"requiresUserPresence"`
 	PrivacyClass         string          `json:"privacyClass"`
 	SessionID            string          `json:"sessionID"`
+	ParentJobID          string          `json:"parentJobID,omitempty"`
+	GrantID              string          `json:"grantID,omitempty"`
+	ResourceScope        ResourceScope   `json:"resourceScope,omitempty"`
 	TimeoutSecond        int             `json:"timeoutSecond"`
 }
 
@@ -46,7 +49,36 @@ type ToolInvokeResponse struct {
 	Provider        string          `json:"provider"`
 	SelectedBackend string          `json:"selectedBackend"`
 	ToolName        string          `json:"toolName"`
+	Status          string          `json:"status,omitempty"`
 	Result          json.RawMessage `json:"result"`
+}
+
+type ResourceScope struct {
+	Kind  string `json:"kind,omitempty"`
+	Value string `json:"value,omitempty"`
+}
+
+type CompanionJobEnvelope struct {
+	JobID         string            `json:"jobID"`
+	ParentJobID   string            `json:"parentJobID,omitempty"`
+	GrantID       string            `json:"grantID,omitempty"`
+	ToolName      string            `json:"toolName"`
+	PrivacyClass  string            `json:"privacyClass"`
+	ResourceScope ResourceScope     `json:"resourceScope,omitempty"`
+	CreatedAt     string            `json:"createdAt,omitempty"`
+	ExpiresAt     string            `json:"expiresAt,omitempty"`
+	Depth         int               `json:"depth"`
+	Request       ToolInvokeRequest `json:"request"`
+}
+
+type DenialResult struct {
+	Status              string        `json:"status"`
+	Code                string        `json:"code"`
+	JobID               string        `json:"jobID"`
+	ToolName            string        `json:"toolName"`
+	ResourceScope       ResourceScope `json:"resourceScope,omitempty"`
+	UserReason          string        `json:"userReason,omitempty"`
+	SuggestedConstraint string        `json:"suggestedConstraint,omitempty"`
 }
 
 func CompanionToolDescriptors() []Descriptor {
