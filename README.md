@@ -171,7 +171,9 @@ Deep link를 직접 넘기는 CLI fallback도 지원합니다.
 ./internkim-companion pair 'internkim://pair?device_url=https%3A%2F%2Fdc719d8e.example.test&code=ABCD-1234'
 ```
 
-현재 companion executor는 `user.confirm`, `user.input`, approval grant, `browser.session.start`, `browser.navigate`, 개발용 mock `llm.text`, 개발용 mock `llm.structured`를 처리합니다. Tauri shell은 confirmation/input/approval UI를 띄우고, 승인된 작업 범위는 `Allowed for this task`에서 확인하거나 revoke할 수 있습니다. `--allow-stdin-prompts`는 shell 없이 디버깅할 때만 쓰는 CLI fallback입니다.
+현재 companion executor는 `user.confirm`, `user.input`, approval grant, `file.pick`, `browser.session.start`, `browser.navigate`, 개발용 mock `llm.text`, 개발용 mock `llm.structured`를 처리합니다. Tauri shell은 confirmation/input/approval/file picker UI를 띄우고, 승인된 작업 범위는 `Allowed for this task`에서 확인하거나 revoke할 수 있습니다. `--allow-stdin-prompts`는 shell 없이 디버깅할 때만 쓰는 CLI fallback입니다.
+
+`file.pick`은 사용자 로컬 경로를 InternKim/Blueclaw에 넘기지 않습니다. companion이 선택된 파일을 signed broker upload로 device의 `/tmp/internkim-companion-files/{filename}`에 복사하고, 응답에는 device-local temporary path와 TTL만 포함합니다. 같은 이름은 덮어쓰며 metadata TTL이 지나면 `internkim-admind`가 자동 삭제합니다.
 
 Pairing signing key는 state file에 평문으로 저장하지 않습니다. state에는 key reference만 남기고 macOS에서는 Keychain을 사용합니다. secure storage를 쓸 수 없는 개발 환경에서만 `INTERNKIM_COMPANION_DEV_FILE_STORE=1`을 켜서 파일 기반 fallback을 허용합니다.
 

@@ -37,6 +37,7 @@ When testing against real platform surfaces such as Mattermost, Slack, or Signal
 - Route human-in-the-loop browser work, user confirmation, local file picking, and future local model inference through companion capabilities.
 - Do not store companion signing private keys in local state JSON. Store only a key reference and use OS secure storage; development file fallback must be explicit.
 - Approval grants are task-scoped, runtime-memory permissions. Keep `user.confirm` and `user.input` outside grant reuse, and expose active grant revoke in the companion shell.
+- `file.pick` must not expose user-local paths to InternKim or Blueclaw. Upload selected files through the signed companion broker into `/tmp/internkim-companion-files`, return only the device temp path, and rely on metadata TTL cleanup.
 - Keep Blueclaw provider-neutral. Blueclaw should request tools/capabilities, while InternKim chooses device, companion, or remote execution.
 - Local-only mode must not fall back to OpenRouter or another remote provider.
 

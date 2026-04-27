@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/anthropic-lab/internkim/internal/capabilities"
@@ -104,6 +105,17 @@ type companionStatusDocument struct {
 	CompanionID  string                    `json:"companionID,omitempty"`
 	LocalOnly    bool                      `json:"localOnly,omitempty"`
 	Capabilities []capabilities.Descriptor `json:"capabilities,omitempty"`
+}
+
+type companionFileUploader struct {
+	HTTPClient *http.Client
+	State      companionState
+	PrivateKey string
+}
+
+type companionFileUploadCreateResponse struct {
+	UploadID  string `json:"uploadID"`
+	ChunkSize int64  `json:"chunkSize"`
 }
 
 func runPair(arguments []string, httpClient *http.Client) error {
@@ -239,13 +251,17 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 		executor.PromptHandler = companionruntime.TerminalPromptHandler{Reader: os.Stdin, Writer: os.Stdout}
 	}
 	if strings.TrimSpace(*shellBridgeURL) != "" {
-		executor.PromptHandler = companionruntime.ShellBridgePromptHandler{
+		shellBridgeHandler := companionruntime.ShellBridgePromptHandler{
 			BaseURL:    *shellBridgeURL,
 			HTTPClient: httpClient,
 		}
-		executor.ApprovalHandler = companionruntime.ShellBridgePromptHandler{
-			BaseURL:    *shellBridgeURL,
+		executor.PromptHandler = shellBridgeHandler
+		executor.ApprovalHandler = shellBridgeHandler
+		executor.FilePicker = shellBridgeHandler
+		executor.FileUploader = companionFileUploader{
 			HTTPClient: httpClient,
+			State:      state,
+			PrivateKey: privateKey,
 		}
 	}
 	for {
@@ -283,6 +299,64 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 		}
 		if *runOnce {
 			return executionError
+		}
+	}
+}
+
+func (uploader companionFileUploader) UploadFile(ctx context.Context, request companionruntime.FileUploadRequest) (companionruntime.UploadedFile, error) {
+	httpClient := uploader.HTTPClient
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+	var createResponse companionFileUploadCreateResponse
+	if errorValue := postSignedJSON(httpClient, uploader.State, uploader.PrivateKey, uploader.State.DeviceURL+"/_internkim/companion/files/uploads", map[string]any{
+		"jobID":       request.JobID,
+		"filename":    request.Filename,
+		"sizeBytes":   request.SizeBytes,
+		"contentType": request.ContentType,
+		"ttlSeconds":  request.TTLSeconds,
+	}, &createResponse); errorValue != nil {
+		return companionruntime.UploadedFile{}, errorValue
+	}
+	chunkSize := createResponse.ChunkSize
+	if chunkSize <= 0 {
+		return companionruntime.UploadedFile{}, errors.New("device returned invalid upload chunk size")
+	}
+	chunks, errorValue := uploader.uploadFileChunks(ctx, httpClient, createResponse.UploadID, request.Path, chunkSize)
+	if errorValue != nil {
+		return companionruntime.UploadedFile{}, errorValue
+	}
+	var uploadedFile companionruntime.UploadedFile
+	if errorValue := postSignedJSON(httpClient, uploader.State, uploader.PrivateKey, uploader.State.DeviceURL+"/_internkim/companion/files/uploads/"+url.PathEscape(createResponse.UploadID)+"/complete", map[string]any{
+		"chunks": chunks,
+	}, &uploadedFile); errorValue != nil {
+		return companionruntime.UploadedFile{}, errorValue
+	}
+	return uploadedFile, nil
+}
+
+func (uploader companionFileUploader) uploadFileChunks(ctx context.Context, httpClient *http.Client, uploadID string, path string, chunkSize int64) (int, error) {
+	file, errorValue := os.Open(path)
+	if errorValue != nil {
+		return 0, errors.New("selected file cannot be opened")
+	}
+	defer file.Close()
+	buffer := make([]byte, chunkSize)
+	chunkIndex := 0
+	for {
+		count, readError := io.ReadFull(file, buffer)
+		if count > 0 {
+			endpoint := uploader.State.DeviceURL + "/_internkim/companion/files/uploads/" + url.PathEscape(uploadID) + "/chunks/" + strconv.Itoa(chunkIndex)
+			if errorValue := putSignedBytes(ctx, httpClient, uploader.State, uploader.PrivateKey, endpoint, buffer[:count]); errorValue != nil {
+				return chunkIndex, errorValue
+			}
+			chunkIndex++
+		}
+		if errors.Is(readError, io.EOF) || errors.Is(readError, io.ErrUnexpectedEOF) {
+			return chunkIndex, nil
+		}
+		if readError != nil {
+			return chunkIndex, errors.New("selected file cannot be read")
 		}
 	}
 }
@@ -435,6 +509,30 @@ func postSignedJSON(httpClient *http.Client, state companionState, privateKey st
 		return errors.New(string(body))
 	}
 	return json.NewDecoder(response.Body).Decode(responseBody)
+}
+
+func putSignedBytes(ctx context.Context, httpClient *http.Client, state companionState, privateKey string, endpoint string, requestBody []byte) error {
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPut, endpoint, bytes.NewReader(requestBody))
+	if errorValue != nil {
+		return errorValue
+	}
+	request.Header.Set("Content-Type", "application/octet-stream")
+	for key, value := range companionHeaders(state) {
+		request.Header.Set(key, value)
+	}
+	if errorValue := companionruntime.SignRequest(request, requestBody, privateKey); errorValue != nil {
+		return errorValue
+	}
+	response, errorValue := httpClient.Do(request)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode >= http.StatusBadRequest {
+		body, _ := io.ReadAll(response.Body)
+		return errors.New(string(body))
+	}
+	return nil
 }
 
 func companionHeaders(state companionState) map[string]string {

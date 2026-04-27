@@ -362,6 +362,154 @@ func TestCompanionDenyReturnsStructuredObservation(t *testing.T) {
 	}
 }
 
+func TestCompanionFileUploadLifecycle(t *testing.T) {
+	service := NewService(Configuration{
+		StateDirectory:         t.TempDir(),
+		CompanionFileDirectory: t.TempDir(),
+		AdminEmailPath:         writeTestFile(t, "admin@example.com"),
+	})
+	handler := service.router()
+	keyPair, pairResult := pairTestCompanion(t, handler, keyPairCapabilityRequest{
+		KeyPair:    keyPairForTest(t),
+		Capability: `{"name":"file.pick","version":"1","privacyClass":"local_file","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}`,
+	})
+	_ = keyPair
+
+	resultChannel := make(chan capabilities.ToolInvokeResponse, 1)
+	errorChannel := make(chan error, 1)
+	go func() {
+		response, errorValue := service.invokeCompanionJob(context.Background(), capabilities.ToolInvokeRequest{
+			ToolName:      "file.pick",
+			PrivacyClass:  "local_file",
+			TimeoutSecond: 2,
+		})
+		if errorValue != nil {
+			errorChannel <- errorValue
+			return
+		}
+		resultChannel <- response
+	}()
+
+	nextResponse := httptest.NewRecorder()
+	nextRequest := httptest.NewRequest(http.MethodGet, "/_internkim/companion/jobs/next", nil)
+	setCompanionHeaders(t, nextRequest, pairResult.companionPairResponse, pairResult.privateKey)
+	handler.ServeHTTP(nextResponse, nextRequest)
+	if nextResponse.Code != http.StatusOK {
+		t.Fatalf("next status = %d: %s", nextResponse.Code, nextResponse.Body.String())
+	}
+	var companionJob CompanionJob
+	if errorValue := json.NewDecoder(nextResponse.Body).Decode(&companionJob); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	unsignedUploadResponse := httptest.NewRecorder()
+	unsignedUploadRequest := httptest.NewRequest(http.MethodPost, "/_internkim/companion/files/uploads", strings.NewReader(`{"jobID":"`+companionJob.JobID+`","filename":"report.txt","sizeBytes":11}`))
+	unsignedUploadRequest.Header.Set("X-InternKim-Companion-ID", pairResult.CompanionID)
+	unsignedUploadRequest.Header.Set("X-InternKim-Companion-Token", pairResult.Token)
+	handler.ServeHTTP(unsignedUploadResponse, unsignedUploadRequest)
+	if unsignedUploadResponse.Code != http.StatusForbidden {
+		t.Fatalf("expected unsigned upload to fail, got %d", unsignedUploadResponse.Code)
+	}
+
+	createResponse := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/_internkim/companion/files/uploads", strings.NewReader(`{"jobID":"`+companionJob.JobID+`","filename":"../report.txt","sizeBytes":11,"contentType":"text/plain","ttlSeconds":300}`))
+	setCompanionHeaders(t, createRequest, pairResult.companionPairResponse, pairResult.privateKey)
+	handler.ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusOK {
+		t.Fatalf("upload create status = %d: %s", createResponse.Code, createResponse.Body.String())
+	}
+	var createResult companionFileUploadCreateResponse
+	if errorValue := json.NewDecoder(createResponse.Body).Decode(&createResult); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	chunkResponse := httptest.NewRecorder()
+	chunkRequest := httptest.NewRequest(http.MethodPut, "/_internkim/companion/files/uploads/"+createResult.UploadID+"/chunks/0", strings.NewReader("hello world"))
+	setCompanionHeaders(t, chunkRequest, pairResult.companionPairResponse, pairResult.privateKey)
+	handler.ServeHTTP(chunkResponse, chunkRequest)
+	if chunkResponse.Code != http.StatusOK {
+		t.Fatalf("chunk status = %d: %s", chunkResponse.Code, chunkResponse.Body.String())
+	}
+
+	completeUploadResponse := httptest.NewRecorder()
+	completeUploadRequest := httptest.NewRequest(http.MethodPost, "/_internkim/companion/files/uploads/"+createResult.UploadID+"/complete", strings.NewReader(`{"chunks":1}`))
+	setCompanionHeaders(t, completeUploadRequest, pairResult.companionPairResponse, pairResult.privateKey)
+	handler.ServeHTTP(completeUploadResponse, completeUploadRequest)
+	if completeUploadResponse.Code != http.StatusOK {
+		t.Fatalf("upload complete status = %d: %s", completeUploadResponse.Code, completeUploadResponse.Body.String())
+	}
+	var uploadResult companionFileUploadCompleteResponse
+	if errorValue := json.NewDecoder(completeUploadResponse.Body).Decode(&uploadResult); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if uploadResult.DevicePath != filepath.Join(service.Configuration.CompanionFileDirectory, "report.txt") {
+		t.Fatalf("unexpected device path: %s", uploadResult.DevicePath)
+	}
+	document, errorValue := os.ReadFile(uploadResult.DevicePath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if string(document) != "hello world" {
+		t.Fatalf("unexpected uploaded document: %s", string(document))
+	}
+
+	completeJobResponse := httptest.NewRecorder()
+	completeJobRequest := httptest.NewRequest(http.MethodPost, "/_internkim/companion/jobs/"+companionJob.JobID+"/complete", strings.NewReader(toolResponseJSON(t, "file.pick", uploadResult)))
+	setCompanionHeaders(t, completeJobRequest, pairResult.companionPairResponse, pairResult.privateKey)
+	handler.ServeHTTP(completeJobResponse, completeJobRequest)
+	if completeJobResponse.Code != http.StatusOK {
+		t.Fatalf("job complete status = %d: %s", completeJobResponse.Code, completeJobResponse.Body.String())
+	}
+	select {
+	case response := <-resultChannel:
+		if response.ToolName != "file.pick" {
+			t.Fatalf("unexpected response: %+v", response)
+		}
+	case errorValue := <-errorChannel:
+		t.Fatal(errorValue)
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for file pick response")
+	}
+}
+
+func TestCompanionFileUploadOverwriteAndCleanup(t *testing.T) {
+	service := NewService(Configuration{CompanionFileDirectory: t.TempDir(), StateDirectory: t.TempDir()})
+	uploadOne := writeCompanionUploadChunks(t, "upload-1", "report.txt", "first")
+	resultOne, errorValue := service.finishCompanionFileUpload(uploadOne, 1)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	uploadTwo := writeCompanionUploadChunks(t, "upload-2", "report.txt", "second")
+	uploadTwo.ExpiresAt = time.Now().UTC().Add(-time.Minute)
+	resultTwo, errorValue := service.finishCompanionFileUpload(uploadTwo, 1)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if resultOne.DevicePath != resultTwo.DevicePath {
+		t.Fatal("expected same filename to overwrite the same temp path")
+	}
+	document, errorValue := os.ReadFile(resultTwo.DevicePath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if string(document) != "second" {
+		t.Fatalf("expected overwrite content, got %s", string(document))
+	}
+	metadataLessPath := filepath.Join(service.Configuration.CompanionFileDirectory, "manual.txt")
+	if errorValue := os.WriteFile(metadataLessPath, []byte("keep"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.cleanupExpiredCompanionFiles(time.Now().UTC()); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := os.Stat(resultTwo.DevicePath); !os.IsNotExist(errorValue) {
+		t.Fatalf("expected expired upload to be removed, got %v", errorValue)
+	}
+	if _, errorValue := os.Stat(metadataLessPath); errorValue != nil {
+		t.Fatalf("expected metadata-less file to remain: %v", errorValue)
+	}
+}
+
 func setCompanionHeaders(t *testing.T, request *http.Request, pairResult companionPairResponse, privateKey string) {
 	t.Helper()
 	request.Header.Set("X-InternKim-Companion-ID", pairResult.CompanionID)
@@ -370,6 +518,95 @@ func setCompanionHeaders(t *testing.T, request *http.Request, pairResult compani
 	request.Body = io.NopCloser(bytes.NewReader(body))
 	if errorValue := companionruntime.SignRequest(request, body, privateKey); errorValue != nil {
 		t.Fatal(errorValue)
+	}
+}
+
+type testPairResult struct {
+	companionPairResponse
+	privateKey string
+}
+
+type keyPairCapabilityRequest struct {
+	KeyPair    companionruntime.KeyPair
+	Capability string
+}
+
+func pairTestCompanion(t *testing.T, handler http.Handler, request keyPairCapabilityRequest) (companionruntime.KeyPair, testPairResult) {
+	t.Helper()
+	keyPair := request.KeyPair
+	pairingResponse := httptest.NewRecorder()
+	pairingRequest := httptest.NewRequest(http.MethodPost, "/_internkim/admin/companion/pairing-codes", nil)
+	pairingRequest.RemoteAddr = "127.0.0.1:12345"
+	handler.ServeHTTP(pairingResponse, pairingRequest)
+	var pairingCode companionPairingCodeResponse
+	if errorValue := json.NewDecoder(pairingResponse.Body).Decode(&pairingCode); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	pairResponse := httptest.NewRecorder()
+	pairRequest := httptest.NewRequest(http.MethodPost, "/_internkim/companion/pair", strings.NewReader(`{
+		"code":"`+pairingCode.Code+`",
+		"displayName":"test companion",
+		"publicKey":"`+keyPair.PublicKey+`",
+		"capabilities":[`+request.Capability+`]
+	}`))
+	handler.ServeHTTP(pairResponse, pairRequest)
+	if pairResponse.Code != http.StatusOK {
+		t.Fatalf("pair status = %d: %s", pairResponse.Code, pairResponse.Body.String())
+	}
+	var pairResult companionPairResponse
+	if errorValue := json.NewDecoder(pairResponse.Body).Decode(&pairResult); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return keyPair, testPairResult{companionPairResponse: pairResult, privateKey: keyPair.PrivateKey}
+}
+
+func keyPairForTest(t *testing.T) companionruntime.KeyPair {
+	t.Helper()
+	keyPair, errorValue := companionruntime.GenerateKeyPair()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return keyPair
+}
+
+func toolResponseJSON(t *testing.T, toolName string, result any) string {
+	t.Helper()
+	resultDocument, errorValue := json.Marshal(result)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	responseDocument, errorValue := json.Marshal(capabilities.ToolInvokeResponse{
+		Provider:        "companion",
+		SelectedBackend: capabilities.LLMBackendCompanionLocal,
+		ToolName:        toolName,
+		Result:          resultDocument,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return string(responseDocument)
+}
+
+func writeCompanionUploadChunks(t *testing.T, uploadID string, filename string, document string) *CompanionFileUpload {
+	t.Helper()
+	directoryPath := filepath.Join(t.TempDir(), uploadID)
+	chunksPath := filepath.Join(directoryPath, "chunks")
+	if errorValue := os.MkdirAll(chunksPath, 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(filepath.Join(chunksPath, "0"), []byte(document), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return &CompanionFileUpload{
+		UploadID:       uploadID,
+		JobID:          "job-" + uploadID,
+		CompanionID:    "companion-1",
+		Filename:       filename,
+		ContentType:    "text/plain",
+		SizeBytes:      int64(len(document)),
+		ExpiresAt:      time.Now().UTC().Add(time.Hour),
+		DirectoryPath:  directoryPath,
+		ReceivedChunks: map[int]bool{0: true},
 	}
 }
 

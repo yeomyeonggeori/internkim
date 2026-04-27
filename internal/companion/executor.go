@@ -8,8 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/url"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -25,10 +28,20 @@ type PromptHandler interface {
 	Input(ctx context.Context, message string) (string, error)
 }
 
+type FilePicker interface {
+	PickFile(ctx context.Context, request FilePickRequest) (PickedFile, error)
+}
+
+type FileUploader interface {
+	UploadFile(ctx context.Context, request FileUploadRequest) (UploadedFile, error)
+}
+
 type Executor struct {
 	DevMockLLM      bool
 	BrowserOpener   BrowserOpener
 	PromptHandler   PromptHandler
+	FilePicker      FilePicker
+	FileUploader    FileUploader
 	ApprovalHandler ApprovalHandler
 	GrantStore      *MemoryGrantStore
 }
@@ -39,6 +52,40 @@ type TerminalPromptHandler struct {
 	Reader io.Reader
 	Writer io.Writer
 }
+
+type FilePickRequest struct {
+	Title             string   `json:"title,omitempty"`
+	AllowedExtensions []string `json:"allowedExtensions,omitempty"`
+	MaxBytes          int64    `json:"maxBytes,omitempty"`
+	TTLSeconds        int      `json:"ttlSeconds,omitempty"`
+}
+
+type PickedFile struct {
+	Path        string `json:"path"`
+	Filename    string `json:"filename,omitempty"`
+	SizeBytes   int64  `json:"sizeBytes,omitempty"`
+	ContentType string `json:"contentType,omitempty"`
+}
+
+type FileUploadRequest struct {
+	JobID       string
+	Path        string
+	Filename    string
+	SizeBytes   int64
+	ContentType string
+	TTLSeconds  int
+}
+
+type UploadedFile struct {
+	FileID      string `json:"fileID"`
+	Filename    string `json:"filename"`
+	SizeBytes   int64  `json:"sizeBytes"`
+	ContentType string `json:"contentType"`
+	DevicePath  string `json:"devicePath"`
+	ExpiresAt   string `json:"expiresAt"`
+}
+
+var ErrFilePickCanceled = errors.New("file pick canceled")
 
 func (executor Executor) Execute(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	return executor.ExecuteJob(ctx, JobEnvelope{ToolName: request.ToolName, ResourceScope: request.ResourceScope}, request)
@@ -63,7 +110,9 @@ func (executor Executor) ExecuteJob(ctx context.Context, envelope JobEnvelope, r
 		return executor.executeUserConfirm(ctx, request)
 	case "user.input":
 		return executor.executeUserInput(ctx, request)
-	case "browser.observe", "browser.screenshot", "file.pick":
+	case "file.pick":
+		return executor.executeFilePick(ctx, envelope, request)
+	case "browser.observe", "browser.screenshot":
 		return capabilities.ToolInvokeResponse{}, fmt.Errorf("companion capability is not implemented yet: %s", request.ToolName)
 	default:
 		return capabilities.ToolInvokeResponse{}, fmt.Errorf("companion capability is not configured: %s", request.ToolName)
@@ -168,6 +217,83 @@ func (executor Executor) executeUserInput(ctx context.Context, request capabilit
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	return toolResponse(request.ToolName, map[string]string{"text": text})
+}
+
+func (executor Executor) executeFilePick(ctx context.Context, envelope JobEnvelope, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	if executor.FilePicker == nil {
+		return capabilities.ToolInvokeResponse{}, errors.New("file picker requires companion UI")
+	}
+	if executor.FileUploader == nil {
+		return capabilities.ToolInvokeResponse{}, errors.New("file upload requires device broker")
+	}
+	var input FilePickRequest
+	if errorValue := decodeInput(request.Input, &input); errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	pickedFile, errorValue := executor.FilePicker.PickFile(ctx, input)
+	if errors.Is(errorValue, ErrFilePickCanceled) {
+		return capabilities.ToolInvokeResponse{}, DenialError{Denial: capabilities.DenialResult{
+			Status:              "denied",
+			Code:                "user_cancelled",
+			JobID:               envelope.JobID,
+			ToolName:            request.ToolName,
+			ResourceScope:       firstResourceScope(envelope.ResourceScope, request.ResourceScope),
+			SuggestedConstraint: "file selection was cancelled",
+		}}
+	}
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	fileUploadRequest, errorValue := fileUploadRequestFromPickedFile(envelope, input, pickedFile)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	uploadedFile, errorValue := executor.FileUploader.UploadFile(ctx, fileUploadRequest)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	return toolResponse(request.ToolName, uploadedFile)
+}
+
+func fileUploadRequestFromPickedFile(envelope JobEnvelope, request FilePickRequest, pickedFile PickedFile) (FileUploadRequest, error) {
+	trimmedPath := strings.TrimSpace(pickedFile.Path)
+	if trimmedPath == "" {
+		return FileUploadRequest{}, errors.New("selected file path is missing")
+	}
+	information, errorValue := os.Stat(trimmedPath)
+	if errorValue != nil || information.IsDir() {
+		return FileUploadRequest{}, errors.New("selected file cannot be read")
+	}
+	if request.MaxBytes > 0 && information.Size() > request.MaxBytes {
+		return FileUploadRequest{}, errors.New("selected file is larger than the requested limit")
+	}
+	filename := firstNonEmpty(pickedFile.Filename, filepath.Base(trimmedPath))
+	if !extensionAllowed(filename, request.AllowedExtensions) {
+		return FileUploadRequest{}, errors.New("selected file extension is not allowed")
+	}
+	contentType := firstNonEmpty(pickedFile.ContentType, mime.TypeByExtension(strings.ToLower(filepath.Ext(filename))), "application/octet-stream")
+	return FileUploadRequest{
+		JobID:       envelope.JobID,
+		Path:        trimmedPath,
+		Filename:    filename,
+		SizeBytes:   information.Size(),
+		ContentType: contentType,
+		TTLSeconds:  request.TTLSeconds,
+	}, nil
+}
+
+func extensionAllowed(filename string, allowedExtensions []string) bool {
+	if len(allowedExtensions) == 0 {
+		return true
+	}
+	extension := strings.TrimPrefix(strings.ToLower(filepath.Ext(filename)), ".")
+	for _, allowedExtension := range allowedExtensions {
+		normalizedExtension := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(allowedExtension)), ".")
+		if normalizedExtension != "" && normalizedExtension == extension {
+			return true
+		}
+	}
+	return false
 }
 
 func (executor Executor) openBrowser(ctx context.Context, targetURL string) error {

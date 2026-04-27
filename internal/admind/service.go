@@ -28,13 +28,14 @@ import (
 )
 
 type Configuration struct {
-	ListenAddress     string
-	MattermostBaseURL string
-	BlueclawBaseURL   string
-	StateDirectory    string
-	AdminEmailPath    string
-	DeviceIDPath      string
-	RepositoryRoot    string
+	ListenAddress          string
+	MattermostBaseURL      string
+	BlueclawBaseURL        string
+	StateDirectory         string
+	AdminEmailPath         string
+	DeviceIDPath           string
+	RepositoryRoot         string
+	CompanionFileDirectory string
 }
 
 type Service struct {
@@ -42,12 +43,13 @@ type Service struct {
 	HTTPClient    *http.Client
 	RunCommand    func(context.Context, string, ...string) ([]byte, error)
 
-	mutex         sync.Mutex
-	jobs          map[string]*Job
-	uploads       map[string]*RestoreUpload
-	pairingCodes  map[string]*CompanionPairingCode
-	companions    map[string]*CompanionRecord
-	companionJobs map[string]*CompanionJob
+	mutex                sync.Mutex
+	jobs                 map[string]*Job
+	uploads              map[string]*RestoreUpload
+	pairingCodes         map[string]*CompanionPairingCode
+	companions           map[string]*CompanionRecord
+	companionJobs        map[string]*CompanionJob
+	companionFileUploads map[string]*CompanionFileUpload
 }
 
 type Job struct {
@@ -113,31 +115,34 @@ type restoreUploadCompleteRequest struct {
 
 func DefaultConfiguration() Configuration {
 	return Configuration{
-		ListenAddress:     "127.0.0.1:18080",
-		MattermostBaseURL: "http://127.0.0.1:8065",
-		BlueclawBaseURL:   "http://127.0.0.1:8080",
-		StateDirectory:    "/root/.internkim/admin",
-		AdminEmailPath:    "/root/.internkim/admin-email",
-		DeviceIDPath:      "/root/.internkim/env/device-id",
-		RepositoryRoot:    "/",
+		ListenAddress:          "127.0.0.1:18080",
+		MattermostBaseURL:      "http://127.0.0.1:8065",
+		BlueclawBaseURL:        "http://127.0.0.1:8080",
+		StateDirectory:         "/root/.internkim/admin",
+		AdminEmailPath:         "/root/.internkim/admin-email",
+		DeviceIDPath:           "/root/.internkim/env/device-id",
+		RepositoryRoot:         "/",
+		CompanionFileDirectory: "/tmp/internkim-companion-files",
 	}
 }
 
 func NewService(configuration Configuration) *Service {
 	configuration = configuration.withDefaults()
 	service := &Service{
-		Configuration: configuration,
-		jobs:          map[string]*Job{},
-		uploads:       map[string]*RestoreUpload{},
-		pairingCodes:  map[string]*CompanionPairingCode{},
-		companions:    map[string]*CompanionRecord{},
-		companionJobs: map[string]*CompanionJob{},
+		Configuration:        configuration,
+		jobs:                 map[string]*Job{},
+		uploads:              map[string]*RestoreUpload{},
+		pairingCodes:         map[string]*CompanionPairingCode{},
+		companions:           map[string]*CompanionRecord{},
+		companionJobs:        map[string]*CompanionJob{},
+		companionFileUploads: map[string]*CompanionFileUpload{},
 	}
 	service.loadCompanions()
 	return service
 }
 
 func (service *Service) Run(ctx context.Context) error {
+	service.startCompanionFileCleanup(ctx)
 	server := &http.Server{
 		Addr:    service.Configuration.ListenAddress,
 		Handler: service.router(),
@@ -825,6 +830,9 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.RepositoryRoot == "" {
 		configuration.RepositoryRoot = defaultConfiguration.RepositoryRoot
+	}
+	if configuration.CompanionFileDirectory == "" {
+		configuration.CompanionFileDirectory = defaultConfiguration.CompanionFileDirectory
 	}
 	return configuration
 }

@@ -110,6 +110,12 @@ func (service *Service) handleCompanion(responseWriter http.ResponseWriter, requ
 		service.nextCompanionJob(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/jobs":
 		service.createCompanionJob(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/files/uploads":
+		service.createCompanionFileUpload(responseWriter, request)
+	case request.Method == http.MethodPut && strings.HasPrefix(path, "/files/uploads/") && strings.Contains(path, "/chunks/"):
+		service.writeCompanionFileUploadChunk(responseWriter, request, path)
+	case request.Method == http.MethodPost && strings.HasPrefix(path, "/files/uploads/") && strings.HasSuffix(path, "/complete"):
+		service.completeCompanionFileUpload(responseWriter, request, path)
 	case request.Method == http.MethodPost && strings.HasPrefix(path, "/jobs/") && strings.HasSuffix(path, "/complete"):
 		service.completeCompanionJob(responseWriter, request, strings.TrimSuffix(strings.TrimPrefix(path, "/jobs/"), "/complete"))
 	case request.Method == http.MethodPost && strings.HasPrefix(path, "/jobs/") && strings.HasSuffix(path, "/fail"):
