@@ -40,6 +40,14 @@ func (handler ShellBridgePromptHandler) Input(ctx context.Context, message strin
 	return response.Text, nil
 }
 
+func (handler ShellBridgePromptHandler) Approve(ctx context.Context, request ApprovalRequest) (ApprovalDecision, error) {
+	var response ApprovalDecision
+	if errorValue := handler.post(ctx, "/v1/security/approval", request, &response); errorValue != nil {
+		return ApprovalDecision{}, errorValue
+	}
+	return response, nil
+}
+
 func (handler ShellBridgePromptHandler) post(ctx context.Context, path string, requestBody any, responseBody any) error {
 	baseURL, errorValue := validateShellBridgeURL(handler.BaseURL)
 	if errorValue != nil {

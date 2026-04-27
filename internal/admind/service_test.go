@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/anthropic-lab/internkim/internal/capabilities"
+	companionruntime "github.com/anthropic-lab/internkim/internal/companion"
 )
 
 func TestGatewayRoutesAdminAndMattermost(t *testing.T) {
@@ -168,6 +169,10 @@ func TestExtractBundleRejectsUnsafePath(t *testing.T) {
 func TestCompanionPairHeartbeatAndJobLifecycle(t *testing.T) {
 	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
 	handler := service.router()
+	keyPair, errorValue := companionruntime.GenerateKeyPair()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
 
 	pairingResponse := httptest.NewRecorder()
 	pairingRequest := httptest.NewRequest(http.MethodPost, "/_internkim/admin/companion/pairing-codes", nil)
@@ -188,7 +193,7 @@ func TestCompanionPairHeartbeatAndJobLifecycle(t *testing.T) {
 	pairRequest := httptest.NewRequest(http.MethodPost, "/_internkim/companion/pair", strings.NewReader(`{
 		"code":"`+pairingCode.Code+`",
 		"displayName":"test companion",
-		"publicKey":"pk-test",
+		"publicKey":"`+keyPair.PublicKey+`",
 		"localOnly":true,
 		"capabilities":[{"name":"user.confirm","version":"1","privacyClass":"user_input","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}]
 	}`))
@@ -226,6 +231,15 @@ func TestCompanionPairHeartbeatAndJobLifecycle(t *testing.T) {
 		t.Fatalf("unexpected companion status: %+v", status)
 	}
 
+	unsignedResponse := httptest.NewRecorder()
+	unsignedRequest := httptest.NewRequest(http.MethodGet, "/_internkim/companion/jobs/next", nil)
+	unsignedRequest.Header.Set("X-InternKim-Companion-ID", pairResult.CompanionID)
+	unsignedRequest.Header.Set("X-InternKim-Companion-Token", pairResult.Token)
+	handler.ServeHTTP(unsignedResponse, unsignedRequest)
+	if unsignedResponse.Code != http.StatusForbidden {
+		t.Fatalf("expected unsigned companion request to fail, got %d", unsignedResponse.Code)
+	}
+
 	resultChannel := make(chan capabilities.ToolInvokeResponse, 1)
 	errorChannel := make(chan error, 1)
 	go func() {
@@ -243,7 +257,7 @@ func TestCompanionPairHeartbeatAndJobLifecycle(t *testing.T) {
 
 	nextResponse := httptest.NewRecorder()
 	nextRequest := httptest.NewRequest(http.MethodGet, "/_internkim/companion/jobs/next", nil)
-	setCompanionHeaders(nextRequest, pairResult)
+	setCompanionHeaders(t, nextRequest, pairResult, keyPair.PrivateKey)
 	handler.ServeHTTP(nextResponse, nextRequest)
 	if nextResponse.Code != http.StatusOK {
 		t.Fatalf("next job status = %d: %s", nextResponse.Code, nextResponse.Body.String())
@@ -263,7 +277,7 @@ func TestCompanionPairHeartbeatAndJobLifecycle(t *testing.T) {
 		"toolName":"user.confirm",
 		"result":{"confirmed":true}
 	}`))
-	setCompanionHeaders(completeRequest, pairResult)
+	setCompanionHeaders(t, completeRequest, pairResult, keyPair.PrivateKey)
 	handler.ServeHTTP(completeResponse, completeRequest)
 	if completeResponse.Code != http.StatusOK {
 		t.Fatalf("complete status = %d: %s", completeResponse.Code, completeResponse.Body.String())
@@ -281,9 +295,82 @@ func TestCompanionPairHeartbeatAndJobLifecycle(t *testing.T) {
 	}
 }
 
-func setCompanionHeaders(request *http.Request, pairResult companionPairResponse) {
+func TestCompanionDenyReturnsStructuredObservation(t *testing.T) {
+	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	handler := service.router()
+	keyPair, errorValue := companionruntime.GenerateKeyPair()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	pairingResponse := httptest.NewRecorder()
+	pairingRequest := httptest.NewRequest(http.MethodPost, "/_internkim/admin/companion/pairing-codes", nil)
+	pairingRequest.RemoteAddr = "127.0.0.1:12345"
+	handler.ServeHTTP(pairingResponse, pairingRequest)
+	var pairingCode companionPairingCodeResponse
+	if errorValue := json.NewDecoder(pairingResponse.Body).Decode(&pairingCode); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	pairResponse := httptest.NewRecorder()
+	pairRequest := httptest.NewRequest(http.MethodPost, "/_internkim/companion/pair", strings.NewReader(`{
+		"code":"`+pairingCode.Code+`",
+		"displayName":"test companion",
+		"publicKey":"`+keyPair.PublicKey+`",
+		"capabilities":[{"name":"browser.navigate","version":"1","privacyClass":"user_browser","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}]
+	}`))
+	handler.ServeHTTP(pairResponse, pairRequest)
+	var pairResult companionPairResponse
+	if errorValue := json.NewDecoder(pairResponse.Body).Decode(&pairResult); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	resultChannel := make(chan capabilities.ToolInvokeResponse, 1)
+	go func() {
+		response, _ := service.invokeCompanionJob(context.Background(), capabilities.ToolInvokeRequest{
+			ToolName:      "browser.navigate",
+			Input:         json.RawMessage(`{"url":"https://github.com"}`),
+			PrivacyClass:  "user_browser",
+			TimeoutSecond: 2,
+		})
+		resultChannel <- response
+	}()
+	nextResponse := httptest.NewRecorder()
+	nextRequest := httptest.NewRequest(http.MethodGet, "/_internkim/companion/jobs/next", nil)
+	setCompanionHeaders(t, nextRequest, pairResult, keyPair.PrivateKey)
+	handler.ServeHTTP(nextResponse, nextRequest)
+	var companionJob CompanionJob
+	if errorValue := json.NewDecoder(nextResponse.Body).Decode(&companionJob); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	denyResponse := httptest.NewRecorder()
+	denyRequest := httptest.NewRequest(http.MethodPost, "/_internkim/companion/jobs/"+companionJob.JobID+"/deny", strings.NewReader(`{
+		"status":"denied",
+		"code":"user_denied",
+		"userReason":"not this site",
+		"suggestedConstraint":"ask for text"
+	}`))
+	setCompanionHeaders(t, denyRequest, pairResult, keyPair.PrivateKey)
+	handler.ServeHTTP(denyResponse, denyRequest)
+	if denyResponse.Code != http.StatusOK {
+		t.Fatalf("deny status = %d: %s", denyResponse.Code, denyResponse.Body.String())
+	}
+	select {
+	case response := <-resultChannel:
+		if response.Status != "denied" {
+			t.Fatalf("expected denied response, got %+v", response)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for denial")
+	}
+}
+
+func setCompanionHeaders(t *testing.T, request *http.Request, pairResult companionPairResponse, privateKey string) {
+	t.Helper()
 	request.Header.Set("X-InternKim-Companion-ID", pairResult.CompanionID)
 	request.Header.Set("X-InternKim-Companion-Token", pairResult.Token)
+	body, _ := io.ReadAll(request.Body)
+	request.Body = io.NopCloser(bytes.NewReader(body))
+	if errorValue := companionruntime.SignRequest(request, body, privateKey); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 }
 
 func writeTestFile(t *testing.T, document string) string {

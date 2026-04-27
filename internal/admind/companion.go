@@ -1,6 +1,7 @@
 package admind
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/anthropic-lab/internkim/internal/capabilities"
+	companionruntime "github.com/anthropic-lab/internkim/internal/companion"
 )
 
 const companionOnlineWindow = 45 * time.Second
@@ -49,15 +51,22 @@ type CompanionStatus struct {
 }
 
 type CompanionJob struct {
-	JobID       string                           `json:"jobID"`
-	Status      string                           `json:"status"`
-	CompanionID string                           `json:"companionID,omitempty"`
-	Request     capabilities.ToolInvokeRequest   `json:"request"`
-	Response    *capabilities.ToolInvokeResponse `json:"response,omitempty"`
-	Error       string                           `json:"error,omitempty"`
-	CreatedAt   time.Time                        `json:"createdAt"`
-	UpdatedAt   time.Time                        `json:"updatedAt"`
-	ExpiresAt   time.Time                        `json:"expiresAt"`
+	JobID         string                           `json:"jobID"`
+	ParentJobID   string                           `json:"parentJobID,omitempty"`
+	GrantID       string                           `json:"grantID,omitempty"`
+	Status        string                           `json:"status"`
+	CompanionID   string                           `json:"companionID,omitempty"`
+	ToolName      string                           `json:"toolName"`
+	PrivacyClass  string                           `json:"privacyClass"`
+	ResourceScope capabilities.ResourceScope       `json:"resourceScope,omitempty"`
+	Depth         int                              `json:"depth"`
+	Request       capabilities.ToolInvokeRequest   `json:"request"`
+	Response      *capabilities.ToolInvokeResponse `json:"response,omitempty"`
+	Denial        *capabilities.DenialResult       `json:"denial,omitempty"`
+	Error         string                           `json:"error,omitempty"`
+	CreatedAt     time.Time                        `json:"createdAt"`
+	UpdatedAt     time.Time                        `json:"updatedAt"`
+	ExpiresAt     time.Time                        `json:"expiresAt"`
 }
 
 type companionPairRequest struct {
@@ -105,6 +114,8 @@ func (service *Service) handleCompanion(responseWriter http.ResponseWriter, requ
 		service.completeCompanionJob(responseWriter, request, strings.TrimSuffix(strings.TrimPrefix(path, "/jobs/"), "/complete"))
 	case request.Method == http.MethodPost && strings.HasPrefix(path, "/jobs/") && strings.HasSuffix(path, "/fail"):
 		service.failCompanionJob(responseWriter, request, strings.TrimSuffix(strings.TrimPrefix(path, "/jobs/"), "/fail"))
+	case request.Method == http.MethodPost && strings.HasPrefix(path, "/jobs/") && strings.HasSuffix(path, "/deny"):
+		service.denyCompanionJob(responseWriter, request, strings.TrimSuffix(strings.TrimPrefix(path, "/jobs/"), "/deny"))
 	default:
 		http.NotFound(responseWriter, request)
 	}
@@ -296,7 +307,28 @@ func (service *Service) failCompanionJob(responseWriter http.ResponseWriter, req
 	service.writeJSON(responseWriter, map[string]string{"status": "failed"})
 }
 
+func (service *Service) denyCompanionJob(responseWriter http.ResponseWriter, request *http.Request, jobID string) {
+	companion := service.authorizedCompanion(request)
+	if companion == nil {
+		http.Error(responseWriter, "companion auth required", http.StatusForbidden)
+		return
+	}
+	var payload capabilities.DenialResult
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	if errorValue := service.denyCompanionJobResult(companion.CompanionID, jobID, payload); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusForbidden)
+		return
+	}
+	service.writeJSON(responseWriter, map[string]string{"status": "denied"})
+}
+
 func (service *Service) invokeCompanionJob(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	if errorValue := validateCompanionToolRequest(request); errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
 	if !service.hasOnlineCompanionForTool(request.ToolName) {
 		return capabilities.ToolInvokeResponse{}, errors.New("companion unavailable for capability: " + request.ToolName)
 	}
@@ -309,13 +341,19 @@ func (service *Service) invokeCompanionJob(ctx context.Context, request capabili
 		timeout = 120
 	}
 	job := &CompanionJob{
-		JobID:     randomHex(16),
-		Status:    "pending",
-		Request:   request,
-		CreatedAt: now,
-		UpdatedAt: now,
-		ExpiresAt: now.Add(time.Duration(timeout) * time.Second),
+		JobID:         randomHex(16),
+		ParentJobID:   request.ParentJobID,
+		GrantID:       request.GrantID,
+		Status:        "pending",
+		ToolName:      request.ToolName,
+		PrivacyClass:  companionPrivacyClass(request),
+		ResourceScope: companionResourceScope(request),
+		Request:       normalizeCompanionJobRequest(request),
+		CreatedAt:     now,
+		UpdatedAt:     now,
+		ExpiresAt:     now.Add(time.Duration(timeout) * time.Second),
 	}
+	job.Depth = service.nextCompanionJobDepth(job.ParentJobID)
 	service.mutex.Lock()
 	service.companionJobs[job.JobID] = job
 	service.mutex.Unlock()
@@ -338,6 +376,11 @@ func (service *Service) invokeCompanionJob(ctx context.Context, request capabili
 			errorMessage := currentJob.Error
 			service.mutex.Unlock()
 			return capabilities.ToolInvokeResponse{}, errors.New(errorMessage)
+		}
+		if currentJob != nil && currentJob.Status == "denied" && currentJob.Denial != nil {
+			response, errorValue := companionDenialResponse(*currentJob.Denial)
+			service.mutex.Unlock()
+			return response, errorValue
 		}
 		if currentJob != nil && time.Now().After(currentJob.ExpiresAt) {
 			currentJob.Status = "expired"
@@ -394,6 +437,31 @@ func (service *Service) finishCompanionJob(companionID string, jobID string, res
 	return nil
 }
 
+func (service *Service) denyCompanionJobResult(companionID string, jobID string, denial capabilities.DenialResult) error {
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	job := service.companionJobs[jobID]
+	if job == nil {
+		return errors.New("companion job not found")
+	}
+	if job.CompanionID != companionID {
+		return errors.New("companion job owner mismatch")
+	}
+	denial.Status = firstNonEmpty(denial.Status, "denied")
+	denial.Code = firstNonEmpty(denial.Code, "user_denied")
+	denial.JobID = firstNonEmpty(denial.JobID, job.JobID)
+	denial.ToolName = firstNonEmpty(denial.ToolName, job.ToolName)
+	if denial.ResourceScope.Kind == "" && denial.ResourceScope.Value == "" {
+		denial.ResourceScope = job.ResourceScope
+	}
+	denial.UserReason = sanitizeCompanionDenialText(denial.UserReason)
+	denial.SuggestedConstraint = sanitizeCompanionDenialText(denial.SuggestedConstraint)
+	job.Status = "denied"
+	job.Denial = &denial
+	job.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
 func (service *Service) authorizedCompanion(request *http.Request) *CompanionRecord {
 	companionID := strings.TrimSpace(request.Header.Get("X-InternKim-Companion-ID"))
 	token := strings.TrimSpace(request.Header.Get("X-InternKim-Companion-Token"))
@@ -407,6 +475,11 @@ func (service *Service) authorizedCompanion(request *http.Request) *CompanionRec
 		return nil
 	}
 	if companion.TokenHash != companionTokenHash(token) {
+		return nil
+	}
+	body, _ := io.ReadAll(request.Body)
+	request.Body = io.NopCloser(bytes.NewReader(body))
+	if !companionruntime.VerifyRequestSignature(request, body, companion.PublicKey) {
 		return nil
 	}
 	return companion
@@ -458,6 +531,114 @@ func companionCanRunTool(companion *CompanionRecord, toolName string) bool {
 		}
 	}
 	return false
+}
+
+func (service *Service) nextCompanionJobDepth(parentJobID string) int {
+	if strings.TrimSpace(parentJobID) == "" {
+		return 0
+	}
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	parentJob := service.companionJobs[parentJobID]
+	if parentJob == nil {
+		return 0
+	}
+	return parentJob.Depth + 1
+}
+
+func normalizeCompanionJobRequest(request capabilities.ToolInvokeRequest) capabilities.ToolInvokeRequest {
+	request.SessionID = ""
+	request.PrivacyClass = companionPrivacyClass(request)
+	request.ResourceScope = companionResourceScope(request)
+	return request
+}
+
+func companionPrivacyClass(request capabilities.ToolInvokeRequest) string {
+	if strings.TrimSpace(request.PrivacyClass) != "" {
+		return strings.TrimSpace(request.PrivacyClass)
+	}
+	for _, descriptor := range capabilities.CompanionToolDescriptors() {
+		if descriptor.Name == request.ToolName {
+			return descriptor.PrivacyClass
+		}
+	}
+	return ""
+}
+
+func validateCompanionToolRequest(request capabilities.ToolInvokeRequest) error {
+	descriptor, ok := companionToolDescriptor(request.ToolName)
+	if !ok {
+		return errors.New("companion capability is not configured: " + request.ToolName)
+	}
+	if strings.TrimSpace(request.PrivacyClass) != "" && strings.TrimSpace(request.PrivacyClass) != descriptor.PrivacyClass {
+		return errors.New("companion capability privacy class mismatch")
+	}
+	return nil
+}
+
+func companionToolDescriptor(toolName string) (capabilities.Descriptor, bool) {
+	for _, descriptor := range capabilities.CompanionToolDescriptors() {
+		if descriptor.Name == toolName {
+			return descriptor, true
+		}
+	}
+	for _, descriptor := range capabilities.CompanionLLMDescriptors() {
+		if descriptor.Name == toolName {
+			return descriptor, true
+		}
+	}
+	return capabilities.Descriptor{}, false
+}
+
+func companionResourceScope(request capabilities.ToolInvokeRequest) capabilities.ResourceScope {
+	if request.ResourceScope.Kind != "" || request.ResourceScope.Value != "" {
+		return request.ResourceScope
+	}
+	switch request.ToolName {
+	case "browser.session.start", "browser.navigate", "browser.observe", "browser.screenshot":
+		return capabilities.ResourceScope{Kind: "web_origin", Value: browserOriginFromInput(request.Input)}
+	case "file.pick":
+		return capabilities.ResourceScope{Kind: "file_root", Value: ""}
+	default:
+		return capabilities.ResourceScope{}
+	}
+}
+
+func browserOriginFromInput(document json.RawMessage) string {
+	var input struct {
+		URL      string `json:"url"`
+		StartURL string `json:"startURL"`
+	}
+	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
+		return ""
+	}
+	rawURL := firstNonEmpty(input.URL, input.StartURL)
+	parsedURL, errorValue := url.Parse(rawURL)
+	if errorValue != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
+		return ""
+	}
+	return parsedURL.Scheme + "://" + parsedURL.Host
+}
+
+func companionDenialResponse(denial capabilities.DenialResult) (capabilities.ToolInvokeResponse, error) {
+	document, errorValue := json.Marshal(denial)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	return capabilities.ToolInvokeResponse{
+		Provider: "companion",
+		ToolName: denial.ToolName,
+		Status:   "denied",
+		Result:   document,
+	}, nil
+}
+
+func sanitizeCompanionDenialText(value string) string {
+	trimmedValue := strings.TrimSpace(value)
+	if len(trimmedValue) > 240 {
+		return trimmedValue[:240]
+	}
+	return trimmedValue
 }
 
 func (service *Service) saveCompanions() error {

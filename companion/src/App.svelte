@@ -5,7 +5,7 @@
 	import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link';
 	import { onMount } from 'svelte';
 	import { normalizeManualPairingInput, parsePairingLink, statusLabel, type CompanionStatus } from './lib/pairing';
-	import { confirmResponse, inputResponse, normalizePromptRequest, promptTitle, type PromptRequest, type PromptResult } from './lib/prompts';
+	import { approvalResponse, confirmResponse, inputResponse, normalizePromptRequest, promptTitle, type PromptRequest, type PromptResult } from './lib/prompts';
 	import { pairCompanion, readCompanionStatus, readRuntimeStatus, startCompanionRuntime, type RuntimeStatus } from './lib/sidecar';
 
 	let status = $state<CompanionStatus>({ paired: false });
@@ -14,6 +14,7 @@
 	let pairingCode = $state('');
 	let message = $state('');
 	let promptInput = $state('');
+	let denialReason = $state('');
 	let pendingPrompt = $state<PromptRequest | undefined>();
 	let promptResult = $state<PromptResult>({ status: 'idle' });
 	let isBusy = $state(false);
@@ -58,6 +59,7 @@
 				try {
 					pendingPrompt = normalizePromptRequest(event.payload);
 					promptInput = '';
+					denialReason = '';
 					promptResult = { status: 'pending' };
 					await invoke('show_main_window');
 				} catch (errorValue) {
@@ -120,6 +122,7 @@
 			await invoke('complete_prompt_request', { requestId: requestID, response });
 			pendingPrompt = undefined;
 			promptInput = '';
+			denialReason = '';
 			promptResult = { status: 'completed', message: 'Response sent.' };
 		} catch (errorValue) {
 			promptResult = { status: 'failed', message: errorValue instanceof Error ? errorValue.message : 'Response failed' };
@@ -169,6 +172,15 @@
 					<div class="actions">
 						<button onclick={() => completePrompt(confirmResponse(true))}>Approve</button>
 						<button class="secondary" onclick={() => completePrompt(confirmResponse(false))}>Deny</button>
+					</div>
+				{:else if pendingPrompt.kind === 'approval'}
+					<label>
+						<span>Optional reason or constraint</span>
+						<input bind:value={denialReason} placeholder="Example: Use another way instead" />
+					</label>
+					<div class="actions">
+						<button onclick={() => completePrompt(approvalResponse(true, ''))}>Allow</button>
+						<button class="secondary" onclick={() => completePrompt(approvalResponse(false, denialReason))}>Deny</button>
 					</div>
 				{:else}
 					<label>

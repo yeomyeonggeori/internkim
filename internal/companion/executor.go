@@ -26,9 +26,11 @@ type PromptHandler interface {
 }
 
 type Executor struct {
-	DevMockLLM    bool
-	BrowserOpener BrowserOpener
-	PromptHandler PromptHandler
+	DevMockLLM      bool
+	BrowserOpener   BrowserOpener
+	PromptHandler   PromptHandler
+	ApprovalHandler ApprovalHandler
+	GrantStore      *MemoryGrantStore
 }
 
 type SystemBrowserOpener struct{}
@@ -39,6 +41,15 @@ type TerminalPromptHandler struct {
 }
 
 func (executor Executor) Execute(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	return executor.ExecuteJob(ctx, JobEnvelope{ToolName: request.ToolName, ResourceScope: request.ResourceScope}, request)
+}
+
+func (executor Executor) ExecuteJob(ctx context.Context, envelope JobEnvelope, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	if executor.GrantStore != nil {
+		if errorValue := executor.GrantStore.Authorize(ctx, envelope, request, executor.ApprovalHandler); errorValue != nil {
+			return capabilities.ToolInvokeResponse{}, errorValue
+		}
+	}
 	switch request.ToolName {
 	case "llm.text":
 		return executor.executeTextLLM(request)

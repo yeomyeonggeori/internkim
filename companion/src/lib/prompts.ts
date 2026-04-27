@@ -1,8 +1,11 @@
 export type PromptRequest = {
 	requestID: string;
-	kind: 'confirm' | 'input';
+	kind: 'confirm' | 'input' | 'approval';
 	message: string;
 	default?: boolean;
+	toolName?: string;
+	capabilityScope?: string;
+	resourceScope?: { kind?: string; value?: string };
 };
 
 export type PromptResult = {
@@ -18,7 +21,7 @@ export function normalizePromptRequest(value: unknown): PromptRequest {
 	if (typeof rawRequest.requestId !== 'string') {
 		throw new Error('Prompt request is missing request ID');
 	}
-	if (rawRequest.kind !== 'confirm' && rawRequest.kind !== 'input') {
+	if (rawRequest.kind !== 'confirm' && rawRequest.kind !== 'input' && rawRequest.kind !== 'approval') {
 		throw new Error('Prompt request type is unsupported');
 	}
 	if (typeof rawRequest.message !== 'string') {
@@ -28,7 +31,10 @@ export function normalizePromptRequest(value: unknown): PromptRequest {
 		requestID: rawRequest.requestId,
 		kind: rawRequest.kind,
 		message: rawRequest.message,
-		default: typeof rawRequest.default === 'boolean' ? rawRequest.default : undefined
+		default: typeof rawRequest.default === 'boolean' ? rawRequest.default : undefined,
+		toolName: typeof rawRequest.toolName === 'string' ? rawRequest.toolName : undefined,
+		capabilityScope: typeof rawRequest.capabilityScope === 'string' ? rawRequest.capabilityScope : undefined,
+		resourceScope: normalizeResourceScope(rawRequest.resourceScope)
 	};
 }
 
@@ -44,7 +50,25 @@ export function inputResponse(text: string): { text: string } {
 	return { text };
 }
 
+export function approvalResponse(isAllowed: boolean, userReason: string): { allowed: boolean; userReason?: string; suggestedConstraint?: string } {
+	const trimmedReason = userReason.trim();
+	return {
+		allowed: isAllowed,
+		userReason: isAllowed ? undefined : trimmedReason || undefined,
+		suggestedConstraint: isAllowed ? undefined : trimmedReason || undefined
+	};
+}
+
 export function promptTitle(prompt: PromptRequest): string {
 	if (prompt.kind === 'confirm') return 'Confirmation needed';
+	if (prompt.kind === 'approval') return 'Permission needed';
 	return 'Input needed';
+}
+
+function normalizeResourceScope(value: unknown): { kind?: string; value?: string } | undefined {
+	if (!isRecord(value)) return undefined;
+	return {
+		kind: typeof value.kind === 'string' ? value.kind : undefined,
+		value: typeof value.value === 'string' ? value.value : undefined
+	};
 }
