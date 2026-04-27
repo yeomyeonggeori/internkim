@@ -19,17 +19,30 @@ import (
 )
 
 func main() {
-	if len(os.Args) > 1 {
-		switch os.Args[1] {
+	if len(os.Args) > 1 && isCompanionSubcommand(os.Args[1]) {
+		commandName := os.Args[1]
+		switch commandName {
 		case "pair":
 			exit(runPair(os.Args[2:], http.DefaultClient))
+			return
 		case "run":
 			exit(runCompanion(os.Args[2:], http.DefaultClient))
+			return
 		case "status":
 			exit(runStatus(os.Args[2:]))
+			return
 		}
 	}
 	exit(runServer(os.Args[1:]))
+}
+
+func isCompanionSubcommand(commandName string) bool {
+	switch commandName {
+	case "pair", "run", "status":
+		return true
+	default:
+		return false
+	}
 }
 
 func runServer(arguments []string) error {
@@ -74,6 +87,14 @@ type companionJob struct {
 	JobID   string                         `json:"jobID"`
 	Status  string                         `json:"status"`
 	Request capabilities.ToolInvokeRequest `json:"request"`
+}
+
+type companionStatusDocument struct {
+	Paired       bool                      `json:"paired"`
+	DeviceURL    string                    `json:"deviceURL,omitempty"`
+	CompanionID  string                    `json:"companionID,omitempty"`
+	LocalOnly    bool                      `json:"localOnly,omitempty"`
+	Capabilities []capabilities.Descriptor `json:"capabilities,omitempty"`
 }
 
 func runPair(arguments []string, httpClient *http.Client) error {
@@ -129,12 +150,21 @@ func runPair(arguments []string, httpClient *http.Client) error {
 func runStatus(arguments []string) error {
 	flags := flag.NewFlagSet("status", flag.ContinueOnError)
 	statePath := flags.String("state", defaultStatePath(), "companion state path")
+	jsonOutput := flags.Bool("json", false, "print machine-readable status")
 	if errorValue := flags.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
 	state, errorValue := loadState(*statePath)
 	if errorValue != nil {
+		if *jsonOutput && errors.Is(errorValue, os.ErrNotExist) {
+			writeJSONDocument(os.Stdout, companionStatusDocument{Paired: false})
+			return nil
+		}
 		return errorValue
+	}
+	if *jsonOutput {
+		writeJSONDocument(os.Stdout, companionStatusFromState(state))
+		return nil
 	}
 	fmt.Println("device: " + state.DeviceURL)
 	fmt.Println("companion: " + state.CompanionID)
@@ -233,7 +263,11 @@ func notImplemented(responseWriter http.ResponseWriter, request *http.Request) {
 
 func writeJSON(responseWriter http.ResponseWriter, response any) {
 	responseWriter.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(responseWriter).Encode(response)
+	writeJSONDocument(responseWriter, response)
+}
+
+func writeJSONDocument(writer io.Writer, response any) {
+	_ = json.NewEncoder(writer).Encode(response)
 }
 
 func sendHeartbeat(httpClient *http.Client, state companionState) error {
@@ -331,6 +365,16 @@ func loadState(path string) (companionState, error) {
 		return companionState{}, errorValue
 	}
 	return state, nil
+}
+
+func companionStatusFromState(state companionState) companionStatusDocument {
+	return companionStatusDocument{
+		Paired:       state.DeviceURL != "" && state.CompanionID != "" && state.Token != "",
+		DeviceURL:    state.DeviceURL,
+		CompanionID:  state.CompanionID,
+		LocalOnly:    state.LocalOnly,
+		Capabilities: state.Capabilities,
+	}
 }
 
 func defaultStatePath() string {
