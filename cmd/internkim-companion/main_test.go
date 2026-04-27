@@ -60,6 +60,28 @@ func TestPairSavesState(t *testing.T) {
 	}
 }
 
+func TestPairAcceptsDeepLinkArgument(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.String() != "https://device.intern.kim/_internkim/companion/pair" {
+			t.Fatalf("unexpected pair endpoint: %s", request.URL.String())
+		}
+		return textResponse(http.StatusOK, `{"companionID":"companion-1","token":"token-1"}`), nil
+	})}
+
+	errorValue := runPair([]string{"--state", statePath, "internkim://pair?device_url=https%3A%2F%2Fdevice.intern.kim&code=ABCD-1234"}, httpClient)
+	if errorValue != nil {
+		t.Fatalf("expected deep link pair success: %v", errorValue)
+	}
+	state, errorValue := loadState(statePath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if state.DeviceURL != "https://device.intern.kim" {
+		t.Fatalf("unexpected device URL: %s", state.DeviceURL)
+	}
+}
+
 func TestRunOnceCompletesMockLLMJob(t *testing.T) {
 	statePath := filepath.Join(t.TempDir(), "state.json")
 	state := companionState{
