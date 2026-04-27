@@ -10,11 +10,16 @@ import (
 	"strings"
 	"testing"
 
+	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
 	"github.com/anthropic-lab/internkim/internal/capabilities"
 )
 
-type fakeBrowserOpener struct {
-	openedURLs []string
+type fakeBrowserRuntime struct {
+	startRequest    browserruntime.SessionStartRequest
+	navigateRequest browserruntime.NavigateRequest
+	observeResult   browserruntime.ObserveResult
+	screenshot      browserruntime.ScreenshotResult
+	errorValue      error
 }
 
 type fakeFilePicker struct {
@@ -26,10 +31,40 @@ type fakeFileUploader struct {
 	request FileUploadRequest
 }
 
-func (opener *fakeBrowserOpener) OpenBrowser(ctx context.Context, targetURL string) error {
+func (runtime *fakeBrowserRuntime) StartSession(ctx context.Context, request browserruntime.SessionStartRequest) (browserruntime.SessionStartResult, error) {
 	_ = ctx
-	opener.openedURLs = append(opener.openedURLs, targetURL)
-	return nil
+	runtime.startRequest = request
+	if runtime.errorValue != nil {
+		return browserruntime.SessionStartResult{}, runtime.errorValue
+	}
+	return browserruntime.SessionStartResult{SessionID: "internkim", Opened: true, URL: firstNonEmpty(request.URL, request.StartURL)}, nil
+}
+
+func (runtime *fakeBrowserRuntime) Navigate(ctx context.Context, request browserruntime.NavigateRequest) (browserruntime.NavigateResult, error) {
+	_ = ctx
+	runtime.navigateRequest = request
+	if runtime.errorValue != nil {
+		return browserruntime.NavigateResult{}, runtime.errorValue
+	}
+	return browserruntime.NavigateResult{URL: request.URL}, nil
+}
+
+func (runtime *fakeBrowserRuntime) Observe(ctx context.Context, request browserruntime.ObserveRequest) (browserruntime.ObserveResult, error) {
+	_ = ctx
+	_ = request
+	if runtime.errorValue != nil {
+		return browserruntime.ObserveResult{}, runtime.errorValue
+	}
+	return runtime.observeResult, nil
+}
+
+func (runtime *fakeBrowserRuntime) Screenshot(ctx context.Context, request browserruntime.ScreenshotRequest) (browserruntime.ScreenshotResult, error) {
+	_ = ctx
+	_ = request
+	if runtime.errorValue != nil {
+		return browserruntime.ScreenshotResult{}, runtime.errorValue
+	}
+	return runtime.screenshot, nil
 }
 
 func (picker fakeFilePicker) PickFile(ctx context.Context, request FilePickRequest) (PickedFile, error) {
@@ -52,8 +87,8 @@ func (uploader *fakeFileUploader) UploadFile(ctx context.Context, request FileUp
 }
 
 func TestBrowserNavigateOpensValidatedURL(t *testing.T) {
-	opener := &fakeBrowserOpener{}
-	executor := Executor{BrowserOpener: opener}
+	browserRuntime := &fakeBrowserRuntime{}
+	executor := Executor{BrowserRuntime: browserRuntime}
 
 	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "browser.navigate",
@@ -62,14 +97,13 @@ func TestBrowserNavigateOpensValidatedURL(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected browser navigate success: %v", errorValue)
 	}
-	if response.ToolName != "browser.navigate" || len(opener.openedURLs) != 1 || opener.openedURLs[0] != "https://example.com/path" {
-		t.Fatalf("unexpected browser result: response=%+v urls=%v", response, opener.openedURLs)
+	if response.ToolName != "browser.navigate" || browserRuntime.navigateRequest.URL != "https://example.com/path" {
+		t.Fatalf("unexpected browser result: response=%+v request=%+v", response, browserRuntime.navigateRequest)
 	}
 }
 
 func TestBrowserNavigateRejectsNonHTTPURL(t *testing.T) {
-	opener := &fakeBrowserOpener{}
-	executor := Executor{BrowserOpener: opener}
+	executor := Executor{BrowserRuntime: browserruntime.AgentBrowserRuntime{}}
 
 	_, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "browser.navigate",
@@ -78,8 +112,62 @@ func TestBrowserNavigateRejectsNonHTTPURL(t *testing.T) {
 	if errorValue == nil {
 		t.Fatal("expected non-http browser URL to fail")
 	}
-	if len(opener.openedURLs) != 0 {
-		t.Fatalf("expected browser not to open, got %v", opener.openedURLs)
+}
+
+func TestBrowserObserveUsesRuntimeSchema(t *testing.T) {
+	executor := Executor{BrowserRuntime: &fakeBrowserRuntime{observeResult: browserruntime.ObserveResult{
+		URL:             "https://example.com",
+		Title:           "Example",
+		SnapshotText:    "- link \"More\" [ref=e1]",
+		InteractiveRefs: []string{"@e1"},
+		CapturedAt:      "2026-04-27T00:00:00Z",
+	}}}
+
+	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{ToolName: "browser.observe"})
+	if errorValue != nil {
+		t.Fatalf("expected observe success: %v", errorValue)
+	}
+	var result browserruntime.ObserveResult
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if result.URL != "https://example.com" || result.InteractiveRefs[0] != "@e1" {
+		t.Fatalf("unexpected observe result: %+v", result)
+	}
+	if strings.Contains(string(response.Result), "profile") || strings.Contains(string(response.Result), "cdp") || strings.Contains(string(response.Result), "cookie") {
+		t.Fatalf("observe leaked browser internals: %s", string(response.Result))
+	}
+}
+
+func TestBrowserScreenshotUploadsDevicePathOnly(t *testing.T) {
+	screenshotPath := writeExecutorTestFile(t, "screen.png", "png")
+	uploader := &fakeFileUploader{}
+	executor := Executor{
+		BrowserRuntime: &fakeBrowserRuntime{screenshot: browserruntime.ScreenshotResult{
+			LocalPath:   screenshotPath,
+			Filename:    "screen.png",
+			SizeBytes:   3,
+			ContentType: "image/png",
+			CapturedAt:  "2026-04-27T00:00:00Z",
+		}},
+		FileUploader: uploader,
+	}
+
+	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.screenshot"}, capabilities.ToolInvokeRequest{
+		ToolName: "browser.screenshot",
+		Input:    json.RawMessage(`{"ttlSeconds":300}`),
+	})
+	if errorValue != nil {
+		t.Fatalf("expected screenshot success: %v", errorValue)
+	}
+	if uploader.request.Path != screenshotPath || uploader.request.TTLSeconds != 300 {
+		t.Fatalf("unexpected screenshot upload request: %+v", uploader.request)
+	}
+	if strings.Contains(string(response.Result), screenshotPath) {
+		t.Fatalf("screenshot leaked local path: %s", string(response.Result))
+	}
+	if !strings.Contains(string(response.Result), "/tmp/internkim-companion-files/screen.png") {
+		t.Fatalf("screenshot did not return device path: %s", string(response.Result))
 	}
 }
 

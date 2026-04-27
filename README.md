@@ -171,13 +171,15 @@ Deep link를 직접 넘기는 CLI fallback도 지원합니다.
 ./internkim-companion pair 'internkim://pair?device_url=https%3A%2F%2Fdc719d8e.example.test&code=ABCD-1234'
 ```
 
-현재 companion executor는 `user.confirm`, `user.input`, approval grant, `file.pick`, `browser.session.start`, `browser.navigate`, 개발용 mock `llm.text`, 개발용 mock `llm.structured`를 처리합니다. Tauri shell은 confirmation/input/approval/file picker UI를 띄우고, 승인된 작업 범위는 `Allowed for this task`에서 확인하거나 revoke할 수 있습니다. `--allow-stdin-prompts`는 shell 없이 디버깅할 때만 쓰는 CLI fallback입니다.
+현재 companion executor는 `user.confirm`, `user.input`, approval grant, `file.pick`, `browser.session.start`, `browser.navigate`, `browser.observe`, `browser.screenshot`, 개발용 mock `llm.text`, 개발용 mock `llm.structured`를 처리합니다. Tauri shell은 confirmation/input/approval/file picker UI를 띄우고, 승인된 작업 범위는 `Allowed for this task`에서 확인하거나 revoke할 수 있습니다. `--allow-stdin-prompts`는 shell 없이 디버깅할 때만 쓰는 CLI fallback입니다.
 
 `file.pick`은 사용자 로컬 경로를 InternKim/Blueclaw에 넘기지 않습니다. companion이 선택된 파일을 signed broker upload로 device의 `/tmp/internkim-companion-files/{filename}`에 복사하고, 응답에는 device-local temporary path와 TTL만 포함합니다. 같은 이름은 덮어쓰며 metadata TTL이 지나면 `internkim-admind`가 자동 삭제합니다.
 
+브라우저 capability는 `agent-browser` adapter 뒤에서 실행합니다. Companion은 headed mode와 InternKim 전용 persistent profile을 사용하고, observe 결과에는 URL, title, snapshot text, interactive refs만 담습니다. screenshot은 사용자 로컬 경로를 반환하지 않고 기존 signed upload 경로를 통해 device temporary path만 반환합니다. Companion 앱 bundle에는 현재 OS/arch용 `agent-browser`가 포함되며, 첫 실행 때 managed browser install을 자동으로 시도합니다. 실패해도 user/file/mock LLM capability는 계속 동작하고 browser capability만 unavailable로 표시됩니다. 개발 환경에서는 `make deps-companion-browser`로 bundle source와 browser install smoke를 확인합니다.
+
 Pairing signing key는 state file에 평문으로 저장하지 않습니다. state에는 key reference만 남기고 macOS에서는 Keychain을 사용합니다. secure storage를 쓸 수 없는 개발 환경에서만 `INTERNKIM_COMPANION_DEV_FILE_STORE=1`을 켜서 파일 기반 fallback을 허용합니다.
 
-Tauri shell은 `companion/`에 있으며 Go daemon을 sidecar로 bundle합니다. 개발 빌드 전에는 `make build-companion`으로 sidecar binary를 `companion/src-tauri/binaries/`에 준비합니다.
+Tauri shell은 `companion/`에 있으며 Go daemon과 `agent-browser`를 sidecar로 bundle합니다. 개발 빌드 전에는 `make build-companion`으로 필요한 binaries를 `companion/src-tauri/binaries/`에 준비합니다.
 
 개발용 mock LLM은 명시적으로만 켭니다.
 

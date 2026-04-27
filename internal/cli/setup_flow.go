@@ -496,6 +496,10 @@ func (state *setupFlowState) installBinariesSSH(context *setup.Context) error {
 		fmt.Printf("  %s %s\n", asset.name, state.messenger.t("설치 완료", "installed"))
 	}
 
+	if err := state.ensureAgentBrowserRuntimeSSH(); err != nil {
+		return err
+	}
+
 	state.sshClient.run(`
 NOLOGIN_BIN=$(command -v nologin || echo /usr/sbin/nologin)
 getent group gws >/dev/null 2>&1 || groupadd --system gws
@@ -573,6 +577,35 @@ chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills 2>/dev/null || true`
 	}
 
 	return nil
+}
+
+func (state *setupFlowState) ensureAgentBrowserRuntimeSSH() error {
+	fmt.Print("  agent-browser runtime... ")
+	output, err := state.sshClient.runResult(`
+set -eu
+agent-browser install >/tmp/internkim-agent-browser-install.log 2>&1
+agent-browser doctor --offline --quick >/tmp/internkim-agent-browser-doctor.log 2>&1
+`)
+	if err == nil {
+		fmt.Println("ready")
+		return nil
+	}
+	fmt.Println("FAILED")
+	diagnostic := strings.TrimSpace(state.sshClient.run(`
+{
+  echo "agent-browser install log:"
+  tail -80 /tmp/internkim-agent-browser-install.log 2>/dev/null || true
+  echo "agent-browser doctor log:"
+  tail -80 /tmp/internkim-agent-browser-doctor.log 2>/dev/null || true
+} | tail -120
+`))
+	if diagnostic == "" {
+		diagnostic = strings.TrimSpace(output)
+	}
+	if diagnostic == "" {
+		diagnostic = err.Error()
+	}
+	return fmt.Errorf("agent-browser runtime is not ready: %s", diagnostic)
 }
 
 func (state *setupFlowState) installBlueclawMigrationsSSH() error {

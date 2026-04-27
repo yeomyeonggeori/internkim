@@ -9,19 +9,13 @@ import (
 	"fmt"
 	"io"
 	"mime"
-	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 
+	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
 	"github.com/anthropic-lab/internkim/internal/capabilities"
 )
-
-type BrowserOpener interface {
-	OpenBrowser(ctx context.Context, targetURL string) error
-}
 
 type PromptHandler interface {
 	Confirm(ctx context.Context, message string, defaultValue bool) (bool, error)
@@ -38,15 +32,13 @@ type FileUploader interface {
 
 type Executor struct {
 	DevMockLLM      bool
-	BrowserOpener   BrowserOpener
+	BrowserRuntime  browserruntime.Runtime
 	PromptHandler   PromptHandler
 	FilePicker      FilePicker
 	FileUploader    FileUploader
 	ApprovalHandler ApprovalHandler
 	GrantStore      *MemoryGrantStore
 }
-
-type SystemBrowserOpener struct{}
 
 type TerminalPromptHandler struct {
 	Reader io.Reader
@@ -106,14 +98,16 @@ func (executor Executor) ExecuteJob(ctx context.Context, envelope JobEnvelope, r
 		return executor.executeBrowserSessionStart(ctx, request)
 	case "browser.navigate":
 		return executor.executeBrowserNavigate(ctx, request)
+	case "browser.observe":
+		return executor.executeBrowserObserve(ctx, request)
+	case "browser.screenshot":
+		return executor.executeBrowserScreenshot(ctx, envelope, request)
 	case "user.confirm":
 		return executor.executeUserConfirm(ctx, request)
 	case "user.input":
 		return executor.executeUserInput(ctx, request)
 	case "file.pick":
 		return executor.executeFilePick(ctx, envelope, request)
-	case "browser.observe", "browser.screenshot":
-		return capabilities.ToolInvokeResponse{}, fmt.Errorf("companion capability is not implemented yet: %s", request.ToolName)
 	default:
 		return capabilities.ToolInvokeResponse{}, fmt.Errorf("companion capability is not configured: %s", request.ToolName)
 	}
@@ -145,41 +139,86 @@ func (executor Executor) executeStructuredLLM(request capabilities.ToolInvokeReq
 }
 
 func (executor Executor) executeBrowserSessionStart(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	var input struct {
-		URL      string `json:"url"`
-		StartURL string `json:"startURL"`
-	}
+	var input browserruntime.SessionStartRequest
 	if errorValue := decodeInput(request.Input, &input); errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	targetURL := firstNonEmpty(input.URL, input.StartURL)
-	opened := false
-	if targetURL != "" {
-		if errorValue := executor.openBrowser(ctx, targetURL); errorValue != nil {
-			return capabilities.ToolInvokeResponse{}, errorValue
-		}
-		opened = true
+	if executor.BrowserRuntime == nil {
+		return capabilities.ToolInvokeResponse{}, errors.New("companion browser runtime unavailable")
 	}
-	return toolResponse(request.ToolName, map[string]any{
-		"sessionID": "default",
-		"opened":    opened,
-		"url":       targetURL,
-	})
+	result, errorValue := executor.BrowserRuntime.StartSession(ctx, input)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	return toolResponse(request.ToolName, result)
 }
 
 func (executor Executor) executeBrowserNavigate(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	var input browserruntime.NavigateRequest
+	if errorValue := decodeInput(request.Input, &input); errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	if executor.BrowserRuntime == nil {
+		return capabilities.ToolInvokeResponse{}, errors.New("companion browser runtime unavailable")
+	}
+	result, errorValue := executor.BrowserRuntime.Navigate(ctx, input)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	return toolResponse(request.ToolName, result)
+}
+
+func (executor Executor) executeBrowserObserve(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	if executor.BrowserRuntime == nil {
+		return capabilities.ToolInvokeResponse{}, errors.New("companion browser runtime unavailable")
+	}
+	var input browserruntime.ObserveRequest
+	if errorValue := decodeInput(request.Input, &input); errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	result, errorValue := executor.BrowserRuntime.Observe(ctx, input)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	return toolResponse(request.ToolName, result)
+}
+
+func (executor Executor) executeBrowserScreenshot(ctx context.Context, envelope JobEnvelope, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	if executor.BrowserRuntime == nil {
+		return capabilities.ToolInvokeResponse{}, errors.New("companion browser runtime unavailable")
+	}
+	if executor.FileUploader == nil {
+		return capabilities.ToolInvokeResponse{}, errors.New("browser screenshot upload requires device broker")
+	}
 	var input struct {
-		URL string `json:"url"`
+		TTLSeconds int `json:"ttlSeconds,omitempty"`
 	}
 	if errorValue := decodeInput(request.Input, &input); errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	if errorValue := executor.openBrowser(ctx, input.URL); errorValue != nil {
+	screenshot, errorValue := executor.BrowserRuntime.Screenshot(ctx, browserruntime.ScreenshotRequest{})
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	uploadedFile, errorValue := executor.FileUploader.UploadFile(ctx, FileUploadRequest{
+		JobID:       envelope.JobID,
+		Path:        screenshot.LocalPath,
+		Filename:    screenshot.Filename,
+		SizeBytes:   screenshot.SizeBytes,
+		ContentType: screenshot.ContentType,
+		TTLSeconds:  input.TTLSeconds,
+	})
+	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	return toolResponse(request.ToolName, map[string]any{
-		"opened": true,
-		"url":    input.URL,
+		"fileID":      uploadedFile.FileID,
+		"filename":    uploadedFile.Filename,
+		"sizeBytes":   uploadedFile.SizeBytes,
+		"contentType": uploadedFile.ContentType,
+		"devicePath":  uploadedFile.DevicePath,
+		"expiresAt":   uploadedFile.ExpiresAt,
+		"capturedAt":  screenshot.CapturedAt,
 	})
 }
 
@@ -296,32 +335,6 @@ func extensionAllowed(filename string, allowedExtensions []string) bool {
 	return false
 }
 
-func (executor Executor) openBrowser(ctx context.Context, targetURL string) error {
-	if executor.BrowserOpener == nil {
-		return errors.New("browser opener is not configured")
-	}
-	if errorValue := validateBrowserURL(targetURL); errorValue != nil {
-		return errorValue
-	}
-	return executor.BrowserOpener.OpenBrowser(ctx, targetURL)
-}
-
-func (SystemBrowserOpener) OpenBrowser(ctx context.Context, targetURL string) error {
-	commandName, arguments := browserOpenCommand(targetURL)
-	return exec.CommandContext(ctx, commandName, arguments...).Start()
-}
-
-func browserOpenCommand(targetURL string) (string, []string) {
-	switch runtime.GOOS {
-	case "darwin":
-		return "open", []string{targetURL}
-	case "windows":
-		return "rundll32", []string{"url.dll,FileProtocolHandler", targetURL}
-	default:
-		return "xdg-open", []string{targetURL}
-	}
-}
-
 func (handler TerminalPromptHandler) Confirm(ctx context.Context, message string, defaultValue bool) (bool, error) {
 	_ = ctx
 	if handler.Reader == nil {
@@ -413,17 +426,6 @@ func decodeInput(document []byte, output any) error {
 		return nil
 	}
 	return json.Unmarshal(document, output)
-}
-
-func validateBrowserURL(value string) error {
-	parsedURL, errorValue := url.Parse(strings.TrimSpace(value))
-	if errorValue != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
-		return errors.New("browser URL must be absolute")
-	}
-	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return errors.New("browser URL must use http or https")
-	}
-	return nil
 }
 
 func firstNonEmpty(values ...string) string {

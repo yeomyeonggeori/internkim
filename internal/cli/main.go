@@ -1500,6 +1500,7 @@ func runDoctor() {
 		{name: "bun", purpose: "Pages checks and browser tests", installHint: "brew install oven-sh/bun/bun"},
 		{name: "bunx", purpose: "Playwright browser test runner", installHint: "brew install oven-sh/bun/bun"},
 		{name: "ssh", purpose: "board access", installHint: "included with macOS"},
+		{name: "agent-browser", purpose: "companion browser runtime", installHint: "see https://agent-browser.dev/installation"},
 	}
 	dependencies = append(dependencies, simulationDependencies(configuration)...)
 

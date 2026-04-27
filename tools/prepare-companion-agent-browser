@@ -1,0 +1,69 @@
+#!/bin/sh
+set -eu
+
+outputDirectory="${1:-companion/src-tauri/binaries}"
+targetTriple="${2:-}"
+version="${3:-0.26.0}"
+packageName="agent-browser@${version}"
+archivePath="/tmp/agent-browser-${version}.tgz"
+
+nativeBinaryName() {
+  systemName="$(uname -s)"
+  machineName="$(uname -m)"
+  case "${systemName}:${machineName}" in
+    Darwin:arm64) echo "agent-browser-darwin-arm64" ;;
+    Darwin:x86_64) echo "agent-browser-darwin-x64" ;;
+    Linux:arm64|Linux:aarch64) echo "agent-browser-linux-arm64" ;;
+    Linux:x86_64|Linux:amd64) echo "agent-browser-linux-x64" ;;
+    MINGW*:x86_64|MSYS*:x86_64|CYGWIN*:x86_64) echo "agent-browser-win32-x64.exe" ;;
+    *) echo "" ;;
+  esac
+}
+
+copyBinary() {
+  sourcePath="$1"
+  destinationPath="$2"
+  mkdir -p "${outputDirectory}"
+  cp "${sourcePath}" "${destinationPath}"
+  chmod 755 "${destinationPath}"
+}
+
+copyPreparedBinary() {
+  sourcePath="$1"
+  copyBinary "${sourcePath}" "${outputDirectory}/agent-browser"
+  if [ -n "${targetTriple}" ]; then
+    copyBinary "${sourcePath}" "${outputDirectory}/agent-browser-${targetTriple}"
+  fi
+}
+
+if [ -n "${AGENT_BROWSER_BINARY:-}" ]; then
+  if [ ! -x "${AGENT_BROWSER_BINARY}" ]; then
+    echo "AGENT_BROWSER_BINARY is not executable: ${AGENT_BROWSER_BINARY}" >&2
+    exit 1
+  fi
+  copyPreparedBinary "${AGENT_BROWSER_BINARY}"
+  exit 0
+fi
+
+pathBinary="$(command -v agent-browser 2>/dev/null || true)"
+if [ -n "${pathBinary}" ] && [ -x "${pathBinary}" ]; then
+  if [ "$(head -c 2 "${pathBinary}" 2>/dev/null || true)" != "#!" ]; then
+    copyPreparedBinary "${pathBinary}"
+    exit 0
+  fi
+fi
+
+binaryName="$(nativeBinaryName)"
+if [ -z "${binaryName}" ]; then
+  echo "unsupported platform for agent-browser bundle: $(uname -s) $(uname -m)" >&2
+  exit 1
+fi
+
+if [ ! -f "${archivePath}" ]; then
+  npm pack "${packageName}" --pack-destination /tmp >/dev/null
+fi
+
+temporaryDirectory="$(mktemp -d)"
+trap 'rm -rf "${temporaryDirectory}"' EXIT
+tar -xzf "${archivePath}" -C "${temporaryDirectory}" "package/bin/${binaryName}"
+copyPreparedBinary "${temporaryDirectory}/package/bin/${binaryName}"
