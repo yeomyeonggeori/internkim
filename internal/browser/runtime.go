@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -20,6 +21,11 @@ type Runtime interface {
 	Navigate(context.Context, NavigateRequest) (NavigateResult, error)
 	Observe(context.Context, ObserveRequest) (ObserveResult, error)
 	Screenshot(context.Context, ScreenshotRequest) (ScreenshotResult, error)
+	Click(context.Context, ClickRequest) (ActionResult, error)
+	Fill(context.Context, FillRequest) (ActionResult, error)
+	Select(context.Context, SelectRequest) (ActionResult, error)
+	Press(context.Context, PressRequest) (ActionResult, error)
+	Wait(context.Context, WaitRequest) (ActionResult, error)
 }
 
 type CommandRunner interface {
@@ -79,6 +85,44 @@ type ScreenshotResult struct {
 	SizeBytes   int64  `json:"sizeBytes"`
 	ContentType string `json:"contentType"`
 	CapturedAt  string `json:"capturedAt"`
+}
+
+type ClickRequest struct {
+	Selector string `json:"selector,omitempty"`
+	Ref      string `json:"ref,omitempty"`
+	Target   string `json:"target,omitempty"`
+}
+
+type FillRequest struct {
+	Selector string `json:"selector,omitempty"`
+	Ref      string `json:"ref,omitempty"`
+	Target   string `json:"target,omitempty"`
+	Text     string `json:"text"`
+}
+
+type SelectRequest struct {
+	Selector string `json:"selector,omitempty"`
+	Ref      string `json:"ref,omitempty"`
+	Target   string `json:"target,omitempty"`
+	Value    string `json:"value"`
+}
+
+type PressRequest struct {
+	Key string `json:"key"`
+}
+
+type WaitRequest struct {
+	Selector     string `json:"selector,omitempty"`
+	Ref          string `json:"ref,omitempty"`
+	Target       string `json:"target,omitempty"`
+	Milliseconds int    `json:"milliseconds,omitempty"`
+}
+
+type ActionResult struct {
+	OK         bool   `json:"ok"`
+	Action     string `json:"action"`
+	Target     string `json:"target,omitempty"`
+	CapturedAt string `json:"capturedAt"`
 }
 
 type OSCommandRunner struct{}
@@ -149,6 +193,70 @@ func (runtime AgentBrowserRuntime) Screenshot(ctx context.Context, request Scree
 		ContentType: "image/png",
 		CapturedAt:  capturedAt.UTC().Format(time.RFC3339),
 	}, nil
+}
+
+func (runtime AgentBrowserRuntime) Click(ctx context.Context, request ClickRequest) (ActionResult, error) {
+	target, errorValue := browserTarget(request.Selector, request.Ref, request.Target)
+	if errorValue != nil {
+		return ActionResult{}, errorValue
+	}
+	if _, errorValue := runtime.run(ctx, append(runtime.baseArguments(), "click", target)...); errorValue != nil {
+		return ActionResult{}, errorValue
+	}
+	return runtime.actionResult("click", target), nil
+}
+
+func (runtime AgentBrowserRuntime) Fill(ctx context.Context, request FillRequest) (ActionResult, error) {
+	target, errorValue := browserTarget(request.Selector, request.Ref, request.Target)
+	if errorValue != nil {
+		return ActionResult{}, errorValue
+	}
+	if strings.TrimSpace(request.Text) == "" {
+		return ActionResult{}, errors.New("browser fill text is required")
+	}
+	if _, errorValue := runtime.run(ctx, append(runtime.baseArguments(), "fill", target, request.Text)...); errorValue != nil {
+		return ActionResult{}, errorValue
+	}
+	return runtime.actionResult("fill", target), nil
+}
+
+func (runtime AgentBrowserRuntime) Select(ctx context.Context, request SelectRequest) (ActionResult, error) {
+	target, errorValue := browserTarget(request.Selector, request.Ref, request.Target)
+	if errorValue != nil {
+		return ActionResult{}, errorValue
+	}
+	if strings.TrimSpace(request.Value) == "" {
+		return ActionResult{}, errors.New("browser select value is required")
+	}
+	if _, errorValue := runtime.run(ctx, append(runtime.baseArguments(), "select", target, request.Value)...); errorValue != nil {
+		return ActionResult{}, errorValue
+	}
+	return runtime.actionResult("select", target), nil
+}
+
+func (runtime AgentBrowserRuntime) Press(ctx context.Context, request PressRequest) (ActionResult, error) {
+	if strings.TrimSpace(request.Key) == "" {
+		return ActionResult{}, errors.New("browser press key is required")
+	}
+	if _, errorValue := runtime.run(ctx, append(runtime.baseArguments(), "press", strings.TrimSpace(request.Key))...); errorValue != nil {
+		return ActionResult{}, errorValue
+	}
+	return runtime.actionResult("press", ""), nil
+}
+
+func (runtime AgentBrowserRuntime) Wait(ctx context.Context, request WaitRequest) (ActionResult, error) {
+	target := strings.TrimSpace(firstNonEmpty(request.Selector, request.Ref, request.Target))
+	if target == "" && request.Milliseconds <= 0 {
+		return ActionResult{}, errors.New("browser wait requires target or milliseconds")
+	}
+	waitValue := target
+	if waitValue == "" {
+		waitValue = strconv.Itoa(request.Milliseconds)
+	}
+	if _, errorValue := runtime.run(ctx, append(runtime.baseArguments(), "wait", waitValue)...); errorValue != nil {
+		return ActionResult{}, errorValue
+	}
+	return runtime.actionResult("wait", target), nil
 }
 
 func (runtime AgentBrowserRuntime) Check(ctx context.Context) RuntimeReadiness {
@@ -228,9 +336,26 @@ func (runtime AgentBrowserRuntime) now() time.Time {
 	return time.Now()
 }
 
+func (runtime AgentBrowserRuntime) actionResult(action string, target string) ActionResult {
+	return ActionResult{
+		OK:         true,
+		Action:     action,
+		Target:     target,
+		CapturedAt: runtime.now().UTC().Format(time.RFC3339),
+	}
+}
+
 func (OSCommandRunner) Run(ctx context.Context, commandPath string, arguments []string) ([]byte, error) {
 	command := exec.CommandContext(ctx, commandPath, arguments...)
 	return command.CombinedOutput()
+}
+
+func browserTarget(values ...string) (string, error) {
+	target := strings.TrimSpace(firstNonEmpty(values...))
+	if target == "" {
+		return "", errors.New("browser target is required")
+	}
+	return target, nil
 }
 
 func observeResultFromOutput(output []byte, capturedAt string) ObserveResult {

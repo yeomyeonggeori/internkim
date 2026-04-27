@@ -138,6 +138,92 @@ func TestAgentBrowserRuntimeScreenshotRunsCommandAndReturnsOmittedPath(t *testin
 	}
 }
 
+func TestAgentBrowserRuntimeControlCommands(t *testing.T) {
+	runner := &fakeCommandRunner{}
+	runtime := AgentBrowserRuntime{
+		CommandPath: "agent-browser-test",
+		ProfilePath: "/profile",
+		SessionName: "internkim-test",
+		Runner:      runner,
+		Now:         func() time.Time { return time.Date(2026, 4, 27, 0, 0, 0, 0, time.UTC) },
+	}
+
+	cases := []struct {
+		name      string
+		run       func() (ActionResult, error)
+		arguments []string
+	}{
+		{
+			name:      "click",
+			run:       func() (ActionResult, error) { return runtime.Click(context.Background(), ClickRequest{Ref: "@e1"}) },
+			arguments: []string{"--headed", "false", "--profile", "/profile", "--session-name", "internkim-test", "click", "@e1"},
+		},
+		{
+			name: "fill",
+			run: func() (ActionResult, error) {
+				return runtime.Fill(context.Background(), FillRequest{Target: "@e2", Text: "hello"})
+			},
+			arguments: []string{"--headed", "false", "--profile", "/profile", "--session-name", "internkim-test", "fill", "@e2", "hello"},
+		},
+		{
+			name: "select",
+			run: func() (ActionResult, error) {
+				return runtime.Select(context.Background(), SelectRequest{Selector: "select[name=team]", Value: "ops"})
+			},
+			arguments: []string{"--headed", "false", "--profile", "/profile", "--session-name", "internkim-test", "select", "select[name=team]", "ops"},
+		},
+		{
+			name:      "press",
+			run:       func() (ActionResult, error) { return runtime.Press(context.Background(), PressRequest{Key: "Enter"}) },
+			arguments: []string{"--headed", "false", "--profile", "/profile", "--session-name", "internkim-test", "press", "Enter"},
+		},
+		{
+			name: "wait",
+			run: func() (ActionResult, error) {
+				return runtime.Wait(context.Background(), WaitRequest{Milliseconds: 250})
+			},
+			arguments: []string{"--headed", "false", "--profile", "/profile", "--session-name", "internkim-test", "wait", "250"},
+		},
+	}
+
+	for index, testCase := range cases {
+		result, errorValue := testCase.run()
+		if errorValue != nil {
+			t.Fatalf("expected %s success: %v", testCase.name, errorValue)
+		}
+		if !result.OK || result.Action != testCase.name {
+			t.Fatalf("unexpected %s result: %+v", testCase.name, result)
+		}
+		if !reflect.DeepEqual(runner.calls[index].arguments, testCase.arguments) {
+			t.Fatalf("unexpected %s arguments: %+v", testCase.name, runner.calls[index].arguments)
+		}
+	}
+}
+
+func TestAgentBrowserRuntimeControlValidation(t *testing.T) {
+	runner := &fakeCommandRunner{}
+	runtime := AgentBrowserRuntime{Runner: runner}
+
+	if _, errorValue := runtime.Click(context.Background(), ClickRequest{}); errorValue == nil {
+		t.Fatal("expected empty click target to fail")
+	}
+	if _, errorValue := runtime.Fill(context.Background(), FillRequest{Target: "@e1"}); errorValue == nil {
+		t.Fatal("expected empty fill text to fail")
+	}
+	if _, errorValue := runtime.Select(context.Background(), SelectRequest{Target: "@e1"}); errorValue == nil {
+		t.Fatal("expected empty select value to fail")
+	}
+	if _, errorValue := runtime.Press(context.Background(), PressRequest{}); errorValue == nil {
+		t.Fatal("expected empty press key to fail")
+	}
+	if _, errorValue := runtime.Wait(context.Background(), WaitRequest{}); errorValue == nil {
+		t.Fatal("expected empty wait to fail")
+	}
+	if len(runner.calls) != 0 {
+		t.Fatalf("expected invalid controls not to run commands: %+v", runner.calls)
+	}
+}
+
 func TestAgentBrowserRuntimeMissingCommandUsesSafeError(t *testing.T) {
 	runtime := AgentBrowserRuntime{Runner: &fakeCommandRunner{errorValue: errors.New(`exec: "agent-browser": executable file not found in $PATH`)}}
 

@@ -82,7 +82,7 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if !containsStringValue(allowedToolNames, "conversation.history") || !containsStringValue(allowedToolNames, "memory.search") {
 		t.Fatalf("expected default agent profile to allow internal tools, got %+v", allowedToolNames)
 	}
-	for _, expectedToolName := range []string{"browser.session.start", "browser.navigate", "user.confirm", "file.pick"} {
+	for _, expectedToolName := range []string{"browser.session.start", "browser.navigate", "browser.click", "browser.fill", "browser.select", "browser.press", "browser.wait", "user.confirm", "file.pick"} {
 		if !containsStringValue(allowedToolNames, expectedToolName) {
 			t.Fatalf("expected default profile to allow %q, got %+v", expectedToolName, allowedToolNames)
 		}

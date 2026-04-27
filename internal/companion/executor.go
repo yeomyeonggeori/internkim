@@ -102,6 +102,16 @@ func (executor Executor) ExecuteJob(ctx context.Context, envelope JobEnvelope, r
 		return executor.executeBrowserObserve(ctx, request)
 	case "browser.screenshot":
 		return executor.executeBrowserScreenshot(ctx, envelope, request)
+	case "browser.click":
+		return executor.executeBrowserClick(ctx, request)
+	case "browser.fill":
+		return executor.executeBrowserFill(ctx, request)
+	case "browser.select":
+		return executor.executeBrowserSelect(ctx, request)
+	case "browser.press":
+		return executor.executeBrowserPress(ctx, request)
+	case "browser.wait":
+		return executor.executeBrowserWait(ctx, request)
 	case "user.confirm":
 		return executor.executeUserConfirm(ctx, request)
 	case "user.input":
@@ -220,6 +230,81 @@ func (executor Executor) executeBrowserScreenshot(ctx context.Context, envelope 
 		"expiresAt":   uploadedFile.ExpiresAt,
 		"capturedAt":  screenshot.CapturedAt,
 	})
+}
+
+func (executor Executor) executeBrowserClick(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	if executor.BrowserRuntime == nil {
+		return capabilities.ToolInvokeResponse{}, errors.New("companion browser runtime unavailable")
+	}
+	var input browserruntime.ClickRequest
+	if errorValue := decodeInput(request.Input, &input); errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	result, errorValue := executor.BrowserRuntime.Click(ctx, input)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	return toolResponse(request.ToolName, result)
+}
+
+func (executor Executor) executeBrowserFill(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	if executor.BrowserRuntime == nil {
+		return capabilities.ToolInvokeResponse{}, errors.New("companion browser runtime unavailable")
+	}
+	var input browserruntime.FillRequest
+	if errorValue := decodeInput(request.Input, &input); errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	result, errorValue := executor.BrowserRuntime.Fill(ctx, input)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	return toolResponse(request.ToolName, result)
+}
+
+func (executor Executor) executeBrowserSelect(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	if executor.BrowserRuntime == nil {
+		return capabilities.ToolInvokeResponse{}, errors.New("companion browser runtime unavailable")
+	}
+	var input browserruntime.SelectRequest
+	if errorValue := decodeInput(request.Input, &input); errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	result, errorValue := executor.BrowserRuntime.Select(ctx, input)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	return toolResponse(request.ToolName, result)
+}
+
+func (executor Executor) executeBrowserPress(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	if executor.BrowserRuntime == nil {
+		return capabilities.ToolInvokeResponse{}, errors.New("companion browser runtime unavailable")
+	}
+	var input browserruntime.PressRequest
+	if errorValue := decodeInput(request.Input, &input); errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	result, errorValue := executor.BrowserRuntime.Press(ctx, input)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	return toolResponse(request.ToolName, result)
+}
+
+func (executor Executor) executeBrowserWait(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	if executor.BrowserRuntime == nil {
+		return capabilities.ToolInvokeResponse{}, errors.New("companion browser runtime unavailable")
+	}
+	var input browserruntime.WaitRequest
+	if errorValue := decodeInput(request.Input, &input); errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	result, errorValue := executor.BrowserRuntime.Wait(ctx, input)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	return toolResponse(request.ToolName, result)
 }
 
 func (executor Executor) executeUserConfirm(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
