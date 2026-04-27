@@ -1,15 +1,18 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/anthropic-lab/internkim/internal/capabilities"
+	companionruntime "github.com/anthropic-lab/internkim/internal/companion"
 )
 
 func TestDefaultCapabilitiesAdvertiseLLMOnlyInDevelopmentMockMode(t *testing.T) {
@@ -56,7 +59,8 @@ func TestPairSavesState(t *testing.T) {
 		return textResponse(http.StatusOK, `{"companionID":"companion-1","token":"token-1"}`), nil
 	})}
 
-	errorValue := runPair([]string{"--device-url", "https://device.intern.kim", "--code", "ABCD-1234", "--state", statePath, "--local-only", "--dev-mock-llm"}, httpClient)
+	secureStore := companionruntime.NewMemorySecureStore()
+	errorValue := runPairWithStore([]string{"--device-url", "https://device.intern.kim", "--code", "ABCD-1234", "--state", statePath, "--local-only", "--dev-mock-llm"}, httpClient, secureStore)
 	if errorValue != nil {
 		t.Fatalf("expected pair success: %v", errorValue)
 	}
@@ -66,6 +70,12 @@ func TestPairSavesState(t *testing.T) {
 	}
 	if state.CompanionID != "companion-1" || state.Token != "token-1" || !state.LocalOnly {
 		t.Fatalf("unexpected state: %+v", state)
+	}
+	if state.PrivateKey != "" || state.PrivateKeyID == "" {
+		t.Fatalf("expected state to keep only private key reference: %+v", state)
+	}
+	if _, errorValue := secureStore.Get(nilContext(), state.PrivateKeyID); errorValue != nil {
+		t.Fatalf("expected private key in secure store: %v", errorValue)
 	}
 	if !hasCapability(state.Capabilities, "llm.structured") {
 		t.Fatal("expected development LLM capability to be stored")
@@ -81,7 +91,8 @@ func TestPairAcceptsDeepLinkArgument(t *testing.T) {
 		return textResponse(http.StatusOK, `{"companionID":"companion-1","token":"token-1"}`), nil
 	})}
 
-	errorValue := runPair([]string{"--state", statePath, "internkim://pair?device_url=https%3A%2F%2Fdevice.intern.kim&code=ABCD-1234"}, httpClient)
+	secureStore := companionruntime.NewMemorySecureStore()
+	errorValue := runPairWithStore([]string{"--state", statePath, "internkim://pair?device_url=https%3A%2F%2Fdevice.intern.kim&code=ABCD-1234"}, httpClient, secureStore)
 	if errorValue != nil {
 		t.Fatalf("expected deep link pair success: %v", errorValue)
 	}
@@ -96,13 +107,7 @@ func TestPairAcceptsDeepLinkArgument(t *testing.T) {
 
 func TestRunOnceCompletesMockLLMJob(t *testing.T) {
 	statePath := filepath.Join(t.TempDir(), "state.json")
-	state := companionState{
-		DeviceURL:    "https://device.intern.kim",
-		CompanionID:  "companion-1",
-		Token:        "token-1",
-		LocalOnly:    true,
-		Capabilities: defaultCapabilities(true, true),
-	}
+	state, secureStore := testCompanionState(t, true, true)
 	if errorValue := saveState(statePath, state); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -122,7 +127,7 @@ func TestRunOnceCompletesMockLLMJob(t *testing.T) {
 		}
 	})}
 
-	errorValue := runCompanion([]string{"--state", statePath, "--once", "--dev-mock-llm"}, httpClient)
+	errorValue := runCompanionWithStore([]string{"--state", statePath, "--once", "--dev-mock-llm"}, httpClient, secureStore)
 	if errorValue != nil {
 		t.Fatalf("expected run once success: %v", errorValue)
 	}
@@ -133,13 +138,7 @@ func TestRunOnceCompletesMockLLMJob(t *testing.T) {
 
 func TestRunOnceCompletesShellBridgeConfirmJob(t *testing.T) {
 	statePath := filepath.Join(t.TempDir(), "state.json")
-	state := companionState{
-		DeviceURL:    "https://device.intern.kim",
-		CompanionID:  "companion-1",
-		Token:        "token-1",
-		LocalOnly:    true,
-		Capabilities: defaultCapabilities(true, false),
-	}
+	state, secureStore := testCompanionState(t, true, false)
 	if errorValue := saveState(statePath, state); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -161,7 +160,7 @@ func TestRunOnceCompletesShellBridgeConfirmJob(t *testing.T) {
 		}
 	})}
 
-	errorValue := runCompanion([]string{"--state", statePath, "--once", "--shell-bridge-url", "http://127.0.0.1:1234"}, httpClient)
+	errorValue := runCompanionWithStore([]string{"--state", statePath, "--once", "--shell-bridge-url", "http://127.0.0.1:1234"}, httpClient, secureStore)
 	if errorValue != nil {
 		t.Fatalf("expected run once success: %v", errorValue)
 	}
@@ -172,13 +171,7 @@ func TestRunOnceCompletesShellBridgeConfirmJob(t *testing.T) {
 
 func TestRunOnceDeniesBrowserJobWithReason(t *testing.T) {
 	statePath := filepath.Join(t.TempDir(), "state.json")
-	state := companionState{
-		DeviceURL:    "https://device.intern.kim",
-		CompanionID:  "companion-1",
-		Token:        "token-1",
-		LocalOnly:    true,
-		Capabilities: defaultCapabilities(true, false),
-	}
+	state, secureStore := testCompanionState(t, true, false)
 	if errorValue := saveState(statePath, state); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -200,12 +193,98 @@ func TestRunOnceDeniesBrowserJobWithReason(t *testing.T) {
 		}
 	})}
 
-	errorValue := runCompanion([]string{"--state", statePath, "--once", "--shell-bridge-url", "http://127.0.0.1:1234"}, httpClient)
+	errorValue := runCompanionWithStore([]string{"--state", statePath, "--once", "--shell-bridge-url", "http://127.0.0.1:1234"}, httpClient, secureStore)
 	if errorValue == nil {
 		t.Fatal("expected denied browser job to return denial error")
 	}
 	if !seenDeny {
 		t.Fatal("expected companion to send a denial result")
+	}
+}
+
+func TestLegacyPrivateKeyStateMigratesToSecureStore(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	keyPair, errorValue := companionruntime.GenerateKeyPair()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	state := companionState{
+		DeviceURL:    "https://device.intern.kim",
+		CompanionID:  "companion-1",
+		Token:        "token-1",
+		PublicKey:    keyPair.PublicKey,
+		PrivateKey:   keyPair.PrivateKey,
+		LocalOnly:    true,
+		Capabilities: defaultCapabilities(true, false),
+	}
+	if errorValue := saveState(statePath, state); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	secureStore := companionruntime.NewMemorySecureStore()
+
+	migratedState, errorValue := loadStateAndMigrateSecrets(nilContext(), statePath, secureStore)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if migratedState.PrivateKey != "" || migratedState.PrivateKeyID == "" {
+		t.Fatalf("expected migrated state without raw private key: %+v", migratedState)
+	}
+	storedPrivateKey, errorValue := secureStore.Get(nilContext(), migratedState.PrivateKeyID)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if storedPrivateKey != keyPair.PrivateKey {
+		t.Fatal("expected secure store to contain migrated private key")
+	}
+	reloadedState, errorValue := loadState(statePath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if reloadedState.PrivateKey != "" {
+		t.Fatal("expected saved state to remove legacy private key")
+	}
+}
+
+func TestControlHandlerListsAndRevokesGrants(t *testing.T) {
+	grantStore := companionruntime.NewMemoryGrantStore()
+	approvalHandler := companionruntime.ApprovalHandler(companionApprovalHandler{allowed: true})
+	request := capabilities.ToolInvokeRequest{
+		ToolName:      "browser.navigate",
+		ResourceScope: capabilities.ResourceScope{Kind: "web_origin", Value: "https://github.com"},
+	}
+	if errorValue := grantStore.Authorize(context.Background(), companionruntime.JobEnvelope{
+		JobID:         "job-1",
+		ToolName:      "browser.navigate",
+		ResourceScope: request.ResourceScope,
+	}, request, approvalHandler); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	handler := controlHandler(grantStore)
+
+	listRequest := httptest.NewRequest(http.MethodGet, "/v1/security/grants", nil)
+	listRequest.RemoteAddr = "127.0.0.1:1234"
+	listResponse := httptest.NewRecorder()
+	handler.ServeHTTP(listResponse, listRequest)
+	if listResponse.Code != http.StatusOK {
+		t.Fatalf("expected grant list success, got %d", listResponse.Code)
+	}
+	var listDocument grantListDocument
+	if errorValue := json.Unmarshal(listResponse.Body.Bytes(), &listDocument); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(listDocument.Grants) != 1 {
+		t.Fatalf("expected one grant, got %d", len(listDocument.Grants))
+	}
+
+	revokeRequest := httptest.NewRequest(http.MethodPost, "/v1/security/grants/"+listDocument.Grants[0].GrantID+"/revoke", nil)
+	revokeRequest.RemoteAddr = "127.0.0.1:1234"
+	revokeResponse := httptest.NewRecorder()
+	handler.ServeHTTP(revokeResponse, revokeRequest)
+	if revokeResponse.Code != http.StatusOK {
+		t.Fatalf("expected revoke success, got %d", revokeResponse.Code)
+	}
+	if len(grantStore.ListActive()) != 0 {
+		t.Fatal("expected revoked grant to be inactive")
 	}
 }
 
@@ -238,6 +317,45 @@ func TestCompanionStatusFromState(t *testing.T) {
 	if !strings.Contains(string(document), `"paired":true`) {
 		t.Fatalf("expected paired JSON, got %s", string(document))
 	}
+	if strings.Contains(string(document), "privateKey") || strings.Contains(string(document), "token-1") {
+		t.Fatalf("expected status JSON to omit secrets, got %s", string(document))
+	}
+}
+
+func testCompanionState(t *testing.T, localOnly bool, devMockLLM bool) (companionState, *companionruntime.MemorySecureStore) {
+	t.Helper()
+	keyPair, errorValue := companionruntime.GenerateKeyPair()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	secureStore := companionruntime.NewMemorySecureStore()
+	privateKeyID := companionPrivateKeyID("companion-1")
+	if errorValue := secureStore.Put(nilContext(), privateKeyID, keyPair.PrivateKey); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return companionState{
+		DeviceURL:    "https://device.intern.kim",
+		CompanionID:  "companion-1",
+		Token:        "token-1",
+		PublicKey:    keyPair.PublicKey,
+		PrivateKeyID: privateKeyID,
+		LocalOnly:    localOnly,
+		Capabilities: defaultCapabilities(localOnly, devMockLLM),
+	}, secureStore
+}
+
+func nilContext() context.Context {
+	return context.Background()
+}
+
+type companionApprovalHandler struct {
+	allowed bool
+}
+
+func (handler companionApprovalHandler) Approve(ctx context.Context, request companionruntime.ApprovalRequest) (companionruntime.ApprovalDecision, error) {
+	_ = ctx
+	_ = request
+	return companionruntime.ApprovalDecision{Allowed: handler.allowed}, nil
 }
 
 func textResponse(statusCode int, body string) *http.Response {

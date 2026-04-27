@@ -69,6 +69,42 @@ func TestGrantStoreReusesApprovedBrowserGrant(t *testing.T) {
 	}
 }
 
+func TestGrantStoreListsAndRevokesActiveGrant(t *testing.T) {
+	store := NewMemoryGrantStore()
+	approvalHandler := &fakeApprovalHandler{decision: ApprovalDecision{Allowed: true}}
+	request := capabilities.ToolInvokeRequest{
+		ToolName:      "browser.navigate",
+		ResourceScope: capabilities.ResourceScope{Kind: "web_origin", Value: "https://github.com"},
+	}
+	envelope := JobEnvelope{
+		JobID:         "job-1",
+		ToolName:      "browser.navigate",
+		ResourceScope: request.ResourceScope,
+	}
+
+	if errorValue := store.Authorize(context.Background(), envelope, request, approvalHandler); errorValue != nil {
+		t.Fatalf("expected approval to create grant: %v", errorValue)
+	}
+	grants := store.ListActive()
+	if len(grants) != 1 {
+		t.Fatalf("expected one active grant, got %d", len(grants))
+	}
+	if !store.Revoke(grants[0].GrantID) {
+		t.Fatal("expected revoke to succeed")
+	}
+	if len(store.ListActive()) != 0 {
+		t.Fatal("expected revoked grant to disappear from active list")
+	}
+	nextEnvelope := envelope
+	nextEnvelope.JobID = "job-2"
+	if errorValue := store.Authorize(context.Background(), nextEnvelope, request, approvalHandler); errorValue != nil {
+		t.Fatalf("expected new approval after revoke: %v", errorValue)
+	}
+	if approvalHandler.calls != 2 {
+		t.Fatalf("expected approval to be requested again, got %d", approvalHandler.calls)
+	}
+}
+
 func TestGrantStoreDeniesWithReason(t *testing.T) {
 	store := NewMemoryGrantStore()
 	approvalHandler := &fakeApprovalHandler{decision: ApprovalDecision{

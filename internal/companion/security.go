@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/anthropic-lab/internkim/internal/capabilities"
@@ -55,7 +56,21 @@ type ApprovalGrant struct {
 	UsedJobs         int
 }
 
+type GrantSnapshot struct {
+	GrantID          string                       `json:"grantID"`
+	AnchorJobID      string                       `json:"anchorJobID"`
+	CapabilityScopes []string                     `json:"capabilityScopes"`
+	ResourceScopes   []capabilities.ResourceScope `json:"resourceScopes"`
+	MaxJobs          int                          `json:"maxJobs"`
+	MaxDepth         int                          `json:"maxDepth"`
+	ExpiresAt        time.Time                    `json:"expiresAt"`
+	Status           string                       `json:"status"`
+	UsedJobs         int                          `json:"usedJobs"`
+	DisplayName      string                       `json:"displayName"`
+}
+
 type MemoryGrantStore struct {
+	mutex  sync.Mutex
 	grants map[string]*ApprovalGrant
 }
 
@@ -80,8 +95,7 @@ func (store *MemoryGrantStore) Authorize(ctx context.Context, envelope JobEnvelo
 		return nil
 	}
 	resourceScope := firstResourceScope(envelope.ResourceScope, request.ResourceScope)
-	if grant := store.findGrant(envelope.GrantID, capabilityScope, resourceScope, envelope.Depth); grant != nil {
-		grant.UsedJobs++
+	if store.consumeGrant(envelope.GrantID, capabilityScope, resourceScope, envelope.Depth) {
 		return nil
 	}
 	if approvalHandler == nil {
@@ -104,6 +118,42 @@ func (store *MemoryGrantStore) Authorize(ctx context.Context, envelope JobEnvelo
 	}
 	store.addGrant(envelope, capabilityScope, resourceScope)
 	return nil
+}
+
+func (store *MemoryGrantStore) ListActive() []GrantSnapshot {
+	store.mutex.Lock()
+	defer store.mutex.Unlock()
+	now := time.Now().UTC()
+	snapshots := []GrantSnapshot{}
+	for _, grant := range store.grants {
+		if grant.Status != "active" || now.After(grant.ExpiresAt) {
+			continue
+		}
+		snapshots = append(snapshots, grantSnapshot(*grant))
+	}
+	return snapshots
+}
+
+func (store *MemoryGrantStore) Revoke(grantID string) bool {
+	store.mutex.Lock()
+	defer store.mutex.Unlock()
+	grant, ok := store.grants[grantID]
+	if !ok {
+		return false
+	}
+	grant.Status = "revoked"
+	return true
+}
+
+func (store *MemoryGrantStore) consumeGrant(grantID string, capabilityScope string, resourceScope capabilities.ResourceScope, depth int) bool {
+	store.mutex.Lock()
+	defer store.mutex.Unlock()
+	grant := store.findGrant(grantID, capabilityScope, resourceScope, depth)
+	if grant == nil {
+		return false
+	}
+	grant.UsedJobs++
+	return true
 }
 
 func (store *MemoryGrantStore) findGrant(grantID string, capabilityScope string, resourceScope capabilities.ResourceScope, depth int) *ApprovalGrant {
@@ -130,6 +180,8 @@ func (store *MemoryGrantStore) findGrant(grantID string, capabilityScope string,
 }
 
 func (store *MemoryGrantStore) addGrant(envelope JobEnvelope, capabilityScope string, resourceScope capabilities.ResourceScope) {
+	store.mutex.Lock()
+	defer store.mutex.Unlock()
 	grantID := firstNonEmpty(envelope.GrantID, "grant-"+envelope.JobID)
 	store.grants[grantID] = &ApprovalGrant{
 		GrantID:          grantID,
@@ -142,6 +194,40 @@ func (store *MemoryGrantStore) addGrant(envelope JobEnvelope, capabilityScope st
 		Status:           "active",
 		UsedJobs:         1,
 	}
+}
+
+func grantSnapshot(grant ApprovalGrant) GrantSnapshot {
+	return GrantSnapshot{
+		GrantID:          grant.GrantID,
+		AnchorJobID:      grant.AnchorJobID,
+		CapabilityScopes: append([]string{}, grant.CapabilityScopes...),
+		ResourceScopes:   append([]capabilities.ResourceScope{}, grant.ResourceScopes...),
+		MaxJobs:          grant.MaxJobs,
+		MaxDepth:         grant.MaxDepth,
+		ExpiresAt:        grant.ExpiresAt,
+		Status:           grant.Status,
+		UsedJobs:         grant.UsedJobs,
+		DisplayName:      grantDisplayName(grant),
+	}
+}
+
+func grantDisplayName(grant ApprovalGrant) string {
+	capabilityScope := "Companion"
+	if len(grant.CapabilityScopes) > 0 {
+		capabilityScope = grant.CapabilityScopes[0]
+	}
+	resourceScope := "this task"
+	if len(grant.ResourceScopes) > 0 && grant.ResourceScopes[0].Value != "" {
+		resourceScope = grant.ResourceScopes[0].Value
+	}
+	return titleCapabilityScope(capabilityScope) + " access to " + resourceScope
+}
+
+func titleCapabilityScope(value string) string {
+	if value == "" {
+		return "Companion"
+	}
+	return strings.ToUpper(value[:1]) + value[1:]
 }
 
 func capabilityScopeForTool(toolName string) string {

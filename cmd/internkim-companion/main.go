@@ -80,7 +80,8 @@ type companionState struct {
 	CompanionID  string                    `json:"companionID"`
 	Token        string                    `json:"token"`
 	PublicKey    string                    `json:"publicKey"`
-	PrivateKey   string                    `json:"privateKey"`
+	PrivateKeyID string                    `json:"privateKeyID,omitempty"`
+	PrivateKey   string                    `json:"privateKey,omitempty"`
 	LocalOnly    bool                      `json:"localOnly"`
 	Capabilities []capabilities.Descriptor `json:"capabilities"`
 }
@@ -106,6 +107,10 @@ type companionStatusDocument struct {
 }
 
 func runPair(arguments []string, httpClient *http.Client) error {
+	return runPairWithStore(arguments, httpClient, companionruntime.NewDefaultSecureStore())
+}
+
+func runPairWithStore(arguments []string, httpClient *http.Client, secureStore companionruntime.SecureStore) error {
 	flags := flag.NewFlagSet("pair", flag.ContinueOnError)
 	deviceURL := flags.String("device-url", "", "InternKim device URL")
 	code := flags.String("code", "", "pairing code")
@@ -145,12 +150,16 @@ func runPair(arguments []string, httpClient *http.Client) error {
 	if errorValue := postJSON(httpClient, strings.TrimRight(*deviceURL, "/")+"/_internkim/companion/pair", nil, requestBody, &response); errorValue != nil {
 		return errorValue
 	}
+	privateKeyID := companionPrivateKeyID(response.CompanionID)
+	if errorValue := secureStore.Put(context.Background(), privateKeyID, keyPair.PrivateKey); errorValue != nil {
+		return errorValue
+	}
 	state := companionState{
 		DeviceURL:    strings.TrimRight(*deviceURL, "/"),
 		CompanionID:  response.CompanionID,
 		Token:        response.Token,
 		PublicKey:    keyPair.PublicKey,
-		PrivateKey:   keyPair.PrivateKey,
+		PrivateKeyID: privateKeyID,
 		LocalOnly:    *localOnly,
 		Capabilities: capabilityList,
 	}
@@ -188,26 +197,43 @@ func runStatus(arguments []string) error {
 }
 
 func runCompanion(arguments []string, httpClient *http.Client) error {
+	return runCompanionWithStore(arguments, httpClient, companionruntime.NewDefaultSecureStore())
+}
+
+func runCompanionWithStore(arguments []string, httpClient *http.Client, secureStore companionruntime.SecureStore) error {
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
 	statePath := flags.String("state", defaultStatePath(), "companion state path")
 	runOnce := flags.Bool("once", false, "process one polling cycle")
 	devMockLLM := flags.Bool("dev-mock-llm", false, "serve deterministic local LLM responses")
 	allowStdinPrompts := flags.Bool("allow-stdin-prompts", false, "allow terminal prompts for user input capabilities")
 	shellBridgeURL := flags.String("shell-bridge-url", "", "local companion shell bridge URL")
+	controlListenAddress := flags.String("control-listen", "", "local companion shell control address")
 	if errorValue := flags.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
-	state, errorValue := loadState(*statePath)
+	state, errorValue := loadStateAndMigrateSecrets(context.Background(), *statePath, secureStore)
+	if errorValue != nil {
+		return errorValue
+	}
+	privateKey, errorValue := secureStore.Get(context.Background(), state.PrivateKeyID)
 	if errorValue != nil {
 		return errorValue
 	}
 	if *devMockLLM {
 		state.Capabilities = defaultCapabilities(state.LocalOnly, true)
 	}
+	grantStore := companionruntime.NewMemoryGrantStore()
 	executor := companionruntime.Executor{
 		DevMockLLM:    *devMockLLM,
 		BrowserOpener: companionruntime.SystemBrowserOpener{},
-		GrantStore:    companionruntime.NewMemoryGrantStore(),
+		GrantStore:    grantStore,
+	}
+	controlServer, errorValue := startControlServer(*controlListenAddress, grantStore)
+	if errorValue != nil {
+		return errorValue
+	}
+	if controlServer != nil {
+		defer controlServer.Close()
 	}
 	if *allowStdinPrompts {
 		executor.PromptHandler = companionruntime.TerminalPromptHandler{Reader: os.Stdin, Writer: os.Stdout}
@@ -223,10 +249,10 @@ func runCompanion(arguments []string, httpClient *http.Client) error {
 		}
 	}
 	for {
-		if errorValue := sendHeartbeat(httpClient, state); errorValue != nil {
+		if errorValue := sendHeartbeat(httpClient, state, privateKey); errorValue != nil {
 			return errorValue
 		}
-		job, errorValue := nextJob(httpClient, state)
+		job, errorValue := nextJob(httpClient, state, privateKey)
 		if errorValue != nil {
 			return errorValue
 		}
@@ -248,12 +274,12 @@ func runCompanion(arguments []string, httpClient *http.Client) error {
 		if executionError != nil {
 			var denialError companionruntime.DenialError
 			if errors.As(executionError, &denialError) {
-				_ = denyJob(httpClient, state, job.JobID, denialError.Denial)
+				_ = denyJob(httpClient, state, privateKey, job.JobID, denialError.Denial)
 			} else {
-				_ = failJob(httpClient, state, job.JobID, executionError.Error())
+				_ = failJob(httpClient, state, privateKey, job.JobID, executionError.Error())
 			}
 		} else {
-			_ = completeJob(httpClient, state, job.JobID, response)
+			_ = completeJob(httpClient, state, privateKey, job.JobID, response)
 		}
 		if *runOnce {
 			return executionError
@@ -309,14 +335,14 @@ func writeJSONDocument(writer io.Writer, response any) {
 	_ = json.NewEncoder(writer).Encode(response)
 }
 
-func sendHeartbeat(httpClient *http.Client, state companionState) error {
-	return postSignedJSON(httpClient, state, state.DeviceURL+"/_internkim/companion/heartbeat", map[string]any{
+func sendHeartbeat(httpClient *http.Client, state companionState, privateKey string) error {
+	return postSignedJSON(httpClient, state, privateKey, state.DeviceURL+"/_internkim/companion/heartbeat", map[string]any{
 		"capabilities": state.Capabilities,
 		"localOnly":    state.LocalOnly,
 	}, &map[string]any{})
 }
 
-func nextJob(httpClient *http.Client, state companionState) (*companionJob, error) {
+func nextJob(httpClient *http.Client, state companionState, privateKey string) (*companionJob, error) {
 	request, errorValue := http.NewRequest(http.MethodGet, state.DeviceURL+"/_internkim/companion/jobs/next", nil)
 	if errorValue != nil {
 		return nil, errorValue
@@ -324,10 +350,8 @@ func nextJob(httpClient *http.Client, state companionState) (*companionJob, erro
 	for key, value := range companionHeaders(state) {
 		request.Header.Set(key, value)
 	}
-	if state.PrivateKey != "" {
-		if errorValue := companionruntime.SignRequest(request, nil, state.PrivateKey); errorValue != nil {
-			return nil, errorValue
-		}
+	if errorValue := companionruntime.SignRequest(request, nil, privateKey); errorValue != nil {
+		return nil, errorValue
 	}
 	response, errorValue := httpClient.Do(request)
 	if errorValue != nil {
@@ -348,16 +372,16 @@ func nextJob(httpClient *http.Client, state companionState) (*companionJob, erro
 	return &job, nil
 }
 
-func completeJob(httpClient *http.Client, state companionState, jobID string, response capabilities.ToolInvokeResponse) error {
-	return postSignedJSON(httpClient, state, state.DeviceURL+"/_internkim/companion/jobs/"+url.PathEscape(jobID)+"/complete", response, &map[string]any{})
+func completeJob(httpClient *http.Client, state companionState, privateKey string, jobID string, response capabilities.ToolInvokeResponse) error {
+	return postSignedJSON(httpClient, state, privateKey, state.DeviceURL+"/_internkim/companion/jobs/"+url.PathEscape(jobID)+"/complete", response, &map[string]any{})
 }
 
-func failJob(httpClient *http.Client, state companionState, jobID string, errorMessage string) error {
-	return postSignedJSON(httpClient, state, state.DeviceURL+"/_internkim/companion/jobs/"+url.PathEscape(jobID)+"/fail", map[string]string{"error": errorMessage}, &map[string]any{})
+func failJob(httpClient *http.Client, state companionState, privateKey string, jobID string, errorMessage string) error {
+	return postSignedJSON(httpClient, state, privateKey, state.DeviceURL+"/_internkim/companion/jobs/"+url.PathEscape(jobID)+"/fail", map[string]string{"error": errorMessage}, &map[string]any{})
 }
 
-func denyJob(httpClient *http.Client, state companionState, jobID string, denial capabilities.DenialResult) error {
-	return postSignedJSON(httpClient, state, state.DeviceURL+"/_internkim/companion/jobs/"+url.PathEscape(jobID)+"/deny", denial, &map[string]any{})
+func denyJob(httpClient *http.Client, state companionState, privateKey string, jobID string, denial capabilities.DenialResult) error {
+	return postSignedJSON(httpClient, state, privateKey, state.DeviceURL+"/_internkim/companion/jobs/"+url.PathEscape(jobID)+"/deny", denial, &map[string]any{})
 }
 
 func postJSON(httpClient *http.Client, endpoint string, headers map[string]string, requestBody any, responseBody any) error {
@@ -385,7 +409,7 @@ func postJSON(httpClient *http.Client, endpoint string, headers map[string]strin
 	return json.NewDecoder(response.Body).Decode(responseBody)
 }
 
-func postSignedJSON(httpClient *http.Client, state companionState, endpoint string, requestBody any, responseBody any) error {
+func postSignedJSON(httpClient *http.Client, state companionState, privateKey string, endpoint string, requestBody any, responseBody any) error {
 	document, errorValue := json.Marshal(requestBody)
 	if errorValue != nil {
 		return errorValue
@@ -398,10 +422,8 @@ func postSignedJSON(httpClient *http.Client, state companionState, endpoint stri
 	for key, value := range companionHeaders(state) {
 		request.Header.Set(key, value)
 	}
-	if state.PrivateKey != "" {
-		if errorValue := companionruntime.SignRequest(request, document, state.PrivateKey); errorValue != nil {
-			return errorValue
-		}
+	if errorValue := companionruntime.SignRequest(request, document, privateKey); errorValue != nil {
+		return errorValue
 	}
 	response, errorValue := httpClient.Do(request)
 	if errorValue != nil {
@@ -445,6 +467,26 @@ func loadState(path string) (companionState, error) {
 	return state, nil
 }
 
+func loadStateAndMigrateSecrets(ctx context.Context, path string, secureStore companionruntime.SecureStore) (companionState, error) {
+	state, errorValue := loadState(path)
+	if errorValue != nil {
+		return companionState{}, errorValue
+	}
+	if state.PrivateKey == "" {
+		return state, nil
+	}
+	privateKeyID := firstNonEmpty(state.PrivateKeyID, companionPrivateKeyID(state.CompanionID))
+	if errorValue := secureStore.Put(ctx, privateKeyID, state.PrivateKey); errorValue != nil {
+		return companionState{}, errorValue
+	}
+	state.PrivateKeyID = privateKeyID
+	state.PrivateKey = ""
+	if errorValue := saveState(path, state); errorValue != nil {
+		return companionState{}, errorValue
+	}
+	return state, nil
+}
+
 func companionStatusFromState(state companionState) companionStatusDocument {
 	return companionStatusDocument{
 		Paired:       state.DeviceURL != "" && state.CompanionID != "" && state.Token != "",
@@ -461,6 +503,10 @@ func defaultStatePath() string {
 		return ".internkim-companion.json"
 	}
 	return filepath.Join(homeDirectory, ".internkim-companion", "state.json")
+}
+
+func companionPrivateKeyID(companionID string) string {
+	return "internkim-companion-" + companionID + "-signing-key"
 }
 
 func defaultDisplayName() string {

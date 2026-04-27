@@ -9,6 +9,23 @@ export type RuntimeStatus = {
 	lastError?: string;
 };
 
+export type ResourceScope = {
+	kind: string;
+	value: string;
+};
+
+export type ActiveGrant = {
+	grantID: string;
+	displayName: string;
+	capabilityScopes: string[];
+	resourceScopes: ResourceScope[];
+	usedJobs: number;
+	maxJobs: number;
+	expiresAt: string;
+};
+
+const controlURL = 'http://127.0.0.1:7983';
+
 let runtimeChild: Child | undefined;
 let runtimeStatus: RuntimeStatus = { isRunning: false };
 
@@ -36,7 +53,13 @@ export async function pairCompanion(payload: PairingPayload): Promise<void> {
 export async function startCompanionRuntime(): Promise<void> {
 	if (runtimeChild) return;
 	const shellBridgeURL = await invoke<string>('start_shell_bridge');
-	const command = Command.sidecar('binaries/internkim-companion', ['run', '--shell-bridge-url', shellBridgeURL]);
+	const command = Command.sidecar('binaries/internkim-companion', [
+		'run',
+		'--shell-bridge-url',
+		shellBridgeURL,
+		'--control-listen',
+		'127.0.0.1:7983'
+	]);
 	command.on('close', () => {
 		runtimeChild = undefined;
 		runtimeStatus = { isRunning: false };
@@ -51,4 +74,21 @@ export async function startCompanionRuntime(): Promise<void> {
 
 export function readRuntimeStatus(): RuntimeStatus {
 	return runtimeStatus;
+}
+
+export async function readActiveGrants(): Promise<ActiveGrant[]> {
+	if (!runtimeChild) return [];
+	const response = await fetch(`${controlURL}/v1/security/grants`);
+	if (!response.ok) return [];
+	const document = (await response.json()) as { grants?: ActiveGrant[] };
+	return document.grants ?? [];
+}
+
+export async function revokeGrant(grantID: string): Promise<void> {
+	const response = await fetch(`${controlURL}/v1/security/grants/${encodeURIComponent(grantID)}/revoke`, {
+		method: 'POST'
+	});
+	if (!response.ok) {
+		throw new Error('Grant revoke failed');
+	}
 }

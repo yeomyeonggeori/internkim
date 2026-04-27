@@ -35,6 +35,8 @@ When testing against real platform surfaces such as Mattermost, Slack, or Signal
 - Treat `internkim-companion` as the user's local trusted runtime, not as a browser-only helper.
 - Keep browser cookies, local files, local model paths, and desktop credentials on the user's computer.
 - Route human-in-the-loop browser work, user confirmation, local file picking, and future local model inference through companion capabilities.
+- Do not store companion signing private keys in local state JSON. Store only a key reference and use OS secure storage; development file fallback must be explicit.
+- Approval grants are task-scoped, runtime-memory permissions. Keep `user.confirm` and `user.input` outside grant reuse, and expose active grant revoke in the companion shell.
 - Keep Blueclaw provider-neutral. Blueclaw should request tools/capabilities, while InternKim chooses device, companion, or remote execution.
 - Local-only mode must not fall back to OpenRouter or another remote provider.
 
