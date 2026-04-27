@@ -592,8 +592,25 @@ func (state *setupFlowState) installGraphitiMemorydSSH() error {
 		return fmt.Errorf("graphiti memory daemon package missing at %s", packagePath)
 	}
 
-	state.sshClient.run("rm -rf " + quoteShellValue(blueclaw.GraphitiMemorydPackagePath) + " && mkdir -p " + quoteShellValue(blueclaw.GraphitiMemorydPackagePath))
-	state.sshClient.scpDir(packagePath, blueclaw.GraphitiMemorydPackagePath)
+	archiveFile, errorValue := os.CreateTemp("", "internkim-graphiti-memoryd-*.tar.gz")
+	if errorValue != nil {
+		return errorValue
+	}
+	archivePath := archiveFile.Name()
+	_ = archiveFile.Close()
+	defer os.Remove(archivePath)
+
+	archiveCommand := exec.Command("tar", "-C", packagePath, "-czf", archivePath, ".")
+	if output, archiveError := archiveCommand.CombinedOutput(); archiveError != nil {
+		return fmt.Errorf("archive graphiti memory daemon: %s", strings.TrimSpace(string(output)))
+	}
+
+	remoteArchivePath := "/tmp/internkim-graphiti-memoryd.tar.gz"
+	state.sshClient.scpDirect(archivePath, remoteArchivePath)
+	state.sshClient.run("rm -rf " + quoteShellValue(blueclaw.GraphitiMemorydPackagePath) + " && mkdir -p " + quoteShellValue(blueclaw.GraphitiMemorydPackagePath) + " && tar -xzf " + quoteShellValue(remoteArchivePath) + " -C " + quoteShellValue(blueclaw.GraphitiMemorydPackagePath) + " && rm -f " + quoteShellValue(remoteArchivePath))
+	if strings.TrimSpace(state.sshClient.run("test -f "+quoteShellValue(filepath.Join(blueclaw.GraphitiMemorydPackagePath, "__main__.py"))+" && echo ok")) != "ok" {
+		return fmt.Errorf("graphiti memory daemon package did not deploy correctly")
+	}
 	state.sshClient.run(fmt.Sprintf(`cat > %s <<'EOF'
 #!/bin/sh
 PYTHONPATH=/opt/internkim exec /opt/internkim/graphiti-venv/bin/python -m graphiti_memoryd "$@"

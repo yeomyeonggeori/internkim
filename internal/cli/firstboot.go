@@ -667,7 +667,6 @@ SVCEOF
     -H 'Content-Type: application/json' \
     -d '{"description":"internkim-setup"}' 2>/dev/null || true)"
   PAT_TOKEN=$(echo "$PAT_RESPONSE" | jq -r '.token // empty')
-  [ -n "$PAT_TOKEN" ] && ADMIN_TOKEN="$PAT_TOKEN"
 
   echo "Creating bot account..."
   BOT_RESPONSE="$(curl -sf -X POST "$MM_URL/api/v4/bots" \
@@ -731,10 +730,13 @@ SVCEOF
     echo "Bot added to team"
   fi
 
-  if [ -n "$BOT_TOKEN" ]; then
+  if [ -n "$BOT_TOKEN" ] && curl -sf "$MM_URL/api/v4/users/me" \
+    -H "Authorization: Bearer $BOT_TOKEN" >/dev/null 2>&1; then
     printf '%s' "$BOT_TOKEN" > /root/.internkim/secrets/mattermost-bot-token
     chown root:root /root/.internkim/secrets/mattermost-bot-token
     chmod 600 /root/.internkim/secrets/mattermost-bot-token
+  else
+    echo "WARNING: Mattermost bot token was not created or did not validate"
   fi
 
   mark_phase_done apps
