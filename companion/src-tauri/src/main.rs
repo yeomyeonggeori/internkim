@@ -27,6 +27,7 @@ fn main() {
     tauri::Builder::default()
         .manage(prompt_bridge::PromptBridgeState::default())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
             build_tray(app.handle())?;

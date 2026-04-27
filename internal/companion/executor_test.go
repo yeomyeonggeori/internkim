@@ -3,8 +3,10 @@ package companion
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 
@@ -15,10 +17,38 @@ type fakeBrowserOpener struct {
 	openedURLs []string
 }
 
+type fakeFilePicker struct {
+	pickedFile PickedFile
+	errorValue error
+}
+
+type fakeFileUploader struct {
+	request FileUploadRequest
+}
+
 func (opener *fakeBrowserOpener) OpenBrowser(ctx context.Context, targetURL string) error {
 	_ = ctx
 	opener.openedURLs = append(opener.openedURLs, targetURL)
 	return nil
+}
+
+func (picker fakeFilePicker) PickFile(ctx context.Context, request FilePickRequest) (PickedFile, error) {
+	_ = ctx
+	_ = request
+	return picker.pickedFile, picker.errorValue
+}
+
+func (uploader *fakeFileUploader) UploadFile(ctx context.Context, request FileUploadRequest) (UploadedFile, error) {
+	_ = ctx
+	uploader.request = request
+	return UploadedFile{
+		FileID:      "file-1",
+		Filename:    request.Filename,
+		SizeBytes:   request.SizeBytes,
+		ContentType: request.ContentType,
+		DevicePath:  "/tmp/internkim-companion-files/" + request.Filename,
+		ExpiresAt:   "2026-04-27T00:00:00Z",
+	}, nil
 }
 
 func TestBrowserNavigateOpensValidatedURL(t *testing.T) {
@@ -91,6 +121,72 @@ func TestUserConfirmWithoutPromptHandlerFailsSafely(t *testing.T) {
 	}
 }
 
+func TestFilePickUploadsSelectedFile(t *testing.T) {
+	filePath := writeExecutorTestFile(t, "report.pdf", "hello")
+	uploader := &fakeFileUploader{}
+	executor := Executor{
+		FilePicker:   fakeFilePicker{pickedFile: PickedFile{Path: filePath}},
+		FileUploader: uploader,
+	}
+
+	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "file.pick"}, capabilities.ToolInvokeRequest{
+		ToolName: "file.pick",
+		Input:    json.RawMessage(`{"allowedExtensions":["pdf"],"ttlSeconds":600}`),
+	})
+	if errorValue != nil {
+		t.Fatalf("expected file pick success: %v", errorValue)
+	}
+	if uploader.request.JobID != "job-1" || uploader.request.Filename != "report.pdf" || uploader.request.TTLSeconds != 600 {
+		t.Fatalf("unexpected upload request: %+v", uploader.request)
+	}
+	var result UploadedFile
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if result.DevicePath != "/tmp/internkim-companion-files/report.pdf" {
+		t.Fatalf("unexpected device path: %s", result.DevicePath)
+	}
+}
+
+func TestFilePickCancelReturnsDenialObservation(t *testing.T) {
+	executor := Executor{
+		FilePicker:   fakeFilePicker{errorValue: ErrFilePickCanceled},
+		FileUploader: &fakeFileUploader{},
+	}
+
+	_, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "file.pick"}, capabilities.ToolInvokeRequest{ToolName: "file.pick"})
+	denialError, ok := errorValue.(DenialError)
+	if !ok {
+		t.Fatalf("expected denial error, got %v", errorValue)
+	}
+	if denialError.Denial.Code != "user_cancelled" || denialError.Denial.ToolName != "file.pick" {
+		t.Fatalf("unexpected denial: %+v", denialError.Denial)
+	}
+}
+
+func TestFilePickValidatesExtensionAndSize(t *testing.T) {
+	filePath := writeExecutorTestFile(t, "secret.txt", "hello")
+	executor := Executor{
+		FilePicker:   fakeFilePicker{pickedFile: PickedFile{Path: filePath}},
+		FileUploader: &fakeFileUploader{},
+	}
+
+	_, extensionError := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "file.pick"}, capabilities.ToolInvokeRequest{
+		ToolName: "file.pick",
+		Input:    json.RawMessage(`{"allowedExtensions":["pdf"]}`),
+	})
+	if extensionError == nil {
+		t.Fatal("expected extension validation error")
+	}
+	_, sizeError := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "file.pick"}, capabilities.ToolInvokeRequest{
+		ToolName: "file.pick",
+		Input:    json.RawMessage(`{"maxBytes":1}`),
+	})
+	if sizeError == nil {
+		t.Fatal("expected size validation error")
+	}
+}
+
 func TestShellBridgePromptHandlerConfirm(t *testing.T) {
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.Path != "/v1/user/confirm" {
@@ -130,6 +226,42 @@ func TestShellBridgePromptHandlerInput(t *testing.T) {
 	}
 	if text != "approved text" {
 		t.Fatalf("unexpected shell bridge input: %s", text)
+	}
+}
+
+func TestShellBridgePromptHandlerPickFile(t *testing.T) {
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Path != "/v1/file/pick" {
+			t.Fatalf("unexpected bridge path: %s", request.URL.Path)
+		}
+		return textResponse(http.StatusOK, `{"path":"/tmp/report.txt"}`), nil
+	})}
+	handler := ShellBridgePromptHandler{
+		BaseURL:    "http://127.0.0.1:1234",
+		HTTPClient: httpClient,
+	}
+
+	pickedFile, errorValue := handler.PickFile(context.Background(), FilePickRequest{Title: "Pick"})
+	if errorValue != nil {
+		t.Fatalf("expected shell bridge file pick success: %v", errorValue)
+	}
+	if pickedFile.Path != "/tmp/report.txt" {
+		t.Fatalf("unexpected file path: %s", pickedFile.Path)
+	}
+}
+
+func TestShellBridgePromptHandlerPickFileCancel(t *testing.T) {
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		return textResponse(http.StatusOK, `{"cancelled":true}`), nil
+	})}
+	handler := ShellBridgePromptHandler{
+		BaseURL:    "http://127.0.0.1:1234",
+		HTTPClient: httpClient,
+	}
+
+	_, errorValue := handler.PickFile(context.Background(), FilePickRequest{})
+	if !errors.Is(errorValue, ErrFilePickCanceled) {
+		t.Fatalf("expected cancel error, got %v", errorValue)
 	}
 }
 
@@ -178,4 +310,13 @@ func TestMockStructuredLLMUsesSchemaRequiredKeys(t *testing.T) {
 	if llmResponse.Content != `{"reply":"ok"}` {
 		t.Fatalf("unexpected mock content: %s", llmResponse.Content)
 	}
+}
+
+func writeExecutorTestFile(t *testing.T, filename string, document string) string {
+	t.Helper()
+	path := t.TempDir() + "/" + filename
+	if errorValue := os.WriteFile(path, []byte(document), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return path
 }
