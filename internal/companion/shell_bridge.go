@@ -14,6 +14,7 @@ import (
 
 type ShellBridgePromptHandler struct {
 	BaseURL    string
+	Token      string
 	HTTPClient *http.Client
 }
 
@@ -79,6 +80,9 @@ func (handler ShellBridgePromptHandler) post(ctx context.Context, path string, r
 		return errorValue
 	}
 	request.Header.Set("Content-Type", "application/json")
+	if strings.TrimSpace(handler.Token) != "" {
+		request.Header.Set("X-InternKim-Shell-Bridge-Token", strings.TrimSpace(handler.Token))
+	}
 	httpClient := handler.HTTPClient
 	if httpClient == nil {
 		httpClient = http.DefaultClient

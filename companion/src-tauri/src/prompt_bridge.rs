@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    fs::File,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
     sync::{mpsc, Mutex},
@@ -14,7 +15,15 @@ use tauri_plugin_dialog::DialogExt;
 #[derive(Default)]
 pub struct PromptBridgeState {
     url: Mutex<Option<String>>,
+    token: Mutex<Option<String>>,
     requests: Mutex<HashMap<String, mpsc::Sender<Value>>>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShellBridgeInfo {
+    url: String,
+    token: String,
 }
 
 #[derive(Clone, Serialize)]
@@ -54,26 +63,39 @@ struct FilePickInput {
 pub fn start_shell_bridge(
     app: AppHandle,
     state: tauri::State<PromptBridgeState>,
-) -> Result<String, String> {
+) -> Result<ShellBridgeInfo, String> {
     if let Some(existing_url) = state.url.lock().map_err(|error| error.to_string())?.clone() {
-        return Ok(existing_url);
+        let existing_token = state
+            .token
+            .lock()
+            .map_err(|error| error.to_string())?
+            .clone()
+            .ok_or_else(|| "shell bridge token is unavailable".to_string())?;
+        return Ok(ShellBridgeInfo {
+            url: existing_url,
+            token: existing_token,
+        });
     }
     let listener = TcpListener::bind("127.0.0.1:0").map_err(|error| error.to_string())?;
     let url = format!(
         "http://{}",
         listener.local_addr().map_err(|error| error.to_string())?
     );
+    let token = new_bridge_token();
     *state.url.lock().map_err(|error| error.to_string())? = Some(url.clone());
+    *state.token.lock().map_err(|error| error.to_string())? = Some(token.clone());
     let app_handle = app.clone();
+    let bridge_token = token.clone();
     std::thread::spawn(move || {
         for stream in listener.incoming().flatten() {
             let app_clone = app_handle.clone();
+            let token_clone = bridge_token.clone();
             std::thread::spawn(move || {
-                let _ = handle_prompt_stream(app_clone, stream);
+                let _ = handle_prompt_stream(app_clone, stream, token_clone);
             });
         }
     });
-    Ok(url)
+    Ok(ShellBridgeInfo { url, token })
 }
 
 #[tauri::command]
@@ -91,8 +113,20 @@ pub fn complete_prompt_request(
     sender.send(response).map_err(|error| error.to_string())
 }
 
-fn handle_prompt_stream(app: AppHandle, mut stream: TcpStream) -> Result<(), String> {
+fn handle_prompt_stream(
+    app: AppHandle,
+    mut stream: TcpStream,
+    bridge_token: String,
+) -> Result<(), String> {
     let request = read_http_request(&mut stream)?;
+    if request.header("x-internkim-shell-bridge-token") != Some(bridge_token.as_str()) {
+        write_http_json(
+            &mut stream,
+            403,
+            json!({"error":"shell bridge token required"}),
+        )?;
+        return Ok(());
+    }
     if request.method != "POST" {
         write_http_json(&mut stream, 405, json!({"error":"method not allowed"}))?;
         return Ok(());
@@ -161,7 +195,11 @@ fn handle_file_pick(app: AppHandle, mut stream: TcpStream, body: Vec<u8>) -> Res
                 200,
                 json!({"path": path.to_string_lossy().to_string()}),
             )?,
-            Err(_) => write_http_json(&mut stream, 500, json!({"error":"selected file path is unavailable"}))?,
+            Err(_) => write_http_json(
+                &mut stream,
+                500,
+                json!({"error":"selected file path is unavailable"}),
+            )?,
         },
         None => write_http_json(&mut stream, 200, json!({"cancelled":true}))?,
     }
@@ -221,7 +259,16 @@ fn prompt_request_from_body(
 struct HttpRequest {
     method: String,
     path: String,
+    headers: HashMap<String, String>,
     body: Vec<u8>,
+}
+
+impl HttpRequest {
+    fn header(&self, name: &str) -> Option<&str> {
+        self.headers
+            .get(&name.to_ascii_lowercase())
+            .map(String::as_str)
+    }
 }
 
 fn read_http_request(stream: &mut TcpStream) -> Result<HttpRequest, String> {
@@ -252,7 +299,11 @@ fn read_http_request(stream: &mut TcpStream) -> Result<HttpRequest, String> {
     let mut first_line_parts = first_line.split_whitespace();
     let method = first_line_parts.next().unwrap_or("").to_string();
     let path = first_line_parts.next().unwrap_or("").to_string();
-    let content_length = lines.filter_map(parse_content_length).next().unwrap_or(0);
+    let headers = parse_headers(lines.collect());
+    let content_length = headers
+        .get("content-length")
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(0);
     let body_start = header_end + 4;
     while buffer.len() < body_start + content_length {
         let count = stream
@@ -266,6 +317,7 @@ fn read_http_request(stream: &mut TcpStream) -> Result<HttpRequest, String> {
     Ok(HttpRequest {
         method,
         path,
+        headers,
         body: buffer[body_start..buffer.len().min(body_start + content_length)].to_vec(),
     })
 }
@@ -274,12 +326,14 @@ fn find_header_end(buffer: &[u8]) -> Option<usize> {
     buffer.windows(4).position(|window| window == b"\r\n\r\n")
 }
 
-fn parse_content_length(line: &str) -> Option<usize> {
-    let (name, value) = line.split_once(':')?;
-    if !name.eq_ignore_ascii_case("content-length") {
-        return None;
-    }
-    value.trim().parse().ok()
+fn parse_headers(lines: Vec<&str>) -> HashMap<String, String> {
+    lines
+        .into_iter()
+        .filter_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            Some((name.trim().to_ascii_lowercase(), value.trim().to_string()))
+        })
+        .collect()
 }
 
 fn normalize_extensions(values: Vec<String>) -> Vec<String> {
@@ -300,6 +354,7 @@ fn write_http_json(
         200 => "OK",
         404 => "Not Found",
         405 => "Method Not Allowed",
+        403 => "Forbidden",
         408 => "Request Timeout",
         _ => "Error",
     };
@@ -313,6 +368,21 @@ fn write_http_json(
         .write_all(header.as_bytes())
         .and_then(|_| stream.write_all(&body))
         .map_err(|error| error.to_string())
+}
+
+fn new_bridge_token() -> String {
+    let mut bytes = [0_u8; 32];
+    if File::open("/dev/urandom")
+        .and_then(|mut file| file.read_exact(&mut bytes))
+        .is_ok()
+    {
+        return bytes.iter().map(|byte| format!("{:02x}", byte)).collect();
+    }
+    let nanoseconds = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    format!("bridge-{}-{}", std::process::id(), nanoseconds)
 }
 
 fn new_request_id() -> String {

@@ -260,7 +260,9 @@ func TestControlHandlerListsAndRevokesGrants(t *testing.T) {
 	}, request, approvalHandler); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	handler := controlHandler(grantStore)
+	runtimeStatus := &runtimeState{}
+	runtimeStatus.recordHeartbeat(nil)
+	handler := controlHandler(grantStore, runtimeStatus)
 
 	listRequest := httptest.NewRequest(http.MethodGet, "/v1/security/grants", nil)
 	listRequest.RemoteAddr = "127.0.0.1:1234"
@@ -275,6 +277,14 @@ func TestControlHandlerListsAndRevokesGrants(t *testing.T) {
 	}
 	if len(listDocument.Grants) != 1 {
 		t.Fatalf("expected one grant, got %d", len(listDocument.Grants))
+	}
+
+	runtimeRequest := httptest.NewRequest(http.MethodGet, "/v1/runtime/status", nil)
+	runtimeRequest.RemoteAddr = "127.0.0.1:1234"
+	runtimeResponse := httptest.NewRecorder()
+	handler.ServeHTTP(runtimeResponse, runtimeRequest)
+	if runtimeResponse.Code != http.StatusOK || !strings.Contains(runtimeResponse.Body.String(), "lastHeartbeatAt") {
+		t.Fatalf("expected runtime status, got %d %s", runtimeResponse.Code, runtimeResponse.Body.String())
 	}
 
 	revokeRequest := httptest.NewRequest(http.MethodPost, "/v1/security/grants/"+listDocument.Grants[0].GrantID+"/revoke", nil)

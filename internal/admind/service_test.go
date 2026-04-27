@@ -362,6 +362,95 @@ func TestCompanionDenyReturnsStructuredObservation(t *testing.T) {
 	}
 }
 
+func TestCompanionJobPersistenceRestoresPendingAndCompletedJobs(t *testing.T) {
+	stateDirectory := t.TempDir()
+	configuration := Configuration{StateDirectory: stateDirectory, AdminEmailPath: writeTestFile(t, "admin@example.com")}
+	service := NewService(configuration)
+	now := time.Now().UTC()
+	service.companionJobs["pending-job"] = &CompanionJob{
+		JobID:     "pending-job",
+		Status:    "pending",
+		ToolName:  "user.confirm",
+		CreatedAt: now,
+		UpdatedAt: now,
+		ExpiresAt: now.Add(time.Minute),
+	}
+	service.companionJobs["running-job"] = &CompanionJob{
+		JobID:       "running-job",
+		Status:      "running",
+		CompanionID: "companion-1",
+		ToolName:    "user.confirm",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		ExpiresAt:   now.Add(time.Minute),
+	}
+	service.companionJobs["completed-job"] = &CompanionJob{
+		JobID:     "completed-job",
+		Status:    "completed",
+		ToolName:  "user.confirm",
+		Response:  &capabilities.ToolInvokeResponse{ToolName: "user.confirm"},
+		CreatedAt: now,
+		UpdatedAt: now,
+		ExpiresAt: now.Add(time.Minute),
+	}
+	if errorValue := service.saveCompanionJobs(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	reloadedService := NewService(configuration)
+
+	if reloadedService.companionJobs["pending-job"].Status != "pending" {
+		t.Fatalf("expected pending job to reload, got %+v", reloadedService.companionJobs["pending-job"])
+	}
+	if reloadedService.companionJobs["running-job"].Status != "pending" || reloadedService.companionJobs["running-job"].CompanionID != "" {
+		t.Fatalf("expected running job to become pending on restart, got %+v", reloadedService.companionJobs["running-job"])
+	}
+	if reloadedService.companionJobs["completed-job"].Status != "completed" {
+		t.Fatalf("expected completed job to reload, got %+v", reloadedService.companionJobs["completed-job"])
+	}
+}
+
+func TestCompanionJobClaimRequeuesStaleRunningJob(t *testing.T) {
+	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	now := time.Now().UTC()
+	staleCompanion := &CompanionRecord{
+		CompanionID: "stale-companion",
+		Capabilities: []capabilities.Descriptor{
+			{Name: "user.confirm"},
+		},
+		LastSeenAt: now.Add(-2 * companionOnlineWindow),
+	}
+	activeCompanion := &CompanionRecord{
+		CompanionID: "active-companion",
+		Capabilities: []capabilities.Descriptor{
+			{Name: "user.confirm"},
+		},
+		LastSeenAt: now,
+	}
+	service.companions[staleCompanion.CompanionID] = staleCompanion
+	service.companions[activeCompanion.CompanionID] = activeCompanion
+	service.companionJobs["job-1"] = &CompanionJob{
+		JobID:       "job-1",
+		Status:      "running",
+		CompanionID: staleCompanion.CompanionID,
+		ToolName:    "user.confirm",
+		Request:     capabilities.ToolInvokeRequest{ToolName: "user.confirm"},
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		ExpiresAt:   now.Add(time.Minute),
+	}
+
+	claimedJob := service.claimNextCompanionJob(activeCompanion)
+
+	if claimedJob == nil || claimedJob.JobID != "job-1" || claimedJob.CompanionID != activeCompanion.CompanionID {
+		t.Fatalf("expected stale running job to be claimed by active companion, got %+v", claimedJob)
+	}
+	reloadedService := NewService(service.Configuration)
+	if reloadedService.companionJobs["job-1"].Status != "pending" {
+		t.Fatalf("expected restart recovery to make running job retryable, got %+v", reloadedService.companionJobs["job-1"])
+	}
+}
+
 func TestCompanionFileUploadLifecycle(t *testing.T) {
 	service := NewService(Configuration{
 		StateDirectory:         t.TempDir(),

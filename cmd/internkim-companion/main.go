@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
 	"github.com/anthropic-lab/internkim/internal/capabilities"
@@ -229,6 +230,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	devMockLLM := flags.Bool("dev-mock-llm", false, "serve deterministic local LLM responses")
 	allowStdinPrompts := flags.Bool("allow-stdin-prompts", false, "allow terminal prompts for user input capabilities")
 	shellBridgeURL := flags.String("shell-bridge-url", "", "local companion shell bridge URL")
+	shellBridgeToken := flags.String("shell-bridge-token", "", "local companion shell bridge token")
 	controlListenAddress := flags.String("control-listen", "", "local companion shell control address")
 	agentBrowserPath := flags.String("agent-browser-path", "", "agent-browser executable path")
 	browserProfilePath := flags.String("browser-profile", defaultBrowserProfilePath(), "InternKim companion browser profile path")
@@ -258,6 +260,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 		state.Capabilities = capabilitiesWithoutBrowser(state.Capabilities)
 	}
 	grantStore := companionruntime.NewMemoryGrantStore()
+	runtimeStatus := &runtimeState{}
 	executor := companionruntime.Executor{
 		DevMockLLM:     *devMockLLM,
 		BrowserRuntime: browserRuntime,
@@ -266,12 +269,17 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	if readiness.Status != "ready" {
 		executor.BrowserRuntime = nil
 	}
-	controlServer, errorValue := startControlServer(*controlListenAddress, grantStore)
+	controlServer, errorValue := startControlServer(*controlListenAddress, grantStore, runtimeStatus)
 	if errorValue != nil {
 		return errorValue
 	}
 	if controlServer != nil {
 		defer controlServer.Close()
+	}
+	heartbeatContext, stopHeartbeatLoop := context.WithCancel(context.Background())
+	if !*runOnce {
+		defer stopHeartbeatLoop()
+		go runHeartbeatLoop(heartbeatContext, httpClient, state, privateKey, runtimeStatus)
 	}
 	if *allowStdinPrompts {
 		executor.PromptHandler = companionruntime.TerminalPromptHandler{Reader: os.Stdin, Writer: os.Stdout}
@@ -279,6 +287,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	if strings.TrimSpace(*shellBridgeURL) != "" {
 		shellBridgeHandler := companionruntime.ShellBridgePromptHandler{
 			BaseURL:    *shellBridgeURL,
+			Token:      *shellBridgeToken,
 			HTTPClient: httpClient,
 		}
 		executor.PromptHandler = shellBridgeHandler
@@ -292,8 +301,10 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	}
 	for {
 		if errorValue := sendHeartbeat(httpClient, state, privateKey); errorValue != nil {
+			runtimeStatus.recordHeartbeat(errorValue)
 			return errorValue
 		}
+		runtimeStatus.recordHeartbeat(nil)
 		job, errorValue := nextJob(httpClient, state, privateKey)
 		if errorValue != nil {
 			return errorValue
@@ -325,6 +336,19 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 		}
 		if *runOnce {
 			return executionError
+		}
+	}
+}
+
+func runHeartbeatLoop(ctx context.Context, httpClient *http.Client, state companionState, privateKey string, runtimeStatus *runtimeState) {
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			runtimeStatus.recordHeartbeat(sendHeartbeat(httpClient, state, privateKey))
 		}
 	}
 }

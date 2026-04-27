@@ -9,6 +9,8 @@ export type CompanionStatus = {
 	companionID?: string;
 	localOnly?: boolean;
 	capabilities?: Array<{ name: string }>;
+	browserRuntimeStatus?: string;
+	browserRuntimeError?: string;
 };
 
 export function parsePairingLink(value: string): PairingPayload {

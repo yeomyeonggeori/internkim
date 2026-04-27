@@ -179,6 +179,8 @@ Deep link를 직접 넘기는 CLI fallback도 지원합니다.
 
 Pairing signing key는 state file에 평문으로 저장하지 않습니다. state에는 key reference만 남기고 macOS에서는 Keychain을 사용합니다. secure storage를 쓸 수 없는 개발 환경에서만 `INTERNKIM_COMPANION_DEV_FILE_STORE=1`을 켜서 파일 기반 fallback을 허용합니다.
 
+Device broker job은 `/root/.internkim/state/companion-jobs.json`에 저장됩니다. admind가 재시작되면 pending job은 다시 claim 가능하고, running job은 retryable pending으로 되돌아갑니다. Tauri shell bridge는 loopback HTTP만 사용하며, shell이 만든 per-run token이 있는 요청만 받습니다.
+
 Tauri shell은 `companion/`에 있으며 Go daemon과 `agent-browser`를 sidecar로 bundle합니다. 개발 빌드 전에는 `make build-companion`으로 필요한 binaries를 `companion/src-tauri/binaries/`에 준비합니다.
 
 개발용 mock LLM은 명시적으로만 켭니다.
