@@ -3,8 +3,10 @@ GO_MOD_CACHE ?= /tmp/internkim-go-mod-cache
 BLUECLAW_GO_CACHE ?= /tmp/blueclaw-go-cache
 COMPANION_TARGET_TRIPLE ?= $(shell rustc -vV 2>/dev/null | sed -n 's/host: //p')
 AGENT_BROWSER_VERSION ?= 0.26.0
+COMPANION_BETA_DIST ?= dist/companion
+COMPANION_BETA_MACOS_ARTIFACT ?= internkim-companion-beta-macos-aarch64.dmg
 
-.PHONY: build build-companion build-companion-shell check test doctor deps-sim deps-browser deps-companion deps-companion-browser deps-graphiti setup-sim verify-api verify-browser verify-graphiti-local
+.PHONY: build build-companion build-companion-shell package-companion-beta check test doctor deps-sim deps-browser deps-companion deps-companion-browser deps-graphiti setup-sim verify-api verify-browser verify-graphiti-local
 
 build:
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim ./cmd/internkim
@@ -18,6 +20,14 @@ build-companion:
 
 build-companion-shell: build-companion
 	cd companion && bun run build:tauri
+
+package-companion-beta: build-companion
+	cd companion && bun run build:tauri:beta
+	mkdir -p $(COMPANION_BETA_DIST)
+	tools/verify-companion-beta-bundle companion/src-tauri/target/release/bundle/macos/Intern\ Kim\ Companion.app
+	hdiutil create -volname "Intern Kim Companion" -srcfolder companion/src-tauri/target/release/bundle/macos/Intern\ Kim\ Companion.app -ov -format UDZO "$(COMPANION_BETA_DIST)/$(COMPANION_BETA_MACOS_ARTIFACT)"
+	@if [ -n "$$APPLE_SIGNING_IDENTITY" ]; then codesign --force --sign "$$APPLE_SIGNING_IDENTITY" "$(COMPANION_BETA_DIST)/$(COMPANION_BETA_MACOS_ARTIFACT)"; else echo "unsigned beta artifact: $(COMPANION_BETA_DIST)/$(COMPANION_BETA_MACOS_ARTIFACT)"; fi
+	@if [ -n "$$APPLE_ID" ] && [ -n "$$APPLE_TEAM_ID" ] && [ -n "$$APPLE_APP_SPECIFIC_PASSWORD" ]; then xcrun notarytool submit "$(COMPANION_BETA_DIST)/$(COMPANION_BETA_MACOS_ARTIFACT)" --apple-id "$$APPLE_ID" --team-id "$$APPLE_TEAM_ID" --password "$$APPLE_APP_SPECIFIC_PASSWORD" --wait; fi
 
 check: build build-companion
 	cd companion && bun run check

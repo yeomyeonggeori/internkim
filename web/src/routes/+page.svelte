@@ -77,6 +77,7 @@
 		platform: string;
 		label: string;
 		architecture: string;
+		status?: string;
 		url: string;
 	};
 
@@ -339,6 +340,10 @@
 		return companionReleases.find((release) => release.platform === platform) ?? companionReleases[0];
 	}
 
+	function isCompanionReleaseAvailable(release: CompanionRelease | undefined) {
+		return !!release?.url && release.status !== 'coming_soon';
+	}
+
 	function onlineCompanionCount() {
 		return companionStatuses.filter((companion) => companion.isOnline && !companion.disabled).length;
 	}
@@ -542,19 +547,35 @@
 						{#if recommendedCompanionRelease()}
 							<div>
 								<p class="text-sm font-medium">{recommendedCompanionRelease()?.label} companion</p>
-								<p class="text-muted-foreground text-xs">{recommendedCompanionRelease()?.architecture}</p>
+								<p class="text-muted-foreground text-xs">
+									{recommendedCompanionRelease()?.architecture}
+									{#if !isCompanionReleaseAvailable(recommendedCompanionRelease())}
+										· coming soon
+									{/if}
+								</p>
 							</div>
-							<Button href={recommendedCompanionRelease()?.url} variant="outline" class="gap-2">
-								<DownloadIcon class="size-4" />
-								Download companion
-							</Button>
+							{#if isCompanionReleaseAvailable(recommendedCompanionRelease())}
+								<Button href={recommendedCompanionRelease()?.url} variant="outline" class="gap-2">
+									<DownloadIcon class="size-4" />
+									Download companion
+								</Button>
+							{:else}
+								<Button disabled variant="outline" class="gap-2">
+									<DownloadIcon class="size-4" />
+									Beta build coming soon
+								</Button>
+							{/if}
 						{:else}
 							<p class="text-muted-foreground text-sm">다운로드 정보를 불러오는 중...</p>
 						{/if}
 						{#if companionReleases.length > 1}
 							<div class="flex flex-wrap gap-2">
 								{#each companionReleases as release}
-									<Button href={release.url} variant="ghost" size="sm">{release.label}</Button>
+									{#if isCompanionReleaseAvailable(release)}
+										<Button href={release.url} variant="ghost" size="sm">{release.label}</Button>
+									{:else}
+										<Button disabled variant="ghost" size="sm">{release.label} soon</Button>
+									{/if}
 								{/each}
 							</div>
 						{/if}
@@ -616,6 +637,9 @@
 									<p class="text-muted-foreground mt-1 truncate text-xs">
 										{companion.capabilities?.map((capability) => capability.name).join(', ') || 'no capabilities'}
 									</p>
+									{#if companion.isOnline && !companion.capabilities?.some((capability) => capability.name.startsWith('browser.'))}
+										<p class="mt-1 text-xs text-destructive">browser runtime unavailable</p>
+									{/if}
 								</div>
 								<Button variant="ghost" size="sm" onclick={() => revokeCompanion(companion.companionID)}>Revoke</Button>
 							</div>

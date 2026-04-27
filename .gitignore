@@ -1,6 +1,7 @@
 .factory/
 .DS_Store
 build/
+dist/
 /internkim
 /internkim-companion
 companion/dist/

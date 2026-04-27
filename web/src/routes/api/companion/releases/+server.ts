@@ -6,20 +6,23 @@ const platforms = [
 	{
 		platform: 'macos',
 		label: 'macOS',
-		architecture: 'Universal',
-		url: `${latestReleaseBaseURL}/internkim-companion-shell-darwin-universal.dmg`
+		architecture: 'Apple Silicon beta',
+		status: 'available',
+		url: `${latestReleaseBaseURL}/internkim-companion-beta-macos-aarch64.dmg`
 	},
 	{
 		platform: 'windows',
 		label: 'Windows',
 		architecture: 'x64',
-		url: `${latestReleaseBaseURL}/internkim-companion-shell-windows-x64.msi`
+		status: 'coming_soon',
+		url: ''
 	},
 	{
 		platform: 'linux',
 		label: 'Linux',
 		architecture: 'x64 AppImage',
-		url: `${latestReleaseBaseURL}/internkim-companion-shell-linux-x64.AppImage`
+		status: 'coming_soon',
+		url: ''
 	}
 ];
 

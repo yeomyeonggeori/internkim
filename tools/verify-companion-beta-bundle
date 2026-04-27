@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+
+appPath="${1:-}"
+if [ -z "${appPath}" ]; then
+  echo "usage: tools/verify-companion-beta-bundle <Companion.app>" >&2
+  exit 2
+fi
+
+binaryDirectory="${appPath}/Contents/MacOS"
+test -x "${binaryDirectory}/internkim-companion"
+test -x "${binaryDirectory}/agent-browser"
+test -x "${binaryDirectory}/internkim-companion-shell"
+
+"${binaryDirectory}/agent-browser" --version >/dev/null

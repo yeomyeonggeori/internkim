@@ -183,6 +183,8 @@ Device broker job은 `/root/.internkim/state/companion-jobs.json`에 저장됩�
 
 Tauri shell은 `companion/`에 있으며 Go daemon과 `agent-browser`를 sidecar로 bundle합니다. 개발 빌드 전에는 `make build-companion`으로 필요한 binaries를 `companion/src-tauri/binaries/`에 준비합니다.
 
+macOS beta artifact는 `make package-companion-beta`로 만듭니다. 결과물 이름은 Pages 관리자 다운로드 CTA와 같은 `dist/companion/internkim-companion-beta-macos-aarch64.dmg`입니다. `APPLE_SIGNING_IDENTITY`가 있으면 dmg에 codesign을 시도하고, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_SPECIFIC_PASSWORD`가 모두 있으면 notarytool submit까지 실행합니다. Windows/Linux installer signing은 후속 release hardening 범위입니다.
+
 개발용 mock LLM은 명시적으로만 켭니다.
 
 ```bash
