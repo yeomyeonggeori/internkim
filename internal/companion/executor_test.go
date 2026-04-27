@@ -17,6 +17,11 @@ import (
 type fakeBrowserRuntime struct {
 	startRequest    browserruntime.SessionStartRequest
 	navigateRequest browserruntime.NavigateRequest
+	clickRequest    browserruntime.ClickRequest
+	fillRequest     browserruntime.FillRequest
+	selectRequest   browserruntime.SelectRequest
+	pressRequest    browserruntime.PressRequest
+	waitRequest     browserruntime.WaitRequest
 	observeResult   browserruntime.ObserveResult
 	screenshot      browserruntime.ScreenshotResult
 	errorValue      error
@@ -65,6 +70,51 @@ func (runtime *fakeBrowserRuntime) Screenshot(ctx context.Context, request brows
 		return browserruntime.ScreenshotResult{}, runtime.errorValue
 	}
 	return runtime.screenshot, nil
+}
+
+func (runtime *fakeBrowserRuntime) Click(ctx context.Context, request browserruntime.ClickRequest) (browserruntime.ActionResult, error) {
+	_ = ctx
+	runtime.clickRequest = request
+	if runtime.errorValue != nil {
+		return browserruntime.ActionResult{}, runtime.errorValue
+	}
+	return browserruntime.ActionResult{OK: true, Action: "click", Target: request.Target}, nil
+}
+
+func (runtime *fakeBrowserRuntime) Fill(ctx context.Context, request browserruntime.FillRequest) (browserruntime.ActionResult, error) {
+	_ = ctx
+	runtime.fillRequest = request
+	if runtime.errorValue != nil {
+		return browserruntime.ActionResult{}, runtime.errorValue
+	}
+	return browserruntime.ActionResult{OK: true, Action: "fill", Target: request.Target}, nil
+}
+
+func (runtime *fakeBrowserRuntime) Select(ctx context.Context, request browserruntime.SelectRequest) (browserruntime.ActionResult, error) {
+	_ = ctx
+	runtime.selectRequest = request
+	if runtime.errorValue != nil {
+		return browserruntime.ActionResult{}, runtime.errorValue
+	}
+	return browserruntime.ActionResult{OK: true, Action: "select", Target: request.Target}, nil
+}
+
+func (runtime *fakeBrowserRuntime) Press(ctx context.Context, request browserruntime.PressRequest) (browserruntime.ActionResult, error) {
+	_ = ctx
+	runtime.pressRequest = request
+	if runtime.errorValue != nil {
+		return browserruntime.ActionResult{}, runtime.errorValue
+	}
+	return browserruntime.ActionResult{OK: true, Action: "press"}, nil
+}
+
+func (runtime *fakeBrowserRuntime) Wait(ctx context.Context, request browserruntime.WaitRequest) (browserruntime.ActionResult, error) {
+	_ = ctx
+	runtime.waitRequest = request
+	if runtime.errorValue != nil {
+		return browserruntime.ActionResult{}, runtime.errorValue
+	}
+	return browserruntime.ActionResult{OK: true, Action: "wait", Target: request.Target}, nil
 }
 
 func (picker fakeFilePicker) PickFile(ctx context.Context, request FilePickRequest) (PickedFile, error) {
@@ -168,6 +218,46 @@ func TestBrowserScreenshotUploadsDevicePathOnly(t *testing.T) {
 	}
 	if !strings.Contains(string(response.Result), "/tmp/internkim-companion-files/screen.png") {
 		t.Fatalf("screenshot did not return device path: %s", string(response.Result))
+	}
+}
+
+func TestBrowserControlToolsUseRuntime(t *testing.T) {
+	browserRuntime := &fakeBrowserRuntime{}
+	executor := Executor{BrowserRuntime: browserRuntime}
+
+	requests := []capabilities.ToolInvokeRequest{
+		{ToolName: "browser.click", Input: json.RawMessage(`{"ref":"@e1"}`)},
+		{ToolName: "browser.fill", Input: json.RawMessage(`{"target":"@e2","text":"hello"}`)},
+		{ToolName: "browser.select", Input: json.RawMessage(`{"selector":"select[name=team]","value":"ops"}`)},
+		{ToolName: "browser.press", Input: json.RawMessage(`{"key":"Enter"}`)},
+		{ToolName: "browser.wait", Input: json.RawMessage(`{"milliseconds":250}`)},
+	}
+	for _, request := range requests {
+		response, errorValue := executor.Execute(context.Background(), request)
+		if errorValue != nil {
+			t.Fatalf("expected %s success: %v", request.ToolName, errorValue)
+		}
+		if response.ToolName != request.ToolName {
+			t.Fatalf("unexpected response tool: %+v", response)
+		}
+		if strings.Contains(string(response.Result), "cookie") || strings.Contains(string(response.Result), "profile") || strings.Contains(string(response.Result), "cdp") {
+			t.Fatalf("browser control leaked internals: %s", string(response.Result))
+		}
+	}
+	if browserRuntime.clickRequest.Ref != "@e1" {
+		t.Fatalf("unexpected click request: %+v", browserRuntime.clickRequest)
+	}
+	if browserRuntime.fillRequest.Target != "@e2" || browserRuntime.fillRequest.Text != "hello" {
+		t.Fatalf("unexpected fill request: %+v", browserRuntime.fillRequest)
+	}
+	if browserRuntime.selectRequest.Selector != "select[name=team]" || browserRuntime.selectRequest.Value != "ops" {
+		t.Fatalf("unexpected select request: %+v", browserRuntime.selectRequest)
+	}
+	if browserRuntime.pressRequest.Key != "Enter" {
+		t.Fatalf("unexpected press request: %+v", browserRuntime.pressRequest)
+	}
+	if browserRuntime.waitRequest.Milliseconds != 250 {
+		t.Fatalf("unexpected wait request: %+v", browserRuntime.waitRequest)
 	}
 }
 
