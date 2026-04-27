@@ -38,6 +38,9 @@ type Configuration struct {
 	SocketGroupName            string
 	LiteRTModelPath            string
 	LiteRTWrapperPath          string
+	CompanionBaseURL           string
+	PreferCompanionLLM         bool
+	LocalOnly                  bool
 }
 
 type Service struct {
@@ -104,6 +107,9 @@ func DefaultConfiguration() Configuration {
 		SocketGroupName:            "blueclaw",
 		LiteRTModelPath:            "/root/.internkim/models/gemma-4-E4B-it.litertlm",
 		LiteRTWrapperPath:          "/usr/local/bin/internkim-litert-wrapper",
+		CompanionBaseURL:           "",
+		PreferCompanionLLM:         false,
+		LocalOnly:                  false,
 	}
 }
 
@@ -144,6 +150,7 @@ func (service Service) router() http.Handler {
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.start", service.handleProgressStart)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.stop", service.handleProgressStop)
 	multiplexer.HandleFunc("POST /v1/tools/{toolName}/invoke", service.handleToolInvoke)
+	multiplexer.HandleFunc("GET /v1/capabilities", service.handleCapabilities)
 	multiplexer.HandleFunc("GET /health", func(responseWriter http.ResponseWriter, request *http.Request) {
 		_ = request
 		responseWriter.WriteHeader(http.StatusOK)
@@ -153,13 +160,18 @@ func (service Service) router() http.Handler {
 }
 
 func (service Service) handleToolInvoke(responseWriter http.ResponseWriter, request *http.Request) {
-	_ = service
 	toolName := strings.TrimSpace(request.PathValue("toolName"))
 	if toolName == "" {
 		http.Error(responseWriter, "tool name is required", http.StatusBadRequest)
 		return
 	}
-	service.writeResponse(responseWriter, nil, errors.New("capability tool is not configured: "+toolName))
+	response, errorValue := service.invokeCapabilityTool(request.Context(), toolName, request.Body)
+	service.writeResponse(responseWriter, response, errorValue)
+}
+
+func (service Service) handleCapabilities(responseWriter http.ResponseWriter, request *http.Request) {
+	response, errorValue := service.capabilityRegistry(request.Context())
+	service.writeResponse(responseWriter, response, errorValue)
 }
 
 func (service Service) handleStructuredLLM(responseWriter http.ResponseWriter, request *http.Request) {

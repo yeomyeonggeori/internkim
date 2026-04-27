@@ -1,6 +1,10 @@
 package blueclaw
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/anthropic-lab/internkim/internal/capabilities"
+)
 
 func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 	document := map[string]any{
@@ -12,6 +16,11 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 			"timeoutSecond":  120,
 			"vsockCID":       52,
 			"vsockPort":      7000,
+			"toolNames":      capabilities.CompanionToolNames(),
+			"routing": map[string]any{
+				"candidates": capabilities.RoutingCandidates(),
+				"localOnly":  false,
+			},
 		},
 		"languageModel": map[string]any{
 			"defaultProvider":  "capabilityLLM",
@@ -74,7 +83,7 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 		"agentProfiles": []map[string]any{
 			{
 				"name":             "default",
-				"allowedToolNames": []string{"conversation.history", "memory.search"},
+				"allowedToolNames": append([]string{"conversation.history", "memory.search"}, capabilities.CompanionToolNames()...),
 			},
 		},
 		"mcpServers": []map[string]any{},

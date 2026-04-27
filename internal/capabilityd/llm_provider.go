@@ -9,6 +9,8 @@ import (
 	"log"
 	"net/http"
 	"strings"
+
+	"github.com/anthropic-lab/internkim/internal/capabilities"
 )
 
 type LLMMessage struct {
@@ -55,6 +57,11 @@ type TextLLMProvider interface {
 	CompleteText(context.Context, TextLLMRequest) (LLMResponse, error)
 }
 
+type LLMProvider interface {
+	StructuredLLMProvider
+	TextLLMProvider
+}
+
 type LiteRTProvider struct {
 	Configuration Configuration
 	RunCommand    func(context.Context, string, []string, []byte) ([]byte, error)
@@ -66,8 +73,7 @@ type OpenRouterProvider struct {
 }
 
 type AutoProvider struct {
-	Local  StructuredLLMProvider
-	Remote StructuredLLMProvider
+	Providers []LLMProvider
 }
 
 type litertRequest struct {
@@ -90,37 +96,19 @@ func (service Service) completeStructured(ctx context.Context, request Structure
 }
 
 func (service Service) completeText(ctx context.Context, request TextLLMRequest) (LLMResponse, error) {
-	structuredRequest := StructuredLLMRequest{
-		Model:                 request.Model,
-		ExecutionMode:         request.ExecutionMode,
-		Messages:              request.Messages,
-		RequireParameters:     request.RequireParameters,
-		EnableResponseHealing: request.EnableResponseHealing,
-		StructuredOutputSchema: StructuredOutputSchema{
-			Name:               "plain_text_response",
-			Document:           json.RawMessage(`{"type":"object","properties":{"content":{"type":"string"}},"required":["content"],"additionalProperties":false}`),
-			IsStrictlyEnforced: true,
-		},
-	}
-	structuredResponse, errorValue := service.completeStructured(ctx, structuredRequest)
+	provider, errorValue := service.providerForExecutionMode(request.ExecutionMode)
 	if errorValue != nil {
 		return LLMResponse{}, errorValue
 	}
-	var textDocument struct {
-		Content string `json:"content"`
-	}
-	if errorValue := json.Unmarshal([]byte(structuredResponse.Content), &textDocument); errorValue != nil {
-		return LLMResponse{}, errorValue
-	}
-	structuredResponse.Content = textDocument.Content
-	return structuredResponse, nil
+	return provider.CompleteText(ctx, request)
 }
 
-func (service Service) providerForExecutionMode(executionMode string) (StructuredLLMProvider, error) {
+func (service Service) providerForExecutionMode(executionMode string) (LLMProvider, error) {
 	localProvider := LiteRTProvider{
 		Configuration: service.Configuration,
 		RunCommand:    service.runCommand,
 	}
+	companionProvider := service.companionProvider()
 	remoteProvider := OpenRouterProvider{
 		Configuration: service.Configuration,
 		HTTPClient:    service.httpClient(),
@@ -128,22 +116,62 @@ func (service Service) providerForExecutionMode(executionMode string) (Structure
 	switch strings.ToLower(firstNonEmpty(executionMode, "auto")) {
 	case "local":
 		return localProvider, nil
+	case "companion", "user_desktop":
+		return companionProvider, nil
 	case "remote":
+		if service.Configuration.LocalOnly {
+			return nil, errors.New("remote llm execution is disabled by local-only mode")
+		}
 		return remoteProvider, nil
 	case "auto":
-		return AutoProvider{Local: localProvider, Remote: remoteProvider}, nil
+		return AutoProvider{Providers: service.automaticLLMProviders(localProvider, companionProvider, remoteProvider)}, nil
 	default:
 		return nil, errors.New("llm execution mode is not supported")
 	}
 }
 
-func (provider AutoProvider) CompleteStructured(ctx context.Context, request StructuredLLMRequest) (LLMResponse, error) {
-	response, errorValue := provider.Local.CompleteStructured(ctx, request)
-	if errorValue == nil {
-		return response, nil
+func (service Service) automaticLLMProviders(localProvider LLMProvider, companionProvider LLMProvider, remoteProvider LLMProvider) []LLMProvider {
+	providers := []LLMProvider{localProvider, companionProvider}
+	if service.Configuration.PreferCompanionLLM {
+		providers = []LLMProvider{companionProvider, localProvider}
 	}
-	logLocalLLMFallback(errorValue)
-	return provider.Remote.CompleteStructured(ctx, request)
+	if !service.Configuration.LocalOnly {
+		providers = append(providers, remoteProvider)
+	}
+	return providers
+}
+
+func (provider AutoProvider) CompleteStructured(ctx context.Context, request StructuredLLMRequest) (LLMResponse, error) {
+	return completeWithProviderChain(provider.Providers, func(candidate LLMProvider) (LLMResponse, error) {
+		return candidate.CompleteStructured(ctx, request)
+	})
+}
+
+func (provider AutoProvider) CompleteText(ctx context.Context, request TextLLMRequest) (LLMResponse, error) {
+	return completeWithProviderChain(provider.Providers, func(candidate LLMProvider) (LLMResponse, error) {
+		return candidate.CompleteText(ctx, request)
+	})
+}
+
+func completeWithProviderChain(providers []LLMProvider, complete func(LLMProvider) (LLMResponse, error)) (LLMResponse, error) {
+	var lastError error
+	for index, candidate := range providers {
+		if candidate == nil {
+			continue
+		}
+		response, errorValue := complete(candidate)
+		if errorValue == nil {
+			return response, nil
+		}
+		lastError = errorValue
+		if index == 0 {
+			logLLMFallback(errorValue)
+		}
+	}
+	if lastError == nil {
+		lastError = errors.New("no llm provider is available")
+	}
+	return LLMResponse{}, lastError
 }
 
 func (provider LiteRTProvider) CompleteStructured(ctx context.Context, request StructuredLLMRequest) (LLMResponse, error) {
@@ -195,6 +223,14 @@ func (provider LiteRTProvider) completeWithBackend(ctx context.Context, request 
 	}, nil
 }
 
+func (provider LiteRTProvider) CompleteText(ctx context.Context, request TextLLMRequest) (LLMResponse, error) {
+	response, errorValue := provider.CompleteStructured(ctx, structuredRequestForText(request))
+	if errorValue != nil {
+		return LLMResponse{}, errorValue
+	}
+	return unwrapTextResponse(response)
+}
+
 func (provider OpenRouterProvider) CompleteStructured(ctx context.Context, request StructuredLLMRequest) (LLMResponse, error) {
 	apiKey := readSecretValue(provider.Configuration.OpenRouterKeyPath)
 	if apiKey == "" {
@@ -242,9 +278,17 @@ func (provider OpenRouterProvider) CompleteStructured(ctx context.Context, reque
 		Provider:        "openrouter",
 		Model:           request.model(),
 		Content:         parsedResponse.Choices[0].Message.Content,
-		SelectedBackend: "remote",
+		SelectedBackend: capabilities.LLMBackendRemote,
 		ConstraintMode:  "provider_json_schema",
 	}, nil
+}
+
+func (provider OpenRouterProvider) CompleteText(ctx context.Context, request TextLLMRequest) (LLMResponse, error) {
+	response, errorValue := provider.CompleteStructured(ctx, structuredRequestForText(request))
+	if errorValue != nil {
+		return LLMResponse{}, errorValue
+	}
+	return unwrapTextResponse(response)
 }
 
 func buildOpenRouterRequest(request StructuredLLMRequest) ([]byte, error) {
@@ -301,8 +345,34 @@ func (request StructuredLLMRequest) model() string {
 	return strings.TrimSpace(request.Model)
 }
 
-func logLocalLLMFallback(errorValue error) {
+func structuredRequestForText(request TextLLMRequest) StructuredLLMRequest {
+	return StructuredLLMRequest{
+		Model:                 request.Model,
+		ExecutionMode:         request.ExecutionMode,
+		Messages:              request.Messages,
+		RequireParameters:     request.RequireParameters,
+		EnableResponseHealing: request.EnableResponseHealing,
+		StructuredOutputSchema: StructuredOutputSchema{
+			Name:               "plain_text_response",
+			Document:           json.RawMessage(`{"type":"object","properties":{"content":{"type":"string"}},"required":["content"],"additionalProperties":false}`),
+			IsStrictlyEnforced: true,
+		},
+	}
+}
+
+func unwrapTextResponse(response LLMResponse) (LLMResponse, error) {
+	var textDocument struct {
+		Content string `json:"content"`
+	}
+	if errorValue := json.Unmarshal([]byte(response.Content), &textDocument); errorValue != nil {
+		return LLMResponse{}, errorValue
+	}
+	response.Content = textDocument.Content
+	return response, nil
+}
+
+func logLLMFallback(errorValue error) {
 	if errorValue != nil {
-		log.Printf("litert local capability failed; falling back to remote: %v", errorValue)
+		log.Printf("llm provider failed; trying next provider: %v", errorValue)
 	}
 }

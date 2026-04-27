@@ -30,6 +30,14 @@ When testing against real platform surfaces such as Mattermost, Slack, or Signal
 - Slack and Signal are external platforms. Delete test messages and bot replies when the connector has permission, and report any remote platform artifacts that cannot be removed.
 - Keep people, policy, platform account links, and secrets intact unless the task explicitly asks to reset them.
 
+## Companion Runtime Boundary
+
+- Treat `internkim-companion` as the user's local trusted runtime, not as a browser-only helper.
+- Keep browser cookies, local files, local model paths, and desktop credentials on the user's computer.
+- Route human-in-the-loop browser work, user confirmation, local file picking, and future local model inference through companion capabilities.
+- Keep Blueclaw provider-neutral. Blueclaw should request tools/capabilities, while InternKim chooses device, companion, or remote execution.
+- Local-only mode must not fall back to OpenRouter or another remote provider.
+
 ## Code Style
 
 ### No Comments

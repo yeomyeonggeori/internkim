@@ -117,12 +117,14 @@ func TestLiteRTProviderSendsJSONSchemaDocumentToWrapper(t *testing.T) {
 
 func TestAutoProviderFallsBackToRemote(t *testing.T) {
 	autoProvider := AutoProvider{
-		Local: staticStructuredProvider{errorValue: errTestProviderUnavailable},
-		Remote: staticStructuredProvider{response: LLMResponse{
-			Provider:        "openrouter",
-			Content:         `{"reply":"ok"}`,
-			SelectedBackend: "remote",
-		}},
+		Providers: []LLMProvider{
+			staticLLMProvider{errorValue: errTestProviderUnavailable},
+			staticLLMProvider{response: LLMResponse{
+				Provider:        "openrouter",
+				Content:         `{"reply":"ok"}`,
+				SelectedBackend: "remote",
+			}},
+		},
 	}
 
 	response, errorValue := autoProvider.CompleteStructured(context.Background(), StructuredLLMRequest{})
@@ -136,11 +138,15 @@ func TestAutoProviderFallsBackToRemote(t *testing.T) {
 
 var errTestProviderUnavailable = os.ErrNotExist
 
-type staticStructuredProvider struct {
+type staticLLMProvider struct {
 	response   LLMResponse
 	errorValue error
 }
 
-func (provider staticStructuredProvider) CompleteStructured(context.Context, StructuredLLMRequest) (LLMResponse, error) {
+func (provider staticLLMProvider) CompleteStructured(context.Context, StructuredLLMRequest) (LLMResponse, error) {
+	return provider.response, provider.errorValue
+}
+
+func (provider staticLLMProvider) CompleteText(context.Context, TextLLMRequest) (LLMResponse, error) {
 	return provider.response, provider.errorValue
 }
