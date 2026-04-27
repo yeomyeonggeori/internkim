@@ -1,21 +1,43 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/anthropic-lab/internkim/internal/capabilities"
 )
 
 func main() {
-	listenAddress := flag.String("listen", "127.0.0.1:7979", "companion listen address")
-	localOnly := flag.Bool("local-only", false, "advertise local-only mode")
-	devMockLLM := flag.Bool("dev-mock-llm", false, "serve deterministic local LLM responses for development")
-	flag.Parse()
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "pair":
+			exit(runPair(os.Args[2:], http.DefaultClient))
+		case "run":
+			exit(runCompanion(os.Args[2:], http.DefaultClient))
+		case "status":
+			exit(runStatus(os.Args[2:]))
+		}
+	}
+	exit(runServer(os.Args[1:]))
+}
+
+func runServer(arguments []string) error {
+	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
+	listenAddress := flags.String("listen", "127.0.0.1:7979", "companion listen address")
+	localOnly := flags.Bool("local-only", false, "advertise local-only mode")
+	devMockLLM := flags.Bool("dev-mock-llm", false, "serve deterministic local LLM responses for development")
+	if errorValue := flags.Parse(arguments); errorValue != nil {
+		return errorValue
+	}
 
 	multiplexer := http.NewServeMux()
 	multiplexer.HandleFunc("GET /health", func(responseWriter http.ResponseWriter, request *http.Request) {
@@ -35,9 +57,120 @@ func main() {
 	multiplexer.HandleFunc("POST /v1/tools/invoke", notImplemented)
 	multiplexer.HandleFunc("POST /v1/tools/{toolName}/invoke", notImplemented)
 
-	if errorValue := http.ListenAndServe(*listenAddress, multiplexer); errorValue != nil {
-		fmt.Fprintln(os.Stderr, errorValue.Error())
-		os.Exit(1)
+	return http.ListenAndServe(*listenAddress, multiplexer)
+}
+
+type companionState struct {
+	DeviceURL    string                    `json:"deviceURL"`
+	CompanionID  string                    `json:"companionID"`
+	Token        string                    `json:"token"`
+	LocalOnly    bool                      `json:"localOnly"`
+	Capabilities []capabilities.Descriptor `json:"capabilities"`
+}
+
+type companionJob struct {
+	JobID   string                         `json:"jobID"`
+	Status  string                         `json:"status"`
+	Request capabilities.ToolInvokeRequest `json:"request"`
+}
+
+func runPair(arguments []string, httpClient *http.Client) error {
+	flags := flag.NewFlagSet("pair", flag.ContinueOnError)
+	deviceURL := flags.String("device-url", "", "InternKim device URL")
+	code := flags.String("code", "", "pairing code")
+	statePath := flags.String("state", defaultStatePath(), "companion state path")
+	localOnly := flags.Bool("local-only", false, "advertise local-only mode")
+	devMockLLM := flags.Bool("dev-mock-llm", false, "advertise development mock LLM")
+	if errorValue := flags.Parse(arguments); errorValue != nil {
+		return errorValue
+	}
+	if *deviceURL == "" || *code == "" {
+		return fmt.Errorf("pair requires --device-url and --code")
+	}
+	capabilityList := defaultCapabilities(*localOnly, *devMockLLM)
+	requestBody := map[string]any{
+		"code":         strings.TrimSpace(*code),
+		"displayName":  defaultDisplayName(),
+		"publicKey":    "development-public-key",
+		"capabilities": capabilityList,
+		"localOnly":    *localOnly,
+	}
+	var response struct {
+		CompanionID string `json:"companionID"`
+		Token       string `json:"token"`
+	}
+	if errorValue := postJSON(httpClient, strings.TrimRight(*deviceURL, "/")+"/_internkim/companion/pair", nil, requestBody, &response); errorValue != nil {
+		return errorValue
+	}
+	state := companionState{
+		DeviceURL:    strings.TrimRight(*deviceURL, "/"),
+		CompanionID:  response.CompanionID,
+		Token:        response.Token,
+		LocalOnly:    *localOnly,
+		Capabilities: capabilityList,
+	}
+	if errorValue := saveState(*statePath, state); errorValue != nil {
+		return errorValue
+	}
+	fmt.Println("paired with " + state.DeviceURL)
+	return nil
+}
+
+func runStatus(arguments []string) error {
+	flags := flag.NewFlagSet("status", flag.ContinueOnError)
+	statePath := flags.String("state", defaultStatePath(), "companion state path")
+	if errorValue := flags.Parse(arguments); errorValue != nil {
+		return errorValue
+	}
+	state, errorValue := loadState(*statePath)
+	if errorValue != nil {
+		return errorValue
+	}
+	fmt.Println("device: " + state.DeviceURL)
+	fmt.Println("companion: " + state.CompanionID)
+	fmt.Printf("localOnly: %t\n", state.LocalOnly)
+	fmt.Printf("capabilities: %d\n", len(state.Capabilities))
+	return nil
+}
+
+func runCompanion(arguments []string, httpClient *http.Client) error {
+	flags := flag.NewFlagSet("run", flag.ContinueOnError)
+	statePath := flags.String("state", defaultStatePath(), "companion state path")
+	runOnce := flags.Bool("once", false, "process one polling cycle")
+	devMockLLM := flags.Bool("dev-mock-llm", false, "serve deterministic local LLM responses")
+	if errorValue := flags.Parse(arguments); errorValue != nil {
+		return errorValue
+	}
+	state, errorValue := loadState(*statePath)
+	if errorValue != nil {
+		return errorValue
+	}
+	if *devMockLLM {
+		state.Capabilities = defaultCapabilities(state.LocalOnly, true)
+	}
+	for {
+		if errorValue := sendHeartbeat(httpClient, state); errorValue != nil {
+			return errorValue
+		}
+		job, errorValue := nextJob(httpClient, state)
+		if errorValue != nil {
+			return errorValue
+		}
+		if job == nil {
+			if *runOnce {
+				return nil
+			}
+			continue
+		}
+		response, executionError := executeJob(*job, *devMockLLM)
+		if executionError != nil {
+			_ = failJob(httpClient, state, job.JobID, executionError.Error())
+		} else {
+			_ = completeJob(httpClient, state, job.JobID, response)
+		}
+		if *runOnce {
+			return executionError
+		}
 	}
 }
 
@@ -110,4 +243,170 @@ func notImplemented(responseWriter http.ResponseWriter, request *http.Request) {
 func writeJSON(responseWriter http.ResponseWriter, response any) {
 	responseWriter.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(responseWriter).Encode(response)
+}
+
+func executeJob(job companionJob, devMockLLM bool) (capabilities.ToolInvokeResponse, error) {
+	if !devMockLLM && (job.Request.ToolName == "llm.text" || job.Request.ToolName == "llm.structured") {
+		return capabilities.ToolInvokeResponse{}, fmt.Errorf("companion LLM is not configured")
+	}
+	switch job.Request.ToolName {
+	case "llm.text":
+		response := map[string]any{
+			"provider":        "companion",
+			"model":           "mock-local",
+			"selectedBackend": capabilities.LLMBackendCompanionLocal,
+			"content":         "ok",
+		}
+		return toolResponse(job.Request.ToolName, response)
+	case "llm.structured":
+		response := map[string]any{
+			"provider":        "companion",
+			"model":           "mock-local",
+			"selectedBackend": capabilities.LLMBackendCompanionLocal,
+			"constraintMode":  "prompt_validation",
+			"content":         mockStructuredContentFromBytes(job.Request.Input),
+		}
+		return toolResponse(job.Request.ToolName, response)
+	default:
+		return capabilities.ToolInvokeResponse{}, fmt.Errorf("companion capability is not implemented: %s", job.Request.ToolName)
+	}
+}
+
+func toolResponse(toolName string, result any) (capabilities.ToolInvokeResponse, error) {
+	document, errorValue := json.Marshal(result)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	return capabilities.ToolInvokeResponse{
+		Provider:        "companion",
+		SelectedBackend: capabilities.LLMBackendCompanionLocal,
+		ToolName:        toolName,
+		Result:          document,
+	}, nil
+}
+
+func mockStructuredContentFromBytes(document []byte) string {
+	request := &http.Request{Body: io.NopCloser(bytes.NewReader(document))}
+	return mockStructuredContent(request)
+}
+
+func sendHeartbeat(httpClient *http.Client, state companionState) error {
+	return postJSON(httpClient, state.DeviceURL+"/_internkim/companion/heartbeat", companionHeaders(state), map[string]any{
+		"capabilities": state.Capabilities,
+		"localOnly":    state.LocalOnly,
+	}, &map[string]any{})
+}
+
+func nextJob(httpClient *http.Client, state companionState) (*companionJob, error) {
+	request, errorValue := http.NewRequest(http.MethodGet, state.DeviceURL+"/_internkim/companion/jobs/next", nil)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	for key, value := range companionHeaders(state) {
+		request.Header.Set(key, value)
+	}
+	response, errorValue := httpClient.Do(request)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode >= http.StatusBadRequest {
+		body, _ := io.ReadAll(response.Body)
+		return nil, errors.New(string(body))
+	}
+	var job companionJob
+	if errorValue := json.NewDecoder(response.Body).Decode(&job); errorValue != nil {
+		return nil, errorValue
+	}
+	if job.Status == "empty" || job.JobID == "" {
+		return nil, nil
+	}
+	return &job, nil
+}
+
+func completeJob(httpClient *http.Client, state companionState, jobID string, response capabilities.ToolInvokeResponse) error {
+	return postJSON(httpClient, state.DeviceURL+"/_internkim/companion/jobs/"+url.PathEscape(jobID)+"/complete", companionHeaders(state), response, &map[string]any{})
+}
+
+func failJob(httpClient *http.Client, state companionState, jobID string, errorMessage string) error {
+	return postJSON(httpClient, state.DeviceURL+"/_internkim/companion/jobs/"+url.PathEscape(jobID)+"/fail", companionHeaders(state), map[string]string{"error": errorMessage}, &map[string]any{})
+}
+
+func postJSON(httpClient *http.Client, endpoint string, headers map[string]string, requestBody any, responseBody any) error {
+	document, errorValue := json.Marshal(requestBody)
+	if errorValue != nil {
+		return errorValue
+	}
+	request, errorValue := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(document))
+	if errorValue != nil {
+		return errorValue
+	}
+	request.Header.Set("Content-Type", "application/json")
+	for key, value := range headers {
+		request.Header.Set(key, value)
+	}
+	response, errorValue := httpClient.Do(request)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode >= http.StatusBadRequest {
+		body, _ := io.ReadAll(response.Body)
+		return errors.New(string(body))
+	}
+	return json.NewDecoder(response.Body).Decode(responseBody)
+}
+
+func companionHeaders(state companionState) map[string]string {
+	return map[string]string{
+		"X-InternKim-Companion-ID":    state.CompanionID,
+		"X-InternKim-Companion-Token": state.Token,
+	}
+}
+
+func saveState(path string, state companionState) error {
+	document, errorValue := json.MarshalIndent(state, "", "  ")
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
+		return errorValue
+	}
+	return os.WriteFile(path, document, 0o600)
+}
+
+func loadState(path string) (companionState, error) {
+	document, errorValue := os.ReadFile(path)
+	if errorValue != nil {
+		return companionState{}, errorValue
+	}
+	var state companionState
+	if errorValue := json.Unmarshal(document, &state); errorValue != nil {
+		return companionState{}, errorValue
+	}
+	return state, nil
+}
+
+func defaultStatePath() string {
+	homeDirectory, errorValue := os.UserHomeDir()
+	if errorValue != nil || homeDirectory == "" {
+		return ".internkim-companion.json"
+	}
+	return filepath.Join(homeDirectory, ".internkim-companion", "state.json")
+}
+
+func defaultDisplayName() string {
+	hostname, errorValue := os.Hostname()
+	if errorValue != nil || strings.TrimSpace(hostname) == "" {
+		return "Companion"
+	}
+	return hostname
+}
+
+func exit(errorValue error) {
+	if errorValue == nil {
+		return
+	}
+	fmt.Fprintln(os.Stderr, errorValue.Error())
+	os.Exit(1)
 }

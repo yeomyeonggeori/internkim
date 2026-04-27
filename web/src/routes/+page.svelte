@@ -45,6 +45,45 @@
 		chunkSize: number;
 	};
 
+	type CompanionCapability = {
+		name: string;
+		version?: string;
+		privacyClass?: string;
+		requiresUserPresence?: boolean;
+		worksOffline?: boolean;
+	};
+
+	type CompanionStatus = {
+		companionID: string;
+		displayName: string;
+		capabilities?: CompanionCapability[];
+		localOnly?: boolean;
+		isOnline?: boolean;
+		lastSeenAt?: string;
+		disabled?: boolean;
+	};
+
+	type CompanionStatusResponse = {
+		companions?: CompanionStatus[];
+	};
+
+	type CompanionPairingCodeResponse = {
+		code: string;
+		expiresAt: string;
+		deepLink: string;
+	};
+
+	type CompanionRelease = {
+		platform: string;
+		label: string;
+		architecture: string;
+		url: string;
+	};
+
+	type CompanionReleaseResponse = {
+		platforms?: CompanionRelease[];
+	};
+
 	const logoSrc = '/logo.svg';
 	const storedDeviceIdKey = 'internkim_device_id';
 
@@ -65,6 +104,12 @@
 	let restoreJob = $state<AdminJob | null>(null);
 	let isCreatingBackup = $state(false);
 	let isRestoring = $state(false);
+	let companionStatuses = $state<CompanionStatus[]>([]);
+	let companionReleases = $state<CompanionRelease[]>([]);
+	let companionPairingCode = $state<CompanionPairingCodeResponse | null>(null);
+	let companionErrorMessage = $state('');
+	let isLoadingCompanions = $state(false);
+	let isCreatingPairingCode = $state(false);
 
 	const deviceId = () => {
 		const explicitId = deviceIdInput.trim().toLowerCase();
@@ -97,6 +142,7 @@
 		const queryDeviceId = new URLSearchParams(location.search).get('device_id')?.trim().toLowerCase() ?? '';
 		deviceIdInput = queryDeviceId || deviceIdFromHost() || localStorage.getItem(storedDeviceIdKey) || '';
 		if (deviceIdInput) localStorage.setItem(storedDeviceIdKey, deviceIdInput);
+		loadCompanionReleases();
 		loadUsers();
 		checkDevice();
 	});
@@ -117,6 +163,18 @@
 		if (deviceIdInput) localStorage.setItem(storedDeviceIdKey, deviceIdInput);
 		loadUsers();
 		checkDevice();
+		loadCompanions();
+	}
+
+	async function loadCompanionReleases() {
+		try {
+			const response = await fetch('/api/companion/releases');
+			if (!response.ok) return;
+			const data = (await response.json()) as CompanionReleaseResponse;
+			companionReleases = data.platforms ?? [];
+		} catch {
+			companionReleases = [];
+		}
 	}
 
 	async function loadUsers() {
@@ -203,6 +261,86 @@
 		} finally {
 			isCheckingDevice = false;
 		}
+		if (isDeviceReachable) await loadCompanions();
+	}
+
+	async function loadCompanions() {
+		if (!adminBaseURL()) return;
+
+		isLoadingCompanions = true;
+		companionErrorMessage = '';
+		try {
+			const response = await fetch(`${adminBaseURL()}/companion/status`, { credentials: 'include' });
+			if (!response.ok) {
+				companionErrorMessage = 'Companion 상태를 불러오지 못했습니다.';
+				return;
+			}
+			const data = (await response.json()) as CompanionStatusResponse;
+			companionStatuses = data.companions ?? [];
+		} catch {
+			companionErrorMessage = 'Companion 상태를 불러오지 못했습니다.';
+		} finally {
+			isLoadingCompanions = false;
+		}
+	}
+
+	async function createCompanionPairingCode() {
+		if (!adminBaseURL()) return;
+
+		isCreatingPairingCode = true;
+		companionErrorMessage = '';
+		try {
+			const response = await fetch(`${adminBaseURL()}/companion/pairing-codes`, {
+				method: 'POST',
+				credentials: 'include'
+			});
+			if (!response.ok) {
+				companionErrorMessage = '연결 코드를 만들지 못했습니다.';
+				return;
+			}
+			companionPairingCode = (await response.json()) as CompanionPairingCodeResponse;
+			if (companionPairingCode.deepLink && browser) location.href = companionPairingCode.deepLink;
+		} catch {
+			companionErrorMessage = '연결 코드를 만들지 못했습니다.';
+		} finally {
+			isCreatingPairingCode = false;
+		}
+	}
+
+	async function revokeCompanion(companionID: string) {
+		if (!adminBaseURL()) return;
+
+		companionErrorMessage = '';
+		try {
+			const response = await fetch(`${adminBaseURL()}/companion/${encodeURIComponent(companionID)}`, {
+				method: 'DELETE',
+				credentials: 'include'
+			});
+			if (!response.ok) {
+				companionErrorMessage = 'Companion 연결을 해제하지 못했습니다.';
+				return;
+			}
+			await loadCompanions();
+		} catch {
+			companionErrorMessage = 'Companion 연결을 해제하지 못했습니다.';
+		}
+	}
+
+	function detectedCompanionPlatform() {
+		if (!browser) return 'macos';
+		const userAgent = navigator.userAgent.toLowerCase();
+		if (userAgent.includes('windows')) return 'windows';
+		if (userAgent.includes('linux')) return 'linux';
+		return 'macos';
+	}
+
+	function recommendedCompanionRelease() {
+		const platform = detectedCompanionPlatform();
+		return companionReleases.find((release) => release.platform === platform) ?? companionReleases[0];
+	}
+
+	function onlineCompanionCount() {
+		return companionStatuses.filter((companion) => companion.isOnline && !companion.disabled).length;
 	}
 
 	async function createBackup() {
@@ -387,6 +525,104 @@
 			{#if adminErrorMessage}
 				<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{adminErrorMessage}</p>
 			{/if}
+
+			<div class="rounded-lg border p-4">
+				<div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+					<div>
+						<h3 class="text-sm font-semibold">Companion App</h3>
+						<p class="text-muted-foreground mt-1 text-sm">
+							사용자 컴퓨터에서 브라우저, 파일 선택, 확인 요청, 로컬 실행을 맡는 작은 앱입니다.
+						</p>
+					</div>
+					<Badge variant={onlineCompanionCount() > 0 ? 'secondary' : 'outline'}>{onlineCompanionCount()} online</Badge>
+				</div>
+
+				<div class="grid gap-4 lg:grid-cols-[1fr_1fr]">
+					<div class="grid gap-3 rounded-md bg-muted/30 p-3">
+						{#if recommendedCompanionRelease()}
+							<div>
+								<p class="text-sm font-medium">{recommendedCompanionRelease()?.label} companion</p>
+								<p class="text-muted-foreground text-xs">{recommendedCompanionRelease()?.architecture}</p>
+							</div>
+							<Button href={recommendedCompanionRelease()?.url} variant="outline" class="gap-2">
+								<DownloadIcon class="size-4" />
+								Download companion
+							</Button>
+						{:else}
+							<p class="text-muted-foreground text-sm">다운로드 정보를 불러오는 중...</p>
+						{/if}
+						{#if companionReleases.length > 1}
+							<div class="flex flex-wrap gap-2">
+								{#each companionReleases as release}
+									<Button href={release.url} variant="ghost" size="sm">{release.label}</Button>
+								{/each}
+							</div>
+						{/if}
+					</div>
+
+					<div class="grid gap-3 rounded-md bg-muted/30 p-3">
+						<div>
+							<p class="text-sm font-medium">Connect to this Intern Kim</p>
+							<p class="text-muted-foreground text-xs">연결 코드는 10분 동안 한 번만 사용할 수 있습니다.</p>
+						</div>
+						<Button disabled={!isDeviceReachable || isCreatingPairingCode} onclick={createCompanionPairingCode} class="gap-2">
+							{#if isCreatingPairingCode}
+								<LoaderIcon class="size-4 animate-spin" />
+							{:else}
+								<ExternalLinkIcon class="size-4" />
+							{/if}
+							Connect
+						</Button>
+						{#if companionPairingCode}
+							<div class="rounded-md border bg-background p-3 text-sm">
+								<p class="font-medium">{companionPairingCode.code}</p>
+								<p class="text-muted-foreground mt-1 text-xs">
+									expires {new Date(companionPairingCode.expiresAt).toLocaleTimeString()}
+								</p>
+								<div class="mt-3 flex flex-wrap gap-2">
+									<CopyButton text={companionPairingCode.code} variant="outline" />
+									<CopyButton
+										text={`internkim-companion pair --device-url ${mattermostURL()} --code ${companionPairingCode.code}`}
+										variant="outline"
+									/>
+								</div>
+							</div>
+						{/if}
+					</div>
+				</div>
+
+				{#if companionErrorMessage}
+					<p class="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+						{companionErrorMessage}
+					</p>
+				{/if}
+
+				<div class="mt-4 overflow-hidden rounded-lg border">
+					{#if isLoadingCompanions}
+						<p class="text-muted-foreground p-3 text-sm">Companion 상태를 불러오는 중...</p>
+					{:else if companionStatuses.length === 0}
+						<p class="text-muted-foreground p-3 text-sm">아직 연결된 Companion이 없습니다.</p>
+					{:else}
+						{#each companionStatuses as companion}
+							<div class="flex flex-wrap items-center justify-between gap-3 border-b px-3 py-2 last:border-b-0">
+								<div class="min-w-0">
+									<div class="flex flex-wrap items-center gap-2">
+										<p class="truncate text-sm font-medium">{companion.displayName || companion.companionID}</p>
+										<Badge variant={companion.isOnline ? 'secondary' : 'outline'}>{companion.isOnline ? 'online' : 'offline'}</Badge>
+										{#if companion.localOnly}
+											<Badge variant="outline">local only</Badge>
+										{/if}
+									</div>
+									<p class="text-muted-foreground mt-1 truncate text-xs">
+										{companion.capabilities?.map((capability) => capability.name).join(', ') || 'no capabilities'}
+									</p>
+								</div>
+								<Button variant="ghost" size="sm" onclick={() => revokeCompanion(companion.companionID)}>Revoke</Button>
+							</div>
+						{/each}
+					{/if}
+				</div>
+			</div>
 
 			<div class="grid gap-4 md:grid-cols-2">
 				<div class="rounded-lg border p-4">
