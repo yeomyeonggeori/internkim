@@ -1,12 +1,15 @@
 GO_CACHE ?= /tmp/internkim-go-cache
 BLUECLAW_GO_CACHE ?= /tmp/blueclaw-go-cache
 
-.PHONY: build check test doctor deps-sim deps-browser deps-graphiti setup-sim verify-api verify-browser verify-graphiti-local
+.PHONY: build build-companion check test doctor deps-sim deps-browser deps-graphiti setup-sim verify-api verify-browser verify-graphiti-local
 
 build:
 	GOCACHE=$(GO_CACHE) go build -o internkim ./cmd/internkim
 
-check: build
+build-companion:
+	GOCACHE=$(GO_CACHE) go build -o internkim-companion ./cmd/internkim-companion
+
+check: build build-companion
 	cd web && bun run check
 	GOCACHE=$(GO_CACHE) go test ./...
 	cd .dependency/blueclaw && GOCACHE=$(BLUECLAW_GO_CACHE) go test ./...

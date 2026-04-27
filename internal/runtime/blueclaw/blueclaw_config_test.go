@@ -25,6 +25,14 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if capabilities["unixSocketPath"] != CapabilitySocketPath {
 		t.Fatalf("expected capability unix socket path, got %q", capabilities["unixSocketPath"])
 	}
+	capabilityToolNames := capabilities["toolNames"].([]any)
+	if !containsStringValue(capabilityToolNames, "user.confirm") {
+		t.Fatalf("expected companion capability tools, got %+v", capabilityToolNames)
+	}
+	routing := capabilities["routing"].(map[string]any)
+	if routing["localOnly"] != false {
+		t.Fatalf("expected default routing to allow remote fallback, got %v", routing["localOnly"])
+	}
 	capabilityLanguageModel := languageModel["capability"].(map[string]any)
 	if capabilityLanguageModel["executionMode"] != "auto" {
 		t.Fatalf("expected automatic execution mode, got %q", capabilityLanguageModel["executionMode"])
@@ -73,6 +81,11 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	allowedToolNames := defaultProfile["allowedToolNames"].([]any)
 	if !containsStringValue(allowedToolNames, "conversation.history") || !containsStringValue(allowedToolNames, "memory.search") {
 		t.Fatalf("expected default agent profile to allow internal tools, got %+v", allowedToolNames)
+	}
+	for _, expectedToolName := range []string{"browser.session.start", "browser.navigate", "user.confirm", "file.pick"} {
+		if !containsStringValue(allowedToolNames, expectedToolName) {
+			t.Fatalf("expected default profile to allow %q, got %+v", expectedToolName, allowedToolNames)
+		}
 	}
 	connectors := runtimeConfiguration["connectors"].(map[string]any)
 	mattermost := connectors["mattermost"].(map[string]any)

@@ -47,6 +47,10 @@ OpenRouter API         Google Drive/Docs/Gmail
     └─▶ Slack App / Events API
              └─▶ InternKim platform sidecar
                     └─▶ Blueclaw connector
+
+사용자 컴퓨터
+    └─▶ internkim-companion
+             └─▶ user-local browser / local model capability
 ```
 
 ## 보안 설계
@@ -68,6 +72,7 @@ Blueclaw와 Graphiti는 secrets 디렉토리를 직접 읽지 않습니다. LLM,
 | **Blueclaw** | 런타임 바이너리. `/usr/local/bin/blueclaw`, `/root/.blueclaw/config/*.json`, `/root/.blueclaw/workspace/*` 계약을 사용 |
 | **Graphiti memoryd** | Blueclaw memory sidecar. `graphiti-core[kuzu]`로 episode ingestion, temporal graph extraction, hybrid graph search 수행 |
 | **internkim-capabilityd** | OpenRouter, LiteRT, Mattermost, Slack, Signal credential을 보유하고 capability API만 노출 |
+| **internkim-companion** | 사용자 컴퓨터의 cross-platform trusted runtime. 브라우저 human-in-the-loop와 향후 local-only LLM capability 제공 |
 | **gws** | Google Workspace CLI. Drive/Docs/Gmail/Sheets 조작. MCP 서버 모드 지원 |
 | **Mattermost** | 온보드 채팅 서버. 기기 협업 채널과 모바일 알림에 사용 |
 | **Slack connector** | Slack workspace에서 들어오는 DM/channel 이벤트를 Blueclaw 작업으로 전달 |
@@ -146,6 +151,20 @@ make deps-sim
 make verify-graphiti-local
 ```
 
+### Companion Runtime
+
+`internkim-companion`은 사용자 컴퓨터에서 실행되는 capability provider입니다. v1은 브라우저 작업 중 사용자 로그인, MFA, 파일 선택, 승인 입력처럼 사람이 필요한 단계를 처리하기 위한 데몬 골격을 제공합니다. 장기적으로는 같은 capability contract로 사용자 컴퓨터의 더 강한 로컬 모델, embedding, 파일, desktop action도 처리합니다.
+
+```bash
+make build-companion
+./internkim-companion --listen 127.0.0.1:7979 --local-only
+./internkim-companion --listen 127.0.0.1:7979 --local-only --dev-mock-llm
+```
+
+InternKim `capabilityd`는 companion이 설정되어 있으면 `browser.*`, `user.*`, `file.pick`, companion LLM capability를 provider-neutral하게 라우팅할 수 있습니다. Blueclaw는 provider 구현, 브라우저 바이너리, 로컬 모델 경로, 사용자 브라우저 쿠키를 보지 않습니다.
+
+후속 정리 대상: Blueclaw의 기본 runtime config에는 아직 native terminal profile이 남아 있습니다. 제품 기본 경로는 typed capability/MCP tool이어야 하며, terminal은 dev/admin profile 전용으로 낮춰야 합니다.
+
 ### Blueclaw 기록/메모리 초기화
 
 테스트 중 만든 Blueclaw task, conversation, raw event, legacy memory, Graphiti mirror, Kuzu memory files를 지우려면:
@@ -193,6 +212,7 @@ internkim/
 ├── go.mod / go.sum
 ├── cmd/
 │   ├── internkim/           Go CLI 엔트리포인트
+│   ├── internkim-companion/  사용자 컴퓨터 trusted runtime 데몬
 │   └── download/            보드 헬퍼 바이너리
 ├── internal/
 │   ├── cli/                 셋업, 배포, lab, 상태 명령 구현
