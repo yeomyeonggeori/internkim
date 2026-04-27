@@ -6,7 +6,7 @@
 	import { onMount } from 'svelte';
 	import { normalizeManualPairingInput, parsePairingLink, statusLabel, type CompanionStatus } from './lib/pairing';
 	import { approvalResponse, confirmResponse, inputResponse, normalizePromptRequest, promptTitle, type PromptRequest, type PromptResult } from './lib/prompts';
-	import { pairCompanion, readCompanionStatus, readRuntimeStatus, startCompanionRuntime, type RuntimeStatus } from './lib/sidecar';
+	import { pairCompanion, readActiveGrants, readCompanionStatus, readRuntimeStatus, revokeGrant, startCompanionRuntime, type ActiveGrant, type RuntimeStatus } from './lib/sidecar';
 
 	let status = $state<CompanionStatus>({ paired: false });
 	let runtime = $state<RuntimeStatus>({ isRunning: false });
@@ -17,6 +17,7 @@
 	let denialReason = $state('');
 	let pendingPrompt = $state<PromptRequest | undefined>();
 	let promptResult = $state<PromptResult>({ status: 'idle' });
+	let activeGrants = $state<ActiveGrant[]>([]);
 	let isBusy = $state(false);
 
 	onMount(() => {
@@ -24,6 +25,7 @@
 		void registerShellEvents();
 		const intervalID = window.setInterval(() => {
 			runtime = readRuntimeStatus();
+			void refreshGrants();
 		}, 1000);
 		return () => window.clearInterval(intervalID);
 	});
@@ -42,6 +44,18 @@
 		} catch {
 			status = { paired: false };
 			runtime = readRuntimeStatus();
+		}
+	}
+
+	async function refreshGrants() {
+		if (!runtime.isRunning) {
+			activeGrants = [];
+			return;
+		}
+		try {
+			activeGrants = await readActiveGrants();
+		} catch {
+			activeGrants = [];
 		}
 	}
 
@@ -110,8 +124,18 @@
 		try {
 			await startCompanionRuntime();
 			runtime = readRuntimeStatus();
+			await refreshGrants();
 		} catch (errorValue) {
 			runtime = { isRunning: false, lastError: errorValue instanceof Error ? errorValue.message : 'Runtime failed to start' };
+		}
+	}
+
+	async function revokeActiveGrant(grantID: string) {
+		try {
+			await revokeGrant(grantID);
+			await refreshGrants();
+		} catch (errorValue) {
+			message = errorValue instanceof Error ? errorValue.message : 'Grant revoke failed';
 		}
 	}
 
@@ -197,6 +221,25 @@
 			<p class:failed={promptResult.status === 'failed'} class="message">{promptResult.message}</p>
 		{:else}
 			<p class="subtle">Requests that need your confirmation or input will appear here.</p>
+		{/if}
+	</section>
+
+	<section class="grant-panel">
+		<h2>Allowed for this task</h2>
+		{#if activeGrants.length}
+			<div class="grant-list">
+				{#each activeGrants as grant}
+					<div class="grant-row">
+						<div>
+							<strong>{grant.displayName}</strong>
+							<span>{grant.usedJobs}/{grant.maxJobs} jobs used</span>
+						</div>
+						<button class="secondary" onclick={() => revokeActiveGrant(grant.grantID)}>Revoke</button>
+					</div>
+				{/each}
+			</div>
+		{:else}
+			<p class="subtle">Temporary permissions you allow for a task will appear here.</p>
 		{/if}
 	</section>
 

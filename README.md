@@ -171,7 +171,9 @@ Deep link를 직접 넘기는 CLI fallback도 지원합니다.
 ./internkim-companion pair 'internkim://pair?device_url=https%3A%2F%2Fdc719d8e.example.test&code=ABCD-1234'
 ```
 
-현재 companion executor는 `browser.session.start`, `browser.navigate`, 개발용 mock `llm.text`, 개발용 mock `llm.structured`를 처리합니다. `user.confirm`과 `user.input`은 tray/menu bar UI가 붙기 전까지 명시적으로 `--allow-stdin-prompts`를 켠 CLI fallback에서만 처리합니다.
+현재 companion executor는 `user.confirm`, `user.input`, approval grant, `browser.session.start`, `browser.navigate`, 개발용 mock `llm.text`, 개발용 mock `llm.structured`를 처리합니다. Tauri shell은 confirmation/input/approval UI를 띄우고, 승인된 작업 범위는 `Allowed for this task`에서 확인하거나 revoke할 수 있습니다. `--allow-stdin-prompts`는 shell 없이 디버깅할 때만 쓰는 CLI fallback입니다.
+
+Pairing signing key는 state file에 평문으로 저장하지 않습니다. state에는 key reference만 남기고 macOS에서는 Keychain을 사용합니다. secure storage를 쓸 수 없는 개발 환경에서만 `INTERNKIM_COMPANION_DEV_FILE_STORE=1`을 켜서 파일 기반 fallback을 허용합니다.
 
 Tauri shell은 `companion/`에 있으며 Go daemon을 sidecar로 bundle합니다. 개발 빌드 전에는 `make build-companion`으로 sidecar binary를 `companion/src-tauri/binaries/`에 준비합니다.
 

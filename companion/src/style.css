@@ -29,6 +29,7 @@ input {
 .form-panel,
 .runtime-panel,
 .prompt-panel,
+.grant-panel,
 .capability-panel {
 	border: 1px solid #dfe4ec;
 	border-radius: 8px;
@@ -96,7 +97,8 @@ h2 {
 }
 
 .runtime-panel,
-.prompt-panel {
+.prompt-panel,
+.grant-panel {
 	display: grid;
 	gap: 12px;
 }
@@ -113,6 +115,36 @@ h2 {
 .prompt-card {
 	display: grid;
 	gap: 12px;
+}
+
+.grant-list {
+	display: grid;
+	gap: 8px;
+}
+
+.grant-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	border: 1px solid #e2e7ef;
+	border-radius: 7px;
+	padding: 10px;
+}
+
+.grant-row div {
+	display: grid;
+	gap: 4px;
+}
+
+.grant-row strong {
+	color: #202633;
+	font-size: 14px;
+}
+
+.grant-row span {
+	color: #626b7a;
+	font-size: 12px;
 }
 
 .prompt-message {
