@@ -75,9 +75,12 @@ func (forwarder MattermostWebSocketForwarder) runOnce(ctx context.Context) error
 		if errorValue != nil {
 			return errorValue
 		}
-		if errorValue := forwarder.forward(ctx, payload); errorValue != nil {
-			log.Printf("mattermost forward failed: %v", errorValue)
-		}
+		payloadDocument := append([]byte(nil), payload...)
+		go func() {
+			if errorValue := forwarder.forward(ctx, payloadDocument); errorValue != nil {
+				log.Printf("mattermost forward failed: %v", errorValue)
+			}
+		}()
 	}
 	return ctx.Err()
 }

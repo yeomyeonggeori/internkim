@@ -408,6 +408,9 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 		ID string `json:"id"`
 	}
 	errorValue = service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", body, &response)
+	if errorValue != nil {
+		log.Printf("mattermost reply failed: %v", errorValue)
+	}
 	return map[string]string{"dispatchID": response.ID}, errorValue
 }
 

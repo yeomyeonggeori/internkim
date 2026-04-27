@@ -1091,7 +1091,7 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 			bodyFlag = fmt.Sprintf(` -d '%s'`, escaped)
 		}
 		out := ssh.run(fmt.Sprintf(
-			`curl -sf -w '\n%%{http_code}' -X %s%s -H 'Content-Type: application/json'%s '%s%s' 2>/dev/null`,
+			`curl --silent --show-error -w '\n%%{http_code}' -X %s%s -H 'Content-Type: application/json'%s '%s%s'`,
 			method, authFlag, bodyFlag, localURL, path,
 		))
 		lines := strings.Split(strings.TrimSpace(out), "\n")
@@ -1187,9 +1187,7 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 		Token string `json:"token"`
 	}
 	json.Unmarshal(patResp, &patResult)
-	if patResult.Token != "" {
-		adminToken = patResult.Token // use PAT going forward
-	}
+	_ = patResult
 
 	// 6. Create bot account
 	botBody, _ := json.Marshal(map[string]string{
@@ -1221,6 +1219,22 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 		}
 		json.Unmarshal(botPatResp, &botPat)
 		botToken = botPat.Token
+	}
+	validateMattermostToken := func(token string) bool {
+		if strings.TrimSpace(token) == "" {
+			return false
+		}
+		code, _ := mmAPI("GET", "/api/v4/users/me", nil, token)
+		return code == 200
+	}
+	if !validateMattermostToken(botToken) {
+		existingBotToken := strings.TrimSpace(ssh.run("cat /root/.internkim/secrets/mattermost-bot-token 2>/dev/null"))
+		if validateMattermostToken(existingBotToken) {
+			botToken = existingBotToken
+		} else {
+			fmt.Printf("  %s\n", m.t("Mattermost bot 토큰 검증 실패 — 건너뜀", "Mattermost bot token validation failed — skipping"))
+			return
+		}
 	}
 
 	// 6b. Delete Mattermost's default bot welcome DM — only if the oldest post
@@ -3003,6 +3017,7 @@ func (s *sshClient) scpDirect(localPath, remotePath string) {
 func (s *sshClient) scpDir(localDir, remoteDir string) {
 	if s.user != "root" && strings.HasPrefix(remoteDir, "/") {
 		temporaryRemoteDirectory := "/tmp/internkim-upload-" + filepath.Base(remoteDir)
+		s.run("rm -rf " + quoteShellValue(temporaryRemoteDirectory) + " && mkdir -p " + quoteShellValue(temporaryRemoteDirectory))
 		s.scpDirDirect(localDir, temporaryRemoteDirectory)
 		s.run(fmt.Sprintf(
 			"mkdir -p %s && cp -a %s/. %s/",

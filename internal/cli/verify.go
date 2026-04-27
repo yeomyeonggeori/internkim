@@ -376,6 +376,94 @@ channel_id="$(cat /root/.internkim/env/channel-id)"
 admin_password="$(cat /root/.internkim/secrets/mm-admin-pass)"
 test_started_at="$(date +%s%3N)"
 
+phase() {
+  echo "$1"
+}
+
+api_request() {
+  local phase_name="$1"
+  local method="$2"
+  local url="$3"
+  local token="${4:-}"
+  local body="${5:-}"
+  local response_file
+  local status
+  local curl_status
+  response_file="$(mktemp)"
+  if [ -n "$body" ]; then
+    if [ -n "$token" ]; then
+      status="$(curl --silent --show-error --output "$response_file" --write-out "%{http_code}" \
+        -X "$method" -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
+        -d "$body" "$url")" || curl_status="$?"
+    else
+      status="$(curl --silent --show-error --output "$response_file" --write-out "%{http_code}" \
+        -X "$method" -H "Content-Type: application/json" \
+        -d "$body" "$url")" || curl_status="$?"
+    fi
+  else
+    if [ -n "$token" ]; then
+      status="$(curl --silent --show-error --output "$response_file" --write-out "%{http_code}" \
+        -X "$method" -H "Authorization: Bearer $token" "$url")" || curl_status="$?"
+    else
+      status="$(curl --silent --show-error --output "$response_file" --write-out "%{http_code}" \
+        -X "$method" "$url")" || curl_status="$?"
+    fi
+  fi
+  if [ "${curl_status:-0}" != "0" ]; then
+    echo "Mattermost API curl failure during $phase_name: $method $url (curl exit ${curl_status:-0})" >&2
+    cat "$response_file" >&2 || true
+    rm -f "$response_file"
+    return "${curl_status:-1}"
+  fi
+  if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+    echo "Mattermost API failure during $phase_name: $method $url returned HTTP $status" >&2
+    cat "$response_file" >&2 || true
+    echo >&2
+    rm -f "$response_file"
+    return 22
+  fi
+  cat "$response_file"
+  rm -f "$response_file"
+}
+
+blueclaw_request() {
+  local phase_name="$1"
+  local method="$2"
+  local url="$3"
+  local body="${4:-}"
+  local response_file
+  local status
+  local curl_status
+  response_file="$(mktemp)"
+  if [ -n "$body" ]; then
+    status="$(curl --silent --show-error --output "$response_file" --write-out "%{http_code}" \
+      -X "$method" -H "Content-Type: application/json" -d "$body" "$url")" || curl_status="$?"
+  else
+    status="$(curl --silent --show-error --output "$response_file" --write-out "%{http_code}" \
+      -X "$method" "$url")" || curl_status="$?"
+  fi
+  if [ "${curl_status:-0}" != "0" ]; then
+    echo "Blueclaw API curl failure during $phase_name: $method $url (curl exit ${curl_status:-0})" >&2
+    cat "$response_file" >&2 || true
+    rm -f "$response_file"
+    return "${curl_status:-1}"
+  fi
+  if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+    echo "Blueclaw API failure during $phase_name: $method $url returned HTTP $status" >&2
+    cat "$response_file" >&2 || true
+    echo >&2
+    rm -f "$response_file"
+    return 22
+  fi
+  cat "$response_file"
+  rm -f "$response_file"
+}
+
+resolve_team_id() {
+  api_request "resolve channel team" GET "http://localhost:8065/api/v4/channels/$channel_id" "$admin_token" | jq -r '.team_id // empty'
+}
+
+phase "admin login"
 login_headers="$(mktemp)"
 login_body="$(jq -cn --arg login_id admin --arg password "$admin_password" '{login_id:$login_id,password:$password}')"
 curl --silent --show-error --fail -D "$login_headers" -o /tmp/internkim-admin-login.json \
@@ -390,8 +478,7 @@ create_user() {
   local username="$2"
   local body
   body="$(jq -cn --arg email "$email" --arg username "$username" --arg password "$password" '{email:$email,username:$username,password:$password}')"
-  curl --silent --show-error --fail -H "Authorization: Bearer $admin_token" -H "Content-Type: application/json" \
-    -d "$body" http://localhost:8065/api/v4/users | jq -r '.id'
+  api_request "create user $username" POST http://localhost:8065/api/v4/users "$admin_token" "$body" | jq -r '.id'
 }
 
 login_user() {
@@ -410,27 +497,29 @@ login_user() {
 join_channel() {
   local user_id="$1"
   local team_id
-  team_id="$(curl --silent --show-error --fail -H "Authorization: Bearer $admin_token" "http://localhost:8065/api/v4/channels/$channel_id" | jq -r '.team_id // empty')"
-  if [ -n "$team_id" ]; then
-    curl --silent --show-error -H "Authorization: Bearer $admin_token" -H "Content-Type: application/json" \
-      -d "$(jq -cn --arg team_id "$team_id" --arg user_id "$user_id" '{team_id:$team_id,user_id:$user_id}')" \
-      "http://localhost:8065/api/v4/teams/$team_id/members" >/dev/null || true
+  local team_member_body
+  local channel_member_body
+  team_id="$(resolve_team_id)"
+  if [ -z "$team_id" ]; then
+    echo "Mattermost channel $channel_id does not belong to a team" >&2
+    return 1
   fi
-  curl --silent --show-error -H "Authorization: Bearer $admin_token" -H "Content-Type: application/json" \
-    -d "$(jq -cn --arg user_id "$user_id" '{user_id:$user_id}')" \
-    "http://localhost:8065/api/v4/channels/$channel_id/members" >/dev/null || true
+  team_member_body="$(jq -cn --arg team_id "$team_id" --arg user_id "$user_id" '{team_id:$team_id,user_id:$user_id}')"
+  api_request "join team $user_id" POST "http://localhost:8065/api/v4/teams/$team_id/members" "$admin_token" "$team_member_body" >/dev/null
+  channel_member_body="$(jq -cn --arg user_id "$user_id" '{user_id:$user_id}')"
+  api_request "join channel $user_id" POST "http://localhost:8065/api/v4/channels/$channel_id/members" "$admin_token" "$channel_member_body" >/dev/null
+  api_request "verify channel membership $user_id" GET "http://localhost:8065/api/v4/channels/$channel_id/members/$user_id" "$admin_token" >/dev/null
 }
 
 post_message() {
   local user_token="$1"
   local message="$2"
-  curl --silent --show-error --fail -H "Authorization: Bearer $user_token" -H "Content-Type: application/json" \
-    -d "$(jq -cn --arg channel_id "$channel_id" --arg message "$message" '{channel_id:$channel_id,message:$message}')" \
-    http://localhost:8065/api/v4/posts
+  api_request "post message" POST http://localhost:8065/api/v4/posts "$user_token" \
+    "$(jq -cn --arg channel_id "$channel_id" --arg message "$message" '{channel_id:$channel_id,message:$message}')"
 }
 
 task_count() {
-  curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/task | jq 'length'
+  blueclaw_request "task count" GET http://127.0.0.1:8080/admin/api/task | jq 'length'
 }
 
 wait_for_task_count() {
@@ -447,26 +536,33 @@ wait_for_task_count() {
   return 1
 }
 
+print_recent_bot_replies() {
+  local posted_after="$1"
+  api_request "print recent bot replies" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=60" "$admin_token" |
+    jq -r --arg bot_user_id "$bot_user_id" --argjson posted_after "$posted_after" \
+      '.posts[] | select(.user_id == $bot_user_id and .create_at >= $posted_after) | "\(.create_at)\t\(.message)"' >&2 || true
+}
+
 wait_for_bot_reply() {
   local expected_text="$1"
+  local posted_after="$2"
   for _ in $(seq 1 30); do
-    if curl --silent --show-error --fail -H "Authorization: Bearer $admin_token" \
-      "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=30" |
-      jq -e --arg bot_user_id "$bot_user_id" --arg expected_text "$expected_text" \
-        '.posts[] | select(.user_id == $bot_user_id and (.message | contains($expected_text)))' >/dev/null; then
+    if api_request "wait for bot reply" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=30" "$admin_token" |
+      jq -e --arg bot_user_id "$bot_user_id" --arg expected_text "$expected_text" --argjson posted_after "$posted_after" \
+        '.posts[] | select(.user_id == $bot_user_id and .create_at >= $posted_after and (.message | contains($expected_text)))' >/dev/null; then
       return 0
     fi
     sleep 1
   done
   echo "expected bot reply containing: $expected_text" >&2
+  print_recent_bot_replies "$posted_after"
   return 1
 }
 
 wait_for_model_reply() {
   local posted_after="$1"
   for _ in $(seq 1 45); do
-    if curl --silent --show-error --fail -H "Authorization: Bearer $admin_token" \
-      "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=60" |
+    if api_request "wait for model reply" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=60" "$admin_token" |
       jq -e --arg bot_user_id "$bot_user_id" --argjson posted_after "$posted_after" \
         '.posts[] | select(
           .user_id == $bot_user_id and
@@ -496,10 +592,40 @@ delete_post() {
     "http://localhost:8065/api/v4/posts/$post_id" >/dev/null || echo "cleanup warning: failed to delete Mattermost post $post_id" >&2
 }
 
+delete_user() {
+  local user_id="$1"
+  local team_id
+  if [ -z "$user_id" ] || [ "$user_id" = "null" ]; then
+    return 0
+  fi
+  team_id="$(resolve_team_id 2>/dev/null || true)"
+  curl --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+    "http://localhost:8065/api/v4/channels/$channel_id/members/$user_id" >/dev/null || true
+  if [ -n "$team_id" ]; then
+    curl --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+      "http://localhost:8065/api/v4/teams/$team_id/members/$user_id" >/dev/null || true
+  fi
+  curl --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+    "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null || \
+    curl --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+      "http://localhost:8065/api/v4/users/$user_id" >/dev/null || \
+    echo "cleanup warning: failed to delete Mattermost user $user_id" >&2
+}
+
+delete_stale_verify_users() {
+  for username_prefix in verifyinvited verifyuninvited; do
+    api_request "find stale users $username_prefix" POST http://localhost:8065/api/v4/users/search "$admin_token" \
+      "$(jq -cn --arg term "$username_prefix" '{term:$term}')" |
+      jq -r --arg username_prefix "$username_prefix" '.[] | select(.username | startswith($username_prefix)) | .id' |
+      while read -r user_id; do
+        delete_user "$user_id"
+      done
+  done
+}
+
 delete_verify_replies() {
   local token="$1"
-  curl --silent --show-error --fail -H "Authorization: Bearer $admin_token" \
-    "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=100" |
+  api_request "cleanup enumerate bot replies" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=100" "$admin_token" |
     jq -r --arg bot_user_id "$bot_user_id" --argjson test_started_at "$test_started_at" \
       '.posts[] | select(.user_id == $bot_user_id and .create_at >= $test_started_at) | .id' |
     while read -r post_id; do
@@ -511,27 +637,35 @@ cleanup() {
   delete_post "${invited_token:-}" "${invited_post_id:-}"
   delete_post "${uninvited_token:-}" "${uninvited_post_id:-}"
   delete_verify_replies "${mattermost_token:-}"
+  delete_user "${invited_user_id:-}"
+  delete_user "${uninvited_user_id:-}"
   curl --silent --show-error -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$invited_email" >/dev/null || true
 }
 trap cleanup EXIT
 
-echo "preparing verify users"
+phase "cleanup stale verify users"
+delete_stale_verify_users
+phase "bot lookup"
 mattermost_token="$(cat /root/.internkim/secrets/mattermost-bot-token)"
-bot_user_id="$(curl --silent --show-error --fail -H "Authorization: Bearer $mattermost_token" http://localhost:8065/api/v4/users/me | jq -r '.id // empty')"
+bot_user_id="$(api_request "bot lookup" GET http://localhost:8065/api/v4/users/me "$mattermost_token" | jq -r '.id // empty')"
 test -n "$bot_user_id"
+phase "create users"
 invited_user_id="$(create_user "$invited_email" "$invited_username")"
 uninvited_user_id="$(create_user "$uninvited_email" "$uninvited_username")"
+phase "join users"
 join_channel "$invited_user_id"
 join_channel "$uninvited_user_id"
+phase "login users"
 invited_token="$(login_user "$invited_username")"
 uninvited_token="$(login_user "$uninvited_username")"
 test -n "$invited_token"
 test -n "$uninvited_token"
 
-curl --silent --show-error --fail -H "Content-Type: application/json" \
-  -d "$(jq -cn --arg email "$invited_email" '{email:$email}')" \
-  http://127.0.0.1:8080/admin/api/people/invite >/dev/null
+phase "invite policy"
+blueclaw_request "invite policy" POST http://127.0.0.1:8080/admin/api/people/invite \
+  "$(jq -cn --arg email "$invited_email" '{email:$email}')" >/dev/null
 
+phase "invited post"
 before_count="$(task_count)"
 invited_message="verify invited $timestamp"
 invited_post="$(post_message "$invited_token" "$invited_message")"
@@ -539,15 +673,20 @@ invited_post_id="$(printf '%s' "$invited_post" | jq -r '.id')"
 invited_post_create_at="$(printf '%s' "$invited_post" | jq -r '.create_at')"
 test -n "$invited_post_id"
 test -n "$invited_post_create_at"
+phase "reply wait"
 wait_for_task_count "$((before_count + 1))"
 wait_for_model_reply "$invited_post_create_at"
 after_count="$(task_count)"
 
+phase "uninvited post"
 uninvited_message="verify uninvited $timestamp"
 uninvited_post="$(post_message "$uninvited_token" "$uninvited_message")"
 uninvited_post_id="$(printf '%s' "$uninvited_post" | jq -r '.id')"
+uninvited_post_create_at="$(printf '%s' "$uninvited_post" | jq -r '.create_at')"
 test -n "$uninvited_post_id"
-wait_for_bot_reply "has not invited"
+test -n "$uninvited_post_create_at"
+phase "rejection wait"
+wait_for_bot_reply "has not invited" "$uninvited_post_create_at"
 final_count="$(task_count)"
 test "$final_count" -eq "$after_count"
 
