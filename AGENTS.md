@@ -41,6 +41,7 @@ When testing against real platform surfaces such as Mattermost, Slack, or Signal
 - `file.pick` must not expose user-local paths to InternKim or Blueclaw. Upload selected files through the signed companion broker into `/tmp/internkim-companion-files`, return only the device temp path, and rely on metadata TTL cleanup.
 - Browser capabilities must go through a typed browser runtime adapter. Do not scatter raw `agent-browser`, Playwright, Chrome, or Obscura command calls through product code.
 - Companion browser support must not assume a user-installed `agent-browser`; prepare the bundled sidecar through `make build-companion` or `make deps-companion-browser`.
+- Companion beta packaging must keep the Makefile artifact name and Pages companion release endpoint in sync.
 - Browser observe/screenshot responses must not expose cookies, CDP URLs, local profile paths, or local screenshot paths. Screenshots should return only device temporary upload paths.
 - Browser control tools should accept observe refs or selectors, and `browser.download` stays out until download/file-transfer policy is explicitly designed.
 - Keep Blueclaw provider-neutral. Blueclaw should request tools/capabilities, while InternKim chooses device, companion, or remote execution.
