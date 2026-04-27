@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"os"
@@ -23,6 +24,17 @@ func TestDefaultCapabilitiesAdvertiseLLMOnlyInDevelopmentMockMode(t *testing.T) 
 	}
 	if !hasCapability(withoutMockLLM, "browser.navigate") {
 		t.Fatal("expected browser capability to be advertised")
+	}
+}
+
+func TestMainSubcommandsReturnAfterExecution(t *testing.T) {
+	for _, commandName := range []string{"pair", "run", "status"} {
+		if !isCompanionSubcommand(commandName) {
+			t.Fatalf("expected %s to be a subcommand", commandName)
+		}
+	}
+	if isCompanionSubcommand("serve") {
+		t.Fatal("serve should fall through to default server mode")
 	}
 }
 
@@ -123,6 +135,30 @@ func TestStatusRequiresPairedState(t *testing.T) {
 	errorValue := runStatus([]string{"--state", filepath.Join(t.TempDir(), "missing.json")})
 	if errorValue == nil {
 		t.Fatal("expected missing state to fail")
+	}
+}
+
+func TestStatusJSONReportsUnpairedState(t *testing.T) {
+	errorValue := runStatus([]string{"--state", filepath.Join(t.TempDir(), "missing.json"), "--json"})
+	if errorValue != nil {
+		t.Fatalf("expected missing JSON status to succeed: %v", errorValue)
+	}
+}
+
+func TestCompanionStatusFromState(t *testing.T) {
+	state := companionState{
+		DeviceURL:   "https://device.example.test",
+		CompanionID: "companion-1",
+		Token:       "token-1",
+		LocalOnly:   true,
+	}
+
+	document, errorValue := json.Marshal(companionStatusFromState(state))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !strings.Contains(string(document), `"paired":true`) {
+		t.Fatalf("expected paired JSON, got %s", string(document))
 	}
 }
 

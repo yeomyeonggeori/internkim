@@ -1,7 +1,13 @@
 .factory/
 .DS_Store
 build/
-internkim
+/internkim
+/internkim-companion
+companion/dist/
+companion/node_modules/
+companion/src-tauri/binaries/
+companion/src-tauri/gen/
+companion/src-tauri/target/
 .env
 .dev.vars
 .dependency/*

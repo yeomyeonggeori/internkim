@@ -157,6 +157,7 @@ make verify-graphiti-local
 
 ```bash
 make build-companion
+make build-companion-shell
 ./internkim-companion pair --device-url https://dc719d8e.example.test --code ABCD-1234
 ./internkim-companion run
 ./internkim-companion status
@@ -171,6 +172,8 @@ Deep link를 직접 넘기는 CLI fallback도 지원합니다.
 ```
 
 현재 companion executor는 `browser.session.start`, `browser.navigate`, 개발용 mock `llm.text`, 개발용 mock `llm.structured`를 처리합니다. `user.confirm`과 `user.input`은 tray/menu bar UI가 붙기 전까지 명시적으로 `--allow-stdin-prompts`를 켠 CLI fallback에서만 처리합니다.
+
+Tauri shell은 `companion/`에 있으며 Go daemon을 sidecar로 bundle합니다. 개발 빌드 전에는 `make build-companion`으로 sidecar binary를 `companion/src-tauri/binaries/`에 준비합니다.
 
 개발용 mock LLM은 명시적으로만 켭니다.
 

@@ -7,19 +7,19 @@ const platforms = [
 		platform: 'macos',
 		label: 'macOS',
 		architecture: 'Universal',
-		url: `${latestReleaseBaseURL}/internkim-companion-darwin-universal.dmg`
+		url: `${latestReleaseBaseURL}/internkim-companion-shell-darwin-universal.dmg`
 	},
 	{
 		platform: 'windows',
 		label: 'Windows',
 		architecture: 'x64',
-		url: `${latestReleaseBaseURL}/internkim-companion-windows-x64.exe`
+		url: `${latestReleaseBaseURL}/internkim-companion-shell-windows-x64.msi`
 	},
 	{
 		platform: 'linux',
 		label: 'Linux',
 		architecture: 'x64 AppImage',
-		url: `${latestReleaseBaseURL}/internkim-companion-linux-x64.AppImage`
+		url: `${latestReleaseBaseURL}/internkim-companion-shell-linux-x64.AppImage`
 	}
 ];
 
