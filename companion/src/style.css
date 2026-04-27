@@ -11,6 +11,7 @@ body {
 	margin: 0;
 	min-width: 420px;
 	min-height: 560px;
+	overflow-y: auto;
 }
 
 button,
@@ -26,6 +27,8 @@ input {
 
 .status-panel,
 .form-panel,
+.runtime-panel,
+.prompt-panel,
 .capability-panel {
 	border: 1px solid #dfe4ec;
 	border-radius: 8px;
@@ -92,6 +95,32 @@ h2 {
 	gap: 12px;
 }
 
+.runtime-panel,
+.prompt-panel {
+	display: grid;
+	gap: 12px;
+}
+
+.runtime-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	color: #414856;
+	font-size: 14px;
+}
+
+.prompt-card {
+	display: grid;
+	gap: 12px;
+}
+
+.prompt-message {
+	color: #202633;
+	font-size: 15px;
+	line-height: 1.5;
+}
+
 label {
 	display: grid;
 	gap: 6px;
@@ -152,6 +181,13 @@ button.ghost {
 	color: #25558f;
 	background: #eef5ff;
 	font-size: 13px;
+}
+
+.message.error,
+.message.failed {
+	border-color: #f0c7c7;
+	color: #8a2c2c;
+	background: #fff1f1;
 }
 
 .capabilities {

@@ -1,3 +1,5 @@
+mod prompt_bridge;
+
 use std::process::Command;
 
 use tauri::{
@@ -23,13 +25,19 @@ fn open_admin_url(device_url: String) -> Result<(), String> {
 
 fn main() {
     tauri::Builder::default()
+        .manage(prompt_bridge::PromptBridgeState::default())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
             build_tray(app.handle())?;
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![show_main_window, open_admin_url])
+        .invoke_handler(tauri::generate_handler![
+            show_main_window,
+            prompt_bridge::start_shell_bridge,
+            prompt_bridge::complete_prompt_request,
+            open_admin_url
+        ])
         .run(tauri::generate_context!())
         .expect("error while running Intern Kim Companion");
 }
@@ -37,7 +45,13 @@ fn main() {
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let status_item = MenuItem::with_id(app, "status", "Status", true, None::<&str>)?;
     let connect_item = MenuItem::with_id(app, "connect", "Connect", true, None::<&str>)?;
-    let admin_item = MenuItem::with_id(app, "open_admin", "Open Intern Kim Admin", true, None::<&str>)?;
+    let admin_item = MenuItem::with_id(
+        app,
+        "open_admin",
+        "Open Intern Kim Admin",
+        true,
+        None::<&str>,
+    )?;
     let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&status_item, &connect_item, &admin_item, &quit_item])?;
 
@@ -74,7 +88,10 @@ fn open_url(target_url: &str) -> Result<(), String> {
         "macos" => ("open", vec![target_url.to_string()]),
         "windows" => (
             "rundll32",
-            vec!["url.dll,FileProtocolHandler".to_string(), target_url.to_string()],
+            vec![
+                "url.dll,FileProtocolHandler".to_string(),
+                target_url.to_string(),
+            ],
         ),
         _ => ("xdg-open", vec![target_url.to_string()]),
     };

@@ -3,23 +3,44 @@
 	import { listen } from '@tauri-apps/api/event';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link';
+	import { onMount } from 'svelte';
 	import { normalizeManualPairingInput, parsePairingLink, statusLabel, type CompanionStatus } from './lib/pairing';
-	import { pairCompanion, readCompanionStatus, startCompanionRuntime } from './lib/sidecar';
+	import { confirmResponse, inputResponse, normalizePromptRequest, promptTitle, type PromptRequest, type PromptResult } from './lib/prompts';
+	import { pairCompanion, readCompanionStatus, readRuntimeStatus, startCompanionRuntime, type RuntimeStatus } from './lib/sidecar';
 
 	let status = $state<CompanionStatus>({ paired: false });
+	let runtime = $state<RuntimeStatus>({ isRunning: false });
 	let deviceURL = $state('');
 	let pairingCode = $state('');
 	let message = $state('');
+	let promptInput = $state('');
+	let pendingPrompt = $state<PromptRequest | undefined>();
+	let promptResult = $state<PromptResult>({ status: 'idle' });
 	let isBusy = $state(false);
 
-	refreshStatus();
-	registerShellEvents();
+	onMount(() => {
+		void bootstrap();
+		void registerShellEvents();
+		const intervalID = window.setInterval(() => {
+			runtime = readRuntimeStatus();
+		}, 1000);
+		return () => window.clearInterval(intervalID);
+	});
+
+	async function bootstrap() {
+		await refreshStatus();
+		if (status.paired) {
+			await ensureRuntime();
+		}
+	}
 
 	async function refreshStatus() {
 		try {
 			status = await readCompanionStatus();
+			runtime = readRuntimeStatus();
 		} catch {
 			status = { paired: false };
+			runtime = readRuntimeStatus();
 		}
 	}
 
@@ -32,6 +53,16 @@
 			});
 			await listen('open-admin-request', () => {
 				void openAdmin();
+			});
+			await listen<unknown>('prompt-request', async (event) => {
+				try {
+					pendingPrompt = normalizePromptRequest(event.payload);
+					promptInput = '';
+					promptResult = { status: 'pending' };
+					await invoke('show_main_window');
+				} catch (errorValue) {
+					message = errorValue instanceof Error ? errorValue.message : 'Prompt request failed';
+				}
 			});
 		} catch {
 			message = 'Companion shell events are unavailable.';
@@ -63,13 +94,35 @@
 		message = '';
 		try {
 			await pairCompanion(payload);
-			await startCompanionRuntime();
+			await ensureRuntime();
 			await refreshStatus();
 			message = 'Connected. You can close this window.';
 		} catch (errorValue) {
 			message = errorValue instanceof Error ? errorValue.message : 'Pairing failed';
 		} finally {
 			isBusy = false;
+		}
+	}
+
+	async function ensureRuntime() {
+		try {
+			await startCompanionRuntime();
+			runtime = readRuntimeStatus();
+		} catch (errorValue) {
+			runtime = { isRunning: false, lastError: errorValue instanceof Error ? errorValue.message : 'Runtime failed to start' };
+		}
+	}
+
+	async function completePrompt(response: unknown) {
+		if (!pendingPrompt) return;
+		const requestID = pendingPrompt.requestID;
+		try {
+			await invoke('complete_prompt_request', { requestId: requestID, response });
+			pendingPrompt = undefined;
+			promptInput = '';
+			promptResult = { status: 'completed', message: 'Response sent.' };
+		} catch (errorValue) {
+			promptResult = { status: 'failed', message: errorValue instanceof Error ? errorValue.message : 'Response failed' };
 		}
 	}
 
@@ -93,6 +146,46 @@
 			</p>
 		</div>
 		<div class:online={status.paired} class="indicator">{status.paired ? 'online' : 'not paired'}</div>
+	</section>
+
+	<section class="runtime-panel">
+		<h2>Runtime</h2>
+		<div class="runtime-row">
+			<span>{runtime.isRunning ? `running${runtime.processID ? ` #${runtime.processID}` : ''}` : 'stopped'}</span>
+			<button class="secondary" disabled={!status.paired || runtime.isRunning} onclick={ensureRuntime}>Start</button>
+		</div>
+		{#if runtime.lastError}
+			<p class="message error">{runtime.lastError}</p>
+		{/if}
+	</section>
+
+	<section class="prompt-panel">
+		<h2>Pending user request</h2>
+		{#if pendingPrompt}
+			<div class="prompt-card">
+				<p class="eyebrow">{promptTitle(pendingPrompt)}</p>
+				<p class="prompt-message">{pendingPrompt.message}</p>
+				{#if pendingPrompt.kind === 'confirm'}
+					<div class="actions">
+						<button onclick={() => completePrompt(confirmResponse(true))}>Approve</button>
+						<button class="secondary" onclick={() => completePrompt(confirmResponse(false))}>Deny</button>
+					</div>
+				{:else}
+					<label>
+						<span>Response</span>
+						<input bind:value={promptInput} placeholder="Type your answer" />
+					</label>
+					<div class="actions">
+						<button onclick={() => completePrompt(inputResponse(promptInput))}>Submit</button>
+						<button class="secondary" onclick={() => completePrompt(inputResponse(''))}>Cancel</button>
+					</div>
+				{/if}
+			</div>
+		{:else if promptResult.status === 'completed' || promptResult.status === 'failed'}
+			<p class:failed={promptResult.status === 'failed'} class="message">{promptResult.message}</p>
+		{:else}
+			<p class="subtle">Requests that need your confirmation or input will appear here.</p>
+		{/if}
 	</section>
 
 	<section class="form-panel">
