@@ -18,9 +18,9 @@ type message struct {
 }
 
 type schemaRequest struct {
-	Name               string `json:"name"`
-	Document           string `json:"document"`
-	IsStrictlyEnforced bool   `json:"isStrictlyEnforced"`
+	Name               string          `json:"name"`
+	Document           json.RawMessage `json:"document"`
+	IsStrictlyEnforced bool            `json:"isStrictlyEnforced"`
 }
 
 type requestDocument struct {
@@ -62,7 +62,7 @@ func run() error {
 	if errorValue != nil {
 		return errorValue
 	}
-	if !isStructuredContentValid(content, request.StructuredOutputSchema.Document) {
+	if !validateMinimumStructuredOutput(content, request.StructuredOutputSchema.Document) {
 		return errors.New("litert-lm output was not valid structured JSON")
 	}
 
@@ -128,9 +128,10 @@ func renderPrompt(request requestDocument) string {
 		builder.WriteString(strings.TrimSpace(message.Content))
 		builder.WriteString("\n")
 	}
-	if strings.TrimSpace(request.StructuredOutputSchema.Document) != "" {
+	schemaDocument := strings.TrimSpace(string(request.StructuredOutputSchema.Document))
+	if schemaDocument != "" {
 		builder.WriteString("\nJSON schema:\n")
-		builder.WriteString(strings.TrimSpace(request.StructuredOutputSchema.Document))
+		builder.WriteString(schemaDocument)
 		builder.WriteString("\n")
 	}
 	return builder.String()
@@ -155,19 +156,19 @@ func extractJSONContent(output string) (string, error) {
 	return candidate, nil
 }
 
-func isStructuredContentValid(content string, schemaDocument string) bool {
+func validateMinimumStructuredOutput(content string, schemaDocument json.RawMessage) bool {
 	var parsedContent any
 	if json.Unmarshal([]byte(content), &parsedContent) != nil {
 		return false
 	}
-	if strings.TrimSpace(schemaDocument) == "" {
+	if len(bytes.TrimSpace(schemaDocument)) == 0 {
 		return true
 	}
 
 	var schema struct {
 		Required []string `json:"required"`
 	}
-	if json.Unmarshal([]byte(schemaDocument), &schema) != nil {
+	if json.Unmarshal(schemaDocument, &schema) != nil {
 		return true
 	}
 	contentMap, isMap := parsedContent.(map[string]any)
