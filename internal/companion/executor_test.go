@@ -370,10 +370,14 @@ func TestShellBridgePromptHandlerConfirm(t *testing.T) {
 		if request.URL.Path != "/v1/user/confirm" {
 			t.Fatalf("unexpected bridge path: %s", request.URL.Path)
 		}
+		if request.Header.Get("X-InternKim-Shell-Bridge-Token") != "bridge-token" {
+			t.Fatalf("expected shell bridge token header")
+		}
 		return textResponse(http.StatusOK, `{"confirmed":true}`), nil
 	})}
 	handler := ShellBridgePromptHandler{
 		BaseURL:    "http://127.0.0.1:1234",
+		Token:      "bridge-token",
 		HTTPClient: httpClient,
 	}
 

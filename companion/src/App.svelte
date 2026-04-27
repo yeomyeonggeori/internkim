@@ -6,7 +6,7 @@
 	import { onMount } from 'svelte';
 	import { normalizeManualPairingInput, parsePairingLink, statusLabel, type CompanionStatus } from './lib/pairing';
 	import { approvalResponse, confirmResponse, inputResponse, normalizePromptRequest, promptTitle, type PromptRequest, type PromptResult } from './lib/prompts';
-	import { pairCompanion, readActiveGrants, readCompanionStatus, readRuntimeStatus, revokeGrant, startCompanionRuntime, type ActiveGrant, type RuntimeStatus } from './lib/sidecar';
+	import { pairCompanion, readActiveGrants, readCompanionStatus, readRuntimeStatus, refreshRuntimeStatus, revokeGrant, startCompanionRuntime, type ActiveGrant, type RuntimeStatus } from './lib/sidecar';
 
 	let status = $state<CompanionStatus>({ paired: false });
 	let runtime = $state<RuntimeStatus>({ isRunning: false });
@@ -24,7 +24,7 @@
 		void bootstrap();
 		void registerShellEvents();
 		const intervalID = window.setInterval(() => {
-			runtime = readRuntimeStatus();
+			void refreshRuntime();
 			void refreshGrants();
 		}, 1000);
 		return () => window.clearInterval(intervalID);
@@ -40,11 +40,15 @@
 	async function refreshStatus() {
 		try {
 			status = await readCompanionStatus();
-			runtime = readRuntimeStatus();
+			await refreshRuntime();
 		} catch {
 			status = { paired: false };
 			runtime = readRuntimeStatus();
 		}
+	}
+
+	async function refreshRuntime() {
+		runtime = await refreshRuntimeStatus();
 	}
 
 	async function refreshGrants() {
@@ -181,6 +185,20 @@
 			<span>{runtime.isRunning ? `running${runtime.processID ? ` #${runtime.processID}` : ''}` : 'stopped'}</span>
 			<button class="secondary" disabled={!status.paired || runtime.isRunning} onclick={ensureRuntime}>Start</button>
 		</div>
+		<div class="runtime-row">
+			<span>browser runtime</span>
+			<span>{status.browserRuntimeStatus ?? 'unknown'}</span>
+		</div>
+		<div class="runtime-row">
+			<span>last heartbeat</span>
+			<span>{runtime.lastHeartbeatAt ? new Date(runtime.lastHeartbeatAt).toLocaleTimeString() : 'none yet'}</span>
+		</div>
+		{#if runtime.restartAttempts}
+			<p class="subtle">Runtime restarted {runtime.restartAttempts} time{runtime.restartAttempts === 1 ? '' : 's'}.</p>
+		{/if}
+		{#if status.browserRuntimeError}
+			<p class="message error">{status.browserRuntimeError}</p>
+		{/if}
 		{#if runtime.lastError}
 			<p class="message error">{runtime.lastError}</p>
 		{/if}

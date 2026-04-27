@@ -5,6 +5,8 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	companionruntime "github.com/anthropic-lab/internkim/internal/companion"
 )
@@ -13,7 +15,33 @@ type grantListDocument struct {
 	Grants []companionruntime.GrantSnapshot `json:"grants"`
 }
 
-func startControlServer(listenAddress string, grantStore *companionruntime.MemoryGrantStore) (*http.Server, error) {
+type runtimeState struct {
+	mutex           sync.Mutex
+	lastHeartbeatAt string
+	lastError       string
+}
+
+func (state *runtimeState) recordHeartbeat(errorValue error) {
+	state.mutex.Lock()
+	defer state.mutex.Unlock()
+	if errorValue != nil {
+		state.lastError = errorValue.Error()
+		return
+	}
+	state.lastHeartbeatAt = time.Now().UTC().Format(time.RFC3339)
+	state.lastError = ""
+}
+
+func (state *runtimeState) snapshot() map[string]string {
+	state.mutex.Lock()
+	defer state.mutex.Unlock()
+	return map[string]string{
+		"lastHeartbeatAt": state.lastHeartbeatAt,
+		"lastError":       state.lastError,
+	}
+}
+
+func startControlServer(listenAddress string, grantStore *companionruntime.MemoryGrantStore, runtime *runtimeState) (*http.Server, error) {
 	trimmedAddress := strings.TrimSpace(listenAddress)
 	if trimmedAddress == "" {
 		return nil, nil
@@ -26,7 +54,7 @@ func startControlServer(listenAddress string, grantStore *companionruntime.Memor
 		_ = listener.Close()
 		return nil, errors.New("companion control server must listen on loopback")
 	}
-	server := &http.Server{Handler: controlHandler(grantStore)}
+	server := &http.Server{Handler: controlHandler(grantStore, runtime)}
 	go func() {
 		errorValue := server.Serve(listener)
 		if errorValue != nil && !errors.Is(errorValue, http.ErrServerClosed) {
@@ -36,8 +64,16 @@ func startControlServer(listenAddress string, grantStore *companionruntime.Memor
 	return server, nil
 }
 
-func controlHandler(grantStore *companionruntime.MemoryGrantStore) http.Handler {
+func controlHandler(grantStore *companionruntime.MemoryGrantStore, runtime *runtimeState) http.Handler {
 	multiplexer := http.NewServeMux()
+	multiplexer.HandleFunc("GET /v1/runtime/status", func(responseWriter http.ResponseWriter, request *http.Request) {
+		_ = request
+		if runtime == nil {
+			writeJSON(responseWriter, map[string]string{})
+			return
+		}
+		writeJSON(responseWriter, runtime.snapshot())
+	})
 	multiplexer.HandleFunc("GET /v1/security/grants", func(responseWriter http.ResponseWriter, request *http.Request) {
 		_ = request
 		writeJSON(responseWriter, grantListDocument{Grants: grantStore.ListActive()})

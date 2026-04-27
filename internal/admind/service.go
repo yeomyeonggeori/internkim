@@ -32,6 +32,7 @@ type Configuration struct {
 	MattermostBaseURL      string
 	BlueclawBaseURL        string
 	StateDirectory         string
+	CompanionJobPath       string
 	AdminEmailPath         string
 	DeviceIDPath           string
 	RepositoryRoot         string
@@ -119,6 +120,7 @@ func DefaultConfiguration() Configuration {
 		MattermostBaseURL:      "http://127.0.0.1:8065",
 		BlueclawBaseURL:        "http://127.0.0.1:8080",
 		StateDirectory:         "/root/.internkim/admin",
+		CompanionJobPath:       "/root/.internkim/state/companion-jobs.json",
 		AdminEmailPath:         "/root/.internkim/admin-email",
 		DeviceIDPath:           "/root/.internkim/env/device-id",
 		RepositoryRoot:         "/",
@@ -138,6 +140,7 @@ func NewService(configuration Configuration) *Service {
 		companionFileUploads: map[string]*CompanionFileUpload{},
 	}
 	service.loadCompanions()
+	service.loadCompanionJobs()
 	return service
 }
 
@@ -821,6 +824,13 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.StateDirectory == "" {
 		configuration.StateDirectory = defaultConfiguration.StateDirectory
+	}
+	if configuration.CompanionJobPath == "" {
+		if configuration.StateDirectory == defaultConfiguration.StateDirectory {
+			configuration.CompanionJobPath = defaultConfiguration.CompanionJobPath
+		} else {
+			configuration.CompanionJobPath = filepath.Join(configuration.StateDirectory, "companion-jobs.json")
+		}
 	}
 	if configuration.AdminEmailPath == "" {
 		configuration.AdminEmailPath = defaultConfiguration.AdminEmailPath

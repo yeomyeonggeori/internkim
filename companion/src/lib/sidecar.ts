@@ -7,6 +7,8 @@ export type RuntimeStatus = {
 	isRunning: boolean;
 	processID?: number;
 	lastError?: string;
+	lastHeartbeatAt?: string;
+	restartAttempts?: number;
 };
 
 export type ResourceScope = {
@@ -28,6 +30,12 @@ const controlURL = 'http://127.0.0.1:7983';
 
 let runtimeChild: Child | undefined;
 let runtimeStatus: RuntimeStatus = { isRunning: false };
+let restartAttempts = 0;
+
+type ShellBridgeInfo = {
+	url: string;
+	token: string;
+};
 
 export async function readCompanionStatus(): Promise<CompanionStatus> {
 	const output = await Command.sidecar('binaries/internkim-companion', ['status', '--json']).execute();
@@ -52,28 +60,59 @@ export async function pairCompanion(payload: PairingPayload): Promise<void> {
 
 export async function startCompanionRuntime(): Promise<void> {
 	if (runtimeChild) return;
-	const shellBridgeURL = await invoke<string>('start_shell_bridge');
+	const shellBridge = await invoke<ShellBridgeInfo>('start_shell_bridge');
 	const command = Command.sidecar('binaries/internkim-companion', [
 		'run',
 		'--shell-bridge-url',
-		shellBridgeURL,
+		shellBridge.url,
+		'--shell-bridge-token',
+		shellBridge.token,
 		'--control-listen',
 		'127.0.0.1:7983'
 	]);
 	command.on('close', () => {
 		runtimeChild = undefined;
-		runtimeStatus = { isRunning: false };
+		runtimeStatus = { isRunning: false, restartAttempts };
+		void restartCompanionRuntimeOnce();
 	});
 	command.on('error', (errorValue) => {
 		runtimeChild = undefined;
-		runtimeStatus = { isRunning: false, lastError: errorValue };
+		runtimeStatus = { isRunning: false, lastError: errorValue, restartAttempts };
+		void restartCompanionRuntimeOnce();
 	});
 	runtimeChild = await command.spawn();
-	runtimeStatus = { isRunning: true, processID: runtimeChild.pid };
+	runtimeStatus = { isRunning: true, processID: runtimeChild.pid, restartAttempts };
+}
+
+async function restartCompanionRuntimeOnce(): Promise<void> {
+	if (restartAttempts >= 1) return;
+	const status = await readCompanionStatus();
+	if (!status.paired) return;
+	restartAttempts += 1;
+	window.setTimeout(() => {
+		void startCompanionRuntime();
+	}, 1200);
 }
 
 export function readRuntimeStatus(): RuntimeStatus {
 	return runtimeStatus;
+}
+
+export async function refreshRuntimeStatus(): Promise<RuntimeStatus> {
+	if (!runtimeChild) return runtimeStatus;
+	try {
+		const response = await fetch(`${controlURL}/v1/runtime/status`);
+		if (!response.ok) return runtimeStatus;
+		const document = (await response.json()) as { lastHeartbeatAt?: string; lastError?: string };
+		runtimeStatus = {
+			...runtimeStatus,
+			lastHeartbeatAt: document.lastHeartbeatAt,
+			lastError: document.lastError || runtimeStatus.lastError
+		};
+		return runtimeStatus;
+	} catch {
+		return runtimeStatus;
+	}
 }
 
 export async function readActiveGrants(): Promise<ActiveGrant[]> {

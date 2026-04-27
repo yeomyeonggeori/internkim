@@ -363,6 +363,7 @@ func (service *Service) invokeCompanionJob(ctx context.Context, request capabili
 	service.mutex.Lock()
 	service.companionJobs[job.JobID] = job
 	service.mutex.Unlock()
+	_ = service.saveCompanionJobs()
 
 	deadline := time.Now().Add(time.Duration(timeout) * time.Second)
 	for {
@@ -393,6 +394,7 @@ func (service *Service) invokeCompanionJob(ctx context.Context, request capabili
 			currentJob.Error = "companion job expired"
 			currentJob.UpdatedAt = time.Now().UTC()
 			service.mutex.Unlock()
+			_ = service.saveCompanionJobs()
 			return capabilities.ToolInvokeResponse{}, errors.New("companion job expired")
 		}
 		service.mutex.Unlock()
@@ -405,8 +407,8 @@ func (service *Service) invokeCompanionJob(ctx context.Context, request capabili
 
 func (service *Service) claimNextCompanionJob(companion *CompanionRecord) *CompanionJob {
 	service.mutex.Lock()
-	defer service.mutex.Unlock()
 	now := time.Now().UTC()
+	recoveredJobs := service.recoverExpiredAndStaleCompanionJobsLocked(now)
 	for _, job := range service.companionJobs {
 		if job.Status != "pending" || now.After(job.ExpiresAt) {
 			continue
@@ -417,19 +419,26 @@ func (service *Service) claimNextCompanionJob(companion *CompanionRecord) *Compa
 		job.Status = "running"
 		job.CompanionID = companion.CompanionID
 		job.UpdatedAt = now
+		service.mutex.Unlock()
+		_ = service.saveCompanionJobs()
 		return job
+	}
+	service.mutex.Unlock()
+	if recoveredJobs {
+		_ = service.saveCompanionJobs()
 	}
 	return nil
 }
 
 func (service *Service) finishCompanionJob(companionID string, jobID string, response *capabilities.ToolInvokeResponse, errorMessage string) error {
 	service.mutex.Lock()
-	defer service.mutex.Unlock()
 	job := service.companionJobs[jobID]
 	if job == nil {
+		service.mutex.Unlock()
 		return errors.New("companion job not found")
 	}
 	if job.CompanionID != companionID {
+		service.mutex.Unlock()
 		return errors.New("companion job owner mismatch")
 	}
 	if errorMessage != "" {
@@ -440,17 +449,20 @@ func (service *Service) finishCompanionJob(companionID string, jobID string, res
 		job.Response = response
 	}
 	job.UpdatedAt = time.Now().UTC()
+	service.mutex.Unlock()
+	_ = service.saveCompanionJobs()
 	return nil
 }
 
 func (service *Service) denyCompanionJobResult(companionID string, jobID string, denial capabilities.DenialResult) error {
 	service.mutex.Lock()
-	defer service.mutex.Unlock()
 	job := service.companionJobs[jobID]
 	if job == nil {
+		service.mutex.Unlock()
 		return errors.New("companion job not found")
 	}
 	if job.CompanionID != companionID {
+		service.mutex.Unlock()
 		return errors.New("companion job owner mismatch")
 	}
 	denial.Status = firstNonEmpty(denial.Status, "denied")
@@ -465,6 +477,8 @@ func (service *Service) denyCompanionJobResult(companionID string, jobID string,
 	job.Status = "denied"
 	job.Denial = &denial
 	job.UpdatedAt = time.Now().UTC()
+	service.mutex.Unlock()
+	_ = service.saveCompanionJobs()
 	return nil
 }
 
@@ -552,6 +566,33 @@ func (service *Service) nextCompanionJobDepth(parentJobID string) int {
 	return parentJob.Depth + 1
 }
 
+func (service *Service) recoverExpiredAndStaleCompanionJobsLocked(now time.Time) bool {
+	changed := false
+	for _, job := range service.companionJobs {
+		if job == nil {
+			continue
+		}
+		if now.After(job.ExpiresAt) && (job.Status == "pending" || job.Status == "running") {
+			job.Status = "expired"
+			job.Error = "companion job expired"
+			job.UpdatedAt = now
+			changed = true
+			continue
+		}
+		if job.Status != "running" {
+			continue
+		}
+		companion := service.companions[job.CompanionID]
+		if companion == nil || !companion.RevokedAt.IsZero() || now.Sub(companion.LastSeenAt) > companionOnlineWindow {
+			job.Status = "pending"
+			job.CompanionID = ""
+			job.UpdatedAt = now
+			changed = true
+		}
+	}
+	return changed
+}
+
 func normalizeCompanionJobRequest(request capabilities.ToolInvokeRequest) capabilities.ToolInvokeRequest {
 	request.SessionID = ""
 	request.PrivacyClass = companionPrivacyClass(request)
@@ -601,7 +642,7 @@ func companionResourceScope(request capabilities.ToolInvokeRequest) capabilities
 		return request.ResourceScope
 	}
 	switch request.ToolName {
-	case "browser.session.start", "browser.navigate", "browser.observe", "browser.screenshot":
+	case "browser.session.start", "browser.navigate", "browser.observe", "browser.screenshot", "browser.click", "browser.fill", "browser.select", "browser.press", "browser.wait":
 		return capabilities.ResourceScope{Kind: "web_origin", Value: browserOriginFromInput(request.Input)}
 	case "file.pick":
 		return capabilities.ResourceScope{Kind: "file_root", Value: ""}
@@ -687,6 +728,62 @@ func (service *Service) loadCompanions() {
 		if companion != nil && companion.CompanionID != "" {
 			service.companions[companion.CompanionID] = companion
 		}
+	}
+}
+
+func (service *Service) saveCompanionJobs() error {
+	service.mutex.Lock()
+	jobs := []*CompanionJob{}
+	for _, job := range service.companionJobs {
+		if job != nil {
+			jobs = append(jobs, job)
+		}
+	}
+	service.mutex.Unlock()
+	document, errorValue := json.MarshalIndent(map[string]any{"jobs": jobs}, "", "  ")
+	if errorValue != nil {
+		return errorValue
+	}
+	path := service.Configuration.CompanionJobPath
+	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
+		return errorValue
+	}
+	temporaryPath := path + ".tmp"
+	if errorValue := os.WriteFile(temporaryPath, document, 0o600); errorValue != nil {
+		return errorValue
+	}
+	return os.Rename(temporaryPath, path)
+}
+
+func (service *Service) loadCompanionJobs() {
+	document, errorValue := os.ReadFile(service.Configuration.CompanionJobPath)
+	if errorValue != nil {
+		return
+	}
+	var state struct {
+		Jobs []*CompanionJob `json:"jobs"`
+	}
+	if errorValue := json.Unmarshal(document, &state); errorValue != nil {
+		return
+	}
+	now := time.Now().UTC()
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	for _, job := range state.Jobs {
+		if job == nil || job.JobID == "" {
+			continue
+		}
+		if now.After(job.ExpiresAt) && (job.Status == "pending" || job.Status == "running") {
+			job.Status = "expired"
+			job.Error = firstNonEmpty(job.Error, "companion job expired")
+			job.UpdatedAt = now
+		}
+		if job.Status == "running" {
+			job.Status = "pending"
+			job.CompanionID = ""
+			job.UpdatedAt = now
+		}
+		service.companionJobs[job.JobID] = job
 	}
 }
 
