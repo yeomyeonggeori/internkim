@@ -179,6 +179,7 @@ func runCompanion(arguments []string, httpClient *http.Client) error {
 	runOnce := flags.Bool("once", false, "process one polling cycle")
 	devMockLLM := flags.Bool("dev-mock-llm", false, "serve deterministic local LLM responses")
 	allowStdinPrompts := flags.Bool("allow-stdin-prompts", false, "allow terminal prompts for user input capabilities")
+	shellBridgeURL := flags.String("shell-bridge-url", "", "local companion shell bridge URL")
 	if errorValue := flags.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
@@ -195,6 +196,12 @@ func runCompanion(arguments []string, httpClient *http.Client) error {
 	}
 	if *allowStdinPrompts {
 		executor.PromptHandler = companionruntime.TerminalPromptHandler{Reader: os.Stdin, Writer: os.Stdout}
+	}
+	if strings.TrimSpace(*shellBridgeURL) != "" {
+		executor.PromptHandler = companionruntime.ShellBridgePromptHandler{
+			BaseURL:    *shellBridgeURL,
+			HTTPClient: httpClient,
+		}
 	}
 	for {
 		if errorValue := sendHeartbeat(httpClient, state); errorValue != nil {
