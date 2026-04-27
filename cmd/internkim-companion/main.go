@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -14,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/anthropic-lab/internkim/internal/capabilities"
+	companionruntime "github.com/anthropic-lab/internkim/internal/companion"
 )
 
 func main() {
@@ -84,6 +86,14 @@ func runPair(arguments []string, httpClient *http.Client) error {
 	if errorValue := flags.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
+	if flags.NArg() > 0 && (*deviceURL == "" || *code == "") {
+		parsedDeviceURL, parsedCode, errorValue := parsePairingURL(flags.Arg(0))
+		if errorValue != nil {
+			return errorValue
+		}
+		*deviceURL = firstNonEmpty(*deviceURL, parsedDeviceURL)
+		*code = firstNonEmpty(*code, parsedCode)
+	}
 	if *deviceURL == "" || *code == "" {
 		return fmt.Errorf("pair requires --device-url and --code")
 	}
@@ -138,6 +148,7 @@ func runCompanion(arguments []string, httpClient *http.Client) error {
 	statePath := flags.String("state", defaultStatePath(), "companion state path")
 	runOnce := flags.Bool("once", false, "process one polling cycle")
 	devMockLLM := flags.Bool("dev-mock-llm", false, "serve deterministic local LLM responses")
+	allowStdinPrompts := flags.Bool("allow-stdin-prompts", false, "allow terminal prompts for user input capabilities")
 	if errorValue := flags.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
@@ -147,6 +158,13 @@ func runCompanion(arguments []string, httpClient *http.Client) error {
 	}
 	if *devMockLLM {
 		state.Capabilities = defaultCapabilities(state.LocalOnly, true)
+	}
+	executor := companionruntime.Executor{
+		DevMockLLM:    *devMockLLM,
+		BrowserOpener: companionruntime.SystemBrowserOpener{},
+	}
+	if *allowStdinPrompts {
+		executor.PromptHandler = companionruntime.TerminalPromptHandler{Reader: os.Stdin, Writer: os.Stdout}
 	}
 	for {
 		if errorValue := sendHeartbeat(httpClient, state); errorValue != nil {
@@ -162,7 +180,7 @@ func runCompanion(arguments []string, httpClient *http.Client) error {
 			}
 			continue
 		}
-		response, executionError := executeJob(*job, *devMockLLM)
+		response, executionError := executor.Execute(context.Background(), job.Request)
 		if executionError != nil {
 			_ = failJob(httpClient, state, job.JobID, executionError.Error())
 		} else {
@@ -201,38 +219,11 @@ func llmHandler(isEnabled bool, isStructured bool) http.HandlerFunc {
 			"content":         "ok",
 		}
 		if isStructured {
-			response["content"] = mockStructuredContent(request)
+			document, _ := io.ReadAll(request.Body)
+			response["content"] = companionruntime.MockStructuredContent(document)
 		}
 		writeJSON(responseWriter, response)
 	}
-}
-
-func mockStructuredContent(request *http.Request) string {
-	var document struct {
-		StructuredOutputSchema struct {
-			Document struct {
-				Required []string `json:"required"`
-			} `json:"document"`
-		} `json:"structuredOutputSchema"`
-	}
-	if errorValue := json.NewDecoder(request.Body).Decode(&document); errorValue != nil {
-		return `{"content":"ok"}`
-	}
-	values := map[string]string{}
-	for _, key := range document.StructuredOutputSchema.Document.Required {
-		trimmedKey := strings.TrimSpace(key)
-		if trimmedKey != "" {
-			values[trimmedKey] = "ok"
-		}
-	}
-	if len(values) == 0 {
-		values["content"] = "ok"
-	}
-	response, errorValue := json.Marshal(values)
-	if errorValue != nil {
-		return `{"content":"ok"}`
-	}
-	return string(response)
 }
 
 func notImplemented(responseWriter http.ResponseWriter, request *http.Request) {
@@ -243,51 +234,6 @@ func notImplemented(responseWriter http.ResponseWriter, request *http.Request) {
 func writeJSON(responseWriter http.ResponseWriter, response any) {
 	responseWriter.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(responseWriter).Encode(response)
-}
-
-func executeJob(job companionJob, devMockLLM bool) (capabilities.ToolInvokeResponse, error) {
-	if !devMockLLM && (job.Request.ToolName == "llm.text" || job.Request.ToolName == "llm.structured") {
-		return capabilities.ToolInvokeResponse{}, fmt.Errorf("companion LLM is not configured")
-	}
-	switch job.Request.ToolName {
-	case "llm.text":
-		response := map[string]any{
-			"provider":        "companion",
-			"model":           "mock-local",
-			"selectedBackend": capabilities.LLMBackendCompanionLocal,
-			"content":         "ok",
-		}
-		return toolResponse(job.Request.ToolName, response)
-	case "llm.structured":
-		response := map[string]any{
-			"provider":        "companion",
-			"model":           "mock-local",
-			"selectedBackend": capabilities.LLMBackendCompanionLocal,
-			"constraintMode":  "prompt_validation",
-			"content":         mockStructuredContentFromBytes(job.Request.Input),
-		}
-		return toolResponse(job.Request.ToolName, response)
-	default:
-		return capabilities.ToolInvokeResponse{}, fmt.Errorf("companion capability is not implemented: %s", job.Request.ToolName)
-	}
-}
-
-func toolResponse(toolName string, result any) (capabilities.ToolInvokeResponse, error) {
-	document, errorValue := json.Marshal(result)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return capabilities.ToolInvokeResponse{
-		Provider:        "companion",
-		SelectedBackend: capabilities.LLMBackendCompanionLocal,
-		ToolName:        toolName,
-		Result:          document,
-	}, nil
-}
-
-func mockStructuredContentFromBytes(document []byte) string {
-	request := &http.Request{Body: io.NopCloser(bytes.NewReader(document))}
-	return mockStructuredContent(request)
 }
 
 func sendHeartbeat(httpClient *http.Client, state companionState) error {
@@ -401,6 +347,32 @@ func defaultDisplayName() string {
 		return "Companion"
 	}
 	return hostname
+}
+
+func parsePairingURL(value string) (string, string, error) {
+	parsedURL, errorValue := url.Parse(strings.TrimSpace(value))
+	if errorValue != nil {
+		return "", "", errorValue
+	}
+	if parsedURL.Scheme != "internkim" || parsedURL.Host != "pair" {
+		return "", "", fmt.Errorf("pairing URL must start with internkim://pair")
+	}
+	deviceURL := strings.TrimSpace(parsedURL.Query().Get("device_url"))
+	code := strings.TrimSpace(parsedURL.Query().Get("code"))
+	if deviceURL == "" || code == "" {
+		return "", "", fmt.Errorf("pairing URL requires device_url and code")
+	}
+	return deviceURL, code, nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		trimmedValue := strings.TrimSpace(value)
+		if trimmedValue != "" {
+			return trimmedValue
+		}
+	}
+	return ""
 }
 
 func exit(errorValue error) {
