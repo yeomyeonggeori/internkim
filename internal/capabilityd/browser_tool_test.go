@@ -21,11 +21,11 @@ func TestDeviceBrowserToolRunsThroughLightpandaRuntime(t *testing.T) {
 		},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.navigate", strings.NewReader(`{"input":{"url":"https://example.com"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.open", strings.NewReader(`{"input":{"url":"https://example.com"}}`))
 	if errorValue != nil {
 		t.Fatalf("expected device browser response: %v", errorValue)
 	}
-	if response.Provider != "device" || response.ToolName != "browser.navigate" {
+	if response.Provider != "device" || response.ToolName != "browser.open" {
 		t.Fatalf("unexpected response: %+v", response)
 	}
 	if commandPath != "agent-browser-test" {

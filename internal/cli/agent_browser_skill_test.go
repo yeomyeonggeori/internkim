@@ -12,8 +12,8 @@ func TestAgentBrowserSkillInstallScriptPrefersInstalledCliSkill(t *testing.T) {
 	requiredFragments := []string{
 		"/root/.blueclaw/workspace/.agents/skills/agent-browser",
 		"agent-browser skills get core --full",
-		"browser.navigate",
-		"browser.observe",
+		"browser.open",
+		"browser.snapshot",
 		"/tmp/fallback.md",
 		"fallback skill",
 		"chown -R blueclaw:blueclaw /root/.blueclaw/workspace/.agents",
@@ -35,7 +35,7 @@ func TestLoadAgentBrowserSkillMarkdownUsesVendoredFallback(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected vendored skill markdown: %v", errorValue)
 	}
-	for _, fragment := range []string{"agent-browser", "browser.navigate", "agent-browser snapshot -i"} {
+	for _, fragment := range []string{"agent-browser", "browser.open", "agent-browser snapshot -i"} {
 		if !strings.Contains(skillMarkdown, fragment) {
 			t.Fatalf("expected skill markdown to include %q", fragment)
 		}
@@ -76,8 +76,8 @@ func TestFirstbootInstallsAgentBrowserSkill(t *testing.T) {
 	requiredFragments := []string{
 		"agent-browser install",
 		"agent-browser skills get core --full",
-		"browser.navigate",
-		"browser.observe",
+		"browser.open",
+		"browser.snapshot",
 		"$STAGE/agent-browser-skill/SKILL.md",
 		"/root/.blueclaw/workspace/.agents/skills/agent-browser",
 	}

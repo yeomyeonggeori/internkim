@@ -26,7 +26,7 @@ func TestDefaultCapabilitiesAdvertiseLLMOnlyInDevelopmentMockMode(t *testing.T) 
 	if !hasCapability(withMockLLM, "llm.structured") {
 		t.Fatal("expected LLM capability in development mock mode")
 	}
-	if !hasCapability(withoutMockLLM, "browser.navigate") {
+	if !hasCapability(withoutMockLLM, "browser.open") {
 		t.Fatal("expected browser capability to be advertised")
 	}
 }
