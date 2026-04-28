@@ -518,8 +518,8 @@ Use Blueclaw's browser.* tools by default. InternKim maps those tools to the ins
 
 ## InternKim Tool Mapping
 
-- agent-browser open <url> maps to browser.open with "https://example.com"
-- agent-browser snapshot -i maps to browser.snapshot with "-i"
+- agent-browser open <url> maps to browser.open with { "url": "https://example.com" }
+- agent-browser snapshot -i maps to browser.snapshot with {}
 - agent-browser fill @e2 "text" maps to browser.fill with { "target": "@e2", "text": "text" }
 - agent-browser click @e1 maps to browser.click with { "target": "@e1" }
 - agent-browser screenshot <path> maps to browser.screenshot with {}

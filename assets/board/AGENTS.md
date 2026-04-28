@@ -14,9 +14,9 @@ CLI reference workflow:
 
 InternKim tool workflow:
 
-1. `browser.open "https://example.com"` - Navigate to page
-2. `browser.snapshot "-i"` - Get page text and interactive refs such as `@e1`
-3. `browser.click` / `browser.fill` - Interact using refs or selectors
+1. `browser.open` with `{ "url": "https://example.com" }` - Navigate to page
+2. `browser.snapshot` with `{}` - Get page text and interactive refs such as `@e1`
+3. `browser.click` with `{ "target": "@e1" }` or `browser.fill` with `{ "target": "@e2", "text": "text" }` - Interact using refs or selectors
 4. Re-run `browser.snapshot` after page changes
 5. `browser.screenshot` - Capture the final visible result when the user asks for a screenshot
 
