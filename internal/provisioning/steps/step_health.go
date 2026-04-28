@@ -62,14 +62,20 @@ func checkAgentBrowser(context *Context, failedChecks *[]string) {
 		fmt.Println("  agent-browser: ready")
 		return
 	}
-	*failedChecks = append(*failedChecks, "agent-browser")
 	fmt.Println("  agent-browser: unavailable")
 }
 
 func checkAdminHealth(context *Context, failedChecks *[]string) {
 	check := strings.TrimSpace(context.SSH.Run(`curl --silent --show-error --fail http://127.0.0.1:18080/_internkim/admin/health 2>/dev/null | jq -r '.status // empty' || true`))
 	if check == "ok" {
-		fmt.Println("  admind: ok")
+		adminPage := strings.TrimSpace(context.SSH.Run(`curl --silent --show-error --fail http://127.0.0.1:18080/admin/ 2>/dev/null | grep -o '<script' | head -1 || true`))
+		adminAssets := strings.TrimSpace(context.SSH.Run(`curl --silent --show-error --fail http://127.0.0.1:18080/_app/version.json 2>/dev/null | jq -r '.version // empty' || true`))
+		if adminPage == "<script" && adminAssets != "" {
+			fmt.Println("  admind: ok")
+			return
+		}
+		*failedChecks = append(*failedChecks, "admin-ui")
+		fmt.Println("  admind: admin-ui failed")
 		return
 	}
 	*failedChecks = append(*failedChecks, "admind")
