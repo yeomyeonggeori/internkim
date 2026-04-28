@@ -13,6 +13,24 @@ interface AccessIdentityProvider {
 	type: string;
 }
 
+interface AccessApplication {
+	id?: string;
+	name?: string;
+	domain?: string;
+	self_hosted_domains?: string[];
+	destinations?: AccessDestination[];
+}
+
+interface AccessDestination {
+	type?: string;
+	uri?: string;
+}
+
+interface AccessPolicy {
+	id?: string;
+	decision?: string;
+}
+
 async function cfFetch(env: CFEnv, path: string, init?: RequestInit) {
 	const res = await fetch(`${CF_API}${path}`, {
 		...init,
@@ -115,6 +133,29 @@ function accessApplicationBody(env: CFEnv, deviceId: string, identityProviderId:
 	};
 }
 
+function companionBypassApplicationBody(env: CFEnv, deviceId: string) {
+	const hostname = `${deviceId}.${env.CF_DOMAIN}`;
+
+	return {
+		name: `intern kim companion ${deviceId}`,
+		domain: `${hostname}/_internkim/companion/*`,
+		type: 'self_hosted',
+		session_duration: '1h'
+	};
+}
+
+function accessApplicationDomain(application: AccessApplication): string {
+	if (typeof application.domain === 'string') return application.domain;
+	if (Array.isArray(application.self_hosted_domains) && typeof application.self_hosted_domains[0] === 'string') {
+		return application.self_hosted_domains[0];
+	}
+	if (Array.isArray(application.destinations)) {
+		const destination = application.destinations.find((item) => item.type === 'public' && typeof item.uri === 'string');
+		return destination?.uri ?? '';
+	}
+	return '';
+}
+
 export async function createAccessApplication(env: CFEnv, deviceId: string, identityProviderId: string) {
 	const app = await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`, {
 		method: 'POST',
@@ -128,6 +169,57 @@ export async function updateAccessApplicationLoginMethod(env: CFEnv, deviceId: s
 	await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${appId}`, {
 		method: 'PUT',
 		body: JSON.stringify(accessApplicationBody(env, deviceId, identityProviderId))
+	});
+}
+
+export async function ensureCompanionBypassApplication(env: CFEnv, deviceId: string) {
+	const body = companionBypassApplicationBody(env, deviceId);
+	const applications = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`)) as AccessApplication[];
+	const application = applications.find((item) => accessApplicationDomain(item) === body.domain);
+	const applicationId = application?.id ?? await createCompanionBypassApplication(env, body);
+
+	if (application?.id) {
+		await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${applicationId}`, {
+			method: 'PUT',
+			body: JSON.stringify(body)
+		});
+	}
+
+	await ensureCompanionBypassPolicy(env, applicationId);
+	return applicationId;
+}
+
+async function createCompanionBypassApplication(env: CFEnv, body: ReturnType<typeof companionBypassApplicationBody>) {
+	const application = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`, {
+		method: 'POST',
+		body: JSON.stringify(body)
+	})) as AccessApplication;
+	if (!application.id) {
+		throw new Error('Cloudflare companion bypass app response did not include an id');
+	}
+	return application.id;
+}
+
+async function ensureCompanionBypassPolicy(env: CFEnv, appId: string) {
+	const policies = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${appId}/policies`)) as AccessPolicy[];
+	const policy = policies.find((item) => item.decision === 'bypass');
+	const body = {
+		name: 'companion-pairing-and-broker',
+		decision: 'bypass',
+		include: [{ everyone: {} }]
+	};
+
+	if (!policy?.id) {
+		await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${appId}/policies`, {
+			method: 'POST',
+			body: JSON.stringify(body)
+		});
+		return;
+	}
+
+	await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${appId}/policies/${policy.id}`, {
+		method: 'PUT',
+		body: JSON.stringify(body)
 	});
 }
 

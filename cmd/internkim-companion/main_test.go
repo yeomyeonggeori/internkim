@@ -106,6 +106,22 @@ func TestPairAcceptsDeepLinkArgument(t *testing.T) {
 	}
 }
 
+func TestPairReportsHTMLInsteadOfRawJSONDecodeError(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		return textResponse(http.StatusOK, `<html>Cloudflare Access</html>`), nil
+	})}
+
+	secureStore := companionruntime.NewMemorySecureStore()
+	errorValue := runPairWithStore([]string{"--device-url", "https://device.intern.kim", "--code", "ABCD-1234", "--state", statePath}, httpClient, secureStore)
+	if errorValue == nil {
+		t.Fatal("expected pair to fail")
+	}
+	if !strings.Contains(errorValue.Error(), "returned HTML instead of JSON") {
+		t.Fatalf("expected helpful HTML response error, got %v", errorValue)
+	}
+}
+
 func TestRunOnceCompletesMockLLMJob(t *testing.T) {
 	statePath := filepath.Join(t.TempDir(), "state.json")
 	state, secureStore := testCompanionState(t, true, true)
