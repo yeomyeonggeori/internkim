@@ -831,6 +831,10 @@ mkdir -p "$skillDir"
 tmpSkill="$skillDir/SKILL.md.tmp"
 if command -v agent-browser >/dev/null 2>&1 && agent-browser skills get core --full > "$tmpSkill" 2>/tmp/internkim-agent-browser-skill.log && [ -s "$tmpSkill" ]; then
   mv "$tmpSkill" "$skillDir/SKILL.md"
+elif command -v curl >/dev/null 2>&1 && curl -fsSL --retry 3 https://raw.githubusercontent.com/vercel-labs/agent-browser/refs/heads/main/skill-data/core/SKILL.md -o "$tmpSkill" && [ -s "$tmpSkill" ]; then
+  mv "$tmpSkill" "$skillDir/SKILL.md"
+elif command -v curl >/dev/null 2>&1 && curl -fsSL --retry 3 https://raw.githubusercontent.com/vercel-labs/agent-browser/refs/heads/main/skills/agent-browser/SKILL.md -o "$tmpSkill" && [ -s "$tmpSkill" ]; then
+  mv "$tmpSkill" "$skillDir/SKILL.md"
 else
   rm -f "$tmpSkill"
   cat > ` + quoteShellValue(fallbackPath) + ` <<'EOF'

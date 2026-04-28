@@ -11,6 +11,8 @@ func TestAgentBrowserSkillInstallScriptPrefersInstalledCliSkill(t *testing.T) {
 	requiredFragments := []string{
 		"/root/.blueclaw/workspace/.agents/skills/agent-browser",
 		"agent-browser skills get core --full",
+		"https://raw.githubusercontent.com/vercel-labs/agent-browser/refs/heads/main/skill-data/core/SKILL.md",
+		"https://raw.githubusercontent.com/vercel-labs/agent-browser/refs/heads/main/skills/agent-browser/SKILL.md",
 		"/tmp/fallback.md",
 		"fallback skill",
 		"chown -R blueclaw:blueclaw /root/.blueclaw/workspace/.agents",
@@ -44,6 +46,8 @@ func TestFirstbootInstallsAgentBrowserSkill(t *testing.T) {
 	requiredFragments := []string{
 		"agent-browser install",
 		"agent-browser skills get core --full",
+		"skill-data/core/SKILL.md",
+		"skills/agent-browser/SKILL.md",
 		"$STAGE/agent-browser-skill/SKILL.md",
 		"/root/.blueclaw/workspace/.agents/skills/agent-browser",
 	}
