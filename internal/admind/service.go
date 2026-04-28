@@ -30,12 +30,14 @@ import (
 type Configuration struct {
 	ListenAddress          string
 	MattermostBaseURL      string
-	AdminPageBaseURL       string
+	APIBaseURL             string
 	BlueclawBaseURL        string
 	StateDirectory         string
 	CompanionJobPath       string
 	AdminEmailPath         string
 	DeviceIDPath           string
+	DeviceSecretPath       string
+	AdminUIPath            string
 	RepositoryRoot         string
 	CompanionFileDirectory string
 }
@@ -119,12 +121,14 @@ func DefaultConfiguration() Configuration {
 	return Configuration{
 		ListenAddress:          "127.0.0.1:18080",
 		MattermostBaseURL:      "http://127.0.0.1:8065",
-		AdminPageBaseURL:       "https://api.example.test",
+		APIBaseURL:             "https://api.example.test",
 		BlueclawBaseURL:        "http://127.0.0.1:8080",
 		StateDirectory:         "/root/.internkim/admin",
 		CompanionJobPath:       "/root/.internkim/state/companion-jobs.json",
 		AdminEmailPath:         "/root/.internkim/admin-email",
 		DeviceIDPath:           "/root/.internkim/env/device-id",
+		DeviceSecretPath:       "/root/.internkim/secrets/device-secret",
+		AdminUIPath:            "/opt/internkim/admin-ui",
 		RepositoryRoot:         "/",
 		CompanionFileDirectory: "/tmp/internkim-companion-files",
 	}
@@ -167,8 +171,10 @@ func (service *Service) Run(ctx context.Context) error {
 
 func (service *Service) router() http.Handler {
 	multiplexer := http.NewServeMux()
-	multiplexer.HandleFunc("/admin", service.redirectAdminPage)
-	multiplexer.HandleFunc("/admin/", service.redirectAdminPage)
+	multiplexer.HandleFunc("/admin", service.serveAdminPage)
+	multiplexer.HandleFunc("/admin/", service.serveAdminPage)
+	multiplexer.Handle("/_app/", http.FileServer(http.Dir(service.Configuration.AdminUIPath)))
+	multiplexer.HandleFunc("/logo.svg", service.serveAdminAsset)
 	multiplexer.HandleFunc("/_internkim/admin/", service.handleAdmin)
 	multiplexer.HandleFunc("/_internkim/companion/", service.handleCompanion)
 	multiplexer.Handle("/", service.mattermostProxy())
@@ -206,47 +212,17 @@ func (service *Service) mattermostProxy() http.Handler {
 	return proxy
 }
 
-func (service *Service) redirectAdminPage(responseWriter http.ResponseWriter, request *http.Request) {
-	adminPageURL, errorValue := service.adminPageURL(request)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+func (service *Service) serveAdminPage(responseWriter http.ResponseWriter, request *http.Request) {
+	if request.URL.Path == "/admin" {
+		http.Redirect(responseWriter, request, "/admin/", http.StatusFound)
 		return
 	}
-	http.Redirect(responseWriter, request, adminPageURL, http.StatusFound)
+	fileServer := http.StripPrefix("/admin/", http.FileServer(http.Dir(service.Configuration.AdminUIPath)))
+	fileServer.ServeHTTP(responseWriter, request)
 }
 
-func (service *Service) adminPageURL(request *http.Request) (string, error) {
-	adminPageURL, errorValue := url.Parse(service.Configuration.AdminPageBaseURL)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	deviceID := deviceIDFromHost(request.Host)
-	if deviceID == "" {
-		deviceID = strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceIDPath)))
-	}
-	if deviceID != "" {
-		query := adminPageURL.Query()
-		query.Set("device_id", deviceID)
-		adminPageURL.RawQuery = query.Encode()
-	}
-	return adminPageURL.String(), nil
-}
-
-func deviceIDFromHost(host string) string {
-	hostName := host
-	if splitHost, _, errorValue := net.SplitHostPort(host); errorValue == nil {
-		hostName = splitHost
-	}
-	hostName = strings.ToLower(strings.TrimSpace(hostName))
-	const suffix = ".example.test"
-	if !strings.HasSuffix(hostName, suffix) {
-		return ""
-	}
-	deviceID := strings.TrimSuffix(hostName, suffix)
-	if deviceID == "" || deviceID == "api" || strings.Contains(deviceID, ".") {
-		return ""
-	}
-	return deviceID
+func (service *Service) serveAdminAsset(responseWriter http.ResponseWriter, request *http.Request) {
+	http.ServeFile(responseWriter, request, filepath.Join(service.Configuration.AdminUIPath, strings.TrimPrefix(request.URL.Path, "/")))
 }
 
 func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request *http.Request) {
@@ -259,6 +235,12 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 	switch {
 	case request.Method == http.MethodGet && path == "/health":
 		service.writeJSON(responseWriter, map[string]string{"status": "ok"})
+	case request.Method == http.MethodGet && path == "/users":
+		service.proxyUsers(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/users":
+		service.proxyUsers(responseWriter, request)
+	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/users/"):
+		service.proxyUsers(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/companion/pairing-codes":
 		service.createCompanionPairingCode(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/companion/status":
@@ -284,6 +266,58 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 	default:
 		http.NotFound(responseWriter, request)
 	}
+}
+
+func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *http.Request) {
+	deviceID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceIDPath)))
+	deviceSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceSecretPath))
+	if deviceID == "" || deviceSecret == "" {
+		http.Error(responseWriter, "device auth is not configured", http.StatusServiceUnavailable)
+		return
+	}
+	targetPath := strings.TrimPrefix(request.URL.Path, "/_internkim/admin/users")
+	targetURL := strings.TrimRight(service.Configuration.APIBaseURL, "/") + "/api/users" + targetPath
+	if request.Method == http.MethodGet || request.Method == http.MethodDelete {
+		targetURL += "?device_id=" + url.QueryEscape(deviceID)
+	}
+	body := request.Body
+	if request.Method == http.MethodPost {
+		var payload map[string]any
+		if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+			http.Error(responseWriter, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		payload["device_id"] = deviceID
+		document, errorValue := json.Marshal(payload)
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+			return
+		}
+		body = io.NopCloser(strings.NewReader(string(document)))
+	}
+	proxyRequest, errorValue := http.NewRequestWithContext(request.Context(), request.Method, targetURL, body)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	proxyRequest.Header.Set("Content-Type", "application/json")
+	proxyRequest.Header.Set("X-InternKim-Device-ID", deviceID)
+	proxyRequest.Header.Set("X-InternKim-Device-Secret", deviceSecret)
+	client := service.HTTPClient
+	if client == nil {
+		client = http.DefaultClient
+	}
+	response, errorValue := client.Do(proxyRequest)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	defer response.Body.Close()
+	if contentType := response.Header.Get("Content-Type"); contentType != "" {
+		responseWriter.Header().Set("Content-Type", contentType)
+	}
+	responseWriter.WriteHeader(response.StatusCode)
+	_, _ = io.Copy(responseWriter, response.Body)
 }
 
 func (service *Service) createRestoreUpload(responseWriter http.ResponseWriter, request *http.Request) {
@@ -866,8 +900,8 @@ func (configuration Configuration) withDefaults() Configuration {
 	if configuration.MattermostBaseURL == "" {
 		configuration.MattermostBaseURL = defaultConfiguration.MattermostBaseURL
 	}
-	if configuration.AdminPageBaseURL == "" {
-		configuration.AdminPageBaseURL = defaultConfiguration.AdminPageBaseURL
+	if configuration.APIBaseURL == "" {
+		configuration.APIBaseURL = defaultConfiguration.APIBaseURL
 	}
 	if configuration.BlueclawBaseURL == "" {
 		configuration.BlueclawBaseURL = defaultConfiguration.BlueclawBaseURL
@@ -887,6 +921,12 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.DeviceIDPath == "" {
 		configuration.DeviceIDPath = defaultConfiguration.DeviceIDPath
+	}
+	if configuration.DeviceSecretPath == "" {
+		configuration.DeviceSecretPath = defaultConfiguration.DeviceSecretPath
+	}
+	if configuration.AdminUIPath == "" {
+		configuration.AdminUIPath = defaultConfiguration.AdminUIPath
 	}
 	if configuration.RepositoryRoot == "" {
 		configuration.RepositoryRoot = defaultConfiguration.RepositoryRoot

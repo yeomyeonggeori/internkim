@@ -3018,7 +3018,7 @@ func (s *sshClient) scpDirect(localPath, remotePath string) {
 func (s *sshClient) scpDir(localDir, remoteDir string) {
 	if s.user != "root" && strings.HasPrefix(remoteDir, "/") {
 		temporaryRemoteDirectory := "/tmp/internkim-upload-" + filepath.Base(remoteDir)
-		s.run("rm -rf " + quoteShellValue(temporaryRemoteDirectory) + " && mkdir -p " + quoteShellValue(temporaryRemoteDirectory))
+		s.run("rm -rf " + quoteShellValue(temporaryRemoteDirectory) + " && mkdir -p " + quoteShellValue(temporaryRemoteDirectory) + " && chmod 777 " + quoteShellValue(temporaryRemoteDirectory))
 		s.scpDirDirect(localDir, temporaryRemoteDirectory)
 		s.run(fmt.Sprintf(
 			"mkdir -p %s && cp -a %s/. %s/",

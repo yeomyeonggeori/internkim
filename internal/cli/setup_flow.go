@@ -523,15 +523,57 @@ func (state *setupFlowState) deployAdminWeb(context *setup.Context) error {
 	if errorValue := state.runAdminWebCommand(webRoot, "bun", "run", "build"); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := state.runAdminWebCommand(webRoot, "bun", "run", "build:board"); errorValue != nil {
+		return errorValue
+	}
 	fmt.Println("  " + context.T("Cloudflare Pages 배포 중...", "Deploying Cloudflare Pages..."))
 	if errorValue := state.runAdminWebCommand(webRoot, "bunx", "wrangler", "pages", "deploy", ".svelte-kit/cloudflare", "--project-name", "internkim"); errorValue != nil {
 		return errorValue
+	}
+	boardUIPath := filepath.Join(state.scriptDir, "build", "board-ui")
+	switch context.Backend {
+	case setup.BackendSSH:
+		if state.sshClient != nil {
+			state.sshClient.run("rm -rf /opt/internkim/admin-ui && mkdir -p /opt/internkim/admin-ui")
+			state.sshClient.scpDir(boardUIPath, "/opt/internkim/admin-ui")
+			state.sshClient.run("chmod -R a+rX /opt/internkim/admin-ui")
+		}
+	case setup.BackendSD:
+		if context.SD != nil {
+			if errorValue := copyDirectoryToStage(boardUIPath, filepath.Join(context.SD.RootPath(), "admin-ui")); errorValue != nil {
+				return errorValue
+			}
+		}
 	}
 	if version != "" && context.Callbacks.SaveState != nil {
 		context.Callbacks.SaveState("admin_web_version", version)
 	}
 	fmt.Println("  " + context.T("관리자 웹 배포 완료", "Admin web deployed"))
 	return nil
+}
+
+func copyDirectoryToStage(sourceDirectory string, targetDirectory string) error {
+	if errorValue := os.RemoveAll(targetDirectory); errorValue != nil {
+		return errorValue
+	}
+	return filepath.WalkDir(sourceDirectory, func(path string, entry os.DirEntry, walkError error) error {
+		if walkError != nil {
+			return walkError
+		}
+		relativePath, relativeError := filepath.Rel(sourceDirectory, path)
+		if relativeError != nil {
+			return relativeError
+		}
+		targetPath := filepath.Join(targetDirectory, relativePath)
+		if entry.IsDir() {
+			return os.MkdirAll(targetPath, 0o755)
+		}
+		document, readError := os.ReadFile(path)
+		if readError != nil {
+			return readError
+		}
+		return os.WriteFile(targetPath, document, 0o644)
+	})
 }
 
 func (state *setupFlowState) runAdminWebCommand(webRoot string, name string, arguments ...string) error {
@@ -660,7 +702,7 @@ agent-browser doctor --offline --quick >/tmp/internkim-agent-browser-doctor.log 
 		fmt.Println("ready")
 		return nil
 	}
-	fmt.Println("FAILED")
+	fmt.Println("unavailable")
 	diagnostic := strings.TrimSpace(state.sshClient.run(`
 {
   echo "agent-browser install log:"
@@ -675,7 +717,9 @@ agent-browser doctor --offline --quick >/tmp/internkim-agent-browser-doctor.log 
 	if diagnostic == "" {
 		diagnostic = err.Error()
 	}
-	return fmt.Errorf("agent-browser runtime is not ready: %s", diagnostic)
+	state.sshClient.run("mkdir -p /root/.internkim/state && printf '%s' " + quoteShellValue(diagnostic) + " > /root/.internkim/state/agent-browser-unavailable")
+	fmt.Println("  WARN: " + diagnostic)
+	return nil
 }
 
 func (state *setupFlowState) installBlueclawMigrationsSSH() error {

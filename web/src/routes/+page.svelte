@@ -119,11 +119,6 @@
 		return deviceIdFromHost();
 	};
 
-	const pagesApi = () => {
-		const id = deviceId();
-		return id ? `https://api.example.test/api` : '/api';
-	};
-
 	const mattermostURL = () => {
 		const id = deviceId();
 		return id ? `https://${id}.example.test` : '';
@@ -134,6 +129,11 @@
 		const id = deviceId();
 		return id ? `https://${id}.example.test/_internkim/admin` : '';
 	};
+	const usersBaseURL = () => {
+		if (!browser) return '';
+		if (deviceIdFromHost()) return '/_internkim/admin';
+		return adminBaseURL();
+	};
 	const backupDownloadURL = () => {
 		if (!backupJob?.downloadURL || !deviceId()) return '';
 		return `https://${deviceId()}.example.test${backupJob.downloadURL}`;
@@ -141,6 +141,10 @@
 
 	onMount(() => {
 		const queryDeviceId = new URLSearchParams(location.search).get('device_id')?.trim().toLowerCase() ?? '';
+		if (queryDeviceId && location.hostname === 'api.example.test') {
+			location.replace(`https://${queryDeviceId}.example.test/admin/`);
+			return;
+		}
 		deviceIdInput = queryDeviceId || deviceIdFromHost() || localStorage.getItem(storedDeviceIdKey) || '';
 		if (deviceIdInput) localStorage.setItem(storedDeviceIdKey, deviceIdInput);
 		loadCompanionReleases();
@@ -169,7 +173,7 @@
 
 	async function loadCompanionReleases() {
 		try {
-			const response = await fetch('/api/companion/releases');
+			const response = await fetch('https://api.example.test/api/companion/releases');
 			if (!response.ok) return;
 			const data = (await response.json()) as CompanionReleaseResponse;
 			companionReleases = data.platforms ?? [];
@@ -185,9 +189,12 @@
 		isLoadingUsers = true;
 		errorMessage = '';
 		try {
-			const response = await fetch(`${pagesApi()}/users?device_id=${id}`);
+			const response = await fetch(`${usersBaseURL()}/users`, { credentials: 'include' });
 			if (!response.ok) {
-				errorMessage = response.status === 403 ? '관리자만 초대 목록을 볼 수 있습니다.' : '초대 목록을 불러오지 못했습니다.';
+				errorMessage =
+					response.status === 403
+						? '관리자 인증이 필요합니다. 기기 주소의 /admin에서 Cloudflare Access로 로그인해 주세요.'
+						: '초대 목록을 불러오지 못했습니다.';
 				return;
 			}
 			const data = (await response.json()) as UsersResponse;
@@ -206,13 +213,17 @@
 		isSavingUser = true;
 		errorMessage = '';
 		try {
-			const response = await fetch(`${pagesApi()}/users`, {
+			const response = await fetch(`${usersBaseURL()}/users`, {
 				method: 'POST',
+				credentials: 'include',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ device_id: deviceId(), email })
+				body: JSON.stringify({ email })
 			});
 			if (!response.ok) {
-				errorMessage = response.status === 403 ? '관리자만 사용자를 초대할 수 있습니다.' : '사용자 초대에 실패했습니다.';
+				errorMessage =
+					response.status === 403
+						? '관리자 인증이 필요합니다. 기기 주소의 /admin에서 Cloudflare Access로 로그인해 주세요.'
+						: '사용자 초대에 실패했습니다.';
 				return;
 			}
 			const data = (await response.json()) as UsersResponse;
@@ -231,11 +242,15 @@
 		isSavingUser = true;
 		errorMessage = '';
 		try {
-			const response = await fetch(`${pagesApi()}/users/${encodeURIComponent(email)}?device_id=${deviceId()}`, {
-				method: 'DELETE'
+			const response = await fetch(`${usersBaseURL()}/users/${encodeURIComponent(email)}`, {
+				method: 'DELETE',
+				credentials: 'include'
 			});
 			if (!response.ok) {
-				errorMessage = response.status === 403 ? '관리자만 사용자를 제거할 수 있습니다.' : '사용자 제거에 실패했습니다.';
+				errorMessage =
+					response.status === 403
+						? '관리자 인증이 필요합니다. 기기 주소의 /admin에서 Cloudflare Access로 로그인해 주세요.'
+						: '사용자 제거에 실패했습니다.';
 				return;
 			}
 			const data = (await response.json()) as UsersResponse;
