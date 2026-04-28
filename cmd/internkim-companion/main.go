@@ -493,12 +493,8 @@ func nextJob(httpClient *http.Client, state companionState, privateKey string) (
 		return nil, errorValue
 	}
 	defer response.Body.Close()
-	if response.StatusCode >= http.StatusBadRequest {
-		body, _ := io.ReadAll(response.Body)
-		return nil, errors.New(string(body))
-	}
 	var job companionJob
-	if errorValue := json.NewDecoder(response.Body).Decode(&job); errorValue != nil {
+	if errorValue := decodeJSONResponse(request.URL.String(), response, &job); errorValue != nil {
 		return nil, errorValue
 	}
 	if job.Status == "empty" || job.JobID == "" {
@@ -537,11 +533,7 @@ func postJSON(httpClient *http.Client, endpoint string, headers map[string]strin
 		return errorValue
 	}
 	defer response.Body.Close()
-	if response.StatusCode >= http.StatusBadRequest {
-		body, _ := io.ReadAll(response.Body)
-		return errors.New(string(body))
-	}
-	return json.NewDecoder(response.Body).Decode(responseBody)
+	return decodeJSONResponse(endpoint, response, responseBody)
 }
 
 func postSignedJSON(httpClient *http.Client, state companionState, privateKey string, endpoint string, requestBody any, responseBody any) error {
@@ -565,11 +557,39 @@ func postSignedJSON(httpClient *http.Client, state companionState, privateKey st
 		return errorValue
 	}
 	defer response.Body.Close()
+	return decodeJSONResponse(endpoint, response, responseBody)
+}
+
+func decodeJSONResponse(endpoint string, response *http.Response, responseBody any) error {
+	body, _ := io.ReadAll(io.LimitReader(response.Body, 1<<20))
 	if response.StatusCode >= http.StatusBadRequest {
-		body, _ := io.ReadAll(response.Body)
-		return errors.New(string(body))
+		return fmt.Errorf("%s returned %d: %s", endpoint, response.StatusCode, sanitizedHTTPBody(body))
 	}
-	return json.NewDecoder(response.Body).Decode(responseBody)
+	if responseBody == nil || len(strings.TrimSpace(string(body))) == 0 {
+		return nil
+	}
+	trimmedBody := strings.TrimSpace(string(body))
+	if strings.HasPrefix(trimmedBody, "<") {
+		return fmt.Errorf("%s returned HTML instead of JSON; the companion route is probably still behind Cloudflare Access or serving the wrong path", endpoint)
+	}
+	if errorValue := json.Unmarshal(body, responseBody); errorValue != nil {
+		return fmt.Errorf("%s returned invalid JSON: %w", endpoint, errorValue)
+	}
+	return nil
+}
+
+func sanitizedHTTPBody(body []byte) string {
+	trimmedBody := strings.TrimSpace(string(body))
+	if trimmedBody == "" {
+		return "empty response body"
+	}
+	if strings.HasPrefix(trimmedBody, "<") {
+		return "HTML response"
+	}
+	if len(trimmedBody) > 512 {
+		return trimmedBody[:512]
+	}
+	return trimmedBody
 }
 
 func putSignedBytes(ctx context.Context, httpClient *http.Client, state companionState, privateKey string, endpoint string, requestBody []byte) error {
