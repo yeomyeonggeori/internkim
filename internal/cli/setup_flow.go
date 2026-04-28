@@ -102,6 +102,8 @@ func (state *setupFlowState) callbacks() setup.Callbacks {
 		BinariesVersion:        state.binariesVersion,
 		InstallBinariesSSH:     state.installBinariesSSH,
 		StageBinariesSD:        state.stageBinariesSD,
+		AdminWebVersion:        state.adminWebVersion,
+		DeployAdminWeb:         state.deployAdminWeb,
 		ConfigureWifiSSH:       state.configureWifiSSH,
 		StageWifiSD:            state.stageWifiSD,
 		ProvisionTunnelSSH:     state.provisionTunnelSSH,
@@ -455,6 +457,42 @@ func (state *setupFlowState) binariesVersion() string {
 	return hex.EncodeToString(hash.Sum(nil))
 }
 
+func (state *setupFlowState) adminWebVersion() string {
+	hash := sha256.New()
+	webRoot := filepath.Join(state.scriptDir, "web")
+	for _, path := range []string{
+		filepath.Join(webRoot, "src"),
+		filepath.Join(webRoot, "static"),
+		filepath.Join(webRoot, "package.json"),
+		filepath.Join(webRoot, "bun.lock"),
+		filepath.Join(webRoot, "svelte.config.js"),
+		filepath.Join(webRoot, "vite.config.ts"),
+		filepath.Join(webRoot, "tsconfig.json"),
+		filepath.Join(webRoot, "wrangler.jsonc"),
+	} {
+		state.writePathHash(hash, path)
+	}
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
+func (state *setupFlowState) writePathHash(hash io.Writer, path string) {
+	fileInfo, errorValue := os.Stat(path)
+	if errorValue != nil {
+		return
+	}
+	if fileInfo.IsDir() {
+		state.writeDirectoryHash(hash, path)
+		return
+	}
+	document, readError := os.ReadFile(path)
+	if readError != nil {
+		return
+	}
+	_, _ = hash.Write([]byte(filepath.Base(path) + "\n"))
+	_, _ = hash.Write(document)
+	_, _ = hash.Write([]byte("\n"))
+}
+
 func (state *setupFlowState) writeDirectoryHash(hash io.Writer, rootPath string) {
 	_ = filepath.WalkDir(rootPath, func(path string, entry os.DirEntry, walkError error) error {
 		if walkError != nil || entry.IsDir() {
@@ -473,6 +511,38 @@ func (state *setupFlowState) writeDirectoryHash(hash io.Writer, rootPath string)
 		_, _ = hash.Write([]byte("\n"))
 		return nil
 	})
+}
+
+func (state *setupFlowState) deployAdminWeb(context *setup.Context) error {
+	webRoot := filepath.Join(state.scriptDir, "web")
+	if _, errorValue := os.Stat(webRoot); errorValue != nil {
+		return fmt.Errorf("admin web directory missing: %w", errorValue)
+	}
+	version := state.adminWebVersion()
+	fmt.Println("  " + context.T("관리자 웹 빌드 중...", "Building admin web..."))
+	if errorValue := state.runAdminWebCommand(webRoot, "bun", "run", "build"); errorValue != nil {
+		return errorValue
+	}
+	fmt.Println("  " + context.T("Cloudflare Pages 배포 중...", "Deploying Cloudflare Pages..."))
+	if errorValue := state.runAdminWebCommand(webRoot, "bunx", "wrangler", "pages", "deploy", ".svelte-kit/cloudflare", "--project-name", "internkim"); errorValue != nil {
+		return errorValue
+	}
+	if version != "" && context.Callbacks.SaveState != nil {
+		context.Callbacks.SaveState("admin_web_version", version)
+	}
+	fmt.Println("  " + context.T("관리자 웹 배포 완료", "Admin web deployed"))
+	return nil
+}
+
+func (state *setupFlowState) runAdminWebCommand(webRoot string, name string, arguments ...string) error {
+	command := exec.Command(name, arguments...)
+	command.Dir = webRoot
+	command.Env = os.Environ()
+	output, errorValue := command.CombinedOutput()
+	if errorValue != nil {
+		return fmt.Errorf("%s %s: %s", name, strings.Join(arguments, " "), strings.TrimSpace(string(output)))
+	}
+	return nil
 }
 
 func (state *setupFlowState) installBinariesSSH(context *setup.Context) error {

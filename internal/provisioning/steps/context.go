@@ -51,6 +51,9 @@ type Callbacks struct {
 	InstallBinariesSSH func(context *Context) error
 	StageBinariesSD    func(context *Context) error
 
+	AdminWebVersion func() string
+	DeployAdminWeb  func(context *Context) error
+
 	ConfigureWifiSSH func(context *Context) error
 	StageWifiSD      func(context *Context) error
 

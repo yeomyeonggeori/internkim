@@ -97,17 +97,18 @@ make build
 ./internkim setup
 ```
 
-10단계 자동 진행:
+주요 setup 단계:
 1. 보드 감지 (USB NCM)
-2. Wi-Fi 감지 + 키체인 비밀번호
-3. 보드 Wi-Fi 설정
-4. Wi-Fi 연결 확인
-5. Blueclaw + gws + cloudflared 설치, 시스템 유저 생성
-6. OpenRouter API 키 → `/root/.internkim/secrets/openrouter-api-key`
+2. 관리자 웹 빌드 + Cloudflare Pages 배포
+3. Wi-Fi 감지 + 보드 네트워크 설정
+4. Blueclaw + gws + cloudflared 설치, 시스템 유저 생성
+5. OpenRouter API 키 → `/root/.internkim/secrets/openrouter-api-key`
+6. LiteRT local model 준비
 7. 기기 등록 + Cloudflare 터널 시작
 8. Google 서비스 계정 자동 생성 → `/root/.internkim/secrets/google-sa.json`
 9. Mattermost 설정 (URL / admin token / bot token / channel ID, 건너뛰기 가능)
-10. `blueclaw.service` 시작 + 스왑 + 최신 빌드 배포
+10. Slack/Signal/Users sync 구성
+11. `blueclaw.service` 시작 + 최종 health check
 
 Mattermost self-hosted는 기본적으로 한 team의 총 멤버 수에 제한이 있습니다. 기본값은 `TeamSettings.MaxUsersPerTeam = 50`이며, 활성/비활성 사용자를 포함합니다. 반복 검증에서 테스트 사용자를 지우지 않으면 이 제한에 걸려 team/channel join API가 실패할 수 있습니다. 필요하면 운영 환경에서 이 값을 늘릴 수 있지만, 테스트 코드는 생성한 Mattermost 테스트 사용자를 정리해야 합니다.
 
