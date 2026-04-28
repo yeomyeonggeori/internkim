@@ -351,6 +351,12 @@ func (state *setupFlowState) requiredBinaryAssets() []localBinaryAsset {
 			downloadURL: "https://github.com/vercel-labs/agent-browser/releases/latest/download/agent-browser-linux-arm64",
 		},
 		{
+			name:        "lightpanda",
+			localPath:   filepath.Join(state.boardBinDir, "lightpanda"),
+			remotePath:  "/usr/local/bin/lightpanda",
+			downloadURL: "https://github.com/lightpanda-io/browser/releases/download/nightly/lightpanda-aarch64-linux",
+		},
+		{
 			name:       "download",
 			localPath:  filepath.Join(state.boardBinDir, "download"),
 			remotePath: "/usr/local/bin/download",
@@ -696,7 +702,7 @@ func (state *setupFlowState) ensureAgentBrowserRuntimeSSH() error {
 	fmt.Print("  agent-browser runtime... ")
 	output, err := state.sshClient.runResult(`
 set -eu
-agent-browser install >/tmp/internkim-agent-browser-install.log 2>&1
+agent-browser install >/tmp/internkim-agent-browser-install.log 2>&1 || true
 ` + browserruntime.DeviceReadinessShellScript() + `
 `)
 	if err == nil {
