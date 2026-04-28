@@ -541,9 +541,10 @@ func (state *setupFlowState) deployAdminWeb(context *setup.Context) error {
 	switch context.Backend {
 	case setup.BackendSSH:
 		if state.sshClient != nil {
-			state.sshClient.run("rm -rf /opt/internkim/admin-ui && mkdir -p /opt/internkim/admin-ui")
-			state.sshClient.scpDir(boardUIPath, "/opt/internkim/admin-ui")
-			state.sshClient.run("chmod -R a+rX /opt/internkim/admin-ui")
+			temporaryAdminUIPath := "/tmp/internkim-admin-ui"
+			state.sshClient.run("rm -rf " + quoteShellValue(temporaryAdminUIPath) + " && mkdir -p " + quoteShellValue(temporaryAdminUIPath) + " && chmod 777 " + quoteShellValue(temporaryAdminUIPath))
+			state.sshClient.scpDirDirect(boardUIPath, temporaryAdminUIPath)
+			state.sshClient.run("sudo rm -rf /opt/internkim/admin-ui && sudo mkdir -p /opt/internkim/admin-ui && sudo cp -a " + quoteShellValue(temporaryAdminUIPath) + "/. /opt/internkim/admin-ui/ && sudo chmod -R a+rX /opt/internkim/admin-ui")
 		}
 	case setup.BackendSD:
 		if context.SD != nil {
