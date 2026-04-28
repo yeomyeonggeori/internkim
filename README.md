@@ -166,7 +166,7 @@ make build-companion-shell
 
 Primary flow는 Pages 관리자 화면의 Companion App 섹션입니다. 관리자는 다운로드 버튼으로 OS별 companion을 받고, `Connect to this Intern Kim`으로 10분짜리 one-time pairing code를 만든 뒤 deep link 또는 CLI fallback으로 연결합니다. 연결된 companion은 inbound port를 열지 않고 device broker를 long-poll합니다.
 
-관리자 화면은 `https://api.intern.kim/?device_id=<deviceID>`에서 열립니다. 기기 주소의 `/admin`은 같은 화면으로 리다이렉트합니다.
+관리자 화면은 `https://<deviceID>.intern.kim/admin`에서 엽니다. 이 주소는 Cloudflare Access 인증 뒤 기기 안의 관리자 UI를 same-origin으로 서빙하므로 초대, Companion 연결, 백업/복구가 브라우저에서 바로 동작합니다. `https://api.intern.kim/?device_id=<deviceID>`는 배포/진입용 Pages 주소이며, 실제 작업은 기기 주소의 `/admin`으로 이동합니다.
 
 Deep link를 직접 넘기는 CLI fallback도 지원합니다.
 

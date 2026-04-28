@@ -4,7 +4,7 @@ import "errors"
 
 var StepBinaries = Step{
 	Name: "binaries",
-	Deps: []string{"board"},
+	Deps: []string{"board", "admin-web"},
 	Title: func(context *Context) string {
 		return context.T("바이너리 설치 중...", "Installing binaries...")
 	},

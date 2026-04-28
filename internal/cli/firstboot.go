@@ -272,6 +272,12 @@ if [ -d "$STAGE/graphiti_memoryd" ]; then
   mkdir -p /opt/internkim/graphiti_memoryd
   cp -af "$STAGE/graphiti_memoryd/." /opt/internkim/graphiti_memoryd/
 fi
+if [ -d "$STAGE/admin-ui" ]; then
+  rm -rf /opt/internkim/admin-ui
+  mkdir -p /opt/internkim/admin-ui
+  cp -af "$STAGE/admin-ui/." /opt/internkim/admin-ui/
+  chmod -R a+rX /opt/internkim/admin-ui
+fi
 if [ -f "$STAGE/SOUL.md" ]; then
   cp -f "$STAGE/SOUL.md" /root/.blueclaw/workspace/SOUL.md
 fi

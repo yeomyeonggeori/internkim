@@ -22,7 +22,6 @@ import (
 func TestGatewayRoutesAdminAndMattermost(t *testing.T) {
 	service := NewService(Configuration{
 		MattermostBaseURL: "http://mattermost.local",
-		AdminPageBaseURL:  "https://api.intern.kim",
 		AdminEmailPath:    writeTestFile(t, "admin@example.com"),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -55,9 +54,13 @@ func TestGatewayRoutesAdminAndMattermost(t *testing.T) {
 }
 
 func TestGatewayRedirectsAdminPage(t *testing.T) {
+	adminUIPath := t.TempDir()
+	if errorValue := os.WriteFile(filepath.Join(adminUIPath, "index.html"), []byte("admin ui"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	service := NewService(Configuration{
-		AdminPageBaseURL: "https://api.intern.kim",
-		AdminEmailPath:   writeTestFile(t, "admin@example.com"),
+		AdminEmailPath: writeTestFile(t, "admin@example.com"),
+		AdminUIPath:    adminUIPath,
 	})
 	handler := service.router()
 
@@ -67,8 +70,18 @@ func TestGatewayRedirectsAdminPage(t *testing.T) {
 	if response.Code != http.StatusFound {
 		t.Fatalf("admin page status = %d", response.Code)
 	}
-	if response.Header().Get("Location") != "https://api.intern.kim?device_id=dc719d8e" {
+	if response.Header().Get("Location") != "/admin/" {
 		t.Fatalf("admin page location = %q", response.Header().Get("Location"))
+	}
+
+	request = httptest.NewRequest(http.MethodGet, "https://dc719d8e.intern.kim/admin/", nil)
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("admin ui status = %d", response.Code)
+	}
+	if !strings.Contains(response.Body.String(), "admin ui") {
+		t.Fatalf("admin ui body = %q", response.Body.String())
 	}
 }
 
@@ -91,6 +104,50 @@ func TestAdminRejectsUnauthorizedRemoteCaller(t *testing.T) {
 	handler.ServeHTTP(response, request)
 	if response.Code != http.StatusOK {
 		t.Fatalf("authorized status = %d", response.Code)
+	}
+}
+
+func TestAdminUsersProxyUsesDeviceAuth(t *testing.T) {
+	deviceIDPath := writeTestFile(t, "dc719d8e")
+	deviceSecretPath := writeTestFile(t, "secret-value")
+	service := NewService(Configuration{
+		APIBaseURL:        "https://api.intern.kim",
+		AdminEmailPath:    writeTestFile(t, "admin@example.com"),
+		DeviceIDPath:      deviceIDPath,
+		DeviceSecretPath:  deviceSecretPath,
+		StateDirectory:    t.TempDir(),
+		CompanionJobPath:  filepath.Join(t.TempDir(), "jobs.json"),
+		AdminUIPath:       t.TempDir(),
+		MattermostBaseURL: "http://mattermost.local",
+	})
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.String() != "https://api.intern.kim/api/users?device_id=dc719d8e" {
+			t.Fatalf("proxy url = %s", request.URL.String())
+		}
+		if request.Header.Get("X-InternKim-Device-ID") != "dc719d8e" {
+			t.Fatalf("device id header = %q", request.Header.Get("X-InternKim-Device-ID"))
+		}
+		if request.Header.Get("X-InternKim-Device-Secret") != "secret-value" {
+			t.Fatalf("device secret header = %q", request.Header.Get("X-InternKim-Device-Secret"))
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(`{"users":["admin@example.com"]}`)),
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Request:    request,
+		}, nil
+	})}
+	handler := service.router()
+
+	request := httptest.NewRequest(http.MethodGet, "/_internkim/admin/users", nil)
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("users proxy status = %d", response.Code)
+	}
+	if !strings.Contains(response.Body.String(), "admin@example.com") {
+		t.Fatalf("users proxy body = %q", response.Body.String())
 	}
 }
 
