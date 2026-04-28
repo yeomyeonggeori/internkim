@@ -144,6 +144,20 @@ function companionBypassApplicationBody(env: CFEnv, deviceId: string) {
 	};
 }
 
+function adminAccessApplicationBody(env: CFEnv, deviceId: string, identityProviderId: string, domain: string) {
+	const hostname = `${deviceId}.${env.CF_DOMAIN}`;
+
+	return {
+		name: `intern kim admin ${deviceId} ${domain}`,
+		domain: `${hostname}${domain}`,
+		type: 'self_hosted',
+		session_duration: '720h',
+		logo_url: `https://${hostname}/logo.svg`,
+		allowed_idps: [identityProviderId],
+		auto_redirect_to_identity: true
+	};
+}
+
 function accessApplicationDomain(application: AccessApplication): string {
 	if (typeof application.domain === 'string') return application.domain;
 	if (Array.isArray(application.self_hosted_domains) && typeof application.self_hosted_domains[0] === 'string') {
@@ -187,6 +201,40 @@ export async function ensureCompanionBypassApplication(env: CFEnv, deviceId: str
 
 	await ensureCompanionBypassPolicy(env, applicationId);
 	return applicationId;
+}
+
+export async function ensureAdminAccessApplications(env: CFEnv, deviceId: string, identityProviderId: string, adminEmail: string) {
+	for (const domain of ['/admin*', '/_internkim/admin/*']) {
+		const applicationId = await ensureAdminAccessApplication(env, deviceId, identityProviderId, domain);
+		await syncAccessPolicyEmails(env, applicationId, [adminEmail]);
+	}
+}
+
+async function ensureAdminAccessApplication(env: CFEnv, deviceId: string, identityProviderId: string, domain: string) {
+	const body = adminAccessApplicationBody(env, deviceId, identityProviderId, domain);
+	const applications = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`)) as AccessApplication[];
+	const application = applications.find((item) => accessApplicationDomain(item) === body.domain);
+	const applicationId = application?.id ?? await createAdminAccessApplication(env, body);
+
+	if (application?.id) {
+		await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${applicationId}`, {
+			method: 'PUT',
+			body: JSON.stringify(body)
+		});
+	}
+
+	return applicationId;
+}
+
+async function createAdminAccessApplication(env: CFEnv, body: ReturnType<typeof adminAccessApplicationBody>) {
+	const application = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`, {
+		method: 'POST',
+		body: JSON.stringify(body)
+	})) as AccessApplication;
+	if (!application.id) {
+		throw new Error('Cloudflare admin app response did not include an id');
+	}
+	return application.id;
 }
 
 async function createCompanionBypassApplication(env: CFEnv, body: ReturnType<typeof companionBypassApplicationBody>) {
