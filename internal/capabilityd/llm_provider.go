@@ -133,14 +133,13 @@ func (service Service) providerForExecutionMode(executionMode string) (LLMProvid
 }
 
 func (service Service) automaticLLMProviders(localProvider LLMProvider, companionProvider LLMProvider, remoteProvider LLMProvider) []LLMProvider {
-	providers := []LLMProvider{localProvider, companionProvider}
+	if service.Configuration.LocalOnly {
+		return []LLMProvider{companionProvider, localProvider}
+	}
 	if service.Configuration.PreferCompanionLLM {
-		providers = []LLMProvider{companionProvider, localProvider}
+		return []LLMProvider{companionProvider, remoteProvider, localProvider}
 	}
-	if !service.Configuration.LocalOnly {
-		providers = append(providers, remoteProvider)
-	}
-	return providers
+	return []LLMProvider{remoteProvider, companionProvider, localProvider}
 }
 
 func (provider AutoProvider) CompleteStructured(ctx context.Context, request StructuredLLMRequest) (LLMResponse, error) {
