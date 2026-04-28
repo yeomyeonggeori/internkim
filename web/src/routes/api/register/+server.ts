@@ -8,6 +8,7 @@ import {
 	configureTunnel,
 	createDNSRecord,
 	ensureOneTimePinIdentityProvider,
+	ensureAdminAccessApplications,
 	ensureCompanionBypassApplication,
 	updateAccessApplicationLoginMethod,
 	syncAccessPolicyEmails
@@ -89,6 +90,7 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 		if (ownedDevice.access_app_id) {
 			await updateAccessApplicationLoginMethod(cfEnv, deviceID, ownedDevice.access_app_id, identityProviderId);
 		}
+		await ensureAdminAccessApplications(cfEnv, deviceID, identityProviderId, normalizeEmail(ownedDevice.admin_email || adminEmail));
 		await ensureCompanionBypassApplication(cfEnv, deviceID);
 		const users = await kv.getUsers(env.KV, deviceID);
 		const seededUsers = inviteUsersWithSetupAdmin(users, existing.admin_email, adminEmail);
@@ -109,6 +111,7 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 	const dnsRecordId = await createDNSRecord(cfEnv, tunnelId, deviceID);
 	const accessAppId = await createAccessApplication(cfEnv, deviceID, identityProviderId);
 	const accessPolicyId = await createAccessPolicy(cfEnv, accessAppId, adminEmail);
+	await ensureAdminAccessApplications(cfEnv, deviceID, identityProviderId, adminEmail);
 	await ensureCompanionBypassApplication(cfEnv, deviceID);
 
 	const device: Device = {
