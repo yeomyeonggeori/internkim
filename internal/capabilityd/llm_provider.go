@@ -252,7 +252,8 @@ func (provider OpenRouterProvider) CompleteStructured(ctx context.Context, reque
 		return LLMResponse{}, errors.New("openrouter api key is a simulation placeholder; set OPENROUTER_API_KEY or rerun setup --only openrouter --force")
 	}
 
-	requestDocument, errorValue := buildOpenRouterRequest(request)
+	modelName := provider.remoteModelName(request.Model)
+	requestDocument, errorValue := buildOpenRouterRequest(request, modelName)
 	if errorValue != nil {
 		return LLMResponse{}, errorValue
 	}
@@ -288,7 +289,7 @@ func (provider OpenRouterProvider) CompleteStructured(ctx context.Context, reque
 	}
 	return LLMResponse{
 		Provider:        "openrouter",
-		Model:           request.model(),
+		Model:           modelName,
 		Content:         parsedResponse.Choices[0].Message.Content,
 		SelectedBackend: capabilities.LLMBackendRemote,
 		ConstraintMode:  "provider_json_schema",
@@ -303,9 +304,9 @@ func (provider OpenRouterProvider) CompleteText(ctx context.Context, request Tex
 	return unwrapTextResponse(response)
 }
 
-func buildOpenRouterRequest(request StructuredLLMRequest) ([]byte, error) {
+func buildOpenRouterRequest(request StructuredLLMRequest, modelName string) ([]byte, error) {
 	document := map[string]any{
-		"model":    request.model(),
+		"model":    modelName,
 		"messages": request.Messages,
 		"response_format": map[string]any{
 			"type": "json_schema",
@@ -353,8 +354,19 @@ func validateMinimumStructuredOutput(content string, schemaDocument json.RawMess
 	return true
 }
 
-func (request StructuredLLMRequest) model() string {
-	return strings.TrimSpace(request.Model)
+func (provider OpenRouterProvider) remoteModelName(modelName string) string {
+	normalizedModelName := strings.TrimSpace(modelName)
+	if normalizedModelName == "" || isLocalModelReference(normalizedModelName) {
+		return firstNonEmpty(provider.Configuration.OpenRouterModel, DefaultConfiguration().OpenRouterModel)
+	}
+	return normalizedModelName
+}
+
+func isLocalModelReference(modelName string) bool {
+	normalizedModelName := strings.ToLower(strings.TrimSpace(modelName))
+	return strings.HasPrefix(normalizedModelName, "local/") ||
+		strings.HasSuffix(normalizedModelName, ".litertlm") ||
+		strings.Contains(normalizedModelName, "litert-lm")
 }
 
 func structuredRequestForText(request TextLLMRequest) StructuredLLMRequest {

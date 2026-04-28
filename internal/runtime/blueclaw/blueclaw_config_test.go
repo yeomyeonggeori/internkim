@@ -7,7 +7,7 @@ import (
 )
 
 func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
-	document, errorValue := BlueclawRuntimeConfigDocument(BlueclawDefaultModelName)
+	document, errorValue := BlueclawRuntimeConfigDocument("")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -37,6 +37,9 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if capabilityLanguageModel["executionMode"] != "auto" {
 		t.Fatalf("expected automatic execution mode, got %q", capabilityLanguageModel["executionMode"])
 	}
+	if _, isFound := capabilityLanguageModel["model"]; isFound {
+		t.Fatalf("expected default runtime to omit model override, got %+v", capabilityLanguageModel)
+	}
 	if _, isFound := languageModel["openRouter"]; isFound {
 		t.Fatal("expected OpenRouter runtime details to be omitted")
 	}
@@ -58,8 +61,8 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if intake["enabled"] != true {
 		t.Fatalf("expected agent intake enabled, got %v", intake["enabled"])
 	}
-	if intake["model"] != "local/gemma-4-E4B-it-litert-lm" {
-		t.Fatalf("expected agent intake model, got %v", intake["model"])
+	if _, isFound := intake["model"]; isFound {
+		t.Fatalf("expected agent intake to omit model override, got %+v", intake)
 	}
 	if intake["executionMode"] != "auto" {
 		t.Fatalf("expected agent intake execution mode, got %v", intake["executionMode"])
@@ -96,6 +99,24 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 		if strings.Contains(document, fragment) {
 			t.Fatalf("expected runtime config to omit raw budget field %q", fragment)
 		}
+	}
+}
+
+func TestBlueclawRuntimeConfigSupportsOptionalModelOverride(t *testing.T) {
+	document, errorValue := BlueclawRuntimeConfigDocument("google/gemini-3-flash-preview")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	var runtimeConfiguration map[string]any
+	if errorValue := json.Unmarshal([]byte(document), &runtimeConfiguration); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	languageModel := runtimeConfiguration["languageModel"].(map[string]any)
+	capabilityLanguageModel := languageModel["capability"].(map[string]any)
+	if capabilityLanguageModel["model"] != "google/gemini-3-flash-preview" {
+		t.Fatalf("expected explicit model override, got %+v", capabilityLanguageModel)
 	}
 }
 

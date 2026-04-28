@@ -25,7 +25,7 @@ func TestOpenRouterRequestPreservesStructuredSchema(t *testing.T) {
 		},
 		RequireParameters:     true,
 		EnableResponseHealing: true,
-	})
+	}, "openrouter/model")
 	if errorValue != nil {
 		t.Fatalf("expected OpenRouter request: %v", errorValue)
 	}
@@ -43,6 +43,9 @@ func TestOpenRouterRequestPreservesStructuredSchema(t *testing.T) {
 	}
 	if jsonSchema["strict"] != true {
 		t.Fatalf("expected strict schema, got %+v", jsonSchema)
+	}
+	if document["model"] != "openrouter/model" {
+		t.Fatalf("expected explicit remote model, got %q", document["model"])
 	}
 }
 
@@ -81,6 +84,49 @@ func TestOpenRouterProviderReturnsProviderConstraintMode(t *testing.T) {
 	}
 	if response.ConstraintMode != "provider_json_schema" {
 		t.Fatalf("expected provider json schema mode, got %q", response.ConstraintMode)
+	}
+}
+
+func TestOpenRouterProviderUsesDefaultModelForLocalAlias(t *testing.T) {
+	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
+	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var receivedDocument map[string]any
+	provider := OpenRouterProvider{
+		Configuration: Configuration{
+			OpenRouterKeyPath: "missing",
+			OpenRouterBaseURL: "https://example.test/chat",
+			OpenRouterModel:   "google/default-remote",
+		},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if errorValue := json.NewDecoder(request.Body).Decode(&receivedDocument); errorValue != nil {
+				t.Fatalf("expected request body: %v", errorValue)
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"{\"reply\":\"ok\"}"}}]}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+	provider.Configuration.OpenRouterKeyPath = secretPath
+
+	response, errorValue := provider.CompleteStructured(context.Background(), StructuredLLMRequest{
+		Model: "local/gemma-4-E4B-it-litert-lm",
+		StructuredOutputSchema: StructuredOutputSchema{
+			Name:     "reply",
+			Document: json.RawMessage(`{"type":"object","required":["reply"]}`),
+		},
+	})
+	if errorValue != nil {
+		t.Fatalf("expected remote completion: %v", errorValue)
+	}
+	if receivedDocument["model"] != "google/default-remote" {
+		t.Fatalf("expected provider default remote model, got %q", receivedDocument["model"])
+	}
+	if response.Model != "google/default-remote" {
+		t.Fatalf("expected response model to match selected remote model, got %q", response.Model)
 	}
 }
 

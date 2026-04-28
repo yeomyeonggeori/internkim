@@ -33,6 +33,7 @@ type Configuration struct {
 	SignalAccountPath          string
 	BlueclawBaseURL            string
 	OpenRouterBaseURL          string
+	OpenRouterModel            string
 	OpenRouterEmbeddingBaseURL string
 	OpenRouterEmbeddingModel   string
 	SocketGroupName            string
@@ -105,6 +106,7 @@ func DefaultConfiguration() Configuration {
 		SignalAccountPath:          "/root/.internkim/config/signal-account",
 		BlueclawBaseURL:            "http://127.0.0.1:8080",
 		OpenRouterBaseURL:          "https://openrouter.ai/api/v1/chat/completions",
+		OpenRouterModel:            "google/gemini-3-flash-preview",
 		OpenRouterEmbeddingBaseURL: "https://openrouter.ai/api/v1/embeddings",
 		OpenRouterEmbeddingModel:   "text-embedding-3-small",
 		SocketGroupName:            "blueclaw",

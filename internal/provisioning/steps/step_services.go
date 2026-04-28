@@ -50,7 +50,7 @@ PY`)
 	Run: func(context *Context) error {
 		connection := context.SSH
 
-		runtimeConfiguration, err := blueclaw.BlueclawRuntimeConfigDocument(blueclaw.BlueclawDefaultModelName)
+		runtimeConfiguration, err := blueclaw.BlueclawRuntimeConfigDocument("")
 		if err != nil {
 			return err
 		}
