@@ -127,21 +127,19 @@
 	const isDeviceContext = () => deviceId() !== '';
 	const adminBaseURL = () => {
 		const id = deviceId();
+		if (deviceIdFromHost()) return '/_internkim/admin';
 		return id ? `https://${id}.example.test/_internkim/admin` : '';
 	};
-	const usersBaseURL = () => {
-		if (!browser) return '';
-		if (deviceIdFromHost()) return '/_internkim/admin';
-		return adminBaseURL();
-	};
+	const usersBaseURL = () => adminBaseURL();
 	const backupDownloadURL = () => {
 		if (!backupJob?.downloadURL || !deviceId()) return '';
+		if (deviceIdFromHost()) return backupJob.downloadURL;
 		return `https://${deviceId()}.example.test${backupJob.downloadURL}`;
 	};
 
 	onMount(() => {
 		const queryDeviceId = new URLSearchParams(location.search).get('device_id')?.trim().toLowerCase() ?? '';
-		if (queryDeviceId && location.hostname === 'api.example.test') {
+		if (queryDeviceId && !deviceIdFromHost() && !isLocalBrowserHost()) {
 			location.replace(`https://${queryDeviceId}.example.test/admin/`);
 			return;
 		}
@@ -155,12 +153,18 @@
 	function deviceIdFromHost() {
 		if (!browser) return '';
 		const host = location.hostname;
-		if (host === 'localhost' || host === '127.0.0.1' || /^\d+\.\d+\.\d+\.\d+$/.test(host)) return '';
+		if (isLocalBrowserHost()) return '';
 		const suffix = '.example.test';
 		if (!host.endsWith(suffix)) return '';
 		const id = host.slice(0, -suffix.length);
 		if (!id || id === 'api' || id.includes('.')) return '';
 		return id;
+	}
+
+	function isLocalBrowserHost() {
+		if (!browser) return false;
+		const host = location.hostname;
+		return host === 'localhost' || host === '127.0.0.1' || /^\d+\.\d+\.\d+\.\d+$/.test(host);
 	}
 
 	function saveDeviceId() {
