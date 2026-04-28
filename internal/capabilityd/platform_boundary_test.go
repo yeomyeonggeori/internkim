@@ -279,6 +279,206 @@ func TestMattermostReplyStopsProgressBeforeSendingPost(t *testing.T) {
 	}
 }
 
+func TestMattermostReplyUploadsAttachmentsAndPostsFileIDs(t *testing.T) {
+	companionDirectory := t.TempDir()
+	attachmentPath := companionDirectory + "/screen.png"
+	if errorValue := os.WriteFile(attachmentPath, []byte("png"), 0o600); errorValue != nil {
+		t.Fatalf("expected attachment file: %v", errorValue)
+	}
+	uploadRequests := make(chan string, 1)
+	postRequests := make(chan map[string]any, 1)
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/files":
+			if errorValue := request.ParseMultipartForm(1024); errorValue != nil {
+				t.Fatalf("expected multipart upload: %v", errorValue)
+			}
+			files := request.MultipartForm.File["files"]
+			if request.MultipartForm.Value["channel_id"][0] != "channel-1" || len(files) != 1 || files[0].Filename != "screen.png" {
+				t.Fatalf("unexpected upload form: %+v", request.MultipartForm)
+			}
+			uploadRequests <- files[0].Filename
+			return testJSONResponse(http.StatusOK, map[string]any{"file_infos": []map[string]string{{"id": "file-1"}}}), nil
+		case "/api/v4/posts":
+			var payload map[string]any
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatalf("expected post request to decode: %v", errorValue)
+			}
+			postRequests <- payload
+			return testJSONResponse(http.StatusOK, map[string]string{"id": "post-1"}), nil
+		default:
+			t.Fatalf("unexpected Mattermost request: %s", request.URL.Path)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	tokenPath := t.TempDir() + "/mattermost-token"
+	if errorValue := os.WriteFile(tokenPath, []byte("test-token\n"), 0o600); errorValue != nil {
+		t.Fatalf("expected token file: %v", errorValue)
+	}
+	replyTargetID, errorValue := encodePlatformHandle(platformHandle{Platform: "mattermost", ChannelID: "channel-1"})
+	if errorValue != nil {
+		t.Fatalf("expected reply target to encode: %v", errorValue)
+	}
+	configuration := DefaultConfiguration()
+	configuration.MattermostBaseURL = "http://mattermost.test"
+	configuration.MattermostTokenPath = tokenPath
+	configuration.CompanionFileDirectory = companionDirectory
+	service := Service{Configuration: configuration, HTTPClient: httpClient}
+
+	_, errorValue = service.mattermostReply(context.Background(), mustJSON(t, replyRequest{
+		ReplyTargetID: replyTargetID,
+		Message:       "captured",
+		Attachments:   []platformFileSpec{{DevicePath: attachmentPath, Filename: "screen.png", ContentType: "image/png", SizeBytes: 3}},
+	}))
+	if errorValue != nil {
+		t.Fatalf("expected reply with attachment: %v", errorValue)
+	}
+
+	select {
+	case <-uploadRequests:
+	default:
+		t.Fatal("expected file upload request")
+	}
+	select {
+	case payload := <-postRequests:
+		fileIDs, isArray := payload["file_ids"].([]any)
+		if !isArray || len(fileIDs) != 1 || fileIDs[0] != "file-1" {
+			t.Fatalf("expected file ids in post payload, got %+v", payload)
+		}
+	default:
+		t.Fatal("expected post request")
+	}
+}
+
+func TestPlatformAttachmentRejectsOutsideDevicePath(t *testing.T) {
+	companionDirectory := t.TempDir()
+	outsidePath := t.TempDir() + "/secret.txt"
+	if errorValue := os.WriteFile(outsidePath, []byte("secret"), 0o600); errorValue != nil {
+		t.Fatalf("expected outside file: %v", errorValue)
+	}
+	service := Service{Configuration: Configuration{CompanionFileDirectory: companionDirectory}}
+
+	_, errorValue := service.validatePlatformFiles([]platformFileSpec{{DevicePath: outsidePath}})
+	if errorValue == nil {
+		t.Fatal("expected outside attachment path to fail")
+	}
+}
+
+func TestSlackReplyUploadsAttachmentsWithExternalFlow(t *testing.T) {
+	companionDirectory := t.TempDir()
+	attachmentPath := companionDirectory + "/screen.png"
+	if errorValue := os.WriteFile(attachmentPath, []byte("png"), 0o600); errorValue != nil {
+		t.Fatalf("expected attachment file: %v", errorValue)
+	}
+	requestPaths := []string{}
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		requestPaths = append(requestPaths, request.URL.Path)
+		switch request.URL.Path {
+		case "/api/files.getUploadURLExternal":
+			var payload map[string]any
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatalf("expected upload url request: %v", errorValue)
+			}
+			if payload["filename"] != "screen.png" || payload["length"].(float64) != 3 {
+				t.Fatalf("unexpected upload url payload: %+v", payload)
+			}
+			return testJSONResponse(http.StatusOK, map[string]any{"ok": true, "upload_url": "https://upload.slack.test/file", "file_id": "file-1"}), nil
+		case "/file":
+			document, _ := io.ReadAll(request.Body)
+			if string(document) != "png" {
+				t.Fatalf("unexpected upload bytes: %q", string(document))
+			}
+			return testJSONResponse(http.StatusOK, map[string]any{}), nil
+		case "/api/files.completeUploadExternal":
+			var payload map[string]any
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatalf("expected complete request: %v", errorValue)
+			}
+			if payload["channel_id"] != "channel-1" || payload["initial_comment"] != "captured" {
+				t.Fatalf("unexpected complete payload: %+v", payload)
+			}
+			return testJSONResponse(http.StatusOK, map[string]any{"ok": true, "files": []map[string]string{{"id": "file-1"}}}), nil
+		default:
+			t.Fatalf("unexpected Slack request: %s", request.URL.Path)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	tokenPath := t.TempDir() + "/slack-token"
+	if errorValue := os.WriteFile(tokenPath, []byte("test-token\n"), 0o600); errorValue != nil {
+		t.Fatalf("expected token file: %v", errorValue)
+	}
+	replyTargetID, errorValue := encodePlatformHandle(platformHandle{Platform: "slack", ChannelID: "channel-1", ThreadTimestamp: "123.456"})
+	if errorValue != nil {
+		t.Fatalf("expected reply target to encode: %v", errorValue)
+	}
+	configuration := DefaultConfiguration()
+	configuration.SlackTokenPath = tokenPath
+	configuration.CompanionFileDirectory = companionDirectory
+	service := Service{Configuration: configuration, HTTPClient: httpClient}
+
+	_, errorValue = service.slackReply(context.Background(), mustJSON(t, replyRequest{
+		ReplyTargetID: replyTargetID,
+		Message:       "captured",
+		Attachments:   []platformFileSpec{{DevicePath: attachmentPath, Filename: "screen.png", SizeBytes: 3}},
+	}))
+	if errorValue != nil {
+		t.Fatalf("expected Slack reply with attachment: %v", errorValue)
+	}
+	for _, path := range requestPaths {
+		if path == "/api/files.upload" {
+			t.Fatal("expected Slack external upload flow, not files.upload")
+		}
+	}
+}
+
+func TestSignalReplySendsAttachmentPaths(t *testing.T) {
+	companionDirectory := t.TempDir()
+	attachmentPath := companionDirectory + "/screen.png"
+	if errorValue := os.WriteFile(attachmentPath, []byte("png"), 0o600); errorValue != nil {
+		t.Fatalf("expected attachment file: %v", errorValue)
+	}
+	receivedParams := make(chan map[string]any, 1)
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		var payload signalJSONRPCRequest
+		if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+			t.Fatalf("expected signal jsonrpc request: %v", errorValue)
+		}
+		params, isMap := payload.Params.(map[string]any)
+		if !isMap {
+			t.Fatalf("expected map params, got %+v", payload.Params)
+		}
+		receivedParams <- params
+		return testJSONResponse(http.StatusOK, map[string]any{"result": "message-1"}), nil
+	})}
+	replyTargetID, errorValue := encodePlatformHandle(platformHandle{Platform: "signal", SignalRecipient: "+15557654321"})
+	if errorValue != nil {
+		t.Fatalf("expected reply target to encode: %v", errorValue)
+	}
+	configuration := DefaultConfiguration()
+	configuration.SignalJSONRPCURL = "http://signal.test"
+	configuration.SignalAccount = "+15551234567"
+	configuration.CompanionFileDirectory = companionDirectory
+	service := Service{Configuration: configuration, HTTPClient: httpClient}
+
+	_, errorValue = service.signalReplyFromRequest(context.Background(), bytes.NewReader(mustJSON(t, replyRequest{
+		ReplyTargetID: replyTargetID,
+		Message:       "captured",
+		Attachments:   []platformFileSpec{{DevicePath: attachmentPath, Filename: "screen.png", SizeBytes: 3}},
+	})))
+	if errorValue != nil {
+		t.Fatalf("expected signal reply with attachment: %v", errorValue)
+	}
+	select {
+	case params := <-receivedParams:
+		attachments, isArray := params["attachments"].([]any)
+		if !isArray || len(attachments) != 1 || attachments[0] != attachmentPath {
+			t.Fatalf("expected signal attachment path, got %+v", params)
+		}
+	default:
+		t.Fatal("expected signal send request")
+	}
+}
+
 func handleTestBlueclawForward(t *testing.T, request *http.Request) (*http.Response, error) {
 	t.Helper()
 	var event platformInboundEvent
@@ -324,6 +524,15 @@ func handleTestMattermostPoll(t *testing.T, request *http.Request) *http.Respons
 		t.Fatalf("unexpected Mattermost request: %s?%s", request.URL.Path, request.URL.RawQuery)
 		return testJSONResponse(http.StatusNotFound, map[string]string{})
 	}
+}
+
+func mustJSON(t *testing.T, value any) json.RawMessage {
+	t.Helper()
+	document, errorValue := json.Marshal(value)
+	if errorValue != nil {
+		t.Fatalf("expected json marshal: %v", errorValue)
+	}
+	return document
 }
 
 func testJSONResponse(statusCode int, response any) *http.Response {

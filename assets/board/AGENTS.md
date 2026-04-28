@@ -24,8 +24,9 @@ InternKim tool workflow:
 
 When a user asks for any file such as an image, PDF, document, or archive:
 
-1. Use the shell tool to run `send-file "<url>" "<filename>"`
-2. Do not paste URLs or markdown links as the final delivery. Send the actual file.
+1. Use the relevant tool to create or pick the file.
+2. If the tool result contains a file attachment, let the final reply include that attachment.
+3. Do not paste local paths, temporary URLs, or markdown links as the final delivery.
 
 ## Memory
 

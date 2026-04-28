@@ -71,8 +71,9 @@ type historyFetchRequest struct {
 }
 
 type replyRequest struct {
-	ReplyTargetID string `json:"replyTargetID"`
-	Message       string `json:"message"`
+	ReplyTargetID string             `json:"replyTargetID"`
+	Message       string             `json:"message"`
+	Attachments   []platformFileSpec `json:"attachments,omitempty"`
 }
 
 type progressRequest struct {
@@ -416,13 +417,20 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 	if handle.Platform != "mattermost" {
 		return nil, errors.New("reply target platform mismatch")
 	}
-	service.stopMattermostProgress(request.ReplyTargetID)
-	body := map[string]string{
+	defer service.stopMattermostProgress(request.ReplyTargetID)
+	fileIDs, errorValue := service.uploadMattermostAttachments(ctx, handle.ChannelID, request.Attachments)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	body := map[string]any{
 		"channel_id": handle.ChannelID,
 		"message":    request.Message,
 	}
 	if strings.TrimSpace(handle.RootID) != "" {
 		body["root_id"] = handle.RootID
+	}
+	if len(fileIDs) > 0 {
+		body["file_ids"] = fileIDs
 	}
 	var response struct {
 		ID string `json:"id"`
@@ -600,6 +608,13 @@ func (service Service) slackReply(ctx context.Context, payload json.RawMessage) 
 	}
 	if handle.Platform != "slack" {
 		return nil, errors.New("reply target platform mismatch")
+	}
+	if len(request.Attachments) > 0 {
+		dispatchID, errorValue := service.postSlackReplyWithAttachments(ctx, handle, request)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		return map[string]string{"dispatchID": dispatchID}, nil
 	}
 	body := map[string]string{
 		"channel": handle.ChannelID,

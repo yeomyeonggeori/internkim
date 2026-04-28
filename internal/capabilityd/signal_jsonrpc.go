@@ -189,6 +189,17 @@ func (service Service) signalReplyFromRequest(ctx context.Context, reader io.Rea
 		"account": service.Configuration.SignalAccount,
 		"message": request.Message,
 	}
+	if len(request.Attachments) > 0 {
+		files, errorValue := service.validatePlatformFiles(request.Attachments)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		attachments := []string{}
+		for _, file := range files {
+			attachments = append(attachments, file.DevicePath)
+		}
+		params["attachments"] = attachments
+	}
 	if strings.TrimSpace(handle.SignalGroupID) != "" {
 		params["groupId"] = handle.SignalGroupID
 	} else {
