@@ -3,6 +3,7 @@ package setup
 import "errors"
 
 const MattermostTunnelOrigin = "http://127.0.0.1:18080"
+const TunnelConfigurationRevision = "admin-gateway-v1"
 
 var StepTunnel = Step{
 	Name: "tunnel",
@@ -15,15 +16,18 @@ var StepTunnel = Step{
 		case BackendSSH:
 			cloudflaredActive := trimmedRun(context, "systemctl is-active cloudflared") == "active"
 			tunnelOrigin := trimmedRun(context, "cat /root/.internkim/env/tunnel-origin 2>/dev/null")
+			tunnelRevision := trimmedRun(context, "cat /root/.internkim/env/tunnel-revision 2>/dev/null")
 			return cloudflaredActive &&
 				tunnelOrigin == MattermostTunnelOrigin &&
+				tunnelRevision == TunnelConfigurationRevision &&
 				sshFileExists(context, "/root/.internkim/env/device-url") &&
 				sshFileExists(context, "/root/.internkim/env/mattermost-url")
 		case BackendSD:
 			return stagedFileExists(context, "secrets/tunnel-token") &&
 				stagedFileExists(context, "device-url") &&
 				stagedFileExists(context, "mattermost-url") &&
-				stagedFileExists(context, "tunnel-origin")
+				stagedFileExists(context, "tunnel-origin") &&
+				stagedFileExists(context, "tunnel-revision")
 		}
 		return false
 	},

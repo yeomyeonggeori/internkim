@@ -849,10 +849,11 @@ func (state *setupFlowState) ensureDeviceRegistration(force bool) error {
 	state.tunnelToken = loadState(state.stateDir, "tunnel_token")
 	state.deviceURL = loadState(state.stateDir, "device_url")
 	tunnelOrigin := loadState(state.stateDir, "tunnel_origin")
+	tunnelRevision := loadState(state.stateDir, "tunnel_revision")
 
 	fmt.Printf("  %s: %s\n", state.messenger.t("기기 ID", "Device ID"), state.deviceID)
 
-	if force || state.tunnelToken == "" || tunnelOrigin != setup.MattermostTunnelOrigin {
+	if force || state.tunnelToken == "" || tunnelOrigin != setup.MattermostTunnelOrigin || tunnelRevision != setup.TunnelConfigurationRevision {
 		if state.adminEmail == "" {
 			if state.nonInteractive {
 				return fmt.Errorf("admin email is empty; set INTERNKIM_ADMIN_EMAIL or run interactive setup once")
@@ -880,6 +881,7 @@ func (state *setupFlowState) ensureDeviceRegistration(force bool) error {
 		saveState(state.stateDir, "tunnel_token", state.tunnelToken)
 		saveState(state.stateDir, "device_url", state.deviceURL)
 		saveState(state.stateDir, "tunnel_origin", setup.MattermostTunnelOrigin)
+		saveState(state.stateDir, "tunnel_revision", setup.TunnelConfigurationRevision)
 		saveState(state.stateDir, "google_email", state.adminEmail)
 	} else {
 		fmt.Printf("  %s\n", state.messenger.t("이미 등록됨", "Already registered"))
@@ -917,14 +919,16 @@ chmod 600 /root/.internkim/secrets/tunnel-token
 printf '%%s' %s > /root/.internkim/env/device-url
 printf '%%s' %s > /root/.internkim/env/mattermost-url
 printf '%%s' %s > /root/.internkim/env/tunnel-origin
+printf '%%s' %s > /root/.internkim/env/tunnel-revision
 printf '%%s' %s > /root/.internkim/admin-email
 chmod 644 /root/.internkim/admin-email
-chown root:blueclaw /root/.internkim/env/device-url /root/.internkim/env/mattermost-url /root/.internkim/env/tunnel-origin
-chmod 640 /root/.internkim/env/device-url /root/.internkim/env/mattermost-url /root/.internkim/env/tunnel-origin`,
+chown root:blueclaw /root/.internkim/env/device-url /root/.internkim/env/mattermost-url /root/.internkim/env/tunnel-origin /root/.internkim/env/tunnel-revision
+chmod 640 /root/.internkim/env/device-url /root/.internkim/env/mattermost-url /root/.internkim/env/tunnel-origin /root/.internkim/env/tunnel-revision`,
 		quoteShellValue(state.tunnelToken),
 		quoteShellValue(state.deviceURL),
 		quoteShellValue(state.deviceURL),
 		quoteShellValue(setup.MattermostTunnelOrigin),
+		quoteShellValue(setup.TunnelConfigurationRevision),
 		quoteShellValue(state.adminEmail),
 	))
 
@@ -1003,6 +1007,9 @@ func (state *setupFlowState) stageTunnelSD(context *setup.Context) error {
 		return err
 	}
 	if err := context.SD.WriteFile("tunnel-origin", []byte(setup.MattermostTunnelOrigin), 0o644); err != nil {
+		return err
+	}
+	if err := context.SD.WriteFile("tunnel-revision", []byte(setup.TunnelConfigurationRevision), 0o644); err != nil {
 		return err
 	}
 	if err := context.SD.WriteFile("device-id", []byte(state.deviceID), 0o644); err != nil {
