@@ -506,6 +506,10 @@ if command -v agent-browser >/dev/null 2>&1; then
 fi
 if command -v agent-browser >/dev/null 2>&1 && agent-browser skills get core --full > "$agentBrowserSkillDir/SKILL.md.tmp" 2>/tmp/internkim-agent-browser-skill.log && [ -s "$agentBrowserSkillDir/SKILL.md.tmp" ]; then
   mv "$agentBrowserSkillDir/SKILL.md.tmp" "$agentBrowserSkillDir/SKILL.md"
+elif command -v curl >/dev/null 2>&1 && curl -fsSL --retry 3 https://raw.githubusercontent.com/vercel-labs/agent-browser/refs/heads/main/skill-data/core/SKILL.md -o "$agentBrowserSkillDir/SKILL.md.tmp" && [ -s "$agentBrowserSkillDir/SKILL.md.tmp" ]; then
+  mv "$agentBrowserSkillDir/SKILL.md.tmp" "$agentBrowserSkillDir/SKILL.md"
+elif command -v curl >/dev/null 2>&1 && curl -fsSL --retry 3 https://raw.githubusercontent.com/vercel-labs/agent-browser/refs/heads/main/skills/agent-browser/SKILL.md -o "$agentBrowserSkillDir/SKILL.md.tmp" && [ -s "$agentBrowserSkillDir/SKILL.md.tmp" ]; then
+  mv "$agentBrowserSkillDir/SKILL.md.tmp" "$agentBrowserSkillDir/SKILL.md"
 elif [ -f "$STAGE/agent-browser-skill/SKILL.md" ]; then
   rm -f "$agentBrowserSkillDir/SKILL.md.tmp"
   cp -f "$STAGE/agent-browser-skill/SKILL.md" "$agentBrowserSkillDir/SKILL.md"
