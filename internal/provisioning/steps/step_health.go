@@ -47,6 +47,7 @@ var StepHealth = Step{
 		checkLLMCapability(context, &failedChecks)
 		checkLiteRTCapability(context, &failedChecks)
 		checkSlackProfileLookup(context, &failedChecks)
+		checkSlackFileUploadPermission(context, &failedChecks)
 
 		if len(failedChecks) > 0 {
 			return fmt.Errorf("health check failed: %s", strings.Join(failedChecks, ", "))
@@ -346,6 +347,33 @@ curl -fsS --unix-socket /run/internkim/capability.sock -H "Content-Type: applica
 	}
 	*failedChecks = append(*failedChecks, "slack-profile-lookup")
 	fmt.Printf("  slack profile lookup: %s\n", check)
+}
+
+func checkSlackFileUploadPermission(context *Context, failedChecks *[]string) {
+	check := strings.TrimSpace(context.SSH.Run(`if [ ! -f /root/.internkim/secrets/slack-bot-token ]; then
+  echo skipped
+  exit 0
+fi
+slack_token="$(cat /root/.internkim/secrets/slack-bot-token)"
+response="$(curl -fsS -H "Authorization: Bearer $slack_token" -H "Content-Type: application/json" -d '{"filename":"internkim-health.txt","length":1}' https://slack.com/api/files.getUploadURLExternal 2>/dev/null || true)"
+if printf '%s' "$response" | jq -e '.ok == true and (.upload_url | type == "string") and (.file_id | type == "string")' >/dev/null 2>&1; then
+  echo ok
+else
+  printf '%s' "$response" | jq -r '.error // "failed"' 2>/dev/null
+fi`))
+	if check == "skipped" {
+		fmt.Println("  slack file upload permission: skipped")
+		return
+	}
+	if check == "ok" {
+		fmt.Println("  slack file upload permission: ok")
+		return
+	}
+	*failedChecks = append(*failedChecks, "slack-file-upload-permission")
+	if check == "" {
+		check = "failed"
+	}
+	fmt.Printf("  slack file upload permission: %s\n", check)
 }
 
 func checkService(context *Context, serviceName string, failedChecks *[]string) {

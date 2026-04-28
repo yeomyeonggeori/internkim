@@ -304,9 +304,9 @@ Matching:
 - **"Google Slides" / "슬라이드 링크" / "구글 슬라이드"** — upload via
   `gws drive files create --convert=true` (section 5.6) and share the
   returned `webViewLink` URL. Do not also attach the pptx/pdf/html.
-- **"PowerPoint" / "PPTX" / "Keynote"** — `send-file ./<name>.pptx <name>.pptx`. Just the pptx.
-- **"PDF"** — `send-file ./<name>.pdf <name>.pdf`. Just the pdf.
-- **"HTML" / "link I can share"** — `send-file ./<name>.html <name>.html`. Just the html.
+- **"PowerPoint" / "PPTX" / "Keynote"** — deliver the generated pptx only if the file is available as a native attachment.
+- **"PDF"** — deliver the generated pdf only if the file is available as a native attachment.
+- **"HTML" / "link I can share"** — deliver the generated html only if the file is available as a native attachment or a real share URL.
 - **"전부 다" / "all formats"** — only then send everything.
 - **Ambiguous ("make me a deck about X")** — default to a Google
   Slides URL only. If the user then wants another format, send that.
@@ -316,17 +316,9 @@ finished without error.
 
 **Never link a local file as `sandbox:/tmp/...`, `file:///tmp/...`, or
 a plain local path in your Mattermost reply.** Those links are dead
-for the user; they resolve to nothing on the user's machine. To
-deliver a local file you must upload it via the `send-file` shell
-command (this is what the `share-file` skill exists for):
-
-```bash
-send-file /tmp/kim-intern-v2/kim-intern-v2.pptx kim-intern-v2.pptx "여기 있어요"
-```
-
-Run it for each format you're delivering (pptx/pdf/html). The user
-gets the file as a Mattermost attachment. Only after `send-file`
-prints a success line should your reply reference those files.
+for the user; they resolve to nothing on the user's machine. Only say
+that a deck file is attached when the tool result actually produced a
+native attachment for final reply delivery.
 
 **In your delivery message, always ask the user to flag any slide
 that looks off.** You didn't inspect every slide visually, so
