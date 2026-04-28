@@ -65,12 +65,10 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 			"intake": map[string]any{
 				"enabled":       true,
 				"model":         "local/gemma-4-E4B-it-litert-lm",
-				"executionMode": "local",
+				"executionMode": "auto",
 			},
-			"maxIterationsPerRequest": 8,
-			"maxToolCallsPerRequest":  8,
-			"maxWallClockSecond":      120,
-			"toolResultMaxBytes":      32768,
+			"defaultBudgetClass": "thirty_minutes",
+			"toolResultMaxBytes": 32768,
 		},
 		"connectors": map[string]any{
 			"mattermost": map[string]any{

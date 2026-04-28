@@ -61,17 +61,11 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if intake["model"] != "local/gemma-4-E4B-it-litert-lm" {
 		t.Fatalf("expected agent intake model, got %v", intake["model"])
 	}
-	if intake["executionMode"] != "local" {
+	if intake["executionMode"] != "auto" {
 		t.Fatalf("expected agent intake execution mode, got %v", intake["executionMode"])
 	}
-	if agent["maxIterationsPerRequest"] != float64(8) {
-		t.Fatalf("expected agent max iterations, got %v", agent["maxIterationsPerRequest"])
-	}
-	if agent["maxToolCallsPerRequest"] != float64(8) {
-		t.Fatalf("expected agent max tool calls, got %v", agent["maxToolCallsPerRequest"])
-	}
-	if agent["maxWallClockSecond"] != float64(120) {
-		t.Fatalf("expected agent wall clock budget, got %v", agent["maxWallClockSecond"])
+	if agent["defaultBudgetClass"] != "thirty_minutes" {
+		t.Fatalf("expected default budget class, got %v", agent["defaultBudgetClass"])
 	}
 	if agent["toolResultMaxBytes"] != float64(32768) {
 		t.Fatalf("expected agent tool result limit, got %v", agent["toolResultMaxBytes"])
@@ -96,6 +90,11 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	for _, fragment := range forbiddenFragments {
 		if strings.Contains(document, fragment) {
 			t.Fatalf("expected runtime config to omit %q", fragment)
+		}
+	}
+	for _, fragment := range []string{"maxWallClockSecond", "maxIterationsPerRequest", "maxToolCallsPerRequest"} {
+		if strings.Contains(document, fragment) {
+			t.Fatalf("expected runtime config to omit raw budget field %q", fragment)
 		}
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
 	"github.com/anthropic-lab/internkim/internal/runtime/blueclaw"
 )
 
@@ -57,7 +58,7 @@ var StepHealth = Step{
 }
 
 func checkAgentBrowser(context *Context, failedChecks *[]string) {
-	check := strings.TrimSpace(context.SSH.Run(`command -v agent-browser >/dev/null 2>&1 && agent-browser doctor --offline --quick >/dev/null 2>&1 && echo ok || true`))
+	check := strings.TrimSpace(context.SSH.Run("(\n" + browserruntime.DeviceReadinessShellScript() + "\n) >/dev/null 2>&1 && echo ok || true"))
 	if check == "ok" {
 		fmt.Println("  agent-browser: ready")
 		return

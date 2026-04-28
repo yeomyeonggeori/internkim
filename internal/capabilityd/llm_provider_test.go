@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestOpenRouterRequestPreservesStructuredSchema(t *testing.T) {
@@ -136,11 +137,47 @@ func TestAutoProviderFallsBackToRemote(t *testing.T) {
 	}
 }
 
+func TestAutoProviderAttemptTimeoutFallsBackToRemote(t *testing.T) {
+	autoProvider := AutoProvider{
+		AttemptTimeout: time.Millisecond,
+		Providers: []LLMProvider{
+			blockingLLMProvider{},
+			staticLLMProvider{response: LLMResponse{
+				Provider:        "openrouter",
+				Content:         `{"reply":"ok"}`,
+				SelectedBackend: "remote",
+			}},
+		},
+	}
+
+	response, errorValue := autoProvider.CompleteStructured(context.Background(), StructuredLLMRequest{})
+	if errorValue != nil {
+		t.Fatalf("expected timeout fallback: %v", errorValue)
+	}
+	if response.SelectedBackend != "remote" {
+		t.Fatalf("expected remote backend, got %q", response.SelectedBackend)
+	}
+}
+
 var errTestProviderUnavailable = os.ErrNotExist
 
 type staticLLMProvider struct {
 	response   LLMResponse
 	errorValue error
+}
+
+type blockingLLMProvider struct{}
+
+func (provider blockingLLMProvider) CompleteStructured(ctx context.Context, request StructuredLLMRequest) (LLMResponse, error) {
+	_ = request
+	<-ctx.Done()
+	return LLMResponse{}, ctx.Err()
+}
+
+func (provider blockingLLMProvider) CompleteText(ctx context.Context, request TextLLMRequest) (LLMResponse, error) {
+	_ = request
+	<-ctx.Done()
+	return LLMResponse{}, ctx.Err()
 }
 
 func (provider staticLLMProvider) CompleteStructured(context.Context, StructuredLLMRequest) (LLMResponse, error) {

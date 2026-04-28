@@ -54,6 +54,62 @@ func TestAgentBrowserRuntimeNavigatesThroughCommandRunner(t *testing.T) {
 	}
 }
 
+func TestAgentBrowserRuntimeChromeEngineUsesHeadedProfile(t *testing.T) {
+	runner := &fakeCommandRunner{}
+	runtime := AgentBrowserRuntime{
+		CommandPath: "agent-browser-test",
+		Engine:      BrowserEngineChrome,
+		ProfilePath: "/profile",
+		SessionName: "internkim-test",
+		Headed:      true,
+		Runner:      runner,
+	}
+
+	_, errorValue := runtime.Navigate(context.Background(), NavigateRequest{URL: "https://example.com"})
+	if errorValue != nil {
+		t.Fatalf("expected navigate success: %v", errorValue)
+	}
+	expectedArguments := []string{"--engine", "chrome", "--headed", "true", "--profile", "/profile", "--session-name", "internkim-test", "open", "https://example.com"}
+	if !reflect.DeepEqual(runner.calls[0].arguments, expectedArguments) {
+		t.Fatalf("unexpected chrome arguments: %+v", runner.calls[0].arguments)
+	}
+}
+
+func TestAgentBrowserRuntimeLightpandaEngineAvoidsHeadedProfile(t *testing.T) {
+	runner := &fakeCommandRunner{}
+	runtime := AgentBrowserRuntime{
+		CommandPath:          "agent-browser-test",
+		Engine:               BrowserEngineLightpanda,
+		EngineExecutablePath: "/usr/local/bin/lightpanda",
+		ProfilePath:          "/profile",
+		SessionName:          "internkim-test",
+		Headed:               true,
+		Runner:               runner,
+	}
+
+	_, errorValue := runtime.Navigate(context.Background(), NavigateRequest{URL: "https://example.com"})
+	if errorValue != nil {
+		t.Fatalf("expected navigate success: %v", errorValue)
+	}
+	expectedArguments := []string{"--engine", "lightpanda", "--executable-path", "/usr/local/bin/lightpanda", "--session-name", "internkim-test", "open", "https://example.com"}
+	if !reflect.DeepEqual(runner.calls[0].arguments, expectedArguments) {
+		t.Fatalf("unexpected lightpanda arguments: %+v", runner.calls[0].arguments)
+	}
+}
+
+func TestDeviceReadinessShellScriptPrefersLightpandaAndFallsBackToChrome(t *testing.T) {
+	script := DeviceReadinessShellScript()
+
+	for _, fragment := range []string{"command -v lightpanda", "--engine lightpanda", "snapshot", "agent-browser doctor --offline --quick"} {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected device readiness script to contain %q: %s", fragment, script)
+		}
+	}
+	if strings.Contains(script, "--headed") || strings.Contains(script, "--profile") {
+		t.Fatalf("device readiness script must not use headed/profile flags: %s", script)
+	}
+}
+
 func TestAgentBrowserRuntimeRejectsUnsafeNavigateURL(t *testing.T) {
 	runner := &fakeCommandRunner{}
 	runtime := AgentBrowserRuntime{Runner: runner}

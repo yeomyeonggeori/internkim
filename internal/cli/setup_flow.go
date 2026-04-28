@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/anthropic-lab/internkim/internal/board"
+	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
 	setup "github.com/anthropic-lab/internkim/internal/provisioning/steps"
 	"github.com/anthropic-lab/internkim/internal/runtime/blueclaw"
 )
@@ -696,7 +697,7 @@ func (state *setupFlowState) ensureAgentBrowserRuntimeSSH() error {
 	output, err := state.sshClient.runResult(`
 set -eu
 agent-browser install >/tmp/internkim-agent-browser-install.log 2>&1
-agent-browser doctor --offline --quick >/tmp/internkim-agent-browser-doctor.log 2>&1
+` + browserruntime.DeviceReadinessShellScript() + `
 `)
 	if err == nil {
 		fmt.Println("ready")
@@ -709,6 +710,10 @@ agent-browser doctor --offline --quick >/tmp/internkim-agent-browser-doctor.log 
   tail -80 /tmp/internkim-agent-browser-install.log 2>/dev/null || true
   echo "agent-browser doctor log:"
   tail -80 /tmp/internkim-agent-browser-doctor.log 2>/dev/null || true
+  echo "agent-browser lightpanda open log:"
+  tail -80 /tmp/internkim-agent-browser-lightpanda-open.log 2>/dev/null || true
+  echo "agent-browser lightpanda snapshot log:"
+  tail -80 /tmp/internkim-agent-browser-lightpanda-snapshot.log 2>/dev/null || true
 } | tail -120
 `))
 	if diagnostic == "" {

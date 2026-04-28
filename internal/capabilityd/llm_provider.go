@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/anthropic-lab/internkim/internal/capabilities"
 )
@@ -73,7 +74,8 @@ type OpenRouterProvider struct {
 }
 
 type AutoProvider struct {
-	Providers []LLMProvider
+	Providers      []LLMProvider
+	AttemptTimeout time.Duration
 }
 
 type litertRequest struct {
@@ -124,7 +126,7 @@ func (service Service) providerForExecutionMode(executionMode string) (LLMProvid
 		}
 		return remoteProvider, nil
 	case "auto":
-		return AutoProvider{Providers: service.automaticLLMProviders(localProvider, companionProvider, remoteProvider)}, nil
+		return AutoProvider{Providers: service.automaticLLMProviders(localProvider, companionProvider, remoteProvider), AttemptTimeout: service.Configuration.ProviderAttemptTimeout}, nil
 	default:
 		return nil, errors.New("llm execution mode is not supported")
 	}
@@ -143,14 +145,25 @@ func (service Service) automaticLLMProviders(localProvider LLMProvider, companio
 
 func (provider AutoProvider) CompleteStructured(ctx context.Context, request StructuredLLMRequest) (LLMResponse, error) {
 	return completeWithProviderChain(provider.Providers, func(candidate LLMProvider) (LLMResponse, error) {
-		return candidate.CompleteStructured(ctx, request)
+		attemptContext, cancel := context.WithTimeout(ctx, provider.attemptTimeout())
+		defer cancel()
+		return candidate.CompleteStructured(attemptContext, request)
 	})
 }
 
 func (provider AutoProvider) CompleteText(ctx context.Context, request TextLLMRequest) (LLMResponse, error) {
 	return completeWithProviderChain(provider.Providers, func(candidate LLMProvider) (LLMResponse, error) {
-		return candidate.CompleteText(ctx, request)
+		attemptContext, cancel := context.WithTimeout(ctx, provider.attemptTimeout())
+		defer cancel()
+		return candidate.CompleteText(attemptContext, request)
 	})
+}
+
+func (provider AutoProvider) attemptTimeout() time.Duration {
+	if provider.AttemptTimeout <= 0 {
+		return DefaultConfiguration().ProviderAttemptTimeout
+	}
+	return provider.AttemptTimeout
 }
 
 func completeWithProviderChain(providers []LLMProvider, complete func(LLMProvider) (LLMResponse, error)) (LLMResponse, error) {

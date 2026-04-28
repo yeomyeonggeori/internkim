@@ -205,7 +205,7 @@ func runStatus(arguments []string) error {
 	}
 	if *jsonOutput {
 		agentBrowserPath := resolveAgentBrowserPath("")
-		readiness := browserruntime.AgentBrowserRuntime{CommandPath: agentBrowserPath}.Check(context.Background())
+		readiness := browserruntime.AgentBrowserRuntime{CommandPath: agentBrowserPath, Engine: browserruntime.BrowserEngineChrome}.Check(context.Background())
 		writeJSONDocument(os.Stdout, companionStatusFromState(state, readiness))
 		return nil
 	}
@@ -214,7 +214,7 @@ func runStatus(arguments []string) error {
 	fmt.Printf("localOnly: %t\n", state.LocalOnly)
 	fmt.Printf("capabilities: %d\n", len(state.Capabilities))
 	agentBrowserPath := resolveAgentBrowserPath("")
-	readiness := browserruntime.AgentBrowserRuntime{CommandPath: agentBrowserPath}.Check(context.Background())
+	readiness := browserruntime.AgentBrowserRuntime{CommandPath: agentBrowserPath, Engine: browserruntime.BrowserEngineChrome}.Check(context.Background())
 	fmt.Println("browserRuntime: " + firstNonEmpty(readiness.Status, "unknown"))
 	return nil
 }
@@ -251,6 +251,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	resolvedAgentBrowserPath := resolveAgentBrowserPath(*agentBrowserPath)
 	browserRuntime := browserruntime.AgentBrowserRuntime{
 		CommandPath: resolvedAgentBrowserPath,
+		Engine:      browserruntime.BrowserEngineChrome,
 		ProfilePath: *browserProfilePath,
 		SessionName: "internkim",
 		Headed:      true,
