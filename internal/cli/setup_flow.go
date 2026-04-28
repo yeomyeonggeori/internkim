@@ -831,15 +831,35 @@ func agentBrowserSkillInstallScript(fallbackPath string, fallbackContent string)
 	return `set -eu
 skillDir="/root/.blueclaw/workspace/.agents/skills/agent-browser"
 mkdir -p "$skillDir"
-tmpSkill="$skillDir/SKILL.md.tmp"
+tmpSkill="$skillDir/SKILL.md.upstream"
+tmpFinal="$skillDir/SKILL.md.tmp"
 if command -v agent-browser >/dev/null 2>&1 && agent-browser skills get core --full > "$tmpSkill" 2>/tmp/internkim-agent-browser-skill.log && [ -s "$tmpSkill" ]; then
-  mv "$tmpSkill" "$skillDir/SKILL.md"
-elif command -v curl >/dev/null 2>&1 && curl -fsSL --retry 3 https://raw.githubusercontent.com/vercel-labs/agent-browser/refs/heads/main/skill-data/core/SKILL.md -o "$tmpSkill" && [ -s "$tmpSkill" ]; then
-  mv "$tmpSkill" "$skillDir/SKILL.md"
-elif command -v curl >/dev/null 2>&1 && curl -fsSL --retry 3 https://raw.githubusercontent.com/vercel-labs/agent-browser/refs/heads/main/skills/agent-browser/SKILL.md -o "$tmpSkill" && [ -s "$tmpSkill" ]; then
-  mv "$tmpSkill" "$skillDir/SKILL.md"
+  cat > "$tmpFinal" <<'EOF'
+---
+name: agent-browser
+description: Browser automation through InternKim browser capability tools backed by agent-browser.
+hidden: true
+---
+
+# Browser Automation
+
+Use Blueclaw's browser.* tools by default. InternKim maps those tools to the installed agent-browser runtime internally.
+
+## InternKim Tool Mapping
+
+- agent-browser open <url> maps to browser.navigate with { "url": "https://example.com" }
+- agent-browser snapshot -i maps to browser.observe with {}
+- agent-browser fill @e2 "text" maps to browser.fill with { "target": "@e2", "text": "text" }
+- agent-browser click @e1 maps to browser.click with { "target": "@e1" }
+- agent-browser screenshot <path> maps to browser.screenshot with {}
+
+## Installed Agent-Browser Reference
+
+EOF
+  cat "$tmpSkill" >> "$tmpFinal"
+  mv "$tmpFinal" "$skillDir/SKILL.md"
 else
-  rm -f "$tmpSkill"
+  rm -f "$tmpSkill" "$tmpFinal"
   cat > ` + quoteShellValue(fallbackPath) + ` <<'EOF'
 ` + fallbackContent + `
 EOF

@@ -504,11 +504,30 @@ mkdir -p "$agentBrowserSkillDir"
 if command -v agent-browser >/dev/null 2>&1; then
   agent-browser install >/tmp/internkim-agent-browser-install.log 2>&1 || true
 fi
-if command -v agent-browser >/dev/null 2>&1 && agent-browser skills get core --full > "$agentBrowserSkillDir/SKILL.md.tmp" 2>/tmp/internkim-agent-browser-skill.log && [ -s "$agentBrowserSkillDir/SKILL.md.tmp" ]; then
-  mv "$agentBrowserSkillDir/SKILL.md.tmp" "$agentBrowserSkillDir/SKILL.md"
-elif command -v curl >/dev/null 2>&1 && curl -fsSL --retry 3 https://raw.githubusercontent.com/vercel-labs/agent-browser/refs/heads/main/skill-data/core/SKILL.md -o "$agentBrowserSkillDir/SKILL.md.tmp" && [ -s "$agentBrowserSkillDir/SKILL.md.tmp" ]; then
-  mv "$agentBrowserSkillDir/SKILL.md.tmp" "$agentBrowserSkillDir/SKILL.md"
-elif command -v curl >/dev/null 2>&1 && curl -fsSL --retry 3 https://raw.githubusercontent.com/vercel-labs/agent-browser/refs/heads/main/skills/agent-browser/SKILL.md -o "$agentBrowserSkillDir/SKILL.md.tmp" && [ -s "$agentBrowserSkillDir/SKILL.md.tmp" ]; then
+if command -v agent-browser >/dev/null 2>&1 && agent-browser skills get core --full > "$agentBrowserSkillDir/SKILL.md.upstream" 2>/tmp/internkim-agent-browser-skill.log && [ -s "$agentBrowserSkillDir/SKILL.md.upstream" ]; then
+  cat > "$agentBrowserSkillDir/SKILL.md.tmp" <<'EOF'
+---
+name: agent-browser
+description: Browser automation through InternKim browser capability tools backed by agent-browser.
+hidden: true
+---
+
+# Browser Automation
+
+Use Blueclaw's browser.* tools by default. InternKim maps those tools to the installed agent-browser runtime internally.
+
+## InternKim Tool Mapping
+
+- agent-browser open <url> maps to browser.navigate with { "url": "https://example.com" }
+- agent-browser snapshot -i maps to browser.observe with {}
+- agent-browser fill @e2 "text" maps to browser.fill with { "target": "@e2", "text": "text" }
+- agent-browser click @e1 maps to browser.click with { "target": "@e1" }
+- agent-browser screenshot <path> maps to browser.screenshot with {}
+
+## Installed Agent-Browser Reference
+
+EOF
+  cat "$agentBrowserSkillDir/SKILL.md.upstream" >> "$agentBrowserSkillDir/SKILL.md.tmp"
   mv "$agentBrowserSkillDir/SKILL.md.tmp" "$agentBrowserSkillDir/SKILL.md"
 elif [ -f "$STAGE/agent-browser-skill/SKILL.md" ]; then
   rm -f "$agentBrowserSkillDir/SKILL.md.tmp"

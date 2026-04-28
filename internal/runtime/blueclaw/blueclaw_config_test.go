@@ -37,8 +37,11 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if capabilityLanguageModel["executionMode"] != "auto" {
 		t.Fatalf("expected automatic execution mode, got %q", capabilityLanguageModel["executionMode"])
 	}
-	if _, isFound := capabilityLanguageModel["model"]; isFound {
-		t.Fatalf("expected default runtime to omit model override, got %+v", capabilityLanguageModel)
+	if capabilityLanguageModel["model"] != BlueclawDefaultModelName {
+		t.Fatalf("expected default runtime model %q, got %+v", BlueclawDefaultModelName, capabilityLanguageModel)
+	}
+	if capabilityLanguageModel["contextWindowTokens"] != float64(BlueclawDefaultModelContextTokens) {
+		t.Fatalf("expected default runtime context window %d, got %+v", BlueclawDefaultModelContextTokens, capabilityLanguageModel)
 	}
 	if _, isFound := languageModel["openRouter"]; isFound {
 		t.Fatal("expected OpenRouter runtime details to be omitted")
@@ -103,7 +106,7 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 }
 
 func TestBlueclawRuntimeConfigSupportsOptionalModelOverride(t *testing.T) {
-	document, errorValue := BlueclawRuntimeConfigDocument("google/gemini-3-flash-preview")
+	document, errorValue := BlueclawRuntimeConfigDocument("google/custom-model")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -115,8 +118,11 @@ func TestBlueclawRuntimeConfigSupportsOptionalModelOverride(t *testing.T) {
 
 	languageModel := runtimeConfiguration["languageModel"].(map[string]any)
 	capabilityLanguageModel := languageModel["capability"].(map[string]any)
-	if capabilityLanguageModel["model"] != "google/gemini-3-flash-preview" {
+	if capabilityLanguageModel["model"] != "google/custom-model" {
 		t.Fatalf("expected explicit model override, got %+v", capabilityLanguageModel)
+	}
+	if capabilityLanguageModel["contextWindowTokens"] != float64(BlueclawDefaultModelContextTokens) {
+		t.Fatalf("expected context window to remain tied to default runtime budget, got %+v", capabilityLanguageModel)
 	}
 }
 
