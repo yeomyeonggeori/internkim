@@ -3,6 +3,7 @@ package setup
 func DefaultRegistry() Registry {
 	return Registry{
 		StepBoard,
+		StepAdminWeb,
 		StepWifi,
 		StepBinaries,
 		StepSkills,
