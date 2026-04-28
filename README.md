@@ -230,6 +230,8 @@ CF_DOMAIN=example.test
 INTERNKIM_REGISTER_SECRET=...
 ```
 
+Cloudflare Access OTP 메일을 쓰려면 Zero Trust > Integrations > Identity providers에 One-time PIN이 활성화되어 있어야 합니다. `CF_API_TOKEN`이 자동 구성까지 맡으려면 Access Applications/Policies 권한 외에 `Access: Organizations, Identity Providers, and Groups Write` 권한도 필요합니다.
+
 ## API 경로
 
 | 메서드 | 경로 | 설명 |
