@@ -499,10 +499,25 @@ if [ -d "$STAGE/skills" ]; then
   cp -af "$STAGE/skills/." /root/.blueclaw/workspace/skills/
 fi
 
+agentBrowserSkillDir="/root/.blueclaw/workspace/.agents/skills/agent-browser"
+mkdir -p "$agentBrowserSkillDir"
+if command -v agent-browser >/dev/null 2>&1; then
+  agent-browser install >/tmp/internkim-agent-browser-install.log 2>&1 || true
+fi
+if command -v agent-browser >/dev/null 2>&1 && agent-browser skills get core --full > "$agentBrowserSkillDir/SKILL.md.tmp" 2>/tmp/internkim-agent-browser-skill.log && [ -s "$agentBrowserSkillDir/SKILL.md.tmp" ]; then
+  mv "$agentBrowserSkillDir/SKILL.md.tmp" "$agentBrowserSkillDir/SKILL.md"
+elif [ -f "$STAGE/agent-browser-skill/SKILL.md" ]; then
+  rm -f "$agentBrowserSkillDir/SKILL.md.tmp"
+  cp -f "$STAGE/agent-browser-skill/SKILL.md" "$agentBrowserSkillDir/SKILL.md"
+else
+  rm -f "$agentBrowserSkillDir/SKILL.md.tmp"
+fi
+
 for skill in calendar create-gws-file simple-slides; do
   filePath="/root/.blueclaw/workspace/skills/$skill/scripts/gas-call"
   [ -f "$filePath" ] && chmod +x "$filePath"
 done
+chown -R blueclaw:blueclaw /root/.blueclaw/workspace/.agents 2>/dev/null || true
 chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills 2>/dev/null || true
 
 if ! command -v uv >/dev/null 2>&1; then
