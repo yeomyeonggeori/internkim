@@ -282,30 +282,38 @@ curl --silent --show-error --fail --unix-socket /run/internkim/capability.sock -
 
 echo "checking llm capability"
 model="$(jq -r '.languageModel.capability.model // "google/gemini-3-flash-preview"' /root/.blueclaw/config/runtime.json)"
-schema='{"type":"object","properties":{"content":{"type":"string"}},"required":["content"],"additionalProperties":false}'
-llm_body="$(jq -cn --arg model "$model" --arg schema "$schema" '{
+llm_text_body="$(jq -cn --arg model "$model" '{
   model: $model,
   executionMode: "remote",
-  messages: [{role:"user", content:"Return JSON only with content set to ok."}],
-  structuredOutputSchema: {name:"plain_text_response", document:$schema, isStrictlyEnforced:true},
+  messages: [{role:"user", content:"Reply with ok."}],
   requireParameters: true,
   enableResponseHealing: true
 }')"
-llm_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$llm_body" http://internkim/v1/llm/structured)"
-printf '%s' "$llm_response" | jq -e '.content | fromjson | .content | type == "string"' >/dev/null
+llm_text_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$llm_text_body" http://internkim/v1/llm/text)"
+printf '%s' "$llm_text_response" | jq -e '.content | type == "string" and length > 0' >/dev/null
+schema='{"type":"object","properties":{"reply":{"type":"string"}},"required":["reply"],"additionalProperties":false}'
+llm_structured_body="$(jq -cn --arg model "$model" --arg schema "$schema" '{
+  model: $model,
+  executionMode: "remote",
+  messages: [{role:"user", content:"Return JSON only with reply set to ok."}],
+  structuredOutputSchema: {name:"smoke_reply", document:$schema, isStrictlyEnforced:true},
+  requireParameters: true,
+  enableResponseHealing: true
+}')"
+llm_structured_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$llm_structured_body" http://internkim/v1/llm/structured)"
+printf '%s' "$llm_structured_response" | jq -e '.content | fromjson | .reply | type == "string"' >/dev/null
 
 echo "checking litert capability"
 if command -v litert-lm >/dev/null 2>&1 && [ -s /root/.internkim/models/gemma-4-E4B-it.litertlm ]; then
-  litert_body="$(jq -cn --arg schema "$schema" '{
+  litert_body="$(jq -cn '{
     model: "local/gemma-4-E4B-it-litert-lm",
     executionMode: "local",
-    messages: [{role:"user", content:"Return JSON only with content set to ok."}],
-    structuredOutputSchema: {name:"plain_text_response", document:$schema, isStrictlyEnforced:true},
+    messages: [{role:"user", content:"Reply with ok."}],
     requireParameters: true,
     enableResponseHealing: true
   }')"
-  litert_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$litert_body" http://internkim/v1/llm/structured)"
-  printf '%s' "$litert_response" | jq -e '.selectedBackend as $backend | ($backend == "gpu" or $backend == "cpu") and (.content | fromjson | .content | type == "string")' >/dev/null
+  litert_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$litert_body" http://internkim/v1/llm/text)"
+  printf '%s' "$litert_response" | jq -e '.selectedBackend as $backend | ($backend == "gpu" or $backend == "cpu") and (.content | type == "string" and length > 0)' >/dev/null
 else
   echo "litert capability: skipped"
 fi

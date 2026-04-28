@@ -192,6 +192,49 @@ func TestOpenRouterProviderRejectsEmptySuccessBody(t *testing.T) {
 	}
 }
 
+func TestOpenRouterProviderCompleteTextDoesNotRequestStructuredOutput(t *testing.T) {
+	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
+	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var receivedDocument map[string]any
+	provider := OpenRouterProvider{
+		Configuration: Configuration{
+			OpenRouterKeyPath: secretPath,
+			OpenRouterBaseURL: "https://example.test/chat",
+			OpenRouterModel:   "google/default-remote",
+		},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if errorValue := json.NewDecoder(request.Body).Decode(&receivedDocument); errorValue != nil {
+				t.Fatalf("expected request body: %v", errorValue)
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"plain reply"}}]}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	response, errorValue := provider.CompleteText(context.Background(), TextLLMRequest{
+		Model:             "local/gemma-4-E4B-it-litert-lm",
+		RequireParameters: true,
+		Messages:          []LLMMessage{{Role: "user", Content: "hello"}},
+	})
+	if errorValue != nil {
+		t.Fatalf("expected text completion: %v", errorValue)
+	}
+	if _, isFound := receivedDocument["response_format"]; isFound {
+		t.Fatalf("expected text request to omit response_format, got %+v", receivedDocument)
+	}
+	if response.Content != "plain reply" {
+		t.Fatalf("expected plain text content, got %q", response.Content)
+	}
+	if response.ConstraintMode != "" {
+		t.Fatalf("expected text response to omit constraint mode, got %q", response.ConstraintMode)
+	}
+}
+
 func TestDefaultProviderAttemptTimeoutAllowsRemoteStructuredResponses(t *testing.T) {
 	if DefaultConfiguration().ProviderAttemptTimeout < 90*time.Second {
 		t.Fatalf("expected remote provider attempt timeout to allow structured responses, got %s", DefaultConfiguration().ProviderAttemptTimeout)
@@ -227,6 +270,38 @@ func TestLiteRTProviderSendsJSONSchemaDocumentToWrapper(t *testing.T) {
 	document := schema["document"].(map[string]any)
 	if document["type"] != "object" {
 		t.Fatalf("expected schema document object, got %+v", document)
+	}
+}
+
+func TestLiteRTProviderCompleteTextSendsTextModeToWrapper(t *testing.T) {
+	var wrapperDocument map[string]any
+	provider := LiteRTProvider{
+		Configuration: DefaultConfiguration(),
+		RunCommand: func(ctx context.Context, executablePath string, arguments []string, standardInput []byte) ([]byte, error) {
+			_ = ctx
+			_ = executablePath
+			_ = arguments
+			if errorValue := json.Unmarshal(standardInput, &wrapperDocument); errorValue != nil {
+				t.Fatalf("expected wrapper document: %v", errorValue)
+			}
+			return []byte(`{"content":"plain local reply"}`), nil
+		},
+	}
+
+	response, errorValue := provider.CompleteText(context.Background(), TextLLMRequest{
+		Messages: []LLMMessage{{Role: "user", Content: "hello"}},
+	})
+	if errorValue != nil {
+		t.Fatalf("expected LiteRT text completion: %v", errorValue)
+	}
+	if wrapperDocument["mode"] != "text" {
+		t.Fatalf("expected text mode, got %+v", wrapperDocument)
+	}
+	if _, isFound := wrapperDocument["structuredOutputSchema"]; isFound {
+		t.Fatalf("expected text request not to include a schema document, got %+v", wrapperDocument)
+	}
+	if response.Content != "plain local reply" {
+		t.Fatalf("expected plain local reply, got %q", response.Content)
 	}
 }
 
