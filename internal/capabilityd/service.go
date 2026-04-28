@@ -42,6 +42,8 @@ type Configuration struct {
 	PreferCompanionLLM         bool
 	LocalOnly                  bool
 	ProviderAttemptTimeout     time.Duration
+	AgentBrowserPath           string
+	CompanionFileDirectory     string
 }
 
 type Service struct {
@@ -112,6 +114,8 @@ func DefaultConfiguration() Configuration {
 		PreferCompanionLLM:         false,
 		LocalOnly:                  false,
 		ProviderAttemptTimeout:     20 * time.Second,
+		AgentBrowserPath:           "agent-browser",
+		CompanionFileDirectory:     "/tmp/internkim-companion-files",
 	}
 }
 
@@ -1116,6 +1120,12 @@ func (configuration Configuration) WithDefaults() Configuration {
 	}
 	if configuration.ProviderAttemptTimeout <= 0 {
 		configuration.ProviderAttemptTimeout = defaultConfiguration.ProviderAttemptTimeout
+	}
+	if configuration.AgentBrowserPath == "" {
+		configuration.AgentBrowserPath = defaultConfiguration.AgentBrowserPath
+	}
+	if configuration.CompanionFileDirectory == "" {
+		configuration.CompanionFileDirectory = defaultConfiguration.CompanionFileDirectory
 	}
 	return configuration
 }

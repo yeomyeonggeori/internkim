@@ -57,7 +57,16 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 		Descriptors:        capabilities.CompanionToolDescriptors(),
 	}
 	if router.ShouldRouteToCompanion(request) {
-		return service.companionProvider().InvokeTool(ctx, request)
+		response, errorValue := service.companionProvider().InvokeTool(ctx, request)
+		if errorValue == nil {
+			return response, nil
+		}
+		if request.RequiresUserPresence || isCompanionOnlyExecutionMode(request.ExecutionMode) || !isDeviceBrowserTool(request.ToolName) {
+			return capabilities.ToolInvokeResponse{}, errorValue
+		}
+	}
+	if isDeviceBrowserTool(request.ToolName) {
+		return service.invokeDeviceBrowserTool(ctx, request)
 	}
 	return capabilities.ToolInvokeResponse{}, errors.New("capability tool is not configured: " + request.ToolName)
 }
@@ -105,6 +114,16 @@ func (router CapabilityRouter) isCompanionCapability(toolName string) bool {
 		}
 	}
 	return false
+}
+
+func isCompanionOnlyExecutionMode(executionMode string) bool {
+	normalizedExecutionMode := strings.ToLower(strings.TrimSpace(executionMode))
+	return normalizedExecutionMode == capabilities.ExecutionModeCompanion ||
+		normalizedExecutionMode == capabilities.ExecutionModeUserDesktop
+}
+
+func isDeviceBrowserTool(toolName string) bool {
+	return strings.HasPrefix(strings.TrimSpace(toolName), "browser.")
 }
 
 func (service Service) companionProvider() companionProvider {
