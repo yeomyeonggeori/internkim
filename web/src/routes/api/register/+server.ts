@@ -7,6 +7,8 @@ import {
 	createTunnel,
 	configureTunnel,
 	createDNSRecord,
+	ensureOneTimePinIdentityProvider,
+	updateAccessApplicationLoginMethod,
 	syncAccessPolicyEmails
 } from '$lib/cloudflare';
 import type { Device } from '$lib/types';
@@ -79,9 +81,13 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 	};
 
 	const existing = await kv.getDevice(env.KV, deviceID);
+	const identityProviderId = await ensureOneTimePinIdentityProvider(cfEnv);
 	if (existing) {
 		const ownedDevice = await ensureSameDevice(existing, device_secret);
 		await configureTunnel(cfEnv, ownedDevice.tunnel_id, deviceID);
+		if (ownedDevice.access_app_id) {
+			await updateAccessApplicationLoginMethod(cfEnv, deviceID, ownedDevice.access_app_id, identityProviderId);
+		}
 		const users = await kv.getUsers(env.KV, deviceID);
 		const seededUsers = inviteUsersWithSetupAdmin(users, existing.admin_email, adminEmail);
 		const device = await ensureAccessPolicy(cfEnv, ownedDevice, seededUsers);
@@ -99,7 +105,7 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 	const { tunnelId, tunnelToken } = await createTunnel(cfEnv, deviceID);
 	await configureTunnel(cfEnv, tunnelId, deviceID);
 	const dnsRecordId = await createDNSRecord(cfEnv, tunnelId, deviceID);
-	const accessAppId = await createAccessApplication(cfEnv, deviceID);
+	const accessAppId = await createAccessApplication(cfEnv, deviceID, identityProviderId);
 	const accessPolicyId = await createAccessPolicy(cfEnv, accessAppId, adminEmail);
 
 	const device: Device = {
@@ -130,7 +136,7 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 }
 
 async function ensureAccessPolicy(
-	cfEnv: Parameters<typeof createAccessApplication>[0],
+	cfEnv: Parameters<typeof createAccessPolicy>[0],
 	device: Device,
 	emails: string[]
 ): Promise<Device> {
@@ -149,7 +155,8 @@ async function ensureAccessPolicy(
 		}
 	}
 
-	const accessAppId = await createAccessApplication(cfEnv, device.device_id);
+	const identityProviderId = await ensureOneTimePinIdentityProvider(cfEnv);
+	const accessAppId = await createAccessApplication(cfEnv, device.device_id, identityProviderId);
 	const accessPolicyId = await createAccessPolicy(cfEnv, accessAppId, emails[0]);
 	await syncAccessPolicyEmails(cfEnv, accessAppId, emails);
 

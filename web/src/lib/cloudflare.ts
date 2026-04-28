@@ -7,6 +7,12 @@ interface CFEnv {
 	CF_DOMAIN: string;
 }
 
+interface AccessIdentityProvider {
+	id: string;
+	name: string;
+	type: string;
+}
+
 async function cfFetch(env: CFEnv, path: string, init?: RequestInit) {
 	const res = await fetch(`${CF_API}${path}`, {
 		...init,
@@ -68,21 +74,61 @@ export async function createDNSRecord(env: CFEnv, tunnelId: string, deviceId: st
 	return record.id as string;
 }
 
-export async function createAccessApplication(env: CFEnv, deviceId: string) {
+export async function ensureOneTimePinIdentityProvider(env: CFEnv) {
+	try {
+		const identityProviders = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/identity_providers`)) as AccessIdentityProvider[];
+		const existingProvider = identityProviders.find((identityProvider) => identityProvider.type === 'onetimepin');
+		if (existingProvider) {
+			return existingProvider.id;
+		}
+
+		const identityProvider = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/identity_providers`, {
+			method: 'POST',
+			body: JSON.stringify({
+				name: 'One-time PIN',
+				type: 'onetimepin',
+				config: {}
+			})
+		})) as AccessIdentityProvider;
+
+		return identityProvider.id;
+	} catch (caughtError) {
+		const message = caughtError instanceof Error ? caughtError.message : String(caughtError);
+		throw new Error(
+			`Cloudflare One-time PIN identity provider is not configured or cannot be managed by this API token: ${message}. ` +
+				'Enable Zero Trust > Integrations > Identity providers > One-time PIN, or grant the token Access: Organizations, Identity Providers, and Groups Write.'
+		);
+	}
+}
+
+function accessApplicationBody(env: CFEnv, deviceId: string, identityProviderId: string) {
 	const hostname = `${deviceId}.${env.CF_DOMAIN}`;
 
+	return {
+		name: 'intern kim',
+		domain: hostname,
+		type: 'self_hosted',
+		session_duration: '720h',
+		logo_url: `https://${hostname}/logo.svg`,
+		allowed_idps: [identityProviderId],
+		auto_redirect_to_identity: true
+	};
+}
+
+export async function createAccessApplication(env: CFEnv, deviceId: string, identityProviderId: string) {
 	const app = await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`, {
 		method: 'POST',
-		body: JSON.stringify({
-			name: 'intern kim',
-			domain: hostname,
-			type: 'self_hosted',
-			session_duration: '720h',
-			logo_url: `https://${hostname}/logo.svg`
-		})
+		body: JSON.stringify(accessApplicationBody(env, deviceId, identityProviderId))
 	});
 
 	return app.id as string;
+}
+
+export async function updateAccessApplicationLoginMethod(env: CFEnv, deviceId: string, appId: string, identityProviderId: string) {
+	await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${appId}`, {
+		method: 'PUT',
+		body: JSON.stringify(accessApplicationBody(env, deviceId, identityProviderId))
+	});
 }
 
 export async function createAccessPolicy(env: CFEnv, appId: string, adminEmail: string) {
