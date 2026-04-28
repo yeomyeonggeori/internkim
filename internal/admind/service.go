@@ -217,8 +217,16 @@ func (service *Service) serveAdminPage(responseWriter http.ResponseWriter, reque
 		http.Redirect(responseWriter, request, "/admin/", http.StatusFound)
 		return
 	}
-	fileServer := http.StripPrefix("/admin/", http.FileServer(http.Dir(service.Configuration.AdminUIPath)))
-	fileServer.ServeHTTP(responseWriter, request)
+	relativePath := strings.TrimPrefix(request.URL.Path, "/admin/")
+	if relativePath == "" {
+		relativePath = "index.html"
+	}
+	filePath := filepath.Join(service.Configuration.AdminUIPath, relativePath)
+	if fileInfo, errorValue := os.Stat(filePath); errorValue == nil && !fileInfo.IsDir() {
+		http.ServeFile(responseWriter, request, filePath)
+		return
+	}
+	http.ServeFile(responseWriter, request, filepath.Join(service.Configuration.AdminUIPath, "index.html"))
 }
 
 func (service *Service) serveAdminAsset(responseWriter http.ResponseWriter, request *http.Request) {

@@ -83,6 +83,16 @@ func TestGatewayRedirectsAdminPage(t *testing.T) {
 	if !strings.Contains(response.Body.String(), "admin ui") {
 		t.Fatalf("admin ui body = %q", response.Body.String())
 	}
+
+	request = httptest.NewRequest(http.MethodGet, "https://dc719d8e.example.test/admin/companion", nil)
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("admin fallback status = %d", response.Code)
+	}
+	if !strings.Contains(response.Body.String(), "admin ui") {
+		t.Fatalf("admin fallback body = %q", response.Body.String())
+	}
 }
 
 func TestAdminRejectsUnauthorizedRemoteCaller(t *testing.T) {
