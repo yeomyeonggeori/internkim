@@ -107,11 +107,25 @@ func CompanionLLMDescriptors() []Descriptor {
 }
 
 func DeviceDescriptors() []Descriptor {
-	return []Descriptor{
+	return append([]Descriptor{
 		{Name: "llm.text", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "llm.structured", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "embedding.create", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
 		{Name: "platform.reply", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false},
+	}, DeviceBrowserDescriptors()...)
+}
+
+func DeviceBrowserDescriptors() []Descriptor {
+	return []Descriptor{
+		{Name: "browser.session.start", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "browser.navigate", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "browser.observe", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "browser.screenshot", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "browser.click", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "browser.fill", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "browser.select", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "browser.press", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "browser.wait", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
 	}
 }
 
