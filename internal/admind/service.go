@@ -30,6 +30,7 @@ import (
 type Configuration struct {
 	ListenAddress          string
 	MattermostBaseURL      string
+	AdminPageBaseURL       string
 	BlueclawBaseURL        string
 	StateDirectory         string
 	CompanionJobPath       string
@@ -118,6 +119,7 @@ func DefaultConfiguration() Configuration {
 	return Configuration{
 		ListenAddress:          "127.0.0.1:18080",
 		MattermostBaseURL:      "http://127.0.0.1:8065",
+		AdminPageBaseURL:       "https://api.example.test",
 		BlueclawBaseURL:        "http://127.0.0.1:8080",
 		StateDirectory:         "/root/.internkim/admin",
 		CompanionJobPath:       "/root/.internkim/state/companion-jobs.json",
@@ -165,6 +167,8 @@ func (service *Service) Run(ctx context.Context) error {
 
 func (service *Service) router() http.Handler {
 	multiplexer := http.NewServeMux()
+	multiplexer.HandleFunc("/admin", service.redirectAdminPage)
+	multiplexer.HandleFunc("/admin/", service.redirectAdminPage)
 	multiplexer.HandleFunc("/_internkim/admin/", service.handleAdmin)
 	multiplexer.HandleFunc("/_internkim/companion/", service.handleCompanion)
 	multiplexer.Handle("/", service.mattermostProxy())
@@ -200,6 +204,49 @@ func (service *Service) mattermostProxy() http.Handler {
 		proxy.Transport = service.HTTPClient.Transport
 	}
 	return proxy
+}
+
+func (service *Service) redirectAdminPage(responseWriter http.ResponseWriter, request *http.Request) {
+	adminPageURL, errorValue := service.adminPageURL(request)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	http.Redirect(responseWriter, request, adminPageURL, http.StatusFound)
+}
+
+func (service *Service) adminPageURL(request *http.Request) (string, error) {
+	adminPageURL, errorValue := url.Parse(service.Configuration.AdminPageBaseURL)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	deviceID := deviceIDFromHost(request.Host)
+	if deviceID == "" {
+		deviceID = strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceIDPath)))
+	}
+	if deviceID != "" {
+		query := adminPageURL.Query()
+		query.Set("device_id", deviceID)
+		adminPageURL.RawQuery = query.Encode()
+	}
+	return adminPageURL.String(), nil
+}
+
+func deviceIDFromHost(host string) string {
+	hostName := host
+	if splitHost, _, errorValue := net.SplitHostPort(host); errorValue == nil {
+		hostName = splitHost
+	}
+	hostName = strings.ToLower(strings.TrimSpace(hostName))
+	const suffix = ".example.test"
+	if !strings.HasSuffix(hostName, suffix) {
+		return ""
+	}
+	deviceID := strings.TrimSuffix(hostName, suffix)
+	if deviceID == "" || deviceID == "api" || strings.Contains(deviceID, ".") {
+		return ""
+	}
+	return deviceID
 }
 
 func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request *http.Request) {
@@ -818,6 +865,9 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.MattermostBaseURL == "" {
 		configuration.MattermostBaseURL = defaultConfiguration.MattermostBaseURL
+	}
+	if configuration.AdminPageBaseURL == "" {
+		configuration.AdminPageBaseURL = defaultConfiguration.AdminPageBaseURL
 	}
 	if configuration.BlueclawBaseURL == "" {
 		configuration.BlueclawBaseURL = defaultConfiguration.BlueclawBaseURL

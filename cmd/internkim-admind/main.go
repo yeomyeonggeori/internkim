@@ -12,6 +12,7 @@ func main() {
 	configuration := admind.DefaultConfiguration()
 	flag.StringVar(&configuration.ListenAddress, "listen", configuration.ListenAddress, "HTTP listen address")
 	flag.StringVar(&configuration.MattermostBaseURL, "mattermost-url", configuration.MattermostBaseURL, "Mattermost upstream URL")
+	flag.StringVar(&configuration.AdminPageBaseURL, "admin-page-url", configuration.AdminPageBaseURL, "InternKim admin page URL")
 	flag.StringVar(&configuration.StateDirectory, "state-dir", configuration.StateDirectory, "admin job state directory")
 	flag.StringVar(&configuration.AdminEmailPath, "admin-email-path", configuration.AdminEmailPath, "initial admin email file")
 	flag.StringVar(&configuration.DeviceIDPath, "device-id-path", configuration.DeviceIDPath, "device ID file")

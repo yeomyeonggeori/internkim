@@ -165,6 +165,8 @@ make build-companion-shell
 
 Primary flow는 Pages 관리자 화면의 Companion App 섹션입니다. 관리자는 다운로드 버튼으로 OS별 companion을 받고, `Connect to this Intern Kim`으로 10분짜리 one-time pairing code를 만든 뒤 deep link 또는 CLI fallback으로 연결합니다. 연결된 companion은 inbound port를 열지 않고 device broker를 long-poll합니다.
 
+관리자 화면은 `https://api.example.test/?device_id=<deviceID>`에서 열립니다. 기기 주소의 `/admin`은 같은 화면으로 리다이렉트합니다.
+
 Deep link를 직접 넘기는 CLI fallback도 지원합니다.
 
 ```bash

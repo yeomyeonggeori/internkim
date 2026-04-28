@@ -22,6 +22,7 @@ import (
 func TestGatewayRoutesAdminAndMattermost(t *testing.T) {
 	service := NewService(Configuration{
 		MattermostBaseURL: "http://mattermost.local",
+		AdminPageBaseURL:  "https://api.example.test",
 		AdminEmailPath:    writeTestFile(t, "admin@example.com"),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -50,6 +51,24 @@ func TestGatewayRoutesAdminAndMattermost(t *testing.T) {
 	}
 	if mattermostResponse.Body.String() != "mattermost" {
 		t.Fatalf("mattermost proxy body = %q", mattermostResponse.Body.String())
+	}
+}
+
+func TestGatewayRedirectsAdminPage(t *testing.T) {
+	service := NewService(Configuration{
+		AdminPageBaseURL: "https://api.example.test",
+		AdminEmailPath:   writeTestFile(t, "admin@example.com"),
+	})
+	handler := service.router()
+
+	request := httptest.NewRequest(http.MethodGet, "https://dc719d8e.example.test/admin", nil)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusFound {
+		t.Fatalf("admin page status = %d", response.Code)
+	}
+	if response.Header().Get("Location") != "https://api.example.test?device_id=dc719d8e" {
+		t.Fatalf("admin page location = %q", response.Header().Get("Location"))
 	}
 }
 
