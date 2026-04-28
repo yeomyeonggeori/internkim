@@ -646,7 +646,11 @@ chmod 755 /root/.blueclaw/workspace/bin /root/.blueclaw/workspace/downloads`)
 		return err
 	}
 
-	state.writeWorkspaceDocumentsSSH(loadWorkspaceAgentsMarkdown(state.scriptDir))
+	agentsContent, errorValue := loadWorkspaceAgentsMarkdown(state.scriptDir)
+	if errorValue != nil {
+		return errorValue
+	}
+	state.writeWorkspaceDocumentsSSH(agentsContent)
 	if err := state.installAgentBrowserSkillSSH(); err != nil {
 		return err
 	}
@@ -806,13 +810,12 @@ func (state *setupFlowState) writeWorkspaceDocumentsSSH(agentsContent string) {
 		"\nEOF\nchown blueclaw:blueclaw /root/.blueclaw/workspace/IDENTITY.md")
 }
 
-func loadWorkspaceAgentsMarkdown(scriptDir string) string {
-	agentsPath := filepath.Join(scriptDir, "AGENTS.md")
-	agentsBytes, err := os.ReadFile(agentsPath)
-	if err != nil {
-		return agentsMarkdown
+func loadWorkspaceAgentsMarkdown(scriptDir string) (string, error) {
+	agentsBytes, errorValue := os.ReadFile(board.AgentsPath(scriptDir))
+	if errorValue != nil {
+		return "", errorValue
 	}
-	return strings.TrimSpace(string(agentsBytes))
+	return strings.TrimSpace(string(agentsBytes)), nil
 }
 
 func loadAgentBrowserSkillMarkdown(scriptDir string) (string, error) {
@@ -1219,7 +1222,11 @@ func (state *setupFlowState) stageBootstrapSD(context *setup.Context) error {
 		return err
 	}
 
-	if err := context.SD.WriteFile("AGENTS.md", []byte(loadWorkspaceAgentsMarkdown(state.scriptDir)), 0o644); err != nil {
+	agentsContent, err := loadWorkspaceAgentsMarkdown(state.scriptDir)
+	if err != nil {
+		return err
+	}
+	if err := context.SD.WriteFile("AGENTS.md", []byte(agentsContent), 0o644); err != nil {
 		return err
 	}
 	if err := context.SD.WriteFile("IDENTITY.md", []byte(identityMarkdown), 0o644); err != nil {
