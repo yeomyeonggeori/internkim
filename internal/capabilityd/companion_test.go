@@ -108,6 +108,24 @@ func TestAutoProviderPrefersCompanionWhenConfigured(t *testing.T) {
 	}
 }
 
+func TestAutoProviderDefaultsToRemoteBeforeLocalFallback(t *testing.T) {
+	service := Service{}
+	providers := service.automaticLLMProviders(
+		staticLLMProvider{response: LLMResponse{Provider: "litert", SelectedBackend: "cpu", Content: `{"reply":"device"}`}},
+		staticLLMProvider{response: LLMResponse{Provider: "companion", SelectedBackend: testCompanionBackend, Content: `{"reply":"companion"}`}},
+		staticLLMProvider{response: LLMResponse{Provider: "openrouter", SelectedBackend: capabilities.LLMBackendRemote, Content: `{"reply":"remote"}`}},
+	)
+	autoProvider := AutoProvider{Providers: providers}
+
+	response, errorValue := autoProvider.CompleteStructured(context.Background(), StructuredLLMRequest{})
+	if errorValue != nil {
+		t.Fatalf("expected remote first response: %v", errorValue)
+	}
+	if response.SelectedBackend != capabilities.LLMBackendRemote {
+		t.Fatalf("expected remote backend first, got %q", response.SelectedBackend)
+	}
+}
+
 func TestAutoProviderLocalOnlyBlocksRemoteFallback(t *testing.T) {
 	service := Service{Configuration: Configuration{LocalOnly: true}}
 	providers := service.automaticLLMProviders(
