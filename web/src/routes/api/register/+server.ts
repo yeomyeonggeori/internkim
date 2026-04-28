@@ -20,6 +20,15 @@ function isValidDeviceID(deviceID: string): boolean {
 	return /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(deviceID);
 }
 
+function inviteUsersWithSetupAdmin(users: string[], storedAdminEmail: string, setupAdminEmail: string): string[] {
+	const normalizedUsers = users.map(normalizeEmail).filter(Boolean);
+	const invitedUsers = normalizedUsers.length > 0 ? normalizedUsers : [normalizeEmail(storedAdminEmail || setupAdminEmail)];
+	if (!invitedUsers.includes(setupAdminEmail)) {
+		return [...invitedUsers, setupAdminEmail];
+	}
+	return invitedUsers;
+}
+
 async function ensureSameDevice(device: Device, deviceSecret: string): Promise<Device> {
 	const deviceSecretHash = await hashDeviceSecret(deviceSecret);
 	if (device.device_secret_hash && device.device_secret_hash !== deviceSecretHash) {
@@ -74,7 +83,7 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 		const ownedDevice = await ensureSameDevice(existing, device_secret);
 		await configureTunnel(cfEnv, ownedDevice.tunnel_id, deviceID);
 		const users = await kv.getUsers(env.KV, deviceID);
-		const seededUsers = users.length > 0 ? users : [normalizeEmail(existing.admin_email || adminEmail)];
+		const seededUsers = inviteUsersWithSetupAdmin(users, existing.admin_email, adminEmail);
 		const device = await ensureAccessPolicy(cfEnv, ownedDevice, seededUsers);
 		await kv.putUsers(env.KV, deviceID, seededUsers);
 		await kv.putDevice(env.KV, deviceID, device);
