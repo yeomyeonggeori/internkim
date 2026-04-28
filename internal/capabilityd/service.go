@@ -41,6 +41,7 @@ type Configuration struct {
 	CompanionBaseURL           string
 	PreferCompanionLLM         bool
 	LocalOnly                  bool
+	ProviderAttemptTimeout     time.Duration
 }
 
 type Service struct {
@@ -110,6 +111,7 @@ func DefaultConfiguration() Configuration {
 		CompanionBaseURL:           "",
 		PreferCompanionLLM:         false,
 		LocalOnly:                  false,
+		ProviderAttemptTimeout:     20 * time.Second,
 	}
 }
 
@@ -1111,6 +1113,9 @@ func (configuration Configuration) WithDefaults() Configuration {
 	}
 	if configuration.LiteRTWrapperPath == "" {
 		configuration.LiteRTWrapperPath = defaultConfiguration.LiteRTWrapperPath
+	}
+	if configuration.ProviderAttemptTimeout <= 0 {
+		configuration.ProviderAttemptTimeout = defaultConfiguration.ProviderAttemptTimeout
 	}
 	return configuration
 }

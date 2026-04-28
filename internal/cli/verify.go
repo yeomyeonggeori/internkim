@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
 	internkimlab "github.com/anthropic-lab/internkim/internal/lab"
 )
 
@@ -251,8 +252,7 @@ systemctl is-active blueclaw | grep -q '^active$'
 systemctl is-active internkim-admind | grep -q '^active$'
 systemctl is-active graphiti-memoryd | grep -q '^active$'
 systemctl is-active cloudflared | grep -q '^active$'
-command -v agent-browser >/dev/null
-agent-browser doctor --offline --quick >/dev/null
+` + browserruntime.DeviceReadinessShellScript() + `
 
 echo "checking admin gateway"
 curl --silent --show-error --fail http://127.0.0.1:18080/_internkim/admin/health | jq -e '.status == "ok"' >/dev/null

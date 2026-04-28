@@ -33,13 +33,15 @@ type CommandRunner interface {
 }
 
 type AgentBrowserRuntime struct {
-	CommandPath        string
-	ProfilePath        string
-	SessionName        string
-	Headed             bool
-	TemporaryDirectory string
-	Runner             CommandRunner
-	Now                func() time.Time
+	CommandPath          string
+	Engine               string
+	EngineExecutablePath string
+	ProfilePath          string
+	SessionName          string
+	Headed               bool
+	TemporaryDirectory   string
+	Runner               CommandRunner
+	Now                  func() time.Time
 }
 
 type RuntimeReadiness struct {
@@ -128,6 +130,9 @@ type ActionResult struct {
 type OSCommandRunner struct{}
 
 var agentBrowserReferencePattern = regexp.MustCompile(`@?[A-Za-z]+[0-9]+`)
+
+const BrowserEngineChrome = "chrome"
+const BrowserEngineLightpanda = "lightpanda"
 
 func (runtime AgentBrowserRuntime) StartSession(ctx context.Context, request SessionStartRequest) (SessionStartResult, error) {
 	targetURL := firstNonEmpty(request.URL, request.StartURL)
@@ -283,15 +288,36 @@ func (runtime AgentBrowserRuntime) EnsureInstalled(ctx context.Context) RuntimeR
 	return runtime.Check(ctx)
 }
 
+func DeviceReadinessShellScript() string {
+	return `set -eu
+command -v agent-browser >/dev/null
+if command -v lightpanda >/dev/null; then
+  agent-browser --engine lightpanda --session-name internkim-device-smoke open about:blank >/tmp/internkim-agent-browser-lightpanda-open.log 2>&1
+  agent-browser --engine lightpanda --session-name internkim-device-smoke snapshot >/tmp/internkim-agent-browser-lightpanda-snapshot.log 2>&1
+else
+  agent-browser doctor --offline --quick >/dev/null
+fi
+`
+}
+
 func (runtime AgentBrowserRuntime) baseArguments() []string {
 	arguments := []string{}
-	if runtime.Headed {
-		arguments = append(arguments, "--headed", "true")
-	} else {
-		arguments = append(arguments, "--headed", "false")
+	engine := runtime.browserEngine()
+	if engine != "" {
+		arguments = append(arguments, "--engine", engine)
 	}
-	if strings.TrimSpace(runtime.ProfilePath) != "" {
-		arguments = append(arguments, "--profile", strings.TrimSpace(runtime.ProfilePath))
+	if strings.TrimSpace(runtime.EngineExecutablePath) != "" {
+		arguments = append(arguments, "--executable-path", strings.TrimSpace(runtime.EngineExecutablePath))
+	}
+	if engine != BrowserEngineLightpanda {
+		if runtime.Headed {
+			arguments = append(arguments, "--headed", "true")
+		} else {
+			arguments = append(arguments, "--headed", "false")
+		}
+		if strings.TrimSpace(runtime.ProfilePath) != "" {
+			arguments = append(arguments, "--profile", strings.TrimSpace(runtime.ProfilePath))
+		}
 	}
 	if runtime.sessionName() != "" {
 		arguments = append(arguments, "--session-name", runtime.sessionName())
@@ -316,6 +342,18 @@ func (runtime AgentBrowserRuntime) run(ctx context.Context, arguments ...string)
 
 func (runtime AgentBrowserRuntime) commandPath() string {
 	return firstNonEmpty(runtime.CommandPath, "agent-browser")
+}
+
+func (runtime AgentBrowserRuntime) browserEngine() string {
+	engine := strings.TrimSpace(runtime.Engine)
+	switch engine {
+	case BrowserEngineLightpanda:
+		return BrowserEngineLightpanda
+	case BrowserEngineChrome:
+		return BrowserEngineChrome
+	default:
+		return engine
+	}
 }
 
 func (runtime AgentBrowserRuntime) sessionName() string {
