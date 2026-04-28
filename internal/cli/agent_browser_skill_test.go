@@ -12,8 +12,8 @@ func TestAgentBrowserSkillInstallScriptPrefersInstalledCliSkill(t *testing.T) {
 	requiredFragments := []string{
 		"/root/.blueclaw/workspace/.agents/skills/agent-browser",
 		"agent-browser skills get core --full",
-		"https://raw.githubusercontent.com/vercel-labs/agent-browser/refs/heads/main/skill-data/core/SKILL.md",
-		"https://raw.githubusercontent.com/vercel-labs/agent-browser/refs/heads/main/skills/agent-browser/SKILL.md",
+		"browser.navigate",
+		"browser.observe",
 		"/tmp/fallback.md",
 		"fallback skill",
 		"chown -R blueclaw:blueclaw /root/.blueclaw/workspace/.agents",
@@ -35,7 +35,7 @@ func TestLoadAgentBrowserSkillMarkdownUsesVendoredFallback(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected vendored skill markdown: %v", errorValue)
 	}
-	for _, fragment := range []string{"agent-browser", "agent-browser skills get core --full"} {
+	for _, fragment := range []string{"agent-browser", "browser.navigate", "agent-browser snapshot -i"} {
 		if !strings.Contains(skillMarkdown, fragment) {
 			t.Fatalf("expected skill markdown to include %q", fragment)
 		}
@@ -76,8 +76,8 @@ func TestFirstbootInstallsAgentBrowserSkill(t *testing.T) {
 	requiredFragments := []string{
 		"agent-browser install",
 		"agent-browser skills get core --full",
-		"skill-data/core/SKILL.md",
-		"skills/agent-browser/SKILL.md",
+		"browser.navigate",
+		"browser.observe",
 		"$STAGE/agent-browser-skill/SKILL.md",
 		"/root/.blueclaw/workspace/.agents/skills/agent-browser",
 	}

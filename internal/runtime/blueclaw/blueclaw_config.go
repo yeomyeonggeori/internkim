@@ -10,6 +10,8 @@ import (
 func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 	capabilityLanguageModel := map[string]any{
 		"executionMode":         "auto",
+		"model":                 BlueclawDefaultModelName,
+		"contextWindowTokens":   BlueclawDefaultModelContextTokens,
 		"requireParameters":     true,
 		"enableResponseHealing": true,
 	}

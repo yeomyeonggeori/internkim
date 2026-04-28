@@ -243,7 +243,7 @@ curl -fsS --unix-socket /run/internkim/capability.sock -H "Content-Type: applica
 }
 
 func checkLLMCapability(context *Context, failedChecks *[]string) {
-	check := strings.TrimSpace(context.SSH.Run(`model="$(jq -r '.languageModel.capability.model // "google/gemini-3-flash-preview"' /root/.blueclaw/config/runtime.json 2>/dev/null)"
+	check := strings.TrimSpace(context.SSH.Run(`model="$(jq -r '.languageModel.capability.model // "google/gemini-3.1-flash-lite-preview"' /root/.blueclaw/config/runtime.json 2>/dev/null)"
 text_body="$(jq -cn --arg model "$model" '{
   model: $model,
   executionMode: "remote",

@@ -106,7 +106,7 @@ func DefaultConfiguration() Configuration {
 		SignalAccountPath:          "/root/.internkim/config/signal-account",
 		BlueclawBaseURL:            "http://127.0.0.1:8080",
 		OpenRouterBaseURL:          "https://openrouter.ai/api/v1/chat/completions",
-		OpenRouterModel:            "google/gemini-3-flash-preview",
+		OpenRouterModel:            "google/gemini-3.1-flash-lite-preview",
 		OpenRouterEmbeddingBaseURL: "https://openrouter.ai/api/v1/embeddings",
 		OpenRouterEmbeddingModel:   "text-embedding-3-small",
 		SocketGroupName:            "blueclaw",
