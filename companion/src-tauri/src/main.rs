@@ -3,10 +3,13 @@ mod prompt_bridge;
 use std::process::Command;
 
 use tauri::{
+    image::Image,
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
     AppHandle, Emitter, Manager,
 };
+
+const TRAY_ICON_BYTES: &[u8] = include_bytes!("../icons/icon.png");
 
 #[tauri::command]
 fn show_main_window(app: AppHandle) -> Result<(), String> {
@@ -30,7 +33,10 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
-            build_tray(app.handle())?;
+            if let Err(error) = build_tray(app.handle()) {
+                eprintln!("failed to build tray icon: {error}");
+                let _ = show_window(app.handle());
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -44,6 +50,7 @@ fn main() {
 }
 
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
+    let tray_icon = Image::from_bytes(TRAY_ICON_BYTES)?;
     let status_item = MenuItem::with_id(app, "status", "Status", true, None::<&str>)?;
     let connect_item = MenuItem::with_id(app, "connect", "Connect", true, None::<&str>)?;
     let admin_item = MenuItem::with_id(
@@ -57,6 +64,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let menu = Menu::with_items(app, &[&status_item, &connect_item, &admin_item, &quit_item])?;
 
     TrayIconBuilder::new()
+        .icon(tray_icon)
         .tooltip("Intern Kim Companion")
         .menu(&menu)
         .show_menu_on_left_click(true)
