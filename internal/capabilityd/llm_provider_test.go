@@ -130,6 +130,18 @@ func TestOpenRouterProviderUsesDefaultModelForLocalAlias(t *testing.T) {
 	}
 }
 
+func TestOpenRouterProviderUsesDefaultModelForProviderNeutralSentinel(t *testing.T) {
+	provider := OpenRouterProvider{
+		Configuration: Configuration{OpenRouterModel: "google/default-remote"},
+	}
+
+	for _, modelName := range []string{"", "default", "DEFAULT"} {
+		if selectedModelName := provider.remoteModelName(modelName); selectedModelName != "google/default-remote" {
+			t.Fatalf("expected default remote model for %q, got %q", modelName, selectedModelName)
+		}
+	}
+}
+
 func TestLiteRTProviderSendsJSONSchemaDocumentToWrapper(t *testing.T) {
 	var wrapperDocument map[string]any
 	provider := LiteRTProvider{
