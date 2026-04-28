@@ -269,9 +269,15 @@ func (provider OpenRouterProvider) CompleteStructured(ctx context.Context, reque
 		return LLMResponse{}, errorValue
 	}
 	defer httpResponse.Body.Close()
-	responseDocument, _ := io.ReadAll(httpResponse.Body)
+	responseDocument, errorValue := io.ReadAll(httpResponse.Body)
+	if errorValue != nil {
+		return LLMResponse{}, errors.New("read openrouter response: " + errorValue.Error())
+	}
 	if httpResponse.StatusCode >= http.StatusBadRequest {
 		return LLMResponse{}, errors.New(string(responseDocument))
+	}
+	if len(bytes.TrimSpace(responseDocument)) == 0 {
+		return LLMResponse{}, errors.New("openrouter response body was empty")
 	}
 
 	var parsedResponse struct {
