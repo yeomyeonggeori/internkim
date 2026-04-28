@@ -647,6 +647,9 @@ chmod 755 /root/.blueclaw/workspace/bin /root/.blueclaw/workspace/downloads`)
 	}
 
 	state.writeWorkspaceDocumentsSSH(loadWorkspaceAgentsMarkdown(state.scriptDir))
+	if err := state.installAgentBrowserSkillSSH(); err != nil {
+		return err
+	}
 
 	state.sshClient.run(`mkdir -p /etc/sudoers.d
 cat > /usr/local/bin/gws-bot <<'EOF'
@@ -695,6 +698,15 @@ done
 chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills 2>/dev/null || true`)
 	}
 
+	return nil
+}
+
+func (state *setupFlowState) installAgentBrowserSkillSSH() error {
+	fallbackContent, err := loadAgentBrowserSkillMarkdown(state.scriptDir)
+	if err != nil {
+		return err
+	}
+	state.sshClient.run(agentBrowserSkillInstallScript("/tmp/internkim-agent-browser-skill-fallback.md", fallbackContent))
 	return nil
 }
 
@@ -801,6 +813,32 @@ func loadWorkspaceAgentsMarkdown(scriptDir string) string {
 		return agentsMarkdown
 	}
 	return strings.TrimSpace(string(agentsBytes))
+}
+
+func loadAgentBrowserSkillMarkdown(scriptDir string) (string, error) {
+	skillPath := board.AgentBrowserSkillPath(scriptDir)
+	skillBytes, err := os.ReadFile(skillPath)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(skillBytes)), nil
+}
+
+func agentBrowserSkillInstallScript(fallbackPath string, fallbackContent string) string {
+	return `set -eu
+skillDir="/root/.blueclaw/workspace/.agents/skills/agent-browser"
+mkdir -p "$skillDir"
+tmpSkill="$skillDir/SKILL.md.tmp"
+if command -v agent-browser >/dev/null 2>&1 && agent-browser skills get core --full > "$tmpSkill" 2>/tmp/internkim-agent-browser-skill.log && [ -s "$tmpSkill" ]; then
+  mv "$tmpSkill" "$skillDir/SKILL.md"
+else
+  rm -f "$tmpSkill"
+  cat > ` + quoteShellValue(fallbackPath) + ` <<'EOF'
+` + fallbackContent + `
+EOF
+  cp ` + quoteShellValue(fallbackPath) + ` "$skillDir/SKILL.md"
+fi
+chown -R blueclaw:blueclaw /root/.blueclaw/workspace/.agents 2>/dev/null || true`
 }
 
 func (state *setupFlowState) stageBinariesSD(context *setup.Context) error {
@@ -1184,6 +1222,13 @@ func (state *setupFlowState) stageBootstrapSD(context *setup.Context) error {
 		return err
 	}
 	if err := context.SD.WriteFile("SOUL.md", []byte(identityMarkdown), 0o644); err != nil {
+		return err
+	}
+	agentBrowserSkillMarkdown, err := loadAgentBrowserSkillMarkdown(state.scriptDir)
+	if err != nil {
+		return err
+	}
+	if err := context.SD.WriteFile("agent-browser-skill/SKILL.md", []byte(agentBrowserSkillMarkdown), 0o644); err != nil {
 		return err
 	}
 	if err := state.stageBlueclawMigrationsSD(context.SD.RootPath()); err != nil {

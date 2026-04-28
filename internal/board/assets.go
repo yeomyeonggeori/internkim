@@ -13,6 +13,10 @@ func SkillsPath(scriptDir string) string {
 	return filepath.Join(AssetsPath(scriptDir), "skills")
 }
 
+func AgentBrowserSkillPath(scriptDir string) string {
+	return filepath.Join(AssetsPath(scriptDir), "agent-browser-skill", "SKILL.md")
+}
+
 func SendFilePath(scriptDir string) string {
 	return filepath.Join(AssetsPath(scriptDir), "send-file")
 }
