@@ -204,10 +204,9 @@ export async function ensureCompanionBypassApplication(env: CFEnv, deviceId: str
 }
 
 export async function ensureAdminAccessApplications(env: CFEnv, deviceId: string, identityProviderId: string, adminEmail: string) {
-	for (const domain of ['/admin*', '/_internkim/admin/*']) {
-		const applicationId = await ensureAdminAccessApplication(env, deviceId, identityProviderId, domain);
-		await syncAccessPolicyEmails(env, applicationId, [adminEmail]);
-	}
+	const applicationId = await ensureAdminAccessApplication(env, deviceId, identityProviderId, '/admin*');
+	await syncAccessPolicyEmails(env, applicationId, [adminEmail]);
+	await deleteAccessApplicationForDomain(env, deviceId, '/_internkim/admin/*');
 }
 
 async function ensureAdminAccessApplication(env: CFEnv, deviceId: string, identityProviderId: string, domain: string) {
@@ -235,6 +234,17 @@ async function createAdminAccessApplication(env: CFEnv, body: ReturnType<typeof 
 		throw new Error('Cloudflare admin app response did not include an id');
 	}
 	return application.id;
+}
+
+async function deleteAccessApplicationForDomain(env: CFEnv, deviceId: string, domain: string) {
+	const hostname = `${deviceId}.${env.CF_DOMAIN}`;
+	const fullDomain = `${hostname}${domain}`;
+	const applications = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`)) as AccessApplication[];
+	const application = applications.find((item) => accessApplicationDomain(item) === fullDomain);
+	if (!application?.id) return;
+	await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${application.id}`, {
+		method: 'DELETE'
+	});
 }
 
 async function createCompanionBypassApplication(env: CFEnv, body: ReturnType<typeof companionBypassApplicationBody>) {
