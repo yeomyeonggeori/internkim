@@ -356,7 +356,7 @@ func validateMinimumStructuredOutput(content string, schemaDocument json.RawMess
 
 func (provider OpenRouterProvider) remoteModelName(modelName string) string {
 	normalizedModelName := strings.TrimSpace(modelName)
-	if normalizedModelName == "" || isLocalModelReference(normalizedModelName) {
+	if normalizedModelName == "" || strings.EqualFold(normalizedModelName, "default") || isLocalModelReference(normalizedModelName) {
 		return firstNonEmpty(provider.Configuration.OpenRouterModel, DefaultConfiguration().OpenRouterModel)
 	}
 	return normalizedModelName
