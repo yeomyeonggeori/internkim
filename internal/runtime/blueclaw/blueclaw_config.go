@@ -2,11 +2,21 @@ package blueclaw
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/anthropic-lab/internkim/internal/capabilities"
 )
 
 func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
+	capabilityLanguageModel := map[string]any{
+		"executionMode":         "auto",
+		"requireParameters":     true,
+		"enableResponseHealing": true,
+	}
+	if strings.TrimSpace(modelName) != "" {
+		capabilityLanguageModel["model"] = strings.TrimSpace(modelName)
+	}
+
 	document := map[string]any{
 		"baseURL": BlueclawBaseURL,
 		"capabilities": map[string]any{
@@ -25,12 +35,7 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 		"languageModel": map[string]any{
 			"defaultProvider":  "capabilityLLM",
 			"fallbackProvider": "",
-			"capability": map[string]any{
-				"model":                 modelName,
-				"executionMode":         "auto",
-				"requireParameters":     true,
-				"enableResponseHealing": true,
-			},
+			"capability":       capabilityLanguageModel,
 		},
 		"firecracker": map[string]any{
 			"firecrackerPath":     BlueclawFirecrackerPath,
@@ -64,7 +69,6 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 		"agent": map[string]any{
 			"intake": map[string]any{
 				"enabled":       true,
-				"model":         "local/gemma-4-E4B-it-litert-lm",
 				"executionMode": "auto",
 			},
 			"defaultBudgetClass": "thirty_minutes",
