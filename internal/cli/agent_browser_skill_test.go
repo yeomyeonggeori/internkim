@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -38,6 +39,35 @@ func TestLoadAgentBrowserSkillMarkdownUsesVendoredFallback(t *testing.T) {
 		if !strings.Contains(skillMarkdown, fragment) {
 			t.Fatalf("expected skill markdown to include %q", fragment)
 		}
+	}
+}
+
+func TestLoadWorkspaceAgentsMarkdownUsesBoardAsset(t *testing.T) {
+	scriptDir, errorValue := filepath.Abs("../..")
+	if errorValue != nil {
+		t.Fatalf("expected script dir: %v", errorValue)
+	}
+
+	agentsMarkdown, errorValue := loadWorkspaceAgentsMarkdown(scriptDir)
+	if errorValue != nil {
+		t.Fatalf("expected board agents markdown: %v", errorValue)
+	}
+
+	for _, fragment := range []string{"## Browser Automation", "`agent-browser snapshot -i`", "## File Sharing", "## Memory", "## Honesty about Tool Failures"} {
+		if !strings.Contains(agentsMarkdown, fragment) {
+			t.Fatalf("expected board agents markdown to include %q", fragment)
+		}
+	}
+}
+
+func TestLoadWorkspaceAgentsMarkdownDoesNotFallbackToRepositoryRoot(t *testing.T) {
+	scriptDir := t.TempDir()
+	if errorValue := os.WriteFile(filepath.Join(scriptDir, "AGENTS.md"), []byte("repository root agents"), 0o644); errorValue != nil {
+		t.Fatalf("expected repository agents fixture: %v", errorValue)
+	}
+
+	if _, errorValue := loadWorkspaceAgentsMarkdown(scriptDir); errorValue == nil {
+		t.Fatalf("expected missing board agents markdown to fail")
 	}
 }
 
