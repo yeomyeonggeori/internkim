@@ -134,6 +134,85 @@ var agentBrowserReferencePattern = regexp.MustCompile(`@?[A-Za-z]+[0-9]+`)
 const BrowserEngineChrome = "chrome"
 const BrowserEngineLightpanda = "lightpanda"
 
+func (request *SessionStartRequest) UnmarshalJSON(document []byte) error {
+	value, isString := decodeStringDocument(document)
+	if isString {
+		request.URL = value
+		return nil
+	}
+	type sessionStartRequest SessionStartRequest
+	return json.Unmarshal(document, (*sessionStartRequest)(request))
+}
+
+func (request *NavigateRequest) UnmarshalJSON(document []byte) error {
+	value, isString := decodeStringDocument(document)
+	if isString {
+		request.URL = value
+		return nil
+	}
+	type navigateRequest NavigateRequest
+	return json.Unmarshal(document, (*navigateRequest)(request))
+}
+
+func (request *ObserveRequest) UnmarshalJSON(document []byte) error {
+	if _, isString := decodeStringDocument(document); isString {
+		return nil
+	}
+	type observeRequest ObserveRequest
+	return json.Unmarshal(document, (*observeRequest)(request))
+}
+
+func (request *ClickRequest) UnmarshalJSON(document []byte) error {
+	value, isString := decodeStringDocument(document)
+	if isString {
+		request.Target = value
+		return nil
+	}
+	type clickRequest ClickRequest
+	return json.Unmarshal(document, (*clickRequest)(request))
+}
+
+func (request *PressRequest) UnmarshalJSON(document []byte) error {
+	value, isString := decodeStringDocument(document)
+	if isString {
+		request.Key = value
+		return nil
+	}
+	type pressRequest PressRequest
+	return json.Unmarshal(document, (*pressRequest)(request))
+}
+
+func (request *WaitRequest) UnmarshalJSON(document []byte) error {
+	value, isString := decodeStringDocument(document)
+	if isString {
+		request.Target = value
+		return nil
+	}
+	valueInt, isNumber := decodeIntegerDocument(document)
+	if isNumber {
+		request.Milliseconds = valueInt
+		return nil
+	}
+	type waitRequest WaitRequest
+	return json.Unmarshal(document, (*waitRequest)(request))
+}
+
+func decodeStringDocument(document []byte) (string, bool) {
+	var value string
+	if json.Unmarshal(bytes.TrimSpace(document), &value) != nil {
+		return "", false
+	}
+	return strings.TrimSpace(value), true
+}
+
+func decodeIntegerDocument(document []byte) (int, bool) {
+	var value int
+	if json.Unmarshal(bytes.TrimSpace(document), &value) != nil {
+		return 0, false
+	}
+	return value, true
+}
+
 func (runtime AgentBrowserRuntime) StartSession(ctx context.Context, request SessionStartRequest) (SessionStartResult, error) {
 	targetURL := firstNonEmpty(request.URL, request.StartURL)
 	exposedURL := targetURL

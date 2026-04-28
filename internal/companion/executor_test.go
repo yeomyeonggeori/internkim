@@ -141,13 +141,13 @@ func TestBrowserNavigateOpensValidatedURL(t *testing.T) {
 	executor := Executor{BrowserRuntime: browserRuntime}
 
 	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "browser.navigate",
+		ToolName: "browser.open",
 		Input:    json.RawMessage(`{"url":"https://example.com/path"}`),
 	})
 	if errorValue != nil {
 		t.Fatalf("expected browser navigate success: %v", errorValue)
 	}
-	if response.ToolName != "browser.navigate" || browserRuntime.navigateRequest.URL != "https://example.com/path" {
+	if response.ToolName != "browser.open" || browserRuntime.navigateRequest.URL != "https://example.com/path" {
 		t.Fatalf("unexpected browser result: response=%+v request=%+v", response, browserRuntime.navigateRequest)
 	}
 }
@@ -156,7 +156,7 @@ func TestBrowserNavigateRejectsNonHTTPURL(t *testing.T) {
 	executor := Executor{BrowserRuntime: browserruntime.AgentBrowserRuntime{}}
 
 	_, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "browser.navigate",
+		ToolName: "browser.open",
 		Input:    json.RawMessage(`{"url":"file:///etc/passwd"}`),
 	})
 	if errorValue == nil {
@@ -173,7 +173,7 @@ func TestBrowserObserveUsesRuntimeSchema(t *testing.T) {
 		CapturedAt:      "2026-04-27T00:00:00Z",
 	}}}
 
-	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{ToolName: "browser.observe"})
+	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{ToolName: "browser.snapshot"})
 	if errorValue != nil {
 		t.Fatalf("expected observe success: %v", errorValue)
 	}

@@ -3,7 +3,7 @@
 ## Browser Automation
 
 Use the `browser.*` tools for web automation. InternKim runs the browser engine internally.
-The internal runtime follows `agent-browser` semantics, so `agent-browser snapshot -i` corresponds to `browser.observe`.
+The internal runtime follows `agent-browser` semantics, so `agent-browser snapshot -i` corresponds to `browser.snapshot`.
 
 CLI reference workflow:
 
@@ -14,10 +14,10 @@ CLI reference workflow:
 
 InternKim tool workflow:
 
-1. `browser.navigate` - Navigate to a page with `{ "url": "https://example.com" }`
-2. `browser.observe` - Get page text and interactive refs such as `@e1`
+1. `browser.open "https://example.com"` - Navigate to page
+2. `browser.snapshot "-i"` - Get page text and interactive refs such as `@e1`
 3. `browser.click` / `browser.fill` - Interact using refs or selectors
-4. Re-run `browser.observe` after page changes
+4. Re-run `browser.snapshot` after page changes
 5. `browser.screenshot` - Capture the final visible result when the user asks for a screenshot
 
 ## File Sharing

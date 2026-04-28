@@ -94,11 +94,9 @@ func (executor Executor) ExecuteJob(ctx context.Context, envelope JobEnvelope, r
 		return executor.executeTextLLM(request)
 	case "llm.structured":
 		return executor.executeStructuredLLM(request)
-	case "browser.session.start":
-		return executor.executeBrowserSessionStart(ctx, request)
-	case "browser.navigate":
+	case "browser.open":
 		return executor.executeBrowserNavigate(ctx, request)
-	case "browser.observe":
+	case "browser.snapshot":
 		return executor.executeBrowserObserve(ctx, request)
 	case "browser.screenshot":
 		return executor.executeBrowserScreenshot(ctx, envelope, request)

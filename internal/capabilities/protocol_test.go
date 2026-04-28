@@ -7,7 +7,7 @@ import (
 
 func TestToolInvokeRequestRoundTrip(t *testing.T) {
 	request := ToolInvokeRequest{
-		ToolName:             "browser.navigate",
+		ToolName:             "browser.open",
 		Input:                json.RawMessage(`{"url":"https://example.com"}`),
 		ExecutionMode:        ExecutionModeUserDesktop,
 		RequiresUserPresence: true,

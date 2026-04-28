@@ -83,9 +83,8 @@ type DenialResult struct {
 
 func CompanionToolDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "browser.session.start", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
-		{Name: "browser.navigate", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
-		{Name: "browser.observe", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
+		{Name: "browser.open", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
+		{Name: "browser.snapshot", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
 		{Name: "browser.screenshot", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
 		{Name: "browser.click", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
 		{Name: "browser.fill", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
@@ -117,9 +116,8 @@ func DeviceDescriptors() []Descriptor {
 
 func DeviceBrowserDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "browser.session.start", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "browser.navigate", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "browser.observe", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "browser.open", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "browser.snapshot", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
 		{Name: "browser.screenshot", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
 		{Name: "browser.click", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
 		{Name: "browser.fill", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},

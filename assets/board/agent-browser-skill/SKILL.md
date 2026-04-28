@@ -10,24 +10,24 @@ Use Blueclaw's `browser.*` tools by default. InternKim maps those tools to the i
 
 ## InternKim Tool Mapping
 
-- `agent-browser open <url>` maps to `browser.navigate` with `{ "url": "https://example.com" }`
-- `agent-browser snapshot -i` maps to `browser.observe` with `{}`
+- `agent-browser open <url>` maps to `browser.open` with `"https://example.com"`
+- `agent-browser snapshot -i` maps to `browser.snapshot` with `"-i"`
 - `agent-browser fill @e2 "text"` maps to `browser.fill` with `{ "target": "@e2", "text": "text" }`
 - `agent-browser click @e1` maps to `browser.click` with `{ "target": "@e1" }`
 - `agent-browser screenshot <path>` maps to `browser.screenshot` with `{}`
 
 ## Core Workflow
 
-1. Call `browser.navigate` to open the target page.
-2. Call `browser.observe` to get visible text and interactive refs like `@e1`.
+1. Call `browser.open` to open the target page.
+2. Call `browser.snapshot` to get visible text and interactive refs like `@e1`.
 3. Call `browser.fill`, `browser.click`, `browser.select`, `browser.press`, or `browser.wait` with refs or selectors from observation.
-4. Re-run `browser.observe` after page changes.
+4. Re-run `browser.snapshot` after page changes.
 5. Call `browser.screenshot` when the user asks for a screenshot or visual proof.
 
 ## Tool Inputs
 
-- `browser.navigate`: `{ "url": "https://www.google.com" }`
-- `browser.observe`: `{}`
+- `browser.open`: `"https://www.google.com"` or `{ "url": "https://www.google.com" }`
+- `browser.snapshot`: `"-i"` or `{}`
 - `browser.fill`: `{ "target": "@e1", "text": "hello world" }`
 - `browser.click`: `{ "target": "@e2" }`
 - `browser.select`: `{ "target": "@e3", "value": "option" }`
@@ -46,7 +46,7 @@ Use this reference to understand the runtime behavior behind InternKim's `browse
 
 ## Rules
 
-- Use refs returned by `browser.observe` whenever possible.
+- Use refs returned by `browser.snapshot` whenever possible.
 - If a tool fails, observe again before choosing a new ref.
 - Do not guess hidden browser state, cookies, profile paths, CDP URLs, or local screenshot paths.
 - Do not claim a browser step succeeded unless the tool result shows success.

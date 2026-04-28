@@ -47,12 +47,12 @@ func TestGrantStoreReusesApprovedBrowserGrant(t *testing.T) {
 	store := NewMemoryGrantStore()
 	approvalHandler := &fakeApprovalHandler{decision: ApprovalDecision{Allowed: true}}
 	request := capabilities.ToolInvokeRequest{
-		ToolName:      "browser.navigate",
+		ToolName:      "browser.open",
 		ResourceScope: capabilities.ResourceScope{Kind: "web_origin", Value: "https://github.com"},
 	}
 	envelope := JobEnvelope{
 		JobID:         "job-1",
-		ToolName:      "browser.navigate",
+		ToolName:      "browser.open",
 		ResourceScope: request.ResourceScope,
 	}
 
@@ -73,12 +73,12 @@ func TestGrantStoreListsAndRevokesActiveGrant(t *testing.T) {
 	store := NewMemoryGrantStore()
 	approvalHandler := &fakeApprovalHandler{decision: ApprovalDecision{Allowed: true}}
 	request := capabilities.ToolInvokeRequest{
-		ToolName:      "browser.navigate",
+		ToolName:      "browser.open",
 		ResourceScope: capabilities.ResourceScope{Kind: "web_origin", Value: "https://github.com"},
 	}
 	envelope := JobEnvelope{
 		JobID:         "job-1",
-		ToolName:      "browser.navigate",
+		ToolName:      "browser.open",
 		ResourceScope: request.ResourceScope,
 	}
 
@@ -113,12 +113,12 @@ func TestGrantStoreDeniesWithReason(t *testing.T) {
 		SuggestedConstraint: "ask me for text",
 	}}
 	request := capabilities.ToolInvokeRequest{
-		ToolName:      "browser.navigate",
+		ToolName:      "browser.open",
 		ResourceScope: capabilities.ResourceScope{Kind: "web_origin", Value: "https://bank.example"},
 	}
 	envelope := JobEnvelope{
 		JobID:         "job-1",
-		ToolName:      "browser.navigate",
+		ToolName:      "browser.open",
 		ResourceScope: request.ResourceScope,
 	}
 

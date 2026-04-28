@@ -401,7 +401,7 @@ func TestCompanionDenyReturnsStructuredObservation(t *testing.T) {
 		"code":"`+pairingCode.Code+`",
 		"displayName":"test companion",
 		"publicKey":"`+keyPair.PublicKey+`",
-		"capabilities":[{"name":"browser.navigate","version":"1","privacyClass":"user_browser","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}]
+		"capabilities":[{"name":"browser.open","version":"1","privacyClass":"user_browser","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}]
 	}`))
 	handler.ServeHTTP(pairResponse, pairRequest)
 	var pairResult companionPairResponse
@@ -411,7 +411,7 @@ func TestCompanionDenyReturnsStructuredObservation(t *testing.T) {
 	resultChannel := make(chan capabilities.ToolInvokeResponse, 1)
 	go func() {
 		response, _ := service.invokeCompanionJob(context.Background(), capabilities.ToolInvokeRequest{
-			ToolName:      "browser.navigate",
+			ToolName:      "browser.open",
 			Input:         json.RawMessage(`{"url":"https://github.com"}`),
 			PrivacyClass:  "user_browser",
 			TimeoutSecond: 2,

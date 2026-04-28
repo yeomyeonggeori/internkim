@@ -154,7 +154,7 @@ func TestCapabilityRouterUsesDescriptors(t *testing.T) {
 		CompanionAvailable: true,
 		Descriptors:        capabilities.CompanionToolDescriptors(),
 	}
-	if !router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: "browser.navigate"}) {
+	if !router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: "browser.open"}) {
 		t.Fatal("expected browser tool to route to companion")
 	}
 	if router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: "unknown.tool"}) {

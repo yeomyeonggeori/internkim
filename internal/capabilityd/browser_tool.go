@@ -32,19 +32,13 @@ func (service Service) invokeDeviceBrowserTool(ctx context.Context, request capa
 	var errorValue error
 
 	switch request.ToolName {
-	case "browser.session.start":
-		var input browserruntime.SessionStartRequest
-		errorValue = decodeBrowserToolInput(request.Input, &input)
-		if errorValue == nil {
-			result, errorValue = browserRuntime.StartSession(ctx, input)
-		}
-	case "browser.navigate":
+	case "browser.open":
 		var input browserruntime.NavigateRequest
 		errorValue = decodeBrowserToolInput(request.Input, &input)
 		if errorValue == nil {
 			result, errorValue = browserRuntime.Navigate(ctx, input)
 		}
-	case "browser.observe":
+	case "browser.snapshot":
 		var input browserruntime.ObserveRequest
 		errorValue = decodeBrowserToolInput(request.Input, &input)
 		if errorValue == nil {
