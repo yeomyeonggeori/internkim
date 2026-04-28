@@ -244,6 +244,11 @@ if [ -f "$STAGE/tunnel-origin" ]; then
   chown root:root /root/.internkim/env/tunnel-origin
   chmod 640 /root/.internkim/env/tunnel-origin
 fi
+if [ -f "$STAGE/tunnel-revision" ]; then
+  cp -f "$STAGE/tunnel-revision" /root/.internkim/env/tunnel-revision
+  chown root:root /root/.internkim/env/tunnel-revision
+  chmod 640 /root/.internkim/env/tunnel-revision
+fi
 if [ -f "$STAGE/device-id" ]; then
   cp -f "$STAGE/device-id" /root/.internkim/env/device-id
   chown root:blueclaw /root/.internkim/env/device-id
