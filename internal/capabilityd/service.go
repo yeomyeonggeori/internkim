@@ -115,7 +115,7 @@ func DefaultConfiguration() Configuration {
 		CompanionBaseURL:           "",
 		PreferCompanionLLM:         false,
 		LocalOnly:                  false,
-		ProviderAttemptTimeout:     20 * time.Second,
+		ProviderAttemptTimeout:     90 * time.Second,
 		AgentBrowserPath:           "agent-browser",
 		CompanionFileDirectory:     "/tmp/internkim-companion-files",
 	}
