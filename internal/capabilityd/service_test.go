@@ -82,7 +82,7 @@ func TestTextCompletionReturnsPlainContent(t *testing.T) {
 	service := Service{
 		Configuration: DefaultConfiguration(),
 		RunCommand: func(context.Context, string, []string, []byte) ([]byte, error) {
-			return []byte(`{"content":"{\"content\":\"plain reply\"}"}`), nil
+			return []byte(`{"content":"plain reply"}`), nil
 		},
 	}
 
@@ -138,7 +138,7 @@ func TestTextEndpointReturnsPlainContent(t *testing.T) {
 	service := Service{
 		Configuration: DefaultConfiguration(),
 		RunCommand: func(context.Context, string, []string, []byte) ([]byte, error) {
-			return []byte(`{"content":"{\"content\":\"plain endpoint reply\"}"}`), nil
+			return []byte(`{"content":"plain endpoint reply"}`), nil
 		},
 	}
 	request := httptest.NewRequest(http.MethodPost, "/v1/llm/text", strings.NewReader(`{

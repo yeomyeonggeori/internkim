@@ -79,10 +79,11 @@ type AutoProvider struct {
 }
 
 type litertRequest struct {
-	ModelPath              string                 `json:"modelPath"`
-	Backend                string                 `json:"backend"`
-	Messages               []LLMMessage           `json:"messages"`
-	StructuredOutputSchema StructuredOutputSchema `json:"structuredOutputSchema"`
+	ModelPath              string                  `json:"modelPath"`
+	Backend                string                  `json:"backend"`
+	Mode                   string                  `json:"mode"`
+	Messages               []LLMMessage            `json:"messages"`
+	StructuredOutputSchema *StructuredOutputSchema `json:"structuredOutputSchema,omitempty"`
 }
 
 type litertResponse struct {
@@ -207,8 +208,9 @@ func (provider LiteRTProvider) completeWithBackend(ctx context.Context, request 
 	document, errorValue := json.Marshal(litertRequest{
 		ModelPath:              modelPath,
 		Backend:                backend,
+		Mode:                   "structured",
 		Messages:               request.Messages,
-		StructuredOutputSchema: request.StructuredOutputSchema,
+		StructuredOutputSchema: &request.StructuredOutputSchema,
 	})
 	if errorValue != nil {
 		return LLMResponse{}, errorValue
@@ -236,11 +238,48 @@ func (provider LiteRTProvider) completeWithBackend(ctx context.Context, request 
 }
 
 func (provider LiteRTProvider) CompleteText(ctx context.Context, request TextLLMRequest) (LLMResponse, error) {
-	response, errorValue := provider.CompleteStructured(ctx, structuredRequestForText(request))
+	var lastError error
+	for _, backend := range []string{"gpu", "cpu"} {
+		response, errorValue := provider.completeTextWithBackend(ctx, request, backend)
+		if errorValue == nil {
+			return response, nil
+		}
+		lastError = errorValue
+	}
+	if lastError == nil {
+		lastError = errors.New("litert backend list is empty")
+	}
+	return LLMResponse{}, lastError
+}
+
+func (provider LiteRTProvider) completeTextWithBackend(ctx context.Context, request TextLLMRequest, backend string) (LLMResponse, error) {
+	modelPath := firstNonEmpty(provider.Configuration.LiteRTModelPath, DefaultConfiguration().LiteRTModelPath)
+	wrapperPath := firstNonEmpty(provider.Configuration.LiteRTWrapperPath, DefaultConfiguration().LiteRTWrapperPath)
+	document, errorValue := json.Marshal(litertRequest{
+		ModelPath: modelPath,
+		Backend:   backend,
+		Mode:      "text",
+		Messages:  request.Messages,
+	})
 	if errorValue != nil {
 		return LLMResponse{}, errorValue
 	}
-	return unwrapTextResponse(response)
+
+	output, errorValue := provider.RunCommand(ctx, wrapperPath, nil, document)
+	if errorValue != nil {
+		return LLMResponse{}, errorValue
+	}
+
+	var response litertResponse
+	if errorValue := json.Unmarshal(output, &response); errorValue != nil {
+		return LLMResponse{}, errorValue
+	}
+	return LLMResponse{
+		Provider:        "litert",
+		Model:           "gemma-4-E4B-it-litert-lm",
+		Content:         response.Content,
+		SelectedBackend: backend,
+	}, nil
 }
 
 func (provider OpenRouterProvider) CompleteStructured(ctx context.Context, request StructuredLLMRequest) (LLMResponse, error) {
@@ -257,57 +296,43 @@ func (provider OpenRouterProvider) CompleteStructured(ctx context.Context, reque
 	if errorValue != nil {
 		return LLMResponse{}, errorValue
 	}
-	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, provider.Configuration.OpenRouterBaseURL, bytes.NewReader(requestDocument))
+	content, errorValue := provider.sendOpenRouterRequest(ctx, apiKey, requestDocument)
 	if errorValue != nil {
 		return LLMResponse{}, errorValue
-	}
-	httpRequest.Header.Set("Authorization", "Bearer "+apiKey)
-	httpRequest.Header.Set("Content-Type", "application/json")
-
-	httpResponse, errorValue := provider.HTTPClient.Do(httpRequest)
-	if errorValue != nil {
-		return LLMResponse{}, errorValue
-	}
-	defer httpResponse.Body.Close()
-	responseDocument, errorValue := io.ReadAll(httpResponse.Body)
-	if errorValue != nil {
-		return LLMResponse{}, errors.New("read openrouter response: " + errorValue.Error())
-	}
-	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return LLMResponse{}, errors.New(string(responseDocument))
-	}
-	if len(bytes.TrimSpace(responseDocument)) == 0 {
-		return LLMResponse{}, errors.New("openrouter response body was empty")
-	}
-
-	var parsedResponse struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-	}
-	if errorValue := json.Unmarshal(responseDocument, &parsedResponse); errorValue != nil {
-		return LLMResponse{}, errorValue
-	}
-	if len(parsedResponse.Choices) == 0 {
-		return LLMResponse{}, errors.New("openrouter response did not include choices")
 	}
 	return LLMResponse{
 		Provider:        "openrouter",
 		Model:           modelName,
-		Content:         parsedResponse.Choices[0].Message.Content,
+		Content:         content,
 		SelectedBackend: capabilities.LLMBackendRemote,
 		ConstraintMode:  "provider_json_schema",
 	}, nil
 }
 
 func (provider OpenRouterProvider) CompleteText(ctx context.Context, request TextLLMRequest) (LLMResponse, error) {
-	response, errorValue := provider.CompleteStructured(ctx, structuredRequestForText(request))
+	apiKey := readSecretValue(provider.Configuration.OpenRouterKeyPath)
+	if apiKey == "" {
+		return LLMResponse{}, errors.New("openrouter api key is not configured")
+	}
+	if isPlaceholderOpenRouterKey(apiKey) {
+		return LLMResponse{}, errors.New("openrouter api key is a simulation placeholder; set OPENROUTER_API_KEY or rerun setup --only openrouter --force")
+	}
+
+	modelName := provider.remoteModelName(request.Model)
+	requestDocument, errorValue := buildOpenRouterTextRequest(request, modelName)
 	if errorValue != nil {
 		return LLMResponse{}, errorValue
 	}
-	return unwrapTextResponse(response)
+	content, errorValue := provider.sendOpenRouterRequest(ctx, apiKey, requestDocument)
+	if errorValue != nil {
+		return LLMResponse{}, errorValue
+	}
+	return LLMResponse{
+		Provider:        "openrouter",
+		Model:           modelName,
+		Content:         content,
+		SelectedBackend: capabilities.LLMBackendRemote,
+	}, nil
 }
 
 func buildOpenRouterRequest(request StructuredLLMRequest, modelName string) ([]byte, error) {
@@ -331,6 +356,62 @@ func buildOpenRouterRequest(request StructuredLLMRequest, modelName string) ([]b
 		document["plugins"] = []map[string]string{{"id": "response-healing"}}
 	}
 	return json.Marshal(document)
+}
+
+func buildOpenRouterTextRequest(request TextLLMRequest, modelName string) ([]byte, error) {
+	document := map[string]any{
+		"model":    modelName,
+		"messages": request.Messages,
+		"stream":   false,
+	}
+	if request.RequireParameters {
+		document["provider"] = map[string]bool{"require_parameters": true}
+	}
+	if request.EnableResponseHealing {
+		document["plugins"] = []map[string]string{{"id": "response-healing"}}
+	}
+	return json.Marshal(document)
+}
+
+func (provider OpenRouterProvider) sendOpenRouterRequest(ctx context.Context, apiKey string, requestDocument []byte) (string, error) {
+	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, provider.Configuration.OpenRouterBaseURL, bytes.NewReader(requestDocument))
+	if errorValue != nil {
+		return "", errorValue
+	}
+	httpRequest.Header.Set("Authorization", "Bearer "+apiKey)
+	httpRequest.Header.Set("Content-Type", "application/json")
+
+	httpResponse, errorValue := provider.HTTPClient.Do(httpRequest)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	defer httpResponse.Body.Close()
+
+	responseDocument, errorValue := io.ReadAll(httpResponse.Body)
+	if errorValue != nil {
+		return "", errors.New("read openrouter response: " + errorValue.Error())
+	}
+	if httpResponse.StatusCode >= http.StatusBadRequest {
+		return "", errors.New(string(responseDocument))
+	}
+	if len(bytes.TrimSpace(responseDocument)) == 0 {
+		return "", errors.New("openrouter response body was empty")
+	}
+
+	var parsedResponse struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if errorValue := json.Unmarshal(responseDocument, &parsedResponse); errorValue != nil {
+		return "", errorValue
+	}
+	if len(parsedResponse.Choices) == 0 {
+		return "", errors.New("openrouter response did not include choices")
+	}
+	return parsedResponse.Choices[0].Message.Content, nil
 }
 
 func validateMinimumStructuredOutput(content string, schemaDocument json.RawMessage) bool {
@@ -373,32 +454,6 @@ func isLocalModelReference(modelName string) bool {
 	return strings.HasPrefix(normalizedModelName, "local/") ||
 		strings.HasSuffix(normalizedModelName, ".litertlm") ||
 		strings.Contains(normalizedModelName, "litert-lm")
-}
-
-func structuredRequestForText(request TextLLMRequest) StructuredLLMRequest {
-	return StructuredLLMRequest{
-		Model:                 request.Model,
-		ExecutionMode:         request.ExecutionMode,
-		Messages:              request.Messages,
-		RequireParameters:     request.RequireParameters,
-		EnableResponseHealing: request.EnableResponseHealing,
-		StructuredOutputSchema: StructuredOutputSchema{
-			Name:               "plain_text_response",
-			Document:           json.RawMessage(`{"type":"object","properties":{"content":{"type":"string"}},"required":["content"],"additionalProperties":false}`),
-			IsStrictlyEnforced: true,
-		},
-	}
-}
-
-func unwrapTextResponse(response LLMResponse) (LLMResponse, error) {
-	var textDocument struct {
-		Content string `json:"content"`
-	}
-	if errorValue := json.Unmarshal([]byte(response.Content), &textDocument); errorValue != nil {
-		return LLMResponse{}, errorValue
-	}
-	response.Content = textDocument.Content
-	return response, nil
 }
 
 func logLLMFallback(errorValue error) {

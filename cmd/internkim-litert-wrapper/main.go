@@ -26,6 +26,7 @@ type schemaRequest struct {
 type requestDocument struct {
 	ModelPath              string        `json:"modelPath"`
 	Backend                string        `json:"backend"`
+	Mode                   string        `json:"mode"`
 	Messages               []message     `json:"messages"`
 	StructuredOutputSchema schemaRequest `json:"structuredOutputSchema"`
 }
@@ -62,7 +63,7 @@ func run() error {
 	if errorValue != nil {
 		return errorValue
 	}
-	if !validateMinimumStructuredOutput(content, request.StructuredOutputSchema.Document) {
+	if request.outputMode() == "structured" && !validateMinimumStructuredOutput(content, request.StructuredOutputSchema.Document) {
 		return errors.New("litert-lm output was not valid structured JSON")
 	}
 
@@ -88,6 +89,12 @@ func runLiteRT(request requestDocument) (string, error) {
 	}
 	if errorValue != nil {
 		return "", fmt.Errorf("litert-lm run failed: %w: %s", errorValue, strings.TrimSpace(string(output)))
+	}
+	if isLiteRTFailureOutput(output) {
+		return "", fmt.Errorf("litert-lm run failed: %s", strings.TrimSpace(string(output)))
+	}
+	if request.outputMode() == "text" {
+		return extractTextContent(string(output))
 	}
 	return extractJSONContent(string(output))
 }
@@ -115,9 +122,20 @@ func isUnsupportedBackendFlag(output []byte) bool {
 		strings.Contains(normalizedOutput, "flag provided but not defined")
 }
 
+func isLiteRTFailureOutput(output []byte) bool {
+	normalizedOutput := strings.ToLower(string(output))
+	return strings.Contains(normalizedOutput, "traceback") ||
+		strings.Contains(normalizedOutput, "runtimeerror:") ||
+		strings.Contains(normalizedOutput, "internal: error:")
+}
+
 func renderPrompt(request requestDocument) string {
 	var builder strings.Builder
-	builder.WriteString("You are Intern Kim. Reply with JSON only.\n\n")
+	if request.outputMode() == "text" {
+		builder.WriteString("You are Intern Kim. Reply with plain text only. Do not wrap the answer in JSON or markdown.\n\n")
+	} else {
+		builder.WriteString("You are Intern Kim. Return exactly one JSON object. Do not wrap the JSON in markdown, prose, or a code fence.\n\n")
+	}
 	for _, message := range request.Messages {
 		role := strings.TrimSpace(message.Role)
 		if role == "" {
@@ -135,6 +153,21 @@ func renderPrompt(request requestDocument) string {
 		builder.WriteString("\n")
 	}
 	return builder.String()
+}
+
+func (request requestDocument) outputMode() string {
+	if strings.EqualFold(strings.TrimSpace(request.Mode), "text") {
+		return "text"
+	}
+	return "structured"
+}
+
+func extractTextContent(output string) (string, error) {
+	text := strings.TrimSpace(output)
+	if text == "" {
+		return "", errors.New("litert-lm output was empty")
+	}
+	return text, nil
 }
 
 func extractJSONContent(output string) (string, error) {

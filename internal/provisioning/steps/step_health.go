@@ -244,24 +244,36 @@ curl -fsS --unix-socket /run/internkim/capability.sock -H "Content-Type: applica
 
 func checkLLMCapability(context *Context, failedChecks *[]string) {
 	check := strings.TrimSpace(context.SSH.Run(`model="$(jq -r '.languageModel.capability.model // "google/gemini-3-flash-preview"' /root/.blueclaw/config/runtime.json 2>/dev/null)"
-schema='{"type":"object","properties":{"content":{"type":"string"}},"required":["content"],"additionalProperties":false}'
-body="$(jq -cn --arg model "$model" --arg schema "$schema" '{
+text_body="$(jq -cn --arg model "$model" '{
   model: $model,
   executionMode: "remote",
-  messages: [{role:"user", content:"Return JSON only with content set to ok."}],
-  structuredOutputSchema: {name:"plain_text_response", document:$schema, isStrictlyEnforced:true},
+  messages: [{role:"user", content:"Reply with ok."}],
   requireParameters: true,
   enableResponseHealing: true
 }')"
-response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$body" http://internkim/v1/llm/structured 2>/tmp/internkim-llm-smoke-error || true)"
-if printf '%s' "$response" | jq -e '.content | fromjson | .content | type == "string"' >/dev/null 2>&1; then
-  echo ok
+text_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$text_body" http://internkim/v1/llm/text 2>/tmp/internkim-llm-smoke-error || true)"
+if ! printf '%s' "$text_response" | jq -e '.content | type == "string" and length > 0' >/dev/null 2>&1; then
+  if [ -n "$text_response" ]; then
+    printf '%s' "$text_response" | tr '\n' ' ' | cut -c1-180
+  else
+    tr '\n' ' ' </tmp/internkim-llm-smoke-error | cut -c1-180
+  fi
   exit 0
 fi
-if [ -n "$response" ]; then
-  printf '%s' "$response" | tr '\n' ' ' | cut -c1-180
+schema='{"type":"object","properties":{"reply":{"type":"string"}},"required":["reply"],"additionalProperties":false}'
+structured_body="$(jq -cn --arg model "$model" --arg schema "$schema" '{
+  model: $model,
+  executionMode: "remote",
+  messages: [{role:"user", content:"Return JSON only with reply set to ok."}],
+  structuredOutputSchema: {name:"smoke_reply", document:$schema, isStrictlyEnforced:true},
+  requireParameters: true,
+  enableResponseHealing: true
+}')"
+structured_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$structured_body" http://internkim/v1/llm/structured 2>/tmp/internkim-llm-smoke-error || true)"
+if printf '%s' "$structured_response" | jq -e '.content | fromjson | .reply | type == "string"' >/dev/null 2>&1; then
+  echo ok
 else
-  tr '\n' ' ' </tmp/internkim-llm-smoke-error | cut -c1-180
+  printf '%s' "$structured_response" | tr '\n' ' ' | cut -c1-180
 fi`))
 	if check == "ok" {
 		fmt.Println("  llm capability: ok")
@@ -279,17 +291,15 @@ func checkLiteRTCapability(context *Context, failedChecks *[]string) {
   echo skipped
   exit 0
 fi
-schema='{"type":"object","properties":{"content":{"type":"string"}},"required":["content"],"additionalProperties":false}'
-body="$(jq -cn --arg schema "$schema" '{
+body="$(jq -cn '{
   model: "local/gemma-4-E4B-it-litert-lm",
   executionMode: "local",
-  messages: [{role:"user", content:"Return JSON only with content set to ok."}],
-  structuredOutputSchema: {name:"plain_text_response", document:$schema, isStrictlyEnforced:true},
+  messages: [{role:"user", content:"Reply with ok."}],
   requireParameters: true,
   enableResponseHealing: true
 }')"
-response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$body" http://internkim/v1/llm/structured 2>/tmp/internkim-litert-smoke-error || true)"
-if printf '%s' "$response" | jq -e '.selectedBackend as $backend | ($backend == "gpu" or $backend == "cpu") and (.content | fromjson | .content | type == "string")' >/dev/null 2>&1; then
+response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$body" http://internkim/v1/llm/text 2>/tmp/internkim-litert-smoke-error || true)"
+if printf '%s' "$response" | jq -e '.selectedBackend as $backend | ($backend == "gpu" or $backend == "cpu") and (.content | type == "string" and length > 0)' >/dev/null 2>&1; then
   echo ok
   exit 0
 fi
