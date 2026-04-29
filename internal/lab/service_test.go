@@ -113,6 +113,9 @@ func TestVirtualMachineUpCreatesMissingVirtualMachine(t *testing.T) {
 	if !strings.Contains(strings.Join(commandRunner.startCommands[0].Arguments, " "), "--dir=workspace:/repo") {
 		t.Fatalf("expected repository workspace mount, got %v", commandRunner.startCommands[0].Arguments)
 	}
+	if commandRunner.startCommands[0].DetachedLogPath == "" {
+		t.Fatalf("expected VM start command to use detached log path")
+	}
 }
 
 func TestVirtualMachineUpReturnsRunFailureBeforeIPAddressTimeout(t *testing.T) {
@@ -145,14 +148,17 @@ func TestProvisionUbuntuUsesRemoteScriptExecution(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected ubuntu provision to succeed: %v", errorValue)
 	}
-	if len(commandRunner.runCommands) != 1 {
-		t.Fatalf("expected one remote script execution, got %d", len(commandRunner.runCommands))
+	if len(commandRunner.runCommands) != 2 {
+		t.Fatalf("expected ssh readiness check and remote script execution, got %d", len(commandRunner.runCommands))
 	}
 	if commandRunner.runCommands[0].ExecutableName != "/repo/bin/sshpass" {
 		t.Fatalf("expected repo sshpass invocation, got %q", commandRunner.runCommands[0].ExecutableName)
 	}
-	if !strings.HasSuffix(commandRunner.runCommands[0].StandardInputPath, "lab/scripts/provision-ubuntu.sh") {
-		t.Fatalf("expected provision script path, got %q", commandRunner.runCommands[0].StandardInputPath)
+	if !strings.Contains(strings.Join(commandRunner.runCommands[0].Arguments, " "), "ConnectTimeout=5") {
+		t.Fatalf("expected ssh readiness check before provisioning, got %v", commandRunner.runCommands[0].Arguments)
+	}
+	if !strings.HasSuffix(commandRunner.runCommands[1].StandardInputPath, "lab/scripts/provision-ubuntu.sh") {
+		t.Fatalf("expected provision script path, got %q", commandRunner.runCommands[1].StandardInputPath)
 	}
 }
 
@@ -167,10 +173,10 @@ func TestSetupUsesCurrentExecutableWithHostOverride(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected setup to succeed: %v", errorValue)
 	}
-	if len(commandRunner.runCommands) != 2 {
+	if len(commandRunner.runCommands) != 3 {
 		t.Fatalf("expected provision and setup commands, got %d", len(commandRunner.runCommands))
 	}
-	setupCommand := commandRunner.runCommands[1]
+	setupCommand := commandRunner.runCommands[2]
 	if setupCommand.ExecutableName != "/repo/internkim" {
 		t.Fatalf("expected setup command to use current executable, got %q", setupCommand.ExecutableName)
 	}
@@ -194,7 +200,7 @@ func TestSetupPassesSelectorArgumentsWithoutDefaultForce(t *testing.T) {
 		t.Fatalf("expected setup to succeed: %v", errorValue)
 	}
 
-	setupCommand := commandRunner.runCommands[1]
+	setupCommand := commandRunner.runCommands[2]
 	if strings.Join(setupCommand.Arguments, " ") != "setup --ssh --host 10.0.0.5 --user admin --password admin --only mattermost" {
 		t.Fatalf("unexpected setup arguments: %v", setupCommand.Arguments)
 	}
@@ -211,7 +217,7 @@ func TestScenarioEndToEndRunsSetupAndScenarios(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected end-to-end scenario to succeed: %v", errorValue)
 	}
-	if len(commandRunner.runCommands) != 6 {
+	if len(commandRunner.runCommands) != 7 {
 		t.Fatalf("expected provision, setup, and four default scenario commands, got %d", len(commandRunner.runCommands))
 	}
 }

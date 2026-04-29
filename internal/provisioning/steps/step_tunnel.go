@@ -1,9 +1,13 @@
 package setup
 
-import "errors"
+import (
+	"errors"
+	"strings"
+)
 
 const MattermostTunnelOrigin = "http://127.0.0.1:18080"
-const TunnelConfigurationRevision = "admin-gateway-v1"
+const CloudflaredTunnelProtocol = "http2"
+const TunnelConfigurationRevision = "admin-gateway-v2-http2"
 
 var StepTunnel = Step{
 	Name: "tunnel",
@@ -15,9 +19,11 @@ var StepTunnel = Step{
 		switch context.Backend {
 		case BackendSSH:
 			cloudflaredActive := trimmedRun(context, "systemctl is-active cloudflared") == "active"
+			cloudflaredService := trimmedRun(context, "systemctl cat cloudflared 2>/dev/null")
 			tunnelOrigin := trimmedRun(context, "cat /root/.internkim/env/tunnel-origin 2>/dev/null")
 			tunnelRevision := trimmedRun(context, "cat /root/.internkim/env/tunnel-revision 2>/dev/null")
 			return cloudflaredActive &&
+				strings.Contains(cloudflaredService, "--protocol "+CloudflaredTunnelProtocol) &&
 				tunnelOrigin == MattermostTunnelOrigin &&
 				tunnelRevision == TunnelConfigurationRevision &&
 				sshFileExists(context, "/root/.internkim/env/device-url") &&
