@@ -1070,13 +1070,7 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 		adminPass = generatePassword(20)
 		ssh.run(fmt.Sprintf("printf '%%s' '%s' > /root/.internkim/secrets/mm-admin-pass && chmod 600 /root/.internkim/secrets/mm-admin-pass", adminPass))
 	}
-	adminEmail := strings.TrimSpace(ssh.run("cat /root/.internkim/admin-email 2>/dev/null"))
-	if adminEmail == "" {
-		adminEmail = loadState(stateDir, "google_email")
-	}
-	if adminEmail == "" {
-		adminEmail = "admin@intern.kim"
-	}
+	adminEmail := "admin@localhost"
 
 	adminBody, _ := json.Marshal(map[string]string{
 		"email":     adminEmail,
@@ -1115,6 +1109,19 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 		fmt.Printf("  %s\n", m.t("admin 토큰 획득 실패 — 건너뜀", "Could not get admin token — skipping"))
 		return
 	}
+	if adminUserResp.ID == "" {
+		_, userResp := mmAPI("GET", "/api/v4/users/username/"+adminUser, nil, adminToken)
+		json.Unmarshal(userResp, &adminUserResp)
+	}
+	if adminUserResp.ID != "" {
+		ssh.run(fmt.Sprintf(
+			"sudo -u postgres psql -d mattermost -c %s >/dev/null",
+			quoteShellValue(fmt.Sprintf(
+				"UPDATE users SET email = 'admin@localhost', roles = 'system_admin system_user', deleteat = 0 WHERE id = '%s';",
+				strings.ReplaceAll(adminUserResp.ID, "'", "''"),
+			)),
+		))
+	}
 
 	// 3. Enable personal access tokens + bot accounts in config
 	configBody, _ := json.Marshal(map[string]any{
@@ -1137,11 +1144,6 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 	}
 
 	// 5. Create personal access token for admin
-	if adminUserResp.ID == "" {
-		// Re-fetch user ID
-		_, userResp := mmAPI("GET", "/api/v4/users/username/"+adminUser, nil, adminToken)
-		json.Unmarshal(userResp, &adminUserResp)
-	}
 	patBody, _ := json.Marshal(map[string]string{"description": "internkim-setup"})
 	_, patResp := mmAPI("POST", "/api/v4/users/"+adminUserResp.ID+"/tokens", patBody, adminToken)
 	var patResult struct {

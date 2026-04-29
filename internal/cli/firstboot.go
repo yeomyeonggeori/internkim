@@ -718,8 +718,7 @@ SVCEOF
   done
 
   MM_URL="http://localhost:8065"
-  ADMIN_EMAIL="__ADMIN_EMAIL__"
-  [ -z "$ADMIN_EMAIL" ] && ADMIN_EMAIL="admin@intern.kim"
+  ADMIN_EMAIL="admin@localhost"
   ADMIN_USER="admin"
   ADMIN_PASS=$(cat /root/.internkim/secrets/mm-admin-pass)
 
@@ -744,6 +743,7 @@ SVCEOF
     echo "ERROR: Could not resolve admin user id"
     exit 1
   fi
+  su - postgres -c "psql mattermost -c \"UPDATE users SET email = 'admin@localhost', roles = 'system_admin system_user', deleteat = 0 WHERE id = '$ADMIN_ID'\"" >/dev/null
   curl -sf -X PUT "$MM_URL/api/v4/users/$ADMIN_ID/patch" \
     -H "Authorization: Bearer $ADMIN_TOKEN" \
     -H 'Content-Type: application/json' \

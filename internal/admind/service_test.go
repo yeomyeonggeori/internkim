@@ -186,6 +186,10 @@ func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *test
 		switch {
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/username/admin":
+			return jsonResponse(http.StatusOK, `{"id":"admin","email":"admin@localhost","username":"admin","roles":"system_admin system_user"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/admin/roles":
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/email/member@example.com":
 			return jsonResponse(http.StatusNotFound, `{"message":"not found"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users" && request.Method == http.MethodPost:
@@ -283,6 +287,10 @@ func TestAdminRemoveDeactivatesMattermostUserByStoredID(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"admin@example.com","role":"admin"},{"email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/username/admin":
+			return jsonResponse(http.StatusOK, `{"id":"admin","email":"admin@localhost","username":"admin","roles":"system_admin system_user"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/admin/roles":
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member","roles":"system_user"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodDelete:
@@ -309,7 +317,7 @@ func TestAdminRemoveDeactivatesMattermostUserByStoredID(t *testing.T) {
 	}
 }
 
-func TestAdminRemoveRefusesProtectedMattermostUser(t *testing.T) {
+func TestAdminRemoveSkipsProtectedMattermostUserDeactivation(t *testing.T) {
 	deviceDirectory := t.TempDir()
 	deviceIDPath := filepath.Join(deviceDirectory, "device-id")
 	deviceSecretPath := filepath.Join(deviceDirectory, "device-secret")
@@ -336,6 +344,10 @@ func TestAdminRemoveRefusesProtectedMattermostUser(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"owner@example.com","role":"admin"},{"email":"admin@example.com","role":"admin","mattermostUserID":"admin-id","mattermostUsername":"admin"}]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin-id"}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/username/admin":
+			return jsonResponse(http.StatusOK, `{"id":"admin-id","email":"admin@localhost","username":"admin","roles":"system_admin system_user"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/admin-id/roles":
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/admin-id" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"id":"admin-id","email":"admin@example.com","username":"admin","roles":"system_admin system_user"}`, nil), nil
 		case request.URL.String() == "https://api.intern.kim/api/users/admin@example.com?device_id=dc719d8e" && request.Method == http.MethodDelete:
@@ -352,11 +364,11 @@ func TestAdminRemoveRefusesProtectedMattermostUser(t *testing.T) {
 	request.Header.Set("Cf-Access-Authenticated-User-Email", "owner@example.com")
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
-	if response.Code != http.StatusBadGateway {
+	if response.Code != http.StatusOK {
 		t.Fatalf("remove protected status = %d body = %s", response.Code, response.Body.String())
 	}
-	if pagesDeleteCalled {
-		t.Fatal("Pages delete should not be called for protected Mattermost user")
+	if !pagesDeleteCalled {
+		t.Fatal("Pages delete should be called for protected Mattermost user")
 	}
 }
 
