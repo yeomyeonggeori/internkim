@@ -29,6 +29,7 @@ type mattermostUserRecord struct {
 	Email    string `json:"email"`
 	Username string `json:"username"`
 	Roles    string `json:"roles"`
+	DeleteAt int64  `json:"delete_at"`
 }
 
 type mattermostTeamRecord struct {
@@ -80,6 +81,9 @@ func (service *Service) provisionMattermostUser(ctx context.Context, email strin
 		return mattermostProvisionResult{}, errorValue
 	}
 	if errorValue := service.setMattermostRole(ctx, adminToken, result.UserID, role); errorValue != nil {
+		return mattermostProvisionResult{}, errorValue
+	}
+	if errorValue := service.ensureMattermostBotDirectChannel(ctx, adminToken, result.UserID); errorValue != nil {
 		return mattermostProvisionResult{}, errorValue
 	}
 
@@ -276,6 +280,58 @@ func (service *Service) ensureMattermostMembership(ctx context.Context, token st
 		return errorValue
 	}
 	return nil
+}
+
+func (service *Service) ensureMattermostBotDirectChannel(ctx context.Context, token string, userID string) error {
+	normalizedUserID := strings.TrimSpace(userID)
+	if normalizedUserID == "" {
+		return nil
+	}
+	botRecord, found, errorValue := service.findMattermostUserByUsername(ctx, token, "internkim")
+	if errorValue != nil {
+		return errorValue
+	}
+	if !found || botRecord.ID == "" || botRecord.DeleteAt != 0 || botRecord.ID == normalizedUserID {
+		return nil
+	}
+	body := []string{normalizedUserID, botRecord.ID}
+	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/channels/direct", token, body, nil); errorValue != nil && !isMattermostBadRequest(errorValue) {
+		return errorValue
+	}
+	return nil
+}
+
+func (service *Service) ensureMattermostBotDirectChannelsForRecords(ctx context.Context, records []adminUserMutation) error {
+	if len(records) == 0 || strings.TrimSpace(service.Configuration.MattermostAdminPasswordPath) == "" {
+		return nil
+	}
+	adminToken, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	for _, record := range records {
+		userRecord, found, errorValue := service.mattermostUserRecordForAdminRecord(ctx, adminToken, record)
+		if errorValue != nil {
+			return errorValue
+		}
+		if !found || userRecord.DeleteAt != 0 || isProtectedMattermostUser(userRecord) {
+			continue
+		}
+		if errorValue := service.ensureMattermostBotDirectChannel(ctx, adminToken, userRecord.ID); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
+}
+
+func (service *Service) mattermostUserRecordForAdminRecord(ctx context.Context, token string, record adminUserMutation) (mattermostUserRecord, bool, error) {
+	if strings.TrimSpace(record.MattermostUserID) != "" {
+		return service.findMattermostUserByID(ctx, token, record.MattermostUserID)
+	}
+	if strings.TrimSpace(record.Email) != "" {
+		return service.findMattermostUserByEmail(ctx, token, record.Email)
+	}
+	return mattermostUserRecord{}, false, nil
 }
 
 func (service *Service) setMattermostRole(ctx context.Context, token string, userID string, role string) error {

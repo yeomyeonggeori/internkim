@@ -442,6 +442,14 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			responseBody, _ = json.Marshal(responseDocument)
 		}
 	}
+	if request.Method == http.MethodGet && response.StatusCode >= 200 && response.StatusCode < 300 {
+		var usersResponse pagesUsersResponse
+		if errorValue := json.Unmarshal(responseBody, &usersResponse); errorValue == nil && len(usersResponse.Records) > 0 {
+			if errorValue := service.ensureMattermostBotDirectChannelsForRecords(request.Context(), usersResponse.Records); errorValue != nil {
+				log.Printf("Mattermost bot DM sync failed: %v", errorValue)
+			}
+		}
+	}
 	responseWriter.WriteHeader(response.StatusCode)
 	_, _ = responseWriter.Write(responseBody)
 }
