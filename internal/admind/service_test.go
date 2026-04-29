@@ -161,6 +161,61 @@ func TestAdminUsersProxyUsesDeviceAuth(t *testing.T) {
 	}
 }
 
+func TestAdminUsersGetEnsuresBotDirectChannelsForInvitedUsers(t *testing.T) {
+	deviceIDPath := writeTestFile(t, "dc719d8e")
+	deviceSecretPath := writeTestFile(t, "secret-value")
+	adminPasswordPath := writeTestFile(t, "admin-pass")
+	directChannelCreated := false
+	service := NewService(Configuration{
+		APIBaseURL:                  "https://api.example.test",
+		MattermostBaseURL:           "http://mattermost.local",
+		MattermostAdminPasswordPath: adminPasswordPath,
+		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
+		DeviceIDPath:                deviceIDPath,
+		DeviceSecretPath:            deviceSecretPath,
+		StateDirectory:              t.TempDir(),
+		CompanionJobPath:            filepath.Join(t.TempDir(), "jobs.json"),
+		AdminUIPath:                 t.TempDir(),
+	})
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "https://api.example.test/api/users?device_id=dc719d8e":
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}]}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
+			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
+			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member","roles":"system_user"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/username/internkim":
+			return jsonResponse(http.StatusOK, `{"id":"bot-1","email":"internkim@localhost","username":"internkim","roles":"system_user"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/direct" && request.Method == http.MethodPost:
+			var payload []string
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if len(payload) != 2 || payload[0] != "user-1" || payload[1] != "bot-1" {
+				t.Fatalf("direct channel payload = %#v", payload)
+			}
+			directChannelCreated = true
+			return jsonResponse(http.StatusCreated, `{"id":"dm-1"}`, nil), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+	handler := service.router()
+
+	request := httptest.NewRequest(http.MethodGet, "/admin/api/users", nil)
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("users proxy status = %d body = %s", response.Code, response.Body.String())
+	}
+	if !directChannelCreated {
+		t.Fatal("bot direct channel was not created")
+	}
+}
+
 func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *testing.T) {
 	deviceDirectory := t.TempDir()
 	deviceIDPath := filepath.Join(deviceDirectory, "device-id")
@@ -217,6 +272,17 @@ func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *test
 				t.Fatalf("mattermost roles = %q", payload["roles"])
 			}
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/username/internkim":
+			return jsonResponse(http.StatusOK, `{"id":"bot-1","email":"internkim@localhost","username":"internkim","roles":"system_user"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/direct" && request.Method == http.MethodPost:
+			var payload []string
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if len(payload) != 2 || payload[0] != "user-1" || payload[1] != "bot-1" {
+				t.Fatalf("direct channel payload = %#v", payload)
+			}
+			return jsonResponse(http.StatusCreated, `{"id":"dm-1"}`, nil), nil
 		case request.URL.String() == "https://api.example.test/api/users?device_id=dc719d8e" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"admin@example.com","role":"admin"}]}`, nil), nil
 		case request.URL.String() == "https://api.example.test/api/users" && request.Method == http.MethodPost:
