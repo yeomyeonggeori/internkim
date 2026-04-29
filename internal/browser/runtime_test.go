@@ -97,16 +97,16 @@ func TestAgentBrowserRuntimeLightpandaEngineAvoidsHeadedProfile(t *testing.T) {
 	}
 }
 
-func TestDeviceReadinessShellScriptPrefersLightpandaAndFallsBackToChrome(t *testing.T) {
+func TestDeviceReadinessShellScriptChecksChromeScreenshotReadiness(t *testing.T) {
 	script := DeviceReadinessShellScript()
 
-	for _, fragment := range []string{"command -v lightpanda", "--engine lightpanda", "snapshot", "agent-browser doctor --offline --quick"} {
+	for _, fragment := range []string{"agent-browser doctor --offline --quick", "--engine chrome", "--headed false", "snapshot", "screenshot", "test -s /tmp/internkim-agent-browser-chrome-smoke.png"} {
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("expected device readiness script to contain %q: %s", fragment, script)
 		}
 	}
-	if strings.Contains(script, "--headed") || strings.Contains(script, "--profile") {
-		t.Fatalf("device readiness script must not use headed/profile flags: %s", script)
+	if strings.Contains(script, "--engine lightpanda") || strings.Contains(script, "--profile") {
+		t.Fatalf("device readiness script must not use Lightpanda/profile for screenshot readiness: %s", script)
 	}
 }
 

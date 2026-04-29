@@ -98,7 +98,7 @@ func (service Service) invokeDeviceBrowserTool(ctx context.Context, request capa
 func (service Service) deviceBrowserRuntime() browserruntime.AgentBrowserRuntime {
 	return browserruntime.AgentBrowserRuntime{
 		CommandPath: service.Configuration.WithDefaults().AgentBrowserPath,
-		Engine:      browserruntime.BrowserEngineLightpanda,
+		Engine:      browserruntime.BrowserEngineChrome,
 		SessionName: "internkim-device",
 		Runner:      service.browserCommandRunner(),
 	}
