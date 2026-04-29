@@ -1,0 +1,22 @@
+family	category	recommended_use	weights	source	import_url	notes
+Pretendard Variable	kr-sans	ui-default, business decks, dashboards, bilingual slides	100-900	Pretendard/orioncactus	https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css	Quiet Korean UI/business fallback. Use when Paperlogy/Freesentation/A2Z are unavailable or too expressive.
+SUIT	kr-sans	product decks, dense UI slides, operational reports	100-900	sun-typeface/SUIT	https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2/fonts/variable/woff2/SUIT-Variable.css	Excellent body font for Korean UI-style decks.
+Paperlogy	kr-sans-display	default display, presentation titles, modern business decks	100-900	fonts-archive/Paperlogy	https://cdn.jsdelivr.net/gh/fonts-archive/Paperlogy/Paperlogy.css	Default Korean presentation display font. Strong title/body single-family option.
+Freesentation	kr-sans-presentation	default body, PowerPoint/PPTX-heavy decks, practical business presentations	100-900	Freesentation/freesentation		Use local cache or release download. Default Korean presentation body font; OFL license and practical presentation metrics.
+A2Z	kr-sans-presentation	default alternate display, tech, mobility, autonomous-driving, futuristic business decks	100-900	Freesentation/A2Z		Use local cache or release download. Default alternate display for tech/mobility decks; OFL; WOFF2/OTF/TTF available; Outfit-based Latin design.
+Wanted Sans	kr-sans	work/business decks, recruiting, HR, internal docs	variable, static	wanteddev/wanted-sans		Use from local cache or release download. OFL; good work-focused tone.
+Noto Sans KR	kr-sans	safe fallback, long body copy, formal reports	100-900	Google Fonts	https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap	Safest Google Fonts Korean sans.
+Noto Serif KR	kr-serif	formal docs, contracts, editorial decks	200-900	Google Fonts	https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700;900&display=swap	Use for formal or editorial display/body.
+IBM Plex Sans KR	kr-sans	tech/corporate decks, product strategy	300-700	Google Fonts	https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;600;700&display=swap	Good with IBM Plex Sans Latin; slightly technical tone.
+Gothic A1	kr-sans	modern clean decks, fine weight control	100-900	Google Fonts	https://fonts.googleapis.com/css2?family=Gothic+A1:wght@300;400;700;900&display=swap	Useful when Noto feels too neutral.
+Nanum Gothic	kr-sans	formal reports, public-sector tone	400,700,800	Google Fonts	https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700;800&display=swap	Conservative, familiar Korean sans.
+Nanum Myeongjo	kr-serif	legal, heritage, conservative documents	400,700,800	Google Fonts	https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&display=swap	Traditional Korean serif.
+Gowun Dodum	kr-rounded	warm decks, wellness, education, consumer	400	Google Fonts	https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap	Soft rounded body/display option.
+Gowun Batang	kr-serif	warm editorial, humanistic documents	400,700	Google Fonts	https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&display=swap	Warm serif; softer than Noto Serif KR.
+MaruBuri	kr-serif	formal-but-modern editorial, brand stories	200-700	Naver Nanum		Prefer local cache. Good Korean serif alternative.
+KoPubWorld Dotum	kr-sans	publishing, official documents, reports	300,500,700	Korea Publishing		Prefer local cache for document/PDF work.
+KoPubWorld Batang	kr-serif	books, contracts, formal PDFs	300,500,700	Korea Publishing		Prefer local cache for document/PDF work.
+Nanum Gothic Coding	kr-mono	code/data slides, tables, terminal snippets	400,700	Google Fonts	https://fonts.googleapis.com/css2?family=Nanum+Gothic+Coding:wght@400;700&display=swap	Korean-capable monospace.
+Do Hyeon	kr-display	consumer pitch titles, bold posters	400	Google Fonts	https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap	Display only.
+Black Han Sans	kr-display	very heavy impact covers	400	Google Fonts	https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap	Display only; avoid body text.
+Jua	kr-display	playful consumer titles	400	Google Fonts	https://fonts.googleapis.com/css2?family=Jua&display=swap	Display only, casual.

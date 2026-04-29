@@ -27,7 +27,7 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/anthropic-lab/internkim/internal/board"
+	"github.com/anthropic-lab/internkim/internal/blueclawworkspace"
 	auth "github.com/anthropic-lab/internkim/internal/google/browser"
 	internkimlab "github.com/anthropic-lab/internkim/internal/lab"
 	setup "github.com/anthropic-lab/internkim/internal/provisioning/steps"
@@ -427,7 +427,7 @@ func runDeploy() {
 	fmt.Println("ok")
 
 	fmt.Print("Deploying skills... ")
-	skillsDir := board.SkillsPath(scriptDir)
+	skillsDir := blueclawworkspace.SkillsPath(scriptDir)
 	if _, err := os.Stat(skillsDir); err == nil {
 		ssh.run("mkdir -p /root/.blueclaw/workspace/skills")
 		entries, _ := os.ReadDir(skillsDir)
@@ -444,7 +444,7 @@ func runDeploy() {
 	// Install board-side helper scripts the agent can call directly (avoids
 	// shell policy blocks on command substitution that raw curl would need).
 	for _, script := range []string{"send-file"} {
-		sourcePath := filepath.Join(board.AssetsPath(scriptDir), script)
+		sourcePath := filepath.Join(blueclawworkspace.AssetsPath(scriptDir), script)
 		if _, err := os.Stat(sourcePath); err != nil {
 			continue
 		}
@@ -3420,7 +3420,7 @@ func provisionGasWebhook(_ string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	gasBridgeCode, err := board.ReadGasBridgeCode(scriptDir)
+	gasBridgeCode, err := blueclawworkspace.ReadGasBridgeCode(scriptDir)
 	if err != nil {
 		return "", err
 	}

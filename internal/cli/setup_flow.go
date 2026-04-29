@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/anthropic-lab/internkim/internal/board"
+	"github.com/anthropic-lab/internkim/internal/blueclawworkspace"
 	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
 	setup "github.com/anthropic-lab/internkim/internal/provisioning/steps"
 	"github.com/anthropic-lab/internkim/internal/runtime/blueclaw"
@@ -372,7 +372,7 @@ func (state *setupFlowState) requiredBinaryAssets() []localBinaryAsset {
 		},
 		{
 			name:       "send-file",
-			localPath:  board.SendFilePath(state.scriptDir),
+			localPath:  blueclawworkspace.SendFilePath(state.scriptDir),
 			remotePath: "/usr/local/bin/send-file",
 		},
 	}
@@ -676,7 +676,7 @@ chmod 440 /etc/sudoers.d/blueclaw-mcp`)
 		state.sshClient.run("mkdir -p /root/.internkim/state && printf '%s' " + quoteShellValue(version) + " > /root/.internkim/state/binaries-version")
 	}
 
-	skillsDir := board.SkillsPath(state.scriptDir)
+	skillsDir := blueclawworkspace.SkillsPath(state.scriptDir)
 	if info, err := os.Stat(skillsDir); err == nil && info.IsDir() {
 		state.sshClient.run("mkdir -p " + quoteShellValue(filepath.Join(blueclaw.BlueclawWorkspacePath, "skills")))
 		entries, err := os.ReadDir(skillsDir)
@@ -810,7 +810,7 @@ func (state *setupFlowState) writeWorkspaceDocumentsSSH(agentsContent string) {
 }
 
 func loadWorkspaceAgentsMarkdown(scriptDir string) (string, error) {
-	agentsBytes, errorValue := os.ReadFile(board.AgentsPath(scriptDir))
+	agentsBytes, errorValue := os.ReadFile(blueclawworkspace.AgentsPath(scriptDir))
 	if errorValue != nil {
 		return "", errorValue
 	}
@@ -818,7 +818,7 @@ func loadWorkspaceAgentsMarkdown(scriptDir string) (string, error) {
 }
 
 func loadAgentBrowserSkillMarkdown(scriptDir string) (string, error) {
-	skillPath := board.AgentBrowserSkillPath(scriptDir)
+	skillPath := blueclawworkspace.AgentBrowserSkillPath(scriptDir)
 	skillBytes, err := os.ReadFile(skillPath)
 	if err != nil {
 		return "", err
@@ -1289,7 +1289,7 @@ func (state *setupFlowState) stageBootstrapSD(context *setup.Context) error {
 		return err
 	}
 
-	localSkillsPath := board.SkillsPath(state.scriptDir)
+	localSkillsPath := blueclawworkspace.SkillsPath(state.scriptDir)
 	if info, err := os.Stat(localSkillsPath); err == nil && info.IsDir() {
 		if err := copyDirectoryContents(localSkillsPath, filepath.Join(context.SD.RootPath(), "skills")); err != nil {
 			return err

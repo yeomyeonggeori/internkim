@@ -1,8 +1,8 @@
 # Layouts
 
-Concrete slide layouts you can drop into `presentation.md` and fill in. All examples use CSS variables (`var(--accent)`, etc.) defined in the template frontmatter, so they adapt automatically to whatever design you chose in `design.md` — no per-deck color changes needed in these snippets.
+Concrete slide layouts you can drop into `presentation.md` and fill in. All examples use CSS variables (`var(--accent)`, etc.) defined in the template frontmatter, so they adapt automatically to whatever design you chose in `DESIGN.md` — no per-deck color changes needed in these snippets.
 
-If you need to deviate (e.g., tint a specific card), use the variables: `color: var(--accent)`, `background: var(--text-primary)`, etc. Don't hardcode hex values in slide content — the whole point is that the design doc drives the look.
+If you need to deviate (e.g., tint a specific card), use the variables: `color: var(--accent)`, `background: var(--text-primary)`, etc. Don't hardcode hex values in slide content — the whole point is that `DESIGN.md` drives the look.
 
 ## Cover slide
 
