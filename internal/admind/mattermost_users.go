@@ -42,6 +42,9 @@ type mattermostProvisionResult struct {
 	TemporaryPassword string
 }
 
+const mattermostProvisionerUsername = "admin"
+const mattermostProvisionerEmail = "admin@localhost"
+
 func (service *Service) provisionMattermostUser(ctx context.Context, email string, role string) (mattermostProvisionResult, error) {
 	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
 	if normalizedEmail == "" {
@@ -89,7 +92,7 @@ func (service *Service) mattermostAdminToken(ctx context.Context) (string, error
 		return "", fmt.Errorf("Mattermost admin password is not configured")
 	}
 	body := map[string]string{
-		"login_id": "admin",
+		"login_id": mattermostProvisionerUsername,
 		"password": adminPassword,
 	}
 	requestBody, errorValue := json.Marshal(body)
@@ -154,11 +157,7 @@ func (service *Service) findMattermostUserByID(ctx context.Context, token string
 	return mattermostUserRecord{}, false, errorValue
 }
 
-func (service *Service) syncMattermostAdminEmail(ctx context.Context, email string) error {
-	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
-	if normalizedEmail == "" {
-		return nil
-	}
+func (service *Service) ensureMattermostProvisionerAccount(ctx context.Context) error {
 	adminPassword := strings.TrimSpace(readTrimmedFile(service.Configuration.MattermostAdminPasswordPath))
 	if adminPassword == "" {
 		return fmt.Errorf("Mattermost admin password is not configured")
@@ -167,18 +166,20 @@ func (service *Service) syncMattermostAdminEmail(ctx context.Context, email stri
 	if errorValue != nil {
 		return errorValue
 	}
-	adminUser, found, errorValue := service.findMattermostUserByUsername(ctx, adminToken, "admin")
+	adminUser, found, errorValue := service.findMattermostUserByUsername(ctx, adminToken, mattermostProvisionerUsername)
 	if errorValue != nil || !found {
 		return errorValue
 	}
-	if strings.EqualFold(adminUser.Email, normalizedEmail) {
-		return nil
+	if !strings.EqualFold(adminUser.Email, mattermostProvisionerEmail) {
+		body := map[string]string{
+			"email":    mattermostProvisionerEmail,
+			"password": adminPassword,
+		}
+		if errorValue := service.mattermostRequest(ctx, http.MethodPut, "/api/v4/users/"+url.PathEscape(adminUser.ID)+"/patch", adminToken, body, nil); errorValue != nil {
+			return errorValue
+		}
 	}
-	body := map[string]string{
-		"email":    normalizedEmail,
-		"password": adminPassword,
-	}
-	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/users/"+url.PathEscape(adminUser.ID)+"/patch", adminToken, body, nil)
+	return service.setMattermostRole(ctx, adminToken, adminUser.ID, "admin")
 }
 
 func (service *Service) deactivateMattermostUserByID(ctx context.Context, userID string) error {
@@ -195,7 +196,7 @@ func (service *Service) deactivateMattermostUserByID(ctx context.Context, userID
 		return errorValue
 	}
 	if isProtectedMattermostUser(userRecord) {
-		return fmt.Errorf("refusing to deactivate protected Mattermost user %s", userRecord.Username)
+		return nil
 	}
 	return service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/users/"+url.PathEscape(userRecord.ID), adminToken, nil, nil)
 }
@@ -214,14 +215,14 @@ func (service *Service) deactivateMattermostUserByEmail(ctx context.Context, ema
 		return errorValue
 	}
 	if isProtectedMattermostUser(userRecord) {
-		return fmt.Errorf("refusing to deactivate protected Mattermost user %s", userRecord.Username)
+		return nil
 	}
 	return service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/users/"+url.PathEscape(userRecord.ID), adminToken, nil, nil)
 }
 
 func isProtectedMattermostUser(userRecord mattermostUserRecord) bool {
 	username := strings.ToLower(strings.TrimSpace(userRecord.Username))
-	return username == "admin" || username == "internkim" || username == "system-bot"
+	return username == mattermostProvisionerUsername || username == "internkim" || username == "system-bot"
 }
 
 func (service *Service) createMattermostUser(ctx context.Context, token string, email string, password string) (mattermostUserRecord, error) {

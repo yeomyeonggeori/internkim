@@ -334,8 +334,10 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	if request.Method == http.MethodGet || request.Method == http.MethodDelete {
 		targetURL += "?device_id=" + url.QueryEscape(deviceID)
 	}
-	if errorValue := service.syncPrimaryAdminIdentity(request.Context(), deviceID, deviceSecret); errorValue != nil {
-		log.Printf("admin identity sync failed: %v", errorValue)
+	if request.Method == http.MethodPost || request.Method == http.MethodDelete {
+		if errorValue := service.ensureMattermostProvisionerAccount(request.Context()); errorValue != nil {
+			log.Printf("Mattermost provisioner sync failed: %v", errorValue)
+		}
 	}
 	var removedUser *adminUserMutation
 	if request.Method == http.MethodDelete {
@@ -453,37 +455,6 @@ func normalizeAdminUserRole(role string) string {
 
 type pagesUsersResponse struct {
 	Records []adminUserMutation `json:"records"`
-}
-
-func (service *Service) syncPrimaryAdminIdentity(ctx context.Context, deviceID string, deviceSecret string) error {
-	records, errorValue := service.lookupUserRecords(ctx, deviceID, deviceSecret)
-	if errorValue != nil {
-		return errorValue
-	}
-	primaryAdminEmail := primaryAdminEmail(records)
-	if primaryAdminEmail == "" {
-		return nil
-	}
-	currentAdminEmail := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.AdminEmailPath)))
-	if currentAdminEmail == primaryAdminEmail {
-		return nil
-	}
-	if errorValue := service.syncMattermostAdminEmail(ctx, primaryAdminEmail); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := os.WriteFile(service.Configuration.AdminEmailPath, []byte(primaryAdminEmail), 0o644); errorValue != nil {
-		return errorValue
-	}
-	return nil
-}
-
-func primaryAdminEmail(records []adminUserMutation) string {
-	for _, record := range records {
-		if record.Role == "admin" {
-			return strings.ToLower(strings.TrimSpace(record.Email))
-		}
-	}
-	return ""
 }
 
 func (service *Service) lookupRemovableUser(ctx context.Context, deviceID string, deviceSecret string, targetPath string) (*adminUserMutation, error) {
