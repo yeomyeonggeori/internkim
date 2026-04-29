@@ -132,7 +132,10 @@ type OSCommandRunner struct{}
 var agentBrowserReferencePattern = regexp.MustCompile(`@?[A-Za-z]+[0-9]+`)
 
 const BrowserEngineChrome = "chrome"
-const BrowserEngineLightpanda = "lightpanda"
+
+const DeviceBrowserInstallPath = "/opt/internkim/device-browser"
+const DeviceBrowserExecutablePath = "/opt/internkim/device-browser/chromium"
+const DeviceBrowserManifestPath = "/opt/internkim/device-browser/manifest.json"
 
 func (request *SessionStartRequest) UnmarshalJSON(document []byte) error {
 	value, isString := decodeStringDocument(document)
@@ -224,7 +227,7 @@ func (runtime AgentBrowserRuntime) StartSession(ctx context.Context, request Ses
 			return SessionStartResult{}, errorValue
 		}
 	}
-	if _, errorValue := runtime.run(ctx, append(runtime.baseArguments(), "open", targetURL)...); errorValue != nil {
+	if _, errorValue := runtime.run(ctx, append(runtime.sessionStartArguments(), "open", targetURL)...); errorValue != nil {
 		return SessionStartResult{}, errorValue
 	}
 	return SessionStartResult{
@@ -238,7 +241,7 @@ func (runtime AgentBrowserRuntime) Navigate(ctx context.Context, request Navigat
 	if errorValue := ValidateWebURL(request.URL); errorValue != nil {
 		return NavigateResult{}, errorValue
 	}
-	if _, errorValue := runtime.run(ctx, append(runtime.baseArguments(), "open", strings.TrimSpace(request.URL))...); errorValue != nil {
+	if _, errorValue := runtime.run(ctx, append(runtime.sessionStartArguments(), "open", strings.TrimSpace(request.URL))...); errorValue != nil {
 		return NavigateResult{}, errorValue
 	}
 	return NavigateResult{URL: strings.TrimSpace(request.URL)}, nil
@@ -247,7 +250,7 @@ func (runtime AgentBrowserRuntime) Navigate(ctx context.Context, request Navigat
 func (runtime AgentBrowserRuntime) Observe(ctx context.Context, request ObserveRequest) (ObserveResult, error) {
 	_ = request
 	capturedAt := runtime.now().UTC().Format(time.RFC3339)
-	output, errorValue := runtime.run(ctx, append(runtime.baseArguments(), "snapshot", "-i", "--json")...)
+	output, errorValue := runtime.run(ctx, append(runtime.sessionCommandArguments(), "snapshot", "-i", "--json")...)
 	if errorValue != nil {
 		return ObserveResult{}, errorValue
 	}
@@ -263,7 +266,7 @@ func (runtime AgentBrowserRuntime) Screenshot(ctx context.Context, request Scree
 	}
 	filename := "browser-screenshot-" + capturedAt.Format("20060102T150405.000000000Z") + ".png"
 	path := filepath.Join(directoryPath, filename)
-	if _, errorValue := runtime.run(ctx, append(runtime.baseArguments(), "screenshot", path)...); errorValue != nil {
+	if _, errorValue := runtime.run(ctx, append(runtime.sessionCommandArguments(), "screenshot", path)...); errorValue != nil {
 		return ScreenshotResult{}, errorValue
 	}
 	information, errorValue := os.Stat(path)
@@ -284,7 +287,7 @@ func (runtime AgentBrowserRuntime) Click(ctx context.Context, request ClickReque
 	if errorValue != nil {
 		return ActionResult{}, errorValue
 	}
-	if _, errorValue := runtime.run(ctx, append(runtime.baseArguments(), "click", target)...); errorValue != nil {
+	if _, errorValue := runtime.run(ctx, append(runtime.sessionCommandArguments(), "click", target)...); errorValue != nil {
 		return ActionResult{}, errorValue
 	}
 	return runtime.actionResult("click", target), nil
@@ -298,7 +301,7 @@ func (runtime AgentBrowserRuntime) Fill(ctx context.Context, request FillRequest
 	if strings.TrimSpace(request.Text) == "" {
 		return ActionResult{}, errors.New("browser fill text is required")
 	}
-	if _, errorValue := runtime.run(ctx, append(runtime.baseArguments(), "fill", target, request.Text)...); errorValue != nil {
+	if _, errorValue := runtime.run(ctx, append(runtime.sessionCommandArguments(), "fill", target, request.Text)...); errorValue != nil {
 		return ActionResult{}, errorValue
 	}
 	return runtime.actionResult("fill", target), nil
@@ -312,7 +315,7 @@ func (runtime AgentBrowserRuntime) Select(ctx context.Context, request SelectReq
 	if strings.TrimSpace(request.Value) == "" {
 		return ActionResult{}, errors.New("browser select value is required")
 	}
-	if _, errorValue := runtime.run(ctx, append(runtime.baseArguments(), "select", target, request.Value)...); errorValue != nil {
+	if _, errorValue := runtime.run(ctx, append(runtime.sessionCommandArguments(), "select", target, request.Value)...); errorValue != nil {
 		return ActionResult{}, errorValue
 	}
 	return runtime.actionResult("select", target), nil
@@ -322,7 +325,7 @@ func (runtime AgentBrowserRuntime) Press(ctx context.Context, request PressReque
 	if strings.TrimSpace(request.Key) == "" {
 		return ActionResult{}, errors.New("browser press key is required")
 	}
-	if _, errorValue := runtime.run(ctx, append(runtime.baseArguments(), "press", strings.TrimSpace(request.Key))...); errorValue != nil {
+	if _, errorValue := runtime.run(ctx, append(runtime.sessionCommandArguments(), "press", strings.TrimSpace(request.Key))...); errorValue != nil {
 		return ActionResult{}, errorValue
 	}
 	return runtime.actionResult("press", ""), nil
@@ -337,7 +340,7 @@ func (runtime AgentBrowserRuntime) Wait(ctx context.Context, request WaitRequest
 	if waitValue == "" {
 		waitValue = strconv.Itoa(request.Milliseconds)
 	}
-	if _, errorValue := runtime.run(ctx, append(runtime.baseArguments(), "wait", waitValue)...); errorValue != nil {
+	if _, errorValue := runtime.run(ctx, append(runtime.sessionCommandArguments(), "wait", waitValue)...); errorValue != nil {
 		return ActionResult{}, errorValue
 	}
 	return runtime.actionResult("wait", target), nil
@@ -370,38 +373,69 @@ func (runtime AgentBrowserRuntime) EnsureInstalled(ctx context.Context) RuntimeR
 func DeviceReadinessShellScript() string {
 	return `set -eu
 command -v agent-browser >/dev/null
-agent-browser doctor --offline --quick >/tmp/internkim-agent-browser-doctor.log 2>&1
-agent-browser --engine chrome --headed false --session-name internkim-device-smoke open about:blank >/tmp/internkim-agent-browser-chrome-open.log 2>&1
-agent-browser --engine chrome --headed false --session-name internkim-device-smoke snapshot >/tmp/internkim-agent-browser-chrome-snapshot.log 2>&1
-agent-browser --engine chrome --headed false --session-name internkim-device-smoke screenshot /tmp/internkim-agent-browser-chrome-smoke.png >/tmp/internkim-agent-browser-chrome-screenshot.log 2>&1
+browserExecutablePath="${INTERNKIM_DEVICE_BROWSER_PATH:-` + DeviceBrowserExecutablePath + `}"
+test -x "$browserExecutablePath"
+test -f "` + DeviceBrowserManifestPath + `"
+stop_agent_browser_daemons() {
+  if command -v pkill >/dev/null 2>&1; then
+    pkill -TERM -x agent-browser >/tmp/internkim-agent-browser-chrome-close.log 2>&1 || true
+    sleep 1
+    pkill -KILL -x agent-browser >>/tmp/internkim-agent-browser-chrome-close.log 2>&1 || true
+  fi
+  timeout 5s agent-browser close --all >>/tmp/internkim-agent-browser-chrome-close.log 2>&1 || true
+  rm -f /root/.agent-browser/internkim-device-smoke.pid /root/.agent-browser/internkim-device-smoke.stream /root/.agent-browser/internkim-device-smoke.engine /root/.agent-browser/internkim-device-smoke.version
+  sleep 1
+}
+stop_agent_browser_daemons
+timeout 15s agent-browser doctor --offline --quick >/tmp/internkim-agent-browser-doctor.log 2>&1 || true
+timeout 45s agent-browser --session internkim-device-smoke --engine chrome --executable-path "$browserExecutablePath" --headed false --session-name internkim-device-smoke open about:blank >/tmp/internkim-agent-browser-chrome-open.log 2>&1
+timeout 45s agent-browser --session internkim-device-smoke --session-name internkim-device-smoke snapshot >/tmp/internkim-agent-browser-chrome-snapshot.log 2>&1
+timeout 45s agent-browser --session internkim-device-smoke --session-name internkim-device-smoke screenshot /tmp/internkim-agent-browser-chrome-smoke.png >/tmp/internkim-agent-browser-chrome-screenshot.log 2>&1
 test -s /tmp/internkim-agent-browser-chrome-smoke.png
+stop_agent_browser_daemons
 rm -f /tmp/internkim-agent-browser-chrome-smoke.png
 `
 }
 
-func (runtime AgentBrowserRuntime) baseArguments() []string {
+func (runtime AgentBrowserRuntime) sessionStartArguments() []string {
 	arguments := []string{}
+	if runtime.sessionName() != "" {
+		arguments = append(arguments, "--session", runtime.sessionName())
+	}
 	engine := runtime.browserEngine()
 	if engine != "" {
 		arguments = append(arguments, "--engine", engine)
 	}
-	if strings.TrimSpace(runtime.EngineExecutablePath) != "" {
-		arguments = append(arguments, "--executable-path", strings.TrimSpace(runtime.EngineExecutablePath))
+	executablePath := runtime.browserExecutablePath(engine)
+	if executablePath != "" {
+		arguments = append(arguments, "--executable-path", executablePath)
 	}
-	if engine != BrowserEngineLightpanda {
-		if runtime.Headed {
-			arguments = append(arguments, "--headed", "true")
-		} else {
-			arguments = append(arguments, "--headed", "false")
-		}
-		if strings.TrimSpace(runtime.ProfilePath) != "" {
-			arguments = append(arguments, "--profile", strings.TrimSpace(runtime.ProfilePath))
-		}
+	if runtime.Headed {
+		arguments = append(arguments, "--headed", "true")
+	} else {
+		arguments = append(arguments, "--headed", "false")
+	}
+	if strings.TrimSpace(runtime.ProfilePath) != "" {
+		arguments = append(arguments, "--profile", strings.TrimSpace(runtime.ProfilePath))
 	}
 	if runtime.sessionName() != "" {
 		arguments = append(arguments, "--session-name", runtime.sessionName())
 	}
 	return arguments
+}
+
+func (runtime AgentBrowserRuntime) sessionCommandArguments() []string {
+	if runtime.sessionName() == "" {
+		return []string{}
+	}
+	return []string{"--session", runtime.sessionName(), "--session-name", runtime.sessionName()}
+}
+
+func (runtime AgentBrowserRuntime) browserExecutablePath(engine string) string {
+	if strings.TrimSpace(runtime.EngineExecutablePath) != "" {
+		return strings.TrimSpace(runtime.EngineExecutablePath)
+	}
+	return ""
 }
 
 func (runtime AgentBrowserRuntime) run(ctx context.Context, arguments ...string) ([]byte, error) {
@@ -426,8 +460,6 @@ func (runtime AgentBrowserRuntime) commandPath() string {
 func (runtime AgentBrowserRuntime) browserEngine() string {
 	engine := strings.TrimSpace(runtime.Engine)
 	switch engine {
-	case BrowserEngineLightpanda:
-		return BrowserEngineLightpanda
 	case BrowserEngineChrome:
 		return BrowserEngineChrome
 	default:

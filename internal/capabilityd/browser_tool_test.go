@@ -31,7 +31,7 @@ func TestDeviceBrowserToolRunsThroughChromeRuntime(t *testing.T) {
 	if commandPath != "agent-browser-test" {
 		t.Fatalf("unexpected command path: %s", commandPath)
 	}
-	expectedArguments := []string{"--engine", "chrome", "--headed", "false", "--session-name", "internkim-device", "open", "https://example.com"}
+	expectedArguments := []string{"--session", "internkim-device", "--engine", "chrome", "--executable-path", "/opt/internkim/device-browser/chromium", "--headed", "false", "--session-name", "internkim-device", "open", "https://example.com"}
 	if strings.Join(arguments, "\x00") != strings.Join(expectedArguments, "\x00") {
 		t.Fatalf("unexpected command arguments: %+v", arguments)
 	}

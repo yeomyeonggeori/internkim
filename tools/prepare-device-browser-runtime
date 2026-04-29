@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repository_root="$(cd "$script_dir/.." && pwd)"
+artifact_directory="${INTERNKIM_DEVICE_BROWSER_ARTIFACT_DIR:-$repository_root/.dependency/device-browser}"
+cache_directory="$artifact_directory/cache"
+work_directory="$artifact_directory/work"
+artifact_name="internkim-device-browser-linux-arm64.tar.zst"
+metadata_name="internkim-device-browser-linux-arm64.json"
+artifact_path="$artifact_directory/$artifact_name"
+metadata_path="$artifact_directory/$metadata_name"
+playwright_metadata="$repository_root/web/node_modules/playwright-core/browsers.json"
+
+if [ ! -f "$playwright_metadata" ]; then
+  echo "missing Playwright metadata at $playwright_metadata" >&2
+  echo "run: cd web && bun install" >&2
+  exit 1
+fi
+if ! command -v node >/dev/null 2>&1; then
+  echo "node is required to read Playwright browser metadata" >&2
+  exit 1
+fi
+if ! command -v curl >/dev/null 2>&1; then
+  echo "curl is required to download the device browser runtime" >&2
+  exit 1
+fi
+if ! command -v unzip >/dev/null 2>&1; then
+  echo "unzip is required to prepare the device browser runtime" >&2
+  exit 1
+fi
+if ! command -v zstd >/dev/null 2>&1; then
+  echo "zstd is required to package the device browser runtime" >&2
+  exit 1
+fi
+
+revision="$(node -e 'const fs=require("fs"); const data=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); const browser=data.browsers.find(browser=>browser.name==="chromium"); if(!browser) process.exit(2); process.stdout.write(browser.revision);' "$playwright_metadata")"
+version="$(node -e 'const fs=require("fs"); const data=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); const browser=data.browsers.find(browser=>browser.name==="chromium"); if(!browser) process.exit(2); process.stdout.write(browser.browserVersion || "unknown");' "$playwright_metadata")"
+download_host="${PLAYWRIGHT_DOWNLOAD_HOST:-https://playwright.azureedge.net}"
+download_url="$download_host/builds/chromium/$revision/chromium-linux-arm64.zip"
+zip_path="$cache_directory/chromium-$revision-linux-arm64.zip"
+extract_directory="$work_directory/chromium-$revision"
+stage_directory="$work_directory/package"
+
+mkdir -p "$cache_directory" "$work_directory" "$artifact_directory"
+
+if [ ! -s "$zip_path" ]; then
+  temporary_zip="$zip_path.tmp"
+  curl --fail --location --retry 3 --output "$temporary_zip" "$download_url"
+  mv "$temporary_zip" "$zip_path"
+fi
+
+rm -rf "$extract_directory" "$stage_directory"
+mkdir -p "$extract_directory" "$stage_directory/runtime"
+unzip -q "$zip_path" -d "$extract_directory"
+
+if [ ! -x "$extract_directory/chrome-linux/chrome" ]; then
+  echo "downloaded Chromium archive does not contain chrome-linux/chrome" >&2
+  exit 1
+fi
+
+cp -a "$extract_directory/chrome-linux" "$stage_directory/runtime/chrome-linux"
+sha256="$(shasum -a 256 "$stage_directory/runtime/chrome-linux/chrome" | awk '{print $1}')"
+
+RUNTIME_NAME="internkim-device-browser" \
+PLATFORM="linux-arm64" \
+SOURCE="$download_url" \
+REVISION="$revision" \
+VERSION="$version" \
+EXECUTABLE_PATH="runtime/chrome-linux/chrome" \
+SHA256="$sha256" \
+node -e 'const fs=require("fs"); const manifest={runtimeName:process.env.RUNTIME_NAME,platform:process.env.PLATFORM,source:process.env.SOURCE,revision:process.env.REVISION,version:process.env.VERSION,executablePath:process.env.EXECUTABLE_PATH,sha256:process.env.SHA256}; const document=JSON.stringify(manifest,null,2)+"\n"; fs.writeFileSync(process.argv[1],document); fs.writeFileSync(process.argv[2],document);' "$stage_directory/manifest.json" "$metadata_path.tmp"
+
+COPYFILE_DISABLE=1 tar --no-xattrs --format ustar -C "$stage_directory" -cf - . | zstd -T0 -f -o "$artifact_path.tmp" >/dev/null
+mv "$artifact_path.tmp" "$artifact_path"
+mv "$metadata_path.tmp" "$metadata_path"
+
+echo "$artifact_path"

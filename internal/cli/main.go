@@ -2397,7 +2397,7 @@ func downloadDebsUsingRootfs(imgXZ, debsTarPath string, messenger *msg) error {
 	}
 	exec.Command(resize2fsBin, "-f", rootfsPath).CombinedOutput()
 	fmt.Printf("    %s\n", messenger.t("Armbian rootfs에서 패키지 다운로드 중...", "Downloading packages from Armbian rootfs..."))
-	chrootScript := `set -e
+	chrootScript := fmt.Sprintf(`set -e
 apt-get update -qq >/dev/null 2>&1
 apt-get install -y -qq e2fsprogs >/dev/null 2>&1
 mkdir -p /mnt/armbian
@@ -2406,9 +2406,9 @@ mount -t proc proc /mnt/armbian/proc
 mount --bind /dev /mnt/armbian/dev
 rm -f /mnt/armbian/etc/resolv.conf
 echo "nameserver 8.8.8.8" > /mnt/armbian/etc/resolv.conf
-chroot /mnt/armbian sh -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update -qq >/dev/null 2>&1; apt-get install -y -d -qq postgresql postgresql-contrib jq chromium avahi-daemon git curl ca-certificates >/dev/null 2>&1'
+chroot /mnt/armbian sh -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update -qq >/dev/null 2>&1; . /etc/os-release; runtimePackages="%s"; case "${VERSION_ID:-}" in 24.*|25.*|26.*) runtimePackages="%s" ;; esac; apt-get install -y -d -qq postgresql postgresql-contrib jq avahi-daemon git curl ca-certificates $runtimePackages >/dev/null 2>&1'
 tar cf - -C /mnt/armbian/var/cache/apt/archives .
-umount /mnt/armbian/dev /mnt/armbian/proc 2>/dev/null; umount /mnt/armbian 2>/dev/null; true`
+umount /mnt/armbian/dev /mnt/armbian/proc 2>/dev/null; umount /mnt/armbian 2>/dev/null; true`, deviceBrowserRuntimePackageListLegacyUbuntu(), deviceBrowserRuntimePackageListUbuntu24())
 	debCommand := exec.Command("container", "run", "--rm",
 		"--volume", rootfsDirectory+":/mnt/host",
 		"debian:trixie-slim", "sh", "-c", chrootScript)

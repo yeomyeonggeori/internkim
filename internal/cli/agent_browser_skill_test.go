@@ -74,7 +74,8 @@ func TestLoadWorkspaceAgentsMarkdownDoesNotFallbackToRepositoryRoot(t *testing.T
 func TestFirstbootInstallsAgentBrowserSkill(t *testing.T) {
 	script := renderFirstbootToolsSection()
 	requiredFragments := []string{
-		"agent-browser install",
+		"install_device_browser_runtime",
+		"$STAGE/device-browser/internkim-device-browser-linux-arm64.tar.zst",
 		"agent-browser skills get core --full",
 		"browser.open",
 		"browser.snapshot",
@@ -84,6 +85,11 @@ func TestFirstbootInstallsAgentBrowserSkill(t *testing.T) {
 	for _, fragment := range requiredFragments {
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("expected firstboot tools section to include %q", fragment)
+		}
+	}
+	for _, forbiddenFragment := range []string{"agent-browser install", "chromium-browser", "--engine lightpanda"} {
+		if strings.Contains(script, forbiddenFragment) {
+			t.Fatalf("firstboot tools section must not include %q", forbiddenFragment)
 		}
 	}
 }

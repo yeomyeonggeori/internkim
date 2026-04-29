@@ -6,7 +6,7 @@ AGENT_BROWSER_VERSION ?= 0.26.0
 COMPANION_BETA_DIST ?= dist/companion
 COMPANION_BETA_MACOS_ARTIFACT ?= internkim-companion-beta-macos-aarch64.dmg
 
-.PHONY: build build-companion build-companion-shell package-companion-beta check test doctor deps-sim deps-browser deps-companion deps-companion-browser deps-graphiti setup-sim verify-api verify-browser verify-graphiti-local
+.PHONY: build build-companion build-companion-shell package-companion-beta check test doctor deps-sim deps-browser deps-companion deps-companion-browser prepare-device-browser deps-graphiti setup-sim verify-api verify-browser verify-graphiti-local
 
 build:
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim ./cmd/internkim
@@ -54,6 +54,9 @@ deps-companion-browser:
 	tools/prepare-companion-agent-browser companion/src-tauri/binaries "$(COMPANION_TARGET_TRIPLE)" "$(AGENT_BROWSER_VERSION)"
 	companion/src-tauri/binaries/agent-browser --version
 	companion/src-tauri/binaries/agent-browser install
+
+prepare-device-browser:
+	tools/prepare-device-browser-runtime
 
 deps-graphiti:
 	cd .dependency/blueclaw && test -x .venv-graphiti/bin/python || uv venv .venv-graphiti

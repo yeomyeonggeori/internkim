@@ -18,6 +18,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
 )
 
 type Configuration struct {
@@ -44,6 +46,7 @@ type Configuration struct {
 	LocalOnly                  bool
 	ProviderAttemptTimeout     time.Duration
 	AgentBrowserPath           string
+	DeviceBrowserPath          string
 	CompanionFileDirectory     string
 }
 
@@ -118,6 +121,7 @@ func DefaultConfiguration() Configuration {
 		LocalOnly:                  false,
 		ProviderAttemptTimeout:     90 * time.Second,
 		AgentBrowserPath:           "agent-browser",
+		DeviceBrowserPath:          browserruntime.DeviceBrowserExecutablePath,
 		CompanionFileDirectory:     "/tmp/internkim-companion-files",
 	}
 }
@@ -1166,6 +1170,9 @@ func (configuration Configuration) WithDefaults() Configuration {
 	}
 	if configuration.AgentBrowserPath == "" {
 		configuration.AgentBrowserPath = defaultConfiguration.AgentBrowserPath
+	}
+	if configuration.DeviceBrowserPath == "" {
+		configuration.DeviceBrowserPath = defaultConfiguration.DeviceBrowserPath
 	}
 	if configuration.CompanionFileDirectory == "" {
 		configuration.CompanionFileDirectory = defaultConfiguration.CompanionFileDirectory

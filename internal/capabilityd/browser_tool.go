@@ -96,11 +96,13 @@ func (service Service) invokeDeviceBrowserTool(ctx context.Context, request capa
 }
 
 func (service Service) deviceBrowserRuntime() browserruntime.AgentBrowserRuntime {
+	configuration := service.Configuration.WithDefaults()
 	return browserruntime.AgentBrowserRuntime{
-		CommandPath: service.Configuration.WithDefaults().AgentBrowserPath,
-		Engine:      browserruntime.BrowserEngineChrome,
-		SessionName: "internkim-device",
-		Runner:      service.browserCommandRunner(),
+		CommandPath:          configuration.AgentBrowserPath,
+		Engine:               browserruntime.BrowserEngineChrome,
+		EngineExecutablePath: configuration.DeviceBrowserPath,
+		SessionName:          "internkim-device",
+		Runner:               service.browserCommandRunner(),
 	}
 }
 
