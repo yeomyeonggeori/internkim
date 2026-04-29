@@ -98,6 +98,15 @@
 		platforms?: CompanionRelease[];
 	};
 
+	type BotProfile = {
+		username: string;
+		displayName: string;
+		englishDisplayName?: string;
+		aliases?: string[];
+		publicDescription: string;
+		identityExtension?: string;
+	};
+
 	const logoSrc = '/logo.svg';
 	const storedDeviceIdKey = 'internkim_device_id';
 
@@ -126,6 +135,18 @@
 	let companionErrorMessage = $state('');
 	let isLoadingCompanions = $state(false);
 	let isCreatingPairingCode = $state(false);
+	let botProfile = $state<BotProfile>({
+		username: 'internkim',
+		displayName: '김인턴',
+		englishDisplayName: 'Intern Kim',
+		aliases: ['인턴킴', 'intern kim'],
+		publicDescription: '회사 일을 빠르게 돕는 AI teammate',
+		identityExtension: ''
+	});
+	let botProfileAliasesText = $state('인턴킴\nintern kim');
+	let botProfileErrorMessage = $state('');
+	let isLoadingBotProfile = $state(false);
+	let isSavingBotProfile = $state(false);
 
 	const deviceId = () => {
 		const explicitId = deviceIdInput.trim().toLowerCase();
@@ -169,6 +190,7 @@
 		loadCompanionReleases();
 		loadUsers();
 		checkDevice();
+		loadBotProfile();
 	});
 
 	function deviceIdFromHost() {
@@ -194,6 +216,69 @@
 		loadUsers();
 		checkDevice();
 		loadCompanions();
+		loadBotProfile();
+	}
+
+	async function loadBotProfile() {
+		if (!adminBaseURL()) return;
+
+		isLoadingBotProfile = true;
+		botProfileErrorMessage = '';
+		try {
+			const response = await fetch(`${adminBaseURL()}/bot-profile`, { credentials: 'include' });
+			if (!response.ok) {
+				botProfileErrorMessage = '봇 프로필을 불러오지 못했습니다.';
+				return;
+			}
+			applyBotProfile((await response.json()) as BotProfile);
+		} catch {
+			botProfileErrorMessage = '봇 프로필을 불러오지 못했습니다.';
+		} finally {
+			isLoadingBotProfile = false;
+		}
+	}
+
+	function applyBotProfile(profile: BotProfile) {
+		botProfile = {
+			username: profile.username || 'internkim',
+			displayName: profile.displayName || '김인턴',
+			englishDisplayName: profile.englishDisplayName || 'Intern Kim',
+			aliases: profile.aliases ?? [],
+			publicDescription: profile.publicDescription || '회사 일을 빠르게 돕는 AI teammate',
+			identityExtension: profile.identityExtension || ''
+		};
+		botProfileAliasesText = (botProfile.aliases ?? []).join('\n');
+	}
+
+	async function saveBotProfile() {
+		if (!adminBaseURL()) return;
+
+		isSavingBotProfile = true;
+		botProfileErrorMessage = '';
+		try {
+			const response = await fetch(`${adminBaseURL()}/bot-profile`, {
+				method: 'PUT',
+				credentials: 'include',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					...botProfile,
+					username: 'internkim',
+					aliases: botProfileAliasesText
+						.split('\n')
+						.map((alias) => alias.trim())
+						.filter(Boolean)
+				})
+			});
+			if (!response.ok) {
+				botProfileErrorMessage = await response.text();
+				return;
+			}
+			applyBotProfile((await response.json()) as BotProfile);
+		} catch {
+			botProfileErrorMessage = '봇 프로필 저장에 실패했습니다.';
+		} finally {
+			isSavingBotProfile = false;
+		}
 	}
 
 	async function loadCompanionReleases() {
@@ -615,6 +700,56 @@
 			{#if adminErrorMessage}
 				<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{adminErrorMessage}</p>
 			{/if}
+
+			<div class="rounded-lg border p-4">
+				<div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+					<div>
+						<h3 class="text-sm font-semibold">Bot Profile</h3>
+						<p class="text-muted-foreground mt-1 text-sm">
+							사용자에게 보이는 이름과 공개 설명을 바꿉니다. 내부 username은 <code>internkim</code>으로 유지됩니다.
+						</p>
+					</div>
+					<Badge variant="outline">{botProfile.username}</Badge>
+				</div>
+				<div class="grid gap-3 md:grid-cols-2">
+					<Input bind:value={botProfile.displayName} placeholder="display name" disabled={isLoadingBotProfile} />
+					<Input bind:value={botProfile.englishDisplayName} placeholder="English display name" disabled={isLoadingBotProfile} />
+					<Input
+						class="md:col-span-2"
+						bind:value={botProfile.publicDescription}
+						placeholder="public description"
+						disabled={isLoadingBotProfile}
+					/>
+					<textarea
+						bind:value={botProfileAliasesText}
+						placeholder="aliases, one per line"
+						disabled={isLoadingBotProfile}
+						class="border-input bg-background ring-offset-background focus-visible:ring-ring min-h-24 rounded-md border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+					></textarea>
+					<textarea
+						bind:value={botProfile.identityExtension}
+						placeholder="prompt-only identity extension"
+						disabled={isLoadingBotProfile}
+						class="border-input bg-background ring-offset-background focus-visible:ring-ring min-h-24 rounded-md border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+					></textarea>
+				</div>
+				<div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+					<p class="text-muted-foreground text-xs">
+						identity extension은 Blueclaw 프롬프트에만 들어가고 Mattermost 설명에는 노출되지 않습니다.
+					</p>
+					<Button disabled={!isDeviceReachable || isSavingBotProfile || !botProfile.displayName.trim()} onclick={saveBotProfile}>
+						{#if isSavingBotProfile}
+							<LoaderIcon class="size-4 animate-spin" />
+						{/if}
+						Save profile
+					</Button>
+				</div>
+				{#if botProfileErrorMessage}
+					<p class="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+						{botProfileErrorMessage}
+					</p>
+				{/if}
+			</div>
 
 			<div class="rounded-lg border p-4">
 				<div class="mb-4 flex flex-wrap items-start justify-between gap-3">

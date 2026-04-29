@@ -25,11 +25,15 @@ type adminUserMutation struct {
 }
 
 type mattermostUserRecord struct {
-	ID       string `json:"id"`
-	Email    string `json:"email"`
-	Username string `json:"username"`
-	Roles    string `json:"roles"`
-	DeleteAt int64  `json:"delete_at"`
+	ID          string `json:"id"`
+	Email       string `json:"email"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+	FirstName   string `json:"first_name"`
+	Nickname    string `json:"nickname"`
+	Position    string `json:"position"`
+	Roles       string `json:"roles"`
+	DeleteAt    int64  `json:"delete_at"`
 }
 
 type mattermostTeamRecord struct {

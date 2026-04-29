@@ -731,11 +731,11 @@ chmod 755 /root/.blueclaw/workspace/bin /root/.blueclaw/workspace/downloads`)
 		return err
 	}
 
-	agentsContent, errorValue := loadWorkspaceAgentsMarkdown(state.scriptDir)
+	workspaceDocuments, errorValue := loadWorkspaceDocuments(state.scriptDir)
 	if errorValue != nil {
 		return errorValue
 	}
-	state.writeWorkspaceDocumentsSSH(agentsContent)
+	state.writeWorkspaceDocumentsSSH(workspaceDocuments)
 	if err := state.installAgentBrowserSkillSSH(); err != nil {
 		return err
 	}
@@ -955,20 +955,59 @@ chmod -R u=rwX,g=rX,o=rX /opt/internkim`,
 	return nil
 }
 
-func (state *setupFlowState) writeWorkspaceDocumentsSSH(agentsContent string) {
+func (state *setupFlowState) writeWorkspaceDocumentsSSH(workspaceDocuments workspaceDocuments) {
 	state.sshClient.run("cat > /root/.blueclaw/workspace/AGENTS.md <<'EOF'\n" +
-		agentsContent +
+		workspaceDocuments.Agents +
 		"\nEOF\nchown blueclaw:blueclaw /root/.blueclaw/workspace/AGENTS.md")
-	state.sshClient.run("cat > /root/.blueclaw/workspace/SOUL.md <<'EOF'\n" +
-		identityMarkdown +
-		"\nEOF\nchown blueclaw:blueclaw /root/.blueclaw/workspace/SOUL.md")
 	state.sshClient.run("cat > /root/.blueclaw/workspace/IDENTITY.md <<'EOF'\n" +
-		identityMarkdown +
+		workspaceDocuments.Identity +
 		"\nEOF\nchown blueclaw:blueclaw /root/.blueclaw/workspace/IDENTITY.md")
+	state.sshClient.run("cat > /root/.blueclaw/workspace/BOT_PROFILE.md <<'EOF'\n" +
+		workspaceDocuments.BotProfile +
+		"\nEOF\nchown blueclaw:blueclaw /root/.blueclaw/workspace/BOT_PROFILE.md")
+	state.sshClient.run("if [ ! -f /root/.blueclaw/workspace/SOUL.md ] || grep -q '^# IDENTITY.md' /root/.blueclaw/workspace/SOUL.md 2>/dev/null; then cat > /root/.blueclaw/workspace/SOUL.md <<'EOF'\n" +
+		workspaceDocuments.Soul +
+		"\nEOF\nchown blueclaw:blueclaw /root/.blueclaw/workspace/SOUL.md\nfi")
+}
+
+type workspaceDocuments struct {
+	Agents     string
+	Identity   string
+	Soul       string
+	BotProfile string
+}
+
+func loadWorkspaceDocuments(scriptDir string) (workspaceDocuments, error) {
+	agentsContent, errorValue := readWorkspaceMarkdown(blueclawworkspace.AgentsPath(scriptDir))
+	if errorValue != nil {
+		return workspaceDocuments{}, errorValue
+	}
+	identityContent, errorValue := readWorkspaceMarkdown(blueclawworkspace.IdentityPath(scriptDir))
+	if errorValue != nil {
+		return workspaceDocuments{}, errorValue
+	}
+	soulContent, errorValue := readWorkspaceMarkdown(blueclawworkspace.SoulPath(scriptDir))
+	if errorValue != nil {
+		return workspaceDocuments{}, errorValue
+	}
+	botProfileContent, errorValue := readWorkspaceMarkdown(blueclawworkspace.BotProfilePath(scriptDir))
+	if errorValue != nil {
+		return workspaceDocuments{}, errorValue
+	}
+	return workspaceDocuments{
+		Agents:     agentsContent,
+		Identity:   identityContent,
+		Soul:       soulContent,
+		BotProfile: botProfileContent,
+	}, nil
 }
 
 func loadWorkspaceAgentsMarkdown(scriptDir string) (string, error) {
-	agentsBytes, errorValue := os.ReadFile(blueclawworkspace.AgentsPath(scriptDir))
+	return readWorkspaceMarkdown(blueclawworkspace.AgentsPath(scriptDir))
+}
+
+func readWorkspaceMarkdown(path string) (string, error) {
+	agentsBytes, errorValue := os.ReadFile(path)
 	if errorValue != nil {
 		return "", errorValue
 	}
@@ -1414,17 +1453,20 @@ func (state *setupFlowState) stageBootstrapSD(context *setup.Context) error {
 		return err
 	}
 
-	agentsContent, err := loadWorkspaceAgentsMarkdown(state.scriptDir)
+	workspaceDocuments, err := loadWorkspaceDocuments(state.scriptDir)
 	if err != nil {
 		return err
 	}
-	if err := context.SD.WriteFile("AGENTS.md", []byte(agentsContent), 0o644); err != nil {
+	if err := context.SD.WriteFile("AGENTS.md", []byte(workspaceDocuments.Agents), 0o644); err != nil {
 		return err
 	}
-	if err := context.SD.WriteFile("IDENTITY.md", []byte(identityMarkdown), 0o644); err != nil {
+	if err := context.SD.WriteFile("IDENTITY.md", []byte(workspaceDocuments.Identity), 0o644); err != nil {
 		return err
 	}
-	if err := context.SD.WriteFile("SOUL.md", []byte(identityMarkdown), 0o644); err != nil {
+	if err := context.SD.WriteFile("SOUL.md", []byte(workspaceDocuments.Soul), 0o644); err != nil {
+		return err
+	}
+	if err := context.SD.WriteFile("BOT_PROFILE.md", []byte(workspaceDocuments.BotProfile), 0o644); err != nil {
 		return err
 	}
 	agentBrowserSkillMarkdown, err := loadAgentBrowserSkillMarkdown(state.scriptDir)
