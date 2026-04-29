@@ -2599,7 +2599,7 @@ func injectFilesIntoImage(imgRaw, ssid, wifiPass, pubKey, stageDir string) error
 
 	// ── 6. Cloudflared service ──
 	fmt.Println("    cloudflared service")
-	cfService := "[Unit]\nDescription=Cloudflare Tunnel\nAfter=network-online.target time-sync.target\nWants=network-online.target time-sync.target\n\n[Service]\nType=simple\nExecStart=/bin/sh -c '/usr/local/bin/cloudflared tunnel run --token \"$(cat /root/.internkim/secrets/tunnel-token)\"'\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\n"
+	cfService := "[Unit]\nDescription=Cloudflare Tunnel\nAfter=network-online.target time-sync.target\nWants=network-online.target time-sync.target\n\n[Service]\nType=simple\nExecStart=/bin/sh -c '/usr/local/bin/cloudflared tunnel run --protocol http2 --token \"$(cat /root/.internkim/secrets/tunnel-token)\"'\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\n"
 	writeContent(cfService, "/etc/systemd/system/cloudflared.service", "0100644")
 	mkSymlink("/etc/systemd/system/multi-user.target.wants/cloudflared.service",
 		"/etc/systemd/system/cloudflared.service")
@@ -2920,13 +2920,40 @@ func (s *sshClient) run(cmd string) string {
 func (s *sshClient) runResult(cmd string) (string, error) {
 	var args []string
 	remoteCommand := s.privilegedCommand(cmd)
-	if s.pass != "" {
-		args = append([]string{"-p", s.pass, "ssh"}, s.sshArgs(fmt.Sprintf("%s@%s", s.user, s.host), remoteCommand)...)
-		out, err := exec.Command(s.sshpassBin, args...).CombinedOutput()
-		return string(out), err
+	if s.pass == "" {
+		args = s.sshArgs(fmt.Sprintf("%s@%s", s.user, s.host), remoteCommand)
+		return runSSHCommandWithRetry("ssh", args)
 	}
-	out, err := exec.Command("ssh", s.sshArgs(fmt.Sprintf("%s@%s", s.user, s.host), remoteCommand)...).CombinedOutput()
-	return string(out), err
+
+	args = append([]string{"-p", s.pass, "ssh"}, s.sshArgs(fmt.Sprintf("%s@%s", s.user, s.host), remoteCommand)...)
+	return runSSHCommandWithRetry(s.sshpassBin, args)
+}
+
+func runSSHCommandWithRetry(commandName string, arguments []string) (string, error) {
+	var output []byte
+	var errorValue error
+	for attemptIndex := 0; attemptIndex < 3; attemptIndex++ {
+		output, errorValue = exec.Command(commandName, arguments...).CombinedOutput()
+		if errorValue == nil || !isRetryableSSHFailure(string(output)) {
+			return string(output), errorValue
+		}
+		time.Sleep(time.Duration(attemptIndex+1) * time.Second)
+	}
+	return string(output), errorValue
+}
+
+func isRetryableSSHFailure(output string) bool {
+	for _, phrase := range []string{
+		"Connection refused",
+		"Operation timed out",
+		"Connection timed out",
+		"Permission denied, please try again.",
+	} {
+		if strings.Contains(output, phrase) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *sshClient) privilegedCommand(command string) string {

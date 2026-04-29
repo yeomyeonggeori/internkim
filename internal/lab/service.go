@@ -168,6 +168,9 @@ func (service Service) ProvisionUbuntu(ctx context.Context) error {
 	if errorValue := service.VirtualMachineUp(ctx); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := service.waitForVirtualMachineSSH(ctx); errorValue != nil {
+		return errorValue
+	}
 
 	fmt.Println("provisioning Ubuntu")
 	return service.runRemoteScript(ctx, filepath.Join("lab", "scripts", "provision-ubuntu.sh"), []string{
@@ -411,7 +414,7 @@ func (service Service) buildImageBuildCommands() []ExecutableCommand {
 }
 
 func (service Service) buildVirtualMachineUpCommand() ExecutableCommand {
-	commandArguments := []string{"run"}
+	commandArguments := []string{"run", "--no-graphics"}
 	if service.configuration.VirtualMachine.Tart.NestedEnabled {
 		commandArguments = append(commandArguments, "--nested")
 	}
@@ -424,6 +427,7 @@ func (service Service) buildVirtualMachineUpCommand() ExecutableCommand {
 		ExecutableName:       service.configuration.VirtualMachine.Tart.BinaryPath,
 		Arguments:            commandArguments,
 		WorkingDirectoryPath: service.repositoryRootPath,
+		DetachedLogPath:      filepath.Join(os.TempDir(), "internkim-lab-tart.log"),
 	}
 }
 
@@ -512,6 +516,49 @@ func (service Service) waitForVirtualMachineIPAddress(ctx context.Context) error
 	}
 
 	return errors.New("virtual machine did not report an ip address")
+}
+
+func (service Service) waitForVirtualMachineSSH(ctx context.Context) error {
+	fmt.Println("waiting for SSH")
+	for range 60 {
+		if service.virtualMachineSSHReady(ctx) {
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(2 * time.Second):
+		}
+	}
+
+	return errors.New("virtual machine ssh did not become ready")
+}
+
+func (service Service) virtualMachineSSHReady(ctx context.Context) bool {
+	virtualMachineIPAddress, errorValue := service.resolveVirtualMachineIPAddress(ctx)
+	if errorValue != nil || virtualMachineIPAddress == "" {
+		return false
+	}
+
+	errorValue = service.commandRunner.Run(ctx, ExecutableCommand{
+		ExecutableName: service.sshpassExecutablePath(),
+		Arguments: []string{
+			"-p",
+			service.configuration.VirtualMachine.SSHPassword,
+			"ssh",
+			"-o",
+			"StrictHostKeyChecking=no",
+			"-o",
+			"UserKnownHostsFile=/dev/null",
+			"-o",
+			"ConnectTimeout=5",
+			service.configuration.VirtualMachine.SSHUsername + "@" + virtualMachineIPAddress,
+			"true",
+		},
+		WorkingDirectoryPath: service.repositoryRootPath,
+	})
+	return errorValue == nil
 }
 
 func shellEscapeArguments(arguments []string) string {

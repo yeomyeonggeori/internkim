@@ -8,6 +8,7 @@ type ExecutableCommand struct {
 	WorkingDirectoryPath string
 	EnvironmentVariables map[string]string
 	StandardInputPath    string
+	DetachedLogPath      string
 }
 
 func (executableCommand ExecutableCommand) String() string {

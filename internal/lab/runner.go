@@ -35,7 +35,11 @@ func (operatingSystemCommandRunner OperatingSystemCommandRunner) Start(
 	ctx context.Context,
 	executableCommand ExecutableCommand,
 ) error {
-	command, standardInputFile, errorValue := createCommand(ctx, executableCommand)
+	if errorValue := ctx.Err(); errorValue != nil {
+		return errorValue
+	}
+
+	command, standardInputFile, errorValue := createCommand(context.Background(), executableCommand)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -43,14 +47,35 @@ func (operatingSystemCommandRunner OperatingSystemCommandRunner) Start(
 		defer standardInputFile.Close()
 	}
 
-	command.Stdout = os.Stdout
-	command.Stderr = os.Stderr
+	logFile, errorValue := openDetachedLogFile(executableCommand.DetachedLogPath)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer logFile.Close()
+
+	nullInput, errorValue := os.Open(os.DevNull)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer nullInput.Close()
+
+	command.Stdin = nullInput
+	command.Stdout = logFile
+	command.Stderr = logFile
+	detachCommand(command)
 	errorValue = command.Start()
 	if errorValue != nil {
 		return errorValue
 	}
 
 	return command.Process.Release()
+}
+
+func openDetachedLogFile(path string) (*os.File, error) {
+	if path == "" {
+		return os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	}
+	return os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 }
 
 func (operatingSystemCommandRunner OperatingSystemCommandRunner) Output(
