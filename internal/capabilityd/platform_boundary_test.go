@@ -186,7 +186,7 @@ func TestMattermostProgressStartPublishesTypingUntilStopped(t *testing.T) {
 		if payload["channel_id"] != "channel-1" || payload["parent_id"] != "root-1" {
 			t.Fatalf("unexpected typing payload: %+v", payload)
 		}
-	case <-time.After(time.Second):
+	case <-time.After(2 * time.Second):
 		t.Fatal("expected typing request")
 	}
 
@@ -254,7 +254,7 @@ func TestMattermostReplyStopsProgressBeforeSendingPost(t *testing.T) {
 
 	select {
 	case <-typingRequests:
-	case <-time.After(time.Second):
+	case <-time.After(2 * time.Second):
 		t.Fatal("expected typing request")
 	}
 
@@ -272,10 +272,120 @@ func TestMattermostReplyStopsProgressBeforeSendingPost(t *testing.T) {
 		t.Fatal("expected post request")
 	}
 	progressManager.mutex.Lock()
-	_, isActive := progressManager.cancelByKey["mattermost:"+replyTargetID]
+	_, isActive := progressManager.leaseByKey["mattermost:"+replyTargetID]
 	progressManager.mutex.Unlock()
 	if isActive {
 		t.Fatal("expected reply send to stop Mattermost progress")
+	}
+}
+
+func TestMattermostProgressStopBeforeDebounceSuppressesTyping(t *testing.T) {
+	typingRequests := make(chan map[string]string, 1)
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1"}), nil
+		case "/api/v4/users/bot-1/typing":
+			typingRequests <- map[string]string{}
+			return testJSONResponse(http.StatusOK, map[string]string{}), nil
+		default:
+			t.Fatalf("unexpected Mattermost request: %s", request.URL.Path)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	tokenPath := t.TempDir() + "/mattermost-token"
+	if errorValue := os.WriteFile(tokenPath, []byte("test-token\n"), 0o600); errorValue != nil {
+		t.Fatalf("expected token file to be written: %v", errorValue)
+	}
+	replyTargetID, errorValue := encodePlatformHandle(platformHandle{
+		Platform:  "mattermost",
+		ChannelID: "channel-1",
+	})
+	if errorValue != nil {
+		t.Fatalf("expected reply target to encode: %v", errorValue)
+	}
+	service := Service{
+		Configuration: Configuration{
+			MattermostBaseURL:   "http://mattermost.test",
+			MattermostTokenPath: tokenPath,
+		},
+		HTTPClient:      httpClient,
+		ProgressManager: newPlatformProgressManager(),
+	}
+
+	_, errorValue = service.mattermostStartProgressFromRequest(context.Background(), strings.NewReader(`{"replyTargetID":"`+replyTargetID+`"}`))
+	if errorValue != nil {
+		t.Fatalf("expected progress start to succeed: %v", errorValue)
+	}
+	_, errorValue = service.mattermostStopProgressFromRequest(context.Background(), strings.NewReader(`{"replyTargetID":"`+replyTargetID+`"}`))
+	if errorValue != nil {
+		t.Fatalf("expected progress stop to succeed: %v", errorValue)
+	}
+
+	select {
+	case <-typingRequests:
+		t.Fatal("expected no typing request before debounce")
+	case <-time.After(mattermostTypingDebounce + 200*time.Millisecond):
+	}
+}
+
+func TestPlatformProgressManagerExpiresLeases(t *testing.T) {
+	manager := newPlatformProgressManager()
+	stopped := make(chan struct{}, 1)
+
+	manager.Start("test", 20*time.Millisecond, func(ctx context.Context) {
+		<-ctx.Done()
+		stopped <- struct{}{}
+	})
+
+	select {
+	case <-stopped:
+	case <-time.After(time.Second):
+		t.Fatal("expected progress lease to expire")
+	}
+	manager.mutex.Lock()
+	_, isActive := manager.leaseByKey["test"]
+	manager.mutex.Unlock()
+	if isActive {
+		t.Fatal("expected expired lease to be removed")
+	}
+}
+
+func TestPlatformProgressManagerRefreshesLeaseWithoutDuplicateLoop(t *testing.T) {
+	manager := newPlatformProgressManager()
+	started := make(chan struct{}, 2)
+	stopped := make(chan struct{}, 1)
+
+	manager.Start("test", 50*time.Millisecond, func(ctx context.Context) {
+		started <- struct{}{}
+		<-ctx.Done()
+		stopped <- struct{}{}
+	})
+	manager.Start("test", 150*time.Millisecond, func(ctx context.Context) {
+		started <- struct{}{}
+		<-ctx.Done()
+		stopped <- struct{}{}
+	})
+
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("expected progress loop to start")
+	}
+	select {
+	case <-started:
+		t.Fatal("expected existing lease refresh without duplicate loop")
+	case <-time.After(20 * time.Millisecond):
+	}
+	select {
+	case <-stopped:
+		t.Fatal("expected refreshed lease to remain active after original ttl")
+	case <-time.After(80 * time.Millisecond):
+	}
+	select {
+	case <-stopped:
+	case <-time.After(time.Second):
+		t.Fatal("expected refreshed lease to expire")
 	}
 }
 
