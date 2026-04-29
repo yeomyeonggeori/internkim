@@ -283,11 +283,14 @@ if [ -d "$STAGE/admin-ui" ]; then
   cp -af "$STAGE/admin-ui/." /opt/internkim/admin-ui/
   chmod -R a+rX /opt/internkim/admin-ui
 fi
-if [ -f "$STAGE/SOUL.md" ]; then
+if [ -f "$STAGE/SOUL.md" ] && { [ ! -f /root/.blueclaw/workspace/SOUL.md ] || grep -q '^# IDENTITY.md' /root/.blueclaw/workspace/SOUL.md 2>/dev/null; }; then
   cp -f "$STAGE/SOUL.md" /root/.blueclaw/workspace/SOUL.md
 fi
 if [ -f "$STAGE/IDENTITY.md" ]; then
   cp -f "$STAGE/IDENTITY.md" /root/.blueclaw/workspace/IDENTITY.md
+fi
+if [ -f "$STAGE/BOT_PROFILE.md" ]; then
+  cp -f "$STAGE/BOT_PROFILE.md" /root/.blueclaw/workspace/BOT_PROFILE.md
 fi
 if [ -f "$STAGE/AGENTS.md" ]; then
   cp -f "$STAGE/AGENTS.md" /root/.blueclaw/workspace/AGENTS.md
@@ -311,6 +314,7 @@ getent group blueclaw >/dev/null 2>&1 || groupadd --system blueclaw
 id blueclaw &>/dev/null || useradd -r -g blueclaw -m -d /home/blueclaw -s "$NOLOGIN_BINARY" blueclaw
 install -d -o gws -g gws -m 750 /home/gws /home/gws/.cache /home/gws/.config
 install -d -o blueclaw -g blueclaw -m 750 /home/blueclaw /home/blueclaw/.cache /home/blueclaw/.config
+chown blueclaw:blueclaw /root/.blueclaw/workspace/AGENTS.md /root/.blueclaw/workspace/IDENTITY.md /root/.blueclaw/workspace/BOT_PROFILE.md /root/.blueclaw/workspace/SOUL.md 2>/dev/null || true
 chmod 711 /root
 mkdir -p /root/.internkim/secrets /root/.internkim/env /root/.internkim/config
 chown root:root /root/.internkim/secrets
@@ -763,11 +767,17 @@ SVCEOF
   BOT_RESPONSE="$(curl -sf -X POST "$MM_URL/api/v4/bots" \
     -H "Authorization: Bearer $ADMIN_TOKEN" \
     -H 'Content-Type: application/json' \
-    -d '{"username":"internkim","display_name":"Intern Kim","description":"AI assistant"}' 2>/dev/null || true)"
+    -d '{"username":"internkim","display_name":"김인턴","description":"회사 일을 빠르게 돕는 AI teammate"}' 2>/dev/null || true)"
   BOT_USER_ID=$(echo "$BOT_RESPONSE" | jq -r '.user_id // empty')
   if [ -z "$BOT_USER_ID" ]; then
     BOT_USER_ID="$(curl -sf "$MM_URL/api/v4/users/username/internkim" \
       -H "Authorization: Bearer $ADMIN_TOKEN" 2>/dev/null | jq -r '.id // empty' || true)"
+  fi
+  if [ -n "$BOT_USER_ID" ]; then
+    curl -sf -X PUT "$MM_URL/api/v4/users/$BOT_USER_ID/patch" \
+      -H "Authorization: Bearer $ADMIN_TOKEN" \
+      -H 'Content-Type: application/json' \
+      -d '{"first_name":"김인턴","nickname":"Intern Kim","position":"회사 일을 빠르게 돕는 AI teammate"}' >/dev/null 2>&1 || true
   fi
 
   BOT_TOKEN=""

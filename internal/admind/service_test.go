@@ -462,6 +462,63 @@ func TestAdminCompanionReleasesAreSameOrigin(t *testing.T) {
 	}
 }
 
+func TestBotProfileUpdatePatchesMattermostAndWorkspaceProfile(t *testing.T) {
+	workspacePath := t.TempDir()
+	profilePath := filepath.Join(t.TempDir(), "bot-profile.json")
+	patchBody := ""
+	service := NewService(Configuration{
+		MattermostBaseURL:           "http://mattermost.local",
+		MattermostAdminPasswordPath: writeTestFile(t, "admin-password"),
+		BotProfilePath:              profilePath,
+		BlueclawWorkspacePath:       workspacePath,
+		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
+	})
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
+			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/username/internkim":
+			return jsonResponse(http.StatusOK, `{"id":"bot-1","email":"internkim@localhost","username":"internkim","first_name":"Intern Kim","nickname":"Intern Kim","roles":"system_user"}`, nil), nil
+		case request.Method == http.MethodPut && request.URL.String() == "http://mattermost.local/api/v4/users/bot-1/patch":
+			body, _ := io.ReadAll(request.Body)
+			patchBody = string(body)
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	request := httptest.NewRequest(http.MethodPut, "/admin/api/bot-profile", strings.NewReader(`{
+		"displayName":"김비서",
+		"englishDisplayName":"Kim Secretary",
+		"aliases":["비서"],
+		"publicDescription":"업무를 빠르게 돕습니다",
+		"identityExtension":"Always use the display name."
+	}`))
+	request.RemoteAddr = "127.0.0.1:12345"
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("bot profile status = %d: %s", response.Code, response.Body.String())
+	}
+	if !strings.Contains(patchBody, `"first_name":"김비서"`) || !strings.Contains(patchBody, `"position":"업무를 빠르게 돕습니다"`) {
+		t.Fatalf("unexpected Mattermost patch body: %s", patchBody)
+	}
+	workspaceDocument, errorValue := os.ReadFile(filepath.Join(workspacePath, "BOT_PROFILE.md"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	workspaceText := string(workspaceDocument)
+	if !strings.Contains(workspaceText, "displayName: 김비서") || !strings.Contains(workspaceText, "Always use the display name.") {
+		t.Fatalf("unexpected workspace bot profile: %s", workspaceText)
+	}
+	if strings.Contains(workspaceText, "# IDENTITY.md") {
+		t.Fatalf("workspace bot profile should not contain full identity document: %s", workspaceText)
+	}
+}
+
 func writeFile(t *testing.T, path string, document string) {
 	t.Helper()
 	if errorValue := os.WriteFile(path, []byte(document), 0o600); errorValue != nil {

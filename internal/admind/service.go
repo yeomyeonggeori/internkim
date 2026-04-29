@@ -42,6 +42,8 @@ type Configuration struct {
 	AdminUIPath                 string
 	RepositoryRoot              string
 	CompanionFileDirectory      string
+	BotProfilePath              string
+	BlueclawWorkspacePath       string
 }
 
 type Service struct {
@@ -146,6 +148,8 @@ func DefaultConfiguration() Configuration {
 		AdminUIPath:                 "/opt/internkim/admin-ui",
 		RepositoryRoot:              "/",
 		CompanionFileDirectory:      "/tmp/internkim-companion-files",
+		BotProfilePath:              "/root/.internkim/state/bot-profile.json",
+		BlueclawWorkspacePath:       "/root/.blueclaw/workspace",
 	}
 }
 
@@ -272,6 +276,10 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeCompanionReleases(responseWriter)
 	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/companion/"):
 		service.revokeCompanion(responseWriter, request, strings.TrimPrefix(path, "/companion/"))
+	case request.Method == http.MethodGet && path == "/bot-profile":
+		service.writeBotProfile(responseWriter, request)
+	case request.Method == http.MethodPut && path == "/bot-profile":
+		service.updateBotProfile(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/backups":
 		service.createBackup(responseWriter, request)
 	case request.Method == http.MethodGet && strings.HasPrefix(path, "/backups/") && strings.HasSuffix(path, "/status"):
@@ -1181,6 +1189,16 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.CompanionFileDirectory == "" {
 		configuration.CompanionFileDirectory = defaultConfiguration.CompanionFileDirectory
+	}
+	if configuration.BotProfilePath == "" {
+		if configuration.CompanionJobPath == defaultConfiguration.CompanionJobPath {
+			configuration.BotProfilePath = defaultConfiguration.BotProfilePath
+		} else {
+			configuration.BotProfilePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "bot-profile.json")
+		}
+	}
+	if configuration.BlueclawWorkspacePath == "" {
+		configuration.BlueclawWorkspacePath = defaultConfiguration.BlueclawWorkspacePath
 	}
 	return configuration
 }
