@@ -1130,6 +1130,8 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 
 	// 4. Grant admin role
 	if adminUserResp.ID != "" {
+		patchBody, _ := json.Marshal(map[string]string{"email": adminEmail, "password": adminPass})
+		mmAPI("PUT", "/api/v4/users/"+adminUserResp.ID+"/patch", patchBody, adminToken)
 		roleBody, _ := json.Marshal(map[string]string{"roles": "system_admin system_user"})
 		mmAPI("PUT", "/api/v4/users/"+adminUserResp.ID+"/roles", roleBody, adminToken)
 	}
