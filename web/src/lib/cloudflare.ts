@@ -203,9 +203,10 @@ export async function ensureCompanionBypassApplication(env: CFEnv, deviceId: str
 	return applicationId;
 }
 
-export async function ensureAdminAccessApplications(env: CFEnv, deviceId: string, identityProviderId: string, adminEmail: string) {
+export async function ensureAdminAccessApplications(env: CFEnv, deviceId: string, identityProviderId: string, adminEmails: string[] | string) {
+	const emails = Array.isArray(adminEmails) ? adminEmails : [adminEmails];
 	const applicationId = await ensureAdminAccessApplication(env, deviceId, identityProviderId, '/admin*');
-	await syncAccessPolicyEmails(env, applicationId, [adminEmail]);
+	await syncAccessPolicyEmails(env, applicationId, emails);
 	await deleteAccessApplicationForDomain(env, deviceId, '/_internkim/admin/*');
 }
 

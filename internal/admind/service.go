@@ -12,6 +12,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -28,18 +29,19 @@ import (
 )
 
 type Configuration struct {
-	ListenAddress          string
-	MattermostBaseURL      string
-	APIBaseURL             string
-	BlueclawBaseURL        string
-	StateDirectory         string
-	CompanionJobPath       string
-	AdminEmailPath         string
-	DeviceIDPath           string
-	DeviceSecretPath       string
-	AdminUIPath            string
-	RepositoryRoot         string
-	CompanionFileDirectory string
+	ListenAddress               string
+	MattermostBaseURL           string
+	APIBaseURL                  string
+	BlueclawBaseURL             string
+	StateDirectory              string
+	CompanionJobPath            string
+	MattermostAdminPasswordPath string
+	AdminEmailPath              string
+	DeviceIDPath                string
+	DeviceSecretPath            string
+	AdminUIPath                 string
+	RepositoryRoot              string
+	CompanionFileDirectory      string
 }
 
 type Service struct {
@@ -117,20 +119,33 @@ type restoreUploadCompleteRequest struct {
 	Chunks     int    `json:"chunks"`
 }
 
+type companionRelease struct {
+	Platform     string `json:"platform"`
+	Label        string `json:"label"`
+	Architecture string `json:"architecture"`
+	Status       string `json:"status"`
+	URL          string `json:"url"`
+}
+
+type companionReleaseResponse struct {
+	Platforms []companionRelease `json:"platforms"`
+}
+
 func DefaultConfiguration() Configuration {
 	return Configuration{
-		ListenAddress:          "127.0.0.1:18080",
-		MattermostBaseURL:      "http://127.0.0.1:8065",
-		APIBaseURL:             "https://api.intern.kim",
-		BlueclawBaseURL:        "http://127.0.0.1:8080",
-		StateDirectory:         "/root/.internkim/admin",
-		CompanionJobPath:       "/root/.internkim/state/companion-jobs.json",
-		AdminEmailPath:         "/root/.internkim/admin-email",
-		DeviceIDPath:           "/root/.internkim/env/device-id",
-		DeviceSecretPath:       "/root/.internkim/secrets/device-secret",
-		AdminUIPath:            "/opt/internkim/admin-ui",
-		RepositoryRoot:         "/",
-		CompanionFileDirectory: "/tmp/internkim-companion-files",
+		ListenAddress:               "127.0.0.1:18080",
+		MattermostBaseURL:           "http://127.0.0.1:8065",
+		APIBaseURL:                  "https://api.intern.kim",
+		BlueclawBaseURL:             "http://127.0.0.1:8080",
+		StateDirectory:              "/root/.internkim/admin",
+		CompanionJobPath:            "/root/.internkim/state/companion-jobs.json",
+		MattermostAdminPasswordPath: "/root/.internkim/secrets/mm-admin-pass",
+		AdminEmailPath:              "/root/.internkim/admin-email",
+		DeviceIDPath:                "/root/.internkim/env/device-id",
+		DeviceSecretPath:            "/root/.internkim/secrets/device-secret",
+		AdminUIPath:                 "/opt/internkim/admin-ui",
+		RepositoryRoot:              "/",
+		CompanionFileDirectory:      "/tmp/internkim-companion-files",
 	}
 }
 
@@ -172,10 +187,10 @@ func (service *Service) Run(ctx context.Context) error {
 func (service *Service) router() http.Handler {
 	multiplexer := http.NewServeMux()
 	multiplexer.HandleFunc("/admin", service.serveAdminPage)
+	multiplexer.HandleFunc("/admin/api/", service.handleAdmin)
 	multiplexer.HandleFunc("/admin/", service.serveAdminPage)
 	multiplexer.Handle("/_app/", http.FileServer(http.Dir(service.Configuration.AdminUIPath)))
 	multiplexer.HandleFunc("/logo.svg", service.serveAdminAsset)
-	multiplexer.HandleFunc("/_internkim/admin/", service.handleAdmin)
 	multiplexer.HandleFunc("/_internkim/companion/", service.handleCompanion)
 	multiplexer.Handle("/", service.mattermostProxy())
 	return service.withCORS(multiplexer)
@@ -239,7 +254,7 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		return
 	}
 
-	path := strings.TrimPrefix(request.URL.Path, "/_internkim/admin")
+	path := strings.TrimPrefix(request.URL.Path, "/admin/api")
 	switch {
 	case request.Method == http.MethodGet && path == "/health":
 		service.writeJSON(responseWriter, map[string]string{"status": "ok"})
@@ -253,6 +268,8 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.createCompanionPairingCode(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/companion/status":
 		service.writeCompanionStatus(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/companion/releases":
+		service.writeCompanionReleases(responseWriter)
 	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/companion/"):
 		service.revokeCompanion(responseWriter, request, strings.TrimPrefix(path, "/companion/"))
 	case request.Method == http.MethodPost && path == "/backups":
@@ -276,6 +293,35 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 	}
 }
 
+func (service *Service) writeCompanionReleases(responseWriter http.ResponseWriter) {
+	service.writeJSON(responseWriter, companionReleaseResponse{Platforms: companionReleases()})
+}
+
+func companionReleases() []companionRelease {
+	const latestReleaseBaseURL = "https://gitlab.com/eastriver/internkim/-/releases/permalink/latest/downloads"
+	return []companionRelease{
+		{
+			Platform:     "macos",
+			Label:        "macOS",
+			Architecture: "Apple Silicon beta",
+			Status:       "available",
+			URL:          latestReleaseBaseURL + "/internkim-companion-beta-macos-aarch64.dmg",
+		},
+		{
+			Platform:     "windows",
+			Label:        "Windows",
+			Architecture: "x64",
+			Status:       "coming_soon",
+		},
+		{
+			Platform:     "linux",
+			Label:        "Linux",
+			Architecture: "x64 AppImage",
+			Status:       "coming_soon",
+		},
+	}
+}
+
 func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *http.Request) {
 	deviceID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceIDPath)))
 	deviceSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceSecretPath))
@@ -283,20 +329,54 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		http.Error(responseWriter, "device auth is not configured", http.StatusServiceUnavailable)
 		return
 	}
-	targetPath := strings.TrimPrefix(request.URL.Path, "/_internkim/admin/users")
+	targetPath := strings.TrimPrefix(request.URL.Path, "/admin/api/users")
 	targetURL := strings.TrimRight(service.Configuration.APIBaseURL, "/") + "/api/users" + targetPath
 	if request.Method == http.MethodGet || request.Method == http.MethodDelete {
 		targetURL += "?device_id=" + url.QueryEscape(deviceID)
 	}
 	body := request.Body
+	var temporaryPassword string
+	var temporaryPasswordEmail string
 	if request.Method == http.MethodPost {
-		var payload map[string]any
+		var payload adminUserMutation
 		if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 			http.Error(responseWriter, "invalid request body", http.StatusBadRequest)
 			return
 		}
-		payload["device_id"] = deviceID
-		document, errorValue := json.Marshal(payload)
+		payload.Email = strings.ToLower(strings.TrimSpace(payload.Email))
+		if payload.Email == "" {
+			http.Error(responseWriter, "email required", http.StatusBadRequest)
+			return
+		}
+		payload.Role = normalizeAdminUserRole(payload.Role)
+		isLastAdminDemotion, errorValue := service.isLastAdminDemotion(request.Context(), deviceID, deviceSecret, payload.Email, payload.Role)
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+			return
+		}
+		if isLastAdminDemotion {
+			http.Error(responseWriter, "cannot demote the last admin user", http.StatusBadRequest)
+			return
+		}
+		provisionResult, errorValue := service.provisionMattermostUser(request.Context(), payload.Email, payload.Role)
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+			return
+		}
+		payload.MattermostUserID = provisionResult.UserID
+		payload.MattermostUsername = provisionResult.Username
+		payload.Status = provisionResult.Status
+		temporaryPassword = provisionResult.TemporaryPassword
+		temporaryPasswordEmail = payload.Email
+		proxyPayload := map[string]any{
+			"device_id":          deviceID,
+			"email":              payload.Email,
+			"role":               payload.Role,
+			"mattermostUserID":   payload.MattermostUserID,
+			"mattermostUsername": payload.MattermostUsername,
+			"status":             payload.Status,
+		}
+		document, errorValue := json.Marshal(proxyPayload)
 		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 			return
@@ -324,8 +404,81 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	if contentType := response.Header.Get("Content-Type"); contentType != "" {
 		responseWriter.Header().Set("Content-Type", contentType)
 	}
+	responseBody, errorValue := io.ReadAll(response.Body)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	if request.Method == http.MethodDelete && response.StatusCode >= 200 && response.StatusCode < 300 {
+		email := strings.TrimPrefix(targetPath, "/")
+		if decodedEmail, errorValue := url.PathUnescape(email); errorValue == nil {
+			email = decodedEmail
+		}
+		if errorValue := service.deactivateMattermostUserByEmail(request.Context(), email); errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+			return
+		}
+	}
+	if request.Method == http.MethodPost && response.StatusCode >= 200 && response.StatusCode < 300 && temporaryPassword != "" {
+		var responseDocument map[string]any
+		if errorValue := json.Unmarshal(responseBody, &responseDocument); errorValue == nil {
+			responseDocument["temporaryPassword"] = temporaryPassword
+			responseDocument["temporaryPasswordEmail"] = temporaryPasswordEmail
+			responseBody, _ = json.Marshal(responseDocument)
+		}
+	}
 	responseWriter.WriteHeader(response.StatusCode)
-	_, _ = io.Copy(responseWriter, response.Body)
+	_, _ = responseWriter.Write(responseBody)
+}
+
+func normalizeAdminUserRole(role string) string {
+	if strings.EqualFold(strings.TrimSpace(role), "admin") {
+		return "admin"
+	}
+	return "member"
+}
+
+type pagesUsersResponse struct {
+	Records []adminUserMutation `json:"records"`
+}
+
+func (service *Service) isLastAdminDemotion(ctx context.Context, deviceID string, deviceSecret string, email string, role string) (bool, error) {
+	if role == "admin" {
+		return false, nil
+	}
+	requestURL := strings.TrimRight(service.Configuration.APIBaseURL, "/") + "/api/users?device_id=" + url.QueryEscape(deviceID)
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	if errorValue != nil {
+		return false, errorValue
+	}
+	request.Header.Set("X-InternKim-Device-ID", deviceID)
+	request.Header.Set("X-InternKim-Device-Secret", deviceSecret)
+	response, errorValue := service.httpClient().Do(request)
+	if errorValue != nil {
+		return false, errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		document, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
+		return false, fmt.Errorf("users lookup returned %d: %s", response.StatusCode, strings.TrimSpace(string(document)))
+	}
+	var usersResponse pagesUsersResponse
+	if errorValue := json.NewDecoder(response.Body).Decode(&usersResponse); errorValue != nil {
+		return false, errorValue
+	}
+	adminTotal := 0
+	isTargetAdmin := false
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+	for _, record := range usersResponse.Records {
+		if record.Role != "admin" {
+			continue
+		}
+		adminTotal++
+		if strings.EqualFold(record.Email, normalizedEmail) {
+			isTargetAdmin = true
+		}
+	}
+	return isTargetAdmin && adminTotal <= 1, nil
 }
 
 func (service *Service) createRestoreUpload(responseWriter http.ResponseWriter, request *http.Request) {
@@ -506,7 +659,7 @@ func (service *Service) runBackupJob(ctx context.Context, jobID string, passphra
 	_ = os.Remove(plainPath)
 
 	job.artifactPath = encryptedPath
-	job.DownloadURL = "/_internkim/admin/backups/" + jobID + "/download"
+	job.DownloadURL = "/admin/api/backups/" + jobID + "/download"
 	service.updateJob(jobID, "completed", "ready", "")
 }
 
@@ -923,6 +1076,9 @@ func (configuration Configuration) withDefaults() Configuration {
 		} else {
 			configuration.CompanionJobPath = filepath.Join(configuration.StateDirectory, "companion-jobs.json")
 		}
+	}
+	if configuration.MattermostAdminPasswordPath == "" {
+		configuration.MattermostAdminPasswordPath = defaultConfiguration.MattermostAdminPasswordPath
 	}
 	if configuration.AdminEmailPath == "" {
 		configuration.AdminEmailPath = defaultConfiguration.AdminEmailPath

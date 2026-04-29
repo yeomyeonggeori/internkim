@@ -18,8 +18,21 @@
 	import { browser } from '$app/environment';
 	import { onMount } from 'svelte';
 
+	type UserRole = 'admin' | 'member';
+
+	type UserRecord = {
+		email: string;
+		role: UserRole;
+		mattermostUserID?: string;
+		mattermostUsername?: string;
+		status?: string;
+	};
+
 	type UsersResponse = {
 		users?: string[];
+		records?: UserRecord[];
+		temporaryPassword?: string;
+		temporaryPasswordEmail?: string;
 	};
 
 	type BackupManifest = {
@@ -89,8 +102,10 @@
 	const storedDeviceIdKey = 'internkim_device_id';
 
 	let deviceIdInput = $state('');
-	let userEmails = $state<string[]>([]);
+	let userRecords = $state<UserRecord[]>([]);
 	let newEmail = $state('');
+	let newUserRole = $state<UserRole>('member');
+	let temporaryPasswordResult = $state<{ email: string; password: string } | null>(null);
 	let isLoadingUsers = $state(false);
 	let isSavingUser = $state(false);
 	let errorMessage = $state('');
@@ -127,15 +142,21 @@
 	const isDeviceContext = () => deviceId() !== '';
 	const adminBaseURL = () => {
 		const id = deviceId();
-		if (deviceIdFromHost()) return '/_internkim/admin';
-		return id ? `https://${id}.intern.kim/_internkim/admin` : '';
+		if (deviceIdFromHost()) return '/admin/api';
+		return id ? `https://${id}.intern.kim/admin/api` : '';
 	};
 	const usersBaseURL = () => adminBaseURL();
+	const companionReleaseURL = () => {
+		if (deviceIdFromHost()) return '/admin/api/companion/releases';
+		return '/api/companion/releases';
+	};
 	const backupDownloadURL = () => {
 		if (!backupJob?.downloadURL || !deviceId()) return '';
 		if (deviceIdFromHost()) return backupJob.downloadURL;
 		return `https://${deviceId()}.intern.kim${backupJob.downloadURL}`;
 	};
+	const userCount = () => userRecords.length;
+	const adminCount = () => userRecords.filter((record) => record.role === 'admin').length;
 
 	onMount(() => {
 		const queryDeviceId = new URLSearchParams(location.search).get('device_id')?.trim().toLowerCase() ?? '';
@@ -177,7 +198,7 @@
 
 	async function loadCompanionReleases() {
 		try {
-			const response = await fetch('https://api.intern.kim/api/companion/releases');
+			const response = await fetch(companionReleaseURL(), { credentials: 'include' });
 			if (!response.ok) return;
 			const data = (await response.json()) as CompanionReleaseResponse;
 			companionReleases = data.platforms ?? [];
@@ -202,11 +223,28 @@
 				return;
 			}
 			const data = (await response.json()) as UsersResponse;
-			userEmails = data.users ?? [];
+			applyUsersResponse(data);
 		} catch {
 			errorMessage = '초대 목록을 불러오지 못했습니다.';
 		} finally {
 			isLoadingUsers = false;
+		}
+	}
+
+	function applyUsersResponse(data: UsersResponse) {
+		if (data.records) {
+			userRecords = data.records;
+		} else {
+			userRecords = (data.users ?? []).map((email, index) => ({
+				email,
+				role: index === 0 ? 'admin' : 'member'
+			}));
+		}
+		if (data.temporaryPassword && data.temporaryPasswordEmail) {
+			temporaryPasswordResult = {
+				email: data.temporaryPasswordEmail,
+				password: data.temporaryPassword
+			};
 		}
 	}
 
@@ -216,12 +254,13 @@
 
 		isSavingUser = true;
 		errorMessage = '';
+		temporaryPasswordResult = null;
 		try {
 			const response = await fetch(`${usersBaseURL()}/users`, {
 				method: 'POST',
 				credentials: 'include',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email })
+				body: JSON.stringify({ email, role: newUserRole })
 			});
 			if (!response.ok) {
 				errorMessage =
@@ -231,10 +270,36 @@
 				return;
 			}
 			const data = (await response.json()) as UsersResponse;
-			userEmails = data.users ?? [];
+			applyUsersResponse(data);
 			newEmail = '';
+			newUserRole = 'member';
 		} catch {
 			errorMessage = '사용자 초대에 실패했습니다.';
+		} finally {
+			isSavingUser = false;
+		}
+	}
+
+	async function setUserRole(email: string, role: UserRole) {
+		if (!deviceId()) return;
+
+		isSavingUser = true;
+		errorMessage = '';
+		temporaryPasswordResult = null;
+		try {
+			const response = await fetch(`${usersBaseURL()}/users`, {
+				method: 'POST',
+				credentials: 'include',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ email, role })
+			});
+			if (!response.ok) {
+				errorMessage = response.status === 403 ? '관리자 인증이 필요합니다.' : '사용자 역할 변경에 실패했습니다.';
+				return;
+			}
+			applyUsersResponse((await response.json()) as UsersResponse);
+		} catch {
+			errorMessage = '사용자 역할 변경에 실패했습니다.';
 		} finally {
 			isSavingUser = false;
 		}
@@ -245,6 +310,7 @@
 
 		isSavingUser = true;
 		errorMessage = '';
+		temporaryPasswordResult = null;
 		try {
 			const response = await fetch(`${usersBaseURL()}/users/${encodeURIComponent(email)}`, {
 				method: 'DELETE',
@@ -258,7 +324,7 @@
 				return;
 			}
 			const data = (await response.json()) as UsersResponse;
-			userEmails = data.users ?? [];
+			applyUsersResponse(data);
 		} catch {
 			errorMessage = '사용자 제거에 실패했습니다.';
 		} finally {
@@ -750,9 +816,11 @@
 			<div class="flex flex-wrap items-center justify-between gap-3">
 				<div>
 					<h2 class="text-base font-semibold">Allowed Users</h2>
-					<p class="text-muted-foreground text-sm">초대 목록은 Cloudflare Access와 Blueclaw policy의 기준 이메일입니다.</p>
+					<p class="text-muted-foreground text-sm">
+						초대하면 Mattermost 계정과 임시 비밀번호가 만들어집니다. 비밀번호는 한 번만 표시됩니다.
+					</p>
 				</div>
-				<Badge variant="outline">{userEmails.length} users</Badge>
+				<Badge variant="outline">{userCount()} users</Badge>
 			</div>
 
 			{#if !isDeviceContext()}
@@ -761,16 +829,23 @@
 				</p>
 			{:else}
 				<form
-					class="flex gap-2"
+					class="grid gap-2 md:grid-cols-[1fr_140px_auto]"
 					onsubmit={(event) => {
 						event.preventDefault();
 						addEmail();
 					}}
 				>
-					<div class="relative flex-1">
+					<div class="relative">
 						<MailIcon class="text-muted-foreground pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" />
 						<Input bind:value={newEmail} type="email" placeholder="name@company.com" class="pl-9" />
 					</div>
+					<select
+						bind:value={newUserRole}
+						class="border-input bg-background ring-offset-background focus-visible:ring-ring h-10 rounded-md border px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+					>
+						<option value="member">Member</option>
+						<option value="admin">Admin</option>
+					</select>
 					<Button type="submit" disabled={isSavingUser || !newEmail.trim()} class="gap-2">
 						{#if isSavingUser}
 							<LoaderIcon class="size-4 animate-spin" />
@@ -781,31 +856,67 @@
 					</Button>
 				</form>
 
+				<p class="text-muted-foreground text-sm">
+					InternKim cannot reset this password later. 사용자는 첫 로그인 후 Mattermost Account Settings에서 직접 비밀번호를
+					변경해야 합니다.
+				</p>
+
+				{#if temporaryPasswordResult}
+					<div class="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+						<div class="flex flex-wrap items-start justify-between gap-3">
+							<div>
+								<p class="font-semibold">Temporary password for {temporaryPasswordResult.email}</p>
+								<p class="mt-1">이 비밀번호는 다시 볼 수 없습니다. 사용자에게 안전한 채널로 전달하세요.</p>
+								<code class="mt-3 block rounded-md bg-white px-3 py-2 font-mono text-base">{temporaryPasswordResult.password}</code>
+							</div>
+							<CopyButton text={temporaryPasswordResult.password} />
+						</div>
+					</div>
+				{/if}
+
 				{#if errorMessage}
 					<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{errorMessage}</p>
 				{/if}
 
 				{#if isLoadingUsers}
 					<p class="text-muted-foreground text-sm">초대 목록을 불러오는 중...</p>
-				{:else if userEmails.length === 0}
+				{:else if userRecords.length === 0}
 					<p class="text-muted-foreground text-sm">등록된 사용자가 없습니다.</p>
 				{:else}
 					<div class="overflow-hidden rounded-lg border">
-						{#each userEmails as email, index}
-							<div class="flex items-center justify-between gap-3 border-b px-3 py-2 last:border-b-0">
+						{#each userRecords as record}
+							<div class="flex flex-wrap items-center justify-between gap-3 border-b px-3 py-2 last:border-b-0">
 								<div class="min-w-0">
-									<p class="truncate text-sm font-medium">{email}</p>
-									{#if index === 0}
-										<p class="text-muted-foreground text-xs">initial admin</p>
+									<p class="truncate text-sm font-medium">{record.email}</p>
+									{#if record.mattermostUsername}
+										<p class="text-muted-foreground text-xs">Mattermost: {record.mattermostUsername}</p>
 									{/if}
 								</div>
-								{#if index === 0}
-									<Badge variant="secondary">admin</Badge>
-								{:else}
-									<Button variant="ghost" size="icon" disabled={isSavingUser} onclick={() => removeEmail(email)}>
+								<div class="flex items-center gap-2">
+									<Badge variant={record.role === 'admin' ? 'secondary' : 'outline'}>{record.role}</Badge>
+									{#if record.role === 'admin'}
+										<Button
+											variant="outline"
+											size="sm"
+											disabled={isSavingUser || adminCount() <= 1}
+											onclick={() => setUserRole(record.email, 'member')}
+										>
+											Make member
+										</Button>
+									{:else}
+										<Button variant="outline" size="sm" disabled={isSavingUser} onclick={() => setUserRole(record.email, 'admin')}>
+											Make admin
+										</Button>
+									{/if}
+									<Button
+										variant="ghost"
+										size="icon"
+										disabled={isSavingUser || (record.role === 'admin' && adminCount() <= 1)}
+										onclick={() => removeEmail(record.email)}
+									>
 										<XIcon class="size-4" />
 									</Button>
-								{/if}
+								</div>
 							</div>
 						{/each}
 					</div>

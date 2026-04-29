@@ -34,7 +34,7 @@ func TestGatewayRoutesAdminAndMattermost(t *testing.T) {
 	})}
 	handler := service.router()
 
-	adminRequest := httptest.NewRequest(http.MethodGet, "/_internkim/admin/health", nil)
+	adminRequest := httptest.NewRequest(http.MethodGet, "/admin/api/health", nil)
 	adminRequest.RemoteAddr = "127.0.0.1:12345"
 	adminResponse := httptest.NewRecorder()
 	handler.ServeHTTP(adminResponse, adminRequest)
@@ -99,7 +99,7 @@ func TestAdminRejectsUnauthorizedRemoteCaller(t *testing.T) {
 	service := NewService(Configuration{AdminEmailPath: writeTestFile(t, "admin@example.com")})
 	handler := service.router()
 
-	request := httptest.NewRequest(http.MethodGet, "/_internkim/admin/health", nil)
+	request := httptest.NewRequest(http.MethodGet, "/admin/api/health", nil)
 	request.RemoteAddr = "198.51.100.10:443"
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
@@ -107,7 +107,7 @@ func TestAdminRejectsUnauthorizedRemoteCaller(t *testing.T) {
 		t.Fatalf("unauthorized status = %d", response.Code)
 	}
 
-	request = httptest.NewRequest(http.MethodGet, "/_internkim/admin/health", nil)
+	request = httptest.NewRequest(http.MethodGet, "/admin/api/health", nil)
 	request.RemoteAddr = "198.51.100.10:443"
 	request.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
 	response = httptest.NewRecorder()
@@ -149,7 +149,7 @@ func TestAdminUsersProxyUsesDeviceAuth(t *testing.T) {
 	})}
 	handler := service.router()
 
-	request := httptest.NewRequest(http.MethodGet, "/_internkim/admin/users", nil)
+	request := httptest.NewRequest(http.MethodGet, "/admin/api/users", nil)
 	request.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
@@ -158,6 +158,144 @@ func TestAdminUsersProxyUsesDeviceAuth(t *testing.T) {
 	}
 	if !strings.Contains(response.Body.String(), "admin@example.com") {
 		t.Fatalf("users proxy body = %q", response.Body.String())
+	}
+}
+
+func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *testing.T) {
+	deviceDirectory := t.TempDir()
+	deviceIDPath := filepath.Join(deviceDirectory, "device-id")
+	deviceSecretPath := filepath.Join(deviceDirectory, "device-secret")
+	adminPasswordPath := filepath.Join(deviceDirectory, "mm-admin-pass")
+	writeFile(t, deviceIDPath, "dc719d8e")
+	writeFile(t, deviceSecretPath, "secret-value")
+	writeFile(t, adminPasswordPath, "admin-pass")
+
+	var pagesPayload map[string]any
+	service := NewService(Configuration{
+		APIBaseURL:                  "https://api.intern.kim",
+		MattermostBaseURL:           "http://mattermost.local",
+		MattermostAdminPasswordPath: adminPasswordPath,
+		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
+		DeviceIDPath:                deviceIDPath,
+		DeviceSecretPath:            deviceSecretPath,
+		StateDirectory:              t.TempDir(),
+		CompanionJobPath:            filepath.Join(t.TempDir(), "jobs.json"),
+		AdminUIPath:                 t.TempDir(),
+	})
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
+			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/email/member@example.com":
+			return jsonResponse(http.StatusNotFound, `{"message":"not found"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users" && request.Method == http.MethodPost:
+			var payload map[string]string
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if payload["email"] != "member@example.com" {
+				t.Fatalf("mattermost email = %q", payload["email"])
+			}
+			if payload["password"] == "" {
+				t.Fatal("mattermost password empty")
+			}
+			return jsonResponse(http.StatusCreated, `{"id":"user-1","email":"member@example.com","username":"member"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim":
+			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/members":
+			return jsonResponse(http.StatusCreated, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/roles":
+			var payload map[string]string
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if payload["roles"] != "system_user" {
+				t.Fatalf("mattermost roles = %q", payload["roles"])
+			}
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "https://api.intern.kim/api/users?device_id=dc719d8e" && request.Method == http.MethodGet:
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"admin@example.com","role":"admin"}]}`, nil), nil
+		case request.URL.String() == "https://api.intern.kim/api/users" && request.Method == http.MethodPost:
+			if request.Header.Get("X-InternKim-Device-Secret") != "secret-value" {
+				t.Fatalf("device secret header = %q", request.Header.Get("X-InternKim-Device-Secret"))
+			}
+			if errorValue := json.NewDecoder(request.Body).Decode(&pagesPayload); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if _, exists := pagesPayload["temporaryPassword"]; exists {
+				t.Fatal("temporary password leaked to Pages")
+			}
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","role":"member"}]}`, nil), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+	handler := service.router()
+
+	request := httptest.NewRequest(http.MethodPost, "/admin/api/users", strings.NewReader(`{"email":"member@example.com","role":"member"}`))
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("invite status = %d body = %s", response.Code, response.Body.String())
+	}
+
+	var document map[string]any
+	if errorValue := json.NewDecoder(response.Body).Decode(&document); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if document["temporaryPassword"] == "" {
+		t.Fatalf("temporary password missing: %#v", document)
+	}
+	if document["temporaryPasswordEmail"] != "member@example.com" {
+		t.Fatalf("temporary password email = %#v", document["temporaryPasswordEmail"])
+	}
+	if pagesPayload["mattermostUserID"] != "user-1" || pagesPayload["mattermostUsername"] != "member" {
+		t.Fatalf("pages payload = %#v", pagesPayload)
+	}
+}
+
+func TestAdminCompanionReleasesAreSameOrigin(t *testing.T) {
+	service := NewService(Configuration{AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	handler := service.router()
+
+	request := httptest.NewRequest(http.MethodGet, "/admin/api/companion/releases", nil)
+	request.RemoteAddr = "127.0.0.1:12345"
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("companion releases status = %d", response.Code)
+	}
+
+	var document companionReleaseResponse
+	if errorValue := json.NewDecoder(response.Body).Decode(&document); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(document.Platforms) == 0 {
+		t.Fatal("companion releases empty")
+	}
+	if document.Platforms[0].Platform != "macos" {
+		t.Fatalf("first companion release platform = %q", document.Platforms[0].Platform)
+	}
+}
+
+func writeFile(t *testing.T, path string, document string) {
+	t.Helper()
+	if errorValue := os.WriteFile(path, []byte(document), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
+
+func jsonResponse(statusCode int, body string, header http.Header) *http.Response {
+	if header == nil {
+		header = http.Header{}
+	}
+	header.Set("Content-Type", "application/json")
+	return &http.Response{
+		StatusCode: statusCode,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     header,
 	}
 }
 
@@ -261,7 +399,7 @@ func TestCompanionPairHeartbeatAndJobLifecycle(t *testing.T) {
 	}
 
 	pairingResponse := httptest.NewRecorder()
-	pairingRequest := httptest.NewRequest(http.MethodPost, "/_internkim/admin/companion/pairing-codes", nil)
+	pairingRequest := httptest.NewRequest(http.MethodPost, "/admin/api/companion/pairing-codes", nil)
 	pairingRequest.RemoteAddr = "127.0.0.1:12345"
 	handler.ServeHTTP(pairingResponse, pairingRequest)
 	if pairingResponse.Code != http.StatusOK {
@@ -303,7 +441,7 @@ func TestCompanionPairHeartbeatAndJobLifecycle(t *testing.T) {
 	}
 
 	statusResponse := httptest.NewRecorder()
-	statusRequest := httptest.NewRequest(http.MethodGet, "/_internkim/admin/companion/status", nil)
+	statusRequest := httptest.NewRequest(http.MethodGet, "/admin/api/companion/status", nil)
 	statusRequest.RemoteAddr = "127.0.0.1:12345"
 	handler.ServeHTTP(statusResponse, statusRequest)
 	if statusResponse.Code != http.StatusOK {
@@ -389,7 +527,7 @@ func TestCompanionDenyReturnsStructuredObservation(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	pairingResponse := httptest.NewRecorder()
-	pairingRequest := httptest.NewRequest(http.MethodPost, "/_internkim/admin/companion/pairing-codes", nil)
+	pairingRequest := httptest.NewRequest(http.MethodPost, "/admin/api/companion/pairing-codes", nil)
 	pairingRequest.RemoteAddr = "127.0.0.1:12345"
 	handler.ServeHTTP(pairingResponse, pairingRequest)
 	var pairingCode companionPairingCodeResponse
@@ -710,7 +848,7 @@ func pairTestCompanion(t *testing.T, handler http.Handler, request keyPairCapabi
 	t.Helper()
 	keyPair := request.KeyPair
 	pairingResponse := httptest.NewRecorder()
-	pairingRequest := httptest.NewRequest(http.MethodPost, "/_internkim/admin/companion/pairing-codes", nil)
+	pairingRequest := httptest.NewRequest(http.MethodPost, "/admin/api/companion/pairing-codes", nil)
 	pairingRequest.RemoteAddr = "127.0.0.1:12345"
 	handler.ServeHTTP(pairingResponse, pairingRequest)
 	var pairingCode companionPairingCodeResponse

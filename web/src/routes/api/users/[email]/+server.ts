@@ -1,14 +1,14 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { syncAccessPolicyEmails } from '$lib/cloudflare';
-import { normalizeDeviceID } from '$lib/device-auth';
-import { kv } from '$lib/kv';
-import type { Device } from '$lib/types';
+import { ensureAdminAccessApplications, ensureOneTimePinIdentityProvider, syncAccessPolicyEmails } from '$lib/cloudflare';
+import { isBoardRequest, normalizeDeviceID } from '$lib/device-auth';
+import { adminEmails, kv, userEmails } from '$lib/kv';
+import type { Device, UserRecord } from '$lib/types';
 
 const corsHeaders = {
 	'Access-Control-Allow-Origin': '*',
 	'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-	'Access-Control-Allow-Headers': 'Content-Type'
+	'Access-Control-Allow-Headers': 'Content-Type, X-InternKim-Device-ID, X-InternKim-Device-Secret'
 };
 
 export const OPTIONS: RequestHandler = async () => {
@@ -19,8 +19,8 @@ function normalizeEmail(email: string): string {
 	return email.trim().toLowerCase();
 }
 
-async function usersRevision(users: string[]): Promise<string> {
-	const encodedUsers = new TextEncoder().encode(JSON.stringify(users));
+async function usersRevision(records: UserRecord[]): Promise<string> {
+	const encodedUsers = new TextEncoder().encode(JSON.stringify(records));
 	const digest = await crypto.subtle.digest('SHA-256', encodedUsers);
 	return Array.from(new Uint8Array(digest))
 		.map((byte) => byte.toString(16).padStart(2, '0'))
@@ -40,10 +40,10 @@ function callerEmail(request: Request): string {
 	return normalizeEmail(request.headers.get('Cf-Access-Authenticated-User-Email') ?? '');
 }
 
-function isAdminRequest(request: Request, device: Device, users: string[], adminToken: string, registerSecret: string): boolean {
+function isAdminRequest(request: Request, device: Device, adminUsers: string[], adminToken: string, registerSecret: string): boolean {
 	if (adminToken && adminToken === registerSecret) return true;
-	const adminEmail = users[0] ?? normalizeEmail(device.admin_email);
-	return callerEmail(request) === adminEmail;
+	const authorizedAdmins = adminUsers.length > 0 ? adminUsers : [normalizeEmail(device.admin_email)];
+	return authorizedAdmins.includes(callerEmail(request));
 }
 
 export const DELETE: RequestHandler = async ({ params, request, url, platform }) => {
@@ -58,19 +58,23 @@ export const DELETE: RequestHandler = async ({ params, request, url, platform })
 	const device = await kv.getDevice(env.KV, device_id);
 	if (!device) throw error(404, 'Device not found');
 
-	const users = await kv.getUsers(env.KV, device_id);
-	if (!isAdminRequest(request, device, users, admin_token, env.INTERNKIM_REGISTER_SECRET)) {
+	const records = await kv.getUserRecords(env.KV, device_id, device.admin_email);
+	const isAuthorizedBoard = await isBoardRequest(request, device, device_id);
+	if (!isAuthorizedBoard && !isAdminRequest(request, device, adminEmails(records), admin_token, env.INTERNKIM_REGISTER_SECRET)) {
 		throw error(403, 'Admin only');
 	}
-	if (email === (users[0] ?? normalizeEmail(device.admin_email))) {
-		throw error(400, 'Cannot remove the admin user');
+	const record = records.find((item) => item.email === email);
+	if (record?.role === 'admin' && adminEmails(records).length <= 1) {
+		throw error(400, 'Cannot remove the last admin user');
 	}
 
-	const filtered = users.filter((u) => u !== email);
-	await kv.putUsers(env.KV, device_id, filtered);
+	const filtered = records.filter((item) => item.email !== email);
+	await kv.putUserRecords(env.KV, device_id, filtered);
 	if (device.access_app_id) {
-		await syncAccessPolicyEmails(cfEnv(env), device.access_app_id, filtered);
+		await syncAccessPolicyEmails(cfEnv(env), device.access_app_id, userEmails(filtered));
 	}
+	const identityProviderID = await ensureOneTimePinIdentityProvider(cfEnv(env));
+	await ensureAdminAccessApplications(cfEnv(env), device_id, identityProviderID, adminEmails(filtered));
 
-	return json({ users: filtered, revision: await usersRevision(filtered) }, { headers: corsHeaders });
+	return json({ users: userEmails(filtered), records: filtered, revision: await usersRevision(filtered) }, { headers: corsHeaders });
 };
