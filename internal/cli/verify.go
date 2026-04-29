@@ -635,6 +635,16 @@ delete_stale_verify_users() {
   done
 }
 
+delete_verify_system_posts() {
+  sudo -u postgres psql -d mattermost <<'SQL' >/dev/null || echo "cleanup warning: failed to delete verify Mattermost system posts" >&2
+UPDATE posts
+SET deleteat = (extract(epoch from now()) * 1000)::bigint
+WHERE type LIKE 'system_%'
+  AND deleteat = 0
+  AND message ~ '(verifyinvited|verifyuninvited|labmattermost)';
+SQL
+}
+
 delete_verify_replies() {
   local token="$1"
   api_request "cleanup enumerate bot replies" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=100" "$admin_token" |
@@ -649,6 +659,7 @@ cleanup() {
   delete_post "${invited_token:-}" "${invited_post_id:-}"
   delete_post "${uninvited_token:-}" "${uninvited_post_id:-}"
   delete_verify_replies "${mattermost_token:-}"
+  delete_verify_system_posts
   delete_user "${invited_user_id:-}"
   delete_user "${uninvited_user_id:-}"
   curl --silent --show-error -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$invited_email" >/dev/null || true
@@ -656,6 +667,7 @@ cleanup() {
 trap cleanup EXIT
 
 phase "cleanup stale verify users"
+delete_verify_system_posts
 delete_stale_verify_users
 phase "bot lookup"
 mattermost_token="$(cat /root/.internkim/secrets/mattermost-bot-token)"
