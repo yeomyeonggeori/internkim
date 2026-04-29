@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -20,13 +21,14 @@ type botProfile struct {
 	IdentityExtension  string   `json:"identityExtension,omitempty"`
 }
 
+const legacyDefaultBotPublicDescriptionHash = "108227eaad94edd77ad7c16c676581f6d18882d2d507e2f33ff5a326dfc2ef02"
+
 func defaultBotProfile() botProfile {
 	return botProfile{
 		Username:           "internkim",
 		DisplayName:        "김인턴",
 		EnglishDisplayName: "Intern Kim",
 		Aliases:            []string{"인턴킴", "intern kim"},
-		PublicDescription:  "회사 일을 빠르게 돕는 AI teammate",
 		IdentityExtension:  "Use the current displayName naturally when introducing yourself.",
 	}
 }
@@ -114,6 +116,9 @@ func (service *Service) seedBotProfileFromMattermost(ctx context.Context) botPro
 	if strings.TrimSpace(userRecord.Position) != "" {
 		profile.PublicDescription = strings.TrimSpace(userRecord.Position)
 	}
+	if isLegacyDefaultBotPublicDescription(profile.PublicDescription) {
+		profile.PublicDescription = ""
+	}
 	return profile
 }
 
@@ -169,7 +174,10 @@ func normalizeBotProfile(profile botProfile) botProfile {
 	profile.Username = "internkim"
 	profile.DisplayName = strings.TrimSpace(firstNonEmpty(profile.DisplayName, defaultProfile.DisplayName))
 	profile.EnglishDisplayName = strings.TrimSpace(firstNonEmpty(profile.EnglishDisplayName, defaultProfile.EnglishDisplayName))
-	profile.PublicDescription = strings.TrimSpace(firstNonEmpty(profile.PublicDescription, defaultProfile.PublicDescription))
+	profile.PublicDescription = strings.TrimSpace(profile.PublicDescription)
+	if isLegacyDefaultBotPublicDescription(profile.PublicDescription) {
+		profile.PublicDescription = ""
+	}
 	profile.IdentityExtension = strings.TrimSpace(profile.IdentityExtension)
 	if profile.IdentityExtension == "" {
 		profile.IdentityExtension = defaultProfile.IdentityExtension
@@ -207,6 +215,11 @@ func validateBotProfile(profile botProfile) error {
 		}
 	}
 	return nil
+}
+
+func isLegacyDefaultBotPublicDescription(value string) bool {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(value)))
+	return fmt.Sprintf("%x", sum) == legacyDefaultBotPublicDescriptionHash
 }
 
 func containsSecretLikeText(value string) bool {

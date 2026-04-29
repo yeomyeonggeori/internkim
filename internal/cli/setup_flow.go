@@ -67,14 +67,8 @@ func deviceBrowserRuntimePackageListUbuntu24() string {
 	return strings.Join([]string{
 		"zstd",
 		"fonts-noto-color-emoji",
-		"fonts-unifont",
 		"libfontconfig1",
 		"libfreetype6",
-		"fonts-liberation",
-		"fonts-ipafont-gothic",
-		"fonts-wqy-zenhei",
-		"fonts-tlwg-loma-otf",
-		"fonts-freefont-ttf",
 		"libasound2t64",
 		"libatk-bridge2.0-0t64",
 		"libatk1.0-0t64",
@@ -103,14 +97,8 @@ func deviceBrowserRuntimePackageListLegacyUbuntu() string {
 	return strings.Join([]string{
 		"zstd",
 		"fonts-noto-color-emoji",
-		"fonts-unifont",
 		"libfontconfig1",
 		"libfreetype6",
-		"fonts-liberation",
-		"fonts-ipafont-gothic",
-		"fonts-wqy-zenhei",
-		"fonts-tlwg-loma-otf",
-		"fonts-freefont-ttf",
 		"libasound2",
 		"libatk-bridge2.0-0",
 		"libatk1.0-0",
@@ -136,15 +124,111 @@ func deviceBrowserRuntimePackageListLegacyUbuntu() string {
 	}, " ")
 }
 
+func deviceBrowserRuntimePackageListJetPack6() string {
+	return deviceBrowserRuntimePackageListLegacyUbuntu()
+}
+
+func deviceBrowserRuntimeOptionalPackageListUbuntu24() string {
+	return strings.Join([]string{
+		"fonts-liberation",
+		"fonts-freefont-ttf",
+		"fonts-noto-cjk",
+	}, " ")
+}
+
+func deviceBrowserRuntimeOptionalPackageListLegacyUbuntu() string {
+	return strings.Join([]string{
+		"fonts-liberation",
+		"fonts-freefont-ttf",
+		"fonts-noto-cjk",
+	}, " ")
+}
+
+func deviceBrowserRuntimeOptionalPackageListJetPack6() string {
+	return deviceBrowserRuntimeOptionalPackageListLegacyUbuntu()
+}
+
 func deviceBrowserRuntimePackageSelectionScript() string {
 	return fmt.Sprintf(`runtimePackages=%s
+optionalRuntimePackages=%s
 if [ -f /etc/os-release ]; then
   . /etc/os-release
   case "${VERSION_ID:-}" in
-    24.*|25.*|26.*) runtimePackages=%s ;;
-    *) runtimePackages=%s ;;
+    22.*) runtimePackages=%s; optionalRuntimePackages=%s ;;
+    24.*|25.*|26.*) runtimePackages=%s; optionalRuntimePackages=%s ;;
+    *) runtimePackages=%s; optionalRuntimePackages=%s ;;
   esac
-fi`, quoteShellValue(deviceBrowserRuntimePackageListLegacyUbuntu()), quoteShellValue(deviceBrowserRuntimePackageListUbuntu24()), quoteShellValue(deviceBrowserRuntimePackageListLegacyUbuntu()))
+fi`,
+		quoteShellValue(deviceBrowserRuntimePackageListLegacyUbuntu()),
+		quoteShellValue(deviceBrowserRuntimeOptionalPackageListLegacyUbuntu()),
+		quoteShellValue(deviceBrowserRuntimePackageListJetPack6()),
+		quoteShellValue(deviceBrowserRuntimeOptionalPackageListJetPack6()),
+		quoteShellValue(deviceBrowserRuntimePackageListUbuntu24()),
+		quoteShellValue(deviceBrowserRuntimeOptionalPackageListUbuntu24()),
+		quoteShellValue(deviceBrowserRuntimePackageListLegacyUbuntu()),
+		quoteShellValue(deviceBrowserRuntimeOptionalPackageListLegacyUbuntu()),
+	)
+}
+
+func deviceBrowserRuntimeDependencyInstallScript() string {
+	return strings.TrimSpace(`apt-get update -qq >/dev/null 2>&1 || true
+` + deviceBrowserRuntimePackageSelectionScript() + `
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $runtimePackages >/dev/null
+installableOptionalPackages=""
+for packageName in $optionalRuntimePackages; do
+  if apt-cache show "$packageName" >/dev/null 2>&1; then
+    installableOptionalPackages="$installableOptionalPackages $packageName"
+  fi
+done
+if [ -n "$installableOptionalPackages" ]; then
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $installableOptionalPackages >/dev/null || true
+fi`)
+}
+
+func usersSyncDependencyInstallScript() string {
+	return strings.TrimSpace(`if ! command -v jq >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1; then
+  apt-get update -qq >/dev/null 2>&1 || true
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq jq curl ca-certificates >/dev/null
+fi
+command -v jq >/dev/null 2>&1
+command -v curl >/dev/null 2>&1`)
+}
+
+func deviceBrowserRuntimeExtractScript() string {
+	return strings.TrimSpace(`install -d -m 755 /opt/internkim
+temporaryDirectory="$(mktemp -d /opt/internkim/device-browser.next.XXXXXX)"
+cleanup() {
+  rm -rf "$temporaryDirectory"
+}
+trap cleanup EXIT
+tar --use-compress-program=zstd -xf "$archivePath" -C "$temporaryDirectory"
+manifestPath="$temporaryDirectory/manifest.json"
+test -f "$manifestPath"
+executableRelativePath="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1])).get("executablePath", ""))' "$manifestPath")"
+test -n "$executableRelativePath"
+test -x "$temporaryDirectory/$executableRelativePath"
+ln -sfn "$executableRelativePath" "$temporaryDirectory/chromium"
+"$temporaryDirectory/chromium" --version >/tmp/internkim-device-browser-version.log 2>&1
+chmod -R a+rX "$temporaryDirectory"
+rm -rf /opt/internkim/device-browser.previous
+if [ -d /opt/internkim/device-browser ]; then
+  mv /opt/internkim/device-browser /opt/internkim/device-browser.previous
+fi
+mv "$temporaryDirectory" /opt/internkim/device-browser
+trap - EXIT
+rm -rf /opt/internkim/device-browser.previous`)
+}
+
+func deviceBrowserRuntimeInstallScript(remoteArchivePath string) string {
+	return fmt.Sprintf(`set -eu
+archivePath=%s
+%s
+%s
+rm -f "$archivePath"`,
+		quoteShellValue(remoteArchivePath),
+		deviceBrowserRuntimeDependencyInstallScript(),
+		deviceBrowserRuntimeExtractScript(),
+	)
 }
 
 func newSetupFlowState(
@@ -204,8 +288,7 @@ func (state *setupFlowState) callbacks() setup.Callbacks {
 			if state.sshClient == nil {
 				return nil
 			}
-			installMattermost(state.messenger, state.sshClient, context.Force)
-			return nil
+			return installMattermost(state.messenger, state.sshClient, context.Force)
 		},
 		SetupMattermost: func(context *setup.Context) error {
 			if state.sshClient == nil {
@@ -293,7 +376,9 @@ func (state *setupFlowState) ensureWiFiCredentials() error {
 
 	savedSSID := loadState(state.stateDir, "wifi_ssid")
 	savedPassword := loadState(state.stateDir, "wifi_pass")
+	savedOpenWiFi := loadState(state.stateDir, "wifi_open") == "true"
 	currentSSID := detectSSID(state.getSSIDPath)
+	isOpenWiFi := containsArg("--wifi-open") || containsArg("--open-wifi")
 
 	state.wifiChanged = currentSSID != "" && currentSSID != savedSSID
 	state.wifiSSID = savedSSID
@@ -319,6 +404,18 @@ func (state *setupFlowState) ensureWiFiCredentials() error {
 		return fmt.Errorf("wifi ssid is empty")
 	}
 
+	if savedOpenWiFi && savedSSID == state.wifiSSID && !state.wifiChanged {
+		isOpenWiFi = true
+	}
+	if isOpenWiFi {
+		state.wifiPassword = ""
+		saveState(state.stateDir, "wifi_ssid", state.wifiSSID)
+		saveState(state.stateDir, "wifi_pass", "")
+		saveState(state.stateDir, "wifi_open", "true")
+		state.wifiResolved = true
+		return nil
+	}
+
 	if state.wifiPassword == "" || state.wifiChanged {
 		keychainPassword := getKeychainPassword(state.wifiSSID)
 		if keychainPassword != "" {
@@ -334,11 +431,16 @@ func (state *setupFlowState) ensureWiFiCredentials() error {
 
 	saveState(state.stateDir, "wifi_ssid", state.wifiSSID)
 	saveState(state.stateDir, "wifi_pass", state.wifiPassword)
+	saveState(state.stateDir, "wifi_open", "")
 	state.wifiResolved = true
 	return nil
 }
 
 func (state *setupFlowState) configureWifiSSH(context *setup.Context) error {
+	if context.BoardType == setup.BoardJetsonOrinNano {
+		return state.configureJetsonWiFiSSH()
+	}
+
 	if err := state.ensureWiFiCredentials(); err != nil {
 		return err
 	}
@@ -374,6 +476,42 @@ udhcpc -i wlan0 -q -n -t 5 -T 3 2>/dev/null || true`, wpaSupplicant))
 	return nil
 }
 
+func (state *setupFlowState) configureJetsonWiFiSSH() error {
+	if err := state.ensureWiFiCredentials(); err != nil {
+		return err
+	}
+
+	securityCommand := "nmcli connection modify internkim-wifi wifi-sec.key-mgmt none"
+	if state.wifiPassword != "" {
+		securityCommand = "nmcli connection modify internkim-wifi wifi-sec.key-mgmt wpa-psk wifi-sec.psk " + quoteShellValue(state.wifiPassword)
+	}
+	setupCommand := fmt.Sprintf(`set -eu
+nmcli radio wifi on
+nmcli connection delete internkim-wifi >/dev/null 2>&1 || true
+nmcli connection add type wifi ifname '*' con-name internkim-wifi ssid %s
+nmcli connection modify internkim-wifi connection.autoconnect yes wifi.hidden yes ipv4.method auto ipv6.method auto
+%s
+nmcli connection up internkim-wifi
+for attempt in $(seq 1 12); do
+  address="$(ip -4 addr show 2>/dev/null | awk '/inet / && $0 !~ / lo / {print $2; exit}' | cut -d/ -f1)"
+  if [ -n "$address" ]; then
+    echo "$address"
+    exit 0
+  fi
+  sleep 5
+done
+exit 1`, quoteShellValue(state.wifiSSID), securityCommand)
+
+	output, errorValue := state.sshClient.runResult(setupCommand)
+	if errorValue != nil {
+		return fmt.Errorf("Jetson NetworkManager Wi-Fi connection failed: %s", strings.TrimSpace(output))
+	}
+	if address := strings.TrimSpace(output); address != "" {
+		fmt.Printf("  %s: %s\n", state.messenger.t("Wi-Fi 연결 성공", "Wi-Fi connected"), address)
+	}
+	return nil
+}
+
 func (state *setupFlowState) stageWifiSD(context *setup.Context) error {
 	if err := state.ensureWiFiCredentials(); err != nil {
 		return err
@@ -392,12 +530,12 @@ func (state *setupFlowState) stageWifiSD(context *setup.Context) error {
 func buildBootWpaSupplicantConfig(ssid string, password string) string {
 	if password == "" {
 		return fmt.Sprintf(
-			"ctrl_interface=/var/run/wpa_supplicant\nap_scan=1\nnetwork={\n  ssid=\"%s\"\n  key_mgmt=NONE\n}\n",
+			"ctrl_interface=/var/run/wpa_supplicant\nap_scan=1\nnetwork={\n  ssid=\"%s\"\n  scan_ssid=1\n  key_mgmt=NONE\n}\n",
 			ssid,
 		)
 	}
 	return fmt.Sprintf(
-		"ctrl_interface=/var/run/wpa_supplicant\nap_scan=1\nnetwork={\n  ssid=\"%s\"\n  key_mgmt=WPA-PSK\n  psk=\"%s\"\n}\n",
+		"ctrl_interface=/var/run/wpa_supplicant\nap_scan=1\nnetwork={\n  ssid=\"%s\"\n  scan_ssid=1\n  key_mgmt=WPA-PSK\n  psk=\"%s\"\n}\n",
 		ssid,
 		password,
 	)
@@ -610,11 +748,11 @@ func (state *setupFlowState) deployAdminWeb(context *setup.Context) error {
 	if errorValue := state.runAdminWebCommand(webRoot, "bun", "run", "build"); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := state.runAdminWebCommand(webRoot, "bun", "run", "build:board"); errorValue != nil {
-		return errorValue
-	}
 	fmt.Println("  " + context.T("Cloudflare Pages 배포 중...", "Deploying Cloudflare Pages..."))
 	if errorValue := state.runAdminWebCommand(webRoot, "bunx", "wrangler", "pages", "deploy", ".svelte-kit/cloudflare", "--project-name", "internkim"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := state.runAdminWebCommand(webRoot, "bun", "run", "build:board"); errorValue != nil {
 		return errorValue
 	}
 	boardUIPath := filepath.Join(state.scriptDir, "build", "board-ui")
@@ -623,8 +761,12 @@ func (state *setupFlowState) deployAdminWeb(context *setup.Context) error {
 		if state.sshClient != nil {
 			temporaryAdminUIPath := "/tmp/internkim-admin-ui"
 			state.sshClient.run("rm -rf " + quoteShellValue(temporaryAdminUIPath) + " && mkdir -p " + quoteShellValue(temporaryAdminUIPath) + " && chmod 777 " + quoteShellValue(temporaryAdminUIPath))
-			state.sshClient.scpDirDirect(boardUIPath, temporaryAdminUIPath)
-			state.sshClient.run("sudo rm -rf /opt/internkim/admin-ui && sudo mkdir -p /opt/internkim/admin-ui && sudo cp -a " + quoteShellValue(temporaryAdminUIPath) + "/. /opt/internkim/admin-ui/ && sudo chmod -R a+rX /opt/internkim/admin-ui")
+			if errorValue := state.sshClient.scpDirDirect(boardUIPath, temporaryAdminUIPath); errorValue != nil {
+				return errorValue
+			}
+			if output, errorValue := state.sshClient.runResult("rm -rf /opt/internkim/admin-ui && mkdir -p /opt/internkim/admin-ui && cp -a " + quoteShellValue(temporaryAdminUIPath) + "/. /opt/internkim/admin-ui/ && chmod -R a+rX /opt/internkim/admin-ui"); errorValue != nil {
+				return fmt.Errorf("deploy admin UI: %s: %w", strings.TrimSpace(output), errorValue)
+			}
 		}
 	case setup.BackendSD:
 		if context.SD != nil {
@@ -691,7 +833,9 @@ func (state *setupFlowState) installBinariesSSH(context *setup.Context) error {
 			continue
 		}
 		state.sshClient.run("mkdir -p " + quoteShellValue(filepath.Dir(asset.remotePath)))
-		state.sshClient.scp(asset.localPath, asset.remotePath)
+		if err := state.sshClient.scp(asset.localPath, asset.remotePath); err != nil {
+			return err
+		}
 		state.sshClient.run("chmod +x " + quoteShellValue(asset.remotePath))
 		fmt.Printf("  %s %s\n", asset.name, state.messenger.t("설치 완료", "installed"))
 	}
@@ -778,7 +922,9 @@ chmod 440 /etc/sudoers.d/blueclaw-mcp`)
 			remoteSkillDir := blueclaw.BlueclawWorkspaceSkillPath(entry.Name())
 			state.sshClient.run("rm -rf " + quoteShellValue(remoteSkillDir))
 			state.sshClient.run("mkdir -p " + quoteShellValue(remoteSkillDir))
-			state.sshClient.scpDir(filepath.Join(skillsDir, entry.Name()), remoteSkillDir)
+			if err := state.sshClient.scpDir(filepath.Join(skillsDir, entry.Name()), remoteSkillDir); err != nil {
+				return err
+			}
 		}
 		state.sshClient.run(`for skill in calendar create-gws-file simple-slides; do
   filePath="/root/.blueclaw/workspace/skills/$skill/scripts/gas-call"
@@ -809,7 +955,17 @@ func (state *setupFlowState) ensureDeviceBrowserRuntimeArtifact() (string, error
 	if errorValue == nil && !fileInfo.IsDir() && fileInfo.Size() > 0 {
 		return artifactPath, nil
 	}
-	return "", fmt.Errorf("device browser runtime artifact missing at %s; run `make prepare-device-browser` before setup", artifactPath)
+	command := exec.Command("make", "prepare-device-browser")
+	command.Dir = state.scriptDir
+	output, prepareError := command.CombinedOutput()
+	if prepareError != nil {
+		return "", fmt.Errorf("device browser runtime artifact missing at %s and automatic preparation failed: %s; run `make prepare-device-browser` before setup", artifactPath, strings.TrimSpace(string(output)))
+	}
+	fileInfo, errorValue = os.Stat(artifactPath)
+	if errorValue == nil && !fileInfo.IsDir() && fileInfo.Size() > 0 {
+		return artifactPath, nil
+	}
+	return "", fmt.Errorf("device browser runtime preparation did not create %s; run `make prepare-device-browser` before setup", artifactPath)
 }
 
 func (state *setupFlowState) installDeviceBrowserRuntimeSSH() error {
@@ -819,37 +975,10 @@ func (state *setupFlowState) installDeviceBrowserRuntimeSSH() error {
 	}
 	fmt.Print("  device browser runtime... ")
 	remoteArchivePath := "/tmp/" + deviceBrowserRuntimeArtifactName
-	state.sshClient.scp(artifactPath, remoteArchivePath)
-	output, errorValue := state.sshClient.runResult(fmt.Sprintf(`
-set -eu
-archivePath=%s
-install -d -m 755 /opt/internkim
-apt-get update -qq >/dev/null 2>&1 || true
-`+deviceBrowserRuntimePackageSelectionScript()+`
-DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $runtimePackages >/dev/null
-temporaryDirectory="$(mktemp -d /opt/internkim/device-browser.next.XXXXXX)"
-cleanup() {
-  rm -rf "$temporaryDirectory"
-}
-trap cleanup EXIT
-tar --use-compress-program=zstd -xf "$archivePath" -C "$temporaryDirectory"
-manifestPath="$temporaryDirectory/manifest.json"
-test -f "$manifestPath"
-executableRelativePath="$(jq -r '.executablePath // empty' "$manifestPath")"
-test -n "$executableRelativePath"
-test -x "$temporaryDirectory/$executableRelativePath"
-ln -sfn "$executableRelativePath" "$temporaryDirectory/chromium"
-"$temporaryDirectory/chromium" --version >/tmp/internkim-device-browser-version.log 2>&1
-chmod -R a+rX "$temporaryDirectory"
-rm -rf /opt/internkim/device-browser.previous
-if [ -d /opt/internkim/device-browser ]; then
-  mv /opt/internkim/device-browser /opt/internkim/device-browser.previous
-fi
-mv "$temporaryDirectory" /opt/internkim/device-browser
-trap - EXIT
-rm -rf /opt/internkim/device-browser.previous
-rm -f "$archivePath"
-`, quoteShellValue(remoteArchivePath)))
+	if err := state.sshClient.scp(artifactPath, remoteArchivePath); err != nil {
+		return err
+	}
+	output, errorValue := state.sshClient.runResult(deviceBrowserRuntimeInstallScript(remoteArchivePath))
 	if errorValue != nil {
 		fmt.Println("failed")
 		diagnostic := strings.TrimSpace(output)
@@ -912,7 +1041,9 @@ func (state *setupFlowState) installBlueclawMigrationsSSH() error {
 		return fmt.Errorf("blueclaw migrations missing at %s", migrationPath)
 	}
 	state.sshClient.run("rm -rf " + quoteShellValue(blueclaw.BlueclawMigrationPath) + " && mkdir -p " + quoteShellValue(blueclaw.BlueclawMigrationPath))
-	state.sshClient.scpDir(migrationPath, blueclaw.BlueclawMigrationPath)
+	if errorValue := state.sshClient.scpDir(migrationPath, blueclaw.BlueclawMigrationPath); errorValue != nil {
+		return errorValue
+	}
 	state.sshClient.run("chown -R root:blueclaw " + quoteShellValue(blueclaw.BlueclawMigrationPath) + " && chmod -R u=rwX,g=rX,o= " + quoteShellValue(blueclaw.BlueclawMigrationPath) + " && chmod 750 " + quoteShellValue(blueclaw.BlueclawMigrationPath))
 	return nil
 }
@@ -932,13 +1063,19 @@ func (state *setupFlowState) installGraphitiMemorydSSH() error {
 	defer os.Remove(archivePath)
 
 	archiveCommand := exec.Command("tar", "-C", packagePath, "-czf", archivePath, ".")
+	archiveCommand.Env = append(os.Environ(), "COPYFILE_DISABLE=1")
 	if output, archiveError := archiveCommand.CombinedOutput(); archiveError != nil {
 		return fmt.Errorf("archive graphiti memory daemon: %s", strings.TrimSpace(string(output)))
 	}
 
 	remoteArchivePath := "/tmp/internkim-graphiti-memoryd.tar.gz"
-	state.sshClient.scpDirect(archivePath, remoteArchivePath)
-	state.sshClient.run("rm -rf " + quoteShellValue(blueclaw.GraphitiMemorydPackagePath) + " && mkdir -p " + quoteShellValue(blueclaw.GraphitiMemorydPackagePath) + " && tar -xzf " + quoteShellValue(remoteArchivePath) + " -C " + quoteShellValue(blueclaw.GraphitiMemorydPackagePath) + " && rm -f " + quoteShellValue(remoteArchivePath))
+	if errorValue := state.sshClient.scpDirect(archivePath, remoteArchivePath); errorValue != nil {
+		return errorValue
+	}
+	installCommand := "rm -rf " + quoteShellValue(blueclaw.GraphitiMemorydPackagePath) + " && mkdir -p " + quoteShellValue(blueclaw.GraphitiMemorydPackagePath) + " && tar -xzf " + quoteShellValue(remoteArchivePath) + " -C " + quoteShellValue(blueclaw.GraphitiMemorydPackagePath) + " && rm -f " + quoteShellValue(remoteArchivePath)
+	if output, installError := state.sshClient.runResult(installCommand); installError != nil {
+		return fmt.Errorf("deploy graphiti memory daemon: %s: %w", strings.TrimSpace(output), installError)
+	}
 	if strings.TrimSpace(state.sshClient.run("test -f "+quoteShellValue(filepath.Join(blueclaw.GraphitiMemorydPackagePath, "__main__.py"))+" && echo ok")) != "ok" {
 		return fmt.Errorf("graphiti memory daemon package did not deploy correctly")
 	}
@@ -1126,7 +1263,7 @@ func (state *setupFlowState) ensureDeviceRegistration(force bool) error {
 	}
 
 	state.deviceID = loadOrCreateDeviceID(state.stateDir)
-	state.adminEmail = loadState(state.stateDir, "google_email")
+	state.adminEmail = ""
 	if state.parameters.AdminEmail != "" {
 		state.adminEmail = state.parameters.AdminEmail
 	}
@@ -1141,16 +1278,6 @@ func (state *setupFlowState) ensureDeviceRegistration(force bool) error {
 	fmt.Printf("  %s: %s\n", state.messenger.t("기기 ID", "Device ID"), state.deviceID)
 
 	if force || state.tunnelToken == "" || tunnelOrigin != setup.MattermostTunnelOrigin || tunnelRevision != setup.TunnelConfigurationRevision {
-		if state.adminEmail == "" {
-			if state.nonInteractive {
-				return fmt.Errorf("admin email is empty; set INTERNKIM_ADMIN_EMAIL or run interactive setup once")
-			}
-			state.adminEmail = readLine(state.messenger.t("  관리자 이메일 (구글 계정): ", "  Admin email (Google account): "))
-		}
-		if state.adminEmail == "" {
-			return fmt.Errorf("admin email is empty")
-		}
-
 		registrationResponse, err := registerDeviceWithCollisionRetry(
 			state.configuration,
 			state.stateDir,
@@ -1169,20 +1296,15 @@ func (state *setupFlowState) ensureDeviceRegistration(force bool) error {
 		saveState(state.stateDir, "device_url", state.deviceURL)
 		saveState(state.stateDir, "tunnel_origin", setup.MattermostTunnelOrigin)
 		saveState(state.stateDir, "tunnel_revision", setup.TunnelConfigurationRevision)
-		saveState(state.stateDir, "google_email", state.adminEmail)
+		if state.adminEmail != "" {
+			saveState(state.stateDir, "google_email", state.adminEmail)
+		}
 	} else {
 		fmt.Printf("  %s\n", state.messenger.t("이미 등록됨", "Already registered"))
 	}
 
 	if state.adminEmail == "" {
-		if state.nonInteractive {
-			return fmt.Errorf("admin email is empty; set INTERNKIM_ADMIN_EMAIL or run interactive setup once")
-		}
-		state.adminEmail = readLine(state.messenger.t("  관리자 이메일 (구글 계정): ", "  Admin email (Google account): "))
-		if state.adminEmail == "" {
-			return fmt.Errorf("admin email is empty")
-		}
-		saveState(state.stateDir, "google_email", state.adminEmail)
+		state.adminEmail = loadState(state.stateDir, "claimed_admin_email")
 	}
 
 	if state.deviceURL != "" {
@@ -1394,7 +1516,10 @@ func (state *setupFlowState) installUsersSyncSSH(context *setup.Context) error {
 		return err
 	}
 	state.writeDeviceAuthFilesSSH()
-	state.sshClient.run(fmt.Sprintf(`cat > %s <<'SYNCEOF'
+	if output, errorValue := state.sshClient.runResult(usersSyncDependencyInstallScript()); errorValue != nil {
+		return fmt.Errorf("install users sync dependencies failed: %s", strings.TrimSpace(output))
+	}
+	if output, errorValue := state.sshClient.runResult(fmt.Sprintf(`cat > %s <<'SYNCEOF'
 %sSYNCEOF
 chmod 755 %s
 cat > %s <<'SERVICEEOF'
@@ -1413,7 +1538,9 @@ systemctl start internkim-users-sync.service || journalctl -u internkim-users-sy
 		blueclaw.InternKimUsersSyncServiceUnit(),
 		quoteShellValue(blueclaw.InternKimUsersSyncTimerPath),
 		blueclaw.InternKimUsersSyncTimerUnit(),
-	))
+	)); errorValue != nil {
+		return fmt.Errorf("install users sync service failed: %s", strings.TrimSpace(output))
+	}
 	fmt.Printf("  %s\n", state.messenger.t("사용자 동기화 타이머 설치 완료", "Users sync timer installed"))
 	return nil
 }

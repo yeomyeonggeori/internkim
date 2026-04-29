@@ -87,7 +87,7 @@ export const GET: RequestHandler = async ({ request, url, platform }) => {
 	const device = await kv.getDevice(env.KV, device_id);
 	if (!device) throw error(404, 'Device not found');
 
-	const records = await kv.getUserRecords(env.KV, device_id, device.admin_email);
+	const records = await kv.getUserRecords(env.KV, device_id);
 	const admin_token = url.searchParams.get('admin_token') ?? '';
 	const isAuthorizedBoard = await isBoardRequest(request, device, device_id);
 	if (!isAuthorizedBoard && !isAdminRequest(request, device, adminEmails(records), admin_token, env.INTERNKIM_REGISTER_SECRET)) {
@@ -116,7 +116,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const device = await kv.getDevice(env.KV, deviceID);
 	if (!device) throw error(404, 'Device not found');
 
-	const records = await kv.getUserRecords(env.KV, deviceID, device.admin_email);
+	const records = await kv.getUserRecords(env.KV, deviceID);
 	const isAuthorizedBoard = await isBoardRequest(request, device, deviceID);
 	if (!isAuthorizedBoard && !isAdminRequest(request, device, adminEmails(records), admin_token, env.INTERNKIM_REGISTER_SECRET)) {
 		throw error(403, 'Admin only');
@@ -125,7 +125,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const normalizedEmail = normalizeEmail(email);
 	const normalizedRole = normalizeRole(role);
 	const existingRecord = records.find((record) => record.email === normalizedEmail);
-	if (existingRecord?.role === 'admin' && normalizedRole !== 'admin' && adminEmails(records).length <= 1) {
+	if (!isAuthorizedBoard && existingRecord?.role === 'admin' && normalizedRole !== 'admin' && adminEmails(records).length <= 1) {
 		throw error(400, 'Cannot demote the last admin user');
 	}
 	const nextRecords = mergeRecord(records, {

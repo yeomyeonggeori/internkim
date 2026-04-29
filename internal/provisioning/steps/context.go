@@ -12,6 +12,8 @@ const (
 	BackendSD  Backend = "sd"
 )
 
+const BoardJetsonOrinNano = "jetson-orin-nano"
+
 var ErrUnsupportedBackend = errors.New("step does not support this backend")
 
 type BoardConnection interface {
@@ -81,6 +83,7 @@ type Context struct {
 	Language  string
 	StateDir  string
 	ScriptDir string
+	BoardType string
 	BoardIP   string
 	Force     bool
 
