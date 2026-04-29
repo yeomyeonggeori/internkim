@@ -1,8 +1,8 @@
 # Intern Kim
 
-ARM 보드(Radxa 5c / RPi 5)에 Blueclaw 런타임을 올리고, Cloudflare Tunnel로 어디서든 접속 가능한 턴키 하드웨어입니다.
+Jetson Orin Nano Super에 Blueclaw 런타임과 InternKim capability layer를 올리고, Cloudflare Tunnel로 어디서든 접속 가능한 edge AI appliance입니다.
 
-전원만 꽂으면 보드가 독립적으로 동작한다. 별도 컴퓨터 불필요.
+전원과 네트워크만 연결하면 기기가 독립적으로 동작합니다. 사용자 컴퓨터는 companion을 통한 로컬 브라우저, 파일 선택, 승인 입력이 필요할 때만 연결됩니다.
 
 ## 아키텍처
 
@@ -14,7 +14,7 @@ ARM 보드(Radxa 5c / RPi 5)에 Blueclaw 런타임을 올리고, Cloudflare Tunn
     │
     └─ Cloudflare Access
          └─ Cloudflare Tunnel
-              └─ ARM 보드 (Radxa 5c / RPi 5)
+              └─ Jetson Orin Nano Super
                    ├─ Mattermost :8065
                    │    └─ platform event → internkim-capabilityd
                    ├─ internkim-admind
@@ -22,7 +22,7 @@ ARM 보드(Radxa 5c / RPi 5)에 Blueclaw 런타임을 올리고, Cloudflare Tunn
                    │    ├─ backup / restore / device status
                    │    └─ companion broker
                    ├─ internkim-capabilityd
-                   │    ├─ LLM routing: OpenRouter / LiteRT / companion
+                   │    ├─ LLM routing: OpenRouter / local model / companion
                    │    ├─ platform I/O: Mattermost / Slack / Signal
                    │    ├─ browser tool adapter: agent-browser / companion
                    │    └─ local capability API for Blueclaw
@@ -56,7 +56,7 @@ Signal account ── JSON-RPC poll ─▶ internkim-capabilityd ──▶ Bluec
 | 경로 | 주 소비자 | 용도 |
 |------|----------|------|
 | `/root/.internkim/secrets/openrouter-api-key` | `internkim-capabilityd` | remote LLM provider |
-| `/root/.internkim/models/*` | `internkim-capabilityd`, `internkim-litert-wrapper` | local LiteRT model |
+| `/root/.internkim/models/*` | `internkim-capabilityd`, local model wrapper | local model runtime |
 | `/root/.internkim/secrets/google-sa.json` | `gws`, `gws-bot`, Apps Script helper | Google Workspace 연동 |
 | `/root/.internkim/secrets/gas-webhook-url` | GAS bridge helper | Apps Script bridge 호출 |
 | `/root/.internkim/secrets/slack-*` | `internkim-capabilityd` | Slack Socket Mode와 reply |
@@ -70,9 +70,9 @@ Graphiti는 memory sidecar로만 동작하고 secrets 디렉토리를 직접 읽
 | 구성 | 설명 |
 |------|------|
 | **Go CLI** (`cmd/internkim/main.go`) | 셋업, lab, reset, deploy, verify를 수행하는 운영 CLI |
-| **internkim-admind** | 보드 관리자 API. admin UI reverse proxy, companion pairing/broker, backup/restore, 상태 조회 담당 |
-| **internkim-capabilityd** | OpenRouter, LiteRT, Mattermost, Slack, Signal, companion credential을 보유하고 capability API만 노출 |
-| **internkim-litert-wrapper** | LiteRT-LM 모델 실행을 capabilityd에서 호출할 수 있게 감싸는 보드용 helper |
+| **internkim-admind** | 기기 관리자 API. admin UI reverse proxy, companion pairing/broker, backup/restore, 상태 조회 담당 |
+| **internkim-capabilityd** | OpenRouter, local model, Mattermost, Slack, Signal, companion credential을 보유하고 capability API만 노출 |
+| **internkim-litert-wrapper** | 현재 local model wrapper. Jetson에서는 CUDA/TensorRT 계열 provider를 추가할 수 있는 경계로 유지 |
 | **Blueclaw** | 런타임 바이너리. `/usr/local/bin/blueclaw`, `/root/.blueclaw/config/*.json`, `/root/.blueclaw/workspace/*` 계약을 사용 |
 | **Graphiti memoryd** | Blueclaw memory sidecar. `graphiti-core[kuzu]`로 episode ingestion, temporal graph extraction, hybrid graph search 수행 |
 | **internkim-companion** | 사용자 컴퓨터의 cross-platform trusted runtime. 브라우저 human-in-the-loop와 향후 local-only LLM capability 제공 |
@@ -81,7 +81,7 @@ Graphiti는 memory sidecar로만 동작하고 secrets 디렉토리를 직접 읽
 | **Slack/Signal connector** | 외부 메시징 이벤트를 capabilityd에서 정규화해 Blueclaw 작업으로 전달 |
 | **SvelteKit 웹앱** (`web/`) | Cloudflare Pages. 기기 등록 API, Access policy 동기화, OTA |
 | **Blueclaw workspace assets** (`assets/blueclaw-workspace/`) | 설치 시 `/root/.blueclaw/workspace`에 배치되는 AGENTS.md, skills, helpers, GAS source |
-| **보드 바이너리** (`build/board-bin/`) | ARM64 보드용 바이너리 [gitignored] |
+| **기기 바이너리** (`build/board-bin/`) | ARM64 기기용 바이너리 [gitignored] |
 | **맥 유틸** (`bin/`) | get-ssid + sshpass, macOS universal binary |
 
 ## 셋업
@@ -89,25 +89,29 @@ Graphiti는 memory sidecar로만 동작하고 secrets 디렉토리를 직접 읽
 ### 사전 준비
 
 - macOS (Apple Silicon 또는 Intel)
-- ARM 보드 (Radxa 5c 또는 RPi 5) + USB-C 데이터 케이블
-- Wi-Fi 네트워크
+- NVIDIA Jetson Orin Nano Super Developer Kit
+- JetPack / Jetson Linux로 부팅된 Jetson
+- SSH 접속 가능한 네트워크와 기기 IP
+- NVMe 저장장치 권장
 - [OpenRouter API 키](https://openrouter.ai/keys)
 - Google Cloud 프로젝트 (Google Workspace 연동 시)
+
+Radxa/RPi 계열 SD provisioning 코드는 legacy/test path로 남아 있습니다. 새 제품 기본 경로는 Jetson을 SSH target으로 보고 provision합니다.
 
 ### Go CLI 빌드 & 실행
 
 ```bash
 make build
-./internkim setup
+./internkim setup --board jetson-orin-nano --host <jetson-ip> --user <ssh-user>
 ```
 
 주요 setup 단계:
-1. 보드 감지 (USB NCM)
+1. SSH로 Jetson 연결
 2. 관리자 웹 빌드 + Cloudflare Pages 배포
-3. Wi-Fi 감지 + 보드 네트워크 설정
+3. Jetson Linux 패키지와 런타임 준비
 4. Blueclaw + gws + cloudflared 설치, 시스템 유저 생성
 5. OpenRouter API 키 → `/root/.internkim/secrets/openrouter-api-key`
-6. LiteRT local model 준비
+6. Local model runtime 준비
 7. 기기 등록 + Cloudflare 터널 시작
 8. Google 서비스 계정 자동 생성 → `/root/.internkim/secrets/google-sa.json`
 9. Mattermost 설정 (URL / admin token / bot token / channel ID, 건너뛰기 가능)
@@ -252,13 +256,13 @@ internkim/
 ├── go.mod / go.sum
 ├── cmd/
 │   ├── internkim/           Go CLI 엔트리포인트
-│   ├── internkim-admind/    보드 관리자 API와 companion broker
+│   ├── internkim-admind/    기기 관리자 API와 companion broker
 │   ├── internkim-capabilityd/
 │   │                         LLM, platform, browser capability daemon
 │   ├── internkim-companion/  사용자 컴퓨터 trusted runtime 데몬
 │   ├── internkim-litert-wrapper/
 │   │                         LiteRT-LM process wrapper
-│   └── download/            보드 헬퍼 바이너리
+│   └── download/            기기 헬퍼 바이너리
 ├── internal/
 │   ├── admind/              admin UI proxy, backup/restore, companion broker
 │   ├── browser/             agent-browser runtime adapter
@@ -288,7 +292,7 @@ internkim/
 ├── config/lab.example.json  Tart lab 설정 예시
 ├── lab/scripts/             VM provisioning / 시나리오 스크립트
 ├── tools/                   개발/준비용 helper script
-├── build/                   보드 바이너리와 정적 웹 출력 [gitignored]
+├── build/                   기기 바이너리와 정적 웹 출력 [gitignored]
 ├── dist/                    배포 산출물 [gitignored]
 ├── bin/                     macOS 유틸 (get-ssid, sshpass)
 ├── .dependency/blueclaw/    Blueclaw git submodule
