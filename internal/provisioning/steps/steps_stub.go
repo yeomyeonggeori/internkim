@@ -2,6 +2,7 @@ package setup
 
 func DefaultRegistry() Registry {
 	return Registry{
+		StepPreflight,
 		StepBoard,
 		StepAdminWeb,
 		StepWifi,
@@ -18,6 +19,10 @@ func DefaultRegistry() Registry {
 		StepUsersSync,
 		StepHealth,
 	}
+}
+
+func JetsonRegistry() Registry {
+	return DefaultRegistry()
 }
 
 func (registry Registry) WithOverride(name string, replacement Step) Registry {

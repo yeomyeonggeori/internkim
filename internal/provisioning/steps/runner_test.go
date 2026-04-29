@@ -122,6 +122,27 @@ func TestExplicitUnsupportedBackendReturnsError(t *testing.T) {
 	}
 }
 
+func TestJetsonDefaultResolveIncludesLiteRTAndSkipsGoogle(t *testing.T) {
+	context := &Context{Backend: BackendSSH, BoardType: BoardJetsonOrinNano}
+	plan, err := DefaultRegistry().resolve(context, Selector{Skip: []string{"google"}})
+	if err != nil {
+		t.Fatalf("resolve failed: %v", err)
+	}
+
+	joinedPlan := strings.Join(plan, ",")
+	for _, expectedName := range []string{"preflight", "binaries", "openrouter", "litert", "tunnel", "mattermost", "services", "users-sync", "health"} {
+		if !strings.Contains(joinedPlan, expectedName) {
+			t.Fatalf("expected plan to include %s, got %s", expectedName, joinedPlan)
+		}
+	}
+	if strings.Contains(joinedPlan, "ollama") {
+		t.Fatalf("expected default plan to skip ollama, got %s", joinedPlan)
+	}
+	if strings.Contains(joinedPlan, "google") {
+		t.Fatalf("expected plan to skip google, got %s", joinedPlan)
+	}
+}
+
 func testRegistry(alphaSatisfied bool, betaSatisfied bool, gammaSatisfied bool) Registry {
 	return Registry{
 		{
