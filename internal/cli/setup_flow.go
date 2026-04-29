@@ -351,12 +351,6 @@ func (state *setupFlowState) requiredBinaryAssets() []localBinaryAsset {
 			downloadURL: "https://github.com/vercel-labs/agent-browser/releases/latest/download/agent-browser-linux-arm64",
 		},
 		{
-			name:        "lightpanda",
-			localPath:   filepath.Join(state.boardBinDir, "lightpanda"),
-			remotePath:  "/usr/local/bin/lightpanda",
-			downloadURL: "https://github.com/lightpanda-io/browser/releases/download/nightly/lightpanda-aarch64-linux",
-		},
-		{
 			name:       "download",
 			localPath:  filepath.Join(state.boardBinDir, "download"),
 			remotePath: "/usr/local/bin/download",
@@ -733,10 +727,12 @@ agent-browser install >/tmp/internkim-agent-browser-install.log 2>&1 || true
   tail -80 /tmp/internkim-agent-browser-install.log 2>/dev/null || true
   echo "agent-browser doctor log:"
   tail -80 /tmp/internkim-agent-browser-doctor.log 2>/dev/null || true
-  echo "agent-browser lightpanda open log:"
-  tail -80 /tmp/internkim-agent-browser-lightpanda-open.log 2>/dev/null || true
-  echo "agent-browser lightpanda snapshot log:"
-  tail -80 /tmp/internkim-agent-browser-lightpanda-snapshot.log 2>/dev/null || true
+  echo "agent-browser chrome open log:"
+  tail -80 /tmp/internkim-agent-browser-chrome-open.log 2>/dev/null || true
+  echo "agent-browser chrome snapshot log:"
+  tail -80 /tmp/internkim-agent-browser-chrome-snapshot.log 2>/dev/null || true
+  echo "agent-browser chrome screenshot log:"
+  tail -80 /tmp/internkim-agent-browser-chrome-screenshot.log 2>/dev/null || true
 } | tail -120
 `))
 	if diagnostic == "" {
