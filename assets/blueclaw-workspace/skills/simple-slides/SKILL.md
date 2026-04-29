@@ -1,13 +1,13 @@
 ---
 name: simple-slides
-description: Generate clean, minimal presentation slides from content using Marp — produces standalone HTML (single file with base64-inlined images), PPTX, PDF, and speaker notes .txt in one build. Use this whenever the user asks for slides, a slide deck, a presentation, a brand monitoring report, a pitch deck, a research summary for stakeholders, a competitor analysis deck, or anything like that, even if they just say "make slides about X" without specifying Marp or any format. Also use when the user mentions Marp, PPTX, Keynote, or Google Slides. Optionally uploads the deck as a native Google Slides file via the gas-call bridge.
+description: Generate clean, minimal presentation slides from content using Marp — produces standalone HTML (single file with base64-inlined images), PPTX, PDF, and speaker notes .txt in one build. Use this whenever the user asks for slides, a slide deck, a presentation, a brand monitoring report, a pitch deck, a research summary for stakeholders, a competitor analysis deck, or anything like that, even if they just say "make slides about X" without specifying Marp or any format. Also use when the user mentions Marp, PPTX, Keynote, or Google Slides. Optionally uploads the deck as a native Google Slides file via the gas-call bridge only when Google output is requested.
 ---
 
 # Simple Slides
 
-Create minimal, structured slide decks from content. Every deck starts with a short **design doc** that locks in fonts, colors, and tone — then slides are written to follow that design. This keeps the look consistent within a deck and avoids committee-designed one-offs.
+Create minimal, structured slide decks from content. Every deck starts with a Stitch-compatible **DESIGN.md** that locks in design tokens, rationale, fonts, colors, spacing, components, and visual constraints — then slides are written to follow that design. This keeps the look consistent within a deck and avoids committee-designed one-offs.
 
-Outputs: standalone HTML (images inlined as base64), PPTX (Keynote/PowerPoint compatible), PDF, and optionally a native Google Slides file in the user's Drive, all from one `make-slides` command.
+Outputs: standalone HTML (images inlined as base64), PPTX (Keynote/PowerPoint compatible), PDF, and optionally a native Google Slides file in the user's Drive when requested, all from one `make-slides` command.
 
 ## When to use
 
@@ -21,32 +21,37 @@ Pick a fresh directory under `/tmp/` tied to the topic (e.g., `/tmp/q4-review/`,
 
 The files you need to place in the deck directory:
 
-- `design.md` — design doc (fill in first). Copy the structure from `assets/design.md` in this skill.
+- `DESIGN.md` — Stitch-compatible design system doc. Start from the black-on-white template in `assets/design.md`, then adapt the copy to the deck's actual tone before writing slides.
 - `presentation.md` — the Marp source. Copy the structure from `assets/template.md` in this skill.
 
 Images the deck needs go in the same directory.
 
-### 2. Write the design doc FIRST
+### 2. Write DESIGN.md FIRST
 
-**Don't skip this.** Write `design.md` before touching slides. The doc defines:
+**Don't skip this.** Write `DESIGN.md` before touching slides. The skill's `assets/design.md` is a neutral black-on-white template, not a finished theme. Copy it, then change the copied `DESIGN.md` to fit the deck's audience, mood, topic, and output format. Treat the adapted file like `AGENTS.md` for visual design: persistent, agent-readable context that the deck must obey. Use the Stitch-style structure: YAML front matter for machine-readable tokens, then Markdown rationale and constraints. The doc defines:
 
-- **Theme name + mood** — one sentence on the feel (e.g., "editorial / magazine", "techy minimal", "warm conversational")
-- **Font pairing** — pick one display font for titles and one body font. Prefer Google Fonts so the CSS can `@import` them with zero install. Record the exact Google Fonts import URL.
-- **Color palette** — background, text primary/secondary/muted, one accent color, dividers. Six colors total is plenty; don't exceed eight. **Default the background to white / off-white unless the user explicitly asked for a dark/black/premium-dark/night theme.** Words like "프리미엄하게 / 멋있게 / 세련되게" mean strong typography + layout + accent, NOT dark mode.
-- **Component style** — cards as outline-only vs filled; border radius; pill shapes; whether to use a highlight color or not
+- **YAML tokens** — colors, typography, spacing, radii, components, and motion rules in exact values.
+- **Overview** — product/topic, audience, and visual direction in 2-3 sentences.
+- **Colors** — semantic roles with hex values and usage rules.
+- **Typography** — display/body/label families, sizes, weights, line heights, and CJK fallback.
+- **Layout** — spacing scale, grid, density, slide-safe margins.
+- **Elevation & Depth** — shadows or flat-surface rules.
+- **Shapes** — radius and border rules.
+- **Components** — cards, pills, tables, charts, callouts, cover treatments.
+- **Do's and Don'ts** — explicit design guardrails, including what not to use.
 
 See `references/design-system.md` in this skill for how to pick good fonts and palettes. The key idea: pick choices that fit the topic and audience, not defaults.
 
 ### 3. Port the design into the Marp frontmatter
 
-Edit `presentation.md` so the `:root` CSS variables in the frontmatter reflect the design doc:
+Edit `presentation.md` so the `:root` CSS variables in the frontmatter reflect `DESIGN.md`:
 
-1. Uncomment the `@import url('...')` line and paste the Google Fonts URL from your design doc
-2. Fill `--display-font` and `--body-font` with your chosen families (they're `system-ui` placeholders by default)
+1. Replace the default `@import url('...')` line with `DESIGN.md`'s `fontSources.primaryImportURL` when the font changes
+2. Fill `--display-font` and `--body-font` with the tokenized families from `DESIGN.md`
 3. Fill the color variables — `--accent`, `--text-primary`, `--text-body`, `--text-muted`, `--divider`, `--bg`
-4. Adjust `--card-radius`, `--card-fill`, `--pill-radius` if your design calls for it
+4. Adjust `--card-radius`, `--card-fill`, `--pill-radius`, shadows, and chart colors from `DESIGN.md`
 
-The scaffold is intentionally pure black-and-white with `system-ui` fonts. It looks obviously unfinished — that's the point. If you ever see a deck looking like that at build time, you forgot to propagate the design doc into the frontmatter. **Always propagate.** The black-and-white scaffold is not a theme; it's a reminder.
+The scaffold is intentionally pure black-and-white, with Paperlogy/Freesentation/A2Z only as Korean-safe default fonts. It looks visually unfinished — that's the point. If you ever see a deck looking like that at build time, you forgot to propagate `DESIGN.md` into the frontmatter. **Always propagate.** The black-and-white scaffold is not a theme; it's a reminder.
 
 ### 4. Write the slides
 
@@ -308,8 +313,10 @@ Matching:
 - **"PDF"** — deliver the generated pdf only if the file is available as a native attachment.
 - **"HTML" / "link I can share"** — deliver the generated html only if the file is available as a native attachment or a real share URL.
 - **"전부 다" / "all formats"** — only then send everything.
-- **Ambiguous ("make me a deck about X")** — default to a Google
-  Slides URL only. If the user then wants another format, send that.
+- **Ambiguous ("make me a deck about X")** — default to portable
+  HTML/PPTX/PDF outputs. Upload to Google Slides only when the user asks
+  for Google Slides, a share URL backed by Google, or collaborative
+  editing.
 
 Don't claim the deck is done before `./build.sh` (or the upload)
 finished without error.
@@ -347,19 +354,19 @@ For TikTok, short URLs like `lite.tiktok.com/t/XXXX/` need to resolve to video I
 
 Read these as needed — don't front-load all of them. They live inside this skill's directory (`/root/.blueclaw/workspace/skills/simple-slides/...`).
 
-- `references/design-system.md` — How to pick fonts, colors, and component styles for a new deck. Read before writing the design doc.
+- `references/design-system.md` — How to pick fonts, colors, and component styles for a new deck. Read before writing `DESIGN.md`.
 - `references/layouts.md` — Concrete slide patterns with HTML/class examples. Read while writing slides.
-- `assets/design.md` — Fill-in template for the design doc.
+- `assets/design.md` — Fill-in template for Stitch-compatible `DESIGN.md`.
 - `assets/template.md` — Marp starter with the default design. Use as reference for `presentation.md`.
 
 ## Iteration patterns
 
 Common user requests and where to change them:
 
-- **"Make the accent color X"** — find-replace the accent hex in `presentation.md` (frontmatter + any inline styles) and in `design.md` for reference
-- **"Try a different font"** — swap the `@import` URL and the font-family values. Save the old choice in `design.md` comments so you remember what was tried.
+- **"Make the accent color X"** — update the token in `DESIGN.md`, then find-replace the accent hex in `presentation.md` (frontmatter + any inline styles).
+- **"Try a different font"** — update typography tokens in `DESIGN.md`, then swap the `@import` URL and font-family values. Save the old choice in `DESIGN.md` comments so you remember what was tried.
 - **"Add a slide about Y"** — drop in a new slide block between two `---` separators, following one of the layout patterns
 - **"Remove the Z section"** — delete the slide block
-- **"Make it more formal / more playful"** — this is a design-doc-level change; open `design.md`, revise the tone/palette/font, then port the changes into the frontmatter
+- **"Make it more formal / more playful"** — this is a design-system-level change; open `DESIGN.md`, revise the tone/palette/font, then port the changes into the frontmatter.
 
-When design-level changes are requested, update `design.md` first so the doc stays the source of truth, then mirror into the Marp CSS.
+When design-level changes are requested, update `DESIGN.md` first so the doc stays the source of truth, then mirror into the Marp CSS.

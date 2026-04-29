@@ -2,15 +2,15 @@
 # ===================================================================
 # SCAFFOLD — intentionally minimal black & white.
 #
-# Before building, open design.md and fill it in, then propagate the
+# Before building, open DESIGN.md and fill it in, then propagate the
 # values into this file:
-#   1. Replace the empty @import with your Google Fonts URL
-#   2. Fill --display-font and --body-font (currently system-ui only)
+#   1. Replace the default font import with DESIGN.md's primaryImportURL
+#   2. Fill --display-font and --body-font from DESIGN.md
 #   3. Fill your color palette into --accent, --text-*, etc.
 #      (defaults below are pure black/white so nothing looks styled yet)
 #   4. Adjust --card-* and --pill-radius if your design calls for it
 #
-# The goal of this neutrality: if you skip design.md, the deck looks
+# The goal of this neutrality: if you skip DESIGN.md, the deck looks
 # obviously unfinished and reminds you to come back to it.
 # ===================================================================
 marp: true
@@ -21,21 +21,22 @@ color: "#000000"
 html: true
 style: |
   /* -------- Fonts --------
-     Paste the Google Fonts @import URL from design.md on the next line */
-  /* @import url(''); */
+     Korean-first default. Replace with DESIGN.md's primaryImportURL if changed. */
+  @import url('https://cdn.jsdelivr.net/gh/fonts-archive/Paperlogy/Paperlogy.css');
 
   :root {
-    /* Font families — replace with choices from design.md */
-    --display-font: system-ui, sans-serif;
-    --body-font: system-ui, sans-serif;
+    /* Font families — replace with choices from DESIGN.md */
+    --display-font: Paperlogy, A2Z, Freesentation, "Pretendard Variable", Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    --alternate-display-font: A2Z, Paperlogy, Freesentation, "Pretendard Variable", Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    --body-font: Freesentation, Paperlogy, "Pretendard Variable", Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
 
-    /* Color palette — replace with values from design.md.
+    /* Color palette — replace with values from DESIGN.md.
        These defaults are intentionally B&W so an unfinished deck looks unfinished. */
     --bg: #FFFFFF;
     --text-primary: #000000;
     --text-body: #000000;
     --text-muted: #666666;
-    --accent: #000000;  /* set to a real accent once design.md is locked */
+    --accent: #000000;  /* set to a real accent once DESIGN.md is locked */
     --divider: #CCCCCC;
 
     /* Component tokens */
@@ -48,7 +49,7 @@ style: |
   /* -------- Base -------- */
   section {
     font-family: var(--body-font);
-    letter-spacing: -0.01em;
+    letter-spacing: 0;
     padding: 48px 64px;
     justify-content: flex-start;
     background: var(--bg);
@@ -62,7 +63,7 @@ style: |
     text-align: center;
     line-height: 0.95;
     margin: 0;
-    letter-spacing: -0.04em;
+    letter-spacing: 0;
   }
   h2 {
     font-family: var(--display-font);
@@ -71,7 +72,7 @@ style: |
     font-weight: 700;
     margin: 0 0 8px 0;
   }
-  p, li { font-size: 15px; color: var(--text-body); line-height: 1.55; margin: 4px 0; letter-spacing: -0.01em; }
+  p, li { font-size: 15px; color: var(--text-body); line-height: 1.55; margin: 4px 0; letter-spacing: 0; }
   ul { margin: 4px 0; padding-left: 20px; }
   strong { color: var(--text-primary); }
   em { color: var(--accent); font-style: normal; font-weight: 700; }
@@ -105,7 +106,7 @@ style: |
   .card-dark h2 { color: var(--bg); }
   .card-dark p { color: rgba(255,255,255,0.7); }
 
-  .label { font-family: var(--display-font); font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; margin: 0 0 4px 0; }
+  .label { font-family: var(--display-font); font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: 0; text-transform: uppercase; margin: 0 0 4px 0; }
   .big { font-family: var(--display-font); font-size: 32px; font-weight: 800; color: var(--text-primary); margin: 0; line-height: 1.1; }
   .big-accent { font-family: var(--display-font); font-size: 32px; font-weight: 800; color: var(--accent); margin: 0; line-height: 1.1; }
   .center { text-align: center; }

@@ -252,7 +252,7 @@ internkim/
 │   └── download/            보드 헬퍼 바이너리
 ├── internal/
 │   ├── cli/                 셋업, 배포, lab, 상태 명령 구현
-│   ├── board/               보드 자산 경로와 로더
+│   ├── blueclawworkspace/   Blueclaw workspace 자산 경로와 로더
 │   ├── google/browser/      Google 브라우저 자동화
 │   ├── lab/                 Tart 기반 실험실 구성과 시나리오
 │   ├── provisioning/steps/  단계별 셋업 플로우
@@ -260,7 +260,8 @@ internkim/
 ├── bin/                     macOS 유틸 (get-ssid, sshpass)
 ├── build/                   보드 바이너리와 정적 웹 출력 [gitignored]
 ├── .dependency/blueclaw/    Blueclaw git submodule
-├── assets/board/skills/     보드 AI 스킬 (SKILL.md)
+├── assets/blueclaw-workspace/skills/
+│                           Blueclaw workspace 스킬 (SKILL.md)
 ├── config/lab.example.json  Tart lab 설정 예시
 ├── lab/scripts/             VM provisioning / 시나리오 스크립트
 ├── web/                     SvelteKit + Cloudflare Pages

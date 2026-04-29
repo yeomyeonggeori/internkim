@@ -1,4 +1,4 @@
-package board
+package blueclawworkspace
 
 import (
 	"os"
@@ -6,7 +6,7 @@ import (
 )
 
 func AssetsPath(scriptDir string) string {
-	return filepath.Join(scriptDir, "assets", "board")
+	return filepath.Join(scriptDir, "assets", "blueclaw-workspace")
 }
 
 func SkillsPath(scriptDir string) string {

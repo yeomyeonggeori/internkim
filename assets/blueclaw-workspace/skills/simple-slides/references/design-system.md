@@ -1,6 +1,6 @@
 # Picking a Design for a Deck
 
-This is guidance for filling out `design.md` — how to choose fonts, colors, and component styles that fit the topic. The scaffold template is intentionally pure black-and-white with `system-ui` fonts; it's a placeholder, not a theme. Every deck should replace these values with intentional choices from `design.md`.
+This is guidance for filling out `DESIGN.md` — how to choose fonts, colors, and component styles that fit the topic. The scaffold template is intentionally black on white with Paperlogy, Freesentation, and A2Z as Korean-safe defaults; it is a reusable starting point, not a finished theme. Copy it into the deck workspace, then replace the copied values with choices that fit the actual presentation tone.
 
 ## Step 1: Match the mood to the topic
 
@@ -21,9 +21,21 @@ Examples:
 
 ## Step 2: Pick fonts
 
-Use Google Fonts. Rationale: `@import` works across HTML and PDF output without install, and the catalog is large enough that you'll find something for any mood.
+Use Korean-capable fonts first when the deck contains Korean or may be reused in Korean. Korean families usually cover Latin well enough for business slides, while Latin-only families force unpredictable fallback for hangul. Prefer the curated local/cache manifest at `assets/blueclaw-workspace/fonts/korean-fonts.tsv`; use `@import` links as a portable fallback when local fonts are not available.
 
-**Pairing principle:** one display font for titles + one neutral sans for body. Don't use three fonts; don't use one font for everything (feels flat at display sizes).
+**Pairing principle:** one display font for titles + one neutral sans for body. For Korean decks, one Korean superfamily with strong weight contrast is often cleaner than a Latin display plus Korean body. Don't use three fonts.
+
+**Korean-first defaults / open Korean UI fonts:**
+
+- **Paperlogy** — default display font. Presentation-oriented geometric Korean; strong for slide titles and modern business decks.
+- **Freesentation** — default body font. PowerPoint/PPTX-oriented Korean presentation font; good when editability, embedded fonts, compact text boxes, and practical business decks matter.
+- **A2Z** — default alternate display font for technical decks. Presentation-oriented Korean family with a mobility and futuristic corporate tone; good for technology, robotics, mobility, and innovation decks.
+- **Pretendard Variable** — fallback UI/business font. Use when the default presentation fonts are unavailable or when a quieter UI tone is needed.
+- **SUIT** — polished UI/body text. Strong for operational reports and dense product slides.
+- **Wanted Sans** — clean work/business tone. Good for HR, recruiting, internal documents, and operator-facing material.
+- **Noto Sans KR** — safest fallback and long-body default.
+- **Noto Serif KR / MaruBuri** — formal, editorial, contract-adjacent, or brand-story decks.
+- **KoPubWorld Dotum / KoPubWorld Batang** — publishing and official-document tone. Prefer local cache for DOCX/PDF work.
 
 **Display font candidates** (for titles, big numbers, labels):
 
@@ -40,6 +52,13 @@ Use Google Fonts. Rationale: `@import` works across HTML and PDF output without 
 
 **Typical good pairings:**
 
+- Paperlogy + Freesentation (default Korean presentation)
+- A2Z + Freesentation (technology / mobility)
+- Freesentation + Freesentation (PPTX-heavy practical business)
+- Pretendard Variable + Pretendard Variable (quiet Korean business fallback)
+- SUIT + SUIT (dense product/UI decks)
+- Noto Serif KR + Pretendard Variable (formal/editorial Korean)
+- MaruBuri + Noto Sans KR (warm editorial Korean)
 - Playfair Display + Inter (editorial)
 - Poppins + DM Sans (minimal modern — the default template)
 - Space Grotesk + Inter (techy)
@@ -131,6 +150,17 @@ content is multilingual):
 
 **Typical CJK pairings (by mood):**
 
+- **Default Korean presentation** — Paperlogy display + Freesentation body.
+- **Technology / mobility Korean** — A2Z display + Freesentation body.
+- **Dense product Korean** — SUIT (both), or SUIT for body with Paperlogy
+  titles.
+- **Quiet modern Korean** — Pretendard Variable (both title & body, weight
+  800 for title, 400 for body).
+- **Presentation-forward Korean** — Paperlogy (display) + Freesentation
+  (body).
+- **PPTX-heavy practical Korean** — Freesentation (both), especially when
+  compact text boxes and editable PowerPoint handoff matter.
+- **Work / HR Korean** — Wanted Sans (both), or Pretendard Variable fallback.
 - **Default / safe Korean** — Noto Sans KR (both title & body, weight
   800 for title, 400 for body).
 - **Editorial Korean** — Noto Serif KR (display) + Noto Sans KR (body).
@@ -166,6 +196,27 @@ syntax for multiple CJK families looks like:
 Add `subset=korean` or set the `text=` parameter with only the glyphs
 you use if you want to trim the download (optional; Noto KR is ~1MB
 per weight by default).
+
+## Font import URL reference
+
+The Korean-first manifest lives at `assets/blueclaw-workspace/fonts/korean-fonts.tsv`. For local/cache builds, use the manifest name and fallback stack from `DESIGN.md`. For link-only builds, copy an import below.
+
+**Open Korean families outside Google Fonts:**
+
+```
+/* Pretendard Variable (quiet fallback) */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css');
+
+/* SUIT Variable */
+@import url('https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2/fonts/variable/woff2/SUIT-Variable.css');
+
+/* Paperlogy */
+@import url('https://cdn.jsdelivr.net/gh/fonts-archive/Paperlogy/Paperlogy.css');
+```
+
+Wanted Sans, MaruBuri, and KoPubWorld families should be installed or cached locally when needed for DOCX/PDF/PPTX output. If they are not present, fall back to Pretendard Variable or Noto Sans KR.
+
+Freesentation and A2Z are default presentation-focused local/cache candidates. Freesentation is useful for PowerPoint-first work, and A2Z is useful for technology or mobility decks. Both should be treated as local-cache fonts until the build pipeline has an approved download/cache step; if they are missing, Paperlogy, Pretendard Variable, and Noto Sans KR keep the deck renderable.
 
 ## Google Fonts @import URL reference
 
@@ -295,12 +346,12 @@ Weights are optional; omit for default regular.
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+KR:wght@400;700;900&display=swap');
 ```
 
-Always combine all families into **one** `@import` — fewer HTTP
-requests means faster Marp rendering. When in doubt about a font's
+For Google Fonts, combine all families into **one** `@import` — fewer HTTP
+requests means faster Marp rendering. When in doubt about a Google font's
 exact URL, visit `https://fonts.google.com/specimen/<Font+Name>`
 and copy the generated `@import` snippet from the sidebar.
 
-**Letter-spacing tip:** body sans often looks loose at slide sizes. Add `letter-spacing: -0.01em` or `-0.015em` globally to tighten. Display fonts usually need negative tracking too (`-0.02em` to `-0.04em`) especially at large sizes.
+**Letter-spacing:** keep `letter-spacing: 0`. If the deck feels loose, adjust font choice, weight, line-height, or layout density instead of negative tracking.
 
 **Weights you need:**
 
@@ -377,13 +428,13 @@ Match the radius to the mood. Consistent everywhere.
 
 ## Step 5: Write it down
 
-Fill in `design.md`. Don't skip this — the doc is where you defend the choices to your future self when you come back to edit the deck in two weeks.
+Fill in `DESIGN.md`. Don't skip this — the doc is where you defend the choices to your future self when you come back to edit the deck in two weeks.
 
 Then port the values into `presentation.md`'s frontmatter CSS. The frontmatter has clearly commented roles so you can find-replace cleanly.
 
 ## What NOT to do
 
-- **Don't ship the scaffold.** The template is pure B&W with `system-ui` on purpose — it should look obviously unstyled. If a build ever comes out looking like that, you forgot to fill in the design doc and propagate it into the frontmatter.
+- **Don't ship the scaffold.** The template is pure B&W with Paperlogy/Freesentation/A2Z only as Korean-safe defaults — it should look visually unstyled. If a build ever comes out looking like that, you forgot to fill in the design doc and propagate it into the frontmatter.
 - **Don't use multiple accents.** Pick one. If you need a second color for emphasis, use weight/size/position, not a new hue.
 - **Don't use emoji as design elements.** Inconsistent across PDF and PPTX. Use real icons (inline SVG) if you need them.
 - **Don't mix serif and sans within a text block.** Display = serif, body = sans is fine; but don't mix them in the same paragraph.
