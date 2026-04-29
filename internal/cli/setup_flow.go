@@ -610,6 +610,8 @@ func (state *setupFlowState) installBinariesSSH(context *setup.Context) error {
 		fmt.Printf("  %s %s\n", asset.name, state.messenger.t("설치 완료", "installed"))
 	}
 
+	state.sshClient.run("rm -f /usr/local/bin/lightpanda /tmp/internkim-agent-browser-lightpanda-open.log /tmp/internkim-agent-browser-lightpanda-snapshot.log 2>/dev/null || true")
+
 	if err := state.ensureAgentBrowserRuntimeSSH(); err != nil {
 		return err
 	}
