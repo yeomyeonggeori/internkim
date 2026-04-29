@@ -37,6 +37,7 @@ var StepHealth = Step{
 		checkCapabilityHealth(context, &failedChecks)
 		checkGraphitiHealth(context, &failedChecks)
 		checkAdminHealth(context, &failedChecks)
+		checkFirstAdminBootstrap(context, &failedChecks)
 		checkMattermostPing(context, &failedChecks)
 		checkMattermostURL(context, &failedChecks)
 		checkMattermostPublic(context, &failedChecks)
@@ -58,6 +59,41 @@ var StepHealth = Step{
 	},
 }
 
+func checkFirstAdminBootstrap(context *Context, failedChecks *[]string) {
+	check := strings.TrimSpace(context.SSH.Run(`python3 - <<'PY'
+import json
+from pathlib import Path
+
+path = Path("/root/.internkim/admin/first-admin-bootstrap.json")
+if not path.exists():
+    print("pending")
+    raise SystemExit
+try:
+    document = json.loads(path.read_text())
+except Exception:
+    print("invalid")
+    raise SystemExit
+status = document.get("status") or "pending"
+if status == "failed":
+    print("failed: " + (document.get("error") or "unknown"))
+else:
+    print(status)
+PY`))
+	if check == "claimed" {
+		fmt.Println("  first admin bootstrap: claimed")
+		return
+	}
+	if strings.HasPrefix(check, "failed: ") || check == "invalid" {
+		*failedChecks = append(*failedChecks, "first-admin-bootstrap")
+		fmt.Printf("  first admin bootstrap: %s\n", check)
+		return
+	}
+	if check == "" {
+		check = "pending"
+	}
+	fmt.Printf("  first admin bootstrap: %s\n", check)
+}
+
 func checkAgentBrowser(context *Context, failedChecks *[]string) {
 	check := strings.TrimSpace(context.SSH.Run("(\n" + browserruntime.DeviceReadinessShellScript() + "\n) >/dev/null 2>&1 && echo ok || true"))
 	if check == "ok" {
@@ -68,10 +104,10 @@ func checkAgentBrowser(context *Context, failedChecks *[]string) {
 }
 
 func checkAdminHealth(context *Context, failedChecks *[]string) {
-	check := strings.TrimSpace(context.SSH.Run(`curl --silent --show-error --fail http://127.0.0.1:18080/_internkim/admin/health 2>/dev/null | jq -r '.status // empty' || true`))
+	check := strings.TrimSpace(context.SSH.Run(`curl --silent --show-error --fail http://127.0.0.1:18080/admin/api/health 2>/dev/null | python3 -c 'import json, sys; print(json.load(sys.stdin).get("status", ""))' 2>/dev/null || true`))
 	if check == "ok" {
 		adminPage := strings.TrimSpace(context.SSH.Run(`curl --silent --show-error --fail http://127.0.0.1:18080/admin/ 2>/dev/null | grep -o '<script' | head -1 || true`))
-		adminAssets := strings.TrimSpace(context.SSH.Run(`curl --silent --show-error --fail http://127.0.0.1:18080/_app/version.json 2>/dev/null | jq -r '.version // empty' || true`))
+		adminAssets := strings.TrimSpace(context.SSH.Run(`curl --silent --show-error --fail http://127.0.0.1:18080/admin/_app/version.json 2>/dev/null | python3 -c 'import json, sys; print(json.load(sys.stdin).get("version", ""))' 2>/dev/null || true`))
 		if adminPage == "<script" && adminAssets != "" {
 			fmt.Println("  admind: ok")
 			return
@@ -129,7 +165,7 @@ fi`))
 }
 
 func checkGraphitiHealth(context *Context, failedChecks *[]string) {
-	check := strings.TrimSpace(context.SSH.Run(`curl --silent --show-error --fail http://127.0.0.1:7791/health 2>/dev/null | jq -r '.status // empty' || true`))
+	check := strings.TrimSpace(context.SSH.Run(`curl --silent --show-error --fail http://127.0.0.1:7791/health 2>/dev/null | python3 -c 'import json, sys; print(json.load(sys.stdin).get("status", ""))' 2>/dev/null || true`))
 	if check == "ok" {
 		fmt.Println("  graphiti memory: ok")
 		return
@@ -164,10 +200,20 @@ policy_path = "/root/.blueclaw/config/policy.json"
 try:
     with open(state_path) as file:
         desired = set(json.load(file).get("users", []))
+except Exception:
+    print("ok")
+    raise SystemExit
+
+if not desired:
+    print("ok")
+    raise SystemExit
+
+try:
     with open(policy_path) as file:
         policy = json.load(file)
 except Exception:
-    sys.exit(1)
+    print("policy-missing")
+    raise SystemExit(1)
 
 emails = set()
 for person in policy.get("people", []):
@@ -228,13 +274,18 @@ PY`))
 
 func checkMattermostProfileLookup(context *Context, failedChecks *[]string) {
 	check := strings.TrimSpace(context.SSH.Run(`mattermost_token="$(cat /root/.internkim/secrets/mattermost-bot-token 2>/dev/null)"
-bot_user_id="$(curl -fsS -H "Authorization: Bearer $mattermost_token" http://localhost:8065/api/v4/users/me 2>/dev/null | jq -r '.id // empty')"
+bot_user_id="$(curl -fsS -H "Authorization: Bearer $mattermost_token" http://localhost:8065/api/v4/users/me 2>/dev/null | python3 -c 'import json, sys; print(json.load(sys.stdin).get("id", ""))' 2>/dev/null || true)"
 if [ -z "$bot_user_id" ]; then
   echo missing
   exit 0
 fi
-body="$(jq -cn --arg senderID "$bot_user_id" '{senderID:$senderID}')"
-curl -fsS --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$body" http://internkim/v1/platform/mattermost/identity.resolve 2>/dev/null | jq -e '.email != null' >/dev/null && echo ok || echo failed`))
+body="$(SENDER_ID="$bot_user_id" python3 - <<'PY'
+import json
+import os
+print(json.dumps({"senderID": os.environ["SENDER_ID"]}))
+PY
+)"
+curl -fsS --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$body" http://internkim/v1/platform/mattermost/identity.resolve 2>/dev/null | python3 -c 'import json, sys; raise SystemExit(0 if json.load(sys.stdin).get("email") is not None else 1)' 2>/dev/null && echo ok || echo failed`))
 	if check == "ok" {
 		fmt.Println("  mattermost profile lookup: ok")
 		return
@@ -244,16 +295,30 @@ curl -fsS --unix-socket /run/internkim/capability.sock -H "Content-Type: applica
 }
 
 func checkLLMCapability(context *Context, failedChecks *[]string) {
-	check := strings.TrimSpace(context.SSH.Run(`model="$(jq -r '.languageModel.capability.model // "google/gemini-3.1-flash-lite-preview"' /root/.blueclaw/config/runtime.json 2>/dev/null)"
-text_body="$(jq -cn --arg model "$model" '{
-  model: $model,
-  executionMode: "remote",
-  messages: [{role:"user", content:"Reply with ok."}],
-  requireParameters: true,
-  enableResponseHealing: true
-}')"
+	check := strings.TrimSpace(context.SSH.Run(`model="$(python3 - <<'PY'
+import json
+try:
+    with open("/root/.blueclaw/config/runtime.json") as file:
+        document = json.load(file)
+    print(document.get("languageModel", {}).get("capability", {}).get("model") or "google/gemini-3.1-flash-lite-preview")
+except Exception:
+    print("google/gemini-3.1-flash-lite-preview")
+PY
+)"
+text_body="$(MODEL="$model" python3 - <<'PY'
+import json
+import os
+print(json.dumps({
+    "model": os.environ["MODEL"],
+    "executionMode": "remote",
+    "messages": [{"role": "user", "content": "Reply with ok."}],
+    "requireParameters": True,
+    "enableResponseHealing": True,
+}))
+PY
+)"
 text_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$text_body" http://internkim/v1/llm/text 2>/tmp/internkim-llm-smoke-error || true)"
-if ! printf '%s' "$text_response" | jq -e '.content | type == "string" and length > 0' >/dev/null 2>&1; then
+if ! printf '%s' "$text_response" | python3 -c 'import json, sys; document=json.load(sys.stdin); raise SystemExit(0 if isinstance(document.get("content"), str) and len(document.get("content")) > 0 else 1)' >/dev/null 2>&1; then
   if [ -n "$text_response" ]; then
     printf '%s' "$text_response" | tr '\n' ' ' | cut -c1-180
   else
@@ -262,16 +327,21 @@ if ! printf '%s' "$text_response" | jq -e '.content | type == "string" and lengt
   exit 0
 fi
 schema='{"type":"object","properties":{"reply":{"type":"string"}},"required":["reply"],"additionalProperties":false}'
-structured_body="$(jq -cn --arg model "$model" --arg schema "$schema" '{
-  model: $model,
-  executionMode: "remote",
-  messages: [{role:"user", content:"Return JSON only with reply set to ok."}],
-  structuredOutputSchema: {name:"smoke_reply", document:$schema, isStrictlyEnforced:true},
-  requireParameters: true,
-  enableResponseHealing: true
-}')"
+structured_body="$(MODEL="$model" SCHEMA="$schema" python3 - <<'PY'
+import json
+import os
+print(json.dumps({
+    "model": os.environ["MODEL"],
+    "executionMode": "remote",
+    "messages": [{"role": "user", "content": "Return JSON only with reply set to ok."}],
+    "structuredOutputSchema": {"name": "smoke_reply", "document": os.environ["SCHEMA"], "isStrictlyEnforced": True},
+    "requireParameters": True,
+    "enableResponseHealing": True,
+}))
+PY
+)"
 structured_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$structured_body" http://internkim/v1/llm/structured 2>/tmp/internkim-llm-smoke-error || true)"
-if printf '%s' "$structured_response" | jq -e '.content | fromjson | .reply | type == "string"' >/dev/null 2>&1; then
+if printf '%s' "$structured_response" | python3 -c 'import json, sys; document=json.load(sys.stdin); content=json.loads(document.get("content", "{}")); raise SystemExit(0 if isinstance(content.get("reply"), str) else 1)' >/dev/null 2>&1; then
   echo ok
 else
   printf '%s' "$structured_response" | tr '\n' ' ' | cut -c1-180
@@ -288,19 +358,20 @@ fi`))
 }
 
 func checkLiteRTCapability(context *Context, failedChecks *[]string) {
-	check := strings.TrimSpace(context.SSH.Run(`if ! command -v litert-lm >/dev/null 2>&1 || [ ! -s /root/.internkim/models/gemma-4-E4B-it.litertlm ]; then
-  echo skipped
-  exit 0
-fi
-body="$(jq -cn '{
-  model: "local/gemma-4-E4B-it-litert-lm",
-  executionMode: "local",
-  messages: [{role:"user", content:"Reply with ok."}],
-  requireParameters: true,
-  enableResponseHealing: true
-}')"
-response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$body" http://internkim/v1/llm/text 2>/tmp/internkim-litert-smoke-error || true)"
-if printf '%s' "$response" | jq -e '.selectedBackend as $backend | ($backend == "gpu" or $backend == "cpu") and (.content | type == "string" and length > 0)' >/dev/null 2>&1; then
+	check := strings.TrimSpace(context.SSH.Run(`body="$(python3 - <<'PY'
+import json
+print(json.dumps({
+    "model": "local/gemma-4-E4B-it-litert-lm",
+    "backend": "cpu",
+    "executionMode": "local",
+    "messages": [{"role": "user", "content": "Reply with ok."}],
+    "requireParameters": True,
+    "enableResponseHealing": True,
+}))
+PY
+)"
+response="$(curl --max-time 210 --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$body" http://internkim/v1/llm/text 2>/tmp/internkim-litert-smoke-error || true)"
+if printf '%s' "$response" | python3 -c 'import json, sys; document=json.load(sys.stdin); backend=document.get("selectedBackend"); content=document.get("content"); raise SystemExit(0 if backend in ("gpu", "cpu") and isinstance(content, str) and len(content) > 0 else 1)' >/dev/null 2>&1; then
   echo ok
   exit 0
 fi
@@ -309,19 +380,15 @@ if [ -n "$response" ]; then
 else
   tr '\n' ' ' </tmp/internkim-litert-smoke-error | cut -c1-180
 fi`))
-	if check == "skipped" {
-		fmt.Println("  litert capability: skipped")
-		return
-	}
 	if check == "ok" {
-		fmt.Println("  litert capability: ok")
+		fmt.Println("  local ai capability: ok")
 		return
 	}
-	*failedChecks = append(*failedChecks, "litert-capability")
+	*failedChecks = append(*failedChecks, "local-ai-capability")
 	if check == "" {
 		check = "failed"
 	}
-	fmt.Printf("  litert capability: failed (%s)\n", check)
+	fmt.Printf("  local ai capability: failed (%s)\n", check)
 }
 
 func checkSlackProfileLookup(context *Context, failedChecks *[]string) {
@@ -330,13 +397,18 @@ func checkSlackProfileLookup(context *Context, failedChecks *[]string) {
   exit 0
 fi
 slack_token="$(cat /root/.internkim/secrets/slack-bot-token)"
-user_id="$(curl -fsS -H "Authorization: Bearer $slack_token" https://slack.com/api/auth.test 2>/dev/null | jq -r '.user_id // empty')"
+user_id="$(curl -fsS -H "Authorization: Bearer $slack_token" https://slack.com/api/auth.test 2>/dev/null | python3 -c 'import json, sys; print(json.load(sys.stdin).get("user_id", ""))' 2>/dev/null || true)"
 if [ -z "$user_id" ]; then
   echo failed
   exit 0
 fi
-lookup_body="$(jq -cn --arg senderID "$user_id" '{senderID:$senderID}')"
-curl -fsS --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$lookup_body" http://internkim/v1/platform/slack/identity.resolve 2>/dev/null | jq -e '.senderID != null' >/dev/null && echo ok || echo failed`))
+lookup_body="$(SENDER_ID="$user_id" python3 - <<'PY'
+import json
+import os
+print(json.dumps({"senderID": os.environ["SENDER_ID"]}))
+PY
+)"
+curl -fsS --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$lookup_body" http://internkim/v1/platform/slack/identity.resolve 2>/dev/null | python3 -c 'import json, sys; raise SystemExit(0 if json.load(sys.stdin).get("senderID") is not None else 1)' 2>/dev/null && echo ok || echo failed`))
 	if check == "skipped" {
 		fmt.Println("  slack profile lookup: skipped")
 		return
@@ -356,10 +428,10 @@ func checkSlackFileUploadPermission(context *Context, failedChecks *[]string) {
 fi
 slack_token="$(cat /root/.internkim/secrets/slack-bot-token)"
 response="$(curl -fsS -H "Authorization: Bearer $slack_token" -H "Content-Type: application/json" -d '{"filename":"internkim-health.txt","length":1}' https://slack.com/api/files.getUploadURLExternal 2>/dev/null || true)"
-if printf '%s' "$response" | jq -e '.ok == true and (.upload_url | type == "string") and (.file_id | type == "string")' >/dev/null 2>&1; then
+if printf '%s' "$response" | python3 -c 'import json, sys; document=json.load(sys.stdin); raise SystemExit(0 if document.get("ok") is True and isinstance(document.get("upload_url"), str) and isinstance(document.get("file_id"), str) else 1)' >/dev/null 2>&1; then
   echo ok
 else
-  printf '%s' "$response" | jq -r '.error // "failed"' 2>/dev/null
+  printf '%s' "$response" | python3 -c 'import json, sys; print(json.load(sys.stdin).get("error", "failed"))' 2>/dev/null || echo failed
 fi`))
 	if check == "skipped" {
 		fmt.Println("  slack file upload permission: skipped")

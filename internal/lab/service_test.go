@@ -180,7 +180,7 @@ func TestSetupUsesCurrentExecutableWithHostOverride(t *testing.T) {
 	if setupCommand.ExecutableName != "/repo/internkim" {
 		t.Fatalf("expected setup command to use current executable, got %q", setupCommand.ExecutableName)
 	}
-	if strings.Join(setupCommand.Arguments, " ") != "setup --ssh --host 10.0.0.5 --user admin --password admin --skip wifi" {
+	if strings.Join(setupCommand.Arguments, " ") != "setup --board lab --ssh --host 10.0.0.5 --user admin --password admin --skip wifi" {
 		t.Fatalf("unexpected setup arguments: %v", setupCommand.Arguments)
 	}
 	if setupCommand.EnvironmentVariables != nil {
@@ -201,7 +201,7 @@ func TestSetupPassesSelectorArgumentsWithoutDefaultForce(t *testing.T) {
 	}
 
 	setupCommand := commandRunner.runCommands[2]
-	if strings.Join(setupCommand.Arguments, " ") != "setup --ssh --host 10.0.0.5 --user admin --password admin --only mattermost" {
+	if strings.Join(setupCommand.Arguments, " ") != "setup --board lab --ssh --host 10.0.0.5 --user admin --password admin --only mattermost" {
 		t.Fatalf("unexpected setup arguments: %v", setupCommand.Arguments)
 	}
 }

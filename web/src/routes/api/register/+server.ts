@@ -13,6 +13,7 @@ import {
 	updateAccessApplicationLoginMethod,
 	syncAccessPolicyEmails
 } from '$lib/cloudflare';
+import { userEmails } from '$lib/kv';
 import type { Device } from '$lib/types';
 import { hashDeviceSecret, normalizeDeviceID } from '$lib/device-auth';
 
@@ -22,15 +23,6 @@ function normalizeEmail(email: string): string {
 
 function isValidDeviceID(deviceID: string): boolean {
 	return /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(deviceID);
-}
-
-function inviteUsersWithSetupAdmin(users: string[], storedAdminEmail: string, setupAdminEmail: string): string[] {
-	const normalizedUsers = users.map(normalizeEmail).filter(Boolean);
-	const invitedUsers = normalizedUsers.length > 0 ? normalizedUsers : [normalizeEmail(storedAdminEmail || setupAdminEmail)];
-	if (!invitedUsers.includes(setupAdminEmail)) {
-		return [...invitedUsers, setupAdminEmail];
-	}
-	return invitedUsers;
 }
 
 async function ensureSameDevice(device: Device, deviceSecret: string): Promise<Device> {
@@ -72,7 +64,7 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 	};
 	const deviceID = normalizeDeviceID(device_id ?? '');
 	const adminEmail = normalizeEmail(admin_email ?? '');
-	if (!deviceID || !device_secret || !adminEmail) throw error(400, 'device_id, device_secret, and admin_email required');
+	if (!deviceID || !device_secret) throw error(400, 'device_id and device_secret required');
 	if (!isValidDeviceID(deviceID)) throw error(400, 'device_id must be a valid DNS label');
 
 	const cfEnv = {
@@ -90,12 +82,10 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 		if (ownedDevice.access_app_id) {
 			await updateAccessApplicationLoginMethod(cfEnv, deviceID, ownedDevice.access_app_id, identityProviderId);
 		}
-		await ensureAdminAccessApplications(cfEnv, deviceID, identityProviderId, normalizeEmail(ownedDevice.admin_email || adminEmail));
 		await ensureCompanionBypassApplication(cfEnv, deviceID);
-		const users = await kv.getUsers(env.KV, deviceID);
-		const seededUsers = inviteUsersWithSetupAdmin(users, existing.admin_email, adminEmail);
-		const device = await ensureAccessPolicy(cfEnv, ownedDevice, seededUsers);
-		await kv.putUsers(env.KV, deviceID, seededUsers);
+		const records = await kv.getUserRecords(env.KV, deviceID);
+		await ensureAdminAccessApplications(cfEnv, deviceID, identityProviderId, []);
+		const device = await ensureAccessPolicy(cfEnv, { ...ownedDevice, admin_email: adminEmail || ownedDevice.admin_email || '' }, userEmails(records));
 		await kv.putDevice(env.KV, deviceID, device);
 		return json({
 			device_id: deviceID,
@@ -131,7 +121,7 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 	};
 
 	await kv.putDevice(env.KV, deviceID, device);
-	await kv.putUsers(env.KV, deviceID, [adminEmail]);
+	await kv.putUserRecords(env.KV, deviceID, []);
 
 	return json({
 		device_id: deviceID,

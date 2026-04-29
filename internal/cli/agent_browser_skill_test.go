@@ -60,6 +60,31 @@ func TestLoadWorkspaceAgentsMarkdownUsesBoardAsset(t *testing.T) {
 	}
 }
 
+func TestLoadWorkspaceDocumentsUsesBoardAssets(t *testing.T) {
+	scriptDir, errorValue := filepath.Abs("../..")
+	if errorValue != nil {
+		t.Fatalf("expected script dir: %v", errorValue)
+	}
+
+	documents, errorValue := loadWorkspaceDocuments(scriptDir)
+	if errorValue != nil {
+		t.Fatalf("expected workspace documents: %v", errorValue)
+	}
+	for _, expectation := range []struct {
+		name     string
+		document string
+		fragment string
+	}{
+		{name: "identity", document: documents.Identity, fragment: "runtime bot profile"},
+		{name: "soul", document: documents.Soul, fragment: "SOUL.md"},
+		{name: "bot profile", document: documents.BotProfile, fragment: "displayName: 김인턴"},
+	} {
+		if !strings.Contains(expectation.document, expectation.fragment) {
+			t.Fatalf("expected %s document to include %q", expectation.name, expectation.fragment)
+		}
+	}
+}
+
 func TestLoadWorkspaceAgentsMarkdownDoesNotFallbackToRepositoryRoot(t *testing.T) {
 	scriptDir := t.TempDir()
 	if errorValue := os.WriteFile(filepath.Join(scriptDir, "AGENTS.md"), []byte("repository root agents"), 0o644); errorValue != nil {

@@ -11,6 +11,9 @@ var StepWifi = Step{
 	IsSatisfied: func(context *Context) bool {
 		switch context.Backend {
 		case BackendSSH:
+			if context.BoardType == BoardJetsonOrinNano {
+				return true
+			}
 			wlanAddress := trimmedRun(context, `ip -4 addr show wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d/ -f1`)
 			return wlanAddress != ""
 		case BackendSD:

@@ -204,9 +204,9 @@ export async function ensureCompanionBypassApplication(env: CFEnv, deviceId: str
 }
 
 export async function ensureAdminAccessApplications(env: CFEnv, deviceId: string, identityProviderId: string, adminEmails: string[] | string) {
-	const emails = Array.isArray(adminEmails) ? adminEmails : [adminEmails];
+	(void adminEmails);
 	const applicationId = await ensureAdminAccessApplication(env, deviceId, identityProviderId, '/admin*');
-	await syncAccessPolicyEmails(env, applicationId, emails);
+	await syncAccessPolicyEveryone(env, applicationId);
 	await deleteAccessApplicationForDomain(env, deviceId, '/_internkim/admin/*');
 }
 
@@ -283,7 +283,21 @@ async function ensureCompanionBypassPolicy(env: CFEnv, appId: string) {
 }
 
 export async function createAccessPolicy(env: CFEnv, appId: string, adminEmail: string) {
+	if (!adminEmail.trim()) return createAccessPolicyForEveryone(env, appId);
 	return createAccessPolicyForEmails(env, appId, [adminEmail]);
+}
+
+async function createAccessPolicyForEveryone(env: CFEnv, appId: string) {
+	const policy = await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${appId}/policies`, {
+		method: 'POST',
+		body: JSON.stringify({
+			name: 'allowed-users',
+			decision: 'allow',
+			include: [{ everyone: {} }]
+		})
+	});
+
+	return policy.id as string;
 }
 
 async function createAccessPolicyForEmails(env: CFEnv, appId: string, emails: string[]) {
@@ -300,7 +314,7 @@ async function createAccessPolicyForEmails(env: CFEnv, appId: string, emails: st
 }
 
 export async function syncAccessPolicyEmails(env: CFEnv, appId: string, emails: string[]) {
-	if (emails.length === 0) return null;
+	if (emails.length === 0) return syncAccessPolicyEveryone(env, appId);
 
 	const policies = await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${appId}/policies`);
 	const policy = policies[0];
@@ -316,6 +330,23 @@ export async function syncAccessPolicyEmails(env: CFEnv, appId: string, emails: 
 			name: policy.name,
 			decision: 'allow',
 			include
+		})
+	});
+
+	return policy.id as string;
+}
+
+async function syncAccessPolicyEveryone(env: CFEnv, appId: string) {
+	const policies = await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${appId}/policies`);
+	const policy = policies[0];
+	if (!policy) return createAccessPolicyForEveryone(env, appId);
+
+	await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${appId}/policies/${policy.id}`, {
+		method: 'PUT',
+		body: JSON.stringify({
+			name: policy.name,
+			decision: 'allow',
+			include: [{ everyone: {} }]
 		})
 	});
 

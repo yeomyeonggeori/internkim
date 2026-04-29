@@ -45,6 +45,9 @@ var (
 	}
 )
 
+const jetsonDefaultUser = "internkim"
+const jetsonDefaultPassword = "blueclaw"
+
 type config struct {
 	APIBaseURL     string
 	RegisterSecret string
@@ -179,6 +182,8 @@ func Main() {
 		switch os.Args[1] {
 		case "setup":
 			runSetup()
+		case "flash":
+			runFlash()
 		case "model":
 			runModel()
 		case "invite":
@@ -214,6 +219,7 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("Commands:")
 	fmt.Println("  setup    Full device provisioning")
+	fmt.Println("  flash    Flash board boot media")
 	fmt.Println("  model    Manage LLM model (current/set/list)")
 	fmt.Println("  invite   Generate invite QR code")
 	fmt.Println("  users    Manage allowed users")
@@ -245,15 +251,18 @@ func runSetup() {
 		return
 	}
 
+	boardType := argString("--board", setup.BoardJetsonOrinNano)
+
 	// Pipeline mode: selective re-run (auto/ssh/sd backend).
-	// Triggered by step controls or explicit backend/target selection.
+	// Jetson is the default live setup target. Legacy SD flashing is still
+	// available by explicitly passing --board rpi/orangepi5 without live flags.
 	if hasFlag("--only") || hasFlag("--skip") || hasFlag("--from") ||
 		containsArg("--force") || containsArg("--force-all") || containsArg("--plan") ||
-		containsArg("--ssh") || containsArg("--sd") || containsArg("--live") ||
+		containsArg("--ssh") || containsArg("--sd") || containsArg("--live") || containsArg("--with-google") ||
 		argString("--host", "") != "" || argString("--slack-bot-token", "") != "" ||
 		argString("--slack-app-token", "") != "" || argString("--signal-jsonrpc-url", "") != "" ||
 		argString("--signal-account", "") != "" ||
-		argString("--board", "") == "jetson-orin-nano" {
+		boardType == setup.BoardJetsonOrinNano {
 		runSetupLive(m)
 		return
 	}
@@ -841,26 +850,21 @@ func extractFromTarGz(r io.Reader, localPath, entryName string) error {
 
 // installMattermost installs PostgreSQL + Mattermost on the board if not already present.
 // Uses the official Mattermost tarball for arm64 and postgresql via apt.
-func installMattermost(m *msg, ssh *sshClient, force bool) {
+func installMattermost(m *msg, ssh *sshClient, force bool) error {
 	already := strings.TrimSpace(ssh.run("test -f /opt/mattermost/bin/mattermost && echo yes || echo no"))
 	if already == "yes" {
-		fmt.Printf("  %s\n", m.t("Mattermost 이미 설치됨 — 건너뜀", "Mattermost already installed — skipping"))
-		// Ensure DB password and config are in sync
-		mmDBPass := strings.TrimSpace(ssh.run("cat /root/.internkim/secrets/mm-db-pass 2>/dev/null"))
-		if mmDBPass != "" {
-			ssh.run(fmt.Sprintf(`su - postgres -c "psql -c \"ALTER USER mmuser WITH PASSWORD '%s'\"" 2>/dev/null || true`, mmDBPass))
-			ssh.run(fmt.Sprintf(`jq --arg ds 'postgres://mmuser:%s@localhost/mattermost?sslmode=disable&connect_timeout=10' '.SqlSettings.DataSource = $ds' /opt/mattermost/config/config.json > /tmp/mm-cfg.tmp && mv /tmp/mm-cfg.tmp /opt/mattermost/config/config.json && chown mattermost:mattermost /opt/mattermost/config/config.json`, mmDBPass))
-			ssh.run("systemctl restart mattermost 2>/dev/null || true")
-		}
-		return
+		fmt.Printf("  %s\n", m.t("Mattermost 이미 설치됨 — 상태 확인 및 복구 진행", "Mattermost already installed — checking and repairing"))
 	}
 
 	fmt.Printf("  %s\n", m.t("PostgreSQL 설치 중...", "Installing PostgreSQL..."))
-	out := ssh.run(`
+	out := ssh.run(jetsonUbuntuAptSourcesRepairScript() + `
 which pg_isready 2>/dev/null && echo already || {
-  apt-get update -qq 2>&1 | tail -1
-  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq postgresql postgresql-contrib jq 2>&1 | tail -3
+  apt-get update -qq
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq postgresql postgresql-contrib python3 || echo apt_install_failed
 }`)
+	if strings.Contains(out, "apt_install_failed") {
+		return fmt.Errorf("PostgreSQL package installation failed: %s", strings.TrimSpace(out))
+	}
 	if strings.Contains(out, "already") {
 		fmt.Printf("  %s\n", m.t("PostgreSQL 이미 설치됨", "PostgreSQL already installed"))
 	} else {
@@ -883,12 +887,15 @@ su - postgres -c "psql -c \"SELECT 1 FROM pg_database WHERE datname='mattermost'
 su - postgres -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE mattermost TO mmuser\"" 2>/dev/null || true`, mmDBPass))
 	if strings.Contains(pgOut, "pg_not_ready") {
 		fmt.Printf("  ERROR: %s\n", m.t("PostgreSQL이 준비되지 않음", "PostgreSQL not ready"))
+		return fmt.Errorf("PostgreSQL not ready")
 	}
 	if strings.Contains(pgOut, "user_failed") {
 		fmt.Printf("  ERROR: %s\n", m.t("mmuser 생성 실패", "Failed to create mmuser"))
+		return fmt.Errorf("failed to create mmuser")
 	}
 	if strings.Contains(pgOut, "db_failed") {
 		fmt.Printf("  ERROR: %s\n", m.t("mattermost DB 생성 실패", "Failed to create mattermost DB"))
+		return fmt.Errorf("failed to create mattermost database")
 	}
 	if !strings.Contains(pgOut, "pg_not_ready") && !strings.Contains(pgOut, "user_failed") && !strings.Contains(pgOut, "db_failed") {
 		fmt.Printf("  %s\n", m.t("PostgreSQL DB/사용자 설정 완료", "PostgreSQL DB/user configured"))
@@ -915,7 +922,7 @@ curl -fsSL -o /tmp/mattermost.tar.gz "$URL" 2>&1 | tail -1 && echo "download_ok"
 	}
 	if strings.Contains(installOut, "download_failed") {
 		fmt.Printf("  ERROR: %s\n", m.t("Mattermost 다운로드 실패 — 건너뜀", "Mattermost download failed — skipping"))
-		return
+		return fmt.Errorf("Mattermost download failed")
 	}
 	fmt.Printf("  %s\n", m.t("Mattermost 다운로드 완료, 설치 중...", "Download complete, installing..."))
 
@@ -932,10 +939,20 @@ chmod -R g+w /opt/mattermost
 cd /opt/mattermost
 cp config/config.defaults.json config/config.json 2>/dev/null && echo "defaults_used" || echo "defaults_missing"
 DB_PASS="%s"
-jq --arg ds "postgres://mmuser:${DB_PASS}@localhost/mattermost?sslmode=disable&connect_timeout=10" \
-   --arg url "http://localhost:8065" \
-   '.SqlSettings.DriverName = "postgres" | .SqlSettings.DataSource = $ds | .ServiceSettings.SiteURL = $url' \
-   config/config.json > config/config.tmp && mv config/config.tmp config/config.json && chown mattermost:mattermost config/config.json && echo "config_ok" || echo "config_failed"
+MATTERMOST_DB_PASS="$DB_PASS" MATTERMOST_SITE_URL="http://localhost:8065" python3 - <<'PY' && chown mattermost:mattermost config/config.json && echo "config_ok" || echo "config_failed"
+import json
+import os
+from pathlib import Path
+
+path = Path("config/config.json")
+document = json.loads(path.read_text())
+document.setdefault("SqlSettings", {})
+document.setdefault("ServiceSettings", {})
+document["SqlSettings"]["DriverName"] = "postgres"
+document["SqlSettings"]["DataSource"] = "postgres://mmuser:%%s@localhost/mattermost?sslmode=disable&connect_timeout=10" %% os.environ["MATTERMOST_DB_PASS"]
+document["ServiceSettings"]["SiteURL"] = os.environ["MATTERMOST_SITE_URL"]
+path.write_text(json.dumps(document, indent=2, sort_keys=True))
+PY
 cat > /etc/systemd/system/mattermost.service <<'SVCEOF'
 [Unit]
 Description=Mattermost
@@ -963,21 +980,24 @@ systemctl start mattermost 2>&1 && echo "start_ok" || echo "start_failed"`, mmDB
 
 	if strings.Contains(installResult, "tar_failed") {
 		fmt.Printf("  ERROR: %s\n", m.t("압축 해제 실패", "Failed to extract tarball"))
+		return fmt.Errorf("failed to extract Mattermost tarball")
 	}
 	if strings.Contains(installResult, "defaults_missing") {
 		fmt.Printf("  WARN: %s\n", m.t("config.defaults.json 없음 — 기존 config.json 사용", "config.defaults.json missing — using existing config.json"))
 	}
 	if strings.Contains(installResult, "config_failed") {
-		fmt.Printf("  ERROR: %s\n", m.t("config.json 작성 실패 (jq 오류?)", "Failed to write config.json (jq error?)"))
+		fmt.Printf("  ERROR: %s\n", m.t("config.json 작성 실패", "Failed to write config.json"))
+		return fmt.Errorf("failed to write Mattermost config")
 	}
 	if strings.Contains(installResult, "enable_failed") {
 		fmt.Printf("  ERROR: %s\n", m.t("systemctl enable mattermost 실패", "systemctl enable mattermost failed"))
+		return fmt.Errorf("failed to enable Mattermost")
 	}
 	if strings.Contains(installResult, "start_failed") {
 		startLog := strings.TrimSpace(ssh.run(`journalctl -u mattermost -n 20 --no-pager 2>/dev/null || systemctl status mattermost --no-pager 2>/dev/null | tail -20`))
 		fmt.Printf("  ERROR: %s\n", m.t("systemctl start mattermost 실패", "systemctl start mattermost failed"))
 		fmt.Printf("  --- journal ---\n%s\n  ---------------\n", startLog)
-		return
+		return fmt.Errorf("failed to start Mattermost")
 	}
 
 	status := strings.TrimSpace(ssh.run(`systemctl is-active mattermost 2>/dev/null`))
@@ -988,6 +1008,34 @@ systemctl start mattermost 2>&1 && echo "start_ok" || echo "start_failed"`, mmDB
 		fmt.Printf("  WARN: %s (status: %s)\n", m.t("Mattermost가 아직 시작 중이거나 실패", "Mattermost not yet active or failed"), status)
 		fmt.Printf("  --- journal ---\n%s\n  ---------------\n", statusLog)
 	}
+	return nil
+}
+
+func jetsonUbuntuAptSourcesRepairScript() string {
+	return `if [ -f /etc/os-release ]; then
+  . /etc/os-release
+fi
+if [ "${ID:-}" = "ubuntu" ]; then
+  release="${VERSION_CODENAME:-jammy}"
+  dpkg-statoverride --list 2>/dev/null | while read -r overrideUser overrideGroup overrideMode overridePath; do
+    [ -n "$overridePath" ] || continue
+    getent passwd "$overrideUser" >/dev/null 2>&1 || { dpkg-statoverride --remove "$overridePath" 2>/dev/null || true; continue; }
+    getent group "$overrideGroup" >/dev/null 2>&1 || dpkg-statoverride --remove "$overridePath" 2>/dev/null || true
+  done
+  DEBIAN_FRONTEND=noninteractive dpkg --configure -a >/dev/null 2>&1 || true
+  if ! find /etc/apt -maxdepth 2 -type f \( -name '*.list' -o -name '*.sources' \) -exec grep -Eq '^[[:space:]]*deb[[:space:]]' {} \; -print -quit | grep -q .; then
+    cat > /etc/apt/sources.list <<APT_SOURCES_EOF
+deb http://ports.ubuntu.com/ubuntu-ports/ ${release} main restricted universe multiverse
+deb http://ports.ubuntu.com/ubuntu-ports/ ${release}-updates main restricted universe multiverse
+deb http://ports.ubuntu.com/ubuntu-ports/ ${release}-backports main restricted universe multiverse
+deb http://ports.ubuntu.com/ubuntu-ports/ ${release}-security main restricted universe multiverse
+APT_SOURCES_EOF
+  fi
+  if [ -f /etc/apt/sources.list.d/nvidia-l4t-apt-source.list.banned ] && [ ! -f /etc/apt/sources.list.d/nvidia-l4t-apt-source.list ]; then
+    sed 's#<SOC>#t234#g' /etc/apt/sources.list.d/nvidia-l4t-apt-source.list.banned > /etc/apt/sources.list.d/nvidia-l4t-apt-source.list
+  fi
+fi
+`
 }
 
 func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
@@ -995,7 +1043,9 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 	if !force && existingURL != "" {
 		// Verify admin user actually exists (DB may have been reset)
 		adminExists := strings.TrimSpace(ssh.run("cd /opt/mattermost && bin/mmctl --local user list 2>/dev/null | grep -c admin || echo 0"))
-		if adminExists != "0" {
+		botTokenValid := strings.TrimSpace(ssh.run(`mattermost_token="$(cat /root/.internkim/secrets/mattermost-bot-token 2>/dev/null)"
+[ -n "$mattermost_token" ] && curl -sf -H "Authorization: Bearer $mattermost_token" http://localhost:8065/api/v4/users/me >/dev/null 2>&1 && echo ok || true`)) == "ok"
+		if adminExists != "0" && botTokenValid {
 			fmt.Printf("  %s (%s)\n", m.t("이미 설정됨 — 건너뜀", "Already configured — skipping"), existingURL)
 			return
 		}
@@ -1155,8 +1205,7 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 	// 6. Create bot account
 	botBody, _ := json.Marshal(map[string]string{
 		"username":     "internkim",
-		"display_name": "Intern Kim",
-		"description":  "AI assistant",
+		"display_name": "김인턴",
 	})
 	_, botResp := mmAPI("POST", "/api/v4/bots", botBody, adminToken)
 	var botResult struct {
@@ -1171,6 +1220,14 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 		}
 		json.Unmarshal(existing, &u)
 		botResult.UserID = u.ID
+	}
+	if botResult.UserID != "" {
+		botPatchBody, _ := json.Marshal(map[string]string{
+			"first_name": "김인턴",
+			"nickname":   "Intern Kim",
+			"position":   "",
+		})
+		mmAPI("PUT", "/api/v4/users/"+botResult.UserID+"/patch", botPatchBody, adminToken)
 	}
 
 	botToken := ""
@@ -1539,7 +1596,7 @@ func setupControlArguments(arguments []string) []string {
 				index++
 				filteredArguments = append(filteredArguments, arguments[index])
 			}
-		case "--force", "--force-all", "--plan", "--list-steps", "--en", "--non-interactive", "--verify", "--verify-browser":
+		case "--force", "--force-all", "--plan", "--list-steps", "--en", "--non-interactive", "--verify", "--verify-browser", "--with-google":
 			filteredArguments = append(filteredArguments, argument)
 		default:
 			if strings.HasPrefix(argument, "--only=") ||
@@ -1761,6 +1818,57 @@ func internkimHomeDir() string {
 	return newDir
 }
 
+func setupStateDir(baseStateDir string, boardType string) string {
+	stateName := setupStateName(boardType)
+	if stateName == "" {
+		return baseStateDir
+	}
+	stateDir := filepath.Join(baseStateDir, "devices", stateName)
+	_ = os.MkdirAll(stateDir, 0o700)
+	copySetupStateHints(baseStateDir, stateDir)
+	return stateDir
+}
+
+func setupStateName(boardType string) string {
+	normalizedBoardType := strings.TrimSpace(boardType)
+	if normalizedBoardType == "" {
+		return ""
+	}
+	var builder strings.Builder
+	for _, character := range strings.ToLower(normalizedBoardType) {
+		switch {
+		case character >= 'a' && character <= 'z':
+			builder.WriteRune(character)
+		case character >= '0' && character <= '9':
+			builder.WriteRune(character)
+		case character == '-' || character == '_':
+			builder.WriteRune(character)
+		default:
+			builder.WriteRune('-')
+		}
+	}
+	return strings.Trim(builder.String(), "-")
+}
+
+func copySetupStateHints(sourceDir string, destinationDir string) {
+	for _, key := range []string{
+		"board_ip",
+		"board_wifi_ip",
+		"subnet",
+		"wifi_ssid",
+		"wifi_pass",
+		"wifi_open",
+		"openrouter_api_key",
+	} {
+		if loadState(destinationDir, key) != "" {
+			continue
+		}
+		if value := loadState(sourceDir, key); value != "" {
+			saveState(destinationDir, key, value)
+		}
+	}
+}
+
 func loadOrCreateDeviceID(stateDir string) string {
 	id := loadState(stateDir, "device_id")
 	if id != "" {
@@ -1811,26 +1919,44 @@ func loadState(dir, key string) string {
 	return strings.TrimSpace(string(data))
 }
 
-// --- Board detection (Raspberry Pi 5) ---
+// --- Board detection over SSH ---
 
-// sshCheckHostname tries SSH to ip and returns true if hostname is "internkim".
-func sshCheckHostname(ip string) bool {
-	out, err := exec.Command("ssh",
+func sshCheckHostnameForCredentials(sshpassBin string, ip string, username string, password string) bool {
+	hostname, err := runSSHHostnameForCredentials(sshpassBin, ip, username, password)
+	return err == nil && strings.TrimSpace(hostname) == "internkim"
+}
+
+func runSSHHostnameForCredentials(sshpassBin string, ip string, username string, password string) (string, error) {
+	sshArguments := []string{
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "UserKnownHostsFile=/dev/null",
 		"-o", "ConnectTimeout=5",
 		"-o", "LogLevel=ERROR",
-		"-o", "BatchMode=yes",
-		"root@"+ip, "hostname").CombinedOutput()
-	if err != nil {
-		return false
 	}
-	return strings.TrimSpace(string(out)) == "internkim"
+	if password == "" {
+		sshArguments = append(sshArguments, "-o", "BatchMode=yes")
+	}
+	sshArguments = append(sshArguments, username+"@"+ip, "hostname")
+	commandName := "ssh"
+	commandArguments := sshArguments
+	if password != "" {
+		if sshpassBin == "" {
+			return "", errors.New("sshpass is required for password SSH")
+		}
+		commandName = sshpassBin
+		commandArguments = append([]string{"-p", password, "ssh"}, sshArguments...)
+	}
+	out, err := exec.Command(commandName, commandArguments...).CombinedOutput()
+	return strings.TrimSpace(string(out)), err
 }
 
-// detectBoardRPi tries saved IP, boot partition, mDNS, then subnet SSH scan.
+// detectBoardRPi is the legacy entrypoint for saved IP, mDNS, and subnet SSH detection.
 // Returns (ip, sshOK). ip may be non-empty with sshOK=false if board responds to ping but not SSH.
 func detectBoardRPi(_ string, stateDir string) (string, bool) {
+	return detectBoardForSSHCredentials("", stateDir, "root", "")
+}
+
+func detectBoardForSSHCredentials(sshpassBin string, stateDir string, sshUsername string, sshPassword string) (string, bool) {
 	// 1. Quick check: saved IPs and boot partition
 	candidates := []string{}
 	for _, vol := range []string{"/Volumes/RPICFG", "/Volumes/bootfs", "/Volumes/boot"} {
@@ -1867,8 +1993,14 @@ func detectBoardRPi(_ string, stateDir string) (string, bool) {
 		conn, err := net.DialTimeout("tcp", ip+":22", 3*time.Second)
 		if err == nil {
 			conn.Close()
-			saveState(stateDir, "board_ip", ip)
-			return ip, true
+			if sshCheckHostnameForCredentials(sshpassBin, ip, sshUsername, sshPassword) {
+				saveState(stateDir, "board_ip", ip)
+				return ip, true
+			}
+			if sshPassword == "" {
+				saveState(stateDir, "board_ip", ip)
+				return ip, true
+			}
 		}
 	}
 
@@ -1909,7 +2041,7 @@ func detectBoardRPi(_ string, stateDir string) (string, bool) {
 				conn, err := net.DialTimeout("tcp", ip+":22", 2*time.Second)
 				if err == nil {
 					conn.Close()
-					if sshCheckHostname(ip) {
+					if sshCheckHostnameForCredentials(sshpassBin, ip, sshUsername, sshPassword) {
 						found <- result{ip, true}
 					}
 				}
@@ -1938,6 +2070,61 @@ func detectBoardRPi(_ string, stateDir string) (string, bool) {
 	}
 
 	return "", false
+}
+
+func findBoardIPForCredentials(sshpassBin string, stateDir string, sshUsername string, sshPassword string) string {
+	ip, isSSHReady := detectBoardForSSHCredentials(sshpassBin, stateDir, sshUsername, sshPassword)
+	if !isSSHReady {
+		return ""
+	}
+	return ip
+}
+
+func describeJetsonSSHFailure(sshpassBin string, stateDir string, sshUsername string, sshPassword string) string {
+	candidates := uniqueNonEmptyStrings([]string{
+		loadState(stateDir, "board_ip"),
+		loadState(stateDir, "board_wifi_ip"),
+	})
+	if hosts, err := net.LookupHost("internkim.local"); err == nil {
+		candidates = uniqueNonEmptyStrings(append(candidates, hosts...))
+	}
+	if len(candidates) == 0 {
+		return "저장된 Jetson IP가 없습니다. Jetson 콘솔에서 `ip addr`로 IP를 확인하세요."
+	}
+	var lines []string
+	for _, ip := range candidates {
+		conn, err := net.DialTimeout("tcp", ip+":22", 3*time.Second)
+		if err != nil {
+			lines = append(lines, fmt.Sprintf("%s: SSH port 22 unreachable (%s)", ip, err))
+			continue
+		}
+		_ = conn.Close()
+		hostname, err := runSSHHostnameForCredentials(sshpassBin, ip, sshUsername, sshPassword)
+		if err != nil {
+			lines = append(lines, fmt.Sprintf("%s: SSH port open but login failed (%s)", ip, err))
+			continue
+		}
+		if strings.TrimSpace(hostname) != "internkim" {
+			lines = append(lines, fmt.Sprintf("%s: SSH login ok but hostname is %q", ip, hostname))
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("%s: SSH login ok", ip))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func uniqueNonEmptyStrings(values []string) []string {
+	seenValues := map[string]bool{}
+	var uniqueValues []string
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || seenValues[value] {
+			continue
+		}
+		seenValues[value] = true
+		uniqueValues = append(uniqueValues, value)
+	}
+	return uniqueValues
 }
 
 // --- SD card flashing (Raspberry Pi 5) ---
@@ -2410,9 +2597,9 @@ mount -t proc proc /mnt/armbian/proc
 mount --bind /dev /mnt/armbian/dev
 rm -f /mnt/armbian/etc/resolv.conf
 echo "nameserver 8.8.8.8" > /mnt/armbian/etc/resolv.conf
-chroot /mnt/armbian sh -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update -qq >/dev/null 2>&1; . /etc/os-release; runtimePackages="%s"; case "${VERSION_ID:-}" in 24.*|25.*|26.*) runtimePackages="%s" ;; esac; apt-get install -y -d -qq postgresql postgresql-contrib jq avahi-daemon git curl ca-certificates $runtimePackages >/dev/null 2>&1'
+chroot /mnt/armbian sh -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update -qq >/dev/null 2>&1; . /etc/os-release; runtimePackages="%s"; case "${VERSION_ID:-}" in 22.*) runtimePackages="%s" ;; 24.*|25.*|26.*) runtimePackages="%s" ;; esac; apt-get install -y -d -qq postgresql postgresql-contrib jq avahi-daemon git curl ca-certificates $runtimePackages >/dev/null 2>&1'
 tar cf - -C /mnt/armbian/var/cache/apt/archives .
-umount /mnt/armbian/dev /mnt/armbian/proc 2>/dev/null; umount /mnt/armbian 2>/dev/null; true`, deviceBrowserRuntimePackageListLegacyUbuntu(), deviceBrowserRuntimePackageListUbuntu24())
+umount /mnt/armbian/dev /mnt/armbian/proc 2>/dev/null; umount /mnt/armbian 2>/dev/null; true`, deviceBrowserRuntimePackageListLegacyUbuntu(), deviceBrowserRuntimePackageListJetPack6(), deviceBrowserRuntimePackageListUbuntu24())
 	debCommand := exec.Command("container", "run", "--rm",
 		"--volume", rootfsDirectory+":/mnt/host",
 		"debian:trixie-slim", "sh", "-c", chrootScript)
@@ -2965,9 +3152,9 @@ func (s *sshClient) privilegedCommand(command string) string {
 		return command
 	}
 	if s.pass != "" {
-		return "printf '%s\n' " + quoteShellValue(s.pass) + " | sudo -S bash -lc " + quoteShellValue(command)
+		return "printf '%s\n' " + quoteShellValue(s.pass) + " | sudo -S -p '' bash -lc " + quoteShellValue(command)
 	}
-	return "sudo bash -lc " + quoteShellValue(command)
+	return "sudo -p '' bash -lc " + quoteShellValue(command)
 }
 
 func (s *sshClient) scpArgs(extra ...string) []string {
@@ -2981,53 +3168,80 @@ func (s *sshClient) scpArgs(extra ...string) []string {
 	return append(base, extra...)
 }
 
-func (s *sshClient) scp(localPath, remotePath string) {
+func (s *sshClient) scp(localPath, remotePath string) error {
 	if s.user != "root" && strings.HasPrefix(remotePath, "/") {
 		temporaryRemotePath := "/tmp/internkim-upload-" + filepath.Base(remotePath)
-		s.scpDirect(localPath, temporaryRemotePath)
-		s.run(fmt.Sprintf(
+		if err := s.scpDirect(localPath, temporaryRemotePath); err != nil {
+			return err
+		}
+		output, err := s.runResult(fmt.Sprintf(
 			"mkdir -p %s && mv %s %s",
 			quoteShellValue(filepath.Dir(remotePath)),
 			quoteShellValue(temporaryRemotePath),
 			quoteShellValue(remotePath),
 		))
-		return
+		if err != nil {
+			return fmt.Errorf("move uploaded file to %s: %s: %w", remotePath, strings.TrimSpace(output), err)
+		}
+		return nil
 	}
-	s.scpDirect(localPath, remotePath)
+	return s.scpDirect(localPath, remotePath)
 }
 
-func (s *sshClient) scpDirect(localPath, remotePath string) {
+func (s *sshClient) scpDirect(localPath, remotePath string) error {
 	target := fmt.Sprintf("%s@%s:%s", s.user, s.host, remotePath)
 	if s.pass != "" {
-		exec.Command(s.sshpassBin, append([]string{"-p", s.pass, "scp"}, s.scpArgs(localPath, target)...)...).Run()
-		return
+		output, err := exec.Command(s.sshpassBin, append([]string{"-p", s.pass, "scp"}, s.scpArgs(localPath, target)...)...).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("scp %s to %s failed: %s: %w", localPath, remotePath, strings.TrimSpace(string(output)), err)
+		}
+		return nil
 	}
-	exec.Command("scp", s.scpArgs(localPath, target)...).Run()
+	output, err := exec.Command("scp", s.scpArgs(localPath, target)...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("scp %s to %s failed: %s: %w", localPath, remotePath, strings.TrimSpace(string(output)), err)
+	}
+	return nil
 }
 
-func (s *sshClient) scpDir(localDir, remoteDir string) {
+func (s *sshClient) scpDir(localDir, remoteDir string) error {
 	if s.user != "root" && strings.HasPrefix(remoteDir, "/") {
 		temporaryRemoteDirectory := "/tmp/internkim-upload-" + filepath.Base(remoteDir)
-		s.run("rm -rf " + quoteShellValue(temporaryRemoteDirectory) + " && mkdir -p " + quoteShellValue(temporaryRemoteDirectory) + " && chmod 777 " + quoteShellValue(temporaryRemoteDirectory))
-		s.scpDirDirect(localDir, temporaryRemoteDirectory)
-		s.run(fmt.Sprintf(
+		output, err := s.runResult("rm -rf " + quoteShellValue(temporaryRemoteDirectory) + " && mkdir -p " + quoteShellValue(temporaryRemoteDirectory) + " && chmod 777 " + quoteShellValue(temporaryRemoteDirectory))
+		if err != nil {
+			return fmt.Errorf("prepare remote directory %s: %s: %w", temporaryRemoteDirectory, strings.TrimSpace(output), err)
+		}
+		if err := s.scpDirDirect(localDir, temporaryRemoteDirectory); err != nil {
+			return err
+		}
+		output, err = s.runResult(fmt.Sprintf(
 			"mkdir -p %s && cp -a %s/. %s/",
 			quoteShellValue(remoteDir),
 			quoteShellValue(temporaryRemoteDirectory),
 			quoteShellValue(remoteDir),
 		))
-		return
+		if err != nil {
+			return fmt.Errorf("move uploaded directory to %s: %s: %w", remoteDir, strings.TrimSpace(output), err)
+		}
+		return nil
 	}
-	s.scpDirDirect(localDir, remoteDir)
+	return s.scpDirDirect(localDir, remoteDir)
 }
 
-func (s *sshClient) scpDirDirect(localDir, remoteDir string) {
+func (s *sshClient) scpDirDirect(localDir, remoteDir string) error {
 	target := fmt.Sprintf("%s@%s:%s", s.user, s.host, remoteDir)
 	if s.pass != "" {
-		exec.Command(s.sshpassBin, append([]string{"-p", s.pass, "scp", "-r"}, s.scpArgs(localDir+"/.", target)...)...).Run()
-		return
+		output, err := exec.Command(s.sshpassBin, append([]string{"-p", s.pass, "scp", "-r"}, s.scpArgs(localDir+"/.", target)...)...).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("scp directory %s to %s failed: %s: %w", localDir, remoteDir, strings.TrimSpace(string(output)), err)
+		}
+		return nil
 	}
-	exec.Command("scp", append([]string{"-r"}, s.scpArgs(localDir+"/.", target)...)...).Run()
+	output, err := exec.Command("scp", append([]string{"-r"}, s.scpArgs(localDir+"/.", target)...)...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("scp directory %s to %s failed: %s: %w", localDir, remoteDir, strings.TrimSpace(string(output)), err)
+	}
+	return nil
 }
 
 // --- Config builders ---
@@ -3560,6 +3774,38 @@ func argString(flag, fallback string) string {
 	return fallback
 }
 
+func containsName(names []string, expectedName string) bool {
+	for _, name := range names {
+		if name == expectedName {
+			return true
+		}
+	}
+	return false
+}
+
+func appendMissingName(names []string, name string) []string {
+	if containsName(names, name) {
+		return names
+	}
+	return append(names, name)
+}
+
+func resolveSetupSSHCredentials(boardType string, requestedUser string, requestedPassword string) (string, string) {
+	if boardType != setup.BoardJetsonOrinNano {
+		if requestedUser == "" {
+			return boardUser, requestedPassword
+		}
+		return requestedUser, requestedPassword
+	}
+	if requestedUser == "" {
+		requestedUser = jetsonDefaultUser
+	}
+	if requestedPassword == "" {
+		requestedPassword = jetsonDefaultPassword
+	}
+	return requestedUser, requestedPassword
+}
+
 // --- Setup pipeline wiring (selective re-run with SSH / SD backends) ---
 
 type sshBoardConnection struct {
@@ -3571,8 +3817,7 @@ func (connection sshBoardConnection) Run(command string) string {
 }
 
 func (connection sshBoardConnection) SCP(localPath, remotePath string) error {
-	connection.client.scp(localPath, remotePath)
-	return nil
+	return connection.client.scp(localPath, remotePath)
 }
 
 type sdStagingTarget struct {
@@ -3607,7 +3852,8 @@ func findSDStagingRoot() string {
 
 func runSetupLive(messenger *msg) {
 	configuration := loadConfig()
-	stateDir := internkimHomeDir()
+	baseStateDir := internkimHomeDir()
+	stateDir := baseStateDir
 	scriptDir, _ := os.Getwd()
 	sshpassBin := filepath.Join(scriptDir, "bin", "sshpass")
 	setupBuildID := currentExecutableFingerprint()
@@ -3622,15 +3868,16 @@ func runSetupLive(messenger *msg) {
 		return
 	}
 	hostOverride := argString("--host", "")
-	boardType := argString("--board", "")
-	sshUser := argString("--user", boardUser)
-	sshPassword := argString("--password", "")
+	boardType := argString("--board", setup.BoardJetsonOrinNano)
+	stateDir = setupStateDir(baseStateDir, boardType)
+	sshUser, sshPassword := resolveSetupSSHCredentials(
+		boardType,
+		argString("--user", ""),
+		argString("--password", ""),
+	)
 	nonInteractive := containsArg("--non-interactive")
-	if boardType == "jetson-orin-nano" {
+	if boardType == setup.BoardJetsonOrinNano {
 		requestedSSH = true
-		if hostOverride == "" {
-			fatal("Jetson Orin Nano setup requires --host <ip>")
-		}
 	}
 
 	var (
@@ -3652,7 +3899,7 @@ func runSetupLive(messenger *msg) {
 				if hostOverride != "" {
 					boardIP = hostOverride
 				} else {
-					boardIP = findBoardIP(sshpassBin, stateDir)
+					boardIP = findBoardIPForCredentials(sshpassBin, stateDir, sshUser, sshPassword)
 				}
 				if boardIP != "" {
 					sshConnection = newSSH(sshpassBin, sshUser, sshPassword, boardIP)
@@ -3674,6 +3921,13 @@ func runSetupLive(messenger *msg) {
 	switch {
 	case requestedSSH:
 		if !attemptBackend(setup.BackendSSH) {
+			if boardType == setup.BoardJetsonOrinNano {
+				failureDetails := describeJetsonSSHFailure(sshpassBin, stateDir, sshUser, sshPassword)
+				fatal(messenger.t(
+					"Jetson을 SSH로 찾을 수 없습니다.\n"+failureDetails+"\nJetson 콘솔에서 `ip addr`, `nmcli device status`, `systemctl status ssh --no-pager`, `tail /var/log/internkim-jetson-firstboot.log`를 확인하세요. IP를 알면 --host <ip>를 지정하면 됩니다.",
+					"Jetson was not found over SSH.\n"+failureDetails+"\nOn the Jetson console, check `ip addr`, `nmcli device status`, `systemctl status ssh --no-pager`, and `tail /var/log/internkim-jetson-firstboot.log`. If you know the IP, pass --host <ip>.",
+				))
+			}
 			fatal(messenger.t("보드를 찾을 수 없습니다 (SSH).", "Board not reachable (SSH)."))
 		}
 		selectedBackend = setup.BackendSSH
@@ -3713,7 +3967,7 @@ func runSetupLive(messenger *msg) {
 		nonInteractive,
 	)
 
-	shouldForce := containsArg("--force")
+	shouldForce := containsArg("--force") || containsArg("--force-all")
 	if selectedBackend == setup.BackendSD && setupBuildID != "" {
 		stageBuildIDPath := filepath.Join(stagingRoot, "setup-build-id")
 		if stageBuildIDBytes, err := os.ReadFile(stageBuildIDPath); err == nil {
@@ -3728,6 +3982,7 @@ func runSetupLive(messenger *msg) {
 		Language:  messenger.lang,
 		StateDir:  stateDir,
 		ScriptDir: scriptDir,
+		BoardType: boardType,
 		BoardIP:   boardIP,
 		Force:     shouldForce,
 		HTTP:      &http.Client{Timeout: 30 * time.Second},
@@ -3747,11 +4002,22 @@ func runSetupLive(messenger *msg) {
 		ForceAll: containsArg("--force-all"),
 		DryRun:   containsArg("--plan"),
 	}
+	selector = applySetupBoardDefaults(boardType, containsArg("--with-google"), selector)
 
 	registry := setup.DefaultRegistry()
+	if boardType == setup.BoardJetsonOrinNano {
+		registry = setup.JetsonRegistry()
+	}
 	if err := registry.Run(pipelineContext, selector); err != nil {
 		fatal(err.Error())
 	}
+}
+
+func applySetupBoardDefaults(boardType string, withGoogle bool, selector setup.Selector) setup.Selector {
+	if boardType == setup.BoardJetsonOrinNano && !withGoogle && !containsName(selector.Only, "google") {
+		selector.Skip = appendMissingName(selector.Skip, "google")
+	}
+	return selector
 }
 
 func collectSetupParameterValues() setupParameterValues {

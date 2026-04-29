@@ -35,6 +35,17 @@
 		temporaryPasswordEmail?: string;
 	};
 
+	type AdminSession = {
+		email: string;
+		claimedAdminEmail: string;
+		isAdmin: boolean;
+		isClaimed: boolean;
+		bootstrapStatus: string;
+		bootstrapError?: string;
+		temporaryPassword?: string;
+		temporaryPasswordEmail?: string;
+	};
+
 	type BackupManifest = {
 		deviceID?: string;
 		createdAt?: string;
@@ -118,6 +129,7 @@
 	let isLoadingUsers = $state(false);
 	let isSavingUser = $state(false);
 	let errorMessage = $state('');
+	let adminSession = $state<AdminSession | null>(null);
 	let isCheckingDevice = $state(false);
 	let isDeviceReachable = $state(false);
 	let backupPassphrase = $state('');
@@ -140,7 +152,7 @@
 		displayName: '김인턴',
 		englishDisplayName: 'Intern Kim',
 		aliases: ['인턴킴', 'intern kim'],
-		publicDescription: '회사 일을 빠르게 돕는 AI teammate',
+		publicDescription: '',
 		identityExtension: ''
 	});
 	let botProfileAliasesText = $state('인턴킴\nintern kim');
@@ -178,6 +190,15 @@
 	};
 	const userCount = () => userRecords.length;
 	const adminCount = () => userRecords.filter((record) => record.role === 'admin').length;
+	const adminSessionStatusText = () => {
+		if (!adminSession) return '';
+		if (adminSession.isAdmin) return 'admin';
+		if (adminSession.bootstrapStatus === 'identity_missing') return 'Access email missing';
+		if (adminSession.bootstrapStatus === 'failed') return 'claim failed';
+		if (adminSession.bootstrapStatus === 'rejected') return 'not admin';
+		if (!adminSession.isClaimed) return 'first admin claim pending';
+		return 'not admin';
+	};
 
 	onMount(() => {
 		const queryDeviceId = new URLSearchParams(location.search).get('device_id')?.trim().toLowerCase() ?? '';
@@ -188,6 +209,7 @@
 		deviceIdInput = queryDeviceId || deviceIdFromHost() || localStorage.getItem(storedDeviceIdKey) || '';
 		if (deviceIdInput) localStorage.setItem(storedDeviceIdKey, deviceIdInput);
 		loadCompanionReleases();
+		loadAdminSession();
 		loadUsers();
 		checkDevice();
 		loadBotProfile();
@@ -216,7 +238,25 @@
 		loadUsers();
 		checkDevice();
 		loadCompanions();
+		loadAdminSession();
 		loadBotProfile();
+	}
+
+	async function loadAdminSession() {
+		if (!adminBaseURL()) return;
+		try {
+			const response = await fetch(`${adminBaseURL()}/session`, { credentials: 'include' });
+			if (!response.ok) return;
+			adminSession = (await response.json()) as AdminSession;
+			if (adminSession.temporaryPassword && adminSession.temporaryPasswordEmail) {
+				temporaryPasswordResult = {
+					email: adminSession.temporaryPasswordEmail,
+					password: adminSession.temporaryPassword
+				};
+			}
+		} catch {
+			adminSession = null;
+		}
 	}
 
 	async function loadBotProfile() {
@@ -244,7 +284,7 @@
 			displayName: profile.displayName || '김인턴',
 			englishDisplayName: profile.englishDisplayName || 'Intern Kim',
 			aliases: profile.aliases ?? [],
-			publicDescription: profile.publicDescription || '회사 일을 빠르게 돕는 AI teammate',
+			publicDescription: profile.publicDescription || '',
 			identityExtension: profile.identityExtension || ''
 		};
 		botProfileAliasesText = (botProfile.aliases ?? []).join('\n');
@@ -348,14 +388,15 @@
 				body: JSON.stringify({ email, role: newUserRole })
 			});
 			if (!response.ok) {
-				errorMessage =
-					response.status === 403
-						? '관리자 인증이 필요합니다. 기기 주소의 /admin에서 Cloudflare Access로 로그인해 주세요.'
-						: '사용자 초대에 실패했습니다.';
+				const detail = (await response.text()).trim();
+				errorMessage = response.status === 403
+					? '관리자 인증이 필요합니다. 기기 주소의 /admin에서 Cloudflare Access로 로그인해 주세요.'
+					: detail || '사용자 초대에 실패했습니다.';
 				return;
 			}
 			const data = (await response.json()) as UsersResponse;
 			applyUsersResponse(data);
+			await loadAdminSession();
 			newEmail = '';
 			newUserRole = 'member';
 		} catch {
@@ -673,6 +714,25 @@
 				<div>
 					<h2 class="text-base font-semibold">Device Admin</h2>
 					<p class="text-muted-foreground text-sm">원격 기기의 상태와 암호화 백업을 관리합니다.</p>
+					{#if adminSession?.email}
+						<p class="text-muted-foreground mt-1 text-xs">
+							Cloudflare Access: <span class="font-medium text-foreground">{adminSession.email}</span>
+							{#if adminSession.isAdmin}
+								<span class="ml-1 text-emerald-700">admin</span>
+							{:else if adminSession.bootstrapStatus === 'failed'}
+								<span class="ml-1 text-destructive">claim failed</span>
+							{:else}
+								<span class="ml-1 text-amber-700">{adminSessionStatusText()}</span>
+							{/if}
+						</p>
+						{#if adminSession.bootstrapError}
+							<p class="mt-1 text-xs text-destructive">{adminSession.bootstrapError}</p>
+						{/if}
+					{:else if adminSession}
+						<p class="text-muted-foreground mt-1 text-xs">
+							Cloudflare Access: <span class="font-medium text-destructive">{adminSessionStatusText()}</span>
+						</p>
+					{/if}
 				</div>
 				<Badge variant={isDeviceReachable ? 'secondary' : 'outline'}>
 					{isDeviceReachable ? 'online' : 'unreachable'}
@@ -1000,7 +1060,7 @@
 					<div class="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
 						<div class="flex flex-wrap items-start justify-between gap-3">
 							<div>
-								<p class="font-semibold">Temporary password for {temporaryPasswordResult.email}</p>
+								<p class="font-semibold">Mattermost login: {temporaryPasswordResult.email} / {temporaryPasswordResult.password}</p>
 								<p class="mt-1">이 비밀번호는 다시 볼 수 없습니다. 사용자에게 안전한 채널로 전달하세요.</p>
 								<code class="mt-3 block rounded-md bg-white px-3 py-2 font-mono text-base">{temporaryPasswordResult.password}</code>
 							</div>

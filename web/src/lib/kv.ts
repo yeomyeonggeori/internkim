@@ -30,10 +30,17 @@ function ensureAdmin(records: UserRecord[], fallbackAdminEmail?: string): UserRe
 	const normalizedFallback = normalizeEmail(fallbackAdminEmail ?? '');
 	const normalizedRecords = records.filter((record) => record.email);
 	if (normalizedRecords.some((record) => record.role === 'admin')) return normalizedRecords;
-	if (normalizedRecords.length > 0) {
-		return normalizedRecords.map((record, index) => index === 0 ? { ...record, role: 'admin' } : record);
-	}
-	return normalizedFallback ? [{ email: normalizedFallback, role: 'admin' }] : [];
+	return normalizedFallback ? [{ email: normalizedFallback, role: 'admin' }, ...normalizedRecords] : normalizedRecords;
+}
+
+function normalizeUserRecords(records: UserRecord[]): UserRecord[] {
+	return records
+		.map((record) => ({
+			...record,
+			email: normalizeEmail(record.email),
+			role: normalizeRole(record.role)
+		}))
+		.filter((record) => record.email);
 }
 
 export function userEmails(records: UserRecord[]): string[] {
@@ -64,12 +71,12 @@ export const kv = {
 	},
 
 	async putUsers(kv: KVNamespace, deviceId: string, emails: string[]): Promise<void> {
-		const records = ensureAdmin(emails.map((email) => ({ email: normalizeEmail(email), role: 'member' })));
+		const records = normalizeUserRecords(emails.map((email) => ({ email: normalizeEmail(email), role: 'member' })));
 		await this.putUserRecords(kv, deviceId, records);
 	},
 
 	async putUserRecords(kv: KVNamespace, deviceId: string, records: UserRecord[]): Promise<void> {
-		await kv.put(`users:${deviceId}`, JSON.stringify(ensureAdmin(records)));
+		await kv.put(`users:${deviceId}`, JSON.stringify(normalizeUserRecords(records)));
 	},
 
 	async getInvite(kv: KVNamespace, token: string): Promise<Invite | null> {

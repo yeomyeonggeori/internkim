@@ -255,9 +255,9 @@ systemctl is-active cloudflared | grep -q '^active$'
 ` + browserruntime.DeviceReadinessShellScript() + `
 
 echo "checking admin gateway"
-curl --silent --show-error --fail http://127.0.0.1:18080/_internkim/admin/health | jq -e '.status == "ok"' >/dev/null
+curl --silent --show-error --fail http://127.0.0.1:18080/admin/api/health | jq -e '.status == "ok"' >/dev/null
 curl --silent --show-error --fail http://127.0.0.1:18080/admin/ | grep -q '<script'
-curl --silent --show-error --fail http://127.0.0.1:18080/_app/version.json | jq -e '.version | length > 0' >/dev/null
+curl --silent --show-error --fail http://127.0.0.1:18080/admin/_app/version.json | jq -e '.version | length > 0' >/dev/null
 
 echo "checking mattermost ping"
 curl --silent --show-error --fail http://localhost:8065/api/v4/system/ping | jq -e '.status == "OK"' >/dev/null

@@ -38,12 +38,15 @@ type Configuration struct {
 	OpenRouterModel            string
 	OpenRouterEmbeddingBaseURL string
 	OpenRouterEmbeddingModel   string
+	OllamaBaseURL              string
+	OllamaModel                string
 	SocketGroupName            string
 	LiteRTModelPath            string
 	LiteRTWrapperPath          string
 	CompanionBaseURL           string
 	PreferCompanionLLM         bool
 	LocalOnly                  bool
+	EnableOllamaFallback       bool
 	ProviderAttemptTimeout     time.Duration
 	AgentBrowserPath           string
 	DeviceBrowserPath          string
@@ -113,12 +116,15 @@ func DefaultConfiguration() Configuration {
 		OpenRouterModel:            "google/gemini-3.1-flash-lite-preview",
 		OpenRouterEmbeddingBaseURL: "https://openrouter.ai/api/v1/embeddings",
 		OpenRouterEmbeddingModel:   "text-embedding-3-small",
+		OllamaBaseURL:              "http://127.0.0.1:11434",
+		OllamaModel:                "gemma3:1b",
 		SocketGroupName:            "blueclaw",
 		LiteRTModelPath:            "/root/.internkim/models/gemma-4-E4B-it.litertlm",
 		LiteRTWrapperPath:          "/usr/local/bin/internkim-litert-wrapper",
 		CompanionBaseURL:           "",
 		PreferCompanionLLM:         false,
 		LocalOnly:                  false,
+		EnableOllamaFallback:       false,
 		ProviderAttemptTimeout:     90 * time.Second,
 		AgentBrowserPath:           "agent-browser",
 		DeviceBrowserPath:          browserruntime.DeviceBrowserExecutablePath,
@@ -1155,6 +1161,12 @@ func (configuration Configuration) WithDefaults() Configuration {
 	}
 	if configuration.OpenRouterEmbeddingModel == "" {
 		configuration.OpenRouterEmbeddingModel = defaultConfiguration.OpenRouterEmbeddingModel
+	}
+	if configuration.OllamaBaseURL == "" {
+		configuration.OllamaBaseURL = defaultConfiguration.OllamaBaseURL
+	}
+	if configuration.OllamaModel == "" {
+		configuration.OllamaModel = defaultConfiguration.OllamaModel
 	}
 	if configuration.SocketGroupName == "" {
 		configuration.SocketGroupName = defaultConfiguration.SocketGroupName

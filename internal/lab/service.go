@@ -273,6 +273,8 @@ func (service Service) PrintSimulationPlan(ctx context.Context, executablePath s
 func (service Service) buildSetupArguments(virtualMachineIPAddress string, setupArguments []string) []string {
 	arguments := []string{
 		"setup",
+		"--board",
+		"lab",
 		"--ssh",
 		"--host",
 		virtualMachineIPAddress,
