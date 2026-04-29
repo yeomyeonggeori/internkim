@@ -417,6 +417,7 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 	if handle.Platform != "mattermost" {
 		return nil, errors.New("reply target platform mismatch")
 	}
+	service.stopMattermostProgress(request.ReplyTargetID)
 	defer service.stopMattermostProgress(request.ReplyTargetID)
 	fileIDs, errorValue := service.uploadMattermostAttachments(ctx, handle.ChannelID, request.Attachments)
 	if errorValue != nil {
@@ -462,7 +463,7 @@ func (service Service) mattermostStartProgressFromRequest(_ context.Context, rea
 	if handle.Platform != "mattermost" {
 		return nil, errors.New("progress target platform mismatch")
 	}
-	service.progressManager().Start("mattermost:"+request.ReplyTargetID, func(progressContext context.Context) {
+	service.progressManager().Start("mattermost:"+request.ReplyTargetID, mattermostProgressTTL, func(progressContext context.Context) {
 		service.runMattermostTyping(progressContext, handle)
 	})
 	return map[string]string{"status": "started"}, nil
@@ -485,8 +486,15 @@ func (service Service) mattermostStopProgressFromRequest(_ context.Context, read
 }
 
 func (service Service) runMattermostTyping(ctx context.Context, handle platformHandle) {
-	service.sendMattermostTyping(ctx, handle)
-	ticker := time.NewTicker(4 * time.Second)
+	debounceTimer := time.NewTimer(mattermostTypingDebounce)
+	defer debounceTimer.Stop()
+	select {
+	case <-ctx.Done():
+		return
+	case <-debounceTimer.C:
+		service.sendMattermostTyping(ctx, handle)
+	}
+	ticker := time.NewTicker(mattermostTypingInterval)
 	defer ticker.Stop()
 	for {
 		select {
@@ -831,23 +839,40 @@ func (locker *platformEventLocker) lockForName(name string) *sync.Mutex {
 	return lock
 }
 
+const mattermostProgressTTL = 3 * time.Minute
+const mattermostTypingDebounce = 750 * time.Millisecond
+const mattermostTypingInterval = 4 * time.Second
+
 type platformProgressManager struct {
-	mutex       sync.Mutex
-	cancelByKey map[string]context.CancelFunc
+	mutex      sync.Mutex
+	leaseByKey map[string]*platformProgressLease
+}
+
+type platformProgressLease struct {
+	cancel context.CancelFunc
+	timer  *time.Timer
 }
 
 func newPlatformProgressManager() *platformProgressManager {
-	return &platformProgressManager{cancelByKey: map[string]context.CancelFunc{}}
+	return &platformProgressManager{leaseByKey: map[string]*platformProgressLease{}}
 }
 
-func (manager *platformProgressManager) Start(key string, run func(context.Context)) {
+func (manager *platformProgressManager) Start(key string, maximumLifetime time.Duration, run func(context.Context)) {
+	if maximumLifetime <= 0 {
+		maximumLifetime = mattermostProgressTTL
+	}
 	manager.mutex.Lock()
-	if _, isFound := manager.cancelByKey[key]; isFound {
+	if lease, isFound := manager.leaseByKey[key]; isFound {
+		lease.timer.Reset(maximumLifetime)
 		manager.mutex.Unlock()
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	manager.cancelByKey[key] = cancel
+	lease := &platformProgressLease{cancel: cancel}
+	lease.timer = time.AfterFunc(maximumLifetime, func() {
+		manager.Stop(key)
+	})
+	manager.leaseByKey[key] = lease
 	manager.mutex.Unlock()
 
 	go run(ctx)
@@ -855,13 +880,14 @@ func (manager *platformProgressManager) Start(key string, run func(context.Conte
 
 func (manager *platformProgressManager) Stop(key string) {
 	manager.mutex.Lock()
-	cancel, isFound := manager.cancelByKey[key]
+	lease, isFound := manager.leaseByKey[key]
 	if isFound {
-		delete(manager.cancelByKey, key)
+		delete(manager.leaseByKey, key)
 	}
 	manager.mutex.Unlock()
 	if isFound {
-		cancel()
+		lease.timer.Stop()
+		lease.cancel()
 	}
 }
 
