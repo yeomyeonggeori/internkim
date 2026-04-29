@@ -1,9 +1,9 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { syncAccessPolicyEmails } from '$lib/cloudflare';
+import { ensureAdminAccessApplications, ensureOneTimePinIdentityProvider, syncAccessPolicyEmails } from '$lib/cloudflare';
 import { isBoardRequest, normalizeDeviceID } from '$lib/device-auth';
-import { kv } from '$lib/kv';
-import type { Device } from '$lib/types';
+import { adminEmails, kv, userEmails } from '$lib/kv';
+import type { Device, UserRecord, UserRole } from '$lib/types';
 
 const corsHeaders = {
 	'Access-Control-Allow-Origin': '*',
@@ -19,8 +19,8 @@ function normalizeEmail(email: string): string {
 	return email.trim().toLowerCase();
 }
 
-async function usersRevision(users: string[]): Promise<string> {
-	const encodedUsers = new TextEncoder().encode(JSON.stringify(users));
+async function usersRevision(records: UserRecord[]): Promise<string> {
+	const encodedUsers = new TextEncoder().encode(JSON.stringify(records));
 	const digest = await crypto.subtle.digest('SHA-256', encodedUsers);
 	return Array.from(new Uint8Array(digest))
 		.map((byte) => byte.toString(16).padStart(2, '0'))
@@ -40,10 +40,41 @@ function callerEmail(request: Request): string {
 	return normalizeEmail(request.headers.get('Cf-Access-Authenticated-User-Email') ?? '');
 }
 
-function isAdminRequest(request: Request, device: Device, users: string[], adminToken: string, registerSecret: string): boolean {
+function isAdminRequest(request: Request, device: Device, adminUsers: string[], adminToken: string, registerSecret: string): boolean {
 	if (adminToken && adminToken === registerSecret) return true;
-	const adminEmail = users[0] ?? normalizeEmail(device.admin_email);
-	return callerEmail(request) === adminEmail;
+	const authorizedAdmins = adminUsers.length > 0 ? adminUsers : [normalizeEmail(device.admin_email)];
+	return authorizedAdmins.includes(callerEmail(request));
+}
+
+function normalizeRole(role: unknown): UserRole {
+	return role === 'admin' ? 'admin' : 'member';
+}
+
+function mergeRecord(records: UserRecord[], nextRecord: UserRecord): UserRecord[] {
+	const existingRecord = records.find((record) => record.email === nextRecord.email);
+	const filtered = records.filter((record) => record.email !== nextRecord.email);
+	return [
+		...filtered,
+		{
+			...existingRecord,
+			...nextRecord,
+			mattermostUserID: nextRecord.mattermostUserID ?? existingRecord?.mattermostUserID,
+			mattermostUsername: nextRecord.mattermostUsername ?? existingRecord?.mattermostUsername,
+			status: nextRecord.status ?? existingRecord?.status
+		}
+	].sort((first, second) => first.email.localeCompare(second.email));
+}
+
+async function syncAccessPolicies(env: App.Platform['env'], deviceID: string, device: Device, records: UserRecord[]) {
+	if (device.access_app_id) {
+		await syncAccessPolicyEmails(cfEnv(env), device.access_app_id, userEmails(records));
+	}
+	const identityProviderID = await ensureOneTimePinIdentityProvider(cfEnv(env));
+	await ensureAdminAccessApplications(cfEnv(env), deviceID, identityProviderID, adminEmails(records));
+}
+
+async function usersResponse(records: UserRecord[]) {
+	return { users: userEmails(records), records, revision: await usersRevision(records) };
 }
 
 export const GET: RequestHandler = async ({ request, url, platform }) => {
@@ -56,24 +87,28 @@ export const GET: RequestHandler = async ({ request, url, platform }) => {
 	const device = await kv.getDevice(env.KV, device_id);
 	if (!device) throw error(404, 'Device not found');
 
-	const users = await kv.getUsers(env.KV, device_id);
+	const records = await kv.getUserRecords(env.KV, device_id, device.admin_email);
 	const admin_token = url.searchParams.get('admin_token') ?? '';
 	const isAuthorizedBoard = await isBoardRequest(request, device, device_id);
-	if (!isAuthorizedBoard && !isAdminRequest(request, device, users, admin_token, env.INTERNKIM_REGISTER_SECRET)) {
+	if (!isAuthorizedBoard && !isAdminRequest(request, device, adminEmails(records), admin_token, env.INTERNKIM_REGISTER_SECRET)) {
 		throw error(403, 'Admin only');
 	}
 
-	return json({ users, revision: await usersRevision(users) }, { headers: corsHeaders });
+	return json(await usersResponse(records), { headers: corsHeaders });
 };
 
 export const POST: RequestHandler = async ({ request, platform }) => {
 	const env = platform?.env;
 	if (!env?.KV) throw error(500, 'KV not available');
 
-	const { device_id, email, admin_token } = (await request.json()) as {
+	const { device_id, email, role, admin_token, mattermostUserID, mattermostUsername, status } = (await request.json()) as {
 		device_id: string;
 		email: string;
+		role?: UserRole;
 		admin_token: string;
+		mattermostUserID?: string;
+		mattermostUsername?: string;
+		status?: string;
 	};
 	const deviceID = normalizeDeviceID(device_id ?? '');
 	if (!deviceID || !email) throw error(400, 'device_id and email required');
@@ -81,19 +116,27 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const device = await kv.getDevice(env.KV, deviceID);
 	if (!device) throw error(404, 'Device not found');
 
-	const users = await kv.getUsers(env.KV, deviceID);
-	if (!isAdminRequest(request, device, users, admin_token, env.INTERNKIM_REGISTER_SECRET)) {
+	const records = await kv.getUserRecords(env.KV, deviceID, device.admin_email);
+	const isAuthorizedBoard = await isBoardRequest(request, device, deviceID);
+	if (!isAuthorizedBoard && !isAdminRequest(request, device, adminEmails(records), admin_token, env.INTERNKIM_REGISTER_SECRET)) {
 		throw error(403, 'Admin only');
 	}
 
 	const normalizedEmail = normalizeEmail(email);
-	if (!users.includes(normalizedEmail)) {
-		users.push(normalizedEmail);
-		await kv.putUsers(env.KV, deviceID, users);
+	const normalizedRole = normalizeRole(role);
+	const existingRecord = records.find((record) => record.email === normalizedEmail);
+	if (existingRecord?.role === 'admin' && normalizedRole !== 'admin' && adminEmails(records).length <= 1) {
+		throw error(400, 'Cannot demote the last admin user');
 	}
-	if (device.access_app_id) {
-		await syncAccessPolicyEmails(cfEnv(env), device.access_app_id, users);
-	}
+	const nextRecords = mergeRecord(records, {
+		email: normalizedEmail,
+		role: normalizedRole,
+		mattermostUserID,
+		mattermostUsername,
+		status
+	});
+	await kv.putUserRecords(env.KV, deviceID, nextRecords);
+	await syncAccessPolicies(env, deviceID, device, nextRecords);
 
-	return json({ users, revision: await usersRevision(users) }, { headers: corsHeaders });
+	return json(await usersResponse(nextRecords), { headers: corsHeaders });
 };

@@ -14,6 +14,16 @@ export interface Device {
 	};
 }
 
+export type UserRole = 'admin' | 'member';
+
+export interface UserRecord {
+	email: string;
+	role: UserRole;
+	mattermostUserID?: string;
+	mattermostUsername?: string;
+	status?: string;
+}
+
 export interface Invite {
 	device_id: string;
 	expires_at: number;
