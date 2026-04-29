@@ -482,7 +482,8 @@ else
     retry_later "waiting for outbound connectivity before tools phase"
   fi`),
 		strings.TrimSpace(gwsSkillsInstallScript),
-		strings.TrimSpace(fmt.Sprintf(`apt-get install -y -qq unzip fonts-noto-cjk fonts-noto-color-emoji >/dev/null 2>&1 || true
+		strings.TrimSpace(fmt.Sprintf(deviceBrowserRuntimePackageSelectionScript()+`
+apt-get install -y -qq unzip fonts-noto-cjk $runtimePackages >/dev/null 2>&1 || true
 if ! sudo -u blueclaw test -x /home/blueclaw/.bun/bin/bun; then
   sudo -u blueclaw bash -lc 'curl -fsSL https://bun.sh/install | bash' >/dev/null 2>&1 || true
 fi
@@ -499,10 +500,47 @@ if [ -d "$STAGE/skills" ]; then
   cp -af "$STAGE/skills/." /root/.blueclaw/workspace/skills/
 fi
 
+install_device_browser_runtime() {
+  local archivePath="$STAGE/device-browser/`+deviceBrowserRuntimeArtifactName+`"
+  if [ ! -s "$archivePath" ]; then
+    echo "ERROR: device browser runtime artifact missing at $archivePath" >&2
+    exit 1
+  fi
+  install -d -m 755 /opt/internkim
+  local temporaryDirectory
+  temporaryDirectory="$(mktemp -d /opt/internkim/device-browser.next.XXXXXX)"
+  tar --use-compress-program=zstd -xf "$archivePath" -C "$temporaryDirectory"
+  local manifestPath="$temporaryDirectory/manifest.json"
+  test -f "$manifestPath"
+  local executableRelativePath
+  executableRelativePath="$(jq -r '.executablePath // empty' "$manifestPath")"
+  test -n "$executableRelativePath"
+  test -x "$temporaryDirectory/$executableRelativePath"
+  ln -sfn "$executableRelativePath" "$temporaryDirectory/chromium"
+  "$temporaryDirectory/chromium" --version >/tmp/internkim-device-browser-version.log 2>&1
+  chmod -R a+rX "$temporaryDirectory"
+  rm -rf /opt/internkim/device-browser.previous
+  if [ -d /opt/internkim/device-browser ]; then
+    mv /opt/internkim/device-browser /opt/internkim/device-browser.previous
+  fi
+  mv "$temporaryDirectory" /opt/internkim/device-browser
+  rm -rf /opt/internkim/device-browser.previous
+}
+
+install_device_browser_runtime
+
 agentBrowserSkillDir="/root/.blueclaw/workspace/.agents/skills/agent-browser"
 mkdir -p "$agentBrowserSkillDir"
 if command -v agent-browser >/dev/null 2>&1; then
-  agent-browser install >/tmp/internkim-agent-browser-install.log 2>&1 || true
+  if command -v pkill >/dev/null 2>&1; then
+    pkill -TERM -x agent-browser >/tmp/internkim-agent-browser-device-close.log 2>&1 || true
+    sleep 1
+    pkill -KILL -x agent-browser >>/tmp/internkim-agent-browser-device-close.log 2>&1 || true
+  fi
+  timeout 5s agent-browser close --all >>/tmp/internkim-agent-browser-device-close.log 2>&1 || true
+  rm -f /root/.agent-browser/internkim-device.pid /root/.agent-browser/internkim-device.stream /root/.agent-browser/internkim-device.engine /root/.agent-browser/internkim-device.version
+  rm -f /root/.agent-browser/internkim-device-smoke.pid /root/.agent-browser/internkim-device-smoke.stream /root/.agent-browser/internkim-device-smoke.engine /root/.agent-browser/internkim-device-smoke.version
+  sleep 1
 fi
 if command -v agent-browser >/dev/null 2>&1 && agent-browser skills get core --full > "$agentBrowserSkillDir/SKILL.md.upstream" 2>/tmp/internkim-agent-browser-skill.log && [ -s "$agentBrowserSkillDir/SKILL.md.upstream" ]; then
   cat > "$agentBrowserSkillDir/SKILL.md.tmp" <<'EOF'

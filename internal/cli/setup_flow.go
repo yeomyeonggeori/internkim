@@ -61,6 +61,92 @@ type localBinaryAsset struct {
 	archiveEntry string
 }
 
+const deviceBrowserRuntimeArtifactName = "internkim-device-browser-linux-arm64.tar.zst"
+
+func deviceBrowserRuntimePackageListUbuntu24() string {
+	return strings.Join([]string{
+		"zstd",
+		"fonts-noto-color-emoji",
+		"fonts-unifont",
+		"libfontconfig1",
+		"libfreetype6",
+		"fonts-liberation",
+		"fonts-ipafont-gothic",
+		"fonts-wqy-zenhei",
+		"fonts-tlwg-loma-otf",
+		"fonts-freefont-ttf",
+		"libasound2t64",
+		"libatk-bridge2.0-0t64",
+		"libatk1.0-0t64",
+		"libatspi2.0-0t64",
+		"libcairo2",
+		"libcups2t64",
+		"libdbus-1-3",
+		"libdrm2",
+		"libgbm1",
+		"libglib2.0-0t64",
+		"libnspr4",
+		"libnss3",
+		"libpango-1.0-0",
+		"libx11-6",
+		"libxcb1",
+		"libxcomposite1",
+		"libxdamage1",
+		"libxext6",
+		"libxfixes3",
+		"libxkbcommon0",
+		"libxrandr2",
+	}, " ")
+}
+
+func deviceBrowserRuntimePackageListLegacyUbuntu() string {
+	return strings.Join([]string{
+		"zstd",
+		"fonts-noto-color-emoji",
+		"fonts-unifont",
+		"libfontconfig1",
+		"libfreetype6",
+		"fonts-liberation",
+		"fonts-ipafont-gothic",
+		"fonts-wqy-zenhei",
+		"fonts-tlwg-loma-otf",
+		"fonts-freefont-ttf",
+		"libasound2",
+		"libatk-bridge2.0-0",
+		"libatk1.0-0",
+		"libatspi2.0-0",
+		"libcairo2",
+		"libcups2",
+		"libdbus-1-3",
+		"libdrm2",
+		"libgbm1",
+		"libglib2.0-0",
+		"libnspr4",
+		"libnss3",
+		"libpango-1.0-0",
+		"libwayland-client0",
+		"libx11-6",
+		"libxcb1",
+		"libxcomposite1",
+		"libxdamage1",
+		"libxext6",
+		"libxfixes3",
+		"libxkbcommon0",
+		"libxrandr2",
+	}, " ")
+}
+
+func deviceBrowserRuntimePackageSelectionScript() string {
+	return fmt.Sprintf(`runtimePackages=%s
+if [ -f /etc/os-release ]; then
+  . /etc/os-release
+  case "${VERSION_ID:-}" in
+    24.*|25.*|26.*) runtimePackages=%s ;;
+    *) runtimePackages=%s ;;
+  esac
+fi`, quoteShellValue(deviceBrowserRuntimePackageListLegacyUbuntu()), quoteShellValue(deviceBrowserRuntimePackageListUbuntu24()), quoteShellValue(deviceBrowserRuntimePackageListLegacyUbuntu()))
+}
+
 func newSetupFlowState(
 	messenger *msg,
 	configuration config,
@@ -610,7 +696,9 @@ func (state *setupFlowState) installBinariesSSH(context *setup.Context) error {
 		fmt.Printf("  %s %s\n", asset.name, state.messenger.t("설치 완료", "installed"))
 	}
 
-	state.sshClient.run("rm -f /usr/local/bin/lightpanda /tmp/internkim-agent-browser-lightpanda-open.log /tmp/internkim-agent-browser-lightpanda-snapshot.log 2>/dev/null || true")
+	if err := state.installDeviceBrowserRuntimeSSH(); err != nil {
+		return err
+	}
 
 	if err := state.ensureAgentBrowserRuntimeSSH(); err != nil {
 		return err
@@ -711,11 +799,82 @@ func (state *setupFlowState) installAgentBrowserSkillSSH() error {
 	return nil
 }
 
+func (state *setupFlowState) deviceBrowserRuntimeArtifactPath() string {
+	return filepath.Join(state.scriptDir, ".dependency", "device-browser", deviceBrowserRuntimeArtifactName)
+}
+
+func (state *setupFlowState) ensureDeviceBrowserRuntimeArtifact() (string, error) {
+	artifactPath := state.deviceBrowserRuntimeArtifactPath()
+	fileInfo, errorValue := os.Stat(artifactPath)
+	if errorValue == nil && !fileInfo.IsDir() && fileInfo.Size() > 0 {
+		return artifactPath, nil
+	}
+	return "", fmt.Errorf("device browser runtime artifact missing at %s; run `make prepare-device-browser` before setup", artifactPath)
+}
+
+func (state *setupFlowState) installDeviceBrowserRuntimeSSH() error {
+	artifactPath, err := state.ensureDeviceBrowserRuntimeArtifact()
+	if err != nil {
+		return err
+	}
+	fmt.Print("  device browser runtime... ")
+	remoteArchivePath := "/tmp/" + deviceBrowserRuntimeArtifactName
+	state.sshClient.scp(artifactPath, remoteArchivePath)
+	output, errorValue := state.sshClient.runResult(fmt.Sprintf(`
+set -eu
+archivePath=%s
+install -d -m 755 /opt/internkim
+apt-get update -qq >/dev/null 2>&1 || true
+`+deviceBrowserRuntimePackageSelectionScript()+`
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $runtimePackages >/dev/null
+temporaryDirectory="$(mktemp -d /opt/internkim/device-browser.next.XXXXXX)"
+cleanup() {
+  rm -rf "$temporaryDirectory"
+}
+trap cleanup EXIT
+tar --use-compress-program=zstd -xf "$archivePath" -C "$temporaryDirectory"
+manifestPath="$temporaryDirectory/manifest.json"
+test -f "$manifestPath"
+executableRelativePath="$(jq -r '.executablePath // empty' "$manifestPath")"
+test -n "$executableRelativePath"
+test -x "$temporaryDirectory/$executableRelativePath"
+ln -sfn "$executableRelativePath" "$temporaryDirectory/chromium"
+"$temporaryDirectory/chromium" --version >/tmp/internkim-device-browser-version.log 2>&1
+chmod -R a+rX "$temporaryDirectory"
+rm -rf /opt/internkim/device-browser.previous
+if [ -d /opt/internkim/device-browser ]; then
+  mv /opt/internkim/device-browser /opt/internkim/device-browser.previous
+fi
+mv "$temporaryDirectory" /opt/internkim/device-browser
+trap - EXIT
+rm -rf /opt/internkim/device-browser.previous
+rm -f "$archivePath"
+`, quoteShellValue(remoteArchivePath)))
+	if errorValue != nil {
+		fmt.Println("failed")
+		diagnostic := strings.TrimSpace(output)
+		if diagnostic == "" {
+			diagnostic = errorValue.Error()
+		}
+		return fmt.Errorf("device browser runtime install failed: %s", diagnostic)
+	}
+	fmt.Println("installed")
+	return nil
+}
+
 func (state *setupFlowState) ensureAgentBrowserRuntimeSSH() error {
 	fmt.Print("  agent-browser runtime... ")
 	output, err := state.sshClient.runResult(`
 set -eu
-agent-browser install >/tmp/internkim-agent-browser-install.log 2>&1 || true
+if command -v pkill >/dev/null 2>&1; then
+  pkill -TERM -x agent-browser >/tmp/internkim-agent-browser-device-close.log 2>&1 || true
+  sleep 1
+  pkill -KILL -x agent-browser >>/tmp/internkim-agent-browser-device-close.log 2>&1 || true
+fi
+timeout 5s agent-browser close --all >>/tmp/internkim-agent-browser-device-close.log 2>&1 || true
+rm -f /root/.agent-browser/internkim-device.pid /root/.agent-browser/internkim-device.stream /root/.agent-browser/internkim-device.engine /root/.agent-browser/internkim-device.version
+rm -f /root/.agent-browser/internkim-device-smoke.pid /root/.agent-browser/internkim-device-smoke.stream /root/.agent-browser/internkim-device-smoke.engine /root/.agent-browser/internkim-device-smoke.version
+sleep 1
 ` + browserruntime.DeviceReadinessShellScript() + `
 `)
 	if err == nil {
@@ -725,10 +884,10 @@ agent-browser install >/tmp/internkim-agent-browser-install.log 2>&1 || true
 	fmt.Println("unavailable")
 	diagnostic := strings.TrimSpace(state.sshClient.run(`
 {
-  echo "agent-browser install log:"
-  tail -80 /tmp/internkim-agent-browser-install.log 2>/dev/null || true
   echo "agent-browser doctor log:"
   tail -80 /tmp/internkim-agent-browser-doctor.log 2>/dev/null || true
+  echo "agent-browser close log:"
+  tail -80 /tmp/internkim-agent-browser-device-close.log 2>/dev/null || true
   echo "agent-browser chrome open log:"
   tail -80 /tmp/internkim-agent-browser-chrome-open.log 2>/dev/null || true
   echo "agent-browser chrome snapshot log:"
@@ -744,8 +903,7 @@ agent-browser install >/tmp/internkim-agent-browser-install.log 2>&1 || true
 		diagnostic = err.Error()
 	}
 	state.sshClient.run("mkdir -p /root/.internkim/state && printf '%s' " + quoteShellValue(diagnostic) + " > /root/.internkim/state/agent-browser-unavailable")
-	fmt.Println("  WARN: " + diagnostic)
-	return nil
+	return fmt.Errorf("agent-browser runtime unavailable: %s", diagnostic)
 }
 
 func (state *setupFlowState) installBlueclawMigrationsSSH() error {
@@ -885,9 +1043,24 @@ func (state *setupFlowState) stageBinariesSD(context *setup.Context) error {
 	if err := state.stageGraphitiMemorydSD(context); err != nil {
 		return err
 	}
+	if err := state.stageDeviceBrowserRuntimeSD(context); err != nil {
+		return err
+	}
 
 	fmt.Printf("  %s\n", state.messenger.t("바이너리 준비 완료", "Binaries staged"))
 	return nil
+}
+
+func (state *setupFlowState) stageDeviceBrowserRuntimeSD(context *setup.Context) error {
+	artifactPath, err := state.ensureDeviceBrowserRuntimeArtifact()
+	if err != nil {
+		return err
+	}
+	document, errorValue := os.ReadFile(artifactPath)
+	if errorValue != nil {
+		return errorValue
+	}
+	return context.SD.WriteFile(filepath.Join("device-browser", deviceBrowserRuntimeArtifactName), document, 0o644)
 }
 
 func (state *setupFlowState) stageGraphitiMemorydSD(context *setup.Context) error {

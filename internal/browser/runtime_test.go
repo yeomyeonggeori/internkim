@@ -48,7 +48,7 @@ func TestAgentBrowserRuntimeNavigatesThroughCommandRunner(t *testing.T) {
 	if result.URL != "https://example.com" {
 		t.Fatalf("unexpected navigate result: %+v", result)
 	}
-	expectedArguments := []string{"--headed", "true", "--profile", "/profile", "--session-name", "internkim-test", "open", "https://example.com"}
+	expectedArguments := []string{"--session", "internkim-test", "--headed", "true", "--profile", "/profile", "--session-name", "internkim-test", "open", "https://example.com"}
 	if len(runner.calls) != 1 || runner.calls[0].commandPath != "agent-browser-test" || !reflect.DeepEqual(runner.calls[0].arguments, expectedArguments) {
 		t.Fatalf("unexpected command calls: %+v", runner.calls)
 	}
@@ -69,44 +69,27 @@ func TestAgentBrowserRuntimeChromeEngineUsesHeadedProfile(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected navigate success: %v", errorValue)
 	}
-	expectedArguments := []string{"--engine", "chrome", "--headed", "true", "--profile", "/profile", "--session-name", "internkim-test", "open", "https://example.com"}
+	expectedArguments := []string{"--session", "internkim-test", "--engine", "chrome", "--headed", "true", "--profile", "/profile", "--session-name", "internkim-test", "open", "https://example.com"}
 	if !reflect.DeepEqual(runner.calls[0].arguments, expectedArguments) {
 		t.Fatalf("unexpected chrome arguments: %+v", runner.calls[0].arguments)
-	}
-}
-
-func TestAgentBrowserRuntimeLightpandaEngineAvoidsHeadedProfile(t *testing.T) {
-	runner := &fakeCommandRunner{}
-	runtime := AgentBrowserRuntime{
-		CommandPath:          "agent-browser-test",
-		Engine:               BrowserEngineLightpanda,
-		EngineExecutablePath: "/usr/local/bin/lightpanda",
-		ProfilePath:          "/profile",
-		SessionName:          "internkim-test",
-		Headed:               true,
-		Runner:               runner,
-	}
-
-	_, errorValue := runtime.Navigate(context.Background(), NavigateRequest{URL: "https://example.com"})
-	if errorValue != nil {
-		t.Fatalf("expected navigate success: %v", errorValue)
-	}
-	expectedArguments := []string{"--engine", "lightpanda", "--executable-path", "/usr/local/bin/lightpanda", "--session-name", "internkim-test", "open", "https://example.com"}
-	if !reflect.DeepEqual(runner.calls[0].arguments, expectedArguments) {
-		t.Fatalf("unexpected lightpanda arguments: %+v", runner.calls[0].arguments)
 	}
 }
 
 func TestDeviceReadinessShellScriptChecksChromeScreenshotReadiness(t *testing.T) {
 	script := DeviceReadinessShellScript()
 
-	for _, fragment := range []string{"agent-browser doctor --offline --quick", "--engine chrome", "--headed false", "snapshot", "screenshot", "test -s /tmp/internkim-agent-browser-chrome-smoke.png"} {
+	for _, fragment := range []string{"agent-browser close --all", "pkill -TERM -x agent-browser", "pkill -KILL -x agent-browser", "agent-browser doctor --offline --quick", "--session internkim-device-smoke --engine chrome", "--executable-path \"$browserExecutablePath\"", "--headed false", "snapshot", "screenshot", "test -s /tmp/internkim-agent-browser-chrome-smoke.png", DeviceBrowserExecutablePath, DeviceBrowserManifestPath} {
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("expected device readiness script to contain %q: %s", fragment, script)
 		}
 	}
-	if strings.Contains(script, "--engine lightpanda") || strings.Contains(script, "--profile") {
-		t.Fatalf("device readiness script must not use Lightpanda/profile for screenshot readiness: %s", script)
+	for _, forbiddenFragment := range []string{"google-chrome", "PUPPETEER_CACHE_DIR", "chrome-for-testing", "chromium-browser", "/snap/bin/chromium", "--engine lightpanda", "agent-browser install", "apt-get install"} {
+		if strings.Contains(script, forbiddenFragment) {
+			t.Fatalf("device readiness script must not use fallback %q: %s", forbiddenFragment, script)
+		}
+	}
+	if strings.Contains(script, "snapshot --engine") || strings.Contains(script, "screenshot --engine") {
+		t.Fatalf("device readiness should pass engine options only while opening the session: %s", script)
 	}
 }
 
@@ -212,33 +195,33 @@ func TestAgentBrowserRuntimeControlCommands(t *testing.T) {
 		{
 			name:      "click",
 			run:       func() (ActionResult, error) { return runtime.Click(context.Background(), ClickRequest{Ref: "@e1"}) },
-			arguments: []string{"--headed", "false", "--profile", "/profile", "--session-name", "internkim-test", "click", "@e1"},
+			arguments: []string{"--session", "internkim-test", "--session-name", "internkim-test", "click", "@e1"},
 		},
 		{
 			name: "fill",
 			run: func() (ActionResult, error) {
 				return runtime.Fill(context.Background(), FillRequest{Target: "@e2", Text: "hello"})
 			},
-			arguments: []string{"--headed", "false", "--profile", "/profile", "--session-name", "internkim-test", "fill", "@e2", "hello"},
+			arguments: []string{"--session", "internkim-test", "--session-name", "internkim-test", "fill", "@e2", "hello"},
 		},
 		{
 			name: "select",
 			run: func() (ActionResult, error) {
 				return runtime.Select(context.Background(), SelectRequest{Selector: "select[name=team]", Value: "ops"})
 			},
-			arguments: []string{"--headed", "false", "--profile", "/profile", "--session-name", "internkim-test", "select", "select[name=team]", "ops"},
+			arguments: []string{"--session", "internkim-test", "--session-name", "internkim-test", "select", "select[name=team]", "ops"},
 		},
 		{
 			name:      "press",
 			run:       func() (ActionResult, error) { return runtime.Press(context.Background(), PressRequest{Key: "Enter"}) },
-			arguments: []string{"--headed", "false", "--profile", "/profile", "--session-name", "internkim-test", "press", "Enter"},
+			arguments: []string{"--session", "internkim-test", "--session-name", "internkim-test", "press", "Enter"},
 		},
 		{
 			name: "wait",
 			run: func() (ActionResult, error) {
 				return runtime.Wait(context.Background(), WaitRequest{Milliseconds: 250})
 			},
-			arguments: []string{"--headed", "false", "--profile", "/profile", "--session-name", "internkim-test", "wait", "250"},
+			arguments: []string{"--session", "internkim-test", "--session-name", "internkim-test", "wait", "250"},
 		},
 	}
 
