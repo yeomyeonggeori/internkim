@@ -370,12 +370,12 @@ func (runtime AgentBrowserRuntime) EnsureInstalled(ctx context.Context) RuntimeR
 func DeviceReadinessShellScript() string {
 	return `set -eu
 command -v agent-browser >/dev/null
-if command -v lightpanda >/dev/null; then
-  agent-browser --engine lightpanda --session-name internkim-device-smoke open about:blank >/tmp/internkim-agent-browser-lightpanda-open.log 2>&1
-  agent-browser --engine lightpanda --session-name internkim-device-smoke snapshot >/tmp/internkim-agent-browser-lightpanda-snapshot.log 2>&1
-else
-  agent-browser doctor --offline --quick >/dev/null
-fi
+agent-browser doctor --offline --quick >/tmp/internkim-agent-browser-doctor.log 2>&1
+agent-browser --engine chrome --headed false --session-name internkim-device-smoke open about:blank >/tmp/internkim-agent-browser-chrome-open.log 2>&1
+agent-browser --engine chrome --headed false --session-name internkim-device-smoke snapshot >/tmp/internkim-agent-browser-chrome-snapshot.log 2>&1
+agent-browser --engine chrome --headed false --session-name internkim-device-smoke screenshot /tmp/internkim-agent-browser-chrome-smoke.png >/tmp/internkim-agent-browser-chrome-screenshot.log 2>&1
+test -s /tmp/internkim-agent-browser-chrome-smoke.png
+rm -f /tmp/internkim-agent-browser-chrome-smoke.png
 `
 }
 

@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestDeviceBrowserToolRunsThroughLightpandaRuntime(t *testing.T) {
+func TestDeviceBrowserToolRunsThroughChromeRuntime(t *testing.T) {
 	var commandPath string
 	var arguments []string
 	service := Service{
@@ -31,7 +31,7 @@ func TestDeviceBrowserToolRunsThroughLightpandaRuntime(t *testing.T) {
 	if commandPath != "agent-browser-test" {
 		t.Fatalf("unexpected command path: %s", commandPath)
 	}
-	expectedArguments := []string{"--engine", "lightpanda", "--session-name", "internkim-device", "open", "https://example.com"}
+	expectedArguments := []string{"--engine", "chrome", "--headed", "false", "--session-name", "internkim-device", "open", "https://example.com"}
 	if strings.Join(arguments, "\x00") != strings.Join(expectedArguments, "\x00") {
 		t.Fatalf("unexpected command arguments: %+v", arguments)
 	}
