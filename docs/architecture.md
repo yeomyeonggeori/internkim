@@ -1,6 +1,6 @@
 # Blueclaw 아키텍처
 
-현재 `internkim`은 Blueclaw를 보드 런타임으로 사용합니다. 설치 경로, 서비스 이름, 설정 파일, 헬스체크는 모두 Blueclaw 기준으로 고정되어 있습니다.
+현재 `internkim`은 Jetson Orin Nano Super를 1차 하드웨어 타깃으로 보고 Blueclaw를 기기 런타임으로 사용합니다. 설치 경로, 서비스 이름, 설정 파일, 헬스체크는 모두 Blueclaw 기준으로 고정되어 있으며, Radxa/RPi SD provisioning은 legacy/test path로 남겨둡니다.
 
 ## 런타임 계약
 
@@ -21,19 +21,31 @@
 사용자
   └─ Cloudflare Access
        └─ Cloudflare Tunnel
-            └─ Mattermost :8065
-                 └─ Blueclaw connector
-                      └─ Blueclaw HTTP API :8080
-                           ├─ OpenRouter
-                           ├─ managed DB
-                           └─ gws / gws-bot helper 경로
+            └─ Jetson Orin Nano Super
+                 ├─ Mattermost :8065
+                 │    └─ internkim-capabilityd
+                 ├─ internkim-admind
+                 │    └─ companion broker / admin UI / backup
+                 ├─ internkim-capabilityd
+                 │    ├─ OpenRouter / local model / companion LLM routing
+                 │    ├─ Mattermost / Slack / Signal platform I/O
+                 │    └─ browser capability adapter
+                 ├─ graphiti-memoryd :7791
+                 └─ Blueclaw HTTP API :8080
+                      ├─ managed DB
+                      └─ gws / gws-bot helper 경로
 
 Slack workspace
-  └─ Slack Events API
-       └─ Blueclaw connector
+  └─ Slack Socket Mode
+       └─ internkim-capabilityd
+            └─ Blueclaw
+
+사용자 컴퓨터
+  └─ internkim-companion
+       └─ internkim-admind companion broker
 ```
 
-Mattermost는 Cloudflare Access 뒤의 외부 진입점이고, Blueclaw는 로컬 루프백에서만 응답합니다. Slack은 Slack App/Event API를 통해 Blueclaw connector로 들어옵니다. Google, Mattermost, Slack, Cloudflare 설정은 host-side setup이 관리하고, Blueclaw는 이미 배치된 파일과 환경변수를 사용합니다.
+Mattermost와 관리자 UI는 Cloudflare Access 뒤의 외부 진입점이고, Blueclaw는 로컬 루프백에서만 응답합니다. Slack과 Signal은 `internkim-capabilityd`가 외부 이벤트를 받아 Blueclaw 작업으로 정규화합니다. Google, Mattermost, Slack, Signal, Cloudflare 설정은 host-side setup이 관리하고, Blueclaw는 이미 배치된 파일과 capability endpoint를 사용합니다.
 
 ## 디렉토리 구조
 
@@ -54,16 +66,17 @@ Mattermost는 Cloudflare Access 뒤의 외부 진입점이고, Blueclaw는 로�
 
 ## 보안 경계
 
-민감 정보는 `/root/.internkim/secrets`와 `/root/.internkim/env`에 두고, 필요한 프로세스만 읽을 수 있게 권한을 나눕니다.
+민감 정보는 `/root/.internkim/secrets`, `/root/.internkim/config`, `/root/.internkim/state`에 두고, 필요한 프로세스만 읽을 수 있게 권한을 나눕니다. Blueclaw는 provider token, 브라우저 쿠키, 사용자 로컬 파일 경로, local model path를 직접 보지 않습니다.
 
-| 파일 | owner | mode | 소비자 |
-|------|-------|------|--------|
-| `/root/.internkim/secrets/openrouter-api-key` | `blueclaw` | `640` | Blueclaw |
-| `/root/.internkim/secrets/google-sa.json` | `gws` | `640` | gws / gws-bot |
-| `/root/.internkim/secrets/gas-webhook-url` | `root:blueclaw` | `640` | GAS bridge helper |
-| `/root/.internkim/env/sa-email` | `root:blueclaw` | `640` | GAS bridge helper |
-| `/root/.internkim/env/mattermost-url` | `root` | `600` | host setup, Blueclaw env |
-| `/root/.internkim/env/bot-token` | `root:blueclaw` | `640` | Blueclaw env |
+| 파일 | 소비자 |
+|------|--------|
+| `/root/.internkim/secrets/openrouter-api-key` | internkim-capabilityd |
+| `/root/.internkim/models/*` | internkim-capabilityd, local model wrapper |
+| `/root/.internkim/secrets/google-sa.json` | gws / gws-bot |
+| `/root/.internkim/secrets/gas-webhook-url` | GAS bridge helper |
+| `/root/.internkim/secrets/slack-*` | internkim-capabilityd |
+| `/root/.internkim/config/signal-*` | internkim-capabilityd |
+| `/root/.internkim/state/companion-jobs.json` | internkim-admind |
 
 ## 설정 생성
 
@@ -71,7 +84,7 @@ Mattermost는 Cloudflare Access 뒤의 외부 진입점이고, Blueclaw는 로�
 
 - `runtime.json`
   - loopback listen 주소
-  - OpenRouter 기본 provider
+  - capabilityd provider endpoint
   - workspace root
   - 실행 허용/차단 명령
 - `policy.json`
@@ -87,11 +100,8 @@ Mattermost는 Cloudflare Access 뒤의 외부 진입점이고, Blueclaw는 로�
 ```ini
 [Service]
 User=blueclaw
-EnvironmentFile=/root/.internkim/secrets/openrouter-api-key
 Environment=HOME=/home/blueclaw
 Environment=BLUECLAW_SESSIONS_DIR=/root/.blueclaw/workspace/sessions
-Environment=MM_URL_FILE=/root/.internkim/env/mattermost-url
-Environment=MM_BOT_TOKEN_FILE=/root/.internkim/env/bot-token
 ExecStart=/usr/local/bin/blueclaw -runtime /root/.blueclaw/config/runtime.json -policy /root/.blueclaw/config/policy.json
 ```
 
@@ -103,6 +113,6 @@ Google 생성 플로우는 현재 예전 방식으로 유지되어 있습니다.
 
 - 생성은 Apps Script bridge 또는 사용자 권한 경로
 - 후속 편집은 `gws-bot`
-- 보드 skill은 `/root/.blueclaw/workspace/skills/*` 아래에 배치
+- 기기 workspace skill은 `/root/.blueclaw/workspace/skills/*` 아래에 배치
 
 즉, Google 연동은 Blueclaw 내부 설정이 아니라 host-side provisioned helper 집합으로 붙습니다.
