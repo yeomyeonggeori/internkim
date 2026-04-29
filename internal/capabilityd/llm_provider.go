@@ -27,6 +27,7 @@ type StructuredOutputSchema struct {
 
 type StructuredLLMRequest struct {
 	Model                  string                 `json:"model"`
+	Backend                string                 `json:"backend,omitempty"`
 	ExecutionMode          string                 `json:"executionMode"`
 	Messages               []LLMMessage           `json:"messages"`
 	StructuredOutputSchema StructuredOutputSchema `json:"structuredOutputSchema"`
@@ -36,6 +37,7 @@ type StructuredLLMRequest struct {
 
 type TextLLMRequest struct {
 	Model                 string       `json:"model"`
+	Backend               string       `json:"backend,omitempty"`
 	ExecutionMode         string       `json:"executionMode"`
 	Messages              []LLMMessage `json:"messages"`
 	RequireParameters     bool         `json:"requireParameters"`
@@ -73,6 +75,11 @@ type OpenRouterProvider struct {
 	HTTPClient    *http.Client
 }
 
+type OllamaProvider struct {
+	Configuration Configuration
+	HTTPClient    *http.Client
+}
+
 type AutoProvider struct {
 	Providers      []LLMProvider
 	AttemptTimeout time.Duration
@@ -88,6 +95,22 @@ type litertRequest struct {
 
 type litertResponse struct {
 	Content string `json:"content"`
+}
+
+type ollamaMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type ollamaRequest struct {
+	Model    string          `json:"model"`
+	Stream   bool            `json:"stream"`
+	Messages []ollamaMessage `json:"messages"`
+	Format   json.RawMessage `json:"format,omitempty"`
+}
+
+type ollamaResponse struct {
+	Message ollamaMessage `json:"message"`
 }
 
 func (service Service) completeStructured(ctx context.Context, request StructuredLLMRequest) (LLMResponse, error) {
@@ -116,9 +139,13 @@ func (service Service) providerForExecutionMode(executionMode string) (LLMProvid
 		Configuration: service.Configuration,
 		HTTPClient:    service.httpClient(),
 	}
+	localProviderChain := AutoProvider{
+		Providers:      service.localLLMProviders(localProvider),
+		AttemptTimeout: service.Configuration.ProviderAttemptTimeout,
+	}
 	switch strings.ToLower(firstNonEmpty(executionMode, "auto")) {
 	case "local":
-		return localProvider, nil
+		return localProviderChain, nil
 	case "companion", "user_desktop":
 		return companionProvider, nil
 	case "remote":
@@ -127,10 +154,21 @@ func (service Service) providerForExecutionMode(executionMode string) (LLMProvid
 		}
 		return remoteProvider, nil
 	case "auto":
-		return AutoProvider{Providers: service.automaticLLMProviders(localProvider, companionProvider, remoteProvider), AttemptTimeout: service.Configuration.ProviderAttemptTimeout}, nil
+		return AutoProvider{Providers: service.automaticLLMProviders(localProviderChain, companionProvider, remoteProvider), AttemptTimeout: service.Configuration.ProviderAttemptTimeout}, nil
 	default:
 		return nil, errors.New("llm execution mode is not supported")
 	}
+}
+
+func (service Service) localLLMProviders(localProvider LLMProvider) []LLMProvider {
+	if !service.Configuration.EnableOllamaFallback {
+		return []LLMProvider{localProvider}
+	}
+	ollamaProvider := OllamaProvider{
+		Configuration: service.Configuration,
+		HTTPClient:    service.httpClient(),
+	}
+	return []LLMProvider{localProvider, ollamaProvider}
 }
 
 func (service Service) automaticLLMProviders(localProvider LLMProvider, companionProvider LLMProvider, remoteProvider LLMProvider) []LLMProvider {
@@ -189,7 +227,7 @@ func completeWithProviderChain(providers []LLMProvider, complete func(LLMProvide
 
 func (provider LiteRTProvider) CompleteStructured(ctx context.Context, request StructuredLLMRequest) (LLMResponse, error) {
 	var lastError error
-	for _, backend := range []string{"gpu", "cpu"} {
+	for _, backend := range litertBackendOrder(request.Backend) {
 		response, errorValue := provider.completeWithBackend(ctx, request, backend)
 		if errorValue == nil {
 			return response, nil
@@ -239,7 +277,7 @@ func (provider LiteRTProvider) completeWithBackend(ctx context.Context, request 
 
 func (provider LiteRTProvider) CompleteText(ctx context.Context, request TextLLMRequest) (LLMResponse, error) {
 	var lastError error
-	for _, backend := range []string{"gpu", "cpu"} {
+	for _, backend := range litertBackendOrder(request.Backend) {
 		response, errorValue := provider.completeTextWithBackend(ctx, request, backend)
 		if errorValue == nil {
 			return response, nil
@@ -280,6 +318,105 @@ func (provider LiteRTProvider) completeTextWithBackend(ctx context.Context, requ
 		Content:         response.Content,
 		SelectedBackend: backend,
 	}, nil
+}
+
+func litertBackendOrder(preferredBackend string) []string {
+	switch strings.ToLower(strings.TrimSpace(preferredBackend)) {
+	case "gpu":
+		return []string{"gpu"}
+	case "cpu":
+		return []string{"cpu"}
+	default:
+		return []string{"gpu", "cpu"}
+	}
+}
+
+func (provider OllamaProvider) CompleteStructured(ctx context.Context, request StructuredLLMRequest) (LLMResponse, error) {
+	content, modelName, errorValue := provider.complete(ctx, request.Messages, request.StructuredOutputSchema.Document)
+	if errorValue != nil {
+		return LLMResponse{}, errorValue
+	}
+	if !validateMinimumStructuredOutput(content, request.StructuredOutputSchema.Document) {
+		return LLMResponse{}, errors.New("ollama response did not satisfy structured output schema")
+	}
+	return LLMResponse{
+		Provider:        "ollama",
+		Model:           modelName,
+		Content:         content,
+		SelectedBackend: "ollama",
+		ConstraintMode:  "provider_json_schema",
+	}, nil
+}
+
+func (provider OllamaProvider) CompleteText(ctx context.Context, request TextLLMRequest) (LLMResponse, error) {
+	content, modelName, errorValue := provider.complete(ctx, request.Messages, nil)
+	if errorValue != nil {
+		return LLMResponse{}, errorValue
+	}
+	return LLMResponse{
+		Provider:        "ollama",
+		Model:           modelName,
+		Content:         content,
+		SelectedBackend: "ollama",
+	}, nil
+}
+
+func (provider OllamaProvider) complete(ctx context.Context, messages []LLMMessage, format json.RawMessage) (string, string, error) {
+	modelName := firstNonEmpty(provider.Configuration.OllamaModel, DefaultConfiguration().OllamaModel)
+	requestDocument, errorValue := json.Marshal(ollamaRequest{
+		Model:    modelName,
+		Stream:   false,
+		Messages: ollamaMessages(messages),
+		Format:   format,
+	})
+	if errorValue != nil {
+		return "", "", errorValue
+	}
+
+	endpoint := strings.TrimRight(firstNonEmpty(provider.Configuration.OllamaBaseURL, DefaultConfiguration().OllamaBaseURL), "/") + "/api/chat"
+	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(requestDocument))
+	if errorValue != nil {
+		return "", "", errorValue
+	}
+	httpRequest.Header.Set("Content-Type", "application/json")
+
+	httpClient := provider.HTTPClient
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+	httpResponse, errorValue := httpClient.Do(httpRequest)
+	if errorValue != nil {
+		return "", "", errorValue
+	}
+	defer httpResponse.Body.Close()
+
+	responseDocument, errorValue := io.ReadAll(httpResponse.Body)
+	if errorValue != nil {
+		return "", "", errors.New("read ollama response: " + errorValue.Error())
+	}
+	if httpResponse.StatusCode >= http.StatusBadRequest {
+		return "", "", errors.New(string(responseDocument))
+	}
+
+	var response ollamaResponse
+	if errorValue := json.Unmarshal(responseDocument, &response); errorValue != nil {
+		return "", "", errorValue
+	}
+	if strings.TrimSpace(response.Message.Content) == "" {
+		return "", "", errors.New("ollama response content was empty")
+	}
+	return response.Message.Content, modelName, nil
+}
+
+func ollamaMessages(messages []LLMMessage) []ollamaMessage {
+	convertedMessages := make([]ollamaMessage, 0, len(messages))
+	for _, message := range messages {
+		convertedMessages = append(convertedMessages, ollamaMessage{
+			Role:    message.Role,
+			Content: message.Content,
+		})
+	}
+	return convertedMessages
 }
 
 func (provider OpenRouterProvider) CompleteStructured(ctx context.Context, request StructuredLLMRequest) (LLMResponse, error) {

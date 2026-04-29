@@ -4,6 +4,7 @@ import "fmt"
 
 var StepBoard = Step{
 	Name: "board",
+	Deps: []string{"preflight"},
 	Title: func(context *Context) string {
 		return context.T("대상 확인", "Target verified")
 	},

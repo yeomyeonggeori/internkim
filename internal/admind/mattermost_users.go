@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"unicode"
@@ -40,6 +41,10 @@ type mattermostTeamRecord struct {
 	ID string `json:"id"`
 }
 
+type mattermostChannelRecord struct {
+	ID string `json:"id"`
+}
+
 type mattermostProvisionResult struct {
 	UserID            string
 	Username          string
@@ -47,10 +52,22 @@ type mattermostProvisionResult struct {
 	TemporaryPassword string
 }
 
+type mattermostPreferenceRecord struct {
+	UserID   string `json:"user_id"`
+	Category string `json:"category"`
+	Name     string `json:"name"`
+	Value    string `json:"value"`
+}
+
 const mattermostProvisionerUsername = "admin"
 const mattermostProvisionerEmail = "admin@localhost"
+const firstAdminMattermostPassword = "admin"
 
 func (service *Service) provisionMattermostUser(ctx context.Context, email string, role string) (mattermostProvisionResult, error) {
+	return service.provisionMattermostUserWithPassword(ctx, email, role, "")
+}
+
+func (service *Service) provisionMattermostUserWithPassword(ctx context.Context, email string, role string, initialPassword string) (mattermostProvisionResult, error) {
 	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
 	if normalizedEmail == "" {
 		return mattermostProvisionResult{}, fmt.Errorf("email required")
@@ -59,6 +76,11 @@ func (service *Service) provisionMattermostUser(ctx context.Context, email strin
 	adminToken, errorValue := service.mattermostAdminToken(ctx)
 	if errorValue != nil {
 		return mattermostProvisionResult{}, errorValue
+	}
+	if strings.TrimSpace(initialPassword) != "" {
+		if errorValue := service.ensureMattermostPasswordPolicyAllows(ctx, adminToken, initialPassword); errorValue != nil {
+			return mattermostProvisionResult{}, errorValue
+		}
 	}
 
 	userRecord, found, errorValue := service.findMattermostUserByEmail(ctx, adminToken, normalizedEmail)
@@ -70,8 +92,14 @@ func (service *Service) provisionMattermostUser(ctx context.Context, email strin
 	if found {
 		result.UserID = userRecord.ID
 		result.Username = userRecord.Username
+		if strings.TrimSpace(initialPassword) != "" {
+			if errorValue := service.updateMattermostUserPassword(ctx, adminToken, userRecord.ID, initialPassword); errorValue != nil {
+				return mattermostProvisionResult{}, errorValue
+			}
+			result.TemporaryPassword = initialPassword
+		}
 	} else {
-		temporaryPassword := generateTemporaryPassword()
+		temporaryPassword := firstNonEmpty(strings.TrimSpace(initialPassword), generateTemporaryPassword())
 		userRecord, errorValue = service.createMattermostUser(ctx, adminToken, normalizedEmail, temporaryPassword)
 		if errorValue != nil {
 			return mattermostProvisionResult{}, errorValue
@@ -206,7 +234,10 @@ func (service *Service) deactivateMattermostUserByID(ctx context.Context, userID
 	if isProtectedMattermostUser(userRecord) {
 		return nil
 	}
-	return service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/users/"+url.PathEscape(userRecord.ID), adminToken, nil, nil)
+	if errorValue := service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/users/"+url.PathEscape(userRecord.ID), adminToken, nil, nil); errorValue != nil {
+		return errorValue
+	}
+	return service.deleteMattermostVisibleUserSystemPosts(ctx, userRecord)
 }
 
 func (service *Service) deactivateMattermostUserByEmail(ctx context.Context, email string) error {
@@ -225,7 +256,38 @@ func (service *Service) deactivateMattermostUserByEmail(ctx context.Context, ema
 	if isProtectedMattermostUser(userRecord) {
 		return nil
 	}
-	return service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/users/"+url.PathEscape(userRecord.ID), adminToken, nil, nil)
+	if errorValue := service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/users/"+url.PathEscape(userRecord.ID), adminToken, nil, nil); errorValue != nil {
+		return errorValue
+	}
+	return service.deleteMattermostVisibleUserSystemPosts(ctx, userRecord)
+}
+
+func (service *Service) deleteMattermostVisibleUserSystemPosts(ctx context.Context, userRecord mattermostUserRecord) error {
+	username := strings.TrimSpace(userRecord.Username)
+	if username == "" {
+		return nil
+	}
+	command := fmt.Sprintf(
+		`su postgres -c %s`,
+		quoteShellValue(fmt.Sprintf(
+			`psql -d mattermost -v ON_ERROR_STOP=1 -c %s`,
+			quoteShellValue(fmt.Sprintf(
+				`UPDATE posts SET deleteat = (extract(epoch from now()) * 1000)::bigint, updateat = (extract(epoch from now()) * 1000)::bigint WHERE deleteat = 0 AND (message LIKE %s OR props::text LIKE %s)`,
+				quoteSQLLikePattern("%"+username+"%"),
+				quoteSQLLikePattern("%"+username+"%"),
+			)),
+		)),
+	)
+	_, errorValue := service.runCommand(ctx, "sh", "-c", command)
+	return errorValue
+}
+
+func quoteShellValue(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
+func quoteSQLLikePattern(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }
 
 func isProtectedMattermostUser(userRecord mattermostUserRecord) bool {
@@ -259,13 +321,32 @@ func (service *Service) createMattermostUser(ctx context.Context, token string, 
 	return mattermostUserRecord{}, lastError
 }
 
-func (service *Service) ensureMattermostMembership(ctx context.Context, token string, userID string) error {
-	var teamRecord mattermostTeamRecord
-	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/teams/name/internkim", token, nil, &teamRecord); errorValue != nil {
-		return errorValue
+func (service *Service) updateMattermostUserPassword(ctx context.Context, token string, userID string, password string) error {
+	body := map[string]string{"new_password": password}
+	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/users/"+url.PathEscape(userID)+"/password", token, body, nil)
+}
+
+func (service *Service) ensureMattermostPasswordPolicyAllows(ctx context.Context, token string, password string) error {
+	minimumLength := len([]rune(password))
+	if minimumLength < 5 {
+		minimumLength = 5
 	}
-	if teamRecord.ID == "" {
-		return fmt.Errorf("Mattermost team internkim is missing")
+	body := map[string]any{
+		"PasswordSettings": map[string]any{
+			"MinimumLength": minimumLength,
+			"Lowercase":     false,
+			"Uppercase":     false,
+			"Number":        false,
+			"Symbol":        false,
+		},
+	}
+	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/config/patch", token, body, nil)
+}
+
+func (service *Service) ensureMattermostMembership(ctx context.Context, token string, userID string) error {
+	teamRecord, errorValue := service.ensureMattermostTeam(ctx, token)
+	if errorValue != nil {
+		return errorValue
 	}
 	teamMember := map[string]string{
 		"team_id": teamRecord.ID,
@@ -275,7 +356,10 @@ func (service *Service) ensureMattermostMembership(ctx context.Context, token st
 		return errorValue
 	}
 
-	channelID := strings.TrimSpace(readTrimmedFile(filepath.Join(filepath.Dir(service.Configuration.DeviceIDPath), "channel-id")))
+	channelID, errorValue := service.ensureMattermostTownSquareChannel(ctx, token, teamRecord.ID)
+	if errorValue != nil {
+		return errorValue
+	}
 	if channelID == "" {
 		return nil
 	}
@@ -284,6 +368,60 @@ func (service *Service) ensureMattermostMembership(ctx context.Context, token st
 		return errorValue
 	}
 	return nil
+}
+
+func (service *Service) ensureMattermostTeam(ctx context.Context, token string) (mattermostTeamRecord, error) {
+	var teamRecord mattermostTeamRecord
+	errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/teams/name/internkim", token, nil, &teamRecord)
+	if errorValue == nil && teamRecord.ID != "" {
+		return teamRecord, nil
+	}
+	if errorValue != nil && !isMattermostNotFound(errorValue) {
+		return mattermostTeamRecord{}, errorValue
+	}
+
+	body := map[string]string{"name": "internkim", "display_name": "Intern Kim", "type": "I"}
+	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/teams", token, body, &teamRecord); errorValue != nil {
+		return mattermostTeamRecord{}, errorValue
+	}
+	if teamRecord.ID == "" {
+		return mattermostTeamRecord{}, fmt.Errorf("Mattermost team internkim was not created")
+	}
+	return teamRecord, nil
+}
+
+func (service *Service) ensureMattermostTownSquareChannel(ctx context.Context, token string, teamID string) (string, error) {
+	channelIDPath := filepath.Join(filepath.Dir(service.Configuration.DeviceIDPath), "channel-id")
+	channelID := strings.TrimSpace(readTrimmedFile(channelIDPath))
+	if channelID != "" {
+		var channelRecord mattermostChannelRecord
+		errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/channels/"+url.PathEscape(channelID), token, nil, &channelRecord)
+		if errorValue == nil && channelRecord.ID != "" {
+			return channelRecord.ID, nil
+		}
+		if errorValue != nil && !isMattermostNotFound(errorValue) {
+			return "", errorValue
+		}
+	}
+
+	var channelRecord mattermostChannelRecord
+	errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/teams/"+url.PathEscape(teamID)+"/channels/name/town-square", token, nil, &channelRecord)
+	if errorValue != nil && !isMattermostNotFound(errorValue) {
+		return "", errorValue
+	}
+	if channelRecord.ID == "" {
+		body := map[string]string{"team_id": teamID, "name": "town-square", "display_name": "Town Square", "type": "O"}
+		if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/channels", token, body, &channelRecord); errorValue != nil {
+			return "", errorValue
+		}
+	}
+	if channelRecord.ID == "" {
+		return "", fmt.Errorf("Mattermost channel town-square was not created")
+	}
+	if errorValue := os.WriteFile(channelIDPath, []byte(channelRecord.ID), 0o640); errorValue != nil {
+		return "", errorValue
+	}
+	return channelRecord.ID, nil
 }
 
 func (service *Service) ensureMattermostBotDirectChannel(ctx context.Context, token string, userID string) error {
@@ -302,7 +440,17 @@ func (service *Service) ensureMattermostBotDirectChannel(ctx context.Context, to
 	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/channels/direct", token, body, nil); errorValue != nil && !isMattermostBadRequest(errorValue) {
 		return errorValue
 	}
-	return nil
+	return service.showMattermostDirectChannel(ctx, token, normalizedUserID, botRecord.ID)
+}
+
+func (service *Service) showMattermostDirectChannel(ctx context.Context, token string, userID string, directUserID string) error {
+	preferences := []mattermostPreferenceRecord{{
+		UserID:   userID,
+		Category: "direct_channel_show",
+		Name:     directUserID,
+		Value:    "true",
+	}}
+	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/users/"+url.PathEscape(userID)+"/preferences", token, preferences, nil)
 }
 
 func (service *Service) ensureMattermostBotDirectChannelsForRecords(ctx context.Context, records []adminUserMutation) error {

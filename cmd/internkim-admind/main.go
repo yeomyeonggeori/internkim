@@ -15,6 +15,7 @@ func main() {
 	flag.StringVar(&configuration.APIBaseURL, "api-url", configuration.APIBaseURL, "InternKim Pages API URL")
 	flag.StringVar(&configuration.StateDirectory, "state-dir", configuration.StateDirectory, "admin job state directory")
 	flag.StringVar(&configuration.AdminEmailPath, "admin-email-path", configuration.AdminEmailPath, "initial admin email file")
+	flag.StringVar(&configuration.ClaimedAdminEmailPath, "claimed-admin-email-path", configuration.ClaimedAdminEmailPath, "claimed admin email file")
 	flag.StringVar(&configuration.DeviceIDPath, "device-id-path", configuration.DeviceIDPath, "device ID file")
 	flag.StringVar(&configuration.DeviceSecretPath, "device-secret-path", configuration.DeviceSecretPath, "device secret file")
 	flag.StringVar(&configuration.AdminUIPath, "admin-ui-path", configuration.AdminUIPath, "admin UI static directory")

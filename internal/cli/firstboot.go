@@ -486,8 +486,8 @@ else
     retry_later "waiting for outbound connectivity before tools phase"
   fi`),
 		strings.TrimSpace(gwsSkillsInstallScript),
-		strings.TrimSpace(fmt.Sprintf(deviceBrowserRuntimePackageSelectionScript()+`
-apt-get install -y -qq unzip fonts-noto-cjk $runtimePackages >/dev/null 2>&1 || true
+		strings.TrimSpace(fmt.Sprintf(deviceBrowserRuntimeDependencyInstallScript()+`
+apt-get install -y -qq unzip >/dev/null 2>&1 || true
 if ! sudo -u blueclaw test -x /home/blueclaw/.bun/bin/bun; then
   sudo -u blueclaw bash -lc 'curl -fsSL https://bun.sh/install | bash' >/dev/null 2>&1 || true
 fi
@@ -517,7 +517,7 @@ install_device_browser_runtime() {
   local manifestPath="$temporaryDirectory/manifest.json"
   test -f "$manifestPath"
   local executableRelativePath
-  executableRelativePath="$(jq -r '.executablePath // empty' "$manifestPath")"
+  executableRelativePath="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1])).get("executablePath", ""))' "$manifestPath")"
   test -n "$executableRelativePath"
   test -x "$temporaryDirectory/$executableRelativePath"
   ln -sfn "$executableRelativePath" "$temporaryDirectory/chromium"
@@ -767,7 +767,7 @@ SVCEOF
   BOT_RESPONSE="$(curl -sf -X POST "$MM_URL/api/v4/bots" \
     -H "Authorization: Bearer $ADMIN_TOKEN" \
     -H 'Content-Type: application/json' \
-    -d '{"username":"internkim","display_name":"김인턴","description":"회사 일을 빠르게 돕는 AI teammate"}' 2>/dev/null || true)"
+    -d '{"username":"internkim","display_name":"김인턴"}' 2>/dev/null || true)"
   BOT_USER_ID=$(echo "$BOT_RESPONSE" | jq -r '.user_id // empty')
   if [ -z "$BOT_USER_ID" ]; then
     BOT_USER_ID="$(curl -sf "$MM_URL/api/v4/users/username/internkim" \
@@ -777,7 +777,7 @@ SVCEOF
     curl -sf -X PUT "$MM_URL/api/v4/users/$BOT_USER_ID/patch" \
       -H "Authorization: Bearer $ADMIN_TOKEN" \
       -H 'Content-Type: application/json' \
-      -d '{"first_name":"김인턴","nickname":"Intern Kim","position":"회사 일을 빠르게 돕는 AI teammate"}' >/dev/null 2>&1 || true
+      -d '{"first_name":"김인턴","nickname":"Intern Kim","position":""}' >/dev/null 2>&1 || true
   fi
 
   BOT_TOKEN=""

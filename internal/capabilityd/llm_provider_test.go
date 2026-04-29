@@ -305,6 +305,38 @@ func TestLiteRTProviderCompleteTextSendsTextModeToWrapper(t *testing.T) {
 	}
 }
 
+func TestLiteRTProviderUsesRequestedBackendOnly(t *testing.T) {
+	var backends []string
+	provider := LiteRTProvider{
+		Configuration: DefaultConfiguration(),
+		RunCommand: func(ctx context.Context, executablePath string, arguments []string, standardInput []byte) ([]byte, error) {
+			_ = ctx
+			_ = executablePath
+			_ = arguments
+			var document map[string]any
+			if errorValue := json.Unmarshal(standardInput, &document); errorValue != nil {
+				t.Fatalf("expected wrapper document: %v", errorValue)
+			}
+			backends = append(backends, document["backend"].(string))
+			return []byte(`{"content":"plain local reply"}`), nil
+		},
+	}
+
+	response, errorValue := provider.CompleteText(context.Background(), TextLLMRequest{
+		Backend:  "cpu",
+		Messages: []LLMMessage{{Role: "user", Content: "hello"}},
+	})
+	if errorValue != nil {
+		t.Fatalf("expected LiteRT text completion: %v", errorValue)
+	}
+	if response.SelectedBackend != "cpu" {
+		t.Fatalf("expected cpu backend, got %q", response.SelectedBackend)
+	}
+	if strings.Join(backends, ",") != "cpu" {
+		t.Fatalf("expected only cpu backend, got %v", backends)
+	}
+}
+
 func TestAutoProviderFallsBackToRemote(t *testing.T) {
 	autoProvider := AutoProvider{
 		Providers: []LLMProvider{
@@ -323,6 +355,97 @@ func TestAutoProviderFallsBackToRemote(t *testing.T) {
 	}
 	if response.SelectedBackend != "remote" {
 		t.Fatalf("expected remote backend, got %q", response.SelectedBackend)
+	}
+}
+
+func TestLocalProviderFallsBackFromLiteRTFailureToOllamaSuccess(t *testing.T) {
+	service := Service{
+		Configuration: Configuration{
+			OllamaBaseURL:              "https://ollama.test",
+			OllamaModel:                "gemma3:1b",
+			EnableOllamaFallback:       true,
+			ProviderAttemptTimeout:     time.Second,
+			LiteRTWrapperPath:          "/missing-litert-wrapper",
+			LiteRTModelPath:            "/missing-litert-model",
+			OpenRouterKeyPath:          "missing",
+			OpenRouterBaseURL:          "https://openrouter.test",
+			CompanionBaseURL:           "",
+			DeviceBrowserPath:          "chromium",
+			AgentBrowserPath:           "agent-browser",
+			CompanionFileDirectory:     t.TempDir(),
+			SocketPath:                 filepath.Join(t.TempDir(), "capability.sock"),
+			MattermostTokenPath:        "missing",
+			SlackTokenPath:             "missing",
+			SlackAppTokenPath:          "missing",
+			SignalJSONRPCURLPath:       "missing",
+			SignalAccountPath:          "missing",
+			SocketGroupName:            "blueclaw",
+			OpenRouterEmbeddingBaseURL: "https://embedding.test",
+			OpenRouterEmbeddingModel:   "embedding",
+		},
+		RunCommand: func(ctx context.Context, executablePath string, arguments []string, standardInput []byte) ([]byte, error) {
+			_ = ctx
+			_ = executablePath
+			_ = arguments
+			_ = standardInput
+			return nil, os.ErrNotExist
+		},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.URL.String() != "https://ollama.test/api/chat" {
+				t.Fatalf("unexpected local fallback URL: %s", request.URL.String())
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"message":{"role":"assistant","content":"ok from ollama"}}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	response, errorValue := service.completeText(context.Background(), TextLLMRequest{
+		ExecutionMode: "local",
+		Messages:      []LLMMessage{{Role: "user", Content: "Reply with ok."}},
+	})
+	if errorValue != nil {
+		t.Fatalf("expected Ollama fallback: %v", errorValue)
+	}
+	if response.Provider != "ollama" || response.SelectedBackend != "ollama" || response.Content != "ok from ollama" {
+		t.Fatalf("expected Ollama response, got %+v", response)
+	}
+}
+
+func TestLocalProviderDoesNotUseOllamaByDefault(t *testing.T) {
+	ollamaCalled := false
+	service := Service{
+		Configuration: Configuration{
+			OllamaBaseURL:          "https://ollama.test",
+			ProviderAttemptTimeout: time.Second,
+			LiteRTWrapperPath:      "/missing-litert-wrapper",
+			LiteRTModelPath:        "/missing-litert-model",
+		},
+		RunCommand: func(ctx context.Context, executablePath string, arguments []string, standardInput []byte) ([]byte, error) {
+			_ = ctx
+			_ = executablePath
+			_ = arguments
+			_ = standardInput
+			return nil, os.ErrNotExist
+		},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			_ = request
+			ollamaCalled = true
+			return nil, os.ErrNotExist
+		})},
+	}
+
+	_, errorValue := service.completeText(context.Background(), TextLLMRequest{
+		ExecutionMode: "local",
+		Messages:      []LLMMessage{{Role: "user", Content: "Reply with ok."}},
+	})
+	if errorValue == nil {
+		t.Fatal("expected LiteRT failure")
+	}
+	if ollamaCalled {
+		t.Fatal("expected local mode not to call Ollama without explicit opt-in")
 	}
 }
 

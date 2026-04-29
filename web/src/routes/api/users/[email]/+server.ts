@@ -58,13 +58,13 @@ export const DELETE: RequestHandler = async ({ params, request, url, platform })
 	const device = await kv.getDevice(env.KV, device_id);
 	if (!device) throw error(404, 'Device not found');
 
-	const records = await kv.getUserRecords(env.KV, device_id, device.admin_email);
+	const records = await kv.getUserRecords(env.KV, device_id);
 	const isAuthorizedBoard = await isBoardRequest(request, device, device_id);
 	if (!isAuthorizedBoard && !isAdminRequest(request, device, adminEmails(records), admin_token, env.INTERNKIM_REGISTER_SECRET)) {
 		throw error(403, 'Admin only');
 	}
 	const record = records.find((item) => item.email === email);
-	if (record?.role === 'admin' && adminEmails(records).length <= 1) {
+	if (!isAuthorizedBoard && record?.role === 'admin' && adminEmails(records).length <= 1) {
 		throw error(400, 'Cannot remove the last admin user');
 	}
 

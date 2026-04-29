@@ -17,7 +17,17 @@ var StepMattermost = Step{
 		}
 		mattermostBinaryPresent := sshFileExists(context, "/opt/mattermost/bin/mattermost")
 		mattermostURL := trimmedRun(context, "cat /root/.internkim/env/mattermost-url 2>/dev/null")
-		return mattermostBinaryPresent && mattermostURL != ""
+		expectedMattermostURL := ""
+		if context.Callbacks.LoadState != nil {
+			expectedMattermostURL = context.Callbacks.LoadState("device_url")
+		}
+		mattermostActive := trimmedRun(context, "systemctl is-active mattermost 2>/dev/null") == "active"
+		mattermostResponding := trimmedRun(context, `curl -sf http://localhost:8065/api/v4/system/ping 2>/dev/null | grep -q '"status":"OK"' && echo ok || true`) == "ok"
+		return mattermostBinaryPresent &&
+			mattermostURL != "" &&
+			(expectedMattermostURL == "" || mattermostURL == expectedMattermostURL) &&
+			mattermostActive &&
+			mattermostResponding
 	},
 	Run: func(context *Context) error {
 		if context.Callbacks.InstallMattermost == nil || context.Callbacks.SetupMattermost == nil {
