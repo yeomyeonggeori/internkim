@@ -744,6 +744,10 @@ SVCEOF
     echo "ERROR: Could not resolve admin user id"
     exit 1
   fi
+  curl -sf -X PUT "$MM_URL/api/v4/users/$ADMIN_ID/patch" \
+    -H "Authorization: Bearer $ADMIN_TOKEN" \
+    -H 'Content-Type: application/json' \
+    -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASS\"}" >/dev/null
   curl -sf -X PUT "$MM_URL/api/v4/users/$ADMIN_ID/roles" \
     -H "Authorization: Bearer $ADMIN_TOKEN" \
     -H 'Content-Type: application/json' \

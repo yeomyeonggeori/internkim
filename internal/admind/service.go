@@ -334,6 +334,29 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	if request.Method == http.MethodGet || request.Method == http.MethodDelete {
 		targetURL += "?device_id=" + url.QueryEscape(deviceID)
 	}
+	if errorValue := service.syncPrimaryAdminIdentity(request.Context(), deviceID, deviceSecret); errorValue != nil {
+		log.Printf("admin identity sync failed: %v", errorValue)
+	}
+	var removedUser *adminUserMutation
+	if request.Method == http.MethodDelete {
+		userRecord, errorValue := service.lookupRemovableUser(request.Context(), deviceID, deviceSecret, targetPath)
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+			return
+		}
+		removedUser = userRecord
+		if removedUser != nil && strings.TrimSpace(removedUser.MattermostUserID) != "" {
+			if errorValue := service.deactivateMattermostUserByID(request.Context(), removedUser.MattermostUserID); errorValue != nil {
+				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+				return
+			}
+		} else if removedUser != nil {
+			if errorValue := service.deactivateMattermostUserByEmail(request.Context(), removedUser.Email); errorValue != nil {
+				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+				return
+			}
+		}
+	}
 	body := request.Body
 	var temporaryPassword string
 	var temporaryPasswordEmail string
@@ -432,34 +455,78 @@ type pagesUsersResponse struct {
 	Records []adminUserMutation `json:"records"`
 }
 
+func (service *Service) syncPrimaryAdminIdentity(ctx context.Context, deviceID string, deviceSecret string) error {
+	records, errorValue := service.lookupUserRecords(ctx, deviceID, deviceSecret)
+	if errorValue != nil {
+		return errorValue
+	}
+	primaryAdminEmail := primaryAdminEmail(records)
+	if primaryAdminEmail == "" {
+		return nil
+	}
+	currentAdminEmail := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.AdminEmailPath)))
+	if currentAdminEmail == primaryAdminEmail {
+		return nil
+	}
+	if errorValue := service.syncMattermostAdminEmail(ctx, primaryAdminEmail); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := os.WriteFile(service.Configuration.AdminEmailPath, []byte(primaryAdminEmail), 0o644); errorValue != nil {
+		return errorValue
+	}
+	return nil
+}
+
+func primaryAdminEmail(records []adminUserMutation) string {
+	for _, record := range records {
+		if record.Role == "admin" {
+			return strings.ToLower(strings.TrimSpace(record.Email))
+		}
+	}
+	return ""
+}
+
+func (service *Service) lookupRemovableUser(ctx context.Context, deviceID string, deviceSecret string, targetPath string) (*adminUserMutation, error) {
+	email := strings.TrimPrefix(targetPath, "/")
+	if decodedEmail, errorValue := url.PathUnescape(email); errorValue == nil {
+		email = decodedEmail
+	}
+	records, errorValue := service.lookupUserRecords(ctx, deviceID, deviceSecret)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+	adminTotal := 0
+	for index := range records {
+		if records[index].Role == "admin" {
+			adminTotal++
+		}
+	}
+	for index := range records {
+		record := records[index]
+		if !strings.EqualFold(record.Email, normalizedEmail) {
+			continue
+		}
+		if record.Role == "admin" && adminTotal <= 1 {
+			return nil, fmt.Errorf("cannot remove the last admin user")
+		}
+		return &record, nil
+	}
+	return nil, nil
+}
+
 func (service *Service) isLastAdminDemotion(ctx context.Context, deviceID string, deviceSecret string, email string, role string) (bool, error) {
 	if role == "admin" {
 		return false, nil
 	}
-	requestURL := strings.TrimRight(service.Configuration.APIBaseURL, "/") + "/api/users?device_id=" + url.QueryEscape(deviceID)
-	request, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	records, errorValue := service.lookupUserRecords(ctx, deviceID, deviceSecret)
 	if errorValue != nil {
-		return false, errorValue
-	}
-	request.Header.Set("X-InternKim-Device-ID", deviceID)
-	request.Header.Set("X-InternKim-Device-Secret", deviceSecret)
-	response, errorValue := service.httpClient().Do(request)
-	if errorValue != nil {
-		return false, errorValue
-	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		document, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
-		return false, fmt.Errorf("users lookup returned %d: %s", response.StatusCode, strings.TrimSpace(string(document)))
-	}
-	var usersResponse pagesUsersResponse
-	if errorValue := json.NewDecoder(response.Body).Decode(&usersResponse); errorValue != nil {
 		return false, errorValue
 	}
 	adminTotal := 0
 	isTargetAdmin := false
 	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
-	for _, record := range usersResponse.Records {
+	for _, record := range records {
 		if record.Role != "admin" {
 			continue
 		}
@@ -469,6 +536,30 @@ func (service *Service) isLastAdminDemotion(ctx context.Context, deviceID string
 		}
 	}
 	return isTargetAdmin && adminTotal <= 1, nil
+}
+
+func (service *Service) lookupUserRecords(ctx context.Context, deviceID string, deviceSecret string) ([]adminUserMutation, error) {
+	requestURL := strings.TrimRight(service.Configuration.APIBaseURL, "/") + "/api/users?device_id=" + url.QueryEscape(deviceID)
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	request.Header.Set("X-InternKim-Device-ID", deviceID)
+	request.Header.Set("X-InternKim-Device-Secret", deviceSecret)
+	response, errorValue := service.httpClient().Do(request)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		document, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
+		return nil, fmt.Errorf("users lookup returned %d: %s", response.StatusCode, strings.TrimSpace(string(document)))
+	}
+	var usersResponse pagesUsersResponse
+	if errorValue := json.NewDecoder(response.Body).Decode(&usersResponse); errorValue != nil {
+		return nil, errorValue
+	}
+	return usersResponse.Records, nil
 }
 
 func (service *Service) createRestoreUpload(responseWriter http.ResponseWriter, request *http.Request) {
@@ -922,16 +1013,40 @@ func (service *Service) isAuthorized(request *http.Request) bool {
 	if isLocalRequest(request) {
 		return true
 	}
-	adminEmail := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.AdminEmailPath)))
 	callerEmail := strings.ToLower(strings.TrimSpace(firstNonEmpty(
 		request.Header.Get("Cf-Access-Authenticated-User-Email"),
 		request.Header.Get("CF-Access-Authenticated-User-Email"),
 		request.Header.Get("X-Forwarded-Email"),
 	)))
+	if callerEmail == "" {
+		return false
+	}
+	if service.isCurrentAdminEmail(request.Context(), callerEmail) {
+		return true
+	}
+	adminEmail := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.AdminEmailPath)))
 	if adminEmail == "" {
 		return false
 	}
 	return callerEmail == adminEmail
+}
+
+func (service *Service) isCurrentAdminEmail(ctx context.Context, callerEmail string) bool {
+	deviceID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceIDPath)))
+	deviceSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceSecretPath))
+	if deviceID == "" || deviceSecret == "" {
+		return false
+	}
+	records, errorValue := service.lookupUserRecords(ctx, deviceID, deviceSecret)
+	if errorValue != nil {
+		return false
+	}
+	for _, record := range records {
+		if record.Role == "admin" && strings.EqualFold(record.Email, callerEmail) {
+			return true
+		}
+	}
+	return false
 }
 
 func isLocalRequest(request *http.Request) bool {

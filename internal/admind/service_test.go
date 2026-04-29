@@ -256,6 +256,110 @@ func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *test
 	}
 }
 
+func TestAdminRemoveDeactivatesMattermostUserByStoredID(t *testing.T) {
+	deviceDirectory := t.TempDir()
+	deviceIDPath := filepath.Join(deviceDirectory, "device-id")
+	deviceSecretPath := filepath.Join(deviceDirectory, "device-secret")
+	adminPasswordPath := filepath.Join(deviceDirectory, "mm-admin-pass")
+	writeFile(t, deviceIDPath, "dc719d8e")
+	writeFile(t, deviceSecretPath, "secret-value")
+	writeFile(t, adminPasswordPath, "admin-pass")
+
+	deactivatedUserID := ""
+	service := NewService(Configuration{
+		APIBaseURL:                  "https://api.example.test",
+		MattermostBaseURL:           "http://mattermost.local",
+		MattermostAdminPasswordPath: adminPasswordPath,
+		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
+		DeviceIDPath:                deviceIDPath,
+		DeviceSecretPath:            deviceSecretPath,
+		StateDirectory:              t.TempDir(),
+		CompanionJobPath:            filepath.Join(t.TempDir(), "jobs.json"),
+		AdminUIPath:                 t.TempDir(),
+	})
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "https://api.example.test/api/users?device_id=dc719d8e" && request.Method == http.MethodGet:
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"admin@example.com","role":"admin"},{"email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}]}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
+			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
+			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member","roles":"system_user"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodDelete:
+			deactivatedUserID = "user-1"
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "https://api.example.test/api/users/member@example.com?device_id=dc719d8e" && request.Method == http.MethodDelete:
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"admin@example.com","role":"admin"}]}`, nil), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+	handler := service.router()
+
+	request := httptest.NewRequest(http.MethodDelete, "/admin/api/users/member%40example.com", nil)
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("remove status = %d body = %s", response.Code, response.Body.String())
+	}
+	if deactivatedUserID != "user-1" {
+		t.Fatalf("deactivated user id = %q", deactivatedUserID)
+	}
+}
+
+func TestAdminRemoveRefusesProtectedMattermostUser(t *testing.T) {
+	deviceDirectory := t.TempDir()
+	deviceIDPath := filepath.Join(deviceDirectory, "device-id")
+	deviceSecretPath := filepath.Join(deviceDirectory, "device-secret")
+	adminPasswordPath := filepath.Join(deviceDirectory, "mm-admin-pass")
+	writeFile(t, deviceIDPath, "dc719d8e")
+	writeFile(t, deviceSecretPath, "secret-value")
+	writeFile(t, adminPasswordPath, "admin-pass")
+
+	pagesDeleteCalled := false
+	service := NewService(Configuration{
+		APIBaseURL:                  "https://api.example.test",
+		MattermostBaseURL:           "http://mattermost.local",
+		MattermostAdminPasswordPath: adminPasswordPath,
+		AdminEmailPath:              writeTestFile(t, "owner@example.com"),
+		DeviceIDPath:                deviceIDPath,
+		DeviceSecretPath:            deviceSecretPath,
+		StateDirectory:              t.TempDir(),
+		CompanionJobPath:            filepath.Join(t.TempDir(), "jobs.json"),
+		AdminUIPath:                 t.TempDir(),
+	})
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "https://api.example.test/api/users?device_id=dc719d8e" && request.Method == http.MethodGet:
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"owner@example.com","role":"admin"},{"email":"admin@example.com","role":"admin","mattermostUserID":"admin-id","mattermostUsername":"admin"}]}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
+			return jsonResponse(http.StatusOK, `{"id":"admin-id"}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/admin-id" && request.Method == http.MethodGet:
+			return jsonResponse(http.StatusOK, `{"id":"admin-id","email":"admin@example.com","username":"admin","roles":"system_admin system_user"}`, nil), nil
+		case request.URL.String() == "https://api.example.test/api/users/admin@example.com?device_id=dc719d8e" && request.Method == http.MethodDelete:
+			pagesDeleteCalled = true
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+	handler := service.router()
+
+	request := httptest.NewRequest(http.MethodDelete, "/admin/api/users/admin%40example.com", nil)
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "owner@example.com")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusBadGateway {
+		t.Fatalf("remove protected status = %d body = %s", response.Code, response.Body.String())
+	}
+	if pagesDeleteCalled {
+		t.Fatal("Pages delete should not be called for protected Mattermost user")
+	}
+}
+
 func TestAdminCompanionReleasesAreSameOrigin(t *testing.T) {
 	service := NewService(Configuration{AdminEmailPath: writeTestFile(t, "admin@example.com")})
 	handler := service.router()

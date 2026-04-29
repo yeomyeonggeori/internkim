@@ -130,6 +130,100 @@ func (service *Service) findMattermostUserByEmail(ctx context.Context, token str
 	return mattermostUserRecord{}, false, errorValue
 }
 
+func (service *Service) findMattermostUserByUsername(ctx context.Context, token string, username string) (mattermostUserRecord, bool, error) {
+	var userRecord mattermostUserRecord
+	errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/username/"+url.PathEscape(username), token, nil, &userRecord)
+	if errorValue == nil {
+		return userRecord, true, nil
+	}
+	if isMattermostNotFound(errorValue) {
+		return mattermostUserRecord{}, false, nil
+	}
+	return mattermostUserRecord{}, false, errorValue
+}
+
+func (service *Service) findMattermostUserByID(ctx context.Context, token string, userID string) (mattermostUserRecord, bool, error) {
+	var userRecord mattermostUserRecord
+	errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/"+url.PathEscape(userID), token, nil, &userRecord)
+	if errorValue == nil {
+		return userRecord, true, nil
+	}
+	if isMattermostNotFound(errorValue) {
+		return mattermostUserRecord{}, false, nil
+	}
+	return mattermostUserRecord{}, false, errorValue
+}
+
+func (service *Service) syncMattermostAdminEmail(ctx context.Context, email string) error {
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+	if normalizedEmail == "" {
+		return nil
+	}
+	adminPassword := strings.TrimSpace(readTrimmedFile(service.Configuration.MattermostAdminPasswordPath))
+	if adminPassword == "" {
+		return fmt.Errorf("Mattermost admin password is not configured")
+	}
+	adminToken, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	adminUser, found, errorValue := service.findMattermostUserByUsername(ctx, adminToken, "admin")
+	if errorValue != nil || !found {
+		return errorValue
+	}
+	if strings.EqualFold(adminUser.Email, normalizedEmail) {
+		return nil
+	}
+	body := map[string]string{
+		"email":    normalizedEmail,
+		"password": adminPassword,
+	}
+	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/users/"+url.PathEscape(adminUser.ID)+"/patch", adminToken, body, nil)
+}
+
+func (service *Service) deactivateMattermostUserByID(ctx context.Context, userID string) error {
+	normalizedUserID := strings.TrimSpace(userID)
+	if normalizedUserID == "" {
+		return nil
+	}
+	adminToken, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	userRecord, found, errorValue := service.findMattermostUserByID(ctx, adminToken, normalizedUserID)
+	if errorValue != nil || !found {
+		return errorValue
+	}
+	if isProtectedMattermostUser(userRecord) {
+		return fmt.Errorf("refusing to deactivate protected Mattermost user %s", userRecord.Username)
+	}
+	return service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/users/"+url.PathEscape(userRecord.ID), adminToken, nil, nil)
+}
+
+func (service *Service) deactivateMattermostUserByEmail(ctx context.Context, email string) error {
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+	if normalizedEmail == "" {
+		return nil
+	}
+	adminToken, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	userRecord, found, errorValue := service.findMattermostUserByEmail(ctx, adminToken, normalizedEmail)
+	if errorValue != nil || !found {
+		return errorValue
+	}
+	if isProtectedMattermostUser(userRecord) {
+		return fmt.Errorf("refusing to deactivate protected Mattermost user %s", userRecord.Username)
+	}
+	return service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/users/"+url.PathEscape(userRecord.ID), adminToken, nil, nil)
+}
+
+func isProtectedMattermostUser(userRecord mattermostUserRecord) bool {
+	username := strings.ToLower(strings.TrimSpace(userRecord.Username))
+	return username == "admin" || username == "internkim" || username == "system-bot"
+}
+
 func (service *Service) createMattermostUser(ctx context.Context, token string, email string, password string) (mattermostUserRecord, error) {
 	usernameBase := mattermostUsernameBase(email)
 	var lastError error
