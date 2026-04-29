@@ -7,77 +7,81 @@ ARM 보드(Radxa 5c / RPi 5)에 Blueclaw 런타임을 올리고, Cloudflare Tunn
 ## 아키텍처
 
 ```
-사용자 (Google 로그인)
+사용자 / 관리자 브라우저
     │
-    ▼
-Cloudflare Access (Google 로그인)
+    ├─ Cloudflare Pages API
+    │    └─ device register / Access policy / OTA / companion release
     │
-    ▼  Cloudflare Tunnel
-┌─────────────────────────────────────────┐
-│  ARM 보드 (Radxa 5c / RPi 5)           │
-│                                         │
-│  Mattermost :8065 ← Cloudflare 터널    │
-│          │                              │
-│          ▼                              │
-│  internkim-capabilityd                 │
-│  graphiti-memoryd :7791                │
-│  blueclaw.service :8080                │
-│  ┌─────────────────────────────────┐   │
-│  │ Blueclaw runtime                │   │
-│  │ policy / task / ACL / prompt    │   │
-│  └──────────────┬──────────────────┘   │
-│                 │ stdio MCP             │
-│                 ▼                       │
-│  /usr/local/bin/gws-bot                 │
-│                                         │
-│  /root/.internkim/secrets/              │
-│    google-sa.json   (gws:640)           │
-│    openrouter-api-key (root only)       │
-│                                         │
-│  /root/.blueclaw/                       │
-│    config/runtime.json                  │
-│    config/policy.json                   │
-│    workspace/                           │
-└─────────────────────────────────────────┘
-    │                         │
-    ▼                         ▼
-OpenRouter API         Google Drive/Docs/Gmail
+    └─ Cloudflare Access
+         └─ Cloudflare Tunnel
+              └─ ARM 보드 (Radxa 5c / RPi 5)
+                   ├─ Mattermost :8065
+                   │    └─ platform event → internkim-capabilityd
+                   ├─ internkim-admind
+                   │    ├─ admin UI reverse proxy
+                   │    ├─ backup / restore / device status
+                   │    └─ companion broker
+                   ├─ internkim-capabilityd
+                   │    ├─ LLM routing: OpenRouter / LiteRT / companion
+                   │    ├─ platform I/O: Mattermost / Slack / Signal
+                   │    ├─ browser tool adapter: agent-browser / companion
+                   │    └─ local capability API for Blueclaw
+                   ├─ graphiti-memoryd :7791
+                   ├─ blueclaw.service :8080
+                   │    ├─ policy / task / ACL / prompt
+                   │    └─ workspace: /root/.blueclaw/workspace
+                   ├─ gws / gws-bot / Apps Script bridge
+                   ├─ agent-browser device runtime
+                   └─ /root/.internkim
+                        ├─ secrets/
+                        ├─ config/
+                        ├─ state/
+                        └─ models/
 
-사용자 (Slack)
-    └─▶ Slack App / Events API
-             └─▶ InternKim platform sidecar
-                    └─▶ Blueclaw connector
+Slack workspace ── Socket Mode ──▶ internkim-capabilityd ──▶ Blueclaw
+Signal account ── JSON-RPC poll ─▶ internkim-capabilityd ──▶ Blueclaw
 
 사용자 컴퓨터
-    └─▶ internkim-companion
-             └─▶ user-local browser / local model capability
+    └─ internkim-companion
+         ├─ long-poll internkim-admind companion broker
+         ├─ user.confirm / user.input / file.pick
+         ├─ headed browser via bundled agent-browser
+         └─ future local-only model capability
 ```
 
 ## 보안 설계
 
-크리덴셜은 `/root/.internkim/secrets/`에 집중 관리. 각 크리덴셜은 필요한 uid만 읽을 수 있음:
+크리덴셜은 `/root/.internkim/secrets/`와 `/root/.internkim/config/`에 집중 관리합니다. Blueclaw는 provider token, 브라우저 쿠키, 사용자 로컬 파일 경로, 로컬 모델 경로를 직접 보지 않고 `internkim-capabilityd` 또는 `internkim-admind`의 typed capability 경계를 통해서만 사용합니다.
 
-| 파일 | owner | mode | 접근 가능 |
-|------|-------|------|----------|
-| `google-sa.json` | gws | 640 | gws 프로세스만 |
-| `openrouter-api-key` | root | 600 | internkim-capabilityd만 |
+| 경로 | 주 소비자 | 용도 |
+|------|----------|------|
+| `/root/.internkim/secrets/openrouter-api-key` | `internkim-capabilityd` | remote LLM provider |
+| `/root/.internkim/models/*` | `internkim-capabilityd`, `internkim-litert-wrapper` | local LiteRT model |
+| `/root/.internkim/secrets/google-sa.json` | `gws`, `gws-bot`, Apps Script helper | Google Workspace 연동 |
+| `/root/.internkim/secrets/gas-webhook-url` | GAS bridge helper | Apps Script bridge 호출 |
+| `/root/.internkim/secrets/slack-*` | `internkim-capabilityd` | Slack Socket Mode와 reply |
+| `/root/.internkim/config/signal-*` | `internkim-capabilityd` | Signal JSON-RPC poll/reply |
+| `/root/.internkim/state/companion-jobs.json` | `internkim-admind` | companion broker restart recovery |
 
-Blueclaw와 Graphiti는 secrets 디렉토리를 직접 읽지 않습니다. LLM, embedding, platform reply 같은 secret-bearing 작업은 `internkim-capabilityd`의 local capability API를 통해서만 실행합니다.
+Graphiti는 memory sidecar로만 동작하고 secrets 디렉토리를 직접 읽지 않습니다. Companion signing private key는 device state JSON에 저장하지 않고 사용자 컴퓨터의 secure storage에 둡니다.
 
 ## 구성 요소
 
 | 구성 | 설명 |
 |------|------|
-| **Go CLI** (`cmd/internkim/main.go`) | 셋업 도구. Wi-Fi → Blueclaw/gws 설치 → API 키 → Google SA → Mattermost → 기기 등록 |
+| **Go CLI** (`cmd/internkim/main.go`) | 셋업, lab, reset, deploy, verify를 수행하는 운영 CLI |
+| **internkim-admind** | 보드 관리자 API. admin UI reverse proxy, companion pairing/broker, backup/restore, 상태 조회 담당 |
+| **internkim-capabilityd** | OpenRouter, LiteRT, Mattermost, Slack, Signal, companion credential을 보유하고 capability API만 노출 |
+| **internkim-litert-wrapper** | LiteRT-LM 모델 실행을 capabilityd에서 호출할 수 있게 감싸는 보드용 helper |
 | **Blueclaw** | 런타임 바이너리. `/usr/local/bin/blueclaw`, `/root/.blueclaw/config/*.json`, `/root/.blueclaw/workspace/*` 계약을 사용 |
 | **Graphiti memoryd** | Blueclaw memory sidecar. `graphiti-core[kuzu]`로 episode ingestion, temporal graph extraction, hybrid graph search 수행 |
-| **internkim-capabilityd** | OpenRouter, LiteRT, Mattermost, Slack, Signal credential을 보유하고 capability API만 노출 |
 | **internkim-companion** | 사용자 컴퓨터의 cross-platform trusted runtime. 브라우저 human-in-the-loop와 향후 local-only LLM capability 제공 |
 | **gws** | Google Workspace CLI. Drive/Docs/Gmail/Sheets 조작. MCP 서버 모드 지원 |
 | **Mattermost** | 온보드 채팅 서버. 기기 협업 채널과 모바일 알림에 사용 |
-| **Slack connector** | Slack workspace에서 들어오는 DM/channel 이벤트를 Blueclaw 작업으로 전달 |
+| **Slack/Signal connector** | 외부 메시징 이벤트를 capabilityd에서 정규화해 Blueclaw 작업으로 전달 |
 | **SvelteKit 웹앱** (`web/`) | Cloudflare Pages. 기기 등록 API, Access policy 동기화, OTA |
-| **보드 바이너리** (`build/board-bin/`) | ARM64 정적 링크 바이너리 [gitignored] |
+| **Blueclaw workspace assets** (`assets/blueclaw-workspace/`) | 설치 시 `/root/.blueclaw/workspace`에 배치되는 AGENTS.md, skills, helpers, GAS source |
+| **보드 바이너리** (`build/board-bin/`) | ARM64 보드용 바이너리 [gitignored] |
 | **맥 유틸** (`bin/`) | get-ssid + sshpass, macOS universal binary |
 
 ## 셋업
@@ -248,25 +252,46 @@ internkim/
 ├── go.mod / go.sum
 ├── cmd/
 │   ├── internkim/           Go CLI 엔트리포인트
+│   ├── internkim-admind/    보드 관리자 API와 companion broker
+│   ├── internkim-capabilityd/
+│   │                         LLM, platform, browser capability daemon
 │   ├── internkim-companion/  사용자 컴퓨터 trusted runtime 데몬
+│   ├── internkim-litert-wrapper/
+│   │                         LiteRT-LM process wrapper
 │   └── download/            보드 헬퍼 바이너리
 ├── internal/
-│   ├── cli/                 셋업, 배포, lab, 상태 명령 구현
+│   ├── admind/              admin UI proxy, backup/restore, companion broker
+│   ├── browser/             agent-browser runtime adapter
 │   ├── blueclawworkspace/   Blueclaw workspace 자산 경로와 로더
+│   ├── capabilities/        typed capability protocol
+│   ├── capabilityd/         LLM, platform, browser provider 구현
+│   ├── cli/                 셋업, 배포, lab, reset, verify 명령 구현
+│   ├── companion/           companion pairing, jobs, local executor
 │   ├── google/browser/      Google 브라우저 자동화
 │   ├── lab/                 Tart 기반 실험실 구성과 시나리오
 │   ├── provisioning/steps/  단계별 셋업 플로우
 │   └── runtime/blueclaw/    Blueclaw 런타임 계약과 설정 생성
-├── bin/                     macOS 유틸 (get-ssid, sshpass)
-├── build/                   보드 바이너리와 정적 웹 출력 [gitignored]
-├── .dependency/blueclaw/    Blueclaw git submodule
-├── assets/blueclaw-workspace/skills/
-│                           Blueclaw workspace 스킬 (SKILL.md)
+├── assets/blueclaw-workspace/
+│   ├── AGENTS.md            Blueclaw workspace instruction source
+│   ├── agent-browser-skill/ agent-browser fallback skill
+│   ├── gas/                 Apps Script bridge source
+│   ├── skills/              calendar, gws, pdf, share, slides skills
+│   └── send-file            platform file helper
+├── companion/               Tauri shell for desktop companion
+├── web/                     SvelteKit + Cloudflare Pages admin/API
+├── docs/
+│   ├── architecture.md      Blueclaw runtime 계약 상세
+│   ├── capability-expansion-design.md
+│   ├── skill-orchestration-design.md
+│   ├── flows/              사용자 플로우 문서
+│   └── schema/             task/staff schema 문서
 ├── config/lab.example.json  Tart lab 설정 예시
 ├── lab/scripts/             VM provisioning / 시나리오 스크립트
-├── web/                     SvelteKit + Cloudflare Pages
-├── docs/
-│   └── architecture.md      아키텍처 상세 문서
+├── tools/                   개발/준비용 helper script
+├── build/                   보드 바이너리와 정적 웹 출력 [gitignored]
+├── dist/                    배포 산출물 [gitignored]
+├── bin/                     macOS 유틸 (get-ssid, sshpass)
+├── .dependency/blueclaw/    Blueclaw git submodule
 └── .env.example
 ```
 
