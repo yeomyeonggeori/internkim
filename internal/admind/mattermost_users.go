@@ -83,22 +83,6 @@ func (service *Service) provisionMattermostUser(ctx context.Context, email strin
 	return result, nil
 }
 
-func (service *Service) deactivateMattermostUserByEmail(ctx context.Context, email string) error {
-	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
-	if normalizedEmail == "" {
-		return nil
-	}
-	adminToken, errorValue := service.mattermostAdminToken(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	userRecord, found, errorValue := service.findMattermostUserByEmail(ctx, adminToken, normalizedEmail)
-	if errorValue != nil || !found {
-		return errorValue
-	}
-	return service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/users/"+url.PathEscape(userRecord.ID), adminToken, nil, nil)
-}
-
 func (service *Service) mattermostAdminToken(ctx context.Context) (string, error) {
 	adminPassword := strings.TrimSpace(readTrimmedFile(service.Configuration.MattermostAdminPasswordPath))
 	if adminPassword == "" {

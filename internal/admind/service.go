@@ -409,16 +409,6 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
-	if request.Method == http.MethodDelete && response.StatusCode >= 200 && response.StatusCode < 300 {
-		email := strings.TrimPrefix(targetPath, "/")
-		if decodedEmail, errorValue := url.PathUnescape(email); errorValue == nil {
-			email = decodedEmail
-		}
-		if errorValue := service.deactivateMattermostUserByEmail(request.Context(), email); errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-			return
-		}
-	}
 	if request.Method == http.MethodPost && response.StatusCode >= 200 && response.StatusCode < 300 && temporaryPassword != "" {
 		var responseDocument map[string]any
 		if errorValue := json.Unmarshal(responseBody, &responseDocument); errorValue == nil {
