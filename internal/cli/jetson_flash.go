@@ -22,7 +22,8 @@ const minimumJetsonFlashCacheBytes = 45 * 1024 * 1024 * 1024
 const jetsonFirstbootScriptPath = "/usr/local/bin/internkim-jetson-firstboot.sh"
 const jetsonFirstbootServicePath = "/etc/systemd/system/internkim-jetson-firstboot.service"
 const jetsonAutologinOverridePath = "/etc/systemd/system/getty@tty1.service.d/override.conf"
-const jetsonNetworkManagerConnectionPath = "/etc/NetworkManager/system-connections/internkim-wifi.nmconnection"
+const jetsonLegacyNetworkManagerConnectionPath = "/etc/NetworkManager/system-connections/internkim-wifi.nmconnection"
+const jetsonWiFiSelectorScriptPath = "/usr/local/bin/internkim-wifi-select"
 
 type flashImage struct {
 	path string
@@ -65,15 +66,15 @@ func runJetsonOEMUserFix(messenger *msg) error {
 
 	username := firstNonEmptyString(argString("--jetson-user", ""), jetsonDefaultUser)
 	password := firstNonEmptyString(argString("--jetson-password", ""), jetsonDefaultPassword)
-	wifiSSID, wifiPassword, errorValue := resolveJetsonFlashWiFi(messenger, stateDirectory, filepath.Join(scriptDirectory, "bin", "get-ssid"))
+	wifiProfiles, errorValue := resolveWiFiProfiles(messenger, stateDirectory, filepath.Join(scriptDirectory, "bin", "get-ssid"))
 	if errorValue != nil {
 		return errorValue
 	}
 	fmt.Printf("=== Intern Kim Jetson OEM User Fix ===\n\n")
 	fmt.Printf("  %s: %s\n", messenger.t("대상 디스크", "Target disk"), disk)
 	fmt.Printf("  %s: %s\n", messenger.t("사용자", "User"), username)
-	if wifiSSID != "" {
-		fmt.Printf("  Wi-Fi SSID: %s\n", wifiSSID)
+	if len(wifiProfiles) > 0 {
+		fmt.Printf("  Wi-Fi profiles: %d\n", len(wifiProfiles))
 	}
 	if !containsArg("--yes") && !promptYN(messenger.t(
 		"SD 카드의 Linux rootfs에 기본 사용자를 주입합니다. 계속하시겠습니까?",
@@ -97,8 +98,7 @@ func runJetsonOEMUserFix(messenger *msg) error {
 		username:        username,
 		password:        password,
 		publicKey:       getLocalSSHPubKey(),
-		wifiSSID:        wifiSSID,
-		wifiPassword:    wifiPassword,
+		wifiProfiles:    wifiProfiles,
 	}
 	if errorValue := applyJetsonRootPatch(rootPatch); errorValue != nil {
 		return errorValue
@@ -130,64 +130,14 @@ func ensureSudoReady() error {
 }
 
 func resolveJetsonFlashWiFi(messenger *msg, stateDirectory string, getSSIDPath string) (string, string, error) {
-	wifiSSID := strings.TrimSpace(argString("--wifi-ssid", ""))
-	wifiPassword := argString("--wifi-password", "")
-	savedSSID := loadState(stateDirectory, "wifi_ssid")
-	savedPassword := loadState(stateDirectory, "wifi_pass")
-	savedOpenWiFi := loadState(stateDirectory, "wifi_open") == "true"
-	currentSSID := detectSSID(getSSIDPath)
-	isOpenWiFi := containsArg("--wifi-open") || containsArg("--open-wifi")
-
-	switch {
-	case wifiSSID != "":
-	case currentSSID != "":
-		wifiSSID = currentSSID
-		fmt.Printf("  SSID: %s (%s)\n", wifiSSID, messenger.t("현재 Mac Wi-Fi", "current Mac Wi-Fi"))
-	case savedSSID != "":
-		wifiSSID = savedSSID
-		fmt.Printf("  SSID: %s (%s)\n", wifiSSID, messenger.t("저장됨", "saved"))
+	wifiProfiles, errorValue := resolveWiFiProfiles(messenger, stateDirectory, getSSIDPath)
+	if errorValue != nil {
+		return "", "", errorValue
 	}
-
-	if wifiSSID == "" {
-		if containsArg("--no-wifi") {
-			return "", "", nil
-		}
-		if containsArg("--yes") {
-			return "", "", errors.New(messenger.t("Wi-Fi SSID를 자동으로 찾지 못했습니다. Mac을 대상 Wi-Fi에 연결하거나 --wifi-ssid 를 지정하세요.", "Wi-Fi SSID was not detected automatically. Connect the Mac to the target Wi-Fi or pass --wifi-ssid."))
-		}
-		wifiSSID = readLine(messenger.t("  Wi-Fi SSID 입력: ", "  Enter Wi-Fi SSID: "))
-	}
-	if wifiSSID == "" {
+	if len(wifiProfiles) == 0 {
 		return "", "", nil
 	}
-
-	if savedOpenWiFi && savedSSID == wifiSSID && wifiPassword == "" {
-		isOpenWiFi = true
-	}
-	if isOpenWiFi {
-		saveState(stateDirectory, "wifi_ssid", wifiSSID)
-		saveState(stateDirectory, "wifi_pass", "")
-		saveState(stateDirectory, "wifi_open", "true")
-		return wifiSSID, "", nil
-	}
-
-	if wifiPassword == "" && savedSSID == wifiSSID {
-		wifiPassword = savedPassword
-	}
-	if wifiPassword == "" {
-		if keychainPassword := getKeychainPassword(wifiSSID); keychainPassword != "" {
-			wifiPassword = keychainPassword
-			fmt.Printf("  %s\n", messenger.t("키체인에서 Wi-Fi 비밀번호 추출 완료", "Wi-Fi password retrieved from keychain"))
-		} else if containsArg("--yes") {
-			return "", "", fmt.Errorf(messenger.t("Wi-Fi 비밀번호를 자동으로 찾지 못했습니다. macOS 키체인에 %s 비밀번호를 저장하거나 --wifi-password 를 지정하세요.", "Wi-Fi password was not found automatically. Save the %s password in macOS Keychain or pass --wifi-password."), wifiSSID)
-		} else if !containsArg("--no-wifi") {
-			wifiPassword = readSecret(messenger.t("  Wi-Fi 비밀번호 입력: ", "  Enter Wi-Fi password: "))
-		}
-	}
-	saveState(stateDirectory, "wifi_ssid", wifiSSID)
-	saveState(stateDirectory, "wifi_pass", wifiPassword)
-	saveState(stateDirectory, "wifi_open", "")
-	return wifiSSID, wifiPassword, nil
+	return wifiProfiles[0].SSID, wifiProfiles[0].Password, nil
 }
 
 func runJetsonFlash(messenger *msg) error {
@@ -525,8 +475,7 @@ type jetsonRootPatch struct {
 	username        string
 	password        string
 	publicKey       string
-	wifiSSID        string
-	wifiPassword    string
+	wifiProfiles    []resolvedWiFiProfile
 }
 
 func applyJetsonRootPatch(rootPatch jetsonRootPatch) error {
@@ -554,7 +503,7 @@ func applyJetsonRootPatch(rootPatch jetsonRootPatch) error {
 	if errorValue := disableJetsonOEMConfig(rootPatch.partitionDevice); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := configureJetsonWiFi(rootPatch.partitionDevice, rootPatch.wifiSSID, rootPatch.wifiPassword); errorValue != nil {
+	if errorValue := configureJetsonWiFiProfiles(rootPatch.partitionDevice, rootPatch.wifiProfiles); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := enableJetsonSSH(rootPatch.partitionDevice); errorValue != nil {
@@ -578,6 +527,7 @@ type jetsonPatchDocuments struct {
 	sshConfig        string
 	oemMarker        string
 	wifiConnection   string
+	wifiSelector     string
 	firstbootScript  string
 	firstbootService string
 	autologin        string
@@ -688,14 +638,19 @@ func enableJetsonSSH(partitionDevice string) error {
 	return nil
 }
 
-func configureJetsonWiFi(partitionDevice string, wifiSSID string, wifiPassword string) error {
-	if strings.TrimSpace(wifiSSID) == "" {
+func configureJetsonWiFiProfiles(partitionDevice string, profiles []resolvedWiFiProfile) error {
+	if len(profiles) == 0 {
 		return nil
 	}
-	removeDebugfsPaths(partitionDevice, "/etc/netplan/99-internkim-wifi.yaml")
-	ensureDebugfsDirectories(partitionDevice, "/etc/NetworkManager/system-connections")
-	connectionDocument := buildJetsonNetworkManagerWiFiConnection(wifiSSID, wifiPassword)
-	if errorValue := writeDebugfsContent(partitionDevice, jetsonNetworkManagerConnectionPath, connectionDocument, "0100600", 0, 0); errorValue != nil {
+	removeDebugfsPaths(partitionDevice, "/etc/netplan/99-internkim-wifi.yaml", jetsonLegacyNetworkManagerConnectionPath)
+	ensureDebugfsDirectories(partitionDevice, jetsonWiFiConnectionDirectory, filepath.Dir(jetsonWiFiSelectorScriptPath))
+	for _, profile := range profiles {
+		connectionDocument := buildJetsonNetworkManagerWiFiConnection(profile.SSID, profile.Password)
+		if errorValue := writeDebugfsContent(partitionDevice, jetsonWiFiConnectionPath(profile.SSID), connectionDocument, "0100600", 0, 0); errorValue != nil {
+			return errorValue
+		}
+	}
+	if errorValue := writeDebugfsContent(partitionDevice, jetsonWiFiSelectorScriptPath, buildJetsonWiFiSelectorScript()+"\n", "0100755", 0, 0); errorValue != nil {
 		return errorValue
 	}
 	_, _ = runDebugfs(partitionDevice, true, "mkdir /etc/systemd/system/multi-user.target.wants")
@@ -706,10 +661,12 @@ func configureJetsonWiFi(partitionDevice string, wifiSSID string, wifiPassword s
 func buildJetsonNetworkManagerWiFiConnection(wifiSSID string, wifiPassword string) string {
 	escapedSSID := escapeNetworkManagerValue(wifiSSID)
 	escapedPassword := escapeNetworkManagerValue(wifiPassword)
+	connectionID := jetsonWiFiConnectionID(wifiSSID)
+	connectionUUID := jetsonWiFiConnectionUUID(wifiSSID)
 	if wifiPassword == "" {
 		return fmt.Sprintf(`[connection]
-id=internkim-wifi
-uuid=5b43bb90-679f-4c50-96cc-1ee85350f6f1
+id=%s
+uuid=%s
 type=wifi
 autoconnect=true
 
@@ -723,11 +680,11 @@ method=auto
 
 [ipv6]
 method=auto
-`, escapedSSID)
+`, connectionID, connectionUUID, escapedSSID)
 	}
 	return fmt.Sprintf(`[connection]
-id=internkim-wifi
-uuid=5b43bb90-679f-4c50-96cc-1ee85350f6f1
+id=%s
+uuid=%s
 type=wifi
 autoconnect=true
 
@@ -745,7 +702,7 @@ method=auto
 
 [ipv6]
 method=auto
-`, escapedSSID, escapedPassword)
+`, connectionID, connectionUUID, escapedSSID, escapedPassword)
 }
 
 func escapeNetworkManagerValue(value string) string {
@@ -841,7 +798,9 @@ systemctl restart ssh.service 2>/dev/null || systemctl restart sshd.service 2>/d
 if wait_for_network_manager; then
   nmcli connection reload 2>/dev/null || true
   nmcli radio wifi on 2>/dev/null || true
-  nmcli connection up internkim-wifi 2>/dev/null || true
+  if [ -x /usr/local/bin/internkim-wifi-select ]; then
+    /usr/local/bin/internkim-wifi-select 2>/dev/null || true
+  fi
 else
   echo "WARN: NetworkManager did not become ready"
 fi
@@ -923,9 +882,13 @@ func verifyJetsonRootPatch(rootPatch jetsonRootPatch) error {
 	if documents.oemMarker, errorValue = dumpDebugfsFile(rootPatch.partitionDevice, "/etc/nv-l4t-user-created"); errorValue != nil {
 		return fmt.Errorf("verify Jetson rootfs failed: read /etc/nv-l4t-user-created: %w", errorValue)
 	}
-	if strings.TrimSpace(rootPatch.wifiSSID) != "" {
-		if documents.wifiConnection, errorValue = dumpDebugfsFile(rootPatch.partitionDevice, jetsonNetworkManagerConnectionPath); errorValue != nil {
-			return fmt.Errorf("verify Jetson rootfs failed: read %s: %w", jetsonNetworkManagerConnectionPath, errorValue)
+	if len(rootPatch.wifiProfiles) > 0 {
+		wifiConnectionPath := jetsonWiFiConnectionPath(rootPatch.wifiProfiles[0].SSID)
+		if documents.wifiConnection, errorValue = dumpDebugfsFile(rootPatch.partitionDevice, wifiConnectionPath); errorValue != nil {
+			return fmt.Errorf("verify Jetson rootfs failed: read %s: %w", wifiConnectionPath, errorValue)
+		}
+		if documents.wifiSelector, errorValue = dumpDebugfsFile(rootPatch.partitionDevice, jetsonWiFiSelectorScriptPath); errorValue != nil {
+			return fmt.Errorf("verify Jetson rootfs failed: read %s: %w", jetsonWiFiSelectorScriptPath, errorValue)
 		}
 	}
 	if documents.firstbootScript, errorValue = dumpDebugfsFile(rootPatch.partitionDevice, jetsonFirstbootScriptPath); errorValue != nil {
@@ -937,10 +900,10 @@ func verifyJetsonRootPatch(rootPatch jetsonRootPatch) error {
 	if documents.autologin, errorValue = dumpDebugfsFile(rootPatch.partitionDevice, jetsonAutologinOverridePath); errorValue != nil {
 		return fmt.Errorf("verify Jetson rootfs failed: read %s: %w", jetsonAutologinOverridePath, errorValue)
 	}
-	return validateJetsonRootPatchDocuments(accountFiles, documents, rootPatch.username, rootPatch.wifiSSID)
+	return validateJetsonRootPatchDocuments(accountFiles, documents, rootPatch.username, rootPatch.wifiProfiles)
 }
 
-func validateJetsonRootPatchDocuments(accountFiles jetsonAccountFiles, documents jetsonPatchDocuments, username string, wifiSSID string) error {
+func validateJetsonRootPatchDocuments(accountFiles jetsonAccountFiles, documents jetsonPatchDocuments, username string, wifiProfiles []resolvedWiFiProfile) error {
 	if !strings.Contains(accountFiles.passwd, username+":x:") {
 		return fmt.Errorf("verify Jetson rootfs failed: missing user %s in /etc/passwd", username)
 	}
@@ -962,20 +925,29 @@ func validateJetsonRootPatchDocuments(accountFiles jetsonAccountFiles, documents
 			return fmt.Errorf("verify Jetson rootfs failed: %s does not include %q", expectation.path, expectation.expectedText)
 		}
 	}
-	if strings.TrimSpace(wifiSSID) != "" && !strings.Contains(documents.wifiConnection, "ssid="+escapeNetworkManagerValue(wifiSSID)) {
-		return fmt.Errorf("verify Jetson rootfs failed: %s does not include %q", jetsonNetworkManagerConnectionPath, "ssid="+escapeNetworkManagerValue(wifiSSID))
+	if len(wifiProfiles) == 0 {
+		return nil
+	}
+	wifiConnectionPath := jetsonWiFiConnectionPath(wifiProfiles[0].SSID)
+	if !strings.Contains(documents.wifiConnection, "ssid="+escapeNetworkManagerValue(wifiProfiles[0].SSID)) {
+		return fmt.Errorf("verify Jetson rootfs failed: %s does not include %q", wifiConnectionPath, "ssid="+escapeNetworkManagerValue(wifiProfiles[0].SSID))
+	}
+	if !strings.Contains(documents.wifiSelector, "records.sort") {
+		return fmt.Errorf("verify Jetson rootfs failed: %s does not include Wi-Fi selection policy", jetsonWiFiSelectorScriptPath)
 	}
 	return nil
 }
 
-func ensureDebugfsDirectories(partitionDevice string, directoryPath string) {
-	currentPath := ""
-	for _, part := range strings.Split(strings.Trim(directoryPath, "/"), "/") {
-		if part == "" {
-			continue
+func ensureDebugfsDirectories(partitionDevice string, directoryPaths ...string) {
+	for _, directoryPath := range directoryPaths {
+		currentPath := ""
+		for _, part := range strings.Split(strings.Trim(directoryPath, "/"), "/") {
+			if part == "" {
+				continue
+			}
+			currentPath += "/" + part
+			_, _ = runDebugfs(partitionDevice, true, "mkdir "+currentPath)
 		}
-		currentPath += "/" + part
-		_, _ = runDebugfs(partitionDevice, true, "mkdir "+currentPath)
 	}
 }
 

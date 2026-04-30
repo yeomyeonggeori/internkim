@@ -32,6 +32,7 @@ type setupFlowState struct {
 	wifiResolved bool
 	wifiSSID     string
 	wifiPassword string
+	wifiProfiles []resolvedWiFiProfile
 	wifiChanged  bool
 
 	registrationResolved bool
@@ -374,64 +375,16 @@ func (state *setupFlowState) ensureWiFiCredentials() error {
 		return nil
 	}
 
-	savedSSID := loadState(state.stateDir, "wifi_ssid")
-	savedPassword := loadState(state.stateDir, "wifi_pass")
-	savedOpenWiFi := loadState(state.stateDir, "wifi_open") == "true"
-	currentSSID := detectSSID(state.getSSIDPath)
-	isOpenWiFi := containsArg("--wifi-open") || containsArg("--open-wifi")
-
-	state.wifiChanged = currentSSID != "" && currentSSID != savedSSID
-	state.wifiSSID = savedSSID
-	state.wifiPassword = savedPassword
-
-	switch {
-	case state.wifiChanged:
-		state.wifiSSID = currentSSID
-		fmt.Printf("  SSID: %s (%s)\n", state.wifiSSID, state.messenger.t("변경 감지", "changed"))
-	case state.wifiSSID != "":
-		fmt.Printf("  SSID: %s\n", state.wifiSSID)
-	case currentSSID != "":
-		state.wifiSSID = currentSSID
-		fmt.Printf("  SSID: %s\n", state.wifiSSID)
-	default:
-		if state.nonInteractive {
-			return fmt.Errorf("wifi ssid is empty; set up Wi-Fi state interactively once or skip wifi")
-		}
-		state.wifiSSID = readLine(state.messenger.t("  Wi-Fi SSID 입력: ", "  Enter Wi-Fi SSID: "))
+	wifiProfiles, errorValue := resolveWiFiProfiles(state.messenger, state.stateDir, state.getSSIDPath)
+	if errorValue != nil {
+		return errorValue
 	}
-
-	if state.wifiSSID == "" {
+	if len(wifiProfiles) == 0 {
 		return fmt.Errorf("wifi ssid is empty")
 	}
-
-	if savedOpenWiFi && savedSSID == state.wifiSSID && !state.wifiChanged {
-		isOpenWiFi = true
-	}
-	if isOpenWiFi {
-		state.wifiPassword = ""
-		saveState(state.stateDir, "wifi_ssid", state.wifiSSID)
-		saveState(state.stateDir, "wifi_pass", "")
-		saveState(state.stateDir, "wifi_open", "true")
-		state.wifiResolved = true
-		return nil
-	}
-
-	if state.wifiPassword == "" || state.wifiChanged {
-		keychainPassword := getKeychainPassword(state.wifiSSID)
-		if keychainPassword != "" {
-			state.wifiPassword = keychainPassword
-			fmt.Printf("  %s\n", state.messenger.t("키체인에서 비밀번호 추출 완료", "Password retrieved from keychain"))
-		} else {
-			if state.nonInteractive {
-				return fmt.Errorf("wifi password is empty; save it in state interactively once or skip wifi")
-			}
-			state.wifiPassword = readSecret(state.messenger.t("  Wi-Fi 비밀번호 입력: ", "  Enter Wi-Fi password: "))
-		}
-	}
-
-	saveState(state.stateDir, "wifi_ssid", state.wifiSSID)
-	saveState(state.stateDir, "wifi_pass", state.wifiPassword)
-	saveState(state.stateDir, "wifi_open", "")
+	state.wifiProfiles = wifiProfiles
+	state.wifiSSID = wifiProfiles[0].SSID
+	state.wifiPassword = wifiProfiles[0].Password
 	state.wifiResolved = true
 	return nil
 }
@@ -481,17 +434,14 @@ func (state *setupFlowState) configureJetsonWiFiSSH() error {
 		return err
 	}
 
-	securityCommand := "nmcli connection modify internkim-wifi wifi-sec.key-mgmt none"
-	if state.wifiPassword != "" {
-		securityCommand = "nmcli connection modify internkim-wifi wifi-sec.key-mgmt wpa-psk wifi-sec.psk " + quoteShellValue(state.wifiPassword)
-	}
 	setupCommand := fmt.Sprintf(`set -eu
 nmcli radio wifi on
-nmcli connection delete internkim-wifi >/dev/null 2>&1 || true
-nmcli connection add type wifi ifname '*' con-name internkim-wifi ssid %s
-nmcli connection modify internkim-wifi connection.autoconnect yes wifi.hidden yes ipv4.method auto ipv6.method auto
 %s
-nmcli connection up internkim-wifi
+cat > /usr/local/bin/internkim-wifi-select <<'WIFIEOF'
+%s
+WIFIEOF
+chmod 755 /usr/local/bin/internkim-wifi-select
+/usr/local/bin/internkim-wifi-select >/dev/null 2>&1 || true
 for attempt in $(seq 1 12); do
   address="$(ip -4 addr show 2>/dev/null | awk '/inet / && $0 !~ / lo / {print $2; exit}' | cut -d/ -f1)"
   if [ -n "$address" ]; then
@@ -500,7 +450,7 @@ for attempt in $(seq 1 12); do
   fi
   sleep 5
 done
-exit 1`, quoteShellValue(state.wifiSSID), securityCommand)
+exit 1`, buildJetsonWiFiUpsertScript(state.wifiProfiles), buildJetsonWiFiSelectorScript())
 
 	output, errorValue := state.sshClient.runResult(setupCommand)
 	if errorValue != nil {
@@ -594,11 +544,6 @@ func (state *setupFlowState) requiredBinaryAssets() []localBinaryAsset {
 			localPath:  filepath.Join(state.boardBinDir, blueclaw.LiteRTWrapperName),
 			remotePath: blueclaw.LiteRTWrapperBinaryPath,
 		},
-		{
-			name:       "send-file",
-			localPath:  blueclawworkspace.SendFilePath(state.scriptDir),
-			remotePath: "/usr/local/bin/send-file",
-		},
 	}
 }
 
@@ -636,8 +581,6 @@ func (state *setupFlowState) ensureLocalBinaryAssets() ([]localBinaryAsset, erro
 			if err := buildGoBinaryAsset(state, asset); err != nil {
 				return nil, err
 			}
-		case "send-file":
-			return nil, fmt.Errorf("missing board script: %s", asset.localPath)
 		default:
 			fmt.Printf("  %s %s... ", state.messenger.t("다운로드 중", "Downloading"), asset.name)
 			if downloadError := downloadBinary(asset.downloadURL, asset.localPath, asset.archiveEntry); downloadError != nil {
@@ -741,10 +684,10 @@ func (state *setupFlowState) writeDirectoryHash(hash io.Writer, rootPath string)
 func (state *setupFlowState) deployAdminWeb(context *setup.Context) error {
 	webRoot := filepath.Join(state.scriptDir, "web")
 	if _, errorValue := os.Stat(webRoot); errorValue != nil {
-		return fmt.Errorf("admin web directory missing: %w", errorValue)
+		return fmt.Errorf("web directory missing: %w", errorValue)
 	}
 	version := state.adminWebVersion()
-	fmt.Println("  " + context.T("관리자 웹 빌드 중...", "Building admin web..."))
+	fmt.Println("  " + context.T("웹 빌드 중...", "Building web..."))
 	if errorValue := state.runAdminWebCommand(webRoot, "bun", "run", "build"); errorValue != nil {
 		return errorValue
 	}
@@ -765,7 +708,7 @@ func (state *setupFlowState) deployAdminWeb(context *setup.Context) error {
 				return errorValue
 			}
 			if output, errorValue := state.sshClient.runResult("rm -rf /opt/internkim/admin-ui && mkdir -p /opt/internkim/admin-ui && cp -a " + quoteShellValue(temporaryAdminUIPath) + "/. /opt/internkim/admin-ui/ && chmod -R a+rX /opt/internkim/admin-ui"); errorValue != nil {
-				return fmt.Errorf("deploy admin UI: %s: %w", strings.TrimSpace(output), errorValue)
+				return fmt.Errorf("deploy web UI: %s: %w", strings.TrimSpace(output), errorValue)
 			}
 		}
 	case setup.BackendSD:
@@ -776,9 +719,10 @@ func (state *setupFlowState) deployAdminWeb(context *setup.Context) error {
 		}
 	}
 	if version != "" && context.Callbacks.SaveState != nil {
+		context.Callbacks.SaveState("web_version", version)
 		context.Callbacks.SaveState("admin_web_version", version)
 	}
-	fmt.Println("  " + context.T("관리자 웹 배포 완료", "Admin web deployed"))
+	fmt.Println("  " + context.T("웹 배포 완료", "Web deployed"))
 	return nil
 }
 
@@ -898,11 +842,12 @@ blueclaw ALL=(gws) NOPASSWD: /usr/local/bin/gws
 EOF
 chmod 440 /etc/sudoers.d/blueclaw-mcp`)
 
-	for _, binaryName := range []string{"download", "send-file"} {
+	for _, binaryName := range []string{"download"} {
 		state.sshClient.run(
 			"cp /usr/local/bin/" + binaryName + " " + blueclaw.BlueclawWorkspaceBinaryPath(binaryName) + " && chmod 755 " + blueclaw.BlueclawWorkspaceBinaryPath(binaryName),
 		)
 	}
+	state.sshClient.run("rm -f /usr/local/bin/send-file " + blueclaw.BlueclawWorkspaceBinaryPath("send-file"))
 
 	if version := state.binariesVersion(); version != "" {
 		state.sshClient.run("mkdir -p /root/.internkim/state && printf '%s' " + quoteShellValue(version) + " > /root/.internkim/state/binaries-version")
@@ -930,6 +875,7 @@ chmod 440 /etc/sudoers.d/blueclaw-mcp`)
   filePath="/root/.blueclaw/workspace/skills/$skill/scripts/gas-call"
   [ -f "$filePath" ] && chmod +x "$filePath"
 done
+rm -rf /root/.blueclaw/workspace/skills/share-file
 chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills 2>/dev/null || true`)
 	}
 
@@ -1099,9 +1045,9 @@ func (state *setupFlowState) writeWorkspaceDocumentsSSH(workspaceDocuments works
 	state.sshClient.run("cat > /root/.blueclaw/workspace/IDENTITY.md <<'EOF'\n" +
 		workspaceDocuments.Identity +
 		"\nEOF\nchown blueclaw:blueclaw /root/.blueclaw/workspace/IDENTITY.md")
-	state.sshClient.run("cat > /root/.blueclaw/workspace/BOT_PROFILE.md <<'EOF'\n" +
+	state.sshClient.run("cat > /root/.blueclaw/workspace/BOT_PROFILE.yaml <<'EOF'\n" +
 		workspaceDocuments.BotProfile +
-		"\nEOF\nchown blueclaw:blueclaw /root/.blueclaw/workspace/BOT_PROFILE.md")
+		"\nEOF\nrm -f /root/.blueclaw/workspace/BOT_PROFILE.md\nchown blueclaw:blueclaw /root/.blueclaw/workspace/BOT_PROFILE.yaml")
 	state.sshClient.run("if [ ! -f /root/.blueclaw/workspace/SOUL.md ] || grep -q '^# IDENTITY.md' /root/.blueclaw/workspace/SOUL.md 2>/dev/null; then cat > /root/.blueclaw/workspace/SOUL.md <<'EOF'\n" +
 		workspaceDocuments.Soul +
 		"\nEOF\nchown blueclaw:blueclaw /root/.blueclaw/workspace/SOUL.md\nfi")
@@ -1164,40 +1110,10 @@ func agentBrowserSkillInstallScript(fallbackPath string, fallbackContent string)
 	return `set -eu
 skillDir="/root/.blueclaw/workspace/.agents/skills/agent-browser"
 mkdir -p "$skillDir"
-tmpSkill="$skillDir/SKILL.md.upstream"
-tmpFinal="$skillDir/SKILL.md.tmp"
-if command -v agent-browser >/dev/null 2>&1 && agent-browser skills get core --full > "$tmpSkill" 2>/tmp/internkim-agent-browser-skill.log && [ -s "$tmpSkill" ]; then
-  cat > "$tmpFinal" <<'EOF'
----
-name: agent-browser
-description: Browser automation through InternKim browser capability tools backed by agent-browser.
-hidden: true
----
-
-# Browser Automation
-
-Use Blueclaw's browser.* tools by default. InternKim maps those tools to the installed agent-browser runtime internally.
-
-## InternKim Tool Mapping
-
-- agent-browser open <url> maps to browser.open with { "url": "https://example.com" }
-- agent-browser snapshot -i maps to browser.snapshot with {}
-- agent-browser fill @e2 "text" maps to browser.fill with { "target": "@e2", "text": "text" }
-- agent-browser click @e1 maps to browser.click with { "target": "@e1" }
-- agent-browser screenshot <path> maps to browser.screenshot with {}
-
-## Installed Agent-Browser Reference
-
-EOF
-  cat "$tmpSkill" >> "$tmpFinal"
-  mv "$tmpFinal" "$skillDir/SKILL.md"
-else
-  rm -f "$tmpSkill" "$tmpFinal"
-  cat > ` + quoteShellValue(fallbackPath) + ` <<'EOF'
+cat > ` + quoteShellValue(fallbackPath) + ` <<'EOF'
 ` + fallbackContent + `
 EOF
-  cp ` + quoteShellValue(fallbackPath) + ` "$skillDir/SKILL.md"
-fi
+cp ` + quoteShellValue(fallbackPath) + ` "$skillDir/SKILL.md"
 chown -R blueclaw:blueclaw /root/.blueclaw/workspace/.agents 2>/dev/null || true`
 }
 
@@ -1593,14 +1509,14 @@ func (state *setupFlowState) stageBootstrapSD(context *setup.Context) error {
 	if err := context.SD.WriteFile("SOUL.md", []byte(workspaceDocuments.Soul), 0o644); err != nil {
 		return err
 	}
-	if err := context.SD.WriteFile("BOT_PROFILE.md", []byte(workspaceDocuments.BotProfile), 0o644); err != nil {
+	if err := context.SD.WriteFile("BOT_PROFILE.yaml", []byte(workspaceDocuments.BotProfile), 0o644); err != nil {
 		return err
 	}
 	agentBrowserSkillMarkdown, err := loadAgentBrowserSkillMarkdown(state.scriptDir)
 	if err != nil {
 		return err
 	}
-	if err := context.SD.WriteFile("agent-browser-skill/SKILL.md", []byte(agentBrowserSkillMarkdown), 0o644); err != nil {
+	if err := context.SD.WriteFile(".agents/skills/agent-browser/SKILL.md", []byte(agentBrowserSkillMarkdown), 0o644); err != nil {
 		return err
 	}
 	if err := state.stageBlueclawMigrationsSD(context.SD.RootPath()); err != nil {

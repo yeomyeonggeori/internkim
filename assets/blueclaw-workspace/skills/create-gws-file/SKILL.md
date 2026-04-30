@@ -71,8 +71,8 @@ created, update the existing file by its ID. Do NOT re-run
 `docs.create` / `sheets.create` — that produces a second unrelated
 file and forces the user to re-open a new URL.
 
-1. Retrieve the existing file ID from the recent session log or the
-   current conversation context.
+1. Retrieve the existing file ID from the current conversation context or
+   prior successful tool observations.
 2. Use `gws-bot` to apply the edit in place. Because `gas-call` set
    `share_to`, the service account now has writer access:
 

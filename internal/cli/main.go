@@ -179,6 +179,10 @@ func Main() {
 	loadEnvFile()
 
 	if len(os.Args) > 1 {
+		if os.Args[1] == "--help" || os.Args[1] == "-h" {
+			printUsage()
+			return
+		}
 		switch os.Args[1] {
 		case "setup":
 			runSetup()
@@ -234,6 +238,10 @@ func printUsage() {
 }
 
 func runSetup() {
+	if containsArg("--help") || containsArg("-h") {
+		printSetupUsage()
+		return
+	}
 	lang := "ko"
 	if containsArg("--en") {
 		lang = "en"
@@ -268,6 +276,25 @@ func runSetup() {
 	}
 
 	runSetupSD(m)
+}
+
+func printSetupUsage() {
+	fmt.Println("Usage: internkim setup [options]")
+	fmt.Println()
+	fmt.Println("Common options:")
+	fmt.Println("  --only <steps>       Run only selected setup steps, for example web or binaries,services")
+	fmt.Println("  --force              Re-run selected steps even when state says they are complete")
+	fmt.Println("  --force-all          Re-run every selected setup step")
+	fmt.Println("  --host <ip>          Override the saved board IP")
+	fmt.Println("  --user <name>        Override the SSH user")
+	fmt.Println("  --password <value>   Override the SSH password")
+	fmt.Println("  --plan               Print the selected setup plan")
+	fmt.Println("  --list-steps         Print available setup steps")
+	fmt.Println("  --sim                Run the Tart simulation flow")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  internkim setup --only web")
+	fmt.Println("  internkim setup --only web,binaries,services --force")
 }
 
 // --- Model management ---
@@ -450,18 +477,6 @@ func runDeploy() {
 		}
 		ssh.run("chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills")
 	}
-	// Install board-side helper scripts the agent can call directly (avoids
-	// shell policy blocks on command substitution that raw curl would need).
-	for _, script := range []string{"send-file"} {
-		sourcePath := filepath.Join(blueclawworkspace.AssetsPath(scriptDir), script)
-		if _, err := os.Stat(sourcePath); err != nil {
-			continue
-		}
-		ssh.scp(sourcePath, "/usr/local/bin/"+script)
-		ssh.run(fmt.Sprintf(
-			"chmod +x /usr/local/bin/%s && cp /usr/local/bin/%s /root/.blueclaw/workspace/bin/%s && chmod +x /root/.blueclaw/workspace/bin/%s",
-			script, script, script, script))
-	}
 	ssh.run(`for skill in calendar create-gws-file simple-slides; do
   filePath="/root/.blueclaw/workspace/skills/$skill/scripts/gas-call"
   [ -f "$filePath" ] && chmod +x "$filePath"
@@ -485,6 +500,7 @@ chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills 2>/dev/null || true`
 		ssh.run("mkdir -p /root/.blueclaw/workspace/bin /root/.blueclaw/workspace/downloads && cp /usr/local/bin/" + tool + " /root/.blueclaw/workspace/bin/ && chmod 755 /root/.blueclaw/workspace/bin /root/.blueclaw/workspace/bin/" + tool)
 		fmt.Println("ok")
 	}
+	ssh.run("rm -f /usr/local/bin/send-file /root/.blueclaw/workspace/bin/send-file && rm -rf /root/.blueclaw/workspace/skills/share-file")
 
 	fmt.Println("Deploy complete.")
 }
@@ -948,9 +964,11 @@ path = Path("config/config.json")
 document = json.loads(path.read_text())
 document.setdefault("SqlSettings", {})
 document.setdefault("ServiceSettings", {})
+document.setdefault("TeamSettings", {})
 document["SqlSettings"]["DriverName"] = "postgres"
 document["SqlSettings"]["DataSource"] = "postgres://mmuser:%%s@localhost/mattermost?sslmode=disable&connect_timeout=10" %% os.environ["MATTERMOST_DB_PASS"]
 document["ServiceSettings"]["SiteURL"] = os.environ["MATTERMOST_SITE_URL"]
+document["TeamSettings"]["TeammateNameDisplay"] = "full_name"
 path.write_text(json.dumps(document, indent=2, sort_keys=True))
 PY
 cat > /etc/systemd/system/mattermost.service <<'SVCEOF'
@@ -1178,6 +1196,9 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 		"ServiceSettings": map[string]any{
 			"EnableUserAccessTokens":   true,
 			"EnableBotAccountCreation": true,
+		},
+		"TeamSettings": map[string]any{
+			"TeammateNameDisplay": "full_name",
 		},
 		"EmailSettings": map[string]string{
 			"PushNotificationContents": "id_loaded",

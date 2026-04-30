@@ -196,7 +196,7 @@ VLM은 민감 문서 여부에 따라 local-only, Companion local model, remote 
 | `calendar` skill | Google Calendar optional bridge | portable 일정 기능을 Google-only로 만들지 않는다 |
 | `create-gws-file` skill | Google Docs, Sheets, Gmail optional bridge | portable 문서/시트/이메일 생성을 Google-only로 만들지 않는다 |
 | `simple-slides` skill | Marp 기반 HTML/PPTX/PDF/Google Slides 생성, Korean-first font manifest | HTML/PPTX/PDF 기본 출력과 `DESIGN.md` source of truth를 유지한다 |
-| `share-file` skill, `send-file`, platform attachments | Mattermost/Slack 파일 전송 | attachment upload를 새로 구현하지 않는다 |
+| native reply attachments | Mattermost/Slack/Signal 파일 전송 | attachment upload를 별도 tool이나 skill로 중복 구현하지 않는다 |
 | `pdf` skill | PDF 생성과 PDF 읽기/편집 | 문서형 PDF 생성기를 중복 구현하지 않는다 |
 | `agent-browser` skill, `browser.*` capability | 브라우저 자동화 | raw Playwright, Chrome, `agent-browser` 호출을 제품 코드에 흩뿌리지 않는다 |
 | Graphiti memory | 장기 기억 저장과 검색 | 별도 기억 저장소를 만들지 않는다 |
@@ -219,7 +219,7 @@ VLM은 민감 문서 여부에 따라 local-only, Companion local model, remote 
 | DB 생성 | DB schema proposal, migration runner, approval gate | orchestration + Blueclaw/DB tool |
 | 출퇴근 기록 | `attendance_event`, quick clock-in/out command | task/attendance capability |
 | 업무 투두리스트 | task transition API, assignee request, status audit | Blueclaw task DB |
-| 파일 생성 및 공유 | artifact registry, Drive/platform share approval | `share-file`, `send-file`, platform attachments |
+| 파일 생성 및 공유 | artifact registry, Drive/platform share approval | native reply attachments |
 | 파일 인식/분석 | ingest pipeline, markitdown/OCR/VLM routing | artifact ingest pipeline |
 | 직원별/직급별 기억 분리 | memory scope router, staff/role identity map | Graphiti memory |
 | 이메일 정리 | provider-neutral search/classify, thread summary, label/archive plan | email provider bridge, optional Gmail |
@@ -305,7 +305,7 @@ assets/blueclaw-workspace/skills/
 └── local-orchestrator/
 ```
 
-기존 `calendar`, `create-gws-file`, `simple-slides`, `share-file`, `pdf`, `agent-browser` skill은 유지한다. 다만 Google 계열 skill은 기본 실행 경로가 아니라 optional import/export/publish 경로로 낮춘다. wrapper는 portable artifact path를 먼저 선택하고, 사용자가 Google 공동 편집이나 공유 URL을 원할 때만 Google path를 선택한다.
+기존 `calendar`, `create-gws-file`, `simple-slides`, `pdf`, `agent-browser` skill은 유지한다. 다만 Google 계열 skill은 기본 실행 경로가 아니라 optional import/export/publish 경로로 낮춘다. wrapper는 portable artifact path를 먼저 선택하고, 사용자가 Google 공동 편집이나 공유 URL을 원할 때만 Google path를 선택한다. 플랫폼 파일 전달은 Blueclaw `FileAttachment`와 InternKim `reply.send` attachment 경로가 맡는다.
 
 ## 구현 시 주의할 경계
 

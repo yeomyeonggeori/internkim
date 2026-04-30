@@ -24,7 +24,7 @@ Intern Kim의 기능을 늘릴 때 기존 설계를 망치지 않기 위한 skil
 | 이메일 초안/발송 | `.eml` 또는 draft text first, optional Gmail bridge | 발송 전 preview와 `user.confirm` 강제 |
 | 슬라이드 deck | `DESIGN.md` + HTML/PPTX/PDF first, optional Google Slides import | 목적/청중/톤/출력 형식 결정 |
 | PDF 생성/읽기 | `pdf` skill | 한글 폰트, 템플릿, 출력 파일 연결 |
-| 파일 전송 | `share-file`, `send-file`, platform attachment | 파일 경로 검증, 메시지, 공유 대상 결정 |
+| 파일 전송 | native reply attachments | 파일 경로 검증, 메시지, 공유 대상 결정 |
 | 브라우저 자동화 | `agent-browser` skill, `browser.*` capability | 사용자 입력 대기, 제출 승인, 관찰 결과 요약 |
 | 로컬 파일 선택 | Companion `file.pick` | 로컬 경로 비노출, device temp path만 사용 |
 | 기억 저장/검색 | Graphiti memory | 개인/직급/팀/회사 scope 선택 |
@@ -47,7 +47,7 @@ Intern Kim의 기능을 늘릴 때 기존 설계를 망치지 않기 위한 skil
 파일 생성, 선택, 공유, platform attachment를 연결한다.
 
 - 사용자 로컬 파일은 Companion `file.pick`으로 받고 로컬 경로를 노출하지 않는다.
-- Mattermost/Slack 전송은 기존 `share-file`, `send-file`, platform attachment 경로를 사용한다.
+- Mattermost/Slack/Signal 전송은 Blueclaw `FileAttachment`와 InternKim `reply.send` attachment 경로를 사용한다.
 - 외부 공유와 Google Drive publish는 수신자, 권한, 파일명을 요약하고 승인 후 실행한다.
 - 장기 보관이 필요할 때만 artifact registry로 승격한다.
 
@@ -111,7 +111,7 @@ Intern Kim의 기능을 늘릴 때 기존 설계를 망치지 않기 위한 skil
 | DB 생성 | `task-orchestrator` | future DB capability |
 | 출퇴근 기록 | `task-orchestrator` | future attendance capability |
 | 업무 투두 | `task-orchestrator` | Blueclaw task DB |
-| 파일 생성 및 공유 | `artifact-orchestrator` | `share-file`, platform attachment |
+| 파일 생성 및 공유 | `artifact-orchestrator` | native reply attachments |
 | 파일 인식/분석 | `artifact-orchestrator` | future artifact ingest |
 | 직원별/직급별 기억 분리 | `memory-orchestrator` | Graphiti memory |
 | 이메일 정리/작성/발송 | `workspace-orchestrator` | `.eml`/draft text first, optional Gmail bridge |
@@ -128,7 +128,7 @@ Intern Kim의 기능을 늘릴 때 기존 설계를 망치지 않기 위한 skil
 - Google 인증을 요구하기 전에 ICS, CalDAV, DOCX, XLSX, CSV, HTML, PDF, PPTX로 처리할 수 있는지 확인한다.
 - 새 shell bridge를 만들기 전에 portable artifact path와 `create-gws-file`, `calendar`, `simple-slides`가 처리하는지 확인한다.
 - Google import/export는 기본 생성 후 선택 단계로 둔다.
-- 새 attachment uploader를 만들기 전에 `send-file`과 platform attachment 경로가 처리하는지 확인한다.
+- 새 attachment uploader를 만들기 전에 Blueclaw `FileAttachment`와 InternKim `reply.send` attachment 경로가 처리하는지 확인한다.
 - 새 browser adapter를 만들기 전에 `browser.*`와 `agent-browser` 경로가 처리하는지 확인한다.
 - 새 memory table을 만들기 전에 Graphiti scope로 해결 가능한지 확인한다.
 - 터미널을 제품 기능으로 승격하기 전에 typed capability로 표현할 수 있는지 확인한다.

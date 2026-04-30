@@ -17,11 +17,15 @@ export interface Device {
 export type UserRole = 'admin' | 'member';
 
 export interface UserRecord {
+	userID: string;
+	handle: string;
+	name?: string;
 	email: string;
 	role: UserRole;
 	mattermostUserID?: string;
 	mattermostUsername?: string;
 	status?: string;
+	isIncomplete?: boolean;
 }
 
 export interface Invite {

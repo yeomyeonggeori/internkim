@@ -30,6 +30,17 @@ When testing against real platform surfaces such as Mattermost, Slack, or Signal
 - Slack and Signal are external platforms. Delete test messages and bot replies when the connector has permission, and report any remote platform artifacts that cannot be removed.
 - Keep people, policy, platform account links, and secrets intact unless the task explicitly asks to reset them.
 
+## Deployment Hygiene
+
+- Use the smallest setup slice that matches the change. Do not default to broad redeploys.
+- For Admin/Flow web UI-only changes, use `./internkim setup --only admin-web`.
+- For Admin/Flow web UI-only changes that must be redeployed even when the version cache says current, use `./internkim setup --only admin-web --force`.
+- For Go service or admind/capabilityd binary changes, use `./internkim setup --only binaries,services --force`.
+- For mixed web UI and service changes, use `./internkim setup --only admin-web,binaries,services --force`.
+- Avoid `--force-all` unless recovering a broken setup or explicitly asked. It reruns satisfied dependencies and is too heavy for normal iteration.
+- Do not include `--host`, `--user`, or `--password` in examples when the default/saved target works. Add those flags only when the user asks for a specific target or the default target cannot be resolved.
+- Do not run verify suites by reflex after UI-only deploys. Use targeted checks first; run full verify only for platform/runtime behavior changes or when explicitly requested.
+
 ## Companion Runtime Boundary
 
 - Treat `internkim-companion` as the user's local trusted runtime, not as a browser-only helper.

@@ -1,0 +1,158 @@
+export const adminText = {
+	ko: {
+		title: 'intern kim',
+		subtitle: 'Mattermost와 Slack에서 사용하는 사내 AI 하드웨어',
+		accessProtected: 'Access protected',
+		heroTitle: '대화는 Mattermost에서 시작하세요.',
+		heroDescription: '초대받은 팀원은 Mattermost와 Slack에서 Intern Kim에게 바로 일을 맡길 수 있습니다.',
+		openMattermost: 'Mattermost 열기',
+		devicePending: '기기 등록이 끝나면 전용 Mattermost 주소와 초대 관리가 표시됩니다.',
+		sections: {
+			device: 'Device',
+			flow: 'Flow',
+			users: 'Users',
+			companion: 'Companion',
+			backup: 'Backup',
+			bot: 'Bot'
+		},
+		device: {
+			title: 'Device Admin',
+			description: '원격 기기의 상태와 관리자 인증을 확인합니다.',
+			deviceIDPlaceholder: 'device id',
+			check: '확인',
+			online: 'online',
+			unreachable: 'unreachable'
+		},
+		flow: {
+			title: 'Flow',
+			description: '이번 주 업무, 개인별 진행, 요청/기각/중단 상태를 운영 화면에서 확인합니다.',
+			open: 'Flow 열기',
+			status: 'Flow 상태'
+		},
+		bot: {
+			title: 'Bot Profile',
+			description: '사용자에게 보이는 이름과 공개 설명을 바꿉니다. 내부 username은 internkim으로 유지됩니다.',
+			identityNotice: 'identity extension은 Blueclaw 프롬프트에만 들어가고 Mattermost 설명에는 노출되지 않습니다.',
+			save: '프로필 저장'
+		},
+		companion: {
+			title: 'Companion App',
+			description: '사용자 컴퓨터에서 브라우저, 파일 선택, 확인 요청, 로컬 실행을 맡는 작은 앱입니다.',
+			download: 'Companion 다운로드',
+			betaComingSoon: 'Beta build coming soon',
+			loadingDownloads: '다운로드 정보를 불러오는 중...',
+			connectTitle: '이 Intern Kim에 연결',
+			connectDescription: '연결 코드는 10분 동안 한 번만 사용할 수 있습니다.',
+			connect: '연결',
+			loading: 'Companion 상태를 불러오는 중...',
+			empty: '아직 연결된 Companion이 없습니다.',
+			revoke: '연결 해제',
+			browserUnavailable: 'browser runtime unavailable',
+			noCapabilities: 'no capabilities'
+		},
+		backup: {
+			title: 'Encrypted Backup',
+			description: 'passphrase는 브라우저에서 원격 기기로만 전송됩니다.',
+			create: '암호화 백업 만들기',
+			download: '백업 다운로드',
+			restoreTitle: 'Restore',
+			restoreDescription: '복구하려는 대상 기기를 확인한 뒤 RESTORE를 입력하세요.',
+			restore: '기기 복구'
+		},
+		users: {
+			title: 'Allowed Users',
+			description: '초대하면 Mattermost 계정과 임시 비밀번호가 만들어집니다. 비밀번호는 한 번만 표시됩니다.',
+			deviceOnly: '초대 목록은 등록된 기기 주소에서 관리할 수 있습니다.',
+			member: 'Member',
+			admin: 'Admin',
+			invite: '초대',
+			passwordNotice: 'InternKim cannot reset this password later. 사용자는 첫 로그인 후 Mattermost Account Settings에서 직접 비밀번호를 변경해야 합니다.',
+			temporaryPasswordTitle: 'Mattermost login',
+			temporaryPasswordNotice: '이 비밀번호는 다시 볼 수 없습니다. 사용자에게 안전한 채널로 전달하세요.',
+			loading: '초대 목록을 불러오는 중...',
+			empty: '등록된 사용자가 없습니다.',
+			incomplete: '실명과 handle을 입력해 저장하세요.',
+			save: '저장',
+			makeMember: 'Member로 변경',
+			makeAdmin: 'Admin으로 변경'
+		}
+	},
+	en: {
+		title: 'intern kim',
+		subtitle: 'Internal AI hardware for Mattermost and Slack',
+		accessProtected: 'Access protected',
+		heroTitle: 'Start conversations in Mattermost.',
+		heroDescription: 'Invited teammates can assign work to Intern Kim directly from Mattermost and Slack.',
+		openMattermost: 'Open Mattermost',
+		devicePending: 'After device registration, the dedicated Mattermost address and invite controls will appear here.',
+		sections: {
+			device: 'Device',
+			flow: 'Flow',
+			users: 'Users',
+			companion: 'Companion',
+			backup: 'Backup',
+			bot: 'Bot'
+		},
+		device: {
+			title: 'Device Admin',
+			description: 'Check remote device status and admin authentication.',
+			deviceIDPlaceholder: 'device id',
+			check: 'Check',
+			online: 'online',
+			unreachable: 'unreachable'
+		},
+		flow: {
+			title: 'Flow',
+			description: 'Review weekly work, member progress, requests, rejected tasks, and stopped work.',
+			open: 'Open Flow',
+			status: 'Flow status'
+		},
+		bot: {
+			title: 'Bot Profile',
+			description: 'Change the user-facing name and public description. The internal username stays internkim.',
+			identityNotice: 'The identity extension is only added to the Blueclaw prompt and is not exposed in the Mattermost description.',
+			save: 'Save profile'
+		},
+		companion: {
+			title: 'Companion App',
+			description: 'A small app on the user computer for browser work, file picking, confirmation prompts, and local execution.',
+			download: 'Download companion',
+			betaComingSoon: 'Beta build coming soon',
+			loadingDownloads: 'Loading download information...',
+			connectTitle: 'Connect to this Intern Kim',
+			connectDescription: 'The pairing code can be used once for 10 minutes.',
+			connect: 'Connect',
+			loading: 'Loading Companion status...',
+			empty: 'No Companion is connected yet.',
+			revoke: 'Revoke',
+			browserUnavailable: 'browser runtime unavailable',
+			noCapabilities: 'no capabilities'
+		},
+		backup: {
+			title: 'Encrypted Backup',
+			description: 'The passphrase is sent only from this browser to the remote device.',
+			create: 'Create encrypted backup',
+			download: 'Download backup',
+			restoreTitle: 'Restore',
+			restoreDescription: 'Confirm the target device, then type RESTORE.',
+			restore: 'Restore device'
+		},
+		users: {
+			title: 'Allowed Users',
+			description: 'Inviting a user creates a Mattermost account and one-time temporary password.',
+			deviceOnly: 'Invites can be managed from a registered device address.',
+			member: 'Member',
+			admin: 'Admin',
+			invite: 'Invite',
+			passwordNotice: 'InternKim cannot reset this password later. The user must change it from Mattermost Account Settings after first login.',
+			temporaryPasswordTitle: 'Mattermost login',
+			temporaryPasswordNotice: 'This password cannot be shown again. Share it with the user through a safe channel.',
+			loading: 'Loading invited users...',
+			empty: 'No users are registered.',
+			incomplete: 'Add a real name and handle, then save.',
+			save: 'Save',
+			makeMember: 'Make member',
+			makeAdmin: 'Make admin'
+		}
+	}
+} as const;

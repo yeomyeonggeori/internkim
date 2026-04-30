@@ -289,8 +289,9 @@ fi
 if [ -f "$STAGE/IDENTITY.md" ]; then
   cp -f "$STAGE/IDENTITY.md" /root/.blueclaw/workspace/IDENTITY.md
 fi
-if [ -f "$STAGE/BOT_PROFILE.md" ]; then
-  cp -f "$STAGE/BOT_PROFILE.md" /root/.blueclaw/workspace/BOT_PROFILE.md
+if [ -f "$STAGE/BOT_PROFILE.yaml" ]; then
+  cp -f "$STAGE/BOT_PROFILE.yaml" /root/.blueclaw/workspace/BOT_PROFILE.yaml
+  rm -f /root/.blueclaw/workspace/BOT_PROFILE.md
 fi
 if [ -f "$STAGE/AGENTS.md" ]; then
   cp -f "$STAGE/AGENTS.md" /root/.blueclaw/workspace/AGENTS.md
@@ -314,7 +315,7 @@ getent group blueclaw >/dev/null 2>&1 || groupadd --system blueclaw
 id blueclaw &>/dev/null || useradd -r -g blueclaw -m -d /home/blueclaw -s "$NOLOGIN_BINARY" blueclaw
 install -d -o gws -g gws -m 750 /home/gws /home/gws/.cache /home/gws/.config
 install -d -o blueclaw -g blueclaw -m 750 /home/blueclaw /home/blueclaw/.cache /home/blueclaw/.config
-chown blueclaw:blueclaw /root/.blueclaw/workspace/AGENTS.md /root/.blueclaw/workspace/IDENTITY.md /root/.blueclaw/workspace/BOT_PROFILE.md /root/.blueclaw/workspace/SOUL.md 2>/dev/null || true
+chown blueclaw:blueclaw /root/.blueclaw/workspace/AGENTS.md /root/.blueclaw/workspace/IDENTITY.md /root/.blueclaw/workspace/BOT_PROFILE.yaml /root/.blueclaw/workspace/SOUL.md 2>/dev/null || true
 chmod 711 /root
 mkdir -p /root/.internkim/secrets /root/.internkim/env /root/.internkim/config
 chown root:root /root/.internkim/secrets
@@ -546,34 +547,9 @@ if command -v agent-browser >/dev/null 2>&1; then
   rm -f /root/.agent-browser/internkim-device-smoke.pid /root/.agent-browser/internkim-device-smoke.stream /root/.agent-browser/internkim-device-smoke.engine /root/.agent-browser/internkim-device-smoke.version
   sleep 1
 fi
-if command -v agent-browser >/dev/null 2>&1 && agent-browser skills get core --full > "$agentBrowserSkillDir/SKILL.md.upstream" 2>/tmp/internkim-agent-browser-skill.log && [ -s "$agentBrowserSkillDir/SKILL.md.upstream" ]; then
-  cat > "$agentBrowserSkillDir/SKILL.md.tmp" <<'EOF'
----
-name: agent-browser
-description: Browser automation through InternKim browser capability tools backed by agent-browser.
-hidden: true
----
-
-# Browser Automation
-
-Use Blueclaw's browser.* tools by default. InternKim maps those tools to the installed agent-browser runtime internally.
-
-## InternKim Tool Mapping
-
-- agent-browser open <url> maps to browser.open with { "url": "https://example.com" }
-- agent-browser snapshot -i maps to browser.snapshot with {}
-- agent-browser fill @e2 "text" maps to browser.fill with { "target": "@e2", "text": "text" }
-- agent-browser click @e1 maps to browser.click with { "target": "@e1" }
-- agent-browser screenshot <path> maps to browser.screenshot with {}
-
-## Installed Agent-Browser Reference
-
-EOF
-  cat "$agentBrowserSkillDir/SKILL.md.upstream" >> "$agentBrowserSkillDir/SKILL.md.tmp"
-  mv "$agentBrowserSkillDir/SKILL.md.tmp" "$agentBrowserSkillDir/SKILL.md"
-elif [ -f "$STAGE/agent-browser-skill/SKILL.md" ]; then
+if [ -f "$STAGE/.agents/skills/agent-browser/SKILL.md" ]; then
   rm -f "$agentBrowserSkillDir/SKILL.md.tmp"
-  cp -f "$STAGE/agent-browser-skill/SKILL.md" "$agentBrowserSkillDir/SKILL.md"
+  cp -f "$STAGE/.agents/skills/agent-browser/SKILL.md" "$agentBrowserSkillDir/SKILL.md"
 else
   rm -f "$agentBrowserSkillDir/SKILL.md.tmp"
 fi
@@ -682,7 +658,7 @@ else
   cp /opt/mattermost/config/config.defaults.json /opt/mattermost/config/config.json 2>/dev/null || true
   jq --arg ds "postgres://mmuser:${MM_DB_PASS}@localhost/mattermost?sslmode=disable&connect_timeout=10" \
      --arg url "$SITE_URL" \
-     '.SqlSettings.DriverName = "postgres" | .SqlSettings.DataSource = $ds | .ServiceSettings.SiteURL = $url | .ServiceSettings.EnableUserAccessTokens = true | .ServiceSettings.EnableBotAccountCreation = true' \
+     '.SqlSettings.DriverName = "postgres" | .SqlSettings.DataSource = $ds | .ServiceSettings.SiteURL = $url | .ServiceSettings.EnableUserAccessTokens = true | .ServiceSettings.EnableBotAccountCreation = true | .TeamSettings.TeammateNameDisplay = "full_name"' \
      /opt/mattermost/config/config.json > /opt/mattermost/config/config.tmp \
      && mv /opt/mattermost/config/config.tmp /opt/mattermost/config/config.json
   chown mattermost:mattermost /opt/mattermost/config/config.json

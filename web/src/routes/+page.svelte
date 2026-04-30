@@ -2,8 +2,12 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
+	import * as Select from '$lib/components/ui/select';
 	import { Separator } from '$lib/components/ui/separator';
+	import { Textarea } from '$lib/components/ui/textarea';
 	import { CopyButton } from '$lib/components/ui/copy-button';
+	import LanguageSelector from '$lib/i18n/language-selector.svelte';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
 	import MailIcon from '@lucide/svelte/icons/mail';
 	import PlusIcon from '@lucide/svelte/icons/plus';
@@ -17,15 +21,21 @@
 	import QrCode from 'svelte-qrcode';
 	import { browser } from '$app/environment';
 	import { onMount } from 'svelte';
+	import { adminText } from './admin/text';
 
 	type UserRole = 'admin' | 'member';
+	type AdminSection = 'device' | 'flow' | 'bot' | 'companion' | 'backup' | 'users';
 
 	type UserRecord = {
+		userID: string;
+		handle: string;
+		name?: string;
 		email: string;
 		role: UserRole;
 		mattermostUserID?: string;
 		mattermostUsername?: string;
 		status?: string;
+		isIncomplete?: boolean;
 	};
 
 	type UsersResponse = {
@@ -123,6 +133,8 @@
 
 	let deviceIdInput = $state('');
 	let userRecords = $state<UserRecord[]>([]);
+	let newHandle = $state('');
+	let newName = $state('');
 	let newEmail = $state('');
 	let newUserRole = $state<UserRole>('member');
 	let temporaryPasswordResult = $state<{ email: string; password: string } | null>(null);
@@ -159,6 +171,8 @@
 	let botProfileErrorMessage = $state('');
 	let isLoadingBotProfile = $state(false);
 	let isSavingBotProfile = $state(false);
+	let activeAdminSection = $state<AdminSection>('device');
+	const text = createPageText(adminText);
 
 	const deviceId = () => {
 		const explicitId = deviceIdInput.trim().toLowerCase();
@@ -190,6 +204,9 @@
 	};
 	const userCount = () => userRecords.length;
 	const adminCount = () => userRecords.filter((record) => record.role === 'admin').length;
+	const normalizeHandle = (handle: string) => handle.trim().toLowerCase();
+	const isValidHandle = (handle: string) => /^[a-z][a-z0-9._-]{2,21}$/.test(normalizeHandle(handle));
+	const isValidUserRecord = (record: UserRecord) => isValidHandle(record.handle) && !!record.name?.trim() && !!record.email.trim();
 	const adminSessionStatusText = () => {
 		if (!adminSession) return '';
 		if (adminSession.isAdmin) return 'admin';
@@ -199,6 +216,18 @@
 		if (!adminSession.isClaimed) return 'first admin claim pending';
 		return 'not admin';
 	};
+	const adminSections = (): { value: AdminSection; label: string }[] => [
+		{ value: 'device', label: text.sections.device },
+		{ value: 'flow', label: text.sections.flow },
+		{ value: 'users', label: text.sections.users },
+		{ value: 'companion', label: text.sections.companion },
+		{ value: 'backup', label: text.sections.backup },
+		{ value: 'bot', label: text.sections.bot }
+	];
+	const userRoleOptions = () => [
+		{ value: 'member', label: text.users.member },
+		{ value: 'admin', label: text.users.admin }
+	];
 
 	onMount(() => {
 		const queryDeviceId = new URLSearchParams(location.search).get('device_id')?.trim().toLowerCase() ?? '';
@@ -358,9 +387,11 @@
 
 	function applyUsersResponse(data: UsersResponse) {
 		if (data.records) {
-			userRecords = data.records;
+			userRecords = data.records.map((record) => ({ ...record, name: record.name ?? '' }));
 		} else {
 			userRecords = (data.users ?? []).map((email, index) => ({
+				userID: `legacy-${index}`,
+				handle: email.split('@')[0]?.toLowerCase() ?? '',
 				email,
 				role: index === 0 ? 'admin' : 'member'
 			}));
@@ -375,7 +406,9 @@
 
 	async function addEmail() {
 		const email = newEmail.trim().toLowerCase();
-		if (!email || !deviceId()) return;
+		const handle = normalizeHandle(newHandle);
+		const name = newName.trim();
+		if (!email || !handle || !name || !deviceId()) return;
 
 		isSavingUser = true;
 		errorMessage = '';
@@ -385,7 +418,7 @@
 				method: 'POST',
 				credentials: 'include',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email, role: newUserRole })
+				body: JSON.stringify({ handle, name, email, role: newUserRole })
 			});
 			if (!response.ok) {
 				const detail = (await response.text()).trim();
@@ -397,6 +430,8 @@
 			const data = (await response.json()) as UsersResponse;
 			applyUsersResponse(data);
 			await loadAdminSession();
+			newHandle = '';
+			newName = '';
 			newEmail = '';
 			newUserRole = 'member';
 		} catch {
@@ -406,7 +441,7 @@
 		}
 	}
 
-	async function setUserRole(email: string, role: UserRole) {
+	async function saveUser(record: UserRecord, role: UserRole = record.role) {
 		if (!deviceId()) return;
 
 		isSavingUser = true;
@@ -417,15 +452,25 @@
 				method: 'POST',
 				credentials: 'include',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email, role })
+				body: JSON.stringify({
+					userID: record.userID,
+					handle: normalizeHandle(record.handle),
+					name: record.name?.trim() ?? '',
+					email: record.email,
+					role,
+					mattermostUserID: record.mattermostUserID,
+					mattermostUsername: record.mattermostUsername,
+					status: record.status
+				})
 			});
 			if (!response.ok) {
-				errorMessage = response.status === 403 ? '관리자 인증이 필요합니다.' : '사용자 역할 변경에 실패했습니다.';
+				const detail = (await response.text()).trim();
+				errorMessage = response.status === 403 ? '관리자 인증이 필요합니다.' : detail || '사용자 저장에 실패했습니다.';
 				return;
 			}
 			applyUsersResponse((await response.json()) as UsersResponse);
 		} catch {
-			errorMessage = '사용자 역할 변경에 실패했습니다.';
+			errorMessage = '사용자 저장에 실패했습니다.';
 		} finally {
 			isSavingUser = false;
 		}
@@ -657,7 +702,7 @@
 </script>
 
 <svelte:head>
-	<title>intern kim</title>
+	<title>{text.title}</title>
 </svelte:head>
 
 <main class="bg-background text-foreground min-h-svh">
@@ -667,13 +712,16 @@
 				<img src={logoSrc} alt="intern kim" class="size-9" />
 				<div>
 					<h1 class="text-lg font-semibold leading-tight">intern kim</h1>
-					<p class="text-muted-foreground text-sm">Mattermost와 Slack에서 사용하는 사내 AI 하드웨어</p>
+					<p class="text-muted-foreground text-sm">{text.subtitle}</p>
 				</div>
 			</div>
-			<Badge variant="secondary" class="gap-1.5">
-				<ShieldCheckIcon class="size-3.5" />
-				Access protected
-			</Badge>
+			<div class="flex items-center gap-2">
+				<LanguageSelector />
+				<Badge variant="secondary" class="gap-1.5">
+					<ShieldCheckIcon class="size-3.5" />
+					{text.accessProtected}
+				</Badge>
+			</div>
 		</header>
 
 		<section class="grid gap-4 py-8 sm:grid-cols-[190px_1fr]">
@@ -686,22 +734,22 @@
 			</div>
 			<div class="flex min-w-0 flex-col justify-center gap-4">
 				<div>
-					<h2 class="text-2xl font-semibold">대화는 Mattermost에서 시작하세요.</h2>
+					<h2 class="text-2xl font-semibold">{text.heroTitle}</h2>
 					<p class="text-muted-foreground mt-2 text-sm leading-6">
-						초대받은 팀원은 Mattermost와 Slack에서 Intern Kim에게 바로 일을 맡길 수 있습니다.
+						{text.heroDescription}
 					</p>
 				</div>
 				{#if mattermostURL()}
 					<div class="flex flex-wrap items-center gap-2">
 						<Button href={mattermostURL()} class="gap-2">
 							<ExternalLinkIcon class="size-4" />
-							Open Mattermost
+							{text.openMattermost}
 						</Button>
 						<CopyButton text={mattermostURL()} variant="outline" />
 					</div>
 				{:else}
 					<p class="text-muted-foreground rounded-md border bg-muted/30 px-3 py-2 text-sm">
-						기기 등록이 끝나면 전용 Mattermost 주소와 초대 관리가 표시됩니다.
+						{text.devicePending}
 					</p>
 				{/if}
 			</div>
@@ -709,64 +757,103 @@
 
 		<Separator />
 
-		<section class="grid gap-5 py-6">
-			<div class="flex flex-wrap items-center justify-between gap-3">
-				<div>
-					<h2 class="text-base font-semibold">Device Admin</h2>
-					<p class="text-muted-foreground text-sm">원격 기기의 상태와 암호화 백업을 관리합니다.</p>
-					{#if adminSession?.email}
-						<p class="text-muted-foreground mt-1 text-xs">
-							Cloudflare Access: <span class="font-medium text-foreground">{adminSession.email}</span>
-							{#if adminSession.isAdmin}
-								<span class="ml-1 text-emerald-700">admin</span>
-							{:else if adminSession.bootstrapStatus === 'failed'}
-								<span class="ml-1 text-destructive">claim failed</span>
-							{:else}
-								<span class="ml-1 text-amber-700">{adminSessionStatusText()}</span>
-							{/if}
-						</p>
-						{#if adminSession.bootstrapError}
-							<p class="mt-1 text-xs text-destructive">{adminSession.bootstrapError}</p>
-						{/if}
-					{:else if adminSession}
-						<p class="text-muted-foreground mt-1 text-xs">
-							Cloudflare Access: <span class="font-medium text-destructive">{adminSessionStatusText()}</span>
-						</p>
-					{/if}
-				</div>
-				<Badge variant={isDeviceReachable ? 'secondary' : 'outline'}>
-					{isDeviceReachable ? 'online' : 'unreachable'}
-				</Badge>
-			</div>
-
-			<form
-				class="grid gap-2 sm:grid-cols-[1fr_auto]"
-				onsubmit={(event) => {
-					event.preventDefault();
-					saveDeviceId();
-				}}
-			>
-				<Input bind:value={deviceIdInput} placeholder="device id" autocomplete="off" />
-				<Button type="submit" variant="outline" class="gap-2">
-					{#if isCheckingDevice}
-						<LoaderIcon class="size-4 animate-spin" />
-					{:else}
-						<RefreshCwIcon class="size-4" />
-					{/if}
-					Check
+		<nav class="flex gap-1 overflow-x-auto py-4">
+			{#each adminSections() as section}
+				<Button
+					variant={activeAdminSection === section.value ? 'default' : 'ghost'}
+					size="sm"
+					onclick={() => (activeAdminSection = section.value)}
+				>
+					{section.label}
 				</Button>
-			</form>
+			{/each}
+		</nav>
 
-			{#if adminErrorMessage}
-				<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{adminErrorMessage}</p>
+		<section class="grid gap-5 py-6">
+			{#if activeAdminSection === 'device'}
+				<div class="flex flex-wrap items-center justify-between gap-3">
+					<div>
+						<h2 class="text-base font-semibold">{text.device.title}</h2>
+						<p class="text-muted-foreground text-sm">{text.device.description}</p>
+						{#if adminSession?.email}
+							<p class="text-muted-foreground mt-1 text-xs">
+								Cloudflare Access: <span class="font-medium text-foreground">{adminSession.email}</span>
+								{#if adminSession.isAdmin}
+									<span class="ml-1 text-emerald-700">admin</span>
+								{:else if adminSession.bootstrapStatus === 'failed'}
+									<span class="ml-1 text-destructive">claim failed</span>
+								{:else}
+									<span class="ml-1 text-amber-700">{adminSessionStatusText()}</span>
+								{/if}
+							</p>
+							{#if adminSession.bootstrapError}
+								<p class="mt-1 text-xs text-destructive">{adminSession.bootstrapError}</p>
+							{/if}
+						{:else if adminSession}
+							<p class="text-muted-foreground mt-1 text-xs">
+								Cloudflare Access: <span class="font-medium text-destructive">{adminSessionStatusText()}</span>
+							</p>
+						{/if}
+					</div>
+					<Badge variant={isDeviceReachable ? 'secondary' : 'outline'}>
+						{isDeviceReachable ? text.device.online : text.device.unreachable}
+					</Badge>
+				</div>
+
+				<form
+					class="grid gap-2 sm:grid-cols-[1fr_auto]"
+					onsubmit={(event) => {
+						event.preventDefault();
+						saveDeviceId();
+					}}
+				>
+					<Input bind:value={deviceIdInput} placeholder={text.device.deviceIDPlaceholder} autocomplete="off" />
+					<Button type="submit" variant="outline" class="gap-2">
+						{#if isCheckingDevice}
+							<LoaderIcon class="size-4 animate-spin" />
+						{:else}
+							<RefreshCwIcon class="size-4" />
+						{/if}
+						{text.device.check}
+					</Button>
+				</form>
+
+				{#if adminErrorMessage}
+					<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{adminErrorMessage}</p>
+				{/if}
 			{/if}
 
-			<div class="rounded-lg border p-4">
+			{#if activeAdminSection === 'flow'}
+				<div class="rounded-lg border p-4">
+				<div class="flex flex-wrap items-start justify-between gap-3">
+					<div>
+						<h3 class="text-sm font-semibold">{text.flow.title}</h3>
+						<p class="text-muted-foreground mt-1 text-sm">
+							{text.flow.description}
+						</p>
+					</div>
+					<Badge variant="secondary">weekly</Badge>
+				</div>
+				<div class="mt-4 flex flex-wrap gap-2">
+					<Button href="/flow/" class="gap-2">
+						<ExternalLinkIcon class="size-4" />
+						{text.flow.open}
+					</Button>
+					<Button href="/admin/api/flow/status" variant="outline" class="gap-2">
+						<RefreshCwIcon class="size-4" />
+						{text.flow.status}
+					</Button>
+				</div>
+			</div>
+			{/if}
+
+			{#if activeAdminSection === 'bot'}
+				<div class="rounded-lg border p-4">
 				<div class="mb-4 flex flex-wrap items-start justify-between gap-3">
 					<div>
-						<h3 class="text-sm font-semibold">Bot Profile</h3>
+						<h3 class="text-sm font-semibold">{text.bot.title}</h3>
 						<p class="text-muted-foreground mt-1 text-sm">
-							사용자에게 보이는 이름과 공개 설명을 바꿉니다. 내부 username은 <code>internkim</code>으로 유지됩니다.
+							{text.bot.description}
 						</p>
 					</div>
 					<Badge variant="outline">{botProfile.username}</Badge>
@@ -780,28 +867,28 @@
 						placeholder="public description"
 						disabled={isLoadingBotProfile}
 					/>
-					<textarea
+					<Textarea
 						bind:value={botProfileAliasesText}
 						placeholder="aliases, one per line"
 						disabled={isLoadingBotProfile}
-						class="border-input bg-background ring-offset-background focus-visible:ring-ring min-h-24 rounded-md border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-					></textarea>
-					<textarea
+						class="min-h-24"
+					/>
+					<Textarea
 						bind:value={botProfile.identityExtension}
 						placeholder="prompt-only identity extension"
 						disabled={isLoadingBotProfile}
-						class="border-input bg-background ring-offset-background focus-visible:ring-ring min-h-24 rounded-md border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-					></textarea>
+						class="min-h-24"
+					/>
 				</div>
 				<div class="mt-3 flex flex-wrap items-center justify-between gap-3">
 					<p class="text-muted-foreground text-xs">
-						identity extension은 Blueclaw 프롬프트에만 들어가고 Mattermost 설명에는 노출되지 않습니다.
+						{text.bot.identityNotice}
 					</p>
 					<Button disabled={!isDeviceReachable || isSavingBotProfile || !botProfile.displayName.trim()} onclick={saveBotProfile}>
 						{#if isSavingBotProfile}
 							<LoaderIcon class="size-4 animate-spin" />
 						{/if}
-						Save profile
+						{text.bot.save}
 					</Button>
 				</div>
 				{#if botProfileErrorMessage}
@@ -810,13 +897,15 @@
 					</p>
 				{/if}
 			</div>
+			{/if}
 
-			<div class="rounded-lg border p-4">
+			{#if activeAdminSection === 'companion'}
+				<div class="rounded-lg border p-4">
 				<div class="mb-4 flex flex-wrap items-start justify-between gap-3">
 					<div>
-						<h3 class="text-sm font-semibold">Companion App</h3>
+						<h3 class="text-sm font-semibold">{text.companion.title}</h3>
 						<p class="text-muted-foreground mt-1 text-sm">
-							사용자 컴퓨터에서 브라우저, 파일 선택, 확인 요청, 로컬 실행을 맡는 작은 앱입니다.
+							{text.companion.description}
 						</p>
 					</div>
 					<Badge variant={onlineCompanionCount() > 0 ? 'secondary' : 'outline'}>{onlineCompanionCount()} online</Badge>
@@ -837,16 +926,16 @@
 							{#if isCompanionReleaseAvailable(recommendedCompanionRelease())}
 								<Button href={recommendedCompanionRelease()?.url} variant="outline" class="gap-2">
 									<DownloadIcon class="size-4" />
-									Download companion
+									{text.companion.download}
 								</Button>
 							{:else}
 								<Button disabled variant="outline" class="gap-2">
 									<DownloadIcon class="size-4" />
-									Beta build coming soon
+									{text.companion.betaComingSoon}
 								</Button>
 							{/if}
 						{:else}
-							<p class="text-muted-foreground text-sm">다운로드 정보를 불러오는 중...</p>
+							<p class="text-muted-foreground text-sm">{text.companion.loadingDownloads}</p>
 						{/if}
 						{#if companionReleases.length > 1}
 							<div class="flex flex-wrap gap-2">
@@ -863,8 +952,8 @@
 
 					<div class="grid gap-3 rounded-md bg-muted/30 p-3">
 						<div>
-							<p class="text-sm font-medium">Connect to this Intern Kim</p>
-							<p class="text-muted-foreground text-xs">연결 코드는 10분 동안 한 번만 사용할 수 있습니다.</p>
+							<p class="text-sm font-medium">{text.companion.connectTitle}</p>
+							<p class="text-muted-foreground text-xs">{text.companion.connectDescription}</p>
 						</div>
 						<Button disabled={!isDeviceReachable || isCreatingPairingCode} onclick={createCompanionPairingCode} class="gap-2">
 							{#if isCreatingPairingCode}
@@ -872,7 +961,7 @@
 							{:else}
 								<ExternalLinkIcon class="size-4" />
 							{/if}
-							Connect
+							{text.companion.connect}
 						</Button>
 						{#if companionPairingCode}
 							<div class="rounded-md border bg-background p-3 text-sm">
@@ -900,9 +989,9 @@
 
 				<div class="mt-4 overflow-hidden rounded-lg border">
 					{#if isLoadingCompanions}
-						<p class="text-muted-foreground p-3 text-sm">Companion 상태를 불러오는 중...</p>
+						<p class="text-muted-foreground p-3 text-sm">{text.companion.loading}</p>
 					{:else if companionStatuses.length === 0}
-						<p class="text-muted-foreground p-3 text-sm">아직 연결된 Companion이 없습니다.</p>
+						<p class="text-muted-foreground p-3 text-sm">{text.companion.empty}</p>
 					{:else}
 						{#each companionStatuses as companion}
 							<div class="flex flex-wrap items-center justify-between gap-3 border-b px-3 py-2 last:border-b-0">
@@ -915,24 +1004,26 @@
 										{/if}
 									</div>
 									<p class="text-muted-foreground mt-1 truncate text-xs">
-										{companion.capabilities?.map((capability) => capability.name).join(', ') || 'no capabilities'}
+										{companion.capabilities?.map((capability) => capability.name).join(', ') || text.companion.noCapabilities}
 									</p>
 									{#if companion.isOnline && !companion.capabilities?.some((capability) => capability.name.startsWith('browser.'))}
-										<p class="mt-1 text-xs text-destructive">browser runtime unavailable</p>
+										<p class="mt-1 text-xs text-destructive">{text.companion.browserUnavailable}</p>
 									{/if}
 								</div>
-								<Button variant="ghost" size="sm" onclick={() => revokeCompanion(companion.companionID)}>Revoke</Button>
+								<Button variant="ghost" size="sm" onclick={() => revokeCompanion(companion.companionID)}>{text.companion.revoke}</Button>
 							</div>
 						{/each}
 					{/if}
 				</div>
 			</div>
+			{/if}
 
-			<div class="grid gap-4 md:grid-cols-2">
+			{#if activeAdminSection === 'backup'}
+				<div class="grid gap-4 md:grid-cols-2">
 				<div class="rounded-lg border p-4">
 					<div class="mb-4">
-						<h3 class="text-sm font-semibold">Encrypted Backup</h3>
-						<p class="text-muted-foreground mt-1 text-sm">passphrase는 브라우저에서 원격 기기로만 전송됩니다.</p>
+						<h3 class="text-sm font-semibold">{text.backup.title}</h3>
+						<p class="text-muted-foreground mt-1 text-sm">{text.backup.description}</p>
 					</div>
 					<div class="grid gap-3">
 						<Input bind:value={backupPassphrase} type="password" placeholder="backup passphrase" autocomplete="new-password" />
@@ -942,7 +1033,7 @@
 							{:else}
 								<DownloadIcon class="size-4" />
 							{/if}
-							Create encrypted backup
+							{text.backup.create}
 						</Button>
 						{#if backupJob}
 							<div class="rounded-md bg-muted/40 p-3 text-sm">
@@ -960,7 +1051,7 @@
 						{#if backupDownloadURL()}
 							<Button href={backupDownloadURL()} variant="outline" class="gap-2">
 								<DownloadIcon class="size-4" />
-								Download backup
+								{text.backup.download}
 							</Button>
 						{/if}
 					</div>
@@ -968,8 +1059,8 @@
 
 				<div class="rounded-lg border p-4">
 					<div class="mb-4">
-						<h3 class="text-sm font-semibold">Restore</h3>
-						<p class="text-muted-foreground mt-1 text-sm">복구하려는 대상 기기를 확인한 뒤 RESTORE를 입력하세요.</p>
+						<h3 class="text-sm font-semibold">{text.backup.restoreTitle}</h3>
+						<p class="text-muted-foreground mt-1 text-sm">{text.backup.restoreDescription}</p>
 					</div>
 					<div class="grid gap-3">
 						<Input type="file" accept=".ikbak,application/octet-stream" onchange={handleRestoreFile} />
@@ -985,7 +1076,7 @@
 							{:else}
 								<UploadIcon class="size-4" />
 							{/if}
-							Restore device
+							{text.backup.restore}
 						</Button>
 						{#if restoreJob}
 							<div class="rounded-md bg-muted/40 p-3 text-sm">
@@ -1003,16 +1094,18 @@
 					</div>
 				</div>
 			</div>
+			{/if}
 		</section>
 
-		<Separator />
+		{#if activeAdminSection === 'users'}
+			<Separator />
 
-		<section class="grid gap-5 py-6">
+			<section class="grid gap-5 py-6">
 			<div class="flex flex-wrap items-center justify-between gap-3">
 				<div>
-					<h2 class="text-base font-semibold">Allowed Users</h2>
+					<h2 class="text-base font-semibold">{text.users.title}</h2>
 					<p class="text-muted-foreground text-sm">
-						초대하면 Mattermost 계정과 임시 비밀번호가 만들어집니다. 비밀번호는 한 번만 표시됩니다.
+						{text.users.description}
 					</p>
 				</div>
 				<Badge variant="outline">{userCount()} users</Badge>
@@ -1020,48 +1113,52 @@
 
 			{#if !isDeviceContext()}
 				<p class="text-muted-foreground rounded-md border bg-muted/30 px-3 py-2 text-sm">
-					초대 목록은 등록된 기기 주소에서 관리할 수 있습니다.
+					{text.users.deviceOnly}
 				</p>
 			{:else}
 				<form
-					class="grid gap-2 md:grid-cols-[1fr_140px_auto]"
+					class="grid gap-2 md:grid-cols-[140px_1fr_1fr_120px_auto]"
 					onsubmit={(event) => {
 						event.preventDefault();
 						addEmail();
 					}}
 				>
+					<Input bind:value={newHandle} placeholder="handle" autocomplete="off" />
+					<Input bind:value={newName} placeholder="real name" autocomplete="off" />
 					<div class="relative">
 						<MailIcon class="text-muted-foreground pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" />
 						<Input bind:value={newEmail} type="email" placeholder="name@company.com" class="pl-9" />
 					</div>
-					<select
-						bind:value={newUserRole}
-						class="border-input bg-background ring-offset-background focus-visible:ring-ring h-10 rounded-md border px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-					>
-						<option value="member">Member</option>
-						<option value="admin">Admin</option>
-					</select>
-					<Button type="submit" disabled={isSavingUser || !newEmail.trim()} class="gap-2">
+					<Select.Root type="single" bind:value={newUserRole}>
+						<Select.Trigger class="w-full">
+							{userRoleOptions().find((option) => option.value === newUserRole)?.label ?? '-'}
+						</Select.Trigger>
+						<Select.Content>
+							{#each userRoleOptions() as option (option.value)}
+								<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
+							{/each}
+						</Select.Content>
+					</Select.Root>
+					<Button type="submit" disabled={isSavingUser || !newEmail.trim() || !newName.trim() || !isValidHandle(newHandle)} class="gap-2">
 						{#if isSavingUser}
 							<LoaderIcon class="size-4 animate-spin" />
 						{:else}
 							<PlusIcon class="size-4" />
 						{/if}
-						Invite
+						{text.users.invite}
 					</Button>
 				</form>
 
 				<p class="text-muted-foreground text-sm">
-					InternKim cannot reset this password later. 사용자는 첫 로그인 후 Mattermost Account Settings에서 직접 비밀번호를
-					변경해야 합니다.
+					{text.users.passwordNotice}
 				</p>
 
 				{#if temporaryPasswordResult}
 					<div class="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
 						<div class="flex flex-wrap items-start justify-between gap-3">
 							<div>
-								<p class="font-semibold">Mattermost login: {temporaryPasswordResult.email} / {temporaryPasswordResult.password}</p>
-								<p class="mt-1">이 비밀번호는 다시 볼 수 없습니다. 사용자에게 안전한 채널로 전달하세요.</p>
+								<p class="font-semibold">{text.users.temporaryPasswordTitle}: {temporaryPasswordResult.email} / {temporaryPasswordResult.password}</p>
+								<p class="mt-1">{text.users.temporaryPasswordNotice}</p>
 								<code class="mt-3 block rounded-md bg-white px-3 py-2 font-mono text-base">{temporaryPasswordResult.password}</code>
 							</div>
 							<CopyButton text={temporaryPasswordResult.password} />
@@ -1074,33 +1171,41 @@
 				{/if}
 
 				{#if isLoadingUsers}
-					<p class="text-muted-foreground text-sm">초대 목록을 불러오는 중...</p>
+					<p class="text-muted-foreground text-sm">{text.users.loading}</p>
 				{:else if userRecords.length === 0}
-					<p class="text-muted-foreground text-sm">등록된 사용자가 없습니다.</p>
+					<p class="text-muted-foreground text-sm">{text.users.empty}</p>
 				{:else}
 					<div class="overflow-hidden rounded-lg border">
 						{#each userRecords as record}
-							<div class="flex flex-wrap items-center justify-between gap-3 border-b px-3 py-2 last:border-b-0">
+							<div class="grid gap-3 border-b px-3 py-3 last:border-b-0 md:grid-cols-[140px_1fr_1fr_auto] md:items-center">
+								<Input bind:value={record.handle} placeholder="handle" autocomplete="off" />
+								<Input bind:value={record.name} placeholder="real name" autocomplete="off" />
 								<div class="min-w-0">
 									<p class="truncate text-sm font-medium">{record.email}</p>
 									{#if record.mattermostUsername}
 										<p class="text-muted-foreground text-xs">Mattermost: {record.mattermostUsername}</p>
 									{/if}
+									{#if record.isIncomplete}
+										<p class="text-destructive text-xs">{text.users.incomplete}</p>
+									{/if}
 								</div>
-								<div class="flex items-center gap-2">
+								<div class="flex flex-wrap items-center gap-2">
 									<Badge variant={record.role === 'admin' ? 'secondary' : 'outline'}>{record.role}</Badge>
+									<Button variant="outline" size="sm" disabled={isSavingUser || !isValidUserRecord(record)} onclick={() => saveUser(record)}>
+										{text.users.save}
+									</Button>
 									{#if record.role === 'admin'}
 										<Button
 											variant="outline"
 											size="sm"
-											disabled={isSavingUser || adminCount() <= 1}
-											onclick={() => setUserRole(record.email, 'member')}
+											disabled={isSavingUser || adminCount() <= 1 || !isValidUserRecord(record)}
+											onclick={() => saveUser(record, 'member')}
 										>
-											Make member
+											{text.users.makeMember}
 										</Button>
 									{:else}
-										<Button variant="outline" size="sm" disabled={isSavingUser} onclick={() => setUserRole(record.email, 'admin')}>
-											Make admin
+										<Button variant="outline" size="sm" disabled={isSavingUser || !isValidUserRecord(record)} onclick={() => saveUser(record, 'admin')}>
+											{text.users.makeAdmin}
 										</Button>
 									{/if}
 									<Button
@@ -1117,6 +1222,7 @@
 					</div>
 				{/if}
 			{/if}
-		</section>
+			</section>
+		{/if}
 	</div>
 </main>

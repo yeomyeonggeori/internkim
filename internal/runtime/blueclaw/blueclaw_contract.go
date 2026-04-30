@@ -86,7 +86,6 @@ var BlueclawAllowedExecutables = []string{
 	"curl",
 	"jq",
 	"download",
-	"send-file",
 	"gws",
 	"gws-bot",
 }

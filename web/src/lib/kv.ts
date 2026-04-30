@@ -4,6 +4,35 @@ function normalizeEmail(email: string): string {
 	return email.trim().toLowerCase();
 }
 
+function normalizeHandle(handle: string): string {
+	return handle
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9._-]+/g, '-')
+		.replace(/^[._-]+|[._-]+$/g, '')
+		.slice(0, 22);
+}
+
+function normalizeHandleFromEmail(email: string): string {
+	const localPart = email.split('@')[0] ?? '';
+	const handle = normalizeHandle(localPart);
+	if (handle.length >= 3 && /^[a-z]/.test(handle)) return handle;
+	return `user-${calculateStableStringHash(email).slice(0, 6)}`;
+}
+
+function calculateStableStringHash(value: string): string {
+	let hashValue = 2166136261;
+	for (const character of value) {
+		hashValue ^= character.charCodeAt(0);
+		hashValue = Math.imul(hashValue, 16777619);
+	}
+	return (hashValue >>> 0).toString(16).padStart(8, '0');
+}
+
+function stableUserID(email: string): string {
+	return `user_${calculateStableStringHash(email)}`;
+}
+
 function normalizeRole(role: unknown): UserRole {
 	return role === 'admin' ? 'admin' : 'member';
 }
@@ -11,18 +40,32 @@ function normalizeRole(role: unknown): UserRole {
 function normalizeUserRecord(value: unknown): UserRecord | null {
 	if (typeof value === 'string') {
 		const email = normalizeEmail(value);
-		return email ? { email, role: 'member' } : null;
+		return email
+			? {
+					userID: stableUserID(email),
+					handle: normalizeHandleFromEmail(email),
+					email,
+					role: 'member',
+					isIncomplete: true
+				}
+			: null;
 	}
 	if (!value || typeof value !== 'object') return null;
 	const record = value as Partial<UserRecord>;
 	const email = normalizeEmail(record.email ?? '');
 	if (!email) return null;
+	const handle = normalizeHandle(record.handle ?? record.mattermostUsername ?? normalizeHandleFromEmail(email));
+	const name = typeof record.name === 'string' ? record.name.trim() : '';
 	return {
+		userID: typeof record.userID === 'string' && record.userID.trim() ? record.userID.trim() : stableUserID(email),
+		handle: handle || normalizeHandleFromEmail(email),
+		...(name ? { name } : {}),
 		email,
 		role: normalizeRole(record.role),
 		mattermostUserID: record.mattermostUserID,
 		mattermostUsername: record.mattermostUsername,
-		status: record.status
+		status: record.status,
+		isIncomplete: !name
 	};
 }
 
@@ -30,17 +73,24 @@ function ensureAdmin(records: UserRecord[], fallbackAdminEmail?: string): UserRe
 	const normalizedFallback = normalizeEmail(fallbackAdminEmail ?? '');
 	const normalizedRecords = records.filter((record) => record.email);
 	if (normalizedRecords.some((record) => record.role === 'admin')) return normalizedRecords;
-	return normalizedFallback ? [{ email: normalizedFallback, role: 'admin' }, ...normalizedRecords] : normalizedRecords;
+	return normalizedFallback
+		? [
+				{
+					userID: stableUserID(normalizedFallback),
+					handle: normalizeHandleFromEmail(normalizedFallback),
+					email: normalizedFallback,
+					role: 'admin',
+					isIncomplete: true
+				},
+				...normalizedRecords
+			]
+		: normalizedRecords;
 }
 
 function normalizeUserRecords(records: UserRecord[]): UserRecord[] {
 	return records
-		.map((record) => ({
-			...record,
-			email: normalizeEmail(record.email),
-			role: normalizeRole(record.role)
-		}))
-		.filter((record) => record.email);
+		.map((record) => normalizeUserRecord(record))
+		.filter((record): record is UserRecord => record !== null);
 }
 
 export function userEmails(records: UserRecord[]): string[] {
@@ -71,7 +121,18 @@ export const kv = {
 	},
 
 	async putUsers(kv: KVNamespace, deviceId: string, emails: string[]): Promise<void> {
-		const records = normalizeUserRecords(emails.map((email) => ({ email: normalizeEmail(email), role: 'member' })));
+		const records = normalizeUserRecords(
+			emails.map((email) => {
+				const normalizedEmail = normalizeEmail(email);
+				return {
+					userID: stableUserID(normalizedEmail),
+					handle: normalizeHandleFromEmail(normalizedEmail),
+					email: normalizedEmail,
+					role: 'member',
+					isIncomplete: true
+				};
+			})
+		);
 		await this.putUserRecords(kv, deviceId, records);
 	},
 
