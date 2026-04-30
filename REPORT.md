@@ -1,6 +1,6 @@
 # Blueclaw Firecracker Runtime Report
 
-작성 시각: 2026-04-30 23:55 KST
+작성 시각: 2026-05-01 00:18 KST
 
 ## 목표
 
@@ -29,9 +29,7 @@ Firecracker guest 안으로 들어가는 것:
 
 ## 진행 상태
 
-`make smoke-blueclaw-runtime-tart`는 setup 12/12 단계와 verify의 blueclaw/graphiti/users-sync 영역을 모두 통과한다.
-
-남은 실패 한 곳: verify의 Mattermost reply smoke. setup `[10/11] Mattermost` 단계에서 town-square 채널 조회가 실패하면서 에러 응답 ID(`api.context.404.app_error`)가 채널 ID로 저장돼, 이후 verify의 채널 호출이 모두 404. 이 버그는 Firecracker 마이그레이션과 별개의 Mattermost setup 회귀다.
+`make smoke-blueclaw-runtime-tart`가 **green**. 두 번 연속 통과 확인. setup 12/12 단계 + verify api(blueclaw/graphiti/capability/users-sync 등) + verify mattermost reply smoke 모두 통과.
 
 ## 이번 세션에서 적용한 수정
 
@@ -105,42 +103,22 @@ Firecracker의 vsock 모델은 guest→host 연결을 host측에 미리 바인�
 - agent 정상 12초 만에 `agent.completed`.
 - verify의 `expected task count >= 1` 통과.
 
-## 다음에 막힌 지점
+## 직전 transient에 대한 노트
 
-### Bot outbound reply가 Mattermost에 안 들어감
+verify가 한 번 `expected model-generated bot reply ...`로 실패한 적 있음. 같은 코드 그대로 두 번 더 돌리니 모두 green. agent 처리 시간(약 12초)도 일관, capabilityd가 정상적으로 Mattermost에 POST 후 dispatchID 반환.
 
-verify mattermost 단계에서 `expected model-generated bot reply after post timestamp: ...`로 실패.
+원인 가설(미확정):
 
-guest blueclaw 로그상으로는 정상:
+- 첫 호출에서 OpenRouter 쪽 cold start로 응답이 fallback 메시지로 떨어졌고, verify의 필터(`I am having trouble reaching the language model` 또는 `has not invited`)에 잡혔을 가능성.
+- 또는 capabilityd 내부 race로 `outbound.sent`만 찍히고 실제 POST가 비정상 종료.
 
-```
-14:51:39 connector.mattermost.auth.allowed
-14:51:40 connector.mattermost.progress.started
-14:51:40 connector.mattermost.memory.search_failed (graphiti 7791 connect refused)
-14:51:40 connector.mattermost.agent.started
-14:51:52 connector.mattermost.agent.completed taskRunID=...
-14:51:52 connector.mattermost.outbound.sent replyDispatchID=...
-14:51:55 connector.mattermost.memory.ingestion_failed (graphiti)
-14:51:55 connector.mattermost.progress.stopped
-```
+같은 실패를 빠르게 재현·진단할 수 있도록 diagnostic만 추가:
 
-하지만 Mattermost API로 town-square 포스트를 조회해도 bot reply가 보이지 않음 — 시스템 join/leave 메시지만 존재.
+- [`internal/cli/verify.go`](internal/cli/verify.go) `wait_for_model_reply` 실패 시 `print_recent_bot_replies` 호출 — bot의 실제 응답 본문을 stderr로 덤프. 다음에 transient가 다시 보이면 본문을 바로 볼 수 있다.
 
-가설:
+## 알려진 이상(smoke green이지만 추후 정리할 것)
 
-- blueclaw는 `outbound.sent`까지만 로그하고 실제 POST는 capability daemon의 `/v1/platform/mattermost/reply.send` handler가 수행. 이 handler 또는 그 안에서 호출되는 Mattermost REST POST가 silently fail.
-- capabilityd journal에는 해당 시간대 outbound 관련 로그 없음 — 성공/실패 모두 로그가 없음. 즉 logging 부재 + 실패 가능성 둘 다 살아 있음.
-- 부수적으로 graphiti `127.0.0.1:7791`이 guest 안에서 connect refused — graphiti-memoryd가 안 떠 있다. 별도 문제(다음 항목).
-
-다음 단계 후보:
-
-1. capabilityd의 `mattermostReplyFromRequest` 경로에 success/error 로깅 추가, 한 번 더 smoke 돌려서 어디서 끊기는지 확인.
-2. blueclaw가 실제로 reply 본문/대상을 capabilityd에 전달하는지 직접 캡처(요청 body 덤프 일시 추가).
-3. Mattermost 측 access log / audit log 확인 (`/var/log/mattermost/...`).
-
-### Graphiti memoryd가 guest 안에서 안 뜸
-
-guest의 `/workspace/.blueclaw/logs/graphiti-memoryd.log`가 비어 있고 `dial tcp 127.0.0.1:7791: connect: connection refused` 발생. wrapper 스크립트와 venv는 rootfs에 정상 존재(`/usr/local/bin/graphiti-memoryd`, `/opt/blueclaw/graphiti-venv/bin/python`, `/opt/blueclaw/graphiti_memoryd/main.py`). 그런데 background로 띄운 프로세스가 stdout/stderr를 redirect하는데도 로그가 비어 있다는 것은 fork 직후 즉시 죽거나 아예 시작도 안 한 것일 수 있다 — 진단 무기가 부족한 영역. guest-init에 `set -x` + `exec >>logs/guest-init.log 2>&1`을 추가해 다음 iteration에 어디서 막히는지 확인이 필요.
+- guest의 `/workspace/.blueclaw/logs/graphiti-memoryd.log`가 비어 있고 `dial tcp 127.0.0.1:7791: connect: connection refused`가 모든 reply 사이클에 나옴. wrapper 스크립트(`/usr/local/bin/graphiti-memoryd`), venv(`/opt/blueclaw/graphiti-venv/bin/python`), 소스(`/opt/blueclaw/graphiti_memoryd/main.py`)는 rootfs에 정상 존재. background fork가 stdout/stderr redirect로 묶여 있는데도 로그가 비어 있는 건 그 시점에 프로세스가 즉시 죽거나 redirect 위치가 잘못됐을 가능성. 다음 iteration에 guest-init 시작에 `exec >>/workspace/.blueclaw/logs/guest-init.log 2>&1; set -x` 추가해서 trace 확보 필요. 현재는 memory가 없어도 reply smoke가 통과하므로 P2.
 
 ## 진단 인프라 메모
 
@@ -160,20 +138,17 @@ guest의 `/workspace/.blueclaw/logs/graphiti-memoryd.log`가 비어 있고 `dial
 
 지금은 위 도구 조합으로 충분히 진단됨.
 
-## 커밋/푸시 현황
-
-지금까지 push 완료된 커밋:
+## 커밋/푸시 현황 (모두 push 완료)
 
 1. submodule `Move runtime into Firecracker guest`
 2. parent `Move Blueclaw into Firecracker guest runtime`
 3. parent `Fix Mattermost team and channel id resolution`
+4. submodule `Bridge guest vsock listeners to host unix sockets`
+5. parent `Wire capability daemon vsock bridge into Blueclaw runtime config`
 
-추가 커밋 (push 예정):
+추가 커밋 (이번):
 
-4. submodule `Bridge guest vsock listeners to host unix sockets` — 본 세션의 GuestListenerProxy + supervisor wiring
-5. parent — 서브모듈 pointer 업데이트 + `blueclaw_config.go`의 `guestListenerProxies` emit + REPORT 갱신
-
-후속(미적용): outbound reply 누락, graphiti-memoryd 미기동.
+6. parent — verify의 model reply 실패 진단 print + REPORT 갱신.
 
 ## 핵심 파일
 
