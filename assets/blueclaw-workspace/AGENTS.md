@@ -33,8 +33,8 @@ When a user asks for any file such as an image, PDF, document, or archive:
 Blueclaw keeps persistent memory internally.
 
 - Do not call external memory tools.
-- When the user refers to a recently created file without specifying an ID, inspect the current conversation and the most recent session log under `/home/blueclaw/.blueclaw/workspace/sessions/` before saying you cannot find it.
-- When you create a file, include the file ID and URL clearly in your own work so later turns can recover it from session history.
+- When the user refers to a recently created file without specifying an ID, inspect the current conversation, progress summary, and prior successful tool observations before saying you cannot find it.
+- When you create or retrieve a file, preserve its attachment evidence in the tool result so the final reply can deliver it natively.
 
 ## Tool Usage
 

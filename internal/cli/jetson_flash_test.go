@@ -113,6 +113,10 @@ func TestResolveJetsonFlashWiFiPrefersCurrentSSID(t *testing.T) {
 	if wifiPassword != "new-secret" {
 		t.Fatalf("expected explicit password, got %q", wifiPassword)
 	}
+	profiles := loadWiFiProfiles(temporaryDirectory)
+	if len(profiles) != 2 {
+		t.Fatalf("expected legacy and current Wi-Fi profiles to be preserved, got %+v", profiles)
+	}
 }
 
 func TestResolveJetsonFlashWiFiYesFailsWithoutSSID(t *testing.T) {
@@ -128,7 +132,7 @@ func TestResolveJetsonFlashWiFiYesFailsWithoutSSID(t *testing.T) {
 
 func TestBuildJetsonNetworkManagerWiFiConnectionIncludesCredentials(t *testing.T) {
 	document := buildJetsonNetworkManagerWiFiConnection("Office WiFi", "secret")
-	for _, fragment := range []string{"[connection]", "id=internkim-wifi", "uuid=5b43bb90-679f-4c50-96cc-1ee85350f6f1", "type=wifi", "ssid=Office WiFi", "key-mgmt=wpa-psk", "psk=secret"} {
+	for _, fragment := range []string{"[connection]", "id=" + jetsonWiFiConnectionID("Office WiFi"), "uuid=" + jetsonWiFiConnectionUUID("Office WiFi"), "type=wifi", "ssid=Office WiFi", "key-mgmt=wpa-psk", "psk=secret"} {
 		if !strings.Contains(document, fragment) {
 			t.Fatalf("expected NetworkManager document to include %q, got:\n%s", fragment, document)
 		}
@@ -150,6 +154,15 @@ func TestBuildJetsonNetworkManagerWiFiConnectionSupportsOpenNetwork(t *testing.T
 	}
 }
 
+func TestBuildJetsonWiFiSelectorPrefersSecureBeforeOpen(t *testing.T) {
+	document := buildJetsonWiFiSelectorScript()
+	for _, fragment := range []string{`record["isOpen"]`, `-record["signal"]`, `records.sort`} {
+		if !strings.Contains(document, fragment) {
+			t.Fatalf("expected Wi-Fi selector to include %q, got:\n%s", fragment, document)
+		}
+	}
+}
+
 func TestBuildJetsonFirstbootScriptStartsNetworkAndSSH(t *testing.T) {
 	document := buildJetsonFirstbootScript()
 	for _, fragment := range []string{
@@ -157,7 +170,7 @@ func TestBuildJetsonFirstbootScriptStartsNetworkAndSSH(t *testing.T) {
 		"expand_rootfs",
 		"resize2fs \"$rootSource\"",
 		"systemctl start NetworkManager.service",
-		"nmcli connection up internkim-wifi",
+		"internkim-wifi-select",
 		"systemctl restart ssh.service",
 		"/var/lib/internkim/board-ip",
 		"jetson-firstboot.done",
@@ -205,7 +218,7 @@ func TestValidateJetsonRootPatchDocumentsAcceptsCompletePatch(t *testing.T) {
 		completeJetsonAccountFilesFixture(),
 		completeJetsonPatchDocumentsFixture(),
 		jetsonDefaultUser,
-		"Office WiFi",
+		[]resolvedWiFiProfile{{SSID: "Office WiFi", Password: "secret"}},
 	)
 	if errorValue != nil {
 		t.Fatalf("expected complete patch to validate: %v", errorValue)
@@ -219,9 +232,9 @@ func TestValidateJetsonRootPatchDocumentsRejectsMissingWiFi(t *testing.T) {
 		completeJetsonAccountFilesFixture(),
 		documents,
 		jetsonDefaultUser,
-		"Office WiFi",
+		[]resolvedWiFiProfile{{SSID: "Office WiFi", Password: "secret"}},
 	)
-	if errorValue == nil || !strings.Contains(errorValue.Error(), jetsonNetworkManagerConnectionPath) {
+	if errorValue == nil || !strings.Contains(errorValue.Error(), jetsonWiFiConnectionPath("Office WiFi")) {
 		t.Fatalf("expected missing Wi-Fi verification error, got %v", errorValue)
 	}
 }
@@ -233,7 +246,7 @@ func TestValidateJetsonRootPatchDocumentsRejectsMissingAutologin(t *testing.T) {
 		completeJetsonAccountFilesFixture(),
 		documents,
 		jetsonDefaultUser,
-		"Office WiFi",
+		[]resolvedWiFiProfile{{SSID: "Office WiFi", Password: "secret"}},
 	)
 	if errorValue == nil || !strings.Contains(errorValue.Error(), jetsonAutologinOverridePath) {
 		t.Fatalf("expected missing autologin verification error, got %v", errorValue)
@@ -293,6 +306,7 @@ func completeJetsonPatchDocumentsFixture() jetsonPatchDocuments {
 		sshConfig:        "PasswordAuthentication yes\nPubkeyAuthentication yes\n",
 		oemMarker:        "1\n",
 		wifiConnection:   buildJetsonNetworkManagerWiFiConnection("Office WiFi", "secret"),
+		wifiSelector:     buildJetsonWiFiSelectorScript(),
 		firstbootScript:  buildJetsonFirstbootScript(),
 		firstbootService: buildJetsonFirstbootService(),
 		autologin:        buildJetsonAutologinOverride(jetsonDefaultUser),

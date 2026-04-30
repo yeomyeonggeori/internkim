@@ -20,6 +20,7 @@ import (
 	"time"
 
 	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
+	"github.com/anthropic-lab/internkim/internal/identity"
 )
 
 type Configuration struct {
@@ -34,6 +35,7 @@ type Configuration struct {
 	SignalJSONRPCURLPath       string
 	SignalAccountPath          string
 	BlueclawBaseURL            string
+	AdmindBaseURL              string
 	OpenRouterBaseURL          string
 	OpenRouterModel            string
 	OpenRouterEmbeddingBaseURL string
@@ -112,6 +114,7 @@ func DefaultConfiguration() Configuration {
 		SignalJSONRPCURLPath:       "/root/.internkim/config/signal-jsonrpc-url",
 		SignalAccountPath:          "/root/.internkim/config/signal-account",
 		BlueclawBaseURL:            "http://127.0.0.1:8080",
+		AdmindBaseURL:              "http://127.0.0.1:18080",
 		OpenRouterBaseURL:          "https://openrouter.ai/api/v1/chat/completions",
 		OpenRouterModel:            "google/gemini-3.1-flash-lite-preview",
 		OpenRouterEmbeddingBaseURL: "https://openrouter.ai/api/v1/embeddings",
@@ -398,12 +401,16 @@ func (service Service) mattermostLookupUser(ctx context.Context, payload json.Ra
 		LastName  string `json:"last_name"`
 	}
 	errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/"+url.PathEscape(senderID), nil, &response)
+	name := firstNonEmpty(strings.TrimSpace(response.Nickname), strings.TrimSpace(response.FirstName), response.Username, response.ID)
 	return map[string]string{
 		"platform":    "mattermost",
 		"senderID":    response.ID,
 		"userID":      response.ID,
 		"email":       response.Email,
-		"displayName": firstNonEmpty(strings.TrimSpace(response.FirstName+" "+response.LastName), response.Nickname, response.Username),
+		"handle":      response.Username,
+		"name":        name,
+		"callingName": identity.CallingName(name),
+		"displayName": name,
 	}, errorValue
 }
 

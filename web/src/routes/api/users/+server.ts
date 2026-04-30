@@ -19,6 +19,22 @@ function normalizeEmail(email: string): string {
 	return email.trim().toLowerCase();
 }
 
+function normalizeHandle(handle: string): string {
+	return handle.trim().toLowerCase();
+}
+
+function isValidHandle(handle: string): boolean {
+	return /^[a-z][a-z0-9._-]{2,21}$/.test(handle);
+}
+
+function newUserID(): string {
+	return crypto.randomUUID();
+}
+
+function normalizedUserID(userID: string | undefined): string {
+	return userID?.trim() || newUserID();
+}
+
 async function usersRevision(records: UserRecord[]): Promise<string> {
 	const encodedUsers = new TextEncoder().encode(JSON.stringify(records));
 	const digest = await crypto.subtle.digest('SHA-256', encodedUsers);
@@ -58,11 +74,26 @@ function mergeRecord(records: UserRecord[], nextRecord: UserRecord): UserRecord[
 		{
 			...existingRecord,
 			...nextRecord,
+			userID: existingRecord?.userID ?? nextRecord.userID,
+			handle: nextRecord.handle || existingRecord?.handle || '',
+			name: nextRecord.name ?? existingRecord?.name,
 			mattermostUserID: nextRecord.mattermostUserID ?? existingRecord?.mattermostUserID,
 			mattermostUsername: nextRecord.mattermostUsername ?? existingRecord?.mattermostUsername,
-			status: nextRecord.status ?? existingRecord?.status
+			status: nextRecord.status ?? existingRecord?.status,
+			isIncomplete: !(nextRecord.name ?? existingRecord?.name)
 		}
 	].sort((first, second) => first.email.localeCompare(second.email));
+}
+
+function duplicateHandle(records: UserRecord[]): string {
+	const seenHandles = new Set<string>();
+	for (const record of records) {
+		const handle = normalizeHandle(record.handle);
+		if (!handle) continue;
+		if (seenHandles.has(handle)) return handle;
+		seenHandles.add(handle);
+	}
+	return '';
 }
 
 async function syncAccessPolicies(env: App.Platform['env'], deviceID: string, device: Device, records: UserRecord[]) {
@@ -101,8 +132,11 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const env = platform?.env;
 	if (!env?.KV) throw error(500, 'KV not available');
 
-	const { device_id, email, role, admin_token, mattermostUserID, mattermostUsername, status } = (await request.json()) as {
+	const { device_id, userID, handle, name, email, role, admin_token, mattermostUserID, mattermostUsername, status } = (await request.json()) as {
 		device_id: string;
+		userID?: string;
+		handle?: string;
+		name?: string;
 		email: string;
 		role?: UserRole;
 		admin_token: string;
@@ -125,16 +159,25 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const normalizedEmail = normalizeEmail(email);
 	const normalizedRole = normalizeRole(role);
 	const existingRecord = records.find((record) => record.email === normalizedEmail);
+	const normalizedHandle = normalizeHandle(handle ?? existingRecord?.handle ?? '');
+	const normalizedName = typeof name === 'string' ? name.trim() : existingRecord?.name;
+	if (!existingRecord && (!normalizedHandle || !normalizedName)) throw error(400, 'handle, name, and email required');
+	if (normalizedHandle && !isValidHandle(normalizedHandle)) throw error(400, 'handle must start with a letter and contain 3-22 lowercase letters, numbers, dots, dashes, or underscores');
 	if (!isAuthorizedBoard && existingRecord?.role === 'admin' && normalizedRole !== 'admin' && adminEmails(records).length <= 1) {
 		throw error(400, 'Cannot demote the last admin user');
 	}
 	const nextRecords = mergeRecord(records, {
+		userID: existingRecord?.userID ?? normalizedUserID(userID),
+		handle: normalizedHandle,
+		...(normalizedName ? { name: normalizedName } : {}),
 		email: normalizedEmail,
 		role: normalizedRole,
 		mattermostUserID,
 		mattermostUsername,
 		status
 	});
+	const duplicatedHandle = duplicateHandle(nextRecords);
+	if (duplicatedHandle) throw error(400, `Duplicate handle: ${duplicatedHandle}`);
 	await kv.putUserRecords(env.KV, deviceID, nextRecords);
 	await syncAccessPolicies(env, deviceID, device, nextRecords);
 

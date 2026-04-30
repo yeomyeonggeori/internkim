@@ -84,14 +84,26 @@ func (service *Service) loadOrSeedBotProfile(ctx context.Context) (botProfile, e
 
 func (service *Service) loadBotProfile() (botProfile, bool) {
 	document, errorValue := os.ReadFile(service.Configuration.BotProfilePath)
-	if errorValue != nil {
+	if errorValue == nil {
+		profile, parseError := parseBotProfileDocument(document)
+		if parseError == nil {
+			return normalizeBotProfile(profile), true
+		}
+	}
+	legacyPath := legacyBotProfilePath(service.Configuration.BotProfilePath)
+	if legacyPath == "" {
 		return botProfile{}, false
 	}
-	var profile botProfile
-	if errorValue := json.Unmarshal(document, &profile); errorValue != nil {
+	legacyDocument, legacyError := os.ReadFile(legacyPath)
+	if legacyError != nil {
 		return botProfile{}, false
 	}
-	return normalizeBotProfile(profile), true
+	var legacyProfile botProfile
+	if json.Unmarshal(legacyDocument, &legacyProfile) != nil {
+		return botProfile{}, false
+	}
+	_ = service.saveBotProfile(legacyProfile)
+	return normalizeBotProfile(legacyProfile), true
 }
 
 func (service *Service) seedBotProfileFromMattermost(ctx context.Context) botProfile {
@@ -123,10 +135,7 @@ func (service *Service) seedBotProfileFromMattermost(ctx context.Context) botPro
 }
 
 func (service *Service) saveBotProfile(profile botProfile) error {
-	document, errorValue := json.MarshalIndent(normalizeBotProfile(profile), "", "  ")
-	if errorValue != nil {
-		return errorValue
-	}
+	document := []byte(renderBotProfileYAML(normalizeBotProfile(profile)))
 	if errorValue := os.MkdirAll(filepath.Dir(service.Configuration.BotProfilePath), 0o700); errorValue != nil {
 		return errorValue
 	}
@@ -138,12 +147,16 @@ func (service *Service) saveBotProfile(profile botProfile) error {
 }
 
 func (service *Service) writeWorkspaceBotProfile(profile botProfile) error {
-	document := renderBotProfileMarkdown(normalizeBotProfile(profile))
-	path := filepath.Join(service.Configuration.BlueclawWorkspacePath, "BOT_PROFILE.md")
+	document := renderBotProfileYAML(normalizeBotProfile(profile))
+	path := filepath.Join(service.Configuration.BlueclawWorkspacePath, "BOT_PROFILE.yaml")
 	if errorValue := os.MkdirAll(filepath.Dir(path), 0o750); errorValue != nil {
 		return errorValue
 	}
-	return os.WriteFile(path, []byte(document), 0o644)
+	if errorValue := os.WriteFile(path, []byte(document), 0o644); errorValue != nil {
+		return errorValue
+	}
+	_ = os.Remove(filepath.Join(service.Configuration.BlueclawWorkspacePath, "BOT_PROFILE.md"))
+	return nil
 }
 
 func (service *Service) syncMattermostBotProfile(ctx context.Context, profile botProfile) error {
@@ -232,25 +245,102 @@ func containsSecretLikeText(value string) bool {
 	return false
 }
 
-func renderBotProfileMarkdown(profile botProfile) string {
+func parseBotProfileDocument(document []byte) (botProfile, error) {
+	var jsonProfile botProfile
+	if json.Unmarshal(document, &jsonProfile) == nil && strings.TrimSpace(jsonProfile.DisplayName) != "" {
+		return jsonProfile, nil
+	}
+	return parseBotProfileYAML(string(document))
+}
+
+func legacyBotProfilePath(path string) string {
+	if strings.HasSuffix(path, ".yaml") {
+		return strings.TrimSuffix(path, ".yaml") + ".json"
+	}
+	if strings.HasSuffix(path, ".yml") {
+		return strings.TrimSuffix(path, ".yml") + ".json"
+	}
+	return ""
+}
+
+func renderBotProfileYAML(profile botProfile) string {
 	lines := []string{
-		"# BOT_PROFILE.md",
-		"",
-		"username: " + profile.Username,
-		"displayName: " + profile.DisplayName,
-		"englishDisplayName: " + profile.EnglishDisplayName,
+		"username: " + yamlQuote(profile.Username),
+		"displayName: " + yamlQuote(profile.DisplayName),
+		"englishDisplayName: " + yamlQuote(profile.EnglishDisplayName),
 		"aliases:",
 	}
 	for _, alias := range profile.Aliases {
-		lines = append(lines, "  - "+alias)
+		lines = append(lines, "  - "+yamlQuote(alias))
 	}
 	lines = append(lines,
-		"publicDescription: "+profile.PublicDescription,
-		"",
-		"## identityExtension",
-		"",
-		profile.IdentityExtension,
-		"",
+		"publicDescription: "+yamlQuote(profile.PublicDescription),
+		"identityExtension: "+yamlQuote(profile.IdentityExtension),
 	)
-	return strings.Join(lines, "\n")
+	return strings.Join(lines, "\n") + "\n"
+}
+
+func parseBotProfileYAML(document string) (botProfile, error) {
+	profile := botProfile{}
+	lines := strings.Split(document, "\n")
+	for index := 0; index < len(lines); index++ {
+		line := strings.TrimSpace(lines[index])
+		if line == "" || strings.HasPrefix(line, "#") || line == "---" {
+			continue
+		}
+		if line == "aliases:" {
+			aliases := []string{}
+			for index+1 < len(lines) {
+				nextLine := lines[index+1]
+				trimmedNextLine := strings.TrimSpace(nextLine)
+				if !strings.HasPrefix(trimmedNextLine, "- ") {
+					break
+				}
+				aliases = append(aliases, yamlUnquote(strings.TrimSpace(strings.TrimPrefix(trimmedNextLine, "- "))))
+				index++
+			}
+			profile.Aliases = aliases
+			continue
+		}
+		key, value, found := strings.Cut(line, ":")
+		if !found {
+			continue
+		}
+		setBotProfileYAMLValue(&profile, strings.TrimSpace(key), yamlUnquote(strings.TrimSpace(value)))
+	}
+	if strings.TrimSpace(profile.DisplayName) == "" {
+		return botProfile{}, fmt.Errorf("bot profile YAML is missing displayName")
+	}
+	return profile, nil
+}
+
+func setBotProfileYAMLValue(profile *botProfile, key string, value string) {
+	switch key {
+	case "username":
+		profile.Username = value
+	case "displayName":
+		profile.DisplayName = value
+	case "englishDisplayName":
+		profile.EnglishDisplayName = value
+	case "publicDescription":
+		profile.PublicDescription = value
+	case "identityExtension":
+		profile.IdentityExtension = value
+	}
+}
+
+func yamlQuote(value string) string {
+	document, errorValue := json.Marshal(value)
+	if errorValue != nil {
+		return `""`
+	}
+	return string(document)
+}
+
+func yamlUnquote(value string) string {
+	var result string
+	if json.Unmarshal([]byte(value), &result) == nil {
+		return result
+	}
+	return strings.Trim(value, `"'`)
 }

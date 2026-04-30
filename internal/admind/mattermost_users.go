@@ -13,9 +13,14 @@ import (
 	"path/filepath"
 	"strings"
 	"unicode"
+
+	"github.com/anthropic-lab/internkim/internal/identity"
 )
 
 type adminUserMutation struct {
+	UserID                 string `json:"userID,omitempty"`
+	Handle                 string `json:"handle,omitempty"`
+	Name                   string `json:"name,omitempty"`
 	Email                  string `json:"email"`
 	Role                   string `json:"role"`
 	MattermostUserID       string `json:"mattermostUserID,omitempty"`
@@ -64,14 +69,19 @@ const mattermostProvisionerEmail = "admin@localhost"
 const firstAdminMattermostPassword = "admin"
 
 func (service *Service) provisionMattermostUser(ctx context.Context, email string, role string) (mattermostProvisionResult, error) {
-	return service.provisionMattermostUserWithPassword(ctx, email, role, "")
+	return service.provisionMattermostUserWithPassword(ctx, adminUserMutation{Email: email, Role: role}, "")
 }
 
-func (service *Service) provisionMattermostUserWithPassword(ctx context.Context, email string, role string, initialPassword string) (mattermostProvisionResult, error) {
-	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+func (service *Service) provisionMattermostUserWithPassword(ctx context.Context, user adminUserMutation, initialPassword string) (mattermostProvisionResult, error) {
+	normalizedEmail := strings.ToLower(strings.TrimSpace(user.Email))
 	if normalizedEmail == "" {
 		return mattermostProvisionResult{}, fmt.Errorf("email required")
 	}
+	normalizedHandle := normalizeMattermostHandle(firstNonEmpty(user.Handle, user.MattermostUsername, mattermostUsernameBase(normalizedEmail)))
+	if !isValidMattermostHandle(normalizedHandle) {
+		return mattermostProvisionResult{}, fmt.Errorf("handle must start with a letter and contain 3-22 lowercase letters, numbers, dots, dashes, or underscores")
+	}
+	displayName := strings.TrimSpace(user.Name)
 
 	adminToken, errorValue := service.mattermostAdminToken(ctx)
 	if errorValue != nil {
@@ -81,15 +91,26 @@ func (service *Service) provisionMattermostUserWithPassword(ctx context.Context,
 		if errorValue := service.ensureMattermostPasswordPolicyAllows(ctx, adminToken, initialPassword); errorValue != nil {
 			return mattermostProvisionResult{}, errorValue
 		}
+	} else if errorValue := service.ensureMattermostFullNameDisplay(ctx, adminToken); errorValue != nil {
+		return mattermostProvisionResult{}, errorValue
 	}
 
-	userRecord, found, errorValue := service.findMattermostUserByEmail(ctx, adminToken, normalizedEmail)
+	userRecord, found, errorValue := service.mattermostUserRecordForAdminRecord(ctx, adminToken, adminUserMutation{
+		Email:            normalizedEmail,
+		MattermostUserID: user.MattermostUserID,
+	})
 	if errorValue != nil {
 		return mattermostProvisionResult{}, errorValue
 	}
 
 	result := mattermostProvisionResult{Status: "active"}
 	if found {
+		if userRecord.Username != normalizedHandle || displayName != "" {
+			userRecord, errorValue = service.updateMattermostUserIdentity(ctx, adminToken, userRecord.ID, normalizedHandle, displayName)
+			if errorValue != nil {
+				return mattermostProvisionResult{}, errorValue
+			}
+		}
 		result.UserID = userRecord.ID
 		result.Username = userRecord.Username
 		if strings.TrimSpace(initialPassword) != "" {
@@ -100,7 +121,7 @@ func (service *Service) provisionMattermostUserWithPassword(ctx context.Context,
 		}
 	} else {
 		temporaryPassword := firstNonEmpty(strings.TrimSpace(initialPassword), generateTemporaryPassword())
-		userRecord, errorValue = service.createMattermostUser(ctx, adminToken, normalizedEmail, temporaryPassword)
+		userRecord, errorValue = service.createMattermostUser(ctx, adminToken, normalizedEmail, normalizedHandle, displayName, temporaryPassword)
 		if errorValue != nil {
 			return mattermostProvisionResult{}, errorValue
 		}
@@ -112,7 +133,7 @@ func (service *Service) provisionMattermostUserWithPassword(ctx context.Context,
 	if errorValue := service.ensureMattermostMembership(ctx, adminToken, result.UserID); errorValue != nil {
 		return mattermostProvisionResult{}, errorValue
 	}
-	if errorValue := service.setMattermostRole(ctx, adminToken, result.UserID, role); errorValue != nil {
+	if errorValue := service.setMattermostRole(ctx, adminToken, result.UserID, user.Role); errorValue != nil {
 		return mattermostProvisionResult{}, errorValue
 	}
 	if errorValue := service.ensureMattermostBotDirectChannel(ctx, adminToken, result.UserID); errorValue != nil {
@@ -295,30 +316,59 @@ func isProtectedMattermostUser(userRecord mattermostUserRecord) bool {
 	return username == mattermostProvisionerUsername || username == "internkim" || username == "system-bot"
 }
 
-func (service *Service) createMattermostUser(ctx context.Context, token string, email string, password string) (mattermostUserRecord, error) {
-	usernameBase := mattermostUsernameBase(email)
-	var lastError error
-	for attempt := 0; attempt < 5; attempt++ {
-		username := usernameBase
-		if attempt > 0 {
-			username = usernameBase + "-" + randomHex(2)
-		}
-		body := map[string]string{
-			"email":    email,
-			"username": username,
-			"password": password,
-		}
-		var userRecord mattermostUserRecord
-		errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/users", token, body, &userRecord)
-		if errorValue == nil {
-			return userRecord, nil
-		}
-		lastError = errorValue
-		if !isMattermostConflict(errorValue) {
-			break
-		}
+func (service *Service) createMattermostUser(ctx context.Context, token string, email string, handle string, name string, password string) (mattermostUserRecord, error) {
+	body := map[string]string{
+		"email":    email,
+		"username": handle,
+		"password": password,
 	}
-	return mattermostUserRecord{}, lastError
+	addMattermostNameFields(body, name)
+	var userRecord mattermostUserRecord
+	errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/users", token, body, &userRecord)
+	if errorValue == nil {
+		return userRecord, nil
+	}
+	return mattermostUserRecord{}, errorValue
+}
+
+func (service *Service) updateMattermostUserIdentity(ctx context.Context, token string, userID string, handle string, name string) (mattermostUserRecord, error) {
+	body := map[string]string{"username": handle}
+	addMattermostNameFields(body, name)
+	var userRecord mattermostUserRecord
+	errorValue := service.mattermostRequest(ctx, http.MethodPut, "/api/v4/users/"+url.PathEscape(userID)+"/patch", token, body, &userRecord)
+	if errorValue != nil {
+		return mattermostUserRecord{}, errorValue
+	}
+	if userRecord.ID == "" {
+		return service.findMattermostUserByIDRequired(ctx, token, userID)
+	}
+	return userRecord, nil
+}
+
+func (service *Service) findMattermostUserByIDRequired(ctx context.Context, token string, userID string) (mattermostUserRecord, error) {
+	userRecord, found, errorValue := service.findMattermostUserByID(ctx, token, userID)
+	if errorValue != nil {
+		return mattermostUserRecord{}, errorValue
+	}
+	if !found {
+		return mattermostUserRecord{}, fmt.Errorf("Mattermost user %s was not found after patch", userID)
+	}
+	return userRecord, nil
+}
+
+func addMattermostNameFields(body map[string]string, name string) {
+	canonicalName := strings.TrimSpace(name)
+	if canonicalName == "" {
+		return
+	}
+	body["nickname"] = canonicalName
+	firstName, lastName := identity.SplitNameForMattermost(canonicalName)
+	if firstName != "" {
+		body["first_name"] = firstName
+	}
+	if lastName != "" {
+		body["last_name"] = lastName
+	}
 }
 
 func (service *Service) updateMattermostUserPassword(ctx context.Context, token string, userID string, password string) error {
@@ -338,6 +388,18 @@ func (service *Service) ensureMattermostPasswordPolicyAllows(ctx context.Context
 			"Uppercase":     false,
 			"Number":        false,
 			"Symbol":        false,
+		},
+		"TeamSettings": map[string]any{
+			"TeammateNameDisplay": "full_name",
+		},
+	}
+	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/config/patch", token, body, nil)
+}
+
+func (service *Service) ensureMattermostFullNameDisplay(ctx context.Context, token string) error {
+	body := map[string]any{
+		"TeamSettings": map[string]any{
+			"TeammateNameDisplay": "full_name",
 		},
 	}
 	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/config/patch", token, body, nil)
@@ -570,13 +632,43 @@ func mattermostUsernameBase(email string) string {
 		builder.WriteByte('-')
 	}
 	username := strings.Trim(builder.String(), "-_.")
-	if len(username) < 3 {
+	if len(username) < 3 || !isLowercaseASCIIAlpha(rune(username[0])) {
 		username = "user-" + randomHex(3)
 	}
-	if len(username) > 48 {
-		username = username[:48]
+	if len(username) > 22 {
+		username = username[:22]
 	}
 	return username
+}
+
+func normalizeMattermostHandle(handle string) string {
+	var builder strings.Builder
+	for _, character := range strings.ToLower(strings.TrimSpace(handle)) {
+		if isLowercaseASCIIAlpha(character) || unicode.IsDigit(character) || character == '-' || character == '_' || character == '.' {
+			builder.WriteRune(character)
+		}
+	}
+	return strings.Trim(builder.String(), "-_.")
+}
+
+func isValidMattermostHandle(handle string) bool {
+	if len(handle) < 3 || len(handle) > 22 {
+		return false
+	}
+	if !isLowercaseASCIIAlpha(rune(handle[0])) {
+		return false
+	}
+	for _, character := range handle {
+		if isLowercaseASCIIAlpha(character) || unicode.IsDigit(character) || character == '-' || character == '_' || character == '.' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func isLowercaseASCIIAlpha(character rune) bool {
+	return character >= 'a' && character <= 'z'
 }
 
 func generateTemporaryPassword() string {

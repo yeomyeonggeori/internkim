@@ -87,6 +87,71 @@ func TestMattermostDirectMessageDoesNotUseThreadRoot(t *testing.T) {
 	}
 }
 
+func TestMattermostContextUsesSingleNameForHistorySpeakers(t *testing.T) {
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/channels/channel-1/posts":
+			return testJSONResponse(http.StatusOK, struct {
+				Order []string                         `json:"order"`
+				Posts map[string]mattermostHistoryPost `json:"posts"`
+			}{
+				Order: []string{"post-1", "post-2"},
+				Posts: map[string]mattermostHistoryPost{
+					"post-1": {ID: "post-1", UserID: "user-1", Message: "previous", CreateAt: 1000},
+					"post-2": {ID: "post-2", UserID: "user-2", Message: "current", CreateAt: 2000},
+				},
+			}), nil
+		case "/api/v4/users/user-1":
+			return testJSONResponse(http.StatusOK, map[string]string{
+				"id":         "user-1",
+				"username":   "lee",
+				"first_name": "서연",
+				"last_name":  "이",
+				"nickname":   "이서연",
+			}), nil
+		default:
+			t.Fatalf("unexpected Mattermost request: %s?%s", request.URL.Path, request.URL.RawQuery)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	tokenPath := t.TempDir() + "/mattermost-token"
+	if errorValue := os.WriteFile(tokenPath, []byte("test-token\n"), 0o600); errorValue != nil {
+		t.Fatalf("expected token file to be written: %v", errorValue)
+	}
+	service := Service{
+		Configuration: Configuration{MattermostBaseURL: "http://mattermost.test", MattermostTokenPath: tokenPath},
+		HTTPClient:    httpClient,
+	}
+	contextValue := service.mattermostContext(context.Background(), platformHandle{ChannelID: "channel-1", MessageID: "post-2"}, 20)
+	if len(contextValue.Messages) != 1 {
+		t.Fatalf("expected one history message, got %+v", contextValue.Messages)
+	}
+	if contextValue.Messages[0].Speaker != "이서연" {
+		t.Fatalf("expected single name speaker, got %q", contextValue.Messages[0].Speaker)
+	}
+}
+
+func TestMattermostSenderFallsBackToSenderIDWhenProfileLookupFails(t *testing.T) {
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Path != "/api/v4/users/user-1" {
+			t.Fatalf("unexpected Mattermost request: %s", request.URL.Path)
+		}
+		return testJSONResponse(http.StatusNotFound, map[string]string{"message": "not found"}), nil
+	})}
+	tokenPath := t.TempDir() + "/mattermost-token"
+	if errorValue := os.WriteFile(tokenPath, []byte("test-token\n"), 0o600); errorValue != nil {
+		t.Fatalf("expected token file to be written: %v", errorValue)
+	}
+	service := Service{
+		Configuration: Configuration{MattermostBaseURL: "http://mattermost.test", MattermostTokenPath: tokenPath},
+		HTTPClient:    httpClient,
+	}
+	sender := service.mattermostSender(context.Background(), "user-1")
+	if sender.Name != "user-1" || sender.UserID != "user-1" || sender.Platform != "mattermost" {
+		t.Fatalf("expected sender fallback, got %+v", sender)
+	}
+}
+
 func TestMattermostPollerSeedsWatermarkWithoutReplayingDirectMessage(t *testing.T) {
 	forwardedCount := 0
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -598,6 +663,12 @@ func handleTestBlueclawForward(t *testing.T, request *http.Request) (*http.Respo
 	if event.Prompt != "new dm" {
 		t.Fatalf("expected only new dm to be forwarded, got %q", event.Prompt)
 	}
+	if event.Context.Sender.Name != "이서연" || event.Context.Sender.CallingName != "서연" || event.Context.Sender.Handle != "seoyeon" || event.Context.Sender.Email != "seoyeon@example.com" {
+		t.Fatalf("expected sender identity, got %+v", event.Context.Sender)
+	}
+	if _, errorValue := time.Parse(time.RFC3339, event.Context.ReceivedAt); errorValue != nil {
+		t.Fatalf("expected receivedAt RFC3339 timestamp, got %q", event.Context.ReceivedAt)
+	}
 	return testJSONResponse(http.StatusOK, map[string]string{}), nil
 }
 
@@ -629,6 +700,15 @@ func handleTestMattermostPoll(t *testing.T, request *http.Request) *http.Respons
 			Posts: map[string]mattermostPolledPost{
 				"new-1": {ID: "new-1", UserID: "user-1", ChannelID: "dm-1", Message: "new dm", CreateAt: 2000},
 			},
+		})
+	case request.URL.Path == "/api/v4/users/user-1":
+		return testJSONResponse(http.StatusOK, map[string]string{
+			"id":         "user-1",
+			"email":      "seoyeon@example.com",
+			"username":   "seoyeon",
+			"first_name": "서연",
+			"last_name":  "이",
+			"nickname":   "이서연",
 		})
 	default:
 		t.Fatalf("unexpected Mattermost request: %s?%s", request.URL.Path, request.URL.RawQuery)

@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -148,5 +150,51 @@ func TestSetupStateDirSeparatesJetsonAndLabIdentity(t *testing.T) {
 	}
 	if loadState(jetsonStateDir, "board_ip") != "192.168.0.248" {
 		t.Fatalf("expected Jetson state to inherit board discovery hint")
+	}
+}
+
+func TestWiFiProfilesMigrateLegacyAndAddCurrent(t *testing.T) {
+	stateDirectory := t.TempDir()
+	saveState(stateDirectory, "wifi_ssid", "OfficeWiFi")
+	saveState(stateDirectory, "wifi_pass", "office-secret")
+	getSSIDPath := createExecutableFixture(t, "StudioWiFi\n")
+	withArguments(t, "internkim", "setup", "--yes", "--wifi-password", "studio-secret")
+
+	profiles, errorValue := resolveWiFiProfiles(newMsg("en"), stateDirectory, getSSIDPath)
+	if errorValue != nil {
+		t.Fatalf("expected Wi-Fi profiles: %v", errorValue)
+	}
+	if len(profiles) != 2 {
+		t.Fatalf("expected two Wi-Fi profiles, got %+v", profiles)
+	}
+	if profiles[0].SSID != "OfficeWiFi" || profiles[1].SSID != "StudioWiFi" {
+		t.Fatalf("expected sorted preserved profiles, got %+v", profiles)
+	}
+	document, errorValue := os.ReadFile(filepath.Join(stateDirectory, wifiProfilesStateFile))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, ssid := range []string{"OfficeWiFi", "StudioWiFi"} {
+		if !strings.Contains(string(document), ssid) {
+			t.Fatalf("expected persisted Wi-Fi profiles to include %s, got:\n%s", ssid, string(document))
+		}
+	}
+}
+
+func TestJetsonWiFiUpsertScriptPreservesOtherProfiles(t *testing.T) {
+	script := buildJetsonWiFiUpsertScript([]resolvedWiFiProfile{
+		{SSID: "OfficeWiFi", Password: "office-secret"},
+		{SSID: "CafeWiFi", IsOpen: true},
+	})
+	for _, ssid := range []string{"OfficeWiFi", "CafeWiFi"} {
+		if !strings.Contains(script, jetsonWiFiConnectionID(ssid)) {
+			t.Fatalf("expected upsert script to include %s, got:\n%s", ssid, script)
+		}
+	}
+	if strings.Contains(script, "connection delete internkim-wifi ") {
+		t.Fatalf("upsert script must not delete the legacy umbrella connection name, got:\n%s", script)
+	}
+	if strings.Contains(script, "wifi-sec.psk ''") {
+		t.Fatalf("open Wi-Fi profile must not write an empty PSK, got:\n%s", script)
 	}
 }

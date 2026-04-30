@@ -7,13 +7,10 @@ import (
 	"testing"
 )
 
-func TestAgentBrowserSkillInstallScriptPrefersInstalledCliSkill(t *testing.T) {
+func TestAgentBrowserSkillInstallScriptUsesVendoredWorkspaceSkill(t *testing.T) {
 	script := agentBrowserSkillInstallScript("/tmp/fallback.md", "fallback skill")
 	requiredFragments := []string{
 		"/root/.blueclaw/workspace/.agents/skills/agent-browser",
-		"agent-browser skills get core --full",
-		"browser.open",
-		"browser.snapshot",
 		"/tmp/fallback.md",
 		"fallback skill",
 		"chown -R blueclaw:blueclaw /root/.blueclaw/workspace/.agents",
@@ -35,7 +32,7 @@ func TestLoadAgentBrowserSkillMarkdownUsesVendoredFallback(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected vendored skill markdown: %v", errorValue)
 	}
-	for _, fragment := range []string{"agent-browser", "browser.open", "agent-browser snapshot -i"} {
+	for _, fragment := range []string{"agent-browser", "browser.open", "browser.snapshot"} {
 		if !strings.Contains(skillMarkdown, fragment) {
 			t.Fatalf("expected skill markdown to include %q", fragment)
 		}
@@ -76,8 +73,9 @@ func TestLoadWorkspaceDocumentsUsesBoardAssets(t *testing.T) {
 		fragment string
 	}{
 		{name: "identity", document: documents.Identity, fragment: "runtime bot profile"},
+		{name: "identity name policy", document: documents.Identity, fragment: "Treat names as a single field"},
 		{name: "soul", document: documents.Soul, fragment: "SOUL.md"},
-		{name: "bot profile", document: documents.BotProfile, fragment: "displayName: 김인턴"},
+		{name: "bot profile", document: documents.BotProfile, fragment: `displayName: 김인턴`},
 	} {
 		if !strings.Contains(expectation.document, expectation.fragment) {
 			t.Fatalf("expected %s document to include %q", expectation.name, expectation.fragment)
@@ -101,10 +99,7 @@ func TestFirstbootInstallsAgentBrowserSkill(t *testing.T) {
 	requiredFragments := []string{
 		"install_device_browser_runtime",
 		"$STAGE/device-browser/internkim-device-browser-linux-arm64.tar.zst",
-		"agent-browser skills get core --full",
-		"browser.open",
-		"browser.snapshot",
-		"$STAGE/agent-browser-skill/SKILL.md",
+		"$STAGE/.agents/skills/agent-browser/SKILL.md",
 		"/root/.blueclaw/workspace/.agents/skills/agent-browser",
 	}
 	for _, fragment := range requiredFragments {
@@ -112,7 +107,7 @@ func TestFirstbootInstallsAgentBrowserSkill(t *testing.T) {
 			t.Fatalf("expected firstboot tools section to include %q", fragment)
 		}
 	}
-	for _, forbiddenFragment := range []string{"agent-browser install", "chromium-browser", "--engine lightpanda"} {
+	for _, forbiddenFragment := range []string{"agent-browser install", "agent-browser skills get core --full", "chromium-browser", "--engine lightpanda"} {
 		if strings.Contains(script, forbiddenFragment) {
 			t.Fatalf("firstboot tools section must not include %q", forbiddenFragment)
 		}

@@ -13,8 +13,12 @@ func SkillsPath(scriptDir string) string {
 	return filepath.Join(AssetsPath(scriptDir), "skills")
 }
 
+func AgentSkillsPath(scriptDir string) string {
+	return filepath.Join(AssetsPath(scriptDir), ".agents", "skills")
+}
+
 func AgentBrowserSkillPath(scriptDir string) string {
-	return filepath.Join(AssetsPath(scriptDir), "agent-browser-skill", "SKILL.md")
+	return filepath.Join(AgentSkillsPath(scriptDir), "agent-browser", "SKILL.md")
 }
 
 func AgentsPath(scriptDir string) string {
@@ -30,11 +34,7 @@ func SoulPath(scriptDir string) string {
 }
 
 func BotProfilePath(scriptDir string) string {
-	return filepath.Join(AssetsPath(scriptDir), "BOT_PROFILE.md")
-}
-
-func SendFilePath(scriptDir string) string {
-	return filepath.Join(AssetsPath(scriptDir), "send-file")
+	return filepath.Join(AssetsPath(scriptDir), "BOT_PROFILE.yaml")
 }
 
 func GasSourcePath(scriptDir string) string {

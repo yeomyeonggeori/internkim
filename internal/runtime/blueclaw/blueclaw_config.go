@@ -28,7 +28,7 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 			"timeoutSecond":  120,
 			"vsockCID":       52,
 			"vsockPort":      7000,
-			"toolNames":      capabilities.CompanionToolNames(),
+			"toolNames":      capabilities.DefaultToolNames(),
 			"routing": map[string]any{
 				"candidates": capabilities.RoutingCandidates(),
 				"localOnly":  false,
@@ -87,7 +87,7 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 		"agentProfiles": []map[string]any{
 			{
 				"name":             "default",
-				"allowedToolNames": append([]string{"conversation.history", "memory.search"}, capabilities.CompanionToolNames()...),
+				"allowedToolNames": append([]string{"conversation.history", "memory.search"}, capabilities.DefaultToolNames()...),
 			},
 		},
 		"mcpServers": []map[string]any{},

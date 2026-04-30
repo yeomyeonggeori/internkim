@@ -253,8 +253,8 @@ re-share, re-bookmark, re-open.
 
 Update flow:
 
-1. Retrieve the existing file ID from the recent session log or the
-   current conversation context.
+1. Retrieve the existing file ID from the current conversation context or
+   prior successful tool observations.
 2. Rebuild your `.pptx` from the edited `presentation.md`.
 3. Replace the Drive file's contents while keeping its ID and URL:
 
@@ -290,11 +290,11 @@ Google Slides URL. Share that — never fabricate a URL and never hand
 over a placeholder.
 
 Immediately after the upload succeeds, include the Google Slides URL,
-file ID, title, and local pptx path in your own response or working
-notes so later turns can recover the deck from the session history.
+file ID, and title in the tool result or working notes so later turns can
+recover the deck from prior successful observations.
 
 When the user later says "방금 만든 거 수정해줘" or "아까 그 덱 슬라이드
-하나 추가해줘", retrieve the URL / id from the recent session log and
+하나 추가해줘", retrieve the URL / id from the current conversation context or prior successful tool observations and
 update that file in place (see section 5.55 above) rather than creating
 a fresh deck.
 
@@ -322,10 +322,10 @@ Don't claim the deck is done before `./build.sh` (or the upload)
 finished without error.
 
 **Never link a local file as `sandbox:/tmp/...`, `file:///tmp/...`, or
-a plain local path in your Mattermost reply.** Those links are dead
-for the user; they resolve to nothing on the user's machine. Only say
-that a deck file is attached when the tool result actually produced a
-native attachment for final reply delivery.
+a plain local path in a platform reply.** Those links are dead for the
+user; they resolve to nothing on the user's machine. Only say that a
+deck file is attached when the tool result actually produced a native
+attachment for final reply delivery.
 
 **In your delivery message, always ask the user to flag any slide
 that looks off.** You didn't inspect every slide visually, so
