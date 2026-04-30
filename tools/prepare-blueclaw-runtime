@@ -371,7 +371,7 @@ prepare_rootfs_directory() {
   run_root rsync -a --delete "$repository_root/.dependency/blueclaw/tools/graphiti_memoryd/" "$rootfs_directory/opt/blueclaw/graphiti_memoryd/"
   run_root tee "$rootfs_directory/usr/local/bin/graphiti-memoryd" >/dev/null <<'SCRIPT'
 #!/usr/bin/env bash
-exec /opt/blueclaw/graphiti-venv/bin/python /opt/blueclaw/graphiti_memoryd/main.py "$@"
+exec /opt/blueclaw/graphiti-venv/bin/python -u /opt/blueclaw/graphiti_memoryd/main.py "$@"
 SCRIPT
   run_root chmod 0755 "$rootfs_directory/usr/local/bin/graphiti-memoryd"
 }
