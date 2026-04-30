@@ -2,6 +2,7 @@ package blueclaw
 
 import (
 	"encoding/json"
+	"path"
 	"strings"
 
 	"github.com/anthropic-lab/internkim/internal/capabilities"
@@ -22,12 +23,12 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 	document := map[string]any{
 		"baseURL": BlueclawBaseURL,
 		"capabilities": map[string]any{
-			"transport":      "unix",
-			"unixSocketPath": CapabilitySocketPath,
-			"endpoint":       "http://internkim",
+			"transport":      "vsock",
+			"unixSocketPath": "",
+			"endpoint":       "http://internkim-capability",
 			"timeoutSecond":  120,
-			"vsockCID":       52,
-			"vsockPort":      7000,
+			"vsockCID":       CapabilityVSockHostCID,
+			"vsockPort":      CapabilityVSockPort,
 			"toolNames":      capabilities.DefaultToolNames(),
 			"routing": map[string]any{
 				"candidates": capabilities.RoutingCandidates(),
@@ -40,16 +41,20 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 			"capability":       capabilityLanguageModel,
 		},
 		"firecracker": map[string]any{
-			"firecrackerPath":     BlueclawFirecrackerPath,
-			"jailerPath":          BlueclawJailerPath,
-			"kernelImagePath":     BlueclawKernelImagePath,
-			"rootfsImagePath":     BlueclawRootFilesystemImagePath,
-			"workspaceImagePath":  BlueclawWorkspaceImagePath,
-			"vcpuCount":           4,
-			"memoryMiB":           8192,
-			"vsockCID":            52,
-			"healthPortOrService": "8080",
-			"logDirectoryPath":    BlueclawSupervisorLogDirectoryPath,
+			"firecrackerPath":        BlueclawFirecrackerPath,
+			"jailerPath":             BlueclawJailerPath,
+			"kernelImagePath":        BlueclawKernelImagePath,
+			"rootfsImagePath":        BlueclawRootFilesystemImagePath,
+			"workspaceImagePath":     BlueclawWorkspaceImagePath,
+			"hostWorkspacePath":      BlueclawWorkspacePath,
+			"vcpuCount":              4,
+			"memoryMiB":              8192,
+			"vsockCID":               52,
+			"healthPortOrService":    "8082",
+			"guestHTTPPortOrService": "8081",
+			"hostHTTPListenAddress":  "127.0.0.1:8080",
+			"logDirectoryPath":       BlueclawSupervisorLogDirectoryPath,
+			"runtimeDirectoryPath":   "/var/lib/bc",
 		},
 		"bridge": map[string]any{
 			"mode":                     "localAgent",
@@ -59,13 +64,13 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 		},
 		"database": map[string]any{
 			"driver":                 "postgres",
-			"connectionString":       BlueclawDatabaseConnectionString,
-			"migrationDirectoryPath": BlueclawMigrationPath,
+			"connectionString":       BlueclawGuestDatabaseConnectionString,
+			"migrationDirectoryPath": BlueclawGuestMigrationPath,
 		},
 		"memory": map[string]any{
 			"workspaceID":      "default",
 			"graphitiEndpoint": GraphitiEndpoint,
-			"graphitiKuzuPath": GraphitiKuzuPath,
+			"graphitiKuzuPath": path.Join(BlueclawGuestWorkspacePath, ".blueclaw", "graphiti", "kuzu"),
 			"timeoutSecond":    60,
 		},
 		"agent": map[string]any{
@@ -94,7 +99,7 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 		"terminal": map[string]any{
 			"mode":                   "native",
 			"sandboxProvider":        "",
-			"workspaceRootPath":      BlueclawWorkspacePath,
+			"workspaceRootPath":      BlueclawGuestWorkspacePath,
 			"allowedExecutableNames": BlueclawAllowedExecutables,
 			"deniedExecutableNames":  BlueclawDeniedExecutables,
 			"deniedPathPrefixes":     BlueclawDeniedPathPrefixes,

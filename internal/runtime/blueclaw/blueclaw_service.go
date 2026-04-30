@@ -5,20 +5,19 @@ import "fmt"
 func BlueclawServiceUnit() string {
 	return fmt.Sprintf(`[Unit]
 Description=Blueclaw
-After=network-online.target time-sync.target postgresql.service graphiti-memoryd.service
-Wants=network-online.target time-sync.target postgresql.service graphiti-memoryd.service
+After=network-online.target time-sync.target internkim-capabilityd.service
+Wants=network-online.target time-sync.target internkim-capabilityd.service
 
 [Service]
-User=%s
-Environment=HOME=%s
-Environment=BLUECLAW_SESSIONS_DIR=%s
+User=root
 Environment=RUST_LOG=%s
-ExecStart=%s -runtime %s -policy %s
+ExecStart=%s -runtime %s
 Restart=on-failure
+RestartSec=2
 
 [Install]
 WantedBy=multi-user.target
-`, BlueclawUser, BlueclawHomePath, BlueclawSessionDirectory, BlueclawRuntimeLogLevel, BlueclawBinaryPath, BlueclawRuntimeConfigPath, BlueclawPolicyConfigPath)
+`, BlueclawRuntimeLogLevel, BlueclawSupervisorBinaryPath, BlueclawRuntimeConfigPath)
 }
 
 func GraphitiMemorydServiceUnit() string {
@@ -51,13 +50,13 @@ Wants=network-online.target time-sync.target
 [Service]
 User=root
 RuntimeDirectory=internkim
-ExecStart=%s
+ExecStart=%s --vsock-port %d
 Restart=on-failure
 RestartSec=2
 
 [Install]
 WantedBy=multi-user.target
-`, CapabilitydBinaryPath)
+`, CapabilitydBinaryPath, CapabilityVSockPort)
 }
 
 func AdmindServiceUnit() string {

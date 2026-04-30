@@ -59,6 +59,8 @@ type ToolInvokeResponse struct {
 	SelectedBackend string          `json:"selectedBackend"`
 	ToolName        string          `json:"toolName"`
 	Status          string          `json:"status,omitempty"`
+	Content         string          `json:"content,omitempty"`
+	IsError         bool            `json:"isError,omitempty"`
 	Result          json.RawMessage `json:"result"`
 }
 

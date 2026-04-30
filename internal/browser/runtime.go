@@ -241,16 +241,28 @@ func (runtime AgentBrowserRuntime) Navigate(ctx context.Context, request Navigat
 	if errorValue := ValidateWebURL(request.URL); errorValue != nil {
 		return NavigateResult{}, errorValue
 	}
-	if _, errorValue := runtime.run(ctx, append(runtime.sessionStartArguments(), "open", strings.TrimSpace(request.URL))...); errorValue != nil {
+	trimmedURL := strings.TrimSpace(request.URL)
+	openArguments := append(runtime.sessionStartArguments(), "open", trimmedURL, "--headers", stealthRequestHeaders())
+	if _, errorValue := runtime.run(ctx, openArguments...); errorValue != nil {
 		return NavigateResult{}, errorValue
 	}
-	return NavigateResult{URL: strings.TrimSpace(request.URL)}, nil
+	stealthEvalArguments := append(runtime.sessionCommandArguments(), "eval", stealthPostLoadScript())
+	_, _ = runtime.run(ctx, stealthEvalArguments...)
+	return NavigateResult{URL: trimmedURL}, nil
+}
+
+func stealthRequestHeaders() string {
+	return `{"User-Agent":"Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36","Accept-Language":"ko,en-US;q=0.9,en;q=0.8"}`
+}
+
+func stealthPostLoadScript() string {
+	return `Object.defineProperty(navigator,'webdriver',{get:()=>undefined});Object.defineProperty(navigator,'languages',{get:()=>['ko-KR','ko','en-US','en']});`
 }
 
 func (runtime AgentBrowserRuntime) Observe(ctx context.Context, request ObserveRequest) (ObserveResult, error) {
 	_ = request
 	capturedAt := runtime.now().UTC().Format(time.RFC3339)
-	output, errorValue := runtime.run(ctx, append(runtime.sessionCommandArguments(), "snapshot", "-i", "--json")...)
+	output, errorValue := runtime.run(ctx, append(runtime.sessionCommandArguments(), "snapshot", "--compact", "--json")...)
 	if errorValue != nil {
 		return ObserveResult{}, errorValue
 	}

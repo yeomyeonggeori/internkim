@@ -194,7 +194,7 @@ func (forwarder MattermostWebSocketForwarder) forward(ctx context.Context, paylo
 	request.Header.Set("Content-Type", "application/json")
 	client := forwarder.HTTPClient
 	if client == nil {
-		client = &http.Client{Timeout: 10 * time.Second}
+		client = &http.Client{Timeout: 5 * time.Minute}
 	}
 	response, errorValue := client.Do(request)
 	if errorValue != nil {

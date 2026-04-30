@@ -20,7 +20,7 @@ func TestMattermostNormalizeSkipsSelfAndBuildsMinimalThreadEvent(t *testing.T) {
 		ChannelID: "channel-1",
 		Message:   "hello",
 		CreateAt:  1700000000000,
-	}, "bot-1", "O")
+	}, "bot-1", "O", "town-square", false)
 	if errorValue != nil {
 		t.Fatalf("expected normalization to succeed: %v", errorValue)
 	}
@@ -53,7 +53,7 @@ func TestMattermostNormalizeSkipsSelfAndBuildsMinimalThreadEvent(t *testing.T) {
 		UserID:    "bot-1",
 		ChannelID: "channel-1",
 		Message:   "self",
-	}, "bot-1", "O")
+	}, "bot-1", "O", "town-square", false)
 	if errorValue != nil {
 		t.Fatalf("expected self normalization to be harmless: %v", errorValue)
 	}
@@ -68,7 +68,7 @@ func TestMattermostDirectMessageDoesNotUseThreadRoot(t *testing.T) {
 		UserID:    "user-1",
 		ChannelID: "dm-1",
 		Message:   "hello",
-	}, "bot-1", "D")
+	}, "bot-1", "D", "", false)
 	if errorValue != nil {
 		t.Fatalf("expected normalization to succeed: %v", errorValue)
 	}
@@ -84,6 +84,146 @@ func TestMattermostDirectMessageDoesNotUseThreadRoot(t *testing.T) {
 	}
 	if replyHandle.RootID != "" {
 		t.Fatalf("expected DM reply root to be empty, got %q", replyHandle.RootID)
+	}
+}
+
+func TestMattermostDirectMessageThreadKeepsThreadRoot(t *testing.T) {
+	event, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
+		ID:        "reply-1",
+		UserID:    "user-1",
+		ChannelID: "dm-1",
+		Message:   "thread reply",
+		RootID:    "root-9",
+	}, "bot-1", "D", "", false)
+	if errorValue != nil {
+		t.Fatalf("expected normalization to succeed: %v", errorValue)
+	}
+	if !hasEvent {
+		t.Fatal("expected dm thread event")
+	}
+	if event.ConversationID != "thread:dm-1:root-9" {
+		t.Fatalf("expected dm thread conversation, got %q", event.ConversationID)
+	}
+	replyHandle, errorValue := decodePlatformHandle(event.ReplyTargetID)
+	if errorValue != nil {
+		t.Fatalf("expected reply target to decode: %v", errorValue)
+	}
+	if replyHandle.RootID != "root-9" {
+		t.Fatalf("expected dm thread reply root to be root-9, got %q", replyHandle.RootID)
+	}
+}
+
+func TestMattermostChannelMessageWithoutMentionIsSkipped(t *testing.T) {
+	_, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
+		ID:        "post-1",
+		UserID:    "user-1",
+		ChannelID: "channel-1",
+		Message:   "casual chatter",
+	}, "bot-1", "O", "random-chat", false)
+	if errorValue != nil {
+		t.Fatalf("expected normalization to succeed: %v", errorValue)
+	}
+	if hasEvent {
+		t.Fatal("expected non-default channel without mention to be skipped")
+	}
+}
+
+func TestMattermostChannelMessageWithMentionIsForwarded(t *testing.T) {
+	event, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
+		ID:        "post-1",
+		UserID:    "user-1",
+		ChannelID: "channel-1",
+		Message:   "@internkim hi",
+	}, "bot-1", "O", "random-chat", true)
+	if errorValue != nil {
+		t.Fatalf("expected normalization to succeed: %v", errorValue)
+	}
+	if !hasEvent {
+		t.Fatal("expected channel mention to produce an event")
+	}
+	if event.ConversationID != "thread:channel-1:post-1" {
+		t.Fatalf("expected mention to start a thread conversation, got %q", event.ConversationID)
+	}
+}
+
+func TestMattermostTownSquareForwardsWithoutMention(t *testing.T) {
+	_, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
+		ID:        "post-1",
+		UserID:    "user-1",
+		ChannelID: "channel-1",
+		Message:   "town square chatter",
+	}, "bot-1", "O", "town-square", false)
+	if errorValue != nil {
+		t.Fatalf("expected normalization to succeed: %v", errorValue)
+	}
+	if !hasEvent {
+		t.Fatal("expected town-square message to be forwarded without mention")
+	}
+}
+
+func TestMattermostGroupMessageRequiresMention(t *testing.T) {
+	_, hasEventWithoutMention, errorValue := normalizeMattermostPost(mattermostPost{
+		ID:        "post-1",
+		UserID:    "user-1",
+		ChannelID: "group-1",
+		Message:   "hi all",
+	}, "bot-1", "G", "", false)
+	if errorValue != nil {
+		t.Fatalf("expected normalization to succeed: %v", errorValue)
+	}
+	if hasEventWithoutMention {
+		t.Fatal("expected group message without mention to be skipped")
+	}
+
+	_, hasEventWithMention, errorValue := normalizeMattermostPost(mattermostPost{
+		ID:        "post-2",
+		UserID:    "user-1",
+		ChannelID: "group-1",
+		Message:   "@internkim help",
+	}, "bot-1", "G", "", true)
+	if errorValue != nil {
+		t.Fatalf("expected normalization to succeed: %v", errorValue)
+	}
+	if !hasEventWithMention {
+		t.Fatal("expected group message with mention to be forwarded")
+	}
+}
+
+func TestMattermostWebSocketPayloadGatesByMention(t *testing.T) {
+	buildPayload := func(channelType string, channelName string, mentions string, message string) []byte {
+		postDocument, _ := json.Marshal(mattermostPost{
+			ID:        "post-1",
+			UserID:    "user-1",
+			ChannelID: "channel-1",
+			Message:   message,
+		})
+		envelope := map[string]any{
+			"event": "posted",
+			"data": map[string]any{
+				"channel_type": channelType,
+				"channel_name": channelName,
+				"mentions":     mentions,
+				"post":         string(postDocument),
+			},
+		}
+		document, _ := json.Marshal(envelope)
+		return document
+	}
+
+	_, hasEvent, errorValue := normalizeMattermostWebSocketPayload(buildPayload("O", "random-chat", "", "no mention"), "bot-1")
+	if errorValue != nil {
+		t.Fatalf("expected payload normalization to succeed: %v", errorValue)
+	}
+	if hasEvent {
+		t.Fatal("expected channel post without mention to be skipped")
+	}
+
+	_, hasEvent, errorValue = normalizeMattermostWebSocketPayload(buildPayload("O", "random-chat", `["bot-1"]`, "@internkim hi"), "bot-1")
+	if errorValue != nil {
+		t.Fatalf("expected mention payload normalization to succeed: %v", errorValue)
+	}
+	if !hasEvent {
+		t.Fatal("expected channel mention payload to be forwarded")
 	}
 }
 
@@ -676,9 +816,9 @@ func handleTestMattermostPoll(t *testing.T, request *http.Request) *http.Respons
 	t.Helper()
 	switch {
 	case request.URL.Path == "/api/v4/users/me":
-		return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1"})
+		return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1", "username": "internkim"})
 	case request.URL.Path == "/api/v4/users/bot-1/channels":
-		return testJSONResponse(http.StatusOK, []map[string]string{{"id": "dm-1", "type": "D"}})
+		return testJSONResponse(http.StatusOK, []map[string]string{{"id": "dm-1", "type": "D", "name": "user-1__bot-1"}})
 	case request.URL.Path == "/api/v4/channels/dm-1/posts" && request.URL.Query().Get("per_page") == "1":
 		return testJSONResponse(http.StatusOK, mattermostPostsResponse{
 			Order: []string{"old-1"},

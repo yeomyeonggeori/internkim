@@ -25,6 +25,7 @@ import (
 
 type Configuration struct {
 	SocketPath                 string
+	VSockPort                  int
 	OpenRouterKeyPath          string
 	MattermostBaseURL          string
 	MattermostTokenPath        string
@@ -52,6 +53,7 @@ type Configuration struct {
 	ProviderAttemptTimeout     time.Duration
 	AgentBrowserPath           string
 	DeviceBrowserPath          string
+	DeviceBrowserProfilePath   string
 	CompanionFileDirectory     string
 }
 
@@ -106,6 +108,7 @@ type mattermostPostsResponse struct {
 func DefaultConfiguration() Configuration {
 	return Configuration{
 		SocketPath:                 "/run/internkim/capability.sock",
+		VSockPort:                  0,
 		OpenRouterKeyPath:          "/root/.internkim/secrets/openrouter-api-key",
 		MattermostBaseURL:          "http://localhost:8065",
 		MattermostTokenPath:        "/root/.internkim/secrets/mattermost-bot-token",
@@ -131,6 +134,7 @@ func DefaultConfiguration() Configuration {
 		ProviderAttemptTimeout:     90 * time.Second,
 		AgentBrowserPath:           "agent-browser",
 		DeviceBrowserPath:          browserruntime.DeviceBrowserExecutablePath,
+		DeviceBrowserProfilePath:   "/root/.internkim/state/browser-profile",
 		CompanionFileDirectory:     "/tmp/internkim-companion-files",
 	}
 }
@@ -141,6 +145,14 @@ func (service Service) Run(ctx context.Context) error {
 		return errorValue
 	}
 	defer listener.Close()
+
+	vsockListener, errorValue := service.listenVSock()
+	if errorValue != nil {
+		return errorValue
+	}
+	if vsockListener != nil {
+		defer vsockListener.Close()
+	}
 
 	go service.startMattermostForwarder(ctx)
 	go service.startSlackSocketMode(ctx)
@@ -153,6 +165,14 @@ func (service Service) Run(ctx context.Context) error {
 		defer cancel()
 		_ = server.Shutdown(shutdownContext)
 	}()
+	if vsockListener != nil {
+		go func() {
+			errorValue := server.Serve(vsockListener)
+			if errorValue != nil && !errors.Is(errorValue, http.ErrServerClosed) {
+				log.Printf("capabilityd vsock listener stopped: %v", errorValue)
+			}
+		}()
+	}
 
 	errorValue = server.Serve(listener)
 	if errorValue != nil && !errors.Is(errorValue, http.ErrServerClosed) {
@@ -757,6 +777,13 @@ func (service Service) listen() (net.Listener, error) {
 	return listener, nil
 }
 
+func (service Service) listenVSock() (net.Listener, error) {
+	if service.Configuration.VSockPort <= 0 {
+		return nil, nil
+	}
+	return listenVSock(service.Configuration.VSockPort)
+}
+
 func (service Service) httpClient() *http.Client {
 	if service.HTTPClient != nil {
 		return service.HTTPClient
@@ -974,7 +1001,8 @@ func (service Service) startMattermostForwarder(ctx context.Context) {
 
 func (service Service) pollMattermost(ctx context.Context, lastSeenByChannel map[string]int64) error {
 	var botUser struct {
-		ID string `json:"id"`
+		ID       string `json:"id"`
+		Username string `json:"username"`
 	}
 	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", nil, &botUser); errorValue != nil {
 		return errorValue
@@ -986,6 +1014,7 @@ func (service Service) pollMattermost(ctx context.Context, lastSeenByChannel map
 	var channels []struct {
 		ID   string `json:"id"`
 		Type string `json:"type"`
+		Name string `json:"name"`
 	}
 	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/"+url.PathEscape(botUser.ID)+"/channels", nil, &channels); errorValue != nil {
 		return errorValue
@@ -1005,7 +1034,7 @@ func (service Service) pollMattermost(ctx context.Context, lastSeenByChannel map
 			lastSeenByChannel[channel.ID] = latestCreateAt
 			continue
 		}
-		nextSeen, errorValue := service.forwardMattermostChannelPosts(ctx, botUser.ID, channel.ID, channel.Type, lastSeenByChannel[channel.ID])
+		nextSeen, errorValue := service.forwardMattermostChannelPosts(ctx, botUser.ID, botUser.Username, channel.ID, channel.Type, channel.Name, lastSeenByChannel[channel.ID])
 		if errorValue != nil {
 			log.Printf("mattermost channel poll failed: %s: %v", channel.ID, errorValue)
 			continue
@@ -1036,7 +1065,7 @@ func latestMattermostPostCreateAt(response mattermostPostsResponse) int64 {
 	return latestCreateAt
 }
 
-func (service Service) forwardMattermostChannelPosts(ctx context.Context, botUserID string, channelID string, channelType string, since int64) (int64, error) {
+func (service Service) forwardMattermostChannelPosts(ctx context.Context, botUserID string, botUsername string, channelID string, channelType string, channelName string, since int64) (int64, error) {
 	var response mattermostPostsResponse
 	path := "/api/v4/channels/" + url.PathEscape(channelID) + "/posts?since=" + strconv.FormatInt(since, 10)
 	if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, nil, &response); errorValue != nil {
@@ -1052,6 +1081,7 @@ func (service Service) forwardMattermostChannelPosts(ctx context.Context, botUse
 		if post.CreateAt > nextSeen {
 			nextSeen = post.CreateAt
 		}
+		isBotMentioned := messageMentionsMattermostBot(post.Message, botUsername)
 		event, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
 			ID:        post.ID,
 			UserID:    post.UserID,
@@ -1060,7 +1090,7 @@ func (service Service) forwardMattermostChannelPosts(ctx context.Context, botUse
 			RootID:    post.RootID,
 			Type:      post.Type,
 			CreateAt:  post.CreateAt,
-		}, botUserID, channelType)
+		}, botUserID, channelType, channelName, isBotMentioned)
 		if errorValue != nil {
 			log.Printf("mattermost post normalize failed: %s: %v", post.ID, errorValue)
 			continue
@@ -1074,6 +1104,14 @@ func (service Service) forwardMattermostChannelPosts(ctx context.Context, botUse
 		}
 	}
 	return nextSeen, nil
+}
+
+func messageMentionsMattermostBot(message string, botUsername string) bool {
+	trimmedUsername := strings.TrimSpace(botUsername)
+	if trimmedUsername == "" {
+		return false
+	}
+	return strings.Contains(strings.ToLower(message), "@"+strings.ToLower(trimmedUsername))
 }
 
 func (service Service) forwardMattermostEvent(ctx context.Context, event platformInboundEvent) error {

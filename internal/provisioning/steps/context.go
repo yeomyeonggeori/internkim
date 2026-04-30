@@ -49,9 +49,10 @@ type Callbacks struct {
 
 	GwsSkillsInstallScript string
 
-	BinariesVersion    func() string
-	InstallBinariesSSH func(context *Context) error
-	StageBinariesSD    func(context *Context) error
+	BinariesVersion           func() string
+	InstallBinariesSSH        func(context *Context) error
+	StageBinariesSD           func(context *Context) error
+	InstallBlueclawRuntimeSSH func(context *Context) error
 
 	AdminWebVersion func() string
 	DeployAdminWeb  func(context *Context) error

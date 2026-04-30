@@ -16,6 +16,7 @@ var StepBinaries = Step{
 		switch context.Backend {
 		case BackendSSH:
 			if !sshFileExists(context, "/usr/local/bin/blueclaw") ||
+				!sshFileExists(context, "/usr/local/bin/blueclaw-supervisor") ||
 				!sshFileExists(context, "/usr/local/bin/gws") ||
 				!sshFileExists(context, "/usr/local/bin/internkim-capabilityd") ||
 				!sshFileExists(context, "/usr/local/bin/internkim-admind") ||

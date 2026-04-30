@@ -1,0 +1,437 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repository_root="$(cd "$script_directory/.." && pwd)"
+artifact_directory="${INTERNKIM_BLUECLAW_RUNTIME_ARTIFACT_DIR:-$repository_root/.dependency/blueclaw-runtime}"
+scratch_directory="${INTERNKIM_BLUECLAW_RUNTIME_SCRATCH_DIR:-${TMPDIR:-/tmp}/internkim-blueclaw-runtime}"
+cache_directory="${INTERNKIM_BLUECLAW_RUNTIME_CACHE_DIR:-$scratch_directory/cache}"
+work_directory="${INTERNKIM_BLUECLAW_RUNTIME_WORK_DIR:-$scratch_directory/work}"
+stage_directory="$work_directory/stage"
+rootfs_directory="$work_directory/rootfs"
+rootfs_image_path="$stage_directory/rootfs.ext4"
+firecracker_version="${FIRECRACKER_VERSION:-1.12.1}"
+linux_kernel_version="${BLUECLAW_LINUX_KERNEL_VERSION:-6.1.129}"
+rootfs_size="${BLUECLAW_RUNTIME_ROOTFS_SIZE:-4G}"
+kernel_source="${BLUECLAW_KERNEL_IMAGE_SOURCE:-}"
+builder="local"
+ssh_host=""
+ssh_user="${USER:-admin}"
+ssh_password=""
+remote_directory="/tmp/internkim-blueclaw-runtime-builder"
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  tools/prepare-blueclaw-runtime [--builder local]
+  tools/prepare-blueclaw-runtime --builder tart
+  tools/prepare-blueclaw-runtime --builder ssh --host <linux-arm64> [--user <user>] [--password <password>]
+
+Prepare .dependency/blueclaw-runtime from a Linux arm64 builder.
+Run `make prepare-blueclaw-runtime-builder` before using --builder tart.
+USAGE
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --builder)
+      builder="${2:-}"
+      shift 2
+      ;;
+    --host)
+      ssh_host="${2:-}"
+      shift 2
+      ;;
+    --user)
+      ssh_user="${2:-}"
+      shift 2
+      ;;
+    --password)
+      ssh_password="${2:-}"
+      shift 2
+      ;;
+    --remote-dir)
+      remote_directory="${2:-}"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "unknown argument: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+ensure_internkim_binary() {
+  local go_cache
+  go_cache="${GOCACHE:-/tmp/internkim-go-cache}"
+
+  if [[ -n "${GOMODCACHE:-}" ]]; then
+    GOCACHE="$go_cache" GOMODCACHE="$GOMODCACHE" go build -o "$repository_root/internkim" "$repository_root/cmd/internkim"
+    return
+  fi
+
+  GOCACHE="$go_cache" go build -o "$repository_root/internkim" "$repository_root/cmd/internkim"
+}
+
+run_tart_builder() {
+  ensure_internkim_binary
+  "$repository_root/internkim" lab runtime-builder-prepare
+  "$repository_root/internkim" lab vm-ssh "cd /mnt/shared/workspace && BLUECLAW_BUILD_KERNEL='${BLUECLAW_BUILD_KERNEL:-0}' BLUECLAW_KERNEL_IMAGE_SOURCE='${BLUECLAW_KERNEL_IMAGE_SOURCE:-}' BLUECLAW_RUNTIME_ROOTFS_SIZE='${BLUECLAW_RUNTIME_ROOTFS_SIZE:-4G}' tools/prepare-blueclaw-runtime --builder local"
+}
+
+ssh_base_command() {
+  if [ -n "$ssh_password" ]; then
+    SSHPASS="$ssh_password" "$repository_root/bin/sshpass" -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$@"
+    return
+  fi
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$@"
+}
+
+rsync_to_builder() {
+  local remote_target="$ssh_user@$ssh_host"
+  if [ -n "$ssh_password" ]; then
+    SSHPASS="$ssh_password" rsync -az --delete \
+      -e "$repository_root/bin/sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+      --exclude '.git' \
+      --exclude '.dependency/blueclaw-runtime' \
+      "$repository_root/" "$remote_target:$remote_directory/repo/"
+    return
+  fi
+  rsync -az --delete \
+    -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+    --exclude '.git' \
+    --exclude '.dependency/blueclaw-runtime' \
+    "$repository_root/" "$remote_target:$remote_directory/repo/"
+}
+
+rsync_from_builder() {
+  local remote_target="$ssh_user@$ssh_host"
+  mkdir -p "$artifact_directory"
+  if [ -n "$ssh_password" ]; then
+    SSHPASS="$ssh_password" rsync -az \
+      -e "$repository_root/bin/sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+      "$remote_target:$remote_directory/repo/.dependency/blueclaw-runtime/" "$artifact_directory/"
+    return
+  fi
+  rsync -az \
+    -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+    "$remote_target:$remote_directory/repo/.dependency/blueclaw-runtime/" "$artifact_directory/"
+}
+
+run_ssh_builder() {
+  if [ -z "$ssh_host" ]; then
+    echo "--builder ssh requires --host <linux-arm64>" >&2
+    exit 1
+  fi
+  require_command rsync
+  ssh_base_command "$ssh_user@$ssh_host" "mkdir -p '$remote_directory'"
+  rsync_to_builder
+  ssh_base_command "$ssh_user@$ssh_host" "cd '$remote_directory/repo' && tools/prepare-blueclaw-runtime --builder local"
+  rsync_from_builder
+}
+
+require_command() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "$1 is required to prepare the Blueclaw runtime" >&2
+    exit 1
+  fi
+}
+
+run_root() {
+  if [ "$(id -u)" = "0" ]; then
+    "$@"
+    return
+  fi
+  sudo "$@"
+}
+
+case "$builder" in
+  tart)
+    run_tart_builder
+    exit 0
+    ;;
+  ssh)
+    run_ssh_builder
+    exit 0
+    ;;
+  local)
+    ;;
+  *)
+    echo "unsupported builder: $builder" >&2
+    usage >&2
+    exit 1
+    ;;
+esac
+
+if [ "$(uname -s)" != "Linux" ]; then
+  echo "Blueclaw runtime artifact build requires a prepared Linux arm64 builder." >&2
+  echo "Run: make prepare-blueclaw-runtime-builder && tools/prepare-blueclaw-runtime --builder tart" >&2
+  echo "Or: tools/prepare-blueclaw-runtime --builder ssh --host <linux-arm64>" >&2
+  exit 1
+fi
+
+if [ "$(uname -m)" != "aarch64" ] && [ "$(uname -m)" != "arm64" ]; then
+  echo "Blueclaw runtime artifacts must be prepared on Linux arm64" >&2
+  exit 1
+fi
+
+require_command curl
+require_command tar
+require_command sha256sum
+require_command mkfs.ext4
+require_command rsync
+require_command find
+require_command go
+require_command python3
+require_command make
+
+run_root mkdir -p "$scratch_directory" "$cache_directory" "$work_directory"
+run_root chown "$(id -u):$(id -g)" "$scratch_directory" "$cache_directory" "$work_directory"
+run_root rm -rf "$stage_directory"
+mkdir -p "$artifact_directory" "$stage_directory"
+
+prepare_firecracker() {
+  local archive_path="$cache_directory/firecracker-v$firecracker_version-aarch64.tgz"
+  local extract_directory="$work_directory/firecracker-v$firecracker_version"
+  local download_url="https://github.com/firecracker-microvm/firecracker/releases/download/v$firecracker_version/firecracker-v$firecracker_version-aarch64.tgz"
+
+  if [ -x "$artifact_directory/firecracker" ] && [ -x "$artifact_directory/jailer" ]; then
+    install -m 0755 "$artifact_directory/firecracker" "$stage_directory/firecracker"
+    install -m 0755 "$artifact_directory/jailer" "$stage_directory/jailer"
+    return
+  fi
+
+  if [ ! -s "$archive_path" ]; then
+    curl --fail --location --retry 3 --output "$archive_path.tmp" "$download_url"
+    mv "$archive_path.tmp" "$archive_path"
+  fi
+
+  rm -rf "$extract_directory"
+  mkdir -p "$extract_directory"
+  tar -xzf "$archive_path" -C "$extract_directory"
+  local firecracker_binary
+  local jailer_binary
+  firecracker_binary="$(find "$extract_directory" -type f -name 'firecracker-*aarch64' | head -1)"
+  jailer_binary="$(find "$extract_directory" -type f -name 'jailer-*aarch64' | head -1)"
+  if [ ! -s "$firecracker_binary" ] || [ ! -s "$jailer_binary" ]; then
+    echo "Firecracker archive did not contain firecracker and jailer binaries" >&2
+    exit 1
+  fi
+  install -m 0755 "$firecracker_binary" "$stage_directory/firecracker"
+  install -m 0755 "$jailer_binary" "$stage_directory/jailer"
+}
+
+prepare_kernel() {
+  if [ -n "$kernel_source" ]; then
+    install -m 0644 "$kernel_source" "$stage_directory/vmlinux.bin"
+    return
+  fi
+
+  local kernel_cache_path="$cache_directory/vmlinux-6.1-aarch64.bin"
+  if [ -s "$kernel_cache_path" ]; then
+    install -m 0644 "$kernel_cache_path" "$stage_directory/vmlinux.bin"
+    return
+  fi
+
+  if [ "${BLUECLAW_BUILD_KERNEL:-0}" != "1" ]; then
+    echo "missing Blueclaw guest kernel image" >&2
+    echo "set BLUECLAW_KERNEL_IMAGE_SOURCE to a Firecracker-compatible arm64 kernel image, or set BLUECLAW_BUILD_KERNEL=1" >&2
+    echo "Firecracker documents arm64 kernel builds with tools/devtool build_ci_artifacts kernels 6.1" >&2
+    exit 1
+  fi
+
+  require_command git
+  require_command curl
+  require_command tar
+
+  local firecracker_source_directory="$work_directory/firecracker-source-v$firecracker_version"
+  if [ ! -d "$firecracker_source_directory/.git" ]; then
+    rm -rf "$firecracker_source_directory"
+    git clone --depth 1 --branch "v$firecracker_version" https://github.com/firecracker-microvm/firecracker.git "$firecracker_source_directory"
+  fi
+
+  local kernel_archive_path="$cache_directory/linux-$linux_kernel_version.tar.xz"
+  local kernel_source_directory="$work_directory/linux-$linux_kernel_version"
+  local kernel_download_url="https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-$linux_kernel_version.tar.xz"
+
+  if [ ! -s "$kernel_archive_path" ]; then
+    curl --fail --location --retry 3 --output "$kernel_archive_path.tmp" "$kernel_download_url"
+    mv "$kernel_archive_path.tmp" "$kernel_archive_path"
+  fi
+
+  rm -rf "$kernel_source_directory"
+  tar -xJf "$kernel_archive_path" -C "$work_directory"
+
+  local kernel_configuration_path="$firecracker_source_directory/resources/guest_configs/microvm-kernel-ci-aarch64-6.1.config"
+  if [ ! -s "$kernel_configuration_path" ]; then
+    echo "Firecracker source did not contain the aarch64 6.1 guest kernel configuration" >&2
+    exit 1
+  fi
+
+  cp "$kernel_configuration_path" "$kernel_source_directory/.config"
+  (
+    cd "$kernel_source_directory"
+    make olddefconfig
+    make -j"$(nproc)" Image
+  )
+
+  local built_kernel_path="$kernel_source_directory/arch/arm64/boot/Image"
+  if [ ! -s "$built_kernel_path" ]; then
+    echo "Linux kernel build did not produce arch/arm64/boot/Image" >&2
+    exit 1
+  fi
+
+  install -m 0644 "$built_kernel_path" "$kernel_cache_path"
+  install -m 0644 "$kernel_cache_path" "$stage_directory/vmlinux.bin"
+}
+
+build_blueclaw_binaries() {
+  local binary_directory="$work_directory/bin"
+  mkdir -p "$binary_directory"
+  (
+    cd "$repository_root/.dependency/blueclaw"
+    GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o "$binary_directory/blueclaw" ./cmd/blueclaw
+    GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o "$binary_directory/blueclaw-supervisor" ./cmd/blueclaw-supervisor
+    GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o "$binary_directory/blueclaw-guest-healthd" ./cmd/blueclaw-guest-healthd
+    GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o "$binary_directory/blueclaw-vsock-http-proxy" ./cmd/blueclaw-vsock-http-proxy
+  )
+}
+
+rootfs_base_packages="ca-certificates,curl,bash,coreutils,findutils,postgresql,postgresql-client,python3,python3-venv,python3-pip,iproute2,procps,mount,e2fsprogs"
+rootfs_base_release="bookworm"
+rootfs_base_cache_path=""
+
+ensure_rootfs_base() {
+  require_command mmdebstrap
+  local requirements_path="$repository_root/.dependency/blueclaw/tools/graphiti_memoryd/requirements.txt"
+  if [ ! -s "$requirements_path" ]; then
+    echo "missing graphiti_memoryd requirements.txt at $requirements_path" >&2
+    exit 1
+  fi
+  local requirements_hash
+  requirements_hash="$(sha256sum "$requirements_path" | cut -d' ' -f1)"
+  local cache_key
+  cache_key="$(printf '%s\n%s\n%s\n' "$rootfs_base_packages" "$rootfs_base_release" "$requirements_hash" | sha256sum | cut -c1-16)"
+  rootfs_base_cache_path="$cache_directory/rootfs-base-${cache_key}.tar"
+
+  if [ -s "$rootfs_base_cache_path" ]; then
+    return
+  fi
+
+  local base_directory="$work_directory/rootfs-base"
+  run_root rm -rf "$base_directory"
+  run_root mmdebstrap \
+    --variant=minbase \
+    --architectures=arm64 \
+    --include="$rootfs_base_packages" \
+    "$rootfs_base_release" \
+    "$base_directory" \
+    http://deb.debian.org/debian
+
+  run_root mkdir -p "$base_directory/opt/blueclaw"
+  run_root install -m 0644 "$requirements_path" "$base_directory/opt/blueclaw/requirements.txt"
+  run_root chroot "$base_directory" python3 -m venv /opt/blueclaw/graphiti-venv
+  run_root chroot "$base_directory" /opt/blueclaw/graphiti-venv/bin/pip install --no-cache-dir -r /opt/blueclaw/requirements.txt
+  run_root rm -f "$base_directory/opt/blueclaw/requirements.txt"
+
+  run_root tar -C "$base_directory" --xattrs --acls --numeric-owner -cf "$rootfs_base_cache_path.tmp" .
+  run_root chown "$(id -u):$(id -g)" "$rootfs_base_cache_path.tmp"
+  mv "$rootfs_base_cache_path.tmp" "$rootfs_base_cache_path"
+  run_root rm -rf "$base_directory"
+  find "$cache_directory" -maxdepth 1 -name 'rootfs-base-*.tar' -not -name "rootfs-base-${cache_key}.tar" -print0 | xargs -0 -r rm -f
+}
+
+prepare_rootfs_directory() {
+  ensure_rootfs_base
+  run_root rm -rf "$rootfs_directory"
+  run_root mkdir -p "$rootfs_directory"
+  run_root tar -C "$rootfs_directory" --xattrs --acls --numeric-owner -xf "$rootfs_base_cache_path"
+
+  run_root mkdir -p \
+    "$rootfs_directory/usr/local/bin" \
+    "$rootfs_directory/opt/blueclaw" \
+    "$rootfs_directory/proc" \
+    "$rootfs_directory/sys" \
+    "$rootfs_directory/dev" \
+    "$rootfs_directory/dev/pts" \
+    "$rootfs_directory/run" \
+    "$rootfs_directory/tmp" \
+    "$rootfs_directory/workspace"
+  run_root chmod 1777 "$rootfs_directory/tmp"
+  run_root install -m 0755 "$work_directory/bin/blueclaw" "$rootfs_directory/usr/local/bin/blueclaw"
+  run_root install -m 0755 "$work_directory/bin/blueclaw-guest-healthd" "$rootfs_directory/usr/local/bin/blueclaw-guest-healthd"
+  run_root install -m 0755 "$work_directory/bin/blueclaw-vsock-http-proxy" "$rootfs_directory/usr/local/bin/blueclaw-vsock-http-proxy"
+  run_root install -m 0755 "$repository_root/assets/blueclaw-runtime/guest-init" "$rootfs_directory/sbin/init"
+  run_root mkdir -p "$rootfs_directory/opt/blueclaw/graphiti_memoryd"
+  run_root rsync -a --delete "$repository_root/.dependency/blueclaw/tools/graphiti_memoryd/" "$rootfs_directory/opt/blueclaw/graphiti_memoryd/"
+  run_root tee "$rootfs_directory/usr/local/bin/graphiti-memoryd" >/dev/null <<'SCRIPT'
+#!/usr/bin/env bash
+exec /opt/blueclaw/graphiti-venv/bin/python /opt/blueclaw/graphiti_memoryd/main.py "$@"
+SCRIPT
+  run_root chmod 0755 "$rootfs_directory/usr/local/bin/graphiti-memoryd"
+}
+
+prepare_rootfs_image() {
+  run_root rm -f "$rootfs_image_path"
+  truncate -s "$rootfs_size" "$rootfs_image_path"
+  run_root mkfs.ext4 -F -L blueclaw-rootfs -d "$rootfs_directory" "$rootfs_image_path" >/dev/null
+}
+
+write_manifest() {
+  python3 - "$stage_directory" "$artifact_directory/manifest.json" "$firecracker_version" <<'PY'
+import hashlib
+import json
+import os
+import sys
+
+stage_directory, manifest_path, version = sys.argv[1:4]
+files = []
+for name, mode in [
+    ("firecracker", "0755"),
+    ("jailer", "0755"),
+    ("vmlinux.bin", "0644"),
+    ("rootfs.ext4", "0644"),
+]:
+    path = os.path.join(stage_directory, name)
+    hash_value = hashlib.sha256()
+    with open(path, "rb") as file:
+        while True:
+            chunk = file.read(1024 * 1024)
+            if not chunk:
+                break
+            hash_value.update(chunk)
+    files.append({"name": name, "path": name, "sha256": hash_value.hexdigest(), "mode": mode})
+manifest = {
+    "runtimeName": "internkim-blueclaw-runtime",
+    "platform": "linux-arm64",
+    "version": version,
+    "files": files,
+}
+document = json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
+with open(os.path.join(stage_directory, "manifest.json"), "w", encoding="utf-8") as file:
+    file.write(document)
+with open(manifest_path, "w", encoding="utf-8") as file:
+    file.write(document)
+PY
+}
+
+publish_artifacts() {
+  for file_name in firecracker jailer vmlinux.bin rootfs.ext4 manifest.json; do
+    mv "$stage_directory/$file_name" "$artifact_directory/$file_name"
+  done
+}
+
+prepare_firecracker
+prepare_kernel
+build_blueclaw_binaries
+prepare_rootfs_directory
+prepare_rootfs_image
+write_manifest
+publish_artifacts
+
+echo "$artifact_directory"

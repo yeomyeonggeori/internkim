@@ -48,9 +48,16 @@ func TestAgentBrowserRuntimeNavigatesThroughCommandRunner(t *testing.T) {
 	if result.URL != "https://example.com" {
 		t.Fatalf("unexpected navigate result: %+v", result)
 	}
-	expectedArguments := []string{"--session", "internkim-test", "--headed", "true", "--profile", "/profile", "--session-name", "internkim-test", "open", "https://example.com"}
-	if len(runner.calls) != 1 || runner.calls[0].commandPath != "agent-browser-test" || !reflect.DeepEqual(runner.calls[0].arguments, expectedArguments) {
-		t.Fatalf("unexpected command calls: %+v", runner.calls)
+	expectedOpenArguments := []string{"--session", "internkim-test", "--headed", "true", "--profile", "/profile", "--session-name", "internkim-test", "open", "https://example.com", "--headers", stealthRequestHeaders()}
+	expectedEvalArguments := []string{"--session", "internkim-test", "--session-name", "internkim-test", "eval", stealthPostLoadScript()}
+	if len(runner.calls) != 2 {
+		t.Fatalf("expected 2 command calls (open + stealth eval), got %d: %+v", len(runner.calls), runner.calls)
+	}
+	if runner.calls[0].commandPath != "agent-browser-test" || !reflect.DeepEqual(runner.calls[0].arguments, expectedOpenArguments) {
+		t.Fatalf("unexpected open call: %+v", runner.calls[0])
+	}
+	if runner.calls[1].commandPath != "agent-browser-test" || !reflect.DeepEqual(runner.calls[1].arguments, expectedEvalArguments) {
+		t.Fatalf("unexpected eval call: %+v", runner.calls[1])
 	}
 }
 
@@ -69,8 +76,8 @@ func TestAgentBrowserRuntimeChromeEngineUsesHeadedProfile(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected navigate success: %v", errorValue)
 	}
-	expectedArguments := []string{"--session", "internkim-test", "--engine", "chrome", "--headed", "true", "--profile", "/profile", "--session-name", "internkim-test", "open", "https://example.com"}
-	if !reflect.DeepEqual(runner.calls[0].arguments, expectedArguments) {
+	expectedOpenArguments := []string{"--session", "internkim-test", "--engine", "chrome", "--headed", "true", "--profile", "/profile", "--session-name", "internkim-test", "open", "https://example.com", "--headers", stealthRequestHeaders()}
+	if !reflect.DeepEqual(runner.calls[0].arguments, expectedOpenArguments) {
 		t.Fatalf("unexpected chrome arguments: %+v", runner.calls[0].arguments)
 	}
 }
