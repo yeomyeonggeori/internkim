@@ -1305,24 +1305,38 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 	}
 
 	// 7. Get town-square channel ID
-	_, teamResp := mmAPI("GET", "/api/v4/teams/name/internkim", nil, adminToken)
+	teamCode, teamResp := mmAPI("GET", "/api/v4/teams/name/internkim", nil, adminToken)
 	var teamResult struct {
 		ID string `json:"id"`
 	}
-	if err := json.Unmarshal(teamResp, &teamResult); err != nil || teamResult.ID == "" {
-		// Create team
-		teamBody, _ := json.Marshal(map[string]string{"name": "internkim", "display_name": "Intern Kim", "type": "I"})
-		_, teamResp = mmAPI("POST", "/api/v4/teams", teamBody, adminToken)
+	if teamCode >= 200 && teamCode < 300 {
 		json.Unmarshal(teamResp, &teamResult)
+	}
+	if teamResult.ID == "" {
+		teamBody, _ := json.Marshal(map[string]string{"name": "internkim", "display_name": "Intern Kim", "type": "I"})
+		createCode, createResp := mmAPI("POST", "/api/v4/teams", teamBody, adminToken)
+		if createCode >= 200 && createCode < 300 {
+			json.Unmarshal(createResp, &teamResult)
+		}
 	}
 	channelID := ""
 	if teamResult.ID != "" {
-		_, chResp := mmAPI("GET", "/api/v4/teams/"+teamResult.ID+"/channels/name/town-square", nil, adminToken)
-		var chResult struct {
-			ID string `json:"id"`
+		for attempt := 0; attempt < 10; attempt++ {
+			chCode, chResp := mmAPI("GET", "/api/v4/teams/"+teamResult.ID+"/channels/name/town-square", nil, adminToken)
+			if chCode >= 200 && chCode < 300 {
+				var chResult struct {
+					ID string `json:"id"`
+				}
+				if err := json.Unmarshal(chResp, &chResult); err == nil && chResult.ID != "" {
+					channelID = chResult.ID
+					break
+				}
+			}
+			time.Sleep(1 * time.Second)
 		}
-		json.Unmarshal(chResp, &chResult)
-		channelID = chResult.ID
+		if channelID == "" {
+			fatal("town-square channel lookup failed after retries")
+		}
 
 		// Add bot to team
 		if botResult.UserID != "" {
