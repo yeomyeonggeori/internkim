@@ -131,8 +131,8 @@ func TestResolveJetsonFlashWiFiYesFailsWithoutSSID(t *testing.T) {
 }
 
 func TestBuildJetsonNetworkManagerWiFiConnectionIncludesCredentials(t *testing.T) {
-	document := buildJetsonNetworkManagerWiFiConnection("Office WiFi", "secret")
-	for _, fragment := range []string{"[connection]", "id=" + jetsonWiFiConnectionID("Office WiFi"), "uuid=" + jetsonWiFiConnectionUUID("Office WiFi"), "type=wifi", "ssid=Office WiFi", "key-mgmt=wpa-psk", "psk=secret"} {
+	document := buildJetsonNetworkManagerWiFiConnection("Office WiFi", "secret", false)
+	for _, fragment := range []string{"[connection]", "id=" + jetsonWiFiConnectionID("Office WiFi"), "uuid=" + jetsonWiFiConnectionUUID("Office WiFi"), "type=wifi", "ssid=Office WiFi", "key-mgmt=wpa-psk", "psk=secret", "hidden=false"} {
 		if !strings.Contains(document, fragment) {
 			t.Fatalf("expected NetworkManager document to include %q, got:\n%s", fragment, document)
 		}
@@ -144,8 +144,15 @@ func TestBuildJetsonNetworkManagerWiFiConnectionIncludesCredentials(t *testing.T
 	}
 }
 
+func TestBuildJetsonNetworkManagerWiFiConnectionMarksHiddenSSID(t *testing.T) {
+	document := buildJetsonNetworkManagerWiFiConnection("Office WiFi", "secret", true)
+	if !strings.Contains(document, "hidden=true") {
+		t.Fatalf("hidden SSID document must include hidden=true, got:\n%s", document)
+	}
+}
+
 func TestBuildJetsonNetworkManagerWiFiConnectionSupportsOpenNetwork(t *testing.T) {
-	document := buildJetsonNetworkManagerWiFiConnection("Office WiFi", "")
+	document := buildJetsonNetworkManagerWiFiConnection("Office WiFi", "", false)
 	if strings.Contains(document, "[wifi-security]") || strings.Contains(document, "psk=") {
 		t.Fatalf("open NetworkManager document must not include Wi-Fi security, got:\n%s", document)
 	}
@@ -305,7 +312,7 @@ func completeJetsonPatchDocumentsFixture() jetsonPatchDocuments {
 		hostname:         "internkim\n",
 		sshConfig:        "PasswordAuthentication yes\nPubkeyAuthentication yes\n",
 		oemMarker:        "1\n",
-		wifiConnection:   buildJetsonNetworkManagerWiFiConnection("Office WiFi", "secret"),
+		wifiConnection:   buildJetsonNetworkManagerWiFiConnection("Office WiFi", "secret", false),
 		wifiSelector:     buildJetsonWiFiSelectorScript(),
 		firstbootScript:  buildJetsonFirstbootScript(),
 		firstbootService: buildJetsonFirstbootService(),
