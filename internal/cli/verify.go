@@ -594,6 +594,7 @@ wait_for_model_reply() {
     sleep 1
   done
   echo "expected model-generated bot reply after post timestamp: $posted_after" >&2
+  print_recent_bot_replies "$posted_after"
   return 1
 }
 
