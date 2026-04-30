@@ -55,6 +55,12 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 			"hostHTTPListenAddress":  "127.0.0.1:8080",
 			"logDirectoryPath":       BlueclawSupervisorLogDirectoryPath,
 			"runtimeDirectoryPath":   "/var/lib/bc",
+			"guestListenerProxies": []map[string]any{
+				{
+					"guestPort":            CapabilityVSockPort,
+					"targetUnixSocketPath": CapabilitySocketPath,
+				},
+			},
 		},
 		"bridge": map[string]any{
 			"mode":                     "localAgent",

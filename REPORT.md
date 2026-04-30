@@ -1,6 +1,6 @@
 # Blueclaw Firecracker Runtime Report
 
-작성 시각: 2026-04-30 23:18 KST
+작성 시각: 2026-04-30 23:55 KST
 
 ## 목표
 
@@ -86,32 +86,61 @@ Firecracker guest 안으로 들어가는 것:
 
 이걸로 setup 12/12와 verify의 admin login / capability profile / llm / litert / secret isolation / blueclaw health / backup manifest / users sync 까지 통과. verify mattermost reply smoke의 `cleanup stale verify users`, `bot lookup`, `create users`, `join users`, `login users`, `invite policy`, `invited post`, `reply wait`까지도 진행.
 
+## 이번 세션에 추가로 적용한 수정
+
+### Capability daemon용 guest→host vsock listener proxy 추가
+
+Firecracker의 vsock 모델은 guest→host 연결을 host측에 미리 바인드된 unix socket(`<vsockUnixSocketPath>_<port>`)으로 forward한다. 기존 supervisor는 base UDS만 만들어, blueclaw가 host capability daemon으로 dial할 때 "connection reset by peer".
+
+수정:
+
+- 신규 [`internal/firecracker/guest_listener_proxy.go`](.dependency/blueclaw/internal/firecracker/guest_listener_proxy.go) — `HostHTTPProxy`의 inverse. `<vsock_path>_<port>` UDS를 pre-bind, accept된 연결을 host의 target unix socket으로 bidirectional forward. 단위 테스트 3개.
+- [`internal/config/runtime_configuration.go`](.dependency/blueclaw/internal/config/runtime_configuration.go) `FirecrackerConfiguration`에 `GuestListenerProxies []GuestListenerProxyConfiguration` 필드 추가.
+- [`cmd/blueclaw-supervisor/main.go`](.dependency/blueclaw/cmd/blueclaw-supervisor/main.go) — `BootGuest` 직후 각 매핑마다 listener proxy goroutine 구동, `WaitForGuestHealth`/`HostHTTPProxy`와 함께 lifecycle 관리.
+- 본 repo [`internal/runtime/blueclaw/blueclaw_config.go`](internal/runtime/blueclaw/blueclaw_config.go)가 runtime.json의 `firecracker.guestListenerProxies`에 `[{guestPort: 7000, targetUnixSocketPath: "/run/internkim/capability.sock"}]` 1개 매핑 emit.
+
+검증:
+
+- guest blueclaw 로그에서 `connector.mattermost.auth.allowed` 통과 (이전엔 `auth.failed: dial vsock host(2):7000: connect: connection reset by peer`).
+- agent 정상 12초 만에 `agent.completed`.
+- verify의 `expected task count >= 1` 통과.
+
 ## 다음에 막힌 지점
 
-### Capability daemon의 guest→host vsock listener 누락
+### Bot outbound reply가 Mattermost에 안 들어감
 
-verify mattermost 마지막 `expected task count >= 1`에서 실패. 원인은 guest 안 blueclaw가 host capability daemon에 vsock으로 dial하지 못함:
+verify mattermost 단계에서 `expected model-generated bot reply after post timestamp: ...`로 실패.
+
+guest blueclaw 로그상으로는 정상:
 
 ```
-ERROR connector.mattermost.auth.failed
-error: Post "http://internkim-capability/v1/platform/mattermost/identity.resolve":
-       dial vsock host(2):7000: connect: connection reset by peer
+14:51:39 connector.mattermost.auth.allowed
+14:51:40 connector.mattermost.progress.started
+14:51:40 connector.mattermost.memory.search_failed (graphiti 7791 connect refused)
+14:51:40 connector.mattermost.agent.started
+14:51:52 connector.mattermost.agent.completed taskRunID=...
+14:51:52 connector.mattermost.outbound.sent replyDispatchID=...
+14:51:55 connector.mattermost.memory.ingestion_failed (graphiti)
+14:51:55 connector.mattermost.progress.stopped
 ```
 
-`internkim-capabilityd`는 `--vsock-port 7000`로 떠 있고 vsock 커널 모듈도 로드돼 있다(Tart VM 측 `lsmod` 확인). 하지만 Firecracker의 vsock 모델은 다음을 요구한다:
+하지만 Mattermost API로 town-square 포스트를 조회해도 bot reply가 보이지 않음 — 시스템 join/leave 메시지만 존재.
 
-- guest→host 방향 connection은 host측에 미리 바인드된 unix socket이 `<vsockUnixSocketPath>_<port>` 경로에 있어야 한다
-- Firecracker가 guest의 vsock dial을 그 unix socket으로 forward한다
+가설:
 
-현재 supervisor는 `<jailerRoot>/firecracker-vsock.socket` 베이스 socket만 만들고, 포트별 inbound listener (`firecracker-vsock.socket_7000` 등)는 만들지 않는다. 그래서 커널 vsock.Listen으로 떠 있는 capabilityd에는 절대 도달 못 한다 — 이게 "connection reset by peer".
+- blueclaw는 `outbound.sent`까지만 로그하고 실제 POST는 capability daemon의 `/v1/platform/mattermost/reply.send` handler가 수행. 이 handler 또는 그 안에서 호출되는 Mattermost REST POST가 silently fail.
+- capabilityd journal에는 해당 시간대 outbound 관련 로그 없음 — 성공/실패 모두 로그가 없음. 즉 logging 부재 + 실패 가능성 둘 다 살아 있음.
+- 부수적으로 graphiti `127.0.0.1:7791`이 guest 안에서 connect refused — graphiti-memoryd가 안 떠 있다. 별도 문제(다음 항목).
 
-해결 방향(미적용):
+다음 단계 후보:
 
-1. supervisor에 outbound `HostHTTPProxy`의 inverse를 추가 — guest port별로 host UDS를 pre-bind하고, accept된 연결을 capabilityd의 unix socket(`/run/internkim/capability.sock`)에 forward.
-2. `FirecrackerConfiguration`에 `guestListenerProxies: [{guestPort, targetUnixSocketPath}]` 같은 필드 추가, internkim setup이 7000→capability.sock 매핑을 채워 넣음.
-3. supervisor가 guest boot 직전(또는 직후 빠르게) listener proxy goroutine을 띄움.
+1. capabilityd의 `mattermostReplyFromRequest` 경로에 success/error 로깅 추가, 한 번 더 smoke 돌려서 어디서 끊기는지 확인.
+2. blueclaw가 실제로 reply 본문/대상을 capabilityd에 전달하는지 직접 캡처(요청 body 덤프 일시 추가).
+3. Mattermost 측 access log / audit log 확인 (`/var/log/mattermost/...`).
 
-크지 않지만 supervisor + parent config 양쪽을 건드리는 일이라 별도 커밋으로 처리.
+### Graphiti memoryd가 guest 안에서 안 뜸
+
+guest의 `/workspace/.blueclaw/logs/graphiti-memoryd.log`가 비어 있고 `dial tcp 127.0.0.1:7791: connect: connection refused` 발생. wrapper 스크립트와 venv는 rootfs에 정상 존재(`/usr/local/bin/graphiti-memoryd`, `/opt/blueclaw/graphiti-venv/bin/python`, `/opt/blueclaw/graphiti_memoryd/main.py`). 그런데 background로 띄운 프로세스가 stdout/stderr를 redirect하는데도 로그가 비어 있다는 것은 fork 직후 즉시 죽거나 아예 시작도 안 한 것일 수 있다 — 진단 무기가 부족한 영역. guest-init에 `set -x` + `exec >>logs/guest-init.log 2>&1`을 추가해 다음 iteration에 어디서 막히는지 확인이 필요.
 
 ## 진단 인프라 메모
 
@@ -133,16 +162,18 @@ error: Post "http://internkim-capability/v1/platform/mattermost/identity.resolve
 
 ## 커밋/푸시 현황
 
-이번 세션은 두 커밋으로 정리:
+지금까지 push 완료된 커밋:
 
-1. 서브모듈 `.dependency/blueclaw`에 `Move runtime into Firecracker guest` (이전 작업 포함)
-2. parent repo에 `Move Blueclaw into Firecracker guest runtime` — 본 세션 모든 host측 수정 + 서브모듈 pointer + REPORT 초안
+1. submodule `Move runtime into Firecracker guest`
+2. parent `Move Blueclaw into Firecracker guest runtime`
+3. parent `Fix Mattermost team and channel id resolution`
 
-다음 커밋:
+추가 커밋 (push 예정):
 
-3. parent repo `Fix Mattermost team and channel id resolution` — 본 REPORT의 Mattermost 회귀 수정 + REPORT 갱신
+4. submodule `Bridge guest vsock listeners to host unix sockets` — 본 세션의 GuestListenerProxy + supervisor wiring
+5. parent — 서브모듈 pointer 업데이트 + `blueclaw_config.go`의 `guestListenerProxies` emit + REPORT 갱신
 
-이후 push. 남은 capability vsock listener 작업은 별도 후속.
+후속(미적용): outbound reply 누락, graphiti-memoryd 미기동.
 
 ## 핵심 파일
 
