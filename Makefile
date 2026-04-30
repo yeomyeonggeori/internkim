@@ -67,6 +67,9 @@ prepare-blueclaw-runtime:
 smoke-blueclaw-runtime-tart: build
 	./internkim setup --sim --only blueclaw-runtime,skills,services,users-sync --force-all --verify
 
+smoke-blueclaw-runtime-tart-fast: build
+	./internkim setup --sim --only binaries,blueclaw-runtime,services --verify
+
 deps-graphiti:
 	cd .dependency/blueclaw && test -x .venv-graphiti/bin/python || uv venv .venv-graphiti
 	cd .dependency/blueclaw && uv pip install --python .venv-graphiti/bin/python -r tools/graphiti_memoryd/requirements.txt

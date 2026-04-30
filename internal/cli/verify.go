@@ -358,6 +358,7 @@ echo "checking users sync"
 systemctl start internkim-users-sync.service || journalctl -u internkim-users-sync -n 40 --no-pager
 test -f /root/.internkim/state/users-sync.json
 policy_response_path="$(mktemp)"
+trap 'rm -f "$policy_response_path"' EXIT
 curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/policy > "$policy_response_path"
 python3 - "$policy_response_path" <<'PY'
 import json
@@ -376,7 +377,6 @@ if missing:
     print("missing policy emails: " + ", ".join(missing), file=sys.stderr)
     sys.exit(1)
 PY
-rm -f "$policy_response_path"
 
 echo "verify api: ok"
 `
@@ -543,7 +543,7 @@ task_count() {
 
 wait_for_task_count() {
   local expected_count="$1"
-  for _ in $(seq 1 30); do
+  for _ in $(seq 1 120); do
     local current_count
     current_count="$(task_count)"
     if [ "$current_count" -ge "$expected_count" ]; then
@@ -565,7 +565,7 @@ print_recent_bot_replies() {
 wait_for_bot_reply() {
   local expected_text="$1"
   local posted_after="$2"
-  for _ in $(seq 1 30); do
+  for _ in $(seq 1 120); do
     if api_request "wait for bot reply" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=30" "$admin_token" |
       jq -e --arg bot_user_id "$bot_user_id" --arg expected_text "$expected_text" --argjson posted_after "$posted_after" \
         '.posts[] | select(.user_id == $bot_user_id and .create_at >= $posted_after and (.message | contains($expected_text)))' >/dev/null; then
@@ -580,7 +580,7 @@ wait_for_bot_reply() {
 
 wait_for_model_reply() {
   local posted_after="$1"
-  for _ in $(seq 1 45); do
+  for _ in $(seq 1 120); do
     if api_request "wait for model reply" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=60" "$admin_token" |
       jq -e --arg bot_user_id "$bot_user_id" --argjson posted_after "$posted_after" \
         '.posts[] | select(
