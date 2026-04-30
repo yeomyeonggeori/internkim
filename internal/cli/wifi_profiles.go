@@ -59,6 +59,9 @@ func resolveWiFiProfiles(messenger *msg, stateDirectory string, getSSIDPath stri
 		if !isHiddenWiFi {
 			isHiddenWiFi = isSavedHiddenWiFi(profiles, selectedSSID)
 		}
+		if !isHiddenWiFi && currentSSID != "" && strings.EqualFold(selectedSSID, currentSSID) {
+			isHiddenWiFi = detectCurrentWiFiHidden()
+		}
 		profiles = upsertWiFiProfile(profiles, wifiProfile{
 			SSID:       selectedSSID,
 			IsOpen:     isOpenWiFi,
