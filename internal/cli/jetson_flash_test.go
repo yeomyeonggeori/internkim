@@ -161,6 +161,24 @@ func TestBuildJetsonNetworkManagerWiFiConnectionSupportsOpenNetwork(t *testing.T
 	}
 }
 
+func TestJetsonWiFiConnectionIDIncludesSSIDSlug(t *testing.T) {
+	cases := map[string]string{
+		"didimdol1":         "internkim-wifi-didimdol1-",
+		"KT_GiGA_5G_41BF":   "internkim-wifi-kt-giga-5g-41bf-",
+		"  Office  Wi-Fi  ": "internkim-wifi-office-wi-fi-",
+		"!@#$%":             "internkim-wifi-",
+	}
+	for ssid, prefix := range cases {
+		identifier := jetsonWiFiConnectionID(ssid)
+		if !strings.HasPrefix(identifier, prefix) {
+			t.Fatalf("ssid %q produced id %q, expected prefix %q", ssid, identifier, prefix)
+		}
+		if !strings.HasPrefix(identifier, "internkim-wifi-") {
+			t.Fatalf("ssid %q produced id %q without expected wifi prefix", ssid, identifier)
+		}
+	}
+}
+
 func TestBuildJetsonWiFiSelectorPrefersSecureBeforeOpen(t *testing.T) {
 	document := buildJetsonWiFiSelectorScript()
 	for _, fragment := range []string{`record["isOpen"]`, `-record["signal"]`, `records.sort`} {
