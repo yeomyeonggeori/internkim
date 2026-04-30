@@ -1434,9 +1434,6 @@ func runSetupSimulation(setupArguments []string) {
 	if !shouldVerify && !shouldVerifyBrowser {
 		return
 	}
-	if errorValue := service.Setup(ctx, executablePath, []string{"--only", "binaries,services,users-sync,health", "--force-all"}); errorValue != nil {
-		fatal(errorValue.Error())
-	}
 	virtualMachineIPAddress, errorValue := service.VirtualMachineIPAddress(ctx)
 	if errorValue != nil {
 		fatal(errorValue.Error())
@@ -1688,6 +1685,12 @@ func runLabArguments(arguments []string) error {
 		return service.VirtualMachineDown(ctx)
 	case "vm-ssh":
 		return service.VirtualMachineSSH(ctx, flagSet.Args())
+	case "runtime-builder-prepare":
+		return service.RuntimeBuilderPrepare(ctx)
+	case "runtime-builder-check":
+		return service.RuntimeBuilderCheck(ctx)
+	case "runtime-builder-shell":
+		return service.VirtualMachineSSH(ctx, []string{"cd /mnt/shared && exec ${SHELL:-/bin/bash} -l"})
 	case "status":
 		status, errorValue := service.VirtualMachineStatus(ctx)
 		if errorValue != nil {
@@ -3212,15 +3215,15 @@ func (s *sshClient) scp(localPath, remotePath string) error {
 func (s *sshClient) scpDirect(localPath, remotePath string) error {
 	target := fmt.Sprintf("%s@%s:%s", s.user, s.host, remotePath)
 	if s.pass != "" {
-		output, err := exec.Command(s.sshpassBin, append([]string{"-p", s.pass, "scp"}, s.scpArgs(localPath, target)...)...).CombinedOutput()
+		output, err := runSSHCommandWithRetry(s.sshpassBin, append([]string{"-p", s.pass, "scp"}, s.scpArgs(localPath, target)...))
 		if err != nil {
-			return fmt.Errorf("scp %s to %s failed: %s: %w", localPath, remotePath, strings.TrimSpace(string(output)), err)
+			return fmt.Errorf("scp %s to %s failed: %s: %w", localPath, remotePath, strings.TrimSpace(output), err)
 		}
 		return nil
 	}
-	output, err := exec.Command("scp", s.scpArgs(localPath, target)...).CombinedOutput()
+	output, err := runSSHCommandWithRetry("scp", s.scpArgs(localPath, target))
 	if err != nil {
-		return fmt.Errorf("scp %s to %s failed: %s: %w", localPath, remotePath, strings.TrimSpace(string(output)), err)
+		return fmt.Errorf("scp %s to %s failed: %s: %w", localPath, remotePath, strings.TrimSpace(output), err)
 	}
 	return nil
 }
@@ -3252,15 +3255,15 @@ func (s *sshClient) scpDir(localDir, remoteDir string) error {
 func (s *sshClient) scpDirDirect(localDir, remoteDir string) error {
 	target := fmt.Sprintf("%s@%s:%s", s.user, s.host, remoteDir)
 	if s.pass != "" {
-		output, err := exec.Command(s.sshpassBin, append([]string{"-p", s.pass, "scp", "-r"}, s.scpArgs(localDir+"/.", target)...)...).CombinedOutput()
+		output, err := runSSHCommandWithRetry(s.sshpassBin, append([]string{"-p", s.pass, "scp", "-r"}, s.scpArgs(localDir+"/.", target)...))
 		if err != nil {
-			return fmt.Errorf("scp directory %s to %s failed: %s: %w", localDir, remoteDir, strings.TrimSpace(string(output)), err)
+			return fmt.Errorf("scp directory %s to %s failed: %s: %w", localDir, remoteDir, strings.TrimSpace(output), err)
 		}
 		return nil
 	}
-	output, err := exec.Command("scp", append([]string{"-r"}, s.scpArgs(localDir+"/.", target)...)...).CombinedOutput()
+	output, err := runSSHCommandWithRetry("scp", append([]string{"-r"}, s.scpArgs(localDir+"/.", target)...))
 	if err != nil {
-		return fmt.Errorf("scp directory %s to %s failed: %s: %w", localDir, remoteDir, strings.TrimSpace(string(output)), err)
+		return fmt.Errorf("scp directory %s to %s failed: %s: %w", localDir, remoteDir, strings.TrimSpace(output), err)
 	}
 	return nil
 }

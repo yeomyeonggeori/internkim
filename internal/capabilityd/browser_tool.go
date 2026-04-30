@@ -6,7 +6,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,7 +44,15 @@ func (service Service) invokeDeviceBrowserTool(ctx context.Context, request capa
 		var input browserruntime.ObserveRequest
 		errorValue = decodeBrowserToolInput(request.Input, &input)
 		if errorValue == nil {
-			result, errorValue = browserRuntime.Observe(ctx, input)
+			observation, observationError := browserRuntime.Observe(ctx, input)
+			if observationError != nil {
+				errorValue = observationError
+				break
+			}
+			if blockedResponse, isBlocked := captchaBlockedResponse(request.ToolName, observation.SnapshotText); isBlocked {
+				return blockedResponse, nil
+			}
+			result = observation
 		}
 	case "browser.screenshot":
 		result, errorValue = service.captureDeviceBrowserScreenshot(ctx, browserRuntime, request)
@@ -97,10 +107,15 @@ func (service Service) invokeDeviceBrowserTool(ctx context.Context, request capa
 
 func (service Service) deviceBrowserRuntime() browserruntime.AgentBrowserRuntime {
 	configuration := service.Configuration.WithDefaults()
+	profilePath := strings.TrimSpace(configuration.DeviceBrowserProfilePath)
+	if profilePath != "" {
+		_ = os.MkdirAll(profilePath, 0o700)
+	}
 	return browserruntime.AgentBrowserRuntime{
 		CommandPath:          configuration.AgentBrowserPath,
 		Engine:               browserruntime.BrowserEngineChrome,
 		EngineExecutablePath: configuration.DeviceBrowserPath,
+		ProfilePath:          profilePath,
 		SessionName:          "internkim-device",
 		Runner:               service.browserCommandRunner(),
 	}
@@ -175,6 +190,28 @@ func (service Service) publishDeviceBrowserFile(screenshot browserruntime.Screen
 	}
 	_ = os.Remove(screenshot.LocalPath)
 	return devicePath, expiresAt, fileID, nil
+}
+
+func captchaBlockedResponse(toolName string, snapshotText string) (capabilities.ToolInvokeResponse, bool) {
+	isBlocked, matchedSignature := browserruntime.IsCaptchaBlocked(snapshotText)
+	if !isBlocked {
+		return capabilities.ToolInvokeResponse{}, false
+	}
+	log.Printf("tool.browser.blocked_by_captcha: tool=%s signature=%q", toolName, matchedSignature)
+	message := fmt.Sprintf(
+		"blocked_by_captcha: this URL returned a bot-detection wall (matched: %q). "+
+			"Do NOT pretend you have the information from this page. "+
+			"Tell the user that the page was blocked and suggest trying a different URL.",
+		matchedSignature,
+	)
+	return capabilities.ToolInvokeResponse{
+		Provider:        "device",
+		SelectedBackend: capabilities.LLMBackendDevice,
+		ToolName:        toolName,
+		Status:          "error",
+		Content:         message,
+		IsError:         true,
+	}, true
 }
 
 func decodeBrowserToolInput(input json.RawMessage, value any) error {

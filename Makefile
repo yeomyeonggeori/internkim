@@ -1,12 +1,12 @@
 GO_CACHE ?= /tmp/internkim-go-cache
-GO_MOD_CACHE ?= /tmp/internkim-go-mod-cache
+GO_MOD_CACHE ?= /tmp/internkim-go-mod-cache-v2
 BLUECLAW_GO_CACHE ?= /tmp/blueclaw-go-cache
 COMPANION_TARGET_TRIPLE ?= $(shell rustc -vV 2>/dev/null | sed -n 's/host: //p')
 AGENT_BROWSER_VERSION ?= 0.26.0
 COMPANION_BETA_DIST ?= dist/companion
 COMPANION_BETA_MACOS_ARTIFACT ?= internkim-companion-beta-macos-aarch64.dmg
 
-.PHONY: build build-companion build-companion-shell package-companion-beta check test doctor deps-sim deps-browser deps-companion deps-companion-browser prepare-device-browser deps-graphiti setup-sim verify-api verify-browser verify-graphiti-local
+.PHONY: build build-companion build-companion-shell package-companion-beta check test doctor deps-sim deps-browser deps-companion deps-companion-browser prepare-device-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime smoke-blueclaw-runtime-tart deps-graphiti setup-sim verify-api verify-browser verify-graphiti-local
 
 build:
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim ./cmd/internkim
@@ -57,6 +57,15 @@ deps-companion-browser:
 
 prepare-device-browser:
 	tools/prepare-device-browser-runtime
+
+prepare-blueclaw-runtime-builder: build
+	./internkim lab runtime-builder-prepare
+
+prepare-blueclaw-runtime:
+	if [ "$$(uname -s)" = "Linux" ]; then GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) BLUECLAW_BUILD_KERNEL=1 tools/prepare-blueclaw-runtime --builder local; else GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) BLUECLAW_BUILD_KERNEL=1 tools/prepare-blueclaw-runtime --builder tart; fi
+
+smoke-blueclaw-runtime-tart: build
+	./internkim setup --sim --only blueclaw-runtime,skills,services,users-sync --force-all --verify
 
 deps-graphiti:
 	cd .dependency/blueclaw && test -x .venv-graphiti/bin/python || uv venv .venv-graphiti

@@ -10,13 +10,16 @@ import (
 )
 
 func TestDeviceBrowserToolRunsThroughChromeRuntime(t *testing.T) {
-	var commandPath string
-	var arguments []string
+	type commandCall struct {
+		path      string
+		arguments []string
+	}
+	var calls []commandCall
+	profileDirectory := t.TempDir()
 	service := Service{
-		Configuration: Configuration{AgentBrowserPath: "agent-browser-test"},
+		Configuration: Configuration{AgentBrowserPath: "agent-browser-test", DeviceBrowserProfilePath: profileDirectory},
 		RunCommand: func(_ context.Context, path string, commandArguments []string, _ []byte) ([]byte, error) {
-			commandPath = path
-			arguments = append([]string{}, commandArguments...)
+			calls = append(calls, commandCall{path: path, arguments: append([]string{}, commandArguments...)})
 			return nil, nil
 		},
 	}
@@ -28,12 +31,26 @@ func TestDeviceBrowserToolRunsThroughChromeRuntime(t *testing.T) {
 	if response.Provider != "device" || response.ToolName != "browser.open" {
 		t.Fatalf("unexpected response: %+v", response)
 	}
-	if commandPath != "agent-browser-test" {
-		t.Fatalf("unexpected command path: %s", commandPath)
+	if len(calls) != 2 {
+		t.Fatalf("expected 2 calls (open + stealth eval), got %d: %+v", len(calls), calls)
 	}
-	expectedArguments := []string{"--session", "internkim-device", "--engine", "chrome", "--executable-path", "/opt/internkim/device-browser/chromium", "--headed", "false", "--session-name", "internkim-device", "open", "https://example.com"}
-	if strings.Join(arguments, "\x00") != strings.Join(expectedArguments, "\x00") {
-		t.Fatalf("unexpected command arguments: %+v", arguments)
+	if calls[0].path != "agent-browser-test" {
+		t.Fatalf("unexpected open command path: %s", calls[0].path)
+	}
+	expectedOpenArguments := []string{"--session", "internkim-device", "--engine", "chrome", "--executable-path", "/opt/internkim/device-browser/chromium", "--headed", "false", "--profile", profileDirectory, "--session-name", "internkim-device", "open", "https://example.com", "--headers"}
+	if len(calls[0].arguments) < len(expectedOpenArguments)+1 {
+		t.Fatalf("unexpected open arguments length: %+v", calls[0].arguments)
+	}
+	for index, expected := range expectedOpenArguments {
+		if calls[0].arguments[index] != expected {
+			t.Fatalf("unexpected open argument at index %d: got %q want %q (full: %+v)", index, calls[0].arguments[index], expected, calls[0].arguments)
+		}
+	}
+	if !strings.Contains(calls[0].arguments[len(expectedOpenArguments)], "User-Agent") {
+		t.Fatalf("expected stealth User-Agent header in open arguments, got %+v", calls[0].arguments)
+	}
+	if calls[1].arguments[len(calls[1].arguments)-2] != "eval" {
+		t.Fatalf("expected second call to be eval, got %+v", calls[1].arguments)
 	}
 }
 

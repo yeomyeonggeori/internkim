@@ -30,12 +30,11 @@ var StepHealth = Step{
 		checkService(context, "mattermost", &failedChecks)
 		checkService(context, "cloudflared", &failedChecks)
 		checkService(context, blueclaw.CapabilitydServiceName, &failedChecks)
-		checkService(context, blueclaw.GraphitiMemorydServiceName, &failedChecks)
 		checkService(context, blueclaw.AdmindServiceName, &failedChecks)
+		checkBlueclawFirecrackerRuntime(context, &failedChecks)
 		checkBlueclaw(context, &failedChecks)
 		checkSecretIsolation(context, &failedChecks)
 		checkCapabilityHealth(context, &failedChecks)
-		checkGraphitiHealth(context, &failedChecks)
 		checkAdminHealth(context, &failedChecks)
 		checkFirstAdminBootstrap(context, &failedChecks)
 		checkMattermostPing(context, &failedChecks)
@@ -140,6 +139,14 @@ for forbidden in ("apiKeyPath", "botTokenPath", "signingSecretPath", "OPENROUTER
         print("runtime-secret-reference")
         raise SystemExit
 
+if runtime_configuration.get("capabilities", {}).get("transport") != "vsock":
+    print("runtime-capability-transport")
+    raise SystemExit
+
+if runtime_configuration.get("database", {}).get("connectionString") != "postgres://blueclaw@/blueclaw?host=/workspace/.blueclaw/postgres&sslmode=disable":
+    print("runtime-database")
+    raise SystemExit
+
 if runtime_configuration.get("memory", {}).get("graphitiEndpoint") != "http://127.0.0.1:7791":
     print("runtime-graphiti-endpoint")
     raise SystemExit
@@ -162,19 +169,6 @@ fi`))
 	}
 	*failedChecks = append(*failedChecks, "secret-isolation")
 	fmt.Printf("  secret isolation: %s\n", check)
-}
-
-func checkGraphitiHealth(context *Context, failedChecks *[]string) {
-	check := strings.TrimSpace(context.SSH.Run(`curl --silent --show-error --fail http://127.0.0.1:7791/health 2>/dev/null | python3 -c 'import json, sys; print(json.load(sys.stdin).get("status", ""))' 2>/dev/null || true`))
-	if check == "ok" {
-		fmt.Println("  graphiti memory: ok")
-		return
-	}
-	*failedChecks = append(*failedChecks, "graphiti-memoryd")
-	if check == "" {
-		check = "failed"
-	}
-	fmt.Printf("  graphiti memory: %s\n", check)
 }
 
 func checkCapabilityHealth(context *Context, failedChecks *[]string) {
@@ -465,6 +459,53 @@ func checkBlueclaw(context *Context, failedChecks *[]string) {
 	}
 	*failedChecks = append(*failedChecks, "blueclaw")
 	fmt.Println("  blueclaw: failed")
+}
+
+func checkBlueclawFirecrackerRuntime(context *Context, failedChecks *[]string) {
+	check := strings.TrimSpace(context.SSH.Run(`python3 - <<'PY'
+from pathlib import Path
+
+unit = Path("/etc/systemd/system/blueclaw.service")
+if not unit.exists():
+    print("unit-missing")
+    raise SystemExit
+text = unit.read_text()
+if "blueclaw-supervisor" not in text:
+    print("not-supervisor")
+    raise SystemExit
+if "ExecStart=/usr/local/bin/blueclaw " in text:
+    print("direct-blueclaw")
+    raise SystemExit
+required = [
+    "/usr/local/bin/blueclaw-supervisor",
+    "/usr/local/bin/firecracker",
+    "/usr/local/bin/jailer",
+    "/opt/internkim/blueclaw-runtime/manifest.json",
+    "/opt/internkim/blueclaw-runtime/vmlinux.bin",
+    "/opt/internkim/blueclaw-runtime/rootfs.ext4",
+    "/var/lib/blueclaw/workspace.ext4",
+]
+for path in required:
+    if not Path(path).exists():
+        print("missing:" + path)
+        raise SystemExit
+print("ok")
+PY`))
+	if check == "ok" {
+		workspaceFilesystem := strings.TrimSpace(context.SSH.Run("blkid -o value -s TYPE /var/lib/blueclaw/workspace.ext4 2>/dev/null || true"))
+		if workspaceFilesystem != "ext4" {
+			check = "workspace-not-ext4"
+		}
+	}
+	if check == "ok" {
+		fmt.Println("  blueclaw firecracker runtime: ok")
+		return
+	}
+	*failedChecks = append(*failedChecks, "blueclaw-firecracker-runtime")
+	if check == "" {
+		check = "failed"
+	}
+	fmt.Printf("  blueclaw firecracker runtime: %s\n", check)
 }
 
 func checkMattermostPing(context *Context, failedChecks *[]string) {

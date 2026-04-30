@@ -112,6 +112,8 @@ func (service Service) VirtualMachineUp(ctx context.Context) error {
 		if errorValue == nil && strings.TrimSpace(virtualMachineIPAddress) != "" {
 			return nil
 		}
+	} else if errorValue := service.removeStaleVirtualMachineControlSocket(); errorValue != nil {
+		return errorValue
 	}
 
 	fmt.Printf("starting VM %q\n", service.configuration.VirtualMachine.Tart.Name)
@@ -122,7 +124,7 @@ func (service Service) VirtualMachineUp(ctx context.Context) error {
 
 	fmt.Println("waiting for IP")
 	if errorValue := service.waitForVirtualMachineIPAddress(ctx); errorValue != nil {
-		return fmt.Errorf("wait for VM %q IP address: %w", service.configuration.VirtualMachine.Tart.Name, errorValue)
+		return fmt.Errorf("wait for VM %q IP address: %w\n%s", service.configuration.VirtualMachine.Tart.Name, errorValue, service.VirtualMachineDiagnostics(ctx))
 	}
 
 	return nil
@@ -138,11 +140,20 @@ func (service Service) VirtualMachineSSH(ctx context.Context, remoteArguments []
 		return errorValue
 	}
 
-	commandArguments := []string{service.configuration.VirtualMachine.SSHUsername + "@" + virtualMachineIPAddress}
+	commandArguments := []string{
+		"-p",
+		service.configuration.VirtualMachine.SSHPassword,
+		"ssh",
+		"-o",
+		"StrictHostKeyChecking=no",
+		"-o",
+		"UserKnownHostsFile=/dev/null",
+		service.configuration.VirtualMachine.SSHUsername + "@" + virtualMachineIPAddress,
+	}
 	commandArguments = append(commandArguments, remoteArguments...)
 
 	return service.commandRunner.Run(ctx, ExecutableCommand{
-		ExecutableName:       "ssh",
+		ExecutableName:       service.sshpassExecutablePath(),
 		Arguments:            commandArguments,
 		WorkingDirectoryPath: service.repositoryRootPath,
 	})
@@ -164,6 +175,57 @@ func (service Service) VirtualMachineIPAddress(ctx context.Context) (string, err
 	return service.resolveVirtualMachineIPAddress(ctx)
 }
 
+func (service Service) RuntimeBuilderPrepare(ctx context.Context) error {
+	if errorValue := service.ProvisionUbuntu(ctx); errorValue != nil {
+		return errorValue
+	}
+
+	fmt.Println("provisioning Blueclaw runtime builder")
+	if errorValue := service.runRemoteScript(ctx, filepath.Join("lab", "scripts", "provision-blueclaw-runtime-builder.sh"), []string{
+		service.configuration.VirtualMachine.MountDirectoryPath,
+	}); errorValue != nil {
+		return errorValue
+	}
+
+	return service.RuntimeBuilderCheck(ctx)
+}
+
+func (service Service) RuntimeBuilderCheck(ctx context.Context) error {
+	if errorValue := service.ensureRunningVirtualMachineWithSSH(ctx); errorValue != nil {
+		return errorValue
+	}
+
+	fmt.Println("checking Blueclaw runtime builder")
+	return service.runRemoteScript(ctx, filepath.Join("lab", "scripts", "check-blueclaw-runtime-builder.sh"), []string{
+		service.configuration.VirtualMachine.MountDirectoryPath,
+	})
+}
+
+func (service Service) VirtualMachineDiagnostics(ctx context.Context) string {
+	listOutput, listError := service.commandRunner.Output(ctx, service.buildVirtualMachineListJSONCommand())
+	ipOutput, ipError := service.commandRunner.Output(ctx, service.buildVirtualMachineIPCommand())
+
+	var message strings.Builder
+	message.WriteString("Tart VM diagnostics:\n")
+	message.WriteString("  name: " + service.configuration.VirtualMachine.Tart.Name + "\n")
+	message.WriteString("  log: " + filepath.Join(os.TempDir(), "internkim-lab-tart.log") + "\n")
+	if listError == nil {
+		message.WriteString("  tart list: " + strings.TrimSpace(listOutput) + "\n")
+	} else {
+		message.WriteString("  tart list error: " + listError.Error() + "\n")
+	}
+	if ipError == nil {
+		message.WriteString("  tart ip: " + strings.TrimSpace(ipOutput) + "\n")
+	} else {
+		message.WriteString("  tart ip error: " + ipError.Error() + "\n")
+	}
+	message.WriteString("Recovery:\n")
+	message.WriteString("  1. Run `internkim lab vm-down`.\n")
+	message.WriteString("  2. Run `internkim lab vm-up` and confirm the VM gets an IP.\n")
+	message.WriteString("  3. If it still fails, recreate the Tart VM or use `tools/prepare-blueclaw-runtime --builder ssh --host <linux-arm64>`.\n")
+	return message.String()
+}
+
 func (service Service) ProvisionUbuntu(ctx context.Context) error {
 	if errorValue := service.VirtualMachineUp(ctx); errorValue != nil {
 		return errorValue
@@ -171,11 +233,18 @@ func (service Service) ProvisionUbuntu(ctx context.Context) error {
 	if errorValue := service.waitForVirtualMachineSSH(ctx); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := service.ensureWritableVirtualMachineRootWithRepair(ctx); errorValue != nil {
+		return errorValue
+	}
 
 	fmt.Println("provisioning Ubuntu")
-	return service.runRemoteScript(ctx, filepath.Join("lab", "scripts", "provision-ubuntu.sh"), []string{
+	if errorValue := service.runRemoteScript(ctx, filepath.Join("lab", "scripts", "provision-ubuntu.sh"), []string{
 		service.configuration.VirtualMachine.MountDirectoryPath,
-	})
+	}); errorValue != nil {
+		return errorValue
+	}
+
+	return service.ensureWritableVirtualMachineRootWithRepair(ctx)
 }
 
 func (service Service) Setup(ctx context.Context, executablePath string, setupArguments []string) error {
@@ -433,11 +502,51 @@ func (service Service) buildVirtualMachineUpCommand() ExecutableCommand {
 	}
 }
 
+func (service Service) removeStaleVirtualMachineControlSocket() error {
+	controlSocketPath, errorValue := service.virtualMachineControlSocketPath()
+	if errorValue != nil {
+		return errorValue
+	}
+
+	if errorValue := os.Remove(controlSocketPath); errorValue != nil {
+		if os.IsNotExist(errorValue) {
+			return nil
+		}
+		return fmt.Errorf("remove stale Tart control socket %q: %w", controlSocketPath, errorValue)
+	}
+
+	return nil
+}
+
+func (service Service) virtualMachineControlSocketPath() (string, error) {
+	if homeDirectoryPath := os.Getenv("HOME"); strings.TrimSpace(homeDirectoryPath) != "" {
+		return filepath.Join(homeDirectoryPath, ".tart", "vms", service.configuration.VirtualMachine.Tart.Name, "control.sock"), nil
+	}
+
+	homeDirectoryPath, errorValue := os.UserHomeDir()
+	if errorValue != nil {
+		return "", fmt.Errorf("find user home directory: %w", errorValue)
+	}
+
+	return filepath.Join(homeDirectoryPath, ".tart", "vms", service.configuration.VirtualMachine.Tart.Name, "control.sock"), nil
+}
+
 func (service Service) buildVirtualMachineDownCommand() ExecutableCommand {
 	return ExecutableCommand{
 		ExecutableName: service.configuration.VirtualMachine.Tart.BinaryPath,
 		Arguments: []string{
 			"stop",
+			service.configuration.VirtualMachine.Tart.Name,
+		},
+		WorkingDirectoryPath: service.repositoryRootPath,
+	}
+}
+
+func (service Service) buildVirtualMachineIPCommand() ExecutableCommand {
+	return ExecutableCommand{
+		ExecutableName: service.configuration.VirtualMachine.Tart.BinaryPath,
+		Arguments: []string{
+			"ip",
 			service.configuration.VirtualMachine.Tart.Name,
 		},
 		WorkingDirectoryPath: service.repositoryRootPath,
@@ -488,14 +597,7 @@ func (service Service) sshpassExecutablePath() string {
 }
 
 func (service Service) resolveVirtualMachineIPAddress(ctx context.Context) (string, error) {
-	output, errorValue := service.commandRunner.Output(ctx, ExecutableCommand{
-		ExecutableName: service.configuration.VirtualMachine.Tart.BinaryPath,
-		Arguments: []string{
-			"ip",
-			service.configuration.VirtualMachine.Tart.Name,
-		},
-		WorkingDirectoryPath: service.repositoryRootPath,
-	})
+	output, errorValue := service.commandRunner.Output(ctx, service.buildVirtualMachineIPCommand())
 	if errorValue != nil {
 		return "", errorValue
 	}
@@ -537,6 +639,24 @@ func (service Service) waitForVirtualMachineSSH(ctx context.Context) error {
 	return errors.New("virtual machine ssh did not become ready")
 }
 
+func (service Service) ensureRunningVirtualMachineWithSSH(ctx context.Context) error {
+	isVirtualMachineRunning, errorValue := service.VirtualMachineRunning(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	if !isVirtualMachineRunning {
+		return errors.New("Tart VM is not running\n" + service.VirtualMachineDiagnostics(ctx))
+	}
+	virtualMachineIPAddress, errorValue := service.resolveVirtualMachineIPAddress(ctx)
+	if errorValue != nil || strings.TrimSpace(virtualMachineIPAddress) == "" {
+		return errors.New("Tart VM is running but has no IP address\n" + service.VirtualMachineDiagnostics(ctx))
+	}
+	if !service.virtualMachineSSHReady(ctx) {
+		return errors.New("Tart VM SSH is not ready\n" + service.VirtualMachineDiagnostics(ctx))
+	}
+	return nil
+}
+
 func (service Service) virtualMachineSSHReady(ctx context.Context) bool {
 	virtualMachineIPAddress, errorValue := service.resolveVirtualMachineIPAddress(ctx)
 	if errorValue != nil || virtualMachineIPAddress == "" {
@@ -561,6 +681,54 @@ func (service Service) virtualMachineSSHReady(ctx context.Context) bool {
 		WorkingDirectoryPath: service.repositoryRootPath,
 	})
 	return errorValue == nil
+}
+
+func (service Service) ensureVirtualMachineWritableRoot(ctx context.Context) error {
+	virtualMachineIPAddress, errorValue := service.resolveVirtualMachineIPAddress(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+
+	errorValue = service.commandRunner.Run(ctx, ExecutableCommand{
+		ExecutableName: service.sshpassExecutablePath(),
+		Arguments: []string{
+			"-p",
+			service.configuration.VirtualMachine.SSHPassword,
+			"ssh",
+			"-o",
+			"StrictHostKeyChecking=no",
+			"-o",
+			"UserKnownHostsFile=/dev/null",
+			service.configuration.VirtualMachine.SSHUsername + "@" + virtualMachineIPAddress,
+			`temporary_path="$(mktemp /tmp/internkim-write-check.XXXXXX)" && rm -f "$temporary_path"`,
+		},
+		WorkingDirectoryPath: service.repositoryRootPath,
+	})
+	if errorValue != nil {
+		return fmt.Errorf("Tart VM root filesystem is not writable: %w", errorValue)
+	}
+
+	return nil
+}
+
+func (service Service) ensureWritableVirtualMachineRootWithRepair(ctx context.Context) error {
+	errorValue := service.ensureVirtualMachineWritableRoot(ctx)
+	if errorValue == nil {
+		return nil
+	}
+
+	fmt.Println("VM root filesystem is read-only; restarting VM once")
+	if stopError := service.VirtualMachineDown(ctx); stopError != nil {
+		return fmt.Errorf("%w; VM restart failed: %v", errorValue, stopError)
+	}
+	if startError := service.VirtualMachineUp(ctx); startError != nil {
+		return fmt.Errorf("%w; VM restart failed: %v", errorValue, startError)
+	}
+	if sshError := service.waitForVirtualMachineSSH(ctx); sshError != nil {
+		return fmt.Errorf("%w; VM restart SSH failed: %v", errorValue, sshError)
+	}
+
+	return service.ensureVirtualMachineWritableRoot(ctx)
 }
 
 func shellEscapeArguments(arguments []string) string {
@@ -602,5 +770,8 @@ func (service Service) sharedWorkspacePath() string {
 }
 
 func (service Service) setupEnvironmentVariables() map[string]string {
-	return nil
+	return map[string]string{
+		"INTERNKIM_BLUECLAW_USE_LOCAL":        "1",
+		"INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB": "1",
+	}
 }

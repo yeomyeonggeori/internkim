@@ -8,6 +8,7 @@ func DefaultRegistry() Registry {
 		StepWifi,
 		StepBinaries,
 		StepSkills,
+		StepBlueclawRuntime,
 		StepOpenRouter,
 		StepLiteRT,
 		StepTunnel,
