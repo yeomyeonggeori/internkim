@@ -20,11 +20,25 @@ type platformEventContext struct {
 	Messages      []platformContextMessage `json:"messages"`
 	HasMoreBefore bool                     `json:"hasMoreBefore"`
 	HistoryCursor string                   `json:"historyCursor,omitempty"`
+	Sender        platformContextSender    `json:"sender,omitempty"`
+	ReceivedAt    string                   `json:"receivedAt,omitempty"`
+}
+
+type platformContextSender struct {
+	Platform    string `json:"platform,omitempty"`
+	SenderID    string `json:"senderID,omitempty"`
+	UserID      string `json:"userID,omitempty"`
+	Handle      string `json:"handle,omitempty"`
+	Email       string `json:"email,omitempty"`
+	Name        string `json:"name,omitempty"`
+	CallingName string `json:"callingName,omitempty"`
 }
 
 type platformContextMessage struct {
-	Speaker string `json:"speaker"`
-	Text    string `json:"text"`
+	Speaker            string `json:"speaker"`
+	SpeakerCallingName string `json:"speakerCallingName,omitempty"`
+	SpeakerHandle      string `json:"speakerHandle,omitempty"`
+	Text               string `json:"text"`
 }
 
 type platformHandle struct {

@@ -37,6 +37,7 @@ type Configuration struct {
 	BlueclawBaseURL             string
 	StateDirectory              string
 	CompanionJobPath            string
+	FlowDatabasePath            string
 	MattermostAdminPasswordPath string
 	AdminEmailPath              string
 	ClaimedAdminEmailPath       string
@@ -176,6 +177,7 @@ func DefaultConfiguration() Configuration {
 		BlueclawBaseURL:             "http://127.0.0.1:8080",
 		StateDirectory:              "/root/.internkim/admin",
 		CompanionJobPath:            "/root/.internkim/state/companion-jobs.json",
+		FlowDatabasePath:            "/root/.internkim/state/flow.sqlite",
 		MattermostAdminPasswordPath: "/root/.internkim/secrets/mm-admin-pass",
 		AdminEmailPath:              "/root/.internkim/admin-email",
 		ClaimedAdminEmailPath:       "/root/.internkim/claimed-admin-email",
@@ -184,7 +186,7 @@ func DefaultConfiguration() Configuration {
 		AdminUIPath:                 "/opt/internkim/admin-ui",
 		RepositoryRoot:              "/",
 		CompanionFileDirectory:      "/tmp/internkim-companion-files",
-		BotProfilePath:              "/root/.internkim/state/bot-profile.json",
+		BotProfilePath:              "/root/.internkim/state/bot-profile.yaml",
 		BlueclawWorkspacePath:       "/root/.blueclaw/workspace",
 	}
 }
@@ -229,6 +231,9 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/admin", service.serveAdminPage)
 	multiplexer.HandleFunc("/admin/api/", service.handleAdmin)
 	multiplexer.HandleFunc("/admin/", service.serveAdminPage)
+	multiplexer.HandleFunc("/flow", service.serveFlowPage)
+	multiplexer.HandleFunc("/flow/api/", service.handleFlow)
+	multiplexer.HandleFunc("/flow/", service.serveFlowPage)
 	multiplexer.Handle("/_app/", http.FileServer(http.Dir(service.Configuration.AdminUIPath)))
 	multiplexer.HandleFunc("/logo.svg", service.serveAdminAsset)
 	multiplexer.HandleFunc("/_internkim/companion/", service.handleCompanion)
@@ -319,6 +324,8 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeCompanionReleases(responseWriter)
 	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/companion/"):
 		service.revokeCompanion(responseWriter, request, strings.TrimPrefix(path, "/companion/"))
+	case request.Method == http.MethodGet && path == "/flow/status":
+		service.writeFlowStatus(responseWriter)
 	case request.Method == http.MethodGet && path == "/bot-profile":
 		service.writeBotProfile(responseWriter, request)
 	case request.Method == http.MethodPut && path == "/bot-profile":
@@ -435,6 +442,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	body := request.Body
 	var temporaryPassword string
 	var temporaryPasswordEmail string
+	var upsertedName string
 	if request.Method == http.MethodPost {
 		var payload adminUserMutation
 		if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
@@ -446,8 +454,15 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			http.Error(responseWriter, "email required", http.StatusBadRequest)
 			return
 		}
+		payload.Handle = normalizeMattermostHandle(firstNonEmpty(payload.Handle, mattermostUsernameBase(payload.Email)))
+		if !isValidMattermostHandle(payload.Handle) {
+			http.Error(responseWriter, "handle must start with a letter and contain 3-22 lowercase letters, numbers, dots, dashes, or underscores", http.StatusBadRequest)
+			return
+		}
+		payload.Name = firstNonEmpty(strings.TrimSpace(payload.Name), payload.Handle)
 		payload.Role = normalizeAdminUserRole(payload.Role)
 		upsertedEmail = payload.Email
+		upsertedName = payload.Name
 		if payload.Role != "admin" && strings.EqualFold(payload.Email, authenticatedCallerEmail(request)) {
 			records, errorValue := service.lookupUserRecords(request.Context(), deviceID, deviceSecret)
 			if errorValue != nil {
@@ -470,17 +485,21 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			http.Error(responseWriter, "cannot demote the last admin user", http.StatusBadRequest)
 			return
 		}
-		provisionResult, errorValue := service.provisionMattermostUser(request.Context(), payload.Email, payload.Role)
+		provisionResult, errorValue := service.provisionMattermostUserWithPassword(request.Context(), payload, "")
 		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 			return
 		}
 		payload.MattermostUserID = provisionResult.UserID
 		payload.MattermostUsername = provisionResult.Username
+		payload.Handle = provisionResult.Username
 		payload.Status = provisionResult.Status
 		temporaryPassword = provisionResult.TemporaryPassword
 		temporaryPasswordEmail = payload.Email
 		proxyPayload := map[string]any{
+			"userID":             payload.UserID,
+			"handle":             payload.Handle,
+			"name":               payload.Name,
 			"device_id":          deviceID,
 			"email":              payload.Email,
 			"role":               payload.Role,
@@ -531,7 +550,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	}
 	if response.StatusCode >= 200 && response.StatusCode < 300 {
 		if upsertedEmail != "" {
-			if errorValue := service.inviteBlueclawPerson(request.Context(), upsertedEmail); errorValue != nil {
+			if errorValue := service.inviteBlueclawPerson(request.Context(), upsertedEmail, upsertedName); errorValue != nil {
 				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 				return
 			}
@@ -1207,7 +1226,11 @@ func (service *Service) claimFirstAdmin(ctx context.Context, email string) (firs
 }
 
 func (service *Service) ensureFirstAdminAccount(ctx context.Context, email string) (firstAdminBootstrapResult, error) {
-	provisionResult, errorValue := service.provisionMattermostUserWithPassword(ctx, email, "admin", firstAdminMattermostPassword)
+	provisionResult, errorValue := service.provisionMattermostUserWithPassword(ctx, adminUserMutation{
+		Email:  email,
+		Role:   "admin",
+		Handle: mattermostUsernameBase(email),
+	}, firstAdminMattermostPassword)
 	if errorValue != nil {
 		return firstAdminBootstrapResult{}, errorValue
 	}
@@ -1305,12 +1328,15 @@ func blueclawPersonEmailsExcept(person map[string]any, excludedEmail string) []s
 	return emails
 }
 
-func (service *Service) inviteBlueclawPerson(ctx context.Context, email string) error {
+func (service *Service) inviteBlueclawPerson(ctx context.Context, email string, name string) error {
 	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
 	if normalizedEmail == "" {
 		return fmt.Errorf("email required")
 	}
 	body := map[string]string{"email": normalizedEmail}
+	if strings.TrimSpace(name) != "" {
+		body["displayName"] = strings.TrimSpace(name)
+	}
 	return service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/people/invite", body, nil)
 }
 
@@ -1623,6 +1649,13 @@ func (configuration Configuration) withDefaults() Configuration {
 			configuration.CompanionJobPath = filepath.Join(configuration.StateDirectory, "companion-jobs.json")
 		}
 	}
+	if configuration.FlowDatabasePath == "" {
+		if configuration.CompanionJobPath == defaultConfiguration.CompanionJobPath {
+			configuration.FlowDatabasePath = defaultConfiguration.FlowDatabasePath
+		} else {
+			configuration.FlowDatabasePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "flow.sqlite")
+		}
+	}
 	if configuration.MattermostAdminPasswordPath == "" {
 		configuration.MattermostAdminPasswordPath = defaultConfiguration.MattermostAdminPasswordPath
 	}
@@ -1651,7 +1684,7 @@ func (configuration Configuration) withDefaults() Configuration {
 		if configuration.CompanionJobPath == defaultConfiguration.CompanionJobPath {
 			configuration.BotProfilePath = defaultConfiguration.BotProfilePath
 		} else {
-			configuration.BotProfilePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "bot-profile.json")
+			configuration.BotProfilePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "bot-profile.yaml")
 		}
 	}
 	if configuration.BlueclawWorkspacePath == "" {

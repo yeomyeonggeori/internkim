@@ -107,7 +107,7 @@ make build
 
 주요 setup 단계:
 1. SSH로 Jetson 연결
-2. 관리자 웹 빌드 + Cloudflare Pages 배포
+2. 웹 앱 빌드 + Cloudflare Pages 배포
 3. Jetson Linux 패키지와 런타임 준비
 4. Blueclaw + gws + cloudflared 설치, 시스템 유저 생성
 5. OpenRouter API 키 → `/root/.internkim/secrets/openrouter-api-key`
@@ -277,10 +277,12 @@ internkim/
 │   └── runtime/blueclaw/    Blueclaw 런타임 계약과 설정 생성
 ├── assets/blueclaw-workspace/
 │   ├── AGENTS.md            Blueclaw workspace instruction source
-│   ├── agent-browser-skill/ agent-browser fallback skill
+│   ├── BOT_PROFILE.yaml     runtime bot profile defaults
+│   ├── IDENTITY.md          bot identity source
+│   ├── SOUL.md              mutable bot soul seed
+│   ├── .agents/skills/      agent-readable workspace skills
 │   ├── gas/                 Apps Script bridge source
-│   ├── skills/              calendar, gws, pdf, share, slides skills
-│   └── send-file            platform file helper
+│   └── skills/              calendar, flow, gws, pdf, slides skills
 ├── companion/               Tauri shell for desktop companion
 ├── web/                     SvelteKit + Cloudflare Pages admin/API
 ├── docs/

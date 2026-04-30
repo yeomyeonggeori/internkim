@@ -30,6 +30,7 @@ fi
 
 install -d -m 700 /root/.internkim/state
 response_path="$(mktemp)"
+desired_records_path="$(mktemp)"
 desired_path="$(mktemp)"
 previous_path="$(mktemp)"
 policy_all_path="$(mktemp)"
@@ -37,7 +38,7 @@ policy_removable_path="$(mktemp)"
 removal_source_path="$(mktemp)"
 next_state_path="$(mktemp)"
 cleanup() {
-  rm -f "$response_path" "$desired_path" "$previous_path" "$policy_all_path" "$policy_removable_path" "$removal_source_path" "$next_state_path"
+  rm -f "$response_path" "$desired_records_path" "$desired_path" "$previous_path" "$policy_all_path" "$policy_removable_path" "$removal_source_path" "$next_state_path"
 }
 trap cleanup EXIT
 
@@ -49,7 +50,8 @@ curl -fsS \
 revision="$(jq -r '.revision // empty' "$response_path")"
 last_revision="$(jq -r '.revision // empty' "$STATE_PATH" 2>/dev/null || true)"
 admin_email="$(cat /root/.internkim/admin-email 2>/dev/null || true)"
-jq -r '.users[]?' "$response_path" | awk 'NF {print tolower($0)}' | sort -u > "$desired_path"
+jq -r 'if (.records | type) == "array" then .records[]? | [.email, (.name // "")] | @tsv else .users[]? | [., ""] | @tsv end' "$response_path" | awk 'NF' | sort -u > "$desired_records_path"
+cut -f1 "$desired_records_path" | awk 'NF {print tolower($0)}' | sort -u > "$desired_path"
 jq -r '.users[]?' "$STATE_PATH" 2>/dev/null | awk 'NF {print tolower($0)}' | sort -u > "$previous_path" || true
 jq -r '.people[]?.emails[]?' "$POLICY_PATH" 2>/dev/null | awk 'NF {print tolower($0)}' | sort -u > "$policy_all_path" || true
 jq -r '.people[]? | select(.isAdmin != true) | .emails[]?' "$POLICY_PATH" 2>/dev/null | awk 'NF {print tolower($0)}' | sort -u > "$policy_removable_path" || true
@@ -63,14 +65,14 @@ if [ -n "$revision" ] && [ "$revision" = "$last_revision" ]; then
   fi
 fi
 
-while IFS= read -r email; do
+while IFS="$(printf '\t')" read -r email display_name; do
   [ -n "$email" ] || continue
-  body="$(jq -cn --arg email "$email" '{email:$email}')"
+  body="$(jq -cn --arg email "$email" --arg displayName "$display_name" '{email:$email} + (if $displayName == "" then {} else {displayName:$displayName} end)')"
   curl -fsS -X POST \
     -H "Content-Type: application/json" \
     -d "$body" \
     "$BLUECLAW_URL/admin/api/people/invite" >/dev/null
-done < "$desired_path"
+done < "$desired_records_path"
 
 cat "$previous_path" "$policy_removable_path" | sort -u > "$removal_source_path"
 if [ -s "$removal_source_path" ]; then

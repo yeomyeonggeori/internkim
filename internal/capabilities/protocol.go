@@ -33,16 +33,25 @@ type RegistryResponse struct {
 }
 
 type ToolInvokeRequest struct {
-	ToolName             string          `json:"toolName"`
-	Input                json.RawMessage `json:"input"`
-	ExecutionMode        string          `json:"executionMode"`
-	RequiresUserPresence bool            `json:"requiresUserPresence"`
-	PrivacyClass         string          `json:"privacyClass"`
-	SessionID            string          `json:"sessionID"`
-	ParentJobID          string          `json:"parentJobID,omitempty"`
-	GrantID              string          `json:"grantID,omitempty"`
-	ResourceScope        ResourceScope   `json:"resourceScope,omitempty"`
-	TimeoutSecond        int             `json:"timeoutSecond"`
+	ToolName             string            `json:"toolName"`
+	Input                json.RawMessage   `json:"input"`
+	Context              ToolInvokeContext `json:"context,omitempty"`
+	ExecutionMode        string            `json:"executionMode"`
+	RequiresUserPresence bool              `json:"requiresUserPresence"`
+	PrivacyClass         string            `json:"privacyClass"`
+	SessionID            string            `json:"sessionID"`
+	ParentJobID          string            `json:"parentJobID,omitempty"`
+	GrantID              string            `json:"grantID,omitempty"`
+	ResourceScope        ResourceScope     `json:"resourceScope,omitempty"`
+	TimeoutSecond        int               `json:"timeoutSecond"`
+}
+
+type ToolInvokeContext struct {
+	RequesterPersonID string `json:"requesterPersonID,omitempty"`
+	RequesterEmail    string `json:"requesterEmail,omitempty"`
+	RequesterName     string `json:"requesterName,omitempty"`
+	ConversationID    string `json:"conversationID,omitempty"`
+	Platform          string `json:"platform,omitempty"`
 }
 
 type ToolInvokeResponse struct {
@@ -111,7 +120,13 @@ func DeviceDescriptors() []Descriptor {
 		{Name: "llm.structured", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "embedding.create", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
 		{Name: "platform.reply", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false},
-	}, DeviceBrowserDescriptors()...)
+	}, append(DeviceBrowserDescriptors(), FlowDescriptors()...)...)
+}
+
+func FlowDescriptors() []Descriptor {
+	return []Descriptor{
+		{Name: "flow.task.add", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
+	}
 }
 
 func DeviceBrowserDescriptors() []Descriptor {
@@ -131,6 +146,14 @@ func CompanionToolNames() []string {
 	descriptors := CompanionToolDescriptors()
 	toolNames := make([]string, 0, len(descriptors))
 	for _, descriptor := range descriptors {
+		toolNames = append(toolNames, descriptor.Name)
+	}
+	return toolNames
+}
+
+func DefaultToolNames() []string {
+	toolNames := CompanionToolNames()
+	for _, descriptor := range FlowDescriptors() {
 		toolNames = append(toolNames, descriptor.Name)
 	}
 	return toolNames

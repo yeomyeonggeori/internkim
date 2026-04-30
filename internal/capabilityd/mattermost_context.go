@@ -7,6 +7,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/anthropic-lab/internkim/internal/identity"
 )
 
 type mattermostHistoryPost struct {
@@ -23,6 +26,8 @@ func (service Service) enrichMattermostEvent(ctx context.Context, event platform
 		return event
 	}
 	event.Context = service.mattermostContext(ctx, handle, 20)
+	event.Context.Sender = service.mattermostSender(ctx, event.SenderID)
+	event.Context.ReceivedAt = time.Now().UTC().Format(time.RFC3339)
 	return event
 }
 
@@ -40,17 +45,22 @@ func (service Service) mattermostContext(ctx context.Context, handle platformHan
 	}
 
 	messages := make([]platformContextMessage, 0, len(previousPosts))
-	speakerByUserID := map[string]string{}
+	senderByUserID := map[string]platformContextSender{}
 	for _, post := range previousPosts {
 		if strings.TrimSpace(post.Message) == "" || strings.TrimSpace(post.Type) != "" {
 			continue
 		}
-		speaker := speakerByUserID[post.UserID]
-		if speaker == "" {
-			speaker = service.mattermostSpeaker(ctx, post.UserID)
-			speakerByUserID[post.UserID] = speaker
+		senderInfo, hasSender := senderByUserID[post.UserID]
+		if !hasSender {
+			senderInfo = service.mattermostSender(ctx, post.UserID)
+			senderByUserID[post.UserID] = senderInfo
 		}
-		messages = append(messages, platformContextMessage{Speaker: speaker, Text: post.Message})
+		messages = append(messages, platformContextMessage{
+			Speaker:            senderInfo.Name,
+			SpeakerCallingName: senderInfo.CallingName,
+			SpeakerHandle:      senderInfo.Handle,
+			Text:               post.Message,
+		})
 	}
 
 	contextValue := platformEventContext{Messages: messages, HasMoreBefore: hasMoreBefore}
@@ -99,10 +109,16 @@ func postsBeforeMessage(posts []mattermostHistoryPost, messageID string) []matte
 }
 
 func (service Service) mattermostSpeaker(ctx context.Context, userID string) string {
+	return service.mattermostSender(ctx, userID).Name
+}
+
+func (service Service) mattermostSender(ctx context.Context, userID string) platformContextSender {
 	if strings.TrimSpace(userID) == "" {
-		return "unknown"
+		return platformContextSender{Platform: "mattermost", Name: "unknown"}
 	}
 	var response struct {
+		ID        string `json:"id"`
+		Email     string `json:"email"`
 		Username  string `json:"username"`
 		Nickname  string `json:"nickname"`
 		FirstName string `json:"first_name"`
@@ -110,9 +126,29 @@ func (service Service) mattermostSpeaker(ctx context.Context, userID string) str
 	}
 	errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/"+url.PathEscape(userID), nil, &response)
 	if errorValue != nil {
-		return userID
+		return platformContextSender{
+			Platform: "mattermost",
+			SenderID: userID,
+			UserID:   userID,
+			Name:     userID,
+		}
 	}
-	return firstNonEmpty(strings.TrimSpace(response.FirstName+" "+response.LastName), response.Nickname, response.Username, userID)
+	senderID := firstNonEmpty(response.ID, userID)
+	canonicalName := firstNonEmpty(
+		strings.TrimSpace(response.Nickname),
+		strings.TrimSpace(response.FirstName),
+		response.Username,
+		senderID,
+	)
+	return platformContextSender{
+		Platform:    "mattermost",
+		SenderID:    senderID,
+		UserID:      senderID,
+		Handle:      response.Username,
+		Email:       response.Email,
+		Name:        canonicalName,
+		CallingName: identity.CallingName(canonicalName),
+	}
 }
 
 func mustEncodePlatformHandle(handle platformHandle) string {

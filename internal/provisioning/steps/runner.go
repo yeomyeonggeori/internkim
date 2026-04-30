@@ -65,6 +65,7 @@ type planEntry struct {
 }
 
 func (registry Registry) byName(name string) *Step {
+	name = canonicalStepName(name)
 	for index := range registry {
 		if registry[index].Name == name {
 			return &registry[index]
@@ -74,6 +75,9 @@ func (registry Registry) byName(name string) *Step {
 }
 
 func (registry Registry) resolve(context *Context, selector Selector) ([]string, error) {
+	selector.Only = canonicalStepNames(selector.Only)
+	selector.Skip = canonicalStepNames(selector.Skip)
+	selector.From = canonicalStepName(selector.From)
 	skippedSteps := map[string]bool{}
 	for _, name := range selector.Skip {
 		skippedSteps[name] = true
@@ -286,8 +290,27 @@ func ParseNames(value string) []string {
 	var names []string
 	for _, part := range strings.Split(value, ",") {
 		if trimmed := strings.TrimSpace(part); trimmed != "" {
-			names = append(names, trimmed)
+			names = append(names, canonicalStepName(trimmed))
 		}
 	}
 	return names
+}
+
+func canonicalStepNames(names []string) []string {
+	result := make([]string, 0, len(names))
+	for _, name := range names {
+		if canonicalName := canonicalStepName(name); canonicalName != "" {
+			result = append(result, canonicalName)
+		}
+	}
+	return result
+}
+
+func canonicalStepName(name string) string {
+	switch strings.TrimSpace(name) {
+	case "admin-web":
+		return "web"
+	default:
+		return strings.TrimSpace(name)
+	}
 }
