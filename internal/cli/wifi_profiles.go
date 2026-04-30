@@ -262,8 +262,38 @@ func containsResolvedWiFiProfile(profiles []resolvedWiFiProfile, ssid string) bo
 }
 
 func jetsonWiFiConnectionID(ssid string) string {
-	hash := sha256.Sum256([]byte(strings.ToLower(strings.TrimSpace(ssid))))
-	return jetsonWiFiConnectionPrefix + hex.EncodeToString(hash[:4])
+	normalizedSSID := strings.ToLower(strings.TrimSpace(ssid))
+	hash := sha256.Sum256([]byte(normalizedSSID))
+	suffix := hex.EncodeToString(hash[:4])
+	slug := slugifyWiFiSSID(normalizedSSID)
+	if slug == "" {
+		return jetsonWiFiConnectionPrefix + suffix
+	}
+	return jetsonWiFiConnectionPrefix + slug + "-" + suffix
+}
+
+func slugifyWiFiSSID(ssid string) string {
+	var builder strings.Builder
+	previousWasDash := false
+	for _, character := range ssid {
+		switch {
+		case character >= 'a' && character <= 'z',
+			character >= '0' && character <= '9':
+			builder.WriteRune(character)
+			previousWasDash = false
+		case character == '-' || character == '_' || character == ' ' || character == '.':
+			if !previousWasDash && builder.Len() > 0 {
+				builder.WriteRune('-')
+				previousWasDash = true
+			}
+		}
+	}
+	slug := strings.Trim(builder.String(), "-")
+	const maximumSlugLength = 24
+	if len(slug) > maximumSlugLength {
+		slug = strings.TrimRight(slug[:maximumSlugLength], "-")
+	}
+	return slug
 }
 
 func jetsonWiFiConnectionPath(ssid string) string {
