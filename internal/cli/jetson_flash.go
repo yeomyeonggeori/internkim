@@ -253,7 +253,23 @@ func jetsonFlashCacheDirectory() string {
 	if cacheDirectory := strings.TrimSpace(os.Getenv("INTERNKIM_FLASH_CACHE_DIR")); cacheDirectory != "" {
 		return filepath.Clean(cacheDirectory)
 	}
+	if repositoryRoot := repositoryRootForDependencyCache(); repositoryRoot != "" {
+		return filepath.Join(repositoryRoot, ".dependency", "jetson-flash")
+	}
 	return filepath.Join(internkimHomeDir(), "cache", "jetson")
+}
+
+func repositoryRootForDependencyCache() string {
+	currentDirectory, errorValue := os.Getwd()
+	if errorValue != nil {
+		return ""
+	}
+	for directory := currentDirectory; directory != "/" && directory != "."; directory = filepath.Dir(directory) {
+		if fileInfo, errorValue := os.Stat(filepath.Join(directory, ".dependency")); errorValue == nil && fileInfo.IsDir() {
+			return directory
+		}
+	}
+	return ""
 }
 
 func ensureJetsonFlashCacheSpace(cacheDirectory string) error {
@@ -788,6 +804,21 @@ wait_for_ipv4() {
   return 1
 }
 
+upgrade_jetpack() {
+  if [ -f /var/lib/internkim/jetpack-upgraded ]; then
+    echo "JetPack already upgraded; skipping"
+    return 0
+  fi
+  echo "Upgrading JetPack 6.2.1 → 6.2.2 via APT"
+  export DEBIAN_FRONTEND=noninteractive
+  if apt-get update -y && apt-get full-upgrade -y; then
+    touch /var/lib/internkim/jetpack-upgraded
+    echo "JetPack upgrade complete"
+  else
+    echo "WARN: JetPack apt upgrade failed; continuing on installed version"
+  fi
+}
+
 unblock_wifi
 systemctl unmask NetworkManager.service 2>/dev/null || true
 systemctl enable NetworkManager.service 2>/dev/null || true
@@ -814,6 +845,8 @@ if ! wait_for_ipv4; then
 fi
 
 expand_rootfs
+
+upgrade_jetpack
 
 touch /var/lib/internkim/jetson-firstboot.done
 echo "Jetson firstboot complete"
