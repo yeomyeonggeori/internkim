@@ -20,6 +20,7 @@ const jetsonWiFiConnectionDirectory = "/etc/NetworkManager/system-connections"
 type wifiProfile struct {
 	SSID       string `json:"ssid"`
 	IsOpen     bool   `json:"isOpen"`
+	IsHidden   bool   `json:"isHidden,omitempty"`
 	LastUsedAt string `json:"lastUsedAt,omitempty"`
 	Source     string `json:"source,omitempty"`
 }
@@ -28,6 +29,7 @@ type resolvedWiFiProfile struct {
 	SSID     string
 	Password string
 	IsOpen   bool
+	IsHidden bool
 }
 
 func resolveWiFiProfiles(messenger *msg, stateDirectory string, getSSIDPath string) ([]resolvedWiFiProfile, error) {
@@ -36,6 +38,7 @@ func resolveWiFiProfiles(messenger *msg, stateDirectory string, getSSIDPath stri
 	explicitPassword := argString("--wifi-password", "")
 	currentSSID := detectSSID(getSSIDPath)
 	isOpenWiFi := containsArg("--wifi-open") || containsArg("--open-wifi")
+	isHiddenWiFi := containsArg("--wifi-hidden") || containsArg("--hidden-wifi")
 
 	if selectedSSID == "" {
 		selectedSSID = currentSSID
@@ -53,9 +56,13 @@ func resolveWiFiProfiles(messenger *msg, stateDirectory string, getSSIDPath stri
 		if !isOpenWiFi {
 			isOpenWiFi = isSavedOpenWiFi(profiles, selectedSSID)
 		}
+		if !isHiddenWiFi {
+			isHiddenWiFi = isSavedHiddenWiFi(profiles, selectedSSID)
+		}
 		profiles = upsertWiFiProfile(profiles, wifiProfile{
 			SSID:       selectedSSID,
 			IsOpen:     isOpenWiFi,
+			IsHidden:   isHiddenWiFi,
 			LastUsedAt: time.Now().UTC().Format(time.RFC3339),
 			Source:     wifiProfileSource(selectedSSID, currentSSID),
 		})
@@ -85,7 +92,7 @@ func resolveWiFiProfilePasswords(messenger *msg, stateDirectory string, profiles
 				continue
 			}
 		}
-		resolvedProfiles = append(resolvedProfiles, resolvedWiFiProfile{SSID: profile.SSID, Password: password, IsOpen: profile.IsOpen})
+		resolvedProfiles = append(resolvedProfiles, resolvedWiFiProfile{SSID: profile.SSID, Password: password, IsOpen: profile.IsOpen, IsHidden: profile.IsHidden})
 	}
 	if selectedSSID != "" && !containsResolvedWiFiProfile(resolvedProfiles, selectedSSID) {
 		return nil, fmt.Errorf("wifi password is empty for %s", selectedSSID)
@@ -233,6 +240,15 @@ func isSavedOpenWiFi(profiles []wifiProfile, ssid string) bool {
 	return false
 }
 
+func isSavedHiddenWiFi(profiles []wifiProfile, ssid string) bool {
+	for _, profile := range profiles {
+		if strings.EqualFold(profile.SSID, ssid) {
+			return profile.IsHidden
+		}
+	}
+	return false
+}
+
 func containsResolvedWiFiProfile(profiles []resolvedWiFiProfile, ssid string) bool {
 	for _, profile := range profiles {
 		if strings.EqualFold(profile.SSID, ssid) {
@@ -261,9 +277,13 @@ func buildJetsonWiFiUpsertScript(profiles []resolvedWiFiProfile) string {
 	var builder strings.Builder
 	for _, profile := range profiles {
 		connectionID := jetsonWiFiConnectionID(profile.SSID)
+		hiddenValue := "no"
+		if profile.IsHidden {
+			hiddenValue = "yes"
+		}
 		builder.WriteString("nmcli connection delete " + quoteShellValue(connectionID) + " >/dev/null 2>&1 || true\n")
 		builder.WriteString("nmcli connection add type wifi ifname '*' con-name " + quoteShellValue(connectionID) + " ssid " + quoteShellValue(profile.SSID) + "\n")
-		builder.WriteString("nmcli connection modify " + quoteShellValue(connectionID) + " connection.autoconnect yes wifi.hidden yes ipv4.method auto ipv6.method auto\n")
+		builder.WriteString("nmcli connection modify " + quoteShellValue(connectionID) + " connection.autoconnect yes wifi.hidden " + hiddenValue + " ipv4.method auto ipv6.method auto\n")
 		if !profile.IsOpen {
 			builder.WriteString("nmcli connection modify " + quoteShellValue(connectionID) + " wifi-sec.key-mgmt wpa-psk wifi-sec.psk " + quoteShellValue(profile.Password) + "\n")
 		}

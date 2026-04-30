@@ -661,7 +661,7 @@ func configureJetsonWiFiProfiles(partitionDevice string, profiles []resolvedWiFi
 	removeDebugfsPaths(partitionDevice, "/etc/netplan/99-internkim-wifi.yaml", jetsonLegacyNetworkManagerConnectionPath)
 	ensureDebugfsDirectories(partitionDevice, jetsonWiFiConnectionDirectory, filepath.Dir(jetsonWiFiSelectorScriptPath))
 	for _, profile := range profiles {
-		connectionDocument := buildJetsonNetworkManagerWiFiConnection(profile.SSID, profile.Password)
+		connectionDocument := buildJetsonNetworkManagerWiFiConnection(profile.SSID, profile.Password, profile.IsHidden)
 		if errorValue := writeDebugfsContent(partitionDevice, jetsonWiFiConnectionPath(profile.SSID), connectionDocument, "0100600", 0, 0); errorValue != nil {
 			return errorValue
 		}
@@ -674,11 +674,15 @@ func configureJetsonWiFiProfiles(partitionDevice string, profiles []resolvedWiFi
 	return nil
 }
 
-func buildJetsonNetworkManagerWiFiConnection(wifiSSID string, wifiPassword string) string {
+func buildJetsonNetworkManagerWiFiConnection(wifiSSID string, wifiPassword string, isHidden bool) string {
 	escapedSSID := escapeNetworkManagerValue(wifiSSID)
 	escapedPassword := escapeNetworkManagerValue(wifiPassword)
 	connectionID := jetsonWiFiConnectionID(wifiSSID)
 	connectionUUID := jetsonWiFiConnectionUUID(wifiSSID)
+	hiddenValue := "false"
+	if isHidden {
+		hiddenValue = "true"
+	}
 	if wifiPassword == "" {
 		return fmt.Sprintf(`[connection]
 id=%s
@@ -688,7 +692,7 @@ autoconnect=true
 
 [wifi]
 mode=infrastructure
-hidden=true
+hidden=%s
 ssid=%s
 
 [ipv4]
@@ -696,7 +700,7 @@ method=auto
 
 [ipv6]
 method=auto
-`, connectionID, connectionUUID, escapedSSID)
+`, connectionID, connectionUUID, hiddenValue, escapedSSID)
 	}
 	return fmt.Sprintf(`[connection]
 id=%s
@@ -706,7 +710,7 @@ autoconnect=true
 
 [wifi]
 mode=infrastructure
-hidden=true
+hidden=%s
 ssid=%s
 
 [wifi-security]
@@ -718,7 +722,7 @@ method=auto
 
 [ipv6]
 method=auto
-`, connectionID, connectionUUID, escapedSSID, escapedPassword)
+`, connectionID, connectionUUID, hiddenValue, escapedSSID, escapedPassword)
 }
 
 func escapeNetworkManagerValue(value string) string {
