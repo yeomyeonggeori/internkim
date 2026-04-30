@@ -1,6 +1,6 @@
 # Blueclaw Firecracker Runtime Report
 
-작성 시각: 2026-04-30 22:58 KST
+작성 시각: 2026-04-30 23:18 KST
 
 ## 목표
 
@@ -73,25 +73,45 @@ Firecracker guest 안으로 들어가는 것:
 
 - `smoke-blueclaw-runtime-tart`의 `--only` 리스트에 `users-sync` 추가. verify가 users-sync unit과 state 파일을 요구하지만 setup이 해당 step을 안 돌리던 mismatch 해결.
 
-## 막힌 지점
+## 이번 세션에서 추가로 적용한 수정
 
-### Mattermost setup이 잘못된 채널 ID 저장
+### Mattermost setup의 잘못된 channel/team ID 저장
 
-setup [10/11] 로그:
+`setupMattermost`(`internal/cli/main.go`)가 team/channel lookup의 HTTP status를 무시하고 응답 body의 `id`를 그대로 ID로 받아쓰던 문제. 404 응답 body는 `{"id":"api.context.404.app_error",...}` 또는 `{"id":"app.team.get_by_name.missing.app_error",...}` 형태라, 에러 코드 문자열이 channel/team ID로 저장되고 이후 모든 API 호출이 깨진다.
+
+수정:
+
+- team lookup: status 2xx에서만 ID 사용. ID가 비면 team 생성, 생성도 status 2xx에서만 ID 받기.
+- channel lookup: status 2xx 확인 + 최대 10초 retry. town-square가 신규 team 생성 직후엔 잠깐 조회 안 될 수 있음. 끝까지 못 받으면 fatal로 명시 실패.
+
+이걸로 setup 12/12와 verify의 admin login / capability profile / llm / litert / secret isolation / blueclaw health / backup manifest / users sync 까지 통과. verify mattermost reply smoke의 `cleanup stale verify users`, `bot lookup`, `create users`, `join users`, `login users`, `invite policy`, `invited post`, `reply wait`까지도 진행.
+
+## 다음에 막힌 지점
+
+### Capability daemon의 guest→host vsock listener 누락
+
+verify mattermost 마지막 `expected task count >= 1`에서 실패. 원인은 guest 안 blueclaw가 host capability daemon에 vsock으로 dial하지 못함:
 
 ```
-admin: admin / IVygNltxsYBKoPigVgJy
-channel: town-square (api.context.404.app_error)
+ERROR connector.mattermost.auth.failed
+error: Post "http://internkim-capability/v1/platform/mattermost/identity.resolve":
+       dial vsock host(2):7000: connect: connection reset by peer
 ```
 
-`town-square` 조회가 실패할 때 Mattermost 에러 응답 객체의 `id` 필드(`api.context.404.app_error`)를 그대로 채널 ID로 저장한다. 이후 verify mattermost 단계에서:
+`internkim-capabilityd`는 `--vsock-port 7000`로 떠 있고 vsock 커널 모듈도 로드돼 있다(Tart VM 측 `lsmod` 확인). 하지만 Firecracker의 vsock 모델은 다음을 요구한다:
 
-```
-GET http://localhost:8065/api/v4/channels/api.context.404.app_error returned HTTP 404
-GET http://localhost:8065/api/v4/channels/api.context.404.app_error/posts?per_page=100 returned HTTP 404
-```
+- guest→host 방향 connection은 host측에 미리 바인드된 unix socket이 `<vsockUnixSocketPath>_<port>` 경로에 있어야 한다
+- Firecracker가 guest의 vsock dial을 그 unix socket으로 forward한다
 
-발생 위치는 Mattermost auto-config 후 town-square 채널 lookup. 응답 status를 보지 않고 body의 id를 채널 ID로 받아쓰는 게 원인 가설. 다음 단계는 setup_flow의 Mattermost 채널 lookup을 정상 응답일 때만 채널 ID로 저장하도록 정정.
+현재 supervisor는 `<jailerRoot>/firecracker-vsock.socket` 베이스 socket만 만들고, 포트별 inbound listener (`firecracker-vsock.socket_7000` 등)는 만들지 않는다. 그래서 커널 vsock.Listen으로 떠 있는 capabilityd에는 절대 도달 못 한다 — 이게 "connection reset by peer".
+
+해결 방향(미적용):
+
+1. supervisor에 outbound `HostHTTPProxy`의 inverse를 추가 — guest port별로 host UDS를 pre-bind하고, accept된 연결을 capabilityd의 unix socket(`/run/internkim/capability.sock`)에 forward.
+2. `FirecrackerConfiguration`에 `guestListenerProxies: [{guestPort, targetUnixSocketPath}]` 같은 필드 추가, internkim setup이 7000→capability.sock 매핑을 채워 넣음.
+3. supervisor가 guest boot 직전(또는 직후 빠르게) listener proxy goroutine을 띄움.
+
+크지 않지만 supervisor + parent config 양쪽을 건드리는 일이라 별도 커밋으로 처리.
 
 ## 진단 인프라 메모
 
@@ -111,18 +131,18 @@ GET http://localhost:8065/api/v4/channels/api.context.404.app_error/posts?per_pa
 
 지금은 위 도구 조합으로 충분히 진단됨.
 
-## 커밋/푸시
+## 커밋/푸시 현황
 
-이번 세션에서는 부분 진행분을 커밋한다. 이유: 마이그레이션 핵심 병목이 모두 해결됐고, 남은 Mattermost 회귀는 별개 영역. Mattermost 수정은 별도 커밋으로 묶는다.
+이번 세션은 두 커밋으로 정리:
 
-이전 REPORT의 "smoke green 전 커밋 금지" 게이트는 이번에는 적용하지 않는다.
+1. 서브모듈 `.dependency/blueclaw`에 `Move runtime into Firecracker guest` (이전 작업 포함)
+2. parent repo에 `Move Blueclaw into Firecracker guest runtime` — 본 세션 모든 host측 수정 + 서브모듈 pointer + REPORT 초안
 
-순서:
+다음 커밋:
 
-1. 서브모듈 `.dependency/blueclaw` 변경(이전 작업 + 본 세션 무관)을 서브모듈 자체에서 커밋/푸시
-2. parent repo 본 세션 변경 + 서브모듈 pointer 업데이트 + REPORT.md를 한 커밋으로 묶기
-3. Mattermost 채널 ID 회귀를 별도 커밋
-4. parent repo + (필요 시) 서브모듈 push
+3. parent repo `Fix Mattermost team and channel id resolution` — 본 REPORT의 Mattermost 회귀 수정 + REPORT 갱신
+
+이후 push. 남은 capability vsock listener 작업은 별도 후속.
 
 ## 핵심 파일
 
