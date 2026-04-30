@@ -20,36 +20,73 @@ type mattermostWebSocketMessage struct {
 	Data  map[string]any `json:"data"`
 }
 
+type mattermostPostMetadata struct {
+	ChannelType string
+	ChannelName string
+	Mentions    []string
+}
+
 func normalizeMattermostWebSocketPayload(payload []byte, botUserID string) (platformInboundEvent, bool, error) {
-	post, channelType, hasPost, errorValue := mattermostWebSocketPost(payload)
+	post, metadata, hasPost, errorValue := mattermostWebSocketPost(payload)
 	if errorValue != nil || !hasPost {
 		return platformInboundEvent{}, false, errorValue
 	}
-	return normalizeMattermostPost(post, botUserID, channelType)
+	isBotMentioned := containsString(metadata.Mentions, strings.TrimSpace(botUserID))
+	return normalizeMattermostPost(post, botUserID, metadata.ChannelType, metadata.ChannelName, isBotMentioned)
 }
 
-func mattermostWebSocketPost(payload []byte) (mattermostPost, string, bool, error) {
+func mattermostWebSocketPost(payload []byte) (mattermostPost, mattermostPostMetadata, bool, error) {
 	var message mattermostWebSocketMessage
 	if errorValue := json.Unmarshal(payload, &message); errorValue != nil {
-		return mattermostPost{}, "", false, errorValue
+		return mattermostPost{}, mattermostPostMetadata{}, false, errorValue
 	}
 	if message.Event != "posted" {
-		return mattermostPost{}, "", false, nil
+		return mattermostPost{}, mattermostPostMetadata{}, false, nil
 	}
 
 	postDocument, isFound := message.Data["post"].(string)
 	if !isFound || strings.TrimSpace(postDocument) == "" {
-		return mattermostPost{}, "", false, nil
+		return mattermostPost{}, mattermostPostMetadata{}, false, nil
 	}
 	var post mattermostPost
 	if errorValue := json.Unmarshal([]byte(postDocument), &post); errorValue != nil {
-		return mattermostPost{}, "", false, errorValue
+		return mattermostPost{}, mattermostPostMetadata{}, false, errorValue
 	}
 	channelType, _ := message.Data["channel_type"].(string)
-	return post, channelType, true, nil
+	channelName, _ := message.Data["channel_name"].(string)
+	metadata := mattermostPostMetadata{
+		ChannelType: channelType,
+		ChannelName: channelName,
+		Mentions:    parseMattermostMentionsList(message.Data["mentions"]),
+	}
+	return post, metadata, true, nil
 }
 
-func normalizeMattermostPost(post mattermostPost, botUserID string, channelType string) (platformInboundEvent, bool, error) {
+func parseMattermostMentionsList(raw any) []string {
+	document, isString := raw.(string)
+	if !isString || strings.TrimSpace(document) == "" {
+		return nil
+	}
+	var mentions []string
+	if errorValue := json.Unmarshal([]byte(document), &mentions); errorValue != nil {
+		return nil
+	}
+	return mentions
+}
+
+func containsString(values []string, target string) bool {
+	if strings.TrimSpace(target) == "" {
+		return false
+	}
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeMattermostPost(post mattermostPost, botUserID string, channelType string, channelName string, isBotMentioned bool) (platformInboundEvent, bool, error) {
 	if strings.TrimSpace(post.ID) == "" || strings.TrimSpace(post.UserID) == "" {
 		return platformInboundEvent{}, false, nil
 	}
@@ -57,8 +94,15 @@ func normalizeMattermostPost(post mattermostPost, botUserID string, channelType 
 		return platformInboundEvent{}, false, nil
 	}
 
+	isDirect := strings.EqualFold(strings.TrimSpace(channelType), "D")
+	if !isDirect && !isDefaultMattermostChannel(channelName) && !isBotMentioned {
+		return platformInboundEvent{}, false, nil
+	}
+
 	replyRootID := ""
-	if !strings.EqualFold(strings.TrimSpace(channelType), "D") {
+	if isDirect {
+		replyRootID = strings.TrimSpace(post.RootID)
+	} else {
 		replyRootID = firstNonEmpty(post.RootID, post.ID)
 	}
 	conversationID := mattermostConversationID(channelType, post.ChannelID, replyRootID)
@@ -89,6 +133,14 @@ func normalizeMattermostPost(post mattermostPost, botUserID string, channelType 
 			HistoryCursor: historyCursor,
 		},
 	}, true, nil
+}
+
+func isDefaultMattermostChannel(channelName string) bool {
+	switch strings.ToLower(strings.TrimSpace(channelName)) {
+	case "town-square":
+		return true
+	}
+	return false
 }
 
 func mattermostConversationID(channelType string, channelID string, rootID string) string {

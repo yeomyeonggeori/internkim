@@ -250,8 +250,15 @@ echo "checking services"
 systemctl is-active mattermost | grep -q '^active$'
 systemctl is-active blueclaw | grep -q '^active$'
 systemctl is-active internkim-admind | grep -q '^active$'
-systemctl is-active graphiti-memoryd | grep -q '^active$'
 systemctl is-active cloudflared | grep -q '^active$'
+grep -q 'blueclaw-supervisor' /etc/systemd/system/blueclaw.service
+! grep -q 'ExecStart=/usr/local/bin/blueclaw ' /etc/systemd/system/blueclaw.service
+test -x /usr/local/bin/firecracker
+test -x /usr/local/bin/jailer
+test -s /opt/internkim/blueclaw-runtime/manifest.json
+test -s /opt/internkim/blueclaw-runtime/vmlinux.bin
+test -s /opt/internkim/blueclaw-runtime/rootfs.ext4
+blkid -o value -s TYPE /var/lib/blueclaw/workspace.ext4 | grep -q '^ext4$'
 ` + browserruntime.DeviceReadinessShellScript() + `
 
 echo "checking admin gateway"
@@ -324,9 +331,6 @@ echo "checking secret isolation"
 echo "checking blueclaw health"
 curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/policy >/dev/null
 
-echo "checking graphiti memory health"
-curl --silent --show-error --fail http://127.0.0.1:7791/health | jq -e '.status == "ok"' >/dev/null
-
 echo "checking blueclaw backup manifest"
 manifest_path="$(mktemp)"
 curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/backup/manifest > "$manifest_path"
@@ -353,13 +357,15 @@ PY
 echo "checking users sync"
 systemctl start internkim-users-sync.service || journalctl -u internkim-users-sync -n 40 --no-pager
 test -f /root/.internkim/state/users-sync.json
-python3 - <<'PY'
+policy_response_path="$(mktemp)"
+curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/policy > "$policy_response_path"
+python3 - "$policy_response_path" <<'PY'
 import json
 import sys
 
 with open("/root/.internkim/state/users-sync.json") as file:
     expected = {email.lower() for email in json.load(file).get("users", [])}
-with open("/root/.blueclaw/config/policy.json") as file:
+with open(sys.argv[1]) as file:
     policy = json.load(file)
 actual = set()
 for person in policy.get("people", []):
@@ -370,6 +376,7 @@ if missing:
     print("missing policy emails: " + ", ".join(missing), file=sys.stderr)
     sys.exit(1)
 PY
+rm -f "$policy_response_path"
 
 echo "verify api: ok"
 `

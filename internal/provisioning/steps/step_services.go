@@ -2,6 +2,7 @@ package setup
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/anthropic-lab/internkim/internal/runtime/blueclaw"
@@ -9,7 +10,7 @@ import (
 
 var StepServices = Step{
 	Name: "services",
-	Deps: []string{"binaries", "openrouter", "litert", "mattermost"},
+	Deps: []string{"blueclaw-runtime", "openrouter", "litert", "mattermost"},
 	Title: func(context *Context) string {
 		return context.T("서비스 시작 중...", "Starting services...")
 	},
@@ -29,23 +30,24 @@ for forbidden in ("apiKeyPath", "botTokenPath", "signingSecretPath", "OPENROUTER
     if forbidden in document:
         print("legacy")
         raise SystemExit
-if '"endpoint": "http://internkim"' not in document or '"unixSocketPath": "/run/internkim/capability.sock"' not in document:
+if '"transport": "vsock"' not in document or '"endpoint": "http://internkim-capability"' not in document:
     print("stale")
     raise SystemExit
-if '"graphitiEndpoint": "http://127.0.0.1:7791"' not in document or '"graphitiKuzuPath": "/root/.blueclaw/workspace/.blueclaw/graphiti/kuzu"' not in document:
+if '"graphitiEndpoint": "http://127.0.0.1:7791"' not in document or '"graphitiKuzuPath": "/workspace/.blueclaw/graphiti/kuzu"' not in document:
+    print("stale")
+    raise SystemExit
+if '"connectionString": "postgres://blueclaw@/blueclaw?host=/workspace/.blueclaw/postgres&sslmode=disable"' not in document:
     print("stale")
     raise SystemExit
 print("ok")
 PY`)
-		databaseCheck := trimmedRun(context, `test -d /root/.blueclaw/migrations && su -s /bin/sh blueclaw -c 'test -r /root/.blueclaw/migrations/001_extension.sql' 2>/dev/null && su - postgres -c "psql -tAc \"SELECT 1 FROM pg_database WHERE datname='blueclaw'\"" 2>/dev/null | grep -q 1 && echo ok || echo missing`)
+		runtimeCheck = strings.TrimSpace(runtimeCheck)
 		return trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
-			trimmedRun(context, "systemctl is-active "+blueclaw.GraphitiMemorydServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
 			trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
 			trimmedRun(context, "systemctl is-active mattermost") == "active" &&
-			runtimeCheck == "ok" &&
-			databaseCheck == "ok"
+			runtimeCheck == "ok"
 	},
 	Run: func(context *Context) error {
 		connection := context.SSH
@@ -58,21 +60,37 @@ PY`)
 		if err != nil {
 			return err
 		}
-		connection.Run(fmt.Sprintf(`mkdir -p %s
+		connection.Run(fmt.Sprintf(`mkdir -p %s %s
+printf '%%s' %s > %s
+printf '%%s' %s > %s
+mkdir -p %s
 printf '%%s' %s > %s
 printf '%%s' %s > %s
 chown -R root:blueclaw %s
 chmod 770 %s
+chmod 640 %s %s
+chown -R blueclaw:blueclaw %s
+chmod 750 %s
 chmod 640 %s %s`,
 			blueclaw.BlueclawConfigPath,
+			blueclaw.BlueclawWorkspacePath+"/.blueclaw/config",
 			shellQuote(runtimeConfiguration),
 			blueclaw.BlueclawRuntimeConfigPath,
 			shellQuote(policyConfiguration),
 			blueclaw.BlueclawPolicyConfigPath,
+			blueclaw.BlueclawWorkspacePath+"/.blueclaw/config",
+			shellQuote(runtimeConfiguration),
+			blueclaw.BlueclawWorkspacePath+"/.blueclaw/config/runtime.json",
+			shellQuote(policyConfiguration),
+			blueclaw.BlueclawWorkspacePath+"/.blueclaw/config/policy.json",
 			blueclaw.BlueclawConfigPath,
 			blueclaw.BlueclawConfigPath,
 			blueclaw.BlueclawRuntimeConfigPath,
 			blueclaw.BlueclawPolicyConfigPath,
+			blueclaw.BlueclawWorkspacePath+"/.blueclaw",
+			blueclaw.BlueclawWorkspacePath+"/.blueclaw/config",
+			blueclaw.BlueclawWorkspacePath+"/.blueclaw/config/runtime.json",
+			blueclaw.BlueclawWorkspacePath+"/.blueclaw/config/policy.json",
 		))
 
 		connection.Run("rm -f /etc/init.d/S97httpd; killall board-bridge 2>/dev/null; " +
@@ -91,22 +109,9 @@ rm -f /root/.internkim/env/bot-token`)
 rm -rf agent-browser github summarize skill-creator 2>/dev/null; \
 echo "Cleaned unavailable skills"`)
 
-		connection.Run(`systemctl start postgresql 2>/dev/null || service postgresql start 2>/dev/null || true
-su - postgres -c "psql -tAc \"SELECT 1 FROM pg_roles WHERE rolname='blueclaw'\" | grep -q 1 || createuser blueclaw" 2>/dev/null || true
-su - postgres -c "psql -tAc \"SELECT 1 FROM pg_database WHERE datname='blueclaw'\" | grep -q 1 || createdb -O blueclaw blueclaw" 2>/dev/null || true
-su - postgres -c "psql -c \"ALTER DATABASE blueclaw OWNER TO blueclaw\"" 2>/dev/null || true
-if [ -d /root/.blueclaw/migrations ]; then
-  chown -R root:blueclaw /root/.blueclaw/migrations 2>/dev/null || true
-  chmod -R u=rwX,g=rX,o= /root/.blueclaw/migrations 2>/dev/null || true
-  chmod 750 /root/.blueclaw/migrations 2>/dev/null || true
-fi`)
-
-		connection.Run(`if [ -f /opt/internkim/graphiti_memoryd/requirements.txt ]; then
-  uv venv /opt/internkim/graphiti-venv >/dev/null
-  uv pip install --python /opt/internkim/graphiti-venv/bin/python -r /opt/internkim/graphiti_memoryd/requirements.txt >/dev/null
-  chown -R root:blueclaw /opt/internkim
-  chmod -R u=rwX,g=rX,o=rX /opt/internkim
-fi`)
+		connection.Run(`mkdir -p /root/.blueclaw/workspace/.blueclaw/postgres /root/.blueclaw/workspace/.blueclaw/graphiti /root/.blueclaw/workspace/.blueclaw/logs /root/.blueclaw/workspace/.blueclaw/blobs
+chown -R blueclaw:blueclaw /root/.blueclaw/workspace/.blueclaw
+chmod -R u=rwX,g=rwX,o= /root/.blueclaw/workspace/.blueclaw`)
 
 		connection.Run(fmt.Sprintf(`systemctl stop zeroclaw 2>/dev/null || true
 systemctl disable zeroclaw 2>/dev/null || true
@@ -117,13 +122,9 @@ cat > %s <<'SVCEOF'
 %sSVCEOF
 cat > %s <<'CAPABILITYEOF'
 %sCAPABILITYEOF
-cat > %s <<'GRAPHITIEOF'
-%sGRAPHITIEOF
 cat > %s <<'ADMINDEOF'
 %sADMINDEOF
 systemctl daemon-reload
-systemctl enable %s
-systemctl restart %s
 systemctl enable %s
 systemctl restart %s
 systemctl enable %s
@@ -135,14 +136,10 @@ sleep 2`,
 			blueclaw.BlueclawServiceUnit(),
 			blueclaw.CapabilitydServicePath,
 			blueclaw.CapabilitydServiceUnit(),
-			blueclaw.GraphitiMemorydServicePath,
-			blueclaw.GraphitiMemorydServiceUnit(),
 			blueclaw.AdmindServicePath,
 			blueclaw.AdmindServiceUnit(),
 			blueclaw.CapabilitydServiceName,
 			blueclaw.CapabilitydServiceName,
-			blueclaw.GraphitiMemorydServiceName,
-			blueclaw.GraphitiMemorydServiceName,
 			blueclaw.AdmindServiceName,
 			blueclaw.AdmindServiceName,
 			blueclaw.BlueclawServiceName,
@@ -150,10 +147,9 @@ sleep 2`,
 		))
 
 		isBlueclawHealthy := false
-		for attempt := 0; attempt < 15; attempt++ {
+		for attempt := 0; attempt < 30; attempt++ {
 			isBlueclawHealthy = trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
 				trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
-				trimmedRun(context, "systemctl is-active "+blueclaw.GraphitiMemorydServiceName) == "active" &&
 				trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
 				trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok"
 			if isBlueclawHealthy {
@@ -164,6 +160,7 @@ sleep 2`,
 
 		if isBlueclawHealthy {
 			fmt.Println("  " + context.T("blueclaw 실행 중", "blueclaw running"))
+			connection.Run("systemctl stop " + blueclaw.GraphitiMemorydServiceName + " 2>/dev/null || true; systemctl disable " + blueclaw.GraphitiMemorydServiceName + " 2>/dev/null || true")
 		} else {
 			fmt.Println("  " + context.T("gateway 시작 실패", "Gateway failed"))
 		}

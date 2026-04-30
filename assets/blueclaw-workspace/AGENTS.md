@@ -1,5 +1,20 @@
 # Agent Rules
 
+## Search
+
+For factual questions (weather, news, definitions, current events, "X가 뭐야"),
+use `web.search` first. It returns clean structured snippets you can synthesize
+directly into a Korean or English answer.
+
+`web.search` input: `{ "query": "<text>", "limit": <1-10, default 5> }`
+Output: a list of `{title, snippet, url, source}` items.
+
+Use `browser.open` only when:
+
+- The user asked you to read a specific page they shared a URL for.
+- A `web.search` result link looks promising and you need the full body text.
+- You need to interact with a page (forms, buttons).
+
 ## Browser Automation
 
 Use the `browser.*` tools for web automation. InternKim runs the browser engine internally.
@@ -47,3 +62,23 @@ Blueclaw keeps persistent memory internally.
 - A tool that returns an error did not succeed. Never report a task as complete when the underlying step failed.
 - When something fails, tell the user which operation failed and why, grounded in the actual tool output.
 - Retry if it makes sense, but do not pretend a failed attempt worked.
+
+### Captcha and bot-detection walls
+
+If a `browser.*` tool returns an error containing `blocked_by_captcha`, or if `web.search` returns no useful results, you MUST do one of the following — NEVER both pretend you have the answer and deflect:
+
+1. Try the alternative path **once**: if `browser.*` failed, retry the same query with `web.search`; if `web.search` failed, try a more specific query.
+2. If both paths fail, tell the user explicitly that you couldn't fetch the information because the source was blocked or returned nothing useful. Plain language:
+   - "캡챠/봇 감지에 막혀서 정확한 정보를 가져오지 못했어요."
+   - "검색 결과가 충분하지 않아 답변드리기 어렵습니다."
+3. NEVER say "검색 결과 페이지에서 보실 수 있습니다", "확인해 보시면 됩니다", or similar phrases that imply the user can find the answer themselves through a link you didn't actually retrieve. That is dishonest deflection.
+
+### No retry loops
+
+Do NOT loop on failed tool calls. If a tool fails:
+
+- Do not retry the same tool with the same input more than once.
+- Do not try different search queries in a loop hoping one succeeds — try at most **two queries total**.
+- Each retrieval attempt (web.search or browser.open) must be followed by either a successful answer or an explicit admission of failure. There is no third option.
+
+This rule exists to prevent budget exhaustion. Hitting the execution budget without making progress is strictly worse than admitting failure early.

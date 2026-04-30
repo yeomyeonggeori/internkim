@@ -9,6 +9,14 @@ import (
 )
 
 func EnsureBlueclawBinary(targetPath string, scriptDir string) error {
+	return ensureBlueclawCommandBinary(targetPath, scriptDir, "./cmd/blueclaw")
+}
+
+func EnsureBlueclawSupervisorBinary(targetPath string, scriptDir string) error {
+	return ensureBlueclawCommandBinary(targetPath, scriptDir, "./cmd/blueclaw-supervisor")
+}
+
+func ensureBlueclawCommandBinary(targetPath string, scriptDir string, packagePath string) error {
 	blueclawDirectory := BlueclawSubmoduleRoot(scriptDir)
 	if _, error := os.Stat(filepath.Join(blueclawDirectory, "go.mod")); error != nil {
 		return fmt.Errorf("blueclaw submodule missing at %s", blueclawDirectory)
@@ -22,18 +30,22 @@ func EnsureBlueclawBinary(targetPath string, scriptDir string) error {
 		return error
 	}
 
-	buildCommand := exec.Command("go", "build", "-o", targetPath, "./cmd/blueclaw")
+	buildCommand := exec.Command("go", "build", "-o", targetPath, packagePath)
 	buildCommand.Dir = blueclawDirectory
 	buildCommand.Env = append(os.Environ(), "GOOS=linux", "GOARCH=arm64")
 	output, error := buildCommand.CombinedOutput()
 	if error != nil {
-		return fmt.Errorf("build blueclaw: %s", string(output))
+		return fmt.Errorf("build %s: %s", packagePath, string(output))
 	}
 
 	return os.Chmod(targetPath, 0o755)
 }
 
 func EnsureBlueclawSubmoduleMain(scriptDir string) error {
+	if shouldUseLocalBlueclawSubmodule() {
+		return nil
+	}
+
 	blueclawDirectory := BlueclawSubmoduleRoot(scriptDir)
 	statusCommand := exec.Command("git", "status", "--porcelain")
 	statusCommand.Dir = blueclawDirectory
@@ -56,6 +68,10 @@ func EnsureBlueclawSubmoduleMain(scriptDir string) error {
 	}
 
 	return nil
+}
+
+func shouldUseLocalBlueclawSubmodule() bool {
+	return os.Getenv("INTERNKIM_BLUECLAW_USE_LOCAL") == "1"
 }
 
 func runBlueclawGitCommand(blueclawDirectory string, arguments ...string) error {

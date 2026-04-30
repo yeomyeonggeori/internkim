@@ -1783,16 +1783,12 @@ func downloadAndParseClientJSON(ctx context.Context, fallbackClientID string) (s
 			case downloadEvents <- filepath.Join(downloadDir, event.SuggestedFilename):
 			default:
 			}
-		case *browser.EventDownloadProgress:
-			if event.State != browser.DownloadProgressStateCompleted || event.FilePath == "" {
-				return
+			case *browser.EventDownloadProgress:
+				if event.State != browser.DownloadProgressStateCompleted {
+					return
+				}
 			}
-			select {
-			case downloadEvents <- event.FilePath:
-			default:
-			}
-		}
-	})
+		})
 
 	// Best-effort: redirect downloads to our temp dir. Chrome's
 	// allowAndName mode renames files to GUIDs, which makes filename

@@ -22,8 +22,11 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 		t.Fatalf("expected capability default provider, got %q", languageModel["defaultProvider"])
 	}
 	capabilities := runtimeConfiguration["capabilities"].(map[string]any)
-	if capabilities["unixSocketPath"] != CapabilitySocketPath {
-		t.Fatalf("expected capability unix socket path, got %q", capabilities["unixSocketPath"])
+	if capabilities["transport"] != "vsock" {
+		t.Fatalf("expected capability vsock transport, got %q", capabilities["transport"])
+	}
+	if capabilities["unixSocketPath"] != "" {
+		t.Fatalf("expected capability unix socket path to be omitted for guest runtime, got %q", capabilities["unixSocketPath"])
 	}
 	capabilityToolNames := capabilities["toolNames"].([]any)
 	if !containsStringValue(capabilityToolNames, "user.confirm") {
@@ -53,7 +56,7 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if memory["graphitiEndpoint"] != GraphitiEndpoint {
 		t.Fatalf("expected Graphiti endpoint, got %q", memory["graphitiEndpoint"])
 	}
-	if memory["graphitiKuzuPath"] != GraphitiKuzuPath {
+	if memory["graphitiKuzuPath"] != "/workspace/.blueclaw/graphiti/kuzu" {
 		t.Fatalf("expected Graphiti Kuzu path, got %q", memory["graphitiKuzuPath"])
 	}
 	if memory["timeoutSecond"] != float64(60) {
@@ -139,5 +142,11 @@ func TestBlueclawServiceDoesNotExposeOpenRouterKeyAsEnvironmentFile(t *testing.T
 	serviceDocument := BlueclawServiceUnit()
 	if strings.Contains(serviceDocument, "EnvironmentFile=") {
 		t.Fatal("expected Blueclaw service to avoid OpenRouter key environment files")
+	}
+	if !strings.Contains(serviceDocument, BlueclawSupervisorBinaryPath) {
+		t.Fatal("expected Blueclaw service to run the Firecracker supervisor")
+	}
+	if strings.Contains(serviceDocument, "ExecStart="+BlueclawBinaryPath+" ") {
+		t.Fatal("expected Blueclaw service not to run the host blueclaw binary directly")
 	}
 }

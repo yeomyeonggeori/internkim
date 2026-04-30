@@ -260,31 +260,32 @@ func newSetupFlowState(
 
 func (state *setupFlowState) callbacks() setup.Callbacks {
 	return setup.Callbacks{
-		Translate:              func(korean, english string) string { return state.messenger.t(korean, english) },
-		LoadState:              func(key string) string { return loadState(state.stateDir, key) },
-		SaveState:              func(key, value string) { saveState(state.stateDir, key, value) },
-		GoogleAuth:             state.googleAuth,
-		ResolveGoogleProject:   resolveGoogleProject,
-		EnableGoogleAPIs:       enableGoogleAPIs,
-		CreateGoogleSA:         createGoogleServiceAccount,
-		GetOpenRouterKey:       buildOpenRouterKeyCallback(state.stateDir, state.messenger, state.parameters.OpenRouterAPIKey, state.nonInteractive),
-		GetLiteRTModelPath:     buildLiteRTModelPathCallback(state.parameters.LiteRTModelPath),
-		GetGasWebhookURL:       state.provisionGasWebhook,
-		GwsSkillsInstallScript: gwsSkillsInstallScript,
-		BinariesVersion:        state.binariesVersion,
-		InstallBinariesSSH:     state.installBinariesSSH,
-		StageBinariesSD:        state.stageBinariesSD,
-		AdminWebVersion:        state.adminWebVersion,
-		DeployAdminWeb:         state.deployAdminWeb,
-		ConfigureWifiSSH:       state.configureWifiSSH,
-		StageWifiSD:            state.stageWifiSD,
-		ProvisionTunnelSSH:     state.provisionTunnelSSH,
-		StageTunnelSD:          state.stageTunnelSD,
-		ConfigureSlackTokenSSH: state.configureSlackTokenSSH,
-		StageSlackTokenSD:      state.stageSlackTokenSD,
-		InstallUsersSyncSSH:    state.installUsersSyncSSH,
-		StageUsersSyncSD:       state.stageUsersSyncSD,
-		StageBootstrapSD:       state.stageBootstrapSD,
+		Translate:                 func(korean, english string) string { return state.messenger.t(korean, english) },
+		LoadState:                 func(key string) string { return loadState(state.stateDir, key) },
+		SaveState:                 func(key, value string) { saveState(state.stateDir, key, value) },
+		GoogleAuth:                state.googleAuth,
+		ResolveGoogleProject:      resolveGoogleProject,
+		EnableGoogleAPIs:          enableGoogleAPIs,
+		CreateGoogleSA:            createGoogleServiceAccount,
+		GetOpenRouterKey:          buildOpenRouterKeyCallback(state.stateDir, state.messenger, state.parameters.OpenRouterAPIKey, state.nonInteractive),
+		GetLiteRTModelPath:        buildLiteRTModelPathCallback(state.parameters.LiteRTModelPath),
+		GetGasWebhookURL:          state.provisionGasWebhook,
+		GwsSkillsInstallScript:    gwsSkillsInstallScript,
+		BinariesVersion:           state.binariesVersion,
+		InstallBinariesSSH:        state.installBinariesSSH,
+		StageBinariesSD:           state.stageBinariesSD,
+		InstallBlueclawRuntimeSSH: state.installBlueclawRuntimeSSH,
+		AdminWebVersion:           state.adminWebVersion,
+		DeployAdminWeb:            state.deployAdminWeb,
+		ConfigureWifiSSH:          state.configureWifiSSH,
+		StageWifiSD:               state.stageWifiSD,
+		ProvisionTunnelSSH:        state.provisionTunnelSSH,
+		StageTunnelSD:             state.stageTunnelSD,
+		ConfigureSlackTokenSSH:    state.configureSlackTokenSSH,
+		StageSlackTokenSD:         state.stageSlackTokenSD,
+		InstallUsersSyncSSH:       state.installUsersSyncSSH,
+		StageUsersSyncSD:          state.stageUsersSyncSD,
+		StageBootstrapSD:          state.stageBootstrapSD,
 		InstallMattermost: func(context *setup.Context) error {
 			if state.sshClient == nil {
 				return nil
@@ -499,6 +500,11 @@ func (state *setupFlowState) requiredBinaryAssets() []localBinaryAsset {
 			remotePath: blueclaw.BlueclawBinaryPath,
 		},
 		{
+			name:       blueclaw.BlueclawSupervisorName,
+			localPath:  filepath.Join(state.boardBinDir, blueclaw.BlueclawSupervisorName),
+			remotePath: blueclaw.BlueclawSupervisorBinaryPath,
+		},
+		{
 			name:         "gws",
 			localPath:    filepath.Join(state.boardBinDir, "gws"),
 			remotePath:   "/usr/local/bin/gws",
@@ -564,6 +570,15 @@ func (state *setupFlowState) ensureLocalBinaryAssets() ([]localBinaryAsset, erro
 			fmt.Println("ok")
 			continue
 		}
+		if asset.name == blueclaw.BlueclawSupervisorName {
+			fmt.Printf("  %s %s... ", state.messenger.t("빌드 중", "Building"), asset.name)
+			if err := blueclaw.EnsureBlueclawSupervisorBinary(asset.localPath, state.scriptDir); err != nil {
+				fmt.Println("FAILED")
+				return nil, err
+			}
+			fmt.Println("ok")
+			continue
+		}
 
 		if asset.name == blueclaw.CapabilitydName || asset.name == blueclaw.AdmindName || asset.name == blueclaw.LiteRTWrapperName {
 			if err := buildGoBinaryAsset(state, asset); err != nil {
@@ -615,6 +630,7 @@ func (state *setupFlowState) binariesVersion() string {
 		filepath.Join(state.scriptDir, "cmd", blueclaw.LiteRTWrapperName),
 		filepath.Join(state.scriptDir, "internal", "admind"),
 		filepath.Join(state.scriptDir, "internal", "capabilityd"),
+		filepath.Join(state.scriptDir, "internal", "runtime", "blueclaw"),
 		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "tools", "graphiti_memoryd"),
 		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "tools", "graphiti-memoryd"),
 	} {
@@ -691,9 +707,13 @@ func (state *setupFlowState) deployAdminWeb(context *setup.Context) error {
 	if errorValue := state.runAdminWebCommand(webRoot, "bun", "run", "build"); errorValue != nil {
 		return errorValue
 	}
-	fmt.Println("  " + context.T("Cloudflare Pages 배포 중...", "Deploying Cloudflare Pages..."))
-	if errorValue := state.runAdminWebCommand(webRoot, "bunx", "wrangler", "pages", "deploy", ".svelte-kit/cloudflare", "--project-name", "internkim"); errorValue != nil {
-		return errorValue
+	if os.Getenv("INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB") == "1" {
+		fmt.Println("  " + context.T("Cloudflare Pages 배포 건너뜀 (lab)", "Skipping Cloudflare Pages deploy (lab)"))
+	} else {
+		fmt.Println("  " + context.T("Cloudflare Pages 배포 중...", "Deploying Cloudflare Pages..."))
+		if errorValue := state.runAdminWebCommand(webRoot, "bunx", "wrangler", "pages", "deploy", ".svelte-kit/cloudflare", "--project-name", "internkim"); errorValue != nil {
+			return errorValue
+		}
 	}
 	if errorValue := state.runAdminWebCommand(webRoot, "bun", "run", "build:board"); errorValue != nil {
 		return errorValue
@@ -879,6 +899,75 @@ rm -rf /root/.blueclaw/workspace/skills/share-file
 chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills 2>/dev/null || true`)
 	}
 
+	return nil
+}
+
+func (state *setupFlowState) installBlueclawRuntimeSSH(context *setup.Context) error {
+	artifactDirectoryPath := filepath.Join(state.scriptDir, blueclaw.BlueclawRuntimeArtifactPath)
+	manifest, errorValue := blueclaw.ValidateRuntimeArtifactDirectory(artifactDirectoryPath)
+	if errorValue != nil {
+		return fmt.Errorf("blueclaw Firecracker runtime artifact invalid: %w; run `make prepare-blueclaw-runtime` before setup", errorValue)
+	}
+
+	requiredArtifacts := []struct {
+		name       string
+		remotePath string
+		mode       string
+	}{
+		{name: "firecracker", remotePath: blueclaw.BlueclawFirecrackerPath, mode: "0755"},
+		{name: "jailer", remotePath: blueclaw.BlueclawJailerPath, mode: "0755"},
+		{name: "vmlinux.bin", remotePath: blueclaw.BlueclawKernelImagePath, mode: "0644"},
+		{name: "rootfs.ext4", remotePath: blueclaw.BlueclawRootFilesystemImagePath, mode: "0644"},
+	}
+
+	fmt.Print("  blueclaw Firecracker runtime... ")
+	state.sshClient.run("rm -rf /tmp/internkim-blueclaw-runtime && mkdir -p /tmp/internkim-blueclaw-runtime/runtime " + blueclaw.BlueclawRuntimeInstallPath + " /var/lib/blueclaw /var/log/blueclaw-supervisor")
+	for _, artifact := range requiredArtifacts {
+		localArtifactPath, errorValue := blueclaw.RuntimeArtifactFilePath(artifactDirectoryPath, manifest, artifact.name)
+		if errorValue != nil {
+			fmt.Println("failed")
+			return errorValue
+		}
+		temporaryRemotePath := "/tmp/internkim-blueclaw-runtime/runtime/" + artifact.name
+		if errorValue := state.sshClient.scp(localArtifactPath, temporaryRemotePath); errorValue != nil {
+			fmt.Println("failed")
+			return errorValue
+		}
+		installCommand := "install -m " + artifact.mode + " " + quoteShellValue(temporaryRemotePath) + " " + quoteShellValue(artifact.remotePath)
+		if artifact.name == "rootfs.ext4" {
+			installCommand = "cp --sparse=always " + quoteShellValue(temporaryRemotePath) + " " + quoteShellValue(artifact.remotePath) + " && chmod " + artifact.mode + " " + quoteShellValue(artifact.remotePath)
+		}
+		output, errorValue := state.sshClient.runResult(installCommand)
+		if errorValue != nil {
+			fmt.Println("failed")
+			return fmt.Errorf("install %s: %s: %w", artifact.name, strings.TrimSpace(output), errorValue)
+		}
+	}
+	if errorValue := state.sshClient.scp(filepath.Join(artifactDirectoryPath, "manifest.json"), "/tmp/internkim-blueclaw-runtime/runtime/manifest.json"); errorValue != nil {
+		fmt.Println("failed")
+		return errorValue
+	}
+	output, errorValue := state.sshClient.runResult(`set -eu
+test -x /usr/local/bin/blueclaw-supervisor
+test -x /usr/local/bin/firecracker
+test -x /usr/local/bin/jailer
+test -s /opt/internkim/blueclaw-runtime/vmlinux.bin
+test -s /opt/internkim/blueclaw-runtime/rootfs.ext4
+install -m 0644 /tmp/internkim-blueclaw-runtime/runtime/manifest.json /opt/internkim/blueclaw-runtime/manifest.json
+if [ ! -e /var/lib/blueclaw/workspace.ext4 ]; then
+  truncate -s 16G /var/lib/blueclaw/workspace.ext4
+fi
+if ! blkid -o value -s TYPE /var/lib/blueclaw/workspace.ext4 2>/dev/null | grep -qx ext4; then
+  mkfs.ext4 -F -L blueclaw-workspace /var/lib/blueclaw/workspace.ext4 >/dev/null
+fi
+chmod 0600 /var/lib/blueclaw/workspace.ext4
+mkdir -p /var/log/blueclaw-supervisor
+`)
+	if errorValue != nil {
+		fmt.Println("failed")
+		return fmt.Errorf("verify blueclaw Firecracker runtime: %s: %w", strings.TrimSpace(output), errorValue)
+	}
+	fmt.Println("installed")
 	return nil
 }
 
@@ -1276,15 +1365,16 @@ StandardError=journal
 WantedBy=multi-user.target
 SVCEOF
 rm -f /etc/init.d/S98cloudflared 2>/dev/null
+systemctl stop cloudflared 2>/dev/null || true
 killall cloudflared 2>/dev/null || true
 systemctl daemon-reload
 systemctl enable --now cloudflared
-for i in $(seq 1 15); do
+for i in $(seq 1 45); do
   [ "$(systemctl is-active cloudflared 2>/dev/null)" = "active" ] && break
   sleep 2
 done`)
 
-	if strings.TrimSpace(state.sshClient.run("systemctl is-active cloudflared")) == "active" {
+	if strings.TrimSpace(state.sshClient.run("for i in $(seq 1 15); do [ \"$(systemctl is-active cloudflared 2>/dev/null)\" = active ] && echo active && exit 0; sleep 1; done; systemctl is-active cloudflared 2>/dev/null || true")) == "active" {
 		fmt.Printf("  %s\n", state.messenger.t("cloudflared 실행 중", "cloudflared running"))
 		return nil
 	}
