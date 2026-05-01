@@ -71,11 +71,12 @@ else
 fi
 
 sshpassBin="$repositoryRoot/bin/sshpass"
-sshCommand=(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$buildUser@$buildHost")
-scpCommand=(scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+sshOptions=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ServerAliveCountMax=240)
+sshCommand=(ssh "${sshOptions[@]}" "$buildUser@$buildHost")
+scpCommand=(scp "${sshOptions[@]}")
 if [ -n "$buildPassword" ] && [ -x "$sshpassBin" ]; then
-  sshCommand=(env "SSHPASS=$buildPassword" "$sshpassBin" -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$buildUser@$buildHost")
-  scpCommand=(env "SSHPASS=$buildPassword" "$sshpassBin" -e scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+  sshCommand=(env "SSHPASS=$buildPassword" "$sshpassBin" -e ssh "${sshOptions[@]}" "$buildUser@$buildHost")
+  scpCommand=(env "SSHPASS=$buildPassword" "$sshpassBin" -e scp "${sshOptions[@]}")
 fi
 
 remoteScript=$(cat <<REMOTE
@@ -119,14 +120,17 @@ runSudo apt-get install -y --no-install-recommends \\
 
 cmakeMajor="\$(cmake --version | awk 'NR==1 {split(\$3, parts, "."); print parts[1] "." parts[2]}')"
 if awk -v have="\$cmakeMajor" 'BEGIN { exit (have+0 >= 3.25) ? 0 : 1 }'; then
-  :
+  cmakeBinary="cmake"
 else
-  echo "system cmake \$cmakeMajor too old; installing kitware repo"
-  curl -fsSL https://apt.kitware.com/keys/kitware-archive-latest.asc | runSudo gpg --dearmor -o /usr/share/keyrings/kitware-archive-keyring.gpg
-  source /etc/lsb-release
-  echo "deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ \$DISTRIB_CODENAME main" | runSudo tee /etc/apt/sources.list.d/kitware.list >/dev/null
-  runSudo apt-get update -y
-  runSudo apt-get install -y cmake
+  echo "system cmake \$cmakeMajor too old; installing modern cmake via pip"
+  runSudo apt-get install -y --no-install-recommends python3-pip
+  pip3 install --user --upgrade --break-system-packages cmake
+  cmakeBinary="\$HOME/.local/bin/cmake"
+  if [ ! -x "\$cmakeBinary" ]; then
+    echo "pip install did not produce \$cmakeBinary" >&2
+    ls "\$HOME/.local/bin/" >&2 || true
+    exit 1
+  fi
 fi
 
 if ! command -v rustc >/dev/null 2>&1; then
@@ -142,7 +146,7 @@ fi
 export CXX="\${CXX:-g++}"
 export CC="\${CC:-gcc}"
 
-cmake -B cmake/build -G "Unix Makefiles" \\
+"\$cmakeBinary" -B cmake/build -G "Unix Makefiles" \\
   -DCMAKE_BUILD_TYPE=Release \\
   -DCMAKE_CXX_STANDARD=20
 
@@ -152,7 +156,7 @@ if [ "\$parallelJobs" -gt 4 ]; then
   parallelJobs=4
 fi
 
-cmake --build cmake/build -t litert_lm_main -j"\$parallelJobs"
+"\$cmakeBinary" --build cmake/build -t litert_lm_main -j"\$parallelJobs"
 
 if [ ! -s "cmake/build/runtime/engine/litert_lm_main" ]; then
   echo "build did not produce litert_lm_main" >&2
