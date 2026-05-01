@@ -33,6 +33,7 @@ import (
 	internkimlab "github.com/anthropic-lab/internkim/internal/lab"
 	setup "github.com/anthropic-lab/internkim/internal/provisioning/steps"
 	"github.com/anthropic-lab/internkim/internal/runtime/blueclaw"
+	"github.com/anthropic-lab/internkim/internal/runtime/locallm"
 )
 
 var (
@@ -4173,8 +4174,18 @@ func ensureCachedLiteRTModel() (string, error) {
 	if repositoryRoot == "" {
 		return "", nil
 	}
-	cacheDirectory := filepath.Join(repositoryRoot, ".dependency", "litert-models")
-	cachedModelPath := filepath.Join(cacheDirectory, blueclaw.LiteRTModelFilename)
+	cacheRelative := locallm.LiteRTCacheModelDir
+	filename := locallm.LiteRTModelFilename
+	sourceURL := locallm.LiteRTModelURL
+	displayName := "LiteRT"
+	if locallm.Default == locallm.BackendLlamaCpp {
+		cacheRelative = locallm.LlamaCppCacheModelDir
+		filename = locallm.LlamaCppModelFilename
+		sourceURL = locallm.LlamaCppModelURL
+		displayName = "llama.cpp"
+	}
+	cacheDirectory := filepath.Join(repositoryRoot, cacheRelative)
+	cachedModelPath := filepath.Join(cacheDirectory, filename)
 	if fileInfo, errorValue := os.Stat(cachedModelPath); errorValue == nil && fileInfo.Size() > 0 {
 		return cachedModelPath, nil
 	}
@@ -4183,8 +4194,8 @@ func ensureCachedLiteRTModel() (string, error) {
 	}
 	temporaryPath := cachedModelPath + ".tmp"
 	_ = os.Remove(temporaryPath)
-	fmt.Printf("  %s\n", "downloading LiteRT model into "+cachedModelPath)
-	command := exec.Command("curl", "-fL", "--retry", "3", "--progress-bar", "-o", temporaryPath, blueclaw.LiteRTModelSourceURL)
+	fmt.Printf("  downloading %s model into %s\n", displayName, cachedModelPath)
+	command := exec.Command("curl", "-fL", "--retry", "3", "--progress-bar", "-o", temporaryPath, sourceURL)
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 	if errorValue := command.Run(); errorValue != nil {
