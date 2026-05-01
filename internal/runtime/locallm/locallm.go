@@ -17,6 +17,7 @@ const (
 	LiteRTModelURL      = "https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it.litertlm"
 	LiteRTCacheRelative = ".dependency/litert-lm-main"
 	LiteRTCacheKey      = "v0.10.2-aarch64"
+	LiteRTCacheModelDir = ".dependency/litert-models"
 	LiteRTBuildTool     = "build-litert-lm-main"
 	LiteRTDisplayName   = "litert_lm_main"
 
@@ -27,6 +28,7 @@ const (
 	LlamaCppModelURL      = "https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_0.gguf"
 	LlamaCppCacheRelative = ".dependency/llama-cpp"
 	LlamaCppCacheKey      = "05e141a-aarch64"
+	LlamaCppCacheModelDir = ".dependency/llama-cpp-models"
 	LlamaCppBuildTool     = "build-llama-cpp-jetson"
 	LlamaCppDisplayName   = "llama-cli"
 )

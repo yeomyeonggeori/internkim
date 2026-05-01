@@ -21,6 +21,7 @@ import (
 
 	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
 	"github.com/anthropic-lab/internkim/internal/identity"
+	"github.com/anthropic-lab/internkim/internal/runtime/locallm"
 )
 
 type Configuration struct {
@@ -127,7 +128,7 @@ func DefaultConfiguration() Configuration {
 		OllamaBaseURL:              "http://127.0.0.1:11434",
 		OllamaModel:                "gemma3:1b",
 		SocketGroupName:            "blueclaw",
-		LiteRTModelPath:            "/root/.internkim/models/gemma-4-E4B-it.litertlm",
+		LiteRTModelPath:            locallm.ModelPath(),
 		LiteRTWrapperPath:          "/usr/local/bin/internkim-litert-wrapper",
 		CompanionBaseURL:           "",
 		PreferCompanionLLM:         false,
