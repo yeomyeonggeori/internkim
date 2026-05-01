@@ -7,7 +7,7 @@ const (
 	BackendLlamaCpp Backend = "llama-cpp"
 )
 
-const Default = BackendLiteRT
+const Default = BackendLlamaCpp
 
 const (
 	LiteRTBinaryPath    = "/usr/local/bin/litert_lm_main"
