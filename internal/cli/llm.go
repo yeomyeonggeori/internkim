@@ -10,7 +10,8 @@ import (
 
 func runLLM() {
 	flagSet := flag.NewFlagSet("llm", flag.ContinueOnError)
-	mode := flagSet.String("mode", "both", "Execution mode: local, remote, or both")
+	mode := flagSet.String("mode", "", "Execution mode: local, remote, or both (overrides --remote)")
+	useRemote := flagSet.Bool("remote", false, "Use OpenRouter instead of the on-board LiteRT model")
 	model := flagSet.String("model", "", "Override model name")
 	host := flagSet.String("host", "", "Board host")
 	user := flagSet.String("user", boardUser, "SSH user")
@@ -20,7 +21,15 @@ func runLLM() {
 	}
 	prompt := strings.TrimSpace(strings.Join(flagSet.Args(), " "))
 	if prompt == "" {
-		fatal("usage: internkim llm \"<prompt>\" [--mode local|remote|both] [--model NAME] [--host IP --user USER --password PASS]")
+		fatal("usage: internkim llm \"<prompt>\" [--remote | --mode local|remote|both] [--model NAME] [--host IP --user USER --password PASS]")
+	}
+	resolvedMode := strings.TrimSpace(*mode)
+	if resolvedMode == "" {
+		if *useRemote {
+			resolvedMode = "remote"
+		} else {
+			resolvedMode = "local"
+		}
 	}
 
 	verifyArguments := []string{}
@@ -38,8 +47,8 @@ func runLLM() {
 		fatal(errorValue.Error())
 	}
 
-	modes := []string{*mode}
-	if strings.EqualFold(*mode, "both") {
+	modes := []string{resolvedMode}
+	if strings.EqualFold(resolvedMode, "both") {
 		modes = []string{"local", "remote"}
 	}
 	for _, requestedMode := range modes {
