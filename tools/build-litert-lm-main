@@ -9,22 +9,25 @@ buildHost="${LITERT_LM_BUILD_HOST:-}"
 buildUser="${LITERT_LM_BUILD_USER:-internkim}"
 buildPassword="${LITERT_LM_BUILD_PASSWORD:-blueclaw}"
 remoteWorkRoot="${LITERT_LM_REMOTE_WORK_ROOT:-/var/cache/internkim/litert-lm-build}"
+bazeliskVersion="${LITERT_LM_BAZELISK_VERSION:-v1.22.1}"
 
 usage() {
   cat <<USAGE
 Usage:
   tools/build-litert-lm-main [--version vX.Y.Z] [--host <ip>] [--user <name>] [--password <pass>]
 
-Builds the litert_lm C++ binary on a Linux aarch64 build host (default: the
-provisioned board) and caches the result in .dependency/litert-lm-main/<key>/.
-Cache hits skip the build entirely.
+Builds the litert_lm_main C++ binary on a Linux aarch64 build host (default:
+the provisioned Jetson) using the upstream Bazel build, then caches the binary
+plus the prebuilt linux_arm64 shared libraries in
+.dependency/litert-lm-main/<key>/. Cache hits skip the build entirely.
 
 Environment overrides:
-  LITERT_LM_VERSION        Source tag to build (default: v0.10.2)
-  LITERT_LM_BUILD_HOST     SSH host (default: cached board IP)
-  LITERT_LM_BUILD_USER     SSH user (default: admin)
-  LITERT_LM_BUILD_PASSWORD SSH password (omit for key auth)
-  LITERT_LM_REMOTE_WORK_ROOT Remote build directory (default: /var/cache/internkim/litert-lm-build)
+  LITERT_LM_VERSION          Source tag to build (default: v0.10.2)
+  LITERT_LM_BUILD_HOST       SSH host (default: cached board IP)
+  LITERT_LM_BUILD_USER       SSH user (default: internkim)
+  LITERT_LM_BUILD_PASSWORD   SSH password (omit for key auth)
+  LITERT_LM_REMOTE_WORK_ROOT Remote build directory
+  LITERT_LM_BAZELISK_VERSION bazelisk release tag (default: v1.22.1)
 USAGE
 }
 
@@ -41,11 +44,12 @@ done
 
 cacheKey="${litertVersion}-aarch64"
 cacheDirectory="$repositoryRoot/.dependency/litert-lm-main/$cacheKey"
-cachedBinaryPath="$cacheDirectory/litert_lm"
+cachedBinaryPath="$cacheDirectory/litert_lm_main"
+cachedLibraryDirectory="$cacheDirectory/lib"
 sourceCacheDirectory="$repositoryRoot/.dependency/litert-lm-main/sources"
 sourceTarballPath="$sourceCacheDirectory/litert-lm-$litertVersion.tar.gz"
 
-if [ -x "$cachedBinaryPath" ] && [ -s "$cachedBinaryPath" ]; then
+if [ -x "$cachedBinaryPath" ] && [ -s "$cachedBinaryPath" ] && [ -d "$cachedLibraryDirectory" ]; then
   echo "$cachedBinaryPath"
   exit 0
 fi
@@ -114,45 +118,23 @@ cd "\$sourceDirectoryName"
 echo "installing build dependencies (apt)"
 runSudo apt-get update -y
 runSudo apt-get install -y --no-install-recommends \\
-  build-essential cmake ninja-build pkg-config \\
+  build-essential clang lld pkg-config \\
   libssl-dev libcurl4-openssl-dev zlib1g-dev \\
-  python3 python3-venv default-jdk curl ca-certificates
+  python3 python3-dev python3-numpy default-jdk curl ca-certificates git unzip
+export CC=/usr/bin/clang
+export CXX=/usr/bin/clang++
 
-cmakeMajor="\$(cmake --version | awk 'NR==1 {split(\$3, parts, "."); print parts[1] "." parts[2]}')"
-if awk -v have="\$cmakeMajor" 'BEGIN { exit (have+0 >= 3.25) ? 0 : 1 }'; then
-  cmakeBinary="cmake"
-else
-  echo "system cmake \$cmakeMajor too old; installing modern cmake via pip"
-  runSudo apt-get install -y --no-install-recommends python3-pip
-  if pip3 install --user --upgrade --break-system-packages cmake 2>/dev/null; then
-    :
-  else
-    pip3 install --user --upgrade cmake
-  fi
-  cmakeBinary="\$HOME/.local/bin/cmake"
-  if [ ! -x "\$cmakeBinary" ]; then
-    echo "pip install did not produce \$cmakeBinary" >&2
-    ls "\$HOME/.local/bin/" >&2 || true
-    exit 1
-  fi
+bazeliskBinary="\$HOME/bin/bazelisk"
+if [ ! -x "\$bazeliskBinary" ]; then
+  mkdir -p "\$HOME/bin"
+  echo "downloading bazelisk $bazeliskVersion"
+  curl -fsSL -o "\$bazeliskBinary" "https://github.com/bazelbuild/bazelisk/releases/download/$bazeliskVersion/bazelisk-linux-arm64"
+  chmod +x "\$bazeliskBinary"
 fi
 
-if ! command -v rustc >/dev/null 2>&1; then
-  curl -fsSL https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
-fi
-if [ -f "\$HOME/.cargo/env" ]; then
-  source "\$HOME/.cargo/env"
-fi
-
-if ! command -v g++-13 >/dev/null 2>&1; then
-  echo "g++-13 not present; falling back to system g++"
-fi
-export CXX="\${CXX:-g++}"
-export CC="\${CC:-gcc}"
-
-"\$cmakeBinary" -B cmake/build -G "Unix Makefiles" \\
-  -DCMAKE_BUILD_TYPE=Release \\
-  -DCMAKE_CXX_STANDARD=20
+bazelHome="$remoteWorkRoot/bazelisk-cache"
+bazelOutputUserRoot="$remoteWorkRoot/bazel-output"
+mkdir -p "\$bazelHome" "\$bazelOutputUserRoot"
 
 cpuCount="\$(nproc 2>/dev/null || echo 2)"
 parallelJobs="\$cpuCount"
@@ -160,13 +142,27 @@ if [ "\$parallelJobs" -gt 4 ]; then
   parallelJobs=4
 fi
 
-"\$cmakeBinary" --build cmake/build -t litert_lm -j"\$parallelJobs"
+env CC=/usr/bin/clang CXX=/usr/bin/clang++ BAZELISK_HOME="\$bazelHome" "\$bazeliskBinary" \\
+  --output_user_root="\$bazelOutputUserRoot" \\
+  build \\
+  --config=linux \\
+  --jobs="\$parallelJobs" \\
+  //runtime/engine:litert_lm_main
 
-if ! find cmake/build -type f -name litert_lm -executable | head -1 | grep -q .; then
-  echo "build did not produce litert_lm" >&2
-  find cmake/build -maxdepth 4 -type f -executable >&2 || true
+binaryPath="bazel-bin/runtime/engine/litert_lm_main"
+if [ ! -x "\$binaryPath" ]; then
+  echo "bazel build did not produce \$binaryPath" >&2
   exit 1
 fi
+
+stagingDirectory="$remoteWorkRoot/staging"
+rm -rf "\$stagingDirectory"
+mkdir -p "\$stagingDirectory/lib"
+cp "\$binaryPath" "\$stagingDirectory/litert_lm_main"
+chmod 0755 "\$stagingDirectory/litert_lm_main"
+cp prebuilt/linux_arm64/*.so "\$stagingDirectory/lib/" 2>/dev/null || true
+
+echo "STAGING_PATH=\$stagingDirectory"
 REMOTE
 )
 
@@ -186,18 +182,14 @@ eval \"\$sudoPrefix chown $buildUser:$buildUser $remoteWorkRoot\""
 echo "uploading source tarball to remote"
 "${scpCommand[@]}" "$sourceTarballPath" "$buildUser@$buildHost:$remoteWorkRoot/litert-lm-$litertVersion.tar.gz"
 
-echo "running remote build (this can take 30+ minutes on Jetson Orin Nano)"
+echo "running remote bazel build (this can take 30+ minutes on Jetson Orin Nano)"
 "${sshCommand[@]}" "$remoteScript"
 
-mkdir -p "$cacheDirectory"
-echo "resolving remote binary path"
-remoteBinaryPath="$("${sshCommand[@]}" "find $remoteWorkRoot -type f -name litert_lm -executable" 2>/dev/null | head -1)"
-if [ -z "$remoteBinaryPath" ]; then
-  echo "remote build did not produce a litert_lm executable under $remoteWorkRoot" >&2
-  exit 1
-fi
-echo "fetching binary into cache: $remoteBinaryPath"
-"${scpCommand[@]}" "$buildUser@$buildHost:$remoteBinaryPath" "$cachedBinaryPath"
+mkdir -p "$cacheDirectory" "$cachedLibraryDirectory"
+remoteStagingDirectory="$remoteWorkRoot/staging"
+echo "fetching binary + libraries from $remoteStagingDirectory"
+"${scpCommand[@]}" "$buildUser@$buildHost:$remoteStagingDirectory/litert_lm_main" "$cachedBinaryPath"
+"${scpCommand[@]}" -r "$buildUser@$buildHost:$remoteStagingDirectory/lib/." "$cachedLibraryDirectory/"
 chmod 0755 "$cachedBinaryPath"
 
 echo "$cachedBinaryPath"

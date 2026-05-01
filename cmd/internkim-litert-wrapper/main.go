@@ -8,9 +8,13 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
+
+const liteRTMainBinaryPath = "/usr/local/bin/litert_lm_main"
+const liteRTMainLibraryDirectory = "/usr/local/lib/litert_lm"
 
 type message struct {
 	Role    string `json:"role"`
@@ -71,6 +75,99 @@ func run() error {
 }
 
 func runLiteRT(request requestDocument) (string, error) {
+	if liteRTMainAvailable() {
+		return runLiteRTMain(request)
+	}
+	return runLiteRTPython(request)
+}
+
+func liteRTMainAvailable() bool {
+	binaryInfo, errorValue := os.Stat(liteRTMainBinaryPath)
+	if errorValue != nil || binaryInfo.IsDir() {
+		return false
+	}
+	libraryInfo, errorValue := os.Stat(liteRTMainLibraryDirectory)
+	if errorValue != nil || !libraryInfo.IsDir() {
+		return false
+	}
+	return true
+}
+
+func runLiteRTMain(request requestDocument) (string, error) {
+	promptFile, errorValue := os.CreateTemp("", "litert-prompt-*.txt")
+	if errorValue != nil {
+		return "", errorValue
+	}
+	defer os.Remove(promptFile.Name())
+	if _, errorValue := promptFile.WriteString(renderPrompt(request)); errorValue != nil {
+		_ = promptFile.Close()
+		return "", errorValue
+	}
+	if errorValue := promptFile.Close(); errorValue != nil {
+		return "", errorValue
+	}
+
+	command := exec.Command(liteRTMainBinaryPath,
+		"--backend="+strings.TrimSpace(request.Backend),
+		"--model_path="+strings.TrimSpace(request.ModelPath),
+		"--input_prompt_file="+promptFile.Name(),
+	)
+	command.Env = append(os.Environ(), "LD_LIBRARY_PATH="+liteRTMainLibraryDirectory+pathSeparator()+os.Getenv("LD_LIBRARY_PATH"))
+	command.Stdin = bytes.NewReader(nil)
+
+	timer := time.AfterFunc(10*time.Minute, func() {
+		if command.Process != nil {
+			_ = command.Process.Kill()
+		}
+	})
+	defer timer.Stop()
+
+	stdoutBuffer := &bytes.Buffer{}
+	stderrBuffer := &bytes.Buffer{}
+	command.Stdout = stdoutBuffer
+	command.Stderr = stderrBuffer
+	runError := command.Run()
+	if runError != nil {
+		return "", fmt.Errorf("litert_lm_main failed: %w: %s", runError, strings.TrimSpace(stderrBuffer.String()))
+	}
+
+	generated := extractLiteRTMainGenerated(stdoutBuffer.String())
+	if generated == "" {
+		return "", fmt.Errorf("litert_lm_main produced no generated text: %s", strings.TrimSpace(stdoutBuffer.String()))
+	}
+	if request.outputMode() == "text" {
+		return extractTextContent(generated)
+	}
+	return extractJSONContent(generated)
+}
+
+func extractLiteRTMainGenerated(output string) string {
+	startMarker := "input_prompt:"
+	endMarker := "BenchmarkInfo:"
+	startIndex := strings.Index(output, startMarker)
+	if startIndex < 0 {
+		return strings.TrimSpace(output)
+	}
+	bodyStart := startIndex + len(startMarker)
+	if newlineIndex := strings.Index(output[bodyStart:], "\n"); newlineIndex >= 0 {
+		bodyStart += newlineIndex + 1
+	}
+	endIndex := strings.Index(output[bodyStart:], endMarker)
+	body := output[bodyStart:]
+	if endIndex >= 0 {
+		body = output[bodyStart : bodyStart+endIndex]
+	}
+	return strings.TrimSpace(body)
+}
+
+func pathSeparator() string {
+	if filepath.ListSeparator == 0 {
+		return ":"
+	}
+	return string(filepath.ListSeparator)
+}
+
+func runLiteRTPython(request requestDocument) (string, error) {
 	output, errorValue := runLiteRTCommand([]string{
 		"run",
 		"--backend=" + strings.TrimSpace(request.Backend),
