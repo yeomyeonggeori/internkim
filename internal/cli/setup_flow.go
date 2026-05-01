@@ -1008,124 +1008,62 @@ func (state *setupFlowState) ensureDeviceBrowserRuntimeArtifact() (string, error
 	return "", fmt.Errorf("device browser runtime preparation did not create %s; run `make prepare-device-browser` before setup", artifactPath)
 }
 
-type localLLMBuildArtifacts struct {
-	binaryPath        string
-	binaryName        string
-	libraryPaths      []string
-	cacheDirectoryAbs string
-}
-
-type localLLMBackendDeployer struct {
-	displayName        string
-	buildToolName      string
-	cacheRelativeRoot  string
-	cacheKey           string
-	binaryName         string
-	remoteBinaryPath   string
-	remoteLibraryDir   string
-	libraryNameMatches func(name string) bool
-}
-
-func liteRTMainDeployer() localLLMBackendDeployer {
-	spec := locallm.SpecFor(locallm.BackendLiteRT)
-	return localLLMBackendDeployer{
-		displayName:       "litert_lm_main",
-		buildToolName:     "build-litert-lm-main",
-		cacheRelativeRoot: spec.LocalCacheRelativeRoot,
-		cacheKey:          spec.LocalCacheKey,
-		binaryName:        "litert_lm_main",
-		remoteBinaryPath:  spec.RemoteBinaryPath,
-		remoteLibraryDir:  spec.RemoteLibraryDirectory,
-		libraryNameMatches: func(name string) bool {
-			return strings.HasSuffix(name, ".so")
-		},
+func (state *setupFlowState) installLocalLLMSSH() error {
+	switch locallm.Default {
+	case locallm.BackendLlamaCpp:
+		return state.installLocalLLMBinarySSH(
+			locallm.LlamaCppDisplayName,
+			locallm.LlamaCppBuildTool,
+			locallm.LlamaCppCacheRelative,
+			locallm.LlamaCppCacheKey,
+			locallm.LlamaCppBinaryPath,
+			locallm.LlamaCppLibraryDir,
+		)
+	default:
+		return state.installLocalLLMBinarySSH(
+			locallm.LiteRTDisplayName,
+			locallm.LiteRTBuildTool,
+			locallm.LiteRTCacheRelative,
+			locallm.LiteRTCacheKey,
+			locallm.LiteRTBinaryPath,
+			locallm.LiteRTLibraryDir,
+		)
 	}
 }
 
-func llamaCppDeployer() localLLMBackendDeployer {
-	spec := locallm.SpecFor(locallm.BackendLlamaCpp)
-	return localLLMBackendDeployer{
-		displayName:       "llama-cli",
-		buildToolName:     "build-llama-cpp-jetson",
-		cacheRelativeRoot: spec.LocalCacheRelativeRoot,
-		cacheKey:          spec.LocalCacheKey,
-		binaryName:        "llama-cli",
-		remoteBinaryPath:  spec.RemoteBinaryPath,
-		remoteLibraryDir:  spec.RemoteLibraryDirectory,
-		libraryNameMatches: func(name string) bool {
-			return strings.Contains(name, ".so")
-		},
-	}
-}
-
-func (state *setupFlowState) ensureLocalLLMArtifacts(deployer localLLMBackendDeployer) (localLLMBuildArtifacts, error) {
-	cacheDirectory := filepath.Join(state.scriptDir, deployer.cacheRelativeRoot, deployer.cacheKey)
-	binaryPath := filepath.Join(cacheDirectory, deployer.binaryName)
+func (state *setupFlowState) installLocalLLMBinarySSH(displayName, buildTool, cacheRelative, cacheKey, remoteBinaryPath, remoteLibraryDir string) error {
+	cacheDirectory := filepath.Join(state.scriptDir, cacheRelative, cacheKey)
+	binaryPath := filepath.Join(cacheDirectory, filepath.Base(remoteBinaryPath))
 	libraryDirectory := filepath.Join(cacheDirectory, "lib")
 
-	binaryInfo, errorValue := os.Stat(binaryPath)
-	libraryEntries, libraryError := os.ReadDir(libraryDirectory)
-	if errorValue != nil || libraryError != nil || binaryInfo.Size() == 0 || len(libraryEntries) == 0 {
-		fmt.Println("  " + state.messenger.t(deployer.displayName+" 빌드 캐시 준비 중...", "Preparing "+deployer.displayName+" build cache..."))
-		command := exec.Command(filepath.Join(state.scriptDir, "tools", deployer.buildToolName))
+	if !cachedArtifactsPresent(binaryPath, libraryDirectory) {
+		fmt.Println("  " + state.messenger.t(displayName+" 빌드 캐시 준비 중...", "Preparing "+displayName+" build cache..."))
+		command := exec.Command(filepath.Join(state.scriptDir, "tools", buildTool))
 		command.Dir = state.scriptDir
 		command.Stdout = os.Stdout
 		command.Stderr = os.Stderr
 		if buildError := command.Run(); buildError != nil {
-			return localLLMBuildArtifacts{}, fmt.Errorf("%s build failed: %w", deployer.displayName, buildError)
+			return fmt.Errorf("%s build failed: %w", displayName, buildError)
 		}
-		binaryInfo, errorValue = os.Stat(binaryPath)
-		libraryEntries, libraryError = os.ReadDir(libraryDirectory)
 	}
+	libraryPaths, errorValue := sharedObjectPathsIn(libraryDirectory)
 	if errorValue != nil {
-		return localLLMBuildArtifacts{}, fmt.Errorf("%s missing at %s: %w", deployer.displayName, binaryPath, errorValue)
-	}
-	if libraryError != nil {
-		return localLLMBuildArtifacts{}, fmt.Errorf("%s libraries missing at %s: %w", deployer.displayName, libraryDirectory, libraryError)
+		return fmt.Errorf("%s libraries missing at %s: %w", displayName, libraryDirectory, errorValue)
 	}
 
-	libraryPaths := []string{}
-	for _, entry := range libraryEntries {
-		if entry.IsDir() {
-			continue
-		}
-		if !deployer.libraryNameMatches(entry.Name()) {
-			continue
-		}
-		libraryPaths = append(libraryPaths, filepath.Join(libraryDirectory, entry.Name()))
-	}
-	return localLLMBuildArtifacts{
-		binaryPath:        binaryPath,
-		binaryName:        deployer.binaryName,
-		libraryPaths:      libraryPaths,
-		cacheDirectoryAbs: cacheDirectory,
-	}, nil
-}
+	fmt.Print("  " + displayName + "... ")
+	state.sshClient.run("mkdir -p " + quoteShellValue(filepath.Dir(remoteBinaryPath)) + " " + quoteShellValue(remoteLibraryDir))
 
-func (state *setupFlowState) installLocalLLMBinarySSH(deployer localLLMBackendDeployer) error {
-	artifacts, errorValue := state.ensureLocalLLMArtifacts(deployer)
-	if errorValue != nil {
-		return errorValue
-	}
-
-	fmt.Print("  " + deployer.displayName + "... ")
-	state.sshClient.run("mkdir -p " + quoteShellValue(filepath.Dir(deployer.remoteBinaryPath)) + " " + quoteShellValue(deployer.remoteLibraryDir))
-
-	binaryHash := strings.TrimSpace(state.sshClient.run("md5sum " + quoteShellValue(deployer.remoteBinaryPath) + " 2>/dev/null | awk '{print $1}'"))
-	localBinaryHash := strings.TrimSpace(runCmd("md5", "-q", artifacts.binaryPath))
-	if binaryHash != localBinaryHash {
-		if scpError := state.sshClient.scp(artifacts.binaryPath, deployer.remoteBinaryPath); scpError != nil {
+	if !state.remoteFileMatchesLocal(remoteBinaryPath, binaryPath) {
+		if scpError := state.sshClient.scp(binaryPath, remoteBinaryPath); scpError != nil {
 			fmt.Println("failed")
 			return scpError
 		}
-		state.sshClient.run("chmod 0755 " + quoteShellValue(deployer.remoteBinaryPath))
+		state.sshClient.run("chmod 0755 " + quoteShellValue(remoteBinaryPath))
 	}
-
-	for _, libraryPath := range artifacts.libraryPaths {
-		remoteLibraryPath := filepath.Join(deployer.remoteLibraryDir, filepath.Base(libraryPath))
-		existingHash := strings.TrimSpace(state.sshClient.run("md5sum " + quoteShellValue(remoteLibraryPath) + " 2>/dev/null | awk '{print $1}'"))
-		localHash := strings.TrimSpace(runCmd("md5", "-q", libraryPath))
-		if existingHash == localHash {
+	for _, libraryPath := range libraryPaths {
+		remoteLibraryPath := filepath.Join(remoteLibraryDir, filepath.Base(libraryPath))
+		if state.remoteFileMatchesLocal(remoteLibraryPath, libraryPath) {
 			continue
 		}
 		if scpError := state.sshClient.scp(libraryPath, remoteLibraryPath); scpError != nil {
@@ -1134,18 +1072,45 @@ func (state *setupFlowState) installLocalLLMBinarySSH(deployer localLLMBackendDe
 		}
 		state.sshClient.run("chmod 0644 " + quoteShellValue(remoteLibraryPath))
 	}
-	state.sshClient.run("ldconfig -n " + quoteShellValue(deployer.remoteLibraryDir) + " 2>/dev/null || true")
+	state.sshClient.run("ldconfig -n " + quoteShellValue(remoteLibraryDir) + " 2>/dev/null || true")
 	fmt.Println(state.messenger.t("설치 완료", "installed"))
 	return nil
 }
 
-func (state *setupFlowState) installLocalLLMSSH() error {
-	switch locallm.Default {
-	case locallm.BackendLlamaCpp:
-		return state.installLocalLLMBinarySSH(llamaCppDeployer())
-	default:
-		return state.installLocalLLMBinarySSH(liteRTMainDeployer())
+func cachedArtifactsPresent(binaryPath, libraryDirectory string) bool {
+	binaryInfo, binaryError := os.Stat(binaryPath)
+	if binaryError != nil || binaryInfo.Size() == 0 {
+		return false
 	}
+	entries, libraryError := os.ReadDir(libraryDirectory)
+	return libraryError == nil && len(entries) > 0
+}
+
+func sharedObjectPathsIn(libraryDirectory string) ([]string, error) {
+	entries, errorValue := os.ReadDir(libraryDirectory)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	libraryPaths := []string{}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if !strings.Contains(entry.Name(), ".so") {
+			continue
+		}
+		libraryPaths = append(libraryPaths, filepath.Join(libraryDirectory, entry.Name()))
+	}
+	return libraryPaths, nil
+}
+
+func (state *setupFlowState) remoteFileMatchesLocal(remotePath, localPath string) bool {
+	remoteHash := strings.TrimSpace(state.sshClient.run("md5sum " + quoteShellValue(remotePath) + " 2>/dev/null | awk '{print $1}'"))
+	if remoteHash == "" {
+		return false
+	}
+	localHash := strings.TrimSpace(runCmd("md5", "-q", localPath))
+	return remoteHash == localHash
 }
 
 func (state *setupFlowState) installDeviceBrowserRuntimeSSH() error {
