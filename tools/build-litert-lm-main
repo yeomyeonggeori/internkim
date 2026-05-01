@@ -15,7 +15,7 @@ usage() {
 Usage:
   tools/build-litert-lm-main [--version vX.Y.Z] [--host <ip>] [--user <name>] [--password <pass>]
 
-Builds the litert_lm_main C++ binary on a Linux aarch64 build host (default: the
+Builds the litert_lm C++ binary on a Linux aarch64 build host (default: the
 provisioned board) and caches the result in .dependency/litert-lm-main/<key>/.
 Cache hits skip the build entirely.
 
@@ -41,7 +41,7 @@ done
 
 cacheKey="${litertVersion}-aarch64"
 cacheDirectory="$repositoryRoot/.dependency/litert-lm-main/$cacheKey"
-cachedBinaryPath="$cacheDirectory/litert_lm_main"
+cachedBinaryPath="$cacheDirectory/litert_lm"
 sourceCacheDirectory="$repositoryRoot/.dependency/litert-lm-main/sources"
 sourceTarballPath="$sourceCacheDirectory/litert-lm-$litertVersion.tar.gz"
 
@@ -160,11 +160,11 @@ if [ "\$parallelJobs" -gt 4 ]; then
   parallelJobs=4
 fi
 
-"\$cmakeBinary" --build cmake/build -t litert_lm_main -j"\$parallelJobs"
+"\$cmakeBinary" --build cmake/build -t litert_lm -j"\$parallelJobs"
 
-if [ ! -s "cmake/build/runtime/engine/litert_lm_main" ]; then
-  echo "build did not produce litert_lm_main" >&2
-  ls cmake/build >&2 || true
+if ! find cmake/build -type f -name litert_lm -executable | head -1 | grep -q .; then
+  echo "build did not produce litert_lm" >&2
+  find cmake/build -maxdepth 4 -type f -executable >&2 || true
   exit 1
 fi
 REMOTE
@@ -191,9 +191,9 @@ echo "running remote build (this can take 30+ minutes on Jetson Orin Nano)"
 
 mkdir -p "$cacheDirectory"
 echo "resolving remote binary path"
-remoteBinaryPath="$("${sshCommand[@]}" "ls $remoteWorkRoot/litert-lm-*/cmake/build/runtime/engine/litert_lm_main" 2>/dev/null | head -1)"
+remoteBinaryPath="$("${sshCommand[@]}" "find $remoteWorkRoot -type f -name litert_lm -executable" 2>/dev/null | head -1)"
 if [ -z "$remoteBinaryPath" ]; then
-  echo "remote build did not produce litert_lm_main under $remoteWorkRoot" >&2
+  echo "remote build did not produce a litert_lm executable under $remoteWorkRoot" >&2
   exit 1
 fi
 echo "fetching binary into cache: $remoteBinaryPath"
