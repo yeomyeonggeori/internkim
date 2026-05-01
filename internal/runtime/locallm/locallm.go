@@ -9,57 +9,59 @@ const (
 
 const Default = BackendLiteRT
 
-type Spec struct {
-	Name                       string
-	RemoteBinaryPath           string
-	RemoteLibraryDirectory     string
-	RemoteModelPath            string
-	ModelFilename              string
-	ModelSourceURL             string
-	ModelRepository            string
-	LocalCacheRelativeRoot     string
-	LocalCacheKey              string
-	LocalModelCacheRelativeDir string
-}
+const (
+	LiteRTBinaryPath    = "/usr/local/bin/litert_lm_main"
+	LiteRTLibraryDir    = "/usr/local/lib/litert_lm"
+	LiteRTModelPath     = "/root/.internkim/models/gemma-4-E4B-it.litertlm"
+	LiteRTModelFilename = "gemma-4-E4B-it.litertlm"
+	LiteRTModelURL      = "https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it.litertlm"
+	LiteRTCacheRelative = ".dependency/litert-lm-main"
+	LiteRTCacheKey      = "v0.10.2-aarch64"
+	LiteRTBuildTool     = "build-litert-lm-main"
+	LiteRTDisplayName   = "litert_lm_main"
 
-func litertSpec() Spec {
-	return Spec{
-		Name:                       string(BackendLiteRT),
-		RemoteBinaryPath:           "/usr/local/bin/litert_lm_main",
-		RemoteLibraryDirectory:     "/usr/local/lib/litert_lm",
-		RemoteModelPath:            "/root/.internkim/models/gemma-4-E4B-it.litertlm",
-		ModelFilename:              "gemma-4-E4B-it.litertlm",
-		ModelSourceURL:             "https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it.litertlm",
-		ModelRepository:            "litert-community/gemma-4-E4B-it-litert-lm",
-		LocalCacheRelativeRoot:     ".dependency/litert-lm-main",
-		LocalCacheKey:              "v0.10.2-aarch64",
-		LocalModelCacheRelativeDir: ".dependency/litert-models",
+	LlamaCppBinaryPath    = "/usr/local/bin/llama-cli"
+	LlamaCppLibraryDir    = "/usr/local/lib/llama-cpp"
+	LlamaCppModelPath     = "/root/.internkim/models/gemma-4-E4B-it-Q4_0.gguf"
+	LlamaCppModelFilename = "gemma-4-E4B-it-Q4_0.gguf"
+	LlamaCppModelURL      = "https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_0.gguf"
+	LlamaCppCacheRelative = ".dependency/llama-cpp"
+	LlamaCppCacheKey      = "05e141a-aarch64"
+	LlamaCppBuildTool     = "build-llama-cpp-jetson"
+	LlamaCppDisplayName   = "llama-cli"
+)
+
+func BinaryPath() string {
+	if Default == BackendLlamaCpp {
+		return LlamaCppBinaryPath
 	}
+	return LiteRTBinaryPath
 }
 
-func llamaCppSpec() Spec {
-	return Spec{
-		Name:                       string(BackendLlamaCpp),
-		RemoteBinaryPath:           "/usr/local/bin/llama-cli",
-		RemoteLibraryDirectory:     "/usr/local/lib/llama-cpp",
-		RemoteModelPath:            "/root/.internkim/models/gemma-4-E4B-it-Q4_0.gguf",
-		ModelFilename:              "gemma-4-E4B-it-Q4_0.gguf",
-		ModelSourceURL:             "https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_0.gguf",
-		ModelRepository:            "unsloth/gemma-4-E4B-it-GGUF",
-		LocalCacheRelativeRoot:     ".dependency/llama-cpp",
-		LocalCacheKey:              "05e141a-aarch64",
-		LocalModelCacheRelativeDir: ".dependency/llama-cpp-models",
+func LibraryDir() string {
+	if Default == BackendLlamaCpp {
+		return LlamaCppLibraryDir
 	}
+	return LiteRTLibraryDir
 }
 
-func SpecFor(backend Backend) Spec {
-	switch backend {
-	case BackendLlamaCpp:
-		return llamaCppSpec()
+func ModelPath() string {
+	if Default == BackendLlamaCpp {
+		return LlamaCppModelPath
 	}
-	return litertSpec()
+	return LiteRTModelPath
 }
 
-func DefaultSpec() Spec {
-	return SpecFor(Default)
+func ModelFilename() string {
+	if Default == BackendLlamaCpp {
+		return LlamaCppModelFilename
+	}
+	return LiteRTModelFilename
+}
+
+func ModelURL() string {
+	if Default == BackendLlamaCpp {
+		return LlamaCppModelURL
+	}
+	return LiteRTModelURL
 }
