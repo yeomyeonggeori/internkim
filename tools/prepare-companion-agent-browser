@@ -5,7 +5,11 @@ outputDirectory="${1:-companion/src-tauri/binaries}"
 targetTriple="${2:-}"
 version="${3:-0.26.0}"
 packageName="agent-browser@${version}"
-archivePath="/tmp/agent-browser-${version}.tgz"
+scriptDirectory="$(cd "$(dirname "${0}")" && pwd)"
+repositoryRoot="$(cd "${scriptDirectory}/.." && pwd)"
+cacheDirectory="${repositoryRoot}/.dependency/agent-browser"
+archivePath="${cacheDirectory}/agent-browser-${version}.tgz"
+mkdir -p "${cacheDirectory}"
 
 nativeBinaryName() {
   systemName="$(uname -s)"
@@ -60,7 +64,7 @@ if [ -z "${binaryName}" ]; then
 fi
 
 if [ ! -f "${archivePath}" ]; then
-  npm pack "${packageName}" --pack-destination /tmp >/dev/null
+  npm pack "${packageName}" --pack-destination "${cacheDirectory}" >/dev/null
 fi
 
 temporaryDirectory="$(mktemp -d)"
