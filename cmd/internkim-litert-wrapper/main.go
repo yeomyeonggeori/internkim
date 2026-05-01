@@ -163,11 +163,45 @@ func llamaCppGpuLayers(request requestDocument) string {
 	return "99"
 }
 
-// llama.cpp --json-schema is broken upstream (issue #22396); when wired up,
-// convert the request schema to GBNF and pass via --grammar-file instead.
+// llama.cpp --json-schema is broken upstream (issue #22396); convert via the
+// bundled json_schema_to_grammar.py and pass --grammar-file instead.
 func writeStructuredOutputGrammarFile(request requestDocument) (string, bool, error) {
-	_ = request
-	return "", false, nil
+	if request.outputMode() != "structured" {
+		return "", false, nil
+	}
+	schemaDocument := bytes.TrimSpace(request.StructuredOutputSchema.Document)
+	if len(schemaDocument) == 0 {
+		return "", false, nil
+	}
+	converterPath := filepath.Join(llamaCppLibraryDirectory, "json_schema_to_grammar.py")
+	if _, statError := os.Stat(converterPath); statError != nil {
+		return "", false, nil
+	}
+
+	command := exec.Command("python3", converterPath, "-")
+	command.Stdin = bytes.NewReader(schemaDocument)
+	stdoutBuffer := &bytes.Buffer{}
+	stderrBuffer := &bytes.Buffer{}
+	command.Stdout = stdoutBuffer
+	command.Stderr = stderrBuffer
+	if runError := command.Run(); runError != nil {
+		return "", false, fmt.Errorf("json_schema_to_grammar.py failed: %w: %s", runError, strings.TrimSpace(stderrBuffer.String()))
+	}
+
+	grammarFile, errorValue := os.CreateTemp("", "llamacpp-grammar-*.gbnf")
+	if errorValue != nil {
+		return "", false, errorValue
+	}
+	if _, errorValue := grammarFile.Write(stdoutBuffer.Bytes()); errorValue != nil {
+		_ = grammarFile.Close()
+		_ = os.Remove(grammarFile.Name())
+		return "", false, errorValue
+	}
+	if errorValue := grammarFile.Close(); errorValue != nil {
+		_ = os.Remove(grammarFile.Name())
+		return "", false, errorValue
+	}
+	return grammarFile.Name(), true, nil
 }
 
 func extractLlamaCliGenerated(output string) string {

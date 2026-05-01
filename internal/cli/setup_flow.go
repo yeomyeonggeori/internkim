@@ -1046,7 +1046,7 @@ func (state *setupFlowState) installLocalLLMBinarySSH(displayName, buildTool, ca
 			return fmt.Errorf("%s build failed: %w", displayName, buildError)
 		}
 	}
-	libraryPaths, errorValue := sharedObjectPathsIn(libraryDirectory)
+	libraryPaths, errorValue := libraryAssetPathsIn(libraryDirectory)
 	if errorValue != nil {
 		return fmt.Errorf("%s libraries missing at %s: %w", displayName, libraryDirectory, errorValue)
 	}
@@ -1086,7 +1086,7 @@ func cachedArtifactsPresent(binaryPath, libraryDirectory string) bool {
 	return libraryError == nil && len(entries) > 0
 }
 
-func sharedObjectPathsIn(libraryDirectory string) ([]string, error) {
+func libraryAssetPathsIn(libraryDirectory string) ([]string, error) {
 	entries, errorValue := os.ReadDir(libraryDirectory)
 	if errorValue != nil {
 		return nil, errorValue
@@ -1094,9 +1094,6 @@ func sharedObjectPathsIn(libraryDirectory string) ([]string, error) {
 	libraryPaths := []string{}
 	for _, entry := range entries {
 		if entry.IsDir() {
-			continue
-		}
-		if !strings.Contains(entry.Name(), ".so") {
 			continue
 		}
 		libraryPaths = append(libraryPaths, filepath.Join(libraryDirectory, entry.Name()))
