@@ -15,6 +15,7 @@ import (
 
 	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
 	"github.com/anthropic-lab/internkim/internal/capabilities"
+	"github.com/anthropic-lab/internkim/internal/llmbackend"
 )
 
 type PromptHandler interface {
@@ -32,6 +33,7 @@ type FileUploader interface {
 
 type Executor struct {
 	DevMockLLM      bool
+	LLMChain        llmbackend.Provider
 	BrowserRuntime  browserruntime.Runtime
 	PromptHandler   PromptHandler
 	FilePicker      FilePicker
@@ -91,9 +93,9 @@ func (executor Executor) ExecuteJob(ctx context.Context, envelope JobEnvelope, r
 	}
 	switch request.ToolName {
 	case "llm.text":
-		return executor.executeTextLLM(request)
+		return executor.executeTextLLM(ctx, request)
 	case "llm.structured":
-		return executor.executeStructuredLLM(request)
+		return executor.executeStructuredLLM(ctx, request)
 	case "browser.open":
 		return executor.executeBrowserNavigate(ctx, request)
 	case "browser.snapshot":
@@ -121,29 +123,53 @@ func (executor Executor) ExecuteJob(ctx context.Context, envelope JobEnvelope, r
 	}
 }
 
-func (executor Executor) executeTextLLM(request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	if !executor.DevMockLLM {
+func (executor Executor) executeTextLLM(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	if executor.DevMockLLM {
+		return toolResponse(request.ToolName, map[string]any{
+			"provider":        "companion",
+			"model":           "mock-local",
+			"selectedBackend": capabilities.LLMBackendCompanionLocal,
+			"content":         "ok",
+		})
+	}
+	if executor.LLMChain == nil {
 		return capabilities.ToolInvokeResponse{}, errors.New("companion LLM is not configured")
 	}
-	return toolResponse(request.ToolName, map[string]any{
-		"provider":        "companion",
-		"model":           "mock-local",
-		"selectedBackend": capabilities.LLMBackendCompanionLocal,
-		"content":         "ok",
-	})
+	var textRequest llmbackend.TextRequest
+	if errorValue := decodeInput(request.Input, &textRequest); errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	response, errorValue := executor.LLMChain.CompleteText(ctx, textRequest)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	response.SelectedBackend = capabilities.LLMBackendCompanionLocal
+	return toolResponse(request.ToolName, response)
 }
 
-func (executor Executor) executeStructuredLLM(request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	if !executor.DevMockLLM {
+func (executor Executor) executeStructuredLLM(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	if executor.DevMockLLM {
+		return toolResponse(request.ToolName, map[string]any{
+			"provider":        "companion",
+			"model":           "mock-local",
+			"selectedBackend": capabilities.LLMBackendCompanionLocal,
+			"constraintMode":  "prompt_validation",
+			"content":         MockStructuredContent(request.Input),
+		})
+	}
+	if executor.LLMChain == nil {
 		return capabilities.ToolInvokeResponse{}, errors.New("companion LLM is not configured")
 	}
-	return toolResponse(request.ToolName, map[string]any{
-		"provider":        "companion",
-		"model":           "mock-local",
-		"selectedBackend": capabilities.LLMBackendCompanionLocal,
-		"constraintMode":  "prompt_validation",
-		"content":         MockStructuredContent(request.Input),
-	})
+	var structuredRequest llmbackend.StructuredRequest
+	if errorValue := decodeInput(request.Input, &structuredRequest); errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	response, errorValue := executor.LLMChain.CompleteStructured(ctx, structuredRequest)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	response.SelectedBackend = capabilities.LLMBackendCompanionLocal
+	return toolResponse(request.ToolName, response)
 }
 
 func (executor Executor) executeBrowserSessionStart(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {

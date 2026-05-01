@@ -83,8 +83,10 @@ type companionPairResponse struct {
 }
 
 type companionHeartbeatRequest struct {
-	Capabilities []capabilities.Descriptor `json:"capabilities"`
-	LocalOnly    bool                      `json:"localOnly"`
+	Capabilities           []capabilities.Descriptor `json:"capabilities"`
+	LocalOnly              bool                      `json:"localOnly"`
+	LocalLLMAvailable      bool                      `json:"localLLMAvailable,omitempty"`
+	PreferCompanionBrowser bool                      `json:"preferCompanionBrowser,omitempty"`
 }
 
 type companionPairingCodeResponse struct {

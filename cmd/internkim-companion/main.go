@@ -21,6 +21,7 @@ import (
 	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
 	"github.com/anthropic-lab/internkim/internal/capabilities"
 	companionruntime "github.com/anthropic-lab/internkim/internal/companion"
+	"github.com/anthropic-lab/internkim/internal/llmbackend"
 )
 
 func main() {
@@ -55,9 +56,29 @@ func runServer(arguments []string) error {
 	listenAddress := flags.String("listen", "127.0.0.1:7979", "companion listen address")
 	localOnly := flags.Bool("local-only", false, "advertise local-only mode")
 	devMockLLM := flags.Bool("dev-mock-llm", false, "serve deterministic local LLM responses for development")
+	enableLocalLLM := flags.Bool("enable-local-llm", false, "enable local LLM inference on this machine")
+	backendOrderFlag := flags.String("local-backend-order", "ollama", "comma-separated backend priority (ollama,llamacpp,mlx)")
+	ollamaBaseURL := flags.String("ollama-base-url", "http://127.0.0.1:11434", "ollama base URL")
+	ollamaModel := flags.String("ollama-model", "", "ollama model name")
+	llamaCppBaseURL := flags.String("llamacpp-base-url", "http://127.0.0.1:8080", "llama.cpp server base URL")
+	llamaCppModel := flags.String("llamacpp-model", "", "llama.cpp model alias")
+	mlxBaseURL := flags.String("mlx-base-url", "http://127.0.0.1:10240", "MLX server base URL")
+	mlxModel := flags.String("mlx-model", "", "MLX model name")
 	if errorValue := flags.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
+
+	settings := localLLMSettings{
+		Enabled:         *enableLocalLLM,
+		BackendOrder:    parseBackendOrder(*backendOrderFlag),
+		OllamaBaseURL:   *ollamaBaseURL,
+		OllamaModel:     *ollamaModel,
+		LlamaCppBaseURL: *llamaCppBaseURL,
+		LlamaCppModel:   *llamaCppModel,
+		MLXBaseURL:      *mlxBaseURL,
+		MLXModel:        *mlxModel,
+	}
+	chain, backends := buildLocalChain(settings, http.DefaultClient)
 
 	multiplexer := http.NewServeMux()
 	multiplexer.HandleFunc("GET /health", func(responseWriter http.ResponseWriter, request *http.Request) {
@@ -69,11 +90,14 @@ func runServer(arguments []string) error {
 		_ = request
 		writeJSON(responseWriter, capabilities.RegistryResponse{
 			LocalOnly:    *localOnly,
-			Capabilities: defaultCapabilities(*localOnly, *devMockLLM),
+			Capabilities: defaultCapabilities(*localOnly, *devMockLLM || *enableLocalLLM),
 		})
 	})
-	multiplexer.HandleFunc("POST /v1/llm/structured", llmHandler(*devMockLLM, true))
-	multiplexer.HandleFunc("POST /v1/llm/text", llmHandler(*devMockLLM, false))
+	multiplexer.HandleFunc("POST /v1/llm/structured", llmHandler(settings.Enabled, *devMockLLM, true, chain, backends))
+	multiplexer.HandleFunc("POST /v1/llm/text", llmHandler(settings.Enabled, *devMockLLM, false, chain, backends))
+	multiplexer.HandleFunc("POST /v1/llm/stream", llmStreamHandler(settings.Enabled, backends))
+	multiplexer.HandleFunc("POST /v1/audio/in", reservedNotImplemented)
+	multiplexer.HandleFunc("POST /v1/audio/out", reservedNotImplemented)
 	multiplexer.HandleFunc("POST /v1/tools/invoke", notImplemented)
 	multiplexer.HandleFunc("POST /v1/tools/{toolName}/invoke", notImplemented)
 
@@ -234,8 +258,27 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	controlListenAddress := flags.String("control-listen", "", "local companion shell control address")
 	agentBrowserPath := flags.String("agent-browser-path", "", "agent-browser executable path")
 	browserProfilePath := flags.String("browser-profile", defaultBrowserProfilePath(), "InternKim companion browser profile path")
+	enableLocalLLM := flags.Bool("enable-local-llm", false, "enable local LLM inference on this machine")
+	backendOrderFlag := flags.String("local-backend-order", "ollama", "comma-separated backend priority (ollama,llamacpp,mlx)")
+	ollamaBaseURL := flags.String("ollama-base-url", "http://127.0.0.1:11434", "ollama base URL")
+	ollamaModel := flags.String("ollama-model", "", "ollama model name")
+	llamaCppBaseURL := flags.String("llamacpp-base-url", "http://127.0.0.1:8080", "llama.cpp server base URL")
+	llamaCppModel := flags.String("llamacpp-model", "", "llama.cpp model alias")
+	mlxBaseURL := flags.String("mlx-base-url", "http://127.0.0.1:10240", "MLX server base URL")
+	mlxModel := flags.String("mlx-model", "", "MLX model name")
+	preferCompanionBrowser := flags.Bool("prefer-companion-browser", false, "ask the device to route browser tools to this companion")
 	if errorValue := flags.Parse(arguments); errorValue != nil {
 		return errorValue
+	}
+	localLLMConfig := localLLMSettings{
+		Enabled:         *enableLocalLLM,
+		BackendOrder:    parseBackendOrder(*backendOrderFlag),
+		OllamaBaseURL:   *ollamaBaseURL,
+		OllamaModel:     *ollamaModel,
+		LlamaCppBaseURL: *llamaCppBaseURL,
+		LlamaCppModel:   *llamaCppModel,
+		MLXBaseURL:      *mlxBaseURL,
+		MLXModel:        *mlxModel,
 	}
 	state, errorValue := loadStateAndMigrateSecrets(context.Background(), *statePath, secureStore)
 	if errorValue != nil {
@@ -262,8 +305,17 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	}
 	grantStore := companionruntime.NewMemoryGrantStore()
 	runtimeStatus := &runtimeState{}
+	var localChain llmbackend.Provider
+	var localBackends []llmbackend.Backend
+	if localLLMConfig.Enabled {
+		localChain, localBackends = buildLocalChain(localLLMConfig, httpClient)
+		runtimeStatus.setLocalLLM(localBackendsSummary(localBackends))
+		runtimeStatus.registerLocalLLMBackends(localBackends, localBackendModelMap(localLLMConfig))
+	}
+	_ = preferCompanionBrowser
 	executor := companionruntime.Executor{
 		DevMockLLM:     *devMockLLM,
+		LLMChain:       localChain,
 		BrowserRuntime: browserRuntime,
 		GrantStore:     grantStore,
 	}
@@ -278,9 +330,9 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 		defer controlServer.Close()
 	}
 	heartbeatContext, stopHeartbeatLoop := context.WithCancel(context.Background())
+	defer stopHeartbeatLoop()
 	if !*runOnce {
-		defer stopHeartbeatLoop()
-		go runHeartbeatLoop(heartbeatContext, httpClient, state, privateKey, runtimeStatus)
+		go runHeartbeatLoop(heartbeatContext, httpClient, state, privateKey, runtimeStatus, *preferCompanionBrowser)
 	}
 	if *allowStdinPrompts {
 		executor.PromptHandler = companionruntime.TerminalPromptHandler{Reader: os.Stdin, Writer: os.Stdout}
@@ -301,7 +353,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 		}
 	}
 	for {
-		if errorValue := sendHeartbeat(httpClient, state, privateKey); errorValue != nil {
+		if errorValue := sendHeartbeat(httpClient, state, privateKey, runtimeStatus, *preferCompanionBrowser); errorValue != nil {
 			runtimeStatus.recordHeartbeat(errorValue)
 			return errorValue
 		}
@@ -341,7 +393,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	}
 }
 
-func runHeartbeatLoop(ctx context.Context, httpClient *http.Client, state companionState, privateKey string, runtimeStatus *runtimeState) {
+func runHeartbeatLoop(ctx context.Context, httpClient *http.Client, state companionState, privateKey string, runtimeStatus *runtimeState, preferCompanionBrowser bool) {
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -349,7 +401,7 @@ func runHeartbeatLoop(ctx context.Context, httpClient *http.Client, state compan
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			runtimeStatus.recordHeartbeat(sendHeartbeat(httpClient, state, privateKey))
+			runtimeStatus.recordHeartbeat(sendHeartbeat(httpClient, state, privateKey, runtimeStatus, preferCompanionBrowser))
 		}
 	}
 }
@@ -436,30 +488,137 @@ func capabilitiesWithoutBrowser(descriptors []capabilities.Descriptor) []capabil
 	return filteredDescriptors
 }
 
-func llmHandler(isEnabled bool, isStructured bool) http.HandlerFunc {
+func llmHandler(localEnabled bool, devMock bool, isStructured bool, chain llmbackend.Provider, backends []llmbackend.Backend) http.HandlerFunc {
 	return func(responseWriter http.ResponseWriter, request *http.Request) {
-		if !isEnabled {
+		if devMock {
+			respondWithDevMock(responseWriter, request, isStructured)
+			return
+		}
+		if !localEnabled {
 			notImplemented(responseWriter, request)
 			return
 		}
-		response := map[string]any{
-			"provider":        "companion",
-			"model":           "mock-local",
-			"selectedBackend": capabilities.LLMBackendCompanionLocal,
-			"constraintMode":  "prompt_validation",
-			"content":         "ok",
-		}
 		if isStructured {
-			document, _ := io.ReadAll(request.Body)
-			response["content"] = companionruntime.MockStructuredContent(document)
+			handleStructuredLLM(responseWriter, request, chain, backends)
+			return
 		}
-		writeJSON(responseWriter, response)
+		handleTextLLM(responseWriter, request, chain, backends)
 	}
+}
+
+func respondWithDevMock(responseWriter http.ResponseWriter, request *http.Request, isStructured bool) {
+	response := map[string]any{
+		"provider":        "companion",
+		"model":           "mock-local",
+		"selectedBackend": capabilities.LLMBackendCompanionLocal,
+		"constraintMode":  "prompt_validation",
+		"content":         "ok",
+	}
+	if isStructured {
+		document, _ := io.ReadAll(request.Body)
+		response["content"] = companionruntime.MockStructuredContent(document)
+	}
+	writeJSON(responseWriter, response)
+}
+
+func handleStructuredLLM(responseWriter http.ResponseWriter, request *http.Request, chain llmbackend.Provider, backends []llmbackend.Backend) {
+	var structuredRequest llmbackend.StructuredRequest
+	if errorValue := json.NewDecoder(request.Body).Decode(&structuredRequest); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	response, errorValue := chain.CompleteStructured(request.Context(), structuredRequest)
+	if errorValue != nil {
+		respondWithBackendError(responseWriter, errorValue, backends)
+		return
+	}
+	response.SelectedBackend = capabilities.LLMBackendCompanionLocal
+	writeJSON(responseWriter, response)
+}
+
+func handleTextLLM(responseWriter http.ResponseWriter, request *http.Request, chain llmbackend.Provider, backends []llmbackend.Backend) {
+	var textRequest llmbackend.TextRequest
+	if errorValue := json.NewDecoder(request.Body).Decode(&textRequest); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	response, errorValue := chain.CompleteText(request.Context(), textRequest)
+	if errorValue != nil {
+		respondWithBackendError(responseWriter, errorValue, backends)
+		return
+	}
+	response.SelectedBackend = capabilities.LLMBackendCompanionLocal
+	writeJSON(responseWriter, response)
+}
+
+func respondWithBackendError(responseWriter http.ResponseWriter, errorValue error, backends []llmbackend.Backend) {
+	hint := buildBackendHint(backends)
+	responseWriter.Header().Set("Content-Type", "application/json")
+	responseWriter.WriteHeader(http.StatusServiceUnavailable)
+	writeJSONDocument(responseWriter, map[string]any{
+		"error": errorValue.Error(),
+		"hint":  hint,
+	})
+}
+
+func buildBackendHint(backends []llmbackend.Backend) string {
+	if len(backends) == 0 {
+		return "no local backend configured"
+	}
+	names := make([]string, 0, len(backends))
+	for _, backend := range backends {
+		names = append(names, backend.Name())
+	}
+	return "check that one of these backends is reachable: " + strings.Join(names, ", ")
 }
 
 func notImplemented(responseWriter http.ResponseWriter, request *http.Request) {
 	_ = request
 	http.Error(responseWriter, "companion capability is not implemented in this daemon slice", http.StatusNotImplemented)
+}
+
+func reservedNotImplemented(responseWriter http.ResponseWriter, request *http.Request) {
+	_ = request
+	http.Error(responseWriter, "reserved endpoint; not yet implemented", http.StatusNotImplemented)
+}
+
+func llmStreamHandler(localEnabled bool, backends []llmbackend.Backend) http.HandlerFunc {
+	return func(responseWriter http.ResponseWriter, request *http.Request) {
+		if !localEnabled {
+			notImplemented(responseWriter, request)
+			return
+		}
+		var textRequest llmbackend.TextRequest
+		if errorValue := json.NewDecoder(request.Body).Decode(&textRequest); errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+			return
+		}
+		flusher, supportsFlush := responseWriter.(http.Flusher)
+		if !supportsFlush {
+			http.Error(responseWriter, "streaming not supported by responder", http.StatusInternalServerError)
+			return
+		}
+		responseWriter.Header().Set("Content-Type", "text/event-stream")
+		responseWriter.Header().Set("Cache-Control", "no-cache")
+		responseWriter.Header().Set("Connection", "keep-alive")
+		errorValue := llmbackend.StreamFirstStreamingBackend(request.Context(), backends, textRequest, func(token string) {
+			payload, _ := json.Marshal(map[string]string{"token": token})
+			_, _ = responseWriter.Write([]byte("data: "))
+			_, _ = responseWriter.Write(payload)
+			_, _ = responseWriter.Write([]byte("\n\n"))
+			flusher.Flush()
+		})
+		if errorValue != nil {
+			payload, _ := json.Marshal(map[string]string{"error": errorValue.Error()})
+			_, _ = responseWriter.Write([]byte("event: error\ndata: "))
+			_, _ = responseWriter.Write(payload)
+			_, _ = responseWriter.Write([]byte("\n\n"))
+			flusher.Flush()
+			return
+		}
+		_, _ = responseWriter.Write([]byte("event: done\ndata: {}\n\n"))
+		flusher.Flush()
+	}
 }
 
 func writeJSON(responseWriter http.ResponseWriter, response any) {
@@ -471,11 +630,16 @@ func writeJSONDocument(writer io.Writer, response any) {
 	_ = json.NewEncoder(writer).Encode(response)
 }
 
-func sendHeartbeat(httpClient *http.Client, state companionState, privateKey string) error {
-	return postSignedJSON(httpClient, state, privateKey, state.DeviceURL+"/_internkim/companion/heartbeat", map[string]any{
-		"capabilities": state.Capabilities,
-		"localOnly":    state.LocalOnly,
-	}, &map[string]any{})
+func sendHeartbeat(httpClient *http.Client, state companionState, privateKey string, runtime *runtimeState, preferCompanionBrowser bool) error {
+	payload := map[string]any{
+		"capabilities":           state.Capabilities,
+		"localOnly":              state.LocalOnly,
+		"preferCompanionBrowser": preferCompanionBrowser,
+	}
+	if runtime != nil {
+		payload["localLLMAvailable"] = runtime.localLLMAvailable()
+	}
+	return postSignedJSON(httpClient, state, privateKey, state.DeviceURL+"/_internkim/companion/heartbeat", payload, &map[string]any{})
 }
 
 func nextJob(httpClient *http.Client, state companionState, privateKey string) (*companionJob, error) {

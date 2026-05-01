@@ -48,8 +48,10 @@ type Configuration struct {
 	LiteRTWrapperPath          string
 	CompanionBaseURL           string
 	PreferCompanionLLM         bool
+	PreferCompanionBrowser     bool
 	LocalOnly                  bool
 	EnableOllamaFallback       bool
+	LocalBackendOrder          []string
 	ProviderAttemptTimeout     time.Duration
 	AgentBrowserPath           string
 	DeviceBrowserPath          string
