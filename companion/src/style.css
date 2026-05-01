@@ -30,11 +30,43 @@ input {
 .runtime-panel,
 .prompt-panel,
 .grant-panel,
-.capability-panel {
+.capability-panel,
+.settings-panel {
 	border: 1px solid #dfe4ec;
 	border-radius: 8px;
 	background: #ffffff;
 	padding: 18px;
+}
+
+.settings-panel .toggle {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-top: 8px;
+	font-size: 14px;
+}
+
+.settings-panel .toggle input {
+	width: auto;
+}
+
+.settings-panel .backend-list {
+	margin: 12px 0;
+	padding: 12px;
+	border-radius: 6px;
+	background: #f1f4f9;
+}
+
+.settings-panel .backend-config {
+	margin-top: 12px;
+	padding-top: 12px;
+	border-top: 1px solid #e6eaf1;
+}
+
+.settings-panel .backend-config h3 {
+	margin: 16px 0 6px;
+	font-size: 13px;
+	color: #375f94;
 }
 
 .status-panel {

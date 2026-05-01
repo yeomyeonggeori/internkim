@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"net"
 	"net/http"
@@ -9,17 +10,44 @@ import (
 	"time"
 
 	companionruntime "github.com/anthropic-lab/internkim/internal/companion"
+	"github.com/anthropic-lab/internkim/internal/llmbackend"
 )
 
 type grantListDocument struct {
 	Grants []companionruntime.GrantSnapshot `json:"grants"`
 }
 
-type runtimeState struct {
-	mutex           sync.Mutex
-	lastHeartbeatAt string
-	lastError       string
+type localLLMBackendStatus struct {
+	Name          string `json:"name"`
+	Model         string `json:"model,omitempty"`
+	Available     bool   `json:"available"`
+	LastError     string `json:"lastError,omitempty"`
+	LastCheckedAt string `json:"lastCheckedAt,omitempty"`
 }
+
+type localLLMStatus struct {
+	Enabled  bool                    `json:"enabled"`
+	Backends []localLLMBackendStatus `json:"backends,omitempty"`
+}
+
+type runtimeStatusDocument struct {
+	LastHeartbeatAt string         `json:"lastHeartbeatAt,omitempty"`
+	LastError       string         `json:"lastError,omitempty"`
+	LocalLLM        localLLMStatus `json:"localLLM"`
+}
+
+type runtimeState struct {
+	mutex                sync.Mutex
+	lastHeartbeatAt      string
+	lastError            string
+	localLLM             localLLMStatus
+	localLLMBackends     []llmbackend.Backend
+	localLLMModelByName  map[string]string
+	localLLMLastCheckAt  time.Time
+	localLLMCacheLifetime time.Duration
+}
+
+const defaultLocalLLMCacheLifetime = 30 * time.Second
 
 func (state *runtimeState) recordHeartbeat(errorValue error) {
 	state.mutex.Lock()
@@ -32,12 +60,81 @@ func (state *runtimeState) recordHeartbeat(errorValue error) {
 	state.lastError = ""
 }
 
-func (state *runtimeState) snapshot() map[string]string {
+func (state *runtimeState) setLocalLLM(summary localLLMStatus) {
 	state.mutex.Lock()
 	defer state.mutex.Unlock()
-	return map[string]string{
-		"lastHeartbeatAt": state.lastHeartbeatAt,
-		"lastError":       state.lastError,
+	state.localLLM = summary
+}
+
+func (state *runtimeState) registerLocalLLMBackends(backends []llmbackend.Backend, modelByName map[string]string) {
+	state.mutex.Lock()
+	defer state.mutex.Unlock()
+	state.localLLMBackends = backends
+	state.localLLMModelByName = modelByName
+	if state.localLLMCacheLifetime == 0 {
+		state.localLLMCacheLifetime = defaultLocalLLMCacheLifetime
+	}
+}
+
+func (state *runtimeState) localLLMAvailable() bool {
+	state.mutex.Lock()
+	defer state.mutex.Unlock()
+	for _, backend := range state.localLLM.Backends {
+		if backend.Available {
+			return true
+		}
+	}
+	return false
+}
+
+func (state *runtimeState) refreshLocalLLM(ctx context.Context) localLLMStatus {
+	state.mutex.Lock()
+	if !state.localLLM.Enabled || len(state.localLLMBackends) == 0 {
+		summary := state.localLLM
+		state.mutex.Unlock()
+		return summary
+	}
+	if !state.localLLMLastCheckAt.IsZero() && time.Since(state.localLLMLastCheckAt) < state.localLLMCacheLifetime {
+		summary := state.localLLM
+		state.mutex.Unlock()
+		return summary
+	}
+	backends := state.localLLMBackends
+	modelByName := state.localLLMModelByName
+	state.mutex.Unlock()
+
+	statuses := make([]localLLMBackendStatus, 0, len(backends))
+	for _, backend := range backends {
+		pingContext, cancel := context.WithTimeout(ctx, time.Second)
+		errorValue := backend.Ping(pingContext)
+		cancel()
+		status := localLLMBackendStatus{
+			Name:          backend.Name(),
+			Model:         modelByName[backend.Name()],
+			Available:     errorValue == nil,
+			LastCheckedAt: time.Now().UTC().Format(time.RFC3339),
+		}
+		if errorValue != nil {
+			status.LastError = errorValue.Error()
+		}
+		statuses = append(statuses, status)
+	}
+	summary := localLLMStatus{Enabled: true, Backends: statuses}
+
+	state.mutex.Lock()
+	state.localLLM = summary
+	state.localLLMLastCheckAt = time.Now()
+	state.mutex.Unlock()
+	return summary
+}
+
+func (state *runtimeState) snapshot() runtimeStatusDocument {
+	state.mutex.Lock()
+	defer state.mutex.Unlock()
+	return runtimeStatusDocument{
+		LastHeartbeatAt: state.lastHeartbeatAt,
+		LastError:       state.lastError,
+		LocalLLM:        state.localLLM,
 	}
 }
 
@@ -67,11 +164,11 @@ func startControlServer(listenAddress string, grantStore *companionruntime.Memor
 func controlHandler(grantStore *companionruntime.MemoryGrantStore, runtime *runtimeState) http.Handler {
 	multiplexer := http.NewServeMux()
 	multiplexer.HandleFunc("GET /v1/runtime/status", func(responseWriter http.ResponseWriter, request *http.Request) {
-		_ = request
 		if runtime == nil {
-			writeJSON(responseWriter, map[string]string{})
+			writeJSON(responseWriter, runtimeStatusDocument{})
 			return
 		}
+		runtime.refreshLocalLLM(request.Context())
 		writeJSON(responseWriter, runtime.snapshot())
 	})
 	multiplexer.HandleFunc("GET /v1/security/grants", func(responseWriter http.ResponseWriter, request *http.Request) {
@@ -102,4 +199,15 @@ func isLoopbackRemoteAddress(remoteAddress string) bool {
 	}
 	parsedIP := net.ParseIP(host)
 	return parsedIP != nil && parsedIP.IsLoopback()
+}
+
+func localBackendsSummary(backends []llmbackend.Backend) localLLMStatus {
+	statuses := make([]localLLMBackendStatus, 0, len(backends))
+	for _, backend := range backends {
+		statuses = append(statuses, localLLMBackendStatus{
+			Name:      backend.Name(),
+			Available: false,
+		})
+	}
+	return localLLMStatus{Enabled: true, Backends: statuses}
 }

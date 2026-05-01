@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { Child } from '@tauri-apps/plugin-shell';
 import { Command } from '@tauri-apps/plugin-shell';
 import type { CompanionStatus, PairingPayload } from './pairing';
+import { loadCompanionSettings, settingsToSidecarArguments } from './settings';
 
 export type RuntimeStatus = {
 	isRunning: boolean;
@@ -61,7 +62,8 @@ export async function pairCompanion(payload: PairingPayload): Promise<void> {
 export async function startCompanionRuntime(): Promise<void> {
 	if (runtimeChild) return;
 	const shellBridge = await invoke<ShellBridgeInfo>('start_shell_bridge');
-	const command = Command.sidecar('binaries/internkim-companion', [
+	const settings = await loadCompanionSettings();
+	const baseArguments = [
 		'run',
 		'--shell-bridge-url',
 		shellBridge.url,
@@ -69,6 +71,10 @@ export async function startCompanionRuntime(): Promise<void> {
 		shellBridge.token,
 		'--control-listen',
 		'127.0.0.1:7983'
+	];
+	const command = Command.sidecar('binaries/internkim-companion', [
+		...baseArguments,
+		...settingsToSidecarArguments(settings)
 	]);
 	command.on('close', () => {
 		runtimeChild = undefined;
@@ -82,6 +88,21 @@ export async function startCompanionRuntime(): Promise<void> {
 	});
 	runtimeChild = await command.spawn();
 	runtimeStatus = { isRunning: true, processID: runtimeChild.pid, restartAttempts };
+}
+
+export async function restartCompanionRuntime(): Promise<void> {
+	if (!runtimeChild) {
+		await startCompanionRuntime();
+		return;
+	}
+	try {
+		await runtimeChild.kill();
+	} catch (error) {
+		console.error('failed to stop companion runtime for restart', error);
+	}
+	runtimeChild = undefined;
+	restartAttempts = 0;
+	await startCompanionRuntime();
 }
 
 async function restartCompanionRuntimeOnce(): Promise<void> {

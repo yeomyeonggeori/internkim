@@ -1,4 +1,5 @@
 mod prompt_bridge;
+mod settings;
 
 use std::process::Command;
 
@@ -9,7 +10,7 @@ use tauri::{
     AppHandle, Emitter, Manager,
 };
 
-const TRAY_ICON_BYTES: &[u8] = include_bytes!("../icons/icon.png");
+const TRAY_ICON_BYTES: &[u8] = include_bytes!("../icons/tray-icon.png");
 
 #[tauri::command]
 fn show_main_window(app: AppHandle) -> Result<(), String> {
@@ -29,6 +30,7 @@ fn open_admin_url(device_url: String) -> Result<(), String> {
 fn main() {
     tauri::Builder::default()
         .manage(prompt_bridge::PromptBridgeState::default())
+        .manage(settings::SettingsState::default())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_deep_link::init())
@@ -43,7 +45,9 @@ fn main() {
             show_main_window,
             prompt_bridge::start_shell_bridge,
             prompt_bridge::complete_prompt_request,
-            open_admin_url
+            open_admin_url,
+            settings::get_settings,
+            settings::set_settings
         ])
         .run(tauri::generate_context!())
         .expect("error while running Intern Kim Companion");

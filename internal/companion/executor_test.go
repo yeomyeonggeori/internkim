@@ -12,7 +12,29 @@ import (
 
 	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
 	"github.com/anthropic-lab/internkim/internal/capabilities"
+	"github.com/anthropic-lab/internkim/internal/llmbackend"
 )
+
+type stubLLMChain struct {
+	textResponse       llmbackend.Response
+	textError          error
+	structuredResponse llmbackend.Response
+	structuredError    error
+	receivedText       *llmbackend.TextRequest
+	receivedStructured *llmbackend.StructuredRequest
+}
+
+func (chain *stubLLMChain) CompleteText(ctx context.Context, request llmbackend.TextRequest) (llmbackend.Response, error) {
+	_ = ctx
+	chain.receivedText = &request
+	return chain.textResponse, chain.textError
+}
+
+func (chain *stubLLMChain) CompleteStructured(ctx context.Context, request llmbackend.StructuredRequest) (llmbackend.Response, error) {
+	_ = ctx
+	chain.receivedStructured = &request
+	return chain.structuredResponse, chain.structuredError
+}
 
 type fakeBrowserRuntime struct {
 	startRequest    browserruntime.SessionStartRequest
@@ -284,6 +306,94 @@ func TestUserConfirmUsesPromptHandler(t *testing.T) {
 	}
 	if !result.Confirmed {
 		t.Fatal("expected confirmation to be true")
+	}
+}
+
+func TestExecutorRoutesTextLLMThroughChain(t *testing.T) {
+	chain := &stubLLMChain{textResponse: llmbackend.Response{
+		Provider:        "ollama",
+		Model:           "gemma3:1b",
+		Content:         "hello back",
+		SelectedBackend: "ollama",
+	}}
+	executor := Executor{LLMChain: chain}
+
+	requestBody, errorValue := json.Marshal(llmbackend.TextRequest{
+		Messages: []llmbackend.Message{{Role: "user", Content: "ping"}},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "llm.text",
+		Input:    requestBody,
+	})
+	if errorValue != nil {
+		t.Fatalf("expected chain dispatch: %v", errorValue)
+	}
+	if chain.receivedText == nil || chain.receivedText.Messages[0].Content != "ping" {
+		t.Fatalf("expected chain to receive prompt, got %+v", chain.receivedText)
+	}
+	var responseDocument llmbackend.Response
+	if errorValue := json.Unmarshal(response.Result, &responseDocument); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if responseDocument.Content != "hello back" {
+		t.Fatalf("expected chain content, got %q", responseDocument.Content)
+	}
+	if responseDocument.SelectedBackend != capabilities.LLMBackendCompanionLocal {
+		t.Fatalf("expected companion-local selection, got %q", responseDocument.SelectedBackend)
+	}
+}
+
+func TestExecutorRoutesStructuredLLMThroughChain(t *testing.T) {
+	chain := &stubLLMChain{structuredResponse: llmbackend.Response{
+		Provider:       "ollama",
+		Content:        `{"reply":"ok"}`,
+		ConstraintMode: "provider_json_schema",
+	}}
+	executor := Executor{LLMChain: chain}
+
+	requestBody, errorValue := json.Marshal(llmbackend.StructuredRequest{
+		Messages: []llmbackend.Message{{Role: "user", Content: "ping"}},
+		StructuredOutputSchema: llmbackend.StructuredOutputSchema{
+			Name:     "reply",
+			Document: json.RawMessage(`{"type":"object","required":["reply"]}`),
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "llm.structured",
+		Input:    requestBody,
+	})
+	if errorValue != nil {
+		t.Fatalf("expected chain dispatch: %v", errorValue)
+	}
+	if chain.receivedStructured == nil || chain.receivedStructured.StructuredOutputSchema.Name != "reply" {
+		t.Fatalf("expected chain to receive schema, got %+v", chain.receivedStructured)
+	}
+	var responseDocument llmbackend.Response
+	if errorValue := json.Unmarshal(response.Result, &responseDocument); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if responseDocument.ConstraintMode != "provider_json_schema" {
+		t.Fatalf("expected provider json schema mode, got %q", responseDocument.ConstraintMode)
+	}
+}
+
+func TestExecutorTextLLMRequiresChainOrMockMode(t *testing.T) {
+	executor := Executor{}
+	_, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "llm.text",
+		Input:    json.RawMessage(`{"messages":[]}`),
+	})
+	if errorValue == nil {
+		t.Fatal("expected missing chain to fail")
+	}
+	if !strings.Contains(errorValue.Error(), "not configured") {
+		t.Fatalf("expected configuration error, got %v", errorValue)
 	}
 }
 

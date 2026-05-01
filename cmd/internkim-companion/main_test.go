@@ -14,7 +14,221 @@ import (
 	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
 	"github.com/anthropic-lab/internkim/internal/capabilities"
 	companionruntime "github.com/anthropic-lab/internkim/internal/companion"
+	"github.com/anthropic-lab/internkim/internal/llmbackend"
 )
+
+func newOllamaStubClient(t *testing.T, expectedFormat bool, content string) (*http.Client, *bool) {
+	t.Helper()
+	called := false
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if !strings.HasSuffix(request.URL.Path, "/api/chat") {
+			t.Fatalf("expected /api/chat call, got %s", request.URL.Path)
+		}
+		var document map[string]any
+		if errorValue := json.NewDecoder(request.Body).Decode(&document); errorValue != nil {
+			t.Fatalf("expected request body: %v", errorValue)
+		}
+		_, hasFormat := document["format"]
+		if hasFormat != expectedFormat {
+			t.Fatalf("format field present=%v, expected=%v", hasFormat, expectedFormat)
+		}
+		called = true
+		body := `{"message":{"role":"assistant","content":"` + content + `"}}`
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Header:     make(http.Header),
+		}, nil
+	})}
+	return client, &called
+}
+
+func TestLLMHandlerTextRoutesToOllamaBackend(t *testing.T) {
+	httpClient, called := newOllamaStubClient(t, false, "hello from ollama")
+	settings := localLLMSettings{
+		Enabled:       true,
+		BackendOrder:  []string{"ollama"},
+		OllamaBaseURL: "https://ollama.test",
+		OllamaModel:   "gemma3:1b",
+	}
+	chain, backends := buildLocalChain(settings, httpClient)
+	handler := llmHandler(true, false, false, chain, backends)
+
+	body := `{"messages":[{"role":"user","content":"hi"}]}`
+	request := httptest.NewRequest(http.MethodPost, "/v1/llm/text", strings.NewReader(body))
+	response := httptest.NewRecorder()
+	handler(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", response.Code, response.Body.String())
+	}
+	var result map[string]any
+	if errorValue := json.Unmarshal(response.Body.Bytes(), &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if result["content"] != "hello from ollama" {
+		t.Fatalf("expected ollama content, got %+v", result)
+	}
+	if result["selectedBackend"] != capabilities.LLMBackendCompanionLocal {
+		t.Fatalf("expected companion-local selection, got %+v", result)
+	}
+	if !*called {
+		t.Fatal("expected ollama backend to be invoked")
+	}
+}
+
+func TestLLMHandlerStructuredEnforcesSchema(t *testing.T) {
+	httpClient, _ := newOllamaStubClient(t, true, `{\"reply\":\"ok\"}`)
+	settings := localLLMSettings{
+		Enabled:       true,
+		BackendOrder:  []string{"ollama"},
+		OllamaBaseURL: "https://ollama.test",
+		OllamaModel:   "gemma3:1b",
+	}
+	chain, backends := buildLocalChain(settings, httpClient)
+	handler := llmHandler(true, false, true, chain, backends)
+
+	body := `{"messages":[{"role":"user","content":"hi"}],"structuredOutputSchema":{"name":"reply","document":{"type":"object","required":["reply"]}}}`
+	request := httptest.NewRequest(http.MethodPost, "/v1/llm/structured", strings.NewReader(body))
+	response := httptest.NewRecorder()
+	handler(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", response.Code, response.Body.String())
+	}
+	var result map[string]any
+	if errorValue := json.Unmarshal(response.Body.Bytes(), &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if result["constraintMode"] != "provider_json_schema" {
+		t.Fatalf("expected provider json schema mode, got %+v", result)
+	}
+}
+
+func TestLLMHandlerReturnsServiceUnavailableWhenAllBackendsFail(t *testing.T) {
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		_ = request
+		return nil, errSimulatedTransport
+	})}
+	settings := localLLMSettings{
+		Enabled:       true,
+		BackendOrder:  []string{"ollama"},
+		OllamaBaseURL: "https://ollama.test",
+		OllamaModel:   "gemma3:1b",
+	}
+	chain, backends := buildLocalChain(settings, httpClient)
+	handler := llmHandler(true, false, false, chain, backends)
+
+	body := `{"messages":[{"role":"user","content":"hi"}]}`
+	request := httptest.NewRequest(http.MethodPost, "/v1/llm/text", strings.NewReader(body))
+	response := httptest.NewRecorder()
+	handler(response, request)
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", response.Code)
+	}
+	var result map[string]any
+	if errorValue := json.Unmarshal(response.Body.Bytes(), &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !strings.Contains(result["hint"].(string), "ollama") {
+		t.Fatalf("expected hint to mention ollama, got %+v", result)
+	}
+}
+
+func TestLLMHandlerWithoutLocalEnabledReturnsNotImplemented(t *testing.T) {
+	handler := llmHandler(false, false, false, nil, nil)
+	request := httptest.NewRequest(http.MethodPost, "/v1/llm/text", strings.NewReader(`{}`))
+	response := httptest.NewRecorder()
+	handler(response, request)
+	if response.Code != http.StatusNotImplemented {
+		t.Fatalf("expected 501 when local LLM disabled, got %d", response.Code)
+	}
+}
+
+func TestLLMStreamHandlerEmitsTokensAsSSE(t *testing.T) {
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		_ = request
+		body := strings.Join([]string{
+			`{"message":{"role":"assistant","content":"he"},"done":false}`,
+			`{"message":{"role":"assistant","content":"llo"},"done":false}`,
+			`{"message":{"role":"assistant","content":""},"done":true}`,
+		}, "\n")
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Header:     make(http.Header),
+		}, nil
+	})}
+	settings := localLLMSettings{
+		Enabled:       true,
+		BackendOrder:  []string{"ollama"},
+		OllamaBaseURL: "https://ollama.test",
+		OllamaModel:   "gemma3:1b",
+	}
+	_, backends := buildLocalChain(settings, httpClient)
+	handler := llmStreamHandler(true, backends)
+
+	request := httptest.NewRequest(http.MethodPost, "/v1/llm/stream", strings.NewReader(`{"messages":[{"role":"user","content":"hi"}]}`))
+	response := httptest.NewRecorder()
+	handler(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", response.Code)
+	}
+	if response.Header().Get("Content-Type") != "text/event-stream" {
+		t.Fatalf("expected SSE content type, got %q", response.Header().Get("Content-Type"))
+	}
+	body := response.Body.String()
+	if !strings.Contains(body, `"token":"he"`) || !strings.Contains(body, `"token":"llo"`) {
+		t.Fatalf("expected token frames, got %q", body)
+	}
+	if !strings.Contains(body, "event: done") {
+		t.Fatalf("expected done event, got %q", body)
+	}
+}
+
+func TestLocalChainBuildsBackendsInRequestedOrder(t *testing.T) {
+	settings := localLLMSettings{
+		Enabled:         true,
+		BackendOrder:    []string{"llamacpp", "ollama", "mlx"},
+		OllamaBaseURL:   "http://o",
+		LlamaCppBaseURL: "http://l",
+		MLXBaseURL:      "http://m",
+	}
+	_, backends := buildLocalChain(settings, http.DefaultClient)
+	if len(backends) != 3 {
+		t.Fatalf("expected three backends, got %d", len(backends))
+	}
+	expected := []string{"llamacpp", "ollama", "mlx"}
+	for index, backend := range backends {
+		if backend.Name() != expected[index] {
+			t.Fatalf("expected %s at index %d, got %s", expected[index], index, backend.Name())
+		}
+	}
+}
+
+func TestLocalChainSkipsUnknownBackendNames(t *testing.T) {
+	settings := localLLMSettings{
+		Enabled:      true,
+		BackendOrder: []string{"unknown", "ollama"},
+	}
+	_, backends := buildLocalChain(settings, http.DefaultClient)
+	if len(backends) != 1 {
+		t.Fatalf("expected single ollama backend, got %d", len(backends))
+	}
+	if backends[0].Name() != "ollama" {
+		t.Fatalf("expected ollama backend, got %s", backends[0].Name())
+	}
+}
+
+var errSimulatedTransport = simulatedError("simulated transport failure")
+
+type simulatedError string
+
+func (errorValue simulatedError) Error() string { return string(errorValue) }
+
+var _ llmbackend.Backend = llmbackend.OllamaBackend{}
 
 func TestDefaultCapabilitiesAdvertiseLLMOnlyInDevelopmentMockMode(t *testing.T) {
 	withoutMockLLM := defaultCapabilities(true, false)

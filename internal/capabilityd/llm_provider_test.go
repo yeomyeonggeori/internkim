@@ -10,69 +10,36 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/anthropic-lab/internkim/internal/llmbackend"
 )
 
-func TestOpenRouterRequestPreservesStructuredSchema(t *testing.T) {
-	requestDocument, errorValue := buildOpenRouterRequest(StructuredLLMRequest{
-		Model: "openrouter/model",
-		Messages: []LLMMessage{
-			{Role: "user", Content: "hello"},
-		},
-		StructuredOutputSchema: StructuredOutputSchema{
-			Name:               "reply",
-			Document:           json.RawMessage(`{"type":"object","properties":{"reply":{"type":"string"}},"required":["reply"],"additionalProperties":false}`),
-			IsStrictlyEnforced: true,
-		},
-		RequireParameters:     true,
-		EnableResponseHealing: true,
-	}, "openrouter/model")
-	if errorValue != nil {
-		t.Fatalf("expected OpenRouter request: %v", errorValue)
-	}
-
-	var document map[string]any
-	if errorValue := json.Unmarshal(requestDocument, &document); errorValue != nil {
-		t.Fatalf("expected request to decode: %v", errorValue)
-	}
-	responseFormat := document["response_format"].(map[string]any)
-	jsonSchema := responseFormat["json_schema"].(map[string]any)
-	schema := jsonSchema["schema"].(map[string]any)
-	required := schema["required"].([]any)
-	if required[0] != "reply" {
-		t.Fatalf("expected schema to be preserved, got %+v", schema)
-	}
-	if jsonSchema["strict"] != true {
-		t.Fatalf("expected strict schema, got %+v", jsonSchema)
-	}
-	if document["model"] != "openrouter/model" {
-		t.Fatalf("expected explicit remote model, got %q", document["model"])
+func newOpenRouterBackend(secretPath, baseURL, modelName string, transport http.RoundTripper) OpenRouterBackend {
+	return OpenRouterBackend{
+		KeyPath:    secretPath,
+		BaseURL:    baseURL,
+		ModelName:  modelName,
+		HTTPClient: &http.Client{Transport: transport},
 	}
 }
 
-func TestOpenRouterProviderReturnsProviderConstraintMode(t *testing.T) {
+func TestOpenRouterBackendReturnsProviderConstraintMode(t *testing.T) {
 	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
 	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	provider := OpenRouterProvider{
-		Configuration: Configuration{
-			OpenRouterKeyPath: "missing",
-			OpenRouterBaseURL: "https://example.test/chat",
-		},
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			if request.Header.Get("Authorization") != "Bearer sk-test" {
-				t.Fatalf("unexpected authorization header: %q", request.Header.Get("Authorization"))
-			}
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"{\"reply\":\"ok\"}"}}]}`)),
-				Header:     make(http.Header),
-			}, nil
-		})},
-	}
-	provider.Configuration.OpenRouterKeyPath = secretPath
+	backend := newOpenRouterBackend(secretPath, "https://example.test/chat", "", roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.Header.Get("Authorization") != "Bearer sk-test" {
+			t.Fatalf("unexpected authorization header: %q", request.Header.Get("Authorization"))
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"{\"reply\":\"ok\"}"}}]}`)),
+			Header:     make(http.Header),
+		}, nil
+	}))
 
-	response, errorValue := provider.CompleteStructured(context.Background(), StructuredLLMRequest{
+	response, errorValue := backend.CompleteStructured(context.Background(), StructuredLLMRequest{
 		Model: "openrouter/model",
 		StructuredOutputSchema: StructuredOutputSchema{
 			Name:     "reply",
@@ -87,32 +54,24 @@ func TestOpenRouterProviderReturnsProviderConstraintMode(t *testing.T) {
 	}
 }
 
-func TestOpenRouterProviderUsesDefaultModelForLocalAlias(t *testing.T) {
+func TestOpenRouterBackendUsesDefaultModelForLocalAlias(t *testing.T) {
 	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
 	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	var receivedDocument map[string]any
-	provider := OpenRouterProvider{
-		Configuration: Configuration{
-			OpenRouterKeyPath: "missing",
-			OpenRouterBaseURL: "https://example.test/chat",
-			OpenRouterModel:   "google/default-remote",
-		},
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			if errorValue := json.NewDecoder(request.Body).Decode(&receivedDocument); errorValue != nil {
-				t.Fatalf("expected request body: %v", errorValue)
-			}
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"{\"reply\":\"ok\"}"}}]}`)),
-				Header:     make(http.Header),
-			}, nil
-		})},
-	}
-	provider.Configuration.OpenRouterKeyPath = secretPath
+	backend := newOpenRouterBackend(secretPath, "https://example.test/chat", "google/default-remote", roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if errorValue := json.NewDecoder(request.Body).Decode(&receivedDocument); errorValue != nil {
+			t.Fatalf("expected request body: %v", errorValue)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"{\"reply\":\"ok\"}"}}]}`)),
+			Header:     make(http.Header),
+		}, nil
+	}))
 
-	response, errorValue := provider.CompleteStructured(context.Background(), StructuredLLMRequest{
+	response, errorValue := backend.CompleteStructured(context.Background(), StructuredLLMRequest{
 		Model: "local/gemma-4-E4B-it-litert-lm",
 		StructuredOutputSchema: StructuredOutputSchema{
 			Name:     "reply",
@@ -130,93 +89,62 @@ func TestOpenRouterProviderUsesDefaultModelForLocalAlias(t *testing.T) {
 	}
 }
 
-func TestOpenRouterProviderUsesDefaultModelForProviderNeutralSentinel(t *testing.T) {
-	provider := OpenRouterProvider{
-		Configuration: Configuration{OpenRouterModel: "google/default-remote"},
-	}
-
-	for _, modelName := range []string{"", "default", "DEFAULT"} {
-		if selectedModelName := provider.remoteModelName(modelName); selectedModelName != "google/default-remote" {
-			t.Fatalf("expected default remote model for %q, got %q", modelName, selectedModelName)
-		}
-	}
-}
-
-func TestOpenRouterProviderReportsResponseReadError(t *testing.T) {
+func TestOpenRouterBackendReportsResponseReadError(t *testing.T) {
 	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
 	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	provider := OpenRouterProvider{
-		Configuration: Configuration{
-			OpenRouterKeyPath: secretPath,
-			OpenRouterBaseURL: "https://example.test/chat",
-		},
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       failingReadCloser{errorValue: context.DeadlineExceeded},
-				Header:     make(http.Header),
-			}, nil
-		})},
-	}
+	backend := newOpenRouterBackend(secretPath, "https://example.test/chat", "", roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       failingReadCloser{errorValue: context.DeadlineExceeded},
+			Header:     make(http.Header),
+		}, nil
+	}))
 
-	_, errorValue := provider.CompleteStructured(context.Background(), StructuredLLMRequest{})
+	_, errorValue := backend.CompleteStructured(context.Background(), StructuredLLMRequest{})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "read openrouter response") {
 		t.Fatalf("expected read error, got %v", errorValue)
 	}
 }
 
-func TestOpenRouterProviderRejectsEmptySuccessBody(t *testing.T) {
+func TestOpenRouterBackendRejectsEmptySuccessBody(t *testing.T) {
 	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
 	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	provider := OpenRouterProvider{
-		Configuration: Configuration{
-			OpenRouterKeyPath: secretPath,
-			OpenRouterBaseURL: "https://example.test/chat",
-		},
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader("")),
-				Header:     make(http.Header),
-			}, nil
-		})},
-	}
+	backend := newOpenRouterBackend(secretPath, "https://example.test/chat", "", roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader("")),
+			Header:     make(http.Header),
+		}, nil
+	}))
 
-	_, errorValue := provider.CompleteStructured(context.Background(), StructuredLLMRequest{})
+	_, errorValue := backend.CompleteStructured(context.Background(), StructuredLLMRequest{})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "response body was empty") {
 		t.Fatalf("expected empty body error, got %v", errorValue)
 	}
 }
 
-func TestOpenRouterProviderCompleteTextDoesNotRequestStructuredOutput(t *testing.T) {
+func TestOpenRouterBackendCompleteTextDoesNotRequestStructuredOutput(t *testing.T) {
 	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
 	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	var receivedDocument map[string]any
-	provider := OpenRouterProvider{
-		Configuration: Configuration{
-			OpenRouterKeyPath: secretPath,
-			OpenRouterBaseURL: "https://example.test/chat",
-			OpenRouterModel:   "google/default-remote",
-		},
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			if errorValue := json.NewDecoder(request.Body).Decode(&receivedDocument); errorValue != nil {
-				t.Fatalf("expected request body: %v", errorValue)
-			}
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"plain reply"}}]}`)),
-				Header:     make(http.Header),
-			}, nil
-		})},
-	}
+	backend := newOpenRouterBackend(secretPath, "https://example.test/chat", "google/default-remote", roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if errorValue := json.NewDecoder(request.Body).Decode(&receivedDocument); errorValue != nil {
+			t.Fatalf("expected request body: %v", errorValue)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"plain reply"}}]}`)),
+			Header:     make(http.Header),
+		}, nil
+	}))
 
-	response, errorValue := provider.CompleteText(context.Background(), TextLLMRequest{
+	response, errorValue := backend.CompleteText(context.Background(), TextLLMRequest{
 		Model:             "local/gemma-4-E4B-it-litert-lm",
 		RequireParameters: true,
 		Messages:          []LLMMessage{{Role: "user", Content: "hello"}},
@@ -241,10 +169,12 @@ func TestDefaultProviderAttemptTimeoutAllowsRemoteStructuredResponses(t *testing
 	}
 }
 
-func TestLiteRTProviderSendsJSONSchemaDocumentToWrapper(t *testing.T) {
+func TestLiteRTBackendSendsJSONSchemaDocumentToWrapper(t *testing.T) {
 	var wrapperDocument map[string]any
-	provider := LiteRTProvider{
-		Configuration: DefaultConfiguration(),
+	backend := LiteRTBackend{
+		ModelPath:   DefaultConfiguration().LiteRTModelPath,
+		WrapperPath: DefaultConfiguration().LiteRTWrapperPath,
+		Variant:     "gpu",
 		RunCommand: func(ctx context.Context, executablePath string, arguments []string, standardInput []byte) ([]byte, error) {
 			_ = ctx
 			_ = executablePath
@@ -256,7 +186,7 @@ func TestLiteRTProviderSendsJSONSchemaDocumentToWrapper(t *testing.T) {
 		},
 	}
 
-	_, errorValue := provider.CompleteStructured(context.Background(), StructuredLLMRequest{
+	_, errorValue := backend.CompleteStructured(context.Background(), StructuredLLMRequest{
 		StructuredOutputSchema: StructuredOutputSchema{
 			Name:     "reply",
 			Document: json.RawMessage(`{"type":"object","properties":{"reply":{"type":"string"}},"required":["reply"]}`),
@@ -273,10 +203,12 @@ func TestLiteRTProviderSendsJSONSchemaDocumentToWrapper(t *testing.T) {
 	}
 }
 
-func TestLiteRTProviderCompleteTextSendsTextModeToWrapper(t *testing.T) {
+func TestLiteRTBackendCompleteTextSendsTextModeToWrapper(t *testing.T) {
 	var wrapperDocument map[string]any
-	provider := LiteRTProvider{
-		Configuration: DefaultConfiguration(),
+	backend := LiteRTBackend{
+		ModelPath:   DefaultConfiguration().LiteRTModelPath,
+		WrapperPath: DefaultConfiguration().LiteRTWrapperPath,
+		Variant:     "gpu",
 		RunCommand: func(ctx context.Context, executablePath string, arguments []string, standardInput []byte) ([]byte, error) {
 			_ = ctx
 			_ = executablePath
@@ -288,7 +220,7 @@ func TestLiteRTProviderCompleteTextSendsTextModeToWrapper(t *testing.T) {
 		},
 	}
 
-	response, errorValue := provider.CompleteText(context.Background(), TextLLMRequest{
+	response, errorValue := backend.CompleteText(context.Background(), TextLLMRequest{
 		Messages: []LLMMessage{{Role: "user", Content: "hello"}},
 	})
 	if errorValue != nil {
@@ -305,41 +237,26 @@ func TestLiteRTProviderCompleteTextSendsTextModeToWrapper(t *testing.T) {
 	}
 }
 
-func TestLiteRTProviderUsesRequestedBackendOnly(t *testing.T) {
-	var backends []string
-	provider := LiteRTProvider{
+func TestLocalBackendsHonorsRequestedLiteRTVariant(t *testing.T) {
+	service := Service{
 		Configuration: DefaultConfiguration(),
-		RunCommand: func(ctx context.Context, executablePath string, arguments []string, standardInput []byte) ([]byte, error) {
-			_ = ctx
-			_ = executablePath
-			_ = arguments
-			var document map[string]any
-			if errorValue := json.Unmarshal(standardInput, &document); errorValue != nil {
-				t.Fatalf("expected wrapper document: %v", errorValue)
-			}
-			backends = append(backends, document["backend"].(string))
-			return []byte(`{"content":"plain local reply"}`), nil
-		},
 	}
-
-	response, errorValue := provider.CompleteText(context.Background(), TextLLMRequest{
-		Backend:  "cpu",
-		Messages: []LLMMessage{{Role: "user", Content: "hello"}},
-	})
-	if errorValue != nil {
-		t.Fatalf("expected LiteRT text completion: %v", errorValue)
+	backends := service.localBackends("cpu")
+	if len(backends) != 1 {
+		t.Fatalf("expected single cpu backend, got %d", len(backends))
 	}
-	if response.SelectedBackend != "cpu" {
-		t.Fatalf("expected cpu backend, got %q", response.SelectedBackend)
+	litertBackend, isLiteRT := backends[0].(LiteRTBackend)
+	if !isLiteRT {
+		t.Fatalf("expected LiteRT backend, got %T", backends[0])
 	}
-	if strings.Join(backends, ",") != "cpu" {
-		t.Fatalf("expected only cpu backend, got %v", backends)
+	if litertBackend.Variant != "cpu" {
+		t.Fatalf("expected cpu variant, got %q", litertBackend.Variant)
 	}
 }
 
 func TestAutoProviderFallsBackToRemote(t *testing.T) {
 	autoProvider := AutoProvider{
-		Providers: []LLMProvider{
+		Providers: []llmbackend.Provider{
 			staticLLMProvider{errorValue: errTestProviderUnavailable},
 			staticLLMProvider{response: LLMResponse{
 				Provider:        "openrouter",
@@ -452,7 +369,7 @@ func TestLocalProviderDoesNotUseOllamaByDefault(t *testing.T) {
 func TestAutoProviderAttemptTimeoutFallsBackToRemote(t *testing.T) {
 	autoProvider := AutoProvider{
 		AttemptTimeout: time.Millisecond,
-		Providers: []LLMProvider{
+		Providers: []llmbackend.Provider{
 			blockingLLMProvider{},
 			staticLLMProvider{response: LLMResponse{
 				Provider:        "openrouter",

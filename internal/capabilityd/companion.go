@@ -14,8 +14,9 @@ import (
 )
 
 type CapabilityRouter struct {
-	CompanionAvailable bool
-	Descriptors        []capabilities.Descriptor
+	CompanionAvailable     bool
+	PreferCompanionBrowser bool
+	Descriptors            []capabilities.Descriptor
 }
 
 type companionProvider struct {
@@ -53,8 +54,9 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 	}
 
 	router := CapabilityRouter{
-		CompanionAvailable: strings.TrimSpace(service.Configuration.CompanionBaseURL) != "",
-		Descriptors:        capabilities.CompanionToolDescriptors(),
+		CompanionAvailable:     strings.TrimSpace(service.Configuration.CompanionBaseURL) != "",
+		PreferCompanionBrowser: service.Configuration.PreferCompanionBrowser,
+		Descriptors:            capabilities.CompanionToolDescriptors(),
 	}
 	if router.ShouldRouteToCompanion(request) {
 		response, errorValue := service.companionProvider().InvokeTool(ctx, request)
@@ -104,6 +106,9 @@ func (router CapabilityRouter) ShouldRouteToCompanion(request capabilities.ToolI
 		return true
 	}
 	if request.RequiresUserPresence {
+		return true
+	}
+	if router.PreferCompanionBrowser && isDeviceBrowserTool(request.ToolName) {
 		return true
 	}
 	return router.isCompanionCapability(request.ToolName)
