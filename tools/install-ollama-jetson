@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+scriptDirectory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repositoryRoot="$(cd "$scriptDirectory/.." && pwd)"
+
+buildHost="${OLLAMA_INSTALL_HOST:-}"
+buildUser="${OLLAMA_INSTALL_USER:-internkim}"
+buildPassword="${OLLAMA_INSTALL_PASSWORD:-blueclaw}"
+
+if [ -z "$buildHost" ]; then
+  buildHost="$(tr -d '\r\n' < "$HOME/.internkim/board_ip" 2>/dev/null || true)"
+fi
+if [ -z "$buildHost" ]; then
+  echo "No host. Pass --host or set OLLAMA_INSTALL_HOST." >&2
+  exit 1
+fi
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --host) buildHost="$2"; shift 2 ;;
+    --user) buildUser="$2"; shift 2 ;;
+    --password) buildPassword="$2"; shift 2 ;;
+    -h|--help)
+      cat <<USAGE
+Usage:
+  tools/install-ollama-jetson [--host <ip>] [--user <name>] [--password <pass>]
+
+Runs the official ollama install script on the Jetson via SSH. Idempotent —
+re-running upgrades to the latest stable release.
+USAGE
+      exit 0
+      ;;
+    *) echo "unknown argument: $1" >&2; exit 1 ;;
+  esac
+done
+
+sshpassBin="$repositoryRoot/bin/sshpass"
+sshOptions=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30)
+sshCommand=(ssh "${sshOptions[@]}" "$buildUser@$buildHost")
+if [ -n "$buildPassword" ] && [ -x "$sshpassBin" ]; then
+  sshCommand=(env "SSHPASS=$buildPassword" "$sshpassBin" -e ssh "${sshOptions[@]}" "$buildUser@$buildHost")
+fi
+
+remoteScript=$(cat <<'REMOTE'
+set -euo pipefail
+sudoPrefix="echo '__PASSWORD__' | sudo -S -p ''"
+
+if command -v ollama >/dev/null 2>&1; then
+  echo "ollama already installed: $(ollama --version 2>&1 | head -1)"
+  echo "re-running install script to upgrade if newer release exists"
+fi
+
+mkdir -p /tmp/internkim-ollama-install
+cd /tmp/internkim-ollama-install
+
+echo "downloading ollama install script"
+curl -fsSL https://ollama.com/install.sh -o install.sh
+
+scriptSize="$(wc -c < install.sh)"
+if [ "$scriptSize" -lt 1000 ] || [ "$scriptSize" -gt 200000 ]; then
+  echo "ollama install.sh size looks wrong: $scriptSize bytes" >&2
+  exit 1
+fi
+chmod +x install.sh
+
+echo "running install.sh (will request sudo via OLLAMA_NOPROMPT pattern)"
+SUDO_ASKPASS_FILE=/tmp/internkim-ollama-install/askpass
+cat > "$SUDO_ASKPASS_FILE" <<ASKPASS
+#!/bin/sh
+echo '__PASSWORD__'
+ASKPASS
+chmod +x "$SUDO_ASKPASS_FILE"
+SUDO_ASKPASS="$SUDO_ASKPASS_FILE" ./install.sh
+
+rm -rf /tmp/internkim-ollama-install
+
+if command -v ollama >/dev/null 2>&1; then
+  echo "ollama installed: $(ollama --version 2>&1 | head -1)"
+else
+  echo "ollama install failed" >&2
+  exit 1
+fi
+REMOTE
+)
+
+remoteScript="${remoteScript//__PASSWORD__/$buildPassword}"
+
+echo "installing ollama on $buildUser@$buildHost"
+"${sshCommand[@]}" "$remoteScript"

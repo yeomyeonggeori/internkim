@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+scriptDirectory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repositoryRoot="$(cd "$scriptDirectory/.." && pwd)"
+
+llamaCommit="${LLAMA_CPP_COMMIT:-05e141a}"
+buildHost="${LLAMA_CPP_BUILD_HOST:-}"
+buildUser="${LLAMA_CPP_BUILD_USER:-internkim}"
+buildPassword="${LLAMA_CPP_BUILD_PASSWORD:-blueclaw}"
+remoteWorkRoot="${LLAMA_CPP_REMOTE_WORK_ROOT:-/var/cache/internkim/llama-cpp-build}"
+cudaArchitecture="${LLAMA_CPP_CUDA_ARCH:-87}"
+
+usage() {
+  cat <<USAGE
+Usage:
+  tools/build-llama-cpp-jetson [--commit <sha>] [--host <ip>] [--user <name>] [--password <pass>]
+
+Builds llama.cpp on a Jetson aarch64 host with CUDA support and caches the
+resulting llama-cli binary plus required shared libraries in
+.dependency/llama-cpp/<commit>-aarch64/. Cache hits skip the build entirely.
+
+Environment overrides:
+  LLAMA_CPP_COMMIT          Pinned commit (default: 05e141a)
+  LLAMA_CPP_BUILD_HOST      SSH host (default: cached board IP)
+  LLAMA_CPP_BUILD_USER      SSH user (default: internkim)
+  LLAMA_CPP_BUILD_PASSWORD  SSH password (omit for key auth)
+  LLAMA_CPP_REMOTE_WORK_ROOT Remote build directory
+  LLAMA_CPP_CUDA_ARCH       CMAKE_CUDA_ARCHITECTURES (default: 87 for Orin)
+USAGE
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --commit) llamaCommit="$2"; shift 2 ;;
+    --host) buildHost="$2"; shift 2 ;;
+    --user) buildUser="$2"; shift 2 ;;
+    --password) buildPassword="$2"; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "unknown argument: $1" >&2; usage >&2; exit 1 ;;
+  esac
+done
+
+cacheKey="${llamaCommit}-aarch64"
+cacheDirectory="$repositoryRoot/.dependency/llama-cpp/$cacheKey"
+cachedBinaryPath="$cacheDirectory/llama-cli"
+cachedLibraryDirectory="$cacheDirectory/lib"
+
+if [ -x "$cachedBinaryPath" ] && [ -s "$cachedBinaryPath" ] && [ -d "$cachedLibraryDirectory" ]; then
+  echo "$cachedBinaryPath"
+  exit 0
+fi
+
+if [ -z "$buildHost" ]; then
+  buildHost="$(tr -d '\r\n' < "$HOME/.internkim/board_ip" 2>/dev/null || true)"
+fi
+if [ -z "$buildHost" ]; then
+  echo "No build host. Pass --host <ip> or set LLAMA_CPP_BUILD_HOST." >&2
+  exit 1
+fi
+
+echo "llama.cpp build target: $llamaCommit on $buildUser@$buildHost (CUDA arch $cudaArchitecture)"
+echo "cache miss: $cachedBinaryPath"
+
+sshpassBin="$repositoryRoot/bin/sshpass"
+sshOptions=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ServerAliveCountMax=240)
+sshCommand=(ssh "${sshOptions[@]}" "$buildUser@$buildHost")
+scpCommand=(scp "${sshOptions[@]}")
+if [ -n "$buildPassword" ] && [ -x "$sshpassBin" ]; then
+  sshCommand=(env "SSHPASS=$buildPassword" "$sshpassBin" -e ssh "${sshOptions[@]}" "$buildUser@$buildHost")
+  scpCommand=(env "SSHPASS=$buildPassword" "$sshpassBin" -e scp "${sshOptions[@]}")
+fi
+
+remoteScript=$(cat <<REMOTE
+set -euo pipefail
+sudoPrefix=""
+if [ -n "${buildPassword:-}" ]; then
+  sudoPrefix="echo '$buildPassword' | sudo -S -p ''"
+elif sudo -n true 2>/dev/null; then
+  sudoPrefix="sudo"
+else
+  echo "sudo requires a password but none was provided." >&2
+  exit 1
+fi
+runSudo() { eval "\$sudoPrefix \$*"; }
+
+runSudo mkdir -p "$remoteWorkRoot"
+runSudo chown "$buildUser":"$buildUser" "$remoteWorkRoot"
+cd "$remoteWorkRoot"
+
+if [ ! -d llama.cpp ]; then
+  echo "cloning llama.cpp"
+  git clone https://github.com/ggerganov/llama.cpp llama.cpp
+fi
+cd llama.cpp
+git fetch --depth 1 origin "$llamaCommit" || git fetch
+git checkout "$llamaCommit"
+
+echo "installing build deps"
+runSudo apt-get update -y
+runSudo apt-get install -y --no-install-recommends \\
+  build-essential cmake pkg-config git ca-certificates
+
+if [ ! -x /usr/local/cuda/bin/nvcc ]; then
+  echo "nvcc not found at /usr/local/cuda/bin/nvcc; ensure JetPack 6.x CUDA toolkit is installed." >&2
+  exit 1
+fi
+
+cpuCount="\$(nproc 2>/dev/null || echo 2)"
+parallelJobs="\$cpuCount"
+if [ "\$parallelJobs" -gt 4 ]; then
+  parallelJobs=4
+fi
+
+echo "configuring + building (CUDA arch $cudaArchitecture, jobs=\$parallelJobs)"
+PATH=/usr/local/cuda/bin:\$PATH cmake -B build \\
+  -DGGML_CUDA=ON \\
+  -DLLAMA_CURL=OFF \\
+  -DCMAKE_CUDA_ARCHITECTURES=$cudaArchitecture \\
+  -DCMAKE_BUILD_TYPE=Release
+PATH=/usr/local/cuda/bin:\$PATH cmake --build build --target llama-cli -j"\$parallelJobs"
+
+if [ ! -x build/bin/llama-cli ]; then
+  echo "build did not produce llama-cli" >&2
+  exit 1
+fi
+
+cd build/bin
+tar czhf "$remoteWorkRoot/llamacpp-bundle.tar.gz" \\
+  llama-cli \\
+  libggml-base.so.0 libggml-cpu.so.0 libggml-cuda.so.0 libggml.so.0 \\
+  libllama.so.0 libllama-common.so.0 libmtmd.so.0
+echo "BUNDLE=$remoteWorkRoot/llamacpp-bundle.tar.gz"
+REMOTE
+)
+
+echo "ensuring remote work root exists"
+"${sshCommand[@]}" "set -e
+sudoPrefix=\"\"
+if [ -n \"${buildPassword}\" ]; then
+  sudoPrefix=\"echo '$buildPassword' | sudo -S -p ''\"
+elif sudo -n true 2>/dev/null; then
+  sudoPrefix=\"sudo\"
+else
+  echo 'sudo password required' >&2; exit 1
+fi
+eval \"\$sudoPrefix mkdir -p $remoteWorkRoot\"
+eval \"\$sudoPrefix chown $buildUser:$buildUser $remoteWorkRoot\""
+
+echo "running remote build (this can take 30+ minutes on Jetson Orin Nano)"
+"${sshCommand[@]}" "$remoteScript"
+
+mkdir -p "$cacheDirectory" "$cachedLibraryDirectory"
+remoteBundlePath="$remoteWorkRoot/llamacpp-bundle.tar.gz"
+localBundlePath="$cacheDirectory/llamacpp-bundle.tar.gz"
+echo "fetching bundle"
+"${scpCommand[@]}" "$buildUser@$buildHost:$remoteBundlePath" "$localBundlePath"
+tar -xzf "$localBundlePath" -C "$cachedLibraryDirectory/"
+mv "$cachedLibraryDirectory/llama-cli" "$cachedBinaryPath"
+chmod 0755 "$cachedBinaryPath"
+rm -f "$localBundlePath"
+
+echo "$cachedBinaryPath"
