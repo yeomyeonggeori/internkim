@@ -6,7 +6,8 @@
 	import { onMount } from 'svelte';
 	import { normalizeManualPairingInput, parsePairingLink, statusLabel, type CompanionStatus } from './lib/pairing';
 	import { approvalResponse, confirmResponse, inputResponse, normalizePromptRequest, promptTitle, type PromptRequest, type PromptResult } from './lib/prompts';
-	import { pairCompanion, readActiveGrants, readCompanionStatus, readRuntimeStatus, refreshRuntimeStatus, revokeGrant, startCompanionRuntime, type ActiveGrant, type RuntimeStatus } from './lib/sidecar';
+	import { pairCompanion, readActiveGrants, readCompanionStatus, readRuntimeStatus, refreshRuntimeStatus, restartCompanionRuntime, revokeGrant, startCompanionRuntime, type ActiveGrant, type RuntimeStatus } from './lib/sidecar';
+	import { defaultSettings, fetchBackendModels, loadCompanionSettings, saveCompanionSettings, type CompanionSettings } from './lib/settings';
 
 	let status = $state<CompanionStatus>({ paired: false });
 	let runtime = $state<RuntimeStatus>({ isRunning: false });
@@ -19,6 +20,12 @@
 	let promptResult = $state<PromptResult>({ status: 'idle' });
 	let activeGrants = $state<ActiveGrant[]>([]);
 	let isBusy = $state(false);
+	let settings = $state<CompanionSettings>(defaultSettings);
+	let settingsMessage = $state('');
+	let isSavingSettings = $state(false);
+	let ollamaModelOptions = $state<string[]>([]);
+	let llamaCppModelOptions = $state<string[]>([]);
+	let mlxModelOptions = $state<string[]>([]);
 
 	onMount(() => {
 		void bootstrap();
@@ -31,9 +38,43 @@
 	});
 
 	async function bootstrap() {
+		settings = await loadCompanionSettings();
 		await refreshStatus();
 		if (status.paired) {
 			await ensureRuntime();
+		}
+		void refreshAvailableModels();
+	}
+
+	async function refreshAvailableModels() {
+		ollamaModelOptions = await fetchBackendModels('ollama', settings.ollama.baseURL);
+		llamaCppModelOptions = await fetchBackendModels('llamacpp', settings.llamacpp.baseURL);
+		mlxModelOptions = await fetchBackendModels('mlx', settings.mlx.baseURL);
+	}
+
+	function toggleBackendInOrder(name: string) {
+		if (settings.localBackendOrder.includes(name)) {
+			settings.localBackendOrder = settings.localBackendOrder.filter((entry) => entry !== name);
+			return;
+		}
+		settings.localBackendOrder = [...settings.localBackendOrder, name];
+	}
+
+	async function persistSettings() {
+		isSavingSettings = true;
+		settingsMessage = '';
+		try {
+			settings = await saveCompanionSettings(settings);
+			if (runtime.isRunning) {
+				await restartCompanionRuntime();
+				runtime = readRuntimeStatus();
+			}
+			settingsMessage = 'Settings saved.';
+			void refreshAvailableModels();
+		} catch (errorValue) {
+			settingsMessage = errorValue instanceof Error ? errorValue.message : 'Save failed';
+		} finally {
+			isSavingSettings = false;
 		}
 	}
 
@@ -201,6 +242,85 @@
 		{/if}
 		{#if runtime.lastError}
 			<p class="message error">{runtime.lastError}</p>
+		{/if}
+	</section>
+
+	<section class="settings-panel">
+		<h2>Settings</h2>
+		<label class="toggle">
+			<input bind:checked={settings.preferCompanionBrowser} type="checkbox" />
+			<span>Use this computer for browsing</span>
+		</label>
+		<label class="toggle">
+			<input bind:checked={settings.enableLocalLLM} type="checkbox" />
+			<span>Use this computer for AI inference</span>
+		</label>
+		{#if settings.enableLocalLLM}
+			<div class="backend-list">
+				<p class="subtle">Backend priority (first available wins)</p>
+				{#each ['ollama', 'llamacpp', 'mlx'] as backendName}
+					<label class="toggle">
+						<input
+							checked={settings.localBackendOrder.includes(backendName)}
+							onchange={() => toggleBackendInOrder(backendName)}
+							type="checkbox"
+						/>
+						<span>{backendName}</span>
+					</label>
+				{/each}
+			</div>
+			<div class="backend-config">
+				<h3>Ollama</h3>
+				<label>
+					<span>Base URL</span>
+					<input bind:value={settings.ollama.baseURL} />
+				</label>
+				<label>
+					<span>Model</span>
+					<input list="ollama-models" bind:value={settings.ollama.model} placeholder="gemma3:1b" />
+					<datalist id="ollama-models">
+						{#each ollamaModelOptions as modelName}
+							<option value={modelName}></option>
+						{/each}
+					</datalist>
+				</label>
+				<h3>llama.cpp</h3>
+				<label>
+					<span>Base URL</span>
+					<input bind:value={settings.llamacpp.baseURL} />
+				</label>
+				<label>
+					<span>Model</span>
+					<input list="llamacpp-models" bind:value={settings.llamacpp.model} placeholder="default" />
+					<datalist id="llamacpp-models">
+						{#each llamaCppModelOptions as modelName}
+							<option value={modelName}></option>
+						{/each}
+					</datalist>
+				</label>
+				<h3>MLX</h3>
+				<label>
+					<span>Base URL</span>
+					<input bind:value={settings.mlx.baseURL} />
+				</label>
+				<label>
+					<span>Model</span>
+					<input list="mlx-models" bind:value={settings.mlx.model} placeholder="mlx-community/..." />
+					<datalist id="mlx-models">
+						{#each mlxModelOptions as modelName}
+							<option value={modelName}></option>
+						{/each}
+					</datalist>
+				</label>
+			</div>
+		{/if}
+		<div class="actions">
+			<button disabled={isSavingSettings} onclick={persistSettings}>
+				{isSavingSettings ? 'Saving...' : 'Save settings'}
+			</button>
+		</div>
+		{#if settingsMessage}
+			<p class="message">{settingsMessage}</p>
 		{/if}
 	</section>
 

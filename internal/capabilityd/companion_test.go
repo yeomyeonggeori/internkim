@@ -143,7 +143,7 @@ func TestAutoProviderLocalOnlyBlocksRemoteFallback(t *testing.T) {
 
 func TestRemoteExecutionFailsInLocalOnlyMode(t *testing.T) {
 	service := Service{Configuration: Configuration{LocalOnly: true}}
-	_, errorValue := service.providerForExecutionMode(capabilities.ExecutionModeRemote)
+	_, errorValue := service.providerForExecutionMode(capabilities.ExecutionModeRemote, "")
 	if errorValue == nil {
 		t.Fatal("expected remote execution to fail in local-only mode")
 	}
@@ -159,6 +159,31 @@ func TestCapabilityRouterUsesDescriptors(t *testing.T) {
 	}
 	if router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: "unknown.tool"}) {
 		t.Fatal("expected unknown tool to stay unconfigured")
+	}
+}
+
+func TestPreferCompanionBrowserRoutesGenericBrowserTool(t *testing.T) {
+	router := CapabilityRouter{
+		CompanionAvailable:     true,
+		PreferCompanionBrowser: true,
+		Descriptors:            []capabilities.Descriptor{},
+	}
+	if !router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: "browser.navigate"}) {
+		t.Fatal("expected browser tool to route to companion when PreferCompanionBrowser is true")
+	}
+	if router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: "flow.task.add"}) {
+		t.Fatal("expected non-browser tool to stay device-side")
+	}
+}
+
+func TestPreferCompanionBrowserDoesNotRouteWithoutCompanionAvailable(t *testing.T) {
+	router := CapabilityRouter{
+		CompanionAvailable:     false,
+		PreferCompanionBrowser: true,
+		Descriptors:            []capabilities.Descriptor{},
+	}
+	if router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: "browser.navigate"}) {
+		t.Fatal("expected device fallback when companion is unavailable")
 	}
 }
 
