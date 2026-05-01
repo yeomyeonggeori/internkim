@@ -150,7 +150,8 @@ func (service Service) Run(ctx context.Context) error {
 
 	vsockListener, errorValue := service.listenVSock()
 	if errorValue != nil {
-		return errorValue
+		log.Printf("capabilityd vsock listener disabled: %v", errorValue)
+		vsockListener = nil
 	}
 	if vsockListener != nil {
 		defer vsockListener.Close()
