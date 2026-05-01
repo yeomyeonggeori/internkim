@@ -13,6 +13,7 @@ func runLLM() {
 	mode := flagSet.String("mode", "", "Execution mode: local, remote, or both (overrides --remote)")
 	useRemote := flagSet.Bool("remote", false, "Use OpenRouter instead of the on-board LiteRT model")
 	model := flagSet.String("model", "", "Override model name")
+	backend := flagSet.String("backend", "", "Force LiteRT backend: gpu or cpu (local mode only)")
 	host := flagSet.String("host", "", "Board host")
 	user := flagSet.String("user", boardUser, "SSH user")
 	password := flagSet.String("password", "", "SSH password")
@@ -52,13 +53,13 @@ func runLLM() {
 		modes = []string{"local", "remote"}
 	}
 	for _, requestedMode := range modes {
-		if errorValue := runLLMRequest(target, requestedMode, *model, prompt); errorValue != nil {
+		if errorValue := runLLMRequest(target, requestedMode, *model, *backend, prompt); errorValue != nil {
 			fmt.Fprintf(os.Stderr, "[%s] failed: %v\n", requestedMode, errorValue)
 		}
 	}
 }
 
-func runLLMRequest(target verifyTarget, executionMode string, modelName string, prompt string) error {
+func runLLMRequest(target verifyTarget, executionMode string, modelName string, backend string, prompt string) error {
 	body := map[string]any{
 		"executionMode": executionMode,
 		"messages": []map[string]string{
@@ -67,6 +68,9 @@ func runLLMRequest(target verifyTarget, executionMode string, modelName string, 
 	}
 	if strings.TrimSpace(modelName) != "" {
 		body["model"] = modelName
+	}
+	if strings.TrimSpace(backend) != "" {
+		body["backend"] = backend
 	}
 	bodyDocument, errorValue := json.Marshal(body)
 	if errorValue != nil {
