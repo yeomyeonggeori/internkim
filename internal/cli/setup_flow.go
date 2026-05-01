@@ -14,6 +14,7 @@ import (
 	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
 	setup "github.com/anthropic-lab/internkim/internal/provisioning/steps"
 	"github.com/anthropic-lab/internkim/internal/runtime/blueclaw"
+	"github.com/anthropic-lab/internkim/internal/runtime/locallm"
 )
 
 type setupFlowState struct {
@@ -808,7 +809,7 @@ func (state *setupFlowState) installBinariesSSH(context *setup.Context) error {
 		return err
 	}
 
-	if err := state.installLiteRTMainSSH(); err != nil {
+	if err := state.installLocalLLMSSH(); err != nil {
 		return err
 	}
 
@@ -1007,39 +1008,80 @@ func (state *setupFlowState) ensureDeviceBrowserRuntimeArtifact() (string, error
 	return "", fmt.Errorf("device browser runtime preparation did not create %s; run `make prepare-device-browser` before setup", artifactPath)
 }
 
-const liteRTMainVersion = "v0.10.2"
-const liteRTMainCacheKey = liteRTMainVersion + "-aarch64"
-const liteRTMainRemoteBinaryPath = "/usr/local/bin/litert_lm_main"
-const liteRTMainRemoteLibraryDirectory = "/usr/local/lib/litert_lm"
-
-func (state *setupFlowState) liteRTMainCacheDirectory() string {
-	return filepath.Join(state.scriptDir, ".dependency", "litert-lm-main", liteRTMainCacheKey)
+type localLLMBuildArtifacts struct {
+	binaryPath        string
+	binaryName        string
+	libraryPaths      []string
+	cacheDirectoryAbs string
 }
 
-func (state *setupFlowState) ensureLiteRTMainArtifacts() (string, []string, error) {
-	cacheDirectory := state.liteRTMainCacheDirectory()
-	binaryPath := filepath.Join(cacheDirectory, "litert_lm_main")
+type localLLMBackendDeployer struct {
+	displayName        string
+	buildToolName      string
+	cacheRelativeRoot  string
+	cacheKey           string
+	binaryName         string
+	remoteBinaryPath   string
+	remoteLibraryDir   string
+	libraryNameMatches func(name string) bool
+}
+
+func liteRTMainDeployer() localLLMBackendDeployer {
+	spec := locallm.SpecFor(locallm.BackendLiteRT)
+	return localLLMBackendDeployer{
+		displayName:       "litert_lm_main",
+		buildToolName:     "build-litert-lm-main",
+		cacheRelativeRoot: spec.LocalCacheRelativeRoot,
+		cacheKey:          spec.LocalCacheKey,
+		binaryName:        "litert_lm_main",
+		remoteBinaryPath:  spec.RemoteBinaryPath,
+		remoteLibraryDir:  spec.RemoteLibraryDirectory,
+		libraryNameMatches: func(name string) bool {
+			return strings.HasSuffix(name, ".so")
+		},
+	}
+}
+
+func llamaCppDeployer() localLLMBackendDeployer {
+	spec := locallm.SpecFor(locallm.BackendLlamaCpp)
+	return localLLMBackendDeployer{
+		displayName:       "llama-cli",
+		buildToolName:     "build-llama-cpp-jetson",
+		cacheRelativeRoot: spec.LocalCacheRelativeRoot,
+		cacheKey:          spec.LocalCacheKey,
+		binaryName:        "llama-cli",
+		remoteBinaryPath:  spec.RemoteBinaryPath,
+		remoteLibraryDir:  spec.RemoteLibraryDirectory,
+		libraryNameMatches: func(name string) bool {
+			return strings.Contains(name, ".so")
+		},
+	}
+}
+
+func (state *setupFlowState) ensureLocalLLMArtifacts(deployer localLLMBackendDeployer) (localLLMBuildArtifacts, error) {
+	cacheDirectory := filepath.Join(state.scriptDir, deployer.cacheRelativeRoot, deployer.cacheKey)
+	binaryPath := filepath.Join(cacheDirectory, deployer.binaryName)
 	libraryDirectory := filepath.Join(cacheDirectory, "lib")
 
 	binaryInfo, errorValue := os.Stat(binaryPath)
 	libraryEntries, libraryError := os.ReadDir(libraryDirectory)
 	if errorValue != nil || libraryError != nil || binaryInfo.Size() == 0 || len(libraryEntries) == 0 {
-		fmt.Println("  " + state.messenger.t("litert_lm_main 빌드 캐시 준비 중...", "Preparing litert_lm_main build cache..."))
-		command := exec.Command(filepath.Join(state.scriptDir, "tools", "build-litert-lm-main"))
+		fmt.Println("  " + state.messenger.t(deployer.displayName+" 빌드 캐시 준비 중...", "Preparing "+deployer.displayName+" build cache..."))
+		command := exec.Command(filepath.Join(state.scriptDir, "tools", deployer.buildToolName))
 		command.Dir = state.scriptDir
 		command.Stdout = os.Stdout
 		command.Stderr = os.Stderr
 		if buildError := command.Run(); buildError != nil {
-			return "", nil, fmt.Errorf("litert_lm_main build failed: %w", buildError)
+			return localLLMBuildArtifacts{}, fmt.Errorf("%s build failed: %w", deployer.displayName, buildError)
 		}
 		binaryInfo, errorValue = os.Stat(binaryPath)
 		libraryEntries, libraryError = os.ReadDir(libraryDirectory)
 	}
 	if errorValue != nil {
-		return "", nil, fmt.Errorf("litert_lm_main missing at %s: %w", binaryPath, errorValue)
+		return localLLMBuildArtifacts{}, fmt.Errorf("%s missing at %s: %w", deployer.displayName, binaryPath, errorValue)
 	}
 	if libraryError != nil {
-		return "", nil, fmt.Errorf("litert_lm_main libraries missing at %s: %w", libraryDirectory, libraryError)
+		return localLLMBuildArtifacts{}, fmt.Errorf("%s libraries missing at %s: %w", deployer.displayName, libraryDirectory, libraryError)
 	}
 
 	libraryPaths := []string{}
@@ -1047,35 +1089,40 @@ func (state *setupFlowState) ensureLiteRTMainArtifacts() (string, []string, erro
 		if entry.IsDir() {
 			continue
 		}
-		if !strings.HasSuffix(entry.Name(), ".so") {
+		if !deployer.libraryNameMatches(entry.Name()) {
 			continue
 		}
 		libraryPaths = append(libraryPaths, filepath.Join(libraryDirectory, entry.Name()))
 	}
-	return binaryPath, libraryPaths, nil
+	return localLLMBuildArtifacts{
+		binaryPath:        binaryPath,
+		binaryName:        deployer.binaryName,
+		libraryPaths:      libraryPaths,
+		cacheDirectoryAbs: cacheDirectory,
+	}, nil
 }
 
-func (state *setupFlowState) installLiteRTMainSSH() error {
-	binaryPath, libraryPaths, errorValue := state.ensureLiteRTMainArtifacts()
+func (state *setupFlowState) installLocalLLMBinarySSH(deployer localLLMBackendDeployer) error {
+	artifacts, errorValue := state.ensureLocalLLMArtifacts(deployer)
 	if errorValue != nil {
 		return errorValue
 	}
 
-	fmt.Print("  litert_lm_main... ")
-	state.sshClient.run("mkdir -p " + quoteShellValue(filepath.Dir(liteRTMainRemoteBinaryPath)) + " " + quoteShellValue(liteRTMainRemoteLibraryDirectory))
+	fmt.Print("  " + deployer.displayName + "... ")
+	state.sshClient.run("mkdir -p " + quoteShellValue(filepath.Dir(deployer.remoteBinaryPath)) + " " + quoteShellValue(deployer.remoteLibraryDir))
 
-	binaryHash := strings.TrimSpace(state.sshClient.run("md5sum " + quoteShellValue(liteRTMainRemoteBinaryPath) + " 2>/dev/null | awk '{print $1}'"))
-	localBinaryHash := strings.TrimSpace(runCmd("md5", "-q", binaryPath))
+	binaryHash := strings.TrimSpace(state.sshClient.run("md5sum " + quoteShellValue(deployer.remoteBinaryPath) + " 2>/dev/null | awk '{print $1}'"))
+	localBinaryHash := strings.TrimSpace(runCmd("md5", "-q", artifacts.binaryPath))
 	if binaryHash != localBinaryHash {
-		if scpError := state.sshClient.scp(binaryPath, liteRTMainRemoteBinaryPath); scpError != nil {
+		if scpError := state.sshClient.scp(artifacts.binaryPath, deployer.remoteBinaryPath); scpError != nil {
 			fmt.Println("failed")
 			return scpError
 		}
-		state.sshClient.run("chmod 0755 " + quoteShellValue(liteRTMainRemoteBinaryPath))
+		state.sshClient.run("chmod 0755 " + quoteShellValue(deployer.remoteBinaryPath))
 	}
 
-	for _, libraryPath := range libraryPaths {
-		remoteLibraryPath := filepath.Join(liteRTMainRemoteLibraryDirectory, filepath.Base(libraryPath))
+	for _, libraryPath := range artifacts.libraryPaths {
+		remoteLibraryPath := filepath.Join(deployer.remoteLibraryDir, filepath.Base(libraryPath))
 		existingHash := strings.TrimSpace(state.sshClient.run("md5sum " + quoteShellValue(remoteLibraryPath) + " 2>/dev/null | awk '{print $1}'"))
 		localHash := strings.TrimSpace(runCmd("md5", "-q", libraryPath))
 		if existingHash == localHash {
@@ -1087,9 +1134,21 @@ func (state *setupFlowState) installLiteRTMainSSH() error {
 		}
 		state.sshClient.run("chmod 0644 " + quoteShellValue(remoteLibraryPath))
 	}
-	state.sshClient.run("ldconfig -n " + quoteShellValue(liteRTMainRemoteLibraryDirectory) + " 2>/dev/null || true")
+	state.sshClient.run("ldconfig -n " + quoteShellValue(deployer.remoteLibraryDir) + " 2>/dev/null || true")
 	fmt.Println(state.messenger.t("설치 완료", "installed"))
 	return nil
+}
+
+// installLocalLLMSSH deploys whichever backend locallm.Default selects. To
+// switch the on-board runtime between LiteRT-LM and llama.cpp, change the
+// constant in internal/runtime/locallm — both deployers stay wired up here.
+func (state *setupFlowState) installLocalLLMSSH() error {
+	switch locallm.Default {
+	case locallm.BackendLlamaCpp:
+		return state.installLocalLLMBinarySSH(llamaCppDeployer())
+	default:
+		return state.installLocalLLMBinarySSH(liteRTMainDeployer())
+	}
 }
 
 func (state *setupFlowState) installDeviceBrowserRuntimeSSH() error {

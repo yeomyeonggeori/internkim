@@ -1,6 +1,10 @@
 package setup
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/anthropic-lab/internkim/internal/runtime/locallm"
+)
 
 var StepBinaries = Step{
 	Name: "binaries",
@@ -21,7 +25,7 @@ var StepBinaries = Step{
 				!sshFileExists(context, "/usr/local/bin/internkim-capabilityd") ||
 				!sshFileExists(context, "/usr/local/bin/internkim-admind") ||
 				!sshFileExists(context, "/usr/local/bin/internkim-litert-wrapper") ||
-				!sshFileExists(context, "/usr/local/bin/litert_lm_main") ||
+				!sshFileExists(context, locallm.DefaultSpec().RemoteBinaryPath) ||
 				!sshFileExists(context, "/usr/local/bin/graphiti-memoryd") {
 				return false
 			}
