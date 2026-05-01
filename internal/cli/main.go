@@ -207,6 +207,8 @@ func Main() {
 			runDoctor()
 		case "verify":
 			runVerify()
+		case "llm":
+			runLLM()
 		case "lab":
 			runLab()
 		case "sim":
@@ -234,6 +236,7 @@ func printUsage() {
 	fmt.Println("  deploy   Build and deploy web UI + board-bridge to board")
 	fmt.Println("  doctor   Check host dependencies")
 	fmt.Println("  verify   Run API, Mattermost, and browser verification")
+	fmt.Println("  llm      One-shot LLM ping (local/remote/both, no memory side effects)")
 	fmt.Println("  lab      Run Tart-based Blueclaw-aligned lab workflows")
 	fmt.Println("  sim      Deprecated alias for lab")
 }
