@@ -808,6 +808,10 @@ func (state *setupFlowState) installBinariesSSH(context *setup.Context) error {
 		return err
 	}
 
+	if err := state.installLiteRTMainSSH(); err != nil {
+		return err
+	}
+
 	if err := state.ensureAgentBrowserRuntimeSSH(); err != nil {
 		return err
 	}
@@ -1001,6 +1005,91 @@ func (state *setupFlowState) ensureDeviceBrowserRuntimeArtifact() (string, error
 		return artifactPath, nil
 	}
 	return "", fmt.Errorf("device browser runtime preparation did not create %s; run `make prepare-device-browser` before setup", artifactPath)
+}
+
+const liteRTMainVersion = "v0.10.2"
+const liteRTMainCacheKey = liteRTMainVersion + "-aarch64"
+const liteRTMainRemoteBinaryPath = "/usr/local/bin/litert_lm_main"
+const liteRTMainRemoteLibraryDirectory = "/usr/local/lib/litert_lm"
+
+func (state *setupFlowState) liteRTMainCacheDirectory() string {
+	return filepath.Join(state.scriptDir, ".dependency", "litert-lm-main", liteRTMainCacheKey)
+}
+
+func (state *setupFlowState) ensureLiteRTMainArtifacts() (string, []string, error) {
+	cacheDirectory := state.liteRTMainCacheDirectory()
+	binaryPath := filepath.Join(cacheDirectory, "litert_lm_main")
+	libraryDirectory := filepath.Join(cacheDirectory, "lib")
+
+	binaryInfo, errorValue := os.Stat(binaryPath)
+	libraryEntries, libraryError := os.ReadDir(libraryDirectory)
+	if errorValue != nil || libraryError != nil || binaryInfo.Size() == 0 || len(libraryEntries) == 0 {
+		fmt.Println("  " + state.messenger.t("litert_lm_main 빌드 캐시 준비 중...", "Preparing litert_lm_main build cache..."))
+		command := exec.Command(filepath.Join(state.scriptDir, "tools", "build-litert-lm-main"))
+		command.Dir = state.scriptDir
+		command.Stdout = os.Stdout
+		command.Stderr = os.Stderr
+		if buildError := command.Run(); buildError != nil {
+			return "", nil, fmt.Errorf("litert_lm_main build failed: %w", buildError)
+		}
+		binaryInfo, errorValue = os.Stat(binaryPath)
+		libraryEntries, libraryError = os.ReadDir(libraryDirectory)
+	}
+	if errorValue != nil {
+		return "", nil, fmt.Errorf("litert_lm_main missing at %s: %w", binaryPath, errorValue)
+	}
+	if libraryError != nil {
+		return "", nil, fmt.Errorf("litert_lm_main libraries missing at %s: %w", libraryDirectory, libraryError)
+	}
+
+	libraryPaths := []string{}
+	for _, entry := range libraryEntries {
+		if entry.IsDir() {
+			continue
+		}
+		if !strings.HasSuffix(entry.Name(), ".so") {
+			continue
+		}
+		libraryPaths = append(libraryPaths, filepath.Join(libraryDirectory, entry.Name()))
+	}
+	return binaryPath, libraryPaths, nil
+}
+
+func (state *setupFlowState) installLiteRTMainSSH() error {
+	binaryPath, libraryPaths, errorValue := state.ensureLiteRTMainArtifacts()
+	if errorValue != nil {
+		return errorValue
+	}
+
+	fmt.Print("  litert_lm_main... ")
+	state.sshClient.run("mkdir -p " + quoteShellValue(filepath.Dir(liteRTMainRemoteBinaryPath)) + " " + quoteShellValue(liteRTMainRemoteLibraryDirectory))
+
+	binaryHash := strings.TrimSpace(state.sshClient.run("md5sum " + quoteShellValue(liteRTMainRemoteBinaryPath) + " 2>/dev/null | awk '{print $1}'"))
+	localBinaryHash := strings.TrimSpace(runCmd("md5", "-q", binaryPath))
+	if binaryHash != localBinaryHash {
+		if scpError := state.sshClient.scp(binaryPath, liteRTMainRemoteBinaryPath); scpError != nil {
+			fmt.Println("failed")
+			return scpError
+		}
+		state.sshClient.run("chmod 0755 " + quoteShellValue(liteRTMainRemoteBinaryPath))
+	}
+
+	for _, libraryPath := range libraryPaths {
+		remoteLibraryPath := filepath.Join(liteRTMainRemoteLibraryDirectory, filepath.Base(libraryPath))
+		existingHash := strings.TrimSpace(state.sshClient.run("md5sum " + quoteShellValue(remoteLibraryPath) + " 2>/dev/null | awk '{print $1}'"))
+		localHash := strings.TrimSpace(runCmd("md5", "-q", libraryPath))
+		if existingHash == localHash {
+			continue
+		}
+		if scpError := state.sshClient.scp(libraryPath, remoteLibraryPath); scpError != nil {
+			fmt.Println("failed")
+			return scpError
+		}
+		state.sshClient.run("chmod 0644 " + quoteShellValue(remoteLibraryPath))
+	}
+	state.sshClient.run("ldconfig -n " + quoteShellValue(liteRTMainRemoteLibraryDirectory) + " 2>/dev/null || true")
+	fmt.Println(state.messenger.t("설치 완료", "installed"))
+	return nil
 }
 
 func (state *setupFlowState) installDeviceBrowserRuntimeSSH() error {
