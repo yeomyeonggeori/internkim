@@ -4161,6 +4161,38 @@ func buildLiteRTModelPathCallback(liteRTModelPath string) func(force bool) (stri
 		if liteRTModelPath != "" {
 			return liteRTModelPath, nil
 		}
-		return strings.TrimSpace(os.Getenv("INTERNKIM_LITERT_MODEL_PATH")), nil
+		if envPath := strings.TrimSpace(os.Getenv("INTERNKIM_LITERT_MODEL_PATH")); envPath != "" {
+			return envPath, nil
+		}
+		return ensureCachedLiteRTModel()
 	}
+}
+
+func ensureCachedLiteRTModel() (string, error) {
+	repositoryRoot := repositoryRootForDependencyCache()
+	if repositoryRoot == "" {
+		return "", nil
+	}
+	cacheDirectory := filepath.Join(repositoryRoot, ".dependency", "litert-models")
+	cachedModelPath := filepath.Join(cacheDirectory, blueclaw.LiteRTModelFilename)
+	if fileInfo, errorValue := os.Stat(cachedModelPath); errorValue == nil && fileInfo.Size() > 0 {
+		return cachedModelPath, nil
+	}
+	if errorValue := os.MkdirAll(cacheDirectory, 0o755); errorValue != nil {
+		return "", errorValue
+	}
+	temporaryPath := cachedModelPath + ".tmp"
+	_ = os.Remove(temporaryPath)
+	fmt.Printf("  %s\n", "downloading LiteRT model into "+cachedModelPath)
+	command := exec.Command("curl", "-fL", "--retry", "3", "--progress-bar", "-o", temporaryPath, blueclaw.LiteRTModelSourceURL)
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+	if errorValue := command.Run(); errorValue != nil {
+		_ = os.Remove(temporaryPath)
+		return "", errorValue
+	}
+	if errorValue := os.Rename(temporaryPath, cachedModelPath); errorValue != nil {
+		return "", errorValue
+	}
+	return cachedModelPath, nil
 }

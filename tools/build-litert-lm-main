@@ -6,8 +6,8 @@ repositoryRoot="$(cd "$scriptDirectory/.." && pwd)"
 
 litertVersion="${LITERT_LM_VERSION:-v0.10.2}"
 buildHost="${LITERT_LM_BUILD_HOST:-}"
-buildUser="${LITERT_LM_BUILD_USER:-admin}"
-buildPassword="${LITERT_LM_BUILD_PASSWORD:-}"
+buildUser="${LITERT_LM_BUILD_USER:-internkim}"
+buildPassword="${LITERT_LM_BUILD_PASSWORD:-blueclaw}"
 remoteWorkRoot="${LITERT_LM_REMOTE_WORK_ROOT:-/var/cache/internkim/litert-lm-build}"
 
 usage() {
@@ -42,6 +42,8 @@ done
 cacheKey="${litertVersion}-aarch64"
 cacheDirectory="$repositoryRoot/.dependency/litert-lm-main/$cacheKey"
 cachedBinaryPath="$cacheDirectory/litert_lm_main"
+sourceCacheDirectory="$repositoryRoot/.dependency/litert-lm-main/sources"
+sourceTarballPath="$sourceCacheDirectory/litert-lm-$litertVersion.tar.gz"
 
 if [ -x "$cachedBinaryPath" ] && [ -s "$cachedBinaryPath" ]; then
   echo "$cachedBinaryPath"
@@ -49,7 +51,7 @@ if [ -x "$cachedBinaryPath" ] && [ -s "$cachedBinaryPath" ]; then
 fi
 
 if [ -z "$buildHost" ]; then
-  buildHost="$(tr -d '\r\n' < "$HOME/.internkim/state/board_ip" 2>/dev/null || true)"
+  buildHost="$(tr -d '\r\n' < "$HOME/.internkim/board_ip" 2>/dev/null || true)"
 fi
 if [ -z "$buildHost" ]; then
   echo "No build host. Pass --host <ip> or set LITERT_LM_BUILD_HOST." >&2
@@ -58,6 +60,15 @@ fi
 
 echo "litert-lm build target: $litertVersion on $buildUser@$buildHost"
 echo "cache miss: $cachedBinaryPath"
+
+mkdir -p "$sourceCacheDirectory"
+if [ ! -s "$sourceTarballPath" ]; then
+  echo "downloading source tarball into $sourceTarballPath"
+  curl -fsSL "https://github.com/google-ai-edge/litert-lm/archive/refs/tags/$litertVersion.tar.gz" -o "$sourceTarballPath.tmp"
+  mv "$sourceTarballPath.tmp" "$sourceTarballPath"
+else
+  echo "reusing cached source tarball at $sourceTarballPath"
+fi
 
 sshpassBin="$repositoryRoot/bin/sshpass"
 sshCommand=(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$buildUser@$buildHost")
@@ -84,12 +95,20 @@ runSudo mkdir -p "$remoteWorkRoot"
 runSudo chown "$buildUser":"$buildUser" "$remoteWorkRoot"
 cd "$remoteWorkRoot"
 
-if [ ! -d "litert-lm-${litertVersion}" ]; then
-  echo "fetching litert-lm $litertVersion source"
-  curl -fsSL "https://github.com/google-ai-edge/litert-lm/archive/refs/tags/$litertVersion.tar.gz" -o "litert-lm-${litertVersion}.tar.gz"
-  tar -xzf "litert-lm-${litertVersion}.tar.gz"
+tarballPath="$remoteWorkRoot/litert-lm-$litertVersion.tar.gz"
+if [ ! -s "\$tarballPath" ]; then
+  echo "source tarball missing at \$tarballPath" >&2
+  exit 1
 fi
-cd "litert-lm-${litertVersion}"
+sourceDirectoryName="\$(tar -tzf "\$tarballPath" | head -1 | tr -d '/')"
+if [ -z "\$sourceDirectoryName" ]; then
+  echo "could not determine source directory inside \$tarballPath" >&2
+  exit 1
+fi
+if [ ! -d "\$sourceDirectoryName" ]; then
+  tar -xzf "\$tarballPath"
+fi
+cd "\$sourceDirectoryName"
 
 echo "installing build dependencies (apt)"
 runSudo apt-get update -y
@@ -143,12 +162,33 @@ fi
 REMOTE
 )
 
+echo "ensuring remote work root exists"
+"${sshCommand[@]}" "set -e
+sudoPrefix=\"\"
+if [ -n \"${buildPassword}\" ]; then
+  sudoPrefix=\"echo '$buildPassword' | sudo -S -p ''\"
+elif sudo -n true 2>/dev/null; then
+  sudoPrefix=\"sudo\"
+else
+  echo 'sudo password required' >&2; exit 1
+fi
+eval \"\$sudoPrefix mkdir -p $remoteWorkRoot\"
+eval \"\$sudoPrefix chown $buildUser:$buildUser $remoteWorkRoot\""
+
+echo "uploading source tarball to remote"
+"${scpCommand[@]}" "$sourceTarballPath" "$buildUser@$buildHost:$remoteWorkRoot/litert-lm-$litertVersion.tar.gz"
+
 echo "running remote build (this can take 30+ minutes on Jetson Orin Nano)"
 "${sshCommand[@]}" "$remoteScript"
 
 mkdir -p "$cacheDirectory"
-echo "fetching binary into cache"
-remoteBinaryPath="$remoteWorkRoot/litert-lm-${litertVersion}/cmake/build/runtime/engine/litert_lm_main"
+echo "resolving remote binary path"
+remoteBinaryPath="$("${sshCommand[@]}" "ls $remoteWorkRoot/litert-lm-*/cmake/build/runtime/engine/litert_lm_main" 2>/dev/null | head -1)"
+if [ -z "$remoteBinaryPath" ]; then
+  echo "remote build did not produce litert_lm_main under $remoteWorkRoot" >&2
+  exit 1
+fi
+echo "fetching binary into cache: $remoteBinaryPath"
 "${scpCommand[@]}" "$buildUser@$buildHost:$remoteBinaryPath" "$cachedBinaryPath"
 chmod 0755 "$cachedBinaryPath"
 
