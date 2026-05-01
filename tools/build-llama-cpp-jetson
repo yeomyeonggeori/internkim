@@ -125,11 +125,14 @@ if [ ! -x build/bin/llama-cli ]; then
   exit 1
 fi
 
-cd build/bin
-tar czhf "$remoteWorkRoot/llamacpp-bundle.tar.gz" \\
-  llama-cli \\
-  libggml-base.so.0 libggml-cpu.so.0 libggml-cuda.so.0 libggml.so.0 \\
-  libllama.so.0 libllama-common.so.0 libmtmd.so.0
+stagingDirectory="$remoteWorkRoot/staging"
+rm -rf "\$stagingDirectory"
+mkdir -p "\$stagingDirectory"
+cp build/bin/llama-cli "\$stagingDirectory/"
+cp build/bin/libggml-base.so.0 build/bin/libggml-cpu.so.0 build/bin/libggml-cuda.so.0 build/bin/libggml.so.0 \\
+   build/bin/libllama.so.0 build/bin/libllama-common.so.0 build/bin/libmtmd.so.0 "\$stagingDirectory/"
+cp examples/json_schema_to_grammar.py "\$stagingDirectory/"
+tar czhf "$remoteWorkRoot/llamacpp-bundle.tar.gz" -C "\$stagingDirectory" .
 echo "BUNDLE=$remoteWorkRoot/llamacpp-bundle.tar.gz"
 REMOTE
 )
