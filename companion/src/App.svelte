@@ -270,49 +270,35 @@
 				{/each}
 			</div>
 			<div class="backend-config">
-				<h3>Ollama</h3>
-				<label>
-					<span>Base URL</span>
-					<input bind:value={settings.ollama.baseURL} />
-				</label>
-				<label>
-					<span>Model</span>
+				{#if settings.localBackendOrder.includes('ollama')}
+					<h3>Ollama model</h3>
 					<input list="ollama-models" bind:value={settings.ollama.model} placeholder="gemma3:1b" />
 					<datalist id="ollama-models">
 						{#each ollamaModelOptions as modelName}
 							<option value={modelName}></option>
 						{/each}
 					</datalist>
-				</label>
-				<h3>llama.cpp</h3>
-				<label>
-					<span>Base URL</span>
-					<input bind:value={settings.llamacpp.baseURL} />
-				</label>
-				<label>
-					<span>Model</span>
+				{/if}
+				{#if settings.localBackendOrder.includes('llamacpp')}
+					<h3>llama.cpp model</h3>
 					<input list="llamacpp-models" bind:value={settings.llamacpp.model} placeholder="default" />
 					<datalist id="llamacpp-models">
 						{#each llamaCppModelOptions as modelName}
 							<option value={modelName}></option>
 						{/each}
 					</datalist>
-				</label>
-				<h3>MLX</h3>
-				<label>
-					<span>Base URL</span>
-					<input bind:value={settings.mlx.baseURL} />
-				</label>
-				<label>
-					<span>Model</span>
+				{/if}
+				{#if settings.localBackendOrder.includes('mlx')}
+					<h3>MLX model</h3>
 					<input list="mlx-models" bind:value={settings.mlx.model} placeholder="mlx-community/..." />
 					<datalist id="mlx-models">
 						{#each mlxModelOptions as modelName}
 							<option value={modelName}></option>
 						{/each}
 					</datalist>
-				</label>
+				{/if}
 			</div>
+			<p class="subtle">Endpoints default to localhost. Edit <code>companion.json</code> for custom URLs.</p>
 		{/if}
 		<div class="actions">
 			<button disabled={isSavingSettings} onclick={persistSettings}>

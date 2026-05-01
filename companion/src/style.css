@@ -69,6 +69,18 @@ input {
 	color: #375f94;
 }
 
+.settings-panel .backend-config input {
+	width: 100%;
+}
+
+.settings-panel code {
+	padding: 1px 4px;
+	border-radius: 3px;
+	background: #eef2f8;
+	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+	font-size: 12px;
+}
+
 .status-panel {
 	display: flex;
 	align-items: flex-start;
