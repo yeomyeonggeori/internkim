@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+scriptDirectory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repositoryRoot="$(cd "$scriptDirectory/.." && pwd)"
+
+litertVersion="${LITERT_LM_VERSION:-v0.10.2}"
+buildHost="${LITERT_LM_BUILD_HOST:-}"
+buildUser="${LITERT_LM_BUILD_USER:-admin}"
+buildPassword="${LITERT_LM_BUILD_PASSWORD:-}"
+remoteWorkRoot="${LITERT_LM_REMOTE_WORK_ROOT:-/var/cache/internkim/litert-lm-build}"
+
+usage() {
+  cat <<USAGE
+Usage:
+  tools/build-litert-lm-main [--version vX.Y.Z] [--host <ip>] [--user <name>] [--password <pass>]
+
+Builds the litert_lm_main C++ binary on a Linux aarch64 build host (default: the
+provisioned board) and caches the result in .dependency/litert-lm-main/<key>/.
+Cache hits skip the build entirely.
+
+Environment overrides:
+  LITERT_LM_VERSION        Source tag to build (default: v0.10.2)
+  LITERT_LM_BUILD_HOST     SSH host (default: cached board IP)
+  LITERT_LM_BUILD_USER     SSH user (default: admin)
+  LITERT_LM_BUILD_PASSWORD SSH password (omit for key auth)
+  LITERT_LM_REMOTE_WORK_ROOT Remote build directory (default: /var/cache/internkim/litert-lm-build)
+USAGE
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --version) litertVersion="$2"; shift 2 ;;
+    --host) buildHost="$2"; shift 2 ;;
+    --user) buildUser="$2"; shift 2 ;;
+    --password) buildPassword="$2"; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "unknown argument: $1" >&2; usage >&2; exit 1 ;;
+  esac
+done
+
+cacheKey="${litertVersion}-aarch64"
+cacheDirectory="$repositoryRoot/.dependency/litert-lm-main/$cacheKey"
+cachedBinaryPath="$cacheDirectory/litert_lm_main"
+
+if [ -x "$cachedBinaryPath" ] && [ -s "$cachedBinaryPath" ]; then
+  echo "$cachedBinaryPath"
+  exit 0
+fi
+
+if [ -z "$buildHost" ]; then
+  buildHost="$(tr -d '\r\n' < "$HOME/.internkim/state/board_ip" 2>/dev/null || true)"
+fi
+if [ -z "$buildHost" ]; then
+  echo "No build host. Pass --host <ip> or set LITERT_LM_BUILD_HOST." >&2
+  exit 1
+fi
+
+echo "litert-lm build target: $litertVersion on $buildUser@$buildHost"
+echo "cache miss: $cachedBinaryPath"
+
+sshpassBin="$repositoryRoot/bin/sshpass"
+sshCommand=(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$buildUser@$buildHost")
+scpCommand=(scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+if [ -n "$buildPassword" ] && [ -x "$sshpassBin" ]; then
+  sshCommand=(env "SSHPASS=$buildPassword" "$sshpassBin" -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$buildUser@$buildHost")
+  scpCommand=(env "SSHPASS=$buildPassword" "$sshpassBin" -e scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+fi
+
+remoteScript=$(cat <<REMOTE
+set -euo pipefail
+sudoPrefix=""
+if [ -n "${buildPassword:-}" ]; then
+  sudoPrefix="echo '$buildPassword' | sudo -S -p ''"
+elif sudo -n true 2>/dev/null; then
+  sudoPrefix="sudo"
+else
+  echo "sudo requires a password but none was provided. Pass --password or configure NOPASSWD on the build host." >&2
+  exit 1
+fi
+runSudo() { eval "\$sudoPrefix \$*"; }
+
+runSudo mkdir -p "$remoteWorkRoot"
+runSudo chown "$buildUser":"$buildUser" "$remoteWorkRoot"
+cd "$remoteWorkRoot"
+
+if [ ! -d "litert-lm-${litertVersion}" ]; then
+  echo "fetching litert-lm $litertVersion source"
+  curl -fsSL "https://github.com/google-ai-edge/litert-lm/archive/refs/tags/$litertVersion.tar.gz" -o "litert-lm-${litertVersion}.tar.gz"
+  tar -xzf "litert-lm-${litertVersion}.tar.gz"
+fi
+cd "litert-lm-${litertVersion}"
+
+echo "installing build dependencies (apt)"
+runSudo apt-get update -y
+runSudo apt-get install -y --no-install-recommends \\
+  build-essential cmake ninja-build pkg-config \\
+  libssl-dev libcurl4-openssl-dev zlib1g-dev \\
+  python3 python3-venv default-jdk curl ca-certificates
+
+cmakeMajor="\$(cmake --version | awk 'NR==1 {split(\$3, parts, "."); print parts[1] "." parts[2]}')"
+if awk -v have="\$cmakeMajor" 'BEGIN { exit (have+0 >= 3.25) ? 0 : 1 }'; then
+  :
+else
+  echo "system cmake \$cmakeMajor too old; installing kitware repo"
+  curl -fsSL https://apt.kitware.com/keys/kitware-archive-latest.asc | runSudo gpg --dearmor -o /usr/share/keyrings/kitware-archive-keyring.gpg
+  source /etc/lsb-release
+  echo "deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ \$DISTRIB_CODENAME main" | runSudo tee /etc/apt/sources.list.d/kitware.list >/dev/null
+  runSudo apt-get update -y
+  runSudo apt-get install -y cmake
+fi
+
+if ! command -v rustc >/dev/null 2>&1; then
+  curl -fsSL https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+fi
+if [ -f "\$HOME/.cargo/env" ]; then
+  source "\$HOME/.cargo/env"
+fi
+
+if ! command -v g++-13 >/dev/null 2>&1; then
+  echo "g++-13 not present; falling back to system g++"
+fi
+export CXX="\${CXX:-g++}"
+export CC="\${CC:-gcc}"
+
+cmake -B cmake/build -G "Unix Makefiles" \\
+  -DCMAKE_BUILD_TYPE=Release \\
+  -DCMAKE_CXX_STANDARD=20
+
+cpuCount="\$(nproc 2>/dev/null || echo 2)"
+parallelJobs="\$cpuCount"
+if [ "\$parallelJobs" -gt 4 ]; then
+  parallelJobs=4
+fi
+
+cmake --build cmake/build -t litert_lm_main -j"\$parallelJobs"
+
+if [ ! -s "cmake/build/runtime/engine/litert_lm_main" ]; then
+  echo "build did not produce litert_lm_main" >&2
+  ls cmake/build >&2 || true
+  exit 1
+fi
+REMOTE
+)
+
+echo "running remote build (this can take 30+ minutes on Jetson Orin Nano)"
+"${sshCommand[@]}" "$remoteScript"
+
+mkdir -p "$cacheDirectory"
+echo "fetching binary into cache"
+remoteBinaryPath="$remoteWorkRoot/litert-lm-${litertVersion}/cmake/build/runtime/engine/litert_lm_main"
+"${scpCommand[@]}" "$buildUser@$buildHost:$remoteBinaryPath" "$cachedBinaryPath"
+chmod 0755 "$cachedBinaryPath"
+
+echo "$cachedBinaryPath"
