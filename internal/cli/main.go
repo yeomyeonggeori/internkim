@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -2042,50 +2043,39 @@ func detectBoardForSSHCredentials(sshpassBin string, stateDir string, sshUsernam
 		}
 	}
 
-	// 2. Subnet SSH scan
-	subnet := loadState(stateDir, "subnet")
-	if subnet == "" {
-		// Try to detect from default route
-		if out, err := exec.Command("sh", "-c", "route get default 2>/dev/null | awk '/gateway/{print $2}'").Output(); err == nil {
-			gw := strings.TrimSpace(string(out))
-			if parts := strings.Split(gw, "."); len(parts) == 4 {
-				subnet = strings.Join(parts[:3], ".")
-			}
-		}
-	}
-	if subnet != "" {
+	// 2. Subnet SSH scan across every local IPv4 subnet
+	subnets := localScanSubnets(stateDir)
+	if len(subnets) > 0 {
 		type result struct {
 			ip  string
 			ssh bool
 		}
-		found := make(chan result, 254)
+		found := make(chan result, 256*len(subnets))
 		var wg sync.WaitGroup
-		for i := 2; i <= 254; i++ {
-			ip := fmt.Sprintf("%s.%d", subnet, i)
-			// Skip already-tried candidates
-			skip := false
-			for _, c := range candidates {
-				if c == ip {
-					skip = true
-					break
-				}
-			}
-			if skip {
-				continue
-			}
-			wg.Add(1)
-			go func(ip string) {
-				defer wg.Done()
-				conn, err := net.DialTimeout("tcp", ip+":22", 2*time.Second)
-				if err == nil {
-					conn.Close()
-					if sshCheckHostnameForCredentials(sshpassBin, ip, sshUsername, sshPassword) {
-						found <- result{ip, true}
-					}
-				}
-			}(ip)
+		alreadyTried := make(map[string]bool, len(candidates))
+		for _, candidate := range candidates {
+			alreadyTried[candidate] = true
 		}
-		// Wait with timeout
+		for _, subnet := range subnets {
+			for i := 2; i <= 254; i++ {
+				ip := fmt.Sprintf("%s.%d", subnet, i)
+				if alreadyTried[ip] {
+					continue
+				}
+				alreadyTried[ip] = true
+				wg.Add(1)
+				go func(ip string) {
+					defer wg.Done()
+					conn, err := net.DialTimeout("tcp", ip+":22", 2*time.Second)
+					if err == nil {
+						conn.Close()
+						if sshCheckHostnameForCredentials(sshpassBin, ip, sshUsername, sshPassword) {
+							found <- result{ip, true}
+						}
+					}
+				}(ip)
+			}
+		}
 		done := make(chan struct{})
 		go func() { wg.Wait(); close(done) }()
 		select {
@@ -2093,7 +2083,7 @@ func detectBoardForSSHCredentials(sshpassBin string, stateDir string, sshUsernam
 			saveState(stateDir, "board_ip", r.ip)
 			return r.ip, r.ssh
 		case <-done:
-		case <-time.After(15 * time.Second):
+		case <-time.After(20 * time.Second):
 		}
 	}
 
@@ -2547,6 +2537,48 @@ func detectSSID(bin string) string {
 		return ""
 	}
 	return s
+}
+
+func localScanSubnets(stateDirectory string) []string {
+	subnetSet := make(map[string]bool)
+	if storedSubnet := strings.TrimSpace(loadState(stateDirectory, "subnet")); storedSubnet != "" {
+		subnetSet[storedSubnet] = true
+	}
+	interfaces, errorValue := net.Interfaces()
+	if errorValue == nil {
+		for _, networkInterface := range interfaces {
+			if networkInterface.Flags&net.FlagUp == 0 || networkInterface.Flags&net.FlagLoopback != 0 {
+				continue
+			}
+			addresses, addressError := networkInterface.Addrs()
+			if addressError != nil {
+				continue
+			}
+			for _, address := range addresses {
+				ipNet, ok := address.(*net.IPNet)
+				if !ok {
+					continue
+				}
+				ipv4 := ipNet.IP.To4()
+				if ipv4 == nil || ipv4.IsLoopback() || ipv4.IsLinkLocalUnicast() {
+					continue
+				}
+				subnetSet[fmt.Sprintf("%d.%d.%d", ipv4[0], ipv4[1], ipv4[2])] = true
+			}
+		}
+	}
+	if output, errorValue := exec.Command("sh", "-c", "route get default 2>/dev/null | awk '/gateway/{print $2}'").Output(); errorValue == nil {
+		gateway := strings.TrimSpace(string(output))
+		if parts := strings.Split(gateway, "."); len(parts) == 4 {
+			subnetSet[strings.Join(parts[:3], ".")] = true
+		}
+	}
+	subnets := make([]string, 0, len(subnetSet))
+	for subnet := range subnetSet {
+		subnets = append(subnets, subnet)
+	}
+	sort.Strings(subnets)
+	return subnets
 }
 
 func detectCurrentWiFiHidden() bool {
