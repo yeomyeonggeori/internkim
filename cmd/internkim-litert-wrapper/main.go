@@ -15,6 +15,8 @@ import (
 
 const liteRTMainBinaryPath = "/usr/local/bin/litert_lm_main"
 const liteRTMainLibraryDirectory = "/usr/local/lib/litert_lm"
+const llamaCppBinaryPath = "/usr/local/bin/llama-cli"
+const llamaCppLibraryDirectory = "/usr/local/lib/llama-cpp"
 
 type message struct {
 	Role    string `json:"role"`
@@ -74,11 +76,153 @@ func run() error {
 	return json.NewEncoder(os.Stdout).Encode(responseDocument{Content: content})
 }
 
+// runLiteRT is the local-LLM entry point invoked by capabilityd. The actual
+// runtime is decided by which on-board backend is installed:
+//   - llama.cpp (preferred when /usr/local/bin/llama-cli is present)
+//   - LiteRT-LM C++ binary (litert_lm_main) when its libraries are deployed
+//   - LiteRT-LM Python CLI as the final fallback
+//
+// Setup deploys exactly one of these, so the picks below mirror what
+// internal/cli/setup_flow.go installed.
 func runLiteRT(request requestDocument) (string, error) {
+	if llamaCppAvailable() {
+		return runLlamaCli(request)
+	}
 	if liteRTMainAvailable() {
 		return runLiteRTMain(request)
 	}
 	return runLiteRTPython(request)
+}
+
+func llamaCppAvailable() bool {
+	binaryInfo, errorValue := os.Stat(llamaCppBinaryPath)
+	if errorValue != nil || binaryInfo.IsDir() {
+		return false
+	}
+	libraryInfo, errorValue := os.Stat(llamaCppLibraryDirectory)
+	if errorValue != nil || !libraryInfo.IsDir() {
+		return false
+	}
+	return true
+}
+
+func runLlamaCli(request requestDocument) (string, error) {
+	promptFile, errorValue := os.CreateTemp("", "llamacpp-prompt-*.txt")
+	if errorValue != nil {
+		return "", errorValue
+	}
+	defer os.Remove(promptFile.Name())
+	if _, errorValue := promptFile.WriteString(renderPrompt(request)); errorValue != nil {
+		_ = promptFile.Close()
+		return "", errorValue
+	}
+	if errorValue := promptFile.Close(); errorValue != nil {
+		return "", errorValue
+	}
+
+	arguments := []string{
+		"-m", strings.TrimSpace(request.ModelPath),
+		"-f", promptFile.Name(),
+		"-n", "256",
+		"-st",
+		"-ngl", llamaCppGpuLayers(request),
+	}
+	if grammarPath, hadSchema, errorValue := writeStructuredOutputGrammarFile(request); errorValue != nil {
+		return "", errorValue
+	} else if hadSchema {
+		defer os.Remove(grammarPath)
+		arguments = append(arguments, "--grammar-file", grammarPath)
+	}
+
+	command := exec.Command(llamaCppBinaryPath, arguments...)
+	command.Env = append(os.Environ(), "LD_LIBRARY_PATH="+llamaCppLibraryDirectory+pathSeparator()+os.Getenv("LD_LIBRARY_PATH"))
+	command.Stdin = bytes.NewReader(nil)
+
+	timer := time.AfterFunc(10*time.Minute, func() {
+		if command.Process != nil {
+			_ = command.Process.Kill()
+		}
+	})
+	defer timer.Stop()
+
+	stdoutBuffer := &bytes.Buffer{}
+	stderrBuffer := &bytes.Buffer{}
+	command.Stdout = stdoutBuffer
+	command.Stderr = stderrBuffer
+	if runError := command.Run(); runError != nil {
+		return "", fmt.Errorf("llama-cli failed: %w: %s", runError, strings.TrimSpace(stderrBuffer.String()))
+	}
+
+	generated := extractLlamaCliGenerated(stdoutBuffer.String())
+	if generated == "" {
+		return "", fmt.Errorf("llama-cli produced no generated text: %s", strings.TrimSpace(stdoutBuffer.String()))
+	}
+	if request.outputMode() == "text" {
+		return extractTextContent(generated)
+	}
+	return extractJSONContent(generated)
+}
+
+func llamaCppGpuLayers(request requestDocument) string {
+	backend := strings.ToLower(strings.TrimSpace(request.Backend))
+	if backend == "cpu" {
+		return "0"
+	}
+	return "99"
+}
+
+// writeStructuredOutputGrammarFile converts a JSON schema request into a
+// GBNF grammar file llama-cli can enforce via --grammar-file. The
+// llama.cpp --json-schema flag triggers a sampler-init crash on commit
+// 05e141a (upstream issue #22396), so we route via grammar-file instead.
+//
+// TODO: port json_schema_to_grammar.py logic here. For now this returns
+// hadSchema=false for every request, leaving structured output to the
+// prompt-only fallback used by LiteRT-LM. Replace the body with a real
+// converter once the wrapper migration starts.
+func writeStructuredOutputGrammarFile(request requestDocument) (string, bool, error) {
+	_ = request
+	return "", false, nil
+}
+
+// extractLlamaCliGenerated peels llama-cli's banner, prompt echo, spinner,
+// and trailing perf summary off stdout, returning just the model's reply.
+// Format observed on commit 05e141a:
+//
+//   build      : ...
+//   model      : ...
+//   ...
+//   > <user prompt>
+//
+//   |-\|/-\|/-\... <generated text>
+//
+//   [ Prompt: X t/s | Generation: Y t/s ]
+//
+//   Exiting...
+func extractLlamaCliGenerated(output string) string {
+	endMarker := "[ Prompt:"
+	if endIndex := strings.Index(output, endMarker); endIndex >= 0 {
+		output = output[:endIndex]
+	}
+	if cutAt := strings.LastIndex(output, "\n> "); cutAt >= 0 {
+		if newlineAfterPrompt := strings.Index(output[cutAt+1:], "\n"); newlineAfterPrompt >= 0 {
+			output = output[cutAt+1+newlineAfterPrompt+1:]
+		}
+	}
+	output = stripLlamaCliSpinner(output)
+	return strings.TrimSpace(output)
+}
+
+func stripLlamaCliSpinner(output string) string {
+	const spinnerCharacters = "|-\\/"
+	trimmed := strings.TrimLeft(output, spinnerCharacters+" \t\n\r")
+	for {
+		next := strings.TrimLeft(trimmed, spinnerCharacters+" \t\n\r")
+		if next == trimmed {
+			return trimmed
+		}
+		trimmed = next
+	}
 }
 
 func liteRTMainAvailable() bool {
