@@ -1139,9 +1139,6 @@ func (state *setupFlowState) installLocalLLMBinarySSH(deployer localLLMBackendDe
 	return nil
 }
 
-// installLocalLLMSSH deploys whichever backend locallm.Default selects. To
-// switch the on-board runtime between LiteRT-LM and llama.cpp, change the
-// constant in internal/runtime/locallm — both deployers stay wired up here.
 func (state *setupFlowState) installLocalLLMSSH() error {
 	switch locallm.Default {
 	case locallm.BackendLlamaCpp:

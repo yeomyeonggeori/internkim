@@ -10,10 +10,6 @@ import (
 	"github.com/anthropic-lab/internkim/internal/runtime/locallm"
 )
 
-// StepLiteRT provisions the on-board local LLM model. The step name is
-// retained for backward compatibility with external references; whether it
-// installs LiteRT-LM or llama.cpp on the device is decided by
-// locallm.Default — change that constant to switch backends.
 var StepLiteRT = Step{
 	Name: "litert",
 	Deps: []string{"binaries"},

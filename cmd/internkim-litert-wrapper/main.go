@@ -76,14 +76,6 @@ func run() error {
 	return json.NewEncoder(os.Stdout).Encode(responseDocument{Content: content})
 }
 
-// runLiteRT is the local-LLM entry point invoked by capabilityd. The actual
-// runtime is decided by which on-board backend is installed:
-//   - llama.cpp (preferred when /usr/local/bin/llama-cli is present)
-//   - LiteRT-LM C++ binary (litert_lm_main) when its libraries are deployed
-//   - LiteRT-LM Python CLI as the final fallback
-//
-// Setup deploys exactly one of these, so the picks below mirror what
-// internal/cli/setup_flow.go installed.
 func runLiteRT(request requestDocument) (string, error) {
 	if llamaCppAvailable() {
 		return runLlamaCli(request)
@@ -171,34 +163,13 @@ func llamaCppGpuLayers(request requestDocument) string {
 	return "99"
 }
 
-// writeStructuredOutputGrammarFile converts a JSON schema request into a
-// GBNF grammar file llama-cli can enforce via --grammar-file. The
-// llama.cpp --json-schema flag triggers a sampler-init crash on commit
-// 05e141a (upstream issue #22396), so we route via grammar-file instead.
-//
-// TODO: port json_schema_to_grammar.py logic here. For now this returns
-// hadSchema=false for every request, leaving structured output to the
-// prompt-only fallback used by LiteRT-LM. Replace the body with a real
-// converter once the wrapper migration starts.
+// llama.cpp --json-schema is broken upstream (issue #22396); when wired up,
+// convert the request schema to GBNF and pass via --grammar-file instead.
 func writeStructuredOutputGrammarFile(request requestDocument) (string, bool, error) {
 	_ = request
 	return "", false, nil
 }
 
-// extractLlamaCliGenerated peels llama-cli's banner, prompt echo, spinner,
-// and trailing perf summary off stdout, returning just the model's reply.
-// Format observed on commit 05e141a:
-//
-//   build      : ...
-//   model      : ...
-//   ...
-//   > <user prompt>
-//
-//   |-\|/-\|/-\... <generated text>
-//
-//   [ Prompt: X t/s | Generation: Y t/s ]
-//
-//   Exiting...
 func extractLlamaCliGenerated(output string) string {
 	endMarker := "[ Prompt:"
 	if endIndex := strings.Index(output, endMarker); endIndex >= 0 {

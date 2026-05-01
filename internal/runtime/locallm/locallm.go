@@ -1,12 +1,5 @@
 package locallm
 
-// Backend names the on-board local LLM runtime that
-//   - the setup binaries step deploys, and
-//   - internkim-litert-wrapper invokes.
-//
-// To switch which backend the device runs, change Default to one of the
-// constants below. Both implementations remain in the codebase so they can
-// be re-selected later without re-wiring callers.
 type Backend string
 
 const (
@@ -16,9 +9,6 @@ const (
 
 const Default = BackendLiteRT
 
-// Spec describes everything callers need to know to provision and invoke a
-// backend on the board. Field names mirror what the original LiteRT wiring
-// exposed via blueclaw_contract.go, so call sites read consistently.
 type Spec struct {
 	Name                       string
 	RemoteBinaryPath           string
