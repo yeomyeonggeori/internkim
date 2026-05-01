@@ -1,7 +1,6 @@
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
@@ -83,9 +82,6 @@ impl Default for CompanionSettings {
         }
     }
 }
-
-#[derive(Default)]
-pub struct SettingsState(pub Mutex<Option<PathBuf>>);
 
 #[tauri::command]
 pub fn get_settings(app: AppHandle) -> Result<CompanionSettings, String> {
