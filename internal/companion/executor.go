@@ -13,9 +13,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
-	"github.com/anthropic-lab/internkim/internal/capabilities"
-	"github.com/anthropic-lab/internkim/internal/llmbackend"
+	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
+	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/internal/llmbackend"
 )
 
 type PromptHandler interface {
@@ -153,7 +153,7 @@ func (executor Executor) executeStructuredLLM(ctx context.Context, request capab
 			"provider":        "companion",
 			"model":           "mock-local",
 			"selectedBackend": capabilities.LLMBackendCompanionLocal,
-			"constraintMode":  "prompt_validation",
+			"constraintMode":  llmbackend.ConstraintModeOpenAIJSONSchema,
 			"content":         MockStructuredContent(request.Input),
 		})
 	}

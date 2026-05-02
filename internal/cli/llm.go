@@ -6,40 +6,44 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
 func runLLM() {
 	flagSet := flag.NewFlagSet("llm", flag.ContinueOnError)
-	mode := flagSet.String("mode", "", "Execution mode: local, remote, or both (overrides --remote)")
+	mode := flagSet.String("mode", "", "Execution mode: device, remote, or both (overrides --remote)")
 	useRemote := flagSet.Bool("remote", false, "Use OpenRouter instead of the on-board LiteRT model")
 	model := flagSet.String("model", "", "Override model name")
-	backend := flagSet.String("backend", "", "Force LiteRT backend: gpu or cpu (local mode only)")
+	provider := flagSet.String("provider", "", "Provider name: openrouter, litert, llamacpp, ollama, companion")
+	accelerator := flagSet.String("accelerator", "", "Device accelerator: gpu or cpu")
 	host := flagSet.String("host", "", "Board host")
 	user := flagSet.String("user", boardUser, "SSH user")
 	password := flagSet.String("password", "", "SSH password")
 	flagArguments, positionalArguments := splitFlagsAndPositionals(os.Args[2:], map[string]bool{
 		"remote": true,
 	}, map[string]bool{
-		"mode":     true,
-		"model":    true,
-		"backend":  true,
-		"host":     true,
-		"user":     true,
-		"password": true,
+		"mode":        true,
+		"model":       true,
+		"provider":    true,
+		"accelerator": true,
+		"host":        true,
+		"user":        true,
+		"password":    true,
 	})
 	if errorValue := flagSet.Parse(flagArguments); errorValue != nil {
 		fatal(errorValue.Error())
 	}
 	prompt := strings.TrimSpace(strings.Join(positionalArguments, " "))
 	if prompt == "" {
-		fatal("usage: internkim llm \"<prompt>\" [--remote | --mode local|remote|both] [--model NAME] [--host IP --user USER --password PASS]")
+		fatal("usage: internkim llm \"<prompt>\" [--remote | --mode device|remote|both] [--model NAME] [--host IP --user USER --password PASS]")
 	}
 	resolvedMode := strings.TrimSpace(*mode)
 	if resolvedMode == "" {
 		if *useRemote {
 			resolvedMode = "remote"
 		} else {
-			resolvedMode = "local"
+			resolvedMode = "device"
 		}
 	}
 
@@ -60,10 +64,10 @@ func runLLM() {
 
 	modes := []string{resolvedMode}
 	if strings.EqualFold(resolvedMode, "both") {
-		modes = []string{"local", "remote"}
+		modes = []string{"device", "remote"}
 	}
 	for _, requestedMode := range modes {
-		if errorValue := runLLMRequest(target, requestedMode, *model, *backend, prompt); errorValue != nil {
+		if errorValue := runLLMRequest(target, requestedMode, *model, *provider, *accelerator, prompt); errorValue != nil {
 			fmt.Fprintf(os.Stderr, "[%s] failed: %v\n", requestedMode, errorValue)
 		}
 	}
@@ -101,7 +105,7 @@ func splitFlagsAndPositionals(arguments []string, booleanFlags map[string]bool, 
 	return flagArguments, positionalArguments
 }
 
-func runLLMRequest(target verifyTarget, executionMode string, modelName string, backend string, prompt string) error {
+func runLLMRequest(target verifyTarget, executionMode string, modelName string, providerName string, accelerator string, prompt string) error {
 	body := map[string]any{
 		"executionMode": executionMode,
 		"messages": []map[string]string{
@@ -111,8 +115,11 @@ func runLLMRequest(target verifyTarget, executionMode string, modelName string, 
 	if strings.TrimSpace(modelName) != "" {
 		body["model"] = modelName
 	}
-	if strings.TrimSpace(backend) != "" {
-		body["backend"] = backend
+	if strings.TrimSpace(providerName) != "" {
+		body["provider"] = providerName
+	}
+	if strings.TrimSpace(accelerator) != "" {
+		body["accelerator"] = accelerator
 	}
 	bodyDocument, errorValue := json.Marshal(body)
 	if errorValue != nil {
@@ -121,7 +128,10 @@ func runLLMRequest(target verifyTarget, executionMode string, modelName string, 
 	if os.Getenv("INTERNKIM_LLM_DEBUG") == "1" {
 		fmt.Fprintf(os.Stderr, "request: %s\n", bodyDocument)
 	}
-	command := "curl --silent --show-error --max-time 600 --unix-socket /run/internkim/capability.sock -H 'Content-Type: application/json' -d " + quoteShellValue(string(bodyDocument)) + " http://internkim/v1/llm/text"
+	command := fmt.Sprintf("curl --silent --show-error --max-time %d --unix-socket /run/internkim/capability.sock -H 'Content-Type: application/json' -d %s http://internkim/v1/llm/text",
+		int(locallm.SubprocessTimeout.Seconds()),
+		quoteShellValue(string(bodyDocument)),
+	)
 	output, errorValue := target.sshClient.runResult(command)
 	if os.Getenv("INTERNKIM_LLM_DEBUG") == "1" {
 		fmt.Fprintf(os.Stderr, "raw response: %s\n", strings.TrimSpace(output))

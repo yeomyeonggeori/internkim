@@ -122,7 +122,7 @@ func TestExplicitUnsupportedBackendReturnsError(t *testing.T) {
 	}
 }
 
-func TestJetsonDefaultResolveIncludesLiteRTAndSkipsGoogle(t *testing.T) {
+func TestJetsonDefaultResolveIncludesLocalLLMAndSkipsGoogle(t *testing.T) {
 	context := &Context{Backend: BackendSSH, BoardType: BoardJetsonOrinNano}
 	plan, err := DefaultRegistry().resolve(context, Selector{Skip: []string{"google"}})
 	if err != nil {
@@ -130,7 +130,7 @@ func TestJetsonDefaultResolveIncludesLiteRTAndSkipsGoogle(t *testing.T) {
 	}
 
 	joinedPlan := strings.Join(plan, ",")
-	for _, expectedName := range []string{"preflight", "binaries", "skills", "blueclaw-runtime", "openrouter", "litert", "tunnel", "mattermost", "services", "users-sync", "health"} {
+	for _, expectedName := range []string{"preflight", "binaries", "skills", "blueclaw-runtime", "openrouter", "local-llm", "tunnel", "mattermost", "services", "users-sync", "health"} {
 		if !strings.Contains(joinedPlan, expectedName) {
 			t.Fatalf("expected plan to include %s, got %s", expectedName, joinedPlan)
 		}

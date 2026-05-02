@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
-	"github.com/anthropic-lab/internkim/internal/llmbackend"
+	"gitlab.com/eastriver/internkim/internal/llmbackend"
+	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
 type (
@@ -19,7 +21,7 @@ type (
 	StructuredLLMProvider = llmbackend.StructuredCompleter
 	TextLLMProvider       = llmbackend.TextCompleter
 
-	LiteRTBackend     = llmbackend.LiteRTBackend
+	LiteRTProvider    = llmbackend.LiteRTProvider
 	OllamaBackend     = llmbackend.OllamaBackend
 	OpenRouterBackend = llmbackend.OpenRouterBackend
 	LlamaCppBackend   = llmbackend.LlamaCppBackend
@@ -29,7 +31,7 @@ type (
 )
 
 func (service Service) completeStructured(ctx context.Context, request StructuredLLMRequest) (LLMResponse, error) {
-	provider, errorValue := service.providerForExecutionMode(request.ExecutionMode, request.Backend)
+	provider, errorValue := service.providerForExecutionMode(request.ExecutionMode, request.Provider, request.Accelerator)
 	if errorValue != nil {
 		return LLMResponse{}, errorValue
 	}
@@ -37,24 +39,21 @@ func (service Service) completeStructured(ctx context.Context, request Structure
 }
 
 func (service Service) completeText(ctx context.Context, request TextLLMRequest) (LLMResponse, error) {
-	provider, errorValue := service.providerForExecutionMode(request.ExecutionMode, request.Backend)
+	provider, errorValue := service.providerForExecutionMode(request.ExecutionMode, request.Provider, request.Accelerator)
 	if errorValue != nil {
 		return LLMResponse{}, errorValue
 	}
 	return provider.CompleteText(ctx, request)
 }
 
-func (service Service) providerForExecutionMode(executionMode, preferredBackend string) (LLMProvider, error) {
+func (service Service) providerForExecutionMode(executionMode, providerName, accelerator string) (LLMProvider, error) {
 	companionProvider := service.companionProvider()
 	remoteProvider := service.openRouterBackend()
-	localProviderChain := AutoProvider{
-		Providers:      service.localBackends(preferredBackend),
-		AttemptTimeout: service.Configuration.ProviderAttemptTimeout,
-	}
+	localProviderSet := service.localProviderSet(providerName, accelerator, false)
 	switch strings.ToLower(firstNonEmpty(executionMode, "auto")) {
-	case "local":
-		return localProviderChain, nil
-	case "companion", "user_desktop":
+	case "device":
+		return localProviderSet.Provider, nil
+	case "companion":
 		return companionProvider, nil
 	case "remote":
 		if service.Configuration.LocalOnly {
@@ -62,58 +61,37 @@ func (service Service) providerForExecutionMode(executionMode, preferredBackend 
 		}
 		return remoteProvider, nil
 	case "auto":
+		localProviderSet := service.localProviderSet(providerName, accelerator, true)
 		return AutoProvider{
-			Providers:      service.automaticLLMProviders(localProviderChain, companionProvider, remoteProvider),
-			AttemptTimeout: service.Configuration.ProviderAttemptTimeout,
+			Providers:               service.automaticLLMProviders(localProviderSet.Provider, companionProvider, remoteProvider),
+			AttemptTimeout:          service.Configuration.ProviderAttemptTimeout,
+			AllowStructuredFallback: true,
 		}, nil
 	default:
 		return nil, errors.New("llm execution mode is not supported")
 	}
 }
 
-func (service Service) localBackends(preferredBackend string) []LLMProvider {
-	order := service.localBackendOrder()
-	backends := make([]LLMProvider, 0)
-	for _, name := range order {
-		switch strings.ToLower(strings.TrimSpace(name)) {
-		case "litert":
-			for _, variant := range litertVariantsFor(preferredBackend) {
-				backends = append(backends, LiteRTBackend{
-					ModelPath:   firstNonEmpty(service.Configuration.LiteRTModelPath, DefaultConfiguration().LiteRTModelPath),
-					WrapperPath: firstNonEmpty(service.Configuration.LiteRTWrapperPath, DefaultConfiguration().LiteRTWrapperPath),
-					Variant:     variant,
-					RunCommand:  service.runCommand,
-				})
-			}
-		case "ollama":
-			backends = append(backends, service.ollamaBackend())
-		}
-	}
-	return backends
-}
-
-func (service Service) localBackendOrder() []string {
-	order := service.Configuration.LocalBackendOrder
-	if len(order) == 0 {
-		order = []string{"litert"}
-	}
-	if !service.Configuration.EnableOllamaFallback {
-		return order
-	}
-	for _, name := range order {
-		if strings.EqualFold(strings.TrimSpace(name), "ollama") {
-			return order
-		}
-	}
-	return append(order, "ollama")
-}
-
-func (service Service) ollamaBackend() OllamaBackend {
-	return OllamaBackend{
-		BaseURL:    firstNonEmpty(service.Configuration.OllamaBaseURL, DefaultConfiguration().OllamaBaseURL),
-		ModelName:  firstNonEmpty(service.Configuration.OllamaModel, DefaultConfiguration().OllamaModel),
-		HTTPClient: service.httpClient(),
-	}
+func (service Service) localProviderSet(providerName, accelerator string, allowStructuredFallback bool) llmbackend.LocalProviderSet {
+	defaultConfiguration := DefaultConfiguration()
+	return llmbackend.BuildLocalProviderSet(llmbackend.LocalProviderConfig{
+		ProviderOrder:           firstProviderOrder(service.Configuration.LocalBackendOrder, llmbackend.DefaultDeviceLocalProviderOrder),
+		ProviderName:            providerName,
+		Accelerator:             accelerator,
+		AttemptTimeout:          service.Configuration.ProviderAttemptTimeout,
+		AllowStructuredFallback: allowStructuredFallback,
+		HTTPClient:              service.httpClient(),
+		RunCommand:              service.runCommand,
+		LlamaCppServiceName:     locallm.LlamaCppServiceName,
+		LlamaCppStartTimeout:    30 * time.Second,
+		LlamaCppPollInterval:    500 * time.Millisecond,
+		LiteRTModelPath:         firstNonEmpty(service.Configuration.LiteRTModelPath, defaultConfiguration.LiteRTModelPath),
+		LiteRTRunnerPath:        firstNonEmpty(service.Configuration.LocalLLMRunnerPath, defaultConfiguration.LocalLLMRunnerPath),
+		OllamaBaseURL:           firstNonEmpty(service.Configuration.OllamaBaseURL, defaultConfiguration.OllamaBaseURL),
+		OllamaModel:             firstNonEmpty(service.Configuration.OllamaModel, defaultConfiguration.OllamaModel),
+		LlamaCppBaseURL:         firstNonEmpty(service.Configuration.LlamaCppBaseURL, defaultConfiguration.LlamaCppBaseURL),
+		LlamaCppModel:           firstNonEmpty(service.Configuration.LlamaCppModel, defaultConfiguration.LlamaCppModel),
+	})
 }
 
 func (service Service) openRouterBackend() OpenRouterBackend {
@@ -125,6 +103,13 @@ func (service Service) openRouterBackend() OpenRouterBackend {
 	}
 }
 
+func firstProviderOrder(values []string, fallback []string) []string {
+	if len(values) > 0 {
+		return append([]string{}, values...)
+	}
+	return append([]string{}, fallback...)
+}
+
 func (service Service) automaticLLMProviders(localProvider LLMProvider, companionProvider LLMProvider, remoteProvider LLMProvider) []LLMProvider {
 	if service.Configuration.LocalOnly {
 		return []LLMProvider{companionProvider, localProvider}
@@ -133,15 +118,4 @@ func (service Service) automaticLLMProviders(localProvider LLMProvider, companio
 		return []LLMProvider{companionProvider, remoteProvider, localProvider}
 	}
 	return []LLMProvider{remoteProvider, companionProvider, localProvider}
-}
-
-func litertVariantsFor(preferredBackend string) []string {
-	switch strings.ToLower(strings.TrimSpace(preferredBackend)) {
-	case "gpu":
-		return []string{"gpu"}
-	case "cpu":
-		return []string{"cpu"}
-	default:
-		return []string{"gpu", "cpu"}
-	}
 }

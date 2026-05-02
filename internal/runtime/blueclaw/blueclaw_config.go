@@ -5,7 +5,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/anthropic-lab/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
 func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
@@ -98,7 +98,7 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 		"agentProfiles": []map[string]any{
 			{
 				"name":             "default",
-				"allowedToolNames": append([]string{"conversation.history", "memory.search"}, capabilities.DefaultToolNames()...),
+				"allowedToolNames": append([]string{"conversation.history", "memory.search", "terminal.run", "file.write", "file.attach"}, capabilities.DefaultToolNames()...),
 			},
 		},
 		"mcpServers": []map[string]any{},

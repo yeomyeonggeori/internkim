@@ -8,7 +8,7 @@ const (
 	BlueclawServiceName                   = "blueclaw"
 	CapabilitydName                       = "internkim-capabilityd"
 	AdmindName                            = "internkim-admind"
-	LiteRTWrapperName                     = "internkim-litert-wrapper"
+	LocalLLMRunnerName                    = "internkim-local-llm-runner"
 	GraphitiMemorydName                   = "graphiti-memoryd"
 	CapabilitydServiceName                = "internkim-capabilityd"
 	AdmindServiceName                     = "internkim-admind"
@@ -29,7 +29,7 @@ const (
 	BlueclawSupervisorBinaryPath          = "/usr/local/bin/blueclaw-supervisor"
 	CapabilitydBinaryPath                 = "/usr/local/bin/internkim-capabilityd"
 	AdmindBinaryPath                      = "/usr/local/bin/internkim-admind"
-	LiteRTWrapperBinaryPath               = "/usr/local/bin/internkim-litert-wrapper"
+	LocalLLMRunnerBinaryPath              = "/usr/local/bin/internkim-local-llm-runner"
 	GraphitiMemorydPath                   = "/usr/local/bin/graphiti-memoryd"
 	GraphitiMemorydPackagePath            = "/opt/internkim/graphiti_memoryd"
 	GraphitiKuzuPath                      = "/root/.blueclaw/workspace/.blueclaw/graphiti/kuzu"
@@ -99,8 +99,6 @@ var BlueclawAllowedExecutables = []string{
 	"curl",
 	"jq",
 	"download",
-	"gws",
-	"gws-bot",
 }
 
 var BlueclawDeniedExecutables = []string{

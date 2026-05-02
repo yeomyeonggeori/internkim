@@ -27,7 +27,7 @@ import (
 	"sync"
 	"time"
 
-	blueclawruntime "github.com/anthropic-lab/internkim/internal/runtime/blueclaw"
+	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 type Configuration struct {

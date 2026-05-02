@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/anthropic-lab/internkim/internal/llmbackend"
+	"gitlab.com/eastriver/internkim/internal/llmbackend"
 )
 
 func newOpenRouterBackend(secretPath, baseURL, modelName string, transport http.RoundTripper) OpenRouterBackend {
@@ -49,8 +49,8 @@ func TestOpenRouterBackendReturnsProviderConstraintMode(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected remote completion: %v", errorValue)
 	}
-	if response.ConstraintMode != "provider_json_schema" {
-		t.Fatalf("expected provider json schema mode, got %q", response.ConstraintMode)
+	if response.ConstraintMode != llmbackend.ConstraintModeOpenAIJSONSchema {
+		t.Fatalf("expected OpenAI JSON schema mode, got %q", response.ConstraintMode)
 	}
 }
 
@@ -169,12 +169,12 @@ func TestDefaultProviderAttemptTimeoutAllowsRemoteStructuredResponses(t *testing
 	}
 }
 
-func TestLiteRTBackendSendsJSONSchemaDocumentToWrapper(t *testing.T) {
+func TestLiteRTProviderSendsJSONSchemaDocumentToWrapper(t *testing.T) {
 	var wrapperDocument map[string]any
-	backend := LiteRTBackend{
-		ModelPath:   DefaultConfiguration().LiteRTModelPath,
-		WrapperPath: DefaultConfiguration().LiteRTWrapperPath,
-		Variant:     "gpu",
+	backend := LiteRTProvider{
+		ModelPath:  DefaultConfiguration().LiteRTModelPath,
+		RunnerPath: DefaultConfiguration().LocalLLMRunnerPath,
+		Variant:    "gpu",
 		RunCommand: func(ctx context.Context, executablePath string, arguments []string, standardInput []byte) ([]byte, error) {
 			_ = ctx
 			_ = executablePath
@@ -182,7 +182,7 @@ func TestLiteRTBackendSendsJSONSchemaDocumentToWrapper(t *testing.T) {
 			if errorValue := json.Unmarshal(standardInput, &wrapperDocument); errorValue != nil {
 				t.Fatalf("expected wrapper document: %v", errorValue)
 			}
-			return []byte(`{"content":"{\"reply\":\"ok\"}"}`), nil
+			return []byte(`{"content":"{\"reply\":\"ok\"}","constraintMode":"litert_llguidance_json_schema"}`), nil
 		},
 	}
 
@@ -196,19 +196,23 @@ func TestLiteRTBackendSendsJSONSchemaDocumentToWrapper(t *testing.T) {
 		t.Fatalf("expected LiteRT completion: %v", errorValue)
 	}
 
-	schema := wrapperDocument["structuredOutputSchema"].(map[string]any)
+	constraint := wrapperDocument["constrainedDecoding"].(map[string]any)
+	if constraint["type"] != "json_schema" {
+		t.Fatalf("expected JSON schema constraint, got %+v", constraint)
+	}
+	schema := constraint["jsonSchema"].(map[string]any)
 	document := schema["document"].(map[string]any)
 	if document["type"] != "object" {
 		t.Fatalf("expected schema document object, got %+v", document)
 	}
 }
 
-func TestLiteRTBackendCompleteTextSendsTextModeToWrapper(t *testing.T) {
+func TestLiteRTProviderCompleteTextSendsTextModeToWrapper(t *testing.T) {
 	var wrapperDocument map[string]any
-	backend := LiteRTBackend{
-		ModelPath:   DefaultConfiguration().LiteRTModelPath,
-		WrapperPath: DefaultConfiguration().LiteRTWrapperPath,
-		Variant:     "gpu",
+	backend := LiteRTProvider{
+		ModelPath:  DefaultConfiguration().LiteRTModelPath,
+		RunnerPath: DefaultConfiguration().LocalLLMRunnerPath,
+		Variant:    "gpu",
 		RunCommand: func(ctx context.Context, executablePath string, arguments []string, standardInput []byte) ([]byte, error) {
 			_ = ctx
 			_ = executablePath
@@ -229,7 +233,7 @@ func TestLiteRTBackendCompleteTextSendsTextModeToWrapper(t *testing.T) {
 	if wrapperDocument["mode"] != "text" {
 		t.Fatalf("expected text mode, got %+v", wrapperDocument)
 	}
-	if _, isFound := wrapperDocument["structuredOutputSchema"]; isFound {
+	if _, isFound := wrapperDocument["constrainedDecoding"]; isFound {
 		t.Fatalf("expected text request not to include a schema document, got %+v", wrapperDocument)
 	}
 	if response.Content != "plain local reply" {
@@ -241,13 +245,13 @@ func TestLocalBackendsHonorsRequestedLiteRTVariant(t *testing.T) {
 	service := Service{
 		Configuration: DefaultConfiguration(),
 	}
-	backends := service.localBackends("cpu")
-	if len(backends) != 1 {
-		t.Fatalf("expected single cpu backend, got %d", len(backends))
+	providerSet := service.localProviderSet("litert", "cpu", false)
+	if len(providerSet.Backends) != 1 {
+		t.Fatalf("expected single cpu backend, got %d", len(providerSet.Backends))
 	}
-	litertBackend, isLiteRT := backends[0].(LiteRTBackend)
+	litertBackend, isLiteRT := providerSet.Backends[0].(LiteRTProvider)
 	if !isLiteRT {
-		t.Fatalf("expected LiteRT backend, got %T", backends[0])
+		t.Fatalf("expected LiteRT backend, got %T", providerSet.Backends[0])
 	}
 	if litertBackend.Variant != "cpu" {
 		t.Fatalf("expected cpu variant, got %q", litertBackend.Variant)
@@ -256,6 +260,7 @@ func TestLocalBackendsHonorsRequestedLiteRTVariant(t *testing.T) {
 
 func TestAutoProviderFallsBackToRemote(t *testing.T) {
 	autoProvider := AutoProvider{
+		AllowStructuredFallback: true,
 		Providers: []llmbackend.Provider{
 			staticLLMProvider{errorValue: errTestProviderUnavailable},
 			staticLLMProvider{response: LLMResponse{
@@ -275,14 +280,14 @@ func TestAutoProviderFallsBackToRemote(t *testing.T) {
 	}
 }
 
-func TestLocalProviderFallsBackFromLiteRTFailureToOllamaSuccess(t *testing.T) {
+func TestLocalProviderUsesExplicitOllamaProvider(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{
 			OllamaBaseURL:              "https://ollama.test",
 			OllamaModel:                "gemma3:1b",
-			EnableOllamaFallback:       true,
+			LocalBackendOrder:          []string{"ollama"},
 			ProviderAttemptTimeout:     time.Second,
-			LiteRTWrapperPath:          "/missing-litert-wrapper",
+			LocalLLMRunnerPath:         "/missing-local-llm-runner",
 			LiteRTModelPath:            "/missing-litert-model",
 			OpenRouterKeyPath:          "missing",
 			OpenRouterBaseURL:          "https://openrouter.test",
@@ -309,7 +314,7 @@ func TestLocalProviderFallsBackFromLiteRTFailureToOllamaSuccess(t *testing.T) {
 		},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			if request.URL.String() != "https://ollama.test/api/chat" {
-				t.Fatalf("unexpected local fallback URL: %s", request.URL.String())
+				t.Fatalf("unexpected local provider URL: %s", request.URL.String())
 			}
 			return &http.Response{
 				StatusCode: http.StatusOK,
@@ -320,11 +325,12 @@ func TestLocalProviderFallsBackFromLiteRTFailureToOllamaSuccess(t *testing.T) {
 	}
 
 	response, errorValue := service.completeText(context.Background(), TextLLMRequest{
-		ExecutionMode: "local",
+		ExecutionMode: "device",
+		Provider:      "ollama",
 		Messages:      []LLMMessage{{Role: "user", Content: "Reply with ok."}},
 	})
 	if errorValue != nil {
-		t.Fatalf("expected Ollama fallback: %v", errorValue)
+		t.Fatalf("expected explicit Ollama provider: %v", errorValue)
 	}
 	if response.Provider != "ollama" || response.SelectedBackend != "ollama" || response.Content != "ok from ollama" {
 		t.Fatalf("expected Ollama response, got %+v", response)
@@ -337,7 +343,7 @@ func TestLocalProviderDoesNotUseOllamaByDefault(t *testing.T) {
 		Configuration: Configuration{
 			OllamaBaseURL:          "https://ollama.test",
 			ProviderAttemptTimeout: time.Second,
-			LiteRTWrapperPath:      "/missing-litert-wrapper",
+			LocalLLMRunnerPath:     "/missing-local-llm-runner",
 			LiteRTModelPath:        "/missing-litert-model",
 		},
 		RunCommand: func(ctx context.Context, executablePath string, arguments []string, standardInput []byte) ([]byte, error) {
@@ -355,7 +361,7 @@ func TestLocalProviderDoesNotUseOllamaByDefault(t *testing.T) {
 	}
 
 	_, errorValue := service.completeText(context.Background(), TextLLMRequest{
-		ExecutionMode: "local",
+		ExecutionMode: "device",
 		Messages:      []LLMMessage{{Role: "user", Content: "Reply with ok."}},
 	})
 	if errorValue == nil {
@@ -368,7 +374,8 @@ func TestLocalProviderDoesNotUseOllamaByDefault(t *testing.T) {
 
 func TestAutoProviderAttemptTimeoutFallsBackToRemote(t *testing.T) {
 	autoProvider := AutoProvider{
-		AttemptTimeout: time.Millisecond,
+		AttemptTimeout:          time.Millisecond,
+		AllowStructuredFallback: true,
 		Providers: []llmbackend.Provider{
 			blockingLLMProvider{},
 			staticLLMProvider{response: LLMResponse{

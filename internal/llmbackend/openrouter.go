@@ -10,7 +10,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/anthropic-lab/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
 type OpenRouterBackend struct {
@@ -52,7 +52,7 @@ func (backend OpenRouterBackend) CompleteStructured(ctx context.Context, request
 		Model:           modelName,
 		Content:         content,
 		SelectedBackend: capabilities.LLMBackendRemote,
-		ConstraintMode:  "provider_json_schema",
+		ConstraintMode:  ConstraintModeOpenAIJSONSchema,
 	}, nil
 }
 
@@ -193,7 +193,5 @@ func isPlaceholderOpenRouterKey(value string) bool {
 
 func isLocalModelReference(modelName string) bool {
 	normalized := strings.ToLower(strings.TrimSpace(modelName))
-	return strings.HasPrefix(normalized, "local/") ||
-		strings.HasSuffix(normalized, ".litertlm") ||
-		strings.Contains(normalized, "litert-lm")
+	return strings.HasPrefix(normalized, "local/")
 }

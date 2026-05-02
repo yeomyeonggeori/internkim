@@ -6,8 +6,8 @@ import (
 	"regexp"
 	"strings"
 
-	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
-	"github.com/anthropic-lab/internkim/internal/runtime/blueclaw"
+	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 var mattermostPublicURLPattern = regexp.MustCompile(`^https://[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.intern\.kim$`)
@@ -356,8 +356,8 @@ func checkLiteRTCapability(context *Context, failedChecks *[]string) {
 import json
 print(json.dumps({
     "model": "local/gemma-4-E4B-it-litert-lm",
-    "backend": "cpu",
-    "executionMode": "local",
+    "accelerator": "cpu",
+    "executionMode": "device",
     "messages": [{"role": "user", "content": "Reply with ok."}],
     "requireParameters": True,
     "enableResponseHealing": True,

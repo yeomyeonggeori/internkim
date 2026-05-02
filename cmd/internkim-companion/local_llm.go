@@ -1,93 +1,77 @@
 package main
 
 import (
+	"flag"
 	"net/http"
 	"strings"
-	"time"
 
-	"github.com/anthropic-lab/internkim/internal/llmbackend"
+	"gitlab.com/eastriver/internkim/internal/llmbackend"
 )
 
 type localLLMSettings struct {
-	Enabled          bool
-	BackendOrder     []string
-	OllamaBaseURL    string
-	OllamaModel      string
-	LlamaCppBaseURL  string
-	LlamaCppModel    string
-	MLXBaseURL       string
-	MLXModel         string
-	AttemptTimeout   time.Duration
+	Enabled       bool
+	Configuration llmbackend.LocalProviderConfig
+	ProviderSet   llmbackend.LocalProviderSet
 }
 
-const defaultLocalLLMTimeout = 90 * time.Second
+type localLLMFlags struct {
+	enabled         *bool
+	providerOrder   *string
+	ollamaBaseURL   *string
+	ollamaModel     *string
+	llamaCppBaseURL *string
+	llamaCppModel   *string
+	mlxBaseURL      *string
+	mlxModel        *string
+}
 
-func buildLocalChain(settings localLLMSettings, httpClient *http.Client) (llmbackend.Provider, []llmbackend.Backend) {
-	backends := make([]llmbackend.Backend, 0, len(settings.BackendOrder))
-	for _, name := range settings.BackendOrder {
-		backend := buildLocalBackend(name, settings, httpClient)
-		if backend != nil {
-			backends = append(backends, backend)
-		}
+const companionLocalProviderOrderDefault = "llamacpp,ollama,mlx"
+
+func registerLocalLLMFlags(flags *flag.FlagSet) localLLMFlags {
+	return localLLMFlags{
+		enabled:         flags.Bool("enable-local-llm", false, "enable local LLM inference on this machine"),
+		providerOrder:   flags.String("local-backend-order", companionLocalProviderOrderDefault, "comma-separated provider priority (llamacpp,ollama,mlx)"),
+		ollamaBaseURL:   flags.String("ollama-base-url", llmbackend.DefaultOllamaBaseURL, "ollama base URL"),
+		ollamaModel:     flags.String("ollama-model", "", "ollama model name"),
+		llamaCppBaseURL: flags.String("llamacpp-base-url", llmbackend.DefaultLlamaCppBaseURL, "llama.cpp server base URL"),
+		llamaCppModel:   flags.String("llamacpp-model", "", "llama.cpp model alias"),
+		mlxBaseURL:      flags.String("mlx-base-url", llmbackend.DefaultMLXBaseURL, "MLX server base URL"),
+		mlxModel:        flags.String("mlx-model", "", "MLX model name"),
 	}
-	providers := make([]llmbackend.Provider, 0, len(backends))
+}
+
+func (localFlags localLLMFlags) settings(httpClient *http.Client) localLLMSettings {
+	configuration := llmbackend.LocalProviderConfig{
+		ProviderOrder:   llmbackend.ParseProviderOrder(*localFlags.providerOrder, llmbackend.DefaultCompanionLocalProviderOrder),
+		HTTPClient:      httpClient,
+		OllamaBaseURL:   *localFlags.ollamaBaseURL,
+		OllamaModel:     *localFlags.ollamaModel,
+		LlamaCppBaseURL: *localFlags.llamaCppBaseURL,
+		LlamaCppModel:   *localFlags.llamaCppModel,
+		MLXBaseURL:      *localFlags.mlxBaseURL,
+		MLXModel:        *localFlags.mlxModel,
+	}
+	return localLLMSettings{
+		Enabled:       *localFlags.enabled,
+		Configuration: configuration,
+		ProviderSet:   llmbackend.BuildLocalProviderSet(configuration),
+	}
+}
+
+func (settings localLLMSettings) providerSetFor(providerName string, accelerator string) llmbackend.LocalProviderSet {
+	if strings.TrimSpace(providerName) == "" && strings.TrimSpace(accelerator) == "" {
+		return settings.ProviderSet
+	}
+	configuration := settings.Configuration
+	configuration.ProviderName = providerName
+	configuration.Accelerator = accelerator
+	return llmbackend.BuildLocalProviderSet(configuration)
+}
+
+func localLLMProviderNames(backends []llmbackend.Backend) string {
+	names := make([]string, 0, len(backends))
 	for _, backend := range backends {
-		providers = append(providers, backend)
+		names = append(names, backend.Name())
 	}
-	return llmbackend.AutoProvider{
-		Providers:      providers,
-		AttemptTimeout: localLLMAttemptTimeout(settings),
-	}, backends
-}
-
-func buildLocalBackend(name string, settings localLLMSettings, httpClient *http.Client) llmbackend.Backend {
-	switch strings.ToLower(strings.TrimSpace(name)) {
-	case "ollama":
-		return llmbackend.OllamaBackend{
-			BaseURL:    firstNonEmpty(settings.OllamaBaseURL, "http://127.0.0.1:11434"),
-			ModelName:  settings.OllamaModel,
-			HTTPClient: httpClient,
-		}
-	case "llamacpp":
-		return llmbackend.LlamaCppBackend{
-			BaseURL:    firstNonEmpty(settings.LlamaCppBaseURL, "http://127.0.0.1:8080"),
-			ModelName:  settings.LlamaCppModel,
-			HTTPClient: httpClient,
-		}
-	case "mlx":
-		return llmbackend.MLXBackend{
-			BaseURL:    firstNonEmpty(settings.MLXBaseURL, "http://127.0.0.1:10240"),
-			ModelName:  settings.MLXModel,
-			HTTPClient: httpClient,
-		}
-	default:
-		return nil
-	}
-}
-
-func localLLMAttemptTimeout(settings localLLMSettings) time.Duration {
-	if settings.AttemptTimeout > 0 {
-		return settings.AttemptTimeout
-	}
-	return defaultLocalLLMTimeout
-}
-
-func parseBackendOrder(value string) []string {
-	parts := strings.Split(value, ",")
-	order := make([]string, 0, len(parts))
-	for _, part := range parts {
-		trimmed := strings.TrimSpace(part)
-		if trimmed != "" {
-			order = append(order, trimmed)
-		}
-	}
-	return order
-}
-
-func localBackendModelMap(settings localLLMSettings) map[string]string {
-	return map[string]string{
-		"ollama":   settings.OllamaModel,
-		"llamacpp": settings.LlamaCppModel,
-		"mlx":      settings.MLXModel,
-	}
+	return strings.Join(names, ", ")
 }

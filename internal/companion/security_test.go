@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/anthropic-lab/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
 type fakeApprovalHandler struct {

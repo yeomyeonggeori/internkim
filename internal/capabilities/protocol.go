@@ -3,11 +3,10 @@ package capabilities
 import "encoding/json"
 
 const (
-	ExecutionModeDevice      = "device"
-	ExecutionModeCompanion   = "companion"
-	ExecutionModeUserDesktop = "user_desktop"
-	ExecutionModeRemote      = "remote"
-	ExecutionModeAuto        = "auto"
+	ExecutionModeDevice    = "device"
+	ExecutionModeCompanion = "companion"
+	ExecutionModeRemote    = "remote"
+	ExecutionModeAuto      = "auto"
 
 	LLMBackendDevice         = "device_local"
 	LLMBackendCompanionLocal = "companion_local"
@@ -122,12 +121,23 @@ func DeviceDescriptors() []Descriptor {
 		{Name: "llm.structured", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "embedding.create", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
 		{Name: "platform.reply", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false},
-	}, append(DeviceBrowserDescriptors(), FlowDescriptors()...)...)
+	}, append(append(DeviceBrowserDescriptors(), FlowDescriptors()...), GoogleWorkspaceDescriptors()...)...)
 }
 
 func FlowDescriptors() []Descriptor {
 	return []Descriptor{
 		{Name: "flow.task.add", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
+	}
+}
+
+func GoogleWorkspaceDescriptors() []Descriptor {
+	return []Descriptor{
+		{Name: "google.docs.create", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "google.sheets.create", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "google.gmail.send", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "google.calendar.event", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "google.calendar.list", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "google.drive.import_pptx", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
 	}
 }
 
@@ -156,6 +166,9 @@ func CompanionToolNames() []string {
 func DefaultToolNames() []string {
 	toolNames := CompanionToolNames()
 	for _, descriptor := range FlowDescriptors() {
+		toolNames = append(toolNames, descriptor.Name)
+	}
+	for _, descriptor := range GoogleWorkspaceDescriptors() {
 		toolNames = append(toolNames, descriptor.Name)
 	}
 	return toolNames

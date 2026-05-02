@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/anthropic-lab/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
 type flowTaskAddInput struct {

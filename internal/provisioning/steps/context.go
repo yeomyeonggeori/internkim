@@ -37,17 +37,10 @@ type Callbacks struct {
 	LoadState func(key string) string
 	SaveState func(key, value string)
 
-	GoogleAuth           func() (*GoogleAuth, error)
-	ResolveGoogleProject func(httpClient *http.Client, accessToken, deviceID string) (string, error)
-	EnableGoogleAPIs     func(httpClient *http.Client, accessToken, projectID string) error
-	CreateGoogleSA       func(deviceID, accessToken string) (string, error)
-
 	GetOpenRouterKey   func(force bool) (string, error)
 	GetLiteRTModelPath func(force bool) (string, error)
 
 	GetGasWebhookURL func(accessToken string) (string, error)
-
-	GwsSkillsInstallScript string
 
 	BinariesVersion           func() string
 	InstallBinariesSSH        func(context *Context) error

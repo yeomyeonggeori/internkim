@@ -72,7 +72,7 @@ Graphiti는 memory sidecar로만 동작하고 secrets 디렉토리를 직접 읽
 | **Go CLI** (`cmd/internkim/main.go`) | 셋업, lab, reset, deploy, verify를 수행하는 운영 CLI |
 | **internkim-admind** | 기기 관리자 API. admin UI reverse proxy, companion pairing/broker, backup/restore, 상태 조회 담당 |
 | **internkim-capabilityd** | OpenRouter, local model, Mattermost, Slack, Signal, companion credential을 보유하고 capability API만 노출 |
-| **internkim-litert-wrapper** | 현재 local model wrapper. Jetson에서는 CUDA/TensorRT 계열 provider를 추가할 수 있는 경계로 유지 |
+| **internkim-local-llm-runner** | LiteRT local model runner. llama.cpp는 상주 `llama-server` provider로 처리 |
 | **Blueclaw** | 런타임 바이너리. `/usr/local/bin/blueclaw`, `/root/.blueclaw/config/*.json`, `/root/.blueclaw/workspace/*` 계약을 사용 |
 | **Graphiti memoryd** | Blueclaw memory sidecar. `graphiti-core[kuzu]`로 episode ingestion, temporal graph extraction, hybrid graph search 수행 |
 | **internkim-companion** | 사용자 컴퓨터의 cross-platform trusted runtime. 브라우저 human-in-the-loop와 향후 local-only LLM capability 제공 |
@@ -260,8 +260,8 @@ internkim/
 │   ├── internkim-capabilityd/
 │   │                         LLM, platform, browser capability daemon
 │   ├── internkim-companion/  사용자 컴퓨터 trusted runtime 데몬
-│   ├── internkim-litert-wrapper/
-│   │                         LiteRT-LM process wrapper
+│   ├── internkim-local-llm-runner/
+│   │                         LiteRT local LLM process runner
 │   └── download/            기기 헬퍼 바이너리
 ├── internal/
 │   ├── admind/              admin UI proxy, backup/restore, companion broker

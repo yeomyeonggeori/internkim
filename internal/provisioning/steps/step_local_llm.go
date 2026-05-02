@@ -6,11 +6,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/anthropic-lab/internkim/internal/runtime/locallm"
+	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
-var StepLiteRT = Step{
-	Name: "litert",
+var StepLocalLLM = Step{
+	Name: "local-llm",
 	Deps: []string{"binaries"},
 	Title: func(context *Context) string {
 		switch locallm.Default {
@@ -31,7 +31,7 @@ var StepLiteRT = Step{
 		case locallm.BackendLlamaCpp:
 			return runLlamaCppStep(context)
 		default:
-			return runLiteRTStep(context)
+			return runLocalLLMLiteRTStep(context)
 		}
 	},
 	RunSD: func(context *Context) error {
@@ -52,7 +52,7 @@ func localLLMIsSatisfied(context *Context) bool {
 func sshLocalLLMIsSatisfied(context *Context) bool {
 	modelPath := locallm.ModelPath()
 	common := fmt.Sprintf(
-		`test -x /usr/local/bin/internkim-litert-wrapper && test -s %s && ! su -s /bin/sh blueclaw -c 'test -r %s' 2>/dev/null`,
+		`test -x /usr/local/bin/internkim-local-llm-runner && test -s %s && ! su -s /bin/sh blueclaw -c 'test -r %s' 2>/dev/null`,
 		shellQuote(modelPath), shellQuote(modelPath),
 	)
 	switch locallm.Default {
@@ -69,7 +69,7 @@ func sshLocalLLMIsSatisfied(context *Context) bool {
 	}
 }
 
-func runLiteRTStep(context *Context) error {
+func runLocalLLMLiteRTStep(context *Context) error {
 	if errorValue := stageLocalLLMModelSSH(context); errorValue != nil {
 		return errorValue
 	}
@@ -112,7 +112,7 @@ chmod 600 %s`,
 		shellQuote(locallm.ModelPath()),
 	))
 	if !localLLMIsSatisfied(context) {
-		return errors.New("llama.cpp setup did not produce a runnable llama-cli with local model")
+		return errors.New("llama.cpp setup did not produce a runnable llama-server with local model")
 	}
 	fmt.Println("  " + context.T("llama.cpp 준비 완료", "llama.cpp ready"))
 	return nil

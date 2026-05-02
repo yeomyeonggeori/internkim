@@ -19,15 +19,16 @@ import (
 	"sync"
 	"time"
 
-	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
-	"github.com/anthropic-lab/internkim/internal/identity"
-	"github.com/anthropic-lab/internkim/internal/runtime/locallm"
+	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
+	"gitlab.com/eastriver/internkim/internal/identity"
+	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
 type Configuration struct {
 	SocketPath                 string
 	VSockPort                  int
 	OpenRouterKeyPath          string
+	GoogleWorkspaceWebhookPath string
 	MattermostBaseURL          string
 	MattermostTokenPath        string
 	SlackTokenPath             string
@@ -44,14 +45,15 @@ type Configuration struct {
 	OpenRouterEmbeddingModel   string
 	OllamaBaseURL              string
 	OllamaModel                string
+	LlamaCppBaseURL            string
+	LlamaCppModel              string
 	SocketGroupName            string
 	LiteRTModelPath            string
-	LiteRTWrapperPath          string
+	LocalLLMRunnerPath         string
 	CompanionBaseURL           string
 	PreferCompanionLLM         bool
 	PreferCompanionBrowser     bool
 	LocalOnly                  bool
-	EnableOllamaFallback       bool
 	LocalBackendOrder          []string
 	ProviderAttemptTimeout     time.Duration
 	AgentBrowserPath           string
@@ -113,6 +115,7 @@ func DefaultConfiguration() Configuration {
 		SocketPath:                 "/run/internkim/capability.sock",
 		VSockPort:                  0,
 		OpenRouterKeyPath:          "/root/.internkim/secrets/openrouter-api-key",
+		GoogleWorkspaceWebhookPath: "/root/.internkim/secrets/gas-webhook-url",
 		MattermostBaseURL:          "http://localhost:8065",
 		MattermostTokenPath:        "/root/.internkim/secrets/mattermost-bot-token",
 		SlackTokenPath:             "/root/.internkim/secrets/slack-bot-token",
@@ -127,13 +130,14 @@ func DefaultConfiguration() Configuration {
 		OpenRouterEmbeddingModel:   "text-embedding-3-small",
 		OllamaBaseURL:              "http://127.0.0.1:11434",
 		OllamaModel:                "gemma3:1b",
+		LlamaCppBaseURL:            locallm.LlamaCppBaseURL,
+		LlamaCppModel:              "local/gemma-4-E4B-it-gguf",
 		SocketGroupName:            "blueclaw",
 		LiteRTModelPath:            locallm.ModelPath(),
-		LiteRTWrapperPath:          "/usr/local/bin/internkim-litert-wrapper",
+		LocalLLMRunnerPath:         "/usr/local/bin/internkim-local-llm-runner",
 		CompanionBaseURL:           "",
 		PreferCompanionLLM:         false,
 		LocalOnly:                  false,
-		EnableOllamaFallback:       false,
 		ProviderAttemptTimeout:     5 * time.Minute,
 		AgentBrowserPath:           "agent-browser",
 		DeviceBrowserPath:          browserruntime.DeviceBrowserExecutablePath,
@@ -1175,6 +1179,9 @@ func (configuration Configuration) WithDefaults() Configuration {
 	if configuration.OpenRouterKeyPath == "" {
 		configuration.OpenRouterKeyPath = defaultConfiguration.OpenRouterKeyPath
 	}
+	if configuration.GoogleWorkspaceWebhookPath == "" {
+		configuration.GoogleWorkspaceWebhookPath = defaultConfiguration.GoogleWorkspaceWebhookPath
+	}
 	if configuration.MattermostBaseURL == "" {
 		configuration.MattermostBaseURL = defaultConfiguration.MattermostBaseURL
 	}
@@ -1217,14 +1224,20 @@ func (configuration Configuration) WithDefaults() Configuration {
 	if configuration.OllamaModel == "" {
 		configuration.OllamaModel = defaultConfiguration.OllamaModel
 	}
+	if configuration.LlamaCppBaseURL == "" {
+		configuration.LlamaCppBaseURL = defaultConfiguration.LlamaCppBaseURL
+	}
+	if configuration.LlamaCppModel == "" {
+		configuration.LlamaCppModel = defaultConfiguration.LlamaCppModel
+	}
 	if configuration.SocketGroupName == "" {
 		configuration.SocketGroupName = defaultConfiguration.SocketGroupName
 	}
 	if configuration.LiteRTModelPath == "" {
 		configuration.LiteRTModelPath = defaultConfiguration.LiteRTModelPath
 	}
-	if configuration.LiteRTWrapperPath == "" {
-		configuration.LiteRTWrapperPath = defaultConfiguration.LiteRTWrapperPath
+	if configuration.LocalLLMRunnerPath == "" {
+		configuration.LocalLLMRunnerPath = defaultConfiguration.LocalLLMRunnerPath
 	}
 	if configuration.ProviderAttemptTimeout <= 0 {
 		configuration.ProviderAttemptTimeout = defaultConfiguration.ProviderAttemptTimeout
