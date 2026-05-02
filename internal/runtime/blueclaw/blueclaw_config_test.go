@@ -84,7 +84,7 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	agentProfiles := runtimeConfiguration["agentProfiles"].([]any)
 	defaultProfile := agentProfiles[0].(map[string]any)
 	allowedToolNames := defaultProfile["allowedToolNames"].([]any)
-	for _, expectedToolName := range []string{"conversation.history", "memory.search", "terminal.run", "file.write", "file.attach"} {
+	for _, expectedToolName := range []string{"conversation.history", "memory.search", "terminal.run", "terminal.session", "browser_handoff.openURL", "approval.request", "file.write", "file.attach"} {
 		if !containsStringValue(allowedToolNames, expectedToolName) {
 			t.Fatalf("expected default agent profile to allow internal tool %q, got %+v", expectedToolName, allowedToolNames)
 		}
@@ -96,6 +96,13 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 		if !containsStringValue(allowedToolNames, expectedToolName) {
 			t.Fatalf("expected default profile to allow %q, got %+v", expectedToolName, allowedToolNames)
 		}
+	}
+	terminal := runtimeConfiguration["terminal"].(map[string]any)
+	if terminal["mode"] != "firecrackerGuest" {
+		t.Fatalf("expected firecracker guest terminal mode, got %q", terminal["mode"])
+	}
+	if terminal["outputMaxBytes"] != float64(32768) || terminal["sessionMaxCount"] != float64(4) {
+		t.Fatalf("expected terminal caps, got %+v", terminal)
 	}
 	connectors := runtimeConfiguration["connectors"].(map[string]any)
 	mattermost := connectors["mattermost"].(map[string]any)
