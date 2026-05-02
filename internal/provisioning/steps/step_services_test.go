@@ -35,6 +35,15 @@ func TestBlueclawRootfsBinaryContractCheckCatchesStaleGuestBinary(t *testing.T) 
 		"agent.budget_stop",
 		"10분 예산",
 		"rootfs-blueclaw-legacy-marker",
+		"rootfs-init-missing-marker",
+		"rootfs-blueclaw-init-root-launch",
+		"rootfs-passwd-missing-blueclaw-user",
+		"rootfs-group-missing-blueclaw-group",
+		"blueclaw-non-root-launch",
+		"rootfs-marp-missing",
+		"rootfs-bun-missing",
+		"rootfs-bunx-missing",
+		"rootfs-chromium-missing",
 	} {
 		if !strings.Contains(command, expectedFragment) {
 			t.Fatalf("expected rootfs binary contract check to contain %q", expectedFragment)

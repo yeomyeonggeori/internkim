@@ -280,6 +280,9 @@ func blueclawRootfsBinaryContractCheckCommand() string {
 	return `set -eu
 rootfs_path="/opt/internkim/blueclaw-runtime/rootfs.ext4"
 dump_path="/tmp/internkim-blueclaw-rootfs-binary-check"
+init_dump_path="/tmp/internkim-blueclaw-rootfs-init-check"
+passwd_dump_path="/tmp/internkim-blueclaw-rootfs-passwd-check"
+group_dump_path="/tmp/internkim-blueclaw-rootfs-group-check"
 if [ ! -s "$rootfs_path" ]; then
   echo rootfs-missing
   exit 0
@@ -293,11 +296,44 @@ if ! debugfs -R "dump /usr/local/bin/blueclaw $dump_path" "$rootfs_path" >/tmp/i
   echo rootfs-blueclaw-dump-failed
   exit 0
 fi
-python3 - "$dump_path" <<'PY'
+rm -f "$init_dump_path"
+if ! debugfs -R "dump /sbin/init $init_dump_path" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-init-check.log 2>&1; then
+  echo rootfs-init-dump-failed
+  exit 0
+fi
+if ! debugfs -R "stat /usr/local/bin/marp" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-marp-check.log 2>&1; then
+  echo rootfs-marp-missing
+  exit 0
+fi
+if ! debugfs -R "stat /usr/local/bin/bun" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-bun-check.log 2>&1; then
+  echo rootfs-bun-missing
+  exit 0
+fi
+if ! debugfs -R "stat /usr/local/bin/bunx" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-bunx-check.log 2>&1; then
+  echo rootfs-bunx-missing
+  exit 0
+fi
+if ! debugfs -R "stat /usr/bin/chromium" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-chromium-check.log 2>&1; then
+  echo rootfs-chromium-missing
+  exit 0
+fi
+rm -f "$passwd_dump_path" "$group_dump_path"
+if ! debugfs -R "dump /etc/passwd $passwd_dump_path" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-passwd-check.log 2>&1; then
+  echo rootfs-passwd-dump-failed
+  exit 0
+fi
+if ! debugfs -R "dump /etc/group $group_dump_path" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-group-check.log 2>&1; then
+  echo rootfs-group-dump-failed
+  exit 0
+fi
+python3 - "$dump_path" "$init_dump_path" "$passwd_dump_path" "$group_dump_path" <<'PY'
 from pathlib import Path
 import sys
 
 binary = Path(sys.argv[1]).read_bytes()
+guest_init = Path(sys.argv[2]).read_text()
+passwd = Path(sys.argv[3]).read_text()
+group = Path(sys.argv[4]).read_text()
 required_markers = {
     "defaultEffortLevel": b"defaultEffortLevel",
     "agent.limit_stop": b"agent.limit_stop",
@@ -315,6 +351,26 @@ for name, marker in {
     if marker in binary:
         print("rootfs-blueclaw-legacy-marker:" + name)
         raise SystemExit
+
+for name, marker in {
+    "blueclaw-workspace-owner": "chown blueclaw:blueclaw /workspace /workspace/.blueclaw",
+    "blueclaw-non-root-launch": "su -s /bin/bash blueclaw -c '/usr/local/bin/blueclaw",
+}.items():
+    if marker not in guest_init:
+        print("rootfs-init-missing-marker:" + name)
+        raise SystemExit
+
+if "\n/usr/local/bin/blueclaw -runtime " in guest_init:
+    print("rootfs-blueclaw-init-root-launch")
+    raise SystemExit
+
+if "blueclaw:x:998:971:Blueclaw:/workspace:/bin/bash" not in passwd:
+    print("rootfs-passwd-missing-blueclaw-user")
+    raise SystemExit
+
+if "blueclaw:x:971:" not in group:
+    print("rootfs-group-missing-blueclaw-group")
+    raise SystemExit
 
 print("ok")
 PY`
