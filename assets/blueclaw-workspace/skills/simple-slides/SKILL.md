@@ -45,11 +45,17 @@ requiredTools:
 completion:
   requiredEvidenceTools:
     - file.attach
+  requiredAttachmentSuffixes:
+    - .pptx
+    - .pdf
+    - .html
+    - -notes.txt
 allowedProfiles: [default]
 references:
   - references/design-system.md
   - references/layouts.md
 scripts:
+  - scripts/create_deck.py
   - scripts/extract_notes.py
 assets:
   - assets/build.sh
@@ -79,14 +85,34 @@ Create a fresh directory under:
 /workspace/.blueclaw/tmp/<deck-slug>
 ```
 
-Write these files into that directory with `file.write`:
+Create the directory with `terminal.run`.
+
+First, write a short `brief.md` into that directory with `file.write`. Include the user request, audience, desired tone, and slide topic.
+
+Then use the bundled deck creator. This is the preferred path because it writes valid Marp source, copies runtime scripts, builds the deck, and keeps output names stable:
+
+```json
+{
+  "command": "python3 /workspace/skills/simple-slides/scripts/create_deck.py --slug <deck-slug> --brief brief.md",
+  "workingDirectoryPath": "/workspace/.blueclaw/tmp/<deck-slug>"
+}
+```
+
+If you need a more custom deck, write these files into that directory with `file.write`:
 
 - `DESIGN.md`
 - `presentation.md`
-- `build.sh`
-- `extract_notes.py`
 
-Use this skill's `assets/design.md`, `assets/template.md`, `assets/build.sh`, and `scripts/extract_notes.py` as source material, but create the working copies with `file.write`.
+Copy the bundled scripts into the working directory with `terminal.run`:
+
+```json
+{
+  "command": "cp /workspace/skills/simple-slides/assets/build.sh ./build.sh && cp /workspace/skills/simple-slides/scripts/extract_notes.py ./extract_notes.py && chmod +x ./build.sh ./extract_notes.py",
+  "workingDirectoryPath": "/workspace/.blueclaw/tmp/<deck-slug>"
+}
+```
+
+Use this skill's `assets/design.md` and `assets/template.md` as source material for `DESIGN.md` and `presentation.md`. Do not rewrite or simplify `build.sh`.
 
 ## Design First
 
@@ -111,27 +137,27 @@ Then port those choices into the Marp CSS in `presentation.md`.
 
 ## Build
 
-Run the build from the deck directory:
+Run the build from the deck directory with a stable output name:
 
 ```json
 {
-  "command": "./build.sh",
+  "command": "NAME=<deck-slug> ./build.sh",
   "workingDirectoryPath": "/workspace/.blueclaw/tmp/<deck-slug>"
 }
 ```
 
 The build must produce:
 
-- `<name>.html`
-- `<name>.pptx`
-- `<name>.pdf`
-- `<name>-notes.txt`
+- `<deck-slug>.html`
+- `<deck-slug>.pptx`
+- `<deck-slug>.pdf`
+- `<deck-slug>-notes.txt`
 
 If the build fails, fix the source and rerun it. Do not attach stale outputs.
 
 ## Visual Review
 
-Render PNGs with Marp and inspect edited slides before shipping:
+Render PNGs with Marp and inspect edited slides before shipping when time allows:
 
 ```json
 {
@@ -144,4 +170,17 @@ Check for clipping, overlap, unreadable text, missing images, and broken fonts. 
 
 ## Final Reply
 
-Attach the generated PPTX, PDF, HTML, and notes with `file.attach`. Google Workspace export/upload is disabled for now; do not call `google.*` tools and do not block local PPTX delivery on Google credentials.
+Attach these exact generated files with one `file.attach` call before final reply:
+
+```json
+{
+  "paths": [
+    "/workspace/.blueclaw/tmp/<deck-slug>/<deck-slug>.pptx",
+    "/workspace/.blueclaw/tmp/<deck-slug>/<deck-slug>.pdf",
+    "/workspace/.blueclaw/tmp/<deck-slug>/<deck-slug>.html",
+    "/workspace/.blueclaw/tmp/<deck-slug>/<deck-slug>-notes.txt"
+  ]
+}
+```
+
+Google Workspace export/upload is disabled for now; do not call `google.*` tools and do not block local PPTX delivery on Google credentials. Only cite those generated artifact attachments as completion evidence. Do not cite source files such as `DESIGN.md`, `presentation.md`, `build.sh`, or `extract_notes.py`.
