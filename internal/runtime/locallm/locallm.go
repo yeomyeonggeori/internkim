@@ -1,5 +1,9 @@
 package locallm
 
+import "time"
+
+const SubprocessTimeout = 10 * time.Minute
+
 type Backend string
 
 const (
@@ -21,7 +25,7 @@ const (
 	LiteRTBuildTool     = "build-litert-lm-main"
 	LiteRTDisplayName   = "litert_lm_main"
 
-	LlamaCppBinaryPath    = "/usr/local/bin/llama-cli"
+	LlamaCppBinaryPath    = "/usr/local/bin/llama-server"
 	LlamaCppLibraryDir    = "/usr/local/lib/llama-cpp"
 	LlamaCppModelPath     = "/root/.internkim/models/gemma-4-E4B-it-Q4_0.gguf"
 	LlamaCppModelFilename = "gemma-4-E4B-it-Q4_0.gguf"
@@ -30,7 +34,12 @@ const (
 	LlamaCppCacheKey      = "05e141a-aarch64"
 	LlamaCppCacheModelDir = ".dependency/llama-cpp-models"
 	LlamaCppBuildTool     = "build-llama-cpp-jetson"
-	LlamaCppDisplayName   = "llama-cli"
+	LlamaCppDisplayName   = "llama-server"
+	LlamaCppServiceName   = "internkim-llamacpp.service"
+	LlamaCppServicePath   = "/etc/systemd/system/internkim-llamacpp.service"
+	LlamaCppBaseURL       = "http://127.0.0.1:18081"
+	LlamaCppHost          = "127.0.0.1"
+	LlamaCppPort          = "18081"
 )
 
 func BinaryPath() string {

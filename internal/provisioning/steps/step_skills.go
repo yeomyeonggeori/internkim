@@ -1,32 +1,24 @@
 package setup
 
-import (
-	"fmt"
-	"strings"
-)
+import "fmt"
 
 var StepSkills = Step{
 	Name: "skills",
 	Deps: []string{"binaries"},
 	Title: func(context *Context) string {
-		return context.T("gws-cli 스킬 심링크...", "Symlinking gws-cli skills...")
+		return context.T("Blueclaw 스킬 정리...", "Preparing Blueclaw skills...")
 	},
 	IsSatisfied: func(context *Context) bool {
 		switch context.Backend {
 		case BackendSSH:
-			return trimmedRun(context, "ls -d /root/.blueclaw/workspace/skills/gws-* 2>/dev/null | wc -l") != "0"
+			return sshFileExists(context, "/root/.blueclaw/workspace/skills/simple-slides/SKILL.md")
 		case BackendSD:
 			return true
 		}
 		return false
 	},
 	Run: func(context *Context) error {
-		if context.Callbacks.GwsSkillsInstallScript == "" {
-			return nil
-		}
-		if output := strings.TrimSpace(context.SSH.Run(context.Callbacks.GwsSkillsInstallScript)); output != "" {
-			fmt.Println("  " + output)
-		}
+		context.SSH.Run(`chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills 2>/dev/null || true`)
 		return nil
 	},
 	RunSD: func(context *Context) error {

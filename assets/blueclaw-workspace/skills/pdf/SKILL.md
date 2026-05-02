@@ -4,6 +4,34 @@ description:
   "Generate PDF documents using fpdf2 (Python). Use when creating PDFs, generating documents,
   reports, invoices, forms, or when user mentions PDF generation or document creation. Also use
   pypdf for reading or editing existing PDF files."
+category: document-generation
+tags: [pdf, report, document]
+triggerHints:
+  - pdf
+  - document
+  - report
+  - invoice
+  - 문서
+  - 보고서
+  - 견적서
+  - 청구서
+activation:
+  keywords:
+    - pdf
+    - document
+    - report
+    - invoice
+    - 문서
+    - 보고서
+    - 견적서
+    - 청구서
+requiredTools:
+  - terminal.run
+  - file.write
+  - file.attach
+allowedProfiles: [default]
+references:
+  - references/google-fonts.txt
 ---
 
 # Generating PDFs with fpdf2

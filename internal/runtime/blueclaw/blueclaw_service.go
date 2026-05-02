@@ -1,6 +1,10 @@
 package blueclaw
 
-import "fmt"
+import (
+	"fmt"
+
+	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
+)
 
 func BlueclawServiceUnit() string {
 	return fmt.Sprintf(`[Unit]
@@ -74,4 +78,23 @@ RestartSec=2
 [Install]
 WantedBy=multi-user.target
 `, AdmindBinaryPath)
+}
+
+func LlamaCppServiceUnit() string {
+	return fmt.Sprintf(`[Unit]
+Description=InternKim llama.cpp Server
+After=network-online.target time-sync.target
+Wants=network-online.target time-sync.target
+
+[Service]
+User=root
+Environment=LD_LIBRARY_PATH=%s
+ExecStart=%s -m %s --host %s --port %s -ngl 99 --log-disable
+Restart=on-failure
+RestartSec=2
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target
+`, locallm.LlamaCppLibraryDir, locallm.LlamaCppBinaryPath, locallm.LlamaCppModelPath, locallm.LlamaCppHost, locallm.LlamaCppPort)
 }

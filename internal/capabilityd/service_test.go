@@ -3,7 +3,6 @@ package capabilityd
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,8 +12,7 @@ import (
 	"testing"
 )
 
-func TestLocalStructuredCompletionUsesCPUAfterGPUFailure(t *testing.T) {
-	var backends []string
+func TestLocalStructuredCompletionUsesRequestedAccelerator(t *testing.T) {
 	service := Service{
 		Configuration: DefaultConfiguration(),
 		RunCommand: func(ctx context.Context, executablePath string, arguments []string, standardInput []byte) ([]byte, error) {
@@ -22,13 +20,9 @@ func TestLocalStructuredCompletionUsesCPUAfterGPUFailure(t *testing.T) {
 			_ = executablePath
 			_ = arguments
 			document := string(standardInput)
-			if strings.Contains(document, `"backend":"gpu"`) {
-				backends = append(backends, "gpu")
-				return nil, errors.New("gpu unavailable")
-			}
-			if strings.Contains(document, `"backend":"cpu"`) {
-				backends = append(backends, "cpu")
-				return []byte(`{"content":"{\"content\":\"ok\"}"}`), nil
+			if strings.Contains(document, `"accelerator":"cpu"`) &&
+				strings.Contains(document, `"constrainedDecoding"`) {
+				return []byte(`{"content":"{\"content\":\"ok\"}","constraintMode":"litert_llguidance_json_schema"}`), nil
 			}
 			t.Fatalf("unexpected wrapper request: %s", document)
 			return nil, nil
@@ -36,7 +30,8 @@ func TestLocalStructuredCompletionUsesCPUAfterGPUFailure(t *testing.T) {
 	}
 
 	response, errorValue := service.completeStructured(context.Background(), StructuredLLMRequest{
-		ExecutionMode: "local",
+		ExecutionMode: "device",
+		Accelerator:   "cpu",
 		Messages:      []LLMMessage{{Role: "user", Content: "hello"}},
 		StructuredOutputSchema: StructuredOutputSchema{
 			Name:     "plain_text_response",
@@ -50,11 +45,8 @@ func TestLocalStructuredCompletionUsesCPUAfterGPUFailure(t *testing.T) {
 	if response.SelectedBackend != "cpu" {
 		t.Fatalf("expected cpu backend, got %q", response.SelectedBackend)
 	}
-	if response.ConstraintMode != "prompt_validation" {
-		t.Fatalf("expected prompt validation constraint mode, got %q", response.ConstraintMode)
-	}
-	if strings.Join(backends, ",") != "gpu,cpu" {
-		t.Fatalf("expected gpu then cpu, got %v", backends)
+	if response.ConstraintMode != "litert_llguidance_json_schema" {
+		t.Fatalf("expected LiteRT constrained decoding mode, got %q", response.ConstraintMode)
 	}
 }
 
@@ -62,12 +54,12 @@ func TestLocalStructuredCompletionRejectsInvalidStructuredOutput(t *testing.T) {
 	service := Service{
 		Configuration: DefaultConfiguration(),
 		RunCommand: func(context.Context, string, []string, []byte) ([]byte, error) {
-			return []byte(`{"content":"{\"message\":\"wrong\"}"}`), nil
+			return []byte(`{"content":"plain text","constraintMode":"litert_llguidance_json_schema"}`), nil
 		},
 	}
 
 	_, errorValue := service.completeStructured(context.Background(), StructuredLLMRequest{
-		ExecutionMode: "local",
+		ExecutionMode: "device",
 		StructuredOutputSchema: StructuredOutputSchema{
 			Name:     "plain_text_response",
 			Document: json.RawMessage(`{"type":"object","properties":{"content":{"type":"string"}},"required":["content"],"additionalProperties":false}`),
@@ -87,7 +79,7 @@ func TestTextCompletionReturnsPlainContent(t *testing.T) {
 	}
 
 	response, errorValue := service.completeText(context.Background(), TextLLMRequest{
-		ExecutionMode: "local",
+		ExecutionMode: "device",
 		Messages:      []LLMMessage{{Role: "user", Content: "hello"}},
 	})
 	if errorValue != nil {
@@ -98,16 +90,16 @@ func TestTextCompletionReturnsPlainContent(t *testing.T) {
 	}
 }
 
-func TestStructuredEndpointRemainsCompatible(t *testing.T) {
+func TestStructuredEndpointReturnsConstrainedContent(t *testing.T) {
 	service := Service{
 		Configuration: DefaultConfiguration(),
 		RunCommand: func(context.Context, string, []string, []byte) ([]byte, error) {
-			return []byte(`{"content":"{\"reply\":\"hello\"}"}`), nil
+			return []byte(`{"content":"{\"reply\":\"hello\"}","constraintMode":"litert_llguidance_json_schema"}`), nil
 		},
 	}
 	request := httptest.NewRequest(http.MethodPost, "/v1/llm/structured", strings.NewReader(`{
 		"model":"local/gemma",
-		"executionMode":"local",
+		"executionMode":"device",
 		"messages":[{"role":"user","content":"hello"}],
 		"structuredOutputSchema":{
 			"name":"reply",
@@ -129,8 +121,8 @@ func TestStructuredEndpointRemainsCompatible(t *testing.T) {
 	if response.Content != `{"reply":"hello"}` {
 		t.Fatalf("expected structured content, got %q", response.Content)
 	}
-	if response.ConstraintMode != "prompt_validation" {
-		t.Fatalf("expected prompt validation mode, got %q", response.ConstraintMode)
+	if response.ConstraintMode != "litert_llguidance_json_schema" {
+		t.Fatalf("expected LiteRT constrained decoding mode, got %q", response.ConstraintMode)
 	}
 }
 
@@ -142,7 +134,7 @@ func TestTextEndpointReturnsPlainContent(t *testing.T) {
 		},
 	}
 	request := httptest.NewRequest(http.MethodPost, "/v1/llm/text", strings.NewReader(`{
-		"executionMode":"local",
+		"executionMode":"device",
 		"messages":[{"role":"user","content":"hello"}]
 	}`))
 	responseRecorder := httptest.NewRecorder()

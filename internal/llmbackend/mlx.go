@@ -19,21 +19,9 @@ func (backend MLXBackend) Ping(ctx context.Context) error {
 }
 
 func (backend MLXBackend) CompleteStructured(ctx context.Context, request StructuredRequest) (Response, error) {
-	chatRequest := openAIChatRequest(backend.ModelName, request.Messages, &request.StructuredOutputSchema)
-	content, errorValue := backend.client().chatCompletions(ctx, chatRequest)
-	if errorValue != nil {
-		return Response{}, errorValue
-	}
-	if !ValidateMinimumStructuredOutput(content, request.StructuredOutputSchema.Document) {
-		return Response{}, errors.New("mlx response did not satisfy structured output schema")
-	}
-	return Response{
-		Provider:        "mlx",
-		Model:           backend.ModelName,
-		Content:         content,
-		SelectedBackend: "mlx",
-		ConstraintMode:  "provider_json_schema",
-	}, nil
+	_ = ctx
+	_ = request
+	return Response{}, errors.New("mlx does not support verified deterministic structured output")
 }
 
 func (backend MLXBackend) CompleteText(ctx context.Context, request TextRequest) (Response, error) {

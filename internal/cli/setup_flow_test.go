@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	setup "github.com/anthropic-lab/internkim/internal/provisioning/steps"
+	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
 )
 
 func TestJetsonPackageSelectionUsesUbuntu22Names(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/anthropic-lab/internkim/internal/admind"
+	"gitlab.com/eastriver/internkim/internal/admind"
 )
 
 func main() {

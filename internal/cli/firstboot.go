@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/anthropic-lab/internkim/internal/runtime/blueclaw"
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
 func buildFirstbootScript(deviceURL, adminEmail string) string {
@@ -309,11 +310,8 @@ fi
 echo "Staged files installed."
 
 NOLOGIN_BINARY=$(command -v nologin || echo /usr/sbin/nologin)
-getent group gws >/dev/null 2>&1 || groupadd --system gws
-id gws &>/dev/null || useradd -r -g gws -m -d /home/gws -s "$NOLOGIN_BINARY" gws
 getent group blueclaw >/dev/null 2>&1 || groupadd --system blueclaw
 id blueclaw &>/dev/null || useradd -r -g blueclaw -m -d /home/blueclaw -s "$NOLOGIN_BINARY" blueclaw
-install -d -o gws -g gws -m 750 /home/gws /home/gws/.cache /home/gws/.config
 install -d -o blueclaw -g blueclaw -m 750 /home/blueclaw /home/blueclaw/.cache /home/blueclaw/.config
 chown blueclaw:blueclaw /root/.blueclaw/workspace/AGENTS.md /root/.blueclaw/workspace/IDENTITY.md /root/.blueclaw/workspace/BOT_PROFILE.yaml /root/.blueclaw/workspace/SOUL.md 2>/dev/null || true
 chmod 711 /root
@@ -366,29 +364,8 @@ chown -R root:blueclaw /root/.blueclaw/migrations 2>/dev/null || true
 chmod -R u=rwX,g=rX,o= /root/.blueclaw/migrations 2>/dev/null || true
 chmod 750 /root/.blueclaw/migrations 2>/dev/null || true
 
-# ── gws-bot wrapper (runs gws under the service-account identity) ──
-cat > /usr/local/bin/gws-bot <<'WRAPEOF'
-#!/bin/sh
-GOOGLE_APPLICATION_CREDENTIALS=/root/.internkim/secrets/google-sa.json \
-GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE=/root/.internkim/secrets/google-sa.json \
-exec /usr/local/bin/gws "$@"
-WRAPEOF
-chmod 755 /usr/local/bin/gws-bot
-rm -f /usr/local/bin/gws-mcp
-
-# ── SA email for the agent to reference when sharing new files ──
-SA_EMAIL_FILE="$STAGE/sa-email"
-if [ -f "$SA_EMAIL_FILE" ]; then
-  cp -f "$SA_EMAIL_FILE" /root/.internkim/env/sa-email
-  chown root:blueclaw /root/.internkim/env/sa-email
-  chmod 640 /root/.internkim/env/sa-email
-fi
-
 mkdir -p /etc/sudoers.d
-cat > /etc/sudoers.d/blueclaw-mcp <<'EOF'
-blueclaw ALL=(gws) NOPASSWD: /usr/local/bin/gws
-EOF
-chmod 440 /etc/sudoers.d/blueclaw-mcp`)
+rm -f /usr/local/bin/gws-* /etc/sudoers.d/blueclaw-gws /etc/sudoers.d/blueclaw-mcp`)
 }
 
 func renderFirstbootNetworkSection() string {
@@ -486,7 +463,6 @@ else
     log_network_diagnostics
     retry_later "waiting for outbound connectivity before tools phase"
   fi`),
-		strings.TrimSpace(gwsSkillsInstallScript),
 		strings.TrimSpace(fmt.Sprintf(deviceBrowserRuntimeDependencyInstallScript()+`
 apt-get install -y -qq unzip >/dev/null 2>&1 || true
 if ! sudo -u blueclaw test -x /home/blueclaw/.bun/bin/bun; then
@@ -554,10 +530,6 @@ else
   rm -f "$agentBrowserSkillDir/SKILL.md.tmp"
 fi
 
-for skill in calendar create-gws-file simple-slides; do
-  filePath="/root/.blueclaw/workspace/skills/$skill/scripts/gas-call"
-  [ -f "$filePath" ] && chmod +x "$filePath"
-done
 chown -R blueclaw:blueclaw /root/.blueclaw/workspace/.agents 2>/dev/null || true
 chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills 2>/dev/null || true
 
@@ -846,6 +818,8 @@ else
 %sGRAPHITIEOF
   cat > %s <<'ADMINDEOF'
 %sADMINDEOF
+  cat > %s <<'LLAMACPP_EOF'
+%sLLAMACPP_EOF
   cat > %s <<'SYNCEOF'
 %sSYNCEOF
   chmod 755 %s
@@ -854,6 +828,7 @@ else
   cat > %s <<'SYNCTIMEREOF'
 %sSYNCTIMEREOF
   systemctl daemon-reload
+  systemctl disable %s 2>/dev/null || true
   systemctl enable %s
   systemctl start %s
   systemctl enable %s
@@ -892,6 +867,8 @@ fi`,
 		blueclaw.GraphitiMemorydServiceUnit(),
 		blueclaw.AdmindServicePath,
 		blueclaw.AdmindServiceUnit(),
+		locallm.LlamaCppServicePath,
+		blueclaw.LlamaCppServiceUnit(),
 		blueclaw.InternKimUsersSyncScriptPath,
 		blueclaw.InternKimUsersSyncScript(),
 		blueclaw.InternKimUsersSyncScriptPath,
@@ -899,6 +876,7 @@ fi`,
 		blueclaw.InternKimUsersSyncServiceUnit(),
 		blueclaw.InternKimUsersSyncTimerPath,
 		blueclaw.InternKimUsersSyncTimerUnit(),
+		locallm.LlamaCppServiceName,
 		blueclaw.CapabilitydServiceName,
 		blueclaw.CapabilitydServiceName,
 		blueclaw.AdmindServiceName,

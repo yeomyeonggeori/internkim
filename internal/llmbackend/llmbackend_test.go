@@ -6,10 +6,12 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -54,45 +56,25 @@ func TestOpenRouterStructuredRequestPreservesSchema(t *testing.T) {
 
 func TestOpenRouterBackendResolvesDefaultModel(t *testing.T) {
 	backend := OpenRouterBackend{ModelName: "google/default-remote"}
-	for _, modelName := range []string{"", "default", "DEFAULT", "local/anything", "model.litertlm"} {
+	for _, modelName := range []string{"", "default", "DEFAULT", "local/anything"} {
 		if resolvedModelName := backend.resolveModelName(modelName); resolvedModelName != "google/default-remote" {
 			t.Fatalf("expected default remote model for %q, got %q", modelName, resolvedModelName)
 		}
 	}
 }
 
-func TestOllamaBackendStructuredOutputSendsFormatField(t *testing.T) {
-	var receivedDocument map[string]any
-	backend := OllamaBackend{
-		BaseURL:   "https://ollama.test",
-		ModelName: "gemma3:1b",
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			if errorValue := json.NewDecoder(request.Body).Decode(&receivedDocument); errorValue != nil {
-				t.Fatalf("expected request body: %v", errorValue)
-			}
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"message":{"role":"assistant","content":"{\"reply\":\"ok\"}"}}`)),
-				Header:     make(http.Header),
-			}, nil
-		})},
-	}
+func TestOllamaBackendStructuredOutputIsUnsupported(t *testing.T) {
+	backend := OllamaBackend{BaseURL: "https://ollama.test", ModelName: "gemma3:1b"}
 
-	response, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
+	_, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
 		Messages: []Message{{Role: "user", Content: "hi"}},
 		StructuredOutputSchema: StructuredOutputSchema{
 			Name:     "reply",
 			Document: json.RawMessage(`{"type":"object","required":["reply"]}`),
 		},
 	})
-	if errorValue != nil {
-		t.Fatalf("expected ollama completion: %v", errorValue)
-	}
-	if _, isFound := receivedDocument["format"]; !isFound {
-		t.Fatalf("expected format field in request, got %+v", receivedDocument)
-	}
-	if response.ConstraintMode != "provider_json_schema" {
-		t.Fatalf("expected provider json schema mode, got %q", response.ConstraintMode)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "deterministic structured output") {
+		t.Fatalf("expected deterministic structured output error, got %v", errorValue)
 	}
 }
 
@@ -116,7 +98,7 @@ func TestLlamaCppBackendStructuredOutputUsesResponseFormat(t *testing.T) {
 		})},
 	}
 
-	_, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
+	response, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
 		Messages: []Message{{Role: "user", Content: "hi"}},
 		StructuredOutputSchema: StructuredOutputSchema{
 			Name:     "reply",
@@ -133,48 +115,135 @@ func TestLlamaCppBackendStructuredOutputUsesResponseFormat(t *testing.T) {
 	if responseFormat["type"] != "json_schema" {
 		t.Fatalf("expected json_schema response_format, got %+v", responseFormat)
 	}
+	if response.ConstraintMode != ConstraintModeLlamaJSONSchema {
+		t.Fatalf("expected llama JSON schema mode, got %q", response.ConstraintMode)
+	}
 }
 
-func TestMLXBackendStructuredOutputUsesResponseFormat(t *testing.T) {
-	backend := MLXBackend{
-		BaseURL:   "https://mlx.test",
-		ModelName: "default",
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			if request.URL.Path != "/v1/chat/completions" {
-				t.Fatalf("unexpected path: %s", request.URL.Path)
+func TestManagedLlamaCppBackendStartsServiceAndRetriesText(t *testing.T) {
+	chatRequests := 0
+	healthRequests := 0
+	startCommands := 0
+	backend := ManagedLlamaCppBackend{
+		Backend: LlamaCppBackend{
+			BaseURL:   "http://llamacpp.test",
+			ModelName: "local/gemma",
+			HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				switch request.URL.Path {
+				case "/health":
+					healthRequests++
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Body:       io.NopCloser(strings.NewReader("OK")),
+						Header:     make(http.Header),
+					}, nil
+				case "/v1/chat/completions":
+					chatRequests++
+					if chatRequests == 1 {
+						return nil, &url.Error{Op: "Post", URL: request.URL.String(), Err: errors.New("connection refused")}
+					}
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Body:       io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"ready"}}]}`)),
+						Header:     make(http.Header),
+					}, nil
+				default:
+					t.Fatalf("unexpected path: %s", request.URL.Path)
+					return nil, nil
+				}
+			})},
+		},
+		ServiceName:  "internkim-llamacpp.service",
+		PollInterval: time.Millisecond,
+		RunCommand: func(ctx context.Context, executablePath string, arguments []string, standardInput []byte) ([]byte, error) {
+			_ = ctx
+			_ = standardInput
+			startCommands++
+			if executablePath != "systemctl" || strings.Join(arguments, " ") != "start internkim-llamacpp.service" {
+				t.Fatalf("unexpected start command: %s %v", executablePath, arguments)
 			}
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"{\"reply\":\"ok\"}"}}]}`)),
-				Header:     make(http.Header),
-			}, nil
-		})},
+			return nil, nil
+		},
 	}
 
-	response, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
+	response, errorValue := backend.CompleteText(context.Background(), TextRequest{
+		Messages: []Message{{Role: "user", Content: "hi"}},
+	})
+	if errorValue != nil {
+		t.Fatalf("expected managed llama.cpp retry: %v", errorValue)
+	}
+	if response.Content != "ready" {
+		t.Fatalf("expected retry response, got %+v", response)
+	}
+	if startCommands != 1 || healthRequests != 1 || chatRequests != 2 {
+		t.Fatalf("expected one start, one health check, two chat requests; got starts=%d health=%d chat=%d", startCommands, healthRequests, chatRequests)
+	}
+}
+
+func TestManagedLlamaCppBackendDoesNotStartServiceForProviderError(t *testing.T) {
+	startCommands := 0
+	backend := ManagedLlamaCppBackend{
+		Backend: LlamaCppBackend{
+			BaseURL:   "http://llamacpp.test",
+			ModelName: "local/gemma",
+			HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusBadRequest,
+					Body:       io.NopCloser(strings.NewReader(`{"error":"schema rejected"}`)),
+					Header:     make(http.Header),
+				}, nil
+			})},
+		},
+		ServiceName:  "internkim-llamacpp.service",
+		PollInterval: time.Millisecond,
+		RunCommand: func(ctx context.Context, executablePath string, arguments []string, standardInput []byte) ([]byte, error) {
+			_ = ctx
+			_ = executablePath
+			_ = arguments
+			_ = standardInput
+			startCommands++
+			return nil, nil
+		},
+	}
+
+	_, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
+		StructuredOutputSchema: StructuredOutputSchema{
+			Name:     "reply",
+			Document: json.RawMessage(`{"type":"object","required":["reply"]}`),
+		},
+	})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "schema rejected") {
+		t.Fatalf("expected provider error, got %v", errorValue)
+	}
+	if startCommands != 0 {
+		t.Fatalf("expected provider error not to start service, got %d", startCommands)
+	}
+}
+
+func TestMLXBackendStructuredOutputIsUnsupported(t *testing.T) {
+	backend := MLXBackend{BaseURL: "https://mlx.test", ModelName: "default"}
+
+	_, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
 		Messages: []Message{{Role: "user", Content: "hi"}},
 		StructuredOutputSchema: StructuredOutputSchema{
 			Name:     "reply",
 			Document: json.RawMessage(`{"type":"object","required":["reply"]}`),
 		},
 	})
-	if errorValue != nil {
-		t.Fatalf("expected mlx completion: %v", errorValue)
-	}
-	if response.Provider != "mlx" {
-		t.Fatalf("expected mlx provider, got %q", response.Provider)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "deterministic structured output") {
+		t.Fatalf("expected deterministic structured output error, got %v", errorValue)
 	}
 }
 
-func TestStructuredOutputValidationRejectsMissingRequired(t *testing.T) {
-	backend := OllamaBackend{
-		BaseURL:   "https://ollama.test",
-		ModelName: "gemma3:1b",
+func TestStructuredOutputValidationRejectsNonJSON(t *testing.T) {
+	backend := LlamaCppBackend{
+		BaseURL:   "https://llamacpp.test",
+		ModelName: "default",
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			_ = request
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"message":{"role":"assistant","content":"{\"other\":\"value\"}"}}`)),
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"plain text"}}]}`)),
 				Header:     make(http.Header),
 			}, nil
 		})},
@@ -187,7 +256,7 @@ func TestStructuredOutputValidationRejectsMissingRequired(t *testing.T) {
 		},
 	})
 	if errorValue == nil {
-		t.Fatal("expected validation failure for missing required field")
+		t.Fatal("expected validation failure for non-JSON content")
 	}
 }
 
@@ -199,8 +268,8 @@ func TestAutoProviderReportsAggregateErrorWhenAllFail(t *testing.T) {
 		},
 	}
 	_, errorValue := auto.CompleteText(context.Background(), TextRequest{})
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "two") {
-		t.Fatalf("expected last error from chain, got %v", errorValue)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "one") || !strings.Contains(errorValue.Error(), "two") {
+		t.Fatalf("expected aggregate error from chain, got %v", errorValue)
 	}
 }
 
@@ -209,6 +278,89 @@ func TestAutoProviderReportsNoProviderError(t *testing.T) {
 	_, errorValue := auto.CompleteText(context.Background(), TextRequest{})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "no llm provider") {
 		t.Fatalf("expected no provider error, got %v", errorValue)
+	}
+}
+
+func TestBuildLocalProviderSetUsesRequestedOrder(t *testing.T) {
+	providerSet := BuildLocalProviderSet(LocalProviderConfig{
+		ProviderOrder:   []string{"llamacpp", "ollama", "mlx"},
+		OllamaBaseURL:   "http://ollama.test",
+		OllamaModel:     "gemma3:1b",
+		LlamaCppBaseURL: "http://llamacpp.test",
+		LlamaCppModel:   "local/gemma",
+		MLXBaseURL:      "http://mlx.test",
+		MLXModel:        "mlx-community/gemma",
+	})
+
+	expectedNames := []string{"llamacpp", "ollama", "mlx"}
+	if len(providerSet.Backends) != len(expectedNames) {
+		t.Fatalf("expected %d backends, got %d", len(expectedNames), len(providerSet.Backends))
+	}
+	for index, backend := range providerSet.Backends {
+		if backend.Name() != expectedNames[index] {
+			t.Fatalf("expected %s at index %d, got %s", expectedNames[index], index, backend.Name())
+		}
+	}
+	if providerSet.ModelByBackendName["llamacpp"] != "local/gemma" {
+		t.Fatalf("expected llama.cpp model mapping, got %+v", providerSet.ModelByBackendName)
+	}
+}
+
+func TestBuildLocalProviderSetSkipsUnknownProviders(t *testing.T) {
+	providerSet := BuildLocalProviderSet(LocalProviderConfig{
+		ProviderOrder: []string{"unknown", "ollama"},
+	})
+
+	if len(providerSet.Backends) != 1 {
+		t.Fatalf("expected one backend, got %d", len(providerSet.Backends))
+	}
+	if providerSet.Backends[0].Name() != "ollama" {
+		t.Fatalf("expected ollama backend, got %s", providerSet.Backends[0].Name())
+	}
+}
+
+func TestBuildLocalProviderSetCreatesRequestedLiteRTAccelerator(t *testing.T) {
+	providerSet := BuildLocalProviderSet(LocalProviderConfig{
+		ProviderOrder:    []string{"litert"},
+		Accelerator:      "cpu",
+		LiteRTModelPath:  "/models/model.litertlm",
+		LiteRTRunnerPath: "/usr/local/bin/internkim-local-llm-runner",
+	})
+
+	if len(providerSet.Backends) != 1 {
+		t.Fatalf("expected one LiteRT backend, got %d", len(providerSet.Backends))
+	}
+	backend, isLiteRT := providerSet.Backends[0].(LiteRTProvider)
+	if !isLiteRT {
+		t.Fatalf("expected LiteRT provider, got %T", providerSet.Backends[0])
+	}
+	if backend.Variant != "cpu" {
+		t.Fatalf("expected cpu accelerator, got %q", backend.Variant)
+	}
+	if providerSet.ModelByBackendName["litert-cpu"] != "/models/model.litertlm" {
+		t.Fatalf("expected LiteRT model mapping, got %+v", providerSet.ModelByBackendName)
+	}
+}
+
+func TestLocalProviderSetDoesNotFallbackForStructuredByDefault(t *testing.T) {
+	providerSet := BuildLocalProviderSet(LocalProviderConfig{
+		ProviderOrder: []string{"ollama", "llamacpp"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			t.Fatalf("expected structured request not to reach llama.cpp after ollama rejection")
+			return nil, nil
+		})},
+	})
+
+	_, errorValue := providerSet.Provider.CompleteStructured(context.Background(), StructuredRequest{})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "ollama") {
+		t.Fatalf("expected first provider structured error, got %v", errorValue)
+	}
+}
+
+func TestParseProviderOrderUsesFallbackForEmptyValue(t *testing.T) {
+	order := ParseProviderOrder("", []string{"llamacpp", "ollama"})
+	if strings.Join(order, ",") != "llamacpp,ollama" {
+		t.Fatalf("expected fallback order, got %v", order)
 	}
 }
 

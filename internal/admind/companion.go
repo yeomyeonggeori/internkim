@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/anthropic-lab/internkim/internal/capabilities"
-	companionruntime "github.com/anthropic-lab/internkim/internal/companion"
+	"gitlab.com/eastriver/internkim/internal/capabilities"
+	companionruntime "gitlab.com/eastriver/internkim/internal/companion"
 )
 
 const companionOnlineWindow = 45 * time.Second

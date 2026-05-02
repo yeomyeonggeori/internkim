@@ -3,7 +3,7 @@ package setup
 import (
 	"errors"
 
-	"github.com/anthropic-lab/internkim/internal/runtime/blueclaw"
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 var StepBlueclawRuntime = Step{

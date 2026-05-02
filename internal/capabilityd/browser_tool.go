@@ -15,8 +15,8 @@ import (
 	"time"
 	"unicode"
 
-	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
-	"github.com/anthropic-lab/internkim/internal/capabilities"
+	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
+	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
 type deviceBrowserFileMetadata struct {

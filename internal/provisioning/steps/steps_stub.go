@@ -10,7 +10,7 @@ func DefaultRegistry() Registry {
 		StepSkills,
 		StepBlueclawRuntime,
 		StepOpenRouter,
-		StepLiteRT,
+		StepLocalLLM,
 		StepTunnel,
 		StepGoogle,
 		StepStaging,

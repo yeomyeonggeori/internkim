@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
-	"github.com/anthropic-lab/internkim/internal/capabilities"
-	"github.com/anthropic-lab/internkim/internal/llmbackend"
+	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
+	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/internal/llmbackend"
 )
 
 type stubLLMChain struct {
@@ -350,7 +350,7 @@ func TestExecutorRoutesStructuredLLMThroughChain(t *testing.T) {
 	chain := &stubLLMChain{structuredResponse: llmbackend.Response{
 		Provider:       "ollama",
 		Content:        `{"reply":"ok"}`,
-		ConstraintMode: "provider_json_schema",
+		ConstraintMode: "openai_json_schema",
 	}}
 	executor := Executor{LLMChain: chain}
 
@@ -378,8 +378,8 @@ func TestExecutorRoutesStructuredLLMThroughChain(t *testing.T) {
 	if errorValue := json.Unmarshal(response.Result, &responseDocument); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if responseDocument.ConstraintMode != "provider_json_schema" {
-		t.Fatalf("expected provider json schema mode, got %q", responseDocument.ConstraintMode)
+	if responseDocument.ConstraintMode != "openai_json_schema" {
+		t.Fatalf("expected OpenAI JSON schema mode, got %q", responseDocument.ConstraintMode)
 	}
 }
 

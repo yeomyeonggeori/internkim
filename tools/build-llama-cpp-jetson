@@ -17,7 +17,7 @@ Usage:
   tools/build-llama-cpp-jetson [--commit <sha>] [--host <ip>] [--user <name>] [--password <pass>]
 
 Builds llama.cpp on a Jetson aarch64 host with CUDA support and caches the
-resulting llama-cli binary plus required shared libraries in
+resulting llama-server binary plus required shared libraries in
 .dependency/llama-cpp/<commit>-aarch64/. Cache hits skip the build entirely.
 
 Environment overrides:
@@ -43,7 +43,7 @@ done
 
 cacheKey="${llamaCommit}-aarch64"
 cacheDirectory="$repositoryRoot/.dependency/llama-cpp/$cacheKey"
-cachedBinaryPath="$cacheDirectory/llama-cli"
+cachedBinaryPath="$cacheDirectory/llama-server"
 cachedLibraryDirectory="$cacheDirectory/lib"
 
 if [ -x "$cachedBinaryPath" ] && [ -s "$cachedBinaryPath" ] && [ -d "$cachedLibraryDirectory" ]; then
@@ -118,20 +118,19 @@ PATH=/usr/local/cuda/bin:\$PATH cmake -B build \\
   -DLLAMA_CURL=OFF \\
   -DCMAKE_CUDA_ARCHITECTURES=$cudaArchitecture \\
   -DCMAKE_BUILD_TYPE=Release
-PATH=/usr/local/cuda/bin:\$PATH cmake --build build --target llama-cli -j"\$parallelJobs"
+PATH=/usr/local/cuda/bin:\$PATH cmake --build build --target llama-server -j"\$parallelJobs"
 
-if [ ! -x build/bin/llama-cli ]; then
-  echo "build did not produce llama-cli" >&2
+if [ ! -x build/bin/llama-server ]; then
+  echo "build did not produce llama-server" >&2
   exit 1
 fi
 
 stagingDirectory="$remoteWorkRoot/staging"
 rm -rf "\$stagingDirectory"
 mkdir -p "\$stagingDirectory"
-cp build/bin/llama-cli "\$stagingDirectory/"
+cp build/bin/llama-server "\$stagingDirectory/"
 cp build/bin/libggml-base.so.0 build/bin/libggml-cpu.so.0 build/bin/libggml-cuda.so.0 build/bin/libggml.so.0 \\
    build/bin/libllama.so.0 build/bin/libllama-common.so.0 build/bin/libmtmd.so.0 "\$stagingDirectory/"
-cp examples/json_schema_to_grammar.py "\$stagingDirectory/"
 tar czhf "$remoteWorkRoot/llamacpp-bundle.tar.gz" -C "\$stagingDirectory" .
 echo "BUNDLE=$remoteWorkRoot/llamacpp-bundle.tar.gz"
 REMOTE
@@ -159,7 +158,7 @@ localBundlePath="$cacheDirectory/llamacpp-bundle.tar.gz"
 echo "fetching bundle"
 "${scpCommand[@]}" "$buildUser@$buildHost:$remoteBundlePath" "$localBundlePath"
 tar -xzf "$localBundlePath" -C "$cachedLibraryDirectory/"
-mv "$cachedLibraryDirectory/llama-cli" "$cachedBinaryPath"
+mv "$cachedLibraryDirectory/llama-server" "$cachedBinaryPath"
 chmod 0755 "$cachedBinaryPath"
 rm -f "$localBundlePath"
 

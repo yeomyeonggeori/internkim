@@ -53,20 +53,9 @@ func (backend OllamaBackend) Ping(ctx context.Context) error {
 }
 
 func (backend OllamaBackend) CompleteStructured(ctx context.Context, request StructuredRequest) (Response, error) {
-	content, modelName, errorValue := backend.complete(ctx, request.Messages, request.StructuredOutputSchema.Document)
-	if errorValue != nil {
-		return Response{}, errorValue
-	}
-	if !ValidateMinimumStructuredOutput(content, request.StructuredOutputSchema.Document) {
-		return Response{}, errors.New("ollama response did not satisfy structured output schema")
-	}
-	return Response{
-		Provider:        "ollama",
-		Model:           modelName,
-		Content:         content,
-		SelectedBackend: "ollama",
-		ConstraintMode:  "provider_json_schema",
-	}, nil
+	_ = ctx
+	_ = request
+	return Response{}, errors.New("ollama does not support verified deterministic structured output")
 }
 
 func (backend OllamaBackend) CompleteText(ctx context.Context, request TextRequest) (Response, error) {

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/anthropic-lab/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
 type CapabilityRouter struct {
@@ -73,6 +73,9 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 	if request.ToolName == "flow.task.add" {
 		return service.invokeFlowTaskAdd(ctx, request)
 	}
+	if isGoogleWorkspaceTool(request.ToolName) {
+		return service.invokeGoogleWorkspaceTool(ctx, request)
+	}
 	return capabilities.ToolInvokeResponse{}, errors.New("capability tool is not configured: " + request.ToolName)
 }
 
@@ -102,7 +105,7 @@ func (router CapabilityRouter) ShouldRouteToCompanion(request capabilities.ToolI
 		return false
 	}
 	executionMode := strings.ToLower(strings.TrimSpace(request.ExecutionMode))
-	if executionMode == capabilities.ExecutionModeCompanion || executionMode == capabilities.ExecutionModeUserDesktop {
+	if executionMode == capabilities.ExecutionModeCompanion {
 		return true
 	}
 	if request.RequiresUserPresence {
@@ -126,8 +129,7 @@ func (router CapabilityRouter) isCompanionCapability(toolName string) bool {
 
 func isCompanionOnlyExecutionMode(executionMode string) bool {
 	normalizedExecutionMode := strings.ToLower(strings.TrimSpace(executionMode))
-	return normalizedExecutionMode == capabilities.ExecutionModeCompanion ||
-		normalizedExecutionMode == capabilities.ExecutionModeUserDesktop
+	return normalizedExecutionMode == capabilities.ExecutionModeCompanion
 }
 
 func isDeviceBrowserTool(toolName string) bool {

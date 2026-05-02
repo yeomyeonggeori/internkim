@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/anthropic-lab/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
 const testCompanionBackend = capabilities.LLMBackendCompanionLocal
@@ -67,7 +67,7 @@ func TestCompanionStructuredProviderUsesSharedPrototype(t *testing.T) {
 			Model:           "local-model",
 			Content:         `{"reply":"ok"}`,
 			SelectedBackend: testCompanionBackend,
-			ConstraintMode:  "prompt_validation",
+			ConstraintMode:  "openai_json_schema",
 		})
 		return jsonResponse(capabilities.ToolInvokeResponse{ToolName: "llm.structured", Result: result}), nil
 	})}
@@ -143,7 +143,7 @@ func TestAutoProviderLocalOnlyBlocksRemoteFallback(t *testing.T) {
 
 func TestRemoteExecutionFailsInLocalOnlyMode(t *testing.T) {
 	service := Service{Configuration: Configuration{LocalOnly: true}}
-	_, errorValue := service.providerForExecutionMode(capabilities.ExecutionModeRemote, "")
+	_, errorValue := service.providerForExecutionMode(capabilities.ExecutionModeRemote, "", "")
 	if errorValue == nil {
 		t.Fatal("expected remote execution to fail in local-only mode")
 	}

@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	companionruntime "github.com/anthropic-lab/internkim/internal/companion"
-	"github.com/anthropic-lab/internkim/internal/llmbackend"
+	companionruntime "gitlab.com/eastriver/internkim/internal/companion"
+	"gitlab.com/eastriver/internkim/internal/llmbackend"
 )
 
 type grantListDocument struct {

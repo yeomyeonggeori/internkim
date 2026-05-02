@@ -9,7 +9,7 @@ func TestToolInvokeRequestRoundTrip(t *testing.T) {
 	request := ToolInvokeRequest{
 		ToolName:             "browser.open",
 		Input:                json.RawMessage(`{"url":"https://example.com"}`),
-		ExecutionMode:        ExecutionModeUserDesktop,
+		ExecutionMode:        ExecutionModeCompanion,
 		RequiresUserPresence: true,
 		PrivacyClass:         "user_browser",
 		SessionID:            "session-1",

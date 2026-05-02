@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/anthropic-lab/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
 const (

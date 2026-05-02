@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
 func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
@@ -82,6 +84,11 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	agentProfiles := runtimeConfiguration["agentProfiles"].([]any)
 	defaultProfile := agentProfiles[0].(map[string]any)
 	allowedToolNames := defaultProfile["allowedToolNames"].([]any)
+	for _, expectedToolName := range []string{"conversation.history", "memory.search", "terminal.run", "file.write", "file.attach"} {
+		if !containsStringValue(allowedToolNames, expectedToolName) {
+			t.Fatalf("expected default agent profile to allow internal tool %q, got %+v", expectedToolName, allowedToolNames)
+		}
+	}
 	if !containsStringValue(allowedToolNames, "conversation.history") || !containsStringValue(allowedToolNames, "memory.search") {
 		t.Fatalf("expected default agent profile to allow internal tools, got %+v", allowedToolNames)
 	}
@@ -148,5 +155,21 @@ func TestBlueclawServiceDoesNotExposeOpenRouterKeyAsEnvironmentFile(t *testing.T
 	}
 	if strings.Contains(serviceDocument, "ExecStart="+BlueclawBinaryPath+" ") {
 		t.Fatal("expected Blueclaw service not to run the host blueclaw binary directly")
+	}
+}
+
+func TestLlamaCppServiceUnitRunsLocalServer(t *testing.T) {
+	serviceDocument := LlamaCppServiceUnit()
+	for _, expectedValue := range []string{
+		"ExecStart=" + locallm.LlamaCppBinaryPath,
+		locallm.LlamaCppModelPath,
+		"--host " + locallm.LlamaCppHost,
+		"--port " + locallm.LlamaCppPort,
+		"LD_LIBRARY_PATH=" + locallm.LlamaCppLibraryDir,
+		"Restart=on-failure",
+	} {
+		if !strings.Contains(serviceDocument, expectedValue) {
+			t.Fatalf("expected llama.cpp service unit to contain %q, got %s", expectedValue, serviceDocument)
+		}
 	}
 }
