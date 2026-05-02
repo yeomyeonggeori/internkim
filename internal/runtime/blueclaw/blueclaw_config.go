@@ -84,7 +84,7 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 				"enabled":       true,
 				"executionMode": "auto",
 			},
-			"defaultBudgetClass": "thirty_minutes",
+			"defaultEffortLevel": "standard",
 			"toolResultMaxBytes": 32768,
 		},
 		"connectors": map[string]any{

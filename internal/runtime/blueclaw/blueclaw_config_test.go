@@ -75,8 +75,8 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if intake["executionMode"] != "auto" {
 		t.Fatalf("expected agent intake execution mode, got %v", intake["executionMode"])
 	}
-	if agent["defaultBudgetClass"] != "thirty_minutes" {
-		t.Fatalf("expected default budget class, got %v", agent["defaultBudgetClass"])
+	if agent["defaultEffortLevel"] != "standard" {
+		t.Fatalf("expected default effort level, got %v", agent["defaultEffortLevel"])
 	}
 	if agent["toolResultMaxBytes"] != float64(32768) {
 		t.Fatalf("expected agent tool result limit, got %v", agent["toolResultMaxBytes"])
@@ -129,7 +129,7 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	}
 	for _, fragment := range []string{"maxWallClockSecond", "maxIterationsPerRequest", "maxToolCallsPerRequest"} {
 		if strings.Contains(document, fragment) {
-			t.Fatalf("expected runtime config to omit raw budget field %q", fragment)
+			t.Fatalf("expected runtime config to omit raw limit field %q", fragment)
 		}
 	}
 }
@@ -151,7 +151,7 @@ func TestBlueclawRuntimeConfigSupportsOptionalModelOverride(t *testing.T) {
 		t.Fatalf("expected explicit model override, got %+v", capabilityLanguageModel)
 	}
 	if capabilityLanguageModel["contextWindowTokens"] != float64(BlueclawDefaultModelContextTokens) {
-		t.Fatalf("expected context window to remain tied to default runtime budget, got %+v", capabilityLanguageModel)
+		t.Fatalf("expected context window to remain tied to default runtime model, got %+v", capabilityLanguageModel)
 	}
 }
 
