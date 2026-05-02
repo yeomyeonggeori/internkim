@@ -105,15 +105,17 @@ make build
 ./internkim setup --board jetson-orin-nano --host <jetson-ip> --user <ssh-user>
 ```
 
+Go 코드나 provisioning/runtime config를 바꾼 뒤에는 setup 전에 반드시 `make build`를 다시 실행하세요. `./internkim`은 로컬 바이너리라 자동 재빌드되지 않으며, 오래된 바이너리로 setup을 실행하면 장비의 Blueclaw runtime config가 이전 schema로 되돌아갈 수 있습니다. `services`와 `health` 단계는 실제 `/root/.blueclaw/config/runtime.json` contract를 검사해 stale config를 실패 처리합니다.
+
 주요 setup 단계:
 1. SSH로 Jetson 연결
 2. 웹 앱 빌드 + Cloudflare Pages 배포
 3. Jetson Linux 패키지와 런타임 준비
-4. Blueclaw + gws + cloudflared 설치, 시스템 유저 생성
+4. Blueclaw + cloudflared 설치, 시스템 유저 생성
 5. OpenRouter API 키 → `/root/.internkim/secrets/openrouter-api-key`
 6. Local model runtime 준비
 7. 기기 등록 + Cloudflare 터널 시작
-8. Google 서비스 계정 자동 생성 → `/root/.internkim/secrets/google-sa.json`
+8. Google Workspace credential은 사용자가 직접 만들거나 Companion으로 전달한 것만 설치
 9. Mattermost 설정 (URL / admin token / bot token / channel ID, 건너뛰기 가능)
 10. Slack/Signal/Users sync 구성
 11. `blueclaw.service` 시작 + 최종 health check

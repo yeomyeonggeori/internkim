@@ -19,30 +19,7 @@ var StepServices = Step{
 		if context.Backend != BackendSSH {
 			return false
 		}
-		runtimeCheck := trimmedRun(context, `python3 - <<'PY'
-import json
-try:
-    with open("/root/.blueclaw/config/runtime.json") as file:
-        document = json.dumps(json.load(file))
-except Exception:
-    print("missing")
-    raise SystemExit
-for forbidden in ("apiKeyPath", "botTokenPath", "signingSecretPath", "OPENROUTER_API_KEY", "wrapperPath", "modelPath", "backend"):
-    if forbidden in document:
-        print("legacy")
-        raise SystemExit
-if '"transport": "vsock"' not in document or '"endpoint": "http://internkim-capability"' not in document:
-    print("stale")
-    raise SystemExit
-if '"graphitiEndpoint": "http://127.0.0.1:7791"' not in document or '"graphitiKuzuPath": "/workspace/.blueclaw/graphiti/kuzu"' not in document:
-    print("stale")
-    raise SystemExit
-if '"connectionString": "postgres://blueclaw@/blueclaw?host=/workspace/.blueclaw/postgres&sslmode=disable"' not in document:
-    print("stale")
-    raise SystemExit
-print("ok")
-PY`)
-		runtimeCheck = strings.TrimSpace(runtimeCheck)
+		runtimeCheck := trimmedRun(context, blueclawRuntimeContractCheckCommand())
 		return trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
@@ -94,6 +71,10 @@ chmod 640 %s %s`,
 			blueclaw.BlueclawWorkspacePath+"/.blueclaw/config/runtime.json",
 			blueclaw.BlueclawWorkspacePath+"/.blueclaw/config/policy.json",
 		))
+
+		if runtimeCheck := trimmedRun(context, blueclawRuntimeContractCheckCommand()); runtimeCheck != "ok" {
+			return fmt.Errorf("blueclaw runtime configuration contract drift: %s", runtimeCheck)
+		}
 
 		connection.Run("rm -f /etc/init.d/S97httpd; killall board-bridge 2>/dev/null; " +
 			"kill $(ps | grep 'python3 -m http.server' | grep -v grep | awk '{print $1}') 2>/dev/null || true")
@@ -200,4 +181,92 @@ fi`, deviceURL))
 		}
 		return nil
 	},
+}
+
+func blueclawRuntimeContractCheckCommand() string {
+	return `python3 - <<'PY'
+import json
+
+runtime_path = "/root/.blueclaw/config/runtime.json"
+workspace_runtime_path = "/root/.blueclaw/workspace/.blueclaw/config/runtime.json"
+
+try:
+    with open(runtime_path) as file:
+        runtime_configuration = json.load(file)
+except Exception:
+    print("runtime-config-missing")
+    raise SystemExit
+
+try:
+    with open(workspace_runtime_path) as file:
+        workspace_runtime_configuration = json.load(file)
+except Exception:
+    print("workspace-runtime-config-missing")
+    raise SystemExit
+
+if runtime_configuration != workspace_runtime_configuration:
+    print("runtime-config-mirror-drift")
+    raise SystemExit
+
+document = json.dumps(runtime_configuration)
+for forbidden in ("apiKeyPath", "botTokenPath", "signingSecretPath", "OPENROUTER_API_KEY", "wrapperPath", "modelPath", "backend", "defaultBudgetClass"):
+    if forbidden in document:
+        print("legacy-runtime-config")
+        raise SystemExit
+
+agent = runtime_configuration.get("agent", {})
+if agent.get("defaultEffortLevel") != "standard":
+    print("runtime-effort-level")
+    raise SystemExit
+
+capabilities = runtime_configuration.get("capabilities", {})
+if capabilities.get("transport") != "vsock":
+    print("runtime-capability-transport")
+    raise SystemExit
+if capabilities.get("endpoint") != "http://internkim-capability":
+    print("runtime-capability-endpoint")
+    raise SystemExit
+
+for tool_name in capabilities.get("toolNames", []):
+    if str(tool_name).startswith("google."):
+        print("runtime-capability-google-tool")
+        raise SystemExit
+
+database = runtime_configuration.get("database", {})
+if database.get("connectionString") != "postgres://blueclaw@/blueclaw?host=/workspace/.blueclaw/postgres&sslmode=disable":
+    print("runtime-database")
+    raise SystemExit
+
+memory = runtime_configuration.get("memory", {})
+if memory.get("graphitiEndpoint") != "http://127.0.0.1:7791":
+    print("runtime-graphiti-endpoint")
+    raise SystemExit
+if memory.get("graphitiKuzuPath") != "/workspace/.blueclaw/graphiti/kuzu":
+    print("runtime-graphiti-path")
+    raise SystemExit
+
+terminal = runtime_configuration.get("terminal", {})
+if terminal.get("mode") != "firecrackerGuest":
+    print("runtime-terminal-mode")
+    raise SystemExit
+
+profile_tool_names = []
+for profile in runtime_configuration.get("agentProfiles", []):
+    if profile.get("name") == "default":
+        profile_tool_names = [str(tool_name) for tool_name in profile.get("allowedToolNames", [])]
+        break
+
+required_tools = {"terminal.run", "terminal.session", "browser_handoff.openURL", "approval.request", "file.write", "file.attach"}
+missing_tools = sorted(required_tools - set(profile_tool_names))
+if missing_tools:
+    print("runtime-profile-missing-tools:" + ",".join(missing_tools))
+    raise SystemExit
+
+for tool_name in profile_tool_names:
+    if tool_name.startswith("google."):
+        print("runtime-profile-google-tool")
+        raise SystemExit
+
+print("ok")
+PY`
 }
