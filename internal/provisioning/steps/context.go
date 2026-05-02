@@ -45,6 +45,7 @@ type Callbacks struct {
 	BinariesVersion           func() string
 	InstallBinariesSSH        func(context *Context) error
 	StageBinariesSD           func(context *Context) error
+	BlueclawRuntimeManifest   func() string
 	InstallBlueclawRuntimeSSH func(context *Context) error
 
 	AdminWebVersion func() string

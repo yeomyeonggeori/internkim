@@ -28,7 +28,7 @@ if ! mount | grep -q " on $mount_directory_path "; then
   exit 1
 fi
 
-for command_name in bc bison curl flex tar sha256sum mkfs.ext4 rsync find go python3 make mmdebstrap git; do
+for command_name in bc bison curl flex tar unzip sha256sum mkfs.ext4 rsync find go python3 make mmdebstrap git; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
     echo "$command_name is missing"
     exit 1

@@ -184,6 +184,7 @@ fi
 
 require_command curl
 require_command tar
+require_command unzip
 require_command sha256sum
 require_command mkfs.ext4
 require_command rsync
@@ -191,6 +192,7 @@ require_command find
 require_command go
 require_command python3
 require_command make
+require_command git
 
 run_root mkdir -p "$scratch_directory" "$cache_directory" "$work_directory"
 run_root chown "$(id -u):$(id -g)" "$scratch_directory" "$cache_directory" "$work_directory"
@@ -364,16 +366,19 @@ ensure_rootfs_marp() {
   local base_directory="$1"
 
   run_root mkdir -p "$base_directory/opt/blueclaw/bun-cache" "$base_directory/opt/blueclaw/marp"
+  run_root tee "$base_directory/opt/blueclaw/marp/package.json" >/dev/null <<EOF
+{"dependencies":{"@marp-team/marp-cli":"$marp_cli_version"}}
+EOF
+  run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/bun install --cwd /opt/blueclaw/marp --production >/dev/null
   run_root tee "$base_directory/usr/local/bin/marp" >/dev/null <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 export BUN_INSTALL_CACHE_DIR="\${BUN_INSTALL_CACHE_DIR:-/opt/blueclaw/bun-cache}"
 export PUPPETEER_EXECUTABLE_PATH="\${PUPPETEER_EXECUTABLE_PATH:-/usr/bin/chromium}"
 export CHROME_PATH="\${CHROME_PATH:-/usr/bin/chromium}"
-exec /usr/local/bin/bunx --bun --package "@marp-team/marp-cli@$marp_cli_version" marp "\$@"
+exec /opt/blueclaw/marp/node_modules/.bin/marp "\$@"
 EOF
   run_root chmod 0755 "$base_directory/usr/local/bin/marp"
-  run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/marp --version >/dev/null
 }
 
 ensure_rootfs_base() {
@@ -411,7 +416,7 @@ ensure_rootfs_base() {
   ensure_rootfs_marp "$base_directory"
   run_root chroot "$base_directory" bun --version >/dev/null
   run_root chroot "$base_directory" bunx --version >/dev/null
-  run_root chroot "$base_directory" marp --version >/dev/null
+  run_root test -x "$base_directory/opt/blueclaw/marp/node_modules/.bin/marp"
   run_root chroot "$base_directory" chromium --version >/dev/null
   run_root rm -f "$base_directory/opt/blueclaw/requirements.txt"
 
@@ -480,13 +485,19 @@ prepare_rootfs_image() {
 }
 
 write_manifest() {
-  python3 - "$stage_directory" "$artifact_directory/manifest.json" "$firecracker_version" <<'PY'
+  local blueclaw_revision
+  local guest_init_sha
+  local prepare_script_sha
+  blueclaw_revision="$(git -C "$repository_root/.dependency/blueclaw" rev-parse HEAD)"
+  guest_init_sha="$(sha256sum "$repository_root/assets/blueclaw-runtime/guest-init" | cut -d' ' -f1)"
+  prepare_script_sha="$(sha256sum "$repository_root/tools/prepare-blueclaw-runtime" | cut -d' ' -f1)"
+  python3 - "$stage_directory" "$artifact_directory/manifest.json" "$firecracker_version" "$blueclaw_revision" "$guest_init_sha" "$prepare_script_sha" <<'PY'
 import hashlib
 import json
 import os
 import sys
 
-stage_directory, manifest_path, version = sys.argv[1:4]
+stage_directory, manifest_path, version, blueclaw_revision, guest_init_sha256, prepare_script_sha256 = sys.argv[1:7]
 files = []
 for name, mode in [
     ("firecracker", "0755"),
@@ -507,6 +518,9 @@ manifest = {
     "runtimeName": "internkim-blueclaw-runtime",
     "platform": "linux-arm64",
     "version": version,
+    "blueclawRevision": blueclaw_revision,
+    "guestInitSHA256": guest_init_sha256,
+    "prepareScriptSHA256": prepare_script_sha256,
     "files": files,
 }
 document = json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
