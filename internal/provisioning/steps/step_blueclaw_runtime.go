@@ -2,6 +2,7 @@ package setup
 
 import (
 	"errors"
+	"fmt"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
@@ -22,12 +23,21 @@ var StepBlueclawRuntime = Step{
 			"test -s "+shellQuote(blueclaw.BlueclawKernelImagePath)+" && "+
 			"test -s "+shellQuote(blueclaw.BlueclawRootFilesystemImagePath)+" && "+
 			"test -s "+shellQuote(blueclaw.BlueclawRuntimeManifestPath)+" && "+
-			"blkid -o value -s TYPE "+shellQuote(blueclaw.BlueclawWorkspaceImagePath)+" 2>/dev/null | grep -qx ext4 && echo ok || echo missing") == "ok"
+			"blkid -o value -s TYPE "+shellQuote(blueclaw.BlueclawWorkspaceImagePath)+" 2>/dev/null | grep -qx ext4 && echo ok || echo missing") == "ok" &&
+			trimmedRun(context, blueclawRootfsBinaryContractCheckCommand()) == "ok"
 	},
 	Run: func(context *Context) error {
 		if context.Callbacks.InstallBlueclawRuntimeSSH == nil {
 			return errors.New("blueclaw runtime SSH callback missing")
 		}
-		return context.Callbacks.InstallBlueclawRuntimeSSH(context)
+		if errorValue := context.Callbacks.InstallBlueclawRuntimeSSH(context); errorValue != nil {
+			return errorValue
+		}
+		if context.Backend == BackendSSH {
+			if check := trimmedRun(context, blueclawRootfsBinaryContractCheckCommand()); check != "ok" {
+				return fmt.Errorf("blueclaw rootfs binary contract drift: %s", check)
+			}
+		}
+		return nil
 	},
 }

@@ -20,13 +20,15 @@ var StepServices = Step{
 			return false
 		}
 		runtimeCheck := trimmedRun(context, blueclawRuntimeContractCheckCommand())
+		rootfsBinaryCheck := trimmedRun(context, blueclawRootfsBinaryContractCheckCommand())
 		return trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
 			strings.Contains(trimmedRun(context, "systemctl cat "+locallm.LlamaCppServiceName+" 2>/dev/null"), locallm.LlamaCppBinaryPath) &&
 			trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
 			trimmedRun(context, "systemctl is-active mattermost") == "active" &&
-			runtimeCheck == "ok"
+			runtimeCheck == "ok" &&
+			rootfsBinaryCheck == "ok"
 	},
 	Run: func(context *Context) error {
 		connection := context.SSH
@@ -74,6 +76,9 @@ chmod 640 %s %s`,
 
 		if runtimeCheck := trimmedRun(context, blueclawRuntimeContractCheckCommand()); runtimeCheck != "ok" {
 			return fmt.Errorf("blueclaw runtime configuration contract drift: %s", runtimeCheck)
+		}
+		if binaryCheck := trimmedRun(context, blueclawRootfsBinaryContractCheckCommand()); binaryCheck != "ok" {
+			return fmt.Errorf("blueclaw rootfs binary contract drift: %s", binaryCheck)
 		}
 
 		connection.Run("rm -f /etc/init.d/S97httpd; killall board-bridge 2>/dev/null; " +
@@ -265,6 +270,50 @@ if missing_tools:
 for tool_name in profile_tool_names:
     if tool_name.startswith("google."):
         print("runtime-profile-google-tool")
+        raise SystemExit
+
+print("ok")
+PY`
+}
+
+func blueclawRootfsBinaryContractCheckCommand() string {
+	return `set -eu
+rootfs_path="/opt/internkim/blueclaw-runtime/rootfs.ext4"
+dump_path="/tmp/internkim-blueclaw-rootfs-binary-check"
+if [ ! -s "$rootfs_path" ]; then
+  echo rootfs-missing
+  exit 0
+fi
+if ! command -v debugfs >/dev/null 2>&1; then
+  echo debugfs-missing
+  exit 0
+fi
+rm -f "$dump_path"
+if ! debugfs -R "dump /usr/local/bin/blueclaw $dump_path" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-binary-check.log 2>&1; then
+  echo rootfs-blueclaw-dump-failed
+  exit 0
+fi
+python3 - "$dump_path" <<'PY'
+from pathlib import Path
+import sys
+
+binary = Path(sys.argv[1]).read_bytes()
+required_markers = {
+    "defaultEffortLevel": b"defaultEffortLevel",
+    "agent.limit_stop": b"agent.limit_stop",
+}
+for name, marker in required_markers.items():
+    if marker not in binary:
+        print("rootfs-blueclaw-missing-marker:" + name)
+        raise SystemExit
+
+for name, marker in {
+    "defaultBudgetClass": b"defaultBudgetClass",
+    "agent.budget_stop": b"agent.budget_stop",
+    "korean-budget-reply": "10분 예산".encode(),
+}.items():
+    if marker in binary:
+        print("rootfs-blueclaw-legacy-marker:" + name)
         raise SystemExit
 
 print("ok")

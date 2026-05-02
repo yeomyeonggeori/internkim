@@ -23,3 +23,21 @@ func TestBlueclawRuntimeContractCheckCatchesStaleAgentConfiguration(t *testing.T
 		}
 	}
 }
+
+func TestBlueclawRootfsBinaryContractCheckCatchesStaleGuestBinary(t *testing.T) {
+	command := blueclawRootfsBinaryContractCheckCommand()
+	for _, expectedFragment := range []string{
+		"/opt/internkim/blueclaw-runtime/rootfs.ext4",
+		"/usr/local/bin/blueclaw",
+		"defaultEffortLevel",
+		"agent.limit_stop",
+		"defaultBudgetClass",
+		"agent.budget_stop",
+		"10분 예산",
+		"rootfs-blueclaw-legacy-marker",
+	} {
+		if !strings.Contains(command, expectedFragment) {
+			t.Fatalf("expected rootfs binary contract check to contain %q", expectedFragment)
+		}
+	}
+}
