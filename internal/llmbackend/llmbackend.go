@@ -22,7 +22,8 @@ type StructuredOutputSchema struct {
 
 type StructuredRequest struct {
 	Model                  string                 `json:"model"`
-	Backend                string                 `json:"backend,omitempty"`
+	Provider               string                 `json:"provider,omitempty"`
+	Accelerator            string                 `json:"accelerator,omitempty"`
 	ExecutionMode          string                 `json:"executionMode"`
 	Messages               []Message              `json:"messages"`
 	StructuredOutputSchema StructuredOutputSchema `json:"structuredOutputSchema"`
@@ -32,7 +33,8 @@ type StructuredRequest struct {
 
 type TextRequest struct {
 	Model                 string    `json:"model"`
-	Backend               string    `json:"backend,omitempty"`
+	Provider              string    `json:"provider,omitempty"`
+	Accelerator           string    `json:"accelerator,omitempty"`
 	ExecutionMode         string    `json:"executionMode"`
 	Messages              []Message `json:"messages"`
 	RequireParameters     bool      `json:"requireParameters"`
@@ -46,6 +48,13 @@ type Response struct {
 	SelectedBackend string `json:"selectedBackend"`
 	ConstraintMode  string `json:"constraintMode,omitempty"`
 }
+
+const (
+	ConstraintModeOpenAIJSONSchema           = "openai_json_schema"
+	ConstraintModeLlamaJSONSchema            = "llama_json_schema"
+	ConstraintModeLlamaGBNF                  = "llama_gbnf"
+	ConstraintModeLiteRTLLGuidanceJSONSchema = "litert_llguidance_json_schema"
+)
 
 type StructuredCompleter interface {
 	CompleteStructured(context.Context, StructuredRequest) (Response, error)
@@ -69,12 +78,17 @@ type Backend interface {
 const DefaultAttemptTimeout = 90 * time.Second
 
 type AutoProvider struct {
-	Providers      []Provider
-	AttemptTimeout time.Duration
+	Providers               []Provider
+	AttemptTimeout          time.Duration
+	AllowStructuredFallback bool
 }
 
 func (provider AutoProvider) CompleteStructured(ctx context.Context, request StructuredRequest) (Response, error) {
-	return completeWithProviderChain(provider.Providers, func(candidate Provider) (Response, error) {
+	providers := provider.Providers
+	if !provider.AllowStructuredFallback && len(providers) > 1 {
+		providers = providers[:1]
+	}
+	return completeWithProviderChain(providers, func(candidate Provider) (Response, error) {
 		attemptContext, cancel := context.WithTimeout(ctx, provider.attemptTimeout())
 		defer cancel()
 		return candidate.CompleteStructured(attemptContext, request)
@@ -97,7 +111,7 @@ func (provider AutoProvider) attemptTimeout() time.Duration {
 }
 
 func completeWithProviderChain(providers []Provider, complete func(Provider) (Response, error)) (Response, error) {
-	var lastError error
+	attempts := make([]string, 0, len(providers))
 	for index, candidate := range providers {
 		if candidate == nil {
 			continue
@@ -106,15 +120,22 @@ func completeWithProviderChain(providers []Provider, complete func(Provider) (Re
 		if errorValue == nil {
 			return response, nil
 		}
-		lastError = errorValue
-		if index == 0 {
+		attempts = append(attempts, providerFailure(candidate, errorValue))
+		if index < len(providers)-1 {
 			logFallback(errorValue)
 		}
 	}
-	if lastError == nil {
-		lastError = errors.New("no llm provider is available")
+	if len(attempts) == 0 {
+		return Response{}, errors.New("no llm provider is available")
 	}
-	return Response{}, lastError
+	return Response{}, errors.New("llm provider attempts failed: " + strings.Join(attempts, "; "))
+}
+
+func providerFailure(provider Provider, errorValue error) string {
+	if namedProvider, ok := provider.(interface{ Name() string }); ok {
+		return namedProvider.Name() + ": " + errorValue.Error()
+	}
+	return errorValue.Error()
 }
 
 func logFallback(errorValue error) {

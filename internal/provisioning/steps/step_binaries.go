@@ -3,7 +3,7 @@ package setup
 import (
 	"errors"
 
-	"github.com/anthropic-lab/internkim/internal/runtime/locallm"
+	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
 var StepBinaries = Step{
@@ -21,10 +21,9 @@ var StepBinaries = Step{
 		case BackendSSH:
 			if !sshFileExists(context, "/usr/local/bin/blueclaw") ||
 				!sshFileExists(context, "/usr/local/bin/blueclaw-supervisor") ||
-				!sshFileExists(context, "/usr/local/bin/gws") ||
 				!sshFileExists(context, "/usr/local/bin/internkim-capabilityd") ||
 				!sshFileExists(context, "/usr/local/bin/internkim-admind") ||
-				!sshFileExists(context, "/usr/local/bin/internkim-litert-wrapper") ||
+				!sshFileExists(context, "/usr/local/bin/internkim-local-llm-runner") ||
 				!sshFileExists(context, locallm.BinaryPath()) ||
 				!sshFileExists(context, "/usr/local/bin/graphiti-memoryd") {
 				return false
@@ -37,7 +36,7 @@ var StepBinaries = Step{
 			return stagedFileExists(context, "bin/blueclaw") &&
 				stagedFileExists(context, "bin/internkim-capabilityd") &&
 				stagedFileExists(context, "bin/internkim-admind") &&
-				stagedFileExists(context, "bin/internkim-litert-wrapper")
+				stagedFileExists(context, "bin/internkim-local-llm-runner")
 		}
 		return false
 	},

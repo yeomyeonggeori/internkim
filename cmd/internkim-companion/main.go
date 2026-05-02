@@ -18,10 +18,10 @@ import (
 	"strings"
 	"time"
 
-	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
-	"github.com/anthropic-lab/internkim/internal/capabilities"
-	companionruntime "github.com/anthropic-lab/internkim/internal/companion"
-	"github.com/anthropic-lab/internkim/internal/llmbackend"
+	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
+	"gitlab.com/eastriver/internkim/internal/capabilities"
+	companionruntime "gitlab.com/eastriver/internkim/internal/companion"
+	"gitlab.com/eastriver/internkim/internal/llmbackend"
 )
 
 func main() {
@@ -56,29 +56,12 @@ func runServer(arguments []string) error {
 	listenAddress := flags.String("listen", "127.0.0.1:7979", "companion listen address")
 	localOnly := flags.Bool("local-only", false, "advertise local-only mode")
 	devMockLLM := flags.Bool("dev-mock-llm", false, "serve deterministic local LLM responses for development")
-	enableLocalLLM := flags.Bool("enable-local-llm", false, "enable local LLM inference on this machine")
-	backendOrderFlag := flags.String("local-backend-order", "ollama", "comma-separated backend priority (ollama,llamacpp,mlx)")
-	ollamaBaseURL := flags.String("ollama-base-url", "http://127.0.0.1:11434", "ollama base URL")
-	ollamaModel := flags.String("ollama-model", "", "ollama model name")
-	llamaCppBaseURL := flags.String("llamacpp-base-url", "http://127.0.0.1:8080", "llama.cpp server base URL")
-	llamaCppModel := flags.String("llamacpp-model", "", "llama.cpp model alias")
-	mlxBaseURL := flags.String("mlx-base-url", "http://127.0.0.1:10240", "MLX server base URL")
-	mlxModel := flags.String("mlx-model", "", "MLX model name")
+	localLLMFlags := registerLocalLLMFlags(flags)
 	if errorValue := flags.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
 
-	settings := localLLMSettings{
-		Enabled:         *enableLocalLLM,
-		BackendOrder:    parseBackendOrder(*backendOrderFlag),
-		OllamaBaseURL:   *ollamaBaseURL,
-		OllamaModel:     *ollamaModel,
-		LlamaCppBaseURL: *llamaCppBaseURL,
-		LlamaCppModel:   *llamaCppModel,
-		MLXBaseURL:      *mlxBaseURL,
-		MLXModel:        *mlxModel,
-	}
-	chain, backends := buildLocalChain(settings, http.DefaultClient)
+	settings := localLLMFlags.settings(http.DefaultClient)
 
 	multiplexer := http.NewServeMux()
 	multiplexer.HandleFunc("GET /health", func(responseWriter http.ResponseWriter, request *http.Request) {
@@ -90,12 +73,12 @@ func runServer(arguments []string) error {
 		_ = request
 		writeJSON(responseWriter, capabilities.RegistryResponse{
 			LocalOnly:    *localOnly,
-			Capabilities: defaultCapabilities(*localOnly, *devMockLLM || *enableLocalLLM),
+			Capabilities: defaultCapabilities(*localOnly, *devMockLLM || settings.Enabled),
 		})
 	})
-	multiplexer.HandleFunc("POST /v1/llm/structured", llmHandler(settings.Enabled, *devMockLLM, true, chain, backends))
-	multiplexer.HandleFunc("POST /v1/llm/text", llmHandler(settings.Enabled, *devMockLLM, false, chain, backends))
-	multiplexer.HandleFunc("POST /v1/llm/stream", llmStreamHandler(settings.Enabled, backends))
+	multiplexer.HandleFunc("POST /v1/llm/structured", llmHandler(settings, *devMockLLM, true))
+	multiplexer.HandleFunc("POST /v1/llm/text", llmHandler(settings, *devMockLLM, false))
+	multiplexer.HandleFunc("POST /v1/llm/stream", llmStreamHandler(settings.Enabled, settings.ProviderSet.Backends))
 	multiplexer.HandleFunc("POST /v1/audio/in", reservedNotImplemented)
 	multiplexer.HandleFunc("POST /v1/audio/out", reservedNotImplemented)
 	multiplexer.HandleFunc("POST /v1/tools/invoke", notImplemented)
@@ -258,28 +241,12 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	controlListenAddress := flags.String("control-listen", "", "local companion shell control address")
 	agentBrowserPath := flags.String("agent-browser-path", "", "agent-browser executable path")
 	browserProfilePath := flags.String("browser-profile", defaultBrowserProfilePath(), "InternKim companion browser profile path")
-	enableLocalLLM := flags.Bool("enable-local-llm", false, "enable local LLM inference on this machine")
-	backendOrderFlag := flags.String("local-backend-order", "ollama", "comma-separated backend priority (ollama,llamacpp,mlx)")
-	ollamaBaseURL := flags.String("ollama-base-url", "http://127.0.0.1:11434", "ollama base URL")
-	ollamaModel := flags.String("ollama-model", "", "ollama model name")
-	llamaCppBaseURL := flags.String("llamacpp-base-url", "http://127.0.0.1:8080", "llama.cpp server base URL")
-	llamaCppModel := flags.String("llamacpp-model", "", "llama.cpp model alias")
-	mlxBaseURL := flags.String("mlx-base-url", "http://127.0.0.1:10240", "MLX server base URL")
-	mlxModel := flags.String("mlx-model", "", "MLX model name")
+	localLLMFlags := registerLocalLLMFlags(flags)
 	preferCompanionBrowser := flags.Bool("prefer-companion-browser", false, "ask the device to route browser tools to this companion")
 	if errorValue := flags.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
-	localLLMConfig := localLLMSettings{
-		Enabled:         *enableLocalLLM,
-		BackendOrder:    parseBackendOrder(*backendOrderFlag),
-		OllamaBaseURL:   *ollamaBaseURL,
-		OllamaModel:     *ollamaModel,
-		LlamaCppBaseURL: *llamaCppBaseURL,
-		LlamaCppModel:   *llamaCppModel,
-		MLXBaseURL:      *mlxBaseURL,
-		MLXModel:        *mlxModel,
-	}
+	localLLMConfiguration := localLLMFlags.settings(httpClient)
 	state, errorValue := loadStateAndMigrateSecrets(context.Background(), *statePath, secureStore)
 	if errorValue != nil {
 		return errorValue
@@ -306,11 +273,10 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	grantStore := companionruntime.NewMemoryGrantStore()
 	runtimeStatus := &runtimeState{}
 	var localChain llmbackend.Provider
-	var localBackends []llmbackend.Backend
-	if localLLMConfig.Enabled {
-		localChain, localBackends = buildLocalChain(localLLMConfig, httpClient)
-		runtimeStatus.setLocalLLM(localBackendsSummary(localBackends))
-		runtimeStatus.registerLocalLLMBackends(localBackends, localBackendModelMap(localLLMConfig))
+	if localLLMConfiguration.Enabled {
+		localChain = localLLMConfiguration.ProviderSet.Provider
+		runtimeStatus.setLocalLLM(localBackendsSummary(localLLMConfiguration.ProviderSet.Backends))
+		runtimeStatus.registerLocalLLMBackends(localLLMConfiguration.ProviderSet.Backends, localLLMConfiguration.ProviderSet.ModelByBackendName)
 	}
 	_ = preferCompanionBrowser
 	executor := companionruntime.Executor{
@@ -488,21 +454,21 @@ func capabilitiesWithoutBrowser(descriptors []capabilities.Descriptor) []capabil
 	return filteredDescriptors
 }
 
-func llmHandler(localEnabled bool, devMock bool, isStructured bool, chain llmbackend.Provider, backends []llmbackend.Backend) http.HandlerFunc {
+func llmHandler(settings localLLMSettings, devMock bool, isStructured bool) http.HandlerFunc {
 	return func(responseWriter http.ResponseWriter, request *http.Request) {
 		if devMock {
 			respondWithDevMock(responseWriter, request, isStructured)
 			return
 		}
-		if !localEnabled {
+		if !settings.Enabled {
 			notImplemented(responseWriter, request)
 			return
 		}
 		if isStructured {
-			handleStructuredLLM(responseWriter, request, chain, backends)
+			handleStructuredLLM(responseWriter, request, settings)
 			return
 		}
-		handleTextLLM(responseWriter, request, chain, backends)
+		handleTextLLM(responseWriter, request, settings)
 	}
 }
 
@@ -511,7 +477,7 @@ func respondWithDevMock(responseWriter http.ResponseWriter, request *http.Reques
 		"provider":        "companion",
 		"model":           "mock-local",
 		"selectedBackend": capabilities.LLMBackendCompanionLocal,
-		"constraintMode":  "prompt_validation",
+		"constraintMode":  llmbackend.ConstraintModeOpenAIJSONSchema,
 		"content":         "ok",
 	}
 	if isStructured {
@@ -521,30 +487,32 @@ func respondWithDevMock(responseWriter http.ResponseWriter, request *http.Reques
 	writeJSON(responseWriter, response)
 }
 
-func handleStructuredLLM(responseWriter http.ResponseWriter, request *http.Request, chain llmbackend.Provider, backends []llmbackend.Backend) {
+func handleStructuredLLM(responseWriter http.ResponseWriter, request *http.Request, settings localLLMSettings) {
 	var structuredRequest llmbackend.StructuredRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&structuredRequest); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	response, errorValue := chain.CompleteStructured(request.Context(), structuredRequest)
+	providerSet := settings.providerSetFor(structuredRequest.Provider, structuredRequest.Accelerator)
+	response, errorValue := providerSet.Provider.CompleteStructured(request.Context(), structuredRequest)
 	if errorValue != nil {
-		respondWithBackendError(responseWriter, errorValue, backends)
+		respondWithBackendError(responseWriter, errorValue, providerSet.Backends)
 		return
 	}
 	response.SelectedBackend = capabilities.LLMBackendCompanionLocal
 	writeJSON(responseWriter, response)
 }
 
-func handleTextLLM(responseWriter http.ResponseWriter, request *http.Request, chain llmbackend.Provider, backends []llmbackend.Backend) {
+func handleTextLLM(responseWriter http.ResponseWriter, request *http.Request, settings localLLMSettings) {
 	var textRequest llmbackend.TextRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&textRequest); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	response, errorValue := chain.CompleteText(request.Context(), textRequest)
+	providerSet := settings.providerSetFor(textRequest.Provider, textRequest.Accelerator)
+	response, errorValue := providerSet.Provider.CompleteText(request.Context(), textRequest)
 	if errorValue != nil {
-		respondWithBackendError(responseWriter, errorValue, backends)
+		respondWithBackendError(responseWriter, errorValue, providerSet.Backends)
 		return
 	}
 	response.SelectedBackend = capabilities.LLMBackendCompanionLocal
@@ -565,11 +533,7 @@ func buildBackendHint(backends []llmbackend.Backend) string {
 	if len(backends) == 0 {
 		return "no local backend configured"
 	}
-	names := make([]string, 0, len(backends))
-	for _, backend := range backends {
-		names = append(names, backend.Name())
-	}
-	return "check that one of these backends is reachable: " + strings.Join(names, ", ")
+	return "check that one of these backends is reachable: " + localLLMProviderNames(backends)
 }
 
 func notImplemented(responseWriter http.ResponseWriter, request *http.Request) {

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,10 +12,10 @@ import (
 	"strings"
 	"testing"
 
-	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
-	"github.com/anthropic-lab/internkim/internal/capabilities"
-	companionruntime "github.com/anthropic-lab/internkim/internal/companion"
-	"github.com/anthropic-lab/internkim/internal/llmbackend"
+	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
+	"gitlab.com/eastriver/internkim/internal/capabilities"
+	companionruntime "gitlab.com/eastriver/internkim/internal/companion"
+	"gitlab.com/eastriver/internkim/internal/llmbackend"
 )
 
 func newOllamaStubClient(t *testing.T, expectedFormat bool, content string) (*http.Client, *bool) {
@@ -43,16 +44,49 @@ func newOllamaStubClient(t *testing.T, expectedFormat bool, content string) (*ht
 	return client, &called
 }
 
+func newLlamaCppStructuredStubClient(t *testing.T, content string) (*http.Client, *bool) {
+	t.Helper()
+	called := false
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Path != "/v1/chat/completions" {
+			t.Fatalf("expected /v1/chat/completions call, got %s", request.URL.Path)
+		}
+		var document map[string]any
+		if errorValue := json.NewDecoder(request.Body).Decode(&document); errorValue != nil {
+			t.Fatalf("expected request body: %v", errorValue)
+		}
+		responseFormat, isFound := document["response_format"].(map[string]any)
+		if !isFound || responseFormat["type"] != "json_schema" {
+			t.Fatalf("expected json_schema response_format, got %+v", document)
+		}
+		called = true
+		body := `{"choices":[{"message":{"content":"` + content + `"}}]}`
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Header:     make(http.Header),
+		}, nil
+	})}
+	return client, &called
+}
+
+func newLocalLLMTestSettings(configuration llmbackend.LocalProviderConfig) localLLMSettings {
+	return localLLMSettings{
+		Enabled:       true,
+		Configuration: configuration,
+		ProviderSet:   llmbackend.BuildLocalProviderSet(configuration),
+	}
+}
+
 func TestLLMHandlerTextRoutesToOllamaBackend(t *testing.T) {
 	httpClient, called := newOllamaStubClient(t, false, "hello from ollama")
-	settings := localLLMSettings{
-		Enabled:       true,
-		BackendOrder:  []string{"ollama"},
+	settings := newLocalLLMTestSettings(llmbackend.LocalProviderConfig{
+		ProviderOrder: []string{"ollama"},
 		OllamaBaseURL: "https://ollama.test",
 		OllamaModel:   "gemma3:1b",
-	}
-	chain, backends := buildLocalChain(settings, httpClient)
-	handler := llmHandler(true, false, false, chain, backends)
+		HTTPClient:    httpClient,
+	})
+	handler := llmHandler(settings, false, false)
 
 	body := `{"messages":[{"role":"user","content":"hi"}]}`
 	request := httptest.NewRequest(http.MethodPost, "/v1/llm/text", strings.NewReader(body))
@@ -77,16 +111,40 @@ func TestLLMHandlerTextRoutesToOllamaBackend(t *testing.T) {
 	}
 }
 
-func TestLLMHandlerStructuredEnforcesSchema(t *testing.T) {
-	httpClient, _ := newOllamaStubClient(t, true, `{\"reply\":\"ok\"}`)
-	settings := localLLMSettings{
-		Enabled:       true,
-		BackendOrder:  []string{"ollama"},
-		OllamaBaseURL: "https://ollama.test",
-		OllamaModel:   "gemma3:1b",
+func TestLLMHandlerHonorsRequestedProvider(t *testing.T) {
+	httpClient, called := newOllamaStubClient(t, false, "hello from requested ollama")
+	settings := newLocalLLMTestSettings(llmbackend.LocalProviderConfig{
+		ProviderOrder:   []string{"llamacpp", "ollama"},
+		OllamaBaseURL:   "https://ollama.test",
+		OllamaModel:     "gemma3:1b",
+		LlamaCppBaseURL: "https://llamacpp.test",
+		LlamaCppModel:   "local/gemma",
+		HTTPClient:      httpClient,
+	})
+	handler := llmHandler(settings, false, false)
+
+	body := `{"provider":"ollama","messages":[{"role":"user","content":"hi"}]}`
+	request := httptest.NewRequest(http.MethodPost, "/v1/llm/text", strings.NewReader(body))
+	response := httptest.NewRecorder()
+	handler(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", response.Code, response.Body.String())
 	}
-	chain, backends := buildLocalChain(settings, httpClient)
-	handler := llmHandler(true, false, true, chain, backends)
+	if !*called {
+		t.Fatal("expected requested ollama backend to be invoked")
+	}
+}
+
+func TestLLMHandlerStructuredEnforcesSchema(t *testing.T) {
+	httpClient, called := newLlamaCppStructuredStubClient(t, `{\"reply\":\"ok\"}`)
+	settings := newLocalLLMTestSettings(llmbackend.LocalProviderConfig{
+		ProviderOrder:   []string{"llamacpp"},
+		LlamaCppBaseURL: "https://llamacpp.test",
+		LlamaCppModel:   "local/gemma",
+		HTTPClient:      httpClient,
+	})
+	handler := llmHandler(settings, false, true)
 
 	body := `{"messages":[{"role":"user","content":"hi"}],"structuredOutputSchema":{"name":"reply","document":{"type":"object","required":["reply"]}}}`
 	request := httptest.NewRequest(http.MethodPost, "/v1/llm/structured", strings.NewReader(body))
@@ -100,8 +158,11 @@ func TestLLMHandlerStructuredEnforcesSchema(t *testing.T) {
 	if errorValue := json.Unmarshal(response.Body.Bytes(), &result); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if result["constraintMode"] != "provider_json_schema" {
-		t.Fatalf("expected provider json schema mode, got %+v", result)
+	if result["constraintMode"] != "llama_json_schema" {
+		t.Fatalf("expected llama JSON schema mode, got %+v", result)
+	}
+	if !*called {
+		t.Fatal("expected llama.cpp backend to be invoked")
 	}
 }
 
@@ -110,14 +171,13 @@ func TestLLMHandlerReturnsServiceUnavailableWhenAllBackendsFail(t *testing.T) {
 		_ = request
 		return nil, errSimulatedTransport
 	})}
-	settings := localLLMSettings{
-		Enabled:       true,
-		BackendOrder:  []string{"ollama"},
+	settings := newLocalLLMTestSettings(llmbackend.LocalProviderConfig{
+		ProviderOrder: []string{"ollama"},
 		OllamaBaseURL: "https://ollama.test",
 		OllamaModel:   "gemma3:1b",
-	}
-	chain, backends := buildLocalChain(settings, httpClient)
-	handler := llmHandler(true, false, false, chain, backends)
+		HTTPClient:    httpClient,
+	})
+	handler := llmHandler(settings, false, false)
 
 	body := `{"messages":[{"role":"user","content":"hi"}]}`
 	request := httptest.NewRequest(http.MethodPost, "/v1/llm/text", strings.NewReader(body))
@@ -137,7 +197,7 @@ func TestLLMHandlerReturnsServiceUnavailableWhenAllBackendsFail(t *testing.T) {
 }
 
 func TestLLMHandlerWithoutLocalEnabledReturnsNotImplemented(t *testing.T) {
-	handler := llmHandler(false, false, false, nil, nil)
+	handler := llmHandler(localLLMSettings{}, false, false)
 	request := httptest.NewRequest(http.MethodPost, "/v1/llm/text", strings.NewReader(`{}`))
 	response := httptest.NewRecorder()
 	handler(response, request)
@@ -160,14 +220,13 @@ func TestLLMStreamHandlerEmitsTokensAsSSE(t *testing.T) {
 			Header:     make(http.Header),
 		}, nil
 	})}
-	settings := localLLMSettings{
-		Enabled:       true,
-		BackendOrder:  []string{"ollama"},
+	providerSet := llmbackend.BuildLocalProviderSet(llmbackend.LocalProviderConfig{
+		ProviderOrder: []string{"ollama"},
 		OllamaBaseURL: "https://ollama.test",
 		OllamaModel:   "gemma3:1b",
-	}
-	_, backends := buildLocalChain(settings, httpClient)
-	handler := llmStreamHandler(true, backends)
+		HTTPClient:    httpClient,
+	})
+	handler := llmStreamHandler(true, providerSet.Backends)
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/llm/stream", strings.NewReader(`{"messages":[{"role":"user","content":"hi"}]}`))
 	response := httptest.NewRecorder()
@@ -188,15 +247,30 @@ func TestLLMStreamHandlerEmitsTokensAsSSE(t *testing.T) {
 	}
 }
 
-func TestLocalChainBuildsBackendsInRequestedOrder(t *testing.T) {
-	settings := localLLMSettings{
-		Enabled:         true,
-		BackendOrder:    []string{"llamacpp", "ollama", "mlx"},
+func TestCompanionDefaultLocalProviderOrderStartsWithLlamaCpp(t *testing.T) {
+	flags := flag.NewFlagSet("test", flag.ContinueOnError)
+	localFlags := registerLocalLLMFlags(flags)
+	if errorValue := flags.Parse(nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	settings := localFlags.settings(http.DefaultClient)
+	expected := []string{"llamacpp", "ollama", "mlx"}
+	for index, backend := range settings.ProviderSet.Backends {
+		if backend.Name() != expected[index] {
+			t.Fatalf("expected %s at index %d, got %s", expected[index], index, backend.Name())
+		}
+	}
+}
+
+func TestSharedLocalProviderSetBuildsBackendsInRequestedOrder(t *testing.T) {
+	providerSet := llmbackend.BuildLocalProviderSet(llmbackend.LocalProviderConfig{
+		ProviderOrder:   []string{"llamacpp", "ollama", "mlx"},
 		OllamaBaseURL:   "http://o",
 		LlamaCppBaseURL: "http://l",
 		MLXBaseURL:      "http://m",
-	}
-	_, backends := buildLocalChain(settings, http.DefaultClient)
+	})
+	backends := providerSet.Backends
 	if len(backends) != 3 {
 		t.Fatalf("expected three backends, got %d", len(backends))
 	}
@@ -208,17 +282,35 @@ func TestLocalChainBuildsBackendsInRequestedOrder(t *testing.T) {
 	}
 }
 
-func TestLocalChainSkipsUnknownBackendNames(t *testing.T) {
-	settings := localLLMSettings{
-		Enabled:      true,
-		BackendOrder: []string{"unknown", "ollama"},
-	}
-	_, backends := buildLocalChain(settings, http.DefaultClient)
+func TestSharedLocalProviderSetSkipsUnknownProviderNames(t *testing.T) {
+	providerSet := llmbackend.BuildLocalProviderSet(llmbackend.LocalProviderConfig{
+		ProviderOrder: []string{"unknown", "ollama"},
+	})
+	backends := providerSet.Backends
 	if len(backends) != 1 {
 		t.Fatalf("expected single ollama backend, got %d", len(backends))
 	}
 	if backends[0].Name() != "ollama" {
 		t.Fatalf("expected ollama backend, got %s", backends[0].Name())
+	}
+}
+
+func TestLLMHandlerStructuredReturnsUnsupportedForOllamaOnly(t *testing.T) {
+	settings := newLocalLLMTestSettings(llmbackend.LocalProviderConfig{
+		ProviderOrder: []string{"ollama"},
+	})
+	handler := llmHandler(settings, false, true)
+
+	body := `{"messages":[{"role":"user","content":"hi"}],"structuredOutputSchema":{"name":"reply","document":{"type":"object","required":["reply"]}}}`
+	request := httptest.NewRequest(http.MethodPost, "/v1/llm/structured", strings.NewReader(body))
+	response := httptest.NewRecorder()
+	handler(response, request)
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d body=%s", response.Code, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), "deterministic structured output") {
+		t.Fatalf("expected deterministic structured output error, got %s", response.Body.String())
 	}
 }
 

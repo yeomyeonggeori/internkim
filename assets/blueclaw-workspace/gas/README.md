@@ -1,9 +1,8 @@
 # internkim-bridge (Google Apps Script)
 
-Google Apps Script webhook the user deploys from their own Google account so
-the on-device agent can create Slides / Docs / Sheets / Calendar events / send
-Gmail *as the user*, bypassing the "unverified third-party app" block that
-kills direct OAuth flows on personal gmail accounts.
+Google Apps Script webhook the user deploys from their own Google account.
+InternKim stores the returned Web App URL in root-owned secret storage and
+invokes it through typed capabilityd tools. Blueclaw never reads this URL.
 
 ## One-time deploy (~30 s)
 
@@ -15,7 +14,7 @@ kills direct OAuth flows on personal gmail accounts.
 4. Authorize the prompted scopes (Drive / Slides / Docs / Sheets / Calendar /
    Gmail). Google's native consent screen is never blocked.
 5. Copy the **Web App URL** Apps Script returns after deploying.
-6. Paste it back into the internkim terminal prompt when setup asks.
+6. Install the Web App URL through InternKim setup or Companion.
 
 ## Actions
 
@@ -23,9 +22,9 @@ All invoked via `POST` with `application/x-www-form-urlencoded` body.
 
 | `action`          | Required params            | Optional params        | Returns                        |
 |-------------------|----------------------------|------------------------|--------------------------------|
-| `slides.create`   | `title`                    | `share_to` (SA email)  | `{id, url}`                    |
-| `docs.create`     | `title`                    | `share_to`             | `{id, url}`                    |
-| `sheets.create`   | `title`                    | `share_to`             | `{id, url}`                    |
+| `slides.create`   | `title`                    |                        | `{id, url}`                    |
+| `docs.create`     | `title`                    | `body`                 | `{id, url}`                    |
+| `sheets.create`   | `title`                    | `values`               | `{id, url}`                    |
 | `calendar.event`  | `title`, `start`, `end`    | `attendees` (CSV)      | `{id}`                         |
 | `gmail.send`      | `to`, `subject`            | `body`                 | `{sent: true}`                 |
 

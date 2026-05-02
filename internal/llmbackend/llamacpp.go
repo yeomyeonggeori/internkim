@@ -24,15 +24,15 @@ func (backend LlamaCppBackend) CompleteStructured(ctx context.Context, request S
 	if errorValue != nil {
 		return Response{}, errorValue
 	}
-	if !ValidateMinimumStructuredOutput(content, request.StructuredOutputSchema.Document) {
-		return Response{}, errors.New("llamacpp response did not satisfy structured output schema")
+	if !ValidateStructuredJSON(content) {
+		return Response{}, errors.New("llamacpp response was not structured JSON")
 	}
 	return Response{
 		Provider:        "llamacpp",
 		Model:           backend.ModelName,
 		Content:         content,
 		SelectedBackend: "llamacpp",
-		ConstraintMode:  "provider_json_schema",
+		ConstraintMode:  ConstraintModeLlamaJSONSchema,
 	}, nil
 }
 

@@ -14,7 +14,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/anthropic-lab/internkim/internal/identity"
+	"gitlab.com/eastriver/internkim/internal/identity"
 )
 
 type adminUserMutation struct {

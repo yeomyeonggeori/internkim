@@ -5,12 +5,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/anthropic-lab/internkim/internal/runtime/blueclaw"
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
 var StepServices = Step{
 	Name: "services",
-	Deps: []string{"blueclaw-runtime", "openrouter", "litert", "mattermost"},
+	Deps: []string{"blueclaw-runtime", "openrouter", "local-llm", "mattermost"},
 	Title: func(context *Context) string {
 		return context.T("서비스 시작 중...", "Starting services...")
 	},
@@ -45,6 +46,7 @@ PY`)
 		return trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
+			strings.Contains(trimmedRun(context, "systemctl cat "+locallm.LlamaCppServiceName+" 2>/dev/null"), locallm.LlamaCppBinaryPath) &&
 			trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
 			trimmedRun(context, "systemctl is-active mattermost") == "active" &&
 			runtimeCheck == "ok"
@@ -124,7 +126,10 @@ cat > %s <<'CAPABILITYEOF'
 %sCAPABILITYEOF
 cat > %s <<'ADMINDEOF'
 %sADMINDEOF
+cat > %s <<'LLAMACPP_EOF'
+%sLLAMACPP_EOF
 systemctl daemon-reload
+systemctl disable %s 2>/dev/null || true
 systemctl enable %s
 systemctl restart %s
 systemctl enable %s
@@ -138,6 +143,9 @@ sleep 2`,
 			blueclaw.CapabilitydServiceUnit(),
 			blueclaw.AdmindServicePath,
 			blueclaw.AdmindServiceUnit(),
+			locallm.LlamaCppServicePath,
+			blueclaw.LlamaCppServiceUnit(),
+			locallm.LlamaCppServiceName,
 			blueclaw.CapabilitydServiceName,
 			blueclaw.CapabilitydServiceName,
 			blueclaw.AdmindServiceName,

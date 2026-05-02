@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
-	internkimlab "github.com/anthropic-lab/internkim/internal/lab"
+	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
+	internkimlab "gitlab.com/eastriver/internkim/internal/lab"
 )
 
 type verifyTarget struct {
@@ -314,7 +314,7 @@ echo "checking litert capability"
 if command -v litert-lm >/dev/null 2>&1 && [ -s /root/.internkim/models/gemma-4-E4B-it.litertlm ]; then
   litert_body="$(jq -cn '{
     model: "local/gemma-4-E4B-it-litert-lm",
-    executionMode: "local",
+    executionMode: "device",
     messages: [{role:"user", content:"Reply with ok."}],
     requireParameters: true,
     enableResponseHealing: true

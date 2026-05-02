@@ -1,4 +1,4 @@
-module github.com/anthropic-lab/internkim
+module gitlab.com/eastriver/internkim
 
 go 1.26.1
 

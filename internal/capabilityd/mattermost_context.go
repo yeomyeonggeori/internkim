@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/anthropic-lab/internkim/internal/identity"
+	"gitlab.com/eastriver/internkim/internal/identity"
 )
 
 type mattermostHistoryPost struct {

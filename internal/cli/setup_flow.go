@@ -10,11 +10,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/anthropic-lab/internkim/internal/blueclawworkspace"
-	browserruntime "github.com/anthropic-lab/internkim/internal/browser"
-	setup "github.com/anthropic-lab/internkim/internal/provisioning/steps"
-	"github.com/anthropic-lab/internkim/internal/runtime/blueclaw"
-	"github.com/anthropic-lab/internkim/internal/runtime/locallm"
+	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
+	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
+	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
 type setupFlowState struct {
@@ -264,14 +264,9 @@ func (state *setupFlowState) callbacks() setup.Callbacks {
 		Translate:                 func(korean, english string) string { return state.messenger.t(korean, english) },
 		LoadState:                 func(key string) string { return loadState(state.stateDir, key) },
 		SaveState:                 func(key, value string) { saveState(state.stateDir, key, value) },
-		GoogleAuth:                state.googleAuth,
-		ResolveGoogleProject:      resolveGoogleProject,
-		EnableGoogleAPIs:          enableGoogleAPIs,
-		CreateGoogleSA:            createGoogleServiceAccount,
 		GetOpenRouterKey:          buildOpenRouterKeyCallback(state.stateDir, state.messenger, state.parameters.OpenRouterAPIKey, state.nonInteractive),
 		GetLiteRTModelPath:        buildLiteRTModelPathCallback(state.parameters.LiteRTModelPath),
 		GetGasWebhookURL:          state.provisionGasWebhook,
-		GwsSkillsInstallScript:    gwsSkillsInstallScript,
 		BinariesVersion:           state.binariesVersion,
 		InstallBinariesSSH:        state.installBinariesSSH,
 		StageBinariesSD:           state.stageBinariesSD,
@@ -303,31 +298,6 @@ func (state *setupFlowState) callbacks() setup.Callbacks {
 	}
 }
 
-func (state *setupFlowState) googleAuth() (*setup.GoogleAuth, error) {
-	if state.parameters.GoogleAccessToken != "" {
-		return &setup.GoogleAuth{
-			AccessToken: state.parameters.GoogleAccessToken,
-			Email:       fetchGoogleEmail(state.parameters.GoogleAccessToken),
-		}, nil
-	}
-	if accessToken := strings.TrimSpace(os.Getenv("INTERNKIM_GOOGLE_ACCESS_TOKEN")); accessToken != "" {
-		return &setup.GoogleAuth{
-			AccessToken: accessToken,
-			Email:       fetchGoogleEmail(accessToken),
-		}, nil
-	}
-	if accessToken := strings.TrimSpace(os.Getenv("GOOGLE_ACCESS_TOKEN")); accessToken != "" {
-		return &setup.GoogleAuth{
-			AccessToken: accessToken,
-			Email:       fetchGoogleEmail(accessToken),
-		}, nil
-	}
-	if state.nonInteractive {
-		return nil, fmt.Errorf("google access token is empty; pass --google-access-token, set INTERNKIM_GOOGLE_ACCESS_TOKEN, run interactive setup, or skip google")
-	}
-	return googleAuth()
-}
-
 func (state *setupFlowState) provisionGasWebhook(accessToken string) (string, error) {
 	if state.parameters.GasWebhookURL != "" {
 		return state.parameters.GasWebhookURL, nil
@@ -338,10 +308,8 @@ func (state *setupFlowState) provisionGasWebhook(accessToken string) (string, er
 	if webhookURL := strings.TrimSpace(os.Getenv("GAS_WEBHOOK_URL")); webhookURL != "" {
 		return webhookURL, nil
 	}
-	if state.nonInteractive {
-		return "", fmt.Errorf("GAS webhook URL is empty; pass --gas-webhook-url, set INTERNKIM_GAS_WEBHOOK_URL, or run interactive setup once")
-	}
-	return provisionGasWebhook(accessToken)
+	_ = accessToken
+	return provisionGasWebhook("")
 }
 
 func (state *setupFlowState) resolveSlackBotToken() string {
@@ -506,13 +474,6 @@ func (state *setupFlowState) requiredBinaryAssets() []localBinaryAsset {
 			remotePath: blueclaw.BlueclawSupervisorBinaryPath,
 		},
 		{
-			name:         "gws",
-			localPath:    filepath.Join(state.boardBinDir, "gws"),
-			remotePath:   "/usr/local/bin/gws",
-			downloadURL:  "https://github.com/googleworkspace/cli/releases/latest/download/google-workspace-cli-aarch64-unknown-linux-gnu.tar.gz",
-			archiveEntry: "gws",
-		},
-		{
 			name:        "cloudflared",
 			localPath:   filepath.Join(state.boardBinDir, "cloudflared"),
 			remotePath:  "/usr/local/bin/cloudflared",
@@ -547,9 +508,9 @@ func (state *setupFlowState) requiredBinaryAssets() []localBinaryAsset {
 			remotePath: blueclaw.AdmindBinaryPath,
 		},
 		{
-			name:       blueclaw.LiteRTWrapperName,
-			localPath:  filepath.Join(state.boardBinDir, blueclaw.LiteRTWrapperName),
-			remotePath: blueclaw.LiteRTWrapperBinaryPath,
+			name:       blueclaw.LocalLLMRunnerName,
+			localPath:  filepath.Join(state.boardBinDir, blueclaw.LocalLLMRunnerName),
+			remotePath: blueclaw.LocalLLMRunnerBinaryPath,
 		},
 	}
 }
@@ -581,7 +542,7 @@ func (state *setupFlowState) ensureLocalBinaryAssets() ([]localBinaryAsset, erro
 			continue
 		}
 
-		if asset.name == blueclaw.CapabilitydName || asset.name == blueclaw.AdmindName || asset.name == blueclaw.LiteRTWrapperName {
+		if asset.name == blueclaw.CapabilitydName || asset.name == blueclaw.AdmindName || asset.name == blueclaw.LocalLLMRunnerName {
 			if err := buildGoBinaryAsset(state, asset); err != nil {
 				return nil, err
 			}
@@ -628,7 +589,7 @@ func (state *setupFlowState) binariesVersion() string {
 	for _, path := range []string{
 		filepath.Join(state.scriptDir, "cmd", blueclaw.CapabilitydName),
 		filepath.Join(state.scriptDir, "cmd", blueclaw.AdmindName),
-		filepath.Join(state.scriptDir, "cmd", blueclaw.LiteRTWrapperName),
+		filepath.Join(state.scriptDir, "cmd", blueclaw.LocalLLMRunnerName),
 		filepath.Join(state.scriptDir, "internal", "admind"),
 		filepath.Join(state.scriptDir, "internal", "capabilityd"),
 		filepath.Join(state.scriptDir, "internal", "runtime", "blueclaw"),
@@ -819,11 +780,8 @@ func (state *setupFlowState) installBinariesSSH(context *setup.Context) error {
 
 	state.sshClient.run(`
 NOLOGIN_BIN=$(command -v nologin || echo /usr/sbin/nologin)
-getent group gws >/dev/null 2>&1 || groupadd --system gws
-id gws &>/dev/null || useradd -r -g gws -m -d /home/gws -s "$NOLOGIN_BIN" gws
 getent group blueclaw >/dev/null 2>&1 || groupadd --system blueclaw
 id blueclaw &>/dev/null || useradd -r -g blueclaw -m -d /home/blueclaw -s "$NOLOGIN_BIN" blueclaw
-install -d -o gws -g gws -m 750 /home/gws /home/gws/.cache /home/gws/.config
 install -d -o blueclaw -g blueclaw -m 750 /home/blueclaw /home/blueclaw/.cache /home/blueclaw/.config
 chmod 711 /root
 mkdir -p /root/.internkim/secrets /root/.internkim/env
@@ -854,26 +812,13 @@ chmod 755 /root/.blueclaw/workspace/bin /root/.blueclaw/workspace/downloads`)
 	}
 
 	state.sshClient.run(`mkdir -p /etc/sudoers.d
-cat > /usr/local/bin/gws-bot <<'EOF'
-#!/bin/sh
-GOOGLE_APPLICATION_CREDENTIALS=/root/.internkim/secrets/google-sa.json \
-GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE=/root/.internkim/secrets/google-sa.json \
-exec /usr/local/bin/gws "$@"
-EOF
-chmod 755 /usr/local/bin/gws-bot
-rm -f /usr/local/bin/gws-mcp /etc/sudoers.d/blueclaw-gws /usr/local/bin/role-memory-mcp /usr/local/bin/role-memory
-cat > /etc/sudoers.d/blueclaw-mcp <<'EOF'
-blueclaw ALL=(gws) NOPASSWD: /usr/local/bin/gws
-EOF
-chmod 440 /etc/sudoers.d/blueclaw-mcp`)
+rm -f /usr/local/bin/gws-* /etc/sudoers.d/blueclaw-gws /etc/sudoers.d/blueclaw-mcp /usr/local/bin/role-memory-mcp /usr/local/bin/role-memory`)
 
 	for _, binaryName := range []string{"download"} {
 		state.sshClient.run(
 			"cp /usr/local/bin/" + binaryName + " " + blueclaw.BlueclawWorkspaceBinaryPath(binaryName) + " && chmod 755 " + blueclaw.BlueclawWorkspaceBinaryPath(binaryName),
 		)
 	}
-	state.sshClient.run("rm -f /usr/local/bin/send-file " + blueclaw.BlueclawWorkspaceBinaryPath("send-file"))
-
 	if version := state.binariesVersion(); version != "" {
 		state.sshClient.run("mkdir -p /root/.internkim/state && printf '%s' " + quoteShellValue(version) + " > /root/.internkim/state/binaries-version")
 	}
@@ -896,12 +841,7 @@ chmod 440 /etc/sudoers.d/blueclaw-mcp`)
 				return err
 			}
 		}
-		state.sshClient.run(`for skill in calendar create-gws-file simple-slides; do
-  filePath="/root/.blueclaw/workspace/skills/$skill/scripts/gas-call"
-  [ -f "$filePath" ] && chmod +x "$filePath"
-done
-rm -rf /root/.blueclaw/workspace/skills/share-file
-chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills 2>/dev/null || true`)
+		state.sshClient.run(`chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills 2>/dev/null || true`)
 	}
 
 	return nil

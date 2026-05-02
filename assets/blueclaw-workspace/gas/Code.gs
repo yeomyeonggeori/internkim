@@ -6,11 +6,9 @@
  * the deploying user's identity, so these calls never hit Google's
  * "unverified app" block that sinks direct third-party OAuth flows.
  *
- * Every action that creates a Drive file accepts an optional `share_to`
- * parameter (the internkim service-account email). When provided, the
- * file is shared with that email as a writer so subsequent edits from
- * the board (via `gws-bot`) land in the file's revision history as
- * "Intern Kim" rather than the user.
+ * InternKim stores the Web App URL as a root-owned secret and invokes
+ * this bridge through typed capability tools. Blueclaw never reads the
+ * URL or Google credentials directly.
  */
 
 function doPost(event) {
@@ -54,16 +52,10 @@ function reply_(payload) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-function shareWithBot_(fileId, shareTo) {
-  if (!shareTo) return;
-  DriveApp.getFileById(fileId).addEditor(shareTo);
-}
-
 function createSlides_(parameters) {
   var title = parameters.title || 'Untitled';
   var presentation = SlidesApp.create(title);
   var id = presentation.getId();
-  shareWithBot_(id, parameters.share_to);
   return {
     id: id,
     url: 'https://docs.google.com/presentation/d/' + id + '/edit',
@@ -74,7 +66,6 @@ function createDoc_(parameters) {
   var title = parameters.title || 'Untitled';
   var document = DocumentApp.create(title);
   var id = document.getId();
-  shareWithBot_(id, parameters.share_to);
   return {
     id: id,
     url: 'https://docs.google.com/document/d/' + id + '/edit',
@@ -85,7 +76,6 @@ function createSheet_(parameters) {
   var title = parameters.title || 'Untitled';
   var spreadsheet = SpreadsheetApp.create(title);
   var id = spreadsheet.getId();
-  shareWithBot_(id, parameters.share_to);
   return {
     id: id,
     url: 'https://docs.google.com/spreadsheets/d/' + id + '/edit',
@@ -193,7 +183,6 @@ function importOfficeFile_(parameters, sourceMimeType, targetMimeType, urlPrefix
   }
   var result = JSON.parse(response.getContentText());
   var id = result.id;
-  shareWithBot_(id, parameters.share_to);
   return {id: id, url: urlPrefix + id + '/edit'};
 }
 

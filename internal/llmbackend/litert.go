@@ -6,89 +6,105 @@ import (
 	"errors"
 )
 
-type LiteRTBackend struct {
-	ModelPath   string
-	WrapperPath string
-	Variant     string
-	RunCommand  func(context.Context, string, []string, []byte) ([]byte, error)
+type LiteRTProvider struct {
+	ModelPath  string
+	RunnerPath string
+	Variant    string
+	RunCommand func(context.Context, string, []string, []byte) ([]byte, error)
 }
 
-type litertWrapperRequest struct {
-	ModelPath              string                  `json:"modelPath"`
-	Backend                string                  `json:"backend"`
-	Mode                   string                  `json:"mode"`
-	Messages               []Message               `json:"messages"`
-	StructuredOutputSchema *StructuredOutputSchema `json:"structuredOutputSchema,omitempty"`
+type localLLMRunnerRequest struct {
+	Provider            string               `json:"provider"`
+	ModelPath           string               `json:"modelPath"`
+	Accelerator         string               `json:"accelerator"`
+	Mode                string               `json:"mode"`
+	Messages            []Message            `json:"messages"`
+	ConstrainedDecoding *constrainedDecoding `json:"constrainedDecoding,omitempty"`
 }
 
-type litertWrapperResponse struct {
-	Content string `json:"content"`
+type constrainedDecoding struct {
+	Type       string                 `json:"type"`
+	JSONSchema StructuredOutputSchema `json:"jsonSchema"`
+}
+
+type localLLMRunnerResponse struct {
+	Content        string `json:"content"`
+	ConstraintMode string `json:"constraintMode,omitempty"`
 }
 
 const litertModelLabel = "gemma-4-E4B-it-litert-lm"
 
-func (backend LiteRTBackend) Name() string { return "litert-" + backend.Variant }
+func (provider LiteRTProvider) Name() string { return "litert-" + provider.Variant }
 
-func (backend LiteRTBackend) Ping(context.Context) error {
-	if backend.WrapperPath == "" || backend.ModelPath == "" {
-		return errors.New("litert backend is not configured")
+func (provider LiteRTProvider) Ping(context.Context) error {
+	if provider.RunnerPath == "" || provider.ModelPath == "" {
+		return errors.New("litert provider is not configured")
 	}
-	if backend.RunCommand == nil {
-		return errors.New("litert backend has no run command")
+	if provider.RunCommand == nil {
+		return errors.New("litert provider has no run command")
 	}
 	return nil
 }
 
-func (backend LiteRTBackend) CompleteStructured(ctx context.Context, request StructuredRequest) (Response, error) {
-	document, errorValue := json.Marshal(litertWrapperRequest{
-		ModelPath:              backend.ModelPath,
-		Backend:                backend.Variant,
-		Mode:                   "structured",
-		Messages:               request.Messages,
-		StructuredOutputSchema: &request.StructuredOutputSchema,
+func (provider LiteRTProvider) CompleteStructured(ctx context.Context, request StructuredRequest) (Response, error) {
+	document, errorValue := json.Marshal(localLLMRunnerRequest{
+		Provider:    "litert",
+		ModelPath:   provider.ModelPath,
+		Accelerator: provider.Variant,
+		Mode:        "structured",
+		Messages:    request.Messages,
+		ConstrainedDecoding: &constrainedDecoding{
+			Type:       "json_schema",
+			JSONSchema: request.StructuredOutputSchema,
+		},
 	})
 	if errorValue != nil {
 		return Response{}, errorValue
 	}
 
-	output, errorValue := backend.RunCommand(ctx, backend.WrapperPath, nil, document)
+	output, errorValue := provider.RunCommand(ctx, provider.RunnerPath, nil, document)
 	if errorValue != nil {
 		return Response{}, errorValue
 	}
 
-	var response litertWrapperResponse
+	var response localLLMRunnerResponse
 	if errorValue := json.Unmarshal(output, &response); errorValue != nil {
 		return Response{}, errorValue
 	}
-	if !ValidateMinimumStructuredOutput(response.Content, request.StructuredOutputSchema.Document) {
-		return Response{}, errors.New("litert response did not satisfy structured output schema")
+	if !ValidateStructuredJSON(response.Content) {
+		return Response{}, errors.New("litert response was not structured JSON")
+	}
+	constraintMode := response.ConstraintMode
+	if constraintMode == "" {
+		constraintMode = ConstraintModeLiteRTLLGuidanceJSONSchema
 	}
 	return Response{
 		Provider:        "litert",
 		Model:           litertModelLabel,
 		Content:         response.Content,
-		SelectedBackend: backend.Variant,
-		ConstraintMode:  "prompt_validation",
+		SelectedBackend: provider.Variant,
+		ConstraintMode:  constraintMode,
 	}, nil
 }
 
-func (backend LiteRTBackend) CompleteText(ctx context.Context, request TextRequest) (Response, error) {
-	document, errorValue := json.Marshal(litertWrapperRequest{
-		ModelPath: backend.ModelPath,
-		Backend:   backend.Variant,
-		Mode:      "text",
-		Messages:  request.Messages,
+func (provider LiteRTProvider) CompleteText(ctx context.Context, request TextRequest) (Response, error) {
+	document, errorValue := json.Marshal(localLLMRunnerRequest{
+		Provider:    "litert",
+		ModelPath:   provider.ModelPath,
+		Accelerator: provider.Variant,
+		Mode:        "text",
+		Messages:    request.Messages,
 	})
 	if errorValue != nil {
 		return Response{}, errorValue
 	}
 
-	output, errorValue := backend.RunCommand(ctx, backend.WrapperPath, nil, document)
+	output, errorValue := provider.RunCommand(ctx, provider.RunnerPath, nil, document)
 	if errorValue != nil {
 		return Response{}, errorValue
 	}
 
-	var response litertWrapperResponse
+	var response localLLMRunnerResponse
 	if errorValue := json.Unmarshal(output, &response); errorValue != nil {
 		return Response{}, errorValue
 	}
@@ -96,6 +112,6 @@ func (backend LiteRTBackend) CompleteText(ctx context.Context, request TextReque
 		Provider:        "litert",
 		Model:           litertModelLabel,
 		Content:         response.Content,
-		SelectedBackend: backend.Variant,
+		SelectedBackend: provider.Variant,
 	}, nil
 }
