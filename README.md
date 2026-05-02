@@ -160,6 +160,29 @@ make deps-sim
 make verify-graphiti-local
 ```
 
+### Blueclaw Live E2E
+
+기본 테스트(`go test ./...`)에는 비용이 발생하는 live LLM e2e를 포함하지 않습니다. 실제 모델 호출이 필요한 가상 세션 e2e는 명시적으로 켤 때만 실행합니다.
+
+```bash
+cd .dependency/blueclaw
+
+BLUECLAW_E2E_LIVE=1 \
+BLUECLAW_E2E_LLM_UNIX_SOCKET=/run/internkim/capability.sock \
+go test ./internal/e2e -run TestSlidesLocalMultiturnSuccessLive -count=1
+```
+
+산출물을 사람이 직접 확인해야 할 때는 `--live-llm`을 붙여 lab runner를 실행합니다.
+
+```bash
+cd .dependency/blueclaw
+go run ./cmd/blueclaw-lab virtual-session \
+  --live-llm \
+  --scenario slides \
+  --artifact-dir ../../.artifacts/blueclaw-e2e \
+  --llm-unix-socket /run/internkim/capability.sock
+```
+
 ### Companion Runtime
 
 `internkim-companion`은 사용자 컴퓨터에서 실행되는 capability provider입니다. v1은 브라우저 작업 중 사용자 로그인, MFA, 파일 선택, 승인 입력처럼 사람이 필요한 단계를 처리하기 위한 데몬 골격을 제공합니다. 장기적으로는 같은 capability contract로 사용자 컴퓨터의 더 강한 로컬 모델, embedding, 파일, desktop action도 처리합니다.
