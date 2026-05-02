@@ -13,8 +13,6 @@ triggerHints:
   - pptx
   - powerpoint
   - keynote
-  - google slides
-  - 구글 슬라이드
   - 슬라이드
   - 발표
   - 발표자료
@@ -33,8 +31,6 @@ activation:
     - pptx
     - powerpoint
     - keynote
-    - google slides
-    - 구글 슬라이드
     - 슬라이드
     - 발표
     - 발표자료
@@ -145,4 +141,4 @@ Check for clipping, overlap, unreadable text, missing images, and broken fonts. 
 
 ## Final Reply
 
-Attach the generated PPTX, PDF, HTML, and notes with `file.attach`. If the user explicitly asks for Google Slides, call the typed Google Workspace import tool when available and still attach the local PPTX. Do not confuse a Google Slides URL with a local PPTX attachment.
+Attach the generated PPTX, PDF, HTML, and notes with `file.attach`. Google Workspace export/upload is disabled for now; do not call `google.*` tools and do not block local PPTX delivery on Google credentials.

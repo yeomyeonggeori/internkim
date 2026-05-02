@@ -2,6 +2,7 @@ package capabilities
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -47,6 +48,19 @@ func TestCompanionToolNamesComeFromDescriptors(t *testing.T) {
 	for index, descriptor := range descriptors {
 		if toolNames[index] != descriptor.Name {
 			t.Fatalf("expected tool name %q, got %q", descriptor.Name, toolNames[index])
+		}
+	}
+}
+
+func TestGoogleWorkspaceToolsAreNotDefaultDeviceCapabilities(t *testing.T) {
+	for _, descriptor := range DeviceDescriptors() {
+		if descriptor.PrivacyClass == "workspace_google" {
+			t.Fatalf("expected Google Workspace to be disabled by default, got %+v", descriptor)
+		}
+	}
+	for _, toolName := range DefaultToolNames() {
+		if strings.HasPrefix(toolName, "google.") {
+			t.Fatalf("expected default tools to omit Google Workspace, got %+v", DefaultToolNames())
 		}
 	}
 }
