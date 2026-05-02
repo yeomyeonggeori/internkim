@@ -131,6 +131,53 @@ func TestSSHPrivilegedCommandSuppressesSudoPrompt(t *testing.T) {
 	}
 }
 
+func TestLocalLLMBuildArgumentsUseCurrentSSHTarget(t *testing.T) {
+	arguments := localLLMBuildArguments(newSSH("sshpass", "internkim", "ssh-password", "172.30.1.46"))
+	expectedArguments := []string{"--host", "172.30.1.46", "--user", "internkim"}
+	if strings.Join(arguments, "\n") != strings.Join(expectedArguments, "\n") {
+		t.Fatalf("expected build arguments %+v, got %+v", expectedArguments, arguments)
+	}
+}
+
+func TestLocalLLMBuildArgumentsOmitEmptyPassword(t *testing.T) {
+	arguments := localLLMBuildArguments(newSSH("sshpass", "root", "", "172.30.1.46"))
+	if strings.Contains(strings.Join(arguments, "\n"), "--password") {
+		t.Fatalf("expected empty password to be omitted, got %+v", arguments)
+	}
+}
+
+func TestLocalLLMBuildEnvironmentPassesPasswordOutsideArguments(t *testing.T) {
+	environment := localLLMBuildEnvironment([]string{"PATH=/usr/bin"}, newSSH("sshpass", "internkim", "ssh-password", "172.30.1.46"))
+	joinedEnvironment := strings.Join(environment, "\n")
+	for _, expectedValue := range []string{"LLAMA_CPP_BUILD_PASSWORD=ssh-password", "LITERT_LM_BUILD_PASSWORD=ssh-password"} {
+		if !strings.Contains(joinedEnvironment, expectedValue) {
+			t.Fatalf("expected environment to include %s, got %+v", expectedValue, environment)
+		}
+	}
+}
+
+func TestPruneLocalLLMBuildCachesKeepsCurrentCache(t *testing.T) {
+	temporaryDirectory := t.TempDir()
+	cacheRoot := filepath.Join(temporaryDirectory, ".dependency", "llama-cpp")
+	for _, cacheName := range []string{"old-aarch64", "b8995-aarch64", "models"} {
+		if errorValue := os.MkdirAll(filepath.Join(cacheRoot, cacheName), 0o755); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+	state := &setupFlowState{scriptDir: temporaryDirectory}
+	if errorValue := state.pruneLocalLLMBuildCaches(".dependency/llama-cpp", "b8995-aarch64"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := os.Stat(filepath.Join(cacheRoot, "old-aarch64")); !os.IsNotExist(errorValue) {
+		t.Fatalf("expected old cache to be removed, got %v", errorValue)
+	}
+	for _, cacheName := range []string{"b8995-aarch64", "models"} {
+		if _, errorValue := os.Stat(filepath.Join(cacheRoot, cacheName)); errorValue != nil {
+			t.Fatalf("expected %s to remain: %v", cacheName, errorValue)
+		}
+	}
+}
+
 func TestSetupStateDirSeparatesJetsonAndLabIdentity(t *testing.T) {
 	baseStateDir := t.TempDir()
 	saveState(baseStateDir, "device_id", "shared-device")

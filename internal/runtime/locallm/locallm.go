@@ -27,11 +27,12 @@ const (
 
 	LlamaCppBinaryPath    = "/usr/local/bin/llama-server"
 	LlamaCppLibraryDir    = "/usr/local/lib/llama-cpp"
+	LlamaCppVersion       = "b8995"
 	LlamaCppModelPath     = "/root/.internkim/models/gemma-4-E4B-it-Q4_0.gguf"
 	LlamaCppModelFilename = "gemma-4-E4B-it-Q4_0.gguf"
 	LlamaCppModelURL      = "https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_0.gguf"
 	LlamaCppCacheRelative = ".dependency/llama-cpp"
-	LlamaCppCacheKey      = "05e141a-aarch64"
+	LlamaCppCacheKey      = LlamaCppVersion + "-aarch64"
 	LlamaCppCacheModelDir = ".dependency/llama-cpp-models"
 	LlamaCppBuildTool     = "build-llama-cpp-jetson"
 	LlamaCppDisplayName   = "llama-server"

@@ -978,10 +978,7 @@ func (state *setupFlowState) installLocalLLMBinarySSH(displayName, buildTool, ca
 
 	if !cachedArtifactsPresent(binaryPath, libraryDirectory) {
 		fmt.Println("  " + state.messenger.t(displayName+" 빌드 캐시 준비 중...", "Preparing "+displayName+" build cache..."))
-		command := exec.Command(filepath.Join(state.scriptDir, "tools", buildTool))
-		command.Dir = state.scriptDir
-		command.Stdout = os.Stdout
-		command.Stderr = os.Stderr
+		command := state.localLLMBuildCommand(buildTool)
 		if buildError := command.Run(); buildError != nil {
 			return fmt.Errorf("%s build failed: %w", displayName, buildError)
 		}
@@ -1013,7 +1010,70 @@ func (state *setupFlowState) installLocalLLMBinarySSH(displayName, buildTool, ca
 		state.sshClient.run("chmod 0644 " + quoteShellValue(remoteLibraryPath))
 	}
 	state.sshClient.run("ldconfig -n " + quoteShellValue(remoteLibraryDir) + " 2>/dev/null || true")
+	if pruneError := state.pruneLocalLLMBuildCaches(cacheRelative, cacheKey); pruneError != nil {
+		fmt.Println("failed")
+		return pruneError
+	}
 	fmt.Println(state.messenger.t("설치 완료", "installed"))
+	return nil
+}
+
+func (state *setupFlowState) localLLMBuildCommand(buildTool string) *exec.Cmd {
+	command := exec.Command(filepath.Join(state.scriptDir, "tools", buildTool), localLLMBuildArguments(state.sshClient)...)
+	command.Dir = state.scriptDir
+	command.Env = localLLMBuildEnvironment(os.Environ(), state.sshClient)
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+	return command
+}
+
+func localLLMBuildArguments(sshClient *sshClient) []string {
+	if sshClient == nil {
+		return nil
+	}
+	arguments := []string{}
+	arguments = appendLocalLLMBuildArgument(arguments, "--host", sshClient.host)
+	arguments = appendLocalLLMBuildArgument(arguments, "--user", sshClient.user)
+	return arguments
+}
+
+func localLLMBuildEnvironment(environment []string, sshClient *sshClient) []string {
+	if sshClient == nil {
+		return environment
+	}
+	password := strings.TrimSpace(sshClient.pass)
+	if password == "" {
+		return environment
+	}
+	return append(
+		environment,
+		"LLAMA_CPP_BUILD_PASSWORD="+password,
+		"LITERT_LM_BUILD_PASSWORD="+password,
+	)
+}
+
+func appendLocalLLMBuildArgument(arguments []string, name string, value string) []string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return arguments
+	}
+	return append(arguments, name, value)
+}
+
+func (state *setupFlowState) pruneLocalLLMBuildCaches(cacheRelative string, cacheKey string) error {
+	cacheRoot := filepath.Join(state.scriptDir, cacheRelative)
+	entries, errorValue := os.ReadDir(cacheRoot)
+	if errorValue != nil {
+		return nil
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() || entry.Name() == cacheKey || !strings.HasSuffix(entry.Name(), "-aarch64") {
+			continue
+		}
+		if removeError := os.RemoveAll(filepath.Join(cacheRoot, entry.Name())); removeError != nil {
+			return fmt.Errorf("remove old local LLM build cache %s: %w", entry.Name(), removeError)
+		}
+	}
 	return nil
 }
 
