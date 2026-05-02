@@ -187,6 +187,8 @@ func Main() {
 			runSetup()
 		case "flash":
 			runFlash()
+		case "wifi":
+			runWiFi()
 		case "model":
 			runModel()
 		case "invite":
@@ -225,6 +227,7 @@ func printUsage() {
 	fmt.Println("Commands:")
 	fmt.Println("  setup    Full device provisioning")
 	fmt.Println("  flash    Flash board boot media")
+	fmt.Println("  wifi     Add or update Jetson Wi-Fi profiles")
 	fmt.Println("  model    Manage LLM model (current/set/list)")
 	fmt.Println("  invite   Generate invite QR code")
 	fmt.Println("  users    Manage allowed users")

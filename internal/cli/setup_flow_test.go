@@ -245,3 +245,47 @@ func TestJetsonWiFiUpsertScriptPreservesOtherProfiles(t *testing.T) {
 		t.Fatalf("open Wi-Fi profile must not write an empty PSK, got:\n%s", script)
 	}
 }
+
+func TestJetsonWiFiApplyCommandStartsSelectorInBackground(t *testing.T) {
+	script := buildJetsonWiFiApplyCommand([]resolvedWiFiProfile{
+		{SSID: "OfficeWiFi", Password: "office-secret"},
+	}, true, false)
+
+	for _, fragment := range []string{
+		"nmcli radio wifi on",
+		jetsonWiFiConnectionID("OfficeWiFi"),
+		"cat > /usr/local/bin/internkim-wifi-select",
+		"nohup /usr/local/bin/internkim-wifi-select",
+		"echo installed",
+	} {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected apply command to include %q, got:\n%s", fragment, script)
+		}
+	}
+}
+
+func TestJetsonWiFiApplyCommandCanWaitForWirelessAddress(t *testing.T) {
+	script := buildJetsonWiFiApplyCommand([]resolvedWiFiProfile{
+		{SSID: "OfficeWiFi", Password: "office-secret"},
+	}, true, true)
+
+	for _, fragment := range []string{
+		"ip -o -4 addr show scope global",
+		"$2 ~ /^(wl|wlan)/",
+		"tail -20 /tmp/internkim-wifi-select.log",
+	} {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected wait command to include %q, got:\n%s", fragment, script)
+		}
+	}
+}
+
+func TestJetsonWiFiCommandHostCandidatesPreferUSB(t *testing.T) {
+	stateDirectory := t.TempDir()
+	saveState(stateDirectory, "board_ip", "192.168.0.20")
+
+	candidates := jetsonWiFiCommandHostCandidates(stateDirectory)
+	if len(candidates) == 0 || candidates[0] != jetsonUSBHostAddress {
+		t.Fatalf("expected USB host first, got %+v", candidates)
+	}
+}
