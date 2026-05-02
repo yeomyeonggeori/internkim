@@ -98,18 +98,20 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 		"agentProfiles": []map[string]any{
 			{
 				"name":             "default",
-				"allowedToolNames": append([]string{"conversation.history", "memory.search", "terminal.run", "file.write", "file.attach"}, capabilities.DefaultToolNames()...),
+				"allowedToolNames": append([]string{"conversation.history", "memory.search", "terminal.run", "terminal.session", "browser_handoff.openURL", "approval.request", "file.write", "file.attach"}, capabilities.DefaultToolNames()...),
 			},
 		},
 		"mcpServers": []map[string]any{},
 		"terminal": map[string]any{
-			"mode":                   "native",
+			"mode":                   "firecrackerGuest",
 			"sandboxProvider":        "",
 			"workspaceRootPath":      BlueclawGuestWorkspacePath,
 			"allowedExecutableNames": BlueclawAllowedExecutables,
 			"deniedExecutableNames":  BlueclawDeniedExecutables,
 			"deniedPathPrefixes":     BlueclawDeniedPathPrefixes,
 			"timeoutSecond":          120,
+			"outputMaxBytes":         32768,
+			"sessionMaxCount":        4,
 			"allowNetwork":           true,
 			"allowInteractiveShell":  true,
 		},
