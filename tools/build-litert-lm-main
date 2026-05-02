@@ -7,7 +7,7 @@ repositoryRoot="$(cd "$scriptDirectory/.." && pwd)"
 litertVersion="${LITERT_LM_VERSION:-v0.10.2}"
 buildHost="${LITERT_LM_BUILD_HOST:-}"
 buildUser="${LITERT_LM_BUILD_USER:-internkim}"
-buildPassword="${LITERT_LM_BUILD_PASSWORD:-blueclaw}"
+buildPassword="${LITERT_LM_BUILD_PASSWORD:-}"
 remoteWorkRoot="${LITERT_LM_REMOTE_WORK_ROOT:-/var/cache/internkim/litert-lm-build}"
 bazeliskVersion="${LITERT_LM_BAZELISK_VERSION:-v1.22.1}"
 
@@ -25,7 +25,7 @@ Environment overrides:
   LITERT_LM_VERSION          Source tag to build (default: v0.10.2)
   LITERT_LM_BUILD_HOST       SSH host (default: cached board IP)
   LITERT_LM_BUILD_USER       SSH user (default: internkim)
-  LITERT_LM_BUILD_PASSWORD   SSH password (omit for key auth)
+  LITERT_LM_BUILD_PASSWORD   SSH password (omit for key auth or passwordless sudo)
   LITERT_LM_REMOTE_WORK_ROOT Remote build directory
   LITERT_LM_BAZELISK_VERSION bazelisk release tag (default: v1.22.1)
 USAGE
