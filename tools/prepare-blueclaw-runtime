@@ -376,9 +376,10 @@ set -euo pipefail
 export BUN_INSTALL_CACHE_DIR="\${BUN_INSTALL_CACHE_DIR:-/opt/blueclaw/bun-cache}"
 export PUPPETEER_EXECUTABLE_PATH="\${PUPPETEER_EXECUTABLE_PATH:-/usr/bin/chromium}"
 export CHROME_PATH="\${CHROME_PATH:-/usr/bin/chromium}"
-exec /opt/blueclaw/marp/node_modules/.bin/marp "\$@"
+exec /usr/local/bin/bun /opt/blueclaw/marp/node_modules/@marp-team/marp-cli/marp-cli.js "\$@"
 EOF
   run_root chmod 0755 "$base_directory/usr/local/bin/marp"
+  run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/marp --version >/dev/null
 }
 
 ensure_rootfs_base() {
@@ -390,8 +391,10 @@ ensure_rootfs_base() {
   fi
   local requirements_hash
   requirements_hash="$(sha256sum "$requirements_path" | cut -d' ' -f1)"
+  local prepare_script_hash
+  prepare_script_hash="$(sha256sum "$repository_root/tools/prepare-blueclaw-runtime" | cut -d' ' -f1)"
   local cache_key
-  cache_key="$(printf '%s\n%s\n%s\n%s\n%s\n' "$rootfs_base_packages" "$rootfs_base_release" "$requirements_hash" "$blueclaw_bun_version" "$marp_cli_version" | sha256sum | cut -c1-16)"
+  cache_key="$(printf '%s\n%s\n%s\n%s\n%s\n%s\n' "$rootfs_base_packages" "$rootfs_base_release" "$requirements_hash" "$blueclaw_bun_version" "$marp_cli_version" "$prepare_script_hash" | sha256sum | cut -c1-16)"
   rootfs_base_cache_path="$cache_directory/rootfs-base-${cache_key}.tar"
 
   if [ -s "$rootfs_base_cache_path" ]; then
@@ -416,7 +419,7 @@ ensure_rootfs_base() {
   ensure_rootfs_marp "$base_directory"
   run_root chroot "$base_directory" bun --version >/dev/null
   run_root chroot "$base_directory" bunx --version >/dev/null
-  run_root test -x "$base_directory/opt/blueclaw/marp/node_modules/.bin/marp"
+  run_root test -f "$base_directory/opt/blueclaw/marp/node_modules/@marp-team/marp-cli/marp-cli.js"
   run_root chroot "$base_directory" chromium --version >/dev/null
   run_root rm -f "$base_directory/opt/blueclaw/requirements.txt"
 
