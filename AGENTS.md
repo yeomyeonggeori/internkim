@@ -32,6 +32,7 @@ When testing against real platform surfaces such as Mattermost, Slack, or Signal
 
 ## Deployment Hygiene
 
+- After changing Go setup/provisioning/runtime code, run `make build` before any `./internkim setup ...` command. The local `./internkim` binary is not rebuilt automatically, and stale setup binaries can write stale runtime config.
 - Use the smallest setup slice that matches the change. Do not default to broad redeploys.
 - For Admin/Flow web UI-only changes, use `./internkim setup --only admin-web`.
 - For Admin/Flow web UI-only changes that must be redeployed even when the version cache says current, use `./internkim setup --only admin-web --force`.
