@@ -16,9 +16,12 @@ if [ ! -f "$SRC" ]; then
 fi
 
 if ! command -v marp &> /dev/null; then
-  echo "marp-cli not installed. Run: npm install -g @marp-team/marp-cli"
+  echo "Marp CLI is not installed in the Blueclaw runtime. Re-run local runtime setup."
   exit 1
 fi
+
+export CHROME_PATH="${CHROME_PATH:-/usr/bin/chromium}"
+export PUPPETEER_EXECUTABLE_PATH="${PUPPETEER_EXECUTABLE_PATH:-$CHROME_PATH}"
 
 # Strip trailing `---` separator(s) / blank lines — otherwise Marp renders
 # an empty last slide. Non-destructive: only touches the trailing tail.

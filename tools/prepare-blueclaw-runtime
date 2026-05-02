@@ -13,6 +13,8 @@ rootfs_image_path="$stage_directory/rootfs.ext4"
 firecracker_version="${FIRECRACKER_VERSION:-1.12.1}"
 linux_kernel_version="${BLUECLAW_LINUX_KERNEL_VERSION:-6.1.129}"
 rootfs_size="${BLUECLAW_RUNTIME_ROOTFS_SIZE:-4G}"
+blueclaw_bun_version="${BLUECLAW_BUN_VERSION:-1.3.10}"
+marp_cli_version="${BLUECLAW_MARP_CLI_VERSION:-4.3.1}"
 kernel_source="${BLUECLAW_KERNEL_IMAGE_SOURCE:-}"
 builder="local"
 ssh_host=""
@@ -302,9 +304,77 @@ build_blueclaw_binaries() {
   )
 }
 
-rootfs_base_packages="ca-certificates,curl,bash,coreutils,findutils,postgresql,postgresql-client,python3,python3-venv,python3-pip,iproute2,procps,mount,e2fsprogs"
+rootfs_base_packages="ca-certificates,curl,bash,coreutils,findutils,postgresql,postgresql-client,python3,python3-venv,python3-pip,iproute2,procps,mount,e2fsprogs,unzip,chromium,fontconfig,fonts-noto-cjk"
 rootfs_base_release="bookworm"
 rootfs_base_cache_path=""
+
+ensure_rootfs_bun() {
+  local base_directory="$1"
+  local bun_archive_name="bun-linux-aarch64"
+  local bun_archive_path="$cache_directory/bun-v${blueclaw_bun_version}-${bun_archive_name}.zip"
+  local bun_extract_directory="$work_directory/bun-v${blueclaw_bun_version}"
+
+  if [ ! -s "$bun_archive_path" ]; then
+    mkdir -p "$cache_directory"
+    curl -fsSL "https://github.com/oven-sh/bun/releases/download/bun-v${blueclaw_bun_version}/${bun_archive_name}.zip" -o "$bun_archive_path.tmp"
+    mv "$bun_archive_path.tmp" "$bun_archive_path"
+  fi
+
+  rm -rf "$bun_extract_directory"
+  mkdir -p "$bun_extract_directory"
+  unzip -q "$bun_archive_path" -d "$bun_extract_directory"
+  run_root install -m 0755 "$bun_extract_directory/$bun_archive_name/bun" "$base_directory/usr/local/bin/bun"
+  run_root ln -sf bun "$base_directory/usr/local/bin/bunx"
+  rm -rf "$bun_extract_directory"
+}
+
+run_chroot_with_runtime_mounts() {
+  local base_directory="$1"
+  shift
+  local mounted_dev=0
+  local mounted_proc=0
+  local command_status=0
+
+  run_root mkdir -p "$base_directory/dev" "$base_directory/proc"
+  if ! mountpoint -q "$base_directory/dev"; then
+    run_root mount --bind /dev "$base_directory/dev"
+    mounted_dev=1
+  fi
+  if ! mountpoint -q "$base_directory/proc"; then
+    run_root mount -t proc proc "$base_directory/proc"
+    mounted_proc=1
+  fi
+
+  set +e
+  run_root chroot "$base_directory" "$@"
+  command_status=$?
+  set -e
+
+  if [ "$mounted_proc" -eq 1 ]; then
+    run_root umount "$base_directory/proc"
+  fi
+  if [ "$mounted_dev" -eq 1 ]; then
+    run_root umount "$base_directory/dev"
+  fi
+
+  return "$command_status"
+}
+
+ensure_rootfs_marp() {
+  local base_directory="$1"
+
+  run_root mkdir -p "$base_directory/opt/blueclaw/bun-cache" "$base_directory/opt/blueclaw/marp"
+  run_root tee "$base_directory/usr/local/bin/marp" >/dev/null <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+export BUN_INSTALL_CACHE_DIR="\${BUN_INSTALL_CACHE_DIR:-/opt/blueclaw/bun-cache}"
+export PUPPETEER_EXECUTABLE_PATH="\${PUPPETEER_EXECUTABLE_PATH:-/usr/bin/chromium}"
+export CHROME_PATH="\${CHROME_PATH:-/usr/bin/chromium}"
+exec /usr/local/bin/bunx --bun --package "@marp-team/marp-cli@$marp_cli_version" marp "\$@"
+EOF
+  run_root chmod 0755 "$base_directory/usr/local/bin/marp"
+  run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/marp --version >/dev/null
+}
 
 ensure_rootfs_base() {
   require_command mmdebstrap
@@ -316,7 +386,7 @@ ensure_rootfs_base() {
   local requirements_hash
   requirements_hash="$(sha256sum "$requirements_path" | cut -d' ' -f1)"
   local cache_key
-  cache_key="$(printf '%s\n%s\n%s\n' "$rootfs_base_packages" "$rootfs_base_release" "$requirements_hash" | sha256sum | cut -c1-16)"
+  cache_key="$(printf '%s\n%s\n%s\n%s\n%s\n' "$rootfs_base_packages" "$rootfs_base_release" "$requirements_hash" "$blueclaw_bun_version" "$marp_cli_version" | sha256sum | cut -c1-16)"
   rootfs_base_cache_path="$cache_directory/rootfs-base-${cache_key}.tar"
 
   if [ -s "$rootfs_base_cache_path" ]; then
@@ -337,6 +407,12 @@ ensure_rootfs_base() {
   run_root install -m 0644 "$requirements_path" "$base_directory/opt/blueclaw/requirements.txt"
   run_root chroot "$base_directory" python3 -m venv /opt/blueclaw/graphiti-venv
   run_root chroot "$base_directory" /opt/blueclaw/graphiti-venv/bin/pip install --no-cache-dir -r /opt/blueclaw/requirements.txt
+  ensure_rootfs_bun "$base_directory"
+  ensure_rootfs_marp "$base_directory"
+  run_root chroot "$base_directory" bun --version >/dev/null
+  run_root chroot "$base_directory" bunx --version >/dev/null
+  run_root chroot "$base_directory" marp --version >/dev/null
+  run_root chroot "$base_directory" chromium --version >/dev/null
   run_root rm -f "$base_directory/opt/blueclaw/requirements.txt"
 
   run_root tar -C "$base_directory" --xattrs --acls --numeric-owner -cf "$rootfs_base_cache_path.tmp" .
@@ -346,11 +422,32 @@ ensure_rootfs_base() {
   find "$cache_directory" -maxdepth 1 -name 'rootfs-base-*.tar' -not -name "rootfs-base-${cache_key}.tar" -print0 | xargs -0 -r rm -f
 }
 
+ensure_rootfs_blueclaw_account() {
+  local passwd_path="$rootfs_directory/etc/passwd"
+  local group_path="$rootfs_directory/etc/group"
+  local shadow_path="$rootfs_directory/etc/shadow"
+  local gshadow_path="$rootfs_directory/etc/gshadow"
+
+  if ! run_root grep -q '^blueclaw:' "$group_path"; then
+    printf '%s\n' 'blueclaw:x:971:' | run_root tee -a "$group_path" >/dev/null
+  fi
+  if ! run_root grep -q '^blueclaw:' "$passwd_path"; then
+    printf '%s\n' 'blueclaw:x:998:971:Blueclaw:/workspace:/bin/bash' | run_root tee -a "$passwd_path" >/dev/null
+  fi
+  if [ -f "$shadow_path" ] && ! run_root grep -q '^blueclaw:' "$shadow_path"; then
+    printf '%s\n' 'blueclaw:*:19723:0:99999:7:::' | run_root tee -a "$shadow_path" >/dev/null
+  fi
+  if [ -f "$gshadow_path" ] && ! run_root grep -q '^blueclaw:' "$gshadow_path"; then
+    printf '%s\n' 'blueclaw:*::' | run_root tee -a "$gshadow_path" >/dev/null
+  fi
+}
+
 prepare_rootfs_directory() {
   ensure_rootfs_base
   run_root rm -rf "$rootfs_directory"
   run_root mkdir -p "$rootfs_directory"
   run_root tar -C "$rootfs_directory" --xattrs --acls --numeric-owner -xf "$rootfs_base_cache_path"
+  ensure_rootfs_blueclaw_account
 
   run_root mkdir -p \
     "$rootfs_directory/usr/local/bin" \
