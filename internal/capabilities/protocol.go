@@ -121,7 +121,7 @@ func DeviceDescriptors() []Descriptor {
 		{Name: "llm.structured", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "embedding.create", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
 		{Name: "platform.reply", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false},
-	}, append(append(DeviceBrowserDescriptors(), FlowDescriptors()...), GoogleWorkspaceDescriptors()...)...)
+	}, append(DeviceBrowserDescriptors(), FlowDescriptors()...)...)
 }
 
 func FlowDescriptors() []Descriptor {
@@ -166,9 +166,6 @@ func CompanionToolNames() []string {
 func DefaultToolNames() []string {
 	toolNames := CompanionToolNames()
 	for _, descriptor := range FlowDescriptors() {
-		toolNames = append(toolNames, descriptor.Name)
-	}
-	for _, descriptor := range GoogleWorkspaceDescriptors() {
 		toolNames = append(toolNames, descriptor.Name)
 	}
 	return toolNames

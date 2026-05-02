@@ -97,6 +97,18 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 			t.Fatalf("expected default profile to allow %q, got %+v", expectedToolName, allowedToolNames)
 		}
 	}
+	for _, disabledToolName := range []string{"google.docs.create", "google.sheets.create", "google.gmail.send", "google.calendar.event", "google.calendar.list", "google.drive.import_pptx"} {
+		if containsStringValue(allowedToolNames, disabledToolName) {
+			t.Fatalf("expected default profile to omit disabled Google Workspace tool %q, got %+v", disabledToolName, allowedToolNames)
+		}
+	}
+	capabilitiesConfiguration := runtimeConfiguration["capabilities"].(map[string]any)
+	capabilityToolNames = capabilitiesConfiguration["toolNames"].([]any)
+	for _, disabledToolName := range []string{"google.docs.create", "google.sheets.create", "google.gmail.send", "google.calendar.event", "google.calendar.list", "google.drive.import_pptx"} {
+		if containsStringValue(capabilityToolNames, disabledToolName) {
+			t.Fatalf("expected capability tool list to omit disabled Google Workspace tool %q, got %+v", disabledToolName, capabilityToolNames)
+		}
+	}
 	terminal := runtimeConfiguration["terminal"].(map[string]any)
 	if terminal["mode"] != "firecrackerGuest" {
 		t.Fatalf("expected firecracker guest terminal mode, got %q", terminal["mode"])
