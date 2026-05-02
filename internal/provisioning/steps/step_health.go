@@ -469,6 +469,9 @@ PY`))
 		}
 	}
 	if check == "ok" {
+		check = strings.TrimSpace(context.SSH.Run(blueclawRootfsBinaryContractCheckCommand()))
+	}
+	if check == "ok" {
 		fmt.Println("  blueclaw firecracker runtime: ok")
 		return
 	}
