@@ -134,7 +134,7 @@ func DefaultConfiguration() Configuration {
 		PreferCompanionLLM:         false,
 		LocalOnly:                  false,
 		EnableOllamaFallback:       false,
-		ProviderAttemptTimeout:     90 * time.Second,
+		ProviderAttemptTimeout:     5 * time.Minute,
 		AgentBrowserPath:           "agent-browser",
 		DeviceBrowserPath:          browserruntime.DeviceBrowserExecutablePath,
 		DeviceBrowserProfilePath:   "/root/.internkim/state/browser-profile",
