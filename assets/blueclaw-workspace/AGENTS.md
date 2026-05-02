@@ -81,4 +81,4 @@ Do NOT loop on failed tool calls. If a tool fails:
 - Do not try different search queries in a loop hoping one succeeds — try at most **two queries total**.
 - Each retrieval attempt (web.search or browser.open) must be followed by either a successful answer or an explicit admission of failure. There is no third option.
 
-This rule exists to prevent budget exhaustion. Hitting the execution budget without making progress is strictly worse than admitting failure early.
+This rule exists to prevent unproductive run exhaustion. Hitting the run limit without making progress is strictly worse than admitting failure early.
