@@ -205,28 +205,23 @@ func writeStructuredOutputGrammarFile(request requestDocument) (string, bool, er
 }
 
 func extractLlamaCliGenerated(output string) string {
-	endMarker := "[ Prompt:"
-	if endIndex := strings.Index(output, endMarker); endIndex >= 0 {
+	if endIndex := strings.Index(output, "[ Prompt:"); endIndex >= 0 {
 		output = output[:endIndex]
 	}
-	if cutAt := strings.LastIndex(output, "\n> "); cutAt >= 0 {
-		if newlineAfterPrompt := strings.Index(output[cutAt+1:], "\n"); newlineAfterPrompt >= 0 {
-			output = output[cutAt+1+newlineAfterPrompt+1:]
-		}
+	if spinner := strings.LastIndex(output, "\b"); spinner >= 0 {
+		output = output[spinner+1:]
 	}
-	output = stripLlamaCliSpinner(output)
-	return strings.TrimSpace(output)
+	return strings.TrimSpace(stripLlamaCliNoise(output))
 }
 
-func stripLlamaCliSpinner(output string) string {
-	const spinnerCharacters = "|-\\/"
-	trimmed := strings.TrimLeft(output, spinnerCharacters+" \t\n\r")
+func stripLlamaCliNoise(output string) string {
+	noise := "|-\\/\b \t\n\r"
 	for {
-		next := strings.TrimLeft(trimmed, spinnerCharacters+" \t\n\r")
-		if next == trimmed {
-			return trimmed
+		next := strings.TrimLeft(output, noise)
+		if next == output {
+			return output
 		}
-		trimmed = next
+		output = next
 	}
 }
 

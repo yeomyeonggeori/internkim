@@ -121,7 +121,7 @@ func runLLMRequest(target verifyTarget, executionMode string, modelName string, 
 	if os.Getenv("INTERNKIM_LLM_DEBUG") == "1" {
 		fmt.Fprintf(os.Stderr, "request: %s\n", bodyDocument)
 	}
-	command := "curl --silent --show-error --max-time 60 --unix-socket /run/internkim/capability.sock -H 'Content-Type: application/json' -d " + quoteShellValue(string(bodyDocument)) + " http://internkim/v1/llm/text"
+	command := "curl --silent --show-error --max-time 600 --unix-socket /run/internkim/capability.sock -H 'Content-Type: application/json' -d " + quoteShellValue(string(bodyDocument)) + " http://internkim/v1/llm/text"
 	output, errorValue := target.sshClient.runResult(command)
 	if os.Getenv("INTERNKIM_LLM_DEBUG") == "1" {
 		fmt.Fprintf(os.Stderr, "raw response: %s\n", strings.TrimSpace(output))
