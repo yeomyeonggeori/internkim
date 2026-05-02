@@ -1,4 +1,6 @@
 .factory/
+.artifacts/
+.cache/
 .DS_Store
 build/
 dist/
