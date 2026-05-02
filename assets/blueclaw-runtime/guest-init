@@ -14,6 +14,47 @@ shutdown_guest() {
   echo o >/proc/sysrq-trigger 2>/dev/null || exit 1
 }
 
+ensure_blueclaw_account() {
+  if ! grep -q '^blueclaw:' /etc/passwd; then
+    log_guest_init "missing blueclaw user in rootfs"
+    exit 1
+  fi
+  if ! grep -q '^blueclaw:' /etc/group; then
+    log_guest_init "missing blueclaw group in rootfs"
+    exit 1
+  fi
+}
+
+prepare_blueclaw_workspace() {
+  mkdir -p /workspace/.blueclaw/postgres/data \
+    /workspace/.blueclaw/graphiti \
+    /workspace/.blueclaw/logs \
+    /workspace/.blueclaw/blobs \
+    /workspace/.blueclaw/config \
+    /workspace/.blueclaw/migrations \
+    /workspace/.blueclaw/tmp
+
+  rmdir /workspace/.blueclaw/graphiti/kuzu 2>/dev/null || true
+
+  chown blueclaw:blueclaw /workspace /workspace/.blueclaw
+  chown -R blueclaw:blueclaw \
+    /workspace/.blueclaw/graphiti \
+    /workspace/.blueclaw/logs \
+    /workspace/.blueclaw/blobs \
+    /workspace/.blueclaw/config \
+    /workspace/.blueclaw/migrations \
+    /workspace/.blueclaw/tmp
+  chmod 0755 /workspace /workspace/.blueclaw
+  chmod 0750 /workspace/.blueclaw/config
+  chmod 0770 \
+    /workspace/.blueclaw/graphiti \
+    /workspace/.blueclaw/logs \
+    /workspace/.blueclaw/blobs \
+    /workspace/.blueclaw/migrations \
+    /workspace/.blueclaw/tmp
+  find /workspace/.blueclaw/config -type f -exec chmod 0640 {} +
+}
+
 trap 'status=$?; log_guest_init "failed at line $LINENO with status $status"; shutdown_guest' ERR
 
 mountpoint -q /proc || mount -t proc proc /proc
@@ -30,17 +71,11 @@ if ! mountpoint -q /workspace; then
   mount -t ext4 /dev/vdb /workspace
 fi
 
-mkdir -p /workspace/.blueclaw/postgres/data \
-  /workspace/.blueclaw/graphiti \
-  /workspace/.blueclaw/logs \
-  /workspace/.blueclaw/blobs \
-  /workspace/.blueclaw/config \
-  /workspace/.blueclaw/migrations
+ensure_blueclaw_account
+prepare_blueclaw_workspace
 
-rmdir /workspace/.blueclaw/graphiti/kuzu 2>/dev/null || true
-
-chmod 0711 /workspace /workspace/.blueclaw
-chown postgres:postgres /workspace/.blueclaw/postgres
+chown -R postgres:postgres /workspace/.blueclaw/postgres
+chown postgres:blueclaw /workspace/.blueclaw/postgres
 chmod 0770 /workspace/.blueclaw/postgres
 
 /usr/local/bin/blueclaw-guest-healthd -port 8082 >>/workspace/.blueclaw/logs/guest-healthd.log 2>&1 &
@@ -71,11 +106,7 @@ if ! su -s /bin/bash postgres -c "$postgres_bindir/psql -h /workspace/.blueclaw/
 fi
 
 /usr/local/bin/blueclaw-vsock-http-proxy -listen 127.0.0.1:18081 -host-cid 2 -host-port 7000 >>/workspace/.blueclaw/logs/vsock-http-proxy.log 2>&1 &
-INTERNKIM_CAPABILITY_ENDPOINT=http://127.0.0.1:18081 \
-  BLUECLAW_GRAPHITI_KUZU_PATH=/workspace/.blueclaw/graphiti/kuzu \
-  BLUECLAW_GRAPHITI_LISTEN_ADDRESS=127.0.0.1 \
-  BLUECLAW_GRAPHITI_PORT=7791 \
-  /usr/local/bin/graphiti-memoryd >>/workspace/.blueclaw/logs/graphiti-memoryd.log 2>&1 &
+su -s /bin/bash blueclaw -c 'INTERNKIM_CAPABILITY_ENDPOINT=http://127.0.0.1:18081 BLUECLAW_GRAPHITI_KUZU_PATH=/workspace/.blueclaw/graphiti/kuzu BLUECLAW_GRAPHITI_LISTEN_ADDRESS=127.0.0.1 BLUECLAW_GRAPHITI_PORT=7791 /usr/local/bin/graphiti-memoryd' >>/workspace/.blueclaw/logs/graphiti-memoryd.log 2>&1 &
 
 for _ in $(seq 1 120); do
   if curl --silent --fail --max-time 1 http://127.0.0.1:7791/health >/dev/null 2>&1; then
@@ -84,7 +115,7 @@ for _ in $(seq 1 120); do
   sleep 1
 done
 
-/usr/local/bin/blueclaw -runtime /workspace/.blueclaw/config/runtime.json -policy /workspace/.blueclaw/config/policy.json >>/workspace/.blueclaw/logs/blueclaw.log 2>&1 &
+su -s /bin/bash blueclaw -c '/usr/local/bin/blueclaw -runtime /workspace/.blueclaw/config/runtime.json -policy /workspace/.blueclaw/config/policy.json' >>/workspace/.blueclaw/logs/blueclaw.log 2>&1 &
 blueclaw_process_id="$!"
 
 /usr/local/bin/blueclaw-vsock-http-proxy -mode vsock-to-tcp -listen-vsock-port 8081 -target-tcp 127.0.0.1:8080 >>/workspace/.blueclaw/logs/guest-http-proxy.log 2>&1 &

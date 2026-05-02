@@ -151,6 +151,8 @@ var BlueclawDeniedPathPrefixes = []string{
 	"/usr",
 	"/opt",
 	"/srv",
+	"/workspace/.blueclaw/config",
+	"/workspace/.blueclaw/postgres",
 }
 
 func BlueclawHealthCheckURL() string {
