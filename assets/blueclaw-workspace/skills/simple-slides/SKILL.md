@@ -42,6 +42,9 @@ requiredTools:
   - terminal.run
   - file.write
   - file.attach
+completion:
+  requiredEvidenceTools:
+    - file.attach
 allowedProfiles: [default]
 references:
   - references/design-system.md
