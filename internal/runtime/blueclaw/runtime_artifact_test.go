@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -69,6 +71,19 @@ func TestValidateRuntimeArtifactDirectoryRejectsChecksumMismatch(t *testing.T) {
 	}
 }
 
+func TestValidateRuntimeArtifactSourceRejectsMissingMetadata(t *testing.T) {
+	repositoryRootPath := runtimeArtifactRepositoryRoot(t)
+	manifest := RuntimeArtifactManifest{
+		RuntimeName: "internkim-blueclaw-runtime",
+		Platform:    "linux-arm64",
+		Version:     "test",
+	}
+	errorValue := ValidateRuntimeArtifactSource(repositoryRootPath, manifest)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "source metadata is missing") {
+		t.Fatalf("expected missing source metadata error, got %v", errorValue)
+	}
+}
+
 func writeRuntimeArtifactFile(t *testing.T, artifactDirectoryPath string, fileName string, content string) {
 	t.Helper()
 	if errorValue := os.WriteFile(filepath.Join(artifactDirectoryPath, fileName), []byte(content), 0o644); errorValue != nil {
@@ -79,4 +94,13 @@ func writeRuntimeArtifactFile(t *testing.T, artifactDirectoryPath string, fileNa
 func runtimeArtifactTestSHA256(content string) string {
 	hash := sha256.Sum256([]byte(content))
 	return hex.EncodeToString(hash[:])
+}
+
+func runtimeArtifactRepositoryRoot(t *testing.T) string {
+	t.Helper()
+	_, filePath, _, isOK := runtime.Caller(0)
+	if !isOK {
+		t.Fatal("expected caller path")
+	}
+	return filepath.Clean(filepath.Join(filepath.Dir(filePath), "..", "..", ".."))
 }

@@ -270,6 +270,7 @@ func (state *setupFlowState) callbacks() setup.Callbacks {
 		BinariesVersion:           state.binariesVersion,
 		InstallBinariesSSH:        state.installBinariesSSH,
 		StageBinariesSD:           state.stageBinariesSD,
+		BlueclawRuntimeManifest:   state.blueclawRuntimeManifest,
 		InstallBlueclawRuntimeSSH: state.installBlueclawRuntimeSSH,
 		AdminWebVersion:           state.adminWebVersion,
 		DeployAdminWeb:            state.deployAdminWeb,
@@ -849,48 +850,55 @@ rm -f /usr/local/bin/gws-* /etc/sudoers.d/blueclaw-gws /etc/sudoers.d/blueclaw-m
 
 func (state *setupFlowState) installBlueclawRuntimeSSH(context *setup.Context) error {
 	artifactDirectoryPath := filepath.Join(state.scriptDir, blueclaw.BlueclawRuntimeArtifactPath)
+	manifestDocument := state.blueclawRuntimeManifest()
 	manifest, errorValue := blueclaw.ValidateRuntimeArtifactDirectory(artifactDirectoryPath)
 	if errorValue != nil {
 		return fmt.Errorf("blueclaw Firecracker runtime artifact invalid: %w; run `make prepare-blueclaw-runtime` before setup", errorValue)
 	}
-
-	requiredArtifacts := []struct {
-		name       string
-		remotePath string
-		mode       string
-	}{
-		{name: "firecracker", remotePath: blueclaw.BlueclawFirecrackerPath, mode: "0755"},
-		{name: "jailer", remotePath: blueclaw.BlueclawJailerPath, mode: "0755"},
-		{name: "vmlinux.bin", remotePath: blueclaw.BlueclawKernelImagePath, mode: "0644"},
-		{name: "rootfs.ext4", remotePath: blueclaw.BlueclawRootFilesystemImagePath, mode: "0644"},
+	if errorValue := blueclaw.ValidateRuntimeArtifactSource(state.scriptDir, manifest); errorValue != nil {
+		return fmt.Errorf("blueclaw Firecracker runtime artifact invalid: %w", errorValue)
 	}
 
 	fmt.Print("  blueclaw Firecracker runtime... ")
+	remoteManifestDocument := state.sshClient.run("cat " + blueclaw.BlueclawRuntimeManifestPath + " 2>/dev/null || true")
+	installPlan := buildBlueclawRuntimeInstallPlan(
+		manifest,
+		remoteManifestDocument,
+		state.remoteBlueclawRuntimeFilePresence(),
+		strings.TrimSpace(state.sshClient.run(setup.BlueclawRootfsBinaryContractCheckCommand())) == "ok",
+		manifestDocument == remoteManifestDocument,
+	)
 	state.sshClient.run("rm -rf /tmp/internkim-blueclaw-runtime && mkdir -p /tmp/internkim-blueclaw-runtime/runtime " + blueclaw.BlueclawRuntimeInstallPath + " /var/lib/blueclaw /var/log/blueclaw-supervisor")
-	for _, artifact := range requiredArtifacts {
+	for _, artifact := range installPlan.artifacts {
+		if !artifact.shouldInstall {
+			continue
+		}
 		localArtifactPath, errorValue := blueclaw.RuntimeArtifactFilePath(artifactDirectoryPath, manifest, artifact.name)
 		if errorValue != nil {
 			fmt.Println("failed")
 			return errorValue
 		}
 		temporaryRemotePath := "/tmp/internkim-blueclaw-runtime/runtime/" + artifact.name
-		if errorValue := state.sshClient.scp(localArtifactPath, temporaryRemotePath); errorValue != nil {
+		if errorValue := state.transferBlueclawRuntimeArtifact(localArtifactPath, temporaryRemotePath, artifact.name); errorValue != nil {
 			fmt.Println("failed")
 			return errorValue
 		}
-		installCommand := "install -m " + artifact.mode + " " + quoteShellValue(temporaryRemotePath) + " " + quoteShellValue(artifact.remotePath)
-		if artifact.name == "rootfs.ext4" {
-			installCommand = "cp --sparse=always " + quoteShellValue(temporaryRemotePath) + " " + quoteShellValue(artifact.remotePath) + " && chmod " + artifact.mode + " " + quoteShellValue(artifact.remotePath)
-		}
-		output, errorValue := state.sshClient.runResult(installCommand)
+		output, errorValue := state.sshClient.runResult(blueclawRuntimeInstallCommand(artifact, temporaryRemotePath))
 		if errorValue != nil {
 			fmt.Println("failed")
 			return fmt.Errorf("install %s: %s: %w", artifact.name, strings.TrimSpace(output), errorValue)
 		}
 	}
-	if errorValue := state.sshClient.scp(filepath.Join(artifactDirectoryPath, "manifest.json"), "/tmp/internkim-blueclaw-runtime/runtime/manifest.json"); errorValue != nil {
-		fmt.Println("failed")
-		return errorValue
+	if installPlan.shouldInstallManifest {
+		if errorValue := state.sshClient.scp(filepath.Join(artifactDirectoryPath, "manifest.json"), "/tmp/internkim-blueclaw-runtime/runtime/manifest.json"); errorValue != nil {
+			fmt.Println("failed")
+			return errorValue
+		}
+		output, errorValue := state.sshClient.runResult("install -m 0644 /tmp/internkim-blueclaw-runtime/runtime/manifest.json " + blueclaw.BlueclawRuntimeManifestPath)
+		if errorValue != nil {
+			fmt.Println("failed")
+			return fmt.Errorf("install blueclaw runtime manifest: %s: %w", strings.TrimSpace(output), errorValue)
+		}
 	}
 	output, errorValue := state.sshClient.runResult(`set -eu
 test -x /usr/local/bin/blueclaw-supervisor
@@ -898,7 +906,6 @@ test -x /usr/local/bin/firecracker
 test -x /usr/local/bin/jailer
 test -s /opt/internkim/blueclaw-runtime/vmlinux.bin
 test -s /opt/internkim/blueclaw-runtime/rootfs.ext4
-install -m 0644 /tmp/internkim-blueclaw-runtime/runtime/manifest.json /opt/internkim/blueclaw-runtime/manifest.json
 if [ ! -e /var/lib/blueclaw/workspace.ext4 ]; then
   truncate -s 16G /var/lib/blueclaw/workspace.ext4
 fi
@@ -914,6 +921,22 @@ mkdir -p /var/log/blueclaw-supervisor
 	}
 	fmt.Println("installed")
 	return nil
+}
+
+func (state *setupFlowState) blueclawRuntimeManifest() string {
+	manifestPath := filepath.Join(state.scriptDir, blueclaw.BlueclawRuntimeArtifactPath, "manifest.json")
+	document, errorValue := os.ReadFile(manifestPath)
+	if errorValue != nil {
+		return ""
+	}
+	manifest, errorValue := blueclaw.ParseRuntimeArtifactManifest(document)
+	if errorValue != nil {
+		return ""
+	}
+	if errorValue := blueclaw.ValidateRuntimeArtifactSource(state.scriptDir, manifest); errorValue != nil {
+		return ""
+	}
+	return string(document)
 }
 
 func (state *setupFlowState) installAgentBrowserSkillSSH() error {
