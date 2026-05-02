@@ -116,8 +116,7 @@ Run the build from the deck directory:
 
 ```json
 {
-  "executableName": "bash",
-  "arguments": ["./build.sh"],
+  "command": "./build.sh",
   "workingDirectoryPath": "/workspace/.blueclaw/tmp/<deck-slug>"
 }
 ```
@@ -137,8 +136,7 @@ Render PNGs with Marp and inspect edited slides before shipping:
 
 ```json
 {
-  "executableName": "marp",
-  "arguments": ["presentation.md", "--images", "png", "--allow-local-files", "-o", "<name>.png"],
+  "command": "marp presentation.md --images png --allow-local-files -o <name>.png",
   "workingDirectoryPath": "/workspace/.blueclaw/tmp/<deck-slug>"
 }
 ```
