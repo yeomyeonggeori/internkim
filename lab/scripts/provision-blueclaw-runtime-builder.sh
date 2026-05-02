@@ -28,6 +28,7 @@ printf '%s\n' "$sudo_password" | sudo -S env DEBIAN_FRONTEND=noninteractive apt-
   python3 \
   rsync \
   tar \
+  unzip \
   xz-utils
 
 printf '%s\n' "$sudo_password" | sudo -S mkdir -p "$mount_directory_path"

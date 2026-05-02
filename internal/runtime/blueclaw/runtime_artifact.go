@@ -7,15 +7,19 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
 
 type RuntimeArtifactManifest struct {
-	RuntimeName string                        `json:"runtimeName"`
-	Platform    string                        `json:"platform"`
-	Version     string                        `json:"version"`
-	Files       []RuntimeArtifactManifestFile `json:"files"`
+	RuntimeName         string                        `json:"runtimeName"`
+	Platform            string                        `json:"platform"`
+	Version             string                        `json:"version"`
+	BlueclawRevision    string                        `json:"blueclawRevision,omitempty"`
+	GuestInitSHA256     string                        `json:"guestInitSHA256,omitempty"`
+	PrepareScriptSHA256 string                        `json:"prepareScriptSHA256,omitempty"`
+	Files               []RuntimeArtifactManifestFile `json:"files"`
 }
 
 type RuntimeArtifactManifestFile struct {
@@ -32,18 +36,28 @@ func ValidateRuntimeArtifactDirectory(artifactDirectoryPath string) (RuntimeArti
 		return RuntimeArtifactManifest{}, fmt.Errorf("read Blueclaw runtime manifest: %w", errorValue)
 	}
 
+	manifest, errorValue := ParseRuntimeArtifactManifest(manifestDocument)
+	if errorValue != nil {
+		return RuntimeArtifactManifest{}, errorValue
+	}
+	return validateRuntimeArtifactDirectory(artifactDirectoryPath, manifest)
+}
+
+func ParseRuntimeArtifactManifest(manifestDocument []byte) (RuntimeArtifactManifest, error) {
 	var manifest RuntimeArtifactManifest
 	if errorValue := json.Unmarshal(manifestDocument, &manifest); errorValue != nil {
 		return RuntimeArtifactManifest{}, fmt.Errorf("parse Blueclaw runtime manifest: %w", errorValue)
 	}
-
 	if strings.TrimSpace(manifest.RuntimeName) != "internkim-blueclaw-runtime" {
 		return RuntimeArtifactManifest{}, fmt.Errorf("unexpected Blueclaw runtime name %q", manifest.RuntimeName)
 	}
 	if strings.TrimSpace(manifest.Platform) != "linux-arm64" {
 		return RuntimeArtifactManifest{}, fmt.Errorf("unexpected Blueclaw runtime platform %q", manifest.Platform)
 	}
+	return manifest, nil
+}
 
+func validateRuntimeArtifactDirectory(artifactDirectoryPath string, manifest RuntimeArtifactManifest) (RuntimeArtifactManifest, error) {
 	requiredFileNames := map[string]bool{
 		"firecracker": true,
 		"jailer":      true,
@@ -70,6 +84,46 @@ func ValidateRuntimeArtifactDirectory(artifactDirectoryPath string) (RuntimeArti
 	return manifest, nil
 }
 
+func ValidateRuntimeArtifactSource(repositoryRootPath string, manifest RuntimeArtifactManifest) error {
+	expectedManifest, errorValue := ExpectedRuntimeArtifactSource(repositoryRootPath)
+	if errorValue != nil {
+		return errorValue
+	}
+	if strings.TrimSpace(manifest.BlueclawRevision) == "" {
+		return fmt.Errorf("Blueclaw runtime artifact source metadata is missing; run `make prepare-blueclaw-runtime`")
+	}
+	if manifest.BlueclawRevision != expectedManifest.BlueclawRevision {
+		return fmt.Errorf("Blueclaw runtime artifact was built from Blueclaw %s, current source is %s; run `make prepare-blueclaw-runtime`", manifest.BlueclawRevision, expectedManifest.BlueclawRevision)
+	}
+	if manifest.GuestInitSHA256 != expectedManifest.GuestInitSHA256 {
+		return fmt.Errorf("Blueclaw runtime artifact guest-init is stale; run `make prepare-blueclaw-runtime`")
+	}
+	if manifest.PrepareScriptSHA256 != expectedManifest.PrepareScriptSHA256 {
+		return fmt.Errorf("Blueclaw runtime artifact prepare script is stale; run `make prepare-blueclaw-runtime`")
+	}
+	return nil
+}
+
+func ExpectedRuntimeArtifactSource(repositoryRootPath string) (RuntimeArtifactManifest, error) {
+	blueclawRevision, errorValue := gitRevision(filepath.Join(repositoryRootPath, ".dependency", "blueclaw"))
+	if errorValue != nil {
+		return RuntimeArtifactManifest{}, fmt.Errorf("resolve Blueclaw revision: %w", errorValue)
+	}
+	guestInitSHA256, errorValue := calculateFileSHA256(filepath.Join(repositoryRootPath, "assets", "blueclaw-runtime", "guest-init"))
+	if errorValue != nil {
+		return RuntimeArtifactManifest{}, fmt.Errorf("hash Blueclaw guest init: %w", errorValue)
+	}
+	prepareScriptSHA256, errorValue := calculateFileSHA256(filepath.Join(repositoryRootPath, "tools", "prepare-blueclaw-runtime"))
+	if errorValue != nil {
+		return RuntimeArtifactManifest{}, fmt.Errorf("hash Blueclaw runtime prepare script: %w", errorValue)
+	}
+	return RuntimeArtifactManifest{
+		BlueclawRevision:    blueclawRevision,
+		GuestInitSHA256:     guestInitSHA256,
+		PrepareScriptSHA256: prepareScriptSHA256,
+	}, nil
+}
+
 func RuntimeArtifactFilePath(artifactDirectoryPath string, manifest RuntimeArtifactManifest, fileName string) (string, error) {
 	for _, manifestFile := range manifest.Files {
 		if manifestFile.Name == fileName {
@@ -78,6 +132,15 @@ func RuntimeArtifactFilePath(artifactDirectoryPath string, manifest RuntimeArtif
 	}
 
 	return "", fmt.Errorf("Blueclaw runtime artifact %q was not found in manifest", fileName)
+}
+
+func FindRuntimeArtifactManifestFile(manifest RuntimeArtifactManifest, fileName string) (RuntimeArtifactManifestFile, error) {
+	for _, manifestFile := range manifest.Files {
+		if manifestFile.Name == fileName {
+			return manifestFile, nil
+		}
+	}
+	return RuntimeArtifactManifestFile{}, fmt.Errorf("Blueclaw runtime artifact %q was not found in manifest", fileName)
 }
 
 func validateRuntimeArtifactFile(artifactDirectoryPath string, manifestFile RuntimeArtifactManifestFile) error {
@@ -121,4 +184,16 @@ func calculateFileSHA256(filePath string) (string, error) {
 	}
 
 	return hex.EncodeToString(hash.Sum(nil)), nil
+}
+
+func gitRevision(repositoryPath string) (string, error) {
+	output, errorValue := exec.Command("git", "-C", repositoryPath, "rev-parse", "HEAD").Output()
+	if errorValue != nil {
+		return "", errorValue
+	}
+	revision := strings.TrimSpace(string(output))
+	if revision == "" {
+		return "", fmt.Errorf("empty git revision for %s", repositoryPath)
+	}
+	return revision, nil
 }

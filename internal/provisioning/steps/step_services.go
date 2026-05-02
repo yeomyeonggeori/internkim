@@ -338,6 +338,7 @@ required_markers = {
     "defaultEffortLevel": b"defaultEffortLevel",
     "agent.limit_stop": b"agent.limit_stop",
 }
+
 for name, marker in required_markers.items():
     if marker not in binary:
         print("rootfs-blueclaw-missing-marker:" + name)
@@ -374,4 +375,8 @@ if "blueclaw:x:971:" not in group:
 
 print("ok")
 PY`
+}
+
+func BlueclawRootfsBinaryContractCheckCommand() string {
+	return blueclawRootfsBinaryContractCheckCommand()
 }

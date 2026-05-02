@@ -3081,6 +3081,28 @@ func (s *sshClient) scp(localPath, remotePath string) error {
 	return s.scpDirect(localPath, remotePath)
 }
 
+func (s *sshClient) rsyncSparse(localPath string, remotePath string) error {
+	target := fmt.Sprintf("%s@%s:%s", s.user, s.host, remotePath)
+	sshCommand := "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o LogLevel=ERROR -p " + s.port
+	command := exec.Command("rsync", "-azS", "-e", sshCommand, localPath, target)
+	if s.pass != "" {
+		command.Env = append(os.Environ(), "SSHPASS="+s.pass)
+		command.Args = []string{
+			"rsync",
+			"-azS",
+			"-e",
+			s.sshpassBin + " -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o LogLevel=ERROR -p " + s.port,
+			localPath,
+			target,
+		}
+	}
+	output, errorValue := command.CombinedOutput()
+	if errorValue != nil {
+		return fmt.Errorf("rsync sparse %s to %s failed: %s: %w", localPath, remotePath, strings.TrimSpace(string(output)), errorValue)
+	}
+	return nil
+}
+
 func (s *sshClient) scpDirect(localPath, remotePath string) error {
 	target := fmt.Sprintf("%s@%s:%s", s.user, s.host, remotePath)
 	if s.pass != "" {

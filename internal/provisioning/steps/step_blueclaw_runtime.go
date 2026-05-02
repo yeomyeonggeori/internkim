@@ -17,6 +17,15 @@ var StepBlueclawRuntime = Step{
 		if context.Backend != BackendSSH {
 			return false
 		}
+		if context.Callbacks.BlueclawRuntimeManifest != nil {
+			localManifest := context.Callbacks.BlueclawRuntimeManifest()
+			if localManifest == "" {
+				return false
+			}
+			if trimmedRun(context, "printf '%s' "+shellQuote(localManifest)+" | cmp -s - "+shellQuote(blueclaw.BlueclawRuntimeManifestPath)+" && echo ok || echo missing") != "ok" {
+				return false
+			}
+		}
 		return trimmedRun(context, "test -x "+shellQuote(blueclaw.BlueclawSupervisorBinaryPath)+" && "+
 			"test -x "+shellQuote(blueclaw.BlueclawFirecrackerPath)+" && "+
 			"test -x "+shellQuote(blueclaw.BlueclawJailerPath)+" && "+
