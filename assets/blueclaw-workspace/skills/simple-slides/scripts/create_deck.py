@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import json
 import pathlib
 import re
 import shutil
@@ -11,15 +12,14 @@ def main() -> int:
     working_directory_path = pathlib.Path.cwd()
     skill_directory_path = pathlib.Path(__file__).resolve().parents[1]
     slug = clean_slug(arguments.slug)
-    brief = read_brief(arguments.brief)
-    deck = deck_brief(brief)
+    brief = read_required_text(pathlib.Path(arguments.brief), "brief file is required")
+    presentation = read_required_text(working_directory_path / "presentation.md", "presentation.md is required")
+    design = read_required_text(working_directory_path / "DESIGN.md", "DESIGN.md is required")
+    contract = deck_contract(brief, slug)
 
-    design_path = working_directory_path / "DESIGN.md"
-    write_text(design_path, stitch_design_document(deck, stitch_design_tokens()))
-    design = read_stitch_design_tokens(design_path)
-    presentation = presentation_document(deck, design)
-    validate_requested_slide_count(deck, presentation)
-    write_text(working_directory_path / "presentation.md", presentation)
+    validate_design(design)
+    validate_presentation(contract, presentation)
+    write_text(working_directory_path / f"{slug}-intent.json", deck_intent_manifest(contract))
     copy_runtime_file(skill_directory_path / "assets" / "build.sh", working_directory_path / "build.sh")
     copy_runtime_file(skill_directory_path / "scripts" / "extract_notes.py", working_directory_path / "extract_notes.py")
     copy_runtime_file(skill_directory_path / "scripts" / "render_review.py", working_directory_path / "render_review.py")
@@ -43,11 +43,13 @@ def clean_slug(value: str) -> str:
     return cleaned or "presentation"
 
 
-def read_brief(path: str) -> str:
-    brief_path = pathlib.Path(path)
-    if brief_path.exists():
-        return brief_path.read_text(encoding="utf-8").strip()
-    return "김인턴이 할 수 있는 일을 소개하는 발표 자료"
+def read_required_text(path: pathlib.Path, message: str) -> str:
+    if not path.exists():
+        fail(f"{message}: {path}")
+    content = path.read_text(encoding="utf-8").strip()
+    if not content:
+        fail(f"{path.name} is empty")
+    return content
 
 
 def write_text(path: pathlib.Path, content: str) -> None:
@@ -63,39 +65,33 @@ def shell_quote(value: str) -> str:
     return "'" + value.replace("'", "'\"'\"'") + "'"
 
 
-def deck_brief(brief: str) -> dict[str, str]:
-    original_request = original_user_request(brief)
-    normalized_brief = compact_text(brief)
-    normalized_request = compact_text(original_request)
-    lower_brief = normalized_brief.lower()
-    lower_request = normalized_request.lower()
-    requested_slide_count = requested_slide_count_from_text(normalized_brief)
-    if is_capabilities_request(lower_request) or is_capabilities_request(lower_brief):
-        return {
-            "title": "김인턴이 할 수 있는 일",
-            "subtitle": "조사에서 산출물 전달까지, 작은 업무를 끝까지 밀어주는 실행 파트너",
-            "audience": "동하 님과 팀원",
-            "tone": "명료하고 믿음직한 업무 소개",
-            "brief": normalized_brief,
-            "original_request": normalized_request,
-            "mode": "capabilities",
-            "requested_slide_count": requested_slide_count,
-        }
-    return {
-        "title": title_from_brief(first_non_empty_string(normalized_request, normalized_brief)),
-        "subtitle": "핵심 메시지, 실행 흐름, 다음 단계를 한눈에 정리한 발표 자료",
-        "audience": "업무 이해관계자",
-        "tone": "차분하고 선명한 보고",
-        "brief": normalized_brief,
-        "original_request": normalized_request,
-        "mode": "generic",
-        "requested_slide_count": requested_slide_count,
-    }
+def fail(message: str) -> None:
+    raise SystemExit(message)
 
 
-def original_user_request(brief: str) -> str:
+def deck_contract(brief: str, slug: str) -> dict:
     values = brief_key_values(brief)
-    return first_non_empty_string(values.get("original_user_request", ""), values.get("user_request", ""), brief)
+    original_request = required_value(values, "original_user_request")
+    topic = required_value(values, "topic")
+    slide_intent = required_value(values, "slide_intent")
+    output_slug = clean_slug(required_value(values, "output_slug"))
+    if output_slug != slug:
+        fail(f"output_slug {output_slug!r} does not match --slug {slug!r}")
+    deck_spec = parse_required_deck_spec(brief)
+    slides = validate_deck_spec(deck_spec)
+    requested_slide_count = requested_slide_count_from_values(values, original_request)
+    if requested_slide_count and requested_slide_count != len(slides):
+        fail(f"requested {requested_slide_count} slides but deck_spec contains {len(slides)}")
+    return {
+        "output_slug": slug,
+        "mode": deck_mode(original_request, topic, slide_intent),
+        "original_user_request": original_request,
+        "topic": topic,
+        "slide_intent": slide_intent,
+        "requested_slide_count": requested_slide_count or len(slides),
+        "requested_formats": requested_formats_from_values(values, original_request),
+        "slides": slides,
+    }
 
 
 def brief_key_values(brief: str) -> dict[str, str]:
@@ -105,26 +101,102 @@ def brief_key_values(brief: str) -> dict[str, str]:
             continue
         key, value = line.split(":", 1)
         normalized_key = key.strip().lower()
-        if normalized_key:
-            values[normalized_key] = clean_brief_value(value)
+        if normalized_key and normalized_key != "deck_spec":
+            values[normalized_key] = clean_value(value)
     return values
 
 
-def clean_brief_value(value: str) -> str:
-    return value.strip().strip("\"'")
+def clean_value(value: str) -> str:
+    return " ".join(value.strip().strip("\"'").split())
 
 
-def first_non_empty_string(*values: str) -> str:
-    for value in values:
-        trimmed = value.strip()
-        if trimmed:
-            return trimmed
+def required_value(values: dict[str, str], key: str) -> str:
+    value = clean_value(values.get(key, ""))
+    if not value:
+        fail(f"{key} is required in brief.md")
+    return value
+
+
+def deck_mode(*values: str) -> str:
+    text = " ".join(values).lower()
+    if any(keyword in text for keyword in ["capability", "capabilities", "what i can do", "can do", "할 수", "역량", "지원 가능"]):
+        return "capabilities"
+    return "generic"
+
+
+def parse_required_deck_spec(brief: str) -> dict:
+    deck_spec_text = extract_deck_spec_text(brief)
+    if not deck_spec_text:
+        fail("deck_spec is required")
+    try:
+        deck_spec = json.loads(deck_spec_text)
+    except json.JSONDecodeError as error_value:
+        fail(f"deck_spec must be valid JSON: {error_value}")
+    if not isinstance(deck_spec, dict):
+        fail("deck_spec must be a JSON object")
+    return deck_spec
+
+
+def extract_deck_spec_text(brief: str) -> str:
+    lines = brief.splitlines()
+    for index, line in enumerate(lines):
+        if line.strip().lower() == "deck_spec:":
+            return extract_deck_spec_after_line(lines[index + 1 :])
     return ""
 
 
-def is_capabilities_request(value: str) -> bool:
-    keywords = ["capability", "capabilities", "what i can do", "can do", "할 수", "기능", "역량", "지원 가능"]
-    return any(keyword in value for keyword in keywords)
+def extract_deck_spec_after_line(lines: list[str]) -> str:
+    while lines and not lines[0].strip():
+        lines = lines[1:]
+    if lines and lines[0].strip().startswith("```"):
+        return extract_fenced_block(lines[1:])
+    return "\n".join(line[2:] if line.startswith("  ") else line for line in lines).strip()
+
+
+def extract_fenced_block(lines: list[str]) -> str:
+    block_lines = []
+    for line in lines:
+        if line.strip().startswith("```"):
+            break
+        block_lines.append(line)
+    return "\n".join(block_lines).strip()
+
+
+def validate_deck_spec(deck_spec: dict) -> list[dict[str, str]]:
+    slides_value = deck_spec.get("slides")
+    if not isinstance(slides_value, list) or not slides_value:
+        fail("deck_spec.slides must be a non-empty list")
+    return [normalize_slide(slide, index) for index, slide in enumerate(slides_value, start=1)]
+
+
+def normalize_slide(slide: object, index: int) -> dict[str, str]:
+    if not isinstance(slide, dict):
+        fail(f"deck_spec.slides[{index}] must be an object")
+    title = clean_value(str(slide.get("title", "")))
+    body = normalize_slide_body(slide.get("body", ""))
+    speaker_note = clean_value(str(slide.get("speaker_note", slide.get("speakerNote", ""))))
+    if not title:
+        fail(f"deck_spec.slides[{index}].title is required")
+    if not body:
+        fail(f"deck_spec.slides[{index}].body is required")
+    if not speaker_note:
+        fail(f"deck_spec.slides[{index}].speaker_note is required")
+    return {"title": title, "body": body, "speaker_note": speaker_note}
+
+
+def normalize_slide_body(value: object) -> str:
+    if isinstance(value, list):
+        return "\n".join(clean_value(str(item)) for item in value if clean_value(str(item)))
+    return clean_value(str(value))
+
+
+def requested_slide_count_from_values(values: dict[str, str], request: str) -> int:
+    requested_slide_count = clean_value(values.get("requested_slide_count", ""))
+    if requested_slide_count:
+        if not requested_slide_count.isdigit():
+            fail("requested_slide_count must be a number")
+        return int(requested_slide_count)
+    return requested_slide_count_from_text(request)
 
 
 def requested_slide_count_from_text(value: str) -> int:
@@ -138,378 +210,104 @@ def requested_slide_count_from_text(value: str) -> int:
     return 0
 
 
-def compact_text(value: str) -> str:
-    return " ".join(value.split()) or "발표 자료"
+def requested_formats_from_values(values: dict[str, str], request: str) -> list[str]:
+    raw_value = clean_value(values.get("requested_formats", ""))
+    if raw_value:
+        return validate_requested_formats([format_value.strip().lower().lstrip(".") for format_value in re.split(r"[,/ ]+", raw_value) if format_value.strip()])
+    normalized_request = request.lower()
+    if "html만" in normalized_request or "html only" in normalized_request:
+        return ["html"]
+    return ["pptx", "pdf", "html", "notes"]
 
 
-def title_from_brief(brief: str) -> str:
-    title = brief
-    for separator in [":", " - ", " — ", "\n"]:
-        if separator in title:
-            title = title.split(separator, 1)[-1]
-    title = title.strip(" .")
-    if len(title) > 34:
-        title = title[:34].rstrip() + "..."
-    return title or "발표 자료"
+def validate_requested_formats(formats: list[str]) -> list[str]:
+    normalized_formats = []
+    for format_value in formats:
+        if format_value in ["note", "notes", "txt", "speaker-notes"]:
+            format_value = "notes"
+        if format_value not in ["pptx", "pdf", "html", "notes"]:
+            fail(f"unsupported requested format: {format_value}")
+        if format_value not in normalized_formats:
+            normalized_formats.append(format_value)
+    if not normalized_formats:
+        fail("requested_formats must include at least one format")
+    return normalized_formats
 
 
-def validate_requested_slide_count(deck: dict[str, str], presentation: str) -> None:
-    requested_slide_count = int(deck.get("requested_slide_count") or 0)
-    if requested_slide_count == 0:
-        return
+def validate_design(design: str) -> None:
+    required_fragments = ["colors:", "typography:", "layout:"]
+    for fragment in required_fragments:
+        if fragment not in design:
+            fail(f"DESIGN.md is missing {fragment}")
+
+
+def validate_presentation(contract: dict, presentation: str) -> None:
+    if "design-source: DESIGN.md" not in presentation:
+        fail("presentation.md must include design-source: DESIGN.md")
+    if contract["mode"] != "capabilities":
+        for token in ["InternKim capability deck", "김인턴이 할 수 있는 일"]:
+            if token in presentation:
+                fail(f"non-capabilities deck contains sample token: {token}")
+    validate_presentation_slide_count(contract, presentation)
+    validate_presentation_intent(contract, presentation)
+    validate_presentation_slides(contract, presentation)
+
+
+def validate_presentation_slide_count(contract: dict, presentation: str) -> None:
     actual_slide_count = count_marp_slides(presentation)
-    if actual_slide_count != requested_slide_count:
-        raise SystemExit(f"requested {requested_slide_count} slides but generated {actual_slide_count}")
+    expected_slide_count = int(contract["requested_slide_count"])
+    if actual_slide_count != expected_slide_count:
+        fail(f"requested {expected_slide_count} slides but presentation.md contains {actual_slide_count}")
 
 
 def count_marp_slides(presentation: str) -> int:
     parts = presentation.split("---", 2)
-    body = parts[2] if len(parts) >= 3 else presentation
+    body = parts[2] if len(parts) >= 3 and parts[0].strip() == "" else presentation
     body = body.strip()
     if not body:
         return 0
     return len(re.split(r"\n---\n", body))
 
 
-def stitch_design_tokens() -> dict[str, str]:
-    return {
-        "colors.background": "#F8FAFC",
-        "colors.surface": "#FFFFFF",
-        "colors.ink": "#111827",
-        "colors.muted": "#64748B",
-        "colors.teal": "#0F766E",
-        "colors.amber": "#F97316",
-        "colors.line": "#CBD5E1",
-        "typography.display": "Paperlogy, Freesentation, Pretendard, Noto Sans KR",
-        "typography.body": "Freesentation, Pretendard, Noto Sans KR",
-        "layout.margin": "68px",
-        "layout.radius": "8px",
+def validate_presentation_intent(contract: dict, presentation: str) -> None:
+    normalized_presentation = presentation.lower()
+    if not contains_intent_token(normalized_presentation, contract["topic"]):
+        fail("presentation.md does not contain topic tokens")
+    if not contains_intent_token(normalized_presentation, contract["slide_intent"]):
+        fail("presentation.md does not contain slide_intent tokens")
+
+
+def validate_presentation_slides(contract: dict, presentation: str) -> None:
+    normalized_presentation = presentation.lower()
+    for index, slide in enumerate(contract["slides"], start=1):
+        if slide["title"].lower() not in normalized_presentation:
+            fail(f"presentation.md is missing deck_spec slide {index} title")
+
+
+def contains_intent_token(text: str, intent: str) -> bool:
+    tokens = intent_tokens(intent)
+    return not tokens or any(token in text for token in tokens)
+
+
+def intent_tokens(value: str) -> list[str]:
+    tokens = []
+    for token in re.split(r"[^0-9A-Za-z가-힣]+", value.lower()):
+        if len(token) >= 3 or re.search(r"[가-힣]", token):
+            tokens.append(token)
+    return tokens
+
+
+def deck_intent_manifest(contract: dict) -> str:
+    manifest = {
+        "output_slug": contract["output_slug"],
+        "mode": contract["mode"],
+        "topic": contract["topic"],
+        "slide_intent": contract["slide_intent"],
+        "requested_slide_count": contract["requested_slide_count"],
+        "requested_formats": contract["requested_formats"],
+        "slide_count": len(contract["slides"]),
     }
-
-
-def stitch_design_document(deck: dict[str, str], design: dict[str, str]) -> str:
-    return f"""---
-name: {yaml_quote(deck["title"] + " Presentation System")}
-version: "2.0"
-colors:
-  background: "{design["colors.background"]}"
-  surface: "{design["colors.surface"]}"
-  ink: "{design["colors.ink"]}"
-  muted: "{design["colors.muted"]}"
-  teal: "{design["colors.teal"]}"
-  amber: "{design["colors.amber"]}"
-  line: "{design["colors.line"]}"
-typography:
-  display: "{design["typography.display"]}"
-  body: "{design["typography.body"]}"
-layout:
-  canvas: "16:9"
-  margin: "{design["layout.margin"]}"
-  rhythm: "8px"
-  radius: "{design["layout.radius"]}"
----
-
-# Deck Design
-
-Audience: {deck["audience"]}
-
-Tone: {deck["tone"]}
-
-Visual direction: crisp Korean business slides with strong whitespace, structured cards, and teal/orange accents. Avoid the Marp default theme look: no giant tables as the main visual, no raw placeholder prose, and no unfinished black-and-white scaffold.
-"""
-
-
-def yaml_quote(value: str) -> str:
-    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
-
-
-def read_stitch_design_tokens(path: pathlib.Path) -> dict[str, str]:
-    design = stitch_design_tokens()
-    text = path.read_text(encoding="utf-8")
-    if not text.startswith("---"):
-        return design
-    parts = text.split("---", 2)
-    if len(parts) < 3:
-        return design
-    current_section = ""
-    for raw_line in parts[1].splitlines():
-        line = raw_line.rstrip()
-        if not line.strip():
-            continue
-        if not line.startswith(" ") and line.endswith(":"):
-            current_section = line[:-1].strip()
-            continue
-        if not current_section or ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        key = key.strip()
-        value = value.strip().strip('"')
-        if key and value:
-            design[current_section + "." + key] = value
-    return design
-
-
-def presentation_document(deck: dict[str, str], design: dict[str, str]) -> str:
-    if deck["mode"] == "capabilities":
-        return capabilities_presentation(deck, design)
-    return generic_presentation(deck, design)
-
-
-def marp_header(title: str, design: dict[str, str]) -> str:
-    return f"""---
-marp: true
-theme: default
-paginate: false
-size: 16:9
-html: true
-title: {yaml_quote(title)}
-style: |
-  section {{
-    --background: {design["colors.background"]};
-    --surface: {design["colors.surface"]};
-    --ink: {design["colors.ink"]};
-    --muted: {design["colors.muted"]};
-    --teal: {design["colors.teal"]};
-    --amber: {design["colors.amber"]};
-    --line: {design["colors.line"]};
-    font-family: {design["typography.body"]}, "Pretendard Variable", Pretendard, "Apple SD Gothic Neo", sans-serif;
-    background: var(--background);
-    color: var(--ink);
-    padding: 58px {design["layout.margin"]};
-    letter-spacing: 0;
-  }}
-  h1, h2, h3 {{
-    font-family: {design["typography.display"]}, "Pretendard Variable", Pretendard, sans-serif;
-    letter-spacing: 0;
-    margin: 0;
-  }}
-  h1 {{ font-size: 70px; line-height: 0.98; font-weight: 850; color: var(--ink); }}
-  h2 {{ font-size: 44px; line-height: 1.08; font-weight: 800; color: var(--ink); }}
-  h3 {{ font-size: 23px; line-height: 1.18; font-weight: 780; color: var(--ink); }}
-  p, li {{ font-size: 22px; line-height: 1.45; color: var(--ink); }}
-  .eyebrow {{ color: var(--teal); font-weight: 800; font-size: 15px; text-transform: uppercase; margin-bottom: 18px; }}
-  .subtitle {{ color: var(--muted); font-size: 25px; line-height: 1.42; max-width: 900px; margin-top: 24px; }}
-  .accent {{ color: var(--teal); }}
-  .mark {{ color: var(--amber); }}
-  .grid {{ display: grid; gap: 18px; margin-top: 30px; }}
-  .grid-2 {{ grid-template-columns: 1fr 1fr; }}
-  .grid-3 {{ grid-template-columns: repeat(3, 1fr); }}
-  .card {{ background: var(--surface); border: 1px solid var(--line); border-radius: {design["layout.radius"]}; padding: 24px; min-height: 145px; }}
-  .card strong {{ color: var(--teal); }}
-  .card p {{ color: var(--muted); font-size: 18px; margin: 10px 0 0; }}
-  .compact {{ gap: 14px; margin-top: 0; }}
-  .compact .card {{ min-height: 112px; padding: 20px 24px; }}
-  .compact .card p {{ font-size: 17px; }}
-  .number {{ color: var(--amber); font-size: 18px; font-weight: 850; margin-bottom: 10px; }}
-  .band {{ background: var(--ink); color: white; border-radius: {design["layout.radius"]}; padding: 26px 30px; margin-top: 28px; }}
-  .band p {{ color: #E5E7EB; margin: 0; }}
-  .split {{ display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 34px; align-items: center; margin-top: 30px; }}
-  .metric {{ font-size: 54px; font-weight: 850; color: var(--teal); margin: 0; }}
-  .pill-row {{ display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }}
-  .pill {{ background: white; border: 1px solid var(--line); border-radius: 999px; padding: 9px 15px; font-size: 17px; color: var(--ink); }}
-  .footer {{ position: absolute; left: {design["layout.margin"]}; right: {design["layout.margin"]}; bottom: 34px; display: flex; justify-content: space-between; color: var(--muted); font-size: 14px; }}
----
-"""
-
-
-def capabilities_presentation(deck: dict[str, str], design: dict[str, str]) -> str:
-    requested_slide_count = int(deck.get("requested_slide_count") or 0)
-    return marp_header(deck["title"], design) + f"""
-<!-- design-source: DESIGN.md -->
-
-<div class="eyebrow">InternKim capability deck</div>
-
-# 김인턴이<br><span class="accent">끝까지 처리하는 일</span>
-
-<p class="subtitle">{deck["subtitle"]}</p>
-
-<div class="pill-row">
-<span class="pill">조사</span>
-<span class="pill">자동화</span>
-<span class="pill">파일 생성</span>
-<span class="pill">승인 흐름</span>
-<span class="pill">첨부 전달</span>
-</div>
-
-<div class="footer"><span>{deck["audience"]}</span><span>Blueclaw workspace artifacts</span></div>
-
-<!-- 오늘은 김인턴이 말로만 답하는 도구가 아니라, 실제 산출물까지 만들고 첨부하는 업무 실행 경로임을 보여줍니다. -->
-
----
-
-## 업무를 <span class="accent">산출물</span>로 바꾸는 흐름
-
-<div class="grid grid-3">
-<div class="card"><div class="number">01</div><h3>요청 해석</h3><p>대화 맥락, 목적, 필요한 결과물을 먼저 정리합니다.</p></div>
-<div class="card"><div class="number">02</div><h3>도구 선택</h3><p>스킬은 절차를, profile allowlist는 실제 권한을 결정합니다.</p></div>
-<div class="card"><div class="number">03</div><h3>증거 첨부</h3><p>완성 파일은 task event와 attachment evidence로 남깁니다.</p></div>
-</div>
-
-<div class="band"><p>핵심은 “가능하다고 말하기”가 아니라, workspace 안에서 만들어진 파일을 검증하고 전달하는 것입니다.</p></div>
-
-<!-- 이 흐름 덕분에 요청자는 결과물이 어디서 왔고 어떤 도구가 쓰였는지 추적할 수 있습니다. -->
-
----
-
-## 바로 맡기기 좋은 일
-
-<div class="grid grid-2">
-<div class="card"><h3>조사와 요약</h3><p>웹 검색, 긴 문서 정리, 회의 전 브리핑, 비교표 작성</p></div>
-<div class="card"><h3>발표 자료</h3><p>Marp 기반 HTML, PPTX, PDF, speaker notes 생성</p></div>
-<div class="card"><h3>반복 업무</h3><p>브라우저 handoff, 파일 정리, 체크리스트 실행</p></div>
-<div class="card"><h3>업무 기록</h3><p>선택한 skill, tool call, 산출물 첨부를 task event로 보존</p></div>
-</div>
-
-<!-- “피피티 못 만든다”가 아니라, 로컬 파일 산출물은 항상 Marp 경로로 생성하는 것이 현재 계약입니다. -->
-
----
-
-## 안전한 경계
-
-<div class="split">
-<div>
-<p class="metric">/workspace</p>
-<p class="subtitle">명령 실행과 파일 생성은 Blueclaw workspace 안에서만 이뤄집니다.</p>
-</div>
-<div class="grid compact">
-<div class="card"><h3>Terminal</h3><p>Firecracker guest 경계 안에서 Marp/Bun 빌드를 실행합니다.</p></div>
-<div class="card"><h3>Handoff</h3><p>브라우저 로그인이나 승인 작업은 Companion 경계로 넘깁니다.</p></div>
-<div class="card"><h3>Audit</h3><p>각 실행은 task event에 남아 재현과 디버깅이 가능합니다.</p></div>
-</div>
-</div>
-
-<!-- 권한이 커져도 host/root 권한이 아니라 guest/workspace 권한이라는 점이 중요합니다. -->
-
----
-
-## 좋은 요청 예시
-
-<div class="grid grid-2">
-<div class="card"><h3>“이 내용으로 발표자료 만들어줘”</h3><p>PPTX, PDF, HTML, notes를 같이 첨부합니다.</p></div>
-<div class="card"><h3>“자료 조사해서 팀 공유용으로 정리해줘”</h3><p>출처, 요약, 의사결정 포인트를 분리합니다.</p></div>
-<div class="card"><h3>“브라우저에서 확인이 필요한 부분 넘겨줘”</h3><p>로그인/승인은 사용자 컴퓨터에서 처리합니다.</p></div>
-<div class="card"><h3>“완료 여부를 증거로 남겨줘”</h3><p>파일 첨부와 task event를 기준으로 완료를 판단합니다.</p></div>
-</div>
-
-<div class="footer"><span>Next action</span><span>업무 목적 → tool path → artifact evidence</span></div>
-
-<!-- 다음에는 원하는 주제, 톤, 청중만 주면 같은 구조로 바로 산출물을 만들 수 있습니다. -->
-""" + capabilities_extra_slides(requested_slide_count)
-
-
-def capabilities_extra_slides(requested_slide_count: int) -> str:
-    if requested_slide_count <= 5:
-        return ""
-    extras = [
-        """
-
----
-
-## 작업 기준을 먼저 세웁니다
-
-<div class="grid grid-3">
-<div class="card"><div class="number">A</div><h3>원문 보존</h3><p>사용자 요청의 핵심 표현과 산출물 조건을 brief에 남깁니다.</p></div>
-<div class="card"><div class="number">B</div><h3>품질 기준</h3><p>작업별 acceptance criteria를 먼저 선언하고 그 기준으로 검토합니다.</p></div>
-<div class="card"><div class="number">C</div><h3>증거 연결</h3><p>완료 답변은 성공한 observation과 첨부 evidence를 기준으로 합니다.</p></div>
-</div>
-
-<!-- 요청을 바꾸어 해석하지 않고, 완료 기준을 먼저 고정하는 방식이 핵심입니다. -->
-""",
-        """
-
----
-
-## 산출물 종류
-
-<div class="grid grid-2">
-<div class="card"><h3>문서와 발표자료</h3><p>PPTX, PDF, HTML, notes처럼 공유 가능한 파일을 만듭니다.</p></div>
-<div class="card"><h3>조사 결과</h3><p>출처와 판단 근거를 분리해 팀이 바로 검토할 수 있게 정리합니다.</p></div>
-<div class="card"><h3>브라우저 작업</h3><p>로그인과 승인이 필요한 순간은 사용자 컴퓨터의 companion 경계로 넘깁니다.</p></div>
-<div class="card"><h3>업무 흐름</h3><p>Flow, Mattermost, memory와 연결해 다음 행동까지 이어줍니다.</p></div>
-</div>
-
-<!-- 산출물은 파일만이 아니라, 다음 사람이 이어받을 수 있는 업무 상태까지 포함합니다. -->
-""",
-        """
-
----
-
-## 맡기는 법
-
-<div class="band"><p>주제, 청중, 원하는 톤, 파일 형식, 완료 기준을 함께 주면 가장 안정적으로 처리합니다.</p></div>
-
-<div class="pill-row">
-<span class="pill">주제</span>
-<span class="pill">청중</span>
-<span class="pill">톤</span>
-<span class="pill">형식</span>
-<span class="pill">완료 기준</span>
-</div>
-
-<div class="footer"><span>InternKim</span><span>criteria → work → evidence → reply</span></div>
-
-<!-- 좋은 요청은 김인턴이 스스로 기준을 세우고 검토하는 시간을 줄여줍니다. -->
-""",
-    ]
-    if requested_slide_count > 8:
-        return ""
-    return "".join(extras[:requested_slide_count - 5])
-
-
-def generic_presentation(deck: dict[str, str], design: dict[str, str]) -> str:
-    return marp_header(deck["title"], design) + f"""
-<!-- design-source: DESIGN.md -->
-
-<div class="eyebrow">Presentation brief</div>
-
-# {deck["title"]}
-
-<p class="subtitle">{deck["subtitle"]}</p>
-
-<div class="band"><p>{deck["brief"]}</p></div>
-
-<!-- 이 발표는 요청의 목적과 청중을 먼저 정리한 뒤 핵심 메시지로 들어갑니다. -->
-
----
-
-## 핵심 메시지
-
-<div class="grid grid-3">
-<div class="card"><div class="number">01</div><h3>무엇이 중요한가</h3><p>청중이 기억해야 할 한 문장을 먼저 고정합니다.</p></div>
-<div class="card"><div class="number">02</div><h3>왜 지금인가</h3><p>배경과 필요성을 짧은 근거로 연결합니다.</p></div>
-<div class="card"><div class="number">03</div><h3>무엇을 할 것인가</h3><p>다음 행동을 명확한 단위로 나눕니다.</p></div>
-</div>
-
-<!-- 핵심 메시지는 정보량보다 방향성이 중요합니다. -->
-
----
-
-## 실행 흐름
-
-<div class="grid grid-2">
-<div class="card"><h3>현재 상황</h3><p>문제, 제약, 이미 확보한 정보를 분리합니다.</p></div>
-<div class="card"><h3>선택지</h3><p>비교 가능한 기준으로 대안을 정리합니다.</p></div>
-<div class="card"><h3>권장안</h3><p>가장 실용적인 경로와 이유를 짧게 제시합니다.</p></div>
-<div class="card"><h3>다음 단계</h3><p>담당자와 일정, 필요한 확인 사항을 남깁니다.</p></div>
-</div>
-
-<!-- 청중이 회의 후 바로 움직일 수 있도록 구체성을 유지합니다. -->
-
----
-
-## 다음 단계
-
-<p class="metric">3</p>
-<p class="subtitle">확인할 것, 결정할 것, 실행할 것을 세 줄로 마무리합니다.</p>
-
-<div class="pill-row">
-<span class="pill">확인</span>
-<span class="pill">결정</span>
-<span class="pill">실행</span>
-</div>
-
-<!-- 발표 후 액션 아이템을 분명하게 합의합니다. -->
-"""
+    return json.dumps(manifest, ensure_ascii=False, indent=2)
 
 
 if __name__ == "__main__":
