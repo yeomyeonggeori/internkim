@@ -53,7 +53,7 @@ var StepBlueclawRuntimeBase = Step{
 
 var StepBlueclawPayload = Step{
 	Name: "blueclaw-payload",
-	Deps: []string{"binaries", "skills", "blueclaw-runtime-base"},
+	Deps: []string{"binaries", "skills", "blueclaw-runtime-base", "blueclaw-config"},
 	Title: func(context *Context) string {
 		return context.T("Blueclaw 런타임 페이로드 배포 중...", "Deploying Blueclaw runtime payload...")
 	},
