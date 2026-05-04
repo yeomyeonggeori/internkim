@@ -22,6 +22,9 @@ func TestBlueclawRuntimeInstallPlanSkipsCurrentArtifacts(t *testing.T) {
 		if artifact.shouldInstall {
 			t.Fatalf("expected %s to be skipped", artifact.name)
 		}
+		if artifact.reason != "" {
+			t.Fatalf("expected %s reason to be empty, got %q", artifact.name, artifact.reason)
+		}
 	}
 }
 
@@ -40,6 +43,9 @@ func TestBlueclawRuntimeInstallPlanReinstallsBrokenRootfs(t *testing.T) {
 	for _, artifact := range plan.artifacts {
 		if artifact.name == "rootfs.ext4" && !artifact.shouldInstall {
 			t.Fatal("expected rootfs to reinstall when contract check fails")
+		}
+		if artifact.name == "rootfs.ext4" && artifact.reason != "rootfs base contract changed" {
+			t.Fatalf("expected rootfs contract reason, got %q", artifact.reason)
 		}
 		if artifact.name != "rootfs.ext4" && artifact.shouldInstall {
 			t.Fatalf("expected %s to be skipped", artifact.name)
@@ -62,6 +68,28 @@ func TestBlueclawRuntimeInstallPlanInstallsChangedArtifact(t *testing.T) {
 	for _, artifact := range plan.artifacts {
 		if artifact.name == "rootfs.ext4" && !artifact.shouldInstall {
 			t.Fatal("expected changed rootfs to install")
+		}
+		if artifact.name == "rootfs.ext4" && artifact.reason != "checksum changed" {
+			t.Fatalf("expected changed rootfs checksum reason, got %q", artifact.reason)
+		}
+	}
+}
+
+func TestBlueclawRuntimeInstallPlanRecordsMissingRemoteFile(t *testing.T) {
+	localManifest := blueclawRuntimeInstallManifestFixture("rootfs-sha")
+	plan := buildBlueclawRuntimeInstallPlan(localManifest, blueclawRuntimeInstallManifestDocumentFixture("rootfs-sha"), map[string]bool{
+		"firecracker": false,
+		"jailer":      true,
+		"vmlinux.bin": true,
+		"rootfs.ext4": true,
+	}, true, true)
+
+	for _, artifact := range plan.artifacts {
+		if artifact.name == "firecracker" && !artifact.shouldInstall {
+			t.Fatal("expected missing firecracker to install")
+		}
+		if artifact.name == "firecracker" && artifact.reason != "remote file missing" {
+			t.Fatalf("expected missing file reason, got %q", artifact.reason)
 		}
 	}
 }

@@ -17,6 +17,7 @@ type blueclawRuntimeInstallArtifact struct {
 	remotePath    string
 	mode          string
 	shouldInstall bool
+	reason        string
 }
 
 func buildBlueclawRuntimeInstallPlan(
@@ -32,14 +33,44 @@ func buildBlueclawRuntimeInstallPlan(
 	for artifactIndex, artifact := range artifacts {
 		localManifestFile, localError := blueclaw.FindRuntimeArtifactManifestFile(localManifest, artifact.name)
 		remoteManifestFile, remoteError := blueclaw.FindRuntimeArtifactManifestFile(remoteManifest, artifact.name)
-		shouldInstall := localError != nil || remoteError != nil || !strings.EqualFold(localManifestFile.SHA256, remoteManifestFile.SHA256) || !remoteFilePresence[artifact.name]
-		if artifact.name == "rootfs.ext4" && !isRemoteRootfsContractOK {
-			shouldInstall = true
-		}
+		shouldInstall, reason := blueclawRuntimeArtifactInstallDecision(
+			artifact.name,
+			localManifestFile,
+			localError,
+			remoteManifestFile,
+			remoteError,
+			remoteFilePresence[artifact.name],
+			isRemoteRootfsContractOK,
+		)
 		artifacts[artifactIndex].shouldInstall = shouldInstall
+		artifacts[artifactIndex].reason = reason
 		shouldInstallManifest = shouldInstallManifest || shouldInstall
 	}
 	return blueclawRuntimeInstallPlan{artifacts: artifacts, shouldInstallManifest: shouldInstallManifest}
+}
+
+func blueclawRuntimeArtifactInstallDecision(
+	artifactName string,
+	localManifestFile blueclaw.RuntimeArtifactManifestFile,
+	localError error,
+	remoteManifestFile blueclaw.RuntimeArtifactManifestFile,
+	remoteError error,
+	isRemoteFilePresent bool,
+	isRemoteRootfsContractOK bool,
+) (bool, string) {
+	if localError != nil || remoteError != nil {
+		return true, "manifest entry changed"
+	}
+	if !isRemoteFilePresent {
+		return true, "remote file missing"
+	}
+	if !strings.EqualFold(localManifestFile.SHA256, remoteManifestFile.SHA256) {
+		return true, "checksum changed"
+	}
+	if artifactName == "rootfs.ext4" && !isRemoteRootfsContractOK {
+		return true, "rootfs base contract changed"
+	}
+	return false, ""
 }
 
 func requiredBlueclawRuntimeInstallArtifacts() []blueclawRuntimeInstallArtifact {
@@ -56,6 +87,42 @@ func blueclawRuntimeInstallCommand(artifact blueclawRuntimeInstallArtifact, temp
 		return "cp --sparse=always " + quoteShellValue(temporaryRemotePath) + " " + quoteShellValue(artifact.remotePath) + " && chmod " + artifact.mode + " " + quoteShellValue(artifact.remotePath)
 	}
 	return "install -m " + artifact.mode + " " + quoteShellValue(temporaryRemotePath) + " " + quoteShellValue(artifact.remotePath)
+}
+
+func blueclawRuntimeInstallPlanIsCurrent(installPlan blueclawRuntimeInstallPlan) bool {
+	if installPlan.shouldInstallManifest {
+		return false
+	}
+	for _, artifact := range installPlan.artifacts {
+		if artifact.shouldInstall {
+			return false
+		}
+	}
+	return true
+}
+
+func printBlueclawRuntimeInstallPlan(installPlan blueclawRuntimeInstallPlan) {
+	fmt.Println()
+	for _, artifact := range installPlan.artifacts {
+		if artifact.shouldInstall {
+			fmt.Printf("    %s installing (%s)\n", artifact.name, artifact.reason)
+			continue
+		}
+		fmt.Printf("    %s current\n", artifact.name)
+	}
+	if installPlan.shouldInstallManifest {
+		fmt.Println("    manifest installing (manifest changed)")
+		return
+	}
+	fmt.Println("    manifest current")
+}
+
+func printBlueclawRuntimeArtifactInstalling(artifact blueclawRuntimeInstallArtifact) {
+	if artifact.name == "rootfs.ext4" {
+		fmt.Printf("    %s installing (large, this can take several minutes; %s)...\n", artifact.name, artifact.reason)
+		return
+	}
+	fmt.Printf("    %s installing (%s)...\n", artifact.name, artifact.reason)
 }
 
 func (state *setupFlowState) remoteBlueclawRuntimeFilePresence() map[string]bool {
