@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import os
 import pathlib
 import re
 import shutil
@@ -12,20 +13,13 @@ def main() -> int:
     working_directory_path = pathlib.Path.cwd()
     skill_directory_path = pathlib.Path(__file__).resolve().parents[1]
     slug = clean_slug(arguments.slug)
-    brief = read_required_text(pathlib.Path(arguments.brief), "brief file is required")
-    presentation = read_required_text(working_directory_path / "presentation.md", "presentation.md is required")
-    design = read_required_text(working_directory_path / "DESIGN.md", "DESIGN.md is required")
-    contract = deck_contract(brief, slug)
 
-    validate_design(design)
-    validate_presentation(contract, presentation)
-    write_text(working_directory_path / f"{slug}-intent.json", deck_intent_manifest(contract))
-    copy_runtime_file(skill_directory_path / "assets" / "build.sh", working_directory_path / "build.sh")
-    copy_runtime_file(skill_directory_path / "scripts" / "extract_notes.py", working_directory_path / "extract_notes.py")
-    copy_runtime_file(skill_directory_path / "scripts" / "render_review.py", working_directory_path / "render_review.py")
+    prepare_runtime_files(skill_directory_path, working_directory_path)
+    brief = read_optional_text(working_directory_path / arguments.brief)
+    ensure_deck_source(working_directory_path, skill_directory_path, slug, brief)
 
     if not arguments.no_build:
-        subprocess.run(["bash", "-lc", f"NAME={shell_quote(slug)} ./build.sh"], cwd=working_directory_path, check=True)
+        build_deck(working_directory_path, slug)
     return 0
 
 
@@ -43,17 +37,20 @@ def clean_slug(value: str) -> str:
     return cleaned or "presentation"
 
 
-def read_required_text(path: pathlib.Path, message: str) -> str:
+def read_optional_text(path: pathlib.Path) -> str:
     if not path.exists():
-        fail(f"{message}: {path}")
-    content = path.read_text(encoding="utf-8").strip()
-    if not content:
-        fail(f"{path.name} is empty")
-    return content
+        return ""
+    return path.read_text(encoding="utf-8").strip()
 
 
 def write_text(path: pathlib.Path, content: str) -> None:
     path.write_text(content.strip() + "\n", encoding="utf-8")
+
+
+def prepare_runtime_files(skill_directory_path: pathlib.Path, working_directory_path: pathlib.Path) -> None:
+    copy_runtime_file(skill_directory_path / "assets" / "build.sh", working_directory_path / "build.sh")
+    copy_runtime_file(skill_directory_path / "scripts" / "extract_notes.py", working_directory_path / "extract_notes.py")
+    copy_runtime_file(skill_directory_path / "scripts" / "render_review.py", working_directory_path / "render_review.py")
 
 
 def copy_runtime_file(source_path: pathlib.Path, target_path: pathlib.Path) -> None:
@@ -61,77 +58,41 @@ def copy_runtime_file(source_path: pathlib.Path, target_path: pathlib.Path) -> N
     target_path.chmod(0o755)
 
 
-def shell_quote(value: str) -> str:
-    return "'" + value.replace("'", "'\"'\"'") + "'"
+def ensure_deck_source(
+    working_directory_path: pathlib.Path,
+    skill_directory_path: pathlib.Path,
+    slug: str,
+    brief: str,
+) -> None:
+    presentation_path = working_directory_path / "presentation.md"
+    if presentation_path.exists() and presentation_path.read_text(encoding="utf-8").strip():
+        ensure_design_file(working_directory_path, skill_directory_path)
+        return
+
+    deck_spec = parse_deck_spec(brief)
+    if deck_spec:
+        ensure_design_file(working_directory_path, skill_directory_path)
+        write_text(presentation_path, presentation_from_deck_spec(deck_spec, slug))
+        return
+
+    fail("presentation.md is missing. Write a Marp source file first, or include deck_spec in brief.md.")
 
 
-def fail(message: str) -> None:
-    raise SystemExit(message)
+def ensure_design_file(working_directory_path: pathlib.Path, skill_directory_path: pathlib.Path) -> None:
+    design_path = working_directory_path / "DESIGN.md"
+    if design_path.exists() and design_path.read_text(encoding="utf-8").strip():
+        return
+    shutil.copyfile(skill_directory_path / "assets" / "design.md", design_path)
 
 
-def deck_contract(brief: str, slug: str) -> dict:
-    values = brief_key_values(brief)
-    original_request = required_value(values, "original_user_request")
-    topic = required_value(values, "topic")
-    slide_intent = required_value(values, "slide_intent")
-    output_slug = clean_slug(required_value(values, "output_slug"))
-    if output_slug != slug:
-        fail(f"output_slug {output_slug!r} does not match --slug {slug!r}")
-    deck_spec = parse_required_deck_spec(brief)
-    slides = validate_deck_spec(deck_spec)
-    requested_slide_count = requested_slide_count_from_values(values, original_request)
-    if requested_slide_count and requested_slide_count != len(slides):
-        fail(f"requested {requested_slide_count} slides but deck_spec contains {len(slides)}")
-    return {
-        "output_slug": slug,
-        "mode": deck_mode(original_request, topic, slide_intent),
-        "original_user_request": original_request,
-        "topic": topic,
-        "slide_intent": slide_intent,
-        "requested_slide_count": requested_slide_count or len(slides),
-        "requested_formats": requested_formats_from_values(values, original_request),
-        "slides": slides,
-    }
-
-
-def brief_key_values(brief: str) -> dict[str, str]:
-    values: dict[str, str] = {}
-    for line in brief.splitlines():
-        if ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        normalized_key = key.strip().lower()
-        if normalized_key and normalized_key != "deck_spec":
-            values[normalized_key] = clean_value(value)
-    return values
-
-
-def clean_value(value: str) -> str:
-    return " ".join(value.strip().strip("\"'").split())
-
-
-def required_value(values: dict[str, str], key: str) -> str:
-    value = clean_value(values.get(key, ""))
-    if not value:
-        fail(f"{key} is required in brief.md")
-    return value
-
-
-def deck_mode(*values: str) -> str:
-    text = " ".join(values).lower()
-    if any(keyword in text for keyword in ["capability", "capabilities", "what i can do", "can do", "할 수", "역량", "지원 가능"]):
-        return "capabilities"
-    return "generic"
-
-
-def parse_required_deck_spec(brief: str) -> dict:
+def parse_deck_spec(brief: str) -> dict:
     deck_spec_text = extract_deck_spec_text(brief)
     if not deck_spec_text:
-        fail("deck_spec is required")
+        return {}
     try:
         deck_spec = json.loads(deck_spec_text)
     except json.JSONDecodeError as error_value:
-        fail(f"deck_spec must be valid JSON: {error_value}")
+        fail(f"deck_spec is not valid JSON: {error_value}")
     if not isinstance(deck_spec, dict):
         fail("deck_spec must be a JSON object")
     return deck_spec
@@ -162,152 +123,100 @@ def extract_fenced_block(lines: list[str]) -> str:
     return "\n".join(block_lines).strip()
 
 
-def validate_deck_spec(deck_spec: dict) -> list[dict[str, str]]:
+def presentation_from_deck_spec(deck_spec: dict, slug: str) -> str:
+    title = clean_text(str(deck_spec.get("title", slug.replace("-", " ").title())))
+    slides = normalized_slides(deck_spec)
+    slide_sources = "\n\n---\n\n".join(slide_markdown(slide) for slide in slides)
+    return front_matter(title) + "\n\n" + slide_sources
+
+
+def normalized_slides(deck_spec: dict) -> list[dict[str, str]]:
     slides_value = deck_spec.get("slides")
     if not isinstance(slides_value, list) or not slides_value:
         fail("deck_spec.slides must be a non-empty list")
-    return [normalize_slide(slide, index) for index, slide in enumerate(slides_value, start=1)]
+    slides = []
+    for index, slide in enumerate(slides_value, start=1):
+        if not isinstance(slide, dict):
+            fail(f"deck_spec.slides[{index}] must be an object")
+        title = clean_text(str(slide.get("title", f"Slide {index}")))
+        body = normalize_slide_body(slide.get("body", ""))
+        note = clean_text(str(slide.get("speaker_note", slide.get("speakerNote", ""))))
+        slides.append({"title": title, "body": body, "note": note})
+    return slides
 
 
-def normalize_slide(slide: object, index: int) -> dict[str, str]:
-    if not isinstance(slide, dict):
-        fail(f"deck_spec.slides[{index}] must be an object")
-    title = clean_value(str(slide.get("title", "")))
-    body = normalize_slide_body(slide.get("body", ""))
-    speaker_note = clean_value(str(slide.get("speaker_note", slide.get("speakerNote", ""))))
-    if not title:
-        fail(f"deck_spec.slides[{index}].title is required")
-    if not body:
-        fail(f"deck_spec.slides[{index}].body is required")
-    if not speaker_note:
-        fail(f"deck_spec.slides[{index}].speaker_note is required")
-    return {"title": title, "body": body, "speaker_note": speaker_note}
-
-
-def normalize_slide_body(value: object) -> str:
+def normalize_slide_body(value: object) -> list[str]:
     if isinstance(value, list):
-        return "\n".join(clean_value(str(item)) for item in value if clean_value(str(item)))
-    return clean_value(str(value))
+        return [clean_text(str(item)) for item in value if clean_text(str(item))]
+    text = clean_text(str(value))
+    return [text] if text else []
 
 
-def requested_slide_count_from_values(values: dict[str, str], request: str) -> int:
-    requested_slide_count = clean_value(values.get("requested_slide_count", ""))
-    if requested_slide_count:
-        if not requested_slide_count.isdigit():
-            fail("requested_slide_count must be a number")
-        return int(requested_slide_count)
-    return requested_slide_count_from_text(request)
+def clean_text(value: str) -> str:
+    return " ".join(value.strip().split())
 
 
-def requested_slide_count_from_text(value: str) -> int:
-    match = re.search(r"(\d{1,2})\s*(?:장|slides?|pages?)", value, re.IGNORECASE)
-    if match:
-        return int(match.group(1))
-    korean_numbers = {"한": 1, "두": 2, "세": 3, "네": 4, "다섯": 5, "여섯": 6, "일곱": 7, "여덟": 8, "아홉": 9, "열": 10}
-    for word, count in korean_numbers.items():
-        if word + "장" in value:
-            return count
-    return 0
+def front_matter(title: str) -> str:
+    return f"""---
+marp: true
+theme: default
+paginate: false
+size: 16:9
+html: true
+title: {json.dumps(title, ensure_ascii=False)}
+style: |
+  section {{
+    --background: #F8FAFC;
+    --surface: #FFFFFF;
+    --ink: #111827;
+    --muted: #64748B;
+    --teal: #0F766E;
+    --amber: #F97316;
+    --line: #CBD5E1;
+    font-family: Freesentation, Paperlogy, "Pretendard Variable", Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+    background: var(--background);
+    color: var(--ink);
+    padding: 58px 68px;
+    letter-spacing: 0;
+  }}
+  h1, h2, h3 {{
+    font-family: Paperlogy, Freesentation, "Pretendard Variable", Pretendard, "Noto Sans KR", sans-serif;
+    letter-spacing: 0;
+    margin: 0;
+  }}
+  h1 {{ font-size: 64px; line-height: 1.02; font-weight: 850; }}
+  h2 {{ font-size: 42px; line-height: 1.08; font-weight: 800; }}
+  p, li {{ font-size: 22px; line-height: 1.45; }}
+  .subtitle {{ color: var(--muted); font-size: 25px; line-height: 1.42; max-width: 900px; margin-top: 24px; }}
+  .grid {{ display: grid; gap: 18px; margin-top: 30px; }}
+  .card {{ background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 24px; }}
+  .accent {{ color: var(--teal); }}
+---
+
+<!-- design-source: DESIGN.md -->"""
 
 
-def requested_formats_from_values(values: dict[str, str], request: str) -> list[str]:
-    raw_value = clean_value(values.get("requested_formats", ""))
-    if raw_value:
-        return validate_requested_formats([format_value.strip().lower().lstrip(".") for format_value in re.split(r"[,/ ]+", raw_value) if format_value.strip()])
-    normalized_request = request.lower()
-    if "html만" in normalized_request or "html only" in normalized_request:
-        return ["html"]
-    return ["pptx", "pdf", "html", "notes"]
+def slide_markdown(slide: dict[str, object]) -> str:
+    lines = [f"## {slide['title']}", ""]
+    body = slide["body"]
+    if isinstance(body, list) and body:
+        lines.extend(f"- {item}" for item in body)
+    else:
+        lines.append("핵심 내용을 간결하게 정리합니다.")
+    note = str(slide.get("note", "")).strip()
+    if note:
+        lines.extend(["", f"<!-- {note} -->"])
+    return "\n".join(lines)
 
 
-def validate_requested_formats(formats: list[str]) -> list[str]:
-    normalized_formats = []
-    for format_value in formats:
-        if format_value in ["note", "notes", "txt", "speaker-notes"]:
-            format_value = "notes"
-        if format_value not in ["pptx", "pdf", "html", "notes"]:
-            fail(f"unsupported requested format: {format_value}")
-        if format_value not in normalized_formats:
-            normalized_formats.append(format_value)
-    if not normalized_formats:
-        fail("requested_formats must include at least one format")
-    return normalized_formats
+def build_deck(working_directory_path: pathlib.Path, slug: str) -> None:
+    environment = os.environ.copy()
+    environment["NAME"] = slug
+    subprocess.run(["./build.sh"], cwd=working_directory_path, env=environment, check=True)
 
 
-def validate_design(design: str) -> None:
-    required_fragments = ["colors:", "typography:", "layout:"]
-    for fragment in required_fragments:
-        if fragment not in design:
-            fail(f"DESIGN.md is missing {fragment}")
-
-
-def validate_presentation(contract: dict, presentation: str) -> None:
-    if "design-source: DESIGN.md" not in presentation:
-        fail("presentation.md must include design-source: DESIGN.md")
-    if contract["mode"] != "capabilities":
-        for token in ["InternKim capability deck", "김인턴이 할 수 있는 일"]:
-            if token in presentation:
-                fail(f"non-capabilities deck contains sample token: {token}")
-    validate_presentation_slide_count(contract, presentation)
-    validate_presentation_intent(contract, presentation)
-    validate_presentation_slides(contract, presentation)
-
-
-def validate_presentation_slide_count(contract: dict, presentation: str) -> None:
-    actual_slide_count = count_marp_slides(presentation)
-    expected_slide_count = int(contract["requested_slide_count"])
-    if actual_slide_count != expected_slide_count:
-        fail(f"requested {expected_slide_count} slides but presentation.md contains {actual_slide_count}")
-
-
-def count_marp_slides(presentation: str) -> int:
-    parts = presentation.split("---", 2)
-    body = parts[2] if len(parts) >= 3 and parts[0].strip() == "" else presentation
-    body = body.strip()
-    if not body:
-        return 0
-    return len(re.split(r"\n---\n", body))
-
-
-def validate_presentation_intent(contract: dict, presentation: str) -> None:
-    normalized_presentation = presentation.lower()
-    if not contains_intent_token(normalized_presentation, contract["topic"]):
-        fail("presentation.md does not contain topic tokens")
-    if not contains_intent_token(normalized_presentation, contract["slide_intent"]):
-        fail("presentation.md does not contain slide_intent tokens")
-
-
-def validate_presentation_slides(contract: dict, presentation: str) -> None:
-    normalized_presentation = presentation.lower()
-    for index, slide in enumerate(contract["slides"], start=1):
-        if slide["title"].lower() not in normalized_presentation:
-            fail(f"presentation.md is missing deck_spec slide {index} title")
-
-
-def contains_intent_token(text: str, intent: str) -> bool:
-    tokens = intent_tokens(intent)
-    return not tokens or any(token in text for token in tokens)
-
-
-def intent_tokens(value: str) -> list[str]:
-    tokens = []
-    for token in re.split(r"[^0-9A-Za-z가-힣]+", value.lower()):
-        if len(token) >= 3 or re.search(r"[가-힣]", token):
-            tokens.append(token)
-    return tokens
-
-
-def deck_intent_manifest(contract: dict) -> str:
-    manifest = {
-        "output_slug": contract["output_slug"],
-        "mode": contract["mode"],
-        "topic": contract["topic"],
-        "slide_intent": contract["slide_intent"],
-        "requested_slide_count": contract["requested_slide_count"],
-        "requested_formats": contract["requested_formats"],
-        "slide_count": len(contract["slides"]),
-    }
-    return json.dumps(manifest, ensure_ascii=False, indent=2)
+def fail(message: str) -> None:
+    raise SystemExit(message)
 
 
 if __name__ == "__main__":
