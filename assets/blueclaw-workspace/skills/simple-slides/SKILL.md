@@ -78,7 +78,7 @@ Use only these built-in tools:
 - `terminal.run` to run guarded commands.
 - `file.attach` to attach finished artifacts to the final reply.
 
-Do not use legacy tool aliases.
+Do not use legacy tool aliases. Do not run `file.write`, `file.attach`, or any other Blueclaw tool name inside a `terminal.run` shell command. They are actions, not executables. If you need to write `brief.md`, `DESIGN.md`, or `presentation.md`, call `file.write` directly once per file, then call `terminal.run` only for real shell commands such as `mkdir`, `python3`, `cp`, `chmod`, or `./build.sh`.
 
 ## Working Directory
 
@@ -128,6 +128,17 @@ Then write `DESIGN.md` and `presentation.md` with `file.write` before running an
 ```
 
 Do not ask the script to invent slide content. If the script fails because `deck_spec`, `DESIGN.md`, or `presentation.md` is missing or generic, fix those files and rerun it. If the user asks for a visual redesign or content revision after the first build, edit `DESIGN.md` first, then update `presentation.md` to match that design contract before rebuilding.
+
+Golden path:
+
+1. `terminal.run` creates `/workspace/.blueclaw/tmp/<deck-slug>`.
+2. `file.write` writes `/workspace/.blueclaw/tmp/<deck-slug>/brief.md`.
+3. `file.write` writes `/workspace/.blueclaw/tmp/<deck-slug>/DESIGN.md`.
+4. `file.write` writes `/workspace/.blueclaw/tmp/<deck-slug>/presentation.md`.
+5. `terminal.run` runs `python3 /workspace/skills/simple-slides/scripts/create_deck.py --slug <deck-slug> --brief brief.md` from the deck directory.
+6. `file.attach` attaches only the requested generated artifact files.
+
+Never replace steps 2-4 with shell redirection, heredocs, `echo`, `cat`, or a fake `file.write` command inside `terminal.run`; that loses tool evidence and often breaks quoting for Korean text, JSON, and CSS.
 
 For custom edits after the first build, update these files with `file.write`:
 
