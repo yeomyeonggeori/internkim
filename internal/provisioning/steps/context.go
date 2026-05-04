@@ -47,6 +47,8 @@ type Callbacks struct {
 	StageBinariesSD           func(context *Context) error
 	BlueclawRuntimeManifest   func() string
 	InstallBlueclawRuntimeSSH func(context *Context) error
+	BlueclawPayloadManifest   func() string
+	InstallBlueclawPayloadSSH func(context *Context) error
 
 	AdminWebVersion func() string
 	DeployAdminWeb  func(context *Context) error

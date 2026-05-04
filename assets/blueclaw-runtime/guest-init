@@ -32,6 +32,7 @@ prepare_blueclaw_workspace() {
     /workspace/.blueclaw/blobs \
     /workspace/.blueclaw/config \
     /workspace/.blueclaw/migrations \
+    /workspace/.blueclaw/runtime \
     /workspace/.blueclaw/tmp
 
   rmdir /workspace/.blueclaw/graphiti/kuzu 2>/dev/null || true
@@ -43,6 +44,7 @@ prepare_blueclaw_workspace() {
     /workspace/.blueclaw/blobs \
     /workspace/.blueclaw/config \
     /workspace/.blueclaw/migrations \
+    /workspace/.blueclaw/runtime \
     /workspace/.blueclaw/tmp
   chmod 0755 /workspace /workspace/.blueclaw
   chmod 0750 /workspace/.blueclaw/config
@@ -51,8 +53,18 @@ prepare_blueclaw_workspace() {
     /workspace/.blueclaw/logs \
     /workspace/.blueclaw/blobs \
     /workspace/.blueclaw/migrations \
+    /workspace/.blueclaw/runtime \
     /workspace/.blueclaw/tmp
   find /workspace/.blueclaw/config -type f -exec chmod 0640 {} +
+}
+
+blueclaw_binary_path() {
+  local payload_binary_path="/workspace/.blueclaw/runtime/current/bin/blueclaw"
+  if [ ! -x "$payload_binary_path" ]; then
+    log_guest_init "missing executable Blueclaw runtime payload at $payload_binary_path"
+    exit 1
+  fi
+  printf '%s\n' "$payload_binary_path"
 }
 
 trap 'status=$?; log_guest_init "failed at line $LINENO with status $status"; shutdown_guest' ERR
@@ -115,7 +127,8 @@ for _ in $(seq 1 120); do
   sleep 1
 done
 
-su -s /bin/bash blueclaw -c '/usr/local/bin/blueclaw -runtime /workspace/.blueclaw/config/runtime.json -policy /workspace/.blueclaw/config/policy.json' >>/workspace/.blueclaw/logs/blueclaw.log 2>&1 &
+blueclaw_binary="$(blueclaw_binary_path)"
+su -s /bin/bash blueclaw -c "$blueclaw_binary -runtime /workspace/.blueclaw/config/runtime.json -policy /workspace/.blueclaw/config/policy.json" >>/workspace/.blueclaw/logs/blueclaw.log 2>&1 &
 blueclaw_process_id="$!"
 
 /usr/local/bin/blueclaw-vsock-http-proxy -mode vsock-to-tcp -listen-vsock-port 8081 -target-tcp 127.0.0.1:8080 >>/workspace/.blueclaw/logs/guest-http-proxy.log 2>&1 &

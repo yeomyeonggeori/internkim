@@ -11,7 +11,7 @@ import (
 
 var StepServices = Step{
 	Name: "services",
-	Deps: []string{"blueclaw-runtime", "openrouter", "local-llm", "mattermost"},
+	Deps: []string{"blueclaw-runtime-base", "blueclaw-payload", "openrouter", "local-llm", "mattermost"},
 	Title: func(context *Context) string {
 		return context.T("서비스 시작 중...", "Starting services...")
 	},
@@ -20,7 +20,7 @@ var StepServices = Step{
 			return false
 		}
 		runtimeCheck := trimmedRun(context, blueclawRuntimeContractCheckCommand())
-		rootfsBinaryCheck := trimmedRun(context, blueclawRootfsBinaryContractCheckCommand())
+		rootfsBaseCheck := trimmedRun(context, blueclawRootfsBaseContractCheckCommand())
 		return trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
@@ -28,7 +28,7 @@ var StepServices = Step{
 			trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
 			trimmedRun(context, "systemctl is-active mattermost") == "active" &&
 			runtimeCheck == "ok" &&
-			rootfsBinaryCheck == "ok"
+			rootfsBaseCheck == "ok"
 	},
 	Run: func(context *Context) error {
 		connection := context.SSH
@@ -77,8 +77,8 @@ chmod 640 %s %s`,
 		if runtimeCheck := trimmedRun(context, blueclawRuntimeContractCheckCommand()); runtimeCheck != "ok" {
 			return fmt.Errorf("blueclaw runtime configuration contract drift: %s", runtimeCheck)
 		}
-		if binaryCheck := trimmedRun(context, blueclawRootfsBinaryContractCheckCommand()); binaryCheck != "ok" {
-			return fmt.Errorf("blueclaw rootfs binary contract drift: %s", binaryCheck)
+		if baseCheck := trimmedRun(context, blueclawRootfsBaseContractCheckCommand()); baseCheck != "ok" {
+			return fmt.Errorf("blueclaw rootfs base contract drift: %s", baseCheck)
 		}
 
 		connection.Run("rm -f /etc/init.d/S97httpd; killall board-bridge 2>/dev/null; " +
@@ -276,10 +276,9 @@ print("ok")
 PY`
 }
 
-func blueclawRootfsBinaryContractCheckCommand() string {
+func blueclawRootfsBaseContractCheckCommand() string {
 	return `set -eu
 rootfs_path="/opt/internkim/blueclaw-runtime/rootfs.ext4"
-dump_path="/tmp/internkim-blueclaw-rootfs-binary-check"
 init_dump_path="/tmp/internkim-blueclaw-rootfs-init-check"
 passwd_dump_path="/tmp/internkim-blueclaw-rootfs-passwd-check"
 group_dump_path="/tmp/internkim-blueclaw-rootfs-group-check"
@@ -289,11 +288,6 @@ if [ ! -s "$rootfs_path" ]; then
 fi
 if ! command -v debugfs >/dev/null 2>&1; then
   echo debugfs-missing
-  exit 0
-fi
-rm -f "$dump_path"
-if ! debugfs -R "dump /usr/local/bin/blueclaw $dump_path" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-binary-check.log 2>&1; then
-  echo rootfs-blueclaw-dump-failed
   exit 0
 fi
 rm -f "$init_dump_path"
@@ -326,42 +320,24 @@ if ! debugfs -R "dump /etc/group $group_dump_path" "$rootfs_path" >/tmp/internki
   echo rootfs-group-dump-failed
   exit 0
 fi
-python3 - "$dump_path" "$init_dump_path" "$passwd_dump_path" "$group_dump_path" <<'PY'
+python3 - "$init_dump_path" "$passwd_dump_path" "$group_dump_path" <<'PY'
 from pathlib import Path
 import sys
 
-binary = Path(sys.argv[1]).read_bytes()
-guest_init = Path(sys.argv[2]).read_text()
-passwd = Path(sys.argv[3]).read_text()
-group = Path(sys.argv[4]).read_text()
-required_markers = {
-    "defaultEffortLevel": b"defaultEffortLevel",
-    "agent.limit_stop": b"agent.limit_stop",
-}
-
-for name, marker in required_markers.items():
-    if marker not in binary:
-        print("rootfs-blueclaw-missing-marker:" + name)
-        raise SystemExit
-
-for name, marker in {
-    "defaultBudgetClass": b"defaultBudgetClass",
-    "agent.budget_stop": b"agent.budget_stop",
-    "korean-budget-reply": "10분 예산".encode(),
-}.items():
-    if marker in binary:
-        print("rootfs-blueclaw-legacy-marker:" + name)
-        raise SystemExit
+guest_init = Path(sys.argv[1]).read_text()
+passwd = Path(sys.argv[2]).read_text()
+group = Path(sys.argv[3]).read_text()
 
 for name, marker in {
     "blueclaw-workspace-owner": "chown blueclaw:blueclaw /workspace /workspace/.blueclaw",
-    "blueclaw-non-root-launch": "su -s /bin/bash blueclaw -c '/usr/local/bin/blueclaw",
+    "blueclaw-payload-launch": "/workspace/.blueclaw/runtime/current/bin/blueclaw",
+    "blueclaw-runtime-directory": "/workspace/.blueclaw/runtime",
 }.items():
     if marker not in guest_init:
         print("rootfs-init-missing-marker:" + name)
         raise SystemExit
 
-if "\n/usr/local/bin/blueclaw -runtime " in guest_init:
+if "/usr/local/bin/blueclaw -runtime " in guest_init:
     print("rootfs-blueclaw-init-root-launch")
     raise SystemExit
 
@@ -377,6 +353,6 @@ print("ok")
 PY`
 }
 
-func BlueclawRootfsBinaryContractCheckCommand() string {
-	return blueclawRootfsBinaryContractCheckCommand()
+func BlueclawRootfsBaseContractCheckCommand() string {
+	return blueclawRootfsBaseContractCheckCommand()
 }
