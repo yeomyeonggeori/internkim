@@ -15,10 +15,18 @@ if [ ! -f "$SRC" ]; then
   exit 1
 fi
 
-if ! command -v marp &> /dev/null; then
-  echo "Marp CLI is not installed in the Blueclaw runtime. Re-run local runtime setup."
+if command -v marp &> /dev/null; then
+  MARP_COMMAND=(marp)
+elif command -v bunx &> /dev/null; then
+  MARP_COMMAND=(bunx --bun @marp-team/marp-cli)
+else
+  echo "Marp CLI is not available. Install marp or bunx in the Blueclaw runtime."
   exit 1
 fi
+
+run_marp() {
+  "${MARP_COMMAND[@]}" "$@"
+}
 
 export CHROME_PATH="${CHROME_PATH:-/usr/bin/chromium}"
 export PUPPETEER_EXECUTABLE_PATH="${PUPPETEER_EXECUTABLE_PATH:-$CHROME_PATH}"
@@ -37,9 +45,9 @@ if stripped != text.rstrip():
 PY
 
 echo "Building HTML + PPTX + PDF..."
-marp "$SRC" --html --allow-local-files -o "${NAME}.html"
-marp "$SRC" --html --pptx --allow-local-files -o "${NAME}.pptx"
-marp "$SRC" --html --pdf --allow-local-files -o "${NAME}.pdf"
+run_marp "$SRC" --html --allow-local-files -o "${NAME}.html"
+run_marp "$SRC" --html --pptx --allow-local-files -o "${NAME}.pptx"
+run_marp "$SRC" --html --pdf --allow-local-files -o "${NAME}.pdf"
 
 echo "Embedding local images as base64 data URLs in HTML..."
 python3 - "$NAME" <<'PY'
@@ -69,7 +77,19 @@ echo "Extracting speaker notes..."
 if [ -f extract_notes.py ]; then
   python3 extract_notes.py "$SRC" "${NAME}-notes.txt"
 else
-  echo "  - extract_notes.py not found, skipping notes extraction"
+    echo "  - extract_notes.py not found, skipping notes extraction"
+fi
+
+echo "Rendering slide review images..."
+mkdir -p review
+rm -f "review/${NAME}"*.png review/slide-review.json review/slide-review.md
+run_marp "$SRC" --images png --allow-local-files -o "review/${NAME}.png"
+if [ -f render_review.py ]; then
+  if ! python3 render_review.py "$SRC" "$NAME" review; then
+    echo "  - slide render review reported warnings; see review/slide-review.json"
+  fi
+else
+  echo "  - render_review.py not found, skipping slide render review"
 fi
 
 echo ""
@@ -78,3 +98,4 @@ echo "  ${NAME}.html            (share this — images inlined, iframes need int
 echo "  ${NAME}.pptx            (PowerPoint / Keynote)"
 echo "  ${NAME}.pdf             (PDF — iframes will appear blank, that's expected)"
 echo "  ${NAME}-notes.txt       (speaker notes)"
+echo "  review/slide-review.json (per-slide render review)"
