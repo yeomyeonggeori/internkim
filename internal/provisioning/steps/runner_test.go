@@ -130,7 +130,7 @@ func TestJetsonDefaultResolveIncludesLocalLLMAndSkipsGoogle(t *testing.T) {
 	}
 
 	joinedPlan := strings.Join(plan, ",")
-	for _, expectedName := range []string{"preflight", "binaries", "skills", "blueclaw-runtime-base", "blueclaw-payload", "openrouter", "local-llm", "tunnel", "mattermost", "services", "users-sync", "health"} {
+	for _, expectedName := range []string{"preflight", "binaries", "skills", "blueclaw-runtime-base", "blueclaw-config", "blueclaw-payload", "openrouter", "local-llm", "tunnel", "mattermost", "services", "users-sync", "health"} {
 		if !strings.Contains(joinedPlan, expectedName) {
 			t.Fatalf("expected plan to include %s, got %s", expectedName, joinedPlan)
 		}
@@ -160,6 +160,108 @@ func TestAdminWebAliasResolvesToWeb(t *testing.T) {
 	if strings.Join(plan, ",") != "web" {
 		t.Fatalf("unexpected plan: %v", plan)
 	}
+}
+
+func TestOnlyBlueclawPayloadIncludesStaleBlueclawConfiguration(t *testing.T) {
+	context := defaultBlueclawPlanContext("runtime-profile-missing-tools:file.attach", "missing")
+
+	plan, err := DefaultRegistry().resolve(context, Selector{Only: []string{"blueclaw-payload"}})
+	if err != nil {
+		t.Fatalf("resolve failed: %v", err)
+	}
+
+	joinedPlan := strings.Join(plan, ",")
+	if !strings.Contains(joinedPlan, "blueclaw-config") {
+		t.Fatalf("expected stale blueclaw configuration to be planned, got %s", joinedPlan)
+	}
+	if strings.Index(joinedPlan, "blueclaw-config") > strings.Index(joinedPlan, "blueclaw-payload") {
+		t.Fatalf("expected blueclaw configuration before payload, got %s", joinedPlan)
+	}
+}
+
+func TestOnlyServicesIncludesStaleBlueclawConfiguration(t *testing.T) {
+	context := defaultBlueclawPlanContext("runtime-profile-missing-tools:file.attach", "ok")
+
+	plan, err := DefaultRegistry().resolve(context, Selector{Only: []string{"services"}})
+	if err != nil {
+		t.Fatalf("resolve failed: %v", err)
+	}
+
+	joinedPlan := strings.Join(plan, ",")
+	if !strings.Contains(joinedPlan, "blueclaw-config") {
+		t.Fatalf("expected stale blueclaw configuration to be planned, got %s", joinedPlan)
+	}
+	if strings.Index(joinedPlan, "blueclaw-config") > strings.Index(joinedPlan, "services") {
+		t.Fatalf("expected blueclaw configuration before services, got %s", joinedPlan)
+	}
+}
+
+func TestOnlyBlueclawPayloadSkipsCurrentBlueclawConfiguration(t *testing.T) {
+	context := defaultBlueclawPlanContext("ok", "missing")
+
+	plan, err := DefaultRegistry().resolve(context, Selector{Only: []string{"blueclaw-payload"}})
+	if err != nil {
+		t.Fatalf("resolve failed: %v", err)
+	}
+
+	joinedPlan := strings.Join(plan, ",")
+	if strings.Contains(joinedPlan, "blueclaw-config") {
+		t.Fatalf("expected current blueclaw configuration to be skipped, got %s", joinedPlan)
+	}
+	if !strings.Contains(joinedPlan, "blueclaw-payload") {
+		t.Fatalf("expected payload to remain planned, got %s", joinedPlan)
+	}
+}
+
+func defaultBlueclawPlanContext(runtimeContractOutput string, payloadManifestOutput string) *Context {
+	return &Context{
+		Backend: BackendSSH,
+		BoardIP: "192.0.2.10",
+		SSH: blueclawPlanBoardConnection{
+			runtimeContractOutput: runtimeContractOutput,
+			payloadManifestOutput: payloadManifestOutput,
+		},
+		Callbacks: Callbacks{
+			AdminWebVersion: func() string { return "web-version" },
+			BlueclawPayloadManifest: func() string {
+				return "payload-manifest"
+			},
+			LoadState: func(key string) string {
+				if key == "web_version" || key == "admin_web_version" {
+					return "web-version"
+				}
+				return ""
+			},
+		},
+	}
+}
+
+type blueclawPlanBoardConnection struct {
+	runtimeContractOutput string
+	payloadManifestOutput string
+}
+
+func (connection blueclawPlanBoardConnection) Run(command string) string {
+	switch {
+	case strings.Contains(command, "runtime_path ="):
+		return connection.runtimeContractOutput
+	case strings.Contains(command, "payload-manifest.json"):
+		return connection.payloadManifestOutput
+	case strings.Contains(command, "rootfs_path="):
+		return "ok"
+	case strings.Contains(command, "blkid -o value -s TYPE"):
+		return "ok"
+	case strings.Contains(command, "test -e "):
+		return "y"
+	case strings.Contains(command, "systemctl cat llama"):
+		return "/usr/local/bin/llama-server"
+	default:
+		return "ok"
+	}
+}
+
+func (connection blueclawPlanBoardConnection) SCP(localPath, remotePath string) error {
+	return nil
 }
 
 func testRegistry(alphaSatisfied bool, betaSatisfied bool, gammaSatisfied bool) Registry {

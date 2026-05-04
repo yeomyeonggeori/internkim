@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -9,9 +10,13 @@ import (
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
+var blueclawServiceHealthAttempts = 180
+var blueclawServiceHealthRetryDelay = 2 * time.Second
+var errBlueclawHealthCheckFailed = errors.New("blueclaw health check failed after service restart")
+
 var StepServices = Step{
 	Name: "services",
-	Deps: []string{"blueclaw-runtime-base", "blueclaw-payload", "openrouter", "local-llm", "mattermost"},
+	Deps: []string{"blueclaw-config", "blueclaw-payload", "openrouter", "local-llm", "mattermost"},
 	Title: func(context *Context) string {
 		return context.T("서비스 시작 중...", "Starting services...")
 	},
@@ -32,47 +37,6 @@ var StepServices = Step{
 	},
 	Run: func(context *Context) error {
 		connection := context.SSH
-
-		runtimeConfiguration, err := blueclaw.BlueclawRuntimeConfigDocument("")
-		if err != nil {
-			return err
-		}
-		policyConfiguration, err := blueclaw.BlueclawPolicyDocument(context.Callbacks.LoadState("google_email"))
-		if err != nil {
-			return err
-		}
-		connection.Run(fmt.Sprintf(`mkdir -p %s %s
-printf '%%s' %s > %s
-printf '%%s' %s > %s
-mkdir -p %s
-printf '%%s' %s > %s
-printf '%%s' %s > %s
-chown -R root:blueclaw %s
-chmod 770 %s
-chmod 640 %s %s
-chown -R blueclaw:blueclaw %s
-chmod 750 %s
-chmod 640 %s %s`,
-			blueclaw.BlueclawConfigPath,
-			blueclaw.BlueclawWorkspacePath+"/.blueclaw/config",
-			shellQuote(runtimeConfiguration),
-			blueclaw.BlueclawRuntimeConfigPath,
-			shellQuote(policyConfiguration),
-			blueclaw.BlueclawPolicyConfigPath,
-			blueclaw.BlueclawWorkspacePath+"/.blueclaw/config",
-			shellQuote(runtimeConfiguration),
-			blueclaw.BlueclawWorkspacePath+"/.blueclaw/config/runtime.json",
-			shellQuote(policyConfiguration),
-			blueclaw.BlueclawWorkspacePath+"/.blueclaw/config/policy.json",
-			blueclaw.BlueclawConfigPath,
-			blueclaw.BlueclawConfigPath,
-			blueclaw.BlueclawRuntimeConfigPath,
-			blueclaw.BlueclawPolicyConfigPath,
-			blueclaw.BlueclawWorkspacePath+"/.blueclaw",
-			blueclaw.BlueclawWorkspacePath+"/.blueclaw/config",
-			blueclaw.BlueclawWorkspacePath+"/.blueclaw/config/runtime.json",
-			blueclaw.BlueclawWorkspacePath+"/.blueclaw/config/policy.json",
-		))
 
 		if runtimeCheck := trimmedRun(context, blueclawRuntimeContractCheckCommand()); runtimeCheck != "ok" {
 			return fmt.Errorf("blueclaw runtime configuration contract drift: %s", runtimeCheck)
@@ -141,7 +105,7 @@ sleep 2`,
 		))
 
 		isBlueclawHealthy := false
-		for attempt := 0; attempt < 30; attempt++ {
+		for attempt := 0; attempt < blueclawServiceHealthAttempts; attempt++ {
 			isBlueclawHealthy = trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
 				trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
 				trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
@@ -149,7 +113,7 @@ sleep 2`,
 			if isBlueclawHealthy {
 				break
 			}
-			time.Sleep(2 * time.Second)
+			time.Sleep(blueclawServiceHealthRetryDelay)
 		}
 
 		if isBlueclawHealthy {
@@ -157,6 +121,7 @@ sleep 2`,
 			connection.Run("systemctl stop " + blueclaw.GraphitiMemorydServiceName + " 2>/dev/null || true; systemctl disable " + blueclaw.GraphitiMemorydServiceName + " 2>/dev/null || true")
 		} else {
 			fmt.Println("  " + context.T("gateway 시작 실패", "Gateway failed"))
+			return errBlueclawHealthCheckFailed
 		}
 
 		connection.Run("systemctl stop lightpanda 2>/dev/null; systemctl disable lightpanda 2>/dev/null; " +
