@@ -851,7 +851,10 @@ rm -f /usr/local/bin/gws-* /etc/sudoers.d/blueclaw-gws /etc/sudoers.d/blueclaw-m
 }
 
 func (state *setupFlowState) installBlueclawRuntimeSSH(context *setup.Context) error {
-	artifactDirectoryPath := filepath.Join(state.scriptDir, blueclaw.BlueclawRuntimeArtifactPath)
+	artifactDirectoryPath, errorValue := state.ensureBlueclawRuntimeBaseArtifact()
+	if errorValue != nil {
+		return errorValue
+	}
 	manifestDocument := state.blueclawRuntimeManifest()
 	manifest, errorValue := blueclaw.ValidateRuntimeArtifactDirectory(artifactDirectoryPath)
 	if errorValue != nil {
@@ -942,7 +945,10 @@ func (state *setupFlowState) blueclawRuntimeManifest() string {
 }
 
 func (state *setupFlowState) installBlueclawPayloadSSH(context *setup.Context) error {
-	artifactDirectoryPath := filepath.Join(state.scriptDir, blueclaw.BlueclawPayloadArtifactPath)
+	artifactDirectoryPath, errorValue := state.ensureBlueclawPayloadArtifact()
+	if errorValue != nil {
+		return errorValue
+	}
 	manifestDocument := state.blueclawPayloadManifest()
 	manifest, errorValue := blueclaw.ValidatePayloadArtifactDirectory(artifactDirectoryPath)
 	if errorValue != nil {
@@ -1008,6 +1014,60 @@ func (state *setupFlowState) blueclawPayloadManifest() string {
 	return string(document)
 }
 
+func (state *setupFlowState) ensureBlueclawRuntimeBaseArtifact() (string, error) {
+	artifactDirectoryPath := filepath.Join(state.scriptDir, blueclaw.BlueclawRuntimeArtifactPath)
+	manifest, errorValue := blueclaw.ValidateRuntimeArtifactDirectory(artifactDirectoryPath)
+	if errorValue == nil {
+		errorValue = blueclaw.ValidateRuntimeArtifactSource(state.scriptDir, manifest)
+	}
+	if errorValue == nil {
+		return artifactDirectoryPath, nil
+	}
+	if makeError := state.runMakeTarget("prepare-blueclaw-runtime-base"); makeError != nil {
+		return "", fmt.Errorf("blueclaw Firecracker base runtime artifact invalid: %w; automatic preparation failed: %w", errorValue, makeError)
+	}
+	manifest, errorValue = blueclaw.ValidateRuntimeArtifactDirectory(artifactDirectoryPath)
+	if errorValue != nil {
+		return "", fmt.Errorf("blueclaw Firecracker base runtime artifact invalid after automatic preparation: %w", errorValue)
+	}
+	if errorValue := blueclaw.ValidateRuntimeArtifactSource(state.scriptDir, manifest); errorValue != nil {
+		return "", fmt.Errorf("blueclaw Firecracker base runtime artifact source invalid after automatic preparation: %w", errorValue)
+	}
+	return artifactDirectoryPath, nil
+}
+
+func (state *setupFlowState) ensureBlueclawPayloadArtifact() (string, error) {
+	artifactDirectoryPath := filepath.Join(state.scriptDir, blueclaw.BlueclawPayloadArtifactPath)
+	manifest, errorValue := blueclaw.ValidatePayloadArtifactDirectory(artifactDirectoryPath)
+	if errorValue == nil {
+		errorValue = blueclaw.ValidatePayloadArtifactSource(state.scriptDir, manifest)
+	}
+	if errorValue == nil {
+		return artifactDirectoryPath, nil
+	}
+	if makeError := state.runMakeTarget("prepare-blueclaw-payload"); makeError != nil {
+		return "", fmt.Errorf("blueclaw payload artifact invalid: %w; automatic preparation failed: %w", errorValue, makeError)
+	}
+	manifest, errorValue = blueclaw.ValidatePayloadArtifactDirectory(artifactDirectoryPath)
+	if errorValue != nil {
+		return "", fmt.Errorf("blueclaw payload artifact invalid after automatic preparation: %w", errorValue)
+	}
+	if errorValue := blueclaw.ValidatePayloadArtifactSource(state.scriptDir, manifest); errorValue != nil {
+		return "", fmt.Errorf("blueclaw payload artifact source invalid after automatic preparation: %w", errorValue)
+	}
+	return artifactDirectoryPath, nil
+}
+
+func (state *setupFlowState) runMakeTarget(targetName string) error {
+	command := exec.Command("make", targetName)
+	command.Dir = state.scriptDir
+	output, errorValue := command.CombinedOutput()
+	if errorValue != nil {
+		return fmt.Errorf("make %s failed: %s: %w", targetName, strings.TrimSpace(string(output)), errorValue)
+	}
+	return nil
+}
+
 func (state *setupFlowState) installAgentBrowserSkillSSH() error {
 	fallbackContent, err := loadAgentBrowserSkillMarkdown(state.scriptDir)
 	if err != nil {
@@ -1027,11 +1087,8 @@ func (state *setupFlowState) ensureDeviceBrowserRuntimeArtifact() (string, error
 	if errorValue == nil && !fileInfo.IsDir() && fileInfo.Size() > 0 {
 		return artifactPath, nil
 	}
-	command := exec.Command("make", "prepare-device-browser")
-	command.Dir = state.scriptDir
-	output, prepareError := command.CombinedOutput()
-	if prepareError != nil {
-		return "", fmt.Errorf("device browser runtime artifact missing at %s and automatic preparation failed: %s; run `make prepare-device-browser` before setup", artifactPath, strings.TrimSpace(string(output)))
+	if prepareError := state.runMakeTarget("prepare-device-browser"); prepareError != nil {
+		return "", fmt.Errorf("device browser runtime artifact missing at %s and automatic preparation failed: %w", artifactPath, prepareError)
 	}
 	fileInfo, errorValue = os.Stat(artifactPath)
 	if errorValue == nil && !fileInfo.IsDir() && fileInfo.Size() > 0 {
