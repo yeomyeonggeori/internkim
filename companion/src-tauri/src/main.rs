@@ -44,6 +44,7 @@ fn main() {
             show_main_window,
             prompt_bridge::start_shell_bridge,
             prompt_bridge::complete_prompt_request,
+            prompt_bridge::pick_mount_directory,
             open_admin_url,
             settings::get_settings,
             settings::set_settings

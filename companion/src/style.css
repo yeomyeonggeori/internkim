@@ -31,7 +31,8 @@ input {
 .prompt-panel,
 .grant-panel,
 .capability-panel,
-.settings-panel {
+.settings-panel,
+.mount-panel {
 	border: 1px solid #dfe4ec;
 	border-radius: 8px;
 	background: #ffffff;
@@ -142,9 +143,69 @@ h2 {
 
 .runtime-panel,
 .prompt-panel,
-.grant-panel {
+.grant-panel,
+.mount-panel {
 	display: grid;
 	gap: 12px;
+}
+
+.mount-panel {
+	border: 1px solid #dfe4ec;
+	border-radius: 8px;
+	background: #ffffff;
+	padding: 18px;
+}
+
+.panel-header,
+.mount-actions {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+}
+
+.mount-list {
+	display: grid;
+	gap: 8px;
+}
+
+.mount-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	border: 1px solid #e2e7ef;
+	border-radius: 7px;
+	padding: 10px;
+}
+
+.mount-row div:first-child {
+	display: grid;
+	gap: 4px;
+	min-width: 0;
+}
+
+.mount-row strong {
+	color: #202633;
+	font-size: 14px;
+}
+
+.mount-row span {
+	color: #626b7a;
+	font-size: 12px;
+	overflow-wrap: anywhere;
+}
+
+.mount-badge {
+	border-radius: 999px;
+	padding: 5px 8px;
+	background: #eef2f7;
+	white-space: nowrap;
+}
+
+.mount-badge.online {
+	color: #176b43;
+	background: #e8f7ef;
 }
 
 .runtime-row {

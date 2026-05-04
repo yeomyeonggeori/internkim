@@ -43,6 +43,16 @@ When a user asks for any file such as an image, PDF, document, or archive:
 2. If the tool result contains a file attachment, let the final reply include that attachment.
 3. Do not paste local paths, temporary URLs, or markdown links as the final delivery.
 
+## Companion Mounted Folders
+
+When the user asks to work with a folder mounted from their computer:
+
+1. Use `filesystem.mount.list` to find available mounts and guest paths.
+2. Treat paths under `/workspace/mounts/<name>` as Companion-backed paths.
+3. Use `filesystem.mount.list_directory`, `filesystem.mount.read`, `filesystem.mount.write`, `filesystem.mount.mkdir`, `filesystem.mount.rename`, `filesystem.mount.delete`, `filesystem.mount.truncate`, `filesystem.mount.chmod`, and `filesystem.mount.watch` for mounted-folder file operations.
+4. Do not ask for or reveal the user's local absolute path.
+5. If a mount is paused, revoked, or offline, say that the mounted folder is unavailable instead of writing to a fallback copy.
+
 ## Mattermost Delivery
 
 Mattermost users can only see the final reply text and native attachments
