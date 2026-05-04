@@ -3,6 +3,7 @@ package capabilityd
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -647,6 +648,79 @@ func TestMattermostReplyUploadsAttachmentsAndPostsFileIDs(t *testing.T) {
 	}))
 	if errorValue != nil {
 		t.Fatalf("expected reply with attachment: %v", errorValue)
+	}
+
+	select {
+	case <-uploadRequests:
+	default:
+		t.Fatal("expected file upload request")
+	}
+	select {
+	case payload := <-postRequests:
+		fileIDs, isArray := payload["file_ids"].([]any)
+		if !isArray || len(fileIDs) != 1 || fileIDs[0] != "file-1" {
+			t.Fatalf("expected file ids in post payload, got %+v", payload)
+		}
+	default:
+		t.Fatal("expected post request")
+	}
+}
+
+func TestMattermostReplyUploadsInlineAttachmentsFromBlueclawWorkspace(t *testing.T) {
+	companionDirectory := t.TempDir()
+	uploadRequests := make(chan string, 1)
+	postRequests := make(chan map[string]any, 1)
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/files":
+			if errorValue := request.ParseMultipartForm(1024); errorValue != nil {
+				t.Fatalf("expected multipart upload: %v", errorValue)
+			}
+			files := request.MultipartForm.File["files"]
+			if len(files) != 1 || files[0].Filename != "deck.pptx" {
+				t.Fatalf("unexpected upload form: %+v", request.MultipartForm)
+			}
+			uploadRequests <- files[0].Filename
+			return testJSONResponse(http.StatusOK, map[string]any{"file_infos": []map[string]string{{"id": "file-1"}}}), nil
+		case "/api/v4/posts":
+			var payload map[string]any
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatalf("expected post request to decode: %v", errorValue)
+			}
+			postRequests <- payload
+			return testJSONResponse(http.StatusOK, map[string]string{"id": "post-1"}), nil
+		default:
+			t.Fatalf("unexpected Mattermost request: %s", request.URL.Path)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	tokenPath := t.TempDir() + "/mattermost-token"
+	if errorValue := os.WriteFile(tokenPath, []byte("test-token\n"), 0o600); errorValue != nil {
+		t.Fatalf("expected token file: %v", errorValue)
+	}
+	replyTargetID, errorValue := encodePlatformHandle(platformHandle{Platform: "mattermost", ChannelID: "channel-1"})
+	if errorValue != nil {
+		t.Fatalf("expected reply target to encode: %v", errorValue)
+	}
+	configuration := DefaultConfiguration()
+	configuration.MattermostBaseURL = "http://mattermost.test"
+	configuration.MattermostTokenPath = tokenPath
+	configuration.CompanionFileDirectory = companionDirectory
+	service := Service{Configuration: configuration, HTTPClient: httpClient}
+
+	_, errorValue = service.mattermostReply(context.Background(), mustJSON(t, replyRequest{
+		ReplyTargetID: replyTargetID,
+		Message:       "deck",
+		Attachments: []platformFileSpec{{
+			DevicePath:    "/workspace/deck.pptx",
+			Filename:      "deck.pptx",
+			ContentType:   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+			SizeBytes:     4,
+			ContentBase64: base64.StdEncoding.EncodeToString([]byte("pptx")),
+		}},
+	}))
+	if errorValue != nil {
+		t.Fatalf("expected inline attachment upload: %v", errorValue)
 	}
 
 	select {
