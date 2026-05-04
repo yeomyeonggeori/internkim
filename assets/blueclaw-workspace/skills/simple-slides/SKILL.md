@@ -1,6 +1,6 @@
 ---
 name: simple-slides
-description: Generate clean presentation decks with Marp and return PPTX/PDF/HTML attachments. Use for slides, slide decks, presentations, pitch decks, research summaries, stakeholder reports, PPTX, PowerPoint, Google Slides, Keynote, 발표자료, 파워포인트, 피피티.
+description: Generate clean presentation slides with Marp and attach the requested files. Use for slides, slide decks, presentations, pitch decks, research summaries, stakeholder reports, PPTX, PowerPoint, Google Slides, Keynote, 발표자료, 파워포인트, 피피티.
 category: document-generation
 tags: [slides, pptx, marp, reporting]
 triggerHints:
@@ -42,17 +42,6 @@ requiredTools:
   - terminal.run
   - file.write
   - file.attach
-completion:
-  requiredEvidenceTools:
-    - file.write
-    - file.attach
-quality:
-  acceptanceGuidance:
-    - Preserve the user's original request verbatim in brief.md as original_user_request.
-    - Write an explicit deck_spec with the exact slide list before running the renderer.
-    - Reflect explicit output constraints such as requested slide count, file formats, audience, and tone.
-    - Verify generated artifacts against DESIGN.md and the rendered review evidence before attaching them.
-    - Do not complete if requested formats, deck intent, or the requested slide count are missing.
 allowedProfiles: [default]
 references:
   - references/design-system.md
@@ -69,57 +58,31 @@ assets:
 
 # Simple Slides
 
-Create a complete deck and attach the generated files. Do not claim PPTX is impossible: this runtime has Marp and file attachments. Simple Slides is a local skill made of workspace scripts, not an external service integration.
+Create a useful slide deck and attach the requested files. This is a skill, not a mandatory app contract: use the workflow and helper scripts when they help, and keep going when a simpler Marp source is enough.
 
-## Runtime Contract
+## Workflow
 
-Use only these built-in tools:
+1. Create a fresh workspace directory such as `/workspace/.blueclaw/tmp/<deck-slug>`.
+2. Write the deck source files with `file.write`. A good default is `brief.md`, `DESIGN.md`, and `presentation.md`.
+3. Build with Marp through `scripts/create_deck.py` or the bundled `assets/build.sh`.
+4. Review the rendered result when possible, especially the contact sheet and `review/slide-review.json`.
+5. Attach only the files the user asked for. If the user says `html만`, attach the HTML file only. If they do not restrict formats, PPTX, PDF, HTML, and notes are a good default set.
 
-- `file.write` to create files under `/workspace`.
-- `terminal.run` to run guarded commands.
-- `file.attach` to attach finished artifacts to the final reply.
+Do not say PPTX or file delivery is impossible when the local tools are available. If the result is imperfect but usable, attach it and be clear about any limitation in the final reply.
 
-Do not use legacy tool aliases. Do not run `file.write`, `file.attach`, or any other Blueclaw tool name inside a `terminal.run` shell command. They are actions, not executables. If you need to write `brief.md`, `DESIGN.md`, or `presentation.md`, call `file.write` directly once per file, then call `terminal.run` only for real shell commands such as `mkdir`, `python3`, `cp`, `chmod`, or `./build.sh`.
+## Source Files
 
-## Working Directory
+`brief.md` is useful for preserving the user's original request, topic, audience, requested slide count, requested formats, tone, and constraints. Keep the original wording when it affects meaning, such as `할 수`, `역량`, `capability`, `what I can do`, `6장`, or `html만`.
 
-Create a fresh directory under:
+`DESIGN.md` is a design guide for the deck. Prefer the bundled `assets/design.md` and the references in `references/` when you need a stronger visual system.
 
-```text
-/workspace/.blueclaw/tmp/<deck-slug>
-```
+`presentation.md` is the Marp source. Keep one main message per slide, short titles, scannable bullets, speaker notes in HTML comments, and no trailing slide separator.
 
-Pick one `<deck-slug>` before creating files and use only that directory for the whole task. Do not create alternate directories such as `-v2`, `-final`, `-new`, or `-analysis` after choosing the slug. Do not delete and recreate the directory during the same run; fix the files in place with `file.write`.
+## Helper Script
 
-First, write a short `brief.md` into that directory with `file.write`. `file.write` creates parent directories automatically, so do not spend tool calls on `mkdir` before the first write. Include `original_user_request` with the user's request copied verbatim. Also include `topic`, `slide_intent`, `requested_slide_count`, `requested_formats`, and `output_slug`. Do not translate, summarize, or normalize away words like `할 수`, `역량`, `capability`, `what I can do`, or `8장`; the creator uses those signals to choose the deck contract.
+`scripts/create_deck.py` is a convenience builder. It copies the runtime scripts, can turn a `deck_spec` in `brief.md` into `presentation.md`, and then runs the Marp build. It should help produce files, not prevent delivery because optional metadata is missing.
 
-For normal decks, include a fenced JSON `deck_spec` with the exact slide list. Each slide must include `title`, `body`, and `speaker_note`; `layout` is optional. The renderer does not invent generic slides for you. If the user asks for "Hermes Agent 장단점 6장", write six Hermes-specific slides in `deck_spec.slides`. Do not run the creator with a missing or placeholder deck spec.
-
-Example:
-
-````markdown
-original_user_request: hermes agent의 장단점에 대해 분석한 ppt를 6장으로 만들어서 보내줘. html만 주면 돼
-topic: Hermes Agent
-slide_intent: 장단점 분석
-requested_slide_count: 6
-requested_formats: html
-output_slug: hermes-analysis
-deck_spec:
-```json
-{
-  "title": "Hermes Agent 장단점 분석",
-  "slides": [
-    {
-      "title": "Hermes Agent 판단 프레임",
-      "body": ["Hermes Agent의 강점은 도구 실행과 장기 작업 흐름에 있다.", "약점은 환경 계약이 느슨하면 산출물 검증이 흔들릴 수 있다는 점이다."],
-      "speaker_note": "Hermes Agent를 단순 채팅 모델이 아니라 실행형 에이전트로 놓고 장단점을 판단합니다."
-    }
-  ]
-}
-```
-````
-
-Then write `DESIGN.md` and `presentation.md` with `file.write` before running any other terminal command. `DESIGN.md` is the design contract; `presentation.md` is the Marp source. The script below is not a content creator. It is the only build command for normal deck creation: it validates `brief.md`, `DESIGN.md`, and `presentation.md`, writes `<deck-slug>-intent.json`, copies runtime scripts, builds the deck, and keeps output names stable:
+Use it like this from the deck directory:
 
 ```json
 {
@@ -128,113 +91,17 @@ Then write `DESIGN.md` and `presentation.md` with `file.write` before running an
 }
 ```
 
-Do not ask the script to invent slide content. Do not copy `build.sh`, `extract_notes.py`, or `render_review.py` yourself for normal deck creation, and do not run `./build.sh` directly before `create_deck.py` has succeeded. If the script fails because `deck_spec`, `DESIGN.md`, or `presentation.md` is missing or generic, fix those files in the same directory and rerun the same `create_deck.py` command. If the user asks for a visual redesign or content revision after the first build, edit `DESIGN.md` first, then update `presentation.md` to match that design contract before rebuilding.
-
-Build recovery is source-file recovery, not shell improvisation. If a command fails with a message like `DESIGN.md is missing colors`, `presentation.md is empty`, `deck_spec is required`, `intent manifest is missing`, `slide count does not match`, or `output_slug` mismatch, stop rerunning build commands and stop attaching artifacts. First use `file.write` to rewrite the named source file in the chosen deck directory. Then rerun the same `create_deck.py` command once. Do not use `terminal.run` with heredocs, `cat`, `echo`, Python snippets, redirects, or append operations to create or patch `brief.md`, `DESIGN.md`, `presentation.md`, or intent files; those edits are invisible as file evidence and commonly produce stale or mismatched artifacts.
-
-Never attach a file after `create_deck.py` has failed. Only attach files produced after the latest successful `create_deck.py` run in the same deck directory. If `file.attach` rejects an artifact, do not call `file.attach` again on the same path; fix the source files named by the rejection and rebuild.
-
-Golden path:
-
-1. `file.write` writes `/workspace/.blueclaw/tmp/<deck-slug>/brief.md`.
-2. `file.write` writes `/workspace/.blueclaw/tmp/<deck-slug>/DESIGN.md`.
-3. `file.write` writes `/workspace/.blueclaw/tmp/<deck-slug>/presentation.md`.
-4. `terminal.run` runs `python3 /workspace/skills/simple-slides/scripts/create_deck.py --slug <deck-slug> --brief brief.md` from the deck directory. This is the only build command.
-5. `file.attach` attaches only the requested generated artifact files.
-
-Never replace steps 2-4 with shell redirection, heredocs, `echo`, `cat`, or a fake `file.write` command inside `terminal.run`; that loses tool evidence and often breaks quoting for Korean text, JSON, and CSS. Never change slugs or directories as a recovery strategy. Repeated directory setup is a sign to stop and fix the current files.
-
-For custom edits after the first build, update these files with `file.write`:
-
-- `DESIGN.md`
-- `presentation.md`
-
-If the creator was not used and the files are being assembled manually, copy the bundled scripts into the working directory with `terminal.run`:
+If the helper is not useful, copy the bundled scripts and run the build directly:
 
 ```json
 {
-  "command": "cp /workspace/skills/simple-slides/assets/build.sh ./build.sh && cp /workspace/skills/simple-slides/scripts/extract_notes.py ./extract_notes.py && cp /workspace/skills/simple-slides/scripts/render_review.py ./render_review.py && chmod +x ./build.sh ./extract_notes.py ./render_review.py",
+  "command": "cp /workspace/skills/simple-slides/assets/build.sh ./build.sh && cp /workspace/skills/simple-slides/scripts/extract_notes.py ./extract_notes.py && cp /workspace/skills/simple-slides/scripts/render_review.py ./render_review.py && chmod +x ./build.sh ./extract_notes.py ./render_review.py && NAME=<deck-slug> ./build.sh",
   "workingDirectoryPath": "/workspace/.blueclaw/tmp/<deck-slug>"
 }
 ```
 
-Use this skill's `assets/design.md` and `assets/template.md` as source material for `DESIGN.md` and `presentation.md`. Do not rewrite or simplify `build.sh`.
+## Output Expectations
 
-## Design First
+Good decks preserve the user's request, satisfy explicit format and slide-count requests when practical, apply a coherent design, and attach generated files instead of exposing paths.
 
-`DESIGN.md` is the source of truth for visual decisions. It must be Stitch-compatible: YAML token front matter followed by concise design rationale. Adapt the design to the topic and audience with concrete choices for:
-
-- colors
-- typefaces
-- spacing
-- slide density
-- chart/table/card treatment
-
-Then port those choices into the Marp CSS in `presentation.md`. The final `presentation.md` should contain `<!-- design-source: DESIGN.md -->` near the top.
-
-## Slide Rules
-
-- One message per slide.
-- Short titles and short lines.
-- Prefer structured cards, grids, numbers, and visual hierarchy over long prose. Use tables only when comparison is the actual point of the slide.
-- Use local image files only. Download remote images into the deck directory first.
-- Do not end `presentation.md` with a trailing slide separator.
-- Put speaker notes in HTML comments.
-
-## Build
-
-Run the build from the deck directory with a stable output name:
-
-```json
-{
-  "command": "NAME=<deck-slug> ./build.sh",
-  "workingDirectoryPath": "/workspace/.blueclaw/tmp/<deck-slug>"
-}
-```
-
-The build normally produces:
-
-- `<deck-slug>.html`
-- `<deck-slug>.pptx`
-- `<deck-slug>.pdf`
-- `<deck-slug>-notes.txt`
-- `review/<deck-slug>*.png`
-- `review/contact-sheet-*.png`
-- `review/slide-review.json`
-
-If the build fails, fix the source and rerun it. Do not attach stale outputs.
-
-## Visual Review
-
-The build renders per-slide PNGs and contact-sheet collages into `review/`. Use `review/slide-review.json` as the machine-readable check for nonblank slides, safe margins, and edge overflow. Use the contact sheets when a human or model needs a compact visual pass without loading every individual slide image.
-
-Check for clipping, overlap, unreadable text, missing images, and broken fonts. Korean/CJK decks should use the declared font stack: Paperlogy for display, Freesentation for body, then Pretendard or Noto Sans KR as fallback.
-
-Before final reply, declare task-specific quality criteria with `set_quality_criteria`. Include criteria for preserving the original request, satisfying explicit slide count and requested file formats, applying `DESIGN.md` to the final artifacts, and attaching only the requested generated artifacts with evidence. In `final_reply`, pass each criterion with evidence from successful terminal/file observations. Do not cite source files such as `DESIGN.md`, `presentation.md`, `build.sh`, `extract_notes.py`, or `<deck-slug>-intent.json` as completion artifacts.
-
-## Final Reply
-
-Attach the requested generated files with one `file.attach` call before final reply. If the user did not restrict formats, attach the full set:
-
-```json
-{
-  "paths": [
-    "/workspace/.blueclaw/tmp/<deck-slug>/<deck-slug>.pptx",
-    "/workspace/.blueclaw/tmp/<deck-slug>/<deck-slug>.pdf",
-    "/workspace/.blueclaw/tmp/<deck-slug>/<deck-slug>.html",
-    "/workspace/.blueclaw/tmp/<deck-slug>/<deck-slug>-notes.txt"
-  ]
-}
-```
-
-If the user explicitly asks for one format such as `html만`, attach only that requested output:
-
-```json
-{
-  "paths": [
-    "/workspace/.blueclaw/tmp/<deck-slug>/<deck-slug>.html"
-  ]
-}
-```
-
-Google Workspace export/upload is disabled for now; do not call `google.*` tools and do not block local file delivery on Google credentials. Only cite generated artifact attachments as completion evidence.
+Before the final reply, use your own task-specific quality judgment. Mention only attached filenames or plain descriptions. Never expose `sandbox:/mnt/data`, `file://`, `/workspace`, `/tmp`, or other local paths to the user.
