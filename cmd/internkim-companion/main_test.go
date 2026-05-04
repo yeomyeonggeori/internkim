@@ -584,7 +584,7 @@ func TestControlHandlerListsAndRevokesGrants(t *testing.T) {
 	}
 	runtimeStatus := &runtimeState{}
 	runtimeStatus.recordHeartbeat(nil)
-	handler := controlHandler(grantStore, runtimeStatus)
+	handler := controlHandler(grantStore, companionruntime.NewMountStore(""), runtimeStatus)
 
 	listRequest := httptest.NewRequest(http.MethodGet, "/v1/security/grants", nil)
 	listRequest.RemoteAddr = "127.0.0.1:1234"

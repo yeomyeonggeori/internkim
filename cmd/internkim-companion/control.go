@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
@@ -15,6 +16,10 @@ import (
 
 type grantListDocument struct {
 	Grants []companionruntime.GrantSnapshot `json:"grants"`
+}
+
+type mountListDocument struct {
+	Mounts []companionruntime.MountSnapshot `json:"mounts"`
 }
 
 type localLLMBackendStatus struct {
@@ -37,13 +42,13 @@ type runtimeStatusDocument struct {
 }
 
 type runtimeState struct {
-	mutex                sync.Mutex
-	lastHeartbeatAt      string
-	lastError            string
-	localLLM             localLLMStatus
-	localLLMBackends     []llmbackend.Backend
-	localLLMModelByName  map[string]string
-	localLLMLastCheckAt  time.Time
+	mutex                 sync.Mutex
+	lastHeartbeatAt       string
+	lastError             string
+	localLLM              localLLMStatus
+	localLLMBackends      []llmbackend.Backend
+	localLLMModelByName   map[string]string
+	localLLMLastCheckAt   time.Time
 	localLLMCacheLifetime time.Duration
 }
 
@@ -138,7 +143,7 @@ func (state *runtimeState) snapshot() runtimeStatusDocument {
 	}
 }
 
-func startControlServer(listenAddress string, grantStore *companionruntime.MemoryGrantStore, runtime *runtimeState) (*http.Server, error) {
+func startControlServer(listenAddress string, grantStore *companionruntime.MemoryGrantStore, mountStore *companionruntime.MountStore, runtime *runtimeState) (*http.Server, error) {
 	trimmedAddress := strings.TrimSpace(listenAddress)
 	if trimmedAddress == "" {
 		return nil, nil
@@ -151,7 +156,7 @@ func startControlServer(listenAddress string, grantStore *companionruntime.Memor
 		_ = listener.Close()
 		return nil, errors.New("companion control server must listen on loopback")
 	}
-	server := &http.Server{Handler: controlHandler(grantStore, runtime)}
+	server := &http.Server{Handler: controlHandler(grantStore, mountStore, runtime)}
 	go func() {
 		errorValue := server.Serve(listener)
 		if errorValue != nil && !errors.Is(errorValue, http.ErrServerClosed) {
@@ -161,7 +166,7 @@ func startControlServer(listenAddress string, grantStore *companionruntime.Memor
 	return server, nil
 }
 
-func controlHandler(grantStore *companionruntime.MemoryGrantStore, runtime *runtimeState) http.Handler {
+func controlHandler(grantStore *companionruntime.MemoryGrantStore, mountStore *companionruntime.MountStore, runtime *runtimeState) http.Handler {
 	multiplexer := http.NewServeMux()
 	multiplexer.HandleFunc("GET /v1/runtime/status", func(responseWriter http.ResponseWriter, request *http.Request) {
 		if runtime == nil {
@@ -182,6 +187,50 @@ func controlHandler(grantStore *companionruntime.MemoryGrantStore, runtime *runt
 			return
 		}
 		writeJSON(responseWriter, map[string]bool{"revoked": true})
+	})
+	multiplexer.HandleFunc("GET /v1/filesystem/mounts", func(responseWriter http.ResponseWriter, request *http.Request) {
+		_ = request
+		writeJSON(responseWriter, mountListDocument{Mounts: mountStore.List()})
+	})
+	multiplexer.HandleFunc("POST /v1/filesystem/mounts", func(responseWriter http.ResponseWriter, request *http.Request) {
+		var payload struct {
+			Path        string `json:"path"`
+			DisplayName string `json:"displayName"`
+		}
+		if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+			return
+		}
+		mount, errorValue := mountStore.Create(payload.Path, payload.DisplayName)
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(responseWriter, mount)
+	})
+	multiplexer.HandleFunc("DELETE /v1/filesystem/mounts/{mountID}", func(responseWriter http.ResponseWriter, request *http.Request) {
+		mount, errorValue := mountStore.Revoke(request.PathValue("mountID"))
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusNotFound)
+			return
+		}
+		writeJSON(responseWriter, mount)
+	})
+	multiplexer.HandleFunc("POST /v1/filesystem/mounts/{mountID}/pause", func(responseWriter http.ResponseWriter, request *http.Request) {
+		mount, errorValue := mountStore.Pause(request.PathValue("mountID"))
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusNotFound)
+			return
+		}
+		writeJSON(responseWriter, mount)
+	})
+	multiplexer.HandleFunc("POST /v1/filesystem/mounts/{mountID}/resume", func(responseWriter http.ResponseWriter, request *http.Request) {
+		mount, errorValue := mountStore.Resume(request.PathValue("mountID"))
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusNotFound)
+			return
+		}
+		writeJSON(responseWriter, mount)
 	})
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		if !isLoopbackRemoteAddress(request.RemoteAddr) {

@@ -87,6 +87,7 @@ type companionHeartbeatRequest struct {
 	LocalOnly              bool                      `json:"localOnly"`
 	LocalLLMAvailable      bool                      `json:"localLLMAvailable,omitempty"`
 	PreferCompanionBrowser bool                      `json:"preferCompanionBrowser,omitempty"`
+	Mounts                 []CompanionMountSnapshot  `json:"mounts,omitempty"`
 }
 
 type companionPairingCodeResponse struct {
@@ -226,6 +227,7 @@ func (service *Service) companionHeartbeat(responseWriter http.ResponseWriter, r
 	}
 	storedCompanion.LocalOnly = payload.LocalOnly
 	service.mutex.Unlock()
+	service.updateCompanionMounts(companion.CompanionID, payload.Mounts)
 	_ = service.saveCompanions()
 	service.writeJSON(responseWriter, map[string]string{"status": "ok"})
 }
@@ -337,6 +339,9 @@ func (service *Service) invokeCompanionJob(ctx context.Context, request capabili
 	if errorValue := validateCompanionToolRequest(request); errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
+	if errorValue := service.validateCompanionMountRequest(request); errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
 	if !service.hasOnlineCompanionForTool(request.ToolName) {
 		return capabilities.ToolInvokeResponse{}, errors.New("companion unavailable for capability: " + request.ToolName)
 	}
@@ -418,6 +423,9 @@ func (service *Service) claimNextCompanionJob(companion *CompanionRecord) *Compa
 		if !companionCanRunTool(companion, job.Request.ToolName) {
 			continue
 		}
+		if !service.companionCanClaimMountJobLocked(companion, job) {
+			continue
+		}
 		job.Status = "running"
 		job.CompanionID = companion.CompanionID
 		job.UpdatedAt = now
@@ -452,6 +460,7 @@ func (service *Service) finishCompanionJob(companionID string, jobID string, res
 	}
 	job.UpdatedAt = time.Now().UTC()
 	service.mutex.Unlock()
+	service.updateCompanionMountsFromJob(companionID, jobID, response)
 	_ = service.saveCompanionJobs()
 	return nil
 }
@@ -648,6 +657,8 @@ func companionResourceScope(request capabilities.ToolInvokeRequest) capabilities
 		return capabilities.ResourceScope{Kind: "web_origin", Value: browserOriginFromInput(request.Input)}
 	case "file.pick":
 		return capabilities.ResourceScope{Kind: "file_root", Value: ""}
+	case "filesystem.mount.create", "filesystem.mount.list", "filesystem.mount.pause", "filesystem.mount.resume", "filesystem.mount.revoke", "filesystem.mount.status", "filesystem.mount.stat", "filesystem.mount.list_directory", "filesystem.mount.read", "filesystem.mount.write", "filesystem.mount.mkdir", "filesystem.mount.rename", "filesystem.mount.delete", "filesystem.mount.truncate", "filesystem.mount.chmod", "filesystem.mount.watch":
+		return companionMountResourceScope(request)
 	default:
 		return capabilities.ResourceScope{}
 	}

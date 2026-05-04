@@ -6,7 +6,7 @@
 	import { onMount } from 'svelte';
 	import { normalizeManualPairingInput, parsePairingLink, statusLabel, type CompanionStatus } from './lib/pairing';
 	import { approvalResponse, confirmResponse, inputResponse, normalizePromptRequest, promptTitle, type PromptRequest, type PromptResult } from './lib/prompts';
-	import { pairCompanion, readActiveGrants, readCompanionStatus, readRuntimeStatus, refreshRuntimeStatus, restartCompanionRuntime, revokeGrant, startCompanionRuntime, type ActiveGrant, type RuntimeStatus } from './lib/sidecar';
+	import { addMountedFolder, pairCompanion, pauseMountedFolder, readActiveGrants, readCompanionStatus, readMountedFolders, readRuntimeStatus, refreshRuntimeStatus, restartCompanionRuntime, resumeMountedFolder, revokeGrant, revokeMountedFolder, startCompanionRuntime, type ActiveGrant, type MountedFolder, type RuntimeStatus } from './lib/sidecar';
 	import { defaultSettings, fetchBackendModels, loadCompanionSettings, saveCompanionSettings, type CompanionSettings } from './lib/settings';
 
 	let status = $state<CompanionStatus>({ paired: false });
@@ -19,7 +19,9 @@
 	let pendingPrompt = $state<PromptRequest | undefined>();
 	let promptResult = $state<PromptResult>({ status: 'idle' });
 	let activeGrants = $state<ActiveGrant[]>([]);
+	let mountedFolders = $state<MountedFolder[]>([]);
 	let isBusy = $state(false);
+	let isMountBusy = $state(false);
 	let settings = $state<CompanionSettings>(defaultSettings);
 	let settingsMessage = $state('');
 	let isSavingSettings = $state(false);
@@ -33,6 +35,7 @@
 		const intervalID = window.setInterval(() => {
 			void refreshRuntime();
 			void refreshGrants();
+			void refreshMounts();
 		}, 1000);
 		return () => window.clearInterval(intervalID);
 	});
@@ -104,6 +107,18 @@
 		}
 	}
 
+	async function refreshMounts() {
+		if (!runtime.isRunning) {
+			mountedFolders = [];
+			return;
+		}
+		try {
+			mountedFolders = await readMountedFolders();
+		} catch {
+			mountedFolders = [];
+		}
+	}
+
 	async function registerShellEvents() {
 		try {
 			const initialLinks = await getCurrent();
@@ -170,6 +185,7 @@
 			await startCompanionRuntime();
 			runtime = readRuntimeStatus();
 			await refreshGrants();
+			await refreshMounts();
 		} catch (errorValue) {
 			runtime = { isRunning: false, lastError: errorValue instanceof Error ? errorValue.message : 'Runtime failed to start' };
 		}
@@ -181,6 +197,50 @@
 			await refreshGrants();
 		} catch (errorValue) {
 			message = errorValue instanceof Error ? errorValue.message : 'Grant revoke failed';
+		}
+	}
+
+	async function addMount() {
+		if (!runtime.isRunning) return;
+		isMountBusy = true;
+		message = '';
+		try {
+			const path = await invoke<string | null>('pick_mount_directory');
+			if (!path) return;
+			await addMountedFolder(path);
+			await refreshMounts();
+			message = 'Folder mounted.';
+		} catch (errorValue) {
+			message = errorValue instanceof Error ? errorValue.message : 'Mount failed';
+		} finally {
+			isMountBusy = false;
+		}
+	}
+
+	async function revokeMount(mountID: string) {
+		try {
+			await revokeMountedFolder(mountID);
+			await refreshMounts();
+		} catch (errorValue) {
+			message = errorValue instanceof Error ? errorValue.message : 'Mount revoke failed';
+		}
+	}
+
+	async function pauseMount(mountID: string) {
+		try {
+			await pauseMountedFolder(mountID);
+			await refreshMounts();
+		} catch (errorValue) {
+			message = errorValue instanceof Error ? errorValue.message : 'Mount pause failed';
+		}
+	}
+
+	async function resumeMount(mountID: string) {
+		try {
+			await resumeMountedFolder(mountID);
+			await refreshMounts();
+		} catch (errorValue) {
+			message = errorValue instanceof Error ? errorValue.message : 'Mount resume failed';
 		}
 	}
 
@@ -242,6 +302,39 @@
 		{/if}
 		{#if runtime.lastError}
 			<p class="message error">{runtime.lastError}</p>
+		{/if}
+	</section>
+
+	<section class="mount-panel">
+		<div class="panel-header">
+			<h2>Mounted folders</h2>
+			<button class="secondary" disabled={!runtime.isRunning || isMountBusy} onclick={addMount}>
+				{isMountBusy ? 'Adding...' : 'Add folder'}
+			</button>
+		</div>
+		{#if mountedFolders.length}
+			<div class="mount-list">
+				{#each mountedFolders as mount}
+					<div class="mount-row">
+						<div>
+							<strong>{mount.displayName}</strong>
+							<span>{mount.guestPath}</span>
+						</div>
+						<div class="mount-actions">
+							<span class="mount-badge">{mount.mode}</span>
+							<span class:online={mount.status === 'online'} class="mount-badge">{mount.status}</span>
+							{#if mount.status === 'online'}
+								<button class="secondary" onclick={() => pauseMount(mount.mountID)}>Pause</button>
+							{:else}
+								<button class="secondary" onclick={() => resumeMount(mount.mountID)}>Resume</button>
+							{/if}
+							<button class="secondary" onclick={() => revokeMount(mount.mountID)}>Eject</button>
+						</div>
+					</div>
+				{/each}
+			</div>
+		{:else}
+			<p class="subtle">Folders you mount here appear to Blueclaw as read/write paths under /workspace/mounts.</p>
 		{/if}
 	</section>
 

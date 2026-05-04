@@ -62,6 +62,7 @@ type Service struct {
 	companions           map[string]*CompanionRecord
 	companionJobs        map[string]*CompanionJob
 	companionFileUploads map[string]*CompanionFileUpload
+	companionMounts      map[string]*CompanionMountRecord
 }
 
 type Job struct {
@@ -201,9 +202,11 @@ func NewService(configuration Configuration) *Service {
 		companions:           map[string]*CompanionRecord{},
 		companionJobs:        map[string]*CompanionJob{},
 		companionFileUploads: map[string]*CompanionFileUpload{},
+		companionMounts:      map[string]*CompanionMountRecord{},
 	}
 	service.loadCompanions()
 	service.loadCompanionJobs()
+	service.loadCompanionMounts()
 	return service
 }
 
