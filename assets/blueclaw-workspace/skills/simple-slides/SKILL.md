@@ -130,6 +130,10 @@ Then write `DESIGN.md` and `presentation.md` with `file.write` before running an
 
 Do not ask the script to invent slide content. Do not copy `build.sh`, `extract_notes.py`, or `render_review.py` yourself for normal deck creation, and do not run `./build.sh` directly before `create_deck.py` has succeeded. If the script fails because `deck_spec`, `DESIGN.md`, or `presentation.md` is missing or generic, fix those files in the same directory and rerun the same `create_deck.py` command. If the user asks for a visual redesign or content revision after the first build, edit `DESIGN.md` first, then update `presentation.md` to match that design contract before rebuilding.
 
+Build recovery is source-file recovery, not shell improvisation. If a command fails with a message like `DESIGN.md is missing colors`, `presentation.md is empty`, `deck_spec is required`, `intent manifest is missing`, `slide count does not match`, or `output_slug` mismatch, stop rerunning build commands and stop attaching artifacts. First use `file.write` to rewrite the named source file in the chosen deck directory. Then rerun the same `create_deck.py` command once. Do not use `terminal.run` with heredocs, `cat`, `echo`, Python snippets, redirects, or append operations to create or patch `brief.md`, `DESIGN.md`, `presentation.md`, or intent files; those edits are invisible as file evidence and commonly produce stale or mismatched artifacts.
+
+Never attach a file after `create_deck.py` has failed. Only attach files produced after the latest successful `create_deck.py` run in the same deck directory. If `file.attach` rejects an artifact, do not call `file.attach` again on the same path; fix the source files named by the rejection and rebuild.
+
 Golden path:
 
 1. `file.write` writes `/workspace/.blueclaw/tmp/<deck-slug>/brief.md`.
