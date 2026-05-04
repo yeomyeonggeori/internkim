@@ -143,7 +143,7 @@ fi`))
 }
 
 func checkCapabilityHealth(context *Context, failedChecks *[]string) {
-	check := strings.TrimSpace(context.SSH.Run(`curl --silent --show-error --fail --unix-socket /run/internkim/capability.sock http://internkim/health 2>/dev/null || true`))
+	check := strings.TrimSpace(context.SSH.Run(`curl --silent --show-error --fail --unix-socket /run/internkim/capability.sock http://internkim/health 2>/dev/null | python3 -c 'import json, sys; print(json.load(sys.stdin).get("status", ""))' 2>/dev/null || true`))
 	if check == "ok" {
 		fmt.Println("  capabilityd: ok")
 		return

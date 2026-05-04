@@ -339,6 +339,40 @@ func TestMattermostPollerSeedsWatermarkWithoutReplayingDirectMessage(t *testing.
 	}
 }
 
+func TestMattermostPollerDoesNotAdvanceWatermarkWhenBlueclawForwardFails(t *testing.T) {
+	forwardedCount := 0
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Host == "blueclaw.test" {
+			forwardedCount++
+			return testJSONResponse(http.StatusServiceUnavailable, map[string]string{"error": "blueclaw down"}), nil
+		}
+		if request.URL.Host != "mattermost.test" {
+			t.Fatalf("unexpected request host: %s", request.URL.Host)
+		}
+		return handleTestMattermostPoll(t, request), nil
+	})}
+	tokenPath := t.TempDir() + "/mattermost-token"
+	if errorValue := os.WriteFile(tokenPath, []byte("test-token\n"), 0o600); errorValue != nil {
+		t.Fatalf("expected token file to be written: %v", errorValue)
+	}
+	configuration := DefaultConfiguration()
+	configuration.MattermostBaseURL = "http://mattermost.test"
+	configuration.MattermostTokenPath = tokenPath
+	configuration.BlueclawBaseURL = "http://blueclaw.test"
+	service := Service{Configuration: configuration, HTTPClient: httpClient}
+	lastSeenByChannel := map[string]int64{"dm-1": 1000}
+
+	if errorValue := service.pollMattermost(context.Background(), lastSeenByChannel); errorValue != nil {
+		t.Fatalf("expected failed forward to stay in poll loop: %v", errorValue)
+	}
+	if forwardedCount != 1 {
+		t.Fatalf("expected one forward attempt, got %d", forwardedCount)
+	}
+	if lastSeenByChannel["dm-1"] != 1000 {
+		t.Fatalf("expected watermark to remain at failed event, got %d", lastSeenByChannel["dm-1"])
+	}
+}
+
 func TestMattermostProgressStartPublishesTypingUntilStopped(t *testing.T) {
 	typingRequests := make(chan map[string]string, 1)
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -404,7 +438,7 @@ func TestMattermostProgressStartPublishesTypingUntilStopped(t *testing.T) {
 
 func TestMattermostReplyStopsProgressBeforeSendingPost(t *testing.T) {
 	typingRequests := make(chan map[string]string, 1)
-	postRequests := make(chan map[string]string, 1)
+	postRequests := make(chan map[string]any, 1)
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch request.URL.Path {
 		case "/api/v4/users/me":
@@ -417,7 +451,7 @@ func TestMattermostReplyStopsProgressBeforeSendingPost(t *testing.T) {
 			typingRequests <- payload
 			return testJSONResponse(http.StatusOK, map[string]string{}), nil
 		case "/api/v4/posts":
-			var payload map[string]string
+			var payload map[string]any
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 				t.Fatalf("expected post request to decode: %v", errorValue)
 			}
@@ -464,7 +498,7 @@ func TestMattermostReplyStopsProgressBeforeSendingPost(t *testing.T) {
 		t.Fatal("expected typing request")
 	}
 
-	_, errorValue = service.mattermostReply(context.Background(), json.RawMessage(`{"replyTargetID":"`+replyTargetID+`","message":"done"}`))
+	_, errorValue = service.mattermostReply(context.Background(), json.RawMessage(`{"replyTargetID":"`+replyTargetID+`","message":"done","rawEventID":"raw-event-1","outboxID":"outbox-1"}`))
 	if errorValue != nil {
 		t.Fatalf("expected reply to succeed: %v", errorValue)
 	}
@@ -474,6 +508,10 @@ func TestMattermostReplyStopsProgressBeforeSendingPost(t *testing.T) {
 		if payload["channel_id"] != "channel-1" || payload["root_id"] != "root-1" || payload["message"] != "done" {
 			t.Fatalf("unexpected post payload: %+v", payload)
 		}
+		props, isMap := payload["props"].(map[string]any)
+		if !isMap || props["internkim_raw_event_id"] != "raw-event-1" || props["internkim_outbox_id"] != "outbox-1" {
+			t.Fatalf("expected connector metadata props, got %+v", payload)
+		}
 	default:
 		t.Fatal("expected post request")
 	}
@@ -482,6 +520,21 @@ func TestMattermostReplyStopsProgressBeforeSendingPost(t *testing.T) {
 	progressManager.mutex.Unlock()
 	if isActive {
 		t.Fatal("expected reply send to stop Mattermost progress")
+	}
+}
+
+func TestMattermostReplyRequiresConnectorOutboxMetadata(t *testing.T) {
+	replyTargetID, errorValue := encodePlatformHandle(platformHandle{Platform: "mattermost", ChannelID: "channel-1"})
+	if errorValue != nil {
+		t.Fatalf("expected reply target to encode: %v", errorValue)
+	}
+	configuration := DefaultConfiguration()
+	configuration.MattermostTokenPath = t.TempDir() + "/missing-token"
+	service := Service{Configuration: configuration}
+
+	_, errorValue = service.mattermostReply(context.Background(), json.RawMessage(`{"replyTargetID":"`+replyTargetID+`","message":"done"}`))
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "connector outbox metadata") {
+		t.Fatalf("expected connector metadata error, got %v", errorValue)
 	}
 }
 
@@ -644,6 +697,8 @@ func TestMattermostReplyUploadsAttachmentsAndPostsFileIDs(t *testing.T) {
 	_, errorValue = service.mattermostReply(context.Background(), mustJSON(t, replyRequest{
 		ReplyTargetID: replyTargetID,
 		Message:       "captured",
+		RawEventID:    "raw-event-1",
+		OutboxID:      "outbox-1",
 		Attachments:   []platformFileSpec{{DevicePath: attachmentPath, Filename: "screen.png", ContentType: "image/png", SizeBytes: 3}},
 	}))
 	if errorValue != nil {
@@ -660,6 +715,10 @@ func TestMattermostReplyUploadsAttachmentsAndPostsFileIDs(t *testing.T) {
 		fileIDs, isArray := payload["file_ids"].([]any)
 		if !isArray || len(fileIDs) != 1 || fileIDs[0] != "file-1" {
 			t.Fatalf("expected file ids in post payload, got %+v", payload)
+		}
+		props, isMap := payload["props"].(map[string]any)
+		if !isMap || props["internkim_outbox_id"] != "outbox-1" {
+			t.Fatalf("expected connector outbox metadata, got %+v", payload)
 		}
 	default:
 		t.Fatal("expected post request")
@@ -711,6 +770,8 @@ func TestMattermostReplyUploadsInlineAttachmentsFromBlueclawWorkspace(t *testing
 	_, errorValue = service.mattermostReply(context.Background(), mustJSON(t, replyRequest{
 		ReplyTargetID: replyTargetID,
 		Message:       "deck",
+		RawEventID:    "raw-event-1",
+		OutboxID:      "outbox-1",
 		Attachments: []platformFileSpec{{
 			DevicePath:    "/workspace/deck.pptx",
 			Filename:      "deck.pptx",

@@ -21,14 +21,15 @@ import (
 )
 
 type MattermostWebSocketForwarder struct {
-	URL          string
-	BotToken     string
-	BotUserID    string
-	BlueclawURL  string
-	HTTPClient   *http.Client
-	EventBuilder func(context.Context, []byte) (platformInboundEvent, bool, error)
-	AfterForward func(context.Context, []byte)
-	PollFallback func(context.Context)
+	URL               string
+	BotToken          string
+	BotUserID         string
+	BlueclawURL       string
+	HTTPClient        *http.Client
+	EventBuilder      func(context.Context, []byte) (platformInboundEvent, bool, error)
+	AfterForward      func(context.Context, []byte)
+	AfterForwardError func(error)
+	PollFallback      func(context.Context)
 }
 
 func (forwarder MattermostWebSocketForwarder) Start(ctx context.Context) {
@@ -78,6 +79,9 @@ func (forwarder MattermostWebSocketForwarder) runOnce(ctx context.Context) error
 		payloadDocument := append([]byte(nil), payload...)
 		go func() {
 			if errorValue := forwarder.forward(ctx, payloadDocument); errorValue != nil {
+				if forwarder.AfterForwardError != nil {
+					forwarder.AfterForwardError(errorValue)
+				}
 				log.Printf("mattermost forward failed: %v", errorValue)
 			}
 		}()

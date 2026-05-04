@@ -31,6 +31,7 @@ var StepServices = Step{
 			trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
 			strings.Contains(trimmedRun(context, "systemctl cat "+locallm.LlamaCppServiceName+" 2>/dev/null"), locallm.LlamaCppBinaryPath) &&
 			trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
+			trimmedRun(context, blueclaw.CapabilitydHealthCheckCommand()) == "ok" &&
 			trimmedRun(context, "systemctl is-active mattermost") == "active" &&
 			runtimeCheck == "ok" &&
 			rootfsBaseCheck == "ok"
@@ -109,7 +110,8 @@ sleep 2`,
 			isBlueclawHealthy = trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
 				trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
 				trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
-				trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok"
+				trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
+				trimmedRun(context, blueclaw.CapabilitydHealthCheckCommand()) == "ok"
 			if isBlueclawHealthy {
 				break
 			}
