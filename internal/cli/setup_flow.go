@@ -3,11 +3,13 @@ package cli
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
@@ -270,6 +272,9 @@ func (state *setupFlowState) callbacks() setup.Callbacks {
 		BinariesVersion:           state.binariesVersion,
 		InstallBinariesSSH:        state.installBinariesSSH,
 		StageBinariesSD:           state.stageBinariesSD,
+		SkillsManifest:            state.skillsManifest,
+		InstallSkillsSSH:          state.installSkillsSSH,
+		StageSkillsSD:             state.stageSkillsSD,
 		BlueclawRuntimeManifest:   state.blueclawRuntimeManifest,
 		InstallBlueclawRuntimeSSH: state.installBlueclawRuntimeSSH,
 		BlueclawPayloadManifest:   state.blueclawPayloadManifest,
@@ -826,28 +831,117 @@ rm -f /usr/local/bin/gws-* /etc/sudoers.d/blueclaw-gws /etc/sudoers.d/blueclaw-m
 		state.sshClient.run("mkdir -p /root/.internkim/state && printf '%s' " + quoteShellValue(version) + " > /root/.internkim/state/binaries-version")
 	}
 
-	skillsDir := blueclawworkspace.SkillsPath(state.scriptDir)
-	if info, err := os.Stat(skillsDir); err == nil && info.IsDir() {
-		state.sshClient.run("mkdir -p " + quoteShellValue(filepath.Join(blueclaw.BlueclawWorkspacePath, "skills")))
-		entries, err := os.ReadDir(skillsDir)
-		if err != nil {
-			return err
-		}
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-			remoteSkillDir := blueclaw.BlueclawWorkspaceSkillPath(entry.Name())
-			state.sshClient.run("rm -rf " + quoteShellValue(remoteSkillDir))
-			state.sshClient.run("mkdir -p " + quoteShellValue(remoteSkillDir))
-			if err := state.sshClient.scpDir(filepath.Join(skillsDir, entry.Name()), remoteSkillDir); err != nil {
-				return err
-			}
-		}
-		state.sshClient.run(`chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills 2>/dev/null || true`)
+	return nil
+}
+
+func (state *setupFlowState) installSkillsSSH(context *setup.Context) error {
+	skillsDirectoryPath := blueclawworkspace.SkillsPath(state.scriptDir)
+	if info, errorValue := os.Stat(skillsDirectoryPath); errorValue != nil || !info.IsDir() {
+		return fmt.Errorf("skills directory missing: %s", skillsDirectoryPath)
 	}
 
+	state.sshClient.run("mkdir -p " + quoteShellValue(filepath.Join(blueclaw.BlueclawWorkspacePath, "skills")))
+	entries, errorValue := os.ReadDir(skillsDirectoryPath)
+	if errorValue != nil {
+		return errorValue
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		remoteSkillDirectoryPath := blueclaw.BlueclawWorkspaceSkillPath(entry.Name())
+		state.sshClient.run("rm -rf " + quoteShellValue(remoteSkillDirectoryPath))
+		state.sshClient.run("mkdir -p " + quoteShellValue(remoteSkillDirectoryPath))
+		if errorValue := state.sshClient.scpDir(filepath.Join(skillsDirectoryPath, entry.Name()), remoteSkillDirectoryPath); errorValue != nil {
+			return errorValue
+		}
+	}
+
+	manifest := state.skillsManifest()
+	if manifest == "" {
+		return errors.New("skills manifest is empty")
+	}
+	temporaryManifestPath, errorValue := os.CreateTemp("", "internkim-skills-manifest-*.json")
+	if errorValue != nil {
+		return errorValue
+	}
+	temporaryManifestName := temporaryManifestPath.Name()
+	if _, errorValue := temporaryManifestPath.WriteString(manifest); errorValue != nil {
+		temporaryManifestPath.Close()
+		os.Remove(temporaryManifestName)
+		return errorValue
+	}
+	if errorValue := temporaryManifestPath.Close(); errorValue != nil {
+		os.Remove(temporaryManifestName)
+		return errorValue
+	}
+	defer os.Remove(temporaryManifestName)
+
+	if errorValue := state.sshClient.scp(temporaryManifestName, filepath.Join(blueclaw.BlueclawWorkspacePath, "skills", ".internkim-skills-manifest.json")); errorValue != nil {
+		return errorValue
+	}
+	state.sshClient.run(`chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills 2>/dev/null || true`)
 	return nil
+}
+
+func (state *setupFlowState) stageSkillsSD(context *setup.Context) error {
+	skillsDirectoryPath := blueclawworkspace.SkillsPath(state.scriptDir)
+	if info, errorValue := os.Stat(skillsDirectoryPath); errorValue != nil || !info.IsDir() {
+		return fmt.Errorf("skills directory missing: %s", skillsDirectoryPath)
+	}
+	return copyDirectoryToStage(skillsDirectoryPath, filepath.Join(context.SD.RootPath(), "skills"))
+}
+
+func (state *setupFlowState) skillsManifest() string {
+	skillsDirectoryPath := blueclawworkspace.SkillsPath(state.scriptDir)
+	digest, errorValue := directoryDigest(skillsDirectoryPath)
+	if errorValue != nil {
+		return ""
+	}
+	return fmt.Sprintf("{\n  \"name\": \"internkim-skills\",\n  \"sha256\": \"%s\"\n}\n", digest)
+}
+
+func directoryDigest(directoryPath string) (string, error) {
+	filePaths := []string{}
+	errorValue := filepath.WalkDir(directoryPath, func(path string, entry os.DirEntry, walkError error) error {
+		if walkError != nil {
+			return walkError
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		filePaths = append(filePaths, path)
+		return nil
+	})
+	if errorValue != nil {
+		return "", errorValue
+	}
+	sort.Strings(filePaths)
+
+	hash := sha256.New()
+	for _, filePath := range filePaths {
+		relativePath, errorValue := filepath.Rel(directoryPath, filePath)
+		if errorValue != nil {
+			return "", errorValue
+		}
+		io.WriteString(hash, filepath.ToSlash(relativePath))
+		io.WriteString(hash, "\n")
+		file, errorValue := os.Open(filePath)
+		if errorValue != nil {
+			return "", errorValue
+		}
+		_, copyError := io.Copy(hash, file)
+		closeError := file.Close()
+		if copyError != nil {
+			return "", copyError
+		}
+		if closeError != nil {
+			return "", closeError
+		}
+		io.WriteString(hash, "\n")
+	}
+
+	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
 func (state *setupFlowState) installBlueclawRuntimeSSH(context *setup.Context) error {

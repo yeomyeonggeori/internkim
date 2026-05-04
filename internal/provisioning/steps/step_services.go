@@ -16,7 +16,7 @@ var errBlueclawHealthCheckFailed = errors.New("blueclaw health check failed afte
 
 var StepServices = Step{
 	Name: "services",
-	Deps: []string{"blueclaw-config", "blueclaw-payload", "openrouter", "local-llm", "mattermost"},
+	Deps: []string{"skills", "blueclaw-config", "blueclaw-payload", "openrouter", "local-llm", "mattermost"},
 	Title: func(context *Context) string {
 		return context.T("서비스 시작 중...", "Starting services...")
 	},

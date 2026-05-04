@@ -8,6 +8,8 @@ import (
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
+const BlueclawCapabilityTimeoutSecond = 0
+
 func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 	capabilityLanguageModel := map[string]any{
 		"executionMode":         "auto",
@@ -26,7 +28,7 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 			"transport":      "vsock",
 			"unixSocketPath": "",
 			"endpoint":       "http://internkim-capability",
-			"timeoutSecond":  120,
+			"timeoutSecond":  BlueclawCapabilityTimeoutSecond,
 			"vsockCID":       CapabilityVSockHostCID,
 			"vsockPort":      CapabilityVSockPort,
 			"toolNames":      capabilities.DefaultToolNames(),

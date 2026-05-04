@@ -213,6 +213,41 @@ func TestOnlyBlueclawPayloadSkipsCurrentBlueclawConfiguration(t *testing.T) {
 	}
 }
 
+func TestOnlyServicesIncludesStaleSkills(t *testing.T) {
+	context := defaultBlueclawPlanContext("ok", "ok")
+	context.SSH = blueclawPlanBoardConnection{
+		runtimeContractOutput: "ok",
+		payloadManifestOutput: "ok",
+		skillsManifestOutput:  "missing",
+	}
+
+	plan, err := DefaultRegistry().resolve(context, Selector{Only: []string{"services"}})
+	if err != nil {
+		t.Fatalf("resolve failed: %v", err)
+	}
+
+	joinedPlan := strings.Join(plan, ",")
+	if !strings.Contains(joinedPlan, "skills") {
+		t.Fatalf("expected stale skills to be planned, got %s", joinedPlan)
+	}
+	if strings.Index(joinedPlan, "skills") > strings.Index(joinedPlan, "services") {
+		t.Fatalf("expected skills before services, got %s", joinedPlan)
+	}
+}
+
+func TestOnlyServicesSkipsCurrentSkills(t *testing.T) {
+	context := defaultBlueclawPlanContext("ok", "ok")
+
+	plan, err := DefaultRegistry().resolve(context, Selector{Only: []string{"services"}})
+	if err != nil {
+		t.Fatalf("resolve failed: %v", err)
+	}
+
+	if strings.Contains(strings.Join(plan, ","), "skills") {
+		t.Fatalf("expected current skills to be skipped, got %v", plan)
+	}
+}
+
 func defaultBlueclawPlanContext(runtimeContractOutput string, payloadManifestOutput string) *Context {
 	return &Context{
 		Backend: BackendSSH,
@@ -220,9 +255,13 @@ func defaultBlueclawPlanContext(runtimeContractOutput string, payloadManifestOut
 		SSH: blueclawPlanBoardConnection{
 			runtimeContractOutput: runtimeContractOutput,
 			payloadManifestOutput: payloadManifestOutput,
+			skillsManifestOutput:  "ok",
 		},
 		Callbacks: Callbacks{
 			AdminWebVersion: func() string { return "web-version" },
+			SkillsManifest: func() string {
+				return "skills-manifest"
+			},
 			BlueclawPayloadManifest: func() string {
 				return "payload-manifest"
 			},
@@ -239,6 +278,7 @@ func defaultBlueclawPlanContext(runtimeContractOutput string, payloadManifestOut
 type blueclawPlanBoardConnection struct {
 	runtimeContractOutput string
 	payloadManifestOutput string
+	skillsManifestOutput  string
 }
 
 func (connection blueclawPlanBoardConnection) Run(command string) string {
@@ -247,6 +287,8 @@ func (connection blueclawPlanBoardConnection) Run(command string) string {
 		return connection.runtimeContractOutput
 	case strings.Contains(command, "payload-manifest.json"):
 		return connection.payloadManifestOutput
+	case strings.Contains(command, ".internkim-skills-manifest.json"):
+		return connection.skillsManifestOutput
 	case strings.Contains(command, "rootfs_path="):
 		return "ok"
 	case strings.Contains(command, "blkid -o value -s TYPE"):

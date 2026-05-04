@@ -1,19 +1,38 @@
 #!/bin/bash
-# simple-slides build script
-# Run ./build.sh from the same directory as presentation.md and extract_notes.py
-
 set -e
 cd "$(dirname "$0")"
 
-# Source filename (set SRC=yourfile.md to override)
 SRC="${SRC:-presentation.md}"
-# Output name without extension (defaults to directory name)
 NAME="${NAME:-$(basename "$(pwd)")}"
+FORMATS="${FORMATS:-html,pptx,pdf,notes,review}"
 
 if [ ! -f "$SRC" ]; then
-  echo "Error: $SRC not found. Create it from the template or set SRC=yourfile.md"
+  echo "Error: $SRC not found. Create presentation.md or set SRC=yourfile.md"
   exit 1
 fi
+
+if [ ! -f DESIGN.md ]; then
+  echo "Error: DESIGN.md not found. Create Stitch-compatible DESIGN.md before building."
+  exit 1
+fi
+
+python3 - "$SRC" <<'PY'
+import pathlib
+import sys
+
+source_path = pathlib.Path(sys.argv[1])
+design_path = source_path.with_name("DESIGN.md")
+text = source_path.read_text()
+if "design-source: DESIGN.md" not in text:
+    print("Error: presentation.md must include design-source: DESIGN.md")
+    sys.exit(1)
+
+source_modified_at = source_path.stat().st_mtime
+design_modified_at = design_path.stat().st_mtime
+if source_modified_at + 1 < design_modified_at:
+    print(f"Error: {source_path.name} is older than DESIGN.md. Update the deck source before building.")
+    sys.exit(1)
+PY
 
 if command -v marp &> /dev/null; then
   MARP_COMMAND=(marp)
@@ -28,11 +47,16 @@ run_marp() {
   "${MARP_COMMAND[@]}" "$@"
 }
 
+format_enabled() {
+  case ",${FORMATS}," in
+    *",$1,"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 export CHROME_PATH="${CHROME_PATH:-/usr/bin/chromium}"
 export PUPPETEER_EXECUTABLE_PATH="${PUPPETEER_EXECUTABLE_PATH:-$CHROME_PATH}"
 
-# Strip trailing `---` separator(s) / blank lines — otherwise Marp renders
-# an empty last slide. Non-destructive: only touches the trailing tail.
 python3 - "$SRC" <<'PY'
 import pathlib, sys
 path = pathlib.Path(sys.argv[1])
@@ -44,13 +68,22 @@ if stripped != text.rstrip():
     path.write_text(stripped + "\n")
 PY
 
-echo "Building HTML + PPTX + PDF..."
-run_marp "$SRC" --html --allow-local-files -o "${NAME}.html"
-run_marp "$SRC" --html --pptx --allow-local-files -o "${NAME}.pptx"
-run_marp "$SRC" --html --pdf --allow-local-files -o "${NAME}.pdf"
+rm -f "${NAME}.html" "${NAME}.pptx" "${NAME}.pdf" "${NAME}-notes.txt"
 
-echo "Embedding local images as base64 data URLs in HTML..."
-python3 - "$NAME" <<'PY'
+echo "Building requested formats: ${FORMATS}"
+if format_enabled html; then
+  run_marp "$SRC" --html --allow-local-files -o "${NAME}.html"
+fi
+if format_enabled pptx; then
+  run_marp "$SRC" --html --pptx --allow-local-files -o "${NAME}.pptx"
+fi
+if format_enabled pdf; then
+  run_marp "$SRC" --html --pdf --allow-local-files -o "${NAME}.pdf"
+fi
+
+if format_enabled html; then
+  echo "Embedding local images as base64 data URLs in HTML..."
+  python3 - "$NAME" <<'PY'
 import base64, re, os, sys
 name = sys.argv[1]
 path = f"{name}.html"
@@ -72,30 +105,35 @@ for img in sorted(img_refs):
 with open(path, 'w') as f:
     f.write(html)
 PY
-
-echo "Extracting speaker notes..."
-if [ -f extract_notes.py ]; then
-  python3 extract_notes.py "$SRC" "${NAME}-notes.txt"
-else
-    echo "  - extract_notes.py not found, skipping notes extraction"
 fi
 
-echo "Rendering slide review images..."
-mkdir -p review
-rm -f "review/${NAME}"*.png review/slide-review.json review/slide-review.md
-run_marp "$SRC" --images png --allow-local-files -o "review/${NAME}.png"
-if [ -f render_review.py ]; then
-  if ! python3 render_review.py "$SRC" "$NAME" review; then
-    echo "  - slide render review reported warnings; see review/slide-review.json"
+if format_enabled notes; then
+  echo "Extracting speaker notes..."
+  if [ -f extract_notes.py ]; then
+    python3 extract_notes.py "$SRC" "${NAME}-notes.txt"
+  else
+    echo "  - extract_notes.py not found, skipping notes extraction"
   fi
-else
-  echo "  - render_review.py not found, skipping slide render review"
+fi
+
+if format_enabled review; then
+  echo "Rendering slide review images..."
+  mkdir -p review
+  rm -f "review/${NAME}"*.png review/slide-review.json review/slide-review.md
+  run_marp "$SRC" --images png --allow-local-files -o "review/${NAME}.png"
+  if [ -f render_review.py ]; then
+    if ! python3 render_review.py "$SRC" "$NAME" review; then
+      echo "  - slide render review reported warnings; see review/slide-review.json"
+    fi
+  else
+    echo "  - render_review.py not found, skipping slide render review"
+  fi
 fi
 
 echo ""
 echo "Done."
-echo "  ${NAME}.html            (share this — images inlined, iframes need internet)"
-echo "  ${NAME}.pptx            (PowerPoint / Keynote)"
-echo "  ${NAME}.pdf             (PDF — iframes will appear blank, that's expected)"
-echo "  ${NAME}-notes.txt       (speaker notes)"
-echo "  review/slide-review.json (per-slide render review)"
+if format_enabled html; then echo "  ${NAME}.html            (share this — images inlined, iframes need internet)"; fi
+if format_enabled pptx; then echo "  ${NAME}.pptx            (PowerPoint / Keynote)"; fi
+if format_enabled pdf; then echo "  ${NAME}.pdf             (PDF — iframes will appear blank, that's expected)"; fi
+if format_enabled notes; then echo "  ${NAME}-notes.txt       (speaker notes)"; fi
+if format_enabled review; then echo "  review/slide-review.json (per-slide render review)"; fi

@@ -45,6 +45,9 @@ type Callbacks struct {
 	BinariesVersion           func() string
 	InstallBinariesSSH        func(context *Context) error
 	StageBinariesSD           func(context *Context) error
+	SkillsManifest            func() string
+	InstallSkillsSSH          func(context *Context) error
+	StageSkillsSD             func(context *Context) error
 	BlueclawRuntimeManifest   func() string
 	InstallBlueclawRuntimeSSH func(context *Context) error
 	BlueclawPayloadManifest   func() string

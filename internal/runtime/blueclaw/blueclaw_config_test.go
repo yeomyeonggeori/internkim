@@ -27,6 +27,9 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if capabilities["transport"] != "vsock" {
 		t.Fatalf("expected capability vsock transport, got %q", capabilities["transport"])
 	}
+	if capabilities["timeoutSecond"] != float64(BlueclawCapabilityTimeoutSecond) {
+		t.Fatalf("expected capability timeout %d, got %v", BlueclawCapabilityTimeoutSecond, capabilities["timeoutSecond"])
+	}
 	if capabilities["unixSocketPath"] != "" {
 		t.Fatalf("expected capability unix socket path to be omitted for guest runtime, got %q", capabilities["unixSocketPath"])
 	}
