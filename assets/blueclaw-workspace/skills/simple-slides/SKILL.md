@@ -45,17 +45,13 @@ requiredTools:
 completion:
   requiredEvidenceTools:
     - file.attach
-  requiredAttachmentSuffixes:
-    - .pptx
-    - .pdf
-    - .html
-    - -notes.txt
 quality:
   acceptanceGuidance:
     - Preserve the user's original request verbatim in brief.md as original_user_request.
+    - Write an explicit deck_spec with the exact slide list before running the renderer.
     - Reflect explicit output constraints such as requested slide count, file formats, audience, and tone.
     - Verify generated artifacts against DESIGN.md and the rendered review evidence before attaching them.
-    - Do not complete if PPTX, PDF, HTML, notes, or the requested slide count are missing.
+    - Do not complete if requested formats, deck intent, or the requested slide count are missing.
 allowedProfiles: [default]
 references:
   - references/design-system.md
@@ -94,9 +90,35 @@ Create a fresh directory under:
 
 Create the directory with `terminal.run`.
 
-First, write a short `brief.md` into that directory with `file.write`. Include `original_user_request` with the user's request copied verbatim. Also include audience, desired tone, slide topic, and explicit output constraints such as requested slide count and required formats. Do not translate, summarize, or normalize away words like `할 수`, `역량`, `capability`, `what I can do`, or `8장`; the creator uses those signals to choose the deck contract.
+First, write a short `brief.md` into that directory with `file.write`. Include `original_user_request` with the user's request copied verbatim. Also include `topic`, `slide_intent`, `requested_slide_count`, `requested_formats`, and `output_slug`. Do not translate, summarize, or normalize away words like `할 수`, `역량`, `capability`, `what I can do`, or `8장`; the creator uses those signals to choose the deck contract.
 
-Then use the bundled deck creator. For this bundled InternKim skill, this is the canonical path, not a suggestion. The creator writes a Stitch-compatible `DESIGN.md`, reads that design contract back, generates `presentation.md` from those tokens, copies runtime scripts, builds the deck, and keeps output names stable:
+For normal decks, include a fenced JSON `deck_spec` with the exact slide list. Each slide must include `title`, `body`, and `speaker_note`; `layout` is optional. The renderer does not invent generic slides for you. If the user asks for "Hermes Agent 장단점 6장", write six Hermes-specific slides in `deck_spec.slides`. Do not run the creator with a missing or placeholder deck spec.
+
+Example:
+
+````markdown
+original_user_request: hermes agent의 장단점에 대해 분석한 ppt를 6장으로 만들어서 보내줘. html만 주면 돼
+topic: Hermes Agent
+slide_intent: 장단점 분석
+requested_slide_count: 6
+requested_formats: html
+output_slug: hermes-analysis
+deck_spec:
+```json
+{
+  "title": "Hermes Agent 장단점 분석",
+  "slides": [
+    {
+      "title": "Hermes Agent 판단 프레임",
+      "body": ["Hermes Agent의 강점은 도구 실행과 장기 작업 흐름에 있다.", "약점은 환경 계약이 느슨하면 산출물 검증이 흔들릴 수 있다는 점이다."],
+      "speaker_note": "Hermes Agent를 단순 채팅 모델이 아니라 실행형 에이전트로 놓고 장단점을 판단합니다."
+    }
+  ]
+}
+```
+````
+
+Then write `DESIGN.md` and `presentation.md` with `file.write` before running any terminal command. `DESIGN.md` is the design contract; `presentation.md` is the Marp source. The script below is not a content creator. It is a deterministic contract validator and build wrapper: it validates `brief.md`, `DESIGN.md`, and `presentation.md`, writes `<deck-slug>-intent.json`, copies runtime scripts, builds the deck, and keeps output names stable:
 
 ```json
 {
@@ -105,9 +127,9 @@ Then use the bundled deck creator. For this bundled InternKim skill, this is the
 }
 ```
 
-Do not hand-write a full `presentation.md` before running the creator. If the user asks for a visual redesign or content revision after the first build, edit `DESIGN.md` first, then update `presentation.md` to match that design contract before rebuilding.
+Do not ask the script to invent slide content. If the script fails because `deck_spec`, `DESIGN.md`, or `presentation.md` is missing or generic, fix those files and rerun it. If the user asks for a visual redesign or content revision after the first build, edit `DESIGN.md` first, then update `presentation.md` to match that design contract before rebuilding.
 
-For custom edits after the creator has produced the initial files, update these files with `file.write`:
+For custom edits after the first build, update these files with `file.write`:
 
 - `DESIGN.md`
 - `presentation.md`
@@ -155,7 +177,7 @@ Run the build from the deck directory with a stable output name:
 }
 ```
 
-The build must produce:
+The build normally produces:
 
 - `<deck-slug>.html`
 - `<deck-slug>.pptx`
@@ -173,11 +195,11 @@ The build renders per-slide PNGs and contact-sheet collages into `review/`. Use 
 
 Check for clipping, overlap, unreadable text, missing images, and broken fonts. Korean/CJK decks should use the declared font stack: Paperlogy for display, Freesentation for body, then Pretendard or Noto Sans KR as fallback.
 
-Before final reply, declare task-specific quality criteria with `set_quality_criteria`. Include criteria for preserving the original request, satisfying explicit slide count and file format requirements, applying `DESIGN.md` to the final artifacts, and attaching the generated PPTX/PDF/HTML/notes with evidence. In `final_reply`, pass each criterion with evidence from successful terminal/file observations. Do not cite source files such as `DESIGN.md`, `presentation.md`, `build.sh`, or `extract_notes.py` as completion artifacts.
+Before final reply, declare task-specific quality criteria with `set_quality_criteria`. Include criteria for preserving the original request, satisfying explicit slide count and requested file formats, applying `DESIGN.md` to the final artifacts, and attaching only the requested generated artifacts with evidence. In `final_reply`, pass each criterion with evidence from successful terminal/file observations. Do not cite source files such as `DESIGN.md`, `presentation.md`, `build.sh`, `extract_notes.py`, or `<deck-slug>-intent.json` as completion artifacts.
 
 ## Final Reply
 
-Attach these exact generated files with one `file.attach` call before final reply:
+Attach the requested generated files with one `file.attach` call before final reply. If the user did not restrict formats, attach the full set:
 
 ```json
 {
@@ -190,4 +212,14 @@ Attach these exact generated files with one `file.attach` call before final repl
 }
 ```
 
-Google Workspace export/upload is disabled for now; do not call `google.*` tools and do not block local PPTX delivery on Google credentials. Only cite those generated artifact attachments as completion evidence. Do not cite source files such as `DESIGN.md`, `presentation.md`, `build.sh`, or `extract_notes.py`.
+If the user explicitly asks for one format such as `html만`, attach only that requested output:
+
+```json
+{
+  "paths": [
+    "/workspace/.blueclaw/tmp/<deck-slug>/<deck-slug>.html"
+  ]
+}
+```
+
+Google Workspace export/upload is disabled for now; do not call `google.*` tools and do not block local file delivery on Google credentials. Only cite generated artifact attachments as completion evidence.
