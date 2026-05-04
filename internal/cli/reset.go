@@ -38,8 +38,10 @@ func runResetArguments(arguments []string) error {
 func runResetBlueclawHistory(arguments []string) error {
 	flagSet := flag.NewFlagSet("reset blueclaw-history", flag.ContinueOnError)
 	host := flagSet.String("host", "", "Board host")
-	user := flagSet.String("user", boardUser, "SSH user")
+	user := flagSet.String("user", "", "SSH user")
 	password := flagSet.String("password", "", "SSH password")
+	board := flagSet.String("board", "", "Board target")
+	simulation := flagSet.Bool("sim", false, "Use simulation target")
 	confirmDeviceID := flagSet.String("confirm", "", "Device ID required to execute the reset")
 	isPlanOnly := flagSet.Bool("plan", false, "Print the reset plan without changing the board")
 	keepMattermostPosts := flagSet.Bool("keep-mattermost-posts", false, "Keep visible Mattermost posts")
@@ -56,6 +58,12 @@ func runResetBlueclawHistory(arguments []string) error {
 	}
 	if strings.TrimSpace(*password) != "" {
 		targetArguments = append(targetArguments, "--password", *password)
+	}
+	if strings.TrimSpace(*board) != "" {
+		targetArguments = append(targetArguments, "--board", *board)
+	}
+	if *simulation {
+		targetArguments = append(targetArguments, "--sim")
 	}
 	verifyTarget, errorValue := resolveVerifyTarget(targetArguments)
 	if errorValue != nil {

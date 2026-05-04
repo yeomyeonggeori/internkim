@@ -516,54 +516,50 @@ func findBoardIP(sshpassBin, stateDir string) string {
 func runInvite() { fmt.Println("TODO: invite") }
 func runUsers()  { fmt.Println("TODO: users") }
 func runStatus() {
-	stateDir := internkimHomeDir()
+	if errorValue := runStatusArguments(os.Args[2:]); errorValue != nil {
+		fatal(errorValue.Error())
+	}
+}
+
+func runStatusArguments(arguments []string) error {
 	lang := "ko"
-	if containsArg("--en") {
+	if hasCommandArgument(arguments, "--en") {
 		lang = "en"
 	}
 	m := newMsg(lang)
+	repositoryRootPath, errorValue := resolveRepositoryRootPath()
+	if errorValue != nil {
+		return errorValue
+	}
+	sshpassBin := filepath.Join(repositoryRootPath, "bin", "sshpass")
+	target := resolveCommandTarget(arguments)
+	target = resolveLabHostForCommandTarget(target, repositoryRootPath)
 
-	labVirtualMachineIPAddress := resolveLabVirtualMachineIPAddress()
-	if labVirtualMachineIPAddress != "" {
-		fmt.Printf("=== %s (Tart VM: %s) ===\n\n", m.t("기기 상태", "Device Status"), labVirtualMachineIPAddress)
-		printBoardStatus(m, labVirtualMachineIPAddress, stateDir)
-		return
+	if strings.TrimSpace(target.host) == "" {
+		target.host = findBoardIPForCredentials(sshpassBin, target.stateDir, target.sshUser, target.sshPassword)
+	}
+	if strings.TrimSpace(target.host) != "" {
+		printCommandTargetEvidence(target)
+		fmt.Printf("=== %s (%s: %s) ===\n\n", m.t("기기 상태", "Device Status"), target.boardType, target.host)
+		printBoardStatus(m, target, newSSH(sshpassBin, target.sshUser, target.sshPassword, target.host))
+		return nil
 	}
 
-	// Try RPi5
-	fmt.Printf("  %s", m.t("보드 검색 중...", "Scanning for board..."))
-	boardIP, sshOK := detectBoardRPi("", stateDir)
-	if boardIP != "" && sshOK {
-		fmt.Printf("\r=== %s (RPi5: %s) ===\n\n", m.t("기기 상태", "Device Status"), boardIP)
-		printBoardStatus(m, boardIP, stateDir)
-		return
-	}
-	if boardIP != "" && !sshOK {
-		fmt.Printf("\r  %s %s\n", m.t("보드 발견 (SSH 연결 불가):", "Board found (SSH unreachable):"), boardIP)
-		fmt.Printf("  %s\n", m.t("LED 상태로 의미가 달라집니다:", "Meaning depends on the LED:"))
-		fmt.Printf("    %s: %s\n", m.t("빠른 점멸", "Fast blink"), m.t("프로비저닝 진행 중 — 잠시 후 다시 시도", "provisioning in progress — retry shortly"))
-		fmt.Printf("    %s: %s\n", m.t("하트비트", "Heartbeat"), m.t("프로비저닝 완료 — IP가 바뀌었거나 Wi-Fi/방화벽 문제일 수 있습니다", "provisioning complete — IP may have changed, or Wi-Fi/firewall blocking SSH"))
-		fmt.Printf("    %s: %s\n", m.t("느린 점멸", "Slow blink"), m.t("프로비저닝 실패 — /var/log/internkim-firstboot.log 확인", "provisioning failed — check /var/log/internkim-firstboot.log"))
-		fmt.Printf("  %s\n", m.t("하트비트라면: `internkim lab status` 로 VM 상태를 확인하거나, SD에서 board-ip 파일을 확인하고 재시도하세요.", "If heartbeat: check the Tart VM with `internkim lab status`, or re-check the board-ip file on the SD card and retry."))
-		return
+	if target.mode == commandTargetModeLab {
+		return errors.New("lab target not found; run `internkim lab status` or pass --host <ip>")
 	}
 
-	fmt.Printf("\r  %s\n", m.t(
+	fmt.Printf("  %s\n", m.t(
 		"기기를 찾을 수 없습니다.\n  - RPi5: Wi-Fi 연결 확인\n  - Tart Lab: internkim lab vm-up",
 		"Device not found.\n  - RPi5: Check Wi-Fi\n  - Tart Lab: start with `internkim lab vm-up`",
 	))
+	return nil
 }
 
-func printBoardStatus(m *msg, ip string, stateDir string) {
-	saveState(stateDir, "board_ip", ip)
+func printBoardStatus(m *msg, target commandTarget, sshClient *sshClient) {
+	saveState(target.stateDir, "board_ip", target.host)
 	sshCmd := func(cmd string) string {
-		out, _ := exec.Command("ssh",
-			"-o", "StrictHostKeyChecking=no",
-			"-o", "UserKnownHostsFile=/dev/null",
-			"-o", "ConnectTimeout=5",
-			"-o", "LogLevel=ERROR",
-			"root@"+ip, cmd).CombinedOutput()
-		return strings.TrimSpace(string(out))
+		return strings.TrimSpace(sshClient.run(cmd))
 	}
 
 	// Firstboot status
@@ -1351,7 +1347,7 @@ func runSim() {
 		}
 	}
 
-	if errorValue := runLabArguments(labArguments); errorValue != nil {
+	if errorValue := runLabArgumentsForTarget(labArguments, commandTargetBoardSimulation); errorValue != nil {
 		fatal(errorValue.Error())
 	}
 }
@@ -1396,7 +1392,7 @@ func runSetupSimulation(setupArguments []string) {
 	filteredSetupArguments, shouldVerify, shouldVerifyBrowser := splitSimulationVerifyArguments(setupArguments)
 	setupArguments = filteredSetupArguments
 
-	if errorValue := service.Setup(ctx, executablePath, setupArguments); errorValue != nil {
+	if errorValue := service.SetupSimulation(ctx, executablePath, setupArguments); errorValue != nil {
 		fatal(errorValue.Error())
 	}
 
@@ -1407,7 +1403,7 @@ func runSetupSimulation(setupArguments []string) {
 	if errorValue != nil {
 		fatal(errorValue.Error())
 	}
-	verifyArguments := []string{"api", "--host", virtualMachineIPAddress, "--user", configuration.VirtualMachine.SSHUsername, "--password", configuration.VirtualMachine.SSHPassword}
+	verifyArguments := []string{"api", "--board", commandTargetBoardSimulation, "--host", virtualMachineIPAddress, "--user", configuration.VirtualMachine.SSHUsername, "--password", configuration.VirtualMachine.SSHPassword}
 	if errorValue := runVerifyArguments(verifyArguments); errorValue != nil {
 		fatal(errorValue.Error())
 	}
@@ -1416,10 +1412,10 @@ func runSetupSimulation(setupArguments []string) {
 		fatal(errorValue.Error())
 	}
 	if shouldVerifyBrowser {
-		if errorValue := runVerifyArguments([]string{"browser", "--local", "--host", virtualMachineIPAddress, "--user", configuration.VirtualMachine.SSHUsername, "--password", configuration.VirtualMachine.SSHPassword}); errorValue != nil {
+		if errorValue := runVerifyArguments([]string{"browser", "--local", "--board", commandTargetBoardSimulation, "--host", virtualMachineIPAddress, "--user", configuration.VirtualMachine.SSHUsername, "--password", configuration.VirtualMachine.SSHPassword}); errorValue != nil {
 			fatal(errorValue.Error())
 		}
-		if errorValue := runVerifyArguments([]string{"browser", "--public", "--host", virtualMachineIPAddress, "--user", configuration.VirtualMachine.SSHUsername, "--password", configuration.VirtualMachine.SSHPassword}); errorValue != nil {
+		if errorValue := runVerifyArguments([]string{"browser", "--public", "--board", commandTargetBoardSimulation, "--host", virtualMachineIPAddress, "--user", configuration.VirtualMachine.SSHUsername, "--password", configuration.VirtualMachine.SSHPassword}); errorValue != nil {
 			fatal(errorValue.Error())
 		}
 	}
@@ -1606,6 +1602,10 @@ func setupControlArguments(arguments []string) []string {
 }
 
 func runLabArguments(arguments []string) error {
+	return runLabArgumentsForTarget(arguments, commandTargetBoardLab)
+}
+
+func runLabArgumentsForTarget(arguments []string, boardType string) error {
 	repositoryRootPath, errorValue := resolveRepositoryRootPath()
 	if errorValue != nil {
 		return errorValue
@@ -1672,6 +1672,9 @@ func runLabArguments(arguments []string) error {
 		if errorValue != nil {
 			return errorValue
 		}
+		if boardType == commandTargetBoardSimulation {
+			return service.SetupSimulation(ctx, executablePath, nil)
+		}
 		return service.Setup(ctx, executablePath, nil)
 	case "scenario-mattermost":
 		return service.ScenarioMattermost(ctx)
@@ -1683,6 +1686,9 @@ func runLabArguments(arguments []string) error {
 		executablePath, errorValue := currentExecutablePath()
 		if errorValue != nil {
 			return errorValue
+		}
+		if boardType == commandTargetBoardSimulation {
+			return service.ScenarioSimulationEndToEnd(ctx, executablePath, nil)
 		}
 		return service.ScenarioEndToEnd(ctx, executablePath, nil)
 	default:
@@ -1845,8 +1851,6 @@ func setupStateName(boardType string) string {
 
 func copySetupStateHints(sourceDir string, destinationDir string) {
 	for _, key := range []string{
-		"board_ip",
-		"board_wifi_ip",
 		"subnet",
 		"wifi_ssid",
 		"wifi_pass",
@@ -3384,8 +3388,6 @@ func findSDStagingRoot() string {
 
 func runSetupLive(messenger *msg) {
 	configuration := loadConfig()
-	baseStateDir := internkimHomeDir()
-	stateDir := baseStateDir
 	scriptDir, _ := os.Getwd()
 	sshpassBin := filepath.Join(scriptDir, "bin", "sshpass")
 	setupBuildID := currentExecutableFingerprint()
@@ -3399,14 +3401,12 @@ func runSetupLive(messenger *msg) {
 		runSetupSimulation(setupControlArguments(os.Args[2:]))
 		return
 	}
-	hostOverride := argString("--host", "")
-	boardType := argString("--board", setup.BoardJetsonOrinNano)
-	stateDir = setupStateDir(baseStateDir, boardType)
-	sshUser, sshPassword := resolveSetupSSHCredentials(
-		boardType,
-		argString("--user", ""),
-		argString("--password", ""),
-	)
+	target := resolveCommandTarget(os.Args[2:])
+	hostOverride := target.host
+	boardType := target.boardType
+	stateDir := target.stateDir
+	sshUser := target.sshUser
+	sshPassword := target.sshPassword
 	nonInteractive := containsArg("--non-interactive")
 	if boardType == setup.BoardJetsonOrinNano {
 		requestedSSH = true
@@ -3483,9 +3483,13 @@ func runSetupLive(messenger *msg) {
 
 	switch selectedBackend {
 	case setup.BackendSSH:
-		fmt.Printf("Target: %s (ssh)\n", boardIP)
+		target.host = boardIP
+		printCommandTargetEvidence(target)
+		fmt.Printf("Backend: ssh\n")
 	case setup.BackendSD:
-		fmt.Printf("Target: %s (sd staging)\n", stagingRoot)
+		printCommandTargetEvidence(target)
+		fmt.Printf("Backend: sd staging\n")
+		fmt.Printf("Staging: %s\n", stagingRoot)
 	}
 
 	flowState := newSetupFlowState(
