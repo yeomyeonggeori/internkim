@@ -44,6 +44,7 @@ requiredTools:
   - file.attach
 completion:
   requiredEvidenceTools:
+    - file.write
     - file.attach
 quality:
   acceptanceGuidance:
@@ -90,9 +91,7 @@ Create a fresh directory under:
 
 Pick one `<deck-slug>` before creating files and use only that directory for the whole task. Do not create alternate directories such as `-v2`, `-final`, `-new`, or `-analysis` after choosing the slug. Do not delete and recreate the directory during the same run; fix the files in place with `file.write`.
 
-Create the directory once with `terminal.run`.
-
-First, write a short `brief.md` into that directory with `file.write`. Include `original_user_request` with the user's request copied verbatim. Also include `topic`, `slide_intent`, `requested_slide_count`, `requested_formats`, and `output_slug`. Do not translate, summarize, or normalize away words like `할 수`, `역량`, `capability`, `what I can do`, or `8장`; the creator uses those signals to choose the deck contract.
+First, write a short `brief.md` into that directory with `file.write`. `file.write` creates parent directories automatically, so do not spend tool calls on `mkdir` before the first write. Include `original_user_request` with the user's request copied verbatim. Also include `topic`, `slide_intent`, `requested_slide_count`, `requested_formats`, and `output_slug`. Do not translate, summarize, or normalize away words like `할 수`, `역량`, `capability`, `what I can do`, or `8장`; the creator uses those signals to choose the deck contract.
 
 For normal decks, include a fenced JSON `deck_spec` with the exact slide list. Each slide must include `title`, `body`, and `speaker_note`; `layout` is optional. The renderer does not invent generic slides for you. If the user asks for "Hermes Agent 장단점 6장", write six Hermes-specific slides in `deck_spec.slides`. Do not run the creator with a missing or placeholder deck spec.
 
@@ -133,12 +132,11 @@ Do not ask the script to invent slide content. Do not copy `build.sh`, `extract_
 
 Golden path:
 
-1. `terminal.run` creates `/workspace/.blueclaw/tmp/<deck-slug>`.
-2. `file.write` writes `/workspace/.blueclaw/tmp/<deck-slug>/brief.md`.
-3. `file.write` writes `/workspace/.blueclaw/tmp/<deck-slug>/DESIGN.md`.
-4. `file.write` writes `/workspace/.blueclaw/tmp/<deck-slug>/presentation.md`.
-5. `terminal.run` runs `python3 /workspace/skills/simple-slides/scripts/create_deck.py --slug <deck-slug> --brief brief.md` from the deck directory. This is the only build command.
-6. `file.attach` attaches only the requested generated artifact files.
+1. `file.write` writes `/workspace/.blueclaw/tmp/<deck-slug>/brief.md`.
+2. `file.write` writes `/workspace/.blueclaw/tmp/<deck-slug>/DESIGN.md`.
+3. `file.write` writes `/workspace/.blueclaw/tmp/<deck-slug>/presentation.md`.
+4. `terminal.run` runs `python3 /workspace/skills/simple-slides/scripts/create_deck.py --slug <deck-slug> --brief brief.md` from the deck directory. This is the only build command.
+5. `file.attach` attaches only the requested generated artifact files.
 
 Never replace steps 2-4 with shell redirection, heredocs, `echo`, `cat`, or a fake `file.write` command inside `terminal.run`; that loses tool evidence and often breaks quoting for Korean text, JSON, and CSS. Never change slugs or directories as a recovery strategy. Repeated directory setup is a sign to stop and fix the current files.
 
