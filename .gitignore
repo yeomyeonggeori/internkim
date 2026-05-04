@@ -1,4 +1,6 @@
 .factory/
+.claude/
+.playwright-mcp/
 .artifacts/
 .cache/
 .DS_Store

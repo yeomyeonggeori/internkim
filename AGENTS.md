@@ -38,6 +38,8 @@ When testing against real platform surfaces such as Mattermost, Slack, or Signal
 - For Admin/Flow web UI-only changes that must be redeployed even when the version cache says current, use `./internkim setup --only admin-web --force`.
 - For Go service or admind/capabilityd binary changes, use `./internkim setup --only binaries,services --force`.
 - For mixed web UI and service changes, use `./internkim setup --only admin-web,binaries,services --force`.
+- For uncommitted Blueclaw submodule changes, run setup with `INTERNKIM_BLUECLAW_USE_LOCAL=1` so it builds the local `.dependency/blueclaw` worktree instead of pulling `origin/main`.
+- If those uncommitted Blueclaw changes must be included in the Firecracker payload, run `make prepare-blueclaw-payload` before setup and keep `INTERNKIM_BLUECLAW_USE_LOCAL=1` on setup.
 - Avoid `--force-all` unless recovering a broken setup or explicitly asked. It reruns satisfied dependencies and is too heavy for normal iteration.
 - Do not include `--host`, `--user`, or `--password` in examples when the default/saved target works. Add those flags only when the user asks for a specific target or the default target cannot be resolved.
 - Do not run verify suites by reflex after UI-only deploys. Use targeted checks first; run full verify only for platform/runtime behavior changes or when explicitly requested.
