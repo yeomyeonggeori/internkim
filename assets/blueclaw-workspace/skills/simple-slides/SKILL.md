@@ -50,6 +50,16 @@ completion:
     - .pdf
     - .html
     - -notes.txt
+quality:
+  recommendedChecks:
+    - marp_build_log_success
+    - parse_pptx
+    - pdf_page_count
+    - render_nonblank
+    - slide_render_images
+    - max_text_overflow
+    - slide_count_min
+    - forbidden_reply_fragments
 allowedProfiles: [default]
 references:
   - references/design-system.md
@@ -57,6 +67,7 @@ references:
 scripts:
   - scripts/create_deck.py
   - scripts/extract_notes.py
+  - scripts/render_review.py
 assets:
   - assets/build.sh
   - assets/design.md
@@ -89,7 +100,7 @@ Create the directory with `terminal.run`.
 
 First, write a short `brief.md` into that directory with `file.write`. Include the user request, audience, desired tone, and slide topic.
 
-Then use the bundled deck creator. This is the preferred path because it writes valid Marp source, copies runtime scripts, builds the deck, and keeps output names stable:
+Then use the bundled deck creator. For this bundled InternKim skill, this is the canonical path, not a suggestion. The creator writes a Stitch-compatible `DESIGN.md`, reads that design contract back, generates `presentation.md` from those tokens, copies runtime scripts, builds the deck, and keeps output names stable:
 
 ```json
 {
@@ -98,16 +109,18 @@ Then use the bundled deck creator. This is the preferred path because it writes 
 }
 ```
 
-If you need a more custom deck, write these files into that directory with `file.write`:
+Do not hand-write a full `presentation.md` before running the creator. If the user asks for a visual redesign or content revision after the first build, edit `DESIGN.md` first, then update `presentation.md` to match that design contract before rebuilding.
+
+For custom edits after the creator has produced the initial files, update these files with `file.write`:
 
 - `DESIGN.md`
 - `presentation.md`
 
-Copy the bundled scripts into the working directory with `terminal.run`:
+If the creator was not used and the files are being assembled manually, copy the bundled scripts into the working directory with `terminal.run`:
 
 ```json
 {
-  "command": "cp /workspace/skills/simple-slides/assets/build.sh ./build.sh && cp /workspace/skills/simple-slides/scripts/extract_notes.py ./extract_notes.py && chmod +x ./build.sh ./extract_notes.py",
+  "command": "cp /workspace/skills/simple-slides/assets/build.sh ./build.sh && cp /workspace/skills/simple-slides/scripts/extract_notes.py ./extract_notes.py && cp /workspace/skills/simple-slides/scripts/render_review.py ./render_review.py && chmod +x ./build.sh ./extract_notes.py ./render_review.py",
   "workingDirectoryPath": "/workspace/.blueclaw/tmp/<deck-slug>"
 }
 ```
@@ -116,7 +129,7 @@ Use this skill's `assets/design.md` and `assets/template.md` as source material 
 
 ## Design First
 
-Write `DESIGN.md` before `presentation.md`. Adapt the design to the topic and audience with concrete choices for:
+`DESIGN.md` is the source of truth for visual decisions. It must be Stitch-compatible: YAML token front matter followed by concise design rationale. Adapt the design to the topic and audience with concrete choices for:
 
 - colors
 - typefaces
@@ -124,13 +137,13 @@ Write `DESIGN.md` before `presentation.md`. Adapt the design to the topic and au
 - slide density
 - chart/table/card treatment
 
-Then port those choices into the Marp CSS in `presentation.md`.
+Then port those choices into the Marp CSS in `presentation.md`. The final `presentation.md` should contain `<!-- design-source: DESIGN.md -->` near the top.
 
 ## Slide Rules
 
 - One message per slide.
 - Short titles and short lines.
-- Prefer tables, charts, and structured cards over long prose.
+- Prefer structured cards, grids, numbers, and visual hierarchy over long prose. Use tables only when comparison is the actual point of the slide.
 - Use local image files only. Download remote images into the deck directory first.
 - Do not end `presentation.md` with a trailing slide separator.
 - Put speaker notes in HTML comments.
@@ -152,21 +165,17 @@ The build must produce:
 - `<deck-slug>.pptx`
 - `<deck-slug>.pdf`
 - `<deck-slug>-notes.txt`
+- `review/<deck-slug>*.png`
+- `review/contact-sheet-*.png`
+- `review/slide-review.json`
 
 If the build fails, fix the source and rerun it. Do not attach stale outputs.
 
 ## Visual Review
 
-Render PNGs with Marp and inspect edited slides before shipping when time allows:
+The build renders per-slide PNGs and contact-sheet collages into `review/`. Use `review/slide-review.json` as the machine-readable check for nonblank slides, safe margins, and edge overflow. Use the contact sheets when a human or model needs a compact visual pass without loading every individual slide image.
 
-```json
-{
-  "command": "marp presentation.md --images png --allow-local-files -o <name>.png",
-  "workingDirectoryPath": "/workspace/.blueclaw/tmp/<deck-slug>"
-}
-```
-
-Check for clipping, overlap, unreadable text, missing images, and broken fonts. Korean/CJK decks need a font that renders Korean.
+Check for clipping, overlap, unreadable text, missing images, and broken fonts. Korean/CJK decks should use the declared font stack: Paperlogy for display, Freesentation for body, then Pretendard or Noto Sans KR as fallback.
 
 ## Final Reply
 
