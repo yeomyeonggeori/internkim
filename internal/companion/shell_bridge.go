@@ -66,6 +66,23 @@ func (handler ShellBridgePromptHandler) PickFile(ctx context.Context, request Fi
 	return PickedFile{Path: response.Path}, nil
 }
 
+func (handler ShellBridgePromptHandler) PickDirectory(ctx context.Context, request DirectoryPickRequest) (PickedDirectory, error) {
+	var response struct {
+		Canceled bool   `json:"cancelled"`
+		Path     string `json:"path"`
+	}
+	if errorValue := handler.post(ctx, "/v1/directory/pick", request, &response); errorValue != nil {
+		return PickedDirectory{}, errorValue
+	}
+	if response.Canceled {
+		return PickedDirectory{}, ErrFilePickCanceled
+	}
+	if strings.TrimSpace(response.Path) == "" {
+		return PickedDirectory{}, errors.New("directory picker returned no directory")
+	}
+	return PickedDirectory{Path: response.Path}, nil
+}
+
 func (handler ShellBridgePromptHandler) post(ctx context.Context, path string, requestBody any, responseBody any) error {
 	baseURL, errorValue := validateShellBridgeURL(handler.BaseURL)
 	if errorValue != nil {

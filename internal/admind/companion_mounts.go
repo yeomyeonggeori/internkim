@@ -1,0 +1,195 @@
+package admind
+
+import (
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"gitlab.com/eastriver/internkim/internal/capabilities"
+	companionruntime "gitlab.com/eastriver/internkim/internal/companion"
+)
+
+type CompanionMountRecord struct {
+	MountID     string    `json:"mountID"`
+	CompanionID string    `json:"companionID"`
+	DisplayName string    `json:"displayName"`
+	GuestPath   string    `json:"guestPath"`
+	Mode        string    `json:"mode"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"createdAt"`
+	LastSeenAt  time.Time `json:"lastSeenAt"`
+	RevokedAt   time.Time `json:"revokedAt,omitempty"`
+}
+
+type CompanionMountSnapshot struct {
+	MountID     string    `json:"mountID"`
+	DisplayName string    `json:"displayName"`
+	GuestPath   string    `json:"guestPath"`
+	Mode        string    `json:"mode"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"createdAt"`
+	LastSeenAt  time.Time `json:"lastSeenAt"`
+}
+
+func (service *Service) updateCompanionMounts(companionID string, mounts []CompanionMountSnapshot) {
+	if len(mounts) == 0 {
+		return
+	}
+	now := time.Now().UTC()
+	service.mutex.Lock()
+	for _, mount := range mounts {
+		if strings.TrimSpace(mount.MountID) == "" {
+			continue
+		}
+		service.companionMounts[mount.MountID] = companionMountRecord(companionID, mount, now)
+	}
+	service.mutex.Unlock()
+	_ = service.saveCompanionMounts()
+}
+
+func (service *Service) updateCompanionMountsFromJob(companionID string, jobID string, response *capabilities.ToolInvokeResponse) {
+	if response == nil {
+		return
+	}
+	switch response.ToolName {
+	case "filesystem.mount.create", "filesystem.mount.pause", "filesystem.mount.resume", "filesystem.mount.revoke", "filesystem.mount.status":
+		var mount CompanionMountSnapshot
+		if errorValue := json.Unmarshal(response.Result, &mount); errorValue == nil && mount.MountID != "" {
+			service.updateCompanionMounts(companionID, []CompanionMountSnapshot{mount})
+		}
+	case "filesystem.mount.list":
+		var document struct {
+			Mounts []CompanionMountSnapshot `json:"mounts"`
+		}
+		if errorValue := json.Unmarshal(response.Result, &document); errorValue == nil {
+			service.updateCompanionMounts(companionID, document.Mounts)
+		}
+	}
+	_ = jobID
+}
+
+func companionMountRecord(companionID string, mount CompanionMountSnapshot, now time.Time) *CompanionMountRecord {
+	status := firstNonEmpty(mount.Status, companionruntime.MountStatusOnline)
+	record := &CompanionMountRecord{
+		MountID:     strings.TrimSpace(mount.MountID),
+		CompanionID: companionID,
+		DisplayName: strings.TrimSpace(mount.DisplayName),
+		GuestPath:   strings.TrimSpace(mount.GuestPath),
+		Mode:        firstNonEmpty(mount.Mode, companionruntime.MountModeReadWrite),
+		Status:      status,
+		CreatedAt:   firstNonZeroTime(mount.CreatedAt, now),
+		LastSeenAt:  firstNonZeroTime(mount.LastSeenAt, now),
+	}
+	if status == companionruntime.MountStatusRevoked {
+		record.RevokedAt = now
+	}
+	return record
+}
+
+func companionMountResourceScope(request capabilities.ToolInvokeRequest) capabilities.ResourceScope {
+	if request.ResourceScope.Kind == companionruntime.MountResourceScopeKind && request.ResourceScope.Value != "" {
+		return request.ResourceScope
+	}
+	var input struct {
+		MountID string `json:"mountID"`
+	}
+	if errorValue := json.Unmarshal(request.Input, &input); errorValue != nil {
+		return capabilities.ResourceScope{Kind: companionruntime.MountResourceScopeKind}
+	}
+	return capabilities.ResourceScope{Kind: companionruntime.MountResourceScopeKind, Value: strings.TrimSpace(input.MountID)}
+}
+
+func (service *Service) validateCompanionMountRequest(request capabilities.ToolInvokeRequest) error {
+	if !strings.HasPrefix(request.ToolName, "filesystem.mount.") {
+		return nil
+	}
+	switch request.ToolName {
+	case "filesystem.mount.create", "filesystem.mount.list", "filesystem.mount.status":
+		return nil
+	}
+	mountID := companionMountResourceScope(request).Value
+	if strings.TrimSpace(mountID) == "" {
+		return nil
+	}
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	mount := service.companionMounts[mountID]
+	if mount == nil || mount.Status == companionruntime.MountStatusRevoked {
+		return errors.New("companion mount is unavailable")
+	}
+	if mount.Status != companionruntime.MountStatusOnline && request.ToolName != "filesystem.mount.resume" && request.ToolName != "filesystem.mount.revoke" {
+		return errors.New("companion mount is not online")
+	}
+	return nil
+}
+
+func (service *Service) companionCanClaimMountJobLocked(companion *CompanionRecord, job *CompanionJob) bool {
+	if companion == nil || job == nil || job.ResourceScope.Kind != companionruntime.MountResourceScopeKind || strings.TrimSpace(job.ResourceScope.Value) == "" {
+		return true
+	}
+	mount := service.companionMounts[job.ResourceScope.Value]
+	if mount == nil {
+		return job.ToolName == "filesystem.mount.create" || job.ToolName == "filesystem.mount.list" || job.ToolName == "filesystem.mount.status"
+	}
+	return mount.CompanionID == companion.CompanionID && mount.Status != companionruntime.MountStatusRevoked
+}
+
+func (service *Service) saveCompanionMounts() error {
+	service.mutex.Lock()
+	mounts := []*CompanionMountRecord{}
+	for _, mount := range service.companionMounts {
+		if mount != nil {
+			mounts = append(mounts, mount)
+		}
+	}
+	service.mutex.Unlock()
+	document, errorValue := json.MarshalIndent(map[string]any{"mounts": mounts}, "", "  ")
+	if errorValue != nil {
+		return errorValue
+	}
+	path := service.companionMountPath()
+	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
+		return errorValue
+	}
+	temporaryPath := path + ".tmp"
+	if errorValue := os.WriteFile(temporaryPath, document, 0o600); errorValue != nil {
+		return errorValue
+	}
+	return os.Rename(temporaryPath, path)
+}
+
+func (service *Service) loadCompanionMounts() {
+	document, errorValue := os.ReadFile(service.companionMountPath())
+	if errorValue != nil {
+		return
+	}
+	var state struct {
+		Mounts []*CompanionMountRecord `json:"mounts"`
+	}
+	if errorValue := json.Unmarshal(document, &state); errorValue != nil {
+		return
+	}
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	for _, mount := range state.Mounts {
+		if mount != nil && mount.MountID != "" {
+			service.companionMounts[mount.MountID] = mount
+		}
+	}
+}
+
+func (service *Service) companionMountPath() string {
+	return filepath.Join(service.Configuration.StateDirectory, "companion-mounts.json")
+}
+
+func firstNonZeroTime(values ...time.Time) time.Time {
+	for _, value := range values {
+		if !value.IsZero() {
+			return value
+		}
+	}
+	return time.Time{}
+}

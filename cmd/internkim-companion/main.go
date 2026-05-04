@@ -271,6 +271,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 		state.Capabilities = capabilitiesWithoutBrowser(state.Capabilities)
 	}
 	grantStore := companionruntime.NewMemoryGrantStore()
+	mountStore := companionruntime.NewMountStore(defaultMountStatePath(*statePath))
 	runtimeStatus := &runtimeState{}
 	var localChain llmbackend.Provider
 	if localLLMConfiguration.Enabled {
@@ -284,11 +285,12 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 		LLMChain:       localChain,
 		BrowserRuntime: browserRuntime,
 		GrantStore:     grantStore,
+		MountStore:     mountStore,
 	}
 	if readiness.Status != "ready" {
 		executor.BrowserRuntime = nil
 	}
-	controlServer, errorValue := startControlServer(*controlListenAddress, grantStore, runtimeStatus)
+	controlServer, errorValue := startControlServer(*controlListenAddress, grantStore, mountStore, runtimeStatus)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -298,7 +300,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	heartbeatContext, stopHeartbeatLoop := context.WithCancel(context.Background())
 	defer stopHeartbeatLoop()
 	if !*runOnce {
-		go runHeartbeatLoop(heartbeatContext, httpClient, state, privateKey, runtimeStatus, *preferCompanionBrowser)
+		go runHeartbeatLoop(heartbeatContext, httpClient, state, privateKey, runtimeStatus, mountStore, *preferCompanionBrowser)
 	}
 	if *allowStdinPrompts {
 		executor.PromptHandler = companionruntime.TerminalPromptHandler{Reader: os.Stdin, Writer: os.Stdout}
@@ -312,6 +314,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 		executor.PromptHandler = shellBridgeHandler
 		executor.ApprovalHandler = shellBridgeHandler
 		executor.FilePicker = shellBridgeHandler
+		executor.DirectoryPicker = shellBridgeHandler
 		executor.FileUploader = companionFileUploader{
 			HTTPClient: httpClient,
 			State:      state,
@@ -319,7 +322,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 		}
 	}
 	for {
-		if errorValue := sendHeartbeat(httpClient, state, privateKey, runtimeStatus, *preferCompanionBrowser); errorValue != nil {
+		if errorValue := sendHeartbeat(httpClient, state, privateKey, runtimeStatus, mountStore, *preferCompanionBrowser); errorValue != nil {
 			runtimeStatus.recordHeartbeat(errorValue)
 			return errorValue
 		}
@@ -359,7 +362,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	}
 }
 
-func runHeartbeatLoop(ctx context.Context, httpClient *http.Client, state companionState, privateKey string, runtimeStatus *runtimeState, preferCompanionBrowser bool) {
+func runHeartbeatLoop(ctx context.Context, httpClient *http.Client, state companionState, privateKey string, runtimeStatus *runtimeState, mountStore *companionruntime.MountStore, preferCompanionBrowser bool) {
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -367,7 +370,7 @@ func runHeartbeatLoop(ctx context.Context, httpClient *http.Client, state compan
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			runtimeStatus.recordHeartbeat(sendHeartbeat(httpClient, state, privateKey, runtimeStatus, preferCompanionBrowser))
+			runtimeStatus.recordHeartbeat(sendHeartbeat(httpClient, state, privateKey, runtimeStatus, mountStore, preferCompanionBrowser))
 		}
 	}
 }
@@ -594,7 +597,7 @@ func writeJSONDocument(writer io.Writer, response any) {
 	_ = json.NewEncoder(writer).Encode(response)
 }
 
-func sendHeartbeat(httpClient *http.Client, state companionState, privateKey string, runtime *runtimeState, preferCompanionBrowser bool) error {
+func sendHeartbeat(httpClient *http.Client, state companionState, privateKey string, runtime *runtimeState, mountStore *companionruntime.MountStore, preferCompanionBrowser bool) error {
 	payload := map[string]any{
 		"capabilities":           state.Capabilities,
 		"localOnly":              state.LocalOnly,
@@ -602,6 +605,9 @@ func sendHeartbeat(httpClient *http.Client, state companionState, privateKey str
 	}
 	if runtime != nil {
 		payload["localLLMAvailable"] = runtime.localLLMAvailable()
+	}
+	if mountStore != nil {
+		payload["mounts"] = mountStore.List()
 	}
 	return postSignedJSON(httpClient, state, privateKey, state.DeviceURL+"/_internkim/companion/heartbeat", payload, &map[string]any{})
 }
@@ -817,6 +823,18 @@ func defaultStatePath() string {
 		return ".internkim-companion.json"
 	}
 	return filepath.Join(homeDirectory, ".internkim-companion", "state.json")
+}
+
+func defaultMountStatePath(statePath string) string {
+	trimmedPath := strings.TrimSpace(statePath)
+	if trimmedPath != "" {
+		return filepath.Join(filepath.Dir(trimmedPath), "mounts.json")
+	}
+	homeDirectory, errorValue := os.UserHomeDir()
+	if errorValue != nil || homeDirectory == "" {
+		return ".internkim-companion-mounts.json"
+	}
+	return filepath.Join(homeDirectory, ".internkim-companion", "mounts.json")
 }
 
 func defaultBrowserProfilePath() string {
