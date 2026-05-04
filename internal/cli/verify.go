@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/base64"
 	"errors"
 	"flag"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -59,11 +61,44 @@ func runVerifyAPI(arguments []string) error {
 }
 
 func runVerifyMattermost(arguments []string) error {
-	verifyTarget, errorValue := resolveVerifyTarget(arguments)
+	flagSet := flag.NewFlagSet("verify mattermost", flag.ContinueOnError)
+	prompt := flagSet.String("prompt", "", "Post this prompt through the real Mattermost ingress path")
+	keep := flagSet.Bool("keep", false, "Keep probe messages and users for inspection")
+	timeoutSeconds := flagSet.Int("timeout", 240, "Seconds to wait for the bot reply")
+	host := flagSet.String("host", "", "Board host")
+	user := flagSet.String("user", "", "SSH user")
+	password := flagSet.String("password", "", "SSH password")
+	board := flagSet.String("board", "", "Board target")
+	simulation := flagSet.Bool("sim", false, "Use simulation target")
+	if errorValue := flagSet.Parse(arguments); errorValue != nil {
+		return errorValue
+	}
+
+	targetArguments := []string{}
+	if strings.TrimSpace(*host) != "" {
+		targetArguments = append(targetArguments, "--host", strings.TrimSpace(*host))
+	}
+	if strings.TrimSpace(*user) != "" {
+		targetArguments = append(targetArguments, "--user", strings.TrimSpace(*user))
+	}
+	if strings.TrimSpace(*password) != "" {
+		targetArguments = append(targetArguments, "--password", *password)
+	}
+	if strings.TrimSpace(*board) != "" {
+		targetArguments = append(targetArguments, "--board", strings.TrimSpace(*board))
+	}
+	if *simulation {
+		targetArguments = append(targetArguments, "--sim")
+	}
+
+	verifyTarget, errorValue := resolveVerifyTarget(targetArguments)
 	if errorValue != nil {
 		return errorValue
 	}
 	fmt.Printf("verify mattermost: %s@%s\n", verifyTarget.user, verifyTarget.host)
+	if strings.TrimSpace(*prompt) != "" {
+		return verifyTarget.runRemoteVerification(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds))
+	}
 	return verifyTarget.runRemoteVerification(verifyMattermostScript())
 }
 
@@ -741,4 +776,213 @@ test "$final_count" -eq "$after_count"
 
 echo "verify mattermost: ok"
 `
+}
+
+func verifyMattermostPromptScript(prompt string, keep bool, timeoutSeconds int) string {
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = 240
+	}
+	encodedPrompt := base64.StdEncoding.EncodeToString([]byte(prompt))
+	keepValue := "false"
+	if keep {
+		keepValue = "true"
+	}
+	return fmt.Sprintf(`set -euo pipefail
+
+timestamp="$(date +%%s)"
+email="probe-mattermost-$timestamp@internkim.test"
+username="probemm$timestamp"
+password="ProbePass!$timestamp"
+prompt="$(printf '%%s' %s | base64 -d)"
+keep_artifacts=%s
+timeout_seconds=%d
+test_started_at="$(date +%%s%%3N)"
+
+api_request() {
+  local phase_name="$1"
+  local method="$2"
+  local url="$3"
+  local token="${4:-}"
+  local body="${5:-}"
+  local response_file
+  local status
+  local curl_status
+  response_file="$(mktemp)"
+  if [ -n "$body" ]; then
+    if [ -n "$token" ]; then
+      status="$(curl --silent --show-error --output "$response_file" --write-out "%%{http_code}" \
+        -X "$method" -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
+        -d "$body" "$url")" || curl_status="$?"
+    else
+      status="$(curl --silent --show-error --output "$response_file" --write-out "%%{http_code}" \
+        -X "$method" -H "Content-Type: application/json" \
+        -d "$body" "$url")" || curl_status="$?"
+    fi
+  else
+    if [ -n "$token" ]; then
+      status="$(curl --silent --show-error --output "$response_file" --write-out "%%{http_code}" \
+        -X "$method" -H "Authorization: Bearer $token" "$url")" || curl_status="$?"
+    else
+      status="$(curl --silent --show-error --output "$response_file" --write-out "%%{http_code}" \
+        -X "$method" "$url")" || curl_status="$?"
+    fi
+  fi
+  if [ "${curl_status:-0}" != "0" ]; then
+    echo "Mattermost API curl failure during $phase_name: $method $url (curl exit ${curl_status:-0})" >&2
+    cat "$response_file" >&2 || true
+    rm -f "$response_file"
+    return "${curl_status:-1}"
+  fi
+  if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+    echo "Mattermost API failure during $phase_name: $method $url returned HTTP $status" >&2
+    cat "$response_file" >&2 || true
+    echo >&2
+    rm -f "$response_file"
+    return 22
+  fi
+  cat "$response_file"
+  rm -f "$response_file"
+}
+
+blueclaw_request() {
+  local phase_name="$1"
+  local method="$2"
+  local url="$3"
+  local body="${4:-}"
+  local response_file
+  local status
+  local curl_status
+  response_file="$(mktemp)"
+  if [ -n "$body" ]; then
+    status="$(curl --silent --show-error --output "$response_file" --write-out "%%{http_code}" \
+      -X "$method" -H "Content-Type: application/json" -d "$body" "$url")" || curl_status="$?"
+  else
+    status="$(curl --silent --show-error --output "$response_file" --write-out "%%{http_code}" \
+      -X "$method" "$url")" || curl_status="$?"
+  fi
+  if [ "${curl_status:-0}" != "0" ]; then
+    echo "Blueclaw API curl failure during $phase_name: $method $url (curl exit ${curl_status:-0})" >&2
+    cat "$response_file" >&2 || true
+    rm -f "$response_file"
+    return "${curl_status:-1}"
+  fi
+  if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+    echo "Blueclaw API failure during $phase_name: $method $url returned HTTP $status" >&2
+    cat "$response_file" >&2 || true
+    echo >&2
+    rm -f "$response_file"
+    return 22
+  fi
+  cat "$response_file"
+  rm -f "$response_file"
+}
+
+login_headers="$(mktemp)"
+admin_password="$(cat /root/.internkim/secrets/mm-admin-pass)"
+login_body="$(jq -cn --arg login_id admin --arg password "$admin_password" '{login_id:$login_id,password:$password}')"
+curl --silent --show-error --fail -D "$login_headers" -o /tmp/internkim-admin-login.json \
+  -H "Content-Type: application/json" \
+  -d "$login_body" \
+  http://localhost:8065/api/v4/users/login >/dev/null
+admin_token="$(awk 'tolower($1) == "token:" {print $2}' "$login_headers" | tr -d '\r')"
+test -n "$admin_token"
+
+cleanup() {
+  if [ "$keep_artifacts" = "true" ]; then
+    return 0
+  fi
+  if [ -n "${bot_post_id:-}" ]; then
+    curl --silent --show-error -X DELETE -H "Authorization: Bearer $mattermost_token" \
+      "http://localhost:8065/api/v4/posts/$bot_post_id" >/dev/null || true
+  fi
+  if [ -n "${user_post_id:-}" ]; then
+    curl --silent --show-error -X DELETE -H "Authorization: Bearer $user_token" \
+      "http://localhost:8065/api/v4/posts/$user_post_id" >/dev/null || true
+  fi
+  if [ -n "${user_id:-}" ]; then
+    curl --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+      "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null || true
+  fi
+  curl --silent --show-error -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$email" >/dev/null || true
+}
+trap cleanup EXIT
+
+mattermost_token="$(cat /root/.internkim/secrets/mattermost-bot-token)"
+bot_user="$(api_request "bot lookup" GET http://localhost:8065/api/v4/users/me "$mattermost_token")"
+bot_user_id="$(printf '%%s' "$bot_user" | jq -r '.id // empty')"
+bot_username="$(printf '%%s' "$bot_user" | jq -r '.username // empty')"
+test -n "$bot_user_id"
+
+user_body="$(jq -cn --arg email "$email" --arg username "$username" --arg password "$password" '{email:$email,username:$username,password:$password}')"
+user_id="$(api_request "create probe user" POST http://localhost:8065/api/v4/users "$admin_token" "$user_body" | jq -r '.id')"
+test -n "$user_id"
+
+user_login_headers="$(mktemp)"
+user_login_body="$(jq -cn --arg login_id "$username" --arg password "$password" '{login_id:$login_id,password:$password}')"
+curl --silent --show-error --fail -D "$user_login_headers" -o /tmp/internkim-probe-user-login.json \
+  -H "Content-Type: application/json" \
+  -d "$user_login_body" \
+  http://localhost:8065/api/v4/users/login >/dev/null
+user_token="$(awk 'tolower($1) == "token:" {print $2}' "$user_login_headers" | tr -d '\r')"
+test -n "$user_token"
+
+blueclaw_request "invite probe user" POST http://127.0.0.1:8080/admin/api/people/invite \
+  "$(jq -cn --arg email "$email" '{email:$email}')" >/dev/null
+
+channel_id="$(api_request "create probe dm" POST http://localhost:8065/api/v4/channels/direct "$user_token" \
+  "$(jq -cn --arg user_id "$user_id" --arg bot_user_id "$bot_user_id" '[$user_id,$bot_user_id]')" | jq -r '.id')"
+test -n "$channel_id"
+
+post_body="$(jq -cn --arg channel_id "$channel_id" --arg message "$prompt" '{channel_id:$channel_id,message:$message}')"
+user_post="$(api_request "post probe message" POST http://localhost:8065/api/v4/posts "$user_token" "$post_body")"
+user_post_id="$(printf '%%s' "$user_post" | jq -r '.id')"
+user_post_create_at="$(printf '%%s' "$user_post" | jq -r '.create_at')"
+test -n "$user_post_id"
+
+bot_post_id=""
+for _ in $(seq 1 "$timeout_seconds"); do
+  bot_post_id="$(api_request "wait for probe reply" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=60" "$admin_token" |
+    jq -r --arg bot_user_id "$bot_user_id" --argjson posted_after "$user_post_create_at" \
+      '.posts[] | select(.user_id == $bot_user_id and .create_at >= $posted_after) | .id' | head -1)"
+  if [ -n "$bot_post_id" ]; then
+    break
+  fi
+  sleep 1
+done
+if [ -z "$bot_post_id" ]; then
+  echo "expected Mattermost bot reply for probe post $user_post_id" >&2
+  exit 1
+fi
+
+bot_post_file="$(mktemp)"
+api_request "fetch probe reply" GET "http://localhost:8065/api/v4/posts/$bot_post_id" "$admin_token" > "$bot_post_file"
+task_run_id="$(blueclaw_request "find probe task" GET http://127.0.0.1:8080/admin/api/task |
+  jq -r --arg prompt "$prompt" '[.[] | select(.prompt == $prompt)] | sort_by(.createdAt) | last | .taskRunID // empty')"
+task_detail_file="$(mktemp)"
+printf '{}' > "$task_detail_file"
+if [ -n "$task_run_id" ]; then
+  blueclaw_request "probe task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id" > "$task_detail_file"
+fi
+
+jq -cn \
+  --arg channel_id "$channel_id" \
+  --arg user_post_id "$user_post_id" \
+  --arg bot_post_id "$bot_post_id" \
+  --arg task_run_id "$task_run_id" \
+  --argjson keep "$keep_artifacts" \
+  --slurpfile bot_post "$bot_post_file" \
+  --slurpfile task_detail "$task_detail_file" \
+  '{
+    ok: true,
+    kept: $keep,
+    channelID: $channel_id,
+    userPostID: $user_post_id,
+    botPostID: $bot_post_id,
+    taskRunID: $task_run_id,
+    botMessage: $bot_post[0].message,
+    fileIDs: ($bot_post[0].file_ids // []),
+    taskStatus: ($task_detail[0].taskRun.status // null),
+    taskEvents: (($task_detail[0].taskEvents // []) | map({name, body: ((.body // "") | tostring | .[0:1200])}))
+  }'
+`, strconv.Quote(encodedPrompt), keepValue, timeoutSeconds)
 }
