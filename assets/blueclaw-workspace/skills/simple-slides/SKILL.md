@@ -88,7 +88,9 @@ Create a fresh directory under:
 /workspace/.blueclaw/tmp/<deck-slug>
 ```
 
-Create the directory with `terminal.run`.
+Pick one `<deck-slug>` before creating files and use only that directory for the whole task. Do not create alternate directories such as `-v2`, `-final`, `-new`, or `-analysis` after choosing the slug. Do not delete and recreate the directory during the same run; fix the files in place with `file.write`.
+
+Create the directory once with `terminal.run`.
 
 First, write a short `brief.md` into that directory with `file.write`. Include `original_user_request` with the user's request copied verbatim. Also include `topic`, `slide_intent`, `requested_slide_count`, `requested_formats`, and `output_slug`. Do not translate, summarize, or normalize away words like `할 수`, `역량`, `capability`, `what I can do`, or `8장`; the creator uses those signals to choose the deck contract.
 
@@ -118,7 +120,7 @@ deck_spec:
 ```
 ````
 
-Then write `DESIGN.md` and `presentation.md` with `file.write` before running any terminal command. `DESIGN.md` is the design contract; `presentation.md` is the Marp source. The script below is not a content creator. It is a deterministic contract validator and build wrapper: it validates `brief.md`, `DESIGN.md`, and `presentation.md`, writes `<deck-slug>-intent.json`, copies runtime scripts, builds the deck, and keeps output names stable:
+Then write `DESIGN.md` and `presentation.md` with `file.write` before running any other terminal command. `DESIGN.md` is the design contract; `presentation.md` is the Marp source. The script below is not a content creator. It is the only build command for normal deck creation: it validates `brief.md`, `DESIGN.md`, and `presentation.md`, writes `<deck-slug>-intent.json`, copies runtime scripts, builds the deck, and keeps output names stable:
 
 ```json
 {
@@ -127,7 +129,7 @@ Then write `DESIGN.md` and `presentation.md` with `file.write` before running an
 }
 ```
 
-Do not ask the script to invent slide content. If the script fails because `deck_spec`, `DESIGN.md`, or `presentation.md` is missing or generic, fix those files and rerun it. If the user asks for a visual redesign or content revision after the first build, edit `DESIGN.md` first, then update `presentation.md` to match that design contract before rebuilding.
+Do not ask the script to invent slide content. Do not copy `build.sh`, `extract_notes.py`, or `render_review.py` yourself for normal deck creation, and do not run `./build.sh` directly before `create_deck.py` has succeeded. If the script fails because `deck_spec`, `DESIGN.md`, or `presentation.md` is missing or generic, fix those files in the same directory and rerun the same `create_deck.py` command. If the user asks for a visual redesign or content revision after the first build, edit `DESIGN.md` first, then update `presentation.md` to match that design contract before rebuilding.
 
 Golden path:
 
@@ -135,10 +137,10 @@ Golden path:
 2. `file.write` writes `/workspace/.blueclaw/tmp/<deck-slug>/brief.md`.
 3. `file.write` writes `/workspace/.blueclaw/tmp/<deck-slug>/DESIGN.md`.
 4. `file.write` writes `/workspace/.blueclaw/tmp/<deck-slug>/presentation.md`.
-5. `terminal.run` runs `python3 /workspace/skills/simple-slides/scripts/create_deck.py --slug <deck-slug> --brief brief.md` from the deck directory.
+5. `terminal.run` runs `python3 /workspace/skills/simple-slides/scripts/create_deck.py --slug <deck-slug> --brief brief.md` from the deck directory. This is the only build command.
 6. `file.attach` attaches only the requested generated artifact files.
 
-Never replace steps 2-4 with shell redirection, heredocs, `echo`, `cat`, or a fake `file.write` command inside `terminal.run`; that loses tool evidence and often breaks quoting for Korean text, JSON, and CSS.
+Never replace steps 2-4 with shell redirection, heredocs, `echo`, `cat`, or a fake `file.write` command inside `terminal.run`; that loses tool evidence and often breaks quoting for Korean text, JSON, and CSS. Never change slugs or directories as a recovery strategy. Repeated directory setup is a sign to stop and fix the current files.
 
 For custom edits after the first build, update these files with `file.write`:
 
