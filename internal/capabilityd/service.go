@@ -68,6 +68,7 @@ type Service struct {
 	RunCommand      func(context.Context, string, []string, []byte) ([]byte, error)
 	EventLocker     *platformEventLocker
 	ProgressManager *platformProgressManager
+	HealthState     *platformHealthState
 }
 
 type embeddingRequest struct {
@@ -88,8 +89,22 @@ type historyFetchRequest struct {
 type replyRequest struct {
 	ReplyTargetID string             `json:"replyTargetID"`
 	Message       string             `json:"message"`
+	RawEventID    string             `json:"rawEventID,omitempty"`
+	OutboxID      string             `json:"outboxID,omitempty"`
 	Attachments   []platformFileSpec `json:"attachments,omitempty"`
 }
+
+type platformHealthState struct {
+	mutex                      sync.RWMutex
+	MattermostTokenConfigured  bool      `json:"mattermostTokenConfigured"`
+	MattermostBotUserResolved  bool      `json:"mattermostBotUserResolved"`
+	MattermostForwarderRunning bool      `json:"mattermostForwarderRunning"`
+	MattermostFallbackActive   bool      `json:"mattermostFallbackActive"`
+	LastSuccessfulForwardAt    time.Time `json:"lastSuccessfulForwardAt,omitempty"`
+	LastForwardError           string    `json:"lastForwardError,omitempty"`
+}
+
+var fallbackPlatformHealthState = &platformHealthState{}
 
 type progressRequest struct {
 	ReplyTargetID string `json:"replyTargetID"`
@@ -147,6 +162,9 @@ func DefaultConfiguration() Configuration {
 }
 
 func (service Service) Run(ctx context.Context) error {
+	if service.HealthState == nil {
+		service.HealthState = &platformHealthState{}
+	}
 	listener, errorValue := service.listen()
 	if errorValue != nil {
 		return errorValue
@@ -201,12 +219,54 @@ func (service Service) router() http.Handler {
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.stop", service.handleProgressStop)
 	multiplexer.HandleFunc("POST /v1/tools/{toolName}/invoke", service.handleToolInvoke)
 	multiplexer.HandleFunc("GET /v1/capabilities", service.handleCapabilities)
-	multiplexer.HandleFunc("GET /health", func(responseWriter http.ResponseWriter, request *http.Request) {
-		_ = request
-		responseWriter.WriteHeader(http.StatusOK)
-		_, _ = responseWriter.Write([]byte("ok\n"))
-	})
+	multiplexer.HandleFunc("GET /health", service.handleHealth)
 	return multiplexer
+}
+
+func (service Service) handleHealth(responseWriter http.ResponseWriter, request *http.Request) {
+	health := service.platformHealth(request.Context())
+	statusCode := http.StatusOK
+	if health["status"] != "ok" {
+		statusCode = http.StatusServiceUnavailable
+	}
+	responseWriter.Header().Set("Content-Type", "application/json")
+	responseWriter.WriteHeader(statusCode)
+	_ = json.NewEncoder(responseWriter).Encode(health)
+}
+
+func (service Service) platformHealth(ctx context.Context) map[string]any {
+	mattermost := service.mattermostHealth(ctx)
+	status := "ok"
+	if value, _ := mattermost["ok"].(bool); !value {
+		status = "unhealthy"
+	}
+	return map[string]any{
+		"status":     status,
+		"mattermost": mattermost,
+		"checkedAt":  time.Now().UTC(),
+	}
+}
+
+func (service Service) mattermostHealth(ctx context.Context) map[string]any {
+	state := service.healthState().Snapshot()
+	state.MattermostTokenConfigured = readSecretValue(service.Configuration.MattermostTokenPath) != ""
+	if state.MattermostTokenConfigured {
+		var botUser struct {
+			ID string `json:"id"`
+		}
+		if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", nil, &botUser); errorValue == nil && strings.TrimSpace(botUser.ID) != "" {
+			state.MattermostBotUserResolved = true
+		}
+	}
+	return map[string]any{
+		"ok":                      state.MattermostTokenConfigured && state.MattermostBotUserResolved && state.MattermostForwarderRunning,
+		"botTokenConfigured":      state.MattermostTokenConfigured,
+		"botUserResolved":         state.MattermostBotUserResolved,
+		"forwarderRunning":        state.MattermostForwarderRunning,
+		"fallbackPollActive":      state.MattermostFallbackActive,
+		"lastSuccessfulForwardAt": state.LastSuccessfulForwardAt,
+		"lastForwardError":        state.LastForwardError,
+	}
 }
 
 func (service Service) handleToolInvoke(responseWriter http.ResponseWriter, request *http.Request) {
@@ -348,6 +408,42 @@ func (service Service) writeJSON(responseWriter http.ResponseWriter, response an
 	_ = json.NewEncoder(responseWriter).Encode(response)
 }
 
+func (service Service) healthState() *platformHealthState {
+	if service.HealthState != nil {
+		return service.HealthState
+	}
+	return defaultPlatformHealthState()
+}
+
+func defaultPlatformHealthState() *platformHealthState {
+	return fallbackPlatformHealthState
+}
+
+func (state *platformHealthState) Snapshot() platformHealthState {
+	if state == nil {
+		return platformHealthState{}
+	}
+	state.mutex.RLock()
+	defer state.mutex.RUnlock()
+	return platformHealthState{
+		MattermostTokenConfigured:  state.MattermostTokenConfigured,
+		MattermostBotUserResolved:  state.MattermostBotUserResolved,
+		MattermostForwarderRunning: state.MattermostForwarderRunning,
+		MattermostFallbackActive:   state.MattermostFallbackActive,
+		LastSuccessfulForwardAt:    state.LastSuccessfulForwardAt,
+		LastForwardError:           state.LastForwardError,
+	}
+}
+
+func (state *platformHealthState) Update(update func(*platformHealthState)) {
+	if state == nil {
+		return
+	}
+	state.mutex.Lock()
+	defer state.mutex.Unlock()
+	update(state)
+}
+
 func (service Service) createEmbedding(ctx context.Context, request embeddingRequest) (any, error) {
 	apiKey := readSecretValue(service.Configuration.OpenRouterKeyPath)
 	if apiKey == "" {
@@ -462,6 +558,9 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 	if handle.Platform != "mattermost" {
 		return nil, errors.New("reply target platform mismatch")
 	}
+	if strings.TrimSpace(request.RawEventID) == "" || strings.TrimSpace(request.OutboxID) == "" {
+		return nil, errors.New("mattermost reply requires connector outbox metadata")
+	}
 	service.stopMattermostProgress(request.ReplyTargetID)
 	defer service.stopMattermostProgress(request.ReplyTargetID)
 	fileIDs, errorValue := service.uploadMattermostAttachments(ctx, handle.ChannelID, request.Attachments)
@@ -471,6 +570,10 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 	body := map[string]any{
 		"channel_id": handle.ChannelID,
 		"message":    request.Message,
+		"props": map[string]string{
+			"internkim_raw_event_id": request.RawEventID,
+			"internkim_outbox_id":    request.OutboxID,
+		},
 	}
 	if strings.TrimSpace(handle.RootID) != "" {
 		body["root_id"] = handle.RootID
@@ -960,16 +1063,34 @@ func (service Service) progressManager() *platformProgressManager {
 func (service Service) startMattermostForwarder(ctx context.Context) {
 	token := readSecretValue(service.Configuration.MattermostTokenPath)
 	if token == "" {
+		service.healthState().Update(func(state *platformHealthState) {
+			state.MattermostTokenConfigured = false
+			state.MattermostForwarderRunning = false
+			state.LastForwardError = "mattermost bot token is not configured"
+		})
 		log.Print("mattermost forwarder disabled: token missing")
 		return
 	}
+	service.healthState().Update(func(state *platformHealthState) {
+		state.MattermostTokenConfigured = true
+	})
 	var botUser struct {
 		ID string `json:"id"`
 	}
 	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", nil, &botUser); errorValue != nil {
+		service.healthState().Update(func(state *platformHealthState) {
+			state.MattermostBotUserResolved = false
+			state.MattermostForwarderRunning = false
+			state.LastForwardError = errorValue.Error()
+		})
 		log.Printf("mattermost websocket forwarder disabled: bot lookup failed: %v", errorValue)
 		return
 	}
+	service.healthState().Update(func(state *platformHealthState) {
+		state.MattermostBotUserResolved = strings.TrimSpace(botUser.ID) != ""
+		state.MattermostForwarderRunning = true
+		state.LastForwardError = ""
+	})
 	lastSeenByChannel := map[string]int64{}
 	var lastSeenMutex sync.Mutex
 	listener := MattermostWebSocketForwarder{
@@ -986,6 +1107,10 @@ func (service Service) startMattermostForwarder(ctx context.Context) {
 			return service.enrichMattermostEvent(ctx, event), true, nil
 		},
 		AfterForward: func(_ context.Context, payload []byte) {
+			service.healthState().Update(func(state *platformHealthState) {
+				state.LastSuccessfulForwardAt = time.Now().UTC()
+				state.LastForwardError = ""
+			})
 			post, _, hasPost, errorValue := mattermostWebSocketPost(payload)
 			if errorValue != nil || !hasPost || strings.TrimSpace(post.ChannelID) == "" || post.CreateAt <= 0 {
 				return
@@ -996,10 +1121,21 @@ func (service Service) startMattermostForwarder(ctx context.Context) {
 			}
 			lastSeenMutex.Unlock()
 		},
+		AfterForwardError: func(errorValue error) {
+			service.healthState().Update(func(state *platformHealthState) {
+				state.LastForwardError = errorValue.Error()
+			})
+		},
 		PollFallback: func(ctx context.Context) {
+			service.healthState().Update(func(state *platformHealthState) {
+				state.MattermostFallbackActive = true
+			})
 			lastSeenMutex.Lock()
 			defer lastSeenMutex.Unlock()
 			if errorValue := service.pollMattermost(ctx, lastSeenByChannel); errorValue != nil {
+				service.healthState().Update(func(state *platformHealthState) {
+					state.LastForwardError = errorValue.Error()
+				})
 				log.Printf("mattermost fallback poll failed: %v", errorValue)
 			}
 		},
@@ -1086,9 +1222,6 @@ func (service Service) forwardMattermostChannelPosts(ctx context.Context, botUse
 		if strings.TrimSpace(post.ID) == "" || post.CreateAt <= since {
 			continue
 		}
-		if post.CreateAt > nextSeen {
-			nextSeen = post.CreateAt
-		}
 		isBotMentioned := messageMentionsMattermostBot(post.Message, botUsername)
 		event, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
 			ID:        post.ID,
@@ -1101,14 +1234,24 @@ func (service Service) forwardMattermostChannelPosts(ctx context.Context, botUse
 		}, botUserID, channelType, channelName, isBotMentioned)
 		if errorValue != nil {
 			log.Printf("mattermost post normalize failed: %s: %v", post.ID, errorValue)
+			if post.CreateAt > nextSeen {
+				nextSeen = post.CreateAt
+			}
 			continue
 		}
 		if !hasEvent {
+			if post.CreateAt > nextSeen {
+				nextSeen = post.CreateAt
+			}
 			continue
 		}
 		event = service.enrichMattermostEvent(ctx, event)
 		if errorValue := service.forwardMattermostEvent(ctx, event); errorValue != nil {
 			log.Printf("mattermost post forward failed: %s: %v", post.ID, errorValue)
+			continue
+		}
+		if post.CreateAt > nextSeen {
+			nextSeen = post.CreateAt
 		}
 	}
 	return nextSeen, nil
@@ -1123,7 +1266,16 @@ func messageMentionsMattermostBot(message string, botUsername string) bool {
 }
 
 func (service Service) forwardMattermostEvent(ctx context.Context, event platformInboundEvent) error {
-	return service.forwardPlatformEvent(ctx, "mattermost", event)
+	errorValue := service.forwardPlatformEvent(ctx, "mattermost", event)
+	service.healthState().Update(func(state *platformHealthState) {
+		if errorValue != nil {
+			state.LastForwardError = errorValue.Error()
+			return
+		}
+		state.LastSuccessfulForwardAt = time.Now().UTC()
+		state.LastForwardError = ""
+	})
+	return errorValue
 }
 
 func (service Service) forwardPlatformEvent(ctx context.Context, platform string, event platformInboundEvent) error {

@@ -44,7 +44,7 @@ const (
 	BlueclawGuestPolicyConfigPath         = "/workspace/.blueclaw/config/policy.json"
 	BlueclawGuestDatabaseSocketPath       = "/workspace/.blueclaw/postgres"
 	BlueclawGuestDatabaseConnectionString = "postgres://blueclaw@/blueclaw?host=/workspace/.blueclaw/postgres&sslmode=disable"
-	BlueclawHealthCheckPath               = "/admin/api/policy"
+	BlueclawHealthCheckPath               = "/admin/api/health"
 	BlueclawSubmodulePath                 = ".dependency/blueclaw"
 	BlueclawPolicyAdminID                 = "00000000-0000-0000-0000-000000000001"
 	BlueclawRuntimeLogLevel               = "debug"
@@ -165,6 +165,10 @@ func BlueclawHealthCheckURL() string {
 
 func BlueclawHealthCheckCommand() string {
 	return "curl -fsS " + BlueclawHealthCheckURL() + " >/dev/null && echo ok || echo no"
+}
+
+func CapabilitydHealthCheckCommand() string {
+	return "curl -fsS --unix-socket " + CapabilitySocketPath + " http://internkim/health | jq -e '.status == \"ok\"' >/dev/null && echo ok || echo no"
 }
 
 func BlueclawWorkspaceSkillPath(skillName string) string {
