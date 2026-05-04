@@ -294,12 +294,11 @@ prepare_kernel() {
   install -m 0644 "$kernel_cache_path" "$stage_directory/vmlinux.bin"
 }
 
-build_blueclaw_binaries() {
+build_blueclaw_base_binaries() {
   local binary_directory="$work_directory/bin"
   mkdir -p "$binary_directory"
   (
     cd "$repository_root/.dependency/blueclaw"
-    GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o "$binary_directory/blueclaw" ./cmd/blueclaw
     GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o "$binary_directory/blueclaw-supervisor" ./cmd/blueclaw-supervisor
     GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o "$binary_directory/blueclaw-guest-healthd" ./cmd/blueclaw-guest-healthd
     GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o "$binary_directory/blueclaw-vsock-http-proxy" ./cmd/blueclaw-vsock-http-proxy
@@ -468,7 +467,6 @@ prepare_rootfs_directory() {
     "$rootfs_directory/tmp" \
     "$rootfs_directory/workspace"
   run_root chmod 1777 "$rootfs_directory/tmp"
-  run_root install -m 0755 "$work_directory/bin/blueclaw" "$rootfs_directory/usr/local/bin/blueclaw"
   run_root install -m 0755 "$work_directory/bin/blueclaw-guest-healthd" "$rootfs_directory/usr/local/bin/blueclaw-guest-healthd"
   run_root install -m 0755 "$work_directory/bin/blueclaw-vsock-http-proxy" "$rootfs_directory/usr/local/bin/blueclaw-vsock-http-proxy"
   run_root install -m 0755 "$repository_root/assets/blueclaw-runtime/guest-init" "$rootfs_directory/sbin/init"
@@ -488,19 +486,61 @@ prepare_rootfs_image() {
 }
 
 write_manifest() {
-  local blueclaw_revision
   local guest_init_sha
   local prepare_script_sha
-  blueclaw_revision="$(git -C "$repository_root/.dependency/blueclaw" rev-parse HEAD)"
+  local base_source_sha
   guest_init_sha="$(sha256sum "$repository_root/assets/blueclaw-runtime/guest-init" | cut -d' ' -f1)"
   prepare_script_sha="$(sha256sum "$repository_root/tools/prepare-blueclaw-runtime" | cut -d' ' -f1)"
-  python3 - "$stage_directory" "$artifact_directory/manifest.json" "$firecracker_version" "$blueclaw_revision" "$guest_init_sha" "$prepare_script_sha" <<'PY'
+  base_source_sha="$(python3 - "$repository_root/.dependency/blueclaw" <<'PY'
+import hashlib
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+paths = [
+    "go.mod",
+    "go.sum",
+    "cmd/blueclaw-guest-healthd",
+    "cmd/blueclaw-vsock-http-proxy",
+    "tools/graphiti_memoryd",
+]
+
+def file_sha256(path):
+    hash_value = hashlib.sha256()
+    with path.open("rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            hash_value.update(chunk)
+    return hash_value.hexdigest()
+
+def directory_sha256(path):
+    hash_value = hashlib.sha256()
+    for file_path in sorted(item for item in path.rglob("*") if item.is_file()):
+        relative_path = file_path.relative_to(path).as_posix()
+        hash_value.update(relative_path.encode())
+        hash_value.update(b"\n")
+        with file_path.open("rb") as file:
+            for chunk in iter(lambda: file.read(1024 * 1024), b""):
+                hash_value.update(chunk)
+        hash_value.update(b"\n")
+    return hash_value.hexdigest()
+
+hash_value = hashlib.sha256()
+for relative_path in paths:
+    path = root / relative_path
+    hash_value.update(relative_path.encode())
+    hash_value.update(b"\n")
+    hash_value.update((directory_sha256(path) if path.is_dir() else file_sha256(path)).encode())
+    hash_value.update(b"\n")
+print(hash_value.hexdigest())
+PY
+)"
+  python3 - "$stage_directory" "$artifact_directory/manifest.json" "$firecracker_version" "$guest_init_sha" "$prepare_script_sha" "$base_source_sha" <<'PY'
 import hashlib
 import json
 import os
 import sys
 
-stage_directory, manifest_path, version, blueclaw_revision, guest_init_sha256, prepare_script_sha256 = sys.argv[1:7]
+stage_directory, manifest_path, version, guest_init_sha256, prepare_script_sha256, base_source_sha256 = sys.argv[1:7]
 files = []
 for name, mode in [
     ("firecracker", "0755"),
@@ -521,9 +561,9 @@ manifest = {
     "runtimeName": "internkim-blueclaw-runtime",
     "platform": "linux-arm64",
     "version": version,
-    "blueclawRevision": blueclaw_revision,
     "guestInitSHA256": guest_init_sha256,
     "prepareScriptSHA256": prepare_script_sha256,
+    "baseSourceSHA256": base_source_sha256,
     "files": files,
 }
 document = json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
@@ -542,7 +582,7 @@ publish_artifacts() {
 
 prepare_firecracker
 prepare_kernel
-build_blueclaw_binaries
+build_blueclaw_base_binaries
 prepare_rootfs_directory
 prepare_rootfs_image
 write_manifest

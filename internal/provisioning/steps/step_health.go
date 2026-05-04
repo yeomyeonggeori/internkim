@@ -452,6 +452,7 @@ required = [
     "/usr/local/bin/firecracker",
     "/usr/local/bin/jailer",
     "/opt/internkim/blueclaw-runtime/manifest.json",
+    "/opt/internkim/blueclaw-runtime/payload-manifest.json",
     "/opt/internkim/blueclaw-runtime/vmlinux.bin",
     "/opt/internkim/blueclaw-runtime/rootfs.ext4",
     "/var/lib/blueclaw/workspace.ext4",
@@ -469,7 +470,7 @@ PY`))
 		}
 	}
 	if check == "ok" {
-		check = strings.TrimSpace(context.SSH.Run(blueclawRootfsBinaryContractCheckCommand()))
+		check = strings.TrimSpace(context.SSH.Run(blueclawRootfsBaseContractCheckCommand()))
 	}
 	if check == "ok" {
 		fmt.Println("  blueclaw firecracker runtime: ok")
