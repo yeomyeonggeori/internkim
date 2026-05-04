@@ -873,6 +873,11 @@ func (state *setupFlowState) installBlueclawRuntimeSSH(context *setup.Context) e
 		strings.TrimSpace(state.sshClient.run(setup.BlueclawRootfsBaseContractCheckCommand())) == "ok",
 		manifestDocument == remoteManifestDocument,
 	)
+	printBlueclawRuntimeInstallPlan(installPlan)
+	if blueclawRuntimeInstallPlanIsCurrent(installPlan) {
+		fmt.Println("already current")
+		return nil
+	}
 	state.sshClient.run("rm -rf /tmp/internkim-blueclaw-runtime && mkdir -p /tmp/internkim-blueclaw-runtime/runtime " + blueclaw.BlueclawRuntimeInstallPath + " /var/lib/blueclaw /var/log/blueclaw-supervisor")
 	for _, artifact := range installPlan.artifacts {
 		if !artifact.shouldInstall {
@@ -884,6 +889,7 @@ func (state *setupFlowState) installBlueclawRuntimeSSH(context *setup.Context) e
 			return errorValue
 		}
 		temporaryRemotePath := "/tmp/internkim-blueclaw-runtime/runtime/" + artifact.name
+		printBlueclawRuntimeArtifactInstalling(artifact)
 		if errorValue := state.transferBlueclawRuntimeArtifact(localArtifactPath, temporaryRemotePath, artifact.name); errorValue != nil {
 			fmt.Println("failed")
 			return errorValue
