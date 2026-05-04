@@ -283,6 +283,9 @@ curl --silent --show-error --fail http://127.0.0.1:18080/admin/_app/version.json
 echo "checking mattermost ping"
 curl --silent --show-error --fail http://localhost:8065/api/v4/system/ping | jq -e '.status == "OK"' >/dev/null
 
+echo "checking capabilityd health"
+curl --silent --show-error --fail --unix-socket /run/internkim/capability.sock http://internkim/health | jq -e '.status == "ok"' >/dev/null
+
 echo "checking admin login"
 admin_password="$(cat /root/.internkim/secrets/mm-admin-pass)"
 login_headers="$(mktemp)"
@@ -343,7 +346,7 @@ echo "checking secret isolation"
 ! su -s /bin/sh blueclaw -c 'test -r /root/.internkim/secrets/openrouter-api-key || test -r /root/.internkim/secrets/mattermost-bot-token || test -r /root/.internkim/secrets/slack-bot-token || test -r /root/.internkim/secrets/slack-app-token || test -r /root/.internkim/secrets/device-secret || test -r /root/.internkim/config/signal-jsonrpc-url || test -r /root/.internkim/config/signal-account || test -r /root/.internkim/models/gemma-4-E4B-it.litertlm' 2>/dev/null
 
 echo "checking blueclaw health"
-curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/policy >/dev/null
+curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/health | jq -e '.status == "ok"' >/dev/null
 
 echo "checking blueclaw backup manifest"
 manifest_path="$(mktemp)"
