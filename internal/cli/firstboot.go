@@ -221,14 +221,16 @@ for binaryPath in "$STAGE"/bin/*; do
   chmod 755 "/usr/local/bin/$(basename "$binaryPath")"
 done
 
-mkdir -p /root/.internkim/secrets /root/.internkim/env
+mkdir -p /root/.internkim/secrets /root/.internkim/env /root/.internkim/config
 for secretPath in "$STAGE"/secrets/*; do
   [ -f "$secretPath" ] || continue
   cp -f "$secretPath" /root/.internkim/secrets/
   chmod 600 "/root/.internkim/secrets/$(basename "$secretPath")"
 done
 if [ -f "$STAGE/admin-email" ]; then
-  cp -f "$STAGE/admin-email" /root/.internkim/admin-email
+  cp -f "$STAGE/admin-email" /root/.internkim/config/admin-email
+  chown root:root /root/.internkim/config/admin-email
+  chmod 600 /root/.internkim/config/admin-email
 fi
 if [ -f "$STAGE/device-url" ]; then
   cp -f "$STAGE/device-url" /root/.internkim/env/device-url
@@ -269,9 +271,9 @@ if [ -f "$STAGE/config/policy.json" ]; then
   cp -f "$STAGE/config/policy.json" /root/.blueclaw/config/policy.json
 fi
 if [ -d "$STAGE/blueclaw-migrations" ]; then
-  rm -rf /root/.blueclaw/migrations
-  mkdir -p /root/.blueclaw/migrations
-  cp -af "$STAGE/blueclaw-migrations/." /root/.blueclaw/migrations/
+  rm -rf /root/.blueclaw/workspace/.blueclaw/migrations
+  mkdir -p /root/.blueclaw/workspace/.blueclaw/migrations
+  cp -af "$STAGE/blueclaw-migrations/." /root/.blueclaw/workspace/.blueclaw/migrations/
 fi
 if [ -d "$STAGE/graphiti_memoryd" ]; then
   rm -rf /opt/internkim/graphiti_memoryd
@@ -360,9 +362,9 @@ chown root:blueclaw /root/.blueclaw/config 2>/dev/null || true
 chmod 770 /root/.blueclaw/config 2>/dev/null || true
 chown root:blueclaw /root/.blueclaw/config/runtime.json /root/.blueclaw/config/policy.json 2>/dev/null || true
 chmod 640 /root/.blueclaw/config/runtime.json /root/.blueclaw/config/policy.json 2>/dev/null || true
-chown -R root:blueclaw /root/.blueclaw/migrations 2>/dev/null || true
-chmod -R u=rwX,g=rX,o= /root/.blueclaw/migrations 2>/dev/null || true
-chmod 750 /root/.blueclaw/migrations 2>/dev/null || true
+chown -R root:blueclaw /root/.blueclaw/workspace/.blueclaw/migrations 2>/dev/null || true
+chmod -R u=rwX,g=rX,o= /root/.blueclaw/workspace/.blueclaw/migrations 2>/dev/null || true
+chmod 750 /root/.blueclaw/workspace/.blueclaw/migrations 2>/dev/null || true
 
 mkdir -p /etc/sudoers.d
 rm -f /usr/local/bin/gws-* /etc/sudoers.d/blueclaw-gws /etc/sudoers.d/blueclaw-mcp`)

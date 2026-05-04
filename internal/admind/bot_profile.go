@@ -90,20 +90,19 @@ func (service *Service) loadBotProfile() (botProfile, bool) {
 			return normalizeBotProfile(profile), true
 		}
 	}
-	legacyPath := legacyBotProfilePath(service.Configuration.BotProfilePath)
-	if legacyPath == "" {
-		return botProfile{}, false
+	for _, legacyPath := range legacyBotProfilePaths(service.Configuration.BotProfilePath) {
+		legacyDocument, legacyError := os.ReadFile(legacyPath)
+		if legacyError != nil {
+			continue
+		}
+		legacyProfile, parseError := parseBotProfileDocument(legacyDocument)
+		if parseError != nil {
+			continue
+		}
+		_ = service.saveBotProfile(legacyProfile)
+		return normalizeBotProfile(legacyProfile), true
 	}
-	legacyDocument, legacyError := os.ReadFile(legacyPath)
-	if legacyError != nil {
-		return botProfile{}, false
-	}
-	var legacyProfile botProfile
-	if json.Unmarshal(legacyDocument, &legacyProfile) != nil {
-		return botProfile{}, false
-	}
-	_ = service.saveBotProfile(legacyProfile)
-	return normalizeBotProfile(legacyProfile), true
+	return botProfile{}, false
 }
 
 func (service *Service) seedBotProfileFromMattermost(ctx context.Context) botProfile {
@@ -253,14 +252,32 @@ func parseBotProfileDocument(document []byte) (botProfile, error) {
 	return parseBotProfileYAML(string(document))
 }
 
-func legacyBotProfilePath(path string) string {
+func legacyBotProfilePaths(path string) []string {
+	paths := []string{}
 	if strings.HasSuffix(path, ".yaml") {
-		return strings.TrimSuffix(path, ".yaml") + ".json"
+		paths = append(paths, strings.TrimSuffix(path, ".yaml")+".json")
 	}
 	if strings.HasSuffix(path, ".yml") {
-		return strings.TrimSuffix(path, ".yml") + ".json"
+		paths = append(paths, strings.TrimSuffix(path, ".yml")+".json")
 	}
-	return ""
+	if filepath.Base(filepath.Dir(path)) == "config" && filepath.Base(path) == "bot-profile.yaml" {
+		rootPath := filepath.Dir(filepath.Dir(path))
+		paths = append(paths, filepath.Join(rootPath, "state", "bot-profile.yaml"), filepath.Join(rootPath, "state", "bot-profile.json"))
+	}
+	return uniqueStrings(paths)
+}
+
+func uniqueStrings(values []string) []string {
+	seen := map[string]bool{}
+	uniqueValues := []string{}
+	for _, value := range values {
+		if seen[value] {
+			continue
+		}
+		seen[value] = true
+		uniqueValues = append(uniqueValues, value)
+	}
+	return uniqueValues
 }
 
 func renderBotProfileYAML(profile botProfile) string {

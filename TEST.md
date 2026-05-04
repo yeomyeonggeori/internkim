@@ -12,7 +12,7 @@
   - Cloudflare 관련 환경변수
   - Google 설정에 필요한 계정/자격증명
 
-기본 설정은 [config/lab.example.json](/Users/lee/Developer/work/internkim/config/lab.example.json)에 있습니다.
+기본 설정은 [lab/config.example.json](/Users/lee/Developer/work/internkim/lab/config.example.json)에 있습니다.
 
 ## 기본 흐름
 

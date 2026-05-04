@@ -53,6 +53,60 @@ func TestGatewayRoutesAdminAndMattermost(t *testing.T) {
 	}
 }
 
+func TestDefaultConfigurationUsesCanonicalHostPaths(t *testing.T) {
+	configuration := DefaultConfiguration()
+
+	if configuration.StateDirectory != "/root/.internkim/state/admin" {
+		t.Fatalf("state directory = %q", configuration.StateDirectory)
+	}
+	if configuration.AdminEmailPath != "/root/.internkim/config/admin-email" {
+		t.Fatalf("admin email path = %q", configuration.AdminEmailPath)
+	}
+	if configuration.ClaimedAdminEmailPath != "/root/.internkim/state/admin/claimed-admin-email" {
+		t.Fatalf("claimed admin email path = %q", configuration.ClaimedAdminEmailPath)
+	}
+	if configuration.BotProfilePath != "/root/.internkim/config/bot-profile.yaml" {
+		t.Fatalf("bot profile path = %q", configuration.BotProfilePath)
+	}
+}
+
+func TestAdminIdentityReadsLegacyTopLevelFallbacks(t *testing.T) {
+	rootPath := t.TempDir()
+	configuration := Configuration{
+		AdminEmailPath:        filepath.Join(rootPath, "config", "admin-email"),
+		ClaimedAdminEmailPath: filepath.Join(rootPath, "state", "admin", "claimed-admin-email"),
+	}
+	writeFile(t, filepath.Join(rootPath, "admin-email"), "Seed@Example.COM")
+	writeFile(t, filepath.Join(rootPath, "claimed-admin-email"), "Claimed@Example.COM")
+	service := NewService(configuration)
+
+	if service.seedAdminEmail() != "seed@example.com" {
+		t.Fatalf("seed admin email = %q", service.seedAdminEmail())
+	}
+	if service.claimedAdminEmail() != "claimed@example.com" {
+		t.Fatalf("claimed admin email = %q", service.claimedAdminEmail())
+	}
+}
+
+func TestBackupIncludedPathsUseCanonicalConfigurationAndStateDirectories(t *testing.T) {
+	paths := strings.Join(backupIncludedPaths(), "\n")
+
+	for _, fragment := range []string{
+		"/root/.internkim/config",
+		"/root/.internkim/state",
+		"/root/.internkim/secrets",
+		"/root/.blueclaw/config",
+		"/root/.blueclaw/workspace",
+	} {
+		if !strings.Contains(paths, fragment) {
+			t.Fatalf("expected backup paths to include %q", fragment)
+		}
+	}
+	if strings.Contains(paths, "/root/.internkim/admin-email") {
+		t.Fatalf("backup paths should not include legacy admin email file: %s", paths)
+	}
+}
+
 func TestGatewayRedirectsAdminPage(t *testing.T) {
 	adminUIPath := t.TempDir()
 	if errorValue := os.WriteFile(filepath.Join(adminUIPath, "index.html"), []byte("admin ui"), 0o600); errorValue != nil {
@@ -1249,6 +1303,42 @@ func TestBotProfileMigratesLegacyJSONStateToYAML(t *testing.T) {
 	}
 	if !strings.Contains(string(document), `displayName: "김비서"`) {
 		t.Fatalf("expected yaml profile, got %s", string(document))
+	}
+}
+
+func TestBotProfileMigratesLegacyStateProfileToCanonicalConfiguration(t *testing.T) {
+	rootPath := t.TempDir()
+	profilePath := filepath.Join(rootPath, "config", "bot-profile.yaml")
+	legacyPath := filepath.Join(rootPath, "state", "bot-profile.yaml")
+	if errorValue := os.MkdirAll(filepath.Dir(legacyPath), 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeFile(t, legacyPath, `displayName: "김비서"
+englishDisplayName: "Kim Secretary"
+aliases:
+  - "비서"
+identityExtension: "Be crisp."
+`)
+	service := NewService(Configuration{
+		BotProfilePath:        profilePath,
+		BlueclawWorkspacePath: t.TempDir(),
+		AdminEmailPath:        writeTestFile(t, "admin@example.com"),
+	})
+
+	profile, found := service.loadBotProfile()
+
+	if !found {
+		t.Fatal("expected legacy state bot profile to load")
+	}
+	if profile.DisplayName != "김비서" {
+		t.Fatalf("display name = %q", profile.DisplayName)
+	}
+	document, errorValue := os.ReadFile(profilePath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !strings.Contains(string(document), `displayName: "김비서"`) {
+		t.Fatalf("expected canonical yaml profile, got %s", string(document))
 	}
 }
 

@@ -116,5 +116,5 @@ func applyDefaultConfiguration(configuration Configuration) Configuration {
 }
 
 func DefaultConfigurationPath(repositoryRootPath string) string {
-	return filepath.Join(repositoryRootPath, "config", "lab.example.json")
+	return filepath.Join(repositoryRootPath, "lab", "config.example.json")
 }

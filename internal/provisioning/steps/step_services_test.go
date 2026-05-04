@@ -46,6 +46,17 @@ func TestBlueclawRootfsBaseContractCheckCatchesStaleBaseRuntime(t *testing.T) {
 	}
 }
 
+func TestFirstAdminHealthCheckUsesCanonicalStatePath(t *testing.T) {
+	context := &Context{SSH: stringMatchingBoardConnection{}}
+	failedChecks := []string{}
+
+	checkFirstAdminBootstrap(context, &failedChecks)
+
+	if len(failedChecks) != 0 {
+		t.Fatalf("expected canonical bootstrap path check to pass, got %+v", failedChecks)
+	}
+}
+
 func TestServicesRunReturnsErrorWhenBlueclawHealthFails(t *testing.T) {
 	previousAttempts := blueclawServiceHealthAttempts
 	previousRetryDelay := blueclawServiceHealthRetryDelay
@@ -73,6 +84,19 @@ func TestServicesRunReturnsErrorWhenBlueclawHealthFails(t *testing.T) {
 }
 
 type serviceHealthFailureBoardConnection struct{}
+
+type stringMatchingBoardConnection struct{}
+
+func (connection stringMatchingBoardConnection) Run(command string) string {
+	if strings.Contains(command, "/root/.internkim/state/admin/first-admin-bootstrap.json") {
+		return "ok"
+	}
+	return ""
+}
+
+func (connection stringMatchingBoardConnection) SCP(localPath, remotePath string) error {
+	return nil
+}
 
 func (connection serviceHealthFailureBoardConnection) Run(command string) string {
 	switch {
