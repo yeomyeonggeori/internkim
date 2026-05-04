@@ -175,18 +175,18 @@ func DefaultConfiguration() Configuration {
 		MattermostBaseURL:           "http://127.0.0.1:8065",
 		APIBaseURL:                  "https://api.intern.kim",
 		BlueclawBaseURL:             "http://127.0.0.1:8080",
-		StateDirectory:              "/root/.internkim/admin",
+		StateDirectory:              "/root/.internkim/state/admin",
 		CompanionJobPath:            "/root/.internkim/state/companion-jobs.json",
 		FlowDatabasePath:            "/root/.internkim/state/flow.sqlite",
 		MattermostAdminPasswordPath: "/root/.internkim/secrets/mm-admin-pass",
-		AdminEmailPath:              "/root/.internkim/admin-email",
-		ClaimedAdminEmailPath:       "/root/.internkim/claimed-admin-email",
+		AdminEmailPath:              "/root/.internkim/config/admin-email",
+		ClaimedAdminEmailPath:       "/root/.internkim/state/admin/claimed-admin-email",
 		DeviceIDPath:                "/root/.internkim/env/device-id",
 		DeviceSecretPath:            "/root/.internkim/secrets/device-secret",
 		AdminUIPath:                 "/opt/internkim/admin-ui",
 		RepositoryRoot:              "/",
 		CompanionFileDirectory:      "/tmp/internkim-companion-files",
-		BotProfilePath:              "/root/.internkim/state/bot-profile.yaml",
+		BotProfilePath:              "/root/.internkim/config/bot-profile.yaml",
 		BlueclawWorkspacePath:       "/root/.blueclaw/workspace",
 	}
 }
@@ -358,7 +358,7 @@ func (service *Service) writeCompanionReleases(responseWriter http.ResponseWrite
 func (service *Service) writeAdminSession(responseWriter http.ResponseWriter, request *http.Request) {
 	callerEmail := authenticatedCallerEmail(request)
 	bootstrapResult := service.ensureFirstAdminClaim(request.Context(), callerEmail)
-	claimedAdminEmail := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.ClaimedAdminEmailPath)))
+	claimedAdminEmail := service.claimedAdminEmail()
 	isClaimedAdmin := callerEmail != "" && strings.EqualFold(callerEmail, claimedAdminEmail)
 	response := adminSessionResponse{
 		Email:             callerEmail,
@@ -952,7 +952,7 @@ func (service *Service) applyRestore(ctx context.Context, extractDirectory strin
 			}
 		}
 	}
-	for _, relativePath := range []string{"root/.internkim/admin-email"} {
+	for _, relativePath := range []string{"root/.internkim/admin-email", "root/.internkim/claimed-admin-email"} {
 		sourcePath := filepath.Join(extractDirectory, relativePath)
 		if _, errorValue := os.Stat(sourcePath); errorValue == nil {
 			if errorValue := copyRegularFile(sourcePath, "/"+relativePath); errorValue != nil {
@@ -1121,7 +1121,7 @@ func (service *Service) isAuthorized(request *http.Request) bool {
 	if service.hasDeviceAuth() {
 		return service.isCurrentAdminEmail(request.Context(), callerEmail) || service.isClaimedAdminEmail(callerEmail)
 	}
-	adminEmail := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.AdminEmailPath)))
+	adminEmail := service.seedAdminEmail()
 	if adminEmail == "" {
 		return false
 	}
@@ -1148,7 +1148,13 @@ func (service *Service) isClaimedAdminEmail(email string) bool {
 }
 
 func (service *Service) claimedAdminEmail() string {
-	return strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.ClaimedAdminEmailPath)))
+	paths := append([]string{service.Configuration.ClaimedAdminEmailPath}, legacyClaimedAdminEmailPaths(service.Configuration.ClaimedAdminEmailPath)...)
+	return readLowerTrimmedFirstExistingFile(paths...)
+}
+
+func (service *Service) seedAdminEmail() string {
+	paths := append([]string{service.Configuration.AdminEmailPath}, legacyAdminEmailPaths(service.Configuration.AdminEmailPath)...)
+	return readLowerTrimmedFirstExistingFile(paths...)
 }
 
 func (service *Service) ensureFirstAdminClaim(ctx context.Context, callerEmail string) firstAdminBootstrapResult {
@@ -1625,6 +1631,34 @@ func (service *Service) writeJSON(responseWriter http.ResponseWriter, value any)
 	_ = json.NewEncoder(responseWriter).Encode(value)
 }
 
+func readLowerTrimmedFirstExistingFile(paths ...string) string {
+	for _, path := range paths {
+		value := strings.ToLower(strings.TrimSpace(readTrimmedFile(path)))
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func legacyAdminEmailPaths(path string) []string {
+	if filepath.Base(filepath.Dir(path)) != "config" || filepath.Base(path) != "admin-email" {
+		return nil
+	}
+	return []string{filepath.Join(filepath.Dir(filepath.Dir(path)), "admin-email")}
+}
+
+func legacyClaimedAdminEmailPaths(path string) []string {
+	if filepath.Base(filepath.Dir(path)) != "admin" || filepath.Base(path) != "claimed-admin-email" {
+		return nil
+	}
+	statePath := filepath.Dir(filepath.Dir(path))
+	if filepath.Base(statePath) != "state" {
+		return nil
+	}
+	return []string{filepath.Join(filepath.Dir(statePath), "claimed-admin-email")}
+}
+
 func (configuration Configuration) withDefaults() Configuration {
 	defaultConfiguration := DefaultConfiguration()
 	if configuration.ListenAddress == "" {
@@ -1699,7 +1733,6 @@ func backupIncludedPaths() []string {
 		"/root/.internkim/config",
 		"/root/.internkim/secrets",
 		"/root/.internkim/state",
-		"/root/.internkim/admin-email",
 		"/root/.blueclaw/config",
 		"/root/.blueclaw/workspace",
 		"/var/lib/blueclaw/workspace.ext4",

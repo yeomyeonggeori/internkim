@@ -316,7 +316,7 @@ internkim/
 │   ├── skill-orchestration-design.md
 │   ├── flows/              사용자 플로우 문서
 │   └── schema/             task/staff schema 문서
-├── config/lab.example.json  Tart lab 설정 예시
+├── lab/config.example.json   Tart lab 설정 예시
 ├── lab/scripts/             VM provisioning / 시나리오 스크립트
 ├── tools/                   개발/준비용 helper script
 ├── build/                   기기 바이너리와 정적 웹 출력 [gitignored]

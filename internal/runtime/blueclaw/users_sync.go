@@ -49,7 +49,7 @@ curl -fsS \
 
 revision="$(jq -r '.revision // empty' "$response_path")"
 last_revision="$(jq -r '.revision // empty' "$STATE_PATH" 2>/dev/null || true)"
-admin_email="$(cat /root/.internkim/admin-email 2>/dev/null || true)"
+admin_email="$(cat /root/.internkim/config/admin-email 2>/dev/null || cat /root/.internkim/admin-email 2>/dev/null || true)"
 jq -r 'if (.records | type) == "array" then .records[]? | [.email, (.name // "")] | @tsv else .users[]? | [., ""] | @tsv end' "$response_path" | awk 'NF' | sort -u > "$desired_records_path"
 cut -f1 "$desired_records_path" | awk 'NF {print tolower($0)}' | sort -u > "$desired_path"
 jq -r '.users[]?' "$STATE_PATH" 2>/dev/null | awk 'NF {print tolower($0)}' | sort -u > "$previous_path" || true

@@ -179,7 +179,7 @@ func runLocalBrowserVerification(target verifyTarget) error {
 	}()
 	time.Sleep(1500 * time.Millisecond)
 
-	adminEmail := strings.TrimSpace(target.sshClient.run("cat /root/.internkim/admin-email 2>/dev/null"))
+	adminEmail := strings.TrimSpace(target.sshClient.run("cat /root/.internkim/config/admin-email 2>/dev/null || cat /root/.internkim/admin-email 2>/dev/null"))
 	adminPassword := strings.TrimSpace(target.sshClient.run("cat /root/.internkim/secrets/mm-admin-pass 2>/dev/null"))
 	return runPlaywright("tests/e2e/mattermost.spec.ts", map[string]string{
 		"INTERNKIM_MATTERMOST_URL": fmt.Sprintf("http://127.0.0.1:%d", port),

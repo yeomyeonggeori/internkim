@@ -63,7 +63,7 @@ func checkFirstAdminBootstrap(context *Context, failedChecks *[]string) {
 import json
 from pathlib import Path
 
-path = Path("/root/.internkim/admin/first-admin-bootstrap.json")
+path = Path("/root/.internkim/state/admin/first-admin-bootstrap.json")
 if not path.exists():
     print("pending")
     raise SystemExit

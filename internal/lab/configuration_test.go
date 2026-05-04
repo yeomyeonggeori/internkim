@@ -54,3 +54,11 @@ func TestLoadConfigurationAppliesDefaults(t *testing.T) {
 		t.Fatalf("expected default firecracker binary, got %q", configuration.Firecracker.BinaryPath)
 	}
 }
+
+func TestDefaultConfigurationPathUsesLabDirectory(t *testing.T) {
+	path := DefaultConfigurationPath("/repo")
+
+	if path != "/repo/lab/config.example.json" {
+		t.Fatalf("default configuration path = %q", path)
+	}
+}
