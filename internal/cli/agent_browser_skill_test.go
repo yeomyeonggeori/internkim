@@ -113,3 +113,24 @@ func TestFirstbootInstallsAgentBrowserSkill(t *testing.T) {
 		}
 	}
 }
+
+func TestFirstbootUsesCanonicalConfigurationPaths(t *testing.T) {
+	script := renderFirstbootStagingSection()
+
+	for _, fragment := range []string{
+		"/root/.internkim/config/admin-email",
+		"/root/.blueclaw/workspace/.blueclaw/migrations",
+	} {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected firstboot staged files section to include %q", fragment)
+		}
+	}
+	for _, forbiddenFragment := range []string{
+		"/root/.internkim/admin-email",
+		"/root/.blueclaw/migrations",
+	} {
+		if strings.Contains(script, forbiddenFragment) {
+			t.Fatalf("firstboot staged files section must not include %q", forbiddenFragment)
+		}
+	}
+}

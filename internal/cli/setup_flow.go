@@ -1589,15 +1589,16 @@ func (state *setupFlowState) provisionTunnelSSH(context *setup.Context) error {
 
 	state.writeDeviceAuthFilesSSH()
 
-	state.sshClient.run(fmt.Sprintf(`mkdir -p /root/.internkim/secrets /root/.internkim/env
+	state.sshClient.run(fmt.Sprintf(`mkdir -p /root/.internkim/secrets /root/.internkim/env /root/.internkim/config
 printf '%%s' %s > /root/.internkim/secrets/tunnel-token
 chmod 600 /root/.internkim/secrets/tunnel-token
 printf '%%s' %s > /root/.internkim/env/device-url
 printf '%%s' %s > /root/.internkim/env/mattermost-url
 printf '%%s' %s > /root/.internkim/env/tunnel-origin
 printf '%%s' %s > /root/.internkim/env/tunnel-revision
-printf '%%s' %s > /root/.internkim/admin-email
-chmod 644 /root/.internkim/admin-email
+printf '%%s' %s > /root/.internkim/config/admin-email
+chown root:root /root/.internkim/config/admin-email
+chmod 600 /root/.internkim/config/admin-email
 chown root:blueclaw /root/.internkim/env/device-url /root/.internkim/env/mattermost-url /root/.internkim/env/tunnel-origin /root/.internkim/env/tunnel-revision
 chmod 640 /root/.internkim/env/device-url /root/.internkim/env/mattermost-url /root/.internkim/env/tunnel-origin /root/.internkim/env/tunnel-revision`,
 		quoteShellValue(state.tunnelToken),
