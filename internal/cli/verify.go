@@ -12,7 +12,6 @@ import (
 	"time"
 
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
-	internkimlab "gitlab.com/eastriver/internkim/internal/lab"
 )
 
 type verifyTarget struct {
@@ -73,8 +72,9 @@ func runVerifyBrowser(arguments []string) error {
 	localMode := flagSet.Bool("local", false, "Run local Mattermost browser smoke test")
 	publicMode := flagSet.Bool("public", false, "Run public URL browser smoke test")
 	host := flagSet.String("host", "", "Board host")
-	user := flagSet.String("user", boardUser, "SSH user")
+	user := flagSet.String("user", "", "SSH user")
 	password := flagSet.String("password", "", "SSH password")
+	board := flagSet.String("board", "", "Board target")
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
@@ -82,7 +82,19 @@ func runVerifyBrowser(arguments []string) error {
 		*localMode = true
 	}
 
-	targetArguments := []string{"--host", *host, "--user", *user, "--password", *password}
+	targetArguments := []string{}
+	if strings.TrimSpace(*host) != "" {
+		targetArguments = append(targetArguments, "--host", *host)
+	}
+	if strings.TrimSpace(*user) != "" {
+		targetArguments = append(targetArguments, "--user", *user)
+	}
+	if strings.TrimSpace(*password) != "" {
+		targetArguments = append(targetArguments, "--password", *password)
+	}
+	if strings.TrimSpace(*board) != "" {
+		targetArguments = append(targetArguments, "--board", *board)
+	}
 	verifyTarget, errorValue := resolveVerifyTarget(targetArguments)
 	if errorValue != nil {
 		return errorValue
@@ -108,40 +120,41 @@ func resolveVerifyTarget(arguments []string) (verifyTarget, error) {
 
 	flagSet := flag.NewFlagSet("verify", flag.ContinueOnError)
 	host := flagSet.String("host", "", "Board host")
-	user := flagSet.String("user", boardUser, "SSH user")
+	user := flagSet.String("user", "", "SSH user")
 	password := flagSet.String("password", "", "SSH password")
+	flagSet.String("board", "", "Board target")
+	flagSet.Bool("sim", false, "Use simulation target")
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
 		return verifyTarget{}, errorValue
 	}
 
-	stateDir := internkimHomeDir()
 	sshpassBin := filepath.Join(repositoryRootPath, "bin", "sshpass")
-	if strings.TrimSpace(*host) == "" {
-		labHost := resolveLabVirtualMachineIPAddress()
-		if labHost != "" {
-			configurationPath := internkimlab.DefaultConfigurationPath(repositoryRootPath)
-			configuration, loadError := internkimlab.LoadConfiguration(configurationPath)
-			if loadError == nil {
-				*host = labHost
-				*user = configuration.VirtualMachine.SSHUsername
-				*password = configuration.VirtualMachine.SSHPassword
-			}
+	target := resolveCommandTarget(arguments)
+	if strings.TrimSpace(*host) != "" {
+		target.host = strings.TrimSpace(*host)
+		if strings.TrimSpace(*user) != "" {
+			target.sshUser = strings.TrimSpace(*user)
+		}
+		if *password != "" {
+			target.sshPassword = *password
 		}
 	}
-	if strings.TrimSpace(*host) == "" {
-		*host = findBoardIP(sshpassBin, stateDir)
+	target = resolveLabHostForCommandTarget(target, repositoryRootPath)
+	if strings.TrimSpace(target.host) == "" && target.mode != commandTargetModeSimulation {
+		target.host = findBoardIPForCredentials(sshpassBin, target.stateDir, target.sshUser, target.sshPassword)
 	}
-	if strings.TrimSpace(*host) == "" {
+	if strings.TrimSpace(target.host) == "" {
 		return verifyTarget{}, errors.New("verify target not found; pass --host <ip>")
 	}
 
-	sshClient := newSSH(sshpassBin, *user, *password, *host)
+	printCommandTargetEvidence(target)
+	sshClient := newSSH(sshpassBin, target.sshUser, target.sshPassword, target.host)
 	return verifyTarget{
-		host:       *host,
-		user:       *user,
-		password:   *password,
+		host:       target.host,
+		user:       target.sshUser,
+		password:   target.sshPassword,
 		scriptDir:  repositoryRootPath,
-		stateDir:   stateDir,
+		stateDir:   target.stateDir,
 		sshpassBin: sshpassBin,
 		sshClient:  sshClient,
 	}, nil

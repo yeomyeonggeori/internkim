@@ -182,6 +182,7 @@ func TestSetupStateDirSeparatesJetsonAndLabIdentity(t *testing.T) {
 	baseStateDir := t.TempDir()
 	saveState(baseStateDir, "device_id", "shared-device")
 	saveState(baseStateDir, "board_ip", "192.168.0.248")
+	saveState(baseStateDir, "subnet", "192.168.0")
 
 	jetsonStateDir := setupStateDir(baseStateDir, setup.BoardJetsonOrinNano)
 	labStateDir := setupStateDir(baseStateDir, "lab")
@@ -195,8 +196,14 @@ func TestSetupStateDirSeparatesJetsonAndLabIdentity(t *testing.T) {
 	if loadState(labStateDir, "device_id") != "" {
 		t.Fatalf("expected lab state not to inherit shared device_id")
 	}
-	if loadState(jetsonStateDir, "board_ip") != "192.168.0.248" {
-		t.Fatalf("expected Jetson state to inherit board discovery hint")
+	if loadState(jetsonStateDir, "board_ip") != "" {
+		t.Fatalf("expected Jetson state not to inherit shared board_ip")
+	}
+	if loadState(labStateDir, "board_ip") != "" {
+		t.Fatalf("expected lab state not to inherit shared board_ip")
+	}
+	if loadState(jetsonStateDir, "subnet") != "192.168.0" {
+		t.Fatalf("expected Jetson state to inherit network subnet hint")
 	}
 }
 

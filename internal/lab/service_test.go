@@ -377,6 +377,24 @@ func TestSetupPassesSelectorArgumentsWithoutDefaultForce(t *testing.T) {
 	}
 }
 
+func TestSetupSimulationUsesSimulationTargetState(t *testing.T) {
+	commandRunner := &fakeCommandRunner{
+		outputValue:  "10.0.0.5\n",
+		outputValues: []string{"internkim-lab\n", `[{"Name":"internkim-lab","Running":true}]`},
+	}
+	service := NewService(buildTestConfiguration(), commandRunner, "/repo")
+
+	errorValue := service.SetupSimulation(context.Background(), "/repo/internkim", []string{"--only", "services"})
+	if errorValue != nil {
+		t.Fatalf("expected simulation setup to succeed: %v", errorValue)
+	}
+
+	setupCommand := commandRunner.runCommands[4]
+	if strings.Join(setupCommand.Arguments, " ") != "setup --board sim --ssh --host 10.0.0.5 --user admin --password admin --only services" {
+		t.Fatalf("unexpected setup arguments: %v", setupCommand.Arguments)
+	}
+}
+
 func TestScenarioEndToEndRunsSetupAndScenarios(t *testing.T) {
 	commandRunner := &fakeCommandRunner{
 		outputValue:  "10.0.0.5\n",
@@ -390,6 +408,24 @@ func TestScenarioEndToEndRunsSetupAndScenarios(t *testing.T) {
 	}
 	if len(commandRunner.runCommands) != 9 {
 		t.Fatalf("expected provision, setup, and four default scenario commands, got %d", len(commandRunner.runCommands))
+	}
+}
+
+func TestScenarioSimulationEndToEndUsesSimulationTargetState(t *testing.T) {
+	commandRunner := &fakeCommandRunner{
+		outputValue:  "10.0.0.5\n",
+		outputValues: []string{"internkim-lab\n", `[{"Name":"internkim-lab","Running":true}]`},
+	}
+	service := NewService(buildTestConfiguration(), commandRunner, "/repo")
+
+	errorValue := service.ScenarioSimulationEndToEnd(context.Background(), "/repo/internkim", []string{"--only", "services"})
+	if errorValue != nil {
+		t.Fatalf("expected simulation scenario to succeed: %v", errorValue)
+	}
+
+	setupCommand := commandRunner.runCommands[4]
+	if strings.Join(setupCommand.Arguments, " ") != "setup --board sim --ssh --host 10.0.0.5 --user admin --password admin --only services" {
+		t.Fatalf("unexpected setup arguments: %v", setupCommand.Arguments)
 	}
 }
 

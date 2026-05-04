@@ -248,6 +248,14 @@ func (service Service) ProvisionUbuntu(ctx context.Context) error {
 }
 
 func (service Service) Setup(ctx context.Context, executablePath string, setupArguments []string) error {
+	return service.setupTarget(ctx, executablePath, "lab", setupArguments)
+}
+
+func (service Service) SetupSimulation(ctx context.Context, executablePath string, setupArguments []string) error {
+	return service.setupTarget(ctx, executablePath, "sim", setupArguments)
+}
+
+func (service Service) setupTarget(ctx context.Context, executablePath string, boardType string, setupArguments []string) error {
 	if errorValue := service.ProvisionUbuntu(ctx); errorValue != nil {
 		return errorValue
 	}
@@ -258,7 +266,7 @@ func (service Service) Setup(ctx context.Context, executablePath string, setupAr
 		return errorValue
 	}
 
-	arguments := service.buildSetupArguments(virtualMachineIPAddress, setupArguments)
+	arguments := service.buildSetupArguments(virtualMachineIPAddress, boardType, setupArguments)
 
 	return service.commandRunner.Run(ctx, ExecutableCommand{
 		ExecutableName:       executablePath,
@@ -288,7 +296,15 @@ func (service Service) ScenarioCloudflare(ctx context.Context) error {
 }
 
 func (service Service) ScenarioEndToEnd(ctx context.Context, executablePath string, setupArguments []string) error {
-	if errorValue := service.Setup(ctx, executablePath, setupArguments); errorValue != nil {
+	return service.scenarioEndToEndTarget(ctx, executablePath, "lab", setupArguments)
+}
+
+func (service Service) ScenarioSimulationEndToEnd(ctx context.Context, executablePath string, setupArguments []string) error {
+	return service.scenarioEndToEndTarget(ctx, executablePath, "sim", setupArguments)
+}
+
+func (service Service) scenarioEndToEndTarget(ctx context.Context, executablePath string, boardType string, setupArguments []string) error {
+	if errorValue := service.setupTarget(ctx, executablePath, boardType, setupArguments); errorValue != nil {
 		return errorValue
 	}
 	if containsSetupSelector(setupArguments) {
@@ -333,17 +349,17 @@ func (service Service) PrintSimulationPlan(ctx context.Context, executablePath s
 
 	return service.commandRunner.Run(ctx, ExecutableCommand{
 		ExecutableName:       executablePath,
-		Arguments:            service.buildSetupArguments(virtualMachineIPAddress, setupArguments),
+		Arguments:            service.buildSetupArguments(virtualMachineIPAddress, "sim", setupArguments),
 		WorkingDirectoryPath: service.repositoryRootPath,
 		EnvironmentVariables: service.setupEnvironmentVariables(),
 	})
 }
 
-func (service Service) buildSetupArguments(virtualMachineIPAddress string, setupArguments []string) []string {
+func (service Service) buildSetupArguments(virtualMachineIPAddress string, boardType string, setupArguments []string) []string {
 	arguments := []string{
 		"setup",
 		"--board",
-		"lab",
+		boardType,
 		"--ssh",
 		"--host",
 		virtualMachineIPAddress,
