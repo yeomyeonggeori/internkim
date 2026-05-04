@@ -16,9 +16,9 @@ type RuntimeArtifactManifest struct {
 	RuntimeName         string                        `json:"runtimeName"`
 	Platform            string                        `json:"platform"`
 	Version             string                        `json:"version"`
-	BlueclawRevision    string                        `json:"blueclawRevision,omitempty"`
 	GuestInitSHA256     string                        `json:"guestInitSHA256,omitempty"`
 	PrepareScriptSHA256 string                        `json:"prepareScriptSHA256,omitempty"`
+	BaseSourceSHA256    string                        `json:"baseSourceSHA256,omitempty"`
 	Files               []RuntimeArtifactManifestFile `json:"files"`
 }
 
@@ -89,26 +89,19 @@ func ValidateRuntimeArtifactSource(repositoryRootPath string, manifest RuntimeAr
 	if errorValue != nil {
 		return errorValue
 	}
-	if strings.TrimSpace(manifest.BlueclawRevision) == "" {
-		return fmt.Errorf("Blueclaw runtime artifact source metadata is missing; run `make prepare-blueclaw-runtime`")
-	}
-	if manifest.BlueclawRevision != expectedManifest.BlueclawRevision {
-		return fmt.Errorf("Blueclaw runtime artifact was built from Blueclaw %s, current source is %s; run `make prepare-blueclaw-runtime`", manifest.BlueclawRevision, expectedManifest.BlueclawRevision)
-	}
 	if manifest.GuestInitSHA256 != expectedManifest.GuestInitSHA256 {
-		return fmt.Errorf("Blueclaw runtime artifact guest-init is stale; run `make prepare-blueclaw-runtime`")
+		return fmt.Errorf("Blueclaw runtime base guest-init is stale; run `make prepare-blueclaw-runtime-base`")
 	}
 	if manifest.PrepareScriptSHA256 != expectedManifest.PrepareScriptSHA256 {
-		return fmt.Errorf("Blueclaw runtime artifact prepare script is stale; run `make prepare-blueclaw-runtime`")
+		return fmt.Errorf("Blueclaw runtime base prepare script is stale; run `make prepare-blueclaw-runtime-base`")
+	}
+	if manifest.BaseSourceSHA256 != expectedManifest.BaseSourceSHA256 {
+		return fmt.Errorf("Blueclaw runtime base helper source is stale; run `make prepare-blueclaw-runtime-base`")
 	}
 	return nil
 }
 
 func ExpectedRuntimeArtifactSource(repositoryRootPath string) (RuntimeArtifactManifest, error) {
-	blueclawRevision, errorValue := gitRevision(filepath.Join(repositoryRootPath, ".dependency", "blueclaw"))
-	if errorValue != nil {
-		return RuntimeArtifactManifest{}, fmt.Errorf("resolve Blueclaw revision: %w", errorValue)
-	}
 	guestInitSHA256, errorValue := calculateFileSHA256(filepath.Join(repositoryRootPath, "assets", "blueclaw-runtime", "guest-init"))
 	if errorValue != nil {
 		return RuntimeArtifactManifest{}, fmt.Errorf("hash Blueclaw guest init: %w", errorValue)
@@ -117,11 +110,26 @@ func ExpectedRuntimeArtifactSource(repositoryRootPath string) (RuntimeArtifactMa
 	if errorValue != nil {
 		return RuntimeArtifactManifest{}, fmt.Errorf("hash Blueclaw runtime prepare script: %w", errorValue)
 	}
+	baseSourceSHA256, errorValue := calculateRuntimeBaseSourceSHA256(repositoryRootPath)
+	if errorValue != nil {
+		return RuntimeArtifactManifest{}, errorValue
+	}
 	return RuntimeArtifactManifest{
-		BlueclawRevision:    blueclawRevision,
 		GuestInitSHA256:     guestInitSHA256,
 		PrepareScriptSHA256: prepareScriptSHA256,
+		BaseSourceSHA256:    baseSourceSHA256,
 	}, nil
+}
+
+func calculateRuntimeBaseSourceSHA256(repositoryRootPath string) (string, error) {
+	sourceRootPath := filepath.Join(repositoryRootPath, BlueclawSubmodulePath)
+	return calculateSelectedPathsSHA256(sourceRootPath, []string{
+		"go.mod",
+		"go.sum",
+		"cmd/blueclaw-guest-healthd",
+		"cmd/blueclaw-vsock-http-proxy",
+		"tools/graphiti_memoryd",
+	})
 }
 
 func RuntimeArtifactFilePath(artifactDirectoryPath string, manifest RuntimeArtifactManifest, fileName string) (string, error) {

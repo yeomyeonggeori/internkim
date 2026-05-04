@@ -24,22 +24,16 @@ func TestBlueclawRuntimeContractCheckCatchesStaleAgentConfiguration(t *testing.T
 	}
 }
 
-func TestBlueclawRootfsBinaryContractCheckCatchesStaleGuestBinary(t *testing.T) {
-	command := blueclawRootfsBinaryContractCheckCommand()
+func TestBlueclawRootfsBaseContractCheckCatchesStaleBaseRuntime(t *testing.T) {
+	command := blueclawRootfsBaseContractCheckCommand()
 	for _, expectedFragment := range []string{
 		"/opt/internkim/blueclaw-runtime/rootfs.ext4",
-		"/usr/local/bin/blueclaw",
-		"defaultEffortLevel",
-		"agent.limit_stop",
-		"defaultBudgetClass",
-		"agent.budget_stop",
-		"10분 예산",
-		"rootfs-blueclaw-legacy-marker",
+		"/workspace/.blueclaw/runtime/current/bin/blueclaw",
 		"rootfs-init-missing-marker",
 		"rootfs-blueclaw-init-root-launch",
 		"rootfs-passwd-missing-blueclaw-user",
 		"rootfs-group-missing-blueclaw-group",
-		"blueclaw-non-root-launch",
+		"blueclaw-payload-launch",
 		"rootfs-marp-missing",
 		"rootfs-bun-missing",
 		"rootfs-bunx-missing",

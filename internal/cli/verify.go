@@ -256,6 +256,7 @@ grep -q 'blueclaw-supervisor' /etc/systemd/system/blueclaw.service
 test -x /usr/local/bin/firecracker
 test -x /usr/local/bin/jailer
 test -s /opt/internkim/blueclaw-runtime/manifest.json
+test -s /opt/internkim/blueclaw-runtime/payload-manifest.json
 test -s /opt/internkim/blueclaw-runtime/vmlinux.bin
 test -s /opt/internkim/blueclaw-runtime/rootfs.ext4
 blkid -o value -s TYPE /var/lib/blueclaw/workspace.ext4 | grep -q '^ext4$'

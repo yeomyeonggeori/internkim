@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+artifact_directory="${INTERNKIM_BLUECLAW_PAYLOAD_ARTIFACT_DIR:-$repository_root/.dependency/blueclaw-payload}"
+stage_directory="${TMPDIR:-/tmp}/internkim-blueclaw-payload-stage"
+blueclaw_repository="$repository_root/.dependency/blueclaw"
+
+require_command() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "missing required command: $1" >&2
+    exit 1
+  fi
+}
+
+require_command go
+require_command git
+require_command python3
+
+blueclaw_revision="$(git -C "$blueclaw_repository" rev-parse HEAD)"
+release_directory="$stage_directory/workspace/.blueclaw/runtime/releases/$blueclaw_revision"
+current_directory="$stage_directory/workspace/.blueclaw/runtime/current"
+
+rm -rf "$stage_directory"
+mkdir -p "$release_directory/bin" "$release_directory/migrations" "$current_directory/bin" "$current_directory/migrations"
+
+(
+  cd "$blueclaw_repository"
+  GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o "$release_directory/bin/blueclaw" ./cmd/blueclaw
+)
+
+rsync -a --delete "$blueclaw_repository/migrations/" "$release_directory/migrations/"
+rsync -a --delete "$release_directory/" "$current_directory/"
+
+python3 - "$stage_directory" "$artifact_directory/manifest.json" "$blueclaw_revision" <<'PY'
+import hashlib
+import json
+import os
+import pathlib
+import shutil
+import sys
+
+stage_directory = pathlib.Path(sys.argv[1])
+manifest_path = pathlib.Path(sys.argv[2])
+blueclaw_revision = sys.argv[3]
+current_directory = stage_directory / "workspace" / ".blueclaw" / "runtime" / "current"
+blueclaw_binary_path = current_directory / "bin" / "blueclaw"
+migrations_directory = current_directory / "migrations"
+
+def file_sha256(file_path):
+    hash_value = hashlib.sha256()
+    with open(file_path, "rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            hash_value.update(chunk)
+    return hash_value.hexdigest()
+
+def directory_sha256(directory_path):
+    hash_value = hashlib.sha256()
+    file_paths = sorted(path for path in directory_path.rglob("*") if path.is_file())
+    for file_path in file_paths:
+        relative_path = file_path.relative_to(directory_path).as_posix()
+        hash_value.update(relative_path.encode())
+        hash_value.update(b"\n")
+        with open(file_path, "rb") as file:
+            for chunk in iter(lambda: file.read(1024 * 1024), b""):
+                hash_value.update(chunk)
+        hash_value.update(b"\n")
+    return hash_value.hexdigest()
+
+manifest = {
+    "runtimeName": "internkim-blueclaw-payload",
+    "platform": "linux-arm64",
+    "blueclawRevision": blueclaw_revision,
+    "blueclawSHA256": file_sha256(blueclaw_binary_path),
+    "migrationsSHA256": directory_sha256(migrations_directory),
+}
+
+document = json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
+(current_directory / "manifest.json").write_text(document, encoding="utf-8")
+(stage_directory / "workspace" / ".blueclaw" / "runtime" / "releases" / blueclaw_revision / "manifest.json").write_text(document, encoding="utf-8")
+
+artifact_directory = manifest_path.parent
+if artifact_directory.exists():
+    shutil.rmtree(artifact_directory)
+artifact_directory.mkdir(parents=True)
+shutil.copytree(stage_directory / "workspace", artifact_directory / "workspace", symlinks=True)
+manifest_path.write_text(document, encoding="utf-8")
+PY
+
+echo "$artifact_directory"

@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 )
 
@@ -71,16 +70,22 @@ func TestValidateRuntimeArtifactDirectoryRejectsChecksumMismatch(t *testing.T) {
 	}
 }
 
-func TestValidateRuntimeArtifactSourceRejectsMissingMetadata(t *testing.T) {
+func TestValidateRuntimeArtifactSourceAcceptsBaseMetadataWithoutBlueclawRevision(t *testing.T) {
 	repositoryRootPath := runtimeArtifactRepositoryRoot(t)
-	manifest := RuntimeArtifactManifest{
-		RuntimeName: "internkim-blueclaw-runtime",
-		Platform:    "linux-arm64",
-		Version:     "test",
+	expectedManifest, errorValue := ExpectedRuntimeArtifactSource(repositoryRootPath)
+	if errorValue != nil {
+		t.Fatalf("expected source metadata: %v", errorValue)
 	}
-	errorValue := ValidateRuntimeArtifactSource(repositoryRootPath, manifest)
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "source metadata is missing") {
-		t.Fatalf("expected missing source metadata error, got %v", errorValue)
+	manifest := RuntimeArtifactManifest{
+		RuntimeName:         "internkim-blueclaw-runtime",
+		Platform:            "linux-arm64",
+		Version:             "test",
+		GuestInitSHA256:     expectedManifest.GuestInitSHA256,
+		PrepareScriptSHA256: expectedManifest.PrepareScriptSHA256,
+		BaseSourceSHA256:    expectedManifest.BaseSourceSHA256,
+	}
+	if errorValue := ValidateRuntimeArtifactSource(repositoryRootPath, manifest); errorValue != nil {
+		t.Fatalf("expected source metadata to validate: %v", errorValue)
 	}
 }
 

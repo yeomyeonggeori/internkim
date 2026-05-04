@@ -19,7 +19,9 @@ func TestGuestInitRunsBlueclawAsNonRootUser(t *testing.T) {
 		"chown -R postgres:postgres /workspace/.blueclaw/postgres",
 		"chown postgres:blueclaw /workspace/.blueclaw/postgres",
 		"/workspace/.blueclaw/tmp",
-		"su -s /bin/bash blueclaw -c '/usr/local/bin/blueclaw",
+		"blueclaw_binary_path",
+		"/workspace/.blueclaw/runtime/current/bin/blueclaw",
+		"su -s /bin/bash blueclaw -c \"$blueclaw_binary",
 		"su -s /bin/bash blueclaw -c 'INTERNKIM_CAPABILITY_ENDPOINT=",
 	} {
 		if !strings.Contains(document, expectedFragment) {
