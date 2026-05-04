@@ -9,6 +9,7 @@ func DefaultRegistry() Registry {
 		StepBinaries,
 		StepSkills,
 		StepBlueclawRuntimeBase,
+		StepBlueclawConfiguration,
 		StepBlueclawPayload,
 		StepOpenRouter,
 		StepLocalLLM,
