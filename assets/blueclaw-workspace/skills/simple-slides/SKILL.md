@@ -51,15 +51,11 @@ completion:
     - .html
     - -notes.txt
 quality:
-  recommendedChecks:
-    - marp_build_log_success
-    - parse_pptx
-    - pdf_page_count
-    - render_nonblank
-    - slide_render_images
-    - max_text_overflow
-    - slide_count_min
-    - forbidden_reply_fragments
+  acceptanceGuidance:
+    - Preserve the user's original request verbatim in brief.md as original_user_request.
+    - Reflect explicit output constraints such as requested slide count, file formats, audience, and tone.
+    - Verify generated artifacts against DESIGN.md and the rendered review evidence before attaching them.
+    - Do not complete if PPTX, PDF, HTML, notes, or the requested slide count are missing.
 allowedProfiles: [default]
 references:
   - references/design-system.md
@@ -76,7 +72,7 @@ assets:
 
 # Simple Slides
 
-Create a complete deck and attach the generated files. Do not claim PPTX is impossible: this runtime has Marp and file attachments.
+Create a complete deck and attach the generated files. Do not claim PPTX is impossible: this runtime has Marp and file attachments. Simple Slides is a local skill made of workspace scripts, not an external service integration.
 
 ## Runtime Contract
 
@@ -98,7 +94,7 @@ Create a fresh directory under:
 
 Create the directory with `terminal.run`.
 
-First, write a short `brief.md` into that directory with `file.write`. Include the user request, audience, desired tone, and slide topic.
+First, write a short `brief.md` into that directory with `file.write`. Include `original_user_request` with the user's request copied verbatim. Also include audience, desired tone, slide topic, and explicit output constraints such as requested slide count and required formats. Do not translate, summarize, or normalize away words like `할 수`, `역량`, `capability`, `what I can do`, or `8장`; the creator uses those signals to choose the deck contract.
 
 Then use the bundled deck creator. For this bundled InternKim skill, this is the canonical path, not a suggestion. The creator writes a Stitch-compatible `DESIGN.md`, reads that design contract back, generates `presentation.md` from those tokens, copies runtime scripts, builds the deck, and keeps output names stable:
 
@@ -176,6 +172,8 @@ If the build fails, fix the source and rerun it. Do not attach stale outputs.
 The build renders per-slide PNGs and contact-sheet collages into `review/`. Use `review/slide-review.json` as the machine-readable check for nonblank slides, safe margins, and edge overflow. Use the contact sheets when a human or model needs a compact visual pass without loading every individual slide image.
 
 Check for clipping, overlap, unreadable text, missing images, and broken fonts. Korean/CJK decks should use the declared font stack: Paperlogy for display, Freesentation for body, then Pretendard or Noto Sans KR as fallback.
+
+Before final reply, declare task-specific quality criteria with `set_quality_criteria`. Include criteria for preserving the original request, satisfying explicit slide count and file format requirements, applying `DESIGN.md` to the final artifacts, and attaching the generated PPTX/PDF/HTML/notes with evidence. In `final_reply`, pass each criterion with evidence from successful terminal/file observations. Do not cite source files such as `DESIGN.md`, `presentation.md`, `build.sh`, or `extract_notes.py` as completion artifacts.
 
 ## Final Reply
 

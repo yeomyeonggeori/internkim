@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import pathlib
+import re
 import shutil
 import subprocess
 
@@ -16,12 +17,15 @@ def main() -> int:
     design_path = working_directory_path / "DESIGN.md"
     write_text(design_path, stitch_design_document(deck, stitch_design_tokens()))
     design = read_stitch_design_tokens(design_path)
-    write_text(working_directory_path / "presentation.md", presentation_document(deck, design))
+    presentation = presentation_document(deck, design)
+    validate_requested_slide_count(deck, presentation)
+    write_text(working_directory_path / "presentation.md", presentation)
     copy_runtime_file(skill_directory_path / "assets" / "build.sh", working_directory_path / "build.sh")
     copy_runtime_file(skill_directory_path / "scripts" / "extract_notes.py", working_directory_path / "extract_notes.py")
     copy_runtime_file(skill_directory_path / "scripts" / "render_review.py", working_directory_path / "render_review.py")
 
-    subprocess.run(["bash", "-lc", f"NAME={shell_quote(slug)} ./build.sh"], cwd=working_directory_path, check=True)
+    if not arguments.no_build:
+        subprocess.run(["bash", "-lc", f"NAME={shell_quote(slug)} ./build.sh"], cwd=working_directory_path, check=True)
     return 0
 
 
@@ -29,6 +33,7 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--slug", required=True)
     parser.add_argument("--brief", default="brief.md")
+    parser.add_argument("--no-build", action="store_true")
     return parser.parse_args()
 
 
@@ -59,25 +64,78 @@ def shell_quote(value: str) -> str:
 
 
 def deck_brief(brief: str) -> dict[str, str]:
+    original_request = original_user_request(brief)
     normalized_brief = compact_text(brief)
+    normalized_request = compact_text(original_request)
     lower_brief = normalized_brief.lower()
-    if any(keyword in lower_brief for keyword in ["capabilities", "할 수", "기능", "역량", "지원 가능"]):
+    lower_request = normalized_request.lower()
+    requested_slide_count = requested_slide_count_from_text(normalized_brief)
+    if is_capabilities_request(lower_request) or is_capabilities_request(lower_brief):
         return {
             "title": "김인턴이 할 수 있는 일",
             "subtitle": "조사에서 산출물 전달까지, 작은 업무를 끝까지 밀어주는 실행 파트너",
             "audience": "동하 님과 팀원",
             "tone": "명료하고 믿음직한 업무 소개",
             "brief": normalized_brief,
+            "original_request": normalized_request,
             "mode": "capabilities",
+            "requested_slide_count": requested_slide_count,
         }
     return {
-        "title": title_from_brief(normalized_brief),
+        "title": title_from_brief(first_non_empty_string(normalized_request, normalized_brief)),
         "subtitle": "핵심 메시지, 실행 흐름, 다음 단계를 한눈에 정리한 발표 자료",
         "audience": "업무 이해관계자",
         "tone": "차분하고 선명한 보고",
         "brief": normalized_brief,
+        "original_request": normalized_request,
         "mode": "generic",
+        "requested_slide_count": requested_slide_count,
     }
+
+
+def original_user_request(brief: str) -> str:
+    values = brief_key_values(brief)
+    return first_non_empty_string(values.get("original_user_request", ""), values.get("user_request", ""), brief)
+
+
+def brief_key_values(brief: str) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for line in brief.splitlines():
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        normalized_key = key.strip().lower()
+        if normalized_key:
+            values[normalized_key] = clean_brief_value(value)
+    return values
+
+
+def clean_brief_value(value: str) -> str:
+    return value.strip().strip("\"'")
+
+
+def first_non_empty_string(*values: str) -> str:
+    for value in values:
+        trimmed = value.strip()
+        if trimmed:
+            return trimmed
+    return ""
+
+
+def is_capabilities_request(value: str) -> bool:
+    keywords = ["capability", "capabilities", "what i can do", "can do", "할 수", "기능", "역량", "지원 가능"]
+    return any(keyword in value for keyword in keywords)
+
+
+def requested_slide_count_from_text(value: str) -> int:
+    match = re.search(r"(\d{1,2})\s*(?:장|slides?|pages?)", value, re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+    korean_numbers = {"한": 1, "두": 2, "세": 3, "네": 4, "다섯": 5, "여섯": 6, "일곱": 7, "여덟": 8, "아홉": 9, "열": 10}
+    for word, count in korean_numbers.items():
+        if word + "장" in value:
+            return count
+    return 0
 
 
 def compact_text(value: str) -> str:
@@ -93,6 +151,24 @@ def title_from_brief(brief: str) -> str:
     if len(title) > 34:
         title = title[:34].rstrip() + "..."
     return title or "발표 자료"
+
+
+def validate_requested_slide_count(deck: dict[str, str], presentation: str) -> None:
+    requested_slide_count = int(deck.get("requested_slide_count") or 0)
+    if requested_slide_count == 0:
+        return
+    actual_slide_count = count_marp_slides(presentation)
+    if actual_slide_count != requested_slide_count:
+        raise SystemExit(f"requested {requested_slide_count} slides but generated {actual_slide_count}")
+
+
+def count_marp_slides(presentation: str) -> int:
+    parts = presentation.split("---", 2)
+    body = parts[2] if len(parts) >= 3 else presentation
+    body = body.strip()
+    if not body:
+        return 0
+    return len(re.split(r"\n---\n", body))
 
 
 def stitch_design_tokens() -> dict[str, str]:
@@ -113,7 +189,7 @@ def stitch_design_tokens() -> dict[str, str]:
 
 def stitch_design_document(deck: dict[str, str], design: dict[str, str]) -> str:
     return f"""---
-name: "{deck["title"]} Presentation System"
+name: {yaml_quote(deck["title"] + " Presentation System")}
 version: "2.0"
 colors:
   background: "{design["colors.background"]}"
@@ -141,6 +217,10 @@ Tone: {deck["tone"]}
 
 Visual direction: crisp Korean business slides with strong whitespace, structured cards, and teal/orange accents. Avoid the Marp default theme look: no giant tables as the main visual, no raw placeholder prose, and no unfinished black-and-white scaffold.
 """
+
+
+def yaml_quote(value: str) -> str:
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 def read_stitch_design_tokens(path: pathlib.Path) -> dict[str, str]:
@@ -182,7 +262,7 @@ theme: default
 paginate: false
 size: 16:9
 html: true
-title: {title}
+title: {yaml_quote(title)}
 style: |
   section {{
     --background: {design["colors.background"]};
@@ -233,6 +313,7 @@ style: |
 
 
 def capabilities_presentation(deck: dict[str, str], design: dict[str, str]) -> str:
+    requested_slide_count = int(deck.get("requested_slide_count") or 0)
     return marp_header(deck["title"], design) + f"""
 <!-- design-source: DESIGN.md -->
 
@@ -313,7 +394,66 @@ def capabilities_presentation(deck: dict[str, str], design: dict[str, str]) -> s
 <div class="footer"><span>Next action</span><span>업무 목적 → tool path → artifact evidence</span></div>
 
 <!-- 다음에는 원하는 주제, 톤, 청중만 주면 같은 구조로 바로 산출물을 만들 수 있습니다. -->
-"""
+""" + capabilities_extra_slides(requested_slide_count)
+
+
+def capabilities_extra_slides(requested_slide_count: int) -> str:
+    if requested_slide_count <= 5:
+        return ""
+    extras = [
+        """
+
+---
+
+## 작업 기준을 먼저 세웁니다
+
+<div class="grid grid-3">
+<div class="card"><div class="number">A</div><h3>원문 보존</h3><p>사용자 요청의 핵심 표현과 산출물 조건을 brief에 남깁니다.</p></div>
+<div class="card"><div class="number">B</div><h3>품질 기준</h3><p>작업별 acceptance criteria를 먼저 선언하고 그 기준으로 검토합니다.</p></div>
+<div class="card"><div class="number">C</div><h3>증거 연결</h3><p>완료 답변은 성공한 observation과 첨부 evidence를 기준으로 합니다.</p></div>
+</div>
+
+<!-- 요청을 바꾸어 해석하지 않고, 완료 기준을 먼저 고정하는 방식이 핵심입니다. -->
+""",
+        """
+
+---
+
+## 산출물 종류
+
+<div class="grid grid-2">
+<div class="card"><h3>문서와 발표자료</h3><p>PPTX, PDF, HTML, notes처럼 공유 가능한 파일을 만듭니다.</p></div>
+<div class="card"><h3>조사 결과</h3><p>출처와 판단 근거를 분리해 팀이 바로 검토할 수 있게 정리합니다.</p></div>
+<div class="card"><h3>브라우저 작업</h3><p>로그인과 승인이 필요한 순간은 사용자 컴퓨터의 companion 경계로 넘깁니다.</p></div>
+<div class="card"><h3>업무 흐름</h3><p>Flow, Mattermost, memory와 연결해 다음 행동까지 이어줍니다.</p></div>
+</div>
+
+<!-- 산출물은 파일만이 아니라, 다음 사람이 이어받을 수 있는 업무 상태까지 포함합니다. -->
+""",
+        """
+
+---
+
+## 맡기는 법
+
+<div class="band"><p>주제, 청중, 원하는 톤, 파일 형식, 완료 기준을 함께 주면 가장 안정적으로 처리합니다.</p></div>
+
+<div class="pill-row">
+<span class="pill">주제</span>
+<span class="pill">청중</span>
+<span class="pill">톤</span>
+<span class="pill">형식</span>
+<span class="pill">완료 기준</span>
+</div>
+
+<div class="footer"><span>InternKim</span><span>criteria → work → evidence → reply</span></div>
+
+<!-- 좋은 요청은 김인턴이 스스로 기준을 세우고 검토하는 시간을 줄여줍니다. -->
+""",
+    ]
+    if requested_slide_count > 8:
+        return ""
+    return "".join(extras[:requested_slide_count - 5])
 
 
 def generic_presentation(deck: dict[str, str], design: dict[str, str]) -> str:
