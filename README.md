@@ -24,14 +24,14 @@ Jetson Orin Nano Super에 Blueclaw 런타임과 InternKim capability layer를 �
                    ├─ internkim-capabilityd
                    │    ├─ LLM routing: OpenRouter / local model / companion
                    │    ├─ platform I/O: Mattermost / Slack / Signal
-                   │    ├─ browser tool adapter: agent-browser / companion
+                   │    ├─ browser routing: companion-first / Lightpanda fallback
                    │    └─ local capability API for Blueclaw
                    ├─ graphiti-memoryd :7791
                    ├─ blueclaw.service :8080
                    │    ├─ policy / task / ACL / prompt
                    │    └─ workspace: /root/.blueclaw/workspace
                    ├─ gws / gws-bot / Apps Script bridge
-                   ├─ agent-browser device runtime
+                   ├─ Lightpanda device browser fallback
                    └─ /root/.internkim
                         ├─ secrets/
                         ├─ config/
@@ -219,7 +219,7 @@ Deep link를 직접 넘기는 CLI fallback도 지원합니다.
 
 `file.pick`은 사용자 로컬 경로를 InternKim/Blueclaw에 넘기지 않습니다. companion이 선택된 파일을 signed broker upload로 device의 `/tmp/internkim-companion-files/{filename}`에 복사하고, 응답에는 device-local temporary path와 TTL만 포함합니다. 같은 이름은 덮어쓰며 metadata TTL이 지나면 `internkim-admind`가 자동 삭제합니다.
 
-브라우저 capability는 `agent-browser` adapter 뒤에서 실행합니다. Companion은 headed mode와 InternKim 전용 persistent profile, 그리고 미니멀 handoff extension을 사용합니다. 로그인/MFA처럼 사용자가 직접 처리해야 하는 단계는 `browser.handoff`가 브라우저 안에 `완료` 버튼 overlay를 띄우고, 사용자가 누르면 snapshot을 검증해 같은 세션에서 이어갑니다. snapshot 결과에는 URL, title, snapshot text, interactive refs만 담습니다. click/fill/select/press/wait는 snapshot에서 얻은 ref나 selector를 입력으로 받습니다. screenshot은 사용자 로컬 경로를 반환하지 않고 기존 signed upload 경로를 통해 device temporary path만 반환합니다. Browser download는 파일 이동 보안 정책을 별도로 닫은 뒤 추가합니다. Companion 앱 bundle에는 현재 OS/arch용 `agent-browser`가 포함되며, 첫 실행 때 managed browser install을 자동으로 시도합니다. 실패해도 user/file/mock LLM capability는 계속 동작하고 browser capability만 unavailable로 표시됩니다. 개발 환경에서는 `make deps-companion-browser`로 bundle source와 browser install smoke를 확인합니다.
+브라우저 capability는 Companion-first로 라우팅합니다. 발화자 소유 Companion이 available하면 headed mode, InternKim 전용 persistent profile, 미니멀 handoff extension을 갖춘 Companion browser에서 실행합니다. Companion이 없을 때만 device Lightpanda fallback을 단순 공개 페이지 텍스트 탐색에 사용합니다. 로그인/MFA처럼 사용자가 직접 처리해야 하는 단계는 `browser.handoff`가 브라우저 안에 `완료` 버튼 overlay를 띄우고, 사용자가 누르면 snapshot을 검증해 같은 세션에서 이어갑니다. snapshot 결과에는 URL, title, snapshot text, interactive refs만 담습니다. click/fill/select/press/wait는 snapshot에서 얻은 ref나 selector를 입력으로 받습니다. screenshot은 Companion browser에서만 허용하고, fallback에서는 Companion 연결 안내를 반환합니다. Browser download는 파일 이동 보안 정책을 별도로 닫은 뒤 추가합니다. Companion 앱 bundle에는 현재 OS/arch용 `agent-browser`가 포함되며, 첫 실행 때 managed browser install을 자동으로 시도합니다. 실패해도 user/file/mock LLM capability는 계속 동작하고 browser capability만 unavailable로 표시됩니다. 개발 환경에서는 `make deps-companion-browser`로 bundle source와 browser install smoke를 확인합니다.
 
 Pairing signing key는 state file에 평문으로 저장하지 않습니다. state에는 key reference만 남기고 macOS에서는 Keychain을 사용합니다. secure storage를 쓸 수 없는 개발 환경에서만 `INTERNKIM_COMPANION_DEV_FILE_STORE=1`을 켜서 파일 기반 fallback을 허용합니다.
 

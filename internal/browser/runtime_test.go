@@ -86,21 +86,44 @@ func TestAgentBrowserRuntimeChromeEngineUsesHeadedProfile(t *testing.T) {
 	}
 }
 
-func TestDeviceReadinessShellScriptChecksChromeScreenshotReadiness(t *testing.T) {
+func TestDeviceReadinessShellScriptChecksLightpandaSnapshotReadiness(t *testing.T) {
 	script := DeviceReadinessShellScript()
 
-	for _, fragment := range []string{"agent-browser close --all", "pkill -TERM -x agent-browser", "pkill -KILL -x agent-browser", "agent-browser doctor --offline --quick", "--session internkim-device-smoke --engine chrome", "--executable-path \"$browserExecutablePath\"", "--headed false", "snapshot", "screenshot", "test -s /tmp/internkim-agent-browser-chrome-smoke.png", DeviceBrowserExecutablePath, DeviceBrowserManifestPath} {
+	for _, fragment := range []string{"agent-browser close --all", "pkill -TERM -x agent-browser", "pkill -KILL -x agent-browser", "agent-browser doctor --offline --quick", "--session internkim-device-smoke --engine lightpanda", "--executable-path \"$browserExecutablePath\"", "snapshot", DeviceBrowserExecutablePath} {
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("expected device readiness script to contain %q: %s", fragment, script)
 		}
 	}
-	for _, forbiddenFragment := range []string{"google-chrome", "PUPPETEER_CACHE_DIR", "chrome-for-testing", "chromium-browser", "/snap/bin/chromium", "--engine lightpanda", "agent-browser install", "apt-get install"} {
+	for _, forbiddenFragment := range []string{"google-chrome", "PUPPETEER_CACHE_DIR", "chrome-for-testing", "chromium-browser", "/snap/bin/chromium", "--engine chrome", "--headed false", "screenshot", "agent-browser install", "apt-get install"} {
 		if strings.Contains(script, forbiddenFragment) {
 			t.Fatalf("device readiness script must not use fallback %q: %s", forbiddenFragment, script)
 		}
 	}
-	if strings.Contains(script, "snapshot --engine") || strings.Contains(script, "screenshot --engine") {
+	if strings.Contains(script, "snapshot --engine") {
 		t.Fatalf("device readiness should pass engine options only while opening the session: %s", script)
+	}
+}
+
+func TestAgentBrowserRuntimeLightpandaOmitsChromeOnlyArguments(t *testing.T) {
+	runner := &fakeCommandRunner{}
+	runtime := AgentBrowserRuntime{
+		CommandPath:          "agent-browser-test",
+		Engine:               BrowserEngineLightpanda,
+		EngineExecutablePath: "/usr/local/bin/lightpanda",
+		ProfilePath:          "/profile",
+		SessionName:          "internkim-test",
+		Headed:               true,
+		ExtensionPaths:       []string{"/extensions/internkim"},
+		Runner:               runner,
+	}
+
+	_, errorValue := runtime.Navigate(context.Background(), NavigateRequest{URL: "https://example.com"})
+	if errorValue != nil {
+		t.Fatalf("expected navigate success: %v", errorValue)
+	}
+	expectedOpenArguments := []string{"--session", "internkim-test", "--engine", "lightpanda", "--executable-path", "/usr/local/bin/lightpanda", "--session-name", "internkim-test", "open", "https://example.com", "--headers", stealthRequestHeaders()}
+	if !reflect.DeepEqual(runner.calls[0].arguments, expectedOpenArguments) {
+		t.Fatalf("unexpected lightpanda arguments: %+v", runner.calls[0].arguments)
 	}
 }
 

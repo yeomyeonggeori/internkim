@@ -187,6 +187,102 @@ func TestPreferCompanionBrowserDoesNotRouteWithoutCompanionAvailable(t *testing.
 	}
 }
 
+func TestScreenshotDoesNotFallbackWhenCompanionUnavailable(t *testing.T) {
+	commandWasCalled := false
+	service := Service{
+		Configuration: Configuration{CompanionBaseURL: "https://companion.test"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return nil, io.ErrUnexpectedEOF
+		})},
+		RunCommand: func(_ context.Context, _ string, _ []string, _ []byte) ([]byte, error) {
+			commandWasCalled = true
+			return nil, nil
+		},
+	}
+
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.screenshot", strings.NewReader(`{"input":{}}`))
+	if errorValue != nil {
+		t.Fatalf("expected structured screenshot denial: %v", errorValue)
+	}
+	if !response.IsError || response.Status != "denied" || !strings.Contains(string(response.Result), "companion_required_for_screenshot") {
+		t.Fatalf("expected companion-required denial, got %+v result=%s", response, response.Result)
+	}
+	if commandWasCalled {
+		t.Fatal("expected screenshot not to fallback to device browser")
+	}
+}
+
+func TestSimpleBrowserToolFallsBackToDeviceWhenCompanionUnavailable(t *testing.T) {
+	commandWasCalled := false
+	service := Service{
+		Configuration: Configuration{CompanionBaseURL: "https://companion.test"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return nil, io.ErrUnexpectedEOF
+		})},
+		RunCommand: func(_ context.Context, _ string, _ []string, _ []byte) ([]byte, error) {
+			commandWasCalled = true
+			return nil, nil
+		},
+	}
+
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.open", strings.NewReader(`{"input":{"url":"https://example.com"}}`))
+	if errorValue != nil {
+		t.Fatalf("expected device fallback response: %v", errorValue)
+	}
+	if response.Provider != "device" || !commandWasCalled {
+		t.Fatalf("expected browser.open to fallback to device, got response=%+v commandWasCalled=%v", response, commandWasCalled)
+	}
+}
+
+func TestBrowserToolUsesCompanionBeforeDeviceFallback(t *testing.T) {
+	commandWasCalled := false
+	service := Service{
+		Configuration: Configuration{CompanionBaseURL: "https://companion.test"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.URL.Path != "/jobs" {
+				t.Fatalf("unexpected companion path: %s", request.URL.Path)
+			}
+			return jsonResponse(capabilities.ToolInvokeResponse{
+				Provider: "companion",
+				ToolName: "browser.open",
+				Status:   "ok",
+				Result:   json.RawMessage(`{"url":"https://example.com"}`),
+			}), nil
+		})},
+		RunCommand: func(_ context.Context, _ string, _ []string, _ []byte) ([]byte, error) {
+			commandWasCalled = true
+			return nil, nil
+		},
+	}
+
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.open", strings.NewReader(`{"input":{"url":"https://example.com"}}`))
+	if errorValue != nil {
+		t.Fatalf("expected companion browser response: %v", errorValue)
+	}
+	if response.Provider != "companion" || commandWasCalled {
+		t.Fatalf("expected browser.open to use companion only, got response=%+v commandWasCalled=%v", response, commandWasCalled)
+	}
+}
+
+func TestBrowserHandoffRequiresCompanion(t *testing.T) {
+	commandWasCalled := false
+	service := Service{RunCommand: func(_ context.Context, _ string, _ []string, _ []byte) ([]byte, error) {
+		commandWasCalled = true
+		return nil, nil
+	}}
+
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.handoff", strings.NewReader(`{"input":{"url":"https://example.com"}}`))
+	if errorValue != nil {
+		t.Fatalf("expected handoff denial: %v", errorValue)
+	}
+	if !response.IsError || response.Status != "denied" || !strings.Contains(string(response.Result), "companion_required_for_handoff") {
+		t.Fatalf("expected companion-required handoff denial, got %+v result=%s", response, response.Result)
+	}
+	if commandWasCalled {
+		t.Fatal("expected browser.handoff not to fallback to device browser")
+	}
+}
+
 func TestHumanInputToolRoutesToCompanion(t *testing.T) {
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.Path != "/jobs" {
