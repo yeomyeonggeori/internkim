@@ -86,7 +86,7 @@ func TestLLMHandlerTextRoutesToOllamaBackend(t *testing.T) {
 		OllamaModel:   "gemma3:1b",
 		HTTPClient:    httpClient,
 	})
-	handler := llmHandler(settings, false, false)
+	handler := llmHandler(newDynamicLocalLLM(settings), false, false)
 
 	body := `{"messages":[{"role":"user","content":"hi"}]}`
 	request := httptest.NewRequest(http.MethodPost, "/v1/llm/text", strings.NewReader(body))
@@ -121,7 +121,7 @@ func TestLLMHandlerHonorsRequestedProvider(t *testing.T) {
 		LlamaCppModel:   "local/gemma",
 		HTTPClient:      httpClient,
 	})
-	handler := llmHandler(settings, false, false)
+	handler := llmHandler(newDynamicLocalLLM(settings), false, false)
 
 	body := `{"provider":"ollama","messages":[{"role":"user","content":"hi"}]}`
 	request := httptest.NewRequest(http.MethodPost, "/v1/llm/text", strings.NewReader(body))
@@ -144,7 +144,7 @@ func TestLLMHandlerStructuredEnforcesSchema(t *testing.T) {
 		LlamaCppModel:   "local/gemma",
 		HTTPClient:      httpClient,
 	})
-	handler := llmHandler(settings, false, true)
+	handler := llmHandler(newDynamicLocalLLM(settings), false, true)
 
 	body := `{"messages":[{"role":"user","content":"hi"}],"structuredOutputSchema":{"name":"reply","document":{"type":"object","required":["reply"]}}}`
 	request := httptest.NewRequest(http.MethodPost, "/v1/llm/structured", strings.NewReader(body))
@@ -177,7 +177,7 @@ func TestLLMHandlerReturnsServiceUnavailableWhenAllBackendsFail(t *testing.T) {
 		OllamaModel:   "gemma3:1b",
 		HTTPClient:    httpClient,
 	})
-	handler := llmHandler(settings, false, false)
+	handler := llmHandler(newDynamicLocalLLM(settings), false, false)
 
 	body := `{"messages":[{"role":"user","content":"hi"}]}`
 	request := httptest.NewRequest(http.MethodPost, "/v1/llm/text", strings.NewReader(body))
@@ -197,7 +197,7 @@ func TestLLMHandlerReturnsServiceUnavailableWhenAllBackendsFail(t *testing.T) {
 }
 
 func TestLLMHandlerWithoutLocalEnabledReturnsNotImplemented(t *testing.T) {
-	handler := llmHandler(localLLMSettings{}, false, false)
+	handler := llmHandler(newDynamicLocalLLM(localLLMSettings{}), false, false)
 	request := httptest.NewRequest(http.MethodPost, "/v1/llm/text", strings.NewReader(`{}`))
 	response := httptest.NewRecorder()
 	handler(response, request)
@@ -226,7 +226,10 @@ func TestLLMStreamHandlerEmitsTokensAsSSE(t *testing.T) {
 		OllamaModel:   "gemma3:1b",
 		HTTPClient:    httpClient,
 	})
-	handler := llmStreamHandler(true, providerSet.Backends)
+	handler := llmStreamHandler(newDynamicLocalLLM(localLLMSettings{
+		Enabled:     true,
+		ProviderSet: providerSet,
+	}))
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/llm/stream", strings.NewReader(`{"messages":[{"role":"user","content":"hi"}]}`))
 	response := httptest.NewRecorder()
@@ -299,7 +302,7 @@ func TestLLMHandlerStructuredReturnsUnsupportedForOllamaOnly(t *testing.T) {
 	settings := newLocalLLMTestSettings(llmbackend.LocalProviderConfig{
 		ProviderOrder: []string{"ollama"},
 	})
-	handler := llmHandler(settings, false, true)
+	handler := llmHandler(newDynamicLocalLLM(settings), false, true)
 
 	body := `{"messages":[{"role":"user","content":"hi"}],"structuredOutputSchema":{"name":"reply","document":{"type":"object","required":["reply"]}}}`
 	request := httptest.NewRequest(http.MethodPost, "/v1/llm/structured", strings.NewReader(body))
@@ -584,7 +587,7 @@ func TestControlHandlerListsAndRevokesGrants(t *testing.T) {
 	}
 	runtimeStatus := &runtimeState{}
 	runtimeStatus.recordHeartbeat(nil)
-	handler := controlHandler(grantStore, companionruntime.NewMountStore(""), runtimeStatus)
+	handler := controlHandler(grantStore, companionruntime.NewMountStore(""), runtimeStatus, newDynamicLocalLLM(localLLMSettings{}), http.DefaultClient)
 
 	listRequest := httptest.NewRequest(http.MethodGet, "/v1/security/grants", nil)
 	listRequest.RemoteAddr = "127.0.0.1:1234"
@@ -618,6 +621,48 @@ func TestControlHandlerListsAndRevokesGrants(t *testing.T) {
 	}
 	if len(grantStore.ListActive()) != 0 {
 		t.Fatal("expected revoked grant to be inactive")
+	}
+}
+
+func TestControlHandlerUpdatesLocalLLMWithoutRestart(t *testing.T) {
+	modelServer := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/api/tags" {
+			t.Fatalf("expected ollama tags request, got %s", request.URL.Path)
+		}
+		responseWriter.WriteHeader(http.StatusOK)
+		_, _ = responseWriter.Write([]byte(`{"models":[{"name":"gemma3:1b"}]}`))
+	}))
+	defer modelServer.Close()
+
+	runtimeStatus := &runtimeState{}
+	localLLM := newDynamicLocalLLM(localLLMSettings{})
+	handler := controlHandler(
+		companionruntime.NewMemoryGrantStore(),
+		companionruntime.NewMountStore(""),
+		runtimeStatus,
+		localLLM,
+		modelServer.Client(),
+	)
+	body := `{"enableLocalLLM":true,"localBackendOrder":["ollama"],"ollama":{"baseURL":"` + modelServer.URL + `","model":"gemma3:1b"},"llamacpp":{"baseURL":"","model":""},"mlx":{"baseURL":"","model":""}}`
+	request := httptest.NewRequest(http.MethodPost, "/v1/runtime/local-llm", strings.NewReader(body))
+	request.RemoteAddr = "127.0.0.1:1234"
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected local LLM update success, got %d body=%s", response.Code, response.Body.String())
+	}
+	settings := localLLM.currentSettings()
+	if !settings.Enabled || settings.Configuration.OllamaModel != "gemma3:1b" {
+		t.Fatalf("expected live ollama model update, got %+v", settings.Configuration)
+	}
+	var status localLLMStatus
+	if errorValue := json.Unmarshal(response.Body.Bytes(), &status); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(status.Backends) != 1 || status.Backends[0].Model != "gemma3:1b" || !status.Backends[0].Available {
+		t.Fatalf("expected ready ollama status, got %+v", status)
 	}
 }
 
