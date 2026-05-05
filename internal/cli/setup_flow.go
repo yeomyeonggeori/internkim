@@ -286,29 +286,26 @@ func (state *setupFlowState) configureJetsonWiFiSSH() error {
 		return err
 	}
 
-	setupCommand := fmt.Sprintf(`set -eu
-nmcli radio wifi on
-%s
-cat > /usr/local/bin/internkim-wifi-select <<'WIFIEOF'
-%s
-WIFIEOF
-chmod 755 /usr/local/bin/internkim-wifi-select
-/usr/local/bin/internkim-wifi-select >/dev/null 2>&1 || true
-for attempt in $(seq 1 12); do
-  address="$(ip -4 addr show 2>/dev/null | awk '/inet / && $0 !~ / lo / {print $2; exit}' | cut -d/ -f1)"
-  if [ -n "$address" ]; then
-    echo "$address"
-    exit 0
-  fi
-  sleep 5
-done
-exit 1`, buildJetsonWiFiUpsertScript(state.wifiProfiles), buildJetsonWiFiSelectorScript())
+	setupCommand := strings.Join([]string{
+		"set -eu",
+		buildJetsonWiFiInstallScript(state.wifiProfiles),
+		strings.TrimSpace(`for attempt in $(seq 1 12); do
+	  /usr/local/bin/internkim-wifi-select >/dev/null 2>&1 || true
+	  address="$(ip -o -4 addr show scope global 2>/dev/null | awk '$2 ~ /^(wl|wlan)/ {print $4; exit}' | cut -d/ -f1)"
+	  if [ -n "$address" ]; then
+	    echo "$address"
+	    exit 0
+	  fi
+	  sleep 5
+	done
+	exit 1`),
+	}, "\n")
 
 	output, errorValue := state.sshClient.runResult(setupCommand)
 	if errorValue != nil {
 		return fmt.Errorf("Jetson NetworkManager Wi-Fi connection failed: %s", strings.TrimSpace(output))
 	}
-	if address := strings.TrimSpace(output); address != "" {
+	if address := lastNonEmptyLine(output); address != "" {
 		fmt.Printf("  %s: %s\n", state.messenger.t("Wi-Fi 연결 성공", "Wi-Fi connected"), address)
 	}
 	return nil

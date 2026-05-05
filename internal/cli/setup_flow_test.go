@@ -227,6 +227,10 @@ func TestJetsonWiFiApplyCommandStartsSelectorInBackground(t *testing.T) {
 		"nmcli radio wifi on",
 		jetsonWiFiConnectionID("OfficeWiFi"),
 		"cat > /usr/local/bin/internkim-wifi-select",
+		"cat > /etc/systemd/system/internkim-wifi-recovery.service",
+		"cat > /etc/systemd/system/internkim-wifi-recovery.timer",
+		"systemctl daemon-reload",
+		"systemctl enable --now internkim-wifi-recovery.timer",
 		"nohup /usr/local/bin/internkim-wifi-select",
 		"echo installed",
 	} {

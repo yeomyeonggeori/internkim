@@ -2,13 +2,25 @@ package setup
 
 import "testing"
 
-func TestJetsonWiFiIsSatisfiedOverSSH(t *testing.T) {
+func TestJetsonWiFiIsSatisfiedWhenRecoveryIsInstalled(t *testing.T) {
 	context := &Context{
 		Backend:   BackendSSH,
 		BoardType: BoardJetsonOrinNano,
+		SSH:       fakeBoardConnection{output: "ready\n"},
 	}
 	if !StepWifi.IsSatisfied(context) {
-		t.Fatalf("expected Jetson Wi-Fi step to be satisfied when setup is already connected over SSH")
+		t.Fatalf("expected Jetson Wi-Fi step to be satisfied when recovery is installed")
+	}
+}
+
+func TestJetsonWiFiIsNotSatisfiedWhenRecoveryIsMissing(t *testing.T) {
+	context := &Context{
+		Backend:   BackendSSH,
+		BoardType: BoardJetsonOrinNano,
+		SSH:       fakeBoardConnection{output: "\n"},
+	}
+	if StepWifi.IsSatisfied(context) {
+		t.Fatalf("expected Jetson Wi-Fi step to run when recovery is missing")
 	}
 }
 

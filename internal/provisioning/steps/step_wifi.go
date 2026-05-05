@@ -12,7 +12,7 @@ var StepWifi = Step{
 		switch context.Backend {
 		case BackendSSH:
 			if context.BoardType == BoardJetsonOrinNano {
-				return true
+				return jetsonWiFiRecoveryIsInstalled(context)
 			}
 			wlanAddress := trimmedRun(context, `ip -4 addr show wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d/ -f1`)
 			return wlanAddress != ""
@@ -33,4 +33,13 @@ var StepWifi = Step{
 		}
 		return context.Callbacks.StageWifiSD(context)
 	},
+}
+
+func jetsonWiFiRecoveryIsInstalled(context *Context) bool {
+	return trimmedRun(context, `test -x /usr/local/bin/internkim-wifi-select &&
+test -f /etc/systemd/system/internkim-wifi-recovery.service &&
+test -f /etc/systemd/system/internkim-wifi-recovery.timer &&
+systemctl is-enabled internkim-wifi-recovery.timer >/dev/null 2>&1 &&
+find /etc/NetworkManager/system-connections -maxdepth 1 -type f -name 'internkim-wifi-*.nmconnection' | grep -q . &&
+echo ready || true`) == "ready"
 }
