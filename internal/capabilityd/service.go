@@ -158,7 +158,7 @@ func DefaultConfiguration() Configuration {
 		ProviderAttemptTimeout:     5 * time.Minute,
 		AgentBrowserPath:           "agent-browser",
 		DeviceBrowserPath:          browserruntime.DeviceBrowserExecutablePath,
-		DeviceBrowserProfilePath:   "/root/.internkim/state/browser-profile",
+		DeviceBrowserProfilePath:   "",
 		CompanionFileDirectory:     "/tmp/internkim-companion-files",
 	}
 }

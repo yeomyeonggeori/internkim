@@ -6,72 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
 	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
 )
-
-func TestJetsonPackageSelectionUsesUbuntu22Names(t *testing.T) {
-	packageList := deviceBrowserRuntimePackageListJetPack6()
-	if strings.Contains(packageList, "t64") {
-		t.Fatalf("expected JetPack package list to avoid t64 packages, got %s", packageList)
-	}
-	for _, packageName := range []string{"fonts-noto-color-emoji", "libasound2", "libatk-bridge2.0-0", "libcups2", "libglib2.0-0"} {
-		if !strings.Contains(packageList, packageName) {
-			t.Fatalf("expected JetPack package list to include %s, got %s", packageName, packageList)
-		}
-	}
-	if strings.Contains(packageList, "jq") {
-		t.Fatalf("JetPack package list must not require jq, got %s", packageList)
-	}
-}
-
-func TestJetsonPackageSelectionOmitsUnavailableFonts(t *testing.T) {
-	requiredPackages := deviceBrowserRuntimePackageListJetPack6()
-	for _, packageName := range []string{"fonts-unifont", "fonts-ipafont-gothic", "fonts-wqy-zenhei", "fonts-tlwg-loma-otf"} {
-		if strings.Contains(requiredPackages, packageName) {
-			t.Fatalf("expected JetPack required package list to omit unavailable font %s, got %s", packageName, requiredPackages)
-		}
-	}
-	optionalPackages := deviceBrowserRuntimeOptionalPackageListJetPack6()
-	for _, packageName := range []string{"fonts-liberation", "fonts-freefont-ttf", "fonts-noto-cjk"} {
-		if !strings.Contains(optionalPackages, packageName) {
-			t.Fatalf("expected JetPack optional package list to include %s, got %s", packageName, optionalPackages)
-		}
-	}
-	if strings.Contains(optionalPackages, "fonts-noto-color-emoji") {
-		t.Fatalf("emoji font must be required, not optional; got %s", optionalPackages)
-	}
-}
-
-func TestDeviceBrowserRuntimeInstallsOptionalPackagesBestEffort(t *testing.T) {
-	script := deviceBrowserRuntimeDependencyInstallScript()
-	for _, fragment := range []string{"optionalRuntimePackages=", "fonts-noto-cjk", "apt-cache show", "22.*", "24.*|25.*|26.*"} {
-		if !strings.Contains(script, fragment) {
-			t.Fatalf("expected package selection script to include %q, got:\n%s", fragment, script)
-		}
-	}
-}
-
-func TestDeviceBrowserRuntimeInstallScriptAvoidsUnavailableJetsonPackages(t *testing.T) {
-	script := deviceBrowserRuntimeInstallScript("/tmp/" + deviceBrowserRuntimeArtifactName)
-	for _, packageName := range []string{"fonts-unifont", "fonts-ipafont-gothic", "fonts-wqy-zenhei", "fonts-tlwg-loma-otf"} {
-		if strings.Contains(script, packageName) {
-			t.Fatalf("expected browser runtime install script to avoid unavailable font %s, got:\n%s", packageName, script)
-		}
-	}
-	if !strings.Contains(script, "fonts-noto-color-emoji") {
-		t.Fatalf("expected browser runtime install script to require emoji font, got:\n%s", script)
-	}
-}
-
-func TestDeviceBrowserRuntimeManifestParsingAvoidsJQ(t *testing.T) {
-	script := deviceBrowserRuntimeExtractScript()
-	if strings.Contains(script, "jq") {
-		t.Fatalf("browser runtime manifest parsing must not require jq, got:\n%s", script)
-	}
-	if !strings.Contains(script, "python3 -c") {
-		t.Fatalf("expected browser runtime manifest parsing to use python3, got:\n%s", script)
-	}
-}
 
 func TestUsersSyncDependencyInstallScriptInstallsJQ(t *testing.T) {
 	script := usersSyncDependencyInstallScript()
@@ -80,6 +17,24 @@ func TestUsersSyncDependencyInstallScriptInstallsJQ(t *testing.T) {
 			t.Fatalf("expected users sync dependency script to include %q, got:\n%s", fragment, script)
 		}
 	}
+}
+
+func TestRequiredBinaryAssetsIncludeLightpandaFallback(t *testing.T) {
+	state := &setupFlowState{boardBinDir: "/tmp/internkim-board-bin"}
+	assets := state.requiredBinaryAssets()
+
+	if !containsBinaryAsset(assets, "lightpanda", browserruntime.DeviceBrowserExecutablePath) {
+		t.Fatalf("expected setup to install Lightpanda fallback binary, got %+v", assets)
+	}
+}
+
+func containsBinaryAsset(assets []localBinaryAsset, name string, remotePath string) bool {
+	for _, asset := range assets {
+		if asset.name == name && asset.remotePath == remotePath {
+			return true
+		}
+	}
+	return false
 }
 
 func TestDefaultJetsonSetupSkipsGoogle(t *testing.T) {

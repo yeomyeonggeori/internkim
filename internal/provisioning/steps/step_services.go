@@ -143,7 +143,7 @@ sleep 2`,
 		}
 
 		connection.Run("systemctl stop lightpanda 2>/dev/null; systemctl disable lightpanda 2>/dev/null; " +
-			"rm -f /etc/systemd/system/lightpanda.service /usr/local/bin/lightpanda; systemctl daemon-reload")
+			"rm -f /etc/systemd/system/lightpanda.service; systemctl daemon-reload")
 
 		connection.Run(`if ! grep -q '/swapfile' /proc/swaps 2>/dev/null; then
   if [ ! -f /swapfile ]; then

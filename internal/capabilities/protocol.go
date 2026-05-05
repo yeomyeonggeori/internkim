@@ -162,7 +162,6 @@ func DeviceBrowserDescriptors() []Descriptor {
 	return []Descriptor{
 		{Name: "browser.open", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
 		{Name: "browser.snapshot", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "browser.screenshot", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
 		{Name: "browser.click", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
 		{Name: "browser.fill", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
 		{Name: "browser.select", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},

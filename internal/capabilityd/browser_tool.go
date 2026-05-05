@@ -55,7 +55,7 @@ func (service Service) invokeDeviceBrowserTool(ctx context.Context, request capa
 			result = observation
 		}
 	case "browser.screenshot":
-		result, errorValue = service.captureDeviceBrowserScreenshot(ctx, browserRuntime, request)
+		return companionRequiredBrowserResponse(request.ToolName, "companion_required_for_screenshot", "Connect the speaker's Companion app to capture browser screenshots."), nil
 	case "browser.click":
 		var input browserruntime.ClickRequest
 		errorValue = decodeBrowserToolInput(request.Input, &input)
@@ -107,15 +107,10 @@ func (service Service) invokeDeviceBrowserTool(ctx context.Context, request capa
 
 func (service Service) deviceBrowserRuntime() browserruntime.AgentBrowserRuntime {
 	configuration := service.Configuration.WithDefaults()
-	profilePath := strings.TrimSpace(configuration.DeviceBrowserProfilePath)
-	if profilePath != "" {
-		_ = os.MkdirAll(profilePath, 0o700)
-	}
 	return browserruntime.AgentBrowserRuntime{
 		CommandPath:          configuration.AgentBrowserPath,
-		Engine:               browserruntime.BrowserEngineChrome,
+		Engine:               browserruntime.BrowserEngineLightpanda,
 		EngineExecutablePath: configuration.DeviceBrowserPath,
-		ProfilePath:          profilePath,
 		SessionName:          "internkim-device",
 		Runner:               service.browserCommandRunner(),
 	}
@@ -201,7 +196,7 @@ func captchaBlockedResponse(toolName string, snapshotText string) (capabilities.
 	message := fmt.Sprintf(
 		"blocked_by_captcha: this URL returned a bot-detection wall (matched: %q). "+
 			"Do NOT pretend you have the information from this page. "+
-			"Tell the user that the page was blocked and suggest trying a different URL.",
+			"Tell the user that the page needs the speaker's Companion browser, then stop.",
 		matchedSignature,
 	)
 	return capabilities.ToolInvokeResponse{
