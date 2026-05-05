@@ -1315,6 +1315,7 @@ func claimedAdminPerson(person map[string]any, email string) map[string]any {
 	person["personID"] = blueclawruntime.BlueclawPolicyAdminID
 	person["displayName"] = "Intern Kim Admin"
 	person["emails"] = []string{email}
+	person["circles"] = []string{"staff", "admin"}
 	person["securityLevelName"] = "admin"
 	person["securityLevelRank"] = 100
 	person["grantedClasses"] = []string{"internal", "executive"}

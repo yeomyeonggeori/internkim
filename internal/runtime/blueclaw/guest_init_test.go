@@ -33,6 +33,28 @@ func TestGuestInitRunsBlueclawAsNonRootUser(t *testing.T) {
 	}
 }
 
+func TestGuestInitCreatesResourceFirstWorkspaceLayout(t *testing.T) {
+	document := readGuestInit(t)
+	for _, expectedFragment := range []string{
+		"/workspace/circles/staff",
+		"/workspace/circles/c-level",
+		"/workspace/circles/representative",
+		"/workspace/circles/admin",
+		"/workspace/private/people",
+		"/workspace/shared/public",
+		"chown -R blueclaw:blueclaw",
+		"/workspace/circles",
+		"/workspace/private",
+		"/workspace/shared",
+		"chmod 0750 /workspace/circles /workspace/private",
+		"chmod 0755 /workspace/shared /workspace/shared/public",
+	} {
+		if !strings.Contains(document, expectedFragment) {
+			t.Fatalf("expected guest init to contain %q", expectedFragment)
+		}
+	}
+}
+
 func readGuestInit(t *testing.T) string {
 	t.Helper()
 	_, filePath, _, isOK := runtime.Caller(0)
