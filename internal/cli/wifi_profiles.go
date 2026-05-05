@@ -16,6 +16,9 @@ import (
 const wifiProfilesStateFile = "wifi_profiles.json"
 const jetsonWiFiConnectionPrefix = "internkim-wifi-"
 const jetsonWiFiConnectionDirectory = "/etc/NetworkManager/system-connections"
+const jetsonWiFiSelectorScriptPath = "/usr/local/bin/internkim-wifi-select"
+const jetsonWiFiRecoveryServicePath = "/etc/systemd/system/internkim-wifi-recovery.service"
+const jetsonWiFiRecoveryTimerPath = "/etc/systemd/system/internkim-wifi-recovery.timer"
 
 type wifiProfile struct {
 	SSID       string `json:"ssid"`
@@ -324,6 +327,38 @@ func buildJetsonWiFiUpsertScript(profiles []resolvedWiFiProfile) string {
 	return strings.TrimSpace(builder.String())
 }
 
+func buildJetsonWiFiInstallScript(profiles []resolvedWiFiProfile) string {
+	upsertScript := buildJetsonWiFiUpsertScript(profiles)
+	selectorScript := buildJetsonWiFiSelectorScript()
+	recoveryService := buildJetsonWiFiRecoveryService()
+	recoveryTimer := buildJetsonWiFiRecoveryTimer()
+	return fmt.Sprintf(`systemctl unmask NetworkManager.service 2>/dev/null || true
+systemctl enable --now NetworkManager.service 2>/dev/null || true
+nmcli radio wifi on
+%s
+cat > %s <<'WIFIEOF'
+%s
+WIFIEOF
+chmod 755 %s
+cat > %s <<'SERVICEEOF'
+%s
+SERVICEEOF
+cat > %s <<'TIMEREOF'
+%s
+TIMEREOF
+systemctl daemon-reload
+systemctl enable --now internkim-wifi-recovery.timer`,
+		upsertScript,
+		jetsonWiFiSelectorScriptPath,
+		selectorScript,
+		jetsonWiFiSelectorScriptPath,
+		jetsonWiFiRecoveryServicePath,
+		recoveryService,
+		jetsonWiFiRecoveryTimerPath,
+		recoveryTimer,
+	)
+}
+
 func buildJetsonWiFiSelectorScript() string {
 	return strings.TrimSpace(`#!/bin/sh
 set -eu
@@ -337,6 +372,13 @@ import time
 def output(arguments):
     completed = subprocess.run(arguments, text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     return completed.stdout.strip()
+
+def wireless_address():
+    for line in output(["ip", "-o", "-4", "addr", "show", "scope", "global"]).splitlines():
+        parts = line.split()
+        if len(parts) >= 4 and (parts[1].startswith("wl") or parts[1].startswith("wlan")):
+            return parts[3].split("/", 1)[0]
+    return ""
 
 def connection_names():
     names = []
@@ -364,6 +406,9 @@ def scan_signals():
         signals[parts[0]] = max(signals.get(parts[0], 0), signal)
     return signals
 
+if wireless_address():
+    sys.exit(0)
+
 signals = scan_signals()
 records = []
 for name in connection_names():
@@ -377,10 +422,38 @@ records.sort(key=lambda record: (record["isOpen"], -record["signal"], record["ss
 for record in records:
     subprocess.run(["nmcli", "connection", "up", record["name"]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(2)
-    if output(["ip", "-o", "-4", "addr", "show", "scope", "global"]):
+    if wireless_address():
         print(record["name"])
         sys.exit(0)
 
 sys.exit(1)
 PY`)
+}
+
+func buildJetsonWiFiRecoveryService() string {
+	return `[Unit]
+Description=Intern Kim Wi-Fi Recovery
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/internkim-wifi-select
+TimeoutStartSec=90
+
+`
+}
+
+func buildJetsonWiFiRecoveryTimer() string {
+	return `[Unit]
+Description=Intern Kim Wi-Fi Recovery Timer
+
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=2min
+Unit=internkim-wifi-recovery.service
+
+[Install]
+WantedBy=timers.target
+`
 }
