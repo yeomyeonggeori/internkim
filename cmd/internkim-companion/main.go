@@ -34,6 +34,9 @@ func main() {
 		case "run":
 			exit(runCompanion(os.Args[2:], http.DefaultClient))
 			return
+		case "remote-model":
+			exit(runRemoteModel(os.Args[2:], http.DefaultClient, companionruntime.NewDefaultSecureStore()))
+			return
 		case "status":
 			exit(runStatus(os.Args[2:]))
 			return
@@ -44,7 +47,7 @@ func main() {
 
 func isCompanionSubcommand(commandName string) bool {
 	switch commandName {
-	case "pair", "run", "status":
+	case "pair", "run", "remote-model", "status":
 		return true
 	default:
 		return false
@@ -61,7 +64,7 @@ func runServer(arguments []string) error {
 		return errorValue
 	}
 
-	settings := localLLMFlags.settings(http.DefaultClient)
+	settings := newDynamicLocalLLM(localLLMFlags.settings(http.DefaultClient))
 
 	multiplexer := http.NewServeMux()
 	multiplexer.HandleFunc("GET /health", func(responseWriter http.ResponseWriter, request *http.Request) {
@@ -73,12 +76,12 @@ func runServer(arguments []string) error {
 		_ = request
 		writeJSON(responseWriter, capabilities.RegistryResponse{
 			LocalOnly:    *localOnly,
-			Capabilities: defaultCapabilities(*localOnly, *devMockLLM || settings.Enabled),
+			Capabilities: defaultCapabilities(*localOnly, *devMockLLM || settings.currentSettings().Enabled),
 		})
 	})
 	multiplexer.HandleFunc("POST /v1/llm/structured", llmHandler(settings, *devMockLLM, true))
 	multiplexer.HandleFunc("POST /v1/llm/text", llmHandler(settings, *devMockLLM, false))
-	multiplexer.HandleFunc("POST /v1/llm/stream", llmStreamHandler(settings.Enabled, settings.ProviderSet.Backends))
+	multiplexer.HandleFunc("POST /v1/llm/stream", llmStreamHandler(settings))
 	multiplexer.HandleFunc("POST /v1/audio/in", reservedNotImplemented)
 	multiplexer.HandleFunc("POST /v1/audio/out", reservedNotImplemented)
 	multiplexer.HandleFunc("POST /v1/tools/invoke", notImplemented)
@@ -247,6 +250,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 		return errorValue
 	}
 	localLLMConfiguration := localLLMFlags.settings(httpClient)
+	localLLM := newDynamicLocalLLM(localLLMConfiguration)
 	state, errorValue := loadStateAndMigrateSecrets(context.Background(), *statePath, secureStore)
 	if errorValue != nil {
 		return errorValue
@@ -273,16 +277,13 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	grantStore := companionruntime.NewMemoryGrantStore()
 	mountStore := companionruntime.NewMountStore(defaultMountStatePath(*statePath))
 	runtimeStatus := &runtimeState{}
-	var localChain llmbackend.Provider
 	if localLLMConfiguration.Enabled {
-		localChain = localLLMConfiguration.ProviderSet.Provider
-		runtimeStatus.setLocalLLM(localBackendsSummary(localLLMConfiguration.ProviderSet.Backends))
-		runtimeStatus.registerLocalLLMBackends(localLLMConfiguration.ProviderSet.Backends, localLLMConfiguration.ProviderSet.ModelByBackendName)
+		runtimeStatus.replaceLocalLLM(localLLMConfiguration)
 	}
 	_ = preferCompanionBrowser
 	executor := companionruntime.Executor{
 		DevMockLLM:     *devMockLLM,
-		LLMChain:       localChain,
+		LLMChain:       localLLM,
 		BrowserRuntime: browserRuntime,
 		GrantStore:     grantStore,
 		MountStore:     mountStore,
@@ -290,7 +291,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	if readiness.Status != "ready" {
 		executor.BrowserRuntime = nil
 	}
-	controlServer, errorValue := startControlServer(*controlListenAddress, grantStore, mountStore, runtimeStatus)
+	controlServer, errorValue := startControlServer(*controlListenAddress, grantStore, mountStore, runtimeStatus, localLLM, httpClient)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -457,13 +458,13 @@ func capabilitiesWithoutBrowser(descriptors []capabilities.Descriptor) []capabil
 	return filteredDescriptors
 }
 
-func llmHandler(settings localLLMSettings, devMock bool, isStructured bool) http.HandlerFunc {
+func llmHandler(settings *dynamicLocalLLM, devMock bool, isStructured bool) http.HandlerFunc {
 	return func(responseWriter http.ResponseWriter, request *http.Request) {
 		if devMock {
 			respondWithDevMock(responseWriter, request, isStructured)
 			return
 		}
-		if !settings.Enabled {
+		if !settings.currentSettings().Enabled {
 			notImplemented(responseWriter, request)
 			return
 		}
@@ -490,13 +491,17 @@ func respondWithDevMock(responseWriter http.ResponseWriter, request *http.Reques
 	writeJSON(responseWriter, response)
 }
 
-func handleStructuredLLM(responseWriter http.ResponseWriter, request *http.Request, settings localLLMSettings) {
+func handleStructuredLLM(responseWriter http.ResponseWriter, request *http.Request, settings *dynamicLocalLLM) {
 	var structuredRequest llmbackend.StructuredRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&structuredRequest); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	providerSet := settings.providerSetFor(structuredRequest.Provider, structuredRequest.Accelerator)
+	providerSet, isEnabled := settings.providerSetFor(structuredRequest.Provider, structuredRequest.Accelerator)
+	if !isEnabled {
+		notImplemented(responseWriter, request)
+		return
+	}
 	response, errorValue := providerSet.Provider.CompleteStructured(request.Context(), structuredRequest)
 	if errorValue != nil {
 		respondWithBackendError(responseWriter, errorValue, providerSet.Backends)
@@ -506,13 +511,17 @@ func handleStructuredLLM(responseWriter http.ResponseWriter, request *http.Reque
 	writeJSON(responseWriter, response)
 }
 
-func handleTextLLM(responseWriter http.ResponseWriter, request *http.Request, settings localLLMSettings) {
+func handleTextLLM(responseWriter http.ResponseWriter, request *http.Request, settings *dynamicLocalLLM) {
 	var textRequest llmbackend.TextRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&textRequest); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	providerSet := settings.providerSetFor(textRequest.Provider, textRequest.Accelerator)
+	providerSet, isEnabled := settings.providerSetFor(textRequest.Provider, textRequest.Accelerator)
+	if !isEnabled {
+		notImplemented(responseWriter, request)
+		return
+	}
 	response, errorValue := providerSet.Provider.CompleteText(request.Context(), textRequest)
 	if errorValue != nil {
 		respondWithBackendError(responseWriter, errorValue, providerSet.Backends)
@@ -549,15 +558,16 @@ func reservedNotImplemented(responseWriter http.ResponseWriter, request *http.Re
 	http.Error(responseWriter, "reserved endpoint; not yet implemented", http.StatusNotImplemented)
 }
 
-func llmStreamHandler(localEnabled bool, backends []llmbackend.Backend) http.HandlerFunc {
+func llmStreamHandler(settings *dynamicLocalLLM) http.HandlerFunc {
 	return func(responseWriter http.ResponseWriter, request *http.Request) {
-		if !localEnabled {
-			notImplemented(responseWriter, request)
-			return
-		}
 		var textRequest llmbackend.TextRequest
 		if errorValue := json.NewDecoder(request.Body).Decode(&textRequest); errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+			return
+		}
+		providerSet, isEnabled := settings.providerSetFor(textRequest.Provider, textRequest.Accelerator)
+		if !isEnabled {
+			notImplemented(responseWriter, request)
 			return
 		}
 		flusher, supportsFlush := responseWriter.(http.Flusher)
@@ -568,7 +578,7 @@ func llmStreamHandler(localEnabled bool, backends []llmbackend.Backend) http.Han
 		responseWriter.Header().Set("Content-Type", "text/event-stream")
 		responseWriter.Header().Set("Cache-Control", "no-cache")
 		responseWriter.Header().Set("Connection", "keep-alive")
-		errorValue := llmbackend.StreamFirstStreamingBackend(request.Context(), backends, textRequest, func(token string) {
+		errorValue := llmbackend.StreamFirstStreamingBackend(request.Context(), providerSet.Backends, textRequest, func(token string) {
 			payload, _ := json.Marshal(map[string]string{"token": token})
 			_, _ = responseWriter.Write([]byte("data: "))
 			_, _ = responseWriter.Write(payload)

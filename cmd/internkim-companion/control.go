@@ -35,6 +35,19 @@ type localLLMStatus struct {
 	Backends []localLLMBackendStatus `json:"backends,omitempty"`
 }
 
+type controlBackendEndpoint struct {
+	BaseURL string `json:"baseURL"`
+	Model   string `json:"model"`
+}
+
+type controlLocalLLMSettings struct {
+	EnableLocalLLM    bool                   `json:"enableLocalLLM"`
+	LocalBackendOrder []string               `json:"localBackendOrder"`
+	Ollama            controlBackendEndpoint `json:"ollama"`
+	LlamaCpp          controlBackendEndpoint `json:"llamacpp"`
+	MLX               controlBackendEndpoint `json:"mlx"`
+}
+
 type runtimeStatusDocument struct {
 	LastHeartbeatAt string         `json:"lastHeartbeatAt,omitempty"`
 	LastError       string         `json:"lastError,omitempty"`
@@ -65,20 +78,23 @@ func (state *runtimeState) recordHeartbeat(errorValue error) {
 	state.lastError = ""
 }
 
-func (state *runtimeState) setLocalLLM(summary localLLMStatus) {
+func (state *runtimeState) replaceLocalLLM(settings localLLMSettings) localLLMStatus {
 	state.mutex.Lock()
 	defer state.mutex.Unlock()
-	state.localLLM = summary
-}
-
-func (state *runtimeState) registerLocalLLMBackends(backends []llmbackend.Backend, modelByName map[string]string) {
-	state.mutex.Lock()
-	defer state.mutex.Unlock()
-	state.localLLMBackends = backends
-	state.localLLMModelByName = modelByName
+	state.localLLMLastCheckAt = time.Time{}
+	state.localLLMBackends = nil
+	state.localLLMModelByName = nil
+	if !settings.Enabled {
+		state.localLLM = localLLMStatus{}
+		return state.localLLM
+	}
+	state.localLLMBackends = settings.ProviderSet.Backends
+	state.localLLMModelByName = settings.ProviderSet.ModelByBackendName
+	state.localLLM = localBackendsSummary(settings.ProviderSet.Backends)
 	if state.localLLMCacheLifetime == 0 {
 		state.localLLMCacheLifetime = defaultLocalLLMCacheLifetime
 	}
+	return state.localLLM
 }
 
 func (state *runtimeState) localLLMAvailable() bool {
@@ -143,7 +159,7 @@ func (state *runtimeState) snapshot() runtimeStatusDocument {
 	}
 }
 
-func startControlServer(listenAddress string, grantStore *companionruntime.MemoryGrantStore, mountStore *companionruntime.MountStore, runtime *runtimeState) (*http.Server, error) {
+func startControlServer(listenAddress string, grantStore *companionruntime.MemoryGrantStore, mountStore *companionruntime.MountStore, runtime *runtimeState, localLLM *dynamicLocalLLM, httpClient *http.Client) (*http.Server, error) {
 	trimmedAddress := strings.TrimSpace(listenAddress)
 	if trimmedAddress == "" {
 		return nil, nil
@@ -156,7 +172,7 @@ func startControlServer(listenAddress string, grantStore *companionruntime.Memor
 		_ = listener.Close()
 		return nil, errors.New("companion control server must listen on loopback")
 	}
-	server := &http.Server{Handler: controlHandler(grantStore, mountStore, runtime)}
+	server := &http.Server{Handler: controlHandler(grantStore, mountStore, runtime, localLLM, httpClient)}
 	go func() {
 		errorValue := server.Serve(listener)
 		if errorValue != nil && !errors.Is(errorValue, http.ErrServerClosed) {
@@ -166,7 +182,7 @@ func startControlServer(listenAddress string, grantStore *companionruntime.Memor
 	return server, nil
 }
 
-func controlHandler(grantStore *companionruntime.MemoryGrantStore, mountStore *companionruntime.MountStore, runtime *runtimeState) http.Handler {
+func controlHandler(grantStore *companionruntime.MemoryGrantStore, mountStore *companionruntime.MountStore, runtime *runtimeState, localLLM *dynamicLocalLLM, httpClient *http.Client) http.Handler {
 	multiplexer := http.NewServeMux()
 	multiplexer.HandleFunc("GET /v1/runtime/status", func(responseWriter http.ResponseWriter, request *http.Request) {
 		if runtime == nil {
@@ -175,6 +191,20 @@ func controlHandler(grantStore *companionruntime.MemoryGrantStore, mountStore *c
 		}
 		runtime.refreshLocalLLM(request.Context())
 		writeJSON(responseWriter, runtime.snapshot())
+	})
+	multiplexer.HandleFunc("POST /v1/runtime/local-llm", func(responseWriter http.ResponseWriter, request *http.Request) {
+		if runtime == nil || localLLM == nil {
+			http.Error(responseWriter, "runtime local LLM is unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		settings, errorValue := decodeControlLocalLLMSettings(request, httpClient)
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+			return
+		}
+		localLLM.update(settings)
+		runtime.replaceLocalLLM(settings)
+		writeJSON(responseWriter, runtime.refreshLocalLLM(request.Context()))
 	})
 	multiplexer.HandleFunc("GET /v1/security/grants", func(responseWriter http.ResponseWriter, request *http.Request) {
 		_ = request
@@ -239,6 +269,62 @@ func controlHandler(grantStore *companionruntime.MemoryGrantStore, mountStore *c
 		}
 		multiplexer.ServeHTTP(responseWriter, request)
 	})
+}
+
+func decodeControlLocalLLMSettings(request *http.Request, httpClient *http.Client) (localLLMSettings, error) {
+	var payload controlLocalLLMSettings
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		return localLLMSettings{}, errorValue
+	}
+	if errorValue := validateControlLocalLLMSettings(payload); errorValue != nil {
+		return localLLMSettings{}, errorValue
+	}
+	configuration := llmbackend.LocalProviderConfig{
+		ProviderOrder:   payload.LocalBackendOrder,
+		HTTPClient:      httpClient,
+		OllamaBaseURL:   payload.Ollama.BaseURL,
+		OllamaModel:     payload.Ollama.Model,
+		LlamaCppBaseURL: payload.LlamaCpp.BaseURL,
+		LlamaCppModel:   payload.LlamaCpp.Model,
+		MLXBaseURL:      payload.MLX.BaseURL,
+		MLXModel:        payload.MLX.Model,
+	}
+	if len(configuration.ProviderOrder) == 0 {
+		configuration.ProviderOrder = llmbackend.DefaultCompanionLocalProviderOrder
+	}
+	return localLLMSettings{
+		Enabled:       payload.EnableLocalLLM,
+		Configuration: configuration,
+		ProviderSet:   llmbackend.BuildLocalProviderSet(configuration),
+	}, nil
+}
+
+func validateControlLocalLLMSettings(settings controlLocalLLMSettings) error {
+	for _, name := range settings.LocalBackendOrder {
+		switch name {
+		case "ollama", "llamacpp", "mlx":
+		default:
+			return errors.New("unsupported backend: " + name)
+		}
+	}
+	if errorValue := validateControlEndpoint("ollama", settings.Ollama); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := validateControlEndpoint("llamacpp", settings.LlamaCpp); errorValue != nil {
+		return errorValue
+	}
+	return validateControlEndpoint("mlx", settings.MLX)
+}
+
+func validateControlEndpoint(name string, endpoint controlBackendEndpoint) error {
+	trimmedURL := strings.TrimSpace(endpoint.BaseURL)
+	if trimmedURL == "" {
+		return nil
+	}
+	if strings.HasPrefix(trimmedURL, "http://") || strings.HasPrefix(trimmedURL, "https://") {
+		return nil
+	}
+	return errors.New(name + " base URL must start with http:// or https://")
 }
 
 func isLoopbackRemoteAddress(remoteAddress string) bool {
