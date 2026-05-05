@@ -22,13 +22,28 @@
 	--success: hsl(160 84% 39%);
 }
 
+* {
+	box-sizing: border-box;
+}
+
+html {
+	width: 100%;
+	max-width: 100%;
+}
+
 body {
 	margin: 0;
-	min-width: 420px;
+	width: 100%;
+	max-width: 100%;
 	min-height: 560px;
 	overflow-y: auto;
 	background:
 		linear-gradient(180deg, hsl(210 40% 98%) 0%, hsl(214 32% 95%) 100%);
+}
+
+#app {
+	width: 100%;
+	max-width: 100%;
 }
 
 button,
@@ -39,9 +54,11 @@ select {
 
 .shell {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+	grid-template-columns: minmax(0, 1fr);
 	gap: 14px;
 	padding: 18px;
+	width: 100%;
+	max-width: 100%;
 }
 
 .status-panel,
@@ -58,6 +75,8 @@ select {
 	color: var(--card-foreground);
 	box-shadow: 0 1px 2px hsl(222 47% 11% / 6%);
 	padding: 18px;
+	min-width: 0;
+	max-width: 100%;
 }
 
 .status-panel,
@@ -71,6 +90,10 @@ select {
 	align-items: flex-start;
 	justify-content: space-between;
 	gap: 16px;
+}
+
+.status-panel > div:first-child {
+	min-width: 0;
 }
 
 .runtime-panel,
@@ -90,7 +113,17 @@ select {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
+	flex-wrap: wrap;
 	gap: 10px;
+	min-width: 0;
+}
+
+.panel-header > *,
+.model-row-header > *,
+.runtime-row > *,
+.mount-row > *,
+.grant-row > * {
+	min-width: 0;
 }
 
 .eyebrow {
@@ -112,16 +145,19 @@ h1 {
 	font-size: 24px;
 	line-height: 1.2;
 	letter-spacing: 0;
+	overflow-wrap: anywhere;
 }
 
 h2 {
 	font-size: 15px;
 	letter-spacing: 0;
+	overflow-wrap: anywhere;
 }
 
 h3 {
 	font-size: 13px;
 	letter-spacing: 0;
+	overflow-wrap: anywhere;
 }
 
 .subtle,
@@ -130,6 +166,7 @@ h3 {
 	font-size: 13px;
 	line-height: 1.5;
 	overflow-wrap: anywhere;
+	word-break: break-word;
 }
 
 .indicator,
@@ -144,6 +181,7 @@ h3 {
 	background: var(--secondary);
 	font-size: 12px;
 	font-weight: 650;
+	max-width: 100%;
 	white-space: nowrap;
 }
 
@@ -167,6 +205,7 @@ h3 {
 	padding: 10px;
 	color: hsl(215 25% 27%);
 	font-size: 14px;
+	min-width: 0;
 }
 
 .mount-list,
@@ -175,6 +214,7 @@ h3 {
 .backend-config {
 	display: grid;
 	gap: 10px;
+	min-width: 0;
 }
 
 .mount-row div:first-child,
@@ -188,13 +228,16 @@ h3 {
 .grant-row strong {
 	color: var(--foreground);
 	font-size: 14px;
+	overflow-wrap: anywhere;
 }
 
 .mount-row span,
-.grant-row span {
+.grant-row span,
+.runtime-row span {
 	color: var(--muted-foreground);
 	font-size: 12px;
 	overflow-wrap: anywhere;
+	word-break: break-word;
 }
 
 .settings-panel .backend-list {
@@ -206,6 +249,7 @@ h3 {
 	border-radius: 8px;
 	padding: 10px;
 	background: var(--muted);
+	min-width: 0;
 }
 
 .settings-panel code {
@@ -223,12 +267,16 @@ h3 {
 	border-radius: 8px;
 	padding: 12px;
 	background: hsl(0 0% 100%);
+	min-width: 0;
+	max-width: 100%;
 }
 
 .prompt-message {
 	color: var(--foreground);
 	font-size: 15px;
 	line-height: 1.5;
+	overflow-wrap: anywhere;
+	word-break: break-word;
 }
 
 label {
@@ -244,25 +292,33 @@ label {
 	align-items: center;
 	gap: 8px;
 	width: fit-content;
+	max-width: 100%;
 	font-weight: 500;
 }
 
 .switch-row input {
+	flex: 0 0 auto;
 	width: 16px;
 	height: 16px;
 	accent-color: var(--primary);
 }
 
+.switch-row span {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
 input,
 select {
-	box-sizing: border-box;
 	width: 100%;
+	max-width: 100%;
 	min-height: 38px;
 	border: 1px solid var(--input);
 	border-radius: 8px;
 	padding: 8px 11px;
 	color: var(--foreground);
 	background: var(--card);
+	min-width: 0;
 }
 
 input:focus,
@@ -278,10 +334,13 @@ button:focus-visible {
 	flex-wrap: wrap;
 	gap: 8px;
 	margin-top: 4px;
+	min-width: 0;
+	max-width: 100%;
 }
 
 button {
 	min-height: 36px;
+	max-width: 100%;
 	border: 1px solid var(--primary);
 	border-radius: 8px;
 	padding: 8px 12px;
@@ -289,6 +348,8 @@ button {
 	background: var(--primary);
 	cursor: pointer;
 	font-weight: 650;
+	overflow-wrap: anywhere;
+	white-space: normal;
 }
 
 button:hover:not(:disabled) {
@@ -330,6 +391,9 @@ button.ghost:hover:not(:disabled) {
 	background: hsl(214 100% 97%);
 	font-size: 13px;
 	line-height: 1.4;
+	overflow-wrap: anywhere;
+	word-break: break-word;
+	min-width: 0;
 }
 
 .message.error,
@@ -343,12 +407,72 @@ button.ghost:hover:not(:disabled) {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 8px;
+	min-width: 0;
 }
 
 .capabilities span {
+	max-width: 100%;
 	border-radius: 999px;
 	padding: 5px 9px;
 	color: hsl(215 25% 27%);
 	background: var(--secondary);
 	font-size: 12px;
+	overflow-wrap: anywhere;
+}
+
+@media (min-width: 760px) {
+	.shell {
+		grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+	}
+}
+
+@media (max-width: 459px) {
+	.shell {
+		gap: 12px;
+		padding: 12px;
+	}
+
+	.status-panel,
+	.form-panel,
+	.runtime-panel,
+	.prompt-panel,
+	.grant-panel,
+	.capability-panel,
+	.settings-panel,
+	.mount-panel {
+		padding: 14px;
+	}
+
+	.status-panel,
+	.panel-header,
+	.model-row-header,
+	.runtime-row,
+	.mount-row,
+	.grant-row {
+		align-items: stretch;
+		flex-direction: column;
+		justify-content: flex-start;
+	}
+
+	.indicator,
+	.badge,
+	.mount-badge {
+		width: fit-content;
+		white-space: normal;
+	}
+
+	.mount-actions,
+	.actions {
+		align-items: stretch;
+		width: 100%;
+	}
+
+	.mount-actions > *,
+	.actions > * {
+		flex: 1 1 auto;
+	}
+
+	button {
+		white-space: normal;
+	}
 }
