@@ -28,6 +28,16 @@ func TestRequiredBinaryAssetsIncludeLightpandaFallback(t *testing.T) {
 	}
 }
 
+func TestDeviceBrowserVersionCommandUsesLightpandaSubcommand(t *testing.T) {
+	command := deviceBrowserVersionShellCommand(browserruntime.DeviceBrowserExecutablePath)
+	if !strings.Contains(command, quoteShellValue(browserruntime.DeviceBrowserExecutablePath)+" version") {
+		t.Fatalf("expected Lightpanda version subcommand, got %s", command)
+	}
+	if strings.Contains(command, "--version") {
+		t.Fatalf("device browser version command must not use --version, got %s", command)
+	}
+}
+
 func containsBinaryAsset(assets []localBinaryAsset, name string, remotePath string) bool {
 	for _, asset := range assets {
 		if asset.name == name && asset.remotePath == remotePath {
