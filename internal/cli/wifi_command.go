@@ -155,15 +155,12 @@ func buildJetsonWiFiApplyCommand(profiles []resolvedWiFiProfile, shouldConnect b
 	if shouldWait {
 		waitCommand = jetsonWiFiWaitCommand()
 	}
-	return fmt.Sprintf(`set -eu
-nmcli radio wifi on
-%s
-cat > /usr/local/bin/internkim-wifi-select <<'WIFIEOF'
-%s
-WIFIEOF
-chmod 755 /usr/local/bin/internkim-wifi-select
-%s
-%s`, buildJetsonWiFiUpsertScript(profiles), buildJetsonWiFiSelectorScript(), connectCommand, waitCommand)
+	return strings.Join([]string{
+		"set -eu",
+		buildJetsonWiFiInstallScript(profiles),
+		connectCommand,
+		waitCommand,
+	}, "\n")
 }
 
 func jetsonWiFiWaitCommand() string {

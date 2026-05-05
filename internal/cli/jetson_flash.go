@@ -23,7 +23,6 @@ const jetsonFirstbootScriptPath = "/usr/local/bin/internkim-jetson-firstboot.sh"
 const jetsonFirstbootServicePath = "/etc/systemd/system/internkim-jetson-firstboot.service"
 const jetsonAutologinOverridePath = "/etc/systemd/system/getty@tty1.service.d/override.conf"
 const jetsonLegacyNetworkManagerConnectionPath = "/etc/NetworkManager/system-connections/internkim-wifi.nmconnection"
-const jetsonWiFiSelectorScriptPath = "/usr/local/bin/internkim-wifi-select"
 
 type flashImage struct {
 	path string
@@ -544,6 +543,8 @@ type jetsonPatchDocuments struct {
 	oemMarker        string
 	wifiConnection   string
 	wifiSelector     string
+	wifiRecovery     string
+	wifiTimer        string
 	firstbootScript  string
 	firstbootService string
 	autologin        string
@@ -659,7 +660,13 @@ func configureJetsonWiFiProfiles(partitionDevice string, profiles []resolvedWiFi
 		return nil
 	}
 	removeDebugfsPaths(partitionDevice, "/etc/netplan/99-internkim-wifi.yaml", jetsonLegacyNetworkManagerConnectionPath)
-	ensureDebugfsDirectories(partitionDevice, jetsonWiFiConnectionDirectory, filepath.Dir(jetsonWiFiSelectorScriptPath))
+	ensureDebugfsDirectories(
+		partitionDevice,
+		jetsonWiFiConnectionDirectory,
+		filepath.Dir(jetsonWiFiSelectorScriptPath),
+		filepath.Dir(jetsonWiFiRecoveryServicePath),
+		"/etc/systemd/system/timers.target.wants",
+	)
 	for _, profile := range profiles {
 		connectionDocument := buildJetsonNetworkManagerWiFiConnection(profile.SSID, profile.Password, profile.IsHidden)
 		if errorValue := writeDebugfsContent(partitionDevice, jetsonWiFiConnectionPath(profile.SSID), connectionDocument, "0100600", 0, 0); errorValue != nil {
@@ -669,8 +676,15 @@ func configureJetsonWiFiProfiles(partitionDevice string, profiles []resolvedWiFi
 	if errorValue := writeDebugfsContent(partitionDevice, jetsonWiFiSelectorScriptPath, buildJetsonWiFiSelectorScript()+"\n", "0100755", 0, 0); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := writeDebugfsContent(partitionDevice, jetsonWiFiRecoveryServicePath, buildJetsonWiFiRecoveryService(), "0100644", 0, 0); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := writeDebugfsContent(partitionDevice, jetsonWiFiRecoveryTimerPath, buildJetsonWiFiRecoveryTimer(), "0100644", 0, 0); errorValue != nil {
+		return errorValue
+	}
 	_, _ = runDebugfs(partitionDevice, true, "mkdir /etc/systemd/system/multi-user.target.wants")
 	_, _ = runDebugfs(partitionDevice, true, "symlink /etc/systemd/system/multi-user.target.wants/NetworkManager.service /lib/systemd/system/NetworkManager.service")
+	_, _ = runDebugfs(partitionDevice, true, "symlink /etc/systemd/system/timers.target.wants/internkim-wifi-recovery.timer "+jetsonWiFiRecoveryTimerPath)
 	return nil
 }
 
@@ -927,6 +941,12 @@ func verifyJetsonRootPatch(rootPatch jetsonRootPatch) error {
 		if documents.wifiSelector, errorValue = dumpDebugfsFile(rootPatch.partitionDevice, jetsonWiFiSelectorScriptPath); errorValue != nil {
 			return fmt.Errorf("verify Jetson rootfs failed: read %s: %w", jetsonWiFiSelectorScriptPath, errorValue)
 		}
+		if documents.wifiRecovery, errorValue = dumpDebugfsFile(rootPatch.partitionDevice, jetsonWiFiRecoveryServicePath); errorValue != nil {
+			return fmt.Errorf("verify Jetson rootfs failed: read %s: %w", jetsonWiFiRecoveryServicePath, errorValue)
+		}
+		if documents.wifiTimer, errorValue = dumpDebugfsFile(rootPatch.partitionDevice, jetsonWiFiRecoveryTimerPath); errorValue != nil {
+			return fmt.Errorf("verify Jetson rootfs failed: read %s: %w", jetsonWiFiRecoveryTimerPath, errorValue)
+		}
 	}
 	if documents.firstbootScript, errorValue = dumpDebugfsFile(rootPatch.partitionDevice, jetsonFirstbootScriptPath); errorValue != nil {
 		return fmt.Errorf("verify Jetson rootfs failed: read %s: %w", jetsonFirstbootScriptPath, errorValue)
@@ -971,6 +991,12 @@ func validateJetsonRootPatchDocuments(accountFiles jetsonAccountFiles, documents
 	}
 	if !strings.Contains(documents.wifiSelector, "records.sort") {
 		return fmt.Errorf("verify Jetson rootfs failed: %s does not include Wi-Fi selection policy", jetsonWiFiSelectorScriptPath)
+	}
+	if !strings.Contains(documents.wifiRecovery, "internkim-wifi-select") {
+		return fmt.Errorf("verify Jetson rootfs failed: %s does not include Wi-Fi selector", jetsonWiFiRecoveryServicePath)
+	}
+	if !strings.Contains(documents.wifiTimer, "OnBootSec=20s") {
+		return fmt.Errorf("verify Jetson rootfs failed: %s does not include boot recovery", jetsonWiFiRecoveryTimerPath)
 	}
 	return nil
 }

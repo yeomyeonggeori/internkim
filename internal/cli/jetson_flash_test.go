@@ -188,6 +188,34 @@ func TestBuildJetsonWiFiSelectorPrefersSecureBeforeOpen(t *testing.T) {
 	}
 }
 
+func TestBuildJetsonWiFiSelectorUsesWirelessAddressOnly(t *testing.T) {
+	document := buildJetsonWiFiSelectorScript()
+	for _, fragment := range []string{`def wireless_address()`, `parts[1].startswith("wl")`, `return ""`, `if wireless_address():`} {
+		if !strings.Contains(document, fragment) {
+			t.Fatalf("expected Wi-Fi selector to include %q, got:\n%s", fragment, document)
+		}
+	}
+	if strings.Contains(document, `if output(["ip", "-o", "-4", "addr", "show", "scope", "global"])`) {
+		t.Fatalf("Wi-Fi selector must not treat non-wireless IPv4 as success, got:\n%s", document)
+	}
+}
+
+func TestBuildJetsonWiFiRecoveryUnits(t *testing.T) {
+	serviceDocument := buildJetsonWiFiRecoveryService()
+	for _, fragment := range []string{"After=NetworkManager.service", "Wants=NetworkManager.service", "Type=oneshot", "ExecStart=/usr/local/bin/internkim-wifi-select", "TimeoutStartSec=90"} {
+		if !strings.Contains(serviceDocument, fragment) {
+			t.Fatalf("expected Wi-Fi recovery service to include %q, got:\n%s", fragment, serviceDocument)
+		}
+	}
+
+	timerDocument := buildJetsonWiFiRecoveryTimer()
+	for _, fragment := range []string{"OnBootSec=20s", "OnUnitActiveSec=2min", "Unit=internkim-wifi-recovery.service", "WantedBy=timers.target"} {
+		if !strings.Contains(timerDocument, fragment) {
+			t.Fatalf("expected Wi-Fi recovery timer to include %q, got:\n%s", fragment, timerDocument)
+		}
+	}
+}
+
 func TestBuildJetsonFirstbootScriptStartsNetworkAndSSH(t *testing.T) {
 	document := buildJetsonFirstbootScript()
 	for _, fragment := range []string{
@@ -332,6 +360,8 @@ func completeJetsonPatchDocumentsFixture() jetsonPatchDocuments {
 		oemMarker:        "1\n",
 		wifiConnection:   buildJetsonNetworkManagerWiFiConnection("Office WiFi", "secret", false),
 		wifiSelector:     buildJetsonWiFiSelectorScript(),
+		wifiRecovery:     buildJetsonWiFiRecoveryService(),
+		wifiTimer:        buildJetsonWiFiRecoveryTimer(),
 		firstbootScript:  buildJetsonFirstbootScript(),
 		firstbootService: buildJetsonFirstbootService(),
 		autologin:        buildJetsonAutologinOverride(jetsonDefaultUser),

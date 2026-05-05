@@ -3478,11 +3478,11 @@ func runSetupLive(messenger *msg) {
 		if !attemptBackend(setup.BackendSSH) {
 			if boardType == setup.BoardJetsonOrinNano {
 				failureDetails := describeJetsonSSHFailure(sshpassBin, stateDir, sshUser, sshPassword)
-				fatal(messenger.t(
-					"Jetson을 SSH로 찾을 수 없습니다.\n"+failureDetails+"\nJetson 콘솔에서 `ip addr`, `nmcli device status`, `systemctl status ssh --no-pager`, `tail /var/log/internkim-jetson-firstboot.log`를 확인하세요. IP를 알면 --host <ip>를 지정하면 됩니다.",
-					"Jetson was not found over SSH.\n"+failureDetails+"\nOn the Jetson console, check `ip addr`, `nmcli device status`, `systemctl status ssh --no-pager`, and `tail /var/log/internkim-jetson-firstboot.log`. If you know the IP, pass --host <ip>.",
-				))
-			}
+					fatal(messenger.t(
+						"Jetson을 SSH로 찾을 수 없습니다.\n"+failureDetails+"\nJetson 콘솔에서 `ip addr`, `nmcli device status`, `systemctl status ssh --no-pager`, `systemctl status internkim-wifi-recovery.timer --no-pager`, `journalctl -u internkim-wifi-recovery.service -n 80 --no-pager`, `tail /var/log/internkim-jetson-firstboot.log`를 확인하세요. IP를 알면 --host <ip>를 지정하면 됩니다.",
+						"Jetson was not found over SSH.\n"+failureDetails+"\nOn the Jetson console, check `ip addr`, `nmcli device status`, `systemctl status ssh --no-pager`, `systemctl status internkim-wifi-recovery.timer --no-pager`, `journalctl -u internkim-wifi-recovery.service -n 80 --no-pager`, and `tail /var/log/internkim-jetson-firstboot.log`. If you know the IP, pass --host <ip>.",
+					))
+				}
 			fatal(messenger.t("보드를 찾을 수 없습니다 (SSH).", "Board not reachable (SSH)."))
 		}
 		selectedBackend = setup.BackendSSH
