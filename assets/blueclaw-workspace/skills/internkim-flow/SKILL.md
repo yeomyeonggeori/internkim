@@ -1,38 +1,9 @@
 ---
 name: internkim-flow
 description: Add or request Flow weekly work tracker tasks when the user asks Intern Kim to add work, meetings, todos, requests, or task notes.
-category: company-operations
-tags: [flow, tasks, work-tracking]
-triggerHints:
-  - flow
-  - task
-  - todo
-  - 업무
-  - 회의
-  - 미팅
-  - 추가
-  - 넣어
-  - 등록
-  - 요청
-  - 할 일
-  - 할일
-activation:
-  keywords:
-    - flow
-    - task
-    - todo
-    - 업무
-    - 회의
-    - 미팅
-    - 추가
-    - 넣어
-    - 등록
-    - 요청
-    - 할 일
-    - 할일
-requiredTools:
+when_to_use: Use when the user asks to add, record, or request Flow tasks, todos, 업무, 회의, 미팅, 추가, 넣어, 등록, 요청, 할 일, or 할일.
+allowed-tools:
   - flow.task.add
-allowedProfiles: [default]
 ---
 
 # InternKim Flow

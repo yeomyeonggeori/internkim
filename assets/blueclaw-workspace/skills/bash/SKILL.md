@@ -1,20 +1,9 @@
 ---
 name: bash
 description: Use the Blueclaw guest terminal for workspace-scoped command-line work.
-category: development
-tags: [terminal, bash, shell, workspace]
-triggerHints:
-  - bash
-  - terminal
-  - shell
-  - command line
-  - CLI
-  - 명령어
-  - 터미널
-  - 셸
-requiredTools:
+when_to_use: Use when the user asks to run bash, terminal, shell, command line, CLI, 명령어, 터미널, or 셸 work in the Blueclaw workspace.
+allowed-tools:
   - terminal.run
-allowedProfiles: [default]
 ---
 
 # Bash

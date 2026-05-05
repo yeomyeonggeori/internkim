@@ -880,7 +880,8 @@ func (state *setupFlowState) installSkillsSSH(context *setup.Context) error {
 	if errorValue := state.sshClient.scp(temporaryManifestName, filepath.Join(blueclaw.BlueclawWorkspacePath, "skills", ".internkim-skills-manifest.json")); errorValue != nil {
 		return errorValue
 	}
-	state.sshClient.run(`chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills 2>/dev/null || true`)
+	state.sshClient.run(`chown -R root:root /root/.blueclaw/workspace/skills 2>/dev/null || true
+chmod -R a+rX,go-w /root/.blueclaw/workspace/skills 2>/dev/null || true`)
 	return nil
 }
 
@@ -1559,7 +1560,9 @@ cat > ` + quoteShellValue(fallbackPath) + ` <<'EOF'
 ` + fallbackContent + `
 EOF
 cp ` + quoteShellValue(fallbackPath) + ` "$skillDir/SKILL.md"
-chown -R blueclaw:blueclaw /root/.blueclaw/workspace/.agents 2>/dev/null || true`
+chown -R blueclaw:blueclaw /root/.blueclaw/workspace/.agents 2>/dev/null || true
+chown -R root:root "$skillDir" 2>/dev/null || true
+chmod -R a+rX,go-w "$skillDir" 2>/dev/null || true`
 }
 
 func (state *setupFlowState) stageBinariesSD(context *setup.Context) error {
