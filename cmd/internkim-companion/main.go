@@ -38,7 +38,7 @@ func main() {
 			exit(runRemoteModel(os.Args[2:], http.DefaultClient, companionruntime.NewDefaultSecureStore()))
 			return
 		case "status":
-			exit(runStatus(os.Args[2:]))
+			exit(runStatus(os.Args[2:], http.DefaultClient, companionruntime.NewDefaultSecureStore()))
 			return
 		}
 	}
@@ -116,6 +116,7 @@ type companionJob struct {
 
 type companionStatusDocument struct {
 	Paired               bool                      `json:"paired"`
+	AuthStatus           string                    `json:"authStatus"`
 	DeviceURL            string                    `json:"deviceURL,omitempty"`
 	CompanionID          string                    `json:"companionID,omitempty"`
 	LocalOnly            bool                      `json:"localOnly,omitempty"`
@@ -123,6 +124,15 @@ type companionStatusDocument struct {
 	BrowserRuntimeStatus string                    `json:"browserRuntimeStatus,omitempty"`
 	BrowserRuntimeError  string                    `json:"browserRuntimeError,omitempty"`
 }
+
+const (
+	companionAuthStatusUnpaired          = "unpaired"
+	companionAuthStatusLocalOnly         = "local-only"
+	companionAuthStatusMissingSigningKey = "missing-signing-key"
+	companionAuthStatusVerified          = "verified"
+	companionAuthStatusReconnectRequired = "reconnect-required"
+	companionAuthStatusUnknown           = "unknown"
+)
 
 type companionFileUploader struct {
 	HTTPClient *http.Client
@@ -199,17 +209,18 @@ func runPairWithStore(arguments []string, httpClient *http.Client, secureStore c
 	return nil
 }
 
-func runStatus(arguments []string) error {
+func runStatus(arguments []string, httpClient *http.Client, secureStore companionruntime.SecureStore) error {
 	flags := flag.NewFlagSet("status", flag.ContinueOnError)
 	statePath := flags.String("state", defaultStatePath(), "companion state path")
 	jsonOutput := flags.Bool("json", false, "print machine-readable status")
+	verifyAuth := flags.Bool("verify-auth", false, "verify companion auth with the paired device")
 	if errorValue := flags.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
 	state, errorValue := loadState(*statePath)
 	if errorValue != nil {
 		if *jsonOutput && errors.Is(errorValue, os.ErrNotExist) {
-			writeJSONDocument(os.Stdout, companionStatusDocument{Paired: false})
+			writeJSONDocument(os.Stdout, companionStatusDocument{Paired: false, AuthStatus: companionAuthStatusUnpaired})
 			return nil
 		}
 		return errorValue
@@ -217,7 +228,8 @@ func runStatus(arguments []string) error {
 	if *jsonOutput {
 		agentBrowserPath := resolveAgentBrowserPath("")
 		readiness := browserruntime.AgentBrowserRuntime{CommandPath: agentBrowserPath, Engine: browserruntime.BrowserEngineChrome}.Check(context.Background())
-		writeJSONDocument(os.Stdout, companionStatusFromState(state, readiness))
+		authStatus := companionAuthStatusFromState(state, *verifyAuth, *statePath, httpClient, secureStore)
+		writeJSONDocument(os.Stdout, companionStatusFromState(state, readiness, authStatus))
 		return nil
 	}
 	fmt.Println("device: " + state.DeviceURL)
@@ -228,6 +240,32 @@ func runStatus(arguments []string) error {
 	readiness := browserruntime.AgentBrowserRuntime{CommandPath: agentBrowserPath, Engine: browserruntime.BrowserEngineChrome}.Check(context.Background())
 	fmt.Println("browserRuntime: " + firstNonEmpty(readiness.Status, "unknown"))
 	return nil
+}
+
+func companionAuthStatusFromState(state companionState, shouldVerify bool, statePath string, httpClient *http.Client, secureStore companionruntime.SecureStore) string {
+	if state.DeviceURL == "" || state.CompanionID == "" || state.Token == "" {
+		if state.LocalOnly {
+			return companionAuthStatusLocalOnly
+		}
+		return companionAuthStatusUnpaired
+	}
+	if !shouldVerify {
+		return companionAuthStatusUnknown
+	}
+	verifiedState, privateKey, errorValue := loadCompanionStateAndPrivateKey(statePath, secureStore)
+	if errorValue != nil {
+		return companionAuthStatusMissingSigningKey
+	}
+	var response map[string]string
+	endpoint := verifiedState.DeviceURL + "/_internkim/companion/auth/check"
+	errorValue = signedJSONRequest(httpClient, verifiedState, privateKey, http.MethodGet, endpoint, nil, &response)
+	if errorValue == nil {
+		return companionAuthStatusVerified
+	}
+	if isCompanionAuthRequiredError(errorValue) {
+		return companionAuthStatusReconnectRequired
+	}
+	return companionAuthStatusUnknown
 }
 
 func runCompanion(arguments []string, httpClient *http.Client) error {
@@ -771,6 +809,9 @@ func postSignedJSON(httpClient *http.Client, state companionState, privateKey st
 func decodeJSONResponse(endpoint string, response *http.Response, responseBody any) error {
 	body, _ := io.ReadAll(io.LimitReader(response.Body, 1<<20))
 	if response.StatusCode >= http.StatusBadRequest {
+		if response.StatusCode == http.StatusForbidden && isCompanionAuthRequiredBody(body) {
+			return errors.New(companionPairingExpiredMessage)
+		}
 		return fmt.Errorf("%s returned %d: %s", endpoint, response.StatusCode, sanitizedHTTPBody(body))
 	}
 	if responseBody == nil || len(strings.TrimSpace(string(body))) == 0 {
@@ -784,6 +825,16 @@ func decodeJSONResponse(endpoint string, response *http.Response, responseBody a
 		return fmt.Errorf("%s returned invalid JSON: %w", endpoint, errorValue)
 	}
 	return nil
+}
+
+const companionPairingExpiredMessage = "Pairing expired. Connect again from Admin."
+
+func isCompanionAuthRequiredError(errorValue error) bool {
+	return errorValue != nil && strings.Contains(errorValue.Error(), companionPairingExpiredMessage)
+}
+
+func isCompanionAuthRequiredBody(body []byte) bool {
+	return strings.Contains(strings.TrimSpace(string(body)), "companion auth required")
 }
 
 func sanitizedHTTPBody(body []byte) string {
@@ -874,13 +925,14 @@ func loadStateAndMigrateSecrets(ctx context.Context, path string, secureStore co
 	return state, nil
 }
 
-func companionStatusFromState(state companionState, readiness browserruntime.RuntimeReadiness) companionStatusDocument {
+func companionStatusFromState(state companionState, readiness browserruntime.RuntimeReadiness, authStatus string) companionStatusDocument {
 	capabilityList := state.Capabilities
 	if readiness.Status != "" && readiness.Status != "ready" {
 		capabilityList = capabilitiesWithoutBrowser(capabilityList)
 	}
 	return companionStatusDocument{
 		Paired:               state.DeviceURL != "" && state.CompanionID != "" && state.Token != "",
+		AuthStatus:           firstNonEmpty(authStatus, companionAuthStatusUnknown),
 		DeviceURL:            state.DeviceURL,
 		CompanionID:          state.CompanionID,
 		LocalOnly:            state.LocalOnly,

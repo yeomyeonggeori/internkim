@@ -86,7 +86,7 @@ func loadCompanionStateAndPrivateKey(statePath string, secureStore companionrunt
 	}
 	privateKey, errorValue := secureStore.Get(context.Background(), state.PrivateKeyID)
 	if errorValue != nil {
-		return companionState{}, "", errorValue
+		return companionState{}, "", fmt.Errorf("%s signing key missing: %w", companionPairingExpiredMessage, errorValue)
 	}
 	return state, privateKey, nil
 }

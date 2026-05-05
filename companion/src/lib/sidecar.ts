@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { Child } from '@tauri-apps/plugin-shell';
 import { Command } from '@tauri-apps/plugin-shell';
-import type { CompanionStatus, PairingPayload } from './pairing';
+import { isCompanionVerified, stalePairingMessage, type CompanionStatus, type PairingPayload } from './pairing';
 import { loadCompanionSettings, settingsToSidecarArguments } from './settings';
 import type { CompanionSettings } from './settings';
 
@@ -64,7 +64,7 @@ type ShellBridgeInfo = {
 };
 
 export async function readCompanionStatus(): Promise<CompanionStatus> {
-	const output = await Command.sidecar('binaries/internkim-companion', ['status', '--json']).execute();
+	const output = await Command.sidecar('binaries/internkim-companion', ['status', '--json', '--verify-auth']).execute();
 	if (output.code !== 0) {
 		return { paired: false };
 	}
@@ -133,7 +133,7 @@ export async function restartCompanionRuntime(): Promise<void> {
 async function restartCompanionRuntimeOnce(): Promise<void> {
 	if (restartAttempts >= 1) return;
 	const status = await readCompanionStatus();
-	if (!status.paired) return;
+	if (!isCompanionVerified(status)) return;
 	restartAttempts += 1;
 	window.setTimeout(() => {
 		void startCompanionRuntime();
@@ -187,7 +187,7 @@ export async function updateRuntimeLocalLLM(settings: CompanionSettings): Promis
 export async function readRemoteModel(): Promise<string> {
 	const output = await Command.sidecar('binaries/internkim-companion', ['remote-model', 'get']).execute();
 	if (output.code !== 0) {
-		throw new Error(output.stderr || 'Remote model read failed');
+		throw new Error(normalizeCompanionSidecarError(output.stderr || 'Remote model read failed'));
 	}
 	return output.stdout.trim();
 }
@@ -200,9 +200,15 @@ export async function updateRemoteModel(modelName: string): Promise<string> {
 		modelName
 	]).execute();
 	if (output.code !== 0) {
-		throw new Error(output.stderr || 'Remote model update failed');
+		throw new Error(normalizeCompanionSidecarError(output.stderr || 'Remote model update failed'));
 	}
 	return output.stdout.trim();
+}
+
+function normalizeCompanionSidecarError(message: string): string {
+	if (message.includes('companion auth required')) return stalePairingMessage;
+	if (message.includes('Pairing expired. Connect again from Admin.')) return message.trim();
+	return message;
 }
 
 export async function readActiveGrants(): Promise<ActiveGrant[]> {

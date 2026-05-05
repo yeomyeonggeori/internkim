@@ -1651,6 +1651,39 @@ func TestCompanionPairHeartbeatAndJobLifecycle(t *testing.T) {
 	}
 }
 
+func TestCompanionAuthCheckRequiresSignedCompanion(t *testing.T) {
+	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	handler := service.router()
+	_, pairResult := pairTestCompanion(t, handler, keyPairCapabilityRequest{
+		KeyPair:    keyPairForTest(t),
+		Capability: `{"name":"user.confirm","version":"1","privacyClass":"user_input","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}`,
+	})
+
+	unsignedResponse := httptest.NewRecorder()
+	unsignedRequest := httptest.NewRequest(http.MethodGet, "/_internkim/companion/auth/check", nil)
+	unsignedRequest.Header.Set("X-InternKim-Companion-ID", pairResult.CompanionID)
+	unsignedRequest.Header.Set("X-InternKim-Companion-Token", pairResult.Token)
+	handler.ServeHTTP(unsignedResponse, unsignedRequest)
+	if unsignedResponse.Code != http.StatusForbidden {
+		t.Fatalf("expected unsigned auth check to fail, got %d", unsignedResponse.Code)
+	}
+
+	signedResponse := httptest.NewRecorder()
+	signedRequest := httptest.NewRequest(http.MethodGet, "/_internkim/companion/auth/check", nil)
+	setCompanionHeaders(t, signedRequest, pairResult.companionPairResponse, pairResult.privateKey)
+	handler.ServeHTTP(signedResponse, signedRequest)
+	if signedResponse.Code != http.StatusOK {
+		t.Fatalf("expected signed auth check to succeed, got %d: %s", signedResponse.Code, signedResponse.Body.String())
+	}
+	var document map[string]string
+	if errorValue := json.NewDecoder(signedResponse.Body).Decode(&document); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if document["status"] != "ok" || document["companionID"] != pairResult.CompanionID {
+		t.Fatalf("unexpected auth check response: %+v", document)
+	}
+}
+
 func TestCompanionDenyReturnsStructuredObservation(t *testing.T) {
 	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
 	handler := service.router()
