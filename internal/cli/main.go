@@ -191,6 +191,8 @@ func Main() {
 			runWiFi()
 		case "model":
 			runModel()
+		case "companion":
+			runCompanion()
 		case "invite":
 			runInvite()
 		case "users":
@@ -229,6 +231,7 @@ func printUsage() {
 	fmt.Println("  flash    Flash board boot media")
 	fmt.Println("  wifi     Add or update Jetson Wi-Fi profiles")
 	fmt.Println("  model    Manage LLM model (current/set/list)")
+	fmt.Println("  companion Build and upgrade the local companion app")
 	fmt.Println("  invite   Generate invite QR code")
 	fmt.Println("  users    Manage allowed users")
 	fmt.Println("  reset    Reset board runtime data")
