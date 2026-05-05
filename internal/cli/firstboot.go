@@ -356,6 +356,12 @@ if [ -f "$STAGE/models/gemma-4-E4B-it.litertlm" ]; then
   chown root:root /root/.internkim/models/gemma-4-E4B-it.litertlm
   chmod 600 /root/.internkim/models/gemma-4-E4B-it.litertlm
 fi
+if [ ! -s /root/.internkim/models/embeddinggemma-300M-Q8_0.gguf ]; then
+  curl -L --fail --retry 3 --output /root/.internkim/models/embeddinggemma-300M-Q8_0.gguf.tmp https://huggingface.co/ggml-org/embeddinggemma-300M-GGUF/resolve/main/embeddinggemma-300M-Q8_0.gguf
+  mv /root/.internkim/models/embeddinggemma-300M-Q8_0.gguf.tmp /root/.internkim/models/embeddinggemma-300M-Q8_0.gguf
+fi
+chown root:root /root/.internkim/models/embeddinggemma-300M-Q8_0.gguf 2>/dev/null || true
+chmod 600 /root/.internkim/models/embeddinggemma-300M-Q8_0.gguf 2>/dev/null || true
 mkdir -p /root/.blueclaw/workspace/bin /root/.blueclaw/workspace/downloads
 chown -R blueclaw:blueclaw /root/.blueclaw
 chown root:blueclaw /root/.blueclaw/config 2>/dev/null || true
@@ -822,6 +828,8 @@ else
 %sADMINDEOF
   cat > %s <<'LLAMACPP_EOF'
 %sLLAMACPP_EOF
+  cat > %s <<'LLAMACPP_EMBEDDING_EOF'
+%sLLAMACPP_EMBEDDING_EOF
   cat > %s <<'SYNCEOF'
 %sSYNCEOF
   chmod 755 %s
@@ -831,6 +839,11 @@ else
 %sSYNCTIMEREOF
   systemctl daemon-reload
   systemctl disable %s 2>/dev/null || true
+  systemctl disable %s 2>/dev/null || true
+  systemctl enable %s
+  systemctl start %s
+  systemctl enable %s
+  systemctl start %s
   systemctl enable %s
   systemctl start %s
   systemctl enable %s
@@ -844,7 +857,7 @@ else
   echo "Waiting for services..."
   for attemptIndex in $(seq 1 150); do
     allServicesActive=true
-    for serviceName in mattermost %s %s %s %s cloudflared postgresql; do
+    for serviceName in mattermost %s %s %s %s %s cloudflared postgresql; do
       if ! systemctl is-active --quiet "$serviceName" 2>/dev/null; then
         allServicesActive=false
         break
@@ -871,6 +884,8 @@ fi`,
 		blueclaw.AdmindServiceUnit(),
 		locallm.LlamaCppServicePath,
 		blueclaw.LlamaCppServiceUnit(),
+		locallm.LlamaCppEmbeddingServicePath,
+		blueclaw.LlamaCppEmbeddingServiceUnit(),
 		blueclaw.InternKimUsersSyncScriptPath,
 		blueclaw.InternKimUsersSyncScript(),
 		blueclaw.InternKimUsersSyncScriptPath,
@@ -879,6 +894,11 @@ fi`,
 		blueclaw.InternKimUsersSyncTimerPath,
 		blueclaw.InternKimUsersSyncTimerUnit(),
 		locallm.LlamaCppServiceName,
+		locallm.LlamaCppEmbeddingServiceName,
+		locallm.LlamaCppServiceName,
+		locallm.LlamaCppServiceName,
+		locallm.LlamaCppEmbeddingServiceName,
+		locallm.LlamaCppEmbeddingServiceName,
 		blueclaw.CapabilitydServiceName,
 		blueclaw.CapabilitydServiceName,
 		blueclaw.AdmindServiceName,
@@ -887,6 +907,7 @@ fi`,
 		blueclaw.GraphitiMemorydServiceName,
 		blueclaw.BlueclawServiceName,
 		blueclaw.BlueclawServiceName,
+		locallm.LlamaCppEmbeddingServiceName,
 		blueclaw.CapabilitydServiceName,
 		blueclaw.AdmindServiceName,
 		blueclaw.GraphitiMemorydServiceName,

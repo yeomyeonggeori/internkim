@@ -201,7 +201,7 @@ func TestEmbeddingCreateUsesOpenRouterSecretWithoutReturningIt(t *testing.T) {
 			Header:     make(http.Header),
 		}, nil
 	})}
-	response, errorValue := service.createEmbedding(context.Background(), embeddingRequest{Input: "hello"})
+	response, errorValue := service.createEmbedding(context.Background(), EmbeddingRequest{Input: "hello", ExecutionMode: "remote"})
 	if errorValue != nil {
 		t.Fatalf("expected embedding creation to succeed: %v", errorValue)
 	}

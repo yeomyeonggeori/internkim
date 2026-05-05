@@ -24,6 +24,12 @@ type stubLLMChain struct {
 	receivedStructured *llmbackend.StructuredRequest
 }
 
+type stubEmbeddingChain struct {
+	response        llmbackend.EmbeddingResponse
+	errorValue      error
+	receivedRequest *llmbackend.EmbeddingRequest
+}
+
 func (chain *stubLLMChain) CompleteText(ctx context.Context, request llmbackend.TextRequest) (llmbackend.Response, error) {
 	_ = ctx
 	chain.receivedText = &request
@@ -34,6 +40,12 @@ func (chain *stubLLMChain) CompleteStructured(ctx context.Context, request llmba
 	_ = ctx
 	chain.receivedStructured = &request
 	return chain.structuredResponse, chain.structuredError
+}
+
+func (chain *stubEmbeddingChain) CreateEmbedding(ctx context.Context, request llmbackend.EmbeddingRequest) (llmbackend.EmbeddingResponse, error) {
+	_ = ctx
+	chain.receivedRequest = &request
+	return chain.response, chain.errorValue
 }
 
 type fakeBrowserRuntime struct {
@@ -380,6 +392,44 @@ func TestExecutorRoutesStructuredLLMThroughChain(t *testing.T) {
 	}
 	if responseDocument.ConstraintMode != "openai_json_schema" {
 		t.Fatalf("expected OpenAI JSON schema mode, got %q", responseDocument.ConstraintMode)
+	}
+}
+
+func TestExecutorRoutesEmbeddingThroughChain(t *testing.T) {
+	chain := &stubEmbeddingChain{response: llmbackend.EmbeddingResponse{
+		Provider:        "ollama",
+		Model:           llmbackend.DefaultEmbeddingGemmaModel,
+		SelectedBackend: "ollama",
+		Embedding:       []float64{0.1, 0.2},
+	}}
+	executor := Executor{EmbeddingChain: chain}
+
+	requestBody, errorValue := json.Marshal(llmbackend.EmbeddingRequest{
+		Input:     "ping",
+		InputType: "query",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "embedding.create",
+		Input:    requestBody,
+	})
+	if errorValue != nil {
+		t.Fatalf("expected embedding chain dispatch: %v", errorValue)
+	}
+	if chain.receivedRequest == nil || chain.receivedRequest.Input != "ping" {
+		t.Fatalf("expected chain to receive embedding request, got %+v", chain.receivedRequest)
+	}
+	var responseDocument llmbackend.EmbeddingResponse
+	if errorValue := json.Unmarshal(response.Result, &responseDocument); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if responseDocument.SelectedBackend != capabilities.LLMBackendCompanionLocal {
+		t.Fatalf("expected companion-local selection, got %q", responseDocument.SelectedBackend)
+	}
+	if len(responseDocument.Embedding) != 2 || responseDocument.Embedding[0] != 0.1 {
+		t.Fatalf("unexpected embedding response: %+v", responseDocument)
 	}
 }
 

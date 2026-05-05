@@ -36,8 +36,9 @@ type localLLMStatus struct {
 }
 
 type controlBackendEndpoint struct {
-	BaseURL string `json:"baseURL"`
-	Model   string `json:"model"`
+	BaseURL        string `json:"baseURL"`
+	Model          string `json:"model"`
+	EmbeddingModel string `json:"embeddingModel,omitempty"`
 }
 
 type controlLocalLLMSettings struct {
@@ -280,14 +281,16 @@ func decodeControlLocalLLMSettings(request *http.Request, httpClient *http.Clien
 		return localLLMSettings{}, errorValue
 	}
 	configuration := llmbackend.LocalProviderConfig{
-		ProviderOrder:   payload.LocalBackendOrder,
-		HTTPClient:      httpClient,
-		OllamaBaseURL:   payload.Ollama.BaseURL,
-		OllamaModel:     payload.Ollama.Model,
-		LlamaCppBaseURL: payload.LlamaCpp.BaseURL,
-		LlamaCppModel:   payload.LlamaCpp.Model,
-		MLXBaseURL:      payload.MLX.BaseURL,
-		MLXModel:        payload.MLX.Model,
+		ProviderOrder:            payload.LocalBackendOrder,
+		HTTPClient:               httpClient,
+		OllamaBaseURL:            payload.Ollama.BaseURL,
+		OllamaModel:              payload.Ollama.Model,
+		LlamaCppEmbeddingBaseURL: payload.LlamaCpp.BaseURL,
+		LlamaCppEmbeddingModel:   firstNonEmpty(payload.LlamaCpp.EmbeddingModel, llmbackend.DefaultEmbeddingGemmaModel),
+		LlamaCppBaseURL:          payload.LlamaCpp.BaseURL,
+		LlamaCppModel:            payload.LlamaCpp.Model,
+		MLXBaseURL:               payload.MLX.BaseURL,
+		MLXModel:                 payload.MLX.Model,
 	}
 	if len(configuration.ProviderOrder) == 0 {
 		configuration.ProviderOrder = llmbackend.DefaultCompanionLocalProviderOrder

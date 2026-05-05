@@ -82,6 +82,7 @@ func runServer(arguments []string) error {
 	multiplexer.HandleFunc("POST /v1/llm/structured", llmHandler(settings, *devMockLLM, true))
 	multiplexer.HandleFunc("POST /v1/llm/text", llmHandler(settings, *devMockLLM, false))
 	multiplexer.HandleFunc("POST /v1/llm/stream", llmStreamHandler(settings))
+	multiplexer.HandleFunc("POST /v1/embedding/create", embeddingHandler(settings, *devMockLLM))
 	multiplexer.HandleFunc("POST /v1/audio/in", reservedNotImplemented)
 	multiplexer.HandleFunc("POST /v1/audio/out", reservedNotImplemented)
 	multiplexer.HandleFunc("POST /v1/tools/invoke", notImplemented)
@@ -284,6 +285,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	executor := companionruntime.Executor{
 		DevMockLLM:     *devMockLLM,
 		LLMChain:       localLLM,
+		EmbeddingChain: localLLM,
 		BrowserRuntime: browserRuntime,
 		GrantStore:     grantStore,
 		MountStore:     mountStore,
@@ -531,8 +533,57 @@ func handleTextLLM(responseWriter http.ResponseWriter, request *http.Request, se
 	writeJSON(responseWriter, response)
 }
 
+func embeddingHandler(settings *dynamicLocalLLM, devMock bool) http.HandlerFunc {
+	return func(responseWriter http.ResponseWriter, request *http.Request) {
+		if devMock {
+			writeJSON(responseWriter, map[string]any{
+				"provider":        "companion",
+				"model":           llmbackend.DefaultEmbeddingGemmaModel,
+				"selectedBackend": capabilities.LLMBackendCompanionLocal,
+				"embedding":       []float64{1, 0, 0},
+			})
+			return
+		}
+		if !settings.currentSettings().Enabled {
+			notImplemented(responseWriter, request)
+			return
+		}
+		handleEmbedding(responseWriter, request, settings)
+	}
+}
+
+func handleEmbedding(responseWriter http.ResponseWriter, request *http.Request, settings *dynamicLocalLLM) {
+	var embeddingRequest llmbackend.EmbeddingRequest
+	if errorValue := json.NewDecoder(request.Body).Decode(&embeddingRequest); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	providerSet, isEnabled := settings.embeddingProviderSetFor(embeddingRequest.Provider)
+	if !isEnabled {
+		notImplemented(responseWriter, request)
+		return
+	}
+	response, errorValue := providerSet.Provider.CreateEmbedding(request.Context(), embeddingRequest)
+	if errorValue != nil {
+		respondWithEmbeddingBackendError(responseWriter, errorValue, providerSet.Backends)
+		return
+	}
+	response.SelectedBackend = capabilities.LLMBackendCompanionLocal
+	writeJSON(responseWriter, response)
+}
+
 func respondWithBackendError(responseWriter http.ResponseWriter, errorValue error, backends []llmbackend.Backend) {
 	hint := buildBackendHint(backends)
+	responseWriter.Header().Set("Content-Type", "application/json")
+	responseWriter.WriteHeader(http.StatusServiceUnavailable)
+	writeJSONDocument(responseWriter, map[string]any{
+		"error": errorValue.Error(),
+		"hint":  hint,
+	})
+}
+
+func respondWithEmbeddingBackendError(responseWriter http.ResponseWriter, errorValue error, backends []llmbackend.EmbeddingBackend) {
+	hint := buildEmbeddingBackendHint(backends)
 	responseWriter.Header().Set("Content-Type", "application/json")
 	responseWriter.WriteHeader(http.StatusServiceUnavailable)
 	writeJSONDocument(responseWriter, map[string]any{
@@ -546,6 +597,13 @@ func buildBackendHint(backends []llmbackend.Backend) string {
 		return "no local backend configured"
 	}
 	return "check that one of these backends is reachable: " + localLLMProviderNames(backends)
+}
+
+func buildEmbeddingBackendHint(backends []llmbackend.EmbeddingBackend) string {
+	if len(backends) == 0 {
+		return "no local embedding backend configured"
+	}
+	return "check that one of these embedding backends is reachable: " + localEmbeddingProviderNames(backends)
 }
 
 func notImplemented(responseWriter http.ResponseWriter, request *http.Request) {

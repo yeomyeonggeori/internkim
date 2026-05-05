@@ -15,24 +15,26 @@ const DefaultLlamaCppBaseURL = "http://127.0.0.1:18081"
 const DefaultMLXBaseURL = "http://127.0.0.1:10240"
 
 type LocalProviderConfig struct {
-	ProviderOrder           []string
-	ProviderName            string
-	Accelerator             string
-	AttemptTimeout          time.Duration
-	AllowStructuredFallback bool
-	HTTPClient              *http.Client
-	RunCommand              func(context.Context, string, []string, []byte) ([]byte, error)
-	LlamaCppServiceName     string
-	LlamaCppStartTimeout    time.Duration
-	LlamaCppPollInterval    time.Duration
-	LiteRTModelPath         string
-	LiteRTRunnerPath        string
-	OllamaBaseURL           string
-	OllamaModel             string
-	LlamaCppBaseURL         string
-	LlamaCppModel           string
-	MLXBaseURL              string
-	MLXModel                string
+	ProviderOrder            []string
+	ProviderName             string
+	Accelerator              string
+	AttemptTimeout           time.Duration
+	AllowStructuredFallback  bool
+	HTTPClient               *http.Client
+	RunCommand               func(context.Context, string, []string, []byte) ([]byte, error)
+	LlamaCppServiceName      string
+	LlamaCppStartTimeout     time.Duration
+	LlamaCppPollInterval     time.Duration
+	LiteRTModelPath          string
+	LiteRTRunnerPath         string
+	OllamaBaseURL            string
+	OllamaModel              string
+	LlamaCppBaseURL          string
+	LlamaCppModel            string
+	LlamaCppEmbeddingBaseURL string
+	LlamaCppEmbeddingModel   string
+	MLXBaseURL               string
+	MLXModel                 string
 }
 
 type LocalProviderSet struct {

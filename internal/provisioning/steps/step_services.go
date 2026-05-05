@@ -30,6 +30,7 @@ var StepServices = Step{
 			trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
 			strings.Contains(trimmedRun(context, "systemctl cat "+locallm.LlamaCppServiceName+" 2>/dev/null"), locallm.LlamaCppBinaryPath) &&
+			strings.Contains(trimmedRun(context, "systemctl cat "+locallm.LlamaCppEmbeddingServiceName+" 2>/dev/null"), locallm.LlamaCppEmbeddingModelPath) &&
 			trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
 			trimmedRun(context, blueclaw.CapabilitydHealthCheckCommand()) == "ok" &&
 			trimmedRun(context, "systemctl is-active mattermost") == "active" &&
@@ -79,8 +80,15 @@ cat > %s <<'ADMINDEOF'
 %sADMINDEOF
 cat > %s <<'LLAMACPP_EOF'
 %sLLAMACPP_EOF
+cat > %s <<'LLAMACPP_EMBEDDING_EOF'
+%sLLAMACPP_EMBEDDING_EOF
 systemctl daemon-reload
 systemctl disable %s 2>/dev/null || true
+systemctl disable %s 2>/dev/null || true
+systemctl enable %s
+systemctl restart %s
+systemctl enable %s
+systemctl restart %s
 systemctl enable %s
 systemctl restart %s
 systemctl enable %s
@@ -96,7 +104,14 @@ sleep 2`,
 			blueclaw.AdmindServiceUnit(),
 			locallm.LlamaCppServicePath,
 			blueclaw.LlamaCppServiceUnit(),
+			locallm.LlamaCppEmbeddingServicePath,
+			blueclaw.LlamaCppEmbeddingServiceUnit(),
 			locallm.LlamaCppServiceName,
+			locallm.LlamaCppEmbeddingServiceName,
+			locallm.LlamaCppServiceName,
+			locallm.LlamaCppServiceName,
+			locallm.LlamaCppEmbeddingServiceName,
+			locallm.LlamaCppEmbeddingServiceName,
 			blueclaw.CapabilitydServiceName,
 			blueclaw.CapabilitydServiceName,
 			blueclaw.AdmindServiceName,
@@ -110,6 +125,7 @@ sleep 2`,
 			isBlueclawHealthy = trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
 				trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
 				trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
+				trimmedRun(context, "systemctl is-active "+locallm.LlamaCppEmbeddingServiceName) == "active" &&
 				trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
 				trimmedRun(context, blueclaw.CapabilitydHealthCheckCommand()) == "ok"
 			if isBlueclawHealthy {
