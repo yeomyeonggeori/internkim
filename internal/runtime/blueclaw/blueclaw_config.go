@@ -141,14 +141,29 @@ func BlueclawPolicyDocument(adminEmail string) (string, error) {
 				"personID":          BlueclawPolicyAdminID,
 				"displayName":       "Intern Kim Admin",
 				"emails":            []string{adminEmail},
+				"circles":           []string{"staff", "admin"},
 				"securityLevelName": "admin",
 				"securityLevelRank": 100,
 				"grantedClasses":    []string{"internal", "executive"},
 				"isAdmin":           true,
 			},
 		},
-		"channels":  []map[string]any{},
-		"retention": map[string]any{"rawEventDays": 60},
+		"circles": []map[string]any{
+			defaultCirclePolicy("staff", "Staff"),
+			defaultCirclePolicy("c-level", "C-level"),
+			defaultCirclePolicy("representative", "Representative"),
+			defaultCirclePolicy("admin", "Admin"),
+		},
+		"circleSync": map[string]any{
+			"mattermostPrivateChannels": []map[string]any{
+				{"circleID": "c-level", "channelName": "circle-c-level"},
+				{"circleID": "representative", "channelName": "circle-representative"},
+				{"circleID": "admin", "channelName": "circle-admin"},
+			},
+		},
+		"channels":       []map[string]any{},
+		"resourceAccess": defaultResourceAccessPolicies(),
+		"retention":      map[string]any{"rawEventDays": 60},
 	}
 
 	documentBytes, error := json.MarshalIndent(document, "", "  ")
@@ -157,4 +172,23 @@ func BlueclawPolicyDocument(adminEmail string) (string, error) {
 	}
 
 	return string(documentBytes) + "\n", nil
+}
+
+func defaultCirclePolicy(circleID string, displayName string) map[string]any {
+	return map[string]any{
+		"circleID":               circleID,
+		"displayName":            displayName,
+		"isMattermostManaged":    circleID != "staff",
+		"workspaceDirectoryPath": "/workspace/circles/" + circleID,
+	}
+}
+
+func defaultResourceAccessPolicies() []map[string]any {
+	return []map[string]any{
+		{"resource": "file:circle:staff", "actions": []string{"read", "write"}, "circles": []string{"staff"}},
+		{"resource": "file:circle:c-level", "actions": []string{"read", "write"}, "circles": []string{"c-level"}},
+		{"resource": "file:circle:representative", "actions": []string{"read", "write"}, "circles": []string{"representative"}},
+		{"resource": "file:circle:admin", "actions": []string{"read", "write", "manage"}, "circles": []string{"admin"}},
+		{"resource": "tool:company.broadcast.send", "actions": []string{"execute"}, "circles": []string{"representative"}},
+	}
 }

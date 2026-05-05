@@ -55,3 +55,54 @@ func TestAddMattermostNameFieldsEmptyNameWritesNothing(t *testing.T) {
 		t.Errorf("empty name should write no fields; got %#v", body)
 	}
 }
+
+func TestMattermostSyncedPersonCirclesUsesStaffAndChannelMembership(t *testing.T) {
+	person := map[string]any{
+		"emails": []any{"minsu@example.com", "other@example.com"},
+	}
+	circles := mattermostSyncedPersonCircles(person, map[string]map[string]bool{
+		"finance":        {"minsu@example.com": true},
+		"representative": {"someone@example.com": true},
+	})
+
+	if !containsMattermostTestString(circles, "staff") || !containsMattermostTestString(circles, "finance") {
+		t.Fatalf("expected staff and finance circles, got %+v", circles)
+	}
+	if containsMattermostTestString(circles, "representative") {
+		t.Fatalf("expected non-member representative circle omitted, got %+v", circles)
+	}
+}
+
+func TestMattermostSyncedPersonCirclesKeepsAdminFromPolicy(t *testing.T) {
+	person := map[string]any{
+		"emails":  []any{"owner@example.com"},
+		"isAdmin": true,
+	}
+	circles := mattermostSyncedPersonCircles(person, map[string]map[string]bool{})
+
+	if !containsMattermostTestString(circles, "staff") || !containsMattermostTestString(circles, "admin") {
+		t.Fatalf("expected staff and admin circles, got %+v", circles)
+	}
+}
+
+func TestDefaultMattermostCircleChannels(t *testing.T) {
+	channels := defaultMattermostCircleChannels()
+	for circleID, expectedChannelName := range map[string]string{
+		"admin":          "circle-admin",
+		"c-level":        "circle-c-level",
+		"representative": "circle-representative",
+	} {
+		if channels[circleID] != expectedChannelName {
+			t.Fatalf("expected %s channel %q, got %+v", circleID, expectedChannelName, channels)
+		}
+	}
+}
+
+func containsMattermostTestString(values []string, expectedValue string) bool {
+	for _, value := range values {
+		if value == expectedValue {
+			return true
+		}
+	}
+	return false
+}

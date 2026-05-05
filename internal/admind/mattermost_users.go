@@ -50,6 +50,10 @@ type mattermostChannelRecord struct {
 	ID string `json:"id"`
 }
 
+type mattermostChannelMemberRecord struct {
+	UserID string `json:"user_id"`
+}
+
 type mattermostProvisionResult struct {
 	UserID            string
 	Username          string
@@ -430,6 +434,159 @@ func (service *Service) ensureMattermostMembership(ctx context.Context, token st
 		return errorValue
 	}
 	return nil
+}
+
+func (service *Service) ensureMattermostCircleChannels(ctx context.Context, token string) error {
+	teamRecord, errorValue := service.ensureMattermostTeam(ctx, token)
+	if errorValue != nil {
+		return errorValue
+	}
+	for _, channelName := range []string{"circle-c-level", "circle-representative", "circle-admin"} {
+		if _, errorValue := service.ensureMattermostPrivateChannel(ctx, token, teamRecord.ID, channelName); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
+}
+
+func (service *Service) ensureMattermostPrivateChannel(ctx context.Context, token string, teamID string, channelName string) (string, error) {
+	channelID, errorValue := service.mattermostChannelIDByName(ctx, token, teamID, channelName)
+	if errorValue == nil || channelID != "" {
+		return channelID, errorValue
+	}
+	if !isMattermostNotFound(errorValue) {
+		return "", errorValue
+	}
+	body := map[string]string{
+		"team_id":      teamID,
+		"name":         channelName,
+		"display_name": channelDisplayName(channelName),
+		"type":         "P",
+	}
+	var channelRecord mattermostChannelRecord
+	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/channels", token, body, &channelRecord); errorValue != nil {
+		return "", errorValue
+	}
+	return channelRecord.ID, nil
+}
+
+func (service *Service) syncMattermostCircleMemberships(ctx context.Context, token string) error {
+	teamRecord, errorValue := service.ensureMattermostTeam(ctx, token)
+	if errorValue != nil {
+		return errorValue
+	}
+	circleEmailsByID, errorValue := service.mattermostCircleEmails(ctx, token, teamRecord.ID)
+	if errorValue != nil {
+		return errorValue
+	}
+	return service.applyCircleEmailsToBlueclawPolicy(ctx, circleEmailsByID)
+}
+
+func (service *Service) mattermostCircleEmails(ctx context.Context, token string, teamID string) (map[string]map[string]bool, error) {
+	circleEmailsByID := map[string]map[string]bool{}
+	for circleID, channelName := range defaultMattermostCircleChannels() {
+		channelID, errorValue := service.ensureMattermostPrivateChannel(ctx, token, teamID, channelName)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		emails, errorValue := service.mattermostChannelMemberEmails(ctx, token, channelID)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		circleEmailsByID[circleID] = emails
+	}
+	return circleEmailsByID, nil
+}
+
+func (service *Service) mattermostChannelMemberEmails(ctx context.Context, token string, channelID string) (map[string]bool, error) {
+	var members []mattermostChannelMemberRecord
+	path := "/api/v4/channels/" + url.PathEscape(channelID) + "/members?per_page=200"
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, token, nil, &members); errorValue != nil {
+		return nil, errorValue
+	}
+	emails := map[string]bool{}
+	for _, member := range members {
+		userRecord, found, errorValue := service.findMattermostUserByID(ctx, token, member.UserID)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		if found && strings.TrimSpace(userRecord.Email) != "" {
+			emails[strings.ToLower(strings.TrimSpace(userRecord.Email))] = true
+		}
+	}
+	return emails, nil
+}
+
+func (service *Service) applyCircleEmailsToBlueclawPolicy(ctx context.Context, circleEmailsByID map[string]map[string]bool) error {
+	var policyDocument map[string]any
+	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
+		return errorValue
+	}
+	people, _ := policyDocument["people"].([]any)
+	for _, value := range people {
+		person, isPerson := value.(map[string]any)
+		if !isPerson {
+			continue
+		}
+		person["circles"] = mattermostSyncedPersonCircles(person, circleEmailsByID)
+	}
+	return service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/policy/save", policyDocument, nil)
+}
+
+func mattermostSyncedPersonCircles(person map[string]any, circleEmailsByID map[string]map[string]bool) []string {
+	emailValues, _ := person["emails"].([]any)
+	circles := []string{"staff"}
+	if isAdmin, _ := person["isAdmin"].(bool); isAdmin {
+		circles = append(circles, "admin")
+	}
+	for circleID, emails := range circleEmailsByID {
+		for _, value := range emailValues {
+			email, isString := value.(string)
+			if isString && emails[strings.ToLower(strings.TrimSpace(email))] {
+				circles = append(circles, circleID)
+				break
+			}
+		}
+	}
+	return uniqueMattermostCircles(circles)
+}
+
+func uniqueMattermostCircles(circles []string) []string {
+	seenCircle := map[string]bool{}
+	uniqueCircles := []string{}
+	for _, circle := range circles {
+		normalizedCircle := strings.ToLower(strings.TrimSpace(circle))
+		if normalizedCircle == "" || seenCircle[normalizedCircle] {
+			continue
+		}
+		seenCircle[normalizedCircle] = true
+		uniqueCircles = append(uniqueCircles, normalizedCircle)
+	}
+	return uniqueCircles
+}
+
+func defaultMattermostCircleChannels() map[string]string {
+	return map[string]string{
+		"admin":          "circle-admin",
+		"c-level":        "circle-c-level",
+		"representative": "circle-representative",
+	}
+}
+
+func (service *Service) mattermostChannelIDByName(ctx context.Context, token string, teamID string, channelName string) (string, error) {
+	var channelRecord mattermostChannelRecord
+	path := "/api/v4/teams/" + url.PathEscape(teamID) + "/channels/name/" + url.PathEscape(channelName)
+	errorValue := service.mattermostRequest(ctx, http.MethodGet, path, token, nil, &channelRecord)
+	return channelRecord.ID, errorValue
+}
+
+func channelDisplayName(channelName string) string {
+	value := strings.TrimPrefix(strings.TrimSpace(channelName), "circle-")
+	value = strings.ReplaceAll(value, "-", " ")
+	if value == "" {
+		return channelName
+	}
+	return "Circle " + value
 }
 
 func (service *Service) ensureMattermostTeam(ctx context.Context, token string) (mattermostTeamRecord, error) {
