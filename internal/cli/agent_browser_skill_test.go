@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
 )
 
 func TestAgentBrowserSkillInstallScriptUsesVendoredWorkspaceSkill(t *testing.T) {
@@ -111,10 +113,18 @@ func TestFirstbootInstallsAgentBrowserSkill(t *testing.T) {
 			t.Fatalf("expected firstboot tools section to include %q", fragment)
 		}
 	}
-	for _, forbiddenFragment := range []string{"agent-browser install", "agent-browser skills get core --full", "chromium-browser", "--engine lightpanda"} {
+	for _, forbiddenFragment := range []string{"agent-browser install", "agent-browser skills get core --full", "chromium-browser", "--engine lightpanda", "lightpanda' --version"} {
 		if strings.Contains(script, forbiddenFragment) {
 			t.Fatalf("firstboot tools section must not include %q", forbiddenFragment)
 		}
+	}
+}
+
+func TestFirstbootChecksLightpandaVersionSubcommand(t *testing.T) {
+	script := renderFirstbootToolsSection()
+	expectedCommand := deviceBrowserVersionShellCommand(browserruntime.DeviceBrowserExecutablePath)
+	if !strings.Contains(script, expectedCommand) {
+		t.Fatalf("expected firstboot tools section to include %q", expectedCommand)
 	}
 }
 

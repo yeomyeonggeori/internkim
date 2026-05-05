@@ -495,7 +495,7 @@ install_device_browser_runtime() {
     echo "ERROR: Lightpanda device browser missing at `+browserruntime.DeviceBrowserExecutablePath+`" >&2
     exit 1
   fi
-  "`+browserruntime.DeviceBrowserExecutablePath+`" --version >/tmp/internkim-device-browser-version.log 2>&1
+  `+deviceBrowserVersionShellCommand(browserruntime.DeviceBrowserExecutablePath)+`
 }
 
 install_device_browser_runtime

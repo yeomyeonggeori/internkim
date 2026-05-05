@@ -1222,7 +1222,7 @@ func (state *setupFlowState) remoteFileMatchesLocal(remotePath, localPath string
 
 func (state *setupFlowState) installDeviceBrowserRuntimeSSH() error {
 	fmt.Print("  device browser runtime... ")
-	output, errorValue := state.sshClient.runResult(browserruntime.DeviceBrowserExecutablePath + " --version >/tmp/internkim-device-browser-version.log 2>&1")
+	output, errorValue := state.sshClient.runResult(deviceBrowserVersionShellCommand(browserruntime.DeviceBrowserExecutablePath))
 	if errorValue != nil {
 		fmt.Println("failed")
 		diagnostic := strings.TrimSpace(output)
@@ -1233,6 +1233,10 @@ func (state *setupFlowState) installDeviceBrowserRuntimeSSH() error {
 	}
 	fmt.Println("installed")
 	return nil
+}
+
+func deviceBrowserVersionShellCommand(executablePath string) string {
+	return quoteShellValue(executablePath) + " version >/tmp/internkim-device-browser-version.log 2>&1"
 }
 
 func (state *setupFlowState) ensureAgentBrowserRuntimeSSH() error {
