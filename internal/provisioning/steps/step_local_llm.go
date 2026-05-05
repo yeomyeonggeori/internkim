@@ -58,8 +58,11 @@ func sshLocalLLMIsSatisfied(context *Context) bool {
 	switch locallm.Default {
 	case locallm.BackendLlamaCpp:
 		return trimmedRun(context, fmt.Sprintf(
-			`%s && test -x %s && echo y || echo n`,
-			common, shellQuote(locallm.LlamaCppBinaryPath),
+			`%s && test -x %s && test -s %s && ! su -s /bin/sh blueclaw -c 'test -r %s' 2>/dev/null && echo y || echo n`,
+			common,
+			shellQuote(locallm.LlamaCppBinaryPath),
+			shellQuote(locallm.LlamaCppEmbeddingModelPath),
+			shellQuote(locallm.LlamaCppEmbeddingModelPath),
 		)) == "y"
 	default:
 		return trimmedRun(context, fmt.Sprintf(
@@ -107,9 +110,9 @@ install -d -o root -g root -m 700 /root/.internkim/models
 chown root:root /root/.internkim/models %s
 chmod 700 /root/.internkim/models
 chmod 600 %s`,
-		fetchModelIfMissingScript(),
-		shellQuote(locallm.ModelPath()),
-		shellQuote(locallm.ModelPath()),
+		fetchModelIfMissingScript()+fetchEmbeddingModelIfMissingScript(),
+		shellQuote(locallm.ModelPath())+" "+shellQuote(locallm.LlamaCppEmbeddingModelPath),
+		shellQuote(locallm.ModelPath())+" "+shellQuote(locallm.LlamaCppEmbeddingModelPath),
 	))
 	if !localLLMIsSatisfied(context) {
 		return errors.New("llama.cpp setup did not produce a runnable llama-server with local model")
@@ -125,6 +128,16 @@ func fetchModelIfMissingScript() string {
   mv %s.tmp %s
 fi`,
 		modelPath, modelPath, shellQuote(locallm.ModelURL()), modelPath, modelPath)
+}
+
+func fetchEmbeddingModelIfMissingScript() string {
+	modelPath := shellQuote(locallm.LlamaCppEmbeddingModelPath)
+	return fmt.Sprintf(`
+if [ ! -s %s ]; then
+  curl -L --fail --retry 3 --output %s.tmp %s
+  mv %s.tmp %s
+fi`,
+		modelPath, modelPath, shellQuote(locallm.LlamaCppEmbeddingModelURL), modelPath, modelPath)
 }
 
 func stageLocalLLMModelSSH(context *Context) error {
