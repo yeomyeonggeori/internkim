@@ -708,17 +708,115 @@ func TestControlHandlerUpdatesLocalLLMWithoutRestart(t *testing.T) {
 }
 
 func TestStatusRequiresPairedState(t *testing.T) {
-	errorValue := runStatus([]string{"--state", filepath.Join(t.TempDir(), "missing.json")})
+	errorValue := runStatus([]string{"--state", filepath.Join(t.TempDir(), "missing.json")}, http.DefaultClient, companionruntime.NewMemorySecureStore())
 	if errorValue == nil {
 		t.Fatal("expected missing state to fail")
 	}
 }
 
 func TestStatusJSONReportsUnpairedState(t *testing.T) {
-	errorValue := runStatus([]string{"--state", filepath.Join(t.TempDir(), "missing.json"), "--json"})
-	if errorValue != nil {
-		t.Fatalf("expected missing JSON status to succeed: %v", errorValue)
+	output := captureStdout(t, func() {
+		errorValue := runStatus([]string{"--state", filepath.Join(t.TempDir(), "missing.json"), "--json", "--verify-auth"}, http.DefaultClient, companionruntime.NewMemorySecureStore())
+		if errorValue != nil {
+			t.Fatalf("expected missing JSON status to succeed: %v", errorValue)
+		}
+	})
+	var document companionStatusDocument
+	if errorValue := json.Unmarshal([]byte(output), &document); errorValue != nil {
+		t.Fatal(errorValue)
 	}
+	if document.AuthStatus != companionAuthStatusUnpaired {
+		t.Fatalf("expected unpaired auth status, got %+v", document)
+	}
+}
+
+func TestStatusJSONReportsMissingSigningKey(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	state, _ := testCompanionState(t, false, false)
+	if errorValue := saveState(statePath, state); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	output := captureStdout(t, func() {
+		errorValue := runStatus([]string{"--state", statePath, "--json", "--verify-auth"}, http.DefaultClient, companionruntime.NewMemorySecureStore())
+		if errorValue != nil {
+			t.Fatalf("expected missing key JSON status to succeed: %v", errorValue)
+		}
+	})
+	var document companionStatusDocument
+	if errorValue := json.Unmarshal([]byte(output), &document); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if document.AuthStatus != companionAuthStatusMissingSigningKey {
+		t.Fatalf("expected missing signing key auth status, got %+v", document)
+	}
+}
+
+func TestStatusJSONReportsReconnectRequired(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	state, secureStore := testCompanionState(t, false, false)
+	if errorValue := saveState(statePath, state); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Path != "/_internkim/companion/auth/check" {
+			t.Fatalf("unexpected auth check path: %s", request.URL.Path)
+		}
+		return textResponse(http.StatusForbidden, "companion auth required\n"), nil
+	})}
+	output := captureStdout(t, func() {
+		errorValue := runStatus([]string{"--state", statePath, "--json", "--verify-auth"}, httpClient, secureStore)
+		if errorValue != nil {
+			t.Fatalf("expected stale auth JSON status to succeed: %v", errorValue)
+		}
+	})
+	var document companionStatusDocument
+	if errorValue := json.Unmarshal([]byte(output), &document); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if document.AuthStatus != companionAuthStatusReconnectRequired {
+		t.Fatalf("expected reconnect required auth status, got %+v", document)
+	}
+}
+
+func TestStatusJSONReportsVerifiedAuth(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	state, secureStore := testCompanionState(t, false, false)
+	if errorValue := saveState(statePath, state); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Path != "/_internkim/companion/auth/check" {
+			t.Fatalf("unexpected auth check path: %s", request.URL.Path)
+		}
+		if request.Header.Get(companionruntime.SignatureHeader) == "" {
+			t.Fatal("expected signed auth check request")
+		}
+		return textResponse(http.StatusOK, `{"status":"ok","companionID":"companion-1"}`), nil
+	})}
+	output := captureStdout(t, func() {
+		errorValue := runStatus([]string{"--state", statePath, "--json", "--verify-auth"}, httpClient, secureStore)
+		if errorValue != nil {
+			t.Fatalf("expected verified JSON status to succeed: %v", errorValue)
+		}
+	})
+	var document companionStatusDocument
+	if errorValue := json.Unmarshal([]byte(output), &document); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if document.AuthStatus != companionAuthStatusVerified {
+		t.Fatalf("expected verified auth status, got %+v", document)
+	}
+}
+
+func TestRemoteModelAuthErrorsUseReconnectMessage(t *testing.T) {
+	errorValue := decodeJSONResponse("https://device.example.test/_internkim/companion/remote-model", textResponse(http.StatusForbidden, "companion auth required\n"), nil)
+	if errorValue != nil {
+		if !strings.Contains(errorValue.Error(), companionPairingExpiredMessage) {
+			t.Fatalf("expected pairing expired message, got %v", errorValue)
+		}
+		return
+	}
+	t.Fatal("expected auth error")
 }
 
 func TestCompanionStatusFromState(t *testing.T) {
@@ -729,7 +827,7 @@ func TestCompanionStatusFromState(t *testing.T) {
 		LocalOnly:   true,
 	}
 
-	document, errorValue := json.Marshal(companionStatusFromState(state, browserruntime.RuntimeReadiness{Status: "ready"}))
+	document, errorValue := json.Marshal(companionStatusFromState(state, browserruntime.RuntimeReadiness{Status: "ready"}, companionAuthStatusVerified))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -752,7 +850,7 @@ func TestCompanionStatusFiltersBrowserCapabilitiesWhenRuntimeUnavailable(t *test
 	document := companionStatusFromState(state, browserruntime.RuntimeReadiness{
 		Status: "unavailable",
 		Error:  "companion browser runtime unavailable",
-	})
+	}, companionAuthStatusVerified)
 
 	if hasCapability(document.Capabilities, "browser.navigate") {
 		t.Fatal("expected browser capabilities to be hidden when runtime is unavailable")
@@ -827,6 +925,28 @@ func textResponse(statusCode int, body string) *http.Response {
 		Body:       io.NopCloser(strings.NewReader(body)),
 		Header:     make(http.Header),
 	}
+}
+
+func captureStdout(t *testing.T, function func()) string {
+	t.Helper()
+	originalStdout := os.Stdout
+	reader, writer, errorValue := os.Pipe()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	os.Stdout = writer
+	defer func() {
+		os.Stdout = originalStdout
+	}()
+	function()
+	if errorValue := writer.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	output, errorValue := io.ReadAll(reader)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return string(output)
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
