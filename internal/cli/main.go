@@ -1297,6 +1297,26 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 			botMemberBody, _ := json.Marshal(map[string]string{"team_id": teamResult.ID, "user_id": botResult.UserID})
 			mmAPI("POST", "/api/v4/teams/"+teamResult.ID+"/members", botMemberBody, adminToken)
 		}
+		for _, channel := range []struct {
+			Name        string
+			DisplayName string
+		}{
+			{Name: "circle-c-level", DisplayName: "Circle c level"},
+			{Name: "circle-representative", DisplayName: "Circle representative"},
+			{Name: "circle-admin", DisplayName: "Circle admin"},
+		} {
+			code, _ := mmAPI("GET", "/api/v4/teams/"+teamResult.ID+"/channels/name/"+channel.Name, nil, adminToken)
+			if code >= 200 && code < 300 {
+				continue
+			}
+			channelBody, _ := json.Marshal(map[string]string{
+				"team_id":      teamResult.ID,
+				"name":         channel.Name,
+				"display_name": channel.DisplayName,
+				"type":         "P",
+			})
+			mmAPI("POST", "/api/v4/channels", channelBody, adminToken)
+		}
 	}
 
 	// 8. Store credentials
