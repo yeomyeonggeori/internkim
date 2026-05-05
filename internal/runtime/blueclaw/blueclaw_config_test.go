@@ -119,6 +119,9 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if terminal["outputMaxBytes"] != float64(32768) || terminal["sessionMaxCount"] != float64(4) {
 		t.Fatalf("expected terminal caps, got %+v", terminal)
 	}
+	if _, isFound := terminal["commandRewrite"]; isFound {
+		t.Fatalf("expected RTK hook not to be exposed as runtime config, got %+v", terminal)
+	}
 	connectors := runtimeConfiguration["connectors"].(map[string]any)
 	mattermost := connectors["mattermost"].(map[string]any)
 	if _, isFound := mattermost["botTokenPath"]; isFound {
