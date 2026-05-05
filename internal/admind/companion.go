@@ -129,6 +129,8 @@ func (service *Service) handleCompanion(responseWriter http.ResponseWriter, requ
 		service.companionHeartbeat(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/capabilities":
 		service.writeLocalCompanionCapabilities(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/auth/check":
+		service.checkCompanionAuth(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/remote-model":
 		service.readCompanionRemoteModel(responseWriter, request)
 	case request.Method == http.MethodPut && path == "/remote-model":
@@ -152,6 +154,18 @@ func (service *Service) handleCompanion(responseWriter http.ResponseWriter, requ
 	default:
 		http.NotFound(responseWriter, request)
 	}
+}
+
+func (service *Service) checkCompanionAuth(responseWriter http.ResponseWriter, request *http.Request) {
+	companion := service.authorizedCompanion(request)
+	if companion == nil {
+		http.Error(responseWriter, "companion auth required", http.StatusForbidden)
+		return
+	}
+	service.writeJSON(responseWriter, map[string]string{
+		"status":      "ok",
+		"companionID": companion.CompanionID,
+	})
 }
 
 func (service *Service) readCompanionRemoteModel(responseWriter http.ResponseWriter, request *http.Request) {

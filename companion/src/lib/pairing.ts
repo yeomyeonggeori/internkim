@@ -5,6 +5,7 @@ export type PairingPayload = {
 
 export type CompanionStatus = {
 	paired: boolean;
+	authStatus?: 'unpaired' | 'local-only' | 'missing-signing-key' | 'verified' | 'reconnect-required' | 'unknown';
 	deviceURL?: string;
 	companionID?: string;
 	localOnly?: boolean;
@@ -12,6 +13,16 @@ export type CompanionStatus = {
 	browserRuntimeStatus?: string;
 	browserRuntimeError?: string;
 };
+
+export const stalePairingMessage = 'Pairing expired. Connect again from Admin.';
+
+export function isCompanionVerified(status: CompanionStatus): boolean {
+	return status.authStatus === 'verified';
+}
+
+export function isStalePairingStatus(status: CompanionStatus): boolean {
+	return status.authStatus === 'missing-signing-key' || status.authStatus === 'reconnect-required';
+}
 
 export function parsePairingLink(value: string): PairingPayload {
 	const parsedURL = new URL(value);
@@ -44,6 +55,10 @@ export function normalizeManualPairingInput(deviceURL: string, code: string): Pa
 }
 
 export function statusLabel(status: CompanionStatus): string {
+	if (status.authStatus === 'missing-signing-key' || status.authStatus === 'reconnect-required') return 'Reconnect required';
+	if (status.authStatus === 'unknown') return 'Connection unknown';
+	if (status.authStatus === 'unpaired') return 'Not connected';
+	if (status.authStatus === 'local-only') return 'Local only';
 	if (!status.paired) return 'Not connected';
 	if (!status.deviceURL) return 'Connected';
 	return `Connected to ${status.deviceURL}`;

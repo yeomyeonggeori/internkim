@@ -4,7 +4,7 @@
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link';
 	import { onMount } from 'svelte';
-	import { normalizeManualPairingInput, parsePairingLink, statusLabel, type CompanionStatus } from './lib/pairing';
+	import { isCompanionVerified, isStalePairingStatus, normalizeManualPairingInput, parsePairingLink, stalePairingMessage, statusLabel, type CompanionStatus } from './lib/pairing';
 	import { approvalResponse, confirmResponse, inputResponse, normalizePromptRequest, promptTitle, type PromptRequest, type PromptResult } from './lib/prompts';
 	import { addMountedFolder, pairCompanion, pauseMountedFolder, readActiveGrants, readCompanionStatus, readMountedFolders, readRemoteModel, readRuntimeStatus, refreshRuntimeStatus, resumeMountedFolder, revokeGrant, revokeMountedFolder, startCompanionRuntime, updateRemoteModel, updateRuntimeLocalLLM, type ActiveGrant, type LocalLLMBackendStatus, type MountedFolder, type RuntimeStatus } from './lib/sidecar';
 	import { defaultSettings, fetchBackendModels, loadCompanionSettings, saveCompanionSettings, type CompanionSettings } from './lib/settings';
@@ -55,7 +55,7 @@
 	async function bootstrap() {
 		settings = await loadCompanionSettings();
 		await refreshStatus();
-		if (status.paired) {
+		if (isCompanionVerified(status)) {
 			await ensureRuntime();
 			await refreshRemoteModel();
 		}
@@ -107,7 +107,7 @@
 	}
 
 	async function refreshRemoteModel() {
-		if (!status.paired) return;
+		if (!isCompanionVerified(status)) return;
 		try {
 			remoteModel = await readRemoteModel();
 			appliedRemoteModel = remoteModel;
@@ -128,7 +128,7 @@
 
 	async function persistRemoteModel() {
 		const modelName = remoteModel.trim();
-		if (!modelName || modelName === appliedRemoteModel || !status.paired) return;
+		if (!modelName || modelName === appliedRemoteModel || !isCompanionVerified(status)) return;
 		isApplyingRemoteModel = true;
 		remoteModelMessage = '';
 		try {
@@ -174,6 +174,11 @@
 	async function refreshStatus() {
 		try {
 			status = await readCompanionStatus();
+			if (isStalePairingStatus(status)) {
+				message = stalePairingMessage;
+			} else if (message === stalePairingMessage) {
+				message = '';
+			}
 			await refreshRuntime();
 		} catch {
 			status = { paired: false };
@@ -260,9 +265,11 @@
 		message = '';
 		try {
 			await pairCompanion(payload);
-			await ensureRuntime();
 			await refreshStatus();
-			await refreshRemoteModel();
+			if (isCompanionVerified(status)) {
+				await ensureRuntime();
+				await refreshRemoteModel();
+			}
 			message = 'Connected. You can close this window.';
 		} catch (errorValue) {
 			message = errorValue instanceof Error ? errorValue.message : 'Pairing failed';
@@ -368,14 +375,14 @@
 				Companion handles user-local browser, file, confirmation, and future local model work without exposing local state to Intern Kim.
 			</p>
 		</div>
-		<div class:online={status.paired} class="indicator">{status.paired ? 'online' : 'not paired'}</div>
+		<div class:online={isCompanionVerified(status)} class="indicator">{isCompanionVerified(status) ? 'online' : 'not paired'}</div>
 	</section>
 
 	<section class="runtime-panel">
 		<h2>Runtime</h2>
 		<div class="runtime-row">
 			<span>{runtime.isRunning ? `running${runtime.processID ? ` #${runtime.processID}` : ''}` : 'stopped'}</span>
-			<button class="secondary" disabled={!status.paired || runtime.isRunning} onclick={ensureRuntime}>Start</button>
+			<button class="secondary" disabled={!isCompanionVerified(status) || runtime.isRunning} onclick={ensureRuntime}>Start</button>
 		</div>
 		<div class="runtime-row">
 			<span>browser runtime</span>
@@ -452,7 +459,7 @@
 			</div>
 			<input
 				bind:value={remoteModel}
-				disabled={!status.paired}
+				disabled={!isCompanionVerified(status)}
 				list="remote-models"
 				oninput={scheduleRemoteModelApply}
 				placeholder="google/gemini-3.1-flash-lite-preview"
@@ -463,10 +470,10 @@
 				{/each}
 			</datalist>
 			<div class="actions">
-				<button class="secondary" disabled={!status.paired || isApplyingRemoteModel || remoteModel.trim() === appliedRemoteModel} onclick={persistRemoteModel}>
+				<button class="secondary" disabled={!isCompanionVerified(status) || isApplyingRemoteModel || remoteModel.trim() === appliedRemoteModel} onclick={persistRemoteModel}>
 					{isApplyingRemoteModel ? 'Applying...' : 'Apply now'}
 				</button>
-				<button class="ghost" disabled={!status.paired} onclick={refreshRemoteModel}>Refresh</button>
+				<button class="ghost" disabled={!isCompanionVerified(status)} onclick={refreshRemoteModel}>Refresh</button>
 			</div>
 			{#if remoteModelMessage}
 				<p class="message">{remoteModelMessage}</p>
