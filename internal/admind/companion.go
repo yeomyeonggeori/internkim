@@ -23,51 +23,59 @@ import (
 const companionOnlineWindow = 45 * time.Second
 
 type CompanionPairingCode struct {
-	Code      string    `json:"code"`
-	CreatedAt time.Time `json:"createdAt"`
-	ExpiresAt time.Time `json:"expiresAt"`
-	UsedAt    time.Time `json:"usedAt,omitempty"`
+	Code          string    `json:"code"`
+	OwnerPersonID string    `json:"ownerPersonID,omitempty"`
+	OwnerEmail    string    `json:"ownerEmail,omitempty"`
+	CreatedAt     time.Time `json:"createdAt"`
+	ExpiresAt     time.Time `json:"expiresAt"`
+	UsedAt        time.Time `json:"usedAt,omitempty"`
 }
 
 type CompanionRecord struct {
-	CompanionID  string                    `json:"companionID"`
-	DisplayName  string                    `json:"displayName"`
-	PublicKey    string                    `json:"publicKey"`
-	TokenHash    string                    `json:"tokenHash"`
-	Capabilities []capabilities.Descriptor `json:"capabilities"`
-	LocalOnly    bool                      `json:"localOnly"`
-	CreatedAt    time.Time                 `json:"createdAt"`
-	LastSeenAt   time.Time                 `json:"lastSeenAt"`
-	RevokedAt    time.Time                 `json:"revokedAt,omitempty"`
+	CompanionID   string                    `json:"companionID"`
+	DisplayName   string                    `json:"displayName"`
+	OwnerPersonID string                    `json:"ownerPersonID,omitempty"`
+	OwnerEmail    string                    `json:"ownerEmail,omitempty"`
+	PublicKey     string                    `json:"publicKey"`
+	TokenHash     string                    `json:"tokenHash"`
+	Capabilities  []capabilities.Descriptor `json:"capabilities"`
+	LocalOnly     bool                      `json:"localOnly"`
+	CreatedAt     time.Time                 `json:"createdAt"`
+	LastSeenAt    time.Time                 `json:"lastSeenAt"`
+	RevokedAt     time.Time                 `json:"revokedAt,omitempty"`
 }
 
 type CompanionStatus struct {
-	CompanionID  string                    `json:"companionID"`
-	DisplayName  string                    `json:"displayName"`
-	Capabilities []capabilities.Descriptor `json:"capabilities"`
-	LocalOnly    bool                      `json:"localOnly"`
-	CreatedAt    time.Time                 `json:"createdAt"`
-	LastSeenAt   time.Time                 `json:"lastSeenAt"`
-	IsOnline     bool                      `json:"isOnline"`
+	CompanionID   string                    `json:"companionID"`
+	DisplayName   string                    `json:"displayName"`
+	OwnerPersonID string                    `json:"ownerPersonID,omitempty"`
+	OwnerEmail    string                    `json:"ownerEmail,omitempty"`
+	Capabilities  []capabilities.Descriptor `json:"capabilities"`
+	LocalOnly     bool                      `json:"localOnly"`
+	CreatedAt     time.Time                 `json:"createdAt"`
+	LastSeenAt    time.Time                 `json:"lastSeenAt"`
+	IsOnline      bool                      `json:"isOnline"`
 }
 
 type CompanionJob struct {
-	JobID         string                           `json:"jobID"`
-	ParentJobID   string                           `json:"parentJobID,omitempty"`
-	GrantID       string                           `json:"grantID,omitempty"`
-	Status        string                           `json:"status"`
-	CompanionID   string                           `json:"companionID,omitempty"`
-	ToolName      string                           `json:"toolName"`
-	PrivacyClass  string                           `json:"privacyClass"`
-	ResourceScope capabilities.ResourceScope       `json:"resourceScope,omitempty"`
-	Depth         int                              `json:"depth"`
-	Request       capabilities.ToolInvokeRequest   `json:"request"`
-	Response      *capabilities.ToolInvokeResponse `json:"response,omitempty"`
-	Denial        *capabilities.DenialResult       `json:"denial,omitempty"`
-	Error         string                           `json:"error,omitempty"`
-	CreatedAt     time.Time                        `json:"createdAt"`
-	UpdatedAt     time.Time                        `json:"updatedAt"`
-	ExpiresAt     time.Time                        `json:"expiresAt"`
+	JobID             string                           `json:"jobID"`
+	ParentJobID       string                           `json:"parentJobID,omitempty"`
+	GrantID           string                           `json:"grantID,omitempty"`
+	Status            string                           `json:"status"`
+	CompanionID       string                           `json:"companionID,omitempty"`
+	RequesterPersonID string                           `json:"requesterPersonID,omitempty"`
+	RequesterEmail    string                           `json:"requesterEmail,omitempty"`
+	ToolName          string                           `json:"toolName"`
+	PrivacyClass      string                           `json:"privacyClass"`
+	ResourceScope     capabilities.ResourceScope       `json:"resourceScope,omitempty"`
+	Depth             int                              `json:"depth"`
+	Request           capabilities.ToolInvokeRequest   `json:"request"`
+	Response          *capabilities.ToolInvokeResponse `json:"response,omitempty"`
+	Denial            *capabilities.DenialResult       `json:"denial,omitempty"`
+	Error             string                           `json:"error,omitempty"`
+	CreatedAt         time.Time                        `json:"createdAt"`
+	UpdatedAt         time.Time                        `json:"updatedAt"`
+	ExpiresAt         time.Time                        `json:"expiresAt"`
 }
 
 type companionPairRequest struct {
@@ -266,9 +274,10 @@ func (service *Service) createCompanionPairingCode(responseWriter http.ResponseW
 	code := randomPairingCode()
 	now := time.Now().UTC()
 	pairingCode := &CompanionPairingCode{
-		Code:      code,
-		CreatedAt: now,
-		ExpiresAt: now.Add(10 * time.Minute),
+		Code:       code,
+		OwnerEmail: service.companionPairingOwnerEmail(request),
+		CreatedAt:  now,
+		ExpiresAt:  now.Add(10 * time.Minute),
 	}
 	service.mutex.Lock()
 	service.pairingCodes[code] = pairingCode
@@ -284,6 +293,14 @@ func (service *Service) createCompanionPairingCode(responseWriter http.ResponseW
 func (service *Service) writeCompanionStatus(responseWriter http.ResponseWriter, request *http.Request) {
 	_ = request
 	service.writeJSON(responseWriter, companionStatusResponse{Companions: service.companionStatuses()})
+}
+
+func (service *Service) companionPairingOwnerEmail(request *http.Request) string {
+	return firstNonEmpty(
+		authenticatedCallerEmail(request),
+		service.claimedAdminEmail(),
+		service.seedAdminEmail(),
+	)
 }
 
 func (service *Service) revokeCompanion(responseWriter http.ResponseWriter, request *http.Request, companionID string) {
@@ -321,14 +338,16 @@ func (service *Service) pairCompanion(responseWriter http.ResponseWriter, reques
 	companionID := randomHex(16)
 	token := randomHex(32)
 	service.companions[companionID] = &CompanionRecord{
-		CompanionID:  companionID,
-		DisplayName:  firstNonEmpty(payload.DisplayName, "Companion"),
-		PublicKey:    payload.PublicKey,
-		TokenHash:    companionTokenHash(token),
-		Capabilities: payload.Capabilities,
-		LocalOnly:    payload.LocalOnly,
-		CreatedAt:    now,
-		LastSeenAt:   now,
+		CompanionID:   companionID,
+		DisplayName:   firstNonEmpty(payload.DisplayName, "Companion"),
+		OwnerPersonID: pairingCode.OwnerPersonID,
+		OwnerEmail:    pairingCode.OwnerEmail,
+		PublicKey:     payload.PublicKey,
+		TokenHash:     companionTokenHash(token),
+		Capabilities:  payload.Capabilities,
+		LocalOnly:     payload.LocalOnly,
+		CreatedAt:     now,
+		LastSeenAt:    now,
 	}
 	service.mutex.Unlock()
 
@@ -471,11 +490,15 @@ func (service *Service) invokeCompanionJob(ctx context.Context, request capabili
 	if errorValue := validateCompanionToolRequest(request); errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
+	request.ResourceScope = service.inferCompanionResourceScope(request)
 	if errorValue := service.validateCompanionMountRequest(request); errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	if !service.hasOnlineCompanionForTool(request.ToolName) {
-		return capabilities.ToolInvokeResponse{}, errors.New("companion unavailable for capability: " + request.ToolName)
+	if errorValue := service.validateRequesterForCompanionTool(request); errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	if !service.hasOnlineCompanionForRequest(request) {
+		return capabilities.ToolInvokeResponse{}, errors.New("requester's companion unavailable for capability: " + request.ToolName)
 	}
 	now := time.Now().UTC()
 	timeout := request.TimeoutSecond
@@ -486,17 +509,19 @@ func (service *Service) invokeCompanionJob(ctx context.Context, request capabili
 		timeout = 120
 	}
 	job := &CompanionJob{
-		JobID:         randomHex(16),
-		ParentJobID:   request.ParentJobID,
-		GrantID:       request.GrantID,
-		Status:        "pending",
-		ToolName:      request.ToolName,
-		PrivacyClass:  companionPrivacyClass(request),
-		ResourceScope: companionResourceScope(request),
-		Request:       normalizeCompanionJobRequest(request),
-		CreatedAt:     now,
-		UpdatedAt:     now,
-		ExpiresAt:     now.Add(time.Duration(timeout) * time.Second),
+		JobID:             randomHex(16),
+		ParentJobID:       request.ParentJobID,
+		GrantID:           request.GrantID,
+		Status:            "pending",
+		RequesterPersonID: strings.TrimSpace(request.Context.RequesterPersonID),
+		RequesterEmail:    strings.ToLower(strings.TrimSpace(request.Context.RequesterEmail)),
+		ToolName:          request.ToolName,
+		PrivacyClass:      companionPrivacyClass(request),
+		ResourceScope:     companionResourceScope(request),
+		Request:           normalizeCompanionJobRequest(request),
+		CreatedAt:         now,
+		UpdatedAt:         now,
+		ExpiresAt:         now.Add(time.Duration(timeout) * time.Second),
 	}
 	job.Depth = service.nextCompanionJobDepth(job.ParentJobID)
 	service.mutex.Lock()
@@ -553,6 +578,9 @@ func (service *Service) claimNextCompanionJob(companion *CompanionRecord) *Compa
 			continue
 		}
 		if !companionCanRunTool(companion, job.Request.ToolName) {
+			continue
+		}
+		if requiresRequesterOwnedCompanion(job.Request.ToolName) && !companionOwnsJob(companion, job) {
 			continue
 		}
 		if !service.companionCanClaimMountJobLocked(companion, job) {
@@ -658,30 +686,75 @@ func (service *Service) companionStatuses() []CompanionStatus {
 			continue
 		}
 		statuses = append(statuses, CompanionStatus{
-			CompanionID:  companion.CompanionID,
-			DisplayName:  companion.DisplayName,
-			Capabilities: companion.Capabilities,
-			LocalOnly:    companion.LocalOnly,
-			CreatedAt:    companion.CreatedAt,
-			LastSeenAt:   companion.LastSeenAt,
-			IsOnline:     now.Sub(companion.LastSeenAt) <= companionOnlineWindow,
+			CompanionID:   companion.CompanionID,
+			DisplayName:   companion.DisplayName,
+			OwnerPersonID: companion.OwnerPersonID,
+			OwnerEmail:    companion.OwnerEmail,
+			Capabilities:  companion.Capabilities,
+			LocalOnly:     companion.LocalOnly,
+			CreatedAt:     companion.CreatedAt,
+			LastSeenAt:    companion.LastSeenAt,
+			IsOnline:      now.Sub(companion.LastSeenAt) <= companionOnlineWindow,
 		})
 	}
 	return statuses
 }
 
-func (service *Service) hasOnlineCompanionForTool(toolName string) bool {
+func (service *Service) hasOnlineCompanionForRequest(request capabilities.ToolInvokeRequest) bool {
 	for _, status := range service.companionStatuses() {
 		if !status.IsOnline {
 			continue
 		}
+		if requiresRequesterOwnedCompanion(request.ToolName) && !companionStatusMatchesRequester(status, request) {
+			continue
+		}
 		for _, descriptor := range status.Capabilities {
-			if descriptor.Name == toolName {
+			if descriptor.Name == request.ToolName {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+func (service *Service) validateRequesterForCompanionTool(request capabilities.ToolInvokeRequest) error {
+	if !requiresRequesterOwnedCompanion(request.ToolName) {
+		return nil
+	}
+	if strings.TrimSpace(request.Context.RequesterPersonID) != "" || strings.TrimSpace(request.Context.RequesterEmail) != "" {
+		return nil
+	}
+	return errors.New("requester identity is required for user-local companion capability: " + request.ToolName)
+}
+
+func companionStatusMatchesRequester(status CompanionStatus, request capabilities.ToolInvokeRequest) bool {
+	requesterPersonID := strings.TrimSpace(request.Context.RequesterPersonID)
+	requesterEmail := strings.ToLower(strings.TrimSpace(request.Context.RequesterEmail))
+	if requesterPersonID != "" && strings.TrimSpace(status.OwnerPersonID) == requesterPersonID {
+		return true
+	}
+	if requesterEmail != "" && strings.EqualFold(status.OwnerEmail, requesterEmail) {
+		return true
+	}
+	return requesterPersonID == "" && requesterEmail == "" && status.OwnerPersonID == "" && status.OwnerEmail == ""
+}
+
+func companionOwnsJob(companion *CompanionRecord, job *CompanionJob) bool {
+	if companion == nil || job == nil {
+		return false
+	}
+	if strings.TrimSpace(job.RequesterPersonID) != "" && strings.TrimSpace(companion.OwnerPersonID) == strings.TrimSpace(job.RequesterPersonID) {
+		return true
+	}
+	if strings.TrimSpace(job.RequesterEmail) != "" && strings.EqualFold(companion.OwnerEmail, job.RequesterEmail) {
+		return true
+	}
+	return job.RequesterPersonID == "" && job.RequesterEmail == "" && companion.OwnerPersonID == "" && companion.OwnerEmail == ""
+}
+
+func requiresRequesterOwnedCompanion(toolName string) bool {
+	trimmedToolName := strings.TrimSpace(toolName)
+	return strings.HasPrefix(trimmedToolName, "browser.") || strings.HasPrefix(trimmedToolName, "user.") || trimmedToolName == "file.pick"
 }
 
 func companionCanRunTool(companion *CompanionRecord, toolName string) bool {
@@ -785,7 +858,7 @@ func companionResourceScope(request capabilities.ToolInvokeRequest) capabilities
 		return request.ResourceScope
 	}
 	switch request.ToolName {
-	case "browser.open", "browser.snapshot", "browser.screenshot", "browser.click", "browser.fill", "browser.select", "browser.press", "browser.wait":
+	case "browser.open", "browser.snapshot", "browser.screenshot", "browser.handoff", "browser.click", "browser.fill", "browser.select", "browser.press", "browser.wait":
 		return capabilities.ResourceScope{Kind: "web_origin", Value: browserOriginFromInput(request.Input)}
 	case "file.pick":
 		return capabilities.ResourceScope{Kind: "file_root", Value: ""}
@@ -794,6 +867,31 @@ func companionResourceScope(request capabilities.ToolInvokeRequest) capabilities
 	default:
 		return capabilities.ResourceScope{}
 	}
+}
+
+func (service *Service) inferCompanionResourceScope(request capabilities.ToolInvokeRequest) capabilities.ResourceScope {
+	resourceScope := companionResourceScope(request)
+	if resourceScope.Kind != "web_origin" || strings.TrimSpace(resourceScope.Value) != "" {
+		return resourceScope
+	}
+	parentResourceScope := service.parentCompanionResourceScope(request.ParentJobID)
+	if parentResourceScope.Kind == "web_origin" && strings.TrimSpace(parentResourceScope.Value) != "" {
+		return parentResourceScope
+	}
+	return resourceScope
+}
+
+func (service *Service) parentCompanionResourceScope(parentJobID string) capabilities.ResourceScope {
+	if strings.TrimSpace(parentJobID) == "" {
+		return capabilities.ResourceScope{}
+	}
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	parentJob := service.companionJobs[parentJobID]
+	if parentJob == nil {
+		return capabilities.ResourceScope{}
+	}
+	return parentJob.ResourceScope
 }
 
 func browserOriginFromInput(document json.RawMessage) string {

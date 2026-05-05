@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
 	"gitlab.com/eastriver/internkim/internal/capabilities"
@@ -170,6 +171,18 @@ func (uploader *fakeFileUploader) UploadFile(ctx context.Context, request FileUp
 	}, nil
 }
 
+func waitForHandoffActive(t *testing.T, handoffStore *BrowserHandoffStore) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if handoffStore.Snapshot().Active {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("timed out waiting for active handoff")
+}
+
 func TestBrowserNavigateOpensValidatedURL(t *testing.T) {
 	browserRuntime := &fakeBrowserRuntime{}
 	executor := Executor{BrowserRuntime: browserRuntime}
@@ -292,6 +305,53 @@ func TestBrowserControlToolsUseRuntime(t *testing.T) {
 	}
 	if browserRuntime.waitRequest.Milliseconds != 250 {
 		t.Fatalf("unexpected wait request: %+v", browserRuntime.waitRequest)
+	}
+}
+
+func TestBrowserHandoffCompletesAfterExtensionEvent(t *testing.T) {
+	handoffStore := NewBrowserHandoffStore()
+	browserRuntime := &fakeBrowserRuntime{observeResult: browserruntime.ObserveResult{
+		URL:             "https://example.com/app",
+		Title:           "Example",
+		SnapshotText:    "- button \"Continue\" [ref=e1]",
+		InteractiveRefs: []string{"@e1"},
+		CapturedAt:      "2026-04-27T00:00:00Z",
+	}}
+	executor := Executor{BrowserRuntime: browserRuntime, HandoffStore: handoffStore}
+	resultChannel := make(chan capabilities.ToolInvokeResponse, 1)
+	errorChannel := make(chan error, 1)
+
+	go func() {
+		response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
+			ToolName: "browser.handoff",
+			Input:    json.RawMessage(`{"url":"https://example.com/login","message":"로그인 후 완료를 눌러주세요.","successCriteria":{"textIncludesAny":["Continue"]}}`),
+		})
+		if errorValue != nil {
+			errorChannel <- errorValue
+			return
+		}
+		resultChannel <- response
+	}()
+
+	waitForHandoffActive(t, handoffStore)
+	snapshot := handoffStore.Snapshot()
+	if errorValue := handoffStore.Complete(HandoffCompletion{HandoffID: snapshot.HandoffID, SessionID: snapshot.SessionID, URL: "https://example.com/app"}); errorValue != nil {
+		t.Fatalf("expected handoff completion: %v", errorValue)
+	}
+
+	select {
+	case response := <-resultChannel:
+		var result BrowserHandoffResult
+		if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if result.State != HandoffStateCompleted || result.URL != "https://example.com/app" || !result.CompletedByUser {
+			t.Fatalf("unexpected handoff result: %+v", result)
+		}
+	case errorValue := <-errorChannel:
+		t.Fatal(errorValue)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for handoff result")
 	}
 }
 
