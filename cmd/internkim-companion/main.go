@@ -270,6 +270,9 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 		ProfilePath: *browserProfilePath,
 		SessionName: "internkim",
 		Headed:      true,
+		ExtensionPaths: []string{
+			defaultBrowserExtensionPath(),
+		},
 	}
 	readiness := browserRuntime.EnsureInstalled(context.Background())
 	if readiness.Status != "ready" {
@@ -277,6 +280,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	}
 	grantStore := companionruntime.NewMemoryGrantStore()
 	mountStore := companionruntime.NewMountStore(defaultMountStatePath(*statePath))
+	handoffStore := companionruntime.NewBrowserHandoffStore()
 	runtimeStatus := &runtimeState{}
 	if localLLMConfiguration.Enabled {
 		runtimeStatus.replaceLocalLLM(localLLMConfiguration)
@@ -287,13 +291,14 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 		LLMChain:       localLLM,
 		EmbeddingChain: localLLM,
 		BrowserRuntime: browserRuntime,
+		HandoffStore:   handoffStore,
 		GrantStore:     grantStore,
 		MountStore:     mountStore,
 	}
 	if readiness.Status != "ready" {
 		executor.BrowserRuntime = nil
 	}
-	controlServer, errorValue := startControlServer(*controlListenAddress, grantStore, mountStore, runtimeStatus, localLLM, httpClient)
+	controlServer, errorValue := startControlServer(*controlListenAddress, grantStore, mountStore, handoffStore, runtimeStatus, localLLM, httpClient)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -917,6 +922,32 @@ func defaultBrowserProfilePath() string {
 	return filepath.Join(os.TempDir(), "internkim-companion-browser-profile")
 }
 
+func defaultBrowserExtensionPath() string {
+	if environmentValue := strings.TrimSpace(os.Getenv("INTERNKIM_BROWSER_EXTENSION_PATH")); environmentValue != "" {
+		return environmentValue
+	}
+	executablePath, errorValue := os.Executable()
+	if errorValue == nil && strings.TrimSpace(executablePath) != "" {
+		for _, path := range browserExtensionCandidatePaths(filepath.Dir(executablePath)) {
+			if isDirectory(path) {
+				return path
+			}
+		}
+	}
+	if isDirectory("companion/browser-extension") {
+		return "companion/browser-extension"
+	}
+	return ""
+}
+
+func browserExtensionCandidatePaths(executableDirectory string) []string {
+	return []string{
+		filepath.Join(executableDirectory, "browser-extension"),
+		filepath.Join(executableDirectory, "..", "Resources", "browser-extension"),
+		filepath.Join(executableDirectory, "..", "Resources", "companion", "browser-extension"),
+	}
+}
+
 func resolveAgentBrowserPath(flagValue string) string {
 	if strings.TrimSpace(flagValue) != "" {
 		return strings.TrimSpace(flagValue)
@@ -972,6 +1003,11 @@ func bundledAgentBrowserFilenames() []string {
 func isExecutableFile(path string) bool {
 	information, errorValue := os.Stat(path)
 	return errorValue == nil && !information.IsDir() && information.Mode()&0o111 != 0
+}
+
+func isDirectory(path string) bool {
+	information, errorValue := os.Stat(path)
+	return errorValue == nil && information.IsDir()
 }
 
 func companionPrivateKeyID(companionID string) string {

@@ -587,7 +587,7 @@ func TestControlHandlerListsAndRevokesGrants(t *testing.T) {
 	}
 	runtimeStatus := &runtimeState{}
 	runtimeStatus.recordHeartbeat(nil)
-	handler := controlHandler(grantStore, companionruntime.NewMountStore(""), runtimeStatus, newDynamicLocalLLM(localLLMSettings{}), http.DefaultClient)
+	handler := controlHandler(grantStore, companionruntime.NewMountStore(""), companionruntime.NewBrowserHandoffStore(), runtimeStatus, newDynamicLocalLLM(localLLMSettings{}), http.DefaultClient)
 
 	listRequest := httptest.NewRequest(http.MethodGet, "/v1/security/grants", nil)
 	listRequest.RemoteAddr = "127.0.0.1:1234"
@@ -624,6 +624,46 @@ func TestControlHandlerListsAndRevokesGrants(t *testing.T) {
 	}
 }
 
+func TestControlHandlerCompletesBrowserHandoff(t *testing.T) {
+	handoffStore := companionruntime.NewBrowserHandoffStore()
+	handoff, errorValue := handoffStore.Begin(companionruntime.BrowserHandoffRequest{URL: "https://example.com/login", Message: "done?"}, "internkim")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	handler := controlHandler(
+		companionruntime.NewMemoryGrantStore(),
+		companionruntime.NewMountStore(""),
+		handoffStore,
+		&runtimeState{},
+		newDynamicLocalLLM(localLLMSettings{}),
+		http.DefaultClient,
+	)
+
+	remoteRequest := httptest.NewRequest(http.MethodGet, "/v1/browser/handoff", nil)
+	remoteRequest.RemoteAddr = "198.51.100.10:1234"
+	remoteResponse := httptest.NewRecorder()
+	handler.ServeHTTP(remoteResponse, remoteRequest)
+	if remoteResponse.Code != http.StatusForbidden {
+		t.Fatalf("expected remote bridge request to fail, got %d", remoteResponse.Code)
+	}
+
+	completeRequest := httptest.NewRequest(http.MethodPost, "/v1/browser/handoff/complete", strings.NewReader(`{"handoffID":"`+handoff.HandoffID+`","sessionID":"internkim","url":"https://example.com/app"}`))
+	completeRequest.RemoteAddr = "127.0.0.1:1234"
+	completeResponse := httptest.NewRecorder()
+	handler.ServeHTTP(completeResponse, completeRequest)
+	if completeResponse.Code != http.StatusOK {
+		t.Fatalf("expected complete success, got %d %s", completeResponse.Code, completeResponse.Body.String())
+	}
+
+	wrongRequest := httptest.NewRequest(http.MethodPost, "/v1/browser/handoff/complete", strings.NewReader(`{"handoffID":"wrong","sessionID":"internkim","url":"https://example.com/app"}`))
+	wrongRequest.RemoteAddr = "127.0.0.1:1234"
+	wrongResponse := httptest.NewRecorder()
+	handler.ServeHTTP(wrongResponse, wrongRequest)
+	if wrongResponse.Code != http.StatusForbidden {
+		t.Fatalf("expected wrong handoff to fail, got %d", wrongResponse.Code)
+	}
+}
+
 func TestControlHandlerUpdatesLocalLLMWithoutRestart(t *testing.T) {
 	modelServer := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		if request.URL.Path != "/api/tags" {
@@ -639,6 +679,7 @@ func TestControlHandlerUpdatesLocalLLMWithoutRestart(t *testing.T) {
 	handler := controlHandler(
 		companionruntime.NewMemoryGrantStore(),
 		companionruntime.NewMountStore(""),
+		companionruntime.NewBrowserHandoffStore(),
 		runtimeStatus,
 		localLLM,
 		modelServer.Client(),

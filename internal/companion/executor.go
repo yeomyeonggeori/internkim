@@ -42,6 +42,7 @@ type Executor struct {
 	LLMChain        llmbackend.Provider
 	EmbeddingChain  llmbackend.EmbeddingProvider
 	BrowserRuntime  browserruntime.Runtime
+	HandoffStore    *BrowserHandoffStore
 	PromptHandler   PromptHandler
 	FilePicker      FilePicker
 	DirectoryPicker DirectoryPicker
@@ -113,6 +114,8 @@ func (executor Executor) ExecuteJob(ctx context.Context, envelope JobEnvelope, r
 		return executor.executeBrowserObserve(ctx, request)
 	case "browser.screenshot":
 		return executor.executeBrowserScreenshot(ctx, envelope, request)
+	case "browser.handoff":
+		return executor.executeBrowserHandoff(ctx, envelope, request)
 	case "browser.click":
 		return executor.executeBrowserClick(ctx, request)
 	case "browser.fill":
@@ -321,6 +324,62 @@ func (executor Executor) executeBrowserScreenshot(ctx context.Context, envelope 
 		"expiresAt":   uploadedFile.ExpiresAt,
 		"capturedAt":  screenshot.CapturedAt,
 	})
+}
+
+func (executor Executor) executeBrowserHandoff(ctx context.Context, envelope JobEnvelope, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	if executor.BrowserRuntime == nil {
+		return capabilities.ToolInvokeResponse{}, errors.New("companion browser runtime unavailable")
+	}
+	if executor.HandoffStore == nil {
+		return capabilities.ToolInvokeResponse{}, errors.New("browser handoff bridge is unavailable")
+	}
+	var input BrowserHandoffRequest
+	if errorValue := decodeInput(request.Input, &input); errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	if strings.TrimSpace(input.URL) == "" {
+		return capabilities.ToolInvokeResponse{}, errors.New("browser handoff url is required")
+	}
+	startResult, errorValue := executor.BrowserRuntime.StartSession(ctx, browserruntime.SessionStartRequest{URL: input.URL})
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	handoff, errorValue := executor.HandoffStore.Begin(input, startResult.SessionID)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	handoffContext, cancel := handoffTimeoutContext(ctx, input.TimeoutSeconds)
+	defer cancel()
+	for validationAttempt := 0; validationAttempt < maxHandoffValidationAttempts; validationAttempt++ {
+		_, waitError := executor.HandoffStore.Wait(handoffContext, handoff.HandoffID)
+		if waitError != nil {
+			executor.HandoffStore.End(handoff.HandoffID, HandoffStateTimedOut)
+			return capabilities.ToolInvokeResponse{}, handoffDenial(envelope, request, "handoff_timeout", "browser handoff timed out")
+		}
+		_ = executor.HandoffStore.UpdateMessage(handoff.HandoffID, HandoffStateValidating, "확인 중입니다.")
+		observation, observeError := executor.BrowserRuntime.Observe(ctx, browserruntime.ObserveRequest{})
+		if observeError != nil {
+			executor.HandoffStore.End(handoff.HandoffID, HandoffStateDenied)
+			return capabilities.ToolInvokeResponse{}, observeError
+		}
+		if HandoffCriteriaEmpty(input.SuccessCriteria) || HandoffCriteriaSatisfied(input.SuccessCriteria, observation.URL, observation.SnapshotText) {
+			executor.HandoffStore.End(handoff.HandoffID, HandoffStateCompleted)
+			return toolResponse(request.ToolName, BrowserHandoffResult{
+				SessionID:       handoff.SessionID,
+				URL:             observation.URL,
+				Origin:          firstNonEmpty(handoff.Origin, webOriginOrEmpty(observation.URL)),
+				Title:           observation.Title,
+				SnapshotText:    observation.SnapshotText,
+				InteractiveRefs: observation.InteractiveRefs,
+				State:           HandoffStateCompleted,
+				CompletedByUser: true,
+				CapturedAt:      observation.CapturedAt,
+			})
+		}
+		_ = executor.HandoffStore.UpdateMessage(handoff.HandoffID, HandoffStateWaitingForUser, "아직 완료되지 않은 것 같아요. 브라우저에서 필요한 작업을 마친 뒤 완료를 눌러주세요.")
+	}
+	executor.HandoffStore.End(handoff.HandoffID, HandoffStateDenied)
+	return capabilities.ToolInvokeResponse{}, handoffDenial(envelope, request, "validation_failed", "browser handoff validation failed")
 }
 
 func (executor Executor) executeBrowserClick(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {

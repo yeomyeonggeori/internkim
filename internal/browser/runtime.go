@@ -40,6 +40,7 @@ type AgentBrowserRuntime struct {
 	SessionName          string
 	Headed               bool
 	TemporaryDirectory   string
+	ExtensionPaths       []string
 	Runner               CommandRunner
 	Now                  func() time.Time
 }
@@ -430,6 +431,9 @@ func (runtime AgentBrowserRuntime) sessionStartArguments() []string {
 	if strings.TrimSpace(runtime.ProfilePath) != "" {
 		arguments = append(arguments, "--profile", strings.TrimSpace(runtime.ProfilePath))
 	}
+	for _, extensionPath := range runtime.extensionPaths() {
+		arguments = append(arguments, "--extension", extensionPath)
+	}
 	if runtime.sessionName() != "" {
 		arguments = append(arguments, "--session-name", runtime.sessionName())
 	}
@@ -448,6 +452,17 @@ func (runtime AgentBrowserRuntime) browserExecutablePath(engine string) string {
 		return strings.TrimSpace(runtime.EngineExecutablePath)
 	}
 	return ""
+}
+
+func (runtime AgentBrowserRuntime) extensionPaths() []string {
+	paths := []string{}
+	for _, path := range runtime.ExtensionPaths {
+		trimmedPath := strings.TrimSpace(path)
+		if trimmedPath != "" {
+			paths = append(paths, trimmedPath)
+		}
+	}
+	return paths
 }
 
 func (runtime AgentBrowserRuntime) run(ctx context.Context, arguments ...string) ([]byte, error) {

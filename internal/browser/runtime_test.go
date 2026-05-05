@@ -69,14 +69,18 @@ func TestAgentBrowserRuntimeChromeEngineUsesHeadedProfile(t *testing.T) {
 		ProfilePath: "/profile",
 		SessionName: "internkim-test",
 		Headed:      true,
-		Runner:      runner,
+		ExtensionPaths: []string{
+			"",
+			"/extensions/internkim",
+		},
+		Runner: runner,
 	}
 
 	_, errorValue := runtime.Navigate(context.Background(), NavigateRequest{URL: "https://example.com"})
 	if errorValue != nil {
 		t.Fatalf("expected navigate success: %v", errorValue)
 	}
-	expectedOpenArguments := []string{"--session", "internkim-test", "--engine", "chrome", "--headed", "true", "--profile", "/profile", "--session-name", "internkim-test", "open", "https://example.com", "--headers", stealthRequestHeaders()}
+	expectedOpenArguments := []string{"--session", "internkim-test", "--engine", "chrome", "--headed", "true", "--profile", "/profile", "--extension", "/extensions/internkim", "--session-name", "internkim-test", "open", "https://example.com", "--headers", stealthRequestHeaders()}
 	if !reflect.DeepEqual(runner.calls[0].arguments, expectedOpenArguments) {
 		t.Fatalf("unexpected chrome arguments: %+v", runner.calls[0].arguments)
 	}

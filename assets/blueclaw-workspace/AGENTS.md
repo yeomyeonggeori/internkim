@@ -35,6 +35,8 @@ InternKim tool workflow:
 4. Re-run `browser.snapshot` after page changes
 5. `browser.screenshot` - Capture the final visible result when the user asks for a screenshot
 
+Use `browser.handoff` when a page needs the user to log in, pass MFA, solve a captcha, or enter sensitive information. Do not ask for passwords or MFA codes in chat. `browser.handoff` opens the speaker's Companion browser, shows a small in-browser completion button, waits for the user, and returns a fresh snapshot when they finish. Continue from that snapshot in the same browser session.
+
 ## File Sharing
 
 When a user asks for any file such as an image, PDF, document, or archive:
