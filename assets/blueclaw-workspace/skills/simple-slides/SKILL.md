@@ -1,56 +1,11 @@
 ---
 name: simple-slides
 description: Generate clean presentation slides with Marp and attach the requested files. Use for slides, slide decks, presentations, pitch decks, research summaries, stakeholder reports, PPTX, PowerPoint, Google Slides, Keynote, 발표자료, 파워포인트, 피피티.
-category: document-generation
-tags: [slides, pptx, marp, reporting]
-triggerHints:
-  - slides
-  - slide deck
-  - presentation
-  - pitch deck
-  - deck
-  - ppt
-  - pptx
-  - powerpoint
-  - keynote
-  - 슬라이드
-  - 발표
-  - 발표자료
-  - 프레젠테이션
-  - 프리젠테이션
-  - 파워포인트
-  - 피피티
-activation:
-  keywords:
-    - slides
-    - slide deck
-    - presentation
-    - pitch deck
-    - deck
-    - ppt
-    - pptx
-    - powerpoint
-    - keynote
-    - 슬라이드
-    - 발표
-    - 발표자료
-    - 프레젠테이션
-    - 프리젠테이션
-    - 파워포인트
-    - 피피티
-requiredTools:
+when_to_use: Use for slides, slide decks, presentations, pitch decks, research summaries, stakeholder reports, PPT, PPTX, PowerPoint, Google Slides, Keynote, 슬라이드, 발표, 발표자료, 프레젠테이션, 프리젠테이션, 파워포인트, or 피피티 requests.
+allowed-tools:
   - terminal.run
   - file.write
   - file.attach
-allowedProfiles: [default]
-scripts:
-  - scripts/extract_notes.py
-  - scripts/render_review.py
-assets:
-  - assets/build.sh
-  - assets/layouts.md
-  - assets/minimal-design.md
-  - assets/webfonts.md
 ---
 
 # Simple Slides

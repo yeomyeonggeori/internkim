@@ -100,7 +100,7 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 		"agentProfiles": []map[string]any{
 			{
 				"name":             "default",
-				"allowedToolNames": append([]string{"conversation.history", "memory.search", "terminal.run", "terminal.session", "browser_handoff.openURL", "approval.request", "file.write", "file.attach"}, capabilities.DefaultToolNames()...),
+				"allowedToolNames": append([]string{"conversation.history", "memory.search", "terminal.run", "terminal.session", "browser_handoff.openURL", "approval.request", "file.write", "file.attach", "skill.add", "skill.remove"}, capabilities.DefaultToolNames()...),
 			},
 		},
 		"mcpServers": []map[string]any{},

@@ -14,6 +14,8 @@ func TestAgentBrowserSkillInstallScriptUsesVendoredWorkspaceSkill(t *testing.T) 
 		"/tmp/fallback.md",
 		"fallback skill",
 		"chown -R blueclaw:blueclaw /root/.blueclaw/workspace/.agents",
+		"chown -R root:root \"$skillDir\"",
+		"chmod -R a+rX,go-w \"$skillDir\"",
 	}
 	for _, fragment := range requiredFragments {
 		if !strings.Contains(script, fragment) {
@@ -101,6 +103,8 @@ func TestFirstbootInstallsAgentBrowserSkill(t *testing.T) {
 		"$STAGE/device-browser/internkim-device-browser-linux-arm64.tar.zst",
 		"$STAGE/.agents/skills/agent-browser/SKILL.md",
 		"/root/.blueclaw/workspace/.agents/skills/agent-browser",
+		"chown -R root:root \"$agentBrowserSkillDir\"",
+		"chmod -R a+rX,go-w /root/.blueclaw/workspace/skills",
 	}
 	for _, fragment := range requiredFragments {
 		if !strings.Contains(script, fragment) {

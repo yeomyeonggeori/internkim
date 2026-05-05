@@ -539,7 +539,10 @@ else
 fi
 
 chown -R blueclaw:blueclaw /root/.blueclaw/workspace/.agents 2>/dev/null || true
-chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills 2>/dev/null || true
+chown -R root:root "$agentBrowserSkillDir" 2>/dev/null || true
+chmod -R a+rX,go-w "$agentBrowserSkillDir" 2>/dev/null || true
+chown -R root:root /root/.blueclaw/workspace/skills 2>/dev/null || true
+chmod -R a+rX,go-w /root/.blueclaw/workspace/skills 2>/dev/null || true
 
 if ! command -v uv >/dev/null 2>&1; then
   curl -LsSf https://astral.sh/uv/install.sh -o /tmp/internkim-uv-install.sh
