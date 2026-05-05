@@ -3,6 +3,7 @@ import type { Child } from '@tauri-apps/plugin-shell';
 import { Command } from '@tauri-apps/plugin-shell';
 import type { CompanionStatus, PairingPayload } from './pairing';
 import { loadCompanionSettings, settingsToSidecarArguments } from './settings';
+import type { CompanionSettings } from './settings';
 
 export type RuntimeStatus = {
 	isRunning: boolean;
@@ -10,6 +11,20 @@ export type RuntimeStatus = {
 	lastError?: string;
 	lastHeartbeatAt?: string;
 	restartAttempts?: number;
+	localLLM?: LocalLLMStatus;
+};
+
+export type LocalLLMBackendStatus = {
+	name: string;
+	model?: string;
+	available: boolean;
+	lastError?: string;
+	lastCheckedAt?: string;
+};
+
+export type LocalLLMStatus = {
+	enabled: boolean;
+	backends?: LocalLLMBackendStatus[];
 };
 
 export type ResourceScope = {
@@ -134,16 +149,60 @@ export async function refreshRuntimeStatus(): Promise<RuntimeStatus> {
 	try {
 		const response = await fetch(`${controlURL}/v1/runtime/status`);
 		if (!response.ok) return runtimeStatus;
-		const document = (await response.json()) as { lastHeartbeatAt?: string; lastError?: string };
+		const document = (await response.json()) as {
+			lastHeartbeatAt?: string;
+			lastError?: string;
+			localLLM?: LocalLLMStatus;
+		};
 		runtimeStatus = {
 			...runtimeStatus,
 			lastHeartbeatAt: document.lastHeartbeatAt,
-			lastError: document.lastError || runtimeStatus.lastError
+			lastError: document.lastError || runtimeStatus.lastError,
+			localLLM: document.localLLM
 		};
 		return runtimeStatus;
 	} catch {
 		return runtimeStatus;
 	}
+}
+
+export async function updateRuntimeLocalLLM(settings: CompanionSettings): Promise<LocalLLMStatus | undefined> {
+	if (!runtimeChild) return undefined;
+	const response = await fetch(`${controlURL}/v1/runtime/local-llm`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(settings)
+	});
+	if (!response.ok) {
+		throw new Error(await response.text());
+	}
+	const localLLM = (await response.json()) as LocalLLMStatus;
+	runtimeStatus = {
+		...runtimeStatus,
+		localLLM
+	};
+	return localLLM;
+}
+
+export async function readRemoteModel(): Promise<string> {
+	const output = await Command.sidecar('binaries/internkim-companion', ['remote-model', 'get']).execute();
+	if (output.code !== 0) {
+		throw new Error(output.stderr || 'Remote model read failed');
+	}
+	return output.stdout.trim();
+}
+
+export async function updateRemoteModel(modelName: string): Promise<string> {
+	const output = await Command.sidecar('binaries/internkim-companion', [
+		'remote-model',
+		'set',
+		'--model',
+		modelName
+	]).execute();
+	if (output.code !== 0) {
+		throw new Error(output.stderr || 'Remote model update failed');
+	}
+	return output.stdout.trim();
 }
 
 export async function readActiveGrants(): Promise<ActiveGrant[]> {

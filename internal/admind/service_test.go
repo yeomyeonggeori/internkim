@@ -1806,6 +1806,62 @@ func TestCompanionJobClaimRequeuesStaleRunningJob(t *testing.T) {
 	}
 }
 
+func TestCompanionRemoteModelReadAndUpdate(t *testing.T) {
+	runtimeConfigPath := filepath.Join(t.TempDir(), "runtime.json")
+	writeFile(t, runtimeConfigPath, `{"languageModel":{"capability":{"model":"google/old-model"}}}`)
+	service := NewService(Configuration{
+		StateDirectory:            t.TempDir(),
+		AdminEmailPath:            writeTestFile(t, "admin@example.com"),
+		BlueclawRuntimeConfigPath: runtimeConfigPath,
+	})
+	restartCalls := 0
+	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+		_ = ctx
+		if name == "systemctl" && strings.Join(arguments, " ") == "restart blueclaw" {
+			restartCalls++
+			return nil, nil
+		}
+		t.Fatalf("unexpected command: %s %s", name, strings.Join(arguments, " "))
+		return nil, nil
+	}
+	handler := service.router()
+	keyPair, pairResult := pairTestCompanion(t, handler, keyPairCapabilityRequest{
+		KeyPair:    keyPairForTest(t),
+		Capability: `{"name":"user.confirm","version":"1","privacyClass":"user_input","estimatedLatency":"interactive","requiresUserPresence":true,"worksOffline":true}`,
+	})
+	_ = keyPair
+
+	readResponse := httptest.NewRecorder()
+	readRequest := httptest.NewRequest(http.MethodGet, "/_internkim/companion/remote-model", nil)
+	setCompanionHeaders(t, readRequest, pairResult.companionPairResponse, pairResult.privateKey)
+	handler.ServeHTTP(readResponse, readRequest)
+	if readResponse.Code != http.StatusOK {
+		t.Fatalf("read status = %d: %s", readResponse.Code, readResponse.Body.String())
+	}
+	var readResult companionRemoteModelResponse
+	if errorValue := json.NewDecoder(readResponse.Body).Decode(&readResult); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if readResult.Model != "google/old-model" {
+		t.Fatalf("expected old model, got %+v", readResult)
+	}
+
+	updateResponse := httptest.NewRecorder()
+	updateRequest := httptest.NewRequest(http.MethodPut, "/_internkim/companion/remote-model", strings.NewReader(`{"model":"google/new-model"}`))
+	setCompanionHeaders(t, updateRequest, pairResult.companionPairResponse, pairResult.privateKey)
+	handler.ServeHTTP(updateResponse, updateRequest)
+	if updateResponse.Code != http.StatusOK {
+		t.Fatalf("update status = %d: %s", updateResponse.Code, updateResponse.Body.String())
+	}
+	if restartCalls != 1 {
+		t.Fatalf("expected one blueclaw restart, got %d", restartCalls)
+	}
+	updatedDocument := readJSONFile(t, runtimeConfigPath)
+	if remoteModelFromRuntimeDocument(updatedDocument) != "google/new-model" {
+		t.Fatalf("expected updated model, got %+v", updatedDocument)
+	}
+}
+
 func TestCompanionFileUploadLifecycle(t *testing.T) {
 	service := NewService(Configuration{
 		StateDirectory:         t.TempDir(),
@@ -2204,6 +2260,19 @@ func writeTestFile(t *testing.T, document string) string {
 		t.Fatal(errorValue)
 	}
 	return path
+}
+
+func readJSONFile(t *testing.T, path string) map[string]any {
+	t.Helper()
+	document, errorValue := os.ReadFile(path)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var result map[string]any
+	if errorValue := json.Unmarshal(document, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return result
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

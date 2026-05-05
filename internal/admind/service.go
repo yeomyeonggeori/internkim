@@ -48,6 +48,7 @@ type Configuration struct {
 	CompanionFileDirectory      string
 	BotProfilePath              string
 	BlueclawWorkspacePath       string
+	BlueclawRuntimeConfigPath   string
 }
 
 type Service struct {
@@ -189,6 +190,7 @@ func DefaultConfiguration() Configuration {
 		CompanionFileDirectory:      "/tmp/internkim-companion-files",
 		BotProfilePath:              "/root/.internkim/config/bot-profile.yaml",
 		BlueclawWorkspacePath:       "/root/.blueclaw/workspace",
+		BlueclawRuntimeConfigPath:   "/root/.blueclaw/config/runtime.json",
 	}
 }
 

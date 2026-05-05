@@ -16,7 +16,9 @@
 				"title": "Intern Kim Companion",
 				"width": 460,
 				"height": 600,
-				"resizable": false,
+				"resizable": true,
+				"minWidth": 420,
+				"minHeight": 560,
 				"visible": false
 			}
 		],

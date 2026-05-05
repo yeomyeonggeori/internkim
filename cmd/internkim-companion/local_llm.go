@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"net/http"
 	"strings"
+	"sync"
 
 	"gitlab.com/eastriver/internkim/internal/llmbackend"
 )
@@ -12,6 +15,11 @@ type localLLMSettings struct {
 	Enabled       bool
 	Configuration llmbackend.LocalProviderConfig
 	ProviderSet   llmbackend.LocalProviderSet
+}
+
+type dynamicLocalLLM struct {
+	mutex    sync.RWMutex
+	settings localLLMSettings
 }
 
 type localLLMFlags struct {
@@ -56,6 +64,46 @@ func (localFlags localLLMFlags) settings(httpClient *http.Client) localLLMSettin
 		Configuration: configuration,
 		ProviderSet:   llmbackend.BuildLocalProviderSet(configuration),
 	}
+}
+
+func newDynamicLocalLLM(settings localLLMSettings) *dynamicLocalLLM {
+	return &dynamicLocalLLM{settings: settings}
+}
+
+func (provider *dynamicLocalLLM) update(settings localLLMSettings) {
+	provider.mutex.Lock()
+	defer provider.mutex.Unlock()
+	provider.settings = settings
+}
+
+func (provider *dynamicLocalLLM) currentSettings() localLLMSettings {
+	provider.mutex.RLock()
+	defer provider.mutex.RUnlock()
+	return provider.settings
+}
+
+func (provider *dynamicLocalLLM) providerSetFor(providerName string, accelerator string) (llmbackend.LocalProviderSet, bool) {
+	settings := provider.currentSettings()
+	if !settings.Enabled {
+		return llmbackend.LocalProviderSet{}, false
+	}
+	return settings.providerSetFor(providerName, accelerator), true
+}
+
+func (provider *dynamicLocalLLM) CompleteStructured(ctx context.Context, request llmbackend.StructuredRequest) (llmbackend.Response, error) {
+	providerSet, isEnabled := provider.providerSetFor(request.Provider, request.Accelerator)
+	if !isEnabled {
+		return llmbackend.Response{}, errors.New("companion LLM is not configured")
+	}
+	return providerSet.Provider.CompleteStructured(ctx, request)
+}
+
+func (provider *dynamicLocalLLM) CompleteText(ctx context.Context, request llmbackend.TextRequest) (llmbackend.Response, error) {
+	providerSet, isEnabled := provider.providerSetFor(request.Provider, request.Accelerator)
+	if !isEnabled {
+		return llmbackend.Response{}, errors.New("companion LLM is not configured")
+	}
+	return providerSet.Provider.CompleteText(ctx, request)
 }
 
 func (settings localLLMSettings) providerSetFor(providerName string, accelerator string) llmbackend.LocalProviderSet {
