@@ -3119,21 +3119,11 @@ func (s *sshClient) rsyncSparse(localPath string, remotePath string) error {
 	}
 	target := fmt.Sprintf("%s@%s:%s", s.user, s.host, uploadRemotePath)
 	sshCommand := "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o LogLevel=ERROR -p " + s.port
-	command := exec.Command("rsync", "-azS", "--partial", "--append-verify", "--human-readable", "--info=progress2", "-e", sshCommand, localPath, target)
+	command := exec.Command("rsync", rsyncSparseArguments(sshCommand, localPath, target)...)
 	if s.pass != "" {
 		command.Env = append(os.Environ(), "SSHPASS="+s.pass)
-		command.Args = []string{
-			"rsync",
-			"-azS",
-			"--partial",
-			"--append-verify",
-			"--human-readable",
-			"--info=progress2",
-			"-e",
-			s.sshpassBin + " -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o LogLevel=ERROR -p " + s.port,
-			localPath,
-			target,
-		}
+		sshpassCommand := s.sshpassBin + " -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o LogLevel=ERROR -p " + s.port
+		command.Args = append([]string{"rsync"}, rsyncSparseArguments(sshpassCommand, localPath, target)...)
 	}
 	output, errorValue := runCommandWithLiveOutput(command)
 	if errorValue != nil {
@@ -3152,6 +3142,10 @@ func (s *sshClient) rsyncSparse(localPath string, remotePath string) error {
 		return fmt.Errorf("move uploaded file to %s: %s: %w", remotePath, strings.TrimSpace(moveOutput), errorValue)
 	}
 	return nil
+}
+
+func rsyncSparseArguments(sshCommand string, localPath string, target string) []string {
+	return []string{"-azSh", "--partial", "--append", "--progress", "-e", sshCommand, localPath, target}
 }
 
 func runCommandWithLiveOutput(command *exec.Cmd) (string, error) {
