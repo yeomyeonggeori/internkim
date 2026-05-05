@@ -158,9 +158,10 @@ func parseBlueclawRuntimeFilePresence(output string) map[string]bool {
 
 func (state *setupFlowState) transferBlueclawRuntimeArtifact(localPath string, remotePath string, artifactName string) error {
 	if artifactName == "rootfs.ext4" {
-		if errorValue := state.sshClient.rsyncSparse(localPath, remotePath); errorValue == nil {
-			return nil
+		if errorValue := state.sshClient.rsyncSparse(localPath, remotePath); errorValue != nil {
+			return fmt.Errorf("transfer %s with resumable rsync: %w", artifactName, errorValue)
 		}
+		return nil
 	}
 	if errorValue := state.sshClient.scp(localPath, remotePath); errorValue != nil {
 		return fmt.Errorf("transfer %s: %w", artifactName, errorValue)

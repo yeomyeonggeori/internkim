@@ -3090,7 +3090,7 @@ func (s *sshClient) scpArgs(extra ...string) []string {
 
 func (s *sshClient) scp(localPath, remotePath string) error {
 	if s.user != "root" && strings.HasPrefix(remotePath, "/") {
-		temporaryRemotePath := "/tmp/internkim-upload-" + filepath.Base(remotePath)
+		temporaryRemotePath := temporaryUploadPath(remotePath)
 		if err := s.scpDirect(localPath, temporaryRemotePath); err != nil {
 			return err
 		}
@@ -3108,26 +3108,58 @@ func (s *sshClient) scp(localPath, remotePath string) error {
 	return s.scpDirect(localPath, remotePath)
 }
 
+func temporaryUploadPath(remotePath string) string {
+	return "/tmp/internkim-upload-" + filepath.Base(remotePath)
+}
+
 func (s *sshClient) rsyncSparse(localPath string, remotePath string) error {
-	target := fmt.Sprintf("%s@%s:%s", s.user, s.host, remotePath)
+	uploadRemotePath := remotePath
+	if s.user != "root" && strings.HasPrefix(remotePath, "/") {
+		uploadRemotePath = temporaryUploadPath(remotePath)
+	}
+	target := fmt.Sprintf("%s@%s:%s", s.user, s.host, uploadRemotePath)
 	sshCommand := "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o LogLevel=ERROR -p " + s.port
-	command := exec.Command("rsync", "-azS", "-e", sshCommand, localPath, target)
+	command := exec.Command("rsync", "-azS", "--partial", "--append-verify", "--human-readable", "--info=progress2", "-e", sshCommand, localPath, target)
 	if s.pass != "" {
 		command.Env = append(os.Environ(), "SSHPASS="+s.pass)
 		command.Args = []string{
 			"rsync",
 			"-azS",
+			"--partial",
+			"--append-verify",
+			"--human-readable",
+			"--info=progress2",
 			"-e",
 			s.sshpassBin + " -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o LogLevel=ERROR -p " + s.port,
 			localPath,
 			target,
 		}
 	}
-	output, errorValue := command.CombinedOutput()
+	output, errorValue := runCommandWithLiveOutput(command)
 	if errorValue != nil {
-		return fmt.Errorf("rsync sparse %s to %s failed: %s: %w", localPath, remotePath, strings.TrimSpace(string(output)), errorValue)
+		return fmt.Errorf("rsync sparse %s to %s failed: %s: %w", localPath, remotePath, strings.TrimSpace(output), errorValue)
+	}
+	if uploadRemotePath == remotePath {
+		return nil
+	}
+	moveOutput, errorValue := s.runResult(fmt.Sprintf(
+		"mkdir -p %s && mv %s %s",
+		quoteShellValue(filepath.Dir(remotePath)),
+		quoteShellValue(uploadRemotePath),
+		quoteShellValue(remotePath),
+	))
+	if errorValue != nil {
+		return fmt.Errorf("move uploaded file to %s: %s: %w", remotePath, strings.TrimSpace(moveOutput), errorValue)
 	}
 	return nil
+}
+
+func runCommandWithLiveOutput(command *exec.Cmd) (string, error) {
+	var output bytes.Buffer
+	command.Stdout = io.MultiWriter(os.Stdout, &output)
+	command.Stderr = io.MultiWriter(os.Stderr, &output)
+	errorValue := command.Run()
+	return output.String(), errorValue
 }
 
 func (s *sshClient) scpDirect(localPath, remotePath string) error {
@@ -3478,11 +3510,11 @@ func runSetupLive(messenger *msg) {
 		if !attemptBackend(setup.BackendSSH) {
 			if boardType == setup.BoardJetsonOrinNano {
 				failureDetails := describeJetsonSSHFailure(sshpassBin, stateDir, sshUser, sshPassword)
-					fatal(messenger.t(
-						"Jetson을 SSH로 찾을 수 없습니다.\n"+failureDetails+"\nJetson 콘솔에서 `ip addr`, `nmcli device status`, `systemctl status ssh --no-pager`, `systemctl status internkim-wifi-recovery.timer --no-pager`, `journalctl -u internkim-wifi-recovery.service -n 80 --no-pager`, `tail /var/log/internkim-jetson-firstboot.log`를 확인하세요. IP를 알면 --host <ip>를 지정하면 됩니다.",
-						"Jetson was not found over SSH.\n"+failureDetails+"\nOn the Jetson console, check `ip addr`, `nmcli device status`, `systemctl status ssh --no-pager`, `systemctl status internkim-wifi-recovery.timer --no-pager`, `journalctl -u internkim-wifi-recovery.service -n 80 --no-pager`, and `tail /var/log/internkim-jetson-firstboot.log`. If you know the IP, pass --host <ip>.",
-					))
-				}
+				fatal(messenger.t(
+					"Jetson을 SSH로 찾을 수 없습니다.\n"+failureDetails+"\nJetson 콘솔에서 `ip addr`, `nmcli device status`, `systemctl status ssh --no-pager`, `systemctl status internkim-wifi-recovery.timer --no-pager`, `journalctl -u internkim-wifi-recovery.service -n 80 --no-pager`, `tail /var/log/internkim-jetson-firstboot.log`를 확인하세요. IP를 알면 --host <ip>를 지정하면 됩니다.",
+					"Jetson was not found over SSH.\n"+failureDetails+"\nOn the Jetson console, check `ip addr`, `nmcli device status`, `systemctl status ssh --no-pager`, `systemctl status internkim-wifi-recovery.timer --no-pager`, `journalctl -u internkim-wifi-recovery.service -n 80 --no-pager`, and `tail /var/log/internkim-jetson-firstboot.log`. If you know the IP, pass --host <ip>.",
+				))
+			}
 			fatal(messenger.t("보드를 찾을 수 없습니다 (SSH).", "Board not reachable (SSH)."))
 		}
 		selectedBackend = setup.BackendSSH
