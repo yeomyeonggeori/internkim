@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -86,6 +87,28 @@ func TestValidateRuntimeArtifactSourceAcceptsBaseMetadataWithoutBlueclawRevision
 	}
 	if errorValue := ValidateRuntimeArtifactSource(repositoryRootPath, manifest); errorValue != nil {
 		t.Fatalf("expected source metadata to validate: %v", errorValue)
+	}
+}
+
+func TestPrepareRuntimeScriptReusesExistingArtifactKernel(t *testing.T) {
+	repositoryRootPath := runtimeArtifactRepositoryRoot(t)
+	document, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "tools", "prepare-blueclaw-runtime"))
+	if errorValue != nil {
+		t.Fatalf("expected prepare script: %v", errorValue)
+	}
+	script := string(document)
+	expectedFragments := []string{
+		`artifact_kernel_path="$artifact_directory/vmlinux.bin"`,
+		`install -m 0644 "$artifact_kernel_path" "$stage_directory/vmlinux.bin"`,
+		`kernel_cache_path="$cache_directory/vmlinux-6.1-aarch64.bin"`,
+	}
+	for _, fragment := range expectedFragments {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected prepare script to contain %q", fragment)
+		}
+	}
+	if strings.Index(script, expectedFragments[0]) > strings.Index(script, expectedFragments[2]) {
+		t.Fatalf("expected artifact kernel reuse before cache fallback")
 	}
 }
 

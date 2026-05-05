@@ -236,6 +236,12 @@ prepare_kernel() {
     return
   fi
 
+  local artifact_kernel_path="$artifact_directory/vmlinux.bin"
+  if [ -s "$artifact_kernel_path" ]; then
+    install -m 0644 "$artifact_kernel_path" "$stage_directory/vmlinux.bin"
+    return
+  fi
+
   local kernel_cache_path="$cache_directory/vmlinux-6.1-aarch64.bin"
   if [ -s "$kernel_cache_path" ]; then
     install -m 0644 "$kernel_cache_path" "$stage_directory/vmlinux.bin"
