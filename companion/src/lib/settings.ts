@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 export type BackendEndpoint = {
 	baseURL: string;
 	model: string;
+	embeddingModel?: string;
 };
 
 export type CompanionSettings = {
@@ -23,7 +24,7 @@ export const defaultSettings: CompanionSettings = {
 	enableLocalLLM: false,
 	localBackendOrder: ['ollama'],
 	ollama: { baseURL: 'http://127.0.0.1:11434', model: '' },
-	llamacpp: { baseURL: 'http://127.0.0.1:8080', model: '' },
+	llamacpp: { baseURL: 'http://127.0.0.1:8080', model: '', embeddingModel: 'embeddinggemma' },
 	mlx: { baseURL: 'http://127.0.0.1:10240', model: '' },
 	stt: null,
 	tts: null
@@ -59,6 +60,8 @@ export function settingsToSidecarArguments(settings: CompanionSettings): string[
 		flags.push('--ollama-model', settings.ollama.model);
 	}
 	flags.push('--llamacpp-base-url', settings.llamacpp.baseURL);
+	flags.push('--llamacpp-embedding-base-url', settings.llamacpp.baseURL);
+	flags.push('--llamacpp-embedding-model', settings.llamacpp.embeddingModel || 'embeddinggemma');
 	if (settings.llamacpp.model) {
 		flags.push('--llamacpp-model', settings.llamacpp.model);
 	}

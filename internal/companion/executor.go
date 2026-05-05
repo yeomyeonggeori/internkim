@@ -40,6 +40,7 @@ type FileUploader interface {
 type Executor struct {
 	DevMockLLM      bool
 	LLMChain        llmbackend.Provider
+	EmbeddingChain  llmbackend.EmbeddingProvider
 	BrowserRuntime  browserruntime.Runtime
 	PromptHandler   PromptHandler
 	FilePicker      FilePicker
@@ -104,6 +105,8 @@ func (executor Executor) ExecuteJob(ctx context.Context, envelope JobEnvelope, r
 		return executor.executeTextLLM(ctx, request)
 	case "llm.structured":
 		return executor.executeStructuredLLM(ctx, request)
+	case "embedding.create":
+		return executor.executeEmbedding(ctx, request)
 	case "browser.open":
 		return executor.executeBrowserNavigate(ctx, request)
 	case "browser.snapshot":
@@ -205,6 +208,30 @@ func (executor Executor) executeStructuredLLM(ctx context.Context, request capab
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	response, errorValue := executor.LLMChain.CompleteStructured(ctx, structuredRequest)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	response.SelectedBackend = capabilities.LLMBackendCompanionLocal
+	return toolResponse(request.ToolName, response)
+}
+
+func (executor Executor) executeEmbedding(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	if executor.DevMockLLM {
+		return toolResponse(request.ToolName, map[string]any{
+			"provider":        "companion",
+			"model":           llmbackend.DefaultEmbeddingGemmaModel,
+			"selectedBackend": capabilities.LLMBackendCompanionLocal,
+			"embedding":       []float64{1, 0, 0},
+		})
+	}
+	if executor.EmbeddingChain == nil {
+		return capabilities.ToolInvokeResponse{}, errors.New("companion embedding is not configured")
+	}
+	var embeddingRequest llmbackend.EmbeddingRequest
+	if errorValue := decodeInput(request.Input, &embeddingRequest); errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	response, errorValue := executor.EmbeddingChain.CreateEmbedding(ctx, embeddingRequest)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}

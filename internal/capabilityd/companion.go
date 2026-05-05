@@ -197,6 +197,33 @@ func (provider companionProvider) CompleteText(ctx context.Context, request Text
 	return response, nil
 }
 
+func (provider companionProvider) CreateEmbedding(ctx context.Context, request EmbeddingRequest) (EmbeddingResponse, error) {
+	document, errorValue := json.Marshal(request)
+	if errorValue != nil {
+		return EmbeddingResponse{}, errorValue
+	}
+	toolResponse, errorValue := provider.InvokeTool(ctx, capabilities.ToolInvokeRequest{
+		ToolName:      "embedding.create",
+		Input:         document,
+		ExecutionMode: capabilities.ExecutionModeCompanion,
+		PrivacyClass:  "model_input",
+	})
+	if errorValue != nil {
+		return EmbeddingResponse{}, errorValue
+	}
+	var response EmbeddingResponse
+	if errorValue := json.Unmarshal(toolResponse.Result, &response); errorValue != nil {
+		return EmbeddingResponse{}, errorValue
+	}
+	if response.SelectedBackend == "" {
+		response.SelectedBackend = capabilities.LLMBackendCompanionLocal
+	}
+	if response.Provider == "" {
+		response.Provider = "companion"
+	}
+	return response, nil
+}
+
 func (provider companionProvider) InvokeTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	if provider.BaseURL == "" {
 		return capabilities.ToolInvokeResponse{}, errors.New("companion capability is unavailable: " + request.ToolName)

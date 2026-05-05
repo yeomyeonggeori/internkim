@@ -29,6 +29,8 @@ func main() {
 	flag.StringVar(&configuration.OllamaModel, "ollama-model", defaultConfiguration.OllamaModel, "Ollama local model")
 	flag.StringVar(&configuration.LlamaCppBaseURL, "llamacpp-url", defaultConfiguration.LlamaCppBaseURL, "llama.cpp server base URL")
 	flag.StringVar(&configuration.LlamaCppModel, "llamacpp-model", defaultConfiguration.LlamaCppModel, "llama.cpp model")
+	flag.StringVar(&configuration.LlamaCppEmbeddingBaseURL, "llamacpp-embedding-url", defaultConfiguration.LlamaCppEmbeddingBaseURL, "llama.cpp embedding server base URL")
+	flag.StringVar(&configuration.LlamaCppEmbeddingModel, "llamacpp-embedding-model", defaultConfiguration.LlamaCppEmbeddingModel, "llama.cpp embedding model")
 	flag.StringVar(&configuration.CompanionBaseURL, "companion-url", defaultConfiguration.CompanionBaseURL, "companion capability base URL")
 	flag.StringVar(&configuration.AgentBrowserPath, "agent-browser", defaultConfiguration.AgentBrowserPath, "agent-browser executable path")
 	flag.StringVar(&configuration.DeviceBrowserPath, "device-browser", defaultConfiguration.DeviceBrowserPath, "device Chromium executable path")

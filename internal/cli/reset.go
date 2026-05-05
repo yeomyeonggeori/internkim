@@ -106,21 +106,23 @@ func printBlueclawHistoryResetPlan(keepMattermostPosts bool) {
 	fmt.Println("  - legacy memory records/sources")
 	fmt.Println("  - Graphiti episode/namespace mirror rows")
 	fmt.Println("  - Graphiti Kuzu files under /root/.blueclaw/workspace/.blueclaw/graphiti/kuzu*")
+	fmt.Println("  - Firecracker workspace Postgres/Kuzu runtime state when /var/lib/blueclaw/workspace.ext4 exists")
 	if keepMattermostPosts {
 		fmt.Println("This will keep Mattermost visible posts.")
 		return
 	}
 	fmt.Println("This will also delete visible Mattermost posts while keeping Mattermost users, teams, channels, and secrets.")
-	fmt.Println("This will keep people, invited emails, platform account links, policy, and secrets.")
+	fmt.Println("This will keep host policy and secrets. Firecracker runtime mirrors are rebuilt from policy on restart.")
 }
 
 func blueclawHistoryResetScript(keepMattermostPosts bool) string {
 	script := `set -euo pipefail
 echo "stopping blueclaw services"
-systemctl stop blueclaw graphiti-memoryd
+systemctl stop blueclaw graphiti-memoryd 2>/dev/null || true
 
-echo "resetting blueclaw task, conversation, and memory tables"
-sudo -u postgres psql -d blueclaw <<'SQL'
+echo "resetting host blueclaw task, conversation, and memory tables"
+if su -s /bin/bash postgres -c "psql -d blueclaw -Atc 'SELECT 1'" >/dev/null 2>&1; then
+  su -s /bin/bash postgres -c "psql -d blueclaw" <<'SQL'
 TRUNCATE TABLE
   task_event,
   task_step,
@@ -139,6 +141,28 @@ TRUNCATE TABLE
   graphiti_namespace
 RESTART IDENTITY CASCADE;
 SQL
+fi
+
+if [ -s /var/lib/blueclaw/workspace.ext4 ]; then
+  echo "resetting Firecracker workspace runtime database"
+  mount_path="$(mktemp -d /mnt/internkim-blueclaw-reset.XXXXXX)"
+  cleanup_workspace_mount() {
+    if mountpoint -q "$mount_path"; then
+      umount "$mount_path"
+    fi
+    rmdir "$mount_path" 2>/dev/null || true
+  }
+  trap cleanup_workspace_mount EXIT
+  mount -o loop /var/lib/blueclaw/workspace.ext4 "$mount_path"
+  mkdir -p "$mount_path/.blueclaw/postgres" "$mount_path/.blueclaw/graphiti"
+  rm -rf "$mount_path/.blueclaw/postgres/data"
+  find "$mount_path/.blueclaw/graphiti" -maxdepth 1 -name 'kuzu*' -exec rm -rf -- {} +
+  chown -R postgres:postgres "$mount_path/.blueclaw/postgres"
+  chown -R blueclaw:blueclaw "$mount_path/.blueclaw/graphiti"
+  chmod 0770 "$mount_path/.blueclaw/postgres" "$mount_path/.blueclaw/graphiti"
+  cleanup_workspace_mount
+  trap - EXIT
+fi
 
 echo "removing graphiti kuzu files"
 mkdir -p /root/.blueclaw/workspace/.blueclaw/graphiti
@@ -150,19 +174,11 @@ chown -R blueclaw:blueclaw /root/.blueclaw/workspace/.blueclaw/graphiti
 		script += mattermostVisiblePostsResetScript()
 	}
 	script += `echo "starting blueclaw services"
-systemctl start graphiti-memoryd blueclaw
-
-echo "waiting for graphiti-memoryd"
-for attempt in $(seq 1 60); do
-  if curl --silent --show-error --fail http://127.0.0.1:7791/health >/dev/null 2>&1; then
-    echo "graphiti-memoryd: ok"
-    break
-  fi
-  sleep 1
-done
+systemctl start graphiti-memoryd 2>/dev/null || true
+systemctl start blueclaw
 
 echo "waiting for blueclaw"
-for attempt in $(seq 1 60); do
+for attempt in $(seq 1 180); do
   if curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/policy >/dev/null 2>&1; then
     echo "blueclaw: ok"
     echo "blueclaw history and memory reset complete"
@@ -181,7 +197,7 @@ func mattermostVisiblePostsResetScript() string {
 systemctl stop mattermost || true
 
 echo "resetting Mattermost visible posts"
-sudo -u postgres psql -d mattermost <<'SQL'
+su -s /bin/bash postgres -c "psql -d mattermost" <<'SQL'
 DO $$
 DECLARE
   reset_time bigint := (extract(epoch from now()) * 1000)::bigint;

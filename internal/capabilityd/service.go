@@ -21,6 +21,7 @@ import (
 
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
 	"gitlab.com/eastriver/internkim/internal/identity"
+	"gitlab.com/eastriver/internkim/internal/llmbackend"
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
@@ -43,10 +44,13 @@ type Configuration struct {
 	OpenRouterModel            string
 	OpenRouterEmbeddingBaseURL string
 	OpenRouterEmbeddingModel   string
+	EmbeddingProviderOrder     []string
 	OllamaBaseURL              string
 	OllamaModel                string
 	LlamaCppBaseURL            string
 	LlamaCppModel              string
+	LlamaCppEmbeddingBaseURL   string
+	LlamaCppEmbeddingModel     string
 	SocketGroupName            string
 	LiteRTModelPath            string
 	LocalLLMRunnerPath         string
@@ -69,11 +73,6 @@ type Service struct {
 	EventLocker     *platformEventLocker
 	ProgressManager *platformProgressManager
 	HealthState     *platformHealthState
-}
-
-type embeddingRequest struct {
-	Input any    `json:"input"`
-	Model string `json:"model"`
 }
 
 type userLookupRequest struct {
@@ -142,11 +141,14 @@ func DefaultConfiguration() Configuration {
 		OpenRouterBaseURL:          "https://openrouter.ai/api/v1/chat/completions",
 		OpenRouterModel:            "google/gemini-3.1-flash-lite-preview",
 		OpenRouterEmbeddingBaseURL: "https://openrouter.ai/api/v1/embeddings",
-		OpenRouterEmbeddingModel:   "text-embedding-3-small",
+		OpenRouterEmbeddingModel:   "embeddinggemma",
+		EmbeddingProviderOrder:     llmbackend.DefaultLocalEmbeddingProviderOrder,
 		OllamaBaseURL:              "http://127.0.0.1:11434",
 		OllamaModel:                "gemma3:1b",
 		LlamaCppBaseURL:            locallm.LlamaCppBaseURL,
 		LlamaCppModel:              "local/gemma-4-E4B-it-gguf",
+		LlamaCppEmbeddingBaseURL:   locallm.LlamaCppEmbeddingBaseURL,
+		LlamaCppEmbeddingModel:     llmbackend.DefaultEmbeddingGemmaModel,
 		SocketGroupName:            "blueclaw",
 		LiteRTModelPath:            locallm.ModelPath(),
 		LocalLLMRunnerPath:         "/usr/local/bin/internkim-local-llm-runner",
@@ -305,7 +307,7 @@ func (service Service) handleTextLLM(responseWriter http.ResponseWriter, request
 }
 
 func (service Service) handleEmbeddingCreate(responseWriter http.ResponseWriter, request *http.Request) {
-	var embeddingRequest embeddingRequest
+	var embeddingRequest EmbeddingRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&embeddingRequest); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
@@ -442,61 +444,6 @@ func (state *platformHealthState) Update(update func(*platformHealthState)) {
 	state.mutex.Lock()
 	defer state.mutex.Unlock()
 	update(state)
-}
-
-func (service Service) createEmbedding(ctx context.Context, request embeddingRequest) (any, error) {
-	apiKey := readSecretValue(service.Configuration.OpenRouterKeyPath)
-	if apiKey == "" {
-		return nil, errors.New("openrouter api key is not configured")
-	}
-	if isPlaceholderOpenRouterKey(apiKey) {
-		return nil, errors.New("openrouter api key is a simulation placeholder; set OPENROUTER_API_KEY or rerun setup --only openrouter --force")
-	}
-
-	requestDocument, errorValue := json.Marshal(map[string]any{
-		"model": firstNonEmpty(request.Model, service.Configuration.OpenRouterEmbeddingModel, DefaultConfiguration().OpenRouterEmbeddingModel),
-		"input": request.Input,
-	})
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, service.Configuration.OpenRouterEmbeddingBaseURL, bytes.NewReader(requestDocument))
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	httpRequest.Header.Set("Authorization", "Bearer "+apiKey)
-	httpRequest.Header.Set("Content-Type", "application/json")
-
-	httpResponse, errorValue := service.httpClient().Do(httpRequest)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	defer httpResponse.Body.Close()
-	responseDocument, _ := io.ReadAll(httpResponse.Body)
-	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return nil, errors.New(string(responseDocument))
-	}
-
-	var parsedResponse struct {
-		Data []struct {
-			Embedding []float64 `json:"embedding"`
-		} `json:"data"`
-		Model string `json:"model"`
-	}
-	if errorValue := json.Unmarshal(responseDocument, &parsedResponse); errorValue != nil {
-		return nil, errorValue
-	}
-	if len(parsedResponse.Data) == 0 {
-		return nil, errors.New("openrouter embedding response did not include data")
-	}
-	if _, isBatch := request.Input.([]any); isBatch {
-		embeddings := [][]float64{}
-		for _, item := range parsedResponse.Data {
-			embeddings = append(embeddings, item.Embedding)
-		}
-		return map[string]any{"provider": "openrouter", "model": parsedResponse.Model, "embeddings": embeddings}, nil
-	}
-	return map[string]any{"provider": "openrouter", "model": parsedResponse.Model, "embedding": parsedResponse.Data[0].Embedding}, nil
 }
 
 func (service Service) mattermostLookupUserFromRequest(ctx context.Context, reader io.Reader) (any, error) {
@@ -1370,6 +1317,9 @@ func (configuration Configuration) WithDefaults() Configuration {
 	if configuration.OpenRouterEmbeddingModel == "" {
 		configuration.OpenRouterEmbeddingModel = defaultConfiguration.OpenRouterEmbeddingModel
 	}
+	if len(configuration.EmbeddingProviderOrder) == 0 {
+		configuration.EmbeddingProviderOrder = append([]string{}, defaultConfiguration.EmbeddingProviderOrder...)
+	}
 	if configuration.OllamaBaseURL == "" {
 		configuration.OllamaBaseURL = defaultConfiguration.OllamaBaseURL
 	}
@@ -1381,6 +1331,12 @@ func (configuration Configuration) WithDefaults() Configuration {
 	}
 	if configuration.LlamaCppModel == "" {
 		configuration.LlamaCppModel = defaultConfiguration.LlamaCppModel
+	}
+	if configuration.LlamaCppEmbeddingBaseURL == "" {
+		configuration.LlamaCppEmbeddingBaseURL = defaultConfiguration.LlamaCppEmbeddingBaseURL
+	}
+	if configuration.LlamaCppEmbeddingModel == "" {
+		configuration.LlamaCppEmbeddingModel = defaultConfiguration.LlamaCppEmbeddingModel
 	}
 	if configuration.SocketGroupName == "" {
 		configuration.SocketGroupName = defaultConfiguration.SocketGroupName

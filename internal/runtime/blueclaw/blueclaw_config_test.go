@@ -198,3 +198,21 @@ func TestLlamaCppServiceUnitRunsLocalServer(t *testing.T) {
 		}
 	}
 }
+
+func TestLlamaCppEmbeddingServiceUnitRunsEmbeddingServer(t *testing.T) {
+	serviceDocument := LlamaCppEmbeddingServiceUnit()
+	for _, expectedValue := range []string{
+		"ExecStart=" + locallm.LlamaCppBinaryPath,
+		locallm.LlamaCppEmbeddingModelPath,
+		"--host " + locallm.LlamaCppHost,
+		"--port " + locallm.LlamaCppEmbeddingPort,
+		"--embeddings",
+		"--pooling mean",
+		"LD_LIBRARY_PATH=" + locallm.LlamaCppLibraryDir,
+		"Restart=on-failure",
+	} {
+		if !strings.Contains(serviceDocument, expectedValue) {
+			t.Fatalf("expected llama.cpp embedding service unit to contain %q, got %s", expectedValue, serviceDocument)
+		}
+	}
+}
