@@ -1,36 +1,11 @@
 ---
 name: create-gws-file
 description: Create Google Docs, Sheets, or Gmail messages through typed InternKim Google Workspace capability tools. Use simple-slides for slide decks.
-category: google-workspace
-tags: [docs, sheets, gmail, drive]
-triggerHints:
-  - google doc
-  - google docs
-  - google sheet
-  - google sheets
-  - spreadsheet
-  - gmail
-  - 구글 문서
-  - 구글 시트
-  - 스프레드시트
-  - 지메일
-activation:
-  keywords:
-    - google doc
-    - google docs
-    - google sheet
-    - google sheets
-    - spreadsheet
-    - gmail
-    - 구글 문서
-    - 구글 시트
-    - 스프레드시트
-    - 지메일
-requiredTools:
+when_to_use: Use when the user asks for Google Docs, Google Sheets, spreadsheets, Gmail, 구글 문서, 구글 시트, 스프레드시트, or 지메일 work. Do not use for slide decks.
+allowed-tools:
   - google.docs.create
   - google.sheets.create
   - google.gmail.send
-allowedProfiles: [default]
 ---
 
 # Google Workspace Files

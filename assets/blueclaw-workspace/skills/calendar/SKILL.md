@@ -1,27 +1,10 @@
 ---
 name: calendar
 description: Read or write the user's Google Calendar through typed InternKim Google Workspace capability tools.
-category: google-workspace
-tags: [calendar, schedule, meetings]
-triggerHints:
-  - calendar
-  - schedule
-  - meeting
-  - 일정
-  - 캘린더
-  - 회의
-activation:
-  keywords:
-    - calendar
-    - schedule
-    - meeting
-    - 일정
-    - 캘린더
-    - 회의
-requiredTools:
+when_to_use: Use when the user asks about calendar, schedule, meeting, 일정, 캘린더, or 회의 creation and lookup.
+allowed-tools:
   - google.calendar.event
   - google.calendar.list
-allowedProfiles: [default]
 ---
 
 # Google Calendar
