@@ -63,9 +63,15 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 		if errorValue == nil {
 			return response, nil
 		}
+		if isCompanionRequiredBrowserTool(request.ToolName) {
+			return companionRequiredBrowserResponse(request.ToolName, companionRequiredBrowserCode(request.ToolName), companionRequiredBrowserConstraint(request.ToolName)), nil
+		}
 		if request.RequiresUserPresence || isCompanionOnlyExecutionMode(request.ExecutionMode) || !isDeviceBrowserTool(request.ToolName) {
 			return capabilities.ToolInvokeResponse{}, errorValue
 		}
+	}
+	if isCompanionRequiredBrowserTool(request.ToolName) {
+		return companionRequiredBrowserResponse(request.ToolName, companionRequiredBrowserCode(request.ToolName), companionRequiredBrowserConstraint(request.ToolName)), nil
 	}
 	if isDeviceBrowserTool(request.ToolName) {
 		return service.invokeDeviceBrowserTool(ctx, request)
@@ -134,6 +140,55 @@ func isCompanionOnlyExecutionMode(executionMode string) bool {
 
 func isDeviceBrowserTool(toolName string) bool {
 	return strings.HasPrefix(strings.TrimSpace(toolName), "browser.")
+}
+
+func isCompanionRequiredBrowserTool(toolName string) bool {
+	switch strings.TrimSpace(toolName) {
+	case "browser.screenshot", "browser.handoff":
+		return true
+	default:
+		return false
+	}
+}
+
+func companionRequiredBrowserCode(toolName string) string {
+	switch strings.TrimSpace(toolName) {
+	case "browser.screenshot":
+		return "companion_required_for_screenshot"
+	case "browser.handoff":
+		return "companion_required_for_handoff"
+	default:
+		return "companion_required_for_browser"
+	}
+}
+
+func companionRequiredBrowserConstraint(toolName string) string {
+	switch strings.TrimSpace(toolName) {
+	case "browser.screenshot":
+		return "Connect the speaker's Companion app to capture browser screenshots."
+	case "browser.handoff":
+		return "Connect the speaker's Companion app before asking the user to complete browser work."
+	default:
+		return "Connect the speaker's Companion app for this browser task."
+	}
+}
+
+func companionRequiredBrowserResponse(toolName string, code string, constraint string) capabilities.ToolInvokeResponse {
+	result, _ := json.Marshal(capabilities.DenialResult{
+		Status:              "denied",
+		Code:                code,
+		ToolName:            toolName,
+		SuggestedConstraint: constraint,
+	})
+	return capabilities.ToolInvokeResponse{
+		Provider:        "device",
+		SelectedBackend: capabilities.LLMBackendDevice,
+		ToolName:        toolName,
+		Status:          "denied",
+		Content:         constraint,
+		IsError:         true,
+		Result:          result,
+	}
 }
 
 func (service Service) companionProvider() companionProvider {

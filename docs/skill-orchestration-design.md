@@ -91,7 +91,7 @@ Intern Kim의 기능을 늘릴 때 기존 설계를 망치지 않기 위한 skil
 
 사용자 컴퓨터에서만 가능한 일을 Companion으로 보낸다.
 
-- 브라우저는 `browser.*` capability와 `agent-browser` skill 경계를 유지한다.
+- 브라우저는 발화자 Companion browser를 우선 사용하고, Companion이 없을 때만 내부 Lightpanda fallback으로 단순 텍스트 탐색을 처리한다.
 - 로그인, MFA, captcha, 민감 입력은 `browser.handoff`로 발화자의 Companion browser 안에서 처리한다.
 - 일반 사용자 입력 대기는 `user.input`, irreversible action 확인은 `user.confirm`으로 처리한다.
 - 파일/디렉토리 정리는 dry-run 결과를 먼저 보여주고 승인 후 실행한다.

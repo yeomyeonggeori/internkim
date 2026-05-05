@@ -133,10 +133,9 @@ type OSCommandRunner struct{}
 var agentBrowserReferencePattern = regexp.MustCompile(`@?[A-Za-z]+[0-9]+`)
 
 const BrowserEngineChrome = "chrome"
+const BrowserEngineLightpanda = "lightpanda"
 
-const DeviceBrowserInstallPath = "/opt/internkim/device-browser"
-const DeviceBrowserExecutablePath = "/opt/internkim/device-browser/chromium"
-const DeviceBrowserManifestPath = "/opt/internkim/device-browser/manifest.json"
+const DeviceBrowserExecutablePath = "/usr/local/bin/lightpanda"
 
 func (request *SessionStartRequest) UnmarshalJSON(document []byte) error {
 	value, isString := decodeStringDocument(document)
@@ -388,25 +387,21 @@ func DeviceReadinessShellScript() string {
 command -v agent-browser >/dev/null
 browserExecutablePath="${INTERNKIM_DEVICE_BROWSER_PATH:-` + DeviceBrowserExecutablePath + `}"
 test -x "$browserExecutablePath"
-test -f "` + DeviceBrowserManifestPath + `"
 stop_agent_browser_daemons() {
   if command -v pkill >/dev/null 2>&1; then
-    pkill -TERM -x agent-browser >/tmp/internkim-agent-browser-chrome-close.log 2>&1 || true
+    pkill -TERM -x agent-browser >/tmp/internkim-agent-browser-lightpanda-close.log 2>&1 || true
     sleep 1
-    pkill -KILL -x agent-browser >>/tmp/internkim-agent-browser-chrome-close.log 2>&1 || true
+    pkill -KILL -x agent-browser >>/tmp/internkim-agent-browser-lightpanda-close.log 2>&1 || true
   fi
-  timeout 5s agent-browser close --all >>/tmp/internkim-agent-browser-chrome-close.log 2>&1 || true
+  timeout 5s agent-browser close --all >>/tmp/internkim-agent-browser-lightpanda-close.log 2>&1 || true
   rm -f /root/.agent-browser/internkim-device-smoke.pid /root/.agent-browser/internkim-device-smoke.stream /root/.agent-browser/internkim-device-smoke.engine /root/.agent-browser/internkim-device-smoke.version
   sleep 1
 }
 stop_agent_browser_daemons
 timeout 15s agent-browser doctor --offline --quick >/tmp/internkim-agent-browser-doctor.log 2>&1 || true
-timeout 45s agent-browser --session internkim-device-smoke --engine chrome --executable-path "$browserExecutablePath" --headed false --session-name internkim-device-smoke open about:blank >/tmp/internkim-agent-browser-chrome-open.log 2>&1
-timeout 45s agent-browser --session internkim-device-smoke --session-name internkim-device-smoke snapshot >/tmp/internkim-agent-browser-chrome-snapshot.log 2>&1
-timeout 45s agent-browser --session internkim-device-smoke --session-name internkim-device-smoke screenshot /tmp/internkim-agent-browser-chrome-smoke.png >/tmp/internkim-agent-browser-chrome-screenshot.log 2>&1
-test -s /tmp/internkim-agent-browser-chrome-smoke.png
+timeout 45s agent-browser --session internkim-device-smoke --engine lightpanda --executable-path "$browserExecutablePath" --session-name internkim-device-smoke open about:blank >/tmp/internkim-agent-browser-lightpanda-open.log 2>&1
+timeout 45s agent-browser --session internkim-device-smoke --session-name internkim-device-smoke snapshot >/tmp/internkim-agent-browser-lightpanda-snapshot.log 2>&1
 stop_agent_browser_daemons
-rm -f /tmp/internkim-agent-browser-chrome-smoke.png
 `
 }
 
@@ -423,16 +418,20 @@ func (runtime AgentBrowserRuntime) sessionStartArguments() []string {
 	if executablePath != "" {
 		arguments = append(arguments, "--executable-path", executablePath)
 	}
-	if runtime.Headed {
-		arguments = append(arguments, "--headed", "true")
-	} else {
-		arguments = append(arguments, "--headed", "false")
+	if engine != BrowserEngineLightpanda {
+		if runtime.Headed {
+			arguments = append(arguments, "--headed", "true")
+		} else {
+			arguments = append(arguments, "--headed", "false")
+		}
 	}
-	if strings.TrimSpace(runtime.ProfilePath) != "" {
+	if engine != BrowserEngineLightpanda && strings.TrimSpace(runtime.ProfilePath) != "" {
 		arguments = append(arguments, "--profile", strings.TrimSpace(runtime.ProfilePath))
 	}
-	for _, extensionPath := range runtime.extensionPaths() {
-		arguments = append(arguments, "--extension", extensionPath)
+	if engine != BrowserEngineLightpanda {
+		for _, extensionPath := range runtime.extensionPaths() {
+			arguments = append(arguments, "--extension", extensionPath)
+		}
 	}
 	if runtime.sessionName() != "" {
 		arguments = append(arguments, "--session-name", runtime.sessionName())
@@ -489,6 +488,8 @@ func (runtime AgentBrowserRuntime) browserEngine() string {
 	switch engine {
 	case BrowserEngineChrome:
 		return BrowserEngineChrome
+	case BrowserEngineLightpanda:
+		return BrowserEngineLightpanda
 	default:
 		return engine
 	}

@@ -17,8 +17,8 @@ Use `browser.open` only when:
 
 ## Browser Automation
 
-Use the `browser.*` tools for web automation. InternKim runs the browser engine internally.
-The internal runtime follows `agent-browser` semantics, so `agent-browser snapshot -i` corresponds to `browser.snapshot`.
+Use the `browser.*` tools for web automation. InternKim routes browser work to the speaker's Companion browser when it is available. If the speaker's Companion is unavailable, InternKim may fall back to a lightweight internal Lightpanda browser for simple public-page text navigation only.
+The fallback runtime follows `agent-browser` semantics, so `agent-browser snapshot -i` corresponds to `browser.snapshot`.
 
 CLI reference workflow:
 
@@ -33,9 +33,11 @@ InternKim tool workflow:
 2. `browser.snapshot` with `{}` - Get page text and interactive refs such as `@e1`
 3. `browser.click` with `{ "target": "@e1" }` or `browser.fill` with `{ "target": "@e2", "text": "text" }` - Interact using refs or selectors
 4. Re-run `browser.snapshot` after page changes
-5. `browser.screenshot` - Capture the final visible result when the user asks for a screenshot
+5. For screenshots or visual confirmation, use the speaker's Companion browser. If Companion is unavailable, say that screenshot capture requires the Companion app.
 
 Use `browser.handoff` when a page needs the user to log in, pass MFA, solve a captcha, or enter sensitive information. Do not ask for passwords or MFA codes in chat. `browser.handoff` opens the speaker's Companion browser, shows a small in-browser completion button, waits for the user, and returns a fresh snapshot when they finish. Continue from that snapshot in the same browser session.
+
+Do not use the Lightpanda fallback for login, MFA, captcha, sensitive inputs, irreversible actions, file upload/download, screenshots, or pixel/visual judgments. Stop and ask the user to connect their Companion app instead.
 
 ## File Sharing
 

@@ -100,7 +100,7 @@ func TestFirstbootInstallsAgentBrowserSkill(t *testing.T) {
 	script := renderFirstbootToolsSection()
 	requiredFragments := []string{
 		"install_device_browser_runtime",
-		"$STAGE/device-browser/internkim-device-browser-linux-arm64.tar.zst",
+		"/usr/local/bin/lightpanda",
 		"$STAGE/.agents/skills/agent-browser/SKILL.md",
 		"/root/.blueclaw/workspace/.agents/skills/agent-browser",
 		"chown -R root:root \"$agentBrowserSkillDir\"",

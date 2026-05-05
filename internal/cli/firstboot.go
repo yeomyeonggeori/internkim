@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
@@ -490,30 +491,11 @@ if [ -d "$STAGE/skills" ]; then
 fi
 
 install_device_browser_runtime() {
-  local archivePath="$STAGE/device-browser/`+deviceBrowserRuntimeArtifactName+`"
-  if [ ! -s "$archivePath" ]; then
-    echo "ERROR: device browser runtime artifact missing at $archivePath" >&2
+  if [ ! -x "`+browserruntime.DeviceBrowserExecutablePath+`" ]; then
+    echo "ERROR: Lightpanda device browser missing at `+browserruntime.DeviceBrowserExecutablePath+`" >&2
     exit 1
   fi
-  install -d -m 755 /opt/internkim
-  local temporaryDirectory
-  temporaryDirectory="$(mktemp -d /opt/internkim/device-browser.next.XXXXXX)"
-  tar --use-compress-program=zstd -xf "$archivePath" -C "$temporaryDirectory"
-  local manifestPath="$temporaryDirectory/manifest.json"
-  test -f "$manifestPath"
-  local executableRelativePath
-  executableRelativePath="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1])).get("executablePath", ""))' "$manifestPath")"
-  test -n "$executableRelativePath"
-  test -x "$temporaryDirectory/$executableRelativePath"
-  ln -sfn "$executableRelativePath" "$temporaryDirectory/chromium"
-  "$temporaryDirectory/chromium" --version >/tmp/internkim-device-browser-version.log 2>&1
-  chmod -R a+rX "$temporaryDirectory"
-  rm -rf /opt/internkim/device-browser.previous
-  if [ -d /opt/internkim/device-browser ]; then
-    mv /opt/internkim/device-browser /opt/internkim/device-browser.previous
-  fi
-  mv "$temporaryDirectory" /opt/internkim/device-browser
-  rm -rf /opt/internkim/device-browser.previous
+  "`+browserruntime.DeviceBrowserExecutablePath+`" --version >/tmp/internkim-device-browser-version.log 2>&1
 }
 
 install_device_browser_runtime
