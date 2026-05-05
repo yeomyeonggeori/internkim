@@ -1601,6 +1601,7 @@ func TestCompanionPairHeartbeatAndJobLifecycle(t *testing.T) {
 		response, errorValue := service.invokeCompanionJob(context.Background(), capabilities.ToolInvokeRequest{
 			ToolName:      "user.confirm",
 			Input:         json.RawMessage(`{"message":"continue?"}`),
+			Context:       capabilities.ToolInvokeContext{RequesterEmail: "admin@example.com"},
 			TimeoutSecond: 2,
 		})
 		if errorValue != nil {
@@ -1682,6 +1683,7 @@ func TestCompanionDenyReturnsStructuredObservation(t *testing.T) {
 		response, _ := service.invokeCompanionJob(context.Background(), capabilities.ToolInvokeRequest{
 			ToolName:      "browser.open",
 			Input:         json.RawMessage(`{"url":"https://github.com"}`),
+			Context:       capabilities.ToolInvokeContext{RequesterEmail: "admin@example.com"},
 			PrivacyClass:  "user_browser",
 			TimeoutSecond: 2,
 		})
@@ -1714,6 +1716,87 @@ func TestCompanionDenyReturnsStructuredObservation(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("timed out waiting for denial")
+	}
+}
+
+func TestCompanionJobRequiresRequesterIdentityForUserLocalTool(t *testing.T) {
+	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	service.companions["companion-1"] = &CompanionRecord{
+		CompanionID: "companion-1",
+		OwnerEmail:  "admin@example.com",
+		Capabilities: []capabilities.Descriptor{
+			{Name: "browser.handoff"},
+		},
+		LastSeenAt: time.Now().UTC(),
+	}
+
+	_, errorValue := service.invokeCompanionJob(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName:      "browser.handoff",
+		Input:         json.RawMessage(`{"url":"https://example.com"}`),
+		TimeoutSecond: 1,
+	})
+
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "requester identity is required") {
+		t.Fatalf("expected requester identity error, got %v", errorValue)
+	}
+}
+
+func TestCompanionJobClaimRequiresMatchingOwner(t *testing.T) {
+	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	now := time.Now().UTC()
+	aliceCompanion := &CompanionRecord{
+		CompanionID: "alice-companion",
+		OwnerEmail:  "alice@example.com",
+		Capabilities: []capabilities.Descriptor{
+			{Name: "browser.handoff"},
+		},
+		LastSeenAt: now,
+	}
+	bobCompanion := &CompanionRecord{
+		CompanionID: "bob-companion",
+		OwnerEmail:  "bob@example.com",
+		Capabilities: []capabilities.Descriptor{
+			{Name: "browser.handoff"},
+		},
+		LastSeenAt: now,
+	}
+	service.companions[aliceCompanion.CompanionID] = aliceCompanion
+	service.companions[bobCompanion.CompanionID] = bobCompanion
+	service.companionJobs["job-1"] = &CompanionJob{
+		JobID:          "job-1",
+		Status:         "pending",
+		RequesterEmail: "alice@example.com",
+		ToolName:       "browser.handoff",
+		Request:        capabilities.ToolInvokeRequest{ToolName: "browser.handoff"},
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		ExpiresAt:      now.Add(time.Minute),
+	}
+
+	if claimedJob := service.claimNextCompanionJob(bobCompanion); claimedJob != nil {
+		t.Fatalf("expected Bob companion not to claim Alice job, got %+v", claimedJob)
+	}
+	claimedJob := service.claimNextCompanionJob(aliceCompanion)
+	if claimedJob == nil || claimedJob.JobID != "job-1" || claimedJob.CompanionID != aliceCompanion.CompanionID {
+		t.Fatalf("expected Alice companion to claim Alice job, got %+v", claimedJob)
+	}
+}
+
+func TestCompanionBrowserResourceScopeFallsBackToParentOrigin(t *testing.T) {
+	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	service.companionJobs["parent-job"] = &CompanionJob{
+		JobID:         "parent-job",
+		ResourceScope: capabilities.ResourceScope{Kind: "web_origin", Value: "https://example.com"},
+	}
+
+	resourceScope := service.inferCompanionResourceScope(capabilities.ToolInvokeRequest{
+		ToolName:    "browser.click",
+		ParentJobID: "parent-job",
+		Input:       json.RawMessage(`{"target":"@e1"}`),
+	})
+
+	if resourceScope.Kind != "web_origin" || resourceScope.Value != "https://example.com" {
+		t.Fatalf("expected parent web origin, got %+v", resourceScope)
 	}
 }
 
@@ -1881,6 +1964,7 @@ func TestCompanionFileUploadLifecycle(t *testing.T) {
 		response, errorValue := service.invokeCompanionJob(context.Background(), capabilities.ToolInvokeRequest{
 			ToolName:      "file.pick",
 			PrivacyClass:  "local_file",
+			Context:       capabilities.ToolInvokeContext{RequesterEmail: "admin@example.com"},
 			TimeoutSecond: 2,
 		})
 		if errorValue != nil {

@@ -160,7 +160,7 @@ func (state *runtimeState) snapshot() runtimeStatusDocument {
 	}
 }
 
-func startControlServer(listenAddress string, grantStore *companionruntime.MemoryGrantStore, mountStore *companionruntime.MountStore, runtime *runtimeState, localLLM *dynamicLocalLLM, httpClient *http.Client) (*http.Server, error) {
+func startControlServer(listenAddress string, grantStore *companionruntime.MemoryGrantStore, mountStore *companionruntime.MountStore, handoffStore *companionruntime.BrowserHandoffStore, runtime *runtimeState, localLLM *dynamicLocalLLM, httpClient *http.Client) (*http.Server, error) {
 	trimmedAddress := strings.TrimSpace(listenAddress)
 	if trimmedAddress == "" {
 		return nil, nil
@@ -173,7 +173,7 @@ func startControlServer(listenAddress string, grantStore *companionruntime.Memor
 		_ = listener.Close()
 		return nil, errors.New("companion control server must listen on loopback")
 	}
-	server := &http.Server{Handler: controlHandler(grantStore, mountStore, runtime, localLLM, httpClient)}
+	server := &http.Server{Handler: controlHandler(grantStore, mountStore, handoffStore, runtime, localLLM, httpClient)}
 	go func() {
 		errorValue := server.Serve(listener)
 		if errorValue != nil && !errors.Is(errorValue, http.ErrServerClosed) {
@@ -183,8 +183,10 @@ func startControlServer(listenAddress string, grantStore *companionruntime.Memor
 	return server, nil
 }
 
-func controlHandler(grantStore *companionruntime.MemoryGrantStore, mountStore *companionruntime.MountStore, runtime *runtimeState, localLLM *dynamicLocalLLM, httpClient *http.Client) http.Handler {
+func controlHandler(grantStore *companionruntime.MemoryGrantStore, mountStore *companionruntime.MountStore, handoffStore *companionruntime.BrowserHandoffStore, runtime *runtimeState, localLLM *dynamicLocalLLM, httpClient *http.Client) http.Handler {
 	multiplexer := http.NewServeMux()
+	multiplexer.Handle("/v1/browser/handoff", companionruntime.HandoffBridgeHandler{Store: handoffStore})
+	multiplexer.Handle("/v1/browser/handoff/complete", companionruntime.HandoffBridgeHandler{Store: handoffStore})
 	multiplexer.HandleFunc("GET /v1/runtime/status", func(responseWriter http.ResponseWriter, request *http.Request) {
 		if runtime == nil {
 			writeJSON(responseWriter, runtimeStatusDocument{})
