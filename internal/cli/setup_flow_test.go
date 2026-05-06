@@ -114,6 +114,26 @@ func TestSSHPrivilegedCommandSuppressesSudoPrompt(t *testing.T) {
 	}
 }
 
+func TestCloudflareSSHUsesAccessProxyCommand(t *testing.T) {
+	client := newCloudflareSSH("sshpass", "internkim", "blueclaw", "ssh.device.example.test")
+	sshArguments := strings.Join(client.sshArgs("internkim@ssh.device.example.test", "true"), "\n")
+	scpArguments := strings.Join(client.scpArgs("local", "internkim@ssh.device.example.test:/tmp/file"), "\n")
+	rsyncCommand := client.rsyncSSHCommand("ssh")
+
+	for _, value := range []string{sshArguments, scpArguments, rsyncCommand} {
+		if !strings.Contains(value, "ProxyCommand=cloudflared access ssh --hostname %h") {
+			t.Fatalf("expected Cloudflare Access ProxyCommand, got %s", value)
+		}
+	}
+}
+
+func TestCloudflareSSHHostnameFromDeviceURL(t *testing.T) {
+	hostname := cloudflareSSHHostnameFromDeviceURL("https://device-1.intern.kim/admin")
+	if hostname != "ssh.device-1.intern.kim" {
+		t.Fatalf("expected SSH hostname from device URL, got %q", hostname)
+	}
+}
+
 func TestMattermostSetupConnectCommandPayloadTargetsAdmind(t *testing.T) {
 	payload := mattermostSetupConnectCommandPayload("team-1", "command-1")
 	if payload.Trigger != "connect" || payload.Method != "P" || !payload.Autocomplete {

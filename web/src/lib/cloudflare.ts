@@ -28,6 +28,7 @@ interface AccessDestination {
 
 interface AccessPolicy {
 	id?: string;
+	name?: string;
 	decision?: string;
 }
 
@@ -65,12 +66,14 @@ export async function createTunnel(env: CFEnv, deviceId: string) {
 export async function configureTunnel(env: CFEnv, tunnelId: string, deviceId: string) {
 	const hostname = `${deviceId}.${env.CF_DOMAIN}`;
 	const wildcardHostname = `*.${hostname}`;
+	const sshHostname = deviceSSHHostname(env, deviceId);
 
 	await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/cfd_tunnel/${tunnelId}/configurations`, {
 		method: 'PUT',
 		body: JSON.stringify({
 			config: {
 				ingress: [
+					{ hostname: sshHostname, service: 'ssh://localhost:22' },
 					{ hostname: wildcardHostname, service: 'http://127.0.0.1:18080' },
 					{ hostname, service: 'http://127.0.0.1:18080' },
 					{ service: 'http_status:404' }
@@ -94,8 +97,20 @@ export async function createDNSRecord(env: CFEnv, tunnelId: string, deviceId: st
 	return record.id as string;
 }
 
+export function deviceSSHHostname(env: CFEnv, deviceId: string) {
+	return `ssh.${deviceId}.${env.CF_DOMAIN}`;
+}
+
+export async function ensureSSHDNSRecord(env: CFEnv, tunnelId: string, deviceId: string) {
+	return ensureDNSRecord(env, deviceSSHHostname(env, deviceId), `${tunnelId}.cfargotunnel.com`);
+}
+
 export async function ensureWildcardDNSRecord(env: CFEnv, tunnelId: string, deviceId: string) {
 	const name = `*.${deviceId}.${env.CF_DOMAIN}`;
+	return ensureDNSRecord(env, name, `${tunnelId}.cfargotunnel.com`);
+}
+
+async function ensureDNSRecord(env: CFEnv, name: string, content: string) {
 	const records = (await cfFetch(env, `/zones/${env.CF_ZONE_ID}/dns_records?type=CNAME&name=${encodeURIComponent(name)}`)) as Array<{ id?: string }>;
 	const existingRecord = records[0];
 	if (existingRecord?.id) return existingRecord.id;
@@ -104,7 +119,7 @@ export async function ensureWildcardDNSRecord(env: CFEnv, tunnelId: string, devi
 		body: JSON.stringify({
 			type: 'CNAME',
 			name,
-			content: `${tunnelId}.cfargotunnel.com`,
+			content,
 			proxied: true
 		})
 	});
@@ -181,6 +196,20 @@ function adminAccessApplicationBody(env: CFEnv, deviceId: string, identityProvid
 	};
 }
 
+function sshAccessApplicationBody(env: CFEnv, deviceId: string, identityProviderId: string) {
+	const hostname = deviceSSHHostname(env, deviceId);
+
+	return {
+		name: `intern kim ssh ${deviceId}`,
+		domain: hostname,
+		type: 'self_hosted',
+		session_duration: '24h',
+		logo_url: `https://${deviceId}.${env.CF_DOMAIN}/logo.svg`,
+		allowed_idps: [identityProviderId],
+		auto_redirect_to_identity: true
+	};
+}
+
 function accessApplicationDomain(application: AccessApplication): string {
 	if (typeof application.domain === 'string') return application.domain;
 	if (Array.isArray(application.self_hosted_domains) && typeof application.self_hosted_domains[0] === 'string') {
@@ -234,6 +263,23 @@ export async function ensureAdminAccessApplications(env: CFEnv, deviceId: string
 	await deleteAccessApplicationForDomain(env, deviceId, '/_internkim/admin/*');
 }
 
+export async function ensureSSHAccessApplication(env: CFEnv, deviceId: string, identityProviderId: string, emails: string[] | string) {
+	const body = sshAccessApplicationBody(env, deviceId, identityProviderId);
+	const applications = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`)) as AccessApplication[];
+	const application = applications.find((item) => accessApplicationDomain(item) === body.domain);
+	const applicationId = application?.id ?? await createSSHAccessApplication(env, body);
+
+	if (application?.id) {
+		await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${applicationId}`, {
+			method: 'PUT',
+			body: JSON.stringify(body)
+		});
+	}
+
+	await syncAccessPolicyEmails(env, applicationId, normalizeAccessEmails(emails));
+	return applicationId;
+}
+
 async function ensureAdminAccessApplication(env: CFEnv, deviceId: string, identityProviderId: string, domain: string) {
 	const body = adminAccessApplicationBody(env, deviceId, identityProviderId, domain);
 	const applications = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`)) as AccessApplication[];
@@ -260,6 +306,22 @@ async function createAdminAccessApplication(env: CFEnv, body: ReturnType<typeof 
 		throw new Error('Cloudflare admin app response did not include an id');
 	}
 	return application.id;
+}
+
+async function createSSHAccessApplication(env: CFEnv, body: ReturnType<typeof sshAccessApplicationBody>) {
+	const application = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`, {
+		method: 'POST',
+		body: JSON.stringify(body)
+	})) as AccessApplication;
+	if (!application.id) {
+		throw new Error('Cloudflare SSH app response did not include an id');
+	}
+	return application.id;
+}
+
+function normalizeAccessEmails(emails: string[] | string) {
+	const values = Array.isArray(emails) ? emails : [emails];
+	return values.map((email) => email.trim().toLowerCase()).filter(Boolean);
 }
 
 async function deleteAccessApplicationForDomain(env: CFEnv, deviceId: string, domain: string) {
