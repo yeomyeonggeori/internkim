@@ -497,6 +497,19 @@ func TestRunOnceCompletesShellBridgeConfirmJob(t *testing.T) {
 	}
 }
 
+func TestDefaultBrowserExecutablePathUsesEnvironmentOverride(t *testing.T) {
+	executablePath := filepath.Join(t.TempDir(), "chrome")
+	if errorValue := os.WriteFile(executablePath, []byte("#!/bin/sh\n"), 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	t.Setenv("INTERNKIM_BROWSER_EXECUTABLE_PATH", executablePath)
+	t.Setenv("AGENT_BROWSER_EXECUTABLE_PATH", "")
+
+	if actual := defaultBrowserExecutablePath(); actual != executablePath {
+		t.Fatalf("browser executable path = %q, want %q", actual, executablePath)
+	}
+}
+
 func TestRunOnceDeniesBrowserJobWithReason(t *testing.T) {
 	statePath := filepath.Join(t.TempDir(), "state.json")
 	state, secureStore := testCompanionState(t, true, false)

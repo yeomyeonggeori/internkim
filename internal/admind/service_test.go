@@ -3377,6 +3377,48 @@ func readJSONFile(t *testing.T, path string) map[string]any {
 	return result
 }
 
+func TestCompanionJobTimeoutSecond(t *testing.T) {
+	tests := []struct {
+		name     string
+		request  capabilities.ToolInvokeRequest
+		expected int
+	}{
+		{
+			name:     "non interactive default",
+			request:  capabilities.ToolInvokeRequest{ToolName: "filesystem.mount.list"},
+			expected: 30,
+		},
+		{
+			name:     "browser default allows user approval",
+			request:  capabilities.ToolInvokeRequest{ToolName: "browser.open"},
+			expected: 120,
+		},
+		{
+			name:     "user presence default allows user approval",
+			request:  capabilities.ToolInvokeRequest{ToolName: "user.confirm", RequiresUserPresence: true},
+			expected: 120,
+		},
+		{
+			name:     "explicit timeout is preserved",
+			request:  capabilities.ToolInvokeRequest{ToolName: "browser.open", TimeoutSecond: 45},
+			expected: 45,
+		},
+		{
+			name:     "explicit timeout is capped",
+			request:  capabilities.ToolInvokeRequest{ToolName: "browser.open", TimeoutSecond: 500},
+			expected: 300,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := companionJobTimeoutSecond(test.request)
+			if actual != test.expected {
+				t.Fatalf("timeout = %d, want %d", actual, test.expected)
+			}
+		})
+	}
+}
+
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (function roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
