@@ -37,6 +37,9 @@ func main() {
 		case "remote-model":
 			exit(runRemoteModel(os.Args[2:], http.DefaultClient, companionruntime.NewDefaultSecureStore()))
 			return
+		case "disconnect":
+			exit(runDisconnect(os.Args[2:], http.DefaultClient, companionruntime.NewDefaultSecureStore()))
+			return
 		case "status":
 			exit(runStatus(os.Args[2:], http.DefaultClient, companionruntime.NewDefaultSecureStore()))
 			return
@@ -47,7 +50,7 @@ func main() {
 
 func isCompanionSubcommand(commandName string) bool {
 	switch commandName {
-	case "pair", "run", "remote-model", "status":
+	case "pair", "run", "remote-model", "disconnect", "status":
 		return true
 	default:
 		return false
@@ -209,6 +212,33 @@ func runPairWithStore(arguments []string, httpClient *http.Client, secureStore c
 	return nil
 }
 
+func runDisconnect(arguments []string, httpClient *http.Client, secureStore companionruntime.SecureStore) error {
+	flags := flag.NewFlagSet("disconnect", flag.ContinueOnError)
+	statePath := flags.String("state", defaultStatePath(), "companion state path")
+	if errorValue := flags.Parse(arguments); errorValue != nil {
+		return errorValue
+	}
+	state, errorValue := loadStateAndMigrateSecrets(context.Background(), *statePath, secureStore)
+	if errorValue == nil {
+		privateKey, keyError := secureStore.Get(context.Background(), state.PrivateKeyID)
+		if keyError == nil {
+			_ = postSignedJSON(httpClient, state, privateKey, state.DeviceURL+"/_internkim/companion/disconnect", map[string]any{}, nil)
+		}
+	}
+	if state.PrivateKeyID != "" {
+		if deleteError := secureStore.Delete(context.Background(), state.PrivateKeyID); deleteError != nil {
+			return deleteError
+		}
+	}
+	if removeError := os.Remove(*statePath); removeError != nil && !errors.Is(removeError, os.ErrNotExist) {
+		return removeError
+	}
+	_ = os.Remove(defaultMountStatePath(*statePath))
+	_ = os.Remove(defaultHandoffStatePath(*statePath))
+	fmt.Println("disconnected")
+	return nil
+}
+
 func runStatus(arguments []string, httpClient *http.Client, secureStore companionruntime.SecureStore) error {
 	flags := flag.NewFlagSet("status", flag.ContinueOnError)
 	statePath := flags.String("state", defaultStatePath(), "companion state path")
@@ -318,7 +348,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	}
 	grantStore := companionruntime.NewMemoryGrantStore()
 	mountStore := companionruntime.NewMountStore(defaultMountStatePath(*statePath))
-	handoffStore := companionruntime.NewBrowserHandoffStore()
+	handoffStore := companionruntime.NewPersistentBrowserHandoffStore(defaultHandoffStatePath(*statePath))
 	runtimeStatus := &runtimeState{}
 	if localLLMConfiguration.Enabled {
 		runtimeStatus.replaceLocalLLM(localLLMConfiguration)
@@ -336,7 +366,14 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	if readiness.Status != "ready" {
 		executor.BrowserRuntime = nil
 	}
-	controlServer, errorValue := startControlServer(*controlListenAddress, grantStore, mountStore, handoffStore, runtimeStatus, localLLM, httpClient)
+	handoffCompletionHandler := func(ctx context.Context, completion companionruntime.HandoffCompletion) error {
+		return completeHandoff(ctx, httpClient, state, privateKey, completion)
+	}
+	var bridgeBrowserRuntime browserruntime.Runtime = browserRuntime
+	if readiness.Status != "ready" {
+		bridgeBrowserRuntime = nil
+	}
+	controlServer, errorValue := startControlServer(*controlListenAddress, grantStore, mountStore, handoffStore, bridgeBrowserRuntime, handoffCompletionHandler, runtimeStatus, localLLM, httpClient)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -753,6 +790,11 @@ func completeJob(httpClient *http.Client, state companionState, privateKey strin
 	return postSignedJSON(httpClient, state, privateKey, state.DeviceURL+"/_internkim/companion/jobs/"+url.PathEscape(jobID)+"/complete", response, &map[string]any{})
 }
 
+func completeHandoff(ctx context.Context, httpClient *http.Client, state companionState, privateKey string, completion companionruntime.HandoffCompletion) error {
+	endpoint := state.DeviceURL + "/_internkim/companion/handoffs/" + url.PathEscape(completion.HandoffID) + "/complete"
+	return postSignedJSONWithContext(ctx, httpClient, state, privateKey, endpoint, completion, &map[string]any{})
+}
+
 func failJob(httpClient *http.Client, state companionState, privateKey string, jobID string, errorMessage string) error {
 	return postSignedJSON(httpClient, state, privateKey, state.DeviceURL+"/_internkim/companion/jobs/"+url.PathEscape(jobID)+"/fail", map[string]string{"error": errorMessage}, &map[string]any{})
 }
@@ -783,11 +825,15 @@ func postJSON(httpClient *http.Client, endpoint string, headers map[string]strin
 }
 
 func postSignedJSON(httpClient *http.Client, state companionState, privateKey string, endpoint string, requestBody any, responseBody any) error {
+	return postSignedJSONWithContext(context.Background(), httpClient, state, privateKey, endpoint, requestBody, responseBody)
+}
+
+func postSignedJSONWithContext(ctx context.Context, httpClient *http.Client, state companionState, privateKey string, endpoint string, requestBody any, responseBody any) error {
 	document, errorValue := json.Marshal(requestBody)
 	if errorValue != nil {
 		return errorValue
 	}
-	request, errorValue := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(document))
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(document))
 	if errorValue != nil {
 		return errorValue
 	}
@@ -962,6 +1008,18 @@ func defaultMountStatePath(statePath string) string {
 	return filepath.Join(homeDirectory, ".internkim-companion", "mounts.json")
 }
 
+func defaultHandoffStatePath(statePath string) string {
+	trimmedPath := strings.TrimSpace(statePath)
+	if trimmedPath != "" {
+		return filepath.Join(filepath.Dir(trimmedPath), "browser-handoff.json")
+	}
+	homeDirectory, errorValue := os.UserHomeDir()
+	if errorValue != nil || homeDirectory == "" {
+		return ".internkim-companion-browser-handoff.json"
+	}
+	return filepath.Join(homeDirectory, ".internkim-companion", "browser-handoff.json")
+}
+
 func defaultBrowserProfilePath() string {
 	configurationDirectory, errorValue := os.UserConfigDir()
 	if errorValue == nil && strings.TrimSpace(configurationDirectory) != "" {
@@ -997,6 +1055,8 @@ func browserExtensionCandidatePaths(executableDirectory string) []string {
 		filepath.Join(executableDirectory, "browser-extension"),
 		filepath.Join(executableDirectory, "..", "Resources", "browser-extension"),
 		filepath.Join(executableDirectory, "..", "Resources", "companion", "browser-extension"),
+		filepath.Join(executableDirectory, "..", "Resources", "_up_", "browser-extension"),
+		filepath.Join(executableDirectory, "..", "Resources", "_up_", "companion", "browser-extension"),
 	}
 }
 
