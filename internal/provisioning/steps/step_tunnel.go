@@ -7,7 +7,7 @@ import (
 
 const MattermostTunnelOrigin = "http://127.0.0.1:18080"
 const CloudflaredTunnelProtocol = "http2"
-const TunnelConfigurationRevision = "admin-gateway-v2-http2"
+const TunnelConfigurationRevision = "admin-gateway-v3-sites-wildcard"
 
 var StepTunnel = Step{
 	Name: "tunnel",

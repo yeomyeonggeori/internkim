@@ -66,11 +66,11 @@ type localBinaryAsset struct {
 }
 
 func deviceBrowserRuntimePackageListUbuntu24() string {
-	return strings.Join([]string{"ca-certificates"}, " ")
+	return strings.Join(baseDeviceToolPackages(), " ")
 }
 
 func deviceBrowserRuntimePackageListLegacyUbuntu() string {
-	return strings.Join([]string{"ca-certificates"}, " ")
+	return strings.Join(baseDeviceToolPackages(), " ")
 }
 
 func deviceBrowserRuntimePackageListJetPack6() string {
@@ -98,6 +98,10 @@ func deviceBrowserRuntimeDependencyInstallScript() string {
 	return strings.TrimSpace(`apt-get update -qq >/dev/null 2>&1 || true
 ` + deviceBrowserRuntimePackageSelectionScript() + `
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $runtimePackages >/dev/null`)
+}
+
+func baseDeviceToolPackages() []string {
+	return []string{"ca-certificates", "curl", "git", "unzip"}
 }
 
 func usersSyncDependencyInstallScript() string {
@@ -357,6 +361,13 @@ func (state *setupFlowState) requiredBinaryAssets() []localBinaryAsset {
 			localPath:   filepath.Join(state.boardBinDir, "cloudflared"),
 			remotePath:  "/usr/local/bin/cloudflared",
 			downloadURL: "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64",
+		},
+		{
+			name:         "pocketbase",
+			localPath:    filepath.Join(state.boardBinDir, "pocketbase"),
+			remotePath:   "/usr/local/bin/pocketbase",
+			downloadURL:  "https://github.com/pocketbase/pocketbase/releases/download/v0.37.1/pocketbase_0.37.1_linux_arm64.zip",
+			archiveEntry: "pocketbase",
 		},
 		{
 			name:         "rtk",
@@ -667,6 +678,8 @@ func (state *setupFlowState) installBinariesSSH(context *setup.Context) error {
 NOLOGIN_BIN=$(command -v nologin || echo /usr/sbin/nologin)
 getent group blueclaw >/dev/null 2>&1 || groupadd --system blueclaw
 id blueclaw &>/dev/null || useradd -r -g blueclaw -m -d /home/blueclaw -s "$NOLOGIN_BIN" blueclaw
+getent group internkim-site >/dev/null 2>&1 || groupadd --system internkim-site
+id internkim-site &>/dev/null || useradd -r -g internkim-site -d /nonexistent -s "$NOLOGIN_BIN" internkim-site
 install -d -o blueclaw -g blueclaw -m 750 /home/blueclaw /home/blueclaw/.cache /home/blueclaw/.config
 chmod 711 /root
 mkdir -p /root/.internkim/secrets /root/.internkim/env
@@ -678,6 +691,10 @@ mkdir -p /root/.blueclaw/config /root/.blueclaw/workspace/bin /root/.blueclaw/wo
 chmod 755 /root/.blueclaw
 chown -R blueclaw:blueclaw /root/.blueclaw/workspace
 chmod 750 /root/.blueclaw/workspace
+mkdir -p /root/.internkim/sites /root/.internkim/secrets/sites
+chown root:internkim-site /root/.internkim /root/.internkim/sites /root/.internkim/secrets/sites
+chmod 755 /root/.internkim
+chmod 750 /root/.internkim/sites /root/.internkim/secrets/sites
 chmod 755 /root/.blueclaw/workspace/bin /root/.blueclaw/workspace/downloads`)
 
 	if err := state.installBlueclawMigrationsSSH(); err != nil {

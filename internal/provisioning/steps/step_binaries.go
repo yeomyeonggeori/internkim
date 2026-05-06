@@ -24,6 +24,7 @@ var StepBinaries = Step{
 				!sshFileExists(context, "/usr/local/bin/internkim-capabilityd") ||
 				!sshFileExists(context, "/usr/local/bin/internkim-admind") ||
 				!sshFileExists(context, "/usr/local/bin/internkim-local-llm-runner") ||
+				!sshFileExists(context, "/usr/local/bin/pocketbase") ||
 				!sshFileExists(context, locallm.BinaryPath()) ||
 				!sshFileExists(context, "/usr/local/bin/graphiti-memoryd") {
 				return false

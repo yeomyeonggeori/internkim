@@ -7,6 +7,7 @@ import {
 	createTunnel,
 	configureTunnel,
 	createDNSRecord,
+	ensureWildcardDNSRecord,
 	ensureOneTimePinIdentityProvider,
 	ensureAdminAccessApplications,
 	ensureCompanionBypassApplication,
@@ -79,6 +80,7 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 	if (existing) {
 		const ownedDevice = await ensureSameDevice(existing, device_secret);
 		await configureTunnel(cfEnv, ownedDevice.tunnel_id, deviceID);
+		await ensureWildcardDNSRecord(cfEnv, ownedDevice.tunnel_id, deviceID);
 		if (ownedDevice.access_app_id) {
 			await updateAccessApplicationLoginMethod(cfEnv, deviceID, ownedDevice.access_app_id, identityProviderId);
 		}
@@ -99,6 +101,7 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 	const { tunnelId, tunnelToken } = await createTunnel(cfEnv, deviceID);
 	await configureTunnel(cfEnv, tunnelId, deviceID);
 	const dnsRecordId = await createDNSRecord(cfEnv, tunnelId, deviceID);
+	await ensureWildcardDNSRecord(cfEnv, tunnelId, deviceID);
 	const accessAppId = await createAccessApplication(cfEnv, deviceID, identityProviderId);
 	const accessPolicyId = await createAccessPolicy(cfEnv, accessAppId, adminEmail);
 	await ensureAdminAccessApplications(cfEnv, deviceID, identityProviderId, adminEmail);
