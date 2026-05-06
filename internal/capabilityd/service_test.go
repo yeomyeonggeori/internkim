@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -47,6 +48,26 @@ func TestLocalStructuredCompletionUsesRequestedAccelerator(t *testing.T) {
 	}
 	if response.ConstraintMode != "litert_llguidance_json_schema" {
 		t.Fatalf("expected LiteRT constrained decoding mode, got %q", response.ConstraintMode)
+	}
+}
+
+func TestCompanionInferenceModeStopsOnlyJetsonGenerationService(t *testing.T) {
+	commands := []string{}
+	service := Service{
+		Configuration: Configuration{LocalInferenceMode: "companion_only"},
+		RunCommand: func(_ context.Context, executablePath string, arguments []string, _ []byte) ([]byte, error) {
+			commands = append(commands, executablePath+" "+strings.Join(arguments, " "))
+			return []byte("ok"), nil
+		},
+	}
+	service.applyLocalInferenceMode(context.Background())
+
+	expectedCommands := []string{
+		"systemctl stop internkim-llamacpp.service",
+		"systemctl disable internkim-llamacpp.service",
+	}
+	if !reflect.DeepEqual(commands, expectedCommands) {
+		t.Fatalf("expected generation service only commands, got %+v", commands)
 	}
 }
 

@@ -20,11 +20,21 @@ type StructuredOutputSchema struct {
 	IsStrictlyEnforced bool            `json:"isStrictlyEnforced"`
 }
 
+type RequestContext struct {
+	RequesterPersonID       string `json:"requesterPersonID,omitempty"`
+	RequesterEmail          string `json:"requesterEmail,omitempty"`
+	RequesterName           string `json:"requesterName,omitempty"`
+	RequesterPlatformUserID string `json:"requesterPlatformUserID,omitempty"`
+	ConversationID          string `json:"conversationID,omitempty"`
+	Platform                string `json:"platform,omitempty"`
+}
+
 type StructuredRequest struct {
 	Model                  string                 `json:"model"`
 	Provider               string                 `json:"provider,omitempty"`
 	Accelerator            string                 `json:"accelerator,omitempty"`
 	ExecutionMode          string                 `json:"executionMode"`
+	Context                RequestContext         `json:"context,omitempty"`
 	Messages               []Message              `json:"messages"`
 	StructuredOutputSchema StructuredOutputSchema `json:"structuredOutputSchema"`
 	RequireParameters      bool                   `json:"requireParameters"`
@@ -32,13 +42,14 @@ type StructuredRequest struct {
 }
 
 type TextRequest struct {
-	Model                 string    `json:"model"`
-	Provider              string    `json:"provider,omitempty"`
-	Accelerator           string    `json:"accelerator,omitempty"`
-	ExecutionMode         string    `json:"executionMode"`
-	Messages              []Message `json:"messages"`
-	RequireParameters     bool      `json:"requireParameters"`
-	EnableResponseHealing bool      `json:"enableResponseHealing"`
+	Model                 string         `json:"model"`
+	Provider              string         `json:"provider,omitempty"`
+	Accelerator           string         `json:"accelerator,omitempty"`
+	ExecutionMode         string         `json:"executionMode"`
+	Context               RequestContext `json:"context,omitempty"`
+	Messages              []Message      `json:"messages"`
+	RequireParameters     bool           `json:"requireParameters"`
+	EnableResponseHealing bool           `json:"enableResponseHealing"`
 }
 
 type Response struct {

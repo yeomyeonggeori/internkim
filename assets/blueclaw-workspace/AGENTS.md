@@ -39,6 +39,8 @@ Use `browser.handoff` when a page needs the user to log in, pass MFA, solve a ca
 
 Do not use the Lightpanda fallback for login, MFA, captcha, sensitive inputs, irreversible actions, file upload/download, screenshots, or pixel/visual judgments. Stop and ask the user to connect their Companion app instead.
 
+When using the speaker's Companion browser, move at a human pace. Do not rapid-fire browser actions. Prefer one action, then observe or wait before the next action. For Google account, banking, government, payment, or other account-risky pages, use `browser.handoff` and let the user do login and sensitive navigation themselves.
+
 ## File Sharing
 
 When a user asks for any file such as an image, PDF, document, or archive:
