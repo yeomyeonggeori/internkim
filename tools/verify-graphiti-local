@@ -158,8 +158,25 @@ episode = {
     "source": "message",
     "sourceReference": "local-smoke",
 }
+update_episode = {
+    "episodeID": "local-smoke-episode-2",
+    "platform": "mattermost",
+    "messageID": "local-smoke-message-2",
+    "conversationID": "dm:local",
+    "senderPersonID": "person-local",
+    "prompt": "Correction: my preferred name is Jisu now.",
+    "occurredAt": datetime.datetime.now(datetime.UTC).isoformat(),
+    "namespaces": [namespace],
+    "source": "message",
+    "sourceReference": "local-smoke",
+}
 search = {
     "query": "What is my name?",
+    "namespaces": [namespace],
+    "limit": 5,
+}
+update_search = {
+    "query": "What is my preferred name now?",
     "namespaces": [namespace],
     "limit": 5,
 }
@@ -179,14 +196,24 @@ def post_json(path, document):
         raise
 
 post_json("/v1/episodes", episode)
+post_json("/v1/episodes", update_episode)
 result = post_json("/v1/search", search)
 facts = result.get("facts", [])
 content = json.dumps(facts, ensure_ascii=False)
 if not facts:
     print("Graphiti returned no facts", file=sys.stderr)
     raise SystemExit(1)
+if not any(fact.get("sourceKind") for fact in facts):
+    print("Graphiti facts did not include sourceKind:", content, file=sys.stderr)
+    raise SystemExit(1)
 if "Minsu" not in content:
     print("Graphiti facts did not recall the seeded name:", content, file=sys.stderr)
+    raise SystemExit(1)
+update_result = post_json("/v1/search", update_search)
+update_facts = update_result.get("facts", [])
+update_content = json.dumps(update_facts, ensure_ascii=False)
+if "Jisu" not in update_content:
+    print("Graphiti facts did not recall the updated preferred name:", update_content, file=sys.stderr)
     raise SystemExit(1)
 print("graphiti local smoke: ok")
 PY
