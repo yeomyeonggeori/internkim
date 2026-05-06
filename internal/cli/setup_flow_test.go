@@ -152,7 +152,7 @@ func TestCloudflareSSHUsesAccessProxyCommand(t *testing.T) {
 	rsyncCommand := client.rsyncSSHCommand("ssh")
 
 	for _, value := range []string{sshArguments, scpArguments, rsyncCommand} {
-		if !strings.Contains(value, "ProxyCommand=cloudflared access ssh --hostname %h") {
+		if !strings.Contains(value, "ProxyCommand=env GODEBUG=netdns=go TUNNEL_EDGE_IP_VERSION=4 cloudflared --edge-ip-version 4 --edge-bind-address 0.0.0.0 access ssh --hostname %h") {
 			t.Fatalf("expected Cloudflare Access ProxyCommand, got %s", value)
 		}
 	}
@@ -160,8 +160,34 @@ func TestCloudflareSSHUsesAccessProxyCommand(t *testing.T) {
 
 func TestCloudflareSSHHostnameFromDeviceURL(t *testing.T) {
 	hostname := cloudflareSSHHostnameFromDeviceURL("https://device-1.example.test/admin")
-	if hostname != "ssh.device-1.example.test" {
+	if hostname != "ssh-device-1.example.test" {
 		t.Fatalf("expected SSH hostname from device URL, got %q", hostname)
+	}
+}
+
+func TestRetryableSSHFailureIncludesNetworkRouteFailure(t *testing.T) {
+	output := "dial tcp [2606:4700:3031::ac43:d168]:443: connect: no route to host"
+	if !isRetryableSSHFailure(output) {
+		t.Fatalf("expected network route failure to be retryable")
+	}
+}
+
+func TestResolveCloudflareSSHHostnameIgnoresLegacyNestedHostname(t *testing.T) {
+	homeDirectory := t.TempDir()
+	t.Setenv("HOME", homeDirectory)
+	stateDirectory := setupStateDir(filepath.Join(homeDirectory, ".internkim"), setup.BoardJetsonOrinNano)
+	saveState(stateDirectory, "ssh_hostname", "ssh.device-1.example.test")
+	saveState(stateDirectory, "device_id", "device-1")
+	target := commandTarget{
+		stateDir:     stateDirectory,
+		sshHostname:  "ssh.device-1.example.test",
+		useRemoteSSH: true,
+	}
+
+	hostname := resolveCloudflareSSHHostname(config{CFDomain: "example.test"}, target)
+
+	if hostname != "ssh-device-1.example.test" {
+		t.Fatalf("expected flat SSH hostname, got %q", hostname)
 	}
 }
 
