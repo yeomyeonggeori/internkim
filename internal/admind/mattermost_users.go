@@ -255,7 +255,10 @@ func (service *Service) ensureMattermostProvisionerAccount(ctx context.Context) 
 			return errorValue
 		}
 	}
-	return service.setMattermostRole(ctx, adminToken, adminUser.ID, "admin")
+	if errorValue := service.setMattermostRole(ctx, adminToken, adminUser.ID, "admin"); errorValue != nil {
+		return errorValue
+	}
+	return service.ensureMattermostConnectCommand(ctx, adminToken)
 }
 
 func (service *Service) deactivateMattermostUserByID(ctx context.Context, userID string) error {

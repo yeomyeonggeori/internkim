@@ -44,7 +44,7 @@ func (service Service) handleMattermostCompanionConnectCommand(ctx context.Conte
 
 func isMattermostCompanionConnectCommand(event platformInboundEvent) bool {
 	prompt := strings.ToLower(strings.TrimSpace(event.Prompt))
-	if prompt == "/internkim connect" || prompt == "companion connect" {
+	if prompt == "/connect" || prompt == "/internkim connect" || prompt == "companion connect" {
 		return true
 	}
 	if !strings.EqualFold(strings.TrimSpace(event.Context.ConversationType), "D") {
