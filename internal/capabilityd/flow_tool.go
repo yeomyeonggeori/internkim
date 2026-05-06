@@ -29,12 +29,14 @@ type flowMemberForTool struct {
 	Email string `json:"email"`
 }
 
+const flowRequesterEmailHeader = "X-InternKim-Requester-Email"
+
 func (service Service) invokeFlowTaskAdd(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	input, errorValue := decodeFlowTaskAddInput(request.Input)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	members, errorValue := service.fetchFlowMembers(ctx)
+	members, errorValue := service.fetchFlowMembers(ctx, request.Context.RequesterEmail)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
@@ -46,7 +48,7 @@ func (service Service) invokeFlowTaskAdd(ctx context.Context, request capabiliti
 		"requesterEmail": request.Context.RequesterEmail,
 		"source":         "chat",
 	}
-	result, errorValue := service.postFlowTask(ctx, payload)
+	result, errorValue := service.postFlowTask(ctx, payload, request.Context.RequesterEmail)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
@@ -76,11 +78,12 @@ func decodeFlowTaskAddInput(document json.RawMessage) (flowTaskAddInput, error) 
 	return input, nil
 }
 
-func (service Service) fetchFlowMembers(ctx context.Context) ([]flowMemberForTool, error) {
+func (service Service) fetchFlowMembers(ctx context.Context, requesterEmail string) ([]flowMemberForTool, error) {
 	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(service.Configuration.AdmindBaseURL, "/")+"/flow/api/summary", nil)
 	if errorValue != nil {
 		return nil, errorValue
 	}
+	setFlowRequesterEmailHeader(httpRequest, requesterEmail)
 	httpResponse, errorValue := service.httpClient().Do(httpRequest)
 	if errorValue != nil {
 		return nil, errorValue
@@ -140,7 +143,7 @@ func matchFlowMember(value string, members []flowMemberForTool) string {
 	return ""
 }
 
-func (service Service) postFlowTask(ctx context.Context, payload map[string]any) (json.RawMessage, error) {
+func (service Service) postFlowTask(ctx context.Context, payload map[string]any, requesterEmail string) (json.RawMessage, error) {
 	document, errorValue := json.Marshal(payload)
 	if errorValue != nil {
 		return nil, errorValue
@@ -152,6 +155,7 @@ func (service Service) postFlowTask(ctx context.Context, payload map[string]any)
 		return nil, errorValue
 	}
 	httpRequest.Header.Set("Content-Type", "application/json")
+	setFlowRequesterEmailHeader(httpRequest, requesterEmail)
 	httpResponse, errorValue := service.httpClient().Do(httpRequest)
 	if errorValue != nil {
 		return nil, errorValue
@@ -165,4 +169,12 @@ func (service Service) postFlowTask(ctx context.Context, payload map[string]any)
 		return nil, fmt.Errorf("flow task add failed: %s", strings.TrimSpace(string(body)))
 	}
 	return json.RawMessage(body), nil
+}
+
+func setFlowRequesterEmailHeader(request *http.Request, requesterEmail string) {
+	normalizedEmail := strings.ToLower(strings.TrimSpace(requesterEmail))
+	if normalizedEmail == "" {
+		return
+	}
+	request.Header.Set(flowRequesterEmailHeader, normalizedEmail)
 }

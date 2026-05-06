@@ -189,6 +189,10 @@ func defaultResourceAccessPolicies() []map[string]any {
 		{"resource": "file:circle:c-level", "actions": []string{"read", "write"}, "circles": []string{"c-level"}},
 		{"resource": "file:circle:representative", "actions": []string{"read", "write"}, "circles": []string{"representative"}},
 		{"resource": "file:circle:admin", "actions": []string{"read", "write", "manage"}, "circles": []string{"admin"}},
+		{"resource": "api:flow.summary", "actions": []string{"read"}, "circles": []string{"staff"}},
+		{"resource": "api:flow.task", "actions": []string{"create", "update"}, "circles": []string{"staff"}},
+		{"resource": "api:flow.definition", "actions": []string{"manage"}, "circles": []string{"admin"}},
+		{"resource": "tool:flow.task.add", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:company.broadcast.send", "actions": []string{"execute"}, "circles": []string{"representative"}},
 	}
 }

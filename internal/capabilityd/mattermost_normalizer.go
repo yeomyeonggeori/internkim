@@ -130,7 +130,10 @@ func normalizeMattermostPost(post mattermostPost, botUserID string, channelType 
 		SenderID:       post.UserID,
 		Prompt:         post.Message,
 		Context: platformEventContext{
-			HistoryCursor: historyCursor,
+			HistoryCursor:    historyCursor,
+			ConversationType: channelType,
+			ChannelID:        post.ChannelID,
+			ChannelName:      channelName,
 		},
 	}, true, nil
 }
