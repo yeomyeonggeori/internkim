@@ -736,12 +736,16 @@ func TestControlHandlerCompletesBrowserHandoff(t *testing.T) {
 	}
 }
 
-func TestRealChromeHandoffExtensionCompletesWhenUserClicks(t *testing.T) {
+func TestRealChromeHandoffExtensionCompletesThroughContentScript(t *testing.T) {
 	if os.Getenv("INTERNKIM_REAL_CHROME_HANDOFF_EXTENSION_TEST") != "1" {
-		t.Skip("set INTERNKIM_REAL_CHROME_HANDOFF_EXTENSION_TEST=1 to launch Chrome and click the extension completion button")
+		t.Skip("set INTERNKIM_REAL_CHROME_HANDOFF_EXTENSION_TEST=1 to launch Chrome and test the handoff extension")
 	}
 	agentBrowserPath := testAgentBrowserPath(t)
 	extensionPath := testBrowserExtensionPath(t)
+	browserExecutablePath := defaultBrowserExecutablePath()
+	if strings.TrimSpace(browserExecutablePath) == "" {
+		t.Fatal("Google Chrome is required for the real handoff extension test")
+	}
 	handoffStore := companionruntime.NewBrowserHandoffStore()
 	controlServer := startTestHandoffControlServer(t, handoffStore)
 	defer controlServer.Shutdown(context.Background())
@@ -758,11 +762,12 @@ func TestRealChromeHandoffExtensionCompletesWhenUserClicks(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	browserRuntime := browserruntime.AgentBrowserRuntime{
-		CommandPath: agentBrowserPath,
-		Engine:      browserruntime.BrowserEngineChrome,
-		ProfilePath: filepath.Join(t.TempDir(), "profile"),
-		SessionName: "internkim-extension-smoke-" + time.Now().UTC().Format("20060102T150405"),
-		Headed:      true,
+		CommandPath:          agentBrowserPath,
+		Engine:               browserruntime.BrowserEngineChrome,
+		EngineExecutablePath: browserExecutablePath,
+		ProfilePath:          filepath.Join(t.TempDir(), "profile"),
+		SessionName:          "internkim-extension-smoke-" + time.Now().UTC().Format("20060102T150405"),
+		Headed:               true,
 		ExtensionPaths: []string{
 			extensionPath,
 		},
@@ -774,16 +779,29 @@ func TestRealChromeHandoffExtensionCompletesWhenUserClicks(t *testing.T) {
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	if _, errorValue := browserRuntime.Navigate(ctx, browserruntime.NavigateRequest{URL: pageServer.URL}); errorValue != nil {
+	if _, errorValue := browserRuntime.StartSession(ctx, browserruntime.SessionStartRequest{URL: pageServer.URL}); errorValue != nil {
 		t.Fatalf("expected real Chrome handoff page to open: %v", errorValue)
 	}
-	t.Log("Chrome is open. Click the Intern Kim '완료' button in the browser to complete this test.")
-	completion, errorValue := handoffStore.Wait(ctx, handoff.HandoffID)
-	if errorValue != nil {
-		t.Fatalf("expected extension completion click: %v", errorValue)
+	type waitResult struct {
+		completion companionruntime.HandoffCompletion
+		errorValue error
 	}
-	if completion.SessionID != "internkim-extension-smoke" || !strings.HasPrefix(completion.URL, pageServer.URL) {
-		t.Fatalf("unexpected handoff completion: %+v", completion)
+	waitChannel := make(chan waitResult, 1)
+	go func() {
+		completion, errorValue := handoffStore.Wait(ctx, handoff.HandoffID)
+		waitChannel <- waitResult{completion: completion, errorValue: errorValue}
+	}()
+	commandRunner := browserruntime.OSCommandRunner{}
+	clickScript := `document.getElementById("internkim-companion-handoff-root")?.shadowRoot?.querySelector("button")?.click(); true`
+	if _, errorValue := commandRunner.Run(ctx, agentBrowserPath, []string{"--session", browserRuntime.SessionName, "--session-name", browserRuntime.SessionName, "eval", clickScript}); errorValue != nil {
+		t.Fatalf("expected extension overlay button click to run: %v", errorValue)
+	}
+	waited := <-waitChannel
+	if waited.errorValue != nil {
+		t.Fatalf("expected extension completion click: %v", waited.errorValue)
+	}
+	if waited.completion.SessionID != "internkim-extension-smoke" || !strings.HasPrefix(waited.completion.URL, pageServer.URL) {
+		t.Fatalf("unexpected handoff completion: %+v", waited.completion)
 	}
 }
 
