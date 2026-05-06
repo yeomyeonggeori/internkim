@@ -68,6 +68,24 @@ func TestAgentBrowserRuntimeNavigatesThroughCommandRunner(t *testing.T) {
 	}
 }
 
+func TestAgentBrowserRuntimeAcceptsLoginRedirect(t *testing.T) {
+	runner := &fakeCommandRunner{output: []byte("https://accounts.google.com/signin/v2/identifier\n")}
+	runtime := AgentBrowserRuntime{
+		CommandPath:        "agent-browser-test",
+		SessionName:        "internkim-test",
+		DisableHumanPacing: true,
+		Runner:             runner,
+	}
+
+	result, errorValue := runtime.Navigate(context.Background(), NavigateRequest{URL: "https://console.cloud.google.com/"})
+	if errorValue != nil {
+		t.Fatalf("expected redirect navigate success: %v", errorValue)
+	}
+	if result.URL != "https://accounts.google.com/signin/v2/identifier" {
+		t.Fatalf("unexpected redirect result: %+v", result)
+	}
+}
+
 func TestAgentBrowserRuntimeChromeEngineUsesHeadedProfile(t *testing.T) {
 	runner := &fakeCommandRunner{output: []byte("https://example.com\n")}
 	runtime := AgentBrowserRuntime{

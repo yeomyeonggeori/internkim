@@ -254,7 +254,7 @@ func (runtime AgentBrowserRuntime) Navigate(ctx context.Context, request Navigat
 	if errorValue != nil {
 		return NavigateResult{}, errorValue
 	}
-	if !isExpectedNavigationURL(trimmedURL, actualURL) {
+	if !isSuccessfulNavigationURL(actualURL) {
 		return NavigateResult{}, errors.New("companion browser did not navigate to requested URL")
 	}
 	stealthEvalArguments := append(runtime.sessionCommandArguments(), "eval", stealthPostLoadScript())
@@ -274,18 +274,15 @@ func (runtime AgentBrowserRuntime) currentURL(ctx context.Context) (string, erro
 	return currentURL, nil
 }
 
-func isExpectedNavigationURL(requestedURL string, actualURL string) bool {
-	requested, requestedError := url.Parse(strings.TrimSpace(requestedURL))
+func isSuccessfulNavigationURL(actualURL string) bool {
 	actual, actualError := url.Parse(strings.TrimSpace(actualURL))
-	if requestedError != nil || actualError != nil {
+	if actualError != nil {
 		return false
 	}
-	if requested.Scheme != actual.Scheme || requested.Hostname() != actual.Hostname() {
+	if actual.Scheme != "http" && actual.Scheme != "https" {
 		return false
 	}
-	requestedPath := strings.TrimRight(requested.EscapedPath(), "/")
-	actualPath := strings.TrimRight(actual.EscapedPath(), "/")
-	return requestedPath == actualPath
+	return actual.Hostname() != ""
 }
 
 func stealthRequestHeaders() string {
