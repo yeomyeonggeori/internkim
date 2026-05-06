@@ -2424,14 +2424,51 @@ func TestCompanionJobRequiresRequesterIdentityForUserLocalTool(t *testing.T) {
 		LastSeenAt: time.Now().UTC(),
 	}
 
-	_, errorValue := service.invokeCompanionJob(context.Background(), capabilities.ToolInvokeRequest{
+	response, errorValue := service.invokeCompanionJob(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName:      "browser.handoff",
 		Input:         json.RawMessage(`{"url":"https://example.com"}`),
 		TimeoutSecond: 1,
 	})
 
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "requester identity is required") {
-		t.Fatalf("expected requester identity error, got %v", errorValue)
+	if errorValue != nil {
+		t.Fatalf("expected structured denial: %v", errorValue)
+	}
+	var denial capabilities.DenialResult
+	if errorValue := json.Unmarshal(response.Result, &denial); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != "denied" || denial.Code != capabilities.CapabilityNotAllowed {
+		t.Fatalf("expected not_allowed denial, got response=%+v denial=%+v", response, denial)
+	}
+}
+
+func TestCompanionJobReportsNotReadyWhenOwnerBrowserCapabilityMissing(t *testing.T) {
+	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	service.companions["companion-1"] = &CompanionRecord{
+		CompanionID: "companion-1",
+		OwnerEmail:  "admin@example.com",
+		Capabilities: []capabilities.Descriptor{
+			{Name: "user.confirm"},
+		},
+		LastSeenAt: time.Now().UTC(),
+	}
+
+	response, errorValue := service.invokeCompanionJob(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName:     "browser.open",
+		Input:        json.RawMessage(`{"url":"https://example.com"}`),
+		Context:      capabilities.ToolInvokeContext{RequesterEmail: "admin@example.com"},
+		PrivacyClass: "user_browser",
+	})
+
+	if errorValue != nil {
+		t.Fatalf("expected structured denial: %v", errorValue)
+	}
+	var denial capabilities.DenialResult
+	if errorValue := json.Unmarshal(response.Result, &denial); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != "denied" || denial.Code != capabilities.CapabilityNotReady || strings.Contains(response.Content, "/connect") {
+		t.Fatalf("expected not_ready denial without reconnect advice, got response=%+v denial=%+v", response, denial)
 	}
 }
 

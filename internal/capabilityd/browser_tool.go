@@ -55,7 +55,7 @@ func (service Service) invokeDeviceBrowserTool(ctx context.Context, request capa
 			result = observation
 		}
 	case "browser.screenshot":
-		return companionRequiredBrowserResponse(request.ToolName, "companion_required_for_screenshot", "Connect the speaker's Companion app to capture browser screenshots."), nil
+		return capabilityUnavailableResponse(request.ToolName, capabilities.CapabilityNotConnected), nil
 	case "browser.click":
 		var input browserruntime.ClickRequest
 		errorValue = decodeBrowserToolInput(request.Input, &input)

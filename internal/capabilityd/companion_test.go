@@ -204,7 +204,7 @@ func TestScreenshotDoesNotFallbackWhenCompanionUnavailable(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected structured screenshot denial: %v", errorValue)
 	}
-	if !response.IsError || response.Status != "denied" || !strings.Contains(string(response.Result), "companion_required_for_screenshot") {
+	if !response.IsError || response.Status != "denied" || !strings.Contains(string(response.Result), capabilities.CapabilityNotConnected) {
 		t.Fatalf("expected companion-required denial, got %+v result=%s", response, response.Result)
 	}
 	if commandWasCalled {
@@ -234,6 +234,85 @@ func TestSimpleBrowserToolFallsBackToDeviceWhenCompanionUnavailable(t *testing.T
 	}
 }
 
+func TestSimpleBrowserToolFallsBackWhenCompanionBrowserNotReady(t *testing.T) {
+	commandWasCalled := false
+	denialResult, _ := json.Marshal(capabilities.DenialResult{
+		Status:     "denied",
+		Code:       capabilities.CapabilityNotReady,
+		ToolName:   "browser.open",
+		UserReason: "Companion은 연결되어 있지만 브라우저 런타임이 준비되지 않았습니다.",
+	})
+	service := Service{
+		Configuration: Configuration{CompanionBaseURL: "https://companion.test"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.URL.Path != "/jobs" {
+				t.Fatalf("unexpected companion path: %s", request.URL.Path)
+			}
+			return jsonResponse(capabilities.ToolInvokeResponse{
+				Provider: "companion",
+				ToolName: "browser.open",
+				Status:   "denied",
+				IsError:  true,
+				Result:   denialResult,
+			}), nil
+		})},
+		RunCommand: func(_ context.Context, _ string, _ []string, _ []byte) ([]byte, error) {
+			commandWasCalled = true
+			return nil, nil
+		},
+	}
+
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.open", strings.NewReader(`{"input":{"url":"https://example.com"}}`))
+	if errorValue != nil {
+		t.Fatalf("expected device fallback response: %v", errorValue)
+	}
+	if response.Provider != "device" || !commandWasCalled {
+		t.Fatalf("expected browser.open to fallback to device, got response=%+v commandWasCalled=%v", response, commandWasCalled)
+	}
+}
+
+func TestCompanionOnlyBrowserToolPreservesNotReadyDenial(t *testing.T) {
+	commandWasCalled := false
+	denialResult, _ := json.Marshal(capabilities.DenialResult{
+		Status:     "denied",
+		Code:       capabilities.CapabilityNotReady,
+		ToolName:   "browser.open",
+		UserReason: "Companion은 연결되어 있지만 브라우저 런타임이 준비되지 않았습니다.",
+	})
+	service := Service{
+		Configuration: Configuration{CompanionBaseURL: "https://companion.test"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return jsonResponse(capabilities.ToolInvokeResponse{
+				Provider: "companion",
+				ToolName: "browser.open",
+				Status:   "denied",
+				Content:  "Companion은 연결되어 있지만 브라우저 런타임이 준비되지 않았습니다.",
+				IsError:  true,
+				Result:   denialResult,
+			}), nil
+		})},
+		RunCommand: func(_ context.Context, _ string, _ []string, _ []byte) ([]byte, error) {
+			commandWasCalled = true
+			return nil, nil
+		},
+	}
+
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.open", strings.NewReader(`{
+		"requiresUserPresence":true,
+		"executionMode":"companion",
+		"input":{"url":"https://console.cloud.google.com/apis/credentials"}
+	}`))
+	if errorValue != nil {
+		t.Fatalf("expected structured not_ready denial: %v", errorValue)
+	}
+	if response.Status != "denied" || !strings.Contains(string(response.Result), capabilities.CapabilityNotReady) || strings.Contains(response.Content, "/connect") {
+		t.Fatalf("expected not_ready denial without reconnect advice, got %+v", response)
+	}
+	if commandWasCalled {
+		t.Fatal("expected companion-only browser.open not to fallback to device browser")
+	}
+}
+
 func TestUserPresenceBrowserToolDoesNotFallbackToDeviceWhenCompanionUnavailable(t *testing.T) {
 	commandWasCalled := false
 	service := Service{
@@ -256,8 +335,8 @@ func TestUserPresenceBrowserToolDoesNotFallbackToDeviceWhenCompanionUnavailable(
 	if errorValue != nil {
 		t.Fatalf("expected structured companion-required denial: %v", errorValue)
 	}
-	if !response.IsError || response.Status != "denied" || !strings.Contains(response.Content, "browser was not opened") || !strings.Contains(response.Content, "/connect") {
-		t.Fatalf("expected /connect denial, got %+v", response)
+	if !response.IsError || response.Status != "denied" || !strings.Contains(string(response.Result), capabilities.CapabilityNotConnected) || strings.Contains(response.Content, "/connect") {
+		t.Fatalf("expected not_connected denial, got %+v", response)
 	}
 	if commandWasCalled {
 		t.Fatal("expected user-presence browser.open not to fallback to device browser")
@@ -280,7 +359,7 @@ func TestUserPresenceBrowserToolRequiresConnectWhenCompanionNotConfigured(t *tes
 	if errorValue != nil {
 		t.Fatalf("expected structured companion-required denial: %v", errorValue)
 	}
-	if !response.IsError || response.Status != "denied" || !strings.Contains(response.Content, "browser was not opened") {
+	if !response.IsError || response.Status != "denied" || !strings.Contains(string(response.Result), capabilities.CapabilityNotConnected) {
 		t.Fatalf("expected no-success denial, got %+v", response)
 	}
 	if commandWasCalled {
@@ -329,7 +408,7 @@ func TestBrowserHandoffRequiresCompanion(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected handoff denial: %v", errorValue)
 	}
-	if !response.IsError || response.Status != "denied" || !strings.Contains(string(response.Result), "companion_required_for_handoff") {
+	if !response.IsError || response.Status != "denied" || !strings.Contains(string(response.Result), capabilities.CapabilityNotConnected) {
 		t.Fatalf("expected companion-required handoff denial, got %+v result=%s", response, response.Result)
 	}
 	if commandWasCalled {

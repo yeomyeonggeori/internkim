@@ -1,6 +1,9 @@
 package capabilities
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+)
 
 const (
 	ExecutionModeDevice    = "device"
@@ -13,6 +16,11 @@ const (
 	LLMBackendRemote         = "remote"
 
 	AttentionTriageToolName = "attention.triage"
+
+	CapabilityAvailable    = "ok"
+	CapabilityNotConnected = "not_connected"
+	CapabilityNotReady     = "not_ready"
+	CapabilityNotAllowed   = "not_allowed"
 )
 
 type Descriptor struct {
@@ -193,4 +201,22 @@ func DefaultToolNames() []string {
 
 func RoutingCandidates() []string {
 	return []string{ExecutionModeDevice, ExecutionModeCompanion, ExecutionModeRemote}
+}
+
+func CapabilityUnavailableUserReason(toolName string, code string) string {
+	isBrowserTool := strings.HasPrefix(strings.TrimSpace(toolName), "browser.")
+	switch code {
+	case CapabilityNotReady:
+		if isBrowserTool {
+			return "Companion은 연결되어 있지만 브라우저 런타임이 준비되지 않았습니다."
+		}
+		return "Companion은 연결되어 있지만 이 기능이 준비되지 않았습니다."
+	case CapabilityNotAllowed:
+		return "이 요청을 실행할 수 있는 Companion 권한이 없습니다."
+	default:
+		if isBrowserTool {
+			return "Companion이 연결되어 있지 않아 브라우저를 열 수 없습니다."
+		}
+		return "Companion이 연결되어 있지 않아 이 기능을 실행할 수 없습니다."
+	}
 }
