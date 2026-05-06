@@ -134,6 +134,20 @@ func TestCloudflareSSHHostnameFromDeviceURL(t *testing.T) {
 	}
 }
 
+func TestCommandRemoteArgumentsStartAfterSeparator(t *testing.T) {
+	arguments := commandRemoteArguments([]string{"--host", "192.0.2.1", "--", "uptime", "-p"})
+	if strings.Join(arguments, " ") != "uptime -p" {
+		t.Fatalf("expected remote command arguments, got %+v", arguments)
+	}
+}
+
+func TestCommandControlArgumentsStopAtSeparator(t *testing.T) {
+	arguments := commandControlArguments([]string{"--host", "192.0.2.1", "--", "--not-a-control-flag"})
+	if strings.Join(arguments, " ") != "--host 192.0.2.1" {
+		t.Fatalf("expected control arguments only, got %+v", arguments)
+	}
+}
+
 func TestMattermostSetupConnectCommandPayloadTargetsAdmind(t *testing.T) {
 	payload := mattermostSetupConnectCommandPayload("team-1", "command-1")
 	if payload.Trigger != "connect" || payload.Method != "P" || !payload.Autocomplete {
