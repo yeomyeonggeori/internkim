@@ -9,8 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -81,6 +83,7 @@ type flowTask struct {
 	Flag             int      `json:"flag"`
 	RequestReason    string   `json:"requestReason,omitempty"`
 	DecisionReason   string   `json:"decisionReason,omitempty"`
+	MattermostPostID string   `json:"mattermostPostID,omitempty"`
 }
 
 type flowMetrics struct {
@@ -167,6 +170,19 @@ func (errorValue flowValidationError) Error() string {
 	return string(errorValue)
 }
 
+const (
+	flowActionRead   = "read"
+	flowActionCreate = "create"
+	flowActionUpdate = "update"
+	flowActionManage = "manage"
+
+	flowResourceSummary    = "api:flow.summary"
+	flowResourceTask       = "api:flow.task"
+	flowResourceDefinition = "api:flow.definition"
+
+	flowRequesterEmailHeader = "X-InternKim-Requester-Email"
+)
+
 func (service *Service) serveFlowPage(responseWriter http.ResponseWriter, request *http.Request) {
 	if request.URL.Path == "/flow" {
 		http.Redirect(responseWriter, request, "/flow/", http.StatusFound)
@@ -202,34 +218,114 @@ func (service *Service) serveFlowIndex(responseWriter http.ResponseWriter, reque
 }
 
 func (service *Service) handleFlow(responseWriter http.ResponseWriter, request *http.Request) {
-	if !service.isFlowAuthorized(request) {
-		http.Error(responseWriter, "flow access required", http.StatusForbidden)
-		return
-	}
 	path := strings.TrimPrefix(request.URL.Path, "/flow/api")
 	switch {
 	case request.Method == http.MethodGet && path == "/summary":
+		if !service.authorizeFlowRequest(request, flowActionRead, flowResourceSummary) {
+			http.Error(responseWriter, "flow access required", http.StatusForbidden)
+			return
+		}
 		service.writeFlowSummary(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/status":
 		service.writeFlowStatus(responseWriter)
 	case request.Method == http.MethodPut && path == "/definitions":
+		if !service.authorizeFlowRequest(request, flowActionManage, flowResourceDefinition) {
+			http.Error(responseWriter, "admin access required", http.StatusForbidden)
+			return
+		}
 		service.updateFlowDefinitions(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/tasks/quick":
+		if !service.authorizeFlowRequest(request, flowActionCreate, flowResourceTask) {
+			http.Error(responseWriter, "flow access required", http.StatusForbidden)
+			return
+		}
 		service.createQuickFlowTask(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/tasks":
+		if !service.authorizeFlowRequest(request, flowActionCreate, flowResourceTask) {
+			http.Error(responseWriter, "flow access required", http.StatusForbidden)
+			return
+		}
 		service.createFlowTask(responseWriter, request)
 	case request.Method == http.MethodPut && strings.HasPrefix(path, "/tasks/"):
+		if !service.authorizeFlowRequest(request, flowActionUpdate, flowResourceTask) {
+			http.Error(responseWriter, "flow access required", http.StatusForbidden)
+			return
+		}
 		service.updateFlowTask(responseWriter, request, strings.TrimPrefix(path, "/tasks/"))
 	default:
 		http.NotFound(responseWriter, request)
 	}
 }
 
-func (service *Service) isFlowAuthorized(request *http.Request) bool {
-	if isLocalRequest(request) {
+func (service *Service) authorizeFlowRequest(request *http.Request, action string, resource string) bool {
+	actorEmail := service.flowActorEmail(request)
+	if actorEmail == "" {
+		return false
+	}
+	if action == flowActionManage && resource == flowResourceDefinition {
+		return service.isFlowAdminActor(request, actorEmail)
+	}
+	if resource == flowResourceSummary && action == flowActionRead {
+		return service.isFlowStaffActor(request.Context(), actorEmail)
+	}
+	if resource == flowResourceTask && (action == flowActionCreate || action == flowActionUpdate) {
+		return service.isFlowStaffActor(request.Context(), actorEmail)
+	}
+	return false
+}
+
+func (service *Service) flowActorEmail(request *http.Request) string {
+	if callerEmail := authenticatedCallerEmail(request); callerEmail != "" {
+		return callerEmail
+	}
+	if !isLocalRequest(request) {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(request.Header.Get(flowRequesterEmailHeader)))
+}
+
+func (service *Service) isFlowStaffActor(ctx context.Context, actorEmail string) bool {
+	if service.isFlowAdminEmail(ctx, actorEmail) {
 		return true
 	}
-	return authenticatedCallerEmail(request) != ""
+	if strings.TrimSpace(actorEmail) == "" {
+		return false
+	}
+	if !service.hasDeviceAuth() {
+		return true
+	}
+	deviceID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceIDPath)))
+	deviceSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceSecretPath))
+	records, errorValue := service.lookupUserRecords(ctx, deviceID, deviceSecret)
+	if errorValue != nil {
+		return false
+	}
+	for _, record := range records {
+		if strings.EqualFold(record.Email, actorEmail) && isActiveFlowUser(record) {
+			return true
+		}
+	}
+	return false
+}
+
+func (service *Service) isFlowAdminActor(request *http.Request, actorEmail string) bool {
+	return service.isFlowAdminEmail(request.Context(), actorEmail)
+}
+
+func (service *Service) isFlowAdminEmail(ctx context.Context, actorEmail string) bool {
+	if strings.TrimSpace(actorEmail) == "" {
+		return false
+	}
+	if service.hasDeviceAuth() {
+		return service.isCurrentAdminEmail(ctx, actorEmail) || service.isClaimedAdminEmail(actorEmail)
+	}
+	adminEmail := service.seedAdminEmail()
+	return adminEmail != "" && strings.EqualFold(actorEmail, adminEmail)
+}
+
+func isActiveFlowUser(record adminUserMutation) bool {
+	status := strings.ToLower(strings.TrimSpace(record.Status))
+	return status == "" || status == "active"
 }
 
 func (service *Service) writeFlowStatus(responseWriter http.ResponseWriter) {
@@ -261,7 +357,7 @@ func (service *Service) writeFlowSummary(responseWriter http.ResponseWriter, req
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	callerEmail := authenticatedCallerEmail(request)
+	callerEmail := service.flowActorEmail(request)
 	scoredMembers := scoreFlowMembers(members, tasks, definitions)
 	response := flowSummaryResponse{
 		Week:             buildFlowWeek(weekCode, weekStart, now),
@@ -272,7 +368,7 @@ func (service *Service) writeFlowSummary(responseWriter http.ResponseWriter, req
 		StatusOptions:    flowStatusOptions(),
 		CurrentUserEmail: callerEmail,
 		CurrentUserName:  resolveCurrentUserName(scoredMembers, callerEmail),
-		IsAdmin:          service.isAuthorized(request),
+		IsAdmin:          service.isFlowAdminEmail(request.Context(), callerEmail),
 		Source:           "sqlite",
 	}
 	service.writeJSON(responseWriter, response)
@@ -294,6 +390,7 @@ func (service *Service) createFlowTask(responseWriter http.ResponseWriter, reque
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
+	task = service.syncFlowMattermostNotification(request.Context(), task)
 	service.writeJSON(responseWriter, task)
 }
 
@@ -309,18 +406,16 @@ func (service *Service) updateFlowTask(responseWriter http.ResponseWriter, reque
 		writeFlowRequestError(responseWriter, errorValue)
 		return
 	}
+	task.MattermostPostID = service.existingFlowMattermostPostID(request.Context(), task.ID)
 	if errorValue := service.writeFlowTask(request.Context(), task); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
+	task = service.syncFlowMattermostNotification(request.Context(), task)
 	service.writeJSON(responseWriter, task)
 }
 
 func (service *Service) updateFlowDefinitions(responseWriter http.ResponseWriter, request *http.Request) {
-	if !service.isAuthorized(request) {
-		http.Error(responseWriter, "admin access required", http.StatusForbidden)
-		return
-	}
 	var payload flowDefinitionsWriteRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		writeFlowRequestError(responseWriter, errorValue)
@@ -363,7 +458,7 @@ func (service *Service) createQuickFlowTask(responseWriter http.ResponseWriter, 
 		writeFlowRequestError(responseWriter, flowValidationError("prompt is required"))
 		return
 	}
-	requesterEmail := flowRequesterEmail(request, payload)
+	requesterEmail := service.flowRequesterEmail(request, payload)
 	owner, errorValue := flowOwnerFromQuickRequest(payload, members, requesterEmail)
 	if errorValue != nil {
 		writeFlowRequestError(responseWriter, errorValue)
@@ -405,6 +500,7 @@ func (service *Service) createQuickFlowTask(responseWriter http.ResponseWriter, 
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
+	task = service.syncFlowMattermostNotification(request.Context(), task)
 	service.writeJSON(responseWriter, task)
 }
 
@@ -449,10 +545,14 @@ func (service *Service) flowTaskFromRequest(request *http.Request, members []flo
 		weekCode = weekCodeForDate(time.Now())
 	}
 	status := firstNonEmpty(strings.TrimSpace(payload.Status), "예정")
-	callerEmail := strings.ToLower(strings.TrimSpace(authenticatedCallerEmail(request)))
-	if callerEmail != "" && !service.isAuthorized(request) && !strings.EqualFold(owner.Email, callerEmail) {
+	callerEmail := strings.ToLower(strings.TrimSpace(service.flowActorEmail(request)))
+	if callerEmail != "" && !service.isFlowAdminEmail(request.Context(), callerEmail) && !strings.EqualFold(owner.Email, callerEmail) {
 		status = "요청"
 		payload.RequestReason = firstNonEmpty(strings.TrimSpace(payload.RequestReason), "타인 업무 추가 요청")
+		if requesterID := memberIDForEmail(members, callerEmail); requesterID != "" && !containsString(participantIDs, requesterID) {
+			participantIDs = append(participantIDs, requesterID)
+			participants = append(participants, memberByID[requesterID])
+		}
 	}
 	if !containsString(flowStatusOptions(), status) {
 		return flowTask{}, flowValidationError("status is not allowed")
@@ -565,7 +665,37 @@ CREATE TABLE IF NOT EXISTS flow_size_definitions (
 	if errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureFlowColumn(ctx, database, "flow_tasks", "mattermost_post_id", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
 	return seedFlowDefinitions(ctx, database)
+}
+
+func ensureFlowColumn(ctx context.Context, database *sql.DB, tableName string, columnName string, definition string) error {
+	rows, errorValue := database.QueryContext(ctx, "PRAGMA table_info("+tableName+")")
+	if errorValue != nil {
+		return errorValue
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var columnIndex int
+		var existingColumnName string
+		var columnType string
+		var isNotNull int
+		var defaultValue sql.NullString
+		var primaryKey int
+		if errorValue := rows.Scan(&columnIndex, &existingColumnName, &columnType, &isNotNull, &defaultValue, &primaryKey); errorValue != nil {
+			return errorValue
+		}
+		if strings.EqualFold(existingColumnName, columnName) {
+			return rows.Err()
+		}
+	}
+	if errorValue := rows.Err(); errorValue != nil {
+		return errorValue
+	}
+	_, errorValue = database.ExecContext(ctx, "ALTER TABLE "+tableName+" ADD COLUMN "+columnName+" "+definition)
+	return errorValue
 }
 
 func seedFlowDefinitions(ctx context.Context, database *sql.DB) error {
@@ -623,7 +753,7 @@ func (service *Service) readFlowTasks(ctx context.Context, weekCode string, memb
 	}
 	defer database.Close()
 	rows, errorValue := database.QueryContext(ctx, `
-SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, start_date, end_date, flag, request_reason, decision_reason
+SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id
 FROM flow_tasks
 WHERE week_code = ?
 ORDER BY status = '요청' DESC, owner_name, updated_at DESC`, weekCode)
@@ -642,6 +772,38 @@ ORDER BY status = '요청' DESC, owner_name, updated_at DESC`, weekCode)
 	return alignFlowTasksWithMembers(tasks, members), rows.Err()
 }
 
+func (service *Service) readFlowTaskByID(ctx context.Context, taskID string) (flowTask, bool, error) {
+	database, errorValue := service.openFlowDatabase(ctx)
+	if errorValue != nil {
+		return flowTask{}, false, errorValue
+	}
+	defer database.Close()
+	rows, errorValue := database.QueryContext(ctx, `
+SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id
+FROM flow_tasks
+WHERE id = ?`, taskID)
+	if errorValue != nil {
+		return flowTask{}, false, errorValue
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return flowTask{}, false, rows.Err()
+	}
+	task, errorValue := scanFlowTask(rows)
+	if errorValue != nil {
+		return flowTask{}, false, errorValue
+	}
+	return task, true, rows.Err()
+}
+
+func (service *Service) existingFlowMattermostPostID(ctx context.Context, taskID string) string {
+	task, found, errorValue := service.readFlowTaskByID(ctx, taskID)
+	if errorValue != nil || !found {
+		return ""
+	}
+	return task.MattermostPostID
+}
+
 func (service *Service) writeFlowTask(ctx context.Context, task flowTask) error {
 	database, errorValue := service.openFlowDatabase(ctx)
 	if errorValue != nil {
@@ -658,8 +820,8 @@ func (service *Service) writeFlowTask(ctx context.Context, task flowTask) error 
 	}
 	_, errorValue = database.ExecContext(ctx, `
 INSERT INTO flow_tasks (
-	id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, start_date, end_date, flag, request_reason, decision_reason, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
 	week_code = excluded.week_code,
 	owner_id = excluded.owner_id,
@@ -677,6 +839,7 @@ ON CONFLICT(id) DO UPDATE SET
 	flag = excluded.flag,
 	request_reason = excluded.request_reason,
 	decision_reason = excluded.decision_reason,
+	mattermost_post_id = excluded.mattermost_post_id,
 	updated_at = excluded.updated_at`,
 		task.ID,
 		task.WeekCode,
@@ -695,9 +858,135 @@ ON CONFLICT(id) DO UPDATE SET
 		task.Flag,
 		task.RequestReason,
 		task.DecisionReason,
+		task.MattermostPostID,
 		time.Now().UTC().Format(time.RFC3339),
 	)
 	return errorValue
+}
+
+func (service *Service) updateFlowTaskMattermostPostID(ctx context.Context, taskID string, postID string) error {
+	database, errorValue := service.openFlowDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	_, errorValue = database.ExecContext(ctx, "UPDATE flow_tasks SET mattermost_post_id = ?, updated_at = ? WHERE id = ?", strings.TrimSpace(postID), time.Now().UTC().Format(time.RFC3339), taskID)
+	return errorValue
+}
+
+func (service *Service) syncFlowMattermostNotification(ctx context.Context, task flowTask) flowTask {
+	nextTask, errorValue := service.trySyncFlowMattermostNotification(ctx, task)
+	if errorValue != nil {
+		log.Printf("Flow Mattermost notification sync failed: %v", errorValue)
+		return task
+	}
+	return nextTask
+}
+
+func (service *Service) trySyncFlowMattermostNotification(ctx context.Context, task flowTask) (flowTask, error) {
+	if strings.TrimSpace(service.Configuration.MattermostAdminPasswordPath) == "" {
+		return task, nil
+	}
+	token, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		return task, errorValue
+	}
+	teamRecord, errorValue := service.ensureMattermostTeam(ctx, token)
+	if errorValue != nil {
+		return task, errorValue
+	}
+	channelID, errorValue := service.ensureMattermostFlowChannel(ctx, token, teamRecord.ID)
+	if errorValue != nil {
+		return task, errorValue
+	}
+	if !shouldNotifyFlowTask(task) {
+		return service.deleteFlowMattermostNotification(ctx, token, task)
+	}
+	return service.upsertFlowMattermostNotification(ctx, token, channelID, task)
+}
+
+func shouldNotifyFlowTask(task flowTask) bool {
+	switch strings.TrimSpace(task.Status) {
+	case "요청", "기각", "중단", "완료":
+		return true
+	default:
+		return false
+	}
+}
+
+func (service *Service) upsertFlowMattermostNotification(ctx context.Context, token string, channelID string, task flowTask) (flowTask, error) {
+	if strings.TrimSpace(task.MattermostPostID) == "" {
+		return service.createFlowMattermostNotification(ctx, token, channelID, task)
+	}
+	body := map[string]any{
+		"message": flowMattermostNotificationMessage(task),
+		"props":   flowMattermostNotificationProps(task),
+	}
+	if errorValue := service.mattermostRequest(ctx, http.MethodPut, "/api/v4/posts/"+url.PathEscape(task.MattermostPostID)+"/patch", token, body, nil); errorValue != nil {
+		return task, errorValue
+	}
+	return task, nil
+}
+
+func (service *Service) createFlowMattermostNotification(ctx context.Context, token string, channelID string, task flowTask) (flowTask, error) {
+	body := map[string]any{
+		"channel_id": channelID,
+		"message":    flowMattermostNotificationMessage(task),
+		"props":      flowMattermostNotificationProps(task),
+	}
+	var response struct {
+		ID string `json:"id"`
+	}
+	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", token, body, &response); errorValue != nil {
+		return task, errorValue
+	}
+	task.MattermostPostID = strings.TrimSpace(response.ID)
+	if task.MattermostPostID == "" {
+		return task, nil
+	}
+	return task, service.updateFlowTaskMattermostPostID(ctx, task.ID, task.MattermostPostID)
+}
+
+func (service *Service) deleteFlowMattermostNotification(ctx context.Context, token string, task flowTask) (flowTask, error) {
+	if strings.TrimSpace(task.MattermostPostID) == "" {
+		return task, nil
+	}
+	if errorValue := service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/posts/"+url.PathEscape(task.MattermostPostID), token, nil, nil); errorValue != nil {
+		return task, errorValue
+	}
+	task.MattermostPostID = ""
+	return task, service.updateFlowTaskMattermostPostID(ctx, task.ID, "")
+}
+
+func flowMattermostNotificationMessage(task flowTask) string {
+	lines := []string{fmt.Sprintf("**%s · %s · %s**", task.Status, task.OwnerName, task.Content)}
+	if task.Type != "" || task.Size != "" {
+		lines = append(lines, "유형/크기: "+strings.TrimSpace(task.Type+" "+task.Size))
+	}
+	if len(task.ParticipantNames) > 0 {
+		lines = append(lines, "참여자: "+strings.Join(task.ParticipantNames, ", "))
+	}
+	if reason := firstNonEmpty(task.RequestReason, task.DecisionReason); strings.TrimSpace(reason) != "" {
+		lines = append(lines, "사유: "+strings.TrimSpace(reason))
+	}
+	lines = append(lines, mattermostFlowURL(task))
+	return strings.Join(lines, "\n")
+}
+
+func flowMattermostNotificationProps(task flowTask) map[string]any {
+	return map[string]any{
+		"internkim_flow_task":      true,
+		"internkim_flow_task_id":   task.ID,
+		"internkim_flow_week_code": task.WeekCode,
+	}
+}
+
+func mattermostFlowURL(task flowTask) string {
+	weekCode := strings.TrimSpace(task.WeekCode)
+	if weekCode == "" {
+		return "[Flow 열기](/flow/)"
+	}
+	return "[Flow 열기](/flow/?week=" + url.QueryEscape(weekCode) + ")"
 }
 
 func (service *Service) readFlowDefinitions(ctx context.Context) (flowDefinitions, error) {
@@ -848,7 +1137,10 @@ func flowOwnerFromQuickRequest(payload flowQuickTaskRequest, members []flowMembe
 	return flowMember{}, flowValidationError("ownerID is not a known member")
 }
 
-func flowRequesterEmail(request *http.Request, payload flowQuickTaskRequest) string {
+func (service *Service) flowRequesterEmail(request *http.Request, payload flowQuickTaskRequest) string {
+	if actorEmail := service.flowActorEmail(request); actorEmail != "" {
+		return actorEmail
+	}
 	if isLocalRequest(request) && strings.TrimSpace(payload.RequesterEmail) != "" {
 		return strings.ToLower(strings.TrimSpace(payload.RequesterEmail))
 	}
@@ -1098,6 +1390,7 @@ func scanFlowTask(rows *sql.Rows) (flowTask, error) {
 		&task.Flag,
 		&task.RequestReason,
 		&task.DecisionReason,
+		&task.MattermostPostID,
 	)
 	if errorValue != nil {
 		return flowTask{}, errorValue

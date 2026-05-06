@@ -54,6 +54,17 @@ type mattermostChannelMemberRecord struct {
 	UserID string `json:"user_id"`
 }
 
+type mattermostPostRecord struct {
+	ID      string         `json:"id"`
+	Message string         `json:"message"`
+	Props   map[string]any `json:"props"`
+}
+
+type mattermostPostsResponse struct {
+	Order []string                        `json:"order"`
+	Posts map[string]mattermostPostRecord `json:"posts"`
+}
+
 type mattermostProvisionResult struct {
 	UserID            string
 	Username          string
@@ -71,6 +82,10 @@ type mattermostPreferenceRecord struct {
 const mattermostProvisionerUsername = "admin"
 const mattermostProvisionerEmail = "admin@localhost"
 const firstAdminMattermostPassword = "admin"
+const mattermostFlowChannelName = "flow"
+const mattermostFlowChannelDisplayName = "Flow"
+const mattermostFlowChannelLink = "[Flow 열기](/flow/)"
+const mattermostFlowEntryPostMessage = "Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다. [Flow 열기](/flow/)"
 
 func (service *Service) provisionMattermostUser(ctx context.Context, email string, role string) (mattermostProvisionResult, error) {
 	return service.provisionMattermostUserWithPassword(ctx, adminUserMutation{Email: email, Role: role}, "")
@@ -422,18 +437,32 @@ func (service *Service) ensureMattermostMembership(ctx context.Context, token st
 		return errorValue
 	}
 
-	channelID, errorValue := service.ensureMattermostTownSquareChannel(ctx, token, teamRecord.ID)
+	channelIDs, errorValue := service.ensureMattermostDefaultChannelIDs(ctx, token, teamRecord.ID)
 	if errorValue != nil {
 		return errorValue
 	}
-	if channelID == "" {
-		return nil
-	}
 	channelMember := map[string]string{"user_id": userID}
-	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/channels/"+url.PathEscape(channelID)+"/members", token, channelMember, nil); errorValue != nil && !isMattermostBadRequest(errorValue) {
-		return errorValue
+	for _, channelID := range channelIDs {
+		if channelID == "" {
+			continue
+		}
+		if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/channels/"+url.PathEscape(channelID)+"/members", token, channelMember, nil); errorValue != nil && !isMattermostBadRequest(errorValue) {
+			return errorValue
+		}
 	}
 	return nil
+}
+
+func (service *Service) ensureMattermostDefaultChannelIDs(ctx context.Context, token string, teamID string) ([]string, error) {
+	townSquareChannelID, errorValue := service.ensureMattermostTownSquareChannel(ctx, token, teamID)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	flowChannelID, errorValue := service.ensureMattermostFlowChannel(ctx, token, teamID)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return uniqueNonEmpty([]string{townSquareChannelID, flowChannelID}), nil
 }
 
 func (service *Service) ensureMattermostCircleChannels(ctx context.Context, token string) error {
@@ -468,6 +497,89 @@ func (service *Service) ensureMattermostPrivateChannel(ctx context.Context, toke
 		return "", errorValue
 	}
 	return channelRecord.ID, nil
+}
+
+func (service *Service) ensureMattermostFlowChannel(ctx context.Context, token string, teamID string) (string, error) {
+	channelID, errorValue := service.ensureMattermostPublicChannel(ctx, token, teamID, mattermostFlowChannelName, mattermostFlowChannelDisplayName)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	if errorValue := service.updateMattermostFlowChannelText(ctx, token, channelID); errorValue != nil {
+		return "", errorValue
+	}
+	if errorValue := service.ensureMattermostFlowEntryPost(ctx, token, channelID); errorValue != nil {
+		return "", errorValue
+	}
+	return channelID, nil
+}
+
+func (service *Service) ensureMattermostPublicChannel(ctx context.Context, token string, teamID string, channelName string, displayName string) (string, error) {
+	channelID, errorValue := service.mattermostChannelIDByName(ctx, token, teamID, channelName)
+	if errorValue == nil || channelID != "" {
+		return channelID, errorValue
+	}
+	if !isMattermostNotFound(errorValue) {
+		return "", errorValue
+	}
+	body := map[string]string{
+		"team_id":      teamID,
+		"name":         channelName,
+		"display_name": displayName,
+		"type":         "O",
+	}
+	var channelRecord mattermostChannelRecord
+	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/channels", token, body, &channelRecord); errorValue != nil {
+		return "", errorValue
+	}
+	return channelRecord.ID, nil
+}
+
+func (service *Service) updateMattermostFlowChannelText(ctx context.Context, token string, channelID string) error {
+	body := map[string]string{
+		"display_name": mattermostFlowChannelDisplayName,
+		"header":       mattermostFlowChannelLink,
+		"purpose":      mattermostFlowChannelLink,
+	}
+	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/patch", token, body, nil)
+}
+
+func (service *Service) ensureMattermostFlowEntryPost(ctx context.Context, token string, channelID string) error {
+	if service.hasMattermostFlowEntryPost(ctx, token, channelID) {
+		return nil
+	}
+	body := map[string]any{
+		"channel_id": channelID,
+		"message":    mattermostFlowEntryPostMessage,
+		"props":      map[string]any{"internkim_flow_entry": true},
+	}
+	return service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", token, body, nil)
+}
+
+func (service *Service) hasMattermostFlowEntryPost(ctx context.Context, token string, channelID string) bool {
+	var response mattermostPostsResponse
+	path := "/api/v4/channels/" + url.PathEscape(channelID) + "/posts?per_page=50"
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, token, nil, &response); errorValue != nil {
+		return false
+	}
+	for _, postID := range response.Order {
+		if isMattermostFlowEntryPost(response.Posts[postID]) {
+			return true
+		}
+	}
+	for _, post := range response.Posts {
+		if isMattermostFlowEntryPost(post) {
+			return true
+		}
+	}
+	return false
+}
+
+func isMattermostFlowEntryPost(post mattermostPostRecord) bool {
+	if post.Props == nil {
+		return false
+	}
+	value, found := post.Props["internkim_flow_entry"]
+	return found && value == true
 }
 
 func (service *Service) syncMattermostCircleMemberships(ctx context.Context, token string) error {

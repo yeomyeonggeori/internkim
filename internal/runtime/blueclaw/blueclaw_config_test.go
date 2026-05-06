@@ -195,6 +195,18 @@ func TestBlueclawPolicyDocumentSeedsResourceFirstCircles(t *testing.T) {
 	if !containsPolicyResource(resourceAccess, "file:circle:c-level", "c-level") {
 		t.Fatalf("expected c-level file resource rule, got %+v", resourceAccess)
 	}
+	if !containsPolicyResource(resourceAccess, "api:flow.summary", "staff") {
+		t.Fatalf("expected staff Flow summary API rule, got %+v", resourceAccess)
+	}
+	if !containsPolicyResource(resourceAccess, "api:flow.task", "staff") {
+		t.Fatalf("expected staff Flow task API rule, got %+v", resourceAccess)
+	}
+	if !containsPolicyResource(resourceAccess, "api:flow.definition", "admin") {
+		t.Fatalf("expected admin Flow definition API rule, got %+v", resourceAccess)
+	}
+	if !containsPolicyResource(resourceAccess, "tool:flow.task.add", "staff") {
+		t.Fatalf("expected staff Flow tool rule, got %+v", resourceAccess)
+	}
 	if !containsPolicyResource(resourceAccess, "tool:company.broadcast.send", "representative") {
 		t.Fatalf("expected representative broadcast tool rule, got %+v", resourceAccess)
 	}

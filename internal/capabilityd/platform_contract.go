@@ -17,11 +17,14 @@ type platformInboundEvent struct {
 }
 
 type platformEventContext struct {
-	Messages      []platformContextMessage `json:"messages"`
-	HasMoreBefore bool                     `json:"hasMoreBefore"`
-	HistoryCursor string                   `json:"historyCursor,omitempty"`
-	Sender        platformContextSender    `json:"sender,omitempty"`
-	ReceivedAt    string                   `json:"receivedAt,omitempty"`
+	Messages         []platformContextMessage `json:"messages"`
+	HasMoreBefore    bool                     `json:"hasMoreBefore"`
+	HistoryCursor    string                   `json:"historyCursor,omitempty"`
+	Sender           platformContextSender    `json:"sender,omitempty"`
+	ReceivedAt       string                   `json:"receivedAt,omitempty"`
+	ConversationType string                   `json:"conversationType,omitempty"`
+	ChannelID        string                   `json:"channelID,omitempty"`
+	ChannelName      string                   `json:"channelName,omitempty"`
 }
 
 type platformContextSender struct {
