@@ -205,7 +205,7 @@ make build-companion-shell
 ./internkim-companion status
 ```
 
-Primary flow는 InternKim Mattermost DM의 `/internkim connect` 또는 `connect`입니다. 일반 사용자는 Admin 권한 없이 자기 Mattermost identity에 묶인 10분짜리 one-time pairing code를 받고 Companion 앱을 연결합니다. Pages 관리자 화면은 다운로드, 상태 확인, revoke, 진단용으로 남깁니다. 연결된 companion은 inbound port를 열지 않고 device broker를 long-poll합니다.
+Primary flow는 Mattermost 어디서나 실행할 수 있는 `/connect`입니다. 일반 사용자는 Admin 권한 없이 자기 Mattermost identity에 묶인 10분짜리 one-time pairing code를 ephemeral 응답으로 받고 Companion 앱을 연결합니다. slash command가 아직 provision되지 않은 환경에서는 InternKim DM의 `connect` 또는 `컴패니언 연결` 텍스트 fallback도 동작합니다. Pages 관리자 화면은 다운로드, 상태 확인, revoke, 진단용으로 남깁니다. 연결된 companion은 inbound port를 열지 않고 device broker를 long-poll합니다.
 
 관리자 화면은 `https://<deviceID>.example.test/admin`에서 엽니다. 이 주소는 Cloudflare Access 인증 뒤 기기 안의 관리자 UI를 same-origin으로 서빙하므로 초대, Companion 연결, 백업/복구가 브라우저에서 바로 동작합니다. `https://api.example.test/?device_id=<deviceID>`는 배포/진입용 Pages 주소이며, 실제 작업은 기기 주소의 `/admin`으로 이동합니다.
 

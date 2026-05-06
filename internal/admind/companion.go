@@ -327,6 +327,10 @@ func (service *Service) createLocalCompanionPairingCode(responseWriter http.Resp
 }
 
 func (service *Service) writeCompanionPairingCode(responseWriter http.ResponseWriter, request *http.Request, owner companionPairingCodeRequest) {
+	service.writeJSON(responseWriter, service.createCompanionPairingCodeForOwner(request, owner))
+}
+
+func (service *Service) createCompanionPairingCodeForOwner(request *http.Request, owner companionPairingCodeRequest) companionPairingCodeResponse {
 	code := randomPairingCode()
 	now := time.Now().UTC()
 	pairingCode := &CompanionPairingCode{
@@ -343,11 +347,11 @@ func (service *Service) writeCompanionPairingCode(responseWriter http.ResponseWr
 	service.pairingCodes[code] = pairingCode
 	service.mutex.Unlock()
 
-	service.writeJSON(responseWriter, companionPairingCodeResponse{
+	return companionPairingCodeResponse{
 		Code:      code,
 		ExpiresAt: pairingCode.ExpiresAt,
 		DeepLink:  companionDeepLinkForDeviceURL(request, code, owner.DeviceURL),
-	})
+	}
 }
 
 func (service *Service) writeCompanionStatus(responseWriter http.ResponseWriter, request *http.Request) {

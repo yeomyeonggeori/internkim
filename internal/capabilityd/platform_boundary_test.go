@@ -137,6 +137,18 @@ func TestMattermostCompanionConnectCreatesOwnerPairingAndRepliesInDM(t *testing.
 	}
 }
 
+func TestMattermostCompanionConnectRecognizesSlashConnect(t *testing.T) {
+	event := platformInboundEvent{
+		Prompt: "/connect",
+		Context: platformEventContext{
+			ConversationType: "O",
+		},
+	}
+	if !isMattermostCompanionConnectCommand(event) {
+		t.Fatal("expected /connect to be recognized")
+	}
+}
+
 func TestMattermostDirectMessageDoesNotUseThreadRoot(t *testing.T) {
 	event, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
 		ID:        "post-1",
