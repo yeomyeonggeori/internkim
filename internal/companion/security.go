@@ -26,6 +26,7 @@ type ApprovalRequest struct {
 	ToolName        string                     `json:"toolName"`
 	CapabilityScope string                     `json:"capabilityScope"`
 	ResourceScope   capabilities.ResourceScope `json:"resourceScope"`
+	TimeoutSeconds  int                        `json:"timeoutSeconds,omitempty"`
 }
 
 type ApprovalDecision struct {
@@ -106,6 +107,7 @@ func (store *MemoryGrantStore) Authorize(ctx context.Context, envelope JobEnvelo
 		ToolName:        firstNonEmpty(envelope.ToolName, request.ToolName),
 		CapabilityScope: capabilityScope,
 		ResourceScope:   resourceScope,
+		TimeoutSeconds:  approvalTimeoutSeconds(ctx),
 	})
 	if errorValue != nil {
 		return errorValue
@@ -118,6 +120,18 @@ func (store *MemoryGrantStore) Authorize(ctx context.Context, envelope JobEnvelo
 	}
 	store.addGrant(envelope, capabilityScope, resourceScope)
 	return nil
+}
+
+func approvalTimeoutSeconds(ctx context.Context) int {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return 0
+	}
+	remaining := time.Until(deadline)
+	if remaining <= 0 {
+		return 1
+	}
+	return int((remaining + time.Second - time.Nanosecond) / time.Second)
 }
 
 func (store *MemoryGrantStore) ListActive() []GrantSnapshot {

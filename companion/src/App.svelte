@@ -26,6 +26,7 @@
 	let settingsMessage = $state('');
 	let isSavingSettings = $state(false);
 	let settingsApplyTimeoutID = $state<number | undefined>();
+	let promptTimeoutID = $state<number | undefined>();
 	let remoteModel = $state('');
 	let appliedRemoteModel = $state('');
 	let remoteModelMessage = $state('');
@@ -226,10 +227,7 @@
 			});
 			await listen<unknown>('prompt-request', async (event) => {
 				try {
-					pendingPrompt = normalizePromptRequest(event.payload);
-					promptInput = '';
-					denialReason = '';
-					promptResult = { status: 'pending' };
+					showPrompt(normalizePromptRequest(event.payload));
 					await invoke('show_main_window');
 				} catch (errorValue) {
 					message = errorValue instanceof Error ? errorValue.message : 'Prompt request failed';
@@ -238,6 +236,26 @@
 		} catch {
 			message = 'Companion shell events are unavailable.';
 		}
+	}
+
+	function showPrompt(prompt: PromptRequest) {
+		clearPromptTimeout();
+		pendingPrompt = prompt;
+		promptInput = '';
+		denialReason = '';
+		promptResult = { status: 'pending' };
+		if (!prompt.timeoutSeconds) return;
+		promptTimeoutID = window.setTimeout(() => {
+			if (pendingPrompt?.requestID !== prompt.requestID) return;
+			pendingPrompt = undefined;
+			promptResult = { status: 'failed', message: 'Request expired.' };
+		}, prompt.timeoutSeconds * 1000);
+	}
+
+	function clearPromptTimeout() {
+		if (promptTimeoutID === undefined) return;
+		window.clearTimeout(promptTimeoutID);
+		promptTimeoutID = undefined;
 	}
 
 	async function pairFromLink(pairingLink: string) {
@@ -345,6 +363,7 @@
 	async function completePrompt(response: unknown) {
 		if (!pendingPrompt) return;
 		const requestID = pendingPrompt.requestID;
+		clearPromptTimeout();
 		try {
 			await invoke('complete_prompt_request', { requestId: requestID, response });
 			pendingPrompt = undefined;
@@ -352,6 +371,9 @@
 			denialReason = '';
 			promptResult = { status: 'completed', message: 'Response sent.' };
 		} catch (errorValue) {
+			pendingPrompt = undefined;
+			promptInput = '';
+			denialReason = '';
 			promptResult = { status: 'failed', message: errorValue instanceof Error ? errorValue.message : 'Response failed' };
 		}
 	}

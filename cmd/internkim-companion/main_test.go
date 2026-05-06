@@ -530,6 +530,60 @@ func TestRunOnceDeniesBrowserJobWithReason(t *testing.T) {
 	}
 }
 
+func TestRunOnceCancelsApprovalAtJobExpiry(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	state, secureStore := testCompanionState(t, true, false)
+	if errorValue := saveState(statePath, state); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	seenFail := false
+	seenApprovalTimeout := false
+	expiresAt := time.Now().UTC().Add(1200 * time.Millisecond).Format(time.RFC3339Nano)
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/v1/security/approval":
+			var payload companionruntime.ApprovalRequest
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatalf("expected approval request: %v", errorValue)
+			}
+			if payload.TimeoutSeconds < 1 || payload.TimeoutSeconds > 2 {
+				t.Fatalf("expected job-scoped approval timeout, got %+v", payload)
+			}
+			select {
+			case <-request.Context().Done():
+				seenApprovalTimeout = true
+				return nil, request.Context().Err()
+			case <-time.After(3 * time.Second):
+				t.Fatal("approval request was not canceled by job expiry")
+				return nil, nil
+			}
+		case "/_internkim/companion/heartbeat":
+			return textResponse(http.StatusOK, `{}`), nil
+		case "/_internkim/companion/jobs/next":
+			return textResponse(http.StatusOK, `{"jobID":"job-1","status":"running","toolName":"browser.open","resourceScope":{"kind":"web_origin","value":"https://github.com"},"expiresAt":"`+expiresAt+`","request":{"toolName":"browser.open","input":{"url":"https://github.com"},"resourceScope":{"kind":"web_origin","value":"https://github.com"}}}`), nil
+		case "/_internkim/companion/jobs/job-1/fail":
+			seenFail = true
+			return textResponse(http.StatusOK, `{}`), nil
+		default:
+			t.Fatalf("unexpected run path: %s", request.URL.Path)
+			return nil, nil
+		}
+	})}
+
+	startedAt := time.Now()
+	errorValue := runCompanionWithStore([]string{"--state", statePath, "--once", "--shell-bridge-url", "http://127.0.0.1:1234"}, httpClient, secureStore)
+
+	if errorValue == nil {
+		t.Fatal("expected approval cancellation error")
+	}
+	if time.Since(startedAt) > 2500*time.Millisecond {
+		t.Fatalf("expected run loop to unblock near job expiry, took %s", time.Since(startedAt))
+	}
+	if !seenApprovalTimeout || !seenFail {
+		t.Fatalf("expected approval timeout and failed job, seenApprovalTimeout=%v seenFail=%v", seenApprovalTimeout, seenFail)
+	}
+}
+
 func TestLegacyPrivateKeyStateMigratesToSecureStore(t *testing.T) {
 	statePath := filepath.Join(t.TempDir(), "state.json")
 	keyPair, errorValue := companionruntime.GenerateKeyPair()

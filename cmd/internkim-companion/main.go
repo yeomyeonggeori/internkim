@@ -110,6 +110,7 @@ type companionJob struct {
 	ToolName      string                         `json:"toolName"`
 	PrivacyClass  string                         `json:"privacyClass"`
 	ResourceScope capabilities.ResourceScope     `json:"resourceScope"`
+	ExpiresAt     time.Time                      `json:"expiresAt"`
 	Depth         int                            `json:"depth"`
 	Request       capabilities.ToolInvokeRequest `json:"request"`
 }
@@ -397,7 +398,8 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 			}
 			continue
 		}
-		response, executionError := executor.ExecuteJob(context.Background(), companionruntime.JobEnvelope{
+		jobContext, cancelJobContext := contextForCompanionJob(job)
+		response, executionError := executor.ExecuteJob(jobContext, companionruntime.JobEnvelope{
 			JobID:         job.JobID,
 			ParentJobID:   job.ParentJobID,
 			GrantID:       job.GrantID,
@@ -406,6 +408,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 			ResourceScope: job.ResourceScope,
 			Depth:         job.Depth,
 		}, job.Request)
+		cancelJobContext()
 		if executionError != nil {
 			var denialError companionruntime.DenialError
 			if errors.As(executionError, &denialError) {
@@ -420,6 +423,17 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 			return executionError
 		}
 	}
+}
+
+func contextForCompanionJob(job *companionJob) (context.Context, context.CancelFunc) {
+	if job == nil || job.ExpiresAt.IsZero() {
+		return context.WithCancel(context.Background())
+	}
+	deadline := job.ExpiresAt.Add(-250 * time.Millisecond)
+	if time.Until(deadline) <= 0 {
+		deadline = time.Now().Add(250 * time.Millisecond)
+	}
+	return context.WithDeadline(context.Background(), deadline)
 }
 
 func runHeartbeatLoop(ctx context.Context, httpClient *http.Client, state companionState, privateKey string, runtimeStatus *runtimeState, mountStore *companionruntime.MountStore, preferCompanionBrowser bool) {
