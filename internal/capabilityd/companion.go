@@ -64,14 +64,14 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 		if errorValue == nil {
 			return response, nil
 		}
-		if isCompanionRequiredBrowserTool(request.ToolName) {
+		if isCompanionRequiredBrowserRequest(request) {
 			return companionRequiredBrowserResponse(request.ToolName, companionRequiredBrowserCode(request.ToolName), companionRequiredBrowserConstraint(request.ToolName)), nil
 		}
 		if request.RequiresUserPresence || isCompanionOnlyExecutionMode(request.ExecutionMode) || !isDeviceBrowserTool(request.ToolName) {
 			return capabilities.ToolInvokeResponse{}, errorValue
 		}
 	}
-	if isCompanionRequiredBrowserTool(request.ToolName) {
+	if isCompanionRequiredBrowserRequest(request) {
 		return companionRequiredBrowserResponse(request.ToolName, companionRequiredBrowserCode(request.ToolName), companionRequiredBrowserConstraint(request.ToolName)), nil
 	}
 	if isDeviceBrowserTool(request.ToolName) {
@@ -152,6 +152,16 @@ func isCompanionRequiredBrowserTool(toolName string) bool {
 	}
 }
 
+func isCompanionRequiredBrowserRequest(request capabilities.ToolInvokeRequest) bool {
+	if isCompanionRequiredBrowserTool(request.ToolName) {
+		return true
+	}
+	if !isDeviceBrowserTool(request.ToolName) {
+		return false
+	}
+	return request.RequiresUserPresence || isCompanionOnlyExecutionMode(request.ExecutionMode)
+}
+
 func companionRequiredBrowserCode(toolName string) string {
 	switch strings.TrimSpace(toolName) {
 	case "browser.screenshot":
@@ -166,27 +176,40 @@ func companionRequiredBrowserCode(toolName string) string {
 func companionRequiredBrowserConstraint(toolName string) string {
 	switch strings.TrimSpace(toolName) {
 	case "browser.screenshot":
-		return "Connect the speaker's Companion app to capture browser screenshots."
+		return "Do not claim the screenshot was captured. Ask the user to run /connect before retrying."
 	case "browser.handoff":
-		return "Connect the speaker's Companion app before asking the user to complete browser work."
+		return "Do not claim the browser opened. Ask the user to run /connect before retrying."
 	default:
-		return "Connect the speaker's Companion app for this browser task."
+		return "Do not claim the browser task succeeded. Ask the user to run /connect before retrying."
 	}
 }
 
-func companionRequiredBrowserResponse(toolName string, code string, constraint string) capabilities.ToolInvokeResponse {
+func companionRequiredBrowserUserReason(toolName string) string {
+	switch strings.TrimSpace(toolName) {
+	case "browser.screenshot":
+		return "Companion is not connected, so the screenshot was not captured. Ask the user to run /connect before retrying."
+	case "browser.handoff", "browser.open":
+		return "Companion is not connected, so the browser was not opened. Ask the user to run /connect before retrying."
+	default:
+		return "Companion is not connected, so the browser task did not run. Ask the user to run /connect before retrying."
+	}
+}
+
+func companionRequiredBrowserResponse(toolName string, code string, suggestedConstraint string) capabilities.ToolInvokeResponse {
+	userReason := companionRequiredBrowserUserReason(toolName)
 	result, _ := json.Marshal(capabilities.DenialResult{
 		Status:              "denied",
 		Code:                code,
 		ToolName:            toolName,
-		SuggestedConstraint: constraint,
+		UserReason:          userReason,
+		SuggestedConstraint: suggestedConstraint,
 	})
 	return capabilities.ToolInvokeResponse{
 		Provider:        "device",
 		SelectedBackend: capabilities.LLMBackendDevice,
 		ToolName:        toolName,
 		Status:          "denied",
-		Content:         constraint,
+		Content:         userReason,
 		IsError:         true,
 		Result:          result,
 	}

@@ -207,7 +207,8 @@ export async function updateRemoteModel(modelName: string): Promise<string> {
 
 function normalizeCompanionSidecarError(message: string): string {
 	if (message.includes('companion auth required')) return stalePairingMessage;
-	if (message.includes('Pairing expired. Connect again from Admin.')) return message.trim();
+	if (message.includes('Pairing expired. Connect again from Admin.')) return stalePairingMessage;
+	if (message.includes('Pairing expired. Run /connect to connect again.')) return message.trim();
 	return message;
 }
 

@@ -247,17 +247,44 @@ func TestUserPresenceBrowserToolDoesNotFallbackToDeviceWhenCompanionUnavailable(
 		},
 	}
 
-	_, errorValue := service.invokeCapabilityTool(context.Background(), "browser.open", strings.NewReader(`{
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.open", strings.NewReader(`{
 		"requiresUserPresence":true,
 		"executionMode":"companion",
 		"input":{"url":"https://console.cloud.google.com/apis/credentials"}
 	}`))
 
-	if errorValue == nil {
-		t.Fatal("expected companion browser failure")
+	if errorValue != nil {
+		t.Fatalf("expected structured companion-required denial: %v", errorValue)
+	}
+	if !response.IsError || response.Status != "denied" || !strings.Contains(response.Content, "browser was not opened") || !strings.Contains(response.Content, "/connect") {
+		t.Fatalf("expected /connect denial, got %+v", response)
 	}
 	if commandWasCalled {
 		t.Fatal("expected user-presence browser.open not to fallback to device browser")
+	}
+}
+
+func TestUserPresenceBrowserToolRequiresConnectWhenCompanionNotConfigured(t *testing.T) {
+	commandWasCalled := false
+	service := Service{RunCommand: func(_ context.Context, _ string, _ []string, _ []byte) ([]byte, error) {
+		commandWasCalled = true
+		return nil, nil
+	}}
+
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.open", strings.NewReader(`{
+		"requiresUserPresence":true,
+		"executionMode":"companion",
+		"input":{"url":"https://console.cloud.google.com/apis/credentials"}
+	}`))
+
+	if errorValue != nil {
+		t.Fatalf("expected structured companion-required denial: %v", errorValue)
+	}
+	if !response.IsError || response.Status != "denied" || !strings.Contains(response.Content, "browser was not opened") {
+		t.Fatalf("expected no-success denial, got %+v", response)
+	}
+	if commandWasCalled {
+		t.Fatal("expected companion-only browser.open not to fallback to device browser")
 	}
 }
 
