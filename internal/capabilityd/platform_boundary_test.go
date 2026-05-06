@@ -40,6 +40,9 @@ func TestMattermostNormalizeSkipsSelfAndBuildsMinimalThreadEvent(t *testing.T) {
 	if event.Context.HistoryCursor == "" {
 		t.Fatal("expected history cursor")
 	}
+	if event.Context.ConversationType != "O" || event.Context.ChannelID != "channel-1" || event.Context.ChannelName != "town-square" {
+		t.Fatalf("expected channel metadata in context, got %+v", event.Context)
+	}
 
 	replyHandle, errorValue := decodePlatformHandle(event.ReplyTargetID)
 	if errorValue != nil {
@@ -78,6 +81,9 @@ func TestMattermostDirectMessageDoesNotUseThreadRoot(t *testing.T) {
 	}
 	if event.ConversationID != "dm:dm-1" {
 		t.Fatalf("expected dm conversation, got %q", event.ConversationID)
+	}
+	if event.Context.ConversationType != "D" || event.Context.ChannelID != "dm-1" {
+		t.Fatalf("expected direct message metadata in context, got %+v", event.Context)
 	}
 	replyHandle, errorValue := decodePlatformHandle(event.ReplyTargetID)
 	if errorValue != nil {

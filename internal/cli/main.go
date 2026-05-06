@@ -1317,6 +1317,67 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 			})
 			mmAPI("POST", "/api/v4/channels", channelBody, adminToken)
 		}
+		flowChannelID := ""
+		code, responseBody := mmAPI("GET", "/api/v4/teams/"+teamResult.ID+"/channels/name/flow", nil, adminToken)
+		if code >= 200 && code < 300 {
+			var flowChannelResult struct {
+				ID string `json:"id"`
+			}
+			json.Unmarshal(responseBody, &flowChannelResult)
+			flowChannelID = flowChannelResult.ID
+		}
+		if flowChannelID == "" {
+			channelBody, _ := json.Marshal(map[string]string{
+				"team_id":      teamResult.ID,
+				"name":         "flow",
+				"display_name": "Flow",
+				"type":         "O",
+				"header":       "[Flow 열기](/flow/)",
+				"purpose":      "[Flow 열기](/flow/)",
+			})
+			createCode, createResponseBody := mmAPI("POST", "/api/v4/channels", channelBody, adminToken)
+			if createCode >= 200 && createCode < 300 {
+				var flowChannelResult struct {
+					ID string `json:"id"`
+				}
+				json.Unmarshal(createResponseBody, &flowChannelResult)
+				flowChannelID = flowChannelResult.ID
+			}
+		}
+		if flowChannelID != "" {
+			patchBody, _ := json.Marshal(map[string]string{
+				"display_name": "Flow",
+				"header":       "[Flow 열기](/flow/)",
+				"purpose":      "[Flow 열기](/flow/)",
+			})
+			mmAPI("PUT", "/api/v4/channels/"+flowChannelID+"/patch", patchBody, adminToken)
+			postsCode, postsResponseBody := mmAPI("GET", "/api/v4/channels/"+flowChannelID+"/posts?per_page=50", nil, adminToken)
+			hasFlowEntryPost := false
+			if postsCode >= 200 && postsCode < 300 {
+				var postsResponse struct {
+					Order []string `json:"order"`
+					Posts map[string]struct {
+						Props map[string]any `json:"props"`
+					} `json:"posts"`
+				}
+				if json.Unmarshal(postsResponseBody, &postsResponse) == nil {
+					for _, postID := range postsResponse.Order {
+						if postsResponse.Posts[postID].Props["internkim_flow_entry"] == true {
+							hasFlowEntryPost = true
+							break
+						}
+					}
+				}
+			}
+			if !hasFlowEntryPost {
+				postBody, _ := json.Marshal(map[string]any{
+					"channel_id": flowChannelID,
+					"message":    "Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다. [Flow 열기](/flow/)",
+					"props":      map[string]any{"internkim_flow_entry": true},
+				})
+				mmAPI("POST", "/api/v4/posts", postBody, adminToken)
+			}
+		}
 	}
 
 	// 8. Store credentials
