@@ -42,10 +42,14 @@ type Configuration struct {
 	AdminEmailPath              string
 	ClaimedAdminEmailPath       string
 	DeviceIDPath                string
+	DeviceURLPath               string
 	DeviceSecretPath            string
 	AdminUIPath                 string
 	RepositoryRoot              string
 	CompanionFileDirectory      string
+	SitesRoot                   string
+	SiteSecretDirectory         string
+	SiteSystemdDirectory        string
 	BotProfilePath              string
 	BlueclawWorkspacePath       string
 	BlueclawRuntimeConfigPath   string
@@ -64,6 +68,7 @@ type Service struct {
 	companionJobs        map[string]*CompanionJob
 	companionFileUploads map[string]*CompanionFileUpload
 	companionMounts      map[string]*CompanionMountRecord
+	sites                map[string]*SiteRecord
 }
 
 type Job struct {
@@ -184,10 +189,14 @@ func DefaultConfiguration() Configuration {
 		AdminEmailPath:              "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:       "/root/.internkim/state/admin/claimed-admin-email",
 		DeviceIDPath:                "/root/.internkim/env/device-id",
+		DeviceURLPath:               "/root/.internkim/env/device-url",
 		DeviceSecretPath:            "/root/.internkim/secrets/device-secret",
 		AdminUIPath:                 "/opt/internkim/admin-ui",
 		RepositoryRoot:              "/",
 		CompanionFileDirectory:      "/tmp/internkim-companion-files",
+		SitesRoot:                   "/root/.internkim/sites",
+		SiteSecretDirectory:         "/root/.internkim/secrets/sites",
+		SiteSystemdDirectory:        "/etc/systemd/system",
 		BotProfilePath:              "/root/.internkim/config/bot-profile.yaml",
 		BlueclawWorkspacePath:       "/root/.blueclaw/workspace",
 		BlueclawRuntimeConfigPath:   "/root/.blueclaw/config/runtime.json",
@@ -205,10 +214,12 @@ func NewService(configuration Configuration) *Service {
 		companionJobs:        map[string]*CompanionJob{},
 		companionFileUploads: map[string]*CompanionFileUpload{},
 		companionMounts:      map[string]*CompanionMountRecord{},
+		sites:                map[string]*SiteRecord{},
 	}
 	service.loadCompanions()
 	service.loadCompanionJobs()
 	service.loadCompanionMounts()
+	service.loadSites()
 	return service
 }
 
@@ -244,7 +255,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/_internkim/companion/", service.handleCompanion)
 	multiplexer.HandleFunc("/_internkim/mattermost/commands", service.handleMattermostCommand)
 	multiplexer.Handle("/", service.mattermostProxy())
-	return service.withCORS(multiplexer)
+	return service.withCORS(service.withSiteGateway(multiplexer))
 }
 
 func (service *Service) withCORS(next http.Handler) http.Handler {
@@ -336,6 +347,12 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeBotProfile(responseWriter, request)
 	case request.Method == http.MethodPut && path == "/bot-profile":
 		service.updateBotProfile(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/sites":
+		service.listSites(responseWriter)
+	case request.Method == http.MethodPost && path == "/sites":
+		service.createSite(responseWriter, request)
+	case strings.HasPrefix(path, "/sites/"):
+		service.handleSite(responseWriter, request, strings.TrimPrefix(path, "/sites/"))
 	case request.Method == http.MethodPost && path == "/backups":
 		service.createBackup(responseWriter, request)
 	case request.Method == http.MethodGet && strings.HasPrefix(path, "/backups/") && strings.HasSuffix(path, "/status"):
@@ -1709,6 +1726,9 @@ func (configuration Configuration) withDefaults() Configuration {
 	if configuration.DeviceIDPath == "" {
 		configuration.DeviceIDPath = defaultConfiguration.DeviceIDPath
 	}
+	if configuration.DeviceURLPath == "" {
+		configuration.DeviceURLPath = defaultConfiguration.DeviceURLPath
+	}
 	if configuration.DeviceSecretPath == "" {
 		configuration.DeviceSecretPath = defaultConfiguration.DeviceSecretPath
 	}
@@ -1720,6 +1740,15 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.CompanionFileDirectory == "" {
 		configuration.CompanionFileDirectory = defaultConfiguration.CompanionFileDirectory
+	}
+	if configuration.SitesRoot == "" {
+		configuration.SitesRoot = defaultConfiguration.SitesRoot
+	}
+	if configuration.SiteSecretDirectory == "" {
+		configuration.SiteSecretDirectory = defaultConfiguration.SiteSecretDirectory
+	}
+	if configuration.SiteSystemdDirectory == "" {
+		configuration.SiteSystemdDirectory = defaultConfiguration.SiteSystemdDirectory
 	}
 	if configuration.BotProfilePath == "" {
 		if configuration.CompanionJobPath == defaultConfiguration.CompanionJobPath {
@@ -1740,6 +1769,7 @@ func backupIncludedPaths() []string {
 		"/root/.internkim/config",
 		"/root/.internkim/secrets",
 		"/root/.internkim/state",
+		"/root/.internkim/sites",
 		"/root/.blueclaw/config",
 		"/root/.blueclaw/workspace",
 		"/var/lib/blueclaw/workspace.ext4",

@@ -194,6 +194,14 @@ func defaultResourceAccessPolicies() []map[string]any {
 		{"resource": "api:flow.task", "actions": []string{"create", "update"}, "circles": []string{"staff"}},
 		{"resource": "api:flow.definition", "actions": []string{"manage"}, "circles": []string{"admin"}},
 		{"resource": "tool:flow.task.add", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:site.app.create", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:site.app.publish", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:site.app.status", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:site.app.logs", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:site.app.restore", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:site.app.rollback", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:site.app.unpublish", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:site.app.delete", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:company.broadcast.send", "actions": []string{"execute"}, "circles": []string{"representative"}},
 	}
 }

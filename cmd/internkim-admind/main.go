@@ -17,8 +17,12 @@ func main() {
 	flag.StringVar(&configuration.AdminEmailPath, "admin-email-path", configuration.AdminEmailPath, "initial admin email file")
 	flag.StringVar(&configuration.ClaimedAdminEmailPath, "claimed-admin-email-path", configuration.ClaimedAdminEmailPath, "claimed admin email file")
 	flag.StringVar(&configuration.DeviceIDPath, "device-id-path", configuration.DeviceIDPath, "device ID file")
+	flag.StringVar(&configuration.DeviceURLPath, "device-url-path", configuration.DeviceURLPath, "device public URL file")
 	flag.StringVar(&configuration.DeviceSecretPath, "device-secret-path", configuration.DeviceSecretPath, "device secret file")
 	flag.StringVar(&configuration.AdminUIPath, "admin-ui-path", configuration.AdminUIPath, "admin UI static directory")
+	flag.StringVar(&configuration.SitesRoot, "sites-root", configuration.SitesRoot, "dynamic sites root directory")
+	flag.StringVar(&configuration.SiteSecretDirectory, "site-secret-dir", configuration.SiteSecretDirectory, "dynamic site secret directory")
+	flag.StringVar(&configuration.SiteSystemdDirectory, "site-systemd-dir", configuration.SiteSystemdDirectory, "dynamic site systemd directory")
 	flag.Parse()
 
 	if errorValue := admind.Run(configuration); errorValue != nil {

@@ -19,12 +19,30 @@ func TestUsersSyncDependencyInstallScriptInstallsJQ(t *testing.T) {
 	}
 }
 
+func TestDeviceToolPackagesIncludeSitePublishingBasics(t *testing.T) {
+	packages := strings.Join(baseDeviceToolPackages(), " ")
+	for _, packageName := range []string{"git", "curl", "unzip", "ca-certificates"} {
+		if !strings.Contains(packages, packageName) {
+			t.Fatalf("expected base device tools to include %q, got %s", packageName, packages)
+		}
+	}
+}
+
 func TestRequiredBinaryAssetsIncludeLightpandaFallback(t *testing.T) {
 	state := &setupFlowState{boardBinDir: "/tmp/internkim-board-bin"}
 	assets := state.requiredBinaryAssets()
 
 	if !containsBinaryAsset(assets, "lightpanda", browserruntime.DeviceBrowserExecutablePath) {
 		t.Fatalf("expected setup to install Lightpanda fallback binary, got %+v", assets)
+	}
+}
+
+func TestRequiredBinaryAssetsIncludePocketBase(t *testing.T) {
+	state := &setupFlowState{boardBinDir: "/tmp/internkim-board-bin"}
+	assets := state.requiredBinaryAssets()
+
+	if !containsBinaryAsset(assets, "pocketbase", "/usr/local/bin/pocketbase") {
+		t.Fatalf("expected setup to install PocketBase binary, got %+v", assets)
 	}
 }
 

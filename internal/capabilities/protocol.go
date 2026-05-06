@@ -150,12 +150,25 @@ func DeviceDescriptors() []Descriptor {
 		{Name: "llm.structured", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "embedding.create", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "platform.reply", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false},
-	}, append(DeviceBrowserDescriptors(), FlowDescriptors()...)...)
+	}, append(append(DeviceBrowserDescriptors(), FlowDescriptors()...), SiteAppDescriptors()...)...)
 }
 
 func FlowDescriptors() []Descriptor {
 	return []Descriptor{
 		{Name: "flow.task.add", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
+	}
+}
+
+func SiteAppDescriptors() []Descriptor {
+	return []Descriptor{
+		{Name: "site.app.create", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "site.app.publish", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "site.app.status", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "site.app.logs", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "site.app.rollback", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "site.app.unpublish", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "site.app.restore", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "site.app.delete", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
 	}
 }
 
@@ -194,6 +207,9 @@ func CompanionToolNames() []string {
 func DefaultToolNames() []string {
 	toolNames := CompanionToolNames()
 	for _, descriptor := range FlowDescriptors() {
+		toolNames = append(toolNames, descriptor.Name)
+	}
+	for _, descriptor := range SiteAppDescriptors() {
 		toolNames = append(toolNames, descriptor.Name)
 	}
 	return toolNames
