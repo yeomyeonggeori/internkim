@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
 func TestDeviceBrowserToolRunsThroughLightpandaRuntime(t *testing.T) {
@@ -69,7 +71,7 @@ func TestDeviceBrowserScreenshotRequiresCompanion(t *testing.T) {
 	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
 		t.Fatalf("expected denial result: %v", errorValue)
 	}
-	if !response.IsError || response.Status != "denied" || result.Code != "companion_required_for_screenshot" {
+	if !response.IsError || response.Status != "denied" || result.Code != capabilities.CapabilityNotConnected {
 		t.Fatalf("expected companion-required screenshot denial, got response=%+v result=%+v", response, result)
 	}
 	if commandWasCalled {
