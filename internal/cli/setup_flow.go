@@ -1508,9 +1508,14 @@ func (state *setupFlowState) ensureDeviceRegistration(force bool) error {
 		state.deviceID = registrationResponse.DeviceID
 		state.tunnelToken = registrationResponse.TunnelToken
 		state.deviceURL = registrationResponse.publicURL()
+		sshHostname := registrationResponse.SSHHostname
+		if sshHostname == "" {
+			sshHostname = cloudflareSSHHostnameFromDeviceURL(state.deviceURL)
+		}
 
 		saveState(state.stateDir, "tunnel_token", state.tunnelToken)
 		saveState(state.stateDir, "device_url", state.deviceURL)
+		saveState(state.stateDir, "ssh_hostname", sshHostname)
 		saveState(state.stateDir, "tunnel_origin", setup.MattermostTunnelOrigin)
 		saveState(state.stateDir, "tunnel_revision", setup.TunnelConfigurationRevision)
 		if state.adminEmail != "" {
