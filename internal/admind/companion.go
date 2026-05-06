@@ -567,11 +567,9 @@ func (service *Service) invokeCompanionJob(ctx context.Context, request capabili
 	if errorValue := service.validateCompanionMountRequest(request); errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	if errorValue := service.validateRequesterForCompanionTool(request); errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	if !service.hasOnlineCompanionForRequest(request) {
-		return capabilities.ToolInvokeResponse{}, errors.New("requester's companion unavailable for capability: " + request.ToolName)
+	availability := service.companionCapabilityAvailability(request)
+	if availability != capabilities.CapabilityAvailable {
+		return companionCapabilityUnavailableResponse(request, availability), nil
 	}
 	now := time.Now().UTC()
 	timeout := request.TimeoutSecond
@@ -798,31 +796,34 @@ func (service *Service) companionStatuses() []CompanionStatus {
 	return statuses
 }
 
-func (service *Service) hasOnlineCompanionForRequest(request capabilities.ToolInvokeRequest) bool {
+func (service *Service) companionCapabilityAvailability(request capabilities.ToolInvokeRequest) string {
+	if requiresRequesterOwnedCompanion(request.ToolName) && !hasCompanionRequester(request) {
+		return capabilities.CapabilityNotAllowed
+	}
+	hasOnlineCompanion := false
+	hasCandidateCompanion := false
 	for _, status := range service.companionStatuses() {
 		if !status.IsOnline {
 			continue
 		}
+		hasOnlineCompanion = true
 		if shouldUseRequesterOwnedCompanion(request) && !companionStatusMatchesRequester(status, request) {
 			continue
 		}
+		hasCandidateCompanion = true
 		for _, descriptor := range status.Capabilities {
 			if descriptor.Name == request.ToolName {
-				return true
+				return capabilities.CapabilityAvailable
 			}
 		}
 	}
-	return false
-}
-
-func (service *Service) validateRequesterForCompanionTool(request capabilities.ToolInvokeRequest) error {
-	if !requiresRequesterOwnedCompanion(request.ToolName) {
-		return nil
+	if !hasOnlineCompanion {
+		return capabilities.CapabilityNotConnected
 	}
-	if hasCompanionRequester(request) {
-		return nil
+	if shouldUseRequesterOwnedCompanion(request) && !hasCandidateCompanion {
+		return capabilities.CapabilityNotAllowed
 	}
-	return errors.New("requester identity is required for user-local companion capability: " + request.ToolName)
+	return capabilities.CapabilityNotReady
 }
 
 func companionStatusMatchesRequester(status CompanionStatus, request capabilities.ToolInvokeRequest) bool {
@@ -1047,6 +1048,26 @@ func companionDenialResponse(denial capabilities.DenialResult) (capabilities.Too
 		Status:   "denied",
 		Result:   document,
 	}, nil
+}
+
+func companionCapabilityUnavailableResponse(request capabilities.ToolInvokeRequest, code string) capabilities.ToolInvokeResponse {
+	userReason := capabilities.CapabilityUnavailableUserReason(request.ToolName, code)
+	document, _ := json.Marshal(capabilities.DenialResult{
+		Status:              "denied",
+		Code:                code,
+		ToolName:            request.ToolName,
+		ResourceScope:       companionResourceScope(request),
+		UserReason:          userReason,
+		SuggestedConstraint: userReason,
+	})
+	return capabilities.ToolInvokeResponse{
+		Provider: "companion",
+		ToolName: request.ToolName,
+		Status:   "denied",
+		Content:  userReason,
+		IsError:  true,
+		Result:   document,
+	}
 }
 
 func sanitizeCompanionDenialText(value string) string {
