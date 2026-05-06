@@ -108,6 +108,8 @@ func (executor Executor) ExecuteJob(ctx context.Context, envelope JobEnvelope, r
 		return executor.executeStructuredLLM(ctx, request)
 	case "embedding.create":
 		return executor.executeEmbedding(ctx, request)
+	case capabilities.AttentionTriageToolName:
+		return executor.executeAttentionTriage(ctx, request)
 	case "browser.open":
 		return executor.executeBrowserNavigate(ctx, request)
 	case "browser.snapshot":
@@ -241,6 +243,140 @@ func (executor Executor) executeEmbedding(ctx context.Context, request capabilit
 	response.SelectedBackend = capabilities.LLMBackendCompanionLocal
 	return toolResponse(request.ToolName, response)
 }
+
+func (executor Executor) executeAttentionTriage(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	var triageRequest capabilities.AttentionTriageRequest
+	if errorValue := decodeInput(request.Input, &triageRequest); errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	if executor.DevMockLLM {
+		return toolResponse(request.ToolName, mockAttentionTriageDecision(triageRequest))
+	}
+	if executor.LLMChain == nil {
+		return capabilities.ToolInvokeResponse{}, errors.New("companion LLM is not configured")
+	}
+	response, errorValue := executor.LLMChain.CompleteStructured(ctx, attentionTriageStructuredRequest(request, triageRequest))
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	decision, errorValue := parseAttentionTriageDecision(response.Content, triageRequest.PrivacyClass)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	return toolResponse(request.ToolName, decision)
+}
+
+func attentionTriageStructuredRequest(request capabilities.ToolInvokeRequest, triageRequest capabilities.AttentionTriageRequest) llmbackend.StructuredRequest {
+	return llmbackend.StructuredRequest{
+		ExecutionMode: capabilities.ExecutionModeCompanion,
+		Context: llmbackend.RequestContext{
+			RequesterPersonID:       request.Context.RequesterPersonID,
+			RequesterEmail:          request.Context.RequesterEmail,
+			RequesterName:           request.Context.RequesterName,
+			RequesterPlatformUserID: request.Context.RequesterPlatformUserID,
+			ConversationID:          request.Context.ConversationID,
+			Platform:                request.Context.Platform,
+		},
+		Messages: []llmbackend.Message{
+			{Role: "system", Content: "Decide whether a pending user-local Companion job deserves remote attention. Return JSON only. Escalate only when silence would likely leave the user blocked or confused."},
+			{Role: "user", Content: attentionTriagePrompt(triageRequest)},
+		},
+		StructuredOutputSchema: llmbackend.StructuredOutputSchema{
+			Name:               "companion_attention_triage",
+			Document:           json.RawMessage(attentionTriageSchema),
+			IsStrictlyEnforced: true,
+		},
+		RequireParameters:     true,
+		EnableResponseHealing: true,
+	}
+}
+
+func attentionTriagePrompt(request capabilities.AttentionTriageRequest) string {
+	document, errorValue := json.Marshal(request)
+	if errorValue != nil {
+		return "{}"
+	}
+	return string(document)
+}
+
+func parseAttentionTriageDecision(content string, fallbackPrivacyClass string) (capabilities.AttentionTriageDecision, error) {
+	var decision capabilities.AttentionTriageDecision
+	if errorValue := json.Unmarshal([]byte(strings.TrimSpace(content)), &decision); errorValue != nil {
+		return capabilities.AttentionTriageDecision{}, errorValue
+	}
+	decision.Importance = normalizeAttentionImportance(decision.Importance)
+	decision.Confidence = clampAttentionConfidence(decision.Confidence)
+	decision.PrivacyClass = firstNonEmpty(decision.PrivacyClass, fallbackPrivacyClass)
+	decision.SummaryForRemote = sanitizeAttentionSummary(decision.SummaryForRemote)
+	decision.ReasonCodes = normalizeAttentionReasonCodes(decision.ReasonCodes)
+	return decision, nil
+}
+
+func mockAttentionTriageDecision(request capabilities.AttentionTriageRequest) capabilities.AttentionTriageDecision {
+	return capabilities.AttentionTriageDecision{
+		ShouldEscalate:   request.Status == "failed" || request.Status == "denied" || request.Status == "expired",
+		Importance:       "medium",
+		Confidence:       0.8,
+		ReasonCodes:      []string{"mock_triage"},
+		SummaryForRemote: "Companion job " + request.JobID + " is " + request.Status + ".",
+		PrivacyClass:     request.PrivacyClass,
+	}
+}
+
+func normalizeAttentionImportance(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "low", "medium", "high":
+		return strings.ToLower(strings.TrimSpace(value))
+	default:
+		return "low"
+	}
+}
+
+func clampAttentionConfidence(value float64) float64 {
+	if value < 0 {
+		return 0
+	}
+	if value > 1 {
+		return 1
+	}
+	return value
+}
+
+func sanitizeAttentionSummary(value string) string {
+	trimmedValue := strings.TrimSpace(value)
+	if len(trimmedValue) > 600 {
+		return trimmedValue[:600]
+	}
+	return trimmedValue
+}
+
+func normalizeAttentionReasonCodes(values []string) []string {
+	reasonCodes := []string{}
+	for _, value := range values {
+		normalizedValue := strings.ToLower(strings.TrimSpace(value))
+		if normalizedValue != "" {
+			reasonCodes = append(reasonCodes, normalizedValue)
+		}
+		if len(reasonCodes) == 6 {
+			return reasonCodes
+		}
+	}
+	return reasonCodes
+}
+
+const attentionTriageSchema = `{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["shouldEscalate", "importance", "confidence", "reasonCodes", "summaryForRemote", "privacyClass"],
+  "properties": {
+    "shouldEscalate": {"type": "boolean"},
+    "importance": {"type": "string", "enum": ["low", "medium", "high"]},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "reasonCodes": {"type": "array", "items": {"type": "string"}, "maxItems": 6},
+    "summaryForRemote": {"type": "string", "maxLength": 600},
+    "privacyClass": {"type": "string"}
+  }
+}`
 
 func (executor Executor) executeBrowserSessionStart(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	var input browserruntime.SessionStartRequest
