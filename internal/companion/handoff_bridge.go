@@ -31,8 +31,8 @@ func (handler HandoffBridgeHandler) ServeHTTP(responseWriter http.ResponseWriter
 }
 
 func (handler HandoffBridgeHandler) complete(responseWriter http.ResponseWriter, request *http.Request) {
-	var completion HandoffCompletion
-	if errorValue := json.NewDecoder(request.Body).Decode(&completion); errorValue != nil {
+	completion, errorValue := decodeHandoffCompletion(request)
+	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
@@ -56,6 +56,14 @@ func (handler HandoffBridgeHandler) complete(responseWriter http.ResponseWriter,
 		return
 	}
 	writeHandoffJSON(responseWriter, map[string]bool{"ok": true})
+}
+
+func decodeHandoffCompletion(request *http.Request) (HandoffCompletion, error) {
+	var completion HandoffCompletion
+	if errorValue := json.NewDecoder(request.Body).Decode(&completion); errorValue != nil {
+		return HandoffCompletion{}, errorValue
+	}
+	return completion, nil
 }
 
 func (handler HandoffBridgeHandler) captureCompletion(ctx context.Context, completion HandoffCompletion) (HandoffCompletion, error) {
