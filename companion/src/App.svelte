@@ -5,8 +5,8 @@
 	import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link';
 	import { onMount } from 'svelte';
 	import { isCompanionVerified, isStalePairingStatus, normalizeManualPairingInput, parsePairingLink, stalePairingMessage, statusLabel, type CompanionStatus } from './lib/pairing';
-	import { inputResponse, normalizePromptRequest, type PromptRequest } from './lib/prompts';
-	import { addMountedFolder, pairCompanion, pauseMountedFolder, readActiveGrants, readCompanionStatus, readMountedFolders, readRemoteModel, readRuntimeStatus, refreshRuntimeStatus, restartCompanionRuntime, resumeMountedFolder, revokeGrant, revokeMountedFolder, startCompanionRuntime, updateRemoteModel, updateRuntimeLocalLLM, type ActiveGrant, type LocalLLMBackendStatus, type MountedFolder, type RuntimeStatus } from './lib/sidecar';
+	import { approvalResponse, confirmResponse, inputResponse, normalizePromptRequest, type PromptRequest, type PromptResult } from './lib/prompts';
+	import { addMountedFolder, disconnectCompanion, ensureLaunchAtLogin, pairCompanion, pauseMountedFolder, readActiveGrants, readCompanionStatus, readMountedFolders, readRemoteModel, readRuntimeStatus, refreshRuntimeStatus, restartCompanionRuntime, resumeMountedFolder, revokeGrant, revokeMountedFolder, startCompanionRuntime, updateRemoteModel, updateRuntimeLocalLLM, type ActiveGrant, type LocalLLMBackendStatus, type MountedFolder, type RuntimeStatus } from './lib/sidecar';
 	import { defaultSettings, fetchBackendModels, loadCompanionSettings, saveCompanionSettings, type CompanionSettings } from './lib/settings';
 
 	let status = $state<CompanionStatus>({ paired: false });
@@ -14,7 +14,7 @@
 	let deviceURL = $state('');
 	let pairingCode = $state('');
 	let message = $state('');
-	let pendingPrompt = $state<PromptRequest | undefined>();
+	let promptResult = $state<PromptResult>({ status: 'idle' });
 	let activeGrants = $state<ActiveGrant[]>([]);
 	let mountedFolders = $state<MountedFolder[]>([]);
 	let isBusy = $state(false);
@@ -23,7 +23,6 @@
 	let settingsMessage = $state('');
 	let isSavingSettings = $state(false);
 	let settingsApplyTimeoutID = $state<number | undefined>();
-	let promptTimeoutID = $state<number | undefined>();
 	let remoteModel = $state('');
 	let appliedRemoteModel = $state('');
 	let remoteModelMessage = $state('');
@@ -52,6 +51,11 @@
 
 	async function bootstrap() {
 		settings = await loadCompanionSettings();
+		try {
+			await ensureLaunchAtLogin();
+		} catch (errorValue) {
+			message = errorValue instanceof Error ? errorValue.message : 'Launch at login setup failed';
+		}
 		await refreshStatus();
 		if (isCompanionVerified(status)) {
 			await ensureRuntime();
@@ -224,8 +228,9 @@
 			});
 			await listen<unknown>('prompt-request', async (event) => {
 				try {
-					showPrompt(normalizePromptRequest(event.payload));
+					const prompt = normalizePromptRequest(event.payload);
 					await invoke('show_main_window');
+					await answerPromptWithAlert(prompt);
 				} catch (errorValue) {
 					message = errorValue instanceof Error ? errorValue.message : 'Prompt request failed';
 				}
@@ -233,26 +238,6 @@
 		} catch {
 			message = 'Companion shell events are unavailable.';
 		}
-	}
-
-	function showPrompt(prompt: PromptRequest) {
-		clearPromptTimeout();
-		pendingPrompt = prompt;
-		if (prompt.kind === 'input') {
-			void completePrompt(inputResponse(window.prompt(prompt.message, '') ?? ''));
-			return;
-		}
-		if (!prompt.timeoutSeconds) return;
-		promptTimeoutID = window.setTimeout(() => {
-			if (pendingPrompt?.requestID !== prompt.requestID) return;
-			pendingPrompt = undefined;
-		}, prompt.timeoutSeconds * 1000);
-	}
-
-	function clearPromptTimeout() {
-		if (promptTimeoutID === undefined) return;
-		window.clearTimeout(promptTimeoutID);
-		promptTimeoutID = undefined;
 	}
 
 	async function pairFromLink(pairingLink: string) {
@@ -288,6 +273,26 @@
 			message = 'Connected. You can close this window.';
 		} catch (errorValue) {
 			message = errorValue instanceof Error ? errorValue.message : 'Pairing failed';
+		} finally {
+			isBusy = false;
+		}
+	}
+
+	async function disconnect() {
+		if (!window.confirm('Disconnect this Companion from Intern Kim?')) return;
+		isBusy = true;
+		message = '';
+		try {
+			await disconnectCompanion();
+			status = await readCompanionStatus();
+			runtime = readRuntimeStatus();
+			activeGrants = [];
+			mountedFolders = [];
+			remoteModel = '';
+			appliedRemoteModel = '';
+			message = 'Disconnected.';
+		} catch (errorValue) {
+			message = errorValue instanceof Error ? errorValue.message : 'Disconnect failed';
 		} finally {
 			isBusy = false;
 		}
@@ -368,16 +373,32 @@
 		}
 	}
 
-	async function completePrompt(response: unknown) {
-		if (!pendingPrompt) return;
-		const requestID = pendingPrompt.requestID;
-		clearPromptTimeout();
+	async function answerPromptWithAlert(prompt: PromptRequest) {
+		promptResult = { status: 'pending' };
+		if (prompt.kind === 'confirm') {
+			await completePromptRequest(prompt.requestID, confirmResponse(window.confirm(prompt.message)));
+			return;
+		}
+		if (prompt.kind === 'input') {
+			await completePromptRequest(prompt.requestID, inputResponse(window.prompt(prompt.message) ?? ''));
+			return;
+		}
+		const allowed = window.confirm(prompt.message);
+		if (allowed) {
+			const rememberSession = window.confirm('이번 세션 동안 같은 권한을 다시 묻지 않을까요?');
+			await completePromptRequest(prompt.requestID, approvalResponse(true, '', rememberSession));
+			return;
+		}
+		const denialReason = window.prompt('거부 이유나 대안이 있으면 입력하세요.', '') ?? '';
+		await completePromptRequest(prompt.requestID, approvalResponse(false, denialReason));
+	}
+
+	async function completePromptRequest(requestID: string, response: unknown) {
 		try {
 			await invoke('complete_prompt_request', { requestId: requestID, response });
-			pendingPrompt = undefined;
+			promptResult = { status: 'completed', message: 'Response sent.' };
 		} catch (errorValue) {
-			pendingPrompt = undefined;
-			message = errorValue instanceof Error ? errorValue.message : 'Response failed';
+			promptResult = { status: 'failed', message: errorValue instanceof Error ? errorValue.message : 'Response failed' };
 		}
 	}
 
@@ -584,25 +605,47 @@
 		{/if}
 	</section>
 
-	<section class="form-panel">
-		<h2>Connect manually</h2>
-		<label>
-			<span>Device URL</span>
-			<input bind:value={deviceURL} placeholder="https://device.example.test" />
-		</label>
-		<label>
-			<span>Pairing code</span>
-			<input bind:value={pairingCode} placeholder="ABCD-1234" />
-		</label>
-		<div class="actions">
-			<button disabled={isBusy} onclick={pairManually}>{isBusy ? 'Connecting...' : 'Connect'}</button>
-			<button class="secondary" disabled={!status.deviceURL} onclick={openAdmin}>Open Admin</button>
-			<button class="ghost" onclick={closeWindow}>Hide</button>
-		</div>
-		{#if message}
-			<p class="message">{message}</p>
-		{/if}
-	</section>
+	{#if isCompanionVerified(status)}
+		<section class="form-panel">
+			<h2>Connection</h2>
+			<div class="runtime-row">
+				<span>device</span>
+				<span>{status.deviceURL}</span>
+			</div>
+			<div class="runtime-row">
+				<span>companion</span>
+				<span>{status.companionID}</span>
+			</div>
+			<div class="actions">
+				<button class="secondary" disabled={!status.deviceURL} onclick={openAdmin}>Open Admin</button>
+				<button class="secondary" disabled={isBusy} onclick={disconnect}>{isBusy ? 'Disconnecting...' : 'Disconnect'}</button>
+				<button class="ghost" onclick={closeWindow}>Hide</button>
+			</div>
+			{#if message}
+				<p class="message">{message}</p>
+			{/if}
+		</section>
+	{:else}
+		<section class="form-panel">
+			<h2>{isStalePairingStatus(status) ? 'Reconnect manually' : 'Connect manually'}</h2>
+			<label>
+				<span>Device URL</span>
+				<input bind:value={deviceURL} placeholder="https://device.example.test" />
+			</label>
+			<label>
+				<span>Pairing code</span>
+				<input bind:value={pairingCode} placeholder="ABCD-1234" />
+			</label>
+			<div class="actions">
+				<button disabled={isBusy} onclick={pairManually}>{isBusy ? 'Connecting...' : 'Connect'}</button>
+				<button class="secondary" disabled={!status.deviceURL} onclick={openAdmin}>Open Admin</button>
+				<button class="ghost" onclick={closeWindow}>Hide</button>
+			</div>
+			{#if message}
+				<p class="message">{message}</p>
+			{/if}
+		</section>
+	{/if}
 
 	<section class="capability-panel">
 		<h2>Advertised capabilities</h2>

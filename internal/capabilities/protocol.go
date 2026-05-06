@@ -61,6 +61,10 @@ type ToolInvokeContext struct {
 	RequesterName           string `json:"requesterName,omitempty"`
 	RequesterPlatformUserID string `json:"requesterPlatformUserID,omitempty"`
 	ConversationID          string `json:"conversationID,omitempty"`
+	ConversationType        string `json:"conversationType,omitempty"`
+	ChannelID               string `json:"channelID,omitempty"`
+	ChannelName             string `json:"channelName,omitempty"`
+	ReplyTargetID           string `json:"replyTargetID,omitempty"`
 	Platform                string `json:"platform,omitempty"`
 }
 
