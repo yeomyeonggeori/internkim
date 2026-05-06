@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	"gitlab.com/eastriver/internkim/internal/capabilities"
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
@@ -400,14 +401,13 @@ func (service *Service) writeAdminSession(responseWriter http.ResponseWriter, re
 }
 
 func companionReleases() []companionRelease {
-	const latestReleaseBaseURL = "https://gitlab.com/eastriver/internkim/-/releases/permalink/latest/downloads"
 	return []companionRelease{
 		{
 			Platform:     "macos",
 			Label:        "macOS",
 			Architecture: "Apple Silicon beta",
 			Status:       "available",
-			URL:          latestReleaseBaseURL + "/internkim-companion-beta-macos-aarch64.dmg",
+			URL:          capabilities.CompanionMacOSBetaDownloadURL(),
 		},
 		{
 			Platform:     "windows",

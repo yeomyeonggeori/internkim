@@ -36,6 +36,7 @@ struct PromptRequest {
     tool_name: Option<String>,
     capability_scope: Option<String>,
     resource_scope: Option<Value>,
+    timeout_seconds: Option<u64>,
 }
 
 #[derive(Deserialize)]
@@ -50,6 +51,7 @@ struct ApprovalInput {
     tool_name: Option<String>,
     capability_scope: Option<String>,
     resource_scope: Option<Value>,
+    timeout_seconds: Option<u64>,
 }
 
 #[derive(Deserialize)]
@@ -161,13 +163,14 @@ fn handle_prompt_stream(
         .lock()
         .map_err(|error| error.to_string())?
         .insert(request_id.clone(), sender);
+    let timeout = prompt_timeout(&prompt_request);
     let _ = show_prompt_window(&app);
     app.emit(
         "prompt-request",
         prompt_request.with_request_id(request_id.clone()),
     )
     .map_err(|error| error.to_string())?;
-    match receiver.recv_timeout(Duration::from_secs(600)) {
+    match receiver.recv_timeout(timeout) {
         Ok(response) => write_http_json(&mut stream, 200, response)?,
         Err(_) => {
             state
@@ -293,6 +296,7 @@ fn prompt_request_from_body(
             tool_name: input.tool_name,
             capability_scope: input.capability_scope,
             resource_scope: input.resource_scope,
+            timeout_seconds: input.timeout_seconds,
         });
     }
     let input: PromptInput = serde_json::from_slice(&body).map_err(|error| error.to_string())?;
@@ -304,7 +308,16 @@ fn prompt_request_from_body(
         tool_name: None,
         capability_scope: None,
         resource_scope: None,
+        timeout_seconds: None,
     })
+}
+
+fn prompt_timeout(prompt_request: &PromptRequest) -> Duration {
+    let timeout_seconds = prompt_request
+        .timeout_seconds
+        .filter(|value| *value > 0)
+        .unwrap_or(600);
+    Duration::from_secs(timeout_seconds.clamp(1, 600))
 }
 
 struct HttpRequest {
@@ -449,6 +462,8 @@ fn show_prompt_window(app: &AppHandle) -> Result<(), String> {
         .get_webview_window("main")
         .ok_or_else(|| "main window is unavailable".to_string())?;
     window.show().map_err(|error| error.to_string())?;
+    window.unminimize().map_err(|error| error.to_string())?;
     window.set_focus().map_err(|error| error.to_string())?;
+    let _ = window.request_user_attention(Some(tauri::UserAttentionType::Critical));
     Ok(())
 }

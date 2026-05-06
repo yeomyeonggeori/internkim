@@ -632,11 +632,11 @@ func (service *Service) invokeCompanionJob(ctx context.Context, request capabili
 			closeCompanionJobWatchLocked(currentJob, currentJob.UpdatedAt)
 			service.mutex.Unlock()
 			_ = service.saveCompanionJobs()
-			return capabilities.ToolInvokeResponse{}, errors.New("companion job expired")
+			return companionCapabilityUnavailableResponse(request, capabilities.CapabilityNotReady), nil
 		}
 		service.mutex.Unlock()
 		if time.Now().After(deadline) {
-			return capabilities.ToolInvokeResponse{}, errors.New("companion job timed out")
+			return companionCapabilityUnavailableResponse(request, capabilities.CapabilityNotReady), nil
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -1052,6 +1052,10 @@ func companionDenialResponse(denial capabilities.DenialResult) (capabilities.Too
 
 func companionCapabilityUnavailableResponse(request capabilities.ToolInvokeRequest, code string) capabilities.ToolInvokeResponse {
 	userReason := capabilities.CapabilityUnavailableUserReason(request.ToolName, code)
+	var recovery *capabilities.RecoveryAction
+	if code == capabilities.CapabilityNotConnected && strings.HasPrefix(strings.TrimSpace(request.ToolName), "browser.") {
+		recovery = capabilities.CompanionConnectRecovery()
+	}
 	document, _ := json.Marshal(capabilities.DenialResult{
 		Status:              "denied",
 		Code:                code,
@@ -1059,6 +1063,7 @@ func companionCapabilityUnavailableResponse(request capabilities.ToolInvokeReque
 		ResourceScope:       companionResourceScope(request),
 		UserReason:          userReason,
 		SuggestedConstraint: userReason,
+		Recovery:            recovery,
 	})
 	return capabilities.ToolInvokeResponse{
 		Provider: "companion",

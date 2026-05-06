@@ -20,6 +20,7 @@ import (
 	"time"
 
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
+	"gitlab.com/eastriver/internkim/internal/capabilities"
 	"gitlab.com/eastriver/internkim/internal/identity"
 	"gitlab.com/eastriver/internkim/internal/llmbackend"
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
@@ -88,11 +89,12 @@ type historyFetchRequest struct {
 }
 
 type replyRequest struct {
-	ReplyTargetID string             `json:"replyTargetID"`
-	Message       string             `json:"message"`
-	RawEventID    string             `json:"rawEventID,omitempty"`
-	OutboxID      string             `json:"outboxID,omitempty"`
-	Attachments   []platformFileSpec `json:"attachments,omitempty"`
+	ReplyTargetID   string                        `json:"replyTargetID"`
+	Message         string                        `json:"message"`
+	RawEventID      string                        `json:"rawEventID,omitempty"`
+	OutboxID        string                        `json:"outboxID,omitempty"`
+	Attachments     []platformFileSpec            `json:"attachments,omitempty"`
+	RecoveryActions []capabilities.RecoveryAction `json:"recoveryActions,omitempty"`
 }
 
 type platformHealthState struct {
@@ -513,6 +515,10 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 	if strings.TrimSpace(request.RawEventID) == "" || strings.TrimSpace(request.OutboxID) == "" {
 		return nil, errors.New("mattermost reply requires connector outbox metadata")
 	}
+	message, errorValue := service.mattermostReplyMessageWithRecovery(ctx, handle, request)
+	if errorValue != nil {
+		return nil, errorValue
+	}
 	service.stopMattermostProgress(request.ReplyTargetID)
 	defer service.stopMattermostProgress(request.ReplyTargetID)
 	fileIDs, errorValue := service.uploadMattermostAttachments(ctx, handle.ChannelID, request.Attachments)
@@ -521,7 +527,7 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 	}
 	body := map[string]any{
 		"channel_id": handle.ChannelID,
-		"message":    request.Message,
+		"message":    message,
 		"props": map[string]string{
 			"internkim_raw_event_id": request.RawEventID,
 			"internkim_outbox_id":    request.OutboxID,
