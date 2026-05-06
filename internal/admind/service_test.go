@@ -2194,7 +2194,7 @@ func TestMattermostConnectCommandCreatesEphemeralOwnerPairing(t *testing.T) {
 	if errorValue := json.NewDecoder(response.Body).Decode(&slashResponse); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if slashResponse.ResponseType != "ephemeral" || !strings.Contains(slashResponse.Text, "Companion 연결 코드") {
+	if slashResponse.ResponseType != "ephemeral" || slashResponse.Username != "김인턴" || slashResponse.IconURL != "https://dc719d8e.intern.kim/logo.svg" || !strings.Contains(slashResponse.Text, "Companion 연결 코드") {
 		t.Fatalf("slash response = %+v", slashResponse)
 	}
 	if len(service.pairingCodes) != 1 {
@@ -2204,7 +2204,7 @@ func TestMattermostConnectCommandCreatesEphemeralOwnerPairing(t *testing.T) {
 		if pairingCode.OwnerPlatform != "mattermost" || pairingCode.OwnerPlatformUserID != "user-1" || pairingCode.OwnerEmail != "alice@example.com" || pairingCode.OwnerName != "Alice" {
 			t.Fatalf("pairing owner = %+v", pairingCode)
 		}
-		if !strings.Contains(slashResponse.Text, pairingCode.Code) || !strings.Contains(slashResponse.Text, url.QueryEscape("https://dc719d8e.intern.kim")) {
+		if !strings.Contains(slashResponse.Text, pairingCode.Code) || !strings.Contains(slashResponse.Text, "[Companion 앱 열기](internkim://pair?") || !strings.Contains(slashResponse.Text, url.QueryEscape("https://dc719d8e.intern.kim")) {
 			t.Fatalf("slash response text = %q", slashResponse.Text)
 		}
 	}

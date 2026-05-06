@@ -92,7 +92,7 @@ func companionConnectMessage(response companionConnectPairingResponse) string {
 	expiresAt := response.ExpiresAt.Local().Format("15:04")
 	return "Companion 연결 코드: `" + response.Code + "`\n" +
 		"Companion 앱에서 이 링크를 열거나 코드를 입력하세요.\n" +
-		response.DeepLink + "\n" +
+		"[Companion 앱 열기](" + response.DeepLink + ")\n" +
 		"만료: " + expiresAt
 }
 

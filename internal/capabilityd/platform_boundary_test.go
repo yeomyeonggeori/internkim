@@ -132,7 +132,7 @@ func TestMattermostCompanionConnectCreatesOwnerPairingAndRepliesInDM(t *testing.
 	if pairingRequest.DeviceURL != "https://dc719d8e.intern.kim" {
 		t.Fatalf("expected public device url, got %q", pairingRequest.DeviceURL)
 	}
-	if !strings.Contains(postedMessage, "ABCD-1234") || !strings.Contains(postedMessage, "internkim://pair") {
+	if !strings.Contains(postedMessage, "ABCD-1234") || !strings.Contains(postedMessage, "[Companion 앱 열기](internkim://pair") {
 		t.Fatalf("unexpected connect reply: %q", postedMessage)
 	}
 }
