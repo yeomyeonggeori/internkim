@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
@@ -212,28 +213,6 @@ func TestScreenshotDoesNotFallbackWhenCompanionUnavailable(t *testing.T) {
 	}
 }
 
-func TestSimpleBrowserToolFallsBackToDeviceWhenCompanionUnavailable(t *testing.T) {
-	commandWasCalled := false
-	service := Service{
-		Configuration: Configuration{CompanionBaseURL: "https://companion.test"},
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			return nil, io.ErrUnexpectedEOF
-		})},
-		RunCommand: func(_ context.Context, _ string, _ []string, _ []byte) ([]byte, error) {
-			commandWasCalled = true
-			return nil, nil
-		},
-	}
-
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.open", strings.NewReader(`{"input":{"url":"https://example.com"}}`))
-	if errorValue != nil {
-		t.Fatalf("expected device fallback response: %v", errorValue)
-	}
-	if response.Provider != "device" || !commandWasCalled {
-		t.Fatalf("expected browser.open to fallback to device, got response=%+v commandWasCalled=%v", response, commandWasCalled)
-	}
-}
-
 func TestSimpleBrowserToolFallsBackWhenCompanionBrowserNotReady(t *testing.T) {
 	commandWasCalled := false
 	denialResult, _ := json.Marshal(capabilities.DenialResult{
@@ -256,8 +235,36 @@ func TestSimpleBrowserToolFallsBackWhenCompanionBrowserNotReady(t *testing.T) {
 				Result:   denialResult,
 			}), nil
 		})},
-		RunCommand: func(_ context.Context, _ string, _ []string, _ []byte) ([]byte, error) {
+		RunCommand: func(_ context.Context, _ string, commandArguments []string, _ []byte) ([]byte, error) {
 			commandWasCalled = true
+			if slices.Contains(commandArguments, "get") && slices.Contains(commandArguments, "url") {
+				return []byte("https://example.com\n"), nil
+			}
+			return nil, nil
+		},
+	}
+
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.open", strings.NewReader(`{"input":{"url":"https://example.com"}}`))
+	if errorValue != nil {
+		t.Fatalf("expected device fallback response: %v", errorValue)
+	}
+	if response.Provider != "device" || !commandWasCalled {
+		t.Fatalf("expected browser.open to fallback to device, got response=%+v commandWasCalled=%v", response, commandWasCalled)
+	}
+}
+
+func TestSimpleBrowserToolFallsBackToDeviceWhenCompanionUnavailable(t *testing.T) {
+	commandWasCalled := false
+	service := Service{
+		Configuration: Configuration{CompanionBaseURL: "https://companion.test"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return nil, io.ErrUnexpectedEOF
+		})},
+		RunCommand: func(_ context.Context, _ string, commandArguments []string, _ []byte) ([]byte, error) {
+			commandWasCalled = true
+			if slices.Contains(commandArguments, "get") && slices.Contains(commandArguments, "url") {
+				return []byte("https://example.com\n"), nil
+			}
 			return nil, nil
 		},
 	}

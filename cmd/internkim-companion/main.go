@@ -140,6 +140,16 @@ type companionFileUploader struct {
 	PrivateKey string
 }
 
+type browserAutoApprovalHandler struct{}
+
+func (handler browserAutoApprovalHandler) Approve(ctx context.Context, request companionruntime.ApprovalRequest) (companionruntime.ApprovalDecision, error) {
+	_ = ctx
+	if request.CapabilityScope == "browser" {
+		return companionruntime.ApprovalDecision{Allowed: true}, nil
+	}
+	return companionruntime.ApprovalDecision{Allowed: false, SuggestedConstraint: "automatic approval is limited to browser grants"}, nil
+}
+
 type companionFileUploadCreateResponse struct {
 	UploadID  string `json:"uploadID"`
 	ChunkSize int64  `json:"chunkSize"`
@@ -283,6 +293,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	controlListenAddress := flags.String("control-listen", "", "local companion shell control address")
 	agentBrowserPath := flags.String("agent-browser-path", "", "agent-browser executable path")
 	browserProfilePath := flags.String("browser-profile", defaultBrowserProfilePath(), "InternKim companion browser profile path")
+	developmentAutoApproveBrowser := flags.Bool("development-auto-approve-browser", false, "automatically approve browser grants for local E2E")
 	localLLMFlags := registerLocalLLMFlags(flags)
 	preferCompanionBrowser := flags.Bool("prefer-companion-browser", false, "ask the device to route browser tools to this companion")
 	if errorValue := flags.Parse(arguments); errorValue != nil {
@@ -350,6 +361,9 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	}
 	if *allowStdinPrompts {
 		executor.PromptHandler = companionruntime.TerminalPromptHandler{Reader: os.Stdin, Writer: os.Stdout}
+	}
+	if *developmentAutoApproveBrowser {
+		executor.ApprovalHandler = browserAutoApprovalHandler{}
 	}
 	if strings.TrimSpace(*shellBridgeURL) != "" {
 		shellBridgeHandler := companionruntime.ShellBridgePromptHandler{
