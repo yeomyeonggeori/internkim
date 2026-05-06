@@ -7,14 +7,17 @@ import {
 	createTunnel,
 	configureTunnel,
 	createDNSRecord,
+	deviceSSHHostname,
+	ensureSSHDNSRecord,
 	ensureWildcardDNSRecord,
 	ensureOneTimePinIdentityProvider,
 	ensureAdminAccessApplications,
 	ensureCompanionBypassApplication,
+	ensureSSHAccessApplication,
 	updateAccessApplicationLoginMethod,
 	syncAccessPolicyEmails
 } from '$lib/cloudflare';
-import { userEmails } from '$lib/kv';
+import { adminEmails, userEmails } from '$lib/kv';
 import type { Device } from '$lib/types';
 import { hashDeviceSecret, normalizeDeviceID } from '$lib/device-auth';
 
@@ -87,13 +90,15 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 		await ensureCompanionBypassApplication(cfEnv, deviceID);
 		const records = await kv.getUserRecords(env.KV, deviceID);
 		await ensureAdminAccessApplications(cfEnv, deviceID, identityProviderId, []);
-		const device = await ensureAccessPolicy(cfEnv, { ...ownedDevice, admin_email: adminEmail || ownedDevice.admin_email || '' }, userEmails(records));
+		const deviceWithAccess = await ensureAccessPolicy(cfEnv, { ...ownedDevice, admin_email: adminEmail || ownedDevice.admin_email || '' }, userEmails(records));
+		const device = await ensureSSHAccess(cfEnv, deviceWithAccess, identityProviderId, sshAccessEmails(records, deviceWithAccess.admin_email));
 		await kv.putDevice(env.KV, deviceID, device);
 		return json({
 			device_id: deviceID,
 			tunnel_token: device.tunnel_token,
 			url: `https://${deviceID}.${env.CF_DOMAIN}`,
-			mattermost_url: `https://${deviceID}.${env.CF_DOMAIN}`
+			mattermost_url: `https://${deviceID}.${env.CF_DOMAIN}`,
+			ssh_hostname: device.ssh_hostname
 		});
 	}
 
@@ -123,15 +128,40 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 		}
 	};
 
-	await kv.putDevice(env.KV, deviceID, device);
+	const deviceWithSSH = await ensureSSHAccess(cfEnv, device, identityProviderId, adminEmail);
+
+	await kv.putDevice(env.KV, deviceID, deviceWithSSH);
 	await kv.putUserRecords(env.KV, deviceID, []);
 
 	return json({
 		device_id: deviceID,
 		tunnel_token: tunnelToken,
 		url: `https://${deviceID}.${env.CF_DOMAIN}`,
-		mattermost_url: `https://${deviceID}.${env.CF_DOMAIN}`
+		mattermost_url: `https://${deviceID}.${env.CF_DOMAIN}`,
+		ssh_hostname: deviceWithSSH.ssh_hostname
 	});
+}
+
+function sshAccessEmails(records: Parameters<typeof adminEmails>[0], fallbackAdminEmail: string) {
+	const emails = adminEmails(records);
+	if (emails.length > 0 || !fallbackAdminEmail.trim()) return emails;
+	return [fallbackAdminEmail.trim().toLowerCase()];
+}
+
+async function ensureSSHAccess(
+	cfEnv: Parameters<typeof createDNSRecord>[0],
+	device: Device,
+	identityProviderId: string,
+	emails: string[] | string
+): Promise<Device> {
+	const sshDNSRecordId = await ensureSSHDNSRecord(cfEnv, device.tunnel_id, device.device_id);
+	const sshAccessAppId = await ensureSSHAccessApplication(cfEnv, device.device_id, identityProviderId, emails);
+	return {
+		...device,
+		ssh_dns_record_id: device.ssh_dns_record_id ?? sshDNSRecordId,
+		ssh_access_app_id: sshAccessAppId,
+		ssh_hostname: deviceSSHHostname(cfEnv, device.device_id)
+	};
 }
 
 async function ensureAccessPolicy(
