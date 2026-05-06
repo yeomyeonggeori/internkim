@@ -795,6 +795,8 @@ func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *test
 			return jsonResponse(http.StatusOK, `{"id":"admin","email":"admin@localhost","username":"admin","roles":"system_admin system_user"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/admin/roles":
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case isMattermostConnectCommandSetupRequest(request):
+			return mattermostConnectCommandSetupResponse(t, request), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
 			assertMattermostFullNameDisplayPatch(t, request)
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
@@ -931,6 +933,8 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"admin","email":"admin@localhost","username":"admin","roles":"system_admin system_user"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/admin/roles":
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case isMattermostConnectCommandSetupRequest(request):
+			return mattermostConnectCommandSetupResponse(t, request), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
 			assertMattermostFullNameDisplayPatch(t, request)
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
@@ -1020,6 +1024,8 @@ func TestAdminInvitePreservesCurrentAdminRole(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"admin","email":"admin@localhost","username":"admin","roles":"system_admin system_user"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/admin/roles":
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case isMattermostConnectCommandSetupRequest(request):
+			return mattermostConnectCommandSetupResponse(t, request), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
 			assertMattermostFullNameDisplayPatch(t, request)
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
@@ -1124,6 +1130,8 @@ func TestAdminRemoveDeactivatesMattermostUserByStoredID(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"admin","email":"admin@localhost","username":"admin","roles":"system_admin system_user"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/admin/roles":
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case isMattermostConnectCommandSetupRequest(request):
+			return mattermostConnectCommandSetupResponse(t, request), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member","roles":"system_user"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodDelete:
@@ -1186,6 +1194,8 @@ func TestAdminRemoveSkipsProtectedMattermostUserDeactivation(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"admin-id","email":"admin@localhost","username":"admin","roles":"system_admin system_user"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/admin-id/roles":
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case isMattermostConnectCommandSetupRequest(request):
+			return mattermostConnectCommandSetupResponse(t, request), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/admin-id" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"id":"admin-id","email":"admin@example.com","username":"admin","roles":"system_admin system_user"}`, nil), nil
 		case request.URL.String() == "https://api.intern.kim/api/users/admin@example.com?device_id=dc719d8e" && request.Method == http.MethodDelete:
@@ -1789,6 +1799,42 @@ func mattermostFlowSetupResponse(t *testing.T, request *http.Request) *http.Resp
 	}
 }
 
+func isMattermostConnectCommandSetupRequest(request *http.Request) bool {
+	return request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim" ||
+		request.URL.String() == "http://mattermost.local/api/v4/commands?team_id=team-1" ||
+		request.URL.String() == "http://mattermost.local/api/v4/commands"
+}
+
+func mattermostConnectCommandSetupResponse(t *testing.T, request *http.Request) *http.Response {
+	t.Helper()
+	switch {
+	case request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim":
+		return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil)
+	case request.URL.String() == "http://mattermost.local/api/v4/commands?team_id=team-1":
+		return jsonResponse(http.StatusOK, `[]`, nil)
+	case request.URL.String() == "http://mattermost.local/api/v4/commands" && request.Method == http.MethodPost:
+		assertMattermostConnectCommandPayload(t, request)
+		return jsonResponse(http.StatusCreated, `{"id":"connect-command","token":"connect-token","team_id":"team-1","trigger":"connect"}`, nil)
+	default:
+		t.Fatalf("unexpected Mattermost command setup request %s %s", request.Method, request.URL.String())
+		return nil
+	}
+}
+
+func assertMattermostConnectCommandPayload(t *testing.T, request *http.Request) {
+	t.Helper()
+	var payload mattermostCommandRecord
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if payload.TeamID != "team-1" || payload.Trigger != "connect" || payload.Method != "P" {
+		t.Fatalf("connect command payload = %+v", payload)
+	}
+	if payload.URL != "http://127.0.0.1:18080/_internkim/mattermost/commands" || !payload.Autocomplete {
+		t.Fatalf("connect command url/autocomplete = %+v", payload)
+	}
+}
+
 func assertMattermostFlowChannelPatch(t *testing.T, request *http.Request) {
 	t.Helper()
 	var payload map[string]string
@@ -2077,6 +2123,148 @@ func TestLocalCompanionPairingCodeStoresMattermostOwner(t *testing.T) {
 	status := statuses[0]
 	if status.OwnerPlatform != "mattermost" || status.OwnerPlatformUserID != "user-1" || status.OwnerEmail != "alice@example.com" || status.OwnerName != "Alice" {
 		t.Fatalf("unexpected owner status: %+v", status)
+	}
+}
+
+func TestMattermostConnectCommandRejectsInvalidToken(t *testing.T) {
+	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	writeFile(t, service.mattermostConnectCommandTokenPath(), "expected-token")
+	handler := service.router()
+
+	form := url.Values{
+		"command": []string{"/connect"},
+		"token":   []string{"wrong-token"},
+		"user_id": []string{"user-1"},
+	}
+	request := httptest.NewRequest(http.MethodPost, "/_internkim/mattermost/commands", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("connect command status = %d body = %s", response.Code, response.Body.String())
+	}
+	if len(service.pairingCodes) != 0 {
+		t.Fatalf("unexpected pairing codes: %+v", service.pairingCodes)
+	}
+}
+
+func TestMattermostConnectCommandCreatesEphemeralOwnerPairing(t *testing.T) {
+	stateDirectory := t.TempDir()
+	deviceIDPath := filepath.Join(stateDirectory, "device-id")
+	adminPasswordPath := filepath.Join(stateDirectory, "admin-pass")
+	writeFile(t, deviceIDPath, "dc719d8e")
+	writeFile(t, adminPasswordPath, "admin-pass")
+	service := NewService(Configuration{
+		StateDirectory:              stateDirectory,
+		MattermostBaseURL:           "http://mattermost.local",
+		MattermostAdminPasswordPath: adminPasswordPath,
+		DeviceIDPath:                deviceIDPath,
+		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
+	})
+	writeFile(t, service.mattermostConnectCommandTokenPath(), "connect-token")
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
+			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1":
+			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"Alice@Example.com","username":"alice","nickname":"Alice"}`, nil), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+	handler := service.router()
+
+	form := url.Values{
+		"command":   []string{"/connect"},
+		"token":     []string{"connect-token"},
+		"user_id":   []string{"user-1"},
+		"user_name": []string{"alice"},
+	}
+	request := httptest.NewRequest(http.MethodPost, "/_internkim/mattermost/commands", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("connect command status = %d body = %s", response.Code, response.Body.String())
+	}
+	var slashResponse mattermostSlashCommandResponse
+	if errorValue := json.NewDecoder(response.Body).Decode(&slashResponse); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if slashResponse.ResponseType != "ephemeral" || !strings.Contains(slashResponse.Text, "Companion 연결 코드") {
+		t.Fatalf("slash response = %+v", slashResponse)
+	}
+	if len(service.pairingCodes) != 1 {
+		t.Fatalf("pairing codes = %+v", service.pairingCodes)
+	}
+	for _, pairingCode := range service.pairingCodes {
+		if pairingCode.OwnerPlatform != "mattermost" || pairingCode.OwnerPlatformUserID != "user-1" || pairingCode.OwnerEmail != "alice@example.com" || pairingCode.OwnerName != "Alice" {
+			t.Fatalf("pairing owner = %+v", pairingCode)
+		}
+		if !strings.Contains(slashResponse.Text, pairingCode.Code) || !strings.Contains(slashResponse.Text, url.QueryEscape("https://dc719d8e.intern.kim")) {
+			t.Fatalf("slash response text = %q", slashResponse.Text)
+		}
+	}
+}
+
+func TestMattermostConnectCommandProvisioningCreatesCommandToken(t *testing.T) {
+	service := NewService(Configuration{
+		StateDirectory:    t.TempDir(),
+		MattermostBaseURL: "http://mattermost.local",
+		AdminEmailPath:    writeTestFile(t, "admin@example.com"),
+	})
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if isMattermostConnectCommandSetupRequest(request) {
+			return mattermostConnectCommandSetupResponse(t, request), nil
+		}
+		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+		return nil, nil
+	})}
+
+	if errorValue := service.ensureMattermostConnectCommand(context.Background(), "admin-token"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if strings.TrimSpace(readTrimmedFile(service.mattermostConnectCommandTokenPath())) != "connect-token" {
+		t.Fatalf("stored command token = %q", readTrimmedFile(service.mattermostConnectCommandTokenPath()))
+	}
+}
+
+func TestMattermostConnectCommandProvisioningRecreatesCommandWithoutToken(t *testing.T) {
+	service := NewService(Configuration{
+		StateDirectory:    t.TempDir(),
+		MattermostBaseURL: "http://mattermost.local",
+		AdminEmailPath:    writeTestFile(t, "admin@example.com"),
+	})
+	archivedCommand := false
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim":
+			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/commands?team_id=team-1":
+			return jsonResponse(http.StatusOK, `[{"id":"old-command","team_id":"team-1","trigger":"connect"}]`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/commands/old-command" && request.Method == http.MethodDelete:
+			archivedCommand = true
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/commands" && request.Method == http.MethodPost:
+			assertMattermostConnectCommandPayload(t, request)
+			return jsonResponse(http.StatusCreated, `{"id":"connect-command","token":"new-token","team_id":"team-1","trigger":"connect"}`, nil), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	if errorValue := service.ensureMattermostConnectCommand(context.Background(), "admin-token"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !archivedCommand {
+		t.Fatal("old command was not archived")
+	}
+	if strings.TrimSpace(readTrimmedFile(service.mattermostConnectCommandTokenPath())) != "new-token" {
+		t.Fatalf("stored command token = %q", readTrimmedFile(service.mattermostConnectCommandTokenPath()))
 	}
 }
 
