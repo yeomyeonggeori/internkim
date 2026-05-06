@@ -2618,6 +2618,224 @@ func TestCompanionJobClaimRequeuesStaleRunningJob(t *testing.T) {
 	}
 }
 
+func TestCompanionWatchCreatesOwnerLocalAttentionJob(t *testing.T) {
+	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	now := time.Now().UTC()
+	companion := &CompanionRecord{
+		CompanionID:  "alice-companion",
+		OwnerEmail:   "alice@example.com",
+		Capabilities: append([]capabilities.Descriptor{{Name: "user.confirm"}}, capabilities.CompanionLLMDescriptors()...),
+		LastSeenAt:   now,
+	}
+	service.companions[companion.CompanionID] = companion
+	service.companionJobs["job-1"] = &CompanionJob{
+		JobID:             "job-1",
+		Status:            "pending",
+		RequesterEmail:    "alice@example.com",
+		ToolName:          "user.confirm",
+		PrivacyClass:      "user_input",
+		WatchStatus:       companionWatchStatusOpen,
+		NextWatchAt:       now.Add(-time.Second),
+		WatchAttemptCount: 0,
+		Request: capabilities.ToolInvokeRequest{
+			ToolName: "user.confirm",
+			Context:  capabilities.ToolInvokeContext{RequesterEmail: "alice@example.com"},
+		},
+		CreatedAt: now.Add(-6 * time.Minute),
+		UpdatedAt: now.Add(-6 * time.Minute),
+		ExpiresAt: now.Add(time.Hour),
+	}
+
+	claimedJob := service.claimNextCompanionJob(companion)
+
+	if claimedJob == nil || claimedJob.ToolName != capabilities.AttentionTriageToolName || claimedJob.ParentJobID != "job-1" {
+		t.Fatalf("expected attention triage job, got %+v", claimedJob)
+	}
+	parentJob := service.companionJobs["job-1"]
+	if parentJob.WatchAttemptCount != 1 || !parentJob.NextWatchAt.IsZero() {
+		t.Fatalf("expected parent watch to move into local triage, got %+v", parentJob)
+	}
+	var triageRequest capabilities.AttentionTriageRequest
+	if errorValue := json.Unmarshal(claimedJob.Request.Input, &triageRequest); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if triageRequest.JobID != "job-1" || triageRequest.ToolName != "user.confirm" || triageRequest.WatchAttemptCount != 1 {
+		t.Fatalf("unexpected triage request: %+v", triageRequest)
+	}
+}
+
+func TestCompanionWatchRoutesOnlyToOwningCompanion(t *testing.T) {
+	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	now := time.Now().UTC()
+	aliceCompanion := &CompanionRecord{
+		CompanionID:  "alice-companion",
+		OwnerEmail:   "alice@example.com",
+		Capabilities: capabilities.CompanionLLMDescriptors(),
+		LastSeenAt:   now,
+	}
+	bobCompanion := &CompanionRecord{
+		CompanionID:  "bob-companion",
+		OwnerEmail:   "bob@example.com",
+		Capabilities: capabilities.CompanionLLMDescriptors(),
+		LastSeenAt:   now,
+	}
+	service.companions[aliceCompanion.CompanionID] = aliceCompanion
+	service.companions[bobCompanion.CompanionID] = bobCompanion
+	service.companionJobs["job-1"] = &CompanionJob{
+		JobID:          "job-1",
+		Status:         "running",
+		CompanionID:    aliceCompanion.CompanionID,
+		RequesterEmail: "alice@example.com",
+		ToolName:       "browser.handoff",
+		PrivacyClass:   "user_browser",
+		WatchStatus:    companionWatchStatusOpen,
+		NextWatchAt:    now.Add(-time.Second),
+		Request: capabilities.ToolInvokeRequest{
+			ToolName: "browser.handoff",
+			Context:  capabilities.ToolInvokeContext{RequesterEmail: "alice@example.com"},
+		},
+		CreatedAt: now.Add(-6 * time.Minute),
+		UpdatedAt: now.Add(-6 * time.Minute),
+		ExpiresAt: now.Add(time.Hour),
+	}
+
+	if claimedJob := service.claimNextCompanionJob(bobCompanion); claimedJob != nil {
+		t.Fatalf("expected Bob not to claim Alice attention watch, got %+v", claimedJob)
+	}
+	claimedJob := service.claimNextCompanionJob(aliceCompanion)
+	if claimedJob == nil || claimedJob.ToolName != capabilities.AttentionTriageToolName {
+		t.Fatalf("expected Alice attention triage claim, got %+v", claimedJob)
+	}
+}
+
+func TestCompanionWatchFallsBackWithoutLocalAttentionModel(t *testing.T) {
+	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	now := time.Now().UTC()
+	companion := &CompanionRecord{
+		CompanionID:  "alice-companion",
+		OwnerEmail:   "alice@example.com",
+		Capabilities: []capabilities.Descriptor{{Name: "user.confirm"}},
+		LastSeenAt:   now,
+	}
+	service.companions[companion.CompanionID] = companion
+	service.companionJobs["job-1"] = &CompanionJob{
+		JobID:          "job-1",
+		Status:         "running",
+		CompanionID:    companion.CompanionID,
+		RequesterEmail: "alice@example.com",
+		ToolName:       "user.confirm",
+		PrivacyClass:   "user_input",
+		WatchStatus:    companionWatchStatusOpen,
+		NextWatchAt:    now.Add(-time.Second),
+		Request: capabilities.ToolInvokeRequest{
+			ToolName: "user.confirm",
+			Context:  capabilities.ToolInvokeContext{RequesterEmail: "alice@example.com"},
+		},
+		CreatedAt: now.Add(-6 * time.Minute),
+		UpdatedAt: now.Add(-6 * time.Minute),
+		ExpiresAt: now.Add(time.Hour),
+	}
+
+	if claimedJob := service.claimNextCompanionJob(companion); claimedJob != nil {
+		t.Fatalf("expected fallback to avoid local triage job, got %+v", claimedJob)
+	}
+	job := service.companionJobs["job-1"]
+	if job.WatchAttemptCount != 1 || job.Attention == nil || job.Attention.LocalDecision == nil {
+		t.Fatalf("expected deterministic fallback decision, got %+v", job)
+	}
+	if len(job.Attention.LocalDecision.ReasonCodes) != 1 || job.Attention.LocalDecision.ReasonCodes[0] != "local_triage_unavailable" {
+		t.Fatalf("unexpected fallback reason: %+v", job.Attention.LocalDecision)
+	}
+	if job.NextWatchAt.Before(time.Now().Add(9*time.Minute)) || job.NextWatchAt.After(time.Now().Add(11*time.Minute)) {
+		t.Fatalf("expected second watch around 10m, got %s", job.NextWatchAt)
+	}
+}
+
+func TestCompanionAttentionCompletionSchedulesBackoffAndStoresNoReplyTarget(t *testing.T) {
+	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	now := time.Now().UTC()
+	service.companionJobs["job-1"] = &CompanionJob{
+		JobID:             "job-1",
+		Status:            "running",
+		CompanionID:       "alice-companion",
+		RequesterEmail:    "alice@example.com",
+		ToolName:          "user.confirm",
+		PrivacyClass:      "user_input",
+		WatchStatus:       companionWatchStatusOpen,
+		WatchAttemptCount: 1,
+		Request: capabilities.ToolInvokeRequest{
+			ToolName: "user.confirm",
+			Context:  capabilities.ToolInvokeContext{RequesterEmail: "alice@example.com"},
+		},
+		CreatedAt: now.Add(-6 * time.Minute),
+		UpdatedAt: now.Add(-6 * time.Minute),
+		ExpiresAt: now.Add(time.Hour),
+	}
+	decisionDocument := json.RawMessage(`{
+		"shouldEscalate":true,
+		"importance":"high",
+		"confidence":0.9,
+		"reasonCodes":["blocked"],
+		"summaryForRemote":"Waiting for a user confirmation.",
+		"privacyClass":"user_input"
+	}`)
+	service.companionJobs["attention-1"] = &CompanionJob{
+		JobID:          "attention-1",
+		ParentJobID:    "job-1",
+		Status:         "running",
+		CompanionID:    "alice-companion",
+		RequesterEmail: "alice@example.com",
+		ToolName:       capabilities.AttentionTriageToolName,
+		PrivacyClass:   "model_input",
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		ExpiresAt:      now.Add(time.Minute),
+	}
+
+	errorValue := service.finishCompanionJob("alice-companion", "attention-1", &capabilities.ToolInvokeResponse{
+		ToolName: capabilities.AttentionTriageToolName,
+		Result:   decisionDocument,
+	}, "")
+
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	parentJob := service.companionJobs["job-1"]
+	if parentJob.Attention == nil || parentJob.Attention.RemoteStatus != companionAttentionRemoteStored {
+		t.Fatalf("expected stored attention without reply target, got %+v", parentJob.Attention)
+	}
+	if parentJob.NextWatchAt.Before(time.Now().Add(9*time.Minute)) || parentJob.NextWatchAt.After(time.Now().Add(11*time.Minute)) {
+		t.Fatalf("expected second watch around 10m, got %s", parentJob.NextWatchAt)
+	}
+}
+
+func TestCompanionTerminalJobClosesWatch(t *testing.T) {
+	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	now := time.Now().UTC()
+	service.companionJobs["job-1"] = &CompanionJob{
+		JobID:       "job-1",
+		Status:      "running",
+		CompanionID: "alice-companion",
+		ToolName:    "user.confirm",
+		WatchStatus: companionWatchStatusOpen,
+		NextWatchAt: now.Add(time.Minute),
+		Request:     capabilities.ToolInvokeRequest{ToolName: "user.confirm"},
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		ExpiresAt:   now.Add(time.Hour),
+	}
+
+	errorValue := service.finishCompanionJob("alice-companion", "job-1", &capabilities.ToolInvokeResponse{ToolName: "user.confirm"}, "")
+
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	job := service.companionJobs["job-1"]
+	if job.WatchStatus != companionWatchStatusClosed || !job.NextWatchAt.IsZero() {
+		t.Fatalf("expected terminal job to close watch, got %+v", job)
+	}
+}
+
 func TestCompanionRemoteModelReadAndUpdate(t *testing.T) {
 	runtimeConfigPath := filepath.Join(t.TempDir(), "runtime.json")
 	writeFile(t, runtimeConfigPath, `{"languageModel":{"capability":{"model":"google/old-model"}}}`)

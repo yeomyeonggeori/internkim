@@ -455,6 +455,72 @@ func TestExecutorRoutesStructuredLLMThroughChain(t *testing.T) {
 	}
 }
 
+func TestAttentionTriageUsesCompanionStructuredLLM(t *testing.T) {
+	chain := &stubLLMChain{structuredResponse: llmbackend.Response{
+		Provider: "stub",
+		Model:    "stub-model",
+		Content: `{
+			"shouldEscalate":true,
+			"importance":"high",
+			"confidence":0.91,
+			"reasonCodes":["blocked"],
+			"summaryForRemote":"User confirmation is still pending.",
+			"privacyClass":"user_input"
+		}`,
+	}}
+	inputDocument, errorValue := json.Marshal(capabilities.AttentionTriageRequest{
+		JobID:             "job-1",
+		ToolName:          "user.confirm",
+		Status:            "pending",
+		RequesterEmail:    "alice@example.com",
+		PrivacyClass:      "user_input",
+		WatchAttemptCount: 1,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	executor := Executor{LLMChain: chain}
+	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: capabilities.AttentionTriageToolName,
+		Input:    inputDocument,
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "alice@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var decision capabilities.AttentionTriageDecision
+	if errorValue := json.Unmarshal(response.Result, &decision); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !decision.ShouldEscalate || decision.Importance != "high" || decision.Confidence != 0.91 {
+		t.Fatalf("unexpected attention decision: %+v", decision)
+	}
+	if chain.receivedStructured == nil || chain.receivedStructured.StructuredOutputSchema.Name != "companion_attention_triage" {
+		t.Fatalf("expected attention triage schema, got %+v", chain.receivedStructured)
+	}
+}
+
+func TestAttentionTriageReportsUnavailableLocalLLM(t *testing.T) {
+	_, errorValue := Executor{}.Execute(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: capabilities.AttentionTriageToolName,
+		Input:    json.RawMessage(`{"jobID":"job-1","toolName":"user.confirm","status":"pending"}`),
+	})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "companion LLM is not configured") {
+		t.Fatalf("expected local LLM configuration error, got %v", errorValue)
+	}
+}
+
+func TestAttentionTriageReturnsBackendFailure(t *testing.T) {
+	executor := Executor{LLMChain: &stubLLMChain{structuredError: errors.New("backend unavailable")}}
+	_, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: capabilities.AttentionTriageToolName,
+		Input:    json.RawMessage(`{"jobID":"job-1","toolName":"user.confirm","status":"pending"}`),
+	})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "backend unavailable") {
+		t.Fatalf("expected backend error, got %v", errorValue)
+	}
+}
+
 func TestExecutorRoutesEmbeddingThroughChain(t *testing.T) {
 	chain := &stubEmbeddingChain{response: llmbackend.EmbeddingResponse{
 		Provider:        "ollama",

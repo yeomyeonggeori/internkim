@@ -11,6 +11,8 @@ const (
 	LLMBackendDevice         = "device_local"
 	LLMBackendCompanionLocal = "companion_local"
 	LLMBackendRemote         = "remote"
+
+	AttentionTriageToolName = "attention.triage"
 )
 
 type Descriptor struct {
@@ -130,6 +132,7 @@ func CompanionLLMDescriptors() []Descriptor {
 		{Name: "llm.text", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "llm.structured", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "embedding.create", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
+		{Name: AttentionTriageToolName, Version: "1", PrivacyClass: "model_input", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
 	}
 }
 
