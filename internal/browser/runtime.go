@@ -60,9 +60,14 @@ type SessionStartRequest struct {
 }
 
 type SessionStartResult struct {
-	SessionID string `json:"sessionID"`
-	Opened    bool   `json:"opened"`
-	URL       string `json:"url,omitempty"`
+	SessionID       string   `json:"sessionID"`
+	Opened          bool     `json:"opened"`
+	URL             string   `json:"url,omitempty"`
+	RequestedURL    string   `json:"requestedURL,omitempty"`
+	Title           string   `json:"title,omitempty"`
+	SnapshotText    string   `json:"snapshotText,omitempty"`
+	InteractiveRefs []string `json:"interactiveRefs,omitempty"`
+	CapturedAt      string   `json:"capturedAt,omitempty"`
 }
 
 type NavigateRequest struct {
@@ -70,7 +75,12 @@ type NavigateRequest struct {
 }
 
 type NavigateResult struct {
-	URL string `json:"url"`
+	URL             string   `json:"url"`
+	RequestedURL    string   `json:"requestedURL,omitempty"`
+	Title           string   `json:"title,omitempty"`
+	SnapshotText    string   `json:"snapshotText,omitempty"`
+	InteractiveRefs []string `json:"interactiveRefs,omitempty"`
+	CapturedAt      string   `json:"capturedAt,omitempty"`
 }
 
 type ObserveRequest struct{}
@@ -234,10 +244,16 @@ func (runtime AgentBrowserRuntime) StartSession(ctx context.Context, request Ses
 	if _, errorValue := runtime.run(ctx, append(runtime.sessionStartArguments(), "open", targetURL)...); errorValue != nil {
 		return SessionStartResult{}, errorValue
 	}
+	observation, _ := runtime.observeCurrentPage(ctx)
 	return SessionStartResult{
-		SessionID: runtime.sessionName(),
-		Opened:    true,
-		URL:       exposedURL,
+		SessionID:       runtime.sessionName(),
+		Opened:          true,
+		URL:             firstNonEmpty(observation.URL, exposedURL),
+		RequestedURL:    exposedURL,
+		Title:           observation.Title,
+		SnapshotText:    observation.SnapshotText,
+		InteractiveRefs: observation.InteractiveRefs,
+		CapturedAt:      observation.CapturedAt,
 	}, nil
 }
 
@@ -252,7 +268,15 @@ func (runtime AgentBrowserRuntime) Navigate(ctx context.Context, request Navigat
 	}
 	stealthEvalArguments := append(runtime.sessionCommandArguments(), "eval", stealthPostLoadScript())
 	_, _ = runtime.run(ctx, stealthEvalArguments...)
-	return NavigateResult{URL: trimmedURL}, nil
+	observation, _ := runtime.observeCurrentPage(ctx)
+	return NavigateResult{
+		URL:             firstNonEmpty(observation.URL, trimmedURL),
+		RequestedURL:    trimmedURL,
+		Title:           observation.Title,
+		SnapshotText:    observation.SnapshotText,
+		InteractiveRefs: observation.InteractiveRefs,
+		CapturedAt:      observation.CapturedAt,
+	}, nil
 }
 
 func stealthRequestHeaders() string {
@@ -265,6 +289,10 @@ func stealthPostLoadScript() string {
 
 func (runtime AgentBrowserRuntime) Observe(ctx context.Context, request ObserveRequest) (ObserveResult, error) {
 	_ = request
+	return runtime.observeCurrentPage(ctx)
+}
+
+func (runtime AgentBrowserRuntime) observeCurrentPage(ctx context.Context) (ObserveResult, error) {
 	capturedAt := runtime.now().UTC().Format(time.RFC3339)
 	output, errorValue := runtime.run(ctx, append(runtime.sessionCommandArguments(), "snapshot", "--compact", "--json")...)
 	if errorValue != nil {
@@ -622,7 +650,7 @@ func observeResultFromOutput(output []byte, capturedAt string) ObserveResult {
 	if json.Unmarshal(trimmedOutput, &document) != nil {
 		return result
 	}
-	result.URL = findStringValue(document, "url")
+	result.URL = firstNonEmpty(findStringValue(document, "url"), findStringValue(document, "origin"))
 	result.Title = findStringValue(document, "title")
 	result.HasMore = findBoolValue(document, "hasMore")
 	result.InteractiveRefs = mergeReferences(result.InteractiveRefs, referenceListFromDocument(document))

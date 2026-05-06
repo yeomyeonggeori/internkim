@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"io"
 	"net"
@@ -589,7 +590,7 @@ func TestControlHandlerListsAndRevokesGrants(t *testing.T) {
 	}
 	runtimeStatus := &runtimeState{}
 	runtimeStatus.recordHeartbeat(nil)
-	handler := controlHandler(grantStore, companionruntime.NewMountStore(""), companionruntime.NewBrowserHandoffStore(), runtimeStatus, newDynamicLocalLLM(localLLMSettings{}), http.DefaultClient)
+	handler := controlHandler(grantStore, companionruntime.NewMountStore(""), companionruntime.NewBrowserHandoffStore(), nil, nil, runtimeStatus, newDynamicLocalLLM(localLLMSettings{}), http.DefaultClient)
 
 	listRequest := httptest.NewRequest(http.MethodGet, "/v1/security/grants", nil)
 	listRequest.RemoteAddr = "127.0.0.1:1234"
@@ -636,6 +637,8 @@ func TestControlHandlerCompletesBrowserHandoff(t *testing.T) {
 		companionruntime.NewMemoryGrantStore(),
 		companionruntime.NewMountStore(""),
 		handoffStore,
+		nil,
+		nil,
 		&runtimeState{},
 		newDynamicLocalLLM(localLLMSettings{}),
 		http.DefaultClient,
@@ -727,6 +730,8 @@ func startTestHandoffControlServer(t *testing.T, handoffStore *companionruntime.
 		companionruntime.NewMemoryGrantStore(),
 		companionruntime.NewMountStore(""),
 		handoffStore,
+		nil,
+		nil,
 		&runtimeState{},
 		newDynamicLocalLLM(localLLMSettings{}),
 		http.DefaultClient,
@@ -790,6 +795,24 @@ func testBrowserExtensionPath(t *testing.T) string {
 	return ""
 }
 
+func TestBrowserExtensionCandidatePathsIncludesTauriResourceParent(t *testing.T) {
+	executableDirectory := filepath.Join("Intern Kim Companion.app", "Contents", "MacOS")
+	candidates := browserExtensionCandidatePaths(executableDirectory)
+	expectedPath := filepath.Join("Intern Kim Companion.app", "Contents", "MacOS", "..", "Resources", "_up_", "browser-extension")
+	if !containsStringValue(candidates, expectedPath) {
+		t.Fatalf("expected Tauri _up_ browser extension path in candidates: %+v", candidates)
+	}
+}
+
+func containsStringValue(values []string, expectedValue string) bool {
+	for _, value := range values {
+		if value == expectedValue {
+			return true
+		}
+	}
+	return false
+}
+
 func isBrowserExtensionDirectory(path string) bool {
 	if !isDirectory(path) {
 		return false
@@ -814,6 +837,8 @@ func TestControlHandlerUpdatesLocalLLMWithoutRestart(t *testing.T) {
 		companionruntime.NewMemoryGrantStore(),
 		companionruntime.NewMountStore(""),
 		companionruntime.NewBrowserHandoffStore(),
+		nil,
+		nil,
 		runtimeStatus,
 		localLLM,
 		modelServer.Client(),
@@ -939,6 +964,49 @@ func TestStatusJSONReportsVerifiedAuth(t *testing.T) {
 	}
 	if document.AuthStatus != companionAuthStatusVerified {
 		t.Fatalf("expected verified auth status, got %+v", document)
+	}
+}
+
+func TestDisconnectRevokesRemoteAndClearsLocalPairing(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	state, secureStore := testCompanionState(t, false, false)
+	if errorValue := saveState(statePath, state); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(defaultMountStatePath(statePath), []byte("{}"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(defaultHandoffStatePath(statePath), []byte("{}"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var requestedPath string
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		requestedPath = request.URL.Path
+		if request.Header.Get(companionruntime.SignatureHeader) == "" {
+			t.Fatal("expected signed disconnect request")
+		}
+		return textResponse(http.StatusOK, `{"status":"disconnected"}`), nil
+	})}
+
+	errorValue := runDisconnect([]string{"--state", statePath}, httpClient, secureStore)
+
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if requestedPath != "/_internkim/companion/disconnect" {
+		t.Fatalf("unexpected disconnect path: %s", requestedPath)
+	}
+	if _, errorValue := os.Stat(statePath); !errors.Is(errorValue, os.ErrNotExist) {
+		t.Fatalf("expected state file to be removed, got %v", errorValue)
+	}
+	if _, errorValue := os.Stat(defaultMountStatePath(statePath)); !errors.Is(errorValue, os.ErrNotExist) {
+		t.Fatalf("expected mount state to be removed, got %v", errorValue)
+	}
+	if _, errorValue := os.Stat(defaultHandoffStatePath(statePath)); !errors.Is(errorValue, os.ErrNotExist) {
+		t.Fatalf("expected handoff state to be removed, got %v", errorValue)
+	}
+	if _, errorValue := secureStore.Get(nilContext(), state.PrivateKeyID); errorValue == nil {
+		t.Fatal("expected private key to be removed")
 	}
 }
 

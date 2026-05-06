@@ -25,6 +25,15 @@ type fakeCommandCall struct {
 	arguments   []string
 }
 
+func containsString(values []string, expectedValue string) bool {
+	for _, value := range values {
+		if value == expectedValue {
+			return true
+		}
+	}
+	return false
+}
+
 func (runner *fakeCommandRunner) Run(ctx context.Context, commandPath string, arguments []string) ([]byte, error) {
 	_ = ctx
 	runner.calls = append(runner.calls, fakeCommandCall{
@@ -53,14 +62,41 @@ func TestAgentBrowserRuntimeNavigatesThroughCommandRunner(t *testing.T) {
 	}
 	expectedOpenArguments := []string{"--session", "internkim-test", "--headed", "true", "--profile", "/profile", "--session-name", "internkim-test", "open", "https://example.com", "--headers", stealthRequestHeaders()}
 	expectedEvalArguments := []string{"--session", "internkim-test", "--session-name", "internkim-test", "eval", stealthPostLoadScript()}
-	if len(runner.calls) != 2 {
-		t.Fatalf("expected 2 command calls (open + stealth eval), got %d: %+v", len(runner.calls), runner.calls)
+	expectedSnapshotArguments := []string{"--session", "internkim-test", "--session-name", "internkim-test", "snapshot", "--compact", "--json"}
+	if len(runner.calls) != 3 {
+		t.Fatalf("expected 3 command calls (open + stealth eval + snapshot), got %d: %+v", len(runner.calls), runner.calls)
 	}
 	if runner.calls[0].commandPath != "agent-browser-test" || !reflect.DeepEqual(runner.calls[0].arguments, expectedOpenArguments) {
 		t.Fatalf("unexpected open call: %+v", runner.calls[0])
 	}
 	if runner.calls[1].commandPath != "agent-browser-test" || !reflect.DeepEqual(runner.calls[1].arguments, expectedEvalArguments) {
 		t.Fatalf("unexpected eval call: %+v", runner.calls[1])
+	}
+	if runner.calls[2].commandPath != "agent-browser-test" || !reflect.DeepEqual(runner.calls[2].arguments, expectedSnapshotArguments) {
+		t.Fatalf("unexpected snapshot call: %+v", runner.calls[2])
+	}
+}
+
+func TestAgentBrowserRuntimeOpenReturnsObservedRedirectSnapshot(t *testing.T) {
+	runner := &fakeCommandRunner{output: []byte(`{"data":{"origin":"https://console.cloud.google.com/apis/credentials?project=internkim-7373e2a4","snapshot":"Credentials","refs":{"e1":{"role":"button","name":"Create credential"}}}}`)}
+	runtime := AgentBrowserRuntime{
+		CommandPath:          "agent-browser-test",
+		SessionName:          "internkim-test",
+		Runner:               runner,
+		DisableHumanPacing:   true,
+		TemporaryDirectory:   "/tmp/internkim-test",
+		EngineExecutablePath: "/Applications/Google Chrome.app",
+	}
+
+	result, errorValue := runtime.StartSession(context.Background(), SessionStartRequest{URL: "https://console.cloud.google.com/apis/credentials"})
+	if errorValue != nil {
+		t.Fatalf("expected open success: %v", errorValue)
+	}
+	if result.URL != "https://console.cloud.google.com/apis/credentials?project=internkim-7373e2a4" || result.RequestedURL != "https://console.cloud.google.com/apis/credentials" {
+		t.Fatalf("expected observed redirect URL with requested URL, got %+v", result)
+	}
+	if result.SnapshotText != "Credentials" || !containsString(result.InteractiveRefs, "@e1") {
+		t.Fatalf("expected observed snapshot in open result, got %+v", result)
 	}
 }
 
@@ -109,8 +145,8 @@ func TestAgentBrowserRuntimePacesHeadedChromeCommands(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected navigate success: %v", errorValue)
 	}
-	if len(delays) != 2 {
-		t.Fatalf("expected open and eval pacing delays, got %+v", delays)
+	if len(delays) != 3 {
+		t.Fatalf("expected open, eval, and snapshot pacing delays, got %+v", delays)
 	}
 	for _, delay := range delays {
 		if delay < 900*time.Millisecond || delay >= 1800*time.Millisecond {

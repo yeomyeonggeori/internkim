@@ -30,8 +30,8 @@ func TestDeviceBrowserToolRunsThroughLightpandaRuntime(t *testing.T) {
 	if response.Provider != "device" || response.ToolName != "browser.open" {
 		t.Fatalf("unexpected response: %+v", response)
 	}
-	if len(calls) != 2 {
-		t.Fatalf("expected 2 calls (open + stealth eval), got %d: %+v", len(calls), calls)
+	if len(calls) != 3 {
+		t.Fatalf("expected 3 calls (open + stealth eval + snapshot), got %d: %+v", len(calls), calls)
 	}
 	if calls[0].path != "agent-browser-test" {
 		t.Fatalf("unexpected open command path: %s", calls[0].path)
@@ -50,6 +50,9 @@ func TestDeviceBrowserToolRunsThroughLightpandaRuntime(t *testing.T) {
 	}
 	if calls[1].arguments[len(calls[1].arguments)-2] != "eval" {
 		t.Fatalf("expected second call to be eval, got %+v", calls[1].arguments)
+	}
+	if calls[2].arguments[len(calls[2].arguments)-3] != "snapshot" {
+		t.Fatalf("expected third call to be snapshot, got %+v", calls[2].arguments)
 	}
 }
 
