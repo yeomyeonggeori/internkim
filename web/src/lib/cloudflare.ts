@@ -64,12 +64,14 @@ export async function createTunnel(env: CFEnv, deviceId: string) {
 
 export async function configureTunnel(env: CFEnv, tunnelId: string, deviceId: string) {
 	const hostname = `${deviceId}.${env.CF_DOMAIN}`;
+	const wildcardHostname = `*.${hostname}`;
 
 	await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/cfd_tunnel/${tunnelId}/configurations`, {
 		method: 'PUT',
 		body: JSON.stringify({
 			config: {
 				ingress: [
+					{ hostname: wildcardHostname, service: 'http://127.0.0.1:18080' },
 					{ hostname, service: 'http://127.0.0.1:18080' },
 					{ service: 'http_status:404' }
 				]
@@ -84,6 +86,24 @@ export async function createDNSRecord(env: CFEnv, tunnelId: string, deviceId: st
 		body: JSON.stringify({
 			type: 'CNAME',
 			name: `${deviceId}.${env.CF_DOMAIN}`,
+			content: `${tunnelId}.cfargotunnel.com`,
+			proxied: true
+		})
+	});
+
+	return record.id as string;
+}
+
+export async function ensureWildcardDNSRecord(env: CFEnv, tunnelId: string, deviceId: string) {
+	const name = `*.${deviceId}.${env.CF_DOMAIN}`;
+	const records = (await cfFetch(env, `/zones/${env.CF_ZONE_ID}/dns_records?type=CNAME&name=${encodeURIComponent(name)}`)) as Array<{ id?: string }>;
+	const existingRecord = records[0];
+	if (existingRecord?.id) return existingRecord.id;
+	const record = await cfFetch(env, `/zones/${env.CF_ZONE_ID}/dns_records`, {
+		method: 'POST',
+		body: JSON.stringify({
+			type: 'CNAME',
+			name,
 			content: `${tunnelId}.cfargotunnel.com`,
 			proxied: true
 		})
