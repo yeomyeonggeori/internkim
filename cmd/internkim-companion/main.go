@@ -272,6 +272,7 @@ func runStatus(arguments []string, httpClient *http.Client, secureStore companio
 			CommandPath:          agentBrowserPath,
 			Engine:               browserruntime.BrowserEngineChrome,
 			EngineExecutablePath: defaultBrowserExecutablePath(),
+			ExtensionPaths:       []string{defaultBrowserExtensionPath()},
 		}.Check(context.Background())
 		authStatus := companionAuthStatusFromState(state, *verifyAuth, *statePath, httpClient, secureStore)
 		writeJSONDocument(os.Stdout, companionStatusFromState(state, readiness, authStatus))
@@ -286,6 +287,7 @@ func runStatus(arguments []string, httpClient *http.Client, secureStore companio
 		CommandPath:          agentBrowserPath,
 		Engine:               browserruntime.BrowserEngineChrome,
 		EngineExecutablePath: defaultBrowserExecutablePath(),
+		ExtensionPaths:       []string{defaultBrowserExtensionPath()},
 	}.Check(context.Background())
 	fmt.Println("browserRuntime: " + firstNonEmpty(readiness.Status, "unknown"))
 	return nil
@@ -1093,9 +1095,6 @@ func defaultBrowserExecutableCandidates() []string {
 		return []string{
 			"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
 			filepath.Join(os.Getenv("HOME"), "Applications", "Google Chrome.app", "Contents", "MacOS", "Google Chrome"),
-			"/Applications/Chromium.app/Contents/MacOS/Chromium",
-			"/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-			"/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
 		}
 	case "windows":
 		return []string{
@@ -1105,7 +1104,7 @@ func defaultBrowserExecutableCandidates() []string {
 		}
 	default:
 		candidates := []string{}
-		for _, name := range []string{"google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "microsoft-edge", "brave-browser"} {
+		for _, name := range []string{"google-chrome", "google-chrome-stable"} {
 			if path, errorValue := exec.LookPath(name); errorValue == nil {
 				candidates = append(candidates, path)
 			}
@@ -1129,9 +1128,13 @@ func defaultBrowserExtensionPath() string {
 	if environmentValue := strings.TrimSpace(os.Getenv("INTERNKIM_BROWSER_EXTENSION_PATH")); environmentValue != "" {
 		return environmentValue
 	}
+	firstCandidate := ""
 	executablePath, errorValue := os.Executable()
 	if errorValue == nil && strings.TrimSpace(executablePath) != "" {
 		for _, path := range browserExtensionCandidatePaths(filepath.Dir(executablePath)) {
+			if firstCandidate == "" {
+				firstCandidate = path
+			}
 			if isDirectory(path) {
 				return path
 			}
@@ -1140,7 +1143,7 @@ func defaultBrowserExtensionPath() string {
 	if isDirectory("companion/browser-extension") {
 		return "companion/browser-extension"
 	}
-	return ""
+	return firstCandidate
 }
 
 func browserExtensionCandidatePaths(executableDirectory string) []string {

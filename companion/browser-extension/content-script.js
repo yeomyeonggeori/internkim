@@ -1,11 +1,14 @@
 const rootID = 'internkim-companion-handoff-root';
+const readyID = 'internkim-companion-extension-ready';
 let currentHandoff;
 
+markExtensionReady();
 setInterval(refreshHandoff, 1000);
 void refreshHandoff();
 
 async function refreshHandoff() {
-  const state = await sendMessage({ type: 'internkim.handoff.state' });
+  markExtensionReady();
+  const state = await sendMessage({ type: 'internkim.handoff.state' }).catch(() => undefined);
   if (!state?.active) {
     removeOverlay();
     currentHandoff = undefined;
@@ -13,6 +16,14 @@ async function refreshHandoff() {
   }
   currentHandoff = state;
   renderOverlay(state);
+}
+
+function markExtensionReady() {
+  if (document.getElementById(readyID)) return;
+  const marker = document.createElement('meta');
+  marker.id = readyID;
+  marker.dataset.source = 'internkim-companion-extension';
+  document.documentElement.appendChild(marker);
 }
 
 function renderOverlay(state) {
@@ -109,7 +120,7 @@ async function completeHandoff() {
     sessionID: currentHandoff.sessionID,
     url: location.href,
     title: document.title
-  });
+  }).catch(() => undefined);
 }
 
 function sendMessage(message) {

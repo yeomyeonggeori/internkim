@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math/big"
+	"net"
 	"net/url"
 	"os"
 	"os/exec"
@@ -15,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -47,7 +49,10 @@ type AgentBrowserRuntime struct {
 	Now                  func() time.Time
 	Sleep                func(context.Context, time.Duration) error
 	DisableHumanPacing   bool
+	OpenCommandTimeout   time.Duration
 }
+
+const browserOpenCommandTimeout = 8 * time.Second
 
 type RuntimeReadiness struct {
 	Status string
@@ -145,11 +150,27 @@ type ActionResult struct {
 type OSCommandRunner struct{}
 
 var agentBrowserReferencePattern = regexp.MustCompile(`@?[A-Za-z]+[0-9]+`)
+var activeChromePipeFiles chromePipeFileStore
+
+type chromePipeFileStore struct {
+	mutex sync.Mutex
+	files []*os.File
+}
+
+func (store *chromePipeFileStore) keep(files ...*os.File) {
+	store.mutex.Lock()
+	defer store.mutex.Unlock()
+	store.files = append(store.files, files...)
+}
 
 const BrowserEngineChrome = "chrome"
 const BrowserEngineLightpanda = "lightpanda"
 
 const DeviceBrowserExecutablePath = "/usr/local/bin/lightpanda"
+const BrowserExtensionNotReadyError = "브라우저 확장이 준비되지 않았습니다."
+const browserExtensionReadyElementID = "internkim-companion-extension-ready"
+const browserExtensionReadyTimeout = 3 * time.Second
+const browserExtensionReadyPollInterval = 150 * time.Millisecond
 
 func (request *SessionStartRequest) UnmarshalJSON(document []byte) error {
 	value, isString := decodeStringDocument(document)
@@ -241,10 +262,29 @@ func (runtime AgentBrowserRuntime) StartSession(ctx context.Context, request Ses
 			return SessionStartResult{}, errorValue
 		}
 	}
-	if _, errorValue := runtime.run(ctx, append(runtime.sessionStartArguments(), "open", targetURL)...); errorValue != nil {
+	openArguments := runtime.sessionStartArguments()
+	if runtime.requiresExtensionVerification() {
+		if errorValue := runtime.prepareChromeExtensionSession(ctx); errorValue != nil {
+			return SessionStartResult{}, errorValue
+		}
+		if runtime.canLoadChromeExtensionsThroughPipe() {
+			openArguments = runtime.sessionCommandArguments()
+		}
+	}
+	openError := runtime.runOpenCommand(ctx, append(openArguments, "open", targetURL))
+	observation, observationError := runtime.observeCurrentPage(ctx)
+	if openError != nil && observationError != nil {
+		return SessionStartResult{}, openError
+	}
+	if openError != nil && !isOpenSettleTimeout(openError) {
+		return SessionStartResult{}, openError
+	}
+	if exposedURL != "" && !isSuccessfulNavigationURL(firstNonEmpty(observation.URL, exposedURL)) {
+		return SessionStartResult{}, errors.New("companion browser did not navigate to requested URL")
+	}
+	if errorValue := runtime.ensureExtensionReady(ctx, targetURL); errorValue != nil {
 		return SessionStartResult{}, errorValue
 	}
-	observation, _ := runtime.observeCurrentPage(ctx)
 	return SessionStartResult{
 		SessionID:       runtime.sessionName(),
 		Opened:          true,
@@ -262,11 +302,24 @@ func (runtime AgentBrowserRuntime) Navigate(ctx context.Context, request Navigat
 		return NavigateResult{}, errorValue
 	}
 	trimmedURL := strings.TrimSpace(request.URL)
-	openArguments := append(runtime.sessionStartArguments(), "open", trimmedURL, "--headers", stealthRequestHeaders())
-	if _, errorValue := runtime.run(ctx, openArguments...); errorValue != nil {
-		return NavigateResult{}, errorValue
+	openArguments := runtime.sessionStartArguments()
+	if runtime.requiresExtensionVerification() {
+		if errorValue := runtime.prepareChromeExtensionSession(ctx); errorValue != nil {
+			return NavigateResult{}, errorValue
+		}
+		if runtime.canLoadChromeExtensionsThroughPipe() {
+			openArguments = runtime.sessionCommandArguments()
+		}
 	}
+	openArguments = append(openArguments, "open", trimmedURL, "--headers", stealthRequestHeaders())
+	openError := runtime.runOpenCommand(ctx, openArguments)
 	actualURL, errorValue := runtime.currentURL(ctx)
+	if openError != nil && errorValue != nil {
+		return NavigateResult{}, openError
+	}
+	if openError != nil && !isOpenSettleTimeout(openError) {
+		return NavigateResult{}, openError
+	}
 	if errorValue != nil {
 		return NavigateResult{}, errorValue
 	}
@@ -284,6 +337,27 @@ func (runtime AgentBrowserRuntime) Navigate(ctx context.Context, request Navigat
 		InteractiveRefs: observation.InteractiveRefs,
 		CapturedAt:      observation.CapturedAt,
 	}, nil
+}
+
+func (runtime AgentBrowserRuntime) runOpenCommand(ctx context.Context, arguments []string) error {
+	commandContext, cancel := context.WithTimeout(ctx, runtime.openCommandTimeout())
+	defer cancel()
+	_, errorValue := runtime.run(commandContext, arguments...)
+	if commandContext.Err() != nil {
+		return commandContext.Err()
+	}
+	return errorValue
+}
+
+func (runtime AgentBrowserRuntime) openCommandTimeout() time.Duration {
+	if runtime.OpenCommandTimeout > 0 {
+		return runtime.OpenCommandTimeout
+	}
+	return browserOpenCommandTimeout
+}
+
+func isOpenSettleTimeout(errorValue error) bool {
+	return errors.Is(errorValue, context.DeadlineExceeded)
 }
 
 func (runtime AgentBrowserRuntime) currentURL(ctx context.Context) (string, error) {
@@ -315,6 +389,251 @@ func stealthRequestHeaders() string {
 
 func stealthPostLoadScript() string {
 	return `Object.defineProperty(navigator,'webdriver',{get:()=>undefined});Object.defineProperty(navigator,'languages',{get:()=>['ko-KR','ko','en-US','en']});`
+}
+
+func (runtime AgentBrowserRuntime) prepareChromeExtensionSession(ctx context.Context) error {
+	if !runtime.canLoadChromeExtensionsThroughPipe() {
+		return nil
+	}
+	if ready, errorValue := runtime.isExtensionReady(ctx); errorValue == nil && ready {
+		return nil
+	}
+	_ = runtime.closeSession(ctx)
+	port, closePort, errorValue := reserveLocalPort()
+	if errorValue != nil {
+		return errorValue
+	}
+	closePort()
+	if errorValue := runtime.launchChromeWithExtensions(ctx, port); errorValue != nil {
+		return errorValue
+	}
+	_, errorValue = runtime.run(ctx, append(runtime.sessionCommandArguments(), "connect", strconv.Itoa(port))...)
+	return errorValue
+}
+
+func (runtime AgentBrowserRuntime) canLoadChromeExtensionsThroughPipe() bool {
+	return runtime.requiresExtensionVerification() && isExecutablePath(runtime.EngineExecutablePath)
+}
+
+func reserveLocalPort() (int, func(), error) {
+	listener, errorValue := net.Listen("tcp", "127.0.0.1:0")
+	if errorValue != nil {
+		return 0, func() {}, errorValue
+	}
+	address, ok := listener.Addr().(*net.TCPAddr)
+	if !ok {
+		_ = listener.Close()
+		return 0, func() {}, errors.New("browser debug port is unavailable")
+	}
+	return address.Port, func() { _ = listener.Close() }, nil
+}
+
+func (runtime AgentBrowserRuntime) launchChromeWithExtensions(ctx context.Context, port int) error {
+	parentRead, childWrite, errorValue := os.Pipe()
+	if errorValue != nil {
+		return errorValue
+	}
+	childRead, parentWrite, errorValue := os.Pipe()
+	if errorValue != nil {
+		_ = parentRead.Close()
+		_ = childWrite.Close()
+		return errorValue
+	}
+	command := exec.Command(runtime.EngineExecutablePath, runtime.chromeExtensionLaunchArguments(port)...)
+	command.ExtraFiles = []*os.File{childRead, childWrite}
+	command.Stderr = os.Stderr
+	if errorValue := command.Start(); errorValue != nil {
+		closeChromePipeFiles(parentRead, parentWrite, childRead, childWrite)
+		return errorValue
+	}
+	_ = childRead.Close()
+	_ = childWrite.Close()
+	go func() { _ = command.Wait() }()
+	if errorValue := runtime.loadExtensionsThroughPipe(ctx, parentRead, parentWrite); errorValue != nil {
+		_ = command.Process.Kill()
+		_ = parentRead.Close()
+		_ = parentWrite.Close()
+		return errorValue
+	}
+	activeChromePipeFiles.keep(parentRead, parentWrite)
+	return nil
+}
+
+func (runtime AgentBrowserRuntime) chromeExtensionLaunchArguments(port int) []string {
+	arguments := []string{
+		"--remote-debugging-pipe",
+		"--remote-debugging-port=" + strconv.Itoa(port),
+		"--enable-unsafe-extension-debugging",
+		"--no-first-run",
+		"--no-default-browser-check",
+		"--disable-background-networking",
+		"--disable-backgrounding-occluded-windows",
+		"--disable-component-update",
+		"--disable-default-apps",
+		"--disable-hang-monitor",
+		"--disable-popup-blocking",
+		"--disable-prompt-on-repost",
+		"--disable-sync",
+		"--disable-features=Translate",
+		"--enable-features=NetworkService,NetworkServiceInProcess",
+		"--metrics-recording-only",
+		"--password-store=basic",
+		"--use-mock-keychain",
+	}
+	if strings.TrimSpace(runtime.ProfilePath) != "" {
+		arguments = append(arguments, "--user-data-dir="+strings.TrimSpace(runtime.ProfilePath))
+	}
+	if runtime.Headed {
+		arguments = append(arguments, "about:blank")
+	} else {
+		arguments = append(arguments, "--headless=new", "about:blank")
+	}
+	return arguments
+}
+
+func (runtime AgentBrowserRuntime) loadExtensionsThroughPipe(ctx context.Context, reader *os.File, writer *os.File) error {
+	client := chromePipeClient{reader: reader, writer: writer}
+	if _, errorValue := client.send(ctx, "Browser.getVersion", map[string]any{}); errorValue != nil {
+		return errorValue
+	}
+	for _, extensionPath := range runtime.extensionPaths() {
+		if _, errorValue := client.send(ctx, "Extensions.loadUnpacked", map[string]any{"path": extensionPath, "enableInIncognito": false}); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
+}
+
+func closeChromePipeFiles(files ...*os.File) {
+	for _, file := range files {
+		if file != nil {
+			_ = file.Close()
+		}
+	}
+}
+
+type chromePipeClient struct {
+	reader *os.File
+	writer *os.File
+	nextID int
+}
+
+func (client *chromePipeClient) send(ctx context.Context, method string, params map[string]any) (map[string]any, error) {
+	client.nextID++
+	request := map[string]any{"id": client.nextID, "method": method, "params": params}
+	document, errorValue := json.Marshal(request)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	if _, errorValue := client.writer.Write(append(document, 0)); errorValue != nil {
+		return nil, errorValue
+	}
+	for {
+		response, errorValue := client.readResponse(ctx)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		if id, _ := response["id"].(float64); int(id) != client.nextID {
+			continue
+		}
+		if errorDocument, ok := response["error"].(map[string]any); ok {
+			return nil, errors.New(firstNonEmpty(findStringValue(errorDocument, "message"), BrowserExtensionNotReadyError))
+		}
+		result, _ := response["result"].(map[string]any)
+		return result, nil
+	}
+}
+
+func (client *chromePipeClient) readResponse(ctx context.Context) (map[string]any, error) {
+	type pipeResponse struct {
+		document map[string]any
+		error    error
+	}
+	channel := make(chan pipeResponse, 1)
+	go func() {
+		document, errorValue := readChromePipeDocument(client.reader)
+		channel <- pipeResponse{document: document, error: errorValue}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case response := <-channel:
+		return response.document, response.error
+	}
+}
+
+func readChromePipeDocument(reader *os.File) (map[string]any, error) {
+	buffer := []byte{}
+	chunk := make([]byte, 1)
+	for {
+		if _, errorValue := reader.Read(chunk); errorValue != nil {
+			return nil, errorValue
+		}
+		if chunk[0] == 0 {
+			break
+		}
+		buffer = append(buffer, chunk[0])
+	}
+	var document map[string]any
+	if errorValue := json.Unmarshal(buffer, &document); errorValue != nil {
+		return nil, errorValue
+	}
+	return document, nil
+}
+
+func (runtime AgentBrowserRuntime) ensureExtensionReady(ctx context.Context, targetURL string) error {
+	if !runtime.requiresExtensionVerification() {
+		return nil
+	}
+	if runtime.waitForExtensionReady(ctx, 3) == nil {
+		return nil
+	}
+	_ = runtime.closeSession(ctx)
+	if errorValue := runtime.runOpenCommand(ctx, append(runtime.sessionStartArguments(), "open", targetURL)); errorValue != nil && !isOpenSettleTimeout(errorValue) {
+		return errorValue
+	}
+	if runtime.waitForExtensionReady(ctx, extensionReadyAttemptCount()) == nil {
+		return nil
+	}
+	return errors.New(BrowserExtensionNotReadyError)
+}
+
+func (runtime AgentBrowserRuntime) requiresExtensionVerification() bool {
+	return runtime.browserEngine() == BrowserEngineChrome && len(runtime.extensionPaths()) > 0
+}
+
+func (runtime AgentBrowserRuntime) waitForExtensionReady(ctx context.Context, attempts int) error {
+	for attempt := 0; attempt < attempts; attempt++ {
+		if ready, errorValue := runtime.isExtensionReady(ctx); errorValue == nil && ready {
+			return nil
+		}
+		if errorValue := runtime.sleep(ctx, browserExtensionReadyPollInterval); errorValue != nil {
+			return errorValue
+		}
+	}
+	return errors.New(BrowserExtensionNotReadyError)
+}
+
+func extensionReadyAttemptCount() int {
+	attempts := int(browserExtensionReadyTimeout / browserExtensionReadyPollInterval)
+	if attempts < 1 {
+		return 1
+	}
+	return attempts
+}
+
+func (runtime AgentBrowserRuntime) isExtensionReady(ctx context.Context) (bool, error) {
+	script := `Boolean(document.getElementById("` + browserExtensionReadyElementID + `"))`
+	output, errorValue := runtime.run(ctx, append(runtime.sessionCommandArguments(), "eval", script)...)
+	if errorValue != nil {
+		return false, errorValue
+	}
+	return strings.Contains(strings.TrimSpace(string(output)), "true"), nil
+}
+
+func (runtime AgentBrowserRuntime) closeSession(ctx context.Context) error {
+	_, errorValue := runtime.run(ctx, append(runtime.sessionCommandArguments(), "close")...)
+	return errorValue
 }
 
 func (runtime AgentBrowserRuntime) Observe(ctx context.Context, request ObserveRequest) (ObserveResult, error) {
@@ -421,6 +740,9 @@ func (runtime AgentBrowserRuntime) Wait(ctx context.Context, request WaitRequest
 }
 
 func (runtime AgentBrowserRuntime) Check(ctx context.Context) RuntimeReadiness {
+	if readiness := runtime.validateLocalBrowserConfiguration(); readiness.Status != "" {
+		return readiness
+	}
 	if _, errorValue := runtime.run(ctx, "doctor", "--offline", "--quick"); errorValue != nil {
 		return RuntimeReadiness{
 			Status: "unavailable",
@@ -435,6 +757,9 @@ func (runtime AgentBrowserRuntime) EnsureInstalled(ctx context.Context) RuntimeR
 	if readiness.Status == "ready" {
 		return readiness
 	}
+	if !runtime.canInstallMissingRuntime(readiness) {
+		return readiness
+	}
 	if _, errorValue := runtime.run(ctx, "install"); errorValue != nil {
 		return RuntimeReadiness{
 			Status: "unavailable",
@@ -442,6 +767,64 @@ func (runtime AgentBrowserRuntime) EnsureInstalled(ctx context.Context) RuntimeR
 		}
 	}
 	return runtime.Check(ctx)
+}
+
+func (runtime AgentBrowserRuntime) validateLocalBrowserConfiguration() RuntimeReadiness {
+	if runtime.browserEngine() == BrowserEngineChrome {
+		if !isExecutablePath(runtime.EngineExecutablePath) {
+			return RuntimeReadiness{
+				Status: "not_ready",
+				Error:  "Google Chrome is not installed",
+			}
+		}
+	}
+	for _, extensionPath := range runtime.extensionPaths() {
+		if !isBrowserExtensionDirectory(extensionPath) {
+			return RuntimeReadiness{
+				Status: "not_ready",
+				Error:  BrowserExtensionNotReadyError,
+			}
+		}
+	}
+	return RuntimeReadiness{}
+}
+
+func (runtime AgentBrowserRuntime) canInstallMissingRuntime(readiness RuntimeReadiness) bool {
+	if readiness.Status == "not_ready" {
+		return false
+	}
+	return runtime.browserEngine() != BrowserEngineChrome
+}
+
+func isExecutablePath(path string) bool {
+	trimmedPath := strings.TrimSpace(path)
+	if trimmedPath == "" {
+		return false
+	}
+	information, errorValue := os.Stat(trimmedPath)
+	return errorValue == nil && !information.IsDir() && information.Mode()&0o111 != 0
+}
+
+func isBrowserExtensionDirectory(path string) bool {
+	trimmedPath := strings.TrimSpace(path)
+	if trimmedPath == "" {
+		return false
+	}
+	information, errorValue := os.Stat(trimmedPath)
+	if errorValue != nil || !information.IsDir() {
+		return false
+	}
+	for _, filename := range []string{"manifest.json", "content-script.js", "service-worker.js"} {
+		if !isRegularFile(filepath.Join(trimmedPath, filename)) {
+			return false
+		}
+	}
+	return true
+}
+
+func isRegularFile(path string) bool {
+	information, errorValue := os.Stat(path)
+	return errorValue == nil && !information.IsDir()
 }
 
 func DeviceReadinessShellScript() string {
@@ -577,6 +960,7 @@ func browserCommandName(arguments []string) string {
 		"press":      true,
 		"wait":       true,
 		"eval":       true,
+		"close":      true,
 	}
 	for _, argument := range arguments {
 		if commands[argument] {
