@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"archive/zip"
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,6 +27,35 @@ func TestDeviceToolPackagesIncludeSitePublishingBasics(t *testing.T) {
 		if !strings.Contains(packages, packageName) {
 			t.Fatalf("expected base device tools to include %q, got %s", packageName, packages)
 		}
+	}
+}
+
+func TestExtractFromZipWritesArchiveEntry(t *testing.T) {
+	var buffer bytes.Buffer
+	zipWriter := zip.NewWriter(&buffer)
+	fileWriter, errorValue := zipWriter.Create("pocketbase")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := fileWriter.Write([]byte("binary")); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := zipWriter.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	path := filepath.Join(t.TempDir(), "pocketbase")
+
+	errorValue = extractFromZip(bytes.NewReader(buffer.Bytes()), int64(buffer.Len()), path, "pocketbase")
+
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	document, errorValue := os.ReadFile(path)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if string(document) != "binary" {
+		t.Fatalf("unexpected extracted document: %q", document)
 	}
 }
 

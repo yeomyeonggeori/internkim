@@ -2,6 +2,7 @@ package cli
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bufio"
 	"bytes"
 	"compress/gzip"
@@ -879,8 +880,41 @@ func downloadBinary(url, localPath, tarEntry string) error {
 		return err
 	}
 
+	if strings.HasSuffix(strings.ToLower(url), ".zip") {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		return extractFromZip(bytes.NewReader(body), int64(len(body)), localPath, tarEntry)
+	}
+
 	// Extract specific file from tar.gz
 	return extractFromTarGz(resp.Body, localPath, tarEntry)
+}
+
+func extractFromZip(reader io.ReaderAt, size int64, localPath, entryName string) error {
+	zipReader, err := zip.NewReader(reader, size)
+	if err != nil {
+		return fmt.Errorf("zip open: %w", err)
+	}
+	for _, file := range zipReader.File {
+		if filepath.Base(file.Name) != entryName {
+			continue
+		}
+		source, err := file.Open()
+		if err != nil {
+			return err
+		}
+		defer source.Close()
+		target, err := os.OpenFile(localPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+		if err != nil {
+			return err
+		}
+		defer target.Close()
+		_, err = io.Copy(target, source)
+		return err
+	}
+	return fmt.Errorf("entry %q not found in archive", entryName)
 }
 
 func extractFromTarGz(r io.Reader, localPath, entryName string) error {
@@ -3835,6 +3869,7 @@ func runSetupLive(messenger *msg) {
 		return
 	}
 	target := resolveCommandTarget(os.Args[2:])
+	target = resolveLabHostForCommandTarget(target, scriptDir)
 	hostOverride := target.host
 	cloudflareSSHHostname := resolveCloudflareSSHHostname(configuration, target)
 	boardType := target.boardType
