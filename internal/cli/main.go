@@ -1147,18 +1147,7 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 	}
 
 	// 3. Enable personal access tokens + bot accounts in config
-	configBody, _ := json.Marshal(map[string]any{
-		"ServiceSettings": map[string]any{
-			"EnableUserAccessTokens":   true,
-			"EnableBotAccountCreation": true,
-		},
-		"TeamSettings": map[string]any{
-			"TeammateNameDisplay": "full_name",
-		},
-		"EmailSettings": map[string]string{
-			"PushNotificationContents": "id_loaded",
-		},
-	})
+	configBody, _ := json.Marshal(mattermostSetupConfigurationPatch())
 	mmAPI("PUT", "/api/v4/config/patch", configBody, adminToken)
 
 	// 4. Grant admin role
@@ -1427,6 +1416,22 @@ type mattermostSetupCommandRecord struct {
 }
 
 const mattermostConnectSetupCommandTokenPath = "/root/.internkim/state/admin/mattermost-connect-command-token"
+
+func mattermostSetupConfigurationPatch() map[string]any {
+	return map[string]any{
+		"ServiceSettings": map[string]any{
+			"AllowedUntrustedInternalConnections": "127.0.0.1 localhost",
+			"EnableUserAccessTokens":              true,
+			"EnableBotAccountCreation":            true,
+		},
+		"TeamSettings": map[string]any{
+			"TeammateNameDisplay": "full_name",
+		},
+		"EmailSettings": map[string]string{
+			"PushNotificationContents": "id_loaded",
+		},
+	}
+}
 
 func setupMattermostConnectCommand(m *msg, ssh *sshClient, mmAPI mattermostSetupAPI, adminToken string, teamID string) {
 	commandRecord, found := findMattermostSetupConnectCommand(mmAPI, adminToken, teamID)

@@ -106,6 +106,18 @@ func TestMattermostSetupConnectCommandPayloadTargetsAdmind(t *testing.T) {
 	}
 }
 
+func TestMattermostSetupAllowsLocalSlashCommandCallback(t *testing.T) {
+	configurationPatch := mattermostSetupConfigurationPatch()
+	serviceSettings, ok := configurationPatch["ServiceSettings"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected ServiceSettings in Mattermost setup patch, got %+v", configurationPatch)
+	}
+	allowedConnections, ok := serviceSettings["AllowedUntrustedInternalConnections"].(string)
+	if !ok || !strings.Contains(allowedConnections, "127.0.0.1") {
+		t.Fatalf("expected Mattermost setup to allow local slash command callback, got %+v", serviceSettings)
+	}
+}
+
 func TestFindMattermostSetupConnectCommand(t *testing.T) {
 	mmAPI := func(method string, path string, body []byte, token string) (int, []byte) {
 		if method != "GET" || path != "/api/v4/commands?team_id=team-1" || token != "admin-token" {
