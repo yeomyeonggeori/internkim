@@ -625,6 +625,7 @@ func runStatusArguments(arguments []string) error {
 		lang = "en"
 	}
 	m := newMsg(lang)
+	configuration := loadConfig()
 	repositoryRootPath, errorValue := resolveRepositoryRootPath()
 	if errorValue != nil {
 		return errorValue
@@ -643,6 +644,19 @@ func runStatusArguments(arguments []string) error {
 		return nil
 	}
 
+	connection, isRemote, errorValue := resolveDeviceSSHConnection(configuration, sshpassBin, target)
+	if errorValue == nil && connection != nil {
+		target.host = connection.host
+		target.useRemoteSSH = isRemote
+		printCommandTargetEvidence(target)
+		fmt.Printf("=== %s (%s: %s) ===\n\n", m.t("기기 상태", "Device Status"), target.boardType, target.host)
+		printBoardStatus(m, target, connection)
+		return nil
+	}
+	if target.useRemoteSSH && errorValue != nil {
+		return errorValue
+	}
+
 	if target.mode == commandTargetModeLab {
 		return errors.New("lab target not found; run `internkim lab status` or pass --host <ip>")
 	}
@@ -655,7 +669,9 @@ func runStatusArguments(arguments []string) error {
 }
 
 func printBoardStatus(m *msg, target commandTarget, sshClient *sshClient) {
-	saveState(target.stateDir, "board_ip", target.host)
+	if !target.useRemoteSSH {
+		saveState(target.stateDir, "board_ip", target.host)
+	}
 	sshCmd := func(cmd string) string {
 		return strings.TrimSpace(sshClient.run(cmd))
 	}
@@ -3321,7 +3337,7 @@ func newSSHWithPort(sshpassBin, user, pass, host, port string) *sshClient {
 
 func newCloudflareSSH(sshpassBin, user, pass, host string) *sshClient {
 	client := newSSH(sshpassBin, user, pass, host)
-	client.proxyCommand = "cloudflared access ssh --hostname %h"
+	client.proxyCommand = "env GODEBUG=netdns=go TUNNEL_EDGE_IP_VERSION=4 cloudflared --edge-ip-version 4 --edge-bind-address 0.0.0.0 access ssh --hostname %h"
 	return client
 }
 
@@ -3389,6 +3405,8 @@ func isRetryableSSHFailure(output string) bool {
 		"Connection refused",
 		"Operation timed out",
 		"Connection timed out",
+		"no route to host",
+		"Network is unreachable",
 		"Permission denied, please try again.",
 	} {
 		if strings.Contains(output, phrase) {
@@ -3781,7 +3799,7 @@ func resolveCloudflareSSHHostname(configuration config, target commandTarget) st
 	if target.useRemoteSSH && strings.TrimSpace(target.host) != "" {
 		return strings.TrimSpace(target.host)
 	}
-	if strings.TrimSpace(target.sshHostname) != "" {
+	if strings.TrimSpace(target.sshHostname) != "" && !isLegacyCloudflareSSHHostname(configuration, target.sshHostname) {
 		return strings.TrimSpace(target.sshHostname)
 	}
 	if hostname := cloudflareSSHHostnameFromDeviceURL(target.deviceURL); hostname != "" {
@@ -3791,12 +3809,13 @@ func resolveCloudflareSSHHostname(configuration config, target commandTarget) st
 	if strings.TrimSpace(deviceID) == "" {
 		return ""
 	}
-	return "ssh." + strings.TrimSpace(deviceID) + "." + strings.TrimSpace(configuration.CFDomain)
+	return cloudflareSSHHostname(configuration, strings.TrimSpace(deviceID))
 }
 
 func ensureCloudflareSSHRegistration(configuration config, stateDir string) (string, error) {
-	if loadState(stateDir, "ssh_hostname") != "" && loadState(stateDir, "tunnel_revision") == setup.TunnelConfigurationRevision {
-		return loadState(stateDir, "ssh_hostname"), nil
+	savedSSHHostname := loadState(stateDir, "ssh_hostname")
+	if savedSSHHostname != "" && loadState(stateDir, "tunnel_revision") == setup.TunnelConfigurationRevision && !isLegacyCloudflareSSHHostname(configuration, savedSSHHostname) {
+		return savedSSHHostname, nil
 	}
 	deviceID := loadState(stateDir, "device_id")
 	deviceSecret := loadState(stateDir, "device_secret")
@@ -3821,6 +3840,23 @@ func ensureCloudflareSSHRegistration(configuration config, stateDir string) (str
 	return sshHostname, nil
 }
 
+func cloudflareSSHHostname(configuration config, deviceID string) string {
+	cfDomain := strings.TrimSpace(configuration.CFDomain)
+	if cfDomain == "" || strings.TrimSpace(deviceID) == "" {
+		return ""
+	}
+	return "ssh-" + strings.TrimSpace(deviceID) + "." + cfDomain
+}
+
+func isLegacyCloudflareSSHHostname(configuration config, hostname string) bool {
+	cfDomain := strings.TrimSpace(configuration.CFDomain)
+	trimmedHostname := strings.TrimSpace(hostname)
+	if cfDomain == "" || trimmedHostname == "" {
+		return false
+	}
+	return strings.HasPrefix(trimmedHostname, "ssh.") && strings.HasSuffix(trimmedHostname, "."+cfDomain)
+}
+
 func remoteSetupAdminEmail(stateDir string) string {
 	for _, value := range []string{
 		strings.TrimSpace(os.Getenv("INTERNKIM_ADMIN_EMAIL")),
@@ -3839,7 +3875,12 @@ func cloudflareSSHHostnameFromDeviceURL(deviceURL string) string {
 	if errorValue != nil || strings.TrimSpace(parsedURL.Hostname()) == "" {
 		return ""
 	}
-	return "ssh." + parsedURL.Hostname()
+	hostname := strings.TrimSpace(parsedURL.Hostname())
+	labels := strings.SplitN(hostname, ".", 2)
+	if len(labels) != 2 || labels[0] == "" || labels[1] == "" {
+		return ""
+	}
+	return "ssh-" + labels[0] + "." + labels[1]
 }
 
 func ensureCloudflaredAccessSSHAvailable() error {
