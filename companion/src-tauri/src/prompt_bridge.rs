@@ -10,7 +10,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 
 #[derive(Default)]
 pub struct PromptBridgeState {
@@ -156,6 +156,12 @@ fn handle_prompt_stream(
     };
     let request_id = new_request_id();
     let prompt_request = prompt_request_from_body(kind, request.body, request_id.clone())?;
+    if prompt_request.kind == "approval" {
+        return handle_boolean_prompt(app, stream, prompt_request, "Allow", "Deny", "allowed");
+    }
+    if prompt_request.kind == "confirm" {
+        return handle_boolean_prompt(app, stream, prompt_request, "Approve", "Deny", "confirmed");
+    }
     let (sender, receiver) = mpsc::channel();
     let state = app.state::<PromptBridgeState>();
     state
@@ -186,6 +192,28 @@ fn handle_prompt_stream(
         }
     }
     Ok(())
+}
+
+fn handle_boolean_prompt(
+    app: AppHandle,
+    mut stream: TcpStream,
+    prompt_request: PromptRequest,
+    approve_label: &str,
+    deny_label: &str,
+    response_key: &str,
+) -> Result<(), String> {
+    let _ = show_prompt_window(&app);
+    let is_approved = app
+        .dialog()
+        .message(prompt_request.message)
+        .title("Intern Kim Companion")
+        .buttons(MessageDialogButtons::OkCancelCustom(
+            approve_label.to_string(),
+            deny_label.to_string(),
+        ))
+        .kind(MessageDialogKind::Warning)
+        .blocking_show();
+    write_http_json(&mut stream, 200, json!({response_key:is_approved}))
 }
 
 #[tauri::command]

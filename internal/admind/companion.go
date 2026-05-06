@@ -572,13 +572,7 @@ func (service *Service) invokeCompanionJob(ctx context.Context, request capabili
 		return companionCapabilityUnavailableResponse(request, availability), nil
 	}
 	now := time.Now().UTC()
-	timeout := request.TimeoutSecond
-	if timeout <= 0 {
-		timeout = 30
-	}
-	if timeout > 120 {
-		timeout = 120
-	}
+	timeout := companionJobTimeoutSecond(request)
 	job := &CompanionJob{
 		JobID:             randomHex(16),
 		ParentJobID:       request.ParentJobID,
@@ -640,6 +634,19 @@ func (service *Service) invokeCompanionJob(ctx context.Context, request capabili
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
+}
+
+func companionJobTimeoutSecond(request capabilities.ToolInvokeRequest) int {
+	if request.TimeoutSecond > 0 {
+		if request.TimeoutSecond > 300 {
+			return 300
+		}
+		return request.TimeoutSecond
+	}
+	if request.RequiresUserPresence || strings.HasPrefix(request.ToolName, "browser.") {
+		return 120
+	}
+	return 30
 }
 
 func (service *Service) claimNextCompanionJob(companion *CompanionRecord) *CompanionJob {

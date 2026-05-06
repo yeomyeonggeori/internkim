@@ -5,8 +5,8 @@
 	import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link';
 	import { onMount } from 'svelte';
 	import { isCompanionVerified, isStalePairingStatus, normalizeManualPairingInput, parsePairingLink, stalePairingMessage, statusLabel, type CompanionStatus } from './lib/pairing';
-	import { approvalResponse, confirmResponse, inputResponse, normalizePromptRequest, promptTitle, type PromptRequest, type PromptResult } from './lib/prompts';
-	import { addMountedFolder, pairCompanion, pauseMountedFolder, readActiveGrants, readCompanionStatus, readMountedFolders, readRemoteModel, readRuntimeStatus, refreshRuntimeStatus, resumeMountedFolder, revokeGrant, revokeMountedFolder, startCompanionRuntime, updateRemoteModel, updateRuntimeLocalLLM, type ActiveGrant, type LocalLLMBackendStatus, type MountedFolder, type RuntimeStatus } from './lib/sidecar';
+	import { inputResponse, normalizePromptRequest, type PromptRequest } from './lib/prompts';
+	import { addMountedFolder, pairCompanion, pauseMountedFolder, readActiveGrants, readCompanionStatus, readMountedFolders, readRemoteModel, readRuntimeStatus, refreshRuntimeStatus, restartCompanionRuntime, resumeMountedFolder, revokeGrant, revokeMountedFolder, startCompanionRuntime, updateRemoteModel, updateRuntimeLocalLLM, type ActiveGrant, type LocalLLMBackendStatus, type MountedFolder, type RuntimeStatus } from './lib/sidecar';
 	import { defaultSettings, fetchBackendModels, loadCompanionSettings, saveCompanionSettings, type CompanionSettings } from './lib/settings';
 
 	let status = $state<CompanionStatus>({ paired: false });
@@ -14,10 +14,7 @@
 	let deviceURL = $state('');
 	let pairingCode = $state('');
 	let message = $state('');
-	let promptInput = $state('');
-	let denialReason = $state('');
 	let pendingPrompt = $state<PromptRequest | undefined>();
-	let promptResult = $state<PromptResult>({ status: 'idle' });
 	let activeGrants = $state<ActiveGrant[]>([]);
 	let mountedFolders = $state<MountedFolder[]>([]);
 	let isBusy = $state(false);
@@ -241,14 +238,14 @@
 	function showPrompt(prompt: PromptRequest) {
 		clearPromptTimeout();
 		pendingPrompt = prompt;
-		promptInput = '';
-		denialReason = '';
-		promptResult = { status: 'pending' };
+		if (prompt.kind === 'input') {
+			void completePrompt(inputResponse(window.prompt(prompt.message, '') ?? ''));
+			return;
+		}
 		if (!prompt.timeoutSeconds) return;
 		promptTimeoutID = window.setTimeout(() => {
 			if (pendingPrompt?.requestID !== prompt.requestID) return;
 			pendingPrompt = undefined;
-			promptResult = { status: 'failed', message: 'Request expired.' };
 		}, prompt.timeoutSeconds * 1000);
 	}
 
@@ -285,7 +282,7 @@
 			await pairCompanion(payload);
 			await refreshStatus();
 			if (isCompanionVerified(status)) {
-				await ensureRuntime();
+				await restartRuntime();
 				await refreshRemoteModel();
 			}
 			message = 'Connected. You can close this window.';
@@ -304,6 +301,17 @@
 			await refreshMounts();
 		} catch (errorValue) {
 			runtime = { isRunning: false, lastError: errorValue instanceof Error ? errorValue.message : 'Runtime failed to start' };
+		}
+	}
+
+	async function restartRuntime() {
+		try {
+			await restartCompanionRuntime();
+			runtime = readRuntimeStatus();
+			await refreshGrants();
+			await refreshMounts();
+		} catch (errorValue) {
+			runtime = { isRunning: false, lastError: errorValue instanceof Error ? errorValue.message : 'Runtime failed to restart' };
 		}
 	}
 
@@ -367,14 +375,9 @@
 		try {
 			await invoke('complete_prompt_request', { requestId: requestID, response });
 			pendingPrompt = undefined;
-			promptInput = '';
-			denialReason = '';
-			promptResult = { status: 'completed', message: 'Response sent.' };
 		} catch (errorValue) {
 			pendingPrompt = undefined;
-			promptInput = '';
-			denialReason = '';
-			promptResult = { status: 'failed', message: errorValue instanceof Error ? errorValue.message : 'Response failed' };
+			message = errorValue instanceof Error ? errorValue.message : 'Response failed';
 		}
 	}
 
@@ -559,44 +562,6 @@
 		</div>
 		{#if settingsMessage}
 			<p class="message">{settingsMessage}</p>
-		{/if}
-	</section>
-
-	<section class="prompt-panel">
-		<h2>Pending user request</h2>
-		{#if pendingPrompt}
-			<div class="prompt-card">
-				<p class="eyebrow">{promptTitle(pendingPrompt)}</p>
-				<p class="prompt-message">{pendingPrompt.message}</p>
-				{#if pendingPrompt.kind === 'confirm'}
-					<div class="actions">
-						<button onclick={() => completePrompt(confirmResponse(true))}>Approve</button>
-						<button class="secondary" onclick={() => completePrompt(confirmResponse(false))}>Deny</button>
-					</div>
-				{:else if pendingPrompt.kind === 'approval'}
-					<label>
-						<span>Optional reason or constraint</span>
-						<input bind:value={denialReason} placeholder="Example: Use another way instead" />
-					</label>
-					<div class="actions">
-						<button onclick={() => completePrompt(approvalResponse(true, ''))}>Allow</button>
-						<button class="secondary" onclick={() => completePrompt(approvalResponse(false, denialReason))}>Deny</button>
-					</div>
-				{:else}
-					<label>
-						<span>Response</span>
-						<input bind:value={promptInput} placeholder="Type your answer" />
-					</label>
-					<div class="actions">
-						<button onclick={() => completePrompt(inputResponse(promptInput))}>Submit</button>
-						<button class="secondary" onclick={() => completePrompt(inputResponse(''))}>Cancel</button>
-					</div>
-				{/if}
-			</div>
-		{:else if promptResult.status === 'completed' || promptResult.status === 'failed'}
-			<p class:failed={promptResult.status === 'failed'} class="message">{promptResult.message}</p>
-		{:else}
-			<p class="subtle">Requests that need your confirmation or input will appear here.</p>
 		{/if}
 	</section>
 

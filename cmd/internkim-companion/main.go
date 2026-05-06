@@ -238,7 +238,11 @@ func runStatus(arguments []string, httpClient *http.Client, secureStore companio
 	}
 	if *jsonOutput {
 		agentBrowserPath := resolveAgentBrowserPath("")
-		readiness := browserruntime.AgentBrowserRuntime{CommandPath: agentBrowserPath, Engine: browserruntime.BrowserEngineChrome}.Check(context.Background())
+		readiness := browserruntime.AgentBrowserRuntime{
+			CommandPath:          agentBrowserPath,
+			Engine:               browserruntime.BrowserEngineChrome,
+			EngineExecutablePath: defaultBrowserExecutablePath(),
+		}.Check(context.Background())
 		authStatus := companionAuthStatusFromState(state, *verifyAuth, *statePath, httpClient, secureStore)
 		writeJSONDocument(os.Stdout, companionStatusFromState(state, readiness, authStatus))
 		return nil
@@ -248,7 +252,11 @@ func runStatus(arguments []string, httpClient *http.Client, secureStore companio
 	fmt.Printf("localOnly: %t\n", state.LocalOnly)
 	fmt.Printf("capabilities: %d\n", len(state.Capabilities))
 	agentBrowserPath := resolveAgentBrowserPath("")
-	readiness := browserruntime.AgentBrowserRuntime{CommandPath: agentBrowserPath, Engine: browserruntime.BrowserEngineChrome}.Check(context.Background())
+	readiness := browserruntime.AgentBrowserRuntime{
+		CommandPath:          agentBrowserPath,
+		Engine:               browserruntime.BrowserEngineChrome,
+		EngineExecutablePath: defaultBrowserExecutablePath(),
+	}.Check(context.Background())
 	fmt.Println("browserRuntime: " + firstNonEmpty(readiness.Status, "unknown"))
 	return nil
 }
@@ -293,6 +301,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	shellBridgeToken := flags.String("shell-bridge-token", "", "local companion shell bridge token")
 	controlListenAddress := flags.String("control-listen", "", "local companion shell control address")
 	agentBrowserPath := flags.String("agent-browser-path", "", "agent-browser executable path")
+	browserExecutablePath := flags.String("browser-executable", defaultBrowserExecutablePath(), "browser executable path")
 	browserProfilePath := flags.String("browser-profile", defaultBrowserProfilePath(), "InternKim companion browser profile path")
 	developmentAutoApproveBrowser := flags.Bool("development-auto-approve-browser", false, "automatically approve browser grants for local E2E")
 	localLLMFlags := registerLocalLLMFlags(flags)
@@ -315,11 +324,12 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	}
 	resolvedAgentBrowserPath := resolveAgentBrowserPath(*agentBrowserPath)
 	browserRuntime := browserruntime.AgentBrowserRuntime{
-		CommandPath: resolvedAgentBrowserPath,
-		Engine:      browserruntime.BrowserEngineChrome,
-		ProfilePath: *browserProfilePath,
-		SessionName: "internkim",
-		Headed:      true,
+		CommandPath:          resolvedAgentBrowserPath,
+		Engine:               browserruntime.BrowserEngineChrome,
+		EngineExecutablePath: *browserExecutablePath,
+		ProfilePath:          *browserProfilePath,
+		SessionName:          "internkim",
+		Headed:               true,
 		ExtensionPaths: []string{
 			defaultBrowserExtensionPath(),
 		},
@@ -1000,6 +1010,61 @@ func defaultBrowserProfilePath() string {
 		return filepath.Join(homeDirectory, ".internkim-companion", "browser-profile")
 	}
 	return filepath.Join(os.TempDir(), "internkim-companion-browser-profile")
+}
+
+func defaultBrowserExecutablePath() string {
+	for _, value := range []string{
+		os.Getenv("INTERNKIM_BROWSER_EXECUTABLE_PATH"),
+		os.Getenv("AGENT_BROWSER_EXECUTABLE_PATH"),
+	} {
+		if path := executableBrowserPath(value); path != "" {
+			return path
+		}
+	}
+	for _, path := range defaultBrowserExecutableCandidates() {
+		if executablePath := executableBrowserPath(path); executablePath != "" {
+			return executablePath
+		}
+	}
+	return ""
+}
+
+func defaultBrowserExecutableCandidates() []string {
+	switch runtime.GOOS {
+	case "darwin":
+		return []string{
+			"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+			filepath.Join(os.Getenv("HOME"), "Applications", "Google Chrome.app", "Contents", "MacOS", "Google Chrome"),
+			"/Applications/Chromium.app/Contents/MacOS/Chromium",
+			"/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+			"/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+		}
+	case "windows":
+		return []string{
+			filepath.Join(os.Getenv("PROGRAMFILES"), "Google", "Chrome", "Application", "chrome.exe"),
+			filepath.Join(os.Getenv("PROGRAMFILES(X86)"), "Google", "Chrome", "Application", "chrome.exe"),
+			filepath.Join(os.Getenv("LOCALAPPDATA"), "Google", "Chrome", "Application", "chrome.exe"),
+		}
+	default:
+		candidates := []string{}
+		for _, name := range []string{"google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "microsoft-edge", "brave-browser"} {
+			if path, errorValue := exec.LookPath(name); errorValue == nil {
+				candidates = append(candidates, path)
+			}
+		}
+		return candidates
+	}
+}
+
+func executableBrowserPath(path string) string {
+	trimmedPath := strings.TrimSpace(path)
+	if trimmedPath == "" {
+		return ""
+	}
+	if isExecutableFile(trimmedPath) {
+		return trimmedPath
+	}
+	return ""
 }
 
 func defaultBrowserExtensionPath() string {
