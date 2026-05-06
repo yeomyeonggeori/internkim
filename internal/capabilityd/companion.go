@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/internal/llmbackend"
 )
 
 type CapabilityRouter struct {
@@ -206,6 +207,7 @@ func (provider companionProvider) CompleteStructured(ctx context.Context, reques
 	toolResponse, errorValue := provider.InvokeTool(ctx, capabilities.ToolInvokeRequest{
 		ToolName:      "llm.structured",
 		Input:         document,
+		Context:       toolInvokeContextFromLLMRequest(request.Context),
 		ExecutionMode: capabilities.ExecutionModeCompanion,
 		PrivacyClass:  "model_input",
 	})
@@ -233,6 +235,7 @@ func (provider companionProvider) CompleteText(ctx context.Context, request Text
 	toolResponse, errorValue := provider.InvokeTool(ctx, capabilities.ToolInvokeRequest{
 		ToolName:      "llm.text",
 		Input:         document,
+		Context:       toolInvokeContextFromLLMRequest(request.Context),
 		ExecutionMode: capabilities.ExecutionModeCompanion,
 		PrivacyClass:  "model_input",
 	})
@@ -300,6 +303,17 @@ func (provider companionProvider) InvokeTool(ctx context.Context, request capabi
 		response.ToolName = request.ToolName
 	}
 	return response, nil
+}
+
+func toolInvokeContextFromLLMRequest(requestContext llmbackend.RequestContext) capabilities.ToolInvokeContext {
+	return capabilities.ToolInvokeContext{
+		RequesterPersonID:       strings.TrimSpace(requestContext.RequesterPersonID),
+		RequesterEmail:          strings.ToLower(strings.TrimSpace(requestContext.RequesterEmail)),
+		RequesterName:           strings.TrimSpace(requestContext.RequesterName),
+		RequesterPlatformUserID: strings.TrimSpace(requestContext.RequesterPlatformUserID),
+		ConversationID:          strings.TrimSpace(requestContext.ConversationID),
+		Platform:                strings.TrimSpace(requestContext.Platform),
+	}
 }
 
 func (provider companionProvider) capabilities(ctx context.Context) ([]capabilities.Descriptor, error) {

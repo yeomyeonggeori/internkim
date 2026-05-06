@@ -3,8 +3,10 @@ package browser
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"math/big"
 	"net/url"
 	"os"
 	"os/exec"
@@ -43,6 +45,8 @@ type AgentBrowserRuntime struct {
 	ExtensionPaths       []string
 	Runner               CommandRunner
 	Now                  func() time.Time
+	Sleep                func(context.Context, time.Duration) error
+	DisableHumanPacing   bool
 }
 
 type RuntimeReadiness struct {
@@ -465,6 +469,9 @@ func (runtime AgentBrowserRuntime) extensionPaths() []string {
 }
 
 func (runtime AgentBrowserRuntime) run(ctx context.Context, arguments ...string) ([]byte, error) {
+	if errorValue := runtime.paceBrowserCommand(ctx, arguments); errorValue != nil {
+		return nil, errorValue
+	}
 	runner := runtime.Runner
 	if runner == nil {
 		runner = OSCommandRunner{}
@@ -477,6 +484,75 @@ func (runtime AgentBrowserRuntime) run(ctx context.Context, arguments ...string)
 		return nil, errors.New("companion browser runtime command failed")
 	}
 	return output, nil
+}
+
+func (runtime AgentBrowserRuntime) paceBrowserCommand(ctx context.Context, arguments []string) error {
+	if !runtime.shouldPaceBrowserCommand(arguments) {
+		return nil
+	}
+	return runtime.sleep(ctx, runtime.humanPacingDelay())
+}
+
+func (runtime AgentBrowserRuntime) shouldPaceBrowserCommand(arguments []string) bool {
+	if runtime.DisableHumanPacing {
+		return false
+	}
+	if runtime.browserEngine() != BrowserEngineChrome || !runtime.Headed {
+		return false
+	}
+	switch browserCommandName(arguments) {
+	case "open", "snapshot", "screenshot", "click", "fill", "select", "press", "wait", "eval":
+		return true
+	default:
+		return false
+	}
+}
+
+func browserCommandName(arguments []string) string {
+	commands := map[string]bool{
+		"open":       true,
+		"snapshot":   true,
+		"screenshot": true,
+		"click":      true,
+		"fill":       true,
+		"select":     true,
+		"press":      true,
+		"wait":       true,
+		"eval":       true,
+	}
+	for _, argument := range arguments {
+		if commands[argument] {
+			return argument
+		}
+	}
+	return ""
+}
+
+func (runtime AgentBrowserRuntime) humanPacingDelay() time.Duration {
+	const minimumDelay = 900 * time.Millisecond
+	const jitterRange = 900
+	jitter, errorValue := rand.Int(rand.Reader, big.NewInt(jitterRange))
+	if errorValue != nil {
+		return minimumDelay + 450*time.Millisecond
+	}
+	return minimumDelay + time.Duration(jitter.Int64())*time.Millisecond
+}
+
+func (runtime AgentBrowserRuntime) sleep(ctx context.Context, delay time.Duration) error {
+	if delay <= 0 {
+		return nil
+	}
+	if runtime.Sleep != nil {
+		return runtime.Sleep(ctx, delay)
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func (runtime AgentBrowserRuntime) commandPath() string {

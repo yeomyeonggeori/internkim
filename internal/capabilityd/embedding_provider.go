@@ -70,10 +70,7 @@ func (service Service) openRouterEmbeddingBackend() llmbackend.OpenRouterEmbeddi
 
 func (service Service) automaticEmbeddingProviders(localProvider EmbeddingProvider, companionProvider EmbeddingProvider, remoteProvider EmbeddingProvider) []EmbeddingProvider {
 	if service.Configuration.LocalOnly {
-		return []EmbeddingProvider{companionProvider, localProvider}
-	}
-	if service.Configuration.PreferCompanionLLM {
-		return []EmbeddingProvider{companionProvider, localProvider, remoteProvider}
+		return []EmbeddingProvider{localProvider, companionProvider}
 	}
 	return []EmbeddingProvider{localProvider, companionProvider, remoteProvider}
 }
