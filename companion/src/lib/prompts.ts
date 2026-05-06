@@ -50,10 +50,11 @@ export function inputResponse(text: string): { text: string } {
 	return { text };
 }
 
-export function approvalResponse(isAllowed: boolean, userReason: string): { allowed: boolean; userReason?: string; suggestedConstraint?: string } {
+export function approvalResponse(isAllowed: boolean, userReason: string, rememberSession = false): { allowed: boolean; userReason?: string; suggestedConstraint?: string; rememberSession?: boolean } {
 	const trimmedReason = userReason.trim();
 	return {
 		allowed: isAllowed,
+		rememberSession: isAllowed && rememberSession ? true : undefined,
 		userReason: isAllowed ? undefined : trimmedReason || undefined,
 		suggestedConstraint: isAllowed ? undefined : trimmedReason || undefined
 	};
