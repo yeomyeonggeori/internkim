@@ -190,6 +190,8 @@ func Main() {
 			runFlash()
 		case "wifi":
 			runWiFi()
+		case "ssh":
+			runDeviceSSH()
 		case "model":
 			runModel()
 		case "companion":
@@ -231,6 +233,7 @@ func printUsage() {
 	fmt.Println("  setup    Full device provisioning")
 	fmt.Println("  flash    Flash board boot media")
 	fmt.Println("  wifi     Add or update Jetson Wi-Fi profiles")
+	fmt.Println("  ssh      Open SSH to the device")
 	fmt.Println("  model    Manage LLM model (current/set/list)")
 	fmt.Println("  companion Build and upgrade the local companion app")
 	fmt.Println("  invite   Generate invite QR code")
@@ -304,6 +307,96 @@ func printSetupUsage() {
 	fmt.Println("Examples:")
 	fmt.Println("  internkim setup --only web")
 	fmt.Println("  internkim setup --only web,binaries,services --force")
+}
+
+func runDeviceSSH() {
+	configuration := loadConfig()
+	scriptDir, _ := os.Getwd()
+	sshpassBin := filepath.Join(scriptDir, "bin", "sshpass")
+	arguments := commandControlArguments(os.Args[2:])
+	target := resolveCommandTarget(arguments)
+	connection, isRemote, errorValue := resolveDeviceSSHConnection(configuration, sshpassBin, target)
+	if errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	target.host = connection.host
+	target.useRemoteSSH = isRemote
+	printCommandTargetEvidence(target)
+	if isRemote {
+		fmt.Printf("Backend: cloudflare ssh\n")
+	} else {
+		fmt.Printf("Backend: local ssh\n")
+	}
+	if errorValue := connection.runInteractiveSSH(commandRemoteArguments(os.Args[2:])); errorValue != nil {
+		fatal(errorValue.Error())
+	}
+}
+
+func resolveDeviceSSHConnection(configuration config, sshpassBin string, target commandTarget) (*sshClient, bool, error) {
+	if target.useRemoteSSH {
+		return resolveCloudflareSSHConnection(configuration, sshpassBin, target, true)
+	}
+	if connection := resolveLocalSSHConnection(sshpassBin, target); connection != nil {
+		return connection, false, nil
+	}
+	return resolveCloudflareSSHConnection(configuration, sshpassBin, target, false)
+}
+
+func resolveLocalSSHConnection(sshpassBin string, target commandTarget) *sshClient {
+	if strings.TrimSpace(target.host) != "" {
+		connection := newSSH(sshpassBin, target.sshUser, target.sshPassword, target.host)
+		if _, errorValue := connection.runResult("true"); errorValue == nil {
+			return connection
+		}
+		return nil
+	}
+	host := findBoardIPForCredentials(sshpassBin, target.stateDir, target.sshUser, target.sshPassword)
+	if host == "" {
+		return nil
+	}
+	return newSSH(sshpassBin, target.sshUser, target.sshPassword, host)
+}
+
+func resolveCloudflareSSHConnection(configuration config, sshpassBin string, target commandTarget, isRequired bool) (*sshClient, bool, error) {
+	hostname, errorValue := ensureCloudflareSSHRegistration(configuration, target.stateDir)
+	if errorValue != nil && isRequired {
+		return nil, false, errorValue
+	}
+	if errorValue == nil && hostname != "" {
+		target.sshHostname = hostname
+	}
+	if target.sshHostname == "" {
+		target.sshHostname = resolveCloudflareSSHHostname(configuration, target)
+	}
+	if target.sshHostname == "" {
+		return nil, false, errors.New("device is not reachable locally and no Cloudflare SSH route is registered; run setup once on the device network first")
+	}
+	if errorValue := ensureCloudflaredAccessSSHAvailable(); errorValue != nil {
+		return nil, false, errorValue
+	}
+	connection := newCloudflareSSH(sshpassBin, target.sshUser, target.sshPassword, target.sshHostname)
+	if _, errorValue := connection.runResult("true"); errorValue != nil {
+		return nil, false, fmt.Errorf("Cloudflare SSH failed for %s: %w", target.sshHostname, errorValue)
+	}
+	return connection, true, nil
+}
+
+func commandControlArguments(arguments []string) []string {
+	for index, argument := range arguments {
+		if argument == "--" {
+			return arguments[:index]
+		}
+	}
+	return arguments
+}
+
+func commandRemoteArguments(arguments []string) []string {
+	for index, argument := range arguments {
+		if argument == "--" {
+			return arguments[index+1:]
+		}
+	}
+	return nil
 }
 
 // --- Model management ---
@@ -3229,6 +3322,21 @@ func (s *sshClient) runResult(cmd string) (string, error) {
 	return runSSHCommandWithRetry(s.sshpassBin, args)
 }
 
+func (s *sshClient) runInteractiveSSH(remoteArguments []string) error {
+	target := fmt.Sprintf("%s@%s", s.user, s.host)
+	commandName := "ssh"
+	commandArguments := append(s.sshArgs(target), remoteArguments...)
+	if s.pass != "" {
+		commandName = s.sshpassBin
+		commandArguments = append([]string{"-p", s.pass, "ssh"}, append(s.sshArgs(target), remoteArguments...)...)
+	}
+	command := exec.Command(commandName, commandArguments...)
+	command.Stdin = os.Stdin
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+	return command.Run()
+}
+
 func runSSHCommandWithRetry(commandName string, arguments []string) (string, error) {
 	var output []byte
 	var errorValue error
@@ -3704,7 +3812,7 @@ func ensureCloudflaredAccessSSHAvailable() error {
 	if _, errorValue := exec.LookPath("cloudflared"); errorValue == nil {
 		return nil
 	}
-	return errors.New("cloudflared is required for --cloudflare-ssh; install it locally, then rerun setup")
+	return errors.New("cloudflared is required for Cloudflare SSH fallback; install it locally, then rerun setup")
 }
 
 func runSetupLive(messenger *msg) {
@@ -3757,6 +3865,12 @@ func runSetupLive(messenger *msg) {
 			case setup.BackendSSH:
 				if hostOverride != "" {
 					boardIP = hostOverride
+					candidateConnection := newSSH(sshpassBin, sshUser, sshPassword, boardIP)
+					if _, errorValue := candidateConnection.runResult("true"); errorValue != nil {
+						break
+					}
+					sshConnection = candidateConnection
+					return true
 				} else {
 					boardIP = findBoardIPForCredentials(sshpassBin, stateDir, sshUser, sshPassword)
 				}
@@ -3832,10 +3946,10 @@ func runSetupLive(messenger *msg) {
 	default:
 		if attemptBackend(setup.BackendSSH) {
 			selectedBackend = setup.BackendSSH
-		} else if attemptBackend(setup.BackendSD) {
-			selectedBackend = setup.BackendSD
 		} else if attemptCloudflareSSH() {
 			selectedBackend = setup.BackendSSH
+		} else if attemptBackend(setup.BackendSD) {
+			selectedBackend = setup.BackendSD
 		} else {
 			if cloudflareSSHError != nil {
 				fatal(cloudflareSSHError.Error())
