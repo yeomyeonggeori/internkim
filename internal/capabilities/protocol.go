@@ -93,13 +93,22 @@ type CompanionJobEnvelope struct {
 }
 
 type DenialResult struct {
-	Status              string        `json:"status"`
-	Code                string        `json:"code"`
-	JobID               string        `json:"jobID"`
-	ToolName            string        `json:"toolName"`
-	ResourceScope       ResourceScope `json:"resourceScope,omitempty"`
-	UserReason          string        `json:"userReason,omitempty"`
-	SuggestedConstraint string        `json:"suggestedConstraint,omitempty"`
+	Status              string          `json:"status"`
+	Code                string          `json:"code"`
+	JobID               string          `json:"jobID"`
+	ToolName            string          `json:"toolName"`
+	ResourceScope       ResourceScope   `json:"resourceScope,omitempty"`
+	UserReason          string          `json:"userReason,omitempty"`
+	SuggestedConstraint string          `json:"suggestedConstraint,omitempty"`
+	Recovery            *RecoveryAction `json:"recovery,omitempty"`
+}
+
+type RecoveryAction struct {
+	Kind           string `json:"kind"`
+	Delivery       string `json:"delivery"`
+	DownloadURL    string `json:"downloadURL,omitempty"`
+	ConnectCommand string `json:"connectCommand,omitempty"`
+	PlatformUserID string `json:"platformUserID,omitempty"`
 }
 
 func CompanionToolDescriptors() []Descriptor {
@@ -217,6 +226,19 @@ func DefaultToolNames() []string {
 
 func RoutingCandidates() []string {
 	return []string{ExecutionModeDevice, ExecutionModeCompanion, ExecutionModeRemote}
+}
+
+func CompanionMacOSBetaDownloadURL() string {
+	return "https://gitlab.com/eastriver/internkim/-/releases/permalink/latest/downloads/internkim-companion-beta-macos-aarch64.dmg"
+}
+
+func CompanionConnectRecovery() *RecoveryAction {
+	return &RecoveryAction{
+		Kind:           "companion_connect",
+		Delivery:       "dm_preferred",
+		DownloadURL:    CompanionMacOSBetaDownloadURL(),
+		ConnectCommand: "/connect",
+	}
 }
 
 func CapabilityUnavailableUserReason(toolName string, code string) string {
