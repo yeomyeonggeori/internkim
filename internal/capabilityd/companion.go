@@ -62,17 +62,20 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 	if router.ShouldRouteToCompanion(request) {
 		response, errorValue := service.companionProvider().InvokeTool(ctx, request)
 		if errorValue == nil {
+			if shouldFallbackToDeviceBrowser(request, response) {
+				return service.invokeDeviceBrowserTool(ctx, request)
+			}
 			return response, nil
 		}
 		if isCompanionRequiredBrowserRequest(request) {
-			return companionRequiredBrowserResponse(request.ToolName, companionRequiredBrowserCode(request.ToolName), companionRequiredBrowserConstraint(request.ToolName)), nil
+			return capabilityUnavailableResponse(request.ToolName, capabilities.CapabilityNotConnected), nil
 		}
 		if request.RequiresUserPresence || isCompanionOnlyExecutionMode(request.ExecutionMode) || !isDeviceBrowserTool(request.ToolName) {
 			return capabilities.ToolInvokeResponse{}, errorValue
 		}
 	}
 	if isCompanionRequiredBrowserRequest(request) {
-		return companionRequiredBrowserResponse(request.ToolName, companionRequiredBrowserCode(request.ToolName), companionRequiredBrowserConstraint(request.ToolName)), nil
+		return capabilityUnavailableResponse(request.ToolName, capabilities.CapabilityNotConnected), nil
 	}
 	if isDeviceBrowserTool(request.ToolName) {
 		return service.invokeDeviceBrowserTool(ctx, request)
@@ -162,47 +165,34 @@ func isCompanionRequiredBrowserRequest(request capabilities.ToolInvokeRequest) b
 	return request.RequiresUserPresence || isCompanionOnlyExecutionMode(request.ExecutionMode)
 }
 
-func companionRequiredBrowserCode(toolName string) string {
-	switch strings.TrimSpace(toolName) {
-	case "browser.screenshot":
-		return "companion_required_for_screenshot"
-	case "browser.handoff":
-		return "companion_required_for_handoff"
+func shouldFallbackToDeviceBrowser(request capabilities.ToolInvokeRequest, response capabilities.ToolInvokeResponse) bool {
+	if !isDeviceBrowserTool(request.ToolName) || isCompanionRequiredBrowserRequest(request) {
+		return false
+	}
+	return isCapabilityUnavailableResponse(response)
+}
+
+func isCapabilityUnavailableResponse(response capabilities.ToolInvokeResponse) bool {
+	var denial capabilities.DenialResult
+	if response.Status != "denied" || json.Unmarshal(response.Result, &denial) != nil {
+		return false
+	}
+	switch denial.Code {
+	case capabilities.CapabilityNotConnected, capabilities.CapabilityNotReady, capabilities.CapabilityNotAllowed:
+		return true
 	default:
-		return "companion_required_for_browser"
+		return false
 	}
 }
 
-func companionRequiredBrowserConstraint(toolName string) string {
-	switch strings.TrimSpace(toolName) {
-	case "browser.screenshot":
-		return "Do not claim the screenshot was captured. Ask the user to run /connect before retrying."
-	case "browser.handoff":
-		return "Do not claim the browser opened. Ask the user to run /connect before retrying."
-	default:
-		return "Do not claim the browser task succeeded. Ask the user to run /connect before retrying."
-	}
-}
-
-func companionRequiredBrowserUserReason(toolName string) string {
-	switch strings.TrimSpace(toolName) {
-	case "browser.screenshot":
-		return "Companion is not connected, so the screenshot was not captured. Ask the user to run /connect before retrying."
-	case "browser.handoff", "browser.open":
-		return "Companion is not connected, so the browser was not opened. Ask the user to run /connect before retrying."
-	default:
-		return "Companion is not connected, so the browser task did not run. Ask the user to run /connect before retrying."
-	}
-}
-
-func companionRequiredBrowserResponse(toolName string, code string, suggestedConstraint string) capabilities.ToolInvokeResponse {
-	userReason := companionRequiredBrowserUserReason(toolName)
+func capabilityUnavailableResponse(toolName string, code string) capabilities.ToolInvokeResponse {
+	userReason := capabilities.CapabilityUnavailableUserReason(toolName, code)
 	result, _ := json.Marshal(capabilities.DenialResult{
 		Status:              "denied",
 		Code:                code,
 		ToolName:            toolName,
 		UserReason:          userReason,
-		SuggestedConstraint: suggestedConstraint,
+		SuggestedConstraint: userReason,
 	})
 	return capabilities.ToolInvokeResponse{
 		Provider:        "device",
