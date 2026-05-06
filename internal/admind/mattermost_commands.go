@@ -33,6 +33,8 @@ type mattermostCommandRecord struct {
 type mattermostSlashCommandResponse struct {
 	ResponseType string `json:"response_type"`
 	Text         string `json:"text"`
+	Username     string `json:"username,omitempty"`
+	IconURL      string `json:"icon_url,omitempty"`
 }
 
 func (service *Service) handleMattermostCommand(responseWriter http.ResponseWriter, request *http.Request) {
@@ -49,12 +51,12 @@ func (service *Service) handleMattermostCommand(responseWriter http.ResponseWrit
 		return
 	}
 	if strings.TrimPrefix(request.FormValue("command"), "/") != mattermostConnectCommandTrigger {
-		service.writeMattermostCommandResponse(responseWriter, "지원하지 않는 명령입니다. `/connect`로 Companion 앱을 연결하세요.")
+		service.writeMattermostCommandResponse(responseWriter, request, "지원하지 않는 명령입니다. `/connect`로 Companion 앱을 연결하세요.")
 		return
 	}
 	text := strings.ToLower(strings.TrimSpace(request.FormValue("text")))
 	if text != "" && text != "help" && text != "도움말" {
-		service.writeMattermostCommandResponse(responseWriter, "`/connect`는 Companion 앱 연결만 처리합니다.")
+		service.writeMattermostCommandResponse(responseWriter, request, "`/connect`는 Companion 앱 연결만 처리합니다.")
 		return
 	}
 	service.handleMattermostConnectCommand(responseWriter, request)
@@ -74,7 +76,7 @@ func (service *Service) handleMattermostConnectCommand(responseWriter http.Respo
 		DeviceURL:           service.publicDeviceURL(request),
 	}
 	response := service.createCompanionPairingCodeForOwner(request, owner)
-	service.writeMattermostCommandResponse(responseWriter, mattermostConnectCommandMessage(response))
+	service.writeMattermostCommandResponse(responseWriter, request, mattermostConnectCommandMessage(response))
 }
 
 func (service *Service) mattermostSlashCommandUser(ctx context.Context, userID string, username string) (mattermostUserRecord, error) {
@@ -101,8 +103,21 @@ func (service *Service) mattermostSlashCommandUser(ctx context.Context, userID s
 	return userRecord, nil
 }
 
-func (service *Service) writeMattermostCommandResponse(responseWriter http.ResponseWriter, text string) {
-	service.writeJSON(responseWriter, mattermostSlashCommandResponse{ResponseType: "ephemeral", Text: text})
+func (service *Service) writeMattermostCommandResponse(responseWriter http.ResponseWriter, request *http.Request, text string) {
+	service.writeJSON(responseWriter, mattermostSlashCommandResponse{
+		ResponseType: "ephemeral",
+		Text:         text,
+		Username:     service.mattermostCommandDisplayName(),
+		IconURL:      strings.TrimRight(service.publicDeviceURL(request), "/") + "/logo.svg",
+	})
+}
+
+func (service *Service) mattermostCommandDisplayName() string {
+	profile, found := service.loadBotProfile()
+	if found {
+		return profile.DisplayName
+	}
+	return defaultBotProfile().DisplayName
 }
 
 func (service *Service) isValidMattermostCommandToken(request *http.Request) bool {
@@ -240,6 +255,6 @@ func mattermostConnectCommandMessage(response companionPairingCodeResponse) stri
 	expiresAt := response.ExpiresAt.Local().Format("15:04")
 	return "Companion 연결 코드: `" + response.Code + "`\n" +
 		"Companion 앱에서 이 링크를 열거나 코드를 입력하세요.\n" +
-		response.DeepLink + "\n" +
+		"[Companion 앱 열기](" + response.DeepLink + ")\n" +
 		"만료: " + expiresAt
 }
