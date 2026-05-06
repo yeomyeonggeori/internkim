@@ -64,6 +64,25 @@ func TestResolveCommandTargetKeepsSimulationOutOfDeviceState(t *testing.T) {
 	}
 }
 
+func TestResolveCommandTargetReadsCloudflareSSHFlag(t *testing.T) {
+	homeDirectory := t.TempDir()
+	t.Setenv("HOME", homeDirectory)
+	stateDir := filepath.Join(homeDirectory, ".internkim", "devices", setup.BoardJetsonOrinNano)
+	if errorValue := os.MkdirAll(stateDir, 0o700); errorValue != nil {
+		t.Fatalf("expected state dir: %v", errorValue)
+	}
+	saveState(stateDir, "ssh_hostname", "ssh.device.example.test")
+
+	target := resolveCommandTarget([]string{"--cloudflare-ssh"})
+
+	if !target.useRemoteSSH {
+		t.Fatalf("expected Cloudflare SSH flag")
+	}
+	if target.sshHostname != "ssh.device.example.test" {
+		t.Fatalf("expected SSH hostname from state, got %q", target.sshHostname)
+	}
+}
+
 func TestResolveVerifyTargetIgnoresTopLevelLabState(t *testing.T) {
 	homeDirectory := t.TempDir()
 	t.Setenv("HOME", homeDirectory)

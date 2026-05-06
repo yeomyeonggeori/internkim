@@ -22,13 +22,15 @@ const (
 )
 
 type commandTarget struct {
-	mode        commandTargetMode
-	boardType   string
-	stateDir    string
-	host        string
-	sshUser     string
-	sshPassword string
-	deviceURL   string
+	mode         commandTargetMode
+	boardType    string
+	stateDir     string
+	host         string
+	sshUser      string
+	sshPassword  string
+	deviceURL    string
+	sshHostname  string
+	useRemoteSSH bool
 }
 
 func resolveCommandTarget(arguments []string) commandTarget {
@@ -43,13 +45,15 @@ func resolveCommandTarget(arguments []string) commandTarget {
 		commandArgumentValue(arguments, "--password", ""),
 	)
 	return commandTarget{
-		mode:        commandTargetModeForBoardType(boardType),
-		boardType:   boardType,
-		stateDir:    stateDir,
-		host:        commandArgumentValue(arguments, "--host", ""),
-		sshUser:     sshUser,
-		sshPassword: sshPassword,
-		deviceURL:   loadState(stateDir, "device_url"),
+		mode:         commandTargetModeForBoardType(boardType),
+		boardType:    boardType,
+		stateDir:     stateDir,
+		host:         commandArgumentValue(arguments, "--host", ""),
+		sshUser:      sshUser,
+		sshPassword:  sshPassword,
+		deviceURL:    loadState(stateDir, "device_url"),
+		sshHostname:  loadState(stateDir, "ssh_hostname"),
+		useRemoteSSH: hasCommandArgument(arguments, "--cloudflare-ssh"),
 	}
 }
 
@@ -89,6 +93,9 @@ func printCommandTargetEvidence(target commandTarget) {
 	fmt.Printf("State: %s\n", target.stateDir)
 	if strings.TrimSpace(target.host) != "" {
 		fmt.Printf("Host: %s\n", target.host)
+	}
+	if target.useRemoteSSH {
+		fmt.Printf("SSH: cloudflare\n")
 	}
 	if strings.TrimSpace(target.deviceURL) != "" {
 		fmt.Printf("URL: %s\n", target.deviceURL)

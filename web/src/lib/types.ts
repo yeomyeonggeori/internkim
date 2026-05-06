@@ -4,8 +4,11 @@ export interface Device {
 	tunnel_id: string;
 	tunnel_token: string;
 	dns_record_id: string;
+	ssh_dns_record_id?: string;
 	access_app_id?: string;
 	access_policy_id?: string;
+	ssh_access_app_id?: string;
+	ssh_hostname?: string;
 	admin_email: string;
 	created_at: string;
 	versions: {
