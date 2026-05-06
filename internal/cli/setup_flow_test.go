@@ -96,6 +96,30 @@ func TestSSHPrivilegedCommandSuppressesSudoPrompt(t *testing.T) {
 	}
 }
 
+func TestMattermostSetupConnectCommandPayloadTargetsAdmind(t *testing.T) {
+	payload := mattermostSetupConnectCommandPayload("team-1", "command-1")
+	if payload.Trigger != "connect" || payload.Method != "P" || !payload.Autocomplete {
+		t.Fatalf("unexpected /connect command payload: %+v", payload)
+	}
+	if payload.URL != "http://127.0.0.1:18080/_internkim/mattermost/commands" {
+		t.Fatalf("unexpected /connect command url: %s", payload.URL)
+	}
+}
+
+func TestFindMattermostSetupConnectCommand(t *testing.T) {
+	mmAPI := func(method string, path string, body []byte, token string) (int, []byte) {
+		if method != "GET" || path != "/api/v4/commands?team_id=team-1" || token != "admin-token" {
+			t.Fatalf("unexpected Mattermost API call: %s %s token=%s", method, path, token)
+		}
+		return 200, []byte(`[{"id":"command-1","team_id":"team-1","trigger":"connect"},{"id":"other","team_id":"team-1","trigger":"deploy"}]`)
+	}
+
+	commandRecord, found := findMattermostSetupConnectCommand(mmAPI, "admin-token", "team-1")
+	if !found || commandRecord.ID != "command-1" {
+		t.Fatalf("expected /connect command, got found=%v record=%+v", found, commandRecord)
+	}
+}
+
 func TestLocalLLMBuildArgumentsUseCurrentSSHTarget(t *testing.T) {
 	arguments := localLLMBuildArguments(newSSH("sshpass", "internkim", "ssh-password", "172.30.1.46"))
 	expectedArguments := []string{"--host", "172.30.1.46", "--user", "internkim"}
