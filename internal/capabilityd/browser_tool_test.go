@@ -3,6 +3,7 @@ package capabilityd
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -19,6 +20,9 @@ func TestDeviceBrowserToolRunsThroughLightpandaRuntime(t *testing.T) {
 		Configuration: Configuration{AgentBrowserPath: "agent-browser-test", DeviceBrowserPath: "/usr/local/bin/lightpanda", DeviceBrowserProfilePath: "/profile"},
 		RunCommand: func(_ context.Context, path string, commandArguments []string, _ []byte) ([]byte, error) {
 			calls = append(calls, commandCall{path: path, arguments: append([]string{}, commandArguments...)})
+			if slices.Contains(commandArguments, "get") && slices.Contains(commandArguments, "url") {
+				return []byte("https://example.com\n"), nil
+			}
 			return nil, nil
 		},
 	}
@@ -30,8 +34,8 @@ func TestDeviceBrowserToolRunsThroughLightpandaRuntime(t *testing.T) {
 	if response.Provider != "device" || response.ToolName != "browser.open" {
 		t.Fatalf("unexpected response: %+v", response)
 	}
-	if len(calls) != 2 {
-		t.Fatalf("expected 2 calls (open + stealth eval), got %d: %+v", len(calls), calls)
+	if len(calls) != 3 {
+		t.Fatalf("expected 3 calls (open + url check + stealth eval), got %d: %+v", len(calls), calls)
 	}
 	if calls[0].path != "agent-browser-test" {
 		t.Fatalf("unexpected open command path: %s", calls[0].path)
@@ -48,8 +52,11 @@ func TestDeviceBrowserToolRunsThroughLightpandaRuntime(t *testing.T) {
 	if !strings.Contains(calls[0].arguments[len(expectedOpenArguments)], "User-Agent") {
 		t.Fatalf("expected stealth User-Agent header in open arguments, got %+v", calls[0].arguments)
 	}
-	if calls[1].arguments[len(calls[1].arguments)-2] != "eval" {
-		t.Fatalf("expected second call to be eval, got %+v", calls[1].arguments)
+	if calls[1].arguments[len(calls[1].arguments)-2] != "get" || calls[1].arguments[len(calls[1].arguments)-1] != "url" {
+		t.Fatalf("expected second call to be url check, got %+v", calls[1].arguments)
+	}
+	if calls[2].arguments[len(calls[2].arguments)-2] != "eval" {
+		t.Fatalf("expected third call to be eval, got %+v", calls[2].arguments)
 	}
 }
 

@@ -54,7 +54,7 @@ Wants=network-online.target time-sync.target
 [Service]
 User=root
 RuntimeDirectory=internkim
-ExecStart=%s --vsock-port %d
+ExecStart=%s --vsock-port %d --companion-url http://127.0.0.1:18080/_internkim/companion
 Restart=on-failure
 RestartSec=2
 
