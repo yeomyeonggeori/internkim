@@ -35,7 +35,7 @@ func (runner *fakeCommandRunner) Run(ctx context.Context, commandPath string, ar
 }
 
 func TestAgentBrowserRuntimeNavigatesThroughCommandRunner(t *testing.T) {
-	runner := &fakeCommandRunner{}
+	runner := &fakeCommandRunner{output: []byte("https://example.com\n")}
 	runtime := AgentBrowserRuntime{
 		CommandPath: "agent-browser-test",
 		ProfilePath: "/profile",
@@ -52,20 +52,24 @@ func TestAgentBrowserRuntimeNavigatesThroughCommandRunner(t *testing.T) {
 		t.Fatalf("unexpected navigate result: %+v", result)
 	}
 	expectedOpenArguments := []string{"--session", "internkim-test", "--headed", "true", "--profile", "/profile", "--session-name", "internkim-test", "open", "https://example.com", "--headers", stealthRequestHeaders()}
+	expectedURLArguments := []string{"--session", "internkim-test", "--session-name", "internkim-test", "get", "url"}
 	expectedEvalArguments := []string{"--session", "internkim-test", "--session-name", "internkim-test", "eval", stealthPostLoadScript()}
-	if len(runner.calls) != 2 {
-		t.Fatalf("expected 2 command calls (open + stealth eval), got %d: %+v", len(runner.calls), runner.calls)
+	if len(runner.calls) != 3 {
+		t.Fatalf("expected 3 command calls, got %d: %+v", len(runner.calls), runner.calls)
 	}
 	if runner.calls[0].commandPath != "agent-browser-test" || !reflect.DeepEqual(runner.calls[0].arguments, expectedOpenArguments) {
 		t.Fatalf("unexpected open call: %+v", runner.calls[0])
 	}
-	if runner.calls[1].commandPath != "agent-browser-test" || !reflect.DeepEqual(runner.calls[1].arguments, expectedEvalArguments) {
-		t.Fatalf("unexpected eval call: %+v", runner.calls[1])
+	if runner.calls[1].commandPath != "agent-browser-test" || !reflect.DeepEqual(runner.calls[1].arguments, expectedURLArguments) {
+		t.Fatalf("unexpected current URL call: %+v", runner.calls[1])
+	}
+	if runner.calls[2].commandPath != "agent-browser-test" || !reflect.DeepEqual(runner.calls[2].arguments, expectedEvalArguments) {
+		t.Fatalf("unexpected eval call: %+v", runner.calls[2])
 	}
 }
 
 func TestAgentBrowserRuntimeChromeEngineUsesHeadedProfile(t *testing.T) {
-	runner := &fakeCommandRunner{}
+	runner := &fakeCommandRunner{output: []byte("https://example.com\n")}
 	runtime := AgentBrowserRuntime{
 		CommandPath:        "agent-browser-test",
 		Engine:             BrowserEngineChrome,
@@ -91,7 +95,7 @@ func TestAgentBrowserRuntimeChromeEngineUsesHeadedProfile(t *testing.T) {
 }
 
 func TestAgentBrowserRuntimePacesHeadedChromeCommands(t *testing.T) {
-	runner := &fakeCommandRunner{}
+	runner := &fakeCommandRunner{output: []byte("https://example.com\n")}
 	delays := []time.Duration{}
 	runtime := AgentBrowserRuntime{
 		Engine:      BrowserEngineChrome,
@@ -119,8 +123,23 @@ func TestAgentBrowserRuntimePacesHeadedChromeCommands(t *testing.T) {
 	}
 }
 
+func TestAgentBrowserRuntimeFailsWhenBrowserDoesNotNavigate(t *testing.T) {
+	runner := &fakeCommandRunner{output: []byte("about:blank\n")}
+	runtime := AgentBrowserRuntime{
+		CommandPath:        "agent-browser-test",
+		SessionName:        "internkim-test",
+		DisableHumanPacing: true,
+		Runner:             runner,
+	}
+
+	_, errorValue := runtime.Navigate(context.Background(), NavigateRequest{URL: "https://example.com"})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "did not navigate") {
+		t.Fatalf("expected navigation verification failure, got %v", errorValue)
+	}
+}
+
 func TestAgentBrowserRuntimeDoesNotPaceLightpandaCommands(t *testing.T) {
-	runner := &fakeCommandRunner{}
+	runner := &fakeCommandRunner{output: []byte("https://example.com\n")}
 	sleepWasCalled := false
 	runtime := AgentBrowserRuntime{
 		Engine: BrowserEngineLightpanda,
@@ -207,7 +226,7 @@ func TestDeviceReadinessShellScriptChecksLightpandaSnapshotReadiness(t *testing.
 }
 
 func TestAgentBrowserRuntimeLightpandaOmitsChromeOnlyArguments(t *testing.T) {
-	runner := &fakeCommandRunner{}
+	runner := &fakeCommandRunner{output: []byte("https://example.com\n")}
 	runtime := AgentBrowserRuntime{
 		CommandPath:          "agent-browser-test",
 		Engine:               BrowserEngineLightpanda,

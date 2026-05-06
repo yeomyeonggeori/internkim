@@ -38,3 +38,31 @@ func TestVerifyMattermostScriptUsesStrictChannelMembership(t *testing.T) {
 		}
 	}
 }
+
+func TestVerifyMattermostPromptScriptCanRequireBrowserOpenSuccess(t *testing.T) {
+	script := verifyMattermostPromptScript("브라우저 열어줘.", false, 90, true)
+	requiredFragments := []string{
+		"expect_browser_open=true",
+		"tool.browser.open.result",
+		".isError != true",
+		"expected successful tool.browser.open.result",
+		"browserOpenVerified: $browser_open_verified",
+	}
+	for _, fragment := range requiredFragments {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected Mattermost prompt browser verification to include %q", fragment)
+		}
+	}
+}
+
+func TestParseMattermostBrowserOpenE2EPreparationUsesLastJSONLine(t *testing.T) {
+	preparation, errorValue := parseMattermostBrowserOpenE2EPreparation(`curl: (52) Empty reply from server
+{"deviceURL":"https://device.example","code":"1234-5678","email":"probe@example.com","username":"probe","password":"secret","userID":"user-1","channelID":"channel-1"}
+`)
+	if errorValue != nil {
+		t.Fatalf("expected preparation parse success: %v", errorValue)
+	}
+	if preparation.Code != "1234-5678" || preparation.UserID != "user-1" {
+		t.Fatalf("unexpected preparation: %+v", preparation)
+	}
+}

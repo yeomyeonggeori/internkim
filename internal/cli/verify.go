@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -63,8 +65,13 @@ func runVerifyAPI(arguments []string) error {
 func runVerifyMattermost(arguments []string) error {
 	flagSet := flag.NewFlagSet("verify mattermost", flag.ContinueOnError)
 	prompt := flagSet.String("prompt", "", "Post this prompt through the real Mattermost ingress path")
+	expectBrowserOpen := flagSet.Bool("expect-browser-open", false, "Require a successful browser.open tool result for prompt verification")
+	browserOpenE2E := flagSet.Bool("browser-open-e2e", false, "Pair a local probe companion and require a successful browser.open result")
 	keep := flagSet.Bool("keep", false, "Keep probe messages and users for inspection")
+	keepBrowser := flagSet.Bool("keep-browser", false, "Keep the local browser window open after browser-open E2E")
 	timeoutSeconds := flagSet.Int("timeout", 240, "Seconds to wait for the bot reply")
+	companionPath := flagSet.String("companion-path", "/Applications/Intern Kim Companion.app/Contents/MacOS/internkim-companion", "Local internkim-companion executable for browser-open E2E")
+	agentBrowserPath := flagSet.String("agent-browser-path", "/Applications/Intern Kim Companion.app/Contents/MacOS/agent-browser", "Local agent-browser executable for browser-open E2E")
 	host := flagSet.String("host", "", "Board host")
 	user := flagSet.String("user", "", "SSH user")
 	password := flagSet.String("password", "", "SSH password")
@@ -96,10 +103,224 @@ func runVerifyMattermost(arguments []string) error {
 		return errorValue
 	}
 	fmt.Printf("verify mattermost: %s@%s\n", verifyTarget.user, verifyTarget.host)
+	if *browserOpenE2E {
+		promptText := strings.TrimSpace(*prompt)
+		if promptText == "" {
+			promptText = "브라우저 열어줘."
+		}
+		return runMattermostBrowserOpenE2E(verifyTarget, promptText, *keep, *keepBrowser, *timeoutSeconds, *companionPath, *agentBrowserPath)
+	}
 	if strings.TrimSpace(*prompt) != "" {
-		return verifyTarget.runRemoteVerification(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds))
+		return verifyTarget.runRemoteVerification(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, *expectBrowserOpen))
+	}
+	if *expectBrowserOpen {
+		return fmt.Errorf("--expect-browser-open requires --prompt")
 	}
 	return verifyTarget.runRemoteVerification(verifyMattermostScript())
+}
+
+type mattermostBrowserOpenE2EPreparation struct {
+	DeviceURL string `json:"deviceURL"`
+	Code      string `json:"code"`
+	Email     string `json:"email"`
+	Username  string `json:"username"`
+	Password  string `json:"password"`
+	UserID    string `json:"userID"`
+	ChannelID string `json:"channelID"`
+}
+
+func runMattermostBrowserOpenE2E(target verifyTarget, prompt string, keep bool, keepBrowser bool, timeoutSeconds int, companionPath string, agentBrowserPath string) error {
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = 240
+	}
+	preparationOutput, errorValue := target.sshClient.runResult(prepareMattermostBrowserOpenE2EScript())
+	if strings.TrimSpace(preparationOutput) != "" {
+		fmt.Print(preparationOutput)
+		if !strings.HasSuffix(preparationOutput, "\n") {
+			fmt.Println()
+		}
+	}
+	if errorValue != nil {
+		return fmt.Errorf("prepare Mattermost browser E2E: %w", errorValue)
+	}
+	preparation, errorValue := parseMattermostBrowserOpenE2EPreparation(preparationOutput)
+	if errorValue != nil {
+		return fmt.Errorf("parse Mattermost browser E2E preparation: %w", errorValue)
+	}
+	if !keep {
+		defer func() {
+			output, cleanupError := target.sshClient.runResult(cleanupMattermostBrowserOpenE2EScript(preparation))
+			if strings.TrimSpace(output) != "" {
+				fmt.Print(output)
+				if !strings.HasSuffix(output, "\n") {
+					fmt.Println()
+				}
+			}
+			if cleanupError != nil {
+				fmt.Fprintf(os.Stderr, "cleanup warning: %v\n", cleanupError)
+			}
+		}()
+	}
+	temporaryDirectory, errorValue := os.MkdirTemp("", "internkim-companion-browser-e2e-")
+	if errorValue != nil {
+		return errorValue
+	}
+	statePath := filepath.Join(temporaryDirectory, "state.json")
+	browserProfilePath := filepath.Join(temporaryDirectory, "browser-profile")
+	if keepBrowser {
+		fmt.Println("local browser will remain open; temporary directory: " + temporaryDirectory)
+	} else {
+		defer os.RemoveAll(temporaryDirectory)
+	}
+	if errorValue := pairCompanionForMattermostBrowserOpenE2E(companionPath, preparation, statePath); errorValue != nil {
+		return errorValue
+	}
+	closeMattermostBrowserOpenE2ESession(agentBrowserPath)
+	if !keepBrowser {
+		defer closeMattermostBrowserOpenE2ESession(agentBrowserPath)
+	}
+	companionCommand, companionLog, errorValue := startMattermostBrowserOpenE2ECompanion(companionPath, agentBrowserPath, statePath, browserProfilePath)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer stopMattermostBrowserOpenE2ECompanion(companionCommand, companionLog)
+	if errorValue := verifyMattermostBrowserOpenE2ECompanion(companionPath, agentBrowserPath, statePath); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := waitMattermostBrowserOpenE2ECompanionOnline(target, preparation, timeoutSeconds); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := target.runRemoteVerification(runMattermostBrowserOpenE2EScript(prompt, keep, timeoutSeconds, preparation)); errorValue != nil {
+		return errorValue
+	}
+	return confirmMattermostBrowserOpenE2ELocalBrowser(agentBrowserPath)
+}
+
+func parseMattermostBrowserOpenE2EPreparation(output string) (mattermostBrowserOpenE2EPreparation, error) {
+	lines := strings.Split(output, "\n")
+	for index := len(lines) - 1; index >= 0; index-- {
+		line := strings.TrimSpace(lines[index])
+		if !strings.HasPrefix(line, "{") {
+			continue
+		}
+		var preparation mattermostBrowserOpenE2EPreparation
+		if errorValue := json.Unmarshal([]byte(line), &preparation); errorValue == nil && preparation.Code != "" {
+			return preparation, nil
+		}
+	}
+	return mattermostBrowserOpenE2EPreparation{}, errors.New("preparation JSON was not found")
+}
+
+func closeMattermostBrowserOpenE2ESession(agentBrowserPath string) {
+	command := exec.Command(agentBrowserPath, "--session", "internkim", "--session-name", "internkim", "close", "--all")
+	_ = command.Run()
+}
+
+func pairCompanionForMattermostBrowserOpenE2E(companionPath string, preparation mattermostBrowserOpenE2EPreparation, statePath string) error {
+	command := exec.Command(companionPath, "pair", "--device-url", preparation.DeviceURL, "--code", preparation.Code, "--state", statePath)
+	output, errorValue := command.CombinedOutput()
+	if strings.TrimSpace(string(output)) != "" {
+		fmt.Print(string(output))
+		if !strings.HasSuffix(string(output), "\n") {
+			fmt.Println()
+		}
+	}
+	if errorValue != nil {
+		return fmt.Errorf("pair local companion: %w", errorValue)
+	}
+	return nil
+}
+
+func startMattermostBrowserOpenE2ECompanion(companionPath string, agentBrowserPath string, statePath string, browserProfilePath string) (*exec.Cmd, *bytes.Buffer, error) {
+	command := exec.Command(
+		companionPath,
+		"run",
+		"--state", statePath,
+		"--agent-browser-path", agentBrowserPath,
+		"--browser-profile", browserProfilePath,
+		"--prefer-companion-browser",
+		"--development-auto-approve-browser",
+	)
+	var logBuffer bytes.Buffer
+	command.Stdout = &logBuffer
+	command.Stderr = &logBuffer
+	if errorValue := command.Start(); errorValue != nil {
+		return nil, nil, fmt.Errorf("start local companion: %w", errorValue)
+	}
+	time.Sleep(3 * time.Second)
+	if command.ProcessState != nil && command.ProcessState.Exited() {
+		return nil, nil, fmt.Errorf("local companion exited early: %s", strings.TrimSpace(logBuffer.String()))
+	}
+	return command, &logBuffer, nil
+}
+
+func stopMattermostBrowserOpenE2ECompanion(command *exec.Cmd, logBuffer *bytes.Buffer) {
+	if command == nil || command.Process == nil {
+		return
+	}
+	_ = command.Process.Kill()
+	_, _ = command.Process.Wait()
+	if strings.TrimSpace(logBuffer.String()) != "" {
+		fmt.Print(logBuffer.String())
+		if !strings.HasSuffix(logBuffer.String(), "\n") {
+			fmt.Println()
+		}
+	}
+}
+
+func verifyMattermostBrowserOpenE2ECompanion(companionPath string, agentBrowserPath string, statePath string) error {
+	command := exec.Command(companionPath, "status", "--state", statePath, "--json", "--verify-auth")
+	command.Env = append(os.Environ(), "INTERNKIM_AGENT_BROWSER_PATH="+agentBrowserPath)
+	output, errorValue := command.CombinedOutput()
+	if errorValue != nil {
+		return fmt.Errorf("verify local companion status: %w: %s", errorValue, strings.TrimSpace(string(output)))
+	}
+	var statusDocument struct {
+		AuthStatus           string `json:"authStatus"`
+		BrowserRuntimeStatus string `json:"browserRuntimeStatus"`
+	}
+	if errorValue := json.Unmarshal(output, &statusDocument); errorValue != nil {
+		return fmt.Errorf("parse local companion status: %w", errorValue)
+	}
+	if statusDocument.AuthStatus != "verified" {
+		return fmt.Errorf("local companion auth status is %s", statusDocument.AuthStatus)
+	}
+	if statusDocument.BrowserRuntimeStatus != "ready" {
+		return fmt.Errorf("local companion browser runtime status is %s", statusDocument.BrowserRuntimeStatus)
+	}
+	fmt.Println("local companion: verified, browser runtime ready")
+	return nil
+}
+
+func waitMattermostBrowserOpenE2ECompanionOnline(target verifyTarget, preparation mattermostBrowserOpenE2EPreparation, timeoutSeconds int) error {
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = 240
+	}
+	output, errorValue := target.sshClient.runResult(waitMattermostBrowserOpenE2ECompanionOnlineScript(preparation, timeoutSeconds))
+	if strings.TrimSpace(output) != "" {
+		fmt.Print(output)
+		if !strings.HasSuffix(output, "\n") {
+			fmt.Println()
+		}
+	}
+	if errorValue != nil {
+		return fmt.Errorf("wait for remote companion heartbeat: %w", errorValue)
+	}
+	return nil
+}
+
+func confirmMattermostBrowserOpenE2ELocalBrowser(agentBrowserPath string) error {
+	command := exec.Command(agentBrowserPath, "--session", "internkim", "--session-name", "internkim", "get", "url")
+	output, errorValue := command.CombinedOutput()
+	localURL := strings.TrimSpace(string(output))
+	if errorValue != nil {
+		return fmt.Errorf("confirm local browser URL: %w: %s", errorValue, localURL)
+	}
+	if !strings.Contains(localURL, "google.") {
+		return fmt.Errorf("local browser did not navigate to Google: %s", localURL)
+	}
+	fmt.Println("local browser URL: " + localURL)
+	return nil
 }
 
 func runVerifyBrowser(arguments []string) error {
@@ -778,7 +999,7 @@ echo "verify mattermost: ok"
 `
 }
 
-func verifyMattermostPromptScript(prompt string, keep bool, timeoutSeconds int) string {
+func verifyMattermostPromptScript(prompt string, keep bool, timeoutSeconds int, expectBrowserOpen bool) string {
 	if timeoutSeconds <= 0 {
 		timeoutSeconds = 240
 	}
@@ -786,6 +1007,10 @@ func verifyMattermostPromptScript(prompt string, keep bool, timeoutSeconds int) 
 	keepValue := "false"
 	if keep {
 		keepValue = "true"
+	}
+	expectBrowserOpenValue := "false"
+	if expectBrowserOpen {
+		expectBrowserOpenValue = "true"
 	}
 	return fmt.Sprintf(`set -euo pipefail
 
@@ -796,6 +1021,7 @@ password="ProbePass!$timestamp"
 prompt="$(printf '%%s' %s | base64 -d)"
 keep_artifacts=%s
 timeout_seconds=%d
+expect_browser_open=%s
 test_started_at="$(date +%%s%%3N)"
 
 api_request() {
@@ -963,6 +1189,404 @@ printf '{}' > "$task_detail_file"
 if [ -n "$task_run_id" ]; then
   blueclaw_request "probe task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id" > "$task_detail_file"
 fi
+browser_open_verified=false
+if [ "$expect_browser_open" = "true" ]; then
+  if [ -z "$task_run_id" ]; then
+    echo "expected successful browser.open result, but no task was created for probe prompt" >&2
+    exit 1
+  fi
+  if jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "tool.browser.open.result" and (((.body // "{}") | fromjson? // {}) | .isError != true))' "$task_detail_file" >/dev/null; then
+    browser_open_verified=true
+  else
+    echo "expected successful tool.browser.open.result for probe task $task_run_id" >&2
+    jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
+    exit 1
+  fi
+fi
+
+jq -cn \
+  --arg channel_id "$channel_id" \
+  --arg user_post_id "$user_post_id" \
+  --arg bot_post_id "$bot_post_id" \
+  --arg task_run_id "$task_run_id" \
+  --argjson keep "$keep_artifacts" \
+  --argjson browser_open_verified "$browser_open_verified" \
+  --slurpfile bot_post "$bot_post_file" \
+  --slurpfile task_detail "$task_detail_file" \
+  '{
+    ok: true,
+    kept: $keep,
+    channelID: $channel_id,
+    userPostID: $user_post_id,
+    botPostID: $bot_post_id,
+    taskRunID: $task_run_id,
+    browserOpenVerified: $browser_open_verified,
+    botMessage: $bot_post[0].message,
+    fileIDs: ($bot_post[0].file_ids // []),
+    taskStatus: ((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskRun.status // null),
+    taskEvents: (((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskEvents // []) | map({name, body: ((.body // "") | tostring | .[0:1200])}))
+  }'
+`, strconv.Quote(encodedPrompt), keepValue, timeoutSeconds, expectBrowserOpenValue)
+}
+
+func prepareMattermostBrowserOpenE2EScript() string {
+	return `set -euo pipefail
+
+timestamp="$(date +%s)"
+email="probe-browser-open-$timestamp@internkim.test"
+username="probebrowser$timestamp"
+password="ProbePass!$timestamp"
+
+api_request() {
+  local phase_name="$1"
+  local method="$2"
+  local url="$3"
+  local token="${4:-}"
+  local body="${5:-}"
+  local response_file
+  local status
+  local curl_status
+  response_file="$(mktemp)"
+  if [ -n "$body" ]; then
+    status="$(curl --silent --show-error --output "$response_file" --write-out "%{http_code}" \
+      -X "$method" -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
+      -d "$body" "$url")" || curl_status="$?"
+  else
+    status="$(curl --silent --show-error --output "$response_file" --write-out "%{http_code}" \
+      -X "$method" -H "Authorization: Bearer $token" "$url")" || curl_status="$?"
+  fi
+  if [ "${curl_status:-0}" != "0" ]; then
+    echo "Mattermost API curl failure during $phase_name: $method $url (curl exit ${curl_status:-0})" >&2
+    cat "$response_file" >&2 || true
+    rm -f "$response_file"
+    return "${curl_status:-1}"
+  fi
+  if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+    echo "Mattermost API failure during $phase_name: $method $url returned HTTP $status" >&2
+    cat "$response_file" >&2 || true
+    echo >&2
+    rm -f "$response_file"
+    return 22
+  fi
+  cat "$response_file"
+  rm -f "$response_file"
+}
+
+admind_request() {
+  local phase_name="$1"
+  local method="$2"
+  local url="$3"
+  local body="${4:-}"
+  local response_file
+  local status
+  local curl_status
+  response_file="$(mktemp)"
+  status="$(curl --silent --show-error --output "$response_file" --write-out "%{http_code}" \
+    -X "$method" -H "Content-Type: application/json" -d "$body" "$url")" || curl_status="$?"
+  if [ "${curl_status:-0}" != "0" ]; then
+    echo "Admind API curl failure during $phase_name: $method $url (curl exit ${curl_status:-0})" >&2
+    cat "$response_file" >&2 || true
+    rm -f "$response_file"
+    return "${curl_status:-1}"
+  fi
+  if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+    echo "Admind API failure during $phase_name: $method $url returned HTTP $status" >&2
+    cat "$response_file" >&2 || true
+    echo >&2
+    rm -f "$response_file"
+    return 22
+  fi
+  cat "$response_file"
+  rm -f "$response_file"
+}
+
+login_headers="$(mktemp)"
+admin_password="$(cat /root/.internkim/secrets/mm-admin-pass)"
+curl --silent --show-error --fail -D "$login_headers" -o /tmp/internkim-admin-browser-e2e-login.json \
+  -H "Content-Type: application/json" \
+  -d "$(jq -cn --arg login_id admin --arg password "$admin_password" '{login_id:$login_id,password:$password}')" \
+  http://localhost:8065/api/v4/users/login >/dev/null
+admin_token="$(awk 'tolower($1) == "token:" {print $2}' "$login_headers" | tr -d '\r')"
+test -n "$admin_token"
+
+stale_users_file="$(mktemp)"
+api_request "search stale probe browser users" POST http://localhost:8065/api/v4/users/search "$admin_token" \
+  "$(jq -cn --arg term probe-browser-open '{term:$term}')" > "$stale_users_file"
+jq -r '.[] | select((.email // "") | startswith("probe-browser-open-")) | [.id, .email] | @tsv' "$stale_users_file" |
+while IFS="$(printf '\t')" read -r stale_user_id stale_email; do
+  if [ -n "$stale_user_id" ]; then
+    curl --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+      "http://localhost:8065/api/v4/users/$stale_user_id?permanent=true" >/dev/null || true
+  fi
+  if [ -n "$stale_email" ]; then
+    curl --silent --show-error -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$stale_email" >/dev/null || true
+  fi
+done
+
+mattermost_token="$(cat /root/.internkim/secrets/mattermost-bot-token)"
+bot_user_id="$(api_request "bot lookup" GET http://localhost:8065/api/v4/users/me "$mattermost_token" | jq -r '.id // empty')"
+test -n "$bot_user_id"
+
+user_body="$(jq -cn --arg email "$email" --arg username "$username" --arg password "$password" '{email:$email,username:$username,password:$password}')"
+user_id="$(api_request "create probe browser user" POST http://localhost:8065/api/v4/users "$admin_token" "$user_body" | jq -r '.id')"
+test -n "$user_id"
+
+admind_request "invite probe browser user" POST http://127.0.0.1:8080/admin/api/people/invite \
+  "$(jq -cn --arg email "$email" '{email:$email}')" >/dev/null
+
+user_login_headers="$(mktemp)"
+curl --silent --show-error --fail -D "$user_login_headers" -o /tmp/internkim-probe-browser-e2e-login.json \
+  -H "Content-Type: application/json" \
+  -d "$(jq -cn --arg login_id "$username" --arg password "$password" '{login_id:$login_id,password:$password}')" \
+  http://localhost:8065/api/v4/users/login >/dev/null
+user_token="$(awk 'tolower($1) == "token:" {print $2}' "$user_login_headers" | tr -d '\r')"
+test -n "$user_token"
+
+channel_id="$(api_request "create probe browser dm" POST http://localhost:8065/api/v4/channels/direct "$user_token" \
+  "$(jq -cn --arg user_id "$user_id" --arg bot_user_id "$bot_user_id" '[$user_id,$bot_user_id]')" | jq -r '.id')"
+test -n "$channel_id"
+
+device_url="$(cat /root/.internkim/env/device-url)"
+pairing_body="$(jq -cn \
+  --arg owner_platform mattermost \
+  --arg owner_platform_user_id "$user_id" \
+  --arg owner_email "$email" \
+  --arg owner_name "$username" \
+  --arg device_url "$device_url" \
+  '{ownerPlatform:$owner_platform,ownerPlatformUserID:$owner_platform_user_id,ownerEmail:$owner_email,ownerName:$owner_name,deviceURL:$device_url}')"
+pairing_document="$(admind_request "create probe companion pairing" POST http://127.0.0.1:18080/_internkim/companion/pairing-codes "$pairing_body")"
+pairing_code="$(printf '%s' "$pairing_document" | jq -r '.code // empty')"
+test -n "$pairing_code"
+
+jq -cn \
+  --arg device_url "$device_url" \
+  --arg code "$pairing_code" \
+  --arg email "$email" \
+  --arg username "$username" \
+  --arg password "$password" \
+  --arg user_id "$user_id" \
+  --arg channel_id "$channel_id" \
+  '{deviceURL:$device_url,code:$code,email:$email,username:$username,password:$password,userID:$user_id,channelID:$channel_id}'
+`
+}
+
+func cleanupMattermostBrowserOpenE2EScript(preparation mattermostBrowserOpenE2EPreparation) string {
+	return fmt.Sprintf(`set -euo pipefail
+
+email="$(printf '%%s' %s | base64 -d)"
+user_id="$(printf '%%s' %s | base64 -d)"
+admin_password="$(cat /root/.internkim/secrets/mm-admin-pass)"
+login_headers="$(mktemp)"
+curl --silent --show-error --fail -D "$login_headers" -o /tmp/internkim-admin-browser-e2e-cleanup-login.json \
+  -H "Content-Type: application/json" \
+  -d "$(jq -cn --arg login_id admin --arg password "$admin_password" '{login_id:$login_id,password:$password}')" \
+  http://localhost:8065/api/v4/users/login >/dev/null
+admin_token="$(awk 'tolower($1) == "token:" {print $2}' "$login_headers" | tr -d '\r')"
+if [ -n "$user_id" ]; then
+  curl --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+    "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null || true
+fi
+curl --silent --show-error -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$email" >/dev/null || true
+`, strconv.Quote(base64.StdEncoding.EncodeToString([]byte(preparation.Email))), strconv.Quote(base64.StdEncoding.EncodeToString([]byte(preparation.UserID))))
+}
+
+func waitMattermostBrowserOpenE2ECompanionOnlineScript(preparation mattermostBrowserOpenE2EPreparation, timeoutSeconds int) string {
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = 240
+	}
+	return fmt.Sprintf(`set -euo pipefail
+
+owner_platform_user_id="$(printf '%%s' %s | base64 -d)"
+owner_email="$(printf '%%s' %s | base64 -d)"
+timeout_seconds=%d
+deadline=$((SECONDS + timeout_seconds))
+
+while [ "$SECONDS" -lt "$deadline" ]; do
+  status_document="$(curl --silent --show-error http://127.0.0.1:18080/admin/api/companion/status)"
+  if printf '%%s' "$status_document" | jq -e --arg owner_platform_user_id "$owner_platform_user_id" --arg owner_email "$owner_email" '
+    any(.companions[]?;
+      .isOnline == true
+      and (.ownerPlatformUserID == $owner_platform_user_id or (.ownerEmail | ascii_downcase) == ($owner_email | ascii_downcase))
+      and any(.capabilities[]?; .name == "browser.open")
+    )
+  ' >/dev/null; then
+    echo "remote companion: online with browser.open"
+    exit 0
+  fi
+  sleep 1
+done
+
+echo "expected remote companion heartbeat with browser.open for $owner_email" >&2
+curl --silent --show-error http://127.0.0.1:18080/admin/api/companion/status |
+  jq --arg owner_platform_user_id "$owner_platform_user_id" --arg owner_email "$owner_email" '
+    .companions
+    | map(select(.ownerPlatformUserID == $owner_platform_user_id or (.ownerEmail | ascii_downcase) == ($owner_email | ascii_downcase)))
+    | map({companionID, ownerPlatformUserID, ownerEmail, isOnline, lastSeenAt, capabilityNames: (.capabilities | map(.name))})
+  ' >&2
+exit 1
+`,
+		strconv.Quote(base64.StdEncoding.EncodeToString([]byte(preparation.UserID))),
+		strconv.Quote(base64.StdEncoding.EncodeToString([]byte(preparation.Email))),
+		timeoutSeconds,
+	)
+}
+
+func runMattermostBrowserOpenE2EScript(prompt string, keep bool, timeoutSeconds int, preparation mattermostBrowserOpenE2EPreparation) string {
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = 240
+	}
+	keepValue := "false"
+	if keep {
+		keepValue = "true"
+	}
+	return fmt.Sprintf(`set -euo pipefail
+
+prompt="$(printf '%%s' %s | base64 -d)"
+email="$(printf '%%s' %s | base64 -d)"
+username="$(printf '%%s' %s | base64 -d)"
+password="$(printf '%%s' %s | base64 -d)"
+user_id="$(printf '%%s' %s | base64 -d)"
+channel_id="$(printf '%%s' %s | base64 -d)"
+keep_artifacts=%s
+timeout_seconds=%d
+
+api_request() {
+  local phase_name="$1"
+  local method="$2"
+  local url="$3"
+  local token="${4:-}"
+  local body="${5:-}"
+  local response_file
+  local status
+  local curl_status
+  response_file="$(mktemp)"
+  if [ -n "$body" ]; then
+    status="$(curl --silent --show-error --output "$response_file" --write-out "%%{http_code}" \
+      -X "$method" -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
+      -d "$body" "$url")" || curl_status="$?"
+  else
+    status="$(curl --silent --show-error --output "$response_file" --write-out "%%{http_code}" \
+      -X "$method" -H "Authorization: Bearer $token" "$url")" || curl_status="$?"
+  fi
+  if [ "${curl_status:-0}" != "0" ]; then
+    echo "Mattermost API curl failure during $phase_name: $method $url (curl exit ${curl_status:-0})" >&2
+    cat "$response_file" >&2 || true
+    rm -f "$response_file"
+    return "${curl_status:-1}"
+  fi
+  if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+    echo "Mattermost API failure during $phase_name: $method $url returned HTTP $status" >&2
+    cat "$response_file" >&2 || true
+    echo >&2
+    rm -f "$response_file"
+    return 22
+  fi
+  cat "$response_file"
+  rm -f "$response_file"
+}
+
+blueclaw_request() {
+  local phase_name="$1"
+  local method="$2"
+  local url="$3"
+  local response_file
+  local status
+  local curl_status
+  response_file="$(mktemp)"
+  status="$(curl --silent --show-error --output "$response_file" --write-out "%%{http_code}" -X "$method" "$url")" || curl_status="$?"
+  if [ "${curl_status:-0}" != "0" ]; then
+    echo "Blueclaw API curl failure during $phase_name: $method $url (curl exit ${curl_status:-0})" >&2
+    cat "$response_file" >&2 || true
+    rm -f "$response_file"
+    return "${curl_status:-1}"
+  fi
+  if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+    echo "Blueclaw API failure during $phase_name: $method $url returned HTTP $status" >&2
+    cat "$response_file" >&2 || true
+    echo >&2
+    rm -f "$response_file"
+    return 22
+  fi
+  cat "$response_file"
+  rm -f "$response_file"
+}
+
+login_headers="$(mktemp)"
+admin_password="$(cat /root/.internkim/secrets/mm-admin-pass)"
+curl --silent --show-error --fail -D "$login_headers" -o /tmp/internkim-admin-browser-e2e-run-login.json \
+  -H "Content-Type: application/json" \
+  -d "$(jq -cn --arg login_id admin --arg password "$admin_password" '{login_id:$login_id,password:$password}')" \
+  http://localhost:8065/api/v4/users/login >/dev/null
+admin_token="$(awk 'tolower($1) == "token:" {print $2}' "$login_headers" | tr -d '\r')"
+test -n "$admin_token"
+
+cleanup() {
+  if [ "$keep_artifacts" = "true" ]; then
+    return 0
+  fi
+  mattermost_token="$(cat /root/.internkim/secrets/mattermost-bot-token)"
+  if [ -n "${bot_post_id:-}" ]; then
+    curl --silent --show-error -X DELETE -H "Authorization: Bearer $mattermost_token" \
+      "http://localhost:8065/api/v4/posts/$bot_post_id" >/dev/null || true
+  fi
+  if [ -n "${user_post_id:-}" ]; then
+    curl --silent --show-error -X DELETE -H "Authorization: Bearer $user_token" \
+      "http://localhost:8065/api/v4/posts/$user_post_id" >/dev/null || true
+  fi
+  curl --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+    "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null || true
+  curl --silent --show-error -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$email" >/dev/null || true
+}
+trap cleanup EXIT
+
+user_login_headers="$(mktemp)"
+curl --silent --show-error --fail -D "$user_login_headers" -o /tmp/internkim-probe-browser-e2e-run-user-login.json \
+  -H "Content-Type: application/json" \
+  -d "$(jq -cn --arg login_id "$username" --arg password "$password" '{login_id:$login_id,password:$password}')" \
+  http://localhost:8065/api/v4/users/login >/dev/null
+user_token="$(awk 'tolower($1) == "token:" {print $2}' "$user_login_headers" | tr -d '\r')"
+test -n "$user_token"
+
+mattermost_token="$(cat /root/.internkim/secrets/mattermost-bot-token)"
+bot_user_id="$(api_request "bot lookup" GET http://localhost:8065/api/v4/users/me "$mattermost_token" | jq -r '.id // empty')"
+test -n "$bot_user_id"
+
+post_body="$(jq -cn --arg channel_id "$channel_id" --arg message "$prompt" '{channel_id:$channel_id,message:$message}')"
+user_post="$(api_request "post probe browser message" POST http://localhost:8065/api/v4/posts "$user_token" "$post_body")"
+user_post_id="$(printf '%%s' "$user_post" | jq -r '.id')"
+user_post_create_at="$(printf '%%s' "$user_post" | jq -r '.create_at')"
+test -n "$user_post_id"
+
+bot_post_id=""
+for _ in $(seq 1 "$timeout_seconds"); do
+  bot_post_id="$(api_request "wait for probe browser reply" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=60" "$admin_token" |
+    jq -r --arg bot_user_id "$bot_user_id" --argjson posted_after "$user_post_create_at" \
+      '.posts[] | select(.user_id == $bot_user_id and .create_at >= $posted_after) | .id' | head -1)"
+  if [ -n "$bot_post_id" ]; then
+    break
+  fi
+  sleep 1
+done
+if [ -z "$bot_post_id" ]; then
+  echo "expected Mattermost bot reply for probe browser post $user_post_id" >&2
+  exit 1
+fi
+
+bot_post_file="$(mktemp)"
+api_request "fetch probe browser reply" GET "http://localhost:8065/api/v4/posts/$bot_post_id" "$admin_token" > "$bot_post_file"
+task_run_id="$(blueclaw_request "find probe browser task" GET http://127.0.0.1:8080/admin/api/task |
+  jq -r --arg prompt "$prompt" '[.[] | select(.prompt == $prompt)] | sort_by(.createdAt) | last | .taskRunID // empty')"
+if [ -z "$task_run_id" ]; then
+  echo "expected task for probe browser prompt" >&2
+  exit 1
+fi
+task_detail_file="$(mktemp)"
+blueclaw_request "probe browser task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id" > "$task_detail_file"
+if ! jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "tool.browser.open.result" and (((.body // "{}") | fromjson? // {}) | .isError != true))' "$task_detail_file" >/dev/null; then
+  echo "expected successful tool.browser.open.result for probe browser task $task_run_id" >&2
+  jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
+  exit 1
+fi
 
 jq -cn \
   --arg channel_id "$channel_id" \
@@ -975,14 +1599,23 @@ jq -cn \
   '{
     ok: true,
     kept: $keep,
+    browserOpenVerified: true,
     channelID: $channel_id,
     userPostID: $user_post_id,
     botPostID: $bot_post_id,
     taskRunID: $task_run_id,
     botMessage: $bot_post[0].message,
-    fileIDs: ($bot_post[0].file_ids // []),
-    taskStatus: ($task_detail[0].taskRun.status // null),
-    taskEvents: (($task_detail[0].taskEvents // []) | map({name, body: ((.body // "") | tostring | .[0:1200])}))
+    taskStatus: ((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskRun.status // null),
+    taskEvents: (((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskEvents // []) | map({name, body: ((.body // "") | tostring | .[0:1200])}))
   }'
-`, strconv.Quote(encodedPrompt), keepValue, timeoutSeconds)
+`,
+		strconv.Quote(base64.StdEncoding.EncodeToString([]byte(prompt))),
+		strconv.Quote(base64.StdEncoding.EncodeToString([]byte(preparation.Email))),
+		strconv.Quote(base64.StdEncoding.EncodeToString([]byte(preparation.Username))),
+		strconv.Quote(base64.StdEncoding.EncodeToString([]byte(preparation.Password))),
+		strconv.Quote(base64.StdEncoding.EncodeToString([]byte(preparation.UserID))),
+		strconv.Quote(base64.StdEncoding.EncodeToString([]byte(preparation.ChannelID))),
+		keepValue,
+		timeoutSeconds,
+	)
 }
