@@ -16,6 +16,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1380,6 +1381,10 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 		}
 	}
 
+	if teamResult.ID != "" {
+		setupMattermostConnectCommand(m, ssh, mmAPI, adminToken, teamResult.ID)
+	}
+
 	// 8. Store credentials
 	deviceURL := loadState(stateDir, "device_url")
 	if deviceURL == "" {
@@ -1403,6 +1408,113 @@ rm -f /root/.internkim/mattermost-url /root/.internkim/mattermost-admin-token /r
 	if channelID != "" {
 		fmt.Printf("  channel: town-square (%s)\n", channelID)
 	}
+}
+
+type mattermostSetupAPI func(method string, path string, body []byte, token string) (int, []byte)
+
+type mattermostSetupCommandRecord struct {
+	ID               string `json:"id,omitempty"`
+	Token            string `json:"token,omitempty"`
+	TeamID           string `json:"team_id"`
+	Trigger          string `json:"trigger"`
+	Method           string `json:"method"`
+	URL              string `json:"url"`
+	DisplayName      string `json:"display_name"`
+	Description      string `json:"description"`
+	Autocomplete     bool   `json:"auto_complete"`
+	AutocompleteDesc string `json:"auto_complete_desc"`
+	AutocompleteHint string `json:"auto_complete_hint"`
+}
+
+const mattermostConnectSetupCommandTokenPath = "/root/.internkim/state/admin/mattermost-connect-command-token"
+
+func setupMattermostConnectCommand(m *msg, ssh *sshClient, mmAPI mattermostSetupAPI, adminToken string, teamID string) {
+	commandRecord, found := findMattermostSetupConnectCommand(mmAPI, adminToken, teamID)
+	if found && strings.TrimSpace(commandRecord.Token) != "" {
+		writeMattermostSetupConnectCommandToken(ssh, commandRecord.Token)
+		updateMattermostSetupConnectCommand(mmAPI, adminToken, teamID, commandRecord.ID)
+		fmt.Printf("  %s\n", m.t("Mattermost /connect 명령 확인", "Mattermost /connect command verified"))
+		return
+	}
+	if found && strings.TrimSpace(ssh.run("cat "+mattermostConnectSetupCommandTokenPath+" 2>/dev/null")) != "" {
+		updateMattermostSetupConnectCommand(mmAPI, adminToken, teamID, commandRecord.ID)
+		fmt.Printf("  %s\n", m.t("Mattermost /connect 명령 확인", "Mattermost /connect command verified"))
+		return
+	}
+	if found {
+		mmAPI("DELETE", "/api/v4/commands/"+commandRecord.ID, nil, adminToken)
+	}
+	createdRecord, ok := createMattermostSetupConnectCommand(mmAPI, adminToken, teamID)
+	if !ok || strings.TrimSpace(createdRecord.Token) == "" {
+		fmt.Printf("  WARN: %s\n", m.t("Mattermost /connect 명령 등록 실패", "Mattermost /connect command registration failed"))
+		return
+	}
+	writeMattermostSetupConnectCommandToken(ssh, createdRecord.Token)
+	fmt.Printf("  %s\n", m.t("Mattermost /connect 명령 등록", "Mattermost /connect command registered"))
+}
+
+func findMattermostSetupConnectCommand(mmAPI mattermostSetupAPI, adminToken string, teamID string) (mattermostSetupCommandRecord, bool) {
+	code, responseBody := mmAPI("GET", "/api/v4/commands?team_id="+url.QueryEscape(teamID), nil, adminToken)
+	if code < 200 || code >= 300 {
+		return mattermostSetupCommandRecord{}, false
+	}
+	var commandRecords []mattermostSetupCommandRecord
+	if json.Unmarshal(responseBody, &commandRecords) != nil {
+		return mattermostSetupCommandRecord{}, false
+	}
+	for _, commandRecord := range commandRecords {
+		if commandRecord.TeamID == teamID && commandRecord.Trigger == "connect" {
+			return commandRecord, true
+		}
+	}
+	return mattermostSetupCommandRecord{}, false
+}
+
+func createMattermostSetupConnectCommand(mmAPI mattermostSetupAPI, adminToken string, teamID string) (mattermostSetupCommandRecord, bool) {
+	document, _ := json.Marshal(mattermostSetupConnectCommandPayload(teamID, ""))
+	code, responseBody := mmAPI("POST", "/api/v4/commands", document, adminToken)
+	if code < 200 || code >= 300 {
+		return mattermostSetupCommandRecord{}, false
+	}
+	var commandRecord mattermostSetupCommandRecord
+	return commandRecord, json.Unmarshal(responseBody, &commandRecord) == nil
+}
+
+func updateMattermostSetupConnectCommand(mmAPI mattermostSetupAPI, adminToken string, teamID string, commandID string) {
+	trimmedCommandID := strings.TrimSpace(commandID)
+	if trimmedCommandID == "" {
+		return
+	}
+	document, _ := json.Marshal(mattermostSetupConnectCommandPayload(teamID, trimmedCommandID))
+	mmAPI("PUT", "/api/v4/commands/"+trimmedCommandID, document, adminToken)
+}
+
+func mattermostSetupConnectCommandPayload(teamID string, commandID string) mattermostSetupCommandRecord {
+	return mattermostSetupCommandRecord{
+		ID:               strings.TrimSpace(commandID),
+		TeamID:           strings.TrimSpace(teamID),
+		Trigger:          "connect",
+		Method:           "P",
+		URL:              "http://127.0.0.1:18080/_internkim/mattermost/commands",
+		DisplayName:      "Connect Companion",
+		Description:      "Connect your InternKim Companion app.",
+		Autocomplete:     true,
+		AutocompleteDesc: "Connect your Companion app",
+	}
+}
+
+func writeMattermostSetupConnectCommandToken(ssh *sshClient, token string) {
+	trimmedToken := strings.TrimSpace(token)
+	if trimmedToken == "" {
+		return
+	}
+	ssh.run(fmt.Sprintf(`mkdir -p /root/.internkim/state/admin
+printf '%%s\n' %s > %s
+chmod 600 %s`,
+		quoteShellValue(trimmedToken),
+		mattermostConnectSetupCommandTokenPath,
+		mattermostConnectSetupCommandTokenPath,
+	))
 }
 
 func runLab() {
