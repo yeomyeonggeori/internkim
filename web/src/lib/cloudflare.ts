@@ -146,10 +146,13 @@ function companionBypassApplicationBody(env: CFEnv, deviceId: string) {
 
 function adminAccessApplicationBody(env: CFEnv, deviceId: string, identityProviderId: string, domain: string) {
 	const hostname = `${deviceId}.${env.CF_DOMAIN}`;
+	const selfHostedDomains = domain === '/admin*'
+		? [`${hostname}/admin*`, `${hostname}/_app/*`]
+		: [`${hostname}${domain}`];
 
 	return {
 		name: `intern kim admin ${deviceId} ${domain}`,
-		domain: `${hostname}${domain}`,
+		self_hosted_domains: selfHostedDomains,
 		type: 'self_hosted',
 		session_duration: '720h',
 		logo_url: `https://${hostname}/logo.svg`,
@@ -205,6 +208,7 @@ export async function ensureCompanionBypassApplication(env: CFEnv, deviceId: str
 
 export async function ensureAdminAccessApplications(env: CFEnv, deviceId: string, identityProviderId: string, adminEmails: string[] | string) {
 	(void adminEmails);
+	await deleteAccessApplicationForDomain(env, deviceId, '/_app/*');
 	const applicationId = await ensureAdminAccessApplication(env, deviceId, identityProviderId, '/admin*');
 	await syncAccessPolicyEveryone(env, applicationId);
 	await deleteAccessApplicationForDomain(env, deviceId, '/_internkim/admin/*');
@@ -213,7 +217,8 @@ export async function ensureAdminAccessApplications(env: CFEnv, deviceId: string
 async function ensureAdminAccessApplication(env: CFEnv, deviceId: string, identityProviderId: string, domain: string) {
 	const body = adminAccessApplicationBody(env, deviceId, identityProviderId, domain);
 	const applications = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`)) as AccessApplication[];
-	const application = applications.find((item) => accessApplicationDomain(item) === body.domain);
+	const primaryDomain = body.self_hosted_domains[0];
+	const application = applications.find((item) => accessApplicationDomain(item) === primaryDomain);
 	const applicationId = application?.id ?? await createAdminAccessApplication(env, body);
 
 	if (application?.id) {
