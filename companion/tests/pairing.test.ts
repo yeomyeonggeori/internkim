@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { normalizeManualPairingInput, parsePairingLink, statusLabel } from '../src/lib/pairing';
+import { isCompanionVerified, normalizeManualPairingInput, parsePairingLink, statusLabel } from '../src/lib/pairing';
 
 describe('pairing links', () => {
 	test('parses internkim pair links', () => {
@@ -25,6 +25,15 @@ describe('status label', () => {
 	});
 
 	test('shows connected device', () => {
-		expect(statusLabel({ paired: true, deviceURL: 'https://abc.example.test' })).toBe('Connected to https://abc.example.test');
+		expect(statusLabel({ paired: true, authStatus: 'verified', deviceURL: 'https://abc.example.test' })).toBe('Connected to https://abc.example.test');
+	});
+
+	test('does not show connected from paired state without verified auth', () => {
+		expect(statusLabel({ paired: true, deviceURL: 'https://abc.example.test' })).toBe('Connection unknown');
+		expect(isCompanionVerified({ paired: true, deviceURL: 'https://abc.example.test' })).toBe(false);
+	});
+
+	test('shows reconnect state when signing key is missing', () => {
+		expect(statusLabel({ paired: true, authStatus: 'missing-signing-key', deviceURL: 'https://abc.example.test' })).toBe('Reconnect required');
 	});
 });
