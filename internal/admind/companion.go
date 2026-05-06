@@ -82,6 +82,12 @@ type CompanionJob struct {
 	Response          *capabilities.ToolInvokeResponse `json:"response,omitempty"`
 	Denial            *capabilities.DenialResult       `json:"denial,omitempty"`
 	Error             string                           `json:"error,omitempty"`
+	WatchStatus       string                           `json:"watchStatus,omitempty"`
+	NextWatchAt       time.Time                        `json:"nextWatchAt,omitempty"`
+	WatchAttemptCount int                              `json:"watchAttemptCount,omitempty"`
+	LastAttentionAt   time.Time                        `json:"lastAttentionAt,omitempty"`
+	AttentionKey      string                           `json:"attentionDeduplicationKey,omitempty"`
+	Attention         *CompanionAttentionState         `json:"attention,omitempty"`
 	CreatedAt         time.Time                        `json:"createdAt"`
 	UpdatedAt         time.Time                        `json:"updatedAt"`
 	ExpiresAt         time.Time                        `json:"expiresAt"`
@@ -441,7 +447,7 @@ func (service *Service) companionHeartbeat(responseWriter http.ResponseWriter, r
 	storedCompanion := service.companions[companion.CompanionID]
 	storedCompanion.LastSeenAt = time.Now().UTC()
 	if len(payload.Capabilities) > 0 {
-		storedCompanion.Capabilities = payload.Capabilities
+		storedCompanion.Capabilities = companionHeartbeatCapabilities(payload)
 	}
 	storedCompanion.LocalOnly = payload.LocalOnly
 	service.mutex.Unlock()
@@ -591,6 +597,7 @@ func (service *Service) invokeCompanionJob(ctx context.Context, request capabili
 		ExpiresAt:         now.Add(time.Duration(timeout) * time.Second),
 	}
 	job.Depth = service.nextCompanionJobDepth(job.ParentJobID)
+	initializeCompanionJobWatch(job, now)
 	service.mutex.Lock()
 	service.companionJobs[job.JobID] = job
 	service.mutex.Unlock()
@@ -624,6 +631,7 @@ func (service *Service) invokeCompanionJob(ctx context.Context, request capabili
 			currentJob.Status = "expired"
 			currentJob.Error = "companion job expired"
 			currentJob.UpdatedAt = time.Now().UTC()
+			closeCompanionJobWatchLocked(currentJob, currentJob.UpdatedAt)
 			service.mutex.Unlock()
 			_ = service.saveCompanionJobs()
 			return capabilities.ToolInvokeResponse{}, errors.New("companion job expired")
@@ -640,6 +648,13 @@ func (service *Service) claimNextCompanionJob(companion *CompanionRecord) *Compa
 	service.mutex.Lock()
 	now := time.Now().UTC()
 	recoveredJobs := service.recoverExpiredAndStaleCompanionJobsLocked(now)
+	attentionJob, attentionChanged := service.claimDueCompanionAttentionJobLocked(companion, now)
+	if attentionJob != nil {
+		service.mutex.Unlock()
+		_ = service.saveCompanionJobs()
+		return attentionJob
+	}
+	recoveredJobs = recoveredJobs || attentionChanged
 	for _, job := range service.companionJobs {
 		if job.Status != "pending" || now.After(job.ExpiresAt) {
 			continue
@@ -678,6 +693,8 @@ func (service *Service) finishCompanionJob(companionID string, jobID string, res
 		service.mutex.Unlock()
 		return errors.New("companion job owner mismatch")
 	}
+	now := time.Now().UTC()
+	var remoteAttentionRequest *capabilities.RemoteAttentionRequest
 	if errorMessage != "" {
 		job.Status = "failed"
 		job.Error = errorMessage
@@ -685,10 +702,20 @@ func (service *Service) finishCompanionJob(companionID string, jobID string, res
 		job.Status = "completed"
 		job.Response = response
 	}
-	job.UpdatedAt = time.Now().UTC()
+	job.UpdatedAt = now
+	if job.ToolName == capabilities.AttentionTriageToolName {
+		remoteAttentionRequest = service.finishCompanionAttentionJobLocked(job, response, errorMessage, now)
+	} else {
+		closeCompanionJobWatchLocked(job, now)
+	}
 	service.mutex.Unlock()
-	service.updateCompanionMountsFromJob(companionID, jobID, response)
+	if job.ToolName != capabilities.AttentionTriageToolName {
+		service.updateCompanionMountsFromJob(companionID, jobID, response)
+	}
 	_ = service.saveCompanionJobs()
+	if remoteAttentionRequest != nil {
+		service.processRemoteAttention(context.Background(), *remoteAttentionRequest)
+	}
 	return nil
 }
 
@@ -715,6 +742,7 @@ func (service *Service) denyCompanionJobResult(companionID string, jobID string,
 	job.Status = "denied"
 	job.Denial = &denial
 	job.UpdatedAt = time.Now().UTC()
+	closeCompanionJobWatchLocked(job, job.UpdatedAt)
 	service.mutex.Unlock()
 	_ = service.saveCompanionJobs()
 	return nil
@@ -885,6 +913,11 @@ func (service *Service) recoverExpiredAndStaleCompanionJobsLocked(now time.Time)
 			job.Status = "expired"
 			job.Error = "companion job expired"
 			job.UpdatedAt = now
+			if job.ToolName == capabilities.AttentionTriageToolName {
+				service.applyCompanionAttentionFallbackLocked(job, now, "local_triage_expired")
+			} else {
+				closeCompanionJobWatchLocked(job, now)
+			}
 			changed = true
 			continue
 		}
@@ -1113,6 +1146,7 @@ func (service *Service) loadCompanionJobs() {
 			job.Status = "expired"
 			job.Error = firstNonEmpty(job.Error, "companion job expired")
 			job.UpdatedAt = now
+			closeCompanionJobWatchLocked(job, now)
 		}
 		if job.Status == "running" {
 			job.Status = "pending"
