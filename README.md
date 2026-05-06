@@ -105,10 +105,19 @@ make build
 ./internkim setup --board jetson-orin-nano --host <jetson-ip> --user <ssh-user>
 ```
 
-터널 설정이 한 번 끝난 기기는 LAN 밖에서도 setup할 수 있습니다. 로컬에 `cloudflared`를 설치한 뒤 `--cloudflare-ssh`를 붙이면 CLI가 `ssh.<deviceID>.intern.kim` 경로를 Cloudflare Access SSH로 열고 기존 setup/scp/rsync 파이프라인을 그대로 사용합니다.
+터널 설정이 한 번 끝난 기기는 LAN 밖에서도 setup할 수 있습니다. 로컬에 `cloudflared`가 설치되어 있으면 CLI가 LAN SSH를 먼저 찾고, 보드가 로컬 네트워크에 없을 때 `ssh.<deviceID>.intern.kim` 경로의 Cloudflare Access SSH로 자동 전환합니다. 기존 setup/scp/rsync 파이프라인은 그대로 사용합니다.
 
 ```bash
-./internkim setup --only admin-web --force --cloudflare-ssh
+./internkim setup --only admin-web --force
+```
+
+LAN 탐색을 건너뛰고 Cloudflare SSH를 바로 쓰려면 `--cloudflare-ssh`를 붙입니다.
+
+직접 shell을 열 때도 같은 라우팅을 씁니다.
+
+```bash
+./internkim ssh
+./internkim ssh -- uptime -p
 ```
 
 Go 코드나 provisioning/runtime config를 바꾼 뒤에는 setup 전에 반드시 `make build`를 다시 실행하세요. `./internkim`은 로컬 바이너리라 자동 재빌드되지 않으며, 오래된 바이너리로 setup을 실행하면 장비의 Blueclaw runtime config가 이전 schema로 되돌아갈 수 있습니다. `services`와 `health` 단계는 실제 `/root/.blueclaw/config/runtime.json` contract를 검사해 stale config를 실패 처리합니다.
