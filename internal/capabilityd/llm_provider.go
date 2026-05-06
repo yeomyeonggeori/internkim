@@ -111,6 +111,25 @@ func firstProviderOrder(values []string, fallback []string) []string {
 }
 
 func (service Service) automaticLLMProviders(localProvider LLMProvider, companionProvider LLMProvider, remoteProvider LLMProvider) []LLMProvider {
+	switch service.localInferenceMode() {
+	case "device":
+		if service.Configuration.LocalOnly {
+			return []LLMProvider{localProvider, companionProvider}
+		}
+		return []LLMProvider{localProvider, remoteProvider, companionProvider}
+	case "companion_preferred":
+		if service.Configuration.LocalOnly {
+			return []LLMProvider{companionProvider, localProvider}
+		}
+		return []LLMProvider{companionProvider, remoteProvider, localProvider}
+	case "companion_only":
+		return []LLMProvider{companionProvider}
+	case "remote":
+		if service.Configuration.LocalOnly {
+			return []LLMProvider{companionProvider, localProvider}
+		}
+		return []LLMProvider{remoteProvider, companionProvider}
+	}
 	if service.Configuration.LocalOnly {
 		return []LLMProvider{companionProvider, localProvider}
 	}
@@ -118,4 +137,15 @@ func (service Service) automaticLLMProviders(localProvider LLMProvider, companio
 		return []LLMProvider{companionProvider, remoteProvider, localProvider}
 	}
 	return []LLMProvider{remoteProvider, companionProvider, localProvider}
+}
+
+func (service Service) localInferenceMode() string {
+	normalizedMode := strings.ToLower(strings.TrimSpace(service.Configuration.LocalInferenceMode))
+	if normalizedMode != "" {
+		return normalizedMode
+	}
+	if service.Configuration.PreferCompanionLLM {
+		return "companion_preferred"
+	}
+	return ""
 }

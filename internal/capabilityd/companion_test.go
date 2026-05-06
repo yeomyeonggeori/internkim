@@ -234,6 +234,33 @@ func TestSimpleBrowserToolFallsBackToDeviceWhenCompanionUnavailable(t *testing.T
 	}
 }
 
+func TestUserPresenceBrowserToolDoesNotFallbackToDeviceWhenCompanionUnavailable(t *testing.T) {
+	commandWasCalled := false
+	service := Service{
+		Configuration: Configuration{CompanionBaseURL: "https://companion.test"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return nil, io.ErrUnexpectedEOF
+		})},
+		RunCommand: func(_ context.Context, _ string, _ []string, _ []byte) ([]byte, error) {
+			commandWasCalled = true
+			return nil, nil
+		},
+	}
+
+	_, errorValue := service.invokeCapabilityTool(context.Background(), "browser.open", strings.NewReader(`{
+		"requiresUserPresence":true,
+		"executionMode":"companion",
+		"input":{"url":"https://console.cloud.google.com/apis/credentials"}
+	}`))
+
+	if errorValue == nil {
+		t.Fatal("expected companion browser failure")
+	}
+	if commandWasCalled {
+		t.Fatal("expected user-presence browser.open not to fallback to device browser")
+	}
+}
+
 func TestBrowserToolUsesCompanionBeforeDeviceFallback(t *testing.T) {
 	commandWasCalled := false
 	service := Service{

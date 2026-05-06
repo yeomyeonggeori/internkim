@@ -205,7 +205,7 @@ make build-companion-shell
 ./internkim-companion status
 ```
 
-Primary flow는 Pages 관리자 화면의 Companion App 섹션입니다. 관리자는 다운로드 버튼으로 OS별 companion을 받고, `Connect to this Intern Kim`으로 10분짜리 one-time pairing code를 만든 뒤 deep link 또는 CLI fallback으로 연결합니다. 연결된 companion은 inbound port를 열지 않고 device broker를 long-poll합니다.
+Primary flow는 InternKim Mattermost DM의 `/internkim connect` 또는 `connect`입니다. 일반 사용자는 Admin 권한 없이 자기 Mattermost identity에 묶인 10분짜리 one-time pairing code를 받고 Companion 앱을 연결합니다. Pages 관리자 화면은 다운로드, 상태 확인, revoke, 진단용으로 남깁니다. 연결된 companion은 inbound port를 열지 않고 device broker를 long-poll합니다.
 
 관리자 화면은 `https://<deviceID>.example.test/admin`에서 엽니다. 이 주소는 Cloudflare Access 인증 뒤 기기 안의 관리자 UI를 same-origin으로 서빙하므로 초대, Companion 연결, 백업/복구가 브라우저에서 바로 동작합니다. `https://api.example.test/?device_id=<deviceID>`는 배포/진입용 Pages 주소이며, 실제 작업은 기기 주소의 `/admin`으로 이동합니다.
 
@@ -215,7 +215,7 @@ Deep link를 직접 넘기는 CLI fallback도 지원합니다.
 ./internkim-companion pair 'internkim://pair?device_url=https%3A%2F%2Fdc719d8e.example.test&code=ABCD-1234'
 ```
 
-현재 companion executor는 `user.confirm`, `user.input`, approval grant, `file.pick`, `browser.open`, `browser.snapshot`, `browser.screenshot`, `browser.handoff`, `browser.click`, `browser.fill`, `browser.select`, `browser.press`, `browser.wait`, 개발용 mock `llm.text`, 개발용 mock `llm.structured`를 처리합니다. Tauri shell은 confirmation/input/approval/file picker UI를 띄우고, 승인된 작업 범위는 `Allowed for this task`에서 확인하거나 revoke할 수 있습니다. `--allow-stdin-prompts`는 shell 없이 디버깅할 때만 쓰는 CLI fallback입니다.
+현재 companion executor는 `user.confirm`, `user.input`, approval grant, `file.pick`, `browser.open`, `browser.snapshot`, `browser.screenshot`, `browser.handoff`, `browser.click`, `browser.fill`, `browser.select`, `browser.press`, `browser.wait`, 개발용 mock `llm.text`, 개발용 mock `llm.structured`를 처리합니다. requester identity가 있는 Companion LLM job은 같은 owner의 Companion만 claim할 수 있고, embedding은 기본적으로 Jetson 내부 embedding service를 계속 사용합니다. Tauri shell은 confirmation/input/approval/file picker UI를 띄우고, 승인된 작업 범위는 `Allowed for this task`에서 확인하거나 revoke할 수 있습니다. `--allow-stdin-prompts`는 shell 없이 디버깅할 때만 쓰는 CLI fallback입니다.
 
 `file.pick`은 사용자 로컬 경로를 InternKim/Blueclaw에 넘기지 않습니다. companion이 선택된 파일을 signed broker upload로 device의 `/tmp/internkim-companion-files/{filename}`에 복사하고, 응답에는 device-local temporary path와 TTL만 포함합니다. 같은 이름은 덮어쓰며 metadata TTL이 지나면 `internkim-admind`가 자동 삭제합니다.
 

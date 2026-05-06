@@ -23,38 +23,47 @@ import (
 const companionOnlineWindow = 45 * time.Second
 
 type CompanionPairingCode struct {
-	Code          string    `json:"code"`
-	OwnerPersonID string    `json:"ownerPersonID,omitempty"`
-	OwnerEmail    string    `json:"ownerEmail,omitempty"`
-	CreatedAt     time.Time `json:"createdAt"`
-	ExpiresAt     time.Time `json:"expiresAt"`
-	UsedAt        time.Time `json:"usedAt,omitempty"`
+	Code                string    `json:"code"`
+	OwnerPlatform       string    `json:"ownerPlatform,omitempty"`
+	OwnerPlatformUserID string    `json:"ownerPlatformUserID,omitempty"`
+	OwnerPersonID       string    `json:"ownerPersonID,omitempty"`
+	OwnerEmail          string    `json:"ownerEmail,omitempty"`
+	OwnerName           string    `json:"ownerName,omitempty"`
+	CreatedAt           time.Time `json:"createdAt"`
+	ExpiresAt           time.Time `json:"expiresAt"`
+	UsedAt              time.Time `json:"usedAt,omitempty"`
 }
 
 type CompanionRecord struct {
-	CompanionID   string                    `json:"companionID"`
-	DisplayName   string                    `json:"displayName"`
-	OwnerPersonID string                    `json:"ownerPersonID,omitempty"`
-	OwnerEmail    string                    `json:"ownerEmail,omitempty"`
-	PublicKey     string                    `json:"publicKey"`
-	TokenHash     string                    `json:"tokenHash"`
-	Capabilities  []capabilities.Descriptor `json:"capabilities"`
-	LocalOnly     bool                      `json:"localOnly"`
-	CreatedAt     time.Time                 `json:"createdAt"`
-	LastSeenAt    time.Time                 `json:"lastSeenAt"`
-	RevokedAt     time.Time                 `json:"revokedAt,omitempty"`
+	CompanionID         string                    `json:"companionID"`
+	DisplayName         string                    `json:"displayName"`
+	OwnerPlatform       string                    `json:"ownerPlatform,omitempty"`
+	OwnerPlatformUserID string                    `json:"ownerPlatformUserID,omitempty"`
+	OwnerPersonID       string                    `json:"ownerPersonID,omitempty"`
+	OwnerEmail          string                    `json:"ownerEmail,omitempty"`
+	OwnerName           string                    `json:"ownerName,omitempty"`
+	PublicKey           string                    `json:"publicKey"`
+	TokenHash           string                    `json:"tokenHash"`
+	Capabilities        []capabilities.Descriptor `json:"capabilities"`
+	LocalOnly           bool                      `json:"localOnly"`
+	CreatedAt           time.Time                 `json:"createdAt"`
+	LastSeenAt          time.Time                 `json:"lastSeenAt"`
+	RevokedAt           time.Time                 `json:"revokedAt,omitempty"`
 }
 
 type CompanionStatus struct {
-	CompanionID   string                    `json:"companionID"`
-	DisplayName   string                    `json:"displayName"`
-	OwnerPersonID string                    `json:"ownerPersonID,omitempty"`
-	OwnerEmail    string                    `json:"ownerEmail,omitempty"`
-	Capabilities  []capabilities.Descriptor `json:"capabilities"`
-	LocalOnly     bool                      `json:"localOnly"`
-	CreatedAt     time.Time                 `json:"createdAt"`
-	LastSeenAt    time.Time                 `json:"lastSeenAt"`
-	IsOnline      bool                      `json:"isOnline"`
+	CompanionID         string                    `json:"companionID"`
+	DisplayName         string                    `json:"displayName"`
+	OwnerPlatform       string                    `json:"ownerPlatform,omitempty"`
+	OwnerPlatformUserID string                    `json:"ownerPlatformUserID,omitempty"`
+	OwnerPersonID       string                    `json:"ownerPersonID,omitempty"`
+	OwnerEmail          string                    `json:"ownerEmail,omitempty"`
+	OwnerName           string                    `json:"ownerName,omitempty"`
+	Capabilities        []capabilities.Descriptor `json:"capabilities"`
+	LocalOnly           bool                      `json:"localOnly"`
+	CreatedAt           time.Time                 `json:"createdAt"`
+	LastSeenAt          time.Time                 `json:"lastSeenAt"`
+	IsOnline            bool                      `json:"isOnline"`
 }
 
 type CompanionJob struct {
@@ -84,6 +93,15 @@ type companionPairRequest struct {
 	PublicKey    string                    `json:"publicKey"`
 	Capabilities []capabilities.Descriptor `json:"capabilities"`
 	LocalOnly    bool                      `json:"localOnly"`
+}
+
+type companionPairingCodeRequest struct {
+	OwnerPlatform       string `json:"ownerPlatform,omitempty"`
+	OwnerPlatformUserID string `json:"ownerPlatformUserID,omitempty"`
+	OwnerPersonID       string `json:"ownerPersonID,omitempty"`
+	OwnerEmail          string `json:"ownerEmail,omitempty"`
+	OwnerName           string `json:"ownerName,omitempty"`
+	DeviceURL           string `json:"deviceURL,omitempty"`
 }
 
 type companionPairResponse struct {
@@ -125,6 +143,8 @@ func (service *Service) handleCompanion(responseWriter http.ResponseWriter, requ
 	switch {
 	case request.Method == http.MethodPost && path == "/pair":
 		service.pairCompanion(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/pairing-codes":
+		service.createLocalCompanionPairingCode(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/heartbeat":
 		service.companionHeartbeat(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/capabilities":
@@ -285,13 +305,39 @@ func setRemoteModelInRuntimeDocument(document map[string]any, model string) {
 }
 
 func (service *Service) createCompanionPairingCode(responseWriter http.ResponseWriter, request *http.Request) {
+	owner := companionPairingCodeRequest{OwnerEmail: service.companionPairingOwnerEmail(request)}
+	service.writeCompanionPairingCode(responseWriter, request, owner)
+}
+
+func (service *Service) createLocalCompanionPairingCode(responseWriter http.ResponseWriter, request *http.Request) {
+	if !isLocalRequest(request) {
+		http.Error(responseWriter, "local access required", http.StatusForbidden)
+		return
+	}
+	var owner companionPairingCodeRequest
+	if errorValue := json.NewDecoder(request.Body).Decode(&owner); errorValue != nil && !errors.Is(errorValue, io.EOF) {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(owner.OwnerEmail) == "" && strings.TrimSpace(owner.OwnerPersonID) == "" && strings.TrimSpace(owner.OwnerPlatformUserID) == "" {
+		http.Error(responseWriter, "companion owner identity is required", http.StatusBadRequest)
+		return
+	}
+	service.writeCompanionPairingCode(responseWriter, request, owner)
+}
+
+func (service *Service) writeCompanionPairingCode(responseWriter http.ResponseWriter, request *http.Request, owner companionPairingCodeRequest) {
 	code := randomPairingCode()
 	now := time.Now().UTC()
 	pairingCode := &CompanionPairingCode{
-		Code:       code,
-		OwnerEmail: service.companionPairingOwnerEmail(request),
-		CreatedAt:  now,
-		ExpiresAt:  now.Add(10 * time.Minute),
+		Code:                code,
+		OwnerPlatform:       strings.TrimSpace(owner.OwnerPlatform),
+		OwnerPlatformUserID: strings.TrimSpace(owner.OwnerPlatformUserID),
+		OwnerPersonID:       strings.TrimSpace(owner.OwnerPersonID),
+		OwnerEmail:          strings.ToLower(strings.TrimSpace(owner.OwnerEmail)),
+		OwnerName:           strings.TrimSpace(owner.OwnerName),
+		CreatedAt:           now,
+		ExpiresAt:           now.Add(10 * time.Minute),
 	}
 	service.mutex.Lock()
 	service.pairingCodes[code] = pairingCode
@@ -300,7 +346,7 @@ func (service *Service) createCompanionPairingCode(responseWriter http.ResponseW
 	service.writeJSON(responseWriter, companionPairingCodeResponse{
 		Code:      code,
 		ExpiresAt: pairingCode.ExpiresAt,
-		DeepLink:  companionDeepLink(request, code),
+		DeepLink:  companionDeepLinkForDeviceURL(request, code, owner.DeviceURL),
 	})
 }
 
@@ -352,16 +398,19 @@ func (service *Service) pairCompanion(responseWriter http.ResponseWriter, reques
 	companionID := randomHex(16)
 	token := randomHex(32)
 	service.companions[companionID] = &CompanionRecord{
-		CompanionID:   companionID,
-		DisplayName:   firstNonEmpty(payload.DisplayName, "Companion"),
-		OwnerPersonID: pairingCode.OwnerPersonID,
-		OwnerEmail:    pairingCode.OwnerEmail,
-		PublicKey:     payload.PublicKey,
-		TokenHash:     companionTokenHash(token),
-		Capabilities:  payload.Capabilities,
-		LocalOnly:     payload.LocalOnly,
-		CreatedAt:     now,
-		LastSeenAt:    now,
+		CompanionID:         companionID,
+		DisplayName:         firstNonEmpty(payload.DisplayName, "Companion"),
+		OwnerPlatform:       pairingCode.OwnerPlatform,
+		OwnerPlatformUserID: pairingCode.OwnerPlatformUserID,
+		OwnerPersonID:       pairingCode.OwnerPersonID,
+		OwnerEmail:          pairingCode.OwnerEmail,
+		OwnerName:           pairingCode.OwnerName,
+		PublicKey:           payload.PublicKey,
+		TokenHash:           companionTokenHash(token),
+		Capabilities:        payload.Capabilities,
+		LocalOnly:           payload.LocalOnly,
+		CreatedAt:           now,
+		LastSeenAt:          now,
 	}
 	service.mutex.Unlock()
 
@@ -594,7 +643,7 @@ func (service *Service) claimNextCompanionJob(companion *CompanionRecord) *Compa
 		if !companionCanRunTool(companion, job.Request.ToolName) {
 			continue
 		}
-		if requiresRequesterOwnedCompanion(job.Request.ToolName) && !companionOwnsJob(companion, job) {
+		if shouldUseRequesterOwnedCompanion(job.Request) && !companionOwnsJob(companion, job) {
 			continue
 		}
 		if !service.companionCanClaimMountJobLocked(companion, job) {
@@ -700,15 +749,18 @@ func (service *Service) companionStatuses() []CompanionStatus {
 			continue
 		}
 		statuses = append(statuses, CompanionStatus{
-			CompanionID:   companion.CompanionID,
-			DisplayName:   companion.DisplayName,
-			OwnerPersonID: companion.OwnerPersonID,
-			OwnerEmail:    companion.OwnerEmail,
-			Capabilities:  companion.Capabilities,
-			LocalOnly:     companion.LocalOnly,
-			CreatedAt:     companion.CreatedAt,
-			LastSeenAt:    companion.LastSeenAt,
-			IsOnline:      now.Sub(companion.LastSeenAt) <= companionOnlineWindow,
+			CompanionID:         companion.CompanionID,
+			DisplayName:         companion.DisplayName,
+			OwnerPlatform:       companion.OwnerPlatform,
+			OwnerPlatformUserID: companion.OwnerPlatformUserID,
+			OwnerPersonID:       companion.OwnerPersonID,
+			OwnerEmail:          companion.OwnerEmail,
+			OwnerName:           companion.OwnerName,
+			Capabilities:        companion.Capabilities,
+			LocalOnly:           companion.LocalOnly,
+			CreatedAt:           companion.CreatedAt,
+			LastSeenAt:          companion.LastSeenAt,
+			IsOnline:            now.Sub(companion.LastSeenAt) <= companionOnlineWindow,
 		})
 	}
 	return statuses
@@ -719,7 +771,7 @@ func (service *Service) hasOnlineCompanionForRequest(request capabilities.ToolIn
 		if !status.IsOnline {
 			continue
 		}
-		if requiresRequesterOwnedCompanion(request.ToolName) && !companionStatusMatchesRequester(status, request) {
+		if shouldUseRequesterOwnedCompanion(request) && !companionStatusMatchesRequester(status, request) {
 			continue
 		}
 		for _, descriptor := range status.Capabilities {
@@ -735,7 +787,7 @@ func (service *Service) validateRequesterForCompanionTool(request capabilities.T
 	if !requiresRequesterOwnedCompanion(request.ToolName) {
 		return nil
 	}
-	if strings.TrimSpace(request.Context.RequesterPersonID) != "" || strings.TrimSpace(request.Context.RequesterEmail) != "" {
+	if hasCompanionRequester(request) {
 		return nil
 	}
 	return errors.New("requester identity is required for user-local companion capability: " + request.ToolName)
@@ -744,10 +796,14 @@ func (service *Service) validateRequesterForCompanionTool(request capabilities.T
 func companionStatusMatchesRequester(status CompanionStatus, request capabilities.ToolInvokeRequest) bool {
 	requesterPersonID := strings.TrimSpace(request.Context.RequesterPersonID)
 	requesterEmail := strings.ToLower(strings.TrimSpace(request.Context.RequesterEmail))
+	requesterPlatformUserID := strings.TrimSpace(request.Context.RequesterPlatformUserID)
 	if requesterPersonID != "" && strings.TrimSpace(status.OwnerPersonID) == requesterPersonID {
 		return true
 	}
 	if requesterEmail != "" && strings.EqualFold(status.OwnerEmail, requesterEmail) {
+		return true
+	}
+	if requesterPlatformUserID != "" && strings.TrimSpace(status.OwnerPlatformUserID) == requesterPlatformUserID {
 		return true
 	}
 	return requesterPersonID == "" && requesterEmail == "" && status.OwnerPersonID == "" && status.OwnerEmail == ""
@@ -763,12 +819,31 @@ func companionOwnsJob(companion *CompanionRecord, job *CompanionJob) bool {
 	if strings.TrimSpace(job.RequesterEmail) != "" && strings.EqualFold(companion.OwnerEmail, job.RequesterEmail) {
 		return true
 	}
+	if strings.TrimSpace(job.Request.Context.RequesterPlatformUserID) != "" && strings.TrimSpace(companion.OwnerPlatformUserID) == strings.TrimSpace(job.Request.Context.RequesterPlatformUserID) {
+		return true
+	}
 	return job.RequesterPersonID == "" && job.RequesterEmail == "" && companion.OwnerPersonID == "" && companion.OwnerEmail == ""
 }
 
 func requiresRequesterOwnedCompanion(toolName string) bool {
 	trimmedToolName := strings.TrimSpace(toolName)
 	return strings.HasPrefix(trimmedToolName, "browser.") || strings.HasPrefix(trimmedToolName, "user.") || trimmedToolName == "file.pick"
+}
+
+func shouldUseRequesterOwnedCompanion(request capabilities.ToolInvokeRequest) bool {
+	if requiresRequesterOwnedCompanion(request.ToolName) {
+		return true
+	}
+	if !strings.HasPrefix(strings.TrimSpace(request.ToolName), "llm.") {
+		return false
+	}
+	return hasCompanionRequester(request)
+}
+
+func hasCompanionRequester(request capabilities.ToolInvokeRequest) bool {
+	return strings.TrimSpace(request.Context.RequesterPersonID) != "" ||
+		strings.TrimSpace(request.Context.RequesterEmail) != "" ||
+		strings.TrimSpace(request.Context.RequesterPlatformUserID) != ""
 }
 
 func companionCanRunTool(companion *CompanionRecord, toolName string) bool {
@@ -1070,12 +1145,20 @@ func (service *Service) localCompanionCapabilities() capabilities.RegistryRespon
 }
 
 func companionDeepLink(request *http.Request, code string) string {
+	return companionDeepLinkForDeviceURL(request, code, "")
+}
+
+func companionDeepLinkForDeviceURL(request *http.Request, code string, deviceURL string) string {
+	trimmedDeviceURL := strings.TrimRight(strings.TrimSpace(deviceURL), "/")
+	if trimmedDeviceURL != "" {
+		return "internkim://pair?device_url=" + url.QueryEscape(trimmedDeviceURL) + "&code=" + url.QueryEscape(code)
+	}
 	scheme := "https"
 	if request.TLS == nil && strings.HasPrefix(request.Host, "127.") {
 		scheme = "http"
 	}
-	deviceURL := scheme + "://" + request.Host
-	return "internkim://pair?device_url=" + url.QueryEscape(deviceURL) + "&code=" + url.QueryEscape(code)
+	inferredDeviceURL := scheme + "://" + request.Host
+	return "internkim://pair?device_url=" + url.QueryEscape(inferredDeviceURL) + "&code=" + url.QueryEscape(code)
 }
 
 func companionTokenHash(token string) string {

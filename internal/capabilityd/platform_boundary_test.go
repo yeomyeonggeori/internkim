@@ -66,6 +66,77 @@ func TestMattermostNormalizeSkipsSelfAndBuildsMinimalThreadEvent(t *testing.T) {
 	}
 }
 
+func TestMattermostCompanionConnectCreatesOwnerPairingAndRepliesInDM(t *testing.T) {
+	var pairingRequest companionConnectPairingRequest
+	var postedMessage string
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.String() {
+		case "http://127.0.0.1:18080/_internkim/companion/pairing-codes":
+			if errorValue := json.NewDecoder(request.Body).Decode(&pairingRequest); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			return testJSONResponse(http.StatusOK, companionConnectPairingResponse{
+				Code:      "ABCD-1234",
+				ExpiresAt: time.Date(2026, 5, 6, 12, 30, 0, 0, time.UTC),
+				DeepLink:  "internkim://pair?device_url=https%3A%2F%2Fdevice.example.com&code=ABCD-1234",
+			}), nil
+		case "https://mattermost.test/api/v4/posts":
+			var body map[string]any
+			if errorValue := json.NewDecoder(request.Body).Decode(&body); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			postedMessage, _ = body["message"].(string)
+			if body["channel_id"] != "dm-1" {
+				t.Fatalf("expected DM channel post, got %+v", body)
+			}
+			return testJSONResponse(http.StatusCreated, map[string]string{"id": "reply-1"}), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	service := Service{
+		Configuration: Configuration{
+			AdmindBaseURL:       "http://127.0.0.1:18080",
+			MattermostBaseURL:   "https://mattermost.test",
+			MattermostTokenPath: writePlatformTestFile(t, "mattermost-token"),
+			DeviceIDPath:        writePlatformTestFile(t, "dc719d8e"),
+		},
+		HTTPClient: httpClient,
+	}
+
+	handled, errorValue := service.handleMattermostCompanionConnectCommand(context.Background(), platformInboundEvent{
+		ConversationID: "dm:dm-1",
+		SenderID:       "user-1",
+		Prompt:         "connect",
+		Context: platformEventContext{
+			ConversationType: "D",
+			ChannelID:        "dm-1",
+			Sender: platformContextSender{
+				Platform: "mattermost",
+				UserID:   "user-1",
+				Email:    "Alice@Example.com",
+				Name:     "Alice",
+			},
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !handled {
+		t.Fatal("expected connect command to be handled")
+	}
+	if pairingRequest.OwnerPlatform != "mattermost" || pairingRequest.OwnerPlatformUserID != "user-1" || pairingRequest.OwnerEmail != "alice@example.com" || pairingRequest.OwnerName != "Alice" {
+		t.Fatalf("unexpected pairing request: %+v", pairingRequest)
+	}
+	if pairingRequest.DeviceURL != "https://dc719d8e.example.test" {
+		t.Fatalf("expected public device url, got %q", pairingRequest.DeviceURL)
+	}
+	if !strings.Contains(postedMessage, "ABCD-1234") || !strings.Contains(postedMessage, "internkim://pair") {
+		t.Fatalf("unexpected connect reply: %q", postedMessage)
+	}
+}
+
 func TestMattermostDirectMessageDoesNotUseThreadRoot(t *testing.T) {
 	event, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
 		ID:        "post-1",
@@ -1014,6 +1085,15 @@ func testJSONResponse(statusCode int, response any) *http.Response {
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(&responseBody),
 	}
+}
+
+func writePlatformTestFile(t *testing.T, value string) string {
+	t.Helper()
+	path := t.TempDir() + "/secret"
+	if errorValue := os.WriteFile(path, []byte(value), 0600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return path
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

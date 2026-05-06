@@ -56,6 +56,7 @@ type Configuration struct {
 	LocalLLMRunnerPath         string
 	CompanionBaseURL           string
 	PreferCompanionLLM         bool
+	LocalInferenceMode         string
 	PreferCompanionBrowser     bool
 	LocalOnly                  bool
 	LocalBackendOrder          []string
@@ -64,6 +65,7 @@ type Configuration struct {
 	DeviceBrowserPath          string
 	DeviceBrowserProfilePath   string
 	CompanionFileDirectory     string
+	DeviceIDPath               string
 }
 
 type Service struct {
@@ -154,12 +156,14 @@ func DefaultConfiguration() Configuration {
 		LocalLLMRunnerPath:         "/usr/local/bin/internkim-local-llm-runner",
 		CompanionBaseURL:           "",
 		PreferCompanionLLM:         false,
+		LocalInferenceMode:         "",
 		LocalOnly:                  false,
 		ProviderAttemptTimeout:     5 * time.Minute,
 		AgentBrowserPath:           "agent-browser",
 		DeviceBrowserPath:          browserruntime.DeviceBrowserExecutablePath,
 		DeviceBrowserProfilePath:   "",
 		CompanionFileDirectory:     "/tmp/internkim-companion-files",
+		DeviceIDPath:               "/root/.internkim/env/device-id",
 	}
 }
 
@@ -167,6 +171,7 @@ func (service Service) Run(ctx context.Context) error {
 	if service.HealthState == nil {
 		service.HealthState = &platformHealthState{}
 	}
+	service.applyLocalInferenceMode(ctx)
 	listener, errorValue := service.listen()
 	if errorValue != nil {
 		return errorValue
@@ -1051,7 +1056,12 @@ func (service Service) startMattermostForwarder(ctx context.Context) {
 			if errorValue != nil || !hasEvent {
 				return event, hasEvent, errorValue
 			}
-			return service.enrichMattermostEvent(ctx, event), true, nil
+			event = service.enrichMattermostEvent(ctx, event)
+			handled, errorValue := service.handleMattermostCompanionConnectCommand(ctx, event)
+			if handled || errorValue != nil {
+				return event, false, errorValue
+			}
+			return event, true, nil
 		},
 		AfterForward: func(_ context.Context, payload []byte) {
 			service.healthState().Update(func(state *platformHealthState) {
@@ -1193,6 +1203,17 @@ func (service Service) forwardMattermostChannelPosts(ctx context.Context, botUse
 			continue
 		}
 		event = service.enrichMattermostEvent(ctx, event)
+		handled, errorValue := service.handleMattermostCompanionConnectCommand(ctx, event)
+		if errorValue != nil {
+			log.Printf("mattermost companion connect command failed: %s: %v", post.ID, errorValue)
+			continue
+		}
+		if handled {
+			if post.CreateAt > nextSeen {
+				nextSeen = post.CreateAt
+			}
+			continue
+		}
 		if errorValue := service.forwardMattermostEvent(ctx, event); errorValue != nil {
 			log.Printf("mattermost post forward failed: %s: %v", post.ID, errorValue)
 			continue

@@ -46,11 +46,12 @@ type ToolInvokeRequest struct {
 }
 
 type ToolInvokeContext struct {
-	RequesterPersonID string `json:"requesterPersonID,omitempty"`
-	RequesterEmail    string `json:"requesterEmail,omitempty"`
-	RequesterName     string `json:"requesterName,omitempty"`
-	ConversationID    string `json:"conversationID,omitempty"`
-	Platform          string `json:"platform,omitempty"`
+	RequesterPersonID       string `json:"requesterPersonID,omitempty"`
+	RequesterEmail          string `json:"requesterEmail,omitempty"`
+	RequesterName           string `json:"requesterName,omitempty"`
+	RequesterPlatformUserID string `json:"requesterPlatformUserID,omitempty"`
+	ConversationID          string `json:"conversationID,omitempty"`
+	Platform                string `json:"platform,omitempty"`
 }
 
 type ToolInvokeResponse struct {

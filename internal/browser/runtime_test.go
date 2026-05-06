@@ -3,7 +3,10 @@ package browser
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -64,11 +67,12 @@ func TestAgentBrowserRuntimeNavigatesThroughCommandRunner(t *testing.T) {
 func TestAgentBrowserRuntimeChromeEngineUsesHeadedProfile(t *testing.T) {
 	runner := &fakeCommandRunner{}
 	runtime := AgentBrowserRuntime{
-		CommandPath: "agent-browser-test",
-		Engine:      BrowserEngineChrome,
-		ProfilePath: "/profile",
-		SessionName: "internkim-test",
-		Headed:      true,
+		CommandPath:        "agent-browser-test",
+		Engine:             BrowserEngineChrome,
+		ProfilePath:        "/profile",
+		SessionName:        "internkim-test",
+		Headed:             true,
+		DisableHumanPacing: true,
 		ExtensionPaths: []string{
 			"",
 			"/extensions/internkim",
@@ -83,6 +87,104 @@ func TestAgentBrowserRuntimeChromeEngineUsesHeadedProfile(t *testing.T) {
 	expectedOpenArguments := []string{"--session", "internkim-test", "--engine", "chrome", "--headed", "true", "--profile", "/profile", "--extension", "/extensions/internkim", "--session-name", "internkim-test", "open", "https://example.com", "--headers", stealthRequestHeaders()}
 	if !reflect.DeepEqual(runner.calls[0].arguments, expectedOpenArguments) {
 		t.Fatalf("unexpected chrome arguments: %+v", runner.calls[0].arguments)
+	}
+}
+
+func TestAgentBrowserRuntimePacesHeadedChromeCommands(t *testing.T) {
+	runner := &fakeCommandRunner{}
+	delays := []time.Duration{}
+	runtime := AgentBrowserRuntime{
+		Engine:      BrowserEngineChrome,
+		SessionName: "internkim-test",
+		Headed:      true,
+		Runner:      runner,
+		Sleep: func(ctx context.Context, delay time.Duration) error {
+			_ = ctx
+			delays = append(delays, delay)
+			return nil
+		},
+	}
+
+	_, errorValue := runtime.Navigate(context.Background(), NavigateRequest{URL: "https://example.com"})
+	if errorValue != nil {
+		t.Fatalf("expected navigate success: %v", errorValue)
+	}
+	if len(delays) != 2 {
+		t.Fatalf("expected open and eval pacing delays, got %+v", delays)
+	}
+	for _, delay := range delays {
+		if delay < 900*time.Millisecond || delay >= 1800*time.Millisecond {
+			t.Fatalf("unexpected human pacing delay: %s", delay)
+		}
+	}
+}
+
+func TestAgentBrowserRuntimeDoesNotPaceLightpandaCommands(t *testing.T) {
+	runner := &fakeCommandRunner{}
+	sleepWasCalled := false
+	runtime := AgentBrowserRuntime{
+		Engine: BrowserEngineLightpanda,
+		Headed: true,
+		Runner: runner,
+		Sleep: func(ctx context.Context, delay time.Duration) error {
+			_ = ctx
+			_ = delay
+			sleepWasCalled = true
+			return nil
+		},
+	}
+
+	_, errorValue := runtime.Navigate(context.Background(), NavigateRequest{URL: "https://example.com"})
+	if errorValue != nil {
+		t.Fatalf("expected navigate success: %v", errorValue)
+	}
+	if sleepWasCalled {
+		t.Fatal("expected Lightpanda device browser not to use human pacing")
+	}
+}
+
+func TestAgentBrowserRuntimeRealChromeSmoke(t *testing.T) {
+	if os.Getenv("INTERNKIM_REAL_CHROME_BROWSER_TEST") != "1" {
+		t.Skip("set INTERNKIM_REAL_CHROME_BROWSER_TEST=1 to launch a real headed Chrome smoke test")
+	}
+	commandPath := os.Getenv("INTERNKIM_AGENT_BROWSER_PATH")
+	if strings.TrimSpace(commandPath) == "" {
+		var errorValue error
+		commandPath, errorValue = exec.LookPath("agent-browser")
+		if errorValue != nil {
+			t.Fatal("agent-browser is required for the real Chrome smoke test")
+		}
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		responseWriter.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = responseWriter.Write([]byte(`<html><head><title>InternKim Chrome Smoke</title></head><body><button>Chrome smoke ready</button></body></html>`))
+	}))
+	defer server.Close()
+	sessionName := "internkim-real-chrome-smoke-" + time.Now().UTC().Format("20060102T150405")
+	runtime := AgentBrowserRuntime{
+		CommandPath:    commandPath,
+		Engine:         BrowserEngineChrome,
+		ProfilePath:    filepath.Join(t.TempDir(), "profile"),
+		SessionName:    sessionName,
+		Headed:         true,
+		ExtensionPaths: []string{},
+	}
+	t.Cleanup(func() {
+		closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_, _ = OSCommandRunner{}.Run(closeContext, commandPath, []string{"--session", sessionName, "--session-name", sessionName, "close"})
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	if _, errorValue := runtime.Navigate(ctx, NavigateRequest{URL: server.URL}); errorValue != nil {
+		t.Fatalf("expected real Chrome navigate success: %v", errorValue)
+	}
+	observation, errorValue := runtime.Observe(ctx, ObserveRequest{})
+	if errorValue != nil {
+		t.Fatalf("expected real Chrome snapshot success: %v", errorValue)
+	}
+	if !strings.Contains(observation.SnapshotText, "Chrome smoke ready") {
+		t.Fatalf("expected real Chrome page text, got %+v", observation)
 	}
 }
 

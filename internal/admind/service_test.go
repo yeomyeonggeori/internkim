@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -2032,6 +2033,97 @@ func TestCompanionPairHeartbeatAndJobLifecycle(t *testing.T) {
 	}
 }
 
+func TestLocalCompanionPairingCodeStoresMattermostOwner(t *testing.T) {
+	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	handler := service.router()
+
+	pairingRequest := httptest.NewRequest(http.MethodPost, "/_internkim/companion/pairing-codes", strings.NewReader(`{
+		"ownerPlatform":"mattermost",
+		"ownerPlatformUserID":"user-1",
+		"ownerEmail":"Alice@Example.com",
+		"ownerName":"Alice",
+		"deviceURL":"https://device.example.com"
+	}`))
+	pairingRequest.RemoteAddr = "127.0.0.1:1234"
+	pairingResponse := httptest.NewRecorder()
+	handler.ServeHTTP(pairingResponse, pairingRequest)
+	if pairingResponse.Code != http.StatusOK {
+		t.Fatalf("pairing code status = %d body = %s", pairingResponse.Code, pairingResponse.Body.String())
+	}
+	var pairingCode companionPairingCodeResponse
+	if errorValue := json.Unmarshal(pairingResponse.Body.Bytes(), &pairingCode); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !strings.Contains(pairingCode.DeepLink, url.QueryEscape("https://device.example.com")) {
+		t.Fatalf("expected deep link device url override, got %q", pairingCode.DeepLink)
+	}
+
+	pairRequest := httptest.NewRequest(http.MethodPost, "/_internkim/companion/pair", strings.NewReader(`{
+		"code":"`+pairingCode.Code+`",
+		"displayName":"Alice Mac",
+		"publicKey":"test-key",
+		"capabilities":[{"name":"llm.text"}]
+	}`))
+	pairResponse := httptest.NewRecorder()
+	handler.ServeHTTP(pairResponse, pairRequest)
+	if pairResponse.Code != http.StatusOK {
+		t.Fatalf("pair status = %d body = %s", pairResponse.Code, pairResponse.Body.String())
+	}
+
+	statuses := service.companionStatuses()
+	if len(statuses) != 1 {
+		t.Fatalf("expected one companion, got %+v", statuses)
+	}
+	status := statuses[0]
+	if status.OwnerPlatform != "mattermost" || status.OwnerPlatformUserID != "user-1" || status.OwnerEmail != "alice@example.com" || status.OwnerName != "Alice" {
+		t.Fatalf("unexpected owner status: %+v", status)
+	}
+}
+
+func TestCompanionLLMJobWithRequesterOnlyClaimsRequesterOwner(t *testing.T) {
+	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	now := time.Now().UTC()
+	alice := &CompanionRecord{
+		CompanionID:  "alice-companion",
+		OwnerEmail:   "alice@example.com",
+		Capabilities: capabilities.CompanionLLMDescriptors(),
+		LastSeenAt:   now,
+	}
+	bob := &CompanionRecord{
+		CompanionID:  "bob-companion",
+		OwnerEmail:   "bob@example.com",
+		Capabilities: capabilities.CompanionLLMDescriptors(),
+		LastSeenAt:   now,
+	}
+	job := &CompanionJob{
+		JobID:          "job-1",
+		Status:         "pending",
+		ToolName:       "llm.text",
+		PrivacyClass:   "model_input",
+		RequesterEmail: "alice@example.com",
+		Request: capabilities.ToolInvokeRequest{
+			ToolName: "llm.text",
+			Context: capabilities.ToolInvokeContext{
+				RequesterEmail: "alice@example.com",
+			},
+		},
+		CreatedAt: now,
+		UpdatedAt: now,
+		ExpiresAt: now.Add(time.Minute),
+	}
+	service.companions[alice.CompanionID] = alice
+	service.companions[bob.CompanionID] = bob
+	service.companionJobs[job.JobID] = job
+
+	if claimedJob := service.claimNextCompanionJob(bob); claimedJob != nil {
+		t.Fatalf("expected Bob companion not to claim Alice job, got %+v", claimedJob)
+	}
+	claimedJob := service.claimNextCompanionJob(alice)
+	if claimedJob == nil || claimedJob.CompanionID != alice.CompanionID {
+		t.Fatalf("expected Alice companion to claim job, got %+v", claimedJob)
+	}
+}
+
 func TestCompanionAuthCheckRequiresSignedCompanion(t *testing.T) {
 	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
 	handler := service.router()
@@ -2193,6 +2285,41 @@ func TestCompanionJobClaimRequiresMatchingOwner(t *testing.T) {
 	claimedJob := service.claimNextCompanionJob(aliceCompanion)
 	if claimedJob == nil || claimedJob.JobID != "job-1" || claimedJob.CompanionID != aliceCompanion.CompanionID {
 		t.Fatalf("expected Alice companion to claim Alice job, got %+v", claimedJob)
+	}
+}
+
+func TestCompanionJobClaimMatchesPlatformUserIDOwner(t *testing.T) {
+	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	now := time.Now().UTC()
+	companion := &CompanionRecord{
+		CompanionID:         "mattermost-companion",
+		OwnerPlatform:       "mattermost",
+		OwnerPlatformUserID: "mattermost-user-1",
+		Capabilities: []capabilities.Descriptor{
+			{Name: "browser.open"},
+		},
+		LastSeenAt: now,
+	}
+	service.companions[companion.CompanionID] = companion
+	service.companionJobs["job-1"] = &CompanionJob{
+		JobID:    "job-1",
+		Status:   "pending",
+		ToolName: "browser.open",
+		Request: capabilities.ToolInvokeRequest{
+			ToolName: "browser.open",
+			Context: capabilities.ToolInvokeContext{
+				RequesterPlatformUserID: "mattermost-user-1",
+				Platform:                "mattermost",
+			},
+		},
+		CreatedAt: now,
+		UpdatedAt: now,
+		ExpiresAt: now.Add(time.Minute),
+	}
+
+	claimedJob := service.claimNextCompanionJob(companion)
+	if claimedJob == nil || claimedJob.JobID != "job-1" || claimedJob.CompanionID != companion.CompanionID {
+		t.Fatalf("expected platform-owned companion to claim job, got %+v", claimedJob)
 	}
 }
 
