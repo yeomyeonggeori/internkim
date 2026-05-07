@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -656,7 +656,7 @@ func TestControlHandlerListsAndRevokesGrants(t *testing.T) {
 	}
 	runtimeStatus := &runtimeState{}
 	runtimeStatus.recordHeartbeat(nil)
-	handler := controlHandler(grantStore, companionruntime.NewMountStore(""), companionruntime.NewBrowserHandoffStore(), runtimeStatus, newDynamicLocalLLM(localLLMSettings{}), http.DefaultClient)
+	handler := controlHandler(grantStore, companionruntime.NewMountStore(""), companionruntime.NewBrowserHandoffStore(), nil, nil, runtimeStatus, newDynamicLocalLLM(localLLMSettings{}), http.DefaultClient)
 
 	listRequest := httptest.NewRequest(http.MethodGet, "/v1/security/grants", nil)
 	listRequest.RemoteAddr = "127.0.0.1:1234"
@@ -703,6 +703,8 @@ func TestControlHandlerCompletesBrowserHandoff(t *testing.T) {
 		companionruntime.NewMemoryGrantStore(),
 		companionruntime.NewMountStore(""),
 		handoffStore,
+		nil,
+		nil,
 		&runtimeState{},
 		newDynamicLocalLLM(localLLMSettings{}),
 		http.DefaultClient,
@@ -733,138 +735,6 @@ func TestControlHandlerCompletesBrowserHandoff(t *testing.T) {
 	}
 }
 
-func TestRealChromeHandoffExtensionCompletesWhenUserClicks(t *testing.T) {
-	if os.Getenv("INTERNKIM_REAL_CHROME_HANDOFF_EXTENSION_TEST") != "1" {
-		t.Skip("set INTERNKIM_REAL_CHROME_HANDOFF_EXTENSION_TEST=1 to launch Chrome and click the extension completion button")
-	}
-	agentBrowserPath := testAgentBrowserPath(t)
-	extensionPath := testBrowserExtensionPath(t)
-	handoffStore := companionruntime.NewBrowserHandoffStore()
-	controlServer := startTestHandoffControlServer(t, handoffStore)
-	defer controlServer.Shutdown(context.Background())
-	pageServer := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
-		responseWriter.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = responseWriter.Write([]byte(`<html><head><title>InternKim Handoff Extension Smoke</title></head><body><main><h1>Handoff extension smoke</h1><p>Click the Intern Kim completion button.</p></main></body></html>`))
-	}))
-	defer pageServer.Close()
-	handoff, errorValue := handoffStore.Begin(companionruntime.BrowserHandoffRequest{
-		URL:     pageServer.URL,
-		Message: "테스트입니다. 이 버튼을 누르면 테스트가 통과합니다.",
-	}, "internkim-extension-smoke")
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	browserRuntime := browserruntime.AgentBrowserRuntime{
-		CommandPath: agentBrowserPath,
-		Engine:      browserruntime.BrowserEngineChrome,
-		ProfilePath: filepath.Join(t.TempDir(), "profile"),
-		SessionName: "internkim-extension-smoke-" + time.Now().UTC().Format("20060102T150405"),
-		Headed:      true,
-		ExtensionPaths: []string{
-			extensionPath,
-		},
-	}
-	t.Cleanup(func() {
-		closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		_, _ = browserruntime.OSCommandRunner{}.Run(closeContext, agentBrowserPath, []string{"--session", browserRuntime.SessionName, "--session-name", browserRuntime.SessionName, "close"})
-	})
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-	if _, errorValue := browserRuntime.Navigate(ctx, browserruntime.NavigateRequest{URL: pageServer.URL}); errorValue != nil {
-		t.Fatalf("expected real Chrome handoff page to open: %v", errorValue)
-	}
-	t.Log("Chrome is open. Click the Intern Kim '완료' button in the browser to complete this test.")
-	completion, errorValue := handoffStore.Wait(ctx, handoff.HandoffID)
-	if errorValue != nil {
-		t.Fatalf("expected extension completion click: %v", errorValue)
-	}
-	if completion.SessionID != "internkim-extension-smoke" || !strings.HasPrefix(completion.URL, pageServer.URL) {
-		t.Fatalf("unexpected handoff completion: %+v", completion)
-	}
-}
-
-func startTestHandoffControlServer(t *testing.T, handoffStore *companionruntime.BrowserHandoffStore) *http.Server {
-	t.Helper()
-	listener, errorValue := net.Listen("tcp", "127.0.0.1:7983")
-	if errorValue != nil {
-		t.Fatalf("127.0.0.1:7983 is required for the extension bridge; stop any running Companion control server and retry: %v", errorValue)
-	}
-	server := &http.Server{Handler: controlHandler(
-		companionruntime.NewMemoryGrantStore(),
-		companionruntime.NewMountStore(""),
-		handoffStore,
-		&runtimeState{},
-		newDynamicLocalLLM(localLLMSettings{}),
-		http.DefaultClient,
-	)}
-	go func() {
-		errorValue := server.Serve(listener)
-		if errorValue != nil && errorValue != http.ErrServerClosed {
-			t.Logf("test handoff control server stopped: %v", errorValue)
-		}
-	}()
-	t.Cleanup(func() {
-		_ = server.Shutdown(context.Background())
-	})
-	return server
-}
-
-func testAgentBrowserPath(t *testing.T) string {
-	t.Helper()
-	for _, candidate := range []string{
-		os.Getenv("INTERNKIM_AGENT_BROWSER_PATH"),
-		filepath.Join("..", "..", "companion", "src-tauri", "binaries", "agent-browser-aarch64-apple-darwin"),
-		filepath.Join("..", "..", "companion", "src-tauri", "binaries", "agent-browser"),
-		resolveAgentBrowserPath(""),
-	} {
-		trimmedCandidate := strings.TrimSpace(candidate)
-		if trimmedCandidate == "" {
-			continue
-		}
-		absolutePath, errorValue := filepath.Abs(trimmedCandidate)
-		if errorValue == nil && isExecutableFile(absolutePath) {
-			return absolutePath
-		}
-		if isExecutableFile(trimmedCandidate) {
-			return trimmedCandidate
-		}
-	}
-	t.Fatal("agent-browser executable is required for the real handoff extension test")
-	return ""
-}
-
-func testBrowserExtensionPath(t *testing.T) string {
-	t.Helper()
-	for _, candidate := range []string{
-		filepath.Join("..", "..", "companion", "browser-extension"),
-		"companion/browser-extension",
-		defaultBrowserExtensionPath(),
-	} {
-		trimmedCandidate := strings.TrimSpace(candidate)
-		if trimmedCandidate == "" {
-			continue
-		}
-		absolutePath, errorValue := filepath.Abs(trimmedCandidate)
-		if errorValue == nil && isBrowserExtensionDirectory(absolutePath) {
-			return absolutePath
-		}
-		if isBrowserExtensionDirectory(trimmedCandidate) {
-			return trimmedCandidate
-		}
-	}
-	t.Fatal("browser extension directory is required for the real handoff extension test")
-	return ""
-}
-
-func isBrowserExtensionDirectory(path string) bool {
-	if !isDirectory(path) {
-		return false
-	}
-	information, errorValue := os.Stat(filepath.Join(path, "manifest.json"))
-	return errorValue == nil && !information.IsDir()
-}
-
 func TestControlHandlerUpdatesLocalLLMWithoutRestart(t *testing.T) {
 	modelServer := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		if request.URL.Path != "/api/tags" {
@@ -881,6 +751,8 @@ func TestControlHandlerUpdatesLocalLLMWithoutRestart(t *testing.T) {
 		companionruntime.NewMemoryGrantStore(),
 		companionruntime.NewMountStore(""),
 		companionruntime.NewBrowserHandoffStore(),
+		nil,
+		nil,
 		runtimeStatus,
 		localLLM,
 		modelServer.Client(),
@@ -1006,6 +878,49 @@ func TestStatusJSONReportsVerifiedAuth(t *testing.T) {
 	}
 	if document.AuthStatus != companionAuthStatusVerified {
 		t.Fatalf("expected verified auth status, got %+v", document)
+	}
+}
+
+func TestDisconnectRevokesRemoteAndClearsLocalPairing(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	state, secureStore := testCompanionState(t, false, false)
+	if errorValue := saveState(statePath, state); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(defaultMountStatePath(statePath), []byte("{}"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(defaultHandoffStatePath(statePath), []byte("{}"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var requestedPath string
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		requestedPath = request.URL.Path
+		if request.Header.Get(companionruntime.SignatureHeader) == "" {
+			t.Fatal("expected signed disconnect request")
+		}
+		return textResponse(http.StatusOK, `{"status":"disconnected"}`), nil
+	})}
+
+	errorValue := runDisconnect([]string{"--state", statePath}, httpClient, secureStore)
+
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if requestedPath != "/_internkim/companion/disconnect" {
+		t.Fatalf("unexpected disconnect path: %s", requestedPath)
+	}
+	if _, errorValue := os.Stat(statePath); !errors.Is(errorValue, os.ErrNotExist) {
+		t.Fatalf("expected state file to be removed, got %v", errorValue)
+	}
+	if _, errorValue := os.Stat(defaultMountStatePath(statePath)); !errors.Is(errorValue, os.ErrNotExist) {
+		t.Fatalf("expected mount state to be removed, got %v", errorValue)
+	}
+	if _, errorValue := os.Stat(defaultHandoffStatePath(statePath)); !errors.Is(errorValue, os.ErrNotExist) {
+		t.Fatalf("expected handoff state to be removed, got %v", errorValue)
+	}
+	if _, errorValue := secureStore.Get(nilContext(), state.PrivateKeyID); errorValue == nil {
+		t.Fatal("expected private key to be removed")
 	}
 }
 

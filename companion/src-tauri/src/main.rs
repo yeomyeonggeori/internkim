@@ -1,5 +1,7 @@
+mod handoff_overlay;
 mod prompt_bridge;
 mod settings;
+mod startup;
 
 use std::process::Command;
 
@@ -27,6 +29,11 @@ fn open_admin_url(device_url: String) -> Result<(), String> {
     open_url(&target_url)
 }
 
+#[tauri::command]
+fn ensure_launch_at_login() -> Result<(), String> {
+    startup::ensure_launch_at_login()
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(prompt_bridge::PromptBridgeState::default())
@@ -40,12 +47,20 @@ fn main() {
             }
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             show_main_window,
             prompt_bridge::start_shell_bridge,
             prompt_bridge::complete_prompt_request,
             prompt_bridge::pick_mount_directory,
+            handoff_overlay::sync_handoff_overlay,
             open_admin_url,
+            ensure_launch_at_login,
             settings::get_settings,
             settings::set_settings
         ])
