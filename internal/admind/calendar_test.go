@@ -130,6 +130,147 @@ func TestCalendarDAVBackendStoresCalendarObjects(t *testing.T) {
 	}
 }
 
+func TestCalendarPeopleLineParsing(t *testing.T) {
+	people, hasPeopleLine := calendarPeopleFromDescription("샘플, 수민\nBring passport")
+	if !hasPeopleLine || strings.Join(people, "|") != "샘플|수민" {
+		t.Fatalf("people=%+v hasPeopleLine=%v", people, hasPeopleLine)
+	}
+	users := []mattermostUserRecord{
+		{ID: "user-1", Username: "gamyeong", Nickname: "샘플", Email: "gamyeong@example.com"},
+		{ID: "user-2", Username: "sumin", DisplayName: "수민", Email: "sumin@example.com"},
+	}
+	targets := calendarTargetsForPeople(people, users)
+	if len(targets) != 2 || targets[0].Key != "dm:user-1" || targets[1].Key != "dm:user-2" {
+		t.Fatalf("targets = %+v", targets)
+	}
+	if normalizeCalendarReminderLeadHours(5) != calendarDefaultReminderLeadHours || normalizeCalendarReminderLeadHours(48) != 48 {
+		t.Fatal("reminder lead normalization failed")
+	}
+	if _, hasPeopleLine = calendarPeopleFromDescription("Calendar polish\nBring agenda"); hasPeopleLine {
+		t.Fatal("general note line was parsed as people")
+	}
+}
+
+func TestCalendarNotificationPostsAnnouncementsForAllHands(t *testing.T) {
+	var createdChannel map[string]any
+	var postedMessage string
+	postCount := 0
+	service := newCalendarMattermostTestService(t, func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.Method == http.MethodPost && request.URL.Path == "/api/v4/users/login":
+			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.Method == http.MethodGet && request.URL.Path == "/api/v4/users":
+			return jsonResponse(http.StatusOK, `[{"id":"user-1","username":"gamyeong","nickname":"샘플","email":"gamyeong@example.com"}]`, nil), nil
+		case request.Method == http.MethodGet && request.URL.Path == "/api/v4/teams/name/internkim":
+			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
+		case request.Method == http.MethodGet && request.URL.Path == "/api/v4/teams/team-1/channels/name/announcements":
+			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
+		case request.Method == http.MethodPost && request.URL.Path == "/api/v4/channels":
+			if errorValue := json.NewDecoder(request.Body).Decode(&createdChannel); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			return jsonResponse(http.StatusCreated, `{"id":"announcements-channel"}`, nil), nil
+		case request.Method == http.MethodPost && request.URL.Path == "/api/v4/posts":
+			var payload map[string]any
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			postCount++
+			postedMessage, _ = payload["message"].(string)
+			return jsonResponse(http.StatusCreated, `{"id":"post-1"}`, nil), nil
+		default:
+			t.Fatalf("unexpected Mattermost request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})
+
+	event := calendarTestEvent("all-hands", "Company offsite", "Travel prep")
+	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	service.processDueCalendarNotifications(context.Background(), time.Now().UTC().Add(time.Second))
+	service.processDueCalendarNotifications(context.Background(), time.Now().UTC().Add(2*time.Second))
+
+	if createdChannel["name"] != calendarAnnouncementsChannelName || createdChannel["display_name"] != calendarAnnouncementsChannelDisplayName {
+		t.Fatalf("created channel = %+v", createdChannel)
+	}
+	if postCount != 1 {
+		t.Fatalf("postCount = %d", postCount)
+	}
+	if !strings.Contains(postedMessage, "Company offsite") || !strings.Contains(postedMessage, "Travel prep") {
+		t.Fatalf("posted message = %q", postedMessage)
+	}
+}
+
+func TestCalendarNotificationPostsDirectMessageForPeopleLine(t *testing.T) {
+	var directChannelMembers []string
+	var postedMessage string
+	service := newCalendarMattermostTestService(t, func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.Method == http.MethodPost && request.URL.Path == "/api/v4/users/login":
+			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.Method == http.MethodGet && request.URL.Path == "/api/v4/users":
+			return jsonResponse(http.StatusOK, `[{"id":"user-1","username":"gamyeong","nickname":"샘플","email":"gamyeong@example.com"}]`, nil), nil
+		case request.Method == http.MethodGet && request.URL.Path == "/api/v4/users/username/internkim":
+			return jsonResponse(http.StatusOK, `{"id":"bot-1","username":"internkim"}`, nil), nil
+		case request.Method == http.MethodPost && request.URL.Path == "/api/v4/channels/direct":
+			if errorValue := json.NewDecoder(request.Body).Decode(&directChannelMembers); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			return jsonResponse(http.StatusCreated, `{"id":"dm-channel"}`, nil), nil
+		case request.Method == http.MethodPut && request.URL.Path == "/api/v4/users/user-1/preferences":
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.Method == http.MethodPost && request.URL.Path == "/api/v4/posts":
+			var payload map[string]any
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			postedMessage, _ = payload["message"].(string)
+			return jsonResponse(http.StatusCreated, `{"id":"post-1"}`, nil), nil
+		default:
+			t.Fatalf("unexpected Mattermost request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})
+
+	event := calendarTestEvent("targeted", "Online sync", "샘플\nBring agenda")
+	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	service.processDueCalendarNotifications(context.Background(), time.Now().UTC().Add(time.Second))
+
+	if strings.Join(directChannelMembers, "|") != "user-1|bot-1" {
+		t.Fatalf("direct members = %+v", directChannelMembers)
+	}
+	if !strings.Contains(postedMessage, "Online sync") || !strings.Contains(postedMessage, "Bring agenda") || strings.Contains(postedMessage, "샘플") {
+		t.Fatalf("posted message = %q", postedMessage)
+	}
+}
+
+func TestCalendarNotificationCancelsWhenEventIsDeleted(t *testing.T) {
+	service := newCalendarTestService(t)
+	event := calendarTestEvent("cancel-me", "Canceled meeting", "")
+	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.softDeleteCalendarEvent(context.Background(), event.ID); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	database, errorValue := service.openCalendarDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	var status string
+	row := database.QueryRowContext(context.Background(), "SELECT status FROM calendar_event_notifications WHERE event_id = ?", event.ID)
+	if errorValue := row.Scan(&status); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if status != "canceled" {
+		t.Fatalf("status = %q", status)
+	}
+}
+
 func newCalendarTestService(t *testing.T) *Service {
 	t.Helper()
 	rootPath := t.TempDir()
@@ -148,4 +289,30 @@ func newCalendarTestService(t *testing.T) *Service {
 		AdminEmailPath:       writeTestFile(t, "admin@example.com"),
 		AdminUIPath:          adminUIPath,
 	})
+}
+
+func newCalendarMattermostTestService(t *testing.T, transport roundTripFunc) *Service {
+	t.Helper()
+	service := newCalendarTestService(t)
+	service.Configuration.MattermostAdminPasswordPath = writeTestFile(t, "admin-password")
+	service.Configuration.MattermostBaseURL = "http://mattermost.local"
+	service.HTTPClient = &http.Client{Transport: transport}
+	return service
+}
+
+func calendarTestEvent(eventID string, title string, description string) calendarEvent {
+	startTime := time.Now().UTC().Add(30 * time.Minute).Truncate(time.Second)
+	endTime := startTime.Add(time.Hour)
+	return calendarEvent{
+		ID:                eventID,
+		UID:               eventID + "@internkim",
+		Title:             title,
+		Description:       description,
+		StartISO:          startTime.Format(time.RFC3339),
+		EndISO:            endTime.Format(time.RFC3339),
+		TimeZone:          "UTC",
+		Color:             "#2563eb",
+		ReminderLeadHours: 24,
+		CreatedByEmail:    "admin@example.com",
+	}
 }

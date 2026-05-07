@@ -32,6 +32,8 @@ Optional fields:
 - `timeZone`
 - `isAllDay`
 - `color`
+- `people`
+- `reminderLeadHours`
 
 Use RFC 3339 timestamps with timezone offsets, for example `2026-05-20T10:00:00+09:00`.
 
@@ -71,6 +73,13 @@ Delete an event by `eventID`. List matching events first when the user refers to
 - If the user gives a relative date like "tomorrow" or "next Friday", resolve it using the conversation date and timezone before calling a tool.
 - If the date, time, or duration is ambiguous, ask one concise question before writing.
 - For all-day events, set `isAllDay: true`; use `startISO` at the start date and `endISO` at the next day boundary.
+- Put targeted people in `people` as comma-separated nicknames or an array. The calendar stores them as the first note line.
+- If the event is for everyone, omit `people`; the backend will notify the `announcements` channel.
+- Choose `reminderLeadHours` from `1, 2, 3, 6, 12, 24, 48`.
+- Use `48` for overseas travel, long trips, or events needing two-day preparation.
+- Use `24` for domestic travel to another city or when uncertain.
+- Use `12` or `6` for external meetings or half-day preparation.
+- Use `1` for same-day internal online meetings.
 - Do not say an event was created, changed, or deleted until the tool succeeds.
 - When deleting or updating, list matching events first unless the user supplied an exact `eventID`.
 - External attendee invitation is not supported by the Work calendar tool yet. If the user asks to invite people, create the event with attendee names in the description and mention that CalDAV clients can add invitations after sync.

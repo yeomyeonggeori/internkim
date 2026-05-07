@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -24,38 +25,45 @@ import (
 )
 
 const (
-	calendarProductID      = "-//InternKim//Shared Calendar//EN"
-	calendarPrincipalPath  = "/calendar/dav/team/"
-	calendarHomeSetPath    = "/calendar/dav/team/calendars/"
-	calendarCollectionPath = "/calendar/dav/team/calendars/internkim/"
-	calendarSettingsICSKey = "ics_token"
+	calendarProductID                       = "-//InternKim//Shared Calendar//EN"
+	calendarPrincipalPath                   = "/calendar/dav/team/"
+	calendarHomeSetPath                     = "/calendar/dav/team/calendars/"
+	calendarCollectionPath                  = "/calendar/dav/team/calendars/internkim/"
+	calendarSettingsICSKey                  = "ics_token"
+	calendarDefaultReminderLeadHours        = 24
+	calendarAnnouncementsChannelName        = "announcements"
+	calendarAnnouncementsChannelDisplayName = "Announcements"
 )
 
 type calendarEvent struct {
-	ID             string `json:"id"`
-	UID            string `json:"uid"`
-	Title          string `json:"title"`
-	Description    string `json:"description"`
-	Location       string `json:"location"`
-	StartISO       string `json:"startISO"`
-	EndISO         string `json:"endISO"`
-	TimeZone       string `json:"timeZone"`
-	IsAllDay       bool   `json:"isAllDay"`
-	Color          string `json:"color"`
-	CreatedByEmail string `json:"createdByEmail"`
-	UpdatedAt      string `json:"updatedAt"`
-	RawICS         string `json:"-"`
+	ID                string   `json:"id"`
+	UID               string   `json:"uid"`
+	Title             string   `json:"title"`
+	Description       string   `json:"description"`
+	Location          string   `json:"location"`
+	StartISO          string   `json:"startISO"`
+	EndISO            string   `json:"endISO"`
+	TimeZone          string   `json:"timeZone"`
+	IsAllDay          bool     `json:"isAllDay"`
+	Color             string   `json:"color"`
+	People            []string `json:"people"`
+	ReminderLeadHours int      `json:"reminderLeadHours"`
+	CreatedByEmail    string   `json:"createdByEmail"`
+	UpdatedAt         string   `json:"updatedAt"`
+	RawICS            string   `json:"-"`
 }
 
 type calendarEventWriteRequest struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Location    string `json:"location"`
-	StartISO    string `json:"startISO"`
-	EndISO      string `json:"endISO"`
-	TimeZone    string `json:"timeZone"`
-	IsAllDay    bool   `json:"isAllDay"`
-	Color       string `json:"color"`
+	Title             string              `json:"title"`
+	Description       string              `json:"description"`
+	Location          string              `json:"location"`
+	StartISO          string              `json:"startISO"`
+	EndISO            string              `json:"endISO"`
+	TimeZone          string              `json:"timeZone"`
+	IsAllDay          bool                `json:"isAllDay"`
+	Color             string              `json:"color"`
+	People            calendarPeopleInput `json:"people"`
+	ReminderLeadHours int                 `json:"reminderLeadHours"`
 }
 
 type calendarEventsResponse struct {
@@ -69,6 +77,25 @@ type calendarSyncResponse struct {
 
 type calendarDAVBackend struct {
 	service *Service
+}
+
+type calendarPeopleInput []string
+
+type calendarNotificationTarget struct {
+	TargetType string
+	Key        string
+	Label      string
+	UserID     string
+}
+
+type calendarNotification struct {
+	EventID      string
+	RecipientKey string
+	TargetType   string
+	TargetValue  string
+	TargetLabel  string
+	NotifyAt     string
+	Status       string
 }
 
 func (service *Service) serveCalendarPage(responseWriter http.ResponseWriter, request *http.Request) {
@@ -302,18 +329,22 @@ func (service *Service) normalizeCalendarEventWriteRequest(request *http.Request
 	if id == "" {
 		id = randomHex(16)
 	}
+	people := normalizeCalendarPeople([]string(payload.People))
+	description := calendarDescriptionWithPeople(people, payload.Description)
 	event := calendarEvent{
-		ID:             id,
-		UID:            id + "@internkim",
-		Title:          title,
-		Description:    strings.TrimSpace(payload.Description),
-		Location:       strings.TrimSpace(payload.Location),
-		StartISO:       startTime.UTC().Format(time.RFC3339),
-		EndISO:         endTime.UTC().Format(time.RFC3339),
-		TimeZone:       firstNonEmpty(strings.TrimSpace(payload.TimeZone), "UTC"),
-		IsAllDay:       payload.IsAllDay,
-		Color:          firstNonEmpty(strings.TrimSpace(payload.Color), "#2563eb"),
-		CreatedByEmail: authenticatedCallerEmail(request),
+		ID:                id,
+		UID:               id + "@internkim",
+		Title:             title,
+		Description:       description,
+		Location:          strings.TrimSpace(payload.Location),
+		StartISO:          startTime.UTC().Format(time.RFC3339),
+		EndISO:            endTime.UTC().Format(time.RFC3339),
+		TimeZone:          firstNonEmpty(strings.TrimSpace(payload.TimeZone), "UTC"),
+		IsAllDay:          payload.IsAllDay,
+		Color:             firstNonEmpty(strings.TrimSpace(payload.Color), "#2563eb"),
+		People:            people,
+		ReminderLeadHours: normalizeCalendarReminderLeadHours(payload.ReminderLeadHours),
+		CreatedByEmail:    authenticatedCallerEmail(request),
 	}
 	rawICS, errorValue := encodeCalendarObject(event)
 	if errorValue != nil {
@@ -321,6 +352,64 @@ func (service *Service) normalizeCalendarEventWriteRequest(request *http.Request
 	}
 	event.RawICS = rawICS
 	return event, nil
+}
+
+func (people *calendarPeopleInput) UnmarshalJSON(document []byte) error {
+	trimmedDocument := bytes.TrimSpace(document)
+	if len(trimmedDocument) == 0 || bytes.Equal(trimmedDocument, []byte("null")) {
+		*people = nil
+		return nil
+	}
+	var values []string
+	if errorValue := json.Unmarshal(trimmedDocument, &values); errorValue == nil {
+		*people = normalizeCalendarPeople(values)
+		return nil
+	}
+	var value string
+	if errorValue := json.Unmarshal(trimmedDocument, &value); errorValue != nil {
+		return errorValue
+	}
+	*people = normalizeCalendarPeople(strings.Split(value, ","))
+	return nil
+}
+
+func normalizeCalendarPeople(values []string) []string {
+	people := []string{}
+	seenPeople := map[string]bool{}
+	for _, value := range values {
+		trimmedValue := strings.TrimSpace(value)
+		if trimmedValue == "" {
+			continue
+		}
+		normalizedValue := strings.ToLower(trimmedValue)
+		if seenPeople[normalizedValue] {
+			continue
+		}
+		seenPeople[normalizedValue] = true
+		people = append(people, trimmedValue)
+	}
+	return people
+}
+
+func calendarDescriptionWithPeople(people []string, description string) string {
+	trimmedDescription := strings.TrimSpace(description)
+	if len(people) == 0 {
+		return trimmedDescription
+	}
+	peopleLine := strings.Join(people, ", ")
+	if trimmedDescription == "" {
+		return peopleLine
+	}
+	return peopleLine + "\n" + trimmedDescription
+}
+
+func normalizeCalendarReminderLeadHours(value int) int {
+	switch value {
+	case 1, 2, 3, 6, 12, 24, 48:
+		return value
+	default:
+		return calendarDefaultReminderLeadHours
+	}
 }
 
 func parseCalendarRange(request *http.Request) (time.Time, time.Time, error) {
@@ -372,6 +461,7 @@ CREATE TABLE IF NOT EXISTS calendar_events (
 	is_all_day INTEGER NOT NULL,
 	color TEXT NOT NULL,
 	raw_ics TEXT NOT NULL,
+	reminder_lead_hours INTEGER NOT NULL DEFAULT 24,
 	created_by_email TEXT NOT NULL,
 	updated_at TEXT NOT NULL,
 	deleted_at TEXT NOT NULL
@@ -379,11 +469,58 @@ CREATE TABLE IF NOT EXISTS calendar_events (
 	if errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_events", "reminder_lead_hours", "INTEGER NOT NULL DEFAULT 24"); errorValue != nil {
+		return errorValue
+	}
 	_, errorValue = database.ExecContext(ctx, `
 CREATE TABLE IF NOT EXISTS calendar_settings (
 	key TEXT PRIMARY KEY,
 	value TEXT NOT NULL
 )`)
+	if errorValue != nil {
+		return errorValue
+	}
+	_, errorValue = database.ExecContext(ctx, `
+CREATE TABLE IF NOT EXISTS calendar_event_notifications (
+	event_id TEXT NOT NULL,
+	recipient_key TEXT NOT NULL,
+	target_type TEXT NOT NULL,
+	target_value TEXT NOT NULL,
+	target_label TEXT NOT NULL,
+	notify_at TEXT NOT NULL,
+	status TEXT NOT NULL,
+	sent_at TEXT NOT NULL,
+	error TEXT NOT NULL,
+	updated_at TEXT NOT NULL,
+	PRIMARY KEY(event_id, recipient_key)
+)`)
+	return errorValue
+}
+
+func ensureCalendarColumn(ctx context.Context, database *sql.DB, tableName string, columnName string, definition string) error {
+	rows, errorValue := database.QueryContext(ctx, "PRAGMA table_info("+tableName+")")
+	if errorValue != nil {
+		return errorValue
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name string
+		var columnType string
+		var notNull int
+		var defaultValue sql.NullString
+		var primaryKey int
+		if errorValue := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &primaryKey); errorValue != nil {
+			return errorValue
+		}
+		if name == columnName {
+			return nil
+		}
+	}
+	if errorValue := rows.Err(); errorValue != nil {
+		return errorValue
+	}
+	_, errorValue = database.ExecContext(ctx, "ALTER TABLE "+tableName+" ADD COLUMN "+columnName+" "+definition)
 	return errorValue
 }
 
@@ -394,7 +531,7 @@ func (service *Service) readCalendarEvents(ctx context.Context, startTime time.T
 	}
 	defer database.Close()
 	query := `
-SELECT id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, created_by_email, updated_at
+SELECT id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, updated_at
 FROM calendar_events
 WHERE deleted_at = ''`
 	arguments := []any{}
@@ -434,7 +571,7 @@ func (service *Service) readCalendarEvent(ctx context.Context, columnName string
 	}
 	defer database.Close()
 	row := database.QueryRowContext(ctx, `
-SELECT id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, created_by_email, updated_at
+SELECT id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, updated_at
 FROM calendar_events
 WHERE deleted_at = '' AND `+columnName+` = ?`, strings.TrimSpace(value))
 	event, errorValue := scanCalendarEvent(row)
@@ -466,10 +603,12 @@ func scanCalendarEvent(scanner calendarEventScanner) (calendarEvent, error) {
 		&isAllDay,
 		&event.Color,
 		&event.RawICS,
+		&event.ReminderLeadHours,
 		&event.CreatedByEmail,
 		&event.UpdatedAt,
 	)
 	event.IsAllDay = isAllDay == 1
+	event.ReminderLeadHours = normalizeCalendarReminderLeadHours(event.ReminderLeadHours)
 	return event, errorValue
 }
 
@@ -482,8 +621,8 @@ func (service *Service) writeCalendarEvent(ctx context.Context, event calendarEv
 	updatedAt := time.Now().UTC().Format(time.RFC3339Nano)
 	_, errorValue = database.ExecContext(ctx, `
 INSERT INTO calendar_events (
-	id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, created_by_email, updated_at, deleted_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '')
+	id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, updated_at, deleted_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '')
 ON CONFLICT(id) DO UPDATE SET
 	uid = excluded.uid,
 	title = excluded.title,
@@ -495,6 +634,7 @@ ON CONFLICT(id) DO UPDATE SET
 	is_all_day = excluded.is_all_day,
 	color = excluded.color,
 	raw_ics = excluded.raw_ics,
+	reminder_lead_hours = excluded.reminder_lead_hours,
 	updated_at = excluded.updated_at,
 	deleted_at = ''`,
 		event.ID,
@@ -508,10 +648,14 @@ ON CONFLICT(id) DO UPDATE SET
 		boolToSQLiteInteger(event.IsAllDay),
 		event.Color,
 		event.RawICS,
+		normalizeCalendarReminderLeadHours(event.ReminderLeadHours),
 		event.CreatedByEmail,
 		updatedAt,
 	)
 	event.UpdatedAt = updatedAt
+	if errorValue == nil {
+		service.upsertCalendarNotifications(ctx, event)
+	}
 	return errorValue
 }
 
@@ -532,7 +676,418 @@ func (service *Service) softDeleteCalendarEvent(ctx context.Context, eventID str
 	if affectedRows == 0 {
 		return sql.ErrNoRows
 	}
+	if errorValue := service.cancelCalendarNotifications(ctx, eventID); errorValue != nil {
+		log.Printf("calendar notification cancel failed: %v", errorValue)
+	}
 	return nil
+}
+
+func (service *Service) startCalendarNotificationWorker(ctx context.Context) {
+	go func() {
+		service.processDueCalendarNotifications(ctx, time.Now().UTC())
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case now := <-ticker.C:
+				service.processDueCalendarNotifications(ctx, now.UTC())
+			}
+		}
+	}()
+}
+
+func (service *Service) upsertCalendarNotifications(ctx context.Context, event calendarEvent) {
+	notifyAt, shouldNotify := calendarNotificationTime(event, time.Now().UTC())
+	if !shouldNotify {
+		if errorValue := service.cancelCalendarNotifications(ctx, event.ID); errorValue != nil {
+			log.Printf("calendar notification cancel failed: %v", errorValue)
+		}
+		return
+	}
+	targets, errorValue := service.calendarNotificationTargets(ctx, event)
+	if errorValue != nil {
+		log.Printf("calendar notification target resolve failed: %v", errorValue)
+		return
+	}
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		log.Printf("calendar notification database open failed: %v", errorValue)
+		return
+	}
+	defer database.Close()
+	updatedAt := time.Now().UTC().Format(time.RFC3339Nano)
+	targetKeys := map[string]bool{}
+	for _, target := range targets {
+		targetKeys[target.Key] = true
+		_, errorValue = database.ExecContext(ctx, `
+INSERT INTO calendar_event_notifications (
+	event_id, recipient_key, target_type, target_value, target_label, notify_at, status, sent_at, error, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, 'pending', '', '', ?)
+ON CONFLICT(event_id, recipient_key) DO UPDATE SET
+	target_type = excluded.target_type,
+	target_value = excluded.target_value,
+	target_label = excluded.target_label,
+	notify_at = excluded.notify_at,
+	status = 'pending',
+	sent_at = '',
+	error = '',
+	updated_at = excluded.updated_at
+WHERE calendar_event_notifications.status != 'sent'`,
+			event.ID,
+			target.Key,
+			target.TargetType,
+			firstNonEmpty(target.UserID, target.Key),
+			target.Label,
+			notifyAt.Format(time.RFC3339),
+			updatedAt,
+		)
+		if errorValue != nil {
+			log.Printf("calendar notification upsert failed: %v", errorValue)
+			return
+		}
+	}
+	service.cancelStaleCalendarNotifications(ctx, database, event.ID, targetKeys, updatedAt)
+}
+
+func calendarNotificationTime(event calendarEvent, now time.Time) (time.Time, bool) {
+	startTime, errorValue := time.Parse(time.RFC3339, strings.TrimSpace(event.StartISO))
+	if errorValue != nil || !startTime.After(now) {
+		return time.Time{}, false
+	}
+	notifyAt := startTime.Add(-time.Duration(normalizeCalendarReminderLeadHours(event.ReminderLeadHours)) * time.Hour)
+	if notifyAt.Before(now) {
+		return now, true
+	}
+	return notifyAt, true
+}
+
+func (service *Service) calendarNotificationTargets(ctx context.Context, event calendarEvent) ([]calendarNotificationTarget, error) {
+	people, hasPeopleLine := calendarPeopleFromDescription(event.Description)
+	if !hasPeopleLine {
+		return []calendarNotificationTarget{calendarAnnouncementsTarget()}, nil
+	}
+	users, errorValue := service.calendarMattermostUsers(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	targets := calendarTargetsForPeople(people, users)
+	if len(targets) != len(people) {
+		return []calendarNotificationTarget{calendarAnnouncementsTarget()}, nil
+	}
+	return targets, nil
+}
+
+func calendarAnnouncementsTarget() calendarNotificationTarget {
+	return calendarNotificationTarget{
+		TargetType: "announcements",
+		Key:        "announcements:" + calendarAnnouncementsChannelName,
+		Label:      calendarAnnouncementsChannelDisplayName,
+	}
+}
+
+func calendarPeopleFromDescription(description string) ([]string, bool) {
+	lines := strings.Split(strings.TrimSpace(description), "\n")
+	if len(lines) == 0 {
+		return nil, false
+	}
+	firstLine := strings.TrimSpace(lines[0])
+	if firstLine == "" {
+		return nil, false
+	}
+	if !strings.Contains(firstLine, ",") && strings.ContainsAny(firstLine, " \t") {
+		return nil, false
+	}
+	people := normalizeCalendarPeople(strings.Split(firstLine, ","))
+	return people, len(people) > 0
+}
+
+func (service *Service) calendarMattermostUsers(ctx context.Context) ([]mattermostUserRecord, error) {
+	token, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	var users []mattermostUserRecord
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users?per_page=200", token, nil, &users); errorValue != nil {
+		return nil, errorValue
+	}
+	activeUsers := make([]mattermostUserRecord, 0, len(users))
+	for _, user := range users {
+		if user.DeleteAt != 0 || isProtectedMattermostUser(user) {
+			continue
+		}
+		activeUsers = append(activeUsers, user)
+	}
+	return activeUsers, nil
+}
+
+func calendarTargetsForPeople(people []string, users []mattermostUserRecord) []calendarNotificationTarget {
+	targets := []calendarNotificationTarget{}
+	seenUserIDs := map[string]bool{}
+	for _, person := range people {
+		user, found := calendarMattermostUserForPerson(person, users)
+		if !found || seenUserIDs[user.ID] {
+			continue
+		}
+		seenUserIDs[user.ID] = true
+		targets = append(targets, calendarNotificationTarget{
+			TargetType: "dm",
+			Key:        "dm:" + user.ID,
+			Label:      calendarMattermostUserDisplayName(user),
+			UserID:     user.ID,
+		})
+	}
+	return targets
+}
+
+func calendarMattermostUserForPerson(person string, users []mattermostUserRecord) (mattermostUserRecord, bool) {
+	normalizedPerson := strings.ToLower(strings.TrimSpace(person))
+	if normalizedPerson == "" {
+		return mattermostUserRecord{}, false
+	}
+	for _, user := range users {
+		for _, value := range calendarMattermostUserMatchValues(user) {
+			if normalizedPerson == strings.ToLower(strings.TrimSpace(value)) {
+				return user, true
+			}
+		}
+	}
+	return mattermostUserRecord{}, false
+}
+
+func calendarMattermostUserMatchValues(user mattermostUserRecord) []string {
+	fullName := strings.TrimSpace(strings.Join([]string{user.FirstName, user.LastName}, " "))
+	return uniqueNonEmpty([]string{
+		user.ID,
+		user.Email,
+		user.Username,
+		user.DisplayName,
+		user.Nickname,
+		user.FirstName,
+		user.LastName,
+		fullName,
+	})
+}
+
+func calendarMattermostUserDisplayName(user mattermostUserRecord) string {
+	return firstNonEmpty(user.Nickname, user.DisplayName, strings.TrimSpace(strings.Join([]string{user.FirstName, user.LastName}, " ")), user.Username, user.Email)
+}
+
+func (service *Service) cancelStaleCalendarNotifications(ctx context.Context, database *sql.DB, eventID string, targetKeys map[string]bool, updatedAt string) {
+	rows, errorValue := database.QueryContext(ctx, "SELECT recipient_key FROM calendar_event_notifications WHERE event_id = ? AND status = 'pending'", eventID)
+	if errorValue != nil {
+		log.Printf("calendar stale notification query failed: %v", errorValue)
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var recipientKey string
+		if errorValue := rows.Scan(&recipientKey); errorValue != nil {
+			log.Printf("calendar stale notification scan failed: %v", errorValue)
+			return
+		}
+		if targetKeys[recipientKey] {
+			continue
+		}
+		if _, errorValue := database.ExecContext(ctx, "UPDATE calendar_event_notifications SET status = 'canceled', updated_at = ? WHERE event_id = ? AND recipient_key = ? AND status = 'pending'", updatedAt, eventID, recipientKey); errorValue != nil {
+			log.Printf("calendar stale notification cancel failed: %v", errorValue)
+			return
+		}
+	}
+	if errorValue := rows.Err(); errorValue != nil {
+		log.Printf("calendar stale notification rows failed: %v", errorValue)
+	}
+}
+
+func (service *Service) cancelCalendarNotifications(ctx context.Context, eventID string) error {
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	_, errorValue = database.ExecContext(ctx, "UPDATE calendar_event_notifications SET status = 'canceled', updated_at = ? WHERE event_id = ? AND status = 'pending'", time.Now().UTC().Format(time.RFC3339Nano), strings.TrimSpace(eventID))
+	return errorValue
+}
+
+func (service *Service) processDueCalendarNotifications(ctx context.Context, now time.Time) {
+	notifications, errorValue := service.readDueCalendarNotifications(ctx, now)
+	if errorValue != nil {
+		log.Printf("calendar notification read failed: %v", errorValue)
+		return
+	}
+	for _, notification := range notifications {
+		event, found, errorValue := service.readCalendarEventByID(ctx, notification.EventID)
+		if errorValue != nil || !found {
+			service.markCalendarNotificationError(ctx, notification, firstNonEmpty(errorString(errorValue), "event not found"))
+			continue
+		}
+		if errorValue := service.sendCalendarNotification(ctx, notification, event); errorValue != nil {
+			service.markCalendarNotificationError(ctx, notification, errorValue.Error())
+			continue
+		}
+		service.markCalendarNotificationSent(ctx, notification)
+	}
+}
+
+func (service *Service) readDueCalendarNotifications(ctx context.Context, now time.Time) ([]calendarNotification, error) {
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer database.Close()
+	rows, errorValue := database.QueryContext(ctx, `
+SELECT event_id, recipient_key, target_type, target_value, target_label, notify_at, status
+FROM calendar_event_notifications
+WHERE status = 'pending' AND notify_at <= ?
+ORDER BY notify_at`, now.UTC().Format(time.RFC3339))
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer rows.Close()
+	notifications := []calendarNotification{}
+	for rows.Next() {
+		var notification calendarNotification
+		if errorValue := rows.Scan(&notification.EventID, &notification.RecipientKey, &notification.TargetType, &notification.TargetValue, &notification.TargetLabel, &notification.NotifyAt, &notification.Status); errorValue != nil {
+			return nil, errorValue
+		}
+		notifications = append(notifications, notification)
+	}
+	return notifications, rows.Err()
+}
+
+func (service *Service) sendCalendarNotification(ctx context.Context, notification calendarNotification, event calendarEvent) error {
+	token, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	switch notification.TargetType {
+	case "dm":
+		channelID, errorValue := service.ensureMattermostBotDirectChannelID(ctx, token, notification.TargetValue)
+		if errorValue != nil {
+			return errorValue
+		}
+		return service.postCalendarMattermostNotification(ctx, token, channelID, notification.TargetType, event)
+	default:
+		teamRecord, errorValue := service.ensureMattermostTeam(ctx, token)
+		if errorValue != nil {
+			return errorValue
+		}
+		channelID, errorValue := service.ensureMattermostPublicChannel(ctx, token, teamRecord.ID, calendarAnnouncementsChannelName, calendarAnnouncementsChannelDisplayName)
+		if errorValue != nil {
+			return errorValue
+		}
+		return service.postCalendarMattermostNotification(ctx, token, channelID, notification.TargetType, event)
+	}
+}
+
+func (service *Service) ensureMattermostBotDirectChannelID(ctx context.Context, token string, userID string) (string, error) {
+	normalizedUserID := strings.TrimSpace(userID)
+	if normalizedUserID == "" {
+		return "", fmt.Errorf("Mattermost user ID is required")
+	}
+	botRecord, found, errorValue := service.findMattermostUserByUsername(ctx, token, "internkim")
+	if errorValue != nil {
+		return "", errorValue
+	}
+	if !found || botRecord.ID == "" || botRecord.DeleteAt != 0 || botRecord.ID == normalizedUserID {
+		return "", fmt.Errorf("InternKim bot user is not available")
+	}
+	body := []string{normalizedUserID, botRecord.ID}
+	var channelRecord mattermostChannelRecord
+	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/channels/direct", token, body, &channelRecord); errorValue != nil && !isMattermostBadRequest(errorValue) {
+		return "", errorValue
+	}
+	if errorValue := service.showMattermostDirectChannel(ctx, token, normalizedUserID, botRecord.ID); errorValue != nil {
+		return "", errorValue
+	}
+	if strings.TrimSpace(channelRecord.ID) != "" {
+		return channelRecord.ID, nil
+	}
+	return "", fmt.Errorf("Mattermost direct channel was not created")
+}
+
+func (service *Service) postCalendarMattermostNotification(ctx context.Context, token string, channelID string, targetType string, event calendarEvent) error {
+	body := map[string]any{
+		"channel_id": channelID,
+		"message":    calendarMattermostNotificationMessage(event, targetType),
+		"props":      map[string]any{"internkim_calendar_notification": true, "calendar_event_id": event.ID},
+	}
+	return service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", token, body, nil)
+}
+
+func calendarMattermostNotificationMessage(event calendarEvent, targetType string) string {
+	lines := []string{
+		"Calendar reminder",
+		"**" + event.Title + "**",
+		"Time: " + calendarNotificationTimeText(event),
+	}
+	if strings.TrimSpace(event.Location) != "" {
+		lines = append(lines, "Location: "+strings.TrimSpace(event.Location))
+	}
+	if note := calendarNotificationNoteText(event.Description, targetType); note != "" {
+		lines = append(lines, "Note: "+note)
+	}
+	lines = append(lines, "[Calendar 열기](/calendar/)")
+	return strings.Join(lines, "\n")
+}
+
+func calendarNotificationTimeText(event calendarEvent) string {
+	startTime, startError := time.Parse(time.RFC3339, event.StartISO)
+	endTime, endError := time.Parse(time.RFC3339, event.EndISO)
+	if startError != nil || endError != nil {
+		return strings.TrimSpace(event.StartISO + " - " + event.EndISO)
+	}
+	location := time.UTC
+	if loadedLocation, errorValue := time.LoadLocation(strings.TrimSpace(event.TimeZone)); errorValue == nil {
+		location = loadedLocation
+	}
+	if event.IsAllDay {
+		return startTime.In(location).Format("2006-01-02") + " all day"
+	}
+	return startTime.In(location).Format("2006-01-02 15:04") + " - " + endTime.In(location).Format("15:04 MST")
+}
+
+func calendarNotificationNoteText(description string, targetType string) string {
+	lines := strings.Split(strings.TrimSpace(description), "\n")
+	if len(lines) == 0 {
+		return ""
+	}
+	if targetType == "dm" && len(lines) > 1 {
+		return strings.TrimSpace(strings.Join(lines[1:], "\n"))
+	}
+	if targetType == "dm" {
+		return ""
+	}
+	return strings.TrimSpace(description)
+}
+
+func (service *Service) markCalendarNotificationSent(ctx context.Context, notification calendarNotification) {
+	service.updateCalendarNotificationStatus(ctx, notification, "sent", time.Now().UTC().Format(time.RFC3339Nano), "")
+}
+
+func (service *Service) markCalendarNotificationError(ctx context.Context, notification calendarNotification, message string) {
+	service.updateCalendarNotificationStatus(ctx, notification, "pending", "", message)
+}
+
+func (service *Service) updateCalendarNotificationStatus(ctx context.Context, notification calendarNotification, status string, sentAt string, message string) {
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		log.Printf("calendar notification status open failed: %v", errorValue)
+		return
+	}
+	defer database.Close()
+	_, errorValue = database.ExecContext(ctx, "UPDATE calendar_event_notifications SET status = ?, sent_at = ?, error = ?, updated_at = ? WHERE event_id = ? AND recipient_key = ?", status, sentAt, strings.TrimSpace(message), time.Now().UTC().Format(time.RFC3339Nano), notification.EventID, notification.RecipientKey)
+	if errorValue != nil {
+		log.Printf("calendar notification status update failed: %v", errorValue)
+	}
+}
+
+func errorString(errorValue error) string {
+	if errorValue == nil {
+		return ""
+	}
+	return errorValue.Error()
 }
 
 func boolToSQLiteInteger(value bool) int {
@@ -691,18 +1246,19 @@ func calendarEventFromCalendarObject(path string, calendar *ical.Calendar, actor
 		id = strings.TrimSuffix(uid, "@internkim")
 	}
 	return calendarEvent{
-		ID:             id,
-		UID:            uid,
-		Title:          firstNonEmpty(strings.TrimSpace(title), "Untitled event"),
-		Description:    strings.TrimSpace(description),
-		Location:       strings.TrimSpace(location),
-		StartISO:       startTime.UTC().Format(time.RFC3339),
-		EndISO:         endTime.UTC().Format(time.RFC3339),
-		TimeZone:       "UTC",
-		IsAllDay:       startProperty != nil && startProperty.ValueType() == ical.ValueDate,
-		Color:          firstNonEmpty(strings.TrimSpace(color), "#2563eb"),
-		CreatedByEmail: actorEmail,
-		RawICS:         rawICS,
+		ID:                id,
+		UID:               uid,
+		Title:             firstNonEmpty(strings.TrimSpace(title), "Untitled event"),
+		Description:       strings.TrimSpace(description),
+		Location:          strings.TrimSpace(location),
+		StartISO:          startTime.UTC().Format(time.RFC3339),
+		EndISO:            endTime.UTC().Format(time.RFC3339),
+		TimeZone:          "UTC",
+		IsAllDay:          startProperty != nil && startProperty.ValueType() == ical.ValueDate,
+		Color:             firstNonEmpty(strings.TrimSpace(color), "#2563eb"),
+		ReminderLeadHours: calendarDefaultReminderLeadHours,
+		CreatedByEmail:    actorEmail,
+		RawICS:            rawICS,
 	}, nil
 }
 
