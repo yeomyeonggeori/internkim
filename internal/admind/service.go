@@ -226,6 +226,7 @@ func NewService(configuration Configuration) *Service {
 
 func (service *Service) Run(ctx context.Context) error {
 	service.startCompanionFileCleanup(ctx)
+	service.startMattermostProvisionerSync(ctx)
 	server := &http.Server{
 		Addr:    service.Configuration.ListenAddress,
 		Handler: service.router(),
@@ -241,6 +242,19 @@ func (service *Service) Run(ctx context.Context) error {
 		return errorValue
 	}
 	return nil
+}
+
+func (service *Service) startMattermostProvisionerSync(ctx context.Context) {
+	if strings.TrimSpace(readTrimmedFile(service.Configuration.MattermostAdminPasswordPath)) == "" {
+		return
+	}
+	go func() {
+		syncContext, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		if errorValue := service.ensureMattermostProvisionerDefaults(syncContext); errorValue != nil {
+			log.Printf("Mattermost provisioner sync failed: %v", errorValue)
+		}
+	}()
 }
 
 func (service *Service) router() http.Handler {

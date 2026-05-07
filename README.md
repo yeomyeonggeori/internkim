@@ -53,6 +53,20 @@ Signal account ── JSON-RPC poll ─▶ internkim-capabilityd ──▶ Bluec
 
 크리덴셜은 `/root/.internkim/secrets/`와 `/root/.internkim/config/`에 집중 관리합니다. Blueclaw는 provider token, 브라우저 쿠키, 사용자 로컬 파일 경로, 로컬 모델 경로를 직접 보지 않고 `internkim-capabilityd` 또는 `internkim-admind`의 typed capability 경계를 통해서만 사용합니다.
 
+### Blueclaw Terminal 권한 경계
+
+Blueclaw terminal 보안의 canonical boundary는 Linux user/group/POSIX 권한입니다. Blueclaw policy가 source of truth이고, 사람과 circle membership은 guest 내부의 Linux user, group, directory ownership, mode로 투영됩니다.
+
+- 사람은 안정적인 `bc_person_<shortID>` Linux user로 실행됩니다.
+- circle은 `bc_circle_<circleID>` group으로 투영됩니다.
+- 모든 task terminal, terminal session, 사용자 작성 skill/tool, dependency install script, package lifecycle script는 requester 또는 task actor의 unprivileged UID/GID/supplementary groups로 실행됩니다.
+- admin 사용자도 raw terminal에서는 기본 task actor scope만 갖습니다. admin-only 파일 접근, 임시 grant, 특정 파일 허용, 외부 전송은 built-in capability/tool 경계에서만 처리합니다.
+- `/workspace/private/people/<personID>`와 `/workspace/circles/<circleID>`는 POSIX ownership/mode가 최종 접근 경계입니다. `/workspace/.blueclaw/*`는 service-owned internal path이며 일반 task user가 직접 읽지 못합니다.
+- dependency cache는 `/workspace/shared/cache/dependencies`로 고정합니다. private/source 파일은 cache에 넣지 않고, language-level dependency tool만 이 cache를 공유합니다.
+- raw terminal에서 OS package manager와 system modification executable guardrail은 계속 유지합니다. `bwrap`는 v1 필수 경계가 아니며, 필요하면 미래의 추가 narrowing으로만 사용합니다.
+
+Built-in `file.write`, `file.attach`, future `file.read_granted`, artifact/document/admin tool만 Blueclaw grant와 세밀 권한을 행사할 수 있습니다. Built-in tool이 grant로 읽은 민감 파일은 raw terminal이 볼 수 있는 위치에 그대로 열어두지 않고, 필요한 경우 sanitized task artifact로 복사하고 task event에 기록해야 합니다.
+
 | 경로 | 주 소비자 | 용도 |
 |------|----------|------|
 | `/root/.internkim/secrets/openrouter-api-key` | `internkim-capabilityd` | remote LLM provider |
@@ -234,7 +248,7 @@ Deep link를 직접 넘기는 CLI fallback도 지원합니다.
 
 `file.pick`은 사용자 로컬 경로를 InternKim/Blueclaw에 넘기지 않습니다. companion이 선택된 파일을 signed broker upload로 device의 `/tmp/internkim-companion-files/{filename}`에 복사하고, 응답에는 device-local temporary path와 TTL만 포함합니다. 같은 이름은 덮어쓰며 metadata TTL이 지나면 `internkim-admind`가 자동 삭제합니다.
 
-브라우저 capability는 Companion-first로 라우팅합니다. 발화자 소유 Companion이 available하면 headed mode, InternKim 전용 persistent profile, 미니멀 handoff extension을 갖춘 Companion browser에서 실행합니다. Companion이 없을 때만 device Lightpanda fallback을 단순 공개 페이지 텍스트 탐색에 사용합니다. 로그인/MFA처럼 사용자가 직접 처리해야 하는 단계는 `browser.handoff`가 브라우저 안에 `완료` 버튼 overlay를 띄우고, 사용자가 누르면 snapshot을 검증해 같은 세션에서 이어갑니다. snapshot 결과에는 URL, title, snapshot text, interactive refs만 담습니다. click/fill/select/press/wait는 snapshot에서 얻은 ref나 selector를 입력으로 받습니다. screenshot은 Companion browser에서만 허용하고, fallback에서는 Companion 연결 안내를 반환합니다. Browser download는 파일 이동 보안 정책을 별도로 닫은 뒤 추가합니다. Companion 앱 bundle에는 현재 OS/arch용 `agent-browser`가 포함되며, 첫 실행 때 managed browser install을 자동으로 시도합니다. 실패해도 user/file/mock LLM capability는 계속 동작하고 browser capability만 unavailable로 표시됩니다. 개발 환경에서는 `make deps-companion-browser`로 bundle source와 browser install smoke를 확인합니다.
+브라우저 capability는 Companion-first로 라우팅합니다. 발화자 소유 Companion이 available하면 headed mode와 InternKim 전용 persistent profile을 갖춘 Companion browser에서 실행합니다. Companion이 없을 때만 device Lightpanda fallback을 단순 공개 페이지 텍스트 탐색에 사용합니다. 로그인/MFA처럼 사용자가 직접 처리해야 하는 단계는 `browser.handoff`가 Chrome 위에 Companion OS overlay window로 `완료` 버튼을 띄우고, 사용자가 누르면 snapshot을 검증해 같은 세션에서 이어갑니다. Linux는 X11만 지원하며 Wayland에서는 browser handoff가 unavailable로 표시됩니다. snapshot 결과에는 URL, title, snapshot text, interactive refs만 담습니다. click/fill/select/press/wait는 snapshot에서 얻은 ref나 selector를 입력으로 받습니다. screenshot은 Companion browser에서만 허용하고, fallback에서는 Companion 연결 안내를 반환합니다. Browser download는 파일 이동 보안 정책을 별도로 닫은 뒤 추가합니다. Companion 앱 bundle에는 현재 OS/arch용 `agent-browser`가 포함되며, 첫 실행 때 managed browser install을 자동으로 시도합니다. 실패해도 user/file/mock LLM capability는 계속 동작하고 browser capability만 unavailable로 표시됩니다. 개발 환경에서는 `make deps-companion-browser`로 bundle source와 browser install smoke를 확인합니다.
 
 Pairing signing key는 state file에 평문으로 저장하지 않습니다. state에는 key reference만 남기고 macOS에서는 Keychain을 사용합니다. secure storage를 쓸 수 없는 개발 환경에서만 `INTERNKIM_COMPANION_DEV_FILE_STORE=1`을 켜서 파일 기반 fallback을 허용합니다.
 

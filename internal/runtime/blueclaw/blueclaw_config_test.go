@@ -116,6 +116,9 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if terminal["mode"] != "firecrackerGuest" {
 		t.Fatalf("expected firecracker guest terminal mode, got %q", terminal["mode"])
 	}
+	if terminal["posixHelperPath"] != BlueclawPOSIXHelperPath {
+		t.Fatalf("expected POSIX helper path, got %q", terminal["posixHelperPath"])
+	}
 	if terminal["outputMaxBytes"] != float64(32768) || terminal["sessionMaxCount"] != float64(4) {
 		t.Fatalf("expected terminal caps, got %+v", terminal)
 	}

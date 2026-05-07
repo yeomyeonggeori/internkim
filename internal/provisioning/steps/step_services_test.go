@@ -41,6 +41,8 @@ func TestBlueclawRootfsBaseContractCheckCatchesStaleBaseRuntime(t *testing.T) {
 		"rootfs-bun-missing",
 		"rootfs-bunx-missing",
 		"rootfs-chromium-missing",
+		"rootfs-posix-helper-missing",
+		"blueclaw-posix-sync",
 	} {
 		if !strings.Contains(command, expectedFragment) {
 			t.Fatalf("expected rootfs binary contract check to contain %q", expectedFragment)

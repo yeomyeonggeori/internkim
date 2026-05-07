@@ -320,6 +320,10 @@ if ! debugfs -R "stat /usr/bin/chromium" "$rootfs_path" >/tmp/internkim-blueclaw
   echo rootfs-chromium-missing
   exit 0
 fi
+if ! debugfs -R "stat /usr/local/bin/blueclaw-posix-helper" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-posix-helper-check.log 2>&1; then
+  echo rootfs-posix-helper-missing
+  exit 0
+fi
 rm -f "$passwd_dump_path" "$group_dump_path"
 if ! debugfs -R "dump /etc/passwd $passwd_dump_path" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-passwd-check.log 2>&1; then
   echo rootfs-passwd-dump-failed
@@ -341,6 +345,7 @@ for name, marker in {
     "blueclaw-workspace-owner": "chown blueclaw:blueclaw /workspace /workspace/.blueclaw",
     "blueclaw-payload-launch": "/workspace/.blueclaw/runtime/current/bin/blueclaw",
     "blueclaw-runtime-directory": "/workspace/.blueclaw/runtime",
+    "blueclaw-posix-sync": "blueclaw-posix-helper sync",
 }.items():
     if marker not in guest_init:
         print("rootfs-init-missing-marker:" + name)

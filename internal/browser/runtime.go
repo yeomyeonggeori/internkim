@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	goruntime "runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -42,12 +43,22 @@ type AgentBrowserRuntime struct {
 	SessionName          string
 	Headed               bool
 	TemporaryDirectory   string
-	ExtensionPaths       []string
 	Runner               CommandRunner
 	Now                  func() time.Time
 	Sleep                func(context.Context, time.Duration) error
 	DisableHumanPacing   bool
+	OpenCommandTimeout   time.Duration
 }
+
+type NativeHandoffRuntime struct {
+	EngineExecutablePath string
+	ProfilePath          string
+	SessionName          string
+	Runner               CommandRunner
+	Now                  func() time.Time
+}
+
+const browserOpenCommandTimeout = 8 * time.Second
 
 type RuntimeReadiness struct {
 	Status string
@@ -60,9 +71,14 @@ type SessionStartRequest struct {
 }
 
 type SessionStartResult struct {
-	SessionID string `json:"sessionID"`
-	Opened    bool   `json:"opened"`
-	URL       string `json:"url,omitempty"`
+	SessionID       string   `json:"sessionID"`
+	Opened          bool     `json:"opened"`
+	URL             string   `json:"url,omitempty"`
+	RequestedURL    string   `json:"requestedURL,omitempty"`
+	Title           string   `json:"title,omitempty"`
+	SnapshotText    string   `json:"snapshotText,omitempty"`
+	InteractiveRefs []string `json:"interactiveRefs,omitempty"`
+	CapturedAt      string   `json:"capturedAt,omitempty"`
 }
 
 type NavigateRequest struct {
@@ -70,7 +86,12 @@ type NavigateRequest struct {
 }
 
 type NavigateResult struct {
-	URL string `json:"url"`
+	URL             string   `json:"url"`
+	RequestedURL    string   `json:"requestedURL,omitempty"`
+	Title           string   `json:"title,omitempty"`
+	SnapshotText    string   `json:"snapshotText,omitempty"`
+	InteractiveRefs []string `json:"interactiveRefs,omitempty"`
+	CapturedAt      string   `json:"capturedAt,omitempty"`
 }
 
 type ObserveRequest struct{}
@@ -231,14 +252,117 @@ func (runtime AgentBrowserRuntime) StartSession(ctx context.Context, request Ses
 			return SessionStartResult{}, errorValue
 		}
 	}
-	if _, errorValue := runtime.run(ctx, append(runtime.sessionStartArguments(), "open", targetURL)...); errorValue != nil {
-		return SessionStartResult{}, errorValue
+	openArguments := runtime.sessionStartArguments()
+	openError := runtime.runOpenCommand(ctx, append(openArguments, "open", targetURL))
+	observation, observationError := runtime.observeCurrentPage(ctx)
+	if openError != nil && observationError != nil {
+		return SessionStartResult{}, openError
+	}
+	if openError != nil && !isOpenSettleTimeout(openError) {
+		return SessionStartResult{}, openError
+	}
+	if exposedURL != "" && !isSuccessfulNavigationURL(firstNonEmpty(observation.URL, exposedURL)) {
+		return SessionStartResult{}, errors.New("companion browser did not navigate to requested URL")
 	}
 	return SessionStartResult{
-		SessionID: runtime.sessionName(),
-		Opened:    true,
-		URL:       exposedURL,
+		SessionID:       runtime.sessionName(),
+		Opened:          true,
+		URL:             firstNonEmpty(observation.URL, exposedURL),
+		RequestedURL:    exposedURL,
+		Title:           observation.Title,
+		SnapshotText:    observation.SnapshotText,
+		InteractiveRefs: observation.InteractiveRefs,
+		CapturedAt:      observation.CapturedAt,
 	}, nil
+}
+
+func (runtime NativeHandoffRuntime) StartSession(ctx context.Context, request SessionStartRequest) (SessionStartResult, error) {
+	targetURL := firstNonEmpty(request.URL, request.StartURL)
+	if targetURL == "" {
+		return SessionStartResult{}, errors.New("browser handoff url is required")
+	}
+	if errorValue := ValidateWebURL(targetURL); errorValue != nil {
+		return SessionStartResult{}, errorValue
+	}
+	commandPath, arguments, errorValue := runtime.openCommand(targetURL)
+	if errorValue != nil {
+		return SessionStartResult{}, errorValue
+	}
+	runner := runtime.Runner
+	if runner == nil {
+		runner = OSCommandRunner{}
+	}
+	if _, errorValue := runner.Run(ctx, commandPath, arguments); errorValue != nil {
+		return SessionStartResult{}, errors.New("companion browser handoff open failed")
+	}
+	return SessionStartResult{
+		SessionID:    firstNonEmpty(runtime.SessionName, "internkim"),
+		Opened:       true,
+		URL:          targetURL,
+		RequestedURL: targetURL,
+		CapturedAt:   runtime.now().UTC().Format(time.RFC3339),
+	}, nil
+}
+
+func (runtime NativeHandoffRuntime) Navigate(ctx context.Context, request NavigateRequest) (NavigateResult, error) {
+	_ = ctx
+	_ = request
+	return NavigateResult{}, errors.New("native browser handoff runtime does not support navigation")
+}
+
+func (runtime NativeHandoffRuntime) Observe(ctx context.Context, request ObserveRequest) (ObserveResult, error) {
+	_ = ctx
+	_ = request
+	return ObserveResult{}, errors.New("native browser handoff runtime does not support snapshots")
+}
+
+func (runtime NativeHandoffRuntime) Screenshot(ctx context.Context, request ScreenshotRequest) (ScreenshotResult, error) {
+	_ = ctx
+	_ = request
+	return ScreenshotResult{}, errors.New("native browser handoff runtime does not support screenshots")
+}
+
+func (runtime NativeHandoffRuntime) Click(ctx context.Context, request ClickRequest) (ActionResult, error) {
+	_ = ctx
+	_ = request
+	return ActionResult{}, errors.New("native browser handoff runtime does not support clicks")
+}
+
+func (runtime NativeHandoffRuntime) Fill(ctx context.Context, request FillRequest) (ActionResult, error) {
+	_ = ctx
+	_ = request
+	return ActionResult{}, errors.New("native browser handoff runtime does not support fills")
+}
+
+func (runtime NativeHandoffRuntime) Select(ctx context.Context, request SelectRequest) (ActionResult, error) {
+	_ = ctx
+	_ = request
+	return ActionResult{}, errors.New("native browser handoff runtime does not support selects")
+}
+
+func (runtime NativeHandoffRuntime) Press(ctx context.Context, request PressRequest) (ActionResult, error) {
+	_ = ctx
+	_ = request
+	return ActionResult{}, errors.New("native browser handoff runtime does not support key presses")
+}
+
+func (runtime NativeHandoffRuntime) Wait(ctx context.Context, request WaitRequest) (ActionResult, error) {
+	_ = ctx
+	_ = request
+	return ActionResult{}, errors.New("native browser handoff runtime does not support waits")
+}
+
+func (runtime NativeHandoffRuntime) CloseSession(ctx context.Context) error {
+	commandPath, arguments, ok := runtime.closeCommand()
+	if !ok {
+		return nil
+	}
+	runner := runtime.Runner
+	if runner == nil {
+		runner = OSCommandRunner{}
+	}
+	_, _ = runner.Run(ctx, commandPath, arguments)
+	return nil
 }
 
 func (runtime AgentBrowserRuntime) Navigate(ctx context.Context, request NavigateRequest) (NavigateResult, error) {
@@ -246,20 +370,52 @@ func (runtime AgentBrowserRuntime) Navigate(ctx context.Context, request Navigat
 		return NavigateResult{}, errorValue
 	}
 	trimmedURL := strings.TrimSpace(request.URL)
-	openArguments := append(runtime.sessionStartArguments(), "open", trimmedURL, "--headers", stealthRequestHeaders())
-	if _, errorValue := runtime.run(ctx, openArguments...); errorValue != nil {
-		return NavigateResult{}, errorValue
-	}
+	openArguments := runtime.sessionStartArguments()
+	openArguments = append(openArguments, "open", trimmedURL)
+	openError := runtime.runOpenCommand(ctx, openArguments)
 	actualURL, errorValue := runtime.currentURL(ctx)
+	if openError != nil && errorValue != nil {
+		return NavigateResult{}, openError
+	}
+	if openError != nil && !isOpenSettleTimeout(openError) {
+		return NavigateResult{}, openError
+	}
 	if errorValue != nil {
 		return NavigateResult{}, errorValue
 	}
 	if !isSuccessfulNavigationURL(actualURL) {
 		return NavigateResult{}, errors.New("companion browser did not navigate to requested URL")
 	}
-	stealthEvalArguments := append(runtime.sessionCommandArguments(), "eval", stealthPostLoadScript())
-	_, _ = runtime.run(ctx, stealthEvalArguments...)
-	return NavigateResult{URL: actualURL}, nil
+	observation, _ := runtime.observeCurrentPage(ctx)
+	return NavigateResult{
+		URL:             firstNonEmpty(observation.URL, actualURL),
+		RequestedURL:    trimmedURL,
+		Title:           observation.Title,
+		SnapshotText:    observation.SnapshotText,
+		InteractiveRefs: observation.InteractiveRefs,
+		CapturedAt:      observation.CapturedAt,
+	}, nil
+}
+
+func (runtime AgentBrowserRuntime) runOpenCommand(ctx context.Context, arguments []string) error {
+	commandContext, cancel := context.WithTimeout(ctx, runtime.openCommandTimeout())
+	defer cancel()
+	_, errorValue := runtime.run(commandContext, arguments...)
+	if commandContext.Err() != nil {
+		return commandContext.Err()
+	}
+	return errorValue
+}
+
+func (runtime AgentBrowserRuntime) openCommandTimeout() time.Duration {
+	if runtime.OpenCommandTimeout > 0 {
+		return runtime.OpenCommandTimeout
+	}
+	return browserOpenCommandTimeout
+}
+
+func isOpenSettleTimeout(errorValue error) bool {
+	return errors.Is(errorValue, context.DeadlineExceeded)
 }
 
 func (runtime AgentBrowserRuntime) currentURL(ctx context.Context) (string, error) {
@@ -285,16 +441,21 @@ func isSuccessfulNavigationURL(actualURL string) bool {
 	return actual.Hostname() != ""
 }
 
-func stealthRequestHeaders() string {
-	return `{"User-Agent":"Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36","Accept-Language":"ko,en-US;q=0.9,en;q=0.8"}`
+func (runtime AgentBrowserRuntime) closeSession(ctx context.Context) error {
+	_, errorValue := runtime.run(ctx, append(runtime.sessionCommandArguments(), "close")...)
+	return errorValue
 }
 
-func stealthPostLoadScript() string {
-	return `Object.defineProperty(navigator,'webdriver',{get:()=>undefined});Object.defineProperty(navigator,'languages',{get:()=>['ko-KR','ko','en-US','en']});`
+func (runtime AgentBrowserRuntime) CloseSession(ctx context.Context) error {
+	return runtime.closeSession(ctx)
 }
 
 func (runtime AgentBrowserRuntime) Observe(ctx context.Context, request ObserveRequest) (ObserveResult, error) {
 	_ = request
+	return runtime.observeCurrentPage(ctx)
+}
+
+func (runtime AgentBrowserRuntime) observeCurrentPage(ctx context.Context) (ObserveResult, error) {
 	capturedAt := runtime.now().UTC().Format(time.RFC3339)
 	output, errorValue := runtime.run(ctx, append(runtime.sessionCommandArguments(), "snapshot", "--compact", "--json")...)
 	if errorValue != nil {
@@ -393,6 +554,9 @@ func (runtime AgentBrowserRuntime) Wait(ctx context.Context, request WaitRequest
 }
 
 func (runtime AgentBrowserRuntime) Check(ctx context.Context) RuntimeReadiness {
+	if readiness := runtime.validateLocalBrowserConfiguration(); readiness.Status != "" {
+		return readiness
+	}
 	if _, errorValue := runtime.run(ctx, "doctor", "--offline", "--quick"); errorValue != nil {
 		return RuntimeReadiness{
 			Status: "unavailable",
@@ -407,6 +571,9 @@ func (runtime AgentBrowserRuntime) EnsureInstalled(ctx context.Context) RuntimeR
 	if readiness.Status == "ready" {
 		return readiness
 	}
+	if !runtime.canInstallMissingRuntime(readiness) {
+		return readiness
+	}
 	if _, errorValue := runtime.run(ctx, "install"); errorValue != nil {
 		return RuntimeReadiness{
 			Status: "unavailable",
@@ -414,6 +581,34 @@ func (runtime AgentBrowserRuntime) EnsureInstalled(ctx context.Context) RuntimeR
 		}
 	}
 	return runtime.Check(ctx)
+}
+
+func (runtime AgentBrowserRuntime) validateLocalBrowserConfiguration() RuntimeReadiness {
+	if runtime.browserEngine() == BrowserEngineChrome {
+		if !isExecutablePath(runtime.EngineExecutablePath) {
+			return RuntimeReadiness{
+				Status: "not_ready",
+				Error:  "Google Chrome is not installed",
+			}
+		}
+	}
+	return RuntimeReadiness{}
+}
+
+func (runtime AgentBrowserRuntime) canInstallMissingRuntime(readiness RuntimeReadiness) bool {
+	if readiness.Status == "not_ready" {
+		return false
+	}
+	return runtime.browserEngine() != BrowserEngineChrome
+}
+
+func isExecutablePath(path string) bool {
+	trimmedPath := strings.TrimSpace(path)
+	if trimmedPath == "" {
+		return false
+	}
+	information, errorValue := os.Stat(trimmedPath)
+	return errorValue == nil && !information.IsDir() && information.Mode()&0o111 != 0
 }
 
 func DeviceReadinessShellScript() string {
@@ -462,11 +657,6 @@ func (runtime AgentBrowserRuntime) sessionStartArguments() []string {
 	if engine != BrowserEngineLightpanda && strings.TrimSpace(runtime.ProfilePath) != "" {
 		arguments = append(arguments, "--profile", strings.TrimSpace(runtime.ProfilePath))
 	}
-	if engine != BrowserEngineLightpanda {
-		for _, extensionPath := range runtime.extensionPaths() {
-			arguments = append(arguments, "--extension", extensionPath)
-		}
-	}
 	if runtime.sessionName() != "" {
 		arguments = append(arguments, "--session-name", runtime.sessionName())
 	}
@@ -485,17 +675,6 @@ func (runtime AgentBrowserRuntime) browserExecutablePath(engine string) string {
 		return strings.TrimSpace(runtime.EngineExecutablePath)
 	}
 	return ""
-}
-
-func (runtime AgentBrowserRuntime) extensionPaths() []string {
-	paths := []string{}
-	for _, path := range runtime.ExtensionPaths {
-		trimmedPath := strings.TrimSpace(path)
-		if trimmedPath != "" {
-			paths = append(paths, trimmedPath)
-		}
-	}
-	return paths
 }
 
 func (runtime AgentBrowserRuntime) run(ctx context.Context, arguments ...string) ([]byte, error) {
@@ -549,6 +728,7 @@ func browserCommandName(arguments []string) string {
 		"press":      true,
 		"wait":       true,
 		"eval":       true,
+		"close":      true,
 	}
 	for _, argument := range arguments {
 		if commands[argument] {
@@ -587,6 +767,74 @@ func (runtime AgentBrowserRuntime) sleep(ctx context.Context, delay time.Duratio
 
 func (runtime AgentBrowserRuntime) commandPath() string {
 	return firstNonEmpty(runtime.CommandPath, "agent-browser")
+}
+
+func (runtime NativeHandoffRuntime) openCommand(targetURL string) (string, []string, error) {
+	executablePath := strings.TrimSpace(runtime.EngineExecutablePath)
+	profilePath := strings.TrimSpace(runtime.ProfilePath)
+	switch goruntime.GOOS {
+	case "darwin":
+		applicationPath := firstNonEmpty(macosApplicationPath(executablePath), "Google Chrome")
+		if profilePath == "" {
+			return "open", []string{"-a", applicationPath, targetURL}, nil
+		}
+		return "open", []string{"-na", applicationPath, "--args", "--user-data-dir=" + profilePath, "--no-first-run", targetURL}, nil
+	case "windows":
+		if executablePath == "" {
+			return "", nil, errors.New("Google Chrome is not installed")
+		}
+		return executablePath, append(nativeChromeProfileArguments(profilePath), targetURL), nil
+	case "linux":
+		if executablePath == "" {
+			return "", nil, errors.New("Google Chrome is not installed")
+		}
+		return executablePath, append(nativeChromeProfileArguments(profilePath), targetURL), nil
+	default:
+		return "", nil, errors.New("browser handoff native open is unsupported on this operating system")
+	}
+}
+
+func nativeChromeProfileArguments(profilePath string) []string {
+	if strings.TrimSpace(profilePath) == "" {
+		return []string{}
+	}
+	return []string{"--user-data-dir=" + strings.TrimSpace(profilePath), "--no-first-run"}
+}
+
+func (runtime NativeHandoffRuntime) closeCommand() (string, []string, bool) {
+	profilePath := strings.TrimSpace(runtime.ProfilePath)
+	if profilePath == "" {
+		return "", nil, false
+	}
+	profilePattern := "--user-data-dir=" + profilePath
+	switch goruntime.GOOS {
+	case "darwin", "linux":
+		return "pkill", []string{"-f", "--", profilePattern}, true
+	case "windows":
+		script := "$profile = " + strconv.Quote(profilePath) + "; Get-CimInstance Win32_Process -Filter \"name = 'chrome.exe'\" | Where-Object { $_.CommandLine -like \"*--user-data-dir=$profile*\" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"
+		return "powershell", []string{"-NoProfile", "-Command", script}, true
+	default:
+		return "", nil, false
+	}
+}
+
+func macosApplicationPath(executablePath string) string {
+	trimmedPath := strings.TrimSpace(executablePath)
+	if trimmedPath == "" {
+		return ""
+	}
+	applicationIndex := strings.Index(trimmedPath, ".app")
+	if applicationIndex == -1 {
+		return trimmedPath
+	}
+	return trimmedPath[:applicationIndex+len(".app")]
+}
+
+func (runtime NativeHandoffRuntime) now() time.Time {
+	if runtime.Now != nil {
+		return runtime.Now()
+	}
+	return time.Now()
 }
 
 func (runtime AgentBrowserRuntime) browserEngine() string {
@@ -652,7 +900,7 @@ func observeResultFromOutput(output []byte, capturedAt string) ObserveResult {
 	if json.Unmarshal(trimmedOutput, &document) != nil {
 		return result
 	}
-	result.URL = findStringValue(document, "url")
+	result.URL = firstNonEmpty(findStringValue(document, "url"), findStringValue(document, "origin"))
 	result.Title = findStringValue(document, "title")
 	result.HasMore = findBoolValue(document, "hasMore")
 	result.InteractiveRefs = mergeReferences(result.InteractiveRefs, referenceListFromDocument(document))
