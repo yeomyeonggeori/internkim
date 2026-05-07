@@ -9,6 +9,7 @@ import {
 	configureNodeSSHTunnel,
 	configureTunnel,
 	createDNSRecord,
+	ensureDeviceDNSRecord,
 	ensureNodeSSHDNSRecord,
 	ensureWildcardDNSRecord,
 	ensureOneTimePinIdentityProvider,
@@ -74,19 +75,22 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 		throw error(401, 'Invalid registration secret');
 	}
 
-	const { device_id, device_secret, admin_email, board_id, board_key } = (await request.json()) as {
+	const { device_id, device_secret, admin_email, board_id, board_key, new_device_id } = (await request.json()) as {
 		device_id: string;
 		device_secret: string;
 		admin_email: string;
 		board_id?: string;
 		board_key?: string;
+		new_device_id?: string;
 	};
 	const deviceID = normalizeDeviceID(device_id ?? '');
+	const newDeviceID = normalizeDeviceID(new_device_id ?? '');
 	const requestedBoardID = normalizeBoardID(board_id ?? '');
 	const boardKey = normalizeBoardKey(board_key ?? board_id ?? deviceID);
 	const adminEmail = normalizeEmail(admin_email ?? '');
 	if (!deviceID || !device_secret) throw error(400, 'device_id and device_secret required');
 	if (!isValidDeviceID(deviceID)) throw error(400, 'device_id must be a valid DNS label');
+	if (newDeviceID && !isValidDeviceID(newDeviceID)) throw error(400, 'new_device_id must be a valid DNS label');
 	if (requestedBoardID && !isValidDeviceID(requestedBoardID)) throw error(400, 'board_id must be a valid DNS label');
 	if (!boardKey) throw error(400, 'board_key required');
 
@@ -101,6 +105,9 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 	const identityProviderId = await ensureOneTimePinIdentityProvider(cfEnv);
 	if (existing) {
 		const ownedDevice = await ensureSameDevice(existing, device_secret);
+		if (newDeviceID && newDeviceID !== deviceID) {
+			return migrateRegisteredDevice(env, cfEnv, ownedDevice, deviceID, newDeviceID, requestedBoardID, boardKey, adminEmail, identityProviderId);
+		}
 		const records = await kv.getUserRecords(env.KV, deviceID);
 		const resolvedAdminEmail = adminEmail || ownedDevice.admin_email || '';
 		const boardID = resolveFleetBoardID(ownedDevice.fleet, requestedBoardID, boardKey);
@@ -172,6 +179,74 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 	});
 }
 
+async function migrateRegisteredDevice(
+	env: App.Platform['env'],
+	cfEnv: Parameters<typeof createDNSRecord>[0],
+	ownedDevice: Device,
+	oldDeviceID: string,
+	newDeviceID: string,
+	requestedBoardID: string,
+	boardKey: string,
+	adminEmail: string,
+	identityProviderId: string
+) {
+	if (await kv.getDevice(env.KV, newDeviceID)) {
+		throw error(409, 'New device ID already registered');
+	}
+
+	const records = await kv.getUserRecords(env.KV, oldDeviceID);
+	const resolvedAdminEmail = adminEmail || ownedDevice.admin_email || '';
+	const boardID = resolveFleetBoardID(ownedDevice.fleet, requestedBoardID, boardKey);
+	const fleet = registerFleetBoard(renameFleet(ownedDevice.fleet, newDeviceID), newDeviceID, boardID, boardKey, new Date());
+	const memberSSH = await ensureFleetMemberSSH(cfEnv, fleet, newDeviceID, boardID, identityProviderId, sshAccessEmails(records, resolvedAdminEmail), [oldDeviceID]);
+
+	await configureTunnel(cfEnv, ownedDevice.tunnel_id, newDeviceID, [oldDeviceID]);
+	await ensureDeviceDNSRecord(cfEnv, ownedDevice.tunnel_id, newDeviceID);
+	await ensureWildcardDNSRecord(cfEnv, ownedDevice.tunnel_id, newDeviceID);
+	await ensureAdminAccessApplications(cfEnv, newDeviceID, identityProviderId, []);
+	await ensureCompanionBypassApplication(cfEnv, newDeviceID);
+	const deviceWithAccess = await ensureAccessPolicy(
+		cfEnv,
+		{
+			...ownedDevice,
+			device_id: newDeviceID,
+			access_app_id: undefined,
+			access_policy_id: undefined,
+			admin_email: resolvedAdminEmail
+		},
+		userEmails(records)
+	);
+	const device: Device = {
+		...deviceWithAccess,
+		device_id: newDeviceID,
+		fleet: registerFleetBoard(fleet, newDeviceID, boardID, boardKey, new Date(), memberSSH)
+	};
+
+	await kv.putDevice(env.KV, newDeviceID, device);
+	await kv.putUserRecords(env.KV, newDeviceID, records);
+
+	return json({
+		device_id: newDeviceID,
+		old_device_id: oldDeviceID,
+		board_id: boardID,
+		tunnel_token: device.tunnel_token,
+		node_tunnel_token: memberSSH.nodeTunnelToken,
+		url: `https://${newDeviceID}.${env.CF_DOMAIN}`,
+		mattermost_url: `https://${newDeviceID}.${env.CF_DOMAIN}`,
+		alias_url: `https://${oldDeviceID}.${env.CF_DOMAIN}`,
+		ssh_hostname: memberSSH.sshHostname,
+		...fleetResponseFields(device.fleet, boardID)
+	});
+}
+
+function renameFleet(fleet: Device['fleet'], fleetID: string): Device['fleet'] {
+	if (!fleet) return undefined;
+	return {
+		...fleet,
+		fleetID
+	};
+}
+
 function fleetResponseFields(fleet: Device['fleet'], boardID: string) {
 	if (!fleet) {
 		return {
@@ -201,13 +276,14 @@ async function ensureFleetMemberSSH(
 	deviceID: string,
 	boardID: string,
 	identityProviderId: string,
-	emails: string[] | string
+	emails: string[] | string,
+	aliasDeviceIDs: string[] = []
 ): Promise<Pick<FleetMember, 'nodeTunnelID' | 'nodeTunnelToken' | 'sshDNSRecordID' | 'sshAccessAppID' | 'sshHostname'>> {
 	const existingMember = findFleetMember(fleet, boardID);
 	const nodeTunnel = existingMember?.nodeTunnelID && existingMember.nodeTunnelToken
 		? { tunnelId: existingMember.nodeTunnelID, tunnelToken: existingMember.nodeTunnelToken }
 		: await createNodeSSHTunnel(cfEnv, deviceID, boardID);
-	await configureNodeSSHTunnel(cfEnv, nodeTunnel.tunnelId, deviceID, boardID);
+	await configureNodeSSHTunnel(cfEnv, nodeTunnel.tunnelId, deviceID, boardID, aliasDeviceIDs);
 	const sshDNSRecordID = await ensureNodeSSHDNSRecord(cfEnv, nodeTunnel.tunnelId, deviceID, boardID);
 	const sshAccessAppID = await ensureNodeSSHAccessApplication(cfEnv, deviceID, boardID, identityProviderId, emails);
 	return {
