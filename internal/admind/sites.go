@@ -1035,7 +1035,7 @@ func (service *Service) sitePublishedURL(slug string) string {
 	if deviceHost == "" {
 		return ""
 	}
-	return "https://" + normalizeSiteSlug(slug) + "." + deviceHost
+	return "http://" + normalizeSiteSlug(slug) + "." + deviceHost
 }
 
 func siteServiceName(siteID string) string {
