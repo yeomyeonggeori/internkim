@@ -60,6 +60,7 @@ type fakeBrowserRuntime struct {
 	pressRequest    browserruntime.PressRequest
 	waitRequest     browserruntime.WaitRequest
 	observeResult   browserruntime.ObserveResult
+	startResults    []browserruntime.SessionStartResult
 	observeCount    int
 	startCount      int
 	closeCount      int
@@ -84,6 +85,9 @@ func (runtime *fakeBrowserRuntime) StartSession(ctx context.Context, request bro
 	runtime.startCount++
 	if runtime.errorValue != nil {
 		return browserruntime.SessionStartResult{}, runtime.errorValue
+	}
+	if runtime.startCount <= len(runtime.startResults) {
+		return runtime.startResults[runtime.startCount-1], nil
 	}
 	return browserruntime.SessionStartResult{
 		SessionID:       "internkim",
@@ -466,6 +470,96 @@ func TestBrowserHandoffRejectsLinuxWayland(t *testing.T) {
 	}
 }
 
+func TestBrowserHandoffUsesAutomationWhenGoogleProfileIsSignedIn(t *testing.T) {
+	handoffStore := NewBrowserHandoffStore()
+	nativeRuntime := &fakeBrowserRuntime{}
+	resumeRuntime := &fakeBrowserRuntime{observeResult: browserruntime.ObserveResult{
+		URL:             "https://console.cloud.google.com/project",
+		Title:           "Google Cloud",
+		SnapshotText:    "- button \"Create\" [ref=e1]",
+		InteractiveRefs: []string{"@e1"},
+		CapturedAt:      "2026-05-07T00:00:00Z",
+	}}
+	executor := Executor{
+		BrowserRuntime:        &fakeBrowserRuntime{},
+		HandoffBrowserRuntime: nativeRuntime,
+		HandoffResumeRuntime:  resumeRuntime,
+		HandoffStore:          handoffStore,
+	}
+
+	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
+		ToolName: "browser.handoff",
+		Input:    json.RawMessage(`{"url":"https://console.cloud.google.com/project","message":"로그인이 필요하면 계속을 눌러주세요."}`),
+	})
+	if errorValue != nil {
+		t.Fatalf("expected signed-in automation handoff response: %v", errorValue)
+	}
+
+	var result BrowserHandoffResult
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != HandoffStateCompleted || result.CompletedByUser || result.SnapshotText == "" {
+		t.Fatalf("expected completed automation result without user handoff, response=%+v result=%+v", response, result)
+	}
+	if nativeRuntime.startCount != 0 || resumeRuntime.startCount != 1 || handoffStore.Snapshot().Active {
+		t.Fatalf("expected automation probe only, native=%d resume=%d snapshot=%+v", nativeRuntime.startCount, resumeRuntime.startCount, handoffStore.Snapshot())
+	}
+}
+
+func TestBrowserHandoffFallsBackToNativeWhenGoogleProfileNeedsLogin(t *testing.T) {
+	handoffStore := NewBrowserHandoffStore()
+	nativeRuntime := &fakeBrowserRuntime{}
+	resumeRuntime := &fakeBrowserRuntime{startResults: []browserruntime.SessionStartResult{
+		{
+			SessionID:    "internkim",
+			Opened:       true,
+			URL:          "https://accounts.google.com/v3/signin/identifier",
+			Title:        "Sign in",
+			SnapshotText: "Sign in with Google",
+			CapturedAt:   "2026-05-07T00:00:00Z",
+		},
+		{
+			SessionID:       "internkim",
+			Opened:          true,
+			URL:             "https://console.cloud.google.com/project",
+			Title:           "Google Cloud",
+			SnapshotText:    "- button \"Create\" [ref=e1]",
+			InteractiveRefs: []string{"@e1"},
+			CapturedAt:      "2026-05-07T00:00:01Z",
+		},
+	}}
+	executor := Executor{
+		BrowserRuntime:        &fakeBrowserRuntime{},
+		HandoffBrowserRuntime: nativeRuntime,
+		HandoffResumeRuntime:  resumeRuntime,
+		HandoffStore:          handoffStore,
+	}
+	completionErrors := completeActiveHandoffWhenReady(handoffStore, "https://console.cloud.google.com")
+
+	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
+		ToolName: "browser.handoff",
+		Input:    json.RawMessage(`{"url":"https://console.cloud.google.com/project","message":"로그인 후 계속을 눌러주세요."}`),
+	})
+	if completionError := <-completionErrors; completionError != nil {
+		t.Fatalf("expected handoff completion: %v", completionError)
+	}
+	if errorValue != nil {
+		t.Fatalf("expected native handoff fallback response: %v", errorValue)
+	}
+
+	var result BrowserHandoffResult
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !result.CompletedByUser || result.SnapshotText == "" {
+		t.Fatalf("expected user-completed native fallback with resumed snapshot, got %+v", result)
+	}
+	if nativeRuntime.startCount != 1 || nativeRuntime.closeCount != 1 || resumeRuntime.startCount != 2 {
+		t.Fatalf("expected probe, native handoff, and resume; native=%+v resume=%+v", nativeRuntime, resumeRuntime)
+	}
+}
+
 func TestBrowserHandoffReusesActiveHandoffWithoutReopeningBrowser(t *testing.T) {
 	handoffStore := NewBrowserHandoffStore()
 	activeHandoff, errorValue := handoffStore.Begin(BrowserHandoffRequest{URL: "https://example.com/login"}, "internkim")
@@ -511,8 +605,8 @@ func TestBrowserHandoffClosesNativeProfileAndResumesAutomation(t *testing.T) {
 	handoffStore := NewBrowserHandoffStore()
 	nativeRuntime := &fakeBrowserRuntime{}
 	resumeRuntime := &fakeBrowserRuntime{observeResult: browserruntime.ObserveResult{
-		URL:             "https://console.cloud.google.com/project",
-		Title:           "Google Cloud",
+		URL:             "https://example.com/app",
+		Title:           "Example",
 		SnapshotText:    "- button \"Create\" [ref=e1]",
 		InteractiveRefs: []string{"@e1"},
 		CapturedAt:      "2026-05-07T00:00:00Z",
@@ -523,11 +617,11 @@ func TestBrowserHandoffClosesNativeProfileAndResumesAutomation(t *testing.T) {
 		HandoffResumeRuntime:  resumeRuntime,
 		HandoffStore:          handoffStore,
 	}
-	completionErrors := completeActiveHandoffWhenReady(handoffStore, "https://console.cloud.google.com")
+	completionErrors := completeActiveHandoffWhenReady(handoffStore, "https://example.com")
 
 	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
 		ToolName: "browser.handoff",
-		Input:    json.RawMessage(`{"url":"https://console.cloud.google.com/project","message":"로그인 후 계속을 눌러주세요."}`),
+		Input:    json.RawMessage(`{"url":"https://example.com/app","message":"로그인 후 계속을 눌러주세요."}`),
 	})
 	if completionError := <-completionErrors; completionError != nil {
 		t.Fatalf("expected handoff completion: %v", completionError)
@@ -543,7 +637,7 @@ func TestBrowserHandoffClosesNativeProfileAndResumesAutomation(t *testing.T) {
 	if nativeRuntime.startCount != 1 || nativeRuntime.closeCount != 1 || resumeRuntime.startCount != 1 {
 		t.Fatalf("expected native open/close and automation resume, native=%+v resume=%+v", nativeRuntime, resumeRuntime)
 	}
-	if result.URL != "https://console.cloud.google.com/project" || result.SnapshotText == "" || len(result.InteractiveRefs) != 1 {
+	if result.URL != "https://example.com/app" || result.SnapshotText == "" || len(result.InteractiveRefs) != 1 {
 		t.Fatalf("expected resumed automation snapshot in handoff result, got %+v", result)
 	}
 }
