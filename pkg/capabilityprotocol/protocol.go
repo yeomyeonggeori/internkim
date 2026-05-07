@@ -21,12 +21,17 @@ const (
 )
 
 type Descriptor struct {
-	Name                 string `json:"name"`
-	Version              string `json:"version"`
-	PrivacyClass         string `json:"privacyClass"`
-	EstimatedLatency     string `json:"estimatedLatency"`
-	RequiresUserPresence bool   `json:"requiresUserPresence"`
-	WorksOffline         bool   `json:"worksOffline"`
+	Name                 string          `json:"name"`
+	Version              string          `json:"version"`
+	PrivacyClass         string          `json:"privacyClass"`
+	EstimatedLatency     string          `json:"estimatedLatency"`
+	RequiresUserPresence bool            `json:"requiresUserPresence"`
+	WorksOffline         bool            `json:"worksOffline"`
+	InputSchema          json.RawMessage `json:"inputSchema,omitempty"`
+	OutputSchema         json.RawMessage `json:"outputSchema,omitempty"`
+	PolicyResource       string          `json:"policyResource,omitempty"`
+	SideEffectClass      string          `json:"sideEffectClass,omitempty"`
+	RequiresApproval     bool            `json:"requiresApproval,omitempty"`
 }
 
 type RegistryResponse struct {
@@ -114,18 +119,18 @@ type RecoveryAction struct {
 
 func CompanionToolDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "browser.open", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
-		{Name: "browser.snapshot", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
-		{Name: "browser.screenshot", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
-		{Name: "browser.handoff", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
-		{Name: "browser.click", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
-		{Name: "browser.fill", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
-		{Name: "browser.select", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
-		{Name: "browser.press", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
-		{Name: "browser.wait", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
-		{Name: "user.confirm", Version: "1", PrivacyClass: "user_input", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true},
-		{Name: "user.input", Version: "1", PrivacyClass: "user_input", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true},
-		{Name: "file.pick", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true},
+		{Name: "browser.open", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"url":{"type":"string"},"startURL":{"type":"string"}},"additionalProperties":false}`), SideEffectClass: "browser"},
+		{Name: "browser.snapshot", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"interactive":{"type":"boolean"}},"additionalProperties":false}`), SideEffectClass: "read"},
+		{Name: "browser.screenshot", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"ttlSeconds":{"type":"integer"}},"additionalProperties":false}`), SideEffectClass: "read"},
+		{Name: "browser.handoff", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"url":{"type":"string"},"message":{"type":"string"}},"additionalProperties":false}`), SideEffectClass: "handoff", RequiresApproval: true},
+		{Name: "browser.click", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"target":{"type":"string"},"ref":{"type":"string"},"selector":{"type":"string"}},"additionalProperties":false}`), SideEffectClass: "browser_write", RequiresApproval: true},
+		{Name: "browser.fill", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"target":{"type":"string"},"ref":{"type":"string"},"selector":{"type":"string"},"text":{"type":"string"}},"required":["text"],"additionalProperties":false}`), SideEffectClass: "browser_write"},
+		{Name: "browser.select", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"target":{"type":"string"},"ref":{"type":"string"},"selector":{"type":"string"},"value":{"type":"string"}},"required":["value"],"additionalProperties":false}`), SideEffectClass: "browser_write"},
+		{Name: "browser.press", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"key":{"type":"string"}},"required":["key"],"additionalProperties":false}`), SideEffectClass: "browser_write"},
+		{Name: "browser.wait", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"target":{"type":"string"},"ref":{"type":"string"},"selector":{"type":"string"},"milliseconds":{"type":"integer"}},"additionalProperties":false}`), SideEffectClass: "read"},
+		{Name: "user.confirm", Version: "1", PrivacyClass: "user_input", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true, InputSchema: json.RawMessage(`{"type":"object","properties":{"message":{"type":"string"},"reason":{"type":"string"}},"required":["message"],"additionalProperties":false}`), SideEffectClass: "approval", RequiresApproval: true},
+		{Name: "user.input", Version: "1", PrivacyClass: "user_input", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true, InputSchema: json.RawMessage(`{"type":"object","properties":{"message":{"type":"string"},"placeholder":{"type":"string"}},"required":["message"],"additionalProperties":false}`), SideEffectClass: "approval", RequiresApproval: true},
+		{Name: "file.pick", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true, InputSchema: json.RawMessage(`{"type":"object","properties":{"message":{"type":"string"},"accept":{"type":"array","items":{"type":"string"}},"multiple":{"type":"boolean"}},"additionalProperties":false}`), SideEffectClass: "local_file", RequiresApproval: true},
 		{Name: "filesystem.mount.create", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true},
 		{Name: "filesystem.mount.list", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "filesystem.mount.pause", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},

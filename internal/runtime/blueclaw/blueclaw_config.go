@@ -25,13 +25,14 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 	document := map[string]any{
 		"baseURL": BlueclawBaseURL,
 		"capabilities": map[string]any{
-			"transport":      "vsock",
-			"unixSocketPath": "",
-			"endpoint":       "http://internkim-capability",
-			"timeoutSecond":  BlueclawCapabilityTimeoutSecond,
-			"vsockCID":       CapabilityVSockHostCID,
-			"vsockPort":      CapabilityVSockPort,
-			"toolNames":      capabilities.DefaultToolNames(),
+			"transport":       "vsock",
+			"unixSocketPath":  "",
+			"endpoint":        "http://internkim-capability",
+			"timeoutSecond":   BlueclawCapabilityTimeoutSecond,
+			"vsockCID":        CapabilityVSockHostCID,
+			"vsockPort":       CapabilityVSockPort,
+			"toolNames":       capabilities.DefaultToolNames(),
+			"toolDescriptors": capabilities.DefaultToolDescriptors(),
 			"routing": map[string]any{
 				"candidates": capabilities.RoutingCandidates(),
 				"localOnly":  false,

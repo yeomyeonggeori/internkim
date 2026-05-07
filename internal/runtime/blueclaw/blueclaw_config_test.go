@@ -37,6 +37,13 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if !containsStringValue(capabilityToolNames, "user.confirm") {
 		t.Fatalf("expected companion capability tools, got %+v", capabilityToolNames)
 	}
+	capabilityToolDescriptors := capabilities["toolDescriptors"].([]any)
+	if !containsDescriptor(capabilityToolDescriptors, "browser.open", "inputSchema") {
+		t.Fatalf("expected browser.open descriptor with input schema, got %+v", capabilityToolDescriptors)
+	}
+	if !containsDescriptor(capabilityToolDescriptors, "user.confirm", "requiresApproval") {
+		t.Fatalf("expected user.confirm descriptor to require approval, got %+v", capabilityToolDescriptors)
+	}
 	routing := capabilities["routing"].(map[string]any)
 	if routing["localOnly"] != false {
 		t.Fatalf("expected default routing to allow remote fallback, got %v", routing["localOnly"])
@@ -219,6 +226,20 @@ func containsStringValue(values []any, expectedValue string) bool {
 	for _, value := range values {
 		if value == expectedValue {
 			return true
+		}
+	}
+	return false
+}
+
+func containsDescriptor(values []any, expectedName string, expectedField string) bool {
+	for _, value := range values {
+		descriptor, ok := value.(map[string]any)
+		if !ok {
+			continue
+		}
+		if descriptor["name"] == expectedName {
+			_, isFound := descriptor[expectedField]
+			return isFound
 		}
 	}
 	return false
