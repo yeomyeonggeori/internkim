@@ -209,6 +209,22 @@ func TestLocalLLMBuildEnvironmentPassesPasswordOutsideArguments(t *testing.T) {
 	}
 }
 
+func TestSimulationBinariesSkipLocalLLMInstall(t *testing.T) {
+	context := &setup.Context{BoardType: setup.BoardSimulation}
+
+	if shouldInstallLocalLLMSSH(context) {
+		t.Fatal("expected simulation binaries to skip local LLM install")
+	}
+}
+
+func TestJetsonBinariesInstallLocalLLM(t *testing.T) {
+	context := &setup.Context{BoardType: setup.BoardJetsonOrinNano}
+
+	if !shouldInstallLocalLLMSSH(context) {
+		t.Fatal("expected Jetson binaries to install local LLM")
+	}
+}
+
 func TestPruneLocalLLMBuildCachesKeepsCurrentCache(t *testing.T) {
 	temporaryDirectory := t.TempDir()
 	cacheRoot := filepath.Join(temporaryDirectory, ".dependency", "llama-cpp")
