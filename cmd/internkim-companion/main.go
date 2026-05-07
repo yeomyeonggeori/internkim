@@ -272,7 +272,6 @@ func runStatus(arguments []string, httpClient *http.Client, secureStore companio
 			CommandPath:          agentBrowserPath,
 			Engine:               browserruntime.BrowserEngineChrome,
 			EngineExecutablePath: defaultBrowserExecutablePath(),
-			ExtensionPaths:       []string{defaultBrowserExtensionPath()},
 		}.Check(context.Background())
 		authStatus := companionAuthStatusFromState(state, *verifyAuth, *statePath, httpClient, secureStore)
 		writeJSONDocument(os.Stdout, companionStatusFromState(state, readiness, authStatus))
@@ -287,7 +286,6 @@ func runStatus(arguments []string, httpClient *http.Client, secureStore companio
 		CommandPath:          agentBrowserPath,
 		Engine:               browserruntime.BrowserEngineChrome,
 		EngineExecutablePath: defaultBrowserExecutablePath(),
-		ExtensionPaths:       []string{defaultBrowserExtensionPath()},
 	}.Check(context.Background())
 	fmt.Println("browserRuntime: " + firstNonEmpty(readiness.Status, "unknown"))
 	return nil
@@ -362,9 +360,6 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 		ProfilePath:          *browserProfilePath,
 		SessionName:          "internkim",
 		Headed:               true,
-		ExtensionPaths: []string{
-			defaultBrowserExtensionPath(),
-		},
 	}
 	readiness := browserRuntime.EnsureInstalled(context.Background())
 	if readiness.Status != "ready" {
@@ -1122,38 +1117,6 @@ func executableBrowserPath(path string) string {
 		return trimmedPath
 	}
 	return ""
-}
-
-func defaultBrowserExtensionPath() string {
-	if environmentValue := strings.TrimSpace(os.Getenv("INTERNKIM_BROWSER_EXTENSION_PATH")); environmentValue != "" {
-		return environmentValue
-	}
-	firstCandidate := ""
-	executablePath, errorValue := os.Executable()
-	if errorValue == nil && strings.TrimSpace(executablePath) != "" {
-		for _, path := range browserExtensionCandidatePaths(filepath.Dir(executablePath)) {
-			if firstCandidate == "" {
-				firstCandidate = path
-			}
-			if isDirectory(path) {
-				return path
-			}
-		}
-	}
-	if isDirectory("companion/browser-extension") {
-		return "companion/browser-extension"
-	}
-	return firstCandidate
-}
-
-func browserExtensionCandidatePaths(executableDirectory string) []string {
-	return []string{
-		filepath.Join(executableDirectory, "browser-extension"),
-		filepath.Join(executableDirectory, "..", "Resources", "browser-extension"),
-		filepath.Join(executableDirectory, "..", "Resources", "companion", "browser-extension"),
-		filepath.Join(executableDirectory, "..", "Resources", "_up_", "browser-extension"),
-		filepath.Join(executableDirectory, "..", "Resources", "_up_", "companion", "browser-extension"),
-	}
 }
 
 func resolveAgentBrowserPath(flagValue string) string {
