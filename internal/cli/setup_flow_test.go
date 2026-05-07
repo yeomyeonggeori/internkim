@@ -165,6 +165,16 @@ func TestCloudflareSSHHostnameFromDeviceURL(t *testing.T) {
 	}
 }
 
+func TestRsyncSparseArgumentsVerifyAppendedData(t *testing.T) {
+	arguments := strings.Join(rsyncSparseArguments("ssh", "rootfs.ext4", "host:/tmp/rootfs.ext4"), "\n")
+	if !strings.Contains(arguments, "--append-verify") {
+		t.Fatalf("expected resumable sparse rsync to verify appended data, got %s", arguments)
+	}
+	if strings.Contains(arguments, "\n--append\n") {
+		t.Fatalf("expected resumable sparse rsync not to use unchecked append, got %s", arguments)
+	}
+}
+
 func TestRetryableSSHFailureIncludesNetworkRouteFailure(t *testing.T) {
 	output := "dial tcp [2606:4700:3031::ac43:d168]:443: connect: no route to host"
 	if !isRetryableSSHFailure(output) {
