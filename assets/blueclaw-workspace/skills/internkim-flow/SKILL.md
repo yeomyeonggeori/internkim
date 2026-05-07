@@ -15,6 +15,8 @@ Rules:
 - A user may add work directly only to their own Flow.
 - Work for another person must be added as `요청`, not as a direct assignment.
 - Do not say a task was added until `flow.task.add` succeeds.
+- If `flow.task.add` returns `status: skipped_duplicate`, tell the user the matching task is already in Flow and ask whether to add another copy. Do not call the tool again unless the user explicitly says to add it anyway.
+- When the user explicitly confirms adding a duplicate, call `flow.task.add` again with the same input and `allowDuplicate: true`.
 - After success, reply with the created task summary: 담당자, 상태, 대분류, 종류, 크기, 내용, 목표, 주간코드.
 - If the tool fails, explain the failure honestly and do not fabricate a task.
 
