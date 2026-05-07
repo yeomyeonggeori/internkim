@@ -777,6 +777,7 @@ func (service *Service) writeSiteWorkspaceTemplate(site *SiteRecord) error {
 		"app/src/main.tsx":     siteMainTSX(),
 		"app/src/App.tsx":      siteAppTSX(site),
 		"app/src/styles.css":   siteStylesCSS(),
+		"app/dist/index.html":  siteBuiltIndexHTML(site),
 	}
 	for relativePath, document := range files {
 		path := filepath.Join(site.HostSourcePath, relativePath)
@@ -1139,6 +1140,11 @@ func sitePackageJSON(site *SiteRecord) string {
 func siteIndexHTML(site *SiteRecord) string {
 	title := html.EscapeString(firstNonEmpty(site.Title, site.Slug))
 	return "<!doctype html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"UTF-8\" />\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n<title>" + title + "</title>\n</head>\n<body>\n<div id=\"root\"></div>\n<script type=\"module\" src=\"/src/main.tsx\"></script>\n</body>\n</html>\n"
+}
+
+func siteBuiltIndexHTML(site *SiteRecord) string {
+	title := html.EscapeString(firstNonEmpty(site.Title, site.Slug))
+	return "<!doctype html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"UTF-8\" />\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n<title>" + title + "</title>\n<style>" + siteStylesCSS() + "</style>\n</head>\n<body>\n<main class=\"page-shell\">\n<section class=\"workspace-panel\">\n<div class=\"eyebrow\">Prototype</div>\n<h1>" + title + "</h1>\n<p class=\"lede\">아이디어 검토를 위한 InternKim 웹사이트 프로토타입입니다.</p>\n<div class=\"action-row\"><button type=\"button\">시작하기</button><span>" + html.EscapeString(site.PublishedURL) + "</span></div>\n</section>\n<section class=\"status-grid\">\n<article><h2>Ready to edit</h2><p>기본 사이트 골격과 배포 가능한 정적 빌드가 준비되어 있습니다.</p></article>\n<article><h2>Local first</h2><p>추가 데이터와 인증은 PocketBase 기반으로 확장할 수 있습니다.</p></article>\n</section>\n</main>\n</body>\n</html>\n"
 }
 
 func siteMainTSX() string {
