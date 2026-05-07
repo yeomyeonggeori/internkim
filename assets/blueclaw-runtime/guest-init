@@ -39,7 +39,8 @@ prepare_blueclaw_workspace() {
     /workspace/circles/representative \
     /workspace/circles/admin \
     /workspace/private/people \
-    /workspace/shared/public
+    /workspace/shared/public \
+    /workspace/shared/cache/dependencies
 
   rmdir /workspace/.blueclaw/graphiti/kuzu 2>/dev/null || true
 
@@ -69,6 +70,14 @@ prepare_blueclaw_workspace() {
   find /workspace/.blueclaw/config -type f -exec chmod 0640 {} +
 }
 
+sync_blueclaw_posix_policy() {
+  if [ -x /usr/local/bin/blueclaw-posix-helper ] && [ -s /workspace/.blueclaw/config/policy.json ]; then
+    /usr/local/bin/blueclaw-posix-helper sync \
+      --policy /workspace/.blueclaw/config/policy.json \
+      --workspace /workspace >/workspace/.blueclaw/logs/posix-sync.log 2>&1 || true
+  fi
+}
+
 blueclaw_binary_path() {
   local payload_binary_path="/workspace/.blueclaw/runtime/current/bin/blueclaw"
   if [ ! -x "$payload_binary_path" ]; then
@@ -96,6 +105,7 @@ fi
 
 ensure_blueclaw_account
 prepare_blueclaw_workspace
+sync_blueclaw_posix_policy
 
 chown -R postgres:postgres /workspace/.blueclaw/postgres
 chown postgres:blueclaw /workspace/.blueclaw/postgres

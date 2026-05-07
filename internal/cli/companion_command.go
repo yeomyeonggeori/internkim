@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-const companionApplicationName = "Intern Kim Companion.app"
+const companionApplicationName = "internkim.app"
 
 func runCompanion() {
 	if len(os.Args) < 3 || os.Args[2] == "--help" || os.Args[2] == "-h" {
@@ -66,7 +66,7 @@ func runCompanionUpgrade(arguments []string) error {
 		return errorValue
 	}
 	fmt.Println("Updated " + *installPath)
-	fmt.Println("Restart Intern Kim Companion to use the new version.")
+	fmt.Println("Restart internkim to use the new version.")
 	return nil
 }
 
