@@ -3677,16 +3677,13 @@ func (s *sshClient) rsyncSparse(localPath string, remotePath string) error {
 		uploadRemotePath = temporaryUploadPath(remotePath)
 	}
 	target := fmt.Sprintf("%s@%s:%s", s.user, s.host, uploadRemotePath)
-	sshCommand := s.rsyncSSHCommand("ssh")
-	command := exec.Command("rsync", rsyncSparseArguments(sshCommand, localPath, target)...)
-	if s.pass != "" {
-		command.Env = append(os.Environ(), "SSHPASS="+s.pass)
-		sshpassCommand := s.rsyncSSHCommand(s.sshpassBin + " -e ssh")
-		command.Args = append([]string{"rsync"}, rsyncSparseArguments(sshpassCommand, localPath, target)...)
+	if uploadRemotePath != remotePath {
+		if output, errorValue := s.runResult("rm -f " + quoteShellValue(uploadRemotePath)); errorValue != nil {
+			return fmt.Errorf("remove stale upload file %s: %s: %w", uploadRemotePath, strings.TrimSpace(output), errorValue)
+		}
 	}
-	output, errorValue := runCommandWithLiveOutput(command)
-	if errorValue != nil {
-		return fmt.Errorf("rsync sparse %s to %s failed: %s: %w", localPath, remotePath, strings.TrimSpace(output), errorValue)
+	if errorValue := s.runRsyncSparse(localPath, remotePath, target); errorValue != nil {
+		return errorValue
 	}
 	if uploadRemotePath == remotePath {
 		return nil
@@ -3703,8 +3700,23 @@ func (s *sshClient) rsyncSparse(localPath string, remotePath string) error {
 	return nil
 }
 
+func (s *sshClient) runRsyncSparse(localPath string, remotePath string, target string) error {
+	sshCommand := s.rsyncSSHCommand("ssh")
+	command := exec.Command("rsync", rsyncSparseArguments(sshCommand, localPath, target)...)
+	if s.pass != "" {
+		command.Env = append(os.Environ(), "SSHPASS="+s.pass)
+		sshpassCommand := s.rsyncSSHCommand(s.sshpassBin + " -e ssh")
+		command.Args = append([]string{"rsync"}, rsyncSparseArguments(sshpassCommand, localPath, target)...)
+	}
+	output, errorValue := runCommandWithLiveOutput(command)
+	if errorValue != nil {
+		return fmt.Errorf("rsync sparse %s to %s failed: %s: %w", localPath, remotePath, strings.TrimSpace(output), errorValue)
+	}
+	return nil
+}
+
 func rsyncSparseArguments(sshCommand string, localPath string, target string) []string {
-	return []string{"-azSh", "--partial", "--append-verify", "--progress", "-e", sshCommand, localPath, target}
+	return []string{"-azSh", "--partial", "--progress", "-e", sshCommand, localPath, target}
 }
 
 func (s *sshClient) rsyncSSHCommand(commandName string) string {
