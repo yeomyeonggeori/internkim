@@ -15,6 +15,29 @@ export interface Device {
 		blueclaw: string;
 		cli: string;
 	};
+	fleet?: Fleet;
+}
+
+export type FleetMemberStatus = 'active' | 'pending';
+
+export interface FleetMember {
+	boardID: string;
+	boardKey?: string;
+	status: FleetMemberStatus;
+	joinedAt: string;
+	activatedAt?: string;
+	nodeTunnelID?: string;
+	nodeTunnelToken?: string;
+	sshDNSRecordID?: string;
+	sshAccessAppID?: string;
+	sshHostname?: string;
+}
+
+export interface Fleet {
+	fleetID: string;
+	members: FleetMember[];
+	workspaceHead?: string;
+	ledgerRevision?: number;
 }
 
 export type UserRole = 'admin' | 'member';

@@ -3,13 +3,18 @@ package blueclaw
 import "fmt"
 
 const (
-	InternKimUsersSyncScriptPath  = "/usr/local/bin/internkim-users-sync"
-	InternKimUsersSyncServicePath = "/etc/systemd/system/internkim-users-sync.service"
-	InternKimUsersSyncTimerPath   = "/etc/systemd/system/internkim-users-sync.timer"
-	InternKimUsersSyncStatePath   = "/root/.internkim/state/users-sync.json"
-	InternKimAPIURLPath           = "/root/.internkim/env/api-url"
-	InternKimDeviceIDPath         = "/root/.internkim/env/device-id"
-	InternKimDeviceSecretPath     = "/root/.internkim/secrets/device-secret"
+	InternKimUsersSyncScriptPath   = "/usr/local/bin/internkim-users-sync"
+	InternKimUsersSyncServicePath  = "/etc/systemd/system/internkim-users-sync.service"
+	InternKimUsersSyncTimerPath    = "/etc/systemd/system/internkim-users-sync.timer"
+	InternKimUsersSyncStatePath    = "/root/.internkim/state/users-sync.json"
+	InternKimAPIURLPath            = "/root/.internkim/env/api-url"
+	InternKimDeviceIDPath          = "/root/.internkim/env/device-id"
+	InternKimBoardIDPath           = "/root/.internkim/env/board-id"
+	InternKimFleetRolePath         = "/root/.internkim/env/fleet-role"
+	InternKimFleetActiveCountPath  = "/root/.internkim/env/fleet-active-count"
+	InternKimFleetPendingCountPath = "/root/.internkim/env/fleet-pending-count"
+	InternKimFleetQuorumSizePath   = "/root/.internkim/env/fleet-quorum-size"
+	InternKimDeviceSecretPath      = "/root/.internkim/secrets/device-secret"
 )
 
 func InternKimUsersSyncScript() string {

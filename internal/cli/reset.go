@@ -24,7 +24,7 @@ func osArgsTail() []string {
 
 func runResetArguments(arguments []string) error {
 	if len(arguments) == 0 {
-		return errors.New("usage: internkim reset blueclaw-history [--host <ip>] [--user <user>] [--password <password>] [--confirm <deviceID>] [--keep-mattermost-posts]")
+		return errors.New("usage: internkim reset blueclaw-history [--node <nodeID>] [--host <ip>] [--user <user>] [--password <password>] [--confirm <deviceID>] [--keep-mattermost-posts]")
 	}
 
 	switch arguments[0] {
@@ -40,9 +40,14 @@ func runResetBlueclawHistory(arguments []string) error {
 	host := flagSet.String("host", "", "Board host")
 	user := flagSet.String("user", "", "SSH user")
 	password := flagSet.String("password", "", "SSH password")
+	node := flagSet.String("node", "", "Fleet node target")
+	boardID := flagSet.String("board-id", "", "Deprecated alias for --node")
+	cloudflareSSH := flagSet.Bool("cloudflare-ssh", false, "Use Cloudflare SSH")
 	board := flagSet.String("board", "", "Board target")
 	simulation := flagSet.Bool("sim", false, "Use simulation target")
 	confirmDeviceID := flagSet.String("confirm", "", "Device ID required to execute the reset")
+	confirmNodeID := flagSet.String("confirm-node", "", "Node ID required for --node-local reset")
+	isNodeLocal := flagSet.Bool("node-local", false, "Confirm that the reset is scoped to one node")
 	isPlanOnly := flagSet.Bool("plan", false, "Print the reset plan without changing the board")
 	keepMattermostPosts := flagSet.Bool("keep-mattermost-posts", false, "Keep visible Mattermost posts")
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
@@ -58,6 +63,15 @@ func runResetBlueclawHistory(arguments []string) error {
 	}
 	if strings.TrimSpace(*password) != "" {
 		targetArguments = append(targetArguments, "--password", *password)
+	}
+	if strings.TrimSpace(*node) != "" {
+		targetArguments = append(targetArguments, "--node", *node)
+	}
+	if strings.TrimSpace(*boardID) != "" {
+		targetArguments = append(targetArguments, "--board-id", *boardID)
+	}
+	if *cloudflareSSH {
+		targetArguments = append(targetArguments, "--cloudflare-ssh")
 	}
 	if strings.TrimSpace(*board) != "" {
 		targetArguments = append(targetArguments, "--board", *board)
@@ -84,6 +98,15 @@ func runResetBlueclawHistory(arguments []string) error {
 	}
 	if strings.TrimSpace(*confirmDeviceID) != deviceID {
 		return fmt.Errorf("refusing to reset; pass --confirm %s", deviceID)
+	}
+	if *isNodeLocal {
+		nodeID := strings.TrimSpace(verifyTarget.nodeID)
+		if nodeID == "" {
+			nodeID = strings.TrimSpace(verifyTarget.sshClient.run("cat /root/.internkim/env/board-id 2>/dev/null || true"))
+		}
+		if strings.TrimSpace(*confirmNodeID) != nodeID {
+			return fmt.Errorf("refusing node-local reset; pass --confirm-node %s", nodeID)
+		}
 	}
 
 	output, errorValue := verifyTarget.sshClient.runResult(blueclawHistoryResetScript(*keepMattermostPosts))
