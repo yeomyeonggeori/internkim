@@ -1307,6 +1307,17 @@ for expected_event in $(printf '%%s' "$expected_events_json" | jq -r '.[]'); do
   fi
 done
 
+expected_tool_count="$(printf '%%s' "$expected_tools_json" | jq 'length')"
+expected_event_count="$(printf '%%s' "$expected_events_json" | jq 'length')"
+if [ -n "$task_run_id" ] && { [ "$expect_browser_open" = "true" ] || [ "$expected_tool_count" != "0" ] || [ "$expected_event_count" != "0" ]; }; then
+  task_status="$(jq -r 'def detail: if type == "array" then .[0] else . end; detail.taskRun.status // empty' "$task_detail_file")"
+  if [ "$task_status" != "completed" ]; then
+    echo "expected completed task for probe prompt, got ${task_status:-unknown} in task $task_run_id" >&2
+    jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
+    exit 1
+  fi
+fi
+
 jq -cn \
   --arg channel_id "$channel_id" \
   --arg user_post_id "$user_post_id" \
