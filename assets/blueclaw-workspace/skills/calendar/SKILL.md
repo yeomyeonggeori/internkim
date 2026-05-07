@@ -47,6 +47,7 @@ Optional fields:
 - `endISO`
 - `query`
 - `limit`
+- `query`
 
 Use both `startISO` and `endISO` together when narrowing a date range.
 
