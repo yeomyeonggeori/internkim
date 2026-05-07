@@ -26,12 +26,14 @@ type ApprovalRequest struct {
 	ToolName        string                     `json:"toolName"`
 	CapabilityScope string                     `json:"capabilityScope"`
 	ResourceScope   capabilities.ResourceScope `json:"resourceScope"`
+	TimeoutSeconds  int                        `json:"timeoutSeconds,omitempty"`
 }
 
 type ApprovalDecision struct {
 	Allowed             bool   `json:"allowed"`
 	UserReason          string `json:"userReason"`
 	SuggestedConstraint string `json:"suggestedConstraint"`
+	RememberSession     bool   `json:"rememberSession,omitempty"`
 }
 
 type JobEnvelope struct {
@@ -106,6 +108,7 @@ func (store *MemoryGrantStore) Authorize(ctx context.Context, envelope JobEnvelo
 		ToolName:        firstNonEmpty(envelope.ToolName, request.ToolName),
 		CapabilityScope: capabilityScope,
 		ResourceScope:   resourceScope,
+		TimeoutSeconds:  approvalTimeoutSeconds(ctx),
 	})
 	if errorValue != nil {
 		return errorValue
@@ -113,11 +116,34 @@ func (store *MemoryGrantStore) Authorize(ctx context.Context, envelope JobEnvelo
 	if !decision.Allowed {
 		return DenialError{Denial: denialForJob(envelope, request, decision.UserReason, decision.SuggestedConstraint)}
 	}
-	if resourceScope.Kind == "" || resourceScope.Value == "" {
+	grantResourceScope, shouldRemember := approvalGrantResourceScope(decision, resourceScope)
+	if !shouldRemember {
 		return nil
 	}
-	store.addGrant(envelope, capabilityScope, resourceScope)
+	store.addGrant(envelope, capabilityScope, grantResourceScope)
 	return nil
+}
+
+func approvalTimeoutSeconds(ctx context.Context) int {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return 0
+	}
+	remaining := time.Until(deadline)
+	if remaining <= 0 {
+		return 1
+	}
+	return int((remaining + time.Second - time.Nanosecond) / time.Second)
+}
+
+func approvalGrantResourceScope(decision ApprovalDecision, resourceScope capabilities.ResourceScope) (capabilities.ResourceScope, bool) {
+	if resourceScope.Kind != "" && resourceScope.Value != "" {
+		return resourceScope, true
+	}
+	if !decision.RememberSession {
+		return capabilities.ResourceScope{}, false
+	}
+	return capabilities.ResourceScope{Kind: "session", Value: "current"}, true
 }
 
 func (store *MemoryGrantStore) ListActive() []GrantSnapshot {
@@ -220,6 +246,9 @@ func grantDisplayName(grant ApprovalGrant) string {
 	if len(grant.ResourceScopes) > 0 && grant.ResourceScopes[0].Value != "" {
 		resourceScope = grant.ResourceScopes[0].Value
 	}
+	if len(grant.ResourceScopes) > 0 && grant.ResourceScopes[0].Kind == "session" {
+		resourceScope = "this session"
+	}
 	return titleCapabilityScope(capabilityScope) + " access to " + resourceScope
 }
 
@@ -277,6 +306,9 @@ func containsString(values []string, target string) bool {
 
 func containsResourceScope(values []capabilities.ResourceScope, target capabilities.ResourceScope) bool {
 	for _, value := range values {
+		if value.Kind == "session" && value.Value == "current" {
+			return true
+		}
 		if value.Kind == target.Kind && value.Value == target.Value {
 			return true
 		}
