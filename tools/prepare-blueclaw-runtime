@@ -87,25 +87,45 @@ run_tart_builder() {
 }
 
 ssh_base_command() {
+  local ssh_options=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+  if [[ "$ssh_host" == *.example.test ]]; then
+    ssh_options+=(-o "ProxyCommand=env GODEBUG=netdns=go TUNNEL_EDGE_IP_VERSION=4 cloudflared --edge-ip-version 4 --edge-bind-address 0.0.0.0 access ssh --hostname %h")
+  fi
+
   if [ -n "$ssh_password" ]; then
-    SSHPASS="$ssh_password" "$repository_root/bin/sshpass" -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$@"
+    SSHPASS="$ssh_password" "$repository_root/bin/sshpass" -e ssh "${ssh_options[@]}" "$@"
     return
   fi
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$@"
+  ssh "${ssh_options[@]}" "$@"
+}
+
+rsync_ssh_command() {
+  local ssh_command
+  ssh_command="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+  if [[ "$ssh_host" == *.example.test ]]; then
+    ssh_command="$ssh_command -o 'ProxyCommand=env GODEBUG=netdns=go TUNNEL_EDGE_IP_VERSION=4 cloudflared --edge-ip-version 4 --edge-bind-address 0.0.0.0 access ssh --hostname %h'"
+  fi
+  if [ -n "$ssh_password" ]; then
+    echo "$repository_root/bin/sshpass -e $ssh_command"
+    return
+  fi
+  echo "$ssh_command"
 }
 
 rsync_to_builder() {
   local remote_target="$ssh_user@$ssh_host"
+  local rsync_ssh
+  rsync_ssh="$(rsync_ssh_command)"
   if [ -n "$ssh_password" ]; then
     SSHPASS="$ssh_password" rsync -az --delete \
-      -e "$repository_root/bin/sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+      -e "$rsync_ssh" \
       --exclude '.git' \
       --exclude '.dependency/blueclaw-runtime' \
       "$repository_root/" "$remote_target:$remote_directory/repo/"
     return
   fi
   rsync -az --delete \
-    -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+    -e "$rsync_ssh" \
     --exclude '.git' \
     --exclude '.dependency/blueclaw-runtime' \
     "$repository_root/" "$remote_target:$remote_directory/repo/"
@@ -113,15 +133,17 @@ rsync_to_builder() {
 
 rsync_from_builder() {
   local remote_target="$ssh_user@$ssh_host"
+  local rsync_ssh
+  rsync_ssh="$(rsync_ssh_command)"
   mkdir -p "$artifact_directory"
   if [ -n "$ssh_password" ]; then
     SSHPASS="$ssh_password" rsync -az \
-      -e "$repository_root/bin/sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+      -e "$rsync_ssh" \
       "$remote_target:$remote_directory/repo/.dependency/blueclaw-runtime/" "$artifact_directory/"
     return
   fi
   rsync -az \
-    -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+    -e "$rsync_ssh" \
     "$remote_target:$remote_directory/repo/.dependency/blueclaw-runtime/" "$artifact_directory/"
 }
 
