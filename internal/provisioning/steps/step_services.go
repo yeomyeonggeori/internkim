@@ -270,8 +270,8 @@ for profile in runtime_configuration.get("agentProfiles", []):
         profile_tool_names = [str(tool_name) for tool_name in profile.get("allowedToolNames", [])]
         break
 
-required_tools = {"terminal.run", "terminal.session", "browser_handoff.openURL", "approval.request", "file.write", "file.attach"}
-missing_tools = sorted(required_tools - set(profile_tool_names))
+mandatory_profile_tools = {"terminal.run", "terminal.session", "browser_handoff.openURL", "approval.request", "file.write", "file.attach"}
+missing_tools = sorted(mandatory_profile_tools - set(profile_tool_names))
 if missing_tools:
     print("runtime-profile-missing-tools:" + ",".join(missing_tools))
     raise SystemExit
