@@ -31,6 +31,7 @@ func TestBlueclawRootfsBaseContractCheckCatchesStaleBaseRuntime(t *testing.T) {
 	command := blueclawRootfsBaseContractCheckCommand()
 	for _, expectedFragment := range []string{
 		"/opt/internkim/blueclaw-runtime/rootfs.ext4",
+		"loop,ro,noload",
 		"/workspace/.blueclaw/runtime/current/bin/blueclaw",
 		"rootfs-init-missing-marker",
 		"rootfs-blueclaw-init-root-launch",
