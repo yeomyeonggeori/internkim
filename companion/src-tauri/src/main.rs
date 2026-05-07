@@ -1,3 +1,4 @@
+mod handoff_overlay;
 mod prompt_bridge;
 mod settings;
 mod startup;
@@ -57,6 +58,7 @@ fn main() {
             prompt_bridge::start_shell_bridge,
             prompt_bridge::complete_prompt_request,
             prompt_bridge::pick_mount_directory,
+            handoff_overlay::sync_handoff_overlay,
             open_admin_url,
             ensure_launch_at_login,
             settings::get_settings,

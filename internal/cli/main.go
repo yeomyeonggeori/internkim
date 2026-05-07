@@ -195,6 +195,8 @@ func Main() {
 			runDeviceSSH()
 		case "model":
 			runModel()
+		case "migrate":
+			runMigrate()
 		case "companion":
 			runCompanion()
 		case "invite":
@@ -236,6 +238,7 @@ func printUsage() {
 	fmt.Println("  wifi     Add or update Jetson Wi-Fi profiles")
 	fmt.Println("  ssh      Open SSH to the device")
 	fmt.Println("  model    Manage LLM model (current/set/list)")
+	fmt.Println("  migrate  Migrate device metadata without full setup")
 	fmt.Println("  companion Build and upgrade the local companion app")
 	fmt.Println("  invite   Generate invite QR code")
 	fmt.Println("  users    Manage allowed users")
@@ -301,6 +304,10 @@ func printSetupUsage() {
 	fmt.Println("  --host <ip>          Override the saved board IP")
 	fmt.Println("  --user <name>        Override the SSH user")
 	fmt.Println("  --password <value>   Override the SSH password")
+	fmt.Println("  --node <number>      Target a numbered fleet node")
+	fmt.Println("  --board-id <id>      Deprecated alias for --node")
+	fmt.Println("  --fleet <device-id>  Join an existing logical fleet/device ID")
+	fmt.Println("  --fleet-secret <s>   Secret for joining an existing fleet (or INTERNKIM_FLEET_SECRET)")
 	fmt.Println("  --plan               Print the selected setup plan")
 	fmt.Println("  --list-steps         Print available setup steps")
 	fmt.Println("  --sim                Run the Tart simulation flow")
@@ -542,23 +549,38 @@ func detectBoardWifi(_ string) string {
 // --- Subcommands (stubs) ---
 
 func runDeploy() {
-	stateDir := internkimHomeDir()
+	configuration := loadConfig()
 	scriptDir, _ := os.Getwd()
 	binDir := filepath.Join(scriptDir, "bin")
 	sshpassBin := filepath.Join(binDir, "sshpass")
 	boardBinDir := filepath.Join(scriptDir, "build", "board-bin")
+	arguments := commandControlArguments(os.Args[2:])
 
-	var ssh *sshClient
-	boardIP := argString("--host", "")
-	if boardIP == "" {
-		boardIP = findBoardIP(sshpassBin, stateDir)
-		if boardIP == "" {
-			fatal("Board not reachable. Check USB or Wi-Fi connection.")
+	targets := []commandTarget{resolveCommandTarget(arguments)}
+	if hasCommandArgument(arguments, "--all-active") {
+		targets = activeFleetCommandTargets(targets[0])
+		if len(targets) == 0 {
+			fatal("No active fleet nodes are known locally.")
 		}
 	}
-	ssh = newSSH(sshpassBin, boardUser, "", boardIP)
-	fmt.Printf("Board: %s\n", boardIP)
 
+	for _, target := range targets {
+		if strings.TrimSpace(target.fleetRole) == "pending" {
+			fatal("Refusing to deploy to pending node " + target.nodeID)
+		}
+		ssh, isRemote, errorValue := resolveDeviceSSHConnection(configuration, sshpassBin, target)
+		if errorValue != nil {
+			fatal(errorValue.Error())
+		}
+		target.host = ssh.host
+		target.useRemoteSSH = isRemote
+		printCommandTargetEvidence(target)
+		runDeployToBoard(scriptDir, boardBinDir, ssh)
+	}
+	fmt.Println("Deploy complete.")
+}
+
+func runDeployToBoard(scriptDir string, boardBinDir string, ssh *sshClient) {
 	boardTools := []string{"download"}
 
 	fmt.Print("Installing skill dependencies... ")
@@ -603,12 +625,76 @@ chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills 2>/dev/null || true`
 		ssh.run("mkdir -p /root/.blueclaw/workspace/bin /root/.blueclaw/workspace/downloads && cp /usr/local/bin/" + tool + " /root/.blueclaw/workspace/bin/ && chmod 755 /root/.blueclaw/workspace/bin /root/.blueclaw/workspace/bin/" + tool)
 		fmt.Println("ok")
 	}
-	fmt.Println("Deploy complete.")
 }
 
 func findBoardIP(sshpassBin, stateDir string) string {
 	ip, _ := detectBoardRPi(sshpassBin, stateDir)
 	return ip
+}
+
+func runMigrate() {
+	if errorValue := runMigrateArguments(os.Args[2:]); errorValue != nil {
+		fatal(errorValue.Error())
+	}
+}
+
+func runMigrateArguments(arguments []string) error {
+	if len(arguments) == 0 || arguments[0] != "device-id" {
+		return errors.New("usage: internkim migrate device-id [--new-device-id <id>] [--node <number>] [--host <ip>] [--cloudflare-ssh]")
+	}
+	return runMigrateDeviceID(commandControlArguments(arguments[1:]))
+}
+
+func runMigrateDeviceID(arguments []string) error {
+	configuration := loadConfig()
+	repositoryRootPath, errorValue := resolveRepositoryRootPath()
+	if errorValue != nil {
+		return errorValue
+	}
+	sshpassBin := filepath.Join(repositoryRootPath, "bin", "sshpass")
+	target := resolveCommandTarget(arguments)
+	oldDeviceID := loadState(target.stateDir, "device_id")
+	if oldDeviceID == "" {
+		return errors.New("saved device_id not found; run setup once before migrating")
+	}
+	newDeviceID := commandArgumentValue(arguments, "--new-device-id", "")
+	if newDeviceID == "" {
+		newDeviceID = randomDeviceID()
+	}
+	if oldDeviceID == newDeviceID {
+		return errors.New("new device id is the same as current device id")
+	}
+	connection, isRemote, errorValue := resolveDeviceSSHConnection(configuration, sshpassBin, target)
+	if errorValue != nil {
+		return errorValue
+	}
+	target.host = connection.host
+	target.useRemoteSSH = isRemote
+	printCommandTargetEvidence(target)
+
+	response, errorValue := registerDeviceIDMigration(
+		configuration,
+		oldDeviceID,
+		newDeviceID,
+		loadBoardID(target.stateDir),
+		loadOrCreateBoardKey(target.stateDir),
+		loadState(target.stateDir, "device_secret"),
+		remoteSetupAdminEmail(target.stateDir),
+	)
+	if errorValue != nil {
+		return errorValue
+	}
+	if response.DeviceID != newDeviceID {
+		return fmt.Errorf("migration did not return requested device id: requested %s, got %s", newDeviceID, response.DeviceID)
+	}
+	saveRegistrationResponse(target.stateDir, response)
+	updateRemoteDeviceRegistration(connection, configuration, response)
+	fmt.Printf("Migrated device ID: %s -> %s\n", oldDeviceID, response.DeviceID)
+	if response.AliasURL != "" {
+		fmt.Printf("Alias: %s\n", response.AliasURL)
+	}
+	fmt.Printf("URL: %s\n", response.publicURL())
+	return nil
 }
 
 func runInvite() { fmt.Println("TODO: invite") }
@@ -625,15 +711,30 @@ func runStatusArguments(arguments []string) error {
 		lang = "en"
 	}
 	m := newMsg(lang)
-	configuration := loadConfig()
 	repositoryRootPath, errorValue := resolveRepositoryRootPath()
 	if errorValue != nil {
 		return errorValue
 	}
+	configuration := loadConfig()
 	sshpassBin := filepath.Join(repositoryRootPath, "bin", "sshpass")
 	target := resolveCommandTarget(arguments)
 	target = resolveLabHostForCommandTarget(target, repositoryRootPath)
+	if hasCommandArgument(arguments, "--all-nodes") {
+		targets := allFleetCommandTargets(target)
+		if len(targets) == 0 {
+			return errors.New("no fleet nodes are known locally")
+		}
+		for _, fleetTarget := range targets {
+			fleetTarget = resolveLabHostForCommandTarget(fleetTarget, repositoryRootPath)
+			printStatusForCommandTarget(m, configuration, sshpassBin, fleetTarget)
+		}
+		return nil
+	}
 
+	return printStatusForCommandTarget(m, configuration, sshpassBin, target)
+}
+
+func printStatusForCommandTarget(m *msg, configuration config, sshpassBin string, target commandTarget) error {
 	if strings.TrimSpace(target.host) == "" {
 		target.host = findBoardIPForCredentials(sshpassBin, target.stateDir, target.sshUser, target.sshPassword)
 	}
@@ -641,6 +742,14 @@ func runStatusArguments(arguments []string) error {
 		printCommandTargetEvidence(target)
 		fmt.Printf("=== %s (%s: %s) ===\n\n", m.t("기기 상태", "Device Status"), target.boardType, target.host)
 		printBoardStatus(m, target, newSSH(sshpassBin, target.sshUser, target.sshPassword, target.host))
+		return nil
+	}
+	if connection, isRemote, errorValue := resolveCloudflareSSHConnection(configuration, sshpassBin, target, false); errorValue == nil && connection != nil {
+		target.host = connection.host
+		target.useRemoteSSH = isRemote
+		printCommandTargetEvidence(target)
+		fmt.Printf("=== %s (%s: %s) ===\n\n", m.t("기기 상태", "Device Status"), target.boardType, target.host)
+		printBoardStatus(m, target, connection)
 		return nil
 	}
 
@@ -706,6 +815,7 @@ func printBoardStatus(m *msg, target commandTarget, sshClient *sshClient) {
 		{"mattermost", "Mattermost"},
 		{blueclaw.BlueclawServiceName, "Blueclaw"},
 		{"cloudflared", "Cloudflared"},
+		{"cloudflared-node-ssh", "Node SSH Tunnel"},
 		{"postgresql", "PostgreSQL"},
 	}
 	fmt.Println()
@@ -2059,11 +2169,19 @@ func getLocalSSHPubKey() string {
 // --- Device registration ---
 
 type registerResponse struct {
-	DeviceID      string `json:"device_id"`
-	TunnelToken   string `json:"tunnel_token"`
-	URL           string `json:"url"`
-	MattermostURL string `json:"mattermost_url"`
-	SSHHostname   string `json:"ssh_hostname"`
+	DeviceID          string `json:"device_id"`
+	OldDeviceID       string `json:"old_device_id"`
+	BoardID           string `json:"board_id"`
+	TunnelToken       string `json:"tunnel_token"`
+	NodeTunnelToken   string `json:"node_tunnel_token"`
+	URL               string `json:"url"`
+	MattermostURL     string `json:"mattermost_url"`
+	AliasURL          string `json:"alias_url"`
+	SSHHostname       string `json:"ssh_hostname"`
+	FleetRole         string `json:"fleet_role"`
+	FleetActiveCount  int    `json:"fleet_active_count"`
+	FleetPendingCount int    `json:"fleet_pending_count"`
+	FleetQuorumSize   int    `json:"fleet_quorum_size"`
 }
 
 type registrationHTTPError struct {
@@ -2082,12 +2200,29 @@ func (response *registerResponse) publicURL() string {
 	return response.URL
 }
 
-func registerDevice(configuration config, deviceID, deviceSecret, adminEmail string) (*registerResponse, error) {
-	body, _ := json.Marshal(map[string]string{
+func registerDevice(configuration config, deviceID, boardID, boardKey, deviceSecret, adminEmail string) (*registerResponse, error) {
+	return registerDeviceRequest(configuration, map[string]string{
 		"device_id":     deviceID,
+		"board_id":      boardID,
+		"board_key":     boardKey,
 		"device_secret": deviceSecret,
 		"admin_email":   adminEmail,
 	})
+}
+
+func registerDeviceIDMigration(configuration config, oldDeviceID, newDeviceID, boardID, boardKey, deviceSecret, adminEmail string) (*registerResponse, error) {
+	return registerDeviceRequest(configuration, map[string]string{
+		"device_id":     oldDeviceID,
+		"new_device_id": newDeviceID,
+		"board_id":      boardID,
+		"board_key":     boardKey,
+		"device_secret": deviceSecret,
+		"admin_email":   adminEmail,
+	})
+}
+
+func registerDeviceRequest(configuration config, requestBody map[string]string) (*registerResponse, error) {
+	body, _ := json.Marshal(requestBody)
 
 	req, _ := http.NewRequest("POST", configuration.APIBaseURL+"/api/register", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -2114,11 +2249,14 @@ func registerDevice(configuration config, deviceID, deviceSecret, adminEmail str
 
 func registerDeviceWithCollisionRetry(configuration config, stateDir, deviceID, adminEmail string) (*registerResponse, error) {
 	deviceSecret := loadOrCreateDeviceSecret(stateDir)
+	boardID := loadBoardID(stateDir)
+	boardKey := loadOrCreateBoardKey(stateDir)
 
 	for attempt := 0; attempt < 5; attempt++ {
-		response, registerError := registerDevice(configuration, deviceID, deviceSecret, adminEmail)
+		response, registerError := registerDevice(configuration, deviceID, boardID, boardKey, deviceSecret, adminEmail)
 		if registerError == nil {
-			saveState(stateDir, "device_id", response.DeviceID)
+			saveRegistrationResponse(stateDir, response)
+			saveDefaultFleetNode(stateDir, response)
 			return response, nil
 		}
 
@@ -2126,12 +2264,32 @@ func registerDeviceWithCollisionRetry(configuration config, stateDir, deviceID, 
 		if !errors.As(registerError, &httpError) || httpError.statusCode != http.StatusConflict {
 			return nil, registerError
 		}
+		if strings.TrimSpace(argString("--fleet", "")) != "" {
+			return nil, errors.New("fleet join rejected; check --fleet and --fleet-secret")
+		}
 
 		deviceID, deviceSecret = resetDeviceIdentity(stateDir)
 		fmt.Printf("  Device ID collision detected; retrying with %s\n", deviceID)
 	}
 
 	return nil, errors.New("device_id collision retry limit reached")
+}
+
+func saveRegistrationResponse(stateDir string, response *registerResponse) {
+	saveState(stateDir, "device_id", response.DeviceID)
+	saveState(stateDir, "board_id", firstNonEmptyString(response.BoardID, loadBoardID(stateDir)))
+	saveState(stateDir, "fleet_role", firstNonEmptyString(response.FleetRole, "active"))
+	saveState(stateDir, "fleet_active_count", fmt.Sprint(defaultInt(response.FleetActiveCount, 1)))
+	saveState(stateDir, "fleet_pending_count", fmt.Sprint(response.FleetPendingCount))
+	saveState(stateDir, "fleet_quorum_size", fmt.Sprint(defaultInt(response.FleetQuorumSize, 1)))
+	saveState(stateDir, "tunnel_token", response.TunnelToken)
+	if strings.TrimSpace(response.NodeTunnelToken) != "" {
+		saveState(stateDir, "node_tunnel_token", response.NodeTunnelToken)
+	}
+	saveState(stateDir, "device_url", response.publicURL())
+	if strings.TrimSpace(response.SSHHostname) != "" {
+		saveState(stateDir, "ssh_hostname", response.SSHHostname)
+	}
 }
 
 // --- Command helper ---
@@ -2216,9 +2374,39 @@ func loadOrCreateDeviceID(stateDir string) string {
 	if id != "" {
 		return id
 	}
-	id = randomHexString(16)
+	id = randomDeviceID()
 	saveState(stateDir, "device_id", id)
 	return id
+}
+
+func loadBoardID(stateDir string) string {
+	return loadState(stateDir, "board_id")
+}
+
+func loadOrCreateBoardKey(stateDir string) string {
+	key := loadState(stateDir, "board_key")
+	if key != "" {
+		return key
+	}
+	key = "board-" + randomHexString(8)
+	saveState(stateDir, "board_key", key)
+	return key
+}
+
+func isNumericBoardID(boardID string) bool {
+	trimmedBoardID := strings.TrimSpace(boardID)
+	if trimmedBoardID == "" {
+		return false
+	}
+	for index, character := range trimmedBoardID {
+		if character < '0' || character > '9' {
+			return false
+		}
+		if index == 0 && character == '0' {
+			return false
+		}
+	}
+	return true
 }
 
 func loadOrCreateDeviceSecret(stateDir string) string {
@@ -2232,13 +2420,31 @@ func loadOrCreateDeviceSecret(stateDir string) string {
 }
 
 func resetDeviceIdentity(stateDir string) (string, string) {
-	deviceID := randomHexString(16)
+	deviceID := randomDeviceID()
 	deviceSecret := randomHexString(32)
 	saveState(stateDir, "device_id", deviceID)
 	saveState(stateDir, "device_secret", deviceSecret)
 	saveState(stateDir, "device_url", "")
 	saveState(stateDir, "tunnel_token", "")
 	return deviceID, deviceSecret
+}
+
+func randomDeviceID() string {
+	return randomAlphanumericString(12)
+}
+
+func randomAlphanumericString(length int) string {
+	const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
+	randomBytes := make([]byte, length)
+	if _, randomError := rand.Read(randomBytes); randomError != nil {
+		panic(fmt.Sprintf("crypto random failed: %v", randomError))
+	}
+	var builder strings.Builder
+	builder.Grow(length)
+	for _, randomByte := range randomBytes {
+		builder.WriteByte(alphabet[int(randomByte)%len(alphabet)])
+	}
+	return builder.String()
 }
 
 func randomHexString(byteCount int) string {
@@ -3809,15 +4015,20 @@ func resolveCloudflareSSHHostname(configuration config, target commandTarget) st
 	if strings.TrimSpace(deviceID) == "" {
 		return ""
 	}
+	if strings.TrimSpace(target.nodeID) != "" {
+		return cloudflareNodeSSHHostname(configuration, strings.TrimSpace(deviceID), strings.TrimSpace(target.nodeID))
+	}
 	return cloudflareSSHHostname(configuration, strings.TrimSpace(deviceID))
 }
 
 func ensureCloudflareSSHRegistration(configuration config, stateDir string) (string, error) {
 	savedSSHHostname := loadState(stateDir, "ssh_hostname")
-	if savedSSHHostname != "" && loadState(stateDir, "tunnel_revision") == setup.TunnelConfigurationRevision && !isLegacyCloudflareSSHHostname(configuration, savedSSHHostname) {
+	if savedSSHHostname != "" && loadState(stateDir, "node_tunnel_token") != "" && loadState(stateDir, "tunnel_revision") == setup.TunnelConfigurationRevision && !isLegacyCloudflareSSHHostname(configuration, savedSSHHostname) {
 		return savedSSHHostname, nil
 	}
 	deviceID := loadState(stateDir, "device_id")
+	boardID := loadBoardID(stateDir)
+	boardKey := loadOrCreateBoardKey(stateDir)
 	deviceSecret := loadState(stateDir, "device_secret")
 	if deviceID == "" || deviceSecret == "" {
 		return "", errors.New("Cloudflare SSH requires an already registered device; run setup once on the device network first")
@@ -3825,19 +4036,95 @@ func ensureCloudflareSSHRegistration(configuration config, stateDir string) (str
 	if strings.TrimSpace(configuration.RegisterSecret) == "" {
 		return "", errors.New("Cloudflare SSH migration requires INTERNKIM_REGISTER_SECRET")
 	}
-	response, errorValue := registerDevice(configuration, deviceID, deviceSecret, remoteSetupAdminEmail(stateDir))
+	response, errorValue := registerDevice(configuration, deviceID, boardID, boardKey, deviceSecret, remoteSetupAdminEmail(stateDir))
 	if errorValue != nil {
 		return "", errorValue
 	}
-	saveState(stateDir, "device_id", response.DeviceID)
-	saveState(stateDir, "tunnel_token", response.TunnelToken)
-	saveState(stateDir, "device_url", response.publicURL())
 	sshHostname := response.SSHHostname
 	if sshHostname == "" {
 		sshHostname = cloudflareSSHHostnameFromDeviceURL(response.publicURL())
 	}
+	response.SSHHostname = sshHostname
+	saveRegistrationResponse(stateDir, response)
 	saveState(stateDir, "ssh_hostname", sshHostname)
+	saveDefaultFleetNode(stateDir, response)
 	return sshHostname, nil
+}
+
+func updateRemoteDeviceRegistration(connection *sshClient, configuration config, response *registerResponse) {
+	nodeTunnelToken := firstNonEmptyString(response.NodeTunnelToken, response.TunnelToken)
+	connection.run(fmt.Sprintf(`mkdir -p /root/.internkim/secrets /root/.internkim/env
+printf '%%s' %s > /root/.internkim/env/device-id
+printf '%%s' %s > /root/.internkim/env/device-url
+printf '%%s' %s > /root/.internkim/env/mattermost-url
+printf '%%s' %s > /root/.internkim/secrets/tunnel-token
+printf '%%s' %s > /root/.internkim/secrets/node-tunnel-token
+printf '%%s' %s > /root/.internkim/env/tunnel-origin
+printf '%%s' %s > /root/.internkim/env/tunnel-revision
+printf '%%s' %s > /root/.internkim/env/api-url
+chown root:root /root/.internkim/secrets/tunnel-token /root/.internkim/secrets/node-tunnel-token
+chmod 600 /root/.internkim/secrets/tunnel-token /root/.internkim/secrets/node-tunnel-token
+chown root:blueclaw /root/.internkim/env/device-id /root/.internkim/env/device-url /root/.internkim/env/mattermost-url /root/.internkim/env/tunnel-origin /root/.internkim/env/tunnel-revision /root/.internkim/env/api-url
+chmod 640 /root/.internkim/env/device-id /root/.internkim/env/device-url /root/.internkim/env/mattermost-url /root/.internkim/env/tunnel-origin /root/.internkim/env/tunnel-revision /root/.internkim/env/api-url
+cat > /etc/systemd/system/cloudflared.service <<'SVCEOF'
+[Unit]
+Description=Cloudflare Tunnel
+After=network-online.target time-sync.target
+Wants=network-online.target time-sync.target
+
+[Service]
+Type=simple
+ExecStart=/bin/sh -c '/usr/local/bin/cloudflared tunnel run --protocol http2 --token "$(cat /root/.internkim/secrets/tunnel-token)"'
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+cat > /etc/systemd/system/cloudflared-node-ssh.service <<'SVCEOF'
+[Unit]
+Description=Cloudflare Node SSH Tunnel
+After=network-online.target time-sync.target
+Wants=network-online.target time-sync.target
+
+[Service]
+Type=simple
+ExecStart=/bin/sh -c '/usr/local/bin/cloudflared tunnel run --protocol http2 --token "$(cat /root/.internkim/secrets/node-tunnel-token)"'
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+rm -f /etc/init.d/S98cloudflared 2>/dev/null
+systemctl daemon-reload
+systemctl enable cloudflared cloudflared-node-ssh
+systemctl restart cloudflared cloudflared-node-ssh`,
+		quoteShellValue(response.DeviceID),
+		quoteShellValue(response.publicURL()),
+		quoteShellValue(response.publicURL()),
+		quoteShellValue(response.TunnelToken),
+		quoteShellValue(nodeTunnelToken),
+		quoteShellValue(setup.MattermostTunnelOrigin),
+		quoteShellValue(setup.TunnelConfigurationRevision),
+		quoteShellValue(configuration.APIBaseURL),
+	))
+}
+
+func saveDefaultFleetNode(stateDir string, response *registerResponse) {
+	boardID := setupBoardIdentityName(response.BoardID)
+	if boardID == "" || strings.TrimSpace(response.FleetRole) != "active" {
+		return
+	}
+	if filepath.Base(filepath.Dir(stateDir)) != "boards" {
+		return
+	}
+	baseStateDir := filepath.Dir(filepath.Dir(stateDir))
+	saveState(baseStateDir, "default_node_id", boardID)
 }
 
 func cloudflareSSHHostname(configuration config, deviceID string) string {
@@ -3846,6 +4133,14 @@ func cloudflareSSHHostname(configuration config, deviceID string) string {
 		return ""
 	}
 	return "ssh-" + strings.TrimSpace(deviceID) + "." + cfDomain
+}
+
+func cloudflareNodeSSHHostname(configuration config, deviceID string, nodeID string) string {
+	cfDomain := strings.TrimSpace(configuration.CFDomain)
+	if cfDomain == "" || strings.TrimSpace(deviceID) == "" || strings.TrimSpace(nodeID) == "" {
+		return ""
+	}
+	return "ssh-" + strings.TrimSpace(nodeID) + "." + strings.TrimSpace(deviceID) + "." + cfDomain
 }
 
 func isLegacyCloudflareSSHHostname(configuration config, hostname string) bool {

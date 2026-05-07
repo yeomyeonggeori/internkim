@@ -37,8 +37,36 @@
 		'openai/gpt-5.1',
 		'anthropic/claude-sonnet-4.5'
 	];
+	const currentWindow = getCurrentWindow();
+	const isHandoffOverlayWindow = currentWindow.label === 'browser-handoff-overlay';
+	const handoffBridgeURL = 'http://127.0.0.1:7983/v1/browser/handoff';
+	type BrowserHandoffSnapshot = {
+		active: boolean;
+		handoffID: string;
+		sessionID: string;
+		message: string;
+	};
+	let handoffSnapshot = $state<BrowserHandoffSnapshot>({
+		active: false,
+		handoffID: '',
+		sessionID: '',
+		message: '브라우저에서 필요한 작업을 마친 뒤 완료를 눌러주세요.'
+	});
+	let handoffOverlayError = $state('');
+	let isCompletingHandoff = $state(false);
 
 	onMount(() => {
+		if (isHandoffOverlayWindow) {
+			document.body.classList.add('handoff-overlay-body');
+			void refreshHandoffOverlay();
+			const overlayIntervalID = window.setInterval(() => {
+				void refreshHandoffOverlay();
+			}, 250);
+			return () => {
+				window.clearInterval(overlayIntervalID);
+				document.body.classList.remove('handoff-overlay-body');
+			};
+		}
 		void bootstrap();
 		void registerShellEvents();
 		const intervalID = window.setInterval(() => {
@@ -410,9 +438,88 @@
 	async function closeWindow() {
 		await getCurrentWindow().hide();
 	}
+
+	async function refreshHandoffOverlay() {
+		try {
+			handoffSnapshot = await readHandoffSnapshot();
+			handoffOverlayError = '';
+			await invoke('sync_handoff_overlay', { isActive: handoffSnapshot.active });
+		} catch (errorValue) {
+			handoffOverlayError = errorValue instanceof Error ? errorValue.message : 'Browser handoff overlay failed';
+			await currentWindow.hide();
+		}
+	}
+
+	async function readHandoffSnapshot(): Promise<BrowserHandoffSnapshot> {
+		const response = await fetch(handoffBridgeURL, { cache: 'no-store' });
+		if (!response.ok) return inactiveHandoffSnapshot();
+		return normalizeHandoffSnapshot(await response.json());
+	}
+
+	function normalizeHandoffSnapshot(value: unknown): BrowserHandoffSnapshot {
+		if (!isRecord(value) || value.active !== true) return inactiveHandoffSnapshot();
+		return {
+			active: true,
+			handoffID: readString(value.handoffID),
+			sessionID: readString(value.sessionID),
+			message: readString(value.message) || '브라우저에서 필요한 작업을 마친 뒤 완료를 눌러주세요.'
+		};
+	}
+
+	function inactiveHandoffSnapshot(): BrowserHandoffSnapshot {
+		return {
+			active: false,
+			handoffID: '',
+			sessionID: '',
+			message: '브라우저에서 필요한 작업을 마친 뒤 완료를 눌러주세요.'
+		};
+	}
+
+	function isRecord(value: unknown): value is Record<string, unknown> {
+		return typeof value === 'object' && value !== null;
+	}
+
+	function readString(value: unknown): string {
+		return typeof value === 'string' ? value.trim() : '';
+	}
+
+	async function completeBrowserHandoff() {
+		if (!handoffSnapshot.active || isCompletingHandoff) return;
+		isCompletingHandoff = true;
+		handoffOverlayError = '';
+		try {
+			const response = await fetch(`${handoffBridgeURL}/complete`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					handoffID: handoffSnapshot.handoffID,
+					sessionID: handoffSnapshot.sessionID,
+					url: 'https://internkim.local/browser-handoff-complete',
+					title: ''
+				})
+			});
+			if (!response.ok) {
+				throw new Error(await response.text());
+			}
+			handoffSnapshot = inactiveHandoffSnapshot();
+			await invoke('sync_handoff_overlay', { isActive: false });
+		} catch (errorValue) {
+			handoffOverlayError = errorValue instanceof Error ? errorValue.message : 'Browser handoff completion failed';
+		} finally {
+			isCompletingHandoff = false;
+		}
+	}
 </script>
 
-<main class="shell">
+{#if isHandoffOverlayWindow}
+	<main class="handoff-overlay">
+		<p>{handoffOverlayError || handoffSnapshot.message}</p>
+		<button disabled={!handoffSnapshot.active || isCompletingHandoff} onclick={completeBrowserHandoff}>
+			{isCompletingHandoff ? '완료 중' : '완료'}
+		</button>
+	</main>
+{:else}
+	<main class="shell">
 	<section class="status-panel">
 		<div>
 			<p class="eyebrow">Intern Kim Companion</p>
@@ -660,3 +767,4 @@
 		{/if}
 	</section>
 </main>
+{/if}

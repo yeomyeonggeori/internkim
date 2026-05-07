@@ -33,6 +33,7 @@ func printWiFiUsage() {
 	fmt.Println("  --no-connect             Install the profile without asking Jetson to connect now")
 	fmt.Println("  --wait                   Wait for a wireless IP after applying")
 	fmt.Println("  --host <ip>              Override Jetson SSH host, for example 192.168.55.1 over USB")
+	fmt.Println("  --node <id>              Use a fleet node state")
 	fmt.Println("  --user <name>            Override Jetson SSH user")
 	fmt.Println("  --password <value>       Override Jetson SSH password")
 	fmt.Println()
@@ -103,13 +104,13 @@ type jetsonWiFiCommandTarget struct {
 }
 
 func resolveJetsonWiFiCommandTarget(boardType string) (jetsonWiFiCommandTarget, error) {
-	baseStateDirectory := internkimHomeDir()
-	stateDirectory := setupStateDir(baseStateDirectory, boardType)
+	commandTarget := resolveCommandTarget(os.Args[2:])
+	stateDirectory := commandTarget.stateDir
 	scriptDirectory, _ := os.Getwd()
 	sshpassPath := filepath.Join(scriptDirectory, "bin", "sshpass")
-	username, password := resolveSetupSSHCredentials(boardType, argString("--user", ""), argString("--password", ""))
+	username, password := commandTarget.sshUser, commandTarget.sshPassword
 
-	hostAddress := strings.TrimSpace(argString("--host", ""))
+	hostAddress := strings.TrimSpace(commandTarget.host)
 	if hostAddress == "" {
 		hostAddress = findJetsonWiFiCommandHost(sshpassPath, stateDirectory, username, password)
 	}
