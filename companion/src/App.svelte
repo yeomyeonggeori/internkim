@@ -45,12 +45,14 @@
 		handoffID: string;
 		sessionID: string;
 		message: string;
+		origin: string;
 	};
 	let handoffSnapshot = $state<BrowserHandoffSnapshot>({
 		active: false,
 		handoffID: '',
 		sessionID: '',
-		message: '브라우저에서 필요한 작업을 마친 뒤 완료를 눌러주세요.'
+		message: '브라우저에서 필요한 작업을 마친 뒤 완료를 눌러주세요.',
+		origin: ''
 	});
 	let handoffOverlayError = $state('');
 	let isCompletingHandoff = $state(false);
@@ -462,7 +464,8 @@
 			active: true,
 			handoffID: readString(value.handoffID),
 			sessionID: readString(value.sessionID),
-			message: readString(value.message) || '브라우저에서 필요한 작업을 마친 뒤 완료를 눌러주세요.'
+			message: readString(value.message) || '브라우저에서 필요한 작업을 마친 뒤 완료를 눌러주세요.',
+			origin: readString(value.origin)
 		};
 	}
 
@@ -471,7 +474,8 @@
 			active: false,
 			handoffID: '',
 			sessionID: '',
-			message: '브라우저에서 필요한 작업을 마친 뒤 완료를 눌러주세요.'
+			message: '브라우저에서 필요한 작업을 마친 뒤 완료를 눌러주세요.',
+			origin: ''
 		};
 	}
 
@@ -494,7 +498,7 @@
 				body: JSON.stringify({
 					handoffID: handoffSnapshot.handoffID,
 					sessionID: handoffSnapshot.sessionID,
-					url: 'https://internkim.local/browser-handoff-complete',
+					url: handoffSnapshot.origin || 'https://internkim.local/browser-handoff-complete',
 					title: ''
 				})
 			});
@@ -515,7 +519,7 @@
 	<main class="handoff-overlay">
 		<p>{handoffOverlayError || handoffSnapshot.message}</p>
 		<button disabled={!handoffSnapshot.active || isCompletingHandoff} onclick={completeBrowserHandoff}>
-			{isCompletingHandoff ? '완료 중' : '완료'}
+			{isCompletingHandoff ? '연결 중' : '계속'}
 		</button>
 	</main>
 {:else}

@@ -361,6 +361,19 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 		SessionName:          "internkim",
 		Headed:               true,
 	}
+	handoffBrowserRuntime := browserruntime.NativeHandoffRuntime{
+		EngineExecutablePath: *browserExecutablePath,
+		ProfilePath:          *browserProfilePath,
+		SessionName:          "internkim",
+	}
+	handoffResumeRuntime := browserruntime.AgentBrowserRuntime{
+		CommandPath:          resolvedAgentBrowserPath,
+		Engine:               browserruntime.BrowserEngineChrome,
+		EngineExecutablePath: *browserExecutablePath,
+		ProfilePath:          *browserProfilePath,
+		SessionName:          "internkim",
+		Headed:               true,
+	}
 	readiness := browserRuntime.EnsureInstalled(context.Background())
 	if readiness.Status != "ready" {
 		state.Capabilities = capabilitiesWithoutBrowser(state.Capabilities)
@@ -374,13 +387,15 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	}
 	_ = preferCompanionBrowser
 	executor := companionruntime.Executor{
-		DevMockLLM:     *devMockLLM,
-		LLMChain:       localLLM,
-		EmbeddingChain: localLLM,
-		BrowserRuntime: browserRuntime,
-		HandoffStore:   handoffStore,
-		GrantStore:     grantStore,
-		MountStore:     mountStore,
+		DevMockLLM:            *devMockLLM,
+		LLMChain:              localLLM,
+		EmbeddingChain:        localLLM,
+		BrowserRuntime:        browserRuntime,
+		HandoffBrowserRuntime: handoffBrowserRuntime,
+		HandoffResumeRuntime:  handoffResumeRuntime,
+		HandoffStore:          handoffStore,
+		GrantStore:            grantStore,
+		MountStore:            mountStore,
 	}
 	if readiness.Status != "ready" {
 		executor.BrowserRuntime = nil
@@ -388,11 +403,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	handoffCompletionHandler := func(ctx context.Context, completion companionruntime.HandoffCompletion) error {
 		return completeHandoff(ctx, httpClient, state, privateKey, completion)
 	}
-	var bridgeBrowserRuntime browserruntime.Runtime = browserRuntime
-	if readiness.Status != "ready" {
-		bridgeBrowserRuntime = nil
-	}
-	controlServer, errorValue := startControlServer(*controlListenAddress, grantStore, mountStore, handoffStore, bridgeBrowserRuntime, handoffCompletionHandler, runtimeStatus, localLLM, httpClient)
+	controlServer, errorValue := startControlServer(*controlListenAddress, grantStore, mountStore, handoffStore, nil, handoffCompletionHandler, runtimeStatus, localLLM, httpClient)
 	if errorValue != nil {
 		return errorValue
 	}

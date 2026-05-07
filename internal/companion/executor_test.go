@@ -62,6 +62,7 @@ type fakeBrowserRuntime struct {
 	observeResult   browserruntime.ObserveResult
 	observeCount    int
 	startCount      int
+	closeCount      int
 	screenshot      browserruntime.ScreenshotResult
 	errorValue      error
 	actionError     error
@@ -84,7 +85,21 @@ func (runtime *fakeBrowserRuntime) StartSession(ctx context.Context, request bro
 	if runtime.errorValue != nil {
 		return browserruntime.SessionStartResult{}, runtime.errorValue
 	}
-	return browserruntime.SessionStartResult{SessionID: "internkim", Opened: true, URL: firstNonEmpty(request.URL, request.StartURL)}, nil
+	return browserruntime.SessionStartResult{
+		SessionID:       "internkim",
+		Opened:          true,
+		URL:             firstNonEmpty(runtime.observeResult.URL, request.URL, request.StartURL),
+		Title:           runtime.observeResult.Title,
+		SnapshotText:    runtime.observeResult.SnapshotText,
+		InteractiveRefs: runtime.observeResult.InteractiveRefs,
+		CapturedAt:      runtime.observeResult.CapturedAt,
+	}, nil
+}
+
+func (runtime *fakeBrowserRuntime) CloseSession(ctx context.Context) error {
+	_ = ctx
+	runtime.closeCount++
+	return nil
 }
 
 func (runtime *fakeBrowserRuntime) Navigate(ctx context.Context, request browserruntime.NavigateRequest) (browserruntime.NavigateResult, error) {
@@ -397,27 +412,31 @@ func TestBrowserControlFailureReportsSnapshotFailure(t *testing.T) {
 	}
 }
 
-func TestBrowserHandoffReturnsWaitingForUserImmediately(t *testing.T) {
+func TestBrowserHandoffWaitsForUserCompletion(t *testing.T) {
 	handoffStore := NewBrowserHandoffStore()
 	browserRuntime := &fakeBrowserRuntime{}
 	executor := Executor{BrowserRuntime: browserRuntime, HandoffStore: handoffStore}
+	completionErrors := completeActiveHandoffWhenReady(handoffStore, "https://example.com/app")
 
 	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
 		ToolName: "browser.handoff",
 		Input:    json.RawMessage(`{"url":"https://example.com/login","message":"로그인 후 완료를 눌러주세요.","successCriteria":{"textIncludesAny":["Continue"]}}`),
 	})
+	if completionError := <-completionErrors; completionError != nil {
+		t.Fatalf("expected handoff completion: %v", completionError)
+	}
 	if errorValue != nil {
-		t.Fatalf("expected handoff waiting response: %v", errorValue)
+		t.Fatalf("expected completed handoff response: %v", errorValue)
 	}
 
 	var result BrowserHandoffResult
 	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != HandoffStateWaitingForUser || result.State != HandoffStateWaitingForUser || result.CompletedByUser {
+	if response.Status != HandoffStateCompleted || result.State != HandoffStateCompleted || !result.CompletedByUser {
 		t.Fatalf("unexpected handoff result: response=%+v result=%+v", response, result)
 	}
-	if result.HandoffID == "" || !handoffStore.Snapshot().Active {
+	if result.HandoffID == "" || result.URL != "https://example.com/app" || handoffStore.Snapshot().Active {
 		t.Fatalf("expected active handoff with id, got %+v snapshot=%+v", result, handoffStore.Snapshot())
 	}
 	if browserRuntime.observeCount != 0 {
@@ -455,11 +474,23 @@ func TestBrowserHandoffReusesActiveHandoffWithoutReopeningBrowser(t *testing.T) 
 	}
 	browserRuntime := &fakeBrowserRuntime{}
 	executor := Executor{BrowserRuntime: browserRuntime, HandoffStore: handoffStore}
+	completionErrors := make(chan error, 1)
+	go func() {
+		completionErrors <- handoffStore.Complete(HandoffCompletion{
+			HandoffID:  activeHandoff.HandoffID,
+			SessionID:  activeHandoff.SessionID,
+			URL:        "https://example.com/app",
+			CapturedAt: time.Now().UTC().Format(time.RFC3339),
+		})
+	}()
 
 	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-2", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
 		ToolName: "browser.handoff",
 		Input:    json.RawMessage(`{"url":"https://example.com/projectselector2/iam-admin/serviceaccounts?supportedpurview=project","message":"로그인 후 완료를 눌러주세요."}`),
 	})
+	if completionError := <-completionErrors; completionError != nil {
+		t.Fatalf("expected handoff completion: %v", completionError)
+	}
 	if errorValue != nil {
 		t.Fatalf("expected active handoff reuse: %v", errorValue)
 	}
@@ -468,12 +499,75 @@ func TestBrowserHandoffReusesActiveHandoffWithoutReopeningBrowser(t *testing.T) 
 	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != HandoffStateWaitingForUser || result.HandoffID != activeHandoff.HandoffID {
-		t.Fatalf("expected waiting response for active handoff, response=%+v result=%+v", response, result)
+	if response.Status != HandoffStateCompleted || result.HandoffID != activeHandoff.HandoffID {
+		t.Fatalf("expected completed response for active handoff, response=%+v result=%+v", response, result)
 	}
 	if browserRuntime.startCount != 0 {
 		t.Fatalf("expected active handoff reuse not to reopen browser, got %d opens", browserRuntime.startCount)
 	}
+}
+
+func TestBrowserHandoffClosesNativeProfileAndResumesAutomation(t *testing.T) {
+	handoffStore := NewBrowserHandoffStore()
+	nativeRuntime := &fakeBrowserRuntime{}
+	resumeRuntime := &fakeBrowserRuntime{observeResult: browserruntime.ObserveResult{
+		URL:             "https://console.cloud.google.com/project",
+		Title:           "Google Cloud",
+		SnapshotText:    "- button \"Create\" [ref=e1]",
+		InteractiveRefs: []string{"@e1"},
+		CapturedAt:      "2026-05-07T00:00:00Z",
+	}}
+	executor := Executor{
+		BrowserRuntime:        &fakeBrowserRuntime{},
+		HandoffBrowserRuntime: nativeRuntime,
+		HandoffResumeRuntime:  resumeRuntime,
+		HandoffStore:          handoffStore,
+	}
+	completionErrors := completeActiveHandoffWhenReady(handoffStore, "https://console.cloud.google.com")
+
+	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
+		ToolName: "browser.handoff",
+		Input:    json.RawMessage(`{"url":"https://console.cloud.google.com/project","message":"로그인 후 계속을 눌러주세요."}`),
+	})
+	if completionError := <-completionErrors; completionError != nil {
+		t.Fatalf("expected handoff completion: %v", completionError)
+	}
+	if errorValue != nil {
+		t.Fatalf("expected resumed handoff response: %v", errorValue)
+	}
+
+	var result BrowserHandoffResult
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if nativeRuntime.startCount != 1 || nativeRuntime.closeCount != 1 || resumeRuntime.startCount != 1 {
+		t.Fatalf("expected native open/close and automation resume, native=%+v resume=%+v", nativeRuntime, resumeRuntime)
+	}
+	if result.URL != "https://console.cloud.google.com/project" || result.SnapshotText == "" || len(result.InteractiveRefs) != 1 {
+		t.Fatalf("expected resumed automation snapshot in handoff result, got %+v", result)
+	}
+}
+
+func completeActiveHandoffWhenReady(handoffStore *BrowserHandoffStore, pageURL string) <-chan error {
+	completionErrors := make(chan error, 1)
+	go func() {
+		deadline := time.Now().Add(time.Second)
+		for time.Now().Before(deadline) {
+			snapshot := handoffStore.Snapshot()
+			if snapshot.Active {
+				completionErrors <- handoffStore.Complete(HandoffCompletion{
+					HandoffID:  snapshot.HandoffID,
+					SessionID:  snapshot.SessionID,
+					URL:        pageURL,
+					CapturedAt: time.Now().UTC().Format(time.RFC3339),
+				})
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		completionErrors <- errors.New("timed out waiting for active handoff")
+	}()
+	return completionErrors
 }
 
 func TestHandoffBridgeCompletionCapturesSnapshot(t *testing.T) {

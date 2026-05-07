@@ -82,3 +82,22 @@ func TestPersistentHandoffStoreRestoresActiveHandoff(t *testing.T) {
 		t.Fatal("expected completed handoff state file to clear")
 	}
 }
+
+func TestRestoredHandoffDoesNotReuseStaleBrowserOpen(t *testing.T) {
+	statePath := t.TempDir() + "/browser-handoff.json"
+	store := NewPersistentBrowserHandoffStore(statePath)
+	staleHandoff, errorValue := store.Begin(BrowserHandoffRequest{URL: "https://example.com/login"}, "internkim")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	reloadedStore := NewPersistentBrowserHandoffStore(statePath)
+	freshHandoff, reused, errorValue := reloadedStore.BeginOrReuse(BrowserHandoffRequest{URL: "https://example.com/login"}, "internkim")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if reused || freshHandoff.HandoffID == staleHandoff.HandoffID {
+		t.Fatalf("expected restored stale handoff to be replaced, reused=%v fresh=%+v stale=%+v", reused, freshHandoff, staleHandoff)
+	}
+}

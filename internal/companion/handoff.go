@@ -87,10 +87,11 @@ type HandoffCompletion struct {
 }
 
 type BrowserHandoffStore struct {
-	mutex              sync.Mutex
-	active             *browserHandoff
-	completedHandoffID string
-	statePath          string
+	mutex               sync.Mutex
+	active              *browserHandoff
+	completedHandoffID  string
+	completedCompletion HandoffCompletion
+	statePath           string
 }
 
 type browserHandoff struct {
@@ -101,6 +102,7 @@ type browserHandoff struct {
 	resumePrompt string
 	origin       string
 	waiter       chan HandoffCompletion
+	restored     bool
 }
 
 func NewBrowserHandoffStore() *BrowserHandoffStore {
@@ -135,10 +137,12 @@ func (store *BrowserHandoffStore) BeginOrReuse(request BrowserHandoffRequest, se
 	store.mutex.Lock()
 	defer store.mutex.Unlock()
 	if store.active != nil {
-		if store.active.origin == origin {
+		if store.active.origin == origin && !store.active.restored {
 			return store.active.snapshot(), true, nil
 		}
-		return HandoffSnapshot{}, false, errors.New("browser handoff is already active")
+		if !store.active.restored {
+			return HandoffSnapshot{}, false, errors.New("browser handoff is already active")
+		}
 	}
 	handoff := &browserHandoff{
 		handoffID:    randomHandoffID(16),
@@ -151,6 +155,7 @@ func (store *BrowserHandoffStore) BeginOrReuse(request BrowserHandoffRequest, se
 	}
 	store.active = handoff
 	store.completedHandoffID = ""
+	store.completedCompletion = HandoffCompletion{}
 	_ = store.saveLocked()
 	return handoff.snapshot(), false, nil
 }
@@ -205,6 +210,7 @@ func (store *BrowserHandoffStore) Complete(completion HandoffCompletion) error {
 	}
 	handoff.state = HandoffStateCompleted
 	store.completedHandoffID = handoff.handoffID
+	store.completedCompletion = completion
 	store.active = nil
 	_ = store.saveLocked()
 	select {
@@ -242,6 +248,11 @@ func (store *BrowserHandoffStore) Wait(ctx context.Context, handoffID string) (H
 	store.mutex.Lock()
 	handoff, errorValue := store.requireActive(handoffID)
 	if errorValue != nil {
+		if store.completedHandoffID != "" && store.completedHandoffID == handoffID {
+			completion := store.completedCompletion
+			store.mutex.Unlock()
+			return completion, nil
+		}
 		store.mutex.Unlock()
 		return HandoffCompletion{}, errorValue
 	}
@@ -320,6 +331,7 @@ func (store *BrowserHandoffStore) load() {
 		resumePrompt: strings.TrimSpace(activeHandoff.ResumePrompt),
 		origin:       activeHandoff.Origin,
 		waiter:       make(chan HandoffCompletion, 1),
+		restored:     true,
 	}
 }
 
