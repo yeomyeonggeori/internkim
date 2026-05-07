@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -424,6 +425,25 @@ func TestBrowserHandoffReturnsWaitingForUserImmediately(t *testing.T) {
 	}
 	if browserRuntime.startCount != 1 {
 		t.Fatalf("expected one browser open, got %d", browserRuntime.startCount)
+	}
+}
+
+func TestBrowserHandoffRejectsLinuxWayland(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux Wayland detection only applies on Linux")
+	}
+	t.Setenv("XDG_SESSION_TYPE", "wayland")
+	t.Setenv("WAYLAND_DISPLAY", "wayland-0")
+	t.Setenv("DISPLAY", "")
+	executor := Executor{BrowserRuntime: &fakeBrowserRuntime{}, HandoffStore: NewBrowserHandoffStore()}
+
+	_, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
+		ToolName: "browser.handoff",
+		Input:    json.RawMessage(`{"url":"https://example.com/login"}`),
+	})
+
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "Linux Wayland") {
+		t.Fatalf("expected Linux Wayland unsupported error, got %v", errorValue)
 	}
 }
 
