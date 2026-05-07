@@ -120,11 +120,11 @@ export async function createDNSRecord(env: CFEnv, tunnelId: string, deviceId: st
 }
 
 export function deviceSSHHostname(env: CFEnv, deviceId: string) {
-	return `ssh.${deviceId}.${env.CF_DOMAIN}`;
+	return `ssh-${deviceId}.${env.CF_DOMAIN}`;
 }
 
 export function nodeSSHHostname(env: CFEnv, deviceId: string, boardId: string) {
-	return `ssh.${boardId}.${deviceId}.${env.CF_DOMAIN}`;
+	return `ssh-${boardId}.${deviceId}.${env.CF_DOMAIN}`;
 }
 
 export async function ensureSSHDNSRecord(env: CFEnv, tunnelId: string, deviceId: string) {
