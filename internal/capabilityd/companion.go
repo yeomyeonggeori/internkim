@@ -83,6 +83,9 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 	if request.ToolName == "flow.task.add" {
 		return service.invokeFlowTaskAdd(ctx, request)
 	}
+	if isCalendarTool(request.ToolName) {
+		return service.invokeCalendarTool(ctx, request)
+	}
 	if isSiteAppTool(request.ToolName) {
 		return service.invokeSiteAppTool(ctx, request)
 	}
