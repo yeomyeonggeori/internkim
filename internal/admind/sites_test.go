@@ -108,6 +108,33 @@ func TestSiteGatewayLifecycle(t *testing.T) {
 	}
 }
 
+func TestSitePrototypePublishesDefaultBuild(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{
+		Slug:        "default-build",
+		Title:       "Default Build",
+		RequestedBy: "owner@example.com",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:      site.SiteID,
+		RequestedBy: "owner@example.com",
+		Message:     "Publish default prototype",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	response := serveSiteRequest(service, "default-build.device.intern.kim", "/")
+	if response.Code != http.StatusOK {
+		t.Fatalf("default build status = %d", response.Code)
+	}
+	if !strings.Contains(response.Body.String(), "Default Build") {
+		t.Fatalf("default build body = %q", response.Body.String())
+	}
+}
+
 func TestSiteGatewayProxiesPocketBasePaths(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "api-demo"})
