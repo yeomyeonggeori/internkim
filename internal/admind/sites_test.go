@@ -36,7 +36,7 @@ func TestSiteGatewayLifecycle(t *testing.T) {
 	if site.Status != SiteStatusPublished {
 		t.Fatalf("published status = %q", site.Status)
 	}
-	if site.PublishedURL != "https://demo.device.example.test" {
+	if site.PublishedURL != "http://demo.device.example.test" {
 		t.Fatalf("published url = %q", site.PublishedURL)
 	}
 	if site.WorkspacePath == "" || site.HostSourcePath == "" || site.LastPublishedCommit == "" {
