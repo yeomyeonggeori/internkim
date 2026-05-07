@@ -14,6 +14,11 @@ allowed-tools:
   - site.app.restore
   - site.app.delete
   - user.confirm
+completion:
+  requiredEvidenceTools:
+    - site.app.create
+    - terminal.run
+    - site.app.publish
 ---
 
 # Site Prototype
@@ -34,7 +39,7 @@ Create prototypes for non-developers to validate ideas quickly. Do not present t
 ## Workflow
 
 1. For a new prototype, call `site.app.create` with a short DNS-safe slug and title.
-2. Work only inside the returned `/workspace/sites/<siteID>` directory.
+2. After `site.app.create` succeeds, do not call `site.app.create` again in the same task. Continue with the returned `siteID` and `/workspace/sites/<siteID>` directory.
 3. Put the frontend in `app/`.
 4. Put PocketBase migrations in `pocketbase/pb_migrations/`.
 5. Leave `pocketbase/pb_hooks/` empty unless the user explicitly requested backend hooks and an admin approval path is available.
@@ -79,6 +84,8 @@ If a test account is useful, create a prototype seed account and include the cre
 Use clearly fake credentials for test users. Do not ask the user for real passwords.
 
 ## Design Defaults
+
+If the user does not specify what kind of website to make, choose a small useful default and continue without asking for clarification. Build a compact welcome dashboard with editable-looking sample content, a simple list, and one primary action.
 
 If the user does not specify design direction, use a black-on-white shadcn-style minimal interface:
 
