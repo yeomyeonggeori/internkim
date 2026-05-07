@@ -53,6 +53,20 @@ Signal account ── JSON-RPC poll ─▶ internkim-capabilityd ──▶ Bluec
 
 크리덴셜은 `/root/.internkim/secrets/`와 `/root/.internkim/config/`에 집중 관리합니다. Blueclaw는 provider token, 브라우저 쿠키, 사용자 로컬 파일 경로, 로컬 모델 경로를 직접 보지 않고 `internkim-capabilityd` 또는 `internkim-admind`의 typed capability 경계를 통해서만 사용합니다.
 
+### Blueclaw Terminal 권한 경계
+
+Blueclaw terminal 보안의 canonical boundary는 Linux user/group/POSIX 권한입니다. Blueclaw policy가 source of truth이고, 사람과 circle membership은 guest 내부의 Linux user, group, directory ownership, mode로 투영됩니다.
+
+- 사람은 안정적인 `bc_person_<shortID>` Linux user로 실행됩니다.
+- circle은 `bc_circle_<circleID>` group으로 투영됩니다.
+- 모든 task terminal, terminal session, 사용자 작성 skill/tool, dependency install script, package lifecycle script는 requester 또는 task actor의 unprivileged UID/GID/supplementary groups로 실행됩니다.
+- admin 사용자도 raw terminal에서는 기본 task actor scope만 갖습니다. admin-only 파일 접근, 임시 grant, 특정 파일 허용, 외부 전송은 built-in capability/tool 경계에서만 처리합니다.
+- `/workspace/private/people/<personID>`와 `/workspace/circles/<circleID>`는 POSIX ownership/mode가 최종 접근 경계입니다. `/workspace/.blueclaw/*`는 service-owned internal path이며 일반 task user가 직접 읽지 못합니다.
+- dependency cache는 `/workspace/shared/cache/dependencies`로 고정합니다. private/source 파일은 cache에 넣지 않고, language-level dependency tool만 이 cache를 공유합니다.
+- raw terminal에서 OS package manager와 system modification executable guardrail은 계속 유지합니다. `bwrap`는 v1 필수 경계가 아니며, 필요하면 미래의 추가 narrowing으로만 사용합니다.
+
+Built-in `file.write`, `file.attach`, future `file.read_granted`, artifact/document/admin tool만 Blueclaw grant와 세밀 권한을 행사할 수 있습니다. Built-in tool이 grant로 읽은 민감 파일은 raw terminal이 볼 수 있는 위치에 그대로 열어두지 않고, 필요한 경우 sanitized task artifact로 복사하고 task event에 기록해야 합니다.
+
 | 경로 | 주 소비자 | 용도 |
 |------|----------|------|
 | `/root/.internkim/secrets/openrouter-api-key` | `internkim-capabilityd` | remote LLM provider |

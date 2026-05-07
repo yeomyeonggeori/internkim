@@ -128,6 +128,9 @@ func calculateRuntimeBaseSourceSHA256(repositoryRootPath string) (string, error)
 		"go.sum",
 		"cmd/blueclaw-guest-healthd",
 		"cmd/blueclaw-vsock-http-proxy",
+		"cmd/blueclaw-posix-helper",
+		"internal/policy",
+		"internal/security/posix_identity.go",
 		"tools/graphiti_memoryd",
 	})
 }
