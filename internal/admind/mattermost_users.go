@@ -234,17 +234,39 @@ func (service *Service) findMattermostUserByID(ctx context.Context, token string
 }
 
 func (service *Service) ensureMattermostProvisionerAccount(ctx context.Context) error {
-	adminPassword := strings.TrimSpace(readTrimmedFile(service.Configuration.MattermostAdminPasswordPath))
-	if adminPassword == "" {
-		return fmt.Errorf("Mattermost admin password is not configured")
-	}
-	adminToken, errorValue := service.mattermostAdminToken(ctx)
+	adminToken, _, errorValue := service.ensureMattermostProvisionerIdentity(ctx)
 	if errorValue != nil {
 		return errorValue
 	}
-	adminUser, found, errorValue := service.findMattermostUserByUsername(ctx, adminToken, mattermostProvisionerUsername)
-	if errorValue != nil || !found {
+	return service.ensureMattermostConnectCommand(ctx, adminToken)
+}
+
+func (service *Service) ensureMattermostProvisionerDefaults(ctx context.Context) error {
+	adminToken, adminUser, errorValue := service.ensureMattermostProvisionerIdentity(ctx)
+	if errorValue != nil {
 		return errorValue
+	}
+	if errorValue := service.ensureMattermostMembership(ctx, adminToken, adminUser.ID); errorValue != nil {
+		return errorValue
+	}
+	return service.ensureMattermostConnectCommand(ctx, adminToken)
+}
+
+func (service *Service) ensureMattermostProvisionerIdentity(ctx context.Context) (string, mattermostUserRecord, error) {
+	adminPassword := strings.TrimSpace(readTrimmedFile(service.Configuration.MattermostAdminPasswordPath))
+	if adminPassword == "" {
+		return "", mattermostUserRecord{}, fmt.Errorf("Mattermost admin password is not configured")
+	}
+	adminToken, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		return "", mattermostUserRecord{}, errorValue
+	}
+	adminUser, found, errorValue := service.findMattermostUserByUsername(ctx, adminToken, mattermostProvisionerUsername)
+	if errorValue != nil {
+		return "", mattermostUserRecord{}, errorValue
+	}
+	if !found {
+		return "", mattermostUserRecord{}, fmt.Errorf("Mattermost admin user was not found")
 	}
 	if !strings.EqualFold(adminUser.Email, mattermostProvisionerEmail) {
 		body := map[string]string{
@@ -252,13 +274,13 @@ func (service *Service) ensureMattermostProvisionerAccount(ctx context.Context) 
 			"password": adminPassword,
 		}
 		if errorValue := service.mattermostRequest(ctx, http.MethodPut, "/api/v4/users/"+url.PathEscape(adminUser.ID)+"/patch", adminToken, body, nil); errorValue != nil {
-			return errorValue
+			return "", mattermostUserRecord{}, errorValue
 		}
 	}
 	if errorValue := service.setMattermostRole(ctx, adminToken, adminUser.ID, "admin"); errorValue != nil {
-		return errorValue
+		return "", mattermostUserRecord{}, errorValue
 	}
-	return service.ensureMattermostConnectCommand(ctx, adminToken)
+	return adminToken, adminUser, nil
 }
 
 func (service *Service) deactivateMattermostUserByID(ctx context.Context, userID string) error {
