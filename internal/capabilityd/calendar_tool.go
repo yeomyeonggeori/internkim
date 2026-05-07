@@ -15,15 +15,17 @@ import (
 )
 
 type calendarEventWriteInput struct {
-	EventID     string `json:"eventID"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Location    string `json:"location"`
-	StartISO    string `json:"startISO"`
-	EndISO      string `json:"endISO"`
-	TimeZone    string `json:"timeZone"`
-	IsAllDay    bool   `json:"isAllDay"`
-	Color       string `json:"color"`
+	EventID           string                  `json:"eventID"`
+	Title             string                  `json:"title"`
+	Description       string                  `json:"description"`
+	Location          string                  `json:"location"`
+	StartISO          string                  `json:"startISO"`
+	EndISO            string                  `json:"endISO"`
+	TimeZone          string                  `json:"timeZone"`
+	IsAllDay          bool                    `json:"isAllDay"`
+	Color             string                  `json:"color"`
+	People            calendarToolPeopleInput `json:"people"`
+	ReminderLeadHours int                     `json:"reminderLeadHours"`
 }
 
 type calendarEventListInput struct {
@@ -36,6 +38,8 @@ type calendarEventListInput struct {
 type calendarEventDeleteInput struct {
 	EventID string `json:"eventID"`
 }
+
+type calendarToolPeopleInput []string
 
 type calendarEventsForTool struct {
 	Events []calendarEventForTool `json:"events"`
@@ -146,6 +150,8 @@ func decodeCalendarEventWriteInput(document json.RawMessage, needsEventID bool) 
 	input.EndISO = strings.TrimSpace(input.EndISO)
 	input.TimeZone = strings.TrimSpace(input.TimeZone)
 	input.Color = strings.TrimSpace(input.Color)
+	input.People = normalizeCalendarToolPeople([]string(input.People))
+	input.ReminderLeadHours = normalizeCalendarToolReminderLeadHours(input.ReminderLeadHours)
 	if needsEventID && input.EventID == "" {
 		return calendarEventWriteInput{}, fmt.Errorf("eventID is required")
 	}
@@ -156,6 +162,52 @@ func decodeCalendarEventWriteInput(document json.RawMessage, needsEventID bool) 
 		return calendarEventWriteInput{}, fmt.Errorf("startISO and endISO are required")
 	}
 	return input, nil
+}
+
+func (people *calendarToolPeopleInput) UnmarshalJSON(document []byte) error {
+	trimmedDocument := bytes.TrimSpace(document)
+	if len(trimmedDocument) == 0 || bytes.Equal(trimmedDocument, []byte("null")) {
+		*people = nil
+		return nil
+	}
+	var values []string
+	if errorValue := json.Unmarshal(trimmedDocument, &values); errorValue == nil {
+		*people = normalizeCalendarToolPeople(values)
+		return nil
+	}
+	var value string
+	if errorValue := json.Unmarshal(trimmedDocument, &value); errorValue != nil {
+		return errorValue
+	}
+	*people = normalizeCalendarToolPeople(strings.Split(value, ","))
+	return nil
+}
+
+func normalizeCalendarToolPeople(values []string) []string {
+	people := []string{}
+	seenPeople := map[string]bool{}
+	for _, value := range values {
+		trimmedValue := strings.TrimSpace(value)
+		if trimmedValue == "" {
+			continue
+		}
+		normalizedValue := strings.ToLower(trimmedValue)
+		if seenPeople[normalizedValue] {
+			continue
+		}
+		seenPeople[normalizedValue] = true
+		people = append(people, trimmedValue)
+	}
+	return people
+}
+
+func normalizeCalendarToolReminderLeadHours(value int) int {
+	switch value {
+	case 1, 2, 3, 6, 12, 24, 48:
+		return value
+	default:
+		return 24
+	}
 }
 
 func decodeCalendarEventListInput(document json.RawMessage) (calendarEventListInput, error) {
@@ -195,14 +247,16 @@ func decodeCalendarEventDeleteInput(document json.RawMessage) (calendarEventDele
 
 func calendarEventWritePayload(input calendarEventWriteInput) map[string]any {
 	return map[string]any{
-		"title":       input.Title,
-		"description": input.Description,
-		"location":    input.Location,
-		"startISO":    input.StartISO,
-		"endISO":      input.EndISO,
-		"timeZone":    input.TimeZone,
-		"isAllDay":    input.IsAllDay,
-		"color":       input.Color,
+		"title":             input.Title,
+		"description":       input.Description,
+		"location":          input.Location,
+		"startISO":          input.StartISO,
+		"endISO":            input.EndISO,
+		"timeZone":          input.TimeZone,
+		"isAllDay":          input.IsAllDay,
+		"color":             input.Color,
+		"people":            []string(input.People),
+		"reminderLeadHours": input.ReminderLeadHours,
 	}
 }
 
