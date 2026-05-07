@@ -3704,7 +3704,7 @@ func (s *sshClient) rsyncSparse(localPath string, remotePath string) error {
 }
 
 func rsyncSparseArguments(sshCommand string, localPath string, target string) []string {
-	return []string{"-azSh", "--partial", "--append", "--progress", "-e", sshCommand, localPath, target}
+	return []string{"-azSh", "--partial", "--append-verify", "--progress", "-e", sshCommand, localPath, target}
 }
 
 func (s *sshClient) rsyncSSHCommand(commandName string) string {
