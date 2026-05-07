@@ -684,6 +684,9 @@ func runMigrateDeviceID(arguments []string) error {
 	if errorValue != nil {
 		return errorValue
 	}
+	if response.DeviceID != newDeviceID {
+		return fmt.Errorf("migration did not return requested device id: requested %s, got %s", newDeviceID, response.DeviceID)
+	}
 	saveRegistrationResponse(target.stateDir, response)
 	updateRemoteDeviceRegistration(connection, configuration, response)
 	fmt.Printf("Migrated device ID: %s -> %s\n", oldDeviceID, response.DeviceID)
@@ -4063,7 +4066,44 @@ chown root:root /root/.internkim/secrets/tunnel-token /root/.internkim/secrets/n
 chmod 600 /root/.internkim/secrets/tunnel-token /root/.internkim/secrets/node-tunnel-token
 chown root:blueclaw /root/.internkim/env/device-id /root/.internkim/env/device-url /root/.internkim/env/mattermost-url /root/.internkim/env/tunnel-origin /root/.internkim/env/tunnel-revision /root/.internkim/env/api-url
 chmod 640 /root/.internkim/env/device-id /root/.internkim/env/device-url /root/.internkim/env/mattermost-url /root/.internkim/env/tunnel-origin /root/.internkim/env/tunnel-revision /root/.internkim/env/api-url
-systemctl restart cloudflared cloudflared-node-ssh 2>/dev/null || true`,
+cat > /etc/systemd/system/cloudflared.service <<'SVCEOF'
+[Unit]
+Description=Cloudflare Tunnel
+After=network-online.target time-sync.target
+Wants=network-online.target time-sync.target
+
+[Service]
+Type=simple
+ExecStart=/bin/sh -c '/usr/local/bin/cloudflared tunnel run --protocol http2 --token "$(cat /root/.internkim/secrets/tunnel-token)"'
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+cat > /etc/systemd/system/cloudflared-node-ssh.service <<'SVCEOF'
+[Unit]
+Description=Cloudflare Node SSH Tunnel
+After=network-online.target time-sync.target
+Wants=network-online.target time-sync.target
+
+[Service]
+Type=simple
+ExecStart=/bin/sh -c '/usr/local/bin/cloudflared tunnel run --protocol http2 --token "$(cat /root/.internkim/secrets/node-tunnel-token)"'
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+rm -f /etc/init.d/S98cloudflared 2>/dev/null
+systemctl daemon-reload
+systemctl enable cloudflared cloudflared-node-ssh
+systemctl restart cloudflared cloudflared-node-ssh`,
 		quoteShellValue(response.DeviceID),
 		quoteShellValue(response.publicURL()),
 		quoteShellValue(response.publicURL()),
