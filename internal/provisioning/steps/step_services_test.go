@@ -36,6 +36,7 @@ func TestBlueclawRootfsBaseContractCheckCatchesStaleBaseRuntime(t *testing.T) {
 		"rootfs-blueclaw-init-root-launch",
 		"rootfs-passwd-missing-blueclaw-user",
 		"rootfs-group-missing-blueclaw-group",
+		"rootfs-mount-failed",
 		"blueclaw-payload-launch",
 		"rootfs-marp-missing",
 		"rootfs-bun-missing",

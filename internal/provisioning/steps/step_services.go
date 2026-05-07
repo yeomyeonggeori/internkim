@@ -288,52 +288,43 @@ PY`
 func blueclawRootfsBaseContractCheckCommand() string {
 	return `set -eu
 rootfs_path="/opt/internkim/blueclaw-runtime/rootfs.ext4"
-init_dump_path="/tmp/internkim-blueclaw-rootfs-init-check"
-passwd_dump_path="/tmp/internkim-blueclaw-rootfs-passwd-check"
-group_dump_path="/tmp/internkim-blueclaw-rootfs-group-check"
+mount_path="$(mktemp -d /tmp/internkim-blueclaw-rootfs-check.XXXXXX)"
+cleanup_rootfs_check() {
+  if mountpoint -q "$mount_path"; then
+    umount "$mount_path" 2>/dev/null || true
+  fi
+  rmdir "$mount_path" 2>/dev/null || true
+}
+trap cleanup_rootfs_check EXIT
 if [ ! -s "$rootfs_path" ]; then
   echo rootfs-missing
   exit 0
 fi
-if ! command -v debugfs >/dev/null 2>&1; then
-  echo debugfs-missing
+if ! mount -o loop,ro "$rootfs_path" "$mount_path" >/tmp/internkim-blueclaw-rootfs-mount-check.log 2>&1; then
+  echo rootfs-mount-failed
   exit 0
 fi
-rm -f "$init_dump_path"
-if ! debugfs -R "dump /sbin/init $init_dump_path" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-init-check.log 2>&1; then
-  echo rootfs-init-dump-failed
-  exit 0
-fi
-if ! debugfs -R "stat /usr/local/bin/marp" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-marp-check.log 2>&1; then
+if [ ! -x "$mount_path/usr/local/bin/marp" ]; then
   echo rootfs-marp-missing
   exit 0
 fi
-if ! debugfs -R "stat /usr/local/bin/bun" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-bun-check.log 2>&1; then
+if [ ! -x "$mount_path/usr/local/bin/bun" ]; then
   echo rootfs-bun-missing
   exit 0
 fi
-if ! debugfs -R "stat /usr/local/bin/bunx" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-bunx-check.log 2>&1; then
+if [ ! -x "$mount_path/usr/local/bin/bunx" ]; then
   echo rootfs-bunx-missing
   exit 0
 fi
-if ! debugfs -R "stat /usr/bin/chromium" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-chromium-check.log 2>&1; then
+if [ ! -x "$mount_path/usr/bin/chromium" ]; then
   echo rootfs-chromium-missing
   exit 0
 fi
-if ! debugfs -R "stat /usr/local/bin/blueclaw-posix-helper" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-posix-helper-check.log 2>&1; then
+if [ ! -u "$mount_path/usr/local/bin/blueclaw-posix-helper" ]; then
   echo rootfs-posix-helper-missing
   exit 0
 fi
-rm -f "$passwd_dump_path" "$group_dump_path"
-if ! debugfs -R "dump /etc/passwd $passwd_dump_path" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-passwd-check.log 2>&1; then
-  echo rootfs-passwd-dump-failed
-  exit 0
-fi
-if ! debugfs -R "dump /etc/group $group_dump_path" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-group-check.log 2>&1; then
-  echo rootfs-group-dump-failed
-  exit 0
-fi
-python3 - "$init_dump_path" "$passwd_dump_path" "$group_dump_path" <<'PY'
+python3 - "$mount_path/sbin/init" "$mount_path/etc/passwd" "$mount_path/etc/group" <<'PY'
 from pathlib import Path
 import sys
 
