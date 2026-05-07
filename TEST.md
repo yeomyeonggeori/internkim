@@ -116,6 +116,44 @@ ls /root/.internkim/env
 ls /root/.internkim/secrets
 ```
 
+## Agent Capability Acceptance
+
+InternKim에서 기능 추가 완료는 내부 API가 아니라 사용자식 요청이 실제 agent 경로를 통과하는 것입니다.
+
+새 tool 기능은 대응 skill을 함께 가져야 합니다. 빠른 회귀는 Blueclaw virtual session에서 확인합니다.
+
+```bash
+cd .dependency/blueclaw
+go test ./internal/agent ./internal/e2e ./internal/connectors ./internal/agentruntime
+```
+
+계약은 다음과 같습니다.
+
+- descriptor, policy, profile을 지나 전체 tool catalog에 tool이 등록됩니다.
+- 관련 skill이 자연어 요청에서 선택됩니다.
+- 실제 turn catalog는 core tool과 selected skill의 `allowed-tools`만 포함합니다.
+- task event에 selected skill, 노출 tool, tool request, tool result가 남습니다.
+- 최소 1개 한국어 acceptance prompt가 통과합니다.
+
+현재 빠른 acceptance prompt:
+
+```bash
+cd .dependency/blueclaw
+go test ./internal/e2e -run 'TestScheduleCreateAcceptance|TestSitePrototypeAcceptance' -v
+```
+
+실제 Mattermost ingress smoke는 비용과 platform 상태에 의존하므로 opt-in입니다. 검증 뒤 테스트 메시지와 봇 답변은 삭제해야 합니다.
+
+```bash
+./internkim verify mattermost --prompt '1분마다 "1분 지났습니다"라고 보내줘' --expect-tool schedule.create --expect-event schedule.created
+./internkim verify mattermost --prompt '웹사이트 하나 만들어서 배포해봐' --expect-tool site.app.create --expect-tool site.app.publish
+```
+
+배포 전 기능별 확인:
+
+- 스케줄링: Mattermost prompt smoke, `schedule.create`, `schedule.created`, due-run delivery
+- 웹사이트: Mattermost prompt smoke, `site.app.create`, `site.app.publish`, public URL 200
+
 ## 단계별 검증 모델
 
 ### Phase A
