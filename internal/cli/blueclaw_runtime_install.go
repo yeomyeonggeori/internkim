@@ -84,7 +84,11 @@ func requiredBlueclawRuntimeInstallArtifacts() []blueclawRuntimeInstallArtifact 
 
 func blueclawRuntimeInstallCommand(artifact blueclawRuntimeInstallArtifact, temporaryRemotePath string) string {
 	if artifact.name == "rootfs.ext4" {
-		return "cp --sparse=always " + quoteShellValue(temporaryRemotePath) + " " + quoteShellValue(artifact.remotePath) + " && chmod " + artifact.mode + " " + quoteShellValue(artifact.remotePath)
+		nextRemotePath := artifact.remotePath + ".next"
+		return "rm -f " + quoteShellValue(nextRemotePath) +
+			" && cp --sparse=always " + quoteShellValue(temporaryRemotePath) + " " + quoteShellValue(nextRemotePath) +
+			" && chmod " + artifact.mode + " " + quoteShellValue(nextRemotePath) +
+			" && mv -f " + quoteShellValue(nextRemotePath) + " " + quoteShellValue(artifact.remotePath)
 	}
 	return "install -m " + artifact.mode + " " + quoteShellValue(temporaryRemotePath) + " " + quoteShellValue(artifact.remotePath)
 }
