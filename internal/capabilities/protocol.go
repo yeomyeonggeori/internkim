@@ -58,7 +58,7 @@ func DeviceDescriptors() []Descriptor {
 
 func FlowDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "flow.task.add", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"description":{"type":"string"},"assignee":{"type":"string"},"status":{"type":"string"},"priority":{"type":"string"},"dueDate":{"type":"string"}},"required":["title"],"additionalProperties":false}`), PolicyResource: "tool:flow.task.add", SideEffectClass: "workspace_write"},
+		{Name: "flow.task.add", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskAddInputSchema(), PolicyResource: "tool:flow.task.add", SideEffectClass: "workspace_write"},
 	}
 }
 
@@ -73,30 +73,30 @@ func CalendarDescriptors() []Descriptor {
 
 func SiteAppDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "site.app.create", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppInputSchema(), PolicyResource: "tool:site.app.create", SideEffectClass: "workspace_write"},
-		{Name: "site.app.publish", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppNameInputSchema(), PolicyResource: "tool:site.app.publish", SideEffectClass: "external_publish", RequiresApproval: true},
-		{Name: "site.app.status", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppNameInputSchema(), PolicyResource: "tool:site.app.status", SideEffectClass: "read"},
-		{Name: "site.app.logs", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppNameInputSchema(), PolicyResource: "tool:site.app.logs", SideEffectClass: "read"},
-		{Name: "site.app.rollback", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppNameInputSchema(), PolicyResource: "tool:site.app.rollback", SideEffectClass: "external_publish", RequiresApproval: true},
-		{Name: "site.app.unpublish", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppNameInputSchema(), PolicyResource: "tool:site.app.unpublish", SideEffectClass: "external_publish", RequiresApproval: true},
-		{Name: "site.app.restore", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppNameInputSchema(), PolicyResource: "tool:site.app.restore", SideEffectClass: "workspace_write"},
-		{Name: "site.app.delete", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppNameInputSchema(), PolicyResource: "tool:site.app.delete", SideEffectClass: "destructive", RequiresApproval: true},
+		{Name: "site.app.create", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppCreateInputSchema(), PolicyResource: "tool:site.app.create", SideEffectClass: "workspace_write"},
+		{Name: "site.app.publish", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppPublishInputSchema(), PolicyResource: "tool:site.app.publish", SideEffectClass: "external_publish", RequiresApproval: true},
+		{Name: "site.app.status", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLookupInputSchema(), PolicyResource: "tool:site.app.status", SideEffectClass: "read"},
+		{Name: "site.app.logs", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLookupInputSchema(), PolicyResource: "tool:site.app.logs", SideEffectClass: "read"},
+		{Name: "site.app.rollback", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLifecycleInputSchema(), PolicyResource: "tool:site.app.rollback", SideEffectClass: "external_publish", RequiresApproval: true},
+		{Name: "site.app.unpublish", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLifecycleInputSchema(), PolicyResource: "tool:site.app.unpublish", SideEffectClass: "external_publish", RequiresApproval: true},
+		{Name: "site.app.restore", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLifecycleInputSchema(), PolicyResource: "tool:site.app.restore", SideEffectClass: "workspace_write"},
+		{Name: "site.app.delete", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppDeleteInputSchema(), PolicyResource: "tool:site.app.delete", SideEffectClass: "destructive", RequiresApproval: true},
 	}
 }
 
 func GoogleWorkspaceDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "google.docs.create", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"content":{"type":"string"}},"required":["title"],"additionalProperties":false}`), PolicyResource: "tool:google.docs.create", SideEffectClass: "external_write"},
-		{Name: "google.sheets.create", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"rows":{"type":"array","items":{"type":"array"}}},"required":["title"],"additionalProperties":false}`), PolicyResource: "tool:google.sheets.create", SideEffectClass: "external_write"},
-		{Name: "google.gmail.send", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"to":{"type":"array","items":{"type":"string"}},"subject":{"type":"string"},"body":{"type":"string"}},"required":["to","subject","body"],"additionalProperties":false}`), PolicyResource: "tool:google.gmail.send", SideEffectClass: "external_send", RequiresApproval: true},
-		{Name: "google.calendar.event", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"start":{"type":"string"},"end":{"type":"string"},"attendees":{"type":"array","items":{"type":"string"}},"description":{"type":"string"}},"required":["title","start"],"additionalProperties":false}`), PolicyResource: "tool:google.calendar.event", SideEffectClass: "external_write", RequiresApproval: true},
-		{Name: "google.calendar.list", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"timeMin":{"type":"string"},"timeMax":{"type":"string"},"query":{"type":"string"}},"additionalProperties":false}`), PolicyResource: "tool:google.calendar.list", SideEffectClass: "read"},
+		{Name: "google.docs.create", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleDocsCreateInputSchema(), PolicyResource: "tool:google.docs.create", SideEffectClass: "external_write"},
+		{Name: "google.sheets.create", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleSheetsCreateInputSchema(), PolicyResource: "tool:google.sheets.create", SideEffectClass: "external_write"},
+		{Name: "google.gmail.send", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleGmailSendInputSchema(), PolicyResource: "tool:google.gmail.send", SideEffectClass: "external_send", RequiresApproval: true},
+		{Name: "google.calendar.event", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleCalendarEventInputSchema(), PolicyResource: "tool:google.calendar.event", SideEffectClass: "external_write", RequiresApproval: true},
+		{Name: "google.calendar.list", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleCalendarListInputSchema(), PolicyResource: "tool:google.calendar.list", SideEffectClass: "read"},
 		{Name: "google.drive.import_pptx", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"},"title":{"type":"string"}},"required":["path"],"additionalProperties":false}`), PolicyResource: "tool:google.drive.import_pptx", SideEffectClass: "external_write"},
 	}
 }
 
-func siteAppInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"name":{"type":"string"},"sourcePath":{"type":"string"},"title":{"type":"string"}},"required":["name"],"additionalProperties":false}`)
+func flowTaskAddInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"prompt":{"type":"string"},"targetPersonHint":{"type":"string"},"weekCode":{"type":"string"},"allowDuplicate":{"type":"boolean"}},"required":["prompt"],"additionalProperties":false}`)
 }
 
 func calendarEventWriteInputSchema() json.RawMessage {
@@ -115,8 +115,44 @@ func calendarEventDeleteInputSchema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{"eventID":{"type":"string"}},"required":["eventID"],"additionalProperties":false}`)
 }
 
-func siteAppNameInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"name":{"type":"string"}},"required":["name"],"additionalProperties":false}`)
+func siteAppCreateInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"slug":{"type":"string"},"title":{"type":"string"}},"required":["slug"],"additionalProperties":false}`)
+}
+
+func siteAppPublishInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"siteID":{"type":"string"},"slug":{"type":"string"},"title":{"type":"string"},"visibility":{"type":"string"},"message":{"type":"string"}},"additionalProperties":false}`)
+}
+
+func siteAppLookupInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"siteID":{"type":"string"},"slug":{"type":"string"}},"additionalProperties":false}`)
+}
+
+func siteAppLifecycleInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"siteID":{"type":"string"},"slug":{"type":"string"},"reason":{"type":"string"},"confirm":{"type":"string"},"userConfirmed":{"type":"boolean"}},"additionalProperties":false}`)
+}
+
+func siteAppDeleteInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"siteID":{"type":"string"},"slug":{"type":"string"},"reason":{"type":"string"},"confirm":{"type":"string"},"userConfirmed":{"type":"boolean"}},"required":["confirm","userConfirmed"],"additionalProperties":false}`)
+}
+
+func googleDocsCreateInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"body":{"type":"string"}},"required":["title"],"additionalProperties":false}`)
+}
+
+func googleSheetsCreateInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"sheets":{"type":"array","items":{"type":"string"}},"values":{"type":"array","items":{"type":"array"}}},"required":["title"],"additionalProperties":false}`)
+}
+
+func googleGmailSendInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"to":{"type":"array","items":{"type":"string"}},"subject":{"type":"string"},"body":{"type":"string"},"cc":{"type":"array","items":{"type":"string"}},"bcc":{"type":"array","items":{"type":"string"}}},"required":["to","subject","body"],"additionalProperties":false}`)
+}
+
+func googleCalendarEventInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"start":{"type":"string"},"end":{"type":"string"},"attendees":{"type":"array","items":{"type":"string"}},"description":{"type":"string"},"location":{"type":"string"}},"required":["title","start","end"],"additionalProperties":false}`)
+}
+
+func googleCalendarListInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"start":{"type":"string"},"end":{"type":"string"},"limit":{"type":"integer"},"query":{"type":"string"}},"additionalProperties":false}`)
 }
 
 func CompanionToolNames() []string {
