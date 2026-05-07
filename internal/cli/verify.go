@@ -22,6 +22,7 @@ type verifyTarget struct {
 	host       string
 	user       string
 	password   string
+	nodeID     string
 	scriptDir  string
 	stateDir   string
 	sshpassBin string
@@ -75,6 +76,9 @@ func runVerifyMattermost(arguments []string) error {
 	host := flagSet.String("host", "", "Board host")
 	user := flagSet.String("user", "", "SSH user")
 	password := flagSet.String("password", "", "SSH password")
+	node := flagSet.String("node", "", "Fleet node target")
+	boardID := flagSet.String("board-id", "", "Deprecated alias for --node")
+	cloudflareSSH := flagSet.Bool("cloudflare-ssh", false, "Use Cloudflare SSH")
 	board := flagSet.String("board", "", "Board target")
 	simulation := flagSet.Bool("sim", false, "Use simulation target")
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
@@ -90,6 +94,15 @@ func runVerifyMattermost(arguments []string) error {
 	}
 	if strings.TrimSpace(*password) != "" {
 		targetArguments = append(targetArguments, "--password", *password)
+	}
+	if strings.TrimSpace(*node) != "" {
+		targetArguments = append(targetArguments, "--node", strings.TrimSpace(*node))
+	}
+	if strings.TrimSpace(*boardID) != "" {
+		targetArguments = append(targetArguments, "--board-id", strings.TrimSpace(*boardID))
+	}
+	if *cloudflareSSH {
+		targetArguments = append(targetArguments, "--cloudflare-ssh")
 	}
 	if strings.TrimSpace(*board) != "" {
 		targetArguments = append(targetArguments, "--board", strings.TrimSpace(*board))
@@ -330,6 +343,9 @@ func runVerifyBrowser(arguments []string) error {
 	host := flagSet.String("host", "", "Board host")
 	user := flagSet.String("user", "", "SSH user")
 	password := flagSet.String("password", "", "SSH password")
+	node := flagSet.String("node", "", "Fleet node target")
+	boardID := flagSet.String("board-id", "", "Deprecated alias for --node")
+	cloudflareSSH := flagSet.Bool("cloudflare-ssh", false, "Use Cloudflare SSH")
 	board := flagSet.String("board", "", "Board target")
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
 		return errorValue
@@ -347,6 +363,15 @@ func runVerifyBrowser(arguments []string) error {
 	}
 	if strings.TrimSpace(*password) != "" {
 		targetArguments = append(targetArguments, "--password", *password)
+	}
+	if strings.TrimSpace(*node) != "" {
+		targetArguments = append(targetArguments, "--node", *node)
+	}
+	if strings.TrimSpace(*boardID) != "" {
+		targetArguments = append(targetArguments, "--board-id", *boardID)
+	}
+	if *cloudflareSSH {
+		targetArguments = append(targetArguments, "--cloudflare-ssh")
 	}
 	if strings.TrimSpace(*board) != "" {
 		targetArguments = append(targetArguments, "--board", *board)
@@ -378,6 +403,9 @@ func resolveVerifyTarget(arguments []string) (verifyTarget, error) {
 	host := flagSet.String("host", "", "Board host")
 	user := flagSet.String("user", "", "SSH user")
 	password := flagSet.String("password", "", "SSH password")
+	flagSet.String("node", "", "Fleet node target")
+	flagSet.String("board-id", "", "Deprecated alias for --node")
+	flagSet.Bool("cloudflare-ssh", false, "Use Cloudflare SSH")
 	flagSet.String("board", "", "Board target")
 	flagSet.Bool("sim", false, "Use simulation target")
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
@@ -399,16 +427,26 @@ func resolveVerifyTarget(arguments []string) (verifyTarget, error) {
 	if strings.TrimSpace(target.host) == "" && target.mode != commandTargetModeSimulation {
 		target.host = findBoardIPForCredentials(sshpassBin, target.stateDir, target.sshUser, target.sshPassword)
 	}
-	if strings.TrimSpace(target.host) == "" {
-		return verifyTarget{}, errors.New("verify target not found; pass --host <ip>")
+	configuration := loadConfig()
+	sshClient := (*sshClient)(nil)
+	if strings.TrimSpace(target.host) != "" {
+		sshClient = newSSH(sshpassBin, target.sshUser, target.sshPassword, target.host)
+	} else {
+		connection, isRemote, connectionError := resolveDeviceSSHConnection(configuration, sshpassBin, target)
+		if connectionError != nil {
+			return verifyTarget{}, errors.New("verify target not found; pass --host <ip>")
+		}
+		sshClient = connection
+		target.host = connection.host
+		target.useRemoteSSH = isRemote
 	}
 
 	printCommandTargetEvidence(target)
-	sshClient := newSSH(sshpassBin, target.sshUser, target.sshPassword, target.host)
 	return verifyTarget{
 		host:       target.host,
 		user:       target.sshUser,
 		password:   target.sshPassword,
+		nodeID:     target.nodeID,
 		scriptDir:  repositoryRootPath,
 		stateDir:   target.stateDir,
 		sshpassBin: sshpassBin,
