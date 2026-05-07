@@ -17,6 +17,7 @@ type flowTaskAddInput struct {
 	Prompt           string `json:"prompt"`
 	TargetPersonHint string `json:"targetPersonHint"`
 	WeekCode         string `json:"weekCode"`
+	AllowDuplicate   bool   `json:"allowDuplicate"`
 }
 
 type flowSummaryForTool struct {
@@ -47,6 +48,7 @@ func (service Service) invokeFlowTaskAdd(ctx context.Context, request capabiliti
 		"weekCode":       input.WeekCode,
 		"requesterEmail": request.Context.RequesterEmail,
 		"source":         "chat",
+		"allowDuplicate": input.AllowDuplicate,
 	}
 	result, errorValue := service.postFlowTask(ctx, payload, request.Context.RequesterEmail)
 	if errorValue != nil {
@@ -56,9 +58,22 @@ func (service Service) invokeFlowTaskAdd(ctx context.Context, request capabiliti
 		Provider:        "internkim",
 		SelectedBackend: "device",
 		ToolName:        request.ToolName,
-		Status:          "ok",
+		Status:          flowTaskAddResponseStatus(result),
 		Result:          result,
 	}, nil
+}
+
+func flowTaskAddResponseStatus(result json.RawMessage) string {
+	var response struct {
+		Status string `json:"status"`
+	}
+	if errorValue := json.Unmarshal(result, &response); errorValue != nil {
+		return "ok"
+	}
+	if strings.TrimSpace(response.Status) == "" {
+		return "ok"
+	}
+	return strings.TrimSpace(response.Status)
 }
 
 func decodeFlowTaskAddInput(document json.RawMessage) (flowTaskAddInput, error) {
