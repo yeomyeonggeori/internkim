@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
@@ -40,9 +41,15 @@ type setupFlowState struct {
 
 	registrationResolved bool
 	deviceID             string
+	boardID              string
 	adminEmail           string
 	deviceURL            string
 	tunnelToken          string
+	nodeTunnelToken      string
+	fleetRole            string
+	fleetActiveCount     int
+	fleetPendingCount    int
+	fleetQuorumSize      int
 }
 
 type setupParameterValues struct {
@@ -131,6 +138,7 @@ func newSetupFlowState(
 		scriptDir:      scriptDir,
 		boardBinDir:    filepath.Join(scriptDir, "build", "board-bin"),
 		deviceID:       loadOrCreateDeviceID(stateDir),
+		boardID:        loadBoardID(stateDir),
 		getSSIDPath:    filepath.Join(scriptDir, "bin", "get-ssid"),
 		setupBuildID:   setupBuildID,
 		sshClient:      sshClient,
@@ -1480,6 +1488,7 @@ func (state *setupFlowState) ensureDeviceRegistration(force bool) error {
 	}
 
 	state.deviceID = loadOrCreateDeviceID(state.stateDir)
+	state.boardID = loadBoardID(state.stateDir)
 	state.adminEmail = ""
 	if state.parameters.AdminEmail != "" {
 		state.adminEmail = state.parameters.AdminEmail
@@ -1488,13 +1497,15 @@ func (state *setupFlowState) ensureDeviceRegistration(force bool) error {
 		state.adminEmail = strings.TrimSpace(os.Getenv("INTERNKIM_ADMIN_EMAIL"))
 	}
 	state.tunnelToken = loadState(state.stateDir, "tunnel_token")
+	state.nodeTunnelToken = loadState(state.stateDir, "node_tunnel_token")
 	state.deviceURL = loadState(state.stateDir, "device_url")
 	tunnelOrigin := loadState(state.stateDir, "tunnel_origin")
 	tunnelRevision := loadState(state.stateDir, "tunnel_revision")
 
 	fmt.Printf("  %s: %s\n", state.messenger.t("기기 ID", "Device ID"), state.deviceID)
+	fmt.Printf("  %s: %s\n", state.messenger.t("보드 ID", "Board ID"), firstNonEmptyString(state.boardID, "auto"))
 
-	if force || state.tunnelToken == "" || tunnelOrigin != setup.MattermostTunnelOrigin || tunnelRevision != setup.TunnelConfigurationRevision {
+	if force || state.tunnelToken == "" || state.nodeTunnelToken == "" || tunnelOrigin != setup.MattermostTunnelOrigin || tunnelRevision != setup.TunnelConfigurationRevision {
 		registrationResponse, err := registerDeviceWithCollisionRetry(
 			state.configuration,
 			state.stateDir,
@@ -1506,7 +1517,13 @@ func (state *setupFlowState) ensureDeviceRegistration(force bool) error {
 		}
 
 		state.deviceID = registrationResponse.DeviceID
+		state.boardID = firstNonEmptyString(registrationResponse.BoardID, state.boardID)
+		state.fleetRole = firstNonEmptyString(registrationResponse.FleetRole, "active")
+		state.fleetActiveCount = defaultInt(registrationResponse.FleetActiveCount, 1)
+		state.fleetPendingCount = registrationResponse.FleetPendingCount
+		state.fleetQuorumSize = defaultInt(registrationResponse.FleetQuorumSize, 1)
 		state.tunnelToken = registrationResponse.TunnelToken
+		state.nodeTunnelToken = firstNonEmptyString(registrationResponse.NodeTunnelToken, registrationResponse.TunnelToken)
 		state.deviceURL = registrationResponse.publicURL()
 		sshHostname := registrationResponse.SSHHostname
 		if sshHostname == "" {
@@ -1514,15 +1531,22 @@ func (state *setupFlowState) ensureDeviceRegistration(force bool) error {
 		}
 
 		saveState(state.stateDir, "tunnel_token", state.tunnelToken)
+		saveState(state.stateDir, "node_tunnel_token", state.nodeTunnelToken)
 		saveState(state.stateDir, "device_url", state.deviceURL)
 		saveState(state.stateDir, "ssh_hostname", sshHostname)
 		saveState(state.stateDir, "tunnel_origin", setup.MattermostTunnelOrigin)
 		saveState(state.stateDir, "tunnel_revision", setup.TunnelConfigurationRevision)
+		saveDefaultFleetNode(state.stateDir, registrationResponse)
 		if state.adminEmail != "" {
 			saveState(state.stateDir, "google_email", state.adminEmail)
 		}
 	} else {
 		fmt.Printf("  %s\n", state.messenger.t("이미 등록됨", "Already registered"))
+		state.fleetRole = firstNonEmptyString(loadState(state.stateDir, "fleet_role"), "active")
+		state.fleetActiveCount = defaultIntString(loadState(state.stateDir, "fleet_active_count"), 1)
+		state.fleetPendingCount = defaultIntString(loadState(state.stateDir, "fleet_pending_count"), 0)
+		state.fleetQuorumSize = defaultIntString(loadState(state.stateDir, "fleet_quorum_size"), 1)
+		state.nodeTunnelToken = firstNonEmptyString(loadState(state.stateDir, "node_tunnel_token"), state.tunnelToken)
 	}
 
 	if state.adminEmail == "" {
@@ -1531,6 +1555,15 @@ func (state *setupFlowState) ensureDeviceRegistration(force bool) error {
 
 	if state.deviceURL != "" {
 		fmt.Printf("  URL: %s\n", state.deviceURL)
+	}
+	if state.fleetRole != "" {
+		fmt.Printf("  %s: %s (%d active, %d pending, quorum %d)\n",
+			state.messenger.t("Fleet 역할", "Fleet role"),
+			state.fleetRole,
+			state.fleetActiveCount,
+			state.fleetPendingCount,
+			state.fleetQuorumSize,
+		)
 	}
 
 	state.registrationResolved = true
@@ -1546,7 +1579,9 @@ func (state *setupFlowState) provisionTunnelSSH(context *setup.Context) error {
 
 	state.sshClient.run(fmt.Sprintf(`mkdir -p /root/.internkim/secrets /root/.internkim/env /root/.internkim/config
 printf '%%s' %s > /root/.internkim/secrets/tunnel-token
+printf '%%s' %s > /root/.internkim/secrets/node-tunnel-token
 chmod 600 /root/.internkim/secrets/tunnel-token
+chmod 600 /root/.internkim/secrets/node-tunnel-token
 printf '%%s' %s > /root/.internkim/env/device-url
 printf '%%s' %s > /root/.internkim/env/mattermost-url
 printf '%%s' %s > /root/.internkim/env/tunnel-origin
@@ -1557,12 +1592,51 @@ chmod 600 /root/.internkim/config/admin-email
 chown root:blueclaw /root/.internkim/env/device-url /root/.internkim/env/mattermost-url /root/.internkim/env/tunnel-origin /root/.internkim/env/tunnel-revision
 chmod 640 /root/.internkim/env/device-url /root/.internkim/env/mattermost-url /root/.internkim/env/tunnel-origin /root/.internkim/env/tunnel-revision`,
 		quoteShellValue(state.tunnelToken),
+		quoteShellValue(firstNonEmptyString(state.nodeTunnelToken, state.tunnelToken)),
 		quoteShellValue(state.deviceURL),
 		quoteShellValue(state.deviceURL),
 		quoteShellValue(setup.MattermostTunnelOrigin),
 		quoteShellValue(setup.TunnelConfigurationRevision),
 		quoteShellValue(state.adminEmail),
 	))
+
+	state.sshClient.run(`cat > /etc/systemd/system/cloudflared-node-ssh.service <<'SVCEOF'
+[Unit]
+Description=Cloudflare Node SSH Tunnel
+After=network-online.target time-sync.target
+Wants=network-online.target time-sync.target
+
+[Service]
+Type=simple
+ExecStart=/bin/sh -c '/usr/local/bin/cloudflared tunnel run --protocol http2 --token "$(cat /root/.internkim/secrets/node-tunnel-token)"'
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+rm -f /etc/init.d/S98cloudflared 2>/dev/null
+systemctl stop cloudflared cloudflared-node-ssh 2>/dev/null || true
+killall cloudflared 2>/dev/null || true
+systemctl daemon-reload
+systemctl enable --now cloudflared-node-ssh
+for i in $(seq 1 45); do
+  [ "$(systemctl is-active cloudflared-node-ssh 2>/dev/null)" = "active" ] && break
+  sleep 2
+done`)
+
+	if strings.TrimSpace(state.sshClient.run("systemctl is-active cloudflared-node-ssh 2>/dev/null || true")) != "active" {
+		return fmt.Errorf("cloudflared node ssh tunnel failed to start")
+	}
+
+	if state.isPendingFleetMember() {
+		state.sshClient.run(`systemctl disable --now cloudflared 2>/dev/null || true
+systemctl daemon-reload`)
+		fmt.Printf("  %s\n", state.messenger.t("pending 보드 — public 터널은 닫고 node SSH 터널만 유지", "pending board — public tunnel stays closed, node SSH tunnel stays available"))
+		return nil
+	}
 
 	state.sshClient.run(`systemctl enable systemd-time-wait-sync.service 2>/dev/null
 cat > /etc/systemd/system/cloudflared.service <<'SVCEOF'
@@ -1582,17 +1656,15 @@ StandardError=journal
 [Install]
 WantedBy=multi-user.target
 SVCEOF
-rm -f /etc/init.d/S98cloudflared 2>/dev/null
 systemctl stop cloudflared 2>/dev/null || true
-killall cloudflared 2>/dev/null || true
 systemctl daemon-reload
-systemctl enable --now cloudflared
+systemctl enable --now cloudflared cloudflared-node-ssh
 for i in $(seq 1 45); do
   [ "$(systemctl is-active cloudflared 2>/dev/null)" = "active" ] && break
   sleep 2
 done`)
 
-	if strings.TrimSpace(state.sshClient.run("for i in $(seq 1 15); do [ \"$(systemctl is-active cloudflared 2>/dev/null)\" = active ] && echo active && exit 0; sleep 1; done; systemctl is-active cloudflared 2>/dev/null || true")) == "active" {
+	if strings.TrimSpace(state.sshClient.run("for i in $(seq 1 15); do [ \"$(systemctl is-active cloudflared 2>/dev/null)\" = active ] && [ \"$(systemctl is-active cloudflared-node-ssh 2>/dev/null)\" = active ] && echo active && exit 0; sleep 1; done; echo inactive")) == "active" {
 		fmt.Printf("  %s\n", state.messenger.t("cloudflared 실행 중", "cloudflared running"))
 		return nil
 	}
@@ -1606,12 +1678,27 @@ func (state *setupFlowState) writeDeviceAuthFilesSSH() {
 printf '%%s' %s > %s
 printf '%%s' %s > %s
 printf '%%s' %s > %s
+printf '%%s' %s > %s
+printf '%%s' %s > %s
+printf '%%s' %s > %s
+printf '%%s' %s > %s
+printf '%%s' %s > %s
 chown root:root %s
 chmod 600 %s
-chown root:blueclaw %s %s
-chmod 640 %s %s`,
+chown root:blueclaw %s %s %s %s %s %s %s
+chmod 640 %s %s %s %s %s %s %s`,
 		quoteShellValue(state.deviceID),
 		quoteShellValue(blueclaw.InternKimDeviceIDPath),
+		quoteShellValue(state.boardID),
+		quoteShellValue(blueclaw.InternKimBoardIDPath),
+		quoteShellValue(firstNonEmptyString(state.fleetRole, "active")),
+		quoteShellValue(blueclaw.InternKimFleetRolePath),
+		quoteShellValue(fmt.Sprint(defaultInt(state.fleetActiveCount, 1))),
+		quoteShellValue(blueclaw.InternKimFleetActiveCountPath),
+		quoteShellValue(fmt.Sprint(state.fleetPendingCount)),
+		quoteShellValue(blueclaw.InternKimFleetPendingCountPath),
+		quoteShellValue(fmt.Sprint(defaultInt(state.fleetQuorumSize, 1))),
+		quoteShellValue(blueclaw.InternKimFleetQuorumSizePath),
 		quoteShellValue(deviceSecret),
 		quoteShellValue(blueclaw.InternKimDeviceSecretPath),
 		quoteShellValue(state.configuration.APIBaseURL),
@@ -1619,10 +1706,39 @@ chmod 640 %s %s`,
 		quoteShellValue(blueclaw.InternKimDeviceSecretPath),
 		quoteShellValue(blueclaw.InternKimDeviceSecretPath),
 		quoteShellValue(blueclaw.InternKimDeviceIDPath),
+		quoteShellValue(blueclaw.InternKimBoardIDPath),
+		quoteShellValue(blueclaw.InternKimFleetRolePath),
+		quoteShellValue(blueclaw.InternKimFleetActiveCountPath),
+		quoteShellValue(blueclaw.InternKimFleetPendingCountPath),
+		quoteShellValue(blueclaw.InternKimFleetQuorumSizePath),
 		quoteShellValue(blueclaw.InternKimAPIURLPath),
 		quoteShellValue(blueclaw.InternKimDeviceIDPath),
+		quoteShellValue(blueclaw.InternKimBoardIDPath),
+		quoteShellValue(blueclaw.InternKimFleetRolePath),
+		quoteShellValue(blueclaw.InternKimFleetActiveCountPath),
+		quoteShellValue(blueclaw.InternKimFleetPendingCountPath),
+		quoteShellValue(blueclaw.InternKimFleetQuorumSizePath),
 		quoteShellValue(blueclaw.InternKimAPIURLPath),
 	))
+}
+
+func (state *setupFlowState) isPendingFleetMember() bool {
+	return strings.TrimSpace(state.fleetRole) == "pending"
+}
+
+func defaultInt(value int, fallback int) int {
+	if value != 0 {
+		return value
+	}
+	return fallback
+}
+
+func defaultIntString(value string, fallback int) int {
+	parsedValue, errorValue := strconv.Atoi(strings.TrimSpace(value))
+	if errorValue != nil || parsedValue == 0 {
+		return fallback
+	}
+	return parsedValue
 }
 
 func (state *setupFlowState) stageTunnelSD(context *setup.Context) error {
@@ -1631,6 +1747,9 @@ func (state *setupFlowState) stageTunnelSD(context *setup.Context) error {
 	}
 
 	if err := context.SD.WriteFile("secrets/tunnel-token", []byte(state.tunnelToken), 0o644); err != nil {
+		return err
+	}
+	if err := context.SD.WriteFile("secrets/node-tunnel-token", []byte(firstNonEmptyString(state.nodeTunnelToken, state.tunnelToken)), 0o644); err != nil {
 		return err
 	}
 	if err := context.SD.WriteFile("device-url", []byte(state.deviceURL), 0o644); err != nil {
@@ -1646,6 +1765,21 @@ func (state *setupFlowState) stageTunnelSD(context *setup.Context) error {
 		return err
 	}
 	if err := context.SD.WriteFile("device-id", []byte(state.deviceID), 0o644); err != nil {
+		return err
+	}
+	if err := context.SD.WriteFile("board-id", []byte(state.boardID), 0o644); err != nil {
+		return err
+	}
+	if err := context.SD.WriteFile("fleet-role", []byte(firstNonEmptyString(state.fleetRole, "active")), 0o644); err != nil {
+		return err
+	}
+	if err := context.SD.WriteFile("fleet-active-count", []byte(fmt.Sprint(defaultInt(state.fleetActiveCount, 1))), 0o644); err != nil {
+		return err
+	}
+	if err := context.SD.WriteFile("fleet-pending-count", []byte(fmt.Sprint(state.fleetPendingCount)), 0o644); err != nil {
+		return err
+	}
+	if err := context.SD.WriteFile("fleet-quorum-size", []byte(fmt.Sprint(defaultInt(state.fleetQuorumSize, 1))), 0o644); err != nil {
 		return err
 	}
 	if err := context.SD.WriteFile("api-url", []byte(state.configuration.APIBaseURL), 0o644); err != nil {

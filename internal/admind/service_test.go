@@ -1846,6 +1846,28 @@ func assertMattermostFlowChannelPatch(t *testing.T, request *http.Request) {
 	}
 }
 
+func assertMattermostFlowChannelCreate(t *testing.T, request *http.Request) {
+	t.Helper()
+	var payload map[string]string
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if payload["team_id"] != "team-1" || payload["name"] != "flow" || payload["display_name"] != "Flow" || payload["type"] != "O" {
+		t.Fatalf("flow channel create = %#v", payload)
+	}
+}
+
+func assertMattermostChannelMember(t *testing.T, request *http.Request, expectedUserID string) {
+	t.Helper()
+	var payload map[string]string
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if payload["user_id"] != expectedUserID {
+		t.Fatalf("channel member = %#v", payload)
+	}
+}
+
 func assertMattermostFlowEntryPost(t *testing.T, request *http.Request) {
 	t.Helper()
 	var payload map[string]any
@@ -2229,6 +2251,79 @@ func TestMattermostConnectCommandProvisioningCreatesCommandToken(t *testing.T) {
 	}
 	if strings.TrimSpace(readTrimmedFile(service.mattermostConnectCommandTokenPath())) != "connect-token" {
 		t.Fatalf("stored command token = %q", readTrimmedFile(service.mattermostConnectCommandTokenPath()))
+	}
+}
+
+func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
+	stateDirectory := t.TempDir()
+	envDirectory := filepath.Join(stateDirectory, "env")
+	if errorValue := os.MkdirAll(envDirectory, 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	adminPasswordPath := filepath.Join(stateDirectory, "admin-pass")
+	deviceIDPath := filepath.Join(envDirectory, "device-id")
+	writeFile(t, adminPasswordPath, "admin-pass")
+	writeFile(t, deviceIDPath, "device-1")
+	flowChannelCreated := false
+	flowChannelPatched := false
+	flowEntryPostCreated := false
+	adminJoinedFlowChannel := false
+	service := NewService(Configuration{
+		StateDirectory:              stateDirectory,
+		MattermostBaseURL:           "http://mattermost.local",
+		MattermostAdminPasswordPath: adminPasswordPath,
+		DeviceIDPath:                deviceIDPath,
+		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
+	})
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
+			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/username/admin":
+			return jsonResponse(http.StatusOK, `{"id":"admin","email":"admin@localhost","username":"admin"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/admin/roles" && request.Method == http.MethodPut:
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim":
+			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/members" && request.Method == http.MethodPost:
+			return jsonResponse(http.StatusCreated, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/town-square":
+			return jsonResponse(http.StatusOK, `{"id":"town-square-channel"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/flow":
+			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels" && request.Method == http.MethodPost:
+			flowChannelCreated = true
+			assertMattermostFlowChannelCreate(t, request)
+			return jsonResponse(http.StatusCreated, `{"id":"flow-channel"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/patch" && request.Method == http.MethodPut:
+			flowChannelPatched = true
+			assertMattermostFlowChannelPatch(t, request)
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/posts?per_page=50":
+			return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/posts" && request.Method == http.MethodPost:
+			flowEntryPostCreated = true
+			assertMattermostFlowEntryPost(t, request)
+			return jsonResponse(http.StatusCreated, `{"id":"flow-entry"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/town-square-channel/members" && request.Method == http.MethodPost:
+			return jsonResponse(http.StatusCreated, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/members" && request.Method == http.MethodPost:
+			adminJoinedFlowChannel = true
+			assertMattermostChannelMember(t, request, "admin")
+			return jsonResponse(http.StatusCreated, `{}`, nil), nil
+		case isMattermostConnectCommandSetupRequest(request):
+			return mattermostConnectCommandSetupResponse(t, request), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	if errorValue := service.ensureMattermostProvisionerDefaults(context.Background()); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !flowChannelCreated || !flowChannelPatched || !flowEntryPostCreated || !adminJoinedFlowChannel {
+		t.Fatalf("flow setup flags created=%v patched=%v posted=%v joined=%v", flowChannelCreated, flowChannelPatched, flowEntryPostCreated, adminJoinedFlowChannel)
 	}
 }
 
