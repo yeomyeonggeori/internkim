@@ -14,6 +14,9 @@ Rules:
 
 - A user may add work directly only to their own Flow.
 - Work for another person must be added as `요청`, not as a direct assignment.
+- Call `flow.task.add` with `prompt` containing the user's natural-language task request.
+- Use `targetPersonHint` only when the target person is explicit.
+- Use `weekCode` only when the user names a specific Flow week.
 - Do not say a task was added until `flow.task.add` succeeds.
 - If `flow.task.add` returns `status: skipped_duplicate`, tell the user the matching task is already in Flow and ask whether to add another copy. Do not call the tool again unless the user explicitly says to add it anyway.
 - When the user explicitly confirms adding a duplicate, call `flow.task.add` again with the same input and `allowDuplicate: true`.
