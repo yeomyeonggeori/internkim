@@ -28,7 +28,10 @@ var StepHealth = Step{
 
 		var failedChecks []string
 		checkService(context, "mattermost", &failedChecks)
-		checkService(context, "cloudflared", &failedChecks)
+		if trimmedRun(context, "cat /root/.internkim/env/fleet-role 2>/dev/null") != "pending" {
+			checkService(context, "cloudflared", &failedChecks)
+		}
+		checkService(context, "cloudflared-node-ssh", &failedChecks)
 		checkService(context, blueclaw.CapabilitydServiceName, &failedChecks)
 		checkService(context, blueclaw.AdmindServiceName, &failedChecks)
 		checkBlueclawFirecrackerRuntime(context, &failedChecks)
