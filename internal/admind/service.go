@@ -268,6 +268,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.Handle("/_app/", http.FileServer(http.Dir(service.Configuration.AdminUIPath)))
 	multiplexer.HandleFunc("/logo.svg", service.serveAdminAsset)
 	multiplexer.HandleFunc("/_internkim/companion/", service.handleCompanion)
+	multiplexer.HandleFunc("/_internkim/runtime/", service.handleRuntime)
 	multiplexer.HandleFunc("/_internkim/mattermost/commands", service.handleMattermostCommand)
 	multiplexer.Handle("/", service.mattermostProxy())
 	return service.withCORS(service.withSiteGateway(multiplexer))
