@@ -167,6 +167,19 @@ func TestSiteRegistryPersistsAndAllocatesDistinctPorts(t *testing.T) {
 	}
 }
 
+func TestSiteWorkspaceIsWritableByRequesterTerminal(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "terminal-writable"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	assertPathPermission(t, filepath.Dir(site.HostSourcePath), 0o777)
+	assertPathPermission(t, site.HostSourcePath, 0o777)
+	assertPathPermission(t, filepath.Join(site.HostSourcePath, "app"), 0o777)
+	assertPathPermission(t, filepath.Join(site.HostSourcePath, "app", "src"), 0o777)
+	assertPathPermission(t, filepath.Join(site.HostSourcePath, "app", "package.json"), 0o666)
+}
+
 func TestSiteDeleteRequiresExplicitConfirmation(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "delete-me"})
@@ -277,4 +290,15 @@ func containsCommand(commands []string, expected string) bool {
 		}
 	}
 	return false
+}
+
+func assertPathPermission(t *testing.T, path string, expected os.FileMode) {
+	t.Helper()
+	information, errorValue := os.Stat(path)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if information.Mode().Perm() != expected {
+		t.Fatalf("%s permission = %o, expected %o", path, information.Mode().Perm(), expected)
+	}
 }

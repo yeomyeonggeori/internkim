@@ -731,6 +731,12 @@ func siteLifecycleAllowed(site *SiteRecord, payload siteLifecycleRequest) bool {
 }
 
 func (service *Service) prepareSiteWorkspace(ctx context.Context, site *SiteRecord) error {
+	if errorValue := os.MkdirAll(filepath.Dir(site.HostSourcePath), 0o777); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := os.Chmod(filepath.Dir(site.HostSourcePath), 0o777); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := os.MkdirAll(filepath.Join(site.HostSourcePath, "app", "src"), 0o750); errorValue != nil {
 		return errorValue
 	}
@@ -747,7 +753,20 @@ func (service *Service) prepareSiteWorkspace(ctx context.Context, site *SiteReco
 		return errorValue
 	}
 	_, _ = service.runCommand(ctx, "chown", "-R", "blueclaw:blueclaw", site.HostSourcePath)
-	return nil
+	return makeSiteWorkspaceCollaborative(site.HostSourcePath)
+}
+
+func makeSiteWorkspaceCollaborative(workspacePath string) error {
+	return filepath.Walk(workspacePath, func(path string, information os.FileInfo, walkError error) error {
+		if walkError != nil {
+			return walkError
+		}
+		mode := os.FileMode(0o666)
+		if information.IsDir() || information.Mode()&0o111 != 0 {
+			mode = 0o777
+		}
+		return os.Chmod(path, mode)
+	})
 }
 
 func (service *Service) writeSiteWorkspaceTemplate(site *SiteRecord) error {
