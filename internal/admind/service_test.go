@@ -798,7 +798,7 @@ func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *test
 		case isMattermostConnectCommandSetupRequest(request):
 			return mattermostConnectCommandSetupResponse(t, request), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
-			assertMattermostFullNameDisplayPatch(t, request)
+			assertMattermostNicknameDisplayPatch(t, request)
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/email/member@example.com":
 			return jsonResponse(http.StatusNotFound, `{"message":"not found"}`, nil), nil
@@ -810,7 +810,7 @@ func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *test
 			if payload["email"] != "member@example.com" {
 				t.Fatalf("mattermost email = %q", payload["email"])
 			}
-			if payload["username"] != "member" || payload["first_name"] != "Member" || payload["last_name"] != "One" || payload["nickname"] != "Member One" {
+			if payload["username"] != "member" || payload["first_name"] != "Member" || payload["last_name"] != "One" || payload["nickname"] != "Member" {
 				t.Fatalf("mattermost identity payload = %#v", payload)
 			}
 			if payload["password"] == "" {
@@ -936,7 +936,7 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 		case isMattermostConnectCommandSetupRequest(request):
 			return mattermostConnectCommandSetupResponse(t, request), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
-			assertMattermostFullNameDisplayPatch(t, request)
+			assertMattermostNicknameDisplayPatch(t, request)
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"oldhandle","roles":"system_user"}`, nil), nil
@@ -984,7 +984,7 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("user save status = %d body = %s", response.Code, response.Body.String())
 	}
-	if mattermostPatch["username"] != "newhandle" || mattermostPatch["first_name"] != "New" || mattermostPatch["last_name"] != "Name" || mattermostPatch["nickname"] != "New Name" {
+	if mattermostPatch["username"] != "newhandle" || mattermostPatch["first_name"] != "New" || mattermostPatch["last_name"] != "Name" || mattermostPatch["nickname"] != "New" {
 		t.Fatalf("mattermost patch = %#v", mattermostPatch)
 	}
 	if pagesPayload["userID"] != "user-member" || pagesPayload["handle"] != "newhandle" || pagesPayload["name"] != "New Name" {
@@ -1027,7 +1027,7 @@ func TestAdminInvitePreservesCurrentAdminRole(t *testing.T) {
 		case isMattermostConnectCommandSetupRequest(request):
 			return mattermostConnectCommandSetupResponse(t, request), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
-			assertMattermostFullNameDisplayPatch(t, request)
+			assertMattermostNicknameDisplayPatch(t, request)
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/email/admin@example.com":
 			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
@@ -1262,7 +1262,7 @@ func TestBotProfileUpdatePatchesMattermostAndWorkspaceProfile(t *testing.T) {
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/username/internkim":
-			return jsonResponse(http.StatusOK, `{"id":"bot-1","email":"internkim@localhost","username":"internkim","first_name":"Intern Kim","nickname":"Intern Kim","roles":"system_user"}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"id":"bot-1","email":"internkim@localhost","username":"internkim","first_name":"Intern","last_name":"Kim","nickname":"김인턴","roles":"system_user"}`, nil), nil
 		case request.Method == http.MethodPut && request.URL.String() == "http://mattermost.local/api/v4/users/bot-1/patch":
 			body, _ := io.ReadAll(request.Body)
 			patchBody = string(body)
@@ -1287,7 +1287,7 @@ func TestBotProfileUpdatePatchesMattermostAndWorkspaceProfile(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("bot profile status = %d: %s", response.Code, response.Body.String())
 	}
-	if !strings.Contains(patchBody, `"first_name":"김비서"`) || !strings.Contains(patchBody, `"position":"업무를 빠르게 돕습니다"`) {
+	if !strings.Contains(patchBody, `"first_name":"Kim"`) || !strings.Contains(patchBody, `"last_name":"Secretary"`) || !strings.Contains(patchBody, `"nickname":"김비서"`) || !strings.Contains(patchBody, `"position":"업무를 빠르게 돕습니다"`) {
 		t.Fatalf("unexpected Mattermost patch body: %s", patchBody)
 	}
 	workspaceDocument, errorValue := os.ReadFile(filepath.Join(workspacePath, "BOT_PROFILE.yaml"))
@@ -3341,14 +3341,14 @@ func assertFirstAdminPasswordPolicyPatch(t *testing.T, request *http.Request) {
 	}
 }
 
-func assertMattermostFullNameDisplayPatch(t *testing.T, request *http.Request) {
+func assertMattermostNicknameDisplayPatch(t *testing.T, request *http.Request) {
 	t.Helper()
 	var payload map[string]map[string]any
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	teamSettings := payload["TeamSettings"]
-	if teamSettings["TeammateNameDisplay"] != "full_name" {
+	if teamSettings["TeammateNameDisplay"] != "nickname_full_name" {
 		t.Fatalf("teammate name display = %#v", teamSettings["TeammateNameDisplay"])
 	}
 }
