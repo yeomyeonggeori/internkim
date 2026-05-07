@@ -66,6 +66,10 @@ func runVerifyMattermost(arguments []string) error {
 	flagSet := flag.NewFlagSet("verify mattermost", flag.ContinueOnError)
 	prompt := flagSet.String("prompt", "", "Post this prompt through the real Mattermost ingress path")
 	expectBrowserOpen := flagSet.Bool("expect-browser-open", false, "Require a successful browser.open tool result for prompt verification")
+	expectedTools := repeatedStringFlag{}
+	expectedEvents := repeatedStringFlag{}
+	flagSet.Var(&expectedTools, "expect-tool", "Require a requested tool event for prompt verification; repeat for multiple tools")
+	flagSet.Var(&expectedEvents, "expect-event", "Require a task event name for prompt verification; repeat for multiple events")
 	browserOpenE2E := flagSet.Bool("browser-open-e2e", false, "Pair a local probe companion and require a successful browser.open result")
 	keep := flagSet.Bool("keep", false, "Keep probe messages and users for inspection")
 	keepBrowser := flagSet.Bool("keep-browser", false, "Keep the local browser window open after browser-open E2E")
@@ -111,12 +115,43 @@ func runVerifyMattermost(arguments []string) error {
 		return runMattermostBrowserOpenE2E(verifyTarget, promptText, *keep, *keepBrowser, *timeoutSeconds, *companionPath, *agentBrowserPath)
 	}
 	if strings.TrimSpace(*prompt) != "" {
-		return verifyTarget.runRemoteVerification(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, *expectBrowserOpen))
+		return verifyTarget.runRemoteVerification(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, *expectBrowserOpen, expectedTools.Values(), expectedEvents.Values()))
 	}
-	if *expectBrowserOpen {
-		return fmt.Errorf("--expect-browser-open requires --prompt")
+	if *expectBrowserOpen || len(expectedTools.Values()) > 0 || len(expectedEvents.Values()) > 0 {
+		return fmt.Errorf("--expect-browser-open, --expect-tool, and --expect-event require --prompt")
 	}
 	return verifyTarget.runRemoteVerification(verifyMattermostScript())
+}
+
+type repeatedStringFlag struct {
+	values []string
+}
+
+func (flagValue *repeatedStringFlag) String() string {
+	return strings.Join(flagValue.values, ",")
+}
+
+func (flagValue *repeatedStringFlag) Set(value string) error {
+	trimmedValue := strings.TrimSpace(value)
+	if trimmedValue != "" {
+		flagValue.values = append(flagValue.values, trimmedValue)
+	}
+	return nil
+}
+
+func (flagValue repeatedStringFlag) Values() []string {
+	return append([]string{}, flagValue.values...)
+}
+
+func trimmedNonEmptyValues(values []string) []string {
+	trimmedValues := []string{}
+	for _, value := range values {
+		trimmedValue := strings.TrimSpace(value)
+		if trimmedValue != "" {
+			trimmedValues = append(trimmedValues, trimmedValue)
+		}
+	}
+	return trimmedValues
 }
 
 type mattermostBrowserOpenE2EPreparation struct {
@@ -999,11 +1034,15 @@ echo "verify mattermost: ok"
 `
 }
 
-func verifyMattermostPromptScript(prompt string, keep bool, timeoutSeconds int, expectBrowserOpen bool) string {
+func verifyMattermostPromptScript(prompt string, keep bool, timeoutSeconds int, expectBrowserOpen bool, expectedTools []string, expectedEvents []string) string {
 	if timeoutSeconds <= 0 {
 		timeoutSeconds = 240
 	}
 	encodedPrompt := base64.StdEncoding.EncodeToString([]byte(prompt))
+	expectedToolsJSON, _ := json.Marshal(trimmedNonEmptyValues(expectedTools))
+	expectedEventsJSON, _ := json.Marshal(trimmedNonEmptyValues(expectedEvents))
+	encodedExpectedTools := base64.StdEncoding.EncodeToString(expectedToolsJSON)
+	encodedExpectedEvents := base64.StdEncoding.EncodeToString(expectedEventsJSON)
 	keepValue := "false"
 	if keep {
 		keepValue = "true"
@@ -1019,6 +1058,8 @@ email="probe-mattermost-$timestamp@internkim.test"
 username="probemm$timestamp"
 password="ProbePass!$timestamp"
 prompt="$(printf '%%s' %s | base64 -d)"
+expected_tools_json="$(printf '%%s' %s | base64 -d)"
+expected_events_json="$(printf '%%s' %s | base64 -d)"
 keep_artifacts=%s
 timeout_seconds=%d
 expect_browser_open=%s
@@ -1204,6 +1245,30 @@ if [ "$expect_browser_open" = "true" ]; then
   fi
 fi
 
+for expected_tool in $(printf '%%s' "$expected_tools_json" | jq -r '.[]'); do
+  if [ -z "$task_run_id" ]; then
+    echo "expected tool.$expected_tool.requested, but no task was created for probe prompt" >&2
+    exit 1
+  fi
+  if ! jq -e --arg name "tool.$expected_tool.requested" --arg fragment "$expected_tool" 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == $name and ((.body // "") | tostring | contains($fragment)))' "$task_detail_file" >/dev/null; then
+    echo "expected requested tool event for $expected_tool in task $task_run_id" >&2
+    jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
+    exit 1
+  fi
+done
+
+for expected_event in $(printf '%%s' "$expected_events_json" | jq -r '.[]'); do
+  if [ -z "$task_run_id" ]; then
+    echo "expected event $expected_event, but no task was created for probe prompt" >&2
+    exit 1
+  fi
+  if ! jq -e --arg name "$expected_event" 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == $name)' "$task_detail_file" >/dev/null; then
+    echo "expected task event $expected_event in task $task_run_id" >&2
+    jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
+    exit 1
+  fi
+done
+
 jq -cn \
   --arg channel_id "$channel_id" \
   --arg user_post_id "$user_post_id" \
@@ -1226,7 +1291,7 @@ jq -cn \
     taskStatus: ((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskRun.status // null),
     taskEvents: (((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskEvents // []) | map({name, body: ((.body // "") | tostring | .[0:1200])}))
   }'
-`, strconv.Quote(encodedPrompt), keepValue, timeoutSeconds, expectBrowserOpenValue)
+`, strconv.Quote(encodedPrompt), strconv.Quote(encodedExpectedTools), strconv.Quote(encodedExpectedEvents), keepValue, timeoutSeconds, expectBrowserOpenValue)
 }
 
 func prepareMattermostBrowserOpenE2EScript() string {
