@@ -40,6 +40,7 @@ Optional fields:
 - `start`
 - `end`
 - `limit`
+- `query`
 
 ## Rules
 
