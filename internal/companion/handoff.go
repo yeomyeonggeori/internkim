@@ -177,6 +177,9 @@ func (store *BrowserHandoffStore) UpdateMessage(handoffID string, state string, 
 	defer store.mutex.Unlock()
 	handoff, errorValue := store.requireActive(handoffID)
 	if errorValue != nil {
+		if store.completedHandoffID != "" && store.completedHandoffID == handoffID {
+			return nil
+		}
 		return errorValue
 	}
 	handoff.state = state
@@ -189,6 +192,9 @@ func (store *BrowserHandoffStore) UpdateSessionID(handoffID string, sessionID st
 	defer store.mutex.Unlock()
 	handoff, errorValue := store.requireActive(handoffID)
 	if errorValue != nil {
+		if store.completedHandoffID != "" && store.completedHandoffID == handoffID {
+			return nil
+		}
 		return errorValue
 	}
 	if strings.TrimSpace(sessionID) == "" {

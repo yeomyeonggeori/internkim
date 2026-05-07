@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -500,6 +501,9 @@ func (executor Executor) executeBrowserHandoff(ctx context.Context, envelope Job
 	if strings.TrimSpace(input.URL) == "" {
 		return capabilities.ToolInvokeResponse{}, errors.New("browser handoff url is required")
 	}
+	if response, ok := executor.probeBrowserHandoffAutomation(ctx, request.ToolName, input); ok {
+		return response, nil
+	}
 	handoff, reused, errorValue := executor.HandoffStore.BeginOrReuse(input, firstNonEmpty(input.SessionID, "internkim"))
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
@@ -520,6 +524,18 @@ func (executor Executor) executeBrowserHandoff(ctx context.Context, envelope Job
 		handoff.SessionID = startResult.SessionID
 	}
 	return executor.waitForBrowserHandoff(ctx, request.ToolName, input, handoff)
+}
+
+func (executor Executor) probeBrowserHandoffAutomation(ctx context.Context, toolName string, input BrowserHandoffRequest) (capabilities.ToolInvokeResponse, bool) {
+	if executor.HandoffResumeRuntime == nil || !shouldProbeBrowserHandoffAutomation(input.URL) {
+		return capabilities.ToolInvokeResponse{}, false
+	}
+	result, errorValue := executor.HandoffResumeRuntime.StartSession(ctx, browserruntime.SessionStartRequest{URL: input.URL})
+	if errorValue != nil || browserHandoffNeedsNativeLogin(result.URL, result.Title, result.SnapshotText) {
+		return capabilities.ToolInvokeResponse{}, false
+	}
+	response, errorValue := browserHandoffAutomationResponse(toolName, input.URL, result)
+	return response, errorValue == nil
 }
 
 func (executor Executor) closeAutomationBrowserSession(ctx context.Context) {
@@ -592,6 +608,26 @@ func (executor Executor) resumeBrowserAutomationAfterHandoff(ctx context.Context
 	return completion
 }
 
+func browserHandoffAutomationResponse(toolName string, pageURL string, result browserruntime.SessionStartResult) (capabilities.ToolInvokeResponse, error) {
+	response, errorValue := toolResponse(toolName, BrowserHandoffResult{
+		SessionID:       result.SessionID,
+		URL:             firstNonEmpty(result.URL, pageURL),
+		Origin:          webOriginOrEmpty(firstNonEmpty(result.URL, pageURL)),
+		Title:           result.Title,
+		SnapshotText:    result.SnapshotText,
+		InteractiveRefs: result.InteractiveRefs,
+		State:           HandoffStateCompleted,
+		CompletedByUser: false,
+		CapturedAt:      firstNonEmpty(result.CapturedAt, time.Now().UTC().Format(time.RFC3339)),
+	})
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	response.Status = HandoffStateCompleted
+	response.Content = "이미 로그인된 브라우저 세션을 사용합니다."
+	return response, nil
+}
+
 func browserHandoffCompletedResponse(toolName string, handoff HandoffSnapshot, completion HandoffCompletion) (capabilities.ToolInvokeResponse, error) {
 	response, errorValue := toolResponse(toolName, BrowserHandoffResult{
 		HandoffID:       handoff.HandoffID,
@@ -629,6 +665,58 @@ func browserHandoffWaitingResponse(toolName string, pageURL string, handoff Hand
 	response.Status = HandoffStateWaitingForUser
 	response.Content = "브라우저에서 필요한 작업을 마친 뒤 완료 버튼을 눌러주세요."
 	return response, nil
+}
+
+func shouldProbeBrowserHandoffAutomation(pageURL string) bool {
+	origin, errorValue := url.Parse(strings.TrimSpace(pageURL))
+	if errorValue != nil || origin.Hostname() == "" {
+		return false
+	}
+	return isGoogleServiceHost(origin.Hostname()) && !isGoogleAuthenticationURL(origin)
+}
+
+func browserHandoffNeedsNativeLogin(pageURL string, title string, snapshotText string) bool {
+	origin, errorValue := url.Parse(strings.TrimSpace(pageURL))
+	if errorValue == nil && isGoogleAuthenticationURL(origin) {
+		return true
+	}
+	text := strings.ToLower(title + "\n" + snapshotText)
+	for _, fragment := range []string{
+		"couldn't sign you in",
+		"couldn’t sign you in",
+		"this browser or app may not be secure",
+		"choose an account",
+		"use another account",
+		"remove an account",
+		"sign in with google",
+	} {
+		if strings.Contains(text, fragment) {
+			return true
+		}
+	}
+	return false
+}
+
+func isGoogleAuthenticationURL(origin *url.URL) bool {
+	if origin == nil {
+		return false
+	}
+	host := strings.ToLower(origin.Hostname())
+	path := strings.ToLower(origin.EscapedPath())
+	if host == "accounts.google.com" {
+		return true
+	}
+	return strings.Contains(path, "/signin/") ||
+		strings.Contains(path, "/challenge/") ||
+		strings.Contains(path, "/rejected")
+}
+
+func isGoogleServiceHost(host string) bool {
+	normalizedHost := strings.ToLower(strings.TrimSpace(host))
+	return normalizedHost == "google.com" ||
+		strings.HasSuffix(normalizedHost, ".google.com") ||
+		normalizedHost == "youtube.com" ||
+		strings.HasSuffix(normalizedHost, ".youtube.com")
 }
 
 func (executor Executor) executeBrowserClick(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
