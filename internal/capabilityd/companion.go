@@ -68,7 +68,7 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 			return response, nil
 		}
 		if isCompanionRequiredBrowserRequest(request) {
-			return capabilityUnavailableResponse(request.ToolName, capabilities.CapabilityNotConnected), nil
+			return capabilityUnavailableResponse(request.ToolName, companionRequiredBrowserErrorCode(errorValue)), nil
 		}
 		if request.RequiresUserPresence || isCompanionOnlyExecutionMode(request.ExecutionMode) || !isDeviceBrowserTool(request.ToolName) {
 			return capabilities.ToolInvokeResponse{}, errorValue
@@ -83,6 +83,9 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 	if request.ToolName == "flow.task.add" {
 		return service.invokeFlowTaskAdd(ctx, request)
 	}
+	if isCalendarTool(request.ToolName) {
+		return service.invokeCalendarTool(ctx, request)
+	}
 	if isSiteAppTool(request.ToolName) {
 		return service.invokeSiteAppTool(ctx, request)
 	}
@@ -90,6 +93,17 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 		return service.invokeGoogleWorkspaceTool(ctx, request)
 	}
 	return capabilities.ToolInvokeResponse{}, errors.New("capability tool is not configured: " + request.ToolName)
+}
+
+func companionRequiredBrowserErrorCode(errorValue error) string {
+	if errorValue == nil {
+		return capabilities.CapabilityNotConnected
+	}
+	errorMessage := strings.ToLower(errorValue.Error())
+	if strings.Contains(errorMessage, "expired") || strings.Contains(errorMessage, "timed out") || strings.Contains(errorMessage, "context deadline exceeded") {
+		return capabilities.CapabilityNotReady
+	}
+	return capabilities.CapabilityNotConnected
 }
 
 func decodeToolInvokeRequest(toolName string, reader io.Reader) (capabilities.ToolInvokeRequest, error) {
@@ -190,12 +204,17 @@ func isCapabilityUnavailableResponse(response capabilities.ToolInvokeResponse) b
 
 func capabilityUnavailableResponse(toolName string, code string) capabilities.ToolInvokeResponse {
 	userReason := capabilities.CapabilityUnavailableUserReason(toolName, code)
+	var recovery *capabilities.RecoveryAction
+	if code == capabilities.CapabilityNotConnected && strings.HasPrefix(strings.TrimSpace(toolName), "browser.") {
+		recovery = capabilities.CompanionConnectRecovery()
+	}
 	result, _ := json.Marshal(capabilities.DenialResult{
 		Status:              "denied",
 		Code:                code,
 		ToolName:            toolName,
 		UserReason:          userReason,
 		SuggestedConstraint: userReason,
+		Recovery:            recovery,
 	})
 	return capabilities.ToolInvokeResponse{
 		Provider:        "device",

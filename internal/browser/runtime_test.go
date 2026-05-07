@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	goruntime "runtime"
 	"strings"
 	"testing"
 	"time"
@@ -23,6 +24,15 @@ type fakeCommandRunner struct {
 type fakeCommandCall struct {
 	commandPath string
 	arguments   []string
+}
+
+func containsString(values []string, expectedValue string) bool {
+	for _, value := range values {
+		if value == expectedValue {
+			return true
+		}
+	}
+	return false
 }
 
 func (runner *fakeCommandRunner) Run(ctx context.Context, commandPath string, arguments []string) ([]byte, error) {
@@ -51,11 +61,11 @@ func TestAgentBrowserRuntimeNavigatesThroughCommandRunner(t *testing.T) {
 	if result.URL != "https://example.com" {
 		t.Fatalf("unexpected navigate result: %+v", result)
 	}
-	expectedOpenArguments := []string{"--session", "internkim-test", "--headed", "true", "--profile", "/profile", "--session-name", "internkim-test", "open", "https://example.com", "--headers", stealthRequestHeaders()}
+	expectedOpenArguments := []string{"--session", "internkim-test", "--headed", "true", "--profile", "/profile", "--session-name", "internkim-test", "open", "https://example.com"}
 	expectedURLArguments := []string{"--session", "internkim-test", "--session-name", "internkim-test", "get", "url"}
-	expectedEvalArguments := []string{"--session", "internkim-test", "--session-name", "internkim-test", "eval", stealthPostLoadScript()}
+	expectedSnapshotArguments := []string{"--session", "internkim-test", "--session-name", "internkim-test", "snapshot", "--compact", "--json"}
 	if len(runner.calls) != 3 {
-		t.Fatalf("expected 3 command calls, got %d: %+v", len(runner.calls), runner.calls)
+		t.Fatalf("expected 3 command calls (open + url check + snapshot), got %d: %+v", len(runner.calls), runner.calls)
 	}
 	if runner.calls[0].commandPath != "agent-browser-test" || !reflect.DeepEqual(runner.calls[0].arguments, expectedOpenArguments) {
 		t.Fatalf("unexpected open call: %+v", runner.calls[0])
@@ -63,8 +73,157 @@ func TestAgentBrowserRuntimeNavigatesThroughCommandRunner(t *testing.T) {
 	if runner.calls[1].commandPath != "agent-browser-test" || !reflect.DeepEqual(runner.calls[1].arguments, expectedURLArguments) {
 		t.Fatalf("unexpected current URL call: %+v", runner.calls[1])
 	}
-	if runner.calls[2].commandPath != "agent-browser-test" || !reflect.DeepEqual(runner.calls[2].arguments, expectedEvalArguments) {
-		t.Fatalf("unexpected eval call: %+v", runner.calls[2])
+	if runner.calls[2].commandPath != "agent-browser-test" || !reflect.DeepEqual(runner.calls[2].arguments, expectedSnapshotArguments) {
+		t.Fatalf("unexpected snapshot call: %+v", runner.calls[2])
+	}
+}
+
+func TestAgentBrowserRuntimeAcceptsLoginRedirect(t *testing.T) {
+	runner := &fakeCommandRunner{output: []byte("https://accounts.google.com/signin/v2/identifier\n")}
+	runtime := AgentBrowserRuntime{
+		CommandPath:        "agent-browser-test",
+		SessionName:        "internkim-test",
+		DisableHumanPacing: true,
+		Runner:             runner,
+	}
+
+	result, errorValue := runtime.Navigate(context.Background(), NavigateRequest{URL: "https://console.cloud.google.com/"})
+	if errorValue != nil {
+		t.Fatalf("expected redirect navigate success: %v", errorValue)
+	}
+	if result.URL != "https://accounts.google.com/signin/v2/identifier" {
+		t.Fatalf("unexpected redirect result: %+v", result)
+	}
+	expectedSnapshotArguments := []string{"--session", "internkim-test", "--session-name", "internkim-test", "snapshot", "--compact", "--json"}
+	if runner.calls[2].commandPath != "agent-browser-test" || !reflect.DeepEqual(runner.calls[2].arguments, expectedSnapshotArguments) {
+		t.Fatalf("unexpected snapshot call: %+v", runner.calls[2])
+	}
+}
+
+func TestAgentBrowserRuntimeAcceptsOpenSettleTimeoutWithCurrentURL(t *testing.T) {
+	runner := &openTimeoutCommandRunner{
+		currentURL: "https://console.cloud.google.com/apis/credentials?project=internkim-7373e2a4",
+	}
+	runtime := AgentBrowserRuntime{
+		CommandPath:        "agent-browser-test",
+		SessionName:        "internkim-test",
+		DisableHumanPacing: true,
+		Runner:             runner,
+		OpenCommandTimeout: 5 * time.Millisecond,
+	}
+
+	result, errorValue := runtime.Navigate(context.Background(), NavigateRequest{URL: "https://console.cloud.google.com/apis/credentials?project=internkim-7373e2a4"})
+
+	if errorValue != nil {
+		t.Fatalf("expected navigate success after bounded open timeout: %v", errorValue)
+	}
+	if result.URL != runner.currentURL {
+		t.Fatalf("expected current URL after bounded open timeout, got %+v", result)
+	}
+	if len(runner.calls) != 3 {
+		t.Fatalf("expected open, url, snapshot calls, got %+v", runner.calls)
+	}
+}
+
+func TestAgentBrowserRuntimeStartsSessionAfterOpenSettleTimeout(t *testing.T) {
+	runner := &openTimeoutCommandRunner{
+		currentURL: "https://console.cloud.google.com/apis/credentials?project=internkim-7373e2a4",
+	}
+	runtime := AgentBrowserRuntime{
+		CommandPath:        "agent-browser-test",
+		SessionName:        "internkim-test",
+		DisableHumanPacing: true,
+		Runner:             runner,
+		OpenCommandTimeout: 5 * time.Millisecond,
+	}
+
+	result, errorValue := runtime.StartSession(context.Background(), SessionStartRequest{URL: "https://console.cloud.google.com/apis/credentials?project=internkim-7373e2a4"})
+
+	if errorValue != nil {
+		t.Fatalf("expected session start success after bounded open timeout: %v", errorValue)
+	}
+	if result.URL != runner.currentURL || result.SnapshotText != "Credentials" {
+		t.Fatalf("expected observed page after bounded open timeout, got %+v", result)
+	}
+	if len(runner.calls) != 2 {
+		t.Fatalf("expected open and snapshot calls, got %+v", runner.calls)
+	}
+}
+
+func TestNativeHandoffRuntimeOpensChromeWithoutAgentBrowser(t *testing.T) {
+	if goruntime.GOOS != "darwin" {
+		t.Skip("macOS native open arguments only apply on macOS")
+	}
+	runner := &fakeCommandRunner{}
+	runtime := NativeHandoffRuntime{
+		EngineExecutablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+		SessionName:          "internkim-test",
+		Runner:               runner,
+		Now:                  func() time.Time { return time.Date(2026, 5, 7, 0, 0, 0, 0, time.UTC) },
+	}
+
+	result, errorValue := runtime.StartSession(context.Background(), SessionStartRequest{URL: "https://accounts.google.com/"})
+	if errorValue != nil {
+		t.Fatalf("expected native handoff open success: %v", errorValue)
+	}
+	if result.SessionID != "internkim-test" || result.URL != "https://accounts.google.com/" {
+		t.Fatalf("unexpected native handoff result: %+v", result)
+	}
+	if len(runner.calls) != 1 {
+		t.Fatalf("expected one native open call, got %+v", runner.calls)
+	}
+	if runner.calls[0].commandPath != "open" || !reflect.DeepEqual(runner.calls[0].arguments, []string{"-a", "/Applications/Google Chrome.app", "https://accounts.google.com/"}) {
+		t.Fatalf("expected macOS Chrome app open, got %+v", runner.calls[0])
+	}
+}
+
+func TestMacOSApplicationPathFromChromeExecutable(t *testing.T) {
+	path := macosApplicationPath("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+	if path != "/Applications/Google Chrome.app" {
+		t.Fatalf("unexpected macOS app path: %s", path)
+	}
+}
+
+func TestNativeHandoffRuntimeUsesPersistentProfileOnMacOS(t *testing.T) {
+	if goruntime.GOOS != "darwin" {
+		t.Skip("macOS native open arguments only apply on macOS")
+	}
+	runtime := NativeHandoffRuntime{
+		EngineExecutablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+		ProfilePath:          "/tmp/internkim-profile",
+	}
+
+	commandPath, arguments, errorValue := runtime.openCommand("https://accounts.google.com/")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	expectedArguments := []string{"-na", "/Applications/Google Chrome.app", "--args", "--user-data-dir=/tmp/internkim-profile", "--no-first-run", "https://accounts.google.com/"}
+	if commandPath != "open" || !reflect.DeepEqual(arguments, expectedArguments) {
+		t.Fatalf("unexpected persistent profile open command: %s %+v", commandPath, arguments)
+	}
+}
+
+func TestAgentBrowserRuntimeOpenReturnsObservedRedirectSnapshot(t *testing.T) {
+	runner := &fakeCommandRunner{output: []byte(`{"data":{"origin":"https://console.cloud.google.com/apis/credentials?project=internkim-7373e2a4","snapshot":"Credentials","refs":{"e1":{"role":"button","name":"Create credential"}}}}`)}
+	runtime := AgentBrowserRuntime{
+		CommandPath:          "agent-browser-test",
+		SessionName:          "internkim-test",
+		Runner:               runner,
+		DisableHumanPacing:   true,
+		TemporaryDirectory:   "/tmp/internkim-test",
+		EngineExecutablePath: "/Applications/Google Chrome.app",
+	}
+
+	result, errorValue := runtime.StartSession(context.Background(), SessionStartRequest{URL: "https://console.cloud.google.com/apis/credentials"})
+	if errorValue != nil {
+		t.Fatalf("expected open success: %v", errorValue)
+	}
+	if result.URL != "https://console.cloud.google.com/apis/credentials?project=internkim-7373e2a4" || result.RequestedURL != "https://console.cloud.google.com/apis/credentials" {
+		t.Fatalf("expected observed redirect URL with requested URL, got %+v", result)
+	}
+	if result.SnapshotText != "Credentials" || !containsString(result.InteractiveRefs, "@e1") {
+		t.Fatalf("expected observed snapshot in open result, got %+v", result)
 	}
 }
 
@@ -77,20 +236,42 @@ func TestAgentBrowserRuntimeChromeEngineUsesHeadedProfile(t *testing.T) {
 		SessionName:        "internkim-test",
 		Headed:             true,
 		DisableHumanPacing: true,
-		ExtensionPaths: []string{
-			"",
-			"/extensions/internkim",
-		},
-		Runner: runner,
+		Runner:             runner,
 	}
 
 	_, errorValue := runtime.Navigate(context.Background(), NavigateRequest{URL: "https://example.com"})
 	if errorValue != nil {
 		t.Fatalf("expected navigate success: %v", errorValue)
 	}
-	expectedOpenArguments := []string{"--session", "internkim-test", "--engine", "chrome", "--headed", "true", "--profile", "/profile", "--extension", "/extensions/internkim", "--session-name", "internkim-test", "open", "https://example.com", "--headers", stealthRequestHeaders()}
+	expectedOpenArguments := []string{"--session", "internkim-test", "--engine", "chrome", "--headed", "true", "--profile", "/profile", "--session-name", "internkim-test", "open", "https://example.com"}
 	if !reflect.DeepEqual(runner.calls[0].arguments, expectedOpenArguments) {
 		t.Fatalf("unexpected chrome arguments: %+v", runner.calls[0].arguments)
+	}
+}
+
+func TestAgentBrowserRuntimeHandoffSessionOmitsExtensionArguments(t *testing.T) {
+	runner := &fakeCommandRunner{output: []byte(`{"data":{"origin":"https://example.com/login","snapshot":"Login"}}`)}
+	runtime := AgentBrowserRuntime{
+		CommandPath:        "agent-browser-test",
+		Engine:             BrowserEngineChrome,
+		ProfilePath:        "/profile",
+		SessionName:        "internkim-test",
+		Headed:             true,
+		DisableHumanPacing: true,
+		Runner:             runner,
+	}
+
+	result, errorValue := runtime.StartSession(context.Background(), SessionStartRequest{URL: "https://example.com/login"})
+	if errorValue != nil {
+		t.Fatalf("expected session start success: %v", errorValue)
+	}
+	if result.URL != "https://example.com/login" {
+		t.Fatalf("unexpected session result: %+v", result)
+	}
+	for _, call := range runner.calls {
+		if containsString(call.arguments, "--extension") || containsString(call.arguments, "eval") {
+			t.Fatalf("handoff session must not use extension or eval commands: %+v", runner.calls)
+		}
 	}
 }
 
@@ -114,7 +295,7 @@ func TestAgentBrowserRuntimePacesHeadedChromeCommands(t *testing.T) {
 		t.Fatalf("expected navigate success: %v", errorValue)
 	}
 	if len(delays) != 2 {
-		t.Fatalf("expected open and eval pacing delays, got %+v", delays)
+		t.Fatalf("expected open and snapshot pacing delays, got %+v", delays)
 	}
 	for _, delay := range delays {
 		if delay < 900*time.Millisecond || delay >= 1800*time.Millisecond {
@@ -181,12 +362,11 @@ func TestAgentBrowserRuntimeRealChromeSmoke(t *testing.T) {
 	defer server.Close()
 	sessionName := "internkim-real-chrome-smoke-" + time.Now().UTC().Format("20060102T150405")
 	runtime := AgentBrowserRuntime{
-		CommandPath:    commandPath,
-		Engine:         BrowserEngineChrome,
-		ProfilePath:    filepath.Join(t.TempDir(), "profile"),
-		SessionName:    sessionName,
-		Headed:         true,
-		ExtensionPaths: []string{},
+		CommandPath: commandPath,
+		Engine:      BrowserEngineChrome,
+		ProfilePath: filepath.Join(t.TempDir(), "profile"),
+		SessionName: sessionName,
+		Headed:      true,
 	}
 	t.Cleanup(func() {
 		closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -234,7 +414,6 @@ func TestAgentBrowserRuntimeLightpandaOmitsChromeOnlyArguments(t *testing.T) {
 		ProfilePath:          "/profile",
 		SessionName:          "internkim-test",
 		Headed:               true,
-		ExtensionPaths:       []string{"/extensions/internkim"},
 		Runner:               runner,
 	}
 
@@ -242,7 +421,7 @@ func TestAgentBrowserRuntimeLightpandaOmitsChromeOnlyArguments(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected navigate success: %v", errorValue)
 	}
-	expectedOpenArguments := []string{"--session", "internkim-test", "--engine", "lightpanda", "--executable-path", "/usr/local/bin/lightpanda", "--session-name", "internkim-test", "open", "https://example.com", "--headers", stealthRequestHeaders()}
+	expectedOpenArguments := []string{"--session", "internkim-test", "--engine", "lightpanda", "--executable-path", "/usr/local/bin/lightpanda", "--session-name", "internkim-test", "open", "https://example.com"}
 	if !reflect.DeepEqual(runner.calls[0].arguments, expectedOpenArguments) {
 		t.Fatalf("unexpected lightpanda arguments: %+v", runner.calls[0].arguments)
 	}
@@ -453,6 +632,23 @@ func TestAgentBrowserRuntimeEnsureInstalledRunsInstallWhenDoctorFails(t *testing
 	}
 }
 
+func TestAgentBrowserRuntimeChromeMissingExecutableIsNotReady(t *testing.T) {
+	runner := &fakeCommandRunner{}
+	runtime := AgentBrowserRuntime{
+		Engine:               BrowserEngineChrome,
+		EngineExecutablePath: filepath.Join(t.TempDir(), "Google Chrome"),
+		Runner:               runner,
+	}
+
+	readiness := runtime.EnsureInstalled(context.Background())
+	if readiness.Status != "not_ready" {
+		t.Fatalf("expected not_ready without installing Chrome for Testing, got %+v", readiness)
+	}
+	if len(runner.calls) != 0 {
+		t.Fatalf("expected no doctor/install command for missing real Chrome, got %+v", runner.calls)
+	}
+}
+
 func TestAgentBrowserRuntimeEnsureInstalledReturnsSanitizedFailure(t *testing.T) {
 	runner := &sequenceCommandRunner{
 		results: []commandResult{
@@ -486,6 +682,30 @@ func (runner *screenshotCommandRunner) Run(ctx context.Context, commandPath stri
 type commandResult struct {
 	output     []byte
 	errorValue error
+}
+
+type openTimeoutCommandRunner struct {
+	currentURL string
+	calls      []fakeCommandCall
+}
+
+func (runner *openTimeoutCommandRunner) Run(ctx context.Context, commandPath string, arguments []string) ([]byte, error) {
+	runner.calls = append(runner.calls, fakeCommandCall{
+		commandPath: commandPath,
+		arguments:   append([]string{}, arguments...),
+	})
+	if containsString(arguments, "get") {
+		return []byte(runner.currentURL + "\n"), nil
+	}
+	switch browserCommandName(arguments) {
+	case "open":
+		<-ctx.Done()
+		return nil, ctx.Err()
+	case "snapshot":
+		return []byte(`{"data":{"origin":"` + runner.currentURL + `","snapshot":"Credentials","refs":{"e1":{"role":"button","name":"Create credential"}}}}`), nil
+	default:
+		return []byte("ok"), nil
+	}
 }
 
 type sequenceCommandRunner struct {

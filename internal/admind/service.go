@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	"gitlab.com/eastriver/internkim/internal/capabilities"
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
@@ -38,6 +39,7 @@ type Configuration struct {
 	StateDirectory              string
 	CompanionJobPath            string
 	FlowDatabasePath            string
+	CalendarDatabasePath        string
 	MattermostAdminPasswordPath string
 	AdminEmailPath              string
 	ClaimedAdminEmailPath       string
@@ -185,6 +187,7 @@ func DefaultConfiguration() Configuration {
 		StateDirectory:              "/root/.internkim/state/admin",
 		CompanionJobPath:            "/root/.internkim/state/companion-jobs.json",
 		FlowDatabasePath:            "/root/.internkim/state/flow.sqlite",
+		CalendarDatabasePath:        "/root/.internkim/state/calendar.sqlite",
 		MattermostAdminPasswordPath: "/root/.internkim/secrets/mm-admin-pass",
 		AdminEmailPath:              "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:       "/root/.internkim/state/admin/claimed-admin-email",
@@ -225,6 +228,8 @@ func NewService(configuration Configuration) *Service {
 
 func (service *Service) Run(ctx context.Context) error {
 	service.startCompanionFileCleanup(ctx)
+	service.startMattermostProvisionerSync(ctx)
+	service.startCalendarNotificationWorker(ctx)
 	server := &http.Server{
 		Addr:    service.Configuration.ListenAddress,
 		Handler: service.router(),
@@ -242,6 +247,19 @@ func (service *Service) Run(ctx context.Context) error {
 	return nil
 }
 
+func (service *Service) startMattermostProvisionerSync(ctx context.Context) {
+	if strings.TrimSpace(readTrimmedFile(service.Configuration.MattermostAdminPasswordPath)) == "" {
+		return
+	}
+	go func() {
+		syncContext, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		if errorValue := service.ensureMattermostProvisionerDefaults(syncContext); errorValue != nil {
+			log.Printf("Mattermost provisioner sync failed: %v", errorValue)
+		}
+	}()
+}
+
 func (service *Service) router() http.Handler {
 	multiplexer := http.NewServeMux()
 	multiplexer.HandleFunc("/admin", service.serveAdminPage)
@@ -250,9 +268,16 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/flow", service.serveFlowPage)
 	multiplexer.HandleFunc("/flow/api/", service.handleFlow)
 	multiplexer.HandleFunc("/flow/", service.serveFlowPage)
+	multiplexer.HandleFunc("/calendar", service.serveCalendarPage)
+	multiplexer.HandleFunc("/calendar/api/", service.handleCalendar)
+	multiplexer.HandleFunc("/calendar/ics/", service.serveCalendarICS)
+	multiplexer.HandleFunc("/calendar/dav/", service.serveCalendarDAV)
+	multiplexer.HandleFunc("/calendar/", service.serveCalendarPage)
+	multiplexer.HandleFunc("/.well-known/caldav", service.serveCalendarDAV)
 	multiplexer.Handle("/_app/", http.FileServer(http.Dir(service.Configuration.AdminUIPath)))
 	multiplexer.HandleFunc("/logo.svg", service.serveAdminAsset)
 	multiplexer.HandleFunc("/_internkim/companion/", service.handleCompanion)
+	multiplexer.HandleFunc("/_internkim/runtime/", service.handleRuntime)
 	multiplexer.HandleFunc("/_internkim/mattermost/commands", service.handleMattermostCommand)
 	multiplexer.Handle("/", service.mattermostProxy())
 	return service.withCORS(service.withSiteGateway(multiplexer))
@@ -265,7 +290,7 @@ func (service *Service) withCORS(next http.Handler) http.Handler {
 			responseWriter.Header().Set("Access-Control-Allow-Origin", origin)
 			responseWriter.Header().Set("Access-Control-Allow-Credentials", "true")
 			responseWriter.Header().Set("Access-Control-Allow-Headers", "Content-Type, CF-Access-Authenticated-User-Email, X-InternKim-Companion-ID, X-InternKim-Companion-Token")
-			responseWriter.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
+			responseWriter.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS,PROPFIND,REPORT")
 		}
 		if request.Method == http.MethodOptions {
 			responseWriter.WriteHeader(http.StatusNoContent)
@@ -400,14 +425,13 @@ func (service *Service) writeAdminSession(responseWriter http.ResponseWriter, re
 }
 
 func companionReleases() []companionRelease {
-	const latestReleaseBaseURL = "https://gitlab.com/eastriver/internkim/-/releases/permalink/latest/downloads"
 	return []companionRelease{
 		{
 			Platform:     "macos",
 			Label:        "macOS",
 			Architecture: "Apple Silicon beta",
 			Status:       "available",
-			URL:          latestReleaseBaseURL + "/internkim-companion-beta-macos-aarch64.dmg",
+			URL:          capabilities.CompanionMacOSBetaDownloadURL(),
 		},
 		{
 			Platform:     "windows",
@@ -1712,6 +1736,13 @@ func (configuration Configuration) withDefaults() Configuration {
 			configuration.FlowDatabasePath = defaultConfiguration.FlowDatabasePath
 		} else {
 			configuration.FlowDatabasePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "flow.sqlite")
+		}
+	}
+	if configuration.CalendarDatabasePath == "" {
+		if configuration.CompanionJobPath == defaultConfiguration.CompanionJobPath {
+			configuration.CalendarDatabasePath = defaultConfiguration.CalendarDatabasePath
+		} else {
+			configuration.CalendarDatabasePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "calendar.sqlite")
 		}
 	}
 	if configuration.MattermostAdminPasswordPath == "" {

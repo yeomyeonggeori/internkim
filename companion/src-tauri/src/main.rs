@@ -1,5 +1,7 @@
+mod handoff_overlay;
 mod prompt_bridge;
 mod settings;
+mod startup;
 
 use std::process::Command;
 
@@ -27,6 +29,11 @@ fn open_admin_url(device_url: String) -> Result<(), String> {
     open_url(&target_url)
 }
 
+#[tauri::command]
+fn ensure_launch_at_login() -> Result<(), String> {
+    startup::ensure_launch_at_login()
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(prompt_bridge::PromptBridgeState::default())
@@ -40,17 +47,25 @@ fn main() {
             }
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             show_main_window,
             prompt_bridge::start_shell_bridge,
             prompt_bridge::complete_prompt_request,
             prompt_bridge::pick_mount_directory,
+            handoff_overlay::sync_handoff_overlay,
             open_admin_url,
+            ensure_launch_at_login,
             settings::get_settings,
             settings::set_settings
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Intern Kim Companion");
+        .expect("error while running internkim");
 }
 
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
@@ -60,7 +75,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let admin_item = MenuItem::with_id(
         app,
         "open_admin",
-        "Open Intern Kim Admin",
+        "Open internkim Admin",
         true,
         None::<&str>,
     )?;
@@ -69,7 +84,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 
     TrayIconBuilder::new()
         .icon(tray_icon)
-        .tooltip("Intern Kim Companion")
+        .tooltip("internkim")
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id.as_ref() {

@@ -49,3 +49,23 @@ func TestCallingName(t *testing.T) {
 		}
 	}
 }
+
+func TestNicknameForMattermost(t *testing.T) {
+	testCases := []struct {
+		name     string
+		expected string
+	}{
+		{"김민수", "김민수"},
+		{"김 민수", "김민수"},
+		{"Ada Lovelace", "Ada"},
+		{"Madonna", "Madonna"},
+		{"", ""},
+	}
+
+	for _, testCase := range testCases {
+		nickname := NicknameForMattermost(testCase.name)
+		if nickname != testCase.expected {
+			t.Errorf("NicknameForMattermost(%q) = %q; want %q", testCase.name, nickname, testCase.expected)
+		}
+	}
+}

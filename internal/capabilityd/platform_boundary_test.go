@@ -9,9 +9,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
 func TestMattermostNormalizeSkipsSelfAndBuildsMinimalThreadEvent(t *testing.T) {
@@ -147,6 +150,161 @@ func TestMattermostCompanionConnectRecognizesSlashConnect(t *testing.T) {
 	if !isMattermostCompanionConnectCommand(event) {
 		t.Fatal("expected /connect to be recognized")
 	}
+}
+
+func TestMattermostCompanionRecoverySendsChannelInstructionByDM(t *testing.T) {
+	replyTargetID, errorValue := encodePlatformHandle(platformHandle{
+		Platform:       "mattermost",
+		ConversationID: "thread:channel-1:post-1",
+		ChannelID:      "channel-1",
+		ChannelType:    "O",
+		RootID:         "post-1",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var mainMessage string
+	var directMessage string
+	var pairingRequest companionConnectPairingRequest
+	service := mattermostRecoveryTestService(t, func(request *http.Request) (*http.Response, error) {
+		switch request.URL.String() {
+		case "http://127.0.0.1:18080/_internkim/companion/pairing-codes":
+			if errorValue := json.NewDecoder(request.Body).Decode(&pairingRequest); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			return testJSONResponse(http.StatusOK, companionConnectPairingResponse{
+				Code:      "ABCD-1234",
+				ExpiresAt: time.Date(2026, 5, 6, 12, 30, 0, 0, time.UTC),
+				DeepLink:  "internkim://pair?device_url=https%3A%2F%2Fdevice.example.com&code=ABCD-1234",
+			}), nil
+		case "https://mattermost.test/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1"}), nil
+		case "https://mattermost.test/api/v4/channels/direct":
+			var body []string
+			if errorValue := json.NewDecoder(request.Body).Decode(&body); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if !slices.Contains(body, "user-1") || !slices.Contains(body, "bot-1") {
+				t.Fatalf("expected DM members, got %+v", body)
+			}
+			return testJSONResponse(http.StatusCreated, map[string]string{"id": "dm-1"}), nil
+		case "https://mattermost.test/api/v4/posts":
+			var body map[string]any
+			if errorValue := json.NewDecoder(request.Body).Decode(&body); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if body["channel_id"] == "dm-1" {
+				directMessage, _ = body["message"].(string)
+				return testJSONResponse(http.StatusCreated, map[string]string{"id": "dm-post-1"}), nil
+			}
+			mainMessage, _ = body["message"].(string)
+			return testJSONResponse(http.StatusCreated, map[string]string{"id": "channel-post-1"}), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})
+
+	_, errorValue = service.mattermostReply(context.Background(), mustJSONRaw(t, map[string]any{
+		"replyTargetID": replyTargetID,
+		"message":       "Companion이 연결되어 있지 않아 브라우저를 열 수 없습니다.",
+		"rawEventID":    "raw-1",
+		"outboxID":      "outbox-1",
+		"recoveryActions": []capabilities.RecoveryAction{{
+			Kind:           "companion_connect",
+			Delivery:       "dm_preferred",
+			DownloadURL:    capabilities.CompanionMacOSBetaDownloadURL(),
+			ConnectCommand: "/connect",
+			PlatformUserID: "user-1",
+		}},
+	}))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if mainMessage != "Companion 연결 안내를 DM으로 보냈어요." {
+		t.Fatalf("expected channel-safe main message, got %q", mainMessage)
+	}
+	if pairingRequest.OwnerPlatformUserID != "user-1" {
+		t.Fatalf("expected requester pairing owner, got %+v", pairingRequest)
+	}
+	if !strings.Contains(directMessage, "internkim-companion-beta-macos-aarch64.dmg") || !strings.Contains(directMessage, "ABCD-1234") || !strings.Contains(directMessage, "/connect") {
+		t.Fatalf("expected DM recovery guide, got %q", directMessage)
+	}
+}
+
+func TestMattermostCompanionRecoveryStaysInDirectMessage(t *testing.T) {
+	replyTargetID, errorValue := encodePlatformHandle(platformHandle{
+		Platform:       "mattermost",
+		ConversationID: "dm:dm-1",
+		ChannelID:      "dm-1",
+		ChannelType:    "D",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var postedMessage string
+	service := mattermostRecoveryTestService(t, func(request *http.Request) (*http.Response, error) {
+		switch request.URL.String() {
+		case "http://127.0.0.1:18080/_internkim/companion/pairing-codes":
+			return testJSONResponse(http.StatusOK, companionConnectPairingResponse{
+				Code:      "ABCD-1234",
+				ExpiresAt: time.Date(2026, 5, 6, 12, 30, 0, 0, time.UTC),
+				DeepLink:  "internkim://pair?device_url=https%3A%2F%2Fdevice.example.com&code=ABCD-1234",
+			}), nil
+		case "https://mattermost.test/api/v4/posts":
+			var body map[string]any
+			if errorValue := json.NewDecoder(request.Body).Decode(&body); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			postedMessage, _ = body["message"].(string)
+			return testJSONResponse(http.StatusCreated, map[string]string{"id": "post-1"}), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})
+
+	_, errorValue = service.mattermostReply(context.Background(), mustJSONRaw(t, map[string]any{
+		"replyTargetID": replyTargetID,
+		"message":       "Companion이 연결되어 있지 않아 브라우저를 열 수 없습니다.",
+		"rawEventID":    "raw-1",
+		"outboxID":      "outbox-1",
+		"recoveryActions": []capabilities.RecoveryAction{{
+			Kind:           "companion_connect",
+			Delivery:       "dm_preferred",
+			DownloadURL:    capabilities.CompanionMacOSBetaDownloadURL(),
+			ConnectCommand: "/connect",
+			PlatformUserID: "user-1",
+		}},
+	}))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !strings.Contains(postedMessage, "Companion 앱 다운로드") || !strings.Contains(postedMessage, "ABCD-1234") {
+		t.Fatalf("expected direct recovery guide, got %q", postedMessage)
+	}
+}
+
+func mattermostRecoveryTestService(t *testing.T, roundTrip func(*http.Request) (*http.Response, error)) Service {
+	t.Helper()
+	return Service{
+		Configuration: Configuration{
+			AdmindBaseURL:       "http://127.0.0.1:18080",
+			MattermostBaseURL:   "https://mattermost.test",
+			MattermostTokenPath: writePlatformTestFile(t, "mattermost-token"),
+			DeviceIDPath:        writePlatformTestFile(t, "dc719d8e"),
+		},
+		HTTPClient: &http.Client{Transport: roundTripFunc(roundTrip)},
+	}
+}
+
+func mustJSONRaw(t *testing.T, value any) json.RawMessage {
+	t.Helper()
+	document, errorValue := json.Marshal(value)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return document
 }
 
 func TestMattermostDirectMessageDoesNotUseThreadRoot(t *testing.T) {

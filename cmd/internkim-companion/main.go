@@ -34,8 +34,11 @@ func main() {
 		case "run":
 			exit(runCompanion(os.Args[2:], http.DefaultClient))
 			return
-		case "remote-model":
-			exit(runRemoteModel(os.Args[2:], http.DefaultClient, companionruntime.NewDefaultSecureStore()))
+		case "runtime-model", "remote-model":
+			exit(runRuntimeModel(os.Args[2:], http.DefaultClient, companionruntime.NewDefaultSecureStore()))
+			return
+		case "disconnect":
+			exit(runDisconnect(os.Args[2:], http.DefaultClient, companionruntime.NewDefaultSecureStore()))
 			return
 		case "status":
 			exit(runStatus(os.Args[2:], http.DefaultClient, companionruntime.NewDefaultSecureStore()))
@@ -47,7 +50,7 @@ func main() {
 
 func isCompanionSubcommand(commandName string) bool {
 	switch commandName {
-	case "pair", "run", "remote-model", "status":
+	case "pair", "run", "runtime-model", "remote-model", "disconnect", "status":
 		return true
 	default:
 		return false
@@ -110,6 +113,7 @@ type companionJob struct {
 	ToolName      string                         `json:"toolName"`
 	PrivacyClass  string                         `json:"privacyClass"`
 	ResourceScope capabilities.ResourceScope     `json:"resourceScope"`
+	ExpiresAt     time.Time                      `json:"expiresAt"`
 	Depth         int                            `json:"depth"`
 	Request       capabilities.ToolInvokeRequest `json:"request"`
 }
@@ -219,6 +223,33 @@ func runPairWithStore(arguments []string, httpClient *http.Client, secureStore c
 	return nil
 }
 
+func runDisconnect(arguments []string, httpClient *http.Client, secureStore companionruntime.SecureStore) error {
+	flags := flag.NewFlagSet("disconnect", flag.ContinueOnError)
+	statePath := flags.String("state", defaultStatePath(), "companion state path")
+	if errorValue := flags.Parse(arguments); errorValue != nil {
+		return errorValue
+	}
+	state, errorValue := loadStateAndMigrateSecrets(context.Background(), *statePath, secureStore)
+	if errorValue == nil {
+		privateKey, keyError := secureStore.Get(context.Background(), state.PrivateKeyID)
+		if keyError == nil {
+			_ = postSignedJSON(httpClient, state, privateKey, state.DeviceURL+"/_internkim/companion/disconnect", map[string]any{}, nil)
+		}
+	}
+	if state.PrivateKeyID != "" {
+		if deleteError := secureStore.Delete(context.Background(), state.PrivateKeyID); deleteError != nil {
+			return deleteError
+		}
+	}
+	if removeError := os.Remove(*statePath); removeError != nil && !errors.Is(removeError, os.ErrNotExist) {
+		return removeError
+	}
+	_ = os.Remove(defaultMountStatePath(*statePath))
+	_ = os.Remove(defaultHandoffStatePath(*statePath))
+	fmt.Println("disconnected")
+	return nil
+}
+
 func runStatus(arguments []string, httpClient *http.Client, secureStore companionruntime.SecureStore) error {
 	flags := flag.NewFlagSet("status", flag.ContinueOnError)
 	statePath := flags.String("state", defaultStatePath(), "companion state path")
@@ -237,7 +268,11 @@ func runStatus(arguments []string, httpClient *http.Client, secureStore companio
 	}
 	if *jsonOutput {
 		agentBrowserPath := resolveAgentBrowserPath("")
-		readiness := browserruntime.AgentBrowserRuntime{CommandPath: agentBrowserPath, Engine: browserruntime.BrowserEngineChrome}.Check(context.Background())
+		readiness := browserruntime.AgentBrowserRuntime{
+			CommandPath:          agentBrowserPath,
+			Engine:               browserruntime.BrowserEngineChrome,
+			EngineExecutablePath: defaultBrowserExecutablePath(),
+		}.Check(context.Background())
 		authStatus := companionAuthStatusFromState(state, *verifyAuth, *statePath, httpClient, secureStore)
 		writeJSONDocument(os.Stdout, companionStatusFromState(state, readiness, authStatus))
 		return nil
@@ -247,7 +282,11 @@ func runStatus(arguments []string, httpClient *http.Client, secureStore companio
 	fmt.Printf("localOnly: %t\n", state.LocalOnly)
 	fmt.Printf("capabilities: %d\n", len(state.Capabilities))
 	agentBrowserPath := resolveAgentBrowserPath("")
-	readiness := browserruntime.AgentBrowserRuntime{CommandPath: agentBrowserPath, Engine: browserruntime.BrowserEngineChrome}.Check(context.Background())
+	readiness := browserruntime.AgentBrowserRuntime{
+		CommandPath:          agentBrowserPath,
+		Engine:               browserruntime.BrowserEngineChrome,
+		EngineExecutablePath: defaultBrowserExecutablePath(),
+	}.Check(context.Background())
 	fmt.Println("browserRuntime: " + firstNonEmpty(readiness.Status, "unknown"))
 	return nil
 }
@@ -292,6 +331,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	shellBridgeToken := flags.String("shell-bridge-token", "", "local companion shell bridge token")
 	controlListenAddress := flags.String("control-listen", "", "local companion shell control address")
 	agentBrowserPath := flags.String("agent-browser-path", "", "agent-browser executable path")
+	browserExecutablePath := flags.String("browser-executable", defaultBrowserExecutablePath(), "browser executable path")
 	browserProfilePath := flags.String("browser-profile", defaultBrowserProfilePath(), "InternKim companion browser profile path")
 	developmentAutoApproveBrowser := flags.Bool("development-auto-approve-browser", false, "automatically approve browser grants for local E2E")
 	localLLMFlags := registerLocalLLMFlags(flags)
@@ -314,14 +354,25 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	}
 	resolvedAgentBrowserPath := resolveAgentBrowserPath(*agentBrowserPath)
 	browserRuntime := browserruntime.AgentBrowserRuntime{
-		CommandPath: resolvedAgentBrowserPath,
-		Engine:      browserruntime.BrowserEngineChrome,
-		ProfilePath: *browserProfilePath,
-		SessionName: "internkim",
-		Headed:      true,
-		ExtensionPaths: []string{
-			defaultBrowserExtensionPath(),
-		},
+		CommandPath:          resolvedAgentBrowserPath,
+		Engine:               browserruntime.BrowserEngineChrome,
+		EngineExecutablePath: *browserExecutablePath,
+		ProfilePath:          *browserProfilePath,
+		SessionName:          "internkim",
+		Headed:               true,
+	}
+	handoffBrowserRuntime := browserruntime.NativeHandoffRuntime{
+		EngineExecutablePath: *browserExecutablePath,
+		ProfilePath:          *browserProfilePath,
+		SessionName:          "internkim",
+	}
+	handoffResumeRuntime := browserruntime.AgentBrowserRuntime{
+		CommandPath:          resolvedAgentBrowserPath,
+		Engine:               browserruntime.BrowserEngineChrome,
+		EngineExecutablePath: *browserExecutablePath,
+		ProfilePath:          *browserProfilePath,
+		SessionName:          "internkim",
+		Headed:               true,
 	}
 	readiness := browserRuntime.EnsureInstalled(context.Background())
 	if readiness.Status != "ready" {
@@ -329,25 +380,30 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	}
 	grantStore := companionruntime.NewMemoryGrantStore()
 	mountStore := companionruntime.NewMountStore(defaultMountStatePath(*statePath))
-	handoffStore := companionruntime.NewBrowserHandoffStore()
+	handoffStore := companionruntime.NewPersistentBrowserHandoffStore(defaultHandoffStatePath(*statePath))
 	runtimeStatus := &runtimeState{}
 	if localLLMConfiguration.Enabled {
 		runtimeStatus.replaceLocalLLM(localLLMConfiguration)
 	}
 	_ = preferCompanionBrowser
 	executor := companionruntime.Executor{
-		DevMockLLM:     *devMockLLM,
-		LLMChain:       localLLM,
-		EmbeddingChain: localLLM,
-		BrowserRuntime: browserRuntime,
-		HandoffStore:   handoffStore,
-		GrantStore:     grantStore,
-		MountStore:     mountStore,
+		DevMockLLM:            *devMockLLM,
+		LLMChain:              localLLM,
+		EmbeddingChain:        localLLM,
+		BrowserRuntime:        browserRuntime,
+		HandoffBrowserRuntime: handoffBrowserRuntime,
+		HandoffResumeRuntime:  handoffResumeRuntime,
+		HandoffStore:          handoffStore,
+		GrantStore:            grantStore,
+		MountStore:            mountStore,
 	}
 	if readiness.Status != "ready" {
 		executor.BrowserRuntime = nil
 	}
-	controlServer, errorValue := startControlServer(*controlListenAddress, grantStore, mountStore, handoffStore, runtimeStatus, localLLM, httpClient)
+	handoffCompletionHandler := func(ctx context.Context, completion companionruntime.HandoffCompletion) error {
+		return completeHandoff(ctx, httpClient, state, privateKey, completion)
+	}
+	controlServer, errorValue := startControlServer(*controlListenAddress, grantStore, mountStore, handoffStore, nil, handoffCompletionHandler, runtimeStatus, localLLM, httpClient)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -397,7 +453,8 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 			}
 			continue
 		}
-		response, executionError := executor.ExecuteJob(context.Background(), companionruntime.JobEnvelope{
+		jobContext, cancelJobContext := contextForCompanionJob(job)
+		response, executionError := executor.ExecuteJob(jobContext, companionruntime.JobEnvelope{
 			JobID:         job.JobID,
 			ParentJobID:   job.ParentJobID,
 			GrantID:       job.GrantID,
@@ -406,6 +463,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 			ResourceScope: job.ResourceScope,
 			Depth:         job.Depth,
 		}, job.Request)
+		cancelJobContext()
 		if executionError != nil {
 			var denialError companionruntime.DenialError
 			if errors.As(executionError, &denialError) {
@@ -420,6 +478,17 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 			return executionError
 		}
 	}
+}
+
+func contextForCompanionJob(job *companionJob) (context.Context, context.CancelFunc) {
+	if job == nil || job.ExpiresAt.IsZero() {
+		return context.WithCancel(context.Background())
+	}
+	deadline := job.ExpiresAt.Add(-250 * time.Millisecond)
+	if time.Until(deadline) <= 0 {
+		deadline = time.Now().Add(250 * time.Millisecond)
+	}
+	return context.WithDeadline(context.Background(), deadline)
 }
 
 func runHeartbeatLoop(ctx context.Context, httpClient *http.Client, state companionState, privateKey string, runtimeStatus *runtimeState, mountStore *companionruntime.MountStore, preferCompanionBrowser bool) {
@@ -767,6 +836,11 @@ func completeJob(httpClient *http.Client, state companionState, privateKey strin
 	return postSignedJSON(httpClient, state, privateKey, state.DeviceURL+"/_internkim/companion/jobs/"+url.PathEscape(jobID)+"/complete", response, &map[string]any{})
 }
 
+func completeHandoff(ctx context.Context, httpClient *http.Client, state companionState, privateKey string, completion companionruntime.HandoffCompletion) error {
+	endpoint := state.DeviceURL + "/_internkim/companion/handoffs/" + url.PathEscape(completion.HandoffID) + "/complete"
+	return postSignedJSONWithContext(ctx, httpClient, state, privateKey, endpoint, completion, &map[string]any{})
+}
+
 func failJob(httpClient *http.Client, state companionState, privateKey string, jobID string, errorMessage string) error {
 	return postSignedJSON(httpClient, state, privateKey, state.DeviceURL+"/_internkim/companion/jobs/"+url.PathEscape(jobID)+"/fail", map[string]string{"error": errorMessage}, &map[string]any{})
 }
@@ -797,11 +871,15 @@ func postJSON(httpClient *http.Client, endpoint string, headers map[string]strin
 }
 
 func postSignedJSON(httpClient *http.Client, state companionState, privateKey string, endpoint string, requestBody any, responseBody any) error {
+	return postSignedJSONWithContext(context.Background(), httpClient, state, privateKey, endpoint, requestBody, responseBody)
+}
+
+func postSignedJSONWithContext(ctx context.Context, httpClient *http.Client, state companionState, privateKey string, endpoint string, requestBody any, responseBody any) error {
 	document, errorValue := json.Marshal(requestBody)
 	if errorValue != nil {
 		return errorValue
 	}
-	request, errorValue := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(document))
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(document))
 	if errorValue != nil {
 		return errorValue
 	}
@@ -976,6 +1054,18 @@ func defaultMountStatePath(statePath string) string {
 	return filepath.Join(homeDirectory, ".internkim-companion", "mounts.json")
 }
 
+func defaultHandoffStatePath(statePath string) string {
+	trimmedPath := strings.TrimSpace(statePath)
+	if trimmedPath != "" {
+		return filepath.Join(filepath.Dir(trimmedPath), "browser-handoff.json")
+	}
+	homeDirectory, errorValue := os.UserHomeDir()
+	if errorValue != nil || homeDirectory == "" {
+		return ".internkim-companion-browser-handoff.json"
+	}
+	return filepath.Join(homeDirectory, ".internkim-companion", "browser-handoff.json")
+}
+
 func defaultBrowserProfilePath() string {
 	configurationDirectory, errorValue := os.UserConfigDir()
 	if errorValue == nil && strings.TrimSpace(configurationDirectory) != "" {
@@ -988,30 +1078,56 @@ func defaultBrowserProfilePath() string {
 	return filepath.Join(os.TempDir(), "internkim-companion-browser-profile")
 }
 
-func defaultBrowserExtensionPath() string {
-	if environmentValue := strings.TrimSpace(os.Getenv("INTERNKIM_BROWSER_EXTENSION_PATH")); environmentValue != "" {
-		return environmentValue
-	}
-	executablePath, errorValue := os.Executable()
-	if errorValue == nil && strings.TrimSpace(executablePath) != "" {
-		for _, path := range browserExtensionCandidatePaths(filepath.Dir(executablePath)) {
-			if isDirectory(path) {
-				return path
-			}
+func defaultBrowserExecutablePath() string {
+	for _, value := range []string{
+		os.Getenv("INTERNKIM_BROWSER_EXECUTABLE_PATH"),
+		os.Getenv("AGENT_BROWSER_EXECUTABLE_PATH"),
+	} {
+		if path := executableBrowserPath(value); path != "" {
+			return path
 		}
 	}
-	if isDirectory("companion/browser-extension") {
-		return "companion/browser-extension"
+	for _, path := range defaultBrowserExecutableCandidates() {
+		if executablePath := executableBrowserPath(path); executablePath != "" {
+			return executablePath
+		}
 	}
 	return ""
 }
 
-func browserExtensionCandidatePaths(executableDirectory string) []string {
-	return []string{
-		filepath.Join(executableDirectory, "browser-extension"),
-		filepath.Join(executableDirectory, "..", "Resources", "browser-extension"),
-		filepath.Join(executableDirectory, "..", "Resources", "companion", "browser-extension"),
+func defaultBrowserExecutableCandidates() []string {
+	switch runtime.GOOS {
+	case "darwin":
+		return []string{
+			"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+			filepath.Join(os.Getenv("HOME"), "Applications", "Google Chrome.app", "Contents", "MacOS", "Google Chrome"),
+		}
+	case "windows":
+		return []string{
+			filepath.Join(os.Getenv("PROGRAMFILES"), "Google", "Chrome", "Application", "chrome.exe"),
+			filepath.Join(os.Getenv("PROGRAMFILES(X86)"), "Google", "Chrome", "Application", "chrome.exe"),
+			filepath.Join(os.Getenv("LOCALAPPDATA"), "Google", "Chrome", "Application", "chrome.exe"),
+		}
+	default:
+		candidates := []string{}
+		for _, name := range []string{"google-chrome", "google-chrome-stable"} {
+			if path, errorValue := exec.LookPath(name); errorValue == nil {
+				candidates = append(candidates, path)
+			}
+		}
+		return candidates
 	}
+}
+
+func executableBrowserPath(path string) string {
+	trimmedPath := strings.TrimSpace(path)
+	if trimmedPath == "" {
+		return ""
+	}
+	if isExecutableFile(trimmedPath) {
+		return trimmedPath
+	}
+	return ""
 }
 
 func resolveAgentBrowserPath(flagValue string) string {

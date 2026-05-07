@@ -20,22 +20,22 @@ type remoteModelResponse struct {
 	RuntimePath string `json:"runtimePath,omitempty"`
 }
 
-func runRemoteModel(arguments []string, httpClient *http.Client, secureStore companionruntime.SecureStore) error {
+func runRuntimeModel(arguments []string, httpClient *http.Client, secureStore companionruntime.SecureStore) error {
 	if len(arguments) == 0 {
-		return errors.New("usage: remote-model <get|set>")
+		return errors.New("usage: runtime-model <get|set>")
 	}
 	switch arguments[0] {
 	case "get":
-		return runRemoteModelGet(arguments[1:], httpClient, secureStore)
+		return runRuntimeModelGet(arguments[1:], httpClient, secureStore)
 	case "set":
-		return runRemoteModelSet(arguments[1:], httpClient, secureStore)
+		return runRuntimeModelSet(arguments[1:], httpClient, secureStore)
 	default:
-		return errors.New("usage: remote-model <get|set>")
+		return errors.New("usage: runtime-model <get|set>")
 	}
 }
 
-func runRemoteModelGet(arguments []string, httpClient *http.Client, secureStore companionruntime.SecureStore) error {
-	flags := flag.NewFlagSet("remote-model get", flag.ContinueOnError)
+func runRuntimeModelGet(arguments []string, httpClient *http.Client, secureStore companionruntime.SecureStore) error {
+	flags := flag.NewFlagSet("runtime-model get", flag.ContinueOnError)
 	statePath := flags.String("state", defaultStatePath(), "companion state path")
 	if errorValue := flags.Parse(arguments); errorValue != nil {
 		return errorValue
@@ -45,15 +45,15 @@ func runRemoteModelGet(arguments []string, httpClient *http.Client, secureStore 
 		return errorValue
 	}
 	var response remoteModelResponse
-	if errorValue := signedJSONRequest(httpClient, state, privateKey, http.MethodGet, state.DeviceURL+"/_internkim/companion/remote-model", nil, &response); errorValue != nil {
+	if errorValue := signedJSONRequest(httpClient, state, privateKey, http.MethodGet, runtimeRemoteModelEndpoint(state), nil, &response); errorValue != nil {
 		return errorValue
 	}
 	fmt.Println(response.Model)
 	return nil
 }
 
-func runRemoteModelSet(arguments []string, httpClient *http.Client, secureStore companionruntime.SecureStore) error {
-	flags := flag.NewFlagSet("remote-model set", flag.ContinueOnError)
+func runRuntimeModelSet(arguments []string, httpClient *http.Client, secureStore companionruntime.SecureStore) error {
+	flags := flag.NewFlagSet("runtime-model set", flag.ContinueOnError)
 	statePath := flags.String("state", defaultStatePath(), "companion state path")
 	model := flags.String("model", "", "remote model ID")
 	if errorValue := flags.Parse(arguments); errorValue != nil {
@@ -72,11 +72,15 @@ func runRemoteModelSet(arguments []string, httpClient *http.Client, secureStore 
 	}
 	var response remoteModelResponse
 	body := map[string]string{"model": trimmedModel}
-	if errorValue := signedJSONRequest(httpClient, state, privateKey, http.MethodPut, state.DeviceURL+"/_internkim/companion/remote-model", body, &response); errorValue != nil {
+	if errorValue := signedJSONRequest(httpClient, state, privateKey, http.MethodPut, runtimeRemoteModelEndpoint(state), body, &response); errorValue != nil {
 		return errorValue
 	}
 	fmt.Println(response.Model)
 	return nil
+}
+
+func runtimeRemoteModelEndpoint(state companionState) string {
+	return state.DeviceURL + "/_internkim/runtime/remote-model"
 }
 
 func loadCompanionStateAndPrivateKey(statePath string, secureStore companionruntime.SecureStore) (companionState, string, error) {
