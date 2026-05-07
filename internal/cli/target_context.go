@@ -18,7 +18,7 @@ const (
 	commandTargetModeSimulation commandTargetMode = "simulation"
 
 	commandTargetBoardLab        = "lab"
-	commandTargetBoardSimulation = "sim"
+	commandTargetBoardSimulation = setup.BoardSimulation
 )
 
 type commandTarget struct {
