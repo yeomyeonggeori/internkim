@@ -1,5 +1,21 @@
 use std::process::Command;
 
+#[cfg(target_os = "macos")]
+use core_foundation::{
+    array::CFArray,
+    base::{CFType, TCFType},
+    dictionary::{CFDictionary, CFDictionaryRef},
+    number::CFNumber,
+    string::{CFString, CFStringRef},
+};
+#[cfg(target_os = "macos")]
+use core_graphics::{
+    display::CGDisplay,
+    window::{
+        kCGNullWindowID, kCGWindowBounds, kCGWindowLayer, kCGWindowListExcludeDesktopElements,
+        kCGWindowListOptionOnScreenOnly, kCGWindowOwnerName, CGWindowListCopyWindowInfo,
+    },
+};
 use tauri::{AppHandle, LogicalPosition, Manager, Position};
 
 const OVERLAY_WINDOW_LABEL: &str = "browser-handoff-overlay";
@@ -69,27 +85,152 @@ fn find_chrome_window_bounds() -> Result<Option<BrowserWindowBounds>, String> {
     }
 }
 
+#[cfg(target_os = "macos")]
 fn find_chrome_window_bounds_macos() -> Result<Option<BrowserWindowBounds>, String> {
-    let script = r#"
-tell application "System Events"
-  set frontProcessName to name of first application process whose frontmost is true
-  if frontProcessName is not "Google Chrome" and frontProcessName is not "Intern Kim Companion" then return "hidden"
-  set chromeProcesses to application processes whose bundle identifier is "com.google.Chrome"
-  if (count of chromeProcesses) is 0 then return "hidden"
-  tell first item of chromeProcesses
-    if (count of windows) is 0 then return "hidden"
-    set browserWindow to first window
-    if value of attribute "AXMinimized" of browserWindow is true then return "hidden"
-    try
-      if value of attribute "AXFullScreen" of browserWindow is true then return "hidden"
-    end try
-    set windowPosition to position of browserWindow
-    set windowSize to size of browserWindow
-    return (item 1 of windowPosition as text) & "," & (item 2 of windowPosition as text) & "," & (item 1 of windowSize as text) & "," & (item 2 of windowSize as text)
-  end tell
-end tell
-"#;
-    parse_bounds_output(run_command("osascript", &["-e", script])?)
+    let windows = macos_visible_windows()?;
+    let Some(front_window) = windows.first() else {
+        return Ok(None);
+    };
+    if is_macos_chrome_owner(&front_window.owner_name) {
+        return Ok(macos_visible_browser_bounds(front_window.bounds));
+    }
+    if !is_macos_overlay_window(front_window) {
+        return Ok(None);
+    }
+    let Some(chrome_window) = windows
+        .iter()
+        .find(|window| is_macos_chrome_owner(&window.owner_name))
+    else {
+        return Ok(None);
+    };
+    Ok(macos_visible_browser_bounds(chrome_window.bounds))
+}
+
+#[cfg(not(target_os = "macos"))]
+fn find_chrome_window_bounds_macos() -> Result<Option<BrowserWindowBounds>, String> {
+    Err("browser handoff native overlay is unsupported on this operating system".to_string())
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Clone, Debug)]
+struct MacOSWindow {
+    owner_name: String,
+    bounds: BrowserWindowBounds,
+}
+
+#[cfg(target_os = "macos")]
+fn macos_visible_windows() -> Result<Vec<MacOSWindow>, String> {
+    let window_list = unsafe {
+        CGWindowListCopyWindowInfo(
+            kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements,
+            kCGNullWindowID,
+        )
+    };
+    if window_list.is_null() {
+        return Err("macOS window list is unavailable".to_string());
+    }
+    let windows: CFArray<CFDictionary<CFType, CFType>> =
+        unsafe { TCFType::wrap_under_create_rule(window_list) };
+    let mut visible_windows = Vec::new();
+    for window in windows.iter() {
+        let Some(layer) = macos_number_value(&window, unsafe { kCGWindowLayer }) else {
+            continue;
+        };
+        if layer != 0 {
+            continue;
+        }
+        let Some(owner_name) = macos_string_value(&window, unsafe { kCGWindowOwnerName }) else {
+            continue;
+        };
+        let Some(bounds) = macos_bounds_value(&window) else {
+            continue;
+        };
+        if bounds.width <= 1.0 || bounds.height <= 1.0 {
+            continue;
+        }
+        visible_windows.push(MacOSWindow { owner_name, bounds });
+    }
+    Ok(visible_windows)
+}
+
+#[cfg(target_os = "macos")]
+fn macos_string_value(
+    dictionary: &CFDictionary<CFType, CFType>,
+    key_reference: CFStringRef,
+) -> Option<String> {
+    let key = unsafe { CFString::wrap_under_get_rule(key_reference) };
+    dictionary
+        .find(key.as_CFType())
+        .and_then(|value| value.downcast::<CFString>())
+        .map(|value| value.to_string())
+}
+
+#[cfg(target_os = "macos")]
+fn macos_number_value(
+    dictionary: &CFDictionary<CFType, CFType>,
+    key_reference: CFStringRef,
+) -> Option<i64> {
+    let key = unsafe { CFString::wrap_under_get_rule(key_reference) };
+    dictionary
+        .find(key.as_CFType())
+        .and_then(|value| value.downcast::<CFNumber>())
+        .and_then(|value| value.to_i64())
+}
+
+#[cfg(target_os = "macos")]
+fn macos_bounds_value(dictionary: &CFDictionary<CFType, CFType>) -> Option<BrowserWindowBounds> {
+    let key = unsafe { CFString::wrap_under_get_rule(kCGWindowBounds) };
+    let value = dictionary.find(key.as_CFType())?;
+    let bounds_dictionary: CFDictionary<CFType, CFType> =
+        unsafe { TCFType::wrap_under_get_rule(value.as_CFTypeRef() as CFDictionaryRef) };
+    Some(BrowserWindowBounds {
+        left: macos_bounds_number(&bounds_dictionary, "X")?,
+        top: macos_bounds_number(&bounds_dictionary, "Y")?,
+        width: macos_bounds_number(&bounds_dictionary, "Width")?,
+        height: macos_bounds_number(&bounds_dictionary, "Height")?,
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn macos_bounds_number(
+    dictionary: &CFDictionary<CFType, CFType>,
+    key: &'static str,
+) -> Option<f64> {
+    let key = CFString::from_static_string(key);
+    dictionary
+        .find(key.as_CFType())
+        .and_then(|value| value.downcast::<CFNumber>())
+        .and_then(|value| value.to_f64())
+}
+
+#[cfg(target_os = "macos")]
+fn is_macos_chrome_owner(owner_name: &str) -> bool {
+    matches!(
+        owner_name,
+        "Google Chrome" | "Google Chrome Canary" | "Chromium"
+    )
+}
+
+#[cfg(target_os = "macos")]
+fn is_macos_overlay_window(window: &MacOSWindow) -> bool {
+    window.owner_name == "Intern Kim Companion" && window.bounds.height <= 120.0
+}
+
+#[cfg(target_os = "macos")]
+fn macos_visible_browser_bounds(bounds: BrowserWindowBounds) -> Option<BrowserWindowBounds> {
+    if is_macos_fullscreen_bounds(bounds) {
+        return None;
+    }
+    Some(bounds)
+}
+
+#[cfg(target_os = "macos")]
+fn is_macos_fullscreen_bounds(bounds: BrowserWindowBounds) -> bool {
+    let screen_bounds = CGDisplay::main().bounds();
+    bounds.left <= screen_bounds.origin.x + 1.0
+        && bounds.top <= screen_bounds.origin.y + 1.0
+        && bounds.width >= screen_bounds.size.width - 2.0
+        && bounds.height >= screen_bounds.size.height - 2.0
 }
 
 fn find_chrome_window_bounds_windows() -> Result<Option<BrowserWindowBounds>, String> {
