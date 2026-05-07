@@ -109,7 +109,7 @@ func TestSiteGatewayLifecycle(t *testing.T) {
 }
 
 func TestSitePrototypePublishesDefaultBuild(t *testing.T) {
-	service, _ := newTestSiteService(t)
+	service, commandLog := newTestSiteService(t)
 	site, errorValue := service.createSiteRecord(siteCreateRequest{
 		Slug:        "default-build",
 		Title:       "Default Build",
@@ -132,6 +132,9 @@ func TestSitePrototypePublishesDefaultBuild(t *testing.T) {
 	}
 	if !strings.Contains(response.Body.String(), "Default Build") {
 		t.Fatalf("default build body = %q", response.Body.String())
+	}
+	if !containsCommandFragment(*commandLog, "safe.directory="+site.HostSourcePath) {
+		t.Fatalf("site git commands should trust the site workspace: %+v", *commandLog)
 	}
 }
 
@@ -313,6 +316,15 @@ func serveSiteRequest(service *Service, host string, path string) *httptest.Resp
 func containsCommand(commands []string, expected string) bool {
 	for _, command := range commands {
 		if command == expected {
+			return true
+		}
+	}
+	return false
+}
+
+func containsCommandFragment(commands []string, expected string) bool {
+	for _, command := range commands {
+		if strings.Contains(command, expected) {
 			return true
 		}
 	}

@@ -816,15 +816,15 @@ func (service *Service) initializeSiteGitRepository(ctx context.Context, site *S
 	if isDirectory(filepath.Join(site.HostSourcePath, ".git")) {
 		return nil
 	}
-	if _, errorValue := service.runCommand(ctx, "git", "-C", site.HostSourcePath, "init"); errorValue != nil {
+	if _, errorValue := service.runCommand(ctx, "git", siteGitArguments(site, "init")...); errorValue != nil {
 		return errorValue
 	}
-	_, _ = service.runCommand(ctx, "git", "-C", site.HostSourcePath, "config", "user.name", "InternKim")
-	_, _ = service.runCommand(ctx, "git", "-C", site.HostSourcePath, "config", "user.email", "internkim@localhost")
-	if _, errorValue := service.runCommand(ctx, "git", "-C", site.HostSourcePath, "add", "."); errorValue != nil {
+	_, _ = service.runCommand(ctx, "git", siteGitArguments(site, "config", "user.name", "InternKim")...)
+	_, _ = service.runCommand(ctx, "git", siteGitArguments(site, "config", "user.email", "internkim@localhost")...)
+	if _, errorValue := service.runCommand(ctx, "git", siteGitArguments(site, "add", ".")...); errorValue != nil {
 		return errorValue
 	}
-	_, _ = service.runCommand(ctx, "git", "-C", site.HostSourcePath, "commit", "-m", "Initialize prototype site")
+	_, _ = service.runCommand(ctx, "git", siteGitArguments(site, "commit", "-m", "Initialize prototype site")...)
 	return nil
 }
 
@@ -832,23 +832,28 @@ func (service *Service) commitSiteWorkspace(ctx context.Context, site *SiteRecor
 	if errorValue := service.prepareSiteWorkspace(ctx, site); errorValue != nil {
 		return "", errorValue
 	}
-	statusOutput, errorValue := service.runCommand(ctx, "git", "-C", site.HostSourcePath, "status", "--porcelain")
+	statusOutput, errorValue := service.runCommand(ctx, "git", siteGitArguments(site, "status", "--porcelain")...)
 	if errorValue != nil {
 		return "", errorValue
 	}
 	if strings.TrimSpace(string(statusOutput)) != "" {
-		if _, errorValue := service.runCommand(ctx, "git", "-C", site.HostSourcePath, "add", "."); errorValue != nil {
+		if _, errorValue := service.runCommand(ctx, "git", siteGitArguments(site, "add", ".")...); errorValue != nil {
 			return "", errorValue
 		}
-		if _, errorValue := service.runCommand(ctx, "git", "-C", site.HostSourcePath, "commit", "-m", siteCommitMessage(message)); errorValue != nil {
+		if _, errorValue := service.runCommand(ctx, "git", siteGitArguments(site, "commit", "-m", siteCommitMessage(message))...); errorValue != nil {
 			return "", errorValue
 		}
 	}
-	commitOutput, errorValue := service.runCommand(ctx, "git", "-C", site.HostSourcePath, "rev-parse", "HEAD")
+	commitOutput, errorValue := service.runCommand(ctx, "git", siteGitArguments(site, "rev-parse", "HEAD")...)
 	if errorValue != nil {
 		return "", errorValue
 	}
 	return strings.TrimSpace(string(commitOutput)), nil
+}
+
+func siteGitArguments(site *SiteRecord, arguments ...string) []string {
+	result := []string{"-c", "safe.directory=" + site.HostSourcePath, "-C", site.HostSourcePath}
+	return append(result, arguments...)
 }
 
 func (service *Service) copyApprovedPocketBaseHooks(site *SiteRecord, versionPath string, payload sitePublishRequest) error {
