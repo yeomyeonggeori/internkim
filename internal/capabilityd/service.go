@@ -1335,6 +1335,9 @@ func (configuration Configuration) WithDefaults() Configuration {
 	if configuration.BlueclawBaseURL == "" {
 		configuration.BlueclawBaseURL = defaultConfiguration.BlueclawBaseURL
 	}
+	if configuration.AdmindBaseURL == "" {
+		configuration.AdmindBaseURL = defaultConfiguration.AdmindBaseURL
+	}
 	if configuration.OpenRouterBaseURL == "" {
 		configuration.OpenRouterBaseURL = defaultConfiguration.OpenRouterBaseURL
 	}
