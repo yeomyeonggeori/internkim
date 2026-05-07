@@ -96,6 +96,7 @@ mkdir -p /dev/pts
 mountpoint -q /dev/pts || mount -t devpts devpts /dev/pts
 mountpoint -q /run || mount -t tmpfs tmpfs /run
 mountpoint -q /tmp || mount -t tmpfs tmpfs /tmp
+mount -o remount,rw /
 
 ip link set lo up
 
