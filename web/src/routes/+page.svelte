@@ -8,6 +8,7 @@
 	import { CopyButton } from '$lib/components/ui/copy-button';
 	import LanguageSelector from '$lib/i18n/language-selector.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
 	import MailIcon from '@lucide/svelte/icons/mail';
 	import PlusIcon from '@lucide/svelte/icons/plus';
@@ -24,7 +25,7 @@
 	import { adminText } from './admin/text';
 
 	type UserRole = 'admin' | 'member';
-	type AdminSection = 'device' | 'flow' | 'bot' | 'companion' | 'backup' | 'users';
+	type AdminSection = 'device' | 'calendar' | 'flow' | 'bot' | 'companion' | 'backup' | 'users';
 
 	type UserRecord = {
 		userID: string;
@@ -218,6 +219,7 @@
 	};
 	const adminSections = (): { value: AdminSection; label: string }[] => [
 		{ value: 'device', label: text.sections.device },
+		{ value: 'calendar', label: text.sections.calendar },
 		{ value: 'flow', label: text.sections.flow },
 		{ value: 'users', label: text.sections.users },
 		{ value: 'companion', label: text.sections.companion },
@@ -842,6 +844,26 @@
 					<Button href="/admin/api/flow/status" variant="outline" class="gap-2">
 						<RefreshCwIcon class="size-4" />
 						{text.flow.status}
+					</Button>
+				</div>
+			</div>
+			{/if}
+
+			{#if activeAdminSection === 'calendar'}
+				<div class="rounded-lg border p-4">
+				<div class="flex flex-wrap items-start justify-between gap-3">
+					<div>
+						<h3 class="text-sm font-semibold">{text.calendar.title}</h3>
+						<p class="text-muted-foreground mt-1 text-sm">
+							{text.calendar.description}
+						</p>
+					</div>
+					<Badge variant="secondary">CalDAV</Badge>
+				</div>
+				<div class="mt-4 flex flex-wrap gap-2">
+					<Button href="/calendar/" class="gap-2">
+						<CalendarDaysIcon class="size-4" />
+						{text.calendar.open}
 					</Button>
 				</div>
 			</div>

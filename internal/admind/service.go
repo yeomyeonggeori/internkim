@@ -39,6 +39,7 @@ type Configuration struct {
 	StateDirectory              string
 	CompanionJobPath            string
 	FlowDatabasePath            string
+	CalendarDatabasePath        string
 	MattermostAdminPasswordPath string
 	AdminEmailPath              string
 	ClaimedAdminEmailPath       string
@@ -186,6 +187,7 @@ func DefaultConfiguration() Configuration {
 		StateDirectory:              "/root/.internkim/state/admin",
 		CompanionJobPath:            "/root/.internkim/state/companion-jobs.json",
 		FlowDatabasePath:            "/root/.internkim/state/flow.sqlite",
+		CalendarDatabasePath:        "/root/.internkim/state/calendar.sqlite",
 		MattermostAdminPasswordPath: "/root/.internkim/secrets/mm-admin-pass",
 		AdminEmailPath:              "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:       "/root/.internkim/state/admin/claimed-admin-email",
@@ -265,6 +267,12 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/flow", service.serveFlowPage)
 	multiplexer.HandleFunc("/flow/api/", service.handleFlow)
 	multiplexer.HandleFunc("/flow/", service.serveFlowPage)
+	multiplexer.HandleFunc("/calendar", service.serveCalendarPage)
+	multiplexer.HandleFunc("/calendar/api/", service.handleCalendar)
+	multiplexer.HandleFunc("/calendar/ics/", service.serveCalendarICS)
+	multiplexer.HandleFunc("/calendar/dav/", service.serveCalendarDAV)
+	multiplexer.HandleFunc("/calendar/", service.serveCalendarPage)
+	multiplexer.HandleFunc("/.well-known/caldav", service.serveCalendarDAV)
 	multiplexer.Handle("/_app/", http.FileServer(http.Dir(service.Configuration.AdminUIPath)))
 	multiplexer.HandleFunc("/logo.svg", service.serveAdminAsset)
 	multiplexer.HandleFunc("/_internkim/companion/", service.handleCompanion)
@@ -280,7 +288,7 @@ func (service *Service) withCORS(next http.Handler) http.Handler {
 			responseWriter.Header().Set("Access-Control-Allow-Origin", origin)
 			responseWriter.Header().Set("Access-Control-Allow-Credentials", "true")
 			responseWriter.Header().Set("Access-Control-Allow-Headers", "Content-Type, CF-Access-Authenticated-User-Email, X-InternKim-Companion-ID, X-InternKim-Companion-Token")
-			responseWriter.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
+			responseWriter.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS,PROPFIND,REPORT")
 		}
 		if request.Method == http.MethodOptions {
 			responseWriter.WriteHeader(http.StatusNoContent)
@@ -1726,6 +1734,13 @@ func (configuration Configuration) withDefaults() Configuration {
 			configuration.FlowDatabasePath = defaultConfiguration.FlowDatabasePath
 		} else {
 			configuration.FlowDatabasePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "flow.sqlite")
+		}
+	}
+	if configuration.CalendarDatabasePath == "" {
+		if configuration.CompanionJobPath == defaultConfiguration.CompanionJobPath {
+			configuration.CalendarDatabasePath = defaultConfiguration.CalendarDatabasePath
+		} else {
+			configuration.CalendarDatabasePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "calendar.sqlite")
 		}
 	}
 	if configuration.MattermostAdminPasswordPath == "" {
