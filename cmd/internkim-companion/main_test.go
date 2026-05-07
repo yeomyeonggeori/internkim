@@ -925,7 +925,7 @@ func TestDisconnectRevokesRemoteAndClearsLocalPairing(t *testing.T) {
 }
 
 func TestRemoteModelAuthErrorsUseReconnectMessage(t *testing.T) {
-	errorValue := decodeJSONResponse("https://device.intern.kim/_internkim/companion/remote-model", textResponse(http.StatusForbidden, "companion auth required\n"), nil)
+	errorValue := decodeJSONResponse("https://device.intern.kim/_internkim/runtime/remote-model", textResponse(http.StatusForbidden, "companion auth required\n"), nil)
 	if errorValue != nil {
 		if !strings.Contains(errorValue.Error(), companionPairingExpiredMessage) {
 			t.Fatalf("expected pairing expired message, got %v", errorValue)
