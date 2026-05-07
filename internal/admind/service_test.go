@@ -3002,7 +3002,7 @@ func TestCompanionTerminalJobClosesWatch(t *testing.T) {
 	}
 }
 
-func TestCompanionRemoteModelReadAndUpdate(t *testing.T) {
+func TestRuntimeRemoteModelReadAndUpdate(t *testing.T) {
 	runtimeConfigPath := filepath.Join(t.TempDir(), "runtime.json")
 	writeFile(t, runtimeConfigPath, `{"languageModel":{"capability":{"model":"google/old-model"}}}`)
 	service := NewService(Configuration{
@@ -3028,13 +3028,13 @@ func TestCompanionRemoteModelReadAndUpdate(t *testing.T) {
 	_ = keyPair
 
 	readResponse := httptest.NewRecorder()
-	readRequest := httptest.NewRequest(http.MethodGet, "/_internkim/companion/remote-model", nil)
+	readRequest := httptest.NewRequest(http.MethodGet, "/_internkim/runtime/remote-model", nil)
 	setCompanionHeaders(t, readRequest, pairResult.companionPairResponse, pairResult.privateKey)
 	handler.ServeHTTP(readResponse, readRequest)
 	if readResponse.Code != http.StatusOK {
 		t.Fatalf("read status = %d: %s", readResponse.Code, readResponse.Body.String())
 	}
-	var readResult companionRemoteModelResponse
+	var readResult runtimeRemoteModelResponse
 	if errorValue := json.NewDecoder(readResponse.Body).Decode(&readResult); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -3043,7 +3043,7 @@ func TestCompanionRemoteModelReadAndUpdate(t *testing.T) {
 	}
 
 	updateResponse := httptest.NewRecorder()
-	updateRequest := httptest.NewRequest(http.MethodPut, "/_internkim/companion/remote-model", strings.NewReader(`{"model":"google/new-model"}`))
+	updateRequest := httptest.NewRequest(http.MethodPut, "/_internkim/runtime/remote-model", strings.NewReader(`{"model":"google/new-model"}`))
 	setCompanionHeaders(t, updateRequest, pairResult.companionPairResponse, pairResult.privateKey)
 	handler.ServeHTTP(updateResponse, updateRequest)
 	if updateResponse.Code != http.StatusOK {
@@ -3055,6 +3055,18 @@ func TestCompanionRemoteModelReadAndUpdate(t *testing.T) {
 	updatedDocument := readJSONFile(t, runtimeConfigPath)
 	if remoteModelFromRuntimeDocument(updatedDocument) != "google/new-model" {
 		t.Fatalf("expected updated model, got %+v", updatedDocument)
+	}
+}
+
+func TestRemoteModelIsNotCompanionBrokerEndpoint(t *testing.T) {
+	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	request := httptest.NewRequest(http.MethodGet, "/_internkim/companion/remote-model", nil)
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("expected companion remote model endpoint to be absent, got %d", response.Code)
 	}
 }
 

@@ -34,8 +34,8 @@ func main() {
 		case "run":
 			exit(runCompanion(os.Args[2:], http.DefaultClient))
 			return
-		case "remote-model":
-			exit(runRemoteModel(os.Args[2:], http.DefaultClient, companionruntime.NewDefaultSecureStore()))
+		case "runtime-model", "remote-model":
+			exit(runRuntimeModel(os.Args[2:], http.DefaultClient, companionruntime.NewDefaultSecureStore()))
 			return
 		case "disconnect":
 			exit(runDisconnect(os.Args[2:], http.DefaultClient, companionruntime.NewDefaultSecureStore()))
@@ -50,7 +50,7 @@ func main() {
 
 func isCompanionSubcommand(commandName string) bool {
 	switch commandName {
-	case "pair", "run", "remote-model", "disconnect", "status":
+	case "pair", "run", "runtime-model", "remote-model", "disconnect", "status":
 		return true
 	default:
 		return false
