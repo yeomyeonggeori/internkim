@@ -1,0 +1,93 @@
+package capabilityd
+
+import (
+	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"strings"
+	"testing"
+
+	"gitlab.com/eastriver/internkim/internal/capabilities"
+)
+
+func TestCalendarEventAddPostsToAdmind(t *testing.T) {
+	var requesterEmail string
+	var payload map[string]any
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.Method != http.MethodPost || request.URL.String() != "http://admind.local/calendar/api/events" {
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			}
+			requesterEmail = request.Header.Get("CF-Access-Authenticated-User-Email")
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			return calendarToolJSONResponse(`{"id":"event-1","title":"Demo","startISO":"2026-05-08T01:00:00Z","endISO":"2026-05-08T02:00:00Z"}`), nil
+		})},
+	}
+
+	response, errorValue := service.invokeCalendarEventAdd(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "calendar.event.add",
+		Input:    []byte(`{"title":"Demo","startISO":"2026-05-08T10:00:00+09:00","endISO":"2026-05-08T11:00:00+09:00","location":"Office"}`),
+		Context: capabilities.ToolInvokeContext{
+			RequesterEmail: "Staff@Example.com",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != "created" {
+		t.Fatalf("status = %q", response.Status)
+	}
+	if requesterEmail != "staff@example.com" {
+		t.Fatalf("requesterEmail = %q", requesterEmail)
+	}
+	if payload["title"] != "Demo" || payload["location"] != "Office" {
+		t.Fatalf("payload = %#v", payload)
+	}
+}
+
+func TestCalendarEventListFiltersQueryAndLimit(t *testing.T) {
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			expectedURL := "http://admind.local/calendar/api/events?endISO=2026-05-09T00%3A00%3A00Z&startISO=2026-05-08T00%3A00%3A00Z"
+			if request.Method != http.MethodGet || request.URL.String() != expectedURL {
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			}
+			return calendarToolJSONResponse(`{"events":[{"id":"event-1","title":"Design review","description":"","location":"Office"},{"id":"event-2","title":"Lunch","description":"","location":"Cafe"}]}`), nil
+		})},
+	}
+
+	response, errorValue := service.invokeCalendarEventList(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "calendar.event.list",
+		Input:    []byte(`{"startISO":"2026-05-08T00:00:00Z","endISO":"2026-05-09T00:00:00Z","query":"design","limit":1}`),
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var document calendarEventsForTool
+	if errorValue := json.Unmarshal(response.Result, &document); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(document.Events) != 1 || document.Events[0].ID != "event-1" {
+		t.Fatalf("events = %#v", document.Events)
+	}
+}
+
+func TestCalendarEventDeleteRequiresEventID(t *testing.T) {
+	_, errorValue := decodeCalendarEventDeleteInput([]byte(`{}`))
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "eventID") {
+		t.Fatalf("expected eventID error, got %v", errorValue)
+	}
+}
+
+func calendarToolJSONResponse(document string) *http.Response {
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(document)),
+	}
+}

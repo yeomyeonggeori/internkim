@@ -53,12 +53,21 @@ func DeviceDescriptors() []Descriptor {
 		{Name: "llm.structured", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "embedding.create", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "platform.reply", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false},
-	}, append(append(DeviceBrowserDescriptors(), FlowDescriptors()...), SiteAppDescriptors()...)...)
+	}, append(append(append(DeviceBrowserDescriptors(), FlowDescriptors()...), CalendarDescriptors()...), SiteAppDescriptors()...)...)
 }
 
 func FlowDescriptors() []Descriptor {
 	return []Descriptor{
 		{Name: "flow.task.add", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"description":{"type":"string"},"assignee":{"type":"string"},"status":{"type":"string"},"priority":{"type":"string"},"dueDate":{"type":"string"}},"required":["title"],"additionalProperties":false}`), PolicyResource: "tool:flow.task.add", SideEffectClass: "workspace_write"},
+	}
+}
+
+func CalendarDescriptors() []Descriptor {
+	return []Descriptor{
+		{Name: "calendar.event.add", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventWriteInputSchema(), PolicyResource: "tool:calendar.event.add", SideEffectClass: "workspace_write"},
+		{Name: "calendar.event.list", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventListInputSchema(), PolicyResource: "tool:calendar.event.list", SideEffectClass: "read"},
+		{Name: "calendar.event.update", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventUpdateInputSchema(), PolicyResource: "tool:calendar.event.update", SideEffectClass: "workspace_write"},
+		{Name: "calendar.event.delete", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventDeleteInputSchema(), PolicyResource: "tool:calendar.event.delete", SideEffectClass: "destructive", RequiresApproval: true},
 	}
 }
 
@@ -90,6 +99,22 @@ func siteAppInputSchema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{"name":{"type":"string"},"sourcePath":{"type":"string"},"title":{"type":"string"}},"required":["name"],"additionalProperties":false}`)
 }
 
+func calendarEventWriteInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"description":{"type":"string"},"location":{"type":"string"},"startISO":{"type":"string"},"endISO":{"type":"string"},"timeZone":{"type":"string"},"isAllDay":{"type":"boolean"},"color":{"type":"string"}},"required":["title","startISO","endISO"],"additionalProperties":false}`)
+}
+
+func calendarEventListInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"startISO":{"type":"string"},"endISO":{"type":"string"},"query":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":50}},"additionalProperties":false}`)
+}
+
+func calendarEventUpdateInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"eventID":{"type":"string"},"title":{"type":"string"},"description":{"type":"string"},"location":{"type":"string"},"startISO":{"type":"string"},"endISO":{"type":"string"},"timeZone":{"type":"string"},"isAllDay":{"type":"boolean"},"color":{"type":"string"}},"required":["eventID","title","startISO","endISO"],"additionalProperties":false}`)
+}
+
+func calendarEventDeleteInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"eventID":{"type":"string"}},"required":["eventID"],"additionalProperties":false}`)
+}
+
 func siteAppNameInputSchema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{"name":{"type":"string"}},"required":["name"],"additionalProperties":false}`)
 }
@@ -114,6 +139,7 @@ func DefaultToolNames() []string {
 func DefaultToolDescriptors() []Descriptor {
 	descriptors := CompanionToolDescriptors()
 	descriptors = append(descriptors, FlowDescriptors()...)
+	descriptors = append(descriptors, CalendarDescriptors()...)
 	descriptors = append(descriptors, SiteAppDescriptors()...)
 	return descriptors
 }
