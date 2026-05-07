@@ -229,6 +229,7 @@ func NewService(configuration Configuration) *Service {
 func (service *Service) Run(ctx context.Context) error {
 	service.startCompanionFileCleanup(ctx)
 	service.startMattermostProvisionerSync(ctx)
+	service.startCalendarNotificationWorker(ctx)
 	server := &http.Server{
 		Addr:    service.Configuration.ListenAddress,
 		Handler: service.router(),

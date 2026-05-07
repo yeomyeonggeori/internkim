@@ -30,7 +30,7 @@ func TestCalendarEventAddPostsToAdmind(t *testing.T) {
 
 	response, errorValue := service.invokeCalendarEventAdd(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "calendar.event.add",
-		Input:    []byte(`{"title":"Demo","startISO":"2026-05-08T10:00:00+09:00","endISO":"2026-05-08T11:00:00+09:00","location":"Office"}`),
+		Input:    []byte(`{"title":"Demo","startISO":"2026-05-08T10:00:00+09:00","endISO":"2026-05-08T11:00:00+09:00","location":"Office","people":"동하, 수민","reminderLeadHours":48}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "Staff@Example.com",
 		},
@@ -46,6 +46,10 @@ func TestCalendarEventAddPostsToAdmind(t *testing.T) {
 	}
 	if payload["title"] != "Demo" || payload["location"] != "Office" {
 		t.Fatalf("payload = %#v", payload)
+	}
+	people, _ := payload["people"].([]any)
+	if len(people) != 2 || people[0] != "동하" || people[1] != "수민" || payload["reminderLeadHours"] != float64(48) {
+		t.Fatalf("calendar metadata payload = %#v", payload)
 	}
 }
 
