@@ -108,6 +108,7 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 			"mode":                   "firecrackerGuest",
 			"sandboxProvider":        "",
 			"workspaceRootPath":      BlueclawGuestWorkspacePath,
+			"posixHelperPath":        BlueclawPOSIXHelperPath,
 			"allowedExecutableNames": BlueclawAllowedExecutables,
 			"deniedExecutableNames":  BlueclawDeniedExecutables,
 			"deniedPathPrefixes":     BlueclawDeniedPathPrefixes,

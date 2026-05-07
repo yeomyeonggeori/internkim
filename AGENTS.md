@@ -44,6 +44,20 @@ When testing against real platform surfaces such as Mattermost, Slack, or Signal
 - Do not include `--host`, `--user`, or `--password` in examples when the default/saved target works. Add those flags only when the user asks for a specific target or the default target cannot be resolved.
 - Do not run verify suites by reflex after UI-only deploys. Use targeted checks first; run full verify only for platform/runtime behavior changes or when explicitly requested.
 
+## Blueclaw Terminal Permission Boundary
+
+- Treat Blueclaw policy as the source of truth and Linux user/group/POSIX permissions as the canonical runtime boundary for terminal access.
+- Do not make `bwrap` a required v1 security boundary for this feature. It may be added later only as optional narrowing.
+- Project people to stable `bc_person_<shortID>` users, circles to `bc_circle_<circleID>` groups, shared access to `bc_shared`, and service internals to the `blueclaw` user/group.
+- Keep Linux identity names lowercase, limited to `[a-z0-9_-]`, and collision-resistant with deterministic suffixes when normalization is lossy or truncated.
+- Run `terminal.run`, terminal sessions, user-authored tools, dependency install scripts, and package lifecycle scripts as the requester or task actor's unprivileged UID/GID/supplementary groups.
+- Raw terminal for admin users must still use the task actor's least-privilege identity. Do not grant admin circle membership to raw terminal execution just because the requester is an admin.
+- Keep admin-only file access, task-scoped temporary grants, single-file exceptions, and external transfer behind built-in Blueclaw capabilities/tools. Do not expose them through raw terminal, user-authored skills, or user-authored tools.
+- Keep `/workspace/.blueclaw/*` service-owned and inaccessible to normal task users. Treat `/workspace/private/people/<personID>`, `/workspace/circles/<circleID>`, and `/workspace/shared/*` ownership/mode as the final workspace access boundary.
+- Use `/workspace/shared/cache/dependencies` for v1 dependency cache sharing. Pin dependency cache environment variables there and never place private/source files in that cache.
+- Preserve existing denied executable and denied path guardrails, especially OS package manager and system modification commands, even after POSIX execution identity is in place.
+- Built-in tools that read through grants must not leave privileged source files in raw-terminal-visible locations. If terminal-visible output is needed, create a sanitized task artifact and record it in the task event stream.
+
 ## Companion Runtime Boundary
 
 - Treat `internkim-companion` as the user's local trusted runtime, not as a browser-only helper.
