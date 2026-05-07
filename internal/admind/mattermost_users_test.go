@@ -27,8 +27,8 @@ func TestAddMattermostNameFieldsSplitsEnglishName(t *testing.T) {
 	if body["last_name"] != "Lovelace" {
 		t.Errorf("last_name = %q; want %q", body["last_name"], "Lovelace")
 	}
-	if body["nickname"] != "Ada Lovelace" {
-		t.Errorf("nickname = %q; want %q", body["nickname"], "Ada Lovelace")
+	if body["nickname"] != "Ada" {
+		t.Errorf("nickname = %q; want %q", body["nickname"], "Ada")
 	}
 }
 

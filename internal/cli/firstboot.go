@@ -654,7 +654,7 @@ else
   cp /opt/mattermost/config/config.defaults.json /opt/mattermost/config/config.json 2>/dev/null || true
   jq --arg ds "postgres://mmuser:${MM_DB_PASS}@localhost/mattermost?sslmode=disable&connect_timeout=10" \
      --arg url "$SITE_URL" \
-     '.SqlSettings.DriverName = "postgres" | .SqlSettings.DataSource = $ds | .ServiceSettings.SiteURL = $url | .ServiceSettings.EnableUserAccessTokens = true | .ServiceSettings.EnableBotAccountCreation = true | .TeamSettings.TeammateNameDisplay = "full_name"' \
+     '.SqlSettings.DriverName = "postgres" | .SqlSettings.DataSource = $ds | .ServiceSettings.SiteURL = $url | .ServiceSettings.EnableUserAccessTokens = true | .ServiceSettings.EnableBotAccountCreation = true | .TeamSettings.TeammateNameDisplay = "nickname_full_name"' \
      /opt/mattermost/config/config.json > /opt/mattermost/config/config.tmp \
      && mv /opt/mattermost/config/config.tmp /opt/mattermost/config/config.json
   chown mattermost:mattermost /opt/mattermost/config/config.json
@@ -749,7 +749,7 @@ SVCEOF
     curl -sf -X PUT "$MM_URL/api/v4/users/$BOT_USER_ID/patch" \
       -H "Authorization: Bearer $ADMIN_TOKEN" \
       -H 'Content-Type: application/json' \
-      -d '{"first_name":"김인턴","nickname":"Intern Kim","position":""}' >/dev/null 2>&1 || true
+      -d '{"first_name":"Intern","last_name":"Kim","nickname":"김인턴","position":""}' >/dev/null 2>&1 || true
   fi
 
   BOT_TOKEN=""
