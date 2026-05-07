@@ -300,7 +300,7 @@ if [ ! -s "$rootfs_path" ]; then
   echo rootfs-missing
   exit 0
 fi
-if ! mount -o loop,ro "$rootfs_path" "$mount_path" >/tmp/internkim-blueclaw-rootfs-mount-check.log 2>&1; then
+if ! mount -o loop,ro,noload "$rootfs_path" "$mount_path" >/tmp/internkim-blueclaw-rootfs-mount-check.log 2>&1; then
   echo rootfs-mount-failed
   exit 0
 fi
