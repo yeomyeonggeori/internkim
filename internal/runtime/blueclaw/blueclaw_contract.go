@@ -27,6 +27,7 @@ const (
 	GraphitiMemorydServicePath            = "/etc/systemd/system/graphiti-memoryd.service"
 	BlueclawBinaryPath                    = "/usr/local/bin/blueclaw"
 	BlueclawSupervisorBinaryPath          = "/usr/local/bin/blueclaw-supervisor"
+	BlueclawPOSIXHelperPath               = "/usr/local/bin/blueclaw-posix-helper"
 	CapabilitydBinaryPath                 = "/usr/local/bin/internkim-capabilityd"
 	AdmindBinaryPath                      = "/usr/local/bin/internkim-admind"
 	LocalLLMRunnerBinaryPath              = "/usr/local/bin/internkim-local-llm-runner"

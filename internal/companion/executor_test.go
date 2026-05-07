@@ -6,7 +6,9 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -58,8 +60,14 @@ type fakeBrowserRuntime struct {
 	pressRequest    browserruntime.PressRequest
 	waitRequest     browserruntime.WaitRequest
 	observeResult   browserruntime.ObserveResult
+	startResults    []browserruntime.SessionStartResult
+	observeCount    int
+	startCount      int
+	closeCount      int
 	screenshot      browserruntime.ScreenshotResult
 	errorValue      error
+	actionError     error
+	observeError    error
 }
 
 type fakeFilePicker struct {
@@ -74,10 +82,28 @@ type fakeFileUploader struct {
 func (runtime *fakeBrowserRuntime) StartSession(ctx context.Context, request browserruntime.SessionStartRequest) (browserruntime.SessionStartResult, error) {
 	_ = ctx
 	runtime.startRequest = request
+	runtime.startCount++
 	if runtime.errorValue != nil {
 		return browserruntime.SessionStartResult{}, runtime.errorValue
 	}
-	return browserruntime.SessionStartResult{SessionID: "internkim", Opened: true, URL: firstNonEmpty(request.URL, request.StartURL)}, nil
+	if runtime.startCount <= len(runtime.startResults) {
+		return runtime.startResults[runtime.startCount-1], nil
+	}
+	return browserruntime.SessionStartResult{
+		SessionID:       "internkim",
+		Opened:          true,
+		URL:             firstNonEmpty(runtime.observeResult.URL, request.URL, request.StartURL),
+		Title:           runtime.observeResult.Title,
+		SnapshotText:    runtime.observeResult.SnapshotText,
+		InteractiveRefs: runtime.observeResult.InteractiveRefs,
+		CapturedAt:      runtime.observeResult.CapturedAt,
+	}, nil
+}
+
+func (runtime *fakeBrowserRuntime) CloseSession(ctx context.Context) error {
+	_ = ctx
+	runtime.closeCount++
+	return nil
 }
 
 func (runtime *fakeBrowserRuntime) Navigate(ctx context.Context, request browserruntime.NavigateRequest) (browserruntime.NavigateResult, error) {
@@ -92,6 +118,10 @@ func (runtime *fakeBrowserRuntime) Navigate(ctx context.Context, request browser
 func (runtime *fakeBrowserRuntime) Observe(ctx context.Context, request browserruntime.ObserveRequest) (browserruntime.ObserveResult, error) {
 	_ = ctx
 	_ = request
+	runtime.observeCount++
+	if runtime.observeError != nil {
+		return browserruntime.ObserveResult{}, runtime.observeError
+	}
 	if runtime.errorValue != nil {
 		return browserruntime.ObserveResult{}, runtime.errorValue
 	}
@@ -110,6 +140,9 @@ func (runtime *fakeBrowserRuntime) Screenshot(ctx context.Context, request brows
 func (runtime *fakeBrowserRuntime) Click(ctx context.Context, request browserruntime.ClickRequest) (browserruntime.ActionResult, error) {
 	_ = ctx
 	runtime.clickRequest = request
+	if runtime.actionError != nil {
+		return browserruntime.ActionResult{}, runtime.actionError
+	}
 	if runtime.errorValue != nil {
 		return browserruntime.ActionResult{}, runtime.errorValue
 	}
@@ -119,6 +152,9 @@ func (runtime *fakeBrowserRuntime) Click(ctx context.Context, request browserrun
 func (runtime *fakeBrowserRuntime) Fill(ctx context.Context, request browserruntime.FillRequest) (browserruntime.ActionResult, error) {
 	_ = ctx
 	runtime.fillRequest = request
+	if runtime.actionError != nil {
+		return browserruntime.ActionResult{}, runtime.actionError
+	}
 	if runtime.errorValue != nil {
 		return browserruntime.ActionResult{}, runtime.errorValue
 	}
@@ -128,6 +164,9 @@ func (runtime *fakeBrowserRuntime) Fill(ctx context.Context, request browserrunt
 func (runtime *fakeBrowserRuntime) Select(ctx context.Context, request browserruntime.SelectRequest) (browserruntime.ActionResult, error) {
 	_ = ctx
 	runtime.selectRequest = request
+	if runtime.actionError != nil {
+		return browserruntime.ActionResult{}, runtime.actionError
+	}
 	if runtime.errorValue != nil {
 		return browserruntime.ActionResult{}, runtime.errorValue
 	}
@@ -137,6 +176,9 @@ func (runtime *fakeBrowserRuntime) Select(ctx context.Context, request browserru
 func (runtime *fakeBrowserRuntime) Press(ctx context.Context, request browserruntime.PressRequest) (browserruntime.ActionResult, error) {
 	_ = ctx
 	runtime.pressRequest = request
+	if runtime.actionError != nil {
+		return browserruntime.ActionResult{}, runtime.actionError
+	}
 	if runtime.errorValue != nil {
 		return browserruntime.ActionResult{}, runtime.errorValue
 	}
@@ -146,6 +188,9 @@ func (runtime *fakeBrowserRuntime) Press(ctx context.Context, request browserrun
 func (runtime *fakeBrowserRuntime) Wait(ctx context.Context, request browserruntime.WaitRequest) (browserruntime.ActionResult, error) {
 	_ = ctx
 	runtime.waitRequest = request
+	if runtime.actionError != nil {
+		return browserruntime.ActionResult{}, runtime.actionError
+	}
 	if runtime.errorValue != nil {
 		return browserruntime.ActionResult{}, runtime.errorValue
 	}
@@ -308,8 +353,323 @@ func TestBrowserControlToolsUseRuntime(t *testing.T) {
 	}
 }
 
-func TestBrowserHandoffCompletesAfterExtensionEvent(t *testing.T) {
+func TestBrowserControlFailureReturnsSnapshotForRecovery(t *testing.T) {
+	browserRuntime := &fakeBrowserRuntime{
+		actionError: errors.New("target is detached"),
+		observeResult: browserruntime.ObserveResult{
+			URL:             "https://console.cloud.google.com/apis/credentials?project=internkim-7373e2a4",
+			Title:           "Credentials",
+			SnapshotText:    "- button \"Create credential\" [ref=e27]",
+			InteractiveRefs: []string{"@e27"},
+			CapturedAt:      "2026-05-06T14:20:00Z",
+		},
+	}
+	executor := Executor{BrowserRuntime: browserRuntime}
+
+	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "browser.click",
+		Input:    json.RawMessage(`{"target":"@old"}`),
+	})
+	if errorValue != nil {
+		t.Fatalf("expected recoverable browser action result: %v", errorValue)
+	}
+
+	var result BrowserActionFailureResult
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !response.IsError || response.Status != "error" || result.Status != "recoverable_error" {
+		t.Fatalf("expected recoverable error response, response=%+v result=%+v", response, result)
+	}
+	if result.URL != browserRuntime.observeResult.URL || result.InteractiveRefs[0] != "@e27" || !strings.Contains(result.Guidance, "반복하지 마세요") {
+		t.Fatalf("expected snapshot recovery guidance, got %+v", result)
+	}
+	if !strings.Contains(response.Content, "Create credential") {
+		t.Fatalf("expected snapshot in response content, got %s", response.Content)
+	}
+	if browserRuntime.observeCount != 1 {
+		t.Fatalf("expected one failure snapshot, got %d", browserRuntime.observeCount)
+	}
+}
+
+func TestBrowserControlFailureReportsSnapshotFailure(t *testing.T) {
+	browserRuntime := &fakeBrowserRuntime{
+		actionError:  errors.New("target is detached"),
+		observeError: errors.New("snapshot unavailable"),
+	}
+	executor := Executor{BrowserRuntime: browserRuntime}
+
+	response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "browser.fill",
+		Input:    json.RawMessage(`{"target":"@old","text":"hello"}`),
+	})
+	if errorValue != nil {
+		t.Fatalf("expected recoverable browser action result: %v", errorValue)
+	}
+
+	var result BrowserActionFailureResult
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !response.IsError || result.SnapshotError != "snapshot unavailable" {
+		t.Fatalf("expected snapshot failure in recoverable result, response=%+v result=%+v", response, result)
+	}
+}
+
+func TestBrowserHandoffWaitsForUserCompletion(t *testing.T) {
 	handoffStore := NewBrowserHandoffStore()
+	browserRuntime := &fakeBrowserRuntime{}
+	executor := Executor{BrowserRuntime: browserRuntime, HandoffStore: handoffStore}
+	completionErrors := completeActiveHandoffWhenReady(handoffStore, "https://example.com/app")
+
+	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
+		ToolName: "browser.handoff",
+		Input:    json.RawMessage(`{"url":"https://example.com/login","message":"로그인 후 완료를 눌러주세요.","successCriteria":{"textIncludesAny":["Continue"]}}`),
+	})
+	if completionError := <-completionErrors; completionError != nil {
+		t.Fatalf("expected handoff completion: %v", completionError)
+	}
+	if errorValue != nil {
+		t.Fatalf("expected completed handoff response: %v", errorValue)
+	}
+
+	var result BrowserHandoffResult
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != HandoffStateCompleted || result.State != HandoffStateCompleted || !result.CompletedByUser {
+		t.Fatalf("unexpected handoff result: response=%+v result=%+v", response, result)
+	}
+	if result.HandoffID == "" || result.URL != "https://example.com/app" || handoffStore.Snapshot().Active {
+		t.Fatalf("expected active handoff with id, got %+v snapshot=%+v", result, handoffStore.Snapshot())
+	}
+	if browserRuntime.observeCount != 0 {
+		t.Fatalf("expected no automatic handoff snapshot, got %d", browserRuntime.observeCount)
+	}
+	if browserRuntime.startCount != 1 {
+		t.Fatalf("expected one browser open, got %d", browserRuntime.startCount)
+	}
+}
+
+func TestBrowserHandoffRejectsLinuxWayland(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux Wayland detection only applies on Linux")
+	}
+	t.Setenv("XDG_SESSION_TYPE", "wayland")
+	t.Setenv("WAYLAND_DISPLAY", "wayland-0")
+	t.Setenv("DISPLAY", "")
+	executor := Executor{BrowserRuntime: &fakeBrowserRuntime{}, HandoffStore: NewBrowserHandoffStore()}
+
+	_, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
+		ToolName: "browser.handoff",
+		Input:    json.RawMessage(`{"url":"https://example.com/login"}`),
+	})
+
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "Linux Wayland") {
+		t.Fatalf("expected Linux Wayland unsupported error, got %v", errorValue)
+	}
+}
+
+func TestBrowserHandoffUsesAutomationWhenGoogleProfileIsSignedIn(t *testing.T) {
+	handoffStore := NewBrowserHandoffStore()
+	nativeRuntime := &fakeBrowserRuntime{}
+	resumeRuntime := &fakeBrowserRuntime{observeResult: browserruntime.ObserveResult{
+		URL:             "https://console.cloud.google.com/project",
+		Title:           "Google Cloud",
+		SnapshotText:    "- button \"Create\" [ref=e1]",
+		InteractiveRefs: []string{"@e1"},
+		CapturedAt:      "2026-05-07T00:00:00Z",
+	}}
+	executor := Executor{
+		BrowserRuntime:        &fakeBrowserRuntime{},
+		HandoffBrowserRuntime: nativeRuntime,
+		HandoffResumeRuntime:  resumeRuntime,
+		HandoffStore:          handoffStore,
+	}
+
+	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
+		ToolName: "browser.handoff",
+		Input:    json.RawMessage(`{"url":"https://console.cloud.google.com/project","message":"로그인이 필요하면 계속을 눌러주세요."}`),
+	})
+	if errorValue != nil {
+		t.Fatalf("expected signed-in automation handoff response: %v", errorValue)
+	}
+
+	var result BrowserHandoffResult
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != HandoffStateCompleted || result.CompletedByUser || result.SnapshotText == "" {
+		t.Fatalf("expected completed automation result without user handoff, response=%+v result=%+v", response, result)
+	}
+	if nativeRuntime.startCount != 0 || resumeRuntime.startCount != 1 || handoffStore.Snapshot().Active {
+		t.Fatalf("expected automation probe only, native=%d resume=%d snapshot=%+v", nativeRuntime.startCount, resumeRuntime.startCount, handoffStore.Snapshot())
+	}
+}
+
+func TestBrowserHandoffFallsBackToNativeWhenGoogleProfileNeedsLogin(t *testing.T) {
+	handoffStore := NewBrowserHandoffStore()
+	nativeRuntime := &fakeBrowserRuntime{}
+	resumeRuntime := &fakeBrowserRuntime{startResults: []browserruntime.SessionStartResult{
+		{
+			SessionID:    "internkim",
+			Opened:       true,
+			URL:          "https://accounts.google.com/v3/signin/identifier",
+			Title:        "Sign in",
+			SnapshotText: "Sign in with Google",
+			CapturedAt:   "2026-05-07T00:00:00Z",
+		},
+		{
+			SessionID:       "internkim",
+			Opened:          true,
+			URL:             "https://console.cloud.google.com/project",
+			Title:           "Google Cloud",
+			SnapshotText:    "- button \"Create\" [ref=e1]",
+			InteractiveRefs: []string{"@e1"},
+			CapturedAt:      "2026-05-07T00:00:01Z",
+		},
+	}}
+	executor := Executor{
+		BrowserRuntime:        &fakeBrowserRuntime{},
+		HandoffBrowserRuntime: nativeRuntime,
+		HandoffResumeRuntime:  resumeRuntime,
+		HandoffStore:          handoffStore,
+	}
+	completionErrors := completeActiveHandoffWhenReady(handoffStore, "https://console.cloud.google.com")
+
+	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
+		ToolName: "browser.handoff",
+		Input:    json.RawMessage(`{"url":"https://console.cloud.google.com/project","message":"로그인 후 계속을 눌러주세요."}`),
+	})
+	if completionError := <-completionErrors; completionError != nil {
+		t.Fatalf("expected handoff completion: %v", completionError)
+	}
+	if errorValue != nil {
+		t.Fatalf("expected native handoff fallback response: %v", errorValue)
+	}
+
+	var result BrowserHandoffResult
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !result.CompletedByUser || result.SnapshotText == "" {
+		t.Fatalf("expected user-completed native fallback with resumed snapshot, got %+v", result)
+	}
+	if nativeRuntime.startCount != 1 || nativeRuntime.closeCount != 1 || resumeRuntime.startCount != 2 {
+		t.Fatalf("expected probe, native handoff, and resume; native=%+v resume=%+v", nativeRuntime, resumeRuntime)
+	}
+}
+
+func TestBrowserHandoffReusesActiveHandoffWithoutReopeningBrowser(t *testing.T) {
+	handoffStore := NewBrowserHandoffStore()
+	activeHandoff, errorValue := handoffStore.Begin(BrowserHandoffRequest{URL: "https://example.com/login"}, "internkim")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	browserRuntime := &fakeBrowserRuntime{}
+	executor := Executor{BrowserRuntime: browserRuntime, HandoffStore: handoffStore}
+	completionErrors := make(chan error, 1)
+	go func() {
+		completionErrors <- handoffStore.Complete(HandoffCompletion{
+			HandoffID:  activeHandoff.HandoffID,
+			SessionID:  activeHandoff.SessionID,
+			URL:        "https://example.com/app",
+			CapturedAt: time.Now().UTC().Format(time.RFC3339),
+		})
+	}()
+
+	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-2", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
+		ToolName: "browser.handoff",
+		Input:    json.RawMessage(`{"url":"https://example.com/projectselector2/iam-admin/serviceaccounts?supportedpurview=project","message":"로그인 후 완료를 눌러주세요."}`),
+	})
+	if completionError := <-completionErrors; completionError != nil {
+		t.Fatalf("expected handoff completion: %v", completionError)
+	}
+	if errorValue != nil {
+		t.Fatalf("expected active handoff reuse: %v", errorValue)
+	}
+
+	var result BrowserHandoffResult
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != HandoffStateCompleted || result.HandoffID != activeHandoff.HandoffID {
+		t.Fatalf("expected completed response for active handoff, response=%+v result=%+v", response, result)
+	}
+	if browserRuntime.startCount != 0 {
+		t.Fatalf("expected active handoff reuse not to reopen browser, got %d opens", browserRuntime.startCount)
+	}
+}
+
+func TestBrowserHandoffClosesNativeProfileAndResumesAutomation(t *testing.T) {
+	handoffStore := NewBrowserHandoffStore()
+	nativeRuntime := &fakeBrowserRuntime{}
+	resumeRuntime := &fakeBrowserRuntime{observeResult: browserruntime.ObserveResult{
+		URL:             "https://example.com/app",
+		Title:           "Example",
+		SnapshotText:    "- button \"Create\" [ref=e1]",
+		InteractiveRefs: []string{"@e1"},
+		CapturedAt:      "2026-05-07T00:00:00Z",
+	}}
+	executor := Executor{
+		BrowserRuntime:        &fakeBrowserRuntime{},
+		HandoffBrowserRuntime: nativeRuntime,
+		HandoffResumeRuntime:  resumeRuntime,
+		HandoffStore:          handoffStore,
+	}
+	completionErrors := completeActiveHandoffWhenReady(handoffStore, "https://example.com")
+
+	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
+		ToolName: "browser.handoff",
+		Input:    json.RawMessage(`{"url":"https://example.com/app","message":"로그인 후 계속을 눌러주세요."}`),
+	})
+	if completionError := <-completionErrors; completionError != nil {
+		t.Fatalf("expected handoff completion: %v", completionError)
+	}
+	if errorValue != nil {
+		t.Fatalf("expected resumed handoff response: %v", errorValue)
+	}
+
+	var result BrowserHandoffResult
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if nativeRuntime.startCount != 1 || nativeRuntime.closeCount != 1 || resumeRuntime.startCount != 1 {
+		t.Fatalf("expected native open/close and automation resume, native=%+v resume=%+v", nativeRuntime, resumeRuntime)
+	}
+	if result.URL != "https://example.com/app" || result.SnapshotText == "" || len(result.InteractiveRefs) != 1 {
+		t.Fatalf("expected resumed automation snapshot in handoff result, got %+v", result)
+	}
+}
+
+func completeActiveHandoffWhenReady(handoffStore *BrowserHandoffStore, pageURL string) <-chan error {
+	completionErrors := make(chan error, 1)
+	go func() {
+		deadline := time.Now().Add(time.Second)
+		for time.Now().Before(deadline) {
+			snapshot := handoffStore.Snapshot()
+			if snapshot.Active {
+				completionErrors <- handoffStore.Complete(HandoffCompletion{
+					HandoffID:  snapshot.HandoffID,
+					SessionID:  snapshot.SessionID,
+					URL:        pageURL,
+					CapturedAt: time.Now().UTC().Format(time.RFC3339),
+				})
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		completionErrors <- errors.New("timed out waiting for active handoff")
+	}()
+	return completionErrors
+}
+
+func TestHandoffBridgeCompletionCapturesSnapshot(t *testing.T) {
+	handoffStore := NewBrowserHandoffStore()
+	handoff, errorValue := handoffStore.Begin(BrowserHandoffRequest{URL: "https://example.com/login"}, "internkim")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	browserRuntime := &fakeBrowserRuntime{observeResult: browserruntime.ObserveResult{
 		URL:             "https://example.com/app",
 		Title:           "Example",
@@ -317,41 +677,35 @@ func TestBrowserHandoffCompletesAfterExtensionEvent(t *testing.T) {
 		InteractiveRefs: []string{"@e1"},
 		CapturedAt:      "2026-04-27T00:00:00Z",
 	}}
-	executor := Executor{BrowserRuntime: browserRuntime, HandoffStore: handoffStore}
-	resultChannel := make(chan capabilities.ToolInvokeResponse, 1)
-	errorChannel := make(chan error, 1)
-
-	go func() {
-		response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
-			ToolName: "browser.handoff",
-			Input:    json.RawMessage(`{"url":"https://example.com/login","message":"로그인 후 완료를 눌러주세요.","successCriteria":{"textIncludesAny":["Continue"]}}`),
-		})
-		if errorValue != nil {
-			errorChannel <- errorValue
-			return
-		}
-		resultChannel <- response
-	}()
-
-	waitForHandoffActive(t, handoffStore)
-	snapshot := handoffStore.Snapshot()
-	if errorValue := handoffStore.Complete(HandoffCompletion{HandoffID: snapshot.HandoffID, SessionID: snapshot.SessionID, URL: "https://example.com/app"}); errorValue != nil {
-		t.Fatalf("expected handoff completion: %v", errorValue)
+	var capturedCompletion HandoffCompletion
+	handler := HandoffBridgeHandler{
+		Store:          handoffStore,
+		BrowserRuntime: browserRuntime,
+		CompletionHandler: func(ctx context.Context, completion HandoffCompletion) error {
+			_ = ctx
+			capturedCompletion = completion
+			return nil
+		},
 	}
+	request := httptest.NewRequest(http.MethodPost, "/v1/browser/handoff/complete", strings.NewReader(`{"handoffID":"`+handoff.HandoffID+`","sessionID":"`+handoff.SessionID+`","url":"https://example.com/login"}`))
+	response := httptest.NewRecorder()
 
-	select {
-	case response := <-resultChannel:
-		var result BrowserHandoffResult
-		if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
-			t.Fatal(errorValue)
-		}
-		if result.State != HandoffStateCompleted || result.URL != "https://example.com/app" || !result.CompletedByUser {
-			t.Fatalf("unexpected handoff result: %+v", result)
-		}
-	case errorValue := <-errorChannel:
-		t.Fatal(errorValue)
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for handoff result")
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected handoff completion success, got %d %s", response.Code, response.Body.String())
+	}
+	if capturedCompletion.URL != "https://example.com/app" || capturedCompletion.SnapshotText == "" || len(capturedCompletion.InteractiveRefs) != 1 {
+		t.Fatalf("expected captured completion snapshot, got %+v", capturedCompletion)
+	}
+	if handoffStore.Snapshot().Active {
+		t.Fatal("expected overlay to close after completion")
+	}
+	duplicateRequest := httptest.NewRequest(http.MethodPost, "/v1/browser/handoff/complete", strings.NewReader(`{"handoffID":"`+handoff.HandoffID+`","sessionID":"`+handoff.SessionID+`","url":"https://example.com/app"}`))
+	duplicateResponse := httptest.NewRecorder()
+	handler.ServeHTTP(duplicateResponse, duplicateRequest)
+	if duplicateResponse.Code != http.StatusOK {
+		t.Fatalf("expected duplicate completion success, got %d %s", duplicateResponse.Code, duplicateResponse.Body.String())
 	}
 }
 

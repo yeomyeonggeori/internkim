@@ -50,6 +50,10 @@ describe('prompt bridge payloads', () => {
 			userReason: 'use another way',
 			suggestedConstraint: 'use another way'
 		});
+		expect(approvalResponse(true, '', true)).toEqual({
+			allowed: true,
+			rememberSession: true
+		});
 	});
 
 	test('labels prompt cards', () => {

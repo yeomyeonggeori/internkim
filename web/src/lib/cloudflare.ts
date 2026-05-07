@@ -49,12 +49,20 @@ async function cfFetch(env: CFEnv, path: string, init?: RequestInit) {
 }
 
 export async function createTunnel(env: CFEnv, deviceId: string) {
+	return createNamedTunnel(env, `internkim-${deviceId}`);
+}
+
+export async function createNodeSSHTunnel(env: CFEnv, deviceId: string, boardId: string) {
+	return createNamedTunnel(env, `internkim-${deviceId}-${boardId}-ssh`);
+}
+
+async function createNamedTunnel(env: CFEnv, name: string) {
 	const tunnelSecret = btoa(crypto.getRandomValues(new Uint8Array(32)).toString());
 
 	const tunnel = await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/cfd_tunnel`, {
 		method: 'POST',
 		body: JSON.stringify({
-			name: `internkim-${deviceId}`,
+			name,
 			tunnel_secret: tunnelSecret,
 			config_src: 'cloudflare'
 		})
@@ -63,19 +71,41 @@ export async function createTunnel(env: CFEnv, deviceId: string) {
 	return { tunnelId: tunnel.id as string, tunnelToken: tunnel.token as string };
 }
 
-export async function configureTunnel(env: CFEnv, tunnelId: string, deviceId: string) {
-	const hostname = `${deviceId}.${env.CF_DOMAIN}`;
-	const wildcardHostname = `*.${hostname}`;
-	const sshHostname = deviceSSHHostname(env, deviceId);
+export async function configureTunnel(env: CFEnv, tunnelId: string, deviceId: string, aliasDeviceIds: string[] = []) {
+	const hostnames = [deviceId, ...aliasDeviceIds]
+		.map((value) => value.trim())
+		.filter(Boolean)
+		.map((value) => `${value}.${env.CF_DOMAIN}`);
+	const ingress = hostnames.flatMap((hostname) => [
+		{ hostname: `*.${hostname}`, service: 'http://127.0.0.1:18080' },
+		{ hostname, service: 'http://127.0.0.1:18080' }
+	]);
 
 	await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/cfd_tunnel/${tunnelId}/configurations`, {
 		method: 'PUT',
 		body: JSON.stringify({
 			config: {
 				ingress: [
-					{ hostname: sshHostname, service: 'ssh://localhost:22' },
-					{ hostname: wildcardHostname, service: 'http://127.0.0.1:18080' },
-					{ hostname, service: 'http://127.0.0.1:18080' },
+					...ingress,
+					{ service: 'http_status:404' }
+				]
+			}
+		})
+	});
+}
+
+export async function configureNodeSSHTunnel(env: CFEnv, tunnelId: string, deviceId: string, boardId: string, aliasDeviceIds: string[] = []) {
+	const ingress = [deviceId, ...aliasDeviceIds]
+		.map((value) => value.trim())
+		.filter(Boolean)
+		.map((value) => ({ hostname: nodeSSHHostname(env, value, boardId), service: 'ssh://localhost:22' }));
+
+	await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/cfd_tunnel/${tunnelId}/configurations`, {
+		method: 'PUT',
+		body: JSON.stringify({
+			config: {
+				ingress: [
+					...ingress,
 					{ service: 'http_status:404' }
 				]
 			}
@@ -97,12 +127,25 @@ export async function createDNSRecord(env: CFEnv, tunnelId: string, deviceId: st
 	return record.id as string;
 }
 
+export async function ensureDeviceDNSRecord(env: CFEnv, tunnelId: string, deviceId: string) {
+	const name = `${deviceId}.${env.CF_DOMAIN}`;
+	return ensureDNSRecord(env, name, `${tunnelId}.cfargotunnel.com`);
+}
+
 export function deviceSSHHostname(env: CFEnv, deviceId: string) {
-	return `ssh.${deviceId}.${env.CF_DOMAIN}`;
+	return `ssh-${deviceId}.${env.CF_DOMAIN}`;
+}
+
+export function nodeSSHHostname(env: CFEnv, deviceId: string, boardId: string) {
+	return `ssh-${boardId}.${deviceId}.${env.CF_DOMAIN}`;
 }
 
 export async function ensureSSHDNSRecord(env: CFEnv, tunnelId: string, deviceId: string) {
 	return ensureDNSRecord(env, deviceSSHHostname(env, deviceId), `${tunnelId}.cfargotunnel.com`);
+}
+
+export async function ensureNodeSSHDNSRecord(env: CFEnv, tunnelId: string, deviceId: string, boardId: string) {
+	return ensureDNSRecord(env, nodeSSHHostname(env, deviceId, boardId), `${tunnelId}.cfargotunnel.com`);
 }
 
 export async function ensureWildcardDNSRecord(env: CFEnv, tunnelId: string, deviceId: string) {
@@ -197,10 +240,16 @@ function adminAccessApplicationBody(env: CFEnv, deviceId: string, identityProvid
 }
 
 function sshAccessApplicationBody(env: CFEnv, deviceId: string, identityProviderId: string) {
-	const hostname = deviceSSHHostname(env, deviceId);
+	return sshAccessApplicationBodyForHostname(env, deviceId, deviceSSHHostname(env, deviceId), identityProviderId);
+}
 
+function nodeSSHAccessApplicationBody(env: CFEnv, deviceId: string, boardId: string, identityProviderId: string) {
+	return sshAccessApplicationBodyForHostname(env, deviceId, nodeSSHHostname(env, deviceId, boardId), identityProviderId);
+}
+
+function sshAccessApplicationBodyForHostname(env: CFEnv, deviceId: string, hostname: string, identityProviderId: string) {
 	return {
-		name: `intern kim ssh ${deviceId}`,
+		name: `intern kim ssh ${hostname}`,
 		domain: hostname,
 		type: 'self_hosted',
 		session_duration: '24h',
@@ -265,6 +314,15 @@ export async function ensureAdminAccessApplications(env: CFEnv, deviceId: string
 
 export async function ensureSSHAccessApplication(env: CFEnv, deviceId: string, identityProviderId: string, emails: string[] | string) {
 	const body = sshAccessApplicationBody(env, deviceId, identityProviderId);
+	return ensureSSHAccessApplicationForBody(env, body, emails);
+}
+
+export async function ensureNodeSSHAccessApplication(env: CFEnv, deviceId: string, boardId: string, identityProviderId: string, emails: string[] | string) {
+	const body = nodeSSHAccessApplicationBody(env, deviceId, boardId, identityProviderId);
+	return ensureSSHAccessApplicationForBody(env, body, emails);
+}
+
+async function ensureSSHAccessApplicationForBody(env: CFEnv, body: ReturnType<typeof sshAccessApplicationBody>, emails: string[] | string) {
 	const applications = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`)) as AccessApplication[];
 	const application = applications.find((item) => accessApplicationDomain(item) === body.domain);
 	const applicationId = application?.id ?? await createSSHAccessApplication(env, body);

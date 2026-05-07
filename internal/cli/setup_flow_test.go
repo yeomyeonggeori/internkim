@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"archive/zip"
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,6 +27,35 @@ func TestDeviceToolPackagesIncludeSitePublishingBasics(t *testing.T) {
 		if !strings.Contains(packages, packageName) {
 			t.Fatalf("expected base device tools to include %q, got %s", packageName, packages)
 		}
+	}
+}
+
+func TestExtractFromZipWritesArchiveEntry(t *testing.T) {
+	var buffer bytes.Buffer
+	zipWriter := zip.NewWriter(&buffer)
+	fileWriter, errorValue := zipWriter.Create("pocketbase")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := fileWriter.Write([]byte("binary")); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := zipWriter.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	path := filepath.Join(t.TempDir(), "pocketbase")
+
+	errorValue = extractFromZip(bytes.NewReader(buffer.Bytes()), int64(buffer.Len()), path, "pocketbase")
+
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	document, errorValue := os.ReadFile(path)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if string(document) != "binary" {
+		t.Fatalf("unexpected extracted document: %q", document)
 	}
 }
 
@@ -121,7 +152,7 @@ func TestCloudflareSSHUsesAccessProxyCommand(t *testing.T) {
 	rsyncCommand := client.rsyncSSHCommand("ssh")
 
 	for _, value := range []string{sshArguments, scpArguments, rsyncCommand} {
-		if !strings.Contains(value, "ProxyCommand=cloudflared access ssh --hostname %h") {
+		if !strings.Contains(value, "ProxyCommand=env GODEBUG=netdns=go TUNNEL_EDGE_IP_VERSION=4 cloudflared --edge-ip-version 4 --edge-bind-address 0.0.0.0 access ssh --hostname %h") {
 			t.Fatalf("expected Cloudflare Access ProxyCommand, got %s", value)
 		}
 	}
@@ -129,8 +160,34 @@ func TestCloudflareSSHUsesAccessProxyCommand(t *testing.T) {
 
 func TestCloudflareSSHHostnameFromDeviceURL(t *testing.T) {
 	hostname := cloudflareSSHHostnameFromDeviceURL("https://device-1.intern.kim/admin")
-	if hostname != "ssh.device-1.intern.kim" {
+	if hostname != "ssh-device-1.intern.kim" {
 		t.Fatalf("expected SSH hostname from device URL, got %q", hostname)
+	}
+}
+
+func TestRetryableSSHFailureIncludesNetworkRouteFailure(t *testing.T) {
+	output := "dial tcp [2606:4700:3031::ac43:d168]:443: connect: no route to host"
+	if !isRetryableSSHFailure(output) {
+		t.Fatalf("expected network route failure to be retryable")
+	}
+}
+
+func TestResolveCloudflareSSHHostnameIgnoresLegacyNestedHostname(t *testing.T) {
+	homeDirectory := t.TempDir()
+	t.Setenv("HOME", homeDirectory)
+	stateDirectory := setupStateDir(filepath.Join(homeDirectory, ".internkim"), setup.BoardJetsonOrinNano)
+	saveState(stateDirectory, "ssh_hostname", "ssh.device-1.intern.kim")
+	saveState(stateDirectory, "device_id", "device-1")
+	target := commandTarget{
+		stateDir:     stateDirectory,
+		sshHostname:  "ssh.device-1.intern.kim",
+		useRemoteSSH: true,
+	}
+
+	hostname := resolveCloudflareSSHHostname(config{CFDomain: "intern.kim"}, target)
+
+	if hostname != "ssh-device-1.intern.kim" {
+		t.Fatalf("expected flat SSH hostname, got %q", hostname)
 	}
 }
 
