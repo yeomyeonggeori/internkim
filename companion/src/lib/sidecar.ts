@@ -220,17 +220,17 @@ export async function updateRuntimeLocalLLM(settings: CompanionSettings): Promis
 	return localLLM;
 }
 
-export async function readRemoteModel(): Promise<string> {
-	const output = await Command.sidecar('binaries/internkim-companion', ['remote-model', 'get']).execute();
+export async function readRuntimeRemoteModel(): Promise<string> {
+	const output = await Command.sidecar('binaries/internkim-companion', ['runtime-model', 'get']).execute();
 	if (output.code !== 0) {
 		throw new Error(normalizeCompanionSidecarError(output.stderr || 'Remote model read failed'));
 	}
 	return output.stdout.trim();
 }
 
-export async function updateRemoteModel(modelName: string): Promise<string> {
+export async function updateRuntimeRemoteModel(modelName: string): Promise<string> {
 	const output = await Command.sidecar('binaries/internkim-companion', [
-		'remote-model',
+		'runtime-model',
 		'set',
 		'--model',
 		modelName

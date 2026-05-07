@@ -911,7 +911,7 @@ func (executor Executor) executeMountCreate(ctx context.Context, request capabil
 		if executor.DirectoryPicker == nil {
 			return capabilities.ToolInvokeResponse{}, errors.New("directory picker requires companion UI")
 		}
-		pickedDirectory, errorValue := executor.DirectoryPicker.PickDirectory(ctx, DirectoryPickRequest{Title: firstNonEmpty(input.Title, "Choose a folder for Blueclaw")})
+		pickedDirectory, errorValue := executor.DirectoryPicker.PickDirectory(ctx, DirectoryPickRequest{Title: firstNonEmpty(input.Title, "Choose a folder for the connected agent")})
 		if errorValue != nil {
 			return capabilities.ToolInvokeResponse{}, errorValue
 		}

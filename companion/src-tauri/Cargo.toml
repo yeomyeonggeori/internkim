@@ -1,7 +1,7 @@
 [package]
 name = "internkim-companion-shell"
 version = "0.1.0"
-description = "Intern Kim Companion"
+description = "internkim"
 authors = ["East River"]
 edition = "2021"
 

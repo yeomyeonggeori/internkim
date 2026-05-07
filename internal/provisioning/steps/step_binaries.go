@@ -19,13 +19,15 @@ var StepBinaries = Step{
 		}
 		switch context.Backend {
 		case BackendSSH:
+			if context.BoardType != BoardSimulation && !sshFileExists(context, locallm.BinaryPath()) {
+				return false
+			}
 			if !sshFileExists(context, "/usr/local/bin/blueclaw") ||
 				!sshFileExists(context, "/usr/local/bin/blueclaw-supervisor") ||
 				!sshFileExists(context, "/usr/local/bin/internkim-capabilityd") ||
 				!sshFileExists(context, "/usr/local/bin/internkim-admind") ||
 				!sshFileExists(context, "/usr/local/bin/internkim-local-llm-runner") ||
 				!sshFileExists(context, "/usr/local/bin/pocketbase") ||
-				!sshFileExists(context, locallm.BinaryPath()) ||
 				!sshFileExists(context, "/usr/local/bin/graphiti-memoryd") {
 				return false
 			}

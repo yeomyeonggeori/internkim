@@ -1176,7 +1176,7 @@ document.setdefault("TeamSettings", {})
 document["SqlSettings"]["DriverName"] = "postgres"
 document["SqlSettings"]["DataSource"] = "postgres://mmuser:%%s@localhost/mattermost?sslmode=disable&connect_timeout=10" %% os.environ["MATTERMOST_DB_PASS"]
 document["ServiceSettings"]["SiteURL"] = os.environ["MATTERMOST_SITE_URL"]
-document["TeamSettings"]["TeammateNameDisplay"] = "full_name"
+document["TeamSettings"]["TeammateNameDisplay"] = "nickname_full_name"
 path.write_text(json.dumps(document, indent=2, sort_keys=True))
 PY
 cat > /etc/systemd/system/mattermost.service <<'SVCEOF'
@@ -1441,8 +1441,9 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 	}
 	if botResult.UserID != "" {
 		botPatchBody, _ := json.Marshal(map[string]string{
-			"first_name": "김인턴",
-			"nickname":   "Intern Kim",
+			"first_name": "Intern",
+			"last_name":  "Kim",
+			"nickname":   "김인턴",
 			"position":   "",
 		})
 		mmAPI("PUT", "/api/v4/users/"+botResult.UserID+"/patch", botPatchBody, adminToken)
@@ -1678,7 +1679,7 @@ func mattermostSetupConfigurationPatch() map[string]any {
 			"EnableBotAccountCreation":            true,
 		},
 		"TeamSettings": map[string]any{
-			"TeammateNameDisplay": "full_name",
+			"TeammateNameDisplay": "nickname_full_name",
 		},
 		"EmailSettings": map[string]string{
 			"PushNotificationContents": "id_loaded",

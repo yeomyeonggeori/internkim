@@ -40,6 +40,9 @@ var StepLocalLLM = Step{
 }
 
 func localLLMIsSatisfied(context *Context) bool {
+	if context.BoardType == BoardSimulation {
+		return true
+	}
 	switch context.Backend {
 	case BackendSSH:
 		return sshLocalLLMIsSatisfied(context)
