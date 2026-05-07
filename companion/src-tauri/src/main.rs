@@ -65,7 +65,7 @@ fn main() {
             settings::set_settings
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Intern Kim Companion");
+        .expect("error while running internkim");
 }
 
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
@@ -75,7 +75,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let admin_item = MenuItem::with_id(
         app,
         "open_admin",
-        "Open Intern Kim Admin",
+        "Open internkim Admin",
         true,
         None::<&str>,
     )?;
@@ -84,7 +84,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 
     TrayIconBuilder::new()
         .icon(tray_icon)
-        .tooltip("Intern Kim Companion")
+        .tooltip("internkim")
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id.as_ref() {
