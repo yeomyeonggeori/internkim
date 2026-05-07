@@ -27,6 +27,19 @@ func CallingName(name string) string {
 	return firstName
 }
 
+func NicknameForMattermost(name string) string {
+	canonicalName := strings.TrimSpace(name)
+	if canonicalName == "" {
+		return ""
+	}
+	runes := []rune(canonicalName)
+	if len(runes) > 0 && IsHangulSyllable(runes[0]) {
+		return strings.Join(strings.Fields(canonicalName), "")
+	}
+	firstName, _ := SplitNameForMattermost(canonicalName)
+	return firstName
+}
+
 func IsHangulSyllable(value rune) bool {
 	return value >= 0xAC00 && value <= 0xD7A3
 }

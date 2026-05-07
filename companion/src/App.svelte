@@ -6,7 +6,7 @@
 	import { onMount } from 'svelte';
 	import { isCompanionVerified, isStalePairingStatus, normalizeManualPairingInput, parsePairingLink, stalePairingMessage, statusLabel, type CompanionStatus } from './lib/pairing';
 	import { approvalResponse, confirmResponse, inputResponse, normalizePromptRequest, type PromptRequest, type PromptResult } from './lib/prompts';
-	import { addMountedFolder, disconnectCompanion, ensureLaunchAtLogin, pairCompanion, pauseMountedFolder, readActiveGrants, readCompanionStatus, readMountedFolders, readRemoteModel, readRuntimeStatus, refreshRuntimeStatus, restartCompanionRuntime, resumeMountedFolder, revokeGrant, revokeMountedFolder, startCompanionRuntime, updateRemoteModel, updateRuntimeLocalLLM, type ActiveGrant, type LocalLLMBackendStatus, type MountedFolder, type RuntimeStatus } from './lib/sidecar';
+	import { addMountedFolder, disconnectCompanion, ensureLaunchAtLogin, pairCompanion, pauseMountedFolder, readActiveGrants, readCompanionStatus, readMountedFolders, readRuntimeRemoteModel, readRuntimeStatus, refreshRuntimeStatus, restartCompanionRuntime, resumeMountedFolder, revokeGrant, revokeMountedFolder, startCompanionRuntime, updateRuntimeLocalLLM, updateRuntimeRemoteModel, type ActiveGrant, type LocalLLMBackendStatus, type MountedFolder, type RuntimeStatus } from './lib/sidecar';
 	import { defaultSettings, fetchBackendModels, loadCompanionSettings, saveCompanionSettings, type CompanionSettings } from './lib/settings';
 
 	let status = $state<CompanionStatus>({ paired: false });
@@ -141,7 +141,7 @@
 	async function refreshRemoteModel() {
 		if (!isCompanionVerified(status)) return;
 		try {
-			remoteModel = await readRemoteModel();
+			remoteModel = await readRuntimeRemoteModel();
 			appliedRemoteModel = remoteModel;
 		} catch (errorValue) {
 			remoteModelMessage = errorValue instanceof Error ? errorValue.message : 'Remote model read failed';
@@ -164,7 +164,7 @@
 		isApplyingRemoteModel = true;
 		remoteModelMessage = '';
 		try {
-			appliedRemoteModel = await updateRemoteModel(modelName);
+			appliedRemoteModel = await updateRuntimeRemoteModel(modelName);
 			remoteModel = appliedRemoteModel;
 			remoteModelMessage = 'Remote model applied.';
 		} catch (errorValue) {
@@ -589,7 +589,7 @@
 				{/each}
 			</div>
 		{:else}
-			<p class="subtle">Folders you mount here appear to Blueclaw as read/write paths under /workspace/mounts.</p>
+			<p class="subtle">Folders you mount here appear to the connected agent workspace under /workspace/mounts.</p>
 		{/if}
 	</section>
 
@@ -608,7 +608,7 @@
 			<div class="model-row-header">
 				<div>
 					<h3>Remote model</h3>
-					<p>OpenRouter model used by Blueclaw when execution mode reaches remote.</p>
+					<p>Provider model used by the connected agent runtime when execution mode reaches remote.</p>
 				</div>
 				<span class:online={remoteModel === appliedRemoteModel && remoteModel !== ''} class="badge">
 					{isApplyingRemoteModel ? 'Applying' : remoteModel === appliedRemoteModel && remoteModel !== '' ? 'Live' : 'Pending'}

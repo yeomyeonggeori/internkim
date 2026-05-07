@@ -29,8 +29,7 @@ var StepServices = Step{
 		return trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
-			strings.Contains(trimmedRun(context, "systemctl cat "+locallm.LlamaCppServiceName+" 2>/dev/null"), locallm.LlamaCppBinaryPath) &&
-			strings.Contains(trimmedRun(context, "systemctl cat "+locallm.LlamaCppEmbeddingServiceName+" 2>/dev/null"), locallm.LlamaCppEmbeddingModelPath) &&
+			localLLMServiceUnitsAreSatisfied(context) &&
 			trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
 			trimmedRun(context, blueclaw.CapabilitydHealthCheckCommand()) == "ok" &&
 			trimmedRun(context, "systemctl is-active mattermost") == "active" &&
@@ -67,67 +66,11 @@ echo "Cleaned unavailable skills"`)
 chown -R blueclaw:blueclaw /root/.blueclaw/workspace/.blueclaw
 chmod -R u=rwX,g=rwX,o= /root/.blueclaw/workspace/.blueclaw`)
 
-		connection.Run(fmt.Sprintf(`systemctl stop zeroclaw 2>/dev/null || true
-systemctl disable zeroclaw 2>/dev/null || true
-rm -f /etc/systemd/system/zeroclaw.service
-rm -rf /etc/systemd/system/zeroclaw.service.d
-systemctl enable systemd-time-wait-sync.service 2>/dev/null
-cat > %s <<'SVCEOF'
-%sSVCEOF
-cat > %s <<'CAPABILITYEOF'
-%sCAPABILITYEOF
-cat > %s <<'ADMINDEOF'
-%sADMINDEOF
-cat > %s <<'LLAMACPP_EOF'
-%sLLAMACPP_EOF
-cat > %s <<'LLAMACPP_EMBEDDING_EOF'
-%sLLAMACPP_EMBEDDING_EOF
-systemctl daemon-reload
-systemctl disable %s 2>/dev/null || true
-systemctl disable %s 2>/dev/null || true
-systemctl enable %s
-systemctl restart %s
-systemctl enable %s
-systemctl restart %s
-systemctl enable %s
-systemctl restart %s
-systemctl enable %s
-systemctl restart %s
-systemctl enable %s
-systemctl restart %s
-sleep 2`,
-			blueclaw.BlueclawServicePath,
-			blueclaw.BlueclawServiceUnit(),
-			blueclaw.CapabilitydServicePath,
-			blueclaw.CapabilitydServiceUnit(),
-			blueclaw.AdmindServicePath,
-			blueclaw.AdmindServiceUnit(),
-			locallm.LlamaCppServicePath,
-			blueclaw.LlamaCppServiceUnit(),
-			locallm.LlamaCppEmbeddingServicePath,
-			blueclaw.LlamaCppEmbeddingServiceUnit(),
-			locallm.LlamaCppServiceName,
-			locallm.LlamaCppEmbeddingServiceName,
-			locallm.LlamaCppServiceName,
-			locallm.LlamaCppServiceName,
-			locallm.LlamaCppEmbeddingServiceName,
-			locallm.LlamaCppEmbeddingServiceName,
-			blueclaw.CapabilitydServiceName,
-			blueclaw.CapabilitydServiceName,
-			blueclaw.AdmindServiceName,
-			blueclaw.AdmindServiceName,
-			blueclaw.BlueclawServiceName,
-			blueclaw.BlueclawServiceName,
-		))
+		connection.Run(serviceUnitInstallCommand(context))
 
 		isBlueclawHealthy := false
 		for attempt := 0; attempt < blueclawServiceHealthAttempts; attempt++ {
-			isBlueclawHealthy = trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
-				trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
-				trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
-				trimmedRun(context, "systemctl is-active "+locallm.LlamaCppEmbeddingServiceName) == "active" &&
-				trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
-				trimmedRun(context, blueclaw.CapabilitydHealthCheckCommand()) == "ok"
+			isBlueclawHealthy = blueclawServicesAreHealthy(context)
 			if isBlueclawHealthy {
 				break
 			}
@@ -169,6 +112,89 @@ fi`, deviceURL))
 		}
 		return nil
 	},
+}
+
+func localLLMServiceUnitsAreSatisfied(context *Context) bool {
+	if context.BoardType == BoardSimulation {
+		return true
+	}
+	return strings.Contains(trimmedRun(context, "systemctl cat "+locallm.LlamaCppServiceName+" 2>/dev/null"), locallm.LlamaCppBinaryPath) &&
+		strings.Contains(trimmedRun(context, "systemctl cat "+locallm.LlamaCppEmbeddingServiceName+" 2>/dev/null"), locallm.LlamaCppEmbeddingModelPath)
+}
+
+func serviceUnitInstallCommand(context *Context) string {
+	services := serviceUnitDocuments(context)
+	serviceNames := enabledServiceNames(context)
+	var command strings.Builder
+	command.WriteString(`systemctl stop zeroclaw 2>/dev/null || true
+systemctl disable zeroclaw 2>/dev/null || true
+rm -f /etc/systemd/system/zeroclaw.service
+rm -rf /etc/systemd/system/zeroclaw.service.d
+systemctl enable systemd-time-wait-sync.service 2>/dev/null
+`)
+	for _, service := range services {
+		fmt.Fprintf(&command, "cat > %s <<'SERVICEEOF'\n%sSERVICEEOF\n", service.path, service.document)
+	}
+	command.WriteString("systemctl daemon-reload\n")
+	for _, serviceName := range disabledServiceNames(context) {
+		fmt.Fprintf(&command, "systemctl disable %s 2>/dev/null || true\n", serviceName)
+	}
+	for _, serviceName := range serviceNames {
+		fmt.Fprintf(&command, "systemctl enable %s\nsystemctl restart %s\n", serviceName, serviceName)
+	}
+	command.WriteString("sleep 2")
+	return command.String()
+}
+
+func serviceUnitDocuments(context *Context) []serviceUnitDocument {
+	services := []serviceUnitDocument{
+		{path: blueclaw.BlueclawServicePath, document: blueclaw.BlueclawServiceUnit()},
+		{path: blueclaw.CapabilitydServicePath, document: blueclaw.CapabilitydServiceUnit()},
+		{path: blueclaw.AdmindServicePath, document: blueclaw.AdmindServiceUnit()},
+	}
+	if context.BoardType == BoardSimulation {
+		return services
+	}
+	return append(services,
+		serviceUnitDocument{path: locallm.LlamaCppServicePath, document: blueclaw.LlamaCppServiceUnit()},
+		serviceUnitDocument{path: locallm.LlamaCppEmbeddingServicePath, document: blueclaw.LlamaCppEmbeddingServiceUnit()},
+	)
+}
+
+func enabledServiceNames(context *Context) []string {
+	serviceNames := []string{
+		blueclaw.CapabilitydServiceName,
+		blueclaw.AdmindServiceName,
+		blueclaw.BlueclawServiceName,
+	}
+	if context.BoardType == BoardSimulation {
+		return serviceNames
+	}
+	return append([]string{locallm.LlamaCppServiceName, locallm.LlamaCppEmbeddingServiceName}, serviceNames...)
+}
+
+func disabledServiceNames(context *Context) []string {
+	if context.BoardType == BoardSimulation {
+		return nil
+	}
+	return []string{locallm.LlamaCppServiceName, locallm.LlamaCppEmbeddingServiceName}
+}
+
+func blueclawServicesAreHealthy(context *Context) bool {
+	isHealthy := trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
+		trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
+		trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
+		trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
+		trimmedRun(context, blueclaw.CapabilitydHealthCheckCommand()) == "ok"
+	if !isHealthy || context.BoardType == BoardSimulation {
+		return isHealthy
+	}
+	return trimmedRun(context, "systemctl is-active "+locallm.LlamaCppEmbeddingServiceName) == "active"
+}
+
+type serviceUnitDocument struct {
+	path     string
+	document string
 }
 
 func blueclawRuntimeContractCheckCommand() string {
@@ -244,8 +270,8 @@ for profile in runtime_configuration.get("agentProfiles", []):
         profile_tool_names = [str(tool_name) for tool_name in profile.get("allowedToolNames", [])]
         break
 
-required_tools = {"terminal.run", "terminal.session", "browser_handoff.openURL", "approval.request", "file.write", "file.attach"}
-missing_tools = sorted(required_tools - set(profile_tool_names))
+mandatory_profile_tools = {"terminal.run", "terminal.session", "browser_handoff.openURL", "approval.request", "file.write", "file.attach"}
+missing_tools = sorted(mandatory_profile_tools - set(profile_tool_names))
 if missing_tools:
     print("runtime-profile-missing-tools:" + ",".join(missing_tools))
     raise SystemExit

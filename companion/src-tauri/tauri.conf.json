@@ -1,6 +1,6 @@
 {
 	"$schema": "https://schema.tauri.app/config/2",
-	"productName": "Intern Kim Companion",
+	"productName": "internkim",
 	"version": "0.1.0",
 	"identifier": "kim.intern.companion",
 	"build": {
@@ -13,7 +13,7 @@
 		"windows": [
 			{
 				"label": "main",
-				"title": "Intern Kim Companion",
+				"title": "internkim",
 				"width": 460,
 				"height": 600,
 				"resizable": true,
@@ -23,7 +23,7 @@
 			},
 			{
 				"label": "browser-handoff-overlay",
-				"title": "Intern Kim Browser Handoff",
+				"title": "internkim Browser Handoff",
 				"width": 520,
 				"height": 72,
 				"resizable": false,
