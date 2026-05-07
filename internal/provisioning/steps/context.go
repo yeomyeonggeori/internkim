@@ -12,7 +12,10 @@ const (
 	BackendSD  Backend = "sd"
 )
 
-const BoardJetsonOrinNano = "jetson-orin-nano"
+const (
+	BoardJetsonOrinNano = "jetson-orin-nano"
+	BoardSimulation     = "sim"
+)
 
 var ErrUnsupportedBackend = errors.New("step does not support this backend")
 

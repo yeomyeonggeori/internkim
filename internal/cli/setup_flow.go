@@ -674,8 +674,10 @@ func (state *setupFlowState) installBinariesSSH(context *setup.Context) error {
 		return err
 	}
 
-	if err := state.installLocalLLMSSH(); err != nil {
-		return err
+	if shouldInstallLocalLLMSSH(context) {
+		if err := state.installLocalLLMSSH(); err != nil {
+			return err
+		}
 	}
 
 	if err := state.ensureAgentBrowserRuntimeSSH(); err != nil {
@@ -734,6 +736,10 @@ rm -f /usr/local/bin/gws-* /etc/sudoers.d/blueclaw-gws /etc/sudoers.d/blueclaw-m
 	}
 
 	return nil
+}
+
+func shouldInstallLocalLLMSSH(context *setup.Context) bool {
+	return context.BoardType != setup.BoardSimulation
 }
 
 func (state *setupFlowState) installSkillsSSH(context *setup.Context) error {
