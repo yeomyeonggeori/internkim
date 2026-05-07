@@ -248,6 +248,24 @@ func TestOnlyServicesSkipsCurrentSkills(t *testing.T) {
 	}
 }
 
+func TestOnlyServicesSimulationSkipsStaleLocalLLM(t *testing.T) {
+	context := defaultBlueclawPlanContext("ok", "ok")
+	context.BoardType = BoardSimulation
+
+	plan, err := DefaultRegistry().resolve(context, Selector{Only: []string{"services"}})
+	if err != nil {
+		t.Fatalf("resolve failed: %v", err)
+	}
+
+	joinedPlan := strings.Join(plan, ",")
+	if strings.Contains(joinedPlan, "local-llm") {
+		t.Fatalf("expected simulation services to skip local-llm, got %s", joinedPlan)
+	}
+	if !strings.Contains(joinedPlan, "services") {
+		t.Fatalf("expected services to remain planned, got %s", joinedPlan)
+	}
+}
+
 func defaultBlueclawPlanContext(runtimeContractOutput string, payloadManifestOutput string) *Context {
 	return &Context{
 		Backend: BackendSSH,
