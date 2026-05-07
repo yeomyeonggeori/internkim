@@ -12,6 +12,7 @@ import (
 	"mime"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -479,6 +480,9 @@ func (executor Executor) executeBrowserHandoff(ctx context.Context, envelope Job
 	if executor.BrowserRuntime == nil {
 		return capabilities.ToolInvokeResponse{}, errors.New("companion browser runtime unavailable")
 	}
+	if isUnsupportedWaylandSession() {
+		return capabilities.ToolInvokeResponse{}, errors.New("browser handoff native overlay is not supported on Linux Wayland")
+	}
 	if executor.HandoffStore == nil {
 		return capabilities.ToolInvokeResponse{}, errors.New("browser handoff bridge is unavailable")
 	}
@@ -508,6 +512,16 @@ func (executor Executor) executeBrowserHandoff(ctx context.Context, envelope Job
 		handoff.SessionID = startResult.SessionID
 	}
 	return browserHandoffWaitingResponse(request.ToolName, input.URL, handoff)
+}
+
+func isUnsupportedWaylandSession() bool {
+	if runtime.GOOS != "linux" {
+		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("XDG_SESSION_TYPE")), "wayland") {
+		return true
+	}
+	return strings.TrimSpace(os.Getenv("WAYLAND_DISPLAY")) != "" && strings.TrimSpace(os.Getenv("DISPLAY")) == ""
 }
 
 func browserHandoffWaitingResponse(toolName string, pageURL string, handoff HandoffSnapshot) (capabilities.ToolInvokeResponse, error) {
