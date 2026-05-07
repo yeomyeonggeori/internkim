@@ -60,12 +60,11 @@ func TestAgentBrowserRuntimeNavigatesThroughCommandRunner(t *testing.T) {
 	if result.URL != "https://example.com" {
 		t.Fatalf("unexpected navigate result: %+v", result)
 	}
-	expectedOpenArguments := []string{"--session", "internkim-test", "--headed", "true", "--profile", "/profile", "--session-name", "internkim-test", "open", "https://example.com", "--headers", stealthRequestHeaders()}
+	expectedOpenArguments := []string{"--session", "internkim-test", "--headed", "true", "--profile", "/profile", "--session-name", "internkim-test", "open", "https://example.com"}
 	expectedURLArguments := []string{"--session", "internkim-test", "--session-name", "internkim-test", "get", "url"}
-	expectedEvalArguments := []string{"--session", "internkim-test", "--session-name", "internkim-test", "eval", stealthPostLoadScript()}
 	expectedSnapshotArguments := []string{"--session", "internkim-test", "--session-name", "internkim-test", "snapshot", "--compact", "--json"}
-	if len(runner.calls) != 4 {
-		t.Fatalf("expected 4 command calls (open + url check + stealth eval + snapshot), got %d: %+v", len(runner.calls), runner.calls)
+	if len(runner.calls) != 3 {
+		t.Fatalf("expected 3 command calls (open + url check + snapshot), got %d: %+v", len(runner.calls), runner.calls)
 	}
 	if runner.calls[0].commandPath != "agent-browser-test" || !reflect.DeepEqual(runner.calls[0].arguments, expectedOpenArguments) {
 		t.Fatalf("unexpected open call: %+v", runner.calls[0])
@@ -73,11 +72,8 @@ func TestAgentBrowserRuntimeNavigatesThroughCommandRunner(t *testing.T) {
 	if runner.calls[1].commandPath != "agent-browser-test" || !reflect.DeepEqual(runner.calls[1].arguments, expectedURLArguments) {
 		t.Fatalf("unexpected current URL call: %+v", runner.calls[1])
 	}
-	if runner.calls[2].commandPath != "agent-browser-test" || !reflect.DeepEqual(runner.calls[2].arguments, expectedEvalArguments) {
-		t.Fatalf("unexpected eval call: %+v", runner.calls[2])
-	}
-	if runner.calls[3].commandPath != "agent-browser-test" || !reflect.DeepEqual(runner.calls[3].arguments, expectedSnapshotArguments) {
-		t.Fatalf("unexpected snapshot call: %+v", runner.calls[3])
+	if runner.calls[2].commandPath != "agent-browser-test" || !reflect.DeepEqual(runner.calls[2].arguments, expectedSnapshotArguments) {
+		t.Fatalf("unexpected snapshot call: %+v", runner.calls[2])
 	}
 }
 
@@ -98,8 +94,8 @@ func TestAgentBrowserRuntimeAcceptsLoginRedirect(t *testing.T) {
 		t.Fatalf("unexpected redirect result: %+v", result)
 	}
 	expectedSnapshotArguments := []string{"--session", "internkim-test", "--session-name", "internkim-test", "snapshot", "--compact", "--json"}
-	if runner.calls[3].commandPath != "agent-browser-test" || !reflect.DeepEqual(runner.calls[3].arguments, expectedSnapshotArguments) {
-		t.Fatalf("unexpected snapshot call: %+v", runner.calls[3])
+	if runner.calls[2].commandPath != "agent-browser-test" || !reflect.DeepEqual(runner.calls[2].arguments, expectedSnapshotArguments) {
+		t.Fatalf("unexpected snapshot call: %+v", runner.calls[2])
 	}
 }
 
@@ -123,8 +119,8 @@ func TestAgentBrowserRuntimeAcceptsOpenSettleTimeoutWithCurrentURL(t *testing.T)
 	if result.URL != runner.currentURL {
 		t.Fatalf("expected current URL after bounded open timeout, got %+v", result)
 	}
-	if len(runner.calls) != 4 {
-		t.Fatalf("expected open, url, eval, snapshot calls, got %+v", runner.calls)
+	if len(runner.calls) != 3 {
+		t.Fatalf("expected open, url, snapshot calls, got %+v", runner.calls)
 	}
 }
 
@@ -185,26 +181,21 @@ func TestAgentBrowserRuntimeChromeEngineUsesHeadedProfile(t *testing.T) {
 		SessionName:        "internkim-test",
 		Headed:             true,
 		DisableHumanPacing: true,
-		ExtensionPaths: []string{
-			"",
-			"/extensions/internkim",
-		},
-		Runner: runner,
+		Runner:             runner,
 	}
 
 	_, errorValue := runtime.Navigate(context.Background(), NavigateRequest{URL: "https://example.com"})
 	if errorValue != nil {
 		t.Fatalf("expected navigate success: %v", errorValue)
 	}
-	expectedOpenArguments := []string{"--session", "internkim-test", "--engine", "chrome", "--headed", "true", "--profile", "/profile", "--extension", "/extensions/internkim", "--session-name", "internkim-test", "open", "https://example.com", "--headers", stealthRequestHeaders()}
+	expectedOpenArguments := []string{"--session", "internkim-test", "--engine", "chrome", "--headed", "true", "--profile", "/profile", "--session-name", "internkim-test", "open", "https://example.com"}
 	if !reflect.DeepEqual(runner.calls[0].arguments, expectedOpenArguments) {
 		t.Fatalf("unexpected chrome arguments: %+v", runner.calls[0].arguments)
 	}
 }
 
-func TestAgentBrowserRuntimeStartSessionVerifiesExtensionMarker(t *testing.T) {
-	extensionPath := validBrowserExtensionPath(t)
-	runner := &extensionReadyCommandRunner{readyValues: []bool{true}}
+func TestAgentBrowserRuntimeHandoffSessionOmitsExtensionArguments(t *testing.T) {
+	runner := &fakeCommandRunner{output: []byte(`{"data":{"origin":"https://example.com/login","snapshot":"Login"}}`)}
 	runtime := AgentBrowserRuntime{
 		CommandPath:        "agent-browser-test",
 		Engine:             BrowserEngineChrome,
@@ -212,73 +203,20 @@ func TestAgentBrowserRuntimeStartSessionVerifiesExtensionMarker(t *testing.T) {
 		SessionName:        "internkim-test",
 		Headed:             true,
 		DisableHumanPacing: true,
-		ExtensionPaths:     []string{extensionPath},
 		Runner:             runner,
-		Sleep: func(ctx context.Context, delay time.Duration) error {
-			_ = ctx
-			_ = delay
-			return nil
-		},
 	}
 
 	result, errorValue := runtime.StartSession(context.Background(), SessionStartRequest{URL: "https://example.com/login"})
 	if errorValue != nil {
-		t.Fatalf("expected extension-ready session start: %v", errorValue)
+		t.Fatalf("expected session start success: %v", errorValue)
 	}
 	if result.URL != "https://example.com/login" {
 		t.Fatalf("unexpected session result: %+v", result)
 	}
-	if !runner.containsCommand("eval") {
-		t.Fatalf("expected extension marker eval, got %+v", runner.calls)
-	}
-}
-
-func TestAgentBrowserRuntimeRestartsStaleSessionWithoutExtension(t *testing.T) {
-	extensionPath := validBrowserExtensionPath(t)
-	runner := &extensionReadyCommandRunner{readyValues: []bool{false, false, false, true}}
-	runtime := AgentBrowserRuntime{
-		CommandPath:        "agent-browser-test",
-		Engine:             BrowserEngineChrome,
-		SessionName:        "internkim-test",
-		DisableHumanPacing: true,
-		ExtensionPaths:     []string{extensionPath},
-		Runner:             runner,
-		Sleep: func(ctx context.Context, delay time.Duration) error {
-			_ = ctx
-			_ = delay
-			return nil
-		},
-	}
-
-	_, errorValue := runtime.StartSession(context.Background(), SessionStartRequest{URL: "https://example.com/login"})
-	if errorValue != nil {
-		t.Fatalf("expected relaunch with extension to succeed: %v", errorValue)
-	}
-	if !reflect.DeepEqual(runner.commandNames(), []string{"open", "snapshot", "eval", "eval", "eval", "close", "open", "eval"}) {
-		t.Fatalf("expected stale session close and relaunch, got %+v", runner.commandNames())
-	}
-}
-
-func TestAgentBrowserRuntimeFailsWhenExtensionMarkerNeverAppears(t *testing.T) {
-	extensionPath := validBrowserExtensionPath(t)
-	runner := &extensionReadyCommandRunner{}
-	runtime := AgentBrowserRuntime{
-		CommandPath:        "agent-browser-test",
-		Engine:             BrowserEngineChrome,
-		SessionName:        "internkim-test",
-		DisableHumanPacing: true,
-		ExtensionPaths:     []string{extensionPath},
-		Runner:             runner,
-		Sleep: func(ctx context.Context, delay time.Duration) error {
-			_ = ctx
-			_ = delay
-			return nil
-		},
-	}
-
-	_, errorValue := runtime.StartSession(context.Background(), SessionStartRequest{URL: "https://example.com/login"})
-	if errorValue == nil || !strings.Contains(errorValue.Error(), BrowserExtensionNotReadyError) {
-		t.Fatalf("expected extension readiness failure, got %v", errorValue)
+	for _, call := range runner.calls {
+		if containsString(call.arguments, "--extension") || containsString(call.arguments, "eval") {
+			t.Fatalf("handoff session must not use extension or eval commands: %+v", runner.calls)
+		}
 	}
 }
 
@@ -301,8 +239,8 @@ func TestAgentBrowserRuntimePacesHeadedChromeCommands(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected navigate success: %v", errorValue)
 	}
-	if len(delays) != 3 {
-		t.Fatalf("expected open, eval, and snapshot pacing delays, got %+v", delays)
+	if len(delays) != 2 {
+		t.Fatalf("expected open and snapshot pacing delays, got %+v", delays)
 	}
 	for _, delay := range delays {
 		if delay < 900*time.Millisecond || delay >= 1800*time.Millisecond {
@@ -369,12 +307,11 @@ func TestAgentBrowserRuntimeRealChromeSmoke(t *testing.T) {
 	defer server.Close()
 	sessionName := "internkim-real-chrome-smoke-" + time.Now().UTC().Format("20060102T150405")
 	runtime := AgentBrowserRuntime{
-		CommandPath:    commandPath,
-		Engine:         BrowserEngineChrome,
-		ProfilePath:    filepath.Join(t.TempDir(), "profile"),
-		SessionName:    sessionName,
-		Headed:         true,
-		ExtensionPaths: []string{},
+		CommandPath: commandPath,
+		Engine:      BrowserEngineChrome,
+		ProfilePath: filepath.Join(t.TempDir(), "profile"),
+		SessionName: sessionName,
+		Headed:      true,
 	}
 	t.Cleanup(func() {
 		closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -422,7 +359,6 @@ func TestAgentBrowserRuntimeLightpandaOmitsChromeOnlyArguments(t *testing.T) {
 		ProfilePath:          "/profile",
 		SessionName:          "internkim-test",
 		Headed:               true,
-		ExtensionPaths:       []string{"/extensions/internkim"},
 		Runner:               runner,
 	}
 
@@ -430,7 +366,7 @@ func TestAgentBrowserRuntimeLightpandaOmitsChromeOnlyArguments(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected navigate success: %v", errorValue)
 	}
-	expectedOpenArguments := []string{"--session", "internkim-test", "--engine", "lightpanda", "--executable-path", "/usr/local/bin/lightpanda", "--session-name", "internkim-test", "open", "https://example.com", "--headers", stealthRequestHeaders()}
+	expectedOpenArguments := []string{"--session", "internkim-test", "--engine", "lightpanda", "--executable-path", "/usr/local/bin/lightpanda", "--session-name", "internkim-test", "open", "https://example.com"}
 	if !reflect.DeepEqual(runner.calls[0].arguments, expectedOpenArguments) {
 		t.Fatalf("unexpected lightpanda arguments: %+v", runner.calls[0].arguments)
 	}
@@ -658,28 +594,6 @@ func TestAgentBrowserRuntimeChromeMissingExecutableIsNotReady(t *testing.T) {
 	}
 }
 
-func TestAgentBrowserRuntimeInvalidExtensionIsNotReady(t *testing.T) {
-	executablePath := filepath.Join(t.TempDir(), "chrome")
-	if errorValue := os.WriteFile(executablePath, []byte("chrome"), 0o755); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	runner := &fakeCommandRunner{}
-	runtime := AgentBrowserRuntime{
-		Engine:               BrowserEngineChrome,
-		EngineExecutablePath: executablePath,
-		ExtensionPaths:       []string{filepath.Join(t.TempDir(), "missing-extension")},
-		Runner:               runner,
-	}
-
-	readiness := runtime.EnsureInstalled(context.Background())
-	if readiness.Status != "not_ready" || readiness.Error != BrowserExtensionNotReadyError {
-		t.Fatalf("expected extension not_ready, got %+v", readiness)
-	}
-	if len(runner.calls) != 0 {
-		t.Fatalf("expected no doctor/install command for invalid extension, got %+v", runner.calls)
-	}
-}
-
 func TestAgentBrowserRuntimeEnsureInstalledReturnsSanitizedFailure(t *testing.T) {
 	runner := &sequenceCommandRunner{
 		results: []commandResult{
@@ -737,72 +651,6 @@ func (runner *openTimeoutCommandRunner) Run(ctx context.Context, commandPath str
 	default:
 		return []byte("ok"), nil
 	}
-}
-
-type extensionReadyCommandRunner struct {
-	readyValues []bool
-	calls       []fakeCommandCall
-}
-
-func (runner *extensionReadyCommandRunner) Run(ctx context.Context, commandPath string, arguments []string) ([]byte, error) {
-	_ = ctx
-	runner.calls = append(runner.calls, fakeCommandCall{
-		commandPath: commandPath,
-		arguments:   append([]string{}, arguments...),
-	})
-	switch browserCommandName(arguments) {
-	case "open", "close":
-		return []byte("ok"), nil
-	case "snapshot":
-		return []byte(`{"data":{"origin":"https://example.com/login","snapshot":"Login"}}`), nil
-	case "eval":
-		return []byte(runner.nextReadyValue()), nil
-	default:
-		return []byte("ok"), nil
-	}
-}
-
-func (runner *extensionReadyCommandRunner) nextReadyValue() string {
-	if len(runner.readyValues) == 0 {
-		return "false\n"
-	}
-	ready := runner.readyValues[0]
-	runner.readyValues = runner.readyValues[1:]
-	if ready {
-		return "true\n"
-	}
-	return "false\n"
-}
-
-func (runner *extensionReadyCommandRunner) containsCommand(commandName string) bool {
-	for _, call := range runner.calls {
-		if browserCommandName(call.arguments) == commandName {
-			return true
-		}
-	}
-	return false
-}
-
-func (runner *extensionReadyCommandRunner) commandNames() []string {
-	names := []string{}
-	for _, call := range runner.calls {
-		name := browserCommandName(call.arguments)
-		if name != "" {
-			names = append(names, name)
-		}
-	}
-	return names
-}
-
-func validBrowserExtensionPath(t *testing.T) string {
-	t.Helper()
-	path := t.TempDir()
-	for _, filename := range []string{"manifest.json", "content-script.js", "service-worker.js"} {
-		if errorValue := os.WriteFile(filepath.Join(path, filename), []byte("{}"), 0o600); errorValue != nil {
-			t.Fatal(errorValue)
-		}
-	}
-	return path
 }
 
 type sequenceCommandRunner struct {
