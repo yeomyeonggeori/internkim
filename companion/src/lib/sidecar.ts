@@ -57,6 +57,7 @@ const controlURL = 'http://127.0.0.1:7983';
 let runtimeChild: Child | undefined;
 let runtimeStatus: RuntimeStatus = { isRunning: false };
 let restartAttempts = 0;
+let shouldRestartRuntime = true;
 
 type ShellBridgeInfo = {
 	url: string;
@@ -84,8 +85,24 @@ export async function pairCompanion(payload: PairingPayload): Promise<void> {
 	}
 }
 
+export async function disconnectCompanion(): Promise<void> {
+	await stopCompanionRuntime();
+	const output = await Command.sidecar('binaries/internkim-companion', ['disconnect']).execute();
+	shouldRestartRuntime = true;
+	if (output.code !== 0) {
+		throw new Error(output.stderr || 'Disconnect failed');
+	}
+	runtimeStatus = { isRunning: false };
+	restartAttempts = 0;
+}
+
+export async function ensureLaunchAtLogin(): Promise<void> {
+	await invoke('ensure_launch_at_login');
+}
+
 export async function startCompanionRuntime(): Promise<void> {
 	if (runtimeChild) return;
+	shouldRestartRuntime = true;
 	const shellBridge = await invoke<ShellBridgeInfo>('start_shell_bridge');
 	const settings = await loadCompanionSettings();
 	const baseArguments = [
@@ -104,11 +121,13 @@ export async function startCompanionRuntime(): Promise<void> {
 	command.on('close', () => {
 		runtimeChild = undefined;
 		runtimeStatus = { isRunning: false, restartAttempts };
+		if (!shouldRestartRuntime) return;
 		void restartCompanionRuntimeOnce();
 	});
 	command.on('error', (errorValue) => {
 		runtimeChild = undefined;
 		runtimeStatus = { isRunning: false, lastError: errorValue, restartAttempts };
+		if (!shouldRestartRuntime) return;
 		void restartCompanionRuntimeOnce();
 	});
 	runtimeChild = await command.spawn();
@@ -130,7 +149,24 @@ export async function restartCompanionRuntime(): Promise<void> {
 	await startCompanionRuntime();
 }
 
+export async function stopCompanionRuntime(): Promise<void> {
+	shouldRestartRuntime = false;
+	const child = runtimeChild;
+	runtimeChild = undefined;
+	if (!child) {
+		runtimeStatus = { isRunning: false };
+		return;
+	}
+	try {
+		await child.kill();
+	} catch (error) {
+		console.error('failed to stop companion runtime', error);
+	}
+	runtimeStatus = { isRunning: false };
+}
+
 async function restartCompanionRuntimeOnce(): Promise<void> {
+	if (!shouldRestartRuntime) return;
 	if (restartAttempts >= 1) return;
 	const status = await readCompanionStatus();
 	if (!isCompanionVerified(status)) return;
@@ -184,17 +220,17 @@ export async function updateRuntimeLocalLLM(settings: CompanionSettings): Promis
 	return localLLM;
 }
 
-export async function readRemoteModel(): Promise<string> {
-	const output = await Command.sidecar('binaries/internkim-companion', ['remote-model', 'get']).execute();
+export async function readRuntimeRemoteModel(): Promise<string> {
+	const output = await Command.sidecar('binaries/internkim-companion', ['runtime-model', 'get']).execute();
 	if (output.code !== 0) {
 		throw new Error(normalizeCompanionSidecarError(output.stderr || 'Remote model read failed'));
 	}
 	return output.stdout.trim();
 }
 
-export async function updateRemoteModel(modelName: string): Promise<string> {
+export async function updateRuntimeRemoteModel(modelName: string): Promise<string> {
 	const output = await Command.sidecar('binaries/internkim-companion', [
-		'remote-model',
+		'runtime-model',
 		'set',
 		'--model',
 		modelName

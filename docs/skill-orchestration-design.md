@@ -14,6 +14,16 @@ Intern Kim의 기능을 늘릴 때 기존 설계를 망치지 않기 위한 skil
 6. Google Workspace는 기본값이 아니라 import/export/publish target이다.
 7. 이메일 발송, 외부 공유, Google import/publish, 파일 이동/삭제, 브라우저 제출, 터미널 write 명령은 승인 없이는 실행하지 않는다.
 
+## Skill and Tool Contract
+
+Skill은 절차와 판단 기준이다. Tool은 실행 가능한 런타임 API다. Skill은 tool을 사용할 수 있지만 tool schema, 승인 정책, side-effect 정책을 다시 정의하지 않는다.
+
+Portable `SKILL.md` metadata는 Agent Skills 표준을 따른다. Tool 관련 frontmatter는 `allowed-tools`만 사용한다. `requiredTools`, `required-tools`, custom dependency field는 쓰지 않는다.
+
+`allowed-tools`는 skill이 쓸 수 있는 도구 목록이자 Blueclaw skill selection의 runtime gate다. 목록에 있는 도구가 현재 profile, policy, ToolSet에 없으면 해당 skill은 선택되지 않는다.
+
+Tool의 설명, input schema, output schema, policy resource, side-effect class, approval requirement는 turn-scoped ToolSet과 capability/MCP descriptor가 소유한다. Prompt의 "Available tools", structured output schema, runtime invocation은 같은 ToolSet에서 나온다.
+
 ## Canonical 실행 경로
 
 | 요청 | canonical path | orchestration 책임 |

@@ -17,7 +17,6 @@ import (
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 	companionruntime "gitlab.com/eastriver/internkim/internal/companion"
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 const companionOnlineWindow = 45 * time.Second
@@ -67,30 +66,33 @@ type CompanionStatus struct {
 }
 
 type CompanionJob struct {
-	JobID             string                           `json:"jobID"`
-	ParentJobID       string                           `json:"parentJobID,omitempty"`
-	GrantID           string                           `json:"grantID,omitempty"`
-	Status            string                           `json:"status"`
-	CompanionID       string                           `json:"companionID,omitempty"`
-	RequesterPersonID string                           `json:"requesterPersonID,omitempty"`
-	RequesterEmail    string                           `json:"requesterEmail,omitempty"`
-	ToolName          string                           `json:"toolName"`
-	PrivacyClass      string                           `json:"privacyClass"`
-	ResourceScope     capabilities.ResourceScope       `json:"resourceScope,omitempty"`
-	Depth             int                              `json:"depth"`
-	Request           capabilities.ToolInvokeRequest   `json:"request"`
-	Response          *capabilities.ToolInvokeResponse `json:"response,omitempty"`
-	Denial            *capabilities.DenialResult       `json:"denial,omitempty"`
-	Error             string                           `json:"error,omitempty"`
-	WatchStatus       string                           `json:"watchStatus,omitempty"`
-	NextWatchAt       time.Time                        `json:"nextWatchAt,omitempty"`
-	WatchAttemptCount int                              `json:"watchAttemptCount,omitempty"`
-	LastAttentionAt   time.Time                        `json:"lastAttentionAt,omitempty"`
-	AttentionKey      string                           `json:"attentionDeduplicationKey,omitempty"`
-	Attention         *CompanionAttentionState         `json:"attention,omitempty"`
-	CreatedAt         time.Time                        `json:"createdAt"`
-	UpdatedAt         time.Time                        `json:"updatedAt"`
-	ExpiresAt         time.Time                        `json:"expiresAt"`
+	JobID              string                              `json:"jobID"`
+	ParentJobID        string                              `json:"parentJobID,omitempty"`
+	GrantID            string                              `json:"grantID,omitempty"`
+	Status             string                              `json:"status"`
+	CompanionID        string                              `json:"companionID,omitempty"`
+	RequesterPersonID  string                              `json:"requesterPersonID,omitempty"`
+	RequesterEmail     string                              `json:"requesterEmail,omitempty"`
+	ToolName           string                              `json:"toolName"`
+	PrivacyClass       string                              `json:"privacyClass"`
+	ResourceScope      capabilities.ResourceScope          `json:"resourceScope,omitempty"`
+	Depth              int                                 `json:"depth"`
+	Request            capabilities.ToolInvokeRequest      `json:"request"`
+	Response           *capabilities.ToolInvokeResponse    `json:"response,omitempty"`
+	Denial             *capabilities.DenialResult          `json:"denial,omitempty"`
+	Error              string                              `json:"error,omitempty"`
+	WatchStatus        string                              `json:"watchStatus,omitempty"`
+	NextWatchAt        time.Time                           `json:"nextWatchAt,omitempty"`
+	WatchAttemptCount  int                                 `json:"watchAttemptCount,omitempty"`
+	LastAttentionAt    time.Time                           `json:"lastAttentionAt,omitempty"`
+	AttentionKey       string                              `json:"attentionDeduplicationKey,omitempty"`
+	Attention          *CompanionAttentionState            `json:"attention,omitempty"`
+	HandoffCompletion  *companionruntime.HandoffCompletion `json:"handoffCompletion,omitempty"`
+	HandoffCompletedAt time.Time                           `json:"handoffCompletedAt,omitempty"`
+	HandoffResumedAt   time.Time                           `json:"handoffResumedAt,omitempty"`
+	CreatedAt          time.Time                           `json:"createdAt"`
+	UpdatedAt          time.Time                           `json:"updatedAt"`
+	ExpiresAt          time.Time                           `json:"expiresAt"`
 }
 
 type companionPairRequest struct {
@@ -133,15 +135,36 @@ type companionStatusResponse struct {
 	Companions []CompanionStatus `json:"companions"`
 }
 
-type companionRemoteModelResponse struct {
-	Model       string `json:"model"`
-	Restarted   bool   `json:"restarted,omitempty"`
-	UpdatedAt   string `json:"updatedAt,omitempty"`
-	RuntimePath string `json:"runtimePath,omitempty"`
+type platformInboundEvent struct {
+	Platform       string               `json:"-"`
+	ConversationID string               `json:"conversationID"`
+	MessageID      string               `json:"messageID"`
+	SenderID       string               `json:"senderID"`
+	ReplyTargetID  string               `json:"replyTargetID"`
+	Prompt         string               `json:"prompt"`
+	Context        platformEventContext `json:"context"`
 }
 
-type companionRemoteModelUpdateRequest struct {
-	Model string `json:"model"`
+type platformEventContext struct {
+	Messages         []platformContextMessage `json:"messages"`
+	ReceivedAt       string                   `json:"receivedAt,omitempty"`
+	ConversationType string                   `json:"conversationType,omitempty"`
+	ChannelID        string                   `json:"channelID,omitempty"`
+	ChannelName      string                   `json:"channelName,omitempty"`
+	Sender           platformContextSender    `json:"sender,omitempty"`
+}
+
+type platformContextSender struct {
+	Platform string `json:"platform,omitempty"`
+	SenderID string `json:"senderID,omitempty"`
+	UserID   string `json:"userID,omitempty"`
+	Email    string `json:"email,omitempty"`
+	Name     string `json:"name,omitempty"`
+}
+
+type platformContextMessage struct {
+	Speaker string `json:"speaker"`
+	Text    string `json:"text"`
 }
 
 func (service *Service) handleCompanion(responseWriter http.ResponseWriter, request *http.Request) {
@@ -157,10 +180,8 @@ func (service *Service) handleCompanion(responseWriter http.ResponseWriter, requ
 		service.writeLocalCompanionCapabilities(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/auth/check":
 		service.checkCompanionAuth(responseWriter, request)
-	case request.Method == http.MethodGet && path == "/remote-model":
-		service.readCompanionRemoteModel(responseWriter, request)
-	case request.Method == http.MethodPut && path == "/remote-model":
-		service.updateCompanionRemoteModel(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/disconnect":
+		service.disconnectCompanion(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/jobs/next":
 		service.nextCompanionJob(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/jobs":
@@ -173,6 +194,8 @@ func (service *Service) handleCompanion(responseWriter http.ResponseWriter, requ
 		service.completeCompanionFileUpload(responseWriter, request, path)
 	case request.Method == http.MethodPost && strings.HasPrefix(path, "/jobs/") && strings.HasSuffix(path, "/complete"):
 		service.completeCompanionJob(responseWriter, request, strings.TrimSuffix(strings.TrimPrefix(path, "/jobs/"), "/complete"))
+	case request.Method == http.MethodPost && strings.HasPrefix(path, "/handoffs/") && strings.HasSuffix(path, "/complete"):
+		service.completeBrowserHandoff(responseWriter, request, strings.TrimSuffix(strings.TrimPrefix(path, "/handoffs/"), "/complete"))
 	case request.Method == http.MethodPost && strings.HasPrefix(path, "/jobs/") && strings.HasSuffix(path, "/fail"):
 		service.failCompanionJob(responseWriter, request, strings.TrimSuffix(strings.TrimPrefix(path, "/jobs/"), "/fail"))
 	case request.Method == http.MethodPost && strings.HasPrefix(path, "/jobs/") && strings.HasSuffix(path, "/deny"):
@@ -194,120 +217,17 @@ func (service *Service) checkCompanionAuth(responseWriter http.ResponseWriter, r
 	})
 }
 
-func (service *Service) readCompanionRemoteModel(responseWriter http.ResponseWriter, request *http.Request) {
-	if companion := service.authorizedCompanion(request); companion == nil {
+func (service *Service) disconnectCompanion(responseWriter http.ResponseWriter, request *http.Request) {
+	companion := service.authorizedCompanion(request)
+	if companion == nil {
 		http.Error(responseWriter, "companion auth required", http.StatusForbidden)
 		return
 	}
-	model, errorValue := service.readRemoteModel()
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
-	service.writeJSON(responseWriter, companionRemoteModelResponse{
-		Model:       model,
-		RuntimePath: service.blueclawRuntimeConfigPath(),
-	})
-}
-
-func (service *Service) updateCompanionRemoteModel(responseWriter http.ResponseWriter, request *http.Request) {
-	if companion := service.authorizedCompanion(request); companion == nil {
-		http.Error(responseWriter, "companion auth required", http.StatusForbidden)
-		return
-	}
-	var payload companionRemoteModelUpdateRequest
-	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-		return
-	}
-	model := strings.TrimSpace(payload.Model)
-	if model == "" {
-		http.Error(responseWriter, "model is required", http.StatusBadRequest)
-		return
-	}
-	if errorValue := service.writeRemoteModel(request.Context(), model); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
-	service.writeJSON(responseWriter, companionRemoteModelResponse{
-		Model:       model,
-		Restarted:   true,
-		UpdatedAt:   time.Now().UTC().Format(time.RFC3339),
-		RuntimePath: service.blueclawRuntimeConfigPath(),
-	})
-}
-
-func (service *Service) readRemoteModel() (string, error) {
-	document, errorValue := service.readBlueclawRuntimeDocument()
-	if errorValue != nil {
-		return "", errorValue
-	}
-	return remoteModelFromRuntimeDocument(document), nil
-}
-
-func (service *Service) writeRemoteModel(ctx context.Context, model string) error {
-	document, errorValue := service.readBlueclawRuntimeDocument()
-	if errorValue != nil {
-		return errorValue
-	}
-	setRemoteModelInRuntimeDocument(document, model)
-	if errorValue := service.writeBlueclawRuntimeDocument(document); errorValue != nil {
-		return errorValue
-	}
-	_, errorValue = service.runCommand(ctx, "systemctl", "restart", blueclaw.BlueclawServiceName)
-	return errorValue
-}
-
-func (service *Service) readBlueclawRuntimeDocument() (map[string]any, error) {
-	documentBytes, errorValue := os.ReadFile(service.blueclawRuntimeConfigPath())
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	var document map[string]any
-	if errorValue := json.Unmarshal(documentBytes, &document); errorValue != nil {
-		return nil, errorValue
-	}
-	return document, nil
-}
-
-func (service *Service) writeBlueclawRuntimeDocument(document map[string]any) error {
-	documentBytes, errorValue := json.MarshalIndent(document, "", "  ")
-	if errorValue != nil {
-		return errorValue
-	}
-	path := service.blueclawRuntimeConfigPath()
-	if errorValue := os.WriteFile(path, append(documentBytes, '\n'), 0o640); errorValue != nil {
-		return errorValue
-	}
-	return nil
-}
-
-func (service *Service) blueclawRuntimeConfigPath() string {
-	if strings.TrimSpace(service.Configuration.BlueclawRuntimeConfigPath) != "" {
-		return service.Configuration.BlueclawRuntimeConfigPath
-	}
-	return blueclaw.BlueclawRuntimeConfigPath
-}
-
-func remoteModelFromRuntimeDocument(document map[string]any) string {
-	languageModel, _ := document["languageModel"].(map[string]any)
-	capabilityModel, _ := languageModel["capability"].(map[string]any)
-	model, _ := capabilityModel["model"].(string)
-	return strings.TrimSpace(model)
-}
-
-func setRemoteModelInRuntimeDocument(document map[string]any, model string) {
-	languageModel, _ := document["languageModel"].(map[string]any)
-	if languageModel == nil {
-		languageModel = map[string]any{}
-		document["languageModel"] = languageModel
-	}
-	capabilityModel, _ := languageModel["capability"].(map[string]any)
-	if capabilityModel == nil {
-		capabilityModel = map[string]any{}
-		languageModel["capability"] = capabilityModel
-	}
-	capabilityModel["model"] = strings.TrimSpace(model)
+	service.mutex.Lock()
+	companion.RevokedAt = time.Now().UTC()
+	service.mutex.Unlock()
+	_ = service.saveCompanions()
+	service.writeJSON(responseWriter, map[string]string{"status": "disconnected"})
 }
 
 func (service *Service) createCompanionPairingCode(responseWriter http.ResponseWriter, request *http.Request) {
@@ -521,6 +441,34 @@ func (service *Service) completeCompanionJob(responseWriter http.ResponseWriter,
 	service.writeJSON(responseWriter, map[string]string{"status": "completed"})
 }
 
+func (service *Service) completeBrowserHandoff(responseWriter http.ResponseWriter, request *http.Request, handoffID string) {
+	companion := service.authorizedCompanion(request)
+	if companion == nil {
+		http.Error(responseWriter, "companion auth required", http.StatusForbidden)
+		return
+	}
+	var completion companionruntime.HandoffCompletion
+	if errorValue := json.NewDecoder(request.Body).Decode(&completion); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	completion.HandoffID = firstNonEmpty(strings.TrimSpace(handoffID), strings.TrimSpace(completion.HandoffID))
+	job, shouldResume, errorValue := service.storeBrowserHandoffCompletion(companion.CompanionID, completion)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusForbidden)
+		return
+	}
+	_ = service.saveCompanionJobs()
+	if shouldResume {
+		if errorValue := service.resumeBrowserHandoff(request.Context(), job, completion); errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+			return
+		}
+		service.markBrowserHandoffResumed(job.JobID)
+	}
+	service.writeJSON(responseWriter, map[string]string{"status": "completed"})
+}
+
 func (service *Service) failCompanionJob(responseWriter http.ResponseWriter, request *http.Request, jobID string) {
 	companion := service.authorizedCompanion(request)
 	if companion == nil {
@@ -572,13 +520,7 @@ func (service *Service) invokeCompanionJob(ctx context.Context, request capabili
 		return companionCapabilityUnavailableResponse(request, availability), nil
 	}
 	now := time.Now().UTC()
-	timeout := request.TimeoutSecond
-	if timeout <= 0 {
-		timeout = 30
-	}
-	if timeout > 120 {
-		timeout = 120
-	}
+	timeout := companionJobTimeoutSecond(request)
 	job := &CompanionJob{
 		JobID:             randomHex(16),
 		ParentJobID:       request.ParentJobID,
@@ -632,14 +574,27 @@ func (service *Service) invokeCompanionJob(ctx context.Context, request capabili
 			closeCompanionJobWatchLocked(currentJob, currentJob.UpdatedAt)
 			service.mutex.Unlock()
 			_ = service.saveCompanionJobs()
-			return capabilities.ToolInvokeResponse{}, errors.New("companion job expired")
+			return companionCapabilityUnavailableResponse(request, capabilities.CapabilityNotReady), nil
 		}
 		service.mutex.Unlock()
 		if time.Now().After(deadline) {
-			return capabilities.ToolInvokeResponse{}, errors.New("companion job timed out")
+			return companionCapabilityUnavailableResponse(request, capabilities.CapabilityNotReady), nil
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
+}
+
+func companionJobTimeoutSecond(request capabilities.ToolInvokeRequest) int {
+	if request.TimeoutSecond > 0 {
+		if request.TimeoutSecond > 300 {
+			return 300
+		}
+		return request.TimeoutSecond
+	}
+	if request.RequiresUserPresence || strings.HasPrefix(request.ToolName, "browser.") {
+		return 120
+	}
+	return 30
 }
 
 func (service *Service) claimNextCompanionJob(companion *CompanionRecord) *CompanionJob {
@@ -715,6 +670,126 @@ func (service *Service) finishCompanionJob(companionID string, jobID string, res
 		service.processRemoteAttention(context.Background(), *remoteAttentionRequest)
 	}
 	return nil
+}
+
+func (service *Service) storeBrowserHandoffCompletion(companionID string, completion companionruntime.HandoffCompletion) (*CompanionJob, bool, error) {
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	job := service.findBrowserHandoffJobLocked(companionID, completion.HandoffID)
+	if job == nil {
+		return nil, false, errors.New("browser handoff job not found")
+	}
+	if !job.HandoffCompletedAt.IsZero() {
+		return copyCompanionJob(job), job.HandoffResumedAt.IsZero(), nil
+	}
+	now := time.Now().UTC()
+	job.HandoffCompletion = &completion
+	job.HandoffCompletedAt = now
+	job.UpdatedAt = now
+	return copyCompanionJob(job), true, nil
+}
+
+func (service *Service) markBrowserHandoffResumed(jobID string) {
+	service.mutex.Lock()
+	if job := service.companionJobs[jobID]; job != nil {
+		job.HandoffResumedAt = time.Now().UTC()
+		job.UpdatedAt = job.HandoffResumedAt
+	}
+	service.mutex.Unlock()
+	_ = service.saveCompanionJobs()
+}
+
+func (service *Service) findBrowserHandoffJobLocked(companionID string, handoffID string) *CompanionJob {
+	if strings.TrimSpace(handoffID) == "" {
+		return nil
+	}
+	for _, job := range service.companionJobs {
+		if job.CompanionID != companionID || job.ToolName != "browser.handoff" || job.Response == nil {
+			continue
+		}
+		if browserHandoffIDFromResponse(job.Response) == handoffID {
+			return job
+		}
+	}
+	return nil
+}
+
+func browserHandoffIDFromResponse(response *capabilities.ToolInvokeResponse) string {
+	if response == nil {
+		return ""
+	}
+	var document struct {
+		HandoffID string `json:"handoffID"`
+	}
+	if errorValue := json.Unmarshal(response.Result, &document); errorValue != nil {
+		return ""
+	}
+	return strings.TrimSpace(document.HandoffID)
+}
+
+func (service *Service) resumeBrowserHandoff(ctx context.Context, job *CompanionJob, completion companionruntime.HandoffCompletion) error {
+	event := browserHandoffCompletionEvent(job, completion)
+	if strings.TrimSpace(event.Platform) == "" {
+		return errors.New("browser handoff platform is missing")
+	}
+	path := "/connectors/" + url.PathEscape(event.Platform) + "/events"
+	return service.blueclawJSONRequest(ctx, http.MethodPost, path, map[string]any{"event": event}, nil)
+}
+
+func browserHandoffCompletionEvent(job *CompanionJob, completion companionruntime.HandoffCompletion) platformInboundEvent {
+	context := job.Request.Context
+	prompt := browserHandoffCompletionPrompt(job.Request.Input, completion)
+	now := time.Now().UTC().Format(time.RFC3339)
+	return platformInboundEvent{
+		Platform:       context.Platform,
+		ConversationID: context.ConversationID,
+		MessageID:      "browser-handoff:" + completion.HandoffID,
+		SenderID:       context.RequesterPlatformUserID,
+		ReplyTargetID:  context.ReplyTargetID,
+		Prompt:         prompt,
+		Context: platformEventContext{
+			ReceivedAt:       now,
+			ConversationType: context.ConversationType,
+			ChannelID:        context.ChannelID,
+			ChannelName:      context.ChannelName,
+			Sender: platformContextSender{
+				Platform: context.Platform,
+				SenderID: context.RequesterPlatformUserID,
+				UserID:   context.RequesterPlatformUserID,
+				Email:    context.RequesterEmail,
+				Name:     context.RequesterName,
+			},
+			Messages: []platformContextMessage{{
+				Speaker: "user",
+				Text:    prompt,
+			}},
+		},
+	}
+}
+
+func browserHandoffCompletionPrompt(input json.RawMessage, completion companionruntime.HandoffCompletion) string {
+	var request struct {
+		ResumePrompt string `json:"resumePrompt"`
+		Message      string `json:"message"`
+	}
+	_ = json.Unmarshal(input, &request)
+	parts := []string{
+		firstNonEmpty(strings.TrimSpace(request.ResumePrompt), "브라우저 완료 버튼이 눌렸습니다. 캡처된 페이지를 근거로 다음 단계를 진행하세요."),
+		"URL: " + strings.TrimSpace(completion.URL),
+		"Title: " + strings.TrimSpace(completion.Title),
+	}
+	if strings.TrimSpace(completion.SnapshotText) != "" {
+		parts = append(parts, "Snapshot:\n"+strings.TrimSpace(completion.SnapshotText))
+	}
+	return strings.TrimSpace(strings.Join(parts, "\n\n"))
+}
+
+func copyCompanionJob(job *CompanionJob) *CompanionJob {
+	if job == nil {
+		return nil
+	}
+	copiedJob := *job
+	return &copiedJob
 }
 
 func (service *Service) denyCompanionJobResult(companionID string, jobID string, denial capabilities.DenialResult) error {
@@ -1052,6 +1127,10 @@ func companionDenialResponse(denial capabilities.DenialResult) (capabilities.Too
 
 func companionCapabilityUnavailableResponse(request capabilities.ToolInvokeRequest, code string) capabilities.ToolInvokeResponse {
 	userReason := capabilities.CapabilityUnavailableUserReason(request.ToolName, code)
+	var recovery *capabilities.RecoveryAction
+	if code == capabilities.CapabilityNotConnected && strings.HasPrefix(strings.TrimSpace(request.ToolName), "browser.") {
+		recovery = capabilities.CompanionConnectRecovery()
+	}
 	document, _ := json.Marshal(capabilities.DenialResult{
 		Status:              "denied",
 		Code:                code,
@@ -1059,6 +1138,7 @@ func companionCapabilityUnavailableResponse(request capabilities.ToolInvokeReque
 		ResourceScope:       companionResourceScope(request),
 		UserReason:          userReason,
 		SuggestedConstraint: userReason,
+		Recovery:            recovery,
 	})
 	return capabilities.ToolInvokeResponse{
 		Provider: "companion",
