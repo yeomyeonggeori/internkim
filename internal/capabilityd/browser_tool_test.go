@@ -35,28 +35,20 @@ func TestDeviceBrowserToolRunsThroughLightpandaRuntime(t *testing.T) {
 		t.Fatalf("unexpected response: %+v", response)
 	}
 	if len(calls) != 3 {
-		t.Fatalf("expected 3 calls (open + url check + stealth eval), got %d: %+v", len(calls), calls)
+		t.Fatalf("expected 3 calls (open + url check + snapshot), got %d: %+v", len(calls), calls)
 	}
 	if calls[0].path != "agent-browser-test" {
 		t.Fatalf("unexpected open command path: %s", calls[0].path)
 	}
-	expectedOpenArguments := []string{"--session", "internkim-device", "--engine", "lightpanda", "--executable-path", "/usr/local/bin/lightpanda", "--session-name", "internkim-device", "open", "https://example.com", "--headers"}
-	if len(calls[0].arguments) < len(expectedOpenArguments)+1 {
-		t.Fatalf("unexpected open arguments length: %+v", calls[0].arguments)
-	}
-	for index, expected := range expectedOpenArguments {
-		if calls[0].arguments[index] != expected {
-			t.Fatalf("unexpected open argument at index %d: got %q want %q (full: %+v)", index, calls[0].arguments[index], expected, calls[0].arguments)
-		}
-	}
-	if !strings.Contains(calls[0].arguments[len(expectedOpenArguments)], "User-Agent") {
-		t.Fatalf("expected stealth User-Agent header in open arguments, got %+v", calls[0].arguments)
+	expectedOpenArguments := []string{"--session", "internkim-device", "--engine", "lightpanda", "--executable-path", "/usr/local/bin/lightpanda", "--session-name", "internkim-device", "open", "https://example.com"}
+	if !slices.Equal(calls[0].arguments, expectedOpenArguments) {
+		t.Fatalf("unexpected open arguments: %+v", calls[0].arguments)
 	}
 	if calls[1].arguments[len(calls[1].arguments)-2] != "get" || calls[1].arguments[len(calls[1].arguments)-1] != "url" {
 		t.Fatalf("expected second call to be url check, got %+v", calls[1].arguments)
 	}
-	if calls[2].arguments[len(calls[2].arguments)-2] != "eval" {
-		t.Fatalf("expected third call to be eval, got %+v", calls[2].arguments)
+	if calls[2].arguments[len(calls[2].arguments)-3] != "snapshot" {
+		t.Fatalf("expected third call to be snapshot, got %+v", calls[2].arguments)
 	}
 }
 
