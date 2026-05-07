@@ -36,6 +36,7 @@ type mattermostUserRecord struct {
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
 	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
 	Nickname    string `json:"nickname"`
 	Position    string `json:"position"`
 	Roles       string `json:"roles"`
@@ -82,6 +83,7 @@ type mattermostPreferenceRecord struct {
 const mattermostProvisionerUsername = "admin"
 const mattermostProvisionerEmail = "admin@localhost"
 const firstAdminMattermostPassword = "admin"
+const mattermostTeammateNameDisplay = "nickname_full_name"
 const mattermostFlowChannelName = "flow"
 const mattermostFlowChannelDisplayName = "Flow"
 const mattermostFlowChannelLink = "[Flow 열기](/flow/)"
@@ -110,7 +112,7 @@ func (service *Service) provisionMattermostUserWithPassword(ctx context.Context,
 		if errorValue := service.ensureMattermostPasswordPolicyAllows(ctx, adminToken, initialPassword); errorValue != nil {
 			return mattermostProvisionResult{}, errorValue
 		}
-	} else if errorValue := service.ensureMattermostFullNameDisplay(ctx, adminToken); errorValue != nil {
+	} else if errorValue := service.ensureMattermostNicknameDisplay(ctx, adminToken); errorValue != nil {
 		return mattermostProvisionResult{}, errorValue
 	}
 
@@ -405,7 +407,7 @@ func addMattermostNameFields(body map[string]string, name string) {
 	if canonicalName == "" {
 		return
 	}
-	body["nickname"] = canonicalName
+	body["nickname"] = identity.NicknameForMattermost(canonicalName)
 	firstName, lastName := identity.SplitNameForMattermost(canonicalName)
 	if firstName != "" {
 		body["first_name"] = firstName
@@ -434,16 +436,16 @@ func (service *Service) ensureMattermostPasswordPolicyAllows(ctx context.Context
 			"Symbol":        false,
 		},
 		"TeamSettings": map[string]any{
-			"TeammateNameDisplay": "full_name",
+			"TeammateNameDisplay": mattermostTeammateNameDisplay,
 		},
 	}
 	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/config/patch", token, body, nil)
 }
 
-func (service *Service) ensureMattermostFullNameDisplay(ctx context.Context, token string) error {
+func (service *Service) ensureMattermostNicknameDisplay(ctx context.Context, token string) error {
 	body := map[string]any{
 		"TeamSettings": map[string]any{
-			"TeammateNameDisplay": "full_name",
+			"TeammateNameDisplay": mattermostTeammateNameDisplay,
 		},
 	}
 	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/config/patch", token, body, nil)

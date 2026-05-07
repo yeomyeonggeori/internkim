@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
 func TestBlueclawRuntimeContractCheckCatchesStaleAgentConfiguration(t *testing.T) {
@@ -82,6 +84,36 @@ func TestServicesRunReturnsErrorWhenBlueclawHealthFails(t *testing.T) {
 	errorValue := StepServices.Run(context)
 	if !errors.Is(errorValue, errBlueclawHealthCheckFailed) {
 		t.Fatalf("expected blueclaw health check failure, got %v", errorValue)
+	}
+}
+
+func TestSimulationServicesDoNotInstallLlamaCppUnits(t *testing.T) {
+	command := serviceUnitInstallCommand(&Context{BoardType: BoardSimulation})
+
+	for _, unexpectedValue := range []string{
+		locallm.LlamaCppServiceName,
+		locallm.LlamaCppEmbeddingServiceName,
+		locallm.LlamaCppBinaryPath,
+		locallm.LlamaCppEmbeddingModelPath,
+	} {
+		if strings.Contains(command, unexpectedValue) {
+			t.Fatalf("expected simulation service command to exclude %q, got:\n%s", unexpectedValue, command)
+		}
+	}
+}
+
+func TestJetsonServicesInstallLlamaCppUnits(t *testing.T) {
+	command := serviceUnitInstallCommand(&Context{BoardType: BoardJetsonOrinNano})
+
+	for _, expectedValue := range []string{
+		locallm.LlamaCppServiceName,
+		locallm.LlamaCppEmbeddingServiceName,
+		locallm.LlamaCppBinaryPath,
+		locallm.LlamaCppEmbeddingModelPath,
+	} {
+		if !strings.Contains(command, expectedValue) {
+			t.Fatalf("expected Jetson service command to include %q, got:\n%s", expectedValue, command)
+		}
 	}
 }
 
