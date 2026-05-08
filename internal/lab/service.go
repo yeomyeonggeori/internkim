@@ -176,28 +176,44 @@ func (service Service) VirtualMachineIPAddress(ctx context.Context) (string, err
 }
 
 func (service Service) RuntimeBuilderPrepare(ctx context.Context) error {
-	if errorValue := service.ProvisionUbuntu(ctx); errorValue != nil {
+	if errorValue := service.VirtualMachineUp(ctx); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := service.waitForVirtualMachineSSH(ctx); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := service.ensureWritableVirtualMachineRootWithRepair(ctx); errorValue != nil {
+		return errorValue
+	}
+
+	fmt.Println("provisioning Ubuntu")
+	if errorValue := service.runRemoteScript(ctx, filepath.Join("lab", "scripts", "provision-ubuntu.sh"), []string{""}); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := service.ensureWritableVirtualMachineRootWithRepair(ctx); errorValue != nil {
 		return errorValue
 	}
 
 	fmt.Println("provisioning Blueclaw runtime builder")
-	if errorValue := service.runRemoteScript(ctx, filepath.Join("lab", "scripts", "provision-blueclaw-runtime-builder.sh"), []string{
-		service.configuration.VirtualMachine.MountDirectoryPath,
-	}); errorValue != nil {
+	if errorValue := service.runRemoteScript(ctx, filepath.Join("lab", "scripts", "provision-blueclaw-runtime-builder.sh"), []string{""}); errorValue != nil {
 		return errorValue
 	}
 
-	return service.RuntimeBuilderCheck(ctx)
+	return service.runtimeBuilderCheck(ctx, "")
 }
 
 func (service Service) RuntimeBuilderCheck(ctx context.Context) error {
+	return service.runtimeBuilderCheck(ctx, service.configuration.VirtualMachine.MountDirectoryPath)
+}
+
+func (service Service) runtimeBuilderCheck(ctx context.Context, mountDirectoryPath string) error {
 	if errorValue := service.ensureRunningVirtualMachineWithSSH(ctx); errorValue != nil {
 		return errorValue
 	}
 
 	fmt.Println("checking Blueclaw runtime builder")
 	return service.runRemoteScript(ctx, filepath.Join("lab", "scripts", "check-blueclaw-runtime-builder.sh"), []string{
-		service.configuration.VirtualMachine.MountDirectoryPath,
+		mountDirectoryPath,
 	})
 }
 
@@ -643,6 +659,10 @@ func (service Service) waitForVirtualMachineSSH(ctx context.Context) error {
 	for range 60 {
 		if service.virtualMachineSSHReady(ctx) {
 			return nil
+		}
+		isVirtualMachineRunning, errorValue := service.VirtualMachineRunning(ctx)
+		if errorValue == nil && !isVirtualMachineRunning {
+			return errors.New("virtual machine stopped before ssh became ready")
 		}
 
 		select {

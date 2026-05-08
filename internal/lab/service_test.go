@@ -270,6 +270,48 @@ func TestProvisionUbuntuRestartsReadOnlyVirtualMachineOnce(t *testing.T) {
 	}
 }
 
+func TestRuntimeBuilderPrepareAvoidsSharedWorkspaceSync(t *testing.T) {
+	commandRunner := &fakeCommandRunner{
+		outputValues: []string{
+			"internkim-lab\n",
+			`[{"Name":"internkim-lab","Running":true}]`,
+			"10.0.0.5\n",
+			"10.0.0.5\n",
+			"10.0.0.5\n",
+			"10.0.0.5\n",
+			"10.0.0.5\n",
+			"10.0.0.5\n",
+			`[{"Name":"internkim-lab","Running":true}]`,
+			"10.0.0.5\n",
+			"10.0.0.5\n",
+			"10.0.0.5\n",
+		},
+	}
+	service := NewService(buildTestConfiguration(), commandRunner, "/repo")
+
+	errorValue := service.RuntimeBuilderPrepare(context.Background())
+	if errorValue != nil {
+		t.Fatalf("expected runtime builder prepare to succeed: %v", errorValue)
+	}
+	for _, command := range commandRunner.runCommands {
+		if command.ExecutableName == "rsync" {
+			t.Fatalf("expected runtime builder prepare to avoid shared workspace rsync, got %v", command.Arguments)
+		}
+	}
+	joinedScripts := make([]string, 0, len(commandRunner.runCommands))
+	for _, command := range commandRunner.runCommands {
+		if command.StandardInputPath != "" {
+			joinedScripts = append(joinedScripts, command.StandardInputPath)
+		}
+	}
+	joinedScriptPaths := strings.Join(joinedScripts, " ")
+	for _, expectedFragment := range []string{"provision-ubuntu.sh", "provision-blueclaw-runtime-builder.sh", "check-blueclaw-runtime-builder.sh"} {
+		if !strings.Contains(joinedScriptPaths, expectedFragment) {
+			t.Fatalf("expected runtime builder scripts to include %q, got %v", expectedFragment, joinedScripts)
+		}
+	}
+}
+
 func TestRuntimeBuilderCheckUsesDedicatedBuilderScript(t *testing.T) {
 	commandRunner := &fakeCommandRunner{
 		outputValues: []string{
