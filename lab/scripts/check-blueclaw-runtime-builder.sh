@@ -5,7 +5,6 @@ sudo_password="$1"
 mount_directory_path="$2"
 
 test -n "$sudo_password"
-test -n "$mount_directory_path"
 
 if [ "$(uname -s)" != "Linux" ]; then
   echo "builder is not Linux"
@@ -23,7 +22,7 @@ if [ ! -e /dev/kvm ]; then
   exit 1
 fi
 
-if ! mount | grep -q " on $mount_directory_path "; then
+if [ -n "$mount_directory_path" ] && ! mount | grep -q " on $mount_directory_path "; then
   echo "shared workspace is not mounted at $mount_directory_path"
   exit 1
 fi
