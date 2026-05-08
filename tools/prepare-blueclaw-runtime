@@ -21,6 +21,27 @@ ssh_host=""
 ssh_user="${USER:-admin}"
 ssh_password=""
 remote_directory="/tmp/internkim-blueclaw-runtime-builder"
+rsync_excludes=(
+  --exclude '.git'
+  --exclude '.dependency/agent-browser'
+  --exclude '.dependency/blueclaw-payload'
+  --exclude '.dependency/blueclaw-runtime*'
+  --exclude '.dependency/device-browser'
+  --exclude '.dependency/litert-lm-main'
+  --exclude '.dependency/litert-models'
+  --exclude '.dependency/llama-cpp'
+  --exclude '.dependency/llama-cpp-models'
+  --exclude '.dependency/role-memory-arm64'
+  --exclude 'build'
+  --exclude 'companion/dist'
+  --exclude 'companion/node_modules'
+  --exclude 'companion/src-tauri/target'
+  --exclude 'dist'
+  --exclude 'node_modules'
+  --exclude 'web/.svelte-kit'
+  --exclude 'web/.wrangler'
+  --exclude 'web/node_modules'
+)
 
 usage() {
   cat <<'USAGE'
@@ -30,7 +51,6 @@ Usage:
   tools/prepare-blueclaw-runtime --builder ssh --host <linux-arm64> [--user <user>] [--password <password>]
 
 Prepare .dependency/blueclaw-runtime from a Linux arm64 builder.
-Run `make prepare-blueclaw-runtime-builder` before using --builder tart.
 USAGE
 }
 
@@ -83,7 +103,10 @@ ensure_internkim_binary() {
 run_tart_builder() {
   ensure_internkim_binary
   "$repository_root/internkim" lab runtime-builder-prepare
-  "$repository_root/internkim" lab vm-ssh "cd /mnt/shared/workspace && BLUECLAW_BUILD_KERNEL='${BLUECLAW_BUILD_KERNEL:-0}' BLUECLAW_KERNEL_IMAGE_SOURCE='${BLUECLAW_KERNEL_IMAGE_SOURCE:-}' BLUECLAW_RUNTIME_ROOTFS_SIZE='${BLUECLAW_RUNTIME_ROOTFS_SIZE:-4G}' tools/prepare-blueclaw-runtime --builder local"
+  ssh_host="$("$repository_root/internkim" lab vm-ip)"
+  ssh_user="admin"
+  ssh_password="admin"
+  run_ssh_builder
 }
 
 ssh_base_command() {
@@ -119,15 +142,13 @@ rsync_to_builder() {
   if [ -n "$ssh_password" ]; then
     SSHPASS="$ssh_password" rsync -az --delete \
       -e "$rsync_ssh" \
-      --exclude '.git' \
-      --exclude '.dependency/blueclaw-runtime' \
+      "${rsync_excludes[@]}" \
       "$repository_root/" "$remote_target:$remote_directory/repo/"
     return
   fi
   rsync -az --delete \
     -e "$rsync_ssh" \
-    --exclude '.git' \
-    --exclude '.dependency/blueclaw-runtime' \
+    "${rsync_excludes[@]}" \
     "$repository_root/" "$remote_target:$remote_directory/repo/"
 }
 
@@ -137,14 +158,45 @@ rsync_from_builder() {
   rsync_ssh="$(rsync_ssh_command)"
   mkdir -p "$artifact_directory"
   if [ -n "$ssh_password" ]; then
-    SSHPASS="$ssh_password" rsync -az \
+    SSHPASS="$ssh_password" rsync -a --whole-file \
       -e "$rsync_ssh" \
       "$remote_target:$remote_directory/repo/.dependency/blueclaw-runtime/" "$artifact_directory/"
     return
   fi
-  rsync -az \
+  rsync -a --whole-file \
     -e "$rsync_ssh" \
     "$remote_target:$remote_directory/repo/.dependency/blueclaw-runtime/" "$artifact_directory/"
+}
+
+rsync_kernel_source_to_builder() {
+  local local_kernel_source="$1"
+  local remote_target="$ssh_user@$ssh_host"
+  local rsync_ssh
+  rsync_ssh="$(rsync_ssh_command)"
+  ssh_base_command "$remote_target" "mkdir -p '$remote_directory/kernel-source'"
+  if [ -n "$ssh_password" ]; then
+    SSHPASS="$ssh_password" rsync -az \
+      -e "$rsync_ssh" \
+      "$local_kernel_source" "$remote_target:$remote_directory/kernel-source/vmlinux.bin"
+    return
+  fi
+  rsync -az \
+    -e "$rsync_ssh" \
+    "$local_kernel_source" "$remote_target:$remote_directory/kernel-source/vmlinux.bin"
+}
+
+resolve_local_kernel_source() {
+  if [ -n "$kernel_source" ]; then
+    echo "$kernel_source"
+    return
+  fi
+  if [ -s "$artifact_directory/vmlinux.bin" ]; then
+    echo "$artifact_directory/vmlinux.bin"
+  fi
+}
+
+shell_quote() {
+  printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
 }
 
 run_ssh_builder() {
@@ -155,7 +207,18 @@ run_ssh_builder() {
   require_command rsync
   ssh_base_command "$ssh_user@$ssh_host" "mkdir -p '$remote_directory'"
   rsync_to_builder
-  ssh_base_command "$ssh_user@$ssh_host" "cd '$remote_directory/repo' && tools/prepare-blueclaw-runtime --builder local"
+  local remote_kernel_source="$kernel_source"
+  local local_kernel_source
+  local_kernel_source="$(resolve_local_kernel_source)"
+  if [ -n "$local_kernel_source" ]; then
+    if [ ! -s "$local_kernel_source" ]; then
+      echo "kernel source does not exist: $local_kernel_source" >&2
+      exit 1
+    fi
+    rsync_kernel_source_to_builder "$local_kernel_source"
+    remote_kernel_source="$remote_directory/kernel-source/vmlinux.bin"
+  fi
+  ssh_base_command "$ssh_user@$ssh_host" "cd '$remote_directory/repo' && BLUECLAW_BUILD_KERNEL=$(shell_quote "${BLUECLAW_BUILD_KERNEL:-0}") BLUECLAW_KERNEL_IMAGE_SOURCE=$(shell_quote "$remote_kernel_source") BLUECLAW_RUNTIME_ROOTFS_SIZE=$(shell_quote "$rootfs_size") tools/prepare-blueclaw-runtime --builder local"
   rsync_from_builder
 }
 

@@ -2123,6 +2123,13 @@ func runLabArgumentsForTarget(arguments []string, boardType string) error {
 		return service.ImageBuild(ctx)
 	case "vm-up":
 		return service.VirtualMachineUp(ctx)
+	case "vm-ip":
+		virtualMachineIPAddress, errorValue := service.VirtualMachineIPAddress(ctx)
+		if errorValue != nil {
+			return errorValue
+		}
+		fmt.Println(virtualMachineIPAddress)
+		return nil
 	case "vm-down":
 		return service.VirtualMachineDown(ctx)
 	case "vm-ssh":
