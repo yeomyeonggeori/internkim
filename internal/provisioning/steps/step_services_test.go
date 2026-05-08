@@ -119,6 +119,28 @@ func TestJetsonServicesInstallLlamaCppUnits(t *testing.T) {
 	}
 }
 
+func TestServiceHealthReportChecksAllServicesInOneCommand(t *testing.T) {
+	command := blueclawServiceHealthReportCommand(&Context{BoardType: BoardJetsonOrinNano})
+
+	for _, expectedValue := range []string{
+		"printf '%s=' 'blueclaw'",
+		"systemctl is-active blueclaw",
+		"printf '%s=' 'capabilityd'",
+		"systemctl is-active internkim-capabilityd",
+		"printf '%s=' 'admind'",
+		"systemctl is-active internkim-admind",
+		"printf '%s=' 'blueclawHealth'",
+		"curl -fsS http://127.0.0.1:8080/admin/api/health",
+		"printf '%s=' 'capabilitydHealth'",
+		"printf '%s=' 'embedding'",
+		locallm.LlamaCppEmbeddingServiceName,
+	} {
+		if !strings.Contains(command, expectedValue) {
+			t.Fatalf("expected health report command to include %q, got:\n%s", expectedValue, command)
+		}
+	}
+}
+
 type serviceHealthFailureBoardConnection struct{}
 
 type stringMatchingBoardConnection struct{}
