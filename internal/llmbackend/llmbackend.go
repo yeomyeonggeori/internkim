@@ -65,6 +65,7 @@ const (
 	ConstraintModeLlamaJSONSchema            = "llama_json_schema"
 	ConstraintModeLlamaGBNF                  = "llama_gbnf"
 	ConstraintModeLiteRTLLGuidanceJSONSchema = "litert_llguidance_json_schema"
+	ConstraintModeNativeToolCall             = "native_tool_call"
 )
 
 type StructuredCompleter interface {
