@@ -185,26 +185,17 @@ func sanitizeNativeToolSchemaValue(value any) any {
 	for fieldName, fieldValue := range document {
 		document[fieldName] = sanitizeNativeToolSchemaValue(fieldValue)
 	}
+	if document["type"] == "array" {
+		if _, isFound := document["items"]; !isFound {
+			document["items"] = map[string]any{"type": "object"}
+		}
+		return document
+	}
 	properties := nativeToolSchemaProperties(document["properties"])
 	if document["type"] == "object" && properties == nil {
 		properties = map[string]any{}
 		document["properties"] = properties
 	}
-	required := nativeToolSchemaRequired(document["required"])
-	if len(required) == 0 {
-		return document
-	}
-	filteredRequired := required[:0]
-	for _, requiredFieldName := range required {
-		if _, isFound := properties[requiredFieldName]; isFound {
-			filteredRequired = append(filteredRequired, requiredFieldName)
-		}
-	}
-	if len(filteredRequired) == 0 {
-		delete(document, "required")
-		return document
-	}
-	document["required"] = filteredRequired
 	return document
 }
 
@@ -231,6 +222,7 @@ func removeUnsupportedNativeToolSchemaKeywords(document map[string]any) {
 		"minimum",
 		"oneOf",
 		"pattern",
+		"required",
 	} {
 		delete(document, fieldName)
 	}
@@ -239,21 +231,6 @@ func removeUnsupportedNativeToolSchemaKeywords(document map[string]any) {
 func nativeToolSchemaProperties(value any) map[string]any {
 	properties, _ := value.(map[string]any)
 	return properties
-}
-
-func nativeToolSchemaRequired(value any) []string {
-	values, isArray := value.([]any)
-	if !isArray {
-		return nil
-	}
-	required := make([]string, 0, len(values))
-	for _, value := range values {
-		fieldName, isString := value.(string)
-		if isString && strings.TrimSpace(fieldName) != "" {
-			required = append(required, fieldName)
-		}
-	}
-	return required
 }
 
 func enumStringValue(schema json.RawMessage) (string, bool) {
