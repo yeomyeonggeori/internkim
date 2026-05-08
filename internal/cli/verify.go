@@ -81,7 +81,6 @@ func runVerifyMattermost(arguments []string) error {
 	user := flagSet.String("user", "", "SSH user")
 	password := flagSet.String("password", "", "SSH password")
 	node := flagSet.String("node", "", "Fleet node target")
-	boardID := flagSet.String("board-id", "", "Deprecated alias for --node")
 	cloudflareSSH := flagSet.Bool("cloudflare-ssh", false, "Use Cloudflare SSH")
 	board := flagSet.String("board", "", "Board target")
 	simulation := flagSet.Bool("sim", false, "Use simulation target")
@@ -101,9 +100,6 @@ func runVerifyMattermost(arguments []string) error {
 	}
 	if strings.TrimSpace(*node) != "" {
 		targetArguments = append(targetArguments, "--node", strings.TrimSpace(*node))
-	}
-	if strings.TrimSpace(*boardID) != "" {
-		targetArguments = append(targetArguments, "--board-id", strings.TrimSpace(*boardID))
 	}
 	if *cloudflareSSH {
 		targetArguments = append(targetArguments, "--cloudflare-ssh")
@@ -379,7 +375,6 @@ func runVerifyBrowser(arguments []string) error {
 	user := flagSet.String("user", "", "SSH user")
 	password := flagSet.String("password", "", "SSH password")
 	node := flagSet.String("node", "", "Fleet node target")
-	boardID := flagSet.String("board-id", "", "Deprecated alias for --node")
 	cloudflareSSH := flagSet.Bool("cloudflare-ssh", false, "Use Cloudflare SSH")
 	board := flagSet.String("board", "", "Board target")
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
@@ -401,9 +396,6 @@ func runVerifyBrowser(arguments []string) error {
 	}
 	if strings.TrimSpace(*node) != "" {
 		targetArguments = append(targetArguments, "--node", *node)
-	}
-	if strings.TrimSpace(*boardID) != "" {
-		targetArguments = append(targetArguments, "--board-id", *boardID)
 	}
 	if *cloudflareSSH {
 		targetArguments = append(targetArguments, "--cloudflare-ssh")
@@ -439,7 +431,6 @@ func resolveVerifyTarget(arguments []string) (verifyTarget, error) {
 	user := flagSet.String("user", "", "SSH user")
 	password := flagSet.String("password", "", "SSH password")
 	flagSet.String("node", "", "Fleet node target")
-	flagSet.String("board-id", "", "Deprecated alias for --node")
 	flagSet.Bool("cloudflare-ssh", false, "Use Cloudflare SSH")
 	flagSet.String("board", "", "Board target")
 	flagSet.Bool("sim", false, "Use simulation target")

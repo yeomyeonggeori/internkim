@@ -58,7 +58,7 @@
 	};
 
 	type BackupManifest = {
-		deviceID?: string;
+		fleetID?: string;
 		createdAt?: string;
 		components?: string[];
 		mattermostDump?: boolean;
@@ -130,9 +130,9 @@
 	};
 
 	const logoSrc = '/logo.svg';
-	const storedDeviceIdKey = 'internkim_device_id';
+	const storedFleetIdKey = 'internkim_fleet_id';
 
-	let deviceIdInput = $state('');
+	let fleetIdInput = $state('');
 	let userRecords = $state<UserRecord[]>([]);
 	let newHandle = $state('');
 	let newName = $state('');
@@ -175,33 +175,33 @@
 	let activeAdminSection = $state<AdminSection>('device');
 	const text = createPageText(adminText);
 
-	const deviceId = () => {
-		const explicitId = deviceIdInput.trim().toLowerCase();
+	const fleetId = () => {
+		const explicitId = fleetIdInput.trim().toLowerCase();
 		if (explicitId) return explicitId;
 		if (!browser) return '';
-		return deviceIdFromHost();
+		return fleetIdFromHost();
 	};
 
 	const mattermostURL = () => {
-		const id = deviceId();
+		const id = fleetId();
 		return id ? `https://${id}.intern.kim` : '';
 	};
 
-	const isDeviceContext = () => deviceId() !== '';
+	const isDeviceContext = () => fleetId() !== '';
 	const adminBaseURL = () => {
-		const id = deviceId();
-		if (deviceIdFromHost()) return '/admin/api';
+		const id = fleetId();
+		if (fleetIdFromHost()) return '/admin/api';
 		return id ? `https://${id}.intern.kim/admin/api` : '';
 	};
 	const usersBaseURL = () => adminBaseURL();
 	const companionReleaseURL = () => {
-		if (deviceIdFromHost()) return '/admin/api/companion/releases';
+		if (fleetIdFromHost()) return '/admin/api/companion/releases';
 		return '/api/companion/releases';
 	};
 	const backupDownloadURL = () => {
-		if (!backupJob?.downloadURL || !deviceId()) return '';
-		if (deviceIdFromHost()) return backupJob.downloadURL;
-		return `https://${deviceId()}.intern.kim${backupJob.downloadURL}`;
+		if (!backupJob?.downloadURL || !fleetId()) return '';
+		if (fleetIdFromHost()) return backupJob.downloadURL;
+		return `https://${fleetId()}.intern.kim${backupJob.downloadURL}`;
 	};
 	const userCount = () => userRecords.length;
 	const adminCount = () => userRecords.filter((record) => record.role === 'admin').length;
@@ -232,13 +232,13 @@
 	];
 
 	onMount(() => {
-		const queryDeviceId = new URLSearchParams(location.search).get('device_id')?.trim().toLowerCase() ?? '';
-		if (queryDeviceId && !deviceIdFromHost() && !isLocalBrowserHost()) {
-			location.replace(`https://${queryDeviceId}.intern.kim/admin/`);
+		const queryFleetId = new URLSearchParams(location.search).get('fleet_id')?.trim().toLowerCase() ?? '';
+		if (queryFleetId && !fleetIdFromHost() && !isLocalBrowserHost()) {
+			location.replace(`https://${queryFleetId}.intern.kim/admin/`);
 			return;
 		}
-		deviceIdInput = queryDeviceId || deviceIdFromHost() || localStorage.getItem(storedDeviceIdKey) || '';
-		if (deviceIdInput) localStorage.setItem(storedDeviceIdKey, deviceIdInput);
+		fleetIdInput = queryFleetId || fleetIdFromHost() || localStorage.getItem(storedFleetIdKey) || '';
+		if (fleetIdInput) localStorage.setItem(storedFleetIdKey, fleetIdInput);
 		loadCompanionReleases();
 		loadAdminSession();
 		loadUsers();
@@ -246,7 +246,7 @@
 		loadBotProfile();
 	});
 
-	function deviceIdFromHost() {
+	function fleetIdFromHost() {
 		if (!browser) return '';
 		const host = location.hostname;
 		if (isLocalBrowserHost()) return '';
@@ -263,9 +263,9 @@
 		return host === 'localhost' || host === '127.0.0.1' || /^\d+\.\d+\.\d+\.\d+$/.test(host);
 	}
 
-	function saveDeviceId() {
-		deviceIdInput = deviceIdInput.trim().toLowerCase();
-		if (deviceIdInput) localStorage.setItem(storedDeviceIdKey, deviceIdInput);
+	function saveFleetId() {
+		fleetIdInput = fleetIdInput.trim().toLowerCase();
+		if (fleetIdInput) localStorage.setItem(storedFleetIdKey, fleetIdInput);
 		loadUsers();
 		checkDevice();
 		loadCompanions();
@@ -364,7 +364,7 @@
 	}
 
 	async function loadUsers() {
-		const id = deviceId();
+		const id = fleetId();
 		if (!id) return;
 
 		isLoadingUsers = true;
@@ -410,7 +410,7 @@
 		const email = newEmail.trim().toLowerCase();
 		const handle = normalizeHandle(newHandle);
 		const name = newName.trim();
-		if (!email || !handle || !name || !deviceId()) return;
+		if (!email || !handle || !name || !fleetId()) return;
 
 		isSavingUser = true;
 		errorMessage = '';
@@ -444,7 +444,7 @@
 	}
 
 	async function saveUser(record: UserRecord, role: UserRole = record.role) {
-		if (!deviceId()) return;
+		if (!fleetId()) return;
 
 		isSavingUser = true;
 		errorMessage = '';
@@ -479,7 +479,7 @@
 	}
 
 	async function removeEmail(email: string) {
-		if (!deviceId()) return;
+		if (!fleetId()) return;
 
 		isSavingUser = true;
 		errorMessage = '';
@@ -806,10 +806,10 @@
 					class="grid gap-2 sm:grid-cols-[1fr_auto]"
 					onsubmit={(event) => {
 						event.preventDefault();
-						saveDeviceId();
+						saveFleetId();
 					}}
 				>
-					<Input bind:value={deviceIdInput} placeholder={text.device.deviceIDPlaceholder} autocomplete="off" />
+					<Input bind:value={fleetIdInput} placeholder={text.device.fleetIDPlaceholder} autocomplete="off" />
 					<Button type="submit" variant="outline" class="gap-2">
 						{#if isCheckingDevice}
 							<LoaderIcon class="size-4 animate-spin" />
@@ -1065,7 +1065,7 @@
 								{/if}
 								{#if backupJob.manifest}
 									<p class="text-muted-foreground mt-2">
-										{backupJob.manifest.deviceID || deviceId()} · {backupJob.manifest.components?.join(', ') || 'manifest ready'}
+										{backupJob.manifest.fleetID || fleetId()} · {backupJob.manifest.components?.join(', ') || 'manifest ready'}
 									</p>
 								{/if}
 							</div>
@@ -1108,7 +1108,7 @@
 								{/if}
 								{#if restoreJob.manifest}
 									<p class="text-muted-foreground mt-2">
-										{restoreJob.manifest.deviceID || 'backup'} · {restoreJob.manifest.components?.join(', ') || 'manifest ready'}
+										{restoreJob.manifest.fleetID || 'backup'} · {restoreJob.manifest.components?.join(', ') || 'manifest ready'}
 									</p>
 								{/if}
 							</div>

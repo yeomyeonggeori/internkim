@@ -14,7 +14,7 @@ type LedgerEntry struct {
 	Revision      uint64
 	Kind          string
 	Key           string
-	OwnerBoardID  string
+	OwnerNodeID   string
 	WorkspaceHead string
 }
 
@@ -27,8 +27,8 @@ func NewLedger(state State) Ledger {
 	return Ledger{State: state}
 }
 
-func (ledger Ledger) Commit(entry LedgerEntry, availableBoardIDs []string) (Ledger, error) {
-	if !ledger.State.CanCommit(availableBoardIDs) {
+func (ledger Ledger) Commit(entry LedgerEntry, availableNodeIDs []string) (Ledger, error) {
+	if !ledger.State.CanCommit(availableNodeIDs) {
 		return Ledger{}, errors.New("fleet quorum is required to commit ledger entries")
 	}
 	nextLedger := ledger.copy()
@@ -37,17 +37,17 @@ func (ledger Ledger) Commit(entry LedgerEntry, availableBoardIDs []string) (Ledg
 	return nextLedger, nil
 }
 
-func (ledger Ledger) ReserveJob(eventID string, availableBoardIDs []string) (Ledger, LedgerEntry, error) {
+func (ledger Ledger) ReserveJob(eventID string, availableNodeIDs []string) (Ledger, LedgerEntry, error) {
 	owner, ok := ledger.State.SelectOwner(eventID)
 	if !ok {
-		return Ledger{}, LedgerEntry{}, errors.New("no active fleet board can own the job")
+		return Ledger{}, LedgerEntry{}, errors.New("no active fleet node can own the job")
 	}
 	entry := LedgerEntry{
-		Kind:         LedgerEntryJobReserved,
-		Key:          eventID,
-		OwnerBoardID: owner.BoardID,
+		Kind:        LedgerEntryJobReserved,
+		Key:         eventID,
+		OwnerNodeID: owner.NodeID,
 	}
-	nextLedger, errorValue := ledger.Commit(entry, availableBoardIDs)
+	nextLedger, errorValue := ledger.Commit(entry, availableNodeIDs)
 	if errorValue != nil {
 		return Ledger{}, LedgerEntry{}, errorValue
 	}

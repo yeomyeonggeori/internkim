@@ -303,9 +303,9 @@ func (service *Service) isFlowStaffActor(ctx context.Context, actorEmail string)
 	if !service.hasDeviceAuth() {
 		return true
 	}
-	deviceID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceIDPath)))
-	deviceSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceSecretPath))
-	records, errorValue := service.lookupUserRecords(ctx, deviceID, deviceSecret)
+	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
+	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
+	records, errorValue := service.lookupUserRecords(ctx, fleetID, fleetSecret)
 	if errorValue != nil {
 		return false
 	}
@@ -1600,10 +1600,10 @@ func alignFlowTasksWithMembers(tasks []flowTask, members []flowMember) []flowTas
 }
 
 func (service *Service) flowMembers(request *http.Request) []flowMember {
-	deviceID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceIDPath)))
-	deviceSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceSecretPath))
-	if deviceID != "" && deviceSecret != "" {
-		if records, errorValue := service.lookupUserRecords(request.Context(), deviceID, deviceSecret); errorValue == nil && len(records) > 0 {
+	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
+	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
+	if fleetID != "" && fleetSecret != "" {
+		if records, errorValue := service.lookupUserRecords(request.Context(), fleetID, fleetSecret); errorValue == nil && len(records) > 0 {
 			return membersFromUserRecords(records)
 		}
 	}

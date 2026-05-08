@@ -66,7 +66,7 @@ type Configuration struct {
 	DeviceBrowserPath          string
 	DeviceBrowserProfilePath   string
 	CompanionFileDirectory     string
-	DeviceIDPath               string
+	FleetIDPath                string
 }
 
 type Service struct {
@@ -165,7 +165,7 @@ func DefaultConfiguration() Configuration {
 		DeviceBrowserPath:          browserruntime.DeviceBrowserExecutablePath,
 		DeviceBrowserProfilePath:   "",
 		CompanionFileDirectory:     "/tmp/internkim-companion-files",
-		DeviceIDPath:               "/root/.internkim/env/device-id",
+		FleetIDPath:                "/root/.internkim/env/fleet-id",
 	}
 }
 

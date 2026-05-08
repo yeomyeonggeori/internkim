@@ -1,21 +1,22 @@
 import type { Device } from './types';
 
-export function normalizeDeviceID(deviceID: string): string {
-	return deviceID.trim().toLowerCase();
+export function normalizeFleetID(fleetID: string): string {
+	return fleetID.trim().toLowerCase();
 }
 
-export async function hashDeviceSecret(deviceSecret: string): Promise<string> {
-	const encodedSecret = new TextEncoder().encode(deviceSecret);
+export async function hashFleetSecret(fleetSecret: string): Promise<string> {
+	const encodedSecret = new TextEncoder().encode(fleetSecret);
 	const digest = await crypto.subtle.digest('SHA-256', encodedSecret);
 	return Array.from(new Uint8Array(digest))
 		.map((byte) => byte.toString(16).padStart(2, '0'))
 		.join('');
 }
 
-export async function isBoardRequest(request: Request, device: Device, deviceID: string): Promise<boolean> {
-	const headerDeviceID = normalizeDeviceID(request.headers.get('X-InternKim-Device-ID') ?? '');
-	const deviceSecret = request.headers.get('X-InternKim-Device-Secret') ?? '';
-	if (!headerDeviceID || !deviceSecret || headerDeviceID !== normalizeDeviceID(deviceID)) return false;
-	if (!device.device_secret_hash) return false;
-	return (await hashDeviceSecret(deviceSecret)) === device.device_secret_hash;
+export async function isNodeRequest(request: Request, device: Device, fleetID: string): Promise<boolean> {
+	const headerFleetID = normalizeFleetID(request.headers.get('X-InternKim-Fleet-ID') ?? '');
+	const fleetSecret = request.headers.get('X-InternKim-Fleet-Secret') ?? '';
+	const fleetSecretHash = device.fleet_secret_hash ?? '';
+	if (!headerFleetID || !fleetSecret || headerFleetID !== normalizeFleetID(fleetID)) return false;
+	if (!fleetSecretHash) return false;
+	return (await hashFleetSecret(fleetSecret)) === fleetSecretHash;
 }

@@ -253,15 +253,20 @@ if [ -f "$STAGE/tunnel-revision" ]; then
   chown root:root /root/.internkim/env/tunnel-revision
   chmod 640 /root/.internkim/env/tunnel-revision
 fi
-if [ -f "$STAGE/device-id" ]; then
-  cp -f "$STAGE/device-id" /root/.internkim/env/device-id
-  chown root:blueclaw /root/.internkim/env/device-id
-  chmod 640 /root/.internkim/env/device-id
+if [ -f "$STAGE/tls-certificate-status" ]; then
+  cp -f "$STAGE/tls-certificate-status" /root/.internkim/env/tls-certificate-status
+  chown root:blueclaw /root/.internkim/env/tls-certificate-status
+  chmod 640 /root/.internkim/env/tls-certificate-status
 fi
-if [ -f "$STAGE/board-id" ]; then
-  cp -f "$STAGE/board-id" /root/.internkim/env/board-id
-  chown root:blueclaw /root/.internkim/env/board-id
-  chmod 640 /root/.internkim/env/board-id
+if [ -f "$STAGE/fleet-id" ]; then
+  cp -f "$STAGE/fleet-id" /root/.internkim/env/fleet-id
+  chown root:blueclaw /root/.internkim/env/fleet-id
+  chmod 640 /root/.internkim/env/fleet-id
+fi
+if [ -f "$STAGE/node-id" ]; then
+  cp -f "$STAGE/node-id" /root/.internkim/env/node-id
+  chown root:blueclaw /root/.internkim/env/node-id
+  chmod 640 /root/.internkim/env/node-id
 fi
 if [ -f "$STAGE/fleet-role" ]; then
   cp -f "$STAGE/fleet-role" /root/.internkim/env/fleet-role

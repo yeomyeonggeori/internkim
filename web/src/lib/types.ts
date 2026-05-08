@@ -1,6 +1,6 @@
 export interface Device {
-	device_id: string;
-	device_secret_hash?: string;
+	fleet_id: string;
+	fleet_secret_hash?: string;
 	tunnel_id: string;
 	tunnel_token: string;
 	dns_record_id: string;
@@ -21,8 +21,8 @@ export interface Device {
 export type FleetMemberStatus = 'active' | 'pending';
 
 export interface FleetMember {
-	boardID: string;
-	boardKey?: string;
+	nodeID: string;
+	nodeKey?: string;
 	status: FleetMemberStatus;
 	joinedAt: string;
 	activatedAt?: string;
@@ -55,7 +55,7 @@ export interface UserRecord {
 }
 
 export interface Invite {
-	device_id: string;
+	fleet_id: string;
 	expires_at: number;
 }
 

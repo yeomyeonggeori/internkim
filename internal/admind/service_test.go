@@ -174,12 +174,12 @@ func TestAdminRejectsUnauthorizedRemoteCaller(t *testing.T) {
 
 func TestAdminHealthDoesNotClaimFirstAuthenticatedCaller(t *testing.T) {
 	deviceDirectory := t.TempDir()
-	deviceIDPath := filepath.Join(deviceDirectory, "device-id")
-	deviceSecretPath := filepath.Join(deviceDirectory, "device-secret")
+	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
+	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
 	claimedAdminEmailPath := filepath.Join(deviceDirectory, "claimed-admin-email")
 	adminEmailPath := filepath.Join(deviceDirectory, "admin-email")
-	writeFile(t, deviceIDPath, "dc719d8e")
-	writeFile(t, deviceSecretPath, "secret-value")
+	writeFile(t, fleetIDPath, "dc719d8e")
+	writeFile(t, fleetSecretPath, "secret-value")
 	writeFile(t, adminEmailPath, "setup@example.com")
 
 	var roleWrites []adminUserMutation
@@ -187,8 +187,8 @@ func TestAdminHealthDoesNotClaimFirstAuthenticatedCaller(t *testing.T) {
 		APIBaseURL:            "https://api.intern.kim",
 		AdminEmailPath:        adminEmailPath,
 		ClaimedAdminEmailPath: claimedAdminEmailPath,
-		DeviceIDPath:          deviceIDPath,
-		DeviceSecretPath:      deviceSecretPath,
+		FleetIDPath:           fleetIDPath,
+		FleetSecretPath:       fleetSecretPath,
 		StateDirectory:        t.TempDir(),
 		CompanionJobPath:      filepath.Join(t.TempDir(), "jobs.json"),
 		AdminUIPath:           t.TempDir(),
@@ -196,7 +196,7 @@ func TestAdminHealthDoesNotClaimFirstAuthenticatedCaller(t *testing.T) {
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
-		case request.URL.String() == "https://api.intern.kim/api/users?device_id=dc719d8e" && request.Method == http.MethodGet:
+		case request.URL.String() == "https://api.intern.kim/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"setup@example.com","role":"admin"}]}`, nil), nil
 		case request.URL.String() == "https://api.intern.kim/api/users" && request.Method == http.MethodPost:
 			var payload adminUserMutation
@@ -229,12 +229,12 @@ func TestAdminHealthDoesNotClaimFirstAuthenticatedCaller(t *testing.T) {
 
 func TestAdminPageRequestClaimsFirstAuthenticatedCaller(t *testing.T) {
 	deviceDirectory := t.TempDir()
-	deviceIDPath := filepath.Join(deviceDirectory, "device-id")
-	deviceSecretPath := filepath.Join(deviceDirectory, "device-secret")
+	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
+	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
 	claimedAdminEmailPath := filepath.Join(deviceDirectory, "claimed-admin-email")
 	adminPasswordPath := filepath.Join(deviceDirectory, "mm-admin-pass")
-	writeFile(t, deviceIDPath, "dc719d8e")
-	writeFile(t, deviceSecretPath, "secret-value")
+	writeFile(t, fleetIDPath, "dc719d8e")
+	writeFile(t, fleetSecretPath, "secret-value")
 	writeFile(t, adminPasswordPath, "admin-pass")
 	adminUIPath := t.TempDir()
 	writeFile(t, filepath.Join(adminUIPath, "index.html"), "admin ui")
@@ -245,8 +245,8 @@ func TestAdminPageRequestClaimsFirstAuthenticatedCaller(t *testing.T) {
 		MattermostAdminPasswordPath: adminPasswordPath,
 		AdminEmailPath:              filepath.Join(deviceDirectory, "admin-email"),
 		ClaimedAdminEmailPath:       claimedAdminEmailPath,
-		DeviceIDPath:                deviceIDPath,
-		DeviceSecretPath:            deviceSecretPath,
+		FleetIDPath:                 fleetIDPath,
+		FleetSecretPath:             fleetSecretPath,
 		StateDirectory:              t.TempDir(),
 		CompanionJobPath:            filepath.Join(t.TempDir(), "jobs.json"),
 		AdminUIPath:                 adminUIPath,
@@ -254,7 +254,7 @@ func TestAdminPageRequestClaimsFirstAuthenticatedCaller(t *testing.T) {
 	blueclawInvited := false
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
-		case request.URL.String() == "https://api.intern.kim/api/users?device_id=dc719d8e" && request.Method == http.MethodGet:
+		case request.URL.String() == "https://api.intern.kim/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"records":[]}`, nil), nil
 		case request.URL.String() == "https://api.intern.kim/api/users" && request.Method == http.MethodPost:
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"lee@dawn.kim","role":"admin"}]}`, nil), nil
@@ -341,26 +341,26 @@ func TestAdminSessionReportsMissingAccessIdentity(t *testing.T) {
 
 func TestAdminSessionReportsFirstAdminBootstrapFailure(t *testing.T) {
 	deviceDirectory := t.TempDir()
-	deviceIDPath := filepath.Join(deviceDirectory, "device-id")
-	deviceSecretPath := filepath.Join(deviceDirectory, "device-secret")
+	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
+	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
 	claimedAdminEmailPath := filepath.Join(deviceDirectory, "claimed-admin-email")
-	writeFile(t, deviceIDPath, "dc719d8e")
-	writeFile(t, deviceSecretPath, "secret-value")
+	writeFile(t, fleetIDPath, "dc719d8e")
+	writeFile(t, fleetSecretPath, "secret-value")
 
 	service := NewService(Configuration{
 		APIBaseURL:            "https://api.intern.kim",
 		MattermostBaseURL:     "http://mattermost.local",
 		AdminEmailPath:        filepath.Join(deviceDirectory, "admin-email"),
 		ClaimedAdminEmailPath: claimedAdminEmailPath,
-		DeviceIDPath:          deviceIDPath,
-		DeviceSecretPath:      deviceSecretPath,
+		FleetIDPath:           fleetIDPath,
+		FleetSecretPath:       fleetSecretPath,
 		StateDirectory:        t.TempDir(),
 		CompanionJobPath:      filepath.Join(t.TempDir(), "jobs.json"),
 		AdminUIPath:           t.TempDir(),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
-		case request.URL.String() == "https://api.intern.kim/api/users?device_id=dc719d8e" && request.Method == http.MethodGet:
+		case request.URL.String() == "https://api.intern.kim/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"records":[]}`, nil), nil
 		case request.URL.String() == "https://api.intern.kim/api/users" && request.Method == http.MethodPost:
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"lee@dawn.kim","role":"admin"}]}`, nil), nil
@@ -384,30 +384,34 @@ func TestAdminSessionReportsFirstAdminBootstrapFailure(t *testing.T) {
 
 func TestAdminSessionReturnsFirstAdminTemporaryPasswordOnce(t *testing.T) {
 	deviceDirectory := t.TempDir()
-	deviceIDPath := filepath.Join(deviceDirectory, "device-id")
-	deviceSecretPath := filepath.Join(deviceDirectory, "device-secret")
+	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
+	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
 	claimedAdminEmailPath := filepath.Join(deviceDirectory, "claimed-admin-email")
 	adminPasswordPath := filepath.Join(deviceDirectory, "mm-admin-pass")
-	writeFile(t, deviceIDPath, "dc719d8e")
-	writeFile(t, deviceSecretPath, "secret-value")
+	writeFile(t, fleetIDPath, "dc719d8e")
+	writeFile(t, fleetSecretPath, "secret-value")
 	writeFile(t, adminPasswordPath, "admin-pass")
 
 	createdMattermostPassword := ""
+	hasUserRecord := false
 	service := NewService(Configuration{
 		APIBaseURL:                  "https://api.intern.kim",
 		MattermostBaseURL:           "http://mattermost.local",
 		MattermostAdminPasswordPath: adminPasswordPath,
 		AdminEmailPath:              filepath.Join(deviceDirectory, "admin-email"),
 		ClaimedAdminEmailPath:       claimedAdminEmailPath,
-		DeviceIDPath:                deviceIDPath,
-		DeviceSecretPath:            deviceSecretPath,
+		FleetIDPath:                 fleetIDPath,
+		FleetSecretPath:             fleetSecretPath,
 		StateDirectory:              t.TempDir(),
 		CompanionJobPath:            filepath.Join(t.TempDir(), "jobs.json"),
 		AdminUIPath:                 t.TempDir(),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
-		case request.URL.String() == "https://api.intern.kim/api/users?device_id=dc719d8e" && request.Method == http.MethodGet:
+		case request.URL.String() == "https://api.intern.kim/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
+			if hasUserRecord {
+				return jsonResponse(http.StatusOK, `{"records":[{"email":"lee@dawn.kim","role":"admin"}]}`, nil), nil
+			}
 			return jsonResponse(http.StatusOK, `{"records":[]}`, nil), nil
 		case request.URL.String() == "https://api.intern.kim/api/users" && request.Method == http.MethodPost:
 			var payload adminUserMutation
@@ -417,6 +421,7 @@ func TestAdminSessionReturnsFirstAdminTemporaryPasswordOnce(t *testing.T) {
 			if payload.Email != "lee@dawn.kim" || payload.Role != "admin" {
 				t.Fatalf("unexpected user role payload: %+v", payload)
 			}
+			hasUserRecord = true
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"lee@dawn.kim","role":"admin"}]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
@@ -490,12 +495,12 @@ func TestAdminSessionReturnsFirstAdminTemporaryPasswordOnce(t *testing.T) {
 
 func TestAdminSessionResetsExistingFirstAdminMattermostPassword(t *testing.T) {
 	deviceDirectory := t.TempDir()
-	deviceIDPath := filepath.Join(deviceDirectory, "device-id")
-	deviceSecretPath := filepath.Join(deviceDirectory, "device-secret")
+	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
+	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
 	claimedAdminEmailPath := filepath.Join(deviceDirectory, "claimed-admin-email")
 	adminPasswordPath := filepath.Join(deviceDirectory, "mm-admin-pass")
-	writeFile(t, deviceIDPath, "dc719d8e")
-	writeFile(t, deviceSecretPath, "secret-value")
+	writeFile(t, fleetIDPath, "dc719d8e")
+	writeFile(t, fleetSecretPath, "secret-value")
 	writeFile(t, adminPasswordPath, "admin-pass")
 
 	passwordReset := false
@@ -505,15 +510,15 @@ func TestAdminSessionResetsExistingFirstAdminMattermostPassword(t *testing.T) {
 		MattermostAdminPasswordPath: adminPasswordPath,
 		AdminEmailPath:              filepath.Join(deviceDirectory, "admin-email"),
 		ClaimedAdminEmailPath:       claimedAdminEmailPath,
-		DeviceIDPath:                deviceIDPath,
-		DeviceSecretPath:            deviceSecretPath,
+		FleetIDPath:                 fleetIDPath,
+		FleetSecretPath:             fleetSecretPath,
 		StateDirectory:              t.TempDir(),
 		CompanionJobPath:            filepath.Join(t.TempDir(), "jobs.json"),
 		AdminUIPath:                 t.TempDir(),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
-		case request.URL.String() == "https://api.intern.kim/api/users?device_id=dc719d8e" && request.Method == http.MethodGet:
+		case request.URL.String() == "https://api.intern.kim/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"records":[]}`, nil), nil
 		case request.URL.String() == "https://api.intern.kim/api/users" && request.Method == http.MethodPost:
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"lee@dawn.kim","role":"admin"}]}`, nil), nil
@@ -574,13 +579,13 @@ func TestAdminSessionResetsExistingFirstAdminMattermostPassword(t *testing.T) {
 
 func TestAdminSessionRepairsClaimedFirstAdminPasswordFromOldBootstrap(t *testing.T) {
 	deviceDirectory := t.TempDir()
-	deviceIDPath := filepath.Join(deviceDirectory, "device-id")
-	deviceSecretPath := filepath.Join(deviceDirectory, "device-secret")
+	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
+	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
 	claimedAdminEmailPath := filepath.Join(deviceDirectory, "claimed-admin-email")
 	adminPasswordPath := filepath.Join(deviceDirectory, "mm-admin-pass")
 	stateDirectory := t.TempDir()
-	writeFile(t, deviceIDPath, "dc719d8e")
-	writeFile(t, deviceSecretPath, "secret-value")
+	writeFile(t, fleetIDPath, "dc719d8e")
+	writeFile(t, fleetSecretPath, "secret-value")
 	writeFile(t, claimedAdminEmailPath, "lee@dawn.kim")
 	writeFile(t, adminPasswordPath, "admin-pass")
 	writeFile(t, filepath.Join(stateDirectory, "first-admin-bootstrap.json"), `{"email":"lee@dawn.kim","status":"claimed"}`)
@@ -592,8 +597,8 @@ func TestAdminSessionRepairsClaimedFirstAdminPasswordFromOldBootstrap(t *testing
 		MattermostAdminPasswordPath: adminPasswordPath,
 		AdminEmailPath:              filepath.Join(deviceDirectory, "admin-email"),
 		ClaimedAdminEmailPath:       claimedAdminEmailPath,
-		DeviceIDPath:                deviceIDPath,
-		DeviceSecretPath:            deviceSecretPath,
+		FleetIDPath:                 fleetIDPath,
+		FleetSecretPath:             fleetSecretPath,
 		StateDirectory:              stateDirectory,
 		CompanionJobPath:            filepath.Join(t.TempDir(), "jobs.json"),
 		AdminUIPath:                 t.TempDir(),
@@ -636,7 +641,7 @@ func TestAdminSessionRepairsClaimedFirstAdminPasswordFromOldBootstrap(t *testing
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/preferences" && request.Method == http.MethodPut:
 			assertBotDirectChannelShown(t, request, "user-1", "bot-1")
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		case request.URL.String() == "https://api.intern.kim/api/users?device_id=dc719d8e" && request.Method == http.MethodGet:
+		case request.URL.String() == "https://api.intern.kim/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"lee@dawn.kim","role":"admin"}]}`, nil), nil
 		case isBlueclawPolicyGet(request):
 			return jsonResponse(http.StatusOK, blueclawPolicyWithClaimedMember(), nil), nil
@@ -662,28 +667,28 @@ func TestAdminSessionRepairsClaimedFirstAdminPasswordFromOldBootstrap(t *testing
 }
 
 func TestAdminUsersProxyUsesDeviceAuth(t *testing.T) {
-	deviceIDPath := writeTestFile(t, "dc719d8e")
-	deviceSecretPath := writeTestFile(t, "secret-value")
+	fleetIDPath := writeTestFile(t, "dc719d8e")
+	fleetSecretPath := writeTestFile(t, "secret-value")
 	service := NewService(Configuration{
 		APIBaseURL:            "https://api.intern.kim",
 		AdminEmailPath:        writeTestFile(t, "admin@example.com"),
 		ClaimedAdminEmailPath: writeTestFile(t, "admin@example.com"),
-		DeviceIDPath:          deviceIDPath,
-		DeviceSecretPath:      deviceSecretPath,
+		FleetIDPath:           fleetIDPath,
+		FleetSecretPath:       fleetSecretPath,
 		StateDirectory:        t.TempDir(),
 		CompanionJobPath:      filepath.Join(t.TempDir(), "jobs.json"),
 		AdminUIPath:           t.TempDir(),
 		MattermostBaseURL:     "http://mattermost.local",
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() != "https://api.intern.kim/api/users?device_id=dc719d8e" {
+		if request.URL.String() != "https://api.intern.kim/api/users?fleet_id=dc719d8e" {
 			t.Fatalf("proxy url = %s", request.URL.String())
 		}
-		if request.Header.Get("X-InternKim-Device-ID") != "dc719d8e" {
-			t.Fatalf("device id header = %q", request.Header.Get("X-InternKim-Device-ID"))
+		if request.Header.Get("X-InternKim-Fleet-ID") != "dc719d8e" {
+			t.Fatalf("fleet id header = %q", request.Header.Get("X-InternKim-Fleet-ID"))
 		}
-		if request.Header.Get("X-InternKim-Device-Secret") != "secret-value" {
-			t.Fatalf("device secret header = %q", request.Header.Get("X-InternKim-Device-Secret"))
+		if request.Header.Get("X-InternKim-Fleet-Secret") != "secret-value" {
+			t.Fatalf("fleet secret header = %q", request.Header.Get("X-InternKim-Fleet-Secret"))
 		}
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -707,8 +712,8 @@ func TestAdminUsersProxyUsesDeviceAuth(t *testing.T) {
 }
 
 func TestAdminUsersGetEnsuresBotDirectChannelsForInvitedUsers(t *testing.T) {
-	deviceIDPath := writeTestFile(t, "dc719d8e")
-	deviceSecretPath := writeTestFile(t, "secret-value")
+	fleetIDPath := writeTestFile(t, "dc719d8e")
+	fleetSecretPath := writeTestFile(t, "secret-value")
 	adminPasswordPath := writeTestFile(t, "admin-pass")
 	directChannelCreated := false
 	service := NewService(Configuration{
@@ -717,15 +722,15 @@ func TestAdminUsersGetEnsuresBotDirectChannelsForInvitedUsers(t *testing.T) {
 		MattermostAdminPasswordPath: adminPasswordPath,
 		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
 		ClaimedAdminEmailPath:       writeTestFile(t, "admin@example.com"),
-		DeviceIDPath:                deviceIDPath,
-		DeviceSecretPath:            deviceSecretPath,
+		FleetIDPath:                 fleetIDPath,
+		FleetSecretPath:             fleetSecretPath,
 		StateDirectory:              t.TempDir(),
 		CompanionJobPath:            filepath.Join(t.TempDir(), "jobs.json"),
 		AdminUIPath:                 t.TempDir(),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
-		case request.URL.String() == "https://api.intern.kim/api/users?device_id=dc719d8e":
+		case request.URL.String() == "https://api.intern.kim/api/users?fleet_id=dc719d8e":
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
@@ -767,11 +772,11 @@ func TestAdminUsersGetEnsuresBotDirectChannelsForInvitedUsers(t *testing.T) {
 
 func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *testing.T) {
 	deviceDirectory := t.TempDir()
-	deviceIDPath := filepath.Join(deviceDirectory, "device-id")
-	deviceSecretPath := filepath.Join(deviceDirectory, "device-secret")
+	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
+	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
 	adminPasswordPath := filepath.Join(deviceDirectory, "mm-admin-pass")
-	writeFile(t, deviceIDPath, "dc719d8e")
-	writeFile(t, deviceSecretPath, "secret-value")
+	writeFile(t, fleetIDPath, "dc719d8e")
+	writeFile(t, fleetSecretPath, "secret-value")
 	writeFile(t, adminPasswordPath, "admin-pass")
 
 	var pagesPayload map[string]any
@@ -781,8 +786,8 @@ func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *test
 		MattermostBaseURL:           "http://mattermost.local",
 		MattermostAdminPasswordPath: adminPasswordPath,
 		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
-		DeviceIDPath:                deviceIDPath,
-		DeviceSecretPath:            deviceSecretPath,
+		FleetIDPath:                 fleetIDPath,
+		FleetSecretPath:             fleetSecretPath,
 		StateDirectory:              t.TempDir(),
 		CompanionJobPath:            filepath.Join(t.TempDir(), "jobs.json"),
 		AdminUIPath:                 t.TempDir(),
@@ -850,11 +855,11 @@ func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *test
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/preferences" && request.Method == http.MethodPut:
 			assertBotDirectChannelShown(t, request, "user-1", "bot-1")
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		case request.URL.String() == "https://api.intern.kim/api/users?device_id=dc719d8e" && request.Method == http.MethodGet:
+		case request.URL.String() == "https://api.intern.kim/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"admin@example.com","role":"admin"}]}`, nil), nil
 		case request.URL.String() == "https://api.intern.kim/api/users" && request.Method == http.MethodPost:
-			if request.Header.Get("X-InternKim-Device-Secret") != "secret-value" {
-				t.Fatalf("device secret header = %q", request.Header.Get("X-InternKim-Device-Secret"))
+			if request.Header.Get("X-InternKim-Fleet-Secret") != "secret-value" {
+				t.Fatalf("fleet secret header = %q", request.Header.Get("X-InternKim-Fleet-Secret"))
 			}
 			if errorValue := json.NewDecoder(request.Body).Decode(&pagesPayload); errorValue != nil {
 				t.Fatal(errorValue)
@@ -904,10 +909,10 @@ func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *test
 
 func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 	deviceDirectory := t.TempDir()
-	deviceIDPath := filepath.Join(deviceDirectory, "device-id")
-	deviceSecretPath := filepath.Join(deviceDirectory, "device-secret")
-	writeFile(t, deviceIDPath, "dc719d8e")
-	writeFile(t, deviceSecretPath, "secret-value")
+	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
+	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
+	writeFile(t, fleetIDPath, "dc719d8e")
+	writeFile(t, fleetSecretPath, "secret-value")
 	writeFile(t, filepath.Join(deviceDirectory, "admin-email"), "admin@example.com")
 	var pagesPayload map[string]any
 	var mattermostPatch map[string]string
@@ -917,15 +922,15 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 		BlueclawBaseURL:             "http://127.0.0.1:8080",
 		MattermostAdminPasswordPath: writeTestFile(t, "admin-password"),
 		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
-		DeviceIDPath:                deviceIDPath,
-		DeviceSecretPath:            deviceSecretPath,
+		FleetIDPath:                 fleetIDPath,
+		FleetSecretPath:             fleetSecretPath,
 		StateDirectory:              t.TempDir(),
 		CompanionJobPath:            filepath.Join(t.TempDir(), "jobs.json"),
 		AdminUIPath:                 t.TempDir(),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
-		case request.URL.String() == "https://api.intern.kim/api/users?device_id=dc719d8e" && request.Method == http.MethodGet:
+		case request.URL.String() == "https://api.intern.kim/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"records":[{"userID":"user-member","handle":"oldhandle","name":"Old Name","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"oldhandle"},{"email":"admin@example.com","role":"admin"}]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
@@ -994,11 +999,11 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 
 func TestAdminInvitePreservesCurrentAdminRole(t *testing.T) {
 	deviceDirectory := t.TempDir()
-	deviceIDPath := filepath.Join(deviceDirectory, "device-id")
-	deviceSecretPath := filepath.Join(deviceDirectory, "device-secret")
+	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
+	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
 	adminPasswordPath := filepath.Join(deviceDirectory, "mm-admin-pass")
-	writeFile(t, deviceIDPath, "dc719d8e")
-	writeFile(t, deviceSecretPath, "secret-value")
+	writeFile(t, fleetIDPath, "dc719d8e")
+	writeFile(t, fleetSecretPath, "secret-value")
 	writeFile(t, adminPasswordPath, "admin-pass")
 
 	var pagesPayload map[string]any
@@ -1008,15 +1013,15 @@ func TestAdminInvitePreservesCurrentAdminRole(t *testing.T) {
 		MattermostAdminPasswordPath: adminPasswordPath,
 		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
 		ClaimedAdminEmailPath:       writeTestFile(t, "admin@example.com"),
-		DeviceIDPath:                deviceIDPath,
-		DeviceSecretPath:            deviceSecretPath,
+		FleetIDPath:                 fleetIDPath,
+		FleetSecretPath:             fleetSecretPath,
 		StateDirectory:              t.TempDir(),
 		CompanionJobPath:            filepath.Join(t.TempDir(), "jobs.json"),
 		AdminUIPath:                 t.TempDir(),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
-		case request.URL.String() == "https://api.intern.kim/api/users?device_id=dc719d8e" && request.Method == http.MethodGet:
+		case request.URL.String() == "https://api.intern.kim/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"admin@example.com","role":"admin"}]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
@@ -1086,11 +1091,11 @@ func TestAdminInvitePreservesCurrentAdminRole(t *testing.T) {
 
 func TestAdminRemoveDeactivatesMattermostUserByStoredID(t *testing.T) {
 	deviceDirectory := t.TempDir()
-	deviceIDPath := filepath.Join(deviceDirectory, "device-id")
-	deviceSecretPath := filepath.Join(deviceDirectory, "device-secret")
+	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
+	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
 	adminPasswordPath := filepath.Join(deviceDirectory, "mm-admin-pass")
-	writeFile(t, deviceIDPath, "dc719d8e")
-	writeFile(t, deviceSecretPath, "secret-value")
+	writeFile(t, fleetIDPath, "dc719d8e")
+	writeFile(t, fleetSecretPath, "secret-value")
 	writeFile(t, adminPasswordPath, "admin-pass")
 
 	deactivatedUserID := ""
@@ -1100,8 +1105,8 @@ func TestAdminRemoveDeactivatesMattermostUserByStoredID(t *testing.T) {
 		MattermostBaseURL:           "http://mattermost.local",
 		MattermostAdminPasswordPath: adminPasswordPath,
 		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
-		DeviceIDPath:                deviceIDPath,
-		DeviceSecretPath:            deviceSecretPath,
+		FleetIDPath:                 fleetIDPath,
+		FleetSecretPath:             fleetSecretPath,
 		StateDirectory:              t.TempDir(),
 		CompanionJobPath:            filepath.Join(t.TempDir(), "jobs.json"),
 		AdminUIPath:                 t.TempDir(),
@@ -1122,7 +1127,7 @@ func TestAdminRemoveDeactivatesMattermostUserByStoredID(t *testing.T) {
 	}
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
-		case request.URL.String() == "https://api.intern.kim/api/users?device_id=dc719d8e" && request.Method == http.MethodGet:
+		case request.URL.String() == "https://api.intern.kim/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"admin@example.com","role":"admin"},{"email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
@@ -1137,7 +1142,7 @@ func TestAdminRemoveDeactivatesMattermostUserByStoredID(t *testing.T) {
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodDelete:
 			deactivatedUserID = "user-1"
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		case request.URL.String() == "https://api.intern.kim/api/users/member@example.com?device_id=dc719d8e" && request.Method == http.MethodDelete:
+		case request.URL.String() == "https://api.intern.kim/api/users/member@example.com?fleet_id=dc719d8e" && request.Method == http.MethodDelete:
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"admin@example.com","role":"admin"}]}`, nil), nil
 		case isBlueclawRemoveRequest(t, request, "member@example.com"):
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
@@ -1165,11 +1170,11 @@ func TestAdminRemoveDeactivatesMattermostUserByStoredID(t *testing.T) {
 
 func TestAdminRemoveSkipsProtectedMattermostUserDeactivation(t *testing.T) {
 	deviceDirectory := t.TempDir()
-	deviceIDPath := filepath.Join(deviceDirectory, "device-id")
-	deviceSecretPath := filepath.Join(deviceDirectory, "device-secret")
+	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
+	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
 	adminPasswordPath := filepath.Join(deviceDirectory, "mm-admin-pass")
-	writeFile(t, deviceIDPath, "dc719d8e")
-	writeFile(t, deviceSecretPath, "secret-value")
+	writeFile(t, fleetIDPath, "dc719d8e")
+	writeFile(t, fleetSecretPath, "secret-value")
 	writeFile(t, adminPasswordPath, "admin-pass")
 
 	pagesDeleteCalled := false
@@ -1178,15 +1183,15 @@ func TestAdminRemoveSkipsProtectedMattermostUserDeactivation(t *testing.T) {
 		MattermostBaseURL:           "http://mattermost.local",
 		MattermostAdminPasswordPath: adminPasswordPath,
 		AdminEmailPath:              writeTestFile(t, "owner@example.com"),
-		DeviceIDPath:                deviceIDPath,
-		DeviceSecretPath:            deviceSecretPath,
+		FleetIDPath:                 fleetIDPath,
+		FleetSecretPath:             fleetSecretPath,
 		StateDirectory:              t.TempDir(),
 		CompanionJobPath:            filepath.Join(t.TempDir(), "jobs.json"),
 		AdminUIPath:                 t.TempDir(),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
-		case request.URL.String() == "https://api.intern.kim/api/users?device_id=dc719d8e" && request.Method == http.MethodGet:
+		case request.URL.String() == "https://api.intern.kim/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"owner@example.com","role":"admin"},{"email":"admin@example.com","role":"admin","mattermostUserID":"admin-id","mattermostUsername":"admin"}]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin-id"}`, http.Header{"Token": []string{"admin-token"}}), nil
@@ -1198,7 +1203,7 @@ func TestAdminRemoveSkipsProtectedMattermostUserDeactivation(t *testing.T) {
 			return mattermostConnectCommandSetupResponse(t, request), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/admin-id" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"id":"admin-id","email":"admin@example.com","username":"admin","roles":"system_admin system_user"}`, nil), nil
-		case request.URL.String() == "https://api.intern.kim/api/users/admin@example.com?device_id=dc719d8e" && request.Method == http.MethodDelete:
+		case request.URL.String() == "https://api.intern.kim/api/users/admin@example.com?fleet_id=dc719d8e" && request.Method == http.MethodDelete:
 			pagesDeleteCalled = true
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case isBlueclawRemoveRequest(t, request, "admin@example.com"):
@@ -1687,18 +1692,18 @@ func flowNotificationTestTask(status string) flowTask {
 
 func newFlowAuthorizationTestService(t *testing.T) *Service {
 	t.Helper()
-	deviceIDPath := writeTestFile(t, "device-1")
-	deviceSecretPath := writeTestFile(t, "secret-1")
+	fleetIDPath := writeTestFile(t, "device-1")
+	fleetSecretPath := writeTestFile(t, "secret-1")
 	service := NewService(Configuration{
 		APIBaseURL:            "https://api.intern.kim",
 		AdminEmailPath:        writeTestFile(t, "admin@example.com"),
 		ClaimedAdminEmailPath: writeTestFile(t, "admin@example.com"),
-		DeviceIDPath:          deviceIDPath,
-		DeviceSecretPath:      deviceSecretPath,
+		FleetIDPath:           fleetIDPath,
+		FleetSecretPath:       fleetSecretPath,
 		FlowDatabasePath:      filepath.Join(t.TempDir(), "flow.sqlite"),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() == "https://api.intern.kim/api/users?device_id=device-1" && request.Method == http.MethodGet {
+		if request.URL.String() == "https://api.intern.kim/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"admin@example.com","name":"Admin","role":"admin","status":"active"},{"email":"staff@example.com","name":"Staff","role":"member","status":"active"},{"email":"other@example.com","name":"Other","role":"member","status":"active"}]}`, nil), nil
 		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
@@ -1763,6 +1768,8 @@ func jsonResponse(statusCode int, body string, header http.Header) *http.Respons
 
 func isMattermostFlowSetupRequest(request *http.Request) bool {
 	switch {
+	case request.URL.String() == "http://mattermost.local/api/v4/channels/channel-1":
+		return true
 	case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/flow":
 		return true
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/patch" && request.Method == http.MethodPut:
@@ -1781,6 +1788,8 @@ func isMattermostFlowSetupRequest(request *http.Request) bool {
 func mattermostFlowSetupResponse(t *testing.T, request *http.Request) *http.Response {
 	t.Helper()
 	switch {
+	case request.URL.String() == "http://mattermost.local/api/v4/channels/channel-1":
+		return jsonResponse(http.StatusOK, `{"id":"channel-1"}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/flow":
 		return jsonResponse(http.StatusOK, `{"id":"flow-channel"}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/patch" && request.Method == http.MethodPut:
@@ -2173,15 +2182,15 @@ func TestMattermostConnectCommandRejectsInvalidToken(t *testing.T) {
 
 func TestMattermostConnectCommandCreatesEphemeralOwnerPairing(t *testing.T) {
 	stateDirectory := t.TempDir()
-	deviceIDPath := filepath.Join(stateDirectory, "device-id")
+	fleetIDPath := filepath.Join(stateDirectory, "fleet-id")
 	adminPasswordPath := filepath.Join(stateDirectory, "admin-pass")
-	writeFile(t, deviceIDPath, "dc719d8e")
+	writeFile(t, fleetIDPath, "dc719d8e")
 	writeFile(t, adminPasswordPath, "admin-pass")
 	service := NewService(Configuration{
 		StateDirectory:              stateDirectory,
 		MattermostBaseURL:           "http://mattermost.local",
 		MattermostAdminPasswordPath: adminPasswordPath,
-		DeviceIDPath:                deviceIDPath,
+		FleetIDPath:                 fleetIDPath,
 		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
 	})
 	writeFile(t, service.mattermostConnectCommandTokenPath(), "connect-token")
@@ -2261,9 +2270,9 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	adminPasswordPath := filepath.Join(stateDirectory, "admin-pass")
-	deviceIDPath := filepath.Join(envDirectory, "device-id")
+	fleetIDPath := filepath.Join(envDirectory, "fleet-id")
 	writeFile(t, adminPasswordPath, "admin-pass")
-	writeFile(t, deviceIDPath, "device-1")
+	writeFile(t, fleetIDPath, "device-1")
 	flowChannelCreated := false
 	flowChannelPatched := false
 	flowEntryPostCreated := false
@@ -2272,7 +2281,7 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 		StateDirectory:              stateDirectory,
 		MattermostBaseURL:           "http://mattermost.local",
 		MattermostAdminPasswordPath: adminPasswordPath,
-		DeviceIDPath:                deviceIDPath,
+		FleetIDPath:                 fleetIDPath,
 		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {

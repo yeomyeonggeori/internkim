@@ -187,7 +187,7 @@ func TestResolveCloudflareSSHHostnameIgnoresLegacyNestedHostname(t *testing.T) {
 	t.Setenv("HOME", homeDirectory)
 	stateDirectory := setupStateDir(filepath.Join(homeDirectory, ".internkim"), setup.BoardJetsonOrinNano)
 	saveState(stateDirectory, "ssh_hostname", "ssh.device-1.intern.kim")
-	saveState(stateDirectory, "device_id", "device-1")
+	saveState(stateDirectory, "fleet_id", "device-1")
 	target := commandTarget{
 		stateDir:     stateDirectory,
 		sshHostname:  "ssh.device-1.intern.kim",
@@ -198,6 +198,76 @@ func TestResolveCloudflareSSHHostnameIgnoresLegacyNestedHostname(t *testing.T) {
 
 	if hostname != "ssh-device-1.intern.kim" {
 		t.Fatalf("expected flat SSH hostname, got %q", hostname)
+	}
+}
+
+func TestResolveCloudflareSSHHostnameIgnoresLegacyNodeHostname(t *testing.T) {
+	homeDirectory := t.TempDir()
+	t.Setenv("HOME", homeDirectory)
+	stateDirectory := setupStateDir(filepath.Join(homeDirectory, ".internkim"), setup.BoardJetsonOrinNano)
+	saveState(stateDirectory, "ssh_hostname", "ssh-1.device-1.intern.kim")
+	saveState(stateDirectory, "fleet_id", "device-1")
+	saveState(stateDirectory, "node_id", "1")
+	target := commandTarget{
+		stateDir:    stateDirectory,
+		nodeID:      "1",
+		sshHostname: "ssh-1.device-1.intern.kim",
+	}
+
+	hostname := resolveCloudflareSSHHostname(config{CFDomain: "intern.kim"}, target)
+
+	if hostname != "1.ssh.device-1.intern.kim" {
+		t.Fatalf("expected node SSH hostname, got %q", hostname)
+	}
+}
+
+func TestResolveCloudflareSSHHostnameIgnoresLegacyFlatNodeHostname(t *testing.T) {
+	homeDirectory := t.TempDir()
+	t.Setenv("HOME", homeDirectory)
+	stateDirectory := setupStateDir(filepath.Join(homeDirectory, ".internkim"), setup.BoardJetsonOrinNano)
+	saveState(stateDirectory, "ssh_hostname", "ssh-1-device-1.intern.kim")
+	saveState(stateDirectory, "fleet_id", "device-1")
+	saveState(stateDirectory, "node_id", "1")
+	target := commandTarget{
+		stateDir:    stateDirectory,
+		nodeID:      "1",
+		sshHostname: "ssh-1-device-1.intern.kim",
+	}
+
+	hostname := resolveCloudflareSSHHostname(config{CFDomain: "intern.kim"}, target)
+
+	if hostname != "1.ssh.device-1.intern.kim" {
+		t.Fatalf("expected node SSH hostname, got %q", hostname)
+	}
+}
+
+func TestCloudflareSSHRegistrationCacheIsBypassedWhenForced(t *testing.T) {
+	homeDirectory := t.TempDir()
+	t.Setenv("HOME", homeDirectory)
+	stateDirectory := setupStateDir(filepath.Join(homeDirectory, ".internkim"), setup.BoardJetsonOrinNano)
+	saveState(stateDirectory, "node_tunnel_token", "node-token")
+	saveState(stateDirectory, "tunnel_revision", setup.TunnelConfigurationRevision)
+	savedSSHHostname := "1.ssh.device-1.intern.kim"
+
+	if !canReuseCloudflareSSHRegistration(config{CFDomain: "intern.kim"}, stateDirectory, savedSSHHostname, false) {
+		t.Fatalf("expected current SSH registration cache to be reusable")
+	}
+	if canReuseCloudflareSSHRegistration(config{CFDomain: "intern.kim"}, stateDirectory, savedSSHHostname, true) {
+		t.Fatalf("expected forced setup to refresh SSH registration")
+	}
+}
+
+func TestCloudflareSSHRegistrationCacheIsBypassedWhenTLSIsPending(t *testing.T) {
+	homeDirectory := t.TempDir()
+	t.Setenv("HOME", homeDirectory)
+	stateDirectory := setupStateDir(filepath.Join(homeDirectory, ".internkim"), setup.BoardJetsonOrinNano)
+	saveState(stateDirectory, "node_tunnel_token", "node-token")
+	saveState(stateDirectory, "tunnel_revision", setup.TunnelConfigurationRevision)
+	saveState(stateDirectory, "tls_certificate_status", "initializing")
+	savedSSHHostname := "1.ssh.device-1.intern.kim"
+
+	if canReuseCloudflareSSHRegistration(config{CFDomain: "intern.kim"}, stateDirectory, savedSSHHostname, false) {
+		t.Fatalf("expected pending TLS state to refresh SSH registration")
 	}
 }
 
@@ -316,7 +386,7 @@ func TestPruneLocalLLMBuildCachesKeepsCurrentCache(t *testing.T) {
 
 func TestSetupStateDirSeparatesJetsonAndLabIdentity(t *testing.T) {
 	baseStateDir := t.TempDir()
-	saveState(baseStateDir, "device_id", "shared-device")
+	saveState(baseStateDir, "fleet_id", "shared-device")
 	saveState(baseStateDir, "board_ip", "192.168.0.248")
 	saveState(baseStateDir, "subnet", "192.168.0")
 
@@ -326,11 +396,11 @@ func TestSetupStateDirSeparatesJetsonAndLabIdentity(t *testing.T) {
 	if jetsonStateDir == labStateDir {
 		t.Fatalf("expected Jetson and lab state directories to differ")
 	}
-	if loadState(jetsonStateDir, "device_id") != "" {
-		t.Fatalf("expected Jetson state not to inherit shared device_id")
+	if loadState(jetsonStateDir, "fleet_id") != "" {
+		t.Fatalf("expected Jetson state not to inherit shared fleet_id")
 	}
-	if loadState(labStateDir, "device_id") != "" {
-		t.Fatalf("expected lab state not to inherit shared device_id")
+	if loadState(labStateDir, "fleet_id") != "" {
+		t.Fatalf("expected lab state not to inherit shared fleet_id")
 	}
 	if loadState(jetsonStateDir, "board_ip") != "" {
 		t.Fatalf("expected Jetson state not to inherit shared board_ip")

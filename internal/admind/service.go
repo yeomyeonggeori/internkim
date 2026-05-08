@@ -43,9 +43,9 @@ type Configuration struct {
 	MattermostAdminPasswordPath string
 	AdminEmailPath              string
 	ClaimedAdminEmailPath       string
-	DeviceIDPath                string
+	FleetIDPath                 string
 	DeviceURLPath               string
-	DeviceSecretPath            string
+	FleetSecretPath             string
 	AdminUIPath                 string
 	RepositoryRoot              string
 	CompanionFileDirectory      string
@@ -90,7 +90,7 @@ type Job struct {
 
 type BackupManifest struct {
 	FormatVersion  int               `json:"formatVersion"`
-	DeviceID       string            `json:"deviceID"`
+	FleetID        string            `json:"fleetID"`
 	CreatedAt      time.Time         `json:"createdAt"`
 	Components     []string          `json:"components"`
 	Checksums      map[string]string `json:"checksums"`
@@ -191,9 +191,9 @@ func DefaultConfiguration() Configuration {
 		MattermostAdminPasswordPath: "/root/.internkim/secrets/mm-admin-pass",
 		AdminEmailPath:              "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:       "/root/.internkim/state/admin/claimed-admin-email",
-		DeviceIDPath:                "/root/.internkim/env/device-id",
+		FleetIDPath:                 "/root/.internkim/env/fleet-id",
 		DeviceURLPath:               "/root/.internkim/env/device-url",
-		DeviceSecretPath:            "/root/.internkim/secrets/device-secret",
+		FleetSecretPath:             "/root/.internkim/secrets/fleet-secret",
 		AdminUIPath:                 "/opt/internkim/admin-ui",
 		RepositoryRoot:              "/",
 		CompanionFileDirectory:      "/tmp/internkim-companion-files",
@@ -411,7 +411,7 @@ func (service *Service) writeAdminSession(responseWriter http.ResponseWriter, re
 	response := adminSessionResponse{
 		Email:             callerEmail,
 		ClaimedAdminEmail: claimedAdminEmail,
-		IsAdmin:           isClaimedAdmin || service.isCurrentAdminEmail(request.Context(), callerEmail),
+		IsAdmin:           service.isCurrentAdminEmail(request.Context(), callerEmail),
 		IsClaimed:         claimedAdminEmail != "",
 		BootstrapStatus:   bootstrapResult.Status,
 		BootstrapError:    bootstrapResult.Error,
@@ -449,16 +449,16 @@ func companionReleases() []companionRelease {
 }
 
 func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *http.Request) {
-	deviceID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceIDPath)))
-	deviceSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceSecretPath))
-	if deviceID == "" || deviceSecret == "" {
+	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
+	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
+	if fleetID == "" || fleetSecret == "" {
 		http.Error(responseWriter, "device auth is not configured", http.StatusServiceUnavailable)
 		return
 	}
 	targetPath := strings.TrimPrefix(request.URL.Path, "/admin/api/users")
 	targetURL := strings.TrimRight(service.Configuration.APIBaseURL, "/") + "/api/users" + targetPath
 	if request.Method == http.MethodGet || request.Method == http.MethodDelete {
-		targetURL += "?device_id=" + url.QueryEscape(deviceID)
+		targetURL += "?fleet_id=" + url.QueryEscape(fleetID)
 	}
 	if request.Method == http.MethodPost || request.Method == http.MethodDelete {
 		if errorValue := service.ensureMattermostProvisionerAccount(request.Context()); errorValue != nil {
@@ -468,7 +468,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	var removedUser *adminUserMutation
 	var upsertedEmail string
 	if request.Method == http.MethodDelete {
-		userRecord, errorValue := service.lookupRemovableUser(request.Context(), deviceID, deviceSecret, targetPath)
+		userRecord, errorValue := service.lookupRemovableUser(request.Context(), fleetID, fleetSecret, targetPath)
 		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 			return
@@ -511,7 +511,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		upsertedEmail = payload.Email
 		upsertedName = payload.Name
 		if payload.Role != "admin" && strings.EqualFold(payload.Email, authenticatedCallerEmail(request)) {
-			records, errorValue := service.lookupUserRecords(request.Context(), deviceID, deviceSecret)
+			records, errorValue := service.lookupUserRecords(request.Context(), fleetID, fleetSecret)
 			if errorValue != nil {
 				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 				return
@@ -523,7 +523,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 				}
 			}
 		}
-		isLastAdminDemotion, errorValue := service.isLastAdminDemotion(request.Context(), deviceID, deviceSecret, payload.Email, payload.Role)
+		isLastAdminDemotion, errorValue := service.isLastAdminDemotion(request.Context(), fleetID, fleetSecret, payload.Email, payload.Role)
 		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 			return
@@ -547,7 +547,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			"userID":             payload.UserID,
 			"handle":             payload.Handle,
 			"name":               payload.Name,
-			"device_id":          deviceID,
+			"fleet_id":           fleetID,
 			"email":              payload.Email,
 			"role":               payload.Role,
 			"mattermostUserID":   payload.MattermostUserID,
@@ -567,8 +567,8 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		return
 	}
 	proxyRequest.Header.Set("Content-Type", "application/json")
-	proxyRequest.Header.Set("X-InternKim-Device-ID", deviceID)
-	proxyRequest.Header.Set("X-InternKim-Device-Secret", deviceSecret)
+	proxyRequest.Header.Set("X-InternKim-Fleet-ID", fleetID)
+	proxyRequest.Header.Set("X-InternKim-Fleet-Secret", fleetSecret)
 	client := service.HTTPClient
 	if client == nil {
 		client = http.DefaultClient
@@ -634,12 +634,12 @@ type pagesUsersResponse struct {
 	Records []adminUserMutation `json:"records"`
 }
 
-func (service *Service) lookupRemovableUser(ctx context.Context, deviceID string, deviceSecret string, targetPath string) (*adminUserMutation, error) {
+func (service *Service) lookupRemovableUser(ctx context.Context, fleetID string, fleetSecret string, targetPath string) (*adminUserMutation, error) {
 	email := strings.TrimPrefix(targetPath, "/")
 	if decodedEmail, errorValue := url.PathUnescape(email); errorValue == nil {
 		email = decodedEmail
 	}
-	records, errorValue := service.lookupUserRecords(ctx, deviceID, deviceSecret)
+	records, errorValue := service.lookupUserRecords(ctx, fleetID, fleetSecret)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -663,11 +663,11 @@ func (service *Service) lookupRemovableUser(ctx context.Context, deviceID string
 	return nil, nil
 }
 
-func (service *Service) isLastAdminDemotion(ctx context.Context, deviceID string, deviceSecret string, email string, role string) (bool, error) {
+func (service *Service) isLastAdminDemotion(ctx context.Context, fleetID string, fleetSecret string, email string, role string) (bool, error) {
 	if role == "admin" {
 		return false, nil
 	}
-	records, errorValue := service.lookupUserRecords(ctx, deviceID, deviceSecret)
+	records, errorValue := service.lookupUserRecords(ctx, fleetID, fleetSecret)
 	if errorValue != nil {
 		return false, errorValue
 	}
@@ -686,14 +686,14 @@ func (service *Service) isLastAdminDemotion(ctx context.Context, deviceID string
 	return isTargetAdmin && adminTotal <= 1, nil
 }
 
-func (service *Service) lookupUserRecords(ctx context.Context, deviceID string, deviceSecret string) ([]adminUserMutation, error) {
-	requestURL := strings.TrimRight(service.Configuration.APIBaseURL, "/") + "/api/users?device_id=" + url.QueryEscape(deviceID)
+func (service *Service) lookupUserRecords(ctx context.Context, fleetID string, fleetSecret string) ([]adminUserMutation, error) {
+	requestURL := strings.TrimRight(service.Configuration.APIBaseURL, "/") + "/api/users?fleet_id=" + url.QueryEscape(fleetID)
 	request, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	request.Header.Set("X-InternKim-Device-ID", deviceID)
-	request.Header.Set("X-InternKim-Device-Secret", deviceSecret)
+	request.Header.Set("X-InternKim-Fleet-ID", fleetID)
+	request.Header.Set("X-InternKim-Fleet-Secret", fleetSecret)
 	response, errorValue := service.httpClient().Do(request)
 	if errorValue != nil {
 		return nil, errorValue
@@ -898,7 +898,7 @@ func (service *Service) createPlainBackup(ctx context.Context, plainPath string,
 	}
 	manifest := &BackupManifest{
 		FormatVersion: 1,
-		DeviceID:      readTrimmedFile(service.Configuration.DeviceIDPath),
+		FleetID:       readTrimmedFile(service.Configuration.FleetIDPath),
 		CreatedAt:     time.Now().UTC(),
 		Components: []string{
 			"internkim",
@@ -1184,9 +1184,9 @@ func authenticatedCallerEmail(request *http.Request) string {
 }
 
 func (service *Service) hasDeviceAuth() bool {
-	deviceID := strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceIDPath))
-	deviceSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceSecretPath))
-	return deviceID != "" && deviceSecret != ""
+	fleetID := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath))
+	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
+	return fleetID != "" && fleetSecret != ""
 }
 
 func (service *Service) isClaimedAdminEmail(email string) bool {
@@ -1217,6 +1217,9 @@ func (service *Service) ensureFirstAdminClaim(ctx context.Context, callerEmail s
 		}
 		return firstAdminBootstrapResult{Email: normalizedEmail, Status: firstAdminBootstrapRejected, Error: "first admin is already claimed by another email"}
 	}
+	if hasAdmin, errorValue := service.hasCurrentAdminUsers(ctx); errorValue == nil && hasAdmin {
+		return firstAdminBootstrapResult{Email: normalizedEmail, Status: firstAdminBootstrapRejected, Error: "first admin is already claimed by another email"}
+	}
 
 	result, errorValue := service.claimFirstAdmin(ctx, normalizedEmail)
 	if errorValue != nil {
@@ -1229,7 +1232,13 @@ func (service *Service) ensureFirstAdminClaim(ctx context.Context, callerEmail s
 
 func (service *Service) ensureClaimedFirstAdminAccount(ctx context.Context, email string) firstAdminBootstrapResult {
 	currentResult := service.readFirstAdminBootstrapResult()
-	if currentResult.MattermostPasswordVersion == firstAdminMattermostPasswordVersion && currentResult.PolicyVersion == firstAdminPolicyVersion {
+	isCurrentAdmin := service.isCurrentAdminEmail(ctx, email)
+	if currentResult.MattermostPasswordVersion == firstAdminMattermostPasswordVersion && currentResult.PolicyVersion == firstAdminPolicyVersion && isCurrentAdmin {
+		currentResult.Email = email
+		currentResult.Status = firstAdminBootstrapClaimed
+		return currentResult
+	}
+	if hasAdmin, errorValue := service.hasCurrentAdminUsers(ctx); errorValue == nil && hasAdmin && !isCurrentAdmin {
 		currentResult.Email = email
 		currentResult.Status = firstAdminBootstrapClaimed
 		return currentResult
@@ -1239,28 +1248,34 @@ func (service *Service) ensureClaimedFirstAdminAccount(ctx context.Context, emai
 		log.Printf("first admin repair failed for %s: %v", email, errorValue)
 		return service.writeFirstAdminBootstrapResult(firstAdminBootstrapResult{Email: email, Status: firstAdminBootstrapFailed, Error: errorValue.Error()})
 	}
+	if !isCurrentAdmin {
+		if errorValue := service.writeClaimedAdminRole(ctx, email); errorValue != nil {
+			log.Printf("first admin role repair failed for %s: %v", email, errorValue)
+			return service.writeFirstAdminBootstrapResult(firstAdminBootstrapResult{Email: email, Status: firstAdminBootstrapFailed, Error: errorValue.Error()})
+		}
+	}
 	return service.writeFirstAdminBootstrapResult(result)
 }
 
 func (service *Service) claimFirstAdmin(ctx context.Context, email string) (firstAdminBootstrapResult, error) {
-	deviceID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceIDPath)))
-	deviceSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceSecretPath))
-	if deviceID == "" || deviceSecret == "" {
+	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
+	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
+	if fleetID == "" || fleetSecret == "" {
 		return firstAdminBootstrapResult{}, fmt.Errorf("device auth is not configured")
 	}
 
-	records, errorValue := service.lookupUserRecords(ctx, deviceID, deviceSecret)
+	records, errorValue := service.lookupUserRecords(ctx, fleetID, fleetSecret)
 	if errorValue != nil {
 		return firstAdminBootstrapResult{}, errorValue
 	}
-	if errorValue := service.writeUserRole(ctx, deviceID, deviceSecret, email, "admin"); errorValue != nil {
+	if errorValue := service.writeUserRole(ctx, fleetID, fleetSecret, email, "admin"); errorValue != nil {
 		return firstAdminBootstrapResult{}, errorValue
 	}
 	for _, record := range records {
 		if record.Role != "admin" || strings.EqualFold(record.Email, email) {
 			continue
 		}
-		if errorValue := service.writeUserRole(ctx, deviceID, deviceSecret, record.Email, "member"); errorValue != nil {
+		if errorValue := service.writeUserRole(ctx, fleetID, fleetSecret, record.Email, "member"); errorValue != nil {
 			return firstAdminBootstrapResult{}, errorValue
 		}
 	}
@@ -1519,11 +1534,13 @@ func (service *Service) consumeFirstAdminPassword(email string) firstAdminPasswo
 	return passwordDocument
 }
 
-func (service *Service) writeUserRole(ctx context.Context, deviceID string, deviceSecret string, email string, role string) error {
+func (service *Service) writeUserRole(ctx context.Context, fleetID string, fleetSecret string, email string, role string) error {
 	payload := map[string]string{
-		"device_id": deviceID,
-		"email":     strings.ToLower(strings.TrimSpace(email)),
-		"role":      normalizeAdminUserRole(role),
+		"fleet_id": fleetID,
+		"email":    strings.ToLower(strings.TrimSpace(email)),
+		"role":     normalizeAdminUserRole(role),
+		"handle":   normalizeMattermostHandle(mattermostUsernameBase(email)),
+		"name":     firstNonEmpty(strings.TrimSpace(email), "Admin"),
 	}
 	document, errorValue := json.Marshal(payload)
 	if errorValue != nil {
@@ -1535,8 +1552,8 @@ func (service *Service) writeUserRole(ctx context.Context, deviceID string, devi
 		return errorValue
 	}
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("X-InternKim-Device-ID", deviceID)
-	request.Header.Set("X-InternKim-Device-Secret", deviceSecret)
+	request.Header.Set("X-InternKim-Fleet-ID", fleetID)
+	request.Header.Set("X-InternKim-Fleet-Secret", fleetSecret)
 	response, errorValue := service.httpClient().Do(request)
 	if errorValue != nil {
 		return errorValue
@@ -1549,16 +1566,42 @@ func (service *Service) writeUserRole(ctx context.Context, deviceID string, devi
 	return fmt.Errorf("write user role returned %d: %s", response.StatusCode, strings.TrimSpace(string(responseDocument)))
 }
 
+func (service *Service) writeClaimedAdminRole(ctx context.Context, email string) error {
+	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
+	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
+	if fleetID == "" || fleetSecret == "" {
+		return fmt.Errorf("device auth is not configured")
+	}
+	return service.writeUserRole(ctx, fleetID, fleetSecret, email, "admin")
+}
+
+func (service *Service) currentUserRecords(ctx context.Context) ([]adminUserMutation, error) {
+	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
+	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
+	if fleetID == "" || fleetSecret == "" {
+		return nil, fmt.Errorf("device auth is not configured")
+	}
+	return service.lookupUserRecords(ctx, fleetID, fleetSecret)
+}
+
+func (service *Service) hasCurrentAdminUsers(ctx context.Context) (bool, error) {
+	records, errorValue := service.currentUserRecords(ctx)
+	if errorValue != nil {
+		return false, errorValue
+	}
+	for _, record := range records {
+		if record.Role == "admin" {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (service *Service) isCurrentAdminEmail(ctx context.Context, callerEmail string) bool {
 	if strings.TrimSpace(callerEmail) == "" {
 		return false
 	}
-	deviceID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceIDPath)))
-	deviceSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceSecretPath))
-	if deviceID == "" || deviceSecret == "" {
-		return false
-	}
-	records, errorValue := service.lookupUserRecords(ctx, deviceID, deviceSecret)
+	records, errorValue := service.currentUserRecords(ctx)
 	if errorValue != nil {
 		return false
 	}
@@ -1754,14 +1797,14 @@ func (configuration Configuration) withDefaults() Configuration {
 	if configuration.ClaimedAdminEmailPath == "" {
 		configuration.ClaimedAdminEmailPath = defaultConfiguration.ClaimedAdminEmailPath
 	}
-	if configuration.DeviceIDPath == "" {
-		configuration.DeviceIDPath = defaultConfiguration.DeviceIDPath
+	if configuration.FleetIDPath == "" {
+		configuration.FleetIDPath = defaultConfiguration.FleetIDPath
 	}
 	if configuration.DeviceURLPath == "" {
 		configuration.DeviceURLPath = defaultConfiguration.DeviceURLPath
 	}
-	if configuration.DeviceSecretPath == "" {
-		configuration.DeviceSecretPath = defaultConfiguration.DeviceSecretPath
+	if configuration.FleetSecretPath == "" {
+		configuration.FleetSecretPath = defaultConfiguration.FleetSecretPath
 	}
 	if configuration.AdminUIPath == "" {
 		configuration.AdminUIPath = defaultConfiguration.AdminUIPath
