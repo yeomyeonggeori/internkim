@@ -3,6 +3,7 @@ package llmbackend
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -15,28 +16,51 @@ import (
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
-func TestOpenRouterLiveAgentActionSchemaFromEnv(t *testing.T) {
-	loadTestEnvFile(t)
-	if os.Getenv("INTERNKIM_LIVE_LLM_TEST") != "1" {
-		t.Skip("set INTERNKIM_LIVE_LLM_TEST=1 to run live OpenRouter schema compatibility test")
-	}
-	apiKey := strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY"))
-	if apiKey == "" {
-		t.Skip("OPENROUTER_API_KEY is required for live OpenRouter schema compatibility test")
-	}
-	keyPath := filepath.Join(t.TempDir(), "openrouter-api-key")
-	if errorValue := os.WriteFile(keyPath, []byte(apiKey), 0o600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
+func TestOpenRouterLiveDocumentedToolSchemaFromEnv(t *testing.T) {
+	backend, apiKey := liveOpenRouterBackendFromEnv(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
-	backend := OpenRouterBackend{
-		KeyPath:    keyPath,
-		BaseURL:    testEnvValue("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1/chat/completions"),
-		ModelName:  testEnvValue("OPENROUTER_MODEL", "google/gemini-2.5-flash"),
-		HTTPClient: httpClientWithTimeout(45 * time.Second),
+
+	requestDocument, errorValue := json.Marshal(map[string]any{
+		"model": backend.resolveModelName(""),
+		"messages": []map[string]any{{
+			"role":    "user",
+			"content": "What are the titles of some James Joyce books?",
+		}},
+		"tools": []map[string]any{{
+			"type": "function",
+			"function": map[string]any{
+				"name":        "search_gutenberg_books",
+				"description": "Search for books in the Project Gutenberg library",
+				"parameters": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"search_terms": map[string]any{
+							"type":        "array",
+							"items":       map[string]any{"type": "string"},
+							"description": "List of search terms to find books",
+						},
+					},
+					"required": []string{"search_terms"},
+				},
+			},
+		}},
+		"stream":              false,
+		"tool_choice":         "auto",
+		"parallel_tool_calls": false,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
 	}
+	if errorValue := assertOpenRouterRawRequestAccepted(ctx, backend, apiKey, requestDocument); errorValue != nil {
+		t.Fatalf("expected documented OpenRouter tool schema to be accepted: %v", errorValue)
+	}
+}
+
+func TestOpenRouterLiveAgentActionSchemaFromEnv(t *testing.T) {
+	backend, _ := liveOpenRouterBackendFromEnv(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
 	request := StructuredRequest{
 		Messages: []Message{{Role: "user", Content: "Call browser.open for https://example.com."}},
 		StructuredOutputSchema: StructuredOutputSchema{
@@ -63,27 +87,9 @@ func findLiveDescriptor(t *testing.T, descriptors []capabilities.Descriptor, too
 }
 
 func TestOpenRouterLiveCalendarActionSchemaFromEnv(t *testing.T) {
-	loadTestEnvFile(t)
-	if os.Getenv("INTERNKIM_LIVE_LLM_TEST") != "1" {
-		t.Skip("set INTERNKIM_LIVE_LLM_TEST=1 to run live OpenRouter schema compatibility test")
-	}
-	apiKey := strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY"))
-	if apiKey == "" {
-		t.Skip("OPENROUTER_API_KEY is required for live OpenRouter schema compatibility test")
-	}
-	keyPath := filepath.Join(t.TempDir(), "openrouter-api-key")
-	if errorValue := os.WriteFile(keyPath, []byte(apiKey), 0o600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
+	backend, _ := liveOpenRouterBackendFromEnv(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
-	backend := OpenRouterBackend{
-		KeyPath:    keyPath,
-		BaseURL:    testEnvValue("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1/chat/completions"),
-		ModelName:  testEnvValue("OPENROUTER_MODEL", "google/gemini-2.5-flash"),
-		HTTPClient: httpClientWithTimeout(45 * time.Second),
-	}
 	request := StructuredRequest{
 		Messages: []Message{{Role: "user", Content: "Add vacation to the calendar."}},
 		StructuredOutputSchema: StructuredOutputSchema{
@@ -96,6 +102,47 @@ func TestOpenRouterLiveCalendarActionSchemaFromEnv(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected live OpenRouter calendar schema to be accepted: %v", errorValue)
 	}
+}
+
+func TestOpenRouterLiveSingleCalendarActionSchemaFromEnv(t *testing.T) {
+	backend, _ := liveOpenRouterBackendFromEnv(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	request := StructuredRequest{
+		Messages: []Message{{Role: "user", Content: "Add vacation to the calendar."}},
+		StructuredOutputSchema: StructuredOutputSchema{
+			Name:               "blueclaw_agent_turn_action",
+			Document:           testActionSchemaForDescriptors(t, []capabilities.Descriptor{findLiveDescriptor(t, capabilities.CalendarDescriptors(), "calendar.event.add")}),
+			IsStrictlyEnforced: true,
+		},
+	}
+	errorValue := assertOpenRouterLiveSchemaAccepted(ctx, backend, request)
+	if errorValue != nil {
+		t.Fatalf("expected live OpenRouter single calendar schema to be accepted: %v", errorValue)
+	}
+}
+
+func liveOpenRouterBackendFromEnv(t *testing.T) (OpenRouterBackend, string) {
+	t.Helper()
+	loadTestEnvFile(t)
+	if os.Getenv("INTERNKIM_LIVE_LLM_TEST") != "1" {
+		t.Skip("set INTERNKIM_LIVE_LLM_TEST=1 to run live OpenRouter schema compatibility test")
+	}
+	apiKey := strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY"))
+	if apiKey == "" {
+		t.Skip("OPENROUTER_API_KEY is required for live OpenRouter schema compatibility test")
+	}
+	keyPath := filepath.Join(t.TempDir(), "openrouter-api-key")
+	if errorValue := os.WriteFile(keyPath, []byte(apiKey), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	backend := OpenRouterBackend{
+		KeyPath:    keyPath,
+		BaseURL:    testEnvValue("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1/chat/completions"),
+		ModelName:  testEnvValue("OPENROUTER_MODEL", "google/gemini-2.5-flash"),
+		HTTPClient: httpClientWithTimeout(45 * time.Second),
+	}
+	return backend, apiKey
 }
 
 func assertOpenRouterLiveSchemaAccepted(ctx context.Context, backend OpenRouterBackend, request StructuredRequest) error {
@@ -111,6 +158,10 @@ func assertOpenRouterLiveSchemaAccepted(ctx context.Context, backend OpenRouterB
 	if errorValue != nil {
 		return errorValue
 	}
+	return assertOpenRouterRawRequestAccepted(ctx, backend, apiKey, requestDocument)
+}
+
+func assertOpenRouterRawRequestAccepted(ctx context.Context, backend OpenRouterBackend, apiKey string, requestDocument []byte) error {
 	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, backend.BaseURL, bytes.NewReader(requestDocument))
 	if errorValue != nil {
 		return errorValue

@@ -147,8 +147,9 @@ func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 	if _, isFound := properties["siteID"]; !isFound {
 		t.Fatalf("expected projected tool parameters to preserve siteID, got %+v", parameters)
 	}
-	if _, isFound := parameters["required"]; isFound {
-		t.Fatalf("expected OpenRouter native tool parameters to omit required, got %+v", parameters)
+	required := parameters["required"].([]any)
+	if len(required) != 1 || required[0] != "siteID" {
+		t.Fatalf("expected required field to be preserved, got %+v", parameters)
 	}
 	if receivedDocument["seed"] != float64(seed) {
 		t.Fatalf("expected seed to be forwarded, got %+v", receivedDocument)
@@ -249,9 +250,7 @@ func TestNativeActionToolsRemoveUndefinedRequiredParameters(t *testing.T) {
 	if !isFound || len(properties) != 0 {
 		t.Fatalf("expected empty properties to be explicit, got %+v", parameters)
 	}
-	if _, isFound := parameters["required"]; isFound {
-		t.Fatalf("expected undefined required fields to be removed, got %+v", parameters)
-	}
+	assertNativeRequiredFieldsHaveProperties(t, "browser.open", parameters)
 	if _, isFound := parameters["additionalProperties"]; isFound {
 		t.Fatalf("expected unsupported native schema keywords to be removed, got %+v", parameters)
 	}
@@ -285,7 +284,37 @@ func TestNativeActionToolsSanitizeProviderSpecificSchemaKeywords(t *testing.T) {
 	}
 }
 
-func TestNativeActionToolsOmitCalendarRequiredForOpenRouterGoogleCompatibility(t *testing.T) {
+func TestNativeActionToolsRemoveNonStringEnumsForOpenRouterCompatibility(t *testing.T) {
+	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
+		Name: "blueclaw_agent_turn_action",
+		Document: json.RawMessage(`{"oneOf":[
+			{"type":"object","properties":{"action":{"type":"string","enum":["call_tool"]},"toolName":{"type":"string","enum":["calendar.event.add"]},"toolInput":{"type":"object","properties":{"reminderLeadHours":{"type":"integer","enum":[1,2,3]},"color":{"type":"string","enum":["blue","green"]}},"required":["reminderLeadHours"],"additionalProperties":false}},"required":["action","toolName","toolInput"]}
+		]}`),
+	})
+	if errorValue != nil {
+		t.Fatalf("expected native tool set: %v", errorValue)
+	}
+	if !isActionSchema || len(toolSet.Tools) != 1 {
+		t.Fatalf("expected one native action tool, got action=%v tools=%+v", isActionSchema, toolSet.Tools)
+	}
+
+	var parameters map[string]any
+	if errorValue := json.Unmarshal(toolSet.Tools[0].Parameters, &parameters); errorValue != nil {
+		t.Fatalf("expected parameters to decode: %v", errorValue)
+	}
+	properties := parameters["properties"].(map[string]any)
+	reminderLeadHours := properties["reminderLeadHours"].(map[string]any)
+	if _, isFound := reminderLeadHours["enum"]; isFound {
+		t.Fatalf("expected non-string enum to be removed, got %+v", reminderLeadHours)
+	}
+	color := properties["color"].(map[string]any)
+	enumValues := color["enum"].([]any)
+	if len(enumValues) != 2 || enumValues[0] != "blue" || enumValues[1] != "green" {
+		t.Fatalf("expected string enum to be preserved, got %+v", color)
+	}
+}
+
+func TestNativeActionToolsPreserveCalendarRequiredForOpenRouterCompatibility(t *testing.T) {
 	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
 		Name:     "blueclaw_agent_turn_action",
 		Document: testActionSchemaForDescriptors(t, capabilities.CalendarDescriptors()),
@@ -308,9 +337,11 @@ func TestNativeActionToolsOmitCalendarRequiredForOpenRouterGoogleCompatibility(t
 			t.Fatalf("expected property %q in calendar schema: %+v", fieldName, parameters)
 		}
 	}
-	if _, isFound := parameters["required"]; isFound {
-		t.Fatalf("expected required to be omitted from native tool schema, got %+v", parameters)
+	required := parameters["required"].([]any)
+	if len(required) != 3 {
+		t.Fatalf("expected calendar required fields to be preserved, got %+v", parameters)
 	}
+	assertNativeRequiredFieldsHaveProperties(t, "calendar.event.add", parameters)
 }
 
 func TestNativeActionToolsProjectEveryDefaultCapabilitySchema(t *testing.T) {
@@ -828,6 +859,7 @@ func assertNativeSchemaMapIsProviderSafe(t *testing.T, toolName string, value an
 			if _, isFound := document["properties"]; !isFound {
 				t.Fatalf("schema for %s has object without properties: %+v", toolName, document)
 			}
+			assertNativeRequiredFieldsHaveProperties(t, toolName, document)
 		}
 		if document["type"] == "array" {
 			if _, isFound := document["items"]; !isFound {
@@ -840,6 +872,27 @@ func assertNativeSchemaMapIsProviderSafe(t *testing.T, toolName string, value an
 	if isArray {
 		for _, item := range values {
 			assertNativeSchemaMapIsProviderSafe(t, toolName, item, false)
+		}
+	}
+}
+
+func assertNativeRequiredFieldsHaveProperties(t *testing.T, toolName string, document map[string]any) {
+	t.Helper()
+	properties, isProperties := document["properties"].(map[string]any)
+	if !isProperties {
+		return
+	}
+	required, isRequired := document["required"].([]any)
+	if !isRequired {
+		return
+	}
+	for _, fieldName := range required {
+		fieldNameString, isString := fieldName.(string)
+		if !isString {
+			t.Fatalf("schema for %s has non-string required field: %+v", toolName, document)
+		}
+		if _, isFound := properties[fieldNameString]; !isFound {
+			t.Fatalf("schema for %s requires undefined field %q: %+v", toolName, fieldNameString, document)
 		}
 	}
 }
