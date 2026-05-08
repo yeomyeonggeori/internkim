@@ -24,6 +24,8 @@ type openAIRequest struct {
 	Tools          []openAITool      `json:"tools,omitempty"`
 	ToolChoice     string            `json:"tool_choice,omitempty"`
 	ParallelTools  *bool             `json:"parallel_tool_calls,omitempty"`
+	Seed           *int64            `json:"seed,omitempty"`
+	Temperature    *float64          `json:"temperature,omitempty"`
 }
 
 type openAIJSONSchema struct {
@@ -153,11 +155,13 @@ func (client openAICompatClient) client() *http.Client {
 	return client.HTTPClient
 }
 
-func openAIChatRequest(modelName string, messages []Message, schema *StructuredOutputSchema) openAIRequest {
+func openAIChatRequest(modelName string, messages []Message, schema *StructuredOutputSchema, options GenerationOptions) openAIRequest {
 	request := openAIRequest{
-		Model:    modelName,
-		Messages: messages,
-		Stream:   false,
+		Model:       modelName,
+		Messages:    messages,
+		Stream:      false,
+		Seed:        options.Seed,
+		Temperature: options.Temperature,
 	}
 	if schema != nil {
 		request.ResponseFormat = &openAIJSONSchema{
@@ -172,7 +176,7 @@ func openAIChatRequest(modelName string, messages []Message, schema *StructuredO
 	return request
 }
 
-func openAIActionToolRequest(modelName string, messages []Message, tools []nativeActionTool) openAIRequest {
+func openAIActionToolRequest(modelName string, messages []Message, tools []nativeActionTool, options GenerationOptions) openAIRequest {
 	parallelTools := false
 	return openAIRequest{
 		Model:         modelName,
@@ -181,6 +185,8 @@ func openAIActionToolRequest(modelName string, messages []Message, tools []nativ
 		Tools:         openAIActionTools(tools),
 		ToolChoice:    "auto",
 		ParallelTools: &parallelTools,
+		Seed:          options.Seed,
+		Temperature:   options.Temperature,
 	}
 }
 

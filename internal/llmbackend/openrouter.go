@@ -224,6 +224,7 @@ func buildOpenRouterStructuredRequest(request StructuredRequest, modelName strin
 	if request.EnableResponseHealing {
 		document["plugins"] = []map[string]string{{"id": "response-healing"}}
 	}
+	addGenerationOptions(document, request.GenerationOptions)
 	return json.Marshal(document)
 }
 
@@ -236,6 +237,7 @@ func buildOpenRouterResponsesActionRequest(request StructuredRequest, modelName 
 		"parallel_tool_calls": false,
 		"stream":              false,
 	}
+	addGenerationOptions(document, request.GenerationOptions)
 	return json.Marshal(document)
 }
 
@@ -315,6 +317,25 @@ func buildOpenRouterTextRequest(request TextRequest, modelName string) ([]byte, 
 		document["plugins"] = []map[string]string{{"id": "response-healing"}}
 	}
 	return json.Marshal(document)
+}
+
+func addGenerationOptions(document map[string]any, options *GenerationOptions) {
+	if options == nil {
+		return
+	}
+	if options.Seed != nil {
+		document["seed"] = *options.Seed
+	}
+	if options.Temperature != nil {
+		document["temperature"] = *options.Temperature
+	}
+}
+
+func generationOptionsValue(options *GenerationOptions) GenerationOptions {
+	if options == nil {
+		return GenerationOptions{}
+	}
+	return *options
 }
 
 func readOpenRouterKey(path string) string {

@@ -20,6 +20,11 @@ type StructuredOutputSchema struct {
 	IsStrictlyEnforced bool            `json:"isStrictlyEnforced"`
 }
 
+type GenerationOptions struct {
+	Seed        *int64   `json:"seed,omitempty"`
+	Temperature *float64 `json:"temperature,omitempty"`
+}
+
 type RequestContext struct {
 	RequesterPersonID       string `json:"requesterPersonID,omitempty"`
 	RequesterEmail          string `json:"requesterEmail,omitempty"`
@@ -37,6 +42,7 @@ type StructuredRequest struct {
 	Context                RequestContext         `json:"context,omitempty"`
 	Messages               []Message              `json:"messages"`
 	StructuredOutputSchema StructuredOutputSchema `json:"structuredOutputSchema"`
+	GenerationOptions      *GenerationOptions     `json:"generationOptions,omitempty"`
 	RequireParameters      bool                   `json:"requireParameters"`
 	EnableResponseHealing  bool                   `json:"enableResponseHealing"`
 }
