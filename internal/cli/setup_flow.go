@@ -40,12 +40,13 @@ type setupFlowState struct {
 	wifiChanged  bool
 
 	registrationResolved bool
-	deviceID             string
-	boardID              string
+	fleetID              string
+	nodeID               string
 	adminEmail           string
 	deviceURL            string
 	tunnelToken          string
 	nodeTunnelToken      string
+	tlsCertificateStatus string
 	fleetRole            string
 	fleetActiveCount     int
 	fleetPendingCount    int
@@ -137,8 +138,8 @@ func newSetupFlowState(
 		stateDir:       stateDir,
 		scriptDir:      scriptDir,
 		boardBinDir:    filepath.Join(scriptDir, "build", "board-bin"),
-		deviceID:       loadOrCreateDeviceID(stateDir),
-		boardID:        loadBoardID(stateDir),
+		fleetID:        loadOrCreateFleetID(stateDir),
+		nodeID:         loadNodeID(stateDir),
 		getSSIDPath:    filepath.Join(scriptDir, "bin", "get-ssid"),
 		setupBuildID:   setupBuildID,
 		sshClient:      sshClient,
@@ -1488,13 +1489,13 @@ func (state *setupFlowState) stageGraphitiMemorydSD(context *setup.Context) erro
 	})
 }
 
-func (state *setupFlowState) ensureDeviceRegistration(force bool) error {
+func (state *setupFlowState) ensureFleetRegistration(force bool) error {
 	if state.registrationResolved && !force {
 		return nil
 	}
 
-	state.deviceID = loadOrCreateDeviceID(state.stateDir)
-	state.boardID = loadBoardID(state.stateDir)
+	state.fleetID = loadOrCreateFleetID(state.stateDir)
+	state.nodeID = loadNodeID(state.stateDir)
 	state.adminEmail = ""
 	if state.parameters.AdminEmail != "" {
 		state.adminEmail = state.parameters.AdminEmail
@@ -1504,32 +1505,34 @@ func (state *setupFlowState) ensureDeviceRegistration(force bool) error {
 	}
 	state.tunnelToken = loadState(state.stateDir, "tunnel_token")
 	state.nodeTunnelToken = loadState(state.stateDir, "node_tunnel_token")
+	state.tlsCertificateStatus = loadState(state.stateDir, "tls_certificate_status")
 	state.deviceURL = loadState(state.stateDir, "device_url")
 	tunnelOrigin := loadState(state.stateDir, "tunnel_origin")
 	tunnelRevision := loadState(state.stateDir, "tunnel_revision")
 
-	fmt.Printf("  %s: %s\n", state.messenger.t("기기 ID", "Device ID"), state.deviceID)
-	fmt.Printf("  %s: %s\n", state.messenger.t("보드 ID", "Board ID"), firstNonEmptyString(state.boardID, "auto"))
+	fmt.Printf("  %s: %s\n", state.messenger.t("플릿 ID", "Fleet ID"), state.fleetID)
+	fmt.Printf("  %s: %s\n", state.messenger.t("노드 ID", "Node ID"), firstNonEmptyString(state.nodeID, "auto"))
 
 	if force || state.tunnelToken == "" || state.nodeTunnelToken == "" || tunnelOrigin != setup.MattermostTunnelOrigin || tunnelRevision != setup.TunnelConfigurationRevision {
-		registrationResponse, err := registerDeviceWithCollisionRetry(
+		registrationResponse, err := registerFleetNodeWithCollisionRetry(
 			state.configuration,
 			state.stateDir,
-			state.deviceID,
+			state.fleetID,
 			state.adminEmail,
 		)
 		if err != nil {
 			return err
 		}
 
-		state.deviceID = registrationResponse.DeviceID
-		state.boardID = firstNonEmptyString(registrationResponse.BoardID, state.boardID)
+		state.fleetID = registrationResponse.registeredFleetID()
+		state.nodeID = firstNonEmptyString(registrationResponse.registeredNodeID(), state.nodeID)
 		state.fleetRole = firstNonEmptyString(registrationResponse.FleetRole, "active")
 		state.fleetActiveCount = defaultInt(registrationResponse.FleetActiveCount, 1)
 		state.fleetPendingCount = registrationResponse.FleetPendingCount
 		state.fleetQuorumSize = defaultInt(registrationResponse.FleetQuorumSize, 1)
 		state.tunnelToken = registrationResponse.TunnelToken
 		state.nodeTunnelToken = firstNonEmptyString(registrationResponse.NodeTunnelToken, registrationResponse.TunnelToken)
+		state.tlsCertificateStatus = registrationResponse.TLSStatus
 		state.deviceURL = registrationResponse.publicURL()
 		sshHostname := registrationResponse.SSHHostname
 		if sshHostname == "" {
@@ -1577,11 +1580,11 @@ func (state *setupFlowState) ensureDeviceRegistration(force bool) error {
 }
 
 func (state *setupFlowState) provisionTunnelSSH(context *setup.Context) error {
-	if err := state.ensureDeviceRegistration(context.Force); err != nil {
+	if err := state.ensureFleetRegistration(context.Force); err != nil {
 		return err
 	}
 
-	state.writeDeviceAuthFilesSSH()
+	state.writeFleetAuthFilesSSH()
 
 	state.sshClient.run(fmt.Sprintf(`mkdir -p /root/.internkim/secrets /root/.internkim/env /root/.internkim/config
 printf '%%s' %s > /root/.internkim/secrets/tunnel-token
@@ -1678,8 +1681,8 @@ done`)
 	return fmt.Errorf("cloudflared failed to start")
 }
 
-func (state *setupFlowState) writeDeviceAuthFilesSSH() {
-	deviceSecret := loadOrCreateDeviceSecret(state.stateDir)
+func (state *setupFlowState) writeFleetAuthFilesSSH() {
+	fleetSecret := loadOrCreateFleetSecret(state.stateDir)
 	state.sshClient.run(fmt.Sprintf(`mkdir -p /root/.internkim/secrets /root/.internkim/env
 printf '%%s' %s > %s
 printf '%%s' %s > %s
@@ -1689,14 +1692,15 @@ printf '%%s' %s > %s
 printf '%%s' %s > %s
 printf '%%s' %s > %s
 printf '%%s' %s > %s
+printf '%%s' %s > /root/.internkim/env/tls-certificate-status
 chown root:root %s
 chmod 600 %s
-chown root:blueclaw %s %s %s %s %s %s %s
-chmod 640 %s %s %s %s %s %s %s`,
-		quoteShellValue(state.deviceID),
-		quoteShellValue(blueclaw.InternKimDeviceIDPath),
-		quoteShellValue(state.boardID),
-		quoteShellValue(blueclaw.InternKimBoardIDPath),
+chown root:blueclaw %s %s %s %s %s %s %s /root/.internkim/env/tls-certificate-status
+chmod 640 %s %s %s %s %s %s %s /root/.internkim/env/tls-certificate-status`,
+		quoteShellValue(state.fleetID),
+		quoteShellValue(blueclaw.InternKimFleetIDPath),
+		quoteShellValue(state.nodeID),
+		quoteShellValue(blueclaw.InternKimNodeIDPath),
 		quoteShellValue(firstNonEmptyString(state.fleetRole, "active")),
 		quoteShellValue(blueclaw.InternKimFleetRolePath),
 		quoteShellValue(fmt.Sprint(defaultInt(state.fleetActiveCount, 1))),
@@ -1705,21 +1709,22 @@ chmod 640 %s %s %s %s %s %s %s`,
 		quoteShellValue(blueclaw.InternKimFleetPendingCountPath),
 		quoteShellValue(fmt.Sprint(defaultInt(state.fleetQuorumSize, 1))),
 		quoteShellValue(blueclaw.InternKimFleetQuorumSizePath),
-		quoteShellValue(deviceSecret),
-		quoteShellValue(blueclaw.InternKimDeviceSecretPath),
+		quoteShellValue(fleetSecret),
+		quoteShellValue(blueclaw.InternKimFleetSecretPath),
 		quoteShellValue(state.configuration.APIBaseURL),
 		quoteShellValue(blueclaw.InternKimAPIURLPath),
-		quoteShellValue(blueclaw.InternKimDeviceSecretPath),
-		quoteShellValue(blueclaw.InternKimDeviceSecretPath),
-		quoteShellValue(blueclaw.InternKimDeviceIDPath),
-		quoteShellValue(blueclaw.InternKimBoardIDPath),
+		quoteShellValue(state.tlsCertificateStatus),
+		quoteShellValue(blueclaw.InternKimFleetSecretPath),
+		quoteShellValue(blueclaw.InternKimFleetSecretPath),
+		quoteShellValue(blueclaw.InternKimFleetIDPath),
+		quoteShellValue(blueclaw.InternKimNodeIDPath),
 		quoteShellValue(blueclaw.InternKimFleetRolePath),
 		quoteShellValue(blueclaw.InternKimFleetActiveCountPath),
 		quoteShellValue(blueclaw.InternKimFleetPendingCountPath),
 		quoteShellValue(blueclaw.InternKimFleetQuorumSizePath),
 		quoteShellValue(blueclaw.InternKimAPIURLPath),
-		quoteShellValue(blueclaw.InternKimDeviceIDPath),
-		quoteShellValue(blueclaw.InternKimBoardIDPath),
+		quoteShellValue(blueclaw.InternKimFleetIDPath),
+		quoteShellValue(blueclaw.InternKimNodeIDPath),
 		quoteShellValue(blueclaw.InternKimFleetRolePath),
 		quoteShellValue(blueclaw.InternKimFleetActiveCountPath),
 		quoteShellValue(blueclaw.InternKimFleetPendingCountPath),
@@ -1748,7 +1753,7 @@ func defaultIntString(value string, fallback int) int {
 }
 
 func (state *setupFlowState) stageTunnelSD(context *setup.Context) error {
-	if err := state.ensureDeviceRegistration(context.Force); err != nil {
+	if err := state.ensureFleetRegistration(context.Force); err != nil {
 		return err
 	}
 
@@ -1770,10 +1775,10 @@ func (state *setupFlowState) stageTunnelSD(context *setup.Context) error {
 	if err := context.SD.WriteFile("tunnel-revision", []byte(setup.TunnelConfigurationRevision), 0o644); err != nil {
 		return err
 	}
-	if err := context.SD.WriteFile("device-id", []byte(state.deviceID), 0o644); err != nil {
+	if err := context.SD.WriteFile("fleet-id", []byte(state.fleetID), 0o644); err != nil {
 		return err
 	}
-	if err := context.SD.WriteFile("board-id", []byte(state.boardID), 0o644); err != nil {
+	if err := context.SD.WriteFile("node-id", []byte(state.nodeID), 0o644); err != nil {
 		return err
 	}
 	if err := context.SD.WriteFile("fleet-role", []byte(firstNonEmptyString(state.fleetRole, "active")), 0o644); err != nil {
@@ -1791,7 +1796,10 @@ func (state *setupFlowState) stageTunnelSD(context *setup.Context) error {
 	if err := context.SD.WriteFile("api-url", []byte(state.configuration.APIBaseURL), 0o644); err != nil {
 		return err
 	}
-	if err := context.SD.WriteFile("secrets/device-secret", []byte(loadOrCreateDeviceSecret(state.stateDir)), 0o644); err != nil {
+	if err := context.SD.WriteFile("tls-certificate-status", []byte(state.tlsCertificateStatus), 0o644); err != nil {
+		return err
+	}
+	if err := context.SD.WriteFile("secrets/fleet-secret", []byte(loadOrCreateFleetSecret(state.stateDir)), 0o644); err != nil {
 		return err
 	}
 	if err := context.SD.WriteFile("admin-email", []byte(state.adminEmail), 0o644); err != nil {
@@ -1876,10 +1884,10 @@ func (state *setupFlowState) stageSlackTokenSD(context *setup.Context) error {
 }
 
 func (state *setupFlowState) installUsersSyncSSH(context *setup.Context) error {
-	if err := state.ensureDeviceRegistration(false); err != nil {
+	if err := state.ensureFleetRegistration(false); err != nil {
 		return err
 	}
-	state.writeDeviceAuthFilesSSH()
+	state.writeFleetAuthFilesSSH()
 	if output, errorValue := state.sshClient.runResult(usersSyncDependencyInstallScript()); errorValue != nil {
 		return fmt.Errorf("install users sync dependencies failed: %s", strings.TrimSpace(output))
 	}
@@ -1915,7 +1923,7 @@ func (state *setupFlowState) stageUsersSyncSD(context *setup.Context) error {
 }
 
 func (state *setupFlowState) stageBootstrapSD(context *setup.Context) error {
-	if err := state.ensureDeviceRegistration(false); err != nil {
+	if err := state.ensureFleetRegistration(false); err != nil {
 		return err
 	}
 	if err := state.stageSlackTokenSD(context); err != nil {

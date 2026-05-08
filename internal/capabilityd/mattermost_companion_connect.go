@@ -155,11 +155,11 @@ func (service Service) companionConnectDeviceURL() string {
 	if admindBaseURL != "" && !isLocalBaseURL(admindBaseURL) {
 		return admindBaseURL
 	}
-	deviceID := strings.ToLower(strings.TrimSpace(readSecretValue(service.Configuration.DeviceIDPath)))
-	if deviceID == "" {
+	fleetID := strings.ToLower(strings.TrimSpace(readSecretValue(service.Configuration.FleetIDPath)))
+	if fleetID == "" {
 		return admindBaseURL
 	}
-	return "https://" + deviceID + ".example.test"
+	return "https://" + fleetID + ".example.test"
 }
 
 func isLocalBaseURL(value string) bool {

@@ -19,7 +19,7 @@ export const adminText = {
 		device: {
 			title: 'Device Admin',
 			description: '원격 기기의 상태와 관리자 인증을 확인합니다.',
-			deviceIDPlaceholder: 'device id',
+			fleetIDPlaceholder: 'fleet id',
 			check: '확인',
 			online: 'online',
 			unreachable: 'unreachable'
@@ -103,7 +103,7 @@ export const adminText = {
 		device: {
 			title: 'Device Admin',
 			description: 'Check remote device status and admin authentication.',
-			deviceIDPlaceholder: 'device id',
+			fleetIDPlaceholder: 'fleet id',
 			check: 'Check',
 			online: 'online',
 			unreachable: 'unreachable'

@@ -103,7 +103,7 @@ func TestMattermostCompanionConnectCreatesOwnerPairingAndRepliesInDM(t *testing.
 			AdmindBaseURL:       "http://127.0.0.1:18080",
 			MattermostBaseURL:   "https://mattermost.test",
 			MattermostTokenPath: writePlatformTestFile(t, "mattermost-token"),
-			DeviceIDPath:        writePlatformTestFile(t, "dc719d8e"),
+			FleetIDPath:         writePlatformTestFile(t, "dc719d8e"),
 		},
 		HTTPClient: httpClient,
 	}
@@ -292,7 +292,7 @@ func mattermostRecoveryTestService(t *testing.T, roundTrip func(*http.Request) (
 			AdmindBaseURL:       "http://127.0.0.1:18080",
 			MattermostBaseURL:   "https://mattermost.test",
 			MattermostTokenPath: writePlatformTestFile(t, "mattermost-token"),
-			DeviceIDPath:        writePlatformTestFile(t, "dc719d8e"),
+			FleetIDPath:         writePlatformTestFile(t, "dc719d8e"),
 		},
 		HTTPClient: &http.Client{Transport: roundTripFunc(roundTrip)},
 	}

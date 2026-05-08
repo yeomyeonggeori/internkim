@@ -1,14 +1,14 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { ensureAdminAccessApplications, ensureOneTimePinIdentityProvider, syncAccessPolicyEmails } from '$lib/cloudflare';
-import { isBoardRequest, normalizeDeviceID } from '$lib/device-auth';
+import { syncFleetAccessPolicies } from '$lib/fleet-access';
+import { isNodeRequest, normalizeFleetID } from '$lib/device-auth';
 import { adminEmails, kv, userEmails } from '$lib/kv';
 import type { Device, UserRecord } from '$lib/types';
 
 const corsHeaders = {
 	'Access-Control-Allow-Origin': '*',
 	'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-	'Access-Control-Allow-Headers': 'Content-Type, X-InternKim-Device-ID, X-InternKim-Device-Secret'
+	'Access-Control-Allow-Headers': 'Content-Type, X-InternKim-Fleet-ID, X-InternKim-Fleet-Secret, X-InternKim-Device-ID, X-InternKim-Device-Secret'
 };
 
 export const OPTIONS: RequestHandler = async () => {
@@ -27,15 +27,6 @@ async function usersRevision(records: UserRecord[]): Promise<string> {
 		.join('');
 }
 
-function cfEnv(env: App.Platform['env']) {
-	return {
-		CF_API_TOKEN: env.CF_API_TOKEN,
-		CF_ACCOUNT_ID: env.CF_ACCOUNT_ID,
-		CF_ZONE_ID: env.CF_ZONE_ID,
-		CF_DOMAIN: env.CF_DOMAIN
-	};
-}
-
 function callerEmail(request: Request): string {
 	return normalizeEmail(request.headers.get('Cf-Access-Authenticated-User-Email') ?? '');
 }
@@ -50,31 +41,30 @@ export const DELETE: RequestHandler = async ({ params, request, url, platform })
 	const env = platform?.env;
 	if (!env?.KV) throw error(500, 'KV not available');
 
-	const device_id = normalizeDeviceID(url.searchParams.get('device_id') ?? '');
+	const fleetID = normalizeFleetID(url.searchParams.get('fleet_id') ?? '');
 	const admin_token = url.searchParams.get('admin_token') ?? '';
 	const email = normalizeEmail(decodeURIComponent(params.email));
-	if (!device_id || !email) throw error(400, 'device_id and email required');
+	if (!fleetID || !email) throw error(400, 'fleet_id and email required');
 
-	const device = await kv.getDevice(env.KV, device_id);
-	if (!device) throw error(404, 'Device not found');
+	const device = await kv.getDevice(env.KV, fleetID);
+	if (!device) throw error(404, 'Fleet not found');
 
-	const records = await kv.getUserRecords(env.KV, device_id);
-	const isAuthorizedBoard = await isBoardRequest(request, device, device_id);
-	if (!isAuthorizedBoard && !isAdminRequest(request, device, adminEmails(records), admin_token, env.INTERNKIM_REGISTER_SECRET)) {
+	const records = await kv.getUserRecords(env.KV, fleetID);
+	const isAuthorizedNode = await isNodeRequest(request, device, fleetID);
+	if (!isAuthorizedNode && !isAdminRequest(request, device, adminEmails(records), admin_token, env.INTERNKIM_REGISTER_SECRET)) {
 		throw error(403, 'Admin only');
 	}
 	const record = records.find((item) => item.email === email);
-	if (!isAuthorizedBoard && record?.role === 'admin' && adminEmails(records).length <= 1) {
+	if (!isAuthorizedNode && record?.role === 'admin' && adminEmails(records).length <= 1) {
 		throw error(400, 'Cannot remove the last admin user');
 	}
 
 	const filtered = records.filter((item) => item.email !== email);
-	await kv.putUserRecords(env.KV, device_id, filtered);
-	if (device.access_app_id) {
-		await syncAccessPolicyEmails(cfEnv(env), device.access_app_id, userEmails(filtered));
+	await kv.putUserRecords(env.KV, fleetID, filtered);
+	const syncedDevice = await syncFleetAccessPolicies(env, fleetID, device, filtered);
+	if (syncedDevice.access_app_id !== device.access_app_id || syncedDevice.access_policy_id !== device.access_policy_id) {
+		await kv.putDevice(env.KV, fleetID, syncedDevice);
 	}
-	const identityProviderID = await ensureOneTimePinIdentityProvider(cfEnv(env));
-	await ensureAdminAccessApplications(cfEnv(env), device_id, identityProviderID, adminEmails(filtered));
 
 	return json({ users: userEmails(filtered), records: filtered, revision: await usersRevision(filtered) }, { headers: corsHeaders });
 };

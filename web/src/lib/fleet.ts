@@ -3,40 +3,42 @@ import type { Fleet, FleetMember, FleetMemberStatus } from './types';
 export const activeFleetMemberStatus: FleetMemberStatus = 'active';
 export const pendingFleetMemberStatus: FleetMemberStatus = 'pending';
 
-export function normalizeBoardID(boardID: string): string {
-	return boardID.trim().toLowerCase();
+export function normalizeNodeID(nodeID: string): string {
+	return nodeID.trim().toLowerCase();
 }
 
-export function normalizeBoardKey(boardKey: string): string {
-	return boardKey.trim().toLowerCase();
+export function normalizeNodeKey(nodeKey: string): string {
+	return nodeKey.trim().toLowerCase();
 }
 
-export function resolveFleetBoardID(existingFleet: Fleet | undefined, requestedBoardID: string, boardKey: string): string {
+export function resolveFleetNodeID(existingFleet: Fleet | undefined, requestedNodeID: string, nodeKey: string): string {
 	const fleet = normalizeFleet(existingFleet, '');
-	const normalizedBoardKey = normalizeBoardKey(boardKey);
-	const existingMember = findFleetMemberByKey(fleet, normalizedBoardKey);
-	if (existingMember) return existingMember.boardID;
-	return allocateFleetBoardID(fleet, requestedBoardID);
+	const normalizedNodeKey = normalizeNodeKey(nodeKey);
+	const existingMember = findFleetMemberByKey(fleet, normalizedNodeKey);
+	if (existingMember) return existingMember.nodeID;
+	return allocateFleetNodeID(fleet, requestedNodeID);
 }
 
-export function registerFleetBoard(existingFleet: Fleet | undefined, fleetID: string, boardID: string, boardKey: string, now: Date, memberMetadata: Partial<FleetMember> = {}): Fleet {
-	const normalizedBoardID = normalizeBoardID(boardID);
-	const normalizedBoardKey = normalizeBoardKey(boardKey);
+export function registerFleetNode(existingFleet: Fleet | undefined, fleetID: string, nodeID: string, nodeKey: string, now: Date, memberMetadata: Partial<FleetMember> = {}): Fleet {
+	const normalizedNodeID = normalizeNodeID(nodeID);
+	const normalizedNodeKey = normalizeNodeKey(nodeKey);
 	const fleet = normalizeFleet(existingFleet, fleetID);
-	if (fleet.members.some((member) => member.boardID === normalizedBoardID)) {
-		return promotePendingFleetMembers(updateFleetMember(fleet, normalizedBoardID, normalizedBoardKey, memberMetadata), now);
+	if (fleet.members.some((member) => member.nodeID === normalizedNodeID)) {
+		return promotePendingFleetMembers(updateFleetMember(fleet, normalizedNodeID, normalizedNodeKey, memberMetadata), now);
 	}
-	if (findFleetMemberByKey(fleet, normalizedBoardKey)) {
-		return promotePendingFleetMembers(updateFleetMemberByKey(fleet, normalizedBoardKey, normalizedBoardID, memberMetadata), now);
+	if (findFleetMemberByKey(fleet, normalizedNodeKey)) {
+		return promotePendingFleetMembers(updateFleetMemberByKey(fleet, normalizedNodeKey, normalizedNodeID, memberMetadata), now);
 	}
+	const renumberedFleet = renumberSingleLegacyNodeToZero(fleet, normalizedNodeID, normalizedNodeKey, memberMetadata);
+	if (renumberedFleet) return promotePendingFleetMembers(renumberedFleet, now);
 	return promotePendingFleetMembers(
 		{
 			...fleet,
 			members: [
 				...fleet.members,
 				{
-					boardID: normalizedBoardID,
-					boardKey: normalizedBoardKey,
+					nodeID: normalizedNodeID,
+					nodeKey: normalizedNodeKey,
 					status: pendingFleetMemberStatus,
 					joinedAt: now.toISOString(),
 					...memberMetadata
@@ -47,14 +49,32 @@ export function registerFleetBoard(existingFleet: Fleet | undefined, fleetID: st
 	);
 }
 
-export function fleetMemberStatus(fleet: Fleet, boardID: string): FleetMemberStatus {
-	const normalizedBoardID = normalizeBoardID(boardID);
-	return fleet.members.find((member) => member.boardID === normalizedBoardID)?.status ?? pendingFleetMemberStatus;
+function renumberSingleLegacyNodeToZero(fleet: Fleet, nodeID: string, nodeKey: string, memberMetadata: Partial<FleetMember>): Fleet | undefined {
+	const [member] = fleet.members;
+	if (nodeID !== '0' || !member || fleet.members.length !== 1) return undefined;
+	if (member.nodeID === '0' || !isNumericNodeID(member.nodeID)) return undefined;
+	return {
+		...fleet,
+		members: [
+			{
+				...member,
+				...memberMetadata,
+				nodeID,
+				nodeKey,
+				status: member.status
+			}
+		]
+	};
 }
 
-export function findFleetMember(fleet: Fleet | undefined, boardID: string): FleetMember | undefined {
-	const normalizedBoardID = normalizeBoardID(boardID);
-	return fleet?.members.find((member) => member.boardID === normalizedBoardID);
+export function fleetMemberStatus(fleet: Fleet, nodeID: string): FleetMemberStatus {
+	const normalizedNodeID = normalizeNodeID(nodeID);
+	return fleet.members.find((member) => member.nodeID === normalizedNodeID)?.status ?? pendingFleetMemberStatus;
+}
+
+export function findFleetMember(fleet: Fleet | undefined, nodeID: string): FleetMember | undefined {
+	const normalizedNodeID = normalizeNodeID(nodeID);
+	return fleet?.members.find((member) => member.nodeID === normalizedNodeID);
 }
 
 export function activeFleetMembers(fleet: Fleet): FleetMember[] {
@@ -70,9 +90,9 @@ export function fleetQuorumSize(fleet: Fleet): number {
 	return activeCount === 0 ? 0 : Math.floor(activeCount / 2) + 1;
 }
 
-function normalizeFleet(existingFleet: Fleet | undefined, fleetID: string): Fleet {
+export function normalizeFleet(existingFleet: Fleet | undefined, fleetID: string): Fleet {
 	return {
-		fleetID,
+		fleetID: existingFleet?.fleetID ?? fleetID,
 		members: existingFleet?.members?.map(normalizeFleetMember).filter(isFleetMember) ?? [],
 		workspaceHead: existingFleet?.workspaceHead,
 		ledgerRevision: existingFleet?.ledgerRevision
@@ -80,25 +100,26 @@ function normalizeFleet(existingFleet: Fleet | undefined, fleetID: string): Flee
 }
 
 function normalizeFleetMember(member: FleetMember): FleetMember {
-	const normalizedBoardID = normalizeBoardID(member.boardID);
+	const normalizedNodeID = normalizeNodeID(member.nodeID || '');
+	const normalizedNodeKey = normalizeNodeKey(member.nodeKey || '');
 	return {
 		...member,
-		boardID: normalizedBoardID,
-		boardKey: normalizeBoardKey(member.boardKey ?? ''),
+		nodeID: normalizedNodeID,
+		nodeKey: normalizedNodeKey,
 		status: member.status === activeFleetMemberStatus ? activeFleetMemberStatus : pendingFleetMemberStatus
 	};
 }
 
-function updateFleetMember(fleet: Fleet, boardID: string, boardKey: string, memberMetadata: Partial<FleetMember>): Fleet {
+function updateFleetMember(fleet: Fleet, nodeID: string, nodeKey: string, memberMetadata: Partial<FleetMember>): Fleet {
 	return {
 		...fleet,
 		members: fleet.members.map((member) =>
-			member.boardID === boardID
+			member.nodeID === nodeID
 				? {
 						...member,
 						...memberMetadata,
-						boardID,
-						boardKey,
+						nodeID,
+						nodeKey,
 						status: member.status
 					}
 				: member
@@ -106,16 +127,16 @@ function updateFleetMember(fleet: Fleet, boardID: string, boardKey: string, memb
 	};
 }
 
-function updateFleetMemberByKey(fleet: Fleet, boardKey: string, boardID: string, memberMetadata: Partial<FleetMember>): Fleet {
+function updateFleetMemberByKey(fleet: Fleet, nodeKey: string, nodeID: string, memberMetadata: Partial<FleetMember>): Fleet {
 	return {
 		...fleet,
 		members: fleet.members.map((member) =>
-			normalizeBoardKey(member.boardKey ?? '') === boardKey
+			normalizeNodeKey(member.nodeKey ?? '') === nodeKey
 				? {
 						...member,
 						...memberMetadata,
-						boardID,
-						boardKey,
+						nodeID,
+						nodeKey,
 						status: member.status
 					}
 				: member
@@ -124,28 +145,28 @@ function updateFleetMemberByKey(fleet: Fleet, boardKey: string, boardID: string,
 }
 
 function isFleetMember(member: FleetMember): boolean {
-	return member.boardID !== '';
+	return member.nodeID !== '';
 }
 
-function findFleetMemberByKey(fleet: Fleet, boardKey: string): FleetMember | undefined {
-	if (!boardKey) return undefined;
-	return fleet.members.find((member) => normalizeBoardKey(member.boardKey ?? '') === boardKey);
+function findFleetMemberByKey(fleet: Fleet, nodeKey: string): FleetMember | undefined {
+	if (!nodeKey) return undefined;
+	return fleet.members.find((member) => normalizeNodeKey(member.nodeKey ?? '') === nodeKey);
 }
 
-function allocateFleetBoardID(fleet: Fleet, requestedBoardID: string): string {
-	const usedBoardIDs = new Set(fleet.members.map((member) => member.boardID));
-	const normalizedBoardID = normalizeBoardID(requestedBoardID);
-	if (isNumericBoardID(normalizedBoardID) && !usedBoardIDs.has(normalizedBoardID)) {
-		return normalizedBoardID;
+function allocateFleetNodeID(fleet: Fleet, requestedNodeID: string): string {
+	const usedNodeIDs = new Set(fleet.members.map((member) => member.nodeID));
+	const normalizedNodeID = normalizeNodeID(requestedNodeID);
+	if (isNumericNodeID(normalizedNodeID) && !usedNodeIDs.has(normalizedNodeID)) {
+		return normalizedNodeID;
 	}
-	for (let boardNumber = 1; ; boardNumber += 1) {
-		const boardID = String(boardNumber);
-		if (!usedBoardIDs.has(boardID)) return boardID;
+	for (let nodeNumber = 0; ; nodeNumber += 1) {
+		const nodeID = String(nodeNumber);
+		if (!usedNodeIDs.has(nodeID)) return nodeID;
 	}
 }
 
-function isNumericBoardID(boardID: string): boolean {
-	return /^[1-9][0-9]*$/.test(boardID);
+function isNumericNodeID(nodeID: string): boolean {
+	return /^(0|[1-9][0-9]*)$/.test(nodeID);
 }
 
 function promotePendingFleetMembers(fleet: Fleet, now: Date): Fleet {

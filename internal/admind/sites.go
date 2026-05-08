@@ -49,6 +49,7 @@ type SiteRecord struct {
 	CurrentVersionID    string    `json:"currentVersionID,omitempty"`
 	PreviousVersionID   string    `json:"previousVersionID,omitempty"`
 	PublishedURL        string    `json:"publishedURL,omitempty"`
+	TLSStatus           string    `json:"tlsStatus,omitempty"`
 	Platform            string    `json:"platform,omitempty"`
 	ConversationID      string    `json:"conversationID,omitempty"`
 	WorkspacePath       string    `json:"workspacePath,omitempty"`
@@ -232,7 +233,7 @@ func (service *Service) deviceHost() string {
 			return normalizeHTTPHost(parsedURL.Host)
 		}
 	}
-	return normalizeHTTPHost(strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceIDPath)))
+	return normalizeHTTPHost(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
 }
 
 func normalizeHTTPHost(host string) string {
@@ -431,6 +432,7 @@ func (service *Service) createSiteRecord(payload siteCreateRequest) (*SiteRecord
 		Visibility:          firstNonEmpty(strings.TrimSpace(payload.Visibility), "public"),
 		Port:                port,
 		PublishedURL:        service.sitePublishedURL(slug),
+		TLSStatus:           service.siteTLSStatus(),
 		Platform:            strings.TrimSpace(payload.Platform),
 		ConversationID:      strings.TrimSpace(payload.ConversationID),
 		WorkspacePath:       siteGuestWorkspacePath(siteID),
@@ -476,6 +478,7 @@ func (service *Service) publishSite(ctx context.Context, payload sitePublishRequ
 	site.CurrentVersionID = versionID
 	site.LastPublishedCommit = commitSHA
 	site.Status = SiteStatusPublished
+	site.TLSStatus = service.siteTLSStatus()
 	site.UpdatedAt = now
 	site.UnpublishedAt = time.Time{}
 	site.DeletedAt = time.Time{}
@@ -993,6 +996,7 @@ func (service *Service) storeSite(site *SiteRecord) error {
 		return nil
 	}
 	site.PublishedURL = service.sitePublishedURL(site.Slug)
+	site.TLSStatus = service.siteTLSStatus()
 	if site.SourceWorkspacePath == "" {
 		site.SourceWorkspacePath = siteGuestWorkspacePath(site.SiteID)
 	}
@@ -1007,6 +1011,10 @@ func (service *Service) storeSite(site *SiteRecord) error {
 	service.sites[site.SiteID] = &copiedSite
 	service.mutex.Unlock()
 	return service.saveSites()
+}
+
+func (service *Service) siteTLSStatus() string {
+	return strings.TrimSpace(readTrimmedFile("/root/.internkim/env/tls-certificate-status"))
 }
 
 func (service *Service) saveSites() error {
@@ -1105,7 +1113,7 @@ func (service *Service) sitePublishedURL(slug string) string {
 	if deviceHost == "" {
 		return ""
 	}
-	return "http://" + normalizeSiteSlug(slug) + "." + deviceHost
+	return "https://" + normalizeSiteSlug(slug) + "." + deviceHost
 }
 
 func siteServiceName(siteID string) string {

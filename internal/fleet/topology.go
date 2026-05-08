@@ -14,8 +14,8 @@ const (
 )
 
 type Member struct {
-	BoardID string
-	Status  string
+	NodeID string
+	Status string
 }
 
 type State struct {
@@ -24,89 +24,89 @@ type State struct {
 }
 
 type JoinResult struct {
-	State             State
-	Member            Member
-	ActivatedBoardIDs []string
+	State            State
+	Member           Member
+	ActivatedNodeIDs []string
 }
 
-func NewState(fleetID string, boardID string) (State, error) {
-	normalizedBoardID, errorValue := NormalizeBoardID(boardID)
+func NewState(fleetID string, nodeID string) (State, error) {
+	normalizedNodeID, errorValue := NormalizeNodeID(nodeID)
 	if errorValue != nil {
 		return State{}, errorValue
 	}
 	return State{
 		FleetID: strings.TrimSpace(fleetID),
 		Members: []Member{{
-			BoardID: normalizedBoardID,
-			Status:  MemberStatusActive,
+			NodeID: normalizedNodeID,
+			Status: MemberStatusActive,
 		}},
 	}, nil
 }
 
-func NormalizeBoardID(boardID string) (string, error) {
-	normalizedBoardID := strings.Trim(strings.ToLower(strings.TrimSpace(boardID)), "-")
-	if normalizedBoardID == "" {
-		return "", errors.New("board id is required")
+func NormalizeNodeID(nodeID string) (string, error) {
+	normalizedNodeID := strings.Trim(strings.ToLower(strings.TrimSpace(nodeID)), "-")
+	if normalizedNodeID == "" {
+		return "", errors.New("node id is required")
 	}
-	if !isBoardIDCharacter(normalizedBoardID[0]) || !isBoardIDCharacter(normalizedBoardID[len(normalizedBoardID)-1]) {
-		return "", errors.New("board id must start and end with a letter or number")
+	if !isNodeIDCharacter(normalizedNodeID[0]) || !isNodeIDCharacter(normalizedNodeID[len(normalizedNodeID)-1]) {
+		return "", errors.New("node id must start and end with a letter or number")
 	}
-	for _, character := range normalizedBoardID {
-		if isBoardIDCharacter(byte(character)) || character == '-' {
+	for _, character := range normalizedNodeID {
+		if isNodeIDCharacter(byte(character)) || character == '-' {
 			continue
 		}
-		return "", errors.New("board id may contain only lowercase letters, numbers, and hyphens")
+		return "", errors.New("node id may contain only lowercase letters, numbers, and hyphens")
 	}
-	return normalizedBoardID, nil
+	return normalizedNodeID, nil
 }
 
-func (state State) AddBoard(boardID string) (JoinResult, error) {
-	normalizedBoardID, errorValue := NormalizeBoardID(boardID)
+func (state State) AddNode(nodeID string) (JoinResult, error) {
+	normalizedNodeID, errorValue := NormalizeNodeID(nodeID)
 	if errorValue != nil {
 		return JoinResult{}, errorValue
 	}
-	if member, ok := state.FindMember(normalizedBoardID); ok {
+	if member, ok := state.FindMember(normalizedNodeID); ok {
 		return JoinResult{State: state, Member: member}, nil
 	}
 	nextState := state.copy()
 	nextState.Members = append(nextState.Members, Member{
-		BoardID: normalizedBoardID,
-		Status:  MemberStatusPending,
+		NodeID: normalizedNodeID,
+		Status: MemberStatusPending,
 	})
-	activatedBoardIDs := nextState.promotePendingBoards()
-	member, _ := nextState.FindMember(normalizedBoardID)
+	activatedNodeIDs := nextState.promotePendingNodes()
+	member, _ := nextState.FindMember(normalizedNodeID)
 	return JoinResult{
-		State:             nextState,
-		Member:            member,
-		ActivatedBoardIDs: activatedBoardIDs,
+		State:            nextState,
+		Member:           member,
+		ActivatedNodeIDs: activatedNodeIDs,
 	}, nil
 }
 
-func (state State) RemoveBoard(boardID string) (State, error) {
-	normalizedBoardID, errorValue := NormalizeBoardID(boardID)
+func (state State) RemoveNode(nodeID string) (State, error) {
+	normalizedNodeID, errorValue := NormalizeNodeID(nodeID)
 	if errorValue != nil {
 		return State{}, errorValue
 	}
 	nextState := State{FleetID: state.FleetID}
 	for _, member := range state.Members {
-		if member.BoardID != normalizedBoardID {
+		if member.NodeID != normalizedNodeID {
 			nextState.Members = append(nextState.Members, member)
 			continue
 		}
 		if member.Status == MemberStatusActive {
-			return State{}, errors.New("active board removal would create an even voting fleet; add a replacement or reset to standalone")
+			return State{}, errors.New("active node removal would create an even voting fleet; add a replacement or reset to standalone")
 		}
 	}
 	return nextState, nil
 }
 
-func (state State) ResetStandalone(boardID string) (State, error) {
-	return NewState(state.FleetID, boardID)
+func (state State) ResetStandalone(nodeID string) (State, error) {
+	return NewState(state.FleetID, nodeID)
 }
 
-func (state State) FindMember(boardID string) (Member, bool) {
+func (state State) FindMember(nodeID string) (Member, bool) {
 	for _, member := range state.Members {
-		if member.BoardID == boardID {
+		if member.NodeID == nodeID {
 			return member, true
 		}
 	}
@@ -129,20 +129,20 @@ func (state State) QuorumSize() int {
 	return activeCount/2 + 1
 }
 
-func (state State) CanCommit(availableBoardIDs []string) bool {
-	if len(availableBoardIDs) == 0 {
+func (state State) CanCommit(availableNodeIDs []string) bool {
+	if len(availableNodeIDs) == 0 {
 		return false
 	}
-	availableBoards := map[string]bool{}
-	for _, boardID := range availableBoardIDs {
-		normalizedBoardID, errorValue := NormalizeBoardID(boardID)
+	availableNodes := map[string]bool{}
+	for _, nodeID := range availableNodeIDs {
+		normalizedNodeID, errorValue := NormalizeNodeID(nodeID)
 		if errorValue == nil {
-			availableBoards[normalizedBoardID] = true
+			availableNodes[normalizedNodeID] = true
 		}
 	}
 	availableActiveCount := 0
 	for _, member := range state.ActiveMembers() {
-		if availableBoards[member.BoardID] {
+		if availableNodes[member.NodeID] {
 			availableActiveCount++
 		}
 	}
@@ -155,12 +155,12 @@ func (state State) SelectOwner(key string) (Member, bool) {
 		return Member{}, false
 	}
 	sort.Slice(activeMembers, func(leftIndex int, rightIndex int) bool {
-		return activeMembers[leftIndex].BoardID < activeMembers[rightIndex].BoardID
+		return activeMembers[leftIndex].NodeID < activeMembers[rightIndex].NodeID
 	})
 	selectedMember := activeMembers[0]
-	selectedScore := rendezvousScore(key, selectedMember.BoardID)
+	selectedScore := rendezvousScore(key, selectedMember.NodeID)
 	for _, member := range activeMembers[1:] {
-		score := rendezvousScore(key, member.BoardID)
+		score := rendezvousScore(key, member.NodeID)
 		if score <= selectedScore {
 			continue
 		}
@@ -175,34 +175,34 @@ func (state State) copy() State {
 	return State{FleetID: state.FleetID, Members: members}
 }
 
-func (state *State) promotePendingBoards() []string {
+func (state *State) promotePendingNodes() []string {
 	if len(state.ActiveMembers()) == 0 {
-		activatedBoardID := state.activateOldestPendingBoard()
-		if activatedBoardID == "" {
+		activatedNodeID := state.activateOldestPendingNode()
+		if activatedNodeID == "" {
 			return nil
 		}
-		return []string{activatedBoardID}
+		return []string{activatedNodeID}
 	}
 
-	activatedBoardIDs := []string{}
+	activatedNodeIDs := []string{}
 	for len(state.PendingMembers()) >= 2 {
-		firstBoardID := state.activateOldestPendingBoard()
-		secondBoardID := state.activateOldestPendingBoard()
-		if firstBoardID == "" || secondBoardID == "" {
-			return activatedBoardIDs
+		firstNodeID := state.activateOldestPendingNode()
+		secondNodeID := state.activateOldestPendingNode()
+		if firstNodeID == "" || secondNodeID == "" {
+			return activatedNodeIDs
 		}
-		activatedBoardIDs = append(activatedBoardIDs, firstBoardID, secondBoardID)
+		activatedNodeIDs = append(activatedNodeIDs, firstNodeID, secondNodeID)
 	}
-	return activatedBoardIDs
+	return activatedNodeIDs
 }
 
-func (state *State) activateOldestPendingBoard() string {
+func (state *State) activateOldestPendingNode() string {
 	for index, member := range state.Members {
 		if member.Status != MemberStatusPending {
 			continue
 		}
 		state.Members[index].Status = MemberStatusActive
-		return member.BoardID
+		return member.NodeID
 	}
 	return ""
 }
@@ -217,11 +217,11 @@ func (state State) membersByStatus(status string) []Member {
 	return members
 }
 
-func isBoardIDCharacter(character byte) bool {
+func isNodeIDCharacter(character byte) bool {
 	return character >= 'a' && character <= 'z' || character >= '0' && character <= '9'
 }
 
-func rendezvousScore(key string, boardID string) uint64 {
-	digest := sha256.Sum256([]byte(key + "\x00" + boardID))
+func rendezvousScore(key string, nodeID string) uint64 {
+	digest := sha256.Sum256([]byte(key + "\x00" + nodeID))
 	return binary.BigEndian.Uint64(digest[:8])
 }
