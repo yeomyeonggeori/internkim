@@ -25,7 +25,7 @@ func (backend MLXBackend) CompleteStructured(ctx context.Context, request Struct
 }
 
 func (backend MLXBackend) CompleteText(ctx context.Context, request TextRequest) (Response, error) {
-	chatRequest := openAIChatRequest(backend.ModelName, request.Messages, nil)
+	chatRequest := openAIChatRequest(backend.ModelName, request.Messages, nil, GenerationOptions{})
 	content, errorValue := backend.client().chatCompletions(ctx, chatRequest)
 	if errorValue != nil {
 		return Response{}, errorValue

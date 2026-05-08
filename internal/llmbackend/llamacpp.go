@@ -22,7 +22,7 @@ func (backend LlamaCppBackend) CompleteStructured(ctx context.Context, request S
 	if response, isHandled, errorValue := backend.completeNativeAction(ctx, request); isHandled {
 		return response, errorValue
 	}
-	chatRequest := openAIChatRequest(backend.ModelName, request.Messages, &request.StructuredOutputSchema)
+	chatRequest := openAIChatRequest(backend.ModelName, request.Messages, &request.StructuredOutputSchema, generationOptionsValue(request.GenerationOptions))
 	content, errorValue := backend.client().chatCompletions(ctx, chatRequest)
 	if errorValue != nil {
 		return Response{}, errorValue
@@ -44,7 +44,7 @@ func (backend LlamaCppBackend) completeNativeAction(ctx context.Context, request
 	if errorValue != nil || !isActionSchema {
 		return Response{}, isActionSchema, errorValue
 	}
-	chatRequest := openAIActionToolRequest(backend.ModelName, request.Messages, toolSet.Tools)
+	chatRequest := openAIActionToolRequest(backend.ModelName, request.Messages, toolSet.Tools, generationOptionsValue(request.GenerationOptions))
 	content, errorValue := backend.client().chatCompletionAction(ctx, chatRequest, toolSet)
 	if errorValue != nil {
 		return Response{}, true, errorValue
@@ -59,7 +59,7 @@ func (backend LlamaCppBackend) completeNativeAction(ctx context.Context, request
 }
 
 func (backend LlamaCppBackend) CompleteText(ctx context.Context, request TextRequest) (Response, error) {
-	chatRequest := openAIChatRequest(backend.ModelName, request.Messages, nil)
+	chatRequest := openAIChatRequest(backend.ModelName, request.Messages, nil, GenerationOptions{})
 	content, errorValue := backend.client().chatCompletions(ctx, chatRequest)
 	if errorValue != nil {
 		return Response{}, errorValue
