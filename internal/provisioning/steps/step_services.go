@@ -181,20 +181,67 @@ func disabledServiceNames(context *Context) []string {
 }
 
 func blueclawServicesAreHealthy(context *Context) bool {
-	isHealthy := trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
-		trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
-		trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
-		trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
-		trimmedRun(context, blueclaw.CapabilitydHealthCheckCommand()) == "ok"
-	if !isHealthy || context.BoardType == BoardSimulation {
-		return isHealthy
+	report := readBlueclawServiceHealthReport(context)
+	if report["blueclaw"] != "active" {
+		return false
 	}
-	return trimmedRun(context, "systemctl is-active "+locallm.LlamaCppEmbeddingServiceName) == "active"
+	if report["capabilityd"] != "active" {
+		return false
+	}
+	if report["admind"] != "active" {
+		return false
+	}
+	if report["blueclawHealth"] != "ok" {
+		return false
+	}
+	if report["capabilitydHealth"] != "ok" {
+		return false
+	}
+	if context.BoardType == BoardSimulation {
+		return true
+	}
+	return report["embedding"] == "active"
 }
 
 type serviceUnitDocument struct {
 	path     string
 	document string
+}
+
+func readBlueclawServiceHealthReport(context *Context) map[string]string {
+	output := trimmedRun(context, blueclawServiceHealthReportCommand(context))
+	report := map[string]string{}
+	for _, line := range strings.Split(output, "\n") {
+		key, value, found := strings.Cut(strings.TrimSpace(line), "=")
+		if found {
+			report[key] = value
+		}
+	}
+	return report
+}
+
+func blueclawServiceHealthReportCommand(context *Context) string {
+	checks := []serviceHealthCheck{
+		{name: "blueclaw", command: "systemctl is-active " + blueclaw.BlueclawServiceName + " 2>/dev/null"},
+		{name: "capabilityd", command: "systemctl is-active " + blueclaw.CapabilitydServiceName + " 2>/dev/null"},
+		{name: "admind", command: "systemctl is-active " + blueclaw.AdmindServiceName + " 2>/dev/null"},
+		{name: "blueclawHealth", command: blueclaw.BlueclawHealthCheckCommand()},
+		{name: "capabilitydHealth", command: blueclaw.CapabilitydHealthCheckCommand()},
+	}
+	if context.BoardType != BoardSimulation {
+		checks = append(checks, serviceHealthCheck{name: "embedding", command: "systemctl is-active " + locallm.LlamaCppEmbeddingServiceName + " 2>/dev/null"})
+	}
+
+	var command strings.Builder
+	for _, check := range checks {
+		fmt.Fprintf(&command, "printf '%%s=' %s; (%s) 2>/dev/null || true\n", shellQuote(check.name), check.command)
+	}
+	return command.String()
+}
+
+type serviceHealthCheck struct {
+	name    string
+	command string
 }
 
 func blueclawRuntimeContractCheckCommand() string {
