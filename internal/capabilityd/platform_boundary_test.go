@@ -335,6 +335,31 @@ func TestMattermostDirectMessageDoesNotUseThreadRoot(t *testing.T) {
 	}
 }
 
+func TestMattermostDirectMessageWithMentionStartsThread(t *testing.T) {
+	event, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
+		ID:        "post-1",
+		UserID:    "user-1",
+		ChannelID: "dm-1",
+		Message:   "@internkim hello",
+	}, "bot-1", "D", "", true)
+	if errorValue != nil {
+		t.Fatalf("expected normalization to succeed: %v", errorValue)
+	}
+	if !hasEvent {
+		t.Fatal("expected direct message event")
+	}
+	if event.ConversationID != "thread:dm-1:post-1" {
+		t.Fatalf("expected mentioned dm to become thread conversation, got %q", event.ConversationID)
+	}
+	replyHandle, errorValue := decodePlatformHandle(event.ReplyTargetID)
+	if errorValue != nil {
+		t.Fatalf("expected reply target to decode: %v", errorValue)
+	}
+	if replyHandle.RootID != "post-1" {
+		t.Fatalf("expected mentioned dm reply root to be post-1, got %q", replyHandle.RootID)
+	}
+}
+
 func TestMattermostDirectMessageThreadKeepsThreadRoot(t *testing.T) {
 	event, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
 		ID:        "reply-1",
