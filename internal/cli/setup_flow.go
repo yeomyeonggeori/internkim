@@ -1224,6 +1224,10 @@ func (state *setupFlowState) installLocalLLMBinarySSH(displayName, buildTool, ca
 		fmt.Println("failed")
 		return pruneError
 	}
+	if pruneError := state.pruneRemoteLocalLLMBuildCaches(); pruneError != nil {
+		fmt.Println("failed")
+		return pruneError
+	}
 	fmt.Println(state.messenger.t("설치 완료", "installed"))
 	return nil
 }
@@ -2147,6 +2151,25 @@ func (state *setupFlowState) stageBackupArtifacts(stageRoot string) error {
 		fmt.Printf("  %s\n", state.messenger.t("Blueclaw DB 백업 복원", "Blueclaw DB backup restored"))
 	}
 
+	return nil
+}
+
+func (state *setupFlowState) pruneRemoteLocalLLMBuildCaches() error {
+	if state.sshClient == nil {
+		return nil
+	}
+	remoteCachePaths := []string{
+		"/var/cache/internkim/litert-lm-build",
+		"/var/cache/internkim/llama-cpp-build",
+	}
+	removeCommandParts := make([]string, 0, len(remoteCachePaths)+1)
+	removeCommandParts = append(removeCommandParts, "rm -rf")
+	for _, remoteCachePath := range remoteCachePaths {
+		removeCommandParts = append(removeCommandParts, quoteShellValue(remoteCachePath))
+	}
+	if _, errorValue := state.sshClient.runResult(strings.Join(removeCommandParts, " ")); errorValue != nil {
+		return fmt.Errorf("remove remote local LLM build caches: %w", errorValue)
+	}
 	return nil
 }
 
