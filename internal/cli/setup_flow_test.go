@@ -384,6 +384,19 @@ func TestPruneLocalLLMBuildCachesKeepsCurrentCache(t *testing.T) {
 	}
 }
 
+func TestBinaryVersionSourcesIncludeSharedLLMBackend(t *testing.T) {
+	repositoryRoot, errorValue := filepath.Abs("../..")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	state := &setupFlowState{scriptDir: repositoryRoot}
+	sourcePaths := state.binaryVersionSourcePaths()
+
+	if !pathsContain(sourcePaths, filepath.Join(repositoryRoot, "internal", "llmbackend")) {
+		t.Fatalf("expected binary version sources to include internal/llmbackend, got %+v", sourcePaths)
+	}
+}
+
 func TestSetupStateDirSeparatesJetsonAndLabIdentity(t *testing.T) {
 	baseStateDir := t.TempDir()
 	saveState(baseStateDir, "fleet_id", "shared-device")
@@ -411,6 +424,16 @@ func TestSetupStateDirSeparatesJetsonAndLabIdentity(t *testing.T) {
 	if loadState(jetsonStateDir, "subnet") != "192.168.0" {
 		t.Fatalf("expected Jetson state to inherit network subnet hint")
 	}
+}
+
+func pathsContain(paths []string, targetPath string) bool {
+	cleanTargetPath := filepath.Clean(targetPath)
+	for _, path := range paths {
+		if filepath.Clean(path) == cleanTargetPath {
+			return true
+		}
+	}
+	return false
 }
 
 func TestWiFiProfilesMigrateLegacyAndAddCurrent(t *testing.T) {
