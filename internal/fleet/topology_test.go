@@ -2,13 +2,13 @@ package fleet
 
 import "testing"
 
-func TestAddBoardKeepsSecondBoardPendingAndPromotesThird(t *testing.T) {
-	state, errorValue := NewState("fleet-1", "board-a")
+func TestAddNodeKeepsSecondNodePendingAndPromotesThird(t *testing.T) {
+	state, errorValue := NewState("fleet-1", "node-a")
 	if errorValue != nil {
 		t.Fatalf("expected state: %v", errorValue)
 	}
 
-	secondJoin, errorValue := state.AddBoard("board-b")
+	secondJoin, errorValue := state.AddNode("node-b")
 	if errorValue != nil {
 		t.Fatalf("expected second join: %v", errorValue)
 	}
@@ -16,83 +16,83 @@ func TestAddBoardKeepsSecondBoardPendingAndPromotesThird(t *testing.T) {
 		t.Fatalf("expected one active and one pending, got %+v", secondJoin.State.Members)
 	}
 	if secondJoin.Member.Status != MemberStatusPending {
-		t.Fatalf("expected second board pending, got %+v", secondJoin.Member)
+		t.Fatalf("expected second node pending, got %+v", secondJoin.Member)
 	}
 
-	thirdJoin, errorValue := secondJoin.State.AddBoard("board-c")
+	thirdJoin, errorValue := secondJoin.State.AddNode("node-c")
 	if errorValue != nil {
 		t.Fatalf("expected third join: %v", errorValue)
 	}
 	if len(thirdJoin.State.ActiveMembers()) != 3 || len(thirdJoin.State.PendingMembers()) != 0 {
-		t.Fatalf("expected three active boards, got %+v", thirdJoin.State.Members)
+		t.Fatalf("expected three active nodes, got %+v", thirdJoin.State.Members)
 	}
 	if thirdJoin.State.QuorumSize() != 2 {
 		t.Fatalf("expected quorum 2, got %d", thirdJoin.State.QuorumSize())
 	}
 }
 
-func TestAddBoardKeepsFourthPendingAndPromotesFifth(t *testing.T) {
-	state, _ := NewState("fleet-1", "board-a")
-	secondJoin, _ := state.AddBoard("board-b")
-	thirdJoin, _ := secondJoin.State.AddBoard("board-c")
-	fourthJoin, _ := thirdJoin.State.AddBoard("board-d")
+func TestAddNodeKeepsFourthPendingAndPromotesFifth(t *testing.T) {
+	state, _ := NewState("fleet-1", "node-a")
+	secondJoin, _ := state.AddNode("node-b")
+	thirdJoin, _ := secondJoin.State.AddNode("node-c")
+	fourthJoin, _ := thirdJoin.State.AddNode("node-d")
 
 	if len(fourthJoin.State.ActiveMembers()) != 3 || len(fourthJoin.State.PendingMembers()) != 1 {
-		t.Fatalf("expected fourth board pending, got %+v", fourthJoin.State.Members)
+		t.Fatalf("expected fourth node pending, got %+v", fourthJoin.State.Members)
 	}
 
-	fifthJoin, errorValue := fourthJoin.State.AddBoard("board-e")
+	fifthJoin, errorValue := fourthJoin.State.AddNode("node-e")
 	if errorValue != nil {
 		t.Fatalf("expected fifth join: %v", errorValue)
 	}
 	if len(fifthJoin.State.ActiveMembers()) != 5 || len(fifthJoin.State.PendingMembers()) != 0 {
-		t.Fatalf("expected five active boards, got %+v", fifthJoin.State.Members)
+		t.Fatalf("expected five active nodes, got %+v", fifthJoin.State.Members)
 	}
 	if fifthJoin.State.QuorumSize() != 3 {
 		t.Fatalf("expected quorum 3, got %d", fifthJoin.State.QuorumSize())
 	}
 }
 
-func TestCanCommitRequiresMajorityOfActiveBoards(t *testing.T) {
-	state, _ := NewState("fleet-1", "board-a")
-	secondJoin, _ := state.AddBoard("board-b")
-	thirdJoin, _ := secondJoin.State.AddBoard("board-c")
+func TestCanCommitRequiresMajorityOfActiveNodes(t *testing.T) {
+	state, _ := NewState("fleet-1", "node-a")
+	secondJoin, _ := state.AddNode("node-b")
+	thirdJoin, _ := secondJoin.State.AddNode("node-c")
 
-	if !thirdJoin.State.CanCommit([]string{"board-a", "board-c"}) {
-		t.Fatal("expected two active boards to commit")
+	if !thirdJoin.State.CanCommit([]string{"node-a", "node-c"}) {
+		t.Fatal("expected two active nodes to commit")
 	}
-	if thirdJoin.State.CanCommit([]string{"board-a"}) {
-		t.Fatal("expected one active board not to commit in a three-board fleet")
+	if thirdJoin.State.CanCommit([]string{"node-a"}) {
+		t.Fatal("expected one active node not to commit in a three-node fleet")
 	}
-	if thirdJoin.State.CanCommit([]string{"board-b"}) {
-		t.Fatal("expected pending board history not to matter after promotion state check")
+	if thirdJoin.State.CanCommit([]string{"node-b"}) {
+		t.Fatal("expected pending node history not to matter after promotion state check")
 	}
 }
 
-func TestSelectOwnerIgnoresPendingBoards(t *testing.T) {
-	state, _ := NewState("fleet-1", "board-a")
-	secondJoin, _ := state.AddBoard("board-b")
+func TestSelectOwnerIgnoresPendingNodes(t *testing.T) {
+	state, _ := NewState("fleet-1", "node-a")
+	secondJoin, _ := state.AddNode("node-b")
 
 	owner, ok := secondJoin.State.SelectOwner("event-1")
 	if !ok {
 		t.Fatal("expected owner")
 	}
-	if owner.BoardID != "board-a" {
-		t.Fatalf("expected active board to own event, got %+v", owner)
+	if owner.NodeID != "node-a" {
+		t.Fatalf("expected active node to own event, got %+v", owner)
 	}
 }
 
-func TestRemoveActiveBoardRequiresStandaloneReset(t *testing.T) {
-	state, _ := NewState("fleet-1", "board-a")
-	secondJoin, _ := state.AddBoard("board-b")
-	thirdJoin, _ := secondJoin.State.AddBoard("board-c")
+func TestRemoveActiveNodeRequiresStandaloneReset(t *testing.T) {
+	state, _ := NewState("fleet-1", "node-a")
+	secondJoin, _ := state.AddNode("node-b")
+	thirdJoin, _ := secondJoin.State.AddNode("node-c")
 
-	_, errorValue := thirdJoin.State.RemoveBoard("board-c")
+	_, errorValue := thirdJoin.State.RemoveNode("node-c")
 	if errorValue == nil {
-		t.Fatal("expected active board removal to be rejected")
+		t.Fatal("expected active node removal to be rejected")
 	}
 
-	standaloneState, errorValue := thirdJoin.State.ResetStandalone("board-a")
+	standaloneState, errorValue := thirdJoin.State.ResetStandalone("node-a")
 	if errorValue != nil {
 		t.Fatalf("expected standalone reset: %v", errorValue)
 	}
@@ -102,17 +102,17 @@ func TestRemoveActiveBoardRequiresStandaloneReset(t *testing.T) {
 }
 
 func TestLedgerCommitRequiresFleetQuorum(t *testing.T) {
-	state, _ := NewState("fleet-1", "board-a")
-	secondJoin, _ := state.AddBoard("board-b")
-	thirdJoin, _ := secondJoin.State.AddBoard("board-c")
+	state, _ := NewState("fleet-1", "node-a")
+	secondJoin, _ := state.AddNode("node-b")
+	thirdJoin, _ := secondJoin.State.AddNode("node-c")
 	ledger := NewLedger(thirdJoin.State)
 
-	_, _, errorValue := ledger.ReserveJob("event-1", []string{"board-a"})
+	_, _, errorValue := ledger.ReserveJob("event-1", []string{"node-a"})
 	if errorValue == nil {
 		t.Fatal("expected minority reservation to fail")
 	}
 
-	nextLedger, entry, errorValue := ledger.ReserveJob("event-1", []string{"board-a", "board-c"})
+	nextLedger, entry, errorValue := ledger.ReserveJob("event-1", []string{"node-a", "node-c"})
 	if errorValue != nil {
 		t.Fatalf("expected majority reservation: %v", errorValue)
 	}

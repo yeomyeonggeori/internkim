@@ -1,3 +1,4 @@
+import { normalizeFleet } from './fleet';
 import type { Device, Invite, UserRecord, UserRole } from './types';
 
 function normalizeEmail(email: string): string {
@@ -93,6 +94,27 @@ function normalizeUserRecords(records: UserRecord[]): UserRecord[] {
 		.filter((record): record is UserRecord => record !== null);
 }
 
+function normalizeDevice(value: unknown, fleetID: string): Device | null {
+	if (!value || typeof value !== 'object') return null;
+	const record = value as Partial<Device>;
+	const resolvedFleetID = record.fleet_id ?? fleetID;
+	if (!resolvedFleetID || !record.tunnel_id || !record.tunnel_token || !record.dns_record_id) return null;
+	return {
+		...record,
+		fleet_id: resolvedFleetID,
+		fleet_secret_hash: record.fleet_secret_hash,
+		fleet: normalizeFleet(record.fleet, resolvedFleetID)
+	} as Device;
+}
+
+function fleetKey(fleetID: string): string {
+	return `fleet:${fleetID}`;
+}
+
+function fleetUsersKey(fleetID: string): string {
+	return `fleet-users:${fleetID}`;
+}
+
 export function userEmails(records: UserRecord[]): string[] {
 	return records.map((record) => record.email);
 }
@@ -103,24 +125,24 @@ export function adminEmails(records: UserRecord[]): string[] {
 
 export const kv = {
 	async getDevice(kv: KVNamespace, id: string): Promise<Device | null> {
-		return kv.get(`device:${id}`, 'json');
+		return normalizeDevice(await kv.get(fleetKey(id), 'json'), id);
 	},
 
 	async putDevice(kv: KVNamespace, id: string, device: Device): Promise<void> {
-		await kv.put(`device:${id}`, JSON.stringify(device));
+		await kv.put(fleetKey(id), JSON.stringify(normalizeDevice(device, id) ?? device));
 	},
 
-	async getUsers(kv: KVNamespace, deviceId: string): Promise<string[]> {
-		return userEmails(await this.getUserRecords(kv, deviceId));
+	async getUsers(kv: KVNamespace, fleetID: string): Promise<string[]> {
+		return userEmails(await this.getUserRecords(kv, fleetID));
 	},
 
-	async getUserRecords(kv: KVNamespace, deviceId: string, fallbackAdminEmail?: string): Promise<UserRecord[]> {
-		const users = await kv.get(`users:${deviceId}`, 'json');
+	async getUserRecords(kv: KVNamespace, fleetID: string, fallbackAdminEmail?: string): Promise<UserRecord[]> {
+		const users = await kv.get(fleetUsersKey(fleetID), 'json');
 		const values = Array.isArray(users) ? users : [];
 		return ensureAdmin(values.map(normalizeUserRecord).filter((record): record is UserRecord => record !== null), fallbackAdminEmail);
 	},
 
-	async putUsers(kv: KVNamespace, deviceId: string, emails: string[]): Promise<void> {
+	async putUsers(kv: KVNamespace, fleetID: string, emails: string[]): Promise<void> {
 		const records = normalizeUserRecords(
 			emails.map((email) => {
 				const normalizedEmail = normalizeEmail(email);
@@ -133,11 +155,11 @@ export const kv = {
 				};
 			})
 		);
-		await this.putUserRecords(kv, deviceId, records);
+		await this.putUserRecords(kv, fleetID, records);
 	},
 
-	async putUserRecords(kv: KVNamespace, deviceId: string, records: UserRecord[]): Promise<void> {
-		await kv.put(`users:${deviceId}`, JSON.stringify(normalizeUserRecords(records)));
+	async putUserRecords(kv: KVNamespace, fleetID: string, records: UserRecord[]): Promise<void> {
+		await kv.put(fleetUsersKey(fleetID), JSON.stringify(normalizeUserRecords(records)));
 	},
 
 	async getInvite(kv: KVNamespace, token: string): Promise<Invite | null> {

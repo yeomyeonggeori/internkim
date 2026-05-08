@@ -236,9 +236,9 @@ func (service *Service) writeMattermostConnectCommandToken(token string) error {
 }
 
 func (service *Service) publicDeviceURL(request *http.Request) string {
-	deviceID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceIDPath)))
-	if deviceID != "" {
-		return "https://" + deviceID + ".example.test"
+	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
+	if fleetID != "" {
+		return "https://" + fleetID + ".example.test"
 	}
 	scheme := "http"
 	if request.TLS != nil {

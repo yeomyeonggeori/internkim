@@ -1,6 +1,6 @@
 const CF_API = 'https://api.cloudflare.com/client/v4';
 
-interface CFEnv {
+export interface CFEnv {
 	CF_API_TOKEN: string;
 	CF_ACCOUNT_ID: string;
 	CF_ZONE_ID: string;
@@ -32,6 +32,13 @@ interface AccessPolicy {
 	decision?: string;
 }
 
+interface CertificatePack {
+	id?: string;
+	hosts?: string[];
+	status?: string;
+	type?: string;
+}
+
 async function cfFetch(env: CFEnv, path: string, init?: RequestInit) {
 	const res = await fetch(`${CF_API}${path}`, {
 		...init,
@@ -48,12 +55,12 @@ async function cfFetch(env: CFEnv, path: string, init?: RequestInit) {
 	return data.result;
 }
 
-export async function createTunnel(env: CFEnv, deviceId: string) {
-	return createNamedTunnel(env, `internkim-${deviceId}`);
+export async function createTunnel(env: CFEnv, fleetId: string) {
+	return createNamedTunnel(env, `internkim-${fleetId}`);
 }
 
-export async function createNodeSSHTunnel(env: CFEnv, deviceId: string, boardId: string) {
-	return createNamedTunnel(env, `internkim-${deviceId}-${boardId}-ssh`);
+export async function createNodeSSHTunnel(env: CFEnv, fleetId: string, nodeId: string) {
+	return createNamedTunnel(env, `internkim-${fleetId}-${nodeId}-ssh`);
 }
 
 async function createNamedTunnel(env: CFEnv, name: string) {
@@ -71,8 +78,8 @@ async function createNamedTunnel(env: CFEnv, name: string) {
 	return { tunnelId: tunnel.id as string, tunnelToken: tunnel.token as string };
 }
 
-export async function configureTunnel(env: CFEnv, tunnelId: string, deviceId: string, aliasDeviceIds: string[] = []) {
-	const hostnames = [deviceId, ...aliasDeviceIds]
+export async function configureTunnel(env: CFEnv, tunnelId: string, fleetId: string, aliasFleetIds: string[] = []) {
+	const hostnames = [fleetId, ...aliasFleetIds]
 		.map((value) => value.trim())
 		.filter(Boolean)
 		.map((value) => `${value}.${env.CF_DOMAIN}`);
@@ -94,11 +101,11 @@ export async function configureTunnel(env: CFEnv, tunnelId: string, deviceId: st
 	});
 }
 
-export async function configureNodeSSHTunnel(env: CFEnv, tunnelId: string, deviceId: string, boardId: string, aliasDeviceIds: string[] = []) {
-	const ingress = [deviceId, ...aliasDeviceIds]
+export async function configureNodeSSHTunnel(env: CFEnv, tunnelId: string, fleetId: string, nodeId: string, aliasFleetIds: string[] = []) {
+	const ingress = [fleetId, ...aliasFleetIds]
 		.map((value) => value.trim())
 		.filter(Boolean)
-		.map((value) => ({ hostname: nodeSSHHostname(env, value, boardId), service: 'ssh://localhost:22' }));
+		.map((value) => ({ hostname: nodeSSHHostname(env, value, nodeId), service: 'ssh://localhost:22' }));
 
 	await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/cfd_tunnel/${tunnelId}/configurations`, {
 		method: 'PUT',
@@ -113,12 +120,12 @@ export async function configureNodeSSHTunnel(env: CFEnv, tunnelId: string, devic
 	});
 }
 
-export async function createDNSRecord(env: CFEnv, tunnelId: string, deviceId: string) {
+export async function createDNSRecord(env: CFEnv, tunnelId: string, fleetId: string) {
 	const record = await cfFetch(env, `/zones/${env.CF_ZONE_ID}/dns_records`, {
 		method: 'POST',
 		body: JSON.stringify({
 			type: 'CNAME',
-			name: `${deviceId}.${env.CF_DOMAIN}`,
+			name: `${fleetId}.${env.CF_DOMAIN}`,
 			content: `${tunnelId}.cfargotunnel.com`,
 			proxied: true
 		})
@@ -127,30 +134,35 @@ export async function createDNSRecord(env: CFEnv, tunnelId: string, deviceId: st
 	return record.id as string;
 }
 
-export async function ensureDeviceDNSRecord(env: CFEnv, tunnelId: string, deviceId: string) {
-	const name = `${deviceId}.${env.CF_DOMAIN}`;
+export async function ensureFleetDNSRecord(env: CFEnv, tunnelId: string, fleetId: string) {
+	const name = `${fleetId}.${env.CF_DOMAIN}`;
 	return ensureDNSRecord(env, name, `${tunnelId}.cfargotunnel.com`);
 }
 
-export function deviceSSHHostname(env: CFEnv, deviceId: string) {
-	return `ssh-${deviceId}.${env.CF_DOMAIN}`;
+export function fleetSSHHostname(env: CFEnv, fleetId: string) {
+	return `ssh-${fleetId}.${env.CF_DOMAIN}`;
 }
 
-export function nodeSSHHostname(env: CFEnv, deviceId: string, boardId: string) {
-	return `ssh-${boardId}.${deviceId}.${env.CF_DOMAIN}`;
+export function nodeSSHHostname(env: CFEnv, fleetId: string, nodeId: string) {
+	return `${nodeId}.ssh.${fleetId}.${env.CF_DOMAIN}`;
 }
 
-export async function ensureSSHDNSRecord(env: CFEnv, tunnelId: string, deviceId: string) {
-	return ensureDNSRecord(env, deviceSSHHostname(env, deviceId), `${tunnelId}.cfargotunnel.com`);
+export async function ensureSSHDNSRecord(env: CFEnv, tunnelId: string, fleetId: string) {
+	return ensureDNSRecord(env, fleetSSHHostname(env, fleetId), `${tunnelId}.cfargotunnel.com`);
 }
 
-export async function ensureNodeSSHDNSRecord(env: CFEnv, tunnelId: string, deviceId: string, boardId: string) {
-	return ensureDNSRecord(env, nodeSSHHostname(env, deviceId, boardId), `${tunnelId}.cfargotunnel.com`);
+export async function ensureNodeSSHDNSRecord(env: CFEnv, tunnelId: string, fleetId: string, nodeId: string) {
+	return ensureDNSRecord(env, nodeSSHHostname(env, fleetId, nodeId), `${tunnelId}.cfargotunnel.com`);
 }
 
-export async function ensureWildcardDNSRecord(env: CFEnv, tunnelId: string, deviceId: string) {
-	const name = `*.${deviceId}.${env.CF_DOMAIN}`;
+export async function ensureWildcardDNSRecord(env: CFEnv, tunnelId: string, fleetId: string) {
+	const name = `*.${fleetId}.${env.CF_DOMAIN}`;
 	return ensureDNSRecord(env, name, `${tunnelId}.cfargotunnel.com`);
+}
+
+export async function ensureFleetCertificateCoverage(env: CFEnv, fleetId: string, nodeId?: string) {
+	const requiredHosts = certificateHostsForFleet(env, fleetId, nodeId);
+	return ensureAdvancedCertificateHosts(env, requiredHosts);
 }
 
 async function ensureDNSRecord(env: CFEnv, name: string, content: string) {
@@ -168,6 +180,195 @@ async function ensureDNSRecord(env: CFEnv, name: string, content: string) {
 	});
 
 	return record.id as string;
+}
+
+async function ensureAdvancedCertificateHosts(env: CFEnv, requiredHosts: string[]) {
+	try {
+		const certificatePacks = (await cfFetch(env, `/zones/${env.CF_ZONE_ID}/ssl/certificate_packs?status=all`)) as CertificatePack[];
+		const currentPacks = currentManagedCertificatePacks(env, certificatePacks);
+		const missingHosts = requiredHosts.filter((host) => !currentPacks.some((pack) => certificatePackCoversHost(pack, host)));
+		if (missingHosts.length === 0) {
+			await cleanupCoveredCertificatePacks(env, certificatePacks);
+			return { status: certificateCoverageStatus(currentPacks, requiredHosts), hosts: requiredHosts };
+		}
+		const hosts = certificatePackHostsForOrder(env, currentPacks, requiredHosts);
+		const certificatePack = await orderAdvancedCertificatePack(env, hosts);
+		return { status: certificatePack.status ?? 'ordered', hosts };
+	} catch (caughtError) {
+		const message = caughtError instanceof Error ? caughtError.message : String(caughtError);
+		throw new Error(certificateCoverageErrorMessage(message));
+	}
+}
+
+function certificateCoverageErrorMessage(message: string) {
+	if (message.includes('"code":1450') || message.includes('Advanced Certificate Manager')) {
+		return `Cloudflare Advanced Certificate Manager is not enabled for this zone: ${message}`;
+	}
+	return `Cloudflare TLS certificate coverage requires Advanced Certificate Manager and Zone SSL and Certificates Read/Write permission: ${message}`;
+}
+
+async function orderAdvancedCertificatePack(env: CFEnv, hosts: string[]): Promise<CertificatePack> {
+	return await cfFetch(env, `/zones/${env.CF_ZONE_ID}/ssl/certificate_packs/order`, {
+		method: 'POST',
+		body: JSON.stringify({
+			certificate_authority: 'lets_encrypt',
+			hosts,
+			type: 'advanced',
+			validation_method: 'txt',
+			validity_days: 90,
+			cloudflare_branding: false
+		})
+	}) as CertificatePack;
+}
+
+function certificatePackHostsForOrder(env: CFEnv, packs: CertificatePack[], requiredHosts: string[]) {
+	const baseHosts = certificateBaseHosts(env);
+	const currentHosts = packs.flatMap((pack) => certificatePackHosts(pack))
+		.filter((host) => isCurrentCertificateHost(env, host));
+	const expandedHosts = uniqueCertificateHosts([
+		...baseHosts,
+		...currentHosts.filter((host) => !baseHosts.includes(host)),
+		...requiredHosts
+	]);
+	if (expandedHosts.length <= 50) return expandedHosts;
+	const minimalHosts = uniqueCertificateHosts([
+		...baseHosts,
+		...requiredHosts
+	]);
+	if (minimalHosts.length > 50) {
+		throw new Error('Cloudflare advanced certificate host limit reached; use a new fleet ID namespace or single-label hostnames');
+	}
+	return minimalHosts;
+}
+
+function certificateHostsForFleet(env: CFEnv, fleetId: string, nodeId?: string) {
+	return [
+		`*.${fleetId}.${env.CF_DOMAIN}`,
+		...(nodeId ? [`*.ssh.${fleetId}.${env.CF_DOMAIN}`] : [])
+	];
+}
+
+function certificatePackCoversHost(pack: CertificatePack, host: string) {
+	if (!isReusableCertificatePack(pack)) return false;
+	return (pack.hosts ?? []).some((pattern) => certificateHostMatches(pattern, host));
+}
+
+async function cleanupCoveredCertificatePacks(env: CFEnv, packs: CertificatePack[]) {
+	const coveringPack = currentManagedCertificatePacks(env, packs)
+		.filter((pack) => pack.status === 'active')
+		.slice()
+		.sort((leftPack, rightPack) => currentCertificateHostCount(env, rightPack) - currentCertificateHostCount(env, leftPack))[0];
+	if (!coveringPack?.id) return;
+	const cleanupPacks = internKimCertificatePacks(env, packs)
+		.filter((pack) => pack.status !== 'deleted' && pack.status !== 'pending_deletion');
+	for (const pack of cleanupPacks) {
+		if (!pack.id || pack.id === coveringPack.id) continue;
+		if (certificatePackCanBeReplaced(env, pack, coveringPack)) {
+			await cfFetch(env, `/zones/${env.CF_ZONE_ID}/ssl/certificate_packs/${pack.id}`, { method: 'DELETE' });
+		}
+	}
+}
+
+function currentCertificateHostCount(env: CFEnv, pack: CertificatePack) {
+	return certificatePackHosts(pack).filter((host) => isCurrentCertificateHost(env, host)).length;
+}
+
+function certificatePackCanBeReplaced(env: CFEnv, pack: CertificatePack, coveringPack: CertificatePack) {
+	const hosts = certificatePackHosts(pack);
+	const coveringHosts = certificatePackHosts(coveringPack);
+	return hosts.every((host) => coveringHosts.includes(host) || isLegacyGeneratedCertificateHost(env, host));
+}
+
+function currentManagedCertificatePacks(env: CFEnv, packs: CertificatePack[]) {
+	return packs.filter((pack) =>
+		isReusableCertificatePack(pack) &&
+		certificateBaseHosts(env).every((host) => certificatePackHosts(pack).includes(host)) &&
+		certificatePackHosts(pack).every((host) => isCurrentCertificateHost(env, host))
+	);
+}
+
+function internKimCertificatePacks(env: CFEnv, packs: CertificatePack[]) {
+	return packs.filter((pack) =>
+		pack.type === 'advanced' &&
+		certificateBaseHosts(env).every((host) => certificatePackHosts(pack).includes(host)) &&
+		certificatePackHosts(pack).every((host) => isCurrentCertificateHost(env, host) || isLegacyGeneratedCertificateHost(env, host))
+	);
+}
+
+function certificateBaseHosts(env: CFEnv) {
+	return [env.CF_DOMAIN, `*.${env.CF_DOMAIN}`].map((host) => host.toLowerCase());
+}
+
+function certificatePackHosts(pack: CertificatePack) {
+	return uniqueCertificateHosts(pack.hosts ?? []);
+}
+
+function uniqueCertificateHosts(hosts: string[]) {
+	return [...new Set(hosts.map((host) => host.trim().toLowerCase()).filter(Boolean))];
+}
+
+function isGeneratedCertificateHost(env: CFEnv, host: string) {
+	const labels = host.toLowerCase().split('.');
+	const domainLabels = env.CF_DOMAIN.toLowerCase().split('.');
+	if (labels[0] !== '*') return false;
+	if (labels.length === domainLabels.length + 2) {
+		return labels.slice(-domainLabels.length).join('.') === env.CF_DOMAIN.toLowerCase();
+	}
+	if (labels.length !== domainLabels.length + 3) return false;
+	if (labels[1] !== 'ssh') return false;
+	return labels.slice(-domainLabels.length).join('.') === env.CF_DOMAIN.toLowerCase();
+}
+
+function isCurrentCertificateHost(env: CFEnv, host: string) {
+	return certificateBaseHosts(env).includes(host) || isGeneratedCertificateHost(env, host);
+}
+
+function isLegacyGeneratedCertificateHost(env: CFEnv, host: string) {
+	const labels = host.toLowerCase().split('.');
+	const domainLabels = env.CF_DOMAIN.toLowerCase().split('.');
+	if (labels.length !== domainLabels.length + 3) return false;
+	if (labels[0] !== '*') return false;
+	if (labels[1] === 'ssh') return false;
+	return labels.slice(-domainLabels.length).join('.') === env.CF_DOMAIN.toLowerCase();
+}
+
+function certificateCoverageStatus(packs: CertificatePack[], hosts: string[]) {
+	if (hosts.every((host) => packs.some((pack) => certificatePackActivelyCoversHost(pack, host)))) {
+		return 'active';
+	}
+	const coveringPack = packs.find((pack) => hosts.some((host) => certificatePackCoversHost(pack, host)));
+	return coveringPack?.status ?? 'pending';
+}
+
+function certificatePackActivelyCoversHost(pack: CertificatePack, host: string) {
+	if (pack.type !== 'advanced' || pack.status !== 'active') return false;
+	return (pack.hosts ?? []).some((pattern) => certificateHostMatches(pattern, host));
+}
+
+function isReusableCertificatePack(pack: CertificatePack) {
+	return pack.type === 'advanced' && ![
+		'deleted',
+		'inactive',
+		'expired',
+		'deactivating',
+		'pending_deletion',
+		'initializing_timed_out',
+		'validation_timed_out',
+		'issuance_timed_out',
+		'deployment_timed_out',
+		'deletion_timed_out'
+	].includes(pack.status ?? '');
+}
+
+function certificateHostMatches(pattern: string, host: string) {
+	const normalizedPattern = pattern.trim().toLowerCase();
+	const normalizedHost = host.trim().toLowerCase();
+	if (normalizedPattern === normalizedHost) return true;
+	if (!normalizedPattern.startsWith('*.')) return false;
+	const patternLabels = normalizedPattern.split('.');
+	const hostLabels = normalizedHost.split('.');
+	return patternLabels.length === hostLabels.length &&
+		patternLabels.slice(1).join('.') === hostLabels.slice(1).join('.');
 }
 
 export async function ensureOneTimePinIdentityProvider(env: CFEnv) {
@@ -197,8 +398,8 @@ export async function ensureOneTimePinIdentityProvider(env: CFEnv) {
 	}
 }
 
-function accessApplicationBody(env: CFEnv, deviceId: string, identityProviderId: string) {
-	const hostname = `${deviceId}.${env.CF_DOMAIN}`;
+function accessApplicationBody(env: CFEnv, fleetId: string, identityProviderId: string) {
+	const hostname = `${fleetId}.${env.CF_DOMAIN}`;
 
 	return {
 		name: 'intern kim',
@@ -211,25 +412,25 @@ function accessApplicationBody(env: CFEnv, deviceId: string, identityProviderId:
 	};
 }
 
-function companionBypassApplicationBody(env: CFEnv, deviceId: string) {
-	const hostname = `${deviceId}.${env.CF_DOMAIN}`;
+function companionBypassApplicationBody(env: CFEnv, fleetId: string) {
+	const hostname = `${fleetId}.${env.CF_DOMAIN}`;
 
 	return {
-		name: `intern kim companion ${deviceId}`,
+		name: `intern kim companion ${fleetId}`,
 		domain: `${hostname}/_internkim/companion/*`,
 		type: 'self_hosted',
 		session_duration: '1h'
 	};
 }
 
-function adminAccessApplicationBody(env: CFEnv, deviceId: string, identityProviderId: string, domain: string) {
-	const hostname = `${deviceId}.${env.CF_DOMAIN}`;
+function adminAccessApplicationBody(env: CFEnv, fleetId: string, identityProviderId: string, domain: string) {
+	const hostname = `${fleetId}.${env.CF_DOMAIN}`;
 	const selfHostedDomains = domain === '/admin*'
 		? [`${hostname}/admin*`, `${hostname}/_app/*`]
 		: [`${hostname}${domain}`];
 
 	return {
-		name: `intern kim admin ${deviceId} ${domain}`,
+		name: `intern kim admin ${fleetId} ${domain}`,
 		self_hosted_domains: selfHostedDomains,
 		type: 'self_hosted',
 		session_duration: '720h',
@@ -239,21 +440,21 @@ function adminAccessApplicationBody(env: CFEnv, deviceId: string, identityProvid
 	};
 }
 
-function sshAccessApplicationBody(env: CFEnv, deviceId: string, identityProviderId: string) {
-	return sshAccessApplicationBodyForHostname(env, deviceId, deviceSSHHostname(env, deviceId), identityProviderId);
+function sshAccessApplicationBody(env: CFEnv, fleetId: string, identityProviderId: string) {
+	return sshAccessApplicationBodyForHostname(env, fleetId, fleetSSHHostname(env, fleetId), identityProviderId);
 }
 
-function nodeSSHAccessApplicationBody(env: CFEnv, deviceId: string, boardId: string, identityProviderId: string) {
-	return sshAccessApplicationBodyForHostname(env, deviceId, nodeSSHHostname(env, deviceId, boardId), identityProviderId);
+function nodeSSHAccessApplicationBody(env: CFEnv, fleetId: string, nodeId: string, identityProviderId: string) {
+	return sshAccessApplicationBodyForHostname(env, fleetId, nodeSSHHostname(env, fleetId, nodeId), identityProviderId);
 }
 
-function sshAccessApplicationBodyForHostname(env: CFEnv, deviceId: string, hostname: string, identityProviderId: string) {
+function sshAccessApplicationBodyForHostname(env: CFEnv, fleetId: string, hostname: string, identityProviderId: string) {
 	return {
 		name: `intern kim ssh ${hostname}`,
 		domain: hostname,
 		type: 'self_hosted',
 		session_duration: '24h',
-		logo_url: `https://${deviceId}.${env.CF_DOMAIN}/logo.svg`,
+		logo_url: `https://${fleetId}.${env.CF_DOMAIN}/logo.svg`,
 		allowed_idps: [identityProviderId],
 		auto_redirect_to_identity: true
 	};
@@ -271,24 +472,24 @@ function accessApplicationDomain(application: AccessApplication): string {
 	return '';
 }
 
-export async function createAccessApplication(env: CFEnv, deviceId: string, identityProviderId: string) {
+export async function createAccessApplication(env: CFEnv, fleetId: string, identityProviderId: string) {
 	const app = await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`, {
 		method: 'POST',
-		body: JSON.stringify(accessApplicationBody(env, deviceId, identityProviderId))
+		body: JSON.stringify(accessApplicationBody(env, fleetId, identityProviderId))
 	});
 
 	return app.id as string;
 }
 
-export async function updateAccessApplicationLoginMethod(env: CFEnv, deviceId: string, appId: string, identityProviderId: string) {
+export async function updateAccessApplicationLoginMethod(env: CFEnv, fleetId: string, appId: string, identityProviderId: string) {
 	await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${appId}`, {
 		method: 'PUT',
-		body: JSON.stringify(accessApplicationBody(env, deviceId, identityProviderId))
+		body: JSON.stringify(accessApplicationBody(env, fleetId, identityProviderId))
 	});
 }
 
-export async function ensureCompanionBypassApplication(env: CFEnv, deviceId: string) {
-	const body = companionBypassApplicationBody(env, deviceId);
+export async function ensureCompanionBypassApplication(env: CFEnv, fleetId: string) {
+	const body = companionBypassApplicationBody(env, fleetId);
 	const applications = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`)) as AccessApplication[];
 	const application = applications.find((item) => accessApplicationDomain(item) === body.domain);
 	const applicationId = application?.id ?? await createCompanionBypassApplication(env, body);
@@ -304,21 +505,20 @@ export async function ensureCompanionBypassApplication(env: CFEnv, deviceId: str
 	return applicationId;
 }
 
-export async function ensureAdminAccessApplications(env: CFEnv, deviceId: string, identityProviderId: string, adminEmails: string[] | string) {
-	(void adminEmails);
-	await deleteAccessApplicationForDomain(env, deviceId, '/_app/*');
-	const applicationId = await ensureAdminAccessApplication(env, deviceId, identityProviderId, '/admin*');
-	await syncAccessPolicyEveryone(env, applicationId);
-	await deleteAccessApplicationForDomain(env, deviceId, '/_internkim/admin/*');
+export async function ensureAdminAccessApplications(env: CFEnv, fleetId: string, identityProviderId: string, adminEmails: string[] | string) {
+	await deleteAccessApplicationForDomain(env, fleetId, '/_app/*');
+	const applicationId = await ensureAdminAccessApplication(env, fleetId, identityProviderId, '/admin*');
+	await syncAccessPolicyEmails(env, applicationId, normalizeRequiredAccessEmails(adminEmails, 'Cloudflare admin access'));
+	await deleteAccessApplicationForDomain(env, fleetId, '/_internkim/admin/*');
 }
 
-export async function ensureSSHAccessApplication(env: CFEnv, deviceId: string, identityProviderId: string, emails: string[] | string) {
-	const body = sshAccessApplicationBody(env, deviceId, identityProviderId);
+export async function ensureSSHAccessApplication(env: CFEnv, fleetId: string, identityProviderId: string, emails: string[] | string) {
+	const body = sshAccessApplicationBody(env, fleetId, identityProviderId);
 	return ensureSSHAccessApplicationForBody(env, body, emails);
 }
 
-export async function ensureNodeSSHAccessApplication(env: CFEnv, deviceId: string, boardId: string, identityProviderId: string, emails: string[] | string) {
-	const body = nodeSSHAccessApplicationBody(env, deviceId, boardId, identityProviderId);
+export async function ensureNodeSSHAccessApplication(env: CFEnv, fleetId: string, nodeId: string, identityProviderId: string, emails: string[] | string) {
+	const body = nodeSSHAccessApplicationBody(env, fleetId, nodeId, identityProviderId);
 	return ensureSSHAccessApplicationForBody(env, body, emails);
 }
 
@@ -334,12 +534,12 @@ async function ensureSSHAccessApplicationForBody(env: CFEnv, body: ReturnType<ty
 		});
 	}
 
-	await syncAccessPolicyEmails(env, applicationId, normalizeAccessEmails(emails));
+	await syncAccessPolicyEmails(env, applicationId, normalizeRequiredAccessEmails(emails, 'Cloudflare SSH access'));
 	return applicationId;
 }
 
-async function ensureAdminAccessApplication(env: CFEnv, deviceId: string, identityProviderId: string, domain: string) {
-	const body = adminAccessApplicationBody(env, deviceId, identityProviderId, domain);
+async function ensureAdminAccessApplication(env: CFEnv, fleetId: string, identityProviderId: string, domain: string) {
+	const body = adminAccessApplicationBody(env, fleetId, identityProviderId, domain);
 	const applications = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`)) as AccessApplication[];
 	const primaryDomain = body.self_hosted_domains[0];
 	const application = applications.find((item) => accessApplicationDomain(item) === primaryDomain);
@@ -382,8 +582,16 @@ function normalizeAccessEmails(emails: string[] | string) {
 	return values.map((email) => email.trim().toLowerCase()).filter(Boolean);
 }
 
-async function deleteAccessApplicationForDomain(env: CFEnv, deviceId: string, domain: string) {
-	const hostname = `${deviceId}.${env.CF_DOMAIN}`;
+function normalizeRequiredAccessEmails(emails: string[] | string, label: string) {
+	const values = normalizeAccessEmails(emails);
+	if (values.length === 0) {
+		throw new Error(`${label} requires at least one admin email`);
+	}
+	return values;
+}
+
+async function deleteAccessApplicationForDomain(env: CFEnv, fleetId: string, domain: string) {
+	const hostname = `${fleetId}.${env.CF_DOMAIN}`;
 	const fullDomain = `${hostname}${domain}`;
 	const applications = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`)) as AccessApplication[];
 	const application = applications.find((item) => accessApplicationDomain(item) === fullDomain);
@@ -479,6 +687,10 @@ export async function syncAccessPolicyEmails(env: CFEnv, appId: string, emails: 
 	});
 
 	return policy.id as string;
+}
+
+export async function syncSSHAccessPolicyEmails(env: CFEnv, appId: string, emails: string[] | string) {
+	return syncAccessPolicyEmails(env, appId, normalizeRequiredAccessEmails(emails, 'Cloudflare SSH access'));
 }
 
 async function syncAccessPolicyEveryone(env: CFEnv, appId: string) {

@@ -56,7 +56,7 @@ func resolveCommandTarget(arguments []string) commandTarget {
 		boardType:      boardType,
 		baseStateDir:   baseStateDir,
 		stateDir:       stateDir,
-		nodeID:         loadState(stateDir, "board_id"),
+		nodeID:         loadNodeID(stateDir),
 		isNodeExplicit: nodeID != "",
 		fleetRole:      loadState(stateDir, "fleet_role"),
 		host:           commandArgumentValue(arguments, "--host", ""),
@@ -105,7 +105,7 @@ func printCommandTargetEvidence(target commandTarget) {
 	if strings.TrimSpace(target.nodeID) != "" {
 		fmt.Printf("Node: %s\n", target.nodeID)
 	}
-	if fleetID := strings.TrimSpace(loadState(target.stateDir, "device_id")); fleetID != "" {
+	if fleetID := strings.TrimSpace(loadState(target.stateDir, "fleet_id")); fleetID != "" {
 		fmt.Printf("Fleet: %s\n", fleetID)
 	}
 	if strings.TrimSpace(target.fleetRole) != "" {
@@ -152,25 +152,25 @@ func commandTargetStateDir(baseStateDir string, boardType string) string {
 	return setupStateDir(baseStateDir, boardType)
 }
 
-func commandTargetStateDirForBoardIdentity(baseStateDir string, boardID string) string {
-	normalizedBoardID := setupBoardIdentityName(boardID)
-	if normalizedBoardID == "" {
+func commandTargetStateDirForNodeIdentity(baseStateDir string, nodeID string) string {
+	normalizedNodeID := setupNodeIdentityName(nodeID)
+	if normalizedNodeID == "" {
 		return baseStateDir
 	}
-	if existingStateDir := commandTargetStateDirForAssignedBoardID(baseStateDir, normalizedBoardID); existingStateDir != "" {
+	if existingStateDir := commandTargetStateDirForAssignedNodeID(baseStateDir, normalizedNodeID); existingStateDir != "" {
 		return existingStateDir
 	}
-	stateDir := filepath.Join(baseStateDir, "boards", normalizedBoardID)
+	stateDir := filepath.Join(baseStateDir, "boards", normalizedNodeID)
 	_ = os.MkdirAll(stateDir, 0o700)
 	copySetupStateHints(baseStateDir, stateDir)
 	copyFleetStateHints(baseStateDir, stateDir)
-	if loadState(stateDir, "board_id") == "" {
-		saveState(stateDir, "board_id", normalizedBoardID)
+	if loadNodeID(stateDir) == "" {
+		saveState(stateDir, "node_id", normalizedNodeID)
 	}
 	return stateDir
 }
 
-func commandTargetStateDirForAssignedBoardID(baseStateDir string, boardID string) string {
+func commandTargetStateDirForAssignedNodeID(baseStateDir string, nodeID string) string {
 	boardStateDirectories, errorValue := os.ReadDir(filepath.Join(baseStateDir, "boards"))
 	if errorValue != nil {
 		return ""
@@ -180,7 +180,7 @@ func commandTargetStateDirForAssignedBoardID(baseStateDir string, boardID string
 			continue
 		}
 		stateDir := filepath.Join(baseStateDir, "boards", boardStateDirectory.Name())
-		if loadState(stateDir, "board_id") == boardID {
+		if loadNodeID(stateDir) == nodeID {
 			return stateDir
 		}
 	}
@@ -189,30 +189,27 @@ func commandTargetStateDirForAssignedBoardID(baseStateDir string, boardID string
 
 func resolveCommandTargetStateDir(baseStateDir string, requestedNodeID string, hasExplicitHost bool) string {
 	if strings.TrimSpace(requestedNodeID) != "" {
-		return commandTargetStateDirForBoardIdentity(baseStateDir, requestedNodeID)
+		return commandTargetStateDirForNodeIdentity(baseStateDir, requestedNodeID)
 	}
 	if hasExplicitHost {
 		return baseStateDir
 	}
 	if defaultNodeID := loadState(baseStateDir, "default_node_id"); defaultNodeID != "" {
-		return commandTargetStateDirForBoardIdentity(baseStateDir, defaultNodeID)
+		return commandTargetStateDirForNodeIdentity(baseStateDir, defaultNodeID)
 	}
 	if activeNodeID := firstActiveFleetNodeID(baseStateDir); activeNodeID != "" {
-		return commandTargetStateDirForBoardIdentity(baseStateDir, activeNodeID)
+		return commandTargetStateDirForNodeIdentity(baseStateDir, activeNodeID)
 	}
 	return baseStateDir
 }
 
 func commandTargetNodeID(arguments []string) string {
-	if nodeID := commandArgumentValue(arguments, "--node", ""); nodeID != "" {
-		return nodeID
-	}
-	return commandArgumentValue(arguments, "--board-id", "")
+	return commandArgumentValue(arguments, "--node", "")
 }
 
-func setupBoardIdentityName(boardID string) string {
+func setupNodeIdentityName(nodeID string) string {
 	var builder strings.Builder
-	for _, character := range strings.ToLower(strings.TrimSpace(boardID)) {
+	for _, character := range strings.ToLower(strings.TrimSpace(nodeID)) {
 		switch {
 		case character >= 'a' && character <= 'z':
 			builder.WriteRune(character)
@@ -270,7 +267,7 @@ func fleetCommandTargetsByRole(baseTarget commandTarget, role string) []commandT
 		}
 		target := baseTarget
 		target.stateDir = stateDir
-		target.nodeID = loadState(stateDir, "board_id")
+		target.nodeID = loadNodeID(stateDir)
 		target.fleetRole = loadState(stateDir, "fleet_role")
 		target.deviceURL = loadState(stateDir, "device_url")
 		target.sshHostname = loadState(stateDir, "ssh_hostname")
@@ -283,29 +280,33 @@ func fleetCommandTargetsByRole(baseTarget commandTarget, role string) []commandT
 
 func applyFleetTargetArguments(stateDir string, baseStateDir string, arguments []string) {
 	if fleetID := strings.TrimSpace(commandArgumentValue(arguments, "--fleet", "")); fleetID != "" {
-		saveState(stateDir, "device_id", strings.ToLower(fleetID))
+		saveState(stateDir, "fleet_id", strings.ToLower(fleetID))
 	}
 	fleetSecret := strings.TrimSpace(commandArgumentValue(arguments, "--fleet-secret", ""))
 	if fleetSecret == "" {
 		fleetSecret = strings.TrimSpace(os.Getenv("INTERNKIM_FLEET_SECRET"))
 	}
 	if fleetSecret != "" {
-		saveState(stateDir, "device_secret", fleetSecret)
+		saveState(stateDir, "fleet_secret", fleetSecret)
 	}
-	if loadState(stateDir, "device_id") == "" {
-		if deviceID := loadState(baseStateDir, "device_id"); deviceID != "" {
-			saveState(stateDir, "device_id", deviceID)
+	if loadState(stateDir, "fleet_id") == "" {
+		if fleetID := loadState(baseStateDir, "fleet_id"); fleetID != "" {
+			saveState(stateDir, "fleet_id", fleetID)
 		}
 	}
-	if loadState(stateDir, "device_secret") == "" {
-		if deviceSecret := loadState(baseStateDir, "device_secret"); deviceSecret != "" {
-			saveState(stateDir, "device_secret", deviceSecret)
+	if loadState(stateDir, "fleet_secret") == "" {
+		if fleetSecret := loadState(baseStateDir, "fleet_secret"); fleetSecret != "" {
+			saveState(stateDir, "fleet_secret", fleetSecret)
 		}
 	}
 }
 
 func copyFleetStateHints(sourceDir string, destinationDir string) {
-	for _, key := range []string{"device_id", "device_secret", "device_url"} {
+	for _, key := range []string{
+		"fleet_id",
+		"fleet_secret",
+		"device_url",
+	} {
 		if loadState(destinationDir, key) != "" {
 			continue
 		}

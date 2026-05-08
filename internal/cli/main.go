@@ -305,8 +305,7 @@ func printSetupUsage() {
 	fmt.Println("  --user <name>        Override the SSH user")
 	fmt.Println("  --password <value>   Override the SSH password")
 	fmt.Println("  --node <number>      Target a numbered fleet node")
-	fmt.Println("  --board-id <id>      Deprecated alias for --node")
-	fmt.Println("  --fleet <device-id>  Join an existing logical fleet/device ID")
+	fmt.Println("  --fleet <fleet-id>   Join an existing fleet")
 	fmt.Println("  --fleet-secret <s>   Secret for joining an existing fleet (or INTERNKIM_FLEET_SECRET)")
 	fmt.Println("  --plan               Print the selected setup plan")
 	fmt.Println("  --list-steps         Print available setup steps")
@@ -366,7 +365,7 @@ func resolveLocalSSHConnection(sshpassBin string, target commandTarget) *sshClie
 }
 
 func resolveCloudflareSSHConnection(configuration config, sshpassBin string, target commandTarget, isRequired bool) (*sshClient, bool, error) {
-	hostname, errorValue := ensureCloudflareSSHRegistration(configuration, target.stateDir)
+	hostname, errorValue := ensureCloudflareSSHRegistration(configuration, target.stateDir, false)
 	if errorValue != nil && isRequired {
 		return nil, false, errorValue
 	}
@@ -379,6 +378,13 @@ func resolveCloudflareSSHConnection(configuration config, sshpassBin string, tar
 	if target.sshHostname == "" {
 		return nil, false, errors.New("device is not reachable locally and no Cloudflare SSH route is registered; run setup once on the device network first")
 	}
+	if status := cloudflareSSHTLSStatus(target.stateDir); !cloudflareSSHTLSIsReady(status) {
+		message := fmt.Sprintf("Cloudflare SSH TLS certificate is %s for %s; wait a few minutes until it becomes active or run setup over local SSH", status, target.sshHostname)
+		if isRequired {
+			return nil, false, errors.New(message)
+		}
+		return nil, false, nil
+	}
 	if errorValue := ensureCloudflaredAccessSSHAvailable(); errorValue != nil {
 		return nil, false, errorValue
 	}
@@ -387,6 +393,18 @@ func resolveCloudflareSSHConnection(configuration config, sshpassBin string, tar
 		return nil, false, fmt.Errorf("Cloudflare SSH failed for %s: %w", target.sshHostname, errorValue)
 	}
 	return connection, true, nil
+}
+
+func cloudflareSSHTLSStatus(stateDir string) string {
+	status := strings.TrimSpace(loadState(stateDir, "tls_certificate_status"))
+	if status == "" {
+		return "unknown"
+	}
+	return status
+}
+
+func cloudflareSSHTLSIsReady(status string) bool {
+	return status == "active" || status == "covered" || status == "unknown"
 }
 
 func commandControlArguments(arguments []string) []string {
@@ -639,13 +657,13 @@ func runMigrate() {
 }
 
 func runMigrateArguments(arguments []string) error {
-	if len(arguments) == 0 || arguments[0] != "device-id" {
-		return errors.New("usage: internkim migrate device-id [--new-device-id <id>] [--node <number>] [--host <ip>] [--cloudflare-ssh]")
+	if len(arguments) == 0 || arguments[0] != "fleet-id" {
+		return errors.New("usage: internkim migrate fleet-id [--new-fleet-id <id>] [--node <number>] [--host <ip>] [--cloudflare-ssh]")
 	}
-	return runMigrateDeviceID(commandControlArguments(arguments[1:]))
+	return runMigrateFleetID(commandControlArguments(arguments[1:]))
 }
 
-func runMigrateDeviceID(arguments []string) error {
+func runMigrateFleetID(arguments []string) error {
 	configuration := loadConfig()
 	repositoryRootPath, errorValue := resolveRepositoryRootPath()
 	if errorValue != nil {
@@ -653,16 +671,16 @@ func runMigrateDeviceID(arguments []string) error {
 	}
 	sshpassBin := filepath.Join(repositoryRootPath, "bin", "sshpass")
 	target := resolveCommandTarget(arguments)
-	oldDeviceID := loadState(target.stateDir, "device_id")
-	if oldDeviceID == "" {
-		return errors.New("saved device_id not found; run setup once before migrating")
+	oldFleetID := loadOrCreateFleetID(target.stateDir)
+	if oldFleetID == "" {
+		return errors.New("saved fleet_id not found; run setup once before migrating")
 	}
-	newDeviceID := commandArgumentValue(arguments, "--new-device-id", "")
-	if newDeviceID == "" {
-		newDeviceID = randomDeviceID()
+	newFleetID := commandArgumentValue(arguments, "--new-fleet-id", "")
+	if newFleetID == "" {
+		newFleetID = randomFleetID()
 	}
-	if oldDeviceID == newDeviceID {
-		return errors.New("new device id is the same as current device id")
+	if oldFleetID == newFleetID {
+		return errors.New("new fleet id is the same as current fleet id")
 	}
 	connection, isRemote, errorValue := resolveDeviceSSHConnection(configuration, sshpassBin, target)
 	if errorValue != nil {
@@ -672,24 +690,24 @@ func runMigrateDeviceID(arguments []string) error {
 	target.useRemoteSSH = isRemote
 	printCommandTargetEvidence(target)
 
-	response, errorValue := registerDeviceIDMigration(
+	response, errorValue := registerFleetIDMigration(
 		configuration,
-		oldDeviceID,
-		newDeviceID,
-		loadBoardID(target.stateDir),
-		loadOrCreateBoardKey(target.stateDir),
-		loadState(target.stateDir, "device_secret"),
+		oldFleetID,
+		newFleetID,
+		loadNodeID(target.stateDir),
+		loadOrCreateNodeKey(target.stateDir),
+		loadOrCreateFleetSecret(target.stateDir),
 		remoteSetupAdminEmail(target.stateDir),
 	)
 	if errorValue != nil {
 		return errorValue
 	}
-	if response.DeviceID != newDeviceID {
-		return fmt.Errorf("migration did not return requested device id: requested %s, got %s", newDeviceID, response.DeviceID)
+	if response.registeredFleetID() != newFleetID {
+		return fmt.Errorf("migration did not return requested fleet id: requested %s, got %s", newFleetID, response.registeredFleetID())
 	}
 	saveRegistrationResponse(target.stateDir, response)
 	updateRemoteDeviceRegistration(connection, configuration, response)
-	fmt.Printf("Migrated device ID: %s -> %s\n", oldDeviceID, response.DeviceID)
+	fmt.Printf("Migrated fleet ID: %s -> %s\n", oldFleetID, response.registeredFleetID())
 	if response.AliasURL != "" {
 		fmt.Printf("Alias: %s\n", response.AliasURL)
 	}
@@ -771,8 +789,8 @@ func printStatusForCommandTarget(m *msg, configuration config, sshpassBin string
 	}
 
 	fmt.Printf("  %s\n", m.t(
-		"기기를 찾을 수 없습니다.\n  - RPi5: Wi-Fi 연결 확인\n  - Tart Lab: internkim lab vm-up",
-		"Device not found.\n  - RPi5: Check Wi-Fi\n  - Tart Lab: start with `internkim lab vm-up`",
+		"기기를 찾을 수 없습니다.\n  - Board: Wi-Fi 연결 확인\n  - Tart Lab: internkim lab vm-up",
+		"Device not found.\n  - Board: Check Wi-Fi\n  - Tart Lab: start with `internkim lab vm-up`",
 	))
 	return nil
 }
@@ -2167,18 +2185,19 @@ func getLocalSSHPubKey() string {
 	return ""
 }
 
-// --- Device registration ---
+// --- Fleet registration ---
 
 type registerResponse struct {
-	DeviceID          string `json:"device_id"`
-	OldDeviceID       string `json:"old_device_id"`
-	BoardID           string `json:"board_id"`
+	FleetID           string `json:"fleet_id"`
+	OldFleetID        string `json:"old_fleet_id"`
+	NodeID            string `json:"node_id"`
 	TunnelToken       string `json:"tunnel_token"`
 	NodeTunnelToken   string `json:"node_tunnel_token"`
 	URL               string `json:"url"`
 	MattermostURL     string `json:"mattermost_url"`
 	AliasURL          string `json:"alias_url"`
 	SSHHostname       string `json:"ssh_hostname"`
+	TLSStatus         string `json:"tls_certificate_status"`
 	FleetRole         string `json:"fleet_role"`
 	FleetActiveCount  int    `json:"fleet_active_count"`
 	FleetPendingCount int    `json:"fleet_pending_count"`
@@ -2201,28 +2220,40 @@ func (response *registerResponse) publicURL() string {
 	return response.URL
 }
 
-func registerDevice(configuration config, deviceID, boardID, boardKey, deviceSecret, adminEmail string) (*registerResponse, error) {
-	return registerDeviceRequest(configuration, map[string]string{
-		"device_id":     deviceID,
-		"board_id":      boardID,
-		"board_key":     boardKey,
-		"device_secret": deviceSecret,
-		"admin_email":   adminEmail,
+func (response *registerResponse) registeredFleetID() string {
+	return response.FleetID
+}
+
+func (response *registerResponse) registeredOldFleetID() string {
+	return response.OldFleetID
+}
+
+func (response *registerResponse) registeredNodeID() string {
+	return response.NodeID
+}
+
+func registerFleetNode(configuration config, fleetID, nodeID, nodeKey, fleetSecret, adminEmail string) (*registerResponse, error) {
+	return registerFleetRequest(configuration, map[string]string{
+		"fleet_id":     fleetID,
+		"node_id":      nodeID,
+		"node_key":     nodeKey,
+		"fleet_secret": fleetSecret,
+		"admin_email":  adminEmail,
 	})
 }
 
-func registerDeviceIDMigration(configuration config, oldDeviceID, newDeviceID, boardID, boardKey, deviceSecret, adminEmail string) (*registerResponse, error) {
-	return registerDeviceRequest(configuration, map[string]string{
-		"device_id":     oldDeviceID,
-		"new_device_id": newDeviceID,
-		"board_id":      boardID,
-		"board_key":     boardKey,
-		"device_secret": deviceSecret,
-		"admin_email":   adminEmail,
+func registerFleetIDMigration(configuration config, oldFleetID, newFleetID, nodeID, nodeKey, fleetSecret, adminEmail string) (*registerResponse, error) {
+	return registerFleetRequest(configuration, map[string]string{
+		"fleet_id":     oldFleetID,
+		"new_fleet_id": newFleetID,
+		"node_id":      nodeID,
+		"node_key":     nodeKey,
+		"fleet_secret": fleetSecret,
+		"admin_email":  adminEmail,
 	})
 }
 
-func registerDeviceRequest(configuration config, requestBody map[string]string) (*registerResponse, error) {
+func registerFleetRequest(configuration config, requestBody map[string]string) (*registerResponse, error) {
 	body, _ := json.Marshal(requestBody)
 
 	req, _ := http.NewRequest("POST", configuration.APIBaseURL+"/api/register", bytes.NewReader(body))
@@ -2248,13 +2279,13 @@ func registerDeviceRequest(configuration config, requestBody map[string]string) 
 	return &result, nil
 }
 
-func registerDeviceWithCollisionRetry(configuration config, stateDir, deviceID, adminEmail string) (*registerResponse, error) {
-	deviceSecret := loadOrCreateDeviceSecret(stateDir)
-	boardID := loadBoardID(stateDir)
-	boardKey := loadOrCreateBoardKey(stateDir)
+func registerFleetNodeWithCollisionRetry(configuration config, stateDir, fleetID, adminEmail string) (*registerResponse, error) {
+	fleetSecret := loadOrCreateFleetSecret(stateDir)
+	nodeID := loadNodeID(stateDir)
+	nodeKey := loadOrCreateNodeKey(stateDir)
 
 	for attempt := 0; attempt < 5; attempt++ {
-		response, registerError := registerDevice(configuration, deviceID, boardID, boardKey, deviceSecret, adminEmail)
+		response, registerError := registerFleetNode(configuration, fleetID, nodeID, nodeKey, fleetSecret, adminEmail)
 		if registerError == nil {
 			saveRegistrationResponse(stateDir, response)
 			saveDefaultFleetNode(stateDir, response)
@@ -2269,16 +2300,16 @@ func registerDeviceWithCollisionRetry(configuration config, stateDir, deviceID, 
 			return nil, errors.New("fleet join rejected; check --fleet and --fleet-secret")
 		}
 
-		deviceID, deviceSecret = resetDeviceIdentity(stateDir)
-		fmt.Printf("  Device ID collision detected; retrying with %s\n", deviceID)
+		fleetID, fleetSecret = resetFleetIdentity(stateDir)
+		fmt.Printf("  Fleet ID collision detected; retrying with %s\n", fleetID)
 	}
 
-	return nil, errors.New("device_id collision retry limit reached")
+	return nil, errors.New("fleet_id collision retry limit reached")
 }
 
 func saveRegistrationResponse(stateDir string, response *registerResponse) {
-	saveState(stateDir, "device_id", response.DeviceID)
-	saveState(stateDir, "board_id", firstNonEmptyString(response.BoardID, loadBoardID(stateDir)))
+	saveState(stateDir, "fleet_id", response.registeredFleetID())
+	saveState(stateDir, "node_id", firstNonEmptyString(response.registeredNodeID(), loadNodeID(stateDir)))
 	saveState(stateDir, "fleet_role", firstNonEmptyString(response.FleetRole, "active"))
 	saveState(stateDir, "fleet_active_count", fmt.Sprint(defaultInt(response.FleetActiveCount, 1)))
 	saveState(stateDir, "fleet_pending_count", fmt.Sprint(response.FleetPendingCount))
@@ -2290,6 +2321,9 @@ func saveRegistrationResponse(stateDir string, response *registerResponse) {
 	saveState(stateDir, "device_url", response.publicURL())
 	if strings.TrimSpace(response.SSHHostname) != "" {
 		saveState(stateDir, "ssh_hostname", response.SSHHostname)
+	}
+	if strings.TrimSpace(response.TLSStatus) != "" {
+		saveState(stateDir, "tls_certificate_status", response.TLSStatus)
 	}
 }
 
@@ -2370,36 +2404,37 @@ func copySetupStateHints(sourceDir string, destinationDir string) {
 	}
 }
 
-func loadOrCreateDeviceID(stateDir string) string {
-	id := loadState(stateDir, "device_id")
+func loadOrCreateFleetID(stateDir string) string {
+	id := loadState(stateDir, "fleet_id")
 	if id != "" {
+		saveState(stateDir, "fleet_id", id)
 		return id
 	}
-	id = randomDeviceID()
-	saveState(stateDir, "device_id", id)
+	id = randomFleetID()
+	saveState(stateDir, "fleet_id", id)
 	return id
 }
 
-func loadBoardID(stateDir string) string {
-	return loadState(stateDir, "board_id")
+func loadNodeID(stateDir string) string {
+	return loadState(stateDir, "node_id")
 }
 
-func loadOrCreateBoardKey(stateDir string) string {
-	key := loadState(stateDir, "board_key")
+func loadOrCreateNodeKey(stateDir string) string {
+	key := loadState(stateDir, "node_key")
 	if key != "" {
 		return key
 	}
-	key = "board-" + randomHexString(8)
-	saveState(stateDir, "board_key", key)
+	key = "node-" + randomHexString(8)
+	saveState(stateDir, "node_key", key)
 	return key
 }
 
-func isNumericBoardID(boardID string) bool {
-	trimmedBoardID := strings.TrimSpace(boardID)
-	if trimmedBoardID == "" {
+func isNumericNodeID(nodeID string) bool {
+	trimmedNodeID := strings.TrimSpace(nodeID)
+	if trimmedNodeID == "" {
 		return false
 	}
-	for index, character := range trimmedBoardID {
+	for index, character := range trimmedNodeID {
 		if character < '0' || character > '9' {
 			return false
 		}
@@ -2410,27 +2445,28 @@ func isNumericBoardID(boardID string) bool {
 	return true
 }
 
-func loadOrCreateDeviceSecret(stateDir string) string {
-	secret := loadState(stateDir, "device_secret")
+func loadOrCreateFleetSecret(stateDir string) string {
+	secret := loadState(stateDir, "fleet_secret")
 	if secret != "" {
+		saveState(stateDir, "fleet_secret", secret)
 		return secret
 	}
 	secret = randomHexString(32)
-	saveState(stateDir, "device_secret", secret)
+	saveState(stateDir, "fleet_secret", secret)
 	return secret
 }
 
-func resetDeviceIdentity(stateDir string) (string, string) {
-	deviceID := randomDeviceID()
-	deviceSecret := randomHexString(32)
-	saveState(stateDir, "device_id", deviceID)
-	saveState(stateDir, "device_secret", deviceSecret)
+func resetFleetIdentity(stateDir string) (string, string) {
+	fleetID := randomFleetID()
+	fleetSecret := randomHexString(32)
+	saveState(stateDir, "fleet_id", fleetID)
+	saveState(stateDir, "fleet_secret", fleetSecret)
 	saveState(stateDir, "device_url", "")
 	saveState(stateDir, "tunnel_token", "")
-	return deviceID, deviceSecret
+	return fleetID, fleetSecret
 }
 
-func randomDeviceID() string {
+func randomFleetID() string {
 	return randomAlphanumericString(12)
 }
 
@@ -4024,32 +4060,32 @@ func resolveCloudflareSSHHostname(configuration config, target commandTarget) st
 	if hostname := cloudflareSSHHostnameFromDeviceURL(target.deviceURL); hostname != "" {
 		return hostname
 	}
-	deviceID := loadState(target.stateDir, "device_id")
-	if strings.TrimSpace(deviceID) == "" {
+	fleetID := loadState(target.stateDir, "fleet_id")
+	if strings.TrimSpace(fleetID) == "" {
 		return ""
 	}
 	if strings.TrimSpace(target.nodeID) != "" {
-		return cloudflareNodeSSHHostname(configuration, strings.TrimSpace(deviceID), strings.TrimSpace(target.nodeID))
+		return cloudflareNodeSSHHostname(configuration, strings.TrimSpace(fleetID), strings.TrimSpace(target.nodeID))
 	}
-	return cloudflareSSHHostname(configuration, strings.TrimSpace(deviceID))
+	return cloudflareSSHHostname(configuration, strings.TrimSpace(fleetID))
 }
 
-func ensureCloudflareSSHRegistration(configuration config, stateDir string) (string, error) {
+func ensureCloudflareSSHRegistration(configuration config, stateDir string, force bool) (string, error) {
 	savedSSHHostname := loadState(stateDir, "ssh_hostname")
-	if savedSSHHostname != "" && loadState(stateDir, "node_tunnel_token") != "" && loadState(stateDir, "tunnel_revision") == setup.TunnelConfigurationRevision && !isLegacyCloudflareSSHHostname(configuration, savedSSHHostname) {
+	if canReuseCloudflareSSHRegistration(configuration, stateDir, savedSSHHostname, force) {
 		return savedSSHHostname, nil
 	}
-	deviceID := loadState(stateDir, "device_id")
-	boardID := loadBoardID(stateDir)
-	boardKey := loadOrCreateBoardKey(stateDir)
-	deviceSecret := loadState(stateDir, "device_secret")
-	if deviceID == "" || deviceSecret == "" {
-		return "", errors.New("Cloudflare SSH requires an already registered device; run setup once on the device network first")
+	fleetID := loadState(stateDir, "fleet_id")
+	nodeID := loadNodeID(stateDir)
+	nodeKey := loadOrCreateNodeKey(stateDir)
+	fleetSecret := loadState(stateDir, "fleet_secret")
+	if fleetID == "" || fleetSecret == "" {
+		return "", errors.New("Cloudflare SSH requires an already registered fleet; run setup once on the local network first")
 	}
 	if strings.TrimSpace(configuration.RegisterSecret) == "" {
 		return "", errors.New("Cloudflare SSH migration requires INTERNKIM_REGISTER_SECRET")
 	}
-	response, errorValue := registerDevice(configuration, deviceID, boardID, boardKey, deviceSecret, remoteSetupAdminEmail(stateDir))
+	response, errorValue := registerFleetNode(configuration, fleetID, nodeID, nodeKey, fleetSecret, remoteSetupAdminEmail(stateDir))
 	if errorValue != nil {
 		return "", errorValue
 	}
@@ -4064,10 +4100,19 @@ func ensureCloudflareSSHRegistration(configuration config, stateDir string) (str
 	return sshHostname, nil
 }
 
+func canReuseCloudflareSSHRegistration(configuration config, stateDir string, savedSSHHostname string, force bool) bool {
+	return !force &&
+		savedSSHHostname != "" &&
+		loadState(stateDir, "node_tunnel_token") != "" &&
+		loadState(stateDir, "tunnel_revision") == setup.TunnelConfigurationRevision &&
+		cloudflareSSHTLSIsReady(cloudflareSSHTLSStatus(stateDir)) &&
+		!isLegacyCloudflareSSHHostname(configuration, savedSSHHostname)
+}
+
 func updateRemoteDeviceRegistration(connection *sshClient, configuration config, response *registerResponse) {
 	nodeTunnelToken := firstNonEmptyString(response.NodeTunnelToken, response.TunnelToken)
 	connection.run(fmt.Sprintf(`mkdir -p /root/.internkim/secrets /root/.internkim/env
-printf '%%s' %s > /root/.internkim/env/device-id
+printf '%%s' %s > /root/.internkim/env/fleet-id
 printf '%%s' %s > /root/.internkim/env/device-url
 printf '%%s' %s > /root/.internkim/env/mattermost-url
 printf '%%s' %s > /root/.internkim/secrets/tunnel-token
@@ -4075,10 +4120,11 @@ printf '%%s' %s > /root/.internkim/secrets/node-tunnel-token
 printf '%%s' %s > /root/.internkim/env/tunnel-origin
 printf '%%s' %s > /root/.internkim/env/tunnel-revision
 printf '%%s' %s > /root/.internkim/env/api-url
+printf '%%s' %s > /root/.internkim/env/tls-certificate-status
 chown root:root /root/.internkim/secrets/tunnel-token /root/.internkim/secrets/node-tunnel-token
 chmod 600 /root/.internkim/secrets/tunnel-token /root/.internkim/secrets/node-tunnel-token
-chown root:blueclaw /root/.internkim/env/device-id /root/.internkim/env/device-url /root/.internkim/env/mattermost-url /root/.internkim/env/tunnel-origin /root/.internkim/env/tunnel-revision /root/.internkim/env/api-url
-chmod 640 /root/.internkim/env/device-id /root/.internkim/env/device-url /root/.internkim/env/mattermost-url /root/.internkim/env/tunnel-origin /root/.internkim/env/tunnel-revision /root/.internkim/env/api-url
+chown root:blueclaw /root/.internkim/env/fleet-id /root/.internkim/env/device-url /root/.internkim/env/mattermost-url /root/.internkim/env/tunnel-origin /root/.internkim/env/tunnel-revision /root/.internkim/env/api-url /root/.internkim/env/tls-certificate-status
+chmod 640 /root/.internkim/env/fleet-id /root/.internkim/env/device-url /root/.internkim/env/mattermost-url /root/.internkim/env/tunnel-origin /root/.internkim/env/tunnel-revision /root/.internkim/env/api-url /root/.internkim/env/tls-certificate-status
 cat > /etc/systemd/system/cloudflared.service <<'SVCEOF'
 [Unit]
 Description=Cloudflare Tunnel
@@ -4117,7 +4163,7 @@ rm -f /etc/init.d/S98cloudflared 2>/dev/null
 systemctl daemon-reload
 systemctl enable cloudflared cloudflared-node-ssh
 systemctl restart cloudflared cloudflared-node-ssh`,
-		quoteShellValue(response.DeviceID),
+		quoteShellValue(response.registeredFleetID()),
 		quoteShellValue(response.publicURL()),
 		quoteShellValue(response.publicURL()),
 		quoteShellValue(response.TunnelToken),
@@ -4125,35 +4171,36 @@ systemctl restart cloudflared cloudflared-node-ssh`,
 		quoteShellValue(setup.MattermostTunnelOrigin),
 		quoteShellValue(setup.TunnelConfigurationRevision),
 		quoteShellValue(configuration.APIBaseURL),
+		quoteShellValue(response.TLSStatus),
 	))
 }
 
 func saveDefaultFleetNode(stateDir string, response *registerResponse) {
-	boardID := setupBoardIdentityName(response.BoardID)
-	if boardID == "" || strings.TrimSpace(response.FleetRole) != "active" {
+	nodeID := setupNodeIdentityName(response.registeredNodeID())
+	if nodeID == "" || strings.TrimSpace(response.FleetRole) != "active" {
 		return
 	}
 	if filepath.Base(filepath.Dir(stateDir)) != "boards" {
 		return
 	}
 	baseStateDir := filepath.Dir(filepath.Dir(stateDir))
-	saveState(baseStateDir, "default_node_id", boardID)
+	saveState(baseStateDir, "default_node_id", nodeID)
 }
 
-func cloudflareSSHHostname(configuration config, deviceID string) string {
+func cloudflareSSHHostname(configuration config, fleetID string) string {
 	cfDomain := strings.TrimSpace(configuration.CFDomain)
-	if cfDomain == "" || strings.TrimSpace(deviceID) == "" {
+	if cfDomain == "" || strings.TrimSpace(fleetID) == "" {
 		return ""
 	}
-	return "ssh-" + strings.TrimSpace(deviceID) + "." + cfDomain
+	return "ssh-" + strings.TrimSpace(fleetID) + "." + cfDomain
 }
 
-func cloudflareNodeSSHHostname(configuration config, deviceID string, nodeID string) string {
+func cloudflareNodeSSHHostname(configuration config, fleetID string, nodeID string) string {
 	cfDomain := strings.TrimSpace(configuration.CFDomain)
-	if cfDomain == "" || strings.TrimSpace(deviceID) == "" || strings.TrimSpace(nodeID) == "" {
+	if cfDomain == "" || strings.TrimSpace(fleetID) == "" || strings.TrimSpace(nodeID) == "" {
 		return ""
 	}
-	return "ssh-" + strings.TrimSpace(nodeID) + "." + strings.TrimSpace(deviceID) + "." + cfDomain
+	return strings.TrimSpace(nodeID) + ".ssh." + strings.TrimSpace(fleetID) + "." + cfDomain
 }
 
 func isLegacyCloudflareSSHHostname(configuration config, hostname string) bool {
@@ -4162,7 +4209,17 @@ func isLegacyCloudflareSSHHostname(configuration config, hostname string) bool {
 	if cfDomain == "" || trimmedHostname == "" {
 		return false
 	}
-	return strings.HasPrefix(trimmedHostname, "ssh.") && strings.HasSuffix(trimmedHostname, "."+cfDomain)
+	withoutDomain, found := strings.CutSuffix(trimmedHostname, "."+cfDomain)
+	if !found {
+		return false
+	}
+	if strings.HasPrefix(trimmedHostname, "ssh.") && strings.Count(withoutDomain, ".") == 1 {
+		return true
+	}
+	if strings.HasPrefix(withoutDomain, "ssh-") && strings.Count(withoutDomain, ".") > 0 {
+		return true
+	}
+	return strings.HasPrefix(withoutDomain, "ssh-") && strings.Count(withoutDomain, "-") > 1
 }
 
 func remoteSetupAdminEmail(stateDir string) string {
@@ -4276,7 +4333,7 @@ func runSetupLive(messenger *msg) {
 	}
 
 	attemptCloudflareSSH := func() bool {
-		if hostname, errorValue := ensureCloudflareSSHRegistration(configuration, stateDir); errorValue == nil && hostname != "" {
+		if hostname, errorValue := ensureCloudflareSSHRegistration(configuration, stateDir, containsArg("--force") || containsArg("--force-all")); errorValue == nil && hostname != "" {
 			cloudflareSSHHostname = hostname
 		} else if requestedCloudflareSSH && errorValue != nil {
 			cloudflareSSHError = errorValue

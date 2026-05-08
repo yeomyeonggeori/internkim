@@ -8,13 +8,13 @@ const (
 	InternKimUsersSyncTimerPath    = "/etc/systemd/system/internkim-users-sync.timer"
 	InternKimUsersSyncStatePath    = "/root/.internkim/state/users-sync.json"
 	InternKimAPIURLPath            = "/root/.internkim/env/api-url"
-	InternKimDeviceIDPath          = "/root/.internkim/env/device-id"
-	InternKimBoardIDPath           = "/root/.internkim/env/board-id"
+	InternKimFleetIDPath           = "/root/.internkim/env/fleet-id"
+	InternKimNodeIDPath            = "/root/.internkim/env/node-id"
 	InternKimFleetRolePath         = "/root/.internkim/env/fleet-role"
 	InternKimFleetActiveCountPath  = "/root/.internkim/env/fleet-active-count"
 	InternKimFleetPendingCountPath = "/root/.internkim/env/fleet-pending-count"
 	InternKimFleetQuorumSizePath   = "/root/.internkim/env/fleet-quorum-size"
-	InternKimDeviceSecretPath      = "/root/.internkim/secrets/device-secret"
+	InternKimFleetSecretPath       = "/root/.internkim/secrets/fleet-secret"
 )
 
 func InternKimUsersSyncScript() string {
@@ -22,14 +22,14 @@ func InternKimUsersSyncScript() string {
 set -eu
 
 API_URL="$(cat /root/.internkim/env/api-url 2>/dev/null || echo https://api.example.test)"
-DEVICE_ID="$(cat /root/.internkim/env/device-id 2>/dev/null || true)"
-DEVICE_SECRET="$(cat /root/.internkim/secrets/device-secret 2>/dev/null || true)"
+FLEET_ID="$(cat /root/.internkim/env/fleet-id 2>/dev/null || true)"
+FLEET_SECRET="$(cat /root/.internkim/secrets/fleet-secret 2>/dev/null || true)"
 STATE_PATH="/root/.internkim/state/users-sync.json"
 BLUECLAW_URL="http://127.0.0.1:8080"
 POLICY_PATH="/root/.blueclaw/config/policy.json"
 
-if [ -z "$DEVICE_ID" ] || [ -z "$DEVICE_SECRET" ]; then
-  echo "users-sync: missing device credentials" >&2
+if [ -z "$FLEET_ID" ] || [ -z "$FLEET_SECRET" ]; then
+  echo "users-sync: missing fleet credentials" >&2
   exit 1
 fi
 
@@ -48,9 +48,9 @@ cleanup() {
 trap cleanup EXIT
 
 curl -fsS \
-  -H "X-InternKim-Device-ID: $DEVICE_ID" \
-  -H "X-InternKim-Device-Secret: $DEVICE_SECRET" \
-  "$API_URL/api/users?device_id=$DEVICE_ID" > "$response_path"
+  -H "X-InternKim-Fleet-ID: $FLEET_ID" \
+  -H "X-InternKim-Fleet-Secret: $FLEET_SECRET" \
+  "$API_URL/api/users?fleet_id=$FLEET_ID" > "$response_path"
 
 revision="$(jq -r '.revision // empty' "$response_path")"
 last_revision="$(jq -r '.revision // empty' "$STATE_PATH" 2>/dev/null || true)"

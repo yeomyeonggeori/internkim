@@ -90,8 +90,8 @@ func TestResolveCommandTargetUsesNodeScopedFleetState(t *testing.T) {
 	if errorValue := os.MkdirAll(baseStateDir, 0o700); errorValue != nil {
 		t.Fatalf("expected base state dir: %v", errorValue)
 	}
-	saveState(baseStateDir, "device_id", "fleet-one")
-	saveState(baseStateDir, "device_secret", "fleet-secret")
+	saveState(baseStateDir, "fleet_id", "fleet-one")
+	saveState(baseStateDir, "fleet_secret", "fleet-secret")
 
 	target := resolveCommandTarget([]string{"--node", "Board-B"})
 	expectedStateDir := filepath.Join(baseStateDir, "boards", "board-b")
@@ -99,13 +99,13 @@ func TestResolveCommandTargetUsesNodeScopedFleetState(t *testing.T) {
 	if target.stateDir != expectedStateDir {
 		t.Fatalf("expected board scoped state dir %q, got %q", expectedStateDir, target.stateDir)
 	}
-	if loadState(target.stateDir, "board_id") != "board-b" {
-		t.Fatalf("expected board id to be stored")
+	if loadState(target.stateDir, "node_id") != "board-b" {
+		t.Fatalf("expected node id to be stored")
 	}
-	if loadState(target.stateDir, "device_id") != "fleet-one" {
+	if loadState(target.stateDir, "fleet_id") != "fleet-one" {
 		t.Fatalf("expected fleet id to be copied")
 	}
-	if loadState(target.stateDir, "device_secret") != "fleet-secret" {
+	if loadState(target.stateDir, "fleet_secret") != "fleet-secret" {
 		t.Fatalf("expected fleet secret to be copied")
 	}
 	if target.nodeID != "board-b" {
@@ -126,22 +126,22 @@ func TestResolveCommandTargetAcceptsExplicitFleetJoin(t *testing.T) {
 		"join-secret",
 	})
 
-	if loadState(target.stateDir, "device_id") != "fleet-two" {
+	if loadState(target.stateDir, "fleet_id") != "fleet-two" {
 		t.Fatalf("expected explicit fleet id")
 	}
-	if loadState(target.stateDir, "device_secret") != "join-secret" {
+	if loadState(target.stateDir, "fleet_secret") != "join-secret" {
 		t.Fatalf("expected explicit fleet secret")
 	}
 }
 
-func TestResolveCommandTargetAcceptsBoardIDAlias(t *testing.T) {
+func TestResolveCommandTargetNormalizesNodeID(t *testing.T) {
 	homeDirectory := t.TempDir()
 	t.Setenv("HOME", homeDirectory)
 
-	target := resolveCommandTarget([]string{"--board-id", "Board_B"})
+	target := resolveCommandTarget([]string{"--node", "Node_B"})
 
-	if loadState(target.stateDir, "board_id") != "board-b" {
-		t.Fatalf("expected DNS-safe board id, got %q", loadState(target.stateDir, "board_id"))
+	if loadState(target.stateDir, "node_id") != "node-b" {
+		t.Fatalf("expected DNS-safe node id, got %q", loadState(target.stateDir, "node_id"))
 	}
 }
 
@@ -154,8 +154,8 @@ func TestResolveCommandTargetDefaultsToSavedDefaultNode(t *testing.T) {
 		t.Fatalf("expected node state dir: %v", errorValue)
 	}
 	saveState(baseStateDir, "default_node_id", "node-a")
-	saveState(baseStateDir, "device_id", "fleet-one")
-	saveState(nodeStateDir, "board_id", "node-a")
+	saveState(baseStateDir, "fleet_id", "fleet-one")
+	saveState(nodeStateDir, "node_id", "node-a")
 	saveState(nodeStateDir, "fleet_role", "active")
 
 	target := resolveCommandTarget(nil)
@@ -180,9 +180,9 @@ func TestResolveCommandTargetDefaultsToFirstActiveNode(t *testing.T) {
 	if errorValue := os.MkdirAll(pendingStateDir, 0o700); errorValue != nil {
 		t.Fatalf("expected pending node state dir: %v", errorValue)
 	}
-	saveState(activeStateDir, "board_id", "node-a")
+	saveState(activeStateDir, "node_id", "node-a")
 	saveState(activeStateDir, "fleet_role", "active")
-	saveState(pendingStateDir, "board_id", "node-b")
+	saveState(pendingStateDir, "node_id", "node-b")
 	saveState(pendingStateDir, "fleet_role", "pending")
 
 	target := resolveCommandTarget(nil)
@@ -201,7 +201,7 @@ func TestResolveCommandTargetHostKeepsBaseStateWithoutExplicitNode(t *testing.T)
 		t.Fatalf("expected node state dir: %v", errorValue)
 	}
 	saveState(baseStateDir, "default_node_id", "node-a")
-	saveState(nodeStateDir, "board_id", "node-a")
+	saveState(nodeStateDir, "node_id", "node-a")
 	saveState(nodeStateDir, "fleet_role", "active")
 
 	target := resolveCommandTarget([]string{"--host", "192.0.2.10"})
@@ -219,7 +219,7 @@ func TestResolveCommandTargetFindsStateByAssignedNodeID(t *testing.T) {
 	if errorValue := os.MkdirAll(legacyStateDir, 0o700); errorValue != nil {
 		t.Fatalf("expected node state dir: %v", errorValue)
 	}
-	saveState(legacyStateDir, "board_id", "5")
+	saveState(legacyStateDir, "node_id", "5")
 	saveState(legacyStateDir, "fleet_role", "active")
 
 	target := resolveCommandTarget([]string{"--node", "5"})
@@ -229,20 +229,20 @@ func TestResolveCommandTargetFindsStateByAssignedNodeID(t *testing.T) {
 	}
 }
 
-func TestRandomDeviceIDUsesTwelveLowercaseBase36Characters(t *testing.T) {
-	deviceID := randomDeviceID()
+func TestRandomFleetIDUsesTwelveLowercaseBase36Characters(t *testing.T) {
+	fleetID := randomFleetID()
 
-	if len(deviceID) != 12 {
-		t.Fatalf("expected 12 character device id, got %q", deviceID)
+	if len(fleetID) != 12 {
+		t.Fatalf("expected 12 character fleet id, got %q", fleetID)
 	}
-	for _, character := range deviceID {
+	for _, character := range fleetID {
 		if character >= 'a' && character <= 'z' {
 			continue
 		}
 		if character >= '0' && character <= '9' {
 			continue
 		}
-		t.Fatalf("expected lowercase base36 device id, got %q", deviceID)
+		t.Fatalf("expected lowercase base36 fleet id, got %q", fleetID)
 	}
 }
 
@@ -299,7 +299,7 @@ func TestResolveVerifyTargetAcceptsNodeArgument(t *testing.T) {
 	if errorValue := os.MkdirAll(nodeStateDir, 0o700); errorValue != nil {
 		t.Fatalf("expected node state dir: %v", errorValue)
 	}
-	saveState(nodeStateDir, "board_id", "node-a")
+	saveState(nodeStateDir, "node_id", "node-a")
 	saveState(nodeStateDir, "fleet_role", "active")
 
 	target, errorValue := resolveVerifyTarget([]string{"--node", "node-a", "--host", "192.0.2.30"})

@@ -749,7 +749,7 @@ func (service *Service) ensureMattermostTeam(ctx context.Context, token string) 
 }
 
 func (service *Service) ensureMattermostTownSquareChannel(ctx context.Context, token string, teamID string) (string, error) {
-	channelIDPath := filepath.Join(filepath.Dir(service.Configuration.DeviceIDPath), "channel-id")
+	channelIDPath := filepath.Join(filepath.Dir(service.Configuration.FleetIDPath), "channel-id")
 	channelID := strings.TrimSpace(readTrimmedFile(channelIDPath))
 	if channelID != "" {
 		var channelRecord mattermostChannelRecord
