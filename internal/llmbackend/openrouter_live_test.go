@@ -3,7 +3,6 @@ package llmbackend
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -12,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
 func TestOpenRouterLiveAgentActionSchemaFromEnv(t *testing.T) {
@@ -40,7 +41,7 @@ func TestOpenRouterLiveAgentActionSchemaFromEnv(t *testing.T) {
 		Messages: []Message{{Role: "user", Content: "Call browser.open for https://example.com."}},
 		StructuredOutputSchema: StructuredOutputSchema{
 			Name:               "blueclaw_agent_turn_action",
-			Document:           json.RawMessage(`{"oneOf":[{"type":"object","properties":{"action":{"type":"string","enum":["call_tool"]},"toolName":{"type":"string","enum":["browser.open"]},"toolInput":{"type":"object","required":["url"],"additionalProperties":false}},"required":["action","toolName","toolInput"],"additionalProperties":false}]}`),
+			Document:           testActionSchemaForDescriptors(t, []capabilities.Descriptor{findLiveDescriptor(t, capabilities.CompanionToolDescriptors(), "browser.open")}),
 			IsStrictlyEnforced: true,
 		},
 	}
@@ -48,6 +49,17 @@ func TestOpenRouterLiveAgentActionSchemaFromEnv(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected live OpenRouter native tool schema to be accepted: %v", errorValue)
 	}
+}
+
+func findLiveDescriptor(t *testing.T, descriptors []capabilities.Descriptor, toolName string) capabilities.Descriptor {
+	t.Helper()
+	for _, descriptor := range descriptors {
+		if descriptor.Name == toolName {
+			return descriptor
+		}
+	}
+	t.Fatalf("descriptor %s not found", toolName)
+	return capabilities.Descriptor{}
 }
 
 func TestOpenRouterLiveCalendarActionSchemaFromEnv(t *testing.T) {
@@ -76,7 +88,7 @@ func TestOpenRouterLiveCalendarActionSchemaFromEnv(t *testing.T) {
 		Messages: []Message{{Role: "user", Content: "Add vacation to the calendar."}},
 		StructuredOutputSchema: StructuredOutputSchema{
 			Name:               "blueclaw_agent_turn_action",
-			Document:           json.RawMessage(liveCalendarActionSchema),
+			Document:           testActionSchemaForDescriptors(t, capabilities.CalendarDescriptors()),
 			IsStrictlyEnforced: true,
 		},
 	}
@@ -85,17 +97,6 @@ func TestOpenRouterLiveCalendarActionSchemaFromEnv(t *testing.T) {
 		t.Fatalf("expected live OpenRouter calendar schema to be accepted: %v", errorValue)
 	}
 }
-
-const liveCalendarActionSchema = `{"oneOf":[
-	{"type":"object","properties":{"action":{"type":"string","enum":["final_reply"]},"finalReply":{"type":"string"},"goalStatus":{"type":"string","enum":["satisfied"]},"goalSatisfied":{"type":"boolean"},"completionEvidence":{"type":"array"},"qualityReview":{"type":"array"}},"required":["action","goalStatus","goalSatisfied","completionEvidence","qualityReview"],"additionalProperties":false},
-	{"type":"object","properties":{"action":{"type":"string","enum":["fail"]},"reason":{"type":"string"}},"required":["action","reason"],"additionalProperties":false},
-	{"type":"object","properties":{"action":{"type":"string","enum":["set_quality_criteria"]},"qualityCriteria":{"type":"array"}},"required":["action","qualityCriteria"],"additionalProperties":false},
-	{"type":"object","properties":{"action":{"type":"string","enum":["call_tool"]},"toolName":{"type":"string","enum":["approval.request"]},"toolInput":{"type":"object","properties":{"message":{"type":"string"},"reason":{"type":"string"}},"required":["message"],"additionalProperties":false}},"required":["action","toolName","toolInput"],"additionalProperties":false},
-	{"type":"object","properties":{"action":{"type":"string","enum":["call_tool"]},"toolName":{"type":"string","enum":["calendar.event.add"]},"toolInput":{"type":"object","properties":{"title":{"type":"string"},"description":{"type":"string"},"location":{"type":"string"},"startISO":{"type":"string"},"endISO":{"type":"string"},"timeZone":{"type":"string"},"isAllDay":{"type":"boolean"},"color":{"type":"string"},"people":{"oneOf":[{"type":"string"},{"type":"array","items":{"type":"string"}}]},"reminderLeadHours":{"type":"integer","enum":[1,2,3,6,12,24,48]}},"required":["title","startISO","endISO"],"additionalProperties":false}},"required":["action","toolName","toolInput"],"additionalProperties":false},
-	{"type":"object","properties":{"action":{"type":"string","enum":["call_tool"]},"toolName":{"type":"string","enum":["calendar.event.delete"]},"toolInput":{"type":"object","properties":{"eventID":{"type":"string"}},"required":["eventID"],"additionalProperties":false}},"required":["action","toolName","toolInput"],"additionalProperties":false},
-	{"type":"object","properties":{"action":{"type":"string","enum":["call_tool"]},"toolName":{"type":"string","enum":["calendar.event.list"]},"toolInput":{"type":"object","properties":{"startISO":{"type":"string"},"endISO":{"type":"string"},"query":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":50}},"additionalProperties":false}},"required":["action","toolName","toolInput"],"additionalProperties":false},
-	{"type":"object","properties":{"action":{"type":"string","enum":["call_tool"]},"toolName":{"type":"string","enum":["calendar.event.update"]},"toolInput":{"type":"object","properties":{"eventID":{"type":"string"},"title":{"type":"string"},"description":{"type":"string"},"location":{"type":"string"},"startISO":{"type":"string"},"endISO":{"type":"string"},"timeZone":{"type":"string"},"isAllDay":{"type":"boolean"},"color":{"type":"string"},"people":{"oneOf":[{"type":"string"},{"type":"array","items":{"type":"string"}}]},"reminderLeadHours":{"type":"integer","enum":[1,2,3,6,12,24,48]}},"required":["eventID","title","startISO","endISO"],"additionalProperties":false}},"required":["action","toolName","toolInput"],"additionalProperties":false}
-]}`
 
 func assertOpenRouterLiveSchemaAccepted(ctx context.Context, backend OpenRouterBackend, request StructuredRequest) error {
 	apiKey, errorValue := backend.resolveAPIKey()
@@ -106,11 +107,11 @@ func assertOpenRouterLiveSchemaAccepted(ctx context.Context, backend OpenRouterB
 	if errorValue != nil {
 		return errorValue
 	}
-	requestDocument, errorValue := buildOpenRouterResponsesActionRequest(request, backend.resolveModelName(request.Model), toolSet.Tools)
+	requestDocument, errorValue := buildOpenRouterChatActionRequest(request, backend.resolveModelName(request.Model), toolSet.Tools)
 	if errorValue != nil {
 		return errorValue
 	}
-	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, openRouterResponsesURL(backend.BaseURL), bytes.NewReader(requestDocument))
+	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, backend.BaseURL, bytes.NewReader(requestDocument))
 	if errorValue != nil {
 		return errorValue
 	}
@@ -126,7 +127,7 @@ func assertOpenRouterLiveSchemaAccepted(ctx context.Context, backend OpenRouterB
 		return errorValue
 	}
 	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return errors.New(string(responseDocument))
+		return errors.New(string(responseDocument) + "\nrequest=" + string(requestDocument))
 	}
 	return nil
 }
