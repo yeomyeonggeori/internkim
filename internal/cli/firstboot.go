@@ -258,6 +258,31 @@ if [ -f "$STAGE/device-id" ]; then
   chown root:blueclaw /root/.internkim/env/device-id
   chmod 640 /root/.internkim/env/device-id
 fi
+if [ -f "$STAGE/board-id" ]; then
+  cp -f "$STAGE/board-id" /root/.internkim/env/board-id
+  chown root:blueclaw /root/.internkim/env/board-id
+  chmod 640 /root/.internkim/env/board-id
+fi
+if [ -f "$STAGE/fleet-role" ]; then
+  cp -f "$STAGE/fleet-role" /root/.internkim/env/fleet-role
+  chown root:blueclaw /root/.internkim/env/fleet-role
+  chmod 640 /root/.internkim/env/fleet-role
+fi
+if [ -f "$STAGE/fleet-active-count" ]; then
+  cp -f "$STAGE/fleet-active-count" /root/.internkim/env/fleet-active-count
+  chown root:blueclaw /root/.internkim/env/fleet-active-count
+  chmod 640 /root/.internkim/env/fleet-active-count
+fi
+if [ -f "$STAGE/fleet-pending-count" ]; then
+  cp -f "$STAGE/fleet-pending-count" /root/.internkim/env/fleet-pending-count
+  chown root:blueclaw /root/.internkim/env/fleet-pending-count
+  chmod 640 /root/.internkim/env/fleet-pending-count
+fi
+if [ -f "$STAGE/fleet-quorum-size" ]; then
+  cp -f "$STAGE/fleet-quorum-size" /root/.internkim/env/fleet-quorum-size
+  chown root:blueclaw /root/.internkim/env/fleet-quorum-size
+  chmod 640 /root/.internkim/env/fleet-quorum-size
+fi
 if [ -f "$STAGE/api-url" ]; then
   cp -f "$STAGE/api-url" /root/.internkim/env/api-url
   chown root:blueclaw /root/.internkim/env/api-url
@@ -629,7 +654,7 @@ else
   cp /opt/mattermost/config/config.defaults.json /opt/mattermost/config/config.json 2>/dev/null || true
   jq --arg ds "postgres://mmuser:${MM_DB_PASS}@localhost/mattermost?sslmode=disable&connect_timeout=10" \
      --arg url "$SITE_URL" \
-     '.SqlSettings.DriverName = "postgres" | .SqlSettings.DataSource = $ds | .ServiceSettings.SiteURL = $url | .ServiceSettings.EnableUserAccessTokens = true | .ServiceSettings.EnableBotAccountCreation = true | .TeamSettings.TeammateNameDisplay = "full_name"' \
+     '.SqlSettings.DriverName = "postgres" | .SqlSettings.DataSource = $ds | .ServiceSettings.SiteURL = $url | .ServiceSettings.EnableUserAccessTokens = true | .ServiceSettings.EnableBotAccountCreation = true | .TeamSettings.TeammateNameDisplay = "nickname_full_name"' \
      /opt/mattermost/config/config.json > /opt/mattermost/config/config.tmp \
      && mv /opt/mattermost/config/config.tmp /opt/mattermost/config/config.json
   chown mattermost:mattermost /opt/mattermost/config/config.json
@@ -724,7 +749,7 @@ SVCEOF
     curl -sf -X PUT "$MM_URL/api/v4/users/$BOT_USER_ID/patch" \
       -H "Authorization: Bearer $ADMIN_TOKEN" \
       -H 'Content-Type: application/json' \
-      -d '{"first_name":"김인턴","nickname":"Intern Kim","position":""}' >/dev/null 2>&1 || true
+      -d '{"first_name":"Intern","last_name":"Kim","nickname":"김인턴","position":""}' >/dev/null 2>&1 || true
   fi
 
   BOT_TOKEN=""
@@ -828,6 +853,44 @@ else
 %sSYNCSERVICEEOF
   cat > %s <<'SYNCTIMEREOF'
 %sSYNCTIMEREOF
+  cat > /etc/systemd/system/cloudflared.service <<'CLOUDFLARED_FLEET_EOF'
+[Unit]
+Description=Cloudflare Fleet Tunnel
+After=network-online.target time-sync.target
+Wants=network-online.target time-sync.target
+
+[Service]
+Type=simple
+ExecStart=/bin/sh -c '/usr/local/bin/cloudflared tunnel run --protocol http2 --token "$(cat /root/.internkim/secrets/tunnel-token)"'
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+CLOUDFLARED_FLEET_EOF
+  cat > /etc/systemd/system/cloudflared-node-ssh.service <<'CLOUDFLARED_NODE_EOF'
+[Unit]
+Description=Cloudflare Node SSH Tunnel
+After=network-online.target time-sync.target
+Wants=network-online.target time-sync.target
+
+[Service]
+Type=simple
+ExecStart=/bin/sh -c '/usr/local/bin/cloudflared tunnel run --protocol http2 --token "$(cat /root/.internkim/secrets/node-tunnel-token)"'
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+CLOUDFLARED_NODE_EOF
+  if [ ! -f /root/.internkim/secrets/node-tunnel-token ]; then
+    cp -f /root/.internkim/secrets/tunnel-token /root/.internkim/secrets/node-tunnel-token
+    chmod 600 /root/.internkim/secrets/node-tunnel-token
+  fi
   systemctl daemon-reload
   systemctl disable %s 2>/dev/null || true
   systemctl disable %s 2>/dev/null || true
@@ -844,11 +907,22 @@ else
   systemctl enable %s
   systemctl start %s
   systemctl enable --now internkim-users-sync.timer
+  systemctl enable cloudflared-node-ssh
+  systemctl start cloudflared-node-ssh
+  cloudflaredServiceNames="cloudflared"
+  if [ "$(cat /root/.internkim/env/fleet-role 2>/dev/null || true)" = "pending" ]; then
+    systemctl disable --now cloudflared 2>/dev/null || true
+    cloudflaredServiceNames="cloudflared-node-ssh"
+  else
+    systemctl enable cloudflared
+    systemctl start cloudflared
+    cloudflaredServiceNames="cloudflared cloudflared-node-ssh"
+  fi
 
   echo "Waiting for services..."
   for attemptIndex in $(seq 1 150); do
     allServicesActive=true
-    for serviceName in mattermost %s %s %s %s %s cloudflared postgresql; do
+    for serviceName in mattermost %s %s %s %s %s $cloudflaredServiceNames postgresql; do
       if ! systemctl is-active --quiet "$serviceName" 2>/dev/null; then
         allServicesActive=false
         break

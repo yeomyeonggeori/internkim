@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/identity"
 )
 
 type botProfile struct {
@@ -118,11 +120,12 @@ func (service *Service) seedBotProfileFromMattermost(ctx context.Context) botPro
 	if strings.TrimSpace(userRecord.DisplayName) != "" {
 		profile.DisplayName = strings.TrimSpace(userRecord.DisplayName)
 	}
-	if strings.TrimSpace(userRecord.FirstName) != "" {
-		profile.DisplayName = strings.TrimSpace(userRecord.FirstName)
-	}
 	if strings.TrimSpace(userRecord.Nickname) != "" {
-		profile.EnglishDisplayName = strings.TrimSpace(userRecord.Nickname)
+		profile.DisplayName = strings.TrimSpace(userRecord.Nickname)
+	}
+	fullName := strings.TrimSpace(strings.Join(strings.Fields(userRecord.FirstName+" "+userRecord.LastName), " "))
+	if fullName != "" {
+		profile.EnglishDisplayName = fullName
 	}
 	if strings.TrimSpace(userRecord.Position) != "" {
 		profile.PublicDescription = strings.TrimSpace(userRecord.Position)
@@ -170,15 +173,26 @@ func (service *Service) syncMattermostBotProfile(ctx context.Context, profile bo
 	if !found || botRecord.ID == "" {
 		return fmt.Errorf("Mattermost bot internkim is missing")
 	}
-	body := map[string]string{
-		"first_name": profile.DisplayName,
-		"nickname":   profile.EnglishDisplayName,
-		"position":   profile.PublicDescription,
-	}
+	body := mattermostBotProfilePatch(profile)
 	if errorValue := service.mattermostRequest(ctx, http.MethodPut, "/api/v4/users/"+url.PathEscape(botRecord.ID)+"/patch", adminToken, body, nil); errorValue != nil {
 		return errorValue
 	}
 	return nil
+}
+
+func mattermostBotProfilePatch(profile botProfile) map[string]string {
+	body := map[string]string{
+		"nickname": firstNonEmpty(profile.DisplayName, profile.Username),
+		"position": profile.PublicDescription,
+	}
+	firstName, lastName := identity.SplitNameForMattermost(firstNonEmpty(profile.EnglishDisplayName, profile.Username))
+	if firstName != "" {
+		body["first_name"] = firstName
+	}
+	if lastName != "" {
+		body["last_name"] = lastName
+	}
+	return body
 }
 
 func normalizeBotProfile(profile botProfile) botProfile {

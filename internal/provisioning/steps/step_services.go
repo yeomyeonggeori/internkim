@@ -29,8 +29,7 @@ var StepServices = Step{
 		return trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
-			strings.Contains(trimmedRun(context, "systemctl cat "+locallm.LlamaCppServiceName+" 2>/dev/null"), locallm.LlamaCppBinaryPath) &&
-			strings.Contains(trimmedRun(context, "systemctl cat "+locallm.LlamaCppEmbeddingServiceName+" 2>/dev/null"), locallm.LlamaCppEmbeddingModelPath) &&
+			localLLMServiceUnitsAreSatisfied(context) &&
 			trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
 			trimmedRun(context, blueclaw.CapabilitydHealthCheckCommand()) == "ok" &&
 			trimmedRun(context, "systemctl is-active mattermost") == "active" &&
@@ -67,67 +66,11 @@ echo "Cleaned unavailable skills"`)
 chown -R blueclaw:blueclaw /root/.blueclaw/workspace/.blueclaw
 chmod -R u=rwX,g=rwX,o= /root/.blueclaw/workspace/.blueclaw`)
 
-		connection.Run(fmt.Sprintf(`systemctl stop zeroclaw 2>/dev/null || true
-systemctl disable zeroclaw 2>/dev/null || true
-rm -f /etc/systemd/system/zeroclaw.service
-rm -rf /etc/systemd/system/zeroclaw.service.d
-systemctl enable systemd-time-wait-sync.service 2>/dev/null
-cat > %s <<'SVCEOF'
-%sSVCEOF
-cat > %s <<'CAPABILITYEOF'
-%sCAPABILITYEOF
-cat > %s <<'ADMINDEOF'
-%sADMINDEOF
-cat > %s <<'LLAMACPP_EOF'
-%sLLAMACPP_EOF
-cat > %s <<'LLAMACPP_EMBEDDING_EOF'
-%sLLAMACPP_EMBEDDING_EOF
-systemctl daemon-reload
-systemctl disable %s 2>/dev/null || true
-systemctl disable %s 2>/dev/null || true
-systemctl enable %s
-systemctl restart %s
-systemctl enable %s
-systemctl restart %s
-systemctl enable %s
-systemctl restart %s
-systemctl enable %s
-systemctl restart %s
-systemctl enable %s
-systemctl restart %s
-sleep 2`,
-			blueclaw.BlueclawServicePath,
-			blueclaw.BlueclawServiceUnit(),
-			blueclaw.CapabilitydServicePath,
-			blueclaw.CapabilitydServiceUnit(),
-			blueclaw.AdmindServicePath,
-			blueclaw.AdmindServiceUnit(),
-			locallm.LlamaCppServicePath,
-			blueclaw.LlamaCppServiceUnit(),
-			locallm.LlamaCppEmbeddingServicePath,
-			blueclaw.LlamaCppEmbeddingServiceUnit(),
-			locallm.LlamaCppServiceName,
-			locallm.LlamaCppEmbeddingServiceName,
-			locallm.LlamaCppServiceName,
-			locallm.LlamaCppServiceName,
-			locallm.LlamaCppEmbeddingServiceName,
-			locallm.LlamaCppEmbeddingServiceName,
-			blueclaw.CapabilitydServiceName,
-			blueclaw.CapabilitydServiceName,
-			blueclaw.AdmindServiceName,
-			blueclaw.AdmindServiceName,
-			blueclaw.BlueclawServiceName,
-			blueclaw.BlueclawServiceName,
-		))
+		connection.Run(serviceUnitInstallCommand(context))
 
 		isBlueclawHealthy := false
 		for attempt := 0; attempt < blueclawServiceHealthAttempts; attempt++ {
-			isBlueclawHealthy = trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
-				trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
-				trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
-				trimmedRun(context, "systemctl is-active "+locallm.LlamaCppEmbeddingServiceName) == "active" &&
-				trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
-				trimmedRun(context, blueclaw.CapabilitydHealthCheckCommand()) == "ok"
+			isBlueclawHealthy = blueclawServicesAreHealthy(context)
 			if isBlueclawHealthy {
 				break
 			}
@@ -169,6 +112,89 @@ fi`, deviceURL))
 		}
 		return nil
 	},
+}
+
+func localLLMServiceUnitsAreSatisfied(context *Context) bool {
+	if context.BoardType == BoardSimulation {
+		return true
+	}
+	return strings.Contains(trimmedRun(context, "systemctl cat "+locallm.LlamaCppServiceName+" 2>/dev/null"), locallm.LlamaCppBinaryPath) &&
+		strings.Contains(trimmedRun(context, "systemctl cat "+locallm.LlamaCppEmbeddingServiceName+" 2>/dev/null"), locallm.LlamaCppEmbeddingModelPath)
+}
+
+func serviceUnitInstallCommand(context *Context) string {
+	services := serviceUnitDocuments(context)
+	serviceNames := enabledServiceNames(context)
+	var command strings.Builder
+	command.WriteString(`systemctl stop zeroclaw 2>/dev/null || true
+systemctl disable zeroclaw 2>/dev/null || true
+rm -f /etc/systemd/system/zeroclaw.service
+rm -rf /etc/systemd/system/zeroclaw.service.d
+systemctl enable systemd-time-wait-sync.service 2>/dev/null
+`)
+	for _, service := range services {
+		fmt.Fprintf(&command, "cat > %s <<'SERVICEEOF'\n%sSERVICEEOF\n", service.path, service.document)
+	}
+	command.WriteString("systemctl daemon-reload\n")
+	for _, serviceName := range disabledServiceNames(context) {
+		fmt.Fprintf(&command, "systemctl disable %s 2>/dev/null || true\n", serviceName)
+	}
+	for _, serviceName := range serviceNames {
+		fmt.Fprintf(&command, "systemctl enable %s\nsystemctl restart %s\n", serviceName, serviceName)
+	}
+	command.WriteString("sleep 2")
+	return command.String()
+}
+
+func serviceUnitDocuments(context *Context) []serviceUnitDocument {
+	services := []serviceUnitDocument{
+		{path: blueclaw.BlueclawServicePath, document: blueclaw.BlueclawServiceUnit()},
+		{path: blueclaw.CapabilitydServicePath, document: blueclaw.CapabilitydServiceUnit()},
+		{path: blueclaw.AdmindServicePath, document: blueclaw.AdmindServiceUnit()},
+	}
+	if context.BoardType == BoardSimulation {
+		return services
+	}
+	return append(services,
+		serviceUnitDocument{path: locallm.LlamaCppServicePath, document: blueclaw.LlamaCppServiceUnit()},
+		serviceUnitDocument{path: locallm.LlamaCppEmbeddingServicePath, document: blueclaw.LlamaCppEmbeddingServiceUnit()},
+	)
+}
+
+func enabledServiceNames(context *Context) []string {
+	serviceNames := []string{
+		blueclaw.CapabilitydServiceName,
+		blueclaw.AdmindServiceName,
+		blueclaw.BlueclawServiceName,
+	}
+	if context.BoardType == BoardSimulation {
+		return serviceNames
+	}
+	return append([]string{locallm.LlamaCppServiceName, locallm.LlamaCppEmbeddingServiceName}, serviceNames...)
+}
+
+func disabledServiceNames(context *Context) []string {
+	if context.BoardType == BoardSimulation {
+		return nil
+	}
+	return []string{locallm.LlamaCppServiceName, locallm.LlamaCppEmbeddingServiceName}
+}
+
+func blueclawServicesAreHealthy(context *Context) bool {
+	isHealthy := trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
+		trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
+		trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
+		trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
+		trimmedRun(context, blueclaw.CapabilitydHealthCheckCommand()) == "ok"
+	if !isHealthy || context.BoardType == BoardSimulation {
+		return isHealthy
+	}
+	return trimmedRun(context, "systemctl is-active "+locallm.LlamaCppEmbeddingServiceName) == "active"
+}
+
+type serviceUnitDocument struct {
+	path     string
+	document string
 }
 
 func blueclawRuntimeContractCheckCommand() string {
@@ -244,8 +270,8 @@ for profile in runtime_configuration.get("agentProfiles", []):
         profile_tool_names = [str(tool_name) for tool_name in profile.get("allowedToolNames", [])]
         break
 
-required_tools = {"terminal.run", "terminal.session", "browser_handoff.openURL", "approval.request", "file.write", "file.attach"}
-missing_tools = sorted(required_tools - set(profile_tool_names))
+mandatory_profile_tools = {"terminal.run", "terminal.session", "browser_handoff.openURL", "approval.request", "file.write", "file.attach"}
+missing_tools = sorted(mandatory_profile_tools - set(profile_tool_names))
 if missing_tools:
     print("runtime-profile-missing-tools:" + ",".join(missing_tools))
     raise SystemExit
@@ -262,48 +288,43 @@ PY`
 func blueclawRootfsBaseContractCheckCommand() string {
 	return `set -eu
 rootfs_path="/opt/internkim/blueclaw-runtime/rootfs.ext4"
-init_dump_path="/tmp/internkim-blueclaw-rootfs-init-check"
-passwd_dump_path="/tmp/internkim-blueclaw-rootfs-passwd-check"
-group_dump_path="/tmp/internkim-blueclaw-rootfs-group-check"
+mount_path="$(mktemp -d /tmp/internkim-blueclaw-rootfs-check.XXXXXX)"
+cleanup_rootfs_check() {
+  if mountpoint -q "$mount_path"; then
+    umount "$mount_path" 2>/dev/null || true
+  fi
+  rmdir "$mount_path" 2>/dev/null || true
+}
+trap cleanup_rootfs_check EXIT
 if [ ! -s "$rootfs_path" ]; then
   echo rootfs-missing
   exit 0
 fi
-if ! command -v debugfs >/dev/null 2>&1; then
-  echo debugfs-missing
+if ! mount -o loop,ro,noload "$rootfs_path" "$mount_path" >/tmp/internkim-blueclaw-rootfs-mount-check.log 2>&1; then
+  echo rootfs-mount-failed
   exit 0
 fi
-rm -f "$init_dump_path"
-if ! debugfs -R "dump /sbin/init $init_dump_path" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-init-check.log 2>&1; then
-  echo rootfs-init-dump-failed
-  exit 0
-fi
-if ! debugfs -R "stat /usr/local/bin/marp" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-marp-check.log 2>&1; then
+if [ ! -x "$mount_path/usr/local/bin/marp" ]; then
   echo rootfs-marp-missing
   exit 0
 fi
-if ! debugfs -R "stat /usr/local/bin/bun" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-bun-check.log 2>&1; then
+if [ ! -x "$mount_path/usr/local/bin/bun" ]; then
   echo rootfs-bun-missing
   exit 0
 fi
-if ! debugfs -R "stat /usr/local/bin/bunx" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-bunx-check.log 2>&1; then
+if [ ! -x "$mount_path/usr/local/bin/bunx" ]; then
   echo rootfs-bunx-missing
   exit 0
 fi
-if ! debugfs -R "stat /usr/bin/chromium" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-chromium-check.log 2>&1; then
+if [ ! -x "$mount_path/usr/bin/chromium" ]; then
   echo rootfs-chromium-missing
   exit 0
 fi
-rm -f "$passwd_dump_path" "$group_dump_path"
-if ! debugfs -R "dump /etc/passwd $passwd_dump_path" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-passwd-check.log 2>&1; then
-  echo rootfs-passwd-dump-failed
+if [ ! -u "$mount_path/usr/local/bin/blueclaw-posix-helper" ]; then
+  echo rootfs-posix-helper-missing
   exit 0
 fi
-if ! debugfs -R "dump /etc/group $group_dump_path" "$rootfs_path" >/tmp/internkim-blueclaw-rootfs-group-check.log 2>&1; then
-  echo rootfs-group-dump-failed
-  exit 0
-fi
-python3 - "$init_dump_path" "$passwd_dump_path" "$group_dump_path" <<'PY'
+python3 - "$mount_path/sbin/init" "$mount_path/etc/passwd" "$mount_path/etc/group" <<'PY'
 from pathlib import Path
 import sys
 
@@ -315,6 +336,7 @@ for name, marker in {
     "blueclaw-workspace-owner": "chown blueclaw:blueclaw /workspace /workspace/.blueclaw",
     "blueclaw-payload-launch": "/workspace/.blueclaw/runtime/current/bin/blueclaw",
     "blueclaw-runtime-directory": "/workspace/.blueclaw/runtime",
+    "blueclaw-posix-sync": "blueclaw-posix-helper sync",
 }.items():
     if marker not in guest_init:
         print("rootfs-init-missing-marker:" + name)

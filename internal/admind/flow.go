@@ -141,6 +141,7 @@ type flowQuickTaskRequest struct {
 	WeekCode       string   `json:"weekCode"`
 	RequesterEmail string   `json:"requesterEmail"`
 	Source         string   `json:"source"`
+	AllowDuplicate bool     `json:"allowDuplicate"`
 }
 
 type flowDefinitionsWriteRequest struct {
@@ -156,8 +157,16 @@ type inferredFlowTask struct {
 	Goal           string   `json:"goal"`
 	Size           string   `json:"size"`
 	Status         string   `json:"status"`
+	StartDate      string   `json:"startDate"`
+	EndDate        string   `json:"endDate"`
 	ParticipantIDs []string `json:"participantIDs"`
 	RequestReason  string   `json:"requestReason"`
+}
+
+type flowDuplicateDecision struct {
+	IsDuplicate     bool   `json:"isDuplicate"`
+	DuplicateTaskID string `json:"duplicateTaskID"`
+	Reason          string `json:"reason"`
 }
 
 type capabilityLLMResponse struct {
@@ -464,7 +473,7 @@ func (service *Service) createQuickFlowTask(responseWriter http.ResponseWriter, 
 		writeFlowRequestError(responseWriter, errorValue)
 		return
 	}
-	inferredTask, errorValue := service.inferFlowTask(request.Context(), prompt, owner, members, definitions)
+	inferredTask, errorValue := service.inferFlowTask(request.Context(), prompt, payload.WeekCode, owner, members, definitions)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
@@ -478,6 +487,8 @@ func (service *Service) createQuickFlowTask(responseWriter http.ResponseWriter, 
 		Goal:           inferredTask.Goal,
 		Size:           inferredTask.Size,
 		Status:         inferredTask.Status,
+		StartDate:      inferredTask.StartDate,
+		EndDate:        inferredTask.EndDate,
 		WeekCode:       payload.WeekCode,
 		RequestReason:  inferredTask.RequestReason,
 	}
@@ -496,12 +507,32 @@ func (service *Service) createQuickFlowTask(responseWriter http.ResponseWriter, 
 		writeFlowRequestError(responseWriter, errorValue)
 		return
 	}
+	if !payload.AllowDuplicate {
+		duplicateTask, reason, found, errorValue := service.findQuickFlowTaskDuplicate(request.Context(), task, members)
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+			return
+		}
+		if found {
+			service.writeQuickFlowTaskDuplicate(responseWriter, duplicateTask, reason)
+			return
+		}
+	}
 	if errorValue := service.writeFlowTask(request.Context(), task); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
 	task = service.syncFlowMattermostNotification(request.Context(), task)
 	service.writeJSON(responseWriter, task)
+}
+
+func (service *Service) writeQuickFlowTaskDuplicate(responseWriter http.ResponseWriter, task flowTask, reason string) {
+	service.writeJSON(responseWriter, map[string]any{
+		"status":        "skipped_duplicate",
+		"message":       "이미 추가된 Flow 업무라 건너뛰었습니다. 그래도 추가하려면 다시 추가하라고 확인해 주세요.",
+		"duplicateTask": task,
+		"reason":        strings.TrimSpace(reason),
+	})
 }
 
 func writeFlowRequestError(responseWriter http.ResponseWriter, errorValue error) {
@@ -1166,8 +1197,8 @@ func memberIDForEmail(members []flowMember, email string) string {
 	return ""
 }
 
-func (service *Service) inferFlowTask(ctx context.Context, prompt string, owner flowMember, members []flowMember, definitions flowDefinitions) (inferredFlowTask, error) {
-	requestDocument, errorValue := json.Marshal(flowLLMRequest(prompt, owner, members, definitions))
+func (service *Service) inferFlowTask(ctx context.Context, prompt string, weekCode string, owner flowMember, members []flowMember, definitions flowDefinitions) (inferredFlowTask, error) {
+	requestDocument, errorValue := json.Marshal(flowLLMRequest(prompt, weekCode, owner, members, definitions))
 	if errorValue != nil {
 		return inferredFlowTask{}, errorValue
 	}
@@ -1199,8 +1230,55 @@ func (service *Service) inferFlowTask(ctx context.Context, prompt string, owner 
 	if !containsString(flowStatusOptions(), task.Status) {
 		task.Status = "예정"
 	}
+	task.StartDate = strings.TrimSpace(task.StartDate)
+	task.EndDate = strings.TrimSpace(task.EndDate)
 	task.ParticipantIDs = cleanParticipantIDs(task.ParticipantIDs, members, owner.ID)
 	return task, nil
+}
+
+func (service *Service) findQuickFlowTaskDuplicate(ctx context.Context, task flowTask, members []flowMember) (flowTask, string, bool, error) {
+	existingTasks, errorValue := service.readFlowTasks(ctx, task.WeekCode, members)
+	if errorValue != nil {
+		return flowTask{}, "", false, errorValue
+	}
+	sameDateTasks := flowTasksWithMatchingDates(existingTasks, task)
+	if len(sameDateTasks) == 0 {
+		return flowTask{}, "", false, nil
+	}
+	decision, errorValue := service.decideFlowTaskDuplicate(ctx, task, sameDateTasks)
+	if errorValue != nil {
+		return flowTask{}, "", false, errorValue
+	}
+	if !decision.IsDuplicate {
+		return flowTask{}, "", false, nil
+	}
+	duplicateTask, found := flowTaskByID(sameDateTasks, decision.DuplicateTaskID)
+	if !found {
+		duplicateTask = sameDateTasks[0]
+	}
+	return duplicateTask, decision.Reason, true, nil
+}
+
+func (service *Service) decideFlowTaskDuplicate(ctx context.Context, task flowTask, existingTasks []flowTask) (flowDuplicateDecision, error) {
+	requestDocument, errorValue := json.Marshal(flowDuplicateLLMRequest(task, existingTasks))
+	if errorValue != nil {
+		return flowDuplicateDecision{}, errorValue
+	}
+	responseDocument, errorValue := service.callCapabilityStructuredLLM(ctx, requestDocument)
+	if errorValue != nil {
+		return flowDuplicateDecision{}, errorValue
+	}
+	var response capabilityLLMResponse
+	if errorValue := json.Unmarshal(responseDocument, &response); errorValue != nil {
+		return flowDuplicateDecision{}, errorValue
+	}
+	var decision flowDuplicateDecision
+	if errorValue := json.Unmarshal([]byte(response.Content), &decision); errorValue != nil {
+		return flowDuplicateDecision{}, fmt.Errorf("flow duplicate guard returned invalid JSON: %w", errorValue)
+	}
+	decision.DuplicateTaskID = strings.TrimSpace(decision.DuplicateTaskID)
+	decision.Reason = strings.TrimSpace(decision.Reason)
+	return decision, nil
 }
 
 func (service *Service) callCapabilityStructuredLLM(ctx context.Context, requestDocument []byte) ([]byte, error) {
@@ -1233,17 +1311,43 @@ func (service *Service) callCapabilityStructuredLLM(ctx context.Context, request
 	return body, nil
 }
 
-func flowLLMRequest(prompt string, owner flowMember, members []flowMember, definitions flowDefinitions) map[string]any {
+func flowTasksWithMatchingDates(tasks []flowTask, task flowTask) []flowTask {
+	result := []flowTask{}
+	for _, existingTask := range tasks {
+		if strings.TrimSpace(existingTask.ID) == strings.TrimSpace(task.ID) {
+			continue
+		}
+		if strings.TrimSpace(existingTask.StartDate) != strings.TrimSpace(task.StartDate) {
+			continue
+		}
+		if strings.TrimSpace(existingTask.EndDate) != strings.TrimSpace(task.EndDate) {
+			continue
+		}
+		result = append(result, existingTask)
+	}
+	return result
+}
+
+func flowTaskByID(tasks []flowTask, taskID string) (flowTask, bool) {
+	for _, task := range tasks {
+		if strings.TrimSpace(task.ID) == strings.TrimSpace(taskID) {
+			return task, true
+		}
+	}
+	return flowTask{}, false
+}
+
+func flowLLMRequest(prompt string, weekCode string, owner flowMember, members []flowMember, definitions flowDefinitions) map[string]any {
 	return map[string]any{
 		"executionMode": "remote",
 		"messages": []map[string]string{
 			{
 				"role":    "system",
-				"content": "You convert short task notes into a weekly work tracker task. Return only values allowed by the schema. Keep Korean task content concise. Pick the closest type and size. Use status 예정 unless the note clearly says 진행, 완료, 요청, 기각, 일시정지, or 중단.",
+				"content": "You convert short task notes into a weekly work tracker task. Return only values allowed by the schema. Keep Korean task content concise. Pick the closest type and size. Use status 예정 unless the note clearly says 진행, 완료, 요청, 기각, 일시정지, or 중단. Use YYYY-MM-DD dates only when the note clearly names a date; otherwise use empty strings.",
 			},
 			{
 				"role":    "user",
-				"content": flowInferencePrompt(prompt, owner, members, definitions),
+				"content": flowInferencePrompt(prompt, weekCode, owner, members, definitions),
 			},
 		},
 		"structuredOutputSchema": map[string]any{
@@ -1252,7 +1356,7 @@ func flowLLMRequest(prompt string, owner flowMember, members []flowMember, defin
 			"document": map[string]any{
 				"type":                 "object",
 				"additionalProperties": false,
-				"required":             []string{"category", "type", "content", "goal", "size", "status", "participantIDs", "requestReason"},
+				"required":             []string{"category", "type", "content", "goal", "size", "status", "startDate", "endDate", "participantIDs", "requestReason"},
 				"properties": map[string]any{
 					"category":       map[string]any{"type": "string", "enum": append([]string{""}, definitions.Categories...)},
 					"type":           map[string]any{"type": "string", "enum": definitions.Types},
@@ -1260,6 +1364,8 @@ func flowLLMRequest(prompt string, owner flowMember, members []flowMember, defin
 					"goal":           map[string]any{"type": "string"},
 					"size":           map[string]any{"type": "string", "enum": flowSizeNames(definitions.Sizes)},
 					"status":         map[string]any{"type": "string", "enum": flowStatusOptions()},
+					"startDate":      map[string]any{"type": "string"},
+					"endDate":        map[string]any{"type": "string"},
 					"participantIDs": map[string]any{"type": "array", "items": map[string]any{"type": "string", "enum": memberIDOptions(members)}},
 					"requestReason":  map[string]any{"type": "string"},
 				},
@@ -1268,19 +1374,90 @@ func flowLLMRequest(prompt string, owner flowMember, members []flowMember, defin
 	}
 }
 
-func flowInferencePrompt(prompt string, owner flowMember, members []flowMember, definitions flowDefinitions) string {
+func flowDuplicateLLMRequest(task flowTask, existingTasks []flowTask) map[string]any {
+	return map[string]any{
+		"executionMode": "remote",
+		"messages": []map[string]string{
+			{
+				"role":    "system",
+				"content": "You are a duplicate guard for a weekly work tracker. Decide whether the candidate is substantially the same real-world task as one of the existing tasks. The existing tasks already have the same start and end dates as the candidate. Treat paraphrases and translations as duplicates. Do not treat related follow-ups, separate meetings, or different deliverables as duplicates. If there is no duplicate, set duplicateTaskID to an empty string.",
+			},
+			{
+				"role":    "user",
+				"content": flowDuplicatePrompt(task, existingTasks),
+			},
+		},
+		"structuredOutputSchema": map[string]any{
+			"name":               "flow_task_duplicate_guard",
+			"isStrictlyEnforced": true,
+			"document": map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+				"required":             []string{"isDuplicate", "duplicateTaskID", "reason"},
+				"properties": map[string]any{
+					"isDuplicate":     map[string]any{"type": "boolean"},
+					"duplicateTaskID": map[string]any{"type": "string", "enum": append([]string{""}, flowTaskIDs(existingTasks)...)},
+					"reason":          map[string]any{"type": "string"},
+				},
+			},
+		},
+	}
+}
+
+func flowInferencePrompt(prompt string, weekCode string, owner flowMember, members []flowMember, definitions flowDefinitions) string {
 	memberLines := make([]string, 0, len(members))
 	for _, member := range members {
 		memberLines = append(memberLines, member.ID+"="+member.Name+"<"+member.Email+">")
 	}
+	now := time.Now()
+	resolvedWeekCode := firstNonEmpty(strings.TrimSpace(weekCode), weekCodeForDate(now))
+	weekStart := weekStartForCode(resolvedWeekCode, now)
 	return strings.Join([]string{
 		"Task note: " + prompt,
+		"Today: " + now.Format("2006-01-02"),
+		"Week code: " + resolvedWeekCode,
+		"Week dates: " + weekStart.Format("2006-01-02") + " to " + weekStart.AddDate(0, 0, 6).Format("2006-01-02"),
 		"Default owner ID: " + owner.ID,
 		"Members: " + strings.Join(memberLines, ", "),
 		"Categories: " + strings.Join(definitions.Categories, ", "),
 		"Types: " + strings.Join(definitions.Types, ", "),
 		"Size rubric: " + flowSizeRubricForPrompt(definitions.Sizes),
 	}, "\n")
+}
+
+func flowDuplicatePrompt(task flowTask, existingTasks []flowTask) string {
+	lines := []string{
+		"Candidate: " + flowTaskDuplicateLine(task),
+		"Existing tasks with the same start and end dates:",
+	}
+	for _, existingTask := range existingTasks {
+		lines = append(lines, "- "+flowTaskDuplicateLine(existingTask))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func flowTaskDuplicateLine(task flowTask) string {
+	return strings.Join([]string{
+		"id=" + task.ID,
+		"owner=" + task.OwnerName,
+		"startDate=" + task.StartDate,
+		"endDate=" + task.EndDate,
+		"type=" + task.Type,
+		"size=" + task.Size,
+		"status=" + task.Status,
+		"content=" + task.Content,
+		"goal=" + task.Goal,
+	}, " | ")
+}
+
+func flowTaskIDs(tasks []flowTask) []string {
+	values := make([]string, 0, len(tasks))
+	for _, task := range tasks {
+		if strings.TrimSpace(task.ID) != "" {
+			values = append(values, task.ID)
+		}
+	}
+	return values
 }
 
 func flowSizeRubricForPrompt(sizes []flowSizeDefinition) string {

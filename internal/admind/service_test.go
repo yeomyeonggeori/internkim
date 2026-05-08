@@ -798,7 +798,7 @@ func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *test
 		case isMattermostConnectCommandSetupRequest(request):
 			return mattermostConnectCommandSetupResponse(t, request), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
-			assertMattermostFullNameDisplayPatch(t, request)
+			assertMattermostNicknameDisplayPatch(t, request)
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/email/member@example.com":
 			return jsonResponse(http.StatusNotFound, `{"message":"not found"}`, nil), nil
@@ -810,7 +810,7 @@ func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *test
 			if payload["email"] != "member@example.com" {
 				t.Fatalf("mattermost email = %q", payload["email"])
 			}
-			if payload["username"] != "member" || payload["first_name"] != "Member" || payload["last_name"] != "One" || payload["nickname"] != "Member One" {
+			if payload["username"] != "member" || payload["first_name"] != "Member" || payload["last_name"] != "One" || payload["nickname"] != "Member" {
 				t.Fatalf("mattermost identity payload = %#v", payload)
 			}
 			if payload["password"] == "" {
@@ -936,7 +936,7 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 		case isMattermostConnectCommandSetupRequest(request):
 			return mattermostConnectCommandSetupResponse(t, request), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
-			assertMattermostFullNameDisplayPatch(t, request)
+			assertMattermostNicknameDisplayPatch(t, request)
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"oldhandle","roles":"system_user"}`, nil), nil
@@ -984,7 +984,7 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("user save status = %d body = %s", response.Code, response.Body.String())
 	}
-	if mattermostPatch["username"] != "newhandle" || mattermostPatch["first_name"] != "New" || mattermostPatch["last_name"] != "Name" || mattermostPatch["nickname"] != "New Name" {
+	if mattermostPatch["username"] != "newhandle" || mattermostPatch["first_name"] != "New" || mattermostPatch["last_name"] != "Name" || mattermostPatch["nickname"] != "New" {
 		t.Fatalf("mattermost patch = %#v", mattermostPatch)
 	}
 	if pagesPayload["userID"] != "user-member" || pagesPayload["handle"] != "newhandle" || pagesPayload["name"] != "New Name" {
@@ -1027,7 +1027,7 @@ func TestAdminInvitePreservesCurrentAdminRole(t *testing.T) {
 		case isMattermostConnectCommandSetupRequest(request):
 			return mattermostConnectCommandSetupResponse(t, request), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
-			assertMattermostFullNameDisplayPatch(t, request)
+			assertMattermostNicknameDisplayPatch(t, request)
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/email/admin@example.com":
 			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
@@ -1262,7 +1262,7 @@ func TestBotProfileUpdatePatchesMattermostAndWorkspaceProfile(t *testing.T) {
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/username/internkim":
-			return jsonResponse(http.StatusOK, `{"id":"bot-1","email":"internkim@localhost","username":"internkim","first_name":"Intern Kim","nickname":"Intern Kim","roles":"system_user"}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"id":"bot-1","email":"internkim@localhost","username":"internkim","first_name":"Intern","last_name":"Kim","nickname":"김인턴","roles":"system_user"}`, nil), nil
 		case request.Method == http.MethodPut && request.URL.String() == "http://mattermost.local/api/v4/users/bot-1/patch":
 			body, _ := io.ReadAll(request.Body)
 			patchBody = string(body)
@@ -1287,7 +1287,7 @@ func TestBotProfileUpdatePatchesMattermostAndWorkspaceProfile(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("bot profile status = %d: %s", response.Code, response.Body.String())
 	}
-	if !strings.Contains(patchBody, `"first_name":"김비서"`) || !strings.Contains(patchBody, `"position":"업무를 빠르게 돕습니다"`) {
+	if !strings.Contains(patchBody, `"first_name":"Kim"`) || !strings.Contains(patchBody, `"last_name":"Secretary"`) || !strings.Contains(patchBody, `"nickname":"김비서"`) || !strings.Contains(patchBody, `"position":"업무를 빠르게 돕습니다"`) {
 		t.Fatalf("unexpected Mattermost patch body: %s", patchBody)
 	}
 	workspaceDocument, errorValue := os.ReadFile(filepath.Join(workspacePath, "BOT_PROFILE.yaml"))
@@ -1846,6 +1846,28 @@ func assertMattermostFlowChannelPatch(t *testing.T, request *http.Request) {
 	}
 }
 
+func assertMattermostFlowChannelCreate(t *testing.T, request *http.Request) {
+	t.Helper()
+	var payload map[string]string
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if payload["team_id"] != "team-1" || payload["name"] != "flow" || payload["display_name"] != "Flow" || payload["type"] != "O" {
+		t.Fatalf("flow channel create = %#v", payload)
+	}
+}
+
+func assertMattermostChannelMember(t *testing.T, request *http.Request, expectedUserID string) {
+	t.Helper()
+	var payload map[string]string
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if payload["user_id"] != expectedUserID {
+		t.Fatalf("channel member = %#v", payload)
+	}
+}
+
 func assertMattermostFlowEntryPost(t *testing.T, request *http.Request) {
 	t.Helper()
 	var payload map[string]any
@@ -2232,6 +2254,79 @@ func TestMattermostConnectCommandProvisioningCreatesCommandToken(t *testing.T) {
 	}
 }
 
+func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
+	stateDirectory := t.TempDir()
+	envDirectory := filepath.Join(stateDirectory, "env")
+	if errorValue := os.MkdirAll(envDirectory, 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	adminPasswordPath := filepath.Join(stateDirectory, "admin-pass")
+	deviceIDPath := filepath.Join(envDirectory, "device-id")
+	writeFile(t, adminPasswordPath, "admin-pass")
+	writeFile(t, deviceIDPath, "device-1")
+	flowChannelCreated := false
+	flowChannelPatched := false
+	flowEntryPostCreated := false
+	adminJoinedFlowChannel := false
+	service := NewService(Configuration{
+		StateDirectory:              stateDirectory,
+		MattermostBaseURL:           "http://mattermost.local",
+		MattermostAdminPasswordPath: adminPasswordPath,
+		DeviceIDPath:                deviceIDPath,
+		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
+	})
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
+			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/username/admin":
+			return jsonResponse(http.StatusOK, `{"id":"admin","email":"admin@localhost","username":"admin"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/admin/roles" && request.Method == http.MethodPut:
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim":
+			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/members" && request.Method == http.MethodPost:
+			return jsonResponse(http.StatusCreated, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/town-square":
+			return jsonResponse(http.StatusOK, `{"id":"town-square-channel"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/flow":
+			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels" && request.Method == http.MethodPost:
+			flowChannelCreated = true
+			assertMattermostFlowChannelCreate(t, request)
+			return jsonResponse(http.StatusCreated, `{"id":"flow-channel"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/patch" && request.Method == http.MethodPut:
+			flowChannelPatched = true
+			assertMattermostFlowChannelPatch(t, request)
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/posts?per_page=50":
+			return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/posts" && request.Method == http.MethodPost:
+			flowEntryPostCreated = true
+			assertMattermostFlowEntryPost(t, request)
+			return jsonResponse(http.StatusCreated, `{"id":"flow-entry"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/town-square-channel/members" && request.Method == http.MethodPost:
+			return jsonResponse(http.StatusCreated, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/members" && request.Method == http.MethodPost:
+			adminJoinedFlowChannel = true
+			assertMattermostChannelMember(t, request, "admin")
+			return jsonResponse(http.StatusCreated, `{}`, nil), nil
+		case isMattermostConnectCommandSetupRequest(request):
+			return mattermostConnectCommandSetupResponse(t, request), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	if errorValue := service.ensureMattermostProvisionerDefaults(context.Background()); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !flowChannelCreated || !flowChannelPatched || !flowEntryPostCreated || !adminJoinedFlowChannel {
+		t.Fatalf("flow setup flags created=%v patched=%v posted=%v joined=%v", flowChannelCreated, flowChannelPatched, flowEntryPostCreated, adminJoinedFlowChannel)
+	}
+}
+
 func TestMattermostConnectCommandProvisioningRecreatesCommandWithoutToken(t *testing.T) {
 	service := NewService(Configuration{
 		StateDirectory:    t.TempDir(),
@@ -2469,6 +2564,40 @@ func TestCompanionJobReportsNotReadyWhenOwnerBrowserCapabilityMissing(t *testing
 	}
 	if response.Status != "denied" || denial.Code != capabilities.CapabilityNotReady || strings.Contains(response.Content, "/connect") {
 		t.Fatalf("expected not_ready denial without reconnect advice, got response=%+v denial=%+v", response, denial)
+	}
+	if denial.Recovery != nil {
+		t.Fatalf("expected not_ready denial without recovery action, got %+v", denial.Recovery)
+	}
+}
+
+func TestCompanionJobExpiryReportsNotReady(t *testing.T) {
+	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	service.companions["companion-1"] = &CompanionRecord{
+		CompanionID: "companion-1",
+		OwnerEmail:  "admin@example.com",
+		Capabilities: []capabilities.Descriptor{
+			{Name: "browser.open"},
+		},
+		LastSeenAt: time.Now().UTC(),
+	}
+
+	response, errorValue := service.invokeCompanionJob(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName:      "browser.open",
+		Input:         json.RawMessage(`{"url":"https://example.com"}`),
+		Context:       capabilities.ToolInvokeContext{RequesterEmail: "admin@example.com"},
+		PrivacyClass:  "user_browser",
+		TimeoutSecond: 1,
+	})
+
+	if errorValue != nil {
+		t.Fatalf("expected structured timeout denial: %v", errorValue)
+	}
+	var denial capabilities.DenialResult
+	if errorValue := json.Unmarshal(response.Result, &denial); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != "denied" || denial.Code != capabilities.CapabilityNotReady || denial.Recovery != nil {
+		t.Fatalf("expected not_ready denial without recovery, got response=%+v denial=%+v", response, denial)
 	}
 }
 
@@ -2873,7 +3002,7 @@ func TestCompanionTerminalJobClosesWatch(t *testing.T) {
 	}
 }
 
-func TestCompanionRemoteModelReadAndUpdate(t *testing.T) {
+func TestRuntimeRemoteModelReadAndUpdate(t *testing.T) {
 	runtimeConfigPath := filepath.Join(t.TempDir(), "runtime.json")
 	writeFile(t, runtimeConfigPath, `{"languageModel":{"capability":{"model":"google/old-model"}}}`)
 	service := NewService(Configuration{
@@ -2899,13 +3028,13 @@ func TestCompanionRemoteModelReadAndUpdate(t *testing.T) {
 	_ = keyPair
 
 	readResponse := httptest.NewRecorder()
-	readRequest := httptest.NewRequest(http.MethodGet, "/_internkim/companion/remote-model", nil)
+	readRequest := httptest.NewRequest(http.MethodGet, "/_internkim/runtime/remote-model", nil)
 	setCompanionHeaders(t, readRequest, pairResult.companionPairResponse, pairResult.privateKey)
 	handler.ServeHTTP(readResponse, readRequest)
 	if readResponse.Code != http.StatusOK {
 		t.Fatalf("read status = %d: %s", readResponse.Code, readResponse.Body.String())
 	}
-	var readResult companionRemoteModelResponse
+	var readResult runtimeRemoteModelResponse
 	if errorValue := json.NewDecoder(readResponse.Body).Decode(&readResult); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -2914,7 +3043,7 @@ func TestCompanionRemoteModelReadAndUpdate(t *testing.T) {
 	}
 
 	updateResponse := httptest.NewRecorder()
-	updateRequest := httptest.NewRequest(http.MethodPut, "/_internkim/companion/remote-model", strings.NewReader(`{"model":"google/new-model"}`))
+	updateRequest := httptest.NewRequest(http.MethodPut, "/_internkim/runtime/remote-model", strings.NewReader(`{"model":"google/new-model"}`))
 	setCompanionHeaders(t, updateRequest, pairResult.companionPairResponse, pairResult.privateKey)
 	handler.ServeHTTP(updateResponse, updateRequest)
 	if updateResponse.Code != http.StatusOK {
@@ -2926,6 +3055,18 @@ func TestCompanionRemoteModelReadAndUpdate(t *testing.T) {
 	updatedDocument := readJSONFile(t, runtimeConfigPath)
 	if remoteModelFromRuntimeDocument(updatedDocument) != "google/new-model" {
 		t.Fatalf("expected updated model, got %+v", updatedDocument)
+	}
+}
+
+func TestRemoteModelIsNotCompanionBrokerEndpoint(t *testing.T) {
+	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	request := httptest.NewRequest(http.MethodGet, "/_internkim/companion/remote-model", nil)
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("expected companion remote model endpoint to be absent, got %d", response.Code)
 	}
 }
 
@@ -3212,14 +3353,14 @@ func assertFirstAdminPasswordPolicyPatch(t *testing.T, request *http.Request) {
 	}
 }
 
-func assertMattermostFullNameDisplayPatch(t *testing.T, request *http.Request) {
+func assertMattermostNicknameDisplayPatch(t *testing.T, request *http.Request) {
 	t.Helper()
 	var payload map[string]map[string]any
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	teamSettings := payload["TeamSettings"]
-	if teamSettings["TeammateNameDisplay"] != "full_name" {
+	if teamSettings["TeammateNameDisplay"] != "nickname_full_name" {
 		t.Fatalf("teammate name display = %#v", teamSettings["TeammateNameDisplay"])
 	}
 }
@@ -3341,6 +3482,48 @@ func readJSONFile(t *testing.T, path string) map[string]any {
 		t.Fatal(errorValue)
 	}
 	return result
+}
+
+func TestCompanionJobTimeoutSecond(t *testing.T) {
+	tests := []struct {
+		name     string
+		request  capabilities.ToolInvokeRequest
+		expected int
+	}{
+		{
+			name:     "non interactive default",
+			request:  capabilities.ToolInvokeRequest{ToolName: "filesystem.mount.list"},
+			expected: 30,
+		},
+		{
+			name:     "browser default allows user approval",
+			request:  capabilities.ToolInvokeRequest{ToolName: "browser.open"},
+			expected: 120,
+		},
+		{
+			name:     "user presence default allows user approval",
+			request:  capabilities.ToolInvokeRequest{ToolName: "user.confirm", RequiresUserPresence: true},
+			expected: 120,
+		},
+		{
+			name:     "explicit timeout is preserved",
+			request:  capabilities.ToolInvokeRequest{ToolName: "browser.open", TimeoutSecond: 45},
+			expected: 45,
+		},
+		{
+			name:     "explicit timeout is capped",
+			request:  capabilities.ToolInvokeRequest{ToolName: "browser.open", TimeoutSecond: 500},
+			expected: 300,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := companionJobTimeoutSecond(test.request)
+			if actual != test.expected {
+				t.Fatalf("timeout = %d, want %d", actual, test.expected)
+			}
+		})
+	}
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

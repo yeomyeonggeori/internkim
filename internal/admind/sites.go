@@ -801,6 +801,12 @@ func siteLifecycleAllowed(site *SiteRecord, payload siteLifecycleRequest) bool {
 }
 
 func (service *Service) prepareSiteWorkspace(ctx context.Context, site *SiteRecord) error {
+	if errorValue := os.MkdirAll(filepath.Dir(site.HostSourcePath), 0o777); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := os.Chmod(filepath.Dir(site.HostSourcePath), 0o777); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := os.MkdirAll(filepath.Join(site.HostSourcePath, "app", "src"), 0o750); errorValue != nil {
 		return errorValue
 	}
@@ -817,7 +823,20 @@ func (service *Service) prepareSiteWorkspace(ctx context.Context, site *SiteReco
 		return errorValue
 	}
 	_, _ = service.runCommand(ctx, "chown", "-R", "blueclaw:blueclaw", site.HostSourcePath)
-	return nil
+	return makeSiteWorkspaceCollaborative(site.HostSourcePath)
+}
+
+func makeSiteWorkspaceCollaborative(workspacePath string) error {
+	return filepath.Walk(workspacePath, func(path string, information os.FileInfo, walkError error) error {
+		if walkError != nil {
+			return walkError
+		}
+		mode := os.FileMode(0o666)
+		if information.IsDir() || information.Mode()&0o111 != 0 {
+			mode = 0o777
+		}
+		return os.Chmod(path, mode)
+	})
 }
 
 func (service *Service) writeSiteWorkspaceTemplate(site *SiteRecord) error {
@@ -828,6 +847,7 @@ func (service *Service) writeSiteWorkspaceTemplate(site *SiteRecord) error {
 		"app/src/main.tsx":     siteMainTSX(),
 		"app/src/App.tsx":      siteAppTSX(site),
 		"app/src/styles.css":   siteStylesCSS(),
+		"app/dist/index.html":  siteBuiltIndexHTML(site),
 	}
 	for relativePath, document := range files {
 		path := filepath.Join(site.HostSourcePath, relativePath)
@@ -866,15 +886,15 @@ func (service *Service) initializeSiteGitRepository(ctx context.Context, site *S
 	if isDirectory(filepath.Join(site.HostSourcePath, ".git")) {
 		return nil
 	}
-	if _, errorValue := service.runCommand(ctx, "git", "-C", site.HostSourcePath, "init"); errorValue != nil {
+	if _, errorValue := service.runCommand(ctx, "git", siteGitArguments(site, "init")...); errorValue != nil {
 		return errorValue
 	}
-	_, _ = service.runCommand(ctx, "git", "-C", site.HostSourcePath, "config", "user.name", "InternKim")
-	_, _ = service.runCommand(ctx, "git", "-C", site.HostSourcePath, "config", "user.email", "internkim@localhost")
-	if _, errorValue := service.runCommand(ctx, "git", "-C", site.HostSourcePath, "add", "."); errorValue != nil {
+	_, _ = service.runCommand(ctx, "git", siteGitArguments(site, "config", "user.name", "InternKim")...)
+	_, _ = service.runCommand(ctx, "git", siteGitArguments(site, "config", "user.email", "internkim@localhost")...)
+	if _, errorValue := service.runCommand(ctx, "git", siteGitArguments(site, "add", ".")...); errorValue != nil {
 		return errorValue
 	}
-	_, _ = service.runCommand(ctx, "git", "-C", site.HostSourcePath, "commit", "-m", "Initialize prototype site")
+	_, _ = service.runCommand(ctx, "git", siteGitArguments(site, "commit", "-m", "Initialize prototype site")...)
 	return nil
 }
 
@@ -882,23 +902,28 @@ func (service *Service) commitSiteWorkspace(ctx context.Context, site *SiteRecor
 	if errorValue := service.prepareSiteWorkspace(ctx, site); errorValue != nil {
 		return "", errorValue
 	}
-	statusOutput, errorValue := service.runCommand(ctx, "git", "-C", site.HostSourcePath, "status", "--porcelain")
+	statusOutput, errorValue := service.runCommand(ctx, "git", siteGitArguments(site, "status", "--porcelain")...)
 	if errorValue != nil {
 		return "", errorValue
 	}
 	if strings.TrimSpace(string(statusOutput)) != "" {
-		if _, errorValue := service.runCommand(ctx, "git", "-C", site.HostSourcePath, "add", "."); errorValue != nil {
+		if _, errorValue := service.runCommand(ctx, "git", siteGitArguments(site, "add", ".")...); errorValue != nil {
 			return "", errorValue
 		}
-		if _, errorValue := service.runCommand(ctx, "git", "-C", site.HostSourcePath, "commit", "-m", siteCommitMessage(message)); errorValue != nil {
+		if _, errorValue := service.runCommand(ctx, "git", siteGitArguments(site, "commit", "-m", siteCommitMessage(message))...); errorValue != nil {
 			return "", errorValue
 		}
 	}
-	commitOutput, errorValue := service.runCommand(ctx, "git", "-C", site.HostSourcePath, "rev-parse", "HEAD")
+	commitOutput, errorValue := service.runCommand(ctx, "git", siteGitArguments(site, "rev-parse", "HEAD")...)
 	if errorValue != nil {
 		return "", errorValue
 	}
 	return strings.TrimSpace(string(commitOutput)), nil
+}
+
+func siteGitArguments(site *SiteRecord, arguments ...string) []string {
+	result := []string{"-c", "safe.directory=" + site.HostSourcePath, "-C", site.HostSourcePath}
+	return append(result, arguments...)
 }
 
 func (service *Service) copyApprovedPocketBaseHooks(site *SiteRecord, versionPath string, payload sitePublishRequest) error {
@@ -1080,7 +1105,7 @@ func (service *Service) sitePublishedURL(slug string) string {
 	if deviceHost == "" {
 		return ""
 	}
-	return "https://" + normalizeSiteSlug(slug) + "." + deviceHost
+	return "http://" + normalizeSiteSlug(slug) + "." + deviceHost
 }
 
 func siteServiceName(siteID string) string {
@@ -1190,6 +1215,11 @@ func sitePackageJSON(site *SiteRecord) string {
 func siteIndexHTML(site *SiteRecord) string {
 	title := html.EscapeString(firstNonEmpty(site.Title, site.Slug))
 	return "<!doctype html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"UTF-8\" />\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n<title>" + title + "</title>\n</head>\n<body>\n<div id=\"root\"></div>\n<script type=\"module\" src=\"/src/main.tsx\"></script>\n</body>\n</html>\n"
+}
+
+func siteBuiltIndexHTML(site *SiteRecord) string {
+	title := html.EscapeString(firstNonEmpty(site.Title, site.Slug))
+	return "<!doctype html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"UTF-8\" />\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n<title>" + title + "</title>\n<style>" + siteStylesCSS() + "</style>\n</head>\n<body>\n<main class=\"page-shell\">\n<section class=\"workspace-panel\">\n<div class=\"eyebrow\">Prototype</div>\n<h1>" + title + "</h1>\n<p class=\"lede\">아이디어 검토를 위한 InternKim 웹사이트 프로토타입입니다.</p>\n<div class=\"action-row\"><button type=\"button\">시작하기</button><span>" + html.EscapeString(site.PublishedURL) + "</span></div>\n</section>\n<section class=\"status-grid\">\n<article><h2>Ready to edit</h2><p>기본 사이트 골격과 배포 가능한 정적 빌드가 준비되어 있습니다.</p></article>\n<article><h2>Local first</h2><p>추가 데이터와 인증은 PocketBase 기반으로 확장할 수 있습니다.</p></article>\n</section>\n</main>\n</body>\n</html>\n"
 }
 
 func siteMainTSX() string {

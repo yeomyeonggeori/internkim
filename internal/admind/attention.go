@@ -44,8 +44,7 @@ func shouldWatchCompanionJob(job *CompanionJob) bool {
 		return false
 	}
 	toolName := strings.TrimSpace(job.ToolName)
-	return toolName == "browser.handoff" ||
-		toolName == "user.confirm" ||
+	return toolName == "user.confirm" ||
 		toolName == "user.input" ||
 		toolName == "file.pick" ||
 		strings.HasPrefix(toolName, "filesystem.mount.")

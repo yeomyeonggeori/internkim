@@ -5,8 +5,8 @@
 	import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link';
 	import { onMount } from 'svelte';
 	import { isCompanionVerified, isStalePairingStatus, normalizeManualPairingInput, parsePairingLink, stalePairingMessage, statusLabel, type CompanionStatus } from './lib/pairing';
-	import { approvalResponse, confirmResponse, inputResponse, normalizePromptRequest, promptTitle, type PromptRequest, type PromptResult } from './lib/prompts';
-	import { addMountedFolder, pairCompanion, pauseMountedFolder, readActiveGrants, readCompanionStatus, readMountedFolders, readRemoteModel, readRuntimeStatus, refreshRuntimeStatus, resumeMountedFolder, revokeGrant, revokeMountedFolder, startCompanionRuntime, updateRemoteModel, updateRuntimeLocalLLM, type ActiveGrant, type LocalLLMBackendStatus, type MountedFolder, type RuntimeStatus } from './lib/sidecar';
+	import { approvalResponse, confirmResponse, inputResponse, normalizePromptRequest, type PromptRequest, type PromptResult } from './lib/prompts';
+	import { addMountedFolder, disconnectCompanion, ensureLaunchAtLogin, pairCompanion, pauseMountedFolder, readActiveGrants, readCompanionStatus, readMountedFolders, readRuntimeRemoteModel, readRuntimeStatus, refreshRuntimeStatus, restartCompanionRuntime, resumeMountedFolder, revokeGrant, revokeMountedFolder, startCompanionRuntime, updateRuntimeLocalLLM, updateRuntimeRemoteModel, type ActiveGrant, type LocalLLMBackendStatus, type MountedFolder, type RuntimeStatus } from './lib/sidecar';
 	import { defaultSettings, fetchBackendModels, loadCompanionSettings, saveCompanionSettings, type CompanionSettings } from './lib/settings';
 
 	let status = $state<CompanionStatus>({ paired: false });
@@ -14,9 +14,6 @@
 	let deviceURL = $state('');
 	let pairingCode = $state('');
 	let message = $state('');
-	let promptInput = $state('');
-	let denialReason = $state('');
-	let pendingPrompt = $state<PromptRequest | undefined>();
 	let promptResult = $state<PromptResult>({ status: 'idle' });
 	let activeGrants = $state<ActiveGrant[]>([]);
 	let mountedFolders = $state<MountedFolder[]>([]);
@@ -40,8 +37,38 @@
 		'openai/gpt-5.1',
 		'anthropic/claude-sonnet-4.5'
 	];
+	const currentWindow = getCurrentWindow();
+	const isHandoffOverlayWindow = currentWindow.label === 'browser-handoff-overlay';
+	const handoffBridgeURL = 'http://127.0.0.1:7983/v1/browser/handoff';
+	type BrowserHandoffSnapshot = {
+		active: boolean;
+		handoffID: string;
+		sessionID: string;
+		message: string;
+		origin: string;
+	};
+	let handoffSnapshot = $state<BrowserHandoffSnapshot>({
+		active: false,
+		handoffID: '',
+		sessionID: '',
+		message: '브라우저에서 필요한 작업을 마친 뒤 완료를 눌러주세요.',
+		origin: ''
+	});
+	let handoffOverlayError = $state('');
+	let isCompletingHandoff = $state(false);
 
 	onMount(() => {
+		if (isHandoffOverlayWindow) {
+			document.body.classList.add('handoff-overlay-body');
+			void refreshHandoffOverlay();
+			const overlayIntervalID = window.setInterval(() => {
+				void refreshHandoffOverlay();
+			}, 250);
+			return () => {
+				window.clearInterval(overlayIntervalID);
+				document.body.classList.remove('handoff-overlay-body');
+			};
+		}
 		void bootstrap();
 		void registerShellEvents();
 		const intervalID = window.setInterval(() => {
@@ -54,6 +81,11 @@
 
 	async function bootstrap() {
 		settings = await loadCompanionSettings();
+		try {
+			await ensureLaunchAtLogin();
+		} catch (errorValue) {
+			message = errorValue instanceof Error ? errorValue.message : 'Launch at login setup failed';
+		}
 		await refreshStatus();
 		if (isCompanionVerified(status)) {
 			await ensureRuntime();
@@ -109,7 +141,7 @@
 	async function refreshRemoteModel() {
 		if (!isCompanionVerified(status)) return;
 		try {
-			remoteModel = await readRemoteModel();
+			remoteModel = await readRuntimeRemoteModel();
 			appliedRemoteModel = remoteModel;
 		} catch (errorValue) {
 			remoteModelMessage = errorValue instanceof Error ? errorValue.message : 'Remote model read failed';
@@ -132,7 +164,7 @@
 		isApplyingRemoteModel = true;
 		remoteModelMessage = '';
 		try {
-			appliedRemoteModel = await updateRemoteModel(modelName);
+			appliedRemoteModel = await updateRuntimeRemoteModel(modelName);
 			remoteModel = appliedRemoteModel;
 			remoteModelMessage = 'Remote model applied.';
 		} catch (errorValue) {
@@ -226,11 +258,9 @@
 			});
 			await listen<unknown>('prompt-request', async (event) => {
 				try {
-					pendingPrompt = normalizePromptRequest(event.payload);
-					promptInput = '';
-					denialReason = '';
-					promptResult = { status: 'pending' };
+					const prompt = normalizePromptRequest(event.payload);
 					await invoke('show_main_window');
+					await answerPromptWithAlert(prompt);
 				} catch (errorValue) {
 					message = errorValue instanceof Error ? errorValue.message : 'Prompt request failed';
 				}
@@ -267,12 +297,32 @@
 			await pairCompanion(payload);
 			await refreshStatus();
 			if (isCompanionVerified(status)) {
-				await ensureRuntime();
+				await restartRuntime();
 				await refreshRemoteModel();
 			}
 			message = 'Connected. You can close this window.';
 		} catch (errorValue) {
 			message = errorValue instanceof Error ? errorValue.message : 'Pairing failed';
+		} finally {
+			isBusy = false;
+		}
+	}
+
+	async function disconnect() {
+		if (!window.confirm('Disconnect this Companion from Intern Kim?')) return;
+		isBusy = true;
+		message = '';
+		try {
+			await disconnectCompanion();
+			status = await readCompanionStatus();
+			runtime = readRuntimeStatus();
+			activeGrants = [];
+			mountedFolders = [];
+			remoteModel = '';
+			appliedRemoteModel = '';
+			message = 'Disconnected.';
+		} catch (errorValue) {
+			message = errorValue instanceof Error ? errorValue.message : 'Disconnect failed';
 		} finally {
 			isBusy = false;
 		}
@@ -286,6 +336,17 @@
 			await refreshMounts();
 		} catch (errorValue) {
 			runtime = { isRunning: false, lastError: errorValue instanceof Error ? errorValue.message : 'Runtime failed to start' };
+		}
+	}
+
+	async function restartRuntime() {
+		try {
+			await restartCompanionRuntime();
+			runtime = readRuntimeStatus();
+			await refreshGrants();
+			await refreshMounts();
+		} catch (errorValue) {
+			runtime = { isRunning: false, lastError: errorValue instanceof Error ? errorValue.message : 'Runtime failed to restart' };
 		}
 	}
 
@@ -342,14 +403,29 @@
 		}
 	}
 
-	async function completePrompt(response: unknown) {
-		if (!pendingPrompt) return;
-		const requestID = pendingPrompt.requestID;
+	async function answerPromptWithAlert(prompt: PromptRequest) {
+		promptResult = { status: 'pending' };
+		if (prompt.kind === 'confirm') {
+			await completePromptRequest(prompt.requestID, confirmResponse(window.confirm(prompt.message)));
+			return;
+		}
+		if (prompt.kind === 'input') {
+			await completePromptRequest(prompt.requestID, inputResponse(window.prompt(prompt.message) ?? ''));
+			return;
+		}
+		const allowed = window.confirm(prompt.message);
+		if (allowed) {
+			const rememberSession = window.confirm('이번 세션 동안 같은 권한을 다시 묻지 않을까요?');
+			await completePromptRequest(prompt.requestID, approvalResponse(true, '', rememberSession));
+			return;
+		}
+		const denialReason = window.prompt('거부 이유나 대안이 있으면 입력하세요.', '') ?? '';
+		await completePromptRequest(prompt.requestID, approvalResponse(false, denialReason));
+	}
+
+	async function completePromptRequest(requestID: string, response: unknown) {
 		try {
 			await invoke('complete_prompt_request', { requestId: requestID, response });
-			pendingPrompt = undefined;
-			promptInput = '';
-			denialReason = '';
 			promptResult = { status: 'completed', message: 'Response sent.' };
 		} catch (errorValue) {
 			promptResult = { status: 'failed', message: errorValue instanceof Error ? errorValue.message : 'Response failed' };
@@ -364,9 +440,90 @@
 	async function closeWindow() {
 		await getCurrentWindow().hide();
 	}
+
+	async function refreshHandoffOverlay() {
+		try {
+			handoffSnapshot = await readHandoffSnapshot();
+			handoffOverlayError = '';
+			await invoke('sync_handoff_overlay', { isActive: handoffSnapshot.active });
+		} catch (errorValue) {
+			handoffOverlayError = errorValue instanceof Error ? errorValue.message : 'Browser handoff overlay failed';
+			await currentWindow.hide();
+		}
+	}
+
+	async function readHandoffSnapshot(): Promise<BrowserHandoffSnapshot> {
+		const response = await fetch(handoffBridgeURL, { cache: 'no-store' });
+		if (!response.ok) return inactiveHandoffSnapshot();
+		return normalizeHandoffSnapshot(await response.json());
+	}
+
+	function normalizeHandoffSnapshot(value: unknown): BrowserHandoffSnapshot {
+		if (!isRecord(value) || value.active !== true) return inactiveHandoffSnapshot();
+		return {
+			active: true,
+			handoffID: readString(value.handoffID),
+			sessionID: readString(value.sessionID),
+			message: readString(value.message) || '브라우저에서 필요한 작업을 마친 뒤 완료를 눌러주세요.',
+			origin: readString(value.origin)
+		};
+	}
+
+	function inactiveHandoffSnapshot(): BrowserHandoffSnapshot {
+		return {
+			active: false,
+			handoffID: '',
+			sessionID: '',
+			message: '브라우저에서 필요한 작업을 마친 뒤 완료를 눌러주세요.',
+			origin: ''
+		};
+	}
+
+	function isRecord(value: unknown): value is Record<string, unknown> {
+		return typeof value === 'object' && value !== null;
+	}
+
+	function readString(value: unknown): string {
+		return typeof value === 'string' ? value.trim() : '';
+	}
+
+	async function completeBrowserHandoff() {
+		if (!handoffSnapshot.active || isCompletingHandoff) return;
+		isCompletingHandoff = true;
+		handoffOverlayError = '';
+		try {
+			const response = await fetch(`${handoffBridgeURL}/complete`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					handoffID: handoffSnapshot.handoffID,
+					sessionID: handoffSnapshot.sessionID,
+					url: handoffSnapshot.origin || 'https://internkim.local/browser-handoff-complete',
+					title: ''
+				})
+			});
+			if (!response.ok) {
+				throw new Error(await response.text());
+			}
+			handoffSnapshot = inactiveHandoffSnapshot();
+			await invoke('sync_handoff_overlay', { isActive: false });
+		} catch (errorValue) {
+			handoffOverlayError = errorValue instanceof Error ? errorValue.message : 'Browser handoff completion failed';
+		} finally {
+			isCompletingHandoff = false;
+		}
+	}
 </script>
 
-<main class="shell">
+{#if isHandoffOverlayWindow}
+	<main class="handoff-overlay">
+		<p>{handoffOverlayError || handoffSnapshot.message}</p>
+		<button disabled={!handoffSnapshot.active || isCompletingHandoff} onclick={completeBrowserHandoff}>
+			{isCompletingHandoff ? '연결 중' : '계속'}
+		</button>
+	</main>
+{:else}
+	<main class="shell">
 	<section class="status-panel">
 		<div>
 			<p class="eyebrow">Intern Kim Companion</p>
@@ -432,7 +589,7 @@
 				{/each}
 			</div>
 		{:else}
-			<p class="subtle">Folders you mount here appear to Blueclaw as read/write paths under /workspace/mounts.</p>
+			<p class="subtle">Folders you mount here appear to the connected agent workspace under /workspace/mounts.</p>
 		{/if}
 	</section>
 
@@ -451,7 +608,7 @@
 			<div class="model-row-header">
 				<div>
 					<h3>Remote model</h3>
-					<p>OpenRouter model used by Blueclaw when execution mode reaches remote.</p>
+					<p>Provider model used by the connected agent runtime when execution mode reaches remote.</p>
 				</div>
 				<span class:online={remoteModel === appliedRemoteModel && remoteModel !== ''} class="badge">
 					{isApplyingRemoteModel ? 'Applying' : remoteModel === appliedRemoteModel && remoteModel !== '' ? 'Live' : 'Pending'}
@@ -540,44 +697,6 @@
 		{/if}
 	</section>
 
-	<section class="prompt-panel">
-		<h2>Pending user request</h2>
-		{#if pendingPrompt}
-			<div class="prompt-card">
-				<p class="eyebrow">{promptTitle(pendingPrompt)}</p>
-				<p class="prompt-message">{pendingPrompt.message}</p>
-				{#if pendingPrompt.kind === 'confirm'}
-					<div class="actions">
-						<button onclick={() => completePrompt(confirmResponse(true))}>Approve</button>
-						<button class="secondary" onclick={() => completePrompt(confirmResponse(false))}>Deny</button>
-					</div>
-				{:else if pendingPrompt.kind === 'approval'}
-					<label>
-						<span>Optional reason or constraint</span>
-						<input bind:value={denialReason} placeholder="Example: Use another way instead" />
-					</label>
-					<div class="actions">
-						<button onclick={() => completePrompt(approvalResponse(true, ''))}>Allow</button>
-						<button class="secondary" onclick={() => completePrompt(approvalResponse(false, denialReason))}>Deny</button>
-					</div>
-				{:else}
-					<label>
-						<span>Response</span>
-						<input bind:value={promptInput} placeholder="Type your answer" />
-					</label>
-					<div class="actions">
-						<button onclick={() => completePrompt(inputResponse(promptInput))}>Submit</button>
-						<button class="secondary" onclick={() => completePrompt(inputResponse(''))}>Cancel</button>
-					</div>
-				{/if}
-			</div>
-		{:else if promptResult.status === 'completed' || promptResult.status === 'failed'}
-			<p class:failed={promptResult.status === 'failed'} class="message">{promptResult.message}</p>
-		{:else}
-			<p class="subtle">Requests that need your confirmation or input will appear here.</p>
-		{/if}
-	</section>
-
 	<section class="grant-panel">
 		<h2>Allowed for this task</h2>
 		{#if activeGrants.length}
@@ -597,25 +716,47 @@
 		{/if}
 	</section>
 
-	<section class="form-panel">
-		<h2>Connect manually</h2>
-		<label>
-			<span>Device URL</span>
-			<input bind:value={deviceURL} placeholder="https://device.intern.kim" />
-		</label>
-		<label>
-			<span>Pairing code</span>
-			<input bind:value={pairingCode} placeholder="ABCD-1234" />
-		</label>
-		<div class="actions">
-			<button disabled={isBusy} onclick={pairManually}>{isBusy ? 'Connecting...' : 'Connect'}</button>
-			<button class="secondary" disabled={!status.deviceURL} onclick={openAdmin}>Open Admin</button>
-			<button class="ghost" onclick={closeWindow}>Hide</button>
-		</div>
-		{#if message}
-			<p class="message">{message}</p>
-		{/if}
-	</section>
+	{#if isCompanionVerified(status)}
+		<section class="form-panel">
+			<h2>Connection</h2>
+			<div class="runtime-row">
+				<span>device</span>
+				<span>{status.deviceURL}</span>
+			</div>
+			<div class="runtime-row">
+				<span>companion</span>
+				<span>{status.companionID}</span>
+			</div>
+			<div class="actions">
+				<button class="secondary" disabled={!status.deviceURL} onclick={openAdmin}>Open Admin</button>
+				<button class="secondary" disabled={isBusy} onclick={disconnect}>{isBusy ? 'Disconnecting...' : 'Disconnect'}</button>
+				<button class="ghost" onclick={closeWindow}>Hide</button>
+			</div>
+			{#if message}
+				<p class="message">{message}</p>
+			{/if}
+		</section>
+	{:else}
+		<section class="form-panel">
+			<h2>{isStalePairingStatus(status) ? 'Reconnect manually' : 'Connect manually'}</h2>
+			<label>
+				<span>Device URL</span>
+				<input bind:value={deviceURL} placeholder="https://device.intern.kim" />
+			</label>
+			<label>
+				<span>Pairing code</span>
+				<input bind:value={pairingCode} placeholder="ABCD-1234" />
+			</label>
+			<div class="actions">
+				<button disabled={isBusy} onclick={pairManually}>{isBusy ? 'Connecting...' : 'Connect'}</button>
+				<button class="secondary" disabled={!status.deviceURL} onclick={openAdmin}>Open Admin</button>
+				<button class="ghost" onclick={closeWindow}>Hide</button>
+			</div>
+			{#if message}
+				<p class="message">{message}</p>
+			{/if}
+		</section>
+	{/if}
 
 	<section class="capability-panel">
 		<h2>Advertised capabilities</h2>
@@ -630,3 +771,4 @@
 		{/if}
 	</section>
 </main>
+{/if}

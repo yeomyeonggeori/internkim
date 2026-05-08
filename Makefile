@@ -24,8 +24,8 @@ build-companion-shell: build-companion
 package-companion-beta: build-companion
 	cd companion && bun run build:tauri:beta
 	mkdir -p $(COMPANION_BETA_DIST)
-	tools/verify-companion-beta-bundle companion/src-tauri/target/release/bundle/macos/Intern\ Kim\ Companion.app
-	hdiutil create -volname "Intern Kim Companion" -srcfolder companion/src-tauri/target/release/bundle/macos/Intern\ Kim\ Companion.app -ov -format UDZO "$(COMPANION_BETA_DIST)/$(COMPANION_BETA_MACOS_ARTIFACT)"
+	tools/verify-companion-beta-bundle companion/src-tauri/target/release/bundle/macos/internkim.app
+	hdiutil create -volname "internkim" -srcfolder companion/src-tauri/target/release/bundle/macos/internkim.app -ov -format UDZO "$(COMPANION_BETA_DIST)/$(COMPANION_BETA_MACOS_ARTIFACT)"
 	@if [ -n "$$APPLE_SIGNING_IDENTITY" ]; then codesign --force --sign "$$APPLE_SIGNING_IDENTITY" "$(COMPANION_BETA_DIST)/$(COMPANION_BETA_MACOS_ARTIFACT)"; else echo "unsigned beta artifact: $(COMPANION_BETA_DIST)/$(COMPANION_BETA_MACOS_ARTIFACT)"; fi
 	@if [ -n "$$APPLE_ID" ] && [ -n "$$APPLE_TEAM_ID" ] && [ -n "$$APPLE_APP_SPECIFIC_PASSWORD" ]; then xcrun notarytool submit "$(COMPANION_BETA_DIST)/$(COMPANION_BETA_MACOS_ARTIFACT)" --apple-id "$$APPLE_ID" --team-id "$$APPLE_TEAM_ID" --password "$$APPLE_APP_SPECIFIC_PASSWORD" --wait; fi
 

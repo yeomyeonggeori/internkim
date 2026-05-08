@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
 type companionConnectPairingRequest struct {
@@ -54,7 +56,10 @@ func isMattermostCompanionConnectCommand(event platformInboundEvent) bool {
 }
 
 func (service Service) createCompanionPairingForMattermostSender(ctx context.Context, event platformInboundEvent) (companionConnectPairingResponse, error) {
-	sender := event.Context.Sender
+	return service.createCompanionPairingForMattermostSenderRecord(ctx, event.Context.Sender)
+}
+
+func (service Service) createCompanionPairingForMattermostSenderRecord(ctx context.Context, sender platformContextSender) (companionConnectPairingResponse, error) {
 	if strings.TrimSpace(sender.UserID) == "" && strings.TrimSpace(sender.Email) == "" {
 		return companionConnectPairingResponse{}, errors.New("mattermost sender identity is missing")
 	}
@@ -70,6 +75,79 @@ func (service Service) createCompanionPairingForMattermostSender(ctx context.Con
 		return companionConnectPairingResponse{}, errorValue
 	}
 	return response, nil
+}
+
+func (service Service) mattermostReplyMessageWithRecovery(ctx context.Context, handle platformHandle, request replyRequest) (string, error) {
+	recoveryAction, hasRecoveryAction := companionConnectRecoveryAction(request.RecoveryActions)
+	if !hasRecoveryAction {
+		return request.Message, nil
+	}
+	if isMattermostDirectHandle(handle) {
+		recoveryMessage, errorValue := service.mattermostCompanionRecoveryMessage(ctx, recoveryAction)
+		if errorValue != nil {
+			return "", errorValue
+		}
+		return joinMattermostMessages(request.Message, recoveryMessage), nil
+	}
+	if strings.TrimSpace(recoveryAction.PlatformUserID) == "" {
+		return joinMattermostMessages(request.Message, "Companion 연결이 필요합니다. `/connect`를 실행해 주세요."), nil
+	}
+	recoveryMessage, errorValue := service.mattermostCompanionRecoveryMessage(ctx, recoveryAction)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	if errorValue := service.sendMattermostDirectMessage(ctx, recoveryAction.PlatformUserID, recoveryMessage); errorValue != nil {
+		return "", errorValue
+	}
+	return "Companion 연결 안내를 DM으로 보냈어요.", nil
+}
+
+func companionConnectRecoveryAction(recoveryActions []capabilities.RecoveryAction) (capabilities.RecoveryAction, bool) {
+	for _, recoveryAction := range recoveryActions {
+		if recoveryAction.Kind == "companion_connect" {
+			return recoveryAction, true
+		}
+	}
+	return capabilities.RecoveryAction{}, false
+}
+
+func (service Service) mattermostCompanionRecoveryMessage(ctx context.Context, recoveryAction capabilities.RecoveryAction) (string, error) {
+	response, errorValue := service.createCompanionPairingForMattermostSenderRecord(ctx, platformContextSender{
+		Platform: "mattermost",
+		SenderID: recoveryAction.PlatformUserID,
+		UserID:   recoveryAction.PlatformUserID,
+	})
+	if errorValue != nil {
+		return "", errorValue
+	}
+	return companionConnectRecoveryMessage(response, recoveryAction), nil
+}
+
+func companionConnectRecoveryMessage(response companionConnectPairingResponse, recoveryAction capabilities.RecoveryAction) string {
+	downloadURL := firstNonEmpty(recoveryAction.DownloadURL, capabilities.CompanionMacOSBetaDownloadURL())
+	connectCommand := firstNonEmpty(recoveryAction.ConnectCommand, "/connect")
+	return "Companion 브라우저가 필요한 작업입니다.\n" +
+		"Companion 앱 다운로드: " + downloadURL + "\n" +
+		"Companion 연결 코드: `" + response.Code + "`\n" +
+		"Companion 앱에서 이 링크를 열거나 코드를 입력하세요.\n" +
+		"[Companion 앱 열기](" + response.DeepLink + ")\n" +
+		"다시 연결이 필요하면 `" + connectCommand + "`를 실행하세요.\n" +
+		"만료: " + response.ExpiresAt.Local().Format("15:04")
+}
+
+func isMattermostDirectHandle(handle platformHandle) bool {
+	return strings.EqualFold(strings.TrimSpace(handle.ChannelType), "D") || strings.HasPrefix(strings.TrimSpace(handle.ConversationID), "dm:")
+}
+
+func joinMattermostMessages(messages ...string) string {
+	parts := []string{}
+	for _, message := range messages {
+		trimmedMessage := strings.TrimSpace(message)
+		if trimmedMessage != "" {
+			parts = append(parts, trimmedMessage)
+		}
+	}
+	return strings.Join(parts, "\n\n")
 }
 
 func (service Service) companionConnectDeviceURL() string {
