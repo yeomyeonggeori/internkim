@@ -19,6 +19,9 @@ func (backend LlamaCppBackend) Ping(ctx context.Context) error {
 }
 
 func (backend LlamaCppBackend) CompleteStructured(ctx context.Context, request StructuredRequest) (Response, error) {
+	if response, isHandled, errorValue := backend.completeNativeAction(ctx, request); isHandled {
+		return response, errorValue
+	}
 	chatRequest := openAIChatRequest(backend.ModelName, request.Messages, &request.StructuredOutputSchema)
 	content, errorValue := backend.client().chatCompletions(ctx, chatRequest)
 	if errorValue != nil {
@@ -34,6 +37,25 @@ func (backend LlamaCppBackend) CompleteStructured(ctx context.Context, request S
 		SelectedBackend: "llamacpp",
 		ConstraintMode:  ConstraintModeLlamaJSONSchema,
 	}, nil
+}
+
+func (backend LlamaCppBackend) completeNativeAction(ctx context.Context, request StructuredRequest) (Response, bool, error) {
+	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(request.StructuredOutputSchema)
+	if errorValue != nil || !isActionSchema {
+		return Response{}, isActionSchema, errorValue
+	}
+	chatRequest := openAIActionToolRequest(backend.ModelName, request.Messages, toolSet.Tools)
+	content, errorValue := backend.client().chatCompletionAction(ctx, chatRequest, toolSet)
+	if errorValue != nil {
+		return Response{}, true, errorValue
+	}
+	return Response{
+		Provider:        "llamacpp",
+		Model:           backend.ModelName,
+		Content:         content,
+		SelectedBackend: "llamacpp",
+		ConstraintMode:  ConstraintModeNativeToolCall,
+	}, true, nil
 }
 
 func (backend LlamaCppBackend) CompleteText(ctx context.Context, request TextRequest) (Response, error) {
