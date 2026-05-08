@@ -54,6 +54,85 @@ func TestOpenRouterStructuredRequestPreservesSchema(t *testing.T) {
 	}
 }
 
+func TestOpenRouterBackendUsesResponsesToolCallingForAgentActions(t *testing.T) {
+	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
+	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var receivedDocument map[string]any
+	backend := OpenRouterBackend{
+		KeyPath:   secretPath,
+		BaseURL:   "https://openrouter.ai/api/v1/chat/completions",
+		ModelName: "configured-model",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.URL.Path != "/api/v1/responses" {
+				t.Fatalf("expected responses path, got %s", request.URL.Path)
+			}
+			if errorValue := json.NewDecoder(request.Body).Decode(&receivedDocument); errorValue != nil {
+				t.Fatalf("expected request body: %v", errorValue)
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"output":[{"type":"function_call","name":"call_tool__site_app_publish","arguments":"{\"siteID\":\"site-1\"}"}]}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	response, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
+		Messages:               []Message{{Role: "user", Content: "publish"}},
+		StructuredOutputSchema: testAgentActionSchema(),
+	})
+
+	if errorValue != nil {
+		t.Fatalf("expected native action response: %v", errorValue)
+	}
+	if response.Content != `{"action":"call_tool","toolInput":{"siteID":"site-1"},"toolName":"site.app.publish"}` {
+		t.Fatalf("expected action JSON, got %s", response.Content)
+	}
+	if response.ConstraintMode != ConstraintModeNativeToolCall {
+		t.Fatalf("expected native tool call constraint, got %q", response.ConstraintMode)
+	}
+	if _, isFound := receivedDocument["response_format"]; isFound {
+		t.Fatalf("expected native tool request to omit response_format, got %+v", receivedDocument)
+	}
+	if receivedDocument["tool_choice"] != "auto" {
+		t.Fatalf("expected auto tool choice, got %+v", receivedDocument)
+	}
+}
+
+func TestOpenRouterResponsesInputFormatsAssistantHistory(t *testing.T) {
+	input := openRouterResponsesInput([]Message{
+		{Role: "system", Content: "rules"},
+		{Role: "assistant", Content: "previous reply"},
+	})
+
+	assistantMessage := input[1]
+	if assistantMessage["role"] != "assistant" || assistantMessage["status"] != "completed" {
+		t.Fatalf("expected completed assistant message, got %+v", assistantMessage)
+	}
+	content := assistantMessage["content"].([]map[string]any)
+	if content[0]["type"] != "output_text" || content[0]["text"] != "previous reply" {
+		t.Fatalf("expected assistant output_text content, got %+v", content)
+	}
+	if strings.TrimSpace(assistantMessage["id"].(string)) == "" {
+		t.Fatalf("expected assistant message id, got %+v", assistantMessage)
+	}
+}
+
+func TestNativeActionToolsRejectFunctionNameCollisions(t *testing.T) {
+	_, _, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
+		Name: "blueclaw_agent_turn_action",
+		Document: json.RawMessage(`{"oneOf":[
+			{"type":"object","properties":{"action":{"type":"string","enum":["call_tool"]},"toolName":{"type":"string","enum":["a.b"]},"toolInput":{"type":"object"}},"required":["action","toolName","toolInput"]},
+			{"type":"object","properties":{"action":{"type":"string","enum":["call_tool"]},"toolName":{"type":"string","enum":["a/b"]},"toolInput":{"type":"object"}},"required":["action","toolName","toolInput"]}
+		]}`),
+	})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "maps multiple actions") {
+		t.Fatalf("expected function name collision error, got %v", errorValue)
+	}
+}
+
 func TestOpenRouterBackendResolvesDefaultModel(t *testing.T) {
 	backend := OpenRouterBackend{ModelName: "google/default-remote"}
 	for _, modelName := range []string{"", "default", "DEFAULT", "local/anything"} {
@@ -117,6 +196,45 @@ func TestLlamaCppBackendStructuredOutputUsesResponseFormat(t *testing.T) {
 	}
 	if response.ConstraintMode != ConstraintModeLlamaJSONSchema {
 		t.Fatalf("expected llama JSON schema mode, got %q", response.ConstraintMode)
+	}
+}
+
+func TestLlamaCppBackendUsesChatToolCallingForAgentActions(t *testing.T) {
+	var receivedDocument map[string]any
+	backend := LlamaCppBackend{
+		BaseURL:   "https://llamacpp.test",
+		ModelName: "default",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.URL.Path != "/v1/chat/completions" {
+				t.Fatalf("unexpected path: %s", request.URL.Path)
+			}
+			if errorValue := json.NewDecoder(request.Body).Decode(&receivedDocument); errorValue != nil {
+				t.Fatalf("expected request body: %v", errorValue)
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"final_reply","arguments":"{\"finalReply\":\"done\",\"goalStatus\":\"satisfied\",\"goalSatisfied\":true,\"completionEvidence\":[],\"qualityReview\":[]}"}}]}}]}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	response, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
+		Messages:               []Message{{Role: "user", Content: "finish"}},
+		StructuredOutputSchema: testAgentActionSchema(),
+	})
+
+	if errorValue != nil {
+		t.Fatalf("expected native action response: %v", errorValue)
+	}
+	if response.Content != `{"action":"final_reply","completionEvidence":[],"finalReply":"done","goalSatisfied":true,"goalStatus":"satisfied","qualityReview":[]}` {
+		t.Fatalf("expected final reply action, got %s", response.Content)
+	}
+	if _, isFound := receivedDocument["response_format"]; isFound {
+		t.Fatalf("expected native tool request to omit response_format, got %+v", receivedDocument)
+	}
+	if _, isFound := receivedDocument["tools"]; !isFound {
+		t.Fatalf("expected tools in request, got %+v", receivedDocument)
 	}
 }
 
@@ -404,6 +522,17 @@ func TestOllamaStreamTextEmitsTokens(t *testing.T) {
 	}
 	if strings.Join(tokens, "") != "hello" {
 		t.Fatalf("expected hello, got %v", tokens)
+	}
+}
+
+func testAgentActionSchema() StructuredOutputSchema {
+	return StructuredOutputSchema{
+		Name: "blueclaw_agent_turn_action",
+		Document: json.RawMessage(`{"oneOf":[
+			{"type":"object","properties":{"action":{"type":"string","enum":["final_reply"]},"finalReply":{"type":"string"},"goalStatus":{"type":"string","enum":["satisfied"]},"goalSatisfied":{"type":"boolean"},"completionEvidence":{"type":"array"},"qualityReview":{"type":"array"}},"required":["action","goalStatus","goalSatisfied","completionEvidence","qualityReview"],"additionalProperties":false},
+			{"type":"object","properties":{"action":{"type":"string","enum":["call_tool"]},"toolName":{"type":"string","enum":["site.app.publish"]},"toolInput":{"type":"object","properties":{"siteID":{"type":"string"}},"required":["siteID"],"additionalProperties":false}},"required":["action","toolName","toolInput"],"additionalProperties":false}
+		]}`),
+		IsStrictlyEnforced: true,
 	}
 }
 
