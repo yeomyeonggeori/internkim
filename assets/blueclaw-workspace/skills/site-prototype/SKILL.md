@@ -14,6 +14,11 @@ allowed-tools:
   - site.app.restore
   - site.app.delete
   - user.confirm
+completion:
+  requiredEvidenceTools:
+    - site.app.create
+    - terminal.run
+    - site.app.publish
 ---
 
 # Site Prototype
@@ -29,22 +34,24 @@ Create prototypes for non-developers to validate ideas quickly. Do not present t
 - Use React + Vite + TypeScript for the frontend.
 - Use PocketBase for local prototype data, auth, files, realtime, and migrations.
 - Do not use Next.js, SvelteKit, arbitrary Node servers, cloud databases, hosted backends, or paid APIs for v1 prototypes.
-- Build inside the Blueclaw workspace before publishing.
+- `site.app.create` prepares a deployable starter build for underspecified requests.
+- Do not depend on `/workspace/sites/<siteID>` being mounted in `terminal.run`; site source is owned by the site tools until workspace sync support is explicitly available.
 
 ## Workflow
 
 1. For a new prototype, call `site.app.create` with a short DNS-safe slug and title.
-2. Work only inside the returned `/workspace/sites/<siteID>` directory.
-3. Put the frontend in `app/`.
-4. Put PocketBase migrations in `pocketbase/pb_migrations/`.
-5. Leave `pocketbase/pb_hooks/` empty unless the user explicitly requested backend hooks and an admin approval path is available.
-6. Run `bun install` and `bun run build` from `app/` after every source edit. Do not publish if the build fails or if `app/dist` is stale.
-7. Call `site.app.publish` with `siteID` and a concise `message`.
-8. Reply in Mattermost with the public URL, a short change summary, and any test login credentials.
+2. After `site.app.create` succeeds, do not call `site.app.create` again in the same task. Continue with the returned `siteID`.
+3. For an underspecified request, keep the starter site prepared by `site.app.create`.
+4. Call `terminal.run` once with a lightweight verification command such as `echo site prototype scaffold ready`. Do not `cd` into `/workspace/sites/<siteID>` unless a previous tool observation proves it is accessible.
+5. If a mounted site workspace is accessible and you edit source files, run `bun install` and `bun run build` from `app/` after every source edit. Do not publish if the build fails or if `app/dist` is stale.
+6. Call `site.app.publish` with `siteID` and a concise `message`.
+7. Reply in Mattermost with the public URL, a short change summary, and any test login credentials.
 
-For follow-up feedback in the same conversation, call `site.app.status` with an empty input or the known slug. The tool can resolve the current conversation's bound site. Edit the returned workspace, rebuild from `app/`, publish the same site, and reply with the same URL.
+Do not ask for approval before `site.app.create`, `terminal.run` verification, `site.app.publish`, `site.app.status`, `site.app.logs`, or `site.app.restore`. Ask for approval before `site.app.rollback`, `site.app.unpublish`, or `site.app.delete`.
 
-Use this command pattern inside the workspace:
+For follow-up feedback in the same conversation, call `site.app.status` with an empty input or the known slug. The tool can resolve the current conversation's bound site. If the workspace is mounted and accessible, edit the returned workspace, rebuild from `app/`, publish the same site, and reply with the same URL.
+
+Use this command pattern only after a previous observation proves the site workspace is mounted and accessible in terminal:
 
 ```bash
 cd /workspace/sites/<siteID>/app
@@ -52,11 +59,11 @@ bun install
 bun run build
 ```
 
-After build success:
+After terminal verification or build success:
 
 - call `site.app.publish` with `siteID` and a human-readable `message`
 - never claim deployment succeeded until the tool succeeds
-- if publish says `app/dist is stale`, run `bun run build` from `app/` again before publishing
+- if publish says `app/dist is stale`, run `bun run build` from `app/` again before publishing when the workspace is accessible
 - if publish fails, summarize the actual failure and stop
 
 ## Cost and Integration Guardrails
@@ -80,6 +87,8 @@ If a test account is useful, create a prototype seed account and include the cre
 Use clearly fake credentials for test users. Do not ask the user for real passwords.
 
 ## Design Defaults
+
+If the user does not specify what kind of website to make, choose a small useful default and continue without asking for clarification. Build a compact welcome dashboard with editable-looking sample content, a simple list, and one primary action.
 
 If the user does not specify design direction, use a black-on-white shadcn-style minimal interface:
 

@@ -40,7 +40,7 @@ func TestVerifyMattermostScriptUsesStrictChannelMembership(t *testing.T) {
 }
 
 func TestVerifyMattermostPromptScriptCanRequireBrowserOpenSuccess(t *testing.T) {
-	script := verifyMattermostPromptScript("브라우저 열어줘.", false, 90, true)
+	script := verifyMattermostPromptScript("브라우저 열어줘.", false, 90, true, nil, nil)
 	requiredFragments := []string{
 		"expect_browser_open=true",
 		"tool.browser.open.result",
@@ -51,6 +51,22 @@ func TestVerifyMattermostPromptScriptCanRequireBrowserOpenSuccess(t *testing.T) 
 	for _, fragment := range requiredFragments {
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("expected Mattermost prompt browser verification to include %q", fragment)
+		}
+	}
+}
+
+func TestVerifyMattermostPromptScriptCanRequireToolAndTaskEvents(t *testing.T) {
+	script := verifyMattermostPromptScript("1분마다 알려줘.", false, 90, false, []string{"schedule.create"}, []string{"schedule.created"})
+	requiredFragments := []string{
+		"expected_tools_json=",
+		"expected_events_json=",
+		"tool.$expected_tool.requested",
+		"expected requested tool event for $expected_tool",
+		"expected task event $expected_event",
+	}
+	for _, fragment := range requiredFragments {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected Mattermost prompt event verification to include %q", fragment)
 		}
 	}
 }

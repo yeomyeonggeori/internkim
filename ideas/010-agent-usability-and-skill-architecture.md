@@ -16,7 +16,7 @@ Skills should be treated as operational capabilities, not prompt blobs. A skill 
 
 - what it does
 - when it should be considered
-- which tools it requires
+- which tools it may use
 - which profiles may use it
 - which references, scripts, and assets support it
 
@@ -27,7 +27,7 @@ name: simple-slides
 description: Create presentation decks and attach PPTX/PDF/HTML outputs.
 category: document-generation
 tags: [slides, pptx, marp, reporting]
-requiredTools: [terminal.run, file.write, file.attach]
+allowed-tools: terminal.run file.write file.attach
 allowedProfiles: [default]
 triggerHints:
   - slides
@@ -52,7 +52,7 @@ This preserves Blueclaw's product taste: a small set of explicit bundled skills,
 
 ### Skills Connected To Runtime Paths
 
-Skill selection should be connected to actual runtime capability. A skill should not be selected if its required tools are unavailable or disallowed by profile policy.
+Skill selection should be connected to actual runtime capability. A skill should not be selected if its allowed tools are unavailable or disallowed by profile policy.
 
 Current skill loading should stay grounded in the existing workspace paths:
 
@@ -61,7 +61,7 @@ Current skill loading should stay grounded in the existing workspace paths:
 
 If a long-term normalized path is desired, `.blueclaw/skills` can be introduced later as a migration target, but the first implementation should respect the current paths.
 
-Connector requests, scheduled tasks, and admin-triggered tasks should all create the same kind of task run and attach selected skill references to that task run. The selected skill name, source path, source hash, required tools, and selection reason should be visible in task events.
+Connector requests, scheduled tasks, and admin-triggered tasks should all create the same kind of task run and attach selected skill references to that task run. The selected skill name, source path, source hash, allowed tools, and selection reason should be visible in task events.
 
 ### Task-Shape Planning
 

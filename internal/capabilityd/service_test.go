@@ -13,6 +13,14 @@ import (
 	"testing"
 )
 
+func TestConfigurationDefaultsIncludeAdmindBaseURL(t *testing.T) {
+	configuration := Configuration{}.WithDefaults()
+
+	if configuration.AdmindBaseURL != DefaultConfiguration().AdmindBaseURL {
+		t.Fatalf("expected admind base url default, got %q", configuration.AdmindBaseURL)
+	}
+}
+
 func TestLocalStructuredCompletionUsesRequestedAccelerator(t *testing.T) {
 	service := Service{
 		Configuration: DefaultConfiguration(),

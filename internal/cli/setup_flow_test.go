@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"archive/zip"
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,6 +27,35 @@ func TestDeviceToolPackagesIncludeSitePublishingBasics(t *testing.T) {
 		if !strings.Contains(packages, packageName) {
 			t.Fatalf("expected base device tools to include %q, got %s", packageName, packages)
 		}
+	}
+}
+
+func TestExtractFromZipWritesArchiveEntry(t *testing.T) {
+	var buffer bytes.Buffer
+	zipWriter := zip.NewWriter(&buffer)
+	fileWriter, errorValue := zipWriter.Create("pocketbase")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := fileWriter.Write([]byte("binary")); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := zipWriter.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	path := filepath.Join(t.TempDir(), "pocketbase")
+
+	errorValue = extractFromZip(bytes.NewReader(buffer.Bytes()), int64(buffer.Len()), path, "pocketbase")
+
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	document, errorValue := os.ReadFile(path)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if string(document) != "binary" {
+		t.Fatalf("unexpected extracted document: %q", document)
 	}
 }
 
@@ -114,6 +145,76 @@ func TestSSHPrivilegedCommandSuppressesSudoPrompt(t *testing.T) {
 	}
 }
 
+func TestCloudflareSSHUsesAccessProxyCommand(t *testing.T) {
+	client := newCloudflareSSH("sshpass", "internkim", "blueclaw", "ssh.device.example.test")
+	sshArguments := strings.Join(client.sshArgs("internkim@ssh.device.example.test", "true"), "\n")
+	scpArguments := strings.Join(client.scpArgs("local", "internkim@ssh.device.example.test:/tmp/file"), "\n")
+	rsyncCommand := client.rsyncSSHCommand("ssh")
+
+	for _, value := range []string{sshArguments, scpArguments, rsyncCommand} {
+		if !strings.Contains(value, "ProxyCommand=env GODEBUG=netdns=go TUNNEL_EDGE_IP_VERSION=4 cloudflared --edge-ip-version 4 --edge-bind-address 0.0.0.0 access ssh --hostname %h") {
+			t.Fatalf("expected Cloudflare Access ProxyCommand, got %s", value)
+		}
+	}
+}
+
+func TestCloudflareSSHHostnameFromDeviceURL(t *testing.T) {
+	hostname := cloudflareSSHHostnameFromDeviceURL("https://device-1.example.test/admin")
+	if hostname != "ssh-device-1.example.test" {
+		t.Fatalf("expected SSH hostname from device URL, got %q", hostname)
+	}
+}
+
+func TestRsyncSparseArgumentsAvoidUncheckedAppend(t *testing.T) {
+	arguments := strings.Join(rsyncSparseArguments("ssh", "rootfs.ext4", "host:/tmp/rootfs.ext4"), "\n")
+	if strings.Contains(arguments, "\n--append\n") || strings.Contains(arguments, "\n--append-verify\n") {
+		t.Fatalf("expected resumable sparse rsync not to use unchecked append, got %s", arguments)
+	}
+	if !strings.Contains(arguments, "--partial") {
+		t.Fatalf("expected resumable sparse rsync to keep partial files, got %s", arguments)
+	}
+}
+
+func TestRetryableSSHFailureIncludesNetworkRouteFailure(t *testing.T) {
+	output := "dial tcp [2606:4700:3031::ac43:d168]:443: connect: no route to host"
+	if !isRetryableSSHFailure(output) {
+		t.Fatalf("expected network route failure to be retryable")
+	}
+}
+
+func TestResolveCloudflareSSHHostnameIgnoresLegacyNestedHostname(t *testing.T) {
+	homeDirectory := t.TempDir()
+	t.Setenv("HOME", homeDirectory)
+	stateDirectory := setupStateDir(filepath.Join(homeDirectory, ".internkim"), setup.BoardJetsonOrinNano)
+	saveState(stateDirectory, "ssh_hostname", "ssh.device-1.example.test")
+	saveState(stateDirectory, "device_id", "device-1")
+	target := commandTarget{
+		stateDir:     stateDirectory,
+		sshHostname:  "ssh.device-1.example.test",
+		useRemoteSSH: true,
+	}
+
+	hostname := resolveCloudflareSSHHostname(config{CFDomain: "example.test"}, target)
+
+	if hostname != "ssh-device-1.example.test" {
+		t.Fatalf("expected flat SSH hostname, got %q", hostname)
+	}
+}
+
+func TestCommandRemoteArgumentsStartAfterSeparator(t *testing.T) {
+	arguments := commandRemoteArguments([]string{"--host", "192.0.2.1", "--", "uptime", "-p"})
+	if strings.Join(arguments, " ") != "uptime -p" {
+		t.Fatalf("expected remote command arguments, got %+v", arguments)
+	}
+}
+
+func TestCommandControlArgumentsStopAtSeparator(t *testing.T) {
+	arguments := commandControlArguments([]string{"--host", "192.0.2.1", "--", "--not-a-control-flag"})
+	if strings.Join(arguments, " ") != "--host 192.0.2.1" {
+		t.Fatalf("expected control arguments only, got %+v", arguments)
+	}
+}
+
 func TestMattermostSetupConnectCommandPayloadTargetsAdmind(t *testing.T) {
 	payload := mattermostSetupConnectCommandPayload("team-1", "command-1")
 	if payload.Trigger != "connect" || payload.Method != "P" || !payload.Autocomplete {
@@ -172,6 +273,22 @@ func TestLocalLLMBuildEnvironmentPassesPasswordOutsideArguments(t *testing.T) {
 		if !strings.Contains(joinedEnvironment, expectedValue) {
 			t.Fatalf("expected environment to include %s, got %+v", expectedValue, environment)
 		}
+	}
+}
+
+func TestSimulationBinariesSkipLocalLLMInstall(t *testing.T) {
+	context := &setup.Context{BoardType: setup.BoardSimulation}
+
+	if shouldInstallLocalLLMSSH(context) {
+		t.Fatal("expected simulation binaries to skip local LLM install")
+	}
+}
+
+func TestJetsonBinariesInstallLocalLLM(t *testing.T) {
+	context := &setup.Context{BoardType: setup.BoardJetsonOrinNano}
+
+	if !shouldInstallLocalLLMSSH(context) {
+		t.Fatal("expected Jetson binaries to install local LLM")
 	}
 }
 

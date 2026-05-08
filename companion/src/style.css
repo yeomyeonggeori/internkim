@@ -41,6 +41,12 @@ body {
 		linear-gradient(180deg, hsl(210 40% 98%) 0%, hsl(214 32% 95%) 100%);
 }
 
+body.handoff-overlay-body {
+	min-height: 72px;
+	overflow: hidden;
+	background: transparent;
+}
+
 #app {
 	width: 100%;
 	max-width: 100%;
@@ -61,10 +67,49 @@ select {
 	max-width: 100%;
 }
 
+.handoff-overlay {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100vw;
+	height: 72px;
+	border: 1px solid hsl(214 32% 91% / 88%);
+	border-radius: 8px;
+	background: hsl(0 0% 100% / 96%);
+	box-shadow: 0 12px 36px hsl(222 47% 11% / 14%);
+	padding: 8px 8px 8px 12px;
+	color: var(--foreground);
+}
+
+.handoff-overlay p {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 13px;
+	line-height: 20px;
+	font-weight: 600;
+}
+
+.handoff-overlay button {
+	flex: 0 0 auto;
+	height: 38px;
+	min-height: 38px;
+	border-color: hsl(222 47% 11%);
+	border-radius: 6px;
+	background: hsl(222 47% 11%);
+	padding: 0 14px;
+	white-space: nowrap;
+}
+
+.handoff-overlay button:hover:not(:disabled) {
+	background: hsl(215 25% 27%);
+}
+
 .status-panel,
 .form-panel,
 .runtime-panel,
-.prompt-panel,
 .grant-panel,
 .capability-panel,
 .settings-panel,
@@ -97,7 +142,6 @@ select {
 }
 
 .runtime-panel,
-.prompt-panel,
 .grant-panel,
 .form-panel,
 .capability-panel,
@@ -210,7 +254,6 @@ h3 {
 
 .mount-list,
 .grant-list,
-.prompt-card,
 .backend-config {
 	display: grid;
 	gap: 10px;
@@ -269,14 +312,6 @@ h3 {
 	background: hsl(0 0% 100%);
 	min-width: 0;
 	max-width: 100%;
-}
-
-.prompt-message {
-	color: var(--foreground);
-	font-size: 15px;
-	line-height: 1.5;
-	overflow-wrap: anywhere;
-	word-break: break-word;
 }
 
 label {
@@ -435,7 +470,6 @@ button.ghost:hover:not(:disabled) {
 	.status-panel,
 	.form-panel,
 	.runtime-panel,
-	.prompt-panel,
 	.grant-panel,
 	.capability-panel,
 	.settings-panel,

@@ -41,6 +41,17 @@ Do not use the Lightpanda fallback for login, MFA, captcha, sensitive inputs, ir
 
 When using the speaker's Companion browser, move at a human pace. Do not rapid-fire browser actions. Prefer one action, then observe or wait before the next action. For Google account, banking, government, payment, or other account-risky pages, use `browser.handoff` and let the user do login and sensitive navigation themselves.
 
+## Terminal and File Permissions
+
+Blueclaw workspace access is enforced by Linux user/group/POSIX permissions. Treat OS permission errors as real policy denials, not as problems to work around.
+
+- Raw terminal commands, terminal sessions, user-authored tools, dependency install scripts, and package lifecycle scripts run as the requester or task actor's unprivileged Linux identity.
+- Admin users do not get automatic raw terminal access to admin-only files. Use built-in admin/capability tools when an approved admin action is required.
+- Do not try to read `/workspace/.blueclaw/*`, another person's private directory, or a circle directory where the requester is not a member.
+- Do not change ownership, chmod around permission denials, copy protected paths into shared directories, or use dependency caches to move private/source files.
+- Use `file.write` and `file.attach` for user-visible artifacts. If a built-in tool gives access to a granted file, do not leave the privileged source file in a terminal-visible path.
+- Store dependency caches only under `/workspace/shared/cache/dependencies` when language tooling needs a cache.
+
 ## File Sharing
 
 When a user asks for any file such as an image, PDF, document, or archive:

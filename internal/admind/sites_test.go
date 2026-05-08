@@ -37,7 +37,7 @@ func TestSiteGatewayLifecycle(t *testing.T) {
 	if site.Status != SiteStatusPublished {
 		t.Fatalf("published status = %q", site.Status)
 	}
-	if site.PublishedURL != "https://demo.device.example.test" {
+	if site.PublishedURL != "http://demo.device.example.test" {
 		t.Fatalf("published url = %q", site.PublishedURL)
 	}
 	if site.WorkspacePath == "" || site.HostSourcePath == "" || site.LastPublishedCommit == "" {
@@ -109,6 +109,36 @@ func TestSiteGatewayLifecycle(t *testing.T) {
 	}
 }
 
+func TestSitePrototypePublishesDefaultBuild(t *testing.T) {
+	service, commandLog := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{
+		Slug:        "default-build",
+		Title:       "Default Build",
+		RequestedBy: "owner@example.com",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:      site.SiteID,
+		RequestedBy: "owner@example.com",
+		Message:     "Publish default prototype",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	response := serveSiteRequest(service, "default-build.device.example.test", "/")
+	if response.Code != http.StatusOK {
+		t.Fatalf("default build status = %d", response.Code)
+	}
+	if !strings.Contains(response.Body.String(), "Default Build") {
+		t.Fatalf("default build body = %q", response.Body.String())
+	}
+	if !containsCommandFragment(*commandLog, "safe.directory="+site.HostSourcePath) {
+		t.Fatalf("site git commands should trust the site workspace: %+v", *commandLog)
+	}
+}
+
 func TestSiteGatewayProxiesPocketBasePaths(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "api-demo"})
@@ -166,6 +196,19 @@ func TestSiteRegistryPersistsAndAllocatesDistinctPorts(t *testing.T) {
 	if reloadedSite.Port != firstSite.Port {
 		t.Fatalf("reloaded port = %d", reloadedSite.Port)
 	}
+}
+
+func TestSiteWorkspaceIsWritableByRequesterTerminal(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "terminal-writable"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	assertPathPermission(t, filepath.Dir(site.HostSourcePath), 0o777)
+	assertPathPermission(t, site.HostSourcePath, 0o777)
+	assertPathPermission(t, filepath.Join(site.HostSourcePath, "app"), 0o777)
+	assertPathPermission(t, filepath.Join(site.HostSourcePath, "app", "src"), 0o777)
+	assertPathPermission(t, filepath.Join(site.HostSourcePath, "app", "package.json"), 0o666)
 }
 
 func TestSiteDeleteRequiresExplicitConfirmation(t *testing.T) {
@@ -334,4 +377,24 @@ func containsCommand(commands []string, expected string) bool {
 		}
 	}
 	return false
+}
+
+func containsCommandFragment(commands []string, expected string) bool {
+	for _, command := range commands {
+		if strings.Contains(command, expected) {
+			return true
+		}
+	}
+	return false
+}
+
+func assertPathPermission(t *testing.T, path string, expected os.FileMode) {
+	t.Helper()
+	information, errorValue := os.Stat(path)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if information.Mode().Perm() != expected {
+		t.Fatalf("%s permission = %o, expected %o", path, information.Mode().Perm(), expected)
+	}
 }
