@@ -66,6 +66,9 @@ type SiteRecord struct {
 type siteCreateRequest struct {
 	Slug           string `json:"slug"`
 	Title          string `json:"title"`
+	Prompt         string `json:"prompt"`
+	DesignBrief    string `json:"designBrief"`
+	PrototypeScope string `json:"prototypeScope"`
 	Owner          string `json:"owner"`
 	Visibility     string `json:"visibility"`
 	RequestedBy    string `json:"requestedBy"`
@@ -845,6 +848,7 @@ func makeSiteWorkspaceCollaborative(workspacePath string) error {
 func (service *Service) writeSiteWorkspaceTemplate(site *SiteRecord) error {
 	files := []siteTemplateFile{
 		{Path: ".internkim/site.json", Document: service.siteWorkspaceMetadata(site)},
+		{Path: "DESIGN.md", Document: siteDesignMD(site)},
 		{Path: "app/package.json", Document: sitePackageJSON(site)},
 		{Path: "app/index.html", Document: siteIndexHTML(site)},
 		{Path: "app/src/main.tsx", Document: siteMainTSX()},
@@ -882,7 +886,7 @@ func (service *Service) siteWorkspaceMetadata(site *SiteRecord) string {
 		ConversationID: site.ConversationID,
 		Purpose:        "prototype for idea validation",
 		Stack:          "React + Vite + PocketBase",
-		DesignDefault:  "black-on-white shadcn minimal",
+		DesignDefault:  "starter scaffold only; customize through DESIGN.md before publish",
 	}, "", "  ")
 	if errorValue != nil {
 		return "{}\n"
@@ -1230,9 +1234,14 @@ func siteIndexHTML(site *SiteRecord) string {
 	return "<!doctype html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"UTF-8\" />\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n<title>" + title + "</title>\n</head>\n<body>\n<div id=\"root\"></div>\n<script type=\"module\" src=\"/src/main.tsx\"></script>\n</body>\n</html>\n"
 }
 
+func siteDesignMD(site *SiteRecord) string {
+	title := html.EscapeString(firstNonEmpty(site.Title, site.Slug))
+	return "# " + title + " DESIGN.md\n\n## Product\n\nEditable scaffold for a website prototype. Replace this file with a request-specific design system before publishing user-facing work.\n\n## Audience\n\nDefine the primary user and what they are trying to accomplish.\n\n## Prototype Scope\n\nDescribe what works in the first publish and what is intentionally deferred.\n\n## Visual Direction\n\nChoose typography, color, spacing, layout density, interaction feel, and responsive behavior for this specific request.\n\n## Screens\n\nList the screens and states included in the prototype.\n\n## Workflows\n\nDescribe the main interaction paths the user can try.\n\n## Data Model\n\nDefine local state, fake data, PocketBase collections, files, or realtime behavior.\n\n## Implemented Now\n\nReplace this scaffold with the implemented feature set before publishing.\n\n## Next Iterations\n\nRecord follow-up work for longer projects.\n\n## Acceptance Criteria\n\nList the checks that must pass before publish.\n"
+}
+
 func siteBuiltIndexHTML(site *SiteRecord) string {
 	title := html.EscapeString(firstNonEmpty(site.Title, site.Slug))
-	return "<!doctype html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"UTF-8\" />\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n<title>" + title + "</title>\n<style>" + siteStylesCSS() + "</style>\n</head>\n<body>\n<main class=\"page-shell\">\n<section class=\"workspace-panel\">\n<div class=\"eyebrow\">Prototype</div>\n<h1>" + title + "</h1>\n<p class=\"lede\">아이디어 검토를 위한 InternKim 웹사이트 프로토타입입니다.</p>\n<div class=\"action-row\"><button type=\"button\">시작하기</button><span>" + html.EscapeString(site.PublishedURL) + "</span></div>\n</section>\n<section class=\"status-grid\">\n<article><h2>Ready to edit</h2><p>기본 사이트 골격과 배포 가능한 정적 빌드가 준비되어 있습니다.</p></article>\n<article><h2>Local first</h2><p>추가 데이터와 인증은 PocketBase 기반으로 확장할 수 있습니다.</p></article>\n</section>\n</main>\n</body>\n</html>\n"
+	return "<!doctype html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"UTF-8\" />\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n<title>" + title + "</title>\n<style>" + siteStylesCSS() + "</style>\n</head>\n<body>\n<main class=\"scaffold-shell\">\n<section class=\"scaffold-panel\">\n<p class=\"scaffold-label\">Editable scaffold</p>\n<h1>" + title + "</h1>\n<p class=\"scaffold-copy\">이 사이트는 아직 사용자 요청에 맞게 제작되기 전의 기본 작업 공간입니다. DESIGN.md를 작성하고 React 소스를 구현한 뒤 빌드해서 배포하세요.</p>\n</section>\n</main>\n</body>\n</html>\n"
 }
 
 func siteMainTSX() string {
@@ -1241,9 +1250,9 @@ func siteMainTSX() string {
 
 func siteAppTSX(site *SiteRecord) string {
 	title := html.EscapeString(firstNonEmpty(site.Title, site.Slug))
-	return "import PocketBase from 'pocketbase';\nimport { ArrowRight, CheckCircle2 } from 'lucide-react';\n\nconst pocketBase = new PocketBase(window.location.origin);\n\nexport default function App() {\n  return (\n    <main className=\"page-shell\">\n      <section className=\"workspace-panel\">\n        <div className=\"eyebrow\">Prototype</div>\n        <h1>" + title + "</h1>\n        <p className=\"lede\">아이디어 검토를 위한 React + PocketBase 프로토타입입니다.</p>\n        <div className=\"action-row\">\n          <button type=\"button\">\n            시작하기\n            <ArrowRight size={16} />\n          </button>\n          <span>{pocketBase.baseURL}</span>\n        </div>\n      </section>\n      <section className=\"status-grid\">\n        <article>\n          <CheckCircle2 size={18} />\n          <h2>Local auth first</h2>\n          <p>로그인이 필요하면 PocketBase 아이디/비밀번호 인증을 기본으로 사용합니다.</p>\n        </article>\n        <article>\n          <CheckCircle2 size={18} />\n          <h2>No paid services</h2>\n          <p>외부 API 키나 유료 연동 없이 아이디어를 빠르게 확인하는 데 집중합니다.</p>\n        </article>\n      </section>\n    </main>\n  );\n}\n"
+	return "import PocketBase from 'pocketbase';\n\nconst pocketBase = new PocketBase(window.location.origin);\n\nexport default function App() {\n  return (\n    <main className=\"scaffold-shell\">\n      <section className=\"scaffold-panel\">\n        <p className=\"scaffold-label\">Editable scaffold</p>\n        <h1>" + title + "</h1>\n        <p className=\"scaffold-copy\">\n          이 사이트는 아직 사용자 요청에 맞게 제작되기 전의 기본 작업 공간입니다. DESIGN.md를 작성하고 React 소스를 구현한 뒤 빌드해서 배포하세요.\n        </p>\n        <span className=\"scaffold-origin\">{pocketBase.baseURL}</span>\n      </section>\n    </main>\n  );\n}\n"
 }
 
 func siteStylesCSS() string {
-	return ":root {\n  color: #0a0a0a;\n  background: #ffffff;\n  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n}\n\n* {\n  box-sizing: border-box;\n}\n\nbody {\n  margin: 0;\n  min-width: 320px;\n  min-height: 100vh;\n  background: #ffffff;\n}\n\nbutton {\n  display: inline-flex;\n  align-items: center;\n  gap: 8px;\n  height: 40px;\n  border: 1px solid #0a0a0a;\n  border-radius: 8px;\n  padding: 0 14px;\n  color: #ffffff;\n  background: #0a0a0a;\n  font: inherit;\n  cursor: pointer;\n}\n\n.page-shell {\n  width: min(960px, calc(100vw - 32px));\n  margin: 0 auto;\n  padding: 64px 0;\n}\n\n.workspace-panel {\n  border-bottom: 1px solid #e5e5e5;\n  padding-bottom: 32px;\n}\n\n.eyebrow {\n  margin-bottom: 12px;\n  color: #737373;\n  font-size: 13px;\n  font-weight: 600;\n}\n\nh1 {\n  margin: 0;\n  max-width: 720px;\n  font-size: 40px;\n  line-height: 1.1;\n  letter-spacing: 0;\n}\n\n.lede {\n  max-width: 640px;\n  margin: 16px 0 0;\n  color: #525252;\n  font-size: 16px;\n  line-height: 1.6;\n}\n\n.action-row {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: 12px;\n  margin-top: 24px;\n}\n\n.action-row span {\n  color: #737373;\n  font-size: 13px;\n}\n\n.status-grid {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 12px;\n  margin-top: 24px;\n}\n\narticle {\n  min-height: 160px;\n  border: 1px solid #e5e5e5;\n  border-radius: 8px;\n  padding: 20px;\n}\n\narticle h2 {\n  margin: 16px 0 8px;\n  font-size: 17px;\n  letter-spacing: 0;\n}\n\narticle p {\n  margin: 0;\n  color: #525252;\n  font-size: 14px;\n  line-height: 1.6;\n}\n\n@media (max-width: 680px) {\n  .page-shell {\n    padding: 40px 0;\n  }\n\n  h1 {\n    font-size: 32px;\n  }\n\n  .status-grid {\n    grid-template-columns: 1fr;\n  }\n}\n"
+	return ":root {\n  color: #111827;\n  background: #f8fafc;\n  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Apple SD Gothic Neo\", \"Segoe UI\", sans-serif;\n}\n\n* {\n  box-sizing: border-box;\n}\n\nbody {\n  margin: 0;\n  min-width: 320px;\n  min-height: 100vh;\n  background: #f8fafc;\n}\n\n.scaffold-shell {\n  display: grid;\n  min-height: 100vh;\n  place-items: center;\n  padding: 24px;\n}\n\n.scaffold-panel {\n  width: min(640px, 100%);\n  border: 1px solid #d1d5db;\n  border-radius: 8px;\n  background: #ffffff;\n  padding: 28px;\n}\n\n.scaffold-label {\n  margin: 0 0 12px;\n  color: #6b7280;\n  font-size: 13px;\n  font-weight: 700;\n}\n\nh1 {\n  margin: 0;\n  font-size: 32px;\n  line-height: 1.15;\n  letter-spacing: 0;\n}\n\n.scaffold-copy {\n  margin: 16px 0 0;\n  color: #4b5563;\n  font-size: 15px;\n  line-height: 1.65;\n}\n\n.scaffold-origin {\n  display: inline-block;\n  margin-top: 18px;\n  color: #6b7280;\n  font-size: 13px;\n}\n\n@media (max-width: 680px) {\n  .scaffold-panel {\n    padding: 22px;\n  }\n\n  h1 {\n    font-size: 28px;\n  }\n}\n"
 }

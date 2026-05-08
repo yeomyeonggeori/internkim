@@ -119,6 +119,14 @@ func TestSitePrototypePublishesDefaultBuild(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	designDocument := readTrimmedFile(filepath.Join(site.HostSourcePath, "DESIGN.md"))
+	if !strings.Contains(designDocument, "Acceptance Criteria") {
+		t.Fatalf("site scaffold should include DESIGN.md, got %q", designDocument)
+	}
+	metadataDocument := readTrimmedFile(filepath.Join(site.HostSourcePath, ".internkim", "site.json"))
+	if strings.Contains(metadataDocument, "black-on-white shadcn minimal") {
+		t.Fatalf("site metadata should not hard-code the old design default: %q", metadataDocument)
+	}
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
 		SiteID:      site.SiteID,
 		RequestedBy: "owner@example.com",

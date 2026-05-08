@@ -28,7 +28,7 @@ func TestSiteAppCreatePropagatesConversationContext(t *testing.T) {
 
 	_, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "site.app.create",
-		Input:    json.RawMessage(`{"slug":"demo","title":"Demo"}`),
+		Input:    json.RawMessage(`{"slug":"demo","title":"Demo","prompt":"Build a booking site","designBrief":"Editorial restaurant style","prototypeScope":"booking request flow"}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "owner@example.com",
 			Platform:       "mattermost",
@@ -40,6 +40,9 @@ func TestSiteAppCreatePropagatesConversationContext(t *testing.T) {
 	}
 	if requestBody["requestedBy"] != "owner@example.com" || requestBody["platform"] != "mattermost" || requestBody["conversationID"] != "thread-1" {
 		t.Fatalf("context was not propagated: %+v", requestBody)
+	}
+	if requestBody["prompt"] != "Build a booking site" || requestBody["designBrief"] != "Editorial restaurant style" || requestBody["prototypeScope"] != "booking request flow" {
+		t.Fatalf("prototype creation context was not propagated: %+v", requestBody)
 	}
 }
 

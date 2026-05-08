@@ -153,6 +153,9 @@ func siteAppCreateInputSchema() json.RawMessage {
 	return jsonschema.Object(
 		jsonschema.Required("slug", jsonschema.String()),
 		jsonschema.Field("title", jsonschema.String()),
+		jsonschema.Field("prompt", jsonschema.String()),
+		jsonschema.Field("designBrief", jsonschema.String()),
+		jsonschema.Field("prototypeScope", jsonschema.String()),
 	).RawMessage()
 }
 
