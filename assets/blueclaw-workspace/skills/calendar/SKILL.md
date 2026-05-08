@@ -17,7 +17,7 @@ Use the InternKim Work calendar tools for team schedule creation and lookup. The
 
 ### `calendar.event.add`
 
-Create an event.
+Create an event. This does not require approval.
 
 Required fields:
 
@@ -39,7 +39,7 @@ Use RFC 3339 timestamps with timezone offsets, for example `2026-05-20T10:00:00+
 
 ### `calendar.event.list`
 
-Read events.
+Read events. This does not require approval.
 
 Optional fields:
 
@@ -53,7 +53,7 @@ Use both `startISO` and `endISO` together when narrowing a date range.
 
 ### `calendar.event.update`
 
-Update an existing event. List first if the user has not provided an `eventID`.
+Update an existing event. This does not require approval. List first if the user has not provided an `eventID`.
 
 Required fields:
 
@@ -66,11 +66,13 @@ Optional fields are the same as `calendar.event.add`.
 
 ### `calendar.event.delete`
 
-Delete an event by `eventID`. List matching events first when the user refers to an event by title or time.
+Delete an event by `eventID`. This requires approval. List matching events first when the user refers to an event by title or time.
 
 ## Rules
 
 - Prefer the Work calendar tools over Google Workspace tools for ordinary schedule requests.
+- Do not ask for approval before `calendar.event.add`, `calendar.event.list`, or `calendar.event.update`.
+- Ask for approval before `calendar.event.delete`.
 - If the user gives a relative date like "tomorrow" or "next Friday", resolve it using the conversation date and timezone before calling a tool.
 - If the date, time, or duration is ambiguous, ask one concise question before writing.
 - For all-day events, set `isAllDay: true`; use `startISO` at the start date and `endISO` at the next day boundary.

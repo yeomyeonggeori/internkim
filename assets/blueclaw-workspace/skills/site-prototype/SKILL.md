@@ -46,6 +46,8 @@ Create prototypes for non-developers to validate ideas quickly. Do not present t
 5. Call `site.app.publish` with `siteID` and a concise `message`.
 6. Reply in Mattermost with the public URL, a short change summary, and any test login credentials.
 
+Do not ask for approval before `site.app.create`, `terminal.run` verification, `site.app.publish`, `site.app.status`, `site.app.logs`, or `site.app.restore`. Ask for approval before `site.app.rollback`, `site.app.unpublish`, or `site.app.delete`.
+
 For follow-up feedback in the same conversation, call `site.app.status` with an empty input or the known slug. The tool can resolve the current conversation's bound site. Edit the returned workspace, rebuild, publish the same site, and reply with the same URL.
 
 Use this command pattern only after a previous observation proves the site workspace is mounted and accessible in terminal:
