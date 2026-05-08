@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"strings"
 	"testing"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
@@ -101,6 +102,20 @@ func TestParseBlueclawRuntimeFilePresence(t *testing.T) {
 	}
 	if presence["rootfs.ext4"] {
 		t.Fatal("expected rootfs missing")
+	}
+}
+
+func TestBlueclawRuntimeInstallCommandReplacesRootfsAtomically(t *testing.T) {
+	artifact := blueclawRuntimeInstallArtifact{name: "rootfs.ext4", remotePath: "/opt/runtime/rootfs.ext4", mode: "0644"}
+	command := blueclawRuntimeInstallCommand(artifact, "/tmp/rootfs.ext4")
+	for _, expectedValue := range []string{
+		"/opt/runtime/rootfs.ext4.next",
+		"cp --sparse=always",
+		"mv -f '/opt/runtime/rootfs.ext4.next' '/opt/runtime/rootfs.ext4'",
+	} {
+		if !strings.Contains(command, expectedValue) {
+			t.Fatalf("expected rootfs install command to contain %q, got %s", expectedValue, command)
+		}
 	}
 }
 

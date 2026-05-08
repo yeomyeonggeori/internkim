@@ -5,18 +5,20 @@ import (
 	"context"
 	"net/http"
 	"testing"
+	"time"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
 type fakeApprovalHandler struct {
-	decision ApprovalDecision
-	calls    int
+	decision    ApprovalDecision
+	lastRequest ApprovalRequest
+	calls       int
 }
 
 func (handler *fakeApprovalHandler) Approve(ctx context.Context, request ApprovalRequest) (ApprovalDecision, error) {
 	_ = ctx
-	_ = request
+	handler.lastRequest = request
 	handler.calls++
 	return handler.decision, nil
 }
@@ -132,6 +134,35 @@ func TestGrantStoreDeniesWithReason(t *testing.T) {
 	}
 }
 
+func TestGrantStoreRemembersCapabilityForSession(t *testing.T) {
+	store := NewMemoryGrantStore()
+	approvalHandler := &fakeApprovalHandler{decision: ApprovalDecision{Allowed: true, RememberSession: true}}
+	request := capabilities.ToolInvokeRequest{ToolName: "browser.handoff"}
+	envelope := JobEnvelope{JobID: "job-1", ToolName: "browser.handoff"}
+
+	if errorValue := store.Authorize(context.Background(), envelope, request, approvalHandler); errorValue != nil {
+		t.Fatalf("expected approval to create session grant: %v", errorValue)
+	}
+	nextRequest := capabilities.ToolInvokeRequest{
+		ToolName:      "browser.open",
+		ResourceScope: capabilities.ResourceScope{Kind: "web_origin", Value: "https://console.cloud.google.com"},
+	}
+	nextEnvelope := JobEnvelope{
+		JobID:         "job-2",
+		ToolName:      "browser.open",
+		ResourceScope: nextRequest.ResourceScope,
+	}
+	if errorValue := store.Authorize(context.Background(), nextEnvelope, nextRequest, approvalHandler); errorValue != nil {
+		t.Fatalf("expected session grant reuse: %v", errorValue)
+	}
+	if approvalHandler.calls != 1 {
+		t.Fatalf("expected one approval call, got %d", approvalHandler.calls)
+	}
+	if displayName := store.ListActive()[0].DisplayName; displayName != "Browser access to this session" {
+		t.Fatalf("unexpected grant display name: %s", displayName)
+	}
+}
+
 func TestUserInputDoesNotNeedGrant(t *testing.T) {
 	store := NewMemoryGrantStore()
 	approvalHandler := &fakeApprovalHandler{decision: ApprovalDecision{Allowed: false}}
@@ -142,5 +173,28 @@ func TestUserInputDoesNotNeedGrant(t *testing.T) {
 	}
 	if approvalHandler.calls != 0 {
 		t.Fatalf("expected approval not to be called, got %d", approvalHandler.calls)
+	}
+}
+
+func TestApprovalRequestIncludesContextDeadline(t *testing.T) {
+	store := NewMemoryGrantStore()
+	approvalHandler := &fakeApprovalHandler{decision: ApprovalDecision{Allowed: true}}
+	request := capabilities.ToolInvokeRequest{
+		ToolName:      "browser.open",
+		ResourceScope: capabilities.ResourceScope{Kind: "web_origin", Value: "https://github.com"},
+	}
+	envelope := JobEnvelope{
+		JobID:         "job-1",
+		ToolName:      "browser.open",
+		ResourceScope: request.ResourceScope,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+	defer cancel()
+
+	if errorValue := store.Authorize(ctx, envelope, request, approvalHandler); errorValue != nil {
+		t.Fatalf("expected approval to succeed: %v", errorValue)
+	}
+	if approvalHandler.lastRequest.TimeoutSeconds < 1 || approvalHandler.lastRequest.TimeoutSeconds > 2 {
+		t.Fatalf("expected approval timeout from context deadline, got %+v", approvalHandler.lastRequest)
 	}
 }

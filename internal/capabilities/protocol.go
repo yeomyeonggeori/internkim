@@ -3,145 +3,48 @@ package capabilities
 import (
 	"encoding/json"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
 const (
-	ExecutionModeDevice    = "device"
-	ExecutionModeCompanion = "companion"
-	ExecutionModeRemote    = "remote"
-	ExecutionModeAuto      = "auto"
+	ExecutionModeDevice    = capabilityprotocol.ExecutionModeDevice
+	ExecutionModeCompanion = capabilityprotocol.ExecutionModeCompanion
+	ExecutionModeRemote    = capabilityprotocol.ExecutionModeRemote
+	ExecutionModeAuto      = capabilityprotocol.ExecutionModeAuto
 
-	LLMBackendDevice         = "device_local"
-	LLMBackendCompanionLocal = "companion_local"
-	LLMBackendRemote         = "remote"
+	LLMBackendDevice         = capabilityprotocol.LLMBackendDevice
+	LLMBackendCompanionLocal = capabilityprotocol.LLMBackendCompanionLocal
+	LLMBackendRemote         = capabilityprotocol.LLMBackendRemote
 
-	AttentionTriageToolName = "attention.triage"
+	AttentionTriageToolName = capabilityprotocol.AttentionTriageToolName
 
-	CapabilityAvailable    = "ok"
-	CapabilityNotConnected = "not_connected"
-	CapabilityNotReady     = "not_ready"
-	CapabilityNotAllowed   = "not_allowed"
+	CapabilityAvailable    = capabilityprotocol.CapabilityAvailable
+	CapabilityNotConnected = capabilityprotocol.CapabilityNotConnected
+	CapabilityNotReady     = capabilityprotocol.CapabilityNotReady
+	CapabilityNotAllowed   = capabilityprotocol.CapabilityNotAllowed
 )
 
-type Descriptor struct {
-	Name                 string `json:"name"`
-	Version              string `json:"version"`
-	PrivacyClass         string `json:"privacyClass"`
-	EstimatedLatency     string `json:"estimatedLatency"`
-	RequiresUserPresence bool   `json:"requiresUserPresence"`
-	WorksOffline         bool   `json:"worksOffline"`
-}
-
-type RegistryResponse struct {
-	LocalOnly             bool         `json:"localOnly"`
-	RoutingCandidates     []string     `json:"routingCandidates"`
-	DeviceCapabilities    []Descriptor `json:"deviceCapabilities,omitempty"`
-	CompanionStatus       string       `json:"companionStatus,omitempty"`
-	CompanionCapabilities []Descriptor `json:"companionCapabilities,omitempty"`
-	Capabilities          []Descriptor `json:"capabilities,omitempty"`
-}
-
-type ToolInvokeRequest struct {
-	ToolName             string            `json:"toolName"`
-	Input                json.RawMessage   `json:"input"`
-	Context              ToolInvokeContext `json:"context,omitempty"`
-	ExecutionMode        string            `json:"executionMode"`
-	RequiresUserPresence bool              `json:"requiresUserPresence"`
-	PrivacyClass         string            `json:"privacyClass"`
-	SessionID            string            `json:"sessionID"`
-	ParentJobID          string            `json:"parentJobID,omitempty"`
-	GrantID              string            `json:"grantID,omitempty"`
-	ResourceScope        ResourceScope     `json:"resourceScope,omitempty"`
-	TimeoutSecond        int               `json:"timeoutSecond"`
-}
-
-type ToolInvokeContext struct {
-	RequesterPersonID       string `json:"requesterPersonID,omitempty"`
-	RequesterEmail          string `json:"requesterEmail,omitempty"`
-	RequesterName           string `json:"requesterName,omitempty"`
-	RequesterPlatformUserID string `json:"requesterPlatformUserID,omitempty"`
-	ConversationID          string `json:"conversationID,omitempty"`
-	Platform                string `json:"platform,omitempty"`
-}
-
-type ToolInvokeResponse struct {
-	Provider        string          `json:"provider"`
-	SelectedBackend string          `json:"selectedBackend"`
-	ToolName        string          `json:"toolName"`
-	Status          string          `json:"status,omitempty"`
-	Content         string          `json:"content,omitempty"`
-	IsError         bool            `json:"isError,omitempty"`
-	Result          json.RawMessage `json:"result"`
-}
-
-type ResourceScope struct {
-	Kind  string `json:"kind,omitempty"`
-	Value string `json:"value,omitempty"`
-}
-
-type CompanionJobEnvelope struct {
-	JobID         string            `json:"jobID"`
-	ParentJobID   string            `json:"parentJobID,omitempty"`
-	GrantID       string            `json:"grantID,omitempty"`
-	ToolName      string            `json:"toolName"`
-	PrivacyClass  string            `json:"privacyClass"`
-	ResourceScope ResourceScope     `json:"resourceScope,omitempty"`
-	CreatedAt     string            `json:"createdAt,omitempty"`
-	ExpiresAt     string            `json:"expiresAt,omitempty"`
-	Depth         int               `json:"depth"`
-	Request       ToolInvokeRequest `json:"request"`
-}
-
-type DenialResult struct {
-	Status              string        `json:"status"`
-	Code                string        `json:"code"`
-	JobID               string        `json:"jobID"`
-	ToolName            string        `json:"toolName"`
-	ResourceScope       ResourceScope `json:"resourceScope,omitempty"`
-	UserReason          string        `json:"userReason,omitempty"`
-	SuggestedConstraint string        `json:"suggestedConstraint,omitempty"`
-}
+type Descriptor = capabilityprotocol.Descriptor
+type RegistryResponse = capabilityprotocol.RegistryResponse
+type ToolInvokeRequest = capabilityprotocol.ToolInvokeRequest
+type ToolInvokeContext = capabilityprotocol.ToolInvokeContext
+type ToolInvokeResponse = capabilityprotocol.ToolInvokeResponse
+type ResourceScope = capabilityprotocol.ResourceScope
+type CompanionJobEnvelope = capabilityprotocol.CompanionJobEnvelope
+type DenialResult = capabilityprotocol.DenialResult
+type RecoveryAction = capabilityprotocol.RecoveryAction
 
 func CompanionToolDescriptors() []Descriptor {
-	return []Descriptor{
-		{Name: "browser.open", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
-		{Name: "browser.snapshot", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
-		{Name: "browser.screenshot", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
-		{Name: "browser.handoff", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
-		{Name: "browser.click", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
-		{Name: "browser.fill", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
-		{Name: "browser.select", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
-		{Name: "browser.press", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
-		{Name: "browser.wait", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false},
-		{Name: "user.confirm", Version: "1", PrivacyClass: "user_input", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true},
-		{Name: "user.input", Version: "1", PrivacyClass: "user_input", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true},
-		{Name: "file.pick", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true},
-		{Name: "filesystem.mount.create", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true},
-		{Name: "filesystem.mount.list", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.pause", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.resume", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.revoke", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.status", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.stat", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.list_directory", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.read", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.write", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.mkdir", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.rename", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.delete", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.truncate", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.chmod", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "filesystem.mount.watch", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-	}
+	return capabilityprotocol.CompanionToolDescriptors()
 }
 
 func CompanionLLMDescriptors() []Descriptor {
-	return []Descriptor{
-		{Name: "llm.text", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "llm.structured", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: "embedding.create", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-		{Name: AttentionTriageToolName, Version: "1", PrivacyClass: "model_input", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
-	}
+	return capabilityprotocol.CompanionLLMDescriptors()
+}
+
+func DeviceBrowserDescriptors() []Descriptor {
+	return capabilityprotocol.DeviceBrowserDescriptors()
 }
 
 func DeviceDescriptors() []Descriptor {
@@ -150,49 +53,106 @@ func DeviceDescriptors() []Descriptor {
 		{Name: "llm.structured", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "embedding.create", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "platform.reply", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false},
-	}, append(append(DeviceBrowserDescriptors(), FlowDescriptors()...), SiteAppDescriptors()...)...)
+	}, append(append(append(DeviceBrowserDescriptors(), FlowDescriptors()...), CalendarDescriptors()...), SiteAppDescriptors()...)...)
 }
 
 func FlowDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "flow.task.add", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "flow.task.add", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskAddInputSchema(), PolicyResource: "tool:flow.task.add", SideEffectClass: "workspace_write"},
+	}
+}
+
+func CalendarDescriptors() []Descriptor {
+	return []Descriptor{
+		{Name: "calendar.event.add", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventWriteInputSchema(), PolicyResource: "tool:calendar.event.add", SideEffectClass: "workspace_write"},
+		{Name: "calendar.event.list", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventListInputSchema(), PolicyResource: "tool:calendar.event.list", SideEffectClass: "read"},
+		{Name: "calendar.event.update", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventUpdateInputSchema(), PolicyResource: "tool:calendar.event.update", SideEffectClass: "workspace_write"},
+		{Name: "calendar.event.delete", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventDeleteInputSchema(), PolicyResource: "tool:calendar.event.delete", SideEffectClass: "destructive", RequiresApproval: true},
 	}
 }
 
 func SiteAppDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "site.app.create", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "site.app.publish", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "site.app.status", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "site.app.logs", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "site.app.rollback", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "site.app.unpublish", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "site.app.restore", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "site.app.delete", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "site.app.create", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppCreateInputSchema(), PolicyResource: "tool:site.app.create", SideEffectClass: "workspace_write"},
+		{Name: "site.app.publish", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppPublishInputSchema(), PolicyResource: "tool:site.app.publish", SideEffectClass: "external_publish"},
+		{Name: "site.app.status", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLookupInputSchema(), PolicyResource: "tool:site.app.status", SideEffectClass: "read"},
+		{Name: "site.app.logs", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLookupInputSchema(), PolicyResource: "tool:site.app.logs", SideEffectClass: "read"},
+		{Name: "site.app.rollback", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLifecycleInputSchema(), PolicyResource: "tool:site.app.rollback", SideEffectClass: "external_publish", RequiresApproval: true},
+		{Name: "site.app.unpublish", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLifecycleInputSchema(), PolicyResource: "tool:site.app.unpublish", SideEffectClass: "external_publish", RequiresApproval: true},
+		{Name: "site.app.restore", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLifecycleInputSchema(), PolicyResource: "tool:site.app.restore", SideEffectClass: "workspace_write"},
+		{Name: "site.app.delete", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppDeleteInputSchema(), PolicyResource: "tool:site.app.delete", SideEffectClass: "destructive", RequiresApproval: true},
 	}
 }
 
 func GoogleWorkspaceDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "google.docs.create", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "google.sheets.create", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "google.gmail.send", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "google.calendar.event", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "google.calendar.list", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "google.drive.import_pptx", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false},
+		{Name: "google.docs.create", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleDocsCreateInputSchema(), PolicyResource: "tool:google.docs.create", SideEffectClass: "external_write"},
+		{Name: "google.sheets.create", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleSheetsCreateInputSchema(), PolicyResource: "tool:google.sheets.create", SideEffectClass: "external_write"},
+		{Name: "google.gmail.send", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleGmailSendInputSchema(), PolicyResource: "tool:google.gmail.send", SideEffectClass: "external_send", RequiresApproval: true},
+		{Name: "google.calendar.event", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleCalendarEventInputSchema(), PolicyResource: "tool:google.calendar.event", SideEffectClass: "external_write"},
+		{Name: "google.calendar.list", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleCalendarListInputSchema(), PolicyResource: "tool:google.calendar.list", SideEffectClass: "read"},
+		{Name: "google.drive.import_pptx", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"},"title":{"type":"string"}},"required":["path"],"additionalProperties":false}`), PolicyResource: "tool:google.drive.import_pptx", SideEffectClass: "external_write"},
 	}
 }
 
-func DeviceBrowserDescriptors() []Descriptor {
-	return []Descriptor{
-		{Name: "browser.open", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "browser.snapshot", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "browser.click", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "browser.fill", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "browser.select", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "browser.press", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
-		{Name: "browser.wait", Version: "1", PrivacyClass: "device_browser", EstimatedLatency: "interactive", RequiresUserPresence: false, WorksOffline: false},
-	}
+func flowTaskAddInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"prompt":{"type":"string"},"targetPersonHint":{"type":"string"},"weekCode":{"type":"string"},"allowDuplicate":{"type":"boolean"}},"required":["prompt"],"additionalProperties":false}`)
+}
+
+func calendarEventWriteInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"description":{"type":"string"},"location":{"type":"string"},"startISO":{"type":"string"},"endISO":{"type":"string"},"timeZone":{"type":"string"},"isAllDay":{"type":"boolean"},"color":{"type":"string"},"people":{"oneOf":[{"type":"string"},{"type":"array","items":{"type":"string"}}]},"reminderLeadHours":{"type":"integer","enum":[1,2,3,6,12,24,48]}},"required":["title","startISO","endISO"],"additionalProperties":false}`)
+}
+
+func calendarEventListInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"startISO":{"type":"string"},"endISO":{"type":"string"},"query":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":50}},"additionalProperties":false}`)
+}
+
+func calendarEventUpdateInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"eventID":{"type":"string"},"title":{"type":"string"},"description":{"type":"string"},"location":{"type":"string"},"startISO":{"type":"string"},"endISO":{"type":"string"},"timeZone":{"type":"string"},"isAllDay":{"type":"boolean"},"color":{"type":"string"},"people":{"oneOf":[{"type":"string"},{"type":"array","items":{"type":"string"}}]},"reminderLeadHours":{"type":"integer","enum":[1,2,3,6,12,24,48]}},"required":["eventID","title","startISO","endISO"],"additionalProperties":false}`)
+}
+
+func calendarEventDeleteInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"eventID":{"type":"string"}},"required":["eventID"],"additionalProperties":false}`)
+}
+
+func siteAppCreateInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"slug":{"type":"string"},"title":{"type":"string"}},"required":["slug"],"additionalProperties":false}`)
+}
+
+func siteAppPublishInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"siteID":{"type":"string"},"slug":{"type":"string"},"title":{"type":"string"},"visibility":{"type":"string"},"message":{"type":"string"}},"additionalProperties":false}`)
+}
+
+func siteAppLookupInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"siteID":{"type":"string"},"slug":{"type":"string"}},"additionalProperties":false}`)
+}
+
+func siteAppLifecycleInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"siteID":{"type":"string"},"slug":{"type":"string"},"reason":{"type":"string"},"confirm":{"type":"string"},"userConfirmed":{"type":"boolean"}},"additionalProperties":false}`)
+}
+
+func siteAppDeleteInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"siteID":{"type":"string"},"slug":{"type":"string"},"reason":{"type":"string"},"confirm":{"type":"string"},"userConfirmed":{"type":"boolean"}},"required":["confirm","userConfirmed"],"additionalProperties":false}`)
+}
+
+func googleDocsCreateInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"body":{"type":"string"}},"required":["title"],"additionalProperties":false}`)
+}
+
+func googleSheetsCreateInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"sheets":{"type":"array","items":{"type":"string"}},"values":{"type":"array","items":{"type":"array"}}},"required":["title"],"additionalProperties":false}`)
+}
+
+func googleGmailSendInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"to":{"type":"array","items":{"type":"string"}},"subject":{"type":"string"},"body":{"type":"string"},"cc":{"type":"array","items":{"type":"string"}},"bcc":{"type":"array","items":{"type":"string"}}},"required":["to","subject","body"],"additionalProperties":false}`)
+}
+
+func googleCalendarEventInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"start":{"type":"string"},"end":{"type":"string"},"attendees":{"type":"array","items":{"type":"string"}},"description":{"type":"string"},"location":{"type":"string"}},"required":["title","start","end"],"additionalProperties":false}`)
+}
+
+func googleCalendarListInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"start":{"type":"string"},"end":{"type":"string"},"limit":{"type":"integer"},"query":{"type":"string"}},"additionalProperties":false}`)
 }
 
 func CompanionToolNames() []string {
@@ -205,18 +165,36 @@ func CompanionToolNames() []string {
 }
 
 func DefaultToolNames() []string {
-	toolNames := CompanionToolNames()
-	for _, descriptor := range FlowDescriptors() {
-		toolNames = append(toolNames, descriptor.Name)
-	}
-	for _, descriptor := range SiteAppDescriptors() {
+	toolNames := []string{}
+	for _, descriptor := range DefaultToolDescriptors() {
 		toolNames = append(toolNames, descriptor.Name)
 	}
 	return toolNames
 }
 
+func DefaultToolDescriptors() []Descriptor {
+	descriptors := CompanionToolDescriptors()
+	descriptors = append(descriptors, FlowDescriptors()...)
+	descriptors = append(descriptors, CalendarDescriptors()...)
+	descriptors = append(descriptors, SiteAppDescriptors()...)
+	return descriptors
+}
+
 func RoutingCandidates() []string {
-	return []string{ExecutionModeDevice, ExecutionModeCompanion, ExecutionModeRemote}
+	return capabilityprotocol.RoutingCandidates()
+}
+
+func CompanionMacOSBetaDownloadURL() string {
+	return "https://gitlab.com/eastriver/internkim/-/releases/permalink/latest/downloads/internkim-companion-beta-macos-aarch64.dmg"
+}
+
+func CompanionConnectRecovery() *RecoveryAction {
+	return &RecoveryAction{
+		Kind:           "companion_connect",
+		Delivery:       "dm_preferred",
+		DownloadURL:    CompanionMacOSBetaDownloadURL(),
+		ConnectCommand: "/connect",
+	}
 }
 
 func CapabilityUnavailableUserReason(toolName string, code string) string {
@@ -233,6 +211,6 @@ func CapabilityUnavailableUserReason(toolName string, code string) string {
 		if isBrowserTool {
 			return "Companion이 연결되어 있지 않아 브라우저를 열 수 없습니다."
 		}
-		return "Companion이 연결되어 있지 않아 이 기능을 실행할 수 없습니다."
+		return "Companion이 연결되어 있지 않습니다."
 	}
 }

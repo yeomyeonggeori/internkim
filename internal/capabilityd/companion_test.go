@@ -320,6 +320,44 @@ func TestCompanionOnlyBrowserToolPreservesNotReadyDenial(t *testing.T) {
 	}
 }
 
+func TestCompanionRequiredBrowserJobExpiryReportsNotReady(t *testing.T) {
+	commandWasCalled := false
+	service := Service{
+		Configuration: Configuration{CompanionBaseURL: "https://companion.test"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusBadGateway,
+				Body:       io.NopCloser(strings.NewReader(`companion job expired`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+		RunCommand: func(_ context.Context, _ string, _ []string, _ []byte) ([]byte, error) {
+			commandWasCalled = true
+			return nil, nil
+		},
+	}
+
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.open", strings.NewReader(`{
+		"requiresUserPresence":true,
+		"executionMode":"companion",
+		"input":{"url":"https://console.cloud.google.com/apis/credentials"}
+	}`))
+
+	if errorValue != nil {
+		t.Fatalf("expected structured not_ready denial: %v", errorValue)
+	}
+	var denial capabilities.DenialResult
+	if errorValue := json.Unmarshal(response.Result, &denial); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if denial.Code != capabilities.CapabilityNotReady || denial.Recovery != nil || strings.Contains(response.Content, "/connect") {
+		t.Fatalf("expected not_ready denial without connect recovery, got response=%+v denial=%+v", response, denial)
+	}
+	if commandWasCalled {
+		t.Fatal("expected companion-required browser.open not to fallback to device browser")
+	}
+}
+
 func TestUserPresenceBrowserToolDoesNotFallbackToDeviceWhenCompanionUnavailable(t *testing.T) {
 	commandWasCalled := false
 	service := Service{
@@ -371,6 +409,36 @@ func TestUserPresenceBrowserToolRequiresConnectWhenCompanionNotConfigured(t *tes
 	}
 	if commandWasCalled {
 		t.Fatal("expected companion-only browser.open not to fallback to device browser")
+	}
+}
+
+func TestCompanionRequiredBrowserDenialIncludesConnectRecovery(t *testing.T) {
+	service := Service{}
+
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser.open", strings.NewReader(`{
+		"requiresUserPresence":true,
+		"executionMode":"companion",
+		"input":{"url":"https://example.com/login"}
+	}`))
+
+	if errorValue != nil {
+		t.Fatalf("expected structured companion-required denial: %v", errorValue)
+	}
+	var denial capabilities.DenialResult
+	if errorValue := json.Unmarshal(response.Result, &denial); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if denial.Code != capabilities.CapabilityNotConnected || denial.Recovery == nil {
+		t.Fatalf("expected not_connected recovery, got response=%+v denial=%+v", response, denial)
+	}
+	if denial.Recovery.Kind != "companion_connect" || denial.Recovery.Delivery != "dm_preferred" || denial.Recovery.ConnectCommand != "/connect" {
+		t.Fatalf("unexpected recovery action: %+v", denial.Recovery)
+	}
+	if !strings.Contains(denial.Recovery.DownloadURL, "internkim-companion-beta-macos-aarch64.dmg") {
+		t.Fatalf("expected companion download URL, got %+v", denial.Recovery)
+	}
+	if strings.Contains(response.Content, "/connect") {
+		t.Fatalf("expected short model-facing content, got %q", response.Content)
 	}
 }
 

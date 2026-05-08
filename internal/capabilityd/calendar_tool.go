@@ -1,0 +1,357 @@
+package capabilityd
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
+	"gitlab.com/eastriver/internkim/internal/capabilities"
+)
+
+type calendarEventWriteInput struct {
+	EventID           string                  `json:"eventID"`
+	Title             string                  `json:"title"`
+	Description       string                  `json:"description"`
+	Location          string                  `json:"location"`
+	StartISO          string                  `json:"startISO"`
+	EndISO            string                  `json:"endISO"`
+	TimeZone          string                  `json:"timeZone"`
+	IsAllDay          bool                    `json:"isAllDay"`
+	Color             string                  `json:"color"`
+	People            calendarToolPeopleInput `json:"people"`
+	ReminderLeadHours int                     `json:"reminderLeadHours"`
+}
+
+type calendarEventListInput struct {
+	StartISO string `json:"startISO"`
+	EndISO   string `json:"endISO"`
+	Query    string `json:"query"`
+	Limit    int    `json:"limit"`
+}
+
+type calendarEventDeleteInput struct {
+	EventID string `json:"eventID"`
+}
+
+type calendarToolPeopleInput []string
+
+type calendarEventsForTool struct {
+	Events []calendarEventForTool `json:"events"`
+}
+
+type calendarEventForTool struct {
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Location    string `json:"location"`
+	StartISO    string `json:"startISO"`
+	EndISO      string `json:"endISO"`
+	TimeZone    string `json:"timeZone"`
+	IsAllDay    bool   `json:"isAllDay"`
+}
+
+func isCalendarTool(toolName string) bool {
+	switch strings.TrimSpace(toolName) {
+	case "calendar.event.add", "calendar.event.list", "calendar.event.update", "calendar.event.delete":
+		return true
+	default:
+		return false
+	}
+}
+
+func (service Service) invokeCalendarTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	switch strings.TrimSpace(request.ToolName) {
+	case "calendar.event.add":
+		return service.invokeCalendarEventAdd(ctx, request)
+	case "calendar.event.list":
+		return service.invokeCalendarEventList(ctx, request)
+	case "calendar.event.update":
+		return service.invokeCalendarEventUpdate(ctx, request)
+	case "calendar.event.delete":
+		return service.invokeCalendarEventDelete(ctx, request)
+	default:
+		return capabilities.ToolInvokeResponse{}, fmt.Errorf("calendar tool is not configured: %s", request.ToolName)
+	}
+}
+
+func (service Service) invokeCalendarEventAdd(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	input, errorValue := decodeCalendarEventWriteInput(request.Input, false)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	result, errorValue := service.sendCalendarToolRequest(ctx, http.MethodPost, "/calendar/api/events", calendarEventWritePayload(input), request.Context.RequesterEmail)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	return calendarToolResponse(request.ToolName, "created", result), nil
+}
+
+func (service Service) invokeCalendarEventList(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	input, errorValue := decodeCalendarEventListInput(request.Input)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	result, errorValue := service.sendCalendarToolRequest(ctx, http.MethodGet, calendarEventListPath(input), nil, request.Context.RequesterEmail)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	filteredResult, errorValue := filterCalendarEventsForTool(result, input)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	return calendarToolResponse(request.ToolName, "ok", filteredResult), nil
+}
+
+func (service Service) invokeCalendarEventUpdate(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	input, errorValue := decodeCalendarEventWriteInput(request.Input, true)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	path := "/calendar/api/events/" + url.PathEscape(input.EventID)
+	result, errorValue := service.sendCalendarToolRequest(ctx, http.MethodPut, path, calendarEventWritePayload(input), request.Context.RequesterEmail)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	return calendarToolResponse(request.ToolName, "updated", result), nil
+}
+
+func (service Service) invokeCalendarEventDelete(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	input, errorValue := decodeCalendarEventDeleteInput(request.Input)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	path := "/calendar/api/events/" + url.PathEscape(input.EventID)
+	if _, errorValue := service.sendCalendarToolRequest(ctx, http.MethodDelete, path, nil, request.Context.RequesterEmail); errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	result, _ := json.Marshal(map[string]any{"eventID": input.EventID, "deleted": true})
+	return calendarToolResponse(request.ToolName, "deleted", result), nil
+}
+
+func decodeCalendarEventWriteInput(document json.RawMessage, needsEventID bool) (calendarEventWriteInput, error) {
+	if len(bytes.TrimSpace(document)) == 0 {
+		return calendarEventWriteInput{}, fmt.Errorf("calendar event input is required")
+	}
+	var input calendarEventWriteInput
+	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
+		return calendarEventWriteInput{}, errorValue
+	}
+	input.EventID = strings.TrimSpace(input.EventID)
+	input.Title = strings.TrimSpace(input.Title)
+	input.Description = strings.TrimSpace(input.Description)
+	input.Location = strings.TrimSpace(input.Location)
+	input.StartISO = strings.TrimSpace(input.StartISO)
+	input.EndISO = strings.TrimSpace(input.EndISO)
+	input.TimeZone = strings.TrimSpace(input.TimeZone)
+	input.Color = strings.TrimSpace(input.Color)
+	input.People = normalizeCalendarToolPeople([]string(input.People))
+	input.ReminderLeadHours = normalizeCalendarToolReminderLeadHours(input.ReminderLeadHours)
+	if needsEventID && input.EventID == "" {
+		return calendarEventWriteInput{}, fmt.Errorf("eventID is required")
+	}
+	if input.Title == "" {
+		return calendarEventWriteInput{}, fmt.Errorf("title is required")
+	}
+	if input.StartISO == "" || input.EndISO == "" {
+		return calendarEventWriteInput{}, fmt.Errorf("startISO and endISO are required")
+	}
+	return input, nil
+}
+
+func (people *calendarToolPeopleInput) UnmarshalJSON(document []byte) error {
+	trimmedDocument := bytes.TrimSpace(document)
+	if len(trimmedDocument) == 0 || bytes.Equal(trimmedDocument, []byte("null")) {
+		*people = nil
+		return nil
+	}
+	var values []string
+	if errorValue := json.Unmarshal(trimmedDocument, &values); errorValue == nil {
+		*people = normalizeCalendarToolPeople(values)
+		return nil
+	}
+	var value string
+	if errorValue := json.Unmarshal(trimmedDocument, &value); errorValue != nil {
+		return errorValue
+	}
+	*people = normalizeCalendarToolPeople(strings.Split(value, ","))
+	return nil
+}
+
+func normalizeCalendarToolPeople(values []string) []string {
+	people := []string{}
+	seenPeople := map[string]bool{}
+	for _, value := range values {
+		trimmedValue := strings.TrimSpace(value)
+		if trimmedValue == "" {
+			continue
+		}
+		normalizedValue := strings.ToLower(trimmedValue)
+		if seenPeople[normalizedValue] {
+			continue
+		}
+		seenPeople[normalizedValue] = true
+		people = append(people, trimmedValue)
+	}
+	return people
+}
+
+func normalizeCalendarToolReminderLeadHours(value int) int {
+	switch value {
+	case 1, 2, 3, 6, 12, 24, 48:
+		return value
+	default:
+		return 24
+	}
+}
+
+func decodeCalendarEventListInput(document json.RawMessage) (calendarEventListInput, error) {
+	if len(bytes.TrimSpace(document)) == 0 {
+		return calendarEventListInput{}, nil
+	}
+	var input calendarEventListInput
+	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
+		return calendarEventListInput{}, errorValue
+	}
+	input.StartISO = strings.TrimSpace(input.StartISO)
+	input.EndISO = strings.TrimSpace(input.EndISO)
+	input.Query = strings.TrimSpace(input.Query)
+	if input.Limit < 0 {
+		return calendarEventListInput{}, fmt.Errorf("limit must be positive")
+	}
+	if (input.StartISO == "") != (input.EndISO == "") {
+		return calendarEventListInput{}, fmt.Errorf("startISO and endISO must be provided together")
+	}
+	return input, nil
+}
+
+func decodeCalendarEventDeleteInput(document json.RawMessage) (calendarEventDeleteInput, error) {
+	if len(bytes.TrimSpace(document)) == 0 {
+		return calendarEventDeleteInput{}, fmt.Errorf("eventID is required")
+	}
+	var input calendarEventDeleteInput
+	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
+		return calendarEventDeleteInput{}, errorValue
+	}
+	input.EventID = strings.TrimSpace(input.EventID)
+	if input.EventID == "" {
+		return calendarEventDeleteInput{}, fmt.Errorf("eventID is required")
+	}
+	return input, nil
+}
+
+func calendarEventWritePayload(input calendarEventWriteInput) map[string]any {
+	return map[string]any{
+		"title":             input.Title,
+		"description":       input.Description,
+		"location":          input.Location,
+		"startISO":          input.StartISO,
+		"endISO":            input.EndISO,
+		"timeZone":          input.TimeZone,
+		"isAllDay":          input.IsAllDay,
+		"color":             input.Color,
+		"people":            []string(input.People),
+		"reminderLeadHours": input.ReminderLeadHours,
+	}
+}
+
+func calendarEventListPath(input calendarEventListInput) string {
+	if input.StartISO == "" && input.EndISO == "" {
+		return "/calendar/api/events"
+	}
+	query := url.Values{}
+	query.Set("startISO", input.StartISO)
+	query.Set("endISO", input.EndISO)
+	return "/calendar/api/events?" + query.Encode()
+}
+
+func (service Service) sendCalendarToolRequest(ctx context.Context, method string, path string, payload any, requesterEmail string) (json.RawMessage, error) {
+	var body io.Reader
+	if payload != nil {
+		document, errorValue := json.Marshal(payload)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		body = bytes.NewReader(document)
+	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	httpRequest, errorValue := http.NewRequestWithContext(ctx, method, strings.TrimRight(service.Configuration.AdmindBaseURL, "/")+path, body)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	if payload != nil {
+		httpRequest.Header.Set("Content-Type", "application/json")
+	}
+	setCalendarRequesterEmailHeader(httpRequest, requesterEmail)
+	httpResponse, errorValue := service.httpClient().Do(httpRequest)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer httpResponse.Body.Close()
+	responseBody, readError := io.ReadAll(httpResponse.Body)
+	if readError != nil {
+		return nil, readError
+	}
+	if httpResponse.StatusCode >= http.StatusBadRequest {
+		return nil, fmt.Errorf("calendar tool failed: %s", strings.TrimSpace(string(responseBody)))
+	}
+	return json.RawMessage(responseBody), nil
+}
+
+func setCalendarRequesterEmailHeader(request *http.Request, requesterEmail string) {
+	normalizedEmail := strings.ToLower(strings.TrimSpace(requesterEmail))
+	if normalizedEmail == "" {
+		return
+	}
+	request.Header.Set("CF-Access-Authenticated-User-Email", normalizedEmail)
+}
+
+func filterCalendarEventsForTool(result json.RawMessage, input calendarEventListInput) (json.RawMessage, error) {
+	if strings.TrimSpace(input.Query) == "" && input.Limit == 0 {
+		return result, nil
+	}
+	var response calendarEventsForTool
+	if errorValue := json.Unmarshal(result, &response); errorValue != nil {
+		return nil, errorValue
+	}
+	filteredEvents := make([]calendarEventForTool, 0, len(response.Events))
+	for _, event := range response.Events {
+		if !calendarEventMatchesQuery(event, input.Query) {
+			continue
+		}
+		filteredEvents = append(filteredEvents, event)
+		if input.Limit > 0 && len(filteredEvents) >= input.Limit {
+			break
+		}
+	}
+	document, errorValue := json.Marshal(calendarEventsForTool{Events: filteredEvents})
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return document, nil
+}
+
+func calendarEventMatchesQuery(event calendarEventForTool, query string) bool {
+	normalizedQuery := strings.ToLower(strings.TrimSpace(query))
+	if normalizedQuery == "" {
+		return true
+	}
+	searchText := strings.ToLower(strings.Join([]string{event.Title, event.Description, event.Location}, "\n"))
+	return strings.Contains(searchText, normalizedQuery)
+}
+
+func calendarToolResponse(toolName string, status string, result json.RawMessage) capabilities.ToolInvokeResponse {
+	return capabilities.ToolInvokeResponse{
+		Provider:        "internkim",
+		SelectedBackend: "device",
+		ToolName:        toolName,
+		Status:          status,
+		Result:          result,
+	}
+}

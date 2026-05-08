@@ -42,7 +42,7 @@ func NewMemorySecureStore() *MemorySecureStore {
 
 func NewDefaultSecureStore() SecureStore {
 	if runtime.GOOS == "darwin" {
-		return KeychainSecureStore{Service: "Intern Kim Companion"}
+		return KeychainSecureStore{Service: "internkim"}
 	}
 	if os.Getenv(developmentSecureStoreEnvironment) == "1" {
 		return DevelopmentFileSecureStore{Directory: defaultDevelopmentSecureStoreDirectory()}

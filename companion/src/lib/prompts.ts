@@ -6,6 +6,7 @@ export type PromptRequest = {
 	toolName?: string;
 	capabilityScope?: string;
 	resourceScope?: { kind?: string; value?: string };
+	timeoutSeconds?: number;
 };
 
 export type PromptResult = {
@@ -34,7 +35,8 @@ export function normalizePromptRequest(value: unknown): PromptRequest {
 		default: typeof rawRequest.default === 'boolean' ? rawRequest.default : undefined,
 		toolName: typeof rawRequest.toolName === 'string' ? rawRequest.toolName : undefined,
 		capabilityScope: typeof rawRequest.capabilityScope === 'string' ? rawRequest.capabilityScope : undefined,
-		resourceScope: normalizeResourceScope(rawRequest.resourceScope)
+		resourceScope: normalizeResourceScope(rawRequest.resourceScope),
+		timeoutSeconds: typeof rawRequest.timeoutSeconds === 'number' ? rawRequest.timeoutSeconds : undefined
 	};
 }
 
@@ -50,10 +52,11 @@ export function inputResponse(text: string): { text: string } {
 	return { text };
 }
 
-export function approvalResponse(isAllowed: boolean, userReason: string): { allowed: boolean; userReason?: string; suggestedConstraint?: string } {
+export function approvalResponse(isAllowed: boolean, userReason: string, rememberSession = false): { allowed: boolean; userReason?: string; suggestedConstraint?: string; rememberSession?: boolean } {
 	const trimmedReason = userReason.trim();
 	return {
 		allowed: isAllowed,
+		rememberSession: isAllowed && rememberSession ? true : undefined,
 		userReason: isAllowed ? undefined : trimmedReason || undefined,
 		suggestedConstraint: isAllowed ? undefined : trimmedReason || undefined
 	};

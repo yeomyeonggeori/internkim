@@ -21,6 +21,8 @@ func TestGuestInitRunsBlueclawAsNonRootUser(t *testing.T) {
 		"/workspace/.blueclaw/tmp",
 		"blueclaw_binary_path",
 		"/workspace/.blueclaw/runtime/current/bin/blueclaw",
+		"mount -o remount,rw /",
+		"blueclaw-posix-helper sync",
 		"su -s /bin/bash blueclaw -c \"$blueclaw_binary",
 		"su -s /bin/bash blueclaw -c 'INTERNKIM_CAPABILITY_ENDPOINT=",
 	} {
@@ -48,6 +50,7 @@ func TestGuestInitCreatesResourceFirstWorkspaceLayout(t *testing.T) {
 		"/workspace/shared",
 		"chmod 0750 /workspace/circles /workspace/private",
 		"chmod 0755 /workspace/shared /workspace/shared/public",
+		"shared/cache/dependencies",
 	} {
 		if !strings.Contains(document, expectedFragment) {
 			t.Fatalf("expected guest init to contain %q", expectedFragment)

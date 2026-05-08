@@ -36,6 +36,7 @@ type mattermostUserRecord struct {
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
 	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
 	Nickname    string `json:"nickname"`
 	Position    string `json:"position"`
 	Roles       string `json:"roles"`
@@ -82,6 +83,7 @@ type mattermostPreferenceRecord struct {
 const mattermostProvisionerUsername = "admin"
 const mattermostProvisionerEmail = "admin@localhost"
 const firstAdminMattermostPassword = "admin"
+const mattermostTeammateNameDisplay = "nickname_full_name"
 const mattermostFlowChannelName = "flow"
 const mattermostFlowChannelDisplayName = "Flow"
 const mattermostFlowChannelLink = "[Flow 열기](/flow/)"
@@ -110,7 +112,7 @@ func (service *Service) provisionMattermostUserWithPassword(ctx context.Context,
 		if errorValue := service.ensureMattermostPasswordPolicyAllows(ctx, adminToken, initialPassword); errorValue != nil {
 			return mattermostProvisionResult{}, errorValue
 		}
-	} else if errorValue := service.ensureMattermostFullNameDisplay(ctx, adminToken); errorValue != nil {
+	} else if errorValue := service.ensureMattermostNicknameDisplay(ctx, adminToken); errorValue != nil {
 		return mattermostProvisionResult{}, errorValue
 	}
 
@@ -234,17 +236,39 @@ func (service *Service) findMattermostUserByID(ctx context.Context, token string
 }
 
 func (service *Service) ensureMattermostProvisionerAccount(ctx context.Context) error {
-	adminPassword := strings.TrimSpace(readTrimmedFile(service.Configuration.MattermostAdminPasswordPath))
-	if adminPassword == "" {
-		return fmt.Errorf("Mattermost admin password is not configured")
-	}
-	adminToken, errorValue := service.mattermostAdminToken(ctx)
+	adminToken, _, errorValue := service.ensureMattermostProvisionerIdentity(ctx)
 	if errorValue != nil {
 		return errorValue
 	}
-	adminUser, found, errorValue := service.findMattermostUserByUsername(ctx, adminToken, mattermostProvisionerUsername)
-	if errorValue != nil || !found {
+	return service.ensureMattermostConnectCommand(ctx, adminToken)
+}
+
+func (service *Service) ensureMattermostProvisionerDefaults(ctx context.Context) error {
+	adminToken, adminUser, errorValue := service.ensureMattermostProvisionerIdentity(ctx)
+	if errorValue != nil {
 		return errorValue
+	}
+	if errorValue := service.ensureMattermostMembership(ctx, adminToken, adminUser.ID); errorValue != nil {
+		return errorValue
+	}
+	return service.ensureMattermostConnectCommand(ctx, adminToken)
+}
+
+func (service *Service) ensureMattermostProvisionerIdentity(ctx context.Context) (string, mattermostUserRecord, error) {
+	adminPassword := strings.TrimSpace(readTrimmedFile(service.Configuration.MattermostAdminPasswordPath))
+	if adminPassword == "" {
+		return "", mattermostUserRecord{}, fmt.Errorf("Mattermost admin password is not configured")
+	}
+	adminToken, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		return "", mattermostUserRecord{}, errorValue
+	}
+	adminUser, found, errorValue := service.findMattermostUserByUsername(ctx, adminToken, mattermostProvisionerUsername)
+	if errorValue != nil {
+		return "", mattermostUserRecord{}, errorValue
+	}
+	if !found {
+		return "", mattermostUserRecord{}, fmt.Errorf("Mattermost admin user was not found")
 	}
 	if !strings.EqualFold(adminUser.Email, mattermostProvisionerEmail) {
 		body := map[string]string{
@@ -252,13 +276,13 @@ func (service *Service) ensureMattermostProvisionerAccount(ctx context.Context) 
 			"password": adminPassword,
 		}
 		if errorValue := service.mattermostRequest(ctx, http.MethodPut, "/api/v4/users/"+url.PathEscape(adminUser.ID)+"/patch", adminToken, body, nil); errorValue != nil {
-			return errorValue
+			return "", mattermostUserRecord{}, errorValue
 		}
 	}
 	if errorValue := service.setMattermostRole(ctx, adminToken, adminUser.ID, "admin"); errorValue != nil {
-		return errorValue
+		return "", mattermostUserRecord{}, errorValue
 	}
-	return service.ensureMattermostConnectCommand(ctx, adminToken)
+	return adminToken, adminUser, nil
 }
 
 func (service *Service) deactivateMattermostUserByID(ctx context.Context, userID string) error {
@@ -383,7 +407,7 @@ func addMattermostNameFields(body map[string]string, name string) {
 	if canonicalName == "" {
 		return
 	}
-	body["nickname"] = canonicalName
+	body["nickname"] = identity.NicknameForMattermost(canonicalName)
 	firstName, lastName := identity.SplitNameForMattermost(canonicalName)
 	if firstName != "" {
 		body["first_name"] = firstName
@@ -412,16 +436,16 @@ func (service *Service) ensureMattermostPasswordPolicyAllows(ctx context.Context
 			"Symbol":        false,
 		},
 		"TeamSettings": map[string]any{
-			"TeammateNameDisplay": "full_name",
+			"TeammateNameDisplay": mattermostTeammateNameDisplay,
 		},
 	}
 	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/config/patch", token, body, nil)
 }
 
-func (service *Service) ensureMattermostFullNameDisplay(ctx context.Context, token string) error {
+func (service *Service) ensureMattermostNicknameDisplay(ctx context.Context, token string) error {
 	body := map[string]any{
 		"TeamSettings": map[string]any{
-			"TeammateNameDisplay": "full_name",
+			"TeammateNameDisplay": mattermostTeammateNameDisplay,
 		},
 	}
 	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/config/patch", token, body, nil)
