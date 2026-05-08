@@ -85,7 +85,7 @@ func TestSiteAppDescriptorsUseRuntimeInputNames(t *testing.T) {
 	statusSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.status")
 	deleteSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.delete")
 
-	assertSchemaHasProperties(t, createSchema, "slug", "title")
+	assertSchemaHasProperties(t, createSchema, "slug", "title", "prompt", "designBrief", "prototypeScope")
 	assertSchemaRequires(t, createSchema, "slug")
 	assertSchemaOmitsProperties(t, createSchema, "name", "sourcePath")
 	assertSchemaHasProperties(t, publishSchema, "siteID", "slug", "message")
