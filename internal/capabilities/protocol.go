@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol/jsonschema"
 )
 
 const (
@@ -91,68 +92,157 @@ func GoogleWorkspaceDescriptors() []Descriptor {
 		{Name: "google.gmail.send", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleGmailSendInputSchema(), PolicyResource: "tool:google.gmail.send", SideEffectClass: "external_send", RequiresApproval: true},
 		{Name: "google.calendar.event", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleCalendarEventInputSchema(), PolicyResource: "tool:google.calendar.event", SideEffectClass: "external_write"},
 		{Name: "google.calendar.list", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleCalendarListInputSchema(), PolicyResource: "tool:google.calendar.list", SideEffectClass: "read"},
-		{Name: "google.drive.import_pptx", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"},"title":{"type":"string"}},"required":["path"],"additionalProperties":false}`), PolicyResource: "tool:google.drive.import_pptx", SideEffectClass: "external_write"},
+		{Name: "google.drive.import_pptx", Version: "1", PrivacyClass: "workspace_google", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: googleDriveImportPPTXInputSchema(), PolicyResource: "tool:google.drive.import_pptx", SideEffectClass: "external_write"},
 	}
 }
 
 func flowTaskAddInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"prompt":{"type":"string"},"targetPersonHint":{"type":"string"},"weekCode":{"type":"string"},"allowDuplicate":{"type":"boolean"}},"required":["prompt"],"additionalProperties":false}`)
+	return jsonschema.Object(
+		jsonschema.Required("prompt", jsonschema.String()),
+		jsonschema.Field("targetPersonHint", jsonschema.String()),
+		jsonschema.Field("weekCode", jsonschema.String()),
+		jsonschema.Field("allowDuplicate", jsonschema.Boolean()),
+	).RawMessage()
 }
 
 func calendarEventWriteInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"description":{"type":"string"},"location":{"type":"string"},"startISO":{"type":"string"},"endISO":{"type":"string"},"timeZone":{"type":"string"},"isAllDay":{"type":"boolean"},"color":{"type":"string"},"people":{"oneOf":[{"type":"string"},{"type":"array","items":{"type":"string"}}]},"reminderLeadHours":{"type":"integer","enum":[1,2,3,6,12,24,48]}},"required":["title","startISO","endISO"],"additionalProperties":false}`)
+	return jsonschema.Object(
+		jsonschema.Required("title", jsonschema.String()),
+		jsonschema.Field("description", jsonschema.String()),
+		jsonschema.Field("location", jsonschema.String()),
+		jsonschema.Required("startISO", jsonschema.String()),
+		jsonschema.Required("endISO", jsonschema.String()),
+		jsonschema.Field("timeZone", jsonschema.String()),
+		jsonschema.Field("isAllDay", jsonschema.Boolean()),
+		jsonschema.Field("color", jsonschema.String()),
+		jsonschema.Field("people", jsonschema.Array(jsonschema.String())),
+		jsonschema.Field("reminderLeadHours", jsonschema.IntegerEnum(1, 2, 3, 6, 12, 24, 48)),
+	).RawMessage()
 }
 
 func calendarEventListInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"startISO":{"type":"string"},"endISO":{"type":"string"},"query":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":50}},"additionalProperties":false}`)
+	return jsonschema.Object(
+		jsonschema.Field("startISO", jsonschema.String()),
+		jsonschema.Field("endISO", jsonschema.String()),
+		jsonschema.Field("query", jsonschema.String()),
+		jsonschema.Field("limit", jsonschema.Integer()),
+	).RawMessage()
 }
 
 func calendarEventUpdateInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"eventID":{"type":"string"},"title":{"type":"string"},"description":{"type":"string"},"location":{"type":"string"},"startISO":{"type":"string"},"endISO":{"type":"string"},"timeZone":{"type":"string"},"isAllDay":{"type":"boolean"},"color":{"type":"string"},"people":{"oneOf":[{"type":"string"},{"type":"array","items":{"type":"string"}}]},"reminderLeadHours":{"type":"integer","enum":[1,2,3,6,12,24,48]}},"required":["eventID","title","startISO","endISO"],"additionalProperties":false}`)
+	return jsonschema.Object(
+		jsonschema.Required("eventID", jsonschema.String()),
+		jsonschema.Required("title", jsonschema.String()),
+		jsonschema.Field("description", jsonschema.String()),
+		jsonschema.Field("location", jsonschema.String()),
+		jsonschema.Required("startISO", jsonschema.String()),
+		jsonschema.Required("endISO", jsonschema.String()),
+		jsonschema.Field("timeZone", jsonschema.String()),
+		jsonschema.Field("isAllDay", jsonschema.Boolean()),
+		jsonschema.Field("color", jsonschema.String()),
+		jsonschema.Field("people", jsonschema.Array(jsonschema.String())),
+		jsonschema.Field("reminderLeadHours", jsonschema.IntegerEnum(1, 2, 3, 6, 12, 24, 48)),
+	).RawMessage()
 }
 
 func calendarEventDeleteInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"eventID":{"type":"string"}},"required":["eventID"],"additionalProperties":false}`)
+	return jsonschema.Object(jsonschema.Required("eventID", jsonschema.String())).RawMessage()
 }
 
 func siteAppCreateInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"slug":{"type":"string"},"title":{"type":"string"}},"required":["slug"],"additionalProperties":false}`)
+	return jsonschema.Object(
+		jsonschema.Required("slug", jsonschema.String()),
+		jsonschema.Field("title", jsonschema.String()),
+	).RawMessage()
 }
 
 func siteAppPublishInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"siteID":{"type":"string"},"slug":{"type":"string"},"title":{"type":"string"},"visibility":{"type":"string"},"message":{"type":"string"}},"additionalProperties":false}`)
+	return jsonschema.Object(
+		jsonschema.Field("siteID", jsonschema.String()),
+		jsonschema.Field("slug", jsonschema.String()),
+		jsonschema.Field("title", jsonschema.String()),
+		jsonschema.Field("visibility", jsonschema.String()),
+		jsonschema.Field("message", jsonschema.String()),
+	).RawMessage()
 }
 
 func siteAppLookupInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"siteID":{"type":"string"},"slug":{"type":"string"}},"additionalProperties":false}`)
+	return jsonschema.Object(
+		jsonschema.Field("siteID", jsonschema.String()),
+		jsonschema.Field("slug", jsonschema.String()),
+	).RawMessage()
 }
 
 func siteAppLifecycleInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"siteID":{"type":"string"},"slug":{"type":"string"},"reason":{"type":"string"},"confirm":{"type":"string"},"userConfirmed":{"type":"boolean"}},"additionalProperties":false}`)
+	return jsonschema.Object(
+		jsonschema.Field("siteID", jsonschema.String()),
+		jsonschema.Field("slug", jsonschema.String()),
+		jsonschema.Field("reason", jsonschema.String()),
+		jsonschema.Field("confirm", jsonschema.String()),
+		jsonschema.Field("userConfirmed", jsonschema.Boolean()),
+	).RawMessage()
 }
 
 func siteAppDeleteInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"siteID":{"type":"string"},"slug":{"type":"string"},"reason":{"type":"string"},"confirm":{"type":"string"},"userConfirmed":{"type":"boolean"}},"required":["confirm","userConfirmed"],"additionalProperties":false}`)
+	return jsonschema.Object(
+		jsonschema.Field("siteID", jsonschema.String()),
+		jsonschema.Field("slug", jsonschema.String()),
+		jsonschema.Field("reason", jsonschema.String()),
+		jsonschema.Required("confirm", jsonschema.String()),
+		jsonschema.Required("userConfirmed", jsonschema.Boolean()),
+	).RawMessage()
 }
 
 func googleDocsCreateInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"body":{"type":"string"}},"required":["title"],"additionalProperties":false}`)
+	return jsonschema.Object(
+		jsonschema.Required("title", jsonschema.String()),
+		jsonschema.Field("body", jsonschema.String()),
+	).RawMessage()
 }
 
 func googleSheetsCreateInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"sheets":{"type":"array","items":{"type":"string"}},"values":{"type":"array","items":{"type":"array"}}},"required":["title"],"additionalProperties":false}`)
+	return jsonschema.Object(
+		jsonschema.Required("title", jsonschema.String()),
+		jsonschema.Field("sheets", jsonschema.Array(jsonschema.String())),
+		jsonschema.Field("values", jsonschema.Array(jsonschema.Array(jsonschema.String()))),
+	).RawMessage()
 }
 
 func googleGmailSendInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"to":{"type":"array","items":{"type":"string"}},"subject":{"type":"string"},"body":{"type":"string"},"cc":{"type":"array","items":{"type":"string"}},"bcc":{"type":"array","items":{"type":"string"}}},"required":["to","subject","body"],"additionalProperties":false}`)
+	return jsonschema.Object(
+		jsonschema.Required("to", jsonschema.Array(jsonschema.String())),
+		jsonschema.Required("subject", jsonschema.String()),
+		jsonschema.Required("body", jsonschema.String()),
+		jsonschema.Field("cc", jsonschema.Array(jsonschema.String())),
+		jsonschema.Field("bcc", jsonschema.Array(jsonschema.String())),
+	).RawMessage()
 }
 
 func googleCalendarEventInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"start":{"type":"string"},"end":{"type":"string"},"attendees":{"type":"array","items":{"type":"string"}},"description":{"type":"string"},"location":{"type":"string"}},"required":["title","start","end"],"additionalProperties":false}`)
+	return jsonschema.Object(
+		jsonschema.Required("title", jsonschema.String()),
+		jsonschema.Required("start", jsonschema.String()),
+		jsonschema.Required("end", jsonschema.String()),
+		jsonschema.Field("attendees", jsonschema.Array(jsonschema.String())),
+		jsonschema.Field("description", jsonschema.String()),
+		jsonschema.Field("location", jsonschema.String()),
+	).RawMessage()
 }
 
 func googleCalendarListInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"start":{"type":"string"},"end":{"type":"string"},"limit":{"type":"integer"},"query":{"type":"string"}},"additionalProperties":false}`)
+	return jsonschema.Object(
+		jsonschema.Field("start", jsonschema.String()),
+		jsonschema.Field("end", jsonschema.String()),
+		jsonschema.Field("limit", jsonschema.Integer()),
+		jsonschema.Field("query", jsonschema.String()),
+	).RawMessage()
+}
+
+func googleDriveImportPPTXInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Required("path", jsonschema.String()),
+		jsonschema.Field("title", jsonschema.String()),
+	).RawMessage()
 }
 
 func CompanionToolNames() []string {

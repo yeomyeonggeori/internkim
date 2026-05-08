@@ -843,28 +843,33 @@ func makeSiteWorkspaceCollaborative(workspacePath string) error {
 }
 
 func (service *Service) writeSiteWorkspaceTemplate(site *SiteRecord) error {
-	files := map[string]string{
-		".internkim/site.json": service.siteWorkspaceMetadata(site),
-		"app/package.json":     sitePackageJSON(site),
-		"app/index.html":       siteIndexHTML(site),
-		"app/src/main.tsx":     siteMainTSX(),
-		"app/src/App.tsx":      siteAppTSX(site),
-		"app/src/styles.css":   siteStylesCSS(),
-		"app/dist/index.html":  siteBuiltIndexHTML(site),
+	files := []siteTemplateFile{
+		{Path: ".internkim/site.json", Document: service.siteWorkspaceMetadata(site)},
+		{Path: "app/package.json", Document: sitePackageJSON(site)},
+		{Path: "app/index.html", Document: siteIndexHTML(site)},
+		{Path: "app/src/main.tsx", Document: siteMainTSX()},
+		{Path: "app/src/App.tsx", Document: siteAppTSX(site)},
+		{Path: "app/src/styles.css", Document: siteStylesCSS()},
+		{Path: "app/dist/index.html", Document: siteBuiltIndexHTML(site)},
 	}
-	for relativePath, document := range files {
-		path := filepath.Join(site.HostSourcePath, relativePath)
+	for _, file := range files {
+		path := filepath.Join(site.HostSourcePath, file.Path)
 		if isRegularFile(path) {
 			continue
 		}
 		if errorValue := os.MkdirAll(filepath.Dir(path), 0o750); errorValue != nil {
 			return errorValue
 		}
-		if errorValue := os.WriteFile(path, []byte(document), 0o640); errorValue != nil {
+		if errorValue := os.WriteFile(path, []byte(file.Document), 0o640); errorValue != nil {
 			return errorValue
 		}
 	}
 	return nil
+}
+
+type siteTemplateFile struct {
+	Path     string
+	Document string
 }
 
 func (service *Service) siteWorkspaceMetadata(site *SiteRecord) string {

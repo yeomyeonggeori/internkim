@@ -9,6 +9,14 @@ import (
 
 var nativeFunctionNamePattern = regexp.MustCompile(`[^A-Za-z0-9_-]+`)
 
+var openRouterNativeToolSchemaKeywordByName = map[string]bool{
+	"description": true,
+	"enum":        true,
+	"items":       true,
+	"properties":  true,
+	"type":        true,
+}
+
 type nativeActionToolSet struct {
 	Tools      []nativeActionTool
 	ToolByName map[string]nativeActionTool
@@ -21,6 +29,10 @@ type nativeActionTool struct {
 	ToolName     string
 	Parameters   json.RawMessage
 }
+
+type ToolParameterProjectionDialect string
+
+const ToolParameterProjectionOpenRouterNativeTool ToolParameterProjectionDialect = "openrouter_native_tool"
 
 type actionSchemaDocument struct {
 	OneOf []actionSchemaVariant `json:"oneOf"`
@@ -87,7 +99,7 @@ func nativeActionToolForVariant(variant actionSchemaVariant) (nativeActionTool, 
 }
 
 func nativeActionJSON(toolSet nativeActionToolSet, functionName string, arguments string) (string, error) {
-	tool, isFound := toolSet.ToolByName[strings.TrimSpace(functionName)]
+	tool, isFound := nativeActionToolForProviderName(toolSet, functionName)
 	if !isFound {
 		return "", errors.New("native tool call referenced unknown function: " + functionName)
 	}
@@ -110,6 +122,29 @@ func nativeActionJSON(toolSet nativeActionToolSet, functionName string, argument
 	payload["action"] = tool.Action
 	content, errorValue := json.Marshal(payload)
 	return string(content), errorValue
+}
+
+func nativeActionToolForProviderName(toolSet nativeActionToolSet, functionName string) (nativeActionTool, bool) {
+	normalizedFunctionName := strings.TrimSpace(functionName)
+	if tool, isFound := toolSet.ToolByName[normalizedFunctionName]; isFound {
+		return tool, true
+	}
+	for _, tool := range toolSet.Tools {
+		if nativeActionToolMatchesProviderName(tool, normalizedFunctionName) {
+			return tool, true
+		}
+	}
+	return nativeActionTool{}, false
+}
+
+func nativeActionToolMatchesProviderName(tool nativeActionTool, functionName string) bool {
+	if functionName == "" {
+		return false
+	}
+	if tool.Action != "call_tool" {
+		return false
+	}
+	return functionName == tool.ToolName || functionName == nativeSafeFunctionName(tool.ToolName)
 }
 
 func controlActionParameters(variant actionSchemaVariant) json.RawMessage {
@@ -135,7 +170,7 @@ func controlActionParameters(variant actionSchemaVariant) json.RawMessage {
 	if errorValue != nil {
 		return json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)
 	}
-	document, errorValue := sanitizeNativeToolSchema(content)
+	document, errorValue := ProjectToolParametersForProvider(content, ToolParameterProjectionOpenRouterNativeTool)
 	if errorValue != nil {
 		return json.RawMessage(`{"type":"object","properties":{}}`)
 	}
@@ -146,55 +181,85 @@ func objectSchemaDocument(schema json.RawMessage) json.RawMessage {
 	if len(schema) == 0 {
 		return json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)
 	}
-	document, errorValue := sanitizeNativeToolSchema(schema)
+	document, errorValue := ProjectToolParametersForProvider(schema, ToolParameterProjectionOpenRouterNativeTool)
 	if errorValue != nil {
 		return json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)
 	}
 	return document
 }
 
-func sanitizeNativeToolSchema(schema json.RawMessage) (json.RawMessage, error) {
+func ProjectToolParametersForProvider(schema json.RawMessage, dialect ToolParameterProjectionDialect) (json.RawMessage, error) {
 	var document any
 	if errorValue := json.Unmarshal(schema, &document); errorValue != nil {
 		return nil, errorValue
 	}
-	sanitizedDocument := sanitizeNativeToolSchemaValue(document)
-	content, errorValue := json.Marshal(sanitizedDocument)
+	projectedDocument := projectToolParametersValue(document, dialect)
+	content, errorValue := json.Marshal(projectedDocument)
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	return content, nil
 }
 
-func sanitizeNativeToolSchemaValue(value any) any {
-	values, isArray := value.([]any)
-	if isArray {
-		for index, item := range values {
-			values[index] = sanitizeNativeToolSchemaValue(item)
-		}
-		return values
-	}
-	document, isObject := value.(map[string]any)
-	if !isObject {
+func projectToolParametersValue(value any, dialect ToolParameterProjectionDialect) any {
+	switch typedValue := value.(type) {
+	case []any:
+		return projectToolParametersArray(typedValue, dialect)
+	case map[string]any:
+		return projectToolParametersObject(typedValue, dialect)
+	default:
 		return value
 	}
+}
+
+func projectToolParametersArray(values []any, dialect ToolParameterProjectionDialect) []any {
+	projectedValues := make([]any, 0, len(values))
+	for _, value := range values {
+		projectedValues = append(projectedValues, projectToolParametersValue(value, dialect))
+	}
+	return projectedValues
+}
+
+func projectToolParametersObject(document map[string]any, dialect ToolParameterProjectionDialect) any {
 	if replacement, isFound := firstNativeToolSchemaUnionValue(document); isFound {
-		return sanitizeNativeToolSchemaValue(replacement)
+		return projectToolParametersValue(replacement, dialect)
 	}
-	removeUnsupportedNativeToolSchemaKeywords(document)
+	projectedDocument := map[string]any{}
 	for fieldName, fieldValue := range document {
-		document[fieldName] = sanitizeNativeToolSchemaValue(fieldValue)
-	}
-	if document["type"] == "array" {
-		if _, isFound := document["items"]; !isFound {
-			document["items"] = map[string]any{"type": "object"}
+		if dialect == ToolParameterProjectionOpenRouterNativeTool && fieldName == "properties" {
+			projectedDocument[fieldName] = projectToolParameterProperties(fieldValue, dialect)
+			continue
 		}
-		return document
+		if !toolParameterProjectionAllowsSchemaKeyword(fieldName, dialect) {
+			continue
+		}
+		projectedDocument[fieldName] = projectToolParametersValue(fieldValue, dialect)
 	}
-	properties := nativeToolSchemaProperties(document["properties"])
-	if document["type"] == "object" && properties == nil {
-		properties = map[string]any{}
-		document["properties"] = properties
+	return normalizeProjectedToolParameters(projectedDocument)
+}
+
+func projectToolParameterProperties(value any, dialect ToolParameterProjectionDialect) map[string]any {
+	properties, isObject := value.(map[string]any)
+	if !isObject {
+		return map[string]any{}
+	}
+	projectedProperties := map[string]any{}
+	for propertyName, propertySchema := range properties {
+		projectedProperties[propertyName] = projectToolParametersValue(propertySchema, dialect)
+	}
+	return projectedProperties
+}
+
+func normalizeProjectedToolParameters(document map[string]any) map[string]any {
+	switch document["type"] {
+	case "array":
+		if _, isFound := document["items"]; !isFound {
+			document["items"] = map[string]any{"type": "object", "properties": map[string]any{}}
+		}
+	case "object":
+		if nativeToolSchemaProperties(document["properties"]) == nil {
+			document["properties"] = map[string]any{}
+		}
 	}
 	return document
 }
@@ -209,23 +274,11 @@ func firstNativeToolSchemaUnionValue(document map[string]any) (any, bool) {
 	return nil, false
 }
 
-func removeUnsupportedNativeToolSchemaKeywords(document map[string]any) {
-	for _, fieldName := range []string{
-		"$defs",
-		"$ref",
-		"additionalProperties",
-		"allOf",
-		"anyOf",
-		"default",
-		"definitions",
-		"maximum",
-		"minimum",
-		"oneOf",
-		"pattern",
-		"required",
-	} {
-		delete(document, fieldName)
+func toolParameterProjectionAllowsSchemaKeyword(fieldName string, dialect ToolParameterProjectionDialect) bool {
+	if dialect != ToolParameterProjectionOpenRouterNativeTool {
+		return true
 	}
+	return openRouterNativeToolSchemaKeywordByName[fieldName]
 }
 
 func nativeToolSchemaProperties(value any) map[string]any {

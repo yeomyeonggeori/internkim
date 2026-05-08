@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -65,11 +64,11 @@ func (backend OpenRouterBackend) completeNativeAction(ctx context.Context, apiKe
 	if errorValue != nil || !isActionSchema {
 		return Response{}, isActionSchema, errorValue
 	}
-	requestDocument, errorValue := buildOpenRouterResponsesActionRequest(request, modelName, toolSet.Tools)
+	requestDocument, errorValue := buildOpenRouterChatActionRequest(request, modelName, toolSet.Tools)
 	if errorValue != nil {
 		return Response{}, true, errorValue
 	}
-	content, errorValue := backend.sendResponses(ctx, apiKey, requestDocument, toolSet)
+	content, errorValue := backend.sendChatAction(ctx, apiKey, requestDocument, toolSet)
 	if errorValue != nil {
 		return Response{}, true, errorValue
 	}
@@ -164,8 +163,8 @@ func (backend OpenRouterBackend) send(ctx context.Context, apiKey string, reques
 	return parsed.Choices[0].Message.Content, nil
 }
 
-func (backend OpenRouterBackend) sendResponses(ctx context.Context, apiKey string, requestDocument []byte, toolSet nativeActionToolSet) (string, error) {
-	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, openRouterResponsesURL(backend.BaseURL), bytes.NewReader(requestDocument))
+func (backend OpenRouterBackend) sendChatAction(ctx context.Context, apiKey string, requestDocument []byte, toolSet nativeActionToolSet) (string, error) {
+	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, backend.BaseURL, bytes.NewReader(requestDocument))
 	if errorValue != nil {
 		return "", errorValue
 	}
@@ -186,22 +185,19 @@ func (backend OpenRouterBackend) sendResponses(ctx context.Context, apiKey strin
 		return "", errors.New(string(responseDocument))
 	}
 
-	var parsed struct {
-		Output []struct {
-			Type      string `json:"type"`
-			Name      string `json:"name"`
-			Arguments string `json:"arguments"`
-		} `json:"output"`
-	}
-	if errorValue := json.Unmarshal(responseDocument, &parsed); errorValue != nil {
+	var response openAIResponse
+	if errorValue := json.Unmarshal(responseDocument, &response); errorValue != nil {
 		return "", errorValue
 	}
-	for _, output := range parsed.Output {
-		if output.Type == "function_call" {
-			return nativeActionJSON(toolSet, output.Name, output.Arguments)
+	if len(response.Choices) == 0 {
+		return "", errors.New("openrouter response did not include choices")
+	}
+	for _, toolCall := range response.Choices[0].Message.ToolCalls {
+		if toolCall.Type == "" || toolCall.Type == "function" {
+			return nativeActionJSON(toolSet, toolCall.Function.Name, toolCall.Function.Arguments)
 		}
 	}
-	return "", errors.New("openrouter responses output did not include a function_call")
+	return "", errors.New("openrouter chat completion response did not include tool_calls")
 }
 
 func buildOpenRouterStructuredRequest(request StructuredRequest, modelName string) ([]byte, error) {
@@ -228,80 +224,9 @@ func buildOpenRouterStructuredRequest(request StructuredRequest, modelName strin
 	return json.Marshal(document)
 }
 
-func buildOpenRouterResponsesActionRequest(request StructuredRequest, modelName string, tools []nativeActionTool) ([]byte, error) {
-	document := map[string]any{
-		"model":               modelName,
-		"input":               openRouterResponsesInput(request.Messages),
-		"tools":               openRouterResponsesTools(tools),
-		"tool_choice":         "auto",
-		"parallel_tool_calls": false,
-		"stream":              false,
-	}
-	addGenerationOptions(document, request.GenerationOptions)
+func buildOpenRouterChatActionRequest(request StructuredRequest, modelName string, tools []nativeActionTool) ([]byte, error) {
+	document := openAIActionToolRequest(modelName, request.Messages, tools, generationOptionsValue(request.GenerationOptions))
 	return json.Marshal(document)
-}
-
-func openRouterResponsesInput(messages []Message) []map[string]any {
-	input := make([]map[string]any, 0, len(messages))
-	for index, message := range messages {
-		input = append(input, openRouterResponsesMessage(index, message))
-	}
-	return input
-}
-
-func openRouterResponsesMessage(index int, message Message) map[string]any {
-	role := firstOpenRouterResponsesRole(message.Role)
-	contentType := "input_text"
-	document := map[string]any{
-		"type": "message",
-		"role": role,
-		"content": []map[string]any{{
-			"type": contentType,
-			"text": message.Content,
-		}},
-	}
-	if role == "assistant" {
-		document["id"] = fmt.Sprintf("msg_internkim_context_%d", index)
-		document["status"] = "completed"
-		document["content"] = []map[string]any{{
-			"type":        "output_text",
-			"text":        message.Content,
-			"annotations": []any{},
-		}}
-	}
-	return document
-}
-
-func firstOpenRouterResponsesRole(value string) string {
-	role := strings.ToLower(strings.TrimSpace(value))
-	switch role {
-	case "system", "developer", "user", "assistant":
-		return role
-	default:
-		return "user"
-	}
-}
-
-func openRouterResponsesTools(tools []nativeActionTool) []map[string]any {
-	result := make([]map[string]any, 0, len(tools))
-	for _, tool := range tools {
-		result = append(result, map[string]any{
-			"type":        "function",
-			"name":        tool.FunctionName,
-			"description": tool.Description,
-			"strict":      nil,
-			"parameters":  json.RawMessage(tool.Parameters),
-		})
-	}
-	return result
-}
-
-func openRouterResponsesURL(baseURL string) string {
-	trimmed := strings.TrimRight(strings.TrimSpace(baseURL), "/")
-	if strings.HasSuffix(trimmed, "/chat/completions") {
-		return strings.TrimSuffix(trimmed, "/chat/completions") + "/responses"
-	}
-	return trimmed + "/responses"
 }
 
 func buildOpenRouterTextRequest(request TextRequest, modelName string) ([]byte, error) {
