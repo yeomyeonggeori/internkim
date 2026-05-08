@@ -93,6 +93,16 @@ func TestSiteAppDescriptorsUseRuntimeInputNames(t *testing.T) {
 	assertSchemaRequires(t, deleteSchema, "confirm", "userConfirmed")
 }
 
+func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
+	assertDescriptorApproval(t, CalendarDescriptors(), "calendar.event.add", false)
+	assertDescriptorApproval(t, CalendarDescriptors(), "calendar.event.delete", true)
+	assertDescriptorApproval(t, SiteAppDescriptors(), "site.app.create", false)
+	assertDescriptorApproval(t, SiteAppDescriptors(), "site.app.publish", false)
+	assertDescriptorApproval(t, SiteAppDescriptors(), "site.app.delete", true)
+	assertDescriptorApproval(t, GoogleWorkspaceDescriptors(), "google.calendar.event", false)
+	assertDescriptorApproval(t, GoogleWorkspaceDescriptors(), "google.gmail.send", true)
+}
+
 func TestGoogleWorkspaceDescriptorsMatchSkillInputs(t *testing.T) {
 	descriptors := GoogleWorkspaceDescriptors()
 	docsSchema := descriptorSchema(t, descriptors, "google.docs.create")
@@ -110,6 +120,20 @@ func TestGoogleWorkspaceDescriptorsMatchSkillInputs(t *testing.T) {
 	assertSchemaRequires(t, eventSchema, "title", "start", "end")
 	assertSchemaHasProperties(t, listSchema, "start", "end", "limit", "query")
 	assertSchemaOmitsProperties(t, listSchema, "timeMin", "timeMax")
+}
+
+func assertDescriptorApproval(t *testing.T, descriptors []Descriptor, toolName string, expectedApproval bool) {
+	t.Helper()
+	for _, descriptor := range descriptors {
+		if descriptor.Name != toolName {
+			continue
+		}
+		if descriptor.RequiresApproval != expectedApproval {
+			t.Fatalf("expected %s requiresApproval=%v, got %+v", toolName, expectedApproval, descriptor)
+		}
+		return
+	}
+	t.Fatalf("descriptor %s not found", toolName)
 }
 
 func descriptorSchema(t *testing.T, descriptors []Descriptor, toolName string) schemaDocument {
