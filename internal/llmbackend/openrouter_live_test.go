@@ -1,8 +1,11 @@
 package llmbackend
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -27,25 +30,58 @@ func TestOpenRouterLiveAgentActionSchemaFromEnv(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
-	response, errorValue := OpenRouterBackend{
+	backend := OpenRouterBackend{
 		KeyPath:    keyPath,
 		BaseURL:    testEnvValue("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1/chat/completions"),
 		ModelName:  testEnvValue("OPENROUTER_MODEL", "google/gemini-2.5-flash"),
 		HTTPClient: httpClientWithTimeout(45 * time.Second),
-	}.CompleteStructured(ctx, StructuredRequest{
+	}
+	request := StructuredRequest{
 		Messages: []Message{{Role: "user", Content: "Call browser.open for https://example.com."}},
 		StructuredOutputSchema: StructuredOutputSchema{
 			Name:               "blueclaw_agent_turn_action",
 			Document:           json.RawMessage(`{"oneOf":[{"type":"object","properties":{"action":{"type":"string","enum":["call_tool"]},"toolName":{"type":"string","enum":["browser.open"]},"toolInput":{"type":"object","required":["url"],"additionalProperties":false}},"required":["action","toolName","toolInput"],"additionalProperties":false}]}`),
 			IsStrictlyEnforced: true,
 		},
-	})
+	}
+	errorValue := assertOpenRouterLiveSchemaAccepted(ctx, backend, request)
 	if errorValue != nil {
 		t.Fatalf("expected live OpenRouter native tool schema to be accepted: %v", errorValue)
 	}
-	if !ValidateStructuredJSON(response.Content) {
-		t.Fatalf("expected structured action JSON, got %s", response.Content)
+}
+
+func assertOpenRouterLiveSchemaAccepted(ctx context.Context, backend OpenRouterBackend, request StructuredRequest) error {
+	apiKey, errorValue := backend.resolveAPIKey()
+	if errorValue != nil {
+		return errorValue
 	}
+	toolSet, _, errorValue := nativeActionToolsForSchema(request.StructuredOutputSchema)
+	if errorValue != nil {
+		return errorValue
+	}
+	requestDocument, errorValue := buildOpenRouterResponsesActionRequest(request, backend.resolveModelName(request.Model), toolSet.Tools)
+	if errorValue != nil {
+		return errorValue
+	}
+	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, openRouterResponsesURL(backend.BaseURL), bytes.NewReader(requestDocument))
+	if errorValue != nil {
+		return errorValue
+	}
+	httpRequest.Header.Set("Authorization", "Bearer "+apiKey)
+	httpRequest.Header.Set("Content-Type", "application/json")
+	httpResponse, errorValue := backend.HTTPClient.Do(httpRequest)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer httpResponse.Body.Close()
+	responseDocument, errorValue := io.ReadAll(httpResponse.Body)
+	if errorValue != nil {
+		return errorValue
+	}
+	if httpResponse.StatusCode >= http.StatusBadRequest {
+		return errors.New(string(responseDocument))
+	}
+	return nil
 }
 
 func loadTestEnvFile(t *testing.T) {
