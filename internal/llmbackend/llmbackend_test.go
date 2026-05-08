@@ -256,6 +256,34 @@ func TestNativeActionToolsSanitizeProviderSpecificSchemaKeywords(t *testing.T) {
 	}
 }
 
+func TestNativeActionToolsOmitCalendarRequiredForProviderCompatibility(t *testing.T) {
+	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
+		Name:     "blueclaw_agent_turn_action",
+		Document: json.RawMessage(liveCalendarActionSchema),
+	})
+	if errorValue != nil {
+		t.Fatalf("expected native tool set: %v", errorValue)
+	}
+	if !isActionSchema {
+		t.Fatal("expected action schema")
+	}
+
+	calendarAddTool := toolSet.ToolByName["call_tool__calendar_event_add"]
+	var parameters map[string]any
+	if errorValue := json.Unmarshal(calendarAddTool.Parameters, &parameters); errorValue != nil {
+		t.Fatalf("expected calendar parameters: %v", errorValue)
+	}
+	properties := parameters["properties"].(map[string]any)
+	for _, fieldName := range []string{"title", "startISO", "endISO"} {
+		if _, isFound := properties[fieldName]; !isFound {
+			t.Fatalf("expected property %q in calendar schema: %+v", fieldName, parameters)
+		}
+	}
+	if _, isFound := parameters["required"]; isFound {
+		t.Fatalf("expected required to be omitted from native tool schema, got %+v", parameters)
+	}
+}
+
 func TestOpenRouterBackendResolvesDefaultModel(t *testing.T) {
 	backend := OpenRouterBackend{ModelName: "google/default-remote"}
 	for _, modelName := range []string{"", "default", "DEFAULT", "local/anything"} {
