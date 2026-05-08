@@ -491,21 +491,92 @@ func buildGoBinaryAsset(state *setupFlowState, asset localBinaryAsset) error {
 
 func (state *setupFlowState) binariesVersion() string {
 	hash := sha256.New()
-	for _, path := range []string{
-		filepath.Join(state.scriptDir, "cmd", blueclaw.CapabilitydName),
-		filepath.Join(state.scriptDir, "cmd", blueclaw.AdmindName),
-		filepath.Join(state.scriptDir, "cmd", blueclaw.LocalLLMRunnerName),
-		filepath.Join(state.scriptDir, "internal", "admind"),
-		filepath.Join(state.scriptDir, "internal", "capabilityd"),
-		filepath.Join(state.scriptDir, "internal", "runtime", "blueclaw"),
-		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "tools", "graphiti_memoryd"),
-		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "tools", "graphiti-memoryd"),
-	} {
-		state.writeDirectoryHash(hash, path)
+	for _, path := range state.binaryVersionSourcePaths() {
+		state.writePathHash(hash, path)
 	}
 	blueclawRevision := strings.TrimSpace(runCmd("git", "-C", blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "rev-parse", "HEAD"))
 	_, _ = hash.Write([]byte("blueclaw:" + blueclawRevision + "\n"))
 	return hex.EncodeToString(hash.Sum(nil))
+}
+
+func (state *setupFlowState) binaryVersionSourcePaths() []string {
+	paths := state.binaryGoDependencyDirectories(
+		"./cmd/"+blueclaw.CapabilitydName,
+		"./cmd/"+blueclaw.AdmindName,
+		"./cmd/"+blueclaw.LocalLLMRunnerName,
+	)
+	if len(paths) == 0 {
+		paths = fallbackBinaryVersionSourcePaths(state.scriptDir)
+	}
+	paths = append(paths,
+		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "tools", "graphiti_memoryd"),
+		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "tools", "graphiti-memoryd"),
+	)
+	return uniqueExistingPaths(paths)
+}
+
+func fallbackBinaryVersionSourcePaths(scriptDir string) []string {
+	return []string{
+		filepath.Join(scriptDir, "cmd", blueclaw.CapabilitydName),
+		filepath.Join(scriptDir, "cmd", blueclaw.AdmindName),
+		filepath.Join(scriptDir, "cmd", blueclaw.LocalLLMRunnerName),
+		filepath.Join(scriptDir, "internal", "admind"),
+		filepath.Join(scriptDir, "internal", "browser"),
+		filepath.Join(scriptDir, "internal", "capabilities"),
+		filepath.Join(scriptDir, "internal", "capabilityd"),
+		filepath.Join(scriptDir, "internal", "identity"),
+		filepath.Join(scriptDir, "internal", "llmbackend"),
+		filepath.Join(scriptDir, "internal", "runtime", "blueclaw"),
+		filepath.Join(scriptDir, "internal", "runtime", "locallm"),
+	}
+}
+
+func (state *setupFlowState) binaryGoDependencyDirectories(packageNames ...string) []string {
+	arguments := append([]string{"list", "-deps", "-f", "{{if not .Standard}}{{.Dir}}{{end}}"}, packageNames...)
+	command := exec.Command("go", arguments...)
+	command.Dir = state.scriptDir
+	output, errorValue := command.Output()
+	if errorValue != nil {
+		return nil
+	}
+	paths := []string{
+		filepath.Join(state.scriptDir, "go.mod"),
+		filepath.Join(state.scriptDir, "go.sum"),
+	}
+	for _, line := range strings.Split(string(output), "\n") {
+		path := strings.TrimSpace(line)
+		if path == "" || !isPathInside(state.scriptDir, path) {
+			continue
+		}
+		paths = append(paths, path)
+	}
+	return paths
+}
+
+func uniqueExistingPaths(paths []string) []string {
+	seen := map[string]bool{}
+	result := []string{}
+	for _, path := range paths {
+		cleanPath := filepath.Clean(path)
+		if seen[cleanPath] {
+			continue
+		}
+		if _, errorValue := os.Stat(cleanPath); errorValue != nil {
+			continue
+		}
+		seen[cleanPath] = true
+		result = append(result, cleanPath)
+	}
+	sort.Strings(result)
+	return result
+}
+
+func isPathInside(rootPath string, path string) bool {
+	relativePath, errorValue := filepath.Rel(rootPath, path)
+	if errorValue != nil {
+		return false
+	}
+	return relativePath == "." || (!strings.HasPrefix(relativePath, ".."+string(os.PathSeparator)) && relativePath != "..")
 }
 
 func (state *setupFlowState) adminWebVersion() string {

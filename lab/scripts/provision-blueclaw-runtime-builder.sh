@@ -5,10 +5,10 @@ sudo_password="$1"
 mount_directory_path="$2"
 
 test -n "$sudo_password"
-test -n "$mount_directory_path"
 
-printf '%s\n' "$sudo_password" | sudo -S env DEBIAN_FRONTEND=noninteractive apt-get update
-printf '%s\n' "$sudo_password" | sudo -S env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+printf '%s\n' "$sudo_password" | sudo -S systemctl stop apt-daily.service apt-daily-upgrade.service apt-daily.timer apt-daily-upgrade.timer unattended-upgrades.service >/dev/null 2>&1 || true
+printf '%s\n' "$sudo_password" | sudo -S env DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=300 update
+printf '%s\n' "$sudo_password" | sudo -S env DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=300 install -y \
   bc \
   bison \
   ca-certificates \
@@ -31,7 +31,9 @@ printf '%s\n' "$sudo_password" | sudo -S env DEBIAN_FRONTEND=noninteractive apt-
   unzip \
   xz-utils
 
-printf '%s\n' "$sudo_password" | sudo -S mkdir -p "$mount_directory_path"
-if ! mount | grep -q "com.apple.virtio-fs.automount on $mount_directory_path "; then
-  printf '%s\n' "$sudo_password" | sudo -S mount -t virtiofs com.apple.virtio-fs.automount "$mount_directory_path"
+if [ -n "$mount_directory_path" ]; then
+  printf '%s\n' "$sudo_password" | sudo -S mkdir -p "$mount_directory_path"
+  if ! mount | grep -q "com.apple.virtio-fs.automount on $mount_directory_path "; then
+    printf '%s\n' "$sudo_password" | sudo -S mount -t virtiofs com.apple.virtio-fs.automount "$mount_directory_path"
+  fi
 fi
