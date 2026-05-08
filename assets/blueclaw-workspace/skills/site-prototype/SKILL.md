@@ -4,6 +4,7 @@ description: Create, publish, update, take down, restore, or delete free React +
 when_to_use: Use when the user asks InternKim to make, deploy, publish, update, fix, take down, restore, or delete a website, web app, prototype, demo, landing page, dashboard, or app idea.
 allowed-tools:
   - terminal.run
+  - terminal.session
   - file.write
   - site.app.create
   - site.app.publish
@@ -34,24 +35,27 @@ Create prototypes for non-developers to validate ideas quickly. Do not present t
 - Use React + Vite + TypeScript for the frontend.
 - Use PocketBase for local prototype data, auth, files, realtime, and migrations.
 - Do not use Next.js, SvelteKit, arbitrary Node servers, cloud databases, hosted backends, or paid APIs for v1 prototypes.
-- `site.app.create` prepares a deployable starter build for underspecified requests.
-- Do not depend on `/workspace/sites/<siteID>` being mounted in `terminal.run`; site source is owned by the site tools until workspace sync support is explicitly available.
+- `site.app.create` prepares an editable scaffold, not a finished website.
+- Use the returned `sourceWorkspacePath` as the canonical workspace path for all follow-up source writes.
 
 ## Workflow
 
 1. For a new prototype, call `site.app.create` with a short DNS-safe slug and title.
-2. After `site.app.create` succeeds, do not call `site.app.create` again in the same task. Continue with the returned `siteID`.
-3. For an underspecified request, keep the starter site prepared by `site.app.create`.
-4. Call `terminal.run` once with a lightweight verification command such as `echo site prototype scaffold ready`. Do not `cd` into `/workspace/sites/<siteID>` unless a previous tool observation proves it is accessible.
-5. If a mounted site workspace is accessible and you edit source files, run `bun install` and `bun run build` from `app/` after every source edit. Do not publish if the build fails or if `app/dist` is stale.
-6. Call `site.app.publish` with `siteID` and a concise `message`.
-7. Reply in Mattermost with the public URL, a short change summary, and any test login credentials.
+2. Pass `prompt`, `designBrief`, or `prototypeScope` when the user gives enough detail.
+3. After `site.app.create` succeeds, call `site.app.status` for the same `siteID` and use `sourceWorkspacePath`.
+4. Write `DESIGN.md` into the site workspace before writing app source.
+5. Write or update the React, CSS, and optional PocketBase files according to `DESIGN.md`.
+6. Run `bun install && bun run build` from `<sourceWorkspacePath>/app`.
+7. Call `site.app.publish` with `siteID` and a concise `message`.
+8. Reply in Mattermost with the public URL, a short change summary, how to try the main workflow, and any test login credentials.
 
-Do not ask for approval before `site.app.create`, `terminal.run` verification, `site.app.publish`, `site.app.status`, `site.app.logs`, or `site.app.restore`. Ask for approval before `site.app.rollback`, `site.app.unpublish`, or `site.app.delete`.
+Do not publish the uncustomized starter for a website creation request. The starter is only a safe scaffold while the real prototype is being written.
 
-For follow-up feedback in the same conversation, call `site.app.status` with an empty input or the known slug. The tool can resolve the current conversation's bound site. If the workspace is mounted and accessible, edit the returned workspace, rebuild from `app/`, publish the same site, and reply with the same URL.
+Do not ask for approval before `site.app.create`, `terminal.run` builds, `site.app.publish`, `site.app.status`, `site.app.logs`, or `site.app.restore`. Ask for approval before `site.app.rollback`, `site.app.unpublish`, or `site.app.delete`.
 
-Use this command pattern only after a previous observation proves the site workspace is mounted and accessible in terminal:
+For follow-up feedback in the same conversation, call `site.app.status` with an empty input or the known slug. The tool can resolve the current conversation's bound site. Read the existing `DESIGN.md`, update it for the new request, edit the returned workspace, rebuild from `app/`, publish the same site, and reply with the same URL.
+
+Use this command pattern after source files are written:
 
 ```bash
 cd /workspace/sites/<siteID>/app
@@ -59,11 +63,11 @@ bun install
 bun run build
 ```
 
-After terminal verification or build success:
+After terminal build success:
 
 - call `site.app.publish` with `siteID` and a human-readable `message`
 - never claim deployment succeeded until the tool succeeds
-- if publish says `app/dist is stale`, run `bun run build` from `app/` again before publishing when the workspace is accessible
+- if publish says `app/dist is stale`, run `bun run build` from `app/` again before publishing
 - if publish fails, summarize the actual failure and stop
 
 ## Cost and Integration Guardrails
@@ -86,23 +90,28 @@ If a test account is useful, create a prototype seed account and include the cre
 
 Use clearly fake credentials for test users. Do not ask the user for real passwords.
 
-## Design Defaults
+## Design System Workflow
 
-If the user does not specify what kind of website to make, choose a small useful default and continue without asking for clarification. Build a compact welcome dashboard with editable-looking sample content, a simple list, and one primary action.
+`DESIGN.md` is required for every creation or update. Treat it as the working system prompt for the website. It must be specific to the user's request and must not copy a generic template.
 
-If the user does not specify design direction, use a black-on-white shadcn-style minimal interface:
+Write `DESIGN.md` with these sections:
 
-- white background
-- black or neutral text
-- thin neutral borders
-- 8px or smaller border radius
-- restrained spacing
-- lucide icons where helpful
-- dashboard or tool surfaces instead of marketing pages
+- Product: what this site or app is for
+- Audience: who uses it and what they are trying to do
+- Prototype Scope: what works in this publish and what is intentionally deferred
+- Visual Direction: tone, layout density, typography, colors, spacing, and interaction feel
+- Screens: each first-version screen or state the user can try
+- Workflows: the main interaction paths
+- Data Model: local data, fake data, PocketBase collections, or state shape
+- Implemented Now: concrete functionality included in this publish
+- Next Iterations: useful follow-up work for longer projects
+- Acceptance Criteria: checks that must pass before publish
 
-The first screen should be usable. Do not create a marketing landing page unless the user asks for one.
+If the user does not specify a design direction, infer one from the domain and audience. A restaurant, portfolio, operations dashboard, campaign site, internal tool, game, and marketplace should not share the same visual structure. The first screen must be the actual usable experience or requested landing page, not generic feature cards.
 
-Prefer compact, working screens: dashboards, forms, lists, detail views, and stateful controls. Avoid decorative hero sections, generic feature cards, and explanatory in-app copy unless the requested prototype is itself a landing page.
+For long or broad requests, publish a coherent first version instead of a shallow explanation page. Record deferred work in `Next Iterations`, but make the published app usable for at least one complete workflow.
+
+Use familiar controls and lucide icons where helpful. Keep layouts responsive, text readable, and controls stable across mobile and desktop. Avoid decorative filler, generic SaaS copy, and a single default palette across unrelated sites.
 
 ## Reply Format
 

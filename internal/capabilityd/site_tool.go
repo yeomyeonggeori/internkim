@@ -19,6 +19,9 @@ type siteAppInput struct {
 	SiteID         string `json:"siteID"`
 	Slug           string `json:"slug"`
 	Title          string `json:"title"`
+	Prompt         string `json:"prompt"`
+	DesignBrief    string `json:"designBrief"`
+	PrototypeScope string `json:"prototypeScope"`
 	RequestedBy    string `json:"requestedBy"`
 	Platform       string `json:"platform"`
 	ConversationID string `json:"conversationID"`
