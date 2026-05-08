@@ -14,6 +14,7 @@ var openRouterNativeToolSchemaKeywordByName = map[string]bool{
 	"enum":        true,
 	"items":       true,
 	"properties":  true,
+	"required":    true,
 	"type":        true,
 }
 
@@ -233,9 +234,31 @@ func projectToolParametersObject(document map[string]any, dialect ToolParameterP
 		if !toolParameterProjectionAllowsSchemaKeyword(fieldName, dialect) {
 			continue
 		}
+		if dialect == ToolParameterProjectionOpenRouterNativeTool && fieldName == "enum" {
+			if projectedEnum, isFound := projectOpenRouterNativeToolEnum(fieldValue); isFound {
+				projectedDocument[fieldName] = projectedEnum
+			}
+			continue
+		}
 		projectedDocument[fieldName] = projectToolParametersValue(fieldValue, dialect)
 	}
 	return normalizeProjectedToolParameters(projectedDocument)
+}
+
+func projectOpenRouterNativeToolEnum(value any) ([]string, bool) {
+	values, isArray := value.([]any)
+	if !isArray {
+		return nil, false
+	}
+	enumValues := make([]string, 0, len(values))
+	for _, value := range values {
+		enumValue, isString := value.(string)
+		if !isString || enumValue == "" {
+			return nil, false
+		}
+		enumValues = append(enumValues, enumValue)
+	}
+	return enumValues, len(enumValues) > 0
 }
 
 func projectToolParameterProperties(value any, dialect ToolParameterProjectionDialect) map[string]any {
@@ -257,10 +280,36 @@ func normalizeProjectedToolParameters(document map[string]any) map[string]any {
 			document["items"] = map[string]any{"type": "object", "properties": map[string]any{}}
 		}
 	case "object":
-		if nativeToolSchemaProperties(document["properties"]) == nil {
+		properties := nativeToolSchemaProperties(document["properties"])
+		if properties == nil {
 			document["properties"] = map[string]any{}
 		}
+		document = normalizeProjectedToolRequired(document)
 	}
+	return document
+}
+
+func normalizeProjectedToolRequired(document map[string]any) map[string]any {
+	properties := nativeToolSchemaProperties(document["properties"])
+	required, isFound := document["required"].([]any)
+	if !isFound {
+		return document
+	}
+	filteredRequired := make([]string, 0, len(required))
+	for _, fieldName := range required {
+		fieldNameString, isString := fieldName.(string)
+		if !isString {
+			continue
+		}
+		if _, isProperty := properties[fieldNameString]; isProperty {
+			filteredRequired = append(filteredRequired, fieldNameString)
+		}
+	}
+	if len(filteredRequired) == 0 {
+		delete(document, "required")
+		return document
+	}
+	document["required"] = filteredRequired
 	return document
 }
 
