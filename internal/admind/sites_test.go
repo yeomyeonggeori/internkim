@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestSiteGatewayLifecycle(t *testing.T) {
@@ -198,6 +199,39 @@ func TestSiteWorkspacePublishRejectsArbitrarySourcePaths(t *testing.T) {
 	}
 }
 
+func TestSitePublishRejectsStaleFrontendBuild(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "stale-build"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeTestWorkspaceBuild(t, site, "first build")
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{SiteID: site.SiteID})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	sourcePath := filepath.Join(site.HostSourcePath, "app", "src", "App.tsx")
+	writeFile(t, sourcePath, "export default function App() {\n  return <main>updated source</main>;\n}\n")
+	sourceModTime := time.Now().UTC().Add(2 * time.Hour)
+	setFileModTime(t, sourcePath, sourceModTime)
+	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{SiteID: site.SiteID})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "app/dist is stale") {
+		t.Fatalf("expected stale build rejection, got %v", errorValue)
+	}
+
+	writeTestWorkspaceBuild(t, site, "fresh build")
+	setDirectoryFilesModTime(t, filepath.Join(site.HostSourcePath, "app", "dist"), sourceModTime.Add(time.Hour))
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{SiteID: site.SiteID})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	response := serveSiteRequest(service, "stale-build.device.example.test", "/")
+	if !strings.Contains(response.Body.String(), "fresh build") {
+		t.Fatalf("published body = %q", response.Body.String())
+	}
+}
+
 func TestSitePublishRejectsUnapprovedPocketBaseHooks(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "hook-demo"})
@@ -260,6 +294,29 @@ func writeTestWorkspaceBuild(t *testing.T, site *SiteRecord, body string) {
 	}
 	writeFile(t, filepath.Join(site.HostSourcePath, "app", "dist", "index.html"), "<!doctype html><html><body>"+body+"</body></html>")
 	writeFile(t, filepath.Join(site.HostSourcePath, "app", "dist", "assets", "app.js"), "console.log('ok')")
+}
+
+func setFileModTime(t *testing.T, path string, modTime time.Time) {
+	t.Helper()
+	if errorValue := os.Chtimes(path, modTime, modTime); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
+
+func setDirectoryFilesModTime(t *testing.T, rootPath string, modTime time.Time) {
+	t.Helper()
+	errorValue := filepath.Walk(rootPath, func(path string, information os.FileInfo, walkError error) error {
+		if walkError != nil {
+			return walkError
+		}
+		if !information.Mode().IsRegular() {
+			return nil
+		}
+		return os.Chtimes(path, modTime, modTime)
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
 }
 
 func serveSiteRequest(service *Service, host string, path string) *httptest.ResponseRecorder {

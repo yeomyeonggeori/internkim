@@ -541,6 +541,9 @@ func (service *Service) prepareSiteVersion(site *SiteRecord, versionID string, p
 	if !isDirectory(frontendBuildPath) {
 		return errors.New("site workspace must contain app/dist; build in Blueclaw before publishing")
 	}
+	if errorValue := ensureSiteFrontendBuildIsFresh(site.HostSourcePath, frontendBuildPath); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := copyDirectory(frontendBuildPath, filepath.Join(versionPath, "frontend", "dist")); errorValue != nil {
 		return errorValue
 	}
@@ -551,6 +554,73 @@ func (service *Service) prepareSiteVersion(site *SiteRecord, versionID string, p
 		return errorValue
 	}
 	return nil
+}
+
+func ensureSiteFrontendBuildIsFresh(workspacePath string, frontendBuildPath string) error {
+	applicationPath := filepath.Join(workspacePath, "app")
+	latestSourceModTime, errorValue := latestFrontendSourceModTime(applicationPath)
+	if errorValue != nil {
+		return errorValue
+	}
+	earliestBuildModTime, errorValue := earliestRegularFileModTime(frontendBuildPath)
+	if errorValue != nil {
+		return errorValue
+	}
+	if earliestBuildModTime.IsZero() {
+		return errors.New("site workspace app/dist must contain build files")
+	}
+	if latestSourceModTime.After(earliestBuildModTime) {
+		return errors.New("site workspace app/dist is stale; run bun run build in app before publishing")
+	}
+	return nil
+}
+
+func latestFrontendSourceModTime(applicationPath string) (time.Time, error) {
+	latestModTime := time.Time{}
+	errorValue := filepath.Walk(applicationPath, func(path string, information os.FileInfo, walkError error) error {
+		if walkError != nil {
+			return walkError
+		}
+		relativePath, errorValue := filepath.Rel(applicationPath, path)
+		if errorValue != nil || relativePath == "." {
+			return errorValue
+		}
+		if information.IsDir() && frontendSourcePathIsIgnored(relativePath) {
+			return filepath.SkipDir
+		}
+		if information.Mode().IsRegular() && information.ModTime().After(latestModTime) {
+			latestModTime = information.ModTime()
+		}
+		return nil
+	})
+	return latestModTime, errorValue
+}
+
+func frontendSourcePathIsIgnored(relativePath string) bool {
+	for _, component := range strings.Split(filepath.Clean(relativePath), string(os.PathSeparator)) {
+		switch component {
+		case "dist", "node_modules":
+			return true
+		}
+	}
+	return false
+}
+
+func earliestRegularFileModTime(rootPath string) (time.Time, error) {
+	earliestModTime := time.Time{}
+	errorValue := filepath.Walk(rootPath, func(path string, information os.FileInfo, walkError error) error {
+		if walkError != nil {
+			return walkError
+		}
+		if !information.Mode().IsRegular() {
+			return nil
+		}
+		if earliestModTime.IsZero() || information.ModTime().Before(earliestModTime) {
+			earliestModTime = information.ModTime()
+		}
+		return nil
+	})
+	return earliestModTime, errorValue
 }
 
 func (service *Service) activateSiteVersion(ctx context.Context, site *SiteRecord, versionID string) error {
