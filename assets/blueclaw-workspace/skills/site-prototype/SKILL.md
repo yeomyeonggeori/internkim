@@ -38,11 +38,11 @@ Create prototypes for non-developers to validate ideas quickly. Do not present t
 3. Put the frontend in `app/`.
 4. Put PocketBase migrations in `pocketbase/pb_migrations/`.
 5. Leave `pocketbase/pb_hooks/` empty unless the user explicitly requested backend hooks and an admin approval path is available.
-6. Run `bun install` and `bun run build` from `app/`. Do not publish if the build fails.
+6. Run `bun install` and `bun run build` from `app/` after every source edit. Do not publish if the build fails or if `app/dist` is stale.
 7. Call `site.app.publish` with `siteID` and a concise `message`.
 8. Reply in Mattermost with the public URL, a short change summary, and any test login credentials.
 
-For follow-up feedback in the same conversation, call `site.app.status` with an empty input or the known slug. The tool can resolve the current conversation's bound site. Edit the returned workspace, rebuild, publish the same site, and reply with the same URL.
+For follow-up feedback in the same conversation, call `site.app.status` with an empty input or the known slug. The tool can resolve the current conversation's bound site. Edit the returned workspace, rebuild from `app/`, publish the same site, and reply with the same URL.
 
 Use this command pattern inside the workspace:
 
@@ -56,6 +56,7 @@ After build success:
 
 - call `site.app.publish` with `siteID` and a human-readable `message`
 - never claim deployment succeeded until the tool succeeds
+- if publish says `app/dist is stale`, run `bun run build` from `app/` again before publishing
 - if publish fails, summarize the actual failure and stop
 
 ## Cost and Integration Guardrails
