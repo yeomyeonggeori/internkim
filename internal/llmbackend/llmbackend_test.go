@@ -21,6 +21,8 @@ func (transport roundTripFunc) RoundTrip(request *http.Request) (*http.Response,
 }
 
 func TestOpenRouterStructuredRequestPreservesSchema(t *testing.T) {
+	seed := int64(42)
+	temperature := 0.1
 	requestDocument, errorValue := buildOpenRouterStructuredRequest(StructuredRequest{
 		Model: "openrouter/model",
 		Messages: []Message{
@@ -31,6 +33,7 @@ func TestOpenRouterStructuredRequestPreservesSchema(t *testing.T) {
 			Document:           json.RawMessage(`{"type":"object","properties":{"reply":{"type":"string"}},"required":["reply"],"additionalProperties":false}`),
 			IsStrictlyEnforced: true,
 		},
+		GenerationOptions:     &GenerationOptions{Seed: &seed, Temperature: &temperature},
 		RequireParameters:     true,
 		EnableResponseHealing: true,
 	}, "openrouter/model")
@@ -52,9 +55,42 @@ func TestOpenRouterStructuredRequestPreservesSchema(t *testing.T) {
 	if jsonSchema["strict"] != true {
 		t.Fatalf("expected strict schema, got %+v", jsonSchema)
 	}
+	if document["seed"] != float64(seed) {
+		t.Fatalf("expected seed to be forwarded, got %+v", document)
+	}
+	if document["temperature"] != temperature {
+		t.Fatalf("expected temperature to be forwarded, got %+v", document)
+	}
+}
+
+func TestOpenRouterStructuredRequestOmitsEmptyGenerationOptions(t *testing.T) {
+	requestDocument, errorValue := buildOpenRouterStructuredRequest(StructuredRequest{
+		Messages: []Message{{Role: "user", Content: "hello"}},
+		StructuredOutputSchema: StructuredOutputSchema{
+			Name:               "reply",
+			Document:           json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
+			IsStrictlyEnforced: true,
+		},
+	}, "openrouter/model")
+	if errorValue != nil {
+		t.Fatalf("expected request document: %v", errorValue)
+	}
+
+	var document map[string]any
+	if errorValue := json.Unmarshal(requestDocument, &document); errorValue != nil {
+		t.Fatalf("expected request to decode: %v", errorValue)
+	}
+	if _, isFound := document["seed"]; isFound {
+		t.Fatalf("expected empty seed to be omitted, got %+v", document)
+	}
+	if _, isFound := document["temperature"]; isFound {
+		t.Fatalf("expected empty temperature to be omitted, got %+v", document)
+	}
 }
 
 func TestOpenRouterBackendUsesResponsesToolCallingForAgentActions(t *testing.T) {
+	seed := int64(99)
+	temperature := 0.3
 	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
 	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
@@ -82,6 +118,7 @@ func TestOpenRouterBackendUsesResponsesToolCallingForAgentActions(t *testing.T) 
 	response, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
 		Messages:               []Message{{Role: "user", Content: "publish"}},
 		StructuredOutputSchema: testAgentActionSchema(),
+		GenerationOptions:      &GenerationOptions{Seed: &seed, Temperature: &temperature},
 	})
 
 	if errorValue != nil {
@@ -98,6 +135,34 @@ func TestOpenRouterBackendUsesResponsesToolCallingForAgentActions(t *testing.T) 
 	}
 	if receivedDocument["tool_choice"] != "auto" {
 		t.Fatalf("expected auto tool choice, got %+v", receivedDocument)
+	}
+	if receivedDocument["seed"] != float64(seed) {
+		t.Fatalf("expected seed to be forwarded, got %+v", receivedDocument)
+	}
+	if receivedDocument["temperature"] != temperature {
+		t.Fatalf("expected temperature to be forwarded, got %+v", receivedDocument)
+	}
+}
+
+func TestOpenAICompatibleActionToolRequestUsesGenerationOptions(t *testing.T) {
+	seed := int64(12)
+	temperature := 0.6
+	request := openAIActionToolRequest("local-model", []Message{{Role: "user", Content: "publish"}}, []nativeActionTool{{
+		FunctionName: "call_tool__site_app_publish",
+		Description:  "Call site.app.publish",
+		Action:       "call_tool",
+		ToolName:     "site.app.publish",
+		Parameters:   json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
+	}}, GenerationOptions{Seed: &seed, Temperature: &temperature})
+
+	if request.Seed == nil || *request.Seed != seed {
+		t.Fatalf("expected seed on OpenAI-compatible request, got %+v", request)
+	}
+	if request.Temperature == nil || *request.Temperature != temperature {
+		t.Fatalf("expected temperature on OpenAI-compatible request, got %+v", request)
+	}
+	if len(request.Tools) != 1 || request.Tools[0].Function.Name != "call_tool__site_app_publish" {
+		t.Fatalf("expected native tool call shape to remain, got %+v", request.Tools)
 	}
 }
 
