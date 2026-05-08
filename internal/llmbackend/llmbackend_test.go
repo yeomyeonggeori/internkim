@@ -198,6 +198,64 @@ func TestNativeActionToolsRejectFunctionNameCollisions(t *testing.T) {
 	}
 }
 
+func TestNativeActionToolsRemoveUndefinedRequiredParameters(t *testing.T) {
+	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
+		Name: "blueclaw_agent_turn_action",
+		Document: json.RawMessage(`{"oneOf":[
+			{"type":"object","properties":{"action":{"type":"string","enum":["call_tool"]},"toolName":{"type":"string","enum":["browser.open"]},"toolInput":{"type":"object","required":["url"],"additionalProperties":false}},"required":["action","toolName","toolInput"]}
+		]}`),
+	})
+	if errorValue != nil {
+		t.Fatalf("expected native tool set: %v", errorValue)
+	}
+	if !isActionSchema || len(toolSet.Tools) != 1 {
+		t.Fatalf("expected one native action tool, got action=%v tools=%+v", isActionSchema, toolSet.Tools)
+	}
+
+	var parameters map[string]any
+	if errorValue := json.Unmarshal(toolSet.Tools[0].Parameters, &parameters); errorValue != nil {
+		t.Fatalf("expected parameters to decode: %v", errorValue)
+	}
+	properties, isFound := parameters["properties"].(map[string]any)
+	if !isFound || len(properties) != 0 {
+		t.Fatalf("expected empty properties to be explicit, got %+v", parameters)
+	}
+	if _, isFound := parameters["required"]; isFound {
+		t.Fatalf("expected undefined required fields to be removed, got %+v", parameters)
+	}
+	if _, isFound := parameters["additionalProperties"]; isFound {
+		t.Fatalf("expected unsupported native schema keywords to be removed, got %+v", parameters)
+	}
+}
+
+func TestNativeActionToolsSanitizeProviderSpecificSchemaKeywords(t *testing.T) {
+	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
+		Name: "blueclaw_agent_turn_action",
+		Document: json.RawMessage(`{"oneOf":[
+			{"type":"object","properties":{"action":{"type":"string","enum":["call_tool"]},"toolName":{"type":"string","enum":["calendar.event.add"]},"toolInput":{"type":"object","properties":{"people":{"oneOf":[{"type":"string"},{"type":"array","items":{"type":"string"}}]},"title":{"type":"string","default":"Untitled"}},"required":["title"],"additionalProperties":false}},"required":["action","toolName","toolInput"]}
+		]}`),
+	})
+	if errorValue != nil {
+		t.Fatalf("expected native tool set: %v", errorValue)
+	}
+	if !isActionSchema || len(toolSet.Tools) != 1 {
+		t.Fatalf("expected one native action tool, got action=%v tools=%+v", isActionSchema, toolSet.Tools)
+	}
+
+	var parameters map[string]any
+	if errorValue := json.Unmarshal(toolSet.Tools[0].Parameters, &parameters); errorValue != nil {
+		t.Fatalf("expected parameters to decode: %v", errorValue)
+	}
+	if documentContainsKey(parameters, "oneOf") || documentContainsKey(parameters, "additionalProperties") || documentContainsKey(parameters, "default") {
+		t.Fatalf("expected provider-specific schema keywords to be removed, got %+v", parameters)
+	}
+	properties := parameters["properties"].(map[string]any)
+	people := properties["people"].(map[string]any)
+	if people["type"] != "string" {
+		t.Fatalf("expected oneOf to collapse to first provider-compatible variant, got %+v", people)
+	}
+}
+
 func TestOpenRouterBackendResolvesDefaultModel(t *testing.T) {
 	backend := OpenRouterBackend{ModelName: "google/default-remote"}
 	for _, modelName := range []string{"", "default", "DEFAULT", "local/anything"} {
@@ -599,6 +657,30 @@ func testAgentActionSchema() StructuredOutputSchema {
 		]}`),
 		IsStrictlyEnforced: true,
 	}
+}
+
+func documentContainsKey(value any, key string) bool {
+	document, isObject := value.(map[string]any)
+	if isObject {
+		if _, isFound := document[key]; isFound {
+			return true
+		}
+		for _, fieldValue := range document {
+			if documentContainsKey(fieldValue, key) {
+				return true
+			}
+		}
+		return false
+	}
+	values, isArray := value.([]any)
+	if isArray {
+		for _, item := range values {
+			if documentContainsKey(item, key) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 type staticProvider struct {
