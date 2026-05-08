@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -88,7 +90,7 @@ func TestOpenRouterStructuredRequestOmitsEmptyGenerationOptions(t *testing.T) {
 	}
 }
 
-func TestOpenRouterBackendUsesResponsesToolCallingForAgentActions(t *testing.T) {
+func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 	seed := int64(99)
 	temperature := 0.3
 	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
@@ -101,15 +103,15 @@ func TestOpenRouterBackendUsesResponsesToolCallingForAgentActions(t *testing.T) 
 		BaseURL:   "https://openrouter.ai/api/v1/chat/completions",
 		ModelName: "configured-model",
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			if request.URL.Path != "/api/v1/responses" {
-				t.Fatalf("expected responses path, got %s", request.URL.Path)
+			if request.URL.Path != "/api/v1/chat/completions" {
+				t.Fatalf("expected chat completions path, got %s", request.URL.Path)
 			}
 			if errorValue := json.NewDecoder(request.Body).Decode(&receivedDocument); errorValue != nil {
 				t.Fatalf("expected request body: %v", errorValue)
 			}
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"output":[{"type":"function_call","name":"call_tool__site_app_publish","arguments":"{\"siteID\":\"site-1\"}"}]}`)),
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"call_tool__site_app_publish","arguments":"{\"siteID\":\"site-1\"}"}}]}}]}`)),
 				Header:     make(http.Header),
 			}, nil
 		})},
@@ -136,11 +138,57 @@ func TestOpenRouterBackendUsesResponsesToolCallingForAgentActions(t *testing.T) 
 	if receivedDocument["tool_choice"] != "auto" {
 		t.Fatalf("expected auto tool choice, got %+v", receivedDocument)
 	}
+	tools := receivedDocument["tools"].([]any)
+	parameters := openRouterRequestToolParameters(t, tools, "call_tool__site_app_publish")
+	if _, isFound := parameters["additionalProperties"]; isFound {
+		t.Fatalf("expected OpenRouter native tool parameters to omit additionalProperties, got %+v", parameters)
+	}
+	properties := parameters["properties"].(map[string]any)
+	if _, isFound := properties["siteID"]; !isFound {
+		t.Fatalf("expected projected tool parameters to preserve siteID, got %+v", parameters)
+	}
+	if _, isFound := parameters["required"]; isFound {
+		t.Fatalf("expected OpenRouter native tool parameters to omit required, got %+v", parameters)
+	}
 	if receivedDocument["seed"] != float64(seed) {
 		t.Fatalf("expected seed to be forwarded, got %+v", receivedDocument)
 	}
 	if receivedDocument["temperature"] != temperature {
 		t.Fatalf("expected temperature to be forwarded, got %+v", receivedDocument)
+	}
+}
+
+func TestOpenRouterBackendAcceptsProviderReturnedToolName(t *testing.T) {
+	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
+	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	backend := OpenRouterBackend{
+		KeyPath:   secretPath,
+		BaseURL:   "https://openrouter.ai/api/v1/chat/completions",
+		ModelName: "configured-model",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"calendar.event.add","arguments":"{\"title\":\"휴가\",\"startISO\":\"2026-05-09T09:00:00+09:00\",\"endISO\":\"2026-05-09T18:00:00+09:00\"}"}}]}}]}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	response, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
+		Messages: []Message{{Role: "user", Content: "내일 휴가 등록해줘"}},
+		StructuredOutputSchema: StructuredOutputSchema{
+			Name:     "blueclaw_agent_turn_action",
+			Document: testActionSchemaForDescriptors(t, capabilities.CalendarDescriptors()),
+		},
+	})
+
+	if errorValue != nil {
+		t.Fatalf("expected provider-returned tool name to resolve: %v", errorValue)
+	}
+	if !strings.Contains(response.Content, `"toolName":"calendar.event.add"`) {
+		t.Fatalf("expected calendar tool action, got %s", response.Content)
 	}
 }
 
@@ -163,25 +211,6 @@ func TestOpenAICompatibleActionToolRequestUsesGenerationOptions(t *testing.T) {
 	}
 	if len(request.Tools) != 1 || request.Tools[0].Function.Name != "call_tool__site_app_publish" {
 		t.Fatalf("expected native tool call shape to remain, got %+v", request.Tools)
-	}
-}
-
-func TestOpenRouterResponsesInputFormatsAssistantHistory(t *testing.T) {
-	input := openRouterResponsesInput([]Message{
-		{Role: "system", Content: "rules"},
-		{Role: "assistant", Content: "previous reply"},
-	})
-
-	assistantMessage := input[1]
-	if assistantMessage["role"] != "assistant" || assistantMessage["status"] != "completed" {
-		t.Fatalf("expected completed assistant message, got %+v", assistantMessage)
-	}
-	content := assistantMessage["content"].([]map[string]any)
-	if content[0]["type"] != "output_text" || content[0]["text"] != "previous reply" {
-		t.Fatalf("expected assistant output_text content, got %+v", content)
-	}
-	if strings.TrimSpace(assistantMessage["id"].(string)) == "" {
-		t.Fatalf("expected assistant message id, got %+v", assistantMessage)
 	}
 }
 
@@ -256,10 +285,10 @@ func TestNativeActionToolsSanitizeProviderSpecificSchemaKeywords(t *testing.T) {
 	}
 }
 
-func TestNativeActionToolsOmitCalendarRequiredForProviderCompatibility(t *testing.T) {
+func TestNativeActionToolsOmitCalendarRequiredForOpenRouterGoogleCompatibility(t *testing.T) {
 	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
 		Name:     "blueclaw_agent_turn_action",
-		Document: json.RawMessage(liveCalendarActionSchema),
+		Document: testActionSchemaForDescriptors(t, capabilities.CalendarDescriptors()),
 	})
 	if errorValue != nil {
 		t.Fatalf("expected native tool set: %v", errorValue)
@@ -281,6 +310,28 @@ func TestNativeActionToolsOmitCalendarRequiredForProviderCompatibility(t *testin
 	}
 	if _, isFound := parameters["required"]; isFound {
 		t.Fatalf("expected required to be omitted from native tool schema, got %+v", parameters)
+	}
+}
+
+func TestNativeActionToolsProjectEveryDefaultCapabilitySchema(t *testing.T) {
+	descriptors := append(capabilities.DefaultToolDescriptors(), capabilities.GoogleWorkspaceDescriptors()...)
+	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
+		Name:     "blueclaw_agent_turn_action",
+		Document: testActionSchemaForDescriptors(t, descriptors),
+	})
+	if errorValue != nil {
+		t.Fatalf("expected native tool set: %v", errorValue)
+	}
+	if !isActionSchema {
+		t.Fatal("expected action schema")
+	}
+
+	for _, descriptor := range descriptors {
+		tool := toolSet.ToolByName[nativeActionFunctionName(descriptor.Name)]
+		if strings.TrimSpace(tool.FunctionName) == "" {
+			t.Fatalf("expected native tool for %s", descriptor.Name)
+		}
+		assertNativeSchemaIsProviderSafe(t, descriptor.Name, tool.Parameters)
 	}
 }
 
@@ -709,6 +760,102 @@ func documentContainsKey(value any, key string) bool {
 		}
 	}
 	return false
+}
+
+func testActionSchemaForDescriptors(t *testing.T, descriptors []capabilities.Descriptor) json.RawMessage {
+	t.Helper()
+	variants := make([]any, 0, len(descriptors))
+	for _, descriptor := range descriptors {
+		inputSchema := descriptor.InputSchema
+		if len(inputSchema) == 0 {
+			inputSchema = json.RawMessage(`{"type":"object"}`)
+		}
+		var toolInput any
+		if errorValue := json.Unmarshal(inputSchema, &toolInput); errorValue != nil {
+			t.Fatalf("input schema for %s is invalid: %v", descriptor.Name, errorValue)
+		}
+		variants = append(variants, map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"action":    map[string]any{"type": "string", "enum": []string{"call_tool"}},
+				"toolName":  map[string]any{"type": "string", "enum": []string{descriptor.Name}},
+				"toolInput": toolInput,
+			},
+			"required":             []string{"action", "toolName", "toolInput"},
+			"additionalProperties": false,
+		})
+	}
+	document, errorValue := json.Marshal(map[string]any{"oneOf": variants})
+	if errorValue != nil {
+		t.Fatalf("expected action schema: %v", errorValue)
+	}
+	return document
+}
+
+func assertNativeSchemaIsProviderSafe(t *testing.T, toolName string, schema json.RawMessage) {
+	t.Helper()
+	var document any
+	if errorValue := json.Unmarshal(schema, &document); errorValue != nil {
+		t.Fatalf("schema for %s is invalid: %v", toolName, errorValue)
+	}
+	assertNativeSchemaValueIsProviderSafe(t, toolName, document)
+}
+
+func assertNativeSchemaValueIsProviderSafe(t *testing.T, toolName string, value any) {
+	t.Helper()
+	assertNativeSchemaMapIsProviderSafe(t, toolName, value, false)
+}
+
+func assertNativeSchemaMapIsProviderSafe(t *testing.T, toolName string, value any, isPropertiesMap bool) {
+	t.Helper()
+	document, isObject := value.(map[string]any)
+	if isObject {
+		for fieldName, fieldValue := range document {
+			if isPropertiesMap {
+				assertNativeSchemaMapIsProviderSafe(t, toolName, fieldValue, false)
+				continue
+			}
+			if !openRouterNativeToolSchemaKeywordByName[fieldName] {
+				t.Fatalf("schema for %s has unsupported key %s: %+v", toolName, fieldName, document)
+			}
+			if fieldName == "properties" {
+				assertNativeSchemaMapIsProviderSafe(t, toolName, fieldValue, true)
+				continue
+			}
+			assertNativeSchemaMapIsProviderSafe(t, toolName, fieldValue, false)
+		}
+		if document["type"] == "object" {
+			if _, isFound := document["properties"]; !isFound {
+				t.Fatalf("schema for %s has object without properties: %+v", toolName, document)
+			}
+		}
+		if document["type"] == "array" {
+			if _, isFound := document["items"]; !isFound {
+				t.Fatalf("schema for %s has array without items: %+v", toolName, document)
+			}
+		}
+		return
+	}
+	values, isArray := value.([]any)
+	if isArray {
+		for _, item := range values {
+			assertNativeSchemaMapIsProviderSafe(t, toolName, item, false)
+		}
+	}
+}
+
+func openRouterRequestToolParameters(t *testing.T, tools []any, functionName string) map[string]any {
+	t.Helper()
+	for _, tool := range tools {
+		document := tool.(map[string]any)
+		function := document["function"].(map[string]any)
+		if function["name"] != functionName {
+			continue
+		}
+		return function["parameters"].(map[string]any)
+	}
+	t.Fatalf("expected tool %s in request, got %+v", functionName, tools)
+	return nil
 }
 
 type staticProvider struct {

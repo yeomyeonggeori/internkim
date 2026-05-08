@@ -1,6 +1,10 @@
 package capabilityprotocol
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol/jsonschema"
+)
 
 const (
 	ExecutionModeDevice    = "device"
@@ -119,18 +123,18 @@ type RecoveryAction struct {
 
 func CompanionToolDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "browser.open", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"url":{"type":"string"},"startURL":{"type":"string"}},"additionalProperties":false}`), SideEffectClass: "browser"},
-		{Name: "browser.snapshot", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"interactive":{"type":"boolean"}},"additionalProperties":false}`), SideEffectClass: "read"},
-		{Name: "browser.screenshot", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"ttlSeconds":{"type":"integer"}},"additionalProperties":false}`), SideEffectClass: "read"},
-		{Name: "browser.handoff", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"url":{"type":"string"},"message":{"type":"string"}},"additionalProperties":false}`), SideEffectClass: "handoff", RequiresApproval: true},
-		{Name: "browser.click", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"target":{"type":"string"},"ref":{"type":"string"},"selector":{"type":"string"}},"additionalProperties":false}`), SideEffectClass: "browser_write", RequiresApproval: true},
-		{Name: "browser.fill", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"target":{"type":"string"},"ref":{"type":"string"},"selector":{"type":"string"},"text":{"type":"string"}},"required":["text"],"additionalProperties":false}`), SideEffectClass: "browser_write"},
-		{Name: "browser.select", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"target":{"type":"string"},"ref":{"type":"string"},"selector":{"type":"string"},"value":{"type":"string"}},"required":["value"],"additionalProperties":false}`), SideEffectClass: "browser_write"},
-		{Name: "browser.press", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"key":{"type":"string"}},"required":["key"],"additionalProperties":false}`), SideEffectClass: "browser_write"},
-		{Name: "browser.wait", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: json.RawMessage(`{"type":"object","properties":{"target":{"type":"string"},"ref":{"type":"string"},"selector":{"type":"string"},"milliseconds":{"type":"integer"}},"additionalProperties":false}`), SideEffectClass: "read"},
-		{Name: "user.confirm", Version: "1", PrivacyClass: "user_input", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true, InputSchema: json.RawMessage(`{"type":"object","properties":{"message":{"type":"string"},"reason":{"type":"string"}},"required":["message"],"additionalProperties":false}`), SideEffectClass: "approval", RequiresApproval: true},
-		{Name: "user.input", Version: "1", PrivacyClass: "user_input", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true, InputSchema: json.RawMessage(`{"type":"object","properties":{"message":{"type":"string"},"placeholder":{"type":"string"}},"required":["message"],"additionalProperties":false}`), SideEffectClass: "approval", RequiresApproval: true},
-		{Name: "file.pick", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true, InputSchema: json.RawMessage(`{"type":"object","properties":{"message":{"type":"string"},"accept":{"type":"array","items":{"type":"string"}},"multiple":{"type":"boolean"}},"additionalProperties":false}`), SideEffectClass: "local_file", RequiresApproval: true},
+		{Name: "browser.open", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: browserOpenInputSchema(), SideEffectClass: "browser"},
+		{Name: "browser.snapshot", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: browserSnapshotInputSchema(), SideEffectClass: "read"},
+		{Name: "browser.screenshot", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: browserScreenshotInputSchema(), SideEffectClass: "read"},
+		{Name: "browser.handoff", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: browserHandoffInputSchema(), SideEffectClass: "handoff", RequiresApproval: true},
+		{Name: "browser.click", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: browserTargetInputSchema(), SideEffectClass: "browser_write", RequiresApproval: true},
+		{Name: "browser.fill", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: browserFillInputSchema(), SideEffectClass: "browser_write"},
+		{Name: "browser.select", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: browserSelectInputSchema(), SideEffectClass: "browser_write"},
+		{Name: "browser.press", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: browserPressInputSchema(), SideEffectClass: "browser_write"},
+		{Name: "browser.wait", Version: "1", PrivacyClass: "user_browser", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: browserWaitInputSchema(), SideEffectClass: "read"},
+		{Name: "user.confirm", Version: "1", PrivacyClass: "user_input", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true, InputSchema: userConfirmInputSchema(), SideEffectClass: "approval", RequiresApproval: true},
+		{Name: "user.input", Version: "1", PrivacyClass: "user_input", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true, InputSchema: userInputSchema(), SideEffectClass: "approval", RequiresApproval: true},
+		{Name: "file.pick", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true, InputSchema: filePickInputSchema(), SideEffectClass: "local_file", RequiresApproval: true},
 		{Name: "filesystem.mount.create", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: true},
 		{Name: "filesystem.mount.list", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "filesystem.mount.pause", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
@@ -148,6 +152,89 @@ func CompanionToolDescriptors() []Descriptor {
 		{Name: "filesystem.mount.chmod", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "filesystem.mount.watch", Version: "1", PrivacyClass: "local_file", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: true},
 	}
+}
+
+func browserOpenInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Field("url", jsonschema.String()),
+		jsonschema.Field("startURL", jsonschema.String()),
+	).RawMessage()
+}
+
+func browserSnapshotInputSchema() json.RawMessage {
+	return jsonschema.Object(jsonschema.Field("interactive", jsonschema.Boolean())).RawMessage()
+}
+
+func browserScreenshotInputSchema() json.RawMessage {
+	return jsonschema.Object(jsonschema.Field("ttlSeconds", jsonschema.Integer())).RawMessage()
+}
+
+func browserHandoffInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Field("url", jsonschema.String()),
+		jsonschema.Field("message", jsonschema.String()),
+	).RawMessage()
+}
+
+func browserTargetInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Field("target", jsonschema.String()),
+		jsonschema.Field("ref", jsonschema.String()),
+		jsonschema.Field("selector", jsonschema.String()),
+	).RawMessage()
+}
+
+func browserFillInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Field("target", jsonschema.String()),
+		jsonschema.Field("ref", jsonschema.String()),
+		jsonschema.Field("selector", jsonschema.String()),
+		jsonschema.Required("text", jsonschema.String()),
+	).RawMessage()
+}
+
+func browserSelectInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Field("target", jsonschema.String()),
+		jsonschema.Field("ref", jsonschema.String()),
+		jsonschema.Field("selector", jsonschema.String()),
+		jsonschema.Required("value", jsonschema.String()),
+	).RawMessage()
+}
+
+func browserPressInputSchema() json.RawMessage {
+	return jsonschema.Object(jsonschema.Required("key", jsonschema.String())).RawMessage()
+}
+
+func browserWaitInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Field("target", jsonschema.String()),
+		jsonschema.Field("ref", jsonschema.String()),
+		jsonschema.Field("selector", jsonschema.String()),
+		jsonschema.Field("milliseconds", jsonschema.Integer()),
+	).RawMessage()
+}
+
+func userConfirmInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Required("message", jsonschema.String()),
+		jsonschema.Field("reason", jsonschema.String()),
+	).RawMessage()
+}
+
+func userInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Required("message", jsonschema.String()),
+		jsonschema.Field("placeholder", jsonschema.String()),
+	).RawMessage()
+}
+
+func filePickInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Field("message", jsonschema.String()),
+		jsonschema.Field("accept", jsonschema.Array(jsonschema.String())),
+		jsonschema.Field("multiple", jsonschema.Boolean()),
+	).RawMessage()
 }
 
 func CompanionLLMDescriptors() []Descriptor {
