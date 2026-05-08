@@ -135,14 +135,125 @@ func controlActionParameters(variant actionSchemaVariant) json.RawMessage {
 	if errorValue != nil {
 		return json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)
 	}
-	return content
+	document, errorValue := sanitizeNativeToolSchema(content)
+	if errorValue != nil {
+		return json.RawMessage(`{"type":"object","properties":{}}`)
+	}
+	return document
 }
 
 func objectSchemaDocument(schema json.RawMessage) json.RawMessage {
 	if len(schema) == 0 {
 		return json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)
 	}
-	return schema
+	document, errorValue := sanitizeNativeToolSchema(schema)
+	if errorValue != nil {
+		return json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)
+	}
+	return document
+}
+
+func sanitizeNativeToolSchema(schema json.RawMessage) (json.RawMessage, error) {
+	var document any
+	if errorValue := json.Unmarshal(schema, &document); errorValue != nil {
+		return nil, errorValue
+	}
+	sanitizedDocument := sanitizeNativeToolSchemaValue(document)
+	content, errorValue := json.Marshal(sanitizedDocument)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return content, nil
+}
+
+func sanitizeNativeToolSchemaValue(value any) any {
+	values, isArray := value.([]any)
+	if isArray {
+		for index, item := range values {
+			values[index] = sanitizeNativeToolSchemaValue(item)
+		}
+		return values
+	}
+	document, isObject := value.(map[string]any)
+	if !isObject {
+		return value
+	}
+	if replacement, isFound := firstNativeToolSchemaUnionValue(document); isFound {
+		return sanitizeNativeToolSchemaValue(replacement)
+	}
+	removeUnsupportedNativeToolSchemaKeywords(document)
+	for fieldName, fieldValue := range document {
+		document[fieldName] = sanitizeNativeToolSchemaValue(fieldValue)
+	}
+	properties := nativeToolSchemaProperties(document["properties"])
+	if document["type"] == "object" && properties == nil {
+		properties = map[string]any{}
+		document["properties"] = properties
+	}
+	required := nativeToolSchemaRequired(document["required"])
+	if len(required) == 0 {
+		return document
+	}
+	filteredRequired := required[:0]
+	for _, requiredFieldName := range required {
+		if _, isFound := properties[requiredFieldName]; isFound {
+			filteredRequired = append(filteredRequired, requiredFieldName)
+		}
+	}
+	if len(filteredRequired) == 0 {
+		delete(document, "required")
+		return document
+	}
+	document["required"] = filteredRequired
+	return document
+}
+
+func firstNativeToolSchemaUnionValue(document map[string]any) (any, bool) {
+	for _, fieldName := range []string{"oneOf", "anyOf", "allOf"} {
+		values, isArray := document[fieldName].([]any)
+		if isArray && len(values) > 0 {
+			return values[0], true
+		}
+	}
+	return nil, false
+}
+
+func removeUnsupportedNativeToolSchemaKeywords(document map[string]any) {
+	for _, fieldName := range []string{
+		"$defs",
+		"$ref",
+		"additionalProperties",
+		"allOf",
+		"anyOf",
+		"default",
+		"definitions",
+		"maximum",
+		"minimum",
+		"oneOf",
+		"pattern",
+	} {
+		delete(document, fieldName)
+	}
+}
+
+func nativeToolSchemaProperties(value any) map[string]any {
+	properties, _ := value.(map[string]any)
+	return properties
+}
+
+func nativeToolSchemaRequired(value any) []string {
+	values, isArray := value.([]any)
+	if !isArray {
+		return nil
+	}
+	required := make([]string, 0, len(values))
+	for _, value := range values {
+		fieldName, isString := value.(string)
+		if isString && strings.TrimSpace(fieldName) != "" {
+			required = append(required, fieldName)
+		}
+	}
+	return required
 }
 
 func enumStringValue(schema json.RawMessage) (string, bool) {
