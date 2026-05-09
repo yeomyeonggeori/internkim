@@ -16,15 +16,18 @@ import (
 )
 
 type siteAppInput struct {
-	SiteID         string `json:"siteID"`
-	Slug           string `json:"slug"`
-	Title          string `json:"title"`
-	Prompt         string `json:"prompt"`
-	DesignBrief    string `json:"designBrief"`
-	PrototypeScope string `json:"prototypeScope"`
-	RequestedBy    string `json:"requestedBy"`
-	Platform       string `json:"platform"`
-	ConversationID string `json:"conversationID"`
+	SiteID              string `json:"siteID"`
+	Slug                string `json:"slug"`
+	Title               string `json:"title"`
+	Prompt              string `json:"prompt"`
+	DesignBrief         string `json:"designBrief"`
+	PrototypeScope      string `json:"prototypeScope"`
+	SourceWorkspacePath string `json:"sourceWorkspacePath"`
+	SourceBundleBase64  string `json:"sourceBundleBase64"`
+	SourceBundleFormat  string `json:"sourceBundleFormat"`
+	RequestedBy         string `json:"requestedBy"`
+	Platform            string `json:"platform"`
+	ConversationID      string `json:"conversationID"`
 }
 
 type siteAppRecord struct {

@@ -122,6 +122,56 @@ func TestOpenRouterLiveSingleCalendarActionSchemaFromEnv(t *testing.T) {
 	}
 }
 
+func TestOpenRouterLiveApprovalReplyDecisionFromEnv(t *testing.T) {
+	backend, _ := liveOpenRouterBackendFromEnv(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	response, errorValue := backend.CompleteStructured(ctx, StructuredRequest{
+		Messages: []Message{
+			{
+				Role: "system",
+				Content: strings.Join([]string{
+					"You decide whether the latest user message approves a pending action.",
+					"Return isApproval true only when the latest message authorizes proceeding with the pending action.",
+					"Short Korean affirmatives such as 응, 네, 좋아, 진행해, 해줘, 그래, 해 are approvals when they answer the pending approval question.",
+					"Return false for cancellation, hesitation, a new unrelated request, or a question.",
+				}, "\n"),
+			},
+			{
+				Role: "user",
+				Content: strings.Join([]string{
+					"Pending task:",
+					"웹사이트를 만들어서 배포해",
+					"",
+					"Approval question:",
+					"배포를 진행해도 될까요?",
+					"",
+					"Latest user message:",
+					"해",
+				}, "\n"),
+			},
+		},
+		StructuredOutputSchema: StructuredOutputSchema{
+			Name:               "blueclaw_approval_reply_decision",
+			Document:           json.RawMessage(`{"type":"object","properties":{"isApproval":{"type":"boolean"},"reason":{"type":"string"}},"required":["isApproval","reason"],"additionalProperties":false}`),
+			IsStrictlyEnforced: true,
+		},
+	})
+	if errorValue != nil {
+		t.Fatalf("expected live approval classification response: %v", errorValue)
+	}
+	var decision struct {
+		IsApproval bool   `json:"isApproval"`
+		Reason     string `json:"reason"`
+	}
+	if errorValue := json.Unmarshal([]byte(response.Content), &decision); errorValue != nil {
+		t.Fatalf("expected approval decision JSON, got %q: %v", response.Content, errorValue)
+	}
+	if !decision.IsApproval {
+		t.Fatalf("expected short Korean approval to be true, got %+v", decision)
+	}
+}
+
 func liveOpenRouterBackendFromEnv(t *testing.T) (OpenRouterBackend, string) {
 	t.Helper()
 	loadTestEnvFile(t)

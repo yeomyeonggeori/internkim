@@ -1,8 +1,11 @@
 package admind
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"html"
@@ -85,6 +88,9 @@ type sitePublishRequest struct {
 	FrontendSourcePath      string `json:"frontendSourcePath"`
 	PocketBaseMigrationPath string `json:"pocketBaseMigrationsPath"`
 	PocketBaseHookPath      string `json:"pocketBaseHooksPath"`
+	SourceWorkspacePath     string `json:"sourceWorkspacePath"`
+	SourceBundleBase64      string `json:"sourceBundleBase64"`
+	SourceBundleFormat      string `json:"sourceBundleFormat"`
 	RequestedBy             string `json:"requestedBy"`
 	Message                 string `json:"message"`
 	Platform                string `json:"platform"`
@@ -461,6 +467,10 @@ func (service *Service) publishSite(ctx context.Context, payload sitePublishRequ
 	if errorValue := service.updateSiteFromPublishRequest(site, payload); errorValue != nil {
 		return nil, errorValue
 	}
+	if errorValue := service.prepareSiteSourceForPublish(ctx, site, payload); errorValue != nil {
+		service.updateSiteStatus(site.SiteID, SiteStatusFailed, errorValue.Error())
+		return nil, errorValue
+	}
 	commitSHA, errorValue := service.commitSiteWorkspace(ctx, site, payload.Message)
 	if errorValue != nil {
 		service.updateSiteStatus(site.SiteID, SiteStatusFailed, errorValue.Error())
@@ -513,6 +523,16 @@ func validateWorkspaceOnlyPublish(payload sitePublishRequest) error {
 	return nil
 }
 
+func (service *Service) prepareSiteSourceForPublish(ctx context.Context, site *SiteRecord, payload sitePublishRequest) error {
+	if strings.TrimSpace(payload.SourceBundleBase64) != "" {
+		if errorValue := service.materializeSiteSourceBundle(site, payload); errorValue != nil {
+			return errorValue
+		}
+		return service.initializeSiteGitRepository(ctx, site)
+	}
+	return service.prepareSiteWorkspace(ctx, site)
+}
+
 func (service *Service) updateSiteFromPublishRequest(site *SiteRecord, payload sitePublishRequest) error {
 	if payload.Title != "" {
 		site.Title = strings.TrimSpace(payload.Title)
@@ -536,6 +556,116 @@ func (service *Service) updateSiteFromPublishRequest(site *SiteRecord, payload s
 		site.WorkspacePath = site.SourceWorkspacePath
 	}
 	return service.storeSite(site)
+}
+
+func (service *Service) materializeSiteSourceBundle(site *SiteRecord, payload sitePublishRequest) error {
+	if strings.TrimSpace(payload.SourceBundleFormat) != "" && strings.TrimSpace(payload.SourceBundleFormat) != "tar.gz" {
+		return errors.New("sourceBundleFormat must be tar.gz")
+	}
+	document, errorValue := base64.StdEncoding.DecodeString(strings.TrimSpace(payload.SourceBundleBase64))
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := clearSiteHostSourceWorkspace(site.HostSourcePath); errorValue != nil {
+		return errorValue
+	}
+	return unpackSiteSourceBundle(site.HostSourcePath, document)
+}
+
+func clearSiteHostSourceWorkspace(workspacePath string) error {
+	if errorValue := os.MkdirAll(workspacePath, 0o700); errorValue != nil {
+		return errorValue
+	}
+	entries, errorValue := os.ReadDir(workspacePath)
+	if errorValue != nil {
+		return errorValue
+	}
+	for _, entry := range entries {
+		if entry.Name() == ".git" {
+			continue
+		}
+		if errorValue := os.RemoveAll(filepath.Join(workspacePath, entry.Name())); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
+}
+
+func unpackSiteSourceBundle(workspacePath string, document []byte) error {
+	gzipReader, errorValue := gzip.NewReader(bytes.NewReader(document))
+	if errorValue != nil {
+		return errorValue
+	}
+	defer gzipReader.Close()
+	tarReader := tar.NewReader(gzipReader)
+	for {
+		header, errorValue := tarReader.Next()
+		if errors.Is(errorValue, io.EOF) {
+			return nil
+		}
+		if errorValue != nil {
+			return errorValue
+		}
+		if errorValue := unpackSiteSourceBundleEntry(workspacePath, tarReader, header); errorValue != nil {
+			return errorValue
+		}
+	}
+}
+
+func unpackSiteSourceBundleEntry(workspacePath string, reader io.Reader, header *tar.Header) error {
+	path, errorValue := safeSiteBundlePath(workspacePath, header.Name)
+	if errorValue != nil {
+		return errorValue
+	}
+	switch header.Typeflag {
+	case tar.TypeDir:
+		return os.MkdirAll(path, 0o755)
+	case tar.TypeReg, tar.TypeRegA:
+		if errorValue := os.MkdirAll(filepath.Dir(path), 0o755); errorValue != nil {
+			return errorValue
+		}
+		file, errorValue := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, siteBundleFileMode(header.FileInfo().Mode()))
+		if errorValue != nil {
+			return errorValue
+		}
+		_, copyError := io.Copy(file, reader)
+		closeError := file.Close()
+		if copyError != nil {
+			return copyError
+		}
+		if closeError != nil {
+			return closeError
+		}
+		return os.Chtimes(path, header.ModTime, header.ModTime)
+	default:
+		return nil
+	}
+}
+
+func safeSiteBundlePath(workspacePath string, name string) (string, error) {
+	if filepath.IsAbs(name) {
+		return "", errors.New("source bundle path must be relative")
+	}
+	cleanName := filepath.Clean(name)
+	if cleanName == "." || cleanName == ".." || strings.HasPrefix(cleanName, ".."+string(os.PathSeparator)) {
+		return "", errors.New("source bundle path must stay inside workspace")
+	}
+	path := filepath.Join(workspacePath, cleanName)
+	relativePath, errorValue := filepath.Rel(workspacePath, path)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	if relativePath == ".." || strings.HasPrefix(relativePath, "../") {
+		return "", errors.New("source bundle path must stay inside workspace")
+	}
+	return path, nil
+}
+
+func siteBundleFileMode(mode os.FileMode) os.FileMode {
+	if mode&0o111 != 0 {
+		return 0o755
+	}
+	return 0o644
 }
 
 func (service *Service) prepareSiteVersion(site *SiteRecord, versionID string, payload sitePublishRequest) error {
@@ -911,7 +1041,7 @@ func (service *Service) initializeSiteGitRepository(ctx context.Context, site *S
 }
 
 func (service *Service) commitSiteWorkspace(ctx context.Context, site *SiteRecord, message string) (string, error) {
-	if errorValue := service.prepareSiteWorkspace(ctx, site); errorValue != nil {
+	if errorValue := service.initializeSiteGitRepository(ctx, site); errorValue != nil {
 		return "", errorValue
 	}
 	statusOutput, errorValue := service.runCommand(ctx, "git", siteGitArguments(site, "status", "--porcelain")...)
@@ -1153,7 +1283,7 @@ func copyOptionalDirectory(sourcePath string, targetPath string) error {
 		return nil
 	}
 	if !isDirectory(trimmedSourcePath) {
-		return errors.New("directory does not exist: " + trimmedSourcePath)
+		return nil
 	}
 	return copyDirectory(trimmedSourcePath, targetPath)
 }
@@ -1175,7 +1305,7 @@ func directoryHasFiles(path string) bool {
 }
 
 func siteGuestWorkspacePath(siteID string) string {
-	return filepath.Join(blueclawruntime.BlueclawGuestWorkspacePath, "sites", siteID)
+	return filepath.Join(blueclawruntime.BlueclawGuestWorkspacePath, "circles", "staff", "sites", siteID)
 }
 
 func (service *Service) siteHostWorkspacePath(siteID string) string {

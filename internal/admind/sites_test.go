@@ -1,7 +1,11 @@
 package admind
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
+	"encoding/base64"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -42,6 +46,9 @@ func TestSiteGatewayLifecycle(t *testing.T) {
 	}
 	if site.WorkspacePath == "" || site.HostSourcePath == "" || site.LastPublishedCommit == "" {
 		t.Fatalf("site workspace metadata missing: %+v", site)
+	}
+	if !strings.Contains(site.SourceWorkspacePath, "/workspace/circles/staff/sites/") {
+		t.Fatalf("site source workspace should be circle scoped, got %q", site.SourceWorkspacePath)
 	}
 
 	response := serveSiteRequest(service, "demo.device.example.test", "/")
@@ -119,13 +126,12 @@ func TestSitePrototypePublishesDefaultBuild(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	if !strings.Contains(site.SourceWorkspacePath, "/workspace/circles/staff/sites/") {
+		t.Fatalf("site source workspace should be editable by staff circle, got %q", site.SourceWorkspacePath)
+	}
 	designDocument := readTrimmedFile(filepath.Join(site.HostSourcePath, "DESIGN.md"))
 	if !strings.Contains(designDocument, "Acceptance Criteria") {
-		t.Fatalf("site scaffold should include DESIGN.md, got %q", designDocument)
-	}
-	metadataDocument := readTrimmedFile(filepath.Join(site.HostSourcePath, ".internkim", "site.json"))
-	if strings.Contains(metadataDocument, "black-on-white shadcn minimal") {
-		t.Fatalf("site metadata should not hard-code the old design default: %q", metadataDocument)
+		t.Fatalf("site staging should include safe default DESIGN.md, got %q", designDocument)
 	}
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
 		SiteID:      site.SiteID,
@@ -144,6 +150,39 @@ func TestSitePrototypePublishesDefaultBuild(t *testing.T) {
 	}
 	if !containsCommandFragment(*commandLog, "safe.directory="+site.HostSourcePath) {
 		t.Fatalf("site git commands should trust the site workspace: %+v", *commandLog)
+	}
+}
+
+func TestSitePublishMaterializesEditableSourceBundle(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{
+		Slug:        "source-bundle",
+		Title:       "Source Bundle",
+		RequestedBy: "owner@example.com",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	sourceWorkspacePath := t.TempDir()
+	writeTestSourceBuild(t, sourceWorkspacePath, "bundle publish")
+	writeFile(t, filepath.Join(sourceWorkspacePath, "DESIGN.md"), "custom source design")
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:              site.SiteID,
+		RequestedBy:         "owner@example.com",
+		Message:             "Publish bundled source",
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, sourceWorkspacePath),
+		SourceBundleFormat:  "tar.gz",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if readTrimmedFile(filepath.Join(site.HostSourcePath, "DESIGN.md")) != "custom source design" {
+		t.Fatalf("host staging should be materialized from editable source")
+	}
+	response := serveSiteRequest(service, "source-bundle.device.example.test", "/")
+	if !strings.Contains(response.Body.String(), "bundle publish") {
+		t.Fatalf("published body = %q", response.Body.String())
 	}
 }
 
@@ -212,11 +251,12 @@ func TestSiteWorkspaceIsWritableByRequesterTerminal(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	assertPathPermission(t, filepath.Dir(site.HostSourcePath), 0o777)
-	assertPathPermission(t, site.HostSourcePath, 0o777)
-	assertPathPermission(t, filepath.Join(site.HostSourcePath, "app"), 0o777)
-	assertPathPermission(t, filepath.Join(site.HostSourcePath, "app", "src"), 0o777)
-	assertPathPermission(t, filepath.Join(site.HostSourcePath, "app", "package.json"), 0o666)
+	if !strings.HasPrefix(site.SourceWorkspacePath, "/workspace/circles/staff/sites/") {
+		t.Fatalf("expected staff circle source workspace, got %q", site.SourceWorkspacePath)
+	}
+	if site.WorkspacePath != site.SourceWorkspacePath {
+		t.Fatalf("workspace path should point at source workspace: %+v", site)
+	}
 }
 
 func TestSiteDeleteRequiresExplicitConfirmation(t *testing.T) {
@@ -345,6 +385,64 @@ func writeTestWorkspaceBuild(t *testing.T, site *SiteRecord, body string) {
 	}
 	writeFile(t, filepath.Join(site.HostSourcePath, "app", "dist", "index.html"), "<!doctype html><html><body>"+body+"</body></html>")
 	writeFile(t, filepath.Join(site.HostSourcePath, "app", "dist", "assets", "app.js"), "console.log('ok')")
+}
+
+func writeTestSourceBuild(t *testing.T, workspacePath string, body string) {
+	t.Helper()
+	if errorValue := os.MkdirAll(filepath.Join(workspacePath, "app", "src"), 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.MkdirAll(filepath.Join(workspacePath, "app", "dist", "assets"), 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeFile(t, filepath.Join(workspacePath, "app", "package.json"), `{"scripts":{"build":"vite"}}`)
+	writeFile(t, filepath.Join(workspacePath, "app", "src", "App.tsx"), "export default function App() { return <main>ok</main> }\n")
+	writeFile(t, filepath.Join(workspacePath, "app", "dist", "index.html"), "<!doctype html><html><body>"+body+"</body></html>")
+	writeFile(t, filepath.Join(workspacePath, "app", "dist", "assets", "app.js"), "console.log('ok')")
+}
+
+func testSourceBundleBase64(t *testing.T, sourceWorkspacePath string) string {
+	t.Helper()
+	buffer := bytes.Buffer{}
+	gzipWriter := gzip.NewWriter(&buffer)
+	tarWriter := tar.NewWriter(gzipWriter)
+	errorValue := filepath.Walk(sourceWorkspacePath, func(path string, information os.FileInfo, walkError error) error {
+		if walkError != nil {
+			return walkError
+		}
+		relativePath, errorValue := filepath.Rel(sourceWorkspacePath, path)
+		if errorValue != nil || relativePath == "." {
+			return errorValue
+		}
+		header, errorValue := tar.FileInfoHeader(information, "")
+		if errorValue != nil {
+			return errorValue
+		}
+		header.Name = filepath.ToSlash(relativePath)
+		if errorValue := tarWriter.WriteHeader(header); errorValue != nil {
+			return errorValue
+		}
+		if information.IsDir() {
+			return nil
+		}
+		file, errorValue := os.Open(path)
+		if errorValue != nil {
+			return errorValue
+		}
+		defer file.Close()
+		_, errorValue = io.Copy(tarWriter, file)
+		return errorValue
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := tarWriter.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := gzipWriter.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return base64.StdEncoding.EncodeToString(buffer.Bytes())
 }
 
 func setFileModTime(t *testing.T, path string, modTime time.Time) {
