@@ -156,6 +156,80 @@
     @apply text-primary underline;
   }
 
+  .internkim-app-shell {
+    min-height: 100svh;
+    width: 100%;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+
+  .internkim-app-inset {
+    min-width: 0;
+    background: hsl(var(--background));
+  }
+
+  .internkim-app-header {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    height: 48px;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid hsl(var(--border));
+    background: hsl(var(--background) / 0.95);
+    padding: 0 12px;
+    backdrop-filter: blur(8px);
+  }
+
+  .internkim-app-header-separator {
+    height: 16px;
+  }
+
+  .internkim-app-crumbs {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    line-height: 20px;
+  }
+
+  .internkim-app-crumbs a,
+  .internkim-app-crumbs span {
+    color: hsl(var(--muted-foreground));
+  }
+
+  .internkim-app-crumbs a {
+    text-decoration: none;
+    transition: color 150ms ease;
+  }
+
+  .internkim-app-crumbs a:hover {
+    color: hsl(var(--foreground));
+  }
+
+  .internkim-app-crumbs strong {
+    min-width: 0;
+    overflow: hidden;
+    color: hsl(var(--foreground));
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .internkim-app-content {
+    min-width: 0;
+  }
+
+  @media (max-width: 639px) {
+    .internkim-app-crumbs a,
+    .internkim-app-crumbs span {
+      display: none;
+    }
+  }
+
   /* iMessage chat bubbles */
   .chat-bubble-msg {
     position: relative;
