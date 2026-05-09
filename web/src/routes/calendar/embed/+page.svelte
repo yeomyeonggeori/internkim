@@ -106,7 +106,7 @@
 			createWeekView({ showWeekends: true, startOfWeek: 1, showAllDay: true }),
 			createMonthView({ showWeekNumbers: false })
 		],
-		defaultView: ViewType.WEEK,
+		defaultView: ViewType.MONTH,
 		initialDate: new Date(),
 		timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
 		switcherMode: 'buttons',
@@ -182,13 +182,20 @@
 			const response = await fetch(`/calendar/api/events?${query}`, { credentials: 'include' });
 			if (!response.ok) throw new Error(await responseErrorMessage(response, text.error));
 			const document = (await response.json()) as CalendarEventsResponse;
-			eventCount = document.events.length;
-			calendar.app.updateConfig({ events: document.events.map(dayFlowEventFromCalendarEvent) });
+			const events = document.events.map(dayFlowEventFromCalendarEvent);
+			eventCount = events.length;
+			replaceCalendarEvents(events);
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.error;
 		} finally {
 			isLoading = false;
 		}
+	}
+
+	function replaceCalendarEvents(events: DayFlowEvent[]) {
+		const eventIDs = calendar.app.getAllEvents().map((event) => event.id);
+		calendar.app.applyEventsChanges({ delete: eventIDs, add: events });
+		calendar.app.triggerRender();
 	}
 
 	async function loadSyncInformation() {
@@ -336,7 +343,7 @@
 
 	function localDateFromISODate(isoDate: string) {
 		const date = new Date(isoDate);
-		return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+		return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 	}
 
 	function dayBeforeLocalISODate(isoDate: string) {
