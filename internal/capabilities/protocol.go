@@ -53,7 +53,7 @@ func DeviceDescriptors() []Descriptor {
 		{Name: "llm.structured", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "embedding.create", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "platform.reply", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false},
-	}, append(append(append(DeviceBrowserDescriptors(), FlowDescriptors()...), CalendarDescriptors()...), SiteAppDescriptors()...)...)
+	}, append(append(append(append(DeviceBrowserDescriptors(), FlowDescriptors()...), CalendarDescriptors()...), MailDescriptors()...), SiteAppDescriptors()...)...)
 }
 
 func FlowDescriptors() []Descriptor {
@@ -68,6 +68,16 @@ func CalendarDescriptors() []Descriptor {
 		{Name: "calendar.event.list", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventListInputSchema(), PolicyResource: "tool:calendar.event.list", SideEffectClass: "read"},
 		{Name: "calendar.event.update", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventUpdateInputSchema(), PolicyResource: "tool:calendar.event.update", SideEffectClass: "workspace_write"},
 		{Name: "calendar.event.delete", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventDeleteInputSchema(), PolicyResource: "tool:calendar.event.delete", SideEffectClass: "destructive", RequiresApproval: true},
+	}
+}
+
+func MailDescriptors() []Descriptor {
+	return []Descriptor{
+		{Name: "mail.message.list", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mailMessageListInputSchema(), PolicyResource: "tool:mail.message.list", SideEffectClass: "read"},
+		{Name: "mail.message.read", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mailMessageReadInputSchema(), PolicyResource: "tool:mail.message.read", SideEffectClass: "read"},
+		{Name: "mail.message.send", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mailMessageSendInputSchema(), PolicyResource: "tool:mail.message.send", SideEffectClass: "external_send", RequiresApproval: true},
+		{Name: "mail.message.move", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mailMessageMoveInputSchema(), PolicyResource: "tool:mail.message.move", SideEffectClass: "workspace_write"},
+		{Name: "mail.message.mark", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mailMessageMarkInputSchema(), PolicyResource: "tool:mail.message.mark", SideEffectClass: "workspace_write"},
 	}
 }
 
@@ -113,6 +123,26 @@ func calendarEventUpdateInputSchema() json.RawMessage {
 
 func calendarEventDeleteInputSchema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{"eventID":{"type":"string"}},"required":["eventID"],"additionalProperties":false}`)
+}
+
+func mailMessageListInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"query":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":100},"cursor":{"type":"string"}},"additionalProperties":false}`)
+}
+
+func mailMessageReadInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"uid":{"type":"string"}},"required":["mailbox","uid"],"additionalProperties":false}`)
+}
+
+func mailMessageSendInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"to":{"type":"array","items":{"type":"string"}},"cc":{"type":"array","items":{"type":"string"}},"bcc":{"type":"array","items":{"type":"string"}},"subject":{"type":"string"},"body":{"type":"string"}},"required":["to","subject","body"],"additionalProperties":false}`)
+}
+
+func mailMessageMoveInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"uid":{"type":"string"},"targetMailbox":{"type":"string"}},"required":["mailbox","uid","targetMailbox"],"additionalProperties":false}`)
+}
+
+func mailMessageMarkInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"uid":{"type":"string"},"seen":{"type":"boolean"},"flagged":{"type":"boolean"}},"required":["mailbox","uid"],"additionalProperties":false}`)
 }
 
 func siteAppCreateInputSchema() json.RawMessage {
@@ -176,6 +206,7 @@ func DefaultToolDescriptors() []Descriptor {
 	descriptors := CompanionToolDescriptors()
 	descriptors = append(descriptors, FlowDescriptors()...)
 	descriptors = append(descriptors, CalendarDescriptors()...)
+	descriptors = append(descriptors, MailDescriptors()...)
 	descriptors = append(descriptors, SiteAppDescriptors()...)
 	return descriptors
 }
