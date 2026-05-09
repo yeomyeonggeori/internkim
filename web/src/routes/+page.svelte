@@ -6,7 +6,6 @@
 	import { Separator } from '$lib/components/ui/separator';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { CopyButton } from '$lib/components/ui/copy-button';
-	import LanguageSelector from '$lib/i18n/language-selector.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
@@ -718,7 +717,6 @@
 				</div>
 			</div>
 			<div class="flex items-center gap-2">
-				<LanguageSelector />
 				<Badge variant="secondary" class="gap-1.5">
 					<ShieldCheckIcon class="size-3.5" />
 					{text.accessProtected}

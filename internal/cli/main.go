@@ -602,7 +602,7 @@ func runDeployToBoard(scriptDir string, boardBinDir string, ssh *sshClient) {
 		}
 		ssh.run("chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills")
 	}
-	ssh.run(`for skill in calendar create-gws-file simple-slides; do
+	ssh.run(`for skill in calendar mail create-gws-file simple-slides; do
   filePath="/root/.blueclaw/workspace/skills/$skill/scripts/gas-call"
   [ -f "$filePath" ] && chmod +x "$filePath"
 done
