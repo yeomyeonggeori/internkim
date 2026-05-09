@@ -5,7 +5,6 @@
 	import * as Card from '$lib/components/ui/card';
 	import { ConfirmDeleteDialog, confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import { FlexRender, createSvelteTable, renderSnippet } from '$lib/components/ui/data-table';
-	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { Input } from '$lib/components/ui/input';
 	import { Meter } from '$lib/components/ui/meter';
 	import * as Select from '$lib/components/ui/select';
@@ -14,9 +13,7 @@
 	import * as Table from '$lib/components/ui/table';
 	import { TagsInput } from '$lib/components/ui/tags-input';
 	import { Textarea } from '$lib/components/ui/textarea';
-	import { ThemeSelector } from '$lib/components/ui/theme-selector';
 	import { cn } from '$lib/utils';
-	import LanguageSelector from '$lib/i18n/language-selector.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
@@ -24,7 +21,6 @@
 	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
 	import ArrowUpDownIcon from '@lucide/svelte/icons/arrow-up-down';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
-	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import SparklesIcon from '@lucide/svelte/icons/sparkles';
@@ -188,6 +184,8 @@
 	const typeFilterOptions = () => [{ value: 'all', label: text.filters.all }, ...typeOptions()];
 	const statusSelectOptions = () => statusOptions().map((status) => ({ value: status, label: statusLabel(status) }));
 	const memberSelectOptions = () => members().map((member) => ({ value: member.id, label: member.name }));
+	const hasFlowData = () => summary !== null;
+	const canEditDefinitions = () => hasFlowData() && definitions().sizes.length > 0;
 
 	const filteredTasks = () => {
 		const normalizedSearch = searchText.trim().toLowerCase();
@@ -216,7 +214,7 @@
 		try {
 			const query = week ? `?week=${encodeURIComponent(week)}` : '';
 			const response = await fetch(`/flow/api/summary${query}`, { credentials: 'include' });
-			if (!response.ok) throw new Error(await response.text());
+			if (!response.ok) throw new Error(await responseErrorMessage(response, text.loadError));
 			summary = (await response.json()) as FlowSummary;
 			syncDefinitionDrafts();
 			if (isMemberTab()) {
@@ -226,6 +224,9 @@
 			if (summary.week.code) replaceWeekQuery(summary.week.code);
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.loadError;
+			summary = null;
+			activeTab = 'report';
+			syncDefinitionDrafts();
 		} finally {
 			isLoading = false;
 		}
@@ -284,7 +285,7 @@
 					weekCode: summary.week.code
 				})
 			});
-			if (!response.ok) throw new Error(await response.text());
+			if (!response.ok) throw new Error(await responseErrorMessage(response, text.task.quickAddError));
 			quickTaskText = '';
 			await loadFlow(currentWeek());
 		} catch (error) {
@@ -325,7 +326,7 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(taskDraft)
 			});
-			if (!response.ok) throw new Error(await response.text());
+			if (!response.ok) throw new Error(await responseErrorMessage(response, text.task.saveError));
 			selectedTask = null;
 			taskDraft = null;
 			await loadFlow(currentWeek());
@@ -351,7 +352,7 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ ...task, status: nextStatus })
 			});
-			if (!response.ok) throw new Error(await response.text());
+			if (!response.ok) throw new Error(await responseErrorMessage(response, text.task.saveError));
 			await loadFlow(currentWeek());
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.task.saveError;
@@ -413,7 +414,7 @@
 	}
 
 	async function saveDefinitions() {
-		if (!summary?.isAdmin) return;
+		if (!summary?.isAdmin || !canEditDefinitions()) return;
 		isSavingDefinitions = true;
 		definitionErrorMessage = '';
 		try {
@@ -434,7 +435,7 @@
 					sizes
 				})
 			});
-			if (!response.ok) throw new Error(await response.text());
+			if (!response.ok) throw new Error(await responseErrorMessage(response, text.definitions.saveError));
 			await loadFlow(currentWeek());
 		} catch (error) {
 			definitionErrorMessage = error instanceof Error ? error.message : text.definitions.saveError;
@@ -627,6 +628,12 @@
 			taskPagination = typeof updater === 'function' ? updater(taskPagination) : updater;
 		}
 	});
+
+	async function responseErrorMessage(response: Response, fallback: string) {
+		const message = (await response.text()).trim();
+		if (!message || message.startsWith('<!doctype html>') || message.startsWith('<html')) return fallback;
+		return message;
+	}
 </script>
 
 <svelte:head>
@@ -659,10 +666,6 @@
 				<Button variant="ghost" size="icon-sm" aria-label={text.refresh} onclick={() => loadFlow(currentWeek())} disabled={isLoading}>
 					<RefreshCwIcon class={isLoading ? 'animate-spin' : ''} />
 				</Button>
-				<Separator orientation="vertical" class="hidden h-6 md:block" />
-				<LanguageSelector />
-				<ThemeSelector variant="ghost" />
-				{@render UserMenu()}
 			</div>
 		</header>
 
@@ -685,7 +688,7 @@
 			{#each members() as member}
 				{@render MemberTabButton(member)}
 			{/each}
-			{@render TabButton('definitions', text.tabs.definitions)}
+			{@render TabButton('definitions', text.tabs.definitions, !canEditDefinitions())}
 			{@render TabButton('members', text.tabs.members)}
 		</div>
 
@@ -697,41 +700,47 @@
 				{@render ReportCard(text.report.typeBreakdown, '', sortedEntries(metrics().typeCounts), maxValue(metrics().typeCounts))}
 			</section>
 		{:else if activeTab === 'definitions'}
-			<section class="grid gap-4">
-				{@render SizeDefinitionCard()}
-				<div class="grid gap-4 lg:grid-cols-2">
-					{@render EditableListCard(
-						text.definitions.category,
-						text.definitions.categoryDescription,
-						categoryDrafts,
-						newCategoryText,
-						updateCategory,
-						confirmRemoveCategory,
-						addCategory,
-						(value: string) => (newCategoryText = value)
-					)}
-					{@render EditableListCard(
-						text.definitions.type,
-						text.definitions.typeDescription,
-						typeDrafts,
-						newTypeText,
-						updateType,
-						confirmRemoveType,
-						addType,
-						(value: string) => (newTypeText = value)
-					)}
-				</div>
-				{#if summary?.isAdmin}
-					<div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
-						<p class="text-sm text-muted-foreground">{definitionErrorMessage || text.definitions.adminOnly}</p>
-						<Button onclick={saveDefinitions} disabled={isSavingDefinitions || typeDrafts.filter((value) => value.trim()).length === 0}>
-							{isSavingDefinitions ? text.definitions.saving : text.definitions.save}
-						</Button>
+			{#if canEditDefinitions()}
+				<section class="grid gap-4">
+					{@render SizeDefinitionCard()}
+					<div class="grid gap-4 lg:grid-cols-2">
+						{@render EditableListCard(
+							text.definitions.category,
+							text.definitions.categoryDescription,
+							categoryDrafts,
+							newCategoryText,
+							updateCategory,
+							confirmRemoveCategory,
+							addCategory,
+							(value: string) => (newCategoryText = value)
+						)}
+						{@render EditableListCard(
+							text.definitions.type,
+							text.definitions.typeDescription,
+							typeDrafts,
+							newTypeText,
+							updateType,
+							confirmRemoveType,
+							addType,
+							(value: string) => (newTypeText = value)
+						)}
 					</div>
-				{:else}
-					<p class="text-sm text-muted-foreground">{text.definitions.adminOnly}</p>
-				{/if}
-			</section>
+					{#if summary?.isAdmin}
+						<div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
+							<p class="text-sm text-muted-foreground">{definitionErrorMessage || text.definitions.adminOnly}</p>
+							<Button onclick={saveDefinitions} disabled={isSavingDefinitions || typeDrafts.filter((value) => value.trim()).length === 0}>
+								{isSavingDefinitions ? text.definitions.saving : text.definitions.save}
+							</Button>
+						</div>
+					{:else}
+						<p class="text-sm text-muted-foreground">{text.definitions.adminOnly}</p>
+					{/if}
+				</section>
+			{:else}
+				<div class="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
+					{errorMessage || text.loadError}
+				</div>
+			{/if}
 		{:else if activeTab === 'members'}
 			{@render MembersCard()}
 		{:else}
@@ -891,16 +900,21 @@
 
 <ConfirmDeleteDialog />
 
-{#snippet TabButton(value: string, label: string)}
+{#snippet TabButton(value: string, label: string, disabled = false)}
 	<button
 		type="button"
 		class={cn(
 			'relative h-9 whitespace-nowrap px-3 text-sm font-medium transition-colors',
 			activeTab === value
 				? 'text-foreground after:absolute after:inset-x-2 after:-bottom-px after:h-0.5 after:bg-primary'
-				: 'text-muted-foreground hover:text-foreground'
+				: 'text-muted-foreground hover:text-foreground',
+			disabled && 'cursor-not-allowed opacity-50 hover:text-muted-foreground'
 		)}
-		onclick={() => (activeTab = value)}
+		{disabled}
+		onclick={() => {
+			if (disabled) return;
+			activeTab = value;
+		}}
 	>
 		{label}
 	</button>
@@ -920,29 +934,6 @@
 		<Identicon seed={member.email || member.name} class="size-5" />
 		{member.name}
 	</button>
-{/snippet}
-
-{#snippet UserMenu()}
-	{@const displayName = (summary?.currentUserName ?? '').trim() || (summary?.currentUserEmail ?? '').split('@')[0]}
-	{@const displayEmail = summary?.currentUserEmail ?? ''}
-	<DropdownMenu.Root>
-		<DropdownMenu.Trigger class="focus-visible:ring-ring rounded-full outline-none focus-visible:ring-2 focus-visible:ring-offset-2">
-			<Identicon seed={displayEmail || displayName} class="size-8" />
-		</DropdownMenu.Trigger>
-		<DropdownMenu.Content align="end" class="min-w-56">
-			<div class="px-2 py-1.5">
-				<div class="text-sm font-medium leading-tight">{displayName || text.user.signedOut}</div>
-				{#if displayEmail}
-					<div class="mt-0.5 truncate text-xs text-muted-foreground">{displayEmail}</div>
-				{/if}
-			</div>
-			<DropdownMenu.Separator />
-			<DropdownMenu.Item onclick={() => (location.href = '/cdn-cgi/access/logout')}>
-				<LogOutIcon class="size-4" />
-				{text.user.logout}
-			</DropdownMenu.Item>
-		</DropdownMenu.Content>
-	</DropdownMenu.Root>
 {/snippet}
 
 {#snippet MetricCard(label: string, value: number, subvalue: string)}
