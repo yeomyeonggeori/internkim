@@ -103,7 +103,7 @@
 	const calendar = useCalendarApp({
 		views: [
 			createDayView({ showAllDay: true, timeFormat: '24h' }),
-			createWeekView({ showWeekends: true, startOfWeek: 1 }),
+			createWeekView({ showWeekends: true, startOfWeek: 1, showAllDay: true }),
 			createMonthView({ showWeekNumbers: false })
 		],
 		defaultView: ViewType.WEEK,

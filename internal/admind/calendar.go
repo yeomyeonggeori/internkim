@@ -54,6 +54,7 @@ type calendarEvent struct {
 }
 
 type calendarEventWriteRequest struct {
+	EventID           string              `json:"eventID"`
 	Title             string              `json:"title"`
 	Description       string              `json:"description"`
 	Location          string              `json:"location"`
@@ -326,6 +327,9 @@ func (service *Service) normalizeCalendarEventWriteRequest(request *http.Request
 		return calendarEvent{}, errors.New("endISO must be after startISO")
 	}
 	id := strings.TrimSpace(eventID)
+	if id == "" {
+		id = strings.TrimSpace(payload.EventID)
+	}
 	if id == "" {
 		id = randomHex(16)
 	}
