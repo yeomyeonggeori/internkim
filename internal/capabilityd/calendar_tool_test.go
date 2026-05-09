@@ -47,9 +47,23 @@ func TestCalendarEventAddPostsToAdmind(t *testing.T) {
 	if payload["title"] != "Demo" || payload["location"] != "Office" {
 		t.Fatalf("payload = %#v", payload)
 	}
+	if payload["eventID"] == "" {
+		t.Fatalf("eventID was not generated: %#v", payload)
+	}
 	people, _ := payload["people"].([]any)
 	if len(people) != 2 || people[0] != "샘플" || people[1] != "수민" || payload["reminderLeadHours"] != float64(48) {
 		t.Fatalf("calendar metadata payload = %#v", payload)
+	}
+}
+
+func TestCalendarEventAddGeneratesStableEventID(t *testing.T) {
+	first, firstError := decodeCalendarEventWriteInput([]byte(`{"title":"휴가","startISO":"2026-05-10T00:00:00Z","endISO":"2026-05-13T00:00:00Z","isAllDay":true}`), false)
+	second, secondError := decodeCalendarEventWriteInput([]byte(`{"title":"휴가","startISO":"2026-05-10T00:00:00Z","endISO":"2026-05-13T00:00:00Z","isAllDay":true}`), false)
+	if firstError != nil || secondError != nil {
+		t.Fatalf("decode errors: %v %v", firstError, secondError)
+	}
+	if first.EventID == "" || first.EventID != second.EventID {
+		t.Fatalf("event IDs = %q %q", first.EventID, second.EventID)
 	}
 }
 

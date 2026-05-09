@@ -3,6 +3,8 @@ package capabilityd
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -161,6 +163,9 @@ func decodeCalendarEventWriteInput(document json.RawMessage, needsEventID bool) 
 	if input.StartISO == "" || input.EndISO == "" {
 		return calendarEventWriteInput{}, fmt.Errorf("startISO and endISO are required")
 	}
+	if input.EventID == "" {
+		input.EventID = stableCalendarToolEventID(input)
+	}
 	return input, nil
 }
 
@@ -247,6 +252,7 @@ func decodeCalendarEventDeleteInput(document json.RawMessage) (calendarEventDele
 
 func calendarEventWritePayload(input calendarEventWriteInput) map[string]any {
 	return map[string]any{
+		"eventID":           input.EventID,
 		"title":             input.Title,
 		"description":       input.Description,
 		"location":          input.Location,
@@ -258,6 +264,21 @@ func calendarEventWritePayload(input calendarEventWriteInput) map[string]any {
 		"people":            []string(input.People),
 		"reminderLeadHours": input.ReminderLeadHours,
 	}
+}
+
+func stableCalendarToolEventID(input calendarEventWriteInput) string {
+	document := strings.Join([]string{
+		input.Title,
+		input.Description,
+		input.Location,
+		input.StartISO,
+		input.EndISO,
+		input.TimeZone,
+		fmt.Sprintf("%t", input.IsAllDay),
+		strings.Join([]string(input.People), ","),
+	}, "\x00")
+	sum := sha256.Sum256([]byte(document))
+	return "tool-" + hex.EncodeToString(sum[:])[:32]
 }
 
 func calendarEventListPath(input calendarEventListInput) string {
