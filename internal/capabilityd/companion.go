@@ -86,6 +86,9 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 	if isCalendarTool(request.ToolName) {
 		return service.invokeCalendarTool(ctx, request)
 	}
+	if isMailTool(request.ToolName) {
+		return service.invokeMailTool(ctx, request)
+	}
 	if isSiteAppTool(request.ToolName) {
 		return service.invokeSiteAppTool(ctx, request)
 	}
