@@ -35,7 +35,7 @@ Create prototypes for non-developers to validate ideas quickly. Do not present t
 - Use React + Vite + TypeScript for the frontend.
 - Use PocketBase for local prototype data, auth, files, realtime, and migrations.
 - Do not use Next.js, SvelteKit, arbitrary Node servers, cloud databases, hosted backends, or paid APIs for v1 prototypes.
-- `site.app.create` prepares an editable scaffold, not a finished website.
+- `site.app.create` reserves an editable source workspace, not a finished website.
 - Use the returned `sourceWorkspacePath` as the canonical workspace path for all follow-up source writes.
 
 ## Workflow
@@ -44,7 +44,7 @@ Create prototypes for non-developers to validate ideas quickly. Do not present t
 2. Pass `prompt`, `designBrief`, or `prototypeScope` when the user gives enough detail.
 3. After `site.app.create` succeeds, call `site.app.status` for the same `siteID` and use `sourceWorkspacePath`.
 4. Write `DESIGN.md` into the site workspace before writing app source.
-5. Write or update the React, CSS, and optional PocketBase files according to `DESIGN.md`.
+5. Create missing `app/package.json`, `app/index.html`, `app/src/main.tsx`, `app/src/App.tsx`, and CSS files, or update the existing source, according to `DESIGN.md`.
 6. Run `bun install && bun run build` from `<sourceWorkspacePath>/app`.
 7. Call `site.app.publish` with `siteID` and a concise `message`.
 8. Reply in Mattermost with the public URL, a short change summary, how to try the main workflow, and any test login credentials.
@@ -58,7 +58,7 @@ For follow-up feedback in the same conversation, call `site.app.status` with an 
 Use this command pattern after source files are written:
 
 ```bash
-cd /workspace/sites/<siteID>/app
+cd <sourceWorkspacePath>/app
 bun install
 bun run build
 ```
