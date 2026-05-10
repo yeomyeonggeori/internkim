@@ -74,17 +74,42 @@ func TestPlatformDMSendScheduledRunSendsMattermostDM(t *testing.T) {
 }
 
 func TestPlatformDMSendImmediateRunRequiresApprovalContext(t *testing.T) {
-	service := Service{}
+	tokenPath := writePlatformDMTestFile(t, "bot-token")
+	service := platformDMTestService(t, tokenPath, `[{"id":"user-dongha","email":"dongha@example.com","username":"dongha"}]`)
 
 	response, errorValue := service.invokePlatformDMSend(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "platform.dm.send",
 		Input:    []byte(`{"recipientHint":"동하","message":"테스트"}`),
+		Context: capabilities.ToolInvokeContext{
+			RequesterPersonID:       "person-other",
+			RequesterPlatformUserID: "user-other",
+		},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if response.Status != "denied" || !response.IsError {
 		t.Fatalf("expected denied response, got %+v", response)
+	}
+}
+
+func TestPlatformDMSendImmediateSelfDoesNotRequireApproval(t *testing.T) {
+	tokenPath := writePlatformDMTestFile(t, "bot-token")
+	service := platformDMTestService(t, tokenPath, `[{"id":"user-dongha","email":"dongha@example.com","username":"dongha","nickname":"동하"}]`)
+
+	response, errorValue := service.invokePlatformDMSend(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.dm.send",
+		Input:    []byte(`{"recipientHint":"동하","message":"본인 확인"}`),
+		Context: capabilities.ToolInvokeContext{
+			RequesterPersonID:       "person-dongha",
+			RequesterPlatformUserID: "user-dongha",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != "ok" || response.IsError {
+		t.Fatalf("expected self DM to send without approval, got %+v", response)
 	}
 }
 
@@ -104,6 +129,25 @@ func TestPlatformDMSendApprovedContinuationSendsMattermostDM(t *testing.T) {
 	}
 	if response.Status != "ok" || response.IsError {
 		t.Fatalf("expected approved continuation to send, got %+v", response)
+	}
+}
+
+func TestPlatformDMSendMatchesMattermostNickname(t *testing.T) {
+	tokenPath := writePlatformDMTestFile(t, "bot-token")
+	service := platformDMTestService(t, tokenPath, `[{"id":"user-dongha","email":"dongha@example.com","username":"member-42","nickname":"동하"}]`)
+
+	response, errorValue := service.invokePlatformDMSend(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.dm.send",
+		Input:    []byte(`{"recipientHint":"동하","message":"테스트"}`),
+		Context: capabilities.ToolInvokeContext{
+			IsScheduledRun: true,
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != "ok" || response.IsError {
+		t.Fatalf("expected Mattermost nickname match, got %+v", response)
 	}
 }
 
