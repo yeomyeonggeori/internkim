@@ -2277,6 +2277,35 @@ func TestMattermostConnectCommandCreatesEphemeralOwnerPairing(t *testing.T) {
 	}
 }
 
+func TestCORSHeaderIsLimitedToInternKimPaths(t *testing.T) {
+	service := NewService(Configuration{})
+	handler := service.withCORS(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		responseWriter.Header().Set("Access-Control-Allow-Origin", "https://mattermost.example")
+		responseWriter.WriteHeader(http.StatusOK)
+	}))
+	request := httptest.NewRequest(http.MethodGet, "/api/v4/system/ping", nil)
+	request.Header.Set("Origin", "https://device.intern.kim")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if origins := response.Result().Header.Values("Access-Control-Allow-Origin"); !reflect.DeepEqual(origins, []string{"https://mattermost.example"}) {
+		t.Fatalf("unexpected proxy CORS origins: %#v", origins)
+	}
+}
+
+func TestCORSHeaderIsAddedForInternKimPaths(t *testing.T) {
+	service := NewService(Configuration{})
+	handler := service.withCORS(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		responseWriter.WriteHeader(http.StatusOK)
+	}))
+	request := httptest.NewRequest(http.MethodGet, "/flow/api/summary", nil)
+	request.Header.Set("Origin", "https://device.intern.kim")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Header().Get("Access-Control-Allow-Origin") != "https://device.intern.kim" {
+		t.Fatalf("unexpected InternKim CORS origin: %s", response.Header().Get("Access-Control-Allow-Origin"))
+	}
+}
+
 func TestMattermostConnectCommandProvisioningCreatesCommandToken(t *testing.T) {
 	service := NewService(Configuration{
 		StateDirectory:    t.TempDir(),
@@ -2327,6 +2356,9 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 		case request.URL.String() == "http://mattermost.local/api/v4/users/username/admin":
 			return jsonResponse(http.StatusOK, `{"id":"admin","email":"admin@localhost","username":"admin"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/admin/roles" && request.Method == http.MethodPut:
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
+			assertMattermostRuntimeSettingsPatch(t, request, "https://device-1.intern.kim")
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim":
 			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
@@ -3390,6 +3422,7 @@ func assertFirstAdminPasswordPolicyPatch(t *testing.T, request *http.Request) {
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	assertMattermostManagedResourcePathPatch(t, payload)
 	passwordSettings := payload["PasswordSettings"]
 	if passwordSettings["MinimumLength"] != float64(5) {
 		t.Fatalf("minimum password length = %#v", passwordSettings["MinimumLength"])
@@ -3407,9 +3440,37 @@ func assertMattermostNicknameDisplayPatch(t *testing.T, request *http.Request) {
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	assertMattermostManagedResourcePathPatch(t, payload)
 	teamSettings := payload["TeamSettings"]
 	if teamSettings["TeammateNameDisplay"] != "nickname_full_name" {
 		t.Fatalf("teammate name display = %#v", teamSettings["TeammateNameDisplay"])
+	}
+}
+
+func assertMattermostManagedResourcePathPatch(t *testing.T, payload map[string]map[string]any) {
+	t.Helper()
+	serviceSettings := payload["ServiceSettings"]
+	if serviceSettings["ManagedResourcePaths"] != "admin,calendar,flow,mail" {
+		t.Fatalf("managed resource paths = %#v", serviceSettings["ManagedResourcePaths"])
+	}
+}
+
+func assertMattermostRuntimeSettingsPatch(t *testing.T, request *http.Request, siteURL string) {
+	t.Helper()
+	var payload map[string]map[string]any
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	assertMattermostManagedResourcePathPatch(t, payload)
+	serviceSettings := payload["ServiceSettings"]
+	if serviceSettings["SiteURL"] != siteURL {
+		t.Fatalf("site url = %#v", serviceSettings["SiteURL"])
+	}
+	if serviceSettings["AllowCorsFrom"] != siteURL {
+		t.Fatalf("allow cors from = %#v", serviceSettings["AllowCorsFrom"])
+	}
+	if serviceSettings["CorsAllowCredentials"] != true {
+		t.Fatalf("cors allow credentials = %#v", serviceSettings["CorsAllowCredentials"])
 	}
 }
 

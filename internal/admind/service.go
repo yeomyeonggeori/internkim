@@ -289,18 +289,33 @@ func (service *Service) router() http.Handler {
 func (service *Service) withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		origin := request.Header.Get("Origin")
-		if isAllowedOrigin(origin) {
+		if isInternKimCORSPath(request.URL.Path) && isAllowedOrigin(origin) {
 			responseWriter.Header().Set("Access-Control-Allow-Origin", origin)
 			responseWriter.Header().Set("Access-Control-Allow-Credentials", "true")
 			responseWriter.Header().Set("Access-Control-Allow-Headers", "Content-Type, CF-Access-Authenticated-User-Email, X-InternKim-Companion-ID, X-InternKim-Companion-Token")
 			responseWriter.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS,PROPFIND,REPORT")
-		}
-		if request.Method == http.MethodOptions {
-			responseWriter.WriteHeader(http.StatusNoContent)
-			return
+			if request.Method == http.MethodOptions {
+				responseWriter.WriteHeader(http.StatusNoContent)
+				return
+			}
 		}
 		next.ServeHTTP(responseWriter, request)
 	})
+}
+
+func isInternKimCORSPath(path string) bool {
+	return path == "/admin" ||
+		path == "/flow" ||
+		path == "/calendar" ||
+		path == "/mail" ||
+		path == "/logo.svg" ||
+		path == "/.well-known/caldav" ||
+		strings.HasPrefix(path, "/admin/") ||
+		strings.HasPrefix(path, "/flow/") ||
+		strings.HasPrefix(path, "/calendar/") ||
+		strings.HasPrefix(path, "/mail/") ||
+		strings.HasPrefix(path, "/_app/") ||
+		strings.HasPrefix(path, "/_internkim/")
 }
 
 func (service *Service) mattermostProxy() http.Handler {
