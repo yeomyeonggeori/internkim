@@ -388,6 +388,22 @@ func TestMattermostSetupPatchesSiteURL(t *testing.T) {
 	}
 }
 
+func TestMattermostSetupPatchesCorsForSiteURL(t *testing.T) {
+	configurationPatch := mattermostSetupConfigurationPatch("https://device.example")
+	serviceSettings, ok := configurationPatch["ServiceSettings"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected ServiceSettings in Mattermost setup patch, got %+v", configurationPatch)
+	}
+	allowedOrigin, ok := serviceSettings["AllowCorsFrom"].(string)
+	if !ok || allowedOrigin != "https://device.example" {
+		t.Fatalf("expected Mattermost setup to patch CORS origin, got %+v", serviceSettings)
+	}
+	allowCredentials, ok := serviceSettings["CorsAllowCredentials"].(bool)
+	if !ok || !allowCredentials {
+		t.Fatalf("expected Mattermost setup to allow CORS credentials, got %+v", serviceSettings)
+	}
+}
+
 func TestFindMattermostSetupConnectCommand(t *testing.T) {
 	mmAPI := func(method string, path string, body []byte, token string) (int, []byte) {
 		if method != "GET" || path != "/api/v4/commands?team_id=team-1" || token != "admin-token" {

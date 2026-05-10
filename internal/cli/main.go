@@ -1194,6 +1194,8 @@ document.setdefault("TeamSettings", {})
 document["SqlSettings"]["DriverName"] = "postgres"
 document["SqlSettings"]["DataSource"] = "postgres://mmuser:%%s@localhost/mattermost?sslmode=disable&connect_timeout=10" %% os.environ["MATTERMOST_DB_PASS"]
 document["ServiceSettings"]["SiteURL"] = os.environ["MATTERMOST_SITE_URL"]
+document["ServiceSettings"]["AllowCorsFrom"] = os.environ["MATTERMOST_SITE_URL"]
+document["ServiceSettings"]["CorsAllowCredentials"] = True
 document["ServiceSettings"]["ManagedResourcePaths"] = "admin,calendar,flow,mail"
 document["TeamSettings"]["TeammateNameDisplay"] = "nickname_full_name"
 path.write_text(json.dumps(document, indent=2, sort_keys=True))
@@ -1708,6 +1710,8 @@ func mattermostSetupConfigurationPatch(siteURL string) map[string]any {
 	}
 	if trimmedSiteURL := strings.TrimSpace(siteURL); trimmedSiteURL != "" {
 		serviceSettings["SiteURL"] = trimmedSiteURL
+		serviceSettings["AllowCorsFrom"] = trimmedSiteURL
+		serviceSettings["CorsAllowCredentials"] = true
 	}
 	return map[string]any{
 		"ServiceSettings": serviceSettings,
