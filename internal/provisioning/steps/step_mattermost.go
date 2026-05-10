@@ -21,11 +21,13 @@ var StepMattermost = Step{
 		if context.Callbacks.LoadState != nil {
 			expectedMattermostURL = context.Callbacks.LoadState("device_url")
 		}
+		mattermostManagedResourcesConfigured := trimmedRun(context, mattermostManagedResourceCheckCommand()) == "ok"
 		mattermostActive := trimmedRun(context, "systemctl is-active mattermost 2>/dev/null") == "active"
 		mattermostResponding := trimmedRun(context, `curl -sf http://localhost:8065/api/v4/system/ping 2>/dev/null | grep -q '"status":"OK"' && echo ok || true`) == "ok"
 		return mattermostBinaryPresent &&
 			mattermostURL != "" &&
 			(expectedMattermostURL == "" || mattermostURL == expectedMattermostURL) &&
+			mattermostManagedResourcesConfigured &&
 			mattermostActive &&
 			mattermostResponding
 	},
@@ -41,4 +43,18 @@ var StepMattermost = Step{
 		}
 		return nil
 	},
+}
+
+func mattermostManagedResourceCheckCommand() string {
+	return `python3 - <<'PY'
+import json
+from pathlib import Path
+
+path = Path("/opt/mattermost/config/config.json")
+document = json.loads(path.read_text())
+configured_value = document.get("ServiceSettings", {}).get("ManagedResourcePaths", "")
+configured_paths = {part.strip() for part in configured_value.split(",") if part.strip()}
+required_paths = {"admin", "calendar", "flow", "mail"}
+print("ok" if required_paths.issubset(configured_paths) else "missing")
+PY`
 }
