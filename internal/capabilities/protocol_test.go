@@ -79,6 +79,14 @@ func TestFlowDescriptorMatchesQuickTaskInput(t *testing.T) {
 	assertSchemaOmitsProperties(t, schema, "title", "description", "assignee", "dueDate")
 }
 
+func TestPlatformDMDescriptorRequiresRecipientAndMessage(t *testing.T) {
+	schema := descriptorSchema(t, PlatformMessageDescriptors(), "platform.dm.send")
+
+	assertSchemaHasProperties(t, schema, "recipientHint", "message", "platform", "reason")
+	assertSchemaRequires(t, schema, "recipientHint", "message")
+	assertDescriptorApproval(t, PlatformMessageDescriptors(), "platform.dm.send", true)
+}
+
 func TestSiteAppDescriptorsUseRuntimeInputNames(t *testing.T) {
 	createSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.create")
 	publishSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.publish")
@@ -95,6 +103,7 @@ func TestSiteAppDescriptorsUseRuntimeInputNames(t *testing.T) {
 }
 
 func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
+	assertDescriptorApproval(t, PlatformMessageDescriptors(), "platform.dm.send", true)
 	assertDescriptorApproval(t, CalendarDescriptors(), "calendar.event.add", false)
 	assertDescriptorApproval(t, CalendarDescriptors(), "calendar.event.delete", true)
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site.app.create", false)
@@ -136,6 +145,7 @@ func TestGoogleWorkspaceDescriptorsMatchSkillInputs(t *testing.T) {
 func TestCapabilityDescriptorSchemasAreCanonicalObjects(t *testing.T) {
 	descriptorGroups := [][]Descriptor{
 		CompanionToolDescriptors(),
+		PlatformMessageDescriptors(),
 		FlowDescriptors(),
 		CalendarDescriptors(),
 		SiteAppDescriptors(),
