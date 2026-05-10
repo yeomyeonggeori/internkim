@@ -19,19 +19,21 @@ Creating a schedule is bounded work. Do not reject these requests as unsupported
 
 Use `executionMode: "message"` when the scheduled run should send a fixed message, reminder, or quoted text to the current conversation. In this mode, `prompt` must be the exact user-visible message body to deliver later. Do not include command verbs such as "send", "tell", "remind", "알려줘", "말해줘", or "보내기" unless those words are part of the message itself.
 
-Use `executionMode: "agent"` only when the scheduled run must do work at run time, such as research, checking state, summarizing, using tools, or deciding what to say based on future information.
+Use `executionMode: "agent"` when the scheduled run must do work at run time, such as research, checking state, summarizing, using tools, deciding what to say based on future information, or sending a direct message to a named person.
 
-`schedule.create` delivers to the current reply target automatically. Do not try to look up contacts, set a different recipient, request approval, or claim direct messaging tools are unavailable for fixed reminders. If the user explicitly asks to send to a different person or channel that is not the current conversation, say that scheduled delivery can target the current conversation only unless a platform tool for that destination is available.
+`schedule.create` with `executionMode: "message"` delivers to the current reply target automatically. Do not try to look up contacts, set a different recipient, request approval, or claim direct messaging tools are unavailable for fixed reminders to the current conversation.
+
+If the user asks to send a scheduled message to a named approved person, use `executionMode: "agent"` and make `prompt` an explicit future instruction such as `샘플 님에게 "테스트"라고 DM으로 보내세요.` The scheduled agent run can use `platform.dm.send` later without asking for approval again.
 
 ## Workflow
 
-1. Decide whether the scheduled run is a fixed message (`message`) or future work (`agent`).
+1. Decide whether the scheduled run is a fixed message to the current conversation (`message`) or future work / named-person DM (`agent`).
 2. Choose `kind: interval` for simple repeats like every minute or every hour.
 3. Choose `kind: cron` for calendar-like schedules such as every day at 9 AM or every Monday.
 4. Set `timeZone` from user context when known. Use `Asia/Seoul` for Korean-language local-time requests when no better timezone is available.
 5. Set `maxRunCount` when the user asks for a finite count such as 10 times, 10번, or repeat N times.
-6. For fixed messages, set `executionMode: "message"` and make `prompt` the exact message to deliver.
-7. For future work, set `executionMode: "agent"` and make `prompt` the task instruction.
+6. For fixed messages to the current conversation, set `executionMode: "message"` and make `prompt` the exact message to deliver.
+7. For future work or named-person DM, set `executionMode: "agent"` and make `prompt` the task instruction.
 8. Call `schedule.create`.
 9. Reply with what was scheduled and when it will run.
 
@@ -67,6 +69,18 @@ For "매일 오전 9시에 업계 뉴스를 조사해서 알려줘" use:
   "executionMode": "agent",
   "kind": "cron",
   "cronExpression": "0 9 * * *",
+  "timeZone": "Asia/Seoul"
+}
+```
+
+For "1분 뒤 샘플에게 테스트라고 보내줘" use:
+
+```json
+{
+  "prompt": "샘플 님에게 \"테스트\"라고 DM으로 보내세요.",
+  "executionMode": "agent",
+  "kind": "once",
+  "runAt": "<RFC3339 timestamp one minute from now>",
   "timeZone": "Asia/Seoul"
 }
 ```

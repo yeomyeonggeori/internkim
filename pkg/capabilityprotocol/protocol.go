@@ -66,6 +66,9 @@ type ToolInvokeContext struct {
 	RequesterEmail          string `json:"requesterEmail,omitempty"`
 	RequesterName           string `json:"requesterName,omitempty"`
 	RequesterPlatformUserID string `json:"requesterPlatformUserID,omitempty"`
+	TaskSource              string `json:"taskSource,omitempty"`
+	IsScheduledRun          bool   `json:"isScheduledRun,omitempty"`
+	IsApprovalContinuation  bool   `json:"isApprovalContinuation,omitempty"`
 	ConversationID          string `json:"conversationID,omitempty"`
 	ConversationType        string `json:"conversationType,omitempty"`
 	ChannelID               string `json:"channelID,omitempty"`
