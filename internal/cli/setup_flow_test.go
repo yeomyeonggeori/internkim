@@ -350,7 +350,7 @@ func TestMattermostSetupConnectCommandPayloadTargetsAdmind(t *testing.T) {
 }
 
 func TestMattermostSetupAllowsLocalSlashCommandCallback(t *testing.T) {
-	configurationPatch := mattermostSetupConfigurationPatch()
+	configurationPatch := mattermostSetupConfigurationPatch("https://device.example")
 	serviceSettings, ok := configurationPatch["ServiceSettings"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected ServiceSettings in Mattermost setup patch, got %+v", configurationPatch)
@@ -358,6 +358,33 @@ func TestMattermostSetupAllowsLocalSlashCommandCallback(t *testing.T) {
 	allowedConnections, ok := serviceSettings["AllowedUntrustedInternalConnections"].(string)
 	if !ok || !strings.Contains(allowedConnections, "127.0.0.1") {
 		t.Fatalf("expected Mattermost setup to allow local slash command callback, got %+v", serviceSettings)
+	}
+}
+
+func TestMattermostSetupRegistersManagedResourcePaths(t *testing.T) {
+	configurationPatch := mattermostSetupConfigurationPatch("https://device.example")
+	serviceSettings, ok := configurationPatch["ServiceSettings"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected ServiceSettings in Mattermost setup patch, got %+v", configurationPatch)
+	}
+	resourcePaths, ok := serviceSettings["ManagedResourcePaths"].(string)
+	if !ok {
+		t.Fatalf("expected Mattermost managed resource paths, got %+v", serviceSettings)
+	}
+	if resourcePaths != "admin,calendar,flow,mail" {
+		t.Fatalf("unexpected Mattermost managed resource paths: %+v", resourcePaths)
+	}
+}
+
+func TestMattermostSetupPatchesSiteURL(t *testing.T) {
+	configurationPatch := mattermostSetupConfigurationPatch("https://device.example")
+	serviceSettings, ok := configurationPatch["ServiceSettings"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected ServiceSettings in Mattermost setup patch, got %+v", configurationPatch)
+	}
+	siteURL, ok := serviceSettings["SiteURL"].(string)
+	if !ok || siteURL != "https://device.example" {
+		t.Fatalf("expected Mattermost setup to patch SiteURL, got %+v", serviceSettings)
 	}
 }
 
