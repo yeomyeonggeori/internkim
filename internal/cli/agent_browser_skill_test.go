@@ -54,7 +54,7 @@ func TestLoadWorkspaceAgentsMarkdownUsesBoardAsset(t *testing.T) {
 		t.Fatalf("expected board agents markdown: %v", errorValue)
 	}
 
-	for _, fragment := range []string{"## Browser Automation", "`agent-browser snapshot -i`", "## File Sharing", "## Memory", "## Honesty about Tool Failures"} {
+	for _, fragment := range []string{"## Browser Automation", "`agent-browser snapshot -i`", "## File Sharing", "## Memory", "## Approval Handling", "## Honesty about Tool Failures"} {
 		if !strings.Contains(agentsMarkdown, fragment) {
 			t.Fatalf("expected board agents markdown to include %q", fragment)
 		}
