@@ -104,6 +104,16 @@ func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
 	assertDescriptorApproval(t, GoogleWorkspaceDescriptors(), "google.gmail.send", true)
 }
 
+func TestSiteAppPublishDescriptorDoesNotLookLikeGenericExternalPublish(t *testing.T) {
+	descriptor := descriptorForTool(t, SiteAppDescriptors(), "site.app.publish")
+	if descriptor.SideEffectClass != "site_publish" {
+		t.Fatalf("site.app.publish side effect class = %q", descriptor.SideEffectClass)
+	}
+	if descriptor.RequiresApproval {
+		t.Fatalf("site.app.publish should not require approval: %+v", descriptor)
+	}
+}
+
 func TestGoogleWorkspaceDescriptorsMatchSkillInputs(t *testing.T) {
 	descriptors := GoogleWorkspaceDescriptors()
 	docsSchema := descriptorSchema(t, descriptors, "google.docs.create")
@@ -165,14 +175,18 @@ func assertDescriptorApproval(t *testing.T, descriptors []Descriptor, toolName s
 
 func descriptorSchema(t *testing.T, descriptors []Descriptor, toolName string) schemaDocument {
 	t.Helper()
+	return decodeSchema(t, toolName, descriptorForTool(t, descriptors, toolName).InputSchema)
+}
+
+func descriptorForTool(t *testing.T, descriptors []Descriptor, toolName string) Descriptor {
+	t.Helper()
 	for _, descriptor := range descriptors {
-		if descriptor.Name != toolName {
-			continue
+		if descriptor.Name == toolName {
+			return descriptor
 		}
-		return decodeSchema(t, toolName, descriptor.InputSchema)
 	}
 	t.Fatalf("descriptor %s not found", toolName)
-	return schemaDocument{}
+	return Descriptor{}
 }
 
 func decodeSchema(t *testing.T, toolName string, document json.RawMessage) schemaDocument {
