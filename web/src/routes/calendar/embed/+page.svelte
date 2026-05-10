@@ -16,7 +16,7 @@
 		useCalendarApp,
 		ViewType
 	} from '@dayflow/svelte';
-	import { createEvent, temporalToDate, type Event as DayFlowEvent } from '@dayflow/core';
+	import { createEvent, recalculateEventDays, temporalToDate, type Event as DayFlowEvent } from '@dayflow/core';
 	import { createDragPlugin } from '@dayflow/plugin-drag';
 	import { createSidebarPlugin } from '@dayflow/plugin-sidebar';
 	import { onMount } from 'svelte';
@@ -124,6 +124,7 @@
 		],
 		defaultCalendar: 'internkim',
 		theme: { mode: 'auto' },
+		allDaySortComparator: compareCalendarEventsForDisplay,
 		plugins: [
 			createSidebarPlugin({
 				width: 280,
@@ -147,6 +148,7 @@
 	});
 
 	onMount(() => {
+		calendar.changeView(ViewType.MONTH);
 		loadSyncInformation();
 		if (!visibleStartDate || !visibleEndDate) {
 			const today = new Date();
@@ -184,7 +186,7 @@
 			const document = (await response.json()) as CalendarEventsResponse;
 			const events = document.events.map(dayFlowEventFromCalendarEvent);
 			eventCount = events.length;
-			replaceCalendarEvents(events);
+			replaceCalendarEvents(events, startDate);
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.error;
 		} finally {
@@ -192,10 +194,62 @@
 		}
 	}
 
-	function replaceCalendarEvents(events: DayFlowEvent[]) {
+	function replaceCalendarEvents(events: DayFlowEvent[], visibleRangeStartDate: Date) {
 		const eventIDs = calendar.app.getAllEvents().map((event) => event.id);
 		calendar.app.applyEventsChanges({ delete: eventIDs, add: events });
+		calendar.app.state.events = visibleCalendarEvents(events, visibleRangeStartDate);
 		calendar.app.triggerRender();
+	}
+
+	function visibleCalendarEvents(events: DayFlowEvent[], visibleRangeStartDate: Date) {
+		if (calendar.app.state.currentView === ViewType.MONTH) return events.map(monthDisplayEventFromEvent);
+		return recalculateEventDays(events, visibleRangeStartDate);
+	}
+
+	function monthDisplayEventFromEvent(event: DayFlowEvent) {
+		if (event.allDay) return event;
+		const startDate = temporalToDate(event.start);
+		return createEvent({
+			id: monthDisplayEventID(event.id),
+			title: `${timeTextFromDate(startDate)} ${event.title}`.trim(),
+			description: event.description,
+			start: new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()),
+			end: new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()),
+			allDay: true,
+			calendarId: event.calendarId,
+			meta: {
+				...event.meta,
+				monthDisplayOnly: true,
+				sourceEventID: event.id
+			}
+		});
+	}
+
+	function monthDisplayEventID(eventID: string) {
+		return `month-display:${eventID}`;
+	}
+
+	function isMonthDisplayEvent(event: DayFlowEvent) {
+		return event.meta?.monthDisplayOnly === true || isMonthDisplayEventID(event.id);
+	}
+
+	function isMonthDisplayEventID(eventID: string) {
+		return eventID.startsWith('month-display:');
+	}
+
+	function timeTextFromDate(date: Date) {
+		return new Intl.DateTimeFormat(undefined, {
+			hour: '2-digit',
+			minute: '2-digit',
+			hour12: false
+		}).format(date);
+	}
+
+	function compareCalendarEventsForDisplay(leftEvent: DayFlowEvent, rightEvent: DayFlowEvent) {
+		const leftPriority = isMonthDisplayEvent(leftEvent) ? 0 : 1;
+		const rightPriority = isMonthDisplayEvent(rightEvent) ? 0 : 1;
+		if (leftPriority !== rightPriority) return leftPriority - rightPriority;
+		return leftEvent.title.localeCompare(rightEvent.title);
 	}
 
 	async function loadSyncInformation() {
@@ -231,10 +285,12 @@
 	}
 
 	async function saveCreatedEvent(event: DayFlowEvent) {
+		if (isMonthDisplayEvent(event)) return;
 		await persistEvent('/calendar/api/events', 'POST', event);
 	}
 
 	async function saveUpdatedEvent(event: DayFlowEvent) {
+		if (isMonthDisplayEvent(event)) return;
 		await persistEvent(`/calendar/api/events/${encodeURIComponent(event.id)}`, 'PUT', event);
 	}
 
@@ -261,6 +317,7 @@
 	}
 
 	async function deleteEvent(eventID: string) {
+		if (isMonthDisplayEventID(eventID)) return;
 		isSaving = true;
 		errorMessage = '';
 		try {
