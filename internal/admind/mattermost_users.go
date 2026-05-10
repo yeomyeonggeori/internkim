@@ -246,6 +246,9 @@ func (service *Service) ensureMattermostProvisionerDefaults(ctx context.Context)
 	if errorValue != nil {
 		return errorValue
 	}
+	if errorValue := service.ensureMattermostRuntimeSettings(ctx, adminToken); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := service.ensureMattermostMembership(ctx, adminToken, adminUser.ID); errorValue != nil {
 		return errorValue
 	}
@@ -426,6 +429,7 @@ func (service *Service) ensureMattermostPasswordPolicyAllows(ctx context.Context
 		minimumLength = 5
 	}
 	body := map[string]any{
+		"ServiceSettings": service.mattermostServiceSettingsPatch(),
 		"PasswordSettings": map[string]any{
 			"MinimumLength": minimumLength,
 			"Lowercase":     false,
@@ -442,11 +446,34 @@ func (service *Service) ensureMattermostPasswordPolicyAllows(ctx context.Context
 
 func (service *Service) ensureMattermostNicknameDisplay(ctx context.Context, token string) error {
 	body := map[string]any{
+		"ServiceSettings": service.mattermostServiceSettingsPatch(),
 		"TeamSettings": map[string]any{
 			"TeammateNameDisplay": mattermostTeammateNameDisplay,
 		},
 	}
 	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/config/patch", token, body, nil)
+}
+
+func (service *Service) ensureMattermostRuntimeSettings(ctx context.Context, token string) error {
+	body := map[string]any{
+		"ServiceSettings": service.mattermostServiceSettingsPatch(),
+		"TeamSettings": map[string]any{
+			"TeammateNameDisplay": mattermostTeammateNameDisplay,
+		},
+	}
+	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/config/patch", token, body, nil)
+}
+
+func (service *Service) mattermostServiceSettingsPatch() map[string]any {
+	settings := map[string]any{
+		"ManagedResourcePaths": "admin,calendar,flow,mail",
+	}
+	if siteURL := strings.TrimRight(strings.TrimSpace(service.mattermostFlowBaseURL()), "/"); siteURL != "" {
+		settings["SiteURL"] = siteURL
+		settings["AllowCorsFrom"] = siteURL
+		settings["CorsAllowCredentials"] = true
+	}
+	return settings
 }
 
 func (service *Service) ensureMattermostMembership(ctx context.Context, token string, userID string) error {
