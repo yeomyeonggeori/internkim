@@ -12,7 +12,7 @@ Intern Kim의 기능을 늘릴 때 기존 설계를 망치지 않기 위한 skil
 4. Companion은 사용자 로컬 브라우저, 파일, 입력, 승인을 담당한다.
 5. Graphiti는 기억 저장과 검색을 담당한다.
 6. Google Workspace는 기본값이 아니라 import/export/publish target이다.
-7. 이메일 발송, 외부 공유, Google import/publish, 파일 이동/삭제, 브라우저 제출, 터미널 write 명령은 승인 없이는 실행하지 않는다.
+7. 이메일 발송, 외부 공유, Google import/publish, 파일 이동/삭제, 브라우저 제출, 터미널 write 명령은 승인 없이는 실행하지 않는다. InternKim `site.app.publish`는 prototype 생성의 기본 완료 단계이며 tool descriptor상 승인 불필요 작업이다.
 
 ## Skill and Tool Contract
 
