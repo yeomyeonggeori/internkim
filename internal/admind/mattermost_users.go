@@ -86,8 +86,6 @@ const firstAdminMattermostPassword = "admin"
 const mattermostTeammateNameDisplay = "nickname_full_name"
 const mattermostFlowChannelName = "flow"
 const mattermostFlowChannelDisplayName = "Flow"
-const mattermostFlowChannelLink = "[Flow 열기](/flow/)"
-const mattermostFlowEntryPostMessage = "Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다. [Flow 열기](/flow/)"
 
 func (service *Service) provisionMattermostUser(ctx context.Context, email string, role string) (mattermostProvisionResult, error) {
 	return service.provisionMattermostUserWithPassword(ctx, adminUserMutation{Email: email, Role: role}, "")
@@ -534,6 +532,9 @@ func (service *Service) ensureMattermostFlowChannel(ctx context.Context, token s
 	if errorValue := service.updateMattermostFlowChannelText(ctx, token, channelID); errorValue != nil {
 		return "", errorValue
 	}
+	if errorValue := service.ensureMattermostFlowChannelReadOnly(ctx, token, channelID); errorValue != nil {
+		return "", errorValue
+	}
 	if errorValue := service.ensureMattermostFlowEntryPost(ctx, token, channelID); errorValue != nil {
 		return "", errorValue
 	}
@@ -562,43 +563,75 @@ func (service *Service) ensureMattermostPublicChannel(ctx context.Context, token
 }
 
 func (service *Service) updateMattermostFlowChannelText(ctx context.Context, token string, channelID string) error {
+	flowChannelLink := service.mattermostFlowLink("")
 	body := map[string]string{
 		"display_name": mattermostFlowChannelDisplayName,
-		"header":       mattermostFlowChannelLink,
-		"purpose":      mattermostFlowChannelLink,
+		"header":       flowChannelLink,
+		"purpose":      flowChannelLink,
 	}
 	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/patch", token, body, nil)
 }
 
+func (service *Service) ensureMattermostFlowChannelReadOnly(ctx context.Context, token string, channelID string) error {
+	body := []map[string]any{
+		mattermostChannelModerationPatch("create_post", map[string]bool{"members": false, "guests": false}),
+		mattermostChannelModerationPatch("create_reactions", map[string]bool{"members": false, "guests": false}),
+		mattermostChannelModerationPatch("manage_members", map[string]bool{"members": false}),
+		mattermostChannelModerationPatch("use_channel_mentions", map[string]bool{"members": false, "guests": false}),
+	}
+	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/moderations/patch", token, body, nil)
+}
+
+func mattermostChannelModerationPatch(name string, roles map[string]bool) map[string]any {
+	return map[string]any{
+		"name":  name,
+		"roles": roles,
+	}
+}
+
 func (service *Service) ensureMattermostFlowEntryPost(ctx context.Context, token string, channelID string) error {
-	if service.hasMattermostFlowEntryPost(ctx, token, channelID) {
-		return nil
+	expectedMessage := service.mattermostFlowEntryPostMessage()
+	postRecord, found := service.mattermostFlowEntryPost(ctx, token, channelID)
+	if found {
+		if postRecord.Message == expectedMessage {
+			return nil
+		}
+		body := map[string]any{
+			"message": expectedMessage,
+			"props":   map[string]any{"internkim_flow_entry": true},
+		}
+		return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/posts/"+url.PathEscape(postRecord.ID)+"/patch", token, body, nil)
 	}
 	body := map[string]any{
 		"channel_id": channelID,
-		"message":    mattermostFlowEntryPostMessage,
+		"message":    expectedMessage,
 		"props":      map[string]any{"internkim_flow_entry": true},
 	}
 	return service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", token, body, nil)
 }
 
-func (service *Service) hasMattermostFlowEntryPost(ctx context.Context, token string, channelID string) bool {
+func (service *Service) mattermostFlowEntryPostMessage() string {
+	return "Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다. " + service.mattermostFlowLink("")
+}
+
+func (service *Service) mattermostFlowEntryPost(ctx context.Context, token string, channelID string) (mattermostPostRecord, bool) {
 	var response mattermostPostsResponse
 	path := "/api/v4/channels/" + url.PathEscape(channelID) + "/posts?per_page=50"
 	if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, token, nil, &response); errorValue != nil {
-		return false
+		return mattermostPostRecord{}, false
 	}
 	for _, postID := range response.Order {
-		if isMattermostFlowEntryPost(response.Posts[postID]) {
-			return true
+		postRecord := response.Posts[postID]
+		if isMattermostFlowEntryPost(postRecord) {
+			return postRecord, true
 		}
 	}
 	for _, post := range response.Posts {
 		if isMattermostFlowEntryPost(post) {
-			return true
+			return post, true
 		}
 	}
-	return false
+	return mattermostPostRecord{}, false
 }
 
 func isMattermostFlowEntryPost(post mattermostPostRecord) bool {
