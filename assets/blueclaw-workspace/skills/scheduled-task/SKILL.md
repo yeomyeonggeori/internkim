@@ -15,15 +15,25 @@ Use `schedule.create` when the user asks InternKim to create a reminder, recurri
 
 Creating a schedule is bounded work. Do not reject these requests as unsupported background loops when `schedule.create` is available.
 
+## Execution Mode
+
+Use `executionMode: "message"` when the scheduled run should send a fixed message, reminder, or quoted text to the current conversation. In this mode, `prompt` must be the exact user-visible message body to deliver later. Do not include command verbs such as "send", "tell", "remind", "알려줘", "말해줘", or "보내기" unless those words are part of the message itself.
+
+Use `executionMode: "agent"` only when the scheduled run must do work at run time, such as research, checking state, summarizing, using tools, or deciding what to say based on future information.
+
+`schedule.create` delivers to the current reply target automatically. Do not try to look up contacts, set a different recipient, request approval, or claim direct messaging tools are unavailable for fixed reminders. If the user explicitly asks to send to a different person or channel that is not the current conversation, say that scheduled delivery can target the current conversation only unless a platform tool for that destination is available.
+
 ## Workflow
 
-1. Convert the user's request into the future task instruction.
+1. Decide whether the scheduled run is a fixed message (`message`) or future work (`agent`).
 2. Choose `kind: interval` for simple repeats like every minute or every hour.
 3. Choose `kind: cron` for calendar-like schedules such as every day at 9 AM or every Monday.
 4. Set `timeZone` from user context when known. Use `Asia/Seoul` for Korean-language local-time requests when no better timezone is available.
 5. Set `maxRunCount` when the user asks for a finite count such as 10 times, 10번, or repeat N times.
-6. Call `schedule.create`.
-7. Reply with what was scheduled and when it will run.
+6. For fixed messages, set `executionMode: "message"` and make `prompt` the exact message to deliver.
+7. For future work, set `executionMode: "agent"` and make `prompt` the task instruction.
+8. Call `schedule.create`.
+9. Reply with what was scheduled and when it will run.
 
 For "1분마다" use:
 
@@ -38,7 +48,8 @@ For "1분에 한 번씩 나한테 죄송합니다 10번 해봐" use:
 
 ```json
 {
-  "prompt": "죄송합니다라고 말해줘.",
+  "prompt": "죄송합니다",
+  "executionMode": "message",
   "kind": "interval",
   "intervalSecond": 60,
   "maxRunCount": 10,
@@ -47,5 +58,17 @@ For "1분에 한 번씩 나한테 죄송합니다 10번 해봐" use:
 ```
 
 For "매일 오전 9시" use a cron expression for 9 AM in the chosen timezone.
+
+For "매일 오전 9시에 업계 뉴스를 조사해서 알려줘" use:
+
+```json
+{
+  "prompt": "업계 뉴스를 조사해서 핵심만 보고해줘.",
+  "executionMode": "agent",
+  "kind": "cron",
+  "cronExpression": "0 9 * * *",
+  "timeZone": "Asia/Seoul"
+}
+```
 
 Do not claim the recurring delivery has already happened. The scheduler will run the saved task later.
