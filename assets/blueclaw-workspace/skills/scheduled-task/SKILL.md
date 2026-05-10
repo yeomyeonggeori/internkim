@@ -1,17 +1,15 @@
 ---
 name: scheduled-task
-description: Create scheduled, recurring, and finite repeated reminders, messages, reports, and follow-up tasks through Blueclaw schedule.create.
-when_to_use: Use when the user asks to schedule, remind, repeat, send something every minute, hour, day, week, or month, repeat N times, send a finite repeated message, or says 예약, 알림, 리마인드, 마다, 분마다, 시간마다, 한 번씩, 1분에 한 번씩, 10번, 매일, 매주, or 매월.
+description: Create or cancel scheduled, recurring, and finite repeated reminders, messages, reports, and follow-up tasks through Blueclaw schedule tools.
+when_to_use: Use when the user asks to schedule, remind, repeat, send something every minute, hour, day, week, or month, repeat N times, cancel schedules, stop reminders, or says 예약, 알림, 리마인드, 취소, 중지, 마다, 분마다, 시간마다, 한 번씩, 1분에 한 번씩, 10번, 매일, 매주, or 매월.
 allowed-tools:
   - schedule.create
-completion:
-  requiredEvidenceTools:
-    - schedule.create
+  - schedule.cancel
 ---
 
 # Scheduled Task
 
-Use `schedule.create` when the user asks InternKim to create a reminder, recurring message, periodic report, future follow-up, finite repeated message, or timed automation.
+Use `schedule.create` when the user asks InternKim to create a reminder, recurring message, periodic report, future follow-up, finite repeated message, or timed automation. Use `schedule.cancel` when the user asks to cancel, stop, clear, or remove scheduled tasks or pending waits.
 
 Creating a schedule is bounded work. Do not reject these requests as unsupported background loops when `schedule.create` is available.
 
@@ -27,15 +25,45 @@ If the user asks to send a scheduled message to a named approved person, use `ex
 
 ## Workflow
 
-1. Decide whether the scheduled run is a fixed message to the current conversation (`message`) or future work / named-person DM (`agent`).
-2. Choose `kind: interval` for simple repeats like every minute or every hour.
-3. Choose `kind: cron` for calendar-like schedules such as every day at 9 AM or every Monday.
-4. Set `timeZone` from user context when known. Use `Asia/Seoul` for Korean-language local-time requests when no better timezone is available.
-5. Set `maxRunCount` when the user asks for a finite count such as 10 times, 10번, or repeat N times.
-6. For fixed messages to the current conversation, set `executionMode: "message"` and make `prompt` the exact message to deliver.
-7. For future work or named-person DM, set `executionMode: "agent"` and make `prompt` the task instruction.
-8. Call `schedule.create`.
-9. Reply with what was scheduled and when it will run.
+1. If the user asks to cancel schedules or pending waits, call `schedule.cancel` and do not ask for approval.
+2. Decide whether the scheduled run is a fixed message to the current conversation (`message`) or future work / named-person DM (`agent`).
+3. Choose `kind: interval` for simple repeats like every minute or every hour.
+4. Choose `kind: cron` for calendar-like schedules such as every day at 9 AM or every Monday.
+5. Set `timeZone` from user context when known. Use `Asia/Seoul` for Korean-language local-time requests when no better timezone is available.
+6. Set `maxRunCount` when the user asks for a finite count such as 10 times, 10번, or repeat N times.
+7. For fixed messages to the current conversation, set `executionMode: "message"` and make `prompt` the exact message to deliver.
+8. For future work or named-person DM, set `executionMode: "agent"` and make `prompt` the task instruction.
+9. Call `schedule.create`.
+10. Reply with what was scheduled and when it will run.
+
+## Cancellation
+
+For "내가 건 모든 예약 다 취소해줘", use:
+
+```json
+{
+  "scope": "mine"
+}
+```
+
+For "이 스레드 예약 취소해줘", use:
+
+```json
+{
+  "scope": "currentConversation"
+}
+```
+
+For an explicit known schedule ID, use:
+
+```json
+{
+  "scope": "scheduleIDs",
+  "scheduleIDs": ["<taskScheduleID>"]
+}
+```
+
+After cancellation, reply briefly with the number of schedules or waits cancelled. Do not request approval for cancellation.
 
 For "1분마다" use:
 

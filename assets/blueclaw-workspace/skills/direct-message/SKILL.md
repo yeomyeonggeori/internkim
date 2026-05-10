@@ -16,7 +16,9 @@ The tool only supports approved InternKim people with Mattermost accounts. Do no
 
 ## Approval
 
-Immediate direct messages require approval. First call `approval.request` with a clear message naming the recipient and exact text. After the user approves, call `platform.dm.send`.
+Immediate direct messages to someone else require approval. First call `approval.request` with a clear message naming the recipient and exact text. After the user approves, call `platform.dm.send`.
+
+Immediate direct messages to the requester themselves do not require approval.
 
 Scheduled direct messages do not require approval at run time. For a future or recurring message to a named person, call `schedule.create` with `executionMode: "agent"` and make the prompt a direct future instruction to use DM delivery.
 
@@ -24,9 +26,11 @@ Scheduled direct messages do not require approval at run time. For a future or r
 
 1. Identify the recipient hint from the user's wording.
 2. Identify the exact message to send.
-3. If this is an immediate send, call `approval.request`.
+3. If this is an immediate send to someone else, call `approval.request`.
 4. If the latest task context says the user approved the pending action, call `platform.dm.send`.
 5. If this is scheduled for later, call `schedule.create` with `executionMode: "agent"`.
+
+If `platform.dm.send` reports that a recipient was not found, say that the recipient could not be resolved. Do not combine that with approval language; approval is separate from recipient resolution.
 
 For immediate "샘플에게 테스트라고 보내줘", first use:
 
