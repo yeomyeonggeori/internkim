@@ -46,6 +46,7 @@ type platformDMRecipient struct {
 	Emails             []string `json:"emails"`
 	MattermostUserID   string   `json:"mattermostUserID"`
 	MattermostUsername string   `json:"mattermostUsername"`
+	MattermostAliases  []string `json:"mattermostAliases"`
 }
 
 func (service Service) invokePlatformDMSend(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -53,12 +54,12 @@ func (service Service) invokePlatformDMSend(ctx context.Context, request capabil
 	if errorValue != nil {
 		return platformDMErrorResponse(request.ToolName, errorValue.Error()), nil
 	}
-	if errorMessage := validatePlatformDMSendAuthorization(request.Context); errorMessage != "" {
-		return platformDMDeniedResponse(request.ToolName, errorMessage), nil
-	}
 	recipient, errorValue := service.resolvePlatformDMRecipient(ctx, input)
 	if errorValue != nil {
 		return platformDMErrorResponse(request.ToolName, errorValue.Error()), nil
+	}
+	if errorMessage := validatePlatformDMSendAuthorization(request.Context, recipient); errorMessage != "" {
+		return platformDMDeniedResponse(request.ToolName, errorMessage), nil
 	}
 	dispatchID, errorValue := service.sendMattermostDirectMessageWithDispatch(ctx, recipient.MattermostUserID, input.Message)
 	if errorValue != nil {
@@ -106,11 +107,24 @@ func decodePlatformDMSendInput(document json.RawMessage) (platformDMSendInput, e
 	return input, nil
 }
 
-func validatePlatformDMSendAuthorization(toolContext capabilities.ToolInvokeContext) string {
+func validatePlatformDMSendAuthorization(toolContext capabilities.ToolInvokeContext, recipient platformDMRecipient) string {
 	if toolContext.IsScheduledRun || toolContext.IsApprovalContinuation {
 		return ""
 	}
+	if isPlatformDMSelfRecipient(toolContext, recipient) {
+		return ""
+	}
 	return "platform.dm.send requires approval for immediate sends; scheduled runs may send without approval"
+}
+
+func isPlatformDMSelfRecipient(toolContext capabilities.ToolInvokeContext, recipient platformDMRecipient) bool {
+	if strings.TrimSpace(toolContext.RequesterPersonID) != "" && strings.TrimSpace(toolContext.RequesterPersonID) == recipient.PersonID {
+		return true
+	}
+	if strings.TrimSpace(toolContext.RequesterPlatformUserID) != "" && strings.TrimSpace(toolContext.RequesterPlatformUserID) == recipient.MattermostUserID {
+		return true
+	}
+	return false
 }
 
 func (service Service) resolvePlatformDMRecipient(ctx context.Context, input platformDMSendInput) (platformDMRecipient, error) {
@@ -208,6 +222,7 @@ func platformDMRecipientsForApprovedPeople(people []platformDMPolicyPerson, user
 				Emails:             normalizedPlatformDMEmails(person.Emails),
 				MattermostUserID:   strings.TrimSpace(user.ID),
 				MattermostUsername: strings.TrimSpace(user.Username),
+				MattermostAliases:  mattermostUserAliases(user),
 			})
 		}
 	}
@@ -221,6 +236,7 @@ func platformDMRecipientMatches(recipientHint string, recipient platformDMRecipi
 	}
 	values := []string{recipient.PersonID, recipient.DisplayName, recipient.MattermostUsername}
 	values = append(values, recipient.Emails...)
+	values = append(values, recipient.MattermostAliases...)
 	for _, value := range values {
 		if normalizePlatformDMMatchValue(value) == hint {
 			return true
@@ -247,6 +263,24 @@ func normalizedPlatformDMEmails(emails []string) []string {
 		normalizedEmails = append(normalizedEmails, normalizedEmail)
 	}
 	return normalizedEmails
+}
+
+func mattermostUserAliases(user platformDMMattermostUser) []string {
+	return trimPlatformDMMattermostAliases([]string{user.Email, user.Username, user.DisplayName, user.FirstName, user.LastName, user.Nickname})
+}
+
+func trimPlatformDMMattermostAliases(values []string) []string {
+	aliases := []string{}
+	seenAlias := map[string]bool{}
+	for _, value := range values {
+		normalizedValue := normalizePlatformDMMatchValue(value)
+		if normalizedValue == "" || seenAlias[normalizedValue] {
+			continue
+		}
+		seenAlias[normalizedValue] = true
+		aliases = append(aliases, normalizedValue)
+	}
+	return aliases
 }
 
 func sortPlatformDMRecipients(recipients []platformDMRecipient) {
