@@ -347,7 +347,7 @@
 	function accountDraftPayload() {
 		return {
 			email: accountDraft.email,
-			fromAddress: accountDraft.fromAddress,
+			fromAddress: accountDraft.email,
 			displayName: accountDraft.displayName,
 			imapHost: accountDraft.imapHost,
 			imapPort: Number(accountDraft.imapPort),
@@ -615,17 +615,13 @@
 	<Sheet.Content class="w-full overflow-y-auto sm:max-w-2xl">
 		<Sheet.Header>
 			<Sheet.Title>Mail settings</Sheet.Title>
-			<Sheet.Description>Connect one IMAP account and one SMTP sender for this user.</Sheet.Description>
+			<Sheet.Description>Connect one email account for receiving and sending mail.</Sheet.Description>
 		</Sheet.Header>
 		<form class="grid gap-5 px-4 pb-4" onsubmit={(event) => { event.preventDefault(); saveAccount(); }}>
 			<div class="grid gap-3 sm:grid-cols-2">
 				<div class="space-y-2">
-					<Label for="mail-email">Account email</Label>
+					<Label for="mail-email">Email address</Label>
 					<Input id="mail-email" bind:value={accountDraft.email} placeholder="you@example.com" />
-				</div>
-				<div class="space-y-2">
-					<Label for="mail-from">From address</Label>
-					<Input id="mail-from" bind:value={accountDraft.fromAddress} placeholder="You <you@example.com>" />
 				</div>
 				<div class="space-y-2">
 					<Label for="mail-display-name">Display name</Label>
