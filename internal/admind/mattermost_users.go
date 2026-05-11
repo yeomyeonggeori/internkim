@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -57,7 +58,9 @@ type mattermostChannelMemberRecord struct {
 
 type mattermostPostRecord struct {
 	ID      string         `json:"id"`
+	UserID  string         `json:"user_id"`
 	Message string         `json:"message"`
+	Type    string         `json:"type"`
 	Props   map[string]any `json:"props"`
 }
 
@@ -502,6 +505,9 @@ func (service *Service) ensureMattermostMembership(ctx context.Context, token st
 			return errorValue
 		}
 	}
+	if flowChannelID := strings.TrimSpace(readTrimmedFile(service.mattermostFlowChannelIDPath())); flowChannelID != "" {
+		_ = service.cleanupMattermostFlowSystemPosts(ctx, token, flowChannelID)
+	}
 	return nil
 }
 
@@ -556,16 +562,36 @@ func (service *Service) ensureMattermostFlowChannel(ctx context.Context, token s
 	if errorValue != nil {
 		return "", errorValue
 	}
+	service.saveMattermostFlowChannelID(channelID)
 	if errorValue := service.updateMattermostFlowChannelText(ctx, token, channelID); errorValue != nil {
 		return "", errorValue
 	}
 	if errorValue := service.ensureMattermostFlowChannelReadOnly(ctx, token, channelID); errorValue != nil {
 		return "", errorValue
 	}
-	if errorValue := service.ensureMattermostFlowEntryPost(ctx, token, channelID); errorValue != nil {
+	if errorValue := service.deleteMattermostFlowEntryPost(ctx, token, channelID); errorValue != nil {
+		return "", errorValue
+	}
+	if errorValue := service.cleanupMattermostFlowSystemPosts(ctx, token, channelID); errorValue != nil {
 		return "", errorValue
 	}
 	return channelID, nil
+}
+
+func (service *Service) saveMattermostFlowChannelID(channelID string) {
+	normalizedChannelID := strings.TrimSpace(channelID)
+	if normalizedChannelID == "" {
+		return
+	}
+	path := service.mattermostFlowChannelIDPath()
+	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
+		return
+	}
+	_ = os.WriteFile(path, []byte(normalizedChannelID), 0o600)
+}
+
+func (service *Service) mattermostFlowChannelIDPath() string {
+	return filepath.Join(service.Configuration.StateDirectory, "mattermost-flow-channel-id")
 }
 
 func (service *Service) ensureMattermostPublicChannel(ctx context.Context, token string, teamID string, channelName string, displayName string) (string, error) {
@@ -594,7 +620,7 @@ func (service *Service) updateMattermostFlowChannelText(ctx context.Context, tok
 	body := map[string]string{
 		"display_name": mattermostFlowChannelDisplayName,
 		"header":       flowChannelLink,
-		"purpose":      flowChannelLink,
+		"purpose":      "",
 	}
 	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/patch", token, body, nil)
 }
@@ -616,49 +642,54 @@ func mattermostChannelModerationPatch(name string, roles map[string]bool) map[st
 	}
 }
 
-func (service *Service) ensureMattermostFlowEntryPost(ctx context.Context, token string, channelID string) error {
-	expectedMessage := service.mattermostFlowEntryPostMessage()
+func (service *Service) deleteMattermostFlowEntryPost(ctx context.Context, token string, channelID string) error {
 	postRecord, found := service.mattermostFlowEntryPost(ctx, token, channelID)
-	if found {
-		if postRecord.Message == expectedMessage {
-			return nil
-		}
-		body := map[string]any{
-			"message": expectedMessage,
-			"props":   map[string]any{"internkim_flow_entry": true},
-		}
-		return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/posts/"+url.PathEscape(postRecord.ID)+"/patch", token, body, nil)
+	if !found || strings.TrimSpace(postRecord.ID) == "" {
+		return nil
 	}
-	body := map[string]any{
-		"channel_id": channelID,
-		"message":    expectedMessage,
-		"props":      map[string]any{"internkim_flow_entry": true},
-	}
-	return service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", token, body, nil)
+	return service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/posts/"+url.PathEscape(postRecord.ID), token, nil, nil)
 }
 
-func (service *Service) mattermostFlowEntryPostMessage() string {
-	return "Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다. " + service.mattermostFlowLink("")
+func (service *Service) cleanupMattermostFlowSystemPosts(ctx context.Context, token string, channelID string) error {
+	for _, postRecord := range service.mattermostFlowPosts(ctx, token, channelID, 100) {
+		if !isMattermostFlowSystemPost(postRecord) || strings.TrimSpace(postRecord.ID) == "" {
+			continue
+		}
+		if errorValue := service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/posts/"+url.PathEscape(postRecord.ID), token, nil, nil); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
 }
 
 func (service *Service) mattermostFlowEntryPost(ctx context.Context, token string, channelID string) (mattermostPostRecord, bool) {
-	var response mattermostPostsResponse
-	path := "/api/v4/channels/" + url.PathEscape(channelID) + "/posts?per_page=50"
-	if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, token, nil, &response); errorValue != nil {
-		return mattermostPostRecord{}, false
-	}
-	for _, postID := range response.Order {
-		postRecord := response.Posts[postID]
+	for _, postRecord := range service.mattermostFlowPosts(ctx, token, channelID, 50) {
 		if isMattermostFlowEntryPost(postRecord) {
 			return postRecord, true
 		}
 	}
-	for _, post := range response.Posts {
-		if isMattermostFlowEntryPost(post) {
-			return post, true
+	return mattermostPostRecord{}, false
+}
+
+func (service *Service) mattermostFlowPosts(ctx context.Context, token string, channelID string, limit int) []mattermostPostRecord {
+	var response mattermostPostsResponse
+	path := "/api/v4/channels/" + url.PathEscape(channelID) + "/posts?per_page=" + strconv.Itoa(limit)
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, token, nil, &response); errorValue != nil {
+		return nil
+	}
+	posts := make([]mattermostPostRecord, 0, len(response.Posts))
+	for _, postID := range response.Order {
+		if postRecord, found := response.Posts[postID]; found {
+			posts = append(posts, postRecord)
 		}
 	}
-	return mattermostPostRecord{}, false
+	if len(posts) > 0 {
+		return posts
+	}
+	for _, postRecord := range response.Posts {
+		posts = append(posts, postRecord)
+	}
+	return posts
 }
 
 func isMattermostFlowEntryPost(post mattermostPostRecord) bool {
@@ -667,6 +698,15 @@ func isMattermostFlowEntryPost(post mattermostPostRecord) bool {
 	}
 	value, found := post.Props["internkim_flow_entry"]
 	return found && value == true
+}
+
+func isMattermostFlowSystemPost(post mattermostPostRecord) bool {
+	switch strings.TrimSpace(post.Type) {
+	case "system_add_to_channel", "system_join_channel", "system_purpose_change":
+		return true
+	default:
+		return false
+	}
 }
 
 func (service *Service) syncMattermostCircleMemberships(ctx context.Context, token string) error {

@@ -2,6 +2,7 @@ package admind
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/aes"
@@ -42,6 +43,7 @@ type Configuration struct {
 	CalendarDatabasePath        string
 	MailDatabasePath            string
 	MattermostAdminPasswordPath string
+	MattermostTokenPath         string
 	AdminEmailPath              string
 	ClaimedAdminEmailPath       string
 	FleetIDPath                 string
@@ -192,6 +194,7 @@ func DefaultConfiguration() Configuration {
 		CalendarDatabasePath:        "/root/.internkim/state/calendar.sqlite",
 		MailDatabasePath:            "/root/.internkim/state/mail.sqlite",
 		MattermostAdminPasswordPath: "/root/.internkim/secrets/mm-admin-pass",
+		MattermostTokenPath:         "/root/.internkim/secrets/mattermost-bot-token",
 		AdminEmailPath:              "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:       "/root/.internkim/state/admin/claimed-admin-email",
 		FleetIDPath:                 "/root/.internkim/env/fleet-id",
@@ -286,7 +289,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/_internkim/companion/", service.handleCompanion)
 	multiplexer.HandleFunc("/_internkim/runtime/", service.handleRuntime)
 	multiplexer.HandleFunc("/_internkim/mattermost/commands", service.handleMattermostCommand)
-	multiplexer.Handle("/", service.mattermostProxy())
+	multiplexer.Handle("/", service.flowChannelWriteGuard(service.mattermostProxy()))
 	return service.withCORS(service.withSiteGateway(multiplexer))
 }
 
@@ -334,6 +337,38 @@ func (service *Service) mattermostProxy() http.Handler {
 		proxy.Transport = service.HTTPClient.Transport
 	}
 	return proxy
+}
+
+func (service *Service) flowChannelWriteGuard(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if !service.isMattermostFlowPostCreateRequest(request) {
+			next.ServeHTTP(responseWriter, request)
+			return
+		}
+		http.Error(responseWriter, "Flow channel is read-only", http.StatusForbidden)
+	})
+}
+
+func (service *Service) isMattermostFlowPostCreateRequest(request *http.Request) bool {
+	if request.Method != http.MethodPost || request.URL.Path != "/api/v4/posts" {
+		return false
+	}
+	flowChannelID := strings.TrimSpace(readTrimmedFile(service.mattermostFlowChannelIDPath()))
+	if flowChannelID == "" {
+		return false
+	}
+	document, errorValue := io.ReadAll(request.Body)
+	if errorValue != nil {
+		return false
+	}
+	request.Body = io.NopCloser(bytes.NewReader(document))
+	var payload struct {
+		ChannelID string `json:"channel_id"`
+	}
+	if errorValue := json.Unmarshal(document, &payload); errorValue != nil {
+		return false
+	}
+	return strings.TrimSpace(payload.ChannelID) == flowChannelID
 }
 
 func (service *Service) serveAdminPage(responseWriter http.ResponseWriter, request *http.Request) {
@@ -1819,6 +1854,9 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.MattermostAdminPasswordPath == "" {
 		configuration.MattermostAdminPasswordPath = defaultConfiguration.MattermostAdminPasswordPath
+	}
+	if configuration.MattermostTokenPath == "" {
+		configuration.MattermostTokenPath = defaultConfiguration.MattermostTokenPath
 	}
 	if configuration.AdminEmailPath == "" {
 		configuration.AdminEmailPath = defaultConfiguration.AdminEmailPath
