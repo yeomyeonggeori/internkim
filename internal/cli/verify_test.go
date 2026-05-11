@@ -71,6 +71,23 @@ func TestVerifyMattermostPromptScriptCanRequireToolAndTaskEvents(t *testing.T) {
 	}
 }
 
+func TestVerifyAPIScriptChecksLiteRTWithCPUAccelerator(t *testing.T) {
+	script := verifyAPIScript()
+	requiredFragments := []string{
+		`accelerator: "cpu"`,
+		`python3 -c 'import json, sys; document=json.load(sys.stdin); backend=document.get("selectedBackend"); content=document.get("content"); raise SystemExit(0 if backend in ("gpu", "cpu") and isinstance(content, str) and len(content) > 0 else 1)'`,
+		`litert capability: %s`,
+	}
+	for _, fragment := range requiredFragments {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected API verify script to include %q", fragment)
+		}
+	}
+	if strings.Contains(script, `jq -e '.selectedBackend as $backend`) {
+		t.Fatal("expected LiteRT verify to avoid raw jq parsing of possibly non-JSON responses")
+	}
+}
+
 func TestParseMattermostBrowserOpenE2EPreparationUsesLastJSONLine(t *testing.T) {
 	preparation, errorValue := parseMattermostBrowserOpenE2EPreparation(`curl: (52) Empty reply from server
 {"deviceURL":"https://device.example","code":"1234-5678","email":"probe@example.com","username":"probe","password":"secret","userID":"user-1","channelID":"channel-1"}
