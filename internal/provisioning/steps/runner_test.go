@@ -162,6 +162,64 @@ func TestAdminWebAliasResolvesToWeb(t *testing.T) {
 	}
 }
 
+func TestOnlyCloudflareAccessDoesNotIncludeRuntimeOrTunnelSteps(t *testing.T) {
+	context := &Context{
+		Backend: BackendSSH,
+		SSH:     blueclawPlanBoardConnection{},
+		BoardIP: "192.0.2.10",
+		Callbacks: Callbacks{
+			AdminWebVersion: func() string { return "web-version" },
+			LoadState:       func(key string) string { return "web-version" },
+		},
+	}
+	plan, err := DefaultRegistry().resolve(context, Selector{Only: []string{"cloudflare-access"}, Force: true})
+	if err != nil {
+		t.Fatalf("resolve failed: %v", err)
+	}
+	joinedPlan := strings.Join(plan, ",")
+	if joinedPlan != "web,cloudflare-access" {
+		t.Fatalf("unexpected plan: %s", joinedPlan)
+	}
+	for _, disallowedName := range []string{"binaries", "local-llm", "tunnel"} {
+		if strings.Contains(joinedPlan, disallowedName) {
+			t.Fatalf("cloudflare-access sync must not include %s, got %s", disallowedName, joinedPlan)
+		}
+	}
+}
+
+func TestForcedCloudflareAccessRunsSatisfiedWebDependency(t *testing.T) {
+	var webRan bool
+	var accessRan bool
+	context := &Context{
+		Backend: BackendSSH,
+		SSH:     blueclawPlanBoardConnection{},
+		BoardIP: "192.0.2.10",
+		Callbacks: Callbacks{
+			AdminWebVersion: func() string { return "web-version" },
+			LoadState:       func(key string) string { return "web-version" },
+			DeployAdminWeb: func(context *Context) error {
+				webRan = true
+				return nil
+			},
+			SyncCloudflareAccess: func(context *Context) error {
+				accessRan = true
+				return nil
+			},
+		},
+	}
+
+	errorValue := DefaultRegistry().Run(context, Selector{Only: []string{"cloudflare-access"}, Force: true})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !webRan {
+		t.Fatalf("forced cloudflare-access must run satisfied web dependency")
+	}
+	if !accessRan {
+		t.Fatalf("cloudflare-access sync did not run")
+	}
+}
+
 func TestOnlyBlueclawPayloadIncludesStaleBlueclawConfiguration(t *testing.T) {
 	context := defaultBlueclawPlanContext("runtime-profile-missing-tools:file.attach", "missing")
 

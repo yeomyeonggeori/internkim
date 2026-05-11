@@ -1,14 +1,11 @@
 import {
-	createAccessApplication,
-	createAccessPolicy,
+	deleteRootAccessApplication,
 	ensureAdminAccessApplications,
 	ensureOneTimePinIdentityProvider,
-	syncAccessPolicyEmails,
 	syncSSHAccessPolicyEmails,
-	updateAccessApplicationLoginMethod,
 	type CFEnv
 } from './cloudflare';
-import { adminEmails, userEmails } from './kv';
+import { adminEmails } from './kv';
 import type { Device, UserRecord } from './types';
 
 function normalizeEmail(email: string): string {
@@ -59,40 +56,26 @@ export async function ensureFleetAccessApplications(
 		throw new Error('Cloudflare admin and SSH access require at least one admin user');
 	}
 
-	const deviceWithUserAccess = await ensureUserAccessApplication(env, fleetID, identityProviderID, device, userEmails(records));
+	const deviceWithoutRootAccess = await removeLegacyRootAccessApplication(env, fleetID, device);
 	await ensureAdminAccessApplications(env, fleetID, identityProviderID, adminAccessEmails);
 	await Promise.all(
-		fleetSSHAccessApplicationIDs(deviceWithUserAccess).map((applicationID) =>
+		fleetSSHAccessApplicationIDs(deviceWithoutRootAccess).map((applicationID) =>
 			syncSSHAccessPolicyEmails(env, applicationID, adminAccessEmails)
 		)
 	);
 
-	return deviceWithUserAccess;
+	return deviceWithoutRootAccess;
 }
 
-async function ensureUserAccessApplication(
+async function removeLegacyRootAccessApplication(
 	env: CFEnv,
 	fleetID: string,
-	identityProviderID: string,
-	device: Device,
-	emails: string[]
+	device: Device
 ): Promise<Device> {
-	if (device.access_app_id) {
-		await updateAccessApplicationLoginMethod(env, fleetID, device.access_app_id, identityProviderID);
-		const accessPolicyID = await syncAccessPolicyEmails(env, device.access_app_id, emails);
-		return {
-			...device,
-			access_policy_id: device.access_policy_id ?? accessPolicyID ?? undefined
-		};
-	}
-
-	const accessAppID = await createAccessApplication(env, fleetID, identityProviderID);
-	const accessPolicyID = await createAccessPolicy(env, accessAppID, emails[0] ?? '');
-	await syncAccessPolicyEmails(env, accessAppID, emails);
-
+	await deleteRootAccessApplication(env, fleetID, device.access_app_id);
 	return {
 		...device,
-		access_app_id: accessAppID,
-		access_policy_id: accessPolicyID
+		access_app_id: undefined,
+		access_policy_id: undefined
 	};
 }
