@@ -8,6 +8,8 @@ func DefaultRegistry() Registry {
 		StepCloudflareAccess,
 		StepWifi,
 		StepBinaries,
+		StepAdmind,
+		StepCapabilityd,
 		StepSkills,
 		StepBlueclawRuntimeBase,
 		StepBlueclawConfiguration,

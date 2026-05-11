@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/emersion/go-imap/v2"
 )
 
 type fakeMailBackend struct {
@@ -178,6 +180,21 @@ func TestMailRequiresConfiguredAccountForMailboxReads(t *testing.T) {
 	}
 	if account.IsConfigured {
 		t.Fatalf("new account should not be configured: %#v", account)
+	}
+}
+
+func TestMailMailboxResponsesFromListDataSkipsNonSelectableMailboxes(t *testing.T) {
+	total := uint32(3)
+	unseen := uint32(1)
+	mailboxes := mailMailboxResponsesFromListData([]*imap.ListData{
+		{Mailbox: "INBOX", Status: &imap.StatusData{NumMessages: &total, NumUnseen: &unseen}},
+		{Mailbox: "Folders", Attrs: []imap.MailboxAttr{imap.MailboxAttrNoSelect}},
+	})
+	if len(mailboxes) != 1 {
+		t.Fatalf("mailboxes = %#v", mailboxes)
+	}
+	if mailboxes[0].Name != "INBOX" || mailboxes[0].Total != 3 || mailboxes[0].Unseen != 1 {
+		t.Fatalf("mailbox = %#v", mailboxes[0])
 	}
 }
 
