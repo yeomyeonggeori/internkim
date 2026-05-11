@@ -703,7 +703,7 @@ func (state *setupFlowState) uploadAdminUIArchive(boardUIPath string) error {
 	}
 	defer os.Remove(archivePath)
 
-	if errorValue := state.sshClient.scpDirect(archivePath, temporaryAdminUIArchivePath); errorValue != nil {
+	if errorValue := state.sshClient.scp(archivePath, temporaryAdminUIArchivePath); errorValue != nil {
 		return errorValue
 	}
 	return nil
