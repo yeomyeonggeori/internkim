@@ -9,8 +9,6 @@ export const adminText = {
 		devicePending: '기기 등록이 끝나면 전용 Mattermost 주소와 초대 관리가 표시됩니다.',
 		sections: {
 			device: 'Device',
-			calendar: 'Calendar',
-			flow: 'Flow',
 			users: 'Users',
 			companion: 'Companion',
 			backup: 'Backup',
@@ -23,17 +21,6 @@ export const adminText = {
 			check: '확인',
 			online: 'online',
 			unreachable: 'unreachable'
-		},
-		flow: {
-			title: 'Flow',
-			description: '이번 주 업무, 개인별 진행, 요청/기각/중단 상태를 운영 화면에서 확인합니다.',
-			open: 'Flow 열기',
-			status: 'Flow 상태'
-		},
-		calendar: {
-			title: 'Calendar',
-			description: '공유 팀 캘린더를 열고 Google iCal 구독과 Apple CalDAV 연동 주소를 관리합니다.',
-			open: 'Calendar 열기'
 		},
 		bot: {
 			title: 'Bot Profile',
@@ -93,8 +80,6 @@ export const adminText = {
 		devicePending: 'After device registration, the dedicated Mattermost address and invite controls will appear here.',
 		sections: {
 			device: 'Device',
-			calendar: 'Calendar',
-			flow: 'Flow',
 			users: 'Users',
 			companion: 'Companion',
 			backup: 'Backup',
@@ -107,17 +92,6 @@ export const adminText = {
 			check: 'Check',
 			online: 'online',
 			unreachable: 'unreachable'
-		},
-		flow: {
-			title: 'Flow',
-			description: 'Review weekly work, member progress, requests, rejected tasks, and stopped work.',
-			open: 'Open Flow',
-			status: 'Flow status'
-		},
-		calendar: {
-			title: 'Calendar',
-			description: 'Open the shared team calendar and manage Google iCal and Apple CalDAV sync URLs.',
-			open: 'Open Calendar'
 		},
 		bot: {
 			title: 'Bot Profile',
