@@ -40,6 +40,8 @@ Create prototypes for non-developers to validate ideas quickly. Do not present t
 
 ## Workflow
 
+For create, make, build, deploy, publish, prototype, demo, landing page, dashboard, or app requests, the task is not complete until `site.app.publish` succeeds. Do not stop after `site.app.create`. Do not ask the user to review a draft URL before publishing; draft site URLs return 404 and are not useful for review.
+
 1. For a new prototype, call `site.app.create` with a short DNS-safe slug and title.
 2. Pass `prompt`, `designBrief`, or `prototypeScope` when the user gives enough detail.
 3. After `site.app.create` succeeds, call `site.app.status` for the same `siteID` and use `sourceWorkspacePath`.
@@ -47,13 +49,22 @@ Create prototypes for non-developers to validate ideas quickly. Do not present t
 5. Create missing `app/package.json`, `app/index.html`, `app/src/main.tsx`, `app/src/App.tsx`, and CSS files, or update the existing source, according to `DESIGN.md`.
 6. Run `bun install && bun run build` from `<sourceWorkspacePath>/app`.
 7. Call `site.app.publish` with `siteID` and a concise `message`.
-8. Reply in Mattermost with the public URL, a short change summary, how to try the main workflow, and any test login credentials.
+8. Call `site.app.status` for the same `siteID` and confirm the status is `published`.
+9. Reply in Mattermost with the public URL, a short change summary, how to try the main workflow, and any test login credentials.
 
 Do not publish the uncustomized starter for a website creation request. The starter is only a safe scaffold while the real prototype is being written.
 
-Do not ask for approval before `site.app.create`, `terminal.run` builds, `site.app.publish`, `site.app.status`, `site.app.logs`, or `site.app.restore`. Ask for approval before `site.app.rollback`, `site.app.unpublish`, or `site.app.delete`.
+Never say the website is ready, created, prepared, available, previewable, or done unless the site status is `published` after `site.app.publish`. If build or publish fails, report the actual failure and do not provide the draft URL as something the user can open.
+
+Do not ask for approval before `site.app.create`, `terminal.run` builds, `site.app.publish`, `site.app.status`, `site.app.logs`, or `site.app.restore`. `site.app.publish` is a normal part of creating a website prototype and never needs `user.confirm`. Ask for approval before `site.app.rollback`, `site.app.unpublish`, or `site.app.delete`.
+
+Use `user.confirm` only for rollback, unpublish, or delete requests. Do not use `user.confirm` for create, build, publish, status, logs, or restore.
+
+Never ask for publish approval in natural language. Chat replies such as "확인해 주세요", "승인해 주세요", "말씀해 주시면 게시하겠습니다", or "다시 명령해 주세요" do not create a runtime approval job and cannot resume automatically.
 
 For follow-up feedback in the same conversation, call `site.app.status` with an empty input or the known slug. The tool can resolve the current conversation's bound site. Read the existing `DESIGN.md`, update it for the new request, edit the returned workspace, rebuild from `app/`, publish the same site, and reply with the same URL.
+
+If the user replies with a short continuation such as "해줘", "진행", "확인", "좋아", "응", "게시해", "배포해", or "publish", treat it as an instruction to finish the current site workflow. Resolve the current site with `site.app.status`, check whether the source is customized beyond the starter, complete missing implementation work if needed, build, publish, and then reply with the public URL. Do not repeat an approval request for publish.
 
 Use this command pattern after source files are written:
 
@@ -67,6 +78,7 @@ After terminal build success:
 
 - call `site.app.publish` with `siteID` and a human-readable `message`
 - never claim deployment succeeded until the tool succeeds
+- after publish succeeds, call `site.app.status` and make sure `status` is `published`
 - if publish says `app/dist is stale`, run `bun run build` from `app/` again before publishing
 - if publish fails, summarize the actual failure and stop
 
@@ -124,6 +136,8 @@ For a successful publish, reply with:
 - note that it is a prototype for idea validation, not production software
 
 Keep the reply short. The user is non-technical and wants to try the link.
+
+Do not use this successful publish reply format for draft sites. A draft site is not visible to the user.
 
 ## Takedown
 

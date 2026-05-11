@@ -7,7 +7,6 @@
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { CopyButton } from '$lib/components/ui/copy-button';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
 	import MailIcon from '@lucide/svelte/icons/mail';
 	import PlusIcon from '@lucide/svelte/icons/plus';
@@ -24,7 +23,7 @@
 	import { adminText } from './admin/text';
 
 	type UserRole = 'admin' | 'member';
-	type AdminSection = 'device' | 'calendar' | 'flow' | 'bot' | 'companion' | 'backup' | 'users';
+	type AdminSection = 'device' | 'bot' | 'companion' | 'backup' | 'users';
 
 	type UserRecord = {
 		userID: string;
@@ -218,8 +217,6 @@
 	};
 	const adminSections = (): { value: AdminSection; label: string }[] => [
 		{ value: 'device', label: text.sections.device },
-		{ value: 'calendar', label: text.sections.calendar },
-		{ value: 'flow', label: text.sections.flow },
 		{ value: 'users', label: text.sections.users },
 		{ value: 'companion', label: text.sections.companion },
 		{ value: 'backup', label: text.sections.backup },
@@ -821,50 +818,6 @@
 				{#if adminErrorMessage}
 					<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{adminErrorMessage}</p>
 				{/if}
-			{/if}
-
-			{#if activeAdminSection === 'flow'}
-				<div class="rounded-lg border p-4">
-				<div class="flex flex-wrap items-start justify-between gap-3">
-					<div>
-						<h3 class="text-sm font-semibold">{text.flow.title}</h3>
-						<p class="text-muted-foreground mt-1 text-sm">
-							{text.flow.description}
-						</p>
-					</div>
-					<Badge variant="secondary">weekly</Badge>
-				</div>
-				<div class="mt-4 flex flex-wrap gap-2">
-					<Button href="/flow/" class="gap-2">
-						<ExternalLinkIcon class="size-4" />
-						{text.flow.open}
-					</Button>
-					<Button href="/admin/api/flow/status" variant="outline" class="gap-2">
-						<RefreshCwIcon class="size-4" />
-						{text.flow.status}
-					</Button>
-				</div>
-			</div>
-			{/if}
-
-			{#if activeAdminSection === 'calendar'}
-				<div class="rounded-lg border p-4">
-				<div class="flex flex-wrap items-start justify-between gap-3">
-					<div>
-						<h3 class="text-sm font-semibold">{text.calendar.title}</h3>
-						<p class="text-muted-foreground mt-1 text-sm">
-							{text.calendar.description}
-						</p>
-					</div>
-					<Badge variant="secondary">CalDAV</Badge>
-				</div>
-				<div class="mt-4 flex flex-wrap gap-2">
-					<Button href="/calendar/" class="gap-2">
-						<CalendarDaysIcon class="size-4" />
-						{text.calendar.open}
-					</Button>
-				</div>
-			</div>
 			{/if}
 
 			{#if activeAdminSection === 'bot'}
