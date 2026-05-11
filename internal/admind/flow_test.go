@@ -1,6 +1,10 @@
 package admind
 
-import "testing"
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
 
 func TestFlowTasksWithMatchingDatesUsesStartAndEndDateOnly(t *testing.T) {
 	tasks := []flowTask{
@@ -33,5 +37,16 @@ func TestFlowDuplicateLLMRequestConstrainsDuplicateTaskIDToExistingTasks(t *test
 
 	if len(values) != 3 || values[0] != "" || values[1] != "task-1" || values[2] != "task-2" {
 		t.Fatalf("duplicate task enum = %+v", values)
+	}
+}
+
+func TestFlowMembersWithoutFleetCredentialsDoesNotReturnSeedMembers(t *testing.T) {
+	service := NewService(Configuration{})
+	request := httptest.NewRequest(http.MethodGet, "/flow/api/summary", nil)
+
+	members := service.flowMembers(request)
+
+	if len(members) != 0 {
+		t.Fatalf("members = %+v", members)
 	}
 }

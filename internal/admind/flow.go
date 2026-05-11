@@ -1626,7 +1626,7 @@ func (service *Service) flowMembers(request *http.Request) []flowMember {
 			return membersFromUserRecords(records)
 		}
 	}
-	return defaultFlowMembers()
+	return nil
 }
 
 func membersFromUserRecords(records []adminUserMutation) []flowMember {
@@ -1671,78 +1671,6 @@ func resolveCurrentUserName(members []flowMember, email string) string {
 		}
 	}
 	return strings.TrimSuffix(normalized, "@"+emailDomain(normalized))
-}
-
-func defaultFlowMembers() []flowMember {
-	names := []string{"김여명", "이동하", "신우경", "박세은", "장석민", "곽성재"}
-	members := make([]flowMember, 0, len(names))
-	for _, name := range names {
-		members = append(members, flowMember{
-			ID:               stableFlowID(name),
-			Name:             name,
-			Email:            "",
-			Role:             "member",
-			MattermostStatus: "sample",
-		})
-	}
-	return members
-}
-
-func buildSeedFlowTasks(weekCode string, weekStart time.Time, members []flowMember) []flowTask {
-	if len(members) == 0 {
-		members = defaultFlowMembers()
-	}
-	taskTemplates := []struct {
-		OwnerOffset       int
-		ParticipantOffset int
-		Business          string
-		Type              string
-		Content           string
-		Goal              string
-		Size              string
-		Status            string
-		Flag              int
-	}{
-		{0, 1, "운영", "개선", "Mattermost 초대와 권한 흐름 정리", "초대 후 바로 업무 공간에 들어올 수 있게 한다", "M", "진행", 0},
-		{1, 2, "제품", "기능", "Flow 주간 업무 화면 베타 구현", "이번 주 업무와 개인별 탭을 한 화면에서 확인한다", "L", "진행", 1},
-		{2, 0, "AI", "리서치", "브라우저 스크린샷 전달 경로 점검", "캡처 파일이 답변 첨부로 전달되는지 검증한다", "S", "완료", 0},
-		{3, 4, "운영", "요청", "타인 업무 요청 승인 플로우 설계", "요청/기각/중단 상태를 운영 정책에 맞춘다", "M", "요청", 0},
-		{4, 5, "데이터", "분석", "구성원별 점수 산정식 검토", "크기와 상태 기반의 주간 점수를 비교한다", "S", "예정", 0},
-		{5, 0, "보안", "점검", "관리자 페이지 접근 권한 재확인", "Access 인증과 내부 admin role을 분리해 확인한다", "M", "일시정지", 1},
-	}
-	tasks := make([]flowTask, 0, len(taskTemplates))
-	for index, template := range taskTemplates {
-		owner := members[template.OwnerOffset%len(members)]
-		participant := members[template.ParticipantOffset%len(members)]
-		participants := []flowMember{owner}
-		if participant.ID != owner.ID {
-			participants = append(participants, participant)
-		}
-		task := flowTask{
-			ID:               stableFlowID(weekCode + template.Content),
-			OwnerID:          owner.ID,
-			OwnerName:        owner.Name,
-			ParticipantIDs:   memberIDs(participants),
-			ParticipantNames: memberNames(participants),
-			Business:         template.Business,
-			Type:             template.Type,
-			Content:          template.Content,
-			Goal:             template.Goal,
-			Size:             template.Size,
-			Status:           template.Status,
-			StartDate:        weekStart.AddDate(0, 0, index%5).Format("2006-01-02"),
-			WeekCode:         weekCode,
-			Flag:             template.Flag,
-		}
-		if template.Status == "완료" {
-			task.EndDate = weekStart.AddDate(0, 0, index%5+1).Format("2006-01-02")
-		}
-		if template.Status == "요청" {
-			task.RequestReason = "공동 작업으로 등록 요청됨"
-		}
-		tasks = append(tasks, task)
-	}
-	return tasks
 }
 
 func scoreFlowMembers(members []flowMember, tasks []flowTask, definitions flowDefinitions) []flowMember {

@@ -240,11 +240,11 @@ func printUsage() {
 	fmt.Println("  model    Manage LLM model (current/set/list)")
 	fmt.Println("  migrate  Migrate device metadata without full setup")
 	fmt.Println("  companion Build and upgrade the local companion app")
-	fmt.Println("  invite   Generate invite QR code")
+	fmt.Println("  invite   Add/invite an allowed user")
 	fmt.Println("  users    Manage allowed users")
 	fmt.Println("  reset    Reset board runtime data")
 	fmt.Println("  status   Check board and tunnel status")
-	fmt.Println("  update   OTA update")
+	fmt.Println("  update   Deploy current build to device")
 	fmt.Println("  deploy   Build and deploy web UI + board-bridge to board")
 	fmt.Println("  doctor   Check host dependencies")
 	fmt.Println("  verify   Run API, Mattermost, and browser verification")
@@ -715,8 +715,17 @@ func runMigrateFleetID(arguments []string) error {
 	return nil
 }
 
-func runInvite() { fmt.Println("TODO: invite") }
-func runUsers()  { fmt.Println("TODO: users") }
+func runInvite() {
+	if errorValue := runInviteArguments(os.Args[2:]); errorValue != nil {
+		fatal(errorValue.Error())
+	}
+}
+
+func runUsers() {
+	if errorValue := runUsersArguments(os.Args[2:]); errorValue != nil {
+		fatal(errorValue.Error())
+	}
+}
 func runStatus() {
 	if errorValue := runStatusArguments(os.Args[2:]); errorValue != nil {
 		fatal(errorValue.Error())
@@ -861,7 +870,11 @@ func printBoardStatus(m *msg, target commandTarget, sshClient *sshClient) {
 		fmt.Printf("  %-20s %s\n", m.t("디스크", "Disk"), disk)
 	}
 }
-func runUpdate() { fmt.Println("TODO: update") }
+func runUpdate() {
+	if errorValue := runUpdateArguments(os.Args[2:]); errorValue != nil {
+		fatal(errorValue.Error())
+	}
+}
 
 // backupFromExt4 extracts workspace files from the SD card's ext4 partition
 // using debugfs (file-by-file, no full partition copy).
