@@ -105,6 +105,9 @@ func (service Service) invokeMailMessageRead(ctx context.Context, request capabi
 }
 
 func (service Service) invokeMailMessageSend(ctx context.Context, request capabilities.ToolInvokeRequest) (json.RawMessage, error) {
+	if !request.Context.IsApprovalContinuation {
+		return nil, fmt.Errorf("mail.message.send requires approval before delivery")
+	}
 	input, errorValue := decodeMailMessageSendInput(request.Input)
 	if errorValue != nil {
 		return nil, errorValue

@@ -40,6 +40,7 @@ type Configuration struct {
 	CompanionJobPath            string
 	FlowDatabasePath            string
 	CalendarDatabasePath        string
+	MailDatabasePath            string
 	MattermostAdminPasswordPath string
 	AdminEmailPath              string
 	ClaimedAdminEmailPath       string
@@ -71,6 +72,7 @@ type Service struct {
 	companionFileUploads map[string]*CompanionFileUpload
 	companionMounts      map[string]*CompanionMountRecord
 	sites                map[string]*SiteRecord
+	mailBackend          mailBackend
 }
 
 type Job struct {
@@ -188,6 +190,7 @@ func DefaultConfiguration() Configuration {
 		CompanionJobPath:            "/root/.internkim/state/companion-jobs.json",
 		FlowDatabasePath:            "/root/.internkim/state/flow.sqlite",
 		CalendarDatabasePath:        "/root/.internkim/state/calendar.sqlite",
+		MailDatabasePath:            "/root/.internkim/state/mail.sqlite",
 		MattermostAdminPasswordPath: "/root/.internkim/secrets/mm-admin-pass",
 		AdminEmailPath:              "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:       "/root/.internkim/state/admin/claimed-admin-email",
@@ -218,6 +221,7 @@ func NewService(configuration Configuration) *Service {
 		companionFileUploads: map[string]*CompanionFileUpload{},
 		companionMounts:      map[string]*CompanionMountRecord{},
 		sites:                map[string]*SiteRecord{},
+		mailBackend:          standardMailBackend{},
 	}
 	service.loadCompanions()
 	service.loadCompanionJobs()
@@ -1804,6 +1808,13 @@ func (configuration Configuration) withDefaults() Configuration {
 			configuration.CalendarDatabasePath = defaultConfiguration.CalendarDatabasePath
 		} else {
 			configuration.CalendarDatabasePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "calendar.sqlite")
+		}
+	}
+	if configuration.MailDatabasePath == "" {
+		if configuration.CompanionJobPath == defaultConfiguration.CompanionJobPath {
+			configuration.MailDatabasePath = defaultConfiguration.MailDatabasePath
+		} else {
+			configuration.MailDatabasePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "mail.sqlite")
 		}
 	}
 	if configuration.MattermostAdminPasswordPath == "" {

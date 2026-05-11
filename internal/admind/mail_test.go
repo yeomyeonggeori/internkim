@@ -1,0 +1,225 @@
+package admind
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+type fakeMailBackend struct {
+	testedAccount  mailAccount
+	listedAccount  mailAccount
+	sentAccount    mailAccount
+	sentMessage    mailMessageSendRequest
+	movedUID       uint32
+	movedTarget    string
+	markedUID      uint32
+	markedSeen     *bool
+	markedFlagged  *bool
+	readUID        uint32
+	mailboxes      []mailMailboxResponse
+	messages       []mailMessageResponse
+	messageDetail  mailMessageDetailResponse
+	shouldTestFail bool
+	shouldListFail bool
+	shouldSendFail bool
+	shouldMoveFail bool
+	shouldMarkFail bool
+	shouldReadFail bool
+}
+
+func (backend *fakeMailBackend) TestAccount(ctx context.Context, account mailAccount) error {
+	backend.testedAccount = account
+	return nil
+}
+
+func (backend *fakeMailBackend) ListMailboxes(ctx context.Context, account mailAccount) ([]mailMailboxResponse, error) {
+	backend.listedAccount = account
+	return backend.mailboxes, nil
+}
+
+func (backend *fakeMailBackend) ListMessages(ctx context.Context, account mailAccount, input mailMessageListRequest) ([]mailMessageResponse, error) {
+	return backend.messages, nil
+}
+
+func (backend *fakeMailBackend) ReadMessage(ctx context.Context, account mailAccount, mailbox string, uid uint32) (mailMessageDetailResponse, error) {
+	backend.readUID = uid
+	return backend.messageDetail, nil
+}
+
+func (backend *fakeMailBackend) SendMessage(ctx context.Context, account mailAccount, input mailMessageSendRequest) (mailSendResult, error) {
+	backend.sentAccount = account
+	backend.sentMessage = input
+	return mailSendResult{Sent: true, AppendedTo: account.SentMailbox}, nil
+}
+
+func (backend *fakeMailBackend) MoveMessage(ctx context.Context, account mailAccount, mailbox string, uid uint32, targetMailbox string) error {
+	backend.movedUID = uid
+	backend.movedTarget = targetMailbox
+	return nil
+}
+
+func (backend *fakeMailBackend) MarkMessage(ctx context.Context, account mailAccount, mailbox string, uid uint32, input mailMessageMarkRequest) error {
+	backend.markedUID = uid
+	backend.markedSeen = input.Seen
+	backend.markedFlagged = input.Flagged
+	return nil
+}
+
+func TestMailAccountSavePreservesStoredPasswords(t *testing.T) {
+	service := newMailTestService(t)
+	account := defaultMailAccount("admin@example.com")
+	account.IMAPHost = "imap.example.com"
+	account.IMAPUsername = "admin@example.com"
+	account.IMAPPassword = "imap-secret"
+	account.SMTPHost = "smtp.example.com"
+	account.SMTPUsername = "admin@example.com"
+	account.SMTPPassword = "smtp-secret"
+	if errorValue := service.saveMailAccountRecord(context.Background(), account); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	response := performMailRequest(t, service, http.MethodPut, "/mail/api/account", `{
+		"email":"admin@example.com",
+		"fromAddress":"Admin <admin@example.com>",
+		"imapHost":"imap.changed.example.com",
+		"imapPort":993,
+		"imapSecurity":"tls",
+		"imapUsername":"admin@example.com",
+		"smtpHost":"smtp.changed.example.com",
+		"smtpPort":587,
+		"smtpSecurity":"starttls",
+		"smtpUsername":"admin@example.com",
+		"defaultMailbox":"INBOX",
+		"sentMailbox":"Sent"
+	}`)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+	savedAccount, found, errorValue := service.readMailAccount(context.Background(), "admin@example.com")
+	if errorValue != nil || !found {
+		t.Fatalf("read account found=%v error=%v", found, errorValue)
+	}
+	if savedAccount.IMAPPassword != "imap-secret" || savedAccount.SMTPPassword != "smtp-secret" {
+		t.Fatalf("passwords were not preserved: %#v", savedAccount)
+	}
+	if savedAccount.IMAPHost != "imap.changed.example.com" || savedAccount.SMTPHost != "smtp.changed.example.com" {
+		t.Fatalf("hosts were not saved: %#v", savedAccount)
+	}
+}
+
+func TestMailHandlersUseBackendForActions(t *testing.T) {
+	service := newMailTestService(t)
+	backend := &fakeMailBackend{
+		mailboxes: []mailMailboxResponse{{Name: "INBOX", DisplayName: "Inbox", Total: 1}},
+		messages:  []mailMessageResponse{{UID: 42, Mailbox: "INBOX", Subject: "Demo", From: "a@example.com"}},
+		messageDetail: mailMessageDetailResponse{
+			UID:     42,
+			Mailbox: "INBOX",
+			Subject: "Demo",
+			From:    "a@example.com",
+			Body:    "Body",
+		},
+	}
+	service.mailBackend = backend
+	saveConfiguredMailTestAccount(t, service)
+
+	mailboxesResponse := performMailRequest(t, service, http.MethodGet, "/mail/api/mailboxes", "")
+	if mailboxesResponse.Code != http.StatusOK {
+		t.Fatalf("mailboxes status = %d body = %s", mailboxesResponse.Code, mailboxesResponse.Body.String())
+	}
+	messagesResponse := performMailRequest(t, service, http.MethodGet, "/mail/api/messages?mailbox=INBOX", "")
+	if messagesResponse.Code != http.StatusOK {
+		t.Fatalf("messages status = %d body = %s", messagesResponse.Code, messagesResponse.Body.String())
+	}
+	messageResponse := performMailRequest(t, service, http.MethodGet, "/mail/api/messages/INBOX/42", "")
+	if messageResponse.Code != http.StatusOK || backend.readUID != 42 {
+		t.Fatalf("message status = %d readUID = %d", messageResponse.Code, backend.readUID)
+	}
+	sendResponse := performMailRequest(t, service, http.MethodPost, "/mail/api/messages/send", `{"to":["recipient@example.com"],"subject":"Demo","body":"Hello"}`)
+	if sendResponse.Code != http.StatusOK {
+		t.Fatalf("send status = %d body = %s", sendResponse.Code, sendResponse.Body.String())
+	}
+	if !strings.Contains(backend.sentMessage.To[0], "recipient@example.com") || backend.sentAccount.ActorEmail != "admin@example.com" {
+		t.Fatalf("sent message = %#v account = %#v", backend.sentMessage, backend.sentAccount)
+	}
+	moveResponse := performMailRequest(t, service, http.MethodPost, "/mail/api/messages/INBOX/42/move", `{"targetMailbox":"Archive"}`)
+	if moveResponse.Code != http.StatusOK || backend.movedUID != 42 || backend.movedTarget != "Archive" {
+		t.Fatalf("move status=%d uid=%d target=%q", moveResponse.Code, backend.movedUID, backend.movedTarget)
+	}
+	slashMailboxResponse := performMailRequest(t, service, http.MethodPost, "/mail/api/messages/%5BGmail%5D%2FAll%20Mail/42/move", `{"targetMailbox":"Archive"}`)
+	if slashMailboxResponse.Code != http.StatusOK {
+		t.Fatalf("slash mailbox move status=%d body=%s", slashMailboxResponse.Code, slashMailboxResponse.Body.String())
+	}
+	markResponse := performMailRequest(t, service, http.MethodPost, "/mail/api/messages/INBOX/42/flags", `{"seen":true}`)
+	if markResponse.Code != http.StatusOK || backend.markedSeen == nil || !*backend.markedSeen {
+		t.Fatalf("mark status=%d seen=%v", markResponse.Code, backend.markedSeen)
+	}
+}
+
+func TestMailRequiresConfiguredAccountForMailboxReads(t *testing.T) {
+	service := newMailTestService(t)
+	response := performMailRequest(t, service, http.MethodGet, "/mail/api/mailboxes", "")
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+	accountResponse := performMailRequest(t, service, http.MethodGet, "/mail/api/account", "")
+	if accountResponse.Code != http.StatusOK {
+		t.Fatalf("account status = %d", accountResponse.Code)
+	}
+	var account mailAccountResponse
+	if errorValue := json.Unmarshal(accountResponse.Body.Bytes(), &account); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if account.IsConfigured {
+		t.Fatalf("new account should not be configured: %#v", account)
+	}
+}
+
+func newMailTestService(t *testing.T) *Service {
+	t.Helper()
+	return NewService(Configuration{
+		StateDirectory:   t.TempDir(),
+		MailDatabasePath: filepath.Join(t.TempDir(), "mail.sqlite"),
+		AdminEmailPath:   writeTestFile(t, "admin@example.com"),
+	})
+}
+
+func saveConfiguredMailTestAccount(t *testing.T, service *Service) {
+	t.Helper()
+	account := defaultMailAccount("admin@example.com")
+	account.FromAddress = "admin@example.com"
+	account.IMAPHost = "imap.example.com"
+	account.IMAPUsername = "admin@example.com"
+	account.IMAPPassword = "imap-secret"
+	account.SMTPHost = "smtp.example.com"
+	account.SMTPUsername = "admin@example.com"
+	account.SMTPPassword = "smtp-secret"
+	if errorValue := service.saveMailAccountRecord(context.Background(), account); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
+
+func performMailRequest(t *testing.T, service *Service, method string, path string, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	var reader *bytes.Reader
+	if body == "" {
+		reader = bytes.NewReader(nil)
+	} else {
+		reader = bytes.NewReader([]byte(body))
+	}
+	request := httptest.NewRequest(method, path, reader)
+	request.RemoteAddr = "127.0.0.1:12345"
+	request.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	if strings.TrimSpace(body) != "" {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	response := httptest.NewRecorder()
+	service.handleMail(response, request)
+	return response
+}
