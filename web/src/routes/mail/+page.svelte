@@ -116,9 +116,13 @@
 	let selectedMailbox = $state('INBOX');
 	let selectedMessage = $state<MailMessage | null>(null);
 	let searchText = $state('');
+	let activeSearchText = $state('');
+	let nextCursor = $state('');
+	let hasMoreMessages = $state(false);
 	let isUnreadOnly = $state(false);
 	let isLoading = $state(false);
 	let isLoadingMessage = $state(false);
+	let isLoadingMore = $state(false);
 	let isSavingAccount = $state(false);
 	let isTestingAccount = $state(false);
 	let isSending = $state(false);
@@ -142,8 +146,7 @@
 			await loadAccount();
 			if (!account.isConfigured) {
 				mailboxes = [];
-				messages = [];
-				selectedMessage = null;
+				resetMessageList();
 				isSettingsOpen = true;
 				return;
 			}
@@ -172,19 +175,40 @@
 
 	async function loadMessages() {
 		if (!account.isConfigured) return;
-		const query = new URLSearchParams({ mailbox: selectedMailbox, limit: '50' });
-		if (searchText.trim()) query.set('query', searchText.trim());
+		activeSearchText = searchText.trim();
+		resetMessageList();
+		await fetchMessagesPage(false);
+	}
+
+	async function loadMoreMessages() {
+		if (!account.isConfigured || !hasMoreMessages || !nextCursor || isLoadingMore) return;
+		await fetchMessagesPage(true);
+	}
+
+	async function fetchMessagesPage(isAppending: boolean) {
+		const query = new URLSearchParams({ mailbox: selectedMailbox, limit: '30' });
+		if (activeSearchText) query.set('query', activeSearchText);
+		if (isAppending) query.set('cursor', nextCursor);
 		errorMessage = '';
+		if (isAppending) isLoadingMore = true;
 		try {
 			const response = await fetch(`/mail/api/messages?${query}`, { credentials: 'include' });
 			if (!response.ok) throw new Error(await responseErrorMessage(response, 'Could not load messages.'));
-			messages = ((await response.json()) as { messages?: MailMessage[] }).messages ?? [];
-			selectedMessage = visibleMessages()[0] ?? null;
-			if (selectedMessage) await loadMessage(selectedMessage);
+			const result = (await response.json()) as { messages?: MailMessage[]; nextCursor?: string };
+			messages = isAppending ? mergeMailMessages(messages, result.messages ?? []) : (result.messages ?? []);
+			nextCursor = result.nextCursor ?? '';
+			hasMoreMessages = nextCursor !== '';
+			if (!isAppending) {
+				selectedMessage = visibleMessages()[0] ?? null;
+				if (selectedMessage) await loadMessage(selectedMessage);
+			}
 		} catch (error) {
-			messages = [];
-			selectedMessage = null;
+			nextCursor = '';
+			hasMoreMessages = false;
+			if (!isAppending) resetMessageList();
 			errorMessage = error instanceof Error ? error.message : 'Could not load messages.';
+		} finally {
+			if (isAppending) isLoadingMore = false;
 		}
 	}
 
@@ -373,6 +397,36 @@
 			.filter(Boolean);
 	}
 
+	function resetMessageList() {
+		messages = [];
+		selectedMessage = null;
+		nextCursor = '';
+		hasMoreMessages = false;
+	}
+
+	function mergeMailMessages(existingMessages: MailMessage[], incomingMessages: MailMessage[]) {
+		const seenMessages = new Set(existingMessages.map((message) => mailMessageKey(message)));
+		const mergedMessages = [...existingMessages];
+		for (const message of incomingMessages) {
+			const key = mailMessageKey(message);
+			if (seenMessages.has(key)) continue;
+			seenMessages.add(key);
+			mergedMessages.push(message);
+		}
+		return mergedMessages;
+	}
+
+	function mailMessageKey(message: MailMessage) {
+		return `${message.mailbox}:${message.uid}`;
+	}
+
+	function handleMessageListScroll(event: Event) {
+		const element = event.currentTarget;
+		if (!(element instanceof HTMLElement)) return;
+		const remainingPixels = element.scrollHeight - element.scrollTop - element.clientHeight;
+		if (remainingPixels < 240) loadMoreMessages();
+	}
+
 	function mailboxByHint(hint: string) {
 		const normalizedHint = hint.toLowerCase();
 		return displayedMailboxes().find((mailbox) => mailbox.name.toLowerCase().includes(normalizedHint))?.name;
@@ -511,7 +565,7 @@
 			</div>
 		</div>
 
-		<div class="min-h-0 flex-1 overflow-auto p-2">
+		<div class="min-h-0 flex-1 overflow-auto p-2" onscroll={handleMessageListScroll}>
 			{#if errorMessage}
 				<div role="alert" class="mb-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
 					<p class="font-medium">Mail needs attention</p>
@@ -553,6 +607,12 @@
 								Mail settings
 							</Button>
 						{/if}
+					</div>
+				{/if}
+
+				{#if visibleMessages().length && (isLoadingMore || hasMoreMessages)}
+					<div class="py-3 text-center text-xs text-muted-foreground">
+						{isLoadingMore ? 'Loading more messages...' : 'Scroll for more'}
 					</div>
 				{/if}
 			</div>

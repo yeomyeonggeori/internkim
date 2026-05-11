@@ -49,7 +49,7 @@ type mailMessageMarkInput struct {
 
 func isMailTool(toolName string) bool {
 	switch strings.TrimSpace(toolName) {
-	case "mail.message.list", "mail.message.read", "mail.message.send", "mail.message.move", "mail.message.mark":
+	case "mail.message.list", "mail.message.search", "mail.message.read", "mail.message.send", "mail.message.move", "mail.message.mark":
 		return true
 	default:
 		return false
@@ -74,6 +74,8 @@ func (service Service) invokeMail(ctx context.Context, request capabilities.Tool
 	switch strings.TrimSpace(request.ToolName) {
 	case "mail.message.list":
 		return service.invokeMailMessageList(ctx, request)
+	case "mail.message.search":
+		return service.invokeMailMessageSearch(ctx, request)
 	case "mail.message.read":
 		return service.invokeMailMessageRead(ctx, request)
 	case "mail.message.send":
@@ -89,6 +91,14 @@ func (service Service) invokeMail(ctx context.Context, request capabilities.Tool
 
 func (service Service) invokeMailMessageList(ctx context.Context, request capabilities.ToolInvokeRequest) (json.RawMessage, error) {
 	input, errorValue := decodeMailMessageListInput(request.Input)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return service.sendMailToolRequest(ctx, http.MethodGet, mailMessageListPath(input), nil, request.Context.RequesterEmail)
+}
+
+func (service Service) invokeMailMessageSearch(ctx context.Context, request capabilities.ToolInvokeRequest) (json.RawMessage, error) {
+	input, errorValue := decodeMailMessageSearchInput(request.Input)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -135,7 +145,7 @@ func (service Service) invokeMailMessageMark(ctx context.Context, request capabi
 
 func decodeMailMessageListInput(document json.RawMessage) (mailMessageListInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return mailMessageListInput{Mailbox: "INBOX", Limit: 50}, nil
+		return mailMessageListInput{Mailbox: "INBOX", Limit: 20}, nil
 	}
 	var input mailMessageListInput
 	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
@@ -145,10 +155,21 @@ func decodeMailMessageListInput(document json.RawMessage) (mailMessageListInput,
 	input.Query = strings.TrimSpace(input.Query)
 	input.Cursor = strings.TrimSpace(input.Cursor)
 	if input.Limit == 0 {
-		input.Limit = 50
+		input.Limit = 20
 	}
-	if input.Limit < 0 || input.Limit > 100 {
-		return mailMessageListInput{}, fmt.Errorf("limit must be between 1 and 100")
+	if input.Limit < 1 || input.Limit > 50 {
+		return mailMessageListInput{}, fmt.Errorf("limit must be between 1 and 50")
+	}
+	return input, nil
+}
+
+func decodeMailMessageSearchInput(document json.RawMessage) (mailMessageListInput, error) {
+	input, errorValue := decodeMailMessageListInput(document)
+	if errorValue != nil {
+		return mailMessageListInput{}, errorValue
+	}
+	if strings.TrimSpace(input.Query) == "" {
+		return mailMessageListInput{}, fmt.Errorf("query is required")
 	}
 	return input, nil
 }
