@@ -656,13 +656,21 @@ echo "checking litert capability"
 if command -v litert-lm >/dev/null 2>&1 && [ -s /root/.internkim/models/gemma-4-E4B-it.litertlm ]; then
   litert_body="$(jq -cn '{
     model: "local/gemma-4-E4B-it-litert-lm",
+    accelerator: "cpu",
     executionMode: "device",
     messages: [{role:"user", content:"Reply with ok."}],
     requireParameters: true,
     enableResponseHealing: true
   }')"
-  litert_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$litert_body" http://internkim/v1/llm/text)"
-  printf '%s' "$litert_response" | jq -e '.selectedBackend as $backend | ($backend == "gpu" or $backend == "cpu") and (.content | type == "string" and length > 0)' >/dev/null
+  litert_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$litert_body" http://internkim/v1/llm/text 2>/tmp/internkim-verify-litert-error || true)"
+  if ! printf '%s' "$litert_response" | python3 -c 'import json, sys; document=json.load(sys.stdin); backend=document.get("selectedBackend"); content=document.get("content"); raise SystemExit(0 if backend in ("gpu", "cpu") and isinstance(content, str) and len(content) > 0 else 1)' >/dev/null 2>&1; then
+    if [ -n "$litert_response" ]; then
+      printf 'litert capability: %s\n' "$(printf '%s' "$litert_response" | tr '\n' ' ' | cut -c1-180)"
+    else
+      printf 'litert capability: %s\n' "$(tr '\n' ' ' </tmp/internkim-verify-litert-error | cut -c1-180)"
+    fi
+    exit 1
+  fi
 else
   echo "litert capability: skipped"
 fi
