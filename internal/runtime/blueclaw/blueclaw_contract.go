@@ -165,11 +165,11 @@ func BlueclawHealthCheckURL() string {
 }
 
 func BlueclawHealthCheckCommand() string {
-	return "curl -fsS " + BlueclawHealthCheckURL() + " >/dev/null && echo ok || echo no"
+	return "curl --max-time 5 -fsS " + BlueclawHealthCheckURL() + " >/dev/null && echo ok || echo no"
 }
 
 func CapabilitydHealthCheckCommand() string {
-	return "curl -fsS --unix-socket " + CapabilitySocketPath + " http://internkim/health | jq -e '.status == \"ok\"' >/dev/null && echo ok || echo no"
+	return "curl --max-time 5 -fsS --unix-socket " + CapabilitySocketPath + " http://internkim/health | jq -e '.status == \"ok\"' >/dev/null && echo ok || echo no"
 }
 
 func BlueclawWorkspaceSkillPath(skillName string) string {

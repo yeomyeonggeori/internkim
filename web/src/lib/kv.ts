@@ -38,6 +38,15 @@ function normalizeRole(role: unknown): UserRole {
 	return role === 'admin' ? 'admin' : 'member';
 }
 
+function normalizeISODate(value: unknown): string {
+	if (typeof value !== 'string') return '';
+	const date = value.trim();
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return '';
+	const parsed = new Date(`${date}T00:00:00.000Z`);
+	if (Number.isNaN(parsed.getTime())) return '';
+	return parsed.toISOString().slice(0, 10) === date ? date : '';
+}
+
 function normalizeUserRecord(value: unknown): UserRecord | null {
 	if (typeof value === 'string') {
 		const email = normalizeEmail(value);
@@ -57,11 +66,13 @@ function normalizeUserRecord(value: unknown): UserRecord | null {
 	if (!email) return null;
 	const handle = normalizeHandle(record.handle ?? record.mattermostUsername ?? normalizeHandleFromEmail(email));
 	const name = typeof record.name === 'string' ? record.name.trim() : '';
+	const hireDate = normalizeISODate(record.hireDate);
 	return {
 		userID: typeof record.userID === 'string' && record.userID.trim() ? record.userID.trim() : stableUserID(email),
 		handle: handle || normalizeHandleFromEmail(email),
 		...(name ? { name } : {}),
 		email,
+		...(hireDate ? { hireDate } : {}),
 		role: normalizeRole(record.role),
 		mattermostUserID: record.mattermostUserID,
 		mattermostUsername: record.mattermostUsername,

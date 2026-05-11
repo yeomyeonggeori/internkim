@@ -1,7 +1,7 @@
 <script lang="ts">
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { useSidebar } from '$lib/components/ui/sidebar/index.js';
-	import * as Avatar from '$lib/components/ui/avatar/index.js';
+	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
 	import BadgeCheckIcon from '@lucide/svelte/icons/badge-check';
 	import BellIcon from '@lucide/svelte/icons/bell';
@@ -40,16 +40,6 @@
 	function classNameWith(value: unknown, extraClassName: string) {
 		if (typeof value !== 'string') return extraClassName;
 		return `${value} ${extraClassName}`;
-	}
-
-	function userInitials() {
-		const source = userName || userEmail || 'Workspace';
-		return source
-			.split(/[\s@._-]+/)
-			.filter(Boolean)
-			.slice(0, 2)
-			.map((part) => part[0]?.toUpperCase() ?? '')
-			.join('');
 	}
 
 	onMount(loadUser);
@@ -149,10 +139,7 @@
 								class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
 								{...props}
 							>
-								<Avatar.Root class="size-8 rounded-lg">
-									<Avatar.Image src="/logo.svg" alt={userName} />
-									<Avatar.Fallback class="rounded-lg">{userInitials()}</Avatar.Fallback>
-								</Avatar.Root>
+								<PersonAvatar name={userName} email={userEmail} class="size-8 rounded-lg" />
 								<div class="grid flex-1 text-start text-sm leading-tight">
 									<span class="truncate font-medium">{userName}</span>
 									<span class="truncate text-xs">{userEmail || 'Active workspace'}</span>
@@ -169,10 +156,7 @@
 					>
 						<DropdownMenu.Label class="p-0 font-normal">
 							<div class="flex items-center gap-2 px-1 py-1.5 text-start text-sm">
-								<Avatar.Root class="size-8 rounded-lg">
-									<Avatar.Image src="/logo.svg" alt={userName} />
-									<Avatar.Fallback class="rounded-lg">{userInitials()}</Avatar.Fallback>
-								</Avatar.Root>
+								<PersonAvatar name={userName} email={userEmail} class="size-8 rounded-lg" />
 								<div class="grid flex-1 text-start text-sm leading-tight">
 									<span class="truncate font-medium">{userName}</span>
 									<span class="truncate text-xs">{userEmail || 'Active workspace'}</span>

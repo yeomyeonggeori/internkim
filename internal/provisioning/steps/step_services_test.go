@@ -130,8 +130,9 @@ func TestServiceHealthReportChecksAllServicesInOneCommand(t *testing.T) {
 		"printf '%s=' 'admind'",
 		"systemctl is-active internkim-admind",
 		"printf '%s=' 'blueclawHealth'",
-		"curl -fsS http://127.0.0.1:8080/admin/api/health",
+		"curl --max-time 5 -fsS http://127.0.0.1:8080/admin/api/health",
 		"printf '%s=' 'capabilitydHealth'",
+		"curl --max-time 5 -fsS --unix-socket /run/internkim/capability.sock",
 		"printf '%s=' 'embedding'",
 		locallm.LlamaCppEmbeddingServiceName,
 	} {
