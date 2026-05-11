@@ -647,7 +647,7 @@
 				<div class="space-y-2">
 					<Label for="mail-imap-security">Security</Label>
 					<select id="mail-imap-security" class="border-input bg-background h-9 w-full rounded-md border px-2 text-sm" bind:value={accountDraft.imapSecurity}>
-						<option value="tls">TLS</option>
+						<option value="tls">SSL/TLS</option>
 						<option value="starttls">STARTTLS</option>
 						<option value="none">None</option>
 					</select>
@@ -678,8 +678,8 @@
 				<div class="space-y-2">
 					<Label for="mail-smtp-security">Security</Label>
 					<select id="mail-smtp-security" class="border-input bg-background h-9 w-full rounded-md border px-2 text-sm" bind:value={accountDraft.smtpSecurity}>
-						<option value="tls">TLS</option>
-						<option value="starttls">STARTTLS</option>
+						<option value="tls">SSL/TLS</option>
+						<option value="starttls">STARTTLS/TLS</option>
 						<option value="none">None</option>
 					</select>
 				</div>
