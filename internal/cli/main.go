@@ -1833,44 +1833,31 @@ func runLab() {
 }
 
 func runSim() {
-	labArguments := []string{"scenario-e2e"}
-	if len(os.Args) > 2 {
-		switch os.Args[2] {
-		case "reset":
-			if errorValue := runLabArguments([]string{"vm-down"}); errorValue != nil {
-				fmt.Printf("lab reset cleanup warning: %v\n", errorValue)
-			}
-			labArguments = []string{"scenario-e2e"}
-		case "stop":
-			labArguments = []string{"vm-down"}
-		case "ssh":
-			labArguments = append([]string{"vm-ssh"}, os.Args[3:]...)
-		case "status":
-			labArguments = []string{"status"}
-		default:
-			labArguments = append([]string{"scenario-e2e"}, os.Args[2:]...)
-		}
-	}
-
-	if errorValue := runLabArgumentsForTarget(labArguments, commandTargetBoardSimulation); errorValue != nil {
+	if errorValue := runSimArguments(os.Args[2:]); errorValue != nil {
 		fatal(errorValue.Error())
 	}
 }
 
 func runSetupSimulation(setupArguments []string) {
+	if errorValue := runSetupSimulationArguments(setupArguments); errorValue != nil {
+		fatal(errorValue.Error())
+	}
+}
+
+func runSetupSimulationArguments(setupArguments []string) error {
 	repositoryRootPath, errorValue := resolveRepositoryRootPath()
 	if errorValue != nil {
-		fatal(errorValue.Error())
+		return errorValue
 	}
 
 	configurationPath := internkimlab.DefaultConfigurationPath(repositoryRootPath)
 	configuration, errorValue := internkimlab.LoadConfiguration(configurationPath)
 	if errorValue != nil {
-		fatal(errorValue.Error())
+		return errorValue
 	}
 
 	if errorValue := ensureSimulationDependencies(configuration); errorValue != nil {
-		fatal(errorValue.Error())
+		return errorValue
 	}
 
 	service := internkimlab.NewService(
@@ -1881,7 +1868,7 @@ func runSetupSimulation(setupArguments []string) {
 
 	executablePath, errorValue := currentExecutablePath()
 	if errorValue != nil {
-		fatal(errorValue.Error())
+		return errorValue
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Minute)
@@ -1889,41 +1876,49 @@ func runSetupSimulation(setupArguments []string) {
 
 	if containsSetupPlan(setupArguments) {
 		if errorValue := service.PrintSimulationPlan(ctx, executablePath, setupArguments); errorValue != nil {
-			fatal(errorValue.Error())
+			return errorValue
 		}
-		return
+		return nil
 	}
 
-	filteredSetupArguments, shouldVerify, shouldVerifyBrowser := splitSimulationVerifyArguments(setupArguments)
+	filteredSetupArguments, shouldVerify, shouldVerifyBrowser, shouldKeepArtifacts := splitSimulationVerifyArguments(setupArguments)
 	setupArguments = filteredSetupArguments
 
+	if errorValue := validateSimulationStateIsolation(); errorValue != nil {
+		return errorValue
+	}
+	markSimulationState(repositoryRootPath)
 	if errorValue := service.SetupSimulation(ctx, executablePath, setupArguments); errorValue != nil {
-		fatal(errorValue.Error())
+		return errorValue
 	}
 
 	if !shouldVerify && !shouldVerifyBrowser {
-		return
+		return nil
 	}
 	virtualMachineIPAddress, errorValue := service.VirtualMachineIPAddress(ctx)
 	if errorValue != nil {
-		fatal(errorValue.Error())
+		return errorValue
 	}
 	verifyArguments := []string{"api", "--board", commandTargetBoardSimulation, "--host", virtualMachineIPAddress, "--user", configuration.VirtualMachine.SSHUsername, "--password", configuration.VirtualMachine.SSHPassword}
 	if errorValue := runVerifyArguments(verifyArguments); errorValue != nil {
-		fatal(errorValue.Error())
+		return errorValue
 	}
 	verifyArguments[0] = "mattermost"
+	if shouldKeepArtifacts {
+		verifyArguments = append(verifyArguments, "--keep")
+	}
 	if errorValue := runVerifyArguments(verifyArguments); errorValue != nil {
-		fatal(errorValue.Error())
+		return errorValue
 	}
 	if shouldVerifyBrowser {
 		if errorValue := runVerifyArguments([]string{"browser", "--local", "--board", commandTargetBoardSimulation, "--host", virtualMachineIPAddress, "--user", configuration.VirtualMachine.SSHUsername, "--password", configuration.VirtualMachine.SSHPassword}); errorValue != nil {
-			fatal(errorValue.Error())
+			return errorValue
 		}
 		if errorValue := runVerifyArguments([]string{"browser", "--public", "--board", commandTargetBoardSimulation, "--host", virtualMachineIPAddress, "--user", configuration.VirtualMachine.SSHUsername, "--password", configuration.VirtualMachine.SSHPassword}); errorValue != nil {
-			fatal(errorValue.Error())
+			return errorValue
 		}
 	}
+	return nil
 }
 
 func containsSetupPlan(arguments []string) bool {
@@ -1936,10 +1931,11 @@ func containsSetupPlan(arguments []string) bool {
 	return false
 }
 
-func splitSimulationVerifyArguments(arguments []string) ([]string, bool, bool) {
+func splitSimulationVerifyArguments(arguments []string) ([]string, bool, bool, bool) {
 	var filteredArguments []string
 	shouldVerify := false
 	shouldVerifyBrowser := false
+	shouldKeepArtifacts := false
 	for _, argument := range arguments {
 		switch argument {
 		case "--verify":
@@ -1947,11 +1943,13 @@ func splitSimulationVerifyArguments(arguments []string) ([]string, bool, bool) {
 		case "--verify-browser":
 			shouldVerify = true
 			shouldVerifyBrowser = true
+		case "--keep-artifacts":
+			shouldKeepArtifacts = true
 		default:
 			filteredArguments = append(filteredArguments, argument)
 		}
 	}
-	return filteredArguments, shouldVerify, shouldVerifyBrowser
+	return filteredArguments, shouldVerify, shouldVerifyBrowser, shouldKeepArtifacts
 }
 
 type hostDependency struct {
@@ -2084,7 +2082,7 @@ func setupControlArguments(arguments []string) []string {
 				index++
 				filteredArguments = append(filteredArguments, arguments[index])
 			}
-		case "--force", "--force-all", "--plan", "--list-steps", "--en", "--non-interactive", "--verify", "--verify-browser", "--with-google":
+		case "--force", "--force-all", "--plan", "--list-steps", "--en", "--non-interactive", "--verify", "--verify-browser", "--keep-artifacts", "--with-google":
 			filteredArguments = append(filteredArguments, argument)
 		default:
 			if strings.HasPrefix(argument, "--only=") ||

@@ -159,36 +159,45 @@ Firecracker runtime payload에 Blueclaw Go 소스 변경을 확실히 포함해�
 
 Mattermost self-hosted는 기본적으로 한 team의 총 멤버 수에 제한이 있습니다. 기본값은 `TeamSettings.MaxUsersPerTeam = 50`이며, 활성/비활성 사용자를 포함합니다. 반복 검증에서 테스트 사용자를 지우지 않으면 이 제한에 걸려 team/channel join API가 실패할 수 있습니다. 필요하면 운영 환경에서 이 값을 늘릴 수 있지만, 테스트 코드는 생성한 Mattermost 테스트 사용자를 정리해야 합니다.
 
-### Tart Lab
+### Sim-first Deployment
 
-실제 보드 대신 macOS + Tart ARM Linux VM에서 Blueclaw와 Mattermost를 포함한 소프트웨어 E2E를 테스트합니다:
+실제 보드에 올리기 전에 macOS + Tart ARM Linux VM에서 로컬 변경을 먼저 검증합니다. 표준 협업 흐름은 sim gate 성공 후 실기기에 배포하는 방식입니다:
 
 ```bash
 make deps-sim
 
-# Tart 이미지 준비
+# 최초 1회 Tart 이미지 준비
 ./internkim lab image-build
 
-# VM 부팅
+# sim 전체 게이트: 빌드, VM setup, API/Mattermost, 브라우저, public URL smoke
+./internkim sim gate
+
+# 변경 없이 실행 계획 확인
+./internkim sim gate --plan
+
+# sim gate 성공 후 웹 포함 실기기 배포
+./internkim update --sim-first
+
+# Makefile alias
+make sim-gate
+make deploy-after-sim
+
+# 운영 명령
+./internkim sim status
+./internkim sim ssh
+./internkim sim stop
+./internkim sim cleanup
+```
+
+`sim`은 `.internkim/simulations/sim` 상태를 사용하며 실기기 상태와 fleet/tunnel 값이 겹치면 실행을 중단합니다. Cloudflare Pages 배포는 sim에서 건너뛰고, VM 내부 board UI와 public URL smoke를 검증합니다.
+
+기존 저수준 lab 명령도 유지됩니다:
+
+```bash
 ./internkim lab vm-up
-
-# VM provisioning + internkim setup
 ./internkim lab setup
-
-# 전체 소프트웨어 acceptance
 ./internkim lab scenario-e2e
-
-# 또는 한 번에
-./internkim setup --sim
-
-# 설치 후 API/Mattermost connector 검증
-./internkim setup --sim --verify
-
-# API/Mattermost 검증 + 브라우저 smoke
 ./internkim setup --sim --verify-browser
-
-# VM SSH 접속
-./internkim lab vm-ssh
 ```
 
 ### 로컬 Graphiti Smoke

@@ -132,6 +132,10 @@ export const kv = {
 		await kv.put(fleetKey(id), JSON.stringify(normalizeDevice(device, id) ?? device));
 	},
 
+	async deleteDevice(kv: KVNamespace, id: string): Promise<void> {
+		await kv.delete(fleetKey(id));
+	},
+
 	async getUsers(kv: KVNamespace, fleetID: string): Promise<string[]> {
 		return userEmails(await this.getUserRecords(kv, fleetID));
 	},
@@ -160,6 +164,10 @@ export const kv = {
 
 	async putUserRecords(kv: KVNamespace, fleetID: string, records: UserRecord[]): Promise<void> {
 		await kv.put(fleetUsersKey(fleetID), JSON.stringify(normalizeUserRecords(records)));
+	},
+
+	async deleteUserRecords(kv: KVNamespace, fleetID: string): Promise<void> {
+		await kv.delete(fleetUsersKey(fleetID));
 	},
 
 	async getInvite(kv: KVNamespace, token: string): Promise<Invite | null> {
