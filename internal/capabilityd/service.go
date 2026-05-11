@@ -817,7 +817,7 @@ func (service Service) authenticatedJSONRequest(ctx context.Context, method stri
 	defer response.Body.Close()
 	responseDocument, _ := io.ReadAll(response.Body)
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return errors.New(string(responseDocument))
+		return fmt.Errorf("http status %d: %s", response.StatusCode, strings.TrimSpace(string(responseDocument)))
 	}
 	if responseValue == nil {
 		return nil
