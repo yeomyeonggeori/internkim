@@ -187,6 +187,27 @@ func TestOnlyCloudflareAccessDoesNotIncludeRuntimeOrTunnelSteps(t *testing.T) {
 	}
 }
 
+func TestOnlyAdmindDoesNotIncludeBroadRuntimeSteps(t *testing.T) {
+	context := &Context{
+		Backend: BackendSSH,
+		SSH:     blueclawPlanBoardConnection{},
+		BoardIP: "192.0.2.10",
+	}
+	plan, err := DefaultRegistry().resolve(context, Selector{Only: []string{"admind"}, Force: true})
+	if err != nil {
+		t.Fatalf("resolve failed: %v", err)
+	}
+	joinedPlan := strings.Join(plan, ",")
+	if joinedPlan != "admind" {
+		t.Fatalf("unexpected plan: %s", joinedPlan)
+	}
+	for _, disallowedName := range []string{"binaries", "services", "local-llm"} {
+		if strings.Contains(joinedPlan, disallowedName) {
+			t.Fatalf("admind deploy must not include %s, got %s", disallowedName, joinedPlan)
+		}
+	}
+}
+
 func TestForcedCloudflareAccessRunsSatisfiedWebDependency(t *testing.T) {
 	var webRan bool
 	var accessRan bool
