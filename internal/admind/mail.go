@@ -834,20 +834,22 @@ func (backend standardMailBackend) ListMailboxes(ctx context.Context, account ma
 		return nil, errorValue
 	}
 	defer closeIMAPClient(imapClient)
-	listOptions := &imap.ListOptions{
-		ReturnSpecialUse: true,
-		ReturnStatus: &imap.StatusOptions{
-			NumMessages: true,
-			NumUnseen:   true,
-		},
-	}
-	listData, errorValue := imapClient.List("", "*", listOptions).Collect()
+	listData, errorValue := imapClient.List("", "*", nil).Collect()
 	if errorValue != nil {
 		return nil, errorValue
 	}
+	mailboxes := mailMailboxResponsesFromListData(listData)
+	addMailMailboxStatuses(imapClient, mailboxes)
+	sort.SliceStable(mailboxes, func(firstIndex int, secondIndex int) bool {
+		return mailMailboxSortKey(mailboxes[firstIndex].Name) < mailMailboxSortKey(mailboxes[secondIndex].Name)
+	})
+	return mailboxes, nil
+}
+
+func mailMailboxResponsesFromListData(listData []*imap.ListData) []mailMailboxResponse {
 	mailboxes := make([]mailMailboxResponse, 0, len(listData))
 	for _, mailboxData := range listData {
-		if mailboxData == nil || mailboxData.Mailbox == "" {
+		if mailboxData == nil || mailboxData.Mailbox == "" || containsMailMailboxAttribute(mailboxData.Attrs, imap.MailboxAttrNoSelect) {
 			continue
 		}
 		mailboxes = append(mailboxes, mailMailboxResponse{
@@ -857,10 +859,18 @@ func (backend standardMailBackend) ListMailboxes(ctx context.Context, account ma
 			Total:       statusInteger(mailboxData.Status, "total"),
 		})
 	}
-	sort.SliceStable(mailboxes, func(firstIndex int, secondIndex int) bool {
-		return mailMailboxSortKey(mailboxes[firstIndex].Name) < mailMailboxSortKey(mailboxes[secondIndex].Name)
-	})
-	return mailboxes, nil
+	return mailboxes
+}
+
+func addMailMailboxStatuses(imapClient *imapclient.Client, mailboxes []mailMailboxResponse) {
+	for index := range mailboxes {
+		status, errorValue := imapClient.Status(mailboxes[index].Name, &imap.StatusOptions{NumMessages: true, NumUnseen: true}).Wait()
+		if errorValue != nil {
+			continue
+		}
+		mailboxes[index].Unseen = statusInteger(status, "unseen")
+		mailboxes[index].Total = statusInteger(status, "total")
+	}
 }
 
 func (backend standardMailBackend) ListMessages(ctx context.Context, account mailAccount, input mailMessageListRequest) ([]mailMessageResponse, error) {
@@ -1298,6 +1308,15 @@ func imapAddressListString(addresses []imap.Address) string {
 func containsMailFlag(flags []imap.Flag, flag imap.Flag) bool {
 	for _, value := range flags {
 		if value == flag {
+			return true
+		}
+	}
+	return false
+}
+
+func containsMailMailboxAttribute(attributes []imap.MailboxAttr, attribute imap.MailboxAttr) bool {
+	for _, value := range attributes {
+		if value == attribute {
 			return true
 		}
 	}
