@@ -13,7 +13,6 @@ import (
 	"mime"
 	"net"
 	"net/http"
-	netmail "net/mail"
 	"net/smtp"
 	"net/url"
 	"os"
@@ -116,15 +115,21 @@ type mailMessageResponse struct {
 }
 
 type mailMessageDetailResponse struct {
-	UID     uint32 `json:"uid"`
-	Mailbox string `json:"mailbox"`
-	Subject string `json:"subject"`
-	From    string `json:"from"`
-	To      string `json:"to"`
-	CC      string `json:"cc"`
-	Date    string `json:"date"`
-	Body    string `json:"body"`
-	IsRead  bool   `json:"isRead"`
+	UID      uint32 `json:"uid"`
+	Mailbox  string `json:"mailbox"`
+	Subject  string `json:"subject"`
+	From     string `json:"from"`
+	To       string `json:"to"`
+	CC       string `json:"cc"`
+	Date     string `json:"date"`
+	Body     string `json:"body"`
+	BodyHTML string `json:"bodyHTML,omitempty"`
+	IsRead   bool   `json:"isRead"`
+}
+
+type parsedMailDocument struct {
+	PlainText string
+	HTML      string
 }
 
 type mailMessageSendRequest struct {
@@ -890,13 +895,11 @@ func (backend standardMailBackend) ListMessages(ctx context.Context, account mai
 	if numberSet == nil {
 		return []mailMessageResponse{}, nil
 	}
-	bodySection := &imap.FetchItemBodySection{Peek: true, Partial: &imap.SectionPartial{Offset: 0, Size: 4096}}
 	fetchOptions := &imap.FetchOptions{
 		UID:          true,
 		Envelope:     true,
 		Flags:        true,
 		InternalDate: true,
-		BodySection:  []*imap.FetchItemBodySection{bodySection},
 	}
 	messages, errorValue := imapClient.Fetch(numberSet, fetchOptions).Collect()
 	if errorValue != nil {
@@ -904,7 +907,7 @@ func (backend standardMailBackend) ListMessages(ctx context.Context, account mai
 	}
 	responses := make([]mailMessageResponse, 0, len(messages))
 	for _, message := range messages {
-		response := mailMessageResponseFromBuffer(input.Mailbox, message, bodySection)
+		response := mailMessageResponseFromBuffer(input.Mailbox, message, nil)
 		if response.UID != 0 {
 			responses = append(responses, response)
 		}
@@ -1173,12 +1176,12 @@ func mailMessageResponseFromBuffer(mailbox string, message *imapclient.FetchMess
 		return mailMessageResponse{}
 	}
 	document := bodySectionBytes(message, bodySection)
-	preview := plainTextFromMailDocument(document)
+	parsedDocument := parseMailDocument(document)
 	date := message.InternalDate
 	subject := ""
 	from := ""
 	if message.Envelope != nil {
-		subject = strings.TrimSpace(message.Envelope.Subject)
+		subject = decodeMailHeader(message.Envelope.Subject)
 		from = imapAddressListString(message.Envelope.From)
 		if !message.Envelope.Date.IsZero() {
 			date = message.Envelope.Date
@@ -1190,14 +1193,14 @@ func mailMessageResponseFromBuffer(mailbox string, message *imapclient.FetchMess
 		Subject: subject,
 		From:    from,
 		Date:    formatMailDate(date),
-		Preview: mailPreview(preview),
+		Preview: mailPreview(parsedDocument.previewText()),
 		IsRead:  containsMailFlag(message.Flags, imap.FlagSeen),
 	}
 }
 
 func mailMessageDetailFromBuffer(mailbox string, message *imapclient.FetchMessageBuffer, bodySection *imap.FetchItemBodySection) mailMessageDetailResponse {
 	response := mailMessageResponseFromBuffer(mailbox, message, bodySection)
-	body := plainTextFromMailDocument(bodySectionBytes(message, bodySection))
+	parsedDocument := parseMailDocument(bodySectionBytes(message, bodySection))
 	to := ""
 	cc := ""
 	if message != nil && message.Envelope != nil {
@@ -1205,15 +1208,16 @@ func mailMessageDetailFromBuffer(mailbox string, message *imapclient.FetchMessag
 		cc = imapAddressListString(message.Envelope.Cc)
 	}
 	return mailMessageDetailResponse{
-		UID:     response.UID,
-		Mailbox: response.Mailbox,
-		Subject: response.Subject,
-		From:    response.From,
-		To:      to,
-		CC:      cc,
-		Date:    response.Date,
-		Body:    body,
-		IsRead:  response.IsRead,
+		UID:      response.UID,
+		Mailbox:  response.Mailbox,
+		Subject:  response.Subject,
+		From:     response.From,
+		To:       to,
+		CC:       cc,
+		Date:     response.Date,
+		Body:     parsedDocument.PlainText,
+		BodyHTML: parsedDocument.HTML,
+		IsRead:   response.IsRead,
 	}
 }
 
@@ -1230,15 +1234,19 @@ func bodySectionBytes(message *imapclient.FetchMessageBuffer, bodySection *imap.
 }
 
 func plainTextFromMailDocument(document []byte) string {
+	return parseMailDocument(document).PlainText
+}
+
+func parseMailDocument(document []byte) parsedMailDocument {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return ""
+		return parsedMailDocument{}
 	}
 	reader, errorValue := messagemail.CreateReader(bytes.NewReader(document))
 	if errorValue != nil && reader == nil {
-		return strings.TrimSpace(string(document))
+		return parsedMailDocument{PlainText: strings.TrimSpace(string(document))}
 	}
 	defer reader.Close()
-	htmlBody := ""
+	result := parsedMailDocument{}
 	for {
 		part, errorValue := reader.NextPart()
 		if errors.Is(errorValue, io.EOF) {
@@ -1248,18 +1256,63 @@ func plainTextFromMailDocument(document []byte) string {
 			continue
 		}
 		body, _ := io.ReadAll(io.LimitReader(part.Body, 1024*1024))
-		contentType := strings.ToLower(part.Header.Get("Content-Type"))
-		if strings.Contains(contentType, "text/plain") {
-			return strings.TrimSpace(string(body))
+		contentType := mailPartContentType(part)
+		if result.PlainText == "" && contentType == "text/plain" {
+			result.PlainText = strings.TrimSpace(string(body))
 		}
-		if htmlBody == "" && strings.Contains(contentType, "text/html") {
-			htmlBody = stripHTML(string(body))
+		if result.HTML == "" && contentType == "text/html" {
+			result.HTML = strings.TrimSpace(string(body))
 		}
 	}
-	if htmlBody != "" {
-		return strings.TrimSpace(htmlBody)
+	if result.PlainText == "" && result.HTML != "" {
+		result.PlainText = stripHTML(result.HTML)
 	}
-	return strings.TrimSpace(string(document))
+	if result.PlainText == "" {
+		result.PlainText = strings.TrimSpace(string(document))
+	}
+	return result
+}
+
+func mailPartContentType(part *messagemail.Part) string {
+	if part == nil || part.Header == nil {
+		return ""
+	}
+	if header, ok := part.Header.(interface {
+		ContentType() (string, map[string]string, error)
+	}); ok {
+		contentType, _, errorValue := header.ContentType()
+		if errorValue == nil {
+			return strings.ToLower(contentType)
+		}
+	}
+	contentType, _, errorValue := mime.ParseMediaType(part.Header.Get("Content-Type"))
+	if errorValue == nil {
+		return strings.ToLower(contentType)
+	}
+	return strings.ToLower(strings.TrimSpace(part.Header.Get("Content-Type")))
+}
+
+func (document parsedMailDocument) previewText() string {
+	if strings.TrimSpace(document.PlainText) != "" {
+		return document.PlainText
+	}
+	return stripHTML(document.HTML)
+}
+
+func decodeMailHeader(value string) string {
+	trimmedValue := strings.TrimSpace(value)
+	if trimmedValue == "" {
+		return ""
+	}
+	decodedValue, errorValue := mailWordDecoder().DecodeHeader(trimmedValue)
+	if errorValue != nil {
+		return trimmedValue
+	}
+	return strings.TrimSpace(decodedValue)
+}
+
+func mailWordDecoder() *mime.WordDecoder {
+	return &mime.WordDecoder{CharsetReader: charset.Reader}
 }
 
 func stripHTML(document string) string {
@@ -1297,12 +1350,21 @@ func imapAddressListString(addresses []imap.Address) string {
 			continue
 		}
 		if strings.TrimSpace(address.Name) != "" {
-			values = append(values, (&netmail.Address{Name: address.Name, Address: emailAddress}).String())
+			values = append(values, displayMailAddress(decodeMailHeader(address.Name), emailAddress))
 		} else {
 			values = append(values, emailAddress)
 		}
 	}
 	return strings.Join(values, ", ")
+}
+
+func displayMailAddress(name string, address string) string {
+	displayName := strings.TrimSpace(name)
+	emailAddress := strings.TrimSpace(address)
+	if displayName == "" {
+		return emailAddress
+	}
+	return displayName + " <" + emailAddress + ">"
 }
 
 func containsMailFlag(flags []imap.Flag, flag imap.Flag) bool {
