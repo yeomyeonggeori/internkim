@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -56,6 +57,59 @@ func TestExtractFromZipWritesArchiveEntry(t *testing.T) {
 	}
 	if string(document) != "binary" {
 		t.Fatalf("unexpected extracted document: %q", document)
+	}
+}
+
+func TestCreateAdminUIArchiveIncludesBoardFiles(t *testing.T) {
+	sourceDirectory := t.TempDir()
+	versionDirectory := filepath.Join(sourceDirectory, "_app")
+	if errorValue := os.MkdirAll(versionDirectory, 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(filepath.Join(versionDirectory, "version.json"), []byte(`{"version":"test-build"}`), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(filepath.Join(sourceDirectory, "index.html"), []byte("<html></html>"), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	archivePath, errorValue := createAdminUIArchive(sourceDirectory)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer os.Remove(archivePath)
+
+	targetDirectory := t.TempDir()
+	command := exec.Command("tar", "-C", targetDirectory, "-xf", archivePath)
+	if output, errorValue := command.CombinedOutput(); errorValue != nil {
+		t.Fatalf("extract admin UI archive: %s: %v", strings.TrimSpace(string(output)), errorValue)
+	}
+	document, errorValue := os.ReadFile(filepath.Join(targetDirectory, "_app", "version.json"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if string(document) != `{"version":"test-build"}` {
+		t.Fatalf("unexpected deployed version: %s", document)
+	}
+}
+
+func TestReadAdminUIVersionTrimsWhitespace(t *testing.T) {
+	boardUIPath := t.TempDir()
+	versionDirectory := filepath.Join(boardUIPath, "_app")
+	if errorValue := os.MkdirAll(versionDirectory, 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(filepath.Join(versionDirectory, "version.json"), []byte(" version-1 \n"), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	version, errorValue := readAdminUIVersion(boardUIPath)
+
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if version != "version-1" {
+		t.Fatalf("expected trimmed version, got %q", version)
 	}
 }
 
@@ -296,7 +350,7 @@ func TestMattermostSetupConnectCommandPayloadTargetsAdmind(t *testing.T) {
 }
 
 func TestMattermostSetupAllowsLocalSlashCommandCallback(t *testing.T) {
-	configurationPatch := mattermostSetupConfigurationPatch()
+	configurationPatch := mattermostSetupConfigurationPatch("https://device.example")
 	serviceSettings, ok := configurationPatch["ServiceSettings"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected ServiceSettings in Mattermost setup patch, got %+v", configurationPatch)
@@ -304,6 +358,49 @@ func TestMattermostSetupAllowsLocalSlashCommandCallback(t *testing.T) {
 	allowedConnections, ok := serviceSettings["AllowedUntrustedInternalConnections"].(string)
 	if !ok || !strings.Contains(allowedConnections, "127.0.0.1") {
 		t.Fatalf("expected Mattermost setup to allow local slash command callback, got %+v", serviceSettings)
+	}
+}
+
+func TestMattermostSetupRegistersManagedResourcePaths(t *testing.T) {
+	configurationPatch := mattermostSetupConfigurationPatch("https://device.example")
+	serviceSettings, ok := configurationPatch["ServiceSettings"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected ServiceSettings in Mattermost setup patch, got %+v", configurationPatch)
+	}
+	resourcePaths, ok := serviceSettings["ManagedResourcePaths"].(string)
+	if !ok {
+		t.Fatalf("expected Mattermost managed resource paths, got %+v", serviceSettings)
+	}
+	if resourcePaths != "admin,calendar,flow,mail" {
+		t.Fatalf("unexpected Mattermost managed resource paths: %+v", resourcePaths)
+	}
+}
+
+func TestMattermostSetupPatchesSiteURL(t *testing.T) {
+	configurationPatch := mattermostSetupConfigurationPatch("https://device.example")
+	serviceSettings, ok := configurationPatch["ServiceSettings"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected ServiceSettings in Mattermost setup patch, got %+v", configurationPatch)
+	}
+	siteURL, ok := serviceSettings["SiteURL"].(string)
+	if !ok || siteURL != "https://device.example" {
+		t.Fatalf("expected Mattermost setup to patch SiteURL, got %+v", serviceSettings)
+	}
+}
+
+func TestMattermostSetupPatchesCorsForSiteURL(t *testing.T) {
+	configurationPatch := mattermostSetupConfigurationPatch("https://device.example")
+	serviceSettings, ok := configurationPatch["ServiceSettings"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected ServiceSettings in Mattermost setup patch, got %+v", configurationPatch)
+	}
+	allowedOrigin, ok := serviceSettings["AllowCorsFrom"].(string)
+	if !ok || allowedOrigin != "https://device.example" {
+		t.Fatalf("expected Mattermost setup to patch CORS origin, got %+v", serviceSettings)
+	}
+	allowCredentials, ok := serviceSettings["CorsAllowCredentials"].(bool)
+	if !ok || !allowCredentials {
+		t.Fatalf("expected Mattermost setup to allow CORS credentials, got %+v", serviceSettings)
 	}
 }
 
