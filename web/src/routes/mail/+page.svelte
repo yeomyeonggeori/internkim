@@ -410,7 +410,7 @@
 <head>
 	<meta charset="utf-8">
 	<meta name="referrer" content="no-referrer">
-	<meta http-equiv="Content-Security-Policy" content="default-src https: http: data: cid:; script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: http: data: cid:; font-src https: http: data:; style-src 'unsafe-inline' https: http: data:; script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 	<style>
 		html, body { margin: 0; padding: 0; background: #ffffff; color: #111827; font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 		body { overflow-wrap: anywhere; }
