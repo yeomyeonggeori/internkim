@@ -24,7 +24,7 @@ func TestUsersSyncDependencyInstallScriptInstallsJQ(t *testing.T) {
 
 func TestDeviceToolPackagesIncludeSitePublishingBasics(t *testing.T) {
 	packages := strings.Join(baseDeviceToolPackages(), " ")
-	for _, packageName := range []string{"git", "curl", "unzip", "ca-certificates"} {
+	for _, packageName := range []string{"bc", "git", "curl", "unzip", "ca-certificates"} {
 		if !strings.Contains(packages, packageName) {
 			t.Fatalf("expected base device tools to include %q, got %s", packageName, packages)
 		}
