@@ -1,11 +1,15 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import * as Card from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
+	import { Label } from '$lib/components/ui/label';
 	import * as Select from '$lib/components/ui/select';
 	import { Separator } from '$lib/components/ui/separator';
+	import * as Table from '$lib/components/ui/table';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { CopyButton } from '$lib/components/ui/copy-button';
+	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
 	import MailIcon from '@lucide/svelte/icons/mail';
@@ -30,6 +34,7 @@
 		handle: string;
 		name?: string;
 		email: string;
+		hireDate?: string;
 		role: UserRole;
 		mattermostUserID?: string;
 		mattermostUsername?: string;
@@ -135,6 +140,7 @@
 	let newHandle = $state('');
 	let newName = $state('');
 	let newEmail = $state('');
+	let newHireDate = $state('');
 	let newUserRole = $state<UserRole>('member');
 	let temporaryPasswordResult = $state<{ email: string; password: string } | null>(null);
 	let isLoadingUsers = $state(false);
@@ -206,6 +212,15 @@
 	const normalizeHandle = (handle: string) => handle.trim().toLowerCase();
 	const isValidHandle = (handle: string) => /^[a-z][a-z0-9._-]{2,21}$/.test(normalizeHandle(handle));
 	const isValidUserRecord = (record: UserRecord) => isValidHandle(record.handle) && !!record.name?.trim() && !!record.email.trim();
+	const userRecordsByHireDate = () =>
+		[...userRecords].sort((first, second) => {
+			if (first.hireDate || second.hireDate) {
+				if (!first.hireDate) return 1;
+				if (!second.hireDate) return -1;
+				if (first.hireDate !== second.hireDate) return first.hireDate.localeCompare(second.hireDate);
+			}
+			return (first.name || first.email).localeCompare(second.name || second.email);
+		});
 	const adminSessionStatusText = () => {
 		if (!adminSession) return '';
 		if (adminSession.isAdmin) return 'admin';
@@ -385,12 +400,13 @@
 
 	function applyUsersResponse(data: UsersResponse) {
 		if (data.records) {
-			userRecords = data.records.map((record) => ({ ...record, name: record.name ?? '' }));
+			userRecords = data.records.map((record) => ({ ...record, name: record.name ?? '', hireDate: record.hireDate ?? '' }));
 		} else {
 			userRecords = (data.users ?? []).map((email, index) => ({
 				userID: `legacy-${index}`,
 				handle: email.split('@')[0]?.toLowerCase() ?? '',
 				email,
+				hireDate: '',
 				role: index === 0 ? 'admin' : 'member'
 			}));
 		}
@@ -416,7 +432,7 @@
 				method: 'POST',
 				credentials: 'include',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ handle, name, email, role: newUserRole })
+				body: JSON.stringify({ handle, name, email, hireDate: newHireDate, role: newUserRole })
 			});
 			if (!response.ok) {
 				const detail = (await response.text()).trim();
@@ -431,6 +447,7 @@
 			newHandle = '';
 			newName = '';
 			newEmail = '';
+			newHireDate = '';
 			newUserRole = 'member';
 		} catch {
 			errorMessage = '사용자 초대에 실패했습니다.';
@@ -454,6 +471,7 @@
 					userID: record.userID,
 					handle: normalizeHandle(record.handle),
 					name: record.name?.trim() ?? '',
+					hireDate: record.hireDate ?? '',
 					email: record.email,
 					role,
 					mattermostUserID: record.mattermostUserID,
@@ -496,6 +514,36 @@
 			applyUsersResponse(data);
 		} catch {
 			errorMessage = '사용자 제거에 실패했습니다.';
+		} finally {
+			isSavingUser = false;
+		}
+	}
+
+	async function resetUserPassword(record: UserRecord) {
+		if (!fleetId()) return;
+		if (!confirm(text.users.resetPasswordConfirm)) return;
+
+		isSavingUser = true;
+		errorMessage = '';
+		temporaryPasswordResult = null;
+		try {
+			const response = await fetch(`${usersBaseURL()}/users/${encodeURIComponent(record.email)}/password-reset`, {
+				method: 'POST',
+				credentials: 'include'
+			});
+			if (!response.ok) {
+				errorMessage = (await response.text()).trim() || text.users.resetPasswordError;
+				return;
+			}
+			const data = (await response.json()) as UsersResponse;
+			if (data.temporaryPassword && data.temporaryPasswordEmail) {
+				temporaryPasswordResult = {
+					email: data.temporaryPasswordEmail,
+					password: data.temporaryPassword
+				};
+			}
+		} catch {
+			errorMessage = text.users.resetPasswordError;
 		} finally {
 			isSavingUser = false;
 		}
@@ -1089,38 +1137,62 @@
 					{text.users.deviceOnly}
 				</p>
 			{:else}
-				<form
-					class="grid gap-2 md:grid-cols-[140px_1fr_1fr_120px_auto]"
-					onsubmit={(event) => {
-						event.preventDefault();
-						addEmail();
-					}}
-				>
-					<Input bind:value={newHandle} placeholder="handle" autocomplete="off" />
-					<Input bind:value={newName} placeholder="real name" autocomplete="off" />
-					<div class="relative">
-						<MailIcon class="text-muted-foreground pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" />
-						<Input bind:value={newEmail} type="email" placeholder="name@company.com" class="pl-9" />
-					</div>
-					<Select.Root type="single" bind:value={newUserRole}>
-						<Select.Trigger class="w-full">
-							{userRoleOptions().find((option) => option.value === newUserRole)?.label ?? '-'}
-						</Select.Trigger>
-						<Select.Content>
-							{#each userRoleOptions() as option (option.value)}
-								<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
-							{/each}
-						</Select.Content>
-					</Select.Root>
-					<Button type="submit" disabled={isSavingUser || !newEmail.trim() || !newName.trim() || !isValidHandle(newHandle)} class="gap-2">
-						{#if isSavingUser}
-							<LoaderIcon class="size-4 animate-spin" />
-						{:else}
-							<PlusIcon class="size-4" />
-						{/if}
-						{text.users.invite}
-					</Button>
-				</form>
+				<Card.Root>
+					<Card.Header class="gap-1">
+						<Card.Title class="text-sm">{text.users.inviteTitle}</Card.Title>
+						<Card.Description>{text.users.inviteDescription}</Card.Description>
+					</Card.Header>
+					<Card.Content>
+						<form
+							class="grid gap-3 lg:grid-cols-[minmax(120px,0.8fr)_minmax(150px,1fr)_minmax(210px,1.3fr)_150px_120px_auto] lg:items-end"
+							onsubmit={(event) => {
+								event.preventDefault();
+								addEmail();
+							}}
+						>
+							<label class="grid gap-1.5">
+								<Label>{text.users.handle}</Label>
+								<Input bind:value={newHandle} placeholder="chanhee" autocomplete="off" />
+							</label>
+							<label class="grid gap-1.5">
+								<Label>{text.users.realName}</Label>
+								<Input bind:value={newName} placeholder={text.users.realNamePlaceholder} autocomplete="off" />
+							</label>
+							<label class="grid gap-1.5">
+								<Label>{text.users.email}</Label>
+								<div class="relative">
+									<MailIcon class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+									<Input bind:value={newEmail} type="email" placeholder="name@company.com" class="pl-9" />
+								</div>
+							</label>
+							<label class="grid gap-1.5">
+								<Label>{text.users.hireDate}</Label>
+								<Input bind:value={newHireDate} type="date" />
+							</label>
+							<label class="grid gap-1.5">
+								<Label>{text.users.role}</Label>
+								<Select.Root type="single" bind:value={newUserRole}>
+									<Select.Trigger class="w-full">
+										{userRoleOptions().find((option) => option.value === newUserRole)?.label ?? '-'}
+									</Select.Trigger>
+									<Select.Content>
+										{#each userRoleOptions() as option (option.value)}
+											<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
+										{/each}
+									</Select.Content>
+								</Select.Root>
+							</label>
+							<Button type="submit" disabled={isSavingUser || !newEmail.trim() || !newName.trim() || !isValidHandle(newHandle)} class="gap-2">
+								{#if isSavingUser}
+									<LoaderIcon class="size-4 animate-spin" />
+								{:else}
+									<PlusIcon class="size-4" />
+								{/if}
+								{text.users.invite}
+							</Button>
+						</form>
+					</Card.Content>
+				</Card.Root>
 
 				<p class="text-muted-foreground text-sm">
 					{text.users.passwordNotice}
@@ -1148,54 +1220,150 @@
 				{:else if userRecords.length === 0}
 					<p class="text-muted-foreground text-sm">{text.users.empty}</p>
 				{:else}
-					<div class="overflow-hidden rounded-lg border">
-						{#each userRecords as record}
-							<div class="grid gap-3 border-b px-3 py-3 last:border-b-0 md:grid-cols-[140px_1fr_1fr_auto] md:items-center">
-								<Input bind:value={record.handle} placeholder="handle" autocomplete="off" />
-								<Input bind:value={record.name} placeholder="real name" autocomplete="off" />
-								<div class="min-w-0">
-									<p class="truncate text-sm font-medium">{record.email}</p>
-									{#if record.mattermostUsername}
-										<p class="text-muted-foreground text-xs">Mattermost: {record.mattermostUsername}</p>
-									{/if}
-									{#if record.isIncomplete}
-										<p class="text-destructive text-xs">{text.users.incomplete}</p>
-									{/if}
-								</div>
-								<div class="flex flex-wrap items-center gap-2">
-									<Badge variant={record.role === 'admin' ? 'secondary' : 'outline'}>{record.role}</Badge>
-									<Button variant="outline" size="sm" disabled={isSavingUser || !isValidUserRecord(record)} onclick={() => saveUser(record)}>
-										{text.users.save}
-									</Button>
-									{#if record.role === 'admin'}
-										<Button
-											variant="outline"
-											size="sm"
-											disabled={isSavingUser || adminCount() <= 1 || !isValidUserRecord(record)}
-											onclick={() => saveUser(record, 'member')}
-										>
-											{text.users.makeMember}
-										</Button>
-									{:else}
-										<Button variant="outline" size="sm" disabled={isSavingUser || !isValidUserRecord(record)} onclick={() => saveUser(record, 'admin')}>
-											{text.users.makeAdmin}
-										</Button>
-									{/if}
-									<Button
-										variant="ghost"
-										size="icon"
-										disabled={isSavingUser || (record.role === 'admin' && adminCount() <= 1)}
-										onclick={() => removeEmail(record.email)}
-									>
-										<XIcon class="size-4" />
-									</Button>
-								</div>
+					<Card.Root class="overflow-hidden">
+						<Card.Header class="flex-row items-center justify-between gap-3 border-b">
+							<div>
+								<Card.Title class="text-sm">{text.users.directoryTitle}</Card.Title>
+								<Card.Description>{text.users.directoryDescription}</Card.Description>
 							</div>
-						{/each}
-					</div>
+							<Badge variant="secondary">{adminCount()} admin</Badge>
+						</Card.Header>
+						<Card.Content class="p-0">
+							<div class="hidden overflow-x-auto lg:block">
+								<Table.Root class="min-w-[1120px]">
+									<Table.Header class="bg-muted/40">
+										<Table.Row class="hover:bg-transparent">
+											<Table.Head class="w-[250px]">{text.users.person}</Table.Head>
+											<Table.Head class="w-[160px]">{text.users.handle}</Table.Head>
+											<Table.Head class="w-[180px]">{text.users.realName}</Table.Head>
+											<Table.Head class="w-[150px]">{text.users.hireDate}</Table.Head>
+											<Table.Head class="w-[110px]">{text.users.role}</Table.Head>
+											<Table.Head class="text-right">{text.users.actions}</Table.Head>
+										</Table.Row>
+									</Table.Header>
+									<Table.Body>
+										{#each userRecordsByHireDate() as record (record.email)}
+											<Table.Row>
+												<Table.Cell>
+													<div class="flex min-w-0 items-center gap-3">
+														<PersonAvatar name={record.name} email={record.email} class="size-9" />
+														<div class="min-w-0">
+															<p class="truncate text-sm font-medium">{record.email}</p>
+															<p class="truncate text-xs text-muted-foreground">
+																{record.mattermostUsername ? `Mattermost: ${record.mattermostUsername}` : text.users.noMattermost}
+															</p>
+															{#if record.isIncomplete}
+																<p class="text-xs text-destructive">{text.users.incomplete}</p>
+															{/if}
+														</div>
+													</div>
+												</Table.Cell>
+												<Table.Cell>
+													<Input bind:value={record.handle} placeholder="handle" autocomplete="off" />
+												</Table.Cell>
+												<Table.Cell>
+													<Input bind:value={record.name} placeholder="real name" autocomplete="off" />
+												</Table.Cell>
+												<Table.Cell>
+													<Input bind:value={record.hireDate} type="date" />
+												</Table.Cell>
+												<Table.Cell>
+													<Badge variant={record.role === 'admin' ? 'secondary' : 'outline'}>{record.role}</Badge>
+												</Table.Cell>
+												<Table.Cell>
+													{@render UserActions(record, 'desktop')}
+												</Table.Cell>
+											</Table.Row>
+										{/each}
+									</Table.Body>
+								</Table.Root>
+							</div>
+							<div class="grid gap-0 lg:hidden">
+								{#each userRecordsByHireDate() as record (record.email)}
+									<div class="grid gap-3 border-b p-4 last:border-b-0">
+										<div class="flex min-w-0 items-start justify-between gap-3">
+											<div class="flex min-w-0 items-center gap-3">
+												<PersonAvatar name={record.name} email={record.email} class="size-10" />
+												<div class="min-w-0">
+													<p class="truncate text-sm font-medium">{record.name || record.email}</p>
+													<p class="truncate text-xs text-muted-foreground">{record.email}</p>
+													{#if record.mattermostUsername}
+														<p class="truncate text-xs text-muted-foreground">Mattermost: {record.mattermostUsername}</p>
+													{/if}
+												</div>
+											</div>
+											<Badge variant={record.role === 'admin' ? 'secondary' : 'outline'}>{record.role}</Badge>
+										</div>
+										<div class="grid gap-3 sm:grid-cols-3">
+											<label class="grid gap-1.5">
+												<Label>{text.users.handle}</Label>
+												<Input bind:value={record.handle} placeholder="handle" autocomplete="off" />
+											</label>
+											<label class="grid gap-1.5">
+												<Label>{text.users.realName}</Label>
+												<Input bind:value={record.name} placeholder="real name" autocomplete="off" />
+											</label>
+											<label class="grid gap-1.5">
+												<Label>{text.users.hireDate}</Label>
+												<Input bind:value={record.hireDate} type="date" />
+											</label>
+										</div>
+										{#if record.isIncomplete}
+											<p class="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{text.users.incomplete}</p>
+										{/if}
+										{@render UserActions(record, 'mobile')}
+									</div>
+								{/each}
+							</div>
+						</Card.Content>
+					</Card.Root>
 				{/if}
 			{/if}
 			</section>
 		{/if}
 	</div>
 </main>
+
+{#snippet UserActions(record: UserRecord, layout: 'desktop' | 'mobile')}
+	<div class={layout === 'desktop' ? 'flex justify-end gap-2' : 'grid gap-2 sm:grid-cols-4'}>
+		<Button variant="outline" size="sm" disabled={isSavingUser || !isValidUserRecord(record)} onclick={() => saveUser(record)}>
+			{text.users.save}
+		</Button>
+		<Button
+			class="gap-2"
+			variant="outline"
+			size="sm"
+			disabled={isSavingUser || !isValidUserRecord(record)}
+			onclick={() => resetUserPassword(record)}
+		>
+			<RefreshCwIcon class="size-4" />
+			{text.users.resetPassword}
+		</Button>
+		{#if record.role === 'admin'}
+			<Button
+				variant="outline"
+				size="sm"
+				disabled={isSavingUser || adminCount() <= 1 || !isValidUserRecord(record)}
+				onclick={() => saveUser(record, 'member')}
+			>
+				{text.users.makeMember}
+			</Button>
+		{:else}
+			<Button variant="outline" size="sm" disabled={isSavingUser || !isValidUserRecord(record)} onclick={() => saveUser(record, 'admin')}>
+				{text.users.makeAdmin}
+			</Button>
+		{/if}
+		<Button
+			variant="ghost"
+			size={layout === 'desktop' ? 'icon-sm' : 'sm'}
+			disabled={isSavingUser || (record.role === 'admin' && adminCount() <= 1)}
+			onclick={() => removeEmail(record.email)}
+			aria-label={text.users.remove}
+		>
+			<XIcon class="size-4" />
+			{#if layout === 'mobile'}
+				<span>{text.users.remove}</span>
+			{/if}
+		</Button>
+	</div>
+{/snippet}

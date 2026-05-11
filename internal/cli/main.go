@@ -299,7 +299,7 @@ func printSetupUsage() {
 	fmt.Println("Usage: internkim setup [options]")
 	fmt.Println()
 	fmt.Println("Common options:")
-	fmt.Println("  --only <steps>       Run only selected setup steps, for example web or binaries,services")
+	fmt.Println("  --only <steps>       Run only selected setup steps, for example admin-web, admind, or capabilityd")
 	fmt.Println("  --force              Re-run selected steps even when state says they are complete")
 	fmt.Println("  --force-all          Re-run every selected setup step")
 	fmt.Println("  --host <ip>          Override the saved board IP")
@@ -313,8 +313,9 @@ func printSetupUsage() {
 	fmt.Println("  --sim                Run the Tart simulation flow")
 	fmt.Println()
 	fmt.Println("Examples:")
-	fmt.Println("  internkim setup --only web")
-	fmt.Println("  internkim setup --only web,binaries,services --force")
+	fmt.Println("  internkim setup --only admin-web --force")
+	fmt.Println("  internkim setup --only admind --force")
+	fmt.Println("  internkim setup --only admin-web,admind --force")
 }
 
 func runDeviceSSH() {

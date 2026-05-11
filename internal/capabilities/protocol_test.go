@@ -116,12 +116,31 @@ func TestSiteAppDescriptorsUseRuntimeInputNames(t *testing.T) {
 func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
 	assertDescriptorApproval(t, PlatformMessageDescriptors(), "platform.dm.send", true)
 	assertDescriptorApproval(t, CalendarDescriptors(), "calendar.event.add", false)
+	assertDescriptorApproval(t, MailDescriptors(), "mail.message.send", true)
+	assertDescriptorApproval(t, MailDescriptors(), "mail.message.search", false)
 	assertDescriptorApproval(t, CalendarDescriptors(), "calendar.event.delete", true)
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site.app.create", false)
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site.app.publish", false)
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site.app.delete", true)
 	assertDescriptorApproval(t, GoogleWorkspaceDescriptors(), "google.calendar.event", false)
 	assertDescriptorApproval(t, GoogleWorkspaceDescriptors(), "google.gmail.send", true)
+}
+
+func TestMailDescriptorsMatchSkillInputs(t *testing.T) {
+	descriptors := MailDescriptors()
+	listSchema := descriptorSchema(t, descriptors, "mail.message.list")
+	searchSchema := descriptorSchema(t, descriptors, "mail.message.search")
+	readSchema := descriptorSchema(t, descriptors, "mail.message.read")
+	sendSchema := descriptorSchema(t, descriptors, "mail.message.send")
+
+	assertSchemaHasProperties(t, listSchema, "mailbox", "limit", "cursor")
+	assertSchemaOmitsProperties(t, listSchema, "query")
+	assertSchemaHasProperties(t, searchSchema, "mailbox", "query", "limit", "cursor")
+	assertSchemaRequires(t, searchSchema, "query")
+	assertSchemaHasProperties(t, readSchema, "mailbox", "uid")
+	assertSchemaRequires(t, readSchema, "mailbox", "uid")
+	assertSchemaHasProperties(t, sendSchema, "to", "subject", "body", "cc", "bcc")
+	assertSchemaRequires(t, sendSchema, "to", "subject", "body")
 }
 
 func TestSiteAppPublishDescriptorDoesNotLookLikeGenericExternalPublish(t *testing.T) {
@@ -159,6 +178,7 @@ func TestCapabilityDescriptorSchemasAreCanonicalObjects(t *testing.T) {
 		PlatformMessageDescriptors(),
 		FlowDescriptors(),
 		CalendarDescriptors(),
+		MailDescriptors(),
 		SiteAppDescriptors(),
 		GoogleWorkspaceDescriptors(),
 	}

@@ -47,6 +47,8 @@ type Callbacks struct {
 
 	BinariesVersion           func() string
 	InstallBinariesSSH        func(context *Context) error
+	InstallAdmindSSH          func(context *Context) error
+	InstallCapabilitydSSH     func(context *Context) error
 	StageBinariesSD           func(context *Context) error
 	SkillsManifest            func() string
 	InstallSkillsSSH          func(context *Context) error

@@ -4,16 +4,20 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"mime"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/emersion/go-imap/v2"
 )
 
 type fakeMailBackend struct {
 	testedAccount  mailAccount
 	listedAccount  mailAccount
+	listInput      mailMessageListRequest
 	sentAccount    mailAccount
 	sentMessage    mailMessageSendRequest
 	movedUID       uint32
@@ -43,8 +47,18 @@ func (backend *fakeMailBackend) ListMailboxes(ctx context.Context, account mailA
 	return backend.mailboxes, nil
 }
 
-func (backend *fakeMailBackend) ListMessages(ctx context.Context, account mailAccount, input mailMessageListRequest) ([]mailMessageResponse, error) {
-	return backend.messages, nil
+func (backend *fakeMailBackend) ListMessages(ctx context.Context, account mailAccount, input mailMessageListRequest) (mailMessageListResponse, error) {
+	backend.listInput = input
+	uids := mailMessageResponseUIDs(backend.messages)
+	visibleUIDs, hasMoreMessages := visibleMailMessageUIDs(uids, input.Limit)
+	messages := backend.messages
+	if hasMoreMessages {
+		messages = messages[:input.Limit]
+	}
+	return mailMessageListResponse{
+		Messages:   messages,
+		NextCursor: nextMailMessageCursor(input, visibleUIDs, hasMoreMessages),
+	}, nil
 }
 
 func (backend *fakeMailBackend) ReadMessage(ctx context.Context, account mailAccount, mailbox string, uid uint32) (mailMessageDetailResponse, error) {
@@ -69,6 +83,14 @@ func (backend *fakeMailBackend) MarkMessage(ctx context.Context, account mailAcc
 	backend.markedSeen = input.Seen
 	backend.markedFlagged = input.Flagged
 	return nil
+}
+
+func mailMessageResponseUIDs(messages []mailMessageResponse) []imap.UID {
+	uids := make([]imap.UID, 0, len(messages))
+	for _, message := range messages {
+		uids = append(uids, imap.UID(message.UID))
+	}
+	return uids
 }
 
 func TestMailAccountSavePreservesStoredPasswords(t *testing.T) {
@@ -178,6 +200,153 @@ func TestMailRequiresConfiguredAccountForMailboxReads(t *testing.T) {
 	}
 	if account.IsConfigured {
 		t.Fatalf("new account should not be configured: %#v", account)
+	}
+}
+
+func TestMailMessagesReturnNextCursor(t *testing.T) {
+	service := newMailTestService(t)
+	backend := &fakeMailBackend{
+		messages: []mailMessageResponse{
+			{UID: 12, Mailbox: "INBOX", Subject: "Newest"},
+			{UID: 11, Mailbox: "INBOX", Subject: "Older"},
+			{UID: 10, Mailbox: "INBOX", Subject: "Oldest"},
+		},
+	}
+	service.mailBackend = backend
+	saveConfiguredMailTestAccount(t, service)
+
+	response := performMailRequest(t, service, http.MethodGet, "/mail/api/messages?mailbox=INBOX&limit=2", "")
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+	var result mailMessageListResponse
+	if errorValue := json.Unmarshal(response.Body.Bytes(), &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(result.Messages) != 2 || result.NextCursor == "" {
+		t.Fatalf("result = %#v", result)
+	}
+	cursor, errorValue := decodeMailMessageCursor(result.NextCursor)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if cursor.Mailbox != "INBOX" || cursor.BeforeUID != 11 {
+		t.Fatalf("cursor = %#v", cursor)
+	}
+}
+
+func TestMailMessagesApplyCursorToRequest(t *testing.T) {
+	service := newMailTestService(t)
+	backend := &fakeMailBackend{}
+	service.mailBackend = backend
+	saveConfiguredMailTestAccount(t, service)
+	cursor := encodeMailMessageCursor("INBOX", "invoice", 20)
+
+	response := performMailRequest(t, service, http.MethodGet, "/mail/api/messages?mailbox=INBOX&query=invoice&limit=5&cursor="+cursor, "")
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+	if backend.listInput.BeforeUID != 20 || backend.listInput.Query != "invoice" || backend.listInput.Limit != 5 {
+		t.Fatalf("list input = %#v", backend.listInput)
+	}
+}
+
+func TestMailMessagesRejectInvalidCursor(t *testing.T) {
+	service := newMailTestService(t)
+	service.mailBackend = &fakeMailBackend{}
+	saveConfiguredMailTestAccount(t, service)
+
+	response := performMailRequest(t, service, http.MethodGet, "/mail/api/messages?mailbox=INBOX&cursor=not-a-cursor", "")
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "invalid cursor") {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestMailMessagesRejectMismatchedCursor(t *testing.T) {
+	service := newMailTestService(t)
+	service.mailBackend = &fakeMailBackend{}
+	saveConfiguredMailTestAccount(t, service)
+	cursor := encodeMailMessageCursor("Sent", "", 20)
+
+	response := performMailRequest(t, service, http.MethodGet, "/mail/api/messages?mailbox=INBOX&cursor="+cursor, "")
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "invalid cursor") {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestMailMessagePageUIDsReturnNewestFirst(t *testing.T) {
+	uids := mailMessagePageUIDs([]imap.UID{7, 9, 8}, 2)
+	if len(uids) != 2 || uids[0] != 9 || uids[1] != 8 {
+		t.Fatalf("uids = %#v", uids)
+	}
+}
+
+func TestMailMailboxResponsesFromListDataSkipsNonSelectableMailboxes(t *testing.T) {
+	total := uint32(3)
+	unseen := uint32(1)
+	mailboxes := mailMailboxResponsesFromListData([]*imap.ListData{
+		{Mailbox: "INBOX", Status: &imap.StatusData{NumMessages: &total, NumUnseen: &unseen}},
+		{Mailbox: "Folders", Attrs: []imap.MailboxAttr{imap.MailboxAttrNoSelect}},
+	})
+	if len(mailboxes) != 1 {
+		t.Fatalf("mailboxes = %#v", mailboxes)
+	}
+	if mailboxes[0].Name != "INBOX" || mailboxes[0].Total != 3 || mailboxes[0].Unseen != 1 {
+		t.Fatalf("mailbox = %#v", mailboxes[0])
+	}
+}
+
+func TestDecodeMailHeaderDecodesEncodedWords(t *testing.T) {
+	encodedSubject := mime.QEncoding.Encode("utf-8", "테스트 제목")
+	if subject := decodeMailHeader(encodedSubject); subject != "테스트 제목" {
+		t.Fatalf("subject = %q", subject)
+	}
+}
+
+func TestIMAPAddressListStringDecodesDisplayNames(t *testing.T) {
+	encodedName := mime.QEncoding.Encode("utf-8", "네이버")
+	addresses := []imap.Address{{Name: encodedName, Mailbox: "account_noreply", Host: "navercorp.com"}}
+	if value := imapAddressListString(addresses); value != "네이버 <account_noreply@navercorp.com>" {
+		t.Fatalf("address = %q", value)
+	}
+}
+
+func TestParseMailDocumentKeepsHTMLBody(t *testing.T) {
+	document := strings.Join([]string{
+		"Content-Type: multipart/alternative; boundary=frontier",
+		"",
+		"--frontier",
+		"Content-Type: text/plain; charset=utf-8",
+		"",
+		"Plain body",
+		"--frontier",
+		"Content-Type: text/html; charset=utf-8",
+		"",
+		"<html><body><strong>HTML body</strong></body></html>",
+		"--frontier--",
+		"",
+	}, "\r\n")
+	parsedDocument := parseMailDocument([]byte(document))
+	if parsedDocument.PlainText != "Plain body" {
+		t.Fatalf("plain text = %q", parsedDocument.PlainText)
+	}
+	if !strings.Contains(parsedDocument.HTML, "<strong>HTML body</strong>") {
+		t.Fatalf("html = %q", parsedDocument.HTML)
+	}
+}
+
+func TestParseMailDocumentFallsBackToHTMLText(t *testing.T) {
+	document := strings.Join([]string{
+		"Content-Type: text/html; charset=utf-8",
+		"",
+		"<html><body><strong>HTML only</strong></body></html>",
+	}, "\r\n")
+	parsedDocument := parseMailDocument([]byte(document))
+	if parsedDocument.PlainText != "HTML only" {
+		t.Fatalf("plain text = %q", parsedDocument.PlainText)
+	}
+	if !strings.Contains(parsedDocument.HTML, "<strong>HTML only</strong>") {
+		t.Fatalf("html = %q", parsedDocument.HTML)
 	}
 }
 
