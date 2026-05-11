@@ -87,6 +87,17 @@ func TestPlatformDMDescriptorRequiresRecipientAndMessage(t *testing.T) {
 	assertDescriptorApproval(t, PlatformMessageDescriptors(), "platform.dm.send", true)
 }
 
+func TestPlatformDMInspectDescriptorIsReadOnly(t *testing.T) {
+	schema := descriptorSchema(t, PlatformMessageDescriptors(), "platform.dm.inspect")
+
+	assertSchemaHasProperties(t, schema, "recipientHint", "platform")
+	assertDescriptorApproval(t, PlatformMessageDescriptors(), "platform.dm.inspect", false)
+	descriptor := descriptorForTool(t, PlatformMessageDescriptors(), "platform.dm.inspect")
+	if descriptor.SideEffectClass != "read" {
+		t.Fatalf("platform.dm.inspect side effect class = %q", descriptor.SideEffectClass)
+	}
+}
+
 func TestSiteAppDescriptorsUseRuntimeInputNames(t *testing.T) {
 	createSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.create")
 	publishSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.publish")

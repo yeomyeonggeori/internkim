@@ -60,6 +60,7 @@ func DeviceDescriptors() []Descriptor {
 func PlatformMessageDescriptors() []Descriptor {
 	return []Descriptor{
 		{Name: "platform.dm.send", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformDMSendInputSchema(), PolicyResource: "tool:platform.dm.send", SideEffectClass: "external_send", RequiresApproval: true},
+		{Name: "platform.dm.inspect", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformDMInspectInputSchema(), PolicyResource: "tool:platform.dm.send", SideEffectClass: "read"},
 	}
 }
 
@@ -127,6 +128,13 @@ func platformDMSendInputSchema() json.RawMessage {
 		jsonschema.Required("message", jsonschema.String()),
 		jsonschema.Field("platform", jsonschema.StringEnum("mattermost")),
 		jsonschema.Field("reason", jsonschema.String()),
+	).RawMessage()
+}
+
+func platformDMInspectInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Field("recipientHint", jsonschema.String()),
+		jsonschema.Field("platform", jsonschema.StringEnum("mattermost")),
 	).RawMessage()
 }
 
