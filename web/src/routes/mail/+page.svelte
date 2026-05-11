@@ -172,11 +172,18 @@
 		if (!account.isConfigured) return;
 		const query = new URLSearchParams({ mailbox: selectedMailbox, limit: '50' });
 		if (searchText.trim()) query.set('query', searchText.trim());
-		const response = await fetch(`/mail/api/messages?${query}`, { credentials: 'include' });
-		if (!response.ok) throw new Error(await responseErrorMessage(response, 'Could not load messages.'));
-		messages = ((await response.json()) as { messages?: MailMessage[] }).messages ?? [];
-		selectedMessage = visibleMessages()[0] ?? null;
-		if (selectedMessage) await loadMessage(selectedMessage);
+		errorMessage = '';
+		try {
+			const response = await fetch(`/mail/api/messages?${query}`, { credentials: 'include' });
+			if (!response.ok) throw new Error(await responseErrorMessage(response, 'Could not load messages.'));
+			messages = ((await response.json()) as { messages?: MailMessage[] }).messages ?? [];
+			selectedMessage = visibleMessages()[0] ?? null;
+			if (selectedMessage) await loadMessage(selectedMessage);
+		} catch (error) {
+			messages = [];
+			selectedMessage = null;
+			errorMessage = error instanceof Error ? error.message : 'Could not load messages.';
+		}
 	}
 
 	async function loadMessage(message: MailMessage) {
@@ -380,8 +387,19 @@
 
 	async function responseErrorMessage(response: Response, fallback: string) {
 		const message = (await response.text()).trim();
-		if (!message || message.startsWith('<!doctype html>') || message.startsWith('<html')) return fallback;
+		if (!message || isHTMLResponse(response, message)) return unavailableMessage(response, fallback);
 		return message;
+	}
+
+	function isHTMLResponse(response: Response, message: string) {
+		const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
+		const normalizedMessage = message.toLowerCase();
+		return contentType.includes('text/html') || normalizedMessage.startsWith('<!doctype html') || normalizedMessage.startsWith('<html');
+	}
+
+	function unavailableMessage(response: Response, fallback: string) {
+		if (response.status >= 500) return `${fallback} Mail service is temporarily unavailable.`;
+		return fallback;
 	}
 </script>
 
@@ -475,9 +493,9 @@
 
 		<div class="min-h-0 flex-1 overflow-auto p-2">
 			{#if errorMessage}
-				<div class="mb-2 rounded-lg border border-border bg-background p-3 text-sm">
+				<div role="alert" class="mb-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
 					<p class="font-medium">Mail needs attention</p>
-					<p class="mt-1 text-xs leading-5 text-muted-foreground">{errorMessage}</p>
+					<p class="mt-1 line-clamp-3 text-xs leading-5">{errorMessage}</p>
 				</div>
 			{/if}
 
