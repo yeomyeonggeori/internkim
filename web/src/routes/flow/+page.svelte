@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Identicon from '$lib/components/identicon.svelte';
+	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
@@ -50,6 +50,7 @@
 		id: string;
 		name: string;
 		email: string;
+		hireDate?: string;
 		role: string;
 		mattermostStatus: string;
 		score: number;
@@ -932,7 +933,7 @@
 		)}
 		onclick={() => (activeTab = `member:${member.id}`)}
 	>
-		<Identicon seed={member.email || member.name} class="size-5" />
+		<PersonAvatar name={member.name} email={member.email} class="size-5" />
 		{member.name}
 	</button>
 {/snippet}
@@ -1074,7 +1075,7 @@
 
 {#snippet taskOwnerCell({ task }: { task: FlowTask })}
 	<div class="flex items-center gap-2 font-medium">
-		<Identicon seed={task.ownerID || task.ownerName} class="size-6" />
+		<PersonAvatar name={task.ownerName} seed={task.ownerID || task.ownerName} class="size-6" />
 		{task.ownerName}
 	</div>
 {/snippet}
@@ -1280,11 +1281,12 @@
 		</Card.Header>
 		<Card.Content>
 			<div class="overflow-hidden rounded-lg border">
-				<Table.Root class="min-w-[720px]">
+				<Table.Root class="min-w-[820px]">
 					<Table.Header class="bg-muted/40">
 						<Table.Row class="hover:bg-transparent">
 							<Table.Head class="h-10 text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.members.name}</Table.Head>
 							<Table.Head class="h-10 text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.members.email}</Table.Head>
+							<Table.Head class="h-10 text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.members.hireDate}</Table.Head>
 							<Table.Head class="h-10 text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.members.role}</Table.Head>
 							<Table.Head class="h-10 text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.members.mattermost}</Table.Head>
 							<Table.Head class="h-10 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.members.active}</Table.Head>
@@ -1297,11 +1299,12 @@
 							<Table.Row>
 								<Table.Cell class="font-medium">
 									<div class="flex items-center gap-2">
-										<Identicon seed={member.email || member.name} class="size-7" />
+										<PersonAvatar name={member.name} email={member.email} class="size-7" />
 										{member.name}
 									</div>
 								</Table.Cell>
 								<Table.Cell class="text-muted-foreground">{member.email || '-'}</Table.Cell>
+								<Table.Cell class="text-muted-foreground">{member.hireDate || '-'}</Table.Cell>
 								<Table.Cell>
 									<Badge variant={member.role === 'admin' ? 'secondary' : 'outline'}>{member.role}</Badge>
 								</Table.Cell>
@@ -1313,7 +1316,7 @@
 						{/each}
 						{#if members().length === 0}
 							<Table.Row class="hover:bg-transparent">
-								<Table.Cell colspan={7} class="py-10 text-center text-muted-foreground">{text.members.empty}</Table.Cell>
+								<Table.Cell colspan={8} class="py-10 text-center text-muted-foreground">{text.members.empty}</Table.Cell>
 							</Table.Row>
 						{/if}
 					</Table.Body>

@@ -23,6 +23,7 @@ type adminUserMutation struct {
 	Handle                 string `json:"handle,omitempty"`
 	Name                   string `json:"name,omitempty"`
 	Email                  string `json:"email"`
+	HireDate               string `json:"hireDate,omitempty"`
 	Role                   string `json:"role"`
 	MattermostUserID       string `json:"mattermostUserID,omitempty"`
 	MattermostUsername     string `json:"mattermostUsername,omitempty"`
@@ -74,6 +75,11 @@ type mattermostProvisionResult struct {
 	Username          string
 	Status            string
 	TemporaryPassword string
+}
+
+type mattermostPasswordResetResult struct {
+	TemporaryPassword string
+	DeletedPostCount  int
 }
 
 type mattermostPreferenceRecord struct {
@@ -424,6 +430,141 @@ func addMattermostNameFields(body map[string]string, name string) {
 func (service *Service) updateMattermostUserPassword(ctx context.Context, token string, userID string, password string) error {
 	body := map[string]string{"new_password": password}
 	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/users/"+url.PathEscape(userID)+"/password", token, body, nil)
+}
+
+func (service *Service) resetMattermostUserPasswordAndHistory(ctx context.Context, record adminUserMutation) (mattermostPasswordResetResult, error) {
+	adminToken, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		return mattermostPasswordResetResult{}, errorValue
+	}
+	userRecord, found, errorValue := service.mattermostUserRecordForAdminRecord(ctx, adminToken, record)
+	if errorValue != nil {
+		return mattermostPasswordResetResult{}, errorValue
+	}
+	if !found {
+		return mattermostPasswordResetResult{}, fmt.Errorf("Mattermost user was not found")
+	}
+	if isProtectedMattermostUser(userRecord) {
+		return mattermostPasswordResetResult{}, fmt.Errorf("protected Mattermost user cannot be reset")
+	}
+	channelID, errorValue := service.ensureMattermostBotDirectChannelID(ctx, adminToken, userRecord.ID)
+	if errorValue != nil {
+		return mattermostPasswordResetResult{}, errorValue
+	}
+	deletedPostCount, errorValue := service.deleteMattermostDirectChannelPosts(ctx, adminToken, channelID)
+	if errorValue != nil {
+		return mattermostPasswordResetResult{}, errorValue
+	}
+	if errorValue := service.deleteBlueclawDirectConversationHistory(ctx, channelID); errorValue != nil {
+		return mattermostPasswordResetResult{}, errorValue
+	}
+	temporaryPassword := generateTemporaryPassword()
+	if errorValue := service.ensureMattermostPasswordPolicyAllows(ctx, adminToken, temporaryPassword); errorValue != nil {
+		return mattermostPasswordResetResult{}, errorValue
+	}
+	if errorValue := service.updateMattermostUserPassword(ctx, adminToken, userRecord.ID, temporaryPassword); errorValue != nil {
+		return mattermostPasswordResetResult{}, errorValue
+	}
+	return mattermostPasswordResetResult{TemporaryPassword: temporaryPassword, DeletedPostCount: deletedPostCount}, nil
+}
+
+func (service *Service) deleteMattermostDirectChannelPosts(ctx context.Context, token string, channelID string) (int, error) {
+	normalizedChannelID := strings.TrimSpace(channelID)
+	if normalizedChannelID == "" {
+		return 0, nil
+	}
+	deletedPostIDs := map[string]bool{}
+	for page := 0; page < 100; page++ {
+		response, errorValue := service.mattermostChannelPosts(ctx, token, normalizedChannelID, page)
+		if errorValue != nil {
+			return 0, errorValue
+		}
+		if len(response.Order) == 0 {
+			return len(deletedPostIDs), nil
+		}
+		for _, postID := range response.Order {
+			trimmedPostID := strings.TrimSpace(postID)
+			if trimmedPostID == "" || deletedPostIDs[trimmedPostID] {
+				continue
+			}
+			if errorValue := service.deleteMattermostPost(ctx, token, trimmedPostID); errorValue != nil && !isMattermostNotFound(errorValue) {
+				return 0, errorValue
+			}
+			deletedPostIDs[trimmedPostID] = true
+		}
+	}
+	return len(deletedPostIDs), fmt.Errorf("Mattermost direct channel has more history than one reset can delete")
+}
+
+func (service *Service) mattermostChannelPosts(ctx context.Context, token string, channelID string, page int) (mattermostPostsResponse, error) {
+	path := "/api/v4/channels/" + url.PathEscape(channelID) + "/posts?page=" + fmt.Sprint(page) + "&per_page=200"
+	var response mattermostPostsResponse
+	errorValue := service.mattermostRequest(ctx, http.MethodGet, path, token, nil, &response)
+	return response, errorValue
+}
+
+func (service *Service) deleteMattermostPost(ctx context.Context, token string, postID string) error {
+	return service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/posts/"+url.PathEscape(postID), token, nil, nil)
+}
+
+func (service *Service) deleteBlueclawDirectConversationHistory(ctx context.Context, channelID string) error {
+	normalizedChannelID := strings.TrimSpace(channelID)
+	if normalizedChannelID == "" {
+		return nil
+	}
+	sql := blueclawDirectConversationResetSQL(normalizedChannelID)
+	command := "su -s /bin/bash postgres -c " + quoteShellValue("psql -d blueclaw -v ON_ERROR_STOP=1 <<'SQL'\n"+sql+"\nSQL")
+	_, errorValue := service.runCommand(ctx, "sh", "-c", command)
+	return errorValue
+}
+
+func blueclawDirectConversationResetSQL(channelID string) string {
+	directConversationID := "dm:" + channelID
+	threadConversationPattern := "thread:" + channelID + ":%"
+	return fmt.Sprintf(`DO $$
+DECLARE
+  direct_conversation_id text := %s;
+  thread_conversation_pattern text := %s;
+BEGIN
+  IF to_regclass('public.task_run') IS NOT NULL THEN
+    DELETE FROM task_run
+    WHERE origin_conversation_id = direct_conversation_id
+       OR origin_conversation_id LIKE thread_conversation_pattern;
+  END IF;
+
+  IF to_regclass('public.raw_event') IS NOT NULL THEN
+    DELETE FROM raw_event
+    WHERE conversation_id IN (
+      SELECT conversation_id FROM conversation
+      WHERE platform = 'mattermost'
+        AND (external_conversation_id = direct_conversation_id
+          OR external_conversation_id LIKE thread_conversation_pattern)
+    );
+  END IF;
+
+  IF to_regclass('public.graphiti_episode') IS NOT NULL THEN
+    DELETE FROM graphiti_episode
+    WHERE conversation_id = direct_conversation_id
+       OR conversation_id LIKE thread_conversation_pattern;
+  END IF;
+
+  IF to_regclass('public.graphiti_namespace') IS NOT NULL THEN
+    DELETE FROM graphiti_namespace
+    WHERE scope_conversation_id = direct_conversation_id
+       OR scope_conversation_id LIKE thread_conversation_pattern;
+  END IF;
+
+  IF to_regclass('public.conversation') IS NOT NULL THEN
+    DELETE FROM conversation
+    WHERE platform = 'mattermost'
+      AND (external_conversation_id = direct_conversation_id
+        OR external_conversation_id LIKE thread_conversation_pattern);
+  END IF;
+END $$;`, quoteSQLLiteral(directConversationID), quoteSQLLiteral(threadConversationPattern))
+}
+
+func quoteSQLLiteral(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }
 
 func (service *Service) ensureMattermostPasswordPolicyAllows(ctx context.Context, token string, password string) error {
