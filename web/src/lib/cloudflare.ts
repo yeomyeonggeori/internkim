@@ -464,6 +464,7 @@ function adminAccessApplicationSpecs(env: CFEnv, fleetId: string): AdminAccessAp
 			domains: [
 				`${hostname}/calendar`,
 				`${hostname}/calendar/`,
+				`${hostname}/calendar/embed*`,
 				`${hostname}/calendar/api/*`
 			]
 		}
