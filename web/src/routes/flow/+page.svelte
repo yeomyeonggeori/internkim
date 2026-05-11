@@ -15,6 +15,7 @@
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { cn } from '$lib/utils';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { replaceState } from '$app/navigation';
 	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import PlusIcon from '@lucide/svelte/icons/plus';
@@ -187,7 +188,7 @@
 	const hasFlowData = () => summary !== null;
 	const canEditDefinitions = () => hasFlowData() && definitions().sizes.length > 0;
 
-	const filteredTasks = () => {
+	const filteredTasks = $derived.by(() => {
 		const normalizedSearch = searchText.trim().toLowerCase();
 		return tasks().filter((task) => {
 			if (statusFilter !== 'all' && task.status !== statusFilter) return false;
@@ -201,7 +202,7 @@
 				.toLowerCase()
 				.includes(normalizedSearch);
 		});
-	};
+	});
 
 	onMount(() => {
 		const week = new URLSearchParams(location.search).get('week') ?? '';
@@ -235,7 +236,7 @@
 	function replaceWeekQuery(week: string) {
 		const url = new URL(location.href);
 		url.searchParams.set('week', week);
-		history.replaceState({}, '', url);
+		replaceState(url, {});
 	}
 
 	function openTask(task: FlowTask) {
@@ -607,7 +608,7 @@
 
 	const taskTable = createSvelteTable<FlowTask>({
 		get data() {
-			return filteredTasks();
+			return filteredTasks;
 		},
 		columns: taskColumns,
 		getCoreRowModel: getCoreRowModel(),
