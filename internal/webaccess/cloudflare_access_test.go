@@ -44,6 +44,7 @@ func TestAdminAccessApplicationDomainsProtectOnlyInternKimPaths(t *testing.T) {
 		"${hostname}/mail*",
 		"${hostname}/calendar",
 		"${hostname}/calendar/",
+		"${hostname}/calendar/embed*",
 		"${hostname}/calendar/api/*",
 	}
 	for _, fragment := range requiredFragments {
