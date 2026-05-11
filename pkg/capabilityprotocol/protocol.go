@@ -84,6 +84,11 @@ type ToolInvokeResponse struct {
 	Status          string          `json:"status,omitempty"`
 	Content         string          `json:"content,omitempty"`
 	IsError         bool            `json:"isError,omitempty"`
+	Message         string          `json:"message,omitempty"`
+	ErrorCode       string          `json:"errorCode,omitempty"`
+	FailureStage    string          `json:"failureStage,omitempty"`
+	Retryable       bool            `json:"retryable,omitempty"`
+	SafeRetry       bool            `json:"safeRetry,omitempty"`
 	Result          json.RawMessage `json:"result"`
 }
 
