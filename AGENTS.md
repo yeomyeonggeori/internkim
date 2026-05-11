@@ -36,8 +36,11 @@ When testing against real platform surfaces such as Mattermost, Slack, or Signal
 - Use the smallest setup slice that matches the change. Do not default to broad redeploys.
 - For Admin/Flow web UI-only changes, use `./internkim setup --only admin-web`.
 - For Admin/Flow web UI-only changes that must be redeployed even when the version cache says current, use `./internkim setup --only admin-web --force`.
-- For Go service or admind/capabilityd binary changes, use `./internkim setup --only binaries,services --force`.
-- For mixed web UI and service changes, use `./internkim setup --only admin-web,binaries,services --force`.
+- For a small `internkim-admind` change, use `make build` and `./internkim setup --only admind --force`. Do not use `binaries,services`; it may rebuild unrelated runtime dependencies such as local LLM/CUDA assets.
+- For a small `internkim-capabilityd` change, use `make build` and `./internkim setup --only capabilityd --force`. Do not use `binaries,services` unless shared runtime files or multiple service binaries actually changed.
+- Use `./internkim setup --only binaries,services --force` only when broad binary/runtime installation is intentionally needed.
+- For mixed web UI and small single-service changes, combine the narrow slices, such as `./internkim setup --only admin-web,admind --force`.
+- For broad mixed web UI and runtime changes, use `./internkim setup --only admin-web,binaries,services --force` only when the full binary/service set is intentionally in scope.
 - For uncommitted Blueclaw submodule changes, run setup with `INTERNKIM_BLUECLAW_USE_LOCAL=1` so it builds the local `.dependency/blueclaw` worktree instead of pulling `origin/main`.
 - If those uncommitted Blueclaw changes must be included in the Firecracker payload, run `make prepare-blueclaw-payload` before setup and keep `INTERNKIM_BLUECLAW_USE_LOCAL=1` on setup.
 - Avoid `--force-all` unless recovering a broken setup or explicitly asked. It reruns satisfied dependencies and is too heavy for normal iteration.
