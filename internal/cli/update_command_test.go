@@ -8,6 +8,12 @@ type updateCommandCall struct {
 	arguments     []string
 }
 
+type testError string
+
+func (errorValue testError) Error() string {
+	return string(errorValue)
+}
+
 func TestUpdateArgumentsBuildsAndDeploysDefaultSlice(t *testing.T) {
 	calls := captureUpdateCommandCalls(t)
 	withUpdateExecutablePath(t, "./internkim")
@@ -55,6 +61,73 @@ func TestUpdateRejectsConflictingModeFlags(t *testing.T) {
 	}
 }
 
+func TestUpdateSimFirstRunsGateBeforeDeploy(t *testing.T) {
+	calls := captureUpdateCommandCalls(t)
+	gateArguments := captureUpdateSimulationGate(t, nil)
+	stopCalls := captureUpdateSimulationStop(t, nil)
+	withUpdateExecutablePath(t, "./internkim")
+
+	errorValue := runUpdateArguments([]string{"--sim-first", "--host", "192.0.2.10"})
+
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !equalStrings(*gateArguments, []string{}) {
+		t.Fatalf("gate arguments = %+v", *gateArguments)
+	}
+	if *stopCalls != 1 {
+		t.Fatalf("stop calls = %d", *stopCalls)
+	}
+	if len(*calls) != 1 {
+		t.Fatalf("calls = %+v", *calls)
+	}
+	expectedSetupArguments := []string{"setup", "--only", "admin-web,binaries,services", "--force", "--host", "192.0.2.10"}
+	if (*calls)[0].name != "./internkim" || !equalStrings((*calls)[0].arguments, expectedSetupArguments) {
+		t.Fatalf("call = %+v", (*calls)[0])
+	}
+}
+
+func TestUpdateSimFirstStopsBeforeDeployWhenGateFails(t *testing.T) {
+	calls := captureUpdateCommandCalls(t)
+	captureUpdateSimulationGate(t, errUpdateSimulationGate)
+	stopCalls := captureUpdateSimulationStop(t, nil)
+
+	errorValue := runUpdateArguments([]string{"--sim-first"})
+
+	if errorValue == nil {
+		t.Fatal("expected gate error")
+	}
+	if *stopCalls != 0 {
+		t.Fatalf("stop calls = %d", *stopCalls)
+	}
+	if len(*calls) != 0 {
+		t.Fatalf("calls = %+v", *calls)
+	}
+}
+
+func TestUpdateSimFirstPlanRunsPlansOnly(t *testing.T) {
+	calls := captureUpdateCommandCalls(t)
+	gateArguments := captureUpdateSimulationGate(t, nil)
+	stopCalls := captureUpdateSimulationStop(t, nil)
+	withUpdateExecutablePath(t, "./internkim")
+
+	errorValue := runUpdateArguments([]string{"--sim-first", "--plan"})
+
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !equalStrings(*gateArguments, []string{"--plan"}) {
+		t.Fatalf("gate arguments = %+v", *gateArguments)
+	}
+	if *stopCalls != 0 {
+		t.Fatalf("stop calls = %d", *stopCalls)
+	}
+	expectedSetupArguments := []string{"setup", "--only", "admin-web,binaries,services", "--force", "--plan"}
+	if len(*calls) != 1 || !equalStrings((*calls)[0].arguments, expectedSetupArguments) {
+		t.Fatalf("calls = %+v", *calls)
+	}
+}
+
 func captureUpdateCommandCalls(t *testing.T) *[]updateCommandCall {
 	t.Helper()
 	previousRunner := runUpdateCommand
@@ -69,6 +142,36 @@ func captureUpdateCommandCalls(t *testing.T) *[]updateCommandCall {
 	}
 	t.Cleanup(func() {
 		runUpdateCommand = previousRunner
+	})
+	return &calls
+}
+
+var errUpdateSimulationGate = testError("sim gate failed")
+
+func captureUpdateSimulationGate(t *testing.T, errorValue error) *[]string {
+	t.Helper()
+	previousGate := runUpdateSimulationGate
+	var capturedArguments []string
+	runUpdateSimulationGate = func(arguments []string) error {
+		capturedArguments = append([]string(nil), arguments...)
+		return errorValue
+	}
+	t.Cleanup(func() {
+		runUpdateSimulationGate = previousGate
+	})
+	return &capturedArguments
+}
+
+func captureUpdateSimulationStop(t *testing.T, errorValue error) *int {
+	t.Helper()
+	previousStop := stopUpdateSimulation
+	calls := 0
+	stopUpdateSimulation = func() error {
+		calls++
+		return errorValue
+	}
+	t.Cleanup(func() {
+		stopUpdateSimulation = previousStop
 	})
 	return &calls
 }

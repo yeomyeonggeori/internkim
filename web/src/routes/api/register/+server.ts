@@ -14,6 +14,8 @@ import {
 	ensureCompanionBypassApplication,
 	ensureFleetCertificateCoverage,
 	ensureNodeSSHAccessApplication,
+	deleteDNSRecord,
+	deleteTunnel,
 	nodeSSHHostname
 } from '$lib/cloudflare';
 import { cloudflareEnvironment, ensureFleetAccessApplications, fleetAdminAccessEmails } from '$lib/fleet-access';
@@ -60,6 +62,18 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 		}
 		const message = caughtError instanceof Error ? caughtError.message : String(caughtError);
 		return json({ error: 'registration failed', details: message }, { status: 500 });
+	}
+};
+
+export const DELETE: RequestHandler = async ({ request, platform }) => {
+	try {
+		return await handleRegistrationDelete(request, platform);
+	} catch (caughtError) {
+		if (caughtError && typeof caughtError === 'object' && 'status' in caughtError) {
+			throw caughtError;
+		}
+		const message = caughtError instanceof Error ? caughtError.message : String(caughtError);
+		return json({ error: 'registration cleanup failed', details: message }, { status: 500 });
 	}
 };
 
@@ -168,6 +182,60 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 		tls_certificate_status: certificateCoverage.status,
 		...fleetResponseFields(device.fleet, nodeID)
 	});
+}
+
+async function handleRegistrationDelete(request: Request, platform: App.Platform | undefined) {
+	const env = platform?.env;
+	if (!env?.KV) throw error(500, 'KV not available');
+
+	const auth = request.headers.get('authorization');
+	if (auth !== `Bearer ${env.INTERNKIM_REGISTER_SECRET}`) {
+		throw error(401, 'Invalid registration secret');
+	}
+
+	const requestBody = (await request.json()) as {
+		fleet_id?: string;
+		fleet_secret?: string;
+	};
+	const fleetID = normalizeFleetID(requestBody.fleet_id ?? '');
+	const fleetSecret = requestBody.fleet_secret ?? '';
+	if (!fleetID || !fleetSecret) throw error(400, 'fleet_id and fleet_secret required');
+
+	const device = await kv.getDevice(env.KV, fleetID);
+	if (!device) {
+		return json({ deleted: false, reason: 'not_found' });
+	}
+	await ensureSameFleet(device, fleetSecret);
+
+	const cfEnv = cloudflareEnvironment(env);
+	const deletedResources: string[] = [];
+	if (device.dns_record_id) {
+		await deleteDNSRecord(cfEnv, device.dns_record_id);
+		deletedResources.push('dns_record');
+	}
+	if (device.ssh_dns_record_id) {
+		await deleteDNSRecord(cfEnv, device.ssh_dns_record_id);
+		deletedResources.push('ssh_dns_record');
+	}
+	for (const member of device.fleet?.members ?? []) {
+		if (member.sshDNSRecordID && member.sshDNSRecordID !== device.ssh_dns_record_id) {
+			await deleteDNSRecord(cfEnv, member.sshDNSRecordID);
+			deletedResources.push(`node_ssh_dns_record:${member.nodeID}`);
+		}
+		if (member.nodeTunnelID && member.nodeTunnelID !== device.tunnel_id) {
+			await deleteTunnel(cfEnv, member.nodeTunnelID);
+			deletedResources.push(`node_tunnel:${member.nodeID}`);
+		}
+	}
+	if (device.tunnel_id) {
+		await deleteTunnel(cfEnv, device.tunnel_id);
+		deletedResources.push('tunnel');
+	}
+
+	await kv.deleteDevice(env.KV, fleetID);
+	await kv.deleteUserRecords(env.KV, fleetID);
+
+	return json({ deleted: true, fleet_id: fleetID, resources: deletedResources });
 }
 
 async function migrateRegisteredFleet(

@@ -377,6 +377,7 @@ func runVerifyBrowser(arguments []string) error {
 	node := flagSet.String("node", "", "Fleet node target")
 	cloudflareSSH := flagSet.Bool("cloudflare-ssh", false, "Use Cloudflare SSH")
 	board := flagSet.String("board", "", "Board target")
+	simulation := flagSet.Bool("sim", false, "Use simulation target")
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
@@ -402,6 +403,9 @@ func runVerifyBrowser(arguments []string) error {
 	}
 	if strings.TrimSpace(*board) != "" {
 		targetArguments = append(targetArguments, "--board", *board)
+	}
+	if *simulation {
+		targetArguments = append(targetArguments, "--sim")
 	}
 	verifyTarget, errorValue := resolveVerifyTarget(targetArguments)
 	if errorValue != nil {
@@ -450,6 +454,7 @@ func resolveVerifyTarget(arguments []string) (verifyTarget, error) {
 		}
 	}
 	target = resolveLabHostForCommandTarget(target, repositoryRootPath)
+	target = simulationHostTarget(repositoryRootPath, target)
 	if strings.TrimSpace(target.host) == "" && target.mode != commandTargetModeSimulation {
 		target.host = findBoardIPForCredentials(sshpassBin, target.stateDir, target.sshUser, target.sshPassword)
 	}
@@ -459,7 +464,7 @@ func resolveVerifyTarget(arguments []string) (verifyTarget, error) {
 		sshClient = newSSH(sshpassBin, target.sshUser, target.sshPassword, target.host)
 	} else {
 		connection, isRemote, connectionError := resolveDeviceSSHConnection(configuration, sshpassBin, target)
-		if connectionError != nil {
+		if connectionError != nil || connection == nil {
 			return verifyTarget{}, errors.New("verify target not found; pass --host <ip>")
 		}
 		sshClient = connection

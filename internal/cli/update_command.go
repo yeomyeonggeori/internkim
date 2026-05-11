@@ -12,6 +12,8 @@ type updateCommandRunner func(directoryPath string, name string, arguments ...st
 
 var runUpdateCommand updateCommandRunner = runStreamingUpdateCommand
 var resolveUpdateExecutablePath = currentExecutablePath
+var runUpdateSimulationGate = runSimGateArguments
+var stopUpdateSimulation = stopSimulationBeforePhysicalDeploy
 
 func runUpdateArguments(arguments []string) error {
 	if hasCommandArgument(arguments, "--help") || hasCommandArgument(arguments, "-h") {
@@ -22,11 +24,22 @@ func runUpdateArguments(arguments []string) error {
 	if errorValue != nil {
 		return errorValue
 	}
+	isPlan := hasCommandArgument(arguments, "--plan")
+	if hasCommandArgument(arguments, "--sim-first") {
+		if errorValue := runUpdateSimulationGate(updateSimulationGateArguments(arguments)); errorValue != nil {
+			return errorValue
+		}
+		if !isPlan {
+			if errorValue := stopUpdateSimulation(); errorValue != nil {
+				return errorValue
+			}
+		}
+	}
 	repositoryRootPath, errorValue := resolveRepositoryRootPath()
 	if errorValue != nil {
 		return errorValue
 	}
-	if !hasCommandArgument(arguments, "--plan") {
+	if !isPlan && !hasCommandArgument(arguments, "--sim-first") {
 		if errorValue := runUpdateCommand(repositoryRootPath, "make", "build"); errorValue != nil {
 			return errorValue
 		}
@@ -71,11 +84,19 @@ func updateSetupArguments(setupSlice string, arguments []string) []string {
 
 func updateSpecificArgument(argument string) bool {
 	switch argument {
-	case "--all", "--web", "--binaries", "--help", "-h":
+	case "--all", "--web", "--binaries", "--sim-first", "--help", "-h":
 		return true
 	default:
-		return strings.HasPrefix(argument, "--all=") || strings.HasPrefix(argument, "--web=") || strings.HasPrefix(argument, "--binaries=")
+		return strings.HasPrefix(argument, "--all=") || strings.HasPrefix(argument, "--web=") || strings.HasPrefix(argument, "--binaries=") || strings.HasPrefix(argument, "--sim-first=")
 	}
+}
+
+func updateSimulationGateArguments(arguments []string) []string {
+	gateArguments := []string{}
+	if hasCommandArgument(arguments, "--plan") {
+		gateArguments = append(gateArguments, "--plan")
+	}
+	return gateArguments
 }
 
 func runStreamingUpdateCommand(directoryPath string, name string, arguments ...string) error {
@@ -91,10 +112,11 @@ func runStreamingUpdateCommand(directoryPath string, name string, arguments ...s
 }
 
 func printUpdateUsage() {
-	fmt.Println("Usage: internkim update [--all|--web|--binaries] [--plan] [target options]")
+	fmt.Println("Usage: internkim update [--all|--web|--binaries] [--sim-first] [--plan] [target options]")
 	fmt.Println("Examples:")
 	fmt.Println("  internkim update")
 	fmt.Println("  internkim update --web")
 	fmt.Println("  internkim update --binaries --host 192.168.1.50")
+	fmt.Println("  internkim update --sim-first")
 	fmt.Println("  internkim update --plan")
 }

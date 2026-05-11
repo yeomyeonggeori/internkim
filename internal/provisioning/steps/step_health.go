@@ -326,6 +326,10 @@ fi`))
 }
 
 func checkLiteRTCapability(context *Context, failedChecks *[]string) {
+	if context.BoardType == BoardSimulation {
+		fmt.Println("  local ai capability: not applicable")
+		return
+	}
 	check := strings.TrimSpace(context.SSH.Run(`body="$(python3 - <<'PY'
 import json
 print(json.dumps({
