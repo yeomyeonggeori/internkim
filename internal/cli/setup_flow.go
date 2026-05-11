@@ -660,13 +660,8 @@ func (state *setupFlowState) deployAdminWeb(context *setup.Context) error {
 	switch context.Backend {
 	case setup.BackendSSH:
 		if state.sshClient != nil {
-			temporaryAdminUIPath := "/tmp/internkim-admin-ui"
-			state.sshClient.run("rm -rf " + quoteShellValue(temporaryAdminUIPath) + " && mkdir -p " + quoteShellValue(temporaryAdminUIPath) + " && chmod 777 " + quoteShellValue(temporaryAdminUIPath))
-			if errorValue := state.sshClient.scpDirDirect(boardUIPath, temporaryAdminUIPath); errorValue != nil {
+			if errorValue := state.deployAdminWebSSH(boardUIPath); errorValue != nil {
 				return errorValue
-			}
-			if output, errorValue := state.sshClient.runResult("rm -rf /opt/internkim/admin-ui && mkdir -p /opt/internkim/admin-ui && cp -a " + quoteShellValue(temporaryAdminUIPath) + "/. /opt/internkim/admin-ui/ && chmod -R a+rX /opt/internkim/admin-ui"); errorValue != nil {
-				return fmt.Errorf("deploy web UI: %s: %w", strings.TrimSpace(output), errorValue)
 			}
 		}
 	case setup.BackendSD:
@@ -682,6 +677,94 @@ func (state *setupFlowState) deployAdminWeb(context *setup.Context) error {
 	}
 	fmt.Println("  " + context.T("웹 배포 완료", "Web deployed"))
 	return nil
+}
+
+const (
+	remoteAdminUIDirectoryPath    = "/opt/internkim/admin-ui"
+	temporaryAdminUIDirectoryPath = "/tmp/internkim-admin-ui"
+	temporaryAdminUIArchivePath   = "/tmp/internkim-admin-ui.tar"
+)
+
+func (state *setupFlowState) deployAdminWebSSH(boardUIPath string) error {
+	if errorValue := state.uploadAdminUIArchive(boardUIPath); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := state.installAdminUIArchive(); errorValue != nil {
+		return errorValue
+	}
+	return state.verifyAdminUIDeployment(boardUIPath)
+}
+
+func (state *setupFlowState) uploadAdminUIArchive(boardUIPath string) error {
+	archivePath, errorValue := createAdminUIArchive(boardUIPath)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer os.Remove(archivePath)
+
+	if errorValue := state.sshClient.scpDirect(archivePath, temporaryAdminUIArchivePath); errorValue != nil {
+		return errorValue
+	}
+	return nil
+}
+
+func createAdminUIArchive(sourceDirectoryPath string) (string, error) {
+	archiveFile, errorValue := os.CreateTemp("", "internkim-admin-ui-*.tar")
+	if errorValue != nil {
+		return "", errorValue
+	}
+	archivePath := archiveFile.Name()
+	_ = archiveFile.Close()
+
+	command := exec.Command("tar", "-C", sourceDirectoryPath, "-cf", archivePath, ".")
+	command.Env = append(os.Environ(), "COPYFILE_DISABLE=1")
+	if output, archiveError := command.CombinedOutput(); archiveError != nil {
+		_ = os.Remove(archivePath)
+		return "", fmt.Errorf("archive admin UI: %s: %w", strings.TrimSpace(string(output)), archiveError)
+	}
+	return archivePath, nil
+}
+
+func (state *setupFlowState) installAdminUIArchive() error {
+	command := strings.Join([]string{
+		"rm -rf " + quoteShellValue(temporaryAdminUIDirectoryPath),
+		"mkdir -p " + quoteShellValue(temporaryAdminUIDirectoryPath),
+		"tar -xf " + quoteShellValue(temporaryAdminUIArchivePath) + " -C " + quoteShellValue(temporaryAdminUIDirectoryPath),
+		"rm -rf " + quoteShellValue(remoteAdminUIDirectoryPath),
+		"mkdir -p " + quoteShellValue(remoteAdminUIDirectoryPath),
+		"cp -a " + quoteShellValue(temporaryAdminUIDirectoryPath) + "/. " + quoteShellValue(remoteAdminUIDirectoryPath) + "/",
+		"chmod -R a+rX " + quoteShellValue(remoteAdminUIDirectoryPath),
+		"rm -f " + quoteShellValue(temporaryAdminUIArchivePath),
+	}, " && ")
+	output, errorValue := state.sshClient.runResult(command)
+	if errorValue != nil {
+		return fmt.Errorf("deploy web UI: %s: %w", strings.TrimSpace(output), errorValue)
+	}
+	return nil
+}
+
+func (state *setupFlowState) verifyAdminUIDeployment(boardUIPath string) error {
+	localVersion, errorValue := readAdminUIVersion(boardUIPath)
+	if errorValue != nil {
+		return errorValue
+	}
+	output, errorValue := state.sshClient.runResult("cat " + quoteShellValue(filepath.Join(remoteAdminUIDirectoryPath, "_app", "version.json")))
+	if errorValue != nil {
+		return fmt.Errorf("read deployed admin UI version: %s: %w", strings.TrimSpace(output), errorValue)
+	}
+	remoteVersion := strings.TrimSpace(output)
+	if remoteVersion != localVersion {
+		return fmt.Errorf("admin UI deploy verification failed: remote version %s does not match local version %s", remoteVersion, localVersion)
+	}
+	return nil
+}
+
+func readAdminUIVersion(boardUIPath string) (string, error) {
+	document, errorValue := os.ReadFile(filepath.Join(boardUIPath, "_app", "version.json"))
+	if errorValue != nil {
+		return "", fmt.Errorf("read local admin UI version: %w", errorValue)
+	}
+	return strings.TrimSpace(string(document)), nil
 }
 
 func copyDirectoryToStage(sourceDirectory string, targetDirectory string) error {

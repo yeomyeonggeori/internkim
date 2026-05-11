@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -1654,10 +1655,13 @@ func mattermostExistingFlowSetupResponse(t *testing.T, request *http.Request) *h
 	case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/flow":
 		return jsonResponse(http.StatusOK, `{"id":"flow-channel"}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/patch" && request.Method == http.MethodPut:
-		assertMattermostFlowChannelPatch(t, request)
+		assertMattermostFlowChannelPatch(t, request, "[Flow 열기](/flow/)", "[Flow 열기](https://dc719d8e.intern.kim/flow/)")
+		return jsonResponse(http.StatusOK, `{}`, nil)
+	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/moderations/patch" && request.Method == http.MethodPut:
+		assertMattermostFlowChannelModerationPatch(t, request)
 		return jsonResponse(http.StatusOK, `{}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/posts?per_page=50":
-		return jsonResponse(http.StatusOK, `{"order":["flow-entry"],"posts":{"flow-entry":{"id":"flow-entry","props":{"internkim_flow_entry":true}}}}`, nil)
+		return jsonResponse(http.StatusOK, `{"order":["flow-entry"],"posts":{"flow-entry":{"id":"flow-entry","message":"Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다. [Flow 열기](/flow/)","props":{"internkim_flow_entry":true}}}}`, nil)
 	default:
 		t.Fatalf("unexpected existing Flow setup request %s %s", request.Method, request.URL.String())
 		return nil
@@ -1774,6 +1778,8 @@ func isMattermostFlowSetupRequest(request *http.Request) bool {
 		return true
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/patch" && request.Method == http.MethodPut:
 		return true
+	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/moderations/patch" && request.Method == http.MethodPut:
+		return true
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/posts?per_page=50":
 		return true
 	case request.URL.String() == "http://mattermost.local/api/v4/posts" && request.Method == http.MethodPost:
@@ -1793,12 +1799,15 @@ func mattermostFlowSetupResponse(t *testing.T, request *http.Request) *http.Resp
 	case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/flow":
 		return jsonResponse(http.StatusOK, `{"id":"flow-channel"}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/patch" && request.Method == http.MethodPut:
-		assertMattermostFlowChannelPatch(t, request)
+		assertMattermostFlowChannelPatch(t, request, "[Flow 열기](/flow/)", "[Flow 열기](https://dc719d8e.intern.kim/flow/)")
+		return jsonResponse(http.StatusOK, `{}`, nil)
+	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/moderations/patch" && request.Method == http.MethodPut:
+		assertMattermostFlowChannelModerationPatch(t, request)
 		return jsonResponse(http.StatusOK, `{}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/posts?per_page=50":
 		return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/posts" && request.Method == http.MethodPost:
-		assertMattermostFlowEntryPost(t, request)
+		assertMattermostFlowEntryPost(t, request, "Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다. [Flow 열기](/flow/)", "Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다. [Flow 열기](https://dc719d8e.intern.kim/flow/)")
 		return jsonResponse(http.StatusCreated, `{"id":"flow-entry"}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/members":
 		return jsonResponse(http.StatusCreated, `{}`, nil)
@@ -1844,14 +1853,40 @@ func assertMattermostConnectCommandPayload(t *testing.T, request *http.Request) 
 	}
 }
 
-func assertMattermostFlowChannelPatch(t *testing.T, request *http.Request) {
+func assertMattermostFlowChannelPatch(t *testing.T, request *http.Request, expectedFlowLinks ...string) {
 	t.Helper()
 	var payload map[string]string
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if payload["display_name"] != "Flow" || payload["header"] != mattermostFlowChannelLink || payload["purpose"] != mattermostFlowChannelLink {
+	if payload["display_name"] != "Flow" || !containsString(expectedFlowLinks, payload["header"]) || !containsString(expectedFlowLinks, payload["purpose"]) {
 		t.Fatalf("flow channel patch = %#v", payload)
+	}
+}
+
+func assertMattermostFlowChannelModerationPatch(t *testing.T, request *http.Request) {
+	t.Helper()
+	var payload []struct {
+		Name  string          `json:"name"`
+		Roles map[string]bool `json:"roles"`
+	}
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	expectedRolesByName := map[string]map[string]bool{
+		"create_post":          {"members": false, "guests": false},
+		"create_reactions":     {"members": false, "guests": false},
+		"manage_members":       {"members": false},
+		"use_channel_mentions": {"members": false, "guests": false},
+	}
+	if len(payload) != len(expectedRolesByName) {
+		t.Fatalf("flow moderation patch = %#v", payload)
+	}
+	for _, patch := range payload {
+		expectedRoles, found := expectedRolesByName[patch.Name]
+		if !found || !reflect.DeepEqual(patch.Roles, expectedRoles) {
+			t.Fatalf("flow moderation patch = %#v", payload)
+		}
 	}
 }
 
@@ -1877,14 +1912,15 @@ func assertMattermostChannelMember(t *testing.T, request *http.Request, expected
 	}
 }
 
-func assertMattermostFlowEntryPost(t *testing.T, request *http.Request) {
+func assertMattermostFlowEntryPost(t *testing.T, request *http.Request, expectedMessages ...string) {
 	t.Helper()
 	var payload map[string]any
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	props, _ := payload["props"].(map[string]any)
-	if payload["channel_id"] != "flow-channel" || payload["message"] != mattermostFlowEntryPostMessage || props["internkim_flow_entry"] != true {
+	message, _ := payload["message"].(string)
+	if payload["channel_id"] != "flow-channel" || !containsString(expectedMessages, message) || props["internkim_flow_entry"] != true {
 		t.Fatalf("flow entry post = %#v", payload)
 	}
 }
@@ -2241,6 +2277,35 @@ func TestMattermostConnectCommandCreatesEphemeralOwnerPairing(t *testing.T) {
 	}
 }
 
+func TestCORSHeaderIsLimitedToInternKimPaths(t *testing.T) {
+	service := NewService(Configuration{})
+	handler := service.withCORS(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		responseWriter.Header().Set("Access-Control-Allow-Origin", "https://mattermost.example")
+		responseWriter.WriteHeader(http.StatusOK)
+	}))
+	request := httptest.NewRequest(http.MethodGet, "/api/v4/system/ping", nil)
+	request.Header.Set("Origin", "https://device.intern.kim")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if origins := response.Result().Header.Values("Access-Control-Allow-Origin"); !reflect.DeepEqual(origins, []string{"https://mattermost.example"}) {
+		t.Fatalf("unexpected proxy CORS origins: %#v", origins)
+	}
+}
+
+func TestCORSHeaderIsAddedForInternKimPaths(t *testing.T) {
+	service := NewService(Configuration{})
+	handler := service.withCORS(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		responseWriter.WriteHeader(http.StatusOK)
+	}))
+	request := httptest.NewRequest(http.MethodGet, "/flow/api/summary", nil)
+	request.Header.Set("Origin", "https://device.intern.kim")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Header().Get("Access-Control-Allow-Origin") != "https://device.intern.kim" {
+		t.Fatalf("unexpected InternKim CORS origin: %s", response.Header().Get("Access-Control-Allow-Origin"))
+	}
+}
+
 func TestMattermostConnectCommandProvisioningCreatesCommandToken(t *testing.T) {
 	service := NewService(Configuration{
 		StateDirectory:    t.TempDir(),
@@ -2292,6 +2357,9 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"admin","email":"admin@localhost","username":"admin"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/admin/roles" && request.Method == http.MethodPut:
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
+			assertMattermostRuntimeSettingsPatch(t, request, "https://device-1.intern.kim")
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim":
 			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/members" && request.Method == http.MethodPost:
@@ -2306,13 +2374,16 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 			return jsonResponse(http.StatusCreated, `{"id":"flow-channel"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/patch" && request.Method == http.MethodPut:
 			flowChannelPatched = true
-			assertMattermostFlowChannelPatch(t, request)
+			assertMattermostFlowChannelPatch(t, request, "[Flow 열기](https://device-1.intern.kim/flow/)")
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/moderations/patch" && request.Method == http.MethodPut:
+			assertMattermostFlowChannelModerationPatch(t, request)
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/posts?per_page=50":
 			return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/posts" && request.Method == http.MethodPost:
 			flowEntryPostCreated = true
-			assertMattermostFlowEntryPost(t, request)
+			assertMattermostFlowEntryPost(t, request, "Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다. [Flow 열기](https://device-1.intern.kim/flow/)")
 			return jsonResponse(http.StatusCreated, `{"id":"flow-entry"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/town-square-channel/members" && request.Method == http.MethodPost:
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
@@ -3351,6 +3422,7 @@ func assertFirstAdminPasswordPolicyPatch(t *testing.T, request *http.Request) {
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	assertMattermostManagedResourcePathPatch(t, payload)
 	passwordSettings := payload["PasswordSettings"]
 	if passwordSettings["MinimumLength"] != float64(5) {
 		t.Fatalf("minimum password length = %#v", passwordSettings["MinimumLength"])
@@ -3368,9 +3440,37 @@ func assertMattermostNicknameDisplayPatch(t *testing.T, request *http.Request) {
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	assertMattermostManagedResourcePathPatch(t, payload)
 	teamSettings := payload["TeamSettings"]
 	if teamSettings["TeammateNameDisplay"] != "nickname_full_name" {
 		t.Fatalf("teammate name display = %#v", teamSettings["TeammateNameDisplay"])
+	}
+}
+
+func assertMattermostManagedResourcePathPatch(t *testing.T, payload map[string]map[string]any) {
+	t.Helper()
+	serviceSettings := payload["ServiceSettings"]
+	if serviceSettings["ManagedResourcePaths"] != "admin,calendar,flow,mail" {
+		t.Fatalf("managed resource paths = %#v", serviceSettings["ManagedResourcePaths"])
+	}
+}
+
+func assertMattermostRuntimeSettingsPatch(t *testing.T, request *http.Request, siteURL string) {
+	t.Helper()
+	var payload map[string]map[string]any
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	assertMattermostManagedResourcePathPatch(t, payload)
+	serviceSettings := payload["ServiceSettings"]
+	if serviceSettings["SiteURL"] != siteURL {
+		t.Fatalf("site url = %#v", serviceSettings["SiteURL"])
+	}
+	if serviceSettings["AllowCorsFrom"] != siteURL {
+		t.Fatalf("allow cors from = %#v", serviceSettings["AllowCorsFrom"])
+	}
+	if serviceSettings["CorsAllowCredentials"] != true {
+		t.Fatalf("cors allow credentials = %#v", serviceSettings["CorsAllowCredentials"])
 	}
 }
 

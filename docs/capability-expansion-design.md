@@ -106,6 +106,7 @@ Calendar, email, file sharing, 기억 분리는 모두 "누구의 권한으로 �
 | 외부 공유 | 수신자, 권한, 파일명 확인 후 승인 |
 | 캘린더 참석자 초대 | 참석자 이메일이 외부 도메인이면 승인 |
 | Google import/publish | 대상 계정, 파일명, 공유 범위 확인 후 승인 |
+| InternKim `site.app.publish` | 프로토타입 생성 완료 단계이므로 승인 불필요 |
 | 파일 삭제/이동 | dry-run 요약 후 승인 |
 | 터미널 write 명령 | admin/dev profile에서만 승인 후 실행 |
 | 브라우저 form submit | observe 결과와 제출 요약을 보여준 뒤 승인 |

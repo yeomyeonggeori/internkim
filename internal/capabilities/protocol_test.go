@@ -79,6 +79,14 @@ func TestFlowDescriptorMatchesQuickTaskInput(t *testing.T) {
 	assertSchemaOmitsProperties(t, schema, "title", "description", "assignee", "dueDate")
 }
 
+func TestPlatformDMDescriptorRequiresRecipientAndMessage(t *testing.T) {
+	schema := descriptorSchema(t, PlatformMessageDescriptors(), "platform.dm.send")
+
+	assertSchemaHasProperties(t, schema, "recipientHint", "message", "platform", "reason")
+	assertSchemaRequires(t, schema, "recipientHint", "message")
+	assertDescriptorApproval(t, PlatformMessageDescriptors(), "platform.dm.send", true)
+}
+
 func TestSiteAppDescriptorsUseRuntimeInputNames(t *testing.T) {
 	createSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.create")
 	publishSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.publish")
@@ -95,6 +103,7 @@ func TestSiteAppDescriptorsUseRuntimeInputNames(t *testing.T) {
 }
 
 func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
+	assertDescriptorApproval(t, PlatformMessageDescriptors(), "platform.dm.send", true)
 	assertDescriptorApproval(t, CalendarDescriptors(), "calendar.event.add", false)
 	assertDescriptorApproval(t, CalendarDescriptors(), "calendar.event.delete", true)
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site.app.create", false)
@@ -102,6 +111,16 @@ func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site.app.delete", true)
 	assertDescriptorApproval(t, GoogleWorkspaceDescriptors(), "google.calendar.event", false)
 	assertDescriptorApproval(t, GoogleWorkspaceDescriptors(), "google.gmail.send", true)
+}
+
+func TestSiteAppPublishDescriptorDoesNotLookLikeGenericExternalPublish(t *testing.T) {
+	descriptor := descriptorForTool(t, SiteAppDescriptors(), "site.app.publish")
+	if descriptor.SideEffectClass != "site_publish" {
+		t.Fatalf("site.app.publish side effect class = %q", descriptor.SideEffectClass)
+	}
+	if descriptor.RequiresApproval {
+		t.Fatalf("site.app.publish should not require approval: %+v", descriptor)
+	}
 }
 
 func TestGoogleWorkspaceDescriptorsMatchSkillInputs(t *testing.T) {
@@ -126,6 +145,7 @@ func TestGoogleWorkspaceDescriptorsMatchSkillInputs(t *testing.T) {
 func TestCapabilityDescriptorSchemasAreCanonicalObjects(t *testing.T) {
 	descriptorGroups := [][]Descriptor{
 		CompanionToolDescriptors(),
+		PlatformMessageDescriptors(),
 		FlowDescriptors(),
 		CalendarDescriptors(),
 		SiteAppDescriptors(),
@@ -165,14 +185,18 @@ func assertDescriptorApproval(t *testing.T, descriptors []Descriptor, toolName s
 
 func descriptorSchema(t *testing.T, descriptors []Descriptor, toolName string) schemaDocument {
 	t.Helper()
+	return decodeSchema(t, toolName, descriptorForTool(t, descriptors, toolName).InputSchema)
+}
+
+func descriptorForTool(t *testing.T, descriptors []Descriptor, toolName string) Descriptor {
+	t.Helper()
 	for _, descriptor := range descriptors {
-		if descriptor.Name != toolName {
-			continue
+		if descriptor.Name == toolName {
+			return descriptor
 		}
-		return decodeSchema(t, toolName, descriptor.InputSchema)
 	}
 	t.Fatalf("descriptor %s not found", toolName)
-	return schemaDocument{}
+	return Descriptor{}
 }
 
 func decodeSchema(t *testing.T, toolName string, document json.RawMessage) schemaDocument {

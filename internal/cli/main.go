@@ -1194,6 +1194,9 @@ document.setdefault("TeamSettings", {})
 document["SqlSettings"]["DriverName"] = "postgres"
 document["SqlSettings"]["DataSource"] = "postgres://mmuser:%%s@localhost/mattermost?sslmode=disable&connect_timeout=10" %% os.environ["MATTERMOST_DB_PASS"]
 document["ServiceSettings"]["SiteURL"] = os.environ["MATTERMOST_SITE_URL"]
+document["ServiceSettings"]["AllowCorsFrom"] = os.environ["MATTERMOST_SITE_URL"]
+document["ServiceSettings"]["CorsAllowCredentials"] = True
+document["ServiceSettings"]["ManagedResourcePaths"] = "admin,calendar,flow,mail"
 document["TeamSettings"]["TeammateNameDisplay"] = "nickname_full_name"
 path.write_text(json.dumps(document, indent=2, sort_keys=True))
 PY
@@ -1417,8 +1420,13 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 		))
 	}
 
+	deviceURL := loadState(stateDir, "device_url")
+	if deviceURL == "" {
+		deviceURL = localURL
+	}
+
 	// 3. Enable personal access tokens + bot accounts in config
-	configBody, _ := json.Marshal(mattermostSetupConfigurationPatch())
+	configBody, _ := json.Marshal(mattermostSetupConfigurationPatch(deviceURL))
 	mmAPI("PUT", "/api/v4/config/patch", configBody, adminToken)
 
 	// 4. Grant admin role
@@ -1647,10 +1655,6 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 	}
 
 	// 8. Store credentials
-	deviceURL := loadState(stateDir, "device_url")
-	if deviceURL == "" {
-		deviceURL = localURL
-	}
 	ssh.run(fmt.Sprintf(`mkdir -p /root/.internkim/secrets /root/.internkim/env
 printf '%%s' '%s' > /root/.internkim/env/mattermost-url
 printf '%%s' '%s' > /root/.internkim/secrets/mattermost-bot-token
@@ -1689,13 +1693,28 @@ type mattermostSetupCommandRecord struct {
 
 const mattermostConnectSetupCommandTokenPath = "/root/.internkim/state/admin/mattermost-connect-command-token"
 
-func mattermostSetupConfigurationPatch() map[string]any {
+func mattermostManagedResourcePaths() []string {
+	return []string{"admin", "calendar", "flow", "mail"}
+}
+
+func mattermostManagedResourcePathSetting() string {
+	return strings.Join(mattermostManagedResourcePaths(), ",")
+}
+
+func mattermostSetupConfigurationPatch(siteURL string) map[string]any {
+	serviceSettings := map[string]any{
+		"AllowedUntrustedInternalConnections": "127.0.0.1 localhost",
+		"EnableUserAccessTokens":              true,
+		"EnableBotAccountCreation":            true,
+		"ManagedResourcePaths":                mattermostManagedResourcePathSetting(),
+	}
+	if trimmedSiteURL := strings.TrimSpace(siteURL); trimmedSiteURL != "" {
+		serviceSettings["SiteURL"] = trimmedSiteURL
+		serviceSettings["AllowCorsFrom"] = trimmedSiteURL
+		serviceSettings["CorsAllowCredentials"] = true
+	}
 	return map[string]any{
-		"ServiceSettings": map[string]any{
-			"AllowedUntrustedInternalConnections": "127.0.0.1 localhost",
-			"EnableUserAccessTokens":              true,
-			"EnableBotAccountCreation":            true,
-		},
+		"ServiceSettings": serviceSettings,
 		"TeamSettings": map[string]any{
 			"TeammateNameDisplay": "nickname_full_name",
 		},

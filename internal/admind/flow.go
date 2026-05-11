@@ -950,7 +950,7 @@ func (service *Service) upsertFlowMattermostNotification(ctx context.Context, to
 		return service.createFlowMattermostNotification(ctx, token, channelID, task)
 	}
 	body := map[string]any{
-		"message": flowMattermostNotificationMessage(task),
+		"message": service.flowMattermostNotificationMessage(task),
 		"props":   flowMattermostNotificationProps(task),
 	}
 	if errorValue := service.mattermostRequest(ctx, http.MethodPut, "/api/v4/posts/"+url.PathEscape(task.MattermostPostID)+"/patch", token, body, nil); errorValue != nil {
@@ -962,7 +962,7 @@ func (service *Service) upsertFlowMattermostNotification(ctx context.Context, to
 func (service *Service) createFlowMattermostNotification(ctx context.Context, token string, channelID string, task flowTask) (flowTask, error) {
 	body := map[string]any{
 		"channel_id": channelID,
-		"message":    flowMattermostNotificationMessage(task),
+		"message":    service.flowMattermostNotificationMessage(task),
 		"props":      flowMattermostNotificationProps(task),
 	}
 	var response struct {
@@ -989,7 +989,7 @@ func (service *Service) deleteFlowMattermostNotification(ctx context.Context, to
 	return task, service.updateFlowTaskMattermostPostID(ctx, task.ID, "")
 }
 
-func flowMattermostNotificationMessage(task flowTask) string {
+func (service *Service) flowMattermostNotificationMessage(task flowTask) string {
 	lines := []string{fmt.Sprintf("**%s · %s · %s**", task.Status, task.OwnerName, task.Content)}
 	if task.Type != "" || task.Size != "" {
 		lines = append(lines, "유형/크기: "+strings.TrimSpace(task.Type+" "+task.Size))
@@ -1000,7 +1000,7 @@ func flowMattermostNotificationMessage(task flowTask) string {
 	if reason := firstNonEmpty(task.RequestReason, task.DecisionReason); strings.TrimSpace(reason) != "" {
 		lines = append(lines, "사유: "+strings.TrimSpace(reason))
 	}
-	lines = append(lines, mattermostFlowURL(task))
+	lines = append(lines, service.mattermostFlowLink(task.WeekCode))
 	return strings.Join(lines, "\n")
 }
 
@@ -1012,12 +1012,31 @@ func flowMattermostNotificationProps(task flowTask) map[string]any {
 	}
 }
 
-func mattermostFlowURL(task flowTask) string {
-	weekCode := strings.TrimSpace(task.WeekCode)
-	if weekCode == "" {
-		return "[Flow 열기](/flow/)"
+func (service *Service) mattermostFlowLink(weekCode string) string {
+	return "[Flow 열기](" + service.mattermostFlowURL(weekCode) + ")"
+}
+
+func (service *Service) mattermostFlowURL(weekCode string) string {
+	path := "/flow/"
+	weekCode = strings.TrimSpace(weekCode)
+	if weekCode != "" {
+		path += "?week=" + url.QueryEscape(weekCode)
 	}
-	return "[Flow 열기](/flow/?week=" + url.QueryEscape(weekCode) + ")"
+	baseURL := strings.TrimRight(strings.TrimSpace(service.mattermostFlowBaseURL()), "/")
+	if baseURL == "" {
+		return path
+	}
+	return baseURL + path
+}
+
+func (service *Service) mattermostFlowBaseURL() string {
+	if deviceURL := strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceURLPath)); deviceURL != "" {
+		return deviceURL
+	}
+	if fleetID := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)); fleetID != "" {
+		return "https://" + strings.ToLower(fleetID) + ".intern.kim"
+	}
+	return ""
 }
 
 func (service *Service) readFlowDefinitions(ctx context.Context) (flowDefinitions, error) {

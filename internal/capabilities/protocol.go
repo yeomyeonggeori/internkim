@@ -54,7 +54,13 @@ func DeviceDescriptors() []Descriptor {
 		{Name: "llm.structured", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "embedding.create", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "platform.reply", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false},
-	}, append(append(append(append(DeviceBrowserDescriptors(), FlowDescriptors()...), CalendarDescriptors()...), MailDescriptors()...), SiteAppDescriptors()...)...)
+	}, append(append(append(append(append(DeviceBrowserDescriptors(), PlatformMessageDescriptors()...), FlowDescriptors()...), CalendarDescriptors()...), MailDescriptors()...), SiteAppDescriptors()...)...)
+}
+
+func PlatformMessageDescriptors() []Descriptor {
+	return []Descriptor{
+		{Name: "platform.dm.send", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformDMSendInputSchema(), PolicyResource: "tool:platform.dm.send", SideEffectClass: "external_send", RequiresApproval: true},
+	}
 }
 
 func FlowDescriptors() []Descriptor {
@@ -85,7 +91,7 @@ func MailDescriptors() []Descriptor {
 func SiteAppDescriptors() []Descriptor {
 	return []Descriptor{
 		{Name: "site.app.create", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppCreateInputSchema(), PolicyResource: "tool:site.app.create", SideEffectClass: "workspace_write"},
-		{Name: "site.app.publish", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppPublishInputSchema(), PolicyResource: "tool:site.app.publish", SideEffectClass: "external_publish"},
+		{Name: "site.app.publish", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppPublishInputSchema(), PolicyResource: "tool:site.app.publish", SideEffectClass: "site_publish"},
 		{Name: "site.app.status", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLookupInputSchema(), PolicyResource: "tool:site.app.status", SideEffectClass: "read"},
 		{Name: "site.app.logs", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLookupInputSchema(), PolicyResource: "tool:site.app.logs", SideEffectClass: "read"},
 		{Name: "site.app.rollback", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLifecycleInputSchema(), PolicyResource: "tool:site.app.rollback", SideEffectClass: "external_publish", RequiresApproval: true},
@@ -112,6 +118,15 @@ func flowTaskAddInputSchema() json.RawMessage {
 		jsonschema.Field("targetPersonHint", jsonschema.String()),
 		jsonschema.Field("weekCode", jsonschema.String()),
 		jsonschema.Field("allowDuplicate", jsonschema.Boolean()),
+	).RawMessage()
+}
+
+func platformDMSendInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Required("recipientHint", jsonschema.String()),
+		jsonschema.Required("message", jsonschema.String()),
+		jsonschema.Field("platform", jsonschema.StringEnum("mattermost")),
+		jsonschema.Field("reason", jsonschema.String()),
 	).RawMessage()
 }
 
@@ -298,6 +313,7 @@ func DefaultToolNames() []string {
 
 func DefaultToolDescriptors() []Descriptor {
 	descriptors := CompanionToolDescriptors()
+	descriptors = append(descriptors, PlatformMessageDescriptors()...)
 	descriptors = append(descriptors, FlowDescriptors()...)
 	descriptors = append(descriptors, CalendarDescriptors()...)
 	descriptors = append(descriptors, MailDescriptors()...)
