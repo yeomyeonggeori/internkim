@@ -55,6 +55,7 @@
 		startClientX: number;
 		startClientY: number;
 		hasMoved: boolean;
+		isLongPressReady: boolean;
 	};
 
 	type MonthDateCell = {
@@ -100,7 +101,12 @@
 	let calendarStageElement = $state<HTMLElement | null>(null);
 	let monthRangeSelection = $state<MonthRangeSelection | null>(null);
 	let monthRangePreviewSegments = $state<MonthRangePreviewSegment[]>([]);
+	let selectedMonthDateKey = $state<string | null>(null);
 	let lastMonthRangeCreationTime = 0;
+	let lastMonthCellCreationTime = 0;
+	let isDispatchingMonthCreateDoubleClick = false;
+	let monthLongPressTimer: ReturnType<typeof setTimeout> | null = null;
+	const monthLongPressDelay = 400;
 
 	const calendar = useCalendarApp({
 		views: [
@@ -164,6 +170,12 @@
 		monthRangePreviewSegments = monthRangePreviewSegmentsFromSelection();
 	});
 
+	$effect(() => {
+		selectedMonthDateKey;
+		calendarStageElement;
+		refreshSelectedMonthDateCellAfterRender();
+	});
+
 	function startOfMonthWindow(date: Date) {
 		return new Date(date.getFullYear(), date.getMonth() - 1, 1);
 	}
@@ -200,6 +212,7 @@
 		const eventIDs = calendar.app.getAllEvents().map((event) => event.id);
 		calendar.app.applyEventsChanges({ delete: eventIDs, add: recalculateEventDays(events, visibleRangeStartDate) });
 		calendar.app.triggerRender();
+		refreshSelectedMonthDateCellAfterRender();
 	}
 
 	function compareCalendarEventsForDisplay(leftEvent: DayFlowEvent, rightEvent: DayFlowEvent) {
@@ -262,10 +275,9 @@
 			});
 			if (!response.ok) throw new Error(await responseErrorMessage(response, text.saveError));
 			statusMessage = text.shared;
-			await refreshCalendar();
+			eventCount = calendar.app.getAllEvents().length;
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.saveError;
-			await refreshCalendar();
 		} finally {
 			isSaving = false;
 		}
@@ -280,7 +292,7 @@
 				credentials: 'include'
 			});
 			if (!response.ok) throw new Error(await responseErrorMessage(response, text.deleteError));
-			await refreshCalendar();
+			eventCount = calendar.app.getAllEvents().length;
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.deleteError;
 			await refreshCalendar();
@@ -380,19 +392,23 @@
 		const handlePointerMove = (event: PointerEvent) => moveMonthRangeSelection(event);
 		const handlePointerUp = (event: PointerEvent) => finishMonthRangeSelection(event);
 		const handleClick = (event: MouseEvent) => suppressMonthRangeClick(event);
+		const handleDoubleClick = (event: MouseEvent) => suppressNativeMonthDoubleClick(event);
 
 		stageElement.addEventListener('pointerdown', handlePointerDown);
 		document.addEventListener('pointermove', handlePointerMove);
 		document.addEventListener('pointerup', handlePointerUp);
 		document.addEventListener('pointercancel', handlePointerUp);
 		stageElement.addEventListener('click', handleClick, true);
+		stageElement.addEventListener('dblclick', handleDoubleClick, true);
 
 		return () => {
+			clearMonthLongPressCreateTimer();
 			stageElement.removeEventListener('pointerdown', handlePointerDown);
 			document.removeEventListener('pointermove', handlePointerMove);
 			document.removeEventListener('pointerup', handlePointerUp);
 			document.removeEventListener('pointercancel', handlePointerUp);
 			stageElement.removeEventListener('click', handleClick, true);
+			stageElement.removeEventListener('dblclick', handleDoubleClick, true);
 		};
 	}
 
@@ -406,8 +422,10 @@
 			endDateKey: dateCell.dateKey,
 			startClientX: event.clientX,
 			startClientY: event.clientY,
-			hasMoved: false
+			hasMoved: false,
+			isLongPressReady: false
 		};
+		startMonthLongPressCreateTimer(event.pointerId);
 	}
 
 	function moveMonthRangeSelection(event: PointerEvent) {
@@ -415,7 +433,10 @@
 		const hasMoved = monthRangeSelection.hasMoved || hasPointerMoved(monthRangeSelection, event);
 		const dateCell = monthDateCellFromPoint(event.clientX, event.clientY);
 		if (!dateCell && monthRangeSelection.hasMoved === hasMoved) return;
-		if (hasMoved) event.preventDefault();
+		if (hasMoved) {
+			clearMonthLongPressCreateTimer();
+			event.preventDefault();
+		}
 		monthRangeSelection = {
 			...monthRangeSelection,
 			endDateKey: dateCell?.dateKey ?? monthRangeSelection.endDateKey,
@@ -426,9 +447,17 @@
 	function finishMonthRangeSelection(event: PointerEvent) {
 		if (!monthRangeSelection || monthRangeSelection.pointerID !== event.pointerId) return;
 		const selection = monthRangeSelection;
+		clearMonthLongPressCreateTimer();
 		monthRangeSelection = null;
 		monthRangePreviewSegments = [];
-		if (!selection.hasMoved) return;
+		if (!selection.hasMoved) {
+			selectMonthDate(selection.startDateKey);
+			if (!selection.isLongPressReady) return;
+			event.preventDefault();
+			event.stopPropagation();
+			createMonthSingleDayEvent(selection.startDateKey, selection);
+			return;
+		}
 		event.preventDefault();
 		event.stopPropagation();
 		lastMonthRangeCreationTime = Date.now();
@@ -440,6 +469,34 @@
 		event.preventDefault();
 		event.stopPropagation();
 		event.stopImmediatePropagation();
+	}
+
+	function suppressNativeMonthDoubleClick(event: MouseEvent) {
+		if (isDispatchingMonthCreateDoubleClick) return;
+		if (Date.now() - lastMonthCellCreationTime > 350) return;
+		const dateCell = monthDateCellFromEventTarget(event.target);
+		if (!dateCell) return;
+		event.preventDefault();
+		event.stopPropagation();
+		event.stopImmediatePropagation();
+	}
+
+	function startMonthLongPressCreateTimer(pointerID: number) {
+		clearMonthLongPressCreateTimer();
+		monthLongPressTimer = setTimeout(() => {
+			if (!monthRangeSelection || monthRangeSelection.pointerID !== pointerID || monthRangeSelection.hasMoved) return;
+			monthLongPressTimer = null;
+			monthRangeSelection = {
+				...monthRangeSelection,
+				isLongPressReady: true
+			};
+		}, monthLongPressDelay);
+	}
+
+	function clearMonthLongPressCreateTimer() {
+		if (!monthLongPressTimer) return;
+		clearTimeout(monthLongPressTimer);
+		monthLongPressTimer = null;
 	}
 
 	function hasPointerMoved(selection: MonthRangeSelection, event: PointerEvent) {
@@ -477,6 +534,10 @@
 
 	function createMonthRangeEvent(selection: MonthRangeSelection) {
 		const [startDateKey, endDateKey] = orderedDateKeys(selection.startDateKey, selection.endDateKey);
+		if (startDateKey === endDateKey) {
+			createMonthSingleDayEvent(startDateKey, selection);
+			return;
+		}
 		const event = createEvent({
 			id: `range-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
 			title: 'New Event',
@@ -486,6 +547,98 @@
 			calendarId: 'internkim'
 		});
 		calendar.addEvent(event);
+		eventCount = calendar.app.getAllEvents().length;
+		openEventDetailsAfterRender(event.id);
+	}
+
+	function createMonthSingleDayEvent(dateKey: string, source: MonthRangeSelection | PointerEvent) {
+		if (Date.now() - lastMonthCellCreationTime < 250) return;
+		const pointerPosition = monthCreationPointerPosition(source);
+		lastMonthCellCreationTime = Date.now();
+		lastMonthRangeCreationTime = Date.now();
+		const dateCell = monthDateCellFromPoint(pointerPosition.clientX, pointerPosition.clientY) ?? monthDateCellByDateKey(dateKey);
+		if (!dateCell) return;
+		isDispatchingMonthCreateDoubleClick = true;
+		dateCell.element.dispatchEvent(
+			new MouseEvent('dblclick', {
+				bubbles: true,
+				cancelable: true,
+				view: window,
+				clientX: pointerPosition.clientX,
+				clientY: pointerPosition.clientY
+			})
+		);
+		requestAnimationFrame(() => {
+			isDispatchingMonthCreateDoubleClick = false;
+		});
+	}
+
+	function monthCreationPointerPosition(source: MonthRangeSelection | PointerEvent) {
+		if ('startClientX' in source) {
+			return { clientX: source.startClientX, clientY: source.startClientY };
+		}
+		return { clientX: source.clientX, clientY: source.clientY };
+	}
+
+	function openEventDetailsAfterRender(eventID: string) {
+		if (!browser) return;
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => openEventDetails(eventID));
+		});
+	}
+
+	function openEventDetails(eventID: string) {
+		const eventElement = eventElementByID(eventID);
+		if (!eventElement) return;
+		eventElement.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, view: window }));
+	}
+
+	function eventElementByID(eventID: string) {
+		const escapedEventID = window.CSS?.escape(eventID) ?? eventID.replaceAll('"', '\\"');
+		const eventElements = Array.from(
+			calendarStageElement?.querySelectorAll<HTMLElement>(
+				`[data-event-id="${escapedEventID}"], [data-event-id^="${escapedEventID}::"]`
+			) ?? []
+		);
+		return eventElements.find(isVisibleEventElement) ?? eventElements[0] ?? null;
+	}
+
+	function isVisibleEventElement(element: HTMLElement) {
+		const rectangle = element.getBoundingClientRect();
+		return (
+			rectangle.width > 0 &&
+			rectangle.height > 0 &&
+			rectangle.right > 0 &&
+			rectangle.bottom > 0 &&
+			rectangle.left < window.innerWidth &&
+			rectangle.top < window.innerHeight
+		);
+	}
+
+	function monthDateCellByDateKey(dateKey: string) {
+		const escapedDateKey = window.CSS?.escape(dateKey) ?? dateKey;
+		const element = calendarStageElement?.querySelector<HTMLElement>(`.df-month-day-cell[data-date="${escapedDateKey}"]`);
+		if (!element) return null;
+		return { element, dateKey };
+	}
+
+	function selectMonthDate(dateKey: string) {
+		selectedMonthDateKey = dateKey;
+		refreshSelectedMonthDateCellAfterRender();
+	}
+
+	function refreshSelectedMonthDateCellAfterRender() {
+		if (!browser) return;
+		requestAnimationFrame(() => refreshSelectedMonthDateCell());
+	}
+
+	function refreshSelectedMonthDateCell() {
+		if (!calendarStageElement) return;
+		for (const dateCell of calendarStageElement.querySelectorAll('.df-month-day-cell.month-selected-date')) {
+			dateCell.classList.remove('month-selected-date');
+		}
+		if (!selectedMonthDateKey) return;
+		monthDateCellByDateKey(selectedMonthDateKey)?.element.classList.add('month-selected-date');
 	}
 
 	function orderedDateKeys(firstDateKey: string, secondDateKey: string) {
@@ -555,7 +708,7 @@
 	}
 
 	function selectedMonthRange() {
-		if (!monthRangeSelection || !monthRangeSelection.hasMoved) return null;
+		if (!monthRangeSelection || (!monthRangeSelection.hasMoved && !monthRangeSelection.isLongPressReady)) return null;
 		const [startDateKey, endDateKey] = orderedDateKeys(monthRangeSelection.startDateKey, monthRangeSelection.endDateKey);
 		return { startDateKey, endDateKey };
 	}
@@ -720,6 +873,23 @@
 		--df-color-destructive: #d42422;
 		--df-color-destructive-foreground: #ffffff;
 		color-scheme: light;
+	}
+
+	.calendar-stage :global(.df-month-day-cell.month-selected-date) {
+		background: rgb(239 246 255 / 0.72);
+		box-shadow: inset 0 0 0 1px rgb(59 130 246 / 0.28);
+	}
+
+	.calendar-stage :global(.df-month-day-cell.month-selected-date .df-month-date-number) {
+		display: inline-flex;
+		min-width: 24px;
+		height: 24px;
+		align-items: center;
+		justify-content: center;
+		border-radius: 9999px;
+		background: rgb(59 130 246);
+		color: white;
+		font-weight: 700;
 	}
 
 	.month-range-preview {
