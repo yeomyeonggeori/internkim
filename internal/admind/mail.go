@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,7 +14,6 @@ import (
 	"mime"
 	"net"
 	"net/http"
-	netmail "net/mail"
 	"net/smtp"
 	"net/url"
 	"os"
@@ -100,9 +100,21 @@ type mailMailboxResponse struct {
 }
 
 type mailMessageListRequest struct {
-	Mailbox string
-	Query   string
-	Limit   int
+	Mailbox   string
+	Query     string
+	Limit     int
+	BeforeUID uint32
+}
+
+type mailMessageListResponse struct {
+	Messages   []mailMessageResponse `json:"messages"`
+	NextCursor string                `json:"nextCursor"`
+}
+
+type mailMessageCursor struct {
+	Mailbox   string `json:"mailbox"`
+	Query     string `json:"query"`
+	BeforeUID uint32 `json:"beforeUID"`
 }
 
 type mailMessageResponse struct {
@@ -116,15 +128,21 @@ type mailMessageResponse struct {
 }
 
 type mailMessageDetailResponse struct {
-	UID     uint32 `json:"uid"`
-	Mailbox string `json:"mailbox"`
-	Subject string `json:"subject"`
-	From    string `json:"from"`
-	To      string `json:"to"`
-	CC      string `json:"cc"`
-	Date    string `json:"date"`
-	Body    string `json:"body"`
-	IsRead  bool   `json:"isRead"`
+	UID      uint32 `json:"uid"`
+	Mailbox  string `json:"mailbox"`
+	Subject  string `json:"subject"`
+	From     string `json:"from"`
+	To       string `json:"to"`
+	CC       string `json:"cc"`
+	Date     string `json:"date"`
+	Body     string `json:"body"`
+	BodyHTML string `json:"bodyHTML,omitempty"`
+	IsRead   bool   `json:"isRead"`
+}
+
+type parsedMailDocument struct {
+	PlainText string
+	HTML      string
 }
 
 type mailMessageSendRequest struct {
@@ -153,7 +171,7 @@ type mailSendResult struct {
 type mailBackend interface {
 	TestAccount(ctx context.Context, account mailAccount) error
 	ListMailboxes(ctx context.Context, account mailAccount) ([]mailMailboxResponse, error)
-	ListMessages(ctx context.Context, account mailAccount, input mailMessageListRequest) ([]mailMessageResponse, error)
+	ListMessages(ctx context.Context, account mailAccount, input mailMessageListRequest) (mailMessageListResponse, error)
 	ReadMessage(ctx context.Context, account mailAccount, mailbox string, uid uint32) (mailMessageDetailResponse, error)
 	SendMessage(ctx context.Context, account mailAccount, input mailMessageSendRequest) (mailSendResult, error)
 	MoveMessage(ctx context.Context, account mailAccount, mailbox string, uid uint32, targetMailbox string) error
@@ -321,12 +339,12 @@ func (service *Service) writeMailMessages(responseWriter http.ResponseWriter, re
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	messages, errorValue := service.mailBackend.ListMessages(request.Context(), account, input)
+	result, errorValue := service.mailBackend.ListMessages(request.Context(), account, input)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
-	service.writeJSON(responseWriter, map[string]any{"messages": messages, "cursor": ""})
+	service.writeJSON(responseWriter, result)
 }
 
 func (service *Service) writeMailMessage(responseWriter http.ResponseWriter, request *http.Request) {
@@ -744,11 +762,53 @@ func mailMessageListRequestFromURL(request *http.Request) (mailMessageListReques
 	if limit < 1 || limit > 100 {
 		return mailMessageListRequest{}, errors.New("limit must be between 1 and 100")
 	}
-	return mailMessageListRequest{
+	input := mailMessageListRequest{
 		Mailbox: strings.TrimSpace(firstNonEmpty(request.URL.Query().Get("mailbox"), "INBOX")),
 		Query:   strings.TrimSpace(request.URL.Query().Get("query")),
 		Limit:   limit,
-	}, nil
+	}
+	cursor := strings.TrimSpace(request.URL.Query().Get("cursor"))
+	if cursor == "" {
+		return input, nil
+	}
+	decodedCursor, errorValue := decodeMailMessageCursor(cursor)
+	if errorValue != nil ||
+		decodedCursor.BeforeUID == 0 ||
+		decodedCursor.Mailbox != input.Mailbox ||
+		decodedCursor.Query != input.Query {
+		return mailMessageListRequest{}, errors.New("invalid cursor")
+	}
+	input.BeforeUID = decodedCursor.BeforeUID
+	return input, nil
+}
+
+func encodeMailMessageCursor(mailbox string, query string, beforeUID uint32) string {
+	if beforeUID == 0 {
+		return ""
+	}
+	document, errorValue := json.Marshal(mailMessageCursor{
+		Mailbox:   strings.TrimSpace(mailbox),
+		Query:     strings.TrimSpace(query),
+		BeforeUID: beforeUID,
+	})
+	if errorValue != nil {
+		return ""
+	}
+	return base64.RawURLEncoding.EncodeToString(document)
+}
+
+func decodeMailMessageCursor(value string) (mailMessageCursor, error) {
+	document, errorValue := base64.RawURLEncoding.DecodeString(strings.TrimSpace(value))
+	if errorValue != nil {
+		return mailMessageCursor{}, errorValue
+	}
+	var cursor mailMessageCursor
+	if errorValue := json.Unmarshal(document, &cursor); errorValue != nil {
+		return mailMessageCursor{}, errorValue
+	}
+	cursor.Mailbox = strings.TrimSpace(cursor.Mailbox)
+	cursor.Query = strings.TrimSpace(cursor.Query)
+	return cursor, nil
 }
 
 func mailMessagePathParts(request *http.Request, suffix string) (string, uint32, error) {
@@ -834,20 +894,22 @@ func (backend standardMailBackend) ListMailboxes(ctx context.Context, account ma
 		return nil, errorValue
 	}
 	defer closeIMAPClient(imapClient)
-	listOptions := &imap.ListOptions{
-		ReturnSpecialUse: true,
-		ReturnStatus: &imap.StatusOptions{
-			NumMessages: true,
-			NumUnseen:   true,
-		},
-	}
-	listData, errorValue := imapClient.List("", "*", listOptions).Collect()
+	listData, errorValue := imapClient.List("", "*", nil).Collect()
 	if errorValue != nil {
 		return nil, errorValue
 	}
+	mailboxes := mailMailboxResponsesFromListData(listData)
+	addMailMailboxStatuses(imapClient, mailboxes)
+	sort.SliceStable(mailboxes, func(firstIndex int, secondIndex int) bool {
+		return mailMailboxSortKey(mailboxes[firstIndex].Name) < mailMailboxSortKey(mailboxes[secondIndex].Name)
+	})
+	return mailboxes, nil
+}
+
+func mailMailboxResponsesFromListData(listData []*imap.ListData) []mailMailboxResponse {
 	mailboxes := make([]mailMailboxResponse, 0, len(listData))
 	for _, mailboxData := range listData {
-		if mailboxData == nil || mailboxData.Mailbox == "" {
+		if mailboxData == nil || mailboxData.Mailbox == "" || containsMailMailboxAttribute(mailboxData.Attrs, imap.MailboxAttrNoSelect) {
 			continue
 		}
 		mailboxes = append(mailboxes, mailMailboxResponse{
@@ -857,58 +919,62 @@ func (backend standardMailBackend) ListMailboxes(ctx context.Context, account ma
 			Total:       statusInteger(mailboxData.Status, "total"),
 		})
 	}
-	sort.SliceStable(mailboxes, func(firstIndex int, secondIndex int) bool {
-		return mailMailboxSortKey(mailboxes[firstIndex].Name) < mailMailboxSortKey(mailboxes[secondIndex].Name)
-	})
-	return mailboxes, nil
+	return mailboxes
 }
 
-func (backend standardMailBackend) ListMessages(ctx context.Context, account mailAccount, input mailMessageListRequest) ([]mailMessageResponse, error) {
+func addMailMailboxStatuses(imapClient *imapclient.Client, mailboxes []mailMailboxResponse) {
+	for index := range mailboxes {
+		status, errorValue := imapClient.Status(mailboxes[index].Name, &imap.StatusOptions{NumMessages: true, NumUnseen: true}).Wait()
+		if errorValue != nil {
+			continue
+		}
+		mailboxes[index].Unseen = statusInteger(status, "unseen")
+		mailboxes[index].Total = statusInteger(status, "total")
+	}
+}
+
+func (backend standardMailBackend) ListMessages(ctx context.Context, account mailAccount, input mailMessageListRequest) (mailMessageListResponse, error) {
 	imapClient, errorValue := backend.openIMAPClient(account)
 	if errorValue != nil {
-		return nil, errorValue
+		return mailMessageListResponse{}, errorValue
 	}
 	defer closeIMAPClient(imapClient)
 	selectedMailbox, errorValue := imapClient.Select(input.Mailbox, &imap.SelectOptions{ReadOnly: true}).Wait()
 	if errorValue != nil {
-		return nil, errorValue
+		return mailMessageListResponse{}, errorValue
 	}
-	numberSet, isUIDSet, errorValue := messageListNumberSet(imapClient, selectedMailbox, input)
+	pageUIDs, errorValue := messageListUIDs(imapClient, selectedMailbox, input)
 	if errorValue != nil {
-		return nil, errorValue
+		return mailMessageListResponse{}, errorValue
 	}
-	if numberSet == nil {
-		return []mailMessageResponse{}, nil
+	visibleUIDs, hasMoreMessages := visibleMailMessageUIDs(pageUIDs, input.Limit)
+	if len(visibleUIDs) == 0 {
+		return mailMessageListResponse{}, nil
 	}
-	bodySection := &imap.FetchItemBodySection{Peek: true, Partial: &imap.SectionPartial{Offset: 0, Size: 4096}}
 	fetchOptions := &imap.FetchOptions{
 		UID:          true,
 		Envelope:     true,
 		Flags:        true,
 		InternalDate: true,
-		BodySection:  []*imap.FetchItemBodySection{bodySection},
 	}
-	messages, errorValue := imapClient.Fetch(numberSet, fetchOptions).Collect()
+	messages, errorValue := imapClient.Fetch(imap.UIDSetNum(visibleUIDs...), fetchOptions).Collect()
 	if errorValue != nil {
-		return nil, errorValue
+		return mailMessageListResponse{}, errorValue
 	}
 	responses := make([]mailMessageResponse, 0, len(messages))
 	for _, message := range messages {
-		response := mailMessageResponseFromBuffer(input.Mailbox, message, bodySection)
+		response := mailMessageResponseFromBuffer(input.Mailbox, message, nil)
 		if response.UID != 0 {
 			responses = append(responses, response)
 		}
 	}
 	sort.SliceStable(responses, func(firstIndex int, secondIndex int) bool {
-		if isUIDSet {
-			return responses[firstIndex].UID > responses[secondIndex].UID
-		}
-		return firstIndex > secondIndex
+		return responses[firstIndex].UID > responses[secondIndex].UID
 	})
-	if len(responses) > input.Limit {
-		responses = responses[:input.Limit]
-	}
-	return responses, nil
+	return mailMessageListResponse{
+		Messages:   responses,
+		NextCursor: nextMailMessageCursor(input, visibleUIDs, hasMoreMessages),
+	}, nil
 }
 
 func (backend standardMailBackend) ReadMessage(ctx context.Context, account mailAccount, mailbox string, uid uint32) (mailMessageDetailResponse, error) {
@@ -1127,35 +1193,70 @@ func closeIMAPClient(client *imapclient.Client) {
 	client.Close()
 }
 
-func messageListNumberSet(client *imapclient.Client, selectedMailbox *imap.SelectData, input mailMessageListRequest) (imap.NumSet, bool, error) {
-	if strings.TrimSpace(input.Query) != "" {
-		searchData, errorValue := client.UIDSearch(&imap.SearchCriteria{Text: []string{input.Query}}, nil).Wait()
-		if errorValue != nil {
-			return nil, false, errorValue
-		}
-		uids := searchData.AllUIDs()
-		if len(uids) == 0 {
-			return nil, true, nil
-		}
-		sort.Slice(uids, func(firstIndex int, secondIndex int) bool {
-			return uids[firstIndex] > uids[secondIndex]
-		})
-		if len(uids) > input.Limit {
-			uids = uids[:input.Limit]
-		}
-		return imap.UIDSetNum(uids...), true, nil
-	}
+func messageListUIDs(client *imapclient.Client, selectedMailbox *imap.SelectData, input mailMessageListRequest) ([]imap.UID, error) {
 	if selectedMailbox == nil || selectedMailbox.NumMessages == 0 {
-		return nil, false, nil
+		return nil, nil
 	}
-	stop := selectedMailbox.NumMessages
-	start := uint32(1)
-	if stop > uint32(input.Limit) {
-		start = stop - uint32(input.Limit) + 1
+	if input.BeforeUID == 1 {
+		return nil, nil
 	}
-	sequenceSet := imap.SeqSet{}
-	sequenceSet.AddRange(start, stop)
-	return sequenceSet, false, nil
+	criteria := mailMessageSearchCriteria(selectedMailbox, input)
+	searchData, errorValue := client.UIDSearch(criteria, nil).Wait()
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return mailMessagePageUIDs(searchData.AllUIDs(), input.Limit+1), nil
+}
+
+func mailMessageSearchCriteria(selectedMailbox *imap.SelectData, input mailMessageListRequest) *imap.SearchCriteria {
+	criteria := &imap.SearchCriteria{}
+	if strings.TrimSpace(input.Query) != "" {
+		criteria.Text = []string{strings.TrimSpace(input.Query)}
+	}
+	maximumUID := uint32(selectedMailbox.UIDNext)
+	if maximumUID > 0 {
+		maximumUID--
+	}
+	if input.BeforeUID > 0 && (maximumUID == 0 || input.BeforeUID <= maximumUID) {
+		maximumUID = input.BeforeUID - 1
+	}
+	if maximumUID > 0 {
+		uidSet := imap.UIDSet{}
+		uidSet.AddRange(imap.UID(1), imap.UID(maximumUID))
+		criteria.UID = []imap.UIDSet{uidSet}
+	}
+	return criteria
+}
+
+func mailMessagePageUIDs(uids []imap.UID, limit int) []imap.UID {
+	if len(uids) == 0 || limit <= 0 {
+		return nil
+	}
+	sort.Slice(uids, func(firstIndex int, secondIndex int) bool {
+		return uids[firstIndex] > uids[secondIndex]
+	})
+	if len(uids) > limit {
+		return uids[:limit]
+	}
+	return uids
+}
+
+func visibleMailMessageUIDs(uids []imap.UID, limit int) ([]imap.UID, bool) {
+	if len(uids) <= limit {
+		return uids, false
+	}
+	return uids[:limit], true
+}
+
+func nextMailMessageCursor(input mailMessageListRequest, uids []imap.UID, hasMoreMessages bool) string {
+	if !hasMoreMessages || len(uids) == 0 || input.Limit <= 0 {
+		return ""
+	}
+	oldestUID := uids[len(uids)-1]
+	if oldestUID <= 1 {
+		return ""
+	}
+	return encodeMailMessageCursor(input.Mailbox, input.Query, uint32(oldestUID))
 }
 
 func mailMessageResponseFromBuffer(mailbox string, message *imapclient.FetchMessageBuffer, bodySection *imap.FetchItemBodySection) mailMessageResponse {
@@ -1163,12 +1264,12 @@ func mailMessageResponseFromBuffer(mailbox string, message *imapclient.FetchMess
 		return mailMessageResponse{}
 	}
 	document := bodySectionBytes(message, bodySection)
-	preview := plainTextFromMailDocument(document)
+	parsedDocument := parseMailDocument(document)
 	date := message.InternalDate
 	subject := ""
 	from := ""
 	if message.Envelope != nil {
-		subject = strings.TrimSpace(message.Envelope.Subject)
+		subject = decodeMailHeader(message.Envelope.Subject)
 		from = imapAddressListString(message.Envelope.From)
 		if !message.Envelope.Date.IsZero() {
 			date = message.Envelope.Date
@@ -1180,14 +1281,14 @@ func mailMessageResponseFromBuffer(mailbox string, message *imapclient.FetchMess
 		Subject: subject,
 		From:    from,
 		Date:    formatMailDate(date),
-		Preview: mailPreview(preview),
+		Preview: mailPreview(parsedDocument.previewText()),
 		IsRead:  containsMailFlag(message.Flags, imap.FlagSeen),
 	}
 }
 
 func mailMessageDetailFromBuffer(mailbox string, message *imapclient.FetchMessageBuffer, bodySection *imap.FetchItemBodySection) mailMessageDetailResponse {
 	response := mailMessageResponseFromBuffer(mailbox, message, bodySection)
-	body := plainTextFromMailDocument(bodySectionBytes(message, bodySection))
+	parsedDocument := parseMailDocument(bodySectionBytes(message, bodySection))
 	to := ""
 	cc := ""
 	if message != nil && message.Envelope != nil {
@@ -1195,15 +1296,16 @@ func mailMessageDetailFromBuffer(mailbox string, message *imapclient.FetchMessag
 		cc = imapAddressListString(message.Envelope.Cc)
 	}
 	return mailMessageDetailResponse{
-		UID:     response.UID,
-		Mailbox: response.Mailbox,
-		Subject: response.Subject,
-		From:    response.From,
-		To:      to,
-		CC:      cc,
-		Date:    response.Date,
-		Body:    body,
-		IsRead:  response.IsRead,
+		UID:      response.UID,
+		Mailbox:  response.Mailbox,
+		Subject:  response.Subject,
+		From:     response.From,
+		To:       to,
+		CC:       cc,
+		Date:     response.Date,
+		Body:     parsedDocument.PlainText,
+		BodyHTML: parsedDocument.HTML,
+		IsRead:   response.IsRead,
 	}
 }
 
@@ -1220,15 +1322,19 @@ func bodySectionBytes(message *imapclient.FetchMessageBuffer, bodySection *imap.
 }
 
 func plainTextFromMailDocument(document []byte) string {
+	return parseMailDocument(document).PlainText
+}
+
+func parseMailDocument(document []byte) parsedMailDocument {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return ""
+		return parsedMailDocument{}
 	}
 	reader, errorValue := messagemail.CreateReader(bytes.NewReader(document))
 	if errorValue != nil && reader == nil {
-		return strings.TrimSpace(string(document))
+		return parsedMailDocument{PlainText: strings.TrimSpace(string(document))}
 	}
 	defer reader.Close()
-	htmlBody := ""
+	result := parsedMailDocument{}
 	for {
 		part, errorValue := reader.NextPart()
 		if errors.Is(errorValue, io.EOF) {
@@ -1238,18 +1344,63 @@ func plainTextFromMailDocument(document []byte) string {
 			continue
 		}
 		body, _ := io.ReadAll(io.LimitReader(part.Body, 1024*1024))
-		contentType := strings.ToLower(part.Header.Get("Content-Type"))
-		if strings.Contains(contentType, "text/plain") {
-			return strings.TrimSpace(string(body))
+		contentType := mailPartContentType(part)
+		if result.PlainText == "" && contentType == "text/plain" {
+			result.PlainText = strings.TrimSpace(string(body))
 		}
-		if htmlBody == "" && strings.Contains(contentType, "text/html") {
-			htmlBody = stripHTML(string(body))
+		if result.HTML == "" && contentType == "text/html" {
+			result.HTML = strings.TrimSpace(string(body))
 		}
 	}
-	if htmlBody != "" {
-		return strings.TrimSpace(htmlBody)
+	if result.PlainText == "" && result.HTML != "" {
+		result.PlainText = stripHTML(result.HTML)
 	}
-	return strings.TrimSpace(string(document))
+	if result.PlainText == "" {
+		result.PlainText = strings.TrimSpace(string(document))
+	}
+	return result
+}
+
+func mailPartContentType(part *messagemail.Part) string {
+	if part == nil || part.Header == nil {
+		return ""
+	}
+	if header, ok := part.Header.(interface {
+		ContentType() (string, map[string]string, error)
+	}); ok {
+		contentType, _, errorValue := header.ContentType()
+		if errorValue == nil {
+			return strings.ToLower(contentType)
+		}
+	}
+	contentType, _, errorValue := mime.ParseMediaType(part.Header.Get("Content-Type"))
+	if errorValue == nil {
+		return strings.ToLower(contentType)
+	}
+	return strings.ToLower(strings.TrimSpace(part.Header.Get("Content-Type")))
+}
+
+func (document parsedMailDocument) previewText() string {
+	if strings.TrimSpace(document.PlainText) != "" {
+		return document.PlainText
+	}
+	return stripHTML(document.HTML)
+}
+
+func decodeMailHeader(value string) string {
+	trimmedValue := strings.TrimSpace(value)
+	if trimmedValue == "" {
+		return ""
+	}
+	decodedValue, errorValue := mailWordDecoder().DecodeHeader(trimmedValue)
+	if errorValue != nil {
+		return trimmedValue
+	}
+	return strings.TrimSpace(decodedValue)
+}
+
+func mailWordDecoder() *mime.WordDecoder {
+	return &mime.WordDecoder{CharsetReader: charset.Reader}
 }
 
 func stripHTML(document string) string {
@@ -1287,7 +1438,7 @@ func imapAddressListString(addresses []imap.Address) string {
 			continue
 		}
 		if strings.TrimSpace(address.Name) != "" {
-			values = append(values, (&netmail.Address{Name: address.Name, Address: emailAddress}).String())
+			values = append(values, displayMailAddress(decodeMailHeader(address.Name), emailAddress))
 		} else {
 			values = append(values, emailAddress)
 		}
@@ -1295,9 +1446,27 @@ func imapAddressListString(addresses []imap.Address) string {
 	return strings.Join(values, ", ")
 }
 
+func displayMailAddress(name string, address string) string {
+	displayName := strings.TrimSpace(name)
+	emailAddress := strings.TrimSpace(address)
+	if displayName == "" {
+		return emailAddress
+	}
+	return displayName + " <" + emailAddress + ">"
+}
+
 func containsMailFlag(flags []imap.Flag, flag imap.Flag) bool {
 	for _, value := range flags {
 		if value == flag {
+			return true
+		}
+	}
+	return false
+}
+
+func containsMailMailboxAttribute(attributes []imap.MailboxAttr, attribute imap.MailboxAttr) bool {
+	for _, value := range attributes {
+		if value == attribute {
 			return true
 		}
 	}

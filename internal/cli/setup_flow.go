@@ -158,6 +158,8 @@ func (state *setupFlowState) callbacks() setup.Callbacks {
 		GetGasWebhookURL:          state.provisionGasWebhook,
 		BinariesVersion:           state.binariesVersion,
 		InstallBinariesSSH:        state.installBinariesSSH,
+		InstallAdmindSSH:          state.installAdmindSSH,
+		InstallCapabilitydSSH:     state.installCapabilitydSSH,
 		StageBinariesSD:           state.stageBinariesSD,
 		SkillsManifest:            state.skillsManifest,
 		InstallSkillsSSH:          state.installSkillsSSH,
@@ -703,7 +705,7 @@ func (state *setupFlowState) uploadAdminUIArchive(boardUIPath string) error {
 	}
 	defer os.Remove(archivePath)
 
-	if errorValue := state.sshClient.scpDirect(archivePath, temporaryAdminUIArchivePath); errorValue != nil {
+	if errorValue := state.sshClient.scp(archivePath, temporaryAdminUIArchivePath); errorValue != nil {
 		return errorValue
 	}
 	return nil
@@ -891,6 +893,51 @@ rm -f /usr/local/bin/gws-* /etc/sudoers.d/blueclaw-gws /etc/sudoers.d/blueclaw-m
 		state.sshClient.run("mkdir -p /root/.internkim/state && printf '%s' " + quoteShellValue(version) + " > /root/.internkim/state/binaries-version")
 	}
 
+	return nil
+}
+
+func (state *setupFlowState) installAdmindSSH(context *setup.Context) error {
+	return state.installGoServiceBinarySSH(localBinaryAsset{
+		name:       blueclaw.AdmindName,
+		localPath:  filepath.Join(state.boardBinDir, blueclaw.AdmindName),
+		remotePath: blueclaw.AdmindBinaryPath,
+	}, blueclaw.AdmindServiceName)
+}
+
+func (state *setupFlowState) installCapabilitydSSH(context *setup.Context) error {
+	return state.installGoServiceBinarySSH(localBinaryAsset{
+		name:       blueclaw.CapabilitydName,
+		localPath:  filepath.Join(state.boardBinDir, blueclaw.CapabilitydName),
+		remotePath: blueclaw.CapabilitydBinaryPath,
+	}, blueclaw.CapabilitydServiceName)
+}
+
+func (state *setupFlowState) installGoServiceBinarySSH(asset localBinaryAsset, serviceName string) error {
+	if err := os.MkdirAll(filepath.Dir(asset.localPath), 0o755); err != nil {
+		return err
+	}
+	if err := buildGoBinaryAsset(state, asset); err != nil {
+		return err
+	}
+	existingHash := strings.TrimSpace(state.sshClient.run(
+		fmt.Sprintf("md5sum %s 2>/dev/null | awk '{print $1}'", asset.remotePath),
+	))
+	localHash := strings.TrimSpace(runCmd("md5", "-q", asset.localPath))
+	if existingHash != "" && existingHash == localHash {
+		fmt.Printf("  %s %s\n", asset.name, state.messenger.t("이미 최신", "up to date"))
+	} else {
+		state.sshClient.run("mkdir -p " + quoteShellValue(filepath.Dir(asset.remotePath)))
+		if err := state.sshClient.scp(asset.localPath, asset.remotePath); err != nil {
+			return err
+		}
+		state.sshClient.run("chmod +x " + quoteShellValue(asset.remotePath))
+		fmt.Printf("  %s %s\n", asset.name, state.messenger.t("설치 완료", "installed"))
+	}
+	state.sshClient.run("systemctl restart " + serviceName)
+	if strings.TrimSpace(state.sshClient.run("systemctl is-active "+serviceName+" 2>/dev/null")) != "active" {
+		return fmt.Errorf("%s restart failed", serviceName)
+	}
+	fmt.Printf("  %s %s\n", serviceName, state.messenger.t("재시작 완료", "restarted"))
 	return nil
 }
 

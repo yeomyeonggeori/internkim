@@ -933,6 +933,99 @@ func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *test
 	}
 }
 
+func TestAdminUserPasswordResetDeletesDMHistoryBeforeReturningPassword(t *testing.T) {
+	deviceDirectory := t.TempDir()
+	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
+	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
+	adminPasswordPath := filepath.Join(deviceDirectory, "mm-admin-pass")
+	writeFile(t, fleetIDPath, "dc719d8e")
+	writeFile(t, fleetSecretPath, "secret-value")
+	writeFile(t, adminPasswordPath, "admin-pass")
+
+	deletedPostIDs := []string{}
+	passwordReset := false
+	blueclawReset := false
+	service := NewService(Configuration{
+		APIBaseURL:                  "https://api.intern.kim",
+		MattermostBaseURL:           "http://mattermost.local",
+		MattermostAdminPasswordPath: adminPasswordPath,
+		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
+		ClaimedAdminEmailPath:       writeTestFile(t, "admin@example.com"),
+		FleetIDPath:                 fleetIDPath,
+		FleetSecretPath:             fleetSecretPath,
+		StateDirectory:              t.TempDir(),
+		CompanionJobPath:            filepath.Join(t.TempDir(), "jobs.json"),
+		AdminUIPath:                 t.TempDir(),
+	})
+	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+		command := strings.Join(append([]string{name}, arguments...), " ")
+		if !strings.Contains(command, "dm:dm-1") || !strings.Contains(command, "thread:dm-1:%") {
+			t.Fatalf("blueclaw reset command = %s", command)
+		}
+		blueclawReset = true
+		return nil, nil
+	}
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "https://api.intern.kim/api/users?fleet_id=dc719d8e":
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}]}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
+			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
+			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member","roles":"system_user"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/username/internkim":
+			return jsonResponse(http.StatusOK, `{"id":"bot-1","email":"internkim@localhost","username":"internkim","roles":"system_user"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/direct" && request.Method == http.MethodPost:
+			return jsonResponse(http.StatusCreated, `{"id":"dm-1"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/preferences" && request.Method == http.MethodPut:
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/dm-1/posts?page=0&per_page=200":
+			return jsonResponse(http.StatusOK, `{"order":["post-1","post-2"],"posts":{}}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/dm-1/posts?page=1&per_page=200":
+			return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil
+		case strings.HasPrefix(request.URL.String(), "http://mattermost.local/api/v4/posts/") && request.Method == http.MethodDelete:
+			if passwordReset {
+				t.Fatal("DM post was deleted after password reset")
+			}
+			deletedPostIDs = append(deletedPostIDs, strings.TrimPrefix(request.URL.Path, "/api/v4/posts/"))
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/password" && request.Method == http.MethodPut:
+			if !blueclawReset {
+				t.Fatal("password reset happened before Blueclaw DM history reset")
+			}
+			passwordReset = true
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+	handler := service.router()
+
+	request := httptest.NewRequest(http.MethodPost, "/admin/api/users/member%40example.com/password-reset", nil)
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("password reset status = %d body = %s", response.Code, response.Body.String())
+	}
+	var document map[string]any
+	if errorValue := json.NewDecoder(response.Body).Decode(&document); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if document["temporaryPassword"] == "" || document["temporaryPasswordEmail"] != "member@example.com" {
+		t.Fatalf("password reset response = %#v", document)
+	}
+	if !reflect.DeepEqual(deletedPostIDs, []string{"post-1", "post-2"}) {
+		t.Fatalf("deleted posts = %#v", deletedPostIDs)
+	}
+	if !passwordReset {
+		t.Fatal("Mattermost password was not reset")
+	}
+}
+
 func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 	deviceDirectory := t.TempDir()
 	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")

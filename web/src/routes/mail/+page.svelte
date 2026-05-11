@@ -61,6 +61,7 @@
 		date: string;
 		preview: string;
 		body?: string;
+		bodyHTML?: string;
 		isRead: boolean;
 	};
 
@@ -115,9 +116,13 @@
 	let selectedMailbox = $state('INBOX');
 	let selectedMessage = $state<MailMessage | null>(null);
 	let searchText = $state('');
+	let activeSearchText = $state('');
+	let nextCursor = $state('');
+	let hasMoreMessages = $state(false);
 	let isUnreadOnly = $state(false);
 	let isLoading = $state(false);
 	let isLoadingMessage = $state(false);
+	let isLoadingMore = $state(false);
 	let isSavingAccount = $state(false);
 	let isTestingAccount = $state(false);
 	let isSending = $state(false);
@@ -130,6 +135,7 @@
 	const visibleMessages = () => messages.filter((message) => !isUnreadOnly || !message.isRead);
 	const displayedMailboxes = () => (account.isConfigured && mailboxes.length ? mailboxes : defaultMailboxes);
 	const selectedMessageBody = () => selectedMessage?.body || selectedMessage?.preview || '';
+	const selectedMessageBodyHTML = () => selectedMessage?.bodyHTML?.trim() || '';
 
 	onMount(loadMail);
 
@@ -140,8 +146,7 @@
 			await loadAccount();
 			if (!account.isConfigured) {
 				mailboxes = [];
-				messages = [];
-				selectedMessage = null;
+				resetMessageList();
 				isSettingsOpen = true;
 				return;
 			}
@@ -170,13 +175,41 @@
 
 	async function loadMessages() {
 		if (!account.isConfigured) return;
-		const query = new URLSearchParams({ mailbox: selectedMailbox, limit: '50' });
-		if (searchText.trim()) query.set('query', searchText.trim());
-		const response = await fetch(`/mail/api/messages?${query}`, { credentials: 'include' });
-		if (!response.ok) throw new Error(await responseErrorMessage(response, 'Could not load messages.'));
-		messages = ((await response.json()) as { messages?: MailMessage[] }).messages ?? [];
-		selectedMessage = visibleMessages()[0] ?? null;
-		if (selectedMessage) await loadMessage(selectedMessage);
+		activeSearchText = searchText.trim();
+		resetMessageList();
+		await fetchMessagesPage(false);
+	}
+
+	async function loadMoreMessages() {
+		if (!account.isConfigured || !hasMoreMessages || !nextCursor || isLoadingMore) return;
+		await fetchMessagesPage(true);
+	}
+
+	async function fetchMessagesPage(isAppending: boolean) {
+		const query = new URLSearchParams({ mailbox: selectedMailbox, limit: '30' });
+		if (activeSearchText) query.set('query', activeSearchText);
+		if (isAppending) query.set('cursor', nextCursor);
+		errorMessage = '';
+		if (isAppending) isLoadingMore = true;
+		try {
+			const response = await fetch(`/mail/api/messages?${query}`, { credentials: 'include' });
+			if (!response.ok) throw new Error(await responseErrorMessage(response, 'Could not load messages.'));
+			const result = (await response.json()) as { messages?: MailMessage[]; nextCursor?: string };
+			messages = isAppending ? mergeMailMessages(messages, result.messages ?? []) : (result.messages ?? []);
+			nextCursor = result.nextCursor ?? '';
+			hasMoreMessages = nextCursor !== '';
+			if (!isAppending) {
+				selectedMessage = visibleMessages()[0] ?? null;
+				if (selectedMessage) await loadMessage(selectedMessage);
+			}
+		} catch (error) {
+			nextCursor = '';
+			hasMoreMessages = false;
+			if (!isAppending) resetMessageList();
+			errorMessage = error instanceof Error ? error.message : 'Could not load messages.';
+		} finally {
+			if (isAppending) isLoadingMore = false;
+		}
 	}
 
 	async function loadMessage(message: MailMessage) {
@@ -340,7 +373,7 @@
 	function accountDraftPayload() {
 		return {
 			email: accountDraft.email,
-			fromAddress: accountDraft.fromAddress,
+			fromAddress: accountDraft.email,
 			displayName: accountDraft.displayName,
 			imapHost: accountDraft.imapHost,
 			imapPort: Number(accountDraft.imapPort),
@@ -364,6 +397,36 @@
 			.filter(Boolean);
 	}
 
+	function resetMessageList() {
+		messages = [];
+		selectedMessage = null;
+		nextCursor = '';
+		hasMoreMessages = false;
+	}
+
+	function mergeMailMessages(existingMessages: MailMessage[], incomingMessages: MailMessage[]) {
+		const seenMessages = new Set(existingMessages.map((message) => mailMessageKey(message)));
+		const mergedMessages = [...existingMessages];
+		for (const message of incomingMessages) {
+			const key = mailMessageKey(message);
+			if (seenMessages.has(key)) continue;
+			seenMessages.add(key);
+			mergedMessages.push(message);
+		}
+		return mergedMessages;
+	}
+
+	function mailMessageKey(message: MailMessage) {
+		return `${message.mailbox}:${message.uid}`;
+	}
+
+	function handleMessageListScroll(event: Event) {
+		const element = event.currentTarget;
+		if (!(element instanceof HTMLElement)) return;
+		const remainingPixels = element.scrollHeight - element.scrollTop - element.clientHeight;
+		if (remainingPixels < 240) loadMoreMessages();
+	}
+
 	function mailboxByHint(hint: string) {
 		const normalizedHint = hint.toLowerCase();
 		return displayedMailboxes().find((mailbox) => mailbox.name.toLowerCase().includes(normalizedHint))?.name;
@@ -380,8 +443,37 @@
 
 	async function responseErrorMessage(response: Response, fallback: string) {
 		const message = (await response.text()).trim();
-		if (!message || message.startsWith('<!doctype html>') || message.startsWith('<html')) return fallback;
+		if (!message || isHTMLResponse(response, message)) return unavailableMessage(response, fallback);
 		return message;
+	}
+
+	function isHTMLResponse(response: Response, message: string) {
+		const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
+		const normalizedMessage = message.toLowerCase();
+		return contentType.includes('text/html') || normalizedMessage.startsWith('<!doctype html') || normalizedMessage.startsWith('<html');
+	}
+
+	function unavailableMessage(response: Response, fallback: string) {
+		if (response.status >= 500) return `${fallback} Mail service is temporarily unavailable.`;
+		return fallback;
+	}
+
+	function mailHTMLDocument(bodyHTML: string) {
+		return `<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="referrer" content="no-referrer">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: http: data: cid:; font-src https: http: data:; style-src 'unsafe-inline' https: http: data:; script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+	<style>
+		html, body { margin: 0; padding: 0; background: #ffffff; color: #111827; font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+		body { overflow-wrap: anywhere; }
+		img, table { max-width: 100%; }
+		a { color: #0f4c81; }
+	</style>
+</head>
+<body>${bodyHTML}</body>
+</html>`;
 	}
 </script>
 
@@ -473,11 +565,11 @@
 			</div>
 		</div>
 
-		<div class="min-h-0 flex-1 overflow-auto p-2">
+		<div class="min-h-0 flex-1 overflow-auto p-2" onscroll={handleMessageListScroll}>
 			{#if errorMessage}
-				<div class="mb-2 rounded-lg border border-border bg-background p-3 text-sm">
+				<div role="alert" class="mb-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
 					<p class="font-medium">Mail needs attention</p>
-					<p class="mt-1 text-xs leading-5 text-muted-foreground">{errorMessage}</p>
+					<p class="mt-1 line-clamp-3 text-xs leading-5">{errorMessage}</p>
 				</div>
 			{/if}
 
@@ -498,7 +590,9 @@
 							<span class="min-w-0 flex-1 truncate text-sm font-medium">{message.from || 'Unknown sender'}</span>
 						</div>
 						<p class="mt-2 truncate text-sm">{message.subject || '(No subject)'}</p>
-						<p class="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{message.preview}</p>
+						{#if message.preview}
+							<p class="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{message.preview}</p>
+						{/if}
 					</button>
 				{/each}
 
@@ -513,6 +607,12 @@
 								Mail settings
 							</Button>
 						{/if}
+					</div>
+				{/if}
+
+				{#if visibleMessages().length && (isLoadingMore || hasMoreMessages)}
+					<div class="py-3 text-center text-xs text-muted-foreground">
+						{isLoadingMore ? 'Loading more messages...' : 'Scroll for more'}
 					</div>
 				{/if}
 			</div>
@@ -558,6 +658,14 @@
 					<Separator />
 					{#if isLoadingMessage}
 						<p class="text-sm text-muted-foreground">Loading message...</p>
+					{:else if selectedMessageBodyHTML()}
+						<iframe
+							title="Message body"
+							class="min-h-[62vh] w-full rounded-md border bg-white"
+							sandbox=""
+							referrerpolicy="no-referrer"
+							srcdoc={mailHTMLDocument(selectedMessageBodyHTML())}
+						></iframe>
 					{:else}
 						<p class="whitespace-pre-wrap text-sm leading-6">{selectedMessageBody()}</p>
 					{/if}
@@ -597,17 +705,13 @@
 	<Sheet.Content class="w-full overflow-y-auto sm:max-w-2xl">
 		<Sheet.Header>
 			<Sheet.Title>Mail settings</Sheet.Title>
-			<Sheet.Description>Connect one IMAP account and one SMTP sender for this user.</Sheet.Description>
+			<Sheet.Description>Connect one email account for receiving and sending mail.</Sheet.Description>
 		</Sheet.Header>
 		<form class="grid gap-5 px-4 pb-4" onsubmit={(event) => { event.preventDefault(); saveAccount(); }}>
 			<div class="grid gap-3 sm:grid-cols-2">
 				<div class="space-y-2">
-					<Label for="mail-email">Account email</Label>
+					<Label for="mail-email">Email address</Label>
 					<Input id="mail-email" bind:value={accountDraft.email} placeholder="you@example.com" />
-				</div>
-				<div class="space-y-2">
-					<Label for="mail-from">From address</Label>
-					<Input id="mail-from" bind:value={accountDraft.fromAddress} placeholder="You <you@example.com>" />
 				</div>
 				<div class="space-y-2">
 					<Label for="mail-display-name">Display name</Label>
@@ -633,7 +737,7 @@
 				<div class="space-y-2">
 					<Label for="mail-imap-security">Security</Label>
 					<select id="mail-imap-security" class="border-input bg-background h-9 w-full rounded-md border px-2 text-sm" bind:value={accountDraft.imapSecurity}>
-						<option value="tls">TLS</option>
+						<option value="tls">SSL/TLS</option>
 						<option value="starttls">STARTTLS</option>
 						<option value="none">None</option>
 					</select>
@@ -664,8 +768,8 @@
 				<div class="space-y-2">
 					<Label for="mail-smtp-security">Security</Label>
 					<select id="mail-smtp-security" class="border-input bg-background h-9 w-full rounded-md border px-2 text-sm" bind:value={accountDraft.smtpSecurity}>
-						<option value="tls">TLS</option>
-						<option value="starttls">STARTTLS</option>
+						<option value="tls">SSL/TLS</option>
+						<option value="starttls">STARTTLS/TLS</option>
 						<option value="none">None</option>
 					</select>
 				</div>

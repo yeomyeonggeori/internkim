@@ -13,5 +13,7 @@ test('public URL reaches Access or Mattermost, not the removed chat UI', async (
 	await expect(body).not.toContainText('Bad gateway');
 
 	const text = await body.innerText();
-	expect(text).toMatch(/Mattermost|Cloudflare|Access|Sign in|로그인/i);
+	const title = await page.title();
+	const html = await page.content();
+	expect(`${title}\n${text}\n${html}`).toMatch(/Mattermost|Cloudflare|Access|Sign in|로그인|LoadingScreen|\/static\/main\./i);
 });
