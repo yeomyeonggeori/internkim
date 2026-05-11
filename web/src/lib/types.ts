@@ -47,6 +47,7 @@ export interface UserRecord {
 	handle: string;
 	name?: string;
 	email: string;
+	hireDate?: string;
 	role: UserRole;
 	mattermostUserID?: string;
 	mattermostUsername?: string;

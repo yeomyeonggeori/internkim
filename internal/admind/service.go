@@ -413,6 +413,8 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.proxyUsers(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/users":
 		service.proxyUsers(responseWriter, request)
+	case request.Method == http.MethodPost && strings.HasPrefix(path, "/users/") && strings.HasSuffix(path, "/password-reset"):
+		service.resetUserPassword(responseWriter, request, strings.TrimSuffix(strings.TrimPrefix(path, "/users/"), "/password-reset"))
 	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/users/"):
 		service.proxyUsers(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/companion/pairing-codes":
@@ -564,6 +566,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			return
 		}
 		payload.Name = firstNonEmpty(strings.TrimSpace(payload.Name), payload.Handle)
+		payload.HireDate = strings.TrimSpace(payload.HireDate)
 		payload.Role = normalizeAdminUserRole(payload.Role)
 		upsertedEmail = payload.Email
 		upsertedName = payload.Name
@@ -604,6 +607,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			"userID":             payload.UserID,
 			"handle":             payload.Handle,
 			"name":               payload.Name,
+			"hireDate":           payload.HireDate,
 			"fleet_id":           fleetID,
 			"email":              payload.Email,
 			"role":               payload.Role,
@@ -716,6 +720,53 @@ func (service *Service) lookupRemovableUser(ctx context.Context, fleetID string,
 			return nil, fmt.Errorf("cannot remove the last admin user")
 		}
 		return &record, nil
+	}
+	return nil, nil
+}
+
+func (service *Service) resetUserPassword(responseWriter http.ResponseWriter, request *http.Request, encodedEmail string) {
+	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
+	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
+	if fleetID == "" || fleetSecret == "" {
+		http.Error(responseWriter, "device auth is not configured", http.StatusServiceUnavailable)
+		return
+	}
+	email, errorValue := url.PathUnescape(strings.Trim(encodedEmail, "/"))
+	if errorValue != nil {
+		http.Error(responseWriter, "invalid email", http.StatusBadRequest)
+		return
+	}
+	userRecord, errorValue := service.lookupUserRecordByEmail(request.Context(), fleetID, fleetSecret, email)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	if userRecord == nil {
+		http.Error(responseWriter, "user not found", http.StatusNotFound)
+		return
+	}
+	resetResult, errorValue := service.resetMattermostUserPasswordAndHistory(request.Context(), *userRecord)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	service.writeJSON(responseWriter, map[string]any{
+		"temporaryPassword":      resetResult.TemporaryPassword,
+		"temporaryPasswordEmail": userRecord.Email,
+		"deletedDMPostCount":     resetResult.DeletedPostCount,
+	})
+}
+
+func (service *Service) lookupUserRecordByEmail(ctx context.Context, fleetID string, fleetSecret string, email string) (*adminUserMutation, error) {
+	records, errorValue := service.lookupUserRecords(ctx, fleetID, fleetSecret)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+	for index := range records {
+		if strings.EqualFold(records[index].Email, normalizedEmail) {
+			return &records[index], nil
+		}
 	}
 	return nil, nil
 }
