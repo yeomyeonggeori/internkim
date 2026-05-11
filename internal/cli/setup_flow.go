@@ -168,6 +168,7 @@ func (state *setupFlowState) callbacks() setup.Callbacks {
 		InstallBlueclawPayloadSSH: state.installBlueclawPayloadSSH,
 		AdminWebVersion:           state.adminWebVersion,
 		DeployAdminWeb:            state.deployAdminWeb,
+		SyncCloudflareAccess:      state.syncCloudflareAccess,
 		ConfigureWifiSSH:          state.configureWifiSSH,
 		StageWifiSD:               state.stageWifiSD,
 		ProvisionTunnelSSH:        state.provisionTunnelSSH,
@@ -649,7 +650,7 @@ func (state *setupFlowState) deployAdminWeb(context *setup.Context) error {
 		fmt.Println("  " + context.T("Cloudflare Pages 배포 건너뜀 (lab)", "Skipping Cloudflare Pages deploy (lab)"))
 	} else {
 		fmt.Println("  " + context.T("Cloudflare Pages 배포 중...", "Deploying Cloudflare Pages..."))
-		if errorValue := state.runAdminWebCommand(webRoot, "bunx", "wrangler", "pages", "deploy", ".svelte-kit/cloudflare", "--project-name", "internkim"); errorValue != nil {
+		if errorValue := state.runAdminWebCommand(webRoot, "bunx", "wrangler", "pages", "deploy", ".svelte-kit/cloudflare", "--project-name", "internkim", "--branch", "main"); errorValue != nil {
 			return errorValue
 		}
 	}
@@ -1735,6 +1736,41 @@ func (state *setupFlowState) ensureFleetRegistration(force bool) error {
 
 	state.registrationResolved = true
 	return nil
+}
+
+func (state *setupFlowState) syncCloudflareAccess(context *setup.Context) error {
+	fleetID := strings.TrimSpace(loadState(state.stateDir, "fleet_id"))
+	fleetSecret := strings.TrimSpace(loadState(state.stateDir, "fleet_secret"))
+	nodeID := strings.TrimSpace(loadState(state.stateDir, "node_id"))
+	nodeKey := strings.TrimSpace(loadState(state.stateDir, "node_key"))
+	adminEmail := state.cloudflareAccessAdminEmail()
+	if fleetID == "" || fleetSecret == "" || nodeID == "" || nodeKey == "" {
+		return errors.New("cloudflare access sync requires fleet_id, fleet_secret, node_id, and node_key in local state")
+	}
+	if strings.TrimSpace(state.configuration.RegisterSecret) == "" {
+		return errors.New("cloudflare access sync requires INTERNKIM_REGISTER_SECRET")
+	}
+	response, errorValue := registerFleetNode(state.configuration, fleetID, nodeID, nodeKey, fleetSecret, adminEmail)
+	if errorValue != nil {
+		return errorValue
+	}
+	saveRegistrationResponse(state.stateDir, response)
+	saveDefaultFleetNode(state.stateDir, response)
+	if context.Callbacks.SaveState != nil {
+		context.Callbacks.SaveState("tunnel_origin", setup.MattermostTunnelOrigin)
+		context.Callbacks.SaveState("tunnel_revision", setup.TunnelConfigurationRevision)
+	}
+	fmt.Printf("  %s\n", state.messenger.t("Cloudflare Access 정책 동기화 완료", "Cloudflare Access policies synced"))
+	return nil
+}
+
+func (state *setupFlowState) cloudflareAccessAdminEmail() string {
+	return firstNonEmptyString(
+		state.parameters.AdminEmail,
+		strings.TrimSpace(os.Getenv("INTERNKIM_ADMIN_EMAIL")),
+		loadState(state.stateDir, "claimed_admin_email"),
+		loadState(state.stateDir, "google_email"),
+	)
 }
 
 func (state *setupFlowState) provisionTunnelSSH(context *setup.Context) error {
