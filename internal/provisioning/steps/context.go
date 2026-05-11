@@ -59,6 +59,8 @@ type Callbacks struct {
 	AdminWebVersion func() string
 	DeployAdminWeb  func(context *Context) error
 
+	SyncCloudflareAccess func(context *Context) error
+
 	ConfigureWifiSSH func(context *Context) error
 	StageWifiSD      func(context *Context) error
 

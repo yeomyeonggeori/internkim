@@ -18,6 +18,10 @@ type Step struct {
 	// Deps are names of steps whose output this step requires.
 	Deps []string
 
+	// ForceDeps are dependencies that must also re-run when this step is an
+	// explicitly forced seed. Other dependencies still honour IsSatisfied.
+	ForceDeps []string
+
 	// Title returns a human-readable progress line.
 	Title func(context *Context) string
 
@@ -133,7 +137,8 @@ func (registry Registry) resolve(context *Context, selector Selector) ([]string,
 			if dependencyStep == nil {
 				continue
 			}
-			if !selector.ForceAll && dependencyStep.IsSatisfied != nil && dependencyStep.IsSatisfied(context) {
+			shouldForceDependency := selector.Force && isExplicitlySeeded(name, selector) && containsStepName(step.ForceDeps, dependencyName)
+			if !selector.ForceAll && !shouldForceDependency && dependencyStep.IsSatisfied != nil && dependencyStep.IsSatisfied(context) {
 				continue
 			}
 			includeStepAndDeps(dependencyName)
@@ -182,7 +187,7 @@ func (registry Registry) plan(context *Context, selector Selector) ([]planEntry,
 				entries = append(entries, planEntry{name: step.Name, status: "unsupported", reason: string(context.Backend)})
 				continue
 			}
-			shouldForce := selector.ForceAll || selector.Force && isExplicitlySeeded(step.Name, selector)
+			shouldForce := registry.shouldForceStep(step.Name, selector)
 			if !shouldForce && step.IsSatisfied != nil && step.IsSatisfied(context) {
 				entries = append(entries, planEntry{name: step.Name, status: "skip", reason: "satisfied"})
 				continue
@@ -248,7 +253,7 @@ func (registry Registry) Run(context *Context, selector Selector) error {
 			title = step.Title(context)
 		}
 		fmt.Printf("\n[%d/%d] %s  (%s)\n", index+1, len(plan), title, step.Name)
-		shouldForce := selector.ForceAll || selector.Force && isExplicitlySeeded(name, selector)
+		shouldForce := registry.shouldForceStep(name, selector)
 		if !shouldForce && step.IsSatisfied != nil && step.IsSatisfied(context) {
 			fmt.Println("  이미 설정됨 — 건너뜀")
 			continue
@@ -267,6 +272,32 @@ func (registry Registry) Run(context *Context, selector Selector) error {
 	return nil
 }
 
+func (registry Registry) shouldForceStep(name string, selector Selector) bool {
+	if selector.ForceAll {
+		return true
+	}
+	if !selector.Force {
+		return false
+	}
+	if isExplicitlySeeded(name, selector) {
+		return true
+	}
+	for _, seedName := range selector.Only {
+		step := registry.byName(seedName)
+		if step != nil && containsStepName(step.ForceDeps, name) {
+			return true
+		}
+	}
+	if selector.From != "" {
+		for _, step := range registry {
+			if step.Name == selector.From {
+				return containsStepName(step.ForceDeps, name)
+			}
+		}
+	}
+	return false
+}
+
 func isExplicitlySeeded(name string, selector Selector) bool {
 	if len(selector.Only) == 0 && selector.From == "" {
 		return true
@@ -278,6 +309,15 @@ func isExplicitlySeeded(name string, selector Selector) bool {
 	}
 	if selector.From == name {
 		return true
+	}
+	return false
+}
+
+func containsStepName(names []string, expectedName string) bool {
+	for _, name := range names {
+		if canonicalStepName(name) == expectedName {
+			return true
+		}
 	}
 	return false
 }

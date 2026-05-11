@@ -36,8 +36,9 @@ import (
 )
 
 var (
-	boardUser = "root"
-	boardPass = ""
+	boardUser          = "root"
+	boardPass          = ""
+	registerHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 	// Armbian Trixie Minimal images per board
 	armbianImages = map[string]string{
@@ -2297,8 +2298,7 @@ func registerFleetRequest(configuration config, requestBody map[string]string) (
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+configuration.RegisterSecret)
 
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := registerHTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
