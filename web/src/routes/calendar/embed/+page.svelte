@@ -43,6 +43,8 @@
 
 	type CalendarSyncResponse = {
 		caldavURL: string;
+		caldavUsername: string;
+		caldavPassword: string;
 		icsURL: string;
 	};
 
@@ -123,7 +125,7 @@
 			}
 		],
 		defaultCalendar: 'internkim',
-		theme: { mode: 'auto' },
+		theme: { mode: 'light' },
 		allDaySortComparator: compareCalendarEventsForDisplay,
 		plugins: [
 			createSidebarPlugin({
@@ -196,58 +198,13 @@
 
 	function replaceCalendarEvents(events: DayFlowEvent[], visibleRangeStartDate: Date) {
 		const eventIDs = calendar.app.getAllEvents().map((event) => event.id);
-		calendar.app.applyEventsChanges({ delete: eventIDs, add: events });
-		calendar.app.state.events = visibleCalendarEvents(events, visibleRangeStartDate);
+		calendar.app.applyEventsChanges({ delete: eventIDs, add: recalculateEventDays(events, visibleRangeStartDate) });
 		calendar.app.triggerRender();
 	}
 
-	function visibleCalendarEvents(events: DayFlowEvent[], visibleRangeStartDate: Date) {
-		if (calendar.app.state.currentView === ViewType.MONTH) return events.map(monthDisplayEventFromEvent);
-		return recalculateEventDays(events, visibleRangeStartDate);
-	}
-
-	function monthDisplayEventFromEvent(event: DayFlowEvent) {
-		if (event.allDay) return event;
-		const startDate = temporalToDate(event.start);
-		return createEvent({
-			id: monthDisplayEventID(event.id),
-			title: `${timeTextFromDate(startDate)} ${event.title}`.trim(),
-			description: event.description,
-			start: new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()),
-			end: new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()),
-			allDay: true,
-			calendarId: event.calendarId,
-			meta: {
-				...event.meta,
-				monthDisplayOnly: true,
-				sourceEventID: event.id
-			}
-		});
-	}
-
-	function monthDisplayEventID(eventID: string) {
-		return `month-display:${eventID}`;
-	}
-
-	function isMonthDisplayEvent(event: DayFlowEvent) {
-		return event.meta?.monthDisplayOnly === true || isMonthDisplayEventID(event.id);
-	}
-
-	function isMonthDisplayEventID(eventID: string) {
-		return eventID.startsWith('month-display:');
-	}
-
-	function timeTextFromDate(date: Date) {
-		return new Intl.DateTimeFormat(undefined, {
-			hour: '2-digit',
-			minute: '2-digit',
-			hour12: false
-		}).format(date);
-	}
-
 	function compareCalendarEventsForDisplay(leftEvent: DayFlowEvent, rightEvent: DayFlowEvent) {
-		const leftPriority = isMonthDisplayEvent(leftEvent) ? 0 : 1;
-		const rightPriority = isMonthDisplayEvent(rightEvent) ? 0 : 1;
+		const leftPriority = leftEvent.allDay ? 0 : 1;
+		const rightPriority = rightEvent.allDay ? 0 : 1;
 		if (leftPriority !== rightPriority) return leftPriority - rightPriority;
 		return leftEvent.title.localeCompare(rightEvent.title);
 	}
@@ -285,12 +242,10 @@
 	}
 
 	async function saveCreatedEvent(event: DayFlowEvent) {
-		if (isMonthDisplayEvent(event)) return;
 		await persistEvent('/calendar/api/events', 'POST', event);
 	}
 
 	async function saveUpdatedEvent(event: DayFlowEvent) {
-		if (isMonthDisplayEvent(event)) return;
 		await persistEvent(`/calendar/api/events/${encodeURIComponent(event.id)}`, 'PUT', event);
 	}
 
@@ -317,7 +272,6 @@
 	}
 
 	async function deleteEvent(eventID: string) {
-		if (isMonthDisplayEventID(eventID)) return;
 		isSaving = true;
 		errorMessage = '';
 		try {
@@ -617,7 +571,7 @@
 	<title>{text.title} · intern kim</title>
 </svelte:head>
 
-<main class="min-h-screen bg-background text-foreground">
+<main class="min-h-screen bg-white text-zinc-950">
 	<div bind:this={calendarStageElement} class="calendar-stage">
 		<DayFlowCalendar {calendar} />
 
@@ -658,6 +612,36 @@
 							</code>
 							<CopyButton text={syncInformation?.caldavURL ?? ''} variant="outline" size="icon" disabled={!syncInformation?.caldavURL} />
 						</div>
+						<div class="grid grid-cols-2 gap-2">
+							<div class="min-w-0 space-y-1">
+								<p class="text-[11px] font-medium text-muted-foreground">{text.username}</p>
+								<div class="flex min-w-0 items-center gap-2">
+									<code class="min-w-0 flex-1 truncate rounded-md bg-muted px-2 py-1.5 text-xs">
+										{syncInformation?.caldavUsername ?? ''}
+									</code>
+									<CopyButton
+										text={syncInformation?.caldavUsername ?? ''}
+										variant="outline"
+										size="icon"
+										disabled={!syncInformation?.caldavUsername}
+									/>
+								</div>
+							</div>
+							<div class="min-w-0 space-y-1">
+								<p class="text-[11px] font-medium text-muted-foreground">{text.password}</p>
+								<div class="flex min-w-0 items-center gap-2">
+									<code class="min-w-0 flex-1 truncate rounded-md bg-muted px-2 py-1.5 text-xs">
+										{syncInformation?.caldavPassword ?? ''}
+									</code>
+									<CopyButton
+										text={syncInformation?.caldavPassword ?? ''}
+										variant="outline"
+										size="icon"
+										disabled={!syncInformation?.caldavPassword}
+									/>
+								</div>
+							</div>
+						</div>
 					</div>
 
 					<div class="space-y-1.5">
@@ -682,15 +666,60 @@
 
 <style>
 	.calendar-stage {
+		--df-color-background: #ffffff;
+		--df-color-foreground: #2e2e2e;
+		--df-color-hover: #f5f5f5;
+		--df-color-border: #e5e5e5;
+		--df-color-card: #ffffff;
+		--df-color-card-foreground: #2e2e2e;
+		--df-color-muted: #f3f4f6;
+		--df-color-muted-foreground: #6b7280;
+		--df-color-primary: #2e2e2e;
+		--df-color-primary-foreground: #ffffff;
+		--df-color-secondary: #64748b;
+		--df-color-secondary-foreground: #ffffff;
+		--df-color-destructive: #d42422;
+		--df-color-destructive-foreground: #ffffff;
+		--background: 0 0% 100%;
+		--foreground: 222.2 84% 4.9%;
+		--card: 0 0% 100%;
+		--card-foreground: 222.2 84% 4.9%;
+		--muted: 210 40% 96.1%;
+		--muted-foreground: 215.4 16.3% 46.9%;
+		--border: 214.3 31.8% 91.4%;
+		--destructive: 0 84.2% 60.2%;
 		position: relative;
 		min-height: calc(100svh - 48px);
 		padding: 16px;
-		background: var(--df-color-background, hsl(var(--background)));
+		color-scheme: light;
+		background: #ffffff;
 	}
 
 	.calendar-stage :global(.df-calendar-container) {
 		width: 100%;
 		--df-calendar-height: calc(100svh - 80px);
+		color-scheme: light;
+	}
+
+	:global(.df-dialog-container),
+	:global(.df-event-detail-panel),
+	:global(.df-portal),
+	:global(.df-range-picker) {
+		--df-color-background: #ffffff;
+		--df-color-foreground: #2e2e2e;
+		--df-color-hover: #f5f5f5;
+		--df-color-border: #e5e5e5;
+		--df-color-card: #ffffff;
+		--df-color-card-foreground: #2e2e2e;
+		--df-color-muted: #f3f4f6;
+		--df-color-muted-foreground: #6b7280;
+		--df-color-primary: #2e2e2e;
+		--df-color-primary-foreground: #ffffff;
+		--df-color-secondary: #64748b;
+		--df-color-secondary-foreground: #ffffff;
+		--df-color-destructive: #d42422;
+		--df-color-destructive-foreground: #ffffff;
+		color-scheme: light;
 	}
 
 	.month-range-preview {

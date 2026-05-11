@@ -67,11 +67,25 @@ func TestCalendarEventLifecycleAndICS(t *testing.T) {
 	if errorValue := json.Unmarshal(syncResponse.Body.Bytes(), &syncDocument); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	if syncDocument.CalDAVUsername != calendarDAVUsername || syncDocument.CalDAVPassword == "" {
+		t.Fatalf("caldav credentials = %#v", syncDocument)
+	}
+	parsedCalDAVURL, errorValue := url.Parse(syncDocument.CalDAVURL)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	calDAVPassword, hasCalDAVPassword := parsedCalDAVURL.User.Password()
+	if parsedCalDAVURL.User.Username() != calendarDAVUsername || !hasCalDAVPassword || calDAVPassword != syncDocument.CalDAVPassword {
+		t.Fatalf("caldav url credentials = %q", syncDocument.CalDAVURL)
+	}
 	parsedICSURL, errorValue := url.Parse(syncDocument.ICSURL)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	token := strings.TrimSuffix(strings.TrimPrefix(parsedICSURL.Path, "/calendar/ics/"), ".ics")
+	if token != syncDocument.CalDAVPassword {
+		t.Fatalf("ics token and caldav password differ")
+	}
 	icsRequest := httptest.NewRequest(http.MethodGet, "/calendar/ics/"+token+".ics", nil)
 	icsResponse := httptest.NewRecorder()
 	service.router().ServeHTTP(icsResponse, icsRequest)
@@ -80,6 +94,12 @@ func TestCalendarEventLifecycleAndICS(t *testing.T) {
 	}
 	if !strings.Contains(icsResponse.Body.String(), "SUMMARY:Design review") || !strings.Contains(icsResponse.Body.String(), "LOCATION:Studio") {
 		t.Fatalf("ics body missing event: %s", icsResponse.Body.String())
+	}
+	if !strings.Contains(icsResponse.Body.String(), "CALSCALE:GREGORIAN") || !strings.Contains(icsResponse.Body.String(), "METHOD:PUBLISH") || !strings.Contains(icsResponse.Body.String(), "X-WR-CALNAME") {
+		t.Fatalf("ics body missing calendar metadata: %s", icsResponse.Body.String())
+	}
+	if _, errorValue := ical.NewDecoder(strings.NewReader(icsResponse.Body.String())).Decode(); errorValue != nil {
+		t.Fatal(errorValue)
 	}
 
 	rotateRequest := httptest.NewRequest(http.MethodPost, "/calendar/api/ics-token", nil)
@@ -93,6 +113,35 @@ func TestCalendarEventLifecycleAndICS(t *testing.T) {
 	service.router().ServeHTTP(oldICSResponse, icsRequest)
 	if oldICSResponse.Code != http.StatusNotFound {
 		t.Fatalf("old token status = %d", oldICSResponse.Code)
+	}
+}
+
+func TestCalendarDAVAcceptsTokenBasicAuth(t *testing.T) {
+	service := newCalendarTestService(t)
+	syncRequest := httptest.NewRequest(http.MethodGet, "/calendar/api/sync", nil)
+	syncRequest.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	syncResponse := httptest.NewRecorder()
+	service.router().ServeHTTP(syncResponse, syncRequest)
+	if syncResponse.Code != http.StatusOK {
+		t.Fatalf("sync status = %d body = %s", syncResponse.Code, syncResponse.Body.String())
+	}
+	var syncDocument calendarSyncResponse
+	if errorValue := json.Unmarshal(syncResponse.Body.Bytes(), &syncDocument); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	authorizedRequest := httptest.NewRequest("PROPFIND", calendarCollectionPath, nil)
+	authorizedRequest.RemoteAddr = "203.0.113.10:49152"
+	authorizedRequest.SetBasicAuth(calendarDAVUsername, syncDocument.CalDAVPassword)
+	if !service.authorizeCalendarRequest(authorizedRequest) {
+		t.Fatal("calendar token basic auth was rejected")
+	}
+
+	rejectedRequest := httptest.NewRequest("PROPFIND", calendarCollectionPath, nil)
+	rejectedRequest.RemoteAddr = "203.0.113.10:49152"
+	rejectedRequest.SetBasicAuth(calendarDAVUsername, "wrong-token")
+	if service.authorizeCalendarRequest(rejectedRequest) {
+		t.Fatal("wrong calendar token was accepted")
 	}
 }
 
