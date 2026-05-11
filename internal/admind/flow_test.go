@@ -50,3 +50,20 @@ func TestFlowMembersWithoutFleetCredentialsDoesNotReturnSeedMembers(t *testing.T
 		t.Fatalf("members = %+v", members)
 	}
 }
+
+func TestMembersFromUserRecordsSortsByHireDate(t *testing.T) {
+	members := membersFromUserRecords([]adminUserMutation{
+		{Email: "late@example.com", Name: "Late", HireDate: "2026-05-10", Role: "admin"},
+		{Email: "unknown@example.com", Name: "Unknown", Role: "admin"},
+		{Email: "early@example.com", Name: "Early", HireDate: "2024-01-03", Role: "member"},
+		{Email: "same@example.com", Name: "Alpha", HireDate: "2026-05-10", Role: "member"},
+	})
+
+	got := []string{members[0].Email, members[1].Email, members[2].Email, members[3].Email}
+	want := []string{"early@example.com", "same@example.com", "late@example.com", "unknown@example.com"}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Fatalf("members order = %+v, want %+v", got, want)
+		}
+	}
+}

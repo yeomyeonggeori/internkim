@@ -58,6 +58,7 @@ type flowMember struct {
 	ID                string `json:"id"`
 	Name              string `json:"name"`
 	Email             string `json:"email"`
+	HireDate          string `json:"hireDate,omitempty"`
 	Role              string `json:"role"`
 	MattermostStatus  string `json:"mattermostStatus"`
 	Score             int    `json:"score"`
@@ -1702,15 +1703,29 @@ func membersFromUserRecords(records []adminUserMutation) []flowMember {
 			ID:               stableFlowID(email),
 			Name:             name,
 			Email:            email,
+			HireDate:         strings.TrimSpace(record.HireDate),
 			Role:             normalizeAdminUserRole(record.Role),
 			MattermostStatus: firstNonEmpty(record.Status, "active"),
 		})
 	}
 	sort.Slice(members, func(leftIndex int, rightIndex int) bool {
-		if members[leftIndex].Role != members[rightIndex].Role {
-			return members[leftIndex].Role == "admin"
+		leftMember := members[leftIndex]
+		rightMember := members[rightIndex]
+		if leftMember.HireDate != "" || rightMember.HireDate != "" {
+			if leftMember.HireDate == "" {
+				return false
+			}
+			if rightMember.HireDate == "" {
+				return true
+			}
+			if leftMember.HireDate != rightMember.HireDate {
+				return leftMember.HireDate < rightMember.HireDate
+			}
 		}
-		return members[leftIndex].Email < members[rightIndex].Email
+		if leftMember.Name != rightMember.Name {
+			return strings.ToLower(leftMember.Name) < strings.ToLower(rightMember.Name)
+		}
+		return leftMember.Email < rightMember.Email
 	})
 	return members
 }
