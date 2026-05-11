@@ -61,6 +61,7 @@
 		date: string;
 		preview: string;
 		body?: string;
+		bodyHTML?: string;
 		isRead: boolean;
 	};
 
@@ -130,6 +131,7 @@
 	const visibleMessages = () => messages.filter((message) => !isUnreadOnly || !message.isRead);
 	const displayedMailboxes = () => (account.isConfigured && mailboxes.length ? mailboxes : defaultMailboxes);
 	const selectedMessageBody = () => selectedMessage?.body || selectedMessage?.preview || '';
+	const selectedMessageBodyHTML = () => selectedMessage?.bodyHTML?.trim() || '';
 
 	onMount(loadMail);
 
@@ -401,6 +403,24 @@
 		if (response.status >= 500) return `${fallback} Mail service is temporarily unavailable.`;
 		return fallback;
 	}
+
+	function mailHTMLDocument(bodyHTML: string) {
+		return `<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="referrer" content="no-referrer">
+	<meta http-equiv="Content-Security-Policy" content="default-src https: http: data: cid:; script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+	<style>
+		html, body { margin: 0; padding: 0; background: #ffffff; color: #111827; font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+		body { overflow-wrap: anywhere; }
+		img, table { max-width: 100%; }
+		a { color: #0f4c81; }
+	</style>
+</head>
+<body>${bodyHTML}</body>
+</html>`;
+	}
 </script>
 
 <svelte:head>
@@ -516,7 +536,9 @@
 							<span class="min-w-0 flex-1 truncate text-sm font-medium">{message.from || 'Unknown sender'}</span>
 						</div>
 						<p class="mt-2 truncate text-sm">{message.subject || '(No subject)'}</p>
-						<p class="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{message.preview}</p>
+						{#if message.preview}
+							<p class="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{message.preview}</p>
+						{/if}
 					</button>
 				{/each}
 
@@ -576,6 +598,14 @@
 					<Separator />
 					{#if isLoadingMessage}
 						<p class="text-sm text-muted-foreground">Loading message...</p>
+					{:else if selectedMessageBodyHTML()}
+						<iframe
+							title="Message body"
+							class="min-h-[62vh] w-full rounded-md border bg-white"
+							sandbox=""
+							referrerpolicy="no-referrer"
+							srcdoc={mailHTMLDocument(selectedMessageBodyHTML())}
+						></iframe>
 					{:else}
 						<p class="whitespace-pre-wrap text-sm leading-6">{selectedMessageBody()}</p>
 					{/if}
