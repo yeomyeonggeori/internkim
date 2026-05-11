@@ -26,6 +26,8 @@ import (
 
 const (
 	calendarProductID                       = "-//InternKim//Shared Calendar//EN"
+	calendarName                            = "Work"
+	calendarDAVUsername                     = "internkim"
 	calendarPrincipalPath                   = "/calendar/dav/team/"
 	calendarHomeSetPath                     = "/calendar/dav/team/calendars/"
 	calendarCollectionPath                  = "/calendar/dav/team/calendars/internkim/"
@@ -72,8 +74,10 @@ type calendarEventsResponse struct {
 }
 
 type calendarSyncResponse struct {
-	CalDAVURL string `json:"caldavURL"`
-	ICSURL    string `json:"icsURL"`
+	CalDAVURL      string `json:"caldavURL"`
+	CalDAVUsername string `json:"caldavUsername"`
+	CalDAVPassword string `json:"caldavPassword"`
+	ICSURL         string `json:"icsURL"`
 }
 
 type calendarDAVBackend struct {
@@ -161,11 +165,23 @@ func (service *Service) authorizeCalendarRequest(request *http.Request) bool {
 	if isLocalRequest(request) {
 		return true
 	}
+	if service.authorizeCalendarTokenRequest(request) {
+		return true
+	}
 	actorEmail := authenticatedCallerEmail(request)
 	if actorEmail == "" {
 		return false
 	}
 	return service.isFlowStaffActor(request.Context(), actorEmail)
+}
+
+func (service *Service) authorizeCalendarTokenRequest(request *http.Request) bool {
+	username, password, ok := request.BasicAuth()
+	if !ok {
+		return false
+	}
+	token := firstNonEmpty(password, username)
+	return service.isValidCalendarICSToken(request.Context(), token)
 }
 
 func (service *Service) listCalendarEvents(responseWriter http.ResponseWriter, request *http.Request) {
@@ -240,8 +256,10 @@ func (service *Service) writeCalendarSync(responseWriter http.ResponseWriter, re
 	}
 	baseURL := service.calendarExternalBaseURL(request)
 	service.writeJSON(responseWriter, calendarSyncResponse{
-		CalDAVURL: baseURL + calendarCollectionPath,
-		ICSURL:    baseURL + "/calendar/ics/" + url.PathEscape(token) + ".ics",
+		CalDAVURL:      calendarDAVSubscriptionURL(baseURL, token),
+		CalDAVUsername: calendarDAVUsername,
+		CalDAVPassword: token,
+		ICSURL:         baseURL + "/calendar/ics/" + url.PathEscape(token) + ".ics",
 	})
 }
 
@@ -257,8 +275,10 @@ func (service *Service) rotateCalendarICSToken(responseWriter http.ResponseWrite
 	}
 	baseURL := service.calendarExternalBaseURL(request)
 	service.writeJSON(responseWriter, calendarSyncResponse{
-		CalDAVURL: baseURL + calendarCollectionPath,
-		ICSURL:    baseURL + "/calendar/ics/" + url.PathEscape(token) + ".ics",
+		CalDAVURL:      calendarDAVSubscriptionURL(baseURL, token),
+		CalDAVUsername: calendarDAVUsername,
+		CalDAVPassword: token,
+		ICSURL:         baseURL + "/calendar/ics/" + url.PathEscape(token) + ".ics",
 	})
 }
 
@@ -283,9 +303,9 @@ func (service *Service) serveCalendarICS(responseWriter http.ResponseWriter, req
 	}
 	responseWriter.Header().Set("Content-Type", ical.MIMEType+"; charset=utf-8")
 	responseWriter.Header().Set("Content-Disposition", `inline; filename="internkim.ics"`)
+	responseWriter.Header().Set("Cache-Control", "no-store")
 	if len(events) == 0 {
-		_, _ = responseWriter.Write([]byte("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:" + calendarProductID + "\r\nEND:VCALENDAR\r\n"))
-		return
+		calendar = newCalendarFeedDocument()
 	}
 	_ = ical.NewEncoder(responseWriter).Encode(calendar)
 }
@@ -1152,8 +1172,20 @@ func (service *Service) calendarExternalBaseURL(request *http.Request) string {
 	return scheme + "://" + request.Host
 }
 
+func calendarDAVSubscriptionURL(baseURL string, token string) string {
+	parsedURL, errorValue := url.Parse(strings.TrimRight(strings.TrimSpace(baseURL), "/"))
+	if errorValue != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
+		return strings.TrimRight(strings.TrimSpace(baseURL), "/") + calendarCollectionPath
+	}
+	parsedURL.User = url.UserPassword(calendarDAVUsername, token)
+	parsedURL.Path = calendarCollectionPath
+	parsedURL.RawQuery = ""
+	parsedURL.Fragment = ""
+	return parsedURL.String()
+}
+
 func buildCalendarFeed(events []calendarEvent) (*ical.Calendar, error) {
-	calendar := newCalendarDocument()
+	calendar := newCalendarFeedDocument()
 	for _, event := range events {
 		eventCalendar, errorValue := calendarObjectForEvent(event)
 		if errorValue != nil {
@@ -1208,6 +1240,15 @@ func newCalendarDocument() *ical.Calendar {
 	calendar := ical.NewCalendar()
 	calendar.Props.SetText(ical.PropVersion, "2.0")
 	calendar.Props.SetText(ical.PropProductID, calendarProductID)
+	calendar.Props.SetText(ical.PropCalendarScale, "GREGORIAN")
+	calendar.Props.SetText("X-WR-CALNAME", calendarName)
+	calendar.Props.SetText("X-WR-TIMEZONE", "UTC")
+	return calendar
+}
+
+func newCalendarFeedDocument() *ical.Calendar {
+	calendar := newCalendarDocument()
+	calendar.Props.SetText(ical.PropMethod, "PUBLISH")
 	return calendar
 }
 
@@ -1345,8 +1386,8 @@ func (backend calendarDAVBackend) GetCalendar(ctx context.Context, path string) 
 func calendarDAVCollection() caldav.Calendar {
 	return caldav.Calendar{
 		Path:                  calendarCollectionPath,
-		Name:                  "InternKim",
-		Description:           "Shared InternKim calendar",
+		Name:                  calendarName,
+		Description:           "Shared Work calendar",
 		MaxResourceSize:       1024 * 1024,
 		SupportedComponentSet: []string{ical.CompEvent},
 	}
