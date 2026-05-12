@@ -345,7 +345,7 @@ func (service *Service) flowChannelWriteGuard(next http.Handler) http.Handler {
 			next.ServeHTTP(responseWriter, request)
 			return
 		}
-		http.Error(responseWriter, "Flow channel is read-only", http.StatusForbidden)
+		http.Error(responseWriter, "managed channel is read-only", http.StatusForbidden)
 	})
 }
 
@@ -353,8 +353,16 @@ func (service *Service) isMattermostFlowPostCreateRequest(request *http.Request)
 	if request.Method != http.MethodPost || request.URL.Path != "/api/v4/posts" {
 		return false
 	}
-	flowChannelID := strings.TrimSpace(readTrimmedFile(service.mattermostFlowChannelIDPath()))
-	if flowChannelID == "" {
+	channelIDs := map[string]bool{}
+	for _, channelID := range []string{
+		readTrimmedFile(service.mattermostFlowChannelIDPath()),
+		readTrimmedFile(service.mattermostCalendarChannelIDPath()),
+	} {
+		if trimmedChannelID := strings.TrimSpace(channelID); trimmedChannelID != "" {
+			channelIDs[trimmedChannelID] = true
+		}
+	}
+	if len(channelIDs) == 0 {
 		return false
 	}
 	document, errorValue := io.ReadAll(request.Body)
@@ -368,7 +376,7 @@ func (service *Service) isMattermostFlowPostCreateRequest(request *http.Request)
 	if errorValue := json.Unmarshal(document, &payload); errorValue != nil {
 		return false
 	}
-	return strings.TrimSpace(payload.ChannelID) == flowChannelID
+	return channelIDs[strings.TrimSpace(payload.ChannelID)]
 }
 
 func (service *Service) serveAdminPage(responseWriter http.ResponseWriter, request *http.Request) {
