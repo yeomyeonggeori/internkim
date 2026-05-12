@@ -24,7 +24,7 @@ func TestUsersSyncDependencyInstallScriptInstallsJQ(t *testing.T) {
 
 func TestDeviceToolPackagesIncludeSitePublishingBasics(t *testing.T) {
 	packages := strings.Join(baseDeviceToolPackages(), " ")
-	for _, packageName := range []string{"git", "curl", "unzip", "ca-certificates"} {
+	for _, packageName := range []string{"bc", "git", "curl", "unzip", "ca-certificates"} {
 		if !strings.Contains(packages, packageName) {
 			t.Fatalf("expected base device tools to include %q, got %s", packageName, packages)
 		}
@@ -371,7 +371,7 @@ func TestMattermostSetupRegistersManagedResourcePaths(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected Mattermost managed resource paths, got %+v", serviceSettings)
 	}
-	if resourcePaths != "admin,calendar,flow,mail" {
+	if resourcePaths != "admin,attendance,calendar,flow,mail" {
 		t.Fatalf("unexpected Mattermost managed resource paths: %+v", resourcePaths)
 	}
 }
