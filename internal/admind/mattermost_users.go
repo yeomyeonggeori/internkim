@@ -89,6 +89,11 @@ type mattermostPreferenceRecord struct {
 	Value    string `json:"value"`
 }
 
+type mattermostDefaultChannelProvision struct {
+	Name   string
+	Ensure func(context.Context, string, string) (string, error)
+}
+
 const mattermostProvisionerUsername = "admin"
 const mattermostProvisionerEmail = "admin@localhost"
 const firstAdminMattermostPassword = "admin"
@@ -642,43 +647,44 @@ func (service *Service) ensureMattermostMembership(ctx context.Context, token st
 		return errorValue
 	}
 
-	channelIDs, errorValue := service.ensureMattermostDefaultChannelIDs(ctx, token, teamRecord.ID)
-	if errorValue != nil {
-		return errorValue
-	}
+	channelIDs, channelError := service.ensureMattermostDefaultChannelIDs(ctx, token, teamRecord.ID)
 	channelMember := map[string]string{"user_id": userID}
+	var membershipErrors []error
 	for _, channelID := range channelIDs {
 		if channelID == "" {
 			continue
 		}
 		if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/channels/"+url.PathEscape(channelID)+"/members", token, channelMember, nil); errorValue != nil && !isMattermostBadRequest(errorValue) {
-			return errorValue
+			membershipErrors = append(membershipErrors, errorValue)
 		}
 	}
 	if flowChannelID := strings.TrimSpace(readTrimmedFile(service.mattermostFlowChannelIDPath())); flowChannelID != "" {
 		_ = service.cleanupMattermostFlowSystemPosts(ctx, token, flowChannelID)
 	}
-	return nil
+	return errors.Join(append(membershipErrors, channelError)...)
 }
 
 func (service *Service) ensureMattermostDefaultChannelIDs(ctx context.Context, token string, teamID string) ([]string, error) {
-	townSquareChannelID, errorValue := service.ensureMattermostTownSquareChannel(ctx, token, teamID)
-	if errorValue != nil {
-		return nil, errorValue
+	var channelIDs []string
+	var channelErrors []error
+	for _, channelProvision := range service.mattermostDefaultChannelProvisions() {
+		channelID, errorValue := channelProvision.Ensure(ctx, token, teamID)
+		if errorValue != nil {
+			channelErrors = append(channelErrors, fmt.Errorf("%s channel: %w", channelProvision.Name, errorValue))
+			continue
+		}
+		channelIDs = append(channelIDs, channelID)
 	}
-	flowChannelID, errorValue := service.ensureMattermostFlowChannel(ctx, token, teamID)
-	if errorValue != nil {
-		return nil, errorValue
+	return uniqueNonEmpty(channelIDs), errors.Join(channelErrors...)
+}
+
+func (service *Service) mattermostDefaultChannelProvisions() []mattermostDefaultChannelProvision {
+	return []mattermostDefaultChannelProvision{
+		{Name: "town-square", Ensure: service.ensureMattermostTownSquareChannel},
+		{Name: mattermostFlowChannelName, Ensure: service.ensureMattermostFlowChannel},
+		{Name: mattermostCalendarChannelName, Ensure: service.ensureMattermostCalendarChannel},
+		{Name: attendanceChannelName, Ensure: service.ensureMattermostAttendanceChannel},
 	}
-	calendarChannelID, errorValue := service.ensureMattermostCalendarChannel(ctx, token, teamID)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	attendanceChannelID, errorValue := service.ensureMattermostAttendanceChannel(ctx, token, teamID)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	return uniqueNonEmpty([]string{townSquareChannelID, flowChannelID, calendarChannelID, attendanceChannelID}), nil
 }
 
 func (service *Service) ensureMattermostCircleChannels(ctx context.Context, token string) error {
