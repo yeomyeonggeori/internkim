@@ -1049,7 +1049,7 @@ blueclaw_request "invite policy" POST http://127.0.0.1:8080/admin/api/people/inv
 
 phase "invited post"
 before_count="$(task_count)"
-invited_message="verify invited $timestamp"
+invited_message="InternKim Mattermost verification $timestamp: please reply briefly."
 invited_post="$(post_message "$invited_token" "$invited_message")"
 invited_post_id="$(printf '%s' "$invited_post" | jq -r '.id')"
 invited_post_create_at="$(printf '%s' "$invited_post" | jq -r '.create_at')"
@@ -1061,7 +1061,7 @@ wait_for_model_reply "$invited_post_create_at"
 after_count="$(task_count)"
 
 phase "uninvited post"
-uninvited_message="verify uninvited $timestamp"
+uninvited_message="InternKim uninvited Mattermost verification $timestamp: please reply briefly."
 uninvited_post="$(post_message "$uninvited_token" "$uninvited_message")"
 uninvited_post_id="$(printf '%s' "$uninvited_post" | jq -r '.id')"
 uninvited_post_create_at="$(printf '%s' "$uninvited_post" | jq -r '.create_at')"
