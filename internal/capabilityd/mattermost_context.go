@@ -16,6 +16,7 @@ type mattermostHistoryPost struct {
 	ID       string `json:"id"`
 	UserID   string `json:"user_id"`
 	Message  string `json:"message"`
+	RootID   string `json:"root_id"`
 	Type     string `json:"type"`
 	CreateAt int64  `json:"create_at"`
 }
@@ -85,6 +86,9 @@ func (service Service) mattermostHistoryPosts(ctx context.Context, handle platfo
 
 	posts := make([]mattermostHistoryPost, 0, len(response.Posts))
 	for _, post := range response.Posts {
+		if strings.TrimSpace(handle.RootID) == "" && strings.TrimSpace(post.RootID) != "" {
+			continue
+		}
 		posts = append(posts, post)
 	}
 	sort.SliceStable(posts, func(leftIndex int, rightIndex int) bool {

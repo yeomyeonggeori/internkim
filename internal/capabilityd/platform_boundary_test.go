@@ -307,7 +307,7 @@ func mustJSONRaw(t *testing.T, value any) json.RawMessage {
 	return document
 }
 
-func TestMattermostDirectMessageDoesNotUseThreadRoot(t *testing.T) {
+func TestMattermostDirectMessageStartsThreadWithDirectHistory(t *testing.T) {
 	event, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
 		ID:        "post-1",
 		UserID:    "user-1",
@@ -320,8 +320,8 @@ func TestMattermostDirectMessageDoesNotUseThreadRoot(t *testing.T) {
 	if !hasEvent {
 		t.Fatal("expected direct message event")
 	}
-	if event.ConversationID != "dm:dm-1" {
-		t.Fatalf("expected dm conversation, got %q", event.ConversationID)
+	if event.ConversationID != "thread:dm-1:post-1" {
+		t.Fatalf("expected direct message to start thread conversation, got %q", event.ConversationID)
 	}
 	if event.Context.ConversationType != "D" || event.Context.ChannelID != "dm-1" {
 		t.Fatalf("expected direct message metadata in context, got %+v", event.Context)
@@ -330,12 +330,19 @@ func TestMattermostDirectMessageDoesNotUseThreadRoot(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected reply target to decode: %v", errorValue)
 	}
-	if replyHandle.RootID != "" {
-		t.Fatalf("expected DM reply root to be empty, got %q", replyHandle.RootID)
+	if replyHandle.RootID != "post-1" {
+		t.Fatalf("expected DM reply root to be post-1, got %q", replyHandle.RootID)
+	}
+	historyHandle, errorValue := decodePlatformHandle(event.Context.HistoryCursor)
+	if errorValue != nil {
+		t.Fatalf("expected history cursor to decode: %v", errorValue)
+	}
+	if historyHandle.ConversationID != "dm:dm-1" || historyHandle.RootID != "" || historyHandle.MessageID != "post-1" {
+		t.Fatalf("expected direct history cursor for thread root, got %+v", historyHandle)
 	}
 }
 
-func TestMattermostDirectMessageWithMentionUsesDirectConversation(t *testing.T) {
+func TestMattermostDirectMessageWithMentionStartsThreadWithDirectHistory(t *testing.T) {
 	event, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
 		ID:        "post-1",
 		UserID:    "user-1",
@@ -348,22 +355,22 @@ func TestMattermostDirectMessageWithMentionUsesDirectConversation(t *testing.T) 
 	if !hasEvent {
 		t.Fatal("expected direct message event")
 	}
-	if event.ConversationID != "dm:dm-1" {
-		t.Fatalf("expected mentioned dm to remain direct conversation, got %q", event.ConversationID)
+	if event.ConversationID != "thread:dm-1:post-1" {
+		t.Fatalf("expected mentioned dm to start thread conversation, got %q", event.ConversationID)
 	}
 	replyHandle, errorValue := decodePlatformHandle(event.ReplyTargetID)
 	if errorValue != nil {
 		t.Fatalf("expected reply target to decode: %v", errorValue)
 	}
-	if replyHandle.RootID != "" {
-		t.Fatalf("expected mentioned dm reply root to be empty, got %q", replyHandle.RootID)
+	if replyHandle.RootID != "post-1" {
+		t.Fatalf("expected mentioned dm reply root to be post-1, got %q", replyHandle.RootID)
 	}
 	historyHandle, errorValue := decodePlatformHandle(event.Context.HistoryCursor)
 	if errorValue != nil {
 		t.Fatalf("expected history cursor to decode: %v", errorValue)
 	}
-	if historyHandle.RootID != "" || historyHandle.MessageID != "post-1" || historyHandle.ChannelID != "dm-1" {
-		t.Fatalf("expected direct message history cursor, got %+v", historyHandle)
+	if historyHandle.ConversationID != "dm:dm-1" || historyHandle.RootID != "" || historyHandle.MessageID != "post-1" || historyHandle.ChannelID != "dm-1" {
+		t.Fatalf("expected direct history cursor for mentioned dm, got %+v", historyHandle)
 	}
 }
 
@@ -517,8 +524,9 @@ func TestMattermostContextUsesSingleNameForHistorySpeakers(t *testing.T) {
 			}{
 				Order: []string{"post-1", "post-2"},
 				Posts: map[string]mattermostHistoryPost{
-					"post-1": {ID: "post-1", UserID: "user-1", Message: "previous", CreateAt: 1000},
-					"post-2": {ID: "post-2", UserID: "user-2", Message: "current", CreateAt: 2000},
+					"post-1":       {ID: "post-1", UserID: "user-1", Message: "previous", CreateAt: 1000},
+					"thread-reply": {ID: "thread-reply", UserID: "bot-1", Message: "thread reply", RootID: "other-root", CreateAt: 1500},
+					"post-2":       {ID: "post-2", UserID: "user-2", Message: "current", CreateAt: 2000},
 				},
 			}), nil
 		case "/api/v4/users/user-1":
