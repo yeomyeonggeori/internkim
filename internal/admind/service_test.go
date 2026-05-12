@@ -19,6 +19,7 @@ import (
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 	companionruntime "gitlab.com/eastriver/internkim/internal/companion"
+	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 )
 
 func TestGatewayRoutesAdminAndMattermost(t *testing.T) {
@@ -2238,13 +2239,19 @@ func assertMattermostCalendarChannelCreate(t *testing.T, request *http.Request) 
 
 func assertMattermostChannelMember(t *testing.T, request *http.Request, expectedUserID string) {
 	t.Helper()
+	userID := mattermostChannelMemberUserID(t, request)
+	if userID != expectedUserID {
+		t.Fatalf("channel member = %q", userID)
+	}
+}
+
+func mattermostChannelMemberUserID(t *testing.T, request *http.Request) string {
+	t.Helper()
 	var payload map[string]string
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if payload["user_id"] != expectedUserID {
-		t.Fatalf("channel member = %#v", payload)
-	}
+	return payload["user_id"]
 }
 
 func assertMattermostFlowEntryPost(t *testing.T, request *http.Request, expectedMessages ...string) {
@@ -2671,8 +2678,10 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 	}
 	adminPasswordPath := filepath.Join(stateDirectory, "admin-pass")
 	fleetIDPath := filepath.Join(envDirectory, "fleet-id")
+	fleetSecretPath := filepath.Join(stateDirectory, "fleet-secret")
 	writeFile(t, adminPasswordPath, "admin-pass")
 	writeFile(t, fleetIDPath, "device-1")
+	writeFile(t, fleetSecretPath, "fleet-secret")
 	flowChannelCreated := false
 	flowChannelPatched := false
 	adminJoinedFlowChannel := false
@@ -2680,21 +2689,28 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 	calendarChannelPatched := false
 	adminJoinedCalendarChannel := false
 	adminJoinedAttendanceChannel := false
+	staffJoinedDefaultChannels := map[string]bool{}
 	service := NewService(Configuration{
 		StateDirectory:              stateDirectory,
 		MattermostBaseURL:           "http://mattermost.local",
+		APIBaseURL:                  "https://api.intern.test",
 		MattermostAdminPasswordPath: adminPasswordPath,
 		FleetIDPath:                 fleetIDPath,
+		FleetSecretPath:             fleetSecretPath,
 		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
+		case request.URL.String() == "https://api.intern.test/api/users?fleet_id=device-1":
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"staff@example.com","role":"member","mattermostUserID":"staff-1","mattermostUsername":"staff"}]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/username/admin":
 			return jsonResponse(http.StatusOK, `{"id":"admin","email":"admin@localhost","username":"admin"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/admin/roles" && request.Method == http.MethodPut:
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/staff-1":
+			return jsonResponse(http.StatusOK, `{"id":"staff-1","email":"staff@example.com","username":"staff"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
 			assertMattermostRuntimeSettingsPatch(t, request, "https://device-1.intern.kim")
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
@@ -2757,18 +2773,36 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 			t.Fatalf("unexpected post payload: %+v", payload)
 			return nil, nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/town-square-channel/members" && request.Method == http.MethodPost:
+			if mattermostChannelMemberUserID(t, request) == "staff-1" {
+				staffJoinedDefaultChannels["town-square-channel"] = true
+			}
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/members" && request.Method == http.MethodPost:
-			adminJoinedFlowChannel = true
-			assertMattermostChannelMember(t, request, "admin")
+			userID := mattermostChannelMemberUserID(t, request)
+			if userID == "admin" {
+				adminJoinedFlowChannel = true
+			}
+			if userID == "staff-1" {
+				staffJoinedDefaultChannels["flow-channel"] = true
+			}
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/members" && request.Method == http.MethodPost:
-			adminJoinedCalendarChannel = true
-			assertMattermostChannelMember(t, request, "admin")
+			userID := mattermostChannelMemberUserID(t, request)
+			if userID == "admin" {
+				adminJoinedCalendarChannel = true
+			}
+			if userID == "staff-1" {
+				staffJoinedDefaultChannels["calendar-channel"] = true
+			}
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members" && request.Method == http.MethodPost:
-			adminJoinedAttendanceChannel = true
-			assertMattermostChannelMember(t, request, "admin")
+			userID := mattermostChannelMemberUserID(t, request)
+			if userID == "admin" {
+				adminJoinedAttendanceChannel = true
+			}
+			if userID == "staff-1" {
+				staffJoinedDefaultChannels["attendance-channel"] = true
+			}
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		case isMattermostConnectCommandSetupRequest(request):
 			return mattermostConnectCommandSetupResponse(t, request), nil
@@ -2783,6 +2817,11 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 	}
 	if !flowChannelCreated || !flowChannelPatched || !adminJoinedFlowChannel || !calendarChannelCreated || !calendarChannelPatched || !adminJoinedCalendarChannel || !adminJoinedAttendanceChannel {
 		t.Fatalf("default channel setup flags flow=%v/%v/%v calendar=%v/%v/%v attendance=%v", flowChannelCreated, flowChannelPatched, adminJoinedFlowChannel, calendarChannelCreated, calendarChannelPatched, adminJoinedCalendarChannel, adminJoinedAttendanceChannel)
+	}
+	for _, channelID := range []string{"town-square-channel", "flow-channel", "calendar-channel", "attendance-channel"} {
+		if !staffJoinedDefaultChannels[channelID] {
+			t.Fatalf("staff was not joined to default channel %s: %#v", channelID, staffJoinedDefaultChannels)
+		}
 	}
 }
 
@@ -3890,8 +3929,14 @@ func assertMattermostNicknameDisplayPatch(t *testing.T, request *http.Request) {
 func assertMattermostManagedResourcePathPatch(t *testing.T, payload map[string]map[string]any) {
 	t.Helper()
 	serviceSettings := payload["ServiceSettings"]
-	if serviceSettings["ManagedResourcePaths"] != "admin,attendance,calendar,flow,mail" {
+	if serviceSettings["ManagedResourcePaths"] != mattermostdefaults.ManagedResourcePathSetting() {
 		t.Fatalf("managed resource paths = %#v", serviceSettings["ManagedResourcePaths"])
+	}
+	if serviceSettings["EnableUserAccessTokens"] != true {
+		t.Fatalf("user access tokens = %#v", serviceSettings["EnableUserAccessTokens"])
+	}
+	if serviceSettings["EnableBotAccountCreation"] != true {
+		t.Fatalf("bot account creation = %#v", serviceSettings["EnableBotAccountCreation"])
 	}
 }
 

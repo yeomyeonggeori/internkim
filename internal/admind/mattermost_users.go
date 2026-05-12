@@ -16,6 +16,7 @@ import (
 	"unicode"
 
 	"gitlab.com/eastriver/internkim/internal/identity"
+	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 )
 
 type adminUserMutation struct {
@@ -98,10 +99,10 @@ const mattermostProvisionerUsername = "admin"
 const mattermostProvisionerEmail = "admin@localhost"
 const firstAdminMattermostPassword = "admin"
 const mattermostTeammateNameDisplay = "nickname_full_name"
-const mattermostFlowChannelName = "flow"
-const mattermostFlowChannelDisplayName = "Flow"
-const mattermostCalendarChannelName = "calendar"
-const mattermostCalendarChannelDisplayName = "Calendar"
+const mattermostFlowChannelName = mattermostdefaults.FlowChannelName
+const mattermostFlowChannelDisplayName = mattermostdefaults.FlowChannelDisplayName
+const mattermostCalendarChannelName = mattermostdefaults.CalendarChannelName
+const mattermostCalendarChannelDisplayName = mattermostdefaults.CalendarChannelDisplayName
 
 func (service *Service) provisionMattermostUser(ctx context.Context, email string, role string) (mattermostProvisionResult, error) {
 	return service.provisionMattermostUserWithPassword(ctx, adminUserMutation{Email: email, Role: role}, "")
@@ -265,17 +266,15 @@ func (service *Service) ensureMattermostProvisionerDefaults(ctx context.Context)
 	if errorValue := service.ensureMattermostRuntimeSettings(ctx, adminToken); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := service.ensureMattermostMembership(ctx, adminToken, adminUser.ID); errorValue != nil {
-		return errorValue
-	}
 	teamRecord, errorValue := service.ensureMattermostTeam(ctx, adminToken)
 	if errorValue != nil {
 		return errorValue
 	}
-	if _, errorValue := service.ensureMattermostDefaultChannelIDs(ctx, adminToken, teamRecord.ID); errorValue != nil {
-		return errorValue
-	}
-	return service.ensureMattermostConnectCommand(ctx, adminToken)
+	channelIDs, channelError := service.ensureMattermostDefaultChannelIDs(ctx, adminToken, teamRecord.ID)
+	adminMembershipError := service.ensureMattermostDefaultChannelMembership(ctx, adminToken, teamRecord.ID, adminUser.ID, channelIDs)
+	userMembershipError := service.ensureMattermostDefaultChannelMemberships(ctx, adminToken, teamRecord.ID, channelIDs)
+	connectCommandError := service.ensureMattermostConnectCommand(ctx, adminToken)
+	return errors.Join(channelError, adminMembershipError, userMembershipError, connectCommandError)
 }
 
 func (service *Service) ensureMattermostProvisionerIdentity(ctx context.Context) (string, mattermostUserRecord, error) {
@@ -624,7 +623,9 @@ func (service *Service) ensureMattermostRuntimeSettings(ctx context.Context, tok
 
 func (service *Service) mattermostServiceSettingsPatch() map[string]any {
 	settings := map[string]any{
-		"ManagedResourcePaths": "admin,attendance,calendar,flow,mail",
+		"EnableBotAccountCreation": true,
+		"EnableUserAccessTokens":   true,
+		"ManagedResourcePaths":     mattermostdefaults.ManagedResourcePathSetting(),
 	}
 	if siteURL := strings.TrimRight(strings.TrimSpace(service.mattermostFlowBaseURL()), "/"); siteURL != "" {
 		settings["SiteURL"] = siteURL
@@ -639,15 +640,56 @@ func (service *Service) ensureMattermostMembership(ctx context.Context, token st
 	if errorValue != nil {
 		return errorValue
 	}
-	teamMember := map[string]string{
-		"team_id": teamRecord.ID,
-		"user_id": userID,
-	}
-	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/teams/"+url.PathEscape(teamRecord.ID)+"/members", token, teamMember, nil); errorValue != nil && !isMattermostBadRequest(errorValue) {
+	channelIDs, channelError := service.ensureMattermostDefaultChannelIDs(ctx, token, teamRecord.ID)
+	membershipError := service.ensureMattermostDefaultChannelMembership(ctx, token, teamRecord.ID, userID, channelIDs)
+	return errors.Join(channelError, membershipError)
+}
+
+func (service *Service) ensureMattermostDefaultChannelMemberships(ctx context.Context, token string, teamID string, channelIDs []string) error {
+	users, errorValue := service.allowedMattermostUsers(ctx, token)
+	if errorValue != nil {
 		return errorValue
 	}
+	var membershipErrors []error
+	for _, user := range users {
+		membershipErrors = append(membershipErrors, service.ensureMattermostDefaultChannelMembership(ctx, token, teamID, user.ID, channelIDs))
+	}
+	return errors.Join(membershipErrors...)
+}
 
-	channelIDs, channelError := service.ensureMattermostDefaultChannelIDs(ctx, token, teamRecord.ID)
+func (service *Service) allowedMattermostUsers(ctx context.Context, token string) ([]mattermostUserRecord, error) {
+	records, errorValue := service.currentUserRecords(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	users := make([]mattermostUserRecord, 0, len(records))
+	for _, record := range records {
+		if !isActiveFlowUser(record) {
+			continue
+		}
+		userRecord, found, errorValue := service.mattermostUserRecordForAdminRecord(ctx, token, record)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		if !found || userRecord.DeleteAt != 0 || isProtectedMattermostUser(userRecord) {
+			continue
+		}
+		users = append(users, userRecord)
+	}
+	return users, nil
+}
+
+func (service *Service) ensureMattermostDefaultChannelMembership(ctx context.Context, token string, teamID string, userID string, channelIDs []string) error {
+	if strings.TrimSpace(userID) == "" {
+		return nil
+	}
+	teamMember := map[string]string{
+		"team_id": teamID,
+		"user_id": userID,
+	}
+	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/teams/"+url.PathEscape(teamID)+"/members", token, teamMember, nil); errorValue != nil && !isMattermostBadRequest(errorValue) {
+		return errorValue
+	}
 	channelMember := map[string]string{"user_id": userID}
 	var membershipErrors []error
 	for _, channelID := range channelIDs {
@@ -661,7 +703,7 @@ func (service *Service) ensureMattermostMembership(ctx context.Context, token st
 	if flowChannelID := strings.TrimSpace(readTrimmedFile(service.mattermostFlowChannelIDPath())); flowChannelID != "" {
 		_ = service.cleanupMattermostFlowSystemPosts(ctx, token, flowChannelID)
 	}
-	return errors.Join(append(membershipErrors, channelError)...)
+	return errors.Join(membershipErrors...)
 }
 
 func (service *Service) ensureMattermostDefaultChannelIDs(ctx context.Context, token string, teamID string) ([]string, error) {
@@ -680,11 +722,26 @@ func (service *Service) ensureMattermostDefaultChannelIDs(ctx context.Context, t
 
 func (service *Service) mattermostDefaultChannelProvisions() []mattermostDefaultChannelProvision {
 	return []mattermostDefaultChannelProvision{
-		{Name: "town-square", Ensure: service.ensureMattermostTownSquareChannel},
+		{Name: mattermostdefaults.TownSquareChannelName, Ensure: service.ensureMattermostTownSquareChannel},
 		{Name: mattermostFlowChannelName, Ensure: service.ensureMattermostFlowChannel},
 		{Name: mattermostCalendarChannelName, Ensure: service.ensureMattermostCalendarChannel},
 		{Name: attendanceChannelName, Ensure: service.ensureMattermostAttendanceChannel},
 	}
+}
+
+func (service *Service) activeMattermostUsers(ctx context.Context, token string) ([]mattermostUserRecord, error) {
+	var users []mattermostUserRecord
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users?per_page=200", token, nil, &users); errorValue != nil {
+		return nil, errorValue
+	}
+	activeUsers := make([]mattermostUserRecord, 0, len(users))
+	for _, user := range users {
+		if user.DeleteAt != 0 || isProtectedMattermostUser(user) {
+			continue
+		}
+		activeUsers = append(activeUsers, user)
+	}
+	return activeUsers, nil
 }
 
 func (service *Service) ensureMattermostCircleChannels(ctx context.Context, token string) error {
