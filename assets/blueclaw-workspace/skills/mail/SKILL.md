@@ -1,7 +1,7 @@
 ---
 name: mail
-description: Read, search, draft, and send mail through InternKim's IMAP/SMTP mail tools.
-when_to_use: Use when the user asks to check, find, read, search, reply to, draft, or send email or mail.
+description: Read, search, draft, and send mail through InternKim's IMAP/SMTP mail tools. Use for 메일 확인, 이메일 검색, 받은메일, 최근 메일, 답장, 초안, and sending email.
+when_to_use: Use when the user asks to check, find, read, search, reply to, draft, or send email or mail; Korean examples include 메일 확인, 이메일 찾아줘, 최근 메일, 받은메일, GitHub에서 온 메일, 답장 써줘, 메일 보내줘.
 allowed-tools:
   - mail.message.list
   - mail.message.search
@@ -14,11 +14,23 @@ allowed-tools:
 
 Use InternKim mail tools for the configured IMAP/SMTP account.
 
+Never answer that you cannot access email before trying the relevant mail tool. If the user asks whether any email arrived from a sender or service, use `mail.message.search`.
+
 ## Reading
 
 Use `mail.message.list` for recent mail in a mailbox. Default to `INBOX` when the user does not name a mailbox.
 
 Use `mail.message.search` when the user asks for a specific sender, subject, keyword, or topic. Search requires `query`.
+
+For requests like "GitHub에서 온 최근 메일 있어?", call:
+
+```json
+{
+  "mailbox": "INBOX",
+  "query": "GitHub",
+  "limit": 10
+}
+```
 
 Both list and search return `nextCursor`. If the user asks for more, call the same tool again with that cursor.
 
