@@ -643,7 +643,7 @@ func (service *Service) ensureMattermostMembership(ctx context.Context, token st
 }
 
 func (service *Service) ensureMattermostDefaultChannelMemberships(ctx context.Context, token string, teamID string, channelIDs []string) error {
-	users, errorValue := service.activeMattermostUsers(ctx, token)
+	users, errorValue := service.allowedMattermostUsers(ctx, token)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -652,6 +652,28 @@ func (service *Service) ensureMattermostDefaultChannelMemberships(ctx context.Co
 		membershipErrors = append(membershipErrors, service.ensureMattermostDefaultChannelMembership(ctx, token, teamID, user.ID, channelIDs))
 	}
 	return errors.Join(membershipErrors...)
+}
+
+func (service *Service) allowedMattermostUsers(ctx context.Context, token string) ([]mattermostUserRecord, error) {
+	records, errorValue := service.currentUserRecords(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	users := make([]mattermostUserRecord, 0, len(records))
+	for _, record := range records {
+		if !isActiveFlowUser(record) {
+			continue
+		}
+		userRecord, found, errorValue := service.mattermostUserRecordForAdminRecord(ctx, token, record)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		if !found || userRecord.DeleteAt != 0 || isProtectedMattermostUser(userRecord) {
+			continue
+		}
+		users = append(users, userRecord)
+	}
+	return users, nil
 }
 
 func (service *Service) ensureMattermostDefaultChannelMembership(ctx context.Context, token string, teamID string, userID string, channelIDs []string) error {
