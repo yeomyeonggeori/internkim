@@ -246,6 +246,11 @@ func (registry Registry) Run(context *Context, selector Selector) error {
 		fmt.Println("  no steps selected")
 		return nil
 	}
+	previousPlannedSteps := context.PlannedSteps
+	context.PlannedSteps = plannedStepSet(plan)
+	defer func() {
+		context.PlannedSteps = previousPlannedSteps
+	}()
 	for index, name := range plan {
 		step := registry.byName(name)
 		title := step.Name
@@ -311,6 +316,14 @@ func isExplicitlySeeded(name string, selector Selector) bool {
 		return true
 	}
 	return false
+}
+
+func plannedStepSet(plan []string) map[string]bool {
+	plannedSteps := map[string]bool{}
+	for _, name := range plan {
+		plannedSteps[name] = true
+	}
+	return plannedSteps
 }
 
 func containsStepName(names []string, expectedName string) bool {

@@ -942,7 +942,7 @@ func (state *setupFlowState) installGoServiceBinarySSH(asset localBinaryAsset, s
 }
 
 func shouldInstallLocalLLMSSH(context *setup.Context) bool {
-	return context.BoardType != setup.BoardSimulation
+	return context.BoardType != setup.BoardSimulation && context.PlannedSteps["local-llm"]
 }
 
 func (state *setupFlowState) installSkillsSSH(context *setup.Context) error {

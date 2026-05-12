@@ -517,11 +517,25 @@ func TestSimulationBinariesSkipLocalLLMInstall(t *testing.T) {
 	}
 }
 
-func TestJetsonBinariesInstallLocalLLM(t *testing.T) {
-	context := &setup.Context{BoardType: setup.BoardJetsonOrinNano}
+func TestJetsonBinariesSkipLocalLLMWhenLocalLLMStepIsNotPlanned(t *testing.T) {
+	context := &setup.Context{
+		BoardType:    setup.BoardJetsonOrinNano,
+		PlannedSteps: map[string]bool{"binaries": true},
+	}
+
+	if shouldInstallLocalLLMSSH(context) {
+		t.Fatal("expected Jetson binaries to skip local LLM when local-llm is not planned")
+	}
+}
+
+func TestJetsonBinariesInstallLocalLLMWhenLocalLLMStepIsPlanned(t *testing.T) {
+	context := &setup.Context{
+		BoardType:    setup.BoardJetsonOrinNano,
+		PlannedSteps: map[string]bool{"local-llm": true},
+	}
 
 	if !shouldInstallLocalLLMSSH(context) {
-		t.Fatal("expected Jetson binaries to install local LLM")
+		t.Fatal("expected Jetson binaries to install local LLM when local-llm is planned")
 	}
 }
 
