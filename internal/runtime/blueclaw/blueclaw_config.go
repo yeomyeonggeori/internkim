@@ -89,6 +89,16 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 			},
 			"defaultEffortLevel": "standard",
 			"toolResultMaxBytes": 32768,
+			"failureRecovery": map[string]any{
+				"failureDebtFinalizationGate": true,
+				"attemptFingerprint":          "tool_input_error_code",
+				"recoveryBudget": map[string]any{
+					"correctedRetry": 1,
+					"alternateRoute": 1,
+					"adjacentTool":   2,
+					"noToolFallback": 1,
+				},
+			},
 		},
 		"connectors": map[string]any{
 			"mattermost": map[string]any{
