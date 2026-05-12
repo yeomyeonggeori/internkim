@@ -34,15 +34,17 @@ When testing against real platform surfaces such as Mattermost, Slack, or Signal
 
 - After changing Go setup/provisioning/runtime code, run `make build` before any `./internkim setup ...` command. The local `./internkim` binary is not rebuilt automatically, and stale setup binaries can write stale runtime config.
 - Use the smallest setup slice that matches the change. Do not default to broad redeploys.
+- Before any real-device setup that is not a trivial single-step deploy, run the same command with `--plan` and inspect the expanded steps. If the plan includes `binaries`, `local-llm`, `llama.cpp`, `llama-server`, CUDA, or Jetson model runtime work, stop unless that rebuild is explicitly required.
+- Never trigger CUDA, `llama.cpp`, `llama-server`, local model, or Jetson GPU runtime rebuilds for ordinary web, `admind`, `capabilityd`, Blueclaw agent-loop, runtime-config, prompt, skill, policy, or payload changes. Those rebuilds are only acceptable when local LLM/CUDA artifacts themselves changed, the target cache is known broken, or the user explicitly asks for that rebuild.
 - For Admin/Flow web UI-only changes, use `./internkim setup --only admin-web`.
 - For Admin/Flow web UI-only changes that must be redeployed even when the version cache says current, use `./internkim setup --only admin-web --force`.
 - For a small `internkim-admind` change, use `make build` and `./internkim setup --only admind --force`. Do not use `binaries,services`; it may rebuild unrelated runtime dependencies such as local LLM/CUDA assets.
 - For a small `internkim-capabilityd` change, use `make build` and `./internkim setup --only capabilityd --force`. Do not use `binaries,services` unless shared runtime files or multiple service binaries actually changed.
-- Use `./internkim setup --only binaries,services --force` only when broad binary/runtime installation is intentionally needed.
+- Do not run `./internkim setup --only binaries,services --force` by default. Use it only when broad binary/runtime installation is intentionally needed and the `--plan` output confirms no unwanted local LLM/CUDA rebuild, or the user explicitly accepts that rebuild.
 - For mixed web UI and small single-service changes, combine the narrow slices, such as `./internkim setup --only admin-web,admind --force`.
-- For broad mixed web UI and runtime changes, use `./internkim setup --only admin-web,binaries,services --force` only when the full binary/service set is intentionally in scope.
+- For broad mixed web UI and runtime changes, avoid `admin-web,binaries,services` unless the full binary/service set is intentionally in scope. Prefer separate narrow deploys and abort if the plan expands into CUDA/local LLM work.
 - For uncommitted Blueclaw submodule changes, run setup with `INTERNKIM_BLUECLAW_USE_LOCAL=1` so it builds the local `.dependency/blueclaw` worktree instead of pulling `origin/main`.
-- If those uncommitted Blueclaw changes must be included in the Firecracker payload, run `make prepare-blueclaw-payload` before setup and keep `INTERNKIM_BLUECLAW_USE_LOCAL=1` on setup.
+- If those uncommitted Blueclaw changes must be included in the Firecracker payload, run `make prepare-blueclaw-payload` before setup and keep `INTERNKIM_BLUECLAW_USE_LOCAL=1` on setup. Still run setup with `--plan` first; if the expanded plan includes binaries or local LLM/CUDA work, stop and choose a narrower deployment path instead of accepting the rebuild.
 - Avoid `--force-all` unless recovering a broken setup or explicitly asked. It reruns satisfied dependencies and is too heavy for normal iteration.
 - Do not include `--host`, `--user`, or `--password` in examples when the default/saved target works. Add those flags only when the user asks for a specific target or the default target cannot be resolved.
 - Do not run verify suites by reflex after UI-only deploys. Use targeted checks first; run full verify only for platform/runtime behavior changes or when explicitly requested.
