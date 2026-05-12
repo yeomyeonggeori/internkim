@@ -371,7 +371,7 @@ func TestMattermostSetupRegistersManagedResourcePaths(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected Mattermost managed resource paths, got %+v", serviceSettings)
 	}
-	if resourcePaths != "admin,calendar,flow,mail" {
+	if resourcePaths != "admin,attendance,calendar,flow,mail" {
 		t.Fatalf("unexpected Mattermost managed resource paths: %+v", resourcePaths)
 	}
 }
