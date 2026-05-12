@@ -397,7 +397,7 @@ build_blueclaw_base_binaries() {
   )
 }
 
-rootfs_base_packages="ca-certificates,curl,bash,coreutils,findutils,postgresql,postgresql-client,python3,python3-venv,python3-pip,iproute2,procps,mount,e2fsprogs,unzip,chromium,fontconfig,fonts-noto-cjk"
+rootfs_base_packages="ca-certificates,curl,bash,bc,coreutils,findutils,postgresql,postgresql-client,python3,python3-venv,python3-pip,iproute2,procps,mount,e2fsprogs,unzip,chromium,fontconfig,fonts-noto-cjk"
 rootfs_base_release="bookworm"
 rootfs_base_cache_path=""
 
@@ -510,6 +510,7 @@ ensure_rootfs_base() {
   ensure_rootfs_marp "$base_directory"
   run_root chroot "$base_directory" bun --version >/dev/null
   run_root chroot "$base_directory" bunx --version >/dev/null
+  run_root chroot "$base_directory" /bin/sh -c "command -v bc >/dev/null"
   run_root test -f "$base_directory/opt/blueclaw/marp/node_modules/@marp-team/marp-cli/marp-cli.js"
   run_root chroot "$base_directory" chromium --version >/dev/null
   run_root rm -f "$base_directory/opt/blueclaw/requirements.txt"
