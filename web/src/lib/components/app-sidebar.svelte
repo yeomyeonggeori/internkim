@@ -7,6 +7,7 @@
 	import BellIcon from '@lucide/svelte/icons/bell';
 	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
+	import ClipboardCheckIcon from '@lucide/svelte/icons/clipboard-check';
 	import CogIcon from '@lucide/svelte/icons/cog';
 	import ListChecksIcon from '@lucide/svelte/icons/list-checks';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
@@ -28,7 +29,8 @@
 	const appItems: NavigationItem[] = [
 		{ href: '/flow/', label: 'Flow', icon: ListChecksIcon },
 		{ href: '/calendar/', label: 'Calendar', icon: CalendarDaysIcon },
-		{ href: '/mail/', label: 'Mail', icon: MailIcon }
+		{ href: '/mail/', label: 'Mail', icon: MailIcon },
+		{ href: '/attendance/', label: '출결', icon: ClipboardCheckIcon }
 	];
 
 	const workspaceItems: NavigationItem[] = [{ href: '/admin/', label: 'Admin', icon: CogIcon }];

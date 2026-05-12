@@ -1211,7 +1211,7 @@ document["SqlSettings"]["DataSource"] = "postgres://mmuser:%%s@localhost/matterm
 document["ServiceSettings"]["SiteURL"] = os.environ["MATTERMOST_SITE_URL"]
 document["ServiceSettings"]["AllowCorsFrom"] = os.environ["MATTERMOST_SITE_URL"]
 document["ServiceSettings"]["CorsAllowCredentials"] = True
-document["ServiceSettings"]["ManagedResourcePaths"] = "admin,calendar,flow,mail"
+document["ServiceSettings"]["ManagedResourcePaths"] = "admin,attendance,calendar,flow,mail"
 document["TeamSettings"]["TeammateNameDisplay"] = "nickname_full_name"
 path.write_text(json.dumps(document, indent=2, sort_keys=True))
 PY
@@ -1709,7 +1709,7 @@ type mattermostSetupCommandRecord struct {
 const mattermostConnectSetupCommandTokenPath = "/root/.internkim/state/admin/mattermost-connect-command-token"
 
 func mattermostManagedResourcePaths() []string {
-	return []string{"admin", "calendar", "flow", "mail"}
+	return []string{"admin", "attendance", "calendar", "flow", "mail"}
 }
 
 func mattermostManagedResourcePathSetting() string {

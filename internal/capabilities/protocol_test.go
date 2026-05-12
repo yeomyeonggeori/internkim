@@ -98,6 +98,26 @@ func TestPlatformDMInspectDescriptorIsReadOnly(t *testing.T) {
 	}
 }
 
+func TestWebDescriptorsAreReadOnlyDefaultTools(t *testing.T) {
+	searchSchema := descriptorSchema(t, WebDescriptors(), "web.search")
+	fetchSchema := descriptorSchema(t, WebDescriptors(), "web.fetch")
+
+	assertSchemaHasProperties(t, searchSchema, "query", "location", "language", "limit", "allowedDomains", "excludedDomains")
+	assertSchemaRequires(t, searchSchema, "query")
+	assertSchemaHasProperties(t, fetchSchema, "urls", "maxContentTokens", "allowedDomains", "blockedDomains")
+	assertSchemaRequires(t, fetchSchema, "urls")
+	for _, descriptor := range WebDescriptors() {
+		if descriptor.SideEffectClass != "read" {
+			t.Fatalf("expected %s to be read-only, got %q", descriptor.Name, descriptor.SideEffectClass)
+		}
+	}
+	assertDescriptorApproval(t, WebDescriptors(), "web.search", false)
+	assertDescriptorApproval(t, WebDescriptors(), "web.fetch", false)
+	if !containsString(DefaultToolNames(), "web.search") || !containsString(DefaultToolNames(), "web.fetch") {
+		t.Fatalf("expected web tools in defaults, got %+v", DefaultToolNames())
+	}
+}
+
 func TestSiteAppDescriptorsUseRuntimeInputNames(t *testing.T) {
 	createSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.create")
 	publishSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.publish")
@@ -118,6 +138,8 @@ func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
 	assertDescriptorApproval(t, CalendarDescriptors(), "calendar.event.add", false)
 	assertDescriptorApproval(t, MailDescriptors(), "mail.message.send", true)
 	assertDescriptorApproval(t, MailDescriptors(), "mail.message.search", false)
+	assertDescriptorApproval(t, WebDescriptors(), "web.search", false)
+	assertDescriptorApproval(t, WebDescriptors(), "web.fetch", false)
 	assertDescriptorApproval(t, CalendarDescriptors(), "calendar.event.delete", true)
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site.app.create", false)
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site.app.publish", false)
@@ -175,6 +197,7 @@ func TestGoogleWorkspaceDescriptorsMatchSkillInputs(t *testing.T) {
 func TestCapabilityDescriptorSchemasAreCanonicalObjects(t *testing.T) {
 	descriptorGroups := [][]Descriptor{
 		CompanionToolDescriptors(),
+		WebDescriptors(),
 		PlatformMessageDescriptors(),
 		FlowDescriptors(),
 		CalendarDescriptors(),
@@ -319,4 +342,8 @@ func stringSliceContains(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func containsString(values []string, target string) bool {
+	return stringSliceContains(values, target)
 }
