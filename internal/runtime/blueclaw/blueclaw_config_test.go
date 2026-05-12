@@ -319,6 +319,8 @@ func TestLlamaCppEmbeddingServiceUnitRunsEmbeddingServer(t *testing.T) {
 		"--port " + locallm.LlamaCppEmbeddingPort,
 		"--embeddings",
 		"--pooling mean",
+		"--batch-size " + locallm.LlamaCppEmbeddingBatchSize,
+		"--ubatch-size " + locallm.LlamaCppEmbeddingUBatchSize,
 		"LD_LIBRARY_PATH=" + locallm.LlamaCppLibraryDir,
 		"Restart=on-failure",
 	} {
