@@ -16,6 +16,7 @@ import (
 	"unicode"
 
 	"gitlab.com/eastriver/internkim/internal/identity"
+	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 )
 
 type adminUserMutation struct {
@@ -98,10 +99,10 @@ const mattermostProvisionerUsername = "admin"
 const mattermostProvisionerEmail = "admin@localhost"
 const firstAdminMattermostPassword = "admin"
 const mattermostTeammateNameDisplay = "nickname_full_name"
-const mattermostFlowChannelName = "flow"
-const mattermostFlowChannelDisplayName = "Flow"
-const mattermostCalendarChannelName = "calendar"
-const mattermostCalendarChannelDisplayName = "Calendar"
+const mattermostFlowChannelName = mattermostdefaults.FlowChannelName
+const mattermostFlowChannelDisplayName = mattermostdefaults.FlowChannelDisplayName
+const mattermostCalendarChannelName = mattermostdefaults.CalendarChannelName
+const mattermostCalendarChannelDisplayName = mattermostdefaults.CalendarChannelDisplayName
 
 func (service *Service) provisionMattermostUser(ctx context.Context, email string, role string) (mattermostProvisionResult, error) {
 	return service.provisionMattermostUserWithPassword(ctx, adminUserMutation{Email: email, Role: role}, "")
@@ -622,7 +623,9 @@ func (service *Service) ensureMattermostRuntimeSettings(ctx context.Context, tok
 
 func (service *Service) mattermostServiceSettingsPatch() map[string]any {
 	settings := map[string]any{
-		"ManagedResourcePaths": "admin,attendance,calendar,flow,mail",
+		"EnableBotAccountCreation": true,
+		"EnableUserAccessTokens":   true,
+		"ManagedResourcePaths":     mattermostdefaults.ManagedResourcePathSetting(),
 	}
 	if siteURL := strings.TrimRight(strings.TrimSpace(service.mattermostFlowBaseURL()), "/"); siteURL != "" {
 		settings["SiteURL"] = siteURL
@@ -719,7 +722,7 @@ func (service *Service) ensureMattermostDefaultChannelIDs(ctx context.Context, t
 
 func (service *Service) mattermostDefaultChannelProvisions() []mattermostDefaultChannelProvision {
 	return []mattermostDefaultChannelProvision{
-		{Name: "town-square", Ensure: service.ensureMattermostTownSquareChannel},
+		{Name: mattermostdefaults.TownSquareChannelName, Ensure: service.ensureMattermostTownSquareChannel},
 		{Name: mattermostFlowChannelName, Ensure: service.ensureMattermostFlowChannel},
 		{Name: mattermostCalendarChannelName, Ensure: service.ensureMattermostCalendarChannel},
 		{Name: attendanceChannelName, Ensure: service.ensureMattermostAttendanceChannel},
