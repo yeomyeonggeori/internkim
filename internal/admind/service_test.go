@@ -2786,6 +2786,67 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 	}
 }
 
+func TestMattermostDefaultChannelProvisioningAttemptsAllChannels(t *testing.T) {
+	stateDirectory := t.TempDir()
+	envDirectory := filepath.Join(stateDirectory, "env")
+	if errorValue := os.MkdirAll(envDirectory, 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	attendanceChannelPatched := false
+	attendanceEntryCreated := false
+	service := NewService(Configuration{
+		StateDirectory:    stateDirectory,
+		FleetIDPath:       filepath.Join(envDirectory, "fleet-id"),
+		AdminEmailPath:    writeTestFile(t, "admin@example.com"),
+		MattermostBaseURL: "http://mattermost.local",
+	})
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/town-square":
+			return jsonResponse(http.StatusOK, `{"id":"town-square-channel"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/flow":
+			return jsonResponse(http.StatusOK, `{"id":"flow-channel"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/patch" && request.Method == http.MethodPut:
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/moderations/patch" && request.Method == http.MethodPut:
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/posts?per_page=50":
+			return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/posts?per_page=100":
+			return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/calendar":
+			return jsonResponse(http.StatusInternalServerError, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/attendance":
+			return jsonResponse(http.StatusOK, `{"id":"attendance-channel"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/patch" && request.Method == http.MethodPut:
+			attendanceChannelPatched = true
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/posts?per_page=50":
+			return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/posts" && request.Method == http.MethodPost:
+			attendanceEntryCreated = true
+			return jsonResponse(http.StatusCreated, `{"id":"attendance-entry"}`, nil), nil
+		default:
+			t.Fatalf("unexpected default channel request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	channelIDs, errorValue := service.ensureMattermostDefaultChannelIDs(context.Background(), "admin-token", "team-1")
+
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "calendar channel") {
+		t.Fatalf("default channel error = %v", errorValue)
+	}
+	for _, channelID := range []string{"town-square-channel", "flow-channel", "attendance-channel"} {
+		if !containsString(channelIDs, channelID) {
+			t.Fatalf("default channel ids = %#v", channelIDs)
+		}
+	}
+	if !attendanceChannelPatched || !attendanceEntryCreated {
+		t.Fatalf("attendance channel provisioning patch=%v entry=%v", attendanceChannelPatched, attendanceEntryCreated)
+	}
+}
+
 func TestMattermostConnectCommandProvisioningRecreatesCommandWithoutToken(t *testing.T) {
 	service := NewService(Configuration{
 		StateDirectory:    t.TempDir(),
