@@ -217,6 +217,9 @@ func TestBlueclawPolicyDocumentSeedsResourceFirstCircles(t *testing.T) {
 	if !containsPolicyResource(resourceAccess, "tool:flow.task.add", "staff") {
 		t.Fatalf("expected staff Flow tool rule, got %+v", resourceAccess)
 	}
+	if !containsPolicyResource(resourceAccess, "tool:mail.message.search", "staff") {
+		t.Fatalf("expected staff mail search tool rule, got %+v", resourceAccess)
+	}
 	if !containsPolicyResource(resourceAccess, "tool:company.broadcast.send", "representative") {
 		t.Fatalf("expected representative broadcast tool rule, got %+v", resourceAccess)
 	}
