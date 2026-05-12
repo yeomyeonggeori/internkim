@@ -34,6 +34,9 @@ var StepBlueclawConfiguration = Step{
 		}
 
 		context.SSH.Run(buildBlueclawConfigurationInstallCommand(runtimeConfiguration, policyConfiguration))
+		if serviceStatus := trimmedRun(context, "systemctl restart "+blueclaw.BlueclawServiceName+" && systemctl is-active "+blueclaw.BlueclawServiceName+" 2>/dev/null"); serviceStatus != "active" {
+			return fmt.Errorf("blueclaw restart after configuration deploy failed: %s", serviceStatus)
+		}
 
 		if runtimeCheck := trimmedRun(context, blueclawRuntimeContractCheckCommand()); runtimeCheck != "ok" {
 			return fmt.Errorf("blueclaw runtime configuration contract drift: %s", runtimeCheck)
