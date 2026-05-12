@@ -236,6 +236,9 @@ func TestBlueclawPolicyDocumentSeedsResourceFirstCircles(t *testing.T) {
 	if !containsPolicyResource(resourceAccess, "tool:flow.task.add", "staff") {
 		t.Fatalf("expected staff Flow tool rule, got %+v", resourceAccess)
 	}
+	if !containsPolicyResource(resourceAccess, "tool:mail.message.search", "staff") {
+		t.Fatalf("expected staff mail search tool rule, got %+v", resourceAccess)
+	}
 	if !containsPolicyResource(resourceAccess, "tool:company.broadcast.send", "representative") {
 		t.Fatalf("expected representative broadcast tool rule, got %+v", resourceAccess)
 	}
@@ -335,6 +338,8 @@ func TestLlamaCppEmbeddingServiceUnitRunsEmbeddingServer(t *testing.T) {
 		"--port " + locallm.LlamaCppEmbeddingPort,
 		"--embeddings",
 		"--pooling mean",
+		"--batch-size " + locallm.LlamaCppEmbeddingBatchSize,
+		"--ubatch-size " + locallm.LlamaCppEmbeddingUBatchSize,
 		"LD_LIBRARY_PATH=" + locallm.LlamaCppLibraryDir,
 		"Restart=on-failure",
 	} {
