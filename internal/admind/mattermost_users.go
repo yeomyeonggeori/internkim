@@ -263,6 +263,13 @@ func (service *Service) ensureMattermostProvisionerDefaults(ctx context.Context)
 	if errorValue := service.ensureMattermostMembership(ctx, adminToken, adminUser.ID); errorValue != nil {
 		return errorValue
 	}
+	teamRecord, errorValue := service.ensureMattermostTeam(ctx, adminToken)
+	if errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := service.ensureMattermostDefaultChannelIDs(ctx, adminToken, teamRecord.ID); errorValue != nil {
+		return errorValue
+	}
 	return service.ensureMattermostConnectCommand(ctx, adminToken)
 }
 
@@ -612,7 +619,7 @@ func (service *Service) ensureMattermostRuntimeSettings(ctx context.Context, tok
 
 func (service *Service) mattermostServiceSettingsPatch() map[string]any {
 	settings := map[string]any{
-		"ManagedResourcePaths": "admin,calendar,flow,mail",
+		"ManagedResourcePaths": "admin,attendance,calendar,flow,mail",
 	}
 	if siteURL := strings.TrimRight(strings.TrimSpace(service.mattermostFlowBaseURL()), "/"); siteURL != "" {
 		settings["SiteURL"] = siteURL
@@ -667,7 +674,11 @@ func (service *Service) ensureMattermostDefaultChannelIDs(ctx context.Context, t
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	return uniqueNonEmpty([]string{townSquareChannelID, flowChannelID, calendarChannelID}), nil
+	attendanceChannelID, errorValue := service.ensureMattermostAttendanceChannel(ctx, token, teamID)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return uniqueNonEmpty([]string{townSquareChannelID, flowChannelID, calendarChannelID, attendanceChannelID}), nil
 }
 
 func (service *Service) ensureMattermostCircleChannels(ctx context.Context, token string) error {
