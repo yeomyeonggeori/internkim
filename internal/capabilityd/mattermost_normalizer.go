@@ -101,7 +101,7 @@ func normalizeMattermostPost(post mattermostPost, botUserID string, channelType 
 
 	replyRootID := ""
 	if isDirect {
-		replyRootID = mattermostDirectReplyRootID(post, isBotMentioned)
+		replyRootID = mattermostDirectReplyRootID(post)
 	} else {
 		replyRootID = firstNonEmpty(post.RootID, post.ID)
 	}
@@ -146,14 +146,8 @@ func isDefaultMattermostChannel(channelName string) bool {
 	return false
 }
 
-func mattermostDirectReplyRootID(post mattermostPost, isBotMentioned bool) string {
-	if strings.TrimSpace(post.RootID) != "" {
-		return strings.TrimSpace(post.RootID)
-	}
-	if isBotMentioned {
-		return strings.TrimSpace(post.ID)
-	}
-	return ""
+func mattermostDirectReplyRootID(post mattermostPost) string {
+	return strings.TrimSpace(post.RootID)
 }
 
 func mattermostConversationID(channelType string, channelID string, rootID string) string {
