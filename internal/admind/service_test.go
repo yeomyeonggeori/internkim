@@ -1802,6 +1802,14 @@ func mattermostExistingFlowSetupResponse(t *testing.T, request *http.Request) *h
 		return jsonResponse(http.StatusOK, `{"order":["system-add"],"posts":{"system-add":{"id":"system-add","type":"system_add_to_channel","message":"lee added to the channel by admin."}}}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/posts/system-add" && request.Method == http.MethodDelete:
 		return jsonResponse(http.StatusOK, `{}`, nil)
+	case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/calendar":
+		return jsonResponse(http.StatusOK, `{"id":"calendar-channel"}`, nil)
+	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/patch" && request.Method == http.MethodPut:
+		assertMattermostCalendarChannelPatch(t, request, "[Calendar 열기](/calendar/)", "[Calendar 열기](https://dc719d8e.example.test/calendar/)")
+		return jsonResponse(http.StatusOK, `{}`, nil)
+	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/moderations/patch" && request.Method == http.MethodPut:
+		assertMattermostFlowChannelModerationPatch(t, request)
+		return jsonResponse(http.StatusOK, `{}`, nil)
 	default:
 		t.Fatalf("unexpected existing Flow setup request %s %s", request.Method, request.URL.String())
 		return nil
@@ -1932,6 +1940,14 @@ func isMattermostFlowSetupRequest(request *http.Request) bool {
 		return true
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/members":
 		return true
+	case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/calendar":
+		return true
+	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/patch" && request.Method == http.MethodPut:
+		return true
+	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/moderations/patch" && request.Method == http.MethodPut:
+		return true
+	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/members":
+		return true
 	default:
 		return false
 	}
@@ -1955,6 +1971,16 @@ func mattermostFlowSetupResponse(t *testing.T, request *http.Request) *http.Resp
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/posts?per_page=100":
 		return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/members":
+		return jsonResponse(http.StatusCreated, `{}`, nil)
+	case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/calendar":
+		return jsonResponse(http.StatusOK, `{"id":"calendar-channel"}`, nil)
+	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/patch" && request.Method == http.MethodPut:
+		assertMattermostCalendarChannelPatch(t, request, "[Calendar 열기](/calendar/)", "[Calendar 열기](https://dc719d8e.example.test/calendar/)")
+		return jsonResponse(http.StatusOK, `{}`, nil)
+	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/moderations/patch" && request.Method == http.MethodPut:
+		assertMattermostFlowChannelModerationPatch(t, request)
+		return jsonResponse(http.StatusOK, `{}`, nil)
+	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/members":
 		return jsonResponse(http.StatusCreated, `{}`, nil)
 	default:
 		t.Fatalf("unexpected Flow setup request %s %s", request.Method, request.URL.String())
@@ -2006,6 +2032,17 @@ func assertMattermostFlowChannelPatch(t *testing.T, request *http.Request, expec
 	}
 	if payload["display_name"] != "Flow" || !containsString(expectedFlowLinks, payload["header"]) || payload["purpose"] != "" {
 		t.Fatalf("flow channel patch = %#v", payload)
+	}
+}
+
+func assertMattermostCalendarChannelPatch(t *testing.T, request *http.Request, expectedCalendarLinks ...string) {
+	t.Helper()
+	var payload map[string]string
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if payload["display_name"] != "Calendar" || !containsString(expectedCalendarLinks, payload["header"]) || payload["purpose"] != "" {
+		t.Fatalf("calendar channel patch = %#v", payload)
 	}
 }
 
@@ -2061,6 +2098,38 @@ func assertMattermostFlowChannelCreate(t *testing.T, request *http.Request) {
 	}
 	if payload["team_id"] != "team-1" || payload["name"] != "flow" || payload["display_name"] != "Flow" || payload["type"] != "O" {
 		t.Fatalf("flow channel create = %#v", payload)
+	}
+}
+
+func mattermostChannelCreateName(t *testing.T, request *http.Request) string {
+	t.Helper()
+	var payload map[string]string
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	switch payload["name"] {
+	case "flow":
+		if payload["team_id"] != "team-1" || payload["display_name"] != "Flow" || payload["type"] != "O" {
+			t.Fatalf("flow channel create = %#v", payload)
+		}
+	case "calendar":
+		if payload["team_id"] != "team-1" || payload["display_name"] != "Calendar" || payload["type"] != "O" {
+			t.Fatalf("calendar channel create = %#v", payload)
+		}
+	default:
+		t.Fatalf("channel create = %#v", payload)
+	}
+	return payload["name"]
+}
+
+func assertMattermostCalendarChannelCreate(t *testing.T, request *http.Request) {
+	t.Helper()
+	var payload map[string]string
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if payload["team_id"] != "team-1" || payload["name"] != "calendar" || payload["display_name"] != "Calendar" || payload["type"] != "O" {
+		t.Fatalf("calendar channel create = %#v", payload)
 	}
 }
 
@@ -2504,6 +2573,9 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 	flowChannelCreated := false
 	flowChannelPatched := false
 	adminJoinedFlowChannel := false
+	calendarChannelCreated := false
+	calendarChannelPatched := false
+	adminJoinedCalendarChannel := false
 	service := NewService(Configuration{
 		StateDirectory:              stateDirectory,
 		MattermostBaseURL:           "http://mattermost.local",
@@ -2531,9 +2603,17 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/flow":
 			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels" && request.Method == http.MethodPost:
-			flowChannelCreated = true
-			assertMattermostFlowChannelCreate(t, request)
-			return jsonResponse(http.StatusCreated, `{"id":"flow-channel"}`, nil), nil
+			channelName := mattermostChannelCreateName(t, request)
+			if channelName == "flow" {
+				flowChannelCreated = true
+				return jsonResponse(http.StatusCreated, `{"id":"flow-channel"}`, nil), nil
+			}
+			if channelName == "calendar" {
+				calendarChannelCreated = true
+				return jsonResponse(http.StatusCreated, `{"id":"calendar-channel"}`, nil), nil
+			}
+			t.Fatalf("unexpected created channel name %q", channelName)
+			return nil, nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/patch" && request.Method == http.MethodPut:
 			flowChannelPatched = true
 			assertMattermostFlowChannelPatch(t, request, "[Flow 열기](https://device-1.example.test/flow/)")
@@ -2545,10 +2625,23 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/posts?per_page=100":
 			return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/calendar":
+			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/patch" && request.Method == http.MethodPut:
+			calendarChannelPatched = true
+			assertMattermostCalendarChannelPatch(t, request, "[Calendar 열기](https://device-1.example.test/calendar/)")
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/moderations/patch" && request.Method == http.MethodPut:
+			assertMattermostFlowChannelModerationPatch(t, request)
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/town-square-channel/members" && request.Method == http.MethodPost:
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/members" && request.Method == http.MethodPost:
 			adminJoinedFlowChannel = true
+			assertMattermostChannelMember(t, request, "admin")
+			return jsonResponse(http.StatusCreated, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/members" && request.Method == http.MethodPost:
+			adminJoinedCalendarChannel = true
 			assertMattermostChannelMember(t, request, "admin")
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		case isMattermostConnectCommandSetupRequest(request):
@@ -2562,8 +2655,8 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 	if errorValue := service.ensureMattermostProvisionerDefaults(context.Background()); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !flowChannelCreated || !flowChannelPatched || !adminJoinedFlowChannel {
-		t.Fatalf("flow setup flags created=%v patched=%v joined=%v", flowChannelCreated, flowChannelPatched, adminJoinedFlowChannel)
+	if !flowChannelCreated || !flowChannelPatched || !adminJoinedFlowChannel || !calendarChannelCreated || !calendarChannelPatched || !adminJoinedCalendarChannel {
+		t.Fatalf("default channel setup flags flow=%v/%v/%v calendar=%v/%v/%v", flowChannelCreated, flowChannelPatched, adminJoinedFlowChannel, calendarChannelCreated, calendarChannelPatched, adminJoinedCalendarChannel)
 	}
 }
 
