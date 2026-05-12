@@ -52,6 +52,7 @@ type calendarEvent struct {
 	ReminderLeadHours int      `json:"reminderLeadHours"`
 	CreatedByEmail    string   `json:"createdByEmail"`
 	UpdatedAt         string   `json:"updatedAt"`
+	MattermostPostID  string   `json:"mattermostPostID,omitempty"`
 	RawICS            string   `json:"-"`
 }
 
@@ -229,6 +230,7 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 	}
 	event.UID = existingEvent.UID
 	event.CreatedByEmail = existingEvent.CreatedByEmail
+	event.MattermostPostID = existingEvent.MattermostPostID
 	if errorValue := service.writeCalendarEvent(request.Context(), event); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
@@ -487,6 +489,7 @@ CREATE TABLE IF NOT EXISTS calendar_events (
 	raw_ics TEXT NOT NULL,
 	reminder_lead_hours INTEGER NOT NULL DEFAULT 24,
 	created_by_email TEXT NOT NULL,
+	mattermost_post_id TEXT NOT NULL DEFAULT '',
 	updated_at TEXT NOT NULL,
 	deleted_at TEXT NOT NULL
 )`)
@@ -494,6 +497,9 @@ CREATE TABLE IF NOT EXISTS calendar_events (
 		return errorValue
 	}
 	if errorValue := ensureCalendarColumn(ctx, database, "calendar_events", "reminder_lead_hours", "INTEGER NOT NULL DEFAULT 24"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_events", "mattermost_post_id", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
 		return errorValue
 	}
 	_, errorValue = database.ExecContext(ctx, `
@@ -555,7 +561,7 @@ func (service *Service) readCalendarEvents(ctx context.Context, startTime time.T
 	}
 	defer database.Close()
 	query := `
-SELECT id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, updated_at
+SELECT id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, mattermost_post_id, updated_at
 FROM calendar_events
 WHERE deleted_at = ''`
 	arguments := []any{}
@@ -595,7 +601,7 @@ func (service *Service) readCalendarEvent(ctx context.Context, columnName string
 	}
 	defer database.Close()
 	row := database.QueryRowContext(ctx, `
-SELECT id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, updated_at
+SELECT id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, mattermost_post_id, updated_at
 FROM calendar_events
 WHERE deleted_at = '' AND `+columnName+` = ?`, strings.TrimSpace(value))
 	event, errorValue := scanCalendarEvent(row)
@@ -629,6 +635,7 @@ func scanCalendarEvent(scanner calendarEventScanner) (calendarEvent, error) {
 		&event.RawICS,
 		&event.ReminderLeadHours,
 		&event.CreatedByEmail,
+		&event.MattermostPostID,
 		&event.UpdatedAt,
 	)
 	event.IsAllDay = isAllDay == 1
@@ -645,8 +652,8 @@ func (service *Service) writeCalendarEvent(ctx context.Context, event calendarEv
 	updatedAt := time.Now().UTC().Format(time.RFC3339Nano)
 	_, errorValue = database.ExecContext(ctx, `
 INSERT INTO calendar_events (
-	id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, updated_at, deleted_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '')
+	id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, mattermost_post_id, updated_at, deleted_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '')
 ON CONFLICT(id) DO UPDATE SET
 	uid = excluded.uid,
 	title = excluded.title,
@@ -659,6 +666,7 @@ ON CONFLICT(id) DO UPDATE SET
 	color = excluded.color,
 	raw_ics = excluded.raw_ics,
 	reminder_lead_hours = excluded.reminder_lead_hours,
+	mattermost_post_id = excluded.mattermost_post_id,
 	updated_at = excluded.updated_at,
 	deleted_at = ''`,
 		event.ID,
@@ -674,16 +682,25 @@ ON CONFLICT(id) DO UPDATE SET
 		event.RawICS,
 		normalizeCalendarReminderLeadHours(event.ReminderLeadHours),
 		event.CreatedByEmail,
+		event.MattermostPostID,
 		updatedAt,
 	)
 	event.UpdatedAt = updatedAt
 	if errorValue == nil {
 		service.upsertCalendarNotifications(ctx, event)
+		service.syncCalendarMattermostLog(ctx, event)
 	}
 	return errorValue
 }
 
 func (service *Service) softDeleteCalendarEvent(ctx context.Context, eventID string) error {
+	event, found, errorValue := service.readCalendarEventByID(ctx, eventID)
+	if errorValue != nil {
+		return errorValue
+	}
+	if !found {
+		return sql.ErrNoRows
+	}
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
 		return errorValue
@@ -703,7 +720,171 @@ func (service *Service) softDeleteCalendarEvent(ctx context.Context, eventID str
 	if errorValue := service.cancelCalendarNotifications(ctx, eventID); errorValue != nil {
 		log.Printf("calendar notification cancel failed: %v", errorValue)
 	}
+	service.deleteCalendarMattermostLog(ctx, event)
 	return nil
+}
+
+func (service *Service) updateCalendarEventMattermostPostID(ctx context.Context, eventID string, postID string) error {
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	_, errorValue = database.ExecContext(ctx, "UPDATE calendar_events SET mattermost_post_id = ?, updated_at = ? WHERE id = ?", strings.TrimSpace(postID), time.Now().UTC().Format(time.RFC3339Nano), strings.TrimSpace(eventID))
+	return errorValue
+}
+
+func (service *Service) syncCalendarMattermostLog(ctx context.Context, event calendarEvent) calendarEvent {
+	nextEvent, errorValue := service.trySyncCalendarMattermostLog(ctx, event)
+	if errorValue != nil {
+		log.Printf("calendar Mattermost log sync failed: %v", errorValue)
+		return event
+	}
+	return nextEvent
+}
+
+func (service *Service) trySyncCalendarMattermostLog(ctx context.Context, event calendarEvent) (calendarEvent, error) {
+	if strings.TrimSpace(service.Configuration.MattermostAdminPasswordPath) == "" {
+		return event, nil
+	}
+	adminToken, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		return event, errorValue
+	}
+	teamRecord, errorValue := service.ensureMattermostTeam(ctx, adminToken)
+	if errorValue != nil {
+		return event, errorValue
+	}
+	channelID, errorValue := service.ensureMattermostCalendarChannel(ctx, adminToken, teamRecord.ID)
+	if errorValue != nil {
+		return event, errorValue
+	}
+	if strings.TrimSpace(event.MattermostPostID) == "" {
+		return service.createCalendarMattermostLog(ctx, adminToken, channelID, event)
+	}
+	body := map[string]any{
+		"message": service.calendarMattermostLogMessage(event),
+		"props":   calendarMattermostLogProps(event),
+	}
+	if errorValue := service.mattermostRequest(ctx, http.MethodPut, "/api/v4/posts/"+url.PathEscape(event.MattermostPostID)+"/patch", adminToken, body, nil); errorValue != nil {
+		return event, errorValue
+	}
+	return event, nil
+}
+
+func (service *Service) createCalendarMattermostLog(ctx context.Context, token string, channelID string, event calendarEvent) (calendarEvent, error) {
+	body := map[string]any{
+		"channel_id": channelID,
+		"message":    service.calendarMattermostLogMessage(event),
+		"props":      calendarMattermostLogProps(event),
+	}
+	var response struct {
+		ID string `json:"id"`
+	}
+	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", token, body, &response); errorValue != nil {
+		return event, errorValue
+	}
+	event.MattermostPostID = strings.TrimSpace(response.ID)
+	if event.MattermostPostID == "" {
+		return event, nil
+	}
+	return event, service.updateCalendarEventMattermostPostID(ctx, event.ID, event.MattermostPostID)
+}
+
+func (service *Service) deleteCalendarMattermostLog(ctx context.Context, event calendarEvent) {
+	if errorValue := service.tryDeleteCalendarMattermostLog(ctx, event); errorValue != nil {
+		log.Printf("calendar Mattermost log delete failed: %v", errorValue)
+	}
+}
+
+func (service *Service) tryDeleteCalendarMattermostLog(ctx context.Context, event calendarEvent) error {
+	if strings.TrimSpace(event.MattermostPostID) == "" || strings.TrimSpace(service.Configuration.MattermostAdminPasswordPath) == "" {
+		return nil
+	}
+	adminToken, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	return service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/posts/"+url.PathEscape(event.MattermostPostID), adminToken, nil, nil)
+}
+
+func (service *Service) calendarMattermostLogMessage(event calendarEvent) string {
+	lines := []string{fmt.Sprintf("**%s · %s**", calendarMattermostEventDateText(event), event.Title)}
+	if strings.TrimSpace(event.Location) != "" {
+		lines = append(lines, "장소: "+strings.TrimSpace(event.Location))
+	}
+	if peopleText := calendarMattermostPeopleText(event); peopleText != "" {
+		lines = append(lines, "대상: "+peopleText)
+	}
+	if note := calendarMattermostNoteText(event.Description); note != "" {
+		lines = append(lines, "메모: "+note)
+	}
+	lines = append(lines, service.mattermostCalendarLink(event.StartISO))
+	return strings.Join(lines, "\n")
+}
+
+func calendarMattermostLogProps(event calendarEvent) map[string]any {
+	return map[string]any{
+		"internkim_calendar_event":    true,
+		"internkim_calendar_event_id": event.ID,
+	}
+}
+
+func calendarMattermostEventDateText(event calendarEvent) string {
+	startTime, startError := time.Parse(time.RFC3339, strings.TrimSpace(event.StartISO))
+	endTime, endError := time.Parse(time.RFC3339, strings.TrimSpace(event.EndISO))
+	if startError != nil || endError != nil {
+		return strings.TrimSpace(event.StartISO + " - " + event.EndISO)
+	}
+	location := time.Local
+	if parsedLocation, errorValue := time.LoadLocation(firstNonEmpty(strings.TrimSpace(event.TimeZone), "UTC")); errorValue == nil {
+		location = parsedLocation
+	}
+	startTime = startTime.In(location)
+	endTime = endTime.In(location)
+	if event.IsAllDay {
+		return startTime.Format("2006-01-02")
+	}
+	return startTime.Format("2006-01-02 15:04") + " - " + endTime.Format("15:04")
+}
+
+func calendarMattermostPeopleText(event calendarEvent) string {
+	people, hasPeopleLine := calendarPeopleFromDescription(event.Description)
+	if hasPeopleLine && len(people) > 0 {
+		return strings.Join(people, ", ")
+	}
+	return "전체"
+}
+
+func calendarMattermostNoteText(description string) string {
+	lines := strings.Split(strings.TrimSpace(description), "\n")
+	if len(lines) == 0 {
+		return ""
+	}
+	_, hasPeopleLine := calendarPeopleFromDescription(description)
+	if hasPeopleLine && len(lines) > 1 {
+		return strings.TrimSpace(strings.Join(lines[1:], "\n"))
+	}
+	if hasPeopleLine {
+		return ""
+	}
+	return strings.TrimSpace(description)
+}
+
+func (service *Service) mattermostCalendarLink(startISO string) string {
+	return "[Calendar 열기](" + service.mattermostCalendarURL(startISO) + ")"
+}
+
+func (service *Service) mattermostCalendarURL(startISO string) string {
+	path := "/calendar/"
+	if startTime, errorValue := time.Parse(time.RFC3339, strings.TrimSpace(startISO)); errorValue == nil {
+		path += "?date=" + url.QueryEscape(startTime.Format("2006-01-02"))
+	}
+	baseURL := strings.TrimRight(strings.TrimSpace(service.mattermostFlowBaseURL()), "/")
+	if baseURL == "" {
+		return path
+	}
+	return baseURL + path
 }
 
 func (service *Service) startCalendarNotificationWorker(ctx context.Context) {
@@ -832,18 +1013,7 @@ func (service *Service) calendarMattermostUsers(ctx context.Context) ([]mattermo
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	var users []mattermostUserRecord
-	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users?per_page=200", token, nil, &users); errorValue != nil {
-		return nil, errorValue
-	}
-	activeUsers := make([]mattermostUserRecord, 0, len(users))
-	for _, user := range users {
-		if user.DeleteAt != 0 || isProtectedMattermostUser(user) {
-			continue
-		}
-		activeUsers = append(activeUsers, user)
-	}
-	return activeUsers, nil
+	return service.activeMattermostUsers(ctx, token)
 }
 
 func calendarTargetsForPeople(people []string, users []mattermostUserRecord) []calendarNotificationTarget {
@@ -1438,6 +1608,7 @@ func (backend calendarDAVBackend) PutCalendarObject(ctx context.Context, path st
 		return nil, errorValue
 	} else if found {
 		event.CreatedByEmail = existingEvent.CreatedByEmail
+		event.MattermostPostID = existingEvent.MattermostPostID
 	}
 	if errorValue := backend.service.writeCalendarEvent(ctx, event); errorValue != nil {
 		return nil, errorValue

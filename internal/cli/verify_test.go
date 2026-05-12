@@ -12,8 +12,11 @@ func TestVerifyMattermostScriptDeletesTestMessagesAndBotReplies(t *testing.T) {
 		"delete_user",
 		"delete_stale_verify_users",
 		"delete_verify_replies",
+		"delete_verify_channel",
 		"http://localhost:8065/api/v4/posts/$post_id",
+		"curl --fail --silent --show-error -X DELETE",
 		"http://localhost:8065/api/v4/users/$user_id?permanent=true",
+		"http://localhost:8065/api/v4/users/$user_id\" >/dev/null",
 		"invited_post_id",
 		"uninvited_post_id",
 		".user_id == $bot_user_id and .create_at >= $test_started_at",
@@ -22,6 +25,24 @@ func TestVerifyMattermostScriptDeletesTestMessagesAndBotReplies(t *testing.T) {
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("expected Mattermost verify cleanup to include %q", fragment)
 		}
+	}
+}
+
+func TestVerifyMattermostScriptUsesTemporaryChannel(t *testing.T) {
+	script := verifyMattermostScript()
+	requiredFragments := []string{
+		"create_verify_channel",
+		"verify_channel_name=\"verify-$timestamp\"",
+		`'{team_id:$team_id,name:$name,display_name:$display_name,type:"P"}'`,
+		"join_channel \"$bot_user_id\"",
+	}
+	for _, fragment := range requiredFragments {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected Mattermost verify temporary channel setup to include %q", fragment)
+		}
+	}
+	if strings.Contains(script, "/root/.internkim/env/channel-id") {
+		t.Fatal("expected Mattermost verify to avoid posting into the configured Town Square channel")
 	}
 }
 
@@ -42,6 +63,8 @@ func TestVerifyMattermostScriptUsesStrictChannelMembership(t *testing.T) {
 func TestVerifyMattermostPromptScriptCanRequireBrowserOpenSuccess(t *testing.T) {
 	script := verifyMattermostPromptScript("브라우저 열어줘.", false, 90, true, nil, nil)
 	requiredFragments := []string{
+		"delete_stale_probe_users",
+		"probe-mattermost-",
 		"expect_browser_open=true",
 		"tool.browser.open.result",
 		".isError != true",

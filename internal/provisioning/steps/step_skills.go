@@ -3,6 +3,8 @@ package setup
 import (
 	"errors"
 	"fmt"
+
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 const skillsManifestPath = "/root/.blueclaw/workspace/skills/.internkim-skills-manifest.json"
@@ -34,7 +36,15 @@ var StepSkills = Step{
 		if context.Callbacks.InstallSkillsSSH == nil {
 			return errors.New("skills SSH callback missing")
 		}
-		return context.Callbacks.InstallSkillsSSH(context)
+		if errorValue := context.Callbacks.InstallSkillsSSH(context); errorValue != nil {
+			return errorValue
+		}
+		if context.Backend == BackendSSH && context.SSH != nil {
+			if serviceStatus := trimmedRun(context, "systemctl restart "+blueclaw.BlueclawServiceName+" && systemctl is-active "+blueclaw.BlueclawServiceName+" 2>/dev/null"); serviceStatus != "active" {
+				return fmt.Errorf("blueclaw restart after skills deploy failed: %s", serviceStatus)
+			}
+		}
+		return nil
 	},
 	RunSD: func(context *Context) error {
 		if context.Callbacks.StageSkillsSD != nil {
