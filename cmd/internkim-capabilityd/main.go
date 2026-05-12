@@ -25,6 +25,7 @@ func main() {
 	flag.StringVar(&configuration.LocalLLMRunnerPath, "local-llm-runner", defaultConfiguration.LocalLLMRunnerPath, "local LLM runner path")
 	flag.StringVar(&configuration.OpenRouterEmbeddingBaseURL, "openrouter-embedding-url", defaultConfiguration.OpenRouterEmbeddingBaseURL, "OpenRouter embedding URL")
 	flag.StringVar(&configuration.OpenRouterEmbeddingModel, "openrouter-embedding-model", defaultConfiguration.OpenRouterEmbeddingModel, "OpenRouter embedding model")
+	flag.StringVar(&configuration.OpenRouterWebBaseURL, "openrouter-web-url", defaultConfiguration.OpenRouterWebBaseURL, "OpenRouter web tool chat completion URL")
 	flag.StringVar(&configuration.OllamaBaseURL, "ollama-url", defaultConfiguration.OllamaBaseURL, "Ollama base URL")
 	flag.StringVar(&configuration.OllamaModel, "ollama-model", defaultConfiguration.OllamaModel, "Ollama local model")
 	flag.StringVar(&configuration.LlamaCppBaseURL, "llamacpp-url", defaultConfiguration.LlamaCppBaseURL, "llama.cpp server base URL")

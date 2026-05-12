@@ -43,6 +43,7 @@ type Configuration struct {
 	AdmindBaseURL              string
 	OpenRouterBaseURL          string
 	OpenRouterModel            string
+	OpenRouterWebBaseURL       string
 	OpenRouterEmbeddingBaseURL string
 	OpenRouterEmbeddingModel   string
 	EmbeddingProviderOrder     []string
@@ -144,6 +145,7 @@ func DefaultConfiguration() Configuration {
 		AdmindBaseURL:              "http://127.0.0.1:18080",
 		OpenRouterBaseURL:          "https://openrouter.ai/api/v1/chat/completions",
 		OpenRouterModel:            "google/gemini-3.1-flash-lite-preview",
+		OpenRouterWebBaseURL:       "https://openrouter.ai/api/v1/chat/completions",
 		OpenRouterEmbeddingBaseURL: "https://openrouter.ai/api/v1/embeddings",
 		OpenRouterEmbeddingModel:   "embeddinggemma",
 		EmbeddingProviderOrder:     llmbackend.DefaultLocalEmbeddingProviderOrder,
@@ -1340,6 +1342,12 @@ func (configuration Configuration) WithDefaults() Configuration {
 	}
 	if configuration.OpenRouterBaseURL == "" {
 		configuration.OpenRouterBaseURL = defaultConfiguration.OpenRouterBaseURL
+	}
+	if configuration.OpenRouterModel == "" {
+		configuration.OpenRouterModel = defaultConfiguration.OpenRouterModel
+	}
+	if configuration.OpenRouterWebBaseURL == "" {
+		configuration.OpenRouterWebBaseURL = defaultConfiguration.OpenRouterWebBaseURL
 	}
 	if configuration.OpenRouterEmbeddingBaseURL == "" {
 		configuration.OpenRouterEmbeddingBaseURL = defaultConfiguration.OpenRouterEmbeddingBaseURL
