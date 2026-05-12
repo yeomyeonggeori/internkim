@@ -2238,13 +2238,19 @@ func assertMattermostCalendarChannelCreate(t *testing.T, request *http.Request) 
 
 func assertMattermostChannelMember(t *testing.T, request *http.Request, expectedUserID string) {
 	t.Helper()
+	userID := mattermostChannelMemberUserID(t, request)
+	if userID != expectedUserID {
+		t.Fatalf("channel member = %q", userID)
+	}
+}
+
+func mattermostChannelMemberUserID(t *testing.T, request *http.Request) string {
+	t.Helper()
 	var payload map[string]string
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if payload["user_id"] != expectedUserID {
-		t.Fatalf("channel member = %#v", payload)
-	}
+	return payload["user_id"]
 }
 
 func assertMattermostFlowEntryPost(t *testing.T, request *http.Request, expectedMessages ...string) {
@@ -2680,6 +2686,7 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 	calendarChannelPatched := false
 	adminJoinedCalendarChannel := false
 	adminJoinedAttendanceChannel := false
+	staffJoinedDefaultChannels := map[string]bool{}
 	service := NewService(Configuration{
 		StateDirectory:              stateDirectory,
 		MattermostBaseURL:           "http://mattermost.local",
@@ -2695,6 +2702,8 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"admin","email":"admin@localhost","username":"admin"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/admin/roles" && request.Method == http.MethodPut:
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users?per_page=200":
+			return jsonResponse(http.StatusOK, `[{"id":"staff-1","email":"staff@example.com","username":"staff"},{"id":"bot-1","email":"bot@example.com","username":"internkim"},{"id":"deleted-1","email":"deleted@example.com","username":"deleted","delete_at":1}]`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
 			assertMattermostRuntimeSettingsPatch(t, request, "https://device-1.example.test")
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
@@ -2757,18 +2766,36 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 			t.Fatalf("unexpected post payload: %+v", payload)
 			return nil, nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/town-square-channel/members" && request.Method == http.MethodPost:
+			if mattermostChannelMemberUserID(t, request) == "staff-1" {
+				staffJoinedDefaultChannels["town-square-channel"] = true
+			}
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/members" && request.Method == http.MethodPost:
-			adminJoinedFlowChannel = true
-			assertMattermostChannelMember(t, request, "admin")
+			userID := mattermostChannelMemberUserID(t, request)
+			if userID == "admin" {
+				adminJoinedFlowChannel = true
+			}
+			if userID == "staff-1" {
+				staffJoinedDefaultChannels["flow-channel"] = true
+			}
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/members" && request.Method == http.MethodPost:
-			adminJoinedCalendarChannel = true
-			assertMattermostChannelMember(t, request, "admin")
+			userID := mattermostChannelMemberUserID(t, request)
+			if userID == "admin" {
+				adminJoinedCalendarChannel = true
+			}
+			if userID == "staff-1" {
+				staffJoinedDefaultChannels["calendar-channel"] = true
+			}
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members" && request.Method == http.MethodPost:
-			adminJoinedAttendanceChannel = true
-			assertMattermostChannelMember(t, request, "admin")
+			userID := mattermostChannelMemberUserID(t, request)
+			if userID == "admin" {
+				adminJoinedAttendanceChannel = true
+			}
+			if userID == "staff-1" {
+				staffJoinedDefaultChannels["attendance-channel"] = true
+			}
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		case isMattermostConnectCommandSetupRequest(request):
 			return mattermostConnectCommandSetupResponse(t, request), nil
@@ -2783,6 +2810,11 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 	}
 	if !flowChannelCreated || !flowChannelPatched || !adminJoinedFlowChannel || !calendarChannelCreated || !calendarChannelPatched || !adminJoinedCalendarChannel || !adminJoinedAttendanceChannel {
 		t.Fatalf("default channel setup flags flow=%v/%v/%v calendar=%v/%v/%v attendance=%v", flowChannelCreated, flowChannelPatched, adminJoinedFlowChannel, calendarChannelCreated, calendarChannelPatched, adminJoinedCalendarChannel, adminJoinedAttendanceChannel)
+	}
+	for _, channelID := range []string{"town-square-channel", "flow-channel", "calendar-channel", "attendance-channel"} {
+		if !staffJoinedDefaultChannels[channelID] {
+			t.Fatalf("staff was not joined to default channel %s: %#v", channelID, staffJoinedDefaultChannels)
+		}
 	}
 }
 

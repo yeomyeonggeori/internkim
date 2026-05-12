@@ -1013,18 +1013,7 @@ func (service *Service) calendarMattermostUsers(ctx context.Context) ([]mattermo
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	var users []mattermostUserRecord
-	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users?per_page=200", token, nil, &users); errorValue != nil {
-		return nil, errorValue
-	}
-	activeUsers := make([]mattermostUserRecord, 0, len(users))
-	for _, user := range users {
-		if user.DeleteAt != 0 || isProtectedMattermostUser(user) {
-			continue
-		}
-		activeUsers = append(activeUsers, user)
-	}
-	return activeUsers, nil
+	return service.activeMattermostUsers(ctx, token)
 }
 
 func calendarTargetsForPeople(people []string, users []mattermostUserRecord) []calendarNotificationTarget {
