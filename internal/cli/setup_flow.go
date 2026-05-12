@@ -951,6 +951,10 @@ func (state *setupFlowState) installSkillsSSH(context *setup.Context) error {
 		return fmt.Errorf("skills directory missing: %s", skillsDirectoryPath)
 	}
 
+	agentsPath := blueclawworkspace.AgentsPath(state.scriptDir)
+	if errorValue := state.sshClient.scp(agentsPath, filepath.Join(blueclaw.BlueclawWorkspacePath, "AGENTS.md")); errorValue != nil {
+		return errorValue
+	}
 	state.sshClient.run("mkdir -p " + quoteShellValue(filepath.Join(blueclaw.BlueclawWorkspacePath, "skills")))
 	entries, errorValue := os.ReadDir(skillsDirectoryPath)
 	if errorValue != nil {
@@ -992,7 +996,9 @@ func (state *setupFlowState) installSkillsSSH(context *setup.Context) error {
 		return errorValue
 	}
 	state.sshClient.run(`chown -R root:root /root/.blueclaw/workspace/skills 2>/dev/null || true
-chmod -R a+rX,go-w /root/.blueclaw/workspace/skills 2>/dev/null || true`)
+chmod -R a+rX,go-w /root/.blueclaw/workspace/skills 2>/dev/null || true
+chown root:root /root/.blueclaw/workspace/AGENTS.md 2>/dev/null || true
+chmod 644 /root/.blueclaw/workspace/AGENTS.md 2>/dev/null || true`)
 	return nil
 }
 
@@ -1001,7 +1007,14 @@ func (state *setupFlowState) stageSkillsSD(context *setup.Context) error {
 	if info, errorValue := os.Stat(skillsDirectoryPath); errorValue != nil || !info.IsDir() {
 		return fmt.Errorf("skills directory missing: %s", skillsDirectoryPath)
 	}
-	return copyDirectoryToStage(skillsDirectoryPath, filepath.Join(context.SD.RootPath(), "skills"))
+	if errorValue := copyDirectoryToStage(skillsDirectoryPath, filepath.Join(context.SD.RootPath(), "skills")); errorValue != nil {
+		return errorValue
+	}
+	agentsDocument, errorValue := os.ReadFile(blueclawworkspace.AgentsPath(state.scriptDir))
+	if errorValue != nil {
+		return errorValue
+	}
+	return context.SD.WriteFile("AGENTS.md", agentsDocument, 0o644)
 }
 
 func (state *setupFlowState) skillsManifest() string {
@@ -1010,7 +1023,26 @@ func (state *setupFlowState) skillsManifest() string {
 	if errorValue != nil {
 		return ""
 	}
+	agentsDigest, errorValue := fileSHA256(blueclawworkspace.AgentsPath(state.scriptDir))
+	if errorValue != nil {
+		return ""
+	}
+	digest = sha256String(digest + ":" + agentsDigest)
 	return fmt.Sprintf("{\n  \"name\": \"internkim-skills\",\n  \"sha256\": \"%s\"\n}\n", digest)
+}
+
+func fileSHA256(filePath string) (string, error) {
+	document, errorValue := os.ReadFile(filePath)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	sum := sha256.Sum256(document)
+	return fmt.Sprintf("%x", sum), nil
+}
+
+func sha256String(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return fmt.Sprintf("%x", sum)
 }
 
 func directoryDigest(directoryPath string) (string, error) {
