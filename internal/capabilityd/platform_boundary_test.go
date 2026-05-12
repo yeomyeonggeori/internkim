@@ -335,7 +335,7 @@ func TestMattermostDirectMessageDoesNotUseThreadRoot(t *testing.T) {
 	}
 }
 
-func TestMattermostDirectMessageWithMentionStartsThread(t *testing.T) {
+func TestMattermostDirectMessageWithMentionUsesDirectConversation(t *testing.T) {
 	event, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
 		ID:        "post-1",
 		UserID:    "user-1",
@@ -348,15 +348,22 @@ func TestMattermostDirectMessageWithMentionStartsThread(t *testing.T) {
 	if !hasEvent {
 		t.Fatal("expected direct message event")
 	}
-	if event.ConversationID != "thread:dm-1:post-1" {
-		t.Fatalf("expected mentioned dm to become thread conversation, got %q", event.ConversationID)
+	if event.ConversationID != "dm:dm-1" {
+		t.Fatalf("expected mentioned dm to remain direct conversation, got %q", event.ConversationID)
 	}
 	replyHandle, errorValue := decodePlatformHandle(event.ReplyTargetID)
 	if errorValue != nil {
 		t.Fatalf("expected reply target to decode: %v", errorValue)
 	}
-	if replyHandle.RootID != "post-1" {
-		t.Fatalf("expected mentioned dm reply root to be post-1, got %q", replyHandle.RootID)
+	if replyHandle.RootID != "" {
+		t.Fatalf("expected mentioned dm reply root to be empty, got %q", replyHandle.RootID)
+	}
+	historyHandle, errorValue := decodePlatformHandle(event.Context.HistoryCursor)
+	if errorValue != nil {
+		t.Fatalf("expected history cursor to decode: %v", errorValue)
+	}
+	if historyHandle.RootID != "" || historyHandle.MessageID != "post-1" || historyHandle.ChannelID != "dm-1" {
+		t.Fatalf("expected direct message history cursor, got %+v", historyHandle)
 	}
 }
 
@@ -541,6 +548,48 @@ func TestMattermostContextUsesSingleNameForHistorySpeakers(t *testing.T) {
 	}
 	if contextValue.Messages[0].Speaker != "이서연" {
 		t.Fatalf("expected single name speaker, got %q", contextValue.Messages[0].Speaker)
+	}
+}
+
+func TestMattermostContextKeepsHistoryCursorForDirectRoot(t *testing.T) {
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/channels/dm-1/posts":
+			return testJSONResponse(http.StatusOK, struct {
+				Order []string                         `json:"order"`
+				Posts map[string]mattermostHistoryPost `json:"posts"`
+			}{
+				Order: []string{"post-1", "post-2"},
+				Posts: map[string]mattermostHistoryPost{
+					"post-1": {ID: "post-1", UserID: "user-1", Message: "previous", CreateAt: 1000},
+					"post-2": {ID: "post-2", UserID: "user-2", Message: "current", CreateAt: 2000},
+				},
+			}), nil
+		case "/api/v4/users/user-1":
+			return testJSONResponse(http.StatusOK, map[string]string{
+				"id":       "user-1",
+				"username": "lee",
+			}), nil
+		default:
+			t.Fatalf("unexpected Mattermost request: %s?%s", request.URL.Path, request.URL.RawQuery)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	service := Service{
+		Configuration: Configuration{MattermostBaseURL: "http://mattermost.test", MattermostTokenPath: writePlatformTestFile(t, "test-token")},
+		HTTPClient:    httpClient,
+	}
+	handle := platformHandle{Platform: "mattermost", ConversationID: "dm:dm-1", ChannelID: "dm-1", ChannelType: "D", MessageID: "post-2"}
+	contextValue := service.mattermostContext(context.Background(), handle, 20)
+	if len(contextValue.Messages) != 1 || contextValue.Messages[0].Text != "previous" {
+		t.Fatalf("expected previous direct message context, got %+v", contextValue.Messages)
+	}
+	historyHandle, errorValue := decodePlatformHandle(contextValue.HistoryCursor)
+	if errorValue != nil {
+		t.Fatalf("expected history cursor to decode: %v", errorValue)
+	}
+	if historyHandle.RootID != "" || historyHandle.MessageID != "post-2" || historyHandle.ChannelID != "dm-1" {
+		t.Fatalf("expected direct root history cursor, got %+v", historyHandle)
 	}
 }
 
