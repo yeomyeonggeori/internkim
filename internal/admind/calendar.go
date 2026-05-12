@@ -1570,6 +1570,35 @@ func calendarEventETag(event calendarEvent) string {
 	return event.ID + "-" + strings.ReplaceAll(event.UpdatedAt, `"`, "")
 }
 
+func checkCalendarPutPreconditions(options *caldav.PutCalendarObjectOptions, existing calendarEvent, exists bool) error {
+	if options == nil {
+		return nil
+	}
+	if options.IfNoneMatch.IsWildcard() && exists {
+		return webdav.NewHTTPError(http.StatusPreconditionFailed, errors.New("calendar object already exists"))
+	}
+	if !options.IfMatch.IsSet() {
+		return nil
+	}
+	if options.IfMatch.IsWildcard() {
+		if !exists {
+			return webdav.NewHTTPError(http.StatusPreconditionFailed, errors.New("calendar object does not exist"))
+		}
+		return nil
+	}
+	if !exists {
+		return webdav.NewHTTPError(http.StatusPreconditionFailed, errors.New("calendar object does not exist"))
+	}
+	match, errorValue := options.IfMatch.MatchETag(calendarEventETag(existing))
+	if errorValue != nil {
+		return webdav.NewHTTPError(http.StatusBadRequest, errorValue)
+	}
+	if !match {
+		return webdav.NewHTTPError(http.StatusPreconditionFailed, errors.New("etag mismatch"))
+	}
+	return nil
+}
+
 func calendarUIDFromObjectPath(path string) string {
 	return strings.TrimSuffix(pathpkg.Base(path), ".ics")
 }
@@ -1650,9 +1679,14 @@ func (backend calendarDAVBackend) PutCalendarObject(ctx context.Context, path st
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	if existingEvent, found, errorValue := backend.service.readCalendarEventByID(ctx, event.ID); errorValue != nil {
+	existingEvent, existingFound, errorValue := backend.service.readCalendarEventByID(ctx, event.ID)
+	if errorValue != nil {
 		return nil, errorValue
-	} else if found {
+	}
+	if errorValue := checkCalendarPutPreconditions(options, existingEvent, existingFound); errorValue != nil {
+		return nil, errorValue
+	}
+	if existingFound {
 		event.CreatedByEmail = existingEvent.CreatedByEmail
 		event.MattermostPostID = existingEvent.MattermostPostID
 	}
