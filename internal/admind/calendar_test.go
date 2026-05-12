@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/emersion/go-ical"
+	"github.com/emersion/go-webdav"
+	"github.com/emersion/go-webdav/caldav"
 )
 
 func TestCalendarEventLifecycleAndICS(t *testing.T) {
@@ -502,6 +504,134 @@ func TestCalendarSyncCollectionStillReturnsValidSyncToken(t *testing.T) {
 	if !strings.Contains(response.Body.String(), "valid-sync-token") {
 		t.Fatalf("response missing valid-sync-token: %s", response.Body.String())
 	}
+}
+
+func TestCalendarDAVPutAcceptsCurrentIfMatch(t *testing.T) {
+	service := newCalendarTestService(t)
+	backend := calendarDAVBackend{service: service}
+	objectPath := calendarCollectionPath + "ifmatch-current.ics"
+
+	initial := newCalendarDocumentWithEvent("ifmatch-current@example.com", "Original")
+	stored, errorValue := backend.PutCalendarObject(context.Background(), objectPath, initial, nil)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	updated := newCalendarDocumentWithEvent("ifmatch-current@example.com", "Updated")
+	if _, errorValue := backend.PutCalendarObject(context.Background(), objectPath, updated, &caldav.PutCalendarObjectOptions{
+		IfMatch: webdav.ConditionalMatch(`"` + stored.ETag + `"`),
+	}); errorValue != nil {
+		t.Fatalf("update with current ETag failed: %v", errorValue)
+	}
+
+	current, errorValue := backend.GetCalendarObject(context.Background(), objectPath, nil)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if current.Data.Events()[0].Props.Get(ical.PropSummary).Value != "Updated" {
+		t.Fatalf("expected updated summary, got %s", current.Data.Events()[0].Props.Get(ical.PropSummary).Value)
+	}
+}
+
+func TestCalendarDAVPutRejectsStaleIfMatch(t *testing.T) {
+	service := newCalendarTestService(t)
+	backend := calendarDAVBackend{service: service}
+	objectPath := calendarCollectionPath + "ifmatch-stale.ics"
+
+	initial := newCalendarDocumentWithEvent("ifmatch-stale@example.com", "Original")
+	if _, errorValue := backend.PutCalendarObject(context.Background(), objectPath, initial, nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	updated := newCalendarDocumentWithEvent("ifmatch-stale@example.com", "Overwrite")
+	if _, errorValue := backend.PutCalendarObject(context.Background(), objectPath, updated, &caldav.PutCalendarObjectOptions{
+		IfMatch: webdav.ConditionalMatch(`"stale-etag-xyz"`),
+	}); errorValue == nil {
+		t.Fatal("expected stale If-Match to be rejected")
+	}
+
+	stored, errorValue := backend.GetCalendarObject(context.Background(), objectPath, nil)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if stored.Data.Events()[0].Props.Get(ical.PropSummary).Value != "Original" {
+		t.Fatalf("stale PUT overwrote data: got summary %s", stored.Data.Events()[0].Props.Get(ical.PropSummary).Value)
+	}
+}
+
+func TestCalendarDAVPutRejectsIfNoneMatchWildcardWhenExists(t *testing.T) {
+	service := newCalendarTestService(t)
+	backend := calendarDAVBackend{service: service}
+	objectPath := calendarCollectionPath + "ifnonematch.ics"
+
+	initial := newCalendarDocumentWithEvent("ifnonematch@example.com", "Original")
+	if _, errorValue := backend.PutCalendarObject(context.Background(), objectPath, initial, nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	replacement := newCalendarDocumentWithEvent("ifnonematch@example.com", "Replacement")
+	if _, errorValue := backend.PutCalendarObject(context.Background(), objectPath, replacement, &caldav.PutCalendarObjectOptions{
+		IfNoneMatch: webdav.ConditionalMatch("*"),
+	}); errorValue == nil {
+		t.Fatal("expected If-None-Match wildcard to fail for existing event")
+	}
+}
+
+func TestCalendarPropFindIncludesGetCTag(t *testing.T) {
+	service := newCalendarTestService(t)
+	body := `<?xml version="1.0" encoding="utf-8"?>
+<D:propfind xmlns:D="DAV:" xmlns:CS="http://calendarserver.org/ns/">
+  <D:prop><CS:getctag/></D:prop>
+</D:propfind>`
+	request := httptest.NewRequest("PROPFIND", calendarCollectionPath, strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/xml")
+	request.Header.Set("Depth", "0")
+	request.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, request)
+	if response.Code != http.StatusMultiStatus {
+		t.Fatalf("propfind status = %d body = %s", response.Code, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), "getctag") {
+		t.Fatalf("propfind body missing getctag element: %s", response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), "v1-") {
+		t.Fatalf("ctag value missing v1- prefix: %s", response.Body.String())
+	}
+}
+
+func TestCalendarCTagChangesAfterEventWrite(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctagBefore, errorValue := service.computeCalendarCTag(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	backend := calendarDAVBackend{service: service}
+	cal := newCalendarDocumentWithEvent("ctag-change@example.com", "Trigger")
+	if _, errorValue := backend.PutCalendarObject(context.Background(), calendarCollectionPath+"ctag-change.ics", cal, nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	ctagAfter, errorValue := service.computeCalendarCTag(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if ctagBefore == ctagAfter {
+		t.Fatalf("ctag did not change after event write: before=%s after=%s", ctagBefore, ctagAfter)
+	}
+}
+
+func newCalendarDocumentWithEvent(uid string, summary string) *ical.Calendar {
+	calendar := newCalendarDocument()
+	event := ical.NewEvent()
+	event.Props.SetText(ical.PropUID, uid)
+	event.Props.SetDateTime(ical.PropDateTimeStamp, time.Date(2026, 5, 12, 0, 0, 0, 0, time.UTC))
+	event.Props.SetText(ical.PropSummary, summary)
+	event.Props.SetDateTime(ical.PropDateTimeStart, time.Date(2026, 5, 12, 3, 0, 0, 0, time.UTC))
+	event.Props.SetDateTime(ical.PropDateTimeEnd, time.Date(2026, 5, 12, 4, 0, 0, 0, time.UTC))
+	calendar.Children = append(calendar.Children, event.Component)
+	return calendar
 }
 
 func newCalendarTestService(t *testing.T) *Service {
