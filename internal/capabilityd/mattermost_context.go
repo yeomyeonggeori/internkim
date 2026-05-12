@@ -63,11 +63,11 @@ func (service Service) mattermostContext(ctx context.Context, handle platformHan
 		})
 	}
 
-	contextValue := platformEventContext{Messages: messages, HasMoreBefore: hasMoreBefore}
-	if hasMoreBefore {
-		contextValue.HistoryCursor = mustEncodePlatformHandle(handle)
+	return platformEventContext{
+		Messages:      messages,
+		HasMoreBefore: hasMoreBefore,
+		HistoryCursor: mustEncodePlatformHandle(handle),
 	}
-	return contextValue
 }
 
 func (service Service) mattermostHistoryPosts(ctx context.Context, handle platformHandle, limit int) ([]mattermostHistoryPost, error) {
