@@ -91,6 +91,25 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if agent["toolResultMaxBytes"] != float64(32768) {
 		t.Fatalf("expected agent tool result limit, got %v", agent["toolResultMaxBytes"])
 	}
+	failureRecovery := agent["failureRecovery"].(map[string]any)
+	if failureRecovery["failureDebtFinalizationGate"] != true {
+		t.Fatalf("expected failure debt finalization gate, got %+v", failureRecovery)
+	}
+	if failureRecovery["attemptFingerprint"] != "tool_input_error_code" {
+		t.Fatalf("expected tool input error fingerprint mode, got %+v", failureRecovery)
+	}
+	recoveryBudget := failureRecovery["recoveryBudget"].(map[string]any)
+	expectedRecoveryBudget := map[string]float64{
+		"correctedRetry": 1,
+		"alternateRoute": 1,
+		"adjacentTool":   2,
+		"noToolFallback": 1,
+	}
+	for key, expectedValue := range expectedRecoveryBudget {
+		if recoveryBudget[key] != expectedValue {
+			t.Fatalf("expected recovery budget %s=%v, got %+v", key, expectedValue, recoveryBudget)
+		}
+	}
 	agentProfiles := runtimeConfiguration["agentProfiles"].([]any)
 	defaultProfile := agentProfiles[0].(map[string]any)
 	allowedToolNames := defaultProfile["allowedToolNames"].([]any)
