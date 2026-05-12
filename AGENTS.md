@@ -88,7 +88,9 @@ When testing against real platform surfaces such as Mattermost, Slack, or Signal
 
 ## Browser Automation
 
-Use `agent-browser` for web automation. Run `agent-browser --help` for all commands.
+Browser automation is an interactive fallback, not the default web research path. Prefer web search/fetch tools for ordinary public lookup and source retrieval. Use `agent-browser` only when the user needs to see or operate a browser, user input such as login/MFA/captcha is required, you are guiding the user through a web flow, page state/screenshot/interaction is the actual task, or web search/fetch tools are unavailable, insufficient, or failing.
+
+Run `agent-browser --help` for all commands.
 
 Core workflow:
 
