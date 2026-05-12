@@ -5,6 +5,8 @@ description: Use InternKim browser tools for web navigation, page snapshots, int
 
 # Browser Automation
 
+Browser automation is an interactive fallback, not the default web research path. Prefer search/fetch capabilities for ordinary public lookup and source retrieval. Use browser tools only when the user needs to see or operate a browser, user input such as login/MFA/captcha is required, you are guiding the user through a web flow, page state/screenshot/interaction is the actual task, or search/fetch capabilities are unavailable, insufficient, or failing.
+
 Use the `browser.*` tools for web automation. InternKim runs the browser runtime behind these tools.
 
 Core workflow:

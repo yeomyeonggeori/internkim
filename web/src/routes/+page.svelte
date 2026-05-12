@@ -27,7 +27,7 @@
 	import { adminText } from './admin/text';
 
 	type UserRole = 'admin' | 'member';
-	type AdminSection = 'device' | 'bot' | 'companion' | 'backup' | 'users';
+	type AdminSection = 'device' | 'bot' | 'credentials' | 'companion' | 'backup' | 'users';
 
 	type UserRecord = {
 		userID: string;
@@ -132,6 +132,16 @@
 		identityExtension?: string;
 	};
 
+	type CredentialProviderStatus = {
+		provider: string;
+		configured: boolean;
+		fingerprint?: string;
+	};
+
+	type CredentialProvidersResponse = {
+		providers?: CredentialProviderStatus[];
+	};
+
 	const logoSrc = '/logo.svg';
 	const storedFleetIdKey = 'internkim_fleet_id';
 
@@ -176,6 +186,11 @@
 	let botProfileErrorMessage = $state('');
 	let isLoadingBotProfile = $state(false);
 	let isSavingBotProfile = $state(false);
+	let credentialProviders = $state<CredentialProviderStatus[]>([]);
+	let openRouterApiKey = $state('');
+	let credentialErrorMessage = $state('');
+	let isLoadingCredentials = $state(false);
+	let isSavingCredential = $state(false);
 	let activeAdminSection = $state<AdminSection>('device');
 	const text = createPageText(adminText);
 
@@ -233,6 +248,7 @@
 	const adminSections = (): { value: AdminSection; label: string }[] => [
 		{ value: 'device', label: text.sections.device },
 		{ value: 'users', label: text.sections.users },
+		{ value: 'credentials', label: text.sections.credentials },
 		{ value: 'companion', label: text.sections.companion },
 		{ value: 'backup', label: text.sections.backup },
 		{ value: 'bot', label: text.sections.bot }
@@ -255,6 +271,7 @@
 		loadUsers();
 		checkDevice();
 		loadBotProfile();
+		loadCredentials();
 	});
 
 	function fleetIdFromHost() {
@@ -282,6 +299,7 @@
 		loadCompanions();
 		loadAdminSession();
 		loadBotProfile();
+		loadCredentials();
 	}
 
 	async function loadAdminSession() {
@@ -360,6 +378,79 @@
 			botProfileErrorMessage = '봇 프로필 저장에 실패했습니다.';
 		} finally {
 			isSavingBotProfile = false;
+		}
+	}
+
+	async function loadCredentials() {
+		if (!adminBaseURL()) return;
+
+		isLoadingCredentials = true;
+		credentialErrorMessage = '';
+		try {
+			const response = await fetch(`${adminBaseURL()}/credentials/providers`, { credentials: 'include' });
+			if (!response.ok) {
+				credentialErrorMessage = 'Credential 상태를 불러오지 못했습니다.';
+				return;
+			}
+			const data = (await response.json()) as CredentialProvidersResponse;
+			credentialProviders = data.providers ?? [];
+		} catch {
+			credentialErrorMessage = 'Credential 상태를 불러오지 못했습니다.';
+		} finally {
+			isLoadingCredentials = false;
+		}
+	}
+
+	function openRouterProvider() {
+		return credentialProviders.find((provider) => provider.provider === 'openrouter');
+	}
+
+	async function saveOpenRouterKey() {
+		if (!adminBaseURL() || !openRouterApiKey.trim()) return;
+
+		isSavingCredential = true;
+		credentialErrorMessage = '';
+		try {
+			const response = await fetch(`${adminBaseURL()}/credentials/openrouter-key`, {
+				method: 'PUT',
+				credentials: 'include',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ apiKey: openRouterApiKey.trim() })
+			});
+			if (!response.ok) {
+				credentialErrorMessage = (await response.text()).trim() || 'OpenRouter 키 저장에 실패했습니다.';
+				return;
+			}
+			const provider = (await response.json()) as CredentialProviderStatus;
+			credentialProviders = [provider, ...credentialProviders.filter((candidate) => candidate.provider !== provider.provider)];
+			openRouterApiKey = '';
+		} catch {
+			credentialErrorMessage = 'OpenRouter 키 저장에 실패했습니다.';
+		} finally {
+			isSavingCredential = false;
+		}
+	}
+
+	async function deleteOpenRouterKey() {
+		if (!adminBaseURL()) return;
+
+		isSavingCredential = true;
+		credentialErrorMessage = '';
+		try {
+			const response = await fetch(`${adminBaseURL()}/credentials/openrouter-key`, {
+				method: 'DELETE',
+				credentials: 'include'
+			});
+			if (!response.ok) {
+				credentialErrorMessage = (await response.text()).trim() || 'OpenRouter 키 삭제에 실패했습니다.';
+				return;
+			}
+			const provider = (await response.json()) as CredentialProviderStatus;
+			credentialProviders = [provider, ...credentialProviders.filter((candidate) => candidate.provider !== provider.provider)];
+		} catch {
+			credentialErrorMessage = 'OpenRouter 키 삭제에 실패했습니다.';
+		} finally {
+			isSavingCredential = false;
 		}
 	}
 
@@ -915,6 +1006,66 @@
 				{#if botProfileErrorMessage}
 					<p class="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
 						{botProfileErrorMessage}
+					</p>
+				{/if}
+			</div>
+			{/if}
+
+			{#if activeAdminSection === 'credentials'}
+				<div class="rounded-lg border p-4">
+				<div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+					<div>
+						<h3 class="text-sm font-semibold">{text.credentials.title}</h3>
+						<p class="text-muted-foreground mt-1 text-sm">
+							{text.credentials.description}
+						</p>
+					</div>
+					<Badge variant={openRouterProvider()?.configured ? 'secondary' : 'outline'}>
+						{openRouterProvider()?.configured ? text.credentials.configured : text.credentials.missing}
+					</Badge>
+				</div>
+				<div class="grid gap-3">
+					<div class="rounded-md bg-muted/30 p-3">
+						<div class="flex flex-wrap items-center justify-between gap-3">
+							<div>
+								<p class="text-sm font-medium">OpenRouter</p>
+								<p class="text-muted-foreground mt-1 text-xs">
+									{#if openRouterProvider()?.fingerprint}
+										{openRouterProvider()?.fingerprint}
+									{:else if isLoadingCredentials}
+										{text.credentials.loading}
+									{:else}
+										{text.credentials.noKey}
+									{/if}
+								</p>
+							</div>
+							{#if openRouterProvider()?.configured}
+								<Button variant="ghost" size="sm" disabled={isSavingCredential} onclick={deleteOpenRouterKey}>
+									{text.credentials.delete}
+								</Button>
+							{/if}
+						</div>
+					</div>
+					<form
+						class="grid gap-2 sm:grid-cols-[1fr_auto]"
+						onsubmit={(event) => {
+							event.preventDefault();
+							saveOpenRouterKey();
+						}}
+					>
+						<Input bind:value={openRouterApiKey} type="password" placeholder="OpenRouter API key" autocomplete="new-password" />
+						<Button type="submit" disabled={!isDeviceReachable || isSavingCredential || !openRouterApiKey.trim()} class="gap-2">
+							{#if isSavingCredential}
+								<LoaderIcon class="size-4 animate-spin" />
+							{/if}
+							{text.credentials.save}
+						</Button>
+					</form>
+					<p class="text-muted-foreground text-xs">{text.credentials.notice}</p>
+				</div>
+				{#if credentialErrorMessage}
+					<p class="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+						{credentialErrorMessage}
 					</p>
 				{/if}
 			</div>
