@@ -197,6 +197,7 @@ func defaultResourceAccessPolicies() []map[string]any {
 		{"resource": "api:flow.definition", "actions": []string{"manage"}, "circles": []string{"admin"}},
 		{"resource": "tool:flow.task.add", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:mail.message.list", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:mail.message.search", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:mail.message.read", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:mail.message.send", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:mail.message.move", "actions": []string{"execute"}, "circles": []string{"staff"}},
