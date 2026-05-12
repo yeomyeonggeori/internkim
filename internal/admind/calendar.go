@@ -5,15 +5,18 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	pathpkg "path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -317,11 +320,42 @@ func (service *Service) serveCalendarDAV(responseWriter http.ResponseWriter, req
 		http.Error(responseWriter, "calendar access required", http.StatusForbidden)
 		return
 	}
+	if request.Method == "REPORT" {
+		body, err := io.ReadAll(request.Body)
+		if err == nil {
+			request.Body = io.NopCloser(bytes.NewReader(body))
+			if bytes.Contains(body, []byte("sync-collection")) {
+				writeCalendarSyncCollectionFallback(responseWriter)
+				return
+			}
+		}
+	}
+	if request.Method == "PROPPATCH" {
+		service.handleCalendarPropPatch(responseWriter, request)
+		return
+	}
+	if request.Method == "PROPFIND" {
+		service.handleCalendarPropFind(responseWriter, request)
+		return
+	}
+	service.invokeCalendarDAVHandler(responseWriter, request)
+}
+
+func (service *Service) invokeCalendarDAVHandler(responseWriter http.ResponseWriter, request *http.Request) {
 	handler := caldav.Handler{
 		Backend: calendarDAVBackend{service: service},
 		Prefix:  "/calendar/dav",
 	}
 	handler.ServeHTTP(responseWriter, request)
+}
+
+func writeCalendarSyncCollectionFallback(responseWriter http.ResponseWriter) {
+	responseWriter.Header().Set("Content-Type", "application/xml; charset=utf-8")
+	responseWriter.WriteHeader(http.StatusForbidden)
+	_, _ = responseWriter.Write([]byte(
+		`<?xml version="1.0" encoding="utf-8"?>` +
+			`<D:error xmlns:D="DAV:"><D:valid-sync-token/></D:error>`,
+	))
 }
 
 func (service *Service) decodeCalendarEventWriteRequest(request *http.Request, eventID string) (calendarEvent, error) {
@@ -523,6 +557,18 @@ CREATE TABLE IF NOT EXISTS calendar_event_notifications (
 	error TEXT NOT NULL,
 	updated_at TEXT NOT NULL,
 	PRIMARY KEY(event_id, recipient_key)
+)`)
+	if errorValue != nil {
+		return errorValue
+	}
+	_, errorValue = database.ExecContext(ctx, `
+CREATE TABLE IF NOT EXISTS calendar_properties (
+	calendar_path TEXT NOT NULL,
+	property_xmlns TEXT NOT NULL,
+	property_local_name TEXT NOT NULL,
+	value TEXT NOT NULL,
+	updated_at TEXT NOT NULL,
+	PRIMARY KEY(calendar_path, property_xmlns, property_local_name)
 )`)
 	return errorValue
 }
@@ -1665,3 +1711,252 @@ func calendarCompFilterRange(filter caldav.CompFilter) (time.Time, time.Time) {
 
 var _ caldav.Backend = calendarDAVBackend{}
 var _ webdav.UserPrincipalBackend = calendarDAVBackend{}
+
+type calendarRawProperty struct {
+	XMLName  xml.Name
+	InnerXML string `xml:",innerxml"`
+}
+
+type calendarPropPatchProp struct {
+	Properties []calendarRawProperty `xml:",any"`
+}
+
+type calendarPropPatchSet struct {
+	XMLName xml.Name              `xml:"DAV: set"`
+	Prop    calendarPropPatchProp `xml:"DAV: prop"`
+}
+
+type calendarPropPatchRemove struct {
+	XMLName xml.Name              `xml:"DAV: remove"`
+	Prop    calendarPropPatchProp `xml:"DAV: prop"`
+}
+
+type calendarPropertyUpdate struct {
+	XMLName xml.Name                  `xml:"DAV: propertyupdate"`
+	Set     []calendarPropPatchSet    `xml:"DAV: set"`
+	Remove  []calendarPropPatchRemove `xml:"DAV: remove"`
+}
+
+type calendarStoredProperty struct {
+	XMLName xml.Name
+	Value   string
+}
+
+func (service *Service) writeCalendarProperty(ctx context.Context, calendarPath string, xmlns string, localName string, value string) error {
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	updatedAt := time.Now().UTC().Format(time.RFC3339Nano)
+	_, errorValue = database.ExecContext(ctx, `
+INSERT INTO calendar_properties (calendar_path, property_xmlns, property_local_name, value, updated_at)
+VALUES (?, ?, ?, ?, ?)
+ON CONFLICT(calendar_path, property_xmlns, property_local_name) DO UPDATE SET
+	value = excluded.value,
+	updated_at = excluded.updated_at`,
+		calendarPath, xmlns, localName, value, updatedAt)
+	return errorValue
+}
+
+func (service *Service) deleteCalendarProperty(ctx context.Context, calendarPath string, xmlns string, localName string) error {
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	_, errorValue = database.ExecContext(ctx,
+		"DELETE FROM calendar_properties WHERE calendar_path = ? AND property_xmlns = ? AND property_local_name = ?",
+		calendarPath, xmlns, localName)
+	return errorValue
+}
+
+func (service *Service) readCalendarProperties(ctx context.Context, calendarPath string) ([]calendarStoredProperty, error) {
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer database.Close()
+	rows, errorValue := database.QueryContext(ctx,
+		"SELECT property_xmlns, property_local_name, value FROM calendar_properties WHERE calendar_path = ? ORDER BY property_xmlns, property_local_name",
+		calendarPath)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer rows.Close()
+	properties := []calendarStoredProperty{}
+	for rows.Next() {
+		var xmlns string
+		var localName string
+		var value string
+		if errorValue := rows.Scan(&xmlns, &localName, &value); errorValue != nil {
+			return nil, errorValue
+		}
+		properties = append(properties, calendarStoredProperty{
+			XMLName: xml.Name{Space: xmlns, Local: localName},
+			Value:   value,
+		})
+	}
+	return properties, rows.Err()
+}
+
+func (service *Service) handleCalendarPropPatch(responseWriter http.ResponseWriter, request *http.Request) {
+	body, errorValue := io.ReadAll(request.Body)
+	if errorValue != nil {
+		http.Error(responseWriter, "read body failed", http.StatusBadRequest)
+		return
+	}
+	var update calendarPropertyUpdate
+	if errorValue := xml.Unmarshal(body, &update); errorValue != nil {
+		http.Error(responseWriter, "invalid propertyupdate xml", http.StatusBadRequest)
+		return
+	}
+	type propResult struct {
+		name   xml.Name
+		status int
+	}
+	results := []propResult{}
+	for _, set := range update.Set {
+		for _, property := range set.Prop.Properties {
+			value := strings.TrimSpace(property.InnerXML)
+			if errorValue := service.writeCalendarProperty(request.Context(), request.URL.Path, property.XMLName.Space, property.XMLName.Local, value); errorValue != nil {
+				results = append(results, propResult{property.XMLName, http.StatusInternalServerError})
+				continue
+			}
+			results = append(results, propResult{property.XMLName, http.StatusOK})
+		}
+	}
+	for _, remove := range update.Remove {
+		for _, property := range remove.Prop.Properties {
+			_ = service.deleteCalendarProperty(request.Context(), request.URL.Path, property.XMLName.Space, property.XMLName.Local)
+			results = append(results, propResult{property.XMLName, http.StatusOK})
+		}
+	}
+	var buffer bytes.Buffer
+	buffer.WriteString(`<?xml version="1.0" encoding="utf-8"?>`)
+	buffer.WriteString(`<D:multistatus xmlns:D="DAV:">`)
+	buffer.WriteString(`<D:response><D:href>`)
+	xml.EscapeText(&buffer, []byte(request.URL.Path))
+	buffer.WriteString(`</D:href>`)
+	for _, result := range results {
+		buffer.WriteString(`<D:propstat><D:prop>`)
+		writeCalendarEmptyXMLElement(&buffer, result.name)
+		buffer.WriteString(`</D:prop><D:status>HTTP/1.1 `)
+		buffer.WriteString(strconv.Itoa(result.status))
+		buffer.WriteString(` `)
+		buffer.WriteString(http.StatusText(result.status))
+		buffer.WriteString(`</D:status></D:propstat>`)
+	}
+	buffer.WriteString(`</D:response></D:multistatus>`)
+	responseWriter.Header().Set("Content-Type", "application/xml; charset=utf-8")
+	responseWriter.WriteHeader(http.StatusMultiStatus)
+	_, _ = responseWriter.Write(buffer.Bytes())
+}
+
+func writeCalendarEmptyXMLElement(buffer *bytes.Buffer, name xml.Name) {
+	if name.Space == "" {
+		buffer.WriteString(`<`)
+		buffer.WriteString(name.Local)
+		buffer.WriteString(`/>`)
+		return
+	}
+	buffer.WriteString(`<X:`)
+	buffer.WriteString(name.Local)
+	buffer.WriteString(` xmlns:X="`)
+	xml.EscapeText(buffer, []byte(name.Space))
+	buffer.WriteString(`"/>`)
+}
+
+func (service *Service) handleCalendarPropFind(responseWriter http.ResponseWriter, request *http.Request) {
+	recorder := httptest.NewRecorder()
+	service.invokeCalendarDAVHandler(recorder, request)
+	if recorder.Code != http.StatusMultiStatus {
+		copyCalendarRecorderResponse(responseWriter, recorder)
+		return
+	}
+	properties, errorValue := service.readCalendarProperties(request.Context(), calendarCollectionPath)
+	if errorValue != nil || len(properties) == 0 {
+		copyCalendarRecorderResponse(responseWriter, recorder)
+		return
+	}
+	augmented, errorValue := injectCalendarPropertiesIntoMultistatus(recorder.Body.Bytes(), calendarCollectionPath, properties)
+	if errorValue != nil {
+		copyCalendarRecorderResponse(responseWriter, recorder)
+		return
+	}
+	for key, values := range recorder.Header() {
+		if strings.EqualFold(key, "Content-Length") {
+			continue
+		}
+		for _, value := range values {
+			responseWriter.Header().Add(key, value)
+		}
+	}
+	responseWriter.Header().Set("Content-Length", strconv.Itoa(len(augmented)))
+	responseWriter.WriteHeader(http.StatusMultiStatus)
+	_, _ = responseWriter.Write(augmented)
+}
+
+func copyCalendarRecorderResponse(responseWriter http.ResponseWriter, recorder *httptest.ResponseRecorder) {
+	for key, values := range recorder.Header() {
+		for _, value := range values {
+			responseWriter.Header().Add(key, value)
+		}
+	}
+	responseWriter.WriteHeader(recorder.Code)
+	_, _ = responseWriter.Write(recorder.Body.Bytes())
+}
+
+func injectCalendarPropertiesIntoMultistatus(body []byte, targetPath string, properties []calendarStoredProperty) ([]byte, error) {
+	if len(properties) == 0 {
+		return body, nil
+	}
+	hrefMarker := []byte("<href>" + targetPath + "</href>")
+	hrefIndex := bytes.Index(body, hrefMarker)
+	if hrefIndex < 0 {
+		alternate := []byte("<href>" + strings.TrimSuffix(targetPath, "/") + "</href>")
+		hrefIndex = bytes.Index(body, alternate)
+		if hrefIndex < 0 {
+			return body, nil
+		}
+	}
+	propCloseIndex := bytes.Index(body[hrefIndex:], []byte("</prop>"))
+	if propCloseIndex < 0 {
+		return body, nil
+	}
+	insertionPoint := hrefIndex + propCloseIndex
+	var injection bytes.Buffer
+	for _, property := range properties {
+		writeCalendarPropertyDefaultNamespace(&injection, property)
+	}
+	result := make([]byte, 0, len(body)+injection.Len())
+	result = append(result, body[:insertionPoint]...)
+	result = append(result, injection.Bytes()...)
+	result = append(result, body[insertionPoint:]...)
+	return result, nil
+}
+
+func writeCalendarPropertyDefaultNamespace(buffer *bytes.Buffer, property calendarStoredProperty) {
+	if property.XMLName.Space == "" || property.XMLName.Space == "DAV:" {
+		buffer.WriteString(`<`)
+		buffer.WriteString(property.XMLName.Local)
+		if property.XMLName.Space == "DAV:" {
+			buffer.WriteString(` xmlns="DAV:"`)
+		}
+	} else {
+		buffer.WriteString(`<`)
+		buffer.WriteString(property.XMLName.Local)
+		buffer.WriteString(` xmlns="`)
+		xml.EscapeText(buffer, []byte(property.XMLName.Space))
+		buffer.WriteString(`"`)
+	}
+	if property.Value == "" {
+		buffer.WriteString(`/>`)
+		return
+	}
+	buffer.WriteString(`>`)
+	xml.EscapeText(buffer, []byte(property.Value))
+	buffer.WriteString(`</`)
+	buffer.WriteString(property.XMLName.Local)
+	buffer.WriteString(`>`)
+}
