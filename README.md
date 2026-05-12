@@ -189,7 +189,21 @@ make deploy-after-sim
 ./internkim sim cleanup
 ```
 
-`sim`은 `.internkim/simulations/sim` 상태를 사용하며 실기기 상태와 fleet/tunnel 값이 겹치면 실행을 중단합니다. Cloudflare Pages 배포는 sim에서 건너뛰고, VM 내부 board UI와 public URL smoke를 검증합니다.
+`internkim update --sim-first`는 먼저 `make build`와 `internkim sim gate`를 실행하고, gate가 성공한 경우에만 실기기 `setup --only admin-web,binaries,services --force`를 진행합니다. 실기기 배포 직전 sim tunnel 충돌을 피하기 위해 sim VM 또는 cloudflared를 중지합니다. gate가 실패하면 실기기 배포는 중단하고 실패한 단계의 로그를 먼저 확인해야 합니다.
+
+`sim`은 `.internkim/simulations/sim` 상태만 사용하며 실기기 상태와 fleet/tunnel 값이 겹치면 실행을 중단합니다. Cloudflare Pages 배포는 sim에서 건너뛰고, VM 내부 board UI와 public URL smoke를 검증합니다. Jetson 전용 LiteRT/GPU smoke는 sim에서 `not applicable`입니다.
+
+Mattermost gate는 초대된 테스트 사용자와 초대되지 않은 테스트 사용자를 만들고, 봇 응답과 초대 차단이 모두 동작하는지 확인한 뒤 테스트 메시지와 사용자를 정리합니다. self-hosted Mattermost의 비밀번호 정책이 강화되어도 통과하도록 검증 사용자는 충분히 긴 임시 비밀번호를 씁니다. cleanup 중 Mattermost system post 정리는 SSH 계정에 passwordless sudo가 없으면 건너뛰며, 사용자와 봇 reply 정리는 Mattermost API로 계속 수행합니다.
+
+실기기 배포 후 빠른 확인은 다음 순서로 합니다:
+
+```bash
+./internkim status
+./internkim verify mattermost
+./internkim verify api
+```
+
+`verify api`는 실기기에서 LiteRT local model까지 포함합니다. LiteRT runner 또는 모델 런타임이 실패하면 Mattermost/Blueclaw 서비스가 정상이어도 `verify api`는 실패합니다. 이 경우 `journalctl`과 `internkim-local-llm-runner` 오류를 별도로 확인하고, 필요하면 local model runtime만 좁게 복구합니다.
 
 기존 저수준 lab 명령도 유지됩니다:
 
