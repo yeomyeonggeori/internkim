@@ -95,6 +95,8 @@ const firstAdminMattermostPassword = "admin"
 const mattermostTeammateNameDisplay = "nickname_full_name"
 const mattermostFlowChannelName = "flow"
 const mattermostFlowChannelDisplayName = "Flow"
+const mattermostCalendarChannelName = "calendar"
+const mattermostCalendarChannelDisplayName = "Calendar"
 
 func (service *Service) provisionMattermostUser(ctx context.Context, email string, role string) (mattermostProvisionResult, error) {
 	return service.provisionMattermostUserWithPassword(ctx, adminUserMutation{Email: email, Role: role}, "")
@@ -661,7 +663,11 @@ func (service *Service) ensureMattermostDefaultChannelIDs(ctx context.Context, t
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	return uniqueNonEmpty([]string{townSquareChannelID, flowChannelID}), nil
+	calendarChannelID, errorValue := service.ensureMattermostCalendarChannel(ctx, token, teamID)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return uniqueNonEmpty([]string{townSquareChannelID, flowChannelID, calendarChannelID}), nil
 }
 
 func (service *Service) ensureMattermostCircleChannels(ctx context.Context, token string) error {
@@ -719,6 +725,37 @@ func (service *Service) ensureMattermostFlowChannel(ctx context.Context, token s
 	return channelID, nil
 }
 
+func (service *Service) ensureMattermostCalendarChannel(ctx context.Context, token string, teamID string) (string, error) {
+	channelID, errorValue := service.ensureMattermostPublicChannel(ctx, token, teamID, mattermostCalendarChannelName, mattermostCalendarChannelDisplayName)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	service.saveMattermostCalendarChannelID(channelID)
+	if errorValue := service.updateMattermostCalendarChannelText(ctx, token, channelID); errorValue != nil {
+		return "", errorValue
+	}
+	if errorValue := service.ensureMattermostFlowChannelReadOnly(ctx, token, channelID); errorValue != nil {
+		return "", errorValue
+	}
+	return channelID, nil
+}
+
+func (service *Service) saveMattermostCalendarChannelID(channelID string) {
+	normalizedChannelID := strings.TrimSpace(channelID)
+	if normalizedChannelID == "" {
+		return
+	}
+	path := service.mattermostCalendarChannelIDPath()
+	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
+		return
+	}
+	_ = os.WriteFile(path, []byte(normalizedChannelID), 0o600)
+}
+
+func (service *Service) mattermostCalendarChannelIDPath() string {
+	return filepath.Join(service.Configuration.StateDirectory, "mattermost-calendar-channel-id")
+}
+
 func (service *Service) saveMattermostFlowChannelID(channelID string) {
 	normalizedChannelID := strings.TrimSpace(channelID)
 	if normalizedChannelID == "" {
@@ -761,6 +798,16 @@ func (service *Service) updateMattermostFlowChannelText(ctx context.Context, tok
 	body := map[string]string{
 		"display_name": mattermostFlowChannelDisplayName,
 		"header":       flowChannelLink,
+		"purpose":      "",
+	}
+	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/patch", token, body, nil)
+}
+
+func (service *Service) updateMattermostCalendarChannelText(ctx context.Context, token string, channelID string) error {
+	calendarChannelLink := service.mattermostCalendarLink("")
+	body := map[string]string{
+		"display_name": mattermostCalendarChannelDisplayName,
+		"header":       calendarChannelLink,
 		"purpose":      "",
 	}
 	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/patch", token, body, nil)
