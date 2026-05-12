@@ -55,6 +55,89 @@ func TestGatewayRoutesAdminAndMattermost(t *testing.T) {
 	}
 }
 
+func TestCredentialProviderStatusMasksOpenRouterKey(t *testing.T) {
+	rootPath := t.TempDir()
+	keyPath := filepath.Join(rootPath, "secrets", "openrouter-api-key")
+	if errorValue := os.MkdirAll(filepath.Dir(keyPath), 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(keyPath, []byte("sk-secret-value"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	service := NewService(Configuration{
+		StateDirectory:    filepath.Join(rootPath, "state"),
+		AdminEmailPath:    writeTestFile(t, "admin@example.com"),
+		OpenRouterKeyPath: keyPath,
+	})
+	request := httptest.NewRequest(http.MethodGet, "/admin/api/credentials/providers", nil)
+	request.RemoteAddr = "127.0.0.1:12345"
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status success, got %d: %s", response.Code, response.Body.String())
+	}
+	responseBody := response.Body.String()
+	if strings.Contains(responseBody, "sk-secret-value") {
+		t.Fatalf("expected response to omit secret, got %s", responseBody)
+	}
+	if !strings.Contains(responseBody, `"configured":true`) || !strings.Contains(responseBody, `"fingerprint":"sha256:`) {
+		t.Fatalf("expected masked configured status, got %s", responseBody)
+	}
+}
+
+func TestCredentialProviderSavesValidatedOpenRouterKey(t *testing.T) {
+	rootPath := t.TempDir()
+	keyPath := filepath.Join(rootPath, "secrets", "openrouter-api-key")
+	service := NewService(Configuration{
+		StateDirectory:      filepath.Join(rootPath, "state"),
+		AdminEmailPath:      writeTestFile(t, "admin@example.com"),
+		OpenRouterKeyPath:   keyPath,
+		OpenRouterModelsURL: "https://openrouter.test/models",
+	})
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.String() != "https://openrouter.test/models" {
+			t.Fatalf("unexpected validation url: %s", request.URL.String())
+		}
+		if request.Header.Get("Authorization") != "Bearer sk-new" {
+			t.Fatalf("unexpected authorization header: %q", request.Header.Get("Authorization"))
+		}
+		return jsonResponse(http.StatusOK, `{"data":[]}`, nil), nil
+	})}
+	request := httptest.NewRequest(http.MethodPut, "/admin/api/credentials/openrouter-key", strings.NewReader(`{"apiKey":"sk-new"}`))
+	request.RemoteAddr = "127.0.0.1:12345"
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected save success, got %d: %s", response.Code, response.Body.String())
+	}
+	if readTrimmedFile(keyPath) != "sk-new" {
+		t.Fatalf("expected key to be stored")
+	}
+	if strings.Contains(response.Body.String(), "sk-new") {
+		t.Fatalf("expected response to omit key, got %s", response.Body.String())
+	}
+}
+
+func TestCredentialProviderRejectsNonAdmin(t *testing.T) {
+	service := NewService(Configuration{
+		StateDirectory: t.TempDir(),
+		AdminEmailPath: writeTestFile(t, "admin@example.com"),
+	})
+	request := httptest.NewRequest(http.MethodGet, "/admin/api/credentials/providers", nil)
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("expected forbidden, got %d", response.Code)
+	}
+}
+
 func TestGatewayBlocksFlowChannelPostCreation(t *testing.T) {
 	stateDirectory := t.TempDir()
 	service := NewService(Configuration{

@@ -44,6 +44,8 @@ type Configuration struct {
 	MailDatabasePath            string
 	MattermostAdminPasswordPath string
 	MattermostTokenPath         string
+	OpenRouterKeyPath           string
+	OpenRouterModelsURL         string
 	AdminEmailPath              string
 	ClaimedAdminEmailPath       string
 	FleetIDPath                 string
@@ -195,6 +197,8 @@ func DefaultConfiguration() Configuration {
 		MailDatabasePath:            "/root/.internkim/state/mail.sqlite",
 		MattermostAdminPasswordPath: "/root/.internkim/secrets/mm-admin-pass",
 		MattermostTokenPath:         "/root/.internkim/secrets/mattermost-bot-token",
+		OpenRouterKeyPath:           "/root/.internkim/secrets/openrouter-api-key",
+		OpenRouterModelsURL:         "https://openrouter.ai/api/v1/models",
 		AdminEmailPath:              "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:       "/root/.internkim/state/admin/claimed-admin-email",
 		FleetIDPath:                 "/root/.internkim/env/fleet-id",
@@ -431,6 +435,12 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeBotProfile(responseWriter, request)
 	case request.Method == http.MethodPut && path == "/bot-profile":
 		service.updateBotProfile(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/credentials/providers":
+		service.writeCredentialProviders(responseWriter)
+	case request.Method == http.MethodPut && path == "/credentials/openrouter-key":
+		service.updateOpenRouterKey(responseWriter, request)
+	case request.Method == http.MethodDelete && path == "/credentials/openrouter-key":
+		service.deleteOpenRouterKey(responseWriter)
 	case request.Method == http.MethodGet && path == "/sites":
 		service.listSites(responseWriter)
 	case request.Method == http.MethodPost && path == "/sites":
@@ -1908,6 +1918,12 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.MattermostTokenPath == "" {
 		configuration.MattermostTokenPath = defaultConfiguration.MattermostTokenPath
+	}
+	if configuration.OpenRouterKeyPath == "" {
+		configuration.OpenRouterKeyPath = defaultConfiguration.OpenRouterKeyPath
+	}
+	if configuration.OpenRouterModelsURL == "" {
+		configuration.OpenRouterModelsURL = defaultConfiguration.OpenRouterModelsURL
 	}
 	if configuration.AdminEmailPath == "" {
 		configuration.AdminEmailPath = defaultConfiguration.AdminEmailPath

@@ -54,7 +54,14 @@ func DeviceDescriptors() []Descriptor {
 		{Name: "llm.structured", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "embedding.create", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "platform.reply", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false},
-	}, append(append(append(append(append(DeviceBrowserDescriptors(), PlatformMessageDescriptors()...), FlowDescriptors()...), CalendarDescriptors()...), MailDescriptors()...), SiteAppDescriptors()...)...)
+	}, append(append(append(append(append(append(DeviceBrowserDescriptors(), WebDescriptors()...), PlatformMessageDescriptors()...), FlowDescriptors()...), CalendarDescriptors()...), MailDescriptors()...), SiteAppDescriptors()...)...)
+}
+
+func WebDescriptors() []Descriptor {
+	return []Descriptor{
+		{Name: "web.search", Version: "1", PrivacyClass: "public_web", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: webSearchInputSchema(), PolicyResource: "tool:web.search", SideEffectClass: "read"},
+		{Name: "web.fetch", Version: "1", PrivacyClass: "public_web", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: webFetchInputSchema(), PolicyResource: "tool:web.fetch", SideEffectClass: "read"},
+	}
 }
 
 func PlatformMessageDescriptors() []Descriptor {
@@ -120,6 +127,26 @@ func flowTaskAddInputSchema() json.RawMessage {
 		jsonschema.Field("targetPersonHint", jsonschema.String()),
 		jsonschema.Field("weekCode", jsonschema.String()),
 		jsonschema.Field("allowDuplicate", jsonschema.Boolean()),
+	).RawMessage()
+}
+
+func webSearchInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Required("query", jsonschema.String()),
+		jsonschema.Field("location", jsonschema.String()),
+		jsonschema.Field("language", jsonschema.String()),
+		jsonschema.Field("limit", jsonschema.Integer()),
+		jsonschema.Field("allowedDomains", jsonschema.Array(jsonschema.String())),
+		jsonschema.Field("excludedDomains", jsonschema.Array(jsonschema.String())),
+	).RawMessage()
+}
+
+func webFetchInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Required("urls", jsonschema.Array(jsonschema.String())),
+		jsonschema.Field("maxContentTokens", jsonschema.Integer()),
+		jsonschema.Field("allowedDomains", jsonschema.Array(jsonschema.String())),
+		jsonschema.Field("blockedDomains", jsonschema.Array(jsonschema.String())),
 	).RawMessage()
 }
 
@@ -326,6 +353,7 @@ func DefaultToolNames() []string {
 
 func DefaultToolDescriptors() []Descriptor {
 	descriptors := CompanionToolDescriptors()
+	descriptors = append(descriptors, WebDescriptors()...)
 	descriptors = append(descriptors, PlatformMessageDescriptors()...)
 	descriptors = append(descriptors, FlowDescriptors()...)
 	descriptors = append(descriptors, CalendarDescriptors()...)
