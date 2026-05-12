@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
+
 	_ "modernc.org/sqlite"
 )
 
@@ -20,8 +22,8 @@ const (
 	attendanceKindClockIn            = "clock_in"
 	attendanceKindClockOut           = "clock_out"
 	attendanceSourceMattermostButton = "mattermost_button"
-	attendanceChannelName            = "attendance"
-	attendanceChannelDisplayName     = "Attendance"
+	attendanceChannelName            = mattermostdefaults.AttendanceChannelName
+	attendanceChannelDisplayName     = mattermostdefaults.AttendanceChannelDisplayName
 	attendanceToggleAction           = "attendance.toggle"
 	attendanceEntryPostMessage       = "출퇴근 기록"
 	attendanceEntryPostProperty      = "internkim_attendance_entry"

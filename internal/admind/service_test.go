@@ -19,6 +19,7 @@ import (
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 	companionruntime "gitlab.com/eastriver/internkim/internal/companion"
+	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 )
 
 func TestGatewayRoutesAdminAndMattermost(t *testing.T) {
@@ -3928,8 +3929,14 @@ func assertMattermostNicknameDisplayPatch(t *testing.T, request *http.Request) {
 func assertMattermostManagedResourcePathPatch(t *testing.T, payload map[string]map[string]any) {
 	t.Helper()
 	serviceSettings := payload["ServiceSettings"]
-	if serviceSettings["ManagedResourcePaths"] != "admin,attendance,calendar,flow,mail" {
+	if serviceSettings["ManagedResourcePaths"] != mattermostdefaults.ManagedResourcePathSetting() {
 		t.Fatalf("managed resource paths = %#v", serviceSettings["ManagedResourcePaths"])
+	}
+	if serviceSettings["EnableUserAccessTokens"] != true {
+		t.Fatalf("user access tokens = %#v", serviceSettings["EnableUserAccessTokens"])
+	}
+	if serviceSettings["EnableBotAccountCreation"] != true {
+		t.Fatalf("bot account creation = %#v", serviceSettings["EnableBotAccountCreation"])
 	}
 }
 
