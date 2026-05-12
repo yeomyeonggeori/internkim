@@ -80,6 +80,9 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 	if isDeviceBrowserTool(request.ToolName) {
 		return service.invokeDeviceBrowserTool(ctx, request)
 	}
+	if isWebTool(request.ToolName) {
+		return service.invokeWebTool(ctx, request)
+	}
 	if request.ToolName == "flow.task.add" {
 		return service.invokeFlowTaskAdd(ctx, request)
 	}

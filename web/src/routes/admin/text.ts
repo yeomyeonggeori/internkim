@@ -10,9 +10,11 @@ export const adminText = {
 		sections: {
 			device: 'Device',
 			users: 'Users',
+			credentials: 'Credentials',
 			companion: 'Companion',
 			backup: 'Backup',
-			bot: 'Bot'
+			bot: 'Bot',
+			settings: 'Settings'
 		},
 		device: {
 			title: 'Device Admin',
@@ -27,6 +29,24 @@ export const adminText = {
 			description: '사용자에게 보이는 이름과 공개 설명을 바꿉니다. 내부 username은 internkim으로 유지됩니다.',
 			identityNotice: 'identity extension은 Blueclaw 프롬프트에만 들어가고 Mattermost 설명에는 노출되지 않습니다.',
 			save: '프로필 저장'
+		},
+		credentials: {
+			title: 'Credentials',
+			description: '웹 검색과 원격 provider에 쓰는 키를 관리자만 등록합니다.',
+			configured: 'configured',
+			missing: 'missing',
+			loading: '상태를 불러오는 중...',
+			noKey: '등록된 키가 없습니다.',
+			save: 'Test & Save',
+			delete: '삭제',
+			notice: '키는 저장 전에 검증되고, LLM이나 tool result에는 노출되지 않습니다.'
+		},
+		settings: {
+			description: '출결과 운영 화면에서 사용할 작업공간 설정입니다.',
+			timeZone: 'Time zone',
+			timeZonePlaceholder: 'system 또는 Asia/Seoul',
+			timeZoneHint: '비워두거나 system으로 두면 기기 설정을 사용합니다. IANA timezone만 저장됩니다.',
+			save: '저장'
 		},
 		companion: {
 			title: 'Companion App',
@@ -98,9 +118,11 @@ export const adminText = {
 		sections: {
 			device: 'Device',
 			users: 'Users',
+			credentials: 'Credentials',
 			companion: 'Companion',
 			backup: 'Backup',
-			bot: 'Bot'
+			bot: 'Bot',
+			settings: 'Settings'
 		},
 		device: {
 			title: 'Device Admin',
@@ -115,6 +137,24 @@ export const adminText = {
 			description: 'Change the user-facing name and public description. The internal username stays internkim.',
 			identityNotice: 'The identity extension is only added to the Blueclaw prompt and is not exposed in the Mattermost description.',
 			save: 'Save profile'
+		},
+		credentials: {
+			title: 'Credentials',
+			description: 'Admin-only keys for web search and remote providers.',
+			configured: 'configured',
+			missing: 'missing',
+			loading: 'Loading status...',
+			noKey: 'No key is configured.',
+			save: 'Test & Save',
+			delete: 'Delete',
+			notice: 'Keys are validated before saving and are never exposed to the LLM or tool results.'
+		},
+		settings: {
+			description: 'Workspace settings used by attendance and operations screens.',
+			timeZone: 'Time zone',
+			timeZonePlaceholder: 'system or Asia/Seoul',
+			timeZoneHint: 'Leave empty or set system to use the device setting. Only IANA time zones are saved.',
+			save: 'Save'
 		},
 		companion: {
 			title: 'Companion App',

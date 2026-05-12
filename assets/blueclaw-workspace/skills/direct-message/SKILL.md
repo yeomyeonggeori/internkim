@@ -6,11 +6,16 @@ allowed-tools:
   - approval.request
   - platform.dm.send
   - schedule.create
+completion:
+  requiredEvidenceTools:
+    - platform.dm.send
 ---
 
 # Direct Message
 
 Use `platform.dm.send` to send a direct message to a named approved InternKim person.
+
+The task is complete after one successful `platform.dm.send` observation. Do not send another direct message in the same task after `platform.dm.send` succeeds; use that successful observation as completion evidence and reply.
 
 The tool only supports approved InternKim people with Mattermost accounts. Do not claim that contacts cannot be found before trying the tool when the user names a person.
 

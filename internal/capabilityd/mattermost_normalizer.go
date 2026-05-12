@@ -101,12 +101,12 @@ func normalizeMattermostPost(post mattermostPost, botUserID string, channelType 
 
 	replyRootID := ""
 	if isDirect {
-		replyRootID = mattermostDirectReplyRootID(post, isBotMentioned)
+		replyRootID = mattermostDirectReplyRootID(post)
 	} else {
 		replyRootID = firstNonEmpty(post.RootID, post.ID)
 	}
 	conversationID := mattermostConversationID(channelType, post.ChannelID, replyRootID)
-	handle := platformHandle{
+	replyHandle := platformHandle{
 		Platform:       "mattermost",
 		ConversationID: conversationID,
 		ChannelID:      post.ChannelID,
@@ -114,11 +114,12 @@ func normalizeMattermostPost(post mattermostPost, botUserID string, channelType 
 		RootID:         replyRootID,
 		MessageID:      post.ID,
 	}
-	replyTargetID, errorValue := encodePlatformHandle(handle)
+	historyHandle := mattermostHistoryHandle(replyHandle, post, isDirect)
+	replyTargetID, errorValue := encodePlatformHandle(replyHandle)
 	if errorValue != nil {
 		return platformInboundEvent{}, false, errorValue
 	}
-	historyCursor, errorValue := encodePlatformHandle(handle)
+	historyCursor, errorValue := encodePlatformHandle(historyHandle)
 	if errorValue != nil {
 		return platformInboundEvent{}, false, errorValue
 	}
@@ -146,14 +147,21 @@ func isDefaultMattermostChannel(channelName string) bool {
 	return false
 }
 
-func mattermostDirectReplyRootID(post mattermostPost, isBotMentioned bool) string {
-	if strings.TrimSpace(post.RootID) != "" {
-		return strings.TrimSpace(post.RootID)
+func mattermostDirectReplyRootID(post mattermostPost) string {
+	return firstNonEmpty(post.RootID, post.ID)
+}
+
+func mattermostHistoryHandle(replyHandle platformHandle, post mattermostPost, isDirect bool) platformHandle {
+	if !isDirect || strings.TrimSpace(post.RootID) != "" {
+		return replyHandle
 	}
-	if isBotMentioned {
-		return strings.TrimSpace(post.ID)
+	return platformHandle{
+		Platform:       replyHandle.Platform,
+		ConversationID: namespacedConversationID(replyHandle.ChannelType, replyHandle.ChannelID),
+		ChannelID:      replyHandle.ChannelID,
+		ChannelType:    replyHandle.ChannelType,
+		MessageID:      replyHandle.MessageID,
 	}
-	return ""
 }
 
 func mattermostConversationID(channelType string, channelID string, rootID string) string {

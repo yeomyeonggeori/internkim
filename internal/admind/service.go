@@ -42,8 +42,11 @@ type Configuration struct {
 	FlowDatabasePath            string
 	CalendarDatabasePath        string
 	MailDatabasePath            string
+	AttendanceDatabasePath      string
 	MattermostAdminPasswordPath string
 	MattermostTokenPath         string
+	OpenRouterKeyPath           string
+	OpenRouterModelsURL         string
 	AdminEmailPath              string
 	ClaimedAdminEmailPath       string
 	FleetIDPath                 string
@@ -193,8 +196,11 @@ func DefaultConfiguration() Configuration {
 		FlowDatabasePath:            "/root/.internkim/state/flow.sqlite",
 		CalendarDatabasePath:        "/root/.internkim/state/calendar.sqlite",
 		MailDatabasePath:            "/root/.internkim/state/mail.sqlite",
+		AttendanceDatabasePath:      "/root/.internkim/state/attendance.sqlite",
 		MattermostAdminPasswordPath: "/root/.internkim/secrets/mm-admin-pass",
 		MattermostTokenPath:         "/root/.internkim/secrets/mattermost-bot-token",
+		OpenRouterKeyPath:           "/root/.internkim/secrets/openrouter-api-key",
+		OpenRouterModelsURL:         "https://openrouter.ai/api/v1/models",
 		AdminEmailPath:              "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:       "/root/.internkim/state/admin/claimed-admin-email",
 		FleetIDPath:                 "/root/.internkim/env/fleet-id",
@@ -283,12 +289,16 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/mail", service.serveMailPage)
 	multiplexer.HandleFunc("/mail/api/", service.handleMail)
 	multiplexer.HandleFunc("/mail/", service.serveMailPage)
+	multiplexer.HandleFunc("/attendance", service.serveAttendancePage)
+	multiplexer.HandleFunc("/attendance/api/", service.handleAttendance)
+	multiplexer.HandleFunc("/attendance/", service.serveAttendancePage)
 	multiplexer.HandleFunc("/.well-known/caldav", service.serveCalendarDAV)
 	multiplexer.Handle("/_app/", http.FileServer(http.Dir(service.Configuration.AdminUIPath)))
 	multiplexer.HandleFunc("/logo.svg", service.serveAdminAsset)
 	multiplexer.HandleFunc("/_internkim/companion/", service.handleCompanion)
 	multiplexer.HandleFunc("/_internkim/runtime/", service.handleRuntime)
 	multiplexer.HandleFunc("/_internkim/mattermost/commands", service.handleMattermostCommand)
+	multiplexer.HandleFunc("/_internkim/mattermost/actions", service.handleMattermostInteractiveAction)
 	multiplexer.Handle("/", service.flowChannelWriteGuard(service.mattermostProxy()))
 	return service.withCORS(service.withSiteGateway(multiplexer))
 }
@@ -315,12 +325,14 @@ func isInternKimCORSPath(path string) bool {
 		path == "/flow" ||
 		path == "/calendar" ||
 		path == "/mail" ||
+		path == "/attendance" ||
 		path == "/logo.svg" ||
 		path == "/.well-known/caldav" ||
 		strings.HasPrefix(path, "/admin/") ||
 		strings.HasPrefix(path, "/flow/") ||
 		strings.HasPrefix(path, "/calendar/") ||
 		strings.HasPrefix(path, "/mail/") ||
+		strings.HasPrefix(path, "/attendance/") ||
 		strings.HasPrefix(path, "/_app/") ||
 		strings.HasPrefix(path, "/_internkim/")
 }
@@ -345,7 +357,7 @@ func (service *Service) flowChannelWriteGuard(next http.Handler) http.Handler {
 			next.ServeHTTP(responseWriter, request)
 			return
 		}
-		http.Error(responseWriter, "Flow channel is read-only", http.StatusForbidden)
+		http.Error(responseWriter, "managed channel is read-only", http.StatusForbidden)
 	})
 }
 
@@ -353,8 +365,16 @@ func (service *Service) isMattermostFlowPostCreateRequest(request *http.Request)
 	if request.Method != http.MethodPost || request.URL.Path != "/api/v4/posts" {
 		return false
 	}
-	flowChannelID := strings.TrimSpace(readTrimmedFile(service.mattermostFlowChannelIDPath()))
-	if flowChannelID == "" {
+	channelIDs := map[string]bool{}
+	for _, channelID := range []string{
+		readTrimmedFile(service.mattermostFlowChannelIDPath()),
+		readTrimmedFile(service.mattermostCalendarChannelIDPath()),
+	} {
+		if trimmedChannelID := strings.TrimSpace(channelID); trimmedChannelID != "" {
+			channelIDs[trimmedChannelID] = true
+		}
+	}
+	if len(channelIDs) == 0 {
 		return false
 	}
 	document, errorValue := io.ReadAll(request.Body)
@@ -368,7 +388,7 @@ func (service *Service) isMattermostFlowPostCreateRequest(request *http.Request)
 	if errorValue := json.Unmarshal(document, &payload); errorValue != nil {
 		return false
 	}
-	return strings.TrimSpace(payload.ChannelID) == flowChannelID
+	return channelIDs[strings.TrimSpace(payload.ChannelID)]
 }
 
 func (service *Service) serveAdminPage(responseWriter http.ResponseWriter, request *http.Request) {
@@ -431,6 +451,16 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeBotProfile(responseWriter, request)
 	case request.Method == http.MethodPut && path == "/bot-profile":
 		service.updateBotProfile(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/credentials/providers":
+		service.writeCredentialProviders(responseWriter)
+	case request.Method == http.MethodPut && path == "/credentials/openrouter-key":
+		service.updateOpenRouterKey(responseWriter, request)
+	case request.Method == http.MethodDelete && path == "/credentials/openrouter-key":
+		service.deleteOpenRouterKey(responseWriter)
+	case request.Method == http.MethodGet && path == "/workspace-settings":
+		service.writeWorkspaceSettings(responseWriter)
+	case request.Method == http.MethodPut && path == "/workspace-settings":
+		service.updateWorkspaceSettings(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/sites":
 		service.listSites(responseWriter)
 	case request.Method == http.MethodPost && path == "/sites":
@@ -1903,11 +1933,24 @@ func (configuration Configuration) withDefaults() Configuration {
 			configuration.MailDatabasePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "mail.sqlite")
 		}
 	}
+	if configuration.AttendanceDatabasePath == "" {
+		if configuration.CompanionJobPath == defaultConfiguration.CompanionJobPath {
+			configuration.AttendanceDatabasePath = defaultConfiguration.AttendanceDatabasePath
+		} else {
+			configuration.AttendanceDatabasePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "attendance.sqlite")
+		}
+	}
 	if configuration.MattermostAdminPasswordPath == "" {
 		configuration.MattermostAdminPasswordPath = defaultConfiguration.MattermostAdminPasswordPath
 	}
 	if configuration.MattermostTokenPath == "" {
 		configuration.MattermostTokenPath = defaultConfiguration.MattermostTokenPath
+	}
+	if configuration.OpenRouterKeyPath == "" {
+		configuration.OpenRouterKeyPath = defaultConfiguration.OpenRouterKeyPath
+	}
+	if configuration.OpenRouterModelsURL == "" {
+		configuration.OpenRouterModelsURL = defaultConfiguration.OpenRouterModelsURL
 	}
 	if configuration.AdminEmailPath == "" {
 		configuration.AdminEmailPath = defaultConfiguration.AdminEmailPath
