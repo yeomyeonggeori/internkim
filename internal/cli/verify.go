@@ -740,7 +740,7 @@ invited_email="verify-invited-$timestamp@internkim.test"
 uninvited_email="verify-uninvited-$timestamp@internkim.test"
 invited_username="verifyinvited$timestamp"
 uninvited_username="verifyuninvited$timestamp"
-password="VerifyPass!$timestamp"
+password="VerifyPass!$timestamp-InternKim-Mattermost"
 channel_id="$(cat /root/.internkim/env/channel-id)"
 admin_password="$(cat /root/.internkim/secrets/mm-admin-pass)"
 test_started_at="$(date +%s%3N)"
@@ -994,7 +994,11 @@ delete_stale_verify_users() {
 }
 
 delete_verify_system_posts() {
-  sudo -u postgres psql -d mattermost <<'SQL' >/dev/null || echo "cleanup warning: failed to delete verify Mattermost system posts" >&2
+  if [ "$(id -u)" != "0" ]; then
+    echo "cleanup warning: skipping verify Mattermost system posts; sudo is unavailable" >&2
+    return 0
+  fi
+  su -s /bin/sh postgres -c "psql -d mattermost" <<'SQL' >/dev/null || echo "cleanup warning: failed to delete verify Mattermost system posts" >&2
 UPDATE posts
 SET deleteat = (extract(epoch from now()) * 1000)::bigint
 WHERE type LIKE 'system_%'
@@ -1049,7 +1053,7 @@ blueclaw_request "invite policy" POST http://127.0.0.1:8080/admin/api/people/inv
 
 phase "invited post"
 before_count="$(task_count)"
-invited_message="verify invited $timestamp"
+invited_message="InternKim Mattermost verification $timestamp: please reply briefly."
 invited_post="$(post_message "$invited_token" "$invited_message")"
 invited_post_id="$(printf '%s' "$invited_post" | jq -r '.id')"
 invited_post_create_at="$(printf '%s' "$invited_post" | jq -r '.create_at')"
@@ -1061,7 +1065,7 @@ wait_for_model_reply "$invited_post_create_at"
 after_count="$(task_count)"
 
 phase "uninvited post"
-uninvited_message="verify uninvited $timestamp"
+uninvited_message="InternKim uninvited Mattermost verification $timestamp: please reply briefly."
 uninvited_post="$(post_message "$uninvited_token" "$uninvited_message")"
 uninvited_post_id="$(printf '%s' "$uninvited_post" | jq -r '.id')"
 uninvited_post_create_at="$(printf '%s' "$uninvited_post" | jq -r '.create_at')"
@@ -1098,7 +1102,7 @@ func verifyMattermostPromptScript(prompt string, keep bool, timeoutSeconds int, 
 timestamp="$(date +%%s)"
 email="probe-mattermost-$timestamp@internkim.test"
 username="probemm$timestamp"
-password="ProbePass!$timestamp"
+password="ProbePass!$timestamp-InternKim-Mattermost"
 prompt="$(printf '%%s' %s | base64 -d)"
 expected_tools_json="$(printf '%%s' %s | base64 -d)"
 expected_events_json="$(printf '%%s' %s | base64 -d)"
@@ -1353,7 +1357,7 @@ func prepareMattermostBrowserOpenE2EScript() string {
 timestamp="$(date +%s)"
 email="probe-browser-open-$timestamp@internkim.test"
 username="probebrowser$timestamp"
-password="ProbePass!$timestamp"
+password="ProbePass!$timestamp-InternKim-Mattermost"
 
 api_request() {
   local phase_name="$1"

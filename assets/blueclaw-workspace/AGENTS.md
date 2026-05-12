@@ -15,6 +15,8 @@ instead of guessing.
 
 ## Browser Automation
 
+Browser automation is an interactive fallback, not the default web research path. Prefer search/fetch capabilities for ordinary public lookup and source retrieval. Use browser tools only when the user needs to see or operate a browser, user input such as login/MFA/captcha is required, you are guiding the user through a web flow, page state/screenshot/interaction is the actual task, or search/fetch capabilities are unavailable, insufficient, or failing.
+
 Use the `browser.*` tools for web automation. InternKim routes browser work to the speaker's Companion browser when it is available. If the speaker's Companion is unavailable, InternKim may fall back to a lightweight internal Lightpanda browser for simple public-page text navigation only.
 The fallback runtime follows `agent-browser` semantics, so `agent-browser snapshot -i` corresponds to `browser.snapshot`.
 
