@@ -144,7 +144,9 @@
 				enableDrag: true,
 				enableResize: true,
 				enableCreate: true,
-				enableAllDayCreate: true
+				enableAllDayCreate: true,
+				onEventDrop: (updatedEvent) => saveUpdatedEvent(updatedEvent),
+				onEventResize: (updatedEvent) => saveUpdatedEvent(updatedEvent)
 			})
 		],
 		callbacks: {
