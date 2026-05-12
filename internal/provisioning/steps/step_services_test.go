@@ -42,6 +42,7 @@ func TestBlueclawRootfsBaseContractCheckCatchesStaleBaseRuntime(t *testing.T) {
 		"rootfs-marp-missing",
 		"rootfs-bun-missing",
 		"rootfs-bunx-missing",
+		"rootfs-bc-missing",
 		"rootfs-chromium-missing",
 		"rootfs-posix-helper-missing",
 		"blueclaw-posix-sync",

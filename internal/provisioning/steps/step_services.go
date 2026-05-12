@@ -363,6 +363,10 @@ if [ ! -x "$mount_path/usr/local/bin/bunx" ]; then
   echo rootfs-bunx-missing
   exit 0
 fi
+if [ ! -x "$mount_path/usr/bin/bc" ]; then
+  echo rootfs-bc-missing
+  exit 0
+fi
 if [ ! -x "$mount_path/usr/bin/chromium" ]; then
   echo rootfs-chromium-missing
   exit 0

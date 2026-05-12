@@ -112,6 +112,24 @@ func TestPrepareRuntimeScriptReusesExistingArtifactKernel(t *testing.T) {
 	}
 }
 
+func TestPrepareRuntimeScriptInstallsBlueclawGuestCalculator(t *testing.T) {
+	repositoryRootPath := runtimeArtifactRepositoryRoot(t)
+	document, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "tools", "prepare-blueclaw-runtime"))
+	if errorValue != nil {
+		t.Fatalf("expected prepare script: %v", errorValue)
+	}
+	script := string(document)
+	expectedFragments := []string{
+		`rootfs_base_packages="ca-certificates,curl,bash,bc,coreutils`,
+		`command -v bc >/dev/null`,
+	}
+	for _, fragment := range expectedFragments {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected prepare script to contain %q", fragment)
+		}
+	}
+}
+
 func writeRuntimeArtifactFile(t *testing.T, artifactDirectoryPath string, fileName string, content string) {
 	t.Helper()
 	if errorValue := os.WriteFile(filepath.Join(artifactDirectoryPath, fileName), []byte(content), 0o644); errorValue != nil {
