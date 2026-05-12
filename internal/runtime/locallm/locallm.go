@@ -48,6 +48,8 @@ const (
 	LlamaCppHost                   = "127.0.0.1"
 	LlamaCppPort                   = "18081"
 	LlamaCppEmbeddingPort          = "18082"
+	LlamaCppEmbeddingBatchSize     = "2048"
+	LlamaCppEmbeddingUBatchSize    = "2048"
 )
 
 func BinaryPath() string {
