@@ -3,7 +3,9 @@ package admind
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/xml"
 	"errors"
@@ -33,6 +35,8 @@ const (
 	calendarDAVUsername                     = "internkim"
 	calendarPrincipalPath                   = "/calendar/dav/team/"
 	calendarHomeSetPath                     = "/calendar/dav/team/calendars/"
+	calendarServerXMLNamespace              = "http://calendarserver.org/ns/"
+	calendarGetCTagLocalName                = "getctag"
 	calendarCollectionPath                  = "/calendar/dav/team/calendars/internkim/"
 	calendarSettingsICSKey                  = "ics_token"
 	calendarDefaultReminderLeadHours        = 24
@@ -1834,6 +1838,25 @@ func (service *Service) readCalendarProperties(ctx context.Context, calendarPath
 	return properties, rows.Err()
 }
 
+func (service *Service) computeCalendarCTag(ctx context.Context) (string, error) {
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	defer database.Close()
+	var maxUpdated sql.NullString
+	var eventCount int64
+	row := database.QueryRowContext(ctx, `
+SELECT COALESCE(MAX(updated_at), '') AS max_updated, COUNT(*) AS event_count
+FROM calendar_events`)
+	if errorValue := row.Scan(&maxUpdated, &eventCount); errorValue != nil {
+		return "", errorValue
+	}
+	fingerprint := maxUpdated.String + ":" + strconv.FormatInt(eventCount, 10)
+	digest := sha256.Sum256([]byte(fingerprint))
+	return "v1-" + hex.EncodeToString(digest[:8]), nil
+}
+
 func (service *Service) handleCalendarPropPatch(responseWriter http.ResponseWriter, request *http.Request) {
 	body, errorValue := io.ReadAll(request.Body)
 	if errorValue != nil {
@@ -1909,7 +1932,17 @@ func (service *Service) handleCalendarPropFind(responseWriter http.ResponseWrite
 		return
 	}
 	properties, errorValue := service.readCalendarProperties(request.Context(), calendarCollectionPath)
-	if errorValue != nil || len(properties) == 0 {
+	if errorValue != nil {
+		copyCalendarRecorderResponse(responseWriter, recorder)
+		return
+	}
+	if ctag, errorValue := service.computeCalendarCTag(request.Context()); errorValue == nil {
+		properties = append(properties, calendarStoredProperty{
+			XMLName: xml.Name{Space: calendarServerXMLNamespace, Local: calendarGetCTagLocalName},
+			Value:   ctag,
+		})
+	}
+	if len(properties) == 0 {
 		copyCalendarRecorderResponse(responseWriter, recorder)
 		return
 	}
