@@ -2677,8 +2677,10 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 	}
 	adminPasswordPath := filepath.Join(stateDirectory, "admin-pass")
 	fleetIDPath := filepath.Join(envDirectory, "fleet-id")
+	fleetSecretPath := filepath.Join(stateDirectory, "fleet-secret")
 	writeFile(t, adminPasswordPath, "admin-pass")
 	writeFile(t, fleetIDPath, "device-1")
+	writeFile(t, fleetSecretPath, "fleet-secret")
 	flowChannelCreated := false
 	flowChannelPatched := false
 	adminJoinedFlowChannel := false
@@ -2690,20 +2692,24 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 	service := NewService(Configuration{
 		StateDirectory:              stateDirectory,
 		MattermostBaseURL:           "http://mattermost.local",
+		APIBaseURL:                  "https://api.intern.test",
 		MattermostAdminPasswordPath: adminPasswordPath,
 		FleetIDPath:                 fleetIDPath,
+		FleetSecretPath:             fleetSecretPath,
 		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
+		case request.URL.String() == "https://api.intern.test/api/users?fleet_id=device-1":
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"staff@example.com","role":"member","mattermostUserID":"staff-1","mattermostUsername":"staff"}]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/username/admin":
 			return jsonResponse(http.StatusOK, `{"id":"admin","email":"admin@localhost","username":"admin"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/admin/roles" && request.Method == http.MethodPut:
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users?per_page=200":
-			return jsonResponse(http.StatusOK, `[{"id":"staff-1","email":"staff@example.com","username":"staff"},{"id":"bot-1","email":"bot@example.com","username":"internkim"},{"id":"deleted-1","email":"deleted@example.com","username":"deleted","delete_at":1}]`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/staff-1":
+			return jsonResponse(http.StatusOK, `{"id":"staff-1","email":"staff@example.com","username":"staff"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
 			assertMattermostRuntimeSettingsPatch(t, request, "https://device-1.example.test")
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
