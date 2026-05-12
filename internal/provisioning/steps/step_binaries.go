@@ -2,8 +2,6 @@ package setup
 
 import (
 	"errors"
-
-	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
 var StepBinaries = Step{
@@ -19,9 +17,6 @@ var StepBinaries = Step{
 		}
 		switch context.Backend {
 		case BackendSSH:
-			if context.BoardType != BoardSimulation && !sshFileExists(context, locallm.BinaryPath()) {
-				return false
-			}
 			if !sshFileExists(context, "/usr/local/bin/blueclaw") ||
 				!sshFileExists(context, "/usr/local/bin/blueclaw-supervisor") ||
 				!sshFileExists(context, "/usr/local/bin/internkim-capabilityd") ||
