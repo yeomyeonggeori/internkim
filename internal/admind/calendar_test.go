@@ -361,6 +361,149 @@ func TestCalendarNotificationCancelsWhenEventIsDeleted(t *testing.T) {
 	}
 }
 
+func TestCalendarPropPatchStoresAppleColor(t *testing.T) {
+	service := newCalendarTestService(t)
+	body := `<?xml version="1.0" encoding="utf-8"?>
+<D:propertyupdate xmlns:D="DAV:" xmlns:A="http://apple.com/ns/ical/">
+  <D:set><D:prop><A:calendar-color>#FF0000</A:calendar-color></D:prop></D:set>
+</D:propertyupdate>`
+	request := httptest.NewRequest("PROPPATCH", calendarCollectionPath, strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/xml")
+	request.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, request)
+	if response.Code != http.StatusMultiStatus {
+		t.Fatalf("proppatch status = %d body = %s", response.Code, response.Body.String())
+	}
+	properties, errorValue := service.readCalendarProperties(context.Background(), calendarCollectionPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(properties) != 1 {
+		t.Fatalf("properties = %#v", properties)
+	}
+	if properties[0].XMLName.Space != "http://apple.com/ns/ical/" || properties[0].XMLName.Local != "calendar-color" || properties[0].Value != "#FF0000" {
+		t.Fatalf("stored property mismatch: %#v", properties[0])
+	}
+}
+
+func TestCalendarPropPatchStoresDAVDisplayName(t *testing.T) {
+	service := newCalendarTestService(t)
+	body := `<?xml version="1.0" encoding="utf-8"?>
+<D:propertyupdate xmlns:D="DAV:">
+  <D:set><D:prop><D:displayname>Team Calendar</D:displayname></D:prop></D:set>
+</D:propertyupdate>`
+	request := httptest.NewRequest("PROPPATCH", calendarCollectionPath, strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/xml")
+	request.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, request)
+	if response.Code != http.StatusMultiStatus {
+		t.Fatalf("proppatch status = %d body = %s", response.Code, response.Body.String())
+	}
+	properties, errorValue := service.readCalendarProperties(context.Background(), calendarCollectionPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(properties) != 1 || properties[0].XMLName.Space != "DAV:" || properties[0].XMLName.Local != "displayname" || properties[0].Value != "Team Calendar" {
+		t.Fatalf("stored properties mismatch: %#v", properties)
+	}
+}
+
+func TestCalendarPropPatchStoresArbitraryNamespace(t *testing.T) {
+	service := newCalendarTestService(t)
+	body := `<?xml version="1.0" encoding="utf-8"?>
+<D:propertyupdate xmlns:D="DAV:" xmlns:M="http://mozilla.org/ns/calendar/">
+  <D:set><D:prop><M:calendar-color>#00FF00</M:calendar-color></D:prop></D:set>
+</D:propertyupdate>`
+	request := httptest.NewRequest("PROPPATCH", calendarCollectionPath, strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/xml")
+	request.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, request)
+	if response.Code != http.StatusMultiStatus {
+		t.Fatalf("proppatch status = %d body = %s", response.Code, response.Body.String())
+	}
+	properties, errorValue := service.readCalendarProperties(context.Background(), calendarCollectionPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(properties) != 1 || properties[0].XMLName.Space != "http://mozilla.org/ns/calendar/" {
+		t.Fatalf("namespace-agnostic storage failed: %#v", properties)
+	}
+}
+
+func TestCalendarPropPatchRemovesProperty(t *testing.T) {
+	service := newCalendarTestService(t)
+	if errorValue := service.writeCalendarProperty(context.Background(), calendarCollectionPath, "http://apple.com/ns/ical/", "calendar-color", "#FF0000"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	body := `<?xml version="1.0" encoding="utf-8"?>
+<D:propertyupdate xmlns:D="DAV:" xmlns:A="http://apple.com/ns/ical/">
+  <D:remove><D:prop><A:calendar-color/></D:prop></D:remove>
+</D:propertyupdate>`
+	request := httptest.NewRequest("PROPPATCH", calendarCollectionPath, strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/xml")
+	request.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, request)
+	if response.Code != http.StatusMultiStatus {
+		t.Fatalf("proppatch status = %d body = %s", response.Code, response.Body.String())
+	}
+	properties, errorValue := service.readCalendarProperties(context.Background(), calendarCollectionPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(properties) != 0 {
+		t.Fatalf("property was not removed: %#v", properties)
+	}
+}
+
+func TestCalendarPropFindIncludesStoredProperties(t *testing.T) {
+	service := newCalendarTestService(t)
+	if errorValue := service.writeCalendarProperty(context.Background(), calendarCollectionPath, "http://apple.com/ns/ical/", "calendar-color", "#FF0000"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	body := `<?xml version="1.0" encoding="utf-8"?>
+<D:propfind xmlns:D="DAV:" xmlns:A="http://apple.com/ns/ical/">
+  <D:prop><A:calendar-color/></D:prop>
+</D:propfind>`
+	request := httptest.NewRequest("PROPFIND", calendarCollectionPath, strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/xml")
+	request.Header.Set("Depth", "0")
+	request.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, request)
+	if response.Code != http.StatusMultiStatus {
+		t.Fatalf("propfind status = %d body = %s", response.Code, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), "#FF0000") {
+		t.Fatalf("propfind body missing stored color: %s", response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), "calendar-color") {
+		t.Fatalf("propfind body missing calendar-color element: %s", response.Body.String())
+	}
+}
+
+func TestCalendarSyncCollectionStillReturnsValidSyncToken(t *testing.T) {
+	service := newCalendarTestService(t)
+	body := `<?xml version="1.0" encoding="utf-8"?>
+<D:sync-collection xmlns:D="DAV:">
+  <D:sync-token/><D:sync-level>1</D:sync-level><D:prop><D:getetag/></D:prop>
+</D:sync-collection>`
+	request := httptest.NewRequest("REPORT", calendarCollectionPath, strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/xml")
+	request.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, request)
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("sync-collection status = %d body = %s", response.Code, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), "valid-sync-token") {
+		t.Fatalf("response missing valid-sync-token: %s", response.Body.String())
+	}
+}
+
 func newCalendarTestService(t *testing.T) *Service {
 	t.Helper()
 	rootPath := t.TempDir()
