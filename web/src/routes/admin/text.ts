@@ -13,7 +13,8 @@ export const adminText = {
 			credentials: 'Credentials',
 			companion: 'Companion',
 			backup: 'Backup',
-			bot: 'Bot'
+			bot: 'Bot',
+			settings: 'Settings'
 		},
 		device: {
 			title: 'Device Admin',
@@ -39,6 +40,13 @@ export const adminText = {
 			save: 'Test & Save',
 			delete: '삭제',
 			notice: '키는 저장 전에 검증되고, LLM이나 tool result에는 노출되지 않습니다.'
+		},
+		settings: {
+			description: '출결과 운영 화면에서 사용할 작업공간 설정입니다.',
+			timeZone: 'Time zone',
+			timeZonePlaceholder: 'system 또는 Asia/Seoul',
+			timeZoneHint: '비워두거나 system으로 두면 기기 설정을 사용합니다. IANA timezone만 저장됩니다.',
+			save: '저장'
 		},
 		companion: {
 			title: 'Companion App',
@@ -113,7 +121,8 @@ export const adminText = {
 			credentials: 'Credentials',
 			companion: 'Companion',
 			backup: 'Backup',
-			bot: 'Bot'
+			bot: 'Bot',
+			settings: 'Settings'
 		},
 		device: {
 			title: 'Device Admin',
@@ -139,6 +148,13 @@ export const adminText = {
 			save: 'Test & Save',
 			delete: 'Delete',
 			notice: 'Keys are validated before saving and are never exposed to the LLM or tool results.'
+		},
+		settings: {
+			description: 'Workspace settings used by attendance and operations screens.',
+			timeZone: 'Time zone',
+			timeZonePlaceholder: 'system or Asia/Seoul',
+			timeZoneHint: 'Leave empty or set system to use the device setting. Only IANA time zones are saved.',
+			save: 'Save'
 		},
 		companion: {
 			title: 'Companion App',
