@@ -137,7 +137,7 @@ func (service Service) invokeOpenRouterWebSearch(ctx context.Context, input webS
 		openRouterWebSearchTool(input),
 		openRouterWebSearchSchema(),
 	)
-	return service.sendOpenRouterWebRequest(ctx, apiKey, requestDocument)
+	return service.sendOpenRouterWebRequest(ctx, apiKey, requestDocument, strictOpenRouterWebContent)
 }
 
 func (service Service) invokeOpenRouterWebFetch(ctx context.Context, input webFetchInput, apiKey string) (json.RawMessage, error) {
@@ -147,7 +147,7 @@ func (service Service) invokeOpenRouterWebFetch(ctx context.Context, input webFe
 		openRouterWebFetchTool(input),
 		openRouterWebFetchSchema(),
 	)
-	return service.sendOpenRouterWebRequest(ctx, apiKey, requestDocument)
+	return service.sendOpenRouterWebRequest(ctx, apiKey, requestDocument, normalizeOpenRouterFetchContent(input))
 }
 
 func openRouterWebToolRequest(modelName string, messages []map[string]string, tool map[string]any, schema json.RawMessage) map[string]any {
@@ -217,7 +217,9 @@ func openRouterWebFetchMessages(input webFetchInput) []map[string]string {
 	}
 }
 
-func (service Service) sendOpenRouterWebRequest(ctx context.Context, apiKey string, document map[string]any) (json.RawMessage, error) {
+type openRouterWebContentNormalizer func(string) (json.RawMessage, error)
+
+func (service Service) sendOpenRouterWebRequest(ctx context.Context, apiKey string, document map[string]any, normalizeContent openRouterWebContentNormalizer) (json.RawMessage, error) {
 	requestBody, errorValue := json.Marshal(document)
 	if errorValue != nil {
 		return nil, errorValue
@@ -257,10 +259,78 @@ func (service Service) sendOpenRouterWebRequest(ctx context.Context, apiKey stri
 	if content == "" {
 		return nil, errors.New("openrouter web response content was empty")
 	}
+	return normalizeContent(content)
+}
+
+func strictOpenRouterWebContent(content string) (json.RawMessage, error) {
 	if !json.Valid([]byte(content)) {
 		return nil, errors.New("openrouter web response content was not JSON")
 	}
 	return json.RawMessage(content), nil
+}
+
+func normalizeOpenRouterFetchContent(input webFetchInput) openRouterWebContentNormalizer {
+	return func(content string) (json.RawMessage, error) {
+		if json.Valid([]byte(content)) {
+			return normalizeOpenRouterFetchJSON(content, input)
+		}
+		return marshalOpenRouterFetchTextResult(input, content)
+	}
+}
+
+func normalizeOpenRouterFetchJSON(content string, input webFetchInput) (json.RawMessage, error) {
+	var document struct {
+		Provider          string `json:"provider"`
+		RemoteLLMInvolved bool   `json:"remoteLLMInvolved"`
+		Compatibility     string `json:"compatibility"`
+		Results           []struct {
+			URL      string `json:"url"`
+			FinalURL string `json:"finalURL"`
+			Title    string `json:"title"`
+			Content  string `json:"content"`
+		} `json:"results"`
+		Errors []struct {
+			URL   string `json:"url"`
+			Error string `json:"error"`
+		} `json:"errors"`
+	}
+	if errorValue := json.Unmarshal([]byte(content), &document); errorValue == nil && (len(document.Results) > 0 || len(document.Errors) > 0 || strings.TrimSpace(document.Provider) != "") {
+		return json.RawMessage(content), nil
+	}
+	return marshalOpenRouterFetchTextResult(input, content)
+}
+
+func marshalOpenRouterFetchTextResult(input webFetchInput, content string) (json.RawMessage, error) {
+	urlValue := firstWebFetchURL(input)
+	title := webFetchTitleFallback(urlValue)
+	document, errorValue := json.Marshal(map[string]any{
+		"provider":          "openrouter",
+		"remoteLLMInvolved": true,
+		"compatibility":     "openrouter_server_tool_content_text",
+		"results": []map[string]string{{
+			"url":      urlValue,
+			"finalURL": urlValue,
+			"title":    title,
+			"content":  strings.TrimSpace(content),
+		}},
+		"errors": []map[string]string{},
+	})
+	return json.RawMessage(document), errorValue
+}
+
+func firstWebFetchURL(input webFetchInput) string {
+	if len(input.URLs) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(input.URLs[0])
+}
+
+func webFetchTitleFallback(rawURL string) string {
+	parsedURL, errorValue := url.Parse(strings.TrimSpace(rawURL))
+	if errorValue != nil || parsedURL.Hostname() == "" {
+		return strings.TrimSpace(rawURL)
+	}
+	return parsedURL.Hostname()
 }
 
 func openRouterWebSearchSchema() json.RawMessage {
