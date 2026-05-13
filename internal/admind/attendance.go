@@ -504,6 +504,19 @@ WHERE local_date >= ? AND local_date < ?`
 	return events, rows.Err()
 }
 
+func (service *Service) deleteAttendanceEventByResultPostID(ctx context.Context, resultPostID string) error {
+	if strings.TrimSpace(resultPostID) == "" {
+		return nil
+	}
+	database, errorValue := service.openAttendanceDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	_, errorValue = database.ExecContext(ctx, "DELETE FROM attendance_events WHERE result_post_id = ?", strings.TrimSpace(resultPostID))
+	return errorValue
+}
+
 type attendanceEventScanner interface {
 	Scan(dest ...any) error
 }
@@ -552,7 +565,7 @@ func (service *Service) updateMattermostAttendanceChannelText(ctx context.Contex
 	body := map[string]string{
 		"display_name": attendanceChannelDisplayName,
 		"header":       link,
-		"purpose":      link,
+		"purpose":      "",
 	}
 	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/patch", token, body, nil)
 }
