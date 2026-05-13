@@ -463,6 +463,10 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeWorkspaceSettings(responseWriter)
 	case request.Method == http.MethodPut && path == "/workspace-settings":
 		service.updateWorkspaceSettings(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/attendance-locations":
+		service.writeAttendanceLocations(responseWriter)
+	case request.Method == http.MethodPut && path == "/attendance-locations":
+		service.updateAttendanceLocations(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/sites":
 		service.listSites(responseWriter)
 	case request.Method == http.MethodPost && path == "/sites":
