@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/eastriver/internkim/internal/capabilities"
 	"gitlab.com/eastriver/internkim/internal/llmbackend"
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
@@ -31,7 +32,7 @@ type (
 )
 
 func (service Service) completeStructured(ctx context.Context, request StructuredLLMRequest) (LLMResponse, error) {
-	provider, errorValue := service.providerForExecutionMode(request.ExecutionMode, request.Provider, request.Accelerator)
+	provider, errorValue := service.providerForExecutionMode(ctx, "llm.structured", request.ExecutionMode, request.Provider, request.Accelerator)
 	if errorValue != nil {
 		return LLMResponse{}, errorValue
 	}
@@ -39,14 +40,14 @@ func (service Service) completeStructured(ctx context.Context, request Structure
 }
 
 func (service Service) completeText(ctx context.Context, request TextLLMRequest) (LLMResponse, error) {
-	provider, errorValue := service.providerForExecutionMode(request.ExecutionMode, request.Provider, request.Accelerator)
+	provider, errorValue := service.providerForExecutionMode(ctx, "llm.text", request.ExecutionMode, request.Provider, request.Accelerator)
 	if errorValue != nil {
 		return LLMResponse{}, errorValue
 	}
 	return provider.CompleteText(ctx, request)
 }
 
-func (service Service) providerForExecutionMode(executionMode, providerName, accelerator string) (LLMProvider, error) {
+func (service Service) providerForExecutionMode(ctx context.Context, toolName, executionMode, providerName, accelerator string) (LLMProvider, error) {
 	companionProvider := service.companionProvider()
 	remoteProvider := service.openRouterBackend()
 	localProviderSet := service.localProviderSet(providerName, accelerator, false)
@@ -62,14 +63,40 @@ func (service Service) providerForExecutionMode(executionMode, providerName, acc
 		return remoteProvider, nil
 	case "auto":
 		localProviderSet := service.localProviderSet(providerName, accelerator, true)
+		autoCompanionProvider := service.companionLLMProviderForAuto(ctx, toolName)
 		return AutoProvider{
-			Providers:               service.automaticLLMProviders(localProviderSet.Provider, companionProvider, remoteProvider),
+			Providers:               service.automaticLLMProviders(localProviderSet.Provider, autoCompanionProvider, remoteProvider),
 			AttemptTimeout:          service.Configuration.ProviderAttemptTimeout,
 			AllowStructuredFallback: true,
 		}, nil
 	default:
 		return nil, errors.New("llm execution mode is not supported")
 	}
+}
+
+func (service Service) companionLLMProviderForAuto(ctx context.Context, toolName string) LLMProvider {
+	if strings.TrimSpace(service.Configuration.CompanionBaseURL) == "" {
+		return nil
+	}
+	availabilityContext, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	descriptors, errorValue := service.companionProvider().capabilities(availabilityContext)
+	if errorValue != nil {
+		return nil
+	}
+	if !hasCapabilityDescriptor(descriptors, toolName) {
+		return nil
+	}
+	return service.companionProvider()
+}
+
+func hasCapabilityDescriptor(descriptors []capabilities.Descriptor, toolName string) bool {
+	for _, descriptor := range descriptors {
+		if descriptor.Name == toolName {
+			return true
+		}
+	}
+	return false
 }
 
 func (service Service) localProviderSet(providerName, accelerator string, allowStructuredFallback bool) llmbackend.LocalProviderSet {
@@ -134,6 +161,9 @@ func (service Service) automaticLLMProviders(localProvider LLMProvider, companio
 		return []LLMProvider{companionProvider, localProvider}
 	}
 	if service.Configuration.PreferCompanionLLM {
+		return []LLMProvider{companionProvider, remoteProvider, localProvider}
+	}
+	if strings.TrimSpace(service.Configuration.CompanionBaseURL) != "" {
 		return []LLMProvider{companionProvider, remoteProvider, localProvider}
 	}
 	return []LLMProvider{remoteProvider, companionProvider, localProvider}

@@ -91,6 +91,99 @@ func TestCompanionStructuredProviderUsesSharedPrototype(t *testing.T) {
 	}
 }
 
+func TestCompanionStructuredProviderRejectsEmptyContent(t *testing.T) {
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		result, _ := json.Marshal(LLMResponse{})
+		return jsonResponse(capabilities.ToolInvokeResponse{ToolName: "llm.structured", Result: result}), nil
+	})}
+
+	_, errorValue := (companionProvider{
+		BaseURL:    "https://companion.test",
+		HTTPClient: httpClient,
+	}).CompleteStructured(context.Background(), StructuredLLMRequest{})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "empty or invalid json") {
+		t.Fatalf("expected empty structured content error, got %v", errorValue)
+	}
+}
+
+func TestCompanionStructuredProviderRejectsDeniedToolResponse(t *testing.T) {
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		result, _ := json.Marshal(capabilities.DenialResult{
+			Status:   "denied",
+			Code:     capabilities.CapabilityNotConnected,
+			ToolName: "llm.structured",
+		})
+		return jsonResponse(capabilities.ToolInvokeResponse{
+			ToolName: "llm.structured",
+			Status:   "denied",
+			Content:  "Companion이 연결되어 있지 않습니다.",
+			IsError:  true,
+			Result:   result,
+		}), nil
+	})}
+
+	_, errorValue := (companionProvider{
+		BaseURL:    "https://companion.test",
+		HTTPClient: httpClient,
+	}).CompleteStructured(context.Background(), StructuredLLMRequest{})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "Companion이 연결되어 있지 않습니다.") {
+		t.Fatalf("expected companion denial error, got %v", errorValue)
+	}
+}
+
+func TestCompanionStructuredProviderRejectsDeniedStatusWithoutErrorFlag(t *testing.T) {
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		result, _ := json.Marshal(capabilities.DenialResult{
+			Status:   "denied",
+			Code:     capabilities.CapabilityNotAllowed,
+			ToolName: "llm.structured",
+		})
+		return jsonResponse(capabilities.ToolInvokeResponse{
+			ToolName: "llm.structured",
+			Status:   "denied",
+			Content:  "이 요청을 실행할 수 있는 Companion 권한이 없습니다.",
+			Result:   result,
+		}), nil
+	})}
+
+	_, errorValue := (companionProvider{
+		BaseURL:    "https://companion.test",
+		HTTPClient: httpClient,
+	}).CompleteStructured(context.Background(), StructuredLLMRequest{})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "Companion 권한") {
+		t.Fatalf("expected companion denied status error, got %v", errorValue)
+	}
+}
+
+func TestCompanionStructuredProviderRejectsEmptyResult(t *testing.T) {
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		return jsonResponse(capabilities.ToolInvokeResponse{ToolName: "llm.structured"}), nil
+	})}
+
+	_, errorValue := (companionProvider{
+		BaseURL:    "https://companion.test",
+		HTTPClient: httpClient,
+	}).CompleteStructured(context.Background(), StructuredLLMRequest{})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "result was empty") {
+		t.Fatalf("expected empty result error, got %v", errorValue)
+	}
+}
+
+func TestCompanionTextProviderRejectsEmptyContent(t *testing.T) {
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		result, _ := json.Marshal(LLMResponse{})
+		return jsonResponse(capabilities.ToolInvokeResponse{ToolName: "llm.text", Result: result}), nil
+	})}
+
+	_, errorValue := (companionProvider{
+		BaseURL:    "https://companion.test",
+		HTTPClient: httpClient,
+	}).CompleteText(context.Background(), TextLLMRequest{})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "text llm response was empty") {
+		t.Fatalf("expected empty text content error, got %v", errorValue)
+	}
+}
+
 func TestAutoProviderPrefersCompanionWhenConfigured(t *testing.T) {
 	service := Service{Configuration: Configuration{PreferCompanionLLM: true}}
 	providers := service.automaticLLMProviders(
@@ -98,7 +191,7 @@ func TestAutoProviderPrefersCompanionWhenConfigured(t *testing.T) {
 		staticLLMProvider{response: LLMResponse{Provider: "companion", SelectedBackend: testCompanionBackend, Content: `{"reply":"ok"}`}},
 		staticLLMProvider{response: LLMResponse{Provider: "openrouter", SelectedBackend: capabilities.LLMBackendRemote, Content: `{"reply":"remote"}`}},
 	)
-	autoProvider := AutoProvider{Providers: providers}
+	autoProvider := AutoProvider{Providers: providers, AllowStructuredFallback: true}
 
 	response, errorValue := autoProvider.CompleteStructured(context.Background(), StructuredLLMRequest{})
 	if errorValue != nil {
@@ -106,6 +199,42 @@ func TestAutoProviderPrefersCompanionWhenConfigured(t *testing.T) {
 	}
 	if response.SelectedBackend != testCompanionBackend {
 		t.Fatalf("expected companion backend, got %q", response.SelectedBackend)
+	}
+}
+
+func TestAutoProviderConfiguredCompanionFallsBackToRemote(t *testing.T) {
+	service := Service{Configuration: Configuration{PreferCompanionLLM: true}}
+	providers := service.automaticLLMProviders(
+		staticLLMProvider{response: LLMResponse{Provider: "litert", SelectedBackend: "cpu", Content: `{"reply":"device"}`}},
+		staticLLMProvider{errorValue: errTestProviderUnavailable},
+		staticLLMProvider{response: LLMResponse{Provider: "openrouter", SelectedBackend: capabilities.LLMBackendRemote, Content: `{"reply":"remote"}`}},
+	)
+	autoProvider := AutoProvider{Providers: providers, AllowStructuredFallback: true}
+
+	response, errorValue := autoProvider.CompleteStructured(context.Background(), StructuredLLMRequest{})
+	if errorValue != nil {
+		t.Fatalf("expected remote fallback response: %v", errorValue)
+	}
+	if response.SelectedBackend != capabilities.LLMBackendRemote {
+		t.Fatalf("expected remote backend after companion failure, got %q", response.SelectedBackend)
+	}
+}
+
+func TestAutoProviderConfiguredCompanionFallsBackToLocalAfterRemote(t *testing.T) {
+	service := Service{Configuration: Configuration{PreferCompanionLLM: true}}
+	providers := service.automaticLLMProviders(
+		staticLLMProvider{response: LLMResponse{Provider: "litert", SelectedBackend: "cpu", Content: `{"reply":"device"}`}},
+		staticLLMProvider{errorValue: errTestProviderUnavailable},
+		staticLLMProvider{errorValue: errTestProviderUnavailable},
+	)
+	autoProvider := AutoProvider{Providers: providers, AllowStructuredFallback: true}
+
+	response, errorValue := autoProvider.CompleteStructured(context.Background(), StructuredLLMRequest{})
+	if errorValue != nil {
+		t.Fatalf("expected local fallback response: %v", errorValue)
+	}
+	if response.SelectedBackend != "cpu" {
+		t.Fatalf("expected local backend after companion and remote failure, got %q", response.SelectedBackend)
 	}
 }
 
@@ -144,9 +273,48 @@ func TestAutoProviderLocalOnlyBlocksRemoteFallback(t *testing.T) {
 
 func TestRemoteExecutionFailsInLocalOnlyMode(t *testing.T) {
 	service := Service{Configuration: Configuration{LocalOnly: true}}
-	_, errorValue := service.providerForExecutionMode(capabilities.ExecutionModeRemote, "", "")
+	_, errorValue := service.providerForExecutionMode(context.Background(), "llm.structured", capabilities.ExecutionModeRemote, "", "")
 	if errorValue == nil {
 		t.Fatal("expected remote execution to fail in local-only mode")
+	}
+}
+
+func TestAutoProviderSkipsDisconnectedCompanion(t *testing.T) {
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Path != "/capabilities" {
+			t.Fatalf("unexpected companion path: %s", request.URL.Path)
+		}
+		return jsonResponse(capabilities.RegistryResponse{CompanionStatus: "unavailable"}), nil
+	})}
+
+	service := Service{
+		Configuration: Configuration{CompanionBaseURL: "https://companion.test"},
+		HTTPClient:    httpClient,
+	}
+	if provider := service.companionLLMProviderForAuto(context.Background(), "llm.structured"); provider != nil {
+		t.Fatalf("expected disconnected companion to be skipped, got %T", provider)
+	}
+}
+
+func TestAutoProviderUsesConnectedCompanionWithStructuredCapability(t *testing.T) {
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Path != "/capabilities" {
+			t.Fatalf("unexpected companion path: %s", request.URL.Path)
+		}
+		return jsonResponse(capabilities.RegistryResponse{
+			CompanionStatus: "available",
+			Capabilities: []capabilities.Descriptor{{
+				Name: "llm.structured",
+			}},
+		}), nil
+	})}
+
+	service := Service{
+		Configuration: Configuration{CompanionBaseURL: "https://companion.test"},
+		HTTPClient:    httpClient,
+	}
+	if provider := service.companionLLMProviderForAuto(context.Background(), "llm.structured"); provider == nil {
+		t.Fatal("expected connected structured companion provider")
 	}
 }
 
