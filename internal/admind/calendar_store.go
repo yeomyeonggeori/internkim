@@ -311,7 +311,9 @@ func boolToSQLiteInteger(value bool) int {
 	return 0
 }
 
-type calendarStoredProperty struct {
+// calendarStoredTextProperty는 PROPPATCH로 들어온 whitelist text-only property를 저장한다.
+// nested element 가 있는 XML property는 처리하지 않는다 — text 값만 라운드트립한다.
+type calendarStoredTextProperty struct {
 	XMLName xml.Name
 	Value   string
 }
@@ -345,7 +347,7 @@ func (service *Service) deleteCalendarProperty(ctx context.Context, calendarPath
 	return errorValue
 }
 
-func (service *Service) readCalendarProperties(ctx context.Context, calendarPath string) ([]calendarStoredProperty, error) {
+func (service *Service) readCalendarProperties(ctx context.Context, calendarPath string) ([]calendarStoredTextProperty, error) {
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
 		return nil, errorValue
@@ -358,7 +360,7 @@ func (service *Service) readCalendarProperties(ctx context.Context, calendarPath
 		return nil, errorValue
 	}
 	defer rows.Close()
-	properties := []calendarStoredProperty{}
+	properties := []calendarStoredTextProperty{}
 	for rows.Next() {
 		var xmlns string
 		var localName string
@@ -366,7 +368,7 @@ func (service *Service) readCalendarProperties(ctx context.Context, calendarPath
 		if errorValue := rows.Scan(&xmlns, &localName, &value); errorValue != nil {
 			return nil, errorValue
 		}
-		properties = append(properties, calendarStoredProperty{
+		properties = append(properties, calendarStoredTextProperty{
 			XMLName: xml.Name{Space: xmlns, Local: localName},
 			Value:   value,
 		})

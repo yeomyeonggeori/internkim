@@ -51,6 +51,18 @@ type calendarPropFindRequest struct {
 	Props   []xml.Name
 }
 
+// calendarStorablePropertyWhitelist는 PROPPATCH 가 받아들이는 property 집합이다.
+// 모두 텍스트 값만 사용하는 property — nested element 는 silent corruption 위험이 있으므로 일부러 제외한다.
+var calendarStorablePropertyWhitelist = map[xml.Name]bool{
+	{Space: calendarDAVNamespace, Local: "displayname"}:           true,
+	{Space: calendarAppleICalXMLNamespace, Local: "calendar-color"}: true,
+	{Space: calendarAppleICalXMLNamespace, Local: "calendar-order"}: true,
+}
+
+func calendarPropertyIsStorable(name xml.Name) bool {
+	return calendarStorablePropertyWhitelist[name]
+}
+
 func (service *Service) computeCalendarCTag(ctx context.Context) (string, error) {
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
@@ -89,6 +101,10 @@ func (service *Service) handleCalendarPropPatch(responseWriter http.ResponseWrit
 	results := []propResult{}
 	for _, set := range update.Set {
 		for _, property := range set.Prop.Properties {
+			if !calendarPropertyIsStorable(property.XMLName) {
+				results = append(results, propResult{property.XMLName, http.StatusForbidden})
+				continue
+			}
 			value := strings.TrimSpace(property.InnerXML)
 			if errorValue := service.writeCalendarProperty(request.Context(), request.URL.Path, property.XMLName.Space, property.XMLName.Local, value); errorValue != nil {
 				results = append(results, propResult{property.XMLName, http.StatusInternalServerError})
@@ -99,6 +115,10 @@ func (service *Service) handleCalendarPropPatch(responseWriter http.ResponseWrit
 	}
 	for _, remove := range update.Remove {
 		for _, property := range remove.Prop.Properties {
+			if !calendarPropertyIsStorable(property.XMLName) {
+				results = append(results, propResult{property.XMLName, http.StatusForbidden})
+				continue
+			}
 			_ = service.deleteCalendarProperty(request.Context(), request.URL.Path, property.XMLName.Space, property.XMLName.Local)
 			results = append(results, propResult{property.XMLName, http.StatusOK})
 		}
