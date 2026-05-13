@@ -13,6 +13,9 @@ type mattermostPost struct {
 	RootID    string `json:"root_id"`
 	Type      string `json:"type"`
 	CreateAt  int64  `json:"create_at"`
+	Metadata  struct {
+		Mentions []string `json:"mentions"`
+	} `json:"metadata"`
 }
 
 type mattermostWebSocketMessage struct {
@@ -31,8 +34,8 @@ func normalizeMattermostWebSocketPayload(payload []byte, botUserID string) (plat
 	if errorValue != nil || !hasPost {
 		return platformInboundEvent{}, false, errorValue
 	}
-	isBotMentioned := containsString(metadata.Mentions, strings.TrimSpace(botUserID))
-	return normalizeMattermostPost(post, botUserID, metadata.ChannelType, metadata.ChannelName, isBotMentioned)
+	addressing := mattermostAddressing(metadata.Mentions, botUserID, "")
+	return normalizeMattermostPost(post, botUserID, metadata.ChannelType, metadata.ChannelName, addressing)
 }
 
 func mattermostWebSocketPost(payload []byte) (mattermostPost, mattermostPostMetadata, bool, error) {
@@ -74,19 +77,7 @@ func parseMattermostMentionsList(raw any) []string {
 	return mentions
 }
 
-func containsString(values []string, target string) bool {
-	if strings.TrimSpace(target) == "" {
-		return false
-	}
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
-}
-
-func normalizeMattermostPost(post mattermostPost, botUserID string, channelType string, channelName string, isBotMentioned bool) (platformInboundEvent, bool, error) {
+func normalizeMattermostPost(post mattermostPost, botUserID string, channelType string, channelName string, addressing platformAddressing) (platformInboundEvent, bool, error) {
 	if strings.TrimSpace(post.ID) == "" || strings.TrimSpace(post.UserID) == "" {
 		return platformInboundEvent{}, false, nil
 	}
@@ -95,10 +86,6 @@ func normalizeMattermostPost(post mattermostPost, botUserID string, channelType 
 	}
 
 	isDirect := strings.EqualFold(strings.TrimSpace(channelType), "D")
-	if !isDirect && !isDefaultMattermostChannel(channelName) && !isBotMentioned {
-		return platformInboundEvent{}, false, nil
-	}
-
 	replyRootID := ""
 	if isDirect {
 		replyRootID = mattermostDirectReplyRootID(post)
@@ -135,20 +122,58 @@ func normalizeMattermostPost(post mattermostPost, botUserID string, channelType 
 			ConversationType: channelType,
 			ChannelID:        post.ChannelID,
 			ChannelName:      channelName,
+			Addressing:       addressing,
 		},
 	}, true, nil
 }
 
-func isDefaultMattermostChannel(channelName string) bool {
-	switch strings.ToLower(strings.TrimSpace(channelName)) {
-	case "town-square":
+func mattermostDirectReplyRootID(post mattermostPost) string {
+	return firstNonEmpty(post.RootID, post.ID)
+}
+
+func mattermostAddressing(mentions []string, botUserID string, botUsername string) platformAddressing {
+	botUserID = strings.TrimSpace(botUserID)
+	botUsername = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(botUsername), "@"))
+	addressing := platformAddressing{}
+	for _, mention := range mentions {
+		trimmedMention := strings.TrimSpace(mention)
+		if trimmedMention == "" {
+			continue
+		}
+		if trimmedMention == botUserID || strings.EqualFold(strings.TrimPrefix(trimmedMention, "@"), botUsername) {
+			addressing.BotMentioned = true
+			continue
+		}
+		if isMattermostBroadcastMention(trimmedMention) {
+			continue
+		}
+		addressing.OtherPersonMentioned = true
+	}
+	return addressing
+}
+
+func mattermostAddressingFromMessage(message string, botUsername string) platformAddressing {
+	return mattermostAddressing(mattermostMentionTokens(message), "", botUsername)
+}
+
+func mattermostMentionTokens(message string) []string {
+	fields := strings.Fields(message)
+	mentions := make([]string, 0, len(fields))
+	for _, field := range fields {
+		token := strings.Trim(field, " \t\r\n.,;:!?()[]{}<>\"'")
+		if strings.HasPrefix(token, "@") && len(token) > 1 {
+			mentions = append(mentions, strings.TrimPrefix(token, "@"))
+		}
+	}
+	return mentions
+}
+
+func isMattermostBroadcastMention(mention string) bool {
+	switch strings.ToLower(strings.TrimPrefix(strings.TrimSpace(mention), "@")) {
+	case "all", "channel", "here":
 		return true
 	}
 	return false
-}
-
-func mattermostDirectReplyRootID(post mattermostPost) string {
-	return firstNonEmpty(post.RootID, post.ID)
 }
 
 func mattermostHistoryHandle(replyHandle platformHandle, post mattermostPost, isDirect bool) platformHandle {
