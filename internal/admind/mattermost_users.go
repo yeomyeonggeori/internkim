@@ -647,9 +647,10 @@ func (service *Service) ensureMattermostRuntimeSettings(ctx context.Context, tok
 
 func (service *Service) mattermostServiceSettingsPatch() map[string]any {
 	settings := map[string]any{
-		"EnableBotAccountCreation": true,
-		"EnableUserAccessTokens":   true,
-		"ManagedResourcePaths":     mattermostdefaults.ManagedResourcePathSetting(),
+		"AllowedUntrustedInternalConnections": "127.0.0.1 localhost",
+		"EnableBotAccountCreation":            true,
+		"EnableUserAccessTokens":              true,
+		"ManagedResourcePaths":                mattermostdefaults.ManagedResourcePathSetting(),
 	}
 	if siteURL := strings.TrimRight(strings.TrimSpace(service.mattermostFlowBaseURL()), "/"); siteURL != "" {
 		settings["SiteURL"] = siteURL
