@@ -797,8 +797,15 @@ func parseCalendarMultistatus(body []byte) ([]calendarPropFindResult, error) {
 			OK:   map[xml.Name]string{},
 		}
 		for _, propstat := range response.Propstats {
-			isOK := strings.Contains(propstat.Status, " 200 ")
-			isNotFound := strings.Contains(propstat.Status, " 404 ")
+			isOK, isNotFound := false, false
+			if statusFields := strings.Fields(propstat.Status); len(statusFields) >= 2 {
+				switch statusFields[1] {
+				case "200":
+					isOK = true
+				case "404":
+					isNotFound = true
+				}
+			}
 			for _, property := range propstat.Prop.Properties {
 				switch {
 				case isOK:
