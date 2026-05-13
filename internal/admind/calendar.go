@@ -299,7 +299,7 @@ func (service *Service) serveCalendarDAV(responseWriter http.ResponseWriter, req
 		if err == nil {
 			request.Body = io.NopCloser(bytes.NewReader(body))
 			if bytes.Contains(body, []byte("sync-collection")) {
-				writeCalendarSyncCollectionFallback(responseWriter)
+				writeCalendarSyncCollectionUnsupported(responseWriter)
 				return
 			}
 		}
@@ -323,12 +323,16 @@ func (service *Service) invokeCalendarDAVHandler(responseWriter http.ResponseWri
 	handler.ServeHTTP(responseWriter, request)
 }
 
-func writeCalendarSyncCollectionFallback(responseWriter http.ResponseWriter) {
+// writeCalendarSyncCollectionUnsupported는 sync-collection REPORT 요청을 RFC 3253 supported-report
+// precondition 위반으로 거절한다. valid-sync-token 응답은 "토큰이 만료됐다"는 다른 의미여서
+// 클라이언트가 토큰을 버리고 무한히 재시도할 위험이 있다 — supported-report가 정확한 unsupported 신호다.
+// supported-report-set PROPFIND 응답(buildCalendarCollectionPropFindResponse)에도 sync-collection 은 포함되지 않는다.
+func writeCalendarSyncCollectionUnsupported(responseWriter http.ResponseWriter) {
 	responseWriter.Header().Set("Content-Type", "application/xml; charset=utf-8")
 	responseWriter.WriteHeader(http.StatusForbidden)
 	_, _ = responseWriter.Write([]byte(
 		`<?xml version="1.0" encoding="utf-8"?>` +
-			`<D:error xmlns:D="DAV:"><D:valid-sync-token/></D:error>`,
+			`<D:error xmlns:D="DAV:"><D:supported-report/></D:error>`,
 	))
 }
 
