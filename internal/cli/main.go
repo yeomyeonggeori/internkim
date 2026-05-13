@@ -605,7 +605,7 @@ func runDeployToBoard(scriptDir string, boardBinDir string, ssh *sshClient) {
 	boardTools := []string{"download"}
 
 	fmt.Print("Installing skill dependencies... ")
-	ssh.run("pip3 install --quiet fpdf2 pypdf 2>&1 | tail -1")
+	ssh.run("pip3 install --quiet " + skillPythonDependencyPackages() + " 2>&1 | tail -1")
 	fmt.Println("ok")
 
 	fmt.Print("Deploying skills... ")
