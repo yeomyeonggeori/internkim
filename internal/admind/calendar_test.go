@@ -223,7 +223,14 @@ func TestCalendarNotificationPostsAnnouncementsForAllHands(t *testing.T) {
 				t.Fatal(errorValue)
 			}
 			return jsonResponse(http.StatusCreated, `{"id":"announcements-channel"}`, nil), nil
+		case request.Method == http.MethodGet && request.URL.Path == "/api/v4/users/username/internkim":
+			assertMattermostBearerToken(t, request, "admin-token")
+			return jsonResponse(http.StatusOK, `{"id":"bot-1","username":"internkim"}`, nil), nil
+		case request.Method == http.MethodPost && request.URL.Path == "/api/v4/channels/announcements-channel/members":
+			assertMattermostBearerToken(t, request, "admin-token")
+			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		case request.Method == http.MethodPost && request.URL.Path == "/api/v4/posts":
+			assertMattermostBearerToken(t, request, "bot-token")
 			var payload map[string]any
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 				t.Fatal(errorValue)
@@ -268,6 +275,7 @@ func TestCalendarNotificationPostsDirectMessageForPeopleLine(t *testing.T) {
 		case request.Method == http.MethodGet && request.URL.Path == "/api/v4/users":
 			return jsonResponse(http.StatusOK, `[{"id":"user-1","username":"dongha","nickname":"샘플","email":"dongha@example.com"}]`, nil), nil
 		case request.Method == http.MethodGet && request.URL.Path == "/api/v4/users/username/internkim":
+			assertMattermostBearerToken(t, request, "admin-token")
 			return jsonResponse(http.StatusOK, `{"id":"bot-1","username":"internkim"}`, nil), nil
 		case request.Method == http.MethodPost && request.URL.Path == "/api/v4/channels/direct":
 			if errorValue := json.NewDecoder(request.Body).Decode(&directChannelMembers); errorValue != nil {
@@ -277,6 +285,7 @@ func TestCalendarNotificationPostsDirectMessageForPeopleLine(t *testing.T) {
 		case request.Method == http.MethodPut && request.URL.Path == "/api/v4/users/user-1/preferences":
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.Method == http.MethodPost && request.URL.Path == "/api/v4/posts":
+			assertMattermostBearerToken(t, request, "bot-token")
 			var payload map[string]any
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 				t.Fatal(errorValue)
@@ -385,6 +394,7 @@ func newCalendarMattermostTestService(t *testing.T, transport roundTripFunc) *Se
 	t.Helper()
 	service := newCalendarTestService(t)
 	service.Configuration.MattermostAdminPasswordPath = writeTestFile(t, "admin-password")
+	service.Configuration.MattermostBotTokenPath = writeTestFile(t, "bot-token")
 	service.Configuration.MattermostBaseURL = "http://mattermost.local"
 	service.HTTPClient = &http.Client{Transport: transport}
 	return service
