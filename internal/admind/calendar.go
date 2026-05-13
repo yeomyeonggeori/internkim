@@ -1848,7 +1848,8 @@ func (service *Service) computeCalendarCTag(ctx context.Context) (string, error)
 	var eventCount int64
 	row := database.QueryRowContext(ctx, `
 SELECT COALESCE(MAX(updated_at), '') AS max_updated, COUNT(*) AS event_count
-FROM calendar_events`)
+FROM calendar_events
+WHERE deleted_at = ''`)
 	if errorValue := row.Scan(&maxUpdated, &eventCount); errorValue != nil {
 		return "", errorValue
 	}

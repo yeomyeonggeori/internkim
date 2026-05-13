@@ -622,6 +622,44 @@ func TestCalendarCTagChangesAfterEventWrite(t *testing.T) {
 	}
 }
 
+func TestCalendarCTagReflectsActiveEventsOnly(t *testing.T) {
+	service := newCalendarTestService(t)
+	backend := calendarDAVBackend{service: service}
+	ctx := context.Background()
+
+	persistent := newCalendarDocumentWithEvent("ctag-active@example.com", "Persistent")
+	if _, errorValue := backend.PutCalendarObject(ctx, calendarCollectionPath+"ctag-active.ics", persistent, nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	ctagWithOne, errorValue := service.computeCalendarCTag(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	transient := newCalendarDocumentWithEvent("ctag-transient@example.com", "Transient")
+	if _, errorValue := backend.PutCalendarObject(ctx, calendarCollectionPath+"ctag-transient.ics", transient, nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	ctagWithTwo, errorValue := service.computeCalendarCTag(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if ctagWithOne == ctagWithTwo {
+		t.Fatalf("ctag should change when an active event is added: %s", ctagWithOne)
+	}
+
+	if errorValue := backend.DeleteCalendarObject(ctx, calendarCollectionPath+"ctag-transient.ics"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	ctagAfterDelete, errorValue := service.computeCalendarCTag(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if ctagAfterDelete != ctagWithOne {
+		t.Fatalf("ctag should reflect active events only: after-delete=%s want=%s", ctagAfterDelete, ctagWithOne)
+	}
+}
+
 func newCalendarDocumentWithEvent(uid string, summary string) *ical.Calendar {
 	calendar := newCalendarDocument()
 	event := ical.NewEvent()
