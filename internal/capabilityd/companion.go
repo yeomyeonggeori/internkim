@@ -261,6 +261,9 @@ func (provider companionProvider) CompleteStructured(ctx context.Context, reques
 	if errorValue != nil {
 		return LLMResponse{}, errorValue
 	}
+	if errorValue := validateCompanionToolResponse(toolResponse); errorValue != nil {
+		return LLMResponse{}, errorValue
+	}
 	var response LLMResponse
 	if errorValue := json.Unmarshal(toolResponse.Result, &response); errorValue != nil {
 		return LLMResponse{}, errorValue
@@ -270,6 +273,9 @@ func (provider companionProvider) CompleteStructured(ctx context.Context, reques
 	}
 	if response.Provider == "" {
 		response.Provider = "companion"
+	}
+	if !llmbackend.ValidateStructuredJSON(response.Content) {
+		return LLMResponse{}, errors.New("companion structured llm response was empty or invalid json")
 	}
 	return response, nil
 }
@@ -289,6 +295,9 @@ func (provider companionProvider) CompleteText(ctx context.Context, request Text
 	if errorValue != nil {
 		return LLMResponse{}, errorValue
 	}
+	if errorValue := validateCompanionToolResponse(toolResponse); errorValue != nil {
+		return LLMResponse{}, errorValue
+	}
 	var response LLMResponse
 	if errorValue := json.Unmarshal(toolResponse.Result, &response); errorValue != nil {
 		return LLMResponse{}, errorValue
@@ -299,7 +308,25 @@ func (provider companionProvider) CompleteText(ctx context.Context, request Text
 	if response.Provider == "" {
 		response.Provider = "companion"
 	}
+	if strings.TrimSpace(response.Content) == "" {
+		return LLMResponse{}, errors.New("companion text llm response was empty")
+	}
 	return response, nil
+}
+
+func validateCompanionToolResponse(response capabilities.ToolInvokeResponse) error {
+	if response.IsError {
+		return errors.New(firstNonEmpty(response.Content, response.Status, "companion tool returned an error"))
+	}
+	status := strings.ToLower(strings.TrimSpace(response.Status))
+	if status == "denied" || status == "failed" || status == "error" {
+		return errors.New(firstNonEmpty(response.Content, response.Status, "companion tool returned an error"))
+	}
+	result := bytes.TrimSpace(response.Result)
+	if len(result) == 0 || bytes.Equal(result, []byte("null")) {
+		return errors.New("companion tool response result was empty")
+	}
+	return nil
 }
 
 func (provider companionProvider) CreateEmbedding(ctx context.Context, request EmbeddingRequest) (EmbeddingResponse, error) {

@@ -313,6 +313,13 @@ func TestBlueclawServiceDoesNotExposeOpenRouterKeyAsEnvironmentFile(t *testing.T
 	}
 }
 
+func TestCapabilitydServicePrefersCompanionLLM(t *testing.T) {
+	serviceDocument := CapabilitydServiceUnit()
+	if !strings.Contains(serviceDocument, "--prefer-companion-llm") {
+		t.Fatalf("expected capabilityd service to prefer companion LLM, got %s", serviceDocument)
+	}
+}
+
 func TestLlamaCppServiceUnitRunsLocalServer(t *testing.T) {
 	serviceDocument := LlamaCppServiceUnit()
 	for _, expectedValue := range []string{
