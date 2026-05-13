@@ -60,11 +60,12 @@ type mattermostChannelMemberRecord struct {
 }
 
 type mattermostPostRecord struct {
-	ID      string         `json:"id"`
-	UserID  string         `json:"user_id"`
-	Message string         `json:"message"`
-	Type    string         `json:"type"`
-	Props   map[string]any `json:"props"`
+	ID       string         `json:"id"`
+	UserID   string         `json:"user_id"`
+	Message  string         `json:"message"`
+	Type     string         `json:"type"`
+	IsPinned bool           `json:"is_pinned"`
+	Props    map[string]any `json:"props"`
 }
 
 type mattermostPostsResponse struct {
@@ -954,7 +955,7 @@ func (service *Service) ensureMattermostFlowEntryPost(ctx context.Context, admin
 	if errorValue != nil {
 		return errorValue
 	}
-	if errorValue := service.ensureMattermostFlowBotCanPost(ctx, adminToken, channelID, botUserID); errorValue != nil {
+	if errorValue := service.ensureMattermostBotCanPost(ctx, adminToken, channelID, botUserID); errorValue != nil {
 		return errorValue
 	}
 	post, found := service.mattermostFlowEntryPost(ctx, adminToken, channelID)
