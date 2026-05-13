@@ -219,6 +219,18 @@ func openRouterWebFetchMessages(input webFetchInput) []map[string]string {
 
 type openRouterWebContentNormalizer func(string) (json.RawMessage, error)
 
+type openRouterFetchDocumentResult struct {
+	URL      string `json:"url"`
+	FinalURL string `json:"finalURL"`
+	Title    string `json:"title"`
+	Content  string `json:"content"`
+}
+
+type openRouterFetchDocumentError struct {
+	URL   string `json:"url"`
+	Error string `json:"error"`
+}
+
 func (service Service) sendOpenRouterWebRequest(ctx context.Context, apiKey string, document map[string]any, normalizeContent openRouterWebContentNormalizer) (json.RawMessage, error) {
 	requestBody, errorValue := json.Marshal(document)
 	if errorValue != nil {
@@ -255,8 +267,8 @@ func (service Service) sendOpenRouterWebRequest(ctx context.Context, apiKey stri
 	if len(parsed.Choices) == 0 {
 		return nil, errors.New("openrouter web response did not include choices")
 	}
-	content := strings.TrimSpace(parsed.Choices[0].Message.Content)
-	if content == "" {
+	content := parsed.Choices[0].Message.Content
+	if strings.TrimSpace(content) == "" {
 		return nil, errors.New("openrouter web response content was empty")
 	}
 	return normalizeContent(content)
@@ -280,27 +292,39 @@ func normalizeOpenRouterFetchContent(input webFetchInput) openRouterWebContentNo
 
 func normalizeOpenRouterFetchJSON(content string, input webFetchInput) (json.RawMessage, error) {
 	var document struct {
-		Provider          string `json:"provider"`
-		RemoteLLMInvolved bool   `json:"remoteLLMInvolved"`
-		Compatibility     string `json:"compatibility"`
-		Results           []struct {
-			URL      string `json:"url"`
-			FinalURL string `json:"finalURL"`
-			Title    string `json:"title"`
-			Content  string `json:"content"`
-		} `json:"results"`
-		Errors []struct {
-			URL   string `json:"url"`
-			Error string `json:"error"`
-		} `json:"errors"`
+		Provider          string                          `json:"provider"`
+		RemoteLLMInvolved bool                            `json:"remoteLLMInvolved"`
+		Compatibility     string                          `json:"compatibility"`
+		Results           []openRouterFetchDocumentResult `json:"results"`
+		Errors            []openRouterFetchDocumentError  `json:"errors"`
 	}
-	if errorValue := json.Unmarshal([]byte(content), &document); errorValue == nil && (len(document.Results) > 0 || len(document.Errors) > 0 || strings.TrimSpace(document.Provider) != "") {
+	if errorValue := json.Unmarshal([]byte(content), &document); errorValue == nil && openRouterFetchJSONLooksValid(document.Provider, document.Results, document.Errors) {
 		return json.RawMessage(content), nil
 	}
 	return marshalOpenRouterFetchTextResult(input, content)
 }
 
+func openRouterFetchJSONLooksValid(provider string, results []openRouterFetchDocumentResult, errors []openRouterFetchDocumentError) bool {
+	if strings.TrimSpace(provider) == "" || len(results)+len(errors) == 0 {
+		return false
+	}
+	for _, result := range results {
+		if strings.TrimSpace(result.URL) == "" || strings.TrimSpace(result.Title) == "" {
+			return false
+		}
+	}
+	for _, errorValue := range errors {
+		if strings.TrimSpace(errorValue.URL) == "" || strings.TrimSpace(errorValue.Error) == "" {
+			return false
+		}
+	}
+	return true
+}
+
 func marshalOpenRouterFetchTextResult(input webFetchInput, content string) (json.RawMessage, error) {
+	if len(input.URLs) > 1 {
+		return marshalOpenRouterFetchCombinedTextResult(content)
+	}
 	urlValue := firstWebFetchURL(input)
 	title := webFetchTitleFallback(urlValue)
 	document, errorValue := json.Marshal(map[string]any{
@@ -311,7 +335,23 @@ func marshalOpenRouterFetchTextResult(input webFetchInput, content string) (json
 			"url":      urlValue,
 			"finalURL": urlValue,
 			"title":    title,
-			"content":  strings.TrimSpace(content),
+			"content":  content,
+		}},
+		"errors": []map[string]string{},
+	})
+	return json.RawMessage(document), errorValue
+}
+
+func marshalOpenRouterFetchCombinedTextResult(content string) (json.RawMessage, error) {
+	document, errorValue := json.Marshal(map[string]any{
+		"provider":          "openrouter",
+		"remoteLLMInvolved": true,
+		"compatibility":     "openrouter_server_tool_combined_text",
+		"results": []map[string]string{{
+			"url":      "",
+			"finalURL": "",
+			"title":    "OpenRouter combined fetch content",
+			"content":  content,
 		}},
 		"errors": []map[string]string{},
 	})
