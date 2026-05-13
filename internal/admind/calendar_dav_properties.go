@@ -106,6 +106,11 @@ func (service *Service) handleCalendarPropPatch(responseWriter http.ResponseWrit
 				continue
 			}
 			value := strings.TrimSpace(property.InnerXML)
+			if strings.ContainsAny(value, "<>") {
+				// nested element 또는 raw markup 은 텍스트 라운드트립을 보장할 수 없어 저장하지 않는다.
+				results = append(results, propResult{property.XMLName, http.StatusForbidden})
+				continue
+			}
 			if errorValue := service.writeCalendarProperty(request.Context(), request.URL.Path, property.XMLName.Space, property.XMLName.Local, value); errorValue != nil {
 				results = append(results, propResult{property.XMLName, http.StatusInternalServerError})
 				continue
