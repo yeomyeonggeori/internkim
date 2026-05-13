@@ -108,12 +108,12 @@ Wants=network-online.target time-sync.target
 [Service]
 User=root
 Environment=LD_LIBRARY_PATH=%s
-ExecStart=%s -m %s --host %s --port %s -ngl 99 --embeddings --pooling mean --log-disable
+ExecStart=%s -m %s --host %s --port %s -ngl 99 --embeddings --pooling mean --batch-size %s --ubatch-size %s --log-disable
 Restart=on-failure
 RestartSec=2
 TimeoutStartSec=120
 
 [Install]
 WantedBy=multi-user.target
-`, locallm.LlamaCppLibraryDir, locallm.LlamaCppBinaryPath, locallm.LlamaCppEmbeddingModelPath, locallm.LlamaCppHost, locallm.LlamaCppEmbeddingPort)
+`, locallm.LlamaCppLibraryDir, locallm.LlamaCppBinaryPath, locallm.LlamaCppEmbeddingModelPath, locallm.LlamaCppHost, locallm.LlamaCppEmbeddingPort, locallm.LlamaCppEmbeddingBatchSize, locallm.LlamaCppEmbeddingUBatchSize)
 }

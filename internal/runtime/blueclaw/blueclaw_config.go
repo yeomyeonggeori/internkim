@@ -89,6 +89,16 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 			},
 			"defaultEffortLevel": "standard",
 			"toolResultMaxBytes": 32768,
+			"failureRecovery": map[string]any{
+				"failureDebtFinalizationGate": true,
+				"attemptFingerprint":          "tool_input_error_code",
+				"recoveryBudget": map[string]any{
+					"correctedRetry": 1,
+					"alternateRoute": 1,
+					"adjacentTool":   2,
+					"noToolFallback": 1,
+				},
+			},
 		},
 		"connectors": map[string]any{
 			"mattermost": map[string]any{
@@ -101,7 +111,7 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 		"agentProfiles": []map[string]any{
 			{
 				"name":             "default",
-				"allowedToolNames": append([]string{"conversation.history", "memory.search", "terminal.run", "terminal.session", "browser_handoff.openURL", "approval.request", "file.write", "file.attach", "skill.add", "skill.remove", "schedule.create", "schedule.cancel"}, capabilities.DefaultToolNames()...),
+				"allowedToolNames": append([]string{"conversation.history", "memory.search", "terminal.run", "terminal.session", "browser_handoff.openURL", "approval.request", "file.write", "file.attach", "skill.add", "skill.remove", "skill.search", "schedule.create", "schedule.cancel"}, capabilities.DefaultToolNames()...),
 			},
 		},
 		"mcpServers": []map[string]any{},
@@ -200,6 +210,7 @@ func defaultResourceAccessPolicies() []map[string]any {
 		{"resource": "tool:web.fetch", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:flow.task.add", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:mail.message.list", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:mail.message.search", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:mail.message.read", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:mail.message.send", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:mail.message.move", "actions": []string{"execute"}, "circles": []string{"staff"}},
