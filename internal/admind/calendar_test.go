@@ -412,7 +412,7 @@ func TestCalendarPropPatchStoresDAVDisplayName(t *testing.T) {
 	}
 }
 
-func TestCalendarPropPatchStoresArbitraryNamespace(t *testing.T) {
+func TestCalendarPropPatchRejectsNonWhitelistedNamespace(t *testing.T) {
 	service := newCalendarTestService(t)
 	body := `<?xml version="1.0" encoding="utf-8"?>
 <D:propertyupdate xmlns:D="DAV:" xmlns:M="http://mozilla.org/ns/calendar/">
@@ -426,12 +426,15 @@ func TestCalendarPropPatchStoresArbitraryNamespace(t *testing.T) {
 	if response.Code != http.StatusMultiStatus {
 		t.Fatalf("proppatch status = %d body = %s", response.Code, response.Body.String())
 	}
+	if !strings.Contains(response.Body.String(), "403 Forbidden") {
+		t.Fatalf("response missing 403 propstat for non-whitelisted property: %s", response.Body.String())
+	}
 	properties, errorValue := service.readCalendarProperties(context.Background(), calendarCollectionPath)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(properties) != 1 || properties[0].XMLName.Space != "http://mozilla.org/ns/calendar/" {
-		t.Fatalf("namespace-agnostic storage failed: %#v", properties)
+	if len(properties) != 0 {
+		t.Fatalf("non-whitelisted property must not be persisted: %#v", properties)
 	}
 }
 
