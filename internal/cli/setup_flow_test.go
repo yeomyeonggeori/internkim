@@ -3,6 +3,8 @@ package cli
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/json"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +12,7 @@ import (
 	"testing"
 
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
+	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
 )
 
@@ -371,8 +374,71 @@ func TestMattermostSetupRegistersManagedResourcePaths(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected Mattermost managed resource paths, got %+v", serviceSettings)
 	}
-	if resourcePaths != "admin,calendar,flow,mail" {
+	if resourcePaths != mattermostdefaults.ManagedResourcePathSetting() {
 		t.Fatalf("unexpected Mattermost managed resource paths: %+v", resourcePaths)
+	}
+}
+
+func TestMattermostSetupEnablesUserTokensAndBots(t *testing.T) {
+	configurationPatch := mattermostSetupConfigurationPatch("https://device.example")
+	serviceSettings, ok := configurationPatch["ServiceSettings"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected ServiceSettings in Mattermost setup patch, got %+v", configurationPatch)
+	}
+	if serviceSettings["EnableUserAccessTokens"] != true {
+		t.Fatalf("expected Mattermost setup to enable user tokens, got %+v", serviceSettings)
+	}
+	if serviceSettings["EnableBotAccountCreation"] != true {
+		t.Fatalf("expected Mattermost setup to enable bot creation, got %+v", serviceSettings)
+	}
+}
+
+func TestMattermostSetupEnsuresDefaultChannels(t *testing.T) {
+	var createdChannels []map[string]string
+	var patchedChannels []map[string]string
+	mattermostAPI := func(method string, path string, body []byte, token string) (int, []byte) {
+		if token != "admin-token" {
+			t.Fatalf("unexpected token: %s", token)
+		}
+		if method == "GET" && strings.HasPrefix(path, "/api/v4/teams/team-1/channels/name/") {
+			return http.StatusNotFound, nil
+		}
+		if method == "POST" && path == "/api/v4/channels" {
+			var channel map[string]string
+			if errorValue := json.Unmarshal(body, &channel); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			createdChannels = append(createdChannels, channel)
+			return http.StatusCreated, []byte(`{"id":"channel-` + channel["name"] + `"}`)
+		}
+		if method == "PUT" && strings.HasPrefix(path, "/api/v4/channels/channel-") && strings.HasSuffix(path, "/patch") {
+			var channel map[string]string
+			if errorValue := json.Unmarshal(body, &channel); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			channel["path"] = path
+			patchedChannels = append(patchedChannels, channel)
+			return http.StatusOK, nil
+		}
+		t.Fatalf("unexpected Mattermost API call: %s %s", method, path)
+		return http.StatusInternalServerError, nil
+	}
+
+	setupMattermostDefaultChannels(mattermostAPI, "admin-token", "team-1")
+
+	if len(createdChannels) != len(mattermostdefaults.DefaultPublicChannels()) {
+		t.Fatalf("created channels = %+v", createdChannels)
+	}
+	if len(patchedChannels) != len(mattermostdefaults.DefaultPublicChannels()) {
+		t.Fatalf("patched channels = %+v", patchedChannels)
+	}
+	for channelIndex, channel := range mattermostdefaults.DefaultPublicChannels() {
+		if createdChannels[channelIndex]["name"] != channel.Name {
+			t.Fatalf("created channel %d = %+v", channelIndex, createdChannels[channelIndex])
+		}
+		if patchedChannels[channelIndex]["display_name"] != channel.DisplayName {
+			t.Fatalf("patched channel %d = %+v", channelIndex, patchedChannels[channelIndex])
+		}
 	}
 }
 
@@ -451,11 +517,25 @@ func TestSimulationBinariesSkipLocalLLMInstall(t *testing.T) {
 	}
 }
 
-func TestJetsonBinariesInstallLocalLLM(t *testing.T) {
-	context := &setup.Context{BoardType: setup.BoardJetsonOrinNano}
+func TestJetsonBinariesSkipLocalLLMWhenLocalLLMStepIsNotPlanned(t *testing.T) {
+	context := &setup.Context{
+		BoardType:    setup.BoardJetsonOrinNano,
+		PlannedSteps: map[string]bool{"binaries": true},
+	}
+
+	if shouldInstallLocalLLMSSH(context) {
+		t.Fatal("expected Jetson binaries to skip local LLM when local-llm is not planned")
+	}
+}
+
+func TestJetsonBinariesInstallLocalLLMWhenLocalLLMStepIsPlanned(t *testing.T) {
+	context := &setup.Context{
+		BoardType:    setup.BoardJetsonOrinNano,
+		PlannedSteps: map[string]bool{"local-llm": true},
+	}
 
 	if !shouldInstallLocalLLMSSH(context) {
-		t.Fatal("expected Jetson binaries to install local LLM")
+		t.Fatal("expected Jetson binaries to install local LLM when local-llm is planned")
 	}
 }
 

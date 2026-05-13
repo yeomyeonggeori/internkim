@@ -3,6 +3,10 @@ package setup
 import (
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 )
 
 var StepMattermost = Step{
@@ -46,7 +50,7 @@ var StepMattermost = Step{
 }
 
 func mattermostManagedResourceCheckCommand() string {
-	return `python3 - <<'PY'
+	return fmt.Sprintf(`python3 - <<'PY'
 import json
 from pathlib import Path
 
@@ -54,7 +58,18 @@ path = Path("/opt/mattermost/config/config.json")
 document = json.loads(path.read_text())
 configured_value = document.get("ServiceSettings", {}).get("ManagedResourcePaths", "")
 configured_paths = {part.strip() for part in configured_value.split(",") if part.strip()}
-required_paths = {"admin", "calendar", "flow", "mail"}
-print("ok" if required_paths.issubset(configured_paths) else "missing")
-PY`
+required_paths = {%s}
+service_settings = document.get("ServiceSettings", {})
+tokens_enabled = service_settings.get("EnableUserAccessTokens") is True
+bots_enabled = service_settings.get("EnableBotAccountCreation") is True
+print("ok" if required_paths.issubset(configured_paths) and tokens_enabled and bots_enabled else "missing")
+PY`, mattermostManagedResourcePythonSetValues())
+}
+
+func mattermostManagedResourcePythonSetValues() string {
+	values := make([]string, 0, len(mattermostdefaults.ManagedResourcePaths()))
+	for _, resourcePath := range mattermostdefaults.ManagedResourcePaths() {
+		values = append(values, strconv.Quote(resourcePath))
+	}
+	return strings.Join(values, ", ")
 }

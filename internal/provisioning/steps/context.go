@@ -87,12 +87,13 @@ type Context struct {
 	SSH BoardConnection
 	SD  SDStage
 
-	Language  string
-	StateDir  string
-	ScriptDir string
-	BoardType string
-	BoardIP   string
-	Force     bool
+	Language     string
+	StateDir     string
+	ScriptDir    string
+	BoardType    string
+	BoardIP      string
+	Force        bool
+	PlannedSteps map[string]bool
 
 	Google *GoogleAuth
 

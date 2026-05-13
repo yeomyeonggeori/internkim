@@ -27,7 +27,7 @@
 	import { adminText } from './admin/text';
 
 	type UserRole = 'admin' | 'member';
-	type AdminSection = 'device' | 'bot' | 'credentials' | 'companion' | 'backup' | 'users';
+	type AdminSection = 'device' | 'bot' | 'credentials' | 'companion' | 'backup' | 'users' | 'settings';
 
 	type UserRecord = {
 		userID: string;
@@ -142,6 +142,11 @@
 		providers?: CredentialProviderStatus[];
 	};
 
+	type WorkspaceSettings = {
+		timeZone: string;
+		updatedAt?: string;
+	};
+
 	const logoSrc = '/logo.svg';
 	const storedFleetIdKey = 'internkim_fleet_id';
 
@@ -191,6 +196,11 @@
 	let credentialErrorMessage = $state('');
 	let isLoadingCredentials = $state(false);
 	let isSavingCredential = $state(false);
+	let workspaceSettings = $state<WorkspaceSettings>({ timeZone: 'system' });
+	let workspaceSettingsDraft = $state<WorkspaceSettings>({ timeZone: 'system' });
+	let workspaceSettingsMessage = $state('');
+	let isLoadingWorkspaceSettings = $state(false);
+	let isSavingWorkspaceSettings = $state(false);
 	let activeAdminSection = $state<AdminSection>('device');
 	const text = createPageText(adminText);
 
@@ -251,7 +261,8 @@
 		{ value: 'credentials', label: text.sections.credentials },
 		{ value: 'companion', label: text.sections.companion },
 		{ value: 'backup', label: text.sections.backup },
-		{ value: 'bot', label: text.sections.bot }
+		{ value: 'bot', label: text.sections.bot },
+		{ value: 'settings', label: text.sections.settings }
 	];
 	const userRoleOptions = () => [
 		{ value: 'member', label: text.users.member },
@@ -272,6 +283,7 @@
 		checkDevice();
 		loadBotProfile();
 		loadCredentials();
+		loadWorkspaceSettings();
 	});
 
 	function fleetIdFromHost() {
@@ -300,6 +312,7 @@
 		loadAdminSession();
 		loadBotProfile();
 		loadCredentials();
+		loadWorkspaceSettings();
 	}
 
 	async function loadAdminSession() {
@@ -451,6 +464,52 @@
 			credentialErrorMessage = 'OpenRouter 키 삭제에 실패했습니다.';
 		} finally {
 			isSavingCredential = false;
+		}
+	}
+
+	async function loadWorkspaceSettings() {
+		if (!adminBaseURL()) return;
+
+		isLoadingWorkspaceSettings = true;
+		workspaceSettingsMessage = '';
+		try {
+			const response = await fetch(`${adminBaseURL()}/workspace-settings`, { credentials: 'include' });
+			if (!response.ok) {
+				workspaceSettingsMessage = '설정을 불러오지 못했습니다.';
+				return;
+			}
+			workspaceSettings = (await response.json()) as WorkspaceSettings;
+			workspaceSettingsDraft = { ...workspaceSettings };
+		} catch {
+			workspaceSettingsMessage = '설정을 불러오지 못했습니다.';
+		} finally {
+			isLoadingWorkspaceSettings = false;
+		}
+	}
+
+	async function saveWorkspaceSettings() {
+		if (!adminBaseURL()) return;
+
+		isSavingWorkspaceSettings = true;
+		workspaceSettingsMessage = '';
+		try {
+			const response = await fetch(`${adminBaseURL()}/workspace-settings`, {
+				method: 'PUT',
+				credentials: 'include',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(workspaceSettingsDraft)
+			});
+			if (!response.ok) {
+				workspaceSettingsMessage = await response.text();
+				return;
+			}
+			workspaceSettings = (await response.json()) as WorkspaceSettings;
+			workspaceSettingsDraft = { ...workspaceSettings };
+			workspaceSettingsMessage = '저장되었습니다.';
+		} catch {
+			workspaceSettingsMessage = '설정을 저장하지 못했습니다.';
+		} finally {
+			isSavingWorkspaceSettings = false;
 		}
 	}
 
@@ -1069,6 +1128,43 @@
 					</p>
 				{/if}
 			</div>
+			{/if}
+
+			{#if activeAdminSection === 'settings'}
+				<div class="rounded-lg border p-4">
+					<div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+						<div>
+							<h3 class="text-sm font-semibold">Workspace Settings</h3>
+							<p class="text-muted-foreground mt-1 text-sm">{text.settings.description}</p>
+						</div>
+						<Badge variant="outline">{workspaceSettings.timeZone || 'system'}</Badge>
+					</div>
+					<div class="grid gap-3 md:grid-cols-[1fr_auto]">
+						<div>
+							<label class="text-xs font-medium text-muted-foreground" for="workspace-time-zone">{text.settings.timeZone}</label>
+							<Input
+								id="workspace-time-zone"
+								bind:value={workspaceSettingsDraft.timeZone}
+								placeholder={text.settings.timeZonePlaceholder}
+								disabled={isLoadingWorkspaceSettings}
+								autocomplete="off"
+								class="mt-1"
+							/>
+							<p class="mt-2 text-xs text-muted-foreground">{text.settings.timeZoneHint}</p>
+						</div>
+						<div class="flex items-end">
+							<Button disabled={!isDeviceReachable || isSavingWorkspaceSettings} onclick={saveWorkspaceSettings}>
+								{#if isSavingWorkspaceSettings}
+									<LoaderIcon class="size-4 animate-spin" />
+								{/if}
+								{text.settings.save}
+							</Button>
+						</div>
+					</div>
+					{#if workspaceSettingsMessage}
+						<p class="mt-3 rounded-md border bg-muted/30 px-3 py-2 text-sm">{workspaceSettingsMessage}</p>
+					{/if}
+				</div>
 			{/if}
 
 			{#if activeAdminSection === 'companion'}

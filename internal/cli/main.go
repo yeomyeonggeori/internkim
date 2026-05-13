@@ -30,6 +30,7 @@ import (
 
 	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
 	internkimlab "gitlab.com/eastriver/internkim/internal/lab"
+	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
@@ -1211,7 +1212,7 @@ document["SqlSettings"]["DataSource"] = "postgres://mmuser:%%s@localhost/matterm
 document["ServiceSettings"]["SiteURL"] = os.environ["MATTERMOST_SITE_URL"]
 document["ServiceSettings"]["AllowCorsFrom"] = os.environ["MATTERMOST_SITE_URL"]
 document["ServiceSettings"]["CorsAllowCredentials"] = True
-document["ServiceSettings"]["ManagedResourcePaths"] = "admin,calendar,flow,mail"
+document["ServiceSettings"]["ManagedResourcePaths"] = "admin,attendance,calendar,flow,mail"
 document["TeamSettings"]["TeammateNameDisplay"] = "nickname_full_name"
 path.write_text(json.dumps(document, indent=2, sort_keys=True))
 PY
@@ -1602,67 +1603,7 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 			})
 			mmAPI("POST", "/api/v4/channels", channelBody, adminToken)
 		}
-		flowChannelID := ""
-		code, responseBody := mmAPI("GET", "/api/v4/teams/"+teamResult.ID+"/channels/name/flow", nil, adminToken)
-		if code >= 200 && code < 300 {
-			var flowChannelResult struct {
-				ID string `json:"id"`
-			}
-			json.Unmarshal(responseBody, &flowChannelResult)
-			flowChannelID = flowChannelResult.ID
-		}
-		if flowChannelID == "" {
-			channelBody, _ := json.Marshal(map[string]string{
-				"team_id":      teamResult.ID,
-				"name":         "flow",
-				"display_name": "Flow",
-				"type":         "O",
-				"header":       "[Flow 열기](/flow/)",
-				"purpose":      "[Flow 열기](/flow/)",
-			})
-			createCode, createResponseBody := mmAPI("POST", "/api/v4/channels", channelBody, adminToken)
-			if createCode >= 200 && createCode < 300 {
-				var flowChannelResult struct {
-					ID string `json:"id"`
-				}
-				json.Unmarshal(createResponseBody, &flowChannelResult)
-				flowChannelID = flowChannelResult.ID
-			}
-		}
-		if flowChannelID != "" {
-			patchBody, _ := json.Marshal(map[string]string{
-				"display_name": "Flow",
-				"header":       "[Flow 열기](/flow/)",
-				"purpose":      "[Flow 열기](/flow/)",
-			})
-			mmAPI("PUT", "/api/v4/channels/"+flowChannelID+"/patch", patchBody, adminToken)
-			postsCode, postsResponseBody := mmAPI("GET", "/api/v4/channels/"+flowChannelID+"/posts?per_page=50", nil, adminToken)
-			hasFlowEntryPost := false
-			if postsCode >= 200 && postsCode < 300 {
-				var postsResponse struct {
-					Order []string `json:"order"`
-					Posts map[string]struct {
-						Props map[string]any `json:"props"`
-					} `json:"posts"`
-				}
-				if json.Unmarshal(postsResponseBody, &postsResponse) == nil {
-					for _, postID := range postsResponse.Order {
-						if postsResponse.Posts[postID].Props["internkim_flow_entry"] == true {
-							hasFlowEntryPost = true
-							break
-						}
-					}
-				}
-			}
-			if !hasFlowEntryPost {
-				postBody, _ := json.Marshal(map[string]any{
-					"channel_id": flowChannelID,
-					"message":    "Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다. [Flow 열기](/flow/)",
-					"props":      map[string]any{"internkim_flow_entry": true},
-				})
-				mmAPI("POST", "/api/v4/posts", postBody, adminToken)
-			}
-		}
+		setupMattermostDefaultChannels(mmAPI, adminToken, teamResult.ID)
 	}
 
 	if teamResult.ID != "" {
@@ -1708,12 +1649,8 @@ type mattermostSetupCommandRecord struct {
 
 const mattermostConnectSetupCommandTokenPath = "/root/.internkim/state/admin/mattermost-connect-command-token"
 
-func mattermostManagedResourcePaths() []string {
-	return []string{"admin", "calendar", "flow", "mail"}
-}
-
 func mattermostManagedResourcePathSetting() string {
-	return strings.Join(mattermostManagedResourcePaths(), ",")
+	return mattermostdefaults.ManagedResourcePathSetting()
 }
 
 func mattermostSetupConfigurationPatch(siteURL string) map[string]any {
@@ -1737,6 +1674,69 @@ func mattermostSetupConfigurationPatch(siteURL string) map[string]any {
 			"PushNotificationContents": "id_loaded",
 		},
 	}
+}
+
+func setupMattermostDefaultChannels(mmAPI mattermostSetupAPI, adminToken string, teamID string) {
+	for _, channel := range mattermostdefaults.DefaultPublicChannels() {
+		channelID := ensureMattermostSetupDefaultChannel(mmAPI, adminToken, teamID, channel)
+		if channelID != "" {
+			fmt.Printf("  channel: %s (%s)\n", channel.Name, channelID)
+		}
+	}
+}
+
+func ensureMattermostSetupDefaultChannel(mmAPI mattermostSetupAPI, adminToken string, teamID string, channel mattermostdefaults.PublicChannel) string {
+	channelID := findMattermostSetupChannelID(mmAPI, adminToken, teamID, channel.Name)
+	if channelID == "" {
+		channelID = createMattermostSetupChannel(mmAPI, adminToken, teamID, channel)
+	}
+	if channelID != "" {
+		patchMattermostSetupChannel(mmAPI, adminToken, channelID, channel)
+	}
+	return channelID
+}
+
+func findMattermostSetupChannelID(mmAPI mattermostSetupAPI, adminToken string, teamID string, channelName string) string {
+	code, responseBody := mmAPI("GET", "/api/v4/teams/"+url.PathEscape(teamID)+"/channels/name/"+url.PathEscape(channelName), nil, adminToken)
+	if code < 200 || code >= 300 {
+		return ""
+	}
+	var channelRecord struct {
+		ID string `json:"id"`
+	}
+	if json.Unmarshal(responseBody, &channelRecord) != nil {
+		return ""
+	}
+	return strings.TrimSpace(channelRecord.ID)
+}
+
+func createMattermostSetupChannel(mmAPI mattermostSetupAPI, adminToken string, teamID string, channel mattermostdefaults.PublicChannel) string {
+	document, _ := json.Marshal(map[string]string{
+		"team_id":      teamID,
+		"name":         channel.Name,
+		"display_name": channel.DisplayName,
+		"type":         "O",
+	})
+	code, responseBody := mmAPI("POST", "/api/v4/channels", document, adminToken)
+	if code < 200 || code >= 300 {
+		return ""
+	}
+	var channelRecord struct {
+		ID string `json:"id"`
+	}
+	if json.Unmarshal(responseBody, &channelRecord) != nil {
+		return ""
+	}
+	return strings.TrimSpace(channelRecord.ID)
+}
+
+func patchMattermostSetupChannel(mmAPI mattermostSetupAPI, adminToken string, channelID string, channel mattermostdefaults.PublicChannel) {
+	document, _ := json.Marshal(map[string]string{
+		"display_name": channel.DisplayName,
+		"header":       channel.Header,
+		"purpose":      channel.Purpose,
+	})
+	mmAPI("PUT", "/api/v4/channels/"+url.PathEscape(channelID)+"/patch", document, adminToken)
 }
 
 func setupMattermostConnectCommand(m *msg, ssh *sshClient, mmAPI mattermostSetupAPI, adminToken string, teamID string) {
