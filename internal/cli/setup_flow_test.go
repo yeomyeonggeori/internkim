@@ -424,7 +424,7 @@ func TestMattermostSetupEnsuresDefaultChannels(t *testing.T) {
 		return http.StatusInternalServerError, nil
 	}
 
-	setupMattermostDefaultChannels(mattermostAPI, "admin-token", "team-1")
+	setupMattermostDefaultChannels(mattermostAPI, "admin-token", "", "team-1", "")
 
 	if len(createdChannels) != len(mattermostdefaults.DefaultPublicChannels()) {
 		t.Fatalf("created channels = %+v", createdChannels)
