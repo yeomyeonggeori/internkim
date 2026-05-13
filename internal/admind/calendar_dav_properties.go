@@ -11,9 +11,14 @@ import (
 	"encoding/xml"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"strconv"
 	"strings"
+)
+
+const (
+	calendarDAVNamespace        = "DAV:"
+	calendarCalDAVXMLNamespace  = "urn:ietf:params:xml:ns:caldav"
+	calendarAppleICalXMLNamespace = "http://apple.com/ns/ical/"
 )
 
 type calendarRawProperty struct {
@@ -39,6 +44,11 @@ type calendarPropertyUpdate struct {
 	XMLName xml.Name                  `xml:"DAV: propertyupdate"`
 	Set     []calendarPropPatchSet    `xml:"DAV: set"`
 	Remove  []calendarPropPatchRemove `xml:"DAV: remove"`
+}
+
+type calendarPropFindRequest struct {
+	AllProp bool
+	Props   []xml.Name
 }
 
 func (service *Service) computeCalendarCTag(ctx context.Context) (string, error) {
@@ -129,105 +139,205 @@ func writeCalendarEmptyXMLElement(buffer *bytes.Buffer, name xml.Name) {
 }
 
 func (service *Service) handleCalendarPropFind(responseWriter http.ResponseWriter, request *http.Request) {
-	recorder := httptest.NewRecorder()
-	service.invokeCalendarDAVHandler(recorder, request)
-	if recorder.Code != http.StatusMultiStatus {
-		copyCalendarRecorderResponse(responseWriter, recorder)
+	if !shouldHandleCalendarCollectionPropFind(request) {
+		service.invokeCalendarDAVHandler(responseWriter, request)
 		return
 	}
-	properties, errorValue := service.readCalendarProperties(request.Context(), calendarCollectionPath)
+	body, errorValue := io.ReadAll(request.Body)
 	if errorValue != nil {
-		copyCalendarRecorderResponse(responseWriter, recorder)
+		http.Error(responseWriter, "read body failed", http.StatusBadRequest)
 		return
 	}
-	if ctag, errorValue := service.computeCalendarCTag(request.Context()); errorValue == nil {
-		properties = append(properties, calendarStoredProperty{
-			XMLName: xml.Name{Space: calendarServerXMLNamespace, Local: calendarGetCTagLocalName},
-			Value:   ctag,
-		})
-	}
-	if len(properties) == 0 {
-		copyCalendarRecorderResponse(responseWriter, recorder)
-		return
-	}
-	augmented, errorValue := injectCalendarPropertiesIntoMultistatus(recorder.Body.Bytes(), calendarCollectionPath, properties)
+	parsed, errorValue := parseCalendarPropFindRequest(body)
 	if errorValue != nil {
-		copyCalendarRecorderResponse(responseWriter, recorder)
+		http.Error(responseWriter, "invalid propfind xml", http.StatusBadRequest)
 		return
 	}
-	for key, values := range recorder.Header() {
-		if strings.EqualFold(key, "Content-Length") {
-			continue
-		}
-		for _, value := range values {
-			responseWriter.Header().Add(key, value)
-		}
+	response, errorValue := service.buildCalendarCollectionPropFindResponse(request.Context(), parsed)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
 	}
-	responseWriter.Header().Set("Content-Length", strconv.Itoa(len(augmented)))
+	responseWriter.Header().Set("Content-Type", "application/xml; charset=utf-8")
 	responseWriter.WriteHeader(http.StatusMultiStatus)
-	_, _ = responseWriter.Write(augmented)
+	_, _ = responseWriter.Write(response)
 }
 
-func copyCalendarRecorderResponse(responseWriter http.ResponseWriter, recorder *httptest.ResponseRecorder) {
-	for key, values := range recorder.Header() {
-		for _, value := range values {
-			responseWriter.Header().Add(key, value)
-		}
+func shouldHandleCalendarCollectionPropFind(request *http.Request) bool {
+	if request.Method != "PROPFIND" {
+		return false
 	}
-	responseWriter.WriteHeader(recorder.Code)
-	_, _ = responseWriter.Write(recorder.Body.Bytes())
+	depth := strings.TrimSpace(request.Header.Get("Depth"))
+	if depth != "" && depth != "0" {
+		return false
+	}
+	normalized := request.URL.Path
+	if !strings.HasSuffix(normalized, "/") {
+		normalized += "/"
+	}
+	return normalized == calendarCollectionPath
 }
 
-func injectCalendarPropertiesIntoMultistatus(body []byte, targetPath string, properties []calendarStoredProperty) ([]byte, error) {
-	if len(properties) == 0 {
-		return body, nil
+func parseCalendarPropFindRequest(body []byte) (calendarPropFindRequest, error) {
+	request := calendarPropFindRequest{}
+	if len(bytes.TrimSpace(body)) == 0 {
+		request.AllProp = true
+		return request, nil
 	}
-	hrefMarker := []byte("<href>" + targetPath + "</href>")
-	hrefIndex := bytes.Index(body, hrefMarker)
-	if hrefIndex < 0 {
-		alternate := []byte("<href>" + strings.TrimSuffix(targetPath, "/") + "</href>")
-		hrefIndex = bytes.Index(body, alternate)
-		if hrefIndex < 0 {
-			return body, nil
+	type propXML struct {
+		Properties []calendarRawProperty `xml:",any"`
+	}
+	type propfindXML struct {
+		XMLName  xml.Name  `xml:"DAV: propfind"`
+		AllProp  *struct{} `xml:"DAV: allprop"`
+		PropName *struct{} `xml:"DAV: propname"`
+		Prop     *propXML  `xml:"DAV: prop"`
+	}
+	var document propfindXML
+	if errorValue := xml.Unmarshal(body, &document); errorValue != nil {
+		return request, errorValue
+	}
+	if document.AllProp != nil || document.PropName != nil {
+		request.AllProp = true
+		return request, nil
+	}
+	if document.Prop != nil {
+		for _, property := range document.Prop.Properties {
+			request.Props = append(request.Props, property.XMLName)
 		}
 	}
-	propCloseIndex := bytes.Index(body[hrefIndex:], []byte("</prop>"))
-	if propCloseIndex < 0 {
-		return body, nil
-	}
-	insertionPoint := hrefIndex + propCloseIndex
-	var injection bytes.Buffer
-	for _, property := range properties {
-		writeCalendarPropertyDefaultNamespace(&injection, property)
-	}
-	result := make([]byte, 0, len(body)+injection.Len())
-	result = append(result, body[:insertionPoint]...)
-	result = append(result, injection.Bytes()...)
-	result = append(result, body[insertionPoint:]...)
-	return result, nil
+	return request, nil
 }
 
-func writeCalendarPropertyDefaultNamespace(buffer *bytes.Buffer, property calendarStoredProperty) {
-	if property.XMLName.Space == "" || property.XMLName.Space == "DAV:" {
-		buffer.WriteString(`<`)
-		buffer.WriteString(property.XMLName.Local)
-		if property.XMLName.Space == "DAV:" {
-			buffer.WriteString(` xmlns="DAV:"`)
-		}
+func (service *Service) buildCalendarCollectionPropFindResponse(ctx context.Context, request calendarPropFindRequest) ([]byte, error) {
+	storedProperties, errorValue := service.readCalendarProperties(ctx, calendarCollectionPath)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	storedMap := make(map[xml.Name]string, len(storedProperties))
+	for _, property := range storedProperties {
+		storedMap[property.XMLName] = property.Value
+	}
+	ctag, _ := service.computeCalendarCTag(ctx)
+
+	var requestedNames []xml.Name
+	if request.AllProp {
+		requestedNames = defaultCalendarCollectionPropertyNames()
 	} else {
-		buffer.WriteString(`<`)
-		buffer.WriteString(property.XMLName.Local)
-		buffer.WriteString(` xmlns="`)
-		xml.EscapeText(buffer, []byte(property.XMLName.Space))
-		buffer.WriteString(`"`)
+		requestedNames = request.Props
 	}
-	if property.Value == "" {
-		buffer.WriteString(`/>`)
-		return
+
+	var foundBuffer bytes.Buffer
+	var notFoundBuffer bytes.Buffer
+	foundCount := 0
+	notFoundCount := 0
+	for _, name := range requestedNames {
+		if writeCalendarCollectionProperty(&foundBuffer, name, storedMap, ctag) {
+			foundCount++
+		} else {
+			writeCalendarEmptyXMLElement(&notFoundBuffer, name)
+			notFoundCount++
+		}
 	}
-	buffer.WriteString(`>`)
-	xml.EscapeText(buffer, []byte(property.Value))
-	buffer.WriteString(`</`)
-	buffer.WriteString(property.XMLName.Local)
-	buffer.WriteString(`>`)
+
+	var result bytes.Buffer
+	result.WriteString(`<?xml version="1.0" encoding="utf-8"?>`)
+	result.WriteString(`<D:multistatus xmlns:D="DAV:">`)
+	result.WriteString(`<D:response><D:href>`)
+	xml.EscapeText(&result, []byte(calendarCollectionPath))
+	result.WriteString(`</D:href>`)
+	if foundCount > 0 {
+		result.WriteString(`<D:propstat><D:prop>`)
+		result.Write(foundBuffer.Bytes())
+		result.WriteString(`</D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat>`)
+	}
+	if notFoundCount > 0 {
+		result.WriteString(`<D:propstat><D:prop>`)
+		result.Write(notFoundBuffer.Bytes())
+		result.WriteString(`</D:prop><D:status>HTTP/1.1 404 Not Found</D:status></D:propstat>`)
+	}
+	result.WriteString(`</D:response></D:multistatus>`)
+	return result.Bytes(), nil
+}
+
+func defaultCalendarCollectionPropertyNames() []xml.Name {
+	return []xml.Name{
+		{Space: calendarDAVNamespace, Local: "resourcetype"},
+		{Space: calendarDAVNamespace, Local: "displayname"},
+		{Space: calendarDAVNamespace, Local: "owner"},
+		{Space: calendarDAVNamespace, Local: "current-user-principal"},
+		{Space: calendarDAVNamespace, Local: "supported-report-set"},
+		{Space: calendarCalDAVXMLNamespace, Local: "supported-calendar-component-set"},
+		{Space: calendarCalDAVXMLNamespace, Local: "calendar-description"},
+		{Space: calendarCalDAVXMLNamespace, Local: "max-resource-size"},
+		{Space: calendarAppleICalXMLNamespace, Local: "calendar-color"},
+		{Space: calendarServerXMLNamespace, Local: calendarGetCTagLocalName},
+	}
+}
+
+func writeCalendarCollectionProperty(buffer *bytes.Buffer, name xml.Name, storedMap map[xml.Name]string, ctag string) bool {
+	switch {
+	case name.Space == calendarDAVNamespace && name.Local == "resourcetype":
+		buffer.WriteString(`<D:resourcetype><D:collection/><C:calendar xmlns:C="urn:ietf:params:xml:ns:caldav"/></D:resourcetype>`)
+		return true
+	case name.Space == calendarDAVNamespace && name.Local == "displayname":
+		value := calendarName
+		if stored, ok := storedMap[name]; ok && strings.TrimSpace(stored) != "" {
+			value = stored
+		}
+		buffer.WriteString(`<D:displayname>`)
+		xml.EscapeText(buffer, []byte(value))
+		buffer.WriteString(`</D:displayname>`)
+		return true
+	case name.Space == calendarDAVNamespace && name.Local == "owner":
+		buffer.WriteString(`<D:owner><D:href>`)
+		xml.EscapeText(buffer, []byte(calendarPrincipalPath))
+		buffer.WriteString(`</D:href></D:owner>`)
+		return true
+	case name.Space == calendarDAVNamespace && name.Local == "current-user-principal":
+		buffer.WriteString(`<D:current-user-principal><D:href>`)
+		xml.EscapeText(buffer, []byte(calendarPrincipalPath))
+		buffer.WriteString(`</D:href></D:current-user-principal>`)
+		return true
+	case name.Space == calendarDAVNamespace && name.Local == "principal-URL":
+		buffer.WriteString(`<D:principal-URL><D:href>`)
+		xml.EscapeText(buffer, []byte(calendarPrincipalPath))
+		buffer.WriteString(`</D:href></D:principal-URL>`)
+		return true
+	case name.Space == calendarDAVNamespace && name.Local == "supported-report-set":
+		buffer.WriteString(`<D:supported-report-set>`)
+		buffer.WriteString(`<D:supported-report><D:report><C:calendar-query xmlns:C="urn:ietf:params:xml:ns:caldav"/></D:report></D:supported-report>`)
+		buffer.WriteString(`<D:supported-report><D:report><C:calendar-multiget xmlns:C="urn:ietf:params:xml:ns:caldav"/></D:report></D:supported-report>`)
+		buffer.WriteString(`</D:supported-report-set>`)
+		return true
+	case name.Space == calendarCalDAVXMLNamespace && name.Local == "supported-calendar-component-set":
+		buffer.WriteString(`<C:supported-calendar-component-set xmlns:C="urn:ietf:params:xml:ns:caldav"><C:comp name="VEVENT"/></C:supported-calendar-component-set>`)
+		return true
+	case name.Space == calendarCalDAVXMLNamespace && name.Local == "calendar-description":
+		buffer.WriteString(`<C:calendar-description xmlns:C="urn:ietf:params:xml:ns:caldav">Shared Work calendar</C:calendar-description>`)
+		return true
+	case name.Space == calendarCalDAVXMLNamespace && name.Local == "max-resource-size":
+		buffer.WriteString(`<C:max-resource-size xmlns:C="urn:ietf:params:xml:ns:caldav">1048576</C:max-resource-size>`)
+		return true
+	case name.Space == calendarAppleICalXMLNamespace && name.Local == "calendar-color":
+		value := "#2563eb"
+		if stored, ok := storedMap[name]; ok && strings.TrimSpace(stored) != "" {
+			value = stored
+		}
+		buffer.WriteString(`<A:calendar-color xmlns:A="http://apple.com/ns/ical/">`)
+		xml.EscapeText(buffer, []byte(value))
+		buffer.WriteString(`</A:calendar-color>`)
+		return true
+	case name.Space == calendarServerXMLNamespace && name.Local == calendarGetCTagLocalName:
+		if ctag == "" {
+			return false
+		}
+		buffer.WriteString(`<CS:getctag xmlns:CS="`)
+		xml.EscapeText(buffer, []byte(calendarServerXMLNamespace))
+		buffer.WriteString(`">`)
+		xml.EscapeText(buffer, []byte(ctag))
+		buffer.WriteString(`</CS:getctag>`)
+		return true
+	}
+	return false
 }
