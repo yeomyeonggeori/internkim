@@ -234,6 +234,44 @@ func TestPlatformDMSendPostFailureIsNotSafeToRetry(t *testing.T) {
 	assertPlatformDMStructuredFailure(t, response, "error", "send_failed", "message_send", true, false)
 }
 
+func TestPlatformDMSendDirectChannelFailureUsesSpecificStage(t *testing.T) {
+	tokenPath := writePlatformDMTestFile(t, "bot-token")
+	service := Service{
+		Configuration: Configuration{
+			BlueclawBaseURL:     "http://blueclaw.local",
+			MattermostBaseURL:   "http://mattermost.local",
+			MattermostTokenPath: tokenPath,
+		},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			switch request.URL.String() {
+			case "http://blueclaw.local/admin/api/policy":
+				return platformDMTestJSONResponse(`{"people":[{"personID":"person-gamyeong","displayName":"이샘플","emails":["gamyeong@example.com"]}]}`), nil
+			case "http://mattermost.local/api/v4/users?per_page=200":
+				return platformDMTestJSONResponse(`[{"id":"user-gamyeong","email":"gamyeong@example.com","username":"gamyeong"}]`), nil
+			case "http://mattermost.local/api/v4/users/me":
+				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim"}`), nil
+			case "http://mattermost.local/api/v4/channels/direct":
+				return platformDMTestStatusResponse(http.StatusServiceUnavailable, "direct channel unavailable"), nil
+			default:
+				t.Fatalf("unexpected request %s", request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+
+	response, errorValue := service.invokePlatformDMSend(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.dm.send",
+		Input:    []byte(`{"recipientHint":"샘플","message":"테스트"}`),
+		Context: capabilities.ToolInvokeContext{
+			IsScheduledRun: true,
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	assertPlatformDMStructuredFailure(t, response, "error", "direct_channel_create_failed", "direct_channel_create", true, true)
+}
+
 func TestPlatformDMInspectReturnsCandidatesWithoutSending(t *testing.T) {
 	tokenPath := writePlatformDMTestFile(t, "bot-token")
 	requestPaths := []string{}

@@ -21,7 +21,7 @@ The tool only supports approved InternKim people with Mattermost accounts. Do no
 
 ## Approval
 
-Immediate direct messages to someone else require approval. First call `approval.request` with a clear message naming the recipient and exact text. After the user approves, call `platform.dm.send`.
+Immediate direct messages to someone else require approval. First call `approval.request` with `userFacingMessage` naming the recipient and exact text in the same language as the original user request. After the user approves, call `platform.dm.send`.
 
 Immediate direct messages to the requester themselves do not require approval.
 
@@ -41,8 +41,8 @@ For immediate "샘플에게 테스트라고 보내줘", first use:
 
 ```json
 {
-  "message": "샘플 님에게 다음 DM을 보내도 될까요?\n\n테스트",
-  "reason": "Direct messages are external sends and require approval before immediate delivery."
+  "userFacingMessage": "샘플 님에게 다음 DM을 보내도 될까요?\n\n테스트",
+  "reasonCode": "external_send"
 }
 ```
 
