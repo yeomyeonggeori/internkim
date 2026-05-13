@@ -21,6 +21,8 @@
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import UploadIcon from '@lucide/svelte/icons/upload';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
+	import MapPinIcon from '@lucide/svelte/icons/map-pin';
+	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import QrCode from 'svelte-qrcode';
 	import { browser } from '$app/environment';
 	import { onMount } from 'svelte';
@@ -147,6 +149,18 @@
 		updatedAt?: string;
 	};
 
+	type AttendanceLocation = {
+		id: string;
+		name: string;
+		color: string;
+		isDefault: boolean;
+		updatedAt?: string;
+	};
+
+	type AttendanceLocationsResponse = {
+		locations?: AttendanceLocation[];
+	};
+
 	const logoSrc = '/logo.svg';
 	const storedFleetIdKey = 'internkim_fleet_id';
 
@@ -201,6 +215,10 @@
 	let workspaceSettingsMessage = $state('');
 	let isLoadingWorkspaceSettings = $state(false);
 	let isSavingWorkspaceSettings = $state(false);
+	let attendanceLocations = $state<AttendanceLocation[]>([]);
+	let attendanceLocationsMessage = $state('');
+	let isLoadingAttendanceLocations = $state(false);
+	let isSavingAttendanceLocations = $state(false);
 	let activeAdminSection = $state<AdminSection>('device');
 	const text = createPageText(adminText);
 
@@ -284,6 +302,7 @@
 		loadBotProfile();
 		loadCredentials();
 		loadWorkspaceSettings();
+		loadAttendanceLocations();
 	});
 
 	function fleetIdFromHost() {
@@ -313,6 +332,7 @@
 		loadBotProfile();
 		loadCredentials();
 		loadWorkspaceSettings();
+		loadAttendanceLocations();
 	}
 
 	async function loadAdminSession() {
@@ -511,6 +531,81 @@
 		} finally {
 			isSavingWorkspaceSettings = false;
 		}
+	}
+
+	async function loadAttendanceLocations() {
+		if (!adminBaseURL()) return;
+
+		isLoadingAttendanceLocations = true;
+		attendanceLocationsMessage = '';
+		try {
+			const response = await fetch(`${adminBaseURL()}/attendance-locations`, { credentials: 'include' });
+			if (!response.ok) {
+				attendanceLocationsMessage = '출근 장소를 불러오지 못했습니다.';
+				return;
+			}
+			const data = (await response.json()) as AttendanceLocationsResponse;
+			attendanceLocations = data.locations ?? [];
+		} catch {
+			attendanceLocationsMessage = '출근 장소를 불러오지 못했습니다.';
+		} finally {
+			isLoadingAttendanceLocations = false;
+		}
+	}
+
+	async function saveAttendanceLocations() {
+		if (!adminBaseURL()) return;
+
+		isSavingAttendanceLocations = true;
+		attendanceLocationsMessage = '';
+		try {
+			const response = await fetch(`${adminBaseURL()}/attendance-locations`, {
+				method: 'PUT',
+				credentials: 'include',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ locations: attendanceLocations })
+			});
+			if (!response.ok) {
+				attendanceLocationsMessage = await response.text();
+				return;
+			}
+			const data = (await response.json()) as AttendanceLocationsResponse;
+			attendanceLocations = data.locations ?? [];
+			attendanceLocationsMessage = '저장되었습니다.';
+		} catch {
+			attendanceLocationsMessage = '출근 장소를 저장하지 못했습니다.';
+		} finally {
+			isSavingAttendanceLocations = false;
+		}
+	}
+
+	function addAttendanceLocation() {
+		attendanceLocations = [
+			...attendanceLocations,
+			{
+				id: '',
+				name: '',
+				color: '#0ea5e9',
+				isDefault: attendanceLocations.length === 0
+			}
+		];
+	}
+
+	function removeAttendanceLocation(index: number) {
+		if (attendanceLocations.length <= 1) return;
+		const removedLocation = attendanceLocations[index];
+		const nextLocations = attendanceLocations.filter((_, locationIndex) => locationIndex !== index);
+		if (removedLocation.isDefault && nextLocations[0]) {
+			nextLocations[0] = { ...nextLocations[0], isDefault: true };
+		}
+		attendanceLocations = nextLocations;
+	}
+
+	function updateAttendanceLocation(index: number, field: keyof AttendanceLocation, value: string | boolean) {
+		attendanceLocations = attendanceLocations.map((location, locationIndex) => {
+			if (locationIndex !== index) return field === 'isDefault' ? { ...location, isDefault: false } : location;
+			return { ...location, [field]: value };
+		});
 	}
 
 	async function loadCompanionReleases() {
@@ -1164,6 +1259,64 @@
 					{#if workspaceSettingsMessage}
 						<p class="mt-3 rounded-md border bg-muted/30 px-3 py-2 text-sm">{workspaceSettingsMessage}</p>
 					{/if}
+				</div>
+
+				<div class="rounded-lg border p-4">
+					<div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+						<div>
+							<h3 class="flex items-center gap-2 text-sm font-semibold">
+								<MapPinIcon class="size-4 text-emerald-600" />
+								출근 장소
+							</h3>
+							<p class="mt-1 text-sm text-muted-foreground">Mattermost 출근 버튼에 표시할 장소입니다. 최소 하나는 유지됩니다.</p>
+						</div>
+						<Button variant="outline" size="sm" class="gap-2" onclick={addAttendanceLocation} disabled={isLoadingAttendanceLocations}>
+							<PlusIcon class="size-4" />
+							추가
+						</Button>
+					</div>
+					<div class="grid gap-2">
+						{#each attendanceLocations as location, index (index)}
+							<div class="grid gap-2 rounded-md border p-3 md:grid-cols-[auto_1fr_9rem_auto_auto] md:items-center">
+								<input
+									type="color"
+									value={location.color}
+									aria-label="장소 색상"
+									class="size-9 rounded-md border bg-background"
+									oninput={(event) => updateAttendanceLocation(index, 'color', event.currentTarget.value)}
+								/>
+								<Input
+									value={location.name}
+									placeholder="사무실"
+									autocomplete="off"
+									oninput={(event) => updateAttendanceLocation(index, 'name', event.currentTarget.value)}
+								/>
+								<Button
+									variant={location.isDefault ? 'secondary' : 'ghost'}
+									size="sm"
+									onclick={() => updateAttendanceLocation(index, 'isDefault', true)}
+								>
+									기본
+								</Button>
+								{#if attendanceLocations.length > 1}
+									<Button variant="ghost" size="icon-sm" aria-label="장소 삭제" onclick={() => removeAttendanceLocation(index)}>
+										<Trash2Icon class="size-4" />
+									</Button>
+								{/if}
+							</div>
+						{/each}
+					</div>
+					<div class="mt-4 flex flex-wrap items-center gap-2">
+						<Button disabled={!isDeviceReachable || isSavingAttendanceLocations || attendanceLocations.length === 0} onclick={saveAttendanceLocations}>
+							{#if isSavingAttendanceLocations}
+								<LoaderIcon class="size-4 animate-spin" />
+							{/if}
+							저장
+						</Button>
+						{#if attendanceLocationsMessage}
+							<p class="rounded-md border bg-muted/30 px-3 py-2 text-sm">{attendanceLocationsMessage}</p>
+						{/if}
+					</div>
 				</div>
 			{/if}
 
