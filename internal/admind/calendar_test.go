@@ -3,6 +3,7 @@ package admind
 import (
 	"context"
 	"encoding/json"
+	"encoding/xml"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -482,11 +483,20 @@ func TestCalendarPropFindIncludesStoredProperties(t *testing.T) {
 	if response.Code != http.StatusMultiStatus {
 		t.Fatalf("propfind status = %d body = %s", response.Code, response.Body.String())
 	}
-	if !strings.Contains(response.Body.String(), "#FF0000") {
-		t.Fatalf("propfind body missing stored color: %s", response.Body.String())
+	results := parseCalendarMultistatusOrFatal(t, response.Body.Bytes())
+	if len(results) != 1 {
+		t.Fatalf("expected 1 response entry, got %d", len(results))
 	}
-	if !strings.Contains(response.Body.String(), "calendar-color") {
-		t.Fatalf("propfind body missing calendar-color element: %s", response.Body.String())
+	if results[0].Href != calendarCollectionPath {
+		t.Fatalf("href mismatch: %q", results[0].Href)
+	}
+	colorName := xml.Name{Space: "http://apple.com/ns/ical/", Local: "calendar-color"}
+	value, ok := results[0].OK[colorName]
+	if !ok {
+		t.Fatalf("calendar-color missing from 200 OK propstat: %#v", results[0])
+	}
+	if value != "#FF0000" {
+		t.Fatalf("calendar-color value = %q, want %q", value, "#FF0000")
 	}
 }
 
@@ -598,12 +608,121 @@ func TestCalendarPropFindIncludesGetCTag(t *testing.T) {
 	if response.Code != http.StatusMultiStatus {
 		t.Fatalf("propfind status = %d body = %s", response.Code, response.Body.String())
 	}
-	if !strings.Contains(response.Body.String(), "getctag") {
-		t.Fatalf("propfind body missing getctag element: %s", response.Body.String())
+	results := parseCalendarMultistatusOrFatal(t, response.Body.Bytes())
+	if len(results) != 1 {
+		t.Fatalf("expected 1 response entry, got %d", len(results))
 	}
-	if !strings.Contains(response.Body.String(), "v1-") {
-		t.Fatalf("ctag value missing v1- prefix: %s", response.Body.String())
+	ctagName := xml.Name{Space: "http://calendarserver.org/ns/", Local: "getctag"}
+	value, ok := results[0].OK[ctagName]
+	if !ok {
+		t.Fatalf("getctag missing from 200 OK propstat: %#v", results[0])
 	}
+	if !strings.HasPrefix(value, "v1-") {
+		t.Fatalf("getctag value %q missing v1- prefix", value)
+	}
+}
+
+func TestCalendarPropFindReportsUnknownPropertyAs404(t *testing.T) {
+	service := newCalendarTestService(t)
+	body := `<?xml version="1.0" encoding="utf-8"?>
+<D:propfind xmlns:D="DAV:" xmlns:X="http://example.org/custom/">
+  <D:prop><D:displayname/><X:made-up-property/></D:prop>
+</D:propfind>`
+	request := httptest.NewRequest("PROPFIND", calendarCollectionPath, strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/xml")
+	request.Header.Set("Depth", "0")
+	request.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, request)
+	if response.Code != http.StatusMultiStatus {
+		t.Fatalf("propfind status = %d body = %s", response.Code, response.Body.String())
+	}
+	results := parseCalendarMultistatusOrFatal(t, response.Body.Bytes())
+	if len(results) != 1 {
+		t.Fatalf("expected 1 response entry, got %d", len(results))
+	}
+	knownName := xml.Name{Space: "DAV:", Local: "displayname"}
+	if _, ok := results[0].OK[knownName]; !ok {
+		t.Fatalf("displayname missing from 200 OK propstat: %#v", results[0])
+	}
+	unknownName := xml.Name{Space: "http://example.org/custom/", Local: "made-up-property"}
+	if !containsName(results[0].NotFound, unknownName) {
+		t.Fatalf("unknown property missing from 404 propstat: %#v", results[0])
+	}
+	if _, ok := results[0].OK[unknownName]; ok {
+		t.Fatalf("unknown property must not appear in 200 propstat: %#v", results[0])
+	}
+}
+
+type calendarPropFindResult struct {
+	Href     string
+	OK       map[xml.Name]string
+	NotFound []xml.Name
+}
+
+func parseCalendarMultistatusOrFatal(t *testing.T, body []byte) []calendarPropFindResult {
+	t.Helper()
+	results, errorValue := parseCalendarMultistatus(body)
+	if errorValue != nil {
+		t.Fatalf("parse multistatus failed: %v\nbody=%s", errorValue, string(body))
+	}
+	return results
+}
+
+func parseCalendarMultistatus(body []byte) ([]calendarPropFindResult, error) {
+	type rawPropertyXML struct {
+		XMLName  xml.Name
+		InnerXML string `xml:",innerxml"`
+	}
+	type propXML struct {
+		Properties []rawPropertyXML `xml:",any"`
+	}
+	type propstatXML struct {
+		Prop   propXML `xml:"DAV: prop"`
+		Status string  `xml:"DAV: status"`
+	}
+	type responseXML struct {
+		Href      string        `xml:"DAV: href"`
+		Propstats []propstatXML `xml:"DAV: propstat"`
+	}
+	type multistatusXML struct {
+		XMLName   xml.Name      `xml:"DAV: multistatus"`
+		Responses []responseXML `xml:"DAV: response"`
+	}
+	var document multistatusXML
+	if errorValue := xml.Unmarshal(body, &document); errorValue != nil {
+		return nil, errorValue
+	}
+	results := make([]calendarPropFindResult, 0, len(document.Responses))
+	for _, response := range document.Responses {
+		entry := calendarPropFindResult{
+			Href: strings.TrimSpace(response.Href),
+			OK:   map[xml.Name]string{},
+		}
+		for _, propstat := range response.Propstats {
+			isOK := strings.Contains(propstat.Status, " 200 ")
+			isNotFound := strings.Contains(propstat.Status, " 404 ")
+			for _, property := range propstat.Prop.Properties {
+				switch {
+				case isOK:
+					entry.OK[property.XMLName] = strings.TrimSpace(property.InnerXML)
+				case isNotFound:
+					entry.NotFound = append(entry.NotFound, property.XMLName)
+				}
+			}
+		}
+		results = append(results, entry)
+	}
+	return results, nil
+}
+
+func containsName(names []xml.Name, target xml.Name) bool {
+	for _, name := range names {
+		if name == target {
+			return true
+		}
+	}
+	return false
 }
 
 func TestCalendarCTagChangesAfterEventWrite(t *testing.T) {
