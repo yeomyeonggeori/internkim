@@ -1603,7 +1603,7 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 			})
 			mmAPI("POST", "/api/v4/channels", channelBody, adminToken)
 		}
-		setupMattermostDefaultChannels(mmAPI, adminToken, teamResult.ID)
+		setupMattermostDefaultChannels(mmAPI, adminToken, botToken, teamResult.ID, botResult.UserID)
 	}
 
 	if teamResult.ID != "" {
@@ -1676,13 +1676,59 @@ func mattermostSetupConfigurationPatch(siteURL string) map[string]any {
 	}
 }
 
-func setupMattermostDefaultChannels(mmAPI mattermostSetupAPI, adminToken string, teamID string) {
+func setupMattermostDefaultChannels(mmAPI mattermostSetupAPI, adminToken string, botToken string, teamID string, botUserID string) {
 	for _, channel := range mattermostdefaults.DefaultPublicChannels() {
 		channelID := ensureMattermostSetupDefaultChannel(mmAPI, adminToken, teamID, channel)
 		if channelID != "" {
 			fmt.Printf("  channel: %s (%s)\n", channel.Name, channelID)
 		}
+		if channel.Name == mattermostdefaults.FlowChannelName {
+			ensureMattermostSetupFlowEntryPost(mmAPI, adminToken, botToken, channelID, botUserID)
+		}
 	}
+}
+
+func ensureMattermostSetupFlowEntryPost(mmAPI mattermostSetupAPI, adminToken string, botToken string, channelID string, botUserID string) {
+	if strings.TrimSpace(channelID) == "" || strings.TrimSpace(botToken) == "" || strings.TrimSpace(botUserID) == "" {
+		return
+	}
+	memberDocument, _ := json.Marshal(map[string]string{"user_id": botUserID})
+	mmAPI("POST", "/api/v4/channels/"+url.PathEscape(channelID)+"/members", memberDocument, adminToken)
+	postsCode, postsResponseBody := mmAPI("GET", "/api/v4/channels/"+url.PathEscape(channelID)+"/posts?per_page=50", nil, adminToken)
+	if postsCode >= 200 && postsCode < 300 && hasMattermostSetupBotFlowEntryPost(mmAPI, adminToken, postsResponseBody, botUserID) {
+		return
+	}
+	postDocument, _ := json.Marshal(map[string]any{
+		"channel_id": channelID,
+		"message":    "Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다. [Flow 열기](/flow/)",
+		"props":      map[string]any{"internkim_flow_entry": true},
+	})
+	mmAPI("POST", "/api/v4/posts", postDocument, botToken)
+}
+
+func hasMattermostSetupBotFlowEntryPost(mmAPI mattermostSetupAPI, adminToken string, postsResponseBody []byte, botUserID string) bool {
+	var postsResponse struct {
+		Order []string `json:"order"`
+		Posts map[string]struct {
+			UserID string         `json:"user_id"`
+			Props  map[string]any `json:"props"`
+		} `json:"posts"`
+	}
+	if json.Unmarshal(postsResponseBody, &postsResponse) != nil {
+		return false
+	}
+	for _, postID := range postsResponse.Order {
+		postRecord := postsResponse.Posts[postID]
+		if postRecord.Props["internkim_flow_entry"] != true {
+			continue
+		}
+		if postRecord.UserID == botUserID {
+			return true
+		}
+		mmAPI("DELETE", "/api/v4/posts/"+url.PathEscape(postID), nil, adminToken)
+		return false
+	}
+	return false
 }
 
 func ensureMattermostSetupDefaultChannel(mmAPI mattermostSetupAPI, adminToken string, teamID string, channel mattermostdefaults.PublicChannel) string {

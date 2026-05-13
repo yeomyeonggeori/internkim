@@ -47,6 +47,7 @@ type Configuration struct {
 	MattermostTokenPath         string
 	OpenRouterKeyPath           string
 	OpenRouterModelsURL         string
+	MattermostBotTokenPath      string
 	AdminEmailPath              string
 	ClaimedAdminEmailPath       string
 	FleetIDPath                 string
@@ -201,6 +202,7 @@ func DefaultConfiguration() Configuration {
 		MattermostTokenPath:         "/root/.internkim/secrets/mattermost-bot-token",
 		OpenRouterKeyPath:           "/root/.internkim/secrets/openrouter-api-key",
 		OpenRouterModelsURL:         "https://openrouter.ai/api/v1/models",
+		MattermostBotTokenPath:      "/root/.internkim/secrets/mattermost-bot-token",
 		AdminEmailPath:              "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:       "/root/.internkim/state/admin/claimed-admin-email",
 		FleetIDPath:                 "/root/.internkim/env/fleet-id",
@@ -1951,6 +1953,9 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.OpenRouterModelsURL == "" {
 		configuration.OpenRouterModelsURL = defaultConfiguration.OpenRouterModelsURL
+	}
+	if configuration.MattermostBotTokenPath == "" {
+		configuration.MattermostBotTokenPath = defaultConfiguration.MattermostBotTokenPath
 	}
 	if configuration.AdminEmailPath == "" {
 		configuration.AdminEmailPath = defaultConfiguration.AdminEmailPath
