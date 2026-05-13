@@ -63,6 +63,51 @@ func TestAttendanceEntryPostUsesSeparateSafeActionIDs(t *testing.T) {
 	}
 }
 
+func TestAttendanceEntryPostIsBotAuthoredAndPinned(t *testing.T) {
+	stateDirectory := t.TempDir()
+	service := NewService(Configuration{
+		StateDirectory:         stateDirectory,
+		MattermostBaseURL:      "http://mattermost.local",
+		MattermostBotTokenPath: writeTestFile(t, "bot-token"),
+	})
+	var createdAsBot bool
+	var pinnedAsBot bool
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "http://mattermost.local/api/v4/users/me":
+			assertMattermostBearerToken(t, request, "bot-token")
+			return jsonResponse(http.StatusOK, `{"id":"bot-1","username":"internkim"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members" && request.Method == http.MethodPost:
+			return jsonResponse(http.StatusCreated, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members/bot-1/schemeRoles" && request.Method == http.MethodPut:
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/posts?per_page=50":
+			return jsonResponse(http.StatusOK, `{"order":["entry-post"],"posts":{"entry-post":{"id":"entry-post","user_id":"admin","message":"출퇴근 기록","props":{"internkim_attendance_entry":true}}}}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/posts/entry-post" && request.Method == http.MethodDelete:
+			assertMattermostBearerToken(t, request, "admin-token")
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/posts" && request.Method == http.MethodPost:
+			assertMattermostBearerToken(t, request, "bot-token")
+			createdAsBot = true
+			return jsonResponse(http.StatusCreated, `{"id":"attendance-entry","user_id":"bot-1"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/posts/attendance-entry/pin" && request.Method == http.MethodPost:
+			assertMattermostBearerToken(t, request, "bot-token")
+			pinnedAsBot = true
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	if errorValue := service.ensureMattermostAttendanceEntryPost(context.Background(), "admin-token", "attendance-channel"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !createdAsBot || !pinnedAsBot {
+		t.Fatalf("createdAsBot=%v pinnedAsBot=%v", createdAsBot, pinnedAsBot)
+	}
+}
+
 func TestAttendanceRepeatedClickCancelsEvent(t *testing.T) {
 	service, messages := newAttendanceActionTestService(t)
 	payload := mattermostInteractivePayload{
@@ -109,6 +154,7 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]string) {
 		AttendanceDatabasePath:      filepath.Join(stateDirectory, "attendance.sqlite"),
 		MattermostBaseURL:           "http://mattermost.local",
 		MattermostAdminPasswordPath: writeTestFile(t, "admin-pass"),
+		MattermostBotTokenPath:      writeTestFile(t, "bot-token"),
 		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -123,10 +169,14 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]string) {
 			return jsonResponse(http.StatusOK, `{"id":"attendance-channel"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/patch" && request.Method == http.MethodPut:
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Header.Get("Authorization") == "Bearer bot-token":
+			return jsonResponse(http.StatusOK, `{"id":"bot-1","email":"internkim@localhost","username":"internkim"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/posts?per_page=50":
-			return jsonResponse(http.StatusOK, `{"order":["entry-post"],"posts":{"entry-post":{"id":"entry-post","message":"출퇴근 기록","props":{"internkim_attendance_entry":true,"attachments":[{"actions":[{"id":"attendanceClockIn"},{"id":"attendanceClockOut"}]}]}}}}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"order":["entry-post"],"posts":{"entry-post":{"id":"entry-post","user_id":"bot-1","is_pinned":true,"message":"출퇴근 기록","props":{"internkim_attendance_entry":true,"attachments":[{"fallback":"출퇴근 기록","text":"출근과 퇴근 버튼을 구분해서 기록합니다.","actions":[{"id":"attendanceClockIn","name":"출근"},{"id":"attendanceClockOut","name":"퇴근"}]}]}}}}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members" && request.Method == http.MethodPost:
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members/bot-1/schemeRoles" && request.Method == http.MethodPut:
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/tokens" && request.Method == http.MethodPost:
 			return jsonResponse(http.StatusCreated, `{"token":"user-token"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Header.Get("Authorization") == "Bearer user-token":

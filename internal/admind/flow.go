@@ -945,7 +945,7 @@ func (service *Service) trySyncFlowMattermostNotification(ctx context.Context, t
 	if errorValue != nil {
 		return task, errorValue
 	}
-	if errorValue := service.ensureMattermostFlowBotCanPost(ctx, adminToken, channelID, botUserID); errorValue != nil {
+	if errorValue := service.ensureMattermostBotCanPost(ctx, adminToken, channelID, botUserID); errorValue != nil {
 		return task, errorValue
 	}
 	return service.upsertFlowMattermostNotification(ctx, adminToken, botToken, botUserID, channelID, task)
@@ -960,7 +960,7 @@ func shouldNotifyFlowTask(task flowTask) bool {
 	}
 }
 
-func (service *Service) ensureMattermostFlowBotCanPost(ctx context.Context, adminToken string, channelID string, userID string) error {
+func (service *Service) ensureMattermostBotCanPost(ctx context.Context, adminToken string, channelID string, userID string) error {
 	body := map[string]string{"user_id": userID}
 	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/channels/"+url.PathEscape(channelID)+"/members", adminToken, body, nil); errorValue != nil && !isMattermostBadRequest(errorValue) {
 		return errorValue
