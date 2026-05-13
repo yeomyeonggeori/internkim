@@ -135,10 +135,16 @@ func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 	if _, isFound := receivedDocument["response_format"]; isFound {
 		t.Fatalf("expected native tool request to omit response_format, got %+v", receivedDocument)
 	}
-	if receivedDocument["tool_choice"] != "auto" {
-		t.Fatalf("expected auto tool choice, got %+v", receivedDocument)
+	if receivedDocument["tool_choice"] != "required" {
+		t.Fatalf("expected required tool choice, got %+v", receivedDocument)
+	}
+	if receivedDocument["parallel_tool_calls"] != false {
+		t.Fatalf("expected parallel tool calls to be disabled, got %+v", receivedDocument)
 	}
 	tools := receivedDocument["tools"].([]any)
+	if !openRouterRequestHasTool(tools, "reply_now") {
+		t.Fatalf("expected reply_now control tool, got %+v", tools)
+	}
 	parameters := openRouterRequestToolParameters(t, tools, "call_tool__site_app_publish")
 	if _, isFound := parameters["additionalProperties"]; isFound {
 		t.Fatalf("expected OpenRouter native tool parameters to omit additionalProperties, got %+v", parameters)
@@ -193,6 +199,34 @@ func TestOpenRouterBackendAcceptsProviderReturnedToolName(t *testing.T) {
 	}
 }
 
+func TestOpenRouterBackendRejectsActionContentWhenToolCallIsMissing(t *testing.T) {
+	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
+	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	backend := OpenRouterBackend{
+		KeyPath:   secretPath,
+		BaseURL:   "https://openrouter.ai/api/v1/chat/completions",
+		ModelName: "configured-model",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"stop","message":{"content":"{\"action\":\"final_reply\",\"finalReply\":\"할 수 있는 일을 설명드릴게요.\",\"goalStatus\":\"satisfied\",\"goalSatisfied\":true,\"completionEvidence\":[],\"qualityReview\":[]}"}}]}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	response, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
+		Messages:               []Message{{Role: "user", Content: "넌 뭐 할줄 알아?"}},
+		StructuredOutputSchema: testAgentActionSchema(),
+	})
+
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "did not include tool_calls") {
+		t.Fatalf("expected missing tool_calls error, got response=%+v error=%v", response, errorValue)
+	}
+}
+
 func TestOpenAICompatibleActionToolRequestUsesGenerationOptions(t *testing.T) {
 	seed := int64(12)
 	temperature := 0.6
@@ -212,6 +246,36 @@ func TestOpenAICompatibleActionToolRequestUsesGenerationOptions(t *testing.T) {
 	}
 	if len(request.Tools) != 1 || request.Tools[0].Function.Name != "call_tool__site_app_publish" {
 		t.Fatalf("expected native tool call shape to remain, got %+v", request.Tools)
+	}
+	if request.ToolChoice != "required" {
+		t.Fatalf("expected required tool choice, got %+v", request)
+	}
+	if request.ParallelTools == nil || *request.ParallelTools {
+		t.Fatalf("expected parallel tool calls disabled, got %+v", request)
+	}
+}
+
+func TestNativeActionToolsExposeFinalReplyAsReplyNow(t *testing.T) {
+	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(testAgentActionSchema())
+	if errorValue != nil {
+		t.Fatalf("expected native tool set: %v", errorValue)
+	}
+	if !isActionSchema {
+		t.Fatal("expected action schema")
+	}
+	tool, isFound := toolSet.ToolByName["reply_now"]
+	if !isFound {
+		t.Fatalf("expected reply_now tool, got %+v", toolSet.Tools)
+	}
+	if tool.Action != "final_reply" {
+		t.Fatalf("expected reply_now to map to final_reply, got %+v", tool)
+	}
+	content, errorValue := nativeActionJSON(toolSet, "reply_now", `{"finalReply":"done","goalStatus":"satisfied","goalSatisfied":true,"completionEvidence":[],"qualityReview":[]}`)
+	if errorValue != nil {
+		t.Fatalf("expected reply_now action JSON: %v", errorValue)
+	}
+	if !strings.Contains(content, `"action":"final_reply"`) {
+		t.Fatalf("expected internal final_reply action, got %s", content)
 	}
 }
 
@@ -446,7 +510,7 @@ func TestLlamaCppBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 			}
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"final_reply","arguments":"{\"finalReply\":\"done\",\"goalStatus\":\"satisfied\",\"goalSatisfied\":true,\"completionEvidence\":[],\"qualityReview\":[]}"}}]}}]}`)),
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"reply_now","arguments":"{\"finalReply\":\"done\",\"goalStatus\":\"satisfied\",\"goalSatisfied\":true,\"completionEvidence\":[],\"qualityReview\":[]}"}}]}}]}`)),
 				Header:     make(http.Header),
 			}, nil
 		})},
@@ -468,6 +532,9 @@ func TestLlamaCppBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 	}
 	if _, isFound := receivedDocument["tools"]; !isFound {
 		t.Fatalf("expected tools in request, got %+v", receivedDocument)
+	}
+	if receivedDocument["tool_choice"] != "required" {
+		t.Fatalf("expected required tool choice, got %+v", receivedDocument)
 	}
 }
 
@@ -629,6 +696,40 @@ func TestAutoProviderReportsNoProviderError(t *testing.T) {
 	_, errorValue := auto.CompleteText(context.Background(), TextRequest{})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "no llm provider") {
 		t.Fatalf("expected no provider error, got %v", errorValue)
+	}
+}
+
+func TestStructuredRequestTraceIncludesReproductionMetadata(t *testing.T) {
+	seed := int64(1234)
+	temperature := 0.2
+	trace := structuredRequestTrace(StructuredRequest{
+		Model:         "openrouter/model",
+		Provider:      "openrouter",
+		ExecutionMode: "remote",
+		Messages:      []Message{{Role: "user", Content: "hello"}},
+		StructuredOutputSchema: StructuredOutputSchema{
+			Name:     "blueclaw_agent_turn_action",
+			Document: json.RawMessage(`{"type":"object","properties":{"reply":{"type":"string"}}}`),
+		},
+		GenerationOptions: &GenerationOptions{Seed: &seed, Temperature: &temperature},
+	})
+
+	for _, expectedFragment := range []string{
+		"kind=structured",
+		"constraintMode=native_tool_call",
+		"toolChoice=required",
+		"executionMode=remote",
+		"provider=openrouter",
+		"model=openrouter/model",
+		"schemaName=blueclaw_agent_turn_action",
+		"schemaHash=",
+		"messagesHash=",
+		"seed=1234",
+		"temperature=0.2",
+	} {
+		if !strings.Contains(trace, expectedFragment) {
+			t.Fatalf("expected trace to contain %q, got %q", expectedFragment, trace)
+		}
 	}
 }
 
@@ -909,6 +1010,17 @@ func openRouterRequestToolParameters(t *testing.T, tools []any, functionName str
 	}
 	t.Fatalf("expected tool %s in request, got %+v", functionName, tools)
 	return nil
+}
+
+func openRouterRequestHasTool(tools []any, functionName string) bool {
+	for _, tool := range tools {
+		document := tool.(map[string]any)
+		function := document["function"].(map[string]any)
+		if function["name"] == functionName {
+			return true
+		}
+	}
+	return false
 }
 
 type staticProvider struct {

@@ -183,7 +183,7 @@ func openAIActionToolRequest(modelName string, messages []Message, tools []nativ
 		Messages:      messages,
 		Stream:        false,
 		Tools:         openAIActionTools(tools),
-		ToolChoice:    "auto",
+		ToolChoice:    "required",
 		ParallelTools: &parallelTools,
 		Seed:          options.Seed,
 		Temperature:   options.Temperature,

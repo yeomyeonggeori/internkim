@@ -2,8 +2,10 @@ package llmbackend
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -106,7 +108,7 @@ func (provider AutoProvider) CompleteStructured(ctx context.Context, request Str
 	if !provider.AllowStructuredFallback && len(providers) > 1 {
 		providers = providers[:1]
 	}
-	return completeWithProviderChain(providers, func(candidate Provider) (Response, error) {
+	return completeWithProviderChain(providers, structuredRequestTrace(request), func(candidate Provider) (Response, error) {
 		attemptContext, cancel := context.WithTimeout(ctx, provider.attemptTimeout())
 		defer cancel()
 		return candidate.CompleteStructured(attemptContext, request)
@@ -114,7 +116,7 @@ func (provider AutoProvider) CompleteStructured(ctx context.Context, request Str
 }
 
 func (provider AutoProvider) CompleteText(ctx context.Context, request TextRequest) (Response, error) {
-	return completeWithProviderChain(provider.Providers, func(candidate Provider) (Response, error) {
+	return completeWithProviderChain(provider.Providers, textRequestTrace(request), func(candidate Provider) (Response, error) {
 		attemptContext, cancel := context.WithTimeout(ctx, provider.attemptTimeout())
 		defer cancel()
 		return candidate.CompleteText(attemptContext, request)
@@ -128,7 +130,7 @@ func (provider AutoProvider) attemptTimeout() time.Duration {
 	return provider.AttemptTimeout
 }
 
-func completeWithProviderChain(providers []Provider, complete func(Provider) (Response, error)) (Response, error) {
+func completeWithProviderChain(providers []Provider, requestTrace string, complete func(Provider) (Response, error)) (Response, error) {
 	attempts := make([]string, 0, len(providers))
 	for index, candidate := range providers {
 		if candidate == nil {
@@ -140,13 +142,13 @@ func completeWithProviderChain(providers []Provider, complete func(Provider) (Re
 		}
 		attempts = append(attempts, providerFailure(candidate, errorValue))
 		if index < len(providers)-1 {
-			logFallback(errorValue)
+			logFallback(errorValue, requestTrace)
 		}
 	}
 	if len(attempts) == 0 {
 		return Response{}, errors.New("no llm provider is available")
 	}
-	return Response{}, errors.New("llm provider attempts failed: " + strings.Join(attempts, "; "))
+	return Response{}, errors.New("llm provider attempts failed: " + strings.Join(attempts, "; ") + "; " + requestTrace)
 }
 
 func providerFailure(provider Provider, errorValue error) string {
@@ -156,10 +158,87 @@ func providerFailure(provider Provider, errorValue error) string {
 	return errorValue.Error()
 }
 
-func logFallback(errorValue error) {
+func logFallback(errorValue error, requestTrace string) {
 	if errorValue != nil {
-		log.Printf("llm provider failed; trying next provider: %v", errorValue)
+		log.Printf("llm provider failed; trying next provider: %v; %s", errorValue, requestTrace)
 	}
+}
+
+func structuredRequestTrace(request StructuredRequest) string {
+	return strings.Join([]string{
+		"kind=structured",
+		"constraintMode=" + structuredConstraintModeTrace(request),
+		"toolChoice=" + structuredToolChoiceTrace(request),
+		"executionMode=" + traceValue(request.ExecutionMode),
+		"provider=" + traceValue(request.Provider),
+		"model=" + traceValue(request.Model),
+		"schemaName=" + traceValue(request.StructuredOutputSchema.Name),
+		"schemaHash=" + hashTraceValue(request.StructuredOutputSchema.Document),
+		"messagesHash=" + hashTraceValue(request.Messages),
+		"seed=" + seedTraceValue(request.GenerationOptions),
+		"temperature=" + temperatureTraceValue(request.GenerationOptions),
+	}, " ")
+}
+
+func textRequestTrace(request TextRequest) string {
+	return strings.Join([]string{
+		"kind=text",
+		"constraintMode=none",
+		"toolChoice=none",
+		"executionMode=" + traceValue(request.ExecutionMode),
+		"provider=" + traceValue(request.Provider),
+		"model=" + traceValue(request.Model),
+		"messagesHash=" + hashTraceValue(request.Messages),
+	}, " ")
+}
+
+func structuredConstraintModeTrace(request StructuredRequest) string {
+	if isActionTurnStructuredRequest(request) {
+		return ConstraintModeNativeToolCall
+	}
+	return ConstraintModeOpenAIJSONSchema
+}
+
+func structuredToolChoiceTrace(request StructuredRequest) string {
+	if isActionTurnStructuredRequest(request) {
+		return "required"
+	}
+	return "none"
+}
+
+func isActionTurnStructuredRequest(request StructuredRequest) bool {
+	return strings.TrimSpace(request.StructuredOutputSchema.Name) == "blueclaw_agent_turn_action"
+}
+
+func hashTraceValue(value any) string {
+	document, errorValue := json.Marshal(value)
+	if errorValue != nil {
+		return "unavailable"
+	}
+	sum := sha256.Sum256(document)
+	return fmt.Sprintf("%x", sum[:8])
+}
+
+func seedTraceValue(options *GenerationOptions) string {
+	if options == nil || options.Seed == nil {
+		return "none"
+	}
+	return fmt.Sprintf("%d", *options.Seed)
+}
+
+func temperatureTraceValue(options *GenerationOptions) string {
+	if options == nil || options.Temperature == nil {
+		return "none"
+	}
+	return fmt.Sprintf("%.6g", *options.Temperature)
+}
+
+func traceValue(value string) string {
+	trimmedValue := strings.TrimSpace(value)
+	if trimmedValue == "" {
+		return "default"
+	}
+	return trimmedValue
 }
 
 func firstNonEmpty(values ...string) string {
