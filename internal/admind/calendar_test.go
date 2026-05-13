@@ -440,6 +440,32 @@ func TestCalendarPropPatchRejectsNonWhitelistedNamespace(t *testing.T) {
 	}
 }
 
+func TestCalendarPropPatchRejectsNestedXMLValue(t *testing.T) {
+	service := newCalendarTestService(t)
+	body := `<?xml version="1.0" encoding="utf-8"?>
+<D:propertyupdate xmlns:D="DAV:" xmlns:A="http://apple.com/ns/ical/">
+  <D:set><D:prop><A:calendar-color><A:child>x</A:child></A:calendar-color></D:prop></D:set>
+</D:propertyupdate>`
+	request := httptest.NewRequest("PROPPATCH", calendarCollectionPath, strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/xml")
+	request.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, request)
+	if response.Code != http.StatusMultiStatus {
+		t.Fatalf("proppatch status = %d body = %s", response.Code, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), "403 Forbidden") {
+		t.Fatalf("response missing 403 propstat for nested xml value: %s", response.Body.String())
+	}
+	properties, errorValue := service.readCalendarProperties(context.Background(), calendarCollectionPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(properties) != 0 {
+		t.Fatalf("calendar-color with nested element must not be persisted: %#v", properties)
+	}
+}
+
 func TestCalendarPropPatchRemovesProperty(t *testing.T) {
 	service := newCalendarTestService(t)
 	if errorValue := service.writeCalendarProperty(context.Background(), calendarCollectionPath, "http://apple.com/ns/ical/", "calendar-color", "#FF0000"); errorValue != nil {
