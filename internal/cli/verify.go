@@ -741,7 +741,11 @@ uninvited_email="verify-uninvited-$timestamp@internkim.test"
 invited_username="verifyinvited$timestamp"
 uninvited_username="verifyuninvited$timestamp"
 password="VerifyPass!$timestamp-InternKim-Mattermost"
-channel_id="$(cat /root/.internkim/env/channel-id)"
+team_name="internkim"
+verify_channel_name="verify-$timestamp"
+verify_channel_display_name="Verify $timestamp"
+channel_id=""
+team_id=""
 admin_password="$(cat /root/.internkim/secrets/mm-admin-pass)"
 test_started_at="$(date +%s%3N)"
 
@@ -829,7 +833,13 @@ blueclaw_request() {
 }
 
 resolve_team_id() {
-  api_request "resolve channel team" GET "http://localhost:8065/api/v4/channels/$channel_id" "$admin_token" | jq -r '.team_id // empty'
+  api_request "resolve team" GET "http://localhost:8065/api/v4/teams/name/$team_name" "$admin_token" | jq -r '.id // empty'
+}
+
+create_verify_channel() {
+  local body
+  body="$(jq -cn --arg team_id "$team_id" --arg name "$verify_channel_name" --arg display_name "$verify_channel_display_name" '{team_id:$team_id,name:$name,display_name:$display_name,type:"P"}')"
+  api_request "create verify channel" POST http://localhost:8065/api/v4/channels "$admin_token" "$body" | jq -r '.id // empty'
 }
 
 phase "admin login"
@@ -865,12 +875,17 @@ login_user() {
 
 join_channel() {
   local user_id="$1"
-  local team_id
   local team_member_body
   local channel_member_body
-  team_id="$(resolve_team_id)"
   if [ -z "$team_id" ]; then
-    echo "Mattermost channel $channel_id does not belong to a team" >&2
+    team_id="$(resolve_team_id)"
+  fi
+  if [ -z "$team_id" ]; then
+    echo "Mattermost team $team_name was not found" >&2
+    return 1
+  fi
+  if [ -z "$channel_id" ]; then
+    echo "Mattermost verify channel was not created" >&2
     return 1
   fi
   team_member_body="$(jq -cn --arg team_id "$team_id" --arg user_id "$user_id" '{team_id:$team_id,user_id:$user_id}')"
@@ -964,20 +979,23 @@ delete_post() {
 
 delete_user() {
   local user_id="$1"
-  local team_id
   if [ -z "$user_id" ] || [ "$user_id" = "null" ]; then
     return 0
   fi
-  team_id="$(resolve_team_id 2>/dev/null || true)"
-  curl --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
-    "http://localhost:8065/api/v4/channels/$channel_id/members/$user_id" >/dev/null || true
+  if [ -n "${channel_id:-}" ]; then
+    curl --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+      "http://localhost:8065/api/v4/channels/$channel_id/members/$user_id" >/dev/null || true
+  fi
+  if [ -z "${team_id:-}" ]; then
+    team_id="$(resolve_team_id 2>/dev/null || true)"
+  fi
   if [ -n "$team_id" ]; then
     curl --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
       "http://localhost:8065/api/v4/teams/$team_id/members/$user_id" >/dev/null || true
   fi
-  curl --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+  curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
     "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null || \
-    curl --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+    curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
       "http://localhost:8065/api/v4/users/$user_id" >/dev/null || \
     echo "cleanup warning: failed to delete Mattermost user $user_id" >&2
 }
@@ -1009,12 +1027,23 @@ SQL
 
 delete_verify_replies() {
   local token="$1"
+  if [ -z "${channel_id:-}" ]; then
+    return 0
+  fi
   api_request "cleanup enumerate bot replies" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=100" "$admin_token" |
     jq -r --arg bot_user_id "$bot_user_id" --argjson test_started_at "$test_started_at" \
       '.posts[] | select(.user_id == $bot_user_id and .create_at >= $test_started_at) | .id' |
     while read -r post_id; do
       delete_post "$token" "$post_id"
     done || echo "cleanup warning: failed to enumerate Mattermost bot replies" >&2
+}
+
+delete_verify_channel() {
+  if [ -z "${channel_id:-}" ]; then
+    return 0
+  fi
+  curl --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+    "http://localhost:8065/api/v4/channels/$channel_id" >/dev/null || echo "cleanup warning: failed to delete Mattermost verify channel $channel_id" >&2
 }
 
 cleanup() {
@@ -1024,6 +1053,7 @@ cleanup() {
   delete_verify_system_posts
   delete_user "${invited_user_id:-}"
   delete_user "${uninvited_user_id:-}"
+  delete_verify_channel
   curl --silent --show-error -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$invited_email" >/dev/null || true
 }
 trap cleanup EXIT
@@ -1035,6 +1065,12 @@ phase "bot lookup"
 mattermost_token="$(cat /root/.internkim/secrets/mattermost-bot-token)"
 bot_user_id="$(api_request "bot lookup" GET http://localhost:8065/api/v4/users/me "$mattermost_token" | jq -r '.id // empty')"
 test -n "$bot_user_id"
+phase "create verify channel"
+team_id="$(resolve_team_id)"
+test -n "$team_id"
+channel_id="$(create_verify_channel)"
+test -n "$channel_id"
+join_channel "$bot_user_id"
 phase "create users"
 invited_user_id="$(create_user "$invited_email" "$invited_username")"
 uninvited_user_id="$(create_user "$uninvited_email" "$uninvited_username")"
@@ -1213,18 +1249,48 @@ cleanup() {
       "http://localhost:8065/api/v4/posts/$user_post_id" >/dev/null || true
   fi
   if [ -n "${user_id:-}" ]; then
-    curl --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
-      "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null || true
+    curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+      "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null || \
+      curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+        "http://localhost:8065/api/v4/users/$user_id" >/dev/null || true
   fi
   curl --silent --show-error -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$email" >/dev/null || true
 }
 trap cleanup EXIT
+
+delete_probe_user() {
+  local probe_user_id="$1"
+  local probe_email="$2"
+  if [ -n "$probe_user_id" ]; then
+    curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+      "http://localhost:8065/api/v4/users/$probe_user_id?permanent=true" >/dev/null || \
+      curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+        "http://localhost:8065/api/v4/users/$probe_user_id" >/dev/null || true
+  fi
+  if [ -n "$probe_email" ]; then
+    curl --silent --show-error -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$probe_email" >/dev/null || true
+  fi
+}
+
+delete_stale_probe_users() {
+  if [ "$keep_artifacts" = "true" ]; then
+    return 0
+  fi
+  api_request "search stale probe users" POST http://localhost:8065/api/v4/users/search "$admin_token" \
+    "$(jq -cn --arg term probe-mattermost '{term:$term}')" |
+    jq -r '.[] | select((.email // "") | startswith("probe-mattermost-")) | [.id, .email] | @tsv' |
+    while IFS="$(printf '\t')" read -r probe_user_id probe_email; do
+      delete_probe_user "$probe_user_id" "$probe_email"
+    done
+}
 
 mattermost_token="$(cat /root/.internkim/secrets/mattermost-bot-token)"
 bot_user="$(api_request "bot lookup" GET http://localhost:8065/api/v4/users/me "$mattermost_token")"
 bot_user_id="$(printf '%%s' "$bot_user" | jq -r '.id // empty')"
 bot_username="$(printf '%%s' "$bot_user" | jq -r '.username // empty')"
 test -n "$bot_user_id"
+
+delete_stale_probe_users
 
 user_body="$(jq -cn --arg email "$email" --arg username "$username" --arg password "$password" '{email:$email,username:$username,password:$password}')"
 user_id="$(api_request "create probe user" POST http://localhost:8065/api/v4/users "$admin_token" "$user_body" | jq -r '.id')"
@@ -1437,8 +1503,10 @@ api_request "search stale probe browser users" POST http://localhost:8065/api/v4
 jq -r '.[] | select((.email // "") | startswith("probe-browser-open-")) | [.id, .email] | @tsv' "$stale_users_file" |
 while IFS="$(printf '\t')" read -r stale_user_id stale_email; do
   if [ -n "$stale_user_id" ]; then
-    curl --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
-      "http://localhost:8065/api/v4/users/$stale_user_id?permanent=true" >/dev/null || true
+    curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+      "http://localhost:8065/api/v4/users/$stale_user_id?permanent=true" >/dev/null || \
+      curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+        "http://localhost:8065/api/v4/users/$stale_user_id" >/dev/null || true
   fi
   if [ -n "$stale_email" ]; then
     curl --silent --show-error -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$stale_email" >/dev/null || true
@@ -1505,8 +1573,10 @@ curl --silent --show-error --fail -D "$login_headers" -o /tmp/internkim-admin-br
   http://localhost:8065/api/v4/users/login >/dev/null
 admin_token="$(awk 'tolower($1) == "token:" {print $2}' "$login_headers" | tr -d '\r')"
 if [ -n "$user_id" ]; then
-  curl --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
-    "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null || true
+  curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+    "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null || \
+    curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+      "http://localhost:8065/api/v4/users/$user_id" >/dev/null || true
 fi
 curl --silent --show-error -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$email" >/dev/null || true
 `, strconv.Quote(base64.StdEncoding.EncodeToString([]byte(preparation.Email))), strconv.Quote(base64.StdEncoding.EncodeToString([]byte(preparation.UserID))))
@@ -1655,8 +1725,10 @@ cleanup() {
     curl --silent --show-error -X DELETE -H "Authorization: Bearer $user_token" \
       "http://localhost:8065/api/v4/posts/$user_post_id" >/dev/null || true
   fi
-  curl --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
-    "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null || true
+  curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+    "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null || \
+    curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+      "http://localhost:8065/api/v4/users/$user_id" >/dev/null || true
   curl --silent --show-error -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$email" >/dev/null || true
 }
 trap cleanup EXIT

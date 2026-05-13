@@ -91,10 +91,29 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if agent["toolResultMaxBytes"] != float64(32768) {
 		t.Fatalf("expected agent tool result limit, got %v", agent["toolResultMaxBytes"])
 	}
+	failureRecovery := agent["failureRecovery"].(map[string]any)
+	if failureRecovery["failureDebtFinalizationGate"] != true {
+		t.Fatalf("expected failure debt finalization gate, got %+v", failureRecovery)
+	}
+	if failureRecovery["attemptFingerprint"] != "tool_input_error_code" {
+		t.Fatalf("expected tool input error fingerprint mode, got %+v", failureRecovery)
+	}
+	recoveryBudget := failureRecovery["recoveryBudget"].(map[string]any)
+	expectedRecoveryBudget := map[string]float64{
+		"correctedRetry": 1,
+		"alternateRoute": 1,
+		"adjacentTool":   2,
+		"noToolFallback": 1,
+	}
+	for key, expectedValue := range expectedRecoveryBudget {
+		if recoveryBudget[key] != expectedValue {
+			t.Fatalf("expected recovery budget %s=%v, got %+v", key, expectedValue, recoveryBudget)
+		}
+	}
 	agentProfiles := runtimeConfiguration["agentProfiles"].([]any)
 	defaultProfile := agentProfiles[0].(map[string]any)
 	allowedToolNames := defaultProfile["allowedToolNames"].([]any)
-	for _, expectedToolName := range []string{"conversation.history", "memory.search", "terminal.run", "terminal.session", "browser_handoff.openURL", "approval.request", "file.write", "file.attach", "skill.add", "skill.remove", "schedule.create", "schedule.cancel"} {
+	for _, expectedToolName := range []string{"conversation.history", "memory.search", "terminal.run", "terminal.session", "browser_handoff.openURL", "approval.request", "file.write", "file.attach", "skill.add", "skill.remove", "skill.search", "schedule.create", "schedule.cancel"} {
 		if !containsStringValue(allowedToolNames, expectedToolName) {
 			t.Fatalf("expected default agent profile to allow internal tool %q, got %+v", expectedToolName, allowedToolNames)
 		}
@@ -217,6 +236,9 @@ func TestBlueclawPolicyDocumentSeedsResourceFirstCircles(t *testing.T) {
 	if !containsPolicyResource(resourceAccess, "tool:flow.task.add", "staff") {
 		t.Fatalf("expected staff Flow tool rule, got %+v", resourceAccess)
 	}
+	if !containsPolicyResource(resourceAccess, "tool:mail.message.search", "staff") {
+		t.Fatalf("expected staff mail search tool rule, got %+v", resourceAccess)
+	}
 	if !containsPolicyResource(resourceAccess, "tool:company.broadcast.send", "representative") {
 		t.Fatalf("expected representative broadcast tool rule, got %+v", resourceAccess)
 	}
@@ -316,6 +338,8 @@ func TestLlamaCppEmbeddingServiceUnitRunsEmbeddingServer(t *testing.T) {
 		"--port " + locallm.LlamaCppEmbeddingPort,
 		"--embeddings",
 		"--pooling mean",
+		"--batch-size " + locallm.LlamaCppEmbeddingBatchSize,
+		"--ubatch-size " + locallm.LlamaCppEmbeddingUBatchSize,
 		"LD_LIBRARY_PATH=" + locallm.LlamaCppLibraryDir,
 		"Restart=on-failure",
 	} {
