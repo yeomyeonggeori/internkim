@@ -2119,7 +2119,7 @@ func isMattermostFlowSetupRequest(request *http.Request) bool {
 		return true
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/posts?per_page=50":
 		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/posts/attendance-entry/patch" && request.Method == http.MethodPut:
+	case request.URL.String() == "http://mattermost.local/api/v4/posts/attendance-entry" && request.Method == http.MethodDelete:
 		return true
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members":
 		return true
@@ -2163,7 +2163,9 @@ func mattermostFlowSetupResponse(t *testing.T, request *http.Request) *http.Resp
 		return jsonResponse(http.StatusOK, `{}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/posts?per_page=50":
 		return jsonResponse(http.StatusOK, `{"order":["attendance-entry"],"posts":{"attendance-entry":{"id":"attendance-entry","props":{"internkim_attendance_entry":true}}}}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/posts/attendance-entry/patch" && request.Method == http.MethodPut:
+	case request.URL.String() == "http://mattermost.local/api/v4/posts/attendance-entry" && request.Method == http.MethodDelete:
+		return jsonResponse(http.StatusOK, `{}`, nil)
+	case request.URL.String() == "http://mattermost.local/api/v4/posts" && request.Method == http.MethodPost:
 		return jsonResponse(http.StatusOK, `{}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members":
 		return jsonResponse(http.StatusCreated, `{}`, nil)
@@ -4030,6 +4032,9 @@ func assertMattermostManagedResourcePathPatch(t *testing.T, payload map[string]m
 	serviceSettings := payload["ServiceSettings"]
 	if serviceSettings["ManagedResourcePaths"] != mattermostdefaults.ManagedResourcePathSetting() {
 		t.Fatalf("managed resource paths = %#v", serviceSettings["ManagedResourcePaths"])
+	}
+	if serviceSettings["AllowedUntrustedInternalConnections"] != "127.0.0.1 localhost" {
+		t.Fatalf("allowed internal connections = %#v", serviceSettings["AllowedUntrustedInternalConnections"])
 	}
 	if serviceSettings["EnableUserAccessTokens"] != true {
 		t.Fatalf("user access tokens = %#v", serviceSettings["EnableUserAccessTokens"])

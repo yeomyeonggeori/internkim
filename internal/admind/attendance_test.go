@@ -9,29 +9,57 @@ import (
 	"time"
 )
 
-func TestAttendanceTogglePostsAsUserAndStoresEvent(t *testing.T) {
+func TestAttendanceClockButtonsPostAsUserAndIgnoreInvalidState(t *testing.T) {
 	service, messages := newAttendanceActionTestService(t)
 	payload := mattermostInteractivePayload{
 		UserID:    "user-1",
 		PostID:    "entry-post",
 		ChannelID: "attendance-channel",
 		TeamID:    "team-1",
-		Context:   mattermostInteractiveContext{Action: "attendance.toggle", Token: service.ensureMattermostInteractiveActionToken()},
+		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken()},
 	}
 
-	if errorValue := service.toggleAttendanceFromMattermost(context.Background(), payload); errorValue != nil {
+	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
-	if len(*messages) != 1 || (*messages)[0] != "출근" {
+	if len(*messages) != 2 || (*messages)[0] != "출근" || (*messages)[1] != "퇴근" {
 		t.Fatalf("messages = %+v", *messages)
 	}
 	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(events) != 1 || events[0].Kind != attendanceKindClockIn || events[0].ResultPostID != "attendance-post-1" {
+	if len(events) != 2 || events[0].Kind != attendanceKindClockOut || events[1].Kind != attendanceKindClockIn {
 		t.Fatalf("events = %+v", events)
+	}
+}
+
+func TestAttendanceEntryPostUsesSeparateSafeActionIDs(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	props := service.mattermostAttendanceEntryPostProps()
+	attachments, ok := props["attachments"].([]mattermostAttachment)
+	if !ok || len(attachments) != 1 {
+		t.Fatalf("attachments = %+v", props["attachments"])
+	}
+	actions := attachments[0].Actions
+	if len(actions) != 2 {
+		t.Fatalf("actions = %+v", actions)
+	}
+	if actions[0].ID != attendanceClockInAction || actions[0].Name != "출근" {
+		t.Fatalf("clock in action = %+v", actions[0])
+	}
+	if actions[1].ID != attendanceClockOutAction || actions[1].Name != "퇴근" {
+		t.Fatalf("clock out action = %+v", actions[1])
 	}
 }
 
@@ -96,9 +124,7 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]string) {
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/patch" && request.Method == http.MethodPut:
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/posts?per_page=50":
-			return jsonResponse(http.StatusOK, `{"order":["entry-post"],"posts":{"entry-post":{"id":"entry-post","message":"출퇴근 기록","props":{"internkim_attendance_entry":true}}}}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/posts/entry-post/patch" && request.Method == http.MethodPut:
-			return jsonResponse(http.StatusOK, `{}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"order":["entry-post"],"posts":{"entry-post":{"id":"entry-post","message":"출퇴근 기록","props":{"internkim_attendance_entry":true,"attachments":[{"actions":[{"id":"attendanceClockIn"},{"id":"attendanceClockOut"}]}]}}}}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members" && request.Method == http.MethodPost:
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/tokens" && request.Method == http.MethodPost:
