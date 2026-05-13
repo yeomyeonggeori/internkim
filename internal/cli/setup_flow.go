@@ -73,6 +73,10 @@ type localBinaryAsset struct {
 	archiveEntry string
 }
 
+func skillPythonDependencyPackages() string {
+	return "fpdf2 pypdf python-docx openpyxl python-pptx"
+}
+
 func deviceBrowserRuntimePackageListUbuntu24() string {
 	return strings.Join(baseDeviceToolPackages(), " ")
 }
@@ -950,6 +954,9 @@ func (state *setupFlowState) installSkillsSSH(context *setup.Context) error {
 	if info, errorValue := os.Stat(skillsDirectoryPath); errorValue != nil || !info.IsDir() {
 		return fmt.Errorf("skills directory missing: %s", skillsDirectoryPath)
 	}
+	if errorValue := state.installSkillPythonDependenciesSSH(); errorValue != nil {
+		return errorValue
+	}
 
 	agentsPath := blueclawworkspace.AgentsPath(state.scriptDir)
 	if errorValue := state.sshClient.scp(agentsPath, filepath.Join(blueclaw.BlueclawWorkspacePath, "AGENTS.md")); errorValue != nil {
@@ -999,6 +1006,14 @@ func (state *setupFlowState) installSkillsSSH(context *setup.Context) error {
 chmod -R a+rX,go-w /root/.blueclaw/workspace/skills 2>/dev/null || true
 chown root:root /root/.blueclaw/workspace/AGENTS.md 2>/dev/null || true
 chmod 644 /root/.blueclaw/workspace/AGENTS.md 2>/dev/null || true`)
+	return nil
+}
+
+func (state *setupFlowState) installSkillPythonDependenciesSSH() error {
+	output, errorValue := state.sshClient.runResult("pip3 install --quiet " + skillPythonDependencyPackages() + " 2>&1")
+	if errorValue != nil {
+		return fmt.Errorf("install skill Python dependencies: %w: %s", errorValue, strings.TrimSpace(output))
+	}
 	return nil
 }
 
