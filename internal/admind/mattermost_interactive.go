@@ -69,6 +69,10 @@ func (service *Service) handleMattermostInteractiveAction(responseWriter http.Re
 		return
 	}
 	switch strings.TrimSpace(payload.Context.Action) {
+	case attendanceClockInAction:
+		service.handleAttendanceClockAction(responseWriter, request, payload, attendanceKindClockIn)
+	case attendanceClockOutAction:
+		service.handleAttendanceClockAction(responseWriter, request, payload, attendanceKindClockOut)
 	case attendanceToggleAction:
 		service.handleAttendanceToggleAction(responseWriter, request, payload)
 	default:
