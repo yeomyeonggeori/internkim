@@ -93,7 +93,7 @@ func nativeActionToolForVariant(variant actionSchemaVariant) (nativeActionTool, 
 	}
 	return nativeActionTool{
 		FunctionName: nativeControlFunctionName(action),
-		Description:  "Return agent action " + action,
+		Description:  nativeControlDescription(action),
 		Action:       action,
 		Parameters:   controlActionParameters(variant),
 	}, true, nil
@@ -142,8 +142,11 @@ func nativeActionToolMatchesProviderName(tool nativeActionTool, functionName str
 	if functionName == "" {
 		return false
 	}
+	if functionName == tool.FunctionName {
+		return true
+	}
 	if tool.Action != "call_tool" {
-		return false
+		return functionName == tool.Action || functionName == nativeSafeFunctionName(tool.Action)
 	}
 	return functionName == tool.ToolName || functionName == nativeSafeFunctionName(tool.ToolName)
 }
@@ -351,7 +354,17 @@ func nativeActionFunctionName(toolName string) string {
 }
 
 func nativeControlFunctionName(action string) string {
+	if strings.TrimSpace(action) == "final_reply" {
+		return "reply_now"
+	}
 	return nativeSafeFunctionName(action)
+}
+
+func nativeControlDescription(action string) string {
+	if strings.TrimSpace(action) == "final_reply" {
+		return "Reply to the user now when the request is satisfied without another tool call."
+	}
+	return "Return agent action " + action
 }
 
 func nativeSafeFunctionName(value string) string {
