@@ -1151,27 +1151,34 @@ ORDER BY notify_at`, now.UTC().Format(time.RFC3339))
 }
 
 func (service *Service) sendCalendarNotification(ctx context.Context, notification calendarNotification, event calendarEvent) error {
-	token, errorValue := service.mattermostAdminToken(ctx)
+	adminToken, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	botToken, errorValue := service.mattermostBotToken()
 	if errorValue != nil {
 		return errorValue
 	}
 	switch notification.TargetType {
 	case "dm":
-		channelID, errorValue := service.ensureMattermostBotDirectChannelID(ctx, token, notification.TargetValue)
+		channelID, errorValue := service.ensureMattermostBotDirectChannelID(ctx, adminToken, notification.TargetValue)
 		if errorValue != nil {
 			return errorValue
 		}
-		return service.postCalendarMattermostNotification(ctx, token, channelID, notification.TargetType, event)
+		return service.postCalendarMattermostNotification(ctx, botToken, channelID, notification.TargetType, event)
 	default:
-		teamRecord, errorValue := service.ensureMattermostTeam(ctx, token)
+		teamRecord, errorValue := service.ensureMattermostTeam(ctx, adminToken)
 		if errorValue != nil {
 			return errorValue
 		}
-		channelID, errorValue := service.ensureMattermostPublicChannel(ctx, token, teamRecord.ID, calendarAnnouncementsChannelName, calendarAnnouncementsChannelDisplayName)
+		channelID, errorValue := service.ensureMattermostPublicChannel(ctx, adminToken, teamRecord.ID, calendarAnnouncementsChannelName, calendarAnnouncementsChannelDisplayName)
 		if errorValue != nil {
 			return errorValue
 		}
-		return service.postCalendarMattermostNotification(ctx, token, channelID, notification.TargetType, event)
+		if errorValue := service.ensureMattermostBotChannelMember(ctx, adminToken, channelID); errorValue != nil {
+			return errorValue
+		}
+		return service.postCalendarMattermostNotification(ctx, botToken, channelID, notification.TargetType, event)
 	}
 }
 

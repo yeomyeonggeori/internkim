@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -103,6 +104,7 @@ const mattermostFlowChannelName = mattermostdefaults.FlowChannelName
 const mattermostFlowChannelDisplayName = mattermostdefaults.FlowChannelDisplayName
 const mattermostCalendarChannelName = mattermostdefaults.CalendarChannelName
 const mattermostCalendarChannelDisplayName = mattermostdefaults.CalendarChannelDisplayName
+const mattermostFlowEntryPostMessage = "Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다. [Flow 열기](/flow/)"
 
 func (service *Service) provisionMattermostUser(ctx context.Context, email string, role string) (mattermostProvisionResult, error) {
 	return service.provisionMattermostUserWithPassword(ctx, adminUserMutation{Email: email, Role: role}, "")
@@ -212,6 +214,28 @@ func (service *Service) mattermostAdminToken(ctx context.Context) (string, error
 		return "", fmt.Errorf("Mattermost login did not return a token")
 	}
 	return token, nil
+}
+
+func (service *Service) mattermostBotToken() (string, error) {
+	token := strings.TrimSpace(readTrimmedFile(service.Configuration.MattermostBotTokenPath))
+	if token == "" {
+		token = strings.TrimSpace(readTrimmedFile(service.Configuration.MattermostTokenPath))
+	}
+	if token == "" {
+		return "", fmt.Errorf("Mattermost bot token is not configured")
+	}
+	return token, nil
+}
+
+func (service *Service) mattermostTokenUserID(ctx context.Context, token string) (string, error) {
+	var userRecord mattermostUserRecord
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", token, nil, &userRecord); errorValue != nil {
+		return "", errorValue
+	}
+	if strings.TrimSpace(userRecord.ID) == "" {
+		return "", fmt.Errorf("Mattermost token user ID is missing")
+	}
+	return strings.TrimSpace(userRecord.ID), nil
 }
 
 func (service *Service) findMattermostUserByEmail(ctx context.Context, token string, email string) (mattermostUserRecord, bool, error) {
@@ -790,9 +814,7 @@ func (service *Service) ensureMattermostFlowChannel(ctx context.Context, token s
 	if errorValue := service.ensureMattermostFlowChannelReadOnly(ctx, token, channelID); errorValue != nil {
 		return "", errorValue
 	}
-	if errorValue := service.deleteMattermostFlowEntryPost(ctx, token, channelID); errorValue != nil {
-		return "", errorValue
-	}
+	service.syncMattermostFlowEntryPost(ctx, token, channelID)
 	if errorValue := service.cleanupMattermostFlowSystemPosts(ctx, token, channelID); errorValue != nil {
 		return "", errorValue
 	}
@@ -904,14 +926,6 @@ func mattermostChannelModerationPatch(name string, roles map[string]bool) map[st
 	}
 }
 
-func (service *Service) deleteMattermostFlowEntryPost(ctx context.Context, token string, channelID string) error {
-	postRecord, found := service.mattermostFlowEntryPost(ctx, token, channelID)
-	if !found || strings.TrimSpace(postRecord.ID) == "" {
-		return nil
-	}
-	return service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/posts/"+url.PathEscape(postRecord.ID), token, nil, nil)
-}
-
 func (service *Service) cleanupMattermostFlowSystemPosts(ctx context.Context, token string, channelID string) error {
 	for _, postRecord := range service.mattermostFlowPosts(ctx, token, channelID, 100) {
 		if !isMattermostFlowSystemPost(postRecord) || strings.TrimSpace(postRecord.ID) == "" {
@@ -922,6 +936,42 @@ func (service *Service) cleanupMattermostFlowSystemPosts(ctx context.Context, to
 		}
 	}
 	return nil
+}
+
+func (service *Service) syncMattermostFlowEntryPost(ctx context.Context, adminToken string, channelID string) {
+	if errorValue := service.ensureMattermostFlowEntryPost(ctx, adminToken, channelID); errorValue != nil {
+		log.Printf("Mattermost Flow entry post sync failed: %v", errorValue)
+	}
+}
+
+func (service *Service) ensureMattermostFlowEntryPost(ctx context.Context, adminToken string, channelID string) error {
+	botToken, errorValue := service.mattermostBotToken()
+	if errorValue != nil {
+		return errorValue
+	}
+	botUserID, errorValue := service.mattermostTokenUserID(ctx, botToken)
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := service.ensureMattermostFlowBotCanPost(ctx, adminToken, channelID, botUserID); errorValue != nil {
+		return errorValue
+	}
+	post, found := service.mattermostFlowEntryPost(ctx, adminToken, channelID)
+	if found && strings.TrimSpace(post.UserID) == botUserID {
+		return nil
+	}
+	if found && strings.TrimSpace(post.ID) != "" {
+		path := "/api/v4/posts/" + url.PathEscape(post.ID)
+		if errorValue := service.mattermostRequest(ctx, http.MethodDelete, path, adminToken, nil, nil); errorValue != nil && !isMattermostNotFound(errorValue) {
+			return errorValue
+		}
+	}
+	body := map[string]any{
+		"channel_id": channelID,
+		"message":    mattermostFlowEntryPostMessage,
+		"props":      map[string]any{"internkim_flow_entry": true},
+	}
+	return service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", botToken, body, nil)
 }
 
 func (service *Service) mattermostFlowEntryPost(ctx context.Context, token string, channelID string) (mattermostPostRecord, bool) {
@@ -1163,6 +1213,29 @@ func (service *Service) ensureMattermostBotDirectChannel(ctx context.Context, to
 	return service.showMattermostDirectChannel(ctx, token, normalizedUserID, botRecord.ID)
 }
 
+func (service *Service) ensureMattermostBotChannelMember(ctx context.Context, token string, channelID string) error {
+	botRecord, found, errorValue := service.findMattermostUserByUsername(ctx, token, "internkim")
+	if errorValue != nil {
+		return errorValue
+	}
+	if !found || botRecord.ID == "" || botRecord.DeleteAt != 0 {
+		return fmt.Errorf("InternKim bot user is not available")
+	}
+	return service.ensureMattermostChannelMember(ctx, token, channelID, botRecord.ID)
+}
+
+func (service *Service) ensureMattermostChannelMember(ctx context.Context, token string, channelID string, userID string) error {
+	if strings.TrimSpace(channelID) == "" || strings.TrimSpace(userID) == "" {
+		return nil
+	}
+	channelMember := map[string]string{"user_id": strings.TrimSpace(userID)}
+	path := "/api/v4/channels/" + url.PathEscape(channelID) + "/members"
+	if errorValue := service.mattermostRequest(ctx, http.MethodPost, path, token, channelMember, nil); errorValue != nil && !isMattermostBadRequest(errorValue) {
+		return errorValue
+	}
+	return nil
+}
+
 func (service *Service) showMattermostDirectChannel(ctx context.Context, token string, userID string, directUserID string) error {
 	preferences := []mattermostPreferenceRecord{{
 		UserID:   userID,
@@ -1267,6 +1340,11 @@ func mattermostStatusError(response *http.Response) error {
 func isMattermostNotFound(errorValue error) bool {
 	var apiError mattermostAPIError
 	return errors.As(errorValue, &apiError) && apiError.StatusCode == http.StatusNotFound
+}
+
+func isMattermostForbidden(errorValue error) bool {
+	var apiError mattermostAPIError
+	return errors.As(errorValue, &apiError) && apiError.StatusCode == http.StatusForbidden
 }
 
 func isMattermostConflict(errorValue error) bool {
