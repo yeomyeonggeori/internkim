@@ -490,7 +490,7 @@ func TestCalendarPropFindIncludesStoredProperties(t *testing.T) {
 	}
 }
 
-func TestCalendarSyncCollectionStillReturnsValidSyncToken(t *testing.T) {
+func TestCalendarSyncCollectionRejectedAsUnsupported(t *testing.T) {
 	service := newCalendarTestService(t)
 	body := `<?xml version="1.0" encoding="utf-8"?>
 <D:sync-collection xmlns:D="DAV:">
@@ -504,8 +504,11 @@ func TestCalendarSyncCollectionStillReturnsValidSyncToken(t *testing.T) {
 	if response.Code != http.StatusForbidden {
 		t.Fatalf("sync-collection status = %d body = %s", response.Code, response.Body.String())
 	}
-	if !strings.Contains(response.Body.String(), "valid-sync-token") {
-		t.Fatalf("response missing valid-sync-token: %s", response.Body.String())
+	if !strings.Contains(response.Body.String(), "supported-report") {
+		t.Fatalf("response missing supported-report precondition: %s", response.Body.String())
+	}
+	if strings.Contains(response.Body.String(), "valid-sync-token") {
+		t.Fatalf("response must not signal valid-sync-token (would loop client retries): %s", response.Body.String())
 	}
 }
 
