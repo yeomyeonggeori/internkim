@@ -24,6 +24,8 @@ const (
 	attendanceSourceMattermostButton = "mattermost_button"
 	attendanceChannelName            = mattermostdefaults.AttendanceChannelName
 	attendanceChannelDisplayName     = mattermostdefaults.AttendanceChannelDisplayName
+	attendanceClockInAction          = "attendanceClockIn"
+	attendanceClockOutAction         = "attendanceClockOut"
 	attendanceToggleAction           = "attendance.toggle"
 	attendanceEntryPostMessage       = "출퇴근 기록"
 	attendanceEntryPostProperty      = "internkim_attendance_entry"
@@ -175,7 +177,20 @@ func (service *Service) handleAttendanceToggleAction(responseWriter http.Respons
 	service.writeMattermostInteractiveError(responseWriter, errorValue.Error())
 }
 
+func (service *Service) handleAttendanceClockAction(responseWriter http.ResponseWriter, request *http.Request, payload mattermostInteractivePayload, kind string) {
+	errorValue := service.recordAttendanceFromMattermost(request.Context(), payload, kind)
+	if errorValue == nil {
+		service.writeMattermostInteractiveSuccess(responseWriter)
+		return
+	}
+	service.writeMattermostInteractiveError(responseWriter, errorValue.Error())
+}
+
 func (service *Service) toggleAttendanceFromMattermost(ctx context.Context, payload mattermostInteractivePayload) error {
+	return service.recordAttendanceFromMattermost(ctx, payload, "")
+}
+
+func (service *Service) recordAttendanceFromMattermost(ctx context.Context, payload mattermostInteractivePayload, requestedKind string) error {
 	adminToken, errorValue := service.mattermostAdminToken(ctx)
 	if errorValue != nil {
 		return errorValue
@@ -202,7 +217,11 @@ func (service *Service) toggleAttendanceFromMattermost(ctx context.Context, payl
 	if errorValue != nil {
 		return errorValue
 	}
-	return service.applyAttendanceToggle(ctx, userRecord, userToken, firstNonEmpty(payload.TeamID, teamRecord.ID), channelID, payload.PostID)
+	teamID := firstNonEmpty(payload.TeamID, teamRecord.ID)
+	if requestedKind == "" {
+		return service.applyAttendanceToggle(ctx, userRecord, userToken, teamID, channelID, payload.PostID)
+	}
+	return service.applyAttendanceAction(ctx, userRecord, userToken, requestedKind, teamID, channelID, payload.PostID)
 }
 
 func (service *Service) applyAttendanceToggle(ctx context.Context, userRecord mattermostUserRecord, userToken string, teamID string, channelID string, actionPostID string) error {
@@ -222,6 +241,23 @@ func (service *Service) applyAttendanceToggle(ctx context.Context, userRecord ma
 	return service.createNextAttendanceEvent(ctx, database, userRecord, userToken, lastEvent, found, teamID, channelID, actionPostID, now)
 }
 
+func (service *Service) applyAttendanceAction(ctx context.Context, userRecord mattermostUserRecord, userToken string, kind string, teamID string, channelID string, actionPostID string) error {
+	now := time.Now().UTC()
+	database, errorValue := service.openAttendanceDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	lastEvent, found, errorValue := service.latestActiveAttendanceEvent(ctx, database, userRecord.ID)
+	if errorValue != nil {
+		return errorValue
+	}
+	if shouldIgnoreAttendanceAction(kind, lastEvent, found) {
+		return nil
+	}
+	return service.createAttendanceEventForKind(ctx, database, userRecord, userToken, kind, teamID, channelID, actionPostID, now)
+}
+
 func (service *Service) handleRepeatedAttendanceClick(ctx context.Context, database *sql.DB, userToken string, event attendanceEvent, occurredAt time.Time) error {
 	if strings.TrimSpace(event.RepeatedClickAt) == "" {
 		return service.markAttendanceRepeatedClick(ctx, database, event.ID, occurredAt)
@@ -231,6 +267,10 @@ func (service *Service) handleRepeatedAttendanceClick(ctx context.Context, datab
 
 func (service *Service) createNextAttendanceEvent(ctx context.Context, database *sql.DB, userRecord mattermostUserRecord, userToken string, lastEvent attendanceEvent, hasLastEvent bool, teamID string, channelID string, actionPostID string, occurredAt time.Time) error {
 	kind := nextAttendanceKind(lastEvent, hasLastEvent)
+	return service.createAttendanceEventForKind(ctx, database, userRecord, userToken, kind, teamID, channelID, actionPostID, occurredAt)
+}
+
+func (service *Service) createAttendanceEventForKind(ctx context.Context, database *sql.DB, userRecord mattermostUserRecord, userToken string, kind string, teamID string, channelID string, actionPostID string, occurredAt time.Time) error {
 	resultPostID, errorValue := service.postMattermostUserAttendanceMessage(ctx, userToken, channelID, attendanceMessageForKind(kind))
 	if errorValue != nil {
 		return errorValue
@@ -266,7 +306,7 @@ func (service *Service) createAttendanceEvent(userRecord mattermostUserRecord, k
 		Email:              strings.ToLower(strings.TrimSpace(userRecord.Email)),
 		DisplayName:        mattermostDisplayName(userRecord),
 		Kind:               kind,
-		OccurredAt:         occurredAt.Format(time.RFC3339),
+		OccurredAt:         occurredAt.Format(time.RFC3339Nano),
 		LocalDate:          localTime.Format("2006-01-02"),
 		LocalTime:          localTime.Format("15:04:05"),
 		TimeZoneAtEvent:    timeZoneName,
@@ -463,14 +503,20 @@ func (service *Service) updateMattermostAttendanceChannelText(ctx context.Contex
 func (service *Service) ensureMattermostAttendanceEntryPost(ctx context.Context, token string, channelID string) error {
 	expectedProps := service.mattermostAttendanceEntryPostProps()
 	postRecord, found := service.mattermostAttendanceEntryPost(ctx, token, channelID)
+	if found && isMattermostAttendanceEntryPostCurrent(postRecord) {
+		return nil
+	}
+	if found && strings.TrimSpace(postRecord.ID) != "" {
+		path := "/api/v4/posts/" + url.PathEscape(postRecord.ID)
+		if errorValue := service.mattermostRequest(ctx, http.MethodDelete, path, token, nil, nil); errorValue != nil && !isMattermostNotFound(errorValue) {
+			return errorValue
+		}
+	}
 	body := map[string]any{
-		"message": attendanceEntryPostMessage,
-		"props":   expectedProps,
+		"message":    attendanceEntryPostMessage,
+		"props":      expectedProps,
+		"channel_id": channelID,
 	}
-	if found {
-		return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/posts/"+url.PathEscape(postRecord.ID)+"/patch", token, body, nil)
-	}
-	body["channel_id"] = channelID
 	return service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", token, body, nil)
 }
 
@@ -489,6 +535,24 @@ func (service *Service) mattermostAttendanceEntryPost(ctx context.Context, token
 	return mattermostPostRecord{}, false
 }
 
+func isMattermostAttendanceEntryPostCurrent(postRecord mattermostPostRecord) bool {
+	document, errorValue := json.Marshal(postRecord.Props)
+	if errorValue != nil {
+		return false
+	}
+	var props struct {
+		Attachments []mattermostAttachment `json:"attachments"`
+	}
+	if errorValue := json.Unmarshal(document, &props); errorValue != nil {
+		return false
+	}
+	if len(props.Attachments) != 1 || len(props.Attachments[0].Actions) != 2 {
+		return false
+	}
+	actions := props.Attachments[0].Actions
+	return actions[0].ID == attendanceClockInAction && actions[1].ID == attendanceClockOutAction
+}
+
 func (service *Service) mattermostAttendanceEntryPostProps() map[string]any {
 	return map[string]any{
 		attendanceEntryPostProperty: true,
@@ -497,7 +561,8 @@ func (service *Service) mattermostAttendanceEntryPostProps() map[string]any {
 				Fallback: attendanceEntryPostMessage,
 				Text:     "버튼을 누르면 현재 상태에 따라 출근 또는 퇴근이 기록됩니다.",
 				Actions: []mattermostAction{
-					service.mattermostInteractiveButton(attendanceToggleAction, attendanceEntryPostMessage, "출근 또는 퇴근을 기록합니다.", "primary"),
+					service.mattermostInteractiveButton(attendanceClockInAction, "출근", "출근을 기록합니다.", "success"),
+					service.mattermostInteractiveButton(attendanceClockOutAction, "퇴근", "퇴근을 기록합니다.", "danger"),
 				},
 			},
 		},
@@ -597,8 +662,16 @@ func (service *Service) mattermostUserTokenPath() string {
 }
 
 func attendanceEventOccurredWithin(event attendanceEvent, now time.Time, window time.Duration) bool {
-	occurredAt, errorValue := time.Parse(time.RFC3339, event.OccurredAt)
+	occurredAt, errorValue := parseAttendanceEventTime(event.OccurredAt)
 	return errorValue == nil && now.Sub(occurredAt) >= 0 && now.Sub(occurredAt) <= window
+}
+
+func parseAttendanceEventTime(value string) (time.Time, error) {
+	occurredAt, errorValue := time.Parse(time.RFC3339Nano, value)
+	if errorValue == nil {
+		return occurredAt, nil
+	}
+	return time.Parse(time.RFC3339, value)
 }
 
 func attendanceMessageForKind(kind string) string {
@@ -613,6 +686,16 @@ func nextAttendanceKind(event attendanceEvent, hasEvent bool) string {
 		return attendanceKindClockOut
 	}
 	return attendanceKindClockIn
+}
+
+func shouldIgnoreAttendanceAction(kind string, event attendanceEvent, hasEvent bool) bool {
+	if kind == attendanceKindClockIn {
+		return hasEvent && event.Kind == attendanceKindClockIn
+	}
+	if kind == attendanceKindClockOut {
+		return !hasEvent || event.Kind != attendanceKindClockIn
+	}
+	return true
 }
 
 func attendanceStatusForEvents(events []attendanceEvent, localDate string) string {

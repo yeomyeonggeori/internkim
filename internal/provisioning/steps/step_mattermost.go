@@ -62,7 +62,9 @@ required_paths = {%s}
 service_settings = document.get("ServiceSettings", {})
 tokens_enabled = service_settings.get("EnableUserAccessTokens") is True
 bots_enabled = service_settings.get("EnableBotAccountCreation") is True
-print("ok" if required_paths.issubset(configured_paths) and tokens_enabled and bots_enabled else "missing")
+allowed_internal = service_settings.get("AllowedUntrustedInternalConnections", "")
+local_action_allowed = "127.0.0.1" in allowed_internal.split() and "localhost" in allowed_internal.split()
+print("ok" if required_paths.issubset(configured_paths) and tokens_enabled and bots_enabled and local_action_allowed else "missing")
 PY`, mattermostManagedResourcePythonSetValues())
 }
 
