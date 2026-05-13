@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -28,6 +29,7 @@ const (
 	attendanceClockOutAction         = "attendanceClockOut"
 	attendanceToggleAction           = "attendance.toggle"
 	attendanceEntryPostMessage       = "출퇴근 기록"
+	attendanceEntryPostText          = "출근과 퇴근 버튼을 구분해서 기록합니다."
 	attendanceEntryPostProperty      = "internkim_attendance_entry"
 	attendanceCancelReason           = "repeated click confirmed"
 	attendanceDuplicateWindow        = 5 * time.Minute
@@ -484,9 +486,7 @@ func (service *Service) ensureMattermostAttendanceChannel(ctx context.Context, t
 	if errorValue := service.updateMattermostAttendanceChannelText(ctx, token, channelID); errorValue != nil {
 		return "", errorValue
 	}
-	if errorValue := service.ensureMattermostAttendanceEntryPost(ctx, token, channelID); errorValue != nil {
-		return "", errorValue
-	}
+	service.syncMattermostAttendanceEntryPost(ctx, token, channelID)
 	return channelID, nil
 }
 
@@ -500,24 +500,48 @@ func (service *Service) updateMattermostAttendanceChannelText(ctx context.Contex
 	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/patch", token, body, nil)
 }
 
-func (service *Service) ensureMattermostAttendanceEntryPost(ctx context.Context, token string, channelID string) error {
+func (service *Service) syncMattermostAttendanceEntryPost(ctx context.Context, adminToken string, channelID string) {
+	if errorValue := service.ensureMattermostAttendanceEntryPost(ctx, adminToken, channelID); errorValue != nil {
+		log.Printf("Mattermost Attendance entry post sync failed: %v", errorValue)
+	}
+}
+
+func (service *Service) ensureMattermostAttendanceEntryPost(ctx context.Context, adminToken string, channelID string) error {
+	botToken, errorValue := service.mattermostBotToken()
+	if errorValue != nil {
+		return errorValue
+	}
+	botUserID, errorValue := service.mattermostTokenUserID(ctx, botToken)
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := service.ensureMattermostBotCanPost(ctx, adminToken, channelID, botUserID); errorValue != nil {
+		return errorValue
+	}
 	expectedProps := service.mattermostAttendanceEntryPostProps()
-	postRecord, found := service.mattermostAttendanceEntryPost(ctx, token, channelID)
-	if found && isMattermostAttendanceEntryPostCurrent(postRecord) {
-		return nil
+	postRecord, found := service.mattermostAttendanceEntryPost(ctx, adminToken, channelID)
+	if found && strings.TrimSpace(postRecord.UserID) == botUserID && isMattermostAttendanceEntryPostCurrent(postRecord) {
+		if postRecord.IsPinned {
+			return nil
+		}
+		return service.pinMattermostPost(ctx, botToken, postRecord.ID)
 	}
 	if found && strings.TrimSpace(postRecord.ID) != "" {
 		path := "/api/v4/posts/" + url.PathEscape(postRecord.ID)
-		if errorValue := service.mattermostRequest(ctx, http.MethodDelete, path, token, nil, nil); errorValue != nil && !isMattermostNotFound(errorValue) {
+		if errorValue := service.mattermostRequest(ctx, http.MethodDelete, path, adminToken, nil, nil); errorValue != nil && !isMattermostNotFound(errorValue) {
 			return errorValue
 		}
 	}
+	var createdPost mattermostPostRecord
 	body := map[string]any{
 		"message":    attendanceEntryPostMessage,
 		"props":      expectedProps,
 		"channel_id": channelID,
 	}
-	return service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", token, body, nil)
+	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", botToken, body, &createdPost); errorValue != nil {
+		return errorValue
+	}
+	return service.pinMattermostPost(ctx, botToken, createdPost.ID)
 }
 
 func (service *Service) mattermostAttendanceEntryPost(ctx context.Context, token string, channelID string) (mattermostPostRecord, bool) {
@@ -546,11 +570,25 @@ func isMattermostAttendanceEntryPostCurrent(postRecord mattermostPostRecord) boo
 	if errorValue := json.Unmarshal(document, &props); errorValue != nil {
 		return false
 	}
-	if len(props.Attachments) != 1 || len(props.Attachments[0].Actions) != 2 {
+	if len(props.Attachments) != 1 {
 		return false
 	}
-	actions := props.Attachments[0].Actions
+	attachment := props.Attachments[0]
+	if attachment.Fallback != attendanceEntryPostMessage || attachment.Text != attendanceEntryPostText {
+		return false
+	}
+	if len(attachment.Actions) != 2 {
+		return false
+	}
+	actions := attachment.Actions
 	return actions[0].ID == attendanceClockInAction && actions[1].ID == attendanceClockOutAction
+}
+
+func (service *Service) pinMattermostPost(ctx context.Context, token string, postID string) error {
+	if strings.TrimSpace(postID) == "" {
+		return fmt.Errorf("Mattermost post ID is empty")
+	}
+	return service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts/"+url.PathEscape(postID)+"/pin", token, nil, nil)
 }
 
 func (service *Service) mattermostAttendanceEntryPostProps() map[string]any {
@@ -559,7 +597,7 @@ func (service *Service) mattermostAttendanceEntryPostProps() map[string]any {
 		"attachments": []mattermostAttachment{
 			{
 				Fallback: attendanceEntryPostMessage,
-				Text:     "버튼을 누르면 현재 상태에 따라 출근 또는 퇴근이 기록됩니다.",
+				Text:     attendanceEntryPostText,
 				Actions: []mattermostAction{
 					service.mattermostInteractiveButton(attendanceClockInAction, "출근", "출근을 기록합니다.", "success"),
 					service.mattermostInteractiveButton(attendanceClockOutAction, "퇴근", "퇴근을 기록합니다.", "danger"),
