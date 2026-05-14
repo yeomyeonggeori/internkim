@@ -16,6 +16,27 @@ export const adminText = {
 			bot: 'Bot',
 			settings: 'Settings'
 		},
+		messages: {
+			adminAuthRequired: '관리자 인증이 필요합니다.',
+			adminAuthRequiredOnDevice: '관리자 인증이 필요합니다. 기기 주소의 /admin에서 Cloudflare Access로 로그인해 주세요.',
+			deviceUnreachable: '기기에 연결할 수 없습니다.',
+			botProfileLoadError: '봇 프로필을 불러오지 못했습니다.',
+			botProfileSaveError: '봇 프로필 저장에 실패했습니다.',
+			credentialsLoadError: 'Credential 상태를 불러오지 못했습니다.',
+			openRouterSaveError: 'OpenRouter 키 저장에 실패했습니다.',
+			openRouterDeleteError: 'OpenRouter 키 삭제에 실패했습니다.',
+			usersLoadError: '초대 목록을 불러오지 못했습니다.',
+			userInviteError: '사용자 초대에 실패했습니다.',
+			userSaveError: '사용자 저장에 실패했습니다.',
+			userRemoveError: '사용자 제거에 실패했습니다.',
+			companionStatusError: 'Companion 상태를 불러오지 못했습니다.',
+			companionPairingError: '연결 코드를 만들지 못했습니다.',
+			companionRevokeError: 'Companion 연결을 해제하지 못했습니다.',
+			backupStartError: '백업을 시작하지 못했습니다.',
+			restoreStartError: '복구를 시작하지 못했습니다.',
+			restoreUploadError: '복구 파일 업로드에 실패했습니다.',
+			restoreUploadProgress: '복구 파일 업로드 중...'
+		},
 		device: {
 			title: 'Device Admin',
 			description: '원격 기기의 상태와 관리자 인증을 확인합니다.',
@@ -42,11 +63,28 @@ export const adminText = {
 			notice: '키는 저장 전에 검증되고, LLM이나 tool result에는 노출되지 않습니다.'
 		},
 		settings: {
+			title: 'Workspace Settings',
 			description: '출결과 운영 화면에서 사용할 작업공간 설정입니다.',
 			timeZone: 'Time zone',
 			timeZonePlaceholder: 'system 또는 Asia/Seoul',
 			timeZoneHint: '비워두거나 system으로 두면 기기 설정을 사용합니다. IANA timezone만 저장됩니다.',
-			save: '저장'
+			save: '저장',
+			loadError: '설정을 불러오지 못했습니다.',
+			saveSuccess: '저장되었습니다.',
+			saveError: '설정을 저장하지 못했습니다.'
+		},
+		attendanceLocations: {
+			title: '출근 장소',
+			description: 'Mattermost 출근 버튼에 표시할 장소입니다. 최소 하나는 유지됩니다.',
+			add: '추가',
+			color: '장소 색상',
+			placeholder: '사무실',
+			default: '기본',
+			remove: '장소 삭제',
+			save: '저장',
+			loadError: '출근 장소를 불러오지 못했습니다.',
+			saveSuccess: '저장되었습니다.',
+			saveError: '출근 장소를 저장하지 못했습니다.'
 		},
 		companion: {
 			title: 'Companion App',
@@ -124,6 +162,27 @@ export const adminText = {
 			bot: 'Bot',
 			settings: 'Settings'
 		},
+		messages: {
+			adminAuthRequired: 'Admin authentication is required.',
+			adminAuthRequiredOnDevice: 'Admin authentication is required. Sign in with Cloudflare Access at /admin on the device address.',
+			deviceUnreachable: 'Could not connect to the device.',
+			botProfileLoadError: 'Could not load the bot profile.',
+			botProfileSaveError: 'Could not save the bot profile.',
+			credentialsLoadError: 'Could not load credential status.',
+			openRouterSaveError: 'Could not save the OpenRouter key.',
+			openRouterDeleteError: 'Could not delete the OpenRouter key.',
+			usersLoadError: 'Could not load the invite list.',
+			userInviteError: 'Could not invite the user.',
+			userSaveError: 'Could not save the user.',
+			userRemoveError: 'Could not remove the user.',
+			companionStatusError: 'Could not load Companion status.',
+			companionPairingError: 'Could not create a pairing code.',
+			companionRevokeError: 'Could not revoke the Companion connection.',
+			backupStartError: 'Could not start the backup.',
+			restoreStartError: 'Could not start the restore.',
+			restoreUploadError: 'Could not upload the restore file.',
+			restoreUploadProgress: 'Uploading restore file...'
+		},
 		device: {
 			title: 'Device Admin',
 			description: 'Check remote device status and admin authentication.',
@@ -150,11 +209,28 @@ export const adminText = {
 			notice: 'Keys are validated before saving and are never exposed to the LLM or tool results.'
 		},
 		settings: {
+			title: 'Workspace Settings',
 			description: 'Workspace settings used by attendance and operations screens.',
 			timeZone: 'Time zone',
 			timeZonePlaceholder: 'system or Asia/Seoul',
 			timeZoneHint: 'Leave empty or set system to use the device setting. Only IANA time zones are saved.',
-			save: 'Save'
+			save: 'Save',
+			loadError: 'Could not load settings.',
+			saveSuccess: 'Saved.',
+			saveError: 'Could not save settings.'
+		},
+		attendanceLocations: {
+			title: 'Attendance locations',
+			description: 'Locations shown on the Mattermost attendance button. Keep at least one location.',
+			add: 'Add',
+			color: 'Location color',
+			placeholder: 'Office',
+			default: 'Default',
+			remove: 'Remove location',
+			save: 'Save',
+			loadError: 'Could not load attendance locations.',
+			saveSuccess: 'Saved.',
+			saveError: 'Could not save attendance locations.'
 		},
 		companion: {
 			title: 'Companion App',

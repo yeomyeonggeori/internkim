@@ -4,7 +4,9 @@
 	import AppSidebar from '$lib/components/app-sidebar.svelte';
 	import { ThemeSelector } from '$lib/components/ui/theme-selector';
 	import LanguageSelector from '$lib/i18n/language-selector.svelte';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { initializeLocale } from '$lib/i18n/locale.svelte';
+	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { page } from '$app/state';
 	import { ModeWatcher } from 'mode-watcher';
 	import { onMount } from 'svelte';
@@ -13,6 +15,7 @@
 	import { Separator } from '$lib/components/ui/separator';
 
 	let { children } = $props();
+	const text = createPageText(appShellText);
 
 	onMount(initializeLocale);
 
@@ -25,7 +28,7 @@
 		if (pathname.startsWith('/admin')) return 'Admin';
 		if (pathname.startsWith('/calendar')) return 'Calendar';
 		if (pathname.startsWith('/mail')) return 'Mail';
-		if (pathname.startsWith('/attendance')) return '출결';
+		if (pathname.startsWith('/attendance')) return text.attendance;
 		return 'Flow';
 	}
 </script>
