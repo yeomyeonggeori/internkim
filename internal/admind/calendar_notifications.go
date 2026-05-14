@@ -220,7 +220,16 @@ func (service *Service) upsertCalendarNotifications(ctx context.Context, event c
 	targetKeys := map[string]bool{}
 	for _, target := range targets {
 		targetKeys[target.Key] = true
-		_, errorValue = database.ExecContext(ctx, `
+		if errorValue := upsertCalendarNotificationTarget(ctx, database, event.ID, target, notifyAt, updatedAt); errorValue != nil {
+			log.Printf("calendar notification upsert failed: %v", errorValue)
+			return
+		}
+	}
+	service.cancelStaleCalendarNotifications(ctx, database, event.ID, targetKeys, updatedAt)
+}
+
+func upsertCalendarNotificationTarget(ctx context.Context, database *sql.DB, eventID string, target calendarNotificationTarget, notifyAt time.Time, updatedAt string) error {
+	_, errorValue := database.ExecContext(ctx, `
 INSERT INTO calendar_event_notifications (
 	event_id, recipient_key, target_type, target_value, target_label, notify_at, status, sent_at, error, updated_at
 ) VALUES (?, ?, ?, ?, ?, ?, 'pending', '', '', ?)
@@ -234,20 +243,15 @@ ON CONFLICT(event_id, recipient_key) DO UPDATE SET
 	error = '',
 	updated_at = excluded.updated_at
 WHERE calendar_event_notifications.status != 'sent'`,
-			event.ID,
-			target.Key,
-			target.TargetType,
-			firstNonEmpty(target.UserID, target.Key),
-			target.Label,
-			notifyAt.Format(time.RFC3339),
-			updatedAt,
-		)
-		if errorValue != nil {
-			log.Printf("calendar notification upsert failed: %v", errorValue)
-			return
-		}
-	}
-	service.cancelStaleCalendarNotifications(ctx, database, event.ID, targetKeys, updatedAt)
+		eventID,
+		target.Key,
+		target.TargetType,
+		firstNonEmpty(target.UserID, target.Key),
+		target.Label,
+		notifyAt.Format(time.RFC3339),
+		updatedAt,
+	)
+	return errorValue
 }
 
 func calendarNotificationTime(event calendarEvent, now time.Time) (time.Time, bool) {

@@ -59,6 +59,11 @@ func calendarPropertyIsStorable(name xml.Name) bool {
 	return calendarStorablePropertyWhitelist[name]
 }
 
+type calendarPropPatchResult struct {
+	name   xml.Name
+	status int
+}
+
 func (service *Service) computeCalendarCTag(ctx context.Context) (string, error) {
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
@@ -110,44 +115,56 @@ func (service *Service) handleCalendarPropPatch(responseWriter http.ResponseWrit
 		http.Error(responseWriter, "invalid propertyupdate xml", http.StatusBadRequest)
 		return
 	}
-	type propResult struct {
-		name   xml.Name
-		status int
-	}
-	results := []propResult{}
+	results := []calendarPropPatchResult{}
 	for _, set := range update.Set {
-		for _, property := range set.Prop.Properties {
-			if !calendarPropertyIsStorable(property.XMLName) {
-				results = append(results, propResult{property.XMLName, http.StatusForbidden})
-				continue
-			}
-			value, isPureText := decodeCalendarPropertyTextValue(property.InnerXML)
-			if !isPureText {
-				results = append(results, propResult{property.XMLName, http.StatusForbidden})
-				continue
-			}
-			if errorValue := service.writeCalendarProperty(request.Context(), request.URL.Path, property.XMLName.Space, property.XMLName.Local, value); errorValue != nil {
-				results = append(results, propResult{property.XMLName, http.StatusInternalServerError})
-				continue
-			}
-			results = append(results, propResult{property.XMLName, http.StatusOK})
-		}
+		results = append(results, service.applyCalendarPropPatchSet(request.Context(), request.URL.Path, set)...)
 	}
 	for _, remove := range update.Remove {
-		for _, property := range remove.Prop.Properties {
-			if !calendarPropertyIsStorable(property.XMLName) {
-				results = append(results, propResult{property.XMLName, http.StatusForbidden})
-				continue
-			}
-			_ = service.deleteCalendarProperty(request.Context(), request.URL.Path, property.XMLName.Space, property.XMLName.Local)
-			results = append(results, propResult{property.XMLName, http.StatusOK})
-		}
+		results = append(results, service.applyCalendarPropPatchRemove(request.Context(), request.URL.Path, remove)...)
 	}
+	writeCalendarPropPatchResponse(responseWriter, request.URL.Path, results)
+}
+
+func (service *Service) applyCalendarPropPatchSet(ctx context.Context, calendarPath string, set calendarPropPatchSet) []calendarPropPatchResult {
+	results := make([]calendarPropPatchResult, 0, len(set.Prop.Properties))
+	for _, property := range set.Prop.Properties {
+		if !calendarPropertyIsStorable(property.XMLName) {
+			results = append(results, calendarPropPatchResult{property.XMLName, http.StatusForbidden})
+			continue
+		}
+		value, isPureText := decodeCalendarPropertyTextValue(property.InnerXML)
+		if !isPureText {
+			results = append(results, calendarPropPatchResult{property.XMLName, http.StatusForbidden})
+			continue
+		}
+		if errorValue := service.writeCalendarProperty(ctx, calendarPath, property.XMLName.Space, property.XMLName.Local, value); errorValue != nil {
+			results = append(results, calendarPropPatchResult{property.XMLName, http.StatusInternalServerError})
+			continue
+		}
+		results = append(results, calendarPropPatchResult{property.XMLName, http.StatusOK})
+	}
+	return results
+}
+
+func (service *Service) applyCalendarPropPatchRemove(ctx context.Context, calendarPath string, remove calendarPropPatchRemove) []calendarPropPatchResult {
+	results := make([]calendarPropPatchResult, 0, len(remove.Prop.Properties))
+	for _, property := range remove.Prop.Properties {
+		if !calendarPropertyIsStorable(property.XMLName) {
+			results = append(results, calendarPropPatchResult{property.XMLName, http.StatusForbidden})
+			continue
+		}
+		_ = service.deleteCalendarProperty(ctx, calendarPath, property.XMLName.Space, property.XMLName.Local)
+		results = append(results, calendarPropPatchResult{property.XMLName, http.StatusOK})
+	}
+	return results
+}
+
+func writeCalendarPropPatchResponse(responseWriter http.ResponseWriter, href string, results []calendarPropPatchResult) {
 	var buffer bytes.Buffer
 	buffer.WriteString(`<?xml version="1.0" encoding="utf-8"?>`)
 	buffer.WriteString(`<D:multistatus xmlns:D="DAV:">`)
 	buffer.WriteString(`<D:response><D:href>`)
-	xml.EscapeText(&buffer, []byte(request.URL.Path))
+	xml.EscapeText(&buffer, []byte(href))
 	buffer.WriteString(`</D:href>`)
 	for _, result := range results {
 		buffer.WriteString(`<D:propstat><D:prop>`)
