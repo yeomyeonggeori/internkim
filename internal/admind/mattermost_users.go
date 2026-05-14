@@ -774,8 +774,12 @@ func (service *Service) ensureMattermostCircleChannels(ctx context.Context, toke
 	if errorValue != nil {
 		return errorValue
 	}
-	for _, channelName := range []string{"circle-c-level", "circle-representative", "circle-admin"} {
-		if _, errorValue := service.ensureMattermostPrivateChannel(ctx, token, teamRecord.ID, channelName); errorValue != nil {
+	circleChannels, errorValue := service.mattermostCircleChannelDefinitions(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	for _, circleChannel := range circleChannels {
+		if _, errorValue := service.ensureMattermostPrivateChannel(ctx, token, teamRecord.ID, circleChannel.ChannelName); errorValue != nil {
 			return errorValue
 		}
 	}
@@ -1040,9 +1044,13 @@ func (service *Service) syncMattermostCircleMemberships(ctx context.Context, tok
 }
 
 func (service *Service) mattermostCircleEmails(ctx context.Context, token string, teamID string) (map[string]map[string]bool, error) {
+	circleChannels, errorValue := service.mattermostCircleChannelDefinitions(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
 	circleEmailsByID := map[string]map[string]bool{}
-	for circleID, channelName := range defaultMattermostCircleChannels() {
-		channelID, errorValue := service.ensureMattermostPrivateChannel(ctx, token, teamID, channelName)
+	for _, circleChannel := range circleChannels {
+		channelID, errorValue := service.ensureMattermostPrivateChannel(ctx, token, teamID, circleChannel.ChannelName)
 		if errorValue != nil {
 			return nil, errorValue
 		}
@@ -1050,7 +1058,7 @@ func (service *Service) mattermostCircleEmails(ctx context.Context, token string
 		if errorValue != nil {
 			return nil, errorValue
 		}
-		circleEmailsByID[circleID] = emails
+		circleEmailsByID[circleChannel.CircleID] = emails
 	}
 	return circleEmailsByID, nil
 }
@@ -1122,11 +1130,54 @@ func uniqueMattermostCircles(circles []string) []string {
 	return uniqueCircles
 }
 
-func defaultMattermostCircleChannels() map[string]string {
-	return map[string]string{
-		"admin":          "circle-admin",
-		"c-level":        "circle-c-level",
-		"representative": "circle-representative",
+type mattermostCircleChannelDefinition struct {
+	CircleID    string
+	ChannelName string
+}
+
+func (service *Service) mattermostCircleChannelDefinitions(ctx context.Context) ([]mattermostCircleChannelDefinition, error) {
+	var policyDocument map[string]any
+	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
+		return nil, errorValue
+	}
+	circleChannels := mattermostCircleChannelDefinitionsFromPolicy(policyDocument)
+	if len(circleChannels) == 0 {
+		return defaultMattermostCircleChannelDefinitions(), nil
+	}
+	return circleChannels, nil
+}
+
+func mattermostCircleChannelDefinitionsFromPolicy(policyDocument map[string]any) []mattermostCircleChannelDefinition {
+	circleSync, _ := policyDocument["circleSync"].(map[string]any)
+	channelValues, _ := circleSync["mattermostPrivateChannels"].([]any)
+	circleChannels := []mattermostCircleChannelDefinition{}
+	for _, value := range channelValues {
+		channel, isChannel := value.(map[string]any)
+		if !isChannel {
+			continue
+		}
+		circleChannel := mattermostCircleChannelDefinition{
+			CircleID:    strings.ToLower(strings.TrimSpace(mattermostPolicyString(channel["circleID"]))),
+			ChannelName: strings.ToLower(strings.TrimSpace(mattermostPolicyString(channel["channelName"]))),
+		}
+		if circleChannel.CircleID != "" && circleChannel.ChannelName != "" {
+			circleChannels = append(circleChannels, circleChannel)
+		}
+	}
+	return circleChannels
+}
+
+func mattermostPolicyString(value any) string {
+	stringValue, _ := value.(string)
+	return stringValue
+}
+
+func defaultMattermostCircleChannelDefinitions() []mattermostCircleChannelDefinition {
+	return []mattermostCircleChannelDefinition{
+		{CircleID: "c-level", ChannelName: "circle-c-level"},
+		{CircleID: "representative", ChannelName: "circle-representative"},
+		{CircleID: "admin", ChannelName: "circle-admin"},
+		{CircleID: "hr-compensation", ChannelName: "circle-hr-compensation"},
 	}
 }
 

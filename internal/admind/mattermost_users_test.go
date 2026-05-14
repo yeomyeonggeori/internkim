@@ -85,16 +85,20 @@ func TestMattermostSyncedPersonCirclesKeepsAdminFromPolicy(t *testing.T) {
 	}
 }
 
-func TestDefaultMattermostCircleChannels(t *testing.T) {
-	channels := defaultMattermostCircleChannels()
-	for circleID, expectedChannelName := range map[string]string{
-		"admin":          "circle-admin",
-		"c-level":        "circle-c-level",
-		"representative": "circle-representative",
-	} {
-		if channels[circleID] != expectedChannelName {
-			t.Fatalf("expected %s channel %q, got %+v", circleID, expectedChannelName, channels)
-		}
+func TestMattermostCircleChannelDefinitionsFromPolicy(t *testing.T) {
+	circleChannels := mattermostCircleChannelDefinitionsFromPolicy(map[string]any{
+		"circleSync": map[string]any{
+			"mattermostPrivateChannels": []any{
+				map[string]any{"circleID": "HR-Compensation", "channelName": "Circle-HR-Compensation"},
+			},
+		},
+	})
+
+	if len(circleChannels) != 1 {
+		t.Fatalf("expected one circle channel, got %+v", circleChannels)
+	}
+	if circleChannels[0].CircleID != "hr-compensation" || circleChannels[0].ChannelName != "circle-hr-compensation" {
+		t.Fatalf("expected normalized circle channel, got %+v", circleChannels)
 	}
 }
 
