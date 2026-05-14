@@ -804,7 +804,7 @@ func (service *Service) ensureMattermostPrivateChannel(ctx context.Context, toke
 }
 
 func (service *Service) ensureMattermostFlowChannel(ctx context.Context, token string, teamID string) (string, error) {
-	channelID, errorValue := service.ensureMattermostPublicChannel(ctx, token, teamID, mattermostFlowChannelName, mattermostFlowChannelDisplayName)
+	channelID, errorValue := service.ensureMattermostPublicChannel(ctx, token, teamID, mattermostFlowChannelName, flowChannelDisplayName(service.workspaceLanguage()))
 	if errorValue != nil {
 		return "", errorValue
 	}
@@ -893,7 +893,7 @@ func (service *Service) ensureMattermostPublicChannel(ctx context.Context, token
 func (service *Service) updateMattermostFlowChannelText(ctx context.Context, token string, channelID string) error {
 	flowChannelLink := service.mattermostFlowLink("")
 	body := map[string]string{
-		"display_name": mattermostFlowChannelDisplayName,
+		"display_name": flowChannelDisplayName(service.workspaceLanguage()),
 		"header":       flowChannelLink,
 		"purpose":      "",
 	}
