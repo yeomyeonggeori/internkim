@@ -169,7 +169,7 @@ func (service *Service) authorizeCalendarRequest(request *http.Request) bool {
 	if service.authorizeCalendarTokenRequest(request) {
 		return true
 	}
-	actorEmail := authenticatedCallerEmail(request)
+	actorEmail := service.webStaffActorEmail(request)
 	if actorEmail == "" {
 		return false
 	}
@@ -370,7 +370,7 @@ func (service *Service) normalizeCalendarEventWriteRequest(request *http.Request
 		Color:             firstNonEmpty(strings.TrimSpace(payload.Color), "#2563eb"),
 		People:            people,
 		ReminderLeadHours: normalizeCalendarReminderLeadHours(payload.ReminderLeadHours),
-		CreatedByEmail:    authenticatedCallerEmail(request),
+		CreatedByEmail:    service.webStaffActorEmail(request),
 	}
 	rawICS, errorValue := encodeCalendarObject(event)
 	if errorValue != nil {
@@ -751,6 +751,14 @@ func (service *Service) trySyncCalendarMattermostLog(ctx context.Context, event 
 	if errorValue != nil {
 		return event, errorValue
 	}
+	botToken, errorValue := service.mattermostBotToken()
+	if errorValue != nil {
+		return event, errorValue
+	}
+	botUserID, errorValue := service.mattermostTokenUserID(ctx, botToken)
+	if errorValue != nil {
+		return event, errorValue
+	}
 	teamRecord, errorValue := service.ensureMattermostTeam(ctx, adminToken)
 	if errorValue != nil {
 		return event, errorValue
@@ -759,14 +767,35 @@ func (service *Service) trySyncCalendarMattermostLog(ctx context.Context, event 
 	if errorValue != nil {
 		return event, errorValue
 	}
+	if errorValue := service.ensureMattermostBotCanPost(ctx, adminToken, channelID, botUserID); errorValue != nil {
+		return event, errorValue
+	}
+	return service.upsertCalendarMattermostLog(ctx, adminToken, botToken, botUserID, channelID, event)
+}
+
+func (service *Service) upsertCalendarMattermostLog(ctx context.Context, adminToken string, botToken string, botUserID string, channelID string, event calendarEvent) (calendarEvent, error) {
 	if strings.TrimSpace(event.MattermostPostID) == "" {
-		return service.createCalendarMattermostLog(ctx, adminToken, channelID, event)
+		return service.createCalendarMattermostLog(ctx, botToken, channelID, event)
+	}
+	postRecord, found, errorValue := service.mattermostPostByID(ctx, adminToken, event.MattermostPostID)
+	if errorValue != nil {
+		return event, errorValue
+	}
+	if !found || strings.TrimSpace(postRecord.UserID) != botUserID {
+		if errorValue := service.deleteMattermostPost(ctx, adminToken, event.MattermostPostID); errorValue != nil && !isMattermostNotFound(errorValue) {
+			return event, errorValue
+		}
+		event.MattermostPostID = ""
+		if errorValue := service.updateCalendarEventMattermostPostID(ctx, event.ID, ""); errorValue != nil {
+			return event, errorValue
+		}
+		return service.createCalendarMattermostLog(ctx, botToken, channelID, event)
 	}
 	body := map[string]any{
 		"message": service.calendarMattermostLogMessage(event),
 		"props":   calendarMattermostLogProps(event),
 	}
-	if errorValue := service.mattermostRequest(ctx, http.MethodPut, "/api/v4/posts/"+url.PathEscape(event.MattermostPostID)+"/patch", adminToken, body, nil); errorValue != nil {
+	if errorValue := service.mattermostRequest(ctx, http.MethodPut, "/api/v4/posts/"+url.PathEscape(event.MattermostPostID)+"/patch", botToken, body, nil); errorValue != nil {
 		return event, errorValue
 	}
 	return event, nil
@@ -809,15 +838,16 @@ func (service *Service) tryDeleteCalendarMattermostLog(ctx context.Context, even
 }
 
 func (service *Service) calendarMattermostLogMessage(event calendarEvent) string {
+	text := service.adminText()
 	lines := []string{fmt.Sprintf("**%s · %s**", calendarMattermostEventDateText(event), event.Title)}
 	if strings.TrimSpace(event.Location) != "" {
-		lines = append(lines, "장소: "+strings.TrimSpace(event.Location))
+		lines = append(lines, text.Location+": "+strings.TrimSpace(event.Location))
 	}
-	if peopleText := calendarMattermostPeopleText(event); peopleText != "" {
-		lines = append(lines, "대상: "+peopleText)
+	if peopleText := service.calendarMattermostPeopleText(event); peopleText != "" {
+		lines = append(lines, text.People+": "+peopleText)
 	}
 	if note := calendarMattermostNoteText(event.Description); note != "" {
-		lines = append(lines, "메모: "+note)
+		lines = append(lines, text.Note+": "+note)
 	}
 	lines = append(lines, service.mattermostCalendarLink(event.StartISO))
 	return strings.Join(lines, "\n")
@@ -848,10 +878,13 @@ func calendarMattermostEventDateText(event calendarEvent) string {
 	return startTime.Format("2006-01-02 15:04") + " - " + endTime.Format("15:04")
 }
 
-func calendarMattermostPeopleText(event calendarEvent) string {
+func (service *Service) calendarMattermostPeopleText(event calendarEvent) string {
 	people, hasPeopleLine := calendarPeopleFromDescription(event.Description)
 	if hasPeopleLine && len(people) > 0 {
 		return strings.Join(people, ", ")
+	}
+	if service.adminLocale() == "en" {
+		return "Everyone"
 	}
 	return "전체"
 }
@@ -872,7 +905,7 @@ func calendarMattermostNoteText(description string) string {
 }
 
 func (service *Service) mattermostCalendarLink(startISO string) string {
-	return "[Calendar 열기](" + service.mattermostCalendarURL(startISO) + ")"
+	return "[" + service.adminText().CalendarOpen + "](" + service.mattermostCalendarURL(startISO) + ")"
 }
 
 func (service *Service) mattermostCalendarURL(startISO string) string {
@@ -1211,25 +1244,26 @@ func (service *Service) ensureMattermostBotDirectChannelID(ctx context.Context, 
 func (service *Service) postCalendarMattermostNotification(ctx context.Context, token string, channelID string, targetType string, event calendarEvent) error {
 	body := map[string]any{
 		"channel_id": channelID,
-		"message":    calendarMattermostNotificationMessage(event, targetType),
+		"message":    service.calendarMattermostNotificationMessage(event, targetType),
 		"props":      map[string]any{"internkim_calendar_notification": true, "calendar_event_id": event.ID},
 	}
 	return service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", token, body, nil)
 }
 
-func calendarMattermostNotificationMessage(event calendarEvent, targetType string) string {
+func (service *Service) calendarMattermostNotificationMessage(event calendarEvent, targetType string) string {
+	text := service.adminText()
 	lines := []string{
-		"Calendar reminder",
+		text.CalendarReminder,
 		"**" + event.Title + "**",
-		"Time: " + calendarNotificationTimeText(event),
+		text.Time + ": " + calendarNotificationTimeText(event),
 	}
 	if strings.TrimSpace(event.Location) != "" {
-		lines = append(lines, "Location: "+strings.TrimSpace(event.Location))
+		lines = append(lines, text.Location+": "+strings.TrimSpace(event.Location))
 	}
 	if note := calendarNotificationNoteText(event.Description, targetType); note != "" {
-		lines = append(lines, "Note: "+note)
+		lines = append(lines, text.Note+": "+note)
 	}
-	lines = append(lines, "[Calendar 열기](/calendar/)")
+	lines = append(lines, service.mattermostCalendarLink(event.StartISO))
 	return strings.Join(lines, "\n")
 }
 

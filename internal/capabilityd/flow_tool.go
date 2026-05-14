@@ -25,9 +25,10 @@ type flowSummaryForTool struct {
 }
 
 type flowMemberForTool struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	ID                 string `json:"id"`
+	Name               string `json:"name"`
+	Email              string `json:"email"`
+	MattermostUsername string `json:"mattermostUsername"`
 }
 
 const flowRequesterEmailHeader = "X-InternKim-Requester-Email"
@@ -41,10 +42,13 @@ func (service Service) invokeFlowTaskAdd(ctx context.Context, request capabiliti
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	ownerID := resolveFlowOwnerID(input, request.Context, members)
+	ownerResolution := resolveFlowOwner(input, request.Context.RequesterEmail, members)
+	if ownerResolution.Failure != nil {
+		return flowTaskAddErrorResponse(request.ToolName, *ownerResolution.Failure), nil
+	}
 	payload := map[string]any{
 		"prompt":         input.Prompt,
-		"ownerID":        ownerID,
+		"ownerID":        ownerResolution.OwnerID,
 		"weekCode":       input.WeekCode,
 		"requesterEmail": request.Context.RequesterEmail,
 		"source":         "chat",
@@ -61,6 +65,23 @@ func (service Service) invokeFlowTaskAdd(ctx context.Context, request capabiliti
 		Status:          flowTaskAddResponseStatus(result),
 		Result:          result,
 	}, nil
+}
+
+type flowTaskAddFailure struct {
+	ErrorCode    string                 `json:"errorCode"`
+	FailureStage string                 `json:"failureStage"`
+	Message      string                 `json:"message"`
+	Candidates   []flowTaskAddCandidate `json:"candidates,omitempty"`
+	Retryable    bool                   `json:"retryable"`
+	SafeRetry    bool                   `json:"safeRetry"`
+}
+
+type flowTaskAddCandidate struct {
+	ID                 string `json:"id"`
+	Name               string `json:"name"`
+	Email              string `json:"email"`
+	MattermostUsername string `json:"mattermostUsername,omitempty"`
+	Mention            string `json:"mention,omitempty"`
 }
 
 func flowTaskAddResponseStatus(result json.RawMessage) string {
@@ -118,44 +139,22 @@ func (service Service) fetchFlowMembers(ctx context.Context, requesterEmail stri
 	return summary.Members, nil
 }
 
-func resolveFlowOwnerID(input flowTaskAddInput, toolContext capabilities.ToolInvokeContext, members []flowMemberForTool) string {
-	if strings.TrimSpace(input.TargetPersonHint) != "" {
-		if memberID := matchFlowMember(input.TargetPersonHint, members); memberID != "" {
-			return memberID
-		}
+func flowTaskAddErrorResponse(toolName string, failure flowTaskAddFailure) capabilities.ToolInvokeResponse {
+	result, _ := json.Marshal(failure)
+	return capabilities.ToolInvokeResponse{
+		Provider:        "internkim",
+		SelectedBackend: "device",
+		ToolName:        toolName,
+		Status:          "error",
+		Content:         failure.Message,
+		IsError:         true,
+		Message:         failure.Message,
+		ErrorCode:       failure.ErrorCode,
+		FailureStage:    failure.FailureStage,
+		Retryable:       failure.Retryable,
+		SafeRetry:       failure.SafeRetry,
+		Result:          result,
 	}
-	if memberID := matchFlowMember(input.Prompt, members); memberID != "" {
-		return memberID
-	}
-	if strings.TrimSpace(toolContext.RequesterEmail) != "" {
-		if memberID := matchFlowMember(toolContext.RequesterEmail, members); memberID != "" {
-			return memberID
-		}
-	}
-	return ""
-}
-
-func matchFlowMember(value string, members []flowMemberForTool) string {
-	normalizedValue := strings.ToLower(strings.TrimSpace(value))
-	if normalizedValue == "" {
-		return ""
-	}
-	for _, member := range members {
-		if strings.EqualFold(member.ID, normalizedValue) ||
-			strings.EqualFold(member.Email, normalizedValue) ||
-			strings.EqualFold(member.Name, normalizedValue) {
-			return member.ID
-		}
-	}
-	for _, member := range members {
-		if strings.Contains(strings.ToLower(member.Email), normalizedValue) ||
-			strings.Contains(strings.ToLower(member.Name), normalizedValue) ||
-			strings.Contains(normalizedValue, strings.ToLower(member.Email)) ||
-			strings.Contains(normalizedValue, strings.ToLower(member.Name)) {
-			return member.ID
-		}
-	}
-	return ""
 }
 
 func (service Service) postFlowTask(ctx context.Context, payload map[string]any, requesterEmail string) (json.RawMessage, error) {

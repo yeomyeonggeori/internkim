@@ -28,8 +28,6 @@ const (
 	attendanceClockInAction          = "attendanceClockIn"
 	attendanceClockOutAction         = "attendanceClockOut"
 	attendanceToggleAction           = "attendance.toggle"
-	attendanceEntryPostMessage       = "출퇴근 기록"
-	attendanceEntryPostText          = "출근과 퇴근 버튼을 구분해서 기록합니다."
 	attendanceEntryPostProperty      = "internkim_attendance_entry"
 	attendanceCancelReason           = "repeated click confirmed"
 	attendanceDuplicateWindow        = 5 * time.Minute
@@ -137,7 +135,7 @@ func (service *Service) authorizeAttendanceRequest(request *http.Request) bool {
 	if isLocalRequest(request) {
 		return true
 	}
-	actorEmail := authenticatedCallerEmail(request)
+	actorEmail := service.webStaffActorEmail(request)
 	if actorEmail == "" {
 		return false
 	}
@@ -147,7 +145,7 @@ func (service *Service) authorizeAttendanceRequest(request *http.Request) bool {
 func (service *Service) writeAttendanceSummary(responseWriter http.ResponseWriter, request *http.Request) {
 	location, timeZoneName := service.workspaceTimeLocation()
 	month := normalizeAttendanceMonth(request.URL.Query().Get("month"), time.Now().In(location))
-	actorEmail := strings.ToLower(strings.TrimSpace(authenticatedCallerEmail(request)))
+	actorEmail := strings.ToLower(strings.TrimSpace(service.webStaffActorEmail(request)))
 	isAdmin := service.isAuthorized(request)
 	targetEmail := strings.ToLower(strings.TrimSpace(request.URL.Query().Get("email")))
 	events, errorValue := service.readAttendanceEvents(request.Context(), month, targetEmail)
@@ -604,7 +602,7 @@ func (service *Service) ensureMattermostAttendanceEntryPost(ctx context.Context,
 	}
 	var createdPost mattermostPostRecord
 	body := map[string]any{
-		"message":    attendanceEntryPostMessage,
+		"message":    service.adminText().AttendanceEntryMessage,
 		"props":      expectedProps,
 		"channel_id": channelID,
 	}
@@ -644,7 +642,8 @@ func (service *Service) isMattermostAttendanceEntryPostCurrent(postRecord matter
 		return false
 	}
 	attachment := props.Attachments[0]
-	if attachment.Fallback != attendanceEntryPostMessage || attachment.Text != attendanceEntryPostText {
+	text := service.adminText()
+	if attachment.Fallback != text.AttendanceEntryMessage || attachment.Text != text.AttendanceEntryText {
 		return false
 	}
 	expectedActions := service.mattermostAttendanceEntryActions()
@@ -669,12 +668,13 @@ func (service *Service) pinMattermostPost(ctx context.Context, token string, pos
 }
 
 func (service *Service) mattermostAttendanceEntryPostProps() map[string]any {
+	text := service.adminText()
 	return map[string]any{
 		attendanceEntryPostProperty: true,
 		"attachments": []mattermostAttachment{
 			{
-				Fallback: attendanceEntryPostMessage,
-				Text:     attendanceEntryPostText,
+				Fallback: text.AttendanceEntryMessage,
+				Text:     text.AttendanceEntryText,
 				Actions:  service.mattermostAttendanceEntryActions(),
 			},
 		},
@@ -686,15 +686,16 @@ func (service *Service) mattermostAttendanceEntryActions() []mattermostAction {
 	if errorValue != nil {
 		locations = defaultAttendanceLocations()
 	}
+	text := service.adminText()
 	actions := make([]mattermostAction, 0, len(locations)+1)
 	if len(locations) == 1 {
-		actions = append(actions, service.mattermostAttendanceClockInButton("출근", locations[0]))
+		actions = append(actions, service.mattermostAttendanceClockInButton(text.AttendanceClockIn, locations[0]))
 	} else {
 		for _, location := range locations {
 			actions = append(actions, service.mattermostAttendanceClockInButton(location.Name, location))
 		}
 	}
-	actions = append(actions, service.mattermostInteractiveButton(attendanceClockOutAction, "퇴근", "퇴근을 기록합니다.", "danger"))
+	actions = append(actions, service.mattermostInteractiveButton(attendanceClockOutAction, text.AttendanceClockOut, text.AttendanceClockOutTooltip, "danger"))
 	return actions
 }
 
@@ -702,18 +703,19 @@ func (service *Service) mattermostAttendanceClockInButton(name string, location 
 	return service.mattermostInteractiveButtonWithContext(
 		attendanceClockInAction,
 		name,
-		"출근을 기록합니다.",
+		service.adminText().AttendanceClockInTooltip,
 		"success",
 		mattermostInteractiveContext{LocationID: location.ID},
 	)
 }
 
 func (service *Service) mattermostAttendanceLink() string {
+	label := service.adminText().AttendanceOpen
 	baseURL := strings.TrimRight(strings.TrimSpace(service.mattermostFlowBaseURL()), "/")
 	if baseURL == "" {
-		return "[출결 열기](/attendance/)"
+		return "[" + label + "](/attendance/)"
 	}
-	return "[출결 열기](" + baseURL + "/attendance/)"
+	return "[" + label + "](" + baseURL + "/attendance/)"
 }
 
 func (service *Service) ensureMattermostChannelMembership(ctx context.Context, token string, channelID string, userID string) error {

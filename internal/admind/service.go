@@ -473,6 +473,10 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 	switch {
 	case request.Method == http.MethodGet && path == "/health":
 		service.writeJSON(responseWriter, map[string]string{"status": "ok"})
+	case request.Method == http.MethodGet && path == "/locale":
+		service.writeAdminLocale(responseWriter)
+	case request.Method == http.MethodPut && path == "/locale":
+		service.updateAdminLocale(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/users":
 		service.proxyUsers(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/users":

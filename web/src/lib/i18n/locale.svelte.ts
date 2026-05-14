@@ -22,11 +22,13 @@ export function initializeLocale() {
 
 	const storedLocale = parseLocale(localStorage.getItem(localeStorageKey));
 	localeValue = storedLocale ?? localeFromBrowser();
+	void loadServerLocale();
 }
 
 export function setLocale(nextLocale: Locale) {
 	localeValue = nextLocale;
 	if (browser) localStorage.setItem(localeStorageKey, nextLocale);
+	if (browser) void saveServerLocale(nextLocale);
 }
 
 function localeFromBrowser(): Locale {
@@ -36,4 +38,31 @@ function localeFromBrowser(): Locale {
 function parseLocale(value: string | null): Locale | undefined {
 	if (value === 'ko' || value === 'en') return value;
 	return undefined;
+}
+
+async function loadServerLocale() {
+	try {
+		const response = await fetch('/admin/api/locale', { credentials: 'include' });
+		if (!response.ok) return;
+		const payload = (await response.json()) as { locale?: string };
+		const locale = parseLocale(payload.locale ?? null);
+		if (!locale) return;
+		localeValue = locale;
+		localStorage.setItem(localeStorageKey, locale);
+	} catch {
+		return;
+	}
+}
+
+async function saveServerLocale(locale: Locale) {
+	try {
+		await fetch('/admin/api/locale', {
+			method: 'PUT',
+			credentials: 'include',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ locale })
+		});
+	} catch {
+		return;
+	}
 }

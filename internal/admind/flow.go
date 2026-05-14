@@ -55,15 +55,16 @@ type flowWeek struct {
 }
 
 type flowMember struct {
-	ID                string `json:"id"`
-	Name              string `json:"name"`
-	Email             string `json:"email"`
-	HireDate          string `json:"hireDate,omitempty"`
-	Role              string `json:"role"`
-	MattermostStatus  string `json:"mattermostStatus"`
-	Score             int    `json:"score"`
-	ActiveTaskCount   int    `json:"activeTaskCount"`
-	CompleteTaskCount int    `json:"completeTaskCount"`
+	ID                 string `json:"id"`
+	Name               string `json:"name"`
+	Email              string `json:"email"`
+	MattermostUsername string `json:"mattermostUsername,omitempty"`
+	HireDate           string `json:"hireDate,omitempty"`
+	Role               string `json:"role"`
+	MattermostStatus   string `json:"mattermostStatus"`
+	Score              int    `json:"score"`
+	ActiveTaskCount    int    `json:"activeTaskCount"`
+	CompleteTaskCount  int    `json:"completeTaskCount"`
 }
 
 type flowTask struct {
@@ -191,6 +192,7 @@ const (
 	flowResourceDefinition = "api:flow.definition"
 
 	flowRequesterEmailHeader = "X-InternKim-Requester-Email"
+	flowResolvedActorHeader  = "X-InternKim-Resolved-Actor-Email"
 )
 
 func (service *Service) serveFlowPage(responseWriter http.ResponseWriter, request *http.Request) {
@@ -228,6 +230,7 @@ func (service *Service) serveFlowIndex(responseWriter http.ResponseWriter, reque
 }
 
 func (service *Service) handleFlow(responseWriter http.ResponseWriter, request *http.Request) {
+	request.Header.Del(flowResolvedActorHeader)
 	path := strings.TrimPrefix(request.URL.Path, "/flow/api")
 	switch {
 	case request.Method == http.MethodGet && path == "/summary":
@@ -285,13 +288,79 @@ func (service *Service) authorizeFlowRequest(request *http.Request, action strin
 }
 
 func (service *Service) flowActorEmail(request *http.Request) string {
-	if callerEmail := authenticatedCallerEmail(request); callerEmail != "" {
-		return callerEmail
+	if actorEmail := strings.ToLower(strings.TrimSpace(request.Header.Get(flowResolvedActorHeader))); actorEmail != "" {
+		return actorEmail
+	}
+	if actorEmail := service.webStaffActorEmail(request); actorEmail != "" {
+		request.Header.Set(flowResolvedActorHeader, actorEmail)
+		return actorEmail
 	}
 	if !isLocalRequest(request) {
 		return ""
 	}
-	return strings.ToLower(strings.TrimSpace(request.Header.Get(flowRequesterEmailHeader)))
+	actorEmail := strings.ToLower(strings.TrimSpace(request.Header.Get(flowRequesterEmailHeader)))
+	if actorEmail != "" {
+		request.Header.Set(flowResolvedActorHeader, actorEmail)
+	}
+	return actorEmail
+}
+
+func (service *Service) webStaffActorEmail(request *http.Request) string {
+	if actorEmail := authenticatedCallerEmail(request); actorEmail != "" {
+		return actorEmail
+	}
+	return strings.ToLower(strings.TrimSpace(service.mattermostSessionActorEmail(request)))
+}
+
+func (service *Service) mattermostSessionActorEmail(request *http.Request) string {
+	cookieHeader := mattermostSessionCookieHeader(request)
+	if cookieHeader == "" {
+		return ""
+	}
+	userRecord, ok := service.mattermostSessionUser(request, cookieHeader)
+	if !ok {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(userRecord.Email))
+}
+
+func mattermostSessionCookieHeader(request *http.Request) string {
+	cookies := make([]string, 0, len(request.Cookies()))
+	for _, cookie := range request.Cookies() {
+		if strings.HasPrefix(strings.ToUpper(cookie.Name), "MM") {
+			cookies = append(cookies, cookie.String())
+		}
+	}
+	return strings.Join(cookies, "; ")
+}
+
+func (service *Service) mattermostSessionUser(request *http.Request, cookieHeader string) (mattermostUserRecord, bool) {
+	if strings.TrimSpace(service.Configuration.MattermostBaseURL) == "" {
+		return mattermostUserRecord{}, false
+	}
+	requestURL := strings.TrimRight(service.Configuration.MattermostBaseURL, "/") + "/api/v4/users/me"
+	mattermostRequest, errorValue := http.NewRequestWithContext(request.Context(), http.MethodGet, requestURL, nil)
+	if errorValue != nil {
+		return mattermostUserRecord{}, false
+	}
+	mattermostRequest.Header.Set("Cookie", cookieHeader)
+	response, errorValue := service.httpClient().Do(mattermostRequest)
+	if errorValue != nil {
+		return mattermostUserRecord{}, false
+	}
+	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		_, _ = io.Copy(io.Discard, response.Body)
+		return mattermostUserRecord{}, false
+	}
+	var userRecord mattermostUserRecord
+	if errorValue := json.NewDecoder(response.Body).Decode(&userRecord); errorValue != nil {
+		return mattermostUserRecord{}, false
+	}
+	if strings.TrimSpace(userRecord.Email) == "" {
+		return mattermostUserRecord{}, false
+	}
+	return userRecord, true
 }
 
 func (service *Service) isFlowStaffActor(ctx context.Context, actorEmail string) bool {
@@ -496,8 +565,14 @@ func (service *Service) createQuickFlowTask(responseWriter http.ResponseWriter, 
 	if shouldForceQuickTaskRequest(owner, requesterEmail) {
 		writeRequest.Status = "요청"
 		writeRequest.RequestReason = firstNonEmpty(writeRequest.RequestReason, prompt)
-		if requesterID := memberIDForEmail(members, requesterEmail); requesterID != "" && !containsString(writeRequest.ParticipantIDs, requesterID) {
-			writeRequest.ParticipantIDs = append(writeRequest.ParticipantIDs, requesterID)
+		includesRequester := shouldIncludeRequesterAsFlowParticipant(writeRequest)
+		if requesterID := memberIDForEmail(members, requesterEmail); requesterID != "" {
+			if includesRequester && !containsString(writeRequest.ParticipantIDs, requesterID) {
+				writeRequest.ParticipantIDs = append(writeRequest.ParticipantIDs, requesterID)
+			}
+			if !includesRequester {
+				writeRequest.ParticipantIDs = removeString(writeRequest.ParticipantIDs, requesterID)
+			}
 		}
 	}
 	body, _ := json.Marshal(writeRequest)
@@ -581,7 +656,7 @@ func (service *Service) flowTaskFromRequest(request *http.Request, members []flo
 	if callerEmail != "" && !service.isFlowAdminEmail(request.Context(), callerEmail) && !strings.EqualFold(owner.Email, callerEmail) {
 		status = "요청"
 		payload.RequestReason = firstNonEmpty(strings.TrimSpace(payload.RequestReason), "타인 업무 추가 요청")
-		if requesterID := memberIDForEmail(members, callerEmail); requesterID != "" && !containsString(participantIDs, requesterID) {
+		if requesterID := memberIDForEmail(members, callerEmail); requesterID != "" && shouldIncludeRequesterAsFlowParticipant(payload) && !containsString(participantIDs, requesterID) {
 			participantIDs = append(participantIDs, requesterID)
 			participants = append(participants, memberByID[requesterID])
 		}
@@ -1071,7 +1146,7 @@ func flowMattermostNotificationProps(task flowTask) map[string]any {
 }
 
 func (service *Service) mattermostFlowLink(weekCode string) string {
-	return "[Flow 열기](" + service.mattermostFlowURL(weekCode) + ")"
+	return "[" + service.adminText().FlowOpen + "](" + service.mattermostFlowURL(weekCode) + ")"
 }
 
 func (service *Service) mattermostFlowURL(weekCode string) string {
@@ -1702,12 +1777,13 @@ func membersFromUserRecords(records []adminUserMutation) []flowMember {
 			name = strings.TrimSuffix(email, "@"+emailDomain(email))
 		}
 		members = append(members, flowMember{
-			ID:               stableFlowID(email),
-			Name:             name,
-			Email:            email,
-			HireDate:         strings.TrimSpace(record.HireDate),
-			Role:             normalizeAdminUserRole(record.Role),
-			MattermostStatus: firstNonEmpty(record.Status, "active"),
+			ID:                 stableFlowID(email),
+			Name:               name,
+			Email:              email,
+			MattermostUsername: strings.TrimSpace(firstNonEmpty(record.MattermostUsername, record.Handle)),
+			HireDate:           strings.TrimSpace(record.HireDate),
+			Role:               normalizeAdminUserRole(record.Role),
+			MattermostStatus:   firstNonEmpty(record.Status, "active"),
 		})
 	}
 	sort.Slice(members, func(leftIndex int, rightIndex int) bool {
@@ -1963,6 +2039,33 @@ func uniqueNonEmpty(values []string) []string {
 func containsString(values []string, target string) bool {
 	for _, value := range values {
 		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
+func removeString(values []string, target string) []string {
+	filteredValues := make([]string, 0, len(values))
+	for _, value := range values {
+		if value != target {
+			filteredValues = append(filteredValues, value)
+		}
+	}
+	return filteredValues
+}
+
+func shouldIncludeRequesterAsFlowParticipant(payload flowTaskWriteRequest) bool {
+	text := strings.ToLower(strings.Join([]string{
+		payload.Content,
+		payload.Goal,
+		payload.RequestReason,
+	}, " "))
+	for _, marker := range []string{
+		"같이", "함께", "공동", "협업", "동행", "나랑", "저랑", "우리",
+		"together", "with me", "with us", "joint", "collaborate",
+	} {
+		if strings.Contains(text, marker) {
 			return true
 		}
 	}
