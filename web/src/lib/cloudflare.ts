@@ -32,11 +32,6 @@ interface AccessPolicy {
 	decision?: string;
 }
 
-interface AdminAccessApplicationSpec {
-	nameSuffix: string;
-	domains: string[];
-}
-
 interface CertificatePack {
 	id?: string;
 	hosts?: string[];
@@ -414,27 +409,12 @@ function companionBypassApplicationBody(env: CFEnv, fleetId: string) {
 	};
 }
 
-function calendarClientBypassApplicationBody(env: CFEnv, fleetId: string) {
+function adminAccessApplicationBody(env: CFEnv, fleetId: string, identityProviderId: string) {
 	const hostname = `${fleetId}.${env.CF_DOMAIN}`;
 
 	return {
-		name: `intern kim calendar clients ${fleetId}`,
-		self_hosted_domains: [
-			`${hostname}/calendar/ics/*`,
-			`${hostname}/calendar/dav/*`,
-			`${hostname}/.well-known/caldav`
-		],
-		type: 'self_hosted',
-		session_duration: '1h'
-	};
-}
-
-function adminAccessApplicationBody(env: CFEnv, fleetId: string, identityProviderId: string, spec: AdminAccessApplicationSpec) {
-	const hostname = `${fleetId}.${env.CF_DOMAIN}`;
-
-	return {
-		name: `intern kim admin ${fleetId} ${spec.nameSuffix}`,
-		self_hosted_domains: spec.domains,
+		name: `intern kim admin ${fleetId}`,
+		self_hosted_domains: adminAccessApplicationDomains(env, fleetId),
 		type: 'self_hosted',
 		session_duration: '720h',
 		logo_url: `https://${hostname}/logo.svg`,
@@ -444,31 +424,8 @@ function adminAccessApplicationBody(env: CFEnv, fleetId: string, identityProvide
 }
 
 export function adminAccessApplicationDomains(env: CFEnv, fleetId: string) {
-	return adminAccessApplicationSpecs(env, fleetId).flatMap((spec) => spec.domains);
-}
-
-function adminAccessApplicationSpecs(env: CFEnv, fleetId: string): AdminAccessApplicationSpec[] {
 	const hostname = `${fleetId}.${env.CF_DOMAIN}`;
-	return [
-		{
-			nameSuffix: 'core',
-			domains: [
-				`${hostname}/admin*`,
-				`${hostname}/_app/*`,
-				`${hostname}/flow*`,
-				`${hostname}/mail*`
-			]
-		},
-		{
-			nameSuffix: 'calendar',
-			domains: [
-				`${hostname}/calendar`,
-				`${hostname}/calendar/`,
-				`${hostname}/calendar/embed*`,
-				`${hostname}/calendar/api/*`
-			]
-		}
-	];
+	return [`${hostname}/admin*`];
 }
 
 function sshAccessApplicationBody(env: CFEnv, fleetId: string, identityProviderId: string) {
@@ -520,37 +477,10 @@ export async function ensureCompanionBypassApplication(env: CFEnv, fleetId: stri
 	return applicationId;
 }
 
-export async function ensureCalendarClientBypassApplication(env: CFEnv, fleetId: string) {
-	const body = calendarClientBypassApplicationBody(env, fleetId);
-	const applications = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`)) as AccessApplication[];
-	const primaryDomain = body.self_hosted_domains[0];
-	const application = applications.find((item) => accessApplicationDomain(item) === primaryDomain);
-	const applicationId = application?.id ?? await createCalendarClientBypassApplication(env, body);
-
-	if (application?.id) {
-		await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${applicationId}`, {
-			method: 'PUT',
-			body: JSON.stringify(body)
-		});
-	}
-
-	await ensureBypassPolicy(env, applicationId, 'calendar-clients');
-	return applicationId;
-}
-
 export async function ensureAdminAccessApplications(env: CFEnv, fleetId: string, identityProviderId: string, adminEmails: string[] | string) {
-	await deleteAccessApplicationForDomain(env, fleetId, '/_app/*');
-	await ensureCalendarClientBypassApplication(env, fleetId);
-	const applicationIDs = [];
-	for (const spec of adminAccessApplicationSpecs(env, fleetId)) {
-		applicationIDs.push(await ensureAdminAccessApplication(env, fleetId, identityProviderId, spec));
-	}
-	await Promise.all(
-		applicationIDs.map((applicationID) =>
-			syncAccessPolicyEmails(env, applicationID, normalizeRequiredAccessEmails(adminEmails, 'Cloudflare admin access'))
-		)
-	);
-	await deleteAccessApplicationForDomain(env, fleetId, '/_internkim/admin/*');
+	await deleteLegacyNonAdminAccessApplications(env, fleetId);
+	const applicationID = await ensureAdminAccessApplication(env, fleetId, identityProviderId);
+	await syncAccessPolicyEmails(env, applicationID, normalizeRequiredAccessEmails(adminEmails, 'Cloudflare admin access'));
 }
 
 export async function deleteRootAccessApplication(env: CFEnv, fleetId: string, applicationId?: string) {
@@ -589,8 +519,8 @@ async function ensureSSHAccessApplicationForBody(env: CFEnv, body: ReturnType<ty
 	return applicationId;
 }
 
-async function ensureAdminAccessApplication(env: CFEnv, fleetId: string, identityProviderId: string, spec: AdminAccessApplicationSpec) {
-	const body = adminAccessApplicationBody(env, fleetId, identityProviderId, spec);
+async function ensureAdminAccessApplication(env: CFEnv, fleetId: string, identityProviderId: string) {
+	const body = adminAccessApplicationBody(env, fleetId, identityProviderId);
 	const applications = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`)) as AccessApplication[];
 	const primaryDomain = body.self_hosted_domains[0];
 	const application = applications.find((item) => accessApplicationDomain(item) === primaryDomain);
@@ -656,6 +586,17 @@ async function deleteAccessApplicationForDomain(env: CFEnv, fleetId: string, dom
 	await deleteAccessApplication(env, application.id);
 }
 
+async function deleteLegacyNonAdminAccessApplications(env: CFEnv, fleetId: string) {
+	await Promise.all([
+		deleteAccessApplicationForDomain(env, fleetId, '/_app/*'),
+		deleteAccessApplicationForDomain(env, fleetId, '/flow*'),
+		deleteAccessApplicationForDomain(env, fleetId, '/mail*'),
+		deleteAccessApplicationForDomain(env, fleetId, '/calendar'),
+		deleteAccessApplicationForDomain(env, fleetId, '/calendar/ics/*'),
+		deleteAccessApplicationForDomain(env, fleetId, '/_internkim/admin/*')
+	]);
+}
+
 async function createCompanionBypassApplication(env: CFEnv, body: ReturnType<typeof companionBypassApplicationBody>) {
 	const application = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`, {
 		method: 'POST',
@@ -663,17 +604,6 @@ async function createCompanionBypassApplication(env: CFEnv, body: ReturnType<typ
 	})) as AccessApplication;
 	if (!application.id) {
 		throw new Error('Cloudflare companion bypass app response did not include an id');
-	}
-	return application.id;
-}
-
-async function createCalendarClientBypassApplication(env: CFEnv, body: ReturnType<typeof calendarClientBypassApplicationBody>) {
-	const application = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`, {
-		method: 'POST',
-		body: JSON.stringify(body)
-	})) as AccessApplication;
-	if (!application.id) {
-		throw new Error('Cloudflare calendar client bypass app response did not include an id');
 	}
 	return application.id;
 }
