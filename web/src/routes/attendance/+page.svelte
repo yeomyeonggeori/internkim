@@ -13,7 +13,10 @@
 	import TimerIcon from '@lucide/svelte/icons/timer';
 	import TrendingUpIcon from '@lucide/svelte/icons/trending-up';
 	import UsersIcon from '@lucide/svelte/icons/users';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { onMount } from 'svelte';
+	import { attendanceText } from './text';
 
 	type AttendanceKind = 'clock_in' | 'clock_out';
 	type ChartMode = 'day' | 'week' | 'month';
@@ -77,6 +80,7 @@
 	let chartMode = $state<ChartMode>('day');
 	let isLoading = $state(false);
 	let errorMessage = $state('');
+	const text = createPageText(attendanceText);
 
 	const events = () => summary?.events ?? [];
 	const locations = () => summary?.locations ?? [];
@@ -122,7 +126,7 @@
 			summary = (await response.json()) as AttendanceSummary;
 			selectedMonth = summary.month;
 		} catch (error) {
-			errorMessage = error instanceof Error ? error.message : '출결 정보를 불러오지 못했습니다.';
+			errorMessage = error instanceof Error ? error.message : text.loadFailed;
 			summary = null;
 		} finally {
 			isLoading = false;
@@ -142,15 +146,20 @@
 	}
 
 	function eventLabel(kind: AttendanceKind) {
-		return kind === 'clock_in' ? '출근' : '퇴근';
+		return kind === 'clock_in' ? text.clockIn : text.clockOut;
 	}
 
 	function formatDuration(minutes: number) {
 		const hours = Math.floor(minutes / 60);
 		const remainingMinutes = Math.round(minutes % 60);
-		if (hours === 0) return `${remainingMinutes}분`;
-		if (remainingMinutes === 0) return `${hours}시간`;
-		return `${hours}시간 ${remainingMinutes}분`;
+		if (currentLocale.value === 'en') {
+			if (hours === 0) return `${remainingMinutes}${text.minuteUnit}`;
+			if (remainingMinutes === 0) return `${hours}${text.hourUnit}`;
+			return `${hours}${text.hourUnit} ${remainingMinutes}${text.minuteUnit}`;
+		}
+		if (hours === 0) return `${remainingMinutes}${text.minuteUnit}`;
+		if (remainingMinutes === 0) return `${hours}${text.hourUnit}`;
+		return `${hours}${text.hourUnit} ${remainingMinutes}${text.minuteUnit}`;
 	}
 
 	function minutesBetween(start: AttendanceEvent, end: AttendanceEvent) {
@@ -194,7 +203,7 @@
 	}
 
 	function defaultLocationName() {
-		return locations().find((location) => location.isDefault)?.name ?? locations()[0]?.name ?? '사무실';
+		return locations().find((location) => location.isDefault)?.name ?? locations()[0]?.name ?? text.defaultLocation;
 	}
 
 	function monthDays() {
@@ -225,10 +234,14 @@
 		if (chartMode === 'week') {
 			const buckets = new Map<string, number>();
 			for (const segment of currentUserSegments()) {
-				const week = `${Math.ceil(Number(segment.localDate.slice(-2)) / 7)}주`;
+				const weekIndex = Math.ceil(Number(segment.localDate.slice(-2)) / 7);
+				const week = weekLabel(weekIndex);
 				buckets.set(week, (buckets.get(week) ?? 0) + segment.minutes);
 			}
-			return ['1주', '2주', '3주', '4주', '5주'].map((label) => ({ label, minutes: buckets.get(label) ?? 0 }));
+			return [1, 2, 3, 4, 5].map((index) => {
+				const label = weekLabel(index);
+				return { label, minutes: buckets.get(label) ?? 0 };
+			});
 		}
 		return [{ label: selectedMonth, minutes: monthMinutes() }];
 	}
@@ -255,35 +268,44 @@
 	function linePath(points: ChartPoint[]) {
 		return points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
 	}
+
+	function workedDaysLabel(count: number) {
+		return `${count}${currentLocale.value === 'en' ? ' ' : ''}${text.workedDayUnit}`;
+	}
+
+	function weekLabel(index: number) {
+		if (currentLocale.value === 'en') return `W${index}`;
+		return `${index}${text.weekSuffix}`;
+	}
 </script>
 
 <svelte:head>
-	<title>출결 · intern kim</title>
+	<title>{text.pageTitle}</title>
 </svelte:head>
 
 <main class="flex min-h-[calc(100svh-48px)] flex-col bg-background text-foreground">
 	<div class="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
 		<div class="min-w-0">
-			<h1 class="truncate text-sm font-medium">출결</h1>
-			<p class="truncate text-xs text-muted-foreground">팀 전체 근무 기록과 개인 근무 시간</p>
+			<h1 class="truncate text-sm font-medium">{text.title}</h1>
+			<p class="truncate text-xs text-muted-foreground">{text.subtitle}</p>
 		</div>
 		<div class="flex flex-wrap items-center gap-2">
 			<Input class="w-36" type="month" bind:value={selectedMonth} onchange={loadAttendance} />
 			<select class="h-9 rounded-md border bg-background px-3 text-sm" bind:value={selectedEmail} onchange={loadAttendance}>
-				<option value="">전체 사용자</option>
+				<option value="">{text.allUsers}</option>
 				{#each userOptions() as event (event.email)}
 					<option value={event.email}>{displayName(event)}</option>
 				{/each}
 			</select>
 			{#if locations().length > 1}
 				<select class="h-9 rounded-md border bg-background px-3 text-sm" bind:value={selectedLocationID}>
-					<option value="">전체 장소</option>
+					<option value="">{text.allLocations}</option>
 					{#each locations() as location (location.id)}
 						<option value={location.id}>{location.name}</option>
 					{/each}
 				</select>
 			{/if}
-			<Button variant="ghost" size="icon-sm" aria-label="Refresh attendance" onclick={loadAttendance}>
+			<Button variant="ghost" size="icon-sm" aria-label={text.refresh} onclick={loadAttendance}>
 				<RefreshCwIcon />
 			</Button>
 		</div>
@@ -298,31 +320,31 @@
 			<div class="rounded-lg border p-4">
 				<div class="flex items-center gap-2 text-xs text-muted-foreground">
 					<ActivityIcon class={isWorking() ? 'size-4 text-emerald-600' : 'size-4 text-muted-foreground'} />
-					<span>현재 상태</span>
+					<span>{text.currentStatus}</span>
 				</div>
-				<p class="mt-3 text-2xl font-semibold">{isWorking() ? '근무 중' : '퇴근'}</p>
+				<p class="mt-3 text-2xl font-semibold">{isWorking() ? text.working : text.clockOut}</p>
 			</div>
 			<div class="rounded-lg border p-4">
 				<div class="flex items-center gap-2 text-xs text-muted-foreground">
 					<TimerIcon class="size-4 text-sky-600" />
-					<span>오늘</span>
+					<span>{text.today}</span>
 				</div>
 				<p class="mt-3 text-2xl font-semibold">{formatDuration(todayMinutes())}</p>
 			</div>
 			<div class="rounded-lg border p-4">
 				<div class="flex items-center gap-2 text-xs text-muted-foreground">
 					<TrendingUpIcon class="size-4 text-indigo-600" />
-					<span>이번 주</span>
+					<span>{text.thisWeek}</span>
 				</div>
 				<p class="mt-3 text-2xl font-semibold">{formatDuration(weekMinutes())}</p>
 			</div>
 			<div class="rounded-lg border p-4">
 				<div class="flex items-center gap-2 text-xs text-muted-foreground">
 					<CalendarDaysIcon class="size-4 text-amber-600" />
-					<span>이번 달</span>
+					<span>{text.thisMonth}</span>
 				</div>
 				<p class="mt-3 text-2xl font-semibold">{formatDuration(monthMinutes())}</p>
-				<p class="mt-1 text-xs text-muted-foreground">{workedDayCount()}일 근무</p>
+				<p class="mt-1 text-xs text-muted-foreground">{workedDaysLabel(workedDayCount())}</p>
 			</div>
 		</section>
 
@@ -330,18 +352,18 @@
 			<div class="mb-3 flex flex-wrap items-center justify-between gap-3">
 				<div class="flex items-center gap-2">
 					<Clock3Icon class="size-4 text-sky-600" />
-					<h2 class="text-sm font-medium">내 근무 시간</h2>
+					<h2 class="text-sm font-medium">{text.myWorkTime}</h2>
 				</div>
 				<div class="flex rounded-md border p-1">
 					{#each ['day', 'week', 'month'] as mode}
 						<Button variant={chartMode === mode ? 'secondary' : 'ghost'} size="sm" onclick={() => (chartMode = mode as ChartMode)}>
-							{mode === 'day' ? '일별' : mode === 'week' ? '주별' : '월별'}
+							{mode === 'day' ? text.day : mode === 'week' ? text.week : text.month}
 						</Button>
 					{/each}
 				</div>
 			</div>
 			<div class="h-56 overflow-hidden rounded-md bg-muted/30 px-3 py-4">
-				<svg viewBox="0 0 640 210" class="h-full w-full" role="img" aria-label="근무 시간 추세">
+				<svg viewBox="0 0 640 210" class="h-full w-full" role="img" aria-label={text.trend}>
 					<defs>
 						<linearGradient id="attendance-area" x1="0" x2="0" y1="0" y2="1">
 							<stop offset="0%" stop-color="#0ea5e9" stop-opacity="0.34" />
@@ -361,7 +383,7 @@
 		<section class="rounded-lg border">
 			<div class="flex items-center gap-2 border-b px-4 py-3">
 				<CalendarDaysIcon class="size-4 text-muted-foreground" />
-				<h2 class="text-sm font-medium">월간 캘린더</h2>
+				<h2 class="text-sm font-medium">{text.monthlyCalendar}</h2>
 			</div>
 			<div class="grid grid-cols-2 gap-px bg-border sm:grid-cols-4 lg:grid-cols-7">
 				{#each monthDays() as localDate (localDate)}
@@ -395,23 +417,23 @@
 			<div class="flex items-center justify-between gap-3 border-b px-4 py-3">
 				<div class="flex items-center gap-2">
 					<UsersIcon class="size-4 text-muted-foreground" />
-					<h2 class="text-sm font-medium">팀 로그</h2>
+					<h2 class="text-sm font-medium">{text.teamLog}</h2>
 				</div>
 				<Badge variant="outline">{summary?.timeZone ?? '-'}</Badge>
 			</div>
 			{#if isLoading}
-				<p class="p-4 text-sm text-muted-foreground">불러오는 중...</p>
+				<p class="p-4 text-sm text-muted-foreground">{text.loading}</p>
 			{:else if visibleEvents().length === 0}
-				<p class="p-4 text-sm text-muted-foreground">기록이 없습니다.</p>
+				<p class="p-4 text-sm text-muted-foreground">{text.empty}</p>
 			{:else}
 				<Table.Root>
 					<Table.Header>
 						<Table.Row>
-							<Table.Head>날짜</Table.Head>
-							<Table.Head>사용자</Table.Head>
-							<Table.Head>이벤트</Table.Head>
-							<Table.Head>장소</Table.Head>
-							<Table.Head>상태</Table.Head>
+							<Table.Head>{text.date}</Table.Head>
+							<Table.Head>{text.user}</Table.Head>
+							<Table.Head>{text.event}</Table.Head>
+							<Table.Head>{text.location}</Table.Head>
+							<Table.Head>{text.status}</Table.Head>
 						</Table.Row>
 					</Table.Header>
 					<Table.Body>
@@ -447,7 +469,7 @@
 									{/if}
 								</Table.Cell>
 								<Table.Cell>
-									<Badge variant={event.canceledAt ? 'outline' : 'secondary'}>{event.canceledAt ? '취소됨' : '기록'}</Badge>
+									<Badge variant={event.canceledAt ? 'outline' : 'secondary'}>{event.canceledAt ? text.canceled : text.recorded}</Badge>
 								</Table.Cell>
 							</Table.Row>
 						{/each}

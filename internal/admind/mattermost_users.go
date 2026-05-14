@@ -105,7 +105,6 @@ const mattermostFlowChannelName = mattermostdefaults.FlowChannelName
 const mattermostFlowChannelDisplayName = mattermostdefaults.FlowChannelDisplayName
 const mattermostCalendarChannelName = mattermostdefaults.CalendarChannelName
 const mattermostCalendarChannelDisplayName = mattermostdefaults.CalendarChannelDisplayName
-const mattermostFlowEntryPostMessage = "Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다. [Flow 열기](/flow/)"
 
 func (service *Service) provisionMattermostUser(ctx context.Context, email string, role string) (mattermostProvisionResult, error) {
 	return service.provisionMattermostUserWithPassword(ctx, adminUserMutation{Email: email, Role: role}, "")
@@ -958,8 +957,9 @@ func (service *Service) ensureMattermostFlowEntryPost(ctx context.Context, admin
 	if errorValue := service.ensureMattermostBotCanPost(ctx, adminToken, channelID, botUserID); errorValue != nil {
 		return errorValue
 	}
+	message := service.mattermostFlowEntryPostMessage()
 	post, found := service.mattermostFlowEntryPost(ctx, adminToken, channelID)
-	if found && strings.TrimSpace(post.UserID) == botUserID {
+	if found && strings.TrimSpace(post.UserID) == botUserID && strings.TrimSpace(post.Message) == message {
 		return nil
 	}
 	if found && strings.TrimSpace(post.ID) != "" {
@@ -970,10 +970,14 @@ func (service *Service) ensureMattermostFlowEntryPost(ctx context.Context, admin
 	}
 	body := map[string]any{
 		"channel_id": channelID,
-		"message":    mattermostFlowEntryPostMessage,
+		"message":    message,
 		"props":      map[string]any{"internkim_flow_entry": true},
 	}
 	return service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", botToken, body, nil)
+}
+
+func (service *Service) mattermostFlowEntryPostMessage() string {
+	return service.adminText().FlowEntryMessage + " " + service.mattermostFlowLink("")
 }
 
 func (service *Service) mattermostFlowEntryPost(ctx context.Context, token string, channelID string) (mattermostPostRecord, bool) {

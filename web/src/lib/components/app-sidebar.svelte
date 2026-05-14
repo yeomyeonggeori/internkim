@@ -12,6 +12,8 @@
 	import ListChecksIcon from '@lucide/svelte/icons/list-checks';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import MailIcon from '@lucide/svelte/icons/mail';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { onMount } from 'svelte';
 
 	type NavigationItem = {
@@ -24,16 +26,17 @@
 
 	let userEmail = $state('');
 	let userName = $state('Workspace');
+	const text = createPageText(appShellText);
 
 	const sidebar = useSidebar();
-	const appItems: NavigationItem[] = [
+	const appItems = $derived([
 		{ href: '/flow/', label: 'Flow', icon: ListChecksIcon },
 		{ href: '/calendar/', label: 'Calendar', icon: CalendarDaysIcon },
 		{ href: '/mail/', label: 'Mail', icon: MailIcon },
-		{ href: '/attendance/', label: '출결', icon: ClipboardCheckIcon }
-	];
+		{ href: '/attendance/', label: text.attendance, icon: ClipboardCheckIcon }
+	] satisfies NavigationItem[]);
 
-	const workspaceItems: NavigationItem[] = [{ href: '/admin/', label: 'Admin', icon: CogIcon }];
+	const workspaceItems = $derived([{ href: '/admin/', label: 'Admin', icon: CogIcon }] satisfies NavigationItem[]);
 
 	function isActive(href: string) {
 		return activePath === href || activePath.startsWith(href);
@@ -88,7 +91,7 @@
 
 	<Sidebar.Content>
 		<Sidebar.Group>
-			<Sidebar.GroupLabel>Apps</Sidebar.GroupLabel>
+			<Sidebar.GroupLabel>{text.apps}</Sidebar.GroupLabel>
 			<Sidebar.GroupContent>
 				<Sidebar.Menu>
 					{#each appItems as item (item.href)}
@@ -109,7 +112,7 @@
 		</Sidebar.Group>
 
 		<Sidebar.Group>
-			<Sidebar.GroupLabel>Workspace</Sidebar.GroupLabel>
+			<Sidebar.GroupLabel>{text.workspace}</Sidebar.GroupLabel>
 			<Sidebar.GroupContent>
 				<Sidebar.Menu>
 					{#each workspaceItems as item (item.href)}
@@ -144,7 +147,7 @@
 								<PersonAvatar name={userName} email={userEmail} class="size-8 rounded-lg" />
 								<div class="grid flex-1 text-start text-sm leading-tight">
 									<span class="truncate font-medium">{userName}</span>
-									<span class="truncate text-xs">{userEmail || 'Active workspace'}</span>
+									<span class="truncate text-xs">{userEmail || text.activeWorkspace}</span>
 								</div>
 								<ChevronsUpDownIcon class="ms-auto size-4" />
 							</Sidebar.MenuButton>
@@ -161,7 +164,7 @@
 								<PersonAvatar name={userName} email={userEmail} class="size-8 rounded-lg" />
 								<div class="grid flex-1 text-start text-sm leading-tight">
 									<span class="truncate font-medium">{userName}</span>
-									<span class="truncate text-xs">{userEmail || 'Active workspace'}</span>
+									<span class="truncate text-xs">{userEmail || text.activeWorkspace}</span>
 								</div>
 							</div>
 						</DropdownMenu.Label>
@@ -169,17 +172,17 @@
 						<DropdownMenu.Group>
 							<DropdownMenu.Item onclick={() => (location.href = '/admin/')}>
 								<BadgeCheckIcon />
-								Account
+								{text.account}
 							</DropdownMenu.Item>
 							<DropdownMenu.Item onclick={() => (location.href = '/flow/')}>
 								<BellIcon />
-								Activity
+								{text.activity}
 							</DropdownMenu.Item>
 						</DropdownMenu.Group>
 						<DropdownMenu.Separator />
 						<DropdownMenu.Item onclick={() => (location.href = '/cdn-cgi/access/logout')}>
 							<LogOutIcon />
-							Log out
+							{text.logOut}
 						</DropdownMenu.Item>
 					</DropdownMenu.Content>
 				</DropdownMenu.Root>

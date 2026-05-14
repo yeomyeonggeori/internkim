@@ -45,6 +45,14 @@ func (service *Service) trySyncCalendarMattermostLog(ctx context.Context, event 
 	if errorValue != nil {
 		return event, errorValue
 	}
+	botToken, errorValue := service.mattermostBotToken()
+	if errorValue != nil {
+		return event, errorValue
+	}
+	botUserID, errorValue := service.mattermostTokenUserID(ctx, botToken)
+	if errorValue != nil {
+		return event, errorValue
+	}
 	teamRecord, errorValue := service.ensureMattermostTeam(ctx, adminToken)
 	if errorValue != nil {
 		return event, errorValue
@@ -53,14 +61,31 @@ func (service *Service) trySyncCalendarMattermostLog(ctx context.Context, event 
 	if errorValue != nil {
 		return event, errorValue
 	}
+	if errorValue := service.ensureMattermostBotCanPost(ctx, adminToken, channelID, botUserID); errorValue != nil {
+		return event, errorValue
+	}
 	if strings.TrimSpace(event.MattermostPostID) == "" {
-		return service.createCalendarMattermostLog(ctx, adminToken, channelID, event)
+		return service.createCalendarMattermostLog(ctx, botToken, channelID, event)
+	}
+	postRecord, found, errorValue := service.mattermostPostByID(ctx, adminToken, event.MattermostPostID)
+	if errorValue != nil && !isMattermostNotFound(errorValue) {
+		return event, errorValue
+	}
+	if found && postRecord.UserID != "" && postRecord.UserID != botUserID {
+		if errorValue := service.deleteMattermostPost(ctx, adminToken, event.MattermostPostID); errorValue != nil && !isMattermostNotFound(errorValue) {
+			return event, errorValue
+		}
+		event.MattermostPostID = ""
+		if errorValue := service.updateCalendarEventMattermostPostID(ctx, event.ID, ""); errorValue != nil {
+			return event, errorValue
+		}
+		return service.createCalendarMattermostLog(ctx, botToken, channelID, event)
 	}
 	body := map[string]any{
 		"message": service.calendarMattermostLogMessage(event),
 		"props":   calendarMattermostLogProps(event),
 	}
-	if errorValue := service.mattermostRequest(ctx, http.MethodPut, "/api/v4/posts/"+url.PathEscape(event.MattermostPostID)+"/patch", adminToken, body, nil); errorValue != nil {
+	if errorValue := service.mattermostRequest(ctx, http.MethodPut, "/api/v4/posts/"+url.PathEscape(event.MattermostPostID)+"/patch", botToken, body, nil); errorValue != nil {
 		return event, errorValue
 	}
 	return event, nil
@@ -166,7 +191,7 @@ func calendarMattermostNoteText(description string) string {
 }
 
 func (service *Service) mattermostCalendarLink(startISO string) string {
-	return "[Calendar 열기](" + service.mattermostCalendarURL(startISO) + ")"
+	return "[" + service.adminText().CalendarOpen + "](" + service.mattermostCalendarURL(startISO) + ")"
 }
 
 func (service *Service) mattermostCalendarURL(startISO string) string {

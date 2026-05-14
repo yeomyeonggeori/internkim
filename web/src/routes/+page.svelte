@@ -366,12 +366,12 @@
 		try {
 			const response = await fetch(`${adminBaseURL()}/bot-profile`, { credentials: 'include' });
 			if (!response.ok) {
-				botProfileErrorMessage = '봇 프로필을 불러오지 못했습니다.';
+				botProfileErrorMessage = text.messages.botProfileLoadError;
 				return;
 			}
 			applyBotProfile((await response.json()) as BotProfile);
 		} catch {
-			botProfileErrorMessage = '봇 프로필을 불러오지 못했습니다.';
+			botProfileErrorMessage = text.messages.botProfileLoadError;
 		} finally {
 			isLoadingBotProfile = false;
 		}
@@ -414,7 +414,7 @@
 			}
 			applyBotProfile((await response.json()) as BotProfile);
 		} catch {
-			botProfileErrorMessage = '봇 프로필 저장에 실패했습니다.';
+			botProfileErrorMessage = text.messages.botProfileSaveError;
 		} finally {
 			isSavingBotProfile = false;
 		}
@@ -428,13 +428,13 @@
 		try {
 			const response = await fetch(`${adminBaseURL()}/credentials/providers`, { credentials: 'include' });
 			if (!response.ok) {
-				credentialErrorMessage = 'Credential 상태를 불러오지 못했습니다.';
+				credentialErrorMessage = text.messages.credentialsLoadError;
 				return;
 			}
 			const data = (await response.json()) as CredentialProvidersResponse;
 			credentialProviders = data.providers ?? [];
 		} catch {
-			credentialErrorMessage = 'Credential 상태를 불러오지 못했습니다.';
+			credentialErrorMessage = text.messages.credentialsLoadError;
 		} finally {
 			isLoadingCredentials = false;
 		}
@@ -457,14 +457,14 @@
 				body: JSON.stringify({ apiKey: openRouterApiKey.trim() })
 			});
 			if (!response.ok) {
-				credentialErrorMessage = (await response.text()).trim() || 'OpenRouter 키 저장에 실패했습니다.';
+				credentialErrorMessage = (await response.text()).trim() || text.messages.openRouterSaveError;
 				return;
 			}
 			const provider = (await response.json()) as CredentialProviderStatus;
 			credentialProviders = [provider, ...credentialProviders.filter((candidate) => candidate.provider !== provider.provider)];
 			openRouterApiKey = '';
 		} catch {
-			credentialErrorMessage = 'OpenRouter 키 저장에 실패했습니다.';
+			credentialErrorMessage = text.messages.openRouterSaveError;
 		} finally {
 			isSavingCredential = false;
 		}
@@ -481,13 +481,13 @@
 				credentials: 'include'
 			});
 			if (!response.ok) {
-				credentialErrorMessage = (await response.text()).trim() || 'OpenRouter 키 삭제에 실패했습니다.';
+				credentialErrorMessage = (await response.text()).trim() || text.messages.openRouterDeleteError;
 				return;
 			}
 			const provider = (await response.json()) as CredentialProviderStatus;
 			credentialProviders = [provider, ...credentialProviders.filter((candidate) => candidate.provider !== provider.provider)];
 		} catch {
-			credentialErrorMessage = 'OpenRouter 키 삭제에 실패했습니다.';
+			credentialErrorMessage = text.messages.openRouterDeleteError;
 		} finally {
 			isSavingCredential = false;
 		}
@@ -501,13 +501,13 @@
 		try {
 			const response = await fetch(`${adminBaseURL()}/workspace-settings`, { credentials: 'include' });
 			if (!response.ok) {
-				workspaceSettingsMessage = '설정을 불러오지 못했습니다.';
+				workspaceSettingsMessage = text.settings.loadError;
 				return;
 			}
 			workspaceSettings = normalizeWorkspaceSettings((await response.json()) as WorkspaceSettings);
 			workspaceSettingsDraft = { ...workspaceSettings };
 		} catch {
-			workspaceSettingsMessage = '설정을 불러오지 못했습니다.';
+			workspaceSettingsMessage = text.settings.loadError;
 		} finally {
 			isLoadingWorkspaceSettings = false;
 		}
@@ -531,9 +531,9 @@
 			}
 			workspaceSettings = normalizeWorkspaceSettings((await response.json()) as WorkspaceSettings);
 			workspaceSettingsDraft = { ...workspaceSettings };
-			workspaceSettingsMessage = '저장되었습니다.';
+			workspaceSettingsMessage = text.settings.saveSuccess;
 		} catch {
-			workspaceSettingsMessage = '설정을 저장하지 못했습니다.';
+			workspaceSettingsMessage = text.settings.saveError;
 		} finally {
 			isSavingWorkspaceSettings = false;
 		}
@@ -555,13 +555,13 @@
 		try {
 			const response = await fetch(`${adminBaseURL()}/attendance-locations`, { credentials: 'include' });
 			if (!response.ok) {
-				attendanceLocationsMessage = '출근 장소를 불러오지 못했습니다.';
+				attendanceLocationsMessage = text.attendanceLocations.loadError;
 				return;
 			}
 			const data = (await response.json()) as AttendanceLocationsResponse;
 			attendanceLocations = data.locations ?? [];
 		} catch {
-			attendanceLocationsMessage = '출근 장소를 불러오지 못했습니다.';
+			attendanceLocationsMessage = text.attendanceLocations.loadError;
 		} finally {
 			isLoadingAttendanceLocations = false;
 		}
@@ -585,9 +585,9 @@
 			}
 			const data = (await response.json()) as AttendanceLocationsResponse;
 			attendanceLocations = data.locations ?? [];
-			attendanceLocationsMessage = '저장되었습니다.';
+			attendanceLocationsMessage = text.attendanceLocations.saveSuccess;
 		} catch {
-			attendanceLocationsMessage = '출근 장소를 저장하지 못했습니다.';
+			attendanceLocationsMessage = text.attendanceLocations.saveError;
 		} finally {
 			isSavingAttendanceLocations = false;
 		}
@@ -644,14 +644,14 @@
 			if (!response.ok) {
 				errorMessage =
 					response.status === 403
-						? '관리자 인증이 필요합니다. 기기 주소의 /admin에서 Cloudflare Access로 로그인해 주세요.'
-						: '초대 목록을 불러오지 못했습니다.';
+						? text.messages.adminAuthRequiredOnDevice
+						: text.messages.usersLoadError;
 				return;
 			}
 			const data = (await response.json()) as UsersResponse;
 			applyUsersResponse(data);
 		} catch {
-			errorMessage = '초대 목록을 불러오지 못했습니다.';
+			errorMessage = text.messages.usersLoadError;
 		} finally {
 			isLoadingUsers = false;
 		}
@@ -696,8 +696,8 @@
 			if (!response.ok) {
 				const detail = (await response.text()).trim();
 				errorMessage = response.status === 403
-					? '관리자 인증이 필요합니다. 기기 주소의 /admin에서 Cloudflare Access로 로그인해 주세요.'
-					: detail || '사용자 초대에 실패했습니다.';
+					? text.messages.adminAuthRequiredOnDevice
+					: detail || text.messages.userInviteError;
 				return;
 			}
 			const data = (await response.json()) as UsersResponse;
@@ -709,7 +709,7 @@
 			newHireDate = '';
 			newUserRole = 'member';
 		} catch {
-			errorMessage = '사용자 초대에 실패했습니다.';
+			errorMessage = text.messages.userInviteError;
 		} finally {
 			isSavingUser = false;
 		}
@@ -740,12 +740,12 @@
 			});
 			if (!response.ok) {
 				const detail = (await response.text()).trim();
-				errorMessage = response.status === 403 ? '관리자 인증이 필요합니다.' : detail || '사용자 저장에 실패했습니다.';
+				errorMessage = response.status === 403 ? text.messages.adminAuthRequired : detail || text.messages.userSaveError;
 				return;
 			}
 			applyUsersResponse((await response.json()) as UsersResponse);
 		} catch {
-			errorMessage = '사용자 저장에 실패했습니다.';
+			errorMessage = text.messages.userSaveError;
 		} finally {
 			isSavingUser = false;
 		}
@@ -765,14 +765,14 @@
 			if (!response.ok) {
 				errorMessage =
 					response.status === 403
-						? '관리자 인증이 필요합니다. 기기 주소의 /admin에서 Cloudflare Access로 로그인해 주세요.'
-						: '사용자 제거에 실패했습니다.';
+						? text.messages.adminAuthRequiredOnDevice
+						: text.messages.userRemoveError;
 				return;
 			}
 			const data = (await response.json()) as UsersResponse;
 			applyUsersResponse(data);
 		} catch {
-			errorMessage = '사용자 제거에 실패했습니다.';
+			errorMessage = text.messages.userRemoveError;
 		} finally {
 			isSavingUser = false;
 		}
@@ -816,10 +816,10 @@
 		try {
 			const response = await fetch(`${adminBaseURL()}/health`, { credentials: 'include' });
 			isDeviceReachable = response.ok;
-			if (!response.ok) adminErrorMessage = '기기에 연결할 수 없습니다.';
+			if (!response.ok) adminErrorMessage = text.messages.deviceUnreachable;
 		} catch {
 			isDeviceReachable = false;
-			adminErrorMessage = '기기에 연결할 수 없습니다.';
+			adminErrorMessage = text.messages.deviceUnreachable;
 		} finally {
 			isCheckingDevice = false;
 		}
@@ -835,13 +835,13 @@
 		try {
 			const response = await fetch(`${adminBaseURL()}/companion/status`, { credentials: 'include' });
 			if (!response.ok) {
-				companionErrorMessage = 'Companion 상태를 불러오지 못했습니다.';
+				companionErrorMessage = text.messages.companionStatusError;
 				return;
 			}
 			const data = (await response.json()) as CompanionStatusResponse;
 			companionStatuses = data.companions ?? [];
 		} catch {
-			companionErrorMessage = 'Companion 상태를 불러오지 못했습니다.';
+			companionErrorMessage = text.messages.companionStatusError;
 		} finally {
 			isLoadingCompanions = false;
 		}
@@ -858,13 +858,13 @@
 				credentials: 'include'
 			});
 			if (!response.ok) {
-				companionErrorMessage = '연결 코드를 만들지 못했습니다.';
+				companionErrorMessage = text.messages.companionPairingError;
 				return;
 			}
 			companionPairingCode = (await response.json()) as CompanionPairingCodeResponse;
 			if (companionPairingCode.deepLink && browser) location.href = companionPairingCode.deepLink;
 		} catch {
-			companionErrorMessage = '연결 코드를 만들지 못했습니다.';
+			companionErrorMessage = text.messages.companionPairingError;
 		} finally {
 			isCreatingPairingCode = false;
 		}
@@ -880,12 +880,12 @@
 				credentials: 'include'
 			});
 			if (!response.ok) {
-				companionErrorMessage = 'Companion 연결을 해제하지 못했습니다.';
+				companionErrorMessage = text.messages.companionRevokeError;
 				return;
 			}
 			await loadCompanions();
 		} catch {
-			companionErrorMessage = 'Companion 연결을 해제하지 못했습니다.';
+			companionErrorMessage = text.messages.companionRevokeError;
 		}
 	}
 
@@ -923,13 +923,13 @@
 				body: JSON.stringify({ passphrase: backupPassphrase })
 			});
 			if (!response.ok) {
-				adminErrorMessage = '백업을 시작하지 못했습니다.';
+				adminErrorMessage = text.messages.backupStartError;
 				return;
 			}
 			backupJob = (await response.json()) as AdminJob;
 			await pollJob('backup', backupJob.jobID);
 		} catch {
-			adminErrorMessage = '백업을 시작하지 못했습니다.';
+			adminErrorMessage = text.messages.backupStartError;
 		} finally {
 			isCreatingBackup = false;
 		}
@@ -948,7 +948,7 @@
 				body: JSON.stringify({ filename: restoreBundle.name, size: restoreBundle.size })
 			});
 			if (!uploadResponse.ok) {
-				adminErrorMessage = '복구를 시작하지 못했습니다.';
+				adminErrorMessage = text.messages.restoreStartError;
 				return;
 			}
 			const upload = (await uploadResponse.json()) as RestoreUploadResponse;
@@ -956,14 +956,14 @@
 			for (let chunkIndex = 0; chunkIndex < chunkCount; chunkIndex += 1) {
 				const start = chunkIndex * upload.chunkSize;
 				const end = Math.min(start + upload.chunkSize, restoreBundle.size);
-				adminErrorMessage = `복구 파일 업로드 중... ${chunkIndex + 1}/${chunkCount}`;
+				adminErrorMessage = `${text.messages.restoreUploadProgress} ${chunkIndex + 1}/${chunkCount}`;
 				const chunkResponse = await fetch(`${adminBaseURL()}/restore/uploads/${upload.uploadID}/chunks/${chunkIndex}`, {
 					method: 'PUT',
 					credentials: 'include',
 					body: restoreBundle.slice(start, end)
 				});
 				if (!chunkResponse.ok) {
-					adminErrorMessage = '복구 파일 업로드에 실패했습니다.';
+					adminErrorMessage = text.messages.restoreUploadError;
 					return;
 				}
 			}
@@ -975,13 +975,13 @@
 				body: JSON.stringify({ passphrase: restorePassphrase, confirm: restoreConfirm.trim(), chunks: chunkCount })
 			});
 			if (!completeResponse.ok) {
-				adminErrorMessage = '복구를 시작하지 못했습니다.';
+				adminErrorMessage = text.messages.restoreStartError;
 				return;
 			}
 			restoreJob = (await completeResponse.json()) as AdminJob;
 			await pollJob('restore', restoreJob.jobID);
 		} catch {
-			adminErrorMessage = '복구를 시작하지 못했습니다.';
+			adminErrorMessage = text.messages.restoreStartError;
 		} finally {
 			isRestoring = false;
 		}
@@ -1245,7 +1245,7 @@
 				<div class="rounded-lg border p-4">
 					<div class="mb-4 flex flex-wrap items-start justify-between gap-3">
 						<div>
-							<h3 class="text-sm font-semibold">Workspace Settings</h3>
+							<h3 class="text-sm font-semibold">{text.settings.title}</h3>
 							<p class="text-muted-foreground mt-1 text-sm">{text.settings.description}</p>
 						</div>
 						<div class="flex flex-wrap gap-2">
@@ -1297,13 +1297,13 @@
 						<div>
 							<h3 class="flex items-center gap-2 text-sm font-semibold">
 								<MapPinIcon class="size-4 text-emerald-600" />
-								출근 장소
+								{text.attendanceLocations.title}
 							</h3>
-							<p class="mt-1 text-sm text-muted-foreground">Mattermost 출근 버튼에 표시할 장소입니다. 최소 하나는 유지됩니다.</p>
+							<p class="mt-1 text-sm text-muted-foreground">{text.attendanceLocations.description}</p>
 						</div>
 						<Button variant="outline" size="sm" class="gap-2" onclick={addAttendanceLocation} disabled={isLoadingAttendanceLocations}>
 							<PlusIcon class="size-4" />
-							추가
+							{text.attendanceLocations.add}
 						</Button>
 					</div>
 					<div class="grid gap-2">
@@ -1312,13 +1312,13 @@
 								<input
 									type="color"
 									value={location.color}
-									aria-label="장소 색상"
+									aria-label={text.attendanceLocations.color}
 									class="size-9 rounded-md border bg-background"
 									oninput={(event) => updateAttendanceLocation(index, 'color', event.currentTarget.value)}
 								/>
 								<Input
 									value={location.name}
-									placeholder="사무실"
+									placeholder={text.attendanceLocations.placeholder}
 									autocomplete="off"
 									oninput={(event) => updateAttendanceLocation(index, 'name', event.currentTarget.value)}
 								/>
@@ -1327,10 +1327,10 @@
 									size="sm"
 									onclick={() => updateAttendanceLocation(index, 'isDefault', true)}
 								>
-									기본
+									{text.attendanceLocations.default}
 								</Button>
 								{#if attendanceLocations.length > 1}
-									<Button variant="ghost" size="icon-sm" aria-label="장소 삭제" onclick={() => removeAttendanceLocation(index)}>
+									<Button variant="ghost" size="icon-sm" aria-label={text.attendanceLocations.remove} onclick={() => removeAttendanceLocation(index)}>
 										<Trash2Icon class="size-4" />
 									</Button>
 								{/if}
@@ -1342,7 +1342,7 @@
 							{#if isSavingAttendanceLocations}
 								<LoaderIcon class="size-4 animate-spin" />
 							{/if}
-							저장
+							{text.attendanceLocations.save}
 						</Button>
 						{#if attendanceLocationsMessage}
 							<p class="rounded-md border bg-muted/30 px-3 py-2 text-sm">{attendanceLocationsMessage}</p>
