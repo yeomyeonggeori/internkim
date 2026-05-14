@@ -1005,16 +1005,15 @@ func TestMattermostProgressStartPublishesTypingImmediately(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected progress start to succeed: %v", errorValue)
 	}
+	_, errorValue = service.mattermostStopProgressFromRequest(context.Background(), strings.NewReader(`{"replyTargetID":"`+replyTargetID+`"}`))
+	if errorValue != nil {
+		t.Fatalf("expected progress stop to succeed: %v", errorValue)
+	}
 
 	select {
 	case <-typingRequests:
 	case <-time.After(200 * time.Millisecond):
-		t.Fatal("expected immediate typing request")
-	}
-
-	_, errorValue = service.mattermostStopProgressFromRequest(context.Background(), strings.NewReader(`{"replyTargetID":"`+replyTargetID+`"}`))
-	if errorValue != nil {
-		t.Fatalf("expected progress stop to succeed: %v", errorValue)
+		t.Fatal("expected typing request before immediate stop can cancel progress")
 	}
 }
 
