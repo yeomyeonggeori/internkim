@@ -1786,31 +1786,31 @@ func patchMattermostSetupChannel(mmAPI mattermostSetupAPI, adminToken string, ch
 }
 
 func setupMattermostConnectCommand(m *msg, ssh *sshClient, mmAPI mattermostSetupAPI, adminToken string, teamID string) {
-	commandRecord, found := findMattermostSetupConnectCommand(mmAPI, adminToken, teamID)
-	if found && strings.TrimSpace(commandRecord.Token) != "" {
-		writeMattermostSetupConnectCommandToken(ssh, commandRecord.Token)
-		updateMattermostSetupConnectCommand(mmAPI, adminToken, teamID, commandRecord.ID)
-		fmt.Printf("  %s\n", m.t("Mattermost /connect 명령 확인", "Mattermost /connect command verified"))
-		return
+	for _, trigger := range mattermostSetupCommandTriggers() {
+		commandRecord, found := findMattermostSetupCommand(mmAPI, adminToken, teamID, trigger)
+		if found && strings.TrimSpace(commandRecord.Token) != "" {
+			writeMattermostSetupConnectCommandToken(ssh, commandRecord.Token)
+			updateMattermostSetupCommand(mmAPI, adminToken, teamID, commandRecord.ID, trigger)
+			continue
+		}
+		if found && strings.TrimSpace(ssh.run("cat "+mattermostConnectSetupCommandTokenPath+" 2>/dev/null")) != "" {
+			updateMattermostSetupCommand(mmAPI, adminToken, teamID, commandRecord.ID, trigger)
+			continue
+		}
+		if found {
+			mmAPI("DELETE", "/api/v4/commands/"+commandRecord.ID, nil, adminToken)
+		}
+		createdRecord, ok := createMattermostSetupCommand(mmAPI, adminToken, teamID, trigger)
+		if !ok || strings.TrimSpace(createdRecord.Token) == "" {
+			fmt.Printf("  WARN: %s\n", m.t("Mattermost /"+trigger+" 명령 등록 실패", "Mattermost /"+trigger+" command registration failed"))
+			continue
+		}
+		writeMattermostSetupConnectCommandToken(ssh, createdRecord.Token)
 	}
-	if found && strings.TrimSpace(ssh.run("cat "+mattermostConnectSetupCommandTokenPath+" 2>/dev/null")) != "" {
-		updateMattermostSetupConnectCommand(mmAPI, adminToken, teamID, commandRecord.ID)
-		fmt.Printf("  %s\n", m.t("Mattermost /connect 명령 확인", "Mattermost /connect command verified"))
-		return
-	}
-	if found {
-		mmAPI("DELETE", "/api/v4/commands/"+commandRecord.ID, nil, adminToken)
-	}
-	createdRecord, ok := createMattermostSetupConnectCommand(mmAPI, adminToken, teamID)
-	if !ok || strings.TrimSpace(createdRecord.Token) == "" {
-		fmt.Printf("  WARN: %s\n", m.t("Mattermost /connect 명령 등록 실패", "Mattermost /connect command registration failed"))
-		return
-	}
-	writeMattermostSetupConnectCommandToken(ssh, createdRecord.Token)
-	fmt.Printf("  %s\n", m.t("Mattermost /connect 명령 등록", "Mattermost /connect command registered"))
+	fmt.Printf("  %s\n", m.t("Mattermost /connect /stop /stop-all /중단 /중단-전부 명령 확인", "Mattermost /connect /stop /stop-all /중단 /중단-전부 commands verified"))
 }
 
-func findMattermostSetupConnectCommand(mmAPI mattermostSetupAPI, adminToken string, teamID string) (mattermostSetupCommandRecord, bool) {
+func findMattermostSetupCommand(mmAPI mattermostSetupAPI, adminToken string, teamID string, trigger string) (mattermostSetupCommandRecord, bool) {
 	code, responseBody := mmAPI("GET", "/api/v4/commands?team_id="+url.QueryEscape(teamID), nil, adminToken)
 	if code < 200 || code >= 300 {
 		return mattermostSetupCommandRecord{}, false
@@ -1820,15 +1820,15 @@ func findMattermostSetupConnectCommand(mmAPI mattermostSetupAPI, adminToken stri
 		return mattermostSetupCommandRecord{}, false
 	}
 	for _, commandRecord := range commandRecords {
-		if commandRecord.TeamID == teamID && commandRecord.Trigger == "connect" {
+		if commandRecord.TeamID == teamID && commandRecord.Trigger == trigger {
 			return commandRecord, true
 		}
 	}
 	return mattermostSetupCommandRecord{}, false
 }
 
-func createMattermostSetupConnectCommand(mmAPI mattermostSetupAPI, adminToken string, teamID string) (mattermostSetupCommandRecord, bool) {
-	document, _ := json.Marshal(mattermostSetupConnectCommandPayload(teamID, ""))
+func createMattermostSetupCommand(mmAPI mattermostSetupAPI, adminToken string, teamID string, trigger string) (mattermostSetupCommandRecord, bool) {
+	document, _ := json.Marshal(mattermostSetupCommandPayload(teamID, "", trigger))
 	code, responseBody := mmAPI("POST", "/api/v4/commands", document, adminToken)
 	if code < 200 || code >= 300 {
 		return mattermostSetupCommandRecord{}, false
@@ -1837,27 +1837,39 @@ func createMattermostSetupConnectCommand(mmAPI mattermostSetupAPI, adminToken st
 	return commandRecord, json.Unmarshal(responseBody, &commandRecord) == nil
 }
 
-func updateMattermostSetupConnectCommand(mmAPI mattermostSetupAPI, adminToken string, teamID string, commandID string) {
+func updateMattermostSetupCommand(mmAPI mattermostSetupAPI, adminToken string, teamID string, commandID string, trigger string) {
 	trimmedCommandID := strings.TrimSpace(commandID)
 	if trimmedCommandID == "" {
 		return
 	}
-	document, _ := json.Marshal(mattermostSetupConnectCommandPayload(teamID, trimmedCommandID))
+	document, _ := json.Marshal(mattermostSetupCommandPayload(teamID, trimmedCommandID, trigger))
 	mmAPI("PUT", "/api/v4/commands/"+trimmedCommandID, document, adminToken)
 }
 
-func mattermostSetupConnectCommandPayload(teamID string, commandID string) mattermostSetupCommandRecord {
-	return mattermostSetupCommandRecord{
-		ID:               strings.TrimSpace(commandID),
-		TeamID:           strings.TrimSpace(teamID),
-		Trigger:          "connect",
-		Method:           "P",
-		URL:              "http://127.0.0.1:18080/_internkim/mattermost/commands",
-		DisplayName:      "Connect Companion",
-		Description:      "Connect your InternKim Companion app.",
-		Autocomplete:     true,
-		AutocompleteDesc: "Connect your Companion app",
+func mattermostSetupCommandPayload(teamID string, commandID string, trigger string) mattermostSetupCommandRecord {
+	commandRecord := mattermostSetupCommandRecord{
+		ID:           strings.TrimSpace(commandID),
+		TeamID:       strings.TrimSpace(teamID),
+		Trigger:      trigger,
+		Method:       "P",
+		URL:          "http://127.0.0.1:18080/_internkim/mattermost/commands",
+		Autocomplete: true,
 	}
+	switch trigger {
+	case "stop", "중단":
+		commandRecord.DisplayName = "Stop InternKim task"
+		commandRecord.Description = "Stop your current InternKim task."
+		commandRecord.AutocompleteDesc = "Stop your current task"
+	case "stop-all", "중단-전부":
+		commandRecord.DisplayName = "Stop all InternKim tasks"
+		commandRecord.Description = "Stop all of your active InternKim tasks."
+		commandRecord.AutocompleteDesc = "Stop all active tasks"
+	default:
+		commandRecord.DisplayName = "Connect Companion"
+		commandRecord.Description = "Connect your InternKim Companion app."
+		commandRecord.AutocompleteDesc = "Connect your Companion app"
+	}
+	return commandRecord
 }
 
 func writeMattermostSetupConnectCommandToken(ssh *sshClient, token string) {
@@ -1866,12 +1878,20 @@ func writeMattermostSetupConnectCommandToken(ssh *sshClient, token string) {
 		return
 	}
 	ssh.run(fmt.Sprintf(`mkdir -p /root/.internkim/state/admin
-printf '%%s\n' %s > %s
+touch %s
+grep -qxF %s %s || printf '%%s\n' %s >> %s
 chmod 600 %s`,
+		mattermostConnectSetupCommandTokenPath,
+		quoteShellValue(trimmedToken),
+		mattermostConnectSetupCommandTokenPath,
 		quoteShellValue(trimmedToken),
 		mattermostConnectSetupCommandTokenPath,
 		mattermostConnectSetupCommandTokenPath,
 	))
+}
+
+func mattermostSetupCommandTriggers() []string {
+	return []string{"connect", "stop", "stop-all", "중단", "중단-전부"}
 }
 
 func runLab() {
