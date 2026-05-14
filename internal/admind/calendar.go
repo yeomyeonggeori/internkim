@@ -19,18 +19,17 @@ import (
 )
 
 const (
-	calendarProductID                       = "-//InternKim//Shared Calendar//EN"
-	calendarName                            = "Work"
-	calendarDAVUsername                     = "internkim"
-	calendarPrincipalPath                   = "/calendar/dav/team/"
-	calendarHomeSetPath                     = "/calendar/dav/team/calendars/"
-	calendarServerXMLNamespace              = "http://calendarserver.org/ns/"
-	calendarGetCTagLocalName                = "getctag"
-	calendarCollectionPath                  = "/calendar/dav/team/calendars/internkim/"
-	calendarSettingsICSKey                  = "ics_token"
-	calendarDefaultReminderLeadHours        = 24
-	calendarAnnouncementsChannelName        = "announcements"
-	calendarAnnouncementsChannelDisplayName = "Announcements"
+	calendarProductID                = "-//InternKim//Shared Calendar//EN"
+	calendarName                     = "Work"
+	calendarDAVUsername              = "internkim"
+	calendarPrincipalPath            = "/calendar/dav/team/"
+	calendarHomeSetPath              = "/calendar/dav/team/calendars/"
+	calendarServerXMLNamespace       = "http://calendarserver.org/ns/"
+	calendarGetCTagLocalName         = "getctag"
+	calendarCollectionPath           = "/calendar/dav/team/calendars/internkim/"
+	calendarSettingsICSKey           = "ics_token"
+	calendarDefaultReminderLeadHours = 24
+	calendarAnnouncementsChannelName = "announcements"
 )
 
 type calendarEvent struct {
