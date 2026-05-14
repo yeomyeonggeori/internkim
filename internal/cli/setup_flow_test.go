@@ -343,7 +343,7 @@ func TestCommandControlArgumentsStopAtSeparator(t *testing.T) {
 }
 
 func TestMattermostSetupConnectCommandPayloadTargetsAdmind(t *testing.T) {
-	payload := mattermostSetupConnectCommandPayload("team-1", "command-1")
+	payload := mattermostSetupCommandPayload("team-1", "command-1", "connect")
 	if payload.Trigger != "connect" || payload.Method != "P" || !payload.Autocomplete {
 		t.Fatalf("unexpected /connect command payload: %+v", payload)
 	}
@@ -478,7 +478,7 @@ func TestFindMattermostSetupConnectCommand(t *testing.T) {
 		return 200, []byte(`[{"id":"command-1","team_id":"team-1","trigger":"connect"},{"id":"other","team_id":"team-1","trigger":"deploy"}]`)
 	}
 
-	commandRecord, found := findMattermostSetupConnectCommand(mmAPI, "admin-token", "team-1")
+	commandRecord, found := findMattermostSetupCommand(mmAPI, "admin-token", "team-1", "connect")
 	if !found || commandRecord.ID != "command-1" {
 		t.Fatalf("expected /connect command, got found=%v record=%+v", found, commandRecord)
 	}

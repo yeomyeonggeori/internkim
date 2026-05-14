@@ -14,6 +14,10 @@ import (
 )
 
 const mattermostConnectCommandTrigger = "connect"
+const mattermostStopCommandTrigger = "stop"
+const mattermostStopAllCommandTrigger = "stop-all"
+const mattermostKoreanStopCommandTrigger = "중단"
+const mattermostKoreanStopAllCommandTrigger = "중단-전부"
 const mattermostConnectCommandTokenFilename = "mattermost-connect-command-token"
 
 type mattermostCommandRecord struct {
@@ -37,6 +41,12 @@ type mattermostSlashCommandResponse struct {
 	IconURL      string `json:"icon_url,omitempty"`
 }
 
+type blueclawTaskStopResponse struct {
+	CancelledTaskRunCount int  `json:"cancelledTaskRunCount"`
+	MultipleTargets       bool `json:"multipleTargets"`
+	ScheduleTouched       bool `json:"scheduleTouched"`
+}
+
 func (service *Service) handleMattermostCommand(responseWriter http.ResponseWriter, request *http.Request) {
 	if request.Method != http.MethodPost {
 		http.NotFound(responseWriter, request)
@@ -50,16 +60,21 @@ func (service *Service) handleMattermostCommand(responseWriter http.ResponseWrit
 		http.Error(responseWriter, "invalid command token", http.StatusForbidden)
 		return
 	}
-	if strings.TrimPrefix(request.FormValue("command"), "/") != mattermostConnectCommandTrigger {
-		service.writeMattermostCommandResponse(responseWriter, request, "지원하지 않는 명령입니다. `/connect`로 Companion 앱을 연결하세요.")
-		return
-	}
+	command := strings.TrimPrefix(strings.TrimSpace(request.FormValue("command")), "/")
 	text := strings.ToLower(strings.TrimSpace(request.FormValue("text")))
-	if text != "" && text != "help" && text != "도움말" {
-		service.writeMattermostCommandResponse(responseWriter, request, "`/connect`는 Companion 앱 연결만 처리합니다.")
+	switch command {
+	case mattermostConnectCommandTrigger:
+		if text != "" && text != "help" && text != "도움말" {
+			service.writeMattermostCommandResponse(responseWriter, request, "`/connect`는 Companion 앱 연결만 처리합니다.")
+			return
+		}
+		service.handleMattermostConnectCommand(responseWriter, request)
+	case mattermostStopCommandTrigger, mattermostStopAllCommandTrigger, mattermostKoreanStopCommandTrigger, mattermostKoreanStopAllCommandTrigger:
+		service.handleMattermostStopCommand(responseWriter, request, command)
+	default:
+		service.writeMattermostCommandResponse(responseWriter, request, "지원하지 않는 명령입니다. `/connect`, `/stop`, `/stop-all`, `/중단`, `/중단-전부`를 사용할 수 있습니다.")
 		return
 	}
-	service.handleMattermostConnectCommand(responseWriter, request)
 }
 
 func (service *Service) handleMattermostConnectCommand(responseWriter http.ResponseWriter, request *http.Request) {
@@ -77,6 +92,30 @@ func (service *Service) handleMattermostConnectCommand(responseWriter http.Respo
 	}
 	response := service.createCompanionPairingCodeForOwner(request, owner)
 	service.writeMattermostCommandResponse(responseWriter, request, mattermostConnectCommandMessage(response))
+}
+
+func (service *Service) handleMattermostStopCommand(responseWriter http.ResponseWriter, request *http.Request, command string) {
+	userRecord, errorValue := service.mattermostSlashCommandUser(request.Context(), request.FormValue("user_id"), request.FormValue("user_name"))
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	mode := "stop"
+	if command == mattermostStopAllCommandTrigger || command == mattermostKoreanStopAllCommandTrigger {
+		mode = "stop_all"
+	}
+	stopResponse := blueclawTaskStopResponse{}
+	body := map[string]any{
+		"mode":                  mode,
+		"requesterEmail":        strings.ToLower(strings.TrimSpace(userRecord.Email)),
+		"originConversationIDs": mattermostSlashCommandConversationIDs(request),
+		"reason":                "mattermost slash command /" + command,
+	}
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodPost, "/admin/api/task/cancel", body, &stopResponse); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	service.writeMattermostCommandResponse(responseWriter, request, mattermostStopCommandMessage(stopResponse))
 }
 
 func (service *Service) mattermostSlashCommandUser(ctx context.Context, userID string, username string) (mattermostUserRecord, error) {
@@ -129,7 +168,12 @@ func (service *Service) isValidMattermostCommandToken(request *http.Request) boo
 	if expectedToken == "" || actualToken == "" {
 		return false
 	}
-	return subtle.ConstantTimeCompare([]byte(expectedToken), []byte(actualToken)) == 1
+	for _, token := range strings.Fields(expectedToken) {
+		if subtle.ConstantTimeCompare([]byte(token), []byte(actualToken)) == 1 {
+			return true
+		}
+	}
+	return false
 }
 
 func (service *Service) ensureMattermostConnectCommand(ctx context.Context, token string) error {
@@ -137,60 +181,68 @@ func (service *Service) ensureMattermostConnectCommand(ctx context.Context, toke
 	if errorValue != nil {
 		return errorValue
 	}
-	commandRecord, found, errorValue := service.findMattermostConnectCommand(ctx, token, teamRecord.ID)
-	if errorValue != nil {
-		return errorValue
+	for _, trigger := range mattermostManagedCommandTriggers() {
+		commandRecord, found, errorValue := service.findMattermostCommand(ctx, token, teamRecord.ID, trigger)
+		if errorValue != nil {
+			return errorValue
+		}
+		if found {
+			if errorValue := service.ensureMattermostCommandToken(ctx, token, commandRecord, trigger); errorValue != nil {
+				return errorValue
+			}
+			continue
+		}
+		if errorValue := service.createMattermostCommand(ctx, token, teamRecord.ID, trigger); errorValue != nil {
+			return errorValue
+		}
 	}
-	if found {
-		return service.ensureMattermostConnectCommandToken(ctx, token, commandRecord)
-	}
-	return service.createMattermostConnectCommand(ctx, token, teamRecord.ID)
+	return nil
 }
 
-func (service *Service) findMattermostConnectCommand(ctx context.Context, token string, teamID string) (mattermostCommandRecord, bool, error) {
+func (service *Service) findMattermostCommand(ctx context.Context, token string, teamID string, trigger string) (mattermostCommandRecord, bool, error) {
 	var records []mattermostCommandRecord
 	path := "/api/v4/commands?team_id=" + url.QueryEscape(teamID)
 	if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, token, nil, &records); errorValue != nil {
 		return mattermostCommandRecord{}, false, errorValue
 	}
 	for _, record := range records {
-		if record.Trigger == mattermostConnectCommandTrigger && record.TeamID == teamID {
+		if record.Trigger == trigger && record.TeamID == teamID {
 			return record, true, nil
 		}
 	}
 	return mattermostCommandRecord{}, false, nil
 }
 
-func (service *Service) ensureMattermostConnectCommandToken(ctx context.Context, token string, record mattermostCommandRecord) error {
+func (service *Service) ensureMattermostCommandToken(ctx context.Context, token string, record mattermostCommandRecord, trigger string) error {
 	if strings.TrimSpace(readTrimmedFile(service.mattermostConnectCommandTokenPath())) != "" {
-		return service.updateMattermostConnectCommand(ctx, token, record)
+		return service.updateMattermostCommand(ctx, token, record, trigger)
 	}
 	if strings.TrimSpace(record.Token) != "" {
-		return service.writeMattermostConnectCommandToken(record.Token)
+		return service.writeMattermostCommandToken(record.Token)
 	}
 	if errorValue := service.archiveMattermostConnectCommand(ctx, token, record.ID); errorValue != nil {
 		return errorValue
 	}
-	return service.createMattermostConnectCommand(ctx, token, record.TeamID)
+	return service.createMattermostCommand(ctx, token, record.TeamID, trigger)
 }
 
-func (service *Service) createMattermostConnectCommand(ctx context.Context, token string, teamID string) error {
+func (service *Service) createMattermostCommand(ctx context.Context, token string, teamID string, trigger string) error {
 	var commandRecord mattermostCommandRecord
-	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/commands", token, service.mattermostConnectCommandPayload(teamID, ""), &commandRecord); errorValue != nil {
+	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/commands", token, service.mattermostCommandPayload(teamID, "", trigger), &commandRecord); errorValue != nil {
 		return errorValue
 	}
 	if strings.TrimSpace(commandRecord.Token) == "" {
-		return fmt.Errorf("Mattermost /connect command did not return a token")
+		return fmt.Errorf("Mattermost /%s command did not return a token", trigger)
 	}
-	return service.writeMattermostConnectCommandToken(commandRecord.Token)
+	return service.writeMattermostCommandToken(commandRecord.Token)
 }
 
-func (service *Service) updateMattermostConnectCommand(ctx context.Context, token string, record mattermostCommandRecord) error {
+func (service *Service) updateMattermostCommand(ctx context.Context, token string, record mattermostCommandRecord, trigger string) error {
 	if strings.TrimSpace(record.ID) == "" {
 		return nil
 	}
 	path := "/api/v4/commands/" + url.PathEscape(record.ID)
-	return service.mattermostRequest(ctx, http.MethodPut, path, token, service.mattermostConnectCommandPayload(record.TeamID, record.ID), nil)
+	return service.mattermostRequest(ctx, http.MethodPut, path, token, service.mattermostCommandPayload(record.TeamID, record.ID, trigger), nil)
 }
 
 func (service *Service) archiveMattermostConnectCommand(ctx context.Context, token string, commandID string) error {
@@ -200,18 +252,30 @@ func (service *Service) archiveMattermostConnectCommand(ctx context.Context, tok
 	return service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/commands/"+url.PathEscape(commandID), token, nil, nil)
 }
 
-func (service *Service) mattermostConnectCommandPayload(teamID string, commandID string) mattermostCommandRecord {
-	return mattermostCommandRecord{
-		ID:               strings.TrimSpace(commandID),
-		TeamID:           strings.TrimSpace(teamID),
-		Trigger:          mattermostConnectCommandTrigger,
-		Method:           "P",
-		URL:              service.mattermostConnectCommandURL(),
-		DisplayName:      "Connect Companion",
-		Description:      "Connect your InternKim Companion app.",
-		Autocomplete:     true,
-		AutocompleteDesc: "Connect your Companion app",
+func (service *Service) mattermostCommandPayload(teamID string, commandID string, trigger string) mattermostCommandRecord {
+	commandRecord := mattermostCommandRecord{
+		ID:           strings.TrimSpace(commandID),
+		TeamID:       strings.TrimSpace(teamID),
+		Trigger:      trigger,
+		Method:       "P",
+		URL:          service.mattermostConnectCommandURL(),
+		Autocomplete: true,
 	}
+	switch trigger {
+	case mattermostStopCommandTrigger, mattermostKoreanStopCommandTrigger:
+		commandRecord.DisplayName = "Stop InternKim task"
+		commandRecord.Description = "Stop your current InternKim task."
+		commandRecord.AutocompleteDesc = "Stop your current task"
+	case mattermostStopAllCommandTrigger, mattermostKoreanStopAllCommandTrigger:
+		commandRecord.DisplayName = "Stop all InternKim tasks"
+		commandRecord.Description = "Stop all of your active InternKim tasks."
+		commandRecord.AutocompleteDesc = "Stop all active tasks"
+	default:
+		commandRecord.DisplayName = "Connect Companion"
+		commandRecord.Description = "Connect your InternKim Companion app."
+		commandRecord.AutocompleteDesc = "Connect your Companion app"
+	}
+	return commandRecord
 }
 
 func (service *Service) mattermostConnectCommandURL() string {
@@ -227,12 +291,26 @@ func (service *Service) mattermostConnectCommandTokenPath() string {
 	return filepath.Join(service.Configuration.StateDirectory, mattermostConnectCommandTokenFilename)
 }
 
-func (service *Service) writeMattermostConnectCommandToken(token string) error {
+func (service *Service) writeMattermostCommandToken(token string) error {
 	path := service.mattermostConnectCommandTokenPath()
 	if errorValue := os.MkdirAll(filepath.Dir(path), 0o750); errorValue != nil {
 		return errorValue
 	}
-	return os.WriteFile(path, []byte(strings.TrimSpace(token)+"\n"), 0o600)
+	tokenSet := map[string]bool{}
+	tokens := []string{}
+	for _, value := range strings.Fields(readTrimmedFile(path)) {
+		trimmedValue := strings.TrimSpace(value)
+		if trimmedValue == "" || tokenSet[trimmedValue] {
+			continue
+		}
+		tokenSet[trimmedValue] = true
+		tokens = append(tokens, trimmedValue)
+	}
+	trimmedToken := strings.TrimSpace(token)
+	if trimmedToken != "" && !tokenSet[trimmedToken] {
+		tokens = append(tokens, trimmedToken)
+	}
+	return os.WriteFile(path, []byte(strings.Join(tokens, "\n")+"\n"), 0o600)
 }
 
 func (service *Service) publicDeviceURL(request *http.Request) string {
@@ -257,4 +335,32 @@ func mattermostConnectCommandMessage(response companionPairingCodeResponse) stri
 		"Companion 앱에서 이 링크를 열거나 코드를 입력하세요.\n" +
 		"[Companion 앱 열기](" + response.DeepLink + ")\n" +
 		"만료: " + expiresAt
+}
+
+func mattermostManagedCommandTriggers() []string {
+	return []string{
+		mattermostConnectCommandTrigger,
+		mattermostStopCommandTrigger,
+		mattermostStopAllCommandTrigger,
+		mattermostKoreanStopCommandTrigger,
+		mattermostKoreanStopAllCommandTrigger,
+	}
+}
+
+func mattermostSlashCommandConversationIDs(request *http.Request) []string {
+	channelID := strings.TrimSpace(request.FormValue("channel_id"))
+	if channelID == "" {
+		return nil
+	}
+	return []string{"channel:" + channelID, "dm:" + channelID, "group:" + channelID}
+}
+
+func mattermostStopCommandMessage(response blueclawTaskStopResponse) string {
+	if response.MultipleTargets {
+		return "진행 중인 작업이 여러 개입니다. 모두 멈추려면 `/중단-전부`를 사용해 주세요."
+	}
+	if response.CancelledTaskRunCount == 0 {
+		return "현재 중단할 작업이 없습니다."
+	}
+	return fmt.Sprintf("진행 중인 작업 %d개를 중단했습니다. 예약된 반복 실행은 유지됩니다.", response.CancelledTaskRunCount)
 }
