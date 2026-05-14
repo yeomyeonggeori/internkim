@@ -2391,8 +2391,8 @@ func mattermostConnectCommandSetupResponse(t *testing.T, request *http.Request) 
 	case request.URL.String() == "http://mattermost.local/api/v4/commands?team_id=team-1":
 		return jsonResponse(http.StatusOK, `[]`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/commands" && request.Method == http.MethodPost:
-		assertMattermostConnectCommandPayload(t, request)
-		return jsonResponse(http.StatusCreated, `{"id":"connect-command","token":"connect-token","team_id":"team-1","trigger":"connect"}`, nil)
+		trigger := assertMattermostConnectCommandPayload(t, request)
+		return jsonResponse(http.StatusCreated, `{"id":"`+trigger+`-command","token":"`+trigger+`-token","team_id":"team-1","trigger":"`+trigger+`"}`, nil)
 	default:
 		t.Fatalf("unexpected Mattermost command setup request %s %s", request.Method, request.URL.String())
 		return nil
@@ -2475,18 +2475,19 @@ func assertMattermostPublicChannelCreate(t *testing.T, request *http.Request) (s
 	return payload["name"], payload["display_name"]
 }
 
-func assertMattermostConnectCommandPayload(t *testing.T, request *http.Request) {
+func assertMattermostConnectCommandPayload(t *testing.T, request *http.Request) string {
 	t.Helper()
 	var payload mattermostCommandRecord
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if payload.TeamID != "team-1" || payload.Trigger != "connect" || payload.Method != "P" {
+	if payload.TeamID != "team-1" || !containsString(mattermostManagedCommandTriggers(), payload.Trigger) || payload.Method != "P" {
 		t.Fatalf("connect command payload = %+v", payload)
 	}
 	if payload.URL != "http://127.0.0.1:18080/_internkim/mattermost/commands" || !payload.Autocomplete {
 		t.Fatalf("connect command url/autocomplete = %+v", payload)
 	}
+	return payload.Trigger
 }
 
 func assertMattermostFlowChannelPatch(t *testing.T, request *http.Request, expectedFlowLinks ...string) {
@@ -2979,6 +2980,69 @@ func TestMattermostConnectCommandCreatesEphemeralOwnerPairing(t *testing.T) {
 	}
 }
 
+func TestMattermostStopCommandCallsBlueclawTaskCancel(t *testing.T) {
+	stateDirectory := t.TempDir()
+	adminPasswordPath := filepath.Join(stateDirectory, "admin-pass")
+	writeFile(t, adminPasswordPath, "admin-pass")
+	service := NewService(Configuration{
+		StateDirectory:              stateDirectory,
+		MattermostBaseURL:           "http://mattermost.local",
+		MattermostAdminPasswordPath: adminPasswordPath,
+		BlueclawBaseURL:             "http://blueclaw.local",
+		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
+	})
+	writeFile(t, service.mattermostConnectCommandTokenPath(), "stop-token")
+	blueclawStopCalled := false
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
+			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1":
+			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"Alice@Example.com","username":"alice","nickname":"Alice"}`, nil), nil
+		case request.URL.String() == "http://blueclaw.local/admin/api/task/cancel":
+			blueclawStopCalled = true
+			var payload map[string]any
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if payload["mode"] != "stop" || payload["requesterEmail"] != "alice@example.com" {
+				t.Fatalf("unexpected stop payload = %#v", payload)
+			}
+			return jsonResponse(http.StatusOK, `{"cancelledTaskRunCount":1,"scheduleTouched":false}`, nil), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+	handler := service.router()
+
+	form := url.Values{
+		"command":    []string{"/stop"},
+		"token":      []string{"stop-token"},
+		"user_id":    []string{"user-1"},
+		"user_name":  []string{"alice"},
+		"channel_id": []string{"channel-1"},
+	}
+	request := httptest.NewRequest(http.MethodPost, "/_internkim/mattermost/commands", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("stop command status = %d body = %s", response.Code, response.Body.String())
+	}
+	if !blueclawStopCalled {
+		t.Fatal("Blueclaw stop endpoint was not called")
+	}
+	var slashResponse mattermostSlashCommandResponse
+	if errorValue := json.NewDecoder(response.Body).Decode(&slashResponse); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if slashResponse.ResponseType != "ephemeral" || !strings.Contains(slashResponse.Text, "1개를 중단") {
+		t.Fatalf("slash response = %+v", slashResponse)
+	}
+}
+
 func TestCORSHeaderIsLimitedToInternKimPaths(t *testing.T) {
 	service := NewService(Configuration{})
 	handler := service.withCORS(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
@@ -3025,7 +3089,8 @@ func TestMattermostConnectCommandProvisioningCreatesCommandToken(t *testing.T) {
 	if errorValue := service.ensureMattermostConnectCommand(context.Background(), "admin-token"); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if strings.TrimSpace(readTrimmedFile(service.mattermostConnectCommandTokenPath())) != "connect-token" {
+	expectedTokens := []string{"connect-token", "stop-token", "stop-all-token", "중단-token", "중단-전부-token"}
+	if !stringFieldsMatch(readTrimmedFile(service.mattermostConnectCommandTokenPath()), expectedTokens) {
 		t.Fatalf("stored command token = %q", readTrimmedFile(service.mattermostConnectCommandTokenPath()))
 	}
 }
@@ -3307,8 +3372,8 @@ func TestMattermostConnectCommandProvisioningRecreatesCommandWithoutToken(t *tes
 			archivedCommand = true
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/commands" && request.Method == http.MethodPost:
-			assertMattermostConnectCommandPayload(t, request)
-			return jsonResponse(http.StatusCreated, `{"id":"connect-command","token":"new-token","team_id":"team-1","trigger":"connect"}`, nil), nil
+			trigger := assertMattermostConnectCommandPayload(t, request)
+			return jsonResponse(http.StatusCreated, `{"id":"`+trigger+`-command","token":"new-`+trigger+`-token","team_id":"team-1","trigger":"`+trigger+`"}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
@@ -3321,7 +3386,8 @@ func TestMattermostConnectCommandProvisioningRecreatesCommandWithoutToken(t *tes
 	if !archivedCommand {
 		t.Fatal("old command was not archived")
 	}
-	if strings.TrimSpace(readTrimmedFile(service.mattermostConnectCommandTokenPath())) != "new-token" {
+	expectedTokens := []string{"new-connect-token", "new-stop-token", "new-stop-all-token", "new-중단-token", "new-중단-전부-token"}
+	if !stringFieldsMatch(readTrimmedFile(service.mattermostConnectCommandTokenPath()), expectedTokens) {
 		t.Fatalf("stored command token = %q", readTrimmedFile(service.mattermostConnectCommandTokenPath()))
 	}
 }
@@ -4483,6 +4549,23 @@ func readJSONFile(t *testing.T, path string) map[string]any {
 		t.Fatal(errorValue)
 	}
 	return result
+}
+
+func stringFieldsMatch(document string, expectedFields []string) bool {
+	actualFields := strings.Fields(document)
+	if len(actualFields) != len(expectedFields) {
+		return false
+	}
+	expectedFieldSet := map[string]bool{}
+	for _, expectedField := range expectedFields {
+		expectedFieldSet[expectedField] = true
+	}
+	for _, actualField := range actualFields {
+		if !expectedFieldSet[actualField] {
+			return false
+		}
+	}
+	return true
 }
 
 func TestCompanionJobTimeoutSecond(t *testing.T) {
