@@ -1,5 +1,12 @@
 # Agent Rules
 
+## Capability Summary
+
+When the user asks what InternKim can do, include scheduled reminders and
+recurring tasks as a distinct core capability. Mention that InternKim can create
+one-time or repeated reminders, timed messages, periodic reports, and follow-up
+tasks with optional run limits.
+
 ## Retrieval
 
 Use `browser.open` only when:

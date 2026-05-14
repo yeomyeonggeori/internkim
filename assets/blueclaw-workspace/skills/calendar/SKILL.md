@@ -73,7 +73,7 @@ Delete an event by `eventID`. This requires approval. List matching events first
 - Prefer the Work calendar tools over Google Workspace tools for ordinary schedule requests.
 - Do not ask for approval before `calendar.event.add`, `calendar.event.list`, or `calendar.event.update`.
 - Ask for approval before `calendar.event.delete`.
-- If the user gives a relative date like "tomorrow" or "next Friday", resolve it using the conversation date and timezone before calling a tool.
+- If the user gives a relative date like "tomorrow" or "next Friday", resolve it using the runtime temporal context before calling a tool.
 - If the date, time, or duration is ambiguous, ask one concise question before writing.
 - For all-day events, set `isAllDay: true`; use `startISO` at the start date and `endISO` at the next day boundary.
 - Put targeted people in `people` as comma-separated nicknames or an array. The calendar stores them as the first note line.

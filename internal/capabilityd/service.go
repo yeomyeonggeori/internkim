@@ -122,6 +122,9 @@ type mattermostPolledPost struct {
 	RootID    string `json:"root_id"`
 	Type      string `json:"type"`
 	CreateAt  int64  `json:"create_at"`
+	Metadata  struct {
+		Mentions []string `json:"mentions"`
+	} `json:"metadata"`
 }
 
 type mattermostPostsResponse struct {
@@ -1187,7 +1190,10 @@ func (service Service) forwardMattermostChannelPosts(ctx context.Context, botUse
 		if strings.TrimSpace(post.ID) == "" || post.CreateAt <= since {
 			continue
 		}
-		isBotMentioned := messageMentionsMattermostBot(post.Message, botUsername)
+		addressing := mattermostAddressing(post.Metadata.Mentions, botUserID, botUsername)
+		if len(post.Metadata.Mentions) == 0 {
+			addressing = mattermostAddressingFromMessage(post.Message, botUsername)
+		}
 		event, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
 			ID:        post.ID,
 			UserID:    post.UserID,
@@ -1196,7 +1202,8 @@ func (service Service) forwardMattermostChannelPosts(ctx context.Context, botUse
 			RootID:    post.RootID,
 			Type:      post.Type,
 			CreateAt:  post.CreateAt,
-		}, botUserID, channelType, channelName, isBotMentioned)
+			Metadata:  post.Metadata,
+		}, botUserID, channelType, channelName, addressing)
 		if errorValue != nil {
 			log.Printf("mattermost post normalize failed: %s: %v", post.ID, errorValue)
 			if post.CreateAt > nextSeen {
@@ -1231,14 +1238,6 @@ func (service Service) forwardMattermostChannelPosts(ctx context.Context, botUse
 		}
 	}
 	return nextSeen, nil
-}
-
-func messageMentionsMattermostBot(message string, botUsername string) bool {
-	trimmedUsername := strings.TrimSpace(botUsername)
-	if trimmedUsername == "" {
-		return false
-	}
-	return strings.Contains(strings.ToLower(message), "@"+strings.ToLower(trimmedUsername))
 }
 
 func (service Service) forwardMattermostEvent(ctx context.Context, event platformInboundEvent) error {

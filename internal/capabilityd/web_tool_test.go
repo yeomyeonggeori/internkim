@@ -70,6 +70,131 @@ func TestWebFetchRejectsPrivateURLBeforeProviderCall(t *testing.T) {
 	}
 }
 
+func TestWebFetchAcceptsPlainTextOpenRouterContent(t *testing.T) {
+	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-web")
+	content := "\n  Dawn is a website for planning and operating a business.  \n"
+	service := Service{
+		Configuration: Configuration{
+			OpenRouterKeyPath:    secretPath,
+			OpenRouterWebBaseURL: "https://openrouter.test/chat",
+			OpenRouterModel:      "openrouter/search-model",
+		}.WithDefaults(),
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			responseDocument, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{"message": map[string]string{"content": content}}}})
+			return jsonResponseBody(string(responseDocument)), nil
+		})},
+	}
+
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "web.fetch", strings.NewReader(`{"input":{"urls":["https://dawn.kim"]}}`))
+	if errorValue != nil {
+		t.Fatalf("expected web fetch: %v", errorValue)
+	}
+	if response.IsError {
+		t.Fatalf("expected plain text fetch content to succeed, got %+v", response)
+	}
+	var result struct {
+		Provider string `json:"provider"`
+		Results  []struct {
+			URL     string `json:"url"`
+			Content string `json:"content"`
+		} `json:"results"`
+	}
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatalf("expected normalized fetch result: %v", errorValue)
+	}
+	if result.Provider != "openrouter" || len(result.Results) != 1 || result.Results[0].URL != "https://dawn.kim" || result.Results[0].Content != content {
+		t.Fatalf("unexpected normalized fetch result: %+v", result)
+	}
+}
+
+func TestWebFetchWrapsMultiURLPlainTextAsCombinedContent(t *testing.T) {
+	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-web")
+	service := Service{
+		Configuration: Configuration{
+			OpenRouterKeyPath:    secretPath,
+			OpenRouterWebBaseURL: "https://openrouter.test/chat",
+			OpenRouterModel:      "openrouter/search-model",
+		}.WithDefaults(),
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return jsonResponseBody(`{"choices":[{"message":{"content":"Combined page content"}}]}`), nil
+		})},
+	}
+
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "web.fetch", strings.NewReader(`{"input":{"urls":["https://dawn.kim","https://example.com"]}}`))
+	if errorValue != nil {
+		t.Fatalf("expected web fetch: %v", errorValue)
+	}
+	var result struct {
+		Compatibility string `json:"compatibility"`
+		Results       []struct {
+			URL     string `json:"url"`
+			Content string `json:"content"`
+		} `json:"results"`
+	}
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatalf("expected normalized fetch result: %v", errorValue)
+	}
+	if response.IsError || result.Compatibility != "openrouter_server_tool_combined_text" || len(result.Results) != 1 || result.Results[0].URL != "" || result.Results[0].Content != "Combined page content" {
+		t.Fatalf("expected combined plain text result, response=%+v result=%+v", response, result)
+	}
+}
+
+func TestWebFetchAcceptsSchemaJSONOpenRouterContent(t *testing.T) {
+	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-web")
+	content := `{"provider":"openrouter","remoteLLMInvolved":true,"compatibility":"openrouter_server_tool_auto","results":[{"url":"https://dawn.kim","finalURL":"https://dawn.kim","title":"Dawn","content":"Fetched"}],"errors":[]}`
+	service := Service{
+		Configuration: Configuration{
+			OpenRouterKeyPath:    secretPath,
+			OpenRouterWebBaseURL: "https://openrouter.test/chat",
+			OpenRouterModel:      "openrouter/search-model",
+		}.WithDefaults(),
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			responseDocument, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{"message": map[string]string{"content": content}}}})
+			return jsonResponseBody(string(responseDocument)), nil
+		})},
+	}
+
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "web.fetch", strings.NewReader(`{"input":{"urls":["https://dawn.kim"]}}`))
+	if errorValue != nil {
+		t.Fatalf("expected web fetch: %v", errorValue)
+	}
+	if response.IsError || !json.Valid(response.Result) || !strings.Contains(string(response.Result), `"content":"Fetched"`) {
+		t.Fatalf("expected schema JSON fetch content to succeed, got %+v", response)
+	}
+}
+
+func TestWebFetchWrapsNonSchemaJSONAsRawContent(t *testing.T) {
+	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-web")
+	content := `{"provider":"openrouter","note":"not fetch schema"}`
+	service := Service{
+		Configuration: Configuration{
+			OpenRouterKeyPath:    secretPath,
+			OpenRouterWebBaseURL: "https://openrouter.test/chat",
+			OpenRouterModel:      "openrouter/search-model",
+		}.WithDefaults(),
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			responseDocument, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{"message": map[string]string{"content": content}}}})
+			return jsonResponseBody(string(responseDocument)), nil
+		})},
+	}
+
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "web.fetch", strings.NewReader(`{"input":{"urls":["https://dawn.kim"]}}`))
+	if errorValue != nil {
+		t.Fatalf("expected web fetch: %v", errorValue)
+	}
+	var result struct {
+		Results []struct {
+			Content string `json:"content"`
+		} `json:"results"`
+	}
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatalf("expected normalized fetch result: %v", errorValue)
+	}
+	if response.IsError || len(result.Results) != 1 || result.Results[0].Content != content {
+		t.Fatalf("expected non-schema JSON to be preserved as content, response=%+v result=%+v", response, result)
+	}
+}
+
 func TestWebToolLocalOnlyBlocksOpenRouter(t *testing.T) {
 	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-web")
 	service := Service{Configuration: Configuration{OpenRouterKeyPath: secretPath, LocalOnly: true}.WithDefaults()}

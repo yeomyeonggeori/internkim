@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -24,8 +25,11 @@ const (
 	attendanceSourceMattermostButton = "mattermost_button"
 	attendanceChannelName            = mattermostdefaults.AttendanceChannelName
 	attendanceChannelDisplayName     = mattermostdefaults.AttendanceChannelDisplayName
+	attendanceClockInAction          = "attendanceClockIn"
+	attendanceClockOutAction         = "attendanceClockOut"
 	attendanceToggleAction           = "attendance.toggle"
 	attendanceEntryPostMessage       = "출퇴근 기록"
+	attendanceEntryPostText          = "출근과 퇴근 버튼을 구분해서 기록합니다."
 	attendanceEntryPostProperty      = "internkim_attendance_entry"
 	attendanceCancelReason           = "repeated click confirmed"
 	attendanceDuplicateWindow        = 5 * time.Minute
@@ -33,7 +37,8 @@ const (
 
 const attendanceEventSelectColumns = `
 id, mattermost_user_id, mattermost_username, email, display_name, kind, occurred_at, local_date, local_time,
-	time_zone_at_event, source, team_id, channel_id, action_post_id, result_post_id, canceled_at, cancel_reason, repeated_click_at`
+	time_zone_at_event, source, team_id, channel_id, action_post_id, result_post_id, location_id, location_name,
+	canceled_at, cancel_reason, repeated_click_at`
 
 var errAttendanceDuplicateIgnored = errors.New("attendance duplicate ignored")
 
@@ -53,18 +58,21 @@ type attendanceEvent struct {
 	ChannelID          string `json:"channelID"`
 	ActionPostID       string `json:"actionPostID"`
 	ResultPostID       string `json:"resultPostID"`
+	LocationID         string `json:"locationID,omitempty"`
+	LocationName       string `json:"locationName,omitempty"`
 	CanceledAt         string `json:"canceledAt,omitempty"`
 	CancelReason       string `json:"cancelReason,omitempty"`
 	RepeatedClickAt    string `json:"repeatedClickAt,omitempty"`
 }
 
 type attendanceSummaryResponse struct {
-	Month            string            `json:"month"`
-	CurrentUserEmail string            `json:"currentUserEmail"`
-	IsAdmin          bool              `json:"isAdmin"`
-	TimeZone         string            `json:"timeZone"`
-	Events           []attendanceEvent `json:"events"`
-	TodayStatus      string            `json:"todayStatus"`
+	Month            string               `json:"month"`
+	CurrentUserEmail string               `json:"currentUserEmail"`
+	IsAdmin          bool                 `json:"isAdmin"`
+	TimeZone         string               `json:"timeZone"`
+	Events           []attendanceEvent    `json:"events"`
+	TodayStatus      string               `json:"todayStatus"`
+	Locations        []attendanceLocation `json:"locations"`
 }
 
 type attendanceUserTokenRecord struct {
@@ -141,11 +149,13 @@ func (service *Service) writeAttendanceSummary(responseWriter http.ResponseWrite
 	month := normalizeAttendanceMonth(request.URL.Query().Get("month"), time.Now().In(location))
 	actorEmail := strings.ToLower(strings.TrimSpace(authenticatedCallerEmail(request)))
 	isAdmin := service.isAuthorized(request)
-	targetEmail := actorEmail
-	if isAdmin {
-		targetEmail = strings.ToLower(strings.TrimSpace(request.URL.Query().Get("email")))
-	}
+	targetEmail := strings.ToLower(strings.TrimSpace(request.URL.Query().Get("email")))
 	events, errorValue := service.readAttendanceEvents(request.Context(), month, targetEmail)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	locations, errorValue := service.readAttendanceLocations()
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
@@ -163,6 +173,7 @@ func (service *Service) writeAttendanceSummary(responseWriter http.ResponseWrite
 		TimeZone:         timeZoneName,
 		Events:           events,
 		TodayStatus:      attendanceStatusForEvents(statusEvents, time.Now().In(location).Format("2006-01-02")),
+		Locations:        locations,
 	})
 }
 
@@ -175,7 +186,20 @@ func (service *Service) handleAttendanceToggleAction(responseWriter http.Respons
 	service.writeMattermostInteractiveError(responseWriter, errorValue.Error())
 }
 
+func (service *Service) handleAttendanceClockAction(responseWriter http.ResponseWriter, request *http.Request, payload mattermostInteractivePayload, kind string) {
+	errorValue := service.recordAttendanceFromMattermost(request.Context(), payload, kind)
+	if errorValue == nil {
+		service.writeMattermostInteractiveSuccess(responseWriter)
+		return
+	}
+	service.writeMattermostInteractiveError(responseWriter, errorValue.Error())
+}
+
 func (service *Service) toggleAttendanceFromMattermost(ctx context.Context, payload mattermostInteractivePayload) error {
+	return service.recordAttendanceFromMattermost(ctx, payload, "")
+}
+
+func (service *Service) recordAttendanceFromMattermost(ctx context.Context, payload mattermostInteractivePayload, requestedKind string) error {
 	adminToken, errorValue := service.mattermostAdminToken(ctx)
 	if errorValue != nil {
 		return errorValue
@@ -202,7 +226,11 @@ func (service *Service) toggleAttendanceFromMattermost(ctx context.Context, payl
 	if errorValue != nil {
 		return errorValue
 	}
-	return service.applyAttendanceToggle(ctx, userRecord, userToken, firstNonEmpty(payload.TeamID, teamRecord.ID), channelID, payload.PostID)
+	teamID := firstNonEmpty(payload.TeamID, teamRecord.ID)
+	if requestedKind == "" {
+		return service.applyAttendanceToggle(ctx, userRecord, userToken, teamID, channelID, payload.PostID)
+	}
+	return service.applyAttendanceAction(ctx, userRecord, userToken, requestedKind, teamID, channelID, payload.PostID, payload.Context.LocationID)
 }
 
 func (service *Service) applyAttendanceToggle(ctx context.Context, userRecord mattermostUserRecord, userToken string, teamID string, channelID string, actionPostID string) error {
@@ -222,6 +250,27 @@ func (service *Service) applyAttendanceToggle(ctx context.Context, userRecord ma
 	return service.createNextAttendanceEvent(ctx, database, userRecord, userToken, lastEvent, found, teamID, channelID, actionPostID, now)
 }
 
+func (service *Service) applyAttendanceAction(ctx context.Context, userRecord mattermostUserRecord, userToken string, kind string, teamID string, channelID string, actionPostID string, locationID string) error {
+	now := time.Now().UTC()
+	database, errorValue := service.openAttendanceDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	lastEvent, found, errorValue := service.latestActiveAttendanceEvent(ctx, database, userRecord.ID)
+	if errorValue != nil {
+		return errorValue
+	}
+	if shouldIgnoreAttendanceAction(kind, lastEvent, found) {
+		return nil
+	}
+	eventLocation := attendanceLocation{}
+	if kind == attendanceKindClockIn {
+		eventLocation = service.attendanceLocationByID(locationID)
+	}
+	return service.createAttendanceEventForKind(ctx, database, userRecord, userToken, kind, teamID, channelID, actionPostID, now, eventLocation)
+}
+
 func (service *Service) handleRepeatedAttendanceClick(ctx context.Context, database *sql.DB, userToken string, event attendanceEvent, occurredAt time.Time) error {
 	if strings.TrimSpace(event.RepeatedClickAt) == "" {
 		return service.markAttendanceRepeatedClick(ctx, database, event.ID, occurredAt)
@@ -231,11 +280,19 @@ func (service *Service) handleRepeatedAttendanceClick(ctx context.Context, datab
 
 func (service *Service) createNextAttendanceEvent(ctx context.Context, database *sql.DB, userRecord mattermostUserRecord, userToken string, lastEvent attendanceEvent, hasLastEvent bool, teamID string, channelID string, actionPostID string, occurredAt time.Time) error {
 	kind := nextAttendanceKind(lastEvent, hasLastEvent)
+	eventLocation := attendanceLocation{}
+	if kind == attendanceKindClockIn {
+		eventLocation = service.defaultAttendanceLocation()
+	}
+	return service.createAttendanceEventForKind(ctx, database, userRecord, userToken, kind, teamID, channelID, actionPostID, occurredAt, eventLocation)
+}
+
+func (service *Service) createAttendanceEventForKind(ctx context.Context, database *sql.DB, userRecord mattermostUserRecord, userToken string, kind string, teamID string, channelID string, actionPostID string, occurredAt time.Time, eventLocation attendanceLocation) error {
 	resultPostID, errorValue := service.postMattermostUserAttendanceMessage(ctx, userToken, channelID, attendanceMessageForKind(kind))
 	if errorValue != nil {
 		return errorValue
 	}
-	event := service.createAttendanceEvent(userRecord, kind, occurredAt, teamID, channelID, actionPostID, resultPostID)
+	event := service.createAttendanceEvent(userRecord, kind, occurredAt, teamID, channelID, actionPostID, resultPostID, eventLocation)
 	return service.insertAttendanceEvent(ctx, database, event)
 }
 
@@ -256,7 +313,7 @@ WHERE id = ?`,
 	return errorValue
 }
 
-func (service *Service) createAttendanceEvent(userRecord mattermostUserRecord, kind string, occurredAt time.Time, teamID string, channelID string, actionPostID string, resultPostID string) attendanceEvent {
+func (service *Service) createAttendanceEvent(userRecord mattermostUserRecord, kind string, occurredAt time.Time, teamID string, channelID string, actionPostID string, resultPostID string, eventLocation attendanceLocation) attendanceEvent {
 	location, timeZoneName := service.workspaceTimeLocation()
 	localTime := occurredAt.In(location)
 	return attendanceEvent{
@@ -266,7 +323,7 @@ func (service *Service) createAttendanceEvent(userRecord mattermostUserRecord, k
 		Email:              strings.ToLower(strings.TrimSpace(userRecord.Email)),
 		DisplayName:        mattermostDisplayName(userRecord),
 		Kind:               kind,
-		OccurredAt:         occurredAt.Format(time.RFC3339),
+		OccurredAt:         occurredAt.Format(time.RFC3339Nano),
 		LocalDate:          localTime.Format("2006-01-02"),
 		LocalTime:          localTime.Format("15:04:05"),
 		TimeZoneAtEvent:    timeZoneName,
@@ -275,6 +332,8 @@ func (service *Service) createAttendanceEvent(userRecord mattermostUserRecord, k
 		ChannelID:          strings.TrimSpace(channelID),
 		ActionPostID:       strings.TrimSpace(actionPostID),
 		ResultPostID:       strings.TrimSpace(resultPostID),
+		LocationID:         strings.TrimSpace(eventLocation.ID),
+		LocationName:       strings.TrimSpace(eventLocation.Name),
 	}
 }
 
@@ -311,6 +370,8 @@ CREATE TABLE IF NOT EXISTS attendance_events (
 	channel_id TEXT NOT NULL,
 	action_post_id TEXT NOT NULL,
 	result_post_id TEXT NOT NULL,
+	location_id TEXT NOT NULL DEFAULT '',
+	location_name TEXT NOT NULL DEFAULT '',
 	canceled_at TEXT NOT NULL,
 	cancel_reason TEXT NOT NULL,
 	repeated_click_at TEXT NOT NULL
@@ -318,7 +379,40 @@ CREATE TABLE IF NOT EXISTS attendance_events (
 	if errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureAttendanceColumn(ctx, database, "location_id", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureAttendanceColumn(ctx, database, "location_name", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
 	_, errorValue = database.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS attendance_events_user_date ON attendance_events(email, local_date)")
+	return errorValue
+}
+
+func ensureAttendanceColumn(ctx context.Context, database *sql.DB, columnName string, columnDefinition string) error {
+	rows, errorValue := database.QueryContext(ctx, "PRAGMA table_info(attendance_events)")
+	if errorValue != nil {
+		return errorValue
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var columnIndex int
+		var name string
+		var columnType string
+		var isNotNull int
+		var defaultValue any
+		var primaryKey int
+		if errorValue := rows.Scan(&columnIndex, &name, &columnType, &isNotNull, &defaultValue, &primaryKey); errorValue != nil {
+			return errorValue
+		}
+		if name == columnName {
+			return rows.Err()
+		}
+	}
+	if errorValue := rows.Err(); errorValue != nil {
+		return errorValue
+	}
+	_, errorValue = database.ExecContext(ctx, "ALTER TABLE attendance_events ADD COLUMN "+columnName+" "+columnDefinition)
 	return errorValue
 }
 
@@ -326,8 +420,9 @@ func (service *Service) insertAttendanceEvent(ctx context.Context, database *sql
 	_, errorValue := database.ExecContext(ctx, `
 INSERT INTO attendance_events (
 	id, mattermost_user_id, mattermost_username, email, display_name, kind, occurred_at, local_date, local_time,
-	time_zone_at_event, source, team_id, channel_id, action_post_id, result_post_id, canceled_at, cancel_reason, repeated_click_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	time_zone_at_event, source, team_id, channel_id, action_post_id, result_post_id, location_id, location_name,
+	canceled_at, cancel_reason, repeated_click_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		event.ID,
 		event.MattermostUserID,
 		event.MattermostUsername,
@@ -343,6 +438,8 @@ INSERT INTO attendance_events (
 		event.ChannelID,
 		event.ActionPostID,
 		event.ResultPostID,
+		event.LocationID,
+		event.LocationName,
 		"",
 		"",
 		"",
@@ -407,6 +504,19 @@ WHERE local_date >= ? AND local_date < ?`
 	return events, rows.Err()
 }
 
+func (service *Service) deleteAttendanceEventByResultPostID(ctx context.Context, resultPostID string) error {
+	if strings.TrimSpace(resultPostID) == "" {
+		return nil
+	}
+	database, errorValue := service.openAttendanceDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	_, errorValue = database.ExecContext(ctx, "DELETE FROM attendance_events WHERE result_post_id = ?", strings.TrimSpace(resultPostID))
+	return errorValue
+}
+
 type attendanceEventScanner interface {
 	Scan(dest ...any) error
 }
@@ -429,6 +539,8 @@ func scanAttendanceEvent(scanner attendanceEventScanner) (attendanceEvent, error
 		&event.ChannelID,
 		&event.ActionPostID,
 		&event.ResultPostID,
+		&event.LocationID,
+		&event.LocationName,
 		&event.CanceledAt,
 		&event.CancelReason,
 		&event.RepeatedClickAt,
@@ -444,9 +556,7 @@ func (service *Service) ensureMattermostAttendanceChannel(ctx context.Context, t
 	if errorValue := service.updateMattermostAttendanceChannelText(ctx, token, channelID); errorValue != nil {
 		return "", errorValue
 	}
-	if errorValue := service.ensureMattermostAttendanceEntryPost(ctx, token, channelID); errorValue != nil {
-		return "", errorValue
-	}
+	service.syncMattermostAttendanceEntryPost(ctx, token, channelID)
 	return channelID, nil
 }
 
@@ -455,23 +565,53 @@ func (service *Service) updateMattermostAttendanceChannelText(ctx context.Contex
 	body := map[string]string{
 		"display_name": attendanceChannelDisplayName,
 		"header":       link,
-		"purpose":      link,
+		"purpose":      "",
 	}
 	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/patch", token, body, nil)
 }
 
-func (service *Service) ensureMattermostAttendanceEntryPost(ctx context.Context, token string, channelID string) error {
+func (service *Service) syncMattermostAttendanceEntryPost(ctx context.Context, adminToken string, channelID string) {
+	if errorValue := service.ensureMattermostAttendanceEntryPost(ctx, adminToken, channelID); errorValue != nil {
+		log.Printf("Mattermost Attendance entry post sync failed: %v", errorValue)
+	}
+}
+
+func (service *Service) ensureMattermostAttendanceEntryPost(ctx context.Context, adminToken string, channelID string) error {
+	botToken, errorValue := service.mattermostBotToken()
+	if errorValue != nil {
+		return errorValue
+	}
+	botUserID, errorValue := service.mattermostTokenUserID(ctx, botToken)
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := service.ensureMattermostBotCanPost(ctx, adminToken, channelID, botUserID); errorValue != nil {
+		return errorValue
+	}
 	expectedProps := service.mattermostAttendanceEntryPostProps()
-	postRecord, found := service.mattermostAttendanceEntryPost(ctx, token, channelID)
+	postRecord, found := service.mattermostAttendanceEntryPost(ctx, adminToken, channelID)
+	if found && strings.TrimSpace(postRecord.UserID) == botUserID && service.isMattermostAttendanceEntryPostCurrent(postRecord) {
+		if postRecord.IsPinned {
+			return nil
+		}
+		return service.pinMattermostPost(ctx, botToken, postRecord.ID)
+	}
+	if found && strings.TrimSpace(postRecord.ID) != "" {
+		path := "/api/v4/posts/" + url.PathEscape(postRecord.ID)
+		if errorValue := service.mattermostRequest(ctx, http.MethodDelete, path, adminToken, nil, nil); errorValue != nil && !isMattermostNotFound(errorValue) {
+			return errorValue
+		}
+	}
+	var createdPost mattermostPostRecord
 	body := map[string]any{
-		"message": attendanceEntryPostMessage,
-		"props":   expectedProps,
+		"message":    attendanceEntryPostMessage,
+		"props":      expectedProps,
+		"channel_id": channelID,
 	}
-	if found {
-		return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/posts/"+url.PathEscape(postRecord.ID)+"/patch", token, body, nil)
+	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", botToken, body, &createdPost); errorValue != nil {
+		return errorValue
 	}
-	body["channel_id"] = channelID
-	return service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", token, body, nil)
+	return service.pinMattermostPost(ctx, botToken, createdPost.ID)
 }
 
 func (service *Service) mattermostAttendanceEntryPost(ctx context.Context, token string, channelID string) (mattermostPostRecord, bool) {
@@ -489,19 +629,83 @@ func (service *Service) mattermostAttendanceEntryPost(ctx context.Context, token
 	return mattermostPostRecord{}, false
 }
 
+func (service *Service) isMattermostAttendanceEntryPostCurrent(postRecord mattermostPostRecord) bool {
+	document, errorValue := json.Marshal(postRecord.Props)
+	if errorValue != nil {
+		return false
+	}
+	var props struct {
+		Attachments []mattermostAttachment `json:"attachments"`
+	}
+	if errorValue := json.Unmarshal(document, &props); errorValue != nil {
+		return false
+	}
+	if len(props.Attachments) != 1 {
+		return false
+	}
+	attachment := props.Attachments[0]
+	if attachment.Fallback != attendanceEntryPostMessage || attachment.Text != attendanceEntryPostText {
+		return false
+	}
+	expectedActions := service.mattermostAttendanceEntryActions()
+	if len(attachment.Actions) != len(expectedActions) {
+		return false
+	}
+	actions := attachment.Actions
+	for index, action := range actions {
+		expectedAction := expectedActions[index]
+		if action.ID != expectedAction.ID || action.Name != expectedAction.Name {
+			return false
+		}
+	}
+	return true
+}
+
+func (service *Service) pinMattermostPost(ctx context.Context, token string, postID string) error {
+	if strings.TrimSpace(postID) == "" {
+		return fmt.Errorf("Mattermost post ID is empty")
+	}
+	return service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts/"+url.PathEscape(postID)+"/pin", token, nil, nil)
+}
+
 func (service *Service) mattermostAttendanceEntryPostProps() map[string]any {
 	return map[string]any{
 		attendanceEntryPostProperty: true,
 		"attachments": []mattermostAttachment{
 			{
 				Fallback: attendanceEntryPostMessage,
-				Text:     "버튼을 누르면 현재 상태에 따라 출근 또는 퇴근이 기록됩니다.",
-				Actions: []mattermostAction{
-					service.mattermostInteractiveButton(attendanceToggleAction, attendanceEntryPostMessage, "출근 또는 퇴근을 기록합니다.", "primary"),
-				},
+				Text:     attendanceEntryPostText,
+				Actions:  service.mattermostAttendanceEntryActions(),
 			},
 		},
 	}
+}
+
+func (service *Service) mattermostAttendanceEntryActions() []mattermostAction {
+	locations, errorValue := service.readAttendanceLocations()
+	if errorValue != nil {
+		locations = defaultAttendanceLocations()
+	}
+	actions := make([]mattermostAction, 0, len(locations)+1)
+	if len(locations) == 1 {
+		actions = append(actions, service.mattermostAttendanceClockInButton("출근", locations[0]))
+	} else {
+		for _, location := range locations {
+			actions = append(actions, service.mattermostAttendanceClockInButton(location.Name, location))
+		}
+	}
+	actions = append(actions, service.mattermostInteractiveButton(attendanceClockOutAction, "퇴근", "퇴근을 기록합니다.", "danger"))
+	return actions
+}
+
+func (service *Service) mattermostAttendanceClockInButton(name string, location attendanceLocation) mattermostAction {
+	return service.mattermostInteractiveButtonWithContext(
+		attendanceClockInAction,
+		name,
+		"출근을 기록합니다.",
+		"success",
+		mattermostInteractiveContext{LocationID: location.ID},
+	)
 }
 
 func (service *Service) mattermostAttendanceLink() string {
@@ -597,8 +801,16 @@ func (service *Service) mattermostUserTokenPath() string {
 }
 
 func attendanceEventOccurredWithin(event attendanceEvent, now time.Time, window time.Duration) bool {
-	occurredAt, errorValue := time.Parse(time.RFC3339, event.OccurredAt)
+	occurredAt, errorValue := parseAttendanceEventTime(event.OccurredAt)
 	return errorValue == nil && now.Sub(occurredAt) >= 0 && now.Sub(occurredAt) <= window
+}
+
+func parseAttendanceEventTime(value string) (time.Time, error) {
+	occurredAt, errorValue := time.Parse(time.RFC3339Nano, value)
+	if errorValue == nil {
+		return occurredAt, nil
+	}
+	return time.Parse(time.RFC3339, value)
 }
 
 func attendanceMessageForKind(kind string) string {
@@ -613,6 +825,16 @@ func nextAttendanceKind(event attendanceEvent, hasEvent bool) string {
 		return attendanceKindClockOut
 	}
 	return attendanceKindClockIn
+}
+
+func shouldIgnoreAttendanceAction(kind string, event attendanceEvent, hasEvent bool) bool {
+	if kind == attendanceKindClockIn {
+		return hasEvent && event.Kind == attendanceKindClockIn
+	}
+	if kind == attendanceKindClockOut {
+		return !hasEvent || event.Kind != attendanceKindClockIn
+	}
+	return true
 }
 
 func attendanceStatusForEvents(events []attendanceEvent, localDate string) string {

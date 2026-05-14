@@ -47,6 +47,7 @@ type Configuration struct {
 	MattermostTokenPath         string
 	OpenRouterKeyPath           string
 	OpenRouterModelsURL         string
+	MattermostBotTokenPath      string
 	AdminEmailPath              string
 	ClaimedAdminEmailPath       string
 	FleetIDPath                 string
@@ -201,6 +202,7 @@ func DefaultConfiguration() Configuration {
 		MattermostTokenPath:         "/root/.internkim/secrets/mattermost-bot-token",
 		OpenRouterKeyPath:           "/root/.internkim/secrets/openrouter-api-key",
 		OpenRouterModelsURL:         "https://openrouter.ai/api/v1/models",
+		MattermostBotTokenPath:      "/root/.internkim/secrets/mattermost-bot-token",
 		AdminEmailPath:              "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:       "/root/.internkim/state/admin/claimed-admin-email",
 		FleetIDPath:                 "/root/.internkim/env/fleet-id",
@@ -299,7 +301,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/_internkim/runtime/", service.handleRuntime)
 	multiplexer.HandleFunc("/_internkim/mattermost/commands", service.handleMattermostCommand)
 	multiplexer.HandleFunc("/_internkim/mattermost/actions", service.handleMattermostInteractiveAction)
-	multiplexer.Handle("/", service.flowChannelWriteGuard(service.mattermostProxy()))
+	multiplexer.Handle("/", service.flowChannelWriteGuard(service.attendancePostDeleteSync(service.mattermostProxy())))
 	return service.withCORS(service.withSiteGateway(multiplexer))
 }
 
@@ -391,6 +393,48 @@ func (service *Service) isMattermostFlowPostCreateRequest(request *http.Request)
 	return channelIDs[strings.TrimSpace(payload.ChannelID)]
 }
 
+func (service *Service) attendancePostDeleteSync(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		postID, ok := mattermostDeletedPostID(request)
+		if !ok {
+			next.ServeHTTP(responseWriter, request)
+			return
+		}
+		recorder := &statusRecordingResponseWriter{ResponseWriter: responseWriter, statusCode: http.StatusOK}
+		next.ServeHTTP(recorder, request)
+		if recorder.statusCode >= http.StatusOK && recorder.statusCode < http.StatusMultipleChoices {
+			if errorValue := service.deleteAttendanceEventByResultPostID(request.Context(), postID); errorValue != nil {
+				log.Printf("Mattermost Attendance event delete sync failed: %v", errorValue)
+			}
+		}
+	})
+}
+
+type statusRecordingResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (responseWriter *statusRecordingResponseWriter) WriteHeader(statusCode int) {
+	responseWriter.statusCode = statusCode
+	responseWriter.ResponseWriter.WriteHeader(statusCode)
+}
+
+func mattermostDeletedPostID(request *http.Request) (string, bool) {
+	if request.Method != http.MethodDelete {
+		return "", false
+	}
+	prefix := "/api/v4/posts/"
+	if !strings.HasPrefix(request.URL.Path, prefix) {
+		return "", false
+	}
+	postID := strings.Trim(strings.TrimPrefix(request.URL.Path, prefix), "/")
+	if postID == "" || strings.Contains(postID, "/") {
+		return "", false
+	}
+	return postID, true
+}
+
 func (service *Service) serveAdminPage(responseWriter http.ResponseWriter, request *http.Request) {
 	if !isLocalRequest(request) {
 		service.ensureFirstAdminClaim(request.Context(), authenticatedCallerEmail(request))
@@ -461,6 +505,10 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeWorkspaceSettings(responseWriter)
 	case request.Method == http.MethodPut && path == "/workspace-settings":
 		service.updateWorkspaceSettings(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/attendance-locations":
+		service.writeAttendanceLocations(responseWriter)
+	case request.Method == http.MethodPut && path == "/attendance-locations":
+		service.updateAttendanceLocations(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/sites":
 		service.listSites(responseWriter)
 	case request.Method == http.MethodPost && path == "/sites":
@@ -1951,6 +1999,9 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.OpenRouterModelsURL == "" {
 		configuration.OpenRouterModelsURL = defaultConfiguration.OpenRouterModelsURL
+	}
+	if configuration.MattermostBotTokenPath == "" {
+		configuration.MattermostBotTokenPath = defaultConfiguration.MattermostBotTokenPath
 	}
 	if configuration.AdminEmailPath == "" {
 		configuration.AdminEmailPath = defaultConfiguration.AdminEmailPath

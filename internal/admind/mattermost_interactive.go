@@ -20,8 +20,9 @@ type mattermostInteractivePayload struct {
 }
 
 type mattermostInteractiveContext struct {
-	Action string `json:"action"`
-	Token  string `json:"token"`
+	Action     string `json:"action"`
+	Token      string `json:"token"`
+	LocationID string `json:"locationID,omitempty"`
 }
 
 type mattermostInteractiveResponse struct {
@@ -69,6 +70,10 @@ func (service *Service) handleMattermostInteractiveAction(responseWriter http.Re
 		return
 	}
 	switch strings.TrimSpace(payload.Context.Action) {
+	case attendanceClockInAction:
+		service.handleAttendanceClockAction(responseWriter, request, payload, attendanceKindClockIn)
+	case attendanceClockOutAction:
+		service.handleAttendanceClockAction(responseWriter, request, payload, attendanceKindClockOut)
 	case attendanceToggleAction:
 		service.handleAttendanceToggleAction(responseWriter, request, payload)
 	default:
@@ -86,6 +91,12 @@ func (service *Service) isValidMattermostInteractivePayload(payload mattermostIn
 }
 
 func (service *Service) mattermostInteractiveButton(actionID string, name string, tooltip string, style string) mattermostAction {
+	return service.mattermostInteractiveButtonWithContext(actionID, name, tooltip, style, mattermostInteractiveContext{})
+}
+
+func (service *Service) mattermostInteractiveButtonWithContext(actionID string, name string, tooltip string, style string, context mattermostInteractiveContext) mattermostAction {
+	context.Action = actionID
+	context.Token = service.ensureMattermostInteractiveActionToken()
 	return mattermostAction{
 		ID:      actionID,
 		Type:    "button",
@@ -93,11 +104,8 @@ func (service *Service) mattermostInteractiveButton(actionID string, name string
 		Tooltip: tooltip,
 		Style:   style,
 		Integration: mattermostActionIntegration{
-			URL: service.mattermostInteractiveActionURL(),
-			Context: mattermostInteractiveContext{
-				Action: actionID,
-				Token:  service.ensureMattermostInteractiveActionToken(),
-			},
+			URL:     service.mattermostInteractiveActionURL(),
+			Context: context,
 		},
 	}
 }

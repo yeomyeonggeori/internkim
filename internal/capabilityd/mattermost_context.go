@@ -26,9 +26,15 @@ func (service Service) enrichMattermostEvent(ctx context.Context, event platform
 	if errorValue != nil {
 		return event
 	}
-	event.Context = service.mattermostContext(ctx, handle, 20)
-	event.Context.Sender = service.mattermostSender(ctx, event.SenderID)
-	event.Context.ReceivedAt = time.Now().UTC().Format(time.RFC3339)
+	previousContext := event.Context
+	nextContext := service.mattermostContext(ctx, handle, 20)
+	nextContext.ConversationType = previousContext.ConversationType
+	nextContext.ChannelID = previousContext.ChannelID
+	nextContext.ChannelName = previousContext.ChannelName
+	nextContext.Addressing = previousContext.Addressing
+	nextContext.Sender = service.mattermostSender(ctx, event.SenderID)
+	nextContext.ReceivedAt = time.Now().UTC().Format(time.RFC3339)
+	event.Context = nextContext
 	return event
 }
 
