@@ -137,7 +137,7 @@ func (service Service) invokeOpenRouterWebSearch(ctx context.Context, input webS
 		openRouterWebSearchTool(input),
 		openRouterWebSearchSchema(),
 	)
-	return service.sendOpenRouterWebRequest(ctx, apiKey, requestDocument)
+	return service.sendOpenRouterWebRequest(ctx, apiKey, requestDocument, strictOpenRouterWebContent)
 }
 
 func (service Service) invokeOpenRouterWebFetch(ctx context.Context, input webFetchInput, apiKey string) (json.RawMessage, error) {
@@ -147,7 +147,7 @@ func (service Service) invokeOpenRouterWebFetch(ctx context.Context, input webFe
 		openRouterWebFetchTool(input),
 		openRouterWebFetchSchema(),
 	)
-	return service.sendOpenRouterWebRequest(ctx, apiKey, requestDocument)
+	return service.sendOpenRouterWebRequest(ctx, apiKey, requestDocument, normalizeOpenRouterFetchContent(input))
 }
 
 func openRouterWebToolRequest(modelName string, messages []map[string]string, tool map[string]any, schema json.RawMessage) map[string]any {
@@ -217,7 +217,21 @@ func openRouterWebFetchMessages(input webFetchInput) []map[string]string {
 	}
 }
 
-func (service Service) sendOpenRouterWebRequest(ctx context.Context, apiKey string, document map[string]any) (json.RawMessage, error) {
+type openRouterWebContentNormalizer func(string) (json.RawMessage, error)
+
+type openRouterFetchDocumentResult struct {
+	URL      string `json:"url"`
+	FinalURL string `json:"finalURL"`
+	Title    string `json:"title"`
+	Content  string `json:"content"`
+}
+
+type openRouterFetchDocumentError struct {
+	URL   string `json:"url"`
+	Error string `json:"error"`
+}
+
+func (service Service) sendOpenRouterWebRequest(ctx context.Context, apiKey string, document map[string]any, normalizeContent openRouterWebContentNormalizer) (json.RawMessage, error) {
 	requestBody, errorValue := json.Marshal(document)
 	if errorValue != nil {
 		return nil, errorValue
@@ -253,14 +267,110 @@ func (service Service) sendOpenRouterWebRequest(ctx context.Context, apiKey stri
 	if len(parsed.Choices) == 0 {
 		return nil, errors.New("openrouter web response did not include choices")
 	}
-	content := strings.TrimSpace(parsed.Choices[0].Message.Content)
-	if content == "" {
+	content := parsed.Choices[0].Message.Content
+	if strings.TrimSpace(content) == "" {
 		return nil, errors.New("openrouter web response content was empty")
 	}
+	return normalizeContent(content)
+}
+
+func strictOpenRouterWebContent(content string) (json.RawMessage, error) {
 	if !json.Valid([]byte(content)) {
 		return nil, errors.New("openrouter web response content was not JSON")
 	}
 	return json.RawMessage(content), nil
+}
+
+func normalizeOpenRouterFetchContent(input webFetchInput) openRouterWebContentNormalizer {
+	return func(content string) (json.RawMessage, error) {
+		if json.Valid([]byte(content)) {
+			return normalizeOpenRouterFetchJSON(content, input)
+		}
+		return marshalOpenRouterFetchTextResult(input, content)
+	}
+}
+
+func normalizeOpenRouterFetchJSON(content string, input webFetchInput) (json.RawMessage, error) {
+	var document struct {
+		Provider          string                          `json:"provider"`
+		RemoteLLMInvolved bool                            `json:"remoteLLMInvolved"`
+		Compatibility     string                          `json:"compatibility"`
+		Results           []openRouterFetchDocumentResult `json:"results"`
+		Errors            []openRouterFetchDocumentError  `json:"errors"`
+	}
+	if errorValue := json.Unmarshal([]byte(content), &document); errorValue == nil && openRouterFetchJSONLooksValid(document.Provider, document.Results, document.Errors) {
+		return json.RawMessage(content), nil
+	}
+	return marshalOpenRouterFetchTextResult(input, content)
+}
+
+func openRouterFetchJSONLooksValid(provider string, results []openRouterFetchDocumentResult, errors []openRouterFetchDocumentError) bool {
+	if strings.TrimSpace(provider) == "" || len(results)+len(errors) == 0 {
+		return false
+	}
+	for _, result := range results {
+		if strings.TrimSpace(result.URL) == "" || strings.TrimSpace(result.Title) == "" {
+			return false
+		}
+	}
+	for _, errorValue := range errors {
+		if strings.TrimSpace(errorValue.URL) == "" || strings.TrimSpace(errorValue.Error) == "" {
+			return false
+		}
+	}
+	return true
+}
+
+func marshalOpenRouterFetchTextResult(input webFetchInput, content string) (json.RawMessage, error) {
+	if len(input.URLs) > 1 {
+		return marshalOpenRouterFetchCombinedTextResult(content)
+	}
+	urlValue := firstWebFetchURL(input)
+	title := webFetchTitleFallback(urlValue)
+	document, errorValue := json.Marshal(map[string]any{
+		"provider":          "openrouter",
+		"remoteLLMInvolved": true,
+		"compatibility":     "openrouter_server_tool_content_text",
+		"results": []map[string]string{{
+			"url":      urlValue,
+			"finalURL": urlValue,
+			"title":    title,
+			"content":  content,
+		}},
+		"errors": []map[string]string{},
+	})
+	return json.RawMessage(document), errorValue
+}
+
+func marshalOpenRouterFetchCombinedTextResult(content string) (json.RawMessage, error) {
+	document, errorValue := json.Marshal(map[string]any{
+		"provider":          "openrouter",
+		"remoteLLMInvolved": true,
+		"compatibility":     "openrouter_server_tool_combined_text",
+		"results": []map[string]string{{
+			"url":      "",
+			"finalURL": "",
+			"title":    "OpenRouter combined fetch content",
+			"content":  content,
+		}},
+		"errors": []map[string]string{},
+	})
+	return json.RawMessage(document), errorValue
+}
+
+func firstWebFetchURL(input webFetchInput) string {
+	if len(input.URLs) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(input.URLs[0])
+}
+
+func webFetchTitleFallback(rawURL string) string {
+	parsedURL, errorValue := url.Parse(strings.TrimSpace(rawURL))
+	if errorValue != nil || parsedURL.Hostname() == "" {
+		return strings.TrimSpace(rawURL)
+	}
+	return parsedURL.Hostname()
 }
 
 func openRouterWebSearchSchema() json.RawMessage {

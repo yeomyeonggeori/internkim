@@ -24,7 +24,7 @@ func TestMattermostNormalizeSkipsSelfAndBuildsMinimalThreadEvent(t *testing.T) {
 		ChannelID: "channel-1",
 		Message:   "hello",
 		CreateAt:  1700000000000,
-	}, "bot-1", "O", "town-square", false)
+	}, "bot-1", "O", "town-square", platformAddressing{})
 	if errorValue != nil {
 		t.Fatalf("expected normalization to succeed: %v", errorValue)
 	}
@@ -60,7 +60,7 @@ func TestMattermostNormalizeSkipsSelfAndBuildsMinimalThreadEvent(t *testing.T) {
 		UserID:    "bot-1",
 		ChannelID: "channel-1",
 		Message:   "self",
-	}, "bot-1", "O", "town-square", false)
+	}, "bot-1", "O", "town-square", platformAddressing{})
 	if errorValue != nil {
 		t.Fatalf("expected self normalization to be harmless: %v", errorValue)
 	}
@@ -313,7 +313,7 @@ func TestMattermostDirectMessageStartsThreadWithDirectHistory(t *testing.T) {
 		UserID:    "user-1",
 		ChannelID: "dm-1",
 		Message:   "hello",
-	}, "bot-1", "D", "", false)
+	}, "bot-1", "D", "", platformAddressing{})
 	if errorValue != nil {
 		t.Fatalf("expected normalization to succeed: %v", errorValue)
 	}
@@ -348,7 +348,7 @@ func TestMattermostDirectMessageWithMentionStartsThreadWithDirectHistory(t *test
 		UserID:    "user-1",
 		ChannelID: "dm-1",
 		Message:   "@internkim hello",
-	}, "bot-1", "D", "", true)
+	}, "bot-1", "D", "", platformAddressing{BotMentioned: true})
 	if errorValue != nil {
 		t.Fatalf("expected normalization to succeed: %v", errorValue)
 	}
@@ -381,7 +381,7 @@ func TestMattermostDirectMessageThreadKeepsThreadRoot(t *testing.T) {
 		ChannelID: "dm-1",
 		Message:   "thread reply",
 		RootID:    "root-9",
-	}, "bot-1", "D", "", false)
+	}, "bot-1", "D", "", platformAddressing{})
 	if errorValue != nil {
 		t.Fatalf("expected normalization to succeed: %v", errorValue)
 	}
@@ -400,18 +400,21 @@ func TestMattermostDirectMessageThreadKeepsThreadRoot(t *testing.T) {
 	}
 }
 
-func TestMattermostChannelMessageWithoutMentionIsSkipped(t *testing.T) {
-	_, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
+func TestMattermostChannelMessageWithoutMentionIsForwardedForAddressingGate(t *testing.T) {
+	event, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
 		ID:        "post-1",
 		UserID:    "user-1",
 		ChannelID: "channel-1",
 		Message:   "casual chatter",
-	}, "bot-1", "O", "random-chat", false)
+	}, "bot-1", "O", "random-chat", platformAddressing{})
 	if errorValue != nil {
 		t.Fatalf("expected normalization to succeed: %v", errorValue)
 	}
-	if hasEvent {
-		t.Fatal("expected non-default channel without mention to be skipped")
+	if !hasEvent {
+		t.Fatal("expected non-default channel without mention to be forwarded for addressing gate")
+	}
+	if event.Context.Addressing.BotMentioned || event.Context.Addressing.OtherPersonMentioned {
+		t.Fatalf("expected no addressing mention flags, got %+v", event.Context.Addressing)
 	}
 }
 
@@ -421,7 +424,7 @@ func TestMattermostChannelMessageWithMentionIsForwarded(t *testing.T) {
 		UserID:    "user-1",
 		ChannelID: "channel-1",
 		Message:   "@internkim hi",
-	}, "bot-1", "O", "random-chat", true)
+	}, "bot-1", "O", "random-chat", platformAddressing{BotMentioned: true})
 	if errorValue != nil {
 		t.Fatalf("expected normalization to succeed: %v", errorValue)
 	}
@@ -431,6 +434,9 @@ func TestMattermostChannelMessageWithMentionIsForwarded(t *testing.T) {
 	if event.ConversationID != "thread:channel-1:post-1" {
 		t.Fatalf("expected mention to start a thread conversation, got %q", event.ConversationID)
 	}
+	if !event.Context.Addressing.BotMentioned {
+		t.Fatalf("expected bot mention metadata, got %+v", event.Context.Addressing)
+	}
 }
 
 func TestMattermostTownSquareForwardsWithoutMention(t *testing.T) {
@@ -439,7 +445,7 @@ func TestMattermostTownSquareForwardsWithoutMention(t *testing.T) {
 		UserID:    "user-1",
 		ChannelID: "channel-1",
 		Message:   "town square chatter",
-	}, "bot-1", "O", "town-square", false)
+	}, "bot-1", "O", "town-square", platformAddressing{})
 	if errorValue != nil {
 		t.Fatalf("expected normalization to succeed: %v", errorValue)
 	}
@@ -448,18 +454,18 @@ func TestMattermostTownSquareForwardsWithoutMention(t *testing.T) {
 	}
 }
 
-func TestMattermostGroupMessageRequiresMention(t *testing.T) {
+func TestMattermostGroupMessageWithoutMentionIsForwardedForAddressingGate(t *testing.T) {
 	_, hasEventWithoutMention, errorValue := normalizeMattermostPost(mattermostPost{
 		ID:        "post-1",
 		UserID:    "user-1",
 		ChannelID: "group-1",
 		Message:   "hi all",
-	}, "bot-1", "G", "", false)
+	}, "bot-1", "G", "", platformAddressing{})
 	if errorValue != nil {
 		t.Fatalf("expected normalization to succeed: %v", errorValue)
 	}
-	if hasEventWithoutMention {
-		t.Fatal("expected group message without mention to be skipped")
+	if !hasEventWithoutMention {
+		t.Fatal("expected group message without mention to be forwarded for addressing gate")
 	}
 
 	_, hasEventWithMention, errorValue := normalizeMattermostPost(mattermostPost{
@@ -467,7 +473,7 @@ func TestMattermostGroupMessageRequiresMention(t *testing.T) {
 		UserID:    "user-1",
 		ChannelID: "group-1",
 		Message:   "@internkim help",
-	}, "bot-1", "G", "", true)
+	}, "bot-1", "G", "", platformAddressing{BotMentioned: true})
 	if errorValue != nil {
 		t.Fatalf("expected normalization to succeed: %v", errorValue)
 	}
@@ -476,7 +482,7 @@ func TestMattermostGroupMessageRequiresMention(t *testing.T) {
 	}
 }
 
-func TestMattermostWebSocketPayloadGatesByMention(t *testing.T) {
+func TestMattermostWebSocketPayloadPreservesMentionMetadata(t *testing.T) {
 	buildPayload := func(channelType string, channelName string, mentions string, message string) []byte {
 		postDocument, _ := json.Marshal(mattermostPost{
 			ID:        "post-1",
@@ -497,20 +503,103 @@ func TestMattermostWebSocketPayloadGatesByMention(t *testing.T) {
 		return document
 	}
 
-	_, hasEvent, errorValue := normalizeMattermostWebSocketPayload(buildPayload("O", "random-chat", "", "no mention"), "bot-1")
+	event, hasEvent, errorValue := normalizeMattermostWebSocketPayload(buildPayload("O", "random-chat", "", "no mention"), "bot-1")
 	if errorValue != nil {
 		t.Fatalf("expected payload normalization to succeed: %v", errorValue)
 	}
-	if hasEvent {
-		t.Fatal("expected channel post without mention to be skipped")
+	if !hasEvent {
+		t.Fatal("expected channel post without mention to be forwarded")
+	}
+	if event.Context.Addressing.BotMentioned || event.Context.Addressing.OtherPersonMentioned {
+		t.Fatalf("expected no mention flags, got %+v", event.Context.Addressing)
 	}
 
-	_, hasEvent, errorValue = normalizeMattermostWebSocketPayload(buildPayload("O", "random-chat", `["bot-1"]`, "@internkim hi"), "bot-1")
+	event, hasEvent, errorValue = normalizeMattermostWebSocketPayload(buildPayload("O", "random-chat", `["bot-1"]`, "@internkim hi"), "bot-1")
 	if errorValue != nil {
 		t.Fatalf("expected mention payload normalization to succeed: %v", errorValue)
 	}
 	if !hasEvent {
 		t.Fatal("expected channel mention payload to be forwarded")
+	}
+	if !event.Context.Addressing.BotMentioned || event.Context.Addressing.OtherPersonMentioned {
+		t.Fatalf("expected bot mention metadata, got %+v", event.Context.Addressing)
+	}
+}
+
+func TestMattermostAddressingDetectsOtherAndMixedMentions(t *testing.T) {
+	otherAddressing := mattermostAddressing([]string{"user-2"}, "bot-1", "internkim")
+	if otherAddressing.BotMentioned || !otherAddressing.OtherPersonMentioned {
+		t.Fatalf("expected other person mention, got %+v", otherAddressing)
+	}
+
+	mixedAddressing := mattermostAddressing([]string{"bot-1", "user-2"}, "bot-1", "internkim")
+	if !mixedAddressing.BotMentioned || !mixedAddressing.OtherPersonMentioned {
+		t.Fatalf("expected mixed mention metadata, got %+v", mixedAddressing)
+	}
+
+	fallbackAddressing := mattermostAddressingFromMessage("@lee @channel @internkim 부탁", "internkim")
+	if !fallbackAddressing.BotMentioned || !fallbackAddressing.OtherPersonMentioned {
+		t.Fatalf("expected fallback message mentions, got %+v", fallbackAddressing)
+	}
+}
+
+func TestMattermostEnrichPreservesChannelAndAddressingMetadata(t *testing.T) {
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/posts/post-1/thread":
+			return testJSONResponse(http.StatusOK, struct {
+				Order []string                         `json:"order"`
+				Posts map[string]mattermostHistoryPost `json:"posts"`
+			}{
+				Order: []string{"post-1"},
+				Posts: map[string]mattermostHistoryPost{
+					"post-1": {ID: "post-1", UserID: "user-1", Message: "@internkim help", CreateAt: 1000},
+				},
+			}), nil
+		case "/api/v4/users/user-1":
+			return testJSONResponse(http.StatusOK, map[string]string{
+				"id":       "user-1",
+				"username": "lee",
+			}), nil
+		default:
+			t.Fatalf("unexpected Mattermost request: %s?%s", request.URL.Path, request.URL.RawQuery)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	service := Service{
+		Configuration: Configuration{MattermostBaseURL: "http://mattermost.test", MattermostTokenPath: writePlatformTestFile(t, "test-token")},
+		HTTPClient:    httpClient,
+	}
+	historyCursor, errorValue := encodePlatformHandle(platformHandle{
+		Platform:       "mattermost",
+		ConversationID: "thread:channel-1:post-1",
+		ChannelID:      "channel-1",
+		ChannelType:    "O",
+		RootID:         "post-1",
+		MessageID:      "post-1",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	event := service.enrichMattermostEvent(context.Background(), platformInboundEvent{
+		SenderID: "user-1",
+		Context: platformEventContext{
+			HistoryCursor:    historyCursor,
+			ConversationType: "O",
+			ChannelID:        "channel-1",
+			ChannelName:      "random-chat",
+			Addressing:       platformAddressing{BotMentioned: true},
+		},
+	})
+
+	if event.Context.ConversationType != "O" || event.Context.ChannelID != "channel-1" || event.Context.ChannelName != "random-chat" {
+		t.Fatalf("expected channel metadata to survive enrich, got %+v", event.Context)
+	}
+	if !event.Context.Addressing.BotMentioned || event.Context.Addressing.OtherPersonMentioned {
+		t.Fatalf("expected addressing metadata to survive enrich, got %+v", event.Context.Addressing)
+	}
+	if event.Context.Sender.UserID != "user-1" || event.Context.ReceivedAt == "" {
+		t.Fatalf("expected sender and received metadata, got %+v", event.Context)
 	}
 }
 
