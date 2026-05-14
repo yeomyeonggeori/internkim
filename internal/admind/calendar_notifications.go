@@ -1,7 +1,5 @@
 package admind
 
-// 캘린더 알림 worker, Mattermost 게시 로그, 사용자 매칭, 상태 업데이트.
-
 import (
 	"context"
 	"database/sql"
