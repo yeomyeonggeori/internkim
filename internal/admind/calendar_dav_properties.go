@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	calendarDAVNamespace        = "DAV:"
-	calendarCalDAVXMLNamespace  = "urn:ietf:params:xml:ns:caldav"
+	calendarDAVNamespace          = "DAV:"
+	calendarCalDAVXMLNamespace    = "urn:ietf:params:xml:ns:caldav"
 	calendarAppleICalXMLNamespace = "http://apple.com/ns/ical/"
 )
 
@@ -54,7 +54,7 @@ type calendarPropFindRequest struct {
 // calendarStorablePropertyWhitelist는 PROPPATCH 가 받아들이는 property 집합이다.
 // 모두 텍스트 값만 사용하는 property — nested element 는 silent corruption 위험이 있으므로 일부러 제외한다.
 var calendarStorablePropertyWhitelist = map[xml.Name]bool{
-	{Space: calendarDAVNamespace, Local: "displayname"}:           true,
+	{Space: calendarDAVNamespace, Local: "displayname"}:             true,
 	{Space: calendarAppleICalXMLNamespace, Local: "calendar-color"}: true,
 	{Space: calendarAppleICalXMLNamespace, Local: "calendar-order"}: true,
 }
@@ -83,6 +83,26 @@ WHERE deleted_at = ''`)
 	return "v1-" + hex.EncodeToString(digest[:8]), nil
 }
 
+func decodeCalendarPropertyTextValue(innerXML string) (string, bool) {
+	decoder := xml.NewDecoder(strings.NewReader(innerXML))
+	var builder strings.Builder
+	for {
+		token, errorValue := decoder.Token()
+		if errorValue == io.EOF {
+			break
+		}
+		if errorValue != nil {
+			return "", false
+		}
+		characterData, isText := token.(xml.CharData)
+		if !isText {
+			return "", false
+		}
+		builder.Write(characterData)
+	}
+	return strings.TrimSpace(builder.String()), true
+}
+
 func (service *Service) handleCalendarPropPatch(responseWriter http.ResponseWriter, request *http.Request) {
 	body, errorValue := io.ReadAll(request.Body)
 	if errorValue != nil {
@@ -105,9 +125,8 @@ func (service *Service) handleCalendarPropPatch(responseWriter http.ResponseWrit
 				results = append(results, propResult{property.XMLName, http.StatusForbidden})
 				continue
 			}
-			value := strings.TrimSpace(property.InnerXML)
-			if strings.ContainsAny(value, "<>") {
-				// nested element 또는 raw markup 은 텍스트 라운드트립을 보장할 수 없어 저장하지 않는다.
+			value, isPureText := decodeCalendarPropertyTextValue(property.InnerXML)
+			if !isPureText {
 				results = append(results, propResult{property.XMLName, http.StatusForbidden})
 				continue
 			}

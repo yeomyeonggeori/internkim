@@ -475,6 +475,57 @@ func TestCalendarPropPatchRejectsNestedXMLValue(t *testing.T) {
 	}
 }
 
+func TestCalendarPropPatchDecodesXMLEntitiesAndRoundTrips(t *testing.T) {
+	service := newCalendarTestService(t)
+	patchBody := `<?xml version="1.0" encoding="utf-8"?>
+<D:propertyupdate xmlns:D="DAV:">
+  <D:set><D:prop><D:displayname>R&amp;D Team</D:displayname></D:prop></D:set>
+</D:propertyupdate>`
+	patchRequest := httptest.NewRequest("PROPPATCH", calendarCollectionPath, strings.NewReader(patchBody))
+	patchRequest.Header.Set("Content-Type", "application/xml")
+	patchRequest.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	patchResponse := httptest.NewRecorder()
+	service.router().ServeHTTP(patchResponse, patchRequest)
+	if patchResponse.Code != http.StatusMultiStatus {
+		t.Fatalf("proppatch status = %d body = %s", patchResponse.Code, patchResponse.Body.String())
+	}
+
+	storedProperties, errorValue := service.readCalendarProperties(context.Background(), calendarCollectionPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(storedProperties) != 1 || storedProperties[0].Value != "R&D Team" {
+		t.Fatalf("stored value mismatch: %#v", storedProperties)
+	}
+
+	findBody := `<?xml version="1.0" encoding="utf-8"?>
+<D:propfind xmlns:D="DAV:"><D:prop><D:displayname/></D:prop></D:propfind>`
+	findRequest := httptest.NewRequest("PROPFIND", calendarCollectionPath, strings.NewReader(findBody))
+	findRequest.Header.Set("Content-Type", "application/xml")
+	findRequest.Header.Set("Depth", "0")
+	findRequest.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	findResponse := httptest.NewRecorder()
+	service.router().ServeHTTP(findResponse, findRequest)
+	if findResponse.Code != http.StatusMultiStatus {
+		t.Fatalf("propfind status = %d body = %s", findResponse.Code, findResponse.Body.String())
+	}
+	if strings.Contains(findResponse.Body.String(), "&amp;amp;") {
+		t.Fatalf("propfind response double-escaped XML entity:\n%s", findResponse.Body.String())
+	}
+	results := parseCalendarMultistatusOrFatal(t, findResponse.Body.Bytes())
+	if len(results) != 1 {
+		t.Fatalf("expected 1 response entry, got %d", len(results))
+	}
+	displayName := xml.Name{Space: "DAV:", Local: "displayname"}
+	rawValue, ok := results[0].OK[displayName]
+	if !ok {
+		t.Fatalf("displayname missing from 200 OK propstat: %#v", results[0])
+	}
+	if rawValue != "R&amp;D Team" {
+		t.Fatalf("displayname inner XML = %q, want %q (single-escaped)", rawValue, "R&amp;D Team")
+	}
+}
+
 func TestCalendarPropPatchRemovesProperty(t *testing.T) {
 	service := newCalendarTestService(t)
 	if errorValue := service.writeCalendarProperty(context.Background(), calendarCollectionPath, "http://apple.com/ns/ical/", "calendar-color", "#FF0000"); errorValue != nil {
