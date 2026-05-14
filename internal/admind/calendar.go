@@ -143,7 +143,7 @@ func (service *Service) authorizeCalendarRequest(request *http.Request) bool {
 	if service.authorizeCalendarTokenRequest(request) {
 		return true
 	}
-	actorEmail := authenticatedCallerEmail(request)
+	actorEmail := service.webStaffActorEmail(request)
 	if actorEmail == "" {
 		return false
 	}
@@ -381,7 +381,7 @@ func (service *Service) normalizeCalendarEventWriteRequest(request *http.Request
 		Color:             firstNonEmpty(strings.TrimSpace(payload.Color), "#2563eb"),
 		People:            people,
 		ReminderLeadHours: normalizeCalendarReminderLeadHours(payload.ReminderLeadHours),
-		CreatedByEmail:    authenticatedCallerEmail(request),
+		CreatedByEmail:    service.webStaffActorEmail(request),
 	}
 	rawICS, errorValue := encodeCalendarObject(event)
 	if errorValue != nil {

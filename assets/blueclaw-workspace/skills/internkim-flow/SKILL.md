@@ -15,9 +15,11 @@ Rules:
 - A user may add work directly only to their own Flow.
 - Work for another person must be added as `요청`, not as a direct assignment.
 - Call `flow.task.add` with `prompt` containing the user's natural-language task request.
-- Use `targetPersonHint` only when the target person is explicit.
+- Use `targetPersonHint` only when the target person is explicit. The hint may be a real name, a Mattermost `@handle`, or an email if the user provided one.
 - Use `weekCode` only when the user names a specific Flow week.
+- Do not add the requester as a participant by default when asking another person to do work. Include the requester only when the user implies joint work, such as 같이, 함께, 나랑, 저랑, 우리, with me, with us, together, joint, or collaborate.
 - Do not say a task was added until `flow.task.add` succeeds.
+- If `flow.task.add` returns `flow_owner_ambiguous`, ask the user which candidate they mean and show the `@handle` candidates returned by the tool.
 - If `flow.task.add` returns `status: skipped_duplicate`, tell the user the matching task is already in Flow and ask whether to add another copy. Do not call the tool again unless the user explicitly says to add it anyway.
 - When the user explicitly confirms adding a duplicate, call `flow.task.add` again with the same input and `allowDuplicate: true`.
 - After success, reply with the created task summary: 담당자, 상태, 대분류, 종류, 크기, 내용, 목표, 주간코드.
