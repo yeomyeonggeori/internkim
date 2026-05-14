@@ -6,6 +6,7 @@
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { Switch } from '$lib/components/ui/switch';
 	import { Textarea } from '$lib/components/ui/textarea';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ArchiveIcon from '@lucide/svelte/icons/archive';
 	import FileTextIcon from '@lucide/svelte/icons/file-text';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
@@ -19,6 +20,9 @@
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { onMount } from 'svelte';
+	import { mailText } from './text';
+
+	const text = createPageText(mailText);
 
 	type MailAccount = {
 		email: string;
@@ -100,12 +104,12 @@
 		body: ''
 	};
 
-	const defaultMailboxes: Mailbox[] = [
-		{ name: 'INBOX', displayName: 'Inbox', unseen: 0, total: 0 },
-		{ name: 'Sent', displayName: 'Sent', unseen: 0, total: 0 },
-		{ name: 'Drafts', displayName: 'Drafts', unseen: 0, total: 0 },
-		{ name: 'Archive', displayName: 'Archive', unseen: 0, total: 0 },
-		{ name: 'Trash', displayName: 'Trash', unseen: 0, total: 0 }
+	const defaultMailboxes = (): Mailbox[] => [
+		{ name: 'INBOX', displayName: text.defaultMailboxes.inbox, unseen: 0, total: 0 },
+		{ name: 'Sent', displayName: text.defaultMailboxes.sent, unseen: 0, total: 0 },
+		{ name: 'Drafts', displayName: text.defaultMailboxes.drafts, unseen: 0, total: 0 },
+		{ name: 'Archive', displayName: text.defaultMailboxes.archive, unseen: 0, total: 0 },
+		{ name: 'Trash', displayName: text.defaultMailboxes.trash, unseen: 0, total: 0 }
 	];
 
 	let account = $state<MailAccount>(emptyAccount);
@@ -133,9 +137,13 @@
 	let composeMessage = $state('');
 
 	const visibleMessages = () => messages.filter((message) => !isUnreadOnly || !message.isRead);
-	const displayedMailboxes = () => (account.isConfigured && mailboxes.length ? mailboxes : defaultMailboxes);
+	const displayedMailboxes = () => (account.isConfigured && mailboxes.length ? mailboxes : defaultMailboxes());
 	const selectedMessageBody = () => selectedMessage?.body || selectedMessage?.preview || '';
 	const selectedMessageBodyHTML = () => selectedMessage?.bodyHTML?.trim() || '';
+	const messageCountText = () => {
+		const count = visibleMessages().length;
+		return `${count}${text.messageCountSuffix}`;
+	};
 
 	onMount(loadMail);
 
@@ -153,7 +161,7 @@
 			await loadMailboxes();
 			await loadMessages();
 		} catch (error) {
-			errorMessage = error instanceof Error ? error.message : 'Could not load mail.';
+			errorMessage = error instanceof Error ? error.message : text.errors.loadMail;
 		} finally {
 			isLoading = false;
 		}
@@ -161,7 +169,7 @@
 
 	async function loadAccount() {
 		const response = await fetch('/mail/api/account', { credentials: 'include' });
-		if (!response.ok) throw new Error(await responseErrorMessage(response, 'Connect a mail account to start.'));
+		if (!response.ok) throw new Error(await responseErrorMessage(response, text.errors.connectAccount));
 		account = { ...emptyAccount, ...((await response.json()) as Partial<MailAccount>) };
 		selectedMailbox = selectedMailbox || account.defaultMailbox || 'INBOX';
 		accountDraft = createAccountDraft(account);
@@ -169,7 +177,7 @@
 
 	async function loadMailboxes() {
 		const response = await fetch('/mail/api/mailboxes', { credentials: 'include' });
-		if (!response.ok) throw new Error(await responseErrorMessage(response, 'Could not load mailboxes.'));
+		if (!response.ok) throw new Error(await responseErrorMessage(response, text.errors.loadMailboxes));
 		mailboxes = ((await response.json()) as { mailboxes?: Mailbox[] }).mailboxes ?? [];
 	}
 
@@ -193,7 +201,7 @@
 		if (isAppending) isLoadingMore = true;
 		try {
 			const response = await fetch(`/mail/api/messages?${query}`, { credentials: 'include' });
-			if (!response.ok) throw new Error(await responseErrorMessage(response, 'Could not load messages.'));
+			if (!response.ok) throw new Error(await responseErrorMessage(response, text.errors.loadMessages));
 			const result = (await response.json()) as { messages?: MailMessage[]; nextCursor?: string };
 			messages = isAppending ? mergeMailMessages(messages, result.messages ?? []) : (result.messages ?? []);
 			nextCursor = result.nextCursor ?? '';
@@ -206,7 +214,7 @@
 			nextCursor = '';
 			hasMoreMessages = false;
 			if (!isAppending) resetMessageList();
-			errorMessage = error instanceof Error ? error.message : 'Could not load messages.';
+			errorMessage = error instanceof Error ? error.message : text.errors.loadMessages;
 		} finally {
 			if (isAppending) isLoadingMore = false;
 		}
@@ -217,11 +225,11 @@
 		errorMessage = '';
 		try {
 			const response = await fetch(`/mail/api/messages/${encodeURIComponent(message.mailbox)}/${message.uid}`, { credentials: 'include' });
-			if (!response.ok) throw new Error(await responseErrorMessage(response, 'Could not load message.'));
+			if (!response.ok) throw new Error(await responseErrorMessage(response, text.errors.loadMessage));
 			const detail = (await response.json()) as Partial<MailMessage>;
 			selectedMessage = { ...message, ...detail };
 		} catch (error) {
-			errorMessage = error instanceof Error ? error.message : 'Could not load message.';
+			errorMessage = error instanceof Error ? error.message : text.errors.loadMessage;
 		} finally {
 			isLoadingMessage = false;
 		}
@@ -272,13 +280,13 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(accountDraftPayload())
 			});
-			if (!response.ok) throw new Error(await responseErrorMessage(response, 'Could not save account.'));
+			if (!response.ok) throw new Error(await responseErrorMessage(response, text.errors.saveAccount));
 			account = { ...emptyAccount, ...((await response.json()) as Partial<MailAccount>) };
 			accountDraft = createAccountDraft(account);
-			settingsMessage = 'Settings saved.';
+			settingsMessage = text.settingsSheet.saved;
 			await loadMail();
 		} catch (error) {
-			settingsMessage = error instanceof Error ? error.message : 'Save failed.';
+			settingsMessage = error instanceof Error ? error.message : text.settingsSheet.saveFailed;
 		} finally {
 			isSavingAccount = false;
 		}
@@ -294,10 +302,10 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(accountDraftPayload())
 			});
-			if (!response.ok) throw new Error(await responseErrorMessage(response, 'Connection test failed.'));
-			settingsMessage = 'IMAP and SMTP connection succeeded.';
+			if (!response.ok) throw new Error(await responseErrorMessage(response, text.settingsSheet.testFailed));
+			settingsMessage = text.settingsSheet.testSucceeded;
 		} catch (error) {
-			settingsMessage = error instanceof Error ? error.message : 'Connection test failed.';
+			settingsMessage = error instanceof Error ? error.message : text.settingsSheet.testFailed;
 		} finally {
 			isTestingAccount = false;
 		}
@@ -319,11 +327,11 @@
 					body: composeDraft.body
 				})
 			});
-			if (!response.ok) throw new Error(await responseErrorMessage(response, 'Could not send message.'));
+			if (!response.ok) throw new Error(await responseErrorMessage(response, text.errors.sendMessage));
 			isComposeOpen = false;
 			await loadMail();
 		} catch (error) {
-			composeMessage = error instanceof Error ? error.message : 'Could not send message.';
+			composeMessage = error instanceof Error ? error.message : text.errors.sendMessage;
 		} finally {
 			isSending = false;
 		}
@@ -333,7 +341,7 @@
 		if (!selectedMessage) return;
 		const targetMailbox = mailboxByHint(targetHint);
 		if (!targetMailbox) {
-			errorMessage = `${targetHint} mailbox was not found.`;
+			errorMessage = `${targetHint} ${text.errors.mailboxNotFound}`;
 			return;
 		}
 		const response = await fetch(`/mail/api/messages/${encodeURIComponent(selectedMessage.mailbox)}/${selectedMessage.uid}/move`, {
@@ -343,7 +351,7 @@
 			body: JSON.stringify({ targetMailbox })
 		});
 		if (!response.ok) {
-			errorMessage = await responseErrorMessage(response, 'Could not move message.');
+			errorMessage = await responseErrorMessage(response, text.errors.moveMessage);
 			return;
 		}
 		await loadMessages();
@@ -359,7 +367,7 @@
 			body: JSON.stringify({ seen })
 		});
 		if (!response.ok) {
-			errorMessage = await responseErrorMessage(response, 'Could not update message.');
+			errorMessage = await responseErrorMessage(response, text.errors.updateMessage);
 			return;
 		}
 		selectedMessage = { ...selectedMessage, isRead: seen };
@@ -454,7 +462,7 @@
 	}
 
 	function unavailableMessage(response: Response, fallback: string) {
-		if (response.status >= 500) return `${fallback} Mail service is temporarily unavailable.`;
+		if (response.status >= 500) return `${fallback} ${text.errors.serviceUnavailable}`;
 		return fallback;
 	}
 
@@ -478,7 +486,7 @@
 </script>
 
 <svelte:head>
-	<title>Mail · Intern Kim</title>
+	<title>{text.title}</title>
 </svelte:head>
 
 <main class="grid h-[calc(100svh-48px)] min-h-0 grid-cols-[240px_minmax(320px,380px)_minmax(0,1fr)] overflow-hidden bg-background text-foreground max-lg:grid-cols-[260px_minmax(0,1fr)] max-md:grid-cols-1">
@@ -488,10 +496,10 @@
 				<MailIcon class="size-4" />
 			</div>
 			<div class="min-w-0 flex-1">
-				<p class="truncate text-sm font-medium">Mail</p>
-				<p class="truncate text-xs text-muted-foreground">{account.email || 'IMAP / SMTP'}</p>
+				<p class="truncate text-sm font-medium">{text.pageName}</p>
+				<p class="truncate text-xs text-muted-foreground">{account.email || text.transportLabel}</p>
 			</div>
-			<Button variant="ghost" size="icon-sm" aria-label="Mail settings" onclick={openSettings}>
+			<Button variant="ghost" size="icon-sm" aria-label={text.settings} onclick={openSettings}>
 				<SettingsIcon />
 			</Button>
 		</div>
@@ -499,12 +507,12 @@
 		<div class="border-b p-3">
 			<Button class="h-9 w-full justify-start gap-2" variant="secondary" onclick={openCompose} disabled={!account.isConfigured}>
 				<PencilIcon />
-				Compose
+				{text.compose}
 			</Button>
 		</div>
 
 		<nav class="min-h-0 flex-1 overflow-auto p-2">
-			<p class="px-2 py-2 text-xs font-medium text-muted-foreground">Mailboxes</p>
+			<p class="px-2 py-2 text-xs font-medium text-muted-foreground">{text.mailboxes}</p>
 			<div class="space-y-1">
 				{#each displayedMailboxes() as mailbox (mailbox.name)}
 					{@const Icon = mailboxIcon(mailbox.name)}
@@ -529,9 +537,9 @@
 
 		<div class="border-t p-3">
 			<button type="button" class="w-full rounded-lg border bg-background p-3 text-left" onclick={openSettings}>
-				<p class="text-xs font-medium">{account.isConfigured ? 'Connected account' : 'No account connected'}</p>
+				<p class="text-xs font-medium">{account.isConfigured ? text.connectedAccount : text.noAccountConnected}</p>
 				<p class="mt-1 text-xs leading-5 text-muted-foreground">
-					{account.isConfigured ? 'IMAP and SMTP settings are stored server-side.' : 'Add IMAP and SMTP settings to receive and send mail.'}
+					{account.isConfigured ? text.connectedAccountDescription : text.noAccountConnectedDescription}
 				</p>
 			</button>
 		</div>
@@ -539,14 +547,14 @@
 
 	<section class="flex min-h-0 flex-col border-r bg-muted/20 max-md:border-r-0">
 		<header class="flex h-14 shrink-0 items-center gap-2 border-b bg-background px-3">
-			<Button class="md:hidden" variant="ghost" size="icon-sm" aria-label="Mail settings" onclick={openSettings}>
+			<Button class="md:hidden" variant="ghost" size="icon-sm" aria-label={text.settings} onclick={openSettings}>
 				<PanelLeftIcon />
 			</Button>
 			<div class="min-w-0 flex-1">
 				<p class="truncate text-sm font-semibold">{selectedMailbox}</p>
-				<p class="truncate text-xs text-muted-foreground">{visibleMessages().length} messages</p>
+				<p class="truncate text-xs text-muted-foreground">{messageCountText()}</p>
 			</div>
-			<Button variant="ghost" size="icon-sm" aria-label="Refresh mail" onclick={loadMail} disabled={isLoading}>
+			<Button variant="ghost" size="icon-sm" aria-label={text.refresh} onclick={loadMail} disabled={isLoading}>
 				<RefreshCwIcon class={isLoading ? 'animate-spin' : ''} />
 			</Button>
 		</header>
@@ -554,13 +562,13 @@
 		<div class="border-b bg-background p-3">
 			<div class="relative">
 				<SearchIcon class="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-				<Input class="h-9 pl-8" bind:value={searchText} placeholder="Search mail" disabled={!account.isConfigured} onkeydown={(event) => event.key === 'Enter' && loadMessages()} />
+				<Input class="h-9 pl-8" bind:value={searchText} placeholder={text.search} disabled={!account.isConfigured} onkeydown={(event) => event.key === 'Enter' && loadMessages()} />
 			</div>
 			<div class="mt-3 flex items-center justify-between">
-				<p class="text-xs font-medium text-muted-foreground">{account.isConfigured ? selectedMailbox : 'Connect account'}</p>
+				<p class="text-xs font-medium text-muted-foreground">{account.isConfigured ? selectedMailbox : text.connectAccount}</p>
 				<div class="flex items-center gap-2">
 					<Switch id="mail-unread-only" bind:checked={isUnreadOnly} />
-					<Label for="mail-unread-only" class="text-xs text-muted-foreground">Unread</Label>
+					<Label for="mail-unread-only" class="text-xs text-muted-foreground">{text.unread}</Label>
 				</div>
 			</div>
 		</div>
@@ -568,7 +576,7 @@
 		<div class="min-h-0 flex-1 overflow-auto p-2" onscroll={handleMessageListScroll}>
 			{#if errorMessage}
 				<div role="alert" class="mb-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-					<p class="font-medium">Mail needs attention</p>
+					<p class="font-medium">{text.needsAttention}</p>
 					<p class="mt-1 line-clamp-3 text-xs leading-5">{errorMessage}</p>
 				</div>
 			{/if}
@@ -587,9 +595,9 @@
 							{:else}
 								<MailIcon class="size-4" />
 							{/if}
-							<span class="min-w-0 flex-1 truncate text-sm font-medium">{message.from || 'Unknown sender'}</span>
+							<span class="min-w-0 flex-1 truncate text-sm font-medium">{message.from || text.unknownSender}</span>
 						</div>
-						<p class="mt-2 truncate text-sm">{message.subject || '(No subject)'}</p>
+						<p class="mt-2 truncate text-sm">{message.subject || text.noSubject}</p>
 						{#if message.preview}
 							<p class="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{message.preview}</p>
 						{/if}
@@ -599,12 +607,12 @@
 				{#if !visibleMessages().length}
 					<div class="rounded-lg border border-dashed bg-background p-8 text-center">
 						<MailOpenIcon class="mx-auto size-5 text-muted-foreground" />
-						<p class="mt-3 text-sm font-medium">{account.isConfigured ? 'No messages here' : 'Connect mail'}</p>
-						<p class="mt-1 text-xs text-muted-foreground">{account.isConfigured ? 'Try another mailbox or search.' : 'Open settings and add IMAP / SMTP credentials.'}</p>
+						<p class="mt-3 text-sm font-medium">{account.isConfigured ? text.noMessages : text.connectMail}</p>
+						<p class="mt-1 text-xs text-muted-foreground">{account.isConfigured ? text.emptyMailbox : text.emptyUnconfigured}</p>
 						{#if !account.isConfigured}
 							<Button class="mt-4 gap-2" variant="secondary" onclick={openSettings}>
 								<SettingsIcon />
-								Mail settings
+								{text.settings}
 							</Button>
 						{/if}
 					</div>
@@ -612,7 +620,7 @@
 
 				{#if visibleMessages().length && (isLoadingMore || hasMoreMessages)}
 					<div class="py-3 text-center text-xs text-muted-foreground">
-						{isLoadingMore ? 'Loading more messages...' : 'Scroll for more'}
+						{isLoadingMore ? text.loadingMore : text.scrollForMore}
 					</div>
 				{/if}
 			</div>
@@ -622,24 +630,24 @@
 	<section class="flex min-h-0 flex-col bg-background max-lg:hidden">
 		<header class="flex h-14 shrink-0 items-center gap-2 border-b px-4">
 			<div class="min-w-0 flex-1">
-				<p class="truncate text-sm text-muted-foreground">All Inboxes / {selectedMailbox}</p>
-				<p class="truncate text-sm font-medium">{selectedMessage?.subject || 'Select a message'}</p>
+				<p class="truncate text-sm text-muted-foreground">{text.allInboxes} / {selectedMailbox}</p>
+				<p class="truncate text-sm font-medium">{selectedMessage?.subject || text.selectMessage}</p>
 			</div>
 			<div class="flex items-center gap-1">
-				<Button variant="ghost" size="icon-sm" aria-label="Archive" onclick={() => moveSelectedMessage('archive')} disabled={!selectedMessage}>
+				<Button variant="ghost" size="icon-sm" aria-label={text.archive} onclick={() => moveSelectedMessage('archive')} disabled={!selectedMessage}>
 					<ArchiveIcon />
 				</Button>
-				<Button variant="ghost" size="icon-sm" aria-label="Trash" onclick={() => moveSelectedMessage('trash')} disabled={!selectedMessage}>
+				<Button variant="ghost" size="icon-sm" aria-label={text.trash} onclick={() => moveSelectedMessage('trash')} disabled={!selectedMessage}>
 					<Trash2Icon />
 				</Button>
-				<Button variant="ghost" size="icon-sm" aria-label="Mark read" onclick={toggleSelectedMessageRead} disabled={!selectedMessage}>
+				<Button variant="ghost" size="icon-sm" aria-label={text.markRead} onclick={toggleSelectedMessageRead} disabled={!selectedMessage}>
 					{#if selectedMessage?.isRead}
 						<MailIcon />
 					{:else}
 						<MailOpenIcon />
 					{/if}
 				</Button>
-				<Button variant="ghost" size="icon-sm" aria-label="Reply" onclick={openReply} disabled={!selectedMessage}>
+				<Button variant="ghost" size="icon-sm" aria-label={text.reply} onclick={openReply} disabled={!selectedMessage}>
 					<SendIcon />
 				</Button>
 			</div>
@@ -650,17 +658,17 @@
 				<div class="mx-auto max-w-3xl space-y-4">
 					<div>
 						<p class="text-xs text-muted-foreground">{selectedMessage.from}</p>
-						<h2 class="mt-2 text-2xl font-semibold tracking-tight">{selectedMessage.subject || '(No subject)'}</h2>
+						<h2 class="mt-2 text-2xl font-semibold tracking-tight">{selectedMessage.subject || text.noSubject}</h2>
 						{#if selectedMessage.to}
-							<p class="mt-2 text-xs text-muted-foreground">To {selectedMessage.to}</p>
+							<p class="mt-2 text-xs text-muted-foreground">{text.to} {selectedMessage.to}</p>
 						{/if}
 					</div>
 					<Separator />
 					{#if isLoadingMessage}
-						<p class="text-sm text-muted-foreground">Loading message...</p>
+						<p class="text-sm text-muted-foreground">{text.loadingMessage}</p>
 					{:else if selectedMessageBodyHTML()}
 						<iframe
-							title="Message body"
+							title={text.messageBody}
 							class="min-h-[62vh] w-full rounded-md border bg-white"
 							sandbox=""
 							referrerpolicy="no-referrer"
@@ -676,15 +684,15 @@
 						<div class="mx-auto flex size-12 items-center justify-center rounded-xl border bg-muted/50">
 							<MailIcon class="size-5 text-muted-foreground" />
 						</div>
-						<h2 class="mt-4 text-lg font-semibold">{account.isConfigured ? 'Ready for mail' : 'Mail is not connected'}</h2>
-						<p class="mt-2 text-sm leading-6 text-muted-foreground">{account.isConfigured ? 'Choose a message from the list.' : 'Connect an IMAP and SMTP account to receive and send mail.'}</p>
+						<h2 class="mt-4 text-lg font-semibold">{account.isConfigured ? text.ready : text.notConnected}</h2>
+						<p class="mt-2 text-sm leading-6 text-muted-foreground">{account.isConfigured ? text.chooseMessage : text.connectDescription}</p>
 						<Button class="mt-4 gap-2" variant="secondary" onclick={account.isConfigured ? openCompose : openSettings}>
 							{#if account.isConfigured}
 								<PencilIcon />
-								Compose
+								{text.compose}
 							{:else}
 								<SettingsIcon />
-								Mail settings
+								{text.settings}
 							{/if}
 						</Button>
 					</div>
@@ -695,7 +703,7 @@
 		<div class="border-t p-4">
 			<Button class="w-full justify-start gap-2" variant="outline" onclick={selectedMessage ? openReply : openCompose} disabled={!account.isConfigured}>
 				<PencilIcon />
-				{selectedMessage ? 'Reply...' : 'Compose...'}
+				{selectedMessage ? text.replyAction : text.composeAction}
 			</Button>
 		</div>
 	</section>
@@ -704,21 +712,21 @@
 <Sheet.Root bind:open={isSettingsOpen}>
 	<Sheet.Content class="w-full overflow-y-auto sm:max-w-2xl">
 		<Sheet.Header>
-			<Sheet.Title>Mail settings</Sheet.Title>
-			<Sheet.Description>Connect one email account for receiving and sending mail.</Sheet.Description>
+			<Sheet.Title>{text.settingsSheet.title}</Sheet.Title>
+			<Sheet.Description>{text.settingsSheet.description}</Sheet.Description>
 		</Sheet.Header>
 		<form class="grid gap-5 px-4 pb-4" onsubmit={(event) => { event.preventDefault(); saveAccount(); }}>
 			<div class="grid gap-3 sm:grid-cols-2">
 				<div class="space-y-2">
-					<Label for="mail-email">Email address</Label>
+					<Label for="mail-email">{text.fields.emailAddress}</Label>
 					<Input id="mail-email" bind:value={accountDraft.email} placeholder="you@example.com" />
 				</div>
 				<div class="space-y-2">
-					<Label for="mail-display-name">Display name</Label>
-					<Input id="mail-display-name" bind:value={accountDraft.displayName} placeholder="Your name" />
+					<Label for="mail-display-name">{text.fields.displayName}</Label>
+					<Input id="mail-display-name" bind:value={accountDraft.displayName} placeholder={text.settingsSheet.displayNamePlaceholder} />
 				</div>
 				<div class="space-y-2">
-					<Label for="mail-default-mailbox">Default mailbox</Label>
+					<Label for="mail-default-mailbox">{text.fields.defaultMailbox}</Label>
 					<Input id="mail-default-mailbox" bind:value={accountDraft.defaultMailbox} />
 				</div>
 			</div>
@@ -727,30 +735,30 @@
 
 			<div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_96px_120px]">
 				<div class="space-y-2">
-					<Label for="mail-imap-host">IMAP host</Label>
+					<Label for="mail-imap-host">IMAP {text.fields.host}</Label>
 					<Input id="mail-imap-host" bind:value={accountDraft.imapHost} placeholder="imap.gmail.com" />
 				</div>
 				<div class="space-y-2">
-					<Label for="mail-imap-port">Port</Label>
+					<Label for="mail-imap-port">{text.fields.port}</Label>
 					<Input id="mail-imap-port" type="number" bind:value={accountDraft.imapPort} />
 				</div>
 				<div class="space-y-2">
-					<Label for="mail-imap-security">Security</Label>
+					<Label for="mail-imap-security">{text.fields.security}</Label>
 					<select id="mail-imap-security" class="border-input bg-background h-9 w-full rounded-md border px-2 text-sm" bind:value={accountDraft.imapSecurity}>
 						<option value="tls">SSL/TLS</option>
 						<option value="starttls">STARTTLS</option>
-						<option value="none">None</option>
+						<option value="none">{text.settingsSheet.securityNone}</option>
 					</select>
 				</div>
 			</div>
 			<div class="grid gap-3 sm:grid-cols-2">
 				<div class="space-y-2">
-					<Label for="mail-imap-user">IMAP username</Label>
+					<Label for="mail-imap-user">IMAP {text.fields.username}</Label>
 					<Input id="mail-imap-user" bind:value={accountDraft.imapUsername} />
 				</div>
 				<div class="space-y-2">
-					<Label for="mail-imap-password">IMAP password</Label>
-					<Input id="mail-imap-password" type="password" bind:value={accountDraft.imapPassword} placeholder={account.hasIMAPPassword ? 'Saved password' : 'App password'} />
+					<Label for="mail-imap-password">IMAP {text.fields.password}</Label>
+					<Input id="mail-imap-password" type="password" bind:value={accountDraft.imapPassword} placeholder={account.hasIMAPPassword ? text.settingsSheet.savedPassword : text.settingsSheet.appPassword} />
 				</div>
 			</div>
 
@@ -758,33 +766,33 @@
 
 			<div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_96px_120px]">
 				<div class="space-y-2">
-					<Label for="mail-smtp-host">SMTP host</Label>
+					<Label for="mail-smtp-host">SMTP {text.fields.host}</Label>
 					<Input id="mail-smtp-host" bind:value={accountDraft.smtpHost} placeholder="smtp.gmail.com" />
 				</div>
 				<div class="space-y-2">
-					<Label for="mail-smtp-port">Port</Label>
+					<Label for="mail-smtp-port">{text.fields.port}</Label>
 					<Input id="mail-smtp-port" type="number" bind:value={accountDraft.smtpPort} />
 				</div>
 				<div class="space-y-2">
-					<Label for="mail-smtp-security">Security</Label>
+					<Label for="mail-smtp-security">{text.fields.security}</Label>
 					<select id="mail-smtp-security" class="border-input bg-background h-9 w-full rounded-md border px-2 text-sm" bind:value={accountDraft.smtpSecurity}>
 						<option value="tls">SSL/TLS</option>
 						<option value="starttls">STARTTLS/TLS</option>
-						<option value="none">None</option>
+						<option value="none">{text.settingsSheet.securityNone}</option>
 					</select>
 				</div>
 			</div>
 			<div class="grid gap-3 sm:grid-cols-2">
 				<div class="space-y-2">
-					<Label for="mail-smtp-user">SMTP username</Label>
+					<Label for="mail-smtp-user">SMTP {text.fields.username}</Label>
 					<Input id="mail-smtp-user" bind:value={accountDraft.smtpUsername} />
 				</div>
 				<div class="space-y-2">
-					<Label for="mail-smtp-password">SMTP password</Label>
-					<Input id="mail-smtp-password" type="password" bind:value={accountDraft.smtpPassword} placeholder={account.hasSMTPPassword ? 'Saved password' : 'App password'} />
+					<Label for="mail-smtp-password">SMTP {text.fields.password}</Label>
+					<Input id="mail-smtp-password" type="password" bind:value={accountDraft.smtpPassword} placeholder={account.hasSMTPPassword ? text.settingsSheet.savedPassword : text.settingsSheet.appPassword} />
 				</div>
 				<div class="space-y-2">
-					<Label for="mail-sent-mailbox">Sent mailbox</Label>
+					<Label for="mail-sent-mailbox">{text.fields.sentMailbox}</Label>
 					<Input id="mail-sent-mailbox" bind:value={accountDraft.sentMailbox} />
 				</div>
 			</div>
@@ -795,10 +803,10 @@
 
 			<Sheet.Footer class="gap-2 sm:justify-between">
 				<Button type="button" variant="outline" onclick={testAccount} disabled={isTestingAccount || isSavingAccount}>
-					{isTestingAccount ? 'Testing...' : 'Test connection'}
+					{isTestingAccount ? text.settingsSheet.testing : text.settingsSheet.testConnection}
 				</Button>
 				<Button type="submit" disabled={isSavingAccount || isTestingAccount}>
-					{isSavingAccount ? 'Saving...' : 'Save settings'}
+					{isSavingAccount ? text.settingsSheet.saving : text.settingsSheet.save}
 				</Button>
 			</Sheet.Footer>
 		</form>
@@ -808,30 +816,30 @@
 <Sheet.Root bind:open={isComposeOpen}>
 	<Sheet.Content class="w-full overflow-y-auto sm:max-w-2xl">
 		<Sheet.Header>
-			<Sheet.Title>Compose</Sheet.Title>
+			<Sheet.Title>{text.composeSheet.title}</Sheet.Title>
 			<Sheet.Description>{account.fromAddress || account.email}</Sheet.Description>
 		</Sheet.Header>
 		<form class="grid gap-4 px-4 pb-4" onsubmit={(event) => { event.preventDefault(); sendMessage(); }}>
 			<div class="space-y-2">
-				<Label for="mail-compose-to">To</Label>
+				<Label for="mail-compose-to">{text.to}</Label>
 				<Input id="mail-compose-to" bind:value={composeDraft.to} placeholder="name@example.com" />
 			</div>
 			<div class="grid gap-3 sm:grid-cols-2">
 				<div class="space-y-2">
-					<Label for="mail-compose-cc">CC</Label>
+					<Label for="mail-compose-cc">{text.fields.cc}</Label>
 					<Input id="mail-compose-cc" bind:value={composeDraft.cc} />
 				</div>
 				<div class="space-y-2">
-					<Label for="mail-compose-bcc">BCC</Label>
+					<Label for="mail-compose-bcc">{text.fields.bcc}</Label>
 					<Input id="mail-compose-bcc" bind:value={composeDraft.bcc} />
 				</div>
 			</div>
 			<div class="space-y-2">
-				<Label for="mail-compose-subject">Subject</Label>
+				<Label for="mail-compose-subject">{text.fields.subject}</Label>
 				<Input id="mail-compose-subject" bind:value={composeDraft.subject} />
 			</div>
 			<div class="space-y-2">
-				<Label for="mail-compose-body">Body</Label>
+				<Label for="mail-compose-body">{text.fields.body}</Label>
 				<Textarea id="mail-compose-body" class="min-h-72 resize-none" bind:value={composeDraft.body} />
 			</div>
 			{#if composeMessage}
@@ -840,7 +848,7 @@
 			<Sheet.Footer>
 				<Button type="submit" class="gap-2" disabled={isSending || !composeDraft.to.trim() || (!composeDraft.subject.trim() && !composeDraft.body.trim())}>
 					<SendIcon />
-					{isSending ? 'Sending...' : 'Send'}
+					{isSending ? text.composeSheet.sending : text.composeSheet.send}
 				</Button>
 			</Sheet.Footer>
 		</form>

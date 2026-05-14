@@ -624,7 +624,7 @@
 		}
 		const event = createEvent({
 			id: `range-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-			title: 'New Event',
+			title: text.newEvent,
 			start: dateFromDateKey(startDateKey),
 			end: dateFromDateKey(endDateKey),
 			allDay: true,
@@ -830,7 +830,7 @@
 				style={`left: ${segment.left}px; top: ${segment.top}px; width: ${segment.width}px; height: ${segment.height}px;`}
 			>
 				<span class="month-range-preview-dot"></span>
-				<span class="month-range-preview-title">New Event</span>
+				<span class="month-range-preview-title">{text.newEvent}</span>
 			</div>
 		{/each}
 
