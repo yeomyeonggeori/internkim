@@ -307,6 +307,17 @@ func mustJSONRaw(t *testing.T, value any) json.RawMessage {
 	return document
 }
 
+func waitMattermostTypingPayload(t *testing.T, typingRequests <-chan map[string]string) map[string]string {
+	t.Helper()
+	select {
+	case payload := <-typingRequests:
+		return payload
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected typing request")
+	}
+	return nil
+}
+
 func TestMattermostDirectMessageStartsThreadWithDirectHistory(t *testing.T) {
 	event, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
 		ID:        "post-1",
@@ -792,7 +803,7 @@ func TestMattermostPollerDoesNotAdvanceWatermarkWhenBlueclawForwardFails(t *test
 }
 
 func TestMattermostProgressStartPublishesTypingUntilStopped(t *testing.T) {
-	typingRequests := make(chan map[string]string, 1)
+	typingRequests := make(chan map[string]string, 2)
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch request.URL.Path {
 		case "/api/v4/users/me":
@@ -839,13 +850,13 @@ func TestMattermostProgressStartPublishesTypingUntilStopped(t *testing.T) {
 	}
 	defer service.progressManager().Stop("mattermost:" + replyTargetID)
 
-	select {
-	case payload := <-typingRequests:
-		if payload["channel_id"] != "channel-1" || payload["parent_id"] != "root-1" {
-			t.Fatalf("unexpected typing payload: %+v", payload)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("expected typing request")
+	threadPayload := waitMattermostTypingPayload(t, typingRequests)
+	channelPayload := waitMattermostTypingPayload(t, typingRequests)
+	if threadPayload["channel_id"] != "channel-1" || threadPayload["parent_id"] != "root-1" {
+		t.Fatalf("unexpected thread typing payload: %+v", threadPayload)
+	}
+	if channelPayload["channel_id"] != "channel-1" || channelPayload["parent_id"] != "" {
+		t.Fatalf("unexpected channel typing payload: %+v", channelPayload)
 	}
 
 	_, errorValue = service.mattermostStopProgressFromRequest(context.Background(), strings.NewReader(`{"replyTargetID":"`+replyTargetID+`"}`))
@@ -855,7 +866,7 @@ func TestMattermostProgressStartPublishesTypingUntilStopped(t *testing.T) {
 }
 
 func TestMattermostReplyStopsProgressBeforeSendingPost(t *testing.T) {
-	typingRequests := make(chan map[string]string, 1)
+	typingRequests := make(chan map[string]string, 2)
 	postRequests := make(chan map[string]any, 1)
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch request.URL.Path {

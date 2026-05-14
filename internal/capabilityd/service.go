@@ -622,11 +622,18 @@ func (service Service) sendMattermostTyping(ctx context.Context, handle platform
 		return
 	}
 
-	body := map[string]string{"channel_id": handle.ChannelID}
+	service.publishMattermostTyping(ctx, botUser.ID, handle.ChannelID, handle.RootID)
 	if strings.TrimSpace(handle.RootID) != "" {
-		body["parent_id"] = handle.RootID
+		service.publishMattermostTyping(ctx, botUser.ID, handle.ChannelID, "")
 	}
-	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/users/"+url.PathEscape(botUser.ID)+"/typing", body, nil); errorValue != nil {
+}
+
+func (service Service) publishMattermostTyping(ctx context.Context, botUserID string, channelID string, rootID string) {
+	body := map[string]string{"channel_id": channelID}
+	if strings.TrimSpace(rootID) != "" {
+		body["parent_id"] = rootID
+	}
+	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/users/"+url.PathEscape(botUserID)+"/typing", body, nil); errorValue != nil {
 		log.Printf("mattermost typing failed: %v", errorValue)
 	}
 }
