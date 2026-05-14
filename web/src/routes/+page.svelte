@@ -29,6 +29,7 @@
 	import { adminText } from './admin/text';
 
 	type UserRole = 'admin' | 'member';
+	type WorkspaceLanguage = 'ko' | 'en';
 	type AdminSection = 'device' | 'bot' | 'credentials' | 'companion' | 'backup' | 'users' | 'settings';
 
 	type UserRecord = {
@@ -146,6 +147,7 @@
 
 	type WorkspaceSettings = {
 		timeZone: string;
+		language: WorkspaceLanguage;
 		updatedAt?: string;
 	};
 
@@ -210,8 +212,8 @@
 	let credentialErrorMessage = $state('');
 	let isLoadingCredentials = $state(false);
 	let isSavingCredential = $state(false);
-	let workspaceSettings = $state<WorkspaceSettings>({ timeZone: 'system' });
-	let workspaceSettingsDraft = $state<WorkspaceSettings>({ timeZone: 'system' });
+	let workspaceSettings = $state<WorkspaceSettings>({ timeZone: 'system', language: 'ko' });
+	let workspaceSettingsDraft = $state<WorkspaceSettings>({ timeZone: 'system', language: 'ko' });
 	let workspaceSettingsMessage = $state('');
 	let isLoadingWorkspaceSettings = $state(false);
 	let isSavingWorkspaceSettings = $state(false);
@@ -285,6 +287,10 @@
 	const userRoleOptions = () => [
 		{ value: 'member', label: text.users.member },
 		{ value: 'admin', label: text.users.admin }
+	];
+	const workspaceLanguageOptions = (): { value: WorkspaceLanguage; label: string }[] => [
+		{ value: 'ko', label: text.settings.workspaceLanguageKorean },
+		{ value: 'en', label: text.settings.workspaceLanguageEnglish }
 	];
 
 	onMount(() => {
@@ -498,7 +504,7 @@
 				workspaceSettingsMessage = text.settings.loadError;
 				return;
 			}
-			workspaceSettings = (await response.json()) as WorkspaceSettings;
+			workspaceSettings = normalizeWorkspaceSettings((await response.json()) as WorkspaceSettings);
 			workspaceSettingsDraft = { ...workspaceSettings };
 		} catch {
 			workspaceSettingsMessage = text.settings.loadError;
@@ -523,7 +529,7 @@
 				workspaceSettingsMessage = await response.text();
 				return;
 			}
-			workspaceSettings = (await response.json()) as WorkspaceSettings;
+			workspaceSettings = normalizeWorkspaceSettings((await response.json()) as WorkspaceSettings);
 			workspaceSettingsDraft = { ...workspaceSettings };
 			workspaceSettingsMessage = text.settings.saveSuccess;
 		} catch {
@@ -531,6 +537,14 @@
 		} finally {
 			isSavingWorkspaceSettings = false;
 		}
+	}
+
+	function normalizeWorkspaceSettings(settings: WorkspaceSettings): WorkspaceSettings {
+		return {
+			timeZone: settings.timeZone?.trim() || 'system',
+			language: settings.language === 'en' ? 'en' : 'ko',
+			updatedAt: settings.updatedAt
+		};
 	}
 
 	async function loadAttendanceLocations() {
@@ -810,6 +824,7 @@
 			isCheckingDevice = false;
 		}
 		if (isDeviceReachable) await loadCompanions();
+		if (isDeviceReachable) await loadWorkspaceSettings();
 	}
 
 	async function loadCompanions() {
@@ -1111,7 +1126,8 @@
 				{#if adminErrorMessage}
 					<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{adminErrorMessage}</p>
 				{/if}
-			{/if}
+
+				{/if}
 
 			{#if activeAdminSection === 'bot'}
 				<div class="rounded-lg border p-4">
@@ -1232,9 +1248,12 @@
 							<h3 class="text-sm font-semibold">{text.settings.title}</h3>
 							<p class="text-muted-foreground mt-1 text-sm">{text.settings.description}</p>
 						</div>
-						<Badge variant="outline">{workspaceSettings.timeZone || 'system'}</Badge>
+						<div class="flex flex-wrap gap-2">
+							<Badge variant="outline">{workspaceSettings.timeZone || 'system'}</Badge>
+							<Badge variant="outline">{workspaceLanguageOptions().find((option) => option.value === workspaceSettings.language)?.label}</Badge>
+						</div>
 					</div>
-					<div class="grid gap-3 md:grid-cols-[1fr_auto]">
+					<div class="grid gap-3 md:grid-cols-[1fr_220px_auto] md:items-end">
 						<div>
 							<label class="text-xs font-medium text-muted-foreground" for="workspace-time-zone">{text.settings.timeZone}</label>
 							<Input
@@ -1247,14 +1266,26 @@
 							/>
 							<p class="mt-2 text-xs text-muted-foreground">{text.settings.timeZoneHint}</p>
 						</div>
-						<div class="flex items-end">
-							<Button disabled={!isDeviceReachable || isSavingWorkspaceSettings} onclick={saveWorkspaceSettings}>
-								{#if isSavingWorkspaceSettings}
-									<LoaderIcon class="size-4 animate-spin" />
-								{/if}
-								{text.settings.save}
-							</Button>
-						</div>
+						<label class="grid gap-1.5">
+							<span class="text-xs font-medium text-muted-foreground">{text.settings.workspaceLanguageTitle}</span>
+							<Select.Root type="single" bind:value={workspaceSettingsDraft.language} disabled={isLoadingWorkspaceSettings || isSavingWorkspaceSettings}>
+								<Select.Trigger class="w-full">
+									{workspaceLanguageOptions().find((option) => option.value === workspaceSettingsDraft.language)?.label}
+								</Select.Trigger>
+								<Select.Content>
+									{#each workspaceLanguageOptions() as option (option.value)}
+										<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
+									{/each}
+								</Select.Content>
+							</Select.Root>
+							<span class="text-xs text-muted-foreground">{text.settings.workspaceLanguageDescription}</span>
+						</label>
+						<Button disabled={!isDeviceReachable || isLoadingWorkspaceSettings || isSavingWorkspaceSettings} onclick={saveWorkspaceSettings}>
+							{#if isSavingWorkspaceSettings}
+								<LoaderIcon class="size-4 animate-spin" />
+							{/if}
+							{text.settings.save}
+						</Button>
 					</div>
 					{#if workspaceSettingsMessage}
 						<p class="mt-3 rounded-md border bg-muted/30 px-3 py-2 text-sm">{workspaceSettingsMessage}</p>
