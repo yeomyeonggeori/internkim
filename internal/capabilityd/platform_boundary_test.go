@@ -956,7 +956,7 @@ func TestMattermostReplyRequiresConnectorOutboxMetadata(t *testing.T) {
 	}
 }
 
-func TestMattermostProgressStopBeforeDebounceSuppressesTyping(t *testing.T) {
+func TestMattermostProgressStartPublishesTypingImmediately(t *testing.T) {
 	typingRequests := make(chan map[string]string, 1)
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch request.URL.Path {
@@ -994,15 +994,16 @@ func TestMattermostProgressStopBeforeDebounceSuppressesTyping(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected progress start to succeed: %v", errorValue)
 	}
-	_, errorValue = service.mattermostStopProgressFromRequest(context.Background(), strings.NewReader(`{"replyTargetID":"`+replyTargetID+`"}`))
-	if errorValue != nil {
-		t.Fatalf("expected progress stop to succeed: %v", errorValue)
-	}
 
 	select {
 	case <-typingRequests:
-		t.Fatal("expected no typing request before debounce")
-	case <-time.After(mattermostTypingDebounce + 200*time.Millisecond):
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("expected immediate typing request")
+	}
+
+	_, errorValue = service.mattermostStopProgressFromRequest(context.Background(), strings.NewReader(`{"replyTargetID":"`+replyTargetID+`"}`))
+	if errorValue != nil {
+		t.Fatalf("expected progress stop to succeed: %v", errorValue)
 	}
 }
 
