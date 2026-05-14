@@ -1017,6 +1017,53 @@ func TestMattermostProgressStartPublishesTypingImmediately(t *testing.T) {
 	}
 }
 
+func TestMattermostProgressStartIgnoresTypingFailure(t *testing.T) {
+	typingRequestCount := 0
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1"}), nil
+		case "/api/v4/users/bot-1/typing":
+			typingRequestCount++
+			return testJSONResponse(http.StatusInternalServerError, map[string]string{"error": "typing unavailable"}), nil
+		default:
+			t.Fatalf("unexpected Mattermost request: %s", request.URL.Path)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	tokenPath := t.TempDir() + "/mattermost-token"
+	if errorValue := os.WriteFile(tokenPath, []byte("test-token\n"), 0o600); errorValue != nil {
+		t.Fatalf("expected token file to be written: %v", errorValue)
+	}
+	replyTargetID, errorValue := encodePlatformHandle(platformHandle{
+		Platform:  "mattermost",
+		ChannelID: "channel-1",
+	})
+	if errorValue != nil {
+		t.Fatalf("expected reply target to encode: %v", errorValue)
+	}
+	service := Service{
+		Configuration: Configuration{
+			MattermostBaseURL:   "http://mattermost.test",
+			MattermostTokenPath: tokenPath,
+		},
+		HTTPClient:      httpClient,
+		ProgressManager: newPlatformProgressManager(),
+	}
+
+	_, errorValue = service.mattermostStartProgressFromRequest(context.Background(), strings.NewReader(`{"replyTargetID":"`+replyTargetID+`"}`))
+	if errorValue != nil {
+		t.Fatalf("expected progress start to ignore typing failure: %v", errorValue)
+	}
+	if typingRequestCount != 1 {
+		t.Fatalf("expected one initial typing attempt, got %d", typingRequestCount)
+	}
+	_, errorValue = service.mattermostStopProgressFromRequest(context.Background(), strings.NewReader(`{"replyTargetID":"`+replyTargetID+`"}`))
+	if errorValue != nil {
+		t.Fatalf("expected progress stop to succeed: %v", errorValue)
+	}
+}
+
 func TestPlatformProgressManagerExpiresLeases(t *testing.T) {
 	manager := newPlatformProgressManager()
 	stopped := make(chan struct{}, 1)

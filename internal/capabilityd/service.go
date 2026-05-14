@@ -575,7 +575,7 @@ func (service Service) mattermostStartProgressFromRequest(ctx context.Context, r
 		return nil, errors.New("progress target platform mismatch")
 	}
 	if errorValue := service.sendMattermostTyping(ctx, handle); errorValue != nil {
-		return nil, errorValue
+		log.Printf("mattermost initial typing failed: %v", errorValue)
 	}
 	service.progressManager().Start("mattermost:"+request.ReplyTargetID, mattermostProgressTTL, func(progressContext context.Context) {
 		service.refreshMattermostTyping(progressContext, handle)
