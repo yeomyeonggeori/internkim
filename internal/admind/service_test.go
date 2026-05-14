@@ -282,6 +282,100 @@ func TestAdminRejectsUnauthorizedRemoteCaller(t *testing.T) {
 	}
 }
 
+func TestWorkspaceSettingsDefaultsToKorean(t *testing.T) {
+	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
+
+	request := httptest.NewRequest(http.MethodGet, "/admin/api/workspace-settings", nil)
+	request.RemoteAddr = "127.0.0.1:12345"
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("workspace settings status = %d body = %s", response.Code, response.Body.String())
+	}
+	var settings workspaceSettings
+	if errorValue := json.NewDecoder(response.Body).Decode(&settings); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if settings.Language != workspaceLanguageKorean {
+		t.Fatalf("workspace language = %q", settings.Language)
+	}
+	if settings.TimeZone != "system" {
+		t.Fatalf("workspace time zone = %q", settings.TimeZone)
+	}
+}
+
+func TestWorkspaceSettingsRejectsInvalidLanguage(t *testing.T) {
+	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
+
+	request := httptest.NewRequest(http.MethodPut, "/admin/api/workspace-settings", strings.NewReader(`{"language":"jp"}`))
+	request.RemoteAddr = "127.0.0.1:12345"
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("workspace settings status = %d body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestWorkspaceSettingsUpdateSyncsKoreanMattermostDisplayNames(t *testing.T) {
+	service, patchedDisplayNames, createdChannels := newWorkspaceSettingsMattermostTestService(t, false)
+
+	request := httptest.NewRequest(http.MethodPut, "/admin/api/workspace-settings", strings.NewReader(`{"language":"ko"}`))
+	request.RemoteAddr = "127.0.0.1:12345"
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("workspace settings status = %d body = %s", response.Code, response.Body.String())
+	}
+	if patchedDisplayNames[mattermostFlowChannelName] != "업무" {
+		t.Fatalf("flow display name = %q", patchedDisplayNames[mattermostFlowChannelName])
+	}
+	if patchedDisplayNames[calendarAnnouncementsChannelName] != "공지사항" {
+		t.Fatalf("announcements display name = %q", patchedDisplayNames[calendarAnnouncementsChannelName])
+	}
+	if len(createdChannels) != 0 {
+		t.Fatalf("unexpected created channels = %#v", createdChannels)
+	}
+	settings, errorValue := service.readWorkspaceSettings()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if settings.Language != workspaceLanguageKorean {
+		t.Fatalf("saved workspace language = %q", settings.Language)
+	}
+}
+
+func TestWorkspaceSettingsUpdateSyncsEnglishMattermostDisplayNames(t *testing.T) {
+	service, patchedDisplayNames, createdChannels := newWorkspaceSettingsMattermostTestService(t, true)
+
+	request := httptest.NewRequest(http.MethodPut, "/admin/api/workspace-settings", strings.NewReader(`{"language":"en"}`))
+	request.RemoteAddr = "127.0.0.1:12345"
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("workspace settings status = %d body = %s", response.Code, response.Body.String())
+	}
+	if patchedDisplayNames[mattermostFlowChannelName] != "Flow" {
+		t.Fatalf("flow display name = %q", patchedDisplayNames[mattermostFlowChannelName])
+	}
+	if createdChannels[calendarAnnouncementsChannelName] != "Announcements" {
+		t.Fatalf("announcements created display name = %q", createdChannels[calendarAnnouncementsChannelName])
+	}
+	if _, found := patchedDisplayNames[calendarAnnouncementsChannelName]; found {
+		t.Fatalf("missing announcements channel should not be patched: %#v", patchedDisplayNames)
+	}
+	settings, errorValue := service.readWorkspaceSettings()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if settings.Language != workspaceLanguageEnglish {
+		t.Fatalf("saved workspace language = %q", settings.Language)
+	}
+}
+
 func TestAdminHealthDoesNotClaimFirstAuthenticatedCaller(t *testing.T) {
 	deviceDirectory := t.TempDir()
 	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
@@ -2221,6 +2315,82 @@ func mattermostConnectCommandSetupResponse(t *testing.T, request *http.Request) 
 	}
 }
 
+func newWorkspaceSettingsMattermostTestService(t *testing.T, isAnnouncementsMissing bool) (*Service, map[string]string, map[string]string) {
+	t.Helper()
+	adminPasswordPath := filepath.Join(t.TempDir(), "admin-pass")
+	writeFile(t, adminPasswordPath, "admin-pass")
+	service := NewService(Configuration{
+		StateDirectory:              t.TempDir(),
+		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
+		MattermostBaseURL:           "http://mattermost.local",
+		MattermostAdminPasswordPath: adminPasswordPath,
+	})
+	patchedDisplayNames := map[string]string{}
+	createdChannels := map[string]string{}
+	channelNamesByID := map[string]string{
+		"flow-channel":          mattermostFlowChannelName,
+		"announcements-channel": calendarAnnouncementsChannelName,
+	}
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
+			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim":
+			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/flow":
+			return jsonResponse(http.StatusOK, `{"id":"flow-channel"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/announcements" && isAnnouncementsMissing:
+			return jsonResponse(http.StatusNotFound, `{"message":"not found"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/announcements":
+			return jsonResponse(http.StatusOK, `{"id":"announcements-channel"}`, nil), nil
+		case strings.HasPrefix(request.URL.String(), "http://mattermost.local/api/v4/channels/") && strings.HasSuffix(request.URL.String(), "/patch"):
+			channelID := strings.TrimSuffix(strings.TrimPrefix(request.URL.Path, "/api/v4/channels/"), "/patch")
+			channelName := channelNamesByID[channelID]
+			patchedDisplayNames[channelName] = assertMattermostDisplayNamePatch(t, request)
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels" && request.Method == http.MethodPost:
+			channelName, displayName := assertMattermostPublicChannelCreate(t, request)
+			createdChannels[channelName] = displayName
+			return jsonResponse(http.StatusCreated, `{"id":"created-channel"}`, nil), nil
+		default:
+			t.Fatalf("unexpected workspace settings Mattermost request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+	return service, patchedDisplayNames, createdChannels
+}
+
+func assertMattermostDisplayNamePatch(t *testing.T, request *http.Request) string {
+	t.Helper()
+	var payload map[string]string
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, found := payload["name"]; found {
+		t.Fatalf("display name patch must not change channel name: %#v", payload)
+	}
+	displayName := strings.TrimSpace(payload["display_name"])
+	if displayName == "" || len(payload) != 1 {
+		t.Fatalf("display name patch = %#v", payload)
+	}
+	return displayName
+}
+
+func assertMattermostPublicChannelCreate(t *testing.T, request *http.Request) (string, string) {
+	t.Helper()
+	var payload map[string]string
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if payload["team_id"] != "team-1" || payload["type"] != "O" {
+		t.Fatalf("public channel create = %#v", payload)
+	}
+	if payload["name"] == "" || payload["display_name"] == "" {
+		t.Fatalf("public channel create = %#v", payload)
+	}
+	return payload["name"], payload["display_name"]
+}
+
 func assertMattermostConnectCommandPayload(t *testing.T, request *http.Request) {
 	t.Helper()
 	var payload mattermostCommandRecord
@@ -2241,7 +2411,7 @@ func assertMattermostFlowChannelPatch(t *testing.T, request *http.Request, expec
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if payload["display_name"] != "Flow" || !containsString(expectedFlowLinks, payload["header"]) || payload["purpose"] != "" {
+	if payload["display_name"] != flowChannelDisplayName(workspaceLanguageKorean) || !containsString(expectedFlowLinks, payload["header"]) || payload["purpose"] != "" {
 		t.Fatalf("flow channel patch = %#v", payload)
 	}
 }
@@ -2300,7 +2470,7 @@ func assertMattermostFlowChannelCreate(t *testing.T, request *http.Request) {
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if payload["team_id"] != "team-1" || payload["name"] != "flow" || payload["display_name"] != "Flow" || payload["type"] != "O" {
+	if payload["team_id"] != "team-1" || payload["name"] != "flow" || payload["display_name"] != flowChannelDisplayName(workspaceLanguageKorean) || payload["type"] != "O" {
 		t.Fatalf("flow channel create = %#v", payload)
 	}
 }
@@ -2313,7 +2483,7 @@ func mattermostChannelCreateName(t *testing.T, request *http.Request) string {
 	}
 	switch payload["name"] {
 	case "flow":
-		if payload["team_id"] != "team-1" || payload["display_name"] != "Flow" || payload["type"] != "O" {
+		if payload["team_id"] != "team-1" || payload["display_name"] != mattermostdefaults.FlowChannelDisplayName || payload["type"] != "O" {
 			t.Fatalf("flow channel create = %#v", payload)
 		}
 	case "calendar":
