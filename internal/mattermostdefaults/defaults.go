@@ -12,7 +12,7 @@ const (
 	TownSquareChannelName = "town-square"
 
 	FlowChannelName        = "flow"
-	FlowChannelDisplayName = "Flow"
+	FlowChannelDisplayName = "업무"
 
 	CalendarChannelName        = "calendar"
 	CalendarChannelDisplayName = "Calendar"
