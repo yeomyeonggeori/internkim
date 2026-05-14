@@ -1,7 +1,5 @@
 package admind
 
-// 캘린더 SQLite 스키마, 이벤트 read/write/soft-delete, 저장된 DAV property I/O.
-
 import (
 	"context"
 	"database/sql"
@@ -311,8 +309,6 @@ func boolToSQLiteInteger(value bool) int {
 	return 0
 }
 
-// calendarStoredTextProperty는 PROPPATCH로 들어온 whitelist text-only property를 저장한다.
-// nested element 가 있는 XML property는 처리하지 않는다 — text 값만 라운드트립한다.
 type calendarStoredTextProperty struct {
 	XMLName xml.Name
 	Value   string

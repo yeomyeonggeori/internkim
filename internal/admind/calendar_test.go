@@ -949,10 +949,6 @@ func TestCalendarCTagReflectsActiveEventsOnly(t *testing.T) {
 	}
 }
 
-// CalDAV PUT 으로 생성된 이벤트(suffix 없는 UID) 를 웹 UI 로 수정한 뒤,
-// uid 컬럼과 RawICS 안의 UID 가 동일하게 유지되는지 검증한다. 두 값이 어긋나면
-// CalDAV 응답(RawICS 사용) 과 ICS 피드(event.UID 사용) 가 서로 다른 UID 를 내보내
-// 클라이언트 캐시에서 동일 이벤트가 중복 표시되는 회귀가 재현된다.
 func TestCalendarWebUpdatePreservesCalDAVUID(t *testing.T) {
 	service := newCalendarTestService(t)
 	backend := calendarDAVBackend{service: service}

@@ -1,7 +1,5 @@
 package admind
 
-// 캘린더 HTTP API, 페이지 정적 자산 서빙, CalDAV 라우팅, 요청 정규화, ICS 토큰 설정.
-
 import (
 	"bytes"
 	"context"
@@ -208,10 +206,6 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 	event.UID = existingEvent.UID
 	event.CreatedByEmail = existingEvent.CreatedByEmail
 	event.MattermostPostID = existingEvent.MattermostPostID
-	// normalizeCalendarEventWriteRequest 단계에서 RawICS 가 한 번 인코딩되지만,
-	// 그 직후 event.UID 가 기존 값으로 되돌려지면 RawICS 안의 UID 와 컬럼 uid 가 어긋난다.
-	// CalDAV 응답은 RawICS 를, ICS 피드는 event.UID 를 쓰므로 두 출력의 UID 가 달라지면서
-	// 클라이언트 캐시에서 동일 이벤트가 중복으로 보이는 회귀가 발생한다 — 여기서 재인코딩으로 정합성 회복.
 	regeneratedRawICS, errorValue := encodeCalendarObject(event)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
@@ -305,8 +299,8 @@ func (service *Service) serveCalendarDAV(responseWriter http.ResponseWriter, req
 		return
 	}
 	if request.Method == "REPORT" {
-		body, err := io.ReadAll(request.Body)
-		if err == nil {
+		body, errorValue := io.ReadAll(request.Body)
+		if errorValue == nil {
 			request.Body = io.NopCloser(bytes.NewReader(body))
 			if bytes.Contains(body, []byte("sync-collection")) {
 				writeCalendarSyncCollectionUnsupported(responseWriter)
@@ -333,10 +327,6 @@ func (service *Service) invokeCalendarDAVHandler(responseWriter http.ResponseWri
 	handler.ServeHTTP(responseWriter, request)
 }
 
-// writeCalendarSyncCollectionUnsupported는 sync-collection REPORT 요청을 RFC 3253 supported-report
-// precondition 위반으로 거절한다. valid-sync-token 응답은 "토큰이 만료됐다"는 다른 의미여서
-// 클라이언트가 토큰을 버리고 무한히 재시도할 위험이 있다 — supported-report가 정확한 unsupported 신호다.
-// supported-report-set PROPFIND 응답(buildCalendarCollectionPropFindResponse)에도 sync-collection 은 포함되지 않는다.
 func writeCalendarSyncCollectionUnsupported(responseWriter http.ResponseWriter) {
 	responseWriter.Header().Set("Content-Type", "application/xml; charset=utf-8")
 	responseWriter.WriteHeader(http.StatusForbidden)

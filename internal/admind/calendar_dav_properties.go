@@ -1,7 +1,5 @@
 package admind
 
-// PROPPATCH/PROPFIND 처리, ctag 계산, calendar collection custom property 응답.
-
 import (
 	"bytes"
 	"context"
@@ -51,8 +49,6 @@ type calendarPropFindRequest struct {
 	Props   []xml.Name
 }
 
-// calendarStorablePropertyWhitelist는 PROPPATCH 가 받아들이는 property 집합이다.
-// 모두 텍스트 값만 사용하는 property — nested element 는 silent corruption 위험이 있으므로 일부러 제외한다.
 var calendarStorablePropertyWhitelist = map[xml.Name]bool{
 	{Space: calendarDAVNamespace, Local: "displayname"}:             true,
 	{Space: calendarAppleICalXMLNamespace, Local: "calendar-color"}: true,
