@@ -1648,7 +1648,28 @@ func TestFlowAPIAllowsStaffSummaryAndOwnTask(t *testing.T) {
 	}
 }
 
-func TestFlowAPIForcesStaffTaskForOtherMemberToRequest(t *testing.T) {
+func TestFlowAPIAllowsMattermostSessionStaffSummary(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	request := httptest.NewRequest(http.MethodGet, "/flow/api/summary", nil)
+	request.RemoteAddr = "198.51.100.10:443"
+	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("summary status = %d body = %s", response.Code, response.Body.String())
+	}
+	var summary flowSummaryResponse
+	if errorValue := json.NewDecoder(response.Body).Decode(&summary); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if summary.CurrentUserEmail != "staff@example.com" || summary.IsAdmin {
+		t.Fatalf("summary current user email=%q isAdmin=%v", summary.CurrentUserEmail, summary.IsAdmin)
+	}
+}
+
+func TestFlowAPIForcesStaffTaskForOtherMemberToRequestWithoutRequesterParticipant(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
 	response := httptest.NewRecorder()
 
@@ -1664,8 +1685,64 @@ func TestFlowAPIForcesStaffTaskForOtherMemberToRequest(t *testing.T) {
 	if task.Status != "요청" {
 		t.Fatalf("status = %q", task.Status)
 	}
+	if containsString(task.ParticipantIDs, stableFlowID("staff@example.com")) {
+		t.Fatalf("requester should not be a participant by default, got %+v", task.ParticipantIDs)
+	}
+}
+
+func TestAdminLocalePersistsMattermostSystemTextLanguage(t *testing.T) {
+	service := NewService(Configuration{
+		StateDirectory: filepath.Join(t.TempDir(), "state"),
+		AdminEmailPath: writeTestFile(t, "admin@example.com"),
+	})
+	request := httptest.NewRequest(http.MethodPut, "/admin/api/locale", strings.NewReader(`{"locale":"en"}`))
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("locale status = %d body = %s", response.Code, response.Body.String())
+	}
+	if service.mattermostFlowLink("") != "[Open Flow](/flow/)" {
+		t.Fatalf("flow link = %q", service.mattermostFlowLink(""))
+	}
+	if service.mattermostCalendarLink("") != "[Open Calendar](/calendar/)" {
+		t.Fatalf("calendar link = %q", service.mattermostCalendarLink(""))
+	}
+	if service.mattermostAttendanceLink() != "[Open Attendance](/attendance/)" {
+		t.Fatalf("attendance link = %q", service.mattermostAttendanceLink())
+	}
+}
+
+func TestFlowAPIAddsRequesterParticipantForJointOtherMemberTask(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	payload := flowTaskWriteRequest{
+		OwnerID:        stableFlowID("other@example.com"),
+		ParticipantIDs: []string{stableFlowID("other@example.com")},
+		Type:           "회의",
+		Content:        "같이 10분 회의",
+		Size:           "XS",
+		Status:         "진행",
+		WeekCode:       "26W18",
+	}
+	document, _ := json.Marshal(payload)
+	request := httptest.NewRequest(http.MethodPost, "/flow/api/tasks", bytes.NewReader(document))
+	request.RemoteAddr = "198.51.100.10:443"
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("task status = %d body = %s", response.Code, response.Body.String())
+	}
+	var task flowTask
+	if errorValue := json.NewDecoder(response.Body).Decode(&task); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	if !containsString(task.ParticipantIDs, stableFlowID("staff@example.com")) {
-		t.Fatalf("expected requester participant, got %+v", task.ParticipantIDs)
+		t.Fatalf("expected requester participant for joint work, got %+v", task.ParticipantIDs)
 	}
 }
 
@@ -2014,10 +2091,17 @@ func newFlowAuthorizationTestService(t *testing.T) *Service {
 		FleetIDPath:           fleetIDPath,
 		FleetSecretPath:       fleetSecretPath,
 		FlowDatabasePath:      filepath.Join(t.TempDir(), "flow.sqlite"),
+		MattermostBaseURL:     "http://mattermost.local",
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "https://api.intern.kim/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"admin@example.com","name":"Admin","role":"admin","status":"active"},{"email":"staff@example.com","name":"Staff","role":"member","status":"active"},{"email":"other@example.com","name":"Other","role":"member","status":"active"}]}`, nil), nil
+		}
+		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet && strings.Contains(request.Header.Get("Cookie"), "MMAUTHTOKEN=session-token") {
+			return jsonResponse(http.StatusOK, `{"id":"staff-mm","email":"staff@example.com","username":"staff"}`, nil), nil
+		}
+		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet {
+			return jsonResponse(http.StatusUnauthorized, `{}`, nil), nil
 		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil

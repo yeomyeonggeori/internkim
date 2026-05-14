@@ -17,7 +17,8 @@ export const calendarText = {
 		error: '캘린더를 불러오지 못했습니다.',
 		saveError: '일정을 저장하지 못했습니다.',
 		deleteError: '일정을 삭제하지 못했습니다.',
-		today: '오늘'
+		today: '오늘',
+		newEvent: '새 일정'
 	},
 	en: {
 		title: 'Calendar',
@@ -37,6 +38,7 @@ export const calendarText = {
 		error: 'Could not load the calendar.',
 		saveError: 'Could not save the event.',
 		deleteError: 'Could not delete the event.',
-		today: 'Today'
+		today: 'Today',
+		newEvent: 'New Event'
 	}
 } as const;

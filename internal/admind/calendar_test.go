@@ -331,12 +331,18 @@ func TestCalendarMattermostLogCreatesUpdatesAndDeletesPost(t *testing.T) {
 	if len(requests.createdMessages) != 1 || !strings.Contains(requests.createdMessages[0], "Design review") || !strings.Contains(requests.createdMessages[0], "대상: 동하") {
 		t.Fatalf("created messages = %+v", requests.createdMessages)
 	}
+	if len(requests.createTokens) != 1 || requests.createTokens[0] != "Bearer bot-token" {
+		t.Fatalf("create tokens = %+v", requests.createTokens)
+	}
 	reloadedEvent.Title = "Updated review"
 	if errorValue := service.writeCalendarEvent(context.Background(), reloadedEvent); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if len(requests.updatedMessages) != 1 || !strings.Contains(requests.updatedMessages[0], "Updated review") {
 		t.Fatalf("updated messages = %+v", requests.updatedMessages)
+	}
+	if len(requests.updateTokens) != 1 || requests.updateTokens[0] != "Bearer bot-token" {
+		t.Fatalf("update tokens = %+v", requests.updateTokens)
 	}
 	if errorValue := service.softDeleteCalendarEvent(context.Background(), reloadedEvent.ID); errorValue != nil {
 		t.Fatal(errorValue)
@@ -404,12 +410,16 @@ type calendarMattermostLogRequests struct {
 	createdMessages []string
 	updatedMessages []string
 	deletedPostIDs  []string
+	createTokens    []string
+	updateTokens    []string
 }
 
 func mattermostCalendarLogTestResponse(t *testing.T, request *http.Request) (*http.Response, bool) {
 	switch {
 	case request.Method == http.MethodGet && request.URL.Path == "/api/v4/users":
 		return jsonResponse(http.StatusOK, `[{"id":"user-1","username":"dongha","nickname":"동하","email":"dongha@example.com"}]`, nil), true
+	case request.Method == http.MethodGet && request.URL.Path == "/api/v4/users/me":
+		return jsonResponse(http.StatusOK, `{"id":"bot-1"}`, nil), true
 	case request.Method == http.MethodGet && request.URL.Path == "/api/v4/teams/name/internkim":
 		return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), true
 	case request.Method == http.MethodGet && request.URL.Path == "/api/v4/teams/team-1/channels/name/calendar":
@@ -417,6 +427,10 @@ func mattermostCalendarLogTestResponse(t *testing.T, request *http.Request) (*ht
 	case request.Method == http.MethodPut && request.URL.Path == "/api/v4/channels/calendar-channel/patch":
 		return jsonResponse(http.StatusOK, `{}`, nil), true
 	case request.Method == http.MethodPut && request.URL.Path == "/api/v4/channels/calendar-channel/moderations/patch":
+		return jsonResponse(http.StatusOK, `{}`, nil), true
+	case request.Method == http.MethodPost && request.URL.Path == "/api/v4/channels/calendar-channel/members":
+		return jsonResponse(http.StatusCreated, `{}`, nil), true
+	case request.Method == http.MethodPut && request.URL.Path == "/api/v4/channels/calendar-channel/members/bot-1/schemeRoles":
 		return jsonResponse(http.StatusOK, `{}`, nil), true
 	case request.Method == http.MethodPost && request.URL.Path == "/api/v4/posts" && mattermostPostChannelID(t, request) == "calendar-channel":
 		return jsonResponse(http.StatusCreated, `{"id":"calendar-post-1"}`, nil), true
@@ -431,6 +445,8 @@ func mattermostCalendarLogLifecycleResponse(t *testing.T, request *http.Request,
 		return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
 	case request.Method == http.MethodGet && request.URL.Path == "/api/v4/users":
 		return jsonResponse(http.StatusOK, `[{"id":"user-1","username":"dongha","nickname":"동하","email":"dongha@example.com"}]`, nil), nil
+	case request.Method == http.MethodGet && request.URL.Path == "/api/v4/users/me":
+		return jsonResponse(http.StatusOK, `{"id":"bot-1"}`, nil), nil
 	case request.Method == http.MethodGet && request.URL.Path == "/api/v4/teams/name/internkim":
 		return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
 	case request.Method == http.MethodGet && request.URL.Path == "/api/v4/teams/team-1/channels/name/calendar":
@@ -439,10 +455,18 @@ func mattermostCalendarLogLifecycleResponse(t *testing.T, request *http.Request,
 		return jsonResponse(http.StatusOK, `{}`, nil), nil
 	case request.Method == http.MethodPut && request.URL.Path == "/api/v4/channels/calendar-channel/moderations/patch":
 		return jsonResponse(http.StatusOK, `{}`, nil), nil
+	case request.Method == http.MethodPost && request.URL.Path == "/api/v4/channels/calendar-channel/members":
+		return jsonResponse(http.StatusCreated, `{}`, nil), nil
+	case request.Method == http.MethodPut && request.URL.Path == "/api/v4/channels/calendar-channel/members/bot-1/schemeRoles":
+		return jsonResponse(http.StatusOK, `{}`, nil), nil
+	case request.Method == http.MethodGet && request.URL.Path == "/api/v4/posts/calendar-post-1":
+		return jsonResponse(http.StatusOK, `{"id":"calendar-post-1","user_id":"bot-1"}`, nil), nil
 	case request.Method == http.MethodPost && request.URL.Path == "/api/v4/posts":
+		requests.createTokens = append(requests.createTokens, request.Header.Get("Authorization"))
 		requests.createdMessages = append(requests.createdMessages, mattermostPostMessage(t, request))
 		return jsonResponse(http.StatusCreated, `{"id":"calendar-post-1"}`, nil), nil
 	case request.Method == http.MethodPut && request.URL.Path == "/api/v4/posts/calendar-post-1/patch":
+		requests.updateTokens = append(requests.updateTokens, request.Header.Get("Authorization"))
 		requests.updatedMessages = append(requests.updatedMessages, mattermostPostMessage(t, request))
 		return jsonResponse(http.StatusOK, `{}`, nil), nil
 	case request.Method == http.MethodDelete && request.URL.Path == "/api/v4/posts/calendar-post-1":
