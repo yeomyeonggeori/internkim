@@ -46,6 +46,10 @@ export const adminText = {
 			timeZone: 'Time zone',
 			timeZonePlaceholder: 'system 또는 Asia/Seoul',
 			timeZoneHint: '비워두거나 system으로 두면 기기 설정을 사용합니다. IANA timezone만 저장됩니다.',
+			workspaceLanguageTitle: 'Workspace language',
+			workspaceLanguageDescription: 'Mattermost 채널 표시명을 이 언어로 일괄 업데이트합니다.',
+			workspaceLanguageKorean: '한국어',
+			workspaceLanguageEnglish: 'English',
 			save: '저장'
 		},
 		companion: {
@@ -154,6 +158,10 @@ export const adminText = {
 			timeZone: 'Time zone',
 			timeZonePlaceholder: 'system or Asia/Seoul',
 			timeZoneHint: 'Leave empty or set system to use the device setting. Only IANA time zones are saved.',
+			workspaceLanguageTitle: 'Workspace language',
+			workspaceLanguageDescription: 'Update Mattermost channel display names in this language.',
+			workspaceLanguageKorean: '한국어',
+			workspaceLanguageEnglish: 'English',
 			save: 'Save'
 		},
 		companion: {

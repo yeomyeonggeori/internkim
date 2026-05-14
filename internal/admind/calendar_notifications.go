@@ -286,7 +286,7 @@ func calendarAnnouncementsTarget() calendarNotificationTarget {
 	return calendarNotificationTarget{
 		TargetType: "announcements",
 		Key:        "announcements:" + calendarAnnouncementsChannelName,
-		Label:      calendarAnnouncementsChannelDisplayName,
+		Label:      announcementsChannelDisplayName(workspaceLanguageKorean),
 	}
 }
 
@@ -469,7 +469,7 @@ func (service *Service) sendCalendarNotification(ctx context.Context, notificati
 		if errorValue != nil {
 			return errorValue
 		}
-		channelID, errorValue := service.ensureMattermostPublicChannel(ctx, adminToken, teamRecord.ID, calendarAnnouncementsChannelName, calendarAnnouncementsChannelDisplayName)
+		channelID, errorValue := service.ensureMattermostPublicChannel(ctx, adminToken, teamRecord.ID, calendarAnnouncementsChannelName, announcementsChannelDisplayName(service.workspaceLanguage()))
 		if errorValue != nil {
 			return errorValue
 		}
