@@ -42,6 +42,7 @@ func TestGuestInitCreatesResourceFirstWorkspaceLayout(t *testing.T) {
 		"/workspace/circles/c-level",
 		"/workspace/circles/representative",
 		"/workspace/circles/admin",
+		"/workspace/circles/hr-compensation",
 		"/workspace/private/people",
 		"/workspace/shared/public",
 		"chown -R blueclaw:blueclaw",

@@ -71,6 +71,15 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if memory["graphitiKuzuPath"] != "/workspace/.blueclaw/graphiti/kuzu" {
 		t.Fatalf("expected Graphiti Kuzu path, got %q", memory["graphitiKuzuPath"])
 	}
+	if memory["pinnedMemoryRootPath"] != "/workspace/.blueclaw/memory" {
+		t.Fatalf("expected pinned memory path, got %q", memory["pinnedMemoryRootPath"])
+	}
+	if memory["pinnedMemoryHardLimitCharacterCount"] != float64(6000) {
+		t.Fatalf("expected pinned memory hard limit, got %v", memory["pinnedMemoryHardLimitCharacterCount"])
+	}
+	if memory["pinnedMemoryCompressionTargetCharacterCount"] != float64(3500) {
+		t.Fatalf("expected pinned memory compression target, got %v", memory["pinnedMemoryCompressionTargetCharacterCount"])
+	}
 	if memory["timeoutSecond"] != float64(60) {
 		t.Fatalf("expected Graphiti timeout, got %v", memory["timeoutSecond"])
 	}
@@ -113,12 +122,12 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	agentProfiles := runtimeConfiguration["agentProfiles"].([]any)
 	defaultProfile := agentProfiles[0].(map[string]any)
 	allowedToolNames := defaultProfile["allowedToolNames"].([]any)
-	for _, expectedToolName := range []string{"conversation.history", "memory.search", "terminal.run", "terminal.session", "browser_handoff.openURL", "approval.request", "file.write", "file.attach", "skill.add", "skill.remove", "skill.search", "schedule.create", "schedule.cancel"} {
+	for _, expectedToolName := range []string{"conversation.history", "memory.search", "memory.remember", "terminal.run", "terminal.session", "browser_handoff.openURL", "approval.request", "file.write", "file.attach", "skill.add", "skill.remove", "skill.search", "schedule.create", "schedule.cancel"} {
 		if !containsStringValue(allowedToolNames, expectedToolName) {
 			t.Fatalf("expected default agent profile to allow internal tool %q, got %+v", expectedToolName, allowedToolNames)
 		}
 	}
-	if !containsStringValue(allowedToolNames, "conversation.history") || !containsStringValue(allowedToolNames, "memory.search") {
+	if !containsStringValue(allowedToolNames, "conversation.history") || !containsStringValue(allowedToolNames, "memory.search") || !containsStringValue(allowedToolNames, "memory.remember") {
 		t.Fatalf("expected default agent profile to allow internal tools, got %+v", allowedToolNames)
 	}
 	for _, expectedToolName := range []string{"platform.dm.send", "browser.open", "browser.snapshot", "browser.click", "browser.fill", "browser.select", "browser.press", "browser.wait", "user.confirm", "file.pick"} {
@@ -208,14 +217,14 @@ func TestBlueclawPolicyDocumentSeedsResourceFirstCircles(t *testing.T) {
 		t.Fatalf("expected admin person staff/admin circles, got %+v", adminCircles)
 	}
 	circles := policyDocument["circles"].([]any)
-	for _, expectedCircle := range []string{"staff", "c-level", "representative", "admin"} {
+	for _, expectedCircle := range []string{"staff", "c-level", "representative", "admin", "hr-compensation"} {
 		if !containsPolicyCircle(circles, expectedCircle) {
 			t.Fatalf("expected circle %q, got %+v", expectedCircle, circles)
 		}
 	}
 	circleSync := policyDocument["circleSync"].(map[string]any)
 	mattermostPrivateChannels := circleSync["mattermostPrivateChannels"].([]any)
-	for _, expectedChannel := range []string{"circle-c-level", "circle-representative", "circle-admin"} {
+	for _, expectedChannel := range []string{"circle-c-level", "circle-representative", "circle-admin", "circle-hr-compensation"} {
 		if !containsPolicyMattermostChannel(mattermostPrivateChannels, expectedChannel) {
 			t.Fatalf("expected Mattermost circle channel %q, got %+v", expectedChannel, mattermostPrivateChannels)
 		}
@@ -223,6 +232,9 @@ func TestBlueclawPolicyDocumentSeedsResourceFirstCircles(t *testing.T) {
 	resourceAccess := policyDocument["resourceAccess"].([]any)
 	if !containsPolicyResource(resourceAccess, "file:circle:c-level", "c-level") {
 		t.Fatalf("expected c-level file resource rule, got %+v", resourceAccess)
+	}
+	if !containsPolicyResource(resourceAccess, "file:circle:hr-compensation", "hr-compensation") {
+		t.Fatalf("expected HR compensation file resource rule, got %+v", resourceAccess)
 	}
 	if !containsPolicyResource(resourceAccess, "api:flow.summary", "staff") {
 		t.Fatalf("expected staff Flow summary API rule, got %+v", resourceAccess)

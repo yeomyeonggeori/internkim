@@ -8,7 +8,25 @@ import (
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
-const BlueclawCapabilityTimeoutSecond = 0
+const (
+	BlueclawCapabilityTimeoutSecond                     = 0
+	BlueclawPinnedMemoryHardLimitCharacterCount         = 6000
+	BlueclawPinnedMemoryCompressionTargetCharacterCount = 3500
+)
+
+type defaultCircleDefinition struct {
+	CircleID              string
+	DisplayName           string
+	MattermostChannelName string
+}
+
+var defaultCircleDefinitions = []defaultCircleDefinition{
+	{CircleID: "staff", DisplayName: "Staff"},
+	{CircleID: "c-level", DisplayName: "C-level", MattermostChannelName: "circle-c-level"},
+	{CircleID: "representative", DisplayName: "Representative", MattermostChannelName: "circle-representative"},
+	{CircleID: "admin", DisplayName: "Admin", MattermostChannelName: "circle-admin"},
+	{CircleID: "hr-compensation", DisplayName: "HR Compensation", MattermostChannelName: "circle-hr-compensation"},
+}
 
 func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 	capabilityLanguageModel := map[string]any{
@@ -77,10 +95,13 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 			"migrationDirectoryPath": BlueclawGuestMigrationPath,
 		},
 		"memory": map[string]any{
-			"workspaceID":      "default",
-			"graphitiEndpoint": GraphitiEndpoint,
-			"graphitiKuzuPath": path.Join(BlueclawGuestWorkspacePath, ".blueclaw", "graphiti", "kuzu"),
-			"timeoutSecond":    60,
+			"workspaceID":                                 "default",
+			"graphitiEndpoint":                            GraphitiEndpoint,
+			"graphitiKuzuPath":                            path.Join(BlueclawGuestWorkspacePath, ".blueclaw", "graphiti", "kuzu"),
+			"pinnedMemoryRootPath":                        path.Join(BlueclawGuestWorkspacePath, ".blueclaw", "memory"),
+			"pinnedMemoryHardLimitCharacterCount":         BlueclawPinnedMemoryHardLimitCharacterCount,
+			"pinnedMemoryCompressionTargetCharacterCount": BlueclawPinnedMemoryCompressionTargetCharacterCount,
+			"timeoutSecond":                               60,
 		},
 		"agent": map[string]any{
 			"intake": map[string]any{
@@ -111,7 +132,7 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 		"agentProfiles": []map[string]any{
 			{
 				"name":             "default",
-				"allowedToolNames": append([]string{"conversation.history", "memory.search", "terminal.run", "terminal.session", "browser_handoff.openURL", "approval.request", "file.write", "file.attach", "skill.add", "skill.remove", "skill.search", "schedule.create", "schedule.cancel"}, capabilities.DefaultToolNames()...),
+				"allowedToolNames": append([]string{"conversation.history", "memory.search", "memory.remember", "terminal.run", "terminal.session", "browser_handoff.openURL", "approval.request", "file.write", "file.attach", "skill.add", "skill.remove", "skill.search", "schedule.create", "schedule.cancel"}, capabilities.DefaultToolNames()...),
 			},
 		},
 		"mcpServers": []map[string]any{},
@@ -161,18 +182,9 @@ func BlueclawPolicyDocument(adminEmail string) (string, error) {
 				"isAdmin":           true,
 			},
 		},
-		"circles": []map[string]any{
-			defaultCirclePolicy("staff", "Staff"),
-			defaultCirclePolicy("c-level", "C-level"),
-			defaultCirclePolicy("representative", "Representative"),
-			defaultCirclePolicy("admin", "Admin"),
-		},
+		"circles": defaultCirclePolicies(),
 		"circleSync": map[string]any{
-			"mattermostPrivateChannels": []map[string]any{
-				{"circleID": "c-level", "channelName": "circle-c-level"},
-				{"circleID": "representative", "channelName": "circle-representative"},
-				{"circleID": "admin", "channelName": "circle-admin"},
-			},
+			"mattermostPrivateChannels": defaultMattermostCircleChannelPolicies(),
 		},
 		"channels":       []map[string]any{},
 		"resourceAccess": defaultResourceAccessPolicies(),
@@ -196,12 +208,42 @@ func defaultCirclePolicy(circleID string, displayName string) map[string]any {
 	}
 }
 
+func defaultCirclePolicies() []map[string]any {
+	circles := make([]map[string]any, 0, len(defaultCircleDefinitions))
+	for _, circleDefinition := range defaultCircleDefinitions {
+		circles = append(circles, defaultCirclePolicy(circleDefinition.CircleID, circleDefinition.DisplayName))
+	}
+	return circles
+}
+
+func defaultMattermostCircleChannelPolicies() []map[string]any {
+	channels := []map[string]any{}
+	for _, circleDefinition := range defaultCircleDefinitions {
+		if strings.TrimSpace(circleDefinition.MattermostChannelName) == "" {
+			continue
+		}
+		channels = append(channels, map[string]any{
+			"circleID":    circleDefinition.CircleID,
+			"channelName": circleDefinition.MattermostChannelName,
+		})
+	}
+	return channels
+}
+
 func defaultResourceAccessPolicies() []map[string]any {
-	return []map[string]any{
-		{"resource": "file:circle:staff", "actions": []string{"read", "write"}, "circles": []string{"staff"}},
-		{"resource": "file:circle:c-level", "actions": []string{"read", "write"}, "circles": []string{"c-level"}},
-		{"resource": "file:circle:representative", "actions": []string{"read", "write"}, "circles": []string{"representative"}},
-		{"resource": "file:circle:admin", "actions": []string{"read", "write", "manage"}, "circles": []string{"admin"}},
+	policies := []map[string]any{}
+	for _, circleDefinition := range defaultCircleDefinitions {
+		actions := []string{"read", "write"}
+		if circleDefinition.CircleID == "admin" {
+			actions = append(actions, "manage")
+		}
+		policies = append(policies, map[string]any{
+			"resource": "file:circle:" + circleDefinition.CircleID,
+			"actions":  actions,
+			"circles":  []string{circleDefinition.CircleID},
+		})
+	}
+	return append(policies, []map[string]any{
 		{"resource": "api:flow.summary", "actions": []string{"read"}, "circles": []string{"staff"}},
 		{"resource": "api:flow.task", "actions": []string{"create", "update"}, "circles": []string{"staff"}},
 		{"resource": "api:flow.definition", "actions": []string{"manage"}, "circles": []string{"admin"}},
@@ -224,5 +266,5 @@ func defaultResourceAccessPolicies() []map[string]any {
 		{"resource": "tool:site.app.unpublish", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:site.app.delete", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:company.broadcast.send", "actions": []string{"execute"}, "circles": []string{"representative"}},
-	}
+	}...)
 }
