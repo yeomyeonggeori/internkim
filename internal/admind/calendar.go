@@ -25,16 +25,15 @@ import (
 )
 
 const (
-	calendarProductID                       = "-//InternKim//Shared Calendar//EN"
-	calendarName                            = "Work"
-	calendarDAVUsername                     = "internkim"
-	calendarPrincipalPath                   = "/calendar/dav/team/"
-	calendarHomeSetPath                     = "/calendar/dav/team/calendars/"
-	calendarCollectionPath                  = "/calendar/dav/team/calendars/internkim/"
-	calendarSettingsICSKey                  = "ics_token"
-	calendarDefaultReminderLeadHours        = 24
-	calendarAnnouncementsChannelName        = "announcements"
-	calendarAnnouncementsChannelDisplayName = "Announcements"
+	calendarProductID                = "-//InternKim//Shared Calendar//EN"
+	calendarName                     = "Work"
+	calendarDAVUsername              = "internkim"
+	calendarPrincipalPath            = "/calendar/dav/team/"
+	calendarHomeSetPath              = "/calendar/dav/team/calendars/"
+	calendarCollectionPath           = "/calendar/dav/team/calendars/internkim/"
+	calendarSettingsICSKey           = "ics_token"
+	calendarDefaultReminderLeadHours = 24
+	calendarAnnouncementsChannelName = "announcements"
 )
 
 type calendarEvent struct {
@@ -988,7 +987,7 @@ func calendarAnnouncementsTarget() calendarNotificationTarget {
 	return calendarNotificationTarget{
 		TargetType: "announcements",
 		Key:        "announcements:" + calendarAnnouncementsChannelName,
-		Label:      calendarAnnouncementsChannelDisplayName,
+		Label:      announcementsChannelDisplayName(workspaceLanguageKorean),
 	}
 }
 
@@ -1171,7 +1170,7 @@ func (service *Service) sendCalendarNotification(ctx context.Context, notificati
 		if errorValue != nil {
 			return errorValue
 		}
-		channelID, errorValue := service.ensureMattermostPublicChannel(ctx, adminToken, teamRecord.ID, calendarAnnouncementsChannelName, calendarAnnouncementsChannelDisplayName)
+		channelID, errorValue := service.ensureMattermostPublicChannel(ctx, adminToken, teamRecord.ID, calendarAnnouncementsChannelName, announcementsChannelDisplayName(service.workspaceLanguage()))
 		if errorValue != nil {
 			return errorValue
 		}
