@@ -558,7 +558,7 @@ func (service Service) stopMattermostProgress(replyTargetID string) {
 	service.progressManager().Stop("mattermost:" + replyTargetID)
 }
 
-func (service Service) mattermostStartProgressFromRequest(_ context.Context, reader io.Reader) (any, error) {
+func (service Service) mattermostStartProgressFromRequest(ctx context.Context, reader io.Reader) (any, error) {
 	payload, errorValue := io.ReadAll(reader)
 	if errorValue != nil {
 		return nil, errorValue
@@ -574,8 +574,11 @@ func (service Service) mattermostStartProgressFromRequest(_ context.Context, rea
 	if handle.Platform != "mattermost" {
 		return nil, errors.New("progress target platform mismatch")
 	}
+	if errorValue := service.sendMattermostTyping(ctx, handle); errorValue != nil {
+		return nil, errorValue
+	}
 	service.progressManager().Start("mattermost:"+request.ReplyTargetID, mattermostProgressTTL, func(progressContext context.Context) {
-		service.runMattermostTyping(progressContext, handle)
+		service.refreshMattermostTyping(progressContext, handle)
 	})
 	return map[string]string{"status": "started"}, nil
 }
@@ -596,8 +599,7 @@ func (service Service) mattermostStopProgressFromRequest(_ context.Context, read
 	return map[string]string{"status": "stopped"}, nil
 }
 
-func (service Service) runMattermostTyping(ctx context.Context, handle platformHandle) {
-	service.sendMattermostTyping(ctx, handle)
+func (service Service) refreshMattermostTyping(ctx context.Context, handle platformHandle) {
 	ticker := time.NewTicker(mattermostTypingInterval)
 	defer ticker.Stop()
 	for {
@@ -605,37 +607,41 @@ func (service Service) runMattermostTyping(ctx context.Context, handle platformH
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			service.sendMattermostTyping(ctx, handle)
+			if errorValue := service.sendMattermostTyping(ctx, handle); errorValue != nil {
+				log.Printf("mattermost typing failed: %v", errorValue)
+			}
 		}
 	}
 }
 
-func (service Service) sendMattermostTyping(ctx context.Context, handle platformHandle) {
+func (service Service) sendMattermostTyping(ctx context.Context, handle platformHandle) error {
 	var botUser struct {
 		ID string `json:"id"`
 	}
 	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", nil, &botUser); errorValue != nil {
-		log.Printf("mattermost typing bot lookup failed: %v", errorValue)
-		return
+		return errorValue
 	}
 	if strings.TrimSpace(botUser.ID) == "" || strings.TrimSpace(handle.ChannelID) == "" {
-		return
+		return nil
 	}
 
-	service.publishMattermostTyping(ctx, botUser.ID, handle.ChannelID, handle.RootID)
-	if strings.TrimSpace(handle.RootID) != "" {
-		service.publishMattermostTyping(ctx, botUser.ID, handle.ChannelID, "")
+	if errorValue := service.publishMattermostTyping(ctx, botUser.ID, handle.ChannelID, handle.RootID); errorValue != nil {
+		return errorValue
 	}
+	if strings.TrimSpace(handle.RootID) != "" {
+		if errorValue := service.publishMattermostTyping(ctx, botUser.ID, handle.ChannelID, ""); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
 }
 
-func (service Service) publishMattermostTyping(ctx context.Context, botUserID string, channelID string, rootID string) {
+func (service Service) publishMattermostTyping(ctx context.Context, botUserID string, channelID string, rootID string) error {
 	body := map[string]string{"channel_id": channelID}
 	if strings.TrimSpace(rootID) != "" {
 		body["parent_id"] = rootID
 	}
-	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/users/"+url.PathEscape(botUserID)+"/typing", body, nil); errorValue != nil {
-		log.Printf("mattermost typing failed: %v", errorValue)
-	}
+	return service.mattermostRequest(ctx, http.MethodPost, "/api/v4/users/"+url.PathEscape(botUserID)+"/typing", body, nil)
 }
 
 func (service Service) mattermostHistoryFromRequest(ctx context.Context, reader io.Reader) (any, error) {
