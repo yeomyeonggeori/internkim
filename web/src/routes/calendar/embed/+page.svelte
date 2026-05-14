@@ -107,6 +107,8 @@
 	let isDispatchingMonthCreateDoubleClick = false;
 	let monthLongPressTimer: ReturnType<typeof setTimeout> | null = null;
 	const monthLongPressDelay = 400;
+	const pendingCreateEvents = new Map<string, Promise<void>>();
+	const eventsDeletedDuringCreate = new Set<string>();
 
 	const calendar = useCalendarApp({
 		views: [
@@ -151,6 +153,7 @@
 		],
 		callbacks: {
 			onVisibleRangeChange: (startDate, endDate) => loadEvents(startDate, endDate),
+			onEventClick: (event) => openEventDetails(event.id),
 			onEventCreate: (event) => saveCreatedEvent(event),
 			onEventUpdate: (event) => saveUpdatedEvent(event),
 			onEventDelete: (eventID) => deleteEvent(eventID)
@@ -257,50 +260,128 @@
 	}
 
 	async function saveCreatedEvent(event: DayFlowEvent) {
-		await persistEvent('/calendar/api/events', 'POST', event);
+		const createEventPromise = createEventOnServer(event);
+		pendingCreateEvents.set(event.id, createEventPromise);
+		try {
+			await createEventPromise;
+		} finally {
+			pendingCreateEvents.delete(event.id);
+			eventsDeletedDuringCreate.delete(event.id);
+		}
+	}
+
+	async function createEventOnServer(event: DayFlowEvent) {
+		beginEventPersistence();
+		try {
+			await sendEventWriteRequest('/calendar/api/events', 'POST', event);
+		} catch (error) {
+			if (!eventsDeletedDuringCreate.has(event.id)) {
+				showEventPersistenceError(error, text.saveError);
+			}
+			finishEventPersistence();
+			return;
+		}
+		if (eventsDeletedDuringCreate.has(event.id)) {
+			await deleteEventCreatedDuringPendingCreate(event.id);
+			return;
+		}
+		markEventPersisted();
+		finishEventPersistence();
+	}
+
+	async function deleteEventCreatedDuringPendingCreate(eventID: string) {
+		try {
+			await deletePersistedEvent(eventID);
+			refreshEventCountAfterRender();
+		} catch (error) {
+			showEventPersistenceError(error, text.deleteError);
+			await refreshCalendar();
+		} finally {
+			finishEventPersistence();
+		}
 	}
 
 	async function saveUpdatedEvent(event: DayFlowEvent) {
 		await persistEvent(`/calendar/api/events/${encodeURIComponent(event.id)}`, 'PUT', event);
 	}
 
-	async function persistEvent(path: string, method: string, event: DayFlowEvent) {
-		isSaving = true;
-		statusMessage = '';
-		errorMessage = '';
+	async function persistEvent(path: string, method: 'POST' | 'PUT', event: DayFlowEvent) {
+		beginEventPersistence();
 		try {
-			const response = await fetch(path, {
-				method,
-				credentials: 'include',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(calendarEventPayloadFromDayFlowEvent(event))
-			});
-			if (!response.ok) throw new Error(await responseErrorMessage(response, text.saveError));
-			statusMessage = text.shared;
-			eventCount = calendar.app.getAllEvents().length;
+			await sendEventWriteRequest(path, method, event);
+			markEventPersisted();
 		} catch (error) {
-			errorMessage = error instanceof Error ? error.message : text.saveError;
+			showEventPersistenceError(error, text.saveError);
 		} finally {
-			isSaving = false;
+			finishEventPersistence();
 		}
 	}
 
 	async function deleteEvent(eventID: string) {
-		isSaving = true;
-		errorMessage = '';
+		if (pendingCreateEvents.has(eventID)) {
+			eventsDeletedDuringCreate.add(eventID);
+			refreshEventCountAfterRender();
+			return;
+		}
+		beginDeletePersistence();
 		try {
-			const response = await fetch(`/calendar/api/events/${encodeURIComponent(eventID)}`, {
-				method: 'DELETE',
-				credentials: 'include'
-			});
-			if (!response.ok) throw new Error(await responseErrorMessage(response, text.deleteError));
-			eventCount = calendar.app.getAllEvents().length;
+			await deletePersistedEvent(eventID);
+			refreshEventCountAfterRender();
 		} catch (error) {
-			errorMessage = error instanceof Error ? error.message : text.deleteError;
+			showEventPersistenceError(error, text.deleteError);
 			await refreshCalendar();
 		} finally {
-			isSaving = false;
+			finishEventPersistence();
 		}
+	}
+
+	function beginEventPersistence() {
+		isSaving = true;
+		statusMessage = '';
+		errorMessage = '';
+	}
+
+	function beginDeletePersistence() {
+		isSaving = true;
+		errorMessage = '';
+	}
+
+	function finishEventPersistence() {
+		isSaving = false;
+	}
+
+	function markEventPersisted() {
+		statusMessage = text.shared;
+		eventCount = calendar.app.getAllEvents().length;
+	}
+
+	function refreshEventCountAfterRender() {
+		if (!browser) return;
+		requestAnimationFrame(() => {
+			eventCount = calendar.app.getAllEvents().length;
+		});
+	}
+
+	function showEventPersistenceError(error: unknown, fallback: string) {
+		errorMessage = error instanceof Error ? error.message : fallback;
+	}
+
+	async function sendEventWriteRequest(path: string, method: 'POST' | 'PUT', event: DayFlowEvent) {
+		const response = await fetch(path, {
+			method,
+			credentials: 'include',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(calendarEventPayloadFromDayFlowEvent(event))
+		});
+		if (!response.ok) throw new Error(await responseErrorMessage(response, text.saveError));
+	}
+
+	async function deletePersistedEvent(eventID: string) {
+		const response = await fetch(`/calendar/api/events/${encodeURIComponent(eventID)}`, {
+			method: 'DELETE',
+			credentials: 'include'
+		});
+		if (!response.ok) throw new Error(await responseErrorMessage(response, text.deleteError));
 	}
 
 	function dayFlowEventFromCalendarEvent(event: CalendarEvent) {
@@ -326,6 +407,7 @@
 		const startDate = calendarDateFromDayFlowEventStart(event);
 		const endDate = calendarDateFromDayFlowEventEnd(event);
 		return {
+			eventID: event.id,
 			title: event.title || 'Untitled event',
 			description: event.description ?? '',
 			location: typeof event.meta?.location === 'string' ? event.meta.location : '',
@@ -590,9 +672,21 @@
 	}
 
 	function openEventDetails(eventID: string) {
+		calendar.app.selectEvent(eventID);
 		const eventElement = eventElementByID(eventID);
 		if (!eventElement) return;
-		eventElement.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, view: window }));
+		eventElement.dispatchEvent(detailOpenEventForElement(eventElement));
+	}
+
+	function detailOpenEventForElement(element: HTMLElement) {
+		const rectangle = element.getBoundingClientRect();
+		return new MouseEvent('dblclick', {
+			bubbles: true,
+			cancelable: true,
+			view: window,
+			clientX: rectangle.left + rectangle.width / 2,
+			clientY: rectangle.top + rectangle.height / 2
+		});
 	}
 
 	function eventElementByID(eventID: string) {
