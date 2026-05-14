@@ -1,7 +1,5 @@
 package admind
 
-// go-webdav caldav.Backend 인터페이스 구현과 calendarEvent <-> caldav.CalendarObject 어댑터.
-
 import (
 	"context"
 	"errors"

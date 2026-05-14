@@ -1,7 +1,5 @@
 package admind
 
-// 캘린더 ICS 인코딩 디코딩과 calendarEvent <-> ical.Calendar 변환.
-
 import (
 	"bytes"
 	"errors"
