@@ -251,7 +251,7 @@ func TestCalendarNotificationPostsAnnouncementsForAllHands(t *testing.T) {
 	service.processDueCalendarNotifications(context.Background(), time.Now().UTC().Add(time.Second))
 	service.processDueCalendarNotifications(context.Background(), time.Now().UTC().Add(2*time.Second))
 
-	if createdChannel["name"] != calendarAnnouncementsChannelName || createdChannel["display_name"] != calendarAnnouncementsChannelDisplayName {
+	if createdChannel["name"] != calendarAnnouncementsChannelName || createdChannel["display_name"] != announcementsChannelDisplayName(workspaceLanguageKorean) {
 		t.Fatalf("created channel = %+v", createdChannel)
 	}
 	if postCount != 1 {
