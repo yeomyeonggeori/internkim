@@ -33,26 +33,22 @@ func TestFleetAccessDoesNotCreateRootAccessApplication(t *testing.T) {
 	}
 }
 
-func TestAdminAccessApplicationDomainsProtectOnlyInternKimPaths(t *testing.T) {
+func TestAdminAccessApplicationDomainsProtectOnlyAdmin(t *testing.T) {
 	document := readRepositoryFile(t, "web/src/lib/cloudflare.ts")
 	body := functionBody(t, document, "export function adminAccessApplicationDomains")
-	specBody := functionBody(t, document, "function adminAccessApplicationSpecs")
 	requiredFragments := []string{
 		"${hostname}/admin*",
-		"${hostname}/_app/*",
-		"${hostname}/flow*",
-		"${hostname}/mail*",
-		"${hostname}/calendar",
-		"${hostname}/calendar/",
-		"${hostname}/calendar/embed*",
-		"${hostname}/calendar/api/*",
 	}
 	for _, fragment := range requiredFragments {
-		if !strings.Contains(specBody, fragment) {
+		if !strings.Contains(body, fragment) {
 			t.Fatalf("admin Access domains must include %q", fragment)
 		}
 	}
 	disallowedFragments := []string{
+		"/_app",
+		"/flow",
+		"/mail",
+		"/calendar",
 		"/api/v4",
 		"/websocket",
 		"/plugins",
@@ -64,22 +60,18 @@ func TestAdminAccessApplicationDomainsProtectOnlyInternKimPaths(t *testing.T) {
 		"/.well-known/caldav",
 	}
 	for _, fragment := range disallowedFragments {
-		if strings.Contains(specBody, fragment) {
-			t.Fatalf("admin Access domains must not protect Mattermost or token-auth path %q", fragment)
+		if strings.Contains(body, fragment) {
+			t.Fatalf("admin Access domains must not protect non-admin path %q", fragment)
 		}
-	}
-	if !strings.Contains(body, "adminAccessApplicationSpecs(env, fleetId).flatMap((spec) => spec.domains)") {
-		t.Fatalf("admin Access domains must be derived from the split application specs")
 	}
 }
 
-func TestAdminAccessApplicationsAreSplitByDestinationLimit(t *testing.T) {
+func TestAdminAccessApplicationsDeleteLegacyNonAdminApps(t *testing.T) {
 	document := readRepositoryFile(t, "web/src/lib/cloudflare.ts")
 	body := functionBody(t, document, "export async function ensureAdminAccessApplications")
 	requiredFragments := []string{
-		"await ensureCalendarClientBypassApplication(env, fleetId)",
-		"for (const spec of adminAccessApplicationSpecs(env, fleetId))",
-		"ensureAdminAccessApplication(env, fleetId, identityProviderId, spec)",
+		"await deleteLegacyNonAdminAccessApplications(env, fleetId)",
+		"const applicationID = await ensureAdminAccessApplication(env, fleetId, identityProviderId)",
 		"syncAccessPolicyEmails(env, applicationID, normalizeRequiredAccessEmails(adminEmails, 'Cloudflare admin access'))",
 	}
 	for _, fragment := range requiredFragments {
@@ -87,26 +79,23 @@ func TestAdminAccessApplicationsAreSplitByDestinationLimit(t *testing.T) {
 			t.Fatalf("admin Access sync must include %q", fragment)
 		}
 	}
-	if strings.Contains(document, "self_hosted_domains: adminAccessApplicationDomains(env, fleetId)") {
-		t.Fatalf("admin Access apps must not put every protected path into one Cloudflare app")
-	}
-}
 
-func TestCalendarClientPathsBypassCloudflareAccess(t *testing.T) {
-	document := readRepositoryFile(t, "web/src/lib/cloudflare.ts")
-	body := functionBody(t, document, "function calendarClientBypassApplicationBody")
-	requiredFragments := []string{
-		"${hostname}/calendar/ics/*",
-		"${hostname}/calendar/dav/*",
-		"${hostname}/.well-known/caldav",
+	cleanupBody := functionBody(t, document, "async function deleteLegacyNonAdminAccessApplications")
+	legacyDomains := []string{
+		"'/_app/*'",
+		"'/flow*'",
+		"'/mail*'",
+		"'/calendar'",
+		"'/calendar/ics/*'",
+		"'/_internkim/admin/*'",
 	}
-	for _, fragment := range requiredFragments {
-		if !strings.Contains(body, fragment) {
-			t.Fatalf("calendar client bypass app must include %q", fragment)
+	for _, domain := range legacyDomains {
+		if !strings.Contains(cleanupBody, domain) {
+			t.Fatalf("legacy non-admin Access cleanup must include %q", domain)
 		}
 	}
-	if !strings.Contains(document, "await ensureBypassPolicy(env, applicationId, 'calendar-clients')") {
-		t.Fatalf("calendar client app must use a Cloudflare Access bypass policy")
+	if strings.Contains(document, "ensureCalendarClientBypassApplication") {
+		t.Fatalf("calendar must not create a Cloudflare Access bypass app")
 	}
 }
 
