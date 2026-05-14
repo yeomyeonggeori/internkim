@@ -597,14 +597,7 @@ func (service Service) mattermostStopProgressFromRequest(_ context.Context, read
 }
 
 func (service Service) runMattermostTyping(ctx context.Context, handle platformHandle) {
-	debounceTimer := time.NewTimer(mattermostTypingDebounce)
-	defer debounceTimer.Stop()
-	select {
-	case <-ctx.Done():
-		return
-	case <-debounceTimer.C:
-		service.sendMattermostTyping(ctx, handle)
-	}
+	service.sendMattermostTyping(ctx, handle)
 	ticker := time.NewTicker(mattermostTypingInterval)
 	defer ticker.Stop()
 	for {
@@ -958,7 +951,6 @@ func (locker *platformEventLocker) lockForName(name string) *sync.Mutex {
 }
 
 const mattermostProgressTTL = 3 * time.Minute
-const mattermostTypingDebounce = 750 * time.Millisecond
 const mattermostTypingInterval = 4 * time.Second
 
 type platformProgressManager struct {
