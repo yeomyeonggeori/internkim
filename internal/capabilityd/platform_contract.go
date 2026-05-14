@@ -25,6 +25,12 @@ type platformEventContext struct {
 	ConversationType string                   `json:"conversationType,omitempty"`
 	ChannelID        string                   `json:"channelID,omitempty"`
 	ChannelName      string                   `json:"channelName,omitempty"`
+	Addressing       platformAddressing       `json:"addressing,omitempty"`
+}
+
+type platformAddressing struct {
+	BotMentioned         bool `json:"botMentioned,omitempty"`
+	OtherPersonMentioned bool `json:"otherPersonMentioned,omitempty"`
 }
 
 type platformContextSender struct {

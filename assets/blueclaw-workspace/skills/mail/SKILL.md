@@ -54,8 +54,8 @@ Use this approval message shape:
 
 ```json
 {
-  "message": "다음 이메일을 보내도 될까요?\n\nTo: recipient@example.com\nSubject: 제목\n\n본문",
-  "reason": "Email is an external send and requires approval before delivery."
+  "userFacingMessage": "다음 이메일을 보내도 될까요?\n\nTo: recipient@example.com\nSubject: 제목\n\n본문",
+  "reasonCode": "external_send"
 }
 ```
 

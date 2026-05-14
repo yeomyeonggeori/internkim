@@ -521,7 +521,7 @@ func (service Service) sendMattermostDirectMessageWithDispatch(ctx context.Conte
 	}
 	channelID, errorValue := service.createMattermostDirectChannel(ctx, botUser.ID, normalizedUserID)
 	if errorValue != nil {
-		return "", platformDMFailureForError("mattermost_lookup", "mattermost_unavailable", errorValue, true), true
+		return "", platformDMFailureForError("direct_channel_create", "direct_channel_create_failed", errorValue, true), true
 	}
 	var response struct {
 		ID string `json:"id"`
