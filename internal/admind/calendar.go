@@ -208,6 +208,16 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 	event.UID = existingEvent.UID
 	event.CreatedByEmail = existingEvent.CreatedByEmail
 	event.MattermostPostID = existingEvent.MattermostPostID
+	// normalizeCalendarEventWriteRequest 단계에서 RawICS 가 한 번 인코딩되지만,
+	// 그 직후 event.UID 가 기존 값으로 되돌려지면 RawICS 안의 UID 와 컬럼 uid 가 어긋난다.
+	// CalDAV 응답은 RawICS 를, ICS 피드는 event.UID 를 쓰므로 두 출력의 UID 가 달라지면서
+	// 클라이언트 캐시에서 동일 이벤트가 중복으로 보이는 회귀가 발생한다 — 여기서 재인코딩으로 정합성 회복.
+	regeneratedRawICS, errorValue := encodeCalendarObject(event)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	event.RawICS = regeneratedRawICS
 	if errorValue := service.writeCalendarEvent(request.Context(), event); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
