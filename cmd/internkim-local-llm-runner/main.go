@@ -20,8 +20,14 @@ const liteRTConstrainedBinaryPath = "/usr/local/bin/internkim-litert-constrained
 const liteRTMainLibraryDirectory = "/usr/local/lib/litert_lm"
 
 type message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string        `json:"role"`
+	Content string        `json:"content"`
+	Parts   []messagePart `json:"parts,omitempty"`
+}
+
+type messagePart struct {
+	Type string `json:"type"`
+	Text string `json:"text,omitempty"`
 }
 
 type schemaRequest struct {
@@ -219,10 +225,28 @@ func renderPrompt(request requestDocument) string {
 		}
 		builder.WriteString(role)
 		builder.WriteString(": ")
-		builder.WriteString(strings.TrimSpace(message.Content))
+		builder.WriteString(strings.TrimSpace(messageTextContent(message)))
 		builder.WriteString("\n")
 	}
 	return builder.String()
+}
+
+func messageTextContent(message message) string {
+	parts := []string{}
+	if strings.TrimSpace(message.Content) != "" {
+		parts = append(parts, message.Content)
+	}
+	for _, part := range message.Parts {
+		switch strings.TrimSpace(part.Type) {
+		case "text":
+			if strings.TrimSpace(part.Text) != "" {
+				parts = append(parts, part.Text)
+			}
+		case "image":
+			parts = append(parts, "[image input omitted by local runner]")
+		}
+	}
+	return strings.Join(parts, "\n")
 }
 
 func (request requestDocument) outputMode() string {
