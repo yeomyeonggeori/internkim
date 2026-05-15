@@ -6,6 +6,7 @@ allowed-tools:
   - file.read
   - terminal.run
   - file.write
+  - file.promote
   - file.attach
 ---
 
@@ -22,9 +23,9 @@ Create or modify spreadsheet files as local artifacts, then attach the final wor
 5. For custom charts, advanced formulas, macros, or edits that exceed the JSON script, write a task-local Python file and run it through `scripts/skill_runtime.py python <file.py>`.
 6. Use Python `csv` for `.csv` and `.tsv` parsing before writing workbook output.
 7. Validate with `scripts/validate_xlsx.py` or by reopening the workbook and checking sheets, dimensions, formulas, and obvious formatting.
-8. Move accepted final files to `artifacts/<workbook-slug>/` unless the user requested a circle or shared destination, then attach the final spreadsheet; attach source CSVs only if requested.
+8. Promote accepted final files from `tmp/<workbook-slug>/build/` or the generated output path to `artifacts/<workbook-slug>/` with `file.promote` unless the user requested a circle or shared destination, then attach the promoted spreadsheet; attach source CSVs only if requested.
 
-Bundled scripts are responsible for their own Python dependencies. Run them through `scripts/skill_runtime.py`; the wrapper selects the built-in dependency environment first and prepares requester-owned fallback storage with `uv` only when needed. `/workspace/shared/cache/dependencies` is only a package cache. Do not run `pip install` directly. Do not call runtime paths outside `/workspace` directly. Do not stop at `ModuleNotFoundError`; run the helper script first. Do not use `python - <<'PY'` or system Python snippets for code that needs the Excel library.
+Bundled scripts are responsible for their own Python dependencies. Run them through `scripts/skill_runtime.py`; the wrapper selects the built-in dependency environment first and prepares requester-owned fallback storage with `uv` only when needed. `/workspace/shared/cache/dependencies` is only a package cache. Do not run `pip install` directly. Do not call runtime paths outside `/workspace` directly. Do not stop at a missing-library error; run the helper script first. Do not use `python - <<'PY'` or system Python snippets for code that needs the Excel library.
 
 ## Helper Scripts
 

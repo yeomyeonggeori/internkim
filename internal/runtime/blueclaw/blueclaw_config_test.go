@@ -122,7 +122,7 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	agentProfiles := runtimeConfiguration["agentProfiles"].([]any)
 	defaultProfile := agentProfiles[0].(map[string]any)
 	allowedToolNames := defaultProfile["allowedToolNames"].([]any)
-	for _, expectedToolName := range []string{"conversation.history", "memory.search", "memory.remember", "terminal.run", "terminal.session", "browser_handoff.openURL", "ask.confirm", "ask.choice", "ask.input", "file.write", "file.attach", "skill.add", "skill.remove", "skill.search", "schedule.create", "schedule.cancel"} {
+	for _, expectedToolName := range []string{"conversation.history", "memory.search", "memory.remember", "terminal.run", "terminal.session", "browser_handoff.openURL", "ask.confirm", "ask.choice", "ask.input", "file.write", "file.promote", "file.attach", "skill.add", "skill.remove", "skill.search", "schedule.create", "schedule.cancel"} {
 		if !containsStringValue(allowedToolNames, expectedToolName) {
 			t.Fatalf("expected default agent profile to allow internal tool %q, got %+v", expectedToolName, allowedToolNames)
 		}

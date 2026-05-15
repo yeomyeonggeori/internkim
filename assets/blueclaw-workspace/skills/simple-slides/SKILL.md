@@ -5,6 +5,7 @@ when_to_use: Use for slides, slide decks, presentations, pitch decks, research s
 allowed-tools:
   - terminal.run
   - file.write
+  - file.promote
   - file.attach
 ---
 
@@ -19,8 +20,8 @@ Use this order for normal requests:
 1. Use `file.write` to create `tmp/<deck-slug>/DESIGN.md`; do not use Blueclaw internal temporary paths.
 2. Use `file.write` to create `tmp/<deck-slug>/presentation.md`.
 3. Use `terminal.run` with `workingDirectoryPath: "tmp/<deck-slug>"` to run the deterministic build script from the skill directory.
-4. Move accepted final files to `../../artifacts/<deck-slug>/` from the same `tmp/<deck-slug>` working directory unless the user requested a circle or shared destination.
-5. Use `file.attach` to attach only the files the user requested.
+4. Promote accepted final files from `tmp/<deck-slug>/build/` to `artifacts/<deck-slug>/` with `file.promote` unless the user requested a circle or shared destination.
+5. Use `file.attach` on promoted files only, and attach only the files the user requested.
 
 `file.write` creates parent directories, so do not spend a terminal call on `mkdir`. Do not use `file.pick`; it is for user-local file selection, not deck creation. Do not read reference assets during a normal request unless you truly need extra detail after drafting. The baseline below is enough for most decks.
 
@@ -35,16 +36,22 @@ Use this command shape after the source files exist. Do not copy `build.sh` into
 
 If the user explicitly requests one format, narrow the build with `FORMATS`. For `html만`, use `FORMATS=html NAME=<deck-slug> /workspace/skills/simple-slides/scripts/build.sh`. For a normal full deck, omit `FORMATS` so HTML, PPTX, PDF, notes, and review evidence are produced.
 
-Use this command shape to promote final outputs after the build succeeds:
+Use `file.promote` to promote final outputs after the build succeeds:
 
 ```json
 {
-  "command": "mkdir -p ../../artifacts/<deck-slug> && cp -f <deck-slug>.pptx <deck-slug>.pdf <deck-slug>.html <deck-slug>-notes.txt ../../artifacts/<deck-slug>/",
-  "workingDirectoryPath": "tmp/<deck-slug>"
+  "paths": [
+    "tmp/<deck-slug>/build/<deck-slug>.pptx",
+    "tmp/<deck-slug>/build/<deck-slug>.pdf",
+    "tmp/<deck-slug>/build/<deck-slug>.html",
+    "tmp/<deck-slug>/build/<deck-slug>-notes.txt"
+  ],
+  "destinationDirectoryPath": "artifacts/<deck-slug>",
+  "overwrite": true
 }
 ```
 
-Adjust the copied filenames to the formats actually requested. Do not create an `artifacts` directory from `/workspace` or from a skill directory.
+Adjust the promoted filenames to the formats actually requested. Do not use shell `cp`, do not create an `artifacts` directory from `/workspace`, and do not promote from a skill directory.
 
 The build script is responsible for Marp availability. It uses an existing `marp`, otherwise installs `assets/package.json` into `$BLUECLAW_REQUESTER_TMP/.skill-env/simple-slides/node` and uses `/workspace/shared/cache/dependencies` only as a package cache. Do not stop with a missing Marp message before running the bundled build script.
 
@@ -104,7 +111,7 @@ Use this HTML-first page shape when you need a reliable minimal look:
 - `.timeline`: sequence, rollout, or maturity path
 - `.recommendation`: final verdict and next action
 
-Use `file.write` for `DESIGN.md` and `presentation.md`. Do not create source files with shell heredocs or `echo` inside `terminal.run`; reserve `terminal.run` for copying scripts and running the build.
+Use `file.write` for `DESIGN.md` and `presentation.md`. Do not create source files with shell heredocs or `echo` inside `terminal.run`; reserve `terminal.run` for running the build.
 
 Iterate on `presentation.md` when the draft needs improvement. Preserve important request constraints directly in the deck, such as `할 수`, `역량`, `capability`, `what I can do`, `6장`, or `html만`. Do not create a separate planning file.
 
