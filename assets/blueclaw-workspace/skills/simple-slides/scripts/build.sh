@@ -5,6 +5,7 @@ SCRIPT_DIRECTORY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC="${SRC:-presentation.md}"
 NAME="${NAME:-$(basename "$(pwd)")}"
 FORMATS="${FORMATS:-html,pptx,pdf,notes,review}"
+BUILD_DIR="${BUILD_DIR:-build}"
 
 if [ ! -f "$SRC" ]; then
   echo "Error: $SRC not found. Create presentation.md or set SRC=yourfile.md"
@@ -103,25 +104,27 @@ if stripped != text.rstrip():
     path.write_text(stripped + "\n")
 PY
 
-rm -f "${NAME}.html" "${NAME}.pptx" "${NAME}.pdf" "${NAME}-notes.txt"
+mkdir -p "$BUILD_DIR"
+rm -f "${BUILD_DIR}/${NAME}.html" "${BUILD_DIR}/${NAME}.pptx" "${BUILD_DIR}/${NAME}.pdf" "${BUILD_DIR}/${NAME}-notes.txt"
 
 echo "Building requested formats: ${FORMATS}"
 if format_enabled html; then
-  run_marp "$SRC" --html --allow-local-files -o "${NAME}.html"
+  run_marp "$SRC" --html --allow-local-files -o "${BUILD_DIR}/${NAME}.html"
 fi
 if format_enabled pptx; then
-  run_marp "$SRC" --html --pptx --allow-local-files -o "${NAME}.pptx"
+  run_marp "$SRC" --html --pptx --allow-local-files -o "${BUILD_DIR}/${NAME}.pptx"
 fi
 if format_enabled pdf; then
-  run_marp "$SRC" --html --pdf --allow-local-files -o "${NAME}.pdf"
+  run_marp "$SRC" --html --pdf --allow-local-files -o "${BUILD_DIR}/${NAME}.pdf"
 fi
 
 if format_enabled html; then
   echo "Embedding local images as base64 data URLs in HTML..."
-  python3 - "$NAME" <<'PY'
+  python3 - "$BUILD_DIR" "$NAME" <<'PY'
 import base64, re, os, sys
-name = sys.argv[1]
-path = f"{name}.html"
+build_dir = sys.argv[1]
+name = sys.argv[2]
+path = os.path.join(build_dir, f"{name}.html")
 with open(path) as f:
     html = f.read()
 img_refs = set(re.findall(r'src="([^"]+\.(?:png|jpg|jpeg|gif|webp|svg))"', html, re.IGNORECASE))
@@ -145,7 +148,7 @@ fi
 if format_enabled notes; then
   echo "Extracting speaker notes..."
   if [ -f "$EXTRACT_NOTES_SCRIPT" ]; then
-    python3 "$EXTRACT_NOTES_SCRIPT" "$SRC" "${NAME}-notes.txt"
+    python3 "$EXTRACT_NOTES_SCRIPT" "$SRC" "${BUILD_DIR}/${NAME}-notes.txt"
   else
     echo "  - extract_notes.py not found, skipping notes extraction"
   fi
@@ -153,12 +156,12 @@ fi
 
 if format_enabled review; then
   echo "Rendering slide review images..."
-  mkdir -p review
-  rm -f "review/${NAME}"*.png review/slide-review.json review/slide-review.md
-  run_marp "$SRC" --images png --allow-local-files -o "review/${NAME}.png"
+  mkdir -p "${BUILD_DIR}/review"
+  rm -f "${BUILD_DIR}/review/${NAME}"*.png "${BUILD_DIR}/review/slide-review.json" "${BUILD_DIR}/review/slide-review.md"
+  run_marp "$SRC" --images png --allow-local-files -o "${BUILD_DIR}/review/${NAME}.png"
   if [ -f "$RENDER_REVIEW_SCRIPT" ]; then
-    if ! python3 "$RENDER_REVIEW_SCRIPT" "$SRC" "$NAME" review; then
-      echo "  - slide render review reported warnings; see review/slide-review.json"
+    if ! python3 "$RENDER_REVIEW_SCRIPT" "$SRC" "$NAME" "${BUILD_DIR}/review"; then
+      echo "  - slide render review reported warnings; see ${BUILD_DIR}/review/slide-review.json"
     fi
   else
     echo "  - render_review.py not found, skipping slide render review"
@@ -167,8 +170,8 @@ fi
 
 echo ""
 echo "Done."
-if format_enabled html; then echo "  ${NAME}.html            (share this — images inlined, iframes need internet)"; fi
-if format_enabled pptx; then echo "  ${NAME}.pptx            (PowerPoint / Keynote)"; fi
-if format_enabled pdf; then echo "  ${NAME}.pdf             (PDF — iframes will appear blank, that's expected)"; fi
-if format_enabled notes; then echo "  ${NAME}-notes.txt       (speaker notes)"; fi
-if format_enabled review; then echo "  review/slide-review.json (per-slide render review)"; fi
+if format_enabled html; then echo "  ${BUILD_DIR}/${NAME}.html            (share this — images inlined, iframes need internet)"; fi
+if format_enabled pptx; then echo "  ${BUILD_DIR}/${NAME}.pptx            (PowerPoint / Keynote)"; fi
+if format_enabled pdf; then echo "  ${BUILD_DIR}/${NAME}.pdf             (PDF — iframes will appear blank, that's expected)"; fi
+if format_enabled notes; then echo "  ${BUILD_DIR}/${NAME}-notes.txt       (speaker notes)"; fi
+if format_enabled review; then echo "  ${BUILD_DIR}/review/slide-review.json (per-slide render review)"; fi
