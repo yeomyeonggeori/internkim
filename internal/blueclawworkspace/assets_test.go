@@ -30,6 +30,9 @@ func TestArtifactSkillsDoNotUseBlueclawInternalTemporaryPath(t *testing.T) {
 		if strings.Contains(string(document), "/workspace/.blueclaw/tmp") {
 			t.Fatalf("%s skill must use requester temporary workspace, not /workspace/.blueclaw/tmp", skillName)
 		}
+		if strings.Contains(string(document), "$BLUECLAW_TASK_TMP") || strings.Contains(string(document), "$BLUECLAW_REQUESTER_ARTIFACTS") {
+			t.Fatalf("%s skill must use relative workspace paths in tool path fields, not shell variables", skillName)
+		}
 	}
 }
 
