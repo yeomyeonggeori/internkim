@@ -3,6 +3,8 @@ package capabilityd
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,53 +26,55 @@ import (
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 	"gitlab.com/eastriver/internkim/internal/identity"
 	"gitlab.com/eastriver/internkim/internal/llmbackend"
+	"gitlab.com/eastriver/internkim/internal/mattermostinteractive"
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
 type Configuration struct {
-	SocketPath                 string
-	VSockPort                  int
-	OpenRouterKeyPath          string
-	GoogleWorkspaceWebhookPath string
-	MattermostBaseURL          string
-	MattermostTokenPath        string
-	SlackTokenPath             string
-	SlackAppTokenPath          string
-	SignalJSONRPCURL           string
-	SignalAccount              string
-	SignalJSONRPCURLPath       string
-	SignalAccountPath          string
-	BlueclawBaseURL            string
-	AdmindBaseURL              string
-	OpenRouterBaseURL          string
-	OpenRouterModel            string
-	OpenRouterWebBaseURL       string
-	OpenRouterEmbeddingBaseURL string
-	OpenRouterEmbeddingModel   string
-	EmbeddingProviderOrder     []string
-	OllamaBaseURL              string
-	OllamaModel                string
-	LlamaCppBaseURL            string
-	LlamaCppModel              string
-	LlamaCppEmbeddingBaseURL   string
-	LlamaCppEmbeddingModel     string
-	SocketGroupName            string
-	LiteRTModelPath            string
-	LocalLLMRunnerPath         string
-	CompanionBaseURL           string
-	PreferCompanionLLM         bool
-	LocalInferenceMode         string
-	PreferCompanionBrowser     bool
-	LocalOnly                  bool
-	LocalBackendOrder          []string
-	ProviderAttemptTimeout     time.Duration
-	AgentBrowserPath           string
-	DeviceBrowserPath          string
-	DeviceBrowserProfilePath   string
-	CompanionFileDirectory     string
-	FleetIDPath                string
-	BlueclawWorkspacePath      string
-	FileReadPythonPath         string
+	SocketPath                     string
+	VSockPort                      int
+	OpenRouterKeyPath              string
+	GoogleWorkspaceWebhookPath     string
+	MattermostBaseURL              string
+	MattermostTokenPath            string
+	MattermostInteractiveTokenPath string
+	SlackTokenPath                 string
+	SlackAppTokenPath              string
+	SignalJSONRPCURL               string
+	SignalAccount                  string
+	SignalJSONRPCURLPath           string
+	SignalAccountPath              string
+	BlueclawBaseURL                string
+	AdmindBaseURL                  string
+	OpenRouterBaseURL              string
+	OpenRouterModel                string
+	OpenRouterWebBaseURL           string
+	OpenRouterEmbeddingBaseURL     string
+	OpenRouterEmbeddingModel       string
+	EmbeddingProviderOrder         []string
+	OllamaBaseURL                  string
+	OllamaModel                    string
+	LlamaCppBaseURL                string
+	LlamaCppModel                  string
+	LlamaCppEmbeddingBaseURL       string
+	LlamaCppEmbeddingModel         string
+	SocketGroupName                string
+	LiteRTModelPath                string
+	LocalLLMRunnerPath             string
+	CompanionBaseURL               string
+	PreferCompanionLLM             bool
+	LocalInferenceMode             string
+	PreferCompanionBrowser         bool
+	LocalOnly                      bool
+	LocalBackendOrder              []string
+	ProviderAttemptTimeout         time.Duration
+	AgentBrowserPath               string
+	DeviceBrowserPath              string
+	DeviceBrowserProfilePath       string
+	CompanionFileDirectory         string
+	FleetIDPath                    string
+	BlueclawWorkspacePath          string
+	FileReadPythonPath             string
 }
 
 type Service struct {
@@ -99,6 +104,10 @@ type replyRequest struct {
 	Attachments     []platformFileSpec            `json:"attachments,omitempty"`
 	RecoveryActions []capabilities.RecoveryAction `json:"recoveryActions,omitempty"`
 	Interaction     *platformAskInteraction       `json:"interaction,omitempty"`
+}
+
+type interactionResolveRequest struct {
+	DispatchID string `json:"dispatchID"`
 }
 
 type platformAskInteraction struct {
@@ -155,45 +164,46 @@ type mattermostPostsResponse struct {
 
 func DefaultConfiguration() Configuration {
 	return Configuration{
-		SocketPath:                 "/run/internkim/capability.sock",
-		VSockPort:                  0,
-		OpenRouterKeyPath:          "/root/.internkim/secrets/openrouter-api-key",
-		GoogleWorkspaceWebhookPath: "/root/.internkim/secrets/gas-webhook-url",
-		MattermostBaseURL:          "http://localhost:8065",
-		MattermostTokenPath:        "/root/.internkim/secrets/mattermost-bot-token",
-		SlackTokenPath:             "/root/.internkim/secrets/slack-bot-token",
-		SlackAppTokenPath:          "/root/.internkim/secrets/slack-app-token",
-		SignalJSONRPCURLPath:       "/root/.internkim/config/signal-jsonrpc-url",
-		SignalAccountPath:          "/root/.internkim/config/signal-account",
-		BlueclawBaseURL:            "http://127.0.0.1:8080",
-		AdmindBaseURL:              "http://127.0.0.1:18080",
-		OpenRouterBaseURL:          "https://openrouter.ai/api/v1/chat/completions",
-		OpenRouterModel:            "google/gemini-3.1-flash-lite-preview",
-		OpenRouterWebBaseURL:       "https://openrouter.ai/api/v1/chat/completions",
-		OpenRouterEmbeddingBaseURL: "https://openrouter.ai/api/v1/embeddings",
-		OpenRouterEmbeddingModel:   "embeddinggemma",
-		EmbeddingProviderOrder:     llmbackend.DefaultLocalEmbeddingProviderOrder,
-		OllamaBaseURL:              "http://127.0.0.1:11434",
-		OllamaModel:                "gemma3:1b",
-		LlamaCppBaseURL:            locallm.LlamaCppBaseURL,
-		LlamaCppModel:              "local/gemma-4-E4B-it-gguf",
-		LlamaCppEmbeddingBaseURL:   locallm.LlamaCppEmbeddingBaseURL,
-		LlamaCppEmbeddingModel:     llmbackend.DefaultEmbeddingGemmaModel,
-		SocketGroupName:            "blueclaw",
-		LiteRTModelPath:            locallm.ModelPath(),
-		LocalLLMRunnerPath:         "/usr/local/bin/internkim-local-llm-runner",
-		CompanionBaseURL:           "",
-		PreferCompanionLLM:         false,
-		LocalInferenceMode:         "",
-		LocalOnly:                  false,
-		ProviderAttemptTimeout:     5 * time.Minute,
-		AgentBrowserPath:           "agent-browser",
-		DeviceBrowserPath:          browserruntime.DeviceBrowserExecutablePath,
-		DeviceBrowserProfilePath:   "",
-		CompanionFileDirectory:     "/tmp/internkim-companion-files",
-		FleetIDPath:                "/root/.internkim/env/fleet-id",
-		BlueclawWorkspacePath:      "/root/.blueclaw/workspace",
-		FileReadPythonPath:         "/opt/blueclaw/builtin-skills-venv/bin/python",
+		SocketPath:                     "/run/internkim/capability.sock",
+		VSockPort:                      0,
+		OpenRouterKeyPath:              "/root/.internkim/secrets/openrouter-api-key",
+		GoogleWorkspaceWebhookPath:     "/root/.internkim/secrets/gas-webhook-url",
+		MattermostBaseURL:              "http://localhost:8065",
+		MattermostTokenPath:            "/root/.internkim/secrets/mattermost-bot-token",
+		MattermostInteractiveTokenPath: "/root/.internkim/state/admin/mattermost-interactive-action-token",
+		SlackTokenPath:                 "/root/.internkim/secrets/slack-bot-token",
+		SlackAppTokenPath:              "/root/.internkim/secrets/slack-app-token",
+		SignalJSONRPCURLPath:           "/root/.internkim/config/signal-jsonrpc-url",
+		SignalAccountPath:              "/root/.internkim/config/signal-account",
+		BlueclawBaseURL:                "http://127.0.0.1:8080",
+		AdmindBaseURL:                  "http://127.0.0.1:18080",
+		OpenRouterBaseURL:              "https://openrouter.ai/api/v1/chat/completions",
+		OpenRouterModel:                "google/gemini-3.1-flash-lite-preview",
+		OpenRouterWebBaseURL:           "https://openrouter.ai/api/v1/chat/completions",
+		OpenRouterEmbeddingBaseURL:     "https://openrouter.ai/api/v1/embeddings",
+		OpenRouterEmbeddingModel:       "embeddinggemma",
+		EmbeddingProviderOrder:         llmbackend.DefaultLocalEmbeddingProviderOrder,
+		OllamaBaseURL:                  "http://127.0.0.1:11434",
+		OllamaModel:                    "gemma3:1b",
+		LlamaCppBaseURL:                locallm.LlamaCppBaseURL,
+		LlamaCppModel:                  "local/gemma-4-E4B-it-gguf",
+		LlamaCppEmbeddingBaseURL:       locallm.LlamaCppEmbeddingBaseURL,
+		LlamaCppEmbeddingModel:         llmbackend.DefaultEmbeddingGemmaModel,
+		SocketGroupName:                "blueclaw",
+		LiteRTModelPath:                locallm.ModelPath(),
+		LocalLLMRunnerPath:             "/usr/local/bin/internkim-local-llm-runner",
+		CompanionBaseURL:               "",
+		PreferCompanionLLM:             false,
+		LocalInferenceMode:             "",
+		LocalOnly:                      false,
+		ProviderAttemptTimeout:         5 * time.Minute,
+		AgentBrowserPath:               "agent-browser",
+		DeviceBrowserPath:              browserruntime.DeviceBrowserExecutablePath,
+		DeviceBrowserProfilePath:       "",
+		CompanionFileDirectory:         "/tmp/internkim-companion-files",
+		FleetIDPath:                    "/root/.internkim/env/fleet-id",
+		BlueclawWorkspacePath:          "/root/.blueclaw/workspace",
+		FileReadPythonPath:             "/opt/blueclaw/builtin-skills-venv/bin/python",
 	}
 }
 
@@ -251,6 +261,7 @@ func (service Service) router() http.Handler {
 	multiplexer.HandleFunc("POST /v1/embedding/create", service.handleEmbeddingCreate)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/identity.resolve", service.handleIdentityResolve)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/reply.send", service.handleReplySend)
+	multiplexer.HandleFunc("POST /v1/platform/{platform}/interaction.resolve", service.handleInteractionResolve)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/history.fetch", service.handleHistoryFetch)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.start", service.handleProgressStart)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.stop", service.handleProgressStop)
@@ -378,6 +389,19 @@ func (service Service) handleReplySend(responseWriter http.ResponseWriter, reque
 		response, errorValue = service.slackReplyFromRequest(request.Context(), request.Body)
 	case "signal":
 		response, errorValue = service.signalReplyFromRequest(request.Context(), request.Body)
+	default:
+		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
+		return
+	}
+	service.writeResponse(responseWriter, response, errorValue)
+}
+
+func (service Service) handleInteractionResolve(responseWriter http.ResponseWriter, request *http.Request) {
+	var response any
+	var errorValue error
+	switch request.PathValue("platform") {
+	case "mattermost":
+		response, errorValue = service.mattermostInteractionResolve(request.Context(), request.Body)
 	default:
 		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
 		return
@@ -574,6 +598,20 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 	return map[string]string{"dispatchID": response.ID}, errorValue
 }
 
+func (service Service) mattermostInteractionResolve(ctx context.Context, reader io.Reader) (any, error) {
+	var request interactionResolveRequest
+	if errorValue := json.NewDecoder(reader).Decode(&request); errorValue != nil {
+		return nil, errorValue
+	}
+	dispatchID := strings.TrimSpace(request.DispatchID)
+	if dispatchID == "" {
+		return nil, errors.New("dispatchID is required")
+	}
+	body := map[string]any{"props": mattermostinteractive.ClearAttachmentsUpdate()["props"]}
+	path := "/api/v4/posts/" + url.PathEscape(dispatchID) + "/patch"
+	return map[string]bool{"resolved": true}, service.mattermostRequest(ctx, http.MethodPut, path, body, nil)
+}
+
 func (service Service) mattermostReplyProperties(request replyRequest, handle platformHandle) map[string]any {
 	properties := map[string]any{
 		"internkim_raw_event_id": request.RawEventID,
@@ -604,7 +642,7 @@ func mattermostAskMessage(message string, interaction *platformAskInteraction) s
 	return strings.Join(trimNonEmptyPlatformStrings(lines), "\n")
 }
 
-func (service Service) mattermostAskAttachment(request replyRequest, handle platformHandle) map[string]any {
+func (service Service) mattermostAskAttachment(request replyRequest, handle platformHandle) *mattermostinteractive.Attachment {
 	if request.Interaction == nil {
 		return nil
 	}
@@ -620,77 +658,61 @@ func (service Service) mattermostAskAttachment(request replyRequest, handle plat
 	}
 }
 
-func (service Service) mattermostConfirmAttachment(request replyRequest, handle platformHandle) map[string]any {
-	return map[string]any{
-		"fallback": strings.TrimSpace(request.Message),
-		"actions": []any{
-			service.mattermostAskButton("ask-confirm", "확인", "primary", request, handle, "ask.confirm", ""),
-			service.mattermostAskButton("ask-cancel", "취소", "danger", request, handle, "ask.cancel", ""),
+func (service Service) mattermostConfirmAttachment(request replyRequest, handle platformHandle) *mattermostinteractive.Attachment {
+	return &mattermostinteractive.Attachment{
+		Fallback: strings.TrimSpace(request.Message),
+		Actions: []mattermostinteractive.Action{
+			service.mattermostAskButton("askConfirm", "확인", "primary", request, handle, "ask.confirm", ""),
+			service.mattermostAskButton("askCancel", "취소", "danger", request, handle, "ask.cancel", ""),
 		},
 	}
 }
 
-func (service Service) mattermostChoiceAttachment(request replyRequest, handle platformHandle) map[string]any {
+func (service Service) mattermostChoiceAttachment(request replyRequest, handle platformHandle) *mattermostinteractive.Attachment {
 	options := trimNonEmptyPlatformAskOptions(request.Interaction.Options)
 	if len(options) <= 3 && request.Interaction.Kind == "ask_choice_single" {
-		actions := []any{}
+		actions := []mattermostinteractive.Action{}
 		for _, option := range options {
-			actions = append(actions, service.mattermostAskButton("ask-choice-"+option.Key, option.Label, "", request, handle, "ask.choice", option.Key))
+			actions = append(actions, service.mattermostAskButton("askChoice"+option.Key, option.Label, "", request, handle, "ask.choice", option.Key))
 		}
-		return map[string]any{"fallback": strings.TrimSpace(request.Message), "actions": actions}
+		return &mattermostinteractive.Attachment{Fallback: strings.TrimSpace(request.Message), Actions: actions}
 	}
-	return map[string]any{
-		"fallback": strings.TrimSpace(request.Message),
-		"actions": []any{
-			map[string]any{
-				"id":      "ask-choice-menu",
-				"type":    "select",
-				"name":    "선택",
-				"options": mattermostAskMenuOptions(options),
-				"integration": map[string]any{
-					"url":     service.mattermostAskActionURL(),
-					"context": mattermostAskActionContext(request, handle, "ask.choice", ""),
-				},
-			},
+	return &mattermostinteractive.Attachment{
+		Fallback: strings.TrimSpace(request.Message),
+		Actions: []mattermostinteractive.Action{
+			mattermostinteractive.Select(
+				"askChoiceMenu",
+				"선택",
+				service.mattermostAskActionURL(),
+				service.mattermostAskActionContext(request, handle, "ask.choice", ""),
+				mattermostAskMenuOptions(options),
+			),
 		},
 	}
 }
 
-func (service Service) mattermostAskButton(id string, name string, style string, request replyRequest, handle platformHandle, action string, choiceKey string) map[string]any {
-	button := map[string]any{
-		"id":   id,
-		"type": "button",
-		"name": name,
-		"integration": map[string]any{
-			"url":     service.mattermostAskActionURL(),
-			"context": mattermostAskActionContext(request, handle, action, choiceKey),
-		},
-	}
-	if strings.TrimSpace(style) != "" {
-		button["style"] = style
-	}
-	return button
+func (service Service) mattermostAskButton(id string, name string, style string, request replyRequest, handle platformHandle, action string, choiceKey string) mattermostinteractive.Action {
+	context := service.mattermostAskActionContext(request, handle, action, choiceKey)
+	return mattermostinteractive.Button(id, name, "", style, service.mattermostAskActionURL(), context)
 }
 
-func mattermostAskActionContext(request replyRequest, handle platformHandle, action string, choiceKey string) map[string]string {
-	return map[string]string{
-		"action":           action,
-		"interactionID":    request.Interaction.InteractionID,
-		"taskRunID":        request.Interaction.TaskRunID,
-		"conversationID":   handle.ChannelID,
-		"replyTargetID":    request.ReplyTargetID,
-		"choiceKey":        choiceKey,
-		"responseLanguage": request.Interaction.ResponseLanguage,
+func (service Service) mattermostAskActionContext(request replyRequest, handle platformHandle, action string, choiceKey string) mattermostinteractive.Context {
+	return mattermostinteractive.Context{
+		Action:           action,
+		InteractionID:    request.Interaction.InteractionID,
+		TaskRunID:        request.Interaction.TaskRunID,
+		ConversationID:   handle.ChannelID,
+		ReplyTargetID:    request.ReplyTargetID,
+		ChoiceKey:        choiceKey,
+		ResponseLanguage: request.Interaction.ResponseLanguage,
+		Token:            service.ensureMattermostInteractiveActionToken(),
 	}
 }
 
-func mattermostAskMenuOptions(options []platformAskChoiceOption) []map[string]string {
-	menuOptions := []map[string]string{}
+func mattermostAskMenuOptions(options []platformAskChoiceOption) []mattermostinteractive.Option {
+	menuOptions := []mattermostinteractive.Option{}
 	for _, option := range options {
-		menuOptions = append(menuOptions, map[string]string{
-			"text":  option.Label,
-			"value": option.Key,
-		})
+		menuOptions = append(menuOptions, mattermostinteractive.Option{Text: option.Label, Value: option.Key})
 	}
 	return menuOptions
 }
@@ -720,7 +742,29 @@ func trimNonEmptyPlatformStrings(values []string) []string {
 }
 
 func (service Service) mattermostAskActionURL() string {
-	return strings.TrimRight(service.Configuration.BlueclawBaseURL, "/") + "/connectors/mattermost/events"
+	return strings.TrimRight(service.Configuration.AdmindBaseURL, "/") + "/_internkim/mattermost/actions"
+}
+
+func (service Service) ensureMattermostInteractiveActionToken() string {
+	path := strings.TrimSpace(service.Configuration.MattermostInteractiveTokenPath)
+	token := strings.TrimSpace(readOptionalFileValue(path))
+	if token != "" {
+		return token
+	}
+	token = randomCapabilityHex(32)
+	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
+		return token
+	}
+	if errorValue := os.WriteFile(path, []byte(token+"\n"), 0o600); errorValue != nil {
+		return token
+	}
+	return token
+}
+
+func randomCapabilityHex(size int) string {
+	value := make([]byte, size)
+	_, _ = rand.Read(value)
+	return hex.EncodeToString(value)
 }
 
 func (service Service) stopMattermostProgress(replyTargetID string) {
@@ -1488,6 +1532,9 @@ func (configuration Configuration) WithDefaults() Configuration {
 	}
 	if configuration.MattermostTokenPath == "" {
 		configuration.MattermostTokenPath = defaultConfiguration.MattermostTokenPath
+	}
+	if configuration.MattermostInteractiveTokenPath == "" {
+		configuration.MattermostInteractiveTokenPath = defaultConfiguration.MattermostInteractiveTokenPath
 	}
 	if configuration.SlackTokenPath == "" {
 		configuration.SlackTokenPath = defaultConfiguration.SlackTokenPath
