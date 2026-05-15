@@ -74,6 +74,14 @@ var StepBlueclawPayload = Step{
 		if context.Callbacks.InstallBlueclawPayloadSSH == nil {
 			return errors.New("blueclaw payload SSH callback missing")
 		}
-		return context.Callbacks.InstallBlueclawPayloadSSH(context)
+		if errorValue := context.Callbacks.InstallBlueclawPayloadSSH(context); errorValue != nil {
+			return errorValue
+		}
+		if context.Backend == BackendSSH && context.SSH != nil {
+			if serviceStatus := trimmedRun(context, "systemctl restart "+blueclaw.BlueclawServiceName+" && systemctl is-active "+blueclaw.BlueclawServiceName+" 2>/dev/null"); serviceStatus != "active" {
+				return fmt.Errorf("blueclaw restart after payload deploy failed: %s", serviceStatus)
+			}
+		}
+		return nil
 	},
 }
