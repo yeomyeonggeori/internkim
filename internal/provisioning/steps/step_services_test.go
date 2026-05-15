@@ -18,7 +18,7 @@ func TestBlueclawRuntimeContractCheckCatchesStaleAgentConfiguration(t *testing.T
 		"runtime-capability-google-tool",
 		"terminal.session",
 		"browser_handoff.openURL",
-		"approval.request",
+		"ask.confirm",
 		"runtime-config-mirror-drift",
 	} {
 		if !strings.Contains(command, expectedFragment) {
