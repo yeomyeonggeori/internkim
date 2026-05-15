@@ -22,7 +22,7 @@ Create and modify Word documents as local `.docx` files, then attach the final f
 6. Validate with `scripts/validate_docx.py` or by reopening the `.docx` file and checking the expected paragraphs, tables, headings, and images.
 7. Move accepted final files to `artifacts/<document-slug>/` unless the user requested a circle or shared destination, then attach the final `.docx`; attach intermediate files only if the user asks.
 
-Bundled scripts are responsible for their own Python dependencies. They use the built-in `/opt/blueclaw/builtin-skills-venv` first, then bootstrap `scripts/requirements.txt` with `uv` into `$BLUECLAW_REQUESTER_TMP/.skill-env/docx` only when needed. `/workspace/shared/cache/dependencies` is only a package cache. Do not run `pip install` directly. Do not stop at `ModuleNotFoundError`; run the helper script first. Do not use `python - <<'PY'` or system Python snippets for code that needs the Word document library.
+Bundled scripts are responsible for their own Python dependencies. Run them through `scripts/skill_runtime.py`; the wrapper selects the built-in dependency environment first and prepares requester-owned fallback storage with `uv` only when needed. `/workspace/shared/cache/dependencies` is only a package cache. Do not run `pip install` directly. Do not call runtime paths outside `/workspace` directly. Do not stop at `ModuleNotFoundError`; run the helper script first. Do not use `python - <<'PY'` or system Python snippets for code that needs the Word document library.
 
 ## Helper Scripts
 
