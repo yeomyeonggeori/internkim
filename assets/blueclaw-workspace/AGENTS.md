@@ -59,6 +59,7 @@ Blueclaw workspace access is enforced by Linux user/group/POSIX permissions. Tre
 - Use `file.write` and `file.attach` for user-visible artifacts. If a built-in tool gives access to a granted file, do not leave the privileged source file in a terminal-visible path.
 - Store dependency caches only under `/workspace/shared/cache/dependencies` when language tooling needs a cache.
 - Use `$BLUECLAW_TASK_TMP` for draft artifact work. Promote only accepted final files to `$BLUECLAW_REQUESTER_ARTIFACTS`, `/workspace/circles/<circleID>`, or `/workspace/shared/public` before attaching or preserving them. Do not use Blueclaw internal temporary paths for user-facing artifact work.
+- Treat a skill directory as the executable unit. If a skill needs third-party packages, its bundled scripts must bootstrap `requirements.txt` or `package.json` into requester-owned working storage, preferably `$BLUECLAW_REQUESTER_TMP/.skill-env/<skill-name>`, and may use `/workspace/shared/cache/dependencies` only as a package cache. Do not stop at `ModuleNotFoundError` or tell the user to use an external tool before the relevant bundled script has attempted its own dependency setup.
 
 ## File Sharing
 

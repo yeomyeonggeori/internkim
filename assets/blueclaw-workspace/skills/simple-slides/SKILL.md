@@ -35,6 +35,8 @@ Use this command shape after the source files exist:
 
 If the user explicitly requests one format, narrow the build with `FORMATS`. For `html만`, use `FORMATS=html NAME=<deck-slug> ./build.sh`. For a normal full deck, omit `FORMATS` so HTML, PPTX, PDF, notes, and review evidence are produced.
 
+The build script is responsible for Marp availability. It uses an existing `marp`, otherwise installs `assets/package.json` into `$BLUECLAW_REQUESTER_TMP/.skill-env/simple-slides/node` and uses `/workspace/shared/cache/dependencies` only as a package cache. Do not stop with a missing Marp message before running the bundled build script.
+
 Do not look for a content generator or layout renderer. There is no template deck to fill in. The content, layout, and Marp source are your responsibility.
 
 ## Source Files
