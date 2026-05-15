@@ -18,22 +18,33 @@ Use this order for normal requests:
 
 1. Use `file.write` to create `tmp/<deck-slug>/DESIGN.md`; do not use Blueclaw internal temporary paths.
 2. Use `file.write` to create `tmp/<deck-slug>/presentation.md`.
-3. Use `terminal.run` once to copy the deterministic build/review scripts and run the build.
-4. Move accepted final files to `artifacts/<deck-slug>/` unless the user requested a circle or shared destination.
+3. Use `terminal.run` with `workingDirectoryPath: "tmp/<deck-slug>"` to run the deterministic build script from the skill directory.
+4. Move accepted final files to `../../artifacts/<deck-slug>/` from the same `tmp/<deck-slug>` working directory unless the user requested a circle or shared destination.
 5. Use `file.attach` to attach only the files the user requested.
 
 `file.write` creates parent directories, so do not spend a terminal call on `mkdir`. Do not use `file.pick`; it is for user-local file selection, not deck creation. Do not read reference assets during a normal request unless you truly need extra detail after drafting. The baseline below is enough for most decks.
 
-Use this command shape after the source files exist:
+Use this command shape after the source files exist. Do not copy `build.sh` into the task directory:
 
 ```json
 {
-  "command": "cp /workspace/skills/simple-slides/assets/build.sh ./build.sh && cp /workspace/skills/simple-slides/scripts/extract_notes.py ./extract_notes.py && cp /workspace/skills/simple-slides/scripts/render_review.py ./render_review.py && chmod +x ./build.sh ./extract_notes.py ./render_review.py && NAME=<deck-slug> ./build.sh",
+  "command": "NAME=<deck-slug> /workspace/skills/simple-slides/assets/build.sh",
   "workingDirectoryPath": "tmp/<deck-slug>"
 }
 ```
 
-If the user explicitly requests one format, narrow the build with `FORMATS`. For `html만`, use `FORMATS=html NAME=<deck-slug> ./build.sh`. For a normal full deck, omit `FORMATS` so HTML, PPTX, PDF, notes, and review evidence are produced.
+If the user explicitly requests one format, narrow the build with `FORMATS`. For `html만`, use `FORMATS=html NAME=<deck-slug> /workspace/skills/simple-slides/assets/build.sh`. For a normal full deck, omit `FORMATS` so HTML, PPTX, PDF, notes, and review evidence are produced.
+
+Use this command shape to promote final outputs after the build succeeds:
+
+```json
+{
+  "command": "mkdir -p ../../artifacts/<deck-slug> && cp -f <deck-slug>.pptx <deck-slug>.pdf <deck-slug>.html <deck-slug>-notes.txt ../../artifacts/<deck-slug>/",
+  "workingDirectoryPath": "tmp/<deck-slug>"
+}
+```
+
+Adjust the copied filenames to the formats actually requested. Do not create an `artifacts` directory from `/workspace` or from a skill directory.
 
 The build script is responsible for Marp availability. It uses an existing `marp`, otherwise installs `assets/package.json` into `$BLUECLAW_REQUESTER_TMP/.skill-env/simple-slides/node` and uses `/workspace/shared/cache/dependencies` only as a package cache. Do not stop with a missing Marp message before running the bundled build script.
 

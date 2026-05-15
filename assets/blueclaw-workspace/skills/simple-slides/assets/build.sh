@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-cd "$(dirname "$0")"
+SCRIPT_DIRECTORY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 SRC="${SRC:-presentation.md}"
 NAME="${NAME:-$(basename "$(pwd)")}"
@@ -35,6 +35,17 @@ if source_modified_at + 1 < design_modified_at:
 PY
 
 SKILL_ASSET_DIRECTORY="${SKILL_ASSET_DIRECTORY:-/workspace/skills/simple-slides/assets}"
+if [ ! -f "${SKILL_ASSET_DIRECTORY}/package.json" ] && [ -f "${SCRIPT_DIRECTORY}/package.json" ]; then
+  SKILL_ASSET_DIRECTORY="$SCRIPT_DIRECTORY"
+fi
+EXTRACT_NOTES_SCRIPT="${EXTRACT_NOTES_SCRIPT:-/workspace/skills/simple-slides/scripts/extract_notes.py}"
+RENDER_REVIEW_SCRIPT="${RENDER_REVIEW_SCRIPT:-/workspace/skills/simple-slides/scripts/render_review.py}"
+if [ ! -f "$EXTRACT_NOTES_SCRIPT" ] && [ -f "${SCRIPT_DIRECTORY}/../scripts/extract_notes.py" ]; then
+  EXTRACT_NOTES_SCRIPT="${SCRIPT_DIRECTORY}/../scripts/extract_notes.py"
+fi
+if [ ! -f "$RENDER_REVIEW_SCRIPT" ] && [ -f "${SCRIPT_DIRECTORY}/../scripts/render_review.py" ]; then
+  RENDER_REVIEW_SCRIPT="${SCRIPT_DIRECTORY}/../scripts/render_review.py"
+fi
 NODE_RUNTIME_ROOT="${BLUECLAW_REQUESTER_TMP:-$(pwd)}/.skill-env/simple-slides/node"
 
 ensure_local_marp() {
@@ -130,8 +141,8 @@ fi
 
 if format_enabled notes; then
   echo "Extracting speaker notes..."
-  if [ -f extract_notes.py ]; then
-    python3 extract_notes.py "$SRC" "${NAME}-notes.txt"
+  if [ -f "$EXTRACT_NOTES_SCRIPT" ]; then
+    python3 "$EXTRACT_NOTES_SCRIPT" "$SRC" "${NAME}-notes.txt"
   else
     echo "  - extract_notes.py not found, skipping notes extraction"
   fi
@@ -142,8 +153,8 @@ if format_enabled review; then
   mkdir -p review
   rm -f "review/${NAME}"*.png review/slide-review.json review/slide-review.md
   run_marp "$SRC" --images png --allow-local-files -o "review/${NAME}.png"
-  if [ -f render_review.py ]; then
-    if ! python3 render_review.py "$SRC" "$NAME" review; then
+  if [ -f "$RENDER_REVIEW_SCRIPT" ]; then
+    if ! python3 "$RENDER_REVIEW_SCRIPT" "$SRC" "$NAME" review; then
       echo "  - slide render review reported warnings; see review/slide-review.json"
     fi
   else
