@@ -63,11 +63,11 @@ ensure_person_workspace_directories() {
     person_path="$WORKSPACE_PATH/private/people/$person_id"
     [ -d "$person_path" ] || continue
     owner="$(stat -c '%U:%G' "$person_path" 2>/dev/null || true)"
-    install -d -m 700 "$person_path/tmp" "$person_path/artifacts"
+    install -d -m 2770 "$person_path/tmp" "$person_path/artifacts"
     if [ -n "$owner" ] && [ "$owner" != "UNKNOWN:UNKNOWN" ]; then
       chown "$owner" "$person_path/tmp" "$person_path/artifacts" 2>/dev/null || true
     fi
-    chmod 700 "$person_path" "$person_path/tmp" "$person_path/artifacts" 2>/dev/null || true
+    chmod 2770 "$person_path" "$person_path/tmp" "$person_path/artifacts" 2>/dev/null || true
   done
 }
 
