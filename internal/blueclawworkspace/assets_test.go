@@ -16,6 +16,9 @@ func TestAgentsAssetDoesNotReferenceUnavailableSearchTool(t *testing.T) {
 	if strings.Contains(string(document), "web.search") {
 		t.Fatal("workspace AGENTS asset must not reference unavailable web.search tool")
 	}
+	if !strings.Contains(string(document), "web.fetch") {
+		t.Fatal("workspace AGENTS asset must prefer available web.fetch for public page lookup")
+	}
 }
 
 func TestArtifactSkillsDoNotUseBlueclawInternalTemporaryPath(t *testing.T) {
@@ -216,7 +219,7 @@ func TestSimpleSlidesRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 	if strings.Contains(buildContent, `cd "$(dirname "$0")"`) {
 		t.Fatal("simple-slides build script must run against the caller's task workspace")
 	}
-	for _, expectedText := range []string{"EXTRACT_NOTES_SCRIPT", "RENDER_REVIEW_SCRIPT", "SKILL_ASSET_DIRECTORY", "../assets/package.json", "BUILD_DIR"} {
+	for _, expectedText := range []string{"EXTRACT_NOTES_SCRIPT", "RENDER_REVIEW_SCRIPT", "SKILL_ASSET_DIRECTORY", "../assets/package.json", "BUILD_DIR", `export TMPDIR="$(pwd)/${BUILD_DIR}/.tmp"`, `export TMP="$TMPDIR"`, `export TEMP="$TMPDIR"`} {
 		if !strings.Contains(buildContent, expectedText) {
 			t.Fatalf("simple-slides build script must contain %q", expectedText)
 		}

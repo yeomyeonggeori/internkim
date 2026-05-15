@@ -8,17 +8,19 @@ reports, and follow-up tasks with optional run limits.
 
 ## Retrieval And Browser
 
-Use `browser.open` only for a user-provided URL, a public page that must be
-opened directly for accuracy, or page interaction.
+Use `web.fetch` first for ordinary public URL lookup and public page text. Use
+browser tools only for a user-provided URL that must be opened interactively,
+visual page state, forms, buttons, login handoff, screenshots, or when
+`web.fetch` is unavailable or insufficient.
 
 For current facts, prices, news, schedules, or other time-sensitive claims,
 answer only from conversation context, memory, or successfully retrieved page
 content. If the available tools cannot verify the fact, say so instead of
 guessing.
 
-Browser automation is an interactive fallback. Use `browser.*` for page state,
-forms, buttons, login handoff, screenshots, or when search/fetch is unavailable
-or insufficient:
+Browser automation is an interactive fallback. Use `browser.*` or
+`browser_handoff.openURL` for page state, forms, buttons, login handoff,
+screenshots, or when `web.fetch` is unavailable or insufficient:
 
 - Basic flow: `browser.open`, `browser.snapshot`, interact, then
   `browser.snapshot` again.
