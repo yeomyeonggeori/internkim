@@ -74,7 +74,7 @@ type localBinaryAsset struct {
 }
 
 func skillPythonDependencyRequirements() string {
-	return strings.Join([]string{"fpdf2", "openpyxl", "pypdf", "python-docx", "python-pptx"}, "\n") + "\n"
+	return strings.Join([]string{"fpdf2", "markitdown[docx,pdf,pptx,xlsx]", "markitdown-ocr", "openai", "openpyxl", "pypdf", "python-docx", "python-pptx"}, "\n") + "\n"
 }
 
 func installSkillPythonDependenciesCommand() string {
