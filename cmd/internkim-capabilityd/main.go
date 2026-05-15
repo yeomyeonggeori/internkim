@@ -34,6 +34,8 @@ func main() {
 	flag.StringVar(&configuration.LlamaCppEmbeddingModel, "llamacpp-embedding-model", defaultConfiguration.LlamaCppEmbeddingModel, "llama.cpp embedding model")
 	flag.StringVar(&configuration.CompanionBaseURL, "companion-url", defaultConfiguration.CompanionBaseURL, "companion capability base URL")
 	flag.StringVar(&configuration.FleetIDPath, "fleet-id-path", defaultConfiguration.FleetIDPath, "fleet id path for public companion pairing links")
+	flag.StringVar(&configuration.BlueclawWorkspacePath, "blueclaw-workspace", defaultConfiguration.BlueclawWorkspacePath, "Blueclaw host workspace path")
+	flag.StringVar(&configuration.FileReadPythonPath, "file-read-python", defaultConfiguration.FileReadPythonPath, "Python executable for file.read conversions")
 	flag.StringVar(&configuration.AgentBrowserPath, "agent-browser", defaultConfiguration.AgentBrowserPath, "agent-browser executable path")
 	flag.StringVar(&configuration.DeviceBrowserPath, "device-browser", defaultConfiguration.DeviceBrowserPath, "device Chromium executable path")
 	flag.BoolVar(&configuration.PreferCompanionLLM, "prefer-companion-llm", defaultConfiguration.PreferCompanionLLM, "prefer companion local LLM when available")

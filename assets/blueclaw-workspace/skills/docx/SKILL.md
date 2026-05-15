@@ -3,6 +3,7 @@ name: docx
 description: Create, read, edit, and attach Word documents in .docx format. Use for Word documents, reports, memos, letters, templates, tracked changes review, comments, document cleanup, .docx conversion, 워드, 문서, 보고서, 메모, 서식, or docx requests. Do not use for PDFs, spreadsheets, or slide decks unless the user also asks for a Word output.
 when_to_use: Use when the user asks for Word, .docx, report, memo, letter, template, document formatting, document editing, 문서, 워드, 보고서, 메모, 서식, or a polished Word deliverable.
 allowed-tools:
+  - file.read
   - terminal.run
   - file.write
   - file.attach
@@ -15,12 +16,13 @@ Create and modify Word documents as local `.docx` files, then attach the final f
 ## Workflow
 
 1. Clarify only missing requirements that change the document structure, such as audience, title, language, required sections, or source file.
-2. Create work under `tmp/<document-slug>` relative to the default writable workspace directory; do not use Blueclaw internal temporary paths.
-3. For straightforward new documents, write a JSON spec and run `scripts/create_docx.py`.
-4. For custom layouts or edits that exceed the JSON script, write a task-local Python file and run it through `scripts/skill_runtime.py python <file.py>`.
-5. Use ZIP/XML inspection only when the library cannot preserve or reach the needed feature.
-6. Validate with `scripts/validate_docx.py` or by reopening the `.docx` file and checking the expected paragraphs, tables, headings, and images.
-7. Move accepted final files to `artifacts/<document-slug>/` unless the user requested a circle or shared destination, then attach the final `.docx`; attach intermediate files only if the user asks.
+2. When the user asks to read, summarize, extract, OCR, or reuse content from an existing file, call `file.read` first.
+3. Create work under `tmp/<document-slug>` relative to the default writable workspace directory; do not use Blueclaw internal temporary paths.
+4. For straightforward new documents, write a JSON spec and run `scripts/create_docx.py`.
+5. For custom layouts or edits that exceed the JSON script, write a task-local Python file and run it through `scripts/skill_runtime.py python <file.py>`.
+6. Use ZIP/XML inspection only when the library cannot preserve or reach the needed feature.
+7. Validate with `scripts/validate_docx.py` or by reopening the `.docx` file and checking the expected paragraphs, tables, headings, and images.
+8. Move accepted final files to `artifacts/<document-slug>/` unless the user requested a circle or shared destination, then attach the final `.docx`; attach intermediate files only if the user asks.
 
 Bundled scripts are responsible for their own Python dependencies. Run them through `scripts/skill_runtime.py`; the wrapper selects the built-in dependency environment first and prepares requester-owned fallback storage with `uv` only when needed. `/workspace/shared/cache/dependencies` is only a package cache. Do not run `pip install` directly. Do not call runtime paths outside `/workspace` directly. Do not stop at `ModuleNotFoundError`; run the helper script first. Do not use `python - <<'PY'` or system Python snippets for code that needs the Word document library.
 

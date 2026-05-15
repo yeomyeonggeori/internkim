@@ -118,6 +118,20 @@ func TestWebDescriptorsAreReadOnlyDefaultTools(t *testing.T) {
 	}
 }
 
+func TestFileReadDescriptorIsReadOnlyDefaultTool(t *testing.T) {
+	schema := descriptorSchema(t, FileDescriptors(), "file.read")
+
+	assertSchemaHasProperties(t, schema, "path", "ocrMode", "maxPages", "maxOutputBytes")
+	assertSchemaRequires(t, schema, "path")
+	descriptor := descriptorForTool(t, FileDescriptors(), "file.read")
+	if descriptor.SideEffectClass != "read" || descriptor.PrivacyClass != "workspace_document" || descriptor.RequiresApproval {
+		t.Fatalf("unexpected file.read descriptor: %+v", descriptor)
+	}
+	if !containsString(DefaultToolNames(), "file.read") {
+		t.Fatalf("expected file.read in default tools, got %+v", DefaultToolNames())
+	}
+}
+
 func TestSiteAppDescriptorsUseRuntimeInputNames(t *testing.T) {
 	createSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.create")
 	publishSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.publish")
@@ -198,6 +212,7 @@ func TestCapabilityDescriptorSchemasAreCanonicalObjects(t *testing.T) {
 	descriptorGroups := [][]Descriptor{
 		CompanionToolDescriptors(),
 		WebDescriptors(),
+		FileDescriptors(),
 		PlatformMessageDescriptors(),
 		FlowDescriptors(),
 		CalendarDescriptors(),

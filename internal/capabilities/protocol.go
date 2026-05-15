@@ -49,18 +49,33 @@ func DeviceBrowserDescriptors() []Descriptor {
 }
 
 func DeviceDescriptors() []Descriptor {
-	return append([]Descriptor{
+	descriptors := []Descriptor{
 		{Name: "llm.text", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "llm.structured", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "embedding.create", Version: "1", PrivacyClass: "model_input", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true},
 		{Name: "platform.reply", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false},
-	}, append(append(append(append(append(append(DeviceBrowserDescriptors(), WebDescriptors()...), PlatformMessageDescriptors()...), FlowDescriptors()...), CalendarDescriptors()...), MailDescriptors()...), SiteAppDescriptors()...)...)
+	}
+	descriptors = append(descriptors, DeviceBrowserDescriptors()...)
+	descriptors = append(descriptors, WebDescriptors()...)
+	descriptors = append(descriptors, FileDescriptors()...)
+	descriptors = append(descriptors, PlatformMessageDescriptors()...)
+	descriptors = append(descriptors, FlowDescriptors()...)
+	descriptors = append(descriptors, CalendarDescriptors()...)
+	descriptors = append(descriptors, MailDescriptors()...)
+	descriptors = append(descriptors, SiteAppDescriptors()...)
+	return descriptors
 }
 
 func WebDescriptors() []Descriptor {
 	return []Descriptor{
 		{Name: "web.search", Version: "1", PrivacyClass: "public_web", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: webSearchInputSchema(), PolicyResource: "tool:web.search", SideEffectClass: "read"},
 		{Name: "web.fetch", Version: "1", PrivacyClass: "public_web", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: webFetchInputSchema(), PolicyResource: "tool:web.fetch", SideEffectClass: "read"},
+	}
+}
+
+func FileDescriptors() []Descriptor {
+	return []Descriptor{
+		{Name: "file.read", Version: "1", PrivacyClass: "workspace_document", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: fileReadInputSchema(), PolicyResource: "tool:file.read", SideEffectClass: "read"},
 	}
 }
 
@@ -147,6 +162,15 @@ func webFetchInputSchema() json.RawMessage {
 		jsonschema.Field("maxContentTokens", jsonschema.Integer()),
 		jsonschema.Field("allowedDomains", jsonschema.Array(jsonschema.String())),
 		jsonschema.Field("blockedDomains", jsonschema.Array(jsonschema.String())),
+	).RawMessage()
+}
+
+func fileReadInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Required("path", jsonschema.String()),
+		jsonschema.Field("ocrMode", jsonschema.StringEnum("auto", "always", "never")),
+		jsonschema.Field("maxPages", jsonschema.Integer()),
+		jsonschema.Field("maxOutputBytes", jsonschema.Integer()),
 	).RawMessage()
 }
 
@@ -354,6 +378,7 @@ func DefaultToolNames() []string {
 func DefaultToolDescriptors() []Descriptor {
 	descriptors := CompanionToolDescriptors()
 	descriptors = append(descriptors, WebDescriptors()...)
+	descriptors = append(descriptors, FileDescriptors()...)
 	descriptors = append(descriptors, PlatformMessageDescriptors()...)
 	descriptors = append(descriptors, FlowDescriptors()...)
 	descriptors = append(descriptors, CalendarDescriptors()...)
