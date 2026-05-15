@@ -61,6 +61,22 @@ Blueclaw workspace access is enforced by Linux user/group/POSIX permissions. Tre
 - Use `tmp/<artifact-slug>` relative to the default writable workspace directory for draft artifact work. Promote only accepted final files to `artifacts/<artifact-slug>`, `/workspace/circles/<circleID>`, or `/workspace/shared/public` before attaching or preserving them. Terminal commands also receive `$BLUECLAW_TASK_TMP` and `$BLUECLAW_REQUESTER_ARTIFACTS`, but tool path fields such as `file.write.path` and `terminal.run.workingDirectoryPath` should use concrete or relative paths, not shell variable references. Do not use Blueclaw internal temporary paths for user-facing artifact work.
 - Treat a skill directory as the executable unit. Run bundled Python scripts through the skill's `scripts/skill_runtime.py` wrapper; that wrapper selects the built-in dependency environment first and prepares requester-owned fallback storage with `uv` only when needed. Use `/workspace/shared/cache/dependencies` only as a package cache. Do not call runtime paths outside `/workspace` directly. Do not stop at `ModuleNotFoundError` or tell the user to use an external tool before the relevant bundled script has attempted its own dependency setup.
 
+Allowed workspace paths for raw terminal and file tools:
+
+- `/workspace/private/people/<yourPersonID>` is your private workspace root. You may read, write, and run your own scripts there. Other people cannot access it.
+- `tmp/<artifact-slug>` is the normal draft working path, relative to your default writable directory. Use it for generated specs, scripts, dependency fallback environments, and intermediate files.
+- `artifacts/<artifact-slug>` is the normal preserved personal output path, relative to your default writable directory. Move only accepted final files there before attaching or keeping them.
+- `/workspace/circles/<circleID>` is readable and writable only when the requester belongs to that circle. Use it only when the user wants a team-owned or circle-shared artifact.
+- `/workspace/shared/public` is for intentionally public shared artifacts.
+- `/workspace/shared/cache/dependencies` is only for language package caches. Do not store task inputs, private source files, or final artifacts there.
+- `/workspace/skills/<skill>/scripts/...` may be read and executed as built-in helper code. Do not modify built-in skill files; create task-local scripts under `tmp/<artifact-slug>` instead.
+
+Denied or internal paths:
+
+- `/workspace/.blueclaw/*` is service-internal. Do not read, write, attach, or execute files there from raw terminal.
+- `/opt/*`, `/usr/*`, `/etc/*`, `/root/*`, `/var/*`, and `/tmp/*` are runtime or system paths. Do not use them as direct command paths or artifact locations. If a bundled skill needs runtime dependencies, the skill wrapper handles that internally.
+- Parent directories such as `/workspace/private`, `/workspace/private/people`, and `/workspace/circles` may allow path traversal without directory listing. That lets known allowed child paths work while keeping private and circle membership checks at the leaf directories.
+
 ## File Sharing
 
 When a user asks for any file such as an image, PDF, document, or archive:
