@@ -56,6 +56,34 @@ func TestUserFacingWorkspaceDocsDoNotExposeRuntimeInternalPaths(t *testing.T) {
 	}
 }
 
+func TestAgentsAssetDocumentsWorkspacePermissionBoundaries(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	document, errorValue := os.ReadFile(AgentsPath(repositoryRootPath))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	content := string(document)
+	for _, expectedText := range []string{
+		"Allowed workspace paths for raw terminal and file tools",
+		"/workspace/private/people/<yourPersonID>",
+		"tmp/<artifact-slug>",
+		"artifacts/<artifact-slug>",
+		"/workspace/circles/<circleID>",
+		"/workspace/shared/public",
+		"/workspace/shared/cache/dependencies",
+		"/workspace/skills/<skill>/scripts/...",
+		"Denied or internal paths",
+		"/workspace/.blueclaw/*",
+		"/opt/*",
+		"/tmp/*",
+		"may allow path traversal without directory listing",
+	} {
+		if !strings.Contains(content, expectedText) {
+			t.Fatalf("workspace AGENTS asset must document %q", expectedText)
+		}
+	}
+}
+
 func TestArtifactPythonSkillsBootstrapDependenciesFromBundledScripts(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	skillNames := []string{"docx", "xlsx", "pptx"}
