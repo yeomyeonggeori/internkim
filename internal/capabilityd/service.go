@@ -68,6 +68,8 @@ type Configuration struct {
 	DeviceBrowserProfilePath   string
 	CompanionFileDirectory     string
 	FleetIDPath                string
+	BlueclawWorkspacePath      string
+	FileReadPythonPath         string
 }
 
 type Service struct {
@@ -190,6 +192,8 @@ func DefaultConfiguration() Configuration {
 		DeviceBrowserProfilePath:   "",
 		CompanionFileDirectory:     "/tmp/internkim-companion-files",
 		FleetIDPath:                "/root/.internkim/env/fleet-id",
+		BlueclawWorkspacePath:      "/root/.blueclaw/workspace",
+		FileReadPythonPath:         "/opt/blueclaw/builtin-skills-venv/bin/python",
 	}
 }
 
@@ -1565,6 +1569,15 @@ func (configuration Configuration) WithDefaults() Configuration {
 	}
 	if configuration.CompanionFileDirectory == "" {
 		configuration.CompanionFileDirectory = defaultConfiguration.CompanionFileDirectory
+	}
+	if configuration.FleetIDPath == "" {
+		configuration.FleetIDPath = defaultConfiguration.FleetIDPath
+	}
+	if configuration.BlueclawWorkspacePath == "" {
+		configuration.BlueclawWorkspacePath = defaultConfiguration.BlueclawWorkspacePath
+	}
+	if configuration.FileReadPythonPath == "" {
+		configuration.FileReadPythonPath = defaultConfiguration.FileReadPythonPath
 	}
 	return configuration
 }
