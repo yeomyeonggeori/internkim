@@ -85,7 +85,7 @@ fi
 mkdir -p /opt/blueclaw
 cat > /opt/blueclaw/builtin-skills-requirements.txt <<'REQUIREMENTS'
 %sREQUIREMENTS
-uv venv --python /usr/bin/python3 /opt/blueclaw/builtin-skills-venv >/dev/null
+uv venv --clear --python /usr/bin/python3 /opt/blueclaw/builtin-skills-venv >/dev/null
 uv pip install --python /opt/blueclaw/builtin-skills-venv/bin/python -r /opt/blueclaw/builtin-skills-requirements.txt >/dev/null`, skillPythonDependencyRequirements())
 }
 
