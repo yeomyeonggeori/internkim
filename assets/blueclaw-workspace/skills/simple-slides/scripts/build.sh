@@ -105,6 +105,10 @@ if stripped != text.rstrip():
 PY
 
 mkdir -p "$BUILD_DIR"
+export TMPDIR="$(pwd)/${BUILD_DIR}/.tmp"
+export TMP="$TMPDIR"
+export TEMP="$TMPDIR"
+mkdir -p "$TMPDIR"
 rm -f "${BUILD_DIR}/${NAME}.html" "${BUILD_DIR}/${NAME}.pptx" "${BUILD_DIR}/${NAME}.pdf" "${BUILD_DIR}/${NAME}-notes.txt"
 
 echo "Building requested formats: ${FORMATS}"
