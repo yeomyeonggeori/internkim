@@ -15,12 +15,12 @@ Create or modify spreadsheet files as local artifacts, then attach the final wor
 ## Workflow
 
 1. Clarify only missing inputs that affect workbook structure, such as columns, source data, formulas, or output format.
-2. Create work under `/workspace/.blueclaw/tmp/<workbook-slug>/`.
+2. Create work under `$BLUECLAW_TASK_TMP`; do not use Blueclaw internal temporary paths.
 3. For straightforward new workbooks, write a JSON spec and run `scripts/create_xlsx.py`.
 4. Use direct `openpyxl` code for custom charts, advanced formulas, macros, or edits that exceed the script.
 5. Use Python `csv` for `.csv` and `.tsv` parsing before writing workbook output.
 6. Validate with `scripts/validate_xlsx.py` or by reopening the workbook and checking sheets, dimensions, formulas, and obvious formatting.
-7. Attach the final spreadsheet; attach source CSVs only if requested.
+7. Move accepted final files to `$BLUECLAW_REQUESTER_ARTIFACTS/<workbook-slug>/` unless the user requested a circle or shared destination, then attach the final spreadsheet; attach source CSVs only if requested.
 
 Do not run package installation unless the required library is missing and the user approves it. If `openpyxl` is unavailable, say that the runtime is missing the Excel workbook library and explain the exact package needed.
 
@@ -54,7 +54,7 @@ Run:
 ```json
 {
   "command": "python3 /workspace/skills/xlsx/scripts/create_xlsx.py workbook.json output.xlsx && python3 /workspace/skills/xlsx/scripts/validate_xlsx.py output.xlsx",
-  "workingDirectoryPath": "/workspace/.blueclaw/tmp/<workbook-slug>"
+  "workingDirectoryPath": "$BLUECLAW_TASK_TMP"
 }
 ```
 

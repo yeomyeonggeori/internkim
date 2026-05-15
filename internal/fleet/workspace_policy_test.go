@@ -13,6 +13,8 @@ func TestClassifyWorkspacePath(t *testing.T) {
 		{"/workspace/.blueclaw/graphiti/kuzu/data.kz", WorkspaceSyncModeSealedSnapshot},
 		{"/workspace/.blueclaw/runtime/current/bin/blueclaw", WorkspaceSyncModeRuntimeCache},
 		{"/workspace/.blueclaw/tmp/socket.sock", WorkspaceSyncModeEphemeral},
+		{"/workspace/private/people/user-1/tmp/job-1/file.pdf", WorkspaceSyncModeEphemeral},
+		{"/workspace/private/people/user-1/artifacts/report/file.pdf", WorkspaceSyncModeContent},
 		{"/workspace/sessions/session-1/transcript.jsonl", WorkspaceSyncModeAppendLog},
 		{"/workspace/sessions/session-1/scratch.tmp", WorkspaceSyncModeEphemeral},
 	}

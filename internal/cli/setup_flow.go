@@ -2186,10 +2186,18 @@ cat > %s <<'SERVICEEOF'
 %sSERVICEEOF
 cat > %s <<'TIMEREOF'
 %sTIMEREOF
+cat > %s <<'CLEANEOF'
+%sCLEANEOF
+chmod 755 %s
+cat > %s <<'CLEANSERVICEEOF'
+%sCLEANSERVICEEOF
+cat > %s <<'CLEANTIMEREOF'
+%sCLEANTIMEREOF
 chown root:blueclaw /root/.blueclaw/config 2>/dev/null || true
 chmod 770 /root/.blueclaw/config 2>/dev/null || true
 systemctl daemon-reload
 systemctl enable --now internkim-users-sync.timer
+systemctl enable --now internkim-blueclaw-tmp-clean.timer
 systemctl start internkim-users-sync.service || journalctl -u internkim-users-sync -n 40 --no-pager`,
 		quoteShellValue(blueclaw.InternKimUsersSyncScriptPath),
 		blueclaw.InternKimUsersSyncScript(),
@@ -2198,6 +2206,13 @@ systemctl start internkim-users-sync.service || journalctl -u internkim-users-sy
 		blueclaw.InternKimUsersSyncServiceUnit(),
 		quoteShellValue(blueclaw.InternKimUsersSyncTimerPath),
 		blueclaw.InternKimUsersSyncTimerUnit(),
+		quoteShellValue(blueclaw.InternKimBlueclawTemporaryCleanupScriptPath),
+		blueclaw.InternKimBlueclawTemporaryCleanupScript(),
+		quoteShellValue(blueclaw.InternKimBlueclawTemporaryCleanupScriptPath),
+		quoteShellValue(blueclaw.InternKimBlueclawTemporaryCleanupServicePath),
+		blueclaw.InternKimBlueclawTemporaryCleanupServiceUnit(),
+		quoteShellValue(blueclaw.InternKimBlueclawTemporaryCleanupTimerPath),
+		blueclaw.InternKimBlueclawTemporaryCleanupTimerUnit(),
 	)); errorValue != nil {
 		return fmt.Errorf("install users sync service failed: %s", strings.TrimSpace(output))
 	}

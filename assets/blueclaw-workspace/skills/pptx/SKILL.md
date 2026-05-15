@@ -15,12 +15,12 @@ Create or modify PowerPoint `.pptx` files as local artifacts, then attach the fi
 ## Workflow
 
 1. Clarify only missing inputs that change the deck, such as audience, slide count, aspect ratio, source file, or required sections.
-2. Create work under `/workspace/.blueclaw/tmp/<deck-slug>/`.
+2. Create work under `$BLUECLAW_TASK_TMP`; do not use Blueclaw internal temporary paths.
 3. For straightforward new decks, write a JSON spec and run `scripts/create_pptx.py`.
 4. Use direct `python-pptx` code for custom layouts, charts, notes, or edits that exceed the script.
 5. Use ZIP/XML inspection only when `python-pptx` cannot preserve or reach the needed feature.
 6. Validate with `scripts/validate_pptx.py` or by reopening the generated deck and checking slide count, titles, text, images, and layout.
-7. Attach the final `.pptx`; attach exported PDFs or images only if requested.
+7. Move accepted final files to `$BLUECLAW_REQUESTER_ARTIFACTS/<deck-slug>/` unless the user requested a circle or shared destination, then attach the final `.pptx`; attach exported PDFs or images only if requested.
 
 Do not run package installation unless the required library is missing and the user approves it. If `python-pptx` is unavailable, say that the runtime is missing the PowerPoint library and explain the exact package needed.
 
@@ -61,7 +61,7 @@ Run:
 ```json
 {
   "command": "python3 /workspace/skills/pptx/scripts/create_pptx.py deck.json output.pptx && python3 /workspace/skills/pptx/scripts/validate_pptx.py output.pptx",
-  "workingDirectoryPath": "/workspace/.blueclaw/tmp/<deck-slug>"
+  "workingDirectoryPath": "$BLUECLAW_TASK_TMP"
 }
 ```
 

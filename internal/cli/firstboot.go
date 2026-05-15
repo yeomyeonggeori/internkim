@@ -858,6 +858,13 @@ else
 %sSYNCSERVICEEOF
   cat > %s <<'SYNCTIMEREOF'
 %sSYNCTIMEREOF
+  cat > %s <<'CLEANEOF'
+%sCLEANEOF
+  chmod 755 %s
+  cat > %s <<'CLEANSERVICEEOF'
+%sCLEANSERVICEEOF
+  cat > %s <<'CLEANTIMEREOF'
+%sCLEANTIMEREOF
   cat > /etc/systemd/system/cloudflared.service <<'CLOUDFLARED_FLEET_EOF'
 [Unit]
 Description=Cloudflare Fleet Tunnel
@@ -912,6 +919,7 @@ CLOUDFLARED_NODE_EOF
   systemctl enable %s
   systemctl start %s
   systemctl enable --now internkim-users-sync.timer
+  systemctl enable --now internkim-blueclaw-tmp-clean.timer
   systemctl enable cloudflared-node-ssh
   systemctl start cloudflared-node-ssh
   cloudflaredServiceNames="cloudflared"
@@ -963,6 +971,13 @@ fi`,
 		blueclaw.InternKimUsersSyncServiceUnit(),
 		blueclaw.InternKimUsersSyncTimerPath,
 		blueclaw.InternKimUsersSyncTimerUnit(),
+		blueclaw.InternKimBlueclawTemporaryCleanupScriptPath,
+		blueclaw.InternKimBlueclawTemporaryCleanupScript(),
+		blueclaw.InternKimBlueclawTemporaryCleanupScriptPath,
+		blueclaw.InternKimBlueclawTemporaryCleanupServicePath,
+		blueclaw.InternKimBlueclawTemporaryCleanupServiceUnit(),
+		blueclaw.InternKimBlueclawTemporaryCleanupTimerPath,
+		blueclaw.InternKimBlueclawTemporaryCleanupTimerUnit(),
 		locallm.LlamaCppServiceName,
 		locallm.LlamaCppEmbeddingServiceName,
 		locallm.LlamaCppServiceName,

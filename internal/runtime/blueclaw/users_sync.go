@@ -27,6 +27,7 @@ FLEET_SECRET="$(cat /root/.internkim/secrets/fleet-secret 2>/dev/null || true)"
 STATE_PATH="/root/.internkim/state/users-sync.json"
 BLUECLAW_URL="http://127.0.0.1:8080"
 POLICY_PATH="/root/.blueclaw/config/policy.json"
+WORKSPACE_PATH="/root/.blueclaw/workspace"
 
 if [ -z "$FLEET_ID" ] || [ -z "$FLEET_SECRET" ]; then
   echo "users-sync: missing fleet credentials" >&2
@@ -47,6 +48,29 @@ cleanup() {
 }
 trap cleanup EXIT
 
+sync_posix_policy() {
+  if [ -x /usr/local/bin/blueclaw-posix-helper ] && [ -s "$POLICY_PATH" ]; then
+    /usr/local/bin/blueclaw-posix-helper sync \
+      --policy "$POLICY_PATH" \
+      --workspace "$WORKSPACE_PATH" >/root/.blueclaw/workspace/.blueclaw/logs/posix-sync.log 2>&1
+  fi
+}
+
+ensure_person_workspace_directories() {
+  [ -s "$POLICY_PATH" ] || return 0
+  jq -r '.people[]?.personID // empty' "$POLICY_PATH" | while IFS= read -r person_id; do
+    [ -n "$person_id" ] || continue
+    person_path="$WORKSPACE_PATH/private/people/$person_id"
+    [ -d "$person_path" ] || continue
+    owner="$(stat -c '%U:%G' "$person_path" 2>/dev/null || true)"
+    install -d -m 700 "$person_path/tmp" "$person_path/artifacts"
+    if [ -n "$owner" ] && [ "$owner" != "UNKNOWN:UNKNOWN" ]; then
+      chown "$owner" "$person_path/tmp" "$person_path/artifacts" 2>/dev/null || true
+    fi
+    chmod 700 "$person_path" "$person_path/tmp" "$person_path/artifacts" 2>/dev/null || true
+  done
+}
+
 curl -fsS \
   -H "X-InternKim-Fleet-ID: $FLEET_ID" \
   -H "X-InternKim-Fleet-Secret: $FLEET_SECRET" \
@@ -65,6 +89,8 @@ if [ -n "$revision" ] && [ "$revision" = "$last_revision" ]; then
   missing_policy_count="$(comm -23 "$desired_path" "$policy_all_path" | wc -l | tr -d ' ')"
   extra_policy_count="$(comm -23 "$policy_removable_path" "$desired_path" | wc -l | tr -d ' ')"
   if [ "$missing_policy_count" = "0" ] && [ "$extra_policy_count" = "0" ]; then
+    sync_posix_policy
+    ensure_person_workspace_directories
     echo "users-sync: unchanged"
     exit 0
   fi
@@ -104,6 +130,8 @@ jq -cn \
   --argjson users "$jusers" \
   '{revision:$revision, users:$users}' > "$next_state_path"
 install -m 600 "$next_state_path" "$STATE_PATH"
+sync_posix_policy
+ensure_person_workspace_directories
 echo "users-sync: applied $(wc -l < "$desired_path" | tr -d ' ') users"
 `
 }
