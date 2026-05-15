@@ -28,12 +28,12 @@ Use this command shape after the source files exist. Do not copy `build.sh` into
 
 ```json
 {
-  "command": "NAME=<deck-slug> /workspace/skills/simple-slides/assets/build.sh",
+  "command": "NAME=<deck-slug> /workspace/skills/simple-slides/scripts/build.sh",
   "workingDirectoryPath": "tmp/<deck-slug>"
 }
 ```
 
-If the user explicitly requests one format, narrow the build with `FORMATS`. For `html만`, use `FORMATS=html NAME=<deck-slug> /workspace/skills/simple-slides/assets/build.sh`. For a normal full deck, omit `FORMATS` so HTML, PPTX, PDF, notes, and review evidence are produced.
+If the user explicitly requests one format, narrow the build with `FORMATS`. For `html만`, use `FORMATS=html NAME=<deck-slug> /workspace/skills/simple-slides/scripts/build.sh`. For a normal full deck, omit `FORMATS` so HTML, PPTX, PDF, notes, and review evidence are produced.
 
 Use this command shape to promote final outputs after the build succeeds:
 
