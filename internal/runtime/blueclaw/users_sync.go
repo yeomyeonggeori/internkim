@@ -58,6 +58,9 @@ sync_posix_policy() {
 
 ensure_person_workspace_directories() {
   [ -s "$POLICY_PATH" ] || return 0
+  install -d -m 0711 "$WORKSPACE_PATH/private" "$WORKSPACE_PATH/private/people" "$WORKSPACE_PATH/circles"
+  chown blueclaw:blueclaw "$WORKSPACE_PATH/private" "$WORKSPACE_PATH/private/people" "$WORKSPACE_PATH/circles" 2>/dev/null || true
+  chmod 0711 "$WORKSPACE_PATH/private" "$WORKSPACE_PATH/private/people" "$WORKSPACE_PATH/circles" 2>/dev/null || true
   jq -r '.people[]?.personID // empty' "$POLICY_PATH" | while IFS= read -r person_id; do
     [ -n "$person_id" ] || continue
     person_path="$WORKSPACE_PATH/private/people/$person_id"
