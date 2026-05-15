@@ -363,6 +363,14 @@ if [ ! -x "$mount_path/usr/local/bin/bunx" ]; then
   echo rootfs-bunx-missing
   exit 0
 fi
+if [ ! -x "$mount_path/usr/local/bin/uv" ]; then
+  echo rootfs-uv-missing
+  exit 0
+fi
+if [ ! -x "$mount_path/opt/blueclaw/builtin-skills-venv/bin/python" ]; then
+  echo rootfs-builtin-skills-python-missing
+  exit 0
+fi
 if [ ! -x "$mount_path/usr/bin/bc" ]; then
   echo rootfs-bc-missing
   exit 0

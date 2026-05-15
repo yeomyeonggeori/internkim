@@ -15,6 +15,7 @@ linux_kernel_version="${BLUECLAW_LINUX_KERNEL_VERSION:-6.1.129}"
 rootfs_size="${BLUECLAW_RUNTIME_ROOTFS_SIZE:-4G}"
 blueclaw_bun_version="${BLUECLAW_BUN_VERSION:-1.3.10}"
 marp_cli_version="${BLUECLAW_MARP_CLI_VERSION:-4.3.1}"
+blueclaw_uv_version="${BLUECLAW_UV_VERSION:-0.11.11}"
 kernel_source="${BLUECLAW_KERNEL_IMAGE_SOURCE:-}"
 builder="local"
 ssh_host=""
@@ -473,19 +474,54 @@ EOF
   run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/marp --version >/dev/null
 }
 
+ensure_rootfs_uv() {
+  local base_directory="$1"
+
+  run_root mkdir -p "$base_directory/usr/local/bin"
+  run_chroot_with_runtime_mounts "$base_directory" /bin/sh -c "curl -LsSf 'https://astral.sh/uv/${blueclaw_uv_version}/install.sh' | UV_UNMANAGED_INSTALL=/usr/local/bin sh" >/dev/null
+  run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/uv --version >/dev/null
+}
+
+ensure_rootfs_graphiti_python() {
+  local base_directory="$1"
+  local requirements_path="$2"
+
+  run_root install -m 0644 "$requirements_path" "$base_directory/opt/blueclaw/graphiti-requirements.txt"
+  run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/uv venv --python /usr/bin/python3 /opt/blueclaw/graphiti-venv >/dev/null
+  run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/uv pip install --python /opt/blueclaw/graphiti-venv/bin/python -r /opt/blueclaw/graphiti-requirements.txt >/dev/null
+  run_root rm -f "$base_directory/opt/blueclaw/graphiti-requirements.txt"
+}
+
+ensure_rootfs_builtin_skills_python() {
+  local base_directory="$1"
+  local requirements_path="$2"
+
+  run_root install -m 0644 "$requirements_path" "$base_directory/opt/blueclaw/builtin-skills-requirements.txt"
+  run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/uv venv --python /usr/bin/python3 /opt/blueclaw/builtin-skills-venv >/dev/null
+  run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/uv pip install --python /opt/blueclaw/builtin-skills-venv/bin/python -r /opt/blueclaw/builtin-skills-requirements.txt >/dev/null
+  run_chroot_with_runtime_mounts "$base_directory" /opt/blueclaw/builtin-skills-venv/bin/python -c "import docx, fpdf, openpyxl, pptx, pypdf" >/dev/null
+}
+
 ensure_rootfs_base() {
   require_command mmdebstrap
-  local requirements_path="$repository_root/.dependency/blueclaw/tools/graphiti_memoryd/requirements.txt"
-  if [ ! -s "$requirements_path" ]; then
-    echo "missing graphiti_memoryd requirements.txt at $requirements_path" >&2
+  local graphiti_requirements_path="$repository_root/.dependency/blueclaw/tools/graphiti_memoryd/requirements.txt"
+  if [ ! -s "$graphiti_requirements_path" ]; then
+    echo "missing graphiti_memoryd requirements.txt at $graphiti_requirements_path" >&2
     exit 1
   fi
-  local requirements_hash
-  requirements_hash="$(sha256sum "$requirements_path" | cut -d' ' -f1)"
+  local builtin_skills_requirements_path="$repository_root/assets/blueclaw-runtime/builtin-skills-requirements.txt"
+  if [ ! -s "$builtin_skills_requirements_path" ]; then
+    echo "missing builtin skills requirements.txt at $builtin_skills_requirements_path" >&2
+    exit 1
+  fi
+  local graphiti_requirements_hash
+  graphiti_requirements_hash="$(sha256sum "$graphiti_requirements_path" | cut -d' ' -f1)"
+  local builtin_skills_requirements_hash
+  builtin_skills_requirements_hash="$(sha256sum "$builtin_skills_requirements_path" | cut -d' ' -f1)"
   local prepare_script_hash
   prepare_script_hash="$(sha256sum "$repository_root/tools/prepare-blueclaw-runtime" | cut -d' ' -f1)"
   local cache_key
-  cache_key="$(printf '%s\n%s\n%s\n%s\n%s\n%s\n' "$rootfs_base_packages" "$rootfs_base_release" "$requirements_hash" "$blueclaw_bun_version" "$marp_cli_version" "$prepare_script_hash" | sha256sum | cut -c1-16)"
+  cache_key="$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' "$rootfs_base_packages" "$rootfs_base_release" "$graphiti_requirements_hash" "$builtin_skills_requirements_hash" "$blueclaw_bun_version" "$marp_cli_version" "$blueclaw_uv_version" "$prepare_script_hash" | sha256sum | cut -c1-16)"
   rootfs_base_cache_path="$cache_directory/rootfs-base-${cache_key}.tar"
 
   if [ -s "$rootfs_base_cache_path" ]; then
@@ -503,17 +539,18 @@ ensure_rootfs_base() {
     http://deb.debian.org/debian
 
   run_root mkdir -p "$base_directory/opt/blueclaw"
-  run_root install -m 0644 "$requirements_path" "$base_directory/opt/blueclaw/requirements.txt"
-  run_root chroot "$base_directory" python3 -m venv /opt/blueclaw/graphiti-venv
-  run_root chroot "$base_directory" /opt/blueclaw/graphiti-venv/bin/pip install --no-cache-dir -r /opt/blueclaw/requirements.txt
+  ensure_rootfs_uv "$base_directory"
+  ensure_rootfs_graphiti_python "$base_directory" "$graphiti_requirements_path"
+  ensure_rootfs_builtin_skills_python "$base_directory" "$builtin_skills_requirements_path"
   ensure_rootfs_bun "$base_directory"
   ensure_rootfs_marp "$base_directory"
+  run_root chroot "$base_directory" uv --version >/dev/null
   run_root chroot "$base_directory" bun --version >/dev/null
   run_root chroot "$base_directory" bunx --version >/dev/null
   run_root chroot "$base_directory" /bin/sh -c "command -v bc >/dev/null"
   run_root test -f "$base_directory/opt/blueclaw/marp/node_modules/@marp-team/marp-cli/marp-cli.js"
+  run_root test -x "$base_directory/opt/blueclaw/builtin-skills-venv/bin/python"
   run_root chroot "$base_directory" chromium --version >/dev/null
-  run_root rm -f "$base_directory/opt/blueclaw/requirements.txt"
 
   run_root tar -C "$base_directory" --xattrs --acls --numeric-owner -cf "$rootfs_base_cache_path.tmp" .
   run_root chown "$(id -u):$(id -g)" "$rootfs_base_cache_path.tmp"

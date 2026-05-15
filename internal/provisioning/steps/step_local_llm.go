@@ -82,9 +82,8 @@ func runLocalLLMLiteRTStep(context *Context) error {
 	context.SSH.Run(fmt.Sprintf(`set -e
 install -d -o root -g root -m 700 /root/.internkim/models
 if ! command -v uv >/dev/null 2>&1; then
-  curl -LsSf https://astral.sh/uv/install.sh -o /tmp/internkim-uv-install.sh
-  sh /tmp/internkim-uv-install.sh
-  ln -sf /root/.local/bin/uv /usr/local/bin/uv
+  curl -LsSf https://astral.sh/uv/0.11.11/install.sh -o /tmp/internkim-uv-install.sh
+  UV_UNMANAGED_INSTALL=/usr/local/bin sh /tmp/internkim-uv-install.sh
 fi
 uv tool install --upgrade litert-lm >/dev/null
 ln -sf /root/.local/bin/litert-lm /usr/local/bin/litert-lm

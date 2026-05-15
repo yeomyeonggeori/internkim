@@ -100,6 +100,7 @@ var BlueclawAllowedExecutables = []string{
 	"gzip",
 	"bun",
 	"marp",
+	"uv",
 	"python3",
 	"curl",
 	"jq",
