@@ -18,7 +18,7 @@ type openAICompatClient struct {
 
 type openAIRequest struct {
 	Model          string            `json:"model"`
-	Messages       []Message         `json:"messages"`
+	Messages       []openAIMessage   `json:"messages"`
 	Stream         bool              `json:"stream"`
 	ResponseFormat *openAIJSONSchema `json:"response_format,omitempty"`
 	Tools          []openAITool      `json:"tools,omitempty"`
@@ -26,6 +26,11 @@ type openAIRequest struct {
 	ParallelTools  *bool             `json:"parallel_tool_calls,omitempty"`
 	Seed           *int64            `json:"seed,omitempty"`
 	Temperature    *float64          `json:"temperature,omitempty"`
+}
+
+type openAIMessage struct {
+	Role    string `json:"role"`
+	Content any    `json:"content"`
 }
 
 type openAIJSONSchema struct {
@@ -158,7 +163,7 @@ func (client openAICompatClient) client() *http.Client {
 func openAIChatRequest(modelName string, messages []Message, schema *StructuredOutputSchema, options GenerationOptions) openAIRequest {
 	request := openAIRequest{
 		Model:       modelName,
-		Messages:    messages,
+		Messages:    openAIMessages(messages),
 		Stream:      false,
 		Seed:        options.Seed,
 		Temperature: options.Temperature,
@@ -180,7 +185,7 @@ func openAIActionToolRequest(modelName string, messages []Message, tools []nativ
 	parallelTools := false
 	return openAIRequest{
 		Model:         modelName,
-		Messages:      messages,
+		Messages:      openAIMessages(messages),
 		Stream:        false,
 		Tools:         openAIActionTools(tools),
 		ToolChoice:    "required",
@@ -188,6 +193,54 @@ func openAIActionToolRequest(modelName string, messages []Message, tools []nativ
 		Seed:          options.Seed,
 		Temperature:   options.Temperature,
 	}
+}
+
+func openAIMessages(messages []Message) []openAIMessage {
+	result := make([]openAIMessage, 0, len(messages))
+	for _, message := range messages {
+		result = append(result, openAIMessage{
+			Role:    message.Role,
+			Content: openAIMessageContent(message),
+		})
+	}
+	return result
+}
+
+func openAIMessageContent(message Message) any {
+	if len(message.Parts) == 0 {
+		return message.Content
+	}
+	parts := []map[string]any{}
+	if strings.TrimSpace(message.Content) != "" {
+		parts = append(parts, map[string]any{
+			"type": "text",
+			"text": message.Content,
+		})
+	}
+	for _, part := range message.Parts {
+		switch strings.TrimSpace(part.Type) {
+		case "text":
+			if strings.TrimSpace(part.Text) != "" {
+				parts = append(parts, map[string]any{
+					"type": "text",
+					"text": part.Text,
+				})
+			}
+		case "image":
+			if strings.TrimSpace(part.DataBase64) != "" && strings.TrimSpace(part.MimeType) != "" {
+				parts = append(parts, map[string]any{
+					"type": "image_url",
+					"image_url": map[string]string{
+						"url": "data:" + strings.TrimSpace(part.MimeType) + ";base64," + strings.TrimSpace(part.DataBase64),
+					},
+				})
+			}
+		}
+	}
+	if len(parts) == 0 {
+		return message.Content
+	}
+	return parts
 }
 
 func openAIActionTools(tools []nativeActionTool) []openAITool {

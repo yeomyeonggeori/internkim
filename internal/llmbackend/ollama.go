@@ -170,8 +170,26 @@ func ollamaMessagesFrom(messages []Message) []ollamaMessage {
 	for _, message := range messages {
 		converted = append(converted, ollamaMessage{
 			Role:    message.Role,
-			Content: message.Content,
+			Content: textOnlyMessageContent(message),
 		})
 	}
 	return converted
+}
+
+func textOnlyMessageContent(message Message) string {
+	parts := []string{}
+	if strings.TrimSpace(message.Content) != "" {
+		parts = append(parts, message.Content)
+	}
+	for _, part := range message.Parts {
+		switch strings.TrimSpace(part.Type) {
+		case "text":
+			if strings.TrimSpace(part.Text) != "" {
+				parts = append(parts, part.Text)
+			}
+		case "image":
+			parts = append(parts, "[image input omitted by this backend]")
+		}
+	}
+	return strings.Join(parts, "\n")
 }
