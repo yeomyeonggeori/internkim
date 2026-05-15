@@ -73,8 +73,20 @@ type localBinaryAsset struct {
 	archiveEntry string
 }
 
-func skillPythonDependencyPackages() string {
-	return "fpdf2 pypdf python-docx openpyxl python-pptx"
+func skillPythonDependencyRequirements() string {
+	return strings.Join([]string{"fpdf2", "openpyxl", "pypdf", "python-docx", "python-pptx"}, "\n") + "\n"
+}
+
+func installSkillPythonDependenciesCommand() string {
+	return fmt.Sprintf(`set -euo pipefail
+if ! command -v uv >/dev/null 2>&1; then
+  curl -LsSf https://astral.sh/uv/0.11.11/install.sh | UV_UNMANAGED_INSTALL=/usr/local/bin sh >/dev/null
+fi
+mkdir -p /opt/blueclaw
+cat > /opt/blueclaw/builtin-skills-requirements.txt <<'REQUIREMENTS'
+%sREQUIREMENTS
+uv venv --python /usr/bin/python3 /opt/blueclaw/builtin-skills-venv >/dev/null
+uv pip install --python /opt/blueclaw/builtin-skills-venv/bin/python -r /opt/blueclaw/builtin-skills-requirements.txt >/dev/null`, skillPythonDependencyRequirements())
 }
 
 func deviceBrowserRuntimePackageListUbuntu24() string {
@@ -1010,7 +1022,7 @@ chmod 644 /root/.blueclaw/workspace/AGENTS.md 2>/dev/null || true`)
 }
 
 func (state *setupFlowState) installSkillPythonDependenciesSSH() error {
-	output, errorValue := state.sshClient.runResult("pip3 install --quiet " + skillPythonDependencyPackages() + " 2>&1")
+	output, errorValue := state.sshClient.runResult(installSkillPythonDependenciesCommand())
 	if errorValue != nil {
 		return fmt.Errorf("install skill Python dependencies: %w: %s", errorValue, strings.TrimSpace(output))
 	}

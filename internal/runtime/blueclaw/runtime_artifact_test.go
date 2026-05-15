@@ -122,6 +122,8 @@ func TestPrepareRuntimeScriptInstallsBlueclawGuestCalculator(t *testing.T) {
 	expectedFragments := []string{
 		`rootfs_base_packages="ca-certificates,curl,bash,bc,coreutils`,
 		`command -v bc >/dev/null`,
+		`UV_UNMANAGED_INSTALL=/usr/local/bin`,
+		`/opt/blueclaw/builtin-skills-venv`,
 	}
 	for _, fragment := range expectedFragments {
 		if !strings.Contains(script, fragment) {

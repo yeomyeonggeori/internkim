@@ -5,11 +5,12 @@ from pathlib import Path
 import re
 import subprocess
 import sys
-import venv
 
 
 BOOTSTRAP_READY_ENVIRONMENT_PREFIX = "INTERNKIM_SKILL_BOOTSTRAP_READY"
 BOOTSTRAP_DISABLE_ENVIRONMENT_PREFIX = "INTERNKIM_SKILL_BOOTSTRAP_DISABLE"
+BUILTIN_SKILLS_PYTHON_ENVIRONMENT = "BLUECLAW_BUILTIN_SKILLS_PYTHON"
+DEFAULT_BUILTIN_SKILLS_PYTHON = "/opt/blueclaw/builtin-skills-venv/bin/python"
 
 
 def ensure_requirements(skill_name):
@@ -21,11 +22,15 @@ def ensure_requirements(skill_name):
     if os.environ.get(bootstrap_ready_environment_variable(skill_name)) == "1":
         return True
 
+    builtin_python_path = builtin_skills_python_path(requirements_path)
+    if builtin_python_path is not None:
+        reexecute_python(builtin_python_path, skill_name)
+        return False
+
     environment_path = dependency_environment_path(skill_name)
     python_path = environment_path / "bin" / "python"
     try:
-        if not python_path.exists():
-            venv.EnvBuilder(with_pip=True).create(environment_path)
+        create_dependency_environment(python_path, environment_path)
         install_requirements_if_needed(python_path, requirements_path, environment_path)
     except Exception as error_value:
         sys.stderr.write(f"warning: {skill_name} dependency bootstrap failed: {error_value}\n")
@@ -34,6 +39,56 @@ def ensure_requirements(skill_name):
     if is_current_python(python_path):
         return True
 
+    reexecute_python(python_path, skill_name)
+    return False
+
+
+def builtin_skills_python_path(requirements_path):
+    if not is_builtin_skill_runtime():
+        return None
+    python_path = Path(os.environ.get(BUILTIN_SKILLS_PYTHON_ENVIRONMENT, DEFAULT_BUILTIN_SKILLS_PYTHON))
+    if not python_path.exists():
+        return None
+    if not python_satisfies_requirements(python_path, requirements_path):
+        return None
+    if is_current_python(python_path):
+        return None
+    return python_path
+
+
+def is_builtin_skill_runtime():
+    return Path(__file__).resolve().as_posix().startswith("/workspace/skills/")
+
+
+def python_satisfies_requirements(python_path, requirements_path):
+    code = """
+import importlib.metadata
+import re
+import sys
+from pathlib import Path
+
+for raw_requirement in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
+    requirement = raw_requirement.split("#", 1)[0].strip()
+    if requirement == "":
+        continue
+    package_name = re.split(r"\\s*(?:==|>=|<=|~=|!=|>|<|\\[|;)", requirement, 1)[0].strip()
+    if package_name == "":
+        continue
+    try:
+        importlib.metadata.distribution(package_name)
+    except importlib.metadata.PackageNotFoundError:
+        sys.exit(1)
+"""
+    result = subprocess.run(
+        [str(python_path), "-c", code, str(requirements_path)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def reexecute_python(python_path, skill_name):
     environment = os.environ.copy()
     environment[bootstrap_ready_environment_variable(skill_name)] = "1"
     os.execve(
@@ -41,7 +96,22 @@ def ensure_requirements(skill_name):
         [str(python_path), str(Path(sys.argv[0]).resolve()), *sys.argv[1:]],
         environment,
     )
-    return False
+
+
+def create_dependency_environment(python_path, environment_path):
+    if python_path.exists():
+        return
+    result = subprocess.run(
+        ["uv", "venv", "--python", sys.executable, str(environment_path)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=uv_environment(),
+        check=False,
+    )
+    if result.returncode != 0:
+        message = (result.stderr or result.stdout or "uv venv failed").strip()
+        raise RuntimeError(message)
 
 
 def install_requirements_if_needed(python_path, requirements_path, environment_path):
@@ -57,32 +127,36 @@ def requirements_hash(requirements_path):
 
 
 def install_requirements(python_path, requirements_path):
-    environment = os.environ.copy()
-    dependency_cache = Path("/workspace/shared/cache/dependencies/pip")
-    if dependency_cache.parent.exists():
-        dependency_cache.mkdir(parents=True, exist_ok=True)
-        environment["PIP_CACHE_DIR"] = str(dependency_cache)
-
     result = subprocess.run(
         [
-            str(python_path),
-            "-m",
+            "uv",
             "pip",
             "install",
-            "--disable-pip-version-check",
             "--quiet",
+            "--python",
+            str(python_path),
             "-r",
             str(requirements_path),
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        env=environment,
+        env=uv_environment(),
         check=False,
     )
     if result.returncode != 0:
-        message = (result.stderr or result.stdout or "pip install failed").strip()
+        message = (result.stderr or result.stdout or "uv pip install failed").strip()
         raise RuntimeError(message)
+
+
+def uv_environment():
+    environment = os.environ.copy()
+    dependency_cache = Path("/workspace/shared/cache/dependencies/uv")
+    if dependency_cache.parent.exists():
+        dependency_cache.mkdir(parents=True, exist_ok=True)
+        environment["UV_CACHE_DIR"] = str(dependency_cache)
+        environment["UV_LINK_MODE"] = "copy"
+    return environment
 
 
 def dependency_environment_path(skill_name):
@@ -93,7 +167,7 @@ def dependency_environment_path(skill_name):
 
 
 def is_current_python(python_path):
-    return Path(sys.executable).resolve() == python_path.resolve()
+    return Path(sys.executable).absolute() == python_path.absolute()
 
 
 def safe_name(value):

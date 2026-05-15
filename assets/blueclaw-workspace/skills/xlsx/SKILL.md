@@ -17,12 +17,12 @@ Create or modify spreadsheet files as local artifacts, then attach the final wor
 1. Clarify only missing inputs that affect workbook structure, such as columns, source data, formulas, or output format.
 2. Create work under `tmp/<workbook-slug>` relative to the default writable workspace directory; do not use Blueclaw internal temporary paths.
 3. For straightforward new workbooks, write a JSON spec and run `scripts/create_xlsx.py`.
-4. Use direct `openpyxl` code for custom charts, advanced formulas, macros, or edits that exceed the script.
+4. For custom charts, advanced formulas, macros, or edits that exceed the JSON script, write a task-local Python file and run it through `scripts/skill_runtime.py python <file.py>`.
 5. Use Python `csv` for `.csv` and `.tsv` parsing before writing workbook output.
 6. Validate with `scripts/validate_xlsx.py` or by reopening the workbook and checking sheets, dimensions, formulas, and obvious formatting.
 7. Move accepted final files to `artifacts/<workbook-slug>/` unless the user requested a circle or shared destination, then attach the final spreadsheet; attach source CSVs only if requested.
 
-Bundled scripts are responsible for their own Python dependencies. They bootstrap `scripts/requirements.txt` into `$BLUECLAW_REQUESTER_TMP/.skill-env/xlsx` when needed and use `/workspace/shared/cache/dependencies` only as a package cache. Do not stop at `ModuleNotFoundError`; run the helper script first. For custom Python beyond the helper script, import `scripts/skill_runtime.py` and call `ensure_requirements("xlsx")` before importing `openpyxl`.
+Bundled scripts are responsible for their own Python dependencies. They use the built-in `/opt/blueclaw/builtin-skills-venv` first, then bootstrap `scripts/requirements.txt` with `uv` into `$BLUECLAW_REQUESTER_TMP/.skill-env/xlsx` only when needed. `/workspace/shared/cache/dependencies` is only a package cache. Do not run `pip install` directly. Do not stop at `ModuleNotFoundError`; run the helper script first. Do not use `python - <<'PY'` or system Python snippets for code that needs the Excel library.
 
 ## Helper Scripts
 
@@ -53,95 +53,46 @@ Run:
 
 ```json
 {
-  "command": "python3 /workspace/skills/xlsx/scripts/create_xlsx.py workbook.json output.xlsx && python3 /workspace/skills/xlsx/scripts/validate_xlsx.py output.xlsx",
+  "command": "python3 /workspace/skills/xlsx/scripts/skill_runtime.py python /workspace/skills/xlsx/scripts/create_xlsx.py workbook.json output.xlsx && python3 /workspace/skills/xlsx/scripts/skill_runtime.py python /workspace/skills/xlsx/scripts/validate_xlsx.py output.xlsx",
   "workingDirectoryPath": "tmp/<workbook-slug>"
 }
 ```
 
-## Creation
+## Custom Python
 
-Use `openpyxl` for normal workbook generation:
+For work that exceeds the JSON script, create a task-local Python file such as `custom_xlsx.py`, then run it through the bundled runtime:
 
-```python
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill
-from openpyxl.utils import get_column_letter
-
-workbook = Workbook()
-worksheet = workbook.active
-worksheet.title = "Summary"
-
-headers = ["Item", "Amount", "Notes"]
-worksheet.append(headers)
-for row in rows:
-    worksheet.append(row)
-
-header_fill = PatternFill("solid", fgColor="E5E7EB")
-for cell in worksheet[1]:
-    cell.font = Font(bold=True)
-    cell.fill = header_fill
-
-for column_cells in worksheet.columns:
-    width = max(len(str(cell.value or "")) for cell in column_cells)
-    worksheet.column_dimensions[get_column_letter(column_cells[0].column)].width = min(max(width + 2, 10), 48)
-
-workbook.save("output.xlsx")
+```json
+{
+  "command": "python3 /workspace/skills/xlsx/scripts/skill_runtime.py python custom_xlsx.py",
+  "workingDirectoryPath": "tmp/<workbook-slug>"
+}
 ```
+
+Inside that file, import the Excel library normally; the wrapper has already created and selected the venv.
 
 Use professional formatting: readable column widths, frozen header rows, number formats, and clear sheet names. Keep raw data and summary views on separate sheets when both are useful.
 
 ## Formulas
 
-Write formulas only when the user needs the workbook to remain interactive:
-
-```python
-worksheet["D2"] = "=B2*C2"
-worksheet["D2"].number_format = '#,##0'
-```
-
-Avoid fragile formulas with hard-coded row ranges when a dynamic range is clearer. If the runtime cannot recalculate formulas, preserve formulas and verify that cell references are structurally correct.
+Write formulas only when the user needs the workbook to remain interactive. Avoid fragile formulas with hard-coded row ranges when a dynamic range is clearer. If the runtime cannot recalculate formulas, preserve formulas and verify that cell references are structurally correct.
 
 ## CSV And TSV
 
-Normalize tabular text before creating the workbook:
-
-```python
-import csv
-
-with open("input.csv", newline="", encoding="utf-8-sig") as file:
-    rows = list(csv.reader(file))
-```
-
-Handle malformed rows explicitly. Do not silently drop columns or rows. If data cannot be repaired with confidence, create a separate `Issues` sheet listing the affected row numbers and reasons.
+Normalize tabular text before creating the workbook. Handle malformed rows explicitly. Do not silently drop columns or rows. If data cannot be repaired with confidence, create a separate `Issues` sheet listing the affected row numbers and reasons.
 
 ## Editing Existing Files
 
 For user-provided workbooks:
 
-1. Load the file with `openpyxl.load_workbook`.
+1. Write a task-local edit script and run it through `scripts/skill_runtime.py python <file.py>`.
 2. Preserve existing sheet names, formulas, styles, and macros unless the user asks otherwise.
 3. Save to a new filename unless the user asks to replace the original.
 
-Use `keep_vba=True` for `.xlsm` files:
-
-```python
-from openpyxl import load_workbook
-
-workbook = load_workbook("input.xlsm", keep_vba=True)
-workbook.save("updated.xlsm")
-```
+Use macro-preserving load options for `.xlsm` files.
 
 ## Validation
 
-Always reopen the saved file:
-
-```python
-from openpyxl import load_workbook
-
-workbook = load_workbook("output.xlsx", data_only=False)
-print(workbook.sheetnames)
-for worksheet in workbook.worksheets:
-    print(worksheet.title, worksheet.max_row, worksheet.max_column)
-```
+Always run `scripts/validate_xlsx.py` through `scripts/skill_runtime.py` after saving.
 
 Check for broken references in formulas when formulas were added or moved. For financial or operational sheets, scan for blank required fields and suspicious totals before attaching.

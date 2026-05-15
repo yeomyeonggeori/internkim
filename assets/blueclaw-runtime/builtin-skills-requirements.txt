@@ -1,0 +1,5 @@
+fpdf2
+openpyxl
+pypdf
+python-docx
+python-pptx
