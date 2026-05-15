@@ -17,12 +17,12 @@ Create or modify PowerPoint `.pptx` files as local artifacts, then attach the fi
 1. Clarify only missing inputs that change the deck, such as audience, slide count, aspect ratio, source file, or required sections.
 2. Create work under `tmp/<deck-slug>` relative to the default writable workspace directory; do not use Blueclaw internal temporary paths.
 3. For straightforward new decks, write a JSON spec and run `scripts/create_pptx.py`.
-4. Use direct `python-pptx` code for custom layouts, charts, notes, or edits that exceed the script.
-5. Use ZIP/XML inspection only when `python-pptx` cannot preserve or reach the needed feature.
+4. For custom layouts, charts, notes, or edits that exceed the JSON script, write a task-local Python file and run it through `scripts/skill_runtime.py python <file.py>`.
+5. Use ZIP/XML inspection only when the library cannot preserve or reach the needed feature.
 6. Validate with `scripts/validate_pptx.py` or by reopening the generated deck and checking slide count, titles, text, images, and layout.
 7. Move accepted final files to `artifacts/<deck-slug>/` unless the user requested a circle or shared destination, then attach the final `.pptx`; attach exported PDFs or images only if requested.
 
-Bundled scripts are responsible for their own Python dependencies. They bootstrap `scripts/requirements.txt` into `$BLUECLAW_REQUESTER_TMP/.skill-env/pptx` when needed and use `/workspace/shared/cache/dependencies` only as a package cache. Do not stop at `ModuleNotFoundError`; run the helper script first. For custom Python beyond the helper script, import `scripts/skill_runtime.py` and call `ensure_requirements("pptx")` before importing `pptx`.
+Bundled scripts are responsible for their own Python dependencies. They use the built-in `/opt/blueclaw/builtin-skills-venv` first, then bootstrap `scripts/requirements.txt` with `uv` into `$BLUECLAW_REQUESTER_TMP/.skill-env/pptx` only when needed. `/workspace/shared/cache/dependencies` is only a package cache. Do not run `pip install` directly. Do not stop at `ModuleNotFoundError`; run the helper script first. Do not use `python - <<'PY'` or system Python snippets for code that needs the PowerPoint library.
 
 For from-scratch presentation design with HTML/PDF/PPTX outputs, use the existing `simple-slides` skill unless the user specifically needs direct PowerPoint object editing.
 
@@ -60,42 +60,23 @@ Run:
 
 ```json
 {
-  "command": "python3 /workspace/skills/pptx/scripts/create_pptx.py deck.json output.pptx && python3 /workspace/skills/pptx/scripts/validate_pptx.py output.pptx",
+  "command": "python3 /workspace/skills/pptx/scripts/skill_runtime.py python /workspace/skills/pptx/scripts/create_pptx.py deck.json output.pptx && python3 /workspace/skills/pptx/scripts/skill_runtime.py python /workspace/skills/pptx/scripts/validate_pptx.py output.pptx",
   "workingDirectoryPath": "tmp/<deck-slug>"
 }
 ```
 
-## Creation
+## Custom Python
 
-Use `python-pptx` for standard decks:
+For work that exceeds the JSON script, create a task-local Python file such as `custom_pptx.py`, then run it through the bundled runtime:
 
-```python
-from pptx import Presentation
-from pptx.util import Inches, Pt
-
-presentation = Presentation()
-presentation.slide_width = Inches(13.333)
-presentation.slide_height = Inches(7.5)
-
-title_slide_layout = presentation.slide_layouts[0]
-slide = presentation.slides.add_slide(title_slide_layout)
-slide.shapes.title.text = "Presentation Title"
-slide.placeholders[1].text = "Subtitle"
-
-content_slide_layout = presentation.slide_layouts[5]
-slide = presentation.slides.add_slide(content_slide_layout)
-slide.shapes.title.text = "Main takeaway"
-
-text_box = slide.shapes.add_textbox(Inches(0.8), Inches(1.5), Inches(11.7), Inches(4.8))
-text_frame = text_box.text_frame
-text_frame.word_wrap = True
-paragraph = text_frame.paragraphs[0]
-run = paragraph.add_run()
-run.text = "Body text."
-run.font.size = Pt(24)
-
-presentation.save("output.pptx")
+```json
+{
+  "command": "python3 /workspace/skills/pptx/scripts/skill_runtime.py python custom_pptx.py",
+  "workingDirectoryPath": "tmp/<deck-slug>"
+}
 ```
+
+Inside that file, import the PowerPoint library normally; the wrapper has already created and selected the venv.
 
 Use one clear message per slide. Prefer structured layouts, readable type, and generous margins over dense bullet lists.
 
@@ -104,47 +85,24 @@ Use one clear message per slide. Prefer structured layouts, readable type, and g
 For user-provided `.pptx` files:
 
 1. Copy the input to a working directory.
-2. Load with `Presentation("input.pptx")`.
+2. Write a task-local edit script and run it through `scripts/skill_runtime.py python <file.py>`.
 3. Preserve slide masters, layouts, theme colors, and existing images where possible.
 4. Save to a new filename unless the user asks to replace the original.
 
-Use direct XML inspection for notes, comments, relationships, or other features that `python-pptx` does not expose:
+Use direct XML inspection for notes, comments, relationships, or other features that the library does not expose. Put inspection code in a task-local script and run it with Python:
 
 ```bash
-python - <<'PY'
-from zipfile import ZipFile
-
-with ZipFile("input.pptx") as archive:
-    for name in archive.namelist():
-        if name.startswith("ppt/"):
-            print(name)
-PY
+python3 inspect_package.py
 ```
 
 Avoid XML rewrites unless required. If XML editing is required, preserve namespaces, relationships, and content types.
 
 ## Images
 
-Add local image files with explicit dimensions:
-
-```python
-slide.shapes.add_picture("image.png", Inches(1), Inches(1.5), width=Inches(5.5))
-```
-
-Verify image paths exist before saving. Use high-resolution source images when the deck will be projected.
+Add local image files with explicit dimensions from a script that runs through `scripts/skill_runtime.py`. Verify image paths exist before saving. Use high-resolution source images when the deck will be projected.
 
 ## Validation
 
-Always reopen the saved deck:
-
-```python
-from pptx import Presentation
-
-presentation = Presentation("output.pptx")
-print(len(presentation.slides))
-for index, slide in enumerate(presentation.slides, start=1):
-    title = slide.shapes.title.text if slide.shapes.title else ""
-    print(index, title)
-```
+Always run `scripts/validate_pptx.py` through `scripts/skill_runtime.py` after saving.
 
 When layout fidelity matters and LibreOffice is available, export to PDF or slide images and inspect before attaching.

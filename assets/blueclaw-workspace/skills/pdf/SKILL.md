@@ -26,7 +26,7 @@ Pure Python — no Node.js required. Works on any architecture including RISC-V.
 
 1. **Korean/CJK text requires a TTF font** — built-in fonts (Helvetica, Times, Courier) cannot
    render Korean. Always register a TTF font for any non-Latin text.
-2. **fpdf2 and pypdf are pre-installed** — do not run pip install.
+2. **fpdf2 and pypdf are pre-installed in the built-in skill runtime** — do not run pip install.
 3. **Fonts must be local files** — download TTFs before use; remote URLs do not work at render time.
 
 ## Files

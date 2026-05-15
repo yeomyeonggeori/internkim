@@ -60,6 +60,9 @@ func TestArtifactPythonSkillsBootstrapDependenciesFromBundledScripts(t *testing.
 		if strings.Contains(string(skillDocument), "runtime is missing") {
 			t.Fatalf("%s skill must not surface missing runtime libraries as the primary recovery path", skillName)
 		}
+		if strings.Contains(string(skillDocument), `"command": "python - <<`) {
+			t.Fatalf("%s skill must not instruct the model to bypass bundled scripts with inline Python", skillName)
+		}
 
 		createScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "create_"+skillName+".py"))
 		if errorValue != nil {
@@ -75,6 +78,40 @@ func TestArtifactPythonSkillsBootstrapDependenciesFromBundledScripts(t *testing.
 		}
 		if !strings.Contains(string(runtimeScript), "requirements.txt") {
 			t.Fatalf("%s runtime script must install from requirements.txt", skillName)
+		}
+		if !strings.Contains(string(runtimeScript), "/opt/blueclaw/builtin-skills-venv/bin/python") {
+			t.Fatalf("%s runtime script must prefer the built-in skills Python environment", skillName)
+		}
+		if !strings.Contains(string(runtimeScript), `"uv",`) {
+			t.Fatalf("%s runtime script must use uv for Python dependency setup", skillName)
+		}
+		if !strings.Contains(string(runtimeScript), "Path(sys.executable).absolute()") {
+			t.Fatalf("%s runtime script must compare Python paths without resolving venv symlinks", skillName)
+		}
+	}
+}
+
+func TestBuiltinSkillDependenciesArePreinstalledInRuntimeBase(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	requirementsDocument, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-runtime", "builtin-skills-requirements.txt"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	requirements := string(requirementsDocument)
+	for _, packageName := range []string{"fpdf2", "openpyxl", "pypdf", "python-docx", "python-pptx"} {
+		if !strings.Contains(requirements, packageName) {
+			t.Fatalf("builtin skill requirements must include %s", packageName)
+		}
+	}
+
+	prepareScript, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "tools", "prepare-blueclaw-runtime"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	script := string(prepareScript)
+	for _, fragment := range []string{"UV_UNMANAGED_INSTALL=/usr/local/bin", "/opt/blueclaw/builtin-skills-venv", "builtin-skills-requirements.txt"} {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("prepare script must contain %q", fragment)
 		}
 	}
 }
