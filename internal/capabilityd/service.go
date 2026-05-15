@@ -701,7 +701,7 @@ func (service Service) mattermostAskActionContext(request replyRequest, handle p
 		Action:           action,
 		InteractionID:    request.Interaction.InteractionID,
 		TaskRunID:        request.Interaction.TaskRunID,
-		ConversationID:   handle.ChannelID,
+		ConversationID:   handle.ConversationID,
 		ReplyTargetID:    request.ReplyTargetID,
 		ChoiceKey:        choiceKey,
 		ResponseLanguage: request.Interaction.ResponseLanguage,
