@@ -35,6 +35,8 @@ type mattermostInteractiveError struct {
 	Message string `json:"message"`
 }
 
+type mattermostInteractiveActionHandler func(http.ResponseWriter, *http.Request, mattermostInteractivePayload)
+
 type mattermostAttachment struct {
 	Fallback string             `json:"fallback"`
 	Text     string             `json:"text"`
@@ -69,15 +71,23 @@ func (service *Service) handleMattermostInteractiveAction(responseWriter http.Re
 		service.writeMattermostInteractiveError(responseWriter, "invalid action token")
 		return
 	}
-	switch strings.TrimSpace(payload.Context.Action) {
-	case attendanceClockInAction:
-		service.handleAttendanceClockAction(responseWriter, request, payload, attendanceKindClockIn)
-	case attendanceClockOutAction:
-		service.handleAttendanceClockAction(responseWriter, request, payload, attendanceKindClockOut)
-	case attendanceToggleAction:
-		service.handleAttendanceToggleAction(responseWriter, request, payload)
-	default:
+	handler, isFound := service.mattermostInteractiveActionHandlers()[strings.TrimSpace(payload.Context.Action)]
+	if !isFound {
 		service.writeMattermostInteractiveError(responseWriter, "unsupported action")
+		return
+	}
+	handler(responseWriter, request, payload)
+}
+
+func (service *Service) mattermostInteractiveActionHandlers() map[string]mattermostInteractiveActionHandler {
+	return map[string]mattermostInteractiveActionHandler{
+		attendanceClockInAction: func(responseWriter http.ResponseWriter, request *http.Request, payload mattermostInteractivePayload) {
+			service.handleAttendanceClockAction(responseWriter, request, payload, attendanceKindClockIn)
+		},
+		attendanceClockOutAction: func(responseWriter http.ResponseWriter, request *http.Request, payload mattermostInteractivePayload) {
+			service.handleAttendanceClockAction(responseWriter, request, payload, attendanceKindClockOut)
+		},
+		attendanceToggleAction: service.handleAttendanceToggleAction,
 	}
 }
 

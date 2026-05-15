@@ -96,6 +96,25 @@ type replyRequest struct {
 	OutboxID        string                        `json:"outboxID,omitempty"`
 	Attachments     []platformFileSpec            `json:"attachments,omitempty"`
 	RecoveryActions []capabilities.RecoveryAction `json:"recoveryActions,omitempty"`
+	Interaction     *platformAskInteraction       `json:"interaction,omitempty"`
+}
+
+type platformAskInteraction struct {
+	InteractionID        string                    `json:"interactionID"`
+	TaskRunID            string                    `json:"taskRunID"`
+	Kind                 string                    `json:"kind"`
+	Message              string                    `json:"message,omitempty"`
+	Question             string                    `json:"question,omitempty"`
+	Options              []platformAskChoiceOption `json:"options,omitempty"`
+	RecommendedOptionKey string                    `json:"recommendedOptionKey,omitempty"`
+	SelectionMode        string                    `json:"selectionMode,omitempty"`
+	ResponseLanguage     string                    `json:"responseLanguage,omitempty"`
+}
+
+type platformAskChoiceOption struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+	Value string `json:"value,omitempty"`
 }
 
 type platformHealthState struct {
@@ -532,11 +551,8 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 	}
 	body := map[string]any{
 		"channel_id": handle.ChannelID,
-		"message":    message,
-		"props": map[string]string{
-			"internkim_raw_event_id": request.RawEventID,
-			"internkim_outbox_id":    request.OutboxID,
-		},
+		"message":    mattermostAskMessage(message, request.Interaction),
+		"props":      service.mattermostReplyProperties(request, handle),
 	}
 	if strings.TrimSpace(handle.RootID) != "" {
 		body["root_id"] = handle.RootID
@@ -552,6 +568,155 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 		log.Printf("mattermost reply failed: %v", errorValue)
 	}
 	return map[string]string{"dispatchID": response.ID}, errorValue
+}
+
+func (service Service) mattermostReplyProperties(request replyRequest, handle platformHandle) map[string]any {
+	properties := map[string]any{
+		"internkim_raw_event_id": request.RawEventID,
+		"internkim_outbox_id":    request.OutboxID,
+	}
+	if attachment := service.mattermostAskAttachment(request, handle); attachment != nil {
+		properties["attachments"] = []any{attachment}
+	}
+	return properties
+}
+
+func mattermostAskMessage(message string, interaction *platformAskInteraction) string {
+	if interaction == nil || !strings.HasPrefix(strings.TrimSpace(interaction.Kind), "ask_choice") {
+		return message
+	}
+	lines := []string{strings.TrimSpace(message)}
+	for index, option := range interaction.Options {
+		label := strings.TrimSpace(option.Label)
+		if label == "" {
+			continue
+		}
+		suffix := ""
+		if strings.TrimSpace(option.Key) == strings.TrimSpace(interaction.RecommendedOptionKey) {
+			suffix = " (추천)"
+		}
+		lines = append(lines, strconv.Itoa(index+1)+". "+label+suffix)
+	}
+	return strings.Join(trimNonEmptyPlatformStrings(lines), "\n")
+}
+
+func (service Service) mattermostAskAttachment(request replyRequest, handle platformHandle) map[string]any {
+	if request.Interaction == nil {
+		return nil
+	}
+	switch strings.TrimSpace(request.Interaction.Kind) {
+	case "ask_confirm":
+		return service.mattermostConfirmAttachment(request, handle)
+	case "ask_choice_single":
+		return service.mattermostChoiceAttachment(request, handle)
+	case "ask_choice_multiple":
+		return service.mattermostChoiceAttachment(request, handle)
+	default:
+		return nil
+	}
+}
+
+func (service Service) mattermostConfirmAttachment(request replyRequest, handle platformHandle) map[string]any {
+	return map[string]any{
+		"fallback": strings.TrimSpace(request.Message),
+		"actions": []any{
+			service.mattermostAskButton("ask-confirm", "확인", "primary", request, handle, "ask.confirm", ""),
+			service.mattermostAskButton("ask-cancel", "취소", "danger", request, handle, "ask.cancel", ""),
+		},
+	}
+}
+
+func (service Service) mattermostChoiceAttachment(request replyRequest, handle platformHandle) map[string]any {
+	options := trimNonEmptyPlatformAskOptions(request.Interaction.Options)
+	if len(options) <= 3 && request.Interaction.Kind == "ask_choice_single" {
+		actions := []any{}
+		for _, option := range options {
+			actions = append(actions, service.mattermostAskButton("ask-choice-"+option.Key, option.Label, "", request, handle, "ask.choice", option.Key))
+		}
+		return map[string]any{"fallback": strings.TrimSpace(request.Message), "actions": actions}
+	}
+	return map[string]any{
+		"fallback": strings.TrimSpace(request.Message),
+		"actions": []any{
+			map[string]any{
+				"id":      "ask-choice-menu",
+				"type":    "select",
+				"name":    "선택",
+				"options": mattermostAskMenuOptions(options),
+				"integration": map[string]any{
+					"url":     service.mattermostAskActionURL(),
+					"context": mattermostAskActionContext(request, handle, "ask.choice", ""),
+				},
+			},
+		},
+	}
+}
+
+func (service Service) mattermostAskButton(id string, name string, style string, request replyRequest, handle platformHandle, action string, choiceKey string) map[string]any {
+	button := map[string]any{
+		"id":   id,
+		"type": "button",
+		"name": name,
+		"integration": map[string]any{
+			"url":     service.mattermostAskActionURL(),
+			"context": mattermostAskActionContext(request, handle, action, choiceKey),
+		},
+	}
+	if strings.TrimSpace(style) != "" {
+		button["style"] = style
+	}
+	return button
+}
+
+func mattermostAskActionContext(request replyRequest, handle platformHandle, action string, choiceKey string) map[string]string {
+	return map[string]string{
+		"action":           action,
+		"interactionID":    request.Interaction.InteractionID,
+		"taskRunID":        request.Interaction.TaskRunID,
+		"conversationID":   handle.ChannelID,
+		"replyTargetID":    request.ReplyTargetID,
+		"choiceKey":        choiceKey,
+		"responseLanguage": request.Interaction.ResponseLanguage,
+	}
+}
+
+func mattermostAskMenuOptions(options []platformAskChoiceOption) []map[string]string {
+	menuOptions := []map[string]string{}
+	for _, option := range options {
+		menuOptions = append(menuOptions, map[string]string{
+			"text":  option.Label,
+			"value": option.Key,
+		})
+	}
+	return menuOptions
+}
+
+func trimNonEmptyPlatformAskOptions(options []platformAskChoiceOption) []platformAskChoiceOption {
+	trimmedOptions := []platformAskChoiceOption{}
+	for _, option := range options {
+		option.Key = strings.TrimSpace(option.Key)
+		option.Label = strings.TrimSpace(option.Label)
+		option.Value = strings.TrimSpace(option.Value)
+		if option.Key != "" && option.Label != "" {
+			trimmedOptions = append(trimmedOptions, option)
+		}
+	}
+	return trimmedOptions
+}
+
+func trimNonEmptyPlatformStrings(values []string) []string {
+	trimmedValues := []string{}
+	for _, value := range values {
+		trimmedValue := strings.TrimSpace(value)
+		if trimmedValue != "" {
+			trimmedValues = append(trimmedValues, trimmedValue)
+		}
+	}
+	return trimmedValues
+}
+
+func (service Service) mattermostAskActionURL() string {
+	return strings.TrimRight(service.Configuration.BlueclawBaseURL, "/") + "/connectors/mattermost/events"
 }
 
 func (service Service) stopMattermostProgress(replyTargetID string) {

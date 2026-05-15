@@ -6,7 +6,7 @@ allowed-tools:
   - mail.message.list
   - mail.message.search
   - mail.message.read
-  - approval.request
+  - ask.confirm
   - mail.message.send
 ---
 
@@ -45,7 +45,7 @@ If the user asks for a draft only, write the draft in chat and do not call `mail
 For immediate sending:
 
 1. Confirm the recipient, subject, and exact body.
-2. Call `approval.request` with the recipient, subject, and body.
+2. Call `ask.confirm` with the recipient, subject, and body.
 3. After approval, call `mail.message.send`.
 
 Never say the email was sent before `mail.message.send` succeeds.
