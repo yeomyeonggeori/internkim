@@ -22,7 +22,7 @@ Create and modify Word documents as local `.docx` files, then attach the final f
 6. Validate with `scripts/validate_docx.py` or by reopening the `.docx` file and checking the expected paragraphs, tables, headings, and images.
 7. Move accepted final files to `$BLUECLAW_REQUESTER_ARTIFACTS/<document-slug>/` unless the user requested a circle or shared destination, then attach the final `.docx`; attach intermediate files only if the user asks.
 
-Do not run package installation unless the required library is missing and the user approves it. If `python-docx` is unavailable, say that the runtime is missing the Word document library and explain the exact package needed.
+Bundled scripts are responsible for their own Python dependencies. They bootstrap `scripts/requirements.txt` into `$BLUECLAW_REQUESTER_TMP/.skill-env/docx` when needed and use `/workspace/shared/cache/dependencies` only as a package cache. Do not stop at `ModuleNotFoundError`; run the helper script first. For custom Python beyond the helper script, import `scripts/skill_runtime.py` and call `ensure_requirements("docx")` before importing `docx`.
 
 ## Helper Scripts
 

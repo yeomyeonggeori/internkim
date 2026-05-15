@@ -2,8 +2,13 @@
 import argparse
 import json
 
+from skill_runtime import ensure_requirements
+
 
 def summarize_presentation(presentation_path):
+    if not ensure_requirements("pptx"):
+        raise RuntimeError("pptx dependencies are unavailable after bootstrap")
+
     from pptx import Presentation
 
     presentation = Presentation(presentation_path)
@@ -19,6 +24,7 @@ def summarize_presentation(presentation_path):
     return {
         "slideCount": len(presentation.slides),
         "slides": slides,
+        "validator": "python-pptx",
     }
 
 

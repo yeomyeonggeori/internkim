@@ -34,13 +34,34 @@ if source_modified_at + 1 < design_modified_at:
     sys.exit(1)
 PY
 
+SKILL_ASSET_DIRECTORY="${SKILL_ASSET_DIRECTORY:-/workspace/skills/simple-slides/assets}"
+NODE_RUNTIME_ROOT="${BLUECLAW_REQUESTER_TMP:-$(pwd)}/.skill-env/simple-slides/node"
+
+ensure_local_marp() {
+  if ! command -v npm &> /dev/null; then
+    echo "Marp CLI is not available and npm is not present for script-managed bootstrap."
+    exit 1
+  fi
+  if [ ! -f "${SKILL_ASSET_DIRECTORY}/package.json" ]; then
+    echo "Marp package manifest is missing: ${SKILL_ASSET_DIRECTORY}/package.json"
+    exit 1
+  fi
+  mkdir -p "$NODE_RUNTIME_ROOT"
+  if [ -d /workspace/shared/cache/dependencies ]; then
+    mkdir -p /workspace/shared/cache/dependencies/npm
+    export npm_config_cache=/workspace/shared/cache/dependencies/npm
+  fi
+  if [ ! -f "${NODE_RUNTIME_ROOT}/package.json" ] || ! cmp -s "${SKILL_ASSET_DIRECTORY}/package.json" "${NODE_RUNTIME_ROOT}/package.json" || [ ! -x "${NODE_RUNTIME_ROOT}/node_modules/.bin/marp" ]; then
+    cp "${SKILL_ASSET_DIRECTORY}/package.json" "${NODE_RUNTIME_ROOT}/package.json"
+    npm install --prefix "$NODE_RUNTIME_ROOT" --omit=dev --no-audit --no-fund
+  fi
+  MARP_COMMAND=("${NODE_RUNTIME_ROOT}/node_modules/.bin/marp")
+}
+
 if command -v marp &> /dev/null; then
   MARP_COMMAND=(marp)
-elif command -v bunx &> /dev/null; then
-  MARP_COMMAND=(bunx --bun @marp-team/marp-cli)
 else
-  echo "Marp CLI is not available. Install marp or bunx in the Blueclaw runtime."
-  exit 1
+  ensure_local_marp
 fi
 
 run_marp() {

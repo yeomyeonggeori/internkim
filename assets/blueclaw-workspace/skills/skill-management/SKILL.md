@@ -23,6 +23,8 @@ Write standard-compatible `SKILL.md` content directly in the `content` argument.
 
 Keep `SKILL.md` concise. Put essential workflow in the body. Put long domain knowledge in `references/`, deterministic repeated logic in `scripts/`, and output resources in `assets/`. When adding bundled resources, pass them through the `resources` argument to `skill.add` and mention each referenced resource from `SKILL.md`.
 
+Scripts should be self-contained within the skill folder. If a script needs language packages, include `scripts/requirements.txt` or an asset-local `package.json`, plus a small bootstrap helper in that skill's `scripts/` directory so the script can install dependencies into requester-owned temporary storage and reuse `/workspace/shared/cache/dependencies` only as a package cache. Do not write new skills that ask the model to stop and report missing import libraries as the primary recovery path.
+
 Do not put evals, benchmark metadata, test prompts, or generated summaries in frontmatter. Mention suggested test prompts to the user after the skill is created.
 
 Do not use `file.write`, `terminal.run`, or shell redirection to create, edit, or delete skill files. The skill tools derive the destination path from the skill name and enforce the runtime boundary.

@@ -3,6 +3,8 @@ import argparse
 import json
 from pathlib import Path
 
+from skill_runtime import ensure_requirements
+
 
 def require_text(value, field_name):
     if not isinstance(value, str) or not value.strip():
@@ -27,6 +29,9 @@ def load_specification(specification_path):
 
 
 def create_document(specification):
+    if not ensure_requirements("docx"):
+        raise RuntimeError("docx dependencies are unavailable after bootstrap")
+
     from docx import Document
     from docx.enum.section import WD_ORIENT
     from docx.enum.text import WD_ALIGN_PARAGRAPH
