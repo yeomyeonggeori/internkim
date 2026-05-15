@@ -67,7 +67,7 @@ func (service *Service) mattermostInteractiveActionHandlers() map[string]matterm
 
 func (service *Service) handleAskInteractiveAction(responseWriter http.ResponseWriter, request *http.Request, payload mattermostInteractivePayload) {
 	go service.forwardMattermostAskActionInBackground(payload)
-	service.writeJSON(responseWriter, mattermostInteractiveResponse{Update: mattermostAskResolvedUpdate()})
+	service.writeMattermostInteractiveSuccess(responseWriter)
 }
 
 func (service *Service) forwardMattermostAskActionInBackground(payload mattermostInteractivePayload) {
@@ -98,10 +98,6 @@ func (service *Service) forwardMattermostAskAction(ctx context.Context, payload 
 		return nil
 	}
 	return fmt.Errorf("Blueclaw ask action returned %d", response.StatusCode)
-}
-
-func mattermostAskResolvedUpdate() map[string]any {
-	return mattermostinteractive.ClearAttachmentsUpdate()
 }
 
 func (service *Service) isValidMattermostInteractivePayload(payload mattermostInteractivePayload) bool {
