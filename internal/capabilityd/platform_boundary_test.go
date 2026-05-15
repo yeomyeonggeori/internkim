@@ -953,7 +953,7 @@ func TestMattermostReplyStopsProgressBeforeSendingPost(t *testing.T) {
 }
 
 func TestMattermostReplyRequiresConnectorOutboxMetadata(t *testing.T) {
-	replyTargetID, errorValue := encodePlatformHandle(platformHandle{Platform: "mattermost", ChannelID: "channel-1"})
+	replyTargetID, errorValue := encodePlatformHandle(platformHandle{Platform: "mattermost", ConversationID: "thread:channel-1:root-1", ChannelID: "channel-1", RootID: "root-1"})
 	if errorValue != nil {
 		t.Fatalf("expected reply target to encode: %v", errorValue)
 	}
@@ -987,7 +987,7 @@ func TestMattermostReplyRendersAskChoiceAttachment(t *testing.T) {
 	if errorValue := os.WriteFile(tokenPath, []byte("test-token\n"), 0o600); errorValue != nil {
 		t.Fatalf("expected token file to be written: %v", errorValue)
 	}
-	replyTargetID, errorValue := encodePlatformHandle(platformHandle{Platform: "mattermost", ChannelID: "channel-1"})
+	replyTargetID, errorValue := encodePlatformHandle(platformHandle{Platform: "mattermost", ConversationID: "thread:channel-1:root-1", ChannelID: "channel-1", RootID: "root-1"})
 	if errorValue != nil {
 		t.Fatalf("expected reply target to encode: %v", errorValue)
 	}
@@ -1045,7 +1045,7 @@ func TestMattermostReplyRendersAskChoiceAttachment(t *testing.T) {
 			t.Fatalf("expected admind action URL, got %+v", integration)
 		}
 		contextDocument := integration["context"].(map[string]any)
-		if contextDocument["token"] == "" || contextDocument["action"] != "ask.choice" {
+		if contextDocument["token"] == "" || contextDocument["action"] != "ask.choice" || contextDocument["conversationID"] != "thread:channel-1:root-1" {
 			t.Fatalf("expected ask action token context, got %+v", contextDocument)
 		}
 	default:
