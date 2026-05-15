@@ -184,18 +184,31 @@ func TestSimpleSlidesRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	skillContent := string(skillDocument)
-	for _, forbiddenText := range []string{"cp /workspace/skills/simple-slides/assets/build.sh", " ./build.sh", "mkdir artifacts"} {
+	for _, forbiddenText := range []string{"cp /workspace/skills/simple-slides", "/workspace/skills/simple-slides/assets/build.sh", " ./build.sh", "mkdir artifacts"} {
 		if strings.Contains(skillContent, forbiddenText) {
 			t.Fatalf("simple-slides must not use fragile task-local build script copying or root-relative artifact mkdir: %q", forbiddenText)
 		}
 	}
-	for _, expectedText := range []string{"/workspace/skills/simple-slides/assets/build.sh", `"workingDirectoryPath": "tmp/<deck-slug>"`, "../../artifacts/<deck-slug>"} {
+	for _, expectedText := range []string{"/workspace/skills/simple-slides/scripts/build.sh", `"workingDirectoryPath": "tmp/<deck-slug>"`, "../../artifacts/<deck-slug>"} {
 		if !strings.Contains(skillContent, expectedText) {
 			t.Fatalf("simple-slides must document %q", expectedText)
 		}
 	}
 
-	buildScript, errorValue := os.ReadFile(filepath.Join(skillPath, "assets", "build.sh"))
+	if _, errorValue := os.Stat(filepath.Join(skillPath, "assets", "build.sh")); !os.IsNotExist(errorValue) {
+		t.Fatal("simple-slides build script must live under scripts, not assets")
+	}
+
+	buildPath := filepath.Join(skillPath, "scripts", "build.sh")
+	buildInfo, errorValue := os.Stat(buildPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if buildInfo.Mode()&0111 == 0 {
+		t.Fatal("simple-slides build script must be executable")
+	}
+
+	buildScript, errorValue := os.ReadFile(buildPath)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -203,7 +216,7 @@ func TestSimpleSlidesRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 	if strings.Contains(buildContent, `cd "$(dirname "$0")"`) {
 		t.Fatal("simple-slides build script must run against the caller's task workspace")
 	}
-	for _, expectedText := range []string{"EXTRACT_NOTES_SCRIPT", "RENDER_REVIEW_SCRIPT", "SKILL_ASSET_DIRECTORY"} {
+	for _, expectedText := range []string{"EXTRACT_NOTES_SCRIPT", "RENDER_REVIEW_SCRIPT", "SKILL_ASSET_DIRECTORY", "../assets/package.json"} {
 		if !strings.Contains(buildContent, expectedText) {
 			t.Fatalf("simple-slides build script must contain %q", expectedText)
 		}

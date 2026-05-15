@@ -38,6 +38,9 @@ SKILL_ASSET_DIRECTORY="${SKILL_ASSET_DIRECTORY:-/workspace/skills/simple-slides/
 if [ ! -f "${SKILL_ASSET_DIRECTORY}/package.json" ] && [ -f "${SCRIPT_DIRECTORY}/package.json" ]; then
   SKILL_ASSET_DIRECTORY="$SCRIPT_DIRECTORY"
 fi
+if [ ! -f "${SKILL_ASSET_DIRECTORY}/package.json" ] && [ -f "${SCRIPT_DIRECTORY}/../assets/package.json" ]; then
+  SKILL_ASSET_DIRECTORY="${SCRIPT_DIRECTORY}/../assets"
+fi
 EXTRACT_NOTES_SCRIPT="${EXTRACT_NOTES_SCRIPT:-/workspace/skills/simple-slides/scripts/extract_notes.py}"
 RENDER_REVIEW_SCRIPT="${RENDER_REVIEW_SCRIPT:-/workspace/skills/simple-slides/scripts/render_review.py}"
 if [ ! -f "$EXTRACT_NOTES_SCRIPT" ] && [ -f "${SCRIPT_DIRECTORY}/../scripts/extract_notes.py" ]; then
