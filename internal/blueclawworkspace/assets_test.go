@@ -189,7 +189,7 @@ func TestSimpleSlidesRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 			t.Fatalf("simple-slides must not use fragile task-local build script copying or root-relative artifact mkdir: %q", forbiddenText)
 		}
 	}
-	for _, expectedText := range []string{"/workspace/skills/simple-slides/scripts/build.sh", `"workingDirectoryPath": "tmp/<deck-slug>"`, "../../artifacts/<deck-slug>"} {
+	for _, expectedText := range []string{"/workspace/skills/simple-slides/scripts/build.sh", `"workingDirectoryPath": "tmp/<deck-slug>"`, "file.promote", "tmp/<deck-slug>/build/<deck-slug>.pptx", `"destinationDirectoryPath": "artifacts/<deck-slug>"`} {
 		if !strings.Contains(skillContent, expectedText) {
 			t.Fatalf("simple-slides must document %q", expectedText)
 		}
@@ -216,7 +216,7 @@ func TestSimpleSlidesRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 	if strings.Contains(buildContent, `cd "$(dirname "$0")"`) {
 		t.Fatal("simple-slides build script must run against the caller's task workspace")
 	}
-	for _, expectedText := range []string{"EXTRACT_NOTES_SCRIPT", "RENDER_REVIEW_SCRIPT", "SKILL_ASSET_DIRECTORY", "../assets/package.json"} {
+	for _, expectedText := range []string{"EXTRACT_NOTES_SCRIPT", "RENDER_REVIEW_SCRIPT", "SKILL_ASSET_DIRECTORY", "../assets/package.json", "BUILD_DIR"} {
 		if !strings.Contains(buildContent, expectedText) {
 			t.Fatalf("simple-slides build script must contain %q", expectedText)
 		}

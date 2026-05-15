@@ -42,9 +42,9 @@ Treat OS permission errors as policy denials. Parent directories such as
   built-in admin/capability tools for approved admin actions.
 - Do not change ownership, chmod around denials, copy protected paths into shared
   locations, or use dependency caches to move private/source files.
-- Use `file.write` and `file.attach` for user-visible artifacts. If a built-in
-  tool reads through a grant, do not leave the privileged source file in a
-  terminal-visible path.
+- Use `file.write`, `file.promote`, and `file.attach` for user-visible
+  artifacts. If a built-in tool reads through a grant, do not leave the
+  privileged source file in a terminal-visible path.
 
 Allowed workspace paths for raw terminal and file tools:
 
@@ -53,8 +53,8 @@ Allowed workspace paths for raw terminal and file tools:
 - `tmp/<artifact-slug>`: normal draft path, relative to the default writable
   directory. Use it for generated specs, scripts, fallback environments, and
   intermediate files.
-- `artifacts/<artifact-slug>`: preserved personal output path, relative to the
-  default writable directory. Move only accepted final files there.
+- `artifacts/<artifact-slug>`: preserved personal output path. Promote only
+  accepted final files there.
 - `/workspace/circles/<circleID>`: team/circle artifact path only when the
   requester belongs to that circle and asked for shared placement.
 - `/workspace/shared/public`: intentionally public shared artifacts.
@@ -71,15 +71,16 @@ Denied or internal paths:
 - Other people's private directories and circle directories where the requester
   is not a member.
 
-Tool path fields such as `file.write.path` and `terminal.run.workingDirectoryPath`
-should use concrete or relative paths, not shell variable references. Do not use
+Tool path fields such as `file.write.path`, `file.promote.path`, and
+`terminal.run.workingDirectoryPath` should use virtual workspace paths like
+`tmp/<slug>` and `artifacts/<slug>`, not shell variable references. Do not use
 Blueclaw internal temporary paths for user-facing artifact work.
 
 Treat a skill directory as the executable unit. Run bundled Python scripts
 through the skill's `scripts/skill_runtime.py` wrapper; that wrapper selects the
 built-in dependency environment first and prepares requester-owned fallback
 storage with `uv` only when needed. Use `/workspace/shared/cache/dependencies`
-only as a package cache. Do not stop at `ModuleNotFoundError` before the
+only as a package cache. Do not stop at a missing-library error before the
 relevant bundled script attempts dependency setup.
 
 ## File Delivery
@@ -87,9 +88,10 @@ relevant bundled script attempts dependency setup.
 When a user asks for any file:
 
 1. Use the relevant tool or bundled skill.
-2. Promote accepted final files out of `tmp` when they should be preserved.
-3. Attach the file with `file.attach`.
-4. Do not use local paths, temporary URLs, or markdown links as final delivery.
+2. Build outputs under `tmp/<slug>/build/`.
+3. Promote accepted final files with `file.promote`.
+4. Attach promoted files with `file.attach`.
+5. Do not use local paths, temporary URLs, or markdown links as final delivery.
 
 Mattermost users only see final reply text and native attachments. Files in
 `/workspace`, `/tmp`, or runtime directories are invisible until successful

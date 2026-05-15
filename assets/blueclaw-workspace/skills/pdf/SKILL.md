@@ -9,6 +9,7 @@ allowed-tools:
   - file.read
   - terminal.run
   - file.write
+  - file.promote
   - file.attach
 ---
 
@@ -21,8 +22,8 @@ Pure Python — no Node.js required. Works on any architecture including RISC-V.
 1. Create new PDF work under `tmp/<pdf-slug>` relative to the default writable workspace directory; do not use Blueclaw internal temporary paths.
 2. When the user asks to read, summarize, extract, OCR, or reuse content from an existing PDF or image, call `file.read` first.
 3. Keep drafts, downloaded fonts, and generated previews in the task temporary directory while iterating.
-4. Move accepted final PDFs to `artifacts/<pdf-slug>/` unless the user requested a circle or shared destination.
-5. Attach the final PDF from the promoted destination. Attach intermediate files only if the user asks.
+4. Promote accepted final PDFs to `artifacts/<pdf-slug>/` with `file.promote` unless the user requested a circle or shared destination.
+5. Attach the promoted PDF. Attach intermediate files only if the user asks.
 
 ## CRITICAL REQUIREMENTS
 
