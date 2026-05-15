@@ -26,7 +26,7 @@ func TestUsersSyncScriptRefreshesPOSIXWorkspaceAfterPolicyChanges(t *testing.T) 
 		"$WORKSPACE_PATH/private/people/$person_id",
 		"$person_path/tmp",
 		"$person_path/artifacts",
-		"chmod 700 \"$person_path\" \"$person_path/tmp\" \"$person_path/artifacts\"",
+		"chmod 2770 \"$person_path\" \"$person_path/tmp\" \"$person_path/artifacts\"",
 	} {
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("expected users sync script to include %q", fragment)
