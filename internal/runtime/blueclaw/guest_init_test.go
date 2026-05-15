@@ -49,7 +49,7 @@ func TestGuestInitCreatesResourceFirstWorkspaceLayout(t *testing.T) {
 		"/workspace/circles",
 		"/workspace/private",
 		"/workspace/shared",
-		"chmod 0750 /workspace/circles /workspace/private",
+		"chmod 0711 /workspace/circles /workspace/private /workspace/private/people",
 		"chmod 0755 /workspace/shared /workspace/shared/public",
 		"shared/cache/dependencies",
 	} {

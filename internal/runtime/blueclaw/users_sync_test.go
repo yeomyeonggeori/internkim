@@ -23,6 +23,8 @@ func TestUsersSyncScriptRefreshesPOSIXWorkspaceAfterPolicyChanges(t *testing.T) 
 
 	for _, fragment := range []string{
 		"blueclaw-posix-helper sync",
+		"install -d -m 0711 \"$WORKSPACE_PATH/private\" \"$WORKSPACE_PATH/private/people\" \"$WORKSPACE_PATH/circles\"",
+		"chmod 0711 \"$WORKSPACE_PATH/private\" \"$WORKSPACE_PATH/private/people\" \"$WORKSPACE_PATH/circles\"",
 		"$WORKSPACE_PATH/private/people/$person_id",
 		"$person_path/tmp",
 		"$person_path/artifacts",
