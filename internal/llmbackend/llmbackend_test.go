@@ -255,6 +255,30 @@ func TestOpenAICompatibleActionToolRequestUsesGenerationOptions(t *testing.T) {
 	}
 }
 
+func TestOpenAICompatibleMessagePartsBecomeMultimodalContent(t *testing.T) {
+	request := openAIChatRequest("local-model", []Message{{
+		Role:    "user",
+		Content: "inspect this",
+		Parts: []MessagePart{{
+			Type:       "image",
+			MimeType:   "image/png",
+			DataBase64: "aW1hZ2U=",
+		}},
+	}}, nil, GenerationOptions{})
+
+	if len(request.Messages) != 1 {
+		t.Fatalf("expected one message, got %+v", request.Messages)
+	}
+	parts, ok := request.Messages[0].Content.([]map[string]any)
+	if !ok || len(parts) != 2 {
+		t.Fatalf("expected multimodal content parts, got %#v", request.Messages[0].Content)
+	}
+	imageURL, ok := parts[1]["image_url"].(map[string]string)
+	if !ok || imageURL["url"] != "data:image/png;base64,aW1hZ2U=" {
+		t.Fatalf("expected image data URL, got %#v", parts[1])
+	}
+}
+
 func TestNativeActionToolsExposeFinalReplyAsReplyNow(t *testing.T) {
 	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(testAgentActionSchema())
 	if errorValue != nil {
