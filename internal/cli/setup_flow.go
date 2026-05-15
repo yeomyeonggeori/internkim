@@ -73,20 +73,17 @@ type localBinaryAsset struct {
 	archiveEntry string
 }
 
-func skillPythonDependencyRequirements() string {
-	return strings.Join([]string{"fpdf2", "markitdown[docx,pdf,pptx,xlsx]", "markitdown-ocr", "openai", "openpyxl", "pypdf", "python-docx", "python-pptx"}, "\n") + "\n"
-}
-
 func installSkillPythonDependenciesCommand() string {
-	return fmt.Sprintf(`set -euo pipefail
-if ! command -v uv >/dev/null 2>&1; then
-  curl -LsSf https://astral.sh/uv/0.11.11/install.sh | UV_UNMANAGED_INSTALL=/usr/local/bin sh >/dev/null
+	return `set -euo pipefail
+if [ ! -x /opt/blueclaw/builtin-skills-venv/bin/python ]; then
+  echo "built-in skills Python environment is missing; deploy blueclaw-runtime-base first" >&2
+  exit 1
 fi
-mkdir -p /opt/blueclaw
-cat > /opt/blueclaw/builtin-skills-requirements.txt <<'REQUIREMENTS'
-%sREQUIREMENTS
-uv venv --clear --python /usr/bin/python3 /opt/blueclaw/builtin-skills-venv >/dev/null
-uv pip install --python /opt/blueclaw/builtin-skills-venv/bin/python -r /opt/blueclaw/builtin-skills-requirements.txt >/dev/null`, skillPythonDependencyRequirements())
+if [ ! -s /opt/blueclaw/builtin-skills-requirements.txt ]; then
+  echo "built-in skills requirements manifest is missing; deploy blueclaw-runtime-base first" >&2
+  exit 1
+fi
+/opt/blueclaw/builtin-skills-venv/bin/python -c 'import docx, fpdf, markitdown, openpyxl, pptx, pypdf'`
 }
 
 func deviceBrowserRuntimePackageListUbuntu24() string {

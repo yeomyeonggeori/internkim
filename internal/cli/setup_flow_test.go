@@ -34,6 +34,20 @@ func TestDeviceToolPackagesIncludeSitePublishingBasics(t *testing.T) {
 	}
 }
 
+func TestSkillDependencySetupOnlyVerifiesRuntimeBaseEnvironment(t *testing.T) {
+	command := installSkillPythonDependenciesCommand()
+	for _, forbiddenText := range []string{"uv venv", "uv pip install", "curl -LsSf", "UV_UNMANAGED_INSTALL"} {
+		if strings.Contains(command, forbiddenText) {
+			t.Fatalf("skills setup must not install dependencies during deployment: found %q in\n%s", forbiddenText, command)
+		}
+	}
+	for _, expectedText := range []string{"/opt/blueclaw/builtin-skills-venv/bin/python", "/opt/blueclaw/builtin-skills-requirements.txt", "deploy blueclaw-runtime-base first"} {
+		if !strings.Contains(command, expectedText) {
+			t.Fatalf("skills setup must verify %q, got:\n%s", expectedText, command)
+		}
+	}
+}
+
 func TestExtractFromZipWritesArchiveEntry(t *testing.T) {
 	var buffer bytes.Buffer
 	zipWriter := zip.NewWriter(&buffer)
