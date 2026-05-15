@@ -1,61 +1,32 @@
 package admind
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"gitlab.com/eastriver/internkim/internal/mattermostinteractive"
 )
 
 const mattermostInteractiveActionTokenFilename = "mattermost-interactive-action-token"
 
-type mattermostInteractivePayload struct {
-	UserID    string                       `json:"user_id"`
-	PostID    string                       `json:"post_id"`
-	ChannelID string                       `json:"channel_id"`
-	TeamID    string                       `json:"team_id"`
-	Context   mattermostInteractiveContext `json:"context"`
-}
-
-type mattermostInteractiveContext struct {
-	Action     string `json:"action"`
-	Token      string `json:"token"`
-	LocationID string `json:"locationID,omitempty"`
-}
-
-type mattermostInteractiveResponse struct {
-	Update        any                         `json:"update,omitempty"`
-	EphemeralText string                      `json:"ephemeral_text,omitempty"`
-	Error         *mattermostInteractiveError `json:"error,omitempty"`
-}
-
-type mattermostInteractiveError struct {
-	Message string `json:"message"`
-}
+type mattermostInteractivePayload = mattermostinteractive.Payload
+type mattermostInteractiveContext = mattermostinteractive.Context
+type mattermostInteractiveResponse = mattermostinteractive.Response
+type mattermostInteractiveError = mattermostinteractive.Error
 
 type mattermostInteractiveActionHandler func(http.ResponseWriter, *http.Request, mattermostInteractivePayload)
 
-type mattermostAttachment struct {
-	Fallback string             `json:"fallback"`
-	Text     string             `json:"text"`
-	Actions  []mattermostAction `json:"actions"`
-}
-
-type mattermostAction struct {
-	ID          string                      `json:"id"`
-	Type        string                      `json:"type"`
-	Name        string                      `json:"name"`
-	Tooltip     string                      `json:"tooltip,omitempty"`
-	Style       string                      `json:"style,omitempty"`
-	Integration mattermostActionIntegration `json:"integration"`
-}
-
-type mattermostActionIntegration struct {
-	URL     string                       `json:"url"`
-	Context mattermostInteractiveContext `json:"context"`
-}
+type mattermostAttachment = mattermostinteractive.Attachment
+type mattermostAction = mattermostinteractive.Action
 
 func (service *Service) handleMattermostInteractiveAction(responseWriter http.ResponseWriter, request *http.Request) {
 	if request.Method != http.MethodPost {
@@ -88,7 +59,49 @@ func (service *Service) mattermostInteractiveActionHandlers() map[string]matterm
 			service.handleAttendanceClockAction(responseWriter, request, payload, attendanceKindClockOut)
 		},
 		attendanceToggleAction: service.handleAttendanceToggleAction,
+		"ask.confirm":          service.handleAskInteractiveAction,
+		"ask.cancel":           service.handleAskInteractiveAction,
+		"ask.choice":           service.handleAskInteractiveAction,
 	}
+}
+
+func (service *Service) handleAskInteractiveAction(responseWriter http.ResponseWriter, request *http.Request, payload mattermostInteractivePayload) {
+	go service.forwardMattermostAskActionInBackground(payload)
+	service.writeJSON(responseWriter, mattermostInteractiveResponse{Update: mattermostAskResolvedUpdate()})
+}
+
+func (service *Service) forwardMattermostAskActionInBackground(payload mattermostInteractivePayload) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if errorValue := service.forwardMattermostAskAction(ctx, payload); errorValue != nil {
+		log.Printf("mattermost ask action forward failed: %v", errorValue)
+	}
+}
+
+func (service *Service) forwardMattermostAskAction(ctx context.Context, payload mattermostInteractivePayload) error {
+	document, errorValue := json.Marshal(payload)
+	if errorValue != nil {
+		return errorValue
+	}
+	endpoint := strings.TrimRight(service.Configuration.BlueclawBaseURL, "/") + "/connectors/mattermost/events"
+	forwardRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(document))
+	if errorValue != nil {
+		return errorValue
+	}
+	forwardRequest.Header.Set("Content-Type", "application/json")
+	response, errorValue := service.httpClient().Do(forwardRequest)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode >= 200 && response.StatusCode < 300 {
+		return nil
+	}
+	return fmt.Errorf("Blueclaw ask action returned %d", response.StatusCode)
+}
+
+func mattermostAskResolvedUpdate() map[string]any {
+	return mattermostinteractive.ClearAttachmentsUpdate()
 }
 
 func (service *Service) isValidMattermostInteractivePayload(payload mattermostInteractivePayload) bool {
@@ -107,17 +120,7 @@ func (service *Service) mattermostInteractiveButton(actionID string, name string
 func (service *Service) mattermostInteractiveButtonWithContext(actionID string, name string, tooltip string, style string, context mattermostInteractiveContext) mattermostAction {
 	context.Action = actionID
 	context.Token = service.ensureMattermostInteractiveActionToken()
-	return mattermostAction{
-		ID:      actionID,
-		Type:    "button",
-		Name:    name,
-		Tooltip: tooltip,
-		Style:   style,
-		Integration: mattermostActionIntegration{
-			URL:     service.mattermostInteractiveActionURL(),
-			Context: context,
-		},
-	}
+	return mattermostinteractive.Button(actionID, name, tooltip, style, service.mattermostInteractiveActionURL(), context)
 }
 
 func (service *Service) writeMattermostInteractiveSuccess(responseWriter http.ResponseWriter) {

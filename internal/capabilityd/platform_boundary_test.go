@@ -994,7 +994,9 @@ func TestMattermostReplyRendersAskChoiceAttachment(t *testing.T) {
 	configuration := DefaultConfiguration()
 	configuration.MattermostBaseURL = "http://mattermost.test"
 	configuration.BlueclawBaseURL = "http://blueclaw.test"
+	configuration.AdmindBaseURL = "http://admind.test"
 	configuration.MattermostTokenPath = tokenPath
+	configuration.MattermostInteractiveTokenPath = t.TempDir() + "/interactive-token"
 	service := Service{Configuration: configuration, HTTPClient: httpClient}
 	requestDocument := map[string]any{
 		"replyTargetID": replyTargetID,
@@ -1035,8 +1037,58 @@ func TestMattermostReplyRendersAskChoiceAttachment(t *testing.T) {
 		if !isArray || len(attachments) != 1 {
 			t.Fatalf("expected interactive attachment, got %+v", props)
 		}
+		attachment := attachments[0].(map[string]any)
+		actions := attachment["actions"].([]any)
+		action := actions[0].(map[string]any)
+		integration := action["integration"].(map[string]any)
+		if integration["url"] != "http://admind.test/_internkim/mattermost/actions" {
+			t.Fatalf("expected admind action URL, got %+v", integration)
+		}
+		contextDocument := integration["context"].(map[string]any)
+		if contextDocument["token"] == "" || contextDocument["action"] != "ask.choice" {
+			t.Fatalf("expected ask action token context, got %+v", contextDocument)
+		}
 	default:
 		t.Fatal("expected post request")
+	}
+}
+
+func TestMattermostInteractionResolveClearsAttachments(t *testing.T) {
+	patchRequests := make(chan map[string]any, 1)
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.String() != "http://mattermost.test/api/v4/posts/post-1/patch" || request.Method != http.MethodPut {
+			t.Fatalf("unexpected Mattermost request: %s %s", request.Method, request.URL.String())
+		}
+		var payload map[string]any
+		if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+			t.Fatalf("expected patch request to decode: %v", errorValue)
+		}
+		patchRequests <- payload
+		return testJSONResponse(http.StatusOK, map[string]string{"id": "post-1"}), nil
+	})}
+	tokenPath := t.TempDir() + "/mattermost-token"
+	if errorValue := os.WriteFile(tokenPath, []byte("test-token\n"), 0o600); errorValue != nil {
+		t.Fatalf("expected token file to be written: %v", errorValue)
+	}
+	configuration := DefaultConfiguration()
+	configuration.MattermostBaseURL = "http://mattermost.test"
+	configuration.MattermostTokenPath = tokenPath
+	service := Service{Configuration: configuration, HTTPClient: httpClient}
+
+	_, errorValue := service.mattermostInteractionResolve(context.Background(), strings.NewReader(`{"dispatchID":"post-1"}`))
+	if errorValue != nil {
+		t.Fatalf("expected interaction resolve to succeed: %v", errorValue)
+	}
+
+	select {
+	case payload := <-patchRequests:
+		props := payload["props"].(map[string]any)
+		attachments := props["attachments"].([]any)
+		if len(attachments) != 0 {
+			t.Fatalf("expected attachments to be cleared, got %+v", payload)
+		}
+	default:
+		t.Fatal("expected patch request")
 	}
 }
 
