@@ -569,7 +569,7 @@ fi
 uv tool install --upgrade litert-lm >/dev/null
 ln -sf /root/.local/bin/litert-lm /usr/local/bin/litert-lm
 if [ -f /opt/internkim/graphiti_memoryd/requirements.txt ]; then
-  uv venv /opt/internkim/graphiti-venv >/dev/null
+  uv venv --clear /opt/internkim/graphiti-venv >/dev/null
   uv pip install --python /opt/internkim/graphiti-venv/bin/python -r /opt/internkim/graphiti_memoryd/requirements.txt >/dev/null
   cat > /usr/local/bin/graphiti-memoryd <<'WRAPEOF'
 #!/bin/sh

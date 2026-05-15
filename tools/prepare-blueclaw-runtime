@@ -487,7 +487,7 @@ ensure_rootfs_graphiti_python() {
   local requirements_path="$2"
 
   run_root install -m 0644 "$requirements_path" "$base_directory/opt/blueclaw/graphiti-requirements.txt"
-  run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/uv venv --python /usr/bin/python3 /opt/blueclaw/graphiti-venv >/dev/null
+  run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/uv venv --clear --python /usr/bin/python3 /opt/blueclaw/graphiti-venv >/dev/null
   run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/uv pip install --python /opt/blueclaw/graphiti-venv/bin/python -r /opt/blueclaw/graphiti-requirements.txt >/dev/null
   run_root rm -f "$base_directory/opt/blueclaw/graphiti-requirements.txt"
 }
@@ -497,7 +497,7 @@ ensure_rootfs_builtin_skills_python() {
   local requirements_path="$2"
 
   run_root install -m 0644 "$requirements_path" "$base_directory/opt/blueclaw/builtin-skills-requirements.txt"
-  run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/uv venv --python /usr/bin/python3 /opt/blueclaw/builtin-skills-venv >/dev/null
+  run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/uv venv --clear --python /usr/bin/python3 /opt/blueclaw/builtin-skills-venv >/dev/null
   run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/uv pip install --python /opt/blueclaw/builtin-skills-venv/bin/python -r /opt/blueclaw/builtin-skills-requirements.txt >/dev/null
   run_chroot_with_runtime_mounts "$base_directory" /opt/blueclaw/builtin-skills-venv/bin/python -c "import docx, fpdf, openpyxl, pptx, pypdf" >/dev/null
 }
