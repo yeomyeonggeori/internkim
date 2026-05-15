@@ -4,6 +4,8 @@ import csv
 import json
 from pathlib import Path
 
+from skill_runtime import ensure_requirements
+
 
 def require_text(value, field_name):
     if not isinstance(value, str) or not value.strip():
@@ -20,6 +22,9 @@ def load_specification(specification_path):
 
 
 def create_workbook(specification):
+    if not ensure_requirements("xlsx"):
+        raise RuntimeError("xlsx dependencies are unavailable after bootstrap")
+
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill
     from openpyxl.utils import get_column_letter

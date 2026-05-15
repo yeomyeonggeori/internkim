@@ -2,8 +2,13 @@
 import argparse
 import json
 
+from skill_runtime import ensure_requirements
+
 
 def summarize_workbook(workbook_path):
+    if not ensure_requirements("xlsx"):
+        raise RuntimeError("xlsx dependencies are unavailable after bootstrap")
+
     from openpyxl import load_workbook
 
     workbook = load_workbook(workbook_path, data_only=False)

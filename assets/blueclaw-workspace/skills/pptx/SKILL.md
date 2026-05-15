@@ -22,7 +22,7 @@ Create or modify PowerPoint `.pptx` files as local artifacts, then attach the fi
 6. Validate with `scripts/validate_pptx.py` or by reopening the generated deck and checking slide count, titles, text, images, and layout.
 7. Move accepted final files to `$BLUECLAW_REQUESTER_ARTIFACTS/<deck-slug>/` unless the user requested a circle or shared destination, then attach the final `.pptx`; attach exported PDFs or images only if requested.
 
-Do not run package installation unless the required library is missing and the user approves it. If `python-pptx` is unavailable, say that the runtime is missing the PowerPoint library and explain the exact package needed.
+Bundled scripts are responsible for their own Python dependencies. They bootstrap `scripts/requirements.txt` into `$BLUECLAW_REQUESTER_TMP/.skill-env/pptx` when needed and use `/workspace/shared/cache/dependencies` only as a package cache. Do not stop at `ModuleNotFoundError`; run the helper script first. For custom Python beyond the helper script, import `scripts/skill_runtime.py` and call `ensure_requirements("pptx")` before importing `pptx`.
 
 For from-scratch presentation design with HTML/PDF/PPTX outputs, use the existing `simple-slides` skill unless the user specifically needs direct PowerPoint object editing.
 

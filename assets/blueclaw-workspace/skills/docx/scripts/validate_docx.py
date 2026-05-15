@@ -2,8 +2,13 @@
 import argparse
 import json
 
+from skill_runtime import ensure_requirements
+
 
 def summarize_document(document_path):
+    if not ensure_requirements("docx"):
+        raise RuntimeError("docx dependencies are unavailable after bootstrap")
+
     from docx import Document
 
     document = Document(document_path)

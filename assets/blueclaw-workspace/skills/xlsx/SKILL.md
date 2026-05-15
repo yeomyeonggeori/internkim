@@ -22,7 +22,7 @@ Create or modify spreadsheet files as local artifacts, then attach the final wor
 6. Validate with `scripts/validate_xlsx.py` or by reopening the workbook and checking sheets, dimensions, formulas, and obvious formatting.
 7. Move accepted final files to `$BLUECLAW_REQUESTER_ARTIFACTS/<workbook-slug>/` unless the user requested a circle or shared destination, then attach the final spreadsheet; attach source CSVs only if requested.
 
-Do not run package installation unless the required library is missing and the user approves it. If `openpyxl` is unavailable, say that the runtime is missing the Excel workbook library and explain the exact package needed.
+Bundled scripts are responsible for their own Python dependencies. They bootstrap `scripts/requirements.txt` into `$BLUECLAW_REQUESTER_TMP/.skill-env/xlsx` when needed and use `/workspace/shared/cache/dependencies` only as a package cache. Do not stop at `ModuleNotFoundError`; run the helper script first. For custom Python beyond the helper script, import `scripts/skill_runtime.py` and call `ensure_requirements("xlsx")` before importing `openpyxl`.
 
 ## Helper Scripts
 

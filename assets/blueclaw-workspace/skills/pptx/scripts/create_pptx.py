@@ -3,6 +3,8 @@ import argparse
 import json
 from pathlib import Path
 
+from skill_runtime import ensure_requirements
+
 
 def require_text(value, field_name):
     if not isinstance(value, str) or not value.strip():
@@ -27,21 +29,29 @@ def load_specification(specification_path):
 
 
 def create_presentation(specification):
-    from pptx import Presentation
-    from pptx.util import Inches, Pt
-
-    presentation = Presentation()
-    presentation.slide_width = Inches(float(specification.get("widthInches", 13.333)))
-    presentation.slide_height = Inches(float(specification.get("heightInches", 7.5)))
+    presentation_class, inches, points = load_powerpoint_modules()
+    presentation = presentation_class()
+    presentation.slide_width = inches(float(specification.get("widthInches", 13.333)))
+    presentation.slide_height = inches(float(specification.get("heightInches", 7.5)))
 
     slides = specification.get("slides", [])
     if not isinstance(slides, list) or not slides:
         raise ValueError("slides must be a non-empty array")
 
     for slide_specification in slides:
-        add_slide(presentation, slide_specification, Inches, Pt)
+        add_slide(presentation, slide_specification, inches, points)
 
     return presentation
+
+
+def load_powerpoint_modules():
+    if not ensure_requirements("pptx"):
+        raise RuntimeError("pptx dependencies are unavailable after bootstrap")
+
+    from pptx import Presentation
+    from pptx.util import Inches, Pt
+
+    return Presentation, Inches, Pt
 
 
 def add_slide(presentation, slide_specification, inches, points):
@@ -61,11 +71,7 @@ def add_slide(presentation, slide_specification, inches, points):
 
 
 def add_body(slide, slide_specification, inches, points):
-    body = slide_specification.get("body", [])
-    if isinstance(body, str):
-        body = [body]
-    if not isinstance(body, list):
-        raise ValueError("slide body must be a string or an array")
+    body = normalized_body(slide_specification)
     if not body:
         return
     text_box = slide.shapes.add_textbox(inches(0.8), inches(1.4), inches(11.7), inches(4.8))
@@ -91,6 +97,15 @@ def add_images(slide, slide_specification, inches):
         top = inches(float(image.get("topInches", 1.5)))
         width = inches(float(image.get("widthInches", 5)))
         slide.shapes.add_picture(path, left, top, width=width)
+
+
+def normalized_body(slide_specification):
+    body = slide_specification.get("body", [])
+    if isinstance(body, str):
+        return [body]
+    if not isinstance(body, list):
+        raise ValueError("slide body must be a string or an array")
+    return body
 
 
 def parse_arguments():
