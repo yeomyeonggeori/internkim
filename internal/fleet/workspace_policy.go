@@ -27,7 +27,7 @@ func ClassifyWorkspacePath(path string) string {
 	if hasWorkspacePathPrefix(normalizedPath, ".blueclaw/runtime") {
 		return WorkspaceSyncModeRuntimeCache
 	}
-	if hasWorkspacePathPrefix(normalizedPath, ".blueclaw/tmp") || hasTemporaryWorkspaceName(normalizedPath) {
+	if hasWorkspacePathPrefix(normalizedPath, ".blueclaw/tmp") || isPersonTemporaryWorkspacePath(normalizedPath) || hasTemporaryWorkspaceName(normalizedPath) {
 		return WorkspaceSyncModeEphemeral
 	}
 	if hasWorkspacePathPrefix(normalizedPath, "sessions") {
@@ -52,6 +52,11 @@ func normalizeWorkspacePath(path string) string {
 
 func hasWorkspacePathPrefix(path string, prefix string) bool {
 	return path == prefix || strings.HasPrefix(path, prefix+"/")
+}
+
+func isPersonTemporaryWorkspacePath(path string) bool {
+	parts := strings.Split(path, "/")
+	return len(parts) >= 5 && parts[0] == "private" && parts[1] == "people" && parts[3] == "tmp"
 }
 
 func hasTemporaryWorkspaceName(path string) bool {

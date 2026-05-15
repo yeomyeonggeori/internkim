@@ -154,6 +154,16 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if terminal["posixHelperPath"] != BlueclawPOSIXHelperPath {
 		t.Fatalf("expected POSIX helper path, got %q", terminal["posixHelperPath"])
 	}
+	requesterWorkspace := terminal["requesterWorkspace"].(map[string]any)
+	if requesterWorkspace["taskTemporaryEnvironmentVariable"] != "BLUECLAW_TASK_TMP" {
+		t.Fatalf("expected requester task temporary environment contract, got %+v", requesterWorkspace)
+	}
+	if requesterWorkspace["taskTemporaryDirectoryTemplate"] != "/workspace/private/people/{personID}/tmp/{taskID}" {
+		t.Fatalf("expected requester task temporary directory template, got %+v", requesterWorkspace)
+	}
+	if requesterWorkspace["requesterArtifactsEnvironmentVariable"] != "BLUECLAW_REQUESTER_ARTIFACTS" {
+		t.Fatalf("expected requester artifacts environment contract, got %+v", requesterWorkspace)
+	}
 	if terminal["outputMaxBytes"] != float64(32768) || terminal["sessionMaxCount"] != float64(4) {
 		t.Fatalf("expected terminal caps, got %+v", terminal)
 	}

@@ -16,10 +16,11 @@ Create a useful slide deck and attach the requested files. This skill is intenti
 
 Use this order for normal requests:
 
-1. Use `file.write` to create `/workspace/.blueclaw/tmp/<deck-slug>/DESIGN.md`.
-2. Use `file.write` to create `/workspace/.blueclaw/tmp/<deck-slug>/presentation.md`.
+1. Use `file.write` to create `$BLUECLAW_TASK_TMP/DESIGN.md`; do not use Blueclaw internal temporary paths.
+2. Use `file.write` to create `$BLUECLAW_TASK_TMP/presentation.md`.
 3. Use `terminal.run` once to copy the deterministic build/review scripts and run the build.
-4. Use `file.attach` to attach only the files the user requested.
+4. Move accepted final files to `$BLUECLAW_REQUESTER_ARTIFACTS/<deck-slug>/` unless the user requested a circle or shared destination.
+5. Use `file.attach` to attach only the files the user requested.
 
 `file.write` creates parent directories, so do not spend a terminal call on `mkdir`. Do not use `file.pick`; it is for user-local file selection, not deck creation. Do not read reference assets during a normal request unless you truly need extra detail after drafting. The baseline below is enough for most decks.
 
@@ -28,7 +29,7 @@ Use this command shape after the source files exist:
 ```json
 {
   "command": "cp /workspace/skills/simple-slides/assets/build.sh ./build.sh && cp /workspace/skills/simple-slides/scripts/extract_notes.py ./extract_notes.py && cp /workspace/skills/simple-slides/scripts/render_review.py ./render_review.py && chmod +x ./build.sh ./extract_notes.py ./render_review.py && NAME=<deck-slug> ./build.sh",
-  "workingDirectoryPath": "/workspace/.blueclaw/tmp/<deck-slug>"
+  "workingDirectoryPath": "$BLUECLAW_TASK_TMP"
 }
 ```
 

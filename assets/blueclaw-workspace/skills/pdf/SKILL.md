@@ -15,6 +15,13 @@ allowed-tools:
 
 Pure Python — no Node.js required. Works on any architecture including RISC-V.
 
+## Workflow
+
+1. Create new PDF work under `$BLUECLAW_TASK_TMP`; do not use Blueclaw internal temporary paths.
+2. Keep drafts, downloaded fonts, and generated previews in the task temporary directory while iterating.
+3. Move accepted final PDFs to `$BLUECLAW_REQUESTER_ARTIFACTS/<pdf-slug>/` unless the user requested a circle or shared destination.
+4. Attach the final PDF from the promoted destination. Attach intermediate files only if the user asks.
+
 ## CRITICAL REQUIREMENTS
 
 1. **Korean/CJK text requires a TTF font** — built-in fonts (Helvetica, Times, Courier) cannot
