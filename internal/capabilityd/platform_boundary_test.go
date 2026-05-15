@@ -967,6 +967,79 @@ func TestMattermostReplyRequiresConnectorOutboxMetadata(t *testing.T) {
 	}
 }
 
+func TestMattermostReplyRendersAskChoiceAttachment(t *testing.T) {
+	postRequests := make(chan map[string]any, 1)
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/posts":
+			var payload map[string]any
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatalf("expected post request to decode: %v", errorValue)
+			}
+			postRequests <- payload
+			return testJSONResponse(http.StatusOK, map[string]string{"id": "post-1"}), nil
+		default:
+			t.Fatalf("unexpected Mattermost request: %s", request.URL.Path)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	tokenPath := t.TempDir() + "/mattermost-token"
+	if errorValue := os.WriteFile(tokenPath, []byte("test-token\n"), 0o600); errorValue != nil {
+		t.Fatalf("expected token file to be written: %v", errorValue)
+	}
+	replyTargetID, errorValue := encodePlatformHandle(platformHandle{Platform: "mattermost", ChannelID: "channel-1"})
+	if errorValue != nil {
+		t.Fatalf("expected reply target to encode: %v", errorValue)
+	}
+	configuration := DefaultConfiguration()
+	configuration.MattermostBaseURL = "http://mattermost.test"
+	configuration.BlueclawBaseURL = "http://blueclaw.test"
+	configuration.MattermostTokenPath = tokenPath
+	service := Service{Configuration: configuration, HTTPClient: httpClient}
+	requestDocument := map[string]any{
+		"replyTargetID": replyTargetID,
+		"message":       "구현은 어떻게 하는 게 좋을까요?",
+		"rawEventID":    "raw-event-1",
+		"outboxID":      "outbox-1",
+		"interaction": map[string]any{
+			"interactionID":        "interaction-1",
+			"taskRunID":            "task-1",
+			"kind":                 "ask_choice_single",
+			"question":             "구현은 어떻게 하는 게 좋을까요?",
+			"recommendedOptionKey": "A",
+			"selectionMode":        "single",
+			"options": []map[string]string{
+				{"key": "A", "label": "최대한 가독성 있게"},
+				{"key": "B", "label": "최대한 빠르게"},
+				{"key": "C", "label": "최대한 짧게"},
+			},
+		},
+	}
+	payload, _ := json.Marshal(requestDocument)
+
+	_, errorValue = service.mattermostReply(context.Background(), payload)
+	if errorValue != nil {
+		t.Fatalf("expected reply to succeed: %v", errorValue)
+	}
+
+	select {
+	case payload := <-postRequests:
+		if !strings.Contains(payload["message"].(string), "1. 최대한 가독성 있게 (추천)") {
+			t.Fatalf("expected visible choice list, got %+v", payload)
+		}
+		props, isMap := payload["props"].(map[string]any)
+		if !isMap {
+			t.Fatalf("expected props, got %+v", payload)
+		}
+		attachments, isArray := props["attachments"].([]any)
+		if !isArray || len(attachments) != 1 {
+			t.Fatalf("expected interactive attachment, got %+v", props)
+		}
+	default:
+		t.Fatal("expected post request")
+	}
+}
+
 func TestMattermostProgressStartPublishesTypingImmediately(t *testing.T) {
 	typingRequests := make(chan map[string]string, 1)
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {

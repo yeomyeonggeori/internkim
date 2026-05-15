@@ -3,7 +3,7 @@ name: direct-message
 description: Send or schedule direct messages to approved InternKim people through platform.dm.send.
 when_to_use: Use when the user asks InternKim to send, DM, message, tell, or notify a named person such as 동하에게 보내줘, DM 보내, 메시지 보내, 알려줘, 전달해줘, or says to send something to a person rather than the current conversation.
 allowed-tools:
-  - approval.request
+  - ask.confirm
   - platform.dm.send
   - schedule.create
 completion:
@@ -21,7 +21,7 @@ The tool only supports approved InternKim people with Mattermost accounts. Do no
 
 ## Approval
 
-Immediate direct messages to someone else require approval. First call `approval.request` with `userFacingMessage` naming the recipient and exact text in the same language as the original user request. After the user approves, call `platform.dm.send`.
+Immediate direct messages to someone else require confirmation. First call `ask.confirm` with `userFacingMessage` naming the recipient and exact text in the same language as the original user request. After the user approves, call `platform.dm.send`.
 
 Immediate direct messages to the requester themselves do not require approval.
 
@@ -31,7 +31,7 @@ Scheduled direct messages do not require approval at run time. For a future or r
 
 1. Identify the recipient hint from the user's wording.
 2. Identify the exact message to send.
-3. If this is an immediate send to someone else, call `approval.request`.
+3. If this is an immediate send to someone else, call `ask.confirm`.
 4. If the latest task context says the user approved the pending action, call `platform.dm.send`.
 5. If this is scheduled for later, call `schedule.create` with `executionMode: "agent"`.
 

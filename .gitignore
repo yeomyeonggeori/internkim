@@ -3,6 +3,7 @@
 .playwright-mcp/
 .artifacts/
 .cache/
+.gocache/
 .DS_Store
 build/
 dist/

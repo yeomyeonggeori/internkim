@@ -152,7 +152,7 @@ func TestOpenRouterLiveApprovalReplyDecisionFromEnv(t *testing.T) {
 			},
 		},
 		StructuredOutputSchema: StructuredOutputSchema{
-			Name:               "blueclaw_approval_reply_decision",
+			Name:               "blueclaw_confirmation_reply_decision",
 			Document:           json.RawMessage(`{"type":"object","properties":{"isApproval":{"type":"boolean"},"reason":{"type":"string"}},"required":["isApproval","reason"],"additionalProperties":false}`),
 			IsStrictlyEnforced: true,
 		},
