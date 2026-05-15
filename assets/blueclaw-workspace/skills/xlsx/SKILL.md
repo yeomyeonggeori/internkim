@@ -3,6 +3,7 @@ name: xlsx
 description: Create, read, edit, clean, calculate, format, and attach spreadsheet files. Use for .xlsx, .xlsm, .csv, .tsv, Excel, tables, formulas, charts, spreadsheet cleanup, 엑셀, 스프레드시트, 시트, 표, or 계산표 requests. Do not use when the primary deliverable is a Word document, PDF, slide deck, database pipeline, or Google Sheets file.
 when_to_use: Use when the user asks for Excel, .xlsx, .xlsm, .csv, .tsv, spreadsheet, table cleanup, formulas, charts, 엑셀, 스프레드시트, 시트, 표, or a spreadsheet deliverable.
 allowed-tools:
+  - file.read
   - terminal.run
   - file.write
   - file.attach
@@ -15,12 +16,13 @@ Create or modify spreadsheet files as local artifacts, then attach the final wor
 ## Workflow
 
 1. Clarify only missing inputs that affect workbook structure, such as columns, source data, formulas, or output format.
-2. Create work under `tmp/<workbook-slug>` relative to the default writable workspace directory; do not use Blueclaw internal temporary paths.
-3. For straightforward new workbooks, write a JSON spec and run `scripts/create_xlsx.py`.
-4. For custom charts, advanced formulas, macros, or edits that exceed the JSON script, write a task-local Python file and run it through `scripts/skill_runtime.py python <file.py>`.
-5. Use Python `csv` for `.csv` and `.tsv` parsing before writing workbook output.
-6. Validate with `scripts/validate_xlsx.py` or by reopening the workbook and checking sheets, dimensions, formulas, and obvious formatting.
-7. Move accepted final files to `artifacts/<workbook-slug>/` unless the user requested a circle or shared destination, then attach the final spreadsheet; attach source CSVs only if requested.
+2. When the user asks to read, summarize, extract, OCR, or reuse content from an existing workbook, call `file.read` first.
+3. Create work under `tmp/<workbook-slug>` relative to the default writable workspace directory; do not use Blueclaw internal temporary paths.
+4. For straightforward new workbooks, write a JSON spec and run `scripts/create_xlsx.py`.
+5. For custom charts, advanced formulas, macros, or edits that exceed the JSON script, write a task-local Python file and run it through `scripts/skill_runtime.py python <file.py>`.
+6. Use Python `csv` for `.csv` and `.tsv` parsing before writing workbook output.
+7. Validate with `scripts/validate_xlsx.py` or by reopening the workbook and checking sheets, dimensions, formulas, and obvious formatting.
+8. Move accepted final files to `artifacts/<workbook-slug>/` unless the user requested a circle or shared destination, then attach the final spreadsheet; attach source CSVs only if requested.
 
 Bundled scripts are responsible for their own Python dependencies. Run them through `scripts/skill_runtime.py`; the wrapper selects the built-in dependency environment first and prepares requester-owned fallback storage with `uv` only when needed. `/workspace/shared/cache/dependencies` is only a package cache. Do not run `pip install` directly. Do not call runtime paths outside `/workspace` directly. Do not stop at `ModuleNotFoundError`; run the helper script first. Do not use `python - <<'PY'` or system Python snippets for code that needs the Excel library.
 
