@@ -292,6 +292,26 @@ func TestOnlyBlueclawPayloadSkipsCurrentBlueclawConfiguration(t *testing.T) {
 	}
 }
 
+func TestBlueclawPayloadRestartsServiceAfterInstall(t *testing.T) {
+	connection := &recordingBoardConnection{}
+	context := &Context{
+		Backend: BackendSSH,
+		SSH:     connection,
+		Callbacks: Callbacks{
+			InstallBlueclawPayloadSSH: func(context *Context) error {
+				return nil
+			},
+		},
+	}
+
+	if errorValue := StepBlueclawPayload.Run(context); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !connection.hasCommand("systemctl restart blueclaw && systemctl is-active blueclaw") {
+		t.Fatalf("expected payload install to restart blueclaw, got %+v", connection.commands)
+	}
+}
+
 func TestOnlyServicesIncludesStaleSkills(t *testing.T) {
 	context := defaultBlueclawPlanContext("ok", "ok")
 	context.SSH = blueclawPlanBoardConnection{
@@ -376,6 +396,31 @@ type blueclawPlanBoardConnection struct {
 	runtimeContractOutput string
 	payloadManifestOutput string
 	skillsManifestOutput  string
+}
+
+type recordingBoardConnection struct {
+	commands []string
+}
+
+func (connection *recordingBoardConnection) Run(command string) string {
+	connection.commands = append(connection.commands, command)
+	if strings.Contains(command, "systemctl restart blueclaw") {
+		return "active"
+	}
+	return "ok"
+}
+
+func (connection *recordingBoardConnection) SCP(localPath, remotePath string) error {
+	return nil
+}
+
+func (connection *recordingBoardConnection) hasCommand(fragment string) bool {
+	for _, command := range connection.commands {
+		if strings.Contains(command, fragment) {
+			return true
+		}
+	}
+	return false
 }
 
 func (connection blueclawPlanBoardConnection) Run(command string) string {

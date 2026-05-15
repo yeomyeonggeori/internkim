@@ -15,12 +15,12 @@ Create or modify PowerPoint `.pptx` files as local artifacts, then attach the fi
 ## Workflow
 
 1. Clarify only missing inputs that change the deck, such as audience, slide count, aspect ratio, source file, or required sections.
-2. Create work under `$BLUECLAW_TASK_TMP`; do not use Blueclaw internal temporary paths.
+2. Create work under `tmp/<deck-slug>` relative to the default writable workspace directory; do not use Blueclaw internal temporary paths.
 3. For straightforward new decks, write a JSON spec and run `scripts/create_pptx.py`.
 4. Use direct `python-pptx` code for custom layouts, charts, notes, or edits that exceed the script.
 5. Use ZIP/XML inspection only when `python-pptx` cannot preserve or reach the needed feature.
 6. Validate with `scripts/validate_pptx.py` or by reopening the generated deck and checking slide count, titles, text, images, and layout.
-7. Move accepted final files to `$BLUECLAW_REQUESTER_ARTIFACTS/<deck-slug>/` unless the user requested a circle or shared destination, then attach the final `.pptx`; attach exported PDFs or images only if requested.
+7. Move accepted final files to `artifacts/<deck-slug>/` unless the user requested a circle or shared destination, then attach the final `.pptx`; attach exported PDFs or images only if requested.
 
 Bundled scripts are responsible for their own Python dependencies. They bootstrap `scripts/requirements.txt` into `$BLUECLAW_REQUESTER_TMP/.skill-env/pptx` when needed and use `/workspace/shared/cache/dependencies` only as a package cache. Do not stop at `ModuleNotFoundError`; run the helper script first. For custom Python beyond the helper script, import `scripts/skill_runtime.py` and call `ensure_requirements("pptx")` before importing `pptx`.
 
@@ -61,7 +61,7 @@ Run:
 ```json
 {
   "command": "python3 /workspace/skills/pptx/scripts/create_pptx.py deck.json output.pptx && python3 /workspace/skills/pptx/scripts/validate_pptx.py output.pptx",
-  "workingDirectoryPath": "$BLUECLAW_TASK_TMP"
+  "workingDirectoryPath": "tmp/<deck-slug>"
 }
 ```
 

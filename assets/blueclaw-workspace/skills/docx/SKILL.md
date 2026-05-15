@@ -15,12 +15,12 @@ Create and modify Word documents as local `.docx` files, then attach the final f
 ## Workflow
 
 1. Clarify only missing requirements that change the document structure, such as audience, title, language, required sections, or source file.
-2. Create work under `$BLUECLAW_TASK_TMP`; do not use Blueclaw internal temporary paths.
+2. Create work under `tmp/<document-slug>` relative to the default writable workspace directory; do not use Blueclaw internal temporary paths.
 3. For straightforward new documents, write a JSON spec and run `scripts/create_docx.py`.
 4. Use direct `python-docx` code for custom layouts or edits that exceed the script.
 5. Use ZIP/XML inspection only when `python-docx` cannot preserve or reach the needed feature.
 6. Validate with `scripts/validate_docx.py` or by reopening the `.docx` file and checking the expected paragraphs, tables, headings, and images.
-7. Move accepted final files to `$BLUECLAW_REQUESTER_ARTIFACTS/<document-slug>/` unless the user requested a circle or shared destination, then attach the final `.docx`; attach intermediate files only if the user asks.
+7. Move accepted final files to `artifacts/<document-slug>/` unless the user requested a circle or shared destination, then attach the final `.docx`; attach intermediate files only if the user asks.
 
 Bundled scripts are responsible for their own Python dependencies. They bootstrap `scripts/requirements.txt` into `$BLUECLAW_REQUESTER_TMP/.skill-env/docx` when needed and use `/workspace/shared/cache/dependencies` only as a package cache. Do not stop at `ModuleNotFoundError`; run the helper script first. For custom Python beyond the helper script, import `scripts/skill_runtime.py` and call `ensure_requirements("docx")` before importing `docx`.
 
@@ -66,7 +66,7 @@ Run:
 ```json
 {
   "command": "python3 /workspace/skills/docx/scripts/create_docx.py document.json output.docx && python3 /workspace/skills/docx/scripts/validate_docx.py output.docx",
-  "workingDirectoryPath": "$BLUECLAW_TASK_TMP"
+  "workingDirectoryPath": "tmp/<document-slug>"
 }
 ```
 
