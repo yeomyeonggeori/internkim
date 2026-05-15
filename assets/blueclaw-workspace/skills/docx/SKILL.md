@@ -15,12 +15,12 @@ Create and modify Word documents as local `.docx` files, then attach the final f
 ## Workflow
 
 1. Clarify only missing requirements that change the document structure, such as audience, title, language, required sections, or source file.
-2. Create work under `/workspace/.blueclaw/tmp/<document-slug>/`.
+2. Create work under `$BLUECLAW_TASK_TMP`; do not use Blueclaw internal temporary paths.
 3. For straightforward new documents, write a JSON spec and run `scripts/create_docx.py`.
 4. Use direct `python-docx` code for custom layouts or edits that exceed the script.
 5. Use ZIP/XML inspection only when `python-docx` cannot preserve or reach the needed feature.
 6. Validate with `scripts/validate_docx.py` or by reopening the `.docx` file and checking the expected paragraphs, tables, headings, and images.
-7. Attach the final `.docx`; attach intermediate files only if the user asks.
+7. Move accepted final files to `$BLUECLAW_REQUESTER_ARTIFACTS/<document-slug>/` unless the user requested a circle or shared destination, then attach the final `.docx`; attach intermediate files only if the user asks.
 
 Do not run package installation unless the required library is missing and the user approves it. If `python-docx` is unavailable, say that the runtime is missing the Word document library and explain the exact package needed.
 
@@ -66,7 +66,7 @@ Run:
 ```json
 {
   "command": "python3 /workspace/skills/docx/scripts/create_docx.py document.json output.docx && python3 /workspace/skills/docx/scripts/validate_docx.py output.docx",
-  "workingDirectoryPath": "/workspace/.blueclaw/tmp/<document-slug>"
+  "workingDirectoryPath": "$BLUECLAW_TASK_TMP"
 }
 ```
 
