@@ -61,11 +61,11 @@ func TestLoadWorkspaceAgentsMarkdownUsesBoardAsset(t *testing.T) {
 	}
 
 	for _, fragment := range []string{
-		"## Browser Automation",
-		"`agent-browser snapshot -i`",
+		"## Retrieval And Browser",
+		"`browser.snapshot`",
 		"interactive fallback",
-		"search/fetch capabilities",
-		"## File Sharing",
+		"search/fetch",
+		"## File Delivery",
 		"## Memory",
 		"## Approval Handling",
 		"## Honesty about Tool Failures",
