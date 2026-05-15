@@ -604,7 +604,7 @@ func runDeploy() {
 func runDeployToBoard(scriptDir string, boardBinDir string, ssh *sshClient) {
 	boardTools := []string{"download"}
 
-	fmt.Print("Installing skill dependencies... ")
+	fmt.Print("Checking skill dependencies... ")
 	ssh.run(installSkillPythonDependenciesCommand())
 	fmt.Println("ok")
 
