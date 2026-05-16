@@ -3900,17 +3900,23 @@ func (s *sshClient) scpDir(localDir, remoteDir string) error {
 }
 
 func (s *sshClient) uploadDirectoryArchive(localDir string, temporaryRemoteDirectory string, remoteDir string) error {
-	remoteCommand := fmt.Sprintf(
-		"rm -rf %s && mkdir -p %s && tar -xzf - -C %s && mkdir -p %s && cp -a %s/. %s/",
+	extractCommand := fmt.Sprintf(
+		"rm -rf %s && mkdir -p %s && tar -xzf - -C %s",
 		quoteShellValue(temporaryRemoteDirectory),
 		quoteShellValue(temporaryRemoteDirectory),
 		quoteShellValue(temporaryRemoteDirectory),
-		quoteShellValue(remoteDir),
-		quoteShellValue(temporaryRemoteDirectory),
-		quoteShellValue(remoteDir),
 	)
-	if output, errorValue := s.runTarToRemote(localDir, remoteCommand); errorValue != nil {
+	if output, errorValue := s.runTarToRemote(localDir, extractCommand); errorValue != nil {
 		return fmt.Errorf("upload directory %s to %s failed: %s: %w", localDir, remoteDir, strings.TrimSpace(output), errorValue)
+	}
+	output, errorValue := s.runResult(fmt.Sprintf(
+		"mkdir -p %s && cp -a %s/. %s/",
+		quoteShellValue(remoteDir),
+		quoteShellValue(temporaryRemoteDirectory),
+		quoteShellValue(remoteDir),
+	))
+	if errorValue != nil {
+		return fmt.Errorf("move uploaded directory to %s: %s: %w", remoteDir, strings.TrimSpace(output), errorValue)
 	}
 	return nil
 }
@@ -3923,7 +3929,7 @@ func (s *sshClient) runTarToRemote(localDir string, remoteCommand string) (strin
 	}
 	target := fmt.Sprintf("%s@%s", s.user, s.host)
 	commandName := "ssh"
-	commandArguments := s.sshArgs(target, s.privilegedCommand(remoteCommand))
+	commandArguments := s.sshArgs(target, remoteCommand)
 	if s.pass != "" {
 		commandName = s.sshpassBin
 		commandArguments = append([]string{"-p", s.pass, "ssh"}, commandArguments...)
