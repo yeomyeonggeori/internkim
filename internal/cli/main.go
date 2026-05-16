@@ -3894,25 +3894,58 @@ func (s *sshClient) scpDirect(localPath, remotePath string) error {
 func (s *sshClient) scpDir(localDir, remoteDir string) error {
 	if s.user != "root" && strings.HasPrefix(remoteDir, "/") {
 		temporaryRemoteDirectory := "/tmp/internkim-upload-" + filepath.Base(remoteDir)
-		output, err := s.runResult("rm -rf " + quoteShellValue(temporaryRemoteDirectory) + " && mkdir -p " + quoteShellValue(temporaryRemoteDirectory) + " && chmod 777 " + quoteShellValue(temporaryRemoteDirectory))
-		if err != nil {
-			return fmt.Errorf("prepare remote directory %s: %s: %w", temporaryRemoteDirectory, strings.TrimSpace(output), err)
-		}
-		if err := s.scpDirDirect(localDir, temporaryRemoteDirectory); err != nil {
-			return err
-		}
-		output, err = s.runResult(fmt.Sprintf(
-			"mkdir -p %s && cp -a %s/. %s/",
-			quoteShellValue(remoteDir),
-			quoteShellValue(temporaryRemoteDirectory),
-			quoteShellValue(remoteDir),
-		))
-		if err != nil {
-			return fmt.Errorf("move uploaded directory to %s: %s: %w", remoteDir, strings.TrimSpace(output), err)
-		}
-		return nil
+		return s.uploadDirectoryArchive(localDir, temporaryRemoteDirectory, remoteDir)
 	}
 	return s.scpDirDirect(localDir, remoteDir)
+}
+
+func (s *sshClient) uploadDirectoryArchive(localDir string, temporaryRemoteDirectory string, remoteDir string) error {
+	remoteCommand := fmt.Sprintf(
+		"rm -rf %s && mkdir -p %s && tar -xzf - -C %s && mkdir -p %s && cp -a %s/. %s/",
+		quoteShellValue(temporaryRemoteDirectory),
+		quoteShellValue(temporaryRemoteDirectory),
+		quoteShellValue(temporaryRemoteDirectory),
+		quoteShellValue(remoteDir),
+		quoteShellValue(temporaryRemoteDirectory),
+		quoteShellValue(remoteDir),
+	)
+	if output, errorValue := s.runTarToRemote(localDir, remoteCommand); errorValue != nil {
+		return fmt.Errorf("upload directory %s to %s failed: %s: %w", localDir, remoteDir, strings.TrimSpace(output), errorValue)
+	}
+	return nil
+}
+
+func (s *sshClient) runTarToRemote(localDir string, remoteCommand string) (string, error) {
+	tarCommand := exec.Command("tar", "-czf", "-", "-C", localDir, ".")
+	tarOutput, errorValue := tarCommand.StdoutPipe()
+	if errorValue != nil {
+		return "", errorValue
+	}
+	target := fmt.Sprintf("%s@%s", s.user, s.host)
+	commandName := "ssh"
+	commandArguments := s.sshArgs(target, s.privilegedCommand(remoteCommand))
+	if s.pass != "" {
+		commandName = s.sshpassBin
+		commandArguments = append([]string{"-p", s.pass, "ssh"}, commandArguments...)
+	}
+	sshCommand := exec.Command(commandName, commandArguments...)
+	sshCommand.Stdin = tarOutput
+	var output bytes.Buffer
+	sshCommand.Stdout = &output
+	sshCommand.Stderr = &output
+	if errorValue := sshCommand.Start(); errorValue != nil {
+		return output.String(), errorValue
+	}
+	if errorValue := tarCommand.Start(); errorValue != nil {
+		_ = sshCommand.Process.Kill()
+		return output.String(), errorValue
+	}
+	tarError := tarCommand.Wait()
+	sshError := sshCommand.Wait()
+	if tarError != nil {
+		return output.String(), tarError
+	}
+	return output.String(), sshError
 }
 
 func (s *sshClient) scpDirDirect(localDir, remoteDir string) error {
