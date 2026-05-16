@@ -336,6 +336,15 @@ func blueclawRootfsBaseContractCheckCommand() string {
 	return `set -eu
 rootfs_path="/opt/internkim/blueclaw-runtime/rootfs.ext4"
 mount_path="$(mktemp -d /tmp/internkim-blueclaw-rootfs-check.XXXXXX)"
+run_contract_check_command() {
+  timeout_seconds="$1"
+  shift
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "$timeout_seconds" "$@"
+  else
+    "$@"
+  fi
+}
 cleanup_rootfs_check() {
   if mountpoint -q "$mount_path"; then
     umount "$mount_path" 2>/dev/null || true
@@ -347,7 +356,7 @@ if [ ! -s "$rootfs_path" ]; then
   echo rootfs-missing
   exit 0
 fi
-if ! mount -o loop,ro,noload "$rootfs_path" "$mount_path" >/tmp/internkim-blueclaw-rootfs-mount-check.log 2>&1; then
+if ! run_contract_check_command 20s mount -o loop,ro,noload "$rootfs_path" "$mount_path" >/tmp/internkim-blueclaw-rootfs-mount-check.log 2>&1; then
   echo rootfs-mount-failed
   exit 0
 fi
@@ -387,7 +396,7 @@ if [ "$(stat -c '%u:%g:%a' "$mount_path/usr/local/bin/blueclaw-posix-helper")" !
   echo rootfs-posix-helper-mode-drift
   exit 0
 fi
-if ! "$mount_path/usr/local/bin/blueclaw-posix-helper" capabilities | python3 -c 'import json, sys; document=json.load(sys.stdin); sys.exit(0 if document.get("version", 0) >= 2 and "fs" in document.get("capabilities", []) else 1)'; then
+if ! run_contract_check_command 5s "$mount_path/usr/local/bin/blueclaw-posix-helper" capabilities | python3 -c 'import json, sys; document=json.load(sys.stdin); sys.exit(0 if document.get("version", 0) >= 2 and "fs" in document.get("capabilities", []) else 1)'; then
   echo rootfs-posix-helper-fs-capability-missing
   exit 0
 fi
