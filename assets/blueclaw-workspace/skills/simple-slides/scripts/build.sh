@@ -92,8 +92,8 @@ ensure_local_marp() {
   MARP_COMMAND=("${NODE_RUNTIME_ROOT}/node_modules/.bin/marp")
 }
 
-if command -v marp &> /dev/null; then
-  MARP_COMMAND=(marp)
+if [ -f /opt/blueclaw/marp/node_modules/@marp-team/marp-cli/marp-cli.js ] && [ -x /usr/local/bin/bun ]; then
+  MARP_COMMAND=(/usr/local/bin/bun /opt/blueclaw/marp/node_modules/@marp-team/marp-cli/marp-cli.js)
 else
   ensure_local_marp
 fi
@@ -127,7 +127,12 @@ mkdir -p "$BUILD_PATH"
 export TMPDIR="${BUILD_PATH}/.tmp"
 export TMP="$TMPDIR"
 export TEMP="$TMPDIR"
-mkdir -p "$TMPDIR"
+export HOME="${TMPDIR}/home"
+export XDG_CACHE_HOME="${TMPDIR}/cache"
+export XDG_CONFIG_HOME="${TMPDIR}/config"
+export XDG_RUNTIME_DIR="${TMPDIR}/runtime"
+mkdir -p "$TMPDIR" "$HOME" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" "$XDG_RUNTIME_DIR"
+chmod 700 "$XDG_RUNTIME_DIR" 2>/dev/null || true
 rm -f "${BUILD_PATH}/${NAME}.html" "${BUILD_PATH}/${NAME}.pptx" "${BUILD_PATH}/${NAME}.pdf" "${BUILD_PATH}/${NAME}-notes.txt"
 
 echo "Building requested formats: ${FORMATS}"
