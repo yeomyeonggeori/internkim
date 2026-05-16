@@ -383,6 +383,10 @@ if [ ! -u "$mount_path/usr/local/bin/blueclaw-posix-helper" ]; then
   echo rootfs-posix-helper-missing
   exit 0
 fi
+if [ "$(stat -c '%u:%g:%a' "$mount_path/usr/local/bin/blueclaw-posix-helper")" != "0:0:4755" ]; then
+  echo rootfs-posix-helper-mode-drift
+  exit 0
+fi
 if ! "$mount_path/usr/local/bin/blueclaw-posix-helper" capabilities | python3 -c 'import json, sys; document=json.load(sys.stdin); sys.exit(0 if document.get("version", 0) >= 2 and "fs" in document.get("capabilities", []) else 1)'; then
   echo rootfs-posix-helper-fs-capability-missing
   exit 0
@@ -400,6 +404,7 @@ for name, marker in {
     "blueclaw-payload-launch": "/workspace/.blueclaw/runtime/current/bin/blueclaw",
     "blueclaw-runtime-directory": "/workspace/.blueclaw/runtime",
     "blueclaw-posix-sync": "blueclaw-posix-helper sync",
+    "blueclaw-posix-helper-preflight": "posix helper is not executable by blueclaw",
 }.items():
     if marker not in guest_init:
         print("rootfs-init-missing-marker:" + name)
