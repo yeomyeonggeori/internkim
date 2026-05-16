@@ -8,12 +8,20 @@ FORMATS="${FORMATS:-html,pptx,pdf,notes,review}"
 BUILD_DIR="${BUILD_DIR:-build}"
 
 if [ ! -f "$SRC" ]; then
-  echo "Error: $SRC not found. Create presentation.md or set SRC=yourfile.md"
+  echo "Working directory: $(pwd)" >&2
+  echo "SRC: $SRC" >&2
+  echo "Directory entries:" >&2
+  ls -la . 2>&1 | sed -n '1,5p' >&2
+  echo "Error: $SRC not found. Create presentation.md or set SRC=yourfile.md" >&2
   exit 1
 fi
 
 if [ ! -f DESIGN.md ]; then
-  echo "Error: DESIGN.md not found. Create Stitch-compatible DESIGN.md before building."
+  echo "Working directory: $(pwd)" >&2
+  echo "SRC: $SRC" >&2
+  echo "Directory entries:" >&2
+  ls -la . 2>&1 | sed -n '1,5p' >&2
+  echo "Error: DESIGN.md not found. Create Stitch-compatible DESIGN.md before building." >&2
   exit 1
 fi
 
