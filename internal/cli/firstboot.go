@@ -515,11 +515,7 @@ if ! sudo -u blueclaw test -x /home/blueclaw/.bun/bin/bun; then
 fi
 ln -sf /home/blueclaw/.bun/bin/bun /usr/local/bin/bun
 ln -sf /home/blueclaw/.bun/bin/bun /usr/local/bin/node
-if sudo -u blueclaw test -x /home/blueclaw/.bun/bin/bun && ! sudo -u blueclaw test -x /home/blueclaw/.bun/bin/marp; then
-  sudo -u blueclaw bash -lc '/home/blueclaw/.bun/bin/bun install -g @marp-team/marp-cli' >/dev/null 2>&1 || true
-fi
-ln -sf /home/blueclaw/.bun/bin/marp /usr/local/bin/marp
-echo "bun + marp: $(command -v marp >/dev/null && echo ok || echo missing)"
+echo "bun: $(command -v bun >/dev/null && echo ok || echo missing)"
 
 if [ -d "$STAGE/skills" ]; then
   mkdir -p /root/.blueclaw/workspace/skills
