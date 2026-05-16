@@ -3893,7 +3893,7 @@ func (s *sshClient) scpDirect(localPath, remotePath string) error {
 
 func (s *sshClient) scpDir(localDir, remoteDir string) error {
 	if s.user != "root" && strings.HasPrefix(remoteDir, "/") {
-		temporaryRemoteDirectory := "/tmp/internkim-upload-" + filepath.Base(remoteDir)
+		temporaryRemoteDirectory := fmt.Sprintf("/tmp/internkim-upload-%d-%s", os.Getpid(), filepath.Base(remoteDir))
 		return s.uploadDirectoryArchive(localDir, temporaryRemoteDirectory, remoteDir)
 	}
 	return s.scpDirDirect(localDir, remoteDir)
@@ -3910,10 +3910,11 @@ func (s *sshClient) uploadDirectoryArchive(localDir string, temporaryRemoteDirec
 		return fmt.Errorf("upload directory %s to %s failed: %s: %w", localDir, remoteDir, strings.TrimSpace(output), errorValue)
 	}
 	output, errorValue := s.runResult(fmt.Sprintf(
-		"mkdir -p %s && cp -a %s/. %s/",
+		"mkdir -p %s && cp -a %s/. %s/ && rm -rf %s",
 		quoteShellValue(remoteDir),
 		quoteShellValue(temporaryRemoteDirectory),
 		quoteShellValue(remoteDir),
+		quoteShellValue(temporaryRemoteDirectory),
 	))
 	if errorValue != nil {
 		return fmt.Errorf("move uploaded directory to %s: %s: %w", remoteDir, strings.TrimSpace(output), errorValue)
