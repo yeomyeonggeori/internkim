@@ -3738,7 +3738,14 @@ func runSSHCommandWithRetry(commandName string, arguments []string) (string, err
 	var output []byte
 	var errorValue error
 	for attemptIndex := 0; attemptIndex < 3; attemptIndex++ {
-		output, errorValue = exec.Command(commandName, arguments...).CombinedOutput()
+		commandContext, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		command := exec.CommandContext(commandContext, commandName, arguments...)
+		output, errorValue = command.CombinedOutput()
+		if commandContext.Err() == context.DeadlineExceeded {
+			errorValue = fmt.Errorf("ssh command timed out after 60s: %w", commandContext.Err())
+			output = append(output, []byte("\nssh command timed out")...)
+		}
+		cancel()
 		if errorValue == nil || !isRetryableSSHFailure(string(output)) {
 			return string(output), errorValue
 		}
@@ -3755,6 +3762,7 @@ func isRetryableSSHFailure(output string) bool {
 		"no route to host",
 		"Network is unreachable",
 		"Permission denied, please try again.",
+		"ssh command timed out",
 	} {
 		if strings.Contains(output, phrase) {
 			return true
