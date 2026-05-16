@@ -277,7 +277,7 @@ VLM은 민감 문서 여부에 따라 local-only, Companion local model, remote 
 ### 5단계: 로컬 컴퓨터와 생성형 작업 확장
 
 - Companion browser wait/input UX 강화
-- interactive terminal을 dev/admin profile로 격리
+- interactive terminal도 requester actor/POSIX boundary 안에서 실행하고, 외부 연동은 typed capability로 우선 라우팅
 - image generation provider 추가
 - local-only model routing 강화
 
@@ -285,7 +285,7 @@ VLM은 민감 문서 여부에 따라 local-only, Companion local model, remote 
 
 ## Orchestration 배포 구조
 
-Blueclaw workspace의 `/root/.blueclaw/workspace/skills`에 있는 기존 skill을 canonical 실행 경로로 둔다. 새로 추가하는 skill이 있다면 기능별 구현 skill이 아니라 orchestration wrapper여야 한다. wrapper의 역할은 다음으로 제한한다.
+Blueclaw skill은 host `/root/.blueclaw/workspace/skills`에 배치되고 guest에서는 `/workspace/skills`로 실행됩니다. 모델과 skill 문서는 guest virtual/runtime path인 `/workspace/skills`를 canonical 실행 경로로 사용합니다. 새로 추가하는 skill이 있다면 기능별 구현 skill이 아니라 orchestration wrapper여야 합니다. wrapper의 역할은 다음으로 제한합니다.
 
 - 언제 이 skill을 써야 하는지 판단 기준 제공
 - 필요한 입력 정보와 누락 정보 질문 순서 정의
