@@ -27,9 +27,11 @@ Jetson Orin Nano Super에 Blueclaw 런타임과 InternKim capability layer를 �
                    │    ├─ browser routing: companion-first / Lightpanda fallback
                    │    └─ local capability API for Blueclaw
                    ├─ graphiti-memoryd :7791
-                   ├─ blueclaw.service :8080
-                   │    ├─ policy / task / ACL / prompt
-                   │    └─ workspace: /root/.blueclaw/workspace
+                   ├─ Firecracker Blueclaw guest
+                   │    ├─ blueclaw.service :8080
+                   │    │    ├─ policy / task / ACL / prompt
+                   │    │    └─ requester workspace actors
+                   │    └─ /workspace mounted from host /root/.blueclaw/workspace
                    ├─ gws / gws-bot / Apps Script bridge
                    ├─ Lightpanda device browser fallback
                    └─ /root/.internkim
@@ -53,19 +55,53 @@ Signal account ── JSON-RPC poll ─▶ internkim-capabilityd ──▶ Bluec
 
 크리덴셜은 `/root/.internkim/secrets/`와 `/root/.internkim/config/`에 집중 관리합니다. Blueclaw는 provider token, 브라우저 쿠키, 사용자 로컬 파일 경로, 로컬 모델 경로를 직접 보지 않고 `internkim-capabilityd` 또는 `internkim-admind`의 typed capability 경계를 통해서만 사용합니다.
 
-### Blueclaw Terminal 권한 경계
+### Blueclaw Workspace 권한 경계
 
-Blueclaw terminal 보안의 canonical boundary는 Linux user/group/POSIX 권한입니다. Blueclaw policy가 source of truth이고, 사람과 circle membership은 guest 내부의 Linux user, group, directory ownership, mode로 투영됩니다.
+Blueclaw workspace 보안의 canonical boundary는 Linux user/group/POSIX 권한입니다. Blueclaw service는 `blueclaw` 사용자로 orchestration, policy, event log, LLM flow만 처리하고, requester-visible side effect는 `WorkspaceActor`를 통해 requester POSIX identity로 실행합니다.
 
 - 사람은 안정적인 `bc_person_<shortID>` Linux user로 실행됩니다.
 - circle은 `bc_circle_<circleID>` group으로 투영됩니다.
-- 모든 task terminal, terminal session, 사용자 작성 skill/tool, dependency install script, package lifecycle script는 requester 또는 task actor의 unprivileged UID/GID/supplementary groups로 실행됩니다.
+- 모든 `terminal.run`, terminal session, `file.write`, `file.read`, `file.promote`, `file.attach`, 사용자 작성 skill/tool, dependency install script, package lifecycle script는 requester 또는 task actor의 unprivileged UID/GID/supplementary groups로 실행됩니다.
 - admin 사용자도 raw terminal에서는 기본 task actor scope만 갖습니다. admin-only 파일 접근, 임시 grant, 특정 파일 허용, 외부 전송은 built-in capability/tool 경계에서만 처리합니다.
+- Blueclaw service는 requester workspace 파일을 직접 `os.ReadFile`/`os.WriteFile`로 만지지 않습니다. 모든 workspace 파일 I/O와 process 실행은 `WorkspaceActorFactory -> WorkspaceActor -> blueclaw-posix-helper` 경로를 탑니다.
+- `blueclaw-posix-helper`는 `root:root 4755` setuid bridge입니다. helper 파일 실행 가능 여부는 authorization boundary가 아니며, helper 내부에서 real UID가 root 또는 `blueclaw`인지 확인한 뒤 requester UID/GID로 전환합니다.
+- `/workspace/private`, `/workspace/private/people`, `/workspace/circles`는 service-owned traversal parent입니다. requester leaf는 requester group과 setgid directory mode를 사용합니다.
 - `/workspace/private/people/<personID>`와 `/workspace/circles/<circleID>`는 POSIX ownership/mode가 최종 접근 경계입니다. `/workspace/.blueclaw/*`는 service-owned internal path이며 일반 task user가 직접 읽지 못합니다.
 - dependency cache는 `/workspace/shared/cache/dependencies`로 고정합니다. private/source 파일은 cache에 넣지 않고, language-level dependency tool만 이 cache를 공유합니다.
 - raw terminal에서 OS package manager와 system modification executable guardrail은 계속 유지합니다. `bwrap`는 v1 필수 경계가 아니며, 필요하면 미래의 추가 narrowing으로만 사용합니다.
 
-Built-in `file.write`, `file.attach`, future `file.read_granted`, artifact/document/admin tool만 Blueclaw grant와 세밀 권한을 행사할 수 있습니다. Built-in tool이 grant로 읽은 민감 파일은 raw terminal이 볼 수 있는 위치에 그대로 열어두지 않고, 필요한 경우 sanitized task artifact로 복사하고 task event에 기록해야 합니다.
+Built-in `file.*` tools도 service-user fallback 없이 requester actor로 실행됩니다. Built-in tool이 grant로 읽은 민감 파일은 raw terminal이 볼 수 있는 위치에 그대로 열어두지 않고, 필요한 경우 sanitized task artifact로 복사하고 task event에 기록해야 합니다.
+
+```mermaid
+flowchart LR
+  User["Requester message"] --> Connector["InternKim connector"]
+  Connector --> Blueclaw["Blueclaw service as blueclaw"]
+  Blueclaw --> Policy["Policy, path resolver, tool schema"]
+  Policy --> Actor["WorkspaceActor"]
+  Actor --> Helper["blueclaw-posix-helper setuid root"]
+  Helper --> Requester["setuid/setgid to bc_person_*"]
+  Requester --> Workspace["/workspace/private/people/<personID>"]
+```
+
+Artifact 생성은 durable output을 명시적으로 승격하는 흐름을 씁니다.
+
+```mermaid
+flowchart LR
+  Draft["file.write tmp/<slug>/source files"] --> Build["terminal.run cwd=tmp/<slug>"]
+  Build --> Output["tmp/<slug>/build/*"]
+  Output --> Promote["file.promote to artifacts/<slug>/"]
+  Promote --> Attach["file.attach promoted artifact"]
+```
+
+| Guest 경로 | 권한 모델 | 용도 |
+|------|------|------|
+| `/workspace/private/people/<personID>/tmp/<task>` | requester actor only, ephemeral | 작업 초안과 build 중간 산출물 |
+| `/workspace/private/people/<personID>/artifacts/<slug>` | requester actor only, durable | 개인 최종 산출물 |
+| `/workspace/circles/<circleID>` | circle group `2770` | 명시적 팀 공유 산출물 |
+| `/workspace/shared/public` | shared policy | 명시적 공개 공유 산출물 |
+| `/workspace/shared/cache/dependencies` | shared cache group | package cache only |
+| `/workspace/skills` | read/execute only | built-in skill source |
+| `/workspace/.blueclaw` | service-owned | DB, logs, internal state |
 
 | 경로 | 주 소비자 | 용도 |
 |------|----------|------|
@@ -87,14 +123,14 @@ Graphiti는 memory sidecar로만 동작하고 secrets 디렉토리를 직접 읽
 | **internkim-admind** | 기기 관리자 API. admin UI reverse proxy, companion pairing/broker, backup/restore, 상태 조회 담당 |
 | **internkim-capabilityd** | OpenRouter, local model, Mattermost, Slack, Signal, companion credential을 보유하고 capability API만 노출 |
 | **internkim-local-llm-runner** | LiteRT local model runner. llama.cpp는 상주 `llama-server` provider로 처리 |
-| **Blueclaw** | 런타임 바이너리. `/usr/local/bin/blueclaw`, `/root/.blueclaw/config/*.json`, `/root/.blueclaw/workspace/*` 계약을 사용 |
+| **Blueclaw** | Firecracker guest 안의 agent runtime. host는 `blueclaw-supervisor`로 guest를 띄우고, guest는 `/workspace/.blueclaw/config/*.json`와 `/workspace/.blueclaw/runtime/current/bin/blueclaw` 계약을 사용 |
 | **Graphiti memoryd** | Blueclaw memory sidecar. `graphiti-core[kuzu]`로 episode ingestion, temporal graph extraction, hybrid graph search 수행 |
 | **internkim-companion** | 사용자 컴퓨터의 cross-platform trusted runtime. 브라우저 human-in-the-loop와 향후 local-only LLM capability 제공 |
 | **gws** | Google Workspace CLI. Drive/Docs/Gmail/Sheets 조작. MCP 서버 모드 지원 |
 | **Mattermost** | 온보드 채팅 서버. 기기 협업 채널과 모바일 알림에 사용 |
 | **Slack/Signal connector** | 외부 메시징 이벤트를 capabilityd에서 정규화해 Blueclaw 작업으로 전달 |
 | **SvelteKit 웹앱** (`web/`) | Cloudflare Pages. 기기 등록 API, Access policy 동기화, OTA |
-| **Blueclaw workspace assets** (`assets/blueclaw-workspace/`) | 설치 시 `/root/.blueclaw/workspace`에 배치되는 AGENTS.md, skills, helpers, GAS source |
+| **Blueclaw workspace assets** (`assets/blueclaw-workspace/`) | 설치 시 host `/root/.blueclaw/workspace`에 배치되고 guest `/workspace`로 mount되는 AGENTS.md, skills, helpers, GAS source |
 | **기기 바이너리** (`build/board-bin/`) | ARM64 기기용 바이너리 [gitignored] |
 | **맥 유틸** (`bin/`) | get-ssid + sshpass, macOS universal binary |
 
@@ -119,7 +155,7 @@ make build
 ./internkim setup --board jetson-orin-nano --host <jetson-ip> --user <ssh-user>
 ```
 
-터널 설정이 한 번 끝난 기기는 LAN 밖에서도 setup할 수 있습니다. 로컬에 `cloudflared`가 설치되어 있으면 CLI가 LAN SSH를 먼저 찾고, 보드가 로컬 네트워크에 없을 때 `ssh.<deviceID>.example.test` 경로의 Cloudflare Access SSH로 자동 전환합니다. 기존 setup/scp/rsync 파이프라인은 그대로 사용합니다.
+터널 설정이 한 번 끝난 기기는 LAN 밖에서도 setup할 수 있습니다. 로컬에 `cloudflared`가 설치되어 있으면 CLI가 LAN SSH를 먼저 찾고, 보드가 로컬 네트워크에 없을 때 `ssh.<deviceID>.example.test` 경로의 Cloudflare Access SSH로 자동 전환합니다. Setup의 디렉터리 업로드는 tar-over-ssh를 사용하고, sparse runtime artifact는 rsync를 사용합니다. SSH 명령은 재시도와 per-attempt timeout을 갖습니다.
 
 ```bash
 ./internkim setup --only admin-web --force
@@ -142,7 +178,7 @@ Blueclaw submodule은 기본 setup에서 local change가 있으면 멈추고 `or
 INTERNKIM_BLUECLAW_USE_LOCAL=1 ./internkim setup --only binaries,blueclaw-payload,services --force
 ```
 
-Firecracker runtime payload에 Blueclaw Go 소스 변경을 확실히 포함해야 할 때는 setup 전에 `make prepare-blueclaw-payload`를 실행하고, 이어지는 setup에는 `INTERNKIM_BLUECLAW_USE_LOCAL=1`을 유지하세요. Lab setup은 이 로컬 Blueclaw 모드를 기본으로 켭니다.
+Firecracker runtime payload에 Blueclaw Go 소스 변경을 확실히 포함해야 할 때는 setup 전에 `make prepare-blueclaw-payload`를 실행하고, 이어지는 setup에는 `INTERNKIM_BLUECLAW_USE_LOCAL=1`을 유지하세요. Skill/script만 바꾸는 경우에도 payload 또는 workspace skill 배포가 필요합니다. Lab setup은 이 로컬 Blueclaw 모드를 기본으로 켭니다.
 
 주요 setup 단계:
 1. SSH로 Jetson 연결
@@ -290,7 +326,7 @@ macOS beta artifact는 `make package-companion-beta`로 만듭니다. 결과물 
 
 InternKim `capabilityd`는 companion URL을 직접 호출하지 않고 local `internkim-admind` broker로 job을 생성합니다. companion이 online이고 capability를 advertise할 때만 `browser.*`, `user.*`, `file.pick`, companion LLM capability를 provider-neutral하게 라우팅합니다. Blueclaw는 provider 구현, 브라우저 바이너리, 로컬 모델 경로, 사용자 브라우저 쿠키를 보지 않습니다.
 
-후속 정리 대상: Blueclaw의 기본 runtime config에는 아직 native terminal profile이 남아 있습니다. 제품 기본 경로는 typed capability/MCP tool이어야 하며, terminal은 dev/admin profile 전용으로 낮춰야 합니다.
+Terminal은 제품 기능에서도 쓰되 requester actor/POSIX boundary 안에서만 실행합니다. 외부 서비스, 로컬 브라우저, 파일 선택, 사용자 확인처럼 더 좁은 typed capability가 있는 작업은 terminal 대신 capability adapter를 우선 사용합니다.
 
 ### Blueclaw 기록/메모리 초기화
 
