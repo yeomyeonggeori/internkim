@@ -47,8 +47,11 @@ func TestBlueclawRootfsBaseContractCheckCatchesStaleBaseRuntime(t *testing.T) {
 		"rootfs-bc-missing",
 		"rootfs-chromium-missing",
 		"rootfs-posix-helper-missing",
+		"rootfs-posix-helper-mode-drift",
 		"rootfs-posix-helper-fs-capability-missing",
 		"capabilities",
+		"blueclaw-posix-helper-preflight",
+		"posix helper is not executable by blueclaw",
 		"blueclaw-posix-sync",
 	} {
 		if !strings.Contains(command, expectedFragment) {

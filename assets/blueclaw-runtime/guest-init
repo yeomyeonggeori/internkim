@@ -79,6 +79,17 @@ sync_blueclaw_posix_policy() {
   fi
 }
 
+check_blueclaw_posix_helper() {
+  if ! /usr/local/bin/blueclaw-posix-helper capabilities >/workspace/.blueclaw/logs/posix-helper-root-preflight.log 2>&1; then
+    log_guest_init "posix helper root preflight failed"
+    exit 1
+  fi
+  if ! su -s /bin/bash blueclaw -c '/usr/local/bin/blueclaw-posix-helper capabilities' >/workspace/.blueclaw/logs/posix-helper-blueclaw-preflight.log 2>&1; then
+    log_guest_init "posix helper is not executable by blueclaw"
+    exit 1
+  fi
+}
+
 blueclaw_binary_path() {
   local payload_binary_path="/workspace/.blueclaw/runtime/current/bin/blueclaw"
   if [ ! -x "$payload_binary_path" ]; then
@@ -108,6 +119,7 @@ fi
 ensure_blueclaw_account
 prepare_blueclaw_workspace
 sync_blueclaw_posix_policy
+check_blueclaw_posix_helper
 
 chown -R postgres:postgres /workspace/.blueclaw/postgres
 chown postgres:blueclaw /workspace/.blueclaw/postgres
