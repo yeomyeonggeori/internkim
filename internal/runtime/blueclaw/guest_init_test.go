@@ -23,6 +23,8 @@ func TestGuestInitRunsBlueclawAsNonRootUser(t *testing.T) {
 		"/workspace/.blueclaw/runtime/current/bin/blueclaw",
 		"mount -o remount,rw /",
 		"blueclaw-posix-helper sync",
+		"check_blueclaw_posix_helper",
+		"posix helper is not executable by blueclaw",
 		"su -s /bin/bash blueclaw -c \"$blueclaw_binary",
 		"su -s /bin/bash blueclaw -c 'INTERNKIM_CAPABILITY_ENDPOINT=",
 	} {
