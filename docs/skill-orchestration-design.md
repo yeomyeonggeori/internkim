@@ -58,6 +58,7 @@ Tool의 설명, input schema, output schema, policy resource, side-effect class,
 
 - 사용자 로컬 파일은 Companion `file.pick`으로 받고 로컬 경로를 노출하지 않는다.
 - Mattermost/Slack/Signal 전송은 Blueclaw `FileAttachment`와 InternKim `reply.send` attachment 경로를 사용한다.
+- 생성 작업은 `tmp/<slug>`에서 시작하고, 최종본만 `file.promote`로 `artifacts/<slug>` 또는 명시된 circle/shared 위치로 복사한 뒤 `file.attach`한다.
 - 외부 공유와 Google Drive publish는 수신자, 권한, 파일명을 요약하고 승인 후 실행한다.
 - 장기 보관이 필요할 때만 artifact registry로 승격한다.
 
@@ -76,6 +77,10 @@ Tool의 설명, input schema, output schema, policy resource, side-effect class,
 
 - 간단한 Google Slides와 고급 HTML 슬라이드를 같은 deck pipeline으로 다루되, 기본 출력은 HTML/PPTX/PDF다.
 - `DESIGN.md`는 YAML token front matter와 Markdown rationale을 포함한다.
+- source files는 `file.write`로 `tmp/<deck-slug>/DESIGN.md`와 `tmp/<deck-slug>/presentation.md`에 작성한다.
+- build는 `terminal.run`으로 `workingDirectoryPath=tmp/<deck-slug>`에서 `/workspace/skills/simple-slides/scripts/build.sh`를 실행한다.
+- output은 `tmp/<deck-slug>/build/` 아래에 만들고, 최종본만 `file.promote`로 `artifacts/<deck-slug>/`에 승격한 뒤 `file.attach`한다.
+- `simple-slides`는 global PATH의 Marp를 선택하지 않는다. Rootfs 선설치 Marp entrypoint를 사용하거나 requester tmp의 skill-local install을 사용하고, runtime temp/cache/home은 task build tmp 아래에 둔다.
 - 폰트는 Korean-first로 고른다. 기본 조합은 Paperlogy display + Freesentation body이며, 기술/모빌리티 덱은 A2Z display + Freesentation body를 우선한다. 후보와 import/cache 경로는 `assets/blueclaw-workspace/fonts/korean-fonts.tsv`와 `simple-slides`의 `references/design-system.md`를 따른다.
 - 시각 품질 검증과 출력 파일 연결은 `simple-slides` 규칙을 따른다.
 - Google Slides는 import target이며, 새 Google Slides 전용 skill을 만들지 않는다.
@@ -137,6 +142,7 @@ Tool의 설명, input schema, output schema, policy resource, side-effect class,
 
 - 기존 skill로 실행 가능한 작업인지 먼저 확인한다.
 - Google 인증을 요구하기 전에 ICS, CalDAV, DOCX, XLSX, CSV, HTML, PDF, PPTX로 처리할 수 있는지 확인한다.
+- artifact 생성 실패를 Google/Gamma/Canva 권유로 바꾸기 전에 tool observation의 실제 failure stage와 stderr tail을 확인한다.
 - 새 shell bridge를 만들기 전에 portable artifact path와 `create-gws-file`, `calendar`, `simple-slides`가 처리하는지 확인한다.
 - Google import/export는 기본 생성 후 선택 단계로 둔다.
 - 새 attachment uploader를 만들기 전에 Blueclaw `FileAttachment`와 InternKim `reply.send` attachment 경로가 처리하는지 확인한다.
@@ -149,6 +155,7 @@ Tool의 설명, input schema, output schema, policy resource, side-effect class,
 - "내일 3시에 미팅 잡아줘"는 `workspace-orchestrator`가 ICS/CalDAV 이벤트를 만들고, 사용자가 원하면 Google Calendar에도 동기화한다.
 - "시트 하나 만들어줘"는 `workspace-orchestrator`가 XLSX/CSV를 만들고, 사용자가 원하면 Google Sheets로 가져간다.
 - "발표자료 만들어줘"는 `slide-orchestrator`가 `DESIGN.md`를 먼저 만든 뒤 HTML/PPTX/PDF를 만들고, 사용자가 원하면 Google Slides로 가져간다.
+- "pptx 파일로 줘"처럼 required artifact 요청이면 promoted `file.attach`가 있어야 성공이다. 텍스트 초안 제안은 완료가 아니다.
 - "계약서 템플릿 채워줘"는 `document-orchestrator`가 누락 필드를 인터뷰한 뒤 DOCX 또는 PDF 생성으로 위임한다.
 - "이 파일 보내줘"는 `artifact-orchestrator`가 기존 attachment 경로를 사용한다.
 - "브라우저에서 로그인 기다렸다가 진행해줘"는 `local-orchestrator`가 Companion browser와 `user.input`/`user.confirm`을 사용한다.
