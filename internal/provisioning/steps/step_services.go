@@ -383,6 +383,10 @@ if [ ! -u "$mount_path/usr/local/bin/blueclaw-posix-helper" ]; then
   echo rootfs-posix-helper-missing
   exit 0
 fi
+if ! "$mount_path/usr/local/bin/blueclaw-posix-helper" capabilities | python3 -c 'import json, sys; document=json.load(sys.stdin); sys.exit(0 if document.get("version", 0) >= 2 and "fs" in document.get("capabilities", []) else 1)'; then
+  echo rootfs-posix-helper-fs-capability-missing
+  exit 0
+fi
 python3 - "$mount_path/sbin/init" "$mount_path/etc/passwd" "$mount_path/etc/group" <<'PY'
 from pathlib import Path
 import sys
