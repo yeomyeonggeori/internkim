@@ -219,7 +219,10 @@ func TestSimpleSlidesRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 	if strings.Contains(buildContent, `cd "$(dirname "$0")"`) {
 		t.Fatal("simple-slides build script must run against the caller's task workspace")
 	}
-	for _, expectedText := range []string{"EXTRACT_NOTES_SCRIPT", "RENDER_REVIEW_SCRIPT", "SKILL_ASSET_DIRECTORY", "../assets/package.json", "BUILD_DIR", `export TMPDIR="${BUILD_PATH}/.tmp"`, `export TMP="$TMPDIR"`, `export TEMP="$TMPDIR"`, `cd "$TMPDIR"`} {
+	if strings.Contains(buildContent, "command -v marp") {
+		t.Fatal("simple-slides build script must not select ambiguous global Marp")
+	}
+	for _, expectedText := range []string{"EXTRACT_NOTES_SCRIPT", "RENDER_REVIEW_SCRIPT", "SKILL_ASSET_DIRECTORY", "../assets/package.json", "BUILD_DIR", `export TMPDIR="${BUILD_PATH}/.tmp"`, `export TMP="$TMPDIR"`, `export TEMP="$TMPDIR"`, `export HOME="${TMPDIR}/home"`, `cd "$TMPDIR"`} {
 		if !strings.Contains(buildContent, expectedText) {
 			t.Fatalf("simple-slides build script must contain %q", expectedText)
 		}
