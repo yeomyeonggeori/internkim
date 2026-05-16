@@ -6,6 +6,17 @@ SRC="${SRC:-presentation.md}"
 NAME="${NAME:-$(basename "$(pwd)")}"
 FORMATS="${FORMATS:-html,pptx,pdf,notes,review}"
 BUILD_DIR="${BUILD_DIR:-build}"
+WORK_DIR="$(pwd -P)"
+SOURCE_PATH="$SRC"
+BUILD_PATH="$BUILD_DIR"
+case "$SOURCE_PATH" in
+  /*) ;;
+  *) SOURCE_PATH="${WORK_DIR}/${SOURCE_PATH}" ;;
+esac
+case "$BUILD_PATH" in
+  /*) ;;
+  *) BUILD_PATH="${WORK_DIR}/${BUILD_PATH}" ;;
+esac
 
 if [ ! -f "$SRC" ]; then
   echo "Working directory: $(pwd)" >&2
@@ -25,7 +36,7 @@ if [ ! -f DESIGN.md ]; then
   exit 1
 fi
 
-python3 - "$SRC" <<'PY'
+python3 - "$SOURCE_PATH" <<'PY'
 import pathlib
 import sys
 
@@ -88,7 +99,7 @@ else
 fi
 
 run_marp() {
-  "${MARP_COMMAND[@]}" "$@"
+  (cd "$TMPDIR" && "${MARP_COMMAND[@]}" "$@")
 }
 
 format_enabled() {
@@ -101,7 +112,7 @@ format_enabled() {
 export CHROME_PATH="${CHROME_PATH:-/usr/bin/chromium}"
 export PUPPETEER_EXECUTABLE_PATH="${PUPPETEER_EXECUTABLE_PATH:-$CHROME_PATH}"
 
-python3 - "$SRC" <<'PY'
+python3 - "$SOURCE_PATH" <<'PY'
 import pathlib, sys
 path = pathlib.Path(sys.argv[1])
 text = path.read_text()
@@ -112,27 +123,27 @@ if stripped != text.rstrip():
     path.write_text(stripped + "\n")
 PY
 
-mkdir -p "$BUILD_DIR"
-export TMPDIR="$(pwd)/${BUILD_DIR}/.tmp"
+mkdir -p "$BUILD_PATH"
+export TMPDIR="${BUILD_PATH}/.tmp"
 export TMP="$TMPDIR"
 export TEMP="$TMPDIR"
 mkdir -p "$TMPDIR"
-rm -f "${BUILD_DIR}/${NAME}.html" "${BUILD_DIR}/${NAME}.pptx" "${BUILD_DIR}/${NAME}.pdf" "${BUILD_DIR}/${NAME}-notes.txt"
+rm -f "${BUILD_PATH}/${NAME}.html" "${BUILD_PATH}/${NAME}.pptx" "${BUILD_PATH}/${NAME}.pdf" "${BUILD_PATH}/${NAME}-notes.txt"
 
 echo "Building requested formats: ${FORMATS}"
 if format_enabled html; then
-  run_marp "$SRC" --html --allow-local-files -o "${BUILD_DIR}/${NAME}.html"
+  run_marp "$SOURCE_PATH" --html --allow-local-files -o "${BUILD_PATH}/${NAME}.html"
 fi
 if format_enabled pptx; then
-  run_marp "$SRC" --html --pptx --allow-local-files -o "${BUILD_DIR}/${NAME}.pptx"
+  run_marp "$SOURCE_PATH" --html --pptx --allow-local-files -o "${BUILD_PATH}/${NAME}.pptx"
 fi
 if format_enabled pdf; then
-  run_marp "$SRC" --html --pdf --allow-local-files -o "${BUILD_DIR}/${NAME}.pdf"
+  run_marp "$SOURCE_PATH" --html --pdf --allow-local-files -o "${BUILD_PATH}/${NAME}.pdf"
 fi
 
 if format_enabled html; then
   echo "Embedding local images as base64 data URLs in HTML..."
-  python3 - "$BUILD_DIR" "$NAME" <<'PY'
+  python3 - "$BUILD_PATH" "$NAME" <<'PY'
 import base64, re, os, sys
 build_dir = sys.argv[1]
 name = sys.argv[2]
@@ -160,7 +171,7 @@ fi
 if format_enabled notes; then
   echo "Extracting speaker notes..."
   if [ -f "$EXTRACT_NOTES_SCRIPT" ]; then
-    python3 "$EXTRACT_NOTES_SCRIPT" "$SRC" "${BUILD_DIR}/${NAME}-notes.txt"
+    python3 "$EXTRACT_NOTES_SCRIPT" "$SOURCE_PATH" "${BUILD_PATH}/${NAME}-notes.txt"
   else
     echo "  - extract_notes.py not found, skipping notes extraction"
   fi
@@ -168,11 +179,11 @@ fi
 
 if format_enabled review; then
   echo "Rendering slide review images..."
-  mkdir -p "${BUILD_DIR}/review"
-  rm -f "${BUILD_DIR}/review/${NAME}"*.png "${BUILD_DIR}/review/slide-review.json" "${BUILD_DIR}/review/slide-review.md"
-  run_marp "$SRC" --images png --allow-local-files -o "${BUILD_DIR}/review/${NAME}.png"
+  mkdir -p "${BUILD_PATH}/review"
+  rm -f "${BUILD_PATH}/review/${NAME}"*.png "${BUILD_PATH}/review/slide-review.json" "${BUILD_PATH}/review/slide-review.md"
+  run_marp "$SOURCE_PATH" --images png --allow-local-files -o "${BUILD_PATH}/review/${NAME}.png"
   if [ -f "$RENDER_REVIEW_SCRIPT" ]; then
-    if ! python3 "$RENDER_REVIEW_SCRIPT" "$SRC" "$NAME" "${BUILD_DIR}/review"; then
+    if ! python3 "$RENDER_REVIEW_SCRIPT" "$SOURCE_PATH" "$NAME" "${BUILD_PATH}/review"; then
       echo "  - slide render review reported warnings; see ${BUILD_DIR}/review/slide-review.json"
     fi
   else
