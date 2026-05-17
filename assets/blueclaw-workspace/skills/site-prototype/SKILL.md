@@ -46,8 +46,8 @@ For create, make, build, deploy, publish, prototype, demo, landing page, dashboa
 2. Pass `prompt`, `designBrief`, or `prototypeScope` when the user gives enough detail.
 3. After `site.app.create` succeeds, call `site.app.status` for the same `siteID` and use `sourceWorkspacePath`.
 4. Write `DESIGN.md` into the site workspace before writing app source.
-5. Create missing `app/package.json`, `app/index.html`, `app/src/main.tsx`, `app/src/App.tsx`, and CSS files, or update the existing source, according to `DESIGN.md`.
-6. Run `bun install && bun run build` from `<sourceWorkspacePath>/app`.
+5. Use `file.write` to create missing `app/package.json`, `app/index.html`, `app/src/main.tsx`, `app/src/App.tsx`, and CSS files, or update the existing source, according to `DESIGN.md`. Do not create app source with shell heredocs, `echo`, or inline `cat` in `terminal.run`.
+6. Run `bun install && bun run build` with `terminal.run.workingDirectoryPath` set to `<sourceWorkspacePath>/app`; inside the command, use relative paths only.
 7. Call `site.app.publish` with `siteID` and a concise `message`.
 8. Call `site.app.status` for the same `siteID` and confirm the status is `published`.
 9. Reply in Mattermost with the public URL, a short change summary, how to try the main workflow, and any test login credentials.
@@ -66,10 +66,20 @@ For follow-up feedback in the same conversation, call `site.app.status` with an 
 
 If the user replies with a short continuation such as "해줘", "진행", "확인", "좋아", "응", "게시해", "배포해", or "publish", treat it as an instruction to finish the current site workflow. Resolve the current site with `site.app.status`, check whether the source is customized beyond the starter, complete missing implementation work if needed, build, publish, and then reply with the public URL. Do not repeat an approval request for publish.
 
-Use this command pattern after source files are written:
+Use this terminal pattern after source files are written:
+
+```json
+{
+  "workingDirectoryPath": "<sourceWorkspacePath>/app",
+  "command": "bun install\nbun run build"
+}
+```
+
+Do not run this as a single shell command that starts with `cd <sourceWorkspacePath>/app`. The working directory belongs in the tool input, not inside the shell command.
+
+The command itself should stay short:
 
 ```bash
-cd <sourceWorkspacePath>/app
 bun install
 bun run build
 ```
