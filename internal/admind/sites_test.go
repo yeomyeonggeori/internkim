@@ -31,9 +31,11 @@ func TestSiteGatewayLifecycle(t *testing.T) {
 	}
 	writeTestWorkspaceBuild(t, site, "hello dynamic site")
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:      site.SiteID,
-		RequestedBy: "owner@example.com",
-		Message:     "Publish demo prototype",
+		SiteID:             site.SiteID,
+		RequestedBy:        "owner@example.com",
+		Message:            "Publish demo prototype",
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -129,14 +131,16 @@ func TestSitePrototypePublishesDefaultBuild(t *testing.T) {
 	if !strings.Contains(site.SourceWorkspacePath, "/workspace/circles/staff/sites/") {
 		t.Fatalf("site source workspace should be editable by staff circle, got %q", site.SourceWorkspacePath)
 	}
-	designDocument := readTrimmedFile(filepath.Join(site.HostSourcePath, "DESIGN.md"))
-	if !strings.Contains(designDocument, "Acceptance Criteria") {
-		t.Fatalf("site staging should include safe default DESIGN.md, got %q", designDocument)
+	if _, statError := os.Stat(filepath.Join(site.HostSourcePath, "DESIGN.md")); !os.IsNotExist(statError) {
+		t.Fatalf("site create should not materialize editable source in admind cache: %v", statError)
 	}
+	writeTestWorkspaceBuild(t, site, "Default Build")
 	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
-		SiteID:      site.SiteID,
-		RequestedBy: "owner@example.com",
-		Message:     "Publish default prototype",
+		SiteID:             site.SiteID,
+		RequestedBy:        "owner@example.com",
+		Message:            "Publish default prototype",
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -193,7 +197,11 @@ func TestSiteGatewayProxiesPocketBasePaths(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	writeTestWorkspaceBuild(t, site, "frontend")
-	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{SiteID: site.SiteID})
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -297,7 +305,11 @@ func TestSitePublishRejectsStaleFrontendBuild(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	writeTestWorkspaceBuild(t, site, "first build")
-	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{SiteID: site.SiteID})
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -306,14 +318,22 @@ func TestSitePublishRejectsStaleFrontendBuild(t *testing.T) {
 	writeFile(t, sourcePath, "export default function App() {\n  return <main>updated source</main>;\n}\n")
 	sourceModTime := time.Now().UTC().Add(2 * time.Hour)
 	setFileModTime(t, sourcePath, sourceModTime)
-	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{SiteID: site.SiteID})
+	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "app/dist is stale") {
 		t.Fatalf("expected stale build rejection, got %v", errorValue)
 	}
 
 	writeTestWorkspaceBuild(t, site, "fresh build")
 	setDirectoryFilesModTime(t, filepath.Join(site.HostSourcePath, "app", "dist"), sourceModTime.Add(time.Hour))
-	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{SiteID: site.SiteID})
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -331,7 +351,11 @@ func TestSitePublishRejectsUnapprovedPocketBaseHooks(t *testing.T) {
 	}
 	writeTestWorkspaceBuild(t, site, "workspace")
 	writeFile(t, filepath.Join(site.HostSourcePath, "pocketbase", "pb_hooks", "main.pb.js"), "routerAdd('GET', '/x', () => {})")
-	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{SiteID: site.SiteID})
+	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
 	if errorValue == nil {
 		t.Fatal("expected unapproved PocketBase hook rejection")
 	}
@@ -380,9 +404,16 @@ func newTestSiteService(t *testing.T) (*Service, *[]string) {
 
 func writeTestWorkspaceBuild(t *testing.T, site *SiteRecord, body string) {
 	t.Helper()
+	if errorValue := os.MkdirAll(filepath.Join(site.HostSourcePath, "app", "src"), 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	if errorValue := os.MkdirAll(filepath.Join(site.HostSourcePath, "app", "dist", "assets"), 0o700); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	if errorValue := os.MkdirAll(filepath.Join(site.HostSourcePath, "pocketbase", "pb_hooks"), 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeFile(t, filepath.Join(site.HostSourcePath, "app", "src", "App.tsx"), "export default function App() { return <main>ok</main> }\n")
 	writeFile(t, filepath.Join(site.HostSourcePath, "app", "dist", "index.html"), "<!doctype html><html><body>"+body+"</body></html>")
 	writeFile(t, filepath.Join(site.HostSourcePath, "app", "dist", "assets", "app.js"), "console.log('ok')")
 }
@@ -414,6 +445,12 @@ func testSourceBundleBase64(t *testing.T, sourceWorkspacePath string) string {
 		if errorValue != nil || relativePath == "." {
 			return errorValue
 		}
+		if testSourceBundlePathIsSkipped(relativePath, information) {
+			if information.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
 		header, errorValue := tar.FileInfoHeader(information, "")
 		if errorValue != nil {
 			return errorValue
@@ -443,6 +480,17 @@ func testSourceBundleBase64(t *testing.T, sourceWorkspacePath string) string {
 		t.Fatal(errorValue)
 	}
 	return base64.StdEncoding.EncodeToString(buffer.Bytes())
+}
+
+func testSourceBundlePathIsSkipped(relativePath string, information os.FileInfo) bool {
+	_ = information
+	for _, component := range strings.Split(filepath.Clean(relativePath), string(os.PathSeparator)) {
+		switch component {
+		case ".git", "node_modules":
+			return true
+		}
+	}
+	return false
 }
 
 func setFileModTime(t *testing.T, path string, modTime time.Time) {

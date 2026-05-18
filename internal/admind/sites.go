@@ -450,9 +450,6 @@ func (service *Service) createSiteRecord(payload siteCreateRequest) (*SiteRecord
 		CreatedAt:           now,
 		UpdatedAt:           now,
 	}
-	if errorValue := service.prepareSiteWorkspace(context.Background(), site); errorValue != nil {
-		return nil, errorValue
-	}
 	return site, service.storeSite(site)
 }
 
@@ -530,7 +527,7 @@ func (service *Service) prepareSiteSourceForPublish(ctx context.Context, site *S
 		}
 		return service.initializeSiteGitRepository(ctx, site)
 	}
-	return service.prepareSiteWorkspace(ctx, site)
+	return errors.New("sourceBundleBase64 is required; publish from the Blueclaw editable source workspace")
 }
 
 func (service *Service) updateSiteFromPublishRequest(site *SiteRecord, payload sitePublishRequest) error {
