@@ -122,7 +122,7 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	agentProfiles := runtimeConfiguration["agentProfiles"].([]any)
 	defaultProfile := agentProfiles[0].(map[string]any)
 	allowedToolNames := defaultProfile["allowedToolNames"].([]any)
-	for _, expectedToolName := range []string{"conversation.history", "memory.search", "memory.remember", "terminal.run", "terminal.session", "browser_handoff.openURL", "ask.confirm", "ask.choice", "ask.input", "file.write", "file.promote", "file.attach", "skill.add", "skill.remove", "skill.search", "schedule.create", "schedule.cancel"} {
+	for _, expectedToolName := range []string{"conversation.history", "memory.search", "memory.remember", "math.calculate", "web.search", "web.fetch", "terminal.run", "terminal.session", "browser_handoff.openURL", "ask.confirm", "ask.choice", "ask.input", "file.read", "file.write", "file.promote", "file.attach", "skill.add", "skill.remove", "skill.search", "tool.describe", "schedule.create", "schedule.cancel"} {
 		if !containsStringValue(allowedToolNames, expectedToolName) {
 			t.Fatalf("expected default agent profile to allow internal tool %q, got %+v", expectedToolName, allowedToolNames)
 		}
@@ -130,14 +130,9 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if !containsStringValue(allowedToolNames, "conversation.history") || !containsStringValue(allowedToolNames, "memory.search") || !containsStringValue(allowedToolNames, "memory.remember") {
 		t.Fatalf("expected default agent profile to allow internal tools, got %+v", allowedToolNames)
 	}
-	for _, expectedToolName := range []string{"platform.dm.send", "browser.open", "browser.snapshot", "browser.click", "browser.fill", "browser.select", "browser.press", "browser.wait", "user.confirm", "file.pick"} {
-		if !containsStringValue(allowedToolNames, expectedToolName) {
-			t.Fatalf("expected default profile to allow %q, got %+v", expectedToolName, allowedToolNames)
-		}
-	}
-	for _, disabledToolName := range []string{"google.docs.create", "google.sheets.create", "google.gmail.send", "google.calendar.event", "google.calendar.list", "google.drive.import_pptx"} {
+	for _, disabledToolName := range []string{"site.app.create", "site.app.publish", "platform.dm.send", "calendar.event.add", "mail.message.search", "flow.task.add", "google.docs.create", "google.sheets.create", "google.gmail.send", "google.calendar.event", "google.calendar.list", "google.drive.import_pptx"} {
 		if containsStringValue(allowedToolNames, disabledToolName) {
-			t.Fatalf("expected default profile to omit disabled Google Workspace tool %q, got %+v", disabledToolName, allowedToolNames)
+			t.Fatalf("expected default profile to omit domain tool %q, got %+v", disabledToolName, allowedToolNames)
 		}
 	}
 	capabilitiesConfiguration := runtimeConfiguration["capabilities"].(map[string]any)
