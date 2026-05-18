@@ -1156,7 +1156,10 @@ func (state *setupFlowState) installBlueclawRuntimeSSH(context *setup.Context) e
 			fmt.Println("failed")
 			return errorValue
 		}
-		output, errorValue := state.sshClient.runResult(blueclawRuntimeInstallCommand(artifact, temporaryRemotePath))
+		output, errorValue := state.sshClient.runResultWithTimeout(
+			blueclawRuntimeInstallCommand(artifact, temporaryRemotePath),
+			blueclawRuntimeInstallTimeout(artifact),
+		)
 		if errorValue != nil {
 			fmt.Println("failed")
 			return fmt.Errorf("install %s: %s: %w", artifact.name, strings.TrimSpace(output), errorValue)

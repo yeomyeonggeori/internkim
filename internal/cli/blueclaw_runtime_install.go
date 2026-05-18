@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
@@ -91,6 +92,13 @@ func blueclawRuntimeInstallCommand(artifact blueclawRuntimeInstallArtifact, temp
 			" && mv -f " + quoteShellValue(nextRemotePath) + " " + quoteShellValue(artifact.remotePath)
 	}
 	return "install -m " + artifact.mode + " " + quoteShellValue(temporaryRemotePath) + " " + quoteShellValue(artifact.remotePath)
+}
+
+func blueclawRuntimeInstallTimeout(artifact blueclawRuntimeInstallArtifact) time.Duration {
+	if artifact.name == "rootfs.ext4" {
+		return 20 * time.Minute
+	}
+	return 60 * time.Second
 }
 
 func blueclawRuntimeInstallPlanIsCurrent(installPlan blueclawRuntimeInstallPlan) bool {
