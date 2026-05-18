@@ -17,6 +17,9 @@ var StepBlueclawConfiguration = Step{
 		if context.Backend != BackendSSH {
 			return false
 		}
+		if !blueclawConfigurationFilesMatchGenerated(context) {
+			return false
+		}
 		return trimmedRun(context, blueclawRuntimeContractCheckCommand()) == "ok"
 	},
 	Run: func(context *Context) error {
@@ -44,6 +47,25 @@ var StepBlueclawConfiguration = Step{
 
 		return nil
 	},
+}
+
+func blueclawConfigurationFilesMatchGenerated(context *Context) bool {
+	runtimeConfiguration, errorValue := blueclaw.BlueclawRuntimeConfigDocument("")
+	if errorValue != nil {
+		return false
+	}
+	policyConfiguration, errorValue := blueclaw.BlueclawPolicyDocument(loadGoogleEmail(context))
+	if errorValue != nil {
+		return false
+	}
+	return remoteFileMatchesContent(context, blueclaw.BlueclawRuntimeConfigPath, runtimeConfiguration) &&
+		remoteFileMatchesContent(context, blueclaw.BlueclawPolicyConfigPath, policyConfiguration) &&
+		remoteFileMatchesContent(context, blueclaw.BlueclawWorkspacePath+"/.blueclaw/config/runtime.json", runtimeConfiguration) &&
+		remoteFileMatchesContent(context, blueclaw.BlueclawWorkspacePath+"/.blueclaw/config/policy.json", policyConfiguration)
+}
+
+func remoteFileMatchesContent(context *Context, path string, content string) bool {
+	return trimmedRun(context, "printf '%s' "+shellQuote(content)+" | cmp -s - "+shellQuote(path)+" && echo ok || echo missing") == "ok"
 }
 
 func loadGoogleEmail(context *Context) string {

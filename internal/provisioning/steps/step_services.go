@@ -292,6 +292,9 @@ for tool_name in capabilities.get("toolNames", []):
     if str(tool_name).startswith("google."):
         print("runtime-capability-google-tool")
         raise SystemExit
+capability_tool_names = {str(tool_name) for tool_name in capabilities.get("toolNames", [])}
+capability_tool_names.update(str(tool.get("name", "")) for tool in capabilities.get("toolDescriptors", []))
+capability_tool_names.discard("")
 
 database = runtime_configuration.get("database", {})
 if database.get("connectionString") != "postgres://blueclaw@/blueclaw?host=/workspace/.blueclaw/postgres&sslmode=disable":
@@ -317,7 +320,7 @@ for profile in runtime_configuration.get("agentProfiles", []):
         profile_tool_names = [str(tool_name) for tool_name in profile.get("allowedToolNames", [])]
         break
 
-mandatory_profile_tools = {"terminal.run", "terminal.session", "browser_handoff.openURL", "ask.confirm", "ask.choice", "ask.input", "file.write", "file.promote", "file.attach"}
+mandatory_profile_tools = {"terminal.run", "terminal.session", "browser_handoff.openURL", "ask.confirm", "ask.choice", "ask.input", "file.write", "file.promote", "file.attach"} | capability_tool_names
 missing_tools = sorted(mandatory_profile_tools - set(profile_tool_names))
 if missing_tools:
     print("runtime-profile-missing-tools:" + ",".join(missing_tools))
