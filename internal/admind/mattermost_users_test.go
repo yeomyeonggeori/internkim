@@ -85,6 +85,23 @@ func TestMattermostSyncedPersonCirclesKeepsAdminFromPolicy(t *testing.T) {
 	}
 }
 
+func TestMattermostSyncedPersonCirclesPreservesUnmanagedCircles(t *testing.T) {
+	person := map[string]any{
+		"emails":  []any{"owner@example.com"},
+		"circles": []any{"staff", "lab", "c-level"},
+	}
+	circles := mattermostSyncedPersonCircles(person, map[string]map[string]bool{
+		"c-level": {"someone@example.com": true},
+	})
+
+	if !containsMattermostTestString(circles, "staff") || !containsMattermostTestString(circles, "lab") {
+		t.Fatalf("expected staff and unmanaged lab circles, got %+v", circles)
+	}
+	if containsMattermostTestString(circles, "c-level") {
+		t.Fatalf("expected managed c-level to come only from Mattermost membership, got %+v", circles)
+	}
+}
+
 func TestMattermostCircleChannelDefinitionsFromPolicy(t *testing.T) {
 	circleChannels := mattermostCircleChannelDefinitionsFromPolicy(map[string]any{
 		"circleSync": map[string]any{
