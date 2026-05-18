@@ -292,6 +292,29 @@ func TestOnlyBlueclawPayloadSkipsCurrentBlueclawConfiguration(t *testing.T) {
 	}
 }
 
+func TestOnlyBlueclawPayloadIncludesChangedBlueclawConfiguration(t *testing.T) {
+	context := defaultBlueclawPlanContext("ok", "missing")
+	context.SSH = blueclawPlanBoardConnection{
+		runtimeContractOutput:    "ok",
+		payloadManifestOutput:    "missing",
+		skillsManifestOutput:     "ok",
+		configurationMatchOutput: "missing",
+	}
+
+	plan, err := DefaultRegistry().resolve(context, Selector{Only: []string{"blueclaw-payload"}})
+	if err != nil {
+		t.Fatalf("resolve failed: %v", err)
+	}
+
+	joinedPlan := strings.Join(plan, ",")
+	if !strings.Contains(joinedPlan, "blueclaw-config") {
+		t.Fatalf("expected changed blueclaw configuration to be planned, got %s", joinedPlan)
+	}
+	if strings.Index(joinedPlan, "blueclaw-config") > strings.Index(joinedPlan, "blueclaw-payload") {
+		t.Fatalf("expected blueclaw configuration before payload, got %s", joinedPlan)
+	}
+}
+
 func TestBlueclawPayloadRestartsServiceAfterInstall(t *testing.T) {
 	connection := &recordingBoardConnection{}
 	context := &Context{
@@ -393,9 +416,10 @@ func defaultBlueclawPlanContext(runtimeContractOutput string, payloadManifestOut
 }
 
 type blueclawPlanBoardConnection struct {
-	runtimeContractOutput string
-	payloadManifestOutput string
-	skillsManifestOutput  string
+	runtimeContractOutput    string
+	payloadManifestOutput    string
+	skillsManifestOutput     string
+	configurationMatchOutput string
 }
 
 type recordingBoardConnection struct {
@@ -425,6 +449,11 @@ func (connection *recordingBoardConnection) hasCommand(fragment string) bool {
 
 func (connection blueclawPlanBoardConnection) Run(command string) string {
 	switch {
+	case strings.Contains(command, "cmp -s -") && strings.Contains(command, "/root/.blueclaw/config"):
+		if connection.configurationMatchOutput == "" {
+			return "ok"
+		}
+		return connection.configurationMatchOutput
 	case strings.Contains(command, "runtime_path ="):
 		return connection.runtimeContractOutput
 	case strings.Contains(command, "payload-manifest.json"):
