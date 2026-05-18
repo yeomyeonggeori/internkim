@@ -3708,15 +3708,19 @@ func (s *sshClient) run(cmd string) string {
 }
 
 func (s *sshClient) runResult(cmd string) (string, error) {
+	return s.runResultWithTimeout(cmd, 60*time.Second)
+}
+
+func (s *sshClient) runResultWithTimeout(cmd string, timeout time.Duration) (string, error) {
 	var args []string
 	remoteCommand := s.privilegedCommand(cmd)
 	if s.pass == "" {
 		args = s.sshArgs(fmt.Sprintf("%s@%s", s.user, s.host), remoteCommand)
-		return runSSHCommandWithRetry("ssh", args)
+		return runSSHCommandWithRetry("ssh", args, timeout)
 	}
 
 	args = append([]string{"-p", s.pass, "ssh"}, s.sshArgs(fmt.Sprintf("%s@%s", s.user, s.host), remoteCommand)...)
-	return runSSHCommandWithRetry(s.sshpassBin, args)
+	return runSSHCommandWithRetry(s.sshpassBin, args, timeout)
 }
 
 func (s *sshClient) runInteractiveSSH(remoteArguments []string) error {
@@ -3734,15 +3738,15 @@ func (s *sshClient) runInteractiveSSH(remoteArguments []string) error {
 	return command.Run()
 }
 
-func runSSHCommandWithRetry(commandName string, arguments []string) (string, error) {
+func runSSHCommandWithRetry(commandName string, arguments []string, timeout time.Duration) (string, error) {
 	var output []byte
 	var errorValue error
 	for attemptIndex := 0; attemptIndex < 3; attemptIndex++ {
-		commandContext, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		commandContext, cancel := context.WithTimeout(context.Background(), timeout)
 		command := exec.CommandContext(commandContext, commandName, arguments...)
 		output, errorValue = command.CombinedOutput()
 		if commandContext.Err() == context.DeadlineExceeded {
-			errorValue = fmt.Errorf("ssh command timed out after 60s: %w", commandContext.Err())
+			errorValue = fmt.Errorf("ssh command timed out after %s: %w", timeout, commandContext.Err())
 			output = append(output, []byte("\nssh command timed out")...)
 		}
 		cancel()
@@ -3886,13 +3890,13 @@ func runCommandWithLiveOutput(command *exec.Cmd) (string, error) {
 func (s *sshClient) scpDirect(localPath, remotePath string) error {
 	target := fmt.Sprintf("%s@%s:%s", s.user, s.host, remotePath)
 	if s.pass != "" {
-		output, err := runSSHCommandWithRetry(s.sshpassBin, append([]string{"-p", s.pass, "scp"}, s.scpArgs(localPath, target)...))
+		output, err := runSSHCommandWithRetry(s.sshpassBin, append([]string{"-p", s.pass, "scp"}, s.scpArgs(localPath, target)...), 60*time.Second)
 		if err != nil {
 			return fmt.Errorf("scp %s to %s failed: %s: %w", localPath, remotePath, strings.TrimSpace(output), err)
 		}
 		return nil
 	}
-	output, err := runSSHCommandWithRetry("scp", s.scpArgs(localPath, target))
+	output, err := runSSHCommandWithRetry("scp", s.scpArgs(localPath, target), 60*time.Second)
 	if err != nil {
 		return fmt.Errorf("scp %s to %s failed: %s: %w", localPath, remotePath, strings.TrimSpace(output), err)
 	}
@@ -3966,13 +3970,13 @@ func (s *sshClient) runTarToRemote(localDir string, remoteCommand string) (strin
 func (s *sshClient) scpDirDirect(localDir, remoteDir string) error {
 	target := fmt.Sprintf("%s@%s:%s", s.user, s.host, remoteDir)
 	if s.pass != "" {
-		output, err := runSSHCommandWithRetry(s.sshpassBin, append([]string{"-p", s.pass, "scp", "-r"}, s.scpArgs(localDir+"/.", target)...))
+		output, err := runSSHCommandWithRetry(s.sshpassBin, append([]string{"-p", s.pass, "scp", "-r"}, s.scpArgs(localDir+"/.", target)...), 60*time.Second)
 		if err != nil {
 			return fmt.Errorf("scp directory %s to %s failed: %s: %w", localDir, remoteDir, strings.TrimSpace(output), err)
 		}
 		return nil
 	}
-	output, err := runSSHCommandWithRetry("scp", append([]string{"-r"}, s.scpArgs(localDir+"/.", target)...))
+	output, err := runSSHCommandWithRetry("scp", append([]string{"-r"}, s.scpArgs(localDir+"/.", target)...), 60*time.Second)
 	if err != nil {
 		return fmt.Errorf("scp directory %s to %s failed: %s: %w", localDir, remoteDir, strings.TrimSpace(output), err)
 	}
