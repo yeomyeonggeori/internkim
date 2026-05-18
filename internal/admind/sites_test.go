@@ -49,8 +49,8 @@ func TestSiteGatewayLifecycle(t *testing.T) {
 	if site.WorkspacePath == "" || site.HostSourcePath == "" || site.LastPublishedCommit == "" {
 		t.Fatalf("site workspace metadata missing: %+v", site)
 	}
-	if !strings.Contains(site.SourceWorkspacePath, "/workspace/circles/staff/sites/") {
-		t.Fatalf("site source workspace should be circle scoped, got %q", site.SourceWorkspacePath)
+	if !strings.HasPrefix(site.SourceWorkspacePath, "home/sites/") {
+		t.Fatalf("site source workspace should be requester-private virtual path, got %q", site.SourceWorkspacePath)
 	}
 
 	response := serveSiteRequest(service, "demo.device.example.test", "/")
@@ -128,8 +128,8 @@ func TestSitePrototypePublishesDefaultBuild(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !strings.Contains(site.SourceWorkspacePath, "/workspace/circles/staff/sites/") {
-		t.Fatalf("site source workspace should be editable by staff circle, got %q", site.SourceWorkspacePath)
+	if !strings.HasPrefix(site.SourceWorkspacePath, "home/sites/") {
+		t.Fatalf("site source workspace should be requester-private virtual path, got %q", site.SourceWorkspacePath)
 	}
 	if _, statError := os.Stat(filepath.Join(site.HostSourcePath, "DESIGN.md")); !os.IsNotExist(statError) {
 		t.Fatalf("site create should not materialize editable source in admind cache: %v", statError)
@@ -259,8 +259,8 @@ func TestSiteWorkspaceIsWritableByRequesterTerminal(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !strings.HasPrefix(site.SourceWorkspacePath, "/workspace/circles/staff/sites/") {
-		t.Fatalf("expected staff circle source workspace, got %q", site.SourceWorkspacePath)
+	if !strings.HasPrefix(site.SourceWorkspacePath, "home/sites/") {
+		t.Fatalf("expected requester-private virtual source workspace, got %q", site.SourceWorkspacePath)
 	}
 	if site.WorkspacePath != site.SourceWorkspacePath {
 		t.Fatalf("workspace path should point at source workspace: %+v", site)

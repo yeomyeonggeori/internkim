@@ -34,8 +34,9 @@ screenshots, or when `web.fetch` is unavailable or insufficient:
 ## Terminal And File Permissions
 
 Blueclaw workspace access is enforced by Linux user/group/POSIX permissions.
-Treat OS permission errors as policy denials. Parent directories such as
-`/workspace/private`, `/workspace/private/people`, and `/workspace/circles` may allow path traversal without directory listing so authorized child paths work while leaf directories enforce privacy and membership.
+Treat OS permission errors as policy denials. Some parent directories allow
+path traversal without directory listing so authorized child paths work while
+leaf directories enforce privacy and membership.
 
 - Raw terminal commands, sessions, user-authored tools, dependency installers,
   and package lifecycle scripts run as the requester or task actor's
@@ -50,8 +51,9 @@ Treat OS permission errors as policy denials. Parent directories such as
 
 Allowed workspace paths for raw terminal and file tools:
 
-- `/workspace/private/people/<yourPersonID>`: private workspace root. Other
-  people cannot access it.
+- `home/<path>`: requester-private durable source workspace. Use this for
+  editable site/app source or other private work that should survive beyond the
+  task tmp cleanup window.
 - `tmp/<artifact-slug>`: normal draft path, relative to the default writable
   directory. Use it for generated specs, scripts, fallback environments, and
   intermediate files.
@@ -68,6 +70,9 @@ Allowed workspace paths for raw terminal and file tools:
 Denied or internal paths:
 
 - `/workspace/.blueclaw/*`: service-owned internals.
+- Concrete private POSIX paths for people. Use `home/<path>`,
+  `tmp/<artifact-slug>`, or `artifacts/<artifact-slug>` instead of spelling out
+  the underlying directory path.
 - `/opt/*`, `/usr/*`, `/etc/*`, `/root/*`, `/var/*`, and `/tmp/*`: runtime or
   system paths. Do not use them as direct command paths or artifact locations.
 - Other people's private directories and circle directories where the requester
@@ -75,8 +80,9 @@ Denied or internal paths:
 
 Tool path fields such as `file.write.path`, `file.promote.path`, and
 `terminal.run.workingDirectoryPath` should use virtual workspace paths like
-`tmp/<slug>` and `artifacts/<slug>`, not shell variable references. Do not use
-Blueclaw internal temporary paths for user-facing artifact work.
+`home/<slug>`, `tmp/<slug>`, and `artifacts/<slug>`, not shell variable
+references or concrete POSIX paths. Do not use Blueclaw internal temporary paths
+for user-facing artifact work.
 
 Treat a skill directory as the executable unit. Run bundled Python scripts
 through the skill's `scripts/skill_runtime.py` wrapper; that wrapper selects the

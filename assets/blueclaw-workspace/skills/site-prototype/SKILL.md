@@ -36,7 +36,7 @@ Create prototypes for non-developers to validate ideas quickly. Do not present t
 - Use PocketBase for local prototype data, auth, files, realtime, and migrations.
 - Do not use Next.js, SvelteKit, arbitrary Node servers, cloud databases, hosted backends, or paid APIs for v1 prototypes.
 - `site.app.create` reserves an editable source workspace, not a finished website.
-- Use the returned `sourceWorkspacePath` as the canonical workspace path for all follow-up source writes.
+- Use the returned `sourceWorkspacePath` exactly as the canonical virtual workspace path for all follow-up source writes. Do not rewrite it into a concrete private POSIX path.
 
 ## Workflow
 
@@ -47,7 +47,7 @@ For create, make, build, deploy, publish, prototype, demo, landing page, dashboa
 3. After `site.app.create` succeeds, call `site.app.status` for the same `siteID` and use `sourceWorkspacePath`.
 4. Write `DESIGN.md` into the site workspace before writing app source.
 5. Use `file.write` to create missing `app/package.json`, `app/index.html`, `app/src/main.tsx`, `app/src/App.tsx`, and CSS files, or update the existing source, according to `DESIGN.md`. Do not create app source with shell heredocs, `echo`, or inline `cat` in `terminal.run`.
-6. Run `bun install && bun run build` with `terminal.run.workingDirectoryPath` set to `<sourceWorkspacePath>/app`; inside the command, use relative paths only.
+6. Run `bun install && bun run build` with `terminal.run.workingDirectoryPath` set to `<sourceWorkspacePath>/app`; inside the command, use relative paths only. The `sourceWorkspacePath` should normally look like `home/sites/<siteID>`, not an absolute private path.
 7. Call `site.app.publish` with `siteID` and a concise `message`.
 8. Call `site.app.status` for the same `siteID` and confirm the status is `published`.
 9. Reply in Mattermost with the public URL, a short change summary, how to try the main workflow, and any test login credentials.
