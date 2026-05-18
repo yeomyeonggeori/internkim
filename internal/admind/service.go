@@ -244,6 +244,7 @@ func NewService(configuration Configuration) *Service {
 func (service *Service) Run(ctx context.Context) error {
 	service.startCompanionFileCleanup(ctx)
 	service.startMattermostProvisionerSync(ctx)
+	service.startMattermostCircleSync(ctx)
 	service.startCalendarNotificationWorker(ctx)
 	server := &http.Server{
 		Addr:    service.Configuration.ListenAddress,
@@ -260,6 +261,33 @@ func (service *Service) Run(ctx context.Context) error {
 		return errorValue
 	}
 	return nil
+}
+
+func (service *Service) startMattermostCircleSync(ctx context.Context) {
+	if strings.TrimSpace(readTrimmedFile(service.Configuration.MattermostAdminPasswordPath)) == "" {
+		return
+	}
+	go func() {
+		service.syncMattermostCirclesWithTimeout(ctx)
+		ticker := time.NewTicker(2 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				service.syncMattermostCirclesWithTimeout(ctx)
+			}
+		}
+	}()
+}
+
+func (service *Service) syncMattermostCirclesWithTimeout(ctx context.Context) {
+	syncContext, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	if errorValue := service.syncMattermostCirclesBestEffort(syncContext); errorValue != nil {
+		log.Printf("Mattermost circle policy sync failed: %v", errorValue)
+	}
 }
 
 func (service *Service) startMattermostProvisionerSync(ctx context.Context) {
@@ -481,6 +509,10 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.proxyUsers(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/users":
 		service.proxyUsers(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/circles":
+		service.saveBlueclawCircle(responseWriter, request)
+	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/circles/"):
+		service.deleteBlueclawCircle(responseWriter, request, strings.TrimPrefix(path, "/circles/"))
 	case request.Method == http.MethodPost && strings.HasPrefix(path, "/users/") && strings.HasSuffix(path, "/password-reset"):
 		service.resetUserPassword(responseWriter, request, strings.TrimSuffix(strings.TrimPrefix(path, "/users/"), "/password-reset"))
 	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/users/"):
@@ -631,12 +663,17 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	var temporaryPassword string
 	var temporaryPasswordEmail string
 	var upsertedName string
+	var upsertedRole string
+	var upsertedCircles []string
+	var upsertedMattermostUserID string
+	var hasExplicitCircleMutation bool
 	if request.Method == http.MethodPost {
 		var payload adminUserMutation
 		if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 			http.Error(responseWriter, "invalid request body", http.StatusBadRequest)
 			return
 		}
+		hasExplicitCircleMutation = payload.Circles != nil
 		payload.Email = strings.ToLower(strings.TrimSpace(payload.Email))
 		if payload.Email == "" {
 			http.Error(responseWriter, "email required", http.StatusBadRequest)
@@ -665,6 +702,9 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 				}
 			}
 		}
+		payload.Circles = normalizeAdminUserCircles(payload.Circles, payload.Role)
+		upsertedRole = payload.Role
+		upsertedCircles = append([]string{}, payload.Circles...)
 		isLastAdminDemotion, errorValue := service.isLastAdminDemotion(request.Context(), fleetID, fleetSecret, payload.Email, payload.Role)
 		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
@@ -683,6 +723,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		payload.MattermostUsername = provisionResult.Username
 		payload.Handle = provisionResult.Username
 		payload.Status = provisionResult.Status
+		upsertedMattermostUserID = payload.MattermostUserID
 		temporaryPassword = provisionResult.TemporaryPassword
 		temporaryPasswordEmail = payload.Email
 		proxyPayload := map[string]any{
@@ -740,9 +781,26 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	}
 	if response.StatusCode >= 200 && response.StatusCode < 300 {
 		if upsertedEmail != "" {
-			if errorValue := service.inviteBlueclawPerson(request.Context(), upsertedEmail, upsertedName); errorValue != nil {
+			var errorValue error
+			if hasExplicitCircleMutation {
+				errorValue = service.upsertBlueclawPerson(request.Context(), upsertedEmail, upsertedName, upsertedRole, upsertedCircles)
+			} else {
+				errorValue = service.inviteBlueclawPerson(request.Context(), upsertedEmail, upsertedName)
+			}
+			if errorValue != nil {
 				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 				return
+			}
+			if hasExplicitCircleMutation {
+				if errorValue := service.syncMattermostUserCircleMemberships(request.Context(), adminUserMutation{
+					Email:            upsertedEmail,
+					Name:             upsertedName,
+					Role:             upsertedRole,
+					Circles:          upsertedCircles,
+					MattermostUserID: upsertedMattermostUserID,
+				}); errorValue != nil {
+					log.Printf("Mattermost circle membership sync failed: %v", errorValue)
+				}
 			}
 			service.triggerUsersSync(request.Context())
 		}
@@ -753,8 +811,22 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			}
 			service.triggerUsersSync(request.Context())
 		}
+		if request.Method == http.MethodPost && shouldIncludeBlueclawPolicy(request) {
+			if enhancedBody, errorValue := service.withBlueclawCircles(request.Context(), responseBody); errorValue == nil {
+				responseBody = enhancedBody
+			} else {
+				log.Printf("Blueclaw circle merge failed: %v", errorValue)
+			}
+		}
 	}
 	if request.Method == http.MethodGet && response.StatusCode >= 200 && response.StatusCode < 300 {
+		if shouldIncludeBlueclawPolicy(request) {
+			if enhancedBody, errorValue := service.withBlueclawCircles(request.Context(), responseBody); errorValue == nil {
+				responseBody = enhancedBody
+			} else {
+				log.Printf("Blueclaw circle merge failed: %v", errorValue)
+			}
+		}
 		var usersResponse pagesUsersResponse
 		if errorValue := json.Unmarshal(responseBody, &usersResponse); errorValue == nil && len(usersResponse.Records) > 0 {
 			if errorValue := service.ensureMattermostBotDirectChannelsForRecords(request.Context(), usersResponse.Records); errorValue != nil {
@@ -773,8 +845,200 @@ func normalizeAdminUserRole(role string) string {
 	return "member"
 }
 
+func shouldIncludeBlueclawPolicy(request *http.Request) bool {
+	return request.URL.Query().Get("includePolicy") == "true"
+}
+
 type pagesUsersResponse struct {
-	Records []adminUserMutation `json:"records"`
+	Records          []adminUserMutation `json:"records"`
+	AvailableCircles []adminCircleRecord `json:"availableCircles,omitempty"`
+}
+
+func (service *Service) saveBlueclawCircle(responseWriter http.ResponseWriter, request *http.Request) {
+	var input adminCircleRecord
+	if errorValue := json.NewDecoder(request.Body).Decode(&input); errorValue != nil {
+		http.Error(responseWriter, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	circleID := strings.ToLower(strings.TrimSpace(input.CircleID))
+	if circleID == "" {
+		http.Error(responseWriter, "circleID required", http.StatusBadRequest)
+		return
+	}
+	if circleID == "staff" {
+		http.Error(responseWriter, "staff circle is built in", http.StatusBadRequest)
+		return
+	}
+	var policyDocument map[string]any
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	policyDocument["circles"] = upsertBlueclawCircle(policyDocument["circles"], adminCircleRecord{
+		CircleID:            circleID,
+		DisplayName:         firstNonEmpty(strings.TrimSpace(input.DisplayName), circleID),
+		IsMattermostManaged: input.IsMattermostManaged,
+	})
+	policyDocument["circleSync"] = upsertBlueclawCircleSync(policyDocument["circleSync"], circleID, input.IsMattermostManaged)
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodPost, "/admin/api/policy/save", policyDocument, nil); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	service.writeJSON(responseWriter, map[string]any{"availableCircles": blueclawAvailableCircles(policyDocument)})
+}
+
+func (service *Service) deleteBlueclawCircle(responseWriter http.ResponseWriter, request *http.Request, encodedCircleID string) {
+	circleID, _ := url.PathUnescape(encodedCircleID)
+	circleID = strings.ToLower(strings.TrimSpace(circleID))
+	if circleID == "" {
+		http.Error(responseWriter, "circleID required", http.StatusBadRequest)
+		return
+	}
+	if circleID == "staff" {
+		http.Error(responseWriter, "staff circle cannot be removed", http.StatusBadRequest)
+		return
+	}
+	var policyDocument map[string]any
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	policyDocument["circles"] = removeBlueclawCircle(policyDocument["circles"], circleID)
+	policyDocument["circleSync"] = removeBlueclawCircleSync(policyDocument["circleSync"], circleID)
+	removeCircleFromBlueclawPeople(policyDocument["people"], circleID)
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodPost, "/admin/api/policy/save", policyDocument, nil); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	service.writeJSON(responseWriter, map[string]any{"availableCircles": blueclawAvailableCircles(policyDocument)})
+}
+
+func normalizeAdminUserCircles(circles []string, role string) []string {
+	normalizedCircles := []string{"staff"}
+	if normalizeAdminUserRole(role) == "admin" {
+		normalizedCircles = append(normalizedCircles, "admin")
+	}
+	for _, circle := range circles {
+		normalizedCircle := strings.ToLower(strings.TrimSpace(circle))
+		if normalizedCircle == "" || normalizedCircle == "staff" {
+			continue
+		}
+		normalizedCircles = append(normalizedCircles, normalizedCircle)
+	}
+	return uniqueAdminStrings(normalizedCircles)
+}
+
+func uniqueAdminStrings(values []string) []string {
+	seenValue := map[string]bool{}
+	result := []string{}
+	for _, value := range values {
+		normalizedValue := strings.ToLower(strings.TrimSpace(value))
+		if normalizedValue == "" || seenValue[normalizedValue] {
+			continue
+		}
+		seenValue[normalizedValue] = true
+		result = append(result, normalizedValue)
+	}
+	return result
+}
+
+func upsertBlueclawCircle(value any, circle adminCircleRecord) []any {
+	circleValues, _ := value.([]any)
+	result := make([]any, 0, len(circleValues)+1)
+	isUpdated := false
+	for _, item := range circleValues {
+		existingCircle, isCircle := item.(map[string]any)
+		if !isCircle {
+			continue
+		}
+		if strings.ToLower(strings.TrimSpace(mattermostPolicyString(existingCircle["circleID"]))) == circle.CircleID {
+			existingCircle["displayName"] = circle.DisplayName
+			existingCircle["isMattermostManaged"] = circle.IsMattermostManaged
+			existingCircle["workspaceDirectoryPath"] = "/workspace/circles/" + circle.CircleID
+			isUpdated = true
+		}
+		result = append(result, existingCircle)
+	}
+	if !isUpdated {
+		result = append(result, map[string]any{
+			"circleID":               circle.CircleID,
+			"displayName":            circle.DisplayName,
+			"isMattermostManaged":    circle.IsMattermostManaged,
+			"workspaceDirectoryPath": "/workspace/circles/" + circle.CircleID,
+		})
+	}
+	return result
+}
+
+func removeBlueclawCircle(value any, circleID string) []any {
+	circleValues, _ := value.([]any)
+	result := []any{}
+	for _, item := range circleValues {
+		circle, isCircle := item.(map[string]any)
+		if !isCircle || strings.ToLower(strings.TrimSpace(mattermostPolicyString(circle["circleID"]))) == circleID {
+			continue
+		}
+		result = append(result, circle)
+	}
+	return result
+}
+
+func upsertBlueclawCircleSync(value any, circleID string, isMattermostManaged bool) map[string]any {
+	circleSync, _ := value.(map[string]any)
+	if circleSync == nil {
+		circleSync = map[string]any{}
+	}
+	if !isMattermostManaged {
+		circleSync["mattermostPrivateChannels"] = removeMattermostCircleSync(circleSync["mattermostPrivateChannels"], circleID)
+		return circleSync
+	}
+	channelValues := removeMattermostCircleSync(circleSync["mattermostPrivateChannels"], circleID)
+	channelValues = append(channelValues, map[string]any{"circleID": circleID, "channelName": "circle-" + circleID})
+	circleSync["mattermostPrivateChannels"] = channelValues
+	return circleSync
+}
+
+func removeBlueclawCircleSync(value any, circleID string) map[string]any {
+	circleSync, _ := value.(map[string]any)
+	if circleSync == nil {
+		return map[string]any{}
+	}
+	circleSync["mattermostPrivateChannels"] = removeMattermostCircleSync(circleSync["mattermostPrivateChannels"], circleID)
+	return circleSync
+}
+
+func removeMattermostCircleSync(value any, circleID string) []any {
+	channelValues, _ := value.([]any)
+	result := []any{}
+	for _, item := range channelValues {
+		channel, isChannel := item.(map[string]any)
+		if !isChannel || strings.ToLower(strings.TrimSpace(mattermostPolicyString(channel["circleID"]))) == circleID {
+			continue
+		}
+		result = append(result, channel)
+	}
+	return result
+}
+
+func removeCircleFromBlueclawPeople(value any, circleID string) {
+	people, _ := value.([]any)
+	for _, item := range people {
+		person, isPerson := item.(map[string]any)
+		if !isPerson {
+			continue
+		}
+		person["circles"] = removeAdminString(policyStringList(person["circles"]), circleID)
+	}
+}
+
+func removeAdminString(values []string, removedValue string) []string {
+	result := []string{}
+	for _, value := range values {
+		if strings.ToLower(strings.TrimSpace(value)) != removedValue {
+			result = append(result, value)
+		}
+	}
+	return result
 }
 
 func (service *Service) lookupRemovableUser(ctx context.Context, fleetID string, fleetSecret string, targetPath string) (*adminUserMutation, error) {
@@ -1597,6 +1861,144 @@ func (service *Service) inviteBlueclawPerson(ctx context.Context, email string, 
 		body["displayName"] = strings.TrimSpace(name)
 	}
 	return service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/people/invite", body, nil)
+}
+
+func (service *Service) upsertBlueclawPerson(ctx context.Context, email string, name string, role string, circles []string) error {
+	if errorValue := service.inviteBlueclawPerson(ctx, email, name); errorValue != nil {
+		return errorValue
+	}
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+	return service.updateBlueclawPersonCircles(ctx, normalizedEmail, name, role, circles)
+}
+
+func (service *Service) updateBlueclawPersonCircles(ctx context.Context, email string, name string, role string, circles []string) error {
+	var policyDocument map[string]any
+	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
+		return errorValue
+	}
+	people, _ := policyDocument["people"].([]any)
+	for _, value := range people {
+		person, isPerson := value.(map[string]any)
+		if !isPerson || !blueclawPersonHasEmail(person, email) {
+			continue
+		}
+		person["circles"] = normalizeAdminUserCircles(circles, role)
+		if strings.TrimSpace(name) != "" {
+			person["displayName"] = strings.TrimSpace(name)
+		}
+		if normalizeAdminUserRole(role) == "admin" {
+			person["isAdmin"] = true
+			person["securityLevelName"] = "admin"
+			person["securityLevelRank"] = 100
+			person["grantedClasses"] = []string{"internal", "executive"}
+		} else {
+			person["isAdmin"] = false
+			if strings.TrimSpace(mattermostPolicyString(person["securityLevelName"])) == "" || mattermostPolicyString(person["securityLevelName"]) == "admin" {
+				person["securityLevelName"] = "member"
+			}
+			if rank, _ := person["securityLevelRank"].(float64); rank == 0 || rank == 100 {
+				person["securityLevelRank"] = 10
+			}
+			person["grantedClasses"] = []string{"internal"}
+		}
+		break
+	}
+	return service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/policy/save", policyDocument, nil)
+}
+
+func blueclawPersonHasEmail(person map[string]any, email string) bool {
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+	emailValues, _ := person["emails"].([]any)
+	for _, value := range emailValues {
+		candidate, isString := value.(string)
+		if isString && strings.ToLower(strings.TrimSpace(candidate)) == normalizedEmail {
+			return true
+		}
+	}
+	return false
+}
+
+func (service *Service) withBlueclawCircles(ctx context.Context, responseBody []byte) ([]byte, error) {
+	var usersResponse pagesUsersResponse
+	if errorValue := json.Unmarshal(responseBody, &usersResponse); errorValue != nil {
+		return nil, errorValue
+	}
+	var policyDocument map[string]any
+	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
+		return nil, errorValue
+	}
+	usersResponse.AvailableCircles = blueclawAvailableCircles(policyDocument)
+	circlesByEmail := blueclawCirclesByEmail(policyDocument)
+	for index := range usersResponse.Records {
+		email := strings.ToLower(strings.TrimSpace(usersResponse.Records[index].Email))
+		usersResponse.Records[index].Circles = normalizeAdminUserCircles(circlesByEmail[email], usersResponse.Records[index].Role)
+	}
+	return json.Marshal(usersResponse)
+}
+
+func blueclawAvailableCircles(policyDocument map[string]any) []adminCircleRecord {
+	circleValues, _ := policyDocument["circles"].([]any)
+	circles := []adminCircleRecord{}
+	for _, value := range circleValues {
+		circle, isCircle := value.(map[string]any)
+		if !isCircle {
+			continue
+		}
+		circleID := strings.ToLower(strings.TrimSpace(mattermostPolicyString(circle["circleID"])))
+		if circleID == "" {
+			continue
+		}
+		displayName := strings.TrimSpace(mattermostPolicyString(circle["displayName"]))
+		if displayName == "" {
+			displayName = circleID
+		}
+		isMattermostManaged, _ := circle["isMattermostManaged"].(bool)
+		circles = append(circles, adminCircleRecord{CircleID: circleID, DisplayName: displayName, IsMattermostManaged: isMattermostManaged})
+	}
+	if len(circles) == 0 {
+		return []adminCircleRecord{{CircleID: "staff", DisplayName: "Staff"}}
+	}
+	return circles
+}
+
+func blueclawCirclesByEmail(policyDocument map[string]any) map[string][]string {
+	people, _ := policyDocument["people"].([]any)
+	circlesByEmail := map[string][]string{}
+	for _, value := range people {
+		person, isPerson := value.(map[string]any)
+		if !isPerson {
+			continue
+		}
+		circles := policyStringList(person["circles"])
+		emailValues, _ := person["emails"].([]any)
+		for _, emailValue := range emailValues {
+			email, isString := emailValue.(string)
+			if isString {
+				circlesByEmail[strings.ToLower(strings.TrimSpace(email))] = circles
+			}
+		}
+	}
+	return circlesByEmail
+}
+
+func policyStringList(value any) []string {
+	values, _ := value.([]any)
+	result := []string{}
+	for _, item := range values {
+		stringValue, isString := item.(string)
+		if isString {
+			result = append(result, stringValue)
+		}
+	}
+	return result
+}
+
+func (service *Service) syncMattermostCirclesBestEffort(ctx context.Context) error {
+	token, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	return service.syncMattermostCircleMemberships(ctx, token)
 }
 
 func (service *Service) removeBlueclawPerson(ctx context.Context, email string) error {

@@ -39,15 +39,23 @@
 		email: string;
 		hireDate?: string;
 		role: UserRole;
+		circles?: string[];
 		mattermostUserID?: string;
 		mattermostUsername?: string;
 		status?: string;
 		isIncomplete?: boolean;
 	};
 
+	type CircleRecord = {
+		circleID: string;
+		displayName: string;
+		isMattermostManaged?: boolean;
+	};
+
 	type UsersResponse = {
 		users?: string[];
 		records?: UserRecord[];
+		availableCircles?: CircleRecord[];
 		temporaryPassword?: string;
 		temporaryPasswordEmail?: string;
 	};
@@ -168,11 +176,15 @@
 
 	let fleetIdInput = $state('');
 	let userRecords = $state<UserRecord[]>([]);
+	let availableCircles = $state<CircleRecord[]>([{ circleID: 'staff', displayName: 'Staff' }]);
 	let newHandle = $state('');
 	let newName = $state('');
 	let newEmail = $state('');
 	let newHireDate = $state('');
 	let newUserRole = $state<UserRole>('member');
+	let newCircleID = $state('');
+	let newCircleName = $state('');
+	let newCircleMattermostManaged = $state(true);
 	let temporaryPasswordResult = $state<{ email: string; password: string } | null>(null);
 	let isLoadingUsers = $state(false);
 	let isSavingUser = $state(false);
@@ -288,6 +300,7 @@
 		{ value: 'member', label: text.users.member },
 		{ value: 'admin', label: text.users.admin }
 	];
+	const visibleCircles = () => availableCircles.filter((circle) => circle.circleID !== 'admin');
 	const workspaceLanguageOptions = (): { value: WorkspaceLanguage; label: string }[] => [
 		{ value: 'ko', label: text.settings.workspaceLanguageKorean },
 		{ value: 'en', label: text.settings.workspaceLanguageEnglish }
@@ -640,7 +653,7 @@
 		isLoadingUsers = true;
 		errorMessage = '';
 		try {
-			const response = await fetch(`${usersBaseURL()}/users`, { credentials: 'include' });
+			const response = await fetch(`${usersBaseURL()}/users?includePolicy=true`, { credentials: 'include' });
 			if (!response.ok) {
 				errorMessage =
 					response.status === 403
@@ -658,15 +671,22 @@
 	}
 
 	function applyUsersResponse(data: UsersResponse) {
+		availableCircles = data.availableCircles?.length ? data.availableCircles : [{ circleID: 'staff', displayName: 'Staff' }];
 		if (data.records) {
-			userRecords = data.records.map((record) => ({ ...record, name: record.name ?? '', hireDate: record.hireDate ?? '' }));
+			userRecords = data.records.map((record) => ({
+				...record,
+				name: record.name ?? '',
+				hireDate: record.hireDate ?? '',
+				circles: normalizeUserCircles(record.circles, record.role)
+			}));
 		} else {
 			userRecords = (data.users ?? []).map((email, index) => ({
 				userID: `legacy-${index}`,
 				handle: email.split('@')[0]?.toLowerCase() ?? '',
 				email,
 				hireDate: '',
-				role: index === 0 ? 'admin' : 'member'
+				role: index === 0 ? 'admin' : 'member',
+				circles: index === 0 ? ['staff', 'admin'] : ['staff']
 			}));
 		}
 		if (data.temporaryPassword && data.temporaryPasswordEmail) {
@@ -674,6 +694,75 @@
 				email: data.temporaryPasswordEmail,
 				password: data.temporaryPassword
 			};
+		}
+	}
+
+	function normalizeUserCircles(circles: string[] | undefined, role: UserRole) {
+		const result = new Set(['staff', ...(circles ?? []).map((circle) => circle.trim().toLowerCase()).filter(Boolean)]);
+		if (role === 'admin') result.add('admin');
+		return [...result];
+	}
+
+	function hasUserCircle(record: UserRecord, circleID: string) {
+		return normalizeUserCircles(record.circles, record.role).includes(circleID);
+	}
+
+	function toggleUserCircle(record: UserRecord, circleID: string) {
+		if (circleID === 'staff') return;
+		const current = new Set(normalizeUserCircles(record.circles, record.role));
+		if (current.has(circleID)) current.delete(circleID);
+		else current.add(circleID);
+		record.circles = normalizeUserCircles([...current], record.role);
+	}
+
+	async function saveCircle() {
+		if (!adminBaseURL() || !newCircleID.trim()) return;
+		isSavingUser = true;
+		errorMessage = '';
+		try {
+			const response = await fetch(`${adminBaseURL()}/circles`, {
+				method: 'POST',
+				credentials: 'include',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					circleID: newCircleID.trim().toLowerCase(),
+					displayName: newCircleName.trim() || newCircleID.trim(),
+					isMattermostManaged: newCircleMattermostManaged
+				})
+			});
+			if (!response.ok) {
+				errorMessage = (await response.text()).trim() || text.messages.userSaveError;
+				return;
+			}
+			newCircleID = '';
+			newCircleName = '';
+			newCircleMattermostManaged = true;
+			await loadUsers();
+		} catch {
+			errorMessage = text.messages.userSaveError;
+		} finally {
+			isSavingUser = false;
+		}
+	}
+
+	async function deleteCircle(circleID: string) {
+		if (!adminBaseURL() || circleID === 'staff') return;
+		isSavingUser = true;
+		errorMessage = '';
+		try {
+			const response = await fetch(`${adminBaseURL()}/circles/${encodeURIComponent(circleID)}`, {
+				method: 'DELETE',
+				credentials: 'include'
+			});
+			if (!response.ok) {
+				errorMessage = (await response.text()).trim() || text.messages.userRemoveError;
+				return;
+			}
+			await loadUsers();
+		} catch {
+			errorMessage = text.messages.userRemoveError;
+		} finally {
+			isSavingUser = false;
 		}
 	}
 
@@ -687,7 +776,7 @@
 		errorMessage = '';
 		temporaryPasswordResult = null;
 		try {
-			const response = await fetch(`${usersBaseURL()}/users`, {
+			const response = await fetch(`${usersBaseURL()}/users?includePolicy=true`, {
 				method: 'POST',
 				credentials: 'include',
 				headers: { 'Content-Type': 'application/json' },
@@ -722,7 +811,7 @@
 		errorMessage = '';
 		temporaryPasswordResult = null;
 		try {
-			const response = await fetch(`${usersBaseURL()}/users`, {
+			const response = await fetch(`${usersBaseURL()}/users?includePolicy=true`, {
 				method: 'POST',
 				credentials: 'include',
 				headers: { 'Content-Type': 'application/json' },
@@ -733,6 +822,7 @@
 					hireDate: record.hireDate ?? '',
 					email: record.email,
 					role,
+					circles: normalizeUserCircles(record.circles, role),
 					mattermostUserID: record.mattermostUserID,
 					mattermostUsername: record.mattermostUsername,
 					status: record.status
@@ -758,7 +848,7 @@
 		errorMessage = '';
 		temporaryPasswordResult = null;
 		try {
-			const response = await fetch(`${usersBaseURL()}/users/${encodeURIComponent(email)}`, {
+			const response = await fetch(`${usersBaseURL()}/users/${encodeURIComponent(email)}?includePolicy=true`, {
 				method: 'DELETE',
 				credentials: 'include'
 			});
@@ -1629,6 +1719,48 @@
 					{text.users.passwordNotice}
 				</p>
 
+				<Card.Root>
+					<Card.Header class="gap-1">
+						<Card.Title class="text-sm">{text.users.groupTitle}</Card.Title>
+						<Card.Description>{text.users.groupDescription}</Card.Description>
+					</Card.Header>
+					<Card.Content>
+						<form
+							class="grid gap-3 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-end"
+							onsubmit={(event) => {
+								event.preventDefault();
+								saveCircle();
+							}}
+						>
+							<label class="grid gap-1.5">
+								<Label>{text.users.groupID}</Label>
+								<Input bind:value={newCircleID} placeholder="c-level" autocomplete="off" />
+							</label>
+							<label class="grid gap-1.5">
+								<Label>{text.users.groupName}</Label>
+								<Input bind:value={newCircleName} placeholder="C-Level" autocomplete="off" />
+							</label>
+							<label class="flex items-center gap-2 text-sm">
+								<input type="checkbox" bind:checked={newCircleMattermostManaged} />
+								{text.users.mattermostManaged}
+							</label>
+							<Button type="submit" disabled={isSavingUser || !newCircleID.trim()}>{text.users.addGroup}</Button>
+						</form>
+						<div class="mt-3 flex flex-wrap gap-2">
+							{#each availableCircles as circle (circle.circleID)}
+								<Badge variant="outline" class="gap-2">
+									{circle.displayName || circle.circleID}
+									{#if circle.circleID !== 'staff'}
+										<button type="button" class="text-muted-foreground hover:text-destructive" onclick={() => deleteCircle(circle.circleID)}>
+											<XIcon class="size-3" />
+										</button>
+									{/if}
+								</Badge>
+							{/each}
+						</div>
+					</Card.Content>
+				</Card.Root>
+
 				{#if temporaryPasswordResult}
 					<div class="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
 						<div class="flex flex-wrap items-start justify-between gap-3">
@@ -1661,7 +1793,7 @@
 						</Card.Header>
 						<Card.Content class="p-0">
 							<div class="hidden overflow-x-auto lg:block">
-								<Table.Root class="min-w-[1120px]">
+								<Table.Root class="min-w-[1260px]">
 									<Table.Header class="bg-muted/40">
 										<Table.Row class="hover:bg-transparent">
 											<Table.Head class="w-[250px]">{text.users.person}</Table.Head>
@@ -1669,6 +1801,7 @@
 											<Table.Head class="w-[180px]">{text.users.realName}</Table.Head>
 											<Table.Head class="w-[150px]">{text.users.hireDate}</Table.Head>
 											<Table.Head class="w-[110px]">{text.users.role}</Table.Head>
+											<Table.Head class="w-[220px]">{text.users.groups}</Table.Head>
 											<Table.Head class="text-right">{text.users.actions}</Table.Head>
 										</Table.Row>
 									</Table.Header>
@@ -1700,6 +1833,22 @@
 												</Table.Cell>
 												<Table.Cell>
 													<Badge variant={record.role === 'admin' ? 'secondary' : 'outline'}>{record.role}</Badge>
+												</Table.Cell>
+												<Table.Cell>
+													<div class="flex flex-wrap gap-1.5">
+														{#each visibleCircles() as circle (circle.circleID)}
+															<Button
+																type="button"
+																variant={hasUserCircle(record, circle.circleID) ? 'secondary' : 'outline'}
+																size="sm"
+																disabled={circle.circleID === 'staff' || isSavingUser}
+																onclick={() => toggleUserCircle(record, circle.circleID)}
+																title={circle.isMattermostManaged ? text.users.mattermostManaged : ''}
+															>
+																{circle.displayName || circle.circleID}
+															</Button>
+														{/each}
+													</div>
 												</Table.Cell>
 												<Table.Cell>
 													{@render UserActions(record, 'desktop')}
@@ -1738,6 +1887,19 @@
 												<Label>{text.users.hireDate}</Label>
 												<Input bind:value={record.hireDate} type="date" />
 											</label>
+										</div>
+										<div class="flex flex-wrap gap-1.5">
+											{#each visibleCircles() as circle (circle.circleID)}
+												<Button
+													type="button"
+													variant={hasUserCircle(record, circle.circleID) ? 'secondary' : 'outline'}
+													size="sm"
+													disabled={circle.circleID === 'staff' || isSavingUser}
+													onclick={() => toggleUserCircle(record, circle.circleID)}
+												>
+													{circle.displayName || circle.circleID}
+												</Button>
+											{/each}
 										</div>
 										{#if record.isIncomplete}
 											<p class="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{text.users.incomplete}</p>

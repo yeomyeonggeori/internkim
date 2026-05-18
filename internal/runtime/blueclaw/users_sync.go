@@ -101,7 +101,7 @@ fi
 
 while IFS="$(printf '\t')" read -r email display_name; do
   [ -n "$email" ] || continue
-  body="$(jq -cn --arg email "$email" --arg displayName "$display_name" '{email:$email} + (if $displayName == "" then {} else {displayName:$displayName} end)')"
+  body="$(jq -cn --arg email "$email" --arg displayName "$display_name" '{email:$email,circles:["staff"]} + (if $displayName == "" then {} else {displayName:$displayName} end)')"
   curl -fsS -X POST \
     -H "Content-Type: application/json" \
     -d "$body" \
