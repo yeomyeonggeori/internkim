@@ -80,7 +80,7 @@ flowchart LR
   Policy --> Actor["WorkspaceActor"]
   Actor --> Helper["blueclaw-posix-helper setuid root"]
   Helper --> Requester["setuid/setgid to bc_person_*"]
-  Requester --> Workspace["/workspace/private/people/<personID>"]
+  Requester --> Workspace["requester private home"]
 ```
 
 Artifact 생성은 durable output을 명시적으로 승격하는 흐름을 씁니다.
@@ -95,6 +95,7 @@ flowchart LR
 
 | Guest 경로 | 권한 모델 | 용도 |
 |------|------|------|
+| `home/<path>` | requester actor only, durable virtual path | 편집 가능한 개인 소스 작업 |
 | `/workspace/private/people/<personID>/tmp/<task>` | requester actor only, ephemeral | 작업 초안과 build 중간 산출물 |
 | `/workspace/private/people/<personID>/artifacts/<slug>` | requester actor only, durable | 개인 최종 산출물 |
 | `/workspace/circles/<circleID>` | circle group `2770` | 명시적 팀 공유 산출물 |

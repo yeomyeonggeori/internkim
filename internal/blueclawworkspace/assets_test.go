@@ -68,7 +68,7 @@ func TestAgentsAssetDocumentsWorkspacePermissionBoundaries(t *testing.T) {
 	content := string(document)
 	for _, expectedText := range []string{
 		"Allowed workspace paths for raw terminal and file tools",
-		"/workspace/private/people/<yourPersonID>",
+		"home/<path>",
 		"tmp/<artifact-slug>",
 		"artifacts/<artifact-slug>",
 		"/workspace/circles/<circleID>",
@@ -77,12 +77,35 @@ func TestAgentsAssetDocumentsWorkspacePermissionBoundaries(t *testing.T) {
 		"/workspace/skills/<skill>/scripts/...",
 		"Denied or internal paths",
 		"/workspace/.blueclaw/*",
+		"Concrete private POSIX paths for people",
 		"/opt/*",
 		"/tmp/*",
-		"may allow path traversal without directory listing",
+		"Some parent directories allow",
 	} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("workspace AGENTS asset must document %q", expectedText)
+		}
+	}
+}
+
+func TestModelFacingWorkspaceDocsDoNotExposeConcretePrivatePaths(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	documentPaths := []string{
+		AgentsPath(repositoryRootPath),
+		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "site-prototype", "SKILL.md"),
+		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "docx", "SKILL.md"),
+		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "xlsx", "SKILL.md"),
+		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "pptx", "SKILL.md"),
+		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "simple-slides", "SKILL.md"),
+		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "pdf", "SKILL.md"),
+	}
+	for _, documentPath := range documentPaths {
+		document, errorValue := os.ReadFile(documentPath)
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if strings.Contains(string(document), "/workspace/private/people/") {
+			t.Fatalf("%s must use virtual home/tmp/artifacts paths instead of concrete private paths", documentPath)
 		}
 	}
 }
