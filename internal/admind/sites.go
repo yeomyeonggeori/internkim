@@ -22,8 +22,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 const (
@@ -67,16 +65,17 @@ type SiteRecord struct {
 }
 
 type siteCreateRequest struct {
-	Slug           string `json:"slug"`
-	Title          string `json:"title"`
-	Prompt         string `json:"prompt"`
-	DesignBrief    string `json:"designBrief"`
-	PrototypeScope string `json:"prototypeScope"`
-	Owner          string `json:"owner"`
-	Visibility     string `json:"visibility"`
-	RequestedBy    string `json:"requestedBy"`
-	Platform       string `json:"platform"`
-	ConversationID string `json:"conversationID"`
+	Slug                string `json:"slug"`
+	Title               string `json:"title"`
+	Prompt              string `json:"prompt"`
+	DesignBrief         string `json:"designBrief"`
+	PrototypeScope      string `json:"prototypeScope"`
+	SourceWorkspacePath string `json:"sourceWorkspacePath"`
+	Owner               string `json:"owner"`
+	Visibility          string `json:"visibility"`
+	RequestedBy         string `json:"requestedBy"`
+	Platform            string `json:"platform"`
+	ConversationID      string `json:"conversationID"`
 }
 
 type sitePublishRequest struct {
@@ -444,8 +443,8 @@ func (service *Service) createSiteRecord(payload siteCreateRequest) (*SiteRecord
 		TLSStatus:           service.siteTLSStatus(),
 		Platform:            strings.TrimSpace(payload.Platform),
 		ConversationID:      strings.TrimSpace(payload.ConversationID),
-		WorkspacePath:       siteGuestWorkspacePath(siteID),
-		SourceWorkspacePath: siteGuestWorkspacePath(siteID),
+		WorkspacePath:       siteSourceWorkspacePath(siteID, payload.SourceWorkspacePath),
+		SourceWorkspacePath: siteSourceWorkspacePath(siteID, payload.SourceWorkspacePath),
 		HostSourcePath:      service.siteHostWorkspacePath(siteID),
 		CreatedAt:           now,
 		UpdatedAt:           now,
@@ -547,7 +546,7 @@ func (service *Service) updateSiteFromPublishRequest(site *SiteRecord, payload s
 		site.HostSourcePath = service.siteHostWorkspacePath(site.SiteID)
 	}
 	if site.SourceWorkspacePath == "" {
-		site.SourceWorkspacePath = siteGuestWorkspacePath(site.SiteID)
+		site.SourceWorkspacePath = siteSourceWorkspacePath(site.SiteID, "")
 	}
 	if site.WorkspacePath == "" {
 		site.WorkspacePath = site.SourceWorkspacePath
@@ -1134,7 +1133,7 @@ func (service *Service) storeSite(site *SiteRecord) error {
 	site.PublishedURL = service.sitePublishedURL(site.Slug)
 	site.TLSStatus = service.siteTLSStatus()
 	if site.SourceWorkspacePath == "" {
-		site.SourceWorkspacePath = siteGuestWorkspacePath(site.SiteID)
+		site.SourceWorkspacePath = siteSourceWorkspacePath(site.SiteID, "")
 	}
 	if site.WorkspacePath == "" {
 		site.WorkspacePath = site.SourceWorkspacePath
@@ -1301,8 +1300,11 @@ func directoryHasFiles(path string) bool {
 	return false
 }
 
-func siteGuestWorkspacePath(siteID string) string {
-	return filepath.Join(blueclawruntime.BlueclawGuestWorkspacePath, "circles", "staff", "sites", siteID)
+func siteSourceWorkspacePath(siteID string, requestedPath string) string {
+	if strings.TrimSpace(requestedPath) != "" {
+		return strings.TrimSpace(requestedPath)
+	}
+	return filepath.ToSlash(filepath.Join("home", "sites", siteID))
 }
 
 func (service *Service) siteHostWorkspacePath(siteID string) string {
