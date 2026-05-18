@@ -21,17 +21,18 @@ import (
 )
 
 type adminUserMutation struct {
-	UserID                 string `json:"userID,omitempty"`
-	Handle                 string `json:"handle,omitempty"`
-	Name                   string `json:"name,omitempty"`
-	Email                  string `json:"email"`
-	HireDate               string `json:"hireDate,omitempty"`
-	Role                   string `json:"role"`
-	MattermostUserID       string `json:"mattermostUserID,omitempty"`
-	MattermostUsername     string `json:"mattermostUsername,omitempty"`
-	Status                 string `json:"status,omitempty"`
-	TemporaryPassword      string `json:"temporaryPassword,omitempty"`
-	TemporaryPasswordEmail string `json:"temporaryPasswordEmail,omitempty"`
+	UserID                 string   `json:"userID,omitempty"`
+	Handle                 string   `json:"handle,omitempty"`
+	Name                   string   `json:"name,omitempty"`
+	Email                  string   `json:"email"`
+	HireDate               string   `json:"hireDate,omitempty"`
+	Role                   string   `json:"role"`
+	Circles                []string `json:"circles,omitempty"`
+	MattermostUserID       string   `json:"mattermostUserID,omitempty"`
+	MattermostUsername     string   `json:"mattermostUsername,omitempty"`
+	Status                 string   `json:"status,omitempty"`
+	TemporaryPassword      string   `json:"temporaryPassword,omitempty"`
+	TemporaryPasswordEmail string   `json:"temporaryPasswordEmail,omitempty"`
 }
 
 type mattermostUserRecord struct {
@@ -57,6 +58,12 @@ type mattermostChannelRecord struct {
 
 type mattermostChannelMemberRecord struct {
 	UserID string `json:"user_id"`
+}
+
+type adminCircleRecord struct {
+	CircleID            string `json:"circleID"`
+	DisplayName         string `json:"displayName"`
+	IsMattermostManaged bool   `json:"isMattermostManaged,omitempty"`
 }
 
 type mattermostPostRecord struct {
@@ -1082,6 +1089,63 @@ func (service *Service) mattermostChannelMemberEmails(ctx context.Context, token
 	return emails, nil
 }
 
+func (service *Service) syncMattermostUserCircleMemberships(ctx context.Context, record adminUserMutation) error {
+	token, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	teamRecord, errorValue := service.ensureMattermostTeam(ctx, token)
+	if errorValue != nil {
+		return errorValue
+	}
+	userID := strings.TrimSpace(record.MattermostUserID)
+	if userID == "" {
+		userRecord, found, errorValue := service.findMattermostUserByEmail(ctx, token, record.Email)
+		if errorValue != nil {
+			return errorValue
+		}
+		if !found {
+			return nil
+		}
+		userID = userRecord.ID
+	}
+	selectedCircles := map[string]bool{}
+	for _, circleID := range normalizeAdminUserCircles(record.Circles, record.Role) {
+		selectedCircles[circleID] = true
+	}
+	circleChannels, errorValue := service.mattermostCircleChannelDefinitions(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	for _, circleChannel := range circleChannels {
+		channelID, errorValue := service.ensureMattermostPrivateChannel(ctx, token, teamRecord.ID, circleChannel.ChannelName)
+		if errorValue != nil {
+			return errorValue
+		}
+		if selectedCircles[circleChannel.CircleID] {
+			if errorValue := service.ensureMattermostChannelMember(ctx, token, channelID, userID); errorValue != nil {
+				return errorValue
+			}
+			continue
+		}
+		if errorValue := service.removeMattermostChannelMember(ctx, token, channelID, userID); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
+}
+
+func (service *Service) removeMattermostChannelMember(ctx context.Context, token string, channelID string, userID string) error {
+	if strings.TrimSpace(channelID) == "" || strings.TrimSpace(userID) == "" {
+		return nil
+	}
+	path := "/api/v4/channels/" + url.PathEscape(channelID) + "/members/" + url.PathEscape(userID)
+	if errorValue := service.mattermostRequest(ctx, http.MethodDelete, path, token, nil, nil); errorValue != nil && !isMattermostNotFound(errorValue) {
+		return errorValue
+	}
+	return nil
+}
+
 func (service *Service) applyCircleEmailsToBlueclawPolicy(ctx context.Context, circleEmailsByID map[string]map[string]bool) error {
 	var policyDocument map[string]any
 	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
@@ -1103,6 +1167,15 @@ func mattermostSyncedPersonCircles(person map[string]any, circleEmailsByID map[s
 	circles := []string{"staff"}
 	if isAdmin, _ := person["isAdmin"].(bool); isAdmin {
 		circles = append(circles, "admin")
+	}
+	for _, circle := range policyStringList(person["circles"]) {
+		normalizedCircle := strings.ToLower(strings.TrimSpace(circle))
+		if normalizedCircle == "" || normalizedCircle == "staff" || normalizedCircle == "admin" {
+			continue
+		}
+		if _, isMattermostManaged := circleEmailsByID[normalizedCircle]; !isMattermostManaged {
+			circles = append(circles, normalizedCircle)
+		}
 	}
 	for circleID, emails := range circleEmailsByID {
 		for _, value := range emailValues {
