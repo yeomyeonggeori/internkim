@@ -982,9 +982,10 @@ func (service *Service) writeSiteWorkspaceTemplate(site *SiteRecord) error {
 		{Path: "DESIGN.md", Document: siteDesignMD(site)},
 		{Path: "app/package.json", Document: sitePackageJSON(site)},
 		{Path: "app/index.html", Document: siteIndexHTML(site)},
-		{Path: "app/src/main.tsx", Document: siteMainTSX()},
-		{Path: "app/src/App.tsx", Document: siteAppTSX(site)},
+		{Path: "app/scripts/build.ts", Document: siteBuildTS()},
+		{Path: "app/src/content.html", Document: siteContentHTML(site)},
 		{Path: "app/src/styles.css", Document: siteStylesCSS()},
+		{Path: "app/src/script.js", Document: siteScriptJS()},
 		{Path: "app/dist/index.html", Document: siteBuiltIndexHTML(site)},
 	}
 	for _, file := range files {
@@ -1016,7 +1017,7 @@ func (service *Service) siteWorkspaceMetadata(site *SiteRecord) string {
 		Platform:       site.Platform,
 		ConversationID: site.ConversationID,
 		Purpose:        "prototype for idea validation",
-		Stack:          "React + Vite + PocketBase",
+		Stack:          "Dependency-free HTML + CSS + JavaScript scaffold with optional PocketBase files",
 		DesignDefault:  "starter scaffold only; customize through DESIGN.md before publish",
 	}, "", "  ")
 	if errorValue != nil {
@@ -1338,19 +1339,11 @@ func siteCommitMessage(message string) string {
 func sitePackageJSON(site *SiteRecord) string {
 	document, errorValue := json.MarshalIndent(map[string]any{
 		"scripts": map[string]string{
-			"build":   "vite build",
-			"dev":     "vite --host 0.0.0.0",
-			"preview": "vite preview --host 0.0.0.0",
+			"build":   "bun scripts/build.ts",
+			"dev":     "bun scripts/build.ts && bun --hot --port 5173 dist/index.html",
+			"preview": "bun --port 4173 dist/index.html",
 		},
-		"dependencies": map[string]string{
-			"@vitejs/plugin-react": "latest",
-			"lucide-react":         "latest",
-			"pocketbase":           "latest",
-			"react":                "latest",
-			"react-dom":            "latest",
-			"typescript":           "latest",
-			"vite":                 "latest",
-		},
+		"dependencies":    map[string]string{},
 		"devDependencies": map[string]string{},
 		"name":            normalizeSiteSlug(site.Slug),
 		"private":         true,
@@ -1365,7 +1358,7 @@ func sitePackageJSON(site *SiteRecord) string {
 
 func siteIndexHTML(site *SiteRecord) string {
 	title := html.EscapeString(firstNonEmpty(site.Title, site.Slug))
-	return "<!doctype html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"UTF-8\" />\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n<title>" + title + "</title>\n</head>\n<body>\n<div id=\"root\"></div>\n<script type=\"module\" src=\"/src/main.tsx\"></script>\n</body>\n</html>\n"
+	return "<!doctype html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"UTF-8\" />\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n<title>" + title + "</title>\n<style>\n__SITE_STYLES__\n</style>\n</head>\n<body>\n__SITE_BODY__\n<script>\n__SITE_SCRIPT__\n</script>\n</body>\n</html>\n"
 }
 
 func siteDesignMD(site *SiteRecord) string {
@@ -1375,18 +1368,22 @@ func siteDesignMD(site *SiteRecord) string {
 
 func siteBuiltIndexHTML(site *SiteRecord) string {
 	title := html.EscapeString(firstNonEmpty(site.Title, site.Slug))
-	return "<!doctype html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"UTF-8\" />\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n<title>" + title + "</title>\n<style>" + siteStylesCSS() + "</style>\n</head>\n<body>\n<main class=\"scaffold-shell\">\n<section class=\"scaffold-panel\">\n<p class=\"scaffold-label\">Editable scaffold</p>\n<h1>" + title + "</h1>\n<p class=\"scaffold-copy\">이 사이트는 아직 사용자 요청에 맞게 제작되기 전의 기본 작업 공간입니다. DESIGN.md를 작성하고 React 소스를 구현한 뒤 빌드해서 배포하세요.</p>\n</section>\n</main>\n</body>\n</html>\n"
+	return "<!doctype html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"UTF-8\" />\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n<title>" + title + "</title>\n<style>" + siteStylesCSS() + "</style>\n</head>\n<body>\n" + siteContentHTML(site) + "\n<script>\n" + siteScriptJS() + "\n</script>\n</body>\n</html>\n"
 }
 
-func siteMainTSX() string {
-	return "import React from 'react';\nimport { createRoot } from 'react-dom/client';\nimport App from './App';\nimport './styles.css';\n\nconst rootElement = document.getElementById('root');\n\nif (rootElement) {\n  createRoot(rootElement).render(\n    <React.StrictMode>\n      <App />\n    </React.StrictMode>,\n  );\n}\n"
+func siteBuildTS() string {
+	return "import { mkdir, readFile, writeFile } from \"node:fs/promises\";\nimport { join } from \"node:path\";\n\nconst rootPath = process.cwd();\nconst sourcePath = join(rootPath, \"src\");\nconst distPath = join(rootPath, \"dist\");\n\nasync function readOptionalFile(path: string, fallback: string): Promise<string> {\n  try {\n    return await readFile(path, \"utf8\");\n  } catch (error) {\n    if (error && typeof error === \"object\" && \"code\" in error && error.code === \"ENOENT\") {\n      return fallback;\n    }\n    throw error;\n  }\n}\n\nconst template = await readFile(join(rootPath, \"index.html\"), \"utf8\");\nconst body = await readOptionalFile(join(sourcePath, \"content.html\"), \"<main></main>\\n\");\nconst styles = await readOptionalFile(join(sourcePath, \"styles.css\"), \"\");\nconst script = await readOptionalFile(join(sourcePath, \"script.js\"), \"\");\n\nconst document = template\n  .replace(\"__SITE_STYLES__\", styles)\n  .replace(\"__SITE_BODY__\", body)\n  .replace(\"__SITE_SCRIPT__\", script);\n\nawait mkdir(distPath, { recursive: true });\nawait writeFile(join(distPath, \"index.html\"), document, \"utf8\");\n"
 }
 
-func siteAppTSX(site *SiteRecord) string {
+func siteContentHTML(site *SiteRecord) string {
 	title := html.EscapeString(firstNonEmpty(site.Title, site.Slug))
-	return "import PocketBase from 'pocketbase';\n\nconst pocketBase = new PocketBase(window.location.origin);\n\nexport default function App() {\n  return (\n    <main className=\"scaffold-shell\">\n      <section className=\"scaffold-panel\">\n        <p className=\"scaffold-label\">Editable scaffold</p>\n        <h1>" + title + "</h1>\n        <p className=\"scaffold-copy\">\n          이 사이트는 아직 사용자 요청에 맞게 제작되기 전의 기본 작업 공간입니다. DESIGN.md를 작성하고 React 소스를 구현한 뒤 빌드해서 배포하세요.\n        </p>\n        <span className=\"scaffold-origin\">{pocketBase.baseURL}</span>\n      </section>\n    </main>\n  );\n}\n"
+	return "<main class=\"scaffold-shell\">\n  <section class=\"scaffold-panel\">\n    <p class=\"scaffold-label\">Editable scaffold</p>\n    <h1>" + title + "</h1>\n    <p class=\"scaffold-copy\">\n      이 사이트는 아직 사용자 요청에 맞게 제작되기 전의 기본 작업 공간입니다. DESIGN.md를 작성하고 HTML, CSS, JavaScript 소스를 구현한 뒤 빌드해서 배포하세요.\n    </p>\n    <span class=\"scaffold-origin\">Dependency-free site scaffold</span>\n  </section>\n</main>\n"
 }
 
 func siteStylesCSS() string {
 	return ":root {\n  color: #111827;\n  background: #f8fafc;\n  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Apple SD Gothic Neo\", \"Segoe UI\", sans-serif;\n}\n\n* {\n  box-sizing: border-box;\n}\n\nbody {\n  margin: 0;\n  min-width: 320px;\n  min-height: 100vh;\n  background: #f8fafc;\n}\n\n.scaffold-shell {\n  display: grid;\n  min-height: 100vh;\n  place-items: center;\n  padding: 24px;\n}\n\n.scaffold-panel {\n  width: min(640px, 100%);\n  border: 1px solid #d1d5db;\n  border-radius: 8px;\n  background: #ffffff;\n  padding: 28px;\n}\n\n.scaffold-label {\n  margin: 0 0 12px;\n  color: #6b7280;\n  font-size: 13px;\n  font-weight: 700;\n}\n\nh1 {\n  margin: 0;\n  font-size: 32px;\n  line-height: 1.15;\n  letter-spacing: 0;\n}\n\n.scaffold-copy {\n  margin: 16px 0 0;\n  color: #4b5563;\n  font-size: 15px;\n  line-height: 1.65;\n}\n\n.scaffold-origin {\n  display: inline-block;\n  margin-top: 18px;\n  color: #6b7280;\n  font-size: 13px;\n}\n\n@media (max-width: 680px) {\n  .scaffold-panel {\n    padding: 22px;\n  }\n\n  h1 {\n    font-size: 28px;\n  }\n}\n"
+}
+
+func siteScriptJS() string {
+	return "console.info(\"InternKim site prototype loaded\");\n"
 }
