@@ -161,6 +161,28 @@ func TestGatewayBlocksFlowChannelPostCreation(t *testing.T) {
 	}
 }
 
+func TestGatewayBlocksAttendanceChannelPostCreation(t *testing.T) {
+	stateDirectory := t.TempDir()
+	service := NewService(Configuration{
+		MattermostBaseURL: "http://mattermost.local",
+		StateDirectory:    stateDirectory,
+		AdminEmailPath:    writeTestFile(t, "admin@example.com"),
+	})
+	service.saveMattermostAttendanceChannelID("attendance-channel")
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		t.Fatalf("Attendance post creation should not reach Mattermost")
+		return nil, nil
+	})}
+
+	request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"attendance-channel","message":"출근"}`))
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("Attendance post creation status = %d", response.Code)
+	}
+}
+
 func TestDefaultConfigurationUsesCanonicalHostPaths(t *testing.T) {
 	configuration := DefaultConfiguration()
 
