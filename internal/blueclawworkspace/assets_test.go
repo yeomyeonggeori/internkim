@@ -118,7 +118,7 @@ func TestSitePrototypeUsesManagedScaffoldContract(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	content := string(document)
-	for _, expectedText := range []string{"`site.app.create` initializes", "appWorkspacePath", "Do not write `app/package.json`", "`bun run build`"} {
+	for _, expectedText := range []string{"`site.app.create` initializes", "appWorkspacePath", "Do not write `app/package.json`", "`bun scripts/build.ts`"} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("site-prototype must document managed scaffold contract %q", expectedText)
 		}
