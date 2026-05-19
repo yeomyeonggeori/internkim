@@ -30,6 +30,7 @@ const (
 	attendanceToggleAction           = "attendance.toggle"
 	attendanceEntryPostProperty      = "internkim_attendance_entry"
 	attendanceEntryPostIDFilename    = "mattermost-attendance-entry-post-id"
+	attendanceChannelIDFilename      = "mattermost-attendance-channel-id"
 	attendanceCancelReason           = "repeated click confirmed"
 	attendanceDuplicateWindow        = 5 * time.Minute
 )
@@ -552,6 +553,7 @@ func (service *Service) ensureMattermostAttendanceChannel(ctx context.Context, t
 	if errorValue != nil {
 		return "", errorValue
 	}
+	service.saveMattermostAttendanceChannelID(channelID)
 	if errorValue := service.updateMattermostAttendanceChannelText(ctx, token, channelID); errorValue != nil {
 		return "", errorValue
 	}
@@ -695,11 +697,19 @@ func (service *Service) mattermostAttendanceEntryActions() []mattermostAction {
 		actions = append(actions, service.mattermostAttendanceClockInButton(text.AttendanceClockIn, locations[0]))
 	} else {
 		for _, location := range locations {
-			actions = append(actions, service.mattermostAttendanceClockInButton(location.Name, location))
+			actions = append(actions, service.mattermostAttendanceClockInButton(attendanceClockInLocationName(text.AttendanceClockIn, location), location))
 		}
 	}
 	actions = append(actions, service.mattermostInteractiveButton(attendanceClockOutAction, text.AttendanceClockOut, text.AttendanceClockOutTooltip, "danger"))
 	return actions
+}
+
+func attendanceClockInLocationName(clockInText string, location attendanceLocation) string {
+	locationName := strings.TrimSpace(location.Name)
+	if locationName == "" {
+		return clockInText
+	}
+	return clockInText + "(" + locationName + ")"
 }
 
 func (service *Service) mattermostAttendanceClockInButton(name string, location attendanceLocation) mattermostAction {
@@ -763,6 +773,22 @@ func (service *Service) mattermostAttendanceEntryPostIDPath() string {
 
 func (service *Service) isMattermostAttendanceEntryPostID(postID string) bool {
 	return strings.TrimSpace(postID) != "" && strings.TrimSpace(postID) == strings.TrimSpace(readTrimmedFile(service.mattermostAttendanceEntryPostIDPath()))
+}
+
+func (service *Service) saveMattermostAttendanceChannelID(channelID string) {
+	normalizedChannelID := strings.TrimSpace(channelID)
+	if normalizedChannelID == "" {
+		return
+	}
+	path := service.mattermostAttendanceChannelIDPath()
+	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
+		return
+	}
+	_ = os.WriteFile(path, []byte(normalizedChannelID), 0o600)
+}
+
+func (service *Service) mattermostAttendanceChannelIDPath() string {
+	return filepath.Join(service.Configuration.StateDirectory, attendanceChannelIDFilename)
 }
 
 func (service *Service) ensureMattermostUserAccessToken(ctx context.Context, adminToken string, userID string) (string, error) {
