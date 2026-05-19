@@ -87,6 +87,27 @@ func TestValidatePayloadArtifactDirectoryRejectsRTKMismatch(t *testing.T) {
 	}
 }
 
+func TestPayloadMigrationsHashIgnoresAppleMetadataFiles(t *testing.T) {
+	directoryPath := t.TempDir()
+	writePayloadFile(t, filepath.Join(directoryPath, "001.sql"), "select 1;")
+
+	beforeSHA256, errorValue := calculateDirectorySHA256(directoryPath)
+	if errorValue != nil {
+		t.Fatalf("expected migrations hash: %v", errorValue)
+	}
+
+	writePayloadFile(t, filepath.Join(directoryPath, "._001.sql"), "appledouble")
+	writePayloadFile(t, filepath.Join(directoryPath, ".DS_Store"), "metadata")
+
+	afterSHA256, errorValue := calculateDirectorySHA256(directoryPath)
+	if errorValue != nil {
+		t.Fatalf("expected migrations hash: %v", errorValue)
+	}
+	if afterSHA256 != beforeSHA256 {
+		t.Fatalf("expected Apple metadata files to be ignored")
+	}
+}
+
 func writeValidPayloadArtifact(t *testing.T, artifactDirectoryPath string, hasRTK bool, manifestRTKSHA256 string) {
 	t.Helper()
 	binaryPath := filepath.Join(artifactDirectoryPath, "workspace", ".blueclaw", "runtime", "current", "bin", "blueclaw")
