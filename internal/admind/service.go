@@ -428,6 +428,10 @@ func (service *Service) attendancePostDeleteSync(next http.Handler) http.Handler
 			next.ServeHTTP(responseWriter, request)
 			return
 		}
+		if service.isMattermostAttendanceEntryPostID(postID) {
+			http.Error(responseWriter, "attendance entry post is protected", http.StatusForbidden)
+			return
+		}
 		recorder := &statusRecordingResponseWriter{ResponseWriter: responseWriter, statusCode: http.StatusOK}
 		next.ServeHTTP(recorder, request)
 		if recorder.statusCode >= http.StatusOK && recorder.statusCode < http.StatusMultipleChoices {
