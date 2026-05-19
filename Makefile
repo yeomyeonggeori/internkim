@@ -1,5 +1,6 @@
-GO_CACHE ?= /tmp/internkim-go-cache
-GO_MOD_CACHE ?= /tmp/internkim-go-mod-cache-v2
+GO_HOST ?= $(shell go env GOOS 2>/dev/null)-$(shell go env GOARCH 2>/dev/null)
+GO_CACHE ?= /tmp/internkim-go-cache-$(GO_HOST)
+GO_MOD_CACHE ?= /tmp/internkim-go-mod-cache-$(GO_HOST)
 BLUECLAW_GO_CACHE ?= /tmp/blueclaw-go-cache
 COMPANION_TARGET_TRIPLE ?= $(shell rustc -vV 2>/dev/null | sed -n 's/host: //p')
 AGENT_BROWSER_VERSION ?= 0.26.0

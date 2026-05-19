@@ -100,6 +100,10 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if agent["toolResultMaxBytes"] != float64(32768) {
 		t.Fatalf("expected agent tool result limit, got %v", agent["toolResultMaxBytes"])
 	}
+	database := runtimeConfiguration["database"].(map[string]any)
+	if database["connectionString"] != BlueclawGuestDatabaseConnectionString {
+		t.Fatalf("expected keyword-value Unix socket database connection string, got %q", database["connectionString"])
+	}
 	failureRecovery := agent["failureRecovery"].(map[string]any)
 	if failureRecovery["failureDebtFinalizationGate"] != true {
 		t.Fatalf("expected failure debt finalization gate, got %+v", failureRecovery)
