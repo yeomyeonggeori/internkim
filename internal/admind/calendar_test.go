@@ -1090,6 +1090,8 @@ func mattermostCalendarLogTestResponse(t *testing.T, request *http.Request) (*ht
 		return jsonResponse(http.StatusOK, `{"id":"calendar-channel"}`, nil), true
 	case request.Method == http.MethodPut && request.URL.Path == "/api/v4/channels/calendar-channel/patch":
 		return jsonResponse(http.StatusOK, `{}`, nil), true
+	case request.Method == http.MethodGet && request.URL.Path == "/api/v4/channels/calendar-channel/posts":
+		return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), true
 	case request.Method == http.MethodPut && request.URL.Path == "/api/v4/channels/calendar-channel/moderations/patch":
 		return jsonResponse(http.StatusOK, `{}`, nil), true
 	case request.Method == http.MethodPost && request.URL.Path == "/api/v4/channels/calendar-channel/members":
@@ -1117,6 +1119,8 @@ func mattermostCalendarLogLifecycleResponse(t *testing.T, request *http.Request,
 		return jsonResponse(http.StatusOK, `{"id":"calendar-channel"}`, nil), nil
 	case request.Method == http.MethodPut && request.URL.Path == "/api/v4/channels/calendar-channel/patch":
 		return jsonResponse(http.StatusOK, `{}`, nil), nil
+	case request.Method == http.MethodGet && request.URL.Path == "/api/v4/channels/calendar-channel/posts":
+		return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil
 	case request.Method == http.MethodPut && request.URL.Path == "/api/v4/channels/calendar-channel/moderations/patch":
 		return jsonResponse(http.StatusOK, `{}`, nil), nil
 	case request.Method == http.MethodPost && request.URL.Path == "/api/v4/channels/calendar-channel/members":

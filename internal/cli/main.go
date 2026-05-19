@@ -1587,12 +1587,18 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 			Name        string
 			DisplayName string
 		}{
-			{Name: "circle-c-level", DisplayName: "Circle c level"},
-			{Name: "circle-representative", DisplayName: "Circle representative"},
-			{Name: "circle-admin", DisplayName: "Circle admin"},
+			{Name: "circle-c-level", DisplayName: mattermostdefaults.CircleChannelDisplayName("circle-c-level")},
+			{Name: "circle-representative", DisplayName: mattermostdefaults.CircleChannelDisplayName("circle-representative")},
+			{Name: "circle-admin", DisplayName: mattermostdefaults.CircleChannelDisplayName("circle-admin")},
 		} {
-			code, _ := mmAPI("GET", "/api/v4/teams/"+teamResult.ID+"/channels/name/"+channel.Name, nil, adminToken)
+			code, responseBody := mmAPI("GET", "/api/v4/teams/"+teamResult.ID+"/channels/name/"+channel.Name, nil, adminToken)
 			if code >= 200 && code < 300 {
+				var channelRecord struct {
+					ID string `json:"id"`
+				}
+				if json.Unmarshal(responseBody, &channelRecord) == nil && strings.TrimSpace(channelRecord.ID) != "" {
+					patchMattermostSetupPrivateChannel(mmAPI, adminToken, channelRecord.ID, channel.DisplayName)
+				}
 				continue
 			}
 			channelBody, _ := json.Marshal(map[string]string{
@@ -1603,7 +1609,7 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 			})
 			mmAPI("POST", "/api/v4/channels", channelBody, adminToken)
 		}
-		setupMattermostDefaultChannels(mmAPI, adminToken, botToken, teamResult.ID, botResult.UserID)
+		setupMattermostDefaultChannels(mmAPI, adminToken, botToken, teamResult.ID, botResult.UserID, m.lang)
 	}
 
 	if teamResult.ID != "" {
@@ -1629,6 +1635,12 @@ rm -f /root/.internkim/mattermost-url /root/.internkim/mattermost-admin-token /r
 	if channelID != "" {
 		fmt.Printf("  channel: town-square (%s)\n", channelID)
 	}
+}
+
+func patchMattermostSetupPrivateChannel(mmAPI mattermostSetupAPI, adminToken string, channelID string, displayName string) {
+	document, _ := json.Marshal(map[string]string{"display_name": displayName})
+	mmAPI("PUT", "/api/v4/channels/"+url.PathEscape(channelID)+"/patch", document, adminToken)
+	cleanupMattermostSetupManagedChannelSystemPosts(mmAPI, adminToken, channelID)
 }
 
 type mattermostSetupAPI func(method string, path string, body []byte, token string) (int, []byte)
@@ -1676,19 +1688,19 @@ func mattermostSetupConfigurationPatch(siteURL string) map[string]any {
 	}
 }
 
-func setupMattermostDefaultChannels(mmAPI mattermostSetupAPI, adminToken string, botToken string, teamID string, botUserID string) {
-	for _, channel := range mattermostdefaults.DefaultPublicChannels() {
+func setupMattermostDefaultChannels(mmAPI mattermostSetupAPI, adminToken string, botToken string, teamID string, botUserID string, language string) {
+	for _, channel := range mattermostdefaults.PublicChannelsForLanguage(language) {
 		channelID := ensureMattermostSetupDefaultChannel(mmAPI, adminToken, teamID, channel)
 		if channelID != "" {
 			fmt.Printf("  channel: %s (%s)\n", channel.Name, channelID)
 		}
 		if channel.Name == mattermostdefaults.FlowChannelName {
-			ensureMattermostSetupFlowEntryPost(mmAPI, adminToken, botToken, channelID, botUserID)
+			ensureMattermostSetupFlowEntryPost(mmAPI, adminToken, botToken, channelID, botUserID, language)
 		}
 	}
 }
 
-func ensureMattermostSetupFlowEntryPost(mmAPI mattermostSetupAPI, adminToken string, botToken string, channelID string, botUserID string) {
+func ensureMattermostSetupFlowEntryPost(mmAPI mattermostSetupAPI, adminToken string, botToken string, channelID string, botUserID string, language string) {
 	if strings.TrimSpace(channelID) == "" || strings.TrimSpace(botToken) == "" || strings.TrimSpace(botUserID) == "" {
 		return
 	}
@@ -1700,10 +1712,17 @@ func ensureMattermostSetupFlowEntryPost(mmAPI mattermostSetupAPI, adminToken str
 	}
 	postDocument, _ := json.Marshal(map[string]any{
 		"channel_id": channelID,
-		"message":    "Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다. [Flow 열기](/flow/)",
+		"message":    mattermostSetupFlowEntryPostMessage(language),
 		"props":      map[string]any{"internkim_flow_entry": true},
 	})
 	mmAPI("POST", "/api/v4/posts", postDocument, botToken)
+}
+
+func mattermostSetupFlowEntryPostMessage(language string) string {
+	if strings.EqualFold(strings.TrimSpace(language), "en") {
+		return "View, request, and organize this week's work in Flow. " + mattermostdefaults.PublicChannelLink(mattermostdefaults.FlowChannelName, language, "/flow/")
+	}
+	return "Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다. " + mattermostdefaults.PublicChannelLink(mattermostdefaults.FlowChannelName, language, "/flow/")
 }
 
 func hasMattermostSetupBotFlowEntryPost(mmAPI mattermostSetupAPI, adminToken string, postsResponseBody []byte, botUserID string) bool {
@@ -1783,6 +1802,40 @@ func patchMattermostSetupChannel(mmAPI mattermostSetupAPI, adminToken string, ch
 		"purpose":      channel.Purpose,
 	})
 	mmAPI("PUT", "/api/v4/channels/"+url.PathEscape(channelID)+"/patch", document, adminToken)
+	cleanupMattermostSetupManagedChannelSystemPosts(mmAPI, adminToken, channelID)
+}
+
+func cleanupMattermostSetupManagedChannelSystemPosts(mmAPI mattermostSetupAPI, adminToken string, channelID string) {
+	code, responseBody := mmAPI("GET", "/api/v4/channels/"+url.PathEscape(channelID)+"/posts?per_page=100", nil, adminToken)
+	if code < 200 || code >= 300 {
+		return
+	}
+	var response struct {
+		Order []string `json:"order"`
+		Posts map[string]struct {
+			ID   string `json:"id"`
+			Type string `json:"type"`
+		} `json:"posts"`
+	}
+	if json.Unmarshal(responseBody, &response) != nil {
+		return
+	}
+	for _, postID := range response.Order {
+		postRecord := response.Posts[postID]
+		if !isMattermostSetupManagedChannelSystemPost(postRecord.Type) || strings.TrimSpace(postRecord.ID) == "" {
+			continue
+		}
+		mmAPI("DELETE", "/api/v4/posts/"+url.PathEscape(postRecord.ID), nil, adminToken)
+	}
+}
+
+func isMattermostSetupManagedChannelSystemPost(postType string) bool {
+	switch strings.TrimSpace(postType) {
+	case "system_add_to_channel", "system_displayname_change", "system_header_change", "system_join_channel", "system_purpose_change":
+		return true
+	default:
+		return false
+	}
 }
 
 func setupMattermostConnectCommand(m *msg, ssh *sshClient, mmAPI mattermostSetupAPI, adminToken string, teamID string) {

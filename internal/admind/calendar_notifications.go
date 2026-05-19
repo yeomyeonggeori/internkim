@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 )
 
 type calendarNotificationTarget struct {
@@ -191,7 +193,8 @@ func calendarMattermostNoteText(description string) string {
 }
 
 func (service *Service) mattermostCalendarLink(startISO string) string {
-	return "[" + service.adminText().CalendarOpen + "](" + service.mattermostCalendarURL(startISO) + ")"
+	label := mattermostdefaults.PublicChannelLinkLabel(mattermostCalendarChannelName, service.workspaceLanguage())
+	return "[" + label + "](" + service.mattermostCalendarURL(startISO) + ")"
 }
 
 func (service *Service) mattermostCalendarURL(startISO string) string {
@@ -534,13 +537,13 @@ func (service *Service) ensureMattermostBotDirectChannelID(ctx context.Context, 
 func (service *Service) postCalendarMattermostNotification(ctx context.Context, token string, channelID string, targetType string, event calendarEvent) error {
 	body := map[string]any{
 		"channel_id": channelID,
-		"message":    calendarMattermostNotificationMessage(event, targetType),
+		"message":    service.calendarMattermostNotificationMessage(event, targetType),
 		"props":      map[string]any{"internkim_calendar_notification": true, "calendar_event_id": event.ID},
 	}
 	return service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", token, body, nil)
 }
 
-func calendarMattermostNotificationMessage(event calendarEvent, targetType string) string {
+func (service *Service) calendarMattermostNotificationMessage(event calendarEvent, targetType string) string {
 	lines := []string{
 		"Calendar reminder",
 		"**" + event.Title + "**",
@@ -552,7 +555,7 @@ func calendarMattermostNotificationMessage(event calendarEvent, targetType strin
 	if note := calendarNotificationNoteText(event.Description, targetType); note != "" {
 		lines = append(lines, "Note: "+note)
 	}
-	lines = append(lines, "[Calendar 열기](/calendar/)")
+	lines = append(lines, service.mattermostCalendarLink(""))
 	return strings.Join(lines, "\n")
 }
 

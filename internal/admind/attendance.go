@@ -549,12 +549,13 @@ func scanAttendanceEvent(scanner attendanceEventScanner) (attendanceEvent, error
 }
 
 func (service *Service) ensureMattermostAttendanceChannel(ctx context.Context, token string, teamID string) (string, error) {
-	channelID, errorValue := service.ensureMattermostPublicChannel(ctx, token, teamID, attendanceChannelName, attendanceChannelDisplayName)
+	channel, _ := service.mattermostManagedPublicChannel(attendanceChannelName)
+	channelID, errorValue := service.ensureMattermostPublicChannel(ctx, token, teamID, channel.Name, channel.DisplayName)
 	if errorValue != nil {
 		return "", errorValue
 	}
 	service.saveMattermostAttendanceChannelID(channelID)
-	if errorValue := service.updateMattermostAttendanceChannelText(ctx, token, channelID); errorValue != nil {
+	if errorValue := service.updateMattermostManagedPublicChannelText(ctx, token, channelID, channel); errorValue != nil {
 		return "", errorValue
 	}
 	service.syncMattermostAttendanceEntryPost(ctx, token, channelID)
@@ -562,13 +563,8 @@ func (service *Service) ensureMattermostAttendanceChannel(ctx context.Context, t
 }
 
 func (service *Service) updateMattermostAttendanceChannelText(ctx context.Context, token string, channelID string) error {
-	link := service.mattermostAttendanceLink()
-	body := map[string]string{
-		"display_name": attendanceChannelDisplayName,
-		"header":       link,
-		"purpose":      "",
-	}
-	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/patch", token, body, nil)
+	channel, _ := service.mattermostManagedPublicChannel(attendanceChannelName)
+	return service.updateMattermostManagedPublicChannelText(ctx, token, channelID, channel)
 }
 
 func (service *Service) syncMattermostAttendanceEntryPost(ctx context.Context, adminToken string, channelID string) {
@@ -736,7 +732,7 @@ func (service *Service) mattermostAttendanceClockInButton(name string, location 
 }
 
 func (service *Service) mattermostAttendanceLink() string {
-	label := service.adminText().AttendanceOpen
+	label := mattermostdefaults.PublicChannelLinkLabel(attendanceChannelName, service.workspaceLanguage())
 	baseURL := strings.TrimRight(strings.TrimSpace(service.mattermostFlowBaseURL()), "/")
 	if baseURL == "" {
 		return "[" + label + "](/attendance/)"
