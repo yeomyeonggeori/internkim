@@ -1256,7 +1256,8 @@ func (service Service) startMattermostForwarder(ctx context.Context) {
 		state.MattermostTokenConfigured = true
 	})
 	var botUser struct {
-		ID string `json:"id"`
+		ID       string `json:"id"`
+		Username string `json:"username"`
 	}
 	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", nil, &botUser); errorValue != nil {
 		service.healthState().Update(func(state *platformHealthState) {
@@ -1278,10 +1279,11 @@ func (service Service) startMattermostForwarder(ctx context.Context) {
 		URL:         deriveMattermostWebSocketURL(service.Configuration.MattermostBaseURL),
 		BotToken:    token,
 		BotUserID:   botUser.ID,
+		BotUsername: botUser.Username,
 		BlueclawURL: strings.TrimRight(service.Configuration.BlueclawBaseURL, "/") + "/connectors/mattermost/events",
 		HTTPClient:  service.httpClient(),
 		EventBuilder: func(ctx context.Context, payload []byte) (platformInboundEvent, bool, error) {
-			event, hasEvent, errorValue := normalizeMattermostWebSocketPayload(payload, botUser.ID)
+			event, hasEvent, errorValue := normalizeMattermostWebSocketPayload(payload, botUser.ID, botUser.Username)
 			if errorValue != nil || !hasEvent {
 				return event, hasEvent, errorValue
 			}

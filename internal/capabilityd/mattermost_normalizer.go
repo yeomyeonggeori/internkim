@@ -29,12 +29,15 @@ type mattermostPostMetadata struct {
 	Mentions    []string
 }
 
-func normalizeMattermostWebSocketPayload(payload []byte, botUserID string) (platformInboundEvent, bool, error) {
+func normalizeMattermostWebSocketPayload(payload []byte, botUserID string, botUsername string) (platformInboundEvent, bool, error) {
 	post, metadata, hasPost, errorValue := mattermostWebSocketPost(payload)
 	if errorValue != nil || !hasPost {
 		return platformInboundEvent{}, false, errorValue
 	}
-	addressing := mattermostAddressing(metadata.Mentions, botUserID, "")
+	addressing := mattermostAddressing(metadata.Mentions, botUserID, botUsername)
+	if len(metadata.Mentions) == 0 {
+		addressing = mattermostAddressingFromMessage(post.Message, botUsername)
+	}
 	return normalizeMattermostPost(post, botUserID, metadata.ChannelType, metadata.ChannelName, addressing)
 }
 
