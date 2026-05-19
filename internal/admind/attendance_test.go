@@ -183,9 +183,12 @@ func TestAttendanceEntryPostPatchKeepsExistingBotPost(t *testing.T) {
 	}
 }
 
-func TestAttendanceChannelKeepsHeaderAndClearsPurpose(t *testing.T) {
+func TestAttendanceChannelKeepsHeaderAndPurpose(t *testing.T) {
 	service := NewService(Configuration{MattermostBaseURL: "http://mattermost.local"})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/posts?per_page=100" {
+			return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil
+		}
 		if request.URL.String() != "http://mattermost.local/api/v4/channels/attendance-channel/patch" || request.Method != http.MethodPut {
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		}
@@ -199,7 +202,7 @@ func TestAttendanceChannelKeepsHeaderAndClearsPurpose(t *testing.T) {
 		if payload["header"] == "" {
 			t.Fatal("attendance channel header should keep the link")
 		}
-		if payload["purpose"] != "" {
+		if payload["purpose"] != "[출결 열기](/attendance/)" {
 			t.Fatalf("attendance channel purpose = %q", payload["purpose"])
 		}
 		return jsonResponse(http.StatusOK, `{}`, nil), nil
@@ -351,6 +354,8 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]attendanceAction
 			return jsonResponse(http.StatusOK, `{"id":"attendance-channel"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/patch" && request.Method == http.MethodPut:
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/posts?per_page=100":
+			return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Header.Get("Authorization") == "Bearer bot-token":
 			return jsonResponse(http.StatusOK, `{"id":"bot-1","email":"internkim@localhost","username":"internkim"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/posts?per_page=50":
