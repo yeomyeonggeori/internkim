@@ -1,6 +1,6 @@
 ---
 name: site-prototype
-description: Create, publish, update, take down, restore, or delete free React + PocketBase website prototypes through InternKim site.app tools.
+description: Create, publish, update, take down, restore, or delete free dependency-light website prototypes through InternKim site.app tools.
 when_to_use: Use when the user asks InternKim to make, deploy, publish, update, fix, take down, restore, or delete a website, web app, prototype, demo, landing page, dashboard, or app idea.
 allowed-tools:
   - terminal.run
@@ -32,10 +32,10 @@ Create prototypes for non-developers to validate ideas quickly. Do not present t
 
 ## Stack
 
-- Use React + Vite + TypeScript for the frontend.
-- Use PocketBase for local prototype data, auth, files, realtime, and migrations.
-- Do not use Next.js, SvelteKit, arbitrary Node servers, cloud databases, hosted backends, or paid APIs for v1 prototypes.
-- `site.app.create` initializes the editable React + Vite + TypeScript project scaffold, not a finished website.
+- Use the managed dependency-free HTML + CSS + JavaScript scaffold for the frontend.
+- Use PocketBase files and migrations only when the prototype needs local data, auth, files, realtime, or migrations.
+- Do not use React, Vite, Next.js, SvelteKit, arbitrary Node servers, cloud databases, hosted backends, or paid APIs for v1 prototypes unless the user explicitly asks for that stack.
+- `site.app.create` initializes the editable website project scaffold, not a finished website.
 - Use the returned `sourceWorkspacePath` exactly as the canonical virtual workspace path for all follow-up source writes. Do not rewrite it into a concrete private POSIX path.
 - Use the returned `appWorkspacePath` exactly as the build working directory.
 
@@ -47,8 +47,8 @@ For create, make, build, deploy, publish, prototype, demo, landing page, dashboa
 2. Pass `prompt`, `designBrief`, or `prototypeScope` when the user gives enough detail.
 3. After `site.app.create` succeeds, call `site.app.status` for the same `siteID` and use `sourceWorkspacePath` and `appWorkspacePath`.
 4. Write `DESIGN.md` into the site workspace before writing app source.
-5. Use `file.write` to update `app/src/App.tsx`, `app/src/styles.css`, and app-owned data/source files according to `DESIGN.md`. Do not write `app/package.json`, `app/index.html`, `app/src/main.tsx`, Vite config, or TypeScript config; those scaffold/build contract files are managed by `site.app.create`.
-6. Run `bun install && bun run build` with `terminal.run.workingDirectoryPath` set to `<appWorkspacePath>`; inside the command, use relative paths only. The `sourceWorkspacePath` should normally look like `home/sites/<siteID>`, not an absolute private path.
+5. Use `file.write` to update `app/src/content.html`, `app/src/styles.css`, `app/src/script.js`, and app-owned data/source files according to `DESIGN.md`. Do not write `app/package.json`, `app/index.html`, or `app/scripts/build.ts`; those scaffold/build contract files are managed by `site.app.create`.
+6. Run `bun run build` with `terminal.run.workingDirectoryPath` set to `<appWorkspacePath>`; inside the command, use relative paths only. The default scaffold has no external package install step. The `sourceWorkspacePath` should normally look like `home/sites/<siteID>`, not an absolute private path.
 7. Call `site.app.publish` with `siteID` and a concise `message`.
 8. Call `site.app.status` for the same `siteID` and confirm the status is `published`.
 9. Reply in Mattermost with the public URL, a short change summary, how to try the main workflow, and any test login credentials.
@@ -72,7 +72,7 @@ Use this terminal pattern after source files are written:
 ```json
 {
   "workingDirectoryPath": "<appWorkspacePath>",
-  "command": "bun install\nbun run build"
+  "command": "bun run build"
 }
 ```
 
@@ -81,7 +81,6 @@ Do not run this as a single shell command that starts with `cd <appWorkspacePath
 The command itself should stay short:
 
 ```bash
-bun install
 bun run build
 ```
 
@@ -101,7 +100,7 @@ If the user requests an external integration, explain that it may require a paid
 
 Use fake data, local PocketBase collections, and simple local workflows whenever possible.
 
-Safe default dependencies are React, Vite, TypeScript, PocketBase JS SDK, and lucide-react. Avoid adding large UI frameworks, analytics, hosted databases, AI APIs, payment SDKs, email providers, SMS providers, or SaaS clients unless explicitly requested and confirmed.
+The safe default scaffold has no external npm dependencies. Avoid adding React, Vite, large UI frameworks, analytics, hosted databases, AI APIs, payment SDKs, email providers, SMS providers, or SaaS clients unless explicitly requested and confirmed.
 
 ## Auth Defaults
 
