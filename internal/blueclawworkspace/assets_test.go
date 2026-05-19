@@ -110,6 +110,41 @@ func TestModelFacingWorkspaceDocsDoNotExposeConcretePrivatePaths(t *testing.T) {
 	}
 }
 
+func TestSitePrototypeUsesManagedScaffoldContract(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "site-prototype", "SKILL.md")
+	document, errorValue := os.ReadFile(skillPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	content := string(document)
+	for _, expectedText := range []string{"`site.app.create` initializes", "appWorkspacePath", "Do not write `app/package.json`"} {
+		if !strings.Contains(content, expectedText) {
+			t.Fatalf("site-prototype must document managed scaffold contract %q", expectedText)
+		}
+	}
+	for _, forbiddenText := range []string{"tmp/<slug>", "create missing `app/package.json`", `"workingDirectoryPath": "<sourceWorkspacePath>/app"`} {
+		if strings.Contains(content, forbiddenText) {
+			t.Fatalf("site-prototype must not document stale site workspace pattern %q", forbiddenText)
+		}
+	}
+}
+
+func TestVendoredSiteScaffoldIncludesBuildManifest(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	packagePath := filepath.Join(repositoryRootPath, "assets", "blueclaw-site-scaffold", "react-vite-ts", "package.json")
+	document, errorValue := os.ReadFile(packagePath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	content := string(document)
+	for _, expectedText := range []string{`"build": "vite build"`, `"react"`, `"vite"`, `"typescript"`} {
+		if !strings.Contains(content, expectedText) {
+			t.Fatalf("vendored site scaffold package manifest must contain %q", expectedText)
+		}
+	}
+}
+
 func TestArtifactPythonSkillsBootstrapDependenciesFromBundledScripts(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	skillNames := []string{"docx", "xlsx", "pptx"}

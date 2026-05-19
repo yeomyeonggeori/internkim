@@ -276,6 +276,7 @@ func siteAppPublishInputSchema() json.RawMessage {
 		jsonschema.Field("visibility", jsonschema.String()),
 		jsonschema.Field("message", jsonschema.String()),
 		jsonschema.Field("sourceWorkspacePath", jsonschema.String()),
+		jsonschema.Field("appWorkspacePath", jsonschema.String()),
 	).RawMessage()
 }
 
