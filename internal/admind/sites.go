@@ -707,7 +707,7 @@ func ensureSiteFrontendBuildIsFresh(workspacePath string, frontendBuildPath stri
 		return errors.New("site workspace app/dist must contain build files")
 	}
 	if latestSourceModTime.After(earliestBuildModTime) {
-		return errors.New("site workspace app/dist is stale; run bun run build in app before publishing")
+		return errors.New("site workspace app/dist is stale; run bun scripts/build.ts in app before publishing")
 	}
 	return nil
 }
