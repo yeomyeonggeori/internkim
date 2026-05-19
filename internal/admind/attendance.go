@@ -29,6 +29,7 @@ const (
 	attendanceClockOutAction         = "attendanceClockOut"
 	attendanceToggleAction           = "attendance.toggle"
 	attendanceEntryPostProperty      = "internkim_attendance_entry"
+	attendanceEntryPostIDFilename    = "mattermost-attendance-entry-post-id"
 	attendanceCancelReason           = "repeated click confirmed"
 	attendanceDuplicateWindow        = 5 * time.Minute
 )
@@ -286,7 +287,7 @@ func (service *Service) createNextAttendanceEvent(ctx context.Context, database 
 }
 
 func (service *Service) createAttendanceEventForKind(ctx context.Context, database *sql.DB, userRecord mattermostUserRecord, userToken string, kind string, teamID string, channelID string, actionPostID string, occurredAt time.Time, eventLocation attendanceLocation) error {
-	resultPostID, errorValue := service.postMattermostUserAttendanceMessage(ctx, userToken, channelID, attendanceMessageForKind(kind))
+	resultPostID, errorValue := service.postMattermostUserAttendanceMessage(ctx, userToken, channelID, actionPostID, attendanceMessageForKind(kind))
 	if errorValue != nil {
 		return errorValue
 	}
@@ -296,7 +297,7 @@ func (service *Service) createAttendanceEventForKind(ctx context.Context, databa
 
 func (service *Service) cancelAttendanceEvent(ctx context.Context, database *sql.DB, userToken string, event attendanceEvent, canceledAt time.Time) error {
 	message := attendanceMessageForKind(event.Kind) + " 취소"
-	if _, errorValue := service.postMattermostUserAttendanceMessage(ctx, userToken, event.ChannelID, message); errorValue != nil {
+	if _, errorValue := service.postMattermostUserAttendanceMessage(ctx, userToken, event.ChannelID, event.ActionPostID, message); errorValue != nil {
 		return errorValue
 	}
 	_, errorValue := database.ExecContext(ctx, `
@@ -589,6 +590,7 @@ func (service *Service) ensureMattermostAttendanceEntryPost(ctx context.Context,
 	expectedProps := service.mattermostAttendanceEntryPostProps()
 	postRecord, found := service.mattermostAttendanceEntryPost(ctx, adminToken, channelID)
 	if found && strings.TrimSpace(postRecord.UserID) == botUserID && service.isMattermostAttendanceEntryPostCurrent(postRecord) {
+		service.saveMattermostAttendanceEntryPostID(postRecord.ID)
 		if postRecord.IsPinned {
 			return nil
 		}
@@ -609,6 +611,7 @@ func (service *Service) ensureMattermostAttendanceEntryPost(ctx context.Context,
 	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", botToken, body, &createdPost); errorValue != nil {
 		return errorValue
 	}
+	service.saveMattermostAttendanceEntryPostID(createdPost.ID)
 	return service.pinMattermostPost(ctx, botToken, createdPost.ID)
 }
 
@@ -727,16 +730,39 @@ func (service *Service) ensureMattermostChannelMembership(ctx context.Context, t
 	return nil
 }
 
-func (service *Service) postMattermostUserAttendanceMessage(ctx context.Context, userToken string, channelID string, message string) (string, error) {
+func (service *Service) postMattermostUserAttendanceMessage(ctx context.Context, userToken string, channelID string, rootID string, message string) (string, error) {
 	body := map[string]string{
 		"channel_id": channelID,
 		"message":    message,
+	}
+	if strings.TrimSpace(rootID) != "" {
+		body["root_id"] = strings.TrimSpace(rootID)
 	}
 	var response struct {
 		ID string `json:"id"`
 	}
 	errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", userToken, body, &response)
 	return strings.TrimSpace(response.ID), errorValue
+}
+
+func (service *Service) saveMattermostAttendanceEntryPostID(postID string) {
+	normalizedPostID := strings.TrimSpace(postID)
+	if normalizedPostID == "" {
+		return
+	}
+	path := service.mattermostAttendanceEntryPostIDPath()
+	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
+		return
+	}
+	_ = os.WriteFile(path, []byte(normalizedPostID), 0o600)
+}
+
+func (service *Service) mattermostAttendanceEntryPostIDPath() string {
+	return filepath.Join(service.Configuration.StateDirectory, attendanceEntryPostIDFilename)
+}
+
+func (service *Service) isMattermostAttendanceEntryPostID(postID string) bool {
+	return strings.TrimSpace(postID) != "" && strings.TrimSpace(postID) == strings.TrimSpace(readTrimmedFile(service.mattermostAttendanceEntryPostIDPath()))
 }
 
 func (service *Service) ensureMattermostUserAccessToken(ctx context.Context, adminToken string, userID string) (string, error) {

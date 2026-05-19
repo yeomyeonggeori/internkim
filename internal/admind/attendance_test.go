@@ -11,7 +11,7 @@ import (
 )
 
 func TestAttendanceClockButtonsPostAsUserAndIgnoreInvalidState(t *testing.T) {
-	service, messages := newAttendanceActionTestService(t)
+	service, posts := newAttendanceActionTestService(t)
 	payload := mattermostInteractivePayload{
 		UserID:    "user-1",
 		PostID:    "entry-post",
@@ -33,8 +33,13 @@ func TestAttendanceClockButtonsPostAsUserAndIgnoreInvalidState(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 
-	if len(*messages) != 2 || (*messages)[0] != "출근" || (*messages)[1] != "퇴근" {
-		t.Fatalf("messages = %+v", *messages)
+	if len(*posts) != 2 || (*posts)[0].Message != "출근" || (*posts)[1].Message != "퇴근" {
+		t.Fatalf("posts = %+v", *posts)
+	}
+	for _, post := range *posts {
+		if post.RootID != "entry-post" {
+			t.Fatalf("post root = %+v", post)
+		}
 	}
 	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
 	if errorValue != nil {
@@ -189,8 +194,30 @@ func TestMattermostPostDeleteRemovesAttendanceEvent(t *testing.T) {
 	}
 }
 
+func TestMattermostPostDeleteProtectsAttendanceEntryPost(t *testing.T) {
+	mattermostServer := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		t.Fatalf("unexpected Mattermost request %s %s", request.Method, request.URL.Path)
+	}))
+	defer mattermostServer.Close()
+	stateDirectory := t.TempDir()
+	service := NewService(Configuration{
+		StateDirectory:         stateDirectory,
+		MattermostBaseURL:      mattermostServer.URL,
+		MattermostBotTokenPath: writeTestFile(t, "bot-token"),
+	})
+	service.saveMattermostAttendanceEntryPostID("entry-post")
+
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodDelete, "/api/v4/posts/entry-post", nil)
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("delete status = %d", response.Code)
+	}
+}
+
 func TestAttendanceRepeatedClickCancelsEvent(t *testing.T) {
-	service, messages := newAttendanceActionTestService(t)
+	service, posts := newAttendanceActionTestService(t)
 	payload := mattermostInteractivePayload{
 		UserID:    "user-1",
 		PostID:    "entry-post",
@@ -209,8 +236,8 @@ func TestAttendanceRepeatedClickCancelsEvent(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 
-	if len(*messages) != 2 || (*messages)[1] != "출근 취소" {
-		t.Fatalf("messages = %+v", *messages)
+	if len(*posts) != 2 || (*posts)[1].Message != "출근 취소" || (*posts)[1].RootID != "entry-post" {
+		t.Fatalf("posts = %+v", *posts)
 	}
 	database, errorValue := service.openAttendanceDatabase(context.Background())
 	if errorValue != nil {
@@ -226,9 +253,14 @@ func TestAttendanceRepeatedClickCancelsEvent(t *testing.T) {
 	}
 }
 
-func newAttendanceActionTestService(t *testing.T) (*Service, *[]string) {
+type attendanceActionPost struct {
+	Message string
+	RootID  string
+}
+
+func newAttendanceActionTestService(t *testing.T) (*Service, *[]attendanceActionPost) {
 	t.Helper()
-	messages := []string{}
+	posts := []attendanceActionPost{}
 	stateDirectory := t.TempDir()
 	service := NewService(Configuration{
 		StateDirectory:              stateDirectory,
@@ -270,12 +302,12 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]string) {
 			if request.Header.Get("Authorization") != "Bearer user-token" {
 				t.Fatalf("post token = %q", request.Header.Get("Authorization"))
 			}
-			messages = append(messages, payload["message"])
+			posts = append(posts, attendanceActionPost{Message: payload["message"], RootID: payload["root_id"]})
 			return jsonResponse(http.StatusCreated, `{"id":"attendance-post-1"}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
 	})}
-	return service, &messages
+	return service, &posts
 }
