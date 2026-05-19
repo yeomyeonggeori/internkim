@@ -329,7 +329,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/_internkim/runtime/", service.handleRuntime)
 	multiplexer.HandleFunc("/_internkim/mattermost/commands", service.handleMattermostCommand)
 	multiplexer.HandleFunc("/_internkim/mattermost/actions", service.handleMattermostInteractiveAction)
-	multiplexer.Handle("/", service.flowChannelWriteGuard(service.attendancePostDeleteSync(service.mattermostProxy())))
+	multiplexer.Handle("/", service.managedChannelWriteGuard(service.attendancePostDeleteSync(service.mattermostProxy())))
 	return service.withCORS(service.withSiteGateway(multiplexer))
 }
 
@@ -381,9 +381,9 @@ func (service *Service) mattermostProxy() http.Handler {
 	return proxy
 }
 
-func (service *Service) flowChannelWriteGuard(next http.Handler) http.Handler {
+func (service *Service) managedChannelWriteGuard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
-		if !service.isMattermostFlowPostCreateRequest(request) {
+		if !service.isMattermostManagedPostCreateRequest(request) {
 			next.ServeHTTP(responseWriter, request)
 			return
 		}
@@ -391,7 +391,7 @@ func (service *Service) flowChannelWriteGuard(next http.Handler) http.Handler {
 	})
 }
 
-func (service *Service) isMattermostFlowPostCreateRequest(request *http.Request) bool {
+func (service *Service) isMattermostManagedPostCreateRequest(request *http.Request) bool {
 	if request.Method != http.MethodPost || request.URL.Path != "/api/v4/posts" {
 		return false
 	}
@@ -399,6 +399,7 @@ func (service *Service) isMattermostFlowPostCreateRequest(request *http.Request)
 	for _, channelID := range []string{
 		readTrimmedFile(service.mattermostFlowChannelIDPath()),
 		readTrimmedFile(service.mattermostCalendarChannelIDPath()),
+		readTrimmedFile(service.mattermostAttendanceChannelIDPath()),
 	} {
 		if trimmedChannelID := strings.TrimSpace(channelID); trimmedChannelID != "" {
 			channelIDs[trimmedChannelID] = true

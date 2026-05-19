@@ -69,6 +69,25 @@ func TestAttendanceEntryPostUsesSeparateSafeActionIDs(t *testing.T) {
 	}
 }
 
+func TestAttendanceEntryPostNamesMultipleClockInLocations(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	if errorValue := service.writeAttendanceLocationsFile([]attendanceLocation{
+		{ID: "office", Name: "사무실", Color: "#16a34a", IsDefault: true},
+		{ID: "home", Name: "재택", Color: "#2563eb"},
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	actions := service.mattermostAttendanceEntryActions()
+
+	if len(actions) != 3 {
+		t.Fatalf("actions = %+v", actions)
+	}
+	if actions[0].Name != "출근(사무실)" || actions[1].Name != "출근(재택)" || actions[2].Name != "퇴근" {
+		t.Fatalf("actions = %+v", actions)
+	}
+}
+
 func TestAttendanceEntryPostIsBotAuthoredAndPinned(t *testing.T) {
 	stateDirectory := t.TempDir()
 	service := NewService(Configuration{
