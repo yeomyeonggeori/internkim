@@ -131,6 +131,9 @@ func TestSitePrototypePublishesDefaultBuild(t *testing.T) {
 	if !strings.HasPrefix(site.SourceWorkspacePath, "home/sites/") {
 		t.Fatalf("site source workspace should be requester-private virtual path, got %q", site.SourceWorkspacePath)
 	}
+	if site.AppWorkspacePath != site.SourceWorkspacePath+"/app" {
+		t.Fatalf("site app workspace path = %q, source = %q", site.AppWorkspacePath, site.SourceWorkspacePath)
+	}
 	if _, statError := os.Stat(filepath.Join(site.HostSourcePath, "DESIGN.md")); !os.IsNotExist(statError) {
 		t.Fatalf("site create should not materialize editable source in admind cache: %v", statError)
 	}
@@ -264,6 +267,9 @@ func TestSiteWorkspaceIsWritableByRequesterTerminal(t *testing.T) {
 	}
 	if site.WorkspacePath != site.SourceWorkspacePath {
 		t.Fatalf("workspace path should point at source workspace: %+v", site)
+	}
+	if site.AppWorkspacePath != site.SourceWorkspacePath+"/app" {
+		t.Fatalf("app workspace path should point at app source: %+v", site)
 	}
 }
 
