@@ -591,8 +591,13 @@ func (service *Service) ensureMattermostAttendanceEntryPost(ctx context.Context,
 	}
 	expectedProps := service.mattermostAttendanceEntryPostProps()
 	postRecord, found := service.mattermostAttendanceEntryPost(ctx, adminToken, channelID)
-	if found && strings.TrimSpace(postRecord.UserID) == botUserID && service.isMattermostAttendanceEntryPostCurrent(postRecord) {
+	if found && strings.TrimSpace(postRecord.UserID) == botUserID {
 		service.saveMattermostAttendanceEntryPostID(postRecord.ID)
+		if !service.isMattermostAttendanceEntryPostCurrent(postRecord) {
+			if errorValue := service.patchMattermostAttendanceEntryPost(ctx, botToken, postRecord.ID, expectedProps); errorValue != nil {
+				return errorValue
+			}
+		}
 		if postRecord.IsPinned {
 			return nil
 		}
@@ -615,6 +620,14 @@ func (service *Service) ensureMattermostAttendanceEntryPost(ctx context.Context,
 	}
 	service.saveMattermostAttendanceEntryPostID(createdPost.ID)
 	return service.pinMattermostPost(ctx, botToken, createdPost.ID)
+}
+
+func (service *Service) patchMattermostAttendanceEntryPost(ctx context.Context, botToken string, postID string, props map[string]any) error {
+	body := map[string]any{
+		"message": service.adminText().AttendanceEntryMessage,
+		"props":   props,
+	}
+	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/posts/"+url.PathEscape(postID)+"/patch", botToken, body, nil)
 }
 
 func (service *Service) mattermostAttendanceEntryPost(ctx context.Context, token string, channelID string) (mattermostPostRecord, bool) {
