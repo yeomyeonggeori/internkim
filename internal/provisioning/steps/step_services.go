@@ -307,7 +307,7 @@ for tool_name in capabilities.get("toolNames", []):
         raise SystemExit
 
 database = runtime_configuration.get("database", {})
-if database.get("connectionString") != "postgres://blueclaw@/blueclaw?host=/workspace/.blueclaw/postgres&sslmode=disable":
+if database.get("connectionString") != "user=blueclaw dbname=blueclaw host=/workspace/.blueclaw/postgres sslmode=disable":
     print("runtime-database")
     raise SystemExit
 

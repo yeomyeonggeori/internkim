@@ -3936,6 +3936,7 @@ func (s *sshClient) uploadDirectoryArchive(localDir string, temporaryRemoteDirec
 
 func (s *sshClient) runTarToRemote(localDir string, remoteCommand string) (string, error) {
 	tarCommand := exec.Command("tar", "-czf", "-", "-C", localDir, ".")
+	tarCommand.Env = append(os.Environ(), "COPYFILE_DISABLE=1")
 	tarOutput, errorValue := tarCommand.StdoutPipe()
 	if errorValue != nil {
 		return "", errorValue
