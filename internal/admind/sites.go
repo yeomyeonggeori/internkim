@@ -55,6 +55,7 @@ type SiteRecord struct {
 	ConversationID      string    `json:"conversationID,omitempty"`
 	WorkspacePath       string    `json:"workspacePath,omitempty"`
 	SourceWorkspacePath string    `json:"sourceWorkspacePath,omitempty"`
+	AppWorkspacePath    string    `json:"appWorkspacePath,omitempty"`
 	HostSourcePath      string    `json:"hostSourcePath,omitempty"`
 	LastPublishedCommit string    `json:"lastPublishedCommit,omitempty"`
 	CreatedAt           time.Time `json:"createdAt"`
@@ -445,6 +446,7 @@ func (service *Service) createSiteRecord(payload siteCreateRequest) (*SiteRecord
 		ConversationID:      strings.TrimSpace(payload.ConversationID),
 		WorkspacePath:       siteSourceWorkspacePath(siteID, payload.SourceWorkspacePath),
 		SourceWorkspacePath: siteSourceWorkspacePath(siteID, payload.SourceWorkspacePath),
+		AppWorkspacePath:    filepath.ToSlash(filepath.Join(siteSourceWorkspacePath(siteID, payload.SourceWorkspacePath), "app")),
 		HostSourcePath:      service.siteHostWorkspacePath(siteID),
 		CreatedAt:           now,
 		UpdatedAt:           now,
@@ -550,6 +552,9 @@ func (service *Service) updateSiteFromPublishRequest(site *SiteRecord, payload s
 	}
 	if site.WorkspacePath == "" {
 		site.WorkspacePath = site.SourceWorkspacePath
+	}
+	if site.AppWorkspacePath == "" {
+		site.AppWorkspacePath = filepath.ToSlash(filepath.Join(site.SourceWorkspacePath, "app"))
 	}
 	return service.storeSite(site)
 }
