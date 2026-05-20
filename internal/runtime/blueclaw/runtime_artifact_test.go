@@ -112,6 +112,28 @@ func TestPrepareRuntimeScriptReusesExistingArtifactKernel(t *testing.T) {
 	}
 }
 
+func TestPrepareRuntimeScriptStopsOnlySelfStartedTartBuilder(t *testing.T) {
+	repositoryRootPath := runtimeArtifactRepositoryRoot(t)
+	document, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "tools", "prepare-blueclaw-runtime"))
+	if errorValue != nil {
+		t.Fatalf("expected prepare script: %v", errorValue)
+	}
+	script := string(document)
+	expectedFragments := []string{
+		`INTERNKIM_KEEP_TART_VM`,
+		`tart_status_before="$("$repository_root/internkim" lab status 2>/dev/null || true)"`,
+		`if [ "$tart_status_before" != "running" ]`,
+		`trap cleanup_tart_builder EXIT`,
+		`"$repository_root/internkim" lab vm-down`,
+		`trap - EXIT`,
+	}
+	for _, fragment := range expectedFragments {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected prepare script to contain %q", fragment)
+		}
+	}
+}
+
 func TestPrepareRuntimeScriptInstallsBlueclawGuestCalculator(t *testing.T) {
 	repositoryRootPath := runtimeArtifactRepositoryRoot(t)
 	document, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "tools", "prepare-blueclaw-runtime"))
