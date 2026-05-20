@@ -110,6 +110,13 @@ type interactionResolveRequest struct {
 	DispatchID string `json:"dispatchID"`
 }
 
+type reactionAddRequest struct {
+	ConversationID string `json:"conversationID"`
+	MessageID      string `json:"messageID"`
+	EmojiName      string `json:"emojiName"`
+	Reason         string `json:"reason"`
+}
+
 type platformAskInteraction struct {
 	InteractionID        string                    `json:"interactionID"`
 	TaskRunID            string                    `json:"taskRunID"`
@@ -262,6 +269,7 @@ func (service Service) router() http.Handler {
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/identity.resolve", service.handleIdentityResolve)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/reply.send", service.handleReplySend)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/interaction.resolve", service.handleInteractionResolve)
+	multiplexer.HandleFunc("POST /v1/platform/{platform}/reaction.add", service.handleReactionAdd)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/history.fetch", service.handleHistoryFetch)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.start", service.handleProgressStart)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.stop", service.handleProgressStop)
@@ -402,6 +410,21 @@ func (service Service) handleInteractionResolve(responseWriter http.ResponseWrit
 	switch request.PathValue("platform") {
 	case "mattermost":
 		response, errorValue = service.mattermostInteractionResolve(request.Context(), request.Body)
+	default:
+		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
+		return
+	}
+	service.writeResponse(responseWriter, response, errorValue)
+}
+
+func (service Service) handleReactionAdd(responseWriter http.ResponseWriter, request *http.Request) {
+	var response any
+	var errorValue error
+	switch request.PathValue("platform") {
+	case "mattermost":
+		response, errorValue = service.mattermostAddReactionFromRequest(request.Context(), request.Body)
+	case "slack", "signal":
+		response = map[string]string{"status": "noop"}
 	default:
 		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
 		return
@@ -610,6 +633,34 @@ func (service Service) mattermostInteractionResolve(ctx context.Context, reader 
 	body := map[string]any{"props": mattermostinteractive.ClearAttachmentsUpdate()["props"]}
 	path := "/api/v4/posts/" + url.PathEscape(dispatchID) + "/patch"
 	return map[string]bool{"resolved": true}, service.mattermostRequest(ctx, http.MethodPut, path, body, nil)
+}
+
+func (service Service) mattermostAddReactionFromRequest(ctx context.Context, reader io.Reader) (any, error) {
+	var request reactionAddRequest
+	if errorValue := json.NewDecoder(reader).Decode(&request); errorValue != nil {
+		return nil, errorValue
+	}
+	messageID := strings.TrimSpace(request.MessageID)
+	emojiName := strings.TrimSpace(request.EmojiName)
+	if messageID == "" {
+		return nil, errors.New("messageID is required")
+	}
+	if emojiName == "" {
+		return nil, errors.New("emojiName is required")
+	}
+	var botUser struct {
+		ID string `json:"id"`
+	}
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", nil, &botUser); errorValue != nil {
+		return nil, errorValue
+	}
+	body := map[string]any{
+		"user_id":    botUser.ID,
+		"post_id":    messageID,
+		"emoji_name": emojiName,
+	}
+	errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/reactions", body, nil)
+	return map[string]string{"status": "ok"}, errorValue
 }
 
 func (service Service) mattermostReplyProperties(request replyRequest, handle platformHandle) map[string]any {

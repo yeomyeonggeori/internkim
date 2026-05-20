@@ -1114,6 +1114,54 @@ func TestMattermostInteractionResolveClearsAttachments(t *testing.T) {
 	}
 }
 
+func TestMattermostReactionAddCreatesBotReaction(t *testing.T) {
+	reactionRequests := make(chan map[string]string, 1)
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1"}), nil
+		case "/api/v4/reactions":
+			if request.Method != http.MethodPost {
+				t.Fatalf("unexpected reaction method: %s", request.Method)
+			}
+			var payload map[string]string
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatalf("expected reaction payload to decode: %v", errorValue)
+			}
+			reactionRequests <- payload
+			return testJSONResponse(http.StatusOK, map[string]string{}), nil
+		default:
+			t.Fatalf("unexpected Mattermost request: %s", request.URL.Path)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	tokenPath := t.TempDir() + "/mattermost-token"
+	if errorValue := os.WriteFile(tokenPath, []byte("test-token\n"), 0o600); errorValue != nil {
+		t.Fatalf("expected token file to be written: %v", errorValue)
+	}
+	configuration := DefaultConfiguration()
+	configuration.MattermostBaseURL = "http://mattermost.test"
+	configuration.MattermostTokenPath = tokenPath
+	service := Service{Configuration: configuration, HTTPClient: httpClient}
+	request := httptest.NewRequest(http.MethodPost, "/v1/platform/mattermost/reaction.add", strings.NewReader(`{"messageID":"post-1","emojiName":"white_check_mark","reason":"consume"}`))
+	request.SetPathValue("platform", "mattermost")
+	responseRecorder := httptest.NewRecorder()
+
+	service.handleReactionAdd(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("expected reaction response ok, got %d %s", responseRecorder.Code, responseRecorder.Body.String())
+	}
+	select {
+	case payload := <-reactionRequests:
+		if payload["user_id"] != "bot-1" || payload["post_id"] != "post-1" || payload["emoji_name"] != "white_check_mark" {
+			t.Fatalf("unexpected reaction payload: %+v", payload)
+		}
+	default:
+		t.Fatal("expected reaction request")
+	}
+}
+
 func TestMattermostProgressStartPublishesTypingImmediately(t *testing.T) {
 	typingRequests := make(chan map[string]string, 1)
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
