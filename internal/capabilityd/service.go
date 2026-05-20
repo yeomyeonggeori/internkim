@@ -185,7 +185,7 @@ func DefaultConfiguration() Configuration {
 		BlueclawBaseURL:                "http://127.0.0.1:8080",
 		AdmindBaseURL:                  "http://127.0.0.1:18080",
 		OpenRouterBaseURL:              "https://openrouter.ai/api/v1/chat/completions",
-		OpenRouterModel:                "google/gemini-3.1-flash-lite-preview",
+		OpenRouterModel:                "google/gemini-3.1-flash-lite",
 		OpenRouterWebBaseURL:           "https://openrouter.ai/api/v1/chat/completions",
 		OpenRouterEmbeddingBaseURL:     "https://openrouter.ai/api/v1/embeddings",
 		OpenRouterEmbeddingModel:       "embeddinggemma",
