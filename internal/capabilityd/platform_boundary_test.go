@@ -681,6 +681,60 @@ func TestMattermostContextUsesSingleNameForHistorySpeakers(t *testing.T) {
 	}
 }
 
+func TestMattermostContextAnnotatesReadableMentions(t *testing.T) {
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/channels/channel-1/posts":
+			return testJSONResponse(http.StatusOK, struct {
+				Order []string                         `json:"order"`
+				Posts map[string]mattermostHistoryPost `json:"posts"`
+			}{
+				Order: []string{"post-1", "post-2"},
+				Posts: map[string]mattermostHistoryPost{
+					"post-1": {
+						ID:       "post-1",
+						UserID:   "user-1",
+						Message:  "@lee 시간 확인해주세요.",
+						CreateAt: 1000,
+						Metadata: struct {
+							Mentions []string `json:"mentions"`
+						}{Mentions: []string{"user-2"}},
+					},
+					"post-2": {ID: "post-2", UserID: "user-2", Message: "current", CreateAt: 2000},
+				},
+			}), nil
+		case "/api/v4/users/user-1":
+			return testJSONResponse(http.StatusOK, map[string]string{
+				"id":       "user-1",
+				"username": "kim",
+				"nickname": "김여명",
+			}), nil
+		case "/api/v4/users/user-2":
+			return testJSONResponse(http.StatusOK, map[string]string{
+				"id":       "user-2",
+				"username": "lee",
+				"nickname": "이샘플",
+			}), nil
+		default:
+			t.Fatalf("unexpected Mattermost request: %s?%s", request.URL.Path, request.URL.RawQuery)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	service := Service{
+		Configuration: Configuration{MattermostBaseURL: "http://mattermost.test", MattermostTokenPath: writePlatformTestFile(t, "test-token")},
+		HTTPClient:    httpClient,
+	}
+
+	contextValue := service.mattermostContext(context.Background(), platformHandle{ChannelID: "channel-1", MessageID: "post-2"}, 20)
+
+	if len(contextValue.Messages) != 1 {
+		t.Fatalf("expected one history message, got %+v", contextValue.Messages)
+	}
+	if contextValue.Messages[0].Text != "@lee(이샘플) 시간 확인해주세요." {
+		t.Fatalf("expected readable mention annotation, got %q", contextValue.Messages[0].Text)
+	}
+}
+
 func TestMattermostContextKeepsHistoryCursorForDirectRoot(t *testing.T) {
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch request.URL.Path {
