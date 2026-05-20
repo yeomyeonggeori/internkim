@@ -630,7 +630,7 @@ lookup_body="$(jq -cn --arg senderID "$bot_user_id" '{senderID:$senderID}')"
 curl --silent --show-error --fail --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$lookup_body" http://internkim/v1/platform/mattermost/identity.resolve | jq -e '.email != null' >/dev/null
 
 echo "checking llm capability"
-model="$(jq -r '.languageModel.capability.model // "google/gemini-3.1-flash-lite-preview"' /root/.blueclaw/config/runtime.json)"
+model="$(jq -r '.languageModel.capability.model // "google/gemini-3.1-flash-lite"' /root/.blueclaw/config/runtime.json)"
 llm_text_body="$(jq -cn --arg model "$model" '{
   model: $model,
   executionMode: "remote",
