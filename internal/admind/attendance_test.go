@@ -83,10 +83,10 @@ func TestAttendanceEntryPostUsesLocationNamesForMultipleClockInLocations(t *test
 	if len(actions) != 3 {
 		t.Fatalf("actions = %+v", actions)
 	}
-	if actions[0].ID != "attendanceClockIn-office" || actions[0].Name != "사무실" {
+	if actions[0].ID != "attendanceClockInoffice" || actions[0].Name != "사무실" {
 		t.Fatalf("office action = %+v", actions[0])
 	}
-	if actions[1].ID != "attendanceClockIn-home" || actions[1].Name != "재택" {
+	if actions[1].ID != "attendanceClockInhome" || actions[1].Name != "재택" {
 		t.Fatalf("home action = %+v", actions[1])
 	}
 	if actions[2].ID != attendanceClockOutAction || actions[2].Name != "퇴근" {
