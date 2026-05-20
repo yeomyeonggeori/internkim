@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 )
 
 type workspaceSettings struct {
@@ -182,10 +184,20 @@ func (service *Service) syncMattermostWorkspaceChannelDisplayNames(ctx context.C
 	if errorValue != nil {
 		return errorValue
 	}
-	if errorValue := service.ensureMattermostPublicChannelDisplayName(ctx, token, teamRecord.ID, mattermostFlowChannelName, flowChannelDisplayName(language)); errorValue != nil {
-		return errorValue
+	for _, channel := range mattermostdefaults.PublicChannelsForLanguage(language) {
+		if errorValue := service.ensureMattermostLocalizedPublicChannel(ctx, token, teamRecord.ID, channel); errorValue != nil {
+			return errorValue
+		}
 	}
 	return service.ensureMattermostPublicChannelDisplayName(ctx, token, teamRecord.ID, calendarAnnouncementsChannelName, announcementsChannelDisplayName(language))
+}
+
+func (service *Service) ensureMattermostLocalizedPublicChannel(ctx context.Context, token string, teamID string, channel mattermostdefaults.PublicChannel) error {
+	channelID, errorValue := service.ensureMattermostPublicChannel(ctx, token, teamID, channel.Name, channel.DisplayName)
+	if errorValue != nil {
+		return errorValue
+	}
+	return service.updateMattermostManagedPublicChannelText(ctx, token, channelID, channel)
 }
 
 func (service *Service) ensureMattermostPublicChannelDisplayName(ctx context.Context, token string, teamID string, channelName string, displayName string) error {
@@ -208,14 +220,15 @@ func (service *Service) ensureMattermostPublicChannelDisplayName(ctx context.Con
 
 func (service *Service) updateMattermostChannelDisplayName(ctx context.Context, token string, channelID string, displayName string) error {
 	body := map[string]string{"display_name": displayName}
-	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/patch", token, body, nil)
+	if errorValue := service.mattermostRequest(ctx, http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/patch", token, body, nil); errorValue != nil {
+		return errorValue
+	}
+	return service.cleanupMattermostManagedChannelSystemPosts(ctx, token, channelID)
 }
 
 func flowChannelDisplayName(language string) string {
-	if strings.EqualFold(strings.TrimSpace(language), workspaceLanguageEnglish) {
-		return "Flow"
-	}
-	return "업무"
+	channel, _ := mattermostdefaults.PublicChannelForLanguage(mattermostFlowChannelName, language)
+	return channel.DisplayName
 }
 
 func announcementsChannelDisplayName(language string) string {

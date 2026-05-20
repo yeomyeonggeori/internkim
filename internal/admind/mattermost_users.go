@@ -732,9 +732,7 @@ func (service *Service) ensureMattermostDefaultChannelMembership(ctx context.Con
 			membershipErrors = append(membershipErrors, errorValue)
 		}
 	}
-	if flowChannelID := strings.TrimSpace(readTrimmedFile(service.mattermostFlowChannelIDPath())); flowChannelID != "" {
-		_ = service.cleanupMattermostFlowSystemPosts(ctx, token, flowChannelID)
-	}
+	_ = service.cleanupSavedMattermostManagedChannelSystemPosts(ctx, token)
 	return errors.Join(membershipErrors...)
 }
 
@@ -755,6 +753,7 @@ func (service *Service) ensureMattermostDefaultChannelIDs(ctx context.Context, t
 func (service *Service) mattermostDefaultChannelProvisions() []mattermostDefaultChannelProvision {
 	return []mattermostDefaultChannelProvision{
 		{Name: mattermostdefaults.TownSquareChannelName, Ensure: service.ensureMattermostTownSquareChannel},
+		{Name: mattermostdefaults.OffTopicChannelName, Ensure: service.ensureMattermostOffTopicChannel},
 		{Name: mattermostFlowChannelName, Ensure: service.ensureMattermostFlowChannel},
 		{Name: mattermostCalendarChannelName, Ensure: service.ensureMattermostCalendarChannel},
 		{Name: attendanceChannelName, Ensure: service.ensureMattermostAttendanceChannel},
@@ -796,6 +795,11 @@ func (service *Service) ensureMattermostCircleChannels(ctx context.Context, toke
 func (service *Service) ensureMattermostPrivateChannel(ctx context.Context, token string, teamID string, channelName string) (string, error) {
 	channelID, errorValue := service.mattermostChannelIDByName(ctx, token, teamID, channelName)
 	if errorValue == nil || channelID != "" {
+		if channelID != "" {
+			if updateError := service.updateMattermostPrivateChannelDisplayName(ctx, token, channelID, channelName); updateError != nil {
+				return "", updateError
+			}
+		}
 		return channelID, errorValue
 	}
 	if !isMattermostNotFound(errorValue) {
@@ -804,7 +808,7 @@ func (service *Service) ensureMattermostPrivateChannel(ctx context.Context, toke
 	body := map[string]string{
 		"team_id":      teamID,
 		"name":         channelName,
-		"display_name": channelDisplayName(channelName),
+		"display_name": mattermostdefaults.CircleChannelDisplayName(channelName),
 		"type":         "P",
 	}
 	var channelRecord mattermostChannelRecord
@@ -814,32 +818,39 @@ func (service *Service) ensureMattermostPrivateChannel(ctx context.Context, toke
 	return channelRecord.ID, nil
 }
 
+func (service *Service) updateMattermostPrivateChannelDisplayName(ctx context.Context, token string, channelID string, channelName string) error {
+	body := map[string]string{"display_name": mattermostdefaults.CircleChannelDisplayName(channelName)}
+	if errorValue := service.mattermostRequest(ctx, http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/patch", token, body, nil); errorValue != nil {
+		return errorValue
+	}
+	return service.cleanupMattermostManagedChannelSystemPosts(ctx, token, channelID)
+}
+
 func (service *Service) ensureMattermostFlowChannel(ctx context.Context, token string, teamID string) (string, error) {
-	channelID, errorValue := service.ensureMattermostPublicChannel(ctx, token, teamID, mattermostFlowChannelName, flowChannelDisplayName(service.workspaceLanguage()))
+	channel, _ := service.mattermostManagedPublicChannel(mattermostFlowChannelName)
+	channelID, errorValue := service.ensureMattermostPublicChannel(ctx, token, teamID, channel.Name, channel.DisplayName)
 	if errorValue != nil {
 		return "", errorValue
 	}
 	service.saveMattermostFlowChannelID(channelID)
-	if errorValue := service.updateMattermostFlowChannelText(ctx, token, channelID); errorValue != nil {
+	if errorValue := service.updateMattermostManagedPublicChannelText(ctx, token, channelID, channel); errorValue != nil {
 		return "", errorValue
 	}
 	if errorValue := service.ensureMattermostFlowChannelReadOnly(ctx, token, channelID); errorValue != nil {
 		return "", errorValue
 	}
 	service.syncMattermostFlowEntryPost(ctx, token, channelID)
-	if errorValue := service.cleanupMattermostFlowSystemPosts(ctx, token, channelID); errorValue != nil {
-		return "", errorValue
-	}
 	return channelID, nil
 }
 
 func (service *Service) ensureMattermostCalendarChannel(ctx context.Context, token string, teamID string) (string, error) {
-	channelID, errorValue := service.ensureMattermostPublicChannel(ctx, token, teamID, mattermostCalendarChannelName, mattermostCalendarChannelDisplayName)
+	channel, _ := service.mattermostManagedPublicChannel(mattermostCalendarChannelName)
+	channelID, errorValue := service.ensureMattermostPublicChannel(ctx, token, teamID, channel.Name, channel.DisplayName)
 	if errorValue != nil {
 		return "", errorValue
 	}
 	service.saveMattermostCalendarChannelID(channelID)
-	if errorValue := service.updateMattermostCalendarChannelText(ctx, token, channelID); errorValue != nil {
+	if errorValue := service.updateMattermostManagedPublicChannelText(ctx, token, channelID, channel); errorValue != nil {
 		return "", errorValue
 	}
 	if errorValue := service.ensureMattermostFlowChannelReadOnly(ctx, token, channelID); errorValue != nil {
@@ -902,23 +913,50 @@ func (service *Service) ensureMattermostPublicChannel(ctx context.Context, token
 }
 
 func (service *Service) updateMattermostFlowChannelText(ctx context.Context, token string, channelID string) error {
-	flowChannelLink := service.mattermostFlowLink("")
-	body := map[string]string{
-		"display_name": flowChannelDisplayName(service.workspaceLanguage()),
-		"header":       flowChannelLink,
-		"purpose":      "",
-	}
-	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/patch", token, body, nil)
+	channel, _ := service.mattermostManagedPublicChannel(mattermostFlowChannelName)
+	return service.updateMattermostManagedPublicChannelText(ctx, token, channelID, channel)
 }
 
 func (service *Service) updateMattermostCalendarChannelText(ctx context.Context, token string, channelID string) error {
-	calendarChannelLink := service.mattermostCalendarLink("")
+	channel, _ := service.mattermostManagedPublicChannel(mattermostCalendarChannelName)
+	return service.updateMattermostManagedPublicChannelText(ctx, token, channelID, channel)
+}
+
+func (service *Service) mattermostManagedPublicChannel(channelName string) (mattermostdefaults.PublicChannel, bool) {
+	return mattermostdefaults.PublicChannelForLanguage(channelName, service.workspaceLanguage())
+}
+
+func (service *Service) updateMattermostManagedPublicChannelText(ctx context.Context, token string, channelID string, channel mattermostdefaults.PublicChannel) error {
+	header := service.mattermostManagedPublicChannelHeader(channel)
 	body := map[string]string{
-		"display_name": mattermostCalendarChannelDisplayName,
-		"header":       calendarChannelLink,
-		"purpose":      "",
+		"display_name": channel.DisplayName,
+		"header":       header,
+		"purpose":      service.mattermostManagedPublicChannelPurpose(channel),
 	}
-	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/patch", token, body, nil)
+	if errorValue := service.mattermostRequest(ctx, http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/patch", token, body, nil); errorValue != nil {
+		return errorValue
+	}
+	return service.cleanupMattermostManagedChannelSystemPosts(ctx, token, channelID)
+}
+
+func (service *Service) mattermostManagedPublicChannelHeader(channel mattermostdefaults.PublicChannel) string {
+	switch channel.Name {
+	case mattermostFlowChannelName:
+		return service.mattermostFlowLink("")
+	case mattermostCalendarChannelName:
+		return service.mattermostCalendarLink("")
+	case attendanceChannelName:
+		return service.mattermostAttendanceLink()
+	default:
+		return channel.Header
+	}
+}
+
+func (service *Service) mattermostManagedPublicChannelPurpose(channel mattermostdefaults.PublicChannel) string {
+	if channel.Name == attendanceChannelName {
+		return service.mattermostAttendanceLink()
+	}
+	return channel.Purpose
 }
 
 func (service *Service) ensureMattermostFlowChannelReadOnly(ctx context.Context, token string, channelID string) error {
@@ -938,9 +976,24 @@ func mattermostChannelModerationPatch(name string, roles map[string]bool) map[st
 	}
 }
 
-func (service *Service) cleanupMattermostFlowSystemPosts(ctx context.Context, token string, channelID string) error {
+func (service *Service) cleanupSavedMattermostManagedChannelSystemPosts(ctx context.Context, token string) error {
+	channelIDs := []string{
+		readTrimmedFile(service.mattermostFlowChannelIDPath()),
+		readTrimmedFile(service.mattermostCalendarChannelIDPath()),
+		readTrimmedFile(service.mattermostAttendanceChannelIDPath()),
+	}
+	var cleanupErrors []error
+	for _, channelID := range uniqueNonEmpty(channelIDs) {
+		if errorValue := service.cleanupMattermostManagedChannelSystemPosts(ctx, token, channelID); errorValue != nil {
+			cleanupErrors = append(cleanupErrors, errorValue)
+		}
+	}
+	return errors.Join(cleanupErrors...)
+}
+
+func (service *Service) cleanupMattermostManagedChannelSystemPosts(ctx context.Context, token string, channelID string) error {
 	for _, postRecord := range service.mattermostFlowPosts(ctx, token, channelID, 100) {
-		if !isMattermostFlowSystemPost(postRecord) || strings.TrimSpace(postRecord.ID) == "" {
+		if !isMattermostManagedChannelSystemPost(postRecord) || strings.TrimSpace(postRecord.ID) == "" {
 			continue
 		}
 		if errorValue := service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/posts/"+url.PathEscape(postRecord.ID), token, nil, nil); errorValue != nil {
@@ -988,7 +1041,10 @@ func (service *Service) ensureMattermostFlowEntryPost(ctx context.Context, admin
 }
 
 func (service *Service) mattermostFlowEntryPostMessage() string {
-	return service.adminText().FlowEntryMessage + " " + service.mattermostFlowLink("")
+	if service.workspaceLanguage() == workspaceLanguageEnglish {
+		return "View, request, and organize this week's work in Flow. " + service.mattermostFlowLink("")
+	}
+	return "Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다. " + service.mattermostFlowLink("")
 }
 
 func (service *Service) mattermostFlowEntryPost(ctx context.Context, token string, channelID string) (mattermostPostRecord, bool) {
@@ -1029,9 +1085,9 @@ func isMattermostFlowEntryPost(post mattermostPostRecord) bool {
 	return found && value == true
 }
 
-func isMattermostFlowSystemPost(post mattermostPostRecord) bool {
+func isMattermostManagedChannelSystemPost(post mattermostPostRecord) bool {
 	switch strings.TrimSpace(post.Type) {
-	case "system_add_to_channel", "system_join_channel", "system_purpose_change":
+	case "system_add_to_channel", "system_displayname_change", "system_header_change", "system_join_channel", "system_purpose_change":
 		return true
 	default:
 		return false
@@ -1261,15 +1317,6 @@ func (service *Service) mattermostChannelIDByName(ctx context.Context, token str
 	return channelRecord.ID, errorValue
 }
 
-func channelDisplayName(channelName string) string {
-	value := strings.TrimPrefix(strings.TrimSpace(channelName), "circle-")
-	value = strings.ReplaceAll(value, "-", " ")
-	if value == "" {
-		return channelName
-	}
-	return "Circle " + value
-}
-
 func (service *Service) ensureMattermostTeam(ctx context.Context, token string) (mattermostTeamRecord, error) {
 	var teamRecord mattermostTeamRecord
 	errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/teams/name/internkim", token, nil, &teamRecord)
@@ -1291,13 +1338,14 @@ func (service *Service) ensureMattermostTeam(ctx context.Context, token string) 
 }
 
 func (service *Service) ensureMattermostTownSquareChannel(ctx context.Context, token string, teamID string) (string, error) {
+	channel, _ := service.mattermostManagedPublicChannel(mattermostdefaults.TownSquareChannelName)
 	channelIDPath := filepath.Join(filepath.Dir(service.Configuration.FleetIDPath), "channel-id")
 	channelID := strings.TrimSpace(readTrimmedFile(channelIDPath))
 	if channelID != "" {
 		var channelRecord mattermostChannelRecord
 		errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/channels/"+url.PathEscape(channelID), token, nil, &channelRecord)
 		if errorValue == nil && channelRecord.ID != "" {
-			return channelRecord.ID, nil
+			return channelRecord.ID, service.updateMattermostManagedPublicChannelText(ctx, token, channelRecord.ID, channel)
 		}
 		if errorValue != nil && !isMattermostNotFound(errorValue) {
 			return "", errorValue
@@ -1310,7 +1358,7 @@ func (service *Service) ensureMattermostTownSquareChannel(ctx context.Context, t
 		return "", errorValue
 	}
 	if channelRecord.ID == "" {
-		body := map[string]string{"team_id": teamID, "name": "town-square", "display_name": "Town Square", "type": "O"}
+		body := map[string]string{"team_id": teamID, "name": channel.Name, "display_name": channel.DisplayName, "type": "O"}
 		if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/channels", token, body, &channelRecord); errorValue != nil {
 			return "", errorValue
 		}
@@ -1318,10 +1366,25 @@ func (service *Service) ensureMattermostTownSquareChannel(ctx context.Context, t
 	if channelRecord.ID == "" {
 		return "", fmt.Errorf("Mattermost channel town-square was not created")
 	}
+	if errorValue := service.updateMattermostManagedPublicChannelText(ctx, token, channelRecord.ID, channel); errorValue != nil {
+		return "", errorValue
+	}
 	if errorValue := os.WriteFile(channelIDPath, []byte(channelRecord.ID), 0o640); errorValue != nil {
 		return "", errorValue
 	}
 	return channelRecord.ID, nil
+}
+
+func (service *Service) ensureMattermostOffTopicChannel(ctx context.Context, token string, teamID string) (string, error) {
+	channel, _ := service.mattermostManagedPublicChannel(mattermostdefaults.OffTopicChannelName)
+	channelID, errorValue := service.ensureMattermostPublicChannel(ctx, token, teamID, channel.Name, channel.DisplayName)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	if errorValue := service.updateMattermostManagedPublicChannelText(ctx, token, channelID, channel); errorValue != nil {
+		return "", errorValue
+	}
+	return channelID, nil
 }
 
 func (service *Service) ensureMattermostBotDirectChannel(ctx context.Context, token string, userID string) error {

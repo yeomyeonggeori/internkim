@@ -46,6 +46,8 @@ var StepServices = Step{
 			return fmt.Errorf("blueclaw rootfs base contract drift: %s", baseCheck)
 		}
 
+		connection.Run(blueclawHostNetworkDependencyInstallCommand())
+
 		connection.Run("rm -f /etc/init.d/S97httpd; killall board-bridge 2>/dev/null; " +
 			"kill $(ps | grep 'python3 -m http.server' | grep -v grep | awk '{print $1}') 2>/dev/null || true")
 
@@ -112,6 +114,17 @@ fi`, deviceURL))
 		}
 		return nil
 	},
+}
+
+func blueclawHostNetworkDependencyInstallCommand() string {
+	return `set -euo pipefail
+if ! command -v ip >/dev/null 2>&1 || ! command -v iptables >/dev/null 2>&1 || ! command -v sysctl >/dev/null 2>&1; then
+  apt-get update -qq >/dev/null 2>&1 || true
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq iproute2 iptables procps >/dev/null
+fi
+command -v ip >/dev/null
+command -v iptables >/dev/null
+command -v sysctl >/dev/null`
 }
 
 func localLLMServiceUnitsAreSatisfied(context *Context) bool {
@@ -294,7 +307,7 @@ for tool_name in capabilities.get("toolNames", []):
         raise SystemExit
 
 database = runtime_configuration.get("database", {})
-if database.get("connectionString") != "postgres://blueclaw@/blueclaw?host=/workspace/.blueclaw/postgres&sslmode=disable":
+if database.get("connectionString") != "user=blueclaw dbname=blueclaw host=/workspace/.blueclaw/postgres sslmode=disable":
     print("runtime-database")
     raise SystemExit
 
@@ -309,6 +322,21 @@ if memory.get("graphitiKuzuPath") != "/workspace/.blueclaw/graphiti/kuzu":
 terminal = runtime_configuration.get("terminal", {})
 if terminal.get("mode") != "firecrackerGuest":
     print("runtime-terminal-mode")
+    raise SystemExit
+
+firecracker = runtime_configuration.get("firecracker", {})
+outbound_network = firecracker.get("outboundNetwork", {})
+if outbound_network.get("enabled") is not True:
+    print("runtime-outbound-network-disabled")
+    raise SystemExit
+if outbound_network.get("hostDeviceName") != "bctap0":
+    print("runtime-outbound-network-device")
+    raise SystemExit
+if outbound_network.get("networkCIDR") != "172.31.0.0/30":
+    print("runtime-outbound-network-cidr")
+    raise SystemExit
+if outbound_network.get("guestGateway") != "172.31.0.1":
+    print("runtime-outbound-network-gateway")
     raise SystemExit
 
 profile_tool_names = []
@@ -414,6 +442,7 @@ for name, marker in {
     "blueclaw-runtime-directory": "/workspace/.blueclaw/runtime",
     "blueclaw-posix-sync": "blueclaw-posix-helper sync",
     "blueclaw-posix-helper-preflight": "posix helper is not executable by blueclaw",
+    "blueclaw-outbound-network": "configure_outbound_network",
 }.items():
     if marker not in guest_init:
         print("rootfs-init-missing-marker:" + name)

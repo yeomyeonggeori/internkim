@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 
 	_ "modernc.org/sqlite"
@@ -1146,7 +1147,8 @@ func flowMattermostNotificationProps(task flowTask) map[string]any {
 }
 
 func (service *Service) mattermostFlowLink(weekCode string) string {
-	return "[" + service.adminText().FlowOpen + "](" + service.mattermostFlowURL(weekCode) + ")"
+	label := mattermostdefaults.PublicChannelLinkLabel(mattermostFlowChannelName, service.workspaceLanguage())
+	return "[" + label + "](" + service.mattermostFlowURL(weekCode) + ")"
 }
 
 func (service *Service) mattermostFlowURL(weekCode string) string {

@@ -514,7 +514,7 @@ func TestMattermostWebSocketPayloadPreservesMentionMetadata(t *testing.T) {
 		return document
 	}
 
-	event, hasEvent, errorValue := normalizeMattermostWebSocketPayload(buildPayload("O", "random-chat", "", "no mention"), "bot-1")
+	event, hasEvent, errorValue := normalizeMattermostWebSocketPayload(buildPayload("O", "random-chat", "", "no mention"), "bot-1", "internkim")
 	if errorValue != nil {
 		t.Fatalf("expected payload normalization to succeed: %v", errorValue)
 	}
@@ -525,7 +525,7 @@ func TestMattermostWebSocketPayloadPreservesMentionMetadata(t *testing.T) {
 		t.Fatalf("expected no mention flags, got %+v", event.Context.Addressing)
 	}
 
-	event, hasEvent, errorValue = normalizeMattermostWebSocketPayload(buildPayload("O", "random-chat", `["bot-1"]`, "@internkim hi"), "bot-1")
+	event, hasEvent, errorValue = normalizeMattermostWebSocketPayload(buildPayload("O", "random-chat", `["bot-1"]`, "@internkim hi"), "bot-1", "internkim")
 	if errorValue != nil {
 		t.Fatalf("expected mention payload normalization to succeed: %v", errorValue)
 	}
@@ -534,6 +534,28 @@ func TestMattermostWebSocketPayloadPreservesMentionMetadata(t *testing.T) {
 	}
 	if !event.Context.Addressing.BotMentioned || event.Context.Addressing.OtherPersonMentioned {
 		t.Fatalf("expected bot mention metadata, got %+v", event.Context.Addressing)
+	}
+
+	event, hasEvent, errorValue = normalizeMattermostWebSocketPayload(buildPayload("O", "town-square", "", "@iam 아직 상태 업데이트는 툴로 추가 안 했었어요."), "bot-1", "internkim")
+	if errorValue != nil {
+		t.Fatalf("expected fallback mention payload normalization to succeed: %v", errorValue)
+	}
+	if !hasEvent {
+		t.Fatal("expected fallback mention payload to be forwarded")
+	}
+	if event.Context.Addressing.BotMentioned || !event.Context.Addressing.OtherPersonMentioned {
+		t.Fatalf("expected fallback other-person mention metadata, got %+v", event.Context.Addressing)
+	}
+
+	event, hasEvent, errorValue = normalizeMattermostWebSocketPayload(buildPayload("O", "town-square", "", "@internkim 확인해줘"), "bot-1", "internkim")
+	if errorValue != nil {
+		t.Fatalf("expected fallback bot mention payload normalization to succeed: %v", errorValue)
+	}
+	if !hasEvent {
+		t.Fatal("expected fallback bot mention payload to be forwarded")
+	}
+	if !event.Context.Addressing.BotMentioned || event.Context.Addressing.OtherPersonMentioned {
+		t.Fatalf("expected fallback bot mention metadata, got %+v", event.Context.Addressing)
 	}
 }
 

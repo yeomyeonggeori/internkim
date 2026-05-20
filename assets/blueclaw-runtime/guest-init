@@ -90,6 +90,20 @@ check_blueclaw_posix_helper() {
   fi
 }
 
+configure_outbound_network() {
+  if ! ip link show eth0 >/dev/null 2>&1; then
+    log_guest_init "outbound network disabled: eth0 is unavailable"
+    return
+  fi
+  ip link set eth0 up
+  ip addr replace 172.31.0.2/30 dev eth0
+  ip route replace default via 172.31.0.1 dev eth0
+  cat >/etc/resolv.conf <<'EOF'
+nameserver 1.1.1.1
+nameserver 8.8.8.8
+EOF
+}
+
 blueclaw_binary_path() {
   local payload_binary_path="/workspace/.blueclaw/runtime/current/bin/blueclaw"
   if [ ! -x "$payload_binary_path" ]; then
@@ -111,6 +125,7 @@ mountpoint -q /tmp || mount -t tmpfs tmpfs /tmp
 mount -o remount,rw /
 
 ip link set lo up
+configure_outbound_network
 
 if ! mountpoint -q /workspace; then
   mount -t ext4 /dev/vdb /workspace

@@ -122,7 +122,7 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $runtimePackages >/dev/nul
 }
 
 func baseDeviceToolPackages() []string {
-	return []string{"bc", "ca-certificates", "curl", "git", "unzip"}
+	return []string{"bc", "ca-certificates", "curl", "git", "iproute2", "iptables", "procps", "unzip"}
 }
 
 func usersSyncDependencyInstallScript() string {

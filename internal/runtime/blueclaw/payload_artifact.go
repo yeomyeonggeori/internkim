@@ -126,6 +126,9 @@ func calculateDirectorySHA256(directoryPath string) (string, error) {
 		if directoryEntry.IsDir() {
 			return nil
 		}
+		if isAppleMetadataPath(filePath) {
+			return nil
+		}
 		filePaths = append(filePaths, filePath)
 		return nil
 	})
@@ -157,6 +160,11 @@ func calculateDirectorySHA256(directoryPath string) (string, error) {
 		io.WriteString(hash, "\n")
 	}
 	return hex.EncodeToString(hash.Sum(nil)), nil
+}
+
+func isAppleMetadataPath(path string) bool {
+	baseName := filepath.Base(path)
+	return baseName == ".DS_Store" || strings.HasPrefix(baseName, "._")
 }
 
 func calculateSelectedPathsSHA256(rootPath string, relativePaths []string) (string, error) {

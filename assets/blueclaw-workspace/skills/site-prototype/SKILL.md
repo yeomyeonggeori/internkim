@@ -48,7 +48,7 @@ For create, make, build, deploy, publish, prototype, demo, landing page, dashboa
 3. After `site.app.create` succeeds, call `site.app.status` for the same `siteID` and use `sourceWorkspacePath` and `appWorkspacePath`.
 4. Write `DESIGN.md` into the site workspace before writing app source.
 5. Use `file.write` to update `app/src/content.html`, `app/src/styles.css`, `app/src/script.js`, and app-owned data/source files according to `DESIGN.md`. Do not write `app/package.json`, `app/index.html`, or `app/scripts/build.ts`; those scaffold/build contract files are managed by `site.app.create`.
-6. Run `bun run build` with `terminal.run.workingDirectoryPath` set to `<appWorkspacePath>`; inside the command, use relative paths only. The default scaffold has no external package install step. The `sourceWorkspacePath` should normally look like `home/sites/<siteID>`, not an absolute private path.
+6. Run `bun scripts/build.ts` with `terminal.run.workingDirectoryPath` set to `<appWorkspacePath>`; inside the command, use relative paths only. The default scaffold has no external package install step. The `sourceWorkspacePath` should normally look like `home/sites/<siteID>`, not an absolute private path.
 7. Call `site.app.publish` with `siteID` and a concise `message`.
 8. Call `site.app.status` for the same `siteID` and confirm the status is `published`.
 9. Reply in Mattermost with the public URL, a short change summary, how to try the main workflow, and any test login credentials.
@@ -72,7 +72,7 @@ Use this terminal pattern after source files are written:
 ```json
 {
   "workingDirectoryPath": "<appWorkspacePath>",
-  "command": "bun run build"
+  "command": "bun scripts/build.ts"
 }
 ```
 
@@ -81,7 +81,7 @@ Do not run this as a single shell command that starts with `cd <appWorkspacePath
 The command itself should stay short:
 
 ```bash
-bun run build
+bun scripts/build.ts
 ```
 
 After terminal build success:
@@ -89,7 +89,7 @@ After terminal build success:
 - call `site.app.publish` with `siteID` and a human-readable `message`
 - never claim deployment succeeded until the tool succeeds
 - after publish succeeds, call `site.app.status` and make sure `status` is `published`
-- if publish says `app/dist is stale`, run `bun run build` from `app/` again before publishing
+- if publish says `app/dist is stale`, run `bun scripts/build.ts` from `app/` again before publishing
 - if publish fails, summarize the actual failure and stop
 
 ## Cost and Integration Guardrails

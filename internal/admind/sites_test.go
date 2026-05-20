@@ -367,6 +367,27 @@ func TestSitePublishRejectsUnapprovedPocketBaseHooks(t *testing.T) {
 	}
 }
 
+func TestSitePublishIgnoresPocketBaseHookMetadataFiles(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "hook-metadata-demo"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeTestWorkspaceBuild(t, site, "workspace")
+	writeFile(t, filepath.Join(site.HostSourcePath, "pocketbase", "pb_hooks", ".gitkeep"), "")
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if site.Status != SiteStatusPublished {
+		t.Fatalf("published status = %q", site.Status)
+	}
+}
+
 func TestSiteLifecycleRequiresOwnerOrConfirmation(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "owned", RequestedBy: "owner@example.com"})
