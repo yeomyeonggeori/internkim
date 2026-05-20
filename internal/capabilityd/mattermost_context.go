@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"gitlab.com/eastriver/internkim/internal/identity"
 )
@@ -19,6 +21,9 @@ type mattermostHistoryPost struct {
 	RootID   string `json:"root_id"`
 	Type     string `json:"type"`
 	CreateAt int64  `json:"create_at"`
+	Metadata struct {
+		Mentions []string `json:"mentions"`
+	} `json:"metadata"`
 }
 
 func (service Service) enrichMattermostEvent(ctx context.Context, event platformInboundEvent) platformInboundEvent {
@@ -62,11 +67,12 @@ func (service Service) mattermostContext(ctx context.Context, handle platformHan
 			senderInfo = service.mattermostSender(ctx, post.UserID)
 			senderByUserID[post.UserID] = senderInfo
 		}
+		text := service.mattermostTextWithReadableMentions(ctx, post.Message, post.Metadata.Mentions, senderByUserID)
 		messages = append(messages, platformContextMessage{
 			Speaker:            senderInfo.Name,
 			SpeakerCallingName: senderInfo.CallingName,
 			SpeakerHandle:      senderInfo.Handle,
-			Text:               post.Message,
+			Text:               text,
 		})
 	}
 
@@ -159,6 +165,118 @@ func (service Service) mattermostSender(ctx context.Context, userID string) plat
 		Name:        canonicalName,
 		CallingName: identity.CallingName(canonicalName),
 	}
+}
+
+func (service Service) mattermostTextWithReadableMentions(ctx context.Context, message string, mentionUserIDs []string, senderByUserID map[string]platformContextSender) string {
+	text := strings.TrimSpace(message)
+	if text == "" || len(mentionUserIDs) == 0 {
+		return text
+	}
+	for _, userID := range mentionUserIDs {
+		userID = strings.TrimSpace(userID)
+		if userID == "" {
+			continue
+		}
+		senderInfo, hasSender := senderByUserID[userID]
+		if !hasSender {
+			senderInfo = service.mattermostSender(ctx, userID)
+			senderByUserID[userID] = senderInfo
+		}
+		text = annotateMattermostMention(text, senderInfo)
+	}
+	return text
+}
+
+func annotateMattermostMention(text string, sender platformContextSender) string {
+	replacement := mattermostReadableMention(sender)
+	if replacement == "" {
+		return text
+	}
+	for _, alias := range mattermostMentionAliases(sender) {
+		text = replaceMattermostMentionAlias(text, alias, replacement)
+	}
+	return text
+}
+
+func mattermostReadableMention(sender platformContextSender) string {
+	handle := strings.TrimPrefix(strings.TrimSpace(sender.Handle), "@")
+	name := firstNonEmpty(strings.TrimSpace(sender.Name), strings.TrimSpace(sender.CallingName))
+	if handle == "" {
+		return ""
+	}
+	if name == "" || strings.EqualFold(name, handle) {
+		return "@" + handle
+	}
+	return "@" + handle + "(" + name + ")"
+}
+
+func mattermostMentionAliases(sender platformContextSender) []string {
+	aliases := []string{}
+	for _, value := range []string{sender.Handle, sender.CallingName, sender.Name} {
+		alias := strings.TrimPrefix(strings.TrimSpace(value), "@")
+		if alias == "" || containsString(aliases, alias) {
+			continue
+		}
+		aliases = append(aliases, alias)
+	}
+	return aliases
+}
+
+func replaceMattermostMentionAlias(text string, alias string, replacement string) string {
+	alias = strings.TrimPrefix(strings.TrimSpace(alias), "@")
+	if text == "" || alias == "" || replacement == "" {
+		return text
+	}
+	token := "@" + alias
+	var builder strings.Builder
+	startIndex := 0
+	for {
+		matchOffset := strings.Index(text[startIndex:], token)
+		if matchOffset < 0 {
+			builder.WriteString(text[startIndex:])
+			break
+		}
+		matchStart := startIndex + matchOffset
+		matchEnd := matchStart + len(token)
+		if !isMattermostMentionTokenBoundary(text, matchStart, matchEnd) {
+			builder.WriteString(text[startIndex:matchEnd])
+			startIndex = matchEnd
+			continue
+		}
+		builder.WriteString(text[startIndex:matchStart])
+		builder.WriteString(replacement)
+		startIndex = matchEnd
+	}
+	return builder.String()
+}
+
+func isMattermostMentionTokenBoundary(text string, matchStart int, matchEnd int) bool {
+	if matchStart > 0 {
+		previousRune, _ := utf8.DecodeLastRuneInString(text[:matchStart])
+		if isMattermostMentionAdjacentRune(previousRune) {
+			return false
+		}
+	}
+	if matchEnd < len(text) {
+		nextRune, _ := utf8.DecodeRuneInString(text[matchEnd:])
+		if isMattermostMentionAdjacentRune(nextRune) {
+			return false
+		}
+	}
+	return true
+}
+
+func isMattermostMentionAdjacentRune(value rune) bool {
+	return unicode.IsLetter(value) || unicode.IsDigit(value) || value == '_' || value == '-' || value == '.'
+}
+
+func containsString(values []string, candidate string) bool {
+	for _, value := range values {
+		if value == candidate {
+			return true
+		}
+	}
+	return false
 }
 
 func mustEncodePlatformHandle(handle platformHandle) string {
