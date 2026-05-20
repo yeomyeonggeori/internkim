@@ -114,7 +114,9 @@ func (service *Service) mattermostInteractiveButton(actionID string, name string
 }
 
 func (service *Service) mattermostInteractiveButtonWithContext(actionID string, name string, tooltip string, style string, context mattermostInteractiveContext) mattermostAction {
-	context.Action = actionID
+	if strings.TrimSpace(context.Action) == "" {
+		context.Action = actionID
+	}
 	context.Token = service.ensureMattermostInteractiveActionToken()
 	return mattermostinteractive.Button(actionID, name, tooltip, style, service.mattermostInteractiveActionURL(), context)
 }

@@ -265,7 +265,7 @@ func (service *Service) applyAttendanceAction(ctx context.Context, userRecord ma
 		return nil
 	}
 	eventLocation := attendanceLocation{}
-	if kind == attendanceKindClockIn {
+	if kind == attendanceKindClockIn && strings.TrimSpace(locationID) != "" {
 		eventLocation = service.attendanceLocationByID(locationID)
 	}
 	return service.createAttendanceEventForKind(ctx, database, userRecord, userToken, kind, teamID, channelID, actionPostID, now, eventLocation)
@@ -288,7 +288,7 @@ func (service *Service) createNextAttendanceEvent(ctx context.Context, database 
 }
 
 func (service *Service) createAttendanceEventForKind(ctx context.Context, database *sql.DB, userRecord mattermostUserRecord, userToken string, kind string, teamID string, channelID string, actionPostID string, occurredAt time.Time, eventLocation attendanceLocation) error {
-	resultPostID, errorValue := service.postMattermostUserAttendanceMessage(ctx, userToken, channelID, actionPostID, attendanceMessageForKind(kind))
+	resultPostID, errorValue := service.postMattermostUserAttendanceMessage(ctx, userToken, channelID, actionPostID, service.attendanceMessageForKindAndLocation(kind, eventLocation.Name))
 	if errorValue != nil {
 		return errorValue
 	}
@@ -297,7 +297,7 @@ func (service *Service) createAttendanceEventForKind(ctx context.Context, databa
 }
 
 func (service *Service) cancelAttendanceEvent(ctx context.Context, database *sql.DB, userToken string, event attendanceEvent, canceledAt time.Time) error {
-	message := attendanceMessageForKind(event.Kind) + " 취소"
+	message := service.attendanceMessageForKindAndLocation(event.Kind, event.LocationName) + " 취소"
 	if _, errorValue := service.postMattermostUserAttendanceMessage(ctx, userToken, event.ChannelID, event.ActionPostID, message); errorValue != nil {
 		return errorValue
 	}
@@ -707,31 +707,41 @@ func (service *Service) mattermostAttendanceEntryActions() []mattermostAction {
 	text := service.adminText()
 	actions := make([]mattermostAction, 0, len(locations)+1)
 	if len(locations) == 1 {
-		actions = append(actions, service.mattermostAttendanceClockInButton(text.AttendanceClockIn, locations[0]))
+		actions = append(actions, service.mattermostAttendanceClockInButton(attendanceClockInAction, text.AttendanceClockIn, locations[0]))
 	} else {
 		for _, location := range locations {
-			actions = append(actions, service.mattermostAttendanceClockInButton(attendanceClockInLocationName(text.AttendanceClockIn, location), location))
+			actions = append(actions, service.mattermostAttendanceClockInButton(attendanceClockInActionID(location), location.Name, location))
 		}
 	}
 	actions = append(actions, service.mattermostInteractiveButton(attendanceClockOutAction, text.AttendanceClockOut, text.AttendanceClockOutTooltip, "danger"))
 	return actions
 }
 
-func attendanceClockInLocationName(clockInText string, location attendanceLocation) string {
-	locationName := strings.TrimSpace(location.Name)
-	if locationName == "" {
-		return clockInText
+func attendanceClockInActionID(location attendanceLocation) string {
+	suffix := sanitizeMattermostActionIDPart(location.ID)
+	if suffix == "" {
+		return attendanceClockInAction
 	}
-	return clockInText + "(" + locationName + ")"
+	return attendanceClockInAction + "-" + suffix
 }
 
-func (service *Service) mattermostAttendanceClockInButton(name string, location attendanceLocation) mattermostAction {
+func sanitizeMattermostActionIDPart(value string) string {
+	var builder strings.Builder
+	for _, character := range strings.TrimSpace(value) {
+		if character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' || character >= '0' && character <= '9' || character == '-' || character == '_' {
+			builder.WriteRune(character)
+		}
+	}
+	return builder.String()
+}
+
+func (service *Service) mattermostAttendanceClockInButton(actionID string, name string, location attendanceLocation) mattermostAction {
 	return service.mattermostInteractiveButtonWithContext(
-		attendanceClockInAction,
+		actionID,
 		name,
 		service.adminText().AttendanceClockInTooltip,
 		"success",
-		mattermostInteractiveContext{LocationID: location.ID},
+		mattermostInteractiveContext{Action: attendanceClockInAction, LocationID: location.ID},
 	)
 }
 
@@ -885,6 +895,23 @@ func attendanceMessageForKind(kind string) string {
 		return "퇴근"
 	}
 	return "출근"
+}
+
+func (service *Service) attendanceMessageForKindAndLocation(kind string, locationName string) string {
+	message := attendanceMessageForKind(kind)
+	trimmedLocationName := strings.TrimSpace(locationName)
+	if kind != attendanceKindClockIn || trimmedLocationName == "" || !service.hasMultipleAttendanceLocations() {
+		return message
+	}
+	return message + "(" + trimmedLocationName + ")"
+}
+
+func (service *Service) hasMultipleAttendanceLocations() bool {
+	locations, errorValue := service.readAttendanceLocations()
+	if errorValue != nil {
+		locations = defaultAttendanceLocations()
+	}
+	return len(locations) > 1
 }
 
 func nextAttendanceKind(event attendanceEvent, hasEvent bool) string {

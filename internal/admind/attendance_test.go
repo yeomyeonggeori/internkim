@@ -69,7 +69,7 @@ func TestAttendanceEntryPostUsesSeparateSafeActionIDs(t *testing.T) {
 	}
 }
 
-func TestAttendanceEntryPostNamesMultipleClockInLocations(t *testing.T) {
+func TestAttendanceEntryPostUsesLocationNamesForMultipleClockInLocations(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	if errorValue := service.writeAttendanceLocationsFile([]attendanceLocation{
 		{ID: "office", Name: "사무실", Color: "#16a34a", IsDefault: true},
@@ -83,8 +83,39 @@ func TestAttendanceEntryPostNamesMultipleClockInLocations(t *testing.T) {
 	if len(actions) != 3 {
 		t.Fatalf("actions = %+v", actions)
 	}
-	if actions[0].Name != "출근(사무실)" || actions[1].Name != "출근(재택)" || actions[2].Name != "퇴근" {
+	if actions[0].ID != "attendanceClockIn-office" || actions[0].Name != "사무실" {
+		t.Fatalf("office action = %+v", actions[0])
+	}
+	if actions[1].ID != "attendanceClockIn-home" || actions[1].Name != "재택" {
+		t.Fatalf("home action = %+v", actions[1])
+	}
+	if actions[2].ID != attendanceClockOutAction || actions[2].Name != "퇴근" {
 		t.Fatalf("actions = %+v", actions)
+	}
+}
+
+func TestAttendanceClockInMultipleLocationsPostsLocationName(t *testing.T) {
+	service, posts := newAttendanceActionTestService(t)
+	if errorValue := service.writeAttendanceLocationsFile([]attendanceLocation{
+		{ID: "office", Name: "사무실", Color: "#16a34a", IsDefault: true},
+		{ID: "home", Name: "재택", Color: "#2563eb"},
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	payload := mattermostInteractivePayload{
+		UserID:    "user-1",
+		PostID:    "entry-post",
+		ChannelID: "attendance-channel",
+		TeamID:    "team-1",
+		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken(), LocationID: "office"},
+	}
+
+	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if len(*posts) != 1 || (*posts)[0].Message != "출근(사무실)" {
+		t.Fatalf("posts = %+v", *posts)
 	}
 }
 
@@ -355,6 +386,8 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]attendanceAction
 			return jsonResponse(http.StatusOK, `{"id":"bot-1","email":"internkim@localhost","username":"internkim"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/posts?per_page=50":
 			return jsonResponse(http.StatusOK, `{"order":["entry-post"],"posts":{"entry-post":{"id":"entry-post","user_id":"bot-1","is_pinned":true,"message":"출퇴근 기록","props":{"internkim_attendance_entry":true,"attachments":[{"fallback":"출퇴근 기록","text":"출근과 퇴근 버튼을 구분해서 기록합니다.","actions":[{"id":"attendanceClockIn","name":"출근"},{"id":"attendanceClockOut","name":"퇴근"}]}]}}}}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/posts/entry-post/patch" && request.Method == http.MethodPut:
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members" && request.Method == http.MethodPost:
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members/bot-1/schemeRoles" && request.Method == http.MethodPut:
