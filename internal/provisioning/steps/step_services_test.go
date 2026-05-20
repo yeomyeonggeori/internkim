@@ -22,6 +22,8 @@ func TestBlueclawRuntimeContractCheckCatchesStaleAgentConfiguration(t *testing.T
 		"web.fetch",
 		"tool.describe",
 		"runtime-config-mirror-drift",
+		"runtime-outbound-network-disabled",
+		"runtime-outbound-network-cidr",
 	} {
 		if !strings.Contains(command, expectedFragment) {
 			t.Fatalf("expected runtime contract check to contain %q", expectedFragment)
@@ -55,6 +57,7 @@ func TestBlueclawRootfsBaseContractCheckCatchesStaleBaseRuntime(t *testing.T) {
 		"blueclaw-posix-helper-preflight",
 		"posix helper is not executable by blueclaw",
 		"blueclaw-posix-sync",
+		"blueclaw-outbound-network",
 	} {
 		if !strings.Contains(command, expectedFragment) {
 			t.Fatalf("expected rootfs binary contract check to contain %q", expectedFragment)
@@ -110,6 +113,15 @@ func TestSimulationServicesDoNotInstallLlamaCppUnits(t *testing.T) {
 	} {
 		if strings.Contains(command, unexpectedValue) {
 			t.Fatalf("expected simulation service command to exclude %q, got:\n%s", unexpectedValue, command)
+		}
+	}
+}
+
+func TestBlueclawHostNetworkDependencyInstallCommandInstallsTapNATTools(t *testing.T) {
+	command := blueclawHostNetworkDependencyInstallCommand()
+	for _, expectedValue := range []string{"command -v ip", "command -v iptables", "command -v sysctl", "apt-get install", "iproute2 iptables procps"} {
+		if !strings.Contains(command, expectedValue) {
+			t.Fatalf("expected host network dependency command to contain %q, got:\n%s", expectedValue, command)
 		}
 	}
 }

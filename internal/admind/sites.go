@@ -707,7 +707,7 @@ func ensureSiteFrontendBuildIsFresh(workspacePath string, frontendBuildPath stri
 		return errors.New("site workspace app/dist must contain build files")
 	}
 	if latestSourceModTime.After(earliestBuildModTime) {
-		return errors.New("site workspace app/dist is stale; run bun run build in app before publishing")
+		return errors.New("site workspace app/dist is stale; run bun scripts/build.ts in app before publishing")
 	}
 	return nil
 }
@@ -1072,7 +1072,7 @@ func siteGitArguments(site *SiteRecord, arguments ...string) []string {
 
 func (service *Service) copyApprovedPocketBaseHooks(site *SiteRecord, versionPath string, payload sitePublishRequest) error {
 	hooksPath := filepath.Join(site.HostSourcePath, "pocketbase", "pb_hooks")
-	if !directoryHasFiles(hooksPath) {
+	if !directoryHasOperationalFiles(hooksPath) {
 		return nil
 	}
 	if !payload.PocketBaseHooksApproved {
@@ -1304,6 +1304,35 @@ func directoryHasFiles(path string) bool {
 		}
 	}
 	return false
+}
+
+func directoryHasOperationalFiles(path string) bool {
+	entries, errorValue := os.ReadDir(path)
+	if errorValue != nil {
+		return false
+	}
+	for _, entry := range entries {
+		entryPath := filepath.Join(path, entry.Name())
+		if entry.IsDir() {
+			if directoryHasOperationalFiles(entryPath) {
+				return true
+			}
+			continue
+		}
+		if siteOperationalFileName(entry.Name()) {
+			return true
+		}
+	}
+	return false
+}
+
+func siteOperationalFileName(name string) bool {
+	switch strings.TrimSpace(name) {
+	case "", ".gitkeep", ".DS_Store":
+		return false
+	default:
+		return true
+	}
 }
 
 func siteSourceWorkspacePath(siteID string, requestedPath string) string {

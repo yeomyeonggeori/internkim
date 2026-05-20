@@ -27,7 +27,7 @@ func TestUsersSyncDependencyInstallScriptInstallsJQ(t *testing.T) {
 
 func TestDeviceToolPackagesIncludeSitePublishingBasics(t *testing.T) {
 	packages := strings.Join(baseDeviceToolPackages(), " ")
-	for _, packageName := range []string{"bc", "git", "curl", "unzip", "ca-certificates"} {
+	for _, packageName := range []string{"bc", "git", "curl", "unzip", "ca-certificates", "iproute2", "iptables", "procps"} {
 		if !strings.Contains(packages, packageName) {
 			t.Fatalf("expected base device tools to include %q, got %s", packageName, packages)
 		}
@@ -410,6 +410,7 @@ func TestMattermostSetupEnablesUserTokensAndBots(t *testing.T) {
 func TestMattermostSetupEnsuresDefaultChannels(t *testing.T) {
 	var createdChannels []map[string]string
 	var patchedChannels []map[string]string
+	var deletedSystemPosts []string
 	mattermostAPI := func(method string, path string, body []byte, token string) (int, []byte) {
 		if token != "admin-token" {
 			t.Fatalf("unexpected token: %s", token)
@@ -434,23 +435,37 @@ func TestMattermostSetupEnsuresDefaultChannels(t *testing.T) {
 			patchedChannels = append(patchedChannels, channel)
 			return http.StatusOK, nil
 		}
+		if method == "GET" && strings.HasPrefix(path, "/api/v4/channels/channel-") && strings.HasSuffix(path, "/posts?per_page=100") {
+			return http.StatusOK, []byte(`{"order":["system-header","user-post"],"posts":{"system-header":{"id":"system-header","type":"system_header_change"},"user-post":{"id":"user-post","type":""}}}`)
+		}
+		if method == "DELETE" && strings.HasPrefix(path, "/api/v4/posts/system-header") {
+			deletedSystemPosts = append(deletedSystemPosts, path)
+			return http.StatusOK, nil
+		}
 		t.Fatalf("unexpected Mattermost API call: %s %s", method, path)
 		return http.StatusInternalServerError, nil
 	}
 
-	setupMattermostDefaultChannels(mattermostAPI, "admin-token", "", "team-1", "")
+	setupMattermostDefaultChannels(mattermostAPI, "admin-token", "", "team-1", "", "ko")
 
-	if len(createdChannels) != len(mattermostdefaults.DefaultPublicChannels()) {
+	expectedChannels := mattermostdefaults.PublicChannelsForLanguage("ko")
+	if len(createdChannels) != len(expectedChannels) {
 		t.Fatalf("created channels = %+v", createdChannels)
 	}
-	if len(patchedChannels) != len(mattermostdefaults.DefaultPublicChannels()) {
+	if len(patchedChannels) != len(expectedChannels) {
 		t.Fatalf("patched channels = %+v", patchedChannels)
 	}
-	for channelIndex, channel := range mattermostdefaults.DefaultPublicChannels() {
+	if len(deletedSystemPosts) != len(expectedChannels) {
+		t.Fatalf("deleted system posts = %+v", deletedSystemPosts)
+	}
+	for channelIndex, channel := range expectedChannels {
 		if createdChannels[channelIndex]["name"] != channel.Name {
 			t.Fatalf("created channel %d = %+v", channelIndex, createdChannels[channelIndex])
 		}
 		if patchedChannels[channelIndex]["display_name"] != channel.DisplayName {
+			t.Fatalf("patched channel %d = %+v", channelIndex, patchedChannels[channelIndex])
+		}
+		if patchedChannels[channelIndex]["header"] != channel.Header {
 			t.Fatalf("patched channel %d = %+v", channelIndex, patchedChannels[channelIndex])
 		}
 	}
