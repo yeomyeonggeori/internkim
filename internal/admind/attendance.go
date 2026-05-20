@@ -718,13 +718,13 @@ func attendanceClockInActionID(location attendanceLocation) string {
 	if suffix == "" {
 		return attendanceClockInAction
 	}
-	return attendanceClockInAction + "-" + suffix
+	return attendanceClockInAction + suffix
 }
 
 func sanitizeMattermostActionIDPart(value string) string {
 	var builder strings.Builder
 	for _, character := range strings.TrimSpace(value) {
-		if character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' || character >= '0' && character <= '9' || character == '-' || character == '_' {
+		if character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' || character >= '0' && character <= '9' {
 			builder.WriteRune(character)
 		}
 	}
