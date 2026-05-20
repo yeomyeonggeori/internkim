@@ -453,7 +453,7 @@ func runModel() {
 	case "set":
 		if len(os.Args) < 4 {
 			fmt.Println("Usage: internkim model set <model-id>")
-			fmt.Println("Example: internkim model set google/gemini-3.1-flash-lite-preview")
+			fmt.Println("Example: internkim model set google/gemini-3.1-flash-lite")
 			os.Exit(1)
 		}
 		modelSetCmd(ssh, os.Args[3])

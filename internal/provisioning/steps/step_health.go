@@ -268,9 +268,9 @@ import json
 try:
     with open("/root/.blueclaw/config/runtime.json") as file:
         document = json.load(file)
-    print(document.get("languageModel", {}).get("capability", {}).get("model") or "google/gemini-3.1-flash-lite-preview")
+    print(document.get("languageModel", {}).get("capability", {}).get("model") or "google/gemini-3.1-flash-lite")
 except Exception:
-    print("google/gemini-3.1-flash-lite-preview")
+    print("google/gemini-3.1-flash-lite")
 PY
 )"
 text_body="$(MODEL="$model" python3 - <<'PY'
