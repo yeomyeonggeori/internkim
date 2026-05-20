@@ -24,6 +24,7 @@ type MattermostWebSocketForwarder struct {
 	URL               string
 	BotToken          string
 	BotUserID         string
+	BotUsername       string
 	BlueclawURL       string
 	HTTPClient        *http.Client
 	EventBuilder      func(context.Context, []byte) (platformInboundEvent, bool, error)
@@ -180,7 +181,7 @@ func (forwarder MattermostWebSocketForwarder) forward(ctx context.Context, paylo
 	eventBuilder := forwarder.EventBuilder
 	if eventBuilder == nil {
 		eventBuilder = func(_ context.Context, payload []byte) (platformInboundEvent, bool, error) {
-			return normalizeMattermostWebSocketPayload(payload, forwarder.BotUserID)
+			return normalizeMattermostWebSocketPayload(payload, forwarder.BotUserID, forwarder.BotUsername)
 		}
 	}
 	event, hasEvent, errorValue := eventBuilder(ctx, payload)

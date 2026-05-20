@@ -91,6 +91,43 @@ func TestSiteAppPublishResolvesConversationSite(t *testing.T) {
 	}
 }
 
+func TestSiteAppStatusResolvesConversationSite(t *testing.T) {
+	requests := []string{}
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			requests = append(requests, request.Method+" "+request.URL.Path)
+			switch {
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/admin/api/sites":
+				return siteToolJSONResponse(`{"sites":[{"siteID":"site-1","slug":"demo","platform":"mattermost","conversationID":"thread-1","status":"draft"}]}`), nil
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/admin/api/sites/site-1":
+				return siteToolJSONResponse(`{"siteID":"site-1","status":"draft","sourceWorkspacePath":"home/sites/site-1","appWorkspacePath":"home/sites/site-1/app"}`), nil
+			default:
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+
+	response, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "site.app.status",
+		Input:    json.RawMessage(`{}`),
+		Context: capabilities.ToolInvokeContext{
+			Platform:       "mattermost",
+			ConversationID: "thread-1",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !strings.Contains(string(response.Result), `"appWorkspacePath":"home/sites/site-1/app"`) {
+		t.Fatalf("expected status result to include appWorkspacePath, got %s", response.Result)
+	}
+	if strings.Join(requests, ",") != "GET /admin/api/sites,GET /admin/api/sites/site-1" {
+		t.Fatalf("unexpected requests: %+v", requests)
+	}
+}
+
 func siteToolJSONResponse(document string) *http.Response {
 	return &http.Response{
 		StatusCode: http.StatusOK,

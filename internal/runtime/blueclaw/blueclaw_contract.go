@@ -44,7 +44,7 @@ const (
 	BlueclawGuestRuntimeConfigPath        = "/workspace/.blueclaw/config/runtime.json"
 	BlueclawGuestPolicyConfigPath         = "/workspace/.blueclaw/config/policy.json"
 	BlueclawGuestDatabaseSocketPath       = "/workspace/.blueclaw/postgres"
-	BlueclawGuestDatabaseConnectionString = "postgres://blueclaw@/blueclaw?host=/workspace/.blueclaw/postgres&sslmode=disable"
+	BlueclawGuestDatabaseConnectionString = "user=blueclaw dbname=blueclaw host=/workspace/.blueclaw/postgres sslmode=disable"
 	BlueclawHealthCheckPath               = "/admin/api/health"
 	BlueclawSubmodulePath                 = ".dependency/blueclaw"
 	BlueclawPolicyAdminID                 = "00000000-0000-0000-0000-000000000001"

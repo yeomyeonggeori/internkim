@@ -100,6 +100,10 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if agent["toolResultMaxBytes"] != float64(32768) {
 		t.Fatalf("expected agent tool result limit, got %v", agent["toolResultMaxBytes"])
 	}
+	database := runtimeConfiguration["database"].(map[string]any)
+	if database["connectionString"] != BlueclawGuestDatabaseConnectionString {
+		t.Fatalf("expected keyword-value Unix socket database connection string, got %q", database["connectionString"])
+	}
 	failureRecovery := agent["failureRecovery"].(map[string]any)
 	if failureRecovery["failureDebtFinalizationGate"] != true {
 		t.Fatalf("expected failure debt finalization gate, got %+v", failureRecovery)
@@ -161,6 +165,14 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	}
 	if terminal["outputMaxBytes"] != float64(32768) || terminal["sessionMaxCount"] != float64(4) {
 		t.Fatalf("expected terminal caps, got %+v", terminal)
+	}
+	firecracker := runtimeConfiguration["firecracker"].(map[string]any)
+	outboundNetwork := firecracker["outboundNetwork"].(map[string]any)
+	if outboundNetwork["enabled"] != true {
+		t.Fatalf("expected outbound network enabled, got %+v", outboundNetwork)
+	}
+	if outboundNetwork["hostDeviceName"] != "bctap0" || outboundNetwork["networkCIDR"] != "172.31.0.0/30" {
+		t.Fatalf("expected deterministic outbound network, got %+v", outboundNetwork)
 	}
 	if _, isFound := terminal["commandRewrite"]; isFound {
 		t.Fatalf("expected RTK hook not to be exposed as runtime config, got %+v", terminal)
