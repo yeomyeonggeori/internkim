@@ -27,12 +27,12 @@
 	}
 
 	function currentApp(pathname: string) {
-		if (pathname.startsWith('/admin')) return 'Admin';
-		if (pathname.startsWith('/memory')) return 'Memory';
-		if (pathname.startsWith('/calendar')) return 'Calendar';
-		if (pathname.startsWith('/mail')) return 'Mail';
+		if (pathname.startsWith('/admin')) return text.admin;
+		if (pathname.startsWith('/memory')) return text.memory;
+		if (pathname.startsWith('/calendar')) return text.calendar;
+		if (pathname.startsWith('/mail')) return text.mail;
 		if (pathname.startsWith('/attendance')) return text.attendance;
-		return 'Flow';
+		return text.flow;
 	}
 </script>
 

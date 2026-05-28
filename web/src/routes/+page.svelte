@@ -280,12 +280,12 @@
 		});
 	const adminSessionStatusText = () => {
 		if (!adminSession) return '';
-		if (adminSession.isAdmin) return 'admin';
-		if (adminSession.bootstrapStatus === 'identity_missing') return 'Access email missing';
-		if (adminSession.bootstrapStatus === 'failed') return 'claim failed';
-		if (adminSession.bootstrapStatus === 'rejected') return 'not admin';
-		if (!adminSession.isClaimed) return 'first admin claim pending';
-		return 'not admin';
+		if (adminSession.isAdmin) return text.device.admin;
+		if (adminSession.bootstrapStatus === 'identity_missing') return text.device.accessEmailMissing;
+		if (adminSession.bootstrapStatus === 'failed') return text.device.claimFailed;
+		if (adminSession.bootstrapStatus === 'rejected') return text.device.notAdmin;
+		if (!adminSession.isClaimed) return text.device.firstAdminClaimPending;
+		return text.device.notAdmin;
 	};
 	const adminSections = (): { value: AdminSection; label: string }[] => [
 		{ value: 'device', label: text.sections.device },
@@ -1109,9 +1109,9 @@
 	<div class="mx-auto flex min-h-svh w-full max-w-4xl flex-col px-5 py-6">
 		<header class="flex items-center justify-between gap-4">
 			<div class="flex items-center gap-3">
-				<img src={logoSrc} alt="intern kim" class="size-9" />
+				<img src={logoSrc} alt={text.title} class="size-9" />
 				<div>
-					<h1 class="text-lg font-semibold leading-tight">intern kim</h1>
+					<h1 class="text-lg font-semibold leading-tight">{text.title}</h1>
 					<p class="text-muted-foreground text-sm">{text.subtitle}</p>
 				</div>
 			</div>
@@ -1178,9 +1178,9 @@
 							<p class="text-muted-foreground mt-1 text-xs">
 								Cloudflare Access: <span class="font-medium text-foreground">{adminSession.email}</span>
 								{#if adminSession.isAdmin}
-									<span class="ml-1 text-emerald-700">admin</span>
+									<span class="ml-1 text-emerald-700">{text.device.admin}</span>
 								{:else if adminSession.bootstrapStatus === 'failed'}
-									<span class="ml-1 text-destructive">claim failed</span>
+									<span class="ml-1 text-destructive">{text.device.claimFailed}</span>
 								{:else}
 									<span class="ml-1 text-amber-700">{adminSessionStatusText()}</span>
 								{/if}
@@ -1235,23 +1235,23 @@
 					<Badge variant="outline">{botProfile.username}</Badge>
 				</div>
 				<div class="grid gap-3 md:grid-cols-2">
-					<Input bind:value={botProfile.displayName} placeholder="display name" disabled={isLoadingBotProfile} />
-					<Input bind:value={botProfile.englishDisplayName} placeholder="English display name" disabled={isLoadingBotProfile} />
+					<Input bind:value={botProfile.displayName} placeholder={text.bot.displayNamePlaceholder} disabled={isLoadingBotProfile} />
+					<Input bind:value={botProfile.englishDisplayName} placeholder={text.bot.englishDisplayNamePlaceholder} disabled={isLoadingBotProfile} />
 					<Input
 						class="md:col-span-2"
 						bind:value={botProfile.publicDescription}
-						placeholder="public description"
+						placeholder={text.bot.publicDescriptionPlaceholder}
 						disabled={isLoadingBotProfile}
 					/>
 					<Textarea
 						bind:value={botProfileAliasesText}
-						placeholder="aliases, one per line"
+						placeholder={text.bot.aliasesPlaceholder}
 						disabled={isLoadingBotProfile}
 						class="min-h-24"
 					/>
 					<Textarea
 						bind:value={botProfile.identityExtension}
-						placeholder="prompt-only identity extension"
+						placeholder={text.bot.identityExtensionPlaceholder}
 						disabled={isLoadingBotProfile}
 						class="min-h-24"
 					/>
@@ -1317,7 +1317,7 @@
 							saveOpenRouterKey();
 						}}
 					>
-						<Input bind:value={openRouterApiKey} type="password" placeholder="OpenRouter API key" autocomplete="new-password" />
+						<Input bind:value={openRouterApiKey} type="password" placeholder={text.credentials.openRouterApiKeyPlaceholder} autocomplete="new-password" />
 						<Button type="submit" disabled={!isDeviceReachable || isSavingCredential || !openRouterApiKey.trim()} class="gap-2">
 							{#if isSavingCredential}
 								<LoaderIcon class="size-4 animate-spin" />
@@ -1454,18 +1454,18 @@
 							{text.companion.description}
 						</p>
 					</div>
-					<Badge variant={onlineCompanionCount() > 0 ? 'secondary' : 'outline'}>{onlineCompanionCount()} online</Badge>
+					<Badge variant={onlineCompanionCount() > 0 ? 'secondary' : 'outline'}>{onlineCompanionCount()} {text.companion.online}</Badge>
 				</div>
 
 				<div class="grid gap-4 lg:grid-cols-[1fr_1fr]">
 					<div class="grid gap-3 rounded-md bg-muted/30 p-3">
 						{#if recommendedCompanionRelease()}
 							<div>
-								<p class="text-sm font-medium">{recommendedCompanionRelease()?.label} companion</p>
+								<p class="text-sm font-medium">{recommendedCompanionRelease()?.label} {text.companion.companionSuffix}</p>
 								<p class="text-muted-foreground text-xs">
 									{recommendedCompanionRelease()?.architecture}
 									{#if !isCompanionReleaseAvailable(recommendedCompanionRelease())}
-										· coming soon
+										· {text.companion.comingSoon}
 									{/if}
 								</p>
 							</div>
@@ -1489,7 +1489,7 @@
 									{#if isCompanionReleaseAvailable(release)}
 										<Button href={release.url} variant="ghost" size="sm">{release.label}</Button>
 									{:else}
-										<Button disabled variant="ghost" size="sm">{release.label} soon</Button>
+										<Button disabled variant="ghost" size="sm">{release.label} {text.companion.comingSoon}</Button>
 									{/if}
 								{/each}
 							</div>
@@ -1513,7 +1513,7 @@
 							<div class="rounded-md border bg-background p-3 text-sm">
 								<p class="font-medium">{companionPairingCode.code}</p>
 								<p class="text-muted-foreground mt-1 text-xs">
-									expires {new Date(companionPairingCode.expiresAt).toLocaleTimeString()}
+									{text.companion.expires} {new Date(companionPairingCode.expiresAt).toLocaleTimeString()}
 								</p>
 								<div class="mt-3 flex flex-wrap gap-2">
 									<CopyButton text={companionPairingCode.code} variant="outline" />
@@ -1544,9 +1544,9 @@
 								<div class="min-w-0">
 									<div class="flex flex-wrap items-center gap-2">
 										<p class="truncate text-sm font-medium">{companion.displayName || companion.companionID}</p>
-										<Badge variant={companion.isOnline ? 'secondary' : 'outline'}>{companion.isOnline ? 'online' : 'offline'}</Badge>
+										<Badge variant={companion.isOnline ? 'secondary' : 'outline'}>{companion.isOnline ? text.companion.online : text.companion.offline}</Badge>
 										{#if companion.localOnly}
-											<Badge variant="outline">local only</Badge>
+											<Badge variant="outline">{text.companion.localOnly}</Badge>
 										{/if}
 									</div>
 									<p class="text-muted-foreground mt-1 truncate text-xs">
@@ -1572,7 +1572,7 @@
 						<p class="text-muted-foreground mt-1 text-sm">{text.backup.description}</p>
 					</div>
 					<div class="grid gap-3">
-						<Input bind:value={backupPassphrase} type="password" placeholder="backup passphrase" autocomplete="new-password" />
+						<Input bind:value={backupPassphrase} type="password" placeholder={text.backup.passphrasePlaceholder} autocomplete="new-password" />
 						<Button disabled={!isDeviceReachable || isCreatingBackup || !backupPassphrase.trim()} onclick={createBackup} class="gap-2">
 							{#if isCreatingBackup}
 								<LoaderIcon class="size-4 animate-spin" />
@@ -1589,7 +1589,7 @@
 								{/if}
 								{#if backupJob.manifest}
 									<p class="text-muted-foreground mt-2">
-										{backupJob.manifest.fleetID || fleetId()} · {backupJob.manifest.components?.join(', ') || 'manifest ready'}
+										{backupJob.manifest.fleetID || fleetId()} · {backupJob.manifest.components?.join(', ') || text.backup.manifestReady}
 									</p>
 								{/if}
 							</div>
@@ -1610,8 +1610,8 @@
 					</div>
 					<div class="grid gap-3">
 						<Input type="file" accept=".ikbak,application/octet-stream" onchange={handleRestoreFile} />
-						<Input bind:value={restorePassphrase} type="password" placeholder="backup passphrase" autocomplete="new-password" />
-						<Input bind:value={restoreConfirm} placeholder="type RESTORE" autocomplete="off" />
+						<Input bind:value={restorePassphrase} type="password" placeholder={text.backup.passphrasePlaceholder} autocomplete="new-password" />
+						<Input bind:value={restoreConfirm} placeholder={text.backup.restoreConfirmPlaceholder} autocomplete="off" />
 						<Button
 							disabled={!isDeviceReachable || isRestoring || !restoreBundle || !restorePassphrase.trim() || restoreConfirm.trim() !== 'RESTORE'}
 							onclick={restoreBackup}
@@ -1632,7 +1632,7 @@
 								{/if}
 								{#if restoreJob.manifest}
 									<p class="text-muted-foreground mt-2">
-										{restoreJob.manifest.fleetID || 'backup'} · {restoreJob.manifest.components?.join(', ') || 'manifest ready'}
+										{restoreJob.manifest.fleetID || text.backup.backupFallback} · {restoreJob.manifest.components?.join(', ') || text.backup.manifestReady}
 									</p>
 								{/if}
 							</div>
@@ -1655,7 +1655,7 @@
 						{text.users.description}
 					</p>
 				</div>
-				<Badge variant="outline">{userCount()} users</Badge>
+				<Badge variant="outline">{userCount()} {text.users.userCount}</Badge>
 			</div>
 
 			{#if !isDeviceContext()}
@@ -1688,7 +1688,7 @@
 								<Label>{text.users.email}</Label>
 								<div class="relative">
 									<MailIcon class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-									<Input bind:value={newEmail} type="email" placeholder="name@company.com" class="pl-9" />
+									<Input bind:value={newEmail} type="email" placeholder={text.users.emailPlaceholder} class="pl-9" />
 								</div>
 							</label>
 							<label class="grid gap-1.5">
@@ -1739,11 +1739,11 @@
 						>
 							<label class="grid gap-1.5">
 								<Label>{text.users.groupID}</Label>
-								<Input bind:value={newCircleID} placeholder="c-level" autocomplete="off" />
+								<Input bind:value={newCircleID} placeholder={text.users.groupIDPlaceholder} autocomplete="off" />
 							</label>
 							<label class="grid gap-1.5">
 								<Label>{text.users.groupName}</Label>
-								<Input bind:value={newCircleName} placeholder="C-Level" autocomplete="off" />
+								<Input bind:value={newCircleName} placeholder={text.users.groupNamePlaceholder} autocomplete="off" />
 							</label>
 							<label class="flex items-center gap-2 text-sm">
 								<input type="checkbox" bind:checked={newCircleMattermostManaged} />
@@ -1794,7 +1794,7 @@
 								<Card.Title class="text-sm">{text.users.directoryTitle}</Card.Title>
 								<Card.Description>{text.users.directoryDescription}</Card.Description>
 							</div>
-							<Badge variant="secondary">{adminCount()} admin</Badge>
+							<Badge variant="secondary">{adminCount()} {text.users.adminCount}</Badge>
 						</Card.Header>
 						<Card.Content class="p-0">
 							<div class="hidden overflow-x-auto lg:block">
@@ -1828,10 +1828,10 @@
 													</div>
 												</Table.Cell>
 												<Table.Cell>
-													<Input bind:value={record.handle} placeholder="handle" autocomplete="off" />
+													<Input bind:value={record.handle} placeholder={text.users.handlePlaceholder} autocomplete="off" />
 												</Table.Cell>
 												<Table.Cell>
-													<Input bind:value={record.name} placeholder="real name" autocomplete="off" />
+													<Input bind:value={record.name} placeholder={text.users.realNamePlaceholder} autocomplete="off" />
 												</Table.Cell>
 												<Table.Cell>
 													<Input bind:value={record.hireDate} type="date" />
@@ -1882,11 +1882,11 @@
 										<div class="grid gap-3 sm:grid-cols-3">
 											<label class="grid gap-1.5">
 												<Label>{text.users.handle}</Label>
-												<Input bind:value={record.handle} placeholder="handle" autocomplete="off" />
+												<Input bind:value={record.handle} placeholder={text.users.handlePlaceholder} autocomplete="off" />
 											</label>
 											<label class="grid gap-1.5">
 												<Label>{text.users.realName}</Label>
-												<Input bind:value={record.name} placeholder="real name" autocomplete="off" />
+												<Input bind:value={record.name} placeholder={text.users.realNamePlaceholder} autocomplete="off" />
 											</label>
 											<label class="grid gap-1.5">
 												<Label>{text.users.hireDate}</Label>

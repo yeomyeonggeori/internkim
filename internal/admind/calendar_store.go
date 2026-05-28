@@ -6,27 +6,12 @@ import (
 	"encoding/xml"
 	"errors"
 	"log"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
-
-	_ "modernc.org/sqlite"
 )
 
 func (service *Service) openCalendarDatabase(ctx context.Context) (*sql.DB, error) {
-	if errorValue := os.MkdirAll(filepath.Dir(service.Configuration.CalendarDatabasePath), 0o700); errorValue != nil {
-		return nil, errorValue
-	}
-	database, errorValue := sql.Open("sqlite", service.Configuration.CalendarDatabasePath)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	if errorValue := ensureCalendarSchema(ctx, database); errorValue != nil {
-		_ = database.Close()
-		return nil, errorValue
-	}
-	return database, nil
+	return service.openSQLiteDatabase(ctx, service.Configuration.CalendarDatabasePath, ensureCalendarSchema)
 }
 
 func ensureCalendarSchema(ctx context.Context, database *sql.DB) error {

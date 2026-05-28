@@ -1,7 +1,7 @@
 export const mailText = {
 	ko: {
-		title: 'Mail · Intern Kim',
-		pageName: 'Mail',
+		title: '메일 · 김인턴',
+		pageName: '메일',
 		transportLabel: 'IMAP / SMTP',
 		settings: '메일 설정',
 		compose: '작성',

@@ -79,6 +79,8 @@ type Service struct {
 	companionMounts      map[string]*CompanionMountRecord
 	sites                map[string]*SiteRecord
 	mailBackend          mailBackend
+	requestMetrics       *adminRequestMetrics
+	databaseSchemas      *adminDatabaseSchemas
 }
 
 type Job struct {
@@ -233,6 +235,8 @@ func NewService(configuration Configuration) *Service {
 		companionMounts:      map[string]*CompanionMountRecord{},
 		sites:                map[string]*SiteRecord{},
 		mailBackend:          standardMailBackend{},
+		requestMetrics:       newAdminRequestMetrics(),
+		databaseSchemas:      newAdminDatabaseSchemas(),
 	}
 	service.loadCompanions()
 	service.loadCompanionJobs()
@@ -333,7 +337,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/_internkim/mattermost/commands", service.handleMattermostCommand)
 	multiplexer.HandleFunc("/_internkim/mattermost/actions", service.handleMattermostInteractiveAction)
 	multiplexer.Handle("/", service.managedChannelWriteGuard(service.attendancePostDeleteSync(service.mattermostProxy())))
-	return service.withCORS(service.withSiteGateway(multiplexer))
+	return service.withRequestMetrics(service.withReadAPITimeout(service.withCORS(service.withSiteGateway(multiplexer))))
 }
 
 func (service *Service) withCORS(next http.Handler) http.Handler {
@@ -511,6 +515,8 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 	switch {
 	case request.Method == http.MethodGet && path == "/health":
 		service.writeJSON(responseWriter, map[string]string{"status": "ok"})
+	case request.Method == http.MethodGet && path == "/diagnostics/requests":
+		service.writeAdminRequestDiagnostics(responseWriter)
 	case request.Method == http.MethodGet && path == "/locale":
 		service.writeAdminLocale(responseWriter)
 	case request.Method == http.MethodPut && path == "/locale":

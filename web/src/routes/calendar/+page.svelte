@@ -13,7 +13,7 @@
 </script>
 
 <svelte:head>
-	<title>{text.title} · intern kim</title>
+	<title>{text.pageTitle}</title>
 </svelte:head>
 
 <main class="flex h-[calc(100svh-48px)] min-h-0 flex-col bg-background text-foreground">
