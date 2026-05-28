@@ -311,6 +311,9 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/flow", service.serveFlowPage)
 	multiplexer.HandleFunc("/flow/api/", service.handleFlow)
 	multiplexer.HandleFunc("/flow/", service.serveFlowPage)
+	multiplexer.HandleFunc("/memory", service.serveMemoryPage)
+	multiplexer.HandleFunc("/memory/api/", service.handleMemory)
+	multiplexer.HandleFunc("/memory/", service.serveMemoryPage)
 	multiplexer.HandleFunc("/calendar", service.serveCalendarPage)
 	multiplexer.HandleFunc("/calendar/api/", service.handleCalendar)
 	multiplexer.HandleFunc("/calendar/ics/", service.serveCalendarICS)
@@ -353,6 +356,7 @@ func (service *Service) withCORS(next http.Handler) http.Handler {
 func isInternKimCORSPath(path string) bool {
 	return path == "/admin" ||
 		path == "/flow" ||
+		path == "/memory" ||
 		path == "/calendar" ||
 		path == "/mail" ||
 		path == "/attendance" ||
@@ -360,6 +364,7 @@ func isInternKimCORSPath(path string) bool {
 		path == "/.well-known/caldav" ||
 		strings.HasPrefix(path, "/admin/") ||
 		strings.HasPrefix(path, "/flow/") ||
+		strings.HasPrefix(path, "/memory/") ||
 		strings.HasPrefix(path, "/calendar/") ||
 		strings.HasPrefix(path, "/mail/") ||
 		strings.HasPrefix(path, "/attendance/") ||

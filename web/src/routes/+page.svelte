@@ -324,6 +324,10 @@
 		loadAttendanceLocations();
 	});
 
+	function activateAdminSection(section: AdminSection) {
+		activeAdminSection = section;
+	}
+
 	function fleetIdFromHost() {
 		if (!browser) return '';
 		const host = location.hostname;
@@ -1157,7 +1161,7 @@
 				<Button
 					variant={activeAdminSection === section.value ? 'default' : 'ghost'}
 					size="sm"
-					onclick={() => (activeAdminSection = section.value)}
+					onclick={() => activateAdminSection(section.value)}
 				>
 					{section.label}
 				</Button>
@@ -1637,6 +1641,7 @@
 				</div>
 			</div>
 			{/if}
+
 		</section>
 
 		{#if activeAdminSection === 'users'}

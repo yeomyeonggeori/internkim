@@ -8,7 +8,7 @@ require (
 	github.com/emersion/go-message v0.18.2
 	github.com/emersion/go-webdav v0.7.0
 	github.com/mdlayher/vsock v1.2.1
-	golang.org/x/term v0.42.0
+	golang.org/x/term v0.43.0
 	modernc.org/sqlite v1.48.2
 )
 
@@ -23,7 +23,7 @@ require (
 	github.com/teambition/rrule-go v1.8.2 // indirect
 	golang.org/x/net v0.9.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.43.0 // indirect
+	golang.org/x/sys v0.44.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	modernc.org/libc v1.70.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
