@@ -24,6 +24,16 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - Keep people, policy, platform account links, and secrets intact unless the task
   explicitly asks to reset them.
 
+## Web Test Hygiene
+
+- Write Bun unit tests with `test`, `expect`, and `describe` from `bun:test`.
+- Do not write top-level assertion scripts in `*.test.ts` files; Bun must report
+  real test counts.
+- Keep web unit tests under `web/tests/unit/**` and make them runnable through
+  `cd web && bun test tests/unit`.
+- Add or update a `web/package.json` script when adding a new test category, and
+  wire important regression tests into the normal verification path.
+
 ## Deployment Hygiene
 
 - After changing Go setup, provisioning, runtime, or service code, run
