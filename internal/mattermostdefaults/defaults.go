@@ -20,7 +20,7 @@ const (
 	FlowChannelDisplayName = "업무"
 
 	CalendarChannelName        = "calendar"
-	CalendarChannelDisplayName = "캘린더"
+	CalendarChannelDisplayName = "일정"
 
 	AttendanceChannelName        = "attendance"
 	AttendanceChannelDisplayName = "출결"
@@ -135,7 +135,7 @@ func publicChannelLabelsForLanguage(language string) publicChannelLabels {
 		FlowDisplayName:       FlowChannelDisplayName,
 		FlowLinkLabel:         "업무 열기",
 		CalendarDisplayName:   CalendarChannelDisplayName,
-		CalendarLinkLabel:     "캘린더 열기",
+		CalendarLinkLabel:     "일정 열기",
 		AttendanceDisplayName: AttendanceChannelDisplayName,
 		AttendanceLinkLabel:   "출결 열기",
 	}

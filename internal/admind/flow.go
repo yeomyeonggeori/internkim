@@ -22,8 +22,6 @@ import (
 
 	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
-
-	_ "modernc.org/sqlite"
 )
 
 type flowSummaryResponse struct {
@@ -707,18 +705,7 @@ func (service *Service) flowTaskFromRequest(request *http.Request, members []flo
 }
 
 func (service *Service) openFlowDatabase(ctx context.Context) (*sql.DB, error) {
-	if errorValue := os.MkdirAll(filepath.Dir(service.Configuration.FlowDatabasePath), 0o700); errorValue != nil {
-		return nil, errorValue
-	}
-	database, errorValue := sql.Open("sqlite", service.Configuration.FlowDatabasePath)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	if errorValue := ensureFlowSchema(ctx, database); errorValue != nil {
-		_ = database.Close()
-		return nil, errorValue
-	}
-	return database, nil
+	return service.openSQLiteDatabase(ctx, service.Configuration.FlowDatabasePath, ensureFlowSchema)
 }
 
 func ensureFlowSchema(ctx context.Context, database *sql.DB) error {
