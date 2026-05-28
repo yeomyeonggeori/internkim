@@ -26,19 +26,19 @@
 	let { activePath }: { activePath: string } = $props();
 
 	let userEmail = $state('');
-	let userName = $state('Workspace');
+	let userName = $state('');
 	const text = createPageText(appShellText);
 
 	const sidebar = useSidebar();
 	const appItems = $derived([
-		{ href: '/flow/', label: 'Flow', icon: ListChecksIcon },
-		{ href: '/memory/', label: 'Memory', icon: NetworkIcon },
-		{ href: '/calendar/', label: 'Calendar', icon: CalendarDaysIcon },
-		{ href: '/mail/', label: 'Mail', icon: MailIcon },
+		{ href: '/flow/', label: text.flow, icon: ListChecksIcon },
+		{ href: '/memory/', label: text.memory, icon: NetworkIcon },
+		{ href: '/calendar/', label: text.calendar, icon: CalendarDaysIcon },
+		{ href: '/mail/', label: text.mail, icon: MailIcon },
 		{ href: '/attendance/', label: text.attendance, icon: ClipboardCheckIcon }
 	] satisfies NavigationItem[]);
 
-	const workspaceItems = $derived([{ href: '/admin/', label: 'Admin', icon: CogIcon }] satisfies NavigationItem[]);
+	const workspaceItems = $derived([{ href: '/admin/', label: text.admin, icon: CogIcon }] satisfies NavigationItem[]);
 
 	function isActive(href: string) {
 		return activePath === href || activePath.startsWith(href);
@@ -57,7 +57,7 @@
 			if (!response.ok) return;
 			const session = (await response.json()) as { email?: string; claimedAdminEmail?: string };
 			userEmail = session.email || session.claimedAdminEmail || '';
-			userName = userEmail ? userEmail.split('@')[0] : 'Workspace';
+			userName = userEmail ? userEmail.split('@')[0] : '';
 		} catch {
 			userEmail = '';
 		}
@@ -68,7 +68,7 @@
 	<Sidebar.Header class="border-b border-sidebar-border">
 		<Sidebar.Menu>
 			<Sidebar.MenuItem>
-				<Sidebar.MenuButton size="lg" tooltipContent="Intern Kim">
+				<Sidebar.MenuButton size="lg" tooltipContent="김인턴">
 					{#snippet child({ props })}
 						<a
 							{...props}
@@ -82,7 +82,7 @@
 							</div>
 							<div class="grid min-w-0 flex-1 text-left text-sm leading-tight">
 								<span class="truncate font-semibold">Blueclaw</span>
-								<span class="truncate text-xs text-sidebar-foreground/60">Intern Kim</span>
+								<span class="truncate text-xs text-sidebar-foreground/60">김인턴</span>
 							</div>
 						</a>
 					{/snippet}
@@ -146,9 +146,9 @@
 								class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
 								{...props}
 							>
-								<PersonAvatar name={userName} email={userEmail} class="size-8 rounded-lg" />
+								<PersonAvatar name={userName || text.workspace} email={userEmail} class="size-8 rounded-lg" />
 								<div class="grid flex-1 text-start text-sm leading-tight">
-									<span class="truncate font-medium">{userName}</span>
+									<span class="truncate font-medium">{userName || text.workspace}</span>
 									<span class="truncate text-xs">{userEmail || text.activeWorkspace}</span>
 								</div>
 								<ChevronsUpDownIcon class="ms-auto size-4" />
@@ -163,9 +163,9 @@
 					>
 						<DropdownMenu.Label class="p-0 font-normal">
 							<div class="flex items-center gap-2 px-1 py-1.5 text-start text-sm">
-								<PersonAvatar name={userName} email={userEmail} class="size-8 rounded-lg" />
+								<PersonAvatar name={userName || text.workspace} email={userEmail} class="size-8 rounded-lg" />
 								<div class="grid flex-1 text-start text-sm leading-tight">
-									<span class="truncate font-medium">{userName}</span>
+									<span class="truncate font-medium">{userName || text.workspace}</span>
 									<span class="truncate text-xs">{userEmail || text.activeWorkspace}</span>
 								</div>
 							</div>

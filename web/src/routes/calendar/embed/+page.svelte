@@ -817,7 +817,7 @@
 </script>
 
 <svelte:head>
-	<title>{text.title} · intern kim</title>
+	<title>{text.pageTitle}</title>
 </svelte:head>
 
 <main class="min-h-screen bg-white text-zinc-950">
