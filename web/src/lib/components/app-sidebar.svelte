@@ -12,6 +12,7 @@
 	import ListChecksIcon from '@lucide/svelte/icons/list-checks';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import MailIcon from '@lucide/svelte/icons/mail';
+	import NetworkIcon from '@lucide/svelte/icons/network';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { onMount } from 'svelte';
@@ -31,6 +32,7 @@
 	const sidebar = useSidebar();
 	const appItems = $derived([
 		{ href: '/flow/', label: 'Flow', icon: ListChecksIcon },
+		{ href: '/memory/', label: 'Memory', icon: NetworkIcon },
 		{ href: '/calendar/', label: 'Calendar', icon: CalendarDaysIcon },
 		{ href: '/mail/', label: 'Mail', icon: MailIcon },
 		{ href: '/attendance/', label: text.attendance, icon: ClipboardCheckIcon }
