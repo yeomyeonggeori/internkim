@@ -41,6 +41,9 @@ export const mailText = {
 		composeAction: '작성...',
 		fields: {
 			emailAddress: '이메일 주소',
+			emailLocalPart: '메일 아이디',
+			emailDomain: '메일 선택',
+			customDomain: '도메인',
 			displayName: '표시 이름',
 			defaultMailbox: '기본 메일함',
 			host: '호스트',
@@ -53,6 +56,22 @@ export const mailText = {
 			bcc: '숨은 참조',
 			subject: '제목',
 			body: '본문'
+		},
+		providers: {
+			gmail: 'Gmail',
+			naver: 'Naver',
+			custom: '직접 입력'
+		},
+		fieldDescriptions: {
+			emailAddress: '메일 아이디와 서비스를 선택하면 서버 주소가 자동으로 채워집니다.',
+			displayName: '상대방에게 보이는 발신자 이름입니다.',
+			defaultMailbox: '처음 열어볼 받은편지함입니다. 보통 INBOX를 사용합니다.',
+			imapUsername: '메일을 읽을 때 서버에 로그인하는 계정입니다. 보통 전체 이메일 주소입니다.',
+			imapPassword: '메일 읽기용 앱 비밀번호입니다.',
+			smtpUsername: '메일을 보낼 때 서버에 로그인하는 계정입니다. 보통 전체 이메일 주소입니다.',
+			smtpPassword: '메일 발송용 앱 비밀번호입니다. 대개 IMAP과 같은 앱 비밀번호를 사용합니다.',
+			sentMailbox: '발송한 메일 사본을 저장할 메일함입니다. Gmail은 비워두면 중복 저장을 피할 수 있습니다.',
+			providerPreset: '추천값입니다. 포트와 보안 유형은 연결 테스트 결과에 따라 바꿀 수 있습니다.'
 		},
 		settingsSheet: {
 			title: '메일 로그인 정보',
@@ -138,6 +157,9 @@ export const mailText = {
 		composeAction: 'Compose...',
 		fields: {
 			emailAddress: 'Email address',
+			emailLocalPart: 'Email ID',
+			emailDomain: 'Mail provider',
+			customDomain: 'Domain',
 			displayName: 'Display name',
 			defaultMailbox: 'Default mailbox',
 			host: 'Host',
@@ -150,6 +172,22 @@ export const mailText = {
 			bcc: 'BCC',
 			subject: 'Subject',
 			body: 'Body'
+		},
+		providers: {
+			gmail: 'Gmail',
+			naver: 'Naver',
+			custom: 'Custom'
+		},
+		fieldDescriptions: {
+			emailAddress: 'Choose an email ID and provider to fill server settings automatically.',
+			displayName: 'The sender name recipients will see.',
+			defaultMailbox: 'The inbox opened first. INBOX is typical.',
+			imapUsername: 'The account used to log in for reading mail. Usually the full email address.',
+			imapPassword: 'The app password for reading mail.',
+			smtpUsername: 'The account used to log in for sending mail. Usually the full email address.',
+			smtpPassword: 'The app password for sending mail. Usually the same app password as IMAP.',
+			sentMailbox: 'The mailbox for saving sent-message copies. Leave blank for Gmail to avoid duplicates.',
+			providerPreset: 'These are recommended values. Ports and security can be changed after a failed connection test.'
 		},
 		settingsSheet: {
 			title: 'Mail sign-in settings',
