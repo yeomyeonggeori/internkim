@@ -85,3 +85,10 @@ var StepBlueclawPayload = Step{
 		return nil
 	},
 }
+
+var StepBlueclawPayloadDirect = Step{
+	Name:        "blueclaw-payload-direct",
+	Title:       StepBlueclawPayload.Title,
+	IsSatisfied: StepBlueclawPayload.IsSatisfied,
+	Run:         StepBlueclawPayload.Run,
+}
