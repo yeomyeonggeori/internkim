@@ -8,6 +8,7 @@ const (
 	CalendarResourcePath   = "calendar"
 	FlowResourcePath       = "flow"
 	MailResourcePath       = "mail"
+	MemoryResourcePath     = "memory"
 
 	TownSquareChannelName        = "town-square"
 	TownSquareChannelDisplayName = "광장"
@@ -39,6 +40,7 @@ func ManagedResourcePaths() []string {
 		CalendarResourcePath,
 		FlowResourcePath,
 		MailResourcePath,
+		MemoryResourcePath,
 	}
 }
 
