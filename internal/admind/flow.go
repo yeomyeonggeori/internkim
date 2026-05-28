@@ -307,6 +307,10 @@ func (service *Service) flowActorEmail(request *http.Request) string {
 }
 
 func (service *Service) webStaffActorEmail(request *http.Request) string {
+	return service.webActorEmail(request)
+}
+
+func (service *Service) webActorEmail(request *http.Request) string {
 	if actorEmail := authenticatedCallerEmail(request); actorEmail != "" {
 		return actorEmail
 	}
