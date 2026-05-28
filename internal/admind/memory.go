@@ -53,7 +53,7 @@ func (service *Service) handleMemory(responseWriter http.ResponseWriter, request
 
 func (service *Service) writeUserMemoryGraph(responseWriter http.ResponseWriter, request *http.Request) {
 	actorEmail := service.memoryActorEmail(request)
-	if actorEmail == "" || !service.isFlowStaffActor(request.Context(), actorEmail) {
+	if actorEmail == "" {
 		http.Error(responseWriter, "memory access required", http.StatusForbidden)
 		return
 	}
@@ -77,7 +77,7 @@ func (service *Service) writeUserMemoryGraph(responseWriter http.ResponseWriter,
 }
 
 func (service *Service) memoryActorEmail(request *http.Request) string {
-	if actorEmail := service.webStaffActorEmail(request); actorEmail != "" {
+	if actorEmail := service.webActorEmail(request); actorEmail != "" {
 		return actorEmail
 	}
 	if !isLocalRequest(request) {
