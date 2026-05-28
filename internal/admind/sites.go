@@ -983,9 +983,22 @@ func (service *Service) writeSiteWorkspaceTemplate(site *SiteRecord) error {
 		{Path: "app/package.json", Document: sitePackageJSON(site)},
 		{Path: "app/index.html", Document: siteIndexHTML(site)},
 		{Path: "app/scripts/build.ts", Document: siteBuildTS()},
-		{Path: "app/src/content.html", Document: siteContentHTML(site)},
-		{Path: "app/src/styles.css", Document: siteStylesCSS()},
-		{Path: "app/src/script.js", Document: siteScriptJS()},
+		{Path: "app/tsconfig.json", Document: siteTSConfigJSON()},
+		{Path: "app/vite.config.ts", Document: siteViteConfigTS()},
+		{Path: "app/src/App.tsx", Document: siteAppTSX(site)},
+		{Path: "app/src/main.tsx", Document: siteMainTSX()},
+		{Path: "app/src/index.css", Document: siteIndexCSS()},
+		{Path: "app/src/lib/utils.ts", Document: siteUtilsTS()},
+		{Path: "app/src/components/ui/badge.tsx", Document: siteBadgeTSX()},
+		{Path: "app/src/components/ui/button.tsx", Document: siteButtonTSX()},
+		{Path: "app/src/components/ui/card.tsx", Document: siteCardTSX()},
+		{Path: "app/src/components/ui/dialog.tsx", Document: siteDialogTSX()},
+		{Path: "app/src/components/ui/input.tsx", Document: siteInputTSX()},
+		{Path: "app/src/components/ui/label.tsx", Document: siteLabelTSX()},
+		{Path: "app/src/components/ui/separator.tsx", Document: siteSeparatorTSX()},
+		{Path: "app/src/components/ui/table.tsx", Document: siteTableTSX()},
+		{Path: "app/src/components/ui/tabs.tsx", Document: siteTabsTSX()},
+		{Path: "app/src/components/ui/textarea.tsx", Document: siteTextareaTSX()},
 		{Path: "app/dist/index.html", Document: siteBuiltIndexHTML(site)},
 	}
 	for _, file := range files {
@@ -1017,8 +1030,8 @@ func (service *Service) siteWorkspaceMetadata(site *SiteRecord) string {
 		Platform:       site.Platform,
 		ConversationID: site.ConversationID,
 		Purpose:        "prototype for idea validation",
-		Stack:          "Dependency-free HTML + CSS + JavaScript scaffold with optional PocketBase files",
-		DesignDefault:  "starter scaffold only; customize through DESIGN.md before publish",
+		Stack:          "React + Vite + TypeScript + Tailwind + shadcn/ui scaffold with optional PocketBase files",
+		DesignDefault:  "Stitch-compatible DESIGN.md with beautiful shadcn prototype defaults; customize before publish",
 	}, "", "  ")
 	if errorValue != nil {
 		return "{}\n"
@@ -1369,15 +1382,33 @@ func sitePackageJSON(site *SiteRecord) string {
 	document, errorValue := json.MarshalIndent(map[string]any{
 		"scripts": map[string]string{
 			"build":   "bun scripts/build.ts",
-			"dev":     "bun scripts/build.ts && bun --hot --port 5173 dist/index.html",
-			"preview": "bun --port 4173 dist/index.html",
+			"dev":     "vite --host 0.0.0.0 --port 5173",
+			"preview": "vite preview --host 0.0.0.0 --port 4173",
 		},
-		"dependencies":    map[string]string{},
-		"devDependencies": map[string]string{},
-		"name":            normalizeSiteSlug(site.Slug),
-		"private":         true,
-		"type":            "module",
-		"version":         "0.0.0",
+		"dependencies": map[string]string{
+			"@radix-ui/react-dialog":   "^1.1.15",
+			"@radix-ui/react-tabs":     "^1.1.13",
+			"class-variance-authority": "^0.7.1",
+			"clsx":                     "^2.1.1",
+			"lucide-react":             "^0.468.0",
+			"react":                    "^19.2.0",
+			"react-dom":                "^19.2.0",
+			"tailwind-merge":           "^3.5.0",
+		},
+		"devDependencies": map[string]string{
+			"@google/design.md":    "^0.1.0",
+			"@tailwindcss/vite":    "^4.2.2",
+			"@types/react":         "^19.2.0",
+			"@types/react-dom":     "^19.2.0",
+			"@vitejs/plugin-react": "^5.1.1",
+			"tailwindcss":          "^4.2.2",
+			"typescript":           "^5.9.3",
+			"vite":                 "^7.3.1",
+		},
+		"name":    normalizeSiteSlug(site.Slug),
+		"private": true,
+		"type":    "module",
+		"version": "0.0.0",
 	}, "", "  ")
 	if errorValue != nil {
 		return "{}\n"
@@ -1387,32 +1418,723 @@ func sitePackageJSON(site *SiteRecord) string {
 
 func siteIndexHTML(site *SiteRecord) string {
 	title := html.EscapeString(firstNonEmpty(site.Title, site.Slug))
-	return "<!doctype html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"UTF-8\" />\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n<title>" + title + "</title>\n<style>\n__SITE_STYLES__\n</style>\n</head>\n<body>\n__SITE_BODY__\n<script>\n__SITE_SCRIPT__\n</script>\n</body>\n</html>\n"
+	return "<!doctype html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"UTF-8\" />\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n<title>" + title + "</title>\n</head>\n<body>\n<div id=\"root\"></div>\n<script type=\"module\" src=\"/src/main.tsx\"></script>\n</body>\n</html>\n"
 }
 
 func siteDesignMD(site *SiteRecord) string {
-	title := html.EscapeString(firstNonEmpty(site.Title, site.Slug))
-	return "# " + title + " DESIGN.md\n\n## Product\n\nEditable scaffold for a website prototype. Replace this file with a request-specific design system before publishing user-facing work.\n\n## Audience\n\nDefine the primary user and what they are trying to accomplish.\n\n## Prototype Scope\n\nDescribe what works in the first publish and what is intentionally deferred.\n\n## Visual Direction\n\nChoose typography, color, spacing, layout density, interaction feel, and responsive behavior for this specific request.\n\n## Screens\n\nList the screens and states included in the prototype.\n\n## Workflows\n\nDescribe the main interaction paths the user can try.\n\n## Data Model\n\nDefine local state, fake data, PocketBase collections, files, or realtime behavior.\n\n## Implemented Now\n\nReplace this scaffold with the implemented feature set before publishing.\n\n## Next Iterations\n\nRecord follow-up work for longer projects.\n\n## Acceptance Criteria\n\nList the checks that must pass before publish.\n"
+	title := firstNonEmpty(strings.TrimSpace(site.Title), site.Slug)
+	quotedTitle := strconv.Quote(title)
+	return `---
+version: alpha
+name: ` + quotedTitle + `
+description: Beautiful default prototype design system for a shadcn React site.
+colors:
+  primary: "#0F172A"
+  primary-foreground: "#F8FAFC"
+  secondary: "#2F6B5F"
+  tertiary: "#D97706"
+  neutral: "#64748B"
+  background: "#F7F5EF"
+  surface: "#FFFFFF"
+  surface-muted: "#EEF2F0"
+  border: "#D6D3C9"
+  destructive: "#B42318"
+typography:
+  headline-display:
+    fontFamily: ui-serif
+    fontSize: 56px
+    fontWeight: 650
+    lineHeight: 1.02
+    letterSpacing: 0px
+  headline-lg:
+    fontFamily: ui-serif
+    fontSize: 38px
+    fontWeight: 650
+    lineHeight: 1.08
+    letterSpacing: 0px
+  body-md:
+    fontFamily: ui-sans-serif
+    fontSize: 16px
+    fontWeight: 400
+    lineHeight: 1.6
+    letterSpacing: 0px
+  label-md:
+    fontFamily: ui-sans-serif
+    fontSize: 13px
+    fontWeight: 650
+    lineHeight: 1.1
+    letterSpacing: 0px
+rounded:
+  sm: 4px
+  md: 8px
+  lg: 12px
+  full: 9999px
+spacing:
+  xs: 4px
+  sm: 8px
+  md: 16px
+  lg: 24px
+  xl: 40px
+  page: 32px
+components:
+  button-primary:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.primary-foreground}"
+    typography: "{typography.label-md}"
+    rounded: "{rounded.md}"
+    padding: 12px
+  button-primary-hover:
+    backgroundColor: "{colors.secondary}"
+  card:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.primary}"
+    rounded: "{rounded.lg}"
+    padding: 24px
+  input:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.primary}"
+    rounded: "{rounded.md}"
+    padding: 12px
+---
+
+# ` + title + ` DESIGN.md
+
+## Overview
+
+The interface should feel like a polished prototype made for immediate idea validation: useful on the first screen, composed with confident spacing, and refined without looking like a generic SaaS landing page. Default to a calm editorial utility style unless the user request clearly calls for another archetype.
+
+## Colors
+
+The palette uses warm limestone background, crisp white surfaces, slate text, green secondary accents, and amber tertiary highlights. Primary actions use deep slate for contrast. Do not let a single hue dominate the whole page.
+
+## Typography
+
+Use a serif display voice for high-level narrative headings and a clean system sans for product UI, labels, forms, and dense data. Keep letter spacing at 0px unless a specific brand direction requires otherwise.
+
+## Layout
+
+Start from the requested workflow instead of a decorative introduction. App-like requests should open with a usable shell, dashboard, form, board, or editor. Landing requests may use a hero, but the next section must be visible in the first viewport.
+
+## Elevation & Depth
+
+Prefer tonal layers, borders, and restrained shadows. Cards should frame repeated items or tools only; avoid nesting cards inside cards.
+
+## Shapes
+
+Use 8px as the default radius for controls and cards. Use full rounding only for avatars, pills, meters, and compact status indicators.
+
+## Components
+
+Build with shadcn-style primitives: buttons, inputs, labels, cards, badges, tabs, dialogs, tables, and separators. Use lucide icons in icon buttons and compact actions when the meaning is familiar.
+
+## Do's and Don'ts
+
+- Do make the first screen functional for the user's actual request.
+- Do include realistic fake data where it helps the workflow feel usable.
+- Do verify desktop and mobile layouts before publishing.
+- Don't publish placeholder feature-card pages.
+- Don't use meaningless gradient blobs, empty hero sections, or decorative filler.
+- Don't allow text, buttons, or cards to overlap at mobile widths.
+`
 }
 
 func siteBuiltIndexHTML(site *SiteRecord) string {
 	title := html.EscapeString(firstNonEmpty(site.Title, site.Slug))
-	return "<!doctype html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"UTF-8\" />\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n<title>" + title + "</title>\n<style>" + siteStylesCSS() + "</style>\n</head>\n<body>\n" + siteContentHTML(site) + "\n<script>\n" + siteScriptJS() + "\n</script>\n</body>\n</html>\n"
+	return "<!doctype html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"UTF-8\" />\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n<title>" + title + "</title>\n<style>body{margin:0;font-family:ui-sans-serif,system-ui;background:#f7f5ef;color:#0f172a}.shell{display:grid;min-height:100vh;place-items:center;padding:24px}.panel{max-width:680px;border:1px solid #d6d3c9;border-radius:12px;background:#fff;padding:28px}h1{margin:0;font-size:34px;line-height:1.1}.copy{color:#475569;line-height:1.6}</style>\n</head>\n<body><main class=\"shell\"><section class=\"panel\"><h1>" + title + "</h1><p class=\"copy\">React scaffold initialized. Customize DESIGN.md and app/src, then run bun scripts/build.ts before publishing.</p></section></main></body>\n</html>\n"
 }
 
 func siteBuildTS() string {
-	return "import { mkdir, readFile, writeFile } from \"node:fs/promises\";\nimport { join } from \"node:path\";\n\nconst rootPath = process.cwd();\nconst sourcePath = join(rootPath, \"src\");\nconst distPath = join(rootPath, \"dist\");\n\nasync function readOptionalFile(path: string, fallback: string): Promise<string> {\n  try {\n    return await readFile(path, \"utf8\");\n  } catch (error) {\n    if (error && typeof error === \"object\" && \"code\" in error && error.code === \"ENOENT\") {\n      return fallback;\n    }\n    throw error;\n  }\n}\n\nconst template = await readFile(join(rootPath, \"index.html\"), \"utf8\");\nconst body = await readOptionalFile(join(sourcePath, \"content.html\"), \"<main></main>\\n\");\nconst styles = await readOptionalFile(join(sourcePath, \"styles.css\"), \"\");\nconst script = await readOptionalFile(join(sourcePath, \"script.js\"), \"\");\n\nconst document = template\n  .replace(\"__SITE_STYLES__\", styles)\n  .replace(\"__SITE_BODY__\", body)\n  .replace(\"__SITE_SCRIPT__\", script);\n\nawait mkdir(distPath, { recursive: true });\nawait writeFile(join(distPath, \"index.html\"), document, \"utf8\");\n"
+	return `import { existsSync } from "node:fs";
+
+type Command = {
+	name: string;
+	arguments: string[];
+};
+
+async function runCommand(command: Command): Promise<void> {
+	const commandProcess = Bun.spawn([command.name, ...command.arguments], {
+		stdout: "inherit",
+		stderr: "inherit",
+	});
+	const exitCode = await commandProcess.exited;
+	if (exitCode !== 0) {
+		throw new Error(command.name + " " + command.arguments.join(" ") + " failed with exit code " + exitCode);
+	}
 }
 
-func siteContentHTML(site *SiteRecord) string {
-	title := html.EscapeString(firstNonEmpty(site.Title, site.Slug))
-	return "<main class=\"scaffold-shell\">\n  <section class=\"scaffold-panel\">\n    <p class=\"scaffold-label\">Editable scaffold</p>\n    <h1>" + title + "</h1>\n    <p class=\"scaffold-copy\">\n      이 사이트는 아직 사용자 요청에 맞게 제작되기 전의 기본 작업 공간입니다. DESIGN.md를 작성하고 HTML, CSS, JavaScript 소스를 구현한 뒤 빌드해서 배포하세요.\n    </p>\n    <span class=\"scaffold-origin\">Dependency-free site scaffold</span>\n  </section>\n</main>\n"
+if (!existsSync("../DESIGN.md")) {
+	throw new Error("DESIGN.md is required at the site workspace root");
 }
 
-func siteStylesCSS() string {
-	return ":root {\n  color: #111827;\n  background: #f8fafc;\n  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Apple SD Gothic Neo\", \"Segoe UI\", sans-serif;\n}\n\n* {\n  box-sizing: border-box;\n}\n\nbody {\n  margin: 0;\n  min-width: 320px;\n  min-height: 100vh;\n  background: #f8fafc;\n}\n\n.scaffold-shell {\n  display: grid;\n  min-height: 100vh;\n  place-items: center;\n  padding: 24px;\n}\n\n.scaffold-panel {\n  width: min(640px, 100%);\n  border: 1px solid #d1d5db;\n  border-radius: 8px;\n  background: #ffffff;\n  padding: 28px;\n}\n\n.scaffold-label {\n  margin: 0 0 12px;\n  color: #6b7280;\n  font-size: 13px;\n  font-weight: 700;\n}\n\nh1 {\n  margin: 0;\n  font-size: 32px;\n  line-height: 1.15;\n  letter-spacing: 0;\n}\n\n.scaffold-copy {\n  margin: 16px 0 0;\n  color: #4b5563;\n  font-size: 15px;\n  line-height: 1.65;\n}\n\n.scaffold-origin {\n  display: inline-block;\n  margin-top: 18px;\n  color: #6b7280;\n  font-size: 13px;\n}\n\n@media (max-width: 680px) {\n  .scaffold-panel {\n    padding: 22px;\n  }\n\n  h1 {\n    font-size: 28px;\n  }\n}\n"
+if (!existsSync("node_modules")) {
+	await runCommand({ name: "bun", arguments: ["install"] });
 }
 
-func siteScriptJS() string {
-	return "console.info(\"InternKim site prototype loaded\");\n"
+await runCommand({ name: "bunx", arguments: ["@google/design.md", "lint", "../DESIGN.md"] });
+await runCommand({ name: "bunx", arguments: ["vite", "build"] });
+`
+}
+
+func siteTSConfigJSON() string {
+	return `{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx"
+  },
+  "include": ["src"],
+  "references": []
+}
+`
+}
+
+func siteViteConfigTS() string {
+	return `import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import { defineConfig } from "vite";
+
+export default defineConfig({
+	plugins: [react(), tailwindcss()],
+});
+`
+}
+
+func siteMainTSX() string {
+	return `import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import App from "./App";
+import "./index.css";
+
+const rootElement = document.getElementById("root");
+
+if (!rootElement) {
+	throw new Error("React root element is missing");
+}
+
+createRoot(rootElement).render(
+	<StrictMode>
+		<App />
+	</StrictMode>,
+);
+`
+}
+
+func siteAppTSX(site *SiteRecord) string {
+	title := strconv.Quote(firstNonEmpty(strings.TrimSpace(site.Title), site.Slug))
+	return `import {
+	ArrowRight,
+	BarChart3,
+	CalendarDays,
+	CheckCircle2,
+	LayoutDashboard,
+	Palette,
+	PanelTop,
+	Sparkles,
+	Workflow,
+} from "lucide-react";
+import { Badge } from "./components/ui/badge";
+import { Button } from "./components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card";
+import { Separator } from "./components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
+
+const prototypeTitle = ` + title + `;
+
+const showcaseMetrics = [
+	{ label: "Archetypes", value: "7", detail: "landing, dashboard, admin, booking, marketplace, portfolio, content" },
+	{ label: "Design tokens", value: "5", detail: "colors, typography, rounded, spacing, components" },
+	{ label: "QA passes", value: "2", detail: "desktop and mobile visual review before publish" },
+];
+
+const workflowItems = [
+	{ icon: Palette, title: "Stitch DESIGN.md", copy: "Start with canonical tokens and human guidance before writing UI code." },
+	{ icon: LayoutDashboard, title: "shadcn primitives", copy: "Compose real controls, data cards, tabs, dialogs, and tables instead of placeholder sections." },
+	{ icon: Workflow, title: "Usable first screen", copy: "Open on the requested workflow, not a generic marketing shell." },
+	{ icon: CheckCircle2, title: "Visual QA loop", copy: "Build, preview, inspect desktop and mobile, then fix obvious layout issues before publishing." },
+];
+
+function App() {
+	return (
+		<main className="min-h-screen overflow-hidden bg-background text-foreground">
+			<section className="relative border-b border-border">
+				<div className="mx-auto grid min-h-[92vh] w-full max-w-7xl gap-8 px-6 py-8 md:grid-cols-[1fr_440px] md:px-10 lg:px-12">
+					<div className="flex flex-col justify-between gap-10 py-8">
+						<div className="flex items-center gap-3">
+							<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+								<Sparkles className="h-5 w-5" />
+							</div>
+							<div>
+								<p className="text-sm font-semibold text-muted-foreground">InternKim React prototype</p>
+								<h1 className="text-4xl font-semibold tracking-[0px] text-foreground md:text-6xl">{prototypeTitle}</h1>
+							</div>
+						</div>
+
+						<div className="max-w-3xl space-y-7">
+							<Badge variant="secondary" className="w-fit">Beautiful default scaffold</Badge>
+							<p className="text-xl leading-8 text-muted-foreground md:text-2xl">
+								Replace this starter with the requested product workflow, keep DESIGN.md as the visual source of truth, and ship a prototype that looks composed before it is published.
+							</p>
+							<div className="flex flex-wrap gap-3">
+								<Button>
+									Start from the workflow
+									<ArrowRight className="h-4 w-4" />
+								</Button>
+								<Button variant="outline">
+									Review DESIGN.md
+								</Button>
+							</div>
+						</div>
+
+						<div className="grid gap-3 sm:grid-cols-3">
+							{showcaseMetrics.map((metric) => (
+								<Card key={metric.label}>
+									<CardHeader className="space-y-1">
+										<CardDescription>{metric.label}</CardDescription>
+										<CardTitle className="text-3xl">{metric.value}</CardTitle>
+									</CardHeader>
+									<CardContent>
+										<p className="text-sm leading-6 text-muted-foreground">{metric.detail}</p>
+									</CardContent>
+								</Card>
+							))}
+						</div>
+					</div>
+
+					<Card className="self-center">
+						<CardHeader>
+							<div className="flex items-center justify-between gap-4">
+								<div>
+									<CardDescription>Generation loop</CardDescription>
+									<CardTitle>Design before code</CardTitle>
+								</div>
+								<PanelTop className="h-5 w-5 text-muted-foreground" />
+							</div>
+						</CardHeader>
+						<CardContent>
+							<Tabs defaultValue="workflow">
+								<TabsList className="grid w-full grid-cols-2">
+									<TabsTrigger value="workflow">Workflow</TabsTrigger>
+									<TabsTrigger value="quality">Quality</TabsTrigger>
+								</TabsList>
+								<TabsContent value="workflow" className="mt-5 space-y-4">
+									{workflowItems.map((item) => (
+										<div key={item.title} className="flex gap-4 rounded-lg border border-border bg-card p-4">
+											<div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-secondary text-secondary-foreground">
+												<item.icon className="h-5 w-5" />
+											</div>
+											<div>
+												<h2 className="font-semibold">{item.title}</h2>
+												<p className="mt-1 text-sm leading-6 text-muted-foreground">{item.copy}</p>
+											</div>
+										</div>
+									))}
+								</TabsContent>
+								<TabsContent value="quality" className="mt-5 space-y-5">
+									<div className="rounded-lg border border-border bg-muted p-5">
+										<div className="flex items-center gap-2 text-sm font-semibold">
+											<BarChart3 className="h-4 w-4" />
+											Publish checklist
+										</div>
+										<Separator className="my-4" />
+										<div className="space-y-3 text-sm text-muted-foreground">
+											<p>Desktop and mobile layouts have no clipped text or overlapping controls.</p>
+											<p>The first viewport contains the actual requested experience.</p>
+											<p>Colors, spacing, radius, and component styles come from DESIGN.md tokens.</p>
+										</div>
+									</div>
+									<div className="flex items-center gap-3 rounded-lg bg-primary p-4 text-primary-foreground">
+										<CalendarDays className="h-5 w-5" />
+										<p className="text-sm font-medium">Run the preview, inspect the screen, fix once, then publish.</p>
+									</div>
+								</TabsContent>
+							</Tabs>
+						</CardContent>
+					</Card>
+				</div>
+			</section>
+		</main>
+	);
+}
+
+export default App;
+`
+}
+
+func siteIndexCSS() string {
+	return `@import "tailwindcss";
+
+:root {
+	--background: #f7f5ef;
+	--foreground: #0f172a;
+	--card: #ffffff;
+	--card-foreground: #0f172a;
+	--popover: #ffffff;
+	--popover-foreground: #0f172a;
+	--primary: #0f172a;
+	--primary-foreground: #f8fafc;
+	--secondary: #2f6b5f;
+	--secondary-foreground: #f8fafc;
+	--muted: #eef2f0;
+	--muted-foreground: #64748b;
+	--accent: #d97706;
+	--accent-foreground: #fff7ed;
+	--destructive: #b42318;
+	--destructive-foreground: #fff7ed;
+	--border: #d6d3c9;
+	--input: #d6d3c9;
+	--ring: #2f6b5f;
+	--radius: 0.5rem;
+	font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+	color: var(--foreground);
+	background: var(--background);
+}
+
+@theme inline {
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+	--color-card-foreground: var(--card-foreground);
+	--color-popover: var(--popover);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-secondary: var(--secondary);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-accent: var(--accent);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-destructive: var(--destructive);
+	--color-destructive-foreground: var(--destructive-foreground);
+	--color-border: var(--border);
+	--color-input: var(--input);
+	--color-ring: var(--ring);
+	--radius-sm: calc(var(--radius) - 4px);
+	--radius-md: var(--radius);
+	--radius-lg: calc(var(--radius) + 4px);
+}
+
+* {
+	box-sizing: border-box;
+	border-color: var(--border);
+}
+
+body {
+	margin: 0;
+	min-width: 320px;
+	min-height: 100vh;
+}
+
+button,
+input,
+textarea,
+select {
+	font: inherit;
+}
+`
+}
+
+func siteUtilsTS() string {
+	return `import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+	return twMerge(clsx(inputs));
+}
+`
+}
+
+func siteBadgeTSX() string {
+	return `import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "../../lib/utils";
+
+const badgeVariants = cva(
+	"inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors",
+	{
+		variants: {
+			variant: {
+				default: "border-transparent bg-primary text-primary-foreground",
+				secondary: "border-transparent bg-secondary text-secondary-foreground",
+				outline: "text-foreground",
+			},
+		},
+		defaultVariants: {
+			variant: "default",
+		},
+	},
+);
+
+export function Badge({
+	className,
+	variant,
+	...properties
+}: React.HTMLAttributes<HTMLDivElement> & VariantProps<typeof badgeVariants>) {
+	return <div className={cn(badgeVariants({ variant }), className)} {...properties} />;
+}
+`
+}
+
+func siteButtonTSX() string {
+	return `import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "../../lib/utils";
+
+const buttonVariants = cva(
+	"inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+	{
+		variants: {
+			variant: {
+				default: "bg-primary text-primary-foreground hover:bg-secondary",
+				secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/90",
+				outline: "border border-input bg-background hover:bg-muted",
+				ghost: "hover:bg-muted",
+				destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+			},
+			size: {
+				default: "h-10 px-4 py-2",
+				sm: "h-9 rounded-md px-3",
+				lg: "h-11 rounded-md px-8",
+				icon: "h-10 w-10",
+			},
+		},
+		defaultVariants: {
+			variant: "default",
+			size: "default",
+		},
+	},
+);
+
+export function Button({
+	className,
+	variant,
+	size,
+	...properties
+}: React.ComponentProps<"button"> & VariantProps<typeof buttonVariants>) {
+	return <button className={cn(buttonVariants({ variant, size }), className)} {...properties} />;
+}
+`
+}
+
+func siteCardTSX() string {
+	return `import * as React from "react";
+import { cn } from "../../lib/utils";
+
+export function Card({ className, ...properties }: React.ComponentProps<"div">) {
+	return <div className={cn("rounded-lg border bg-card text-card-foreground shadow-sm", className)} {...properties} />;
+}
+
+export function CardHeader({ className, ...properties }: React.ComponentProps<"div">) {
+	return <div className={cn("flex flex-col space-y-1.5 p-6", className)} {...properties} />;
+}
+
+export function CardTitle({ className, ...properties }: React.ComponentProps<"h3">) {
+	return <h3 className={cn("text-2xl font-semibold leading-none tracking-[0px]", className)} {...properties} />;
+}
+
+export function CardDescription({ className, ...properties }: React.ComponentProps<"p">) {
+	return <p className={cn("text-sm text-muted-foreground", className)} {...properties} />;
+}
+
+export function CardContent({ className, ...properties }: React.ComponentProps<"div">) {
+	return <div className={cn("p-6 pt-0", className)} {...properties} />;
+}
+
+export function CardFooter({ className, ...properties }: React.ComponentProps<"div">) {
+	return <div className={cn("flex items-center p-6 pt-0", className)} {...properties} />;
+}
+`
+}
+
+func siteDialogTSX() string {
+	return `import * as React from "react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { X } from "lucide-react";
+import { cn } from "../../lib/utils";
+
+export const Dialog = DialogPrimitive.Root;
+export const DialogTrigger = DialogPrimitive.Trigger;
+export const DialogPortal = DialogPrimitive.Portal;
+export const DialogClose = DialogPrimitive.Close;
+
+export function DialogOverlay({ className, ...properties }: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
+	return (
+		<DialogPrimitive.Overlay
+			className={cn("fixed inset-0 z-50 bg-primary/35 backdrop-blur-sm", className)}
+			{...properties}
+		/>
+	);
+}
+
+export function DialogContent({ className, children, ...properties }: React.ComponentProps<typeof DialogPrimitive.Content>) {
+	return (
+		<DialogPortal>
+			<DialogOverlay />
+			<DialogPrimitive.Content
+				className={cn("fixed left-1/2 top-1/2 z-50 grid w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border bg-popover p-6 text-popover-foreground shadow-lg", className)}
+				{...properties}
+			>
+				{children}
+				<DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring">
+					<X className="h-4 w-4" />
+					<span className="sr-only">Close</span>
+				</DialogPrimitive.Close>
+			</DialogPrimitive.Content>
+		</DialogPortal>
+	);
+}
+
+export function DialogHeader({ className, ...properties }: React.ComponentProps<"div">) {
+	return <div className={cn("flex flex-col space-y-1.5 text-left", className)} {...properties} />;
+}
+
+export function DialogFooter({ className, ...properties }: React.ComponentProps<"div">) {
+	return <div className={cn("flex flex-col-reverse gap-2 sm:flex-row sm:justify-end", className)} {...properties} />;
+}
+
+export const DialogTitle = DialogPrimitive.Title;
+export const DialogDescription = DialogPrimitive.Description;
+`
+}
+
+func siteInputTSX() string {
+	return `import * as React from "react";
+import { cn } from "../../lib/utils";
+
+export function Input({ className, type, ...properties }: React.ComponentProps<"input">) {
+	return (
+		<input
+			type={type}
+			className={cn("flex h-10 w-full rounded-md border border-input bg-card px-3 py-2 text-sm ring-offset-background transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50", className)}
+			{...properties}
+		/>
+	);
+}
+`
+}
+
+func siteLabelTSX() string {
+	return `import * as React from "react";
+import { cn } from "../../lib/utils";
+
+export function Label({ className, ...properties }: React.ComponentProps<"label">) {
+	return <label className={cn("text-sm font-semibold leading-none", className)} {...properties} />;
+}
+`
+}
+
+func siteSeparatorTSX() string {
+	return `import * as React from "react";
+import { cn } from "../../lib/utils";
+
+export function Separator({ className, orientation = "horizontal", ...properties }: React.ComponentProps<"div"> & { orientation?: "horizontal" | "vertical" }) {
+	return (
+		<div
+			className={cn(orientation === "horizontal" ? "h-px w-full" : "h-full w-px", "shrink-0 bg-border", className)}
+			{...properties}
+		/>
+	);
+}
+`
+}
+
+func siteTableTSX() string {
+	return `import * as React from "react";
+import { cn } from "../../lib/utils";
+
+export function Table({ className, ...properties }: React.ComponentProps<"table">) {
+	return (
+		<div className="w-full overflow-auto">
+			<table className={cn("w-full caption-bottom text-sm", className)} {...properties} />
+		</div>
+	);
+}
+
+export function TableHeader({ className, ...properties }: React.ComponentProps<"thead">) {
+	return <thead className={cn("[&_tr]:border-b", className)} {...properties} />;
+}
+
+export function TableBody({ className, ...properties }: React.ComponentProps<"tbody">) {
+	return <tbody className={cn("[&_tr:last-child]:border-0", className)} {...properties} />;
+}
+
+export function TableRow({ className, ...properties }: React.ComponentProps<"tr">) {
+	return <tr className={cn("border-b transition-colors hover:bg-muted/60", className)} {...properties} />;
+}
+
+export function TableHead({ className, ...properties }: React.ComponentProps<"th">) {
+	return <th className={cn("h-10 px-2 text-left align-middle font-semibold text-muted-foreground", className)} {...properties} />;
+}
+
+export function TableCell({ className, ...properties }: React.ComponentProps<"td">) {
+	return <td className={cn("p-2 align-middle", className)} {...properties} />;
+}
+
+export function TableCaption({ className, ...properties }: React.ComponentProps<"caption">) {
+	return <caption className={cn("mt-4 text-sm text-muted-foreground", className)} {...properties} />;
+}
+`
+}
+
+func siteTabsTSX() string {
+	return `import * as React from "react";
+import * as TabsPrimitive from "@radix-ui/react-tabs";
+import { cn } from "../../lib/utils";
+
+export const Tabs = TabsPrimitive.Root;
+
+export function TabsList({ className, ...properties }: React.ComponentProps<typeof TabsPrimitive.List>) {
+	return (
+		<TabsPrimitive.List
+			className={cn("inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground", className)}
+			{...properties}
+		/>
+	);
+}
+
+export function TabsTrigger({ className, ...properties }: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
+	return (
+		<TabsPrimitive.Trigger
+			className={cn("inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm", className)}
+			{...properties}
+		/>
+	);
+}
+
+export function TabsContent({ className, ...properties }: React.ComponentProps<typeof TabsPrimitive.Content>) {
+	return (
+		<TabsPrimitive.Content
+			className={cn("ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", className)}
+			{...properties}
+		/>
+	);
+}
+`
+}
+
+func siteTextareaTSX() string {
+	return `import * as React from "react";
+import { cn } from "../../lib/utils";
+
+export function Textarea({ className, ...properties }: React.ComponentProps<"textarea">) {
+	return (
+		<textarea
+			className={cn("flex min-h-24 w-full rounded-md border border-input bg-card px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50", className)}
+			{...properties}
+		/>
+	);
+}
+`
 }
