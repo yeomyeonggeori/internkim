@@ -59,6 +59,7 @@ func DeviceDescriptors() []Descriptor {
 	descriptors = append(descriptors, WebDescriptors()...)
 	descriptors = append(descriptors, FileDescriptors()...)
 	descriptors = append(descriptors, PlatformMessageDescriptors()...)
+	descriptors = append(descriptors, MattermostDescriptors()...)
 	descriptors = append(descriptors, FlowDescriptors()...)
 	descriptors = append(descriptors, CalendarDescriptors()...)
 	descriptors = append(descriptors, MailDescriptors()...)
@@ -83,6 +84,16 @@ func PlatformMessageDescriptors() []Descriptor {
 	return []Descriptor{
 		{Name: "platform.dm.send", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformDMSendInputSchema(), PolicyResource: "tool:platform.dm.send", SideEffectClass: "external_send", RequiresApproval: true},
 		{Name: "platform.dm.inspect", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformDMInspectInputSchema(), PolicyResource: "tool:platform.dm.send", SideEffectClass: "read"},
+	}
+}
+
+func MattermostDescriptors() []Descriptor {
+	return []Descriptor{
+		{Name: "mattermost.channel.posts.list", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: mattermostChannelPostsListInputSchema(), PolicyResource: "tool:mattermost.channel.posts.list", SideEffectClass: "read"},
+		{Name: "mattermost.channel.post", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mattermostChannelPostInputSchema(), PolicyResource: "tool:mattermost.channel.post", SideEffectClass: "external_send", RequiresApproval: true},
+		{Name: "mattermost.post.update", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mattermostPostUpdateInputSchema(), PolicyResource: "tool:mattermost.post.update", SideEffectClass: "external_write", RequiresApproval: true},
+		{Name: "mattermost.post.delete", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mattermostPostDeleteInputSchema(), PolicyResource: "tool:mattermost.post.delete", SideEffectClass: "destructive", RequiresApproval: true},
+		{Name: "mattermost.channel.update", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mattermostChannelUpdateInputSchema(), PolicyResource: "tool:mattermost.channel.update", SideEffectClass: "external_write", RequiresApproval: true},
 	}
 }
 
@@ -188,6 +199,46 @@ func platformDMInspectInputSchema() json.RawMessage {
 		jsonschema.Field("recipientHint", jsonschema.String()),
 		jsonschema.Field("platform", jsonschema.StringEnum("mattermost")),
 	).RawMessage()
+}
+
+func mattermostChannelPostInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Field("channelID", jsonschema.String()),
+		jsonschema.Field("channelName", jsonschema.String()),
+		jsonschema.Required("message", jsonschema.String()),
+		jsonschema.Field("pin", jsonschema.Boolean()),
+	).RawMessage()
+}
+
+func mattermostChannelUpdateInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Field("channelID", jsonschema.String()),
+		jsonschema.Field("channelName", jsonschema.String()),
+		jsonschema.Field("header", jsonschema.String()),
+		jsonschema.Field("displayName", jsonschema.String()),
+		jsonschema.Field("inviteeHints", jsonschema.Array(jsonschema.String())),
+	).RawMessage()
+}
+
+func mattermostChannelPostsListInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Field("channelID", jsonschema.String()),
+		jsonschema.Field("channelName", jsonschema.String()),
+		jsonschema.Field("page", jsonschema.Integer()),
+		jsonschema.Field("perPage", jsonschema.Integer()),
+	).RawMessage()
+}
+
+func mattermostPostUpdateInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Required("postID", jsonschema.String()),
+		jsonschema.Field("message", jsonschema.String()),
+		jsonschema.Field("isPinned", jsonschema.Raw(json.RawMessage(`{"type":["boolean","null"]}`))),
+	).RawMessage()
+}
+
+func mattermostPostDeleteInputSchema() json.RawMessage {
+	return jsonschema.Object(jsonschema.Required("postID", jsonschema.String())).RawMessage()
 }
 
 func calendarEventWriteInputSchema() json.RawMessage {

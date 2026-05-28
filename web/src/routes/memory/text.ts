@@ -1,0 +1,42 @@
+export const memoryText = {
+	ko: {
+		pageTitle: '기억 · 김인턴',
+		title: '기억',
+		description: '김인턴이 볼 수 있는 기억을 네트워크 그래프로 확인합니다.',
+		configured: '설정됨',
+		unconfigured: '미설정',
+		reachable: '연결됨',
+		unreachable: '연결 불가',
+		searchPlaceholder: '기억 검색',
+		search: '검색',
+		refresh: '새로고침',
+		namespaces: '네임스페이스',
+		episodes: '에피소드',
+		facts: '기억',
+		loadFailed: '기억 그래프를 불러오지 못했습니다.',
+		noVisibleMemory: '아직 볼 수 있는 기억이 없습니다.',
+		workspace: '작업공간',
+		searchError: '검색',
+		ingestionError: '수집'
+	},
+	en: {
+		pageTitle: 'Memory · intern kim',
+		title: 'Memory',
+		description: 'Your visible Blueclaw memory as a network graph.',
+		configured: 'configured',
+		unconfigured: 'unconfigured',
+		reachable: 'reachable',
+		unreachable: 'unreachable',
+		searchPlaceholder: 'Search memory facts',
+		search: 'Search',
+		refresh: 'Refresh',
+		namespaces: 'namespaces',
+		episodes: 'episodes',
+		facts: 'facts',
+		loadFailed: 'Memory graph could not be loaded.',
+		noVisibleMemory: 'No visible memory yet.',
+		workspace: 'workspace',
+		searchError: 'search',
+		ingestionError: 'ingestion'
+	}
+} as const;

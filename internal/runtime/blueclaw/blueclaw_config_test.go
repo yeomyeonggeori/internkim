@@ -265,6 +265,21 @@ func TestBlueclawPolicyDocumentSeedsResourceFirstCircles(t *testing.T) {
 	if !containsPolicyResource(resourceAccess, "tool:flow.task.add", "staff") {
 		t.Fatalf("expected staff Flow tool rule, got %+v", resourceAccess)
 	}
+	if !containsPolicyResource(resourceAccess, "tool:mattermost.channel.posts.list", "staff") {
+		t.Fatalf("expected staff Mattermost list tool rule, got %+v", resourceAccess)
+	}
+	if !containsPolicyResource(resourceAccess, "tool:mattermost.channel.post", "staff") {
+		t.Fatalf("expected staff Mattermost post tool rule, got %+v", resourceAccess)
+	}
+	if !containsPolicyResource(resourceAccess, "tool:mattermost.post.update", "staff") {
+		t.Fatalf("expected staff Mattermost update tool rule, got %+v", resourceAccess)
+	}
+	if !containsPolicyResource(resourceAccess, "tool:mattermost.post.delete", "staff") {
+		t.Fatalf("expected staff Mattermost delete tool rule, got %+v", resourceAccess)
+	}
+	if !containsPolicyResource(resourceAccess, "tool:mattermost.channel.update", "admin") {
+		t.Fatalf("expected admin Mattermost channel update tool rule, got %+v", resourceAccess)
+	}
 	if !containsPolicyResource(resourceAccess, "tool:mail.message.search", "staff") {
 		t.Fatalf("expected staff mail search tool rule, got %+v", resourceAccess)
 	}
