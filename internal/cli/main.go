@@ -1197,7 +1197,7 @@ chmod -R g+w /opt/mattermost
 cd /opt/mattermost
 cp config/config.defaults.json config/config.json 2>/dev/null && echo "defaults_used" || echo "defaults_missing"
 DB_PASS="%s"
-MATTERMOST_DB_PASS="$DB_PASS" MATTERMOST_SITE_URL="http://localhost:8065" python3 - <<'PY' && chown mattermost:mattermost config/config.json && echo "config_ok" || echo "config_failed"
+MATTERMOST_DB_PASS="$DB_PASS" MATTERMOST_SITE_URL="http://localhost:8065" MATTERMOST_MANAGED_RESOURCE_PATHS="%s" python3 - <<'PY' && chown mattermost:mattermost config/config.json && echo "config_ok" || echo "config_failed"
 import json
 import os
 from pathlib import Path
@@ -1212,7 +1212,7 @@ document["SqlSettings"]["DataSource"] = "postgres://mmuser:%%s@localhost/matterm
 document["ServiceSettings"]["SiteURL"] = os.environ["MATTERMOST_SITE_URL"]
 document["ServiceSettings"]["AllowCorsFrom"] = os.environ["MATTERMOST_SITE_URL"]
 document["ServiceSettings"]["CorsAllowCredentials"] = True
-document["ServiceSettings"]["ManagedResourcePaths"] = "admin,attendance,calendar,flow,mail"
+document["ServiceSettings"]["ManagedResourcePaths"] = os.environ["MATTERMOST_MANAGED_RESOURCE_PATHS"]
 document["TeamSettings"]["TeammateNameDisplay"] = "nickname_full_name"
 path.write_text(json.dumps(document, indent=2, sort_keys=True))
 PY
@@ -1239,7 +1239,7 @@ WantedBy=multi-user.target
 SVCEOF
 systemctl daemon-reload
 systemctl enable mattermost 2>&1 && echo "enable_ok" || echo "enable_failed"
-systemctl start mattermost 2>&1 && echo "start_ok" || echo "start_failed"`, mmDBPass))
+systemctl start mattermost 2>&1 && echo "start_ok" || echo "start_failed"`, mmDBPass, mattermostManagedResourcePathSetting()))
 
 	if strings.Contains(installResult, "tar_failed") {
 		fmt.Printf("  ERROR: %s\n", m.t("압축 해제 실패", "Failed to extract tarball"))

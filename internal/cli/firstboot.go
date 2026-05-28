@@ -654,7 +654,8 @@ else
   cp /opt/mattermost/config/config.defaults.json /opt/mattermost/config/config.json 2>/dev/null || true
   jq --arg ds "postgres://mmuser:${MM_DB_PASS}@localhost/mattermost?sslmode=disable&connect_timeout=10" \
      --arg url "$SITE_URL" \
-     '.SqlSettings.DriverName = "postgres" | .SqlSettings.DataSource = $ds | .ServiceSettings.SiteURL = $url | .ServiceSettings.AllowCorsFrom = $url | .ServiceSettings.CorsAllowCredentials = true | .ServiceSettings.ManagedResourcePaths = "admin,attendance,calendar,flow,mail" | .ServiceSettings.EnableUserAccessTokens = true | .ServiceSettings.EnableBotAccountCreation = true | .TeamSettings.TeammateNameDisplay = "nickname_full_name"' \
+     --arg resourcePaths "__MANAGED_RESOURCE_PATHS__" \
+     '.SqlSettings.DriverName = "postgres" | .SqlSettings.DataSource = $ds | .ServiceSettings.SiteURL = $url | .ServiceSettings.AllowCorsFrom = $url | .ServiceSettings.CorsAllowCredentials = true | .ServiceSettings.ManagedResourcePaths = $resourcePaths | .ServiceSettings.EnableUserAccessTokens = true | .ServiceSettings.EnableBotAccountCreation = true | .TeamSettings.TeammateNameDisplay = "nickname_full_name"' \
      /opt/mattermost/config/config.json > /opt/mattermost/config/config.tmp \
      && mv /opt/mattermost/config/config.tmp /opt/mattermost/config/config.json
   chown mattermost:mattermost /opt/mattermost/config/config.json
@@ -816,8 +817,9 @@ SVCEOF
 fi`)
 
 	replacements := map[string]string{
-		"__DEVICE_URL__":  deviceURL,
-		"__ADMIN_EMAIL__": adminEmail,
+		"__DEVICE_URL__":             deviceURL,
+		"__ADMIN_EMAIL__":            adminEmail,
+		"__MANAGED_RESOURCE_PATHS__": mattermostManagedResourcePathSetting(),
 	}
 
 	return fillFirstbootPlaceholders(section, replacements)
