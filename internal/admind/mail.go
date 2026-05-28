@@ -469,18 +469,7 @@ func (service *Service) mailActorEmail(request *http.Request) string {
 }
 
 func (service *Service) openMailDatabase(ctx context.Context) (*sql.DB, error) {
-	if errorValue := os.MkdirAll(filepath.Dir(service.Configuration.MailDatabasePath), 0o700); errorValue != nil {
-		return nil, errorValue
-	}
-	database, errorValue := sql.Open("sqlite", service.Configuration.MailDatabasePath)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	if errorValue := ensureMailSchema(ctx, database); errorValue != nil {
-		_ = database.Close()
-		return nil, errorValue
-	}
-	return database, nil
+	return service.openSQLiteDatabase(ctx, service.Configuration.MailDatabasePath, ensureMailSchema)
 }
 
 func ensureMailSchema(ctx context.Context, database *sql.DB) error {

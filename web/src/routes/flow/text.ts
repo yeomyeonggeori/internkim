@@ -1,8 +1,8 @@
 export const flowText = {
 	ko: {
-		pageTitle: 'Flow · Intern Kim',
-		product: 'Intern Kim',
-		title: 'Flow',
+		pageTitle: '업무 · 김인턴',
+		product: '김인턴',
+		title: '업무',
 		description: '이번 주 업무, 요청, 중단 상태와 구성원별 흐름을 한 화면에서 봅니다.',
 		previousWeek: '이전 주',
 		nextWeek: '다음 주',
@@ -139,7 +139,7 @@ export const flowText = {
 			logout: '로그아웃',
 			signedOut: '게스트'
 		},
-		loadError: 'Flow 데이터를 불러오지 못했습니다.'
+		loadError: '업무 데이터를 불러오지 못했습니다.'
 	},
 	en: {
 		pageTitle: 'Flow · Intern Kim',

@@ -97,9 +97,9 @@ func localizedAdminTextForLocale(locale string) localizedAdminText {
 	}
 	return localizedAdminText{
 		FlowOpen:                  "업무 열기",
-		FlowEntryMessage:          "Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다.",
-		CalendarOpen:              "캘린더 열기",
-		CalendarReminder:          "캘린더 알림",
+		FlowEntryMessage:          "업무에서 이번 주 일을 보고, 요청하고, 정리합니다.",
+		CalendarOpen:              "일정 열기",
+		CalendarReminder:          "일정 알림",
 		Time:                      "시간",
 		Location:                  "장소",
 		People:                    "대상",
