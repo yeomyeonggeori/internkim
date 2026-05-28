@@ -8,6 +8,8 @@
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import { onMount } from 'svelte';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { memoryText } from './text';
 
 	type MemoryGraphHealth = {
 		configured?: boolean;
@@ -62,6 +64,7 @@
 	let memoryGraphQuery = $state('');
 	let errorMessage = $state('');
 	let isLoading = $state(false);
+	const text = createPageText(memoryText);
 
 	const namespaces = () => memoryGraph?.namespaces ?? [];
 	const facts = () => memoryGraph?.facts ?? [];
@@ -79,12 +82,12 @@
 			if (memoryGraphQuery.trim()) urlParams.set('query', memoryGraphQuery.trim());
 			const response = await fetch(`/memory/api/graph?${urlParams.toString()}`, { credentials: 'include' });
 			if (!response.ok) {
-				errorMessage = `Memory graph could not be loaded (${response.status}).`;
+				errorMessage = `${text.loadFailed} (${response.status}).`;
 				return;
 			}
 			memoryGraph = (await response.json()) as MemoryGraphResponse;
 		} catch {
-			errorMessage = 'Memory graph could not be loaded.';
+			errorMessage = text.loadFailed;
 		} finally {
 			isLoading = false;
 		}
@@ -92,7 +95,7 @@
 </script>
 
 <svelte:head>
-	<title>Memory · intern kim</title>
+	<title>{text.pageTitle}</title>
 </svelte:head>
 
 <main class="grid min-h-[calc(100svh-48px)] gap-5 overflow-x-hidden px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
@@ -100,16 +103,16 @@
 		<div class="min-w-0">
 			<h1 class="flex items-center gap-2 text-xl font-semibold">
 				<NetworkIcon class="size-5 text-teal-700" />
-				Memory
+				{text.title}
 			</h1>
-			<p class="mt-1 max-w-full text-sm text-muted-foreground">Your visible Blueclaw memory as a network graph.</p>
+			<p class="mt-1 max-w-full text-sm text-muted-foreground">{text.description}</p>
 		</div>
 		<div class="flex flex-wrap gap-2">
 			<Badge variant={memoryGraph?.health?.configured ? 'secondary' : 'outline'}>
-				{memoryGraph?.health?.configured ? 'configured' : 'unconfigured'}
+				{memoryGraph?.health?.configured ? text.configured : text.unconfigured}
 			</Badge>
 			<Badge variant={memoryGraph?.health?.reachable ? 'secondary' : 'outline'}>
-				{memoryGraph?.health?.reachable ? 'reachable' : 'unreachable'}
+				{memoryGraph?.health?.reachable ? text.reachable : text.unreachable}
 			</Badge>
 		</div>
 	</section>
@@ -121,33 +124,33 @@
 			loadMemoryGraph();
 		}}
 	>
-		<Input bind:value={memoryGraphQuery} placeholder="Search memory facts" autocomplete="off" />
+		<Input bind:value={memoryGraphQuery} placeholder={text.searchPlaceholder} autocomplete="off" />
 		<Button type="submit" disabled={isLoading} class="gap-2">
 			{#if isLoading}
 				<LoaderIcon class="size-4 animate-spin" />
 			{:else}
 				<SearchIcon class="size-4" />
 			{/if}
-			Search
+			{text.search}
 		</Button>
 		<Button type="button" variant="outline" disabled={isLoading} onclick={loadMemoryGraph} class="gap-2">
 			<RefreshCwIcon class="size-4" />
-			Refresh
+			{text.refresh}
 		</Button>
 	</form>
 
 	<section class="grid min-w-0 gap-2 sm:grid-cols-3">
 		<div class="rounded-md bg-muted/30 p-3">
 			<p class="text-2xl font-semibold">{namespaces().length}</p>
-			<p class="text-xs text-muted-foreground">namespaces</p>
+			<p class="text-xs text-muted-foreground">{text.namespaces}</p>
 		</div>
 		<div class="rounded-md bg-muted/30 p-3">
 			<p class="text-2xl font-semibold">{episodes().length}</p>
-			<p class="text-xs text-muted-foreground">episodes</p>
+			<p class="text-xs text-muted-foreground">{text.episodes}</p>
 		</div>
 		<div class="rounded-md bg-muted/30 p-3">
 			<p class="text-2xl font-semibold">{facts().length}</p>
-			<p class="text-xs text-muted-foreground">facts</p>
+			<p class="text-xs text-muted-foreground">{text.facts}</p>
 		</div>
 	</section>
 
@@ -161,16 +164,16 @@
 				<p class="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-950">{memoryGraph.health.error}</p>
 			{/if}
 			{#if memoryGraph.health.lastSearchError}
-				<p class="rounded-md border bg-muted/30 px-3 py-2">search: {memoryGraph.health.lastSearchError}</p>
+				<p class="rounded-md border bg-muted/30 px-3 py-2">{text.searchError}: {memoryGraph.health.lastSearchError}</p>
 			{/if}
 			{#if memoryGraph.health.lastIngestionError}
-				<p class="rounded-md border bg-muted/30 px-3 py-2">ingestion: {memoryGraph.health.lastIngestionError}</p>
+				<p class="rounded-md border bg-muted/30 px-3 py-2">{text.ingestionError}: {memoryGraph.health.lastIngestionError}</p>
 			{/if}
 		</section>
 	{/if}
 
 	{#if nodes().length === 0}
-		<p class="rounded-md border bg-muted/30 px-3 py-12 text-center text-sm text-muted-foreground">No visible memory yet.</p>
+		<p class="rounded-md border bg-muted/30 px-3 py-12 text-center text-sm text-muted-foreground">{text.noVisibleMemory}</p>
 	{:else}
 		<MemoryNetwork nodes={nodes()} edges={edges()} />
 	{/if}
@@ -181,9 +184,9 @@
 				<div class="flex flex-wrap items-center justify-between gap-3 border-b px-3 py-2 last:border-b-0">
 					<div class="min-w-0">
 						<p class="truncate text-sm font-medium">{namespace.namespaceID}</p>
-						<p class="text-xs text-muted-foreground">{namespace.scopeType} · {namespace.episodeCount ?? 0} episodes</p>
+						<p class="text-xs text-muted-foreground">{namespace.scopeType} · {namespace.episodeCount ?? 0} {text.episodes}</p>
 					</div>
-					<Badge variant="outline">{namespace.scopeCircleID || namespace.scopePersonID || namespace.scopeConversationID || 'workspace'}</Badge>
+					<Badge variant="outline">{namespace.scopeCircleID || namespace.scopePersonID || namespace.scopeConversationID || text.workspace}</Badge>
 				</div>
 			{/each}
 		</section>

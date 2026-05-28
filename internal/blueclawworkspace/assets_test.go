@@ -118,12 +118,12 @@ func TestSitePrototypeUsesManagedScaffoldContract(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	content := string(document)
-	for _, expectedText := range []string{"`site.app.create` initializes", "appWorkspacePath", "Do not write `app/package.json`", "`bun scripts/build.ts`"} {
+	for _, expectedText := range []string{"React + Vite + TypeScript + Tailwind + shadcn/ui", "UI archetype", "Stitch canonical format", "browser tools", "`bun scripts/build.ts`"} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("site-prototype must document managed scaffold contract %q", expectedText)
 		}
 	}
-	for _, forbiddenText := range []string{"tmp/<slug>", "create missing `app/package.json`", `"workingDirectoryPath": "<sourceWorkspacePath>/app"`, "bun install", "React + Vite"} {
+	for _, forbiddenText := range []string{"tmp/<slug>", "create missing `app/package.json`", `"workingDirectoryPath": "<sourceWorkspacePath>/app"`, "dependency-free HTML + CSS + JavaScript", "Do not use React"} {
 		if strings.Contains(content, forbiddenText) {
 			t.Fatalf("site-prototype must not document stale site workspace pattern %q", forbiddenText)
 		}
@@ -138,12 +138,12 @@ func TestVendoredSiteScaffoldIncludesBuildManifest(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	content := string(document)
-	for _, expectedText := range []string{`"build": "bun scripts/build.ts"`, `"dependencies": {}`} {
+	for _, expectedText := range []string{`"build": "bun scripts/build.ts"`, `"react"`, `"vite"`, `"@google/design.md"`, `"@radix-ui/react-dialog"`, `"tailwindcss"`} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("vendored site scaffold package manifest must contain %q", expectedText)
 		}
 	}
-	for _, forbiddenText := range []string{"latest", `"react"`, `"vite"`, `"typescript"`, `"@vitejs/plugin-react"`} {
+	for _, forbiddenText := range []string{"latest", `"dependencies": {}`} {
 		if strings.Contains(content, forbiddenText) {
 			t.Fatalf("vendored site scaffold package manifest must not require network dependency %q", forbiddenText)
 		}

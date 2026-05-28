@@ -92,6 +92,9 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - Deterministic runtime code may validate, normalize, enforce schemas,
   orchestrate retries, and record diagnostics, but must not compose fallback
   sentences for users.
+- Exact control acknowledgements for slash commands, such as stop/stop-all, may
+  use deterministic system responses; do not expand that exception to task
+  judgment, failure explanation, recovery direction, or confirmation wording.
 - When a failure requires judgment, request structured output first, then use it
   as input to an LLM-generated user reply.
 - If remote and local LLM paths both fail to produce a safe reply, leave task
