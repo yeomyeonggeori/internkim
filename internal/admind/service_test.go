@@ -56,6 +56,78 @@ func TestGatewayRoutesAdminAndMattermost(t *testing.T) {
 	}
 }
 
+func TestAdminRequestMetricsClassifiesAndRecordsSlowRequests(t *testing.T) {
+	service := NewService(Configuration{})
+	staticRequest := httptest.NewRequest(http.MethodGet, "/flow/", nil)
+	apiRequest := httptest.NewRequest(http.MethodGet, "/calendar/api/events", nil)
+	writeRequest := httptest.NewRequest(http.MethodPost, "/flow/api/tasks", nil)
+	controlRequest := httptest.NewRequest(http.MethodPost, "/_internkim/mattermost/actions", nil)
+	proxyRequest := httptest.NewRequest(http.MethodGet, "/team/channels/town-square", nil)
+
+	if adminEndpointClassForRequest(staticRequest) != adminEndpointStatic {
+		t.Fatalf("expected static class")
+	}
+	if adminEndpointClassForRequest(apiRequest) != adminEndpointReadAPI {
+		t.Fatalf("expected read api class")
+	}
+	if adminEndpointClassForRequest(writeRequest) != adminEndpointWriteAPI {
+		t.Fatalf("expected write api class")
+	}
+	if adminEndpointClassForRequest(controlRequest) != adminEndpointControl {
+		t.Fatalf("expected control class")
+	}
+	if adminEndpointClassForRequest(proxyRequest) != adminEndpointProxy {
+		t.Fatalf("expected proxy class")
+	}
+
+	service.recordAdminRequest(staticRequest, http.StatusOK, 350*time.Millisecond, time.Now())
+	records := service.requestMetrics.RecentSlowRequests()
+	if len(records) != 1 || records[0].EndpointClass != adminEndpointStatic || records[0].Path != "/flow/" {
+		t.Fatalf("expected slow static request record, got %+v", records)
+	}
+}
+
+func TestAdminRequestDiagnosticsReturnsRecentSlowRequests(t *testing.T) {
+	service := NewService(Configuration{AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	request := httptest.NewRequest(http.MethodGet, "/admin/api/diagnostics/requests", nil)
+	request.RemoteAddr = "127.0.0.1:12345"
+	service.recordAdminRequest(request, http.StatusInternalServerError, 10*time.Millisecond, time.Now())
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected diagnostics success, got %d: %s", response.Code, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), "recentSlowRequests") || !strings.Contains(response.Body.String(), "read_api") {
+		t.Fatalf("expected recent slow request diagnostics, got %s", response.Body.String())
+	}
+}
+
+func TestOpenSQLiteDatabaseUsesWALAndBusyTimeout(t *testing.T) {
+	service := NewService(Configuration{FlowDatabasePath: filepath.Join(t.TempDir(), "flow.sqlite")})
+	database, errorValue := service.openFlowDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatalf("expected flow database to open: %v", errorValue)
+	}
+	defer database.Close()
+
+	var journalMode string
+	if errorValue := database.QueryRowContext(context.Background(), "PRAGMA journal_mode").Scan(&journalMode); errorValue != nil {
+		t.Fatalf("expected journal mode: %v", errorValue)
+	}
+	var busyTimeout int
+	if errorValue := database.QueryRowContext(context.Background(), "PRAGMA busy_timeout").Scan(&busyTimeout); errorValue != nil {
+		t.Fatalf("expected busy timeout: %v", errorValue)
+	}
+	if strings.ToLower(journalMode) != "wal" {
+		t.Fatalf("expected wal journal mode, got %q", journalMode)
+	}
+	if busyTimeout != 5000 {
+		t.Fatalf("expected busy timeout 5000, got %d", busyTimeout)
+	}
+}
+
 func TestCredentialProviderStatusMasksOpenRouterKey(t *testing.T) {
 	rootPath := t.TempDir()
 	keyPath := filepath.Join(rootPath, "secrets", "openrouter-api-key")
@@ -360,7 +432,7 @@ func TestWorkspaceSettingsUpdateSyncsKoreanMattermostDisplayNames(t *testing.T) 
 	if patchedDisplayNames[mattermostdefaults.OffTopicChannelName] != "잡담" {
 		t.Fatalf("off-topic display name = %q", patchedDisplayNames[mattermostdefaults.OffTopicChannelName])
 	}
-	if patchedDisplayNames[mattermostCalendarChannelName] != "캘린더" {
+	if patchedDisplayNames[mattermostCalendarChannelName] != "일정" {
 		t.Fatalf("calendar display name = %q", patchedDisplayNames[mattermostCalendarChannelName])
 	}
 	if patchedDisplayNames[attendanceChannelName] != "출결" {
@@ -1847,7 +1919,7 @@ func TestAdminLocalePersistsMattermostSystemTextLanguage(t *testing.T) {
 	if service.mattermostFlowLink("") != "[업무 열기](/flow/)" {
 		t.Fatalf("flow link = %q", service.mattermostFlowLink(""))
 	}
-	if service.mattermostCalendarLink("") != "[캘린더 열기](/calendar/)" {
+	if service.mattermostCalendarLink("") != "[일정 열기](/calendar/)" {
 		t.Fatalf("calendar link = %q", service.mattermostCalendarLink(""))
 	}
 	if service.mattermostAttendanceLink() != "[출결 열기](/attendance/)" {
@@ -2181,7 +2253,7 @@ func mattermostExistingFlowSetupResponse(t *testing.T, request *http.Request) *h
 	case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/calendar":
 		return jsonResponse(http.StatusOK, `{"id":"calendar-channel"}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/patch" && request.Method == http.MethodPut:
-		assertMattermostCalendarChannelPatch(t, request, "[캘린더 열기](/calendar/)", "[캘린더 열기](https://dc719d8e.example.test/calendar/)")
+		assertMattermostCalendarChannelPatch(t, request, "[일정 열기](/calendar/)", "[일정 열기](https://dc719d8e.example.test/calendar/)")
 		return jsonResponse(http.StatusOK, `{}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/posts?per_page=100":
 		return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil)
@@ -2411,7 +2483,7 @@ func mattermostFlowSetupResponse(t *testing.T, request *http.Request) *http.Resp
 	case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/calendar":
 		return jsonResponse(http.StatusOK, `{"id":"calendar-channel"}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/patch" && request.Method == http.MethodPut:
-		assertMattermostCalendarChannelPatch(t, request, "[캘린더 열기](/calendar/)", "[캘린더 열기](https://dc719d8e.example.test/calendar/)")
+		assertMattermostCalendarChannelPatch(t, request, "[일정 열기](/calendar/)", "[일정 열기](https://dc719d8e.example.test/calendar/)")
 		return jsonResponse(http.StatusOK, `{}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/posts?per_page=100":
 		return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil)
@@ -3324,7 +3396,7 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/patch" && request.Method == http.MethodPut:
 			calendarChannelPatched = true
-			assertMattermostCalendarChannelPatch(t, request, "[캘린더 열기](https://device-1.example.test/calendar/)")
+			assertMattermostCalendarChannelPatch(t, request, "[일정 열기](https://device-1.example.test/calendar/)")
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/posts?per_page=100":
 			return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil

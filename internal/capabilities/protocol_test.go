@@ -98,6 +98,32 @@ func TestPlatformDMInspectDescriptorIsReadOnly(t *testing.T) {
 	}
 }
 
+func TestMattermostDescriptorsMatchSkillInputs(t *testing.T) {
+	descriptors := MattermostDescriptors()
+	listSchema := descriptorSchema(t, descriptors, "mattermost.channel.posts.list")
+	postSchema := descriptorSchema(t, descriptors, "mattermost.channel.post")
+	updateSchema := descriptorSchema(t, descriptors, "mattermost.post.update")
+	deleteSchema := descriptorSchema(t, descriptors, "mattermost.post.delete")
+	channelUpdateSchema := descriptorSchema(t, descriptors, "mattermost.channel.update")
+
+	assertSchemaHasProperties(t, listSchema, "channelID", "channelName", "page", "perPage")
+	assertSchemaHasProperties(t, postSchema, "channelID", "channelName", "message", "pin")
+	assertSchemaRequires(t, postSchema, "message")
+	assertSchemaHasProperties(t, updateSchema, "postID", "message", "isPinned")
+	assertSchemaRequires(t, updateSchema, "postID")
+	assertSchemaHasProperties(t, deleteSchema, "postID")
+	assertSchemaRequires(t, deleteSchema, "postID")
+	assertSchemaHasProperties(t, channelUpdateSchema, "channelID", "channelName", "header", "displayName", "inviteeHints")
+	assertDescriptorApproval(t, descriptors, "mattermost.channel.posts.list", false)
+	assertDescriptorApproval(t, descriptors, "mattermost.channel.post", true)
+	assertDescriptorApproval(t, descriptors, "mattermost.post.update", true)
+	assertDescriptorApproval(t, descriptors, "mattermost.post.delete", true)
+	assertDescriptorApproval(t, descriptors, "mattermost.channel.update", true)
+	if descriptorForTool(t, descriptors, "mattermost.channel.update").PolicyResource != "tool:mattermost.channel.update" {
+		t.Fatalf("unexpected channel update policy resource")
+	}
+}
+
 func TestWebDescriptorsAreReadOnlyDefaultTools(t *testing.T) {
 	searchSchema := descriptorSchema(t, WebDescriptors(), "web.search")
 	fetchSchema := descriptorSchema(t, WebDescriptors(), "web.fetch")
@@ -149,6 +175,8 @@ func TestSiteAppDescriptorsUseRuntimeInputNames(t *testing.T) {
 
 func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
 	assertDescriptorApproval(t, PlatformMessageDescriptors(), "platform.dm.send", true)
+	assertDescriptorApproval(t, MattermostDescriptors(), "mattermost.channel.post", true)
+	assertDescriptorApproval(t, MattermostDescriptors(), "mattermost.channel.update", true)
 	assertDescriptorApproval(t, CalendarDescriptors(), "calendar.event.add", false)
 	assertDescriptorApproval(t, MailDescriptors(), "mail.message.send", true)
 	assertDescriptorApproval(t, MailDescriptors(), "mail.message.search", false)
@@ -214,6 +242,7 @@ func TestCapabilityDescriptorSchemasAreCanonicalObjects(t *testing.T) {
 		WebDescriptors(),
 		FileDescriptors(),
 		PlatformMessageDescriptors(),
+		MattermostDescriptors(),
 		FlowDescriptors(),
 		CalendarDescriptors(),
 		MailDescriptors(),

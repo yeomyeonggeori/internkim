@@ -95,6 +95,9 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 	if request.ToolName == "platform.dm.inspect" {
 		return service.invokePlatformDMInspect(ctx, request)
 	}
+	if isMattermostTool(request.ToolName) {
+		return service.invokeMattermostTool(ctx, request)
+	}
 	if isCalendarTool(request.ToolName) {
 		return service.invokeCalendarTool(ctx, request)
 	}
