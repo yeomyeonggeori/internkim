@@ -5,6 +5,9 @@ when_to_use: Use when the user asks InternKim to make, deploy, publish, update, 
 allowed-tools:
   - terminal.run
   - terminal.session
+  - browser.open
+  - browser.snapshot
+  - browser.screenshot
   - file.write
   - site.app.create
   - site.app.publish
@@ -32,9 +35,10 @@ Create prototypes for non-developers to validate ideas quickly. Do not present t
 
 ## Stack
 
-- Use the managed dependency-free HTML + CSS + JavaScript scaffold for the frontend.
+- Use the managed React + Vite + TypeScript + Tailwind + shadcn/ui scaffold for the frontend.
 - Use PocketBase files and migrations only when the prototype needs local data, auth, files, realtime, or migrations.
-- Do not use React, Vite, Next.js, SvelteKit, arbitrary Node servers, cloud databases, hosted backends, or paid APIs for v1 prototypes unless the user explicitly asks for that stack.
+- Do not use Next.js, SvelteKit, arbitrary Node servers, cloud databases, hosted backends, or paid APIs for v1 prototypes unless the user explicitly asks for that stack.
+- The managed build may run `bun install` inside `app/` on first build. Do not add extra dependencies unless the request truly needs them.
 - `site.app.create` initializes the editable website project scaffold, not a finished website.
 - Use the returned `sourceWorkspacePath` exactly as the canonical virtual workspace path for all follow-up source writes. Do not rewrite it into a concrete private POSIX path.
 - Use the returned `appWorkspacePath` exactly as the build working directory.
@@ -46,12 +50,14 @@ For create, make, build, deploy, publish, prototype, demo, landing page, dashboa
 1. For a new prototype, call `site.app.create` with a short DNS-safe slug and title.
 2. Pass `prompt`, `designBrief`, or `prototypeScope` when the user gives enough detail.
 3. After `site.app.create` succeeds, call `site.app.status` for the same `siteID` and use `sourceWorkspacePath` and `appWorkspacePath`.
-4. Write `DESIGN.md` into the site workspace before writing app source.
-5. Use `file.write` to update `app/src/content.html`, `app/src/styles.css`, `app/src/script.js`, and app-owned data/source files according to `DESIGN.md`. Do not write `app/package.json`, `app/index.html`, or `app/scripts/build.ts`; those scaffold/build contract files are managed by `site.app.create`.
-6. Run `bun scripts/build.ts` with `terminal.run.workingDirectoryPath` set to `<appWorkspacePath>`; inside the command, use relative paths only. The default scaffold has no external package install step. The `sourceWorkspacePath` should normally look like `home/sites/<siteID>`, not an absolute private path.
-7. Call `site.app.publish` with `siteID` and a concise `message`.
-8. Call `site.app.status` for the same `siteID` and confirm the status is `published`.
-9. Reply in Mattermost with the public URL, a short change summary, how to try the main workflow, and any test login credentials.
+4. Choose a UI archetype before editing source: landing, dashboard, admin tool, booking, marketplace, portfolio, or content site.
+5. Write a Stitch-compatible `DESIGN.md` into the site workspace before writing app source.
+6. Use `file.write` to update `app/src/App.tsx`, `app/src/index.css`, app-owned components, and app-owned data/source files according to `DESIGN.md`. Do not write `app/package.json`, `app/index.html`, `app/scripts/build.ts`, `app/tsconfig.json`, or `app/vite.config.ts`; those scaffold/build contract files are managed by `site.app.create`.
+7. Run `bun scripts/build.ts` with `terminal.run.workingDirectoryPath` set to `<appWorkspacePath>`; inside the command, use relative paths only. The `sourceWorkspacePath` should normally look like `home/sites/<siteID>`, not an absolute private path.
+8. Start a local preview with `terminal.session`, inspect desktop and mobile with browser tools when available, fix visible layout issues, then rebuild.
+9. Call `site.app.publish` with `siteID` and a concise `message`.
+10. Call `site.app.status` for the same `siteID` and confirm the status is `published`.
+11. Reply in Mattermost with the public URL, a short change summary, how to try the main workflow, and any test login credentials.
 
 Do not publish the uncustomized starter for a website creation request. The starter is only a safe scaffold while the real prototype is being written.
 
@@ -78,7 +84,7 @@ Use this terminal pattern after source files are written:
 
 Do not run this as a single shell command that starts with `cd <appWorkspacePath>`. The working directory belongs in the tool input, not inside the shell command.
 
-The command itself should stay short:
+The build command itself should stay short:
 
 ```bash
 bun scripts/build.ts
@@ -86,6 +92,10 @@ bun scripts/build.ts
 
 After terminal build success:
 
+- start preview from `<appWorkspacePath>` with `bun run preview -- --host 127.0.0.1 --port 4173`; if the port is busy, use the next open port
+- use browser tools to inspect `http://127.0.0.1:<port>` at desktop and mobile widths when available
+- check for text overflow, overlapping controls, clipped buttons, empty first screens, excessive whitespace, a one-note palette, and missing shadcn token usage
+- if browser tools or screenshots are unavailable, rely on build and code inspection rather than blocking publish solely for visual QA
 - call `site.app.publish` with `siteID` and a human-readable `message`
 - never claim deployment succeeded until the tool succeeds
 - after publish succeeds, call `site.app.status` and make sure `status` is `published`
@@ -100,7 +110,7 @@ If the user requests an external integration, explain that it may require a paid
 
 Use fake data, local PocketBase collections, and simple local workflows whenever possible.
 
-The safe default scaffold has no external npm dependencies. Avoid adding React, Vite, large UI frameworks, analytics, hosted databases, AI APIs, payment SDKs, email providers, SMS providers, or SaaS clients unless explicitly requested and confirmed.
+The default scaffold already includes React, Vite, Tailwind, shadcn-style local components, lucide icons, and the DESIGN.md linter. Avoid adding analytics, hosted databases, AI APIs, payment SDKs, email providers, SMS providers, or SaaS clients unless explicitly requested and confirmed.
 
 ## Auth Defaults
 
@@ -116,24 +126,39 @@ Use clearly fake credentials for test users. Do not ask the user for real passwo
 
 `DESIGN.md` is required for every creation or update. Treat it as the working system prompt for the website. It must be specific to the user's request and must not copy a generic template.
 
-Write `DESIGN.md` with these sections:
+Write `DESIGN.md` in the Stitch canonical format only:
 
-- Product: what this site or app is for
-- Audience: who uses it and what they are trying to do
-- Prototype Scope: what works in this publish and what is intentionally deferred
-- Visual Direction: tone, layout density, typography, colors, spacing, and interaction feel
-- Screens: each first-version screen or state the user can try
-- Workflows: the main interaction paths
-- Data Model: local data, fake data, PocketBase collections, or state shape
-- Implemented Now: concrete functionality included in this publish
-- Next Iterations: useful follow-up work for longer projects
-- Acceptance Criteria: checks that must pass before publish
+- YAML front matter between `---` delimiters
+- token groups: `colors`, `typography`, `rounded`, `spacing`, and `components`
+- markdown sections in this order: `Overview`, `Colors`, `Typography`, `Layout`, `Elevation & Depth`, `Shapes`, `Components`, and `Do's and Don'ts`
+
+Do not add Kim Intern-specific implementation sections such as Product, Audience, Prototype Scope, Workflows, Implemented Now, Next Iterations, or Acceptance Criteria. Work those decisions into the canonical sections or keep them in your own execution notes.
+
+The `components` tokens should describe shadcn-style primitives such as `button-primary`, `button-primary-hover`, `card`, `input`, `tabs`, `dialog`, `table`, and `badge`.
 
 If the user does not specify a design direction, infer one from the domain and audience. A restaurant, portfolio, operations dashboard, campaign site, internal tool, game, and marketplace should not share the same visual structure. The first screen must be the actual usable experience or requested landing page, not generic feature cards.
 
-For long or broad requests, publish a coherent first version instead of a shallow explanation page. Record deferred work in `Next Iterations`, but make the published app usable for at least one complete workflow.
+For long or broad requests, publish a coherent first version instead of a shallow explanation page. Keep deferred work out of `DESIGN.md`; summarize it only in the final reply if useful.
 
 Use familiar controls and lucide icons where helpful. Keep layouts responsive, text readable, and controls stable across mobile and desktop. Avoid decorative filler, generic SaaS copy, and a single default palette across unrelated sites.
+
+## UI Archetypes
+
+Pick one archetype before writing source:
+
+- landing: first viewport has the offer, proof, primary action, and a visible hint of the next section
+- dashboard: dense app shell with metrics, filters, table/list, and a primary workflow
+- admin tool: sidebar or topbar, searchable records, detail panel, and destructive actions behind dialogs
+- booking: calendar or availability rail, service choices, form inputs, and confirmation state
+- marketplace: browse grid/list, filters, detail preview, and selection or checkout placeholder
+- portfolio: work index, rich project detail, contact path, and strong visual hierarchy
+- content site: article/index structure, clear navigation, readable typography, and related content
+
+Infer the archetype from the domain and user goal when unspecified. App requests should default to a usable app shell instead of a landing page.
+
+## Design Quality Bar
+
+Never publish a generic feature-card page, empty hero, meaningless gradient, or workflow-free app. The first screen must be the requested experience or a meaningful landing page for the requested offer. Use realistic fake data where it helps the user understand the workflow.
 
 ## Reply Format
 

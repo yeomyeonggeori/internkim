@@ -160,6 +160,49 @@ func TestSitePrototypePublishesDefaultBuild(t *testing.T) {
 	}
 }
 
+func TestSiteDefaultDesignMDUsesStitchFormat(t *testing.T) {
+	document := siteDesignMD(&SiteRecord{Slug: "stitch-demo", Title: "Stitch Demo"})
+	for _, expectedText := range []string{
+		"---\nversion: alpha",
+		"colors:",
+		"typography:",
+		"rounded:",
+		"spacing:",
+		"components:",
+		"## Overview",
+		"## Colors",
+		"## Typography",
+		"## Layout",
+		"## Elevation & Depth",
+		"## Shapes",
+		"## Components",
+		"## Do's and Don'ts",
+	} {
+		if !strings.Contains(document, expectedText) {
+			t.Fatalf("default DESIGN.md must contain %q", expectedText)
+		}
+	}
+	for _, forbiddenText := range []string{"## Product", "## Audience", "## Prototype Scope", "## Workflows", "## Acceptance Criteria"} {
+		if strings.Contains(document, forbiddenText) {
+			t.Fatalf("default DESIGN.md must not contain legacy section %q", forbiddenText)
+		}
+	}
+}
+
+func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
+	packageJSON := sitePackageJSON(&SiteRecord{Slug: "react-demo"})
+	for _, expectedText := range []string{`"react"`, `"vite"`, `"@google/design.md"`, `"@vitejs/plugin-react"`, `"bun scripts/build.ts"`} {
+		if !strings.Contains(packageJSON, expectedText) {
+			t.Fatalf("site package manifest must contain %q", expectedText)
+		}
+	}
+	for _, expectedText := range []string{`name: "bun", arguments: ["install"]`, "@google/design.md", "vite"} {
+		if !strings.Contains(siteBuildTS(), expectedText) {
+			t.Fatalf("site build script must contain %q", expectedText)
+		}
+	}
+}
+
 func TestSitePublishMaterializesEditableSourceBundle(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	site, errorValue := service.createSiteRecord(siteCreateRequest{
