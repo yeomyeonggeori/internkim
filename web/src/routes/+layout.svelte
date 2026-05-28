@@ -21,11 +21,14 @@
 
 	function usesAppShell(pathname: string) {
 		if (pathname === '/calendar/embed' || pathname.startsWith('/calendar/embed/')) return false;
-		return ['/admin/', '/flow/', '/calendar/', '/mail/', '/attendance/'].some((prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix));
+		return ['/admin/', '/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/'].some(
+			(prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix)
+		);
 	}
 
 	function currentApp(pathname: string) {
 		if (pathname.startsWith('/admin')) return 'Admin';
+		if (pathname.startsWith('/memory')) return 'Memory';
 		if (pathname.startsWith('/calendar')) return 'Calendar';
 		if (pathname.startsWith('/mail')) return 'Mail';
 		if (pathname.startsWith('/attendance')) return text.attendance;
