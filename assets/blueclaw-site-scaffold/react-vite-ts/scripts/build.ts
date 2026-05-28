@@ -1,30 +1,28 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { existsSync } from "node:fs";
 
-const rootPath = process.cwd();
-const sourcePath = join(rootPath, "src");
-const distPath = join(rootPath, "dist");
+type Command = {
+	name: string;
+	arguments: string[];
+};
 
-async function readOptionalFile(path: string, fallback: string): Promise<string> {
-  try {
-    return await readFile(path, "utf8");
-  } catch (error) {
-    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
-      return fallback;
-    }
-    throw error;
-  }
+async function runCommand(command: Command): Promise<void> {
+	const commandProcess = Bun.spawn([command.name, ...command.arguments], {
+		stdout: "inherit",
+		stderr: "inherit",
+	});
+	const exitCode = await commandProcess.exited;
+	if (exitCode !== 0) {
+		throw new Error(command.name + " " + command.arguments.join(" ") + " failed with exit code " + exitCode);
+	}
 }
 
-const template = await readFile(join(rootPath, "index.html"), "utf8");
-const body = await readOptionalFile(join(sourcePath, "content.html"), "<main></main>\n");
-const styles = await readOptionalFile(join(sourcePath, "styles.css"), "");
-const script = await readOptionalFile(join(sourcePath, "script.js"), "");
+if (!existsSync("../DESIGN.md")) {
+	throw new Error("DESIGN.md is required at the site workspace root");
+}
 
-const document = template
-  .replace("__SITE_STYLES__", styles)
-  .replace("__SITE_BODY__", body)
-  .replace("__SITE_SCRIPT__", script);
+if (!existsSync("node_modules")) {
+	await runCommand({ name: "bun", arguments: ["install"] });
+}
 
-await mkdir(distPath, { recursive: true });
-await writeFile(join(distPath, "index.html"), document, "utf8");
+await runCommand({ name: "bunx", arguments: ["@google/design.md", "lint", "../DESIGN.md"] });
+await runCommand({ name: "bunx", arguments: ["vite", "build"] });

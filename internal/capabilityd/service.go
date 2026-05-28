@@ -1140,16 +1140,18 @@ func (service Service) runCommand(ctx context.Context, executablePath string, ar
 		return service.RunCommand(ctx, executablePath, arguments, standardInput)
 	}
 
-	commandContext, cancel := context.WithTimeout(ctx, 10*time.Minute)
-	defer cancel()
+	return defaultCommandLimiter.Run(ctx, func() ([]byte, error) {
+		commandContext, cancel := context.WithTimeout(ctx, 10*time.Minute)
+		defer cancel()
 
-	command := exec.CommandContext(commandContext, executablePath, arguments...)
-	command.Stdin = bytes.NewReader(standardInput)
-	output, errorValue := command.CombinedOutput()
-	if errorValue != nil {
-		return nil, fmt.Errorf("%s failed: %w: %s", executablePath, errorValue, strings.TrimSpace(string(output)))
-	}
-	return output, nil
+		command := exec.CommandContext(commandContext, executablePath, arguments...)
+		command.Stdin = bytes.NewReader(standardInput)
+		output, errorValue := command.CombinedOutput()
+		if errorValue != nil {
+			return nil, fmt.Errorf("%s failed: %w: %s", executablePath, errorValue, strings.TrimSpace(string(output)))
+		}
+		return output, nil
+	})
 }
 
 func readSecretValue(path string) string {
