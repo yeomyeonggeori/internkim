@@ -15,8 +15,6 @@ import (
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
-
-	_ "modernc.org/sqlite"
 )
 
 const (
@@ -338,18 +336,7 @@ func (service *Service) createAttendanceEvent(userRecord mattermostUserRecord, k
 }
 
 func (service *Service) openAttendanceDatabase(ctx context.Context) (*sql.DB, error) {
-	if errorValue := os.MkdirAll(filepath.Dir(service.Configuration.AttendanceDatabasePath), 0o700); errorValue != nil {
-		return nil, errorValue
-	}
-	database, errorValue := sql.Open("sqlite", service.Configuration.AttendanceDatabasePath)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	if errorValue := ensureAttendanceSchema(ctx, database); errorValue != nil {
-		_ = database.Close()
-		return nil, errorValue
-	}
-	return database, nil
+	return service.openSQLiteDatabase(ctx, service.Configuration.AttendanceDatabasePath, ensureAttendanceSchema)
 }
 
 func ensureAttendanceSchema(ctx context.Context, database *sql.DB) error {
