@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -414,6 +415,92 @@ func TestAttendanceRepeatedClickCancelsEvent(t *testing.T) {
 	}
 }
 
+func TestAttendanceTeamViewVisibilityRoundtrip(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	ctx := context.Background()
+
+	if errorValue := service.writeAttendanceTeamViewVisibleToAll(ctx, false); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	visible, errorValue := service.readAttendanceTeamViewVisibleToAll(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if visible {
+		t.Fatalf("expected visible=false, got true")
+	}
+}
+
+func TestAttendanceSettingsToggle(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPatch, "/attendance/api/settings", strings.NewReader(`{"teamViewVisibleToAll":false}`))
+	request.RemoteAddr = "127.0.0.1:1234"
+	service.handleAttendance(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	var body map[string]any
+	if errorValue := json.Unmarshal(recorder.Body.Bytes(), &body); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if body["teamViewVisibleToAll"] != false {
+		t.Fatalf("response = %+v", body)
+	}
+}
+
+func TestAttendanceClockRequiresActorEmail(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/attendance/api/clock", strings.NewReader(`{}`))
+	service.handleAttendance(recorder, request)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestAttendanceClockTogglesClockIn(t *testing.T) {
+	service, messages := newAttendanceActionTestService(t)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/attendance/api/clock", strings.NewReader(`{}`))
+	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	service.handleAttendance(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	if len(*messages) != 1 {
+		t.Fatalf("expected 1 mattermost message, got %d: %v", len(*messages), *messages)
+	}
+	if !strings.Contains((*messages)[0].Message, "출근") {
+		t.Fatalf("expected clock-in message, got %q", (*messages)[0])
+	}
+}
+
+func TestAttendanceClockAcceptsExplicitClockOut(t *testing.T) {
+	service, messages := newAttendanceActionTestService(t)
+	clockInRecorder := httptest.NewRecorder()
+	clockInRequest := httptest.NewRequest(http.MethodPost, "/attendance/api/clock", strings.NewReader(`{"kind":"clock_in"}`))
+	clockInRequest.Header.Set("X-Forwarded-Email", "staff@example.com")
+	service.handleAttendance(clockInRecorder, clockInRequest)
+	if clockInRecorder.Code != http.StatusOK {
+		t.Fatalf("clock-in status = %d body = %s", clockInRecorder.Code, clockInRecorder.Body.String())
+	}
+	clockOutRecorder := httptest.NewRecorder()
+	clockOutRequest := httptest.NewRequest(http.MethodPost, "/attendance/api/clock", strings.NewReader(`{"kind":"clock_out"}`))
+	clockOutRequest.Header.Set("X-Forwarded-Email", "staff@example.com")
+	service.handleAttendance(clockOutRecorder, clockOutRequest)
+	if clockOutRecorder.Code != http.StatusOK {
+		t.Fatalf("clock-out status = %d body = %s", clockOutRecorder.Code, clockOutRecorder.Body.String())
+	}
+	if len(*messages) != 2 {
+		t.Fatalf("expected 2 mattermost messages, got %d: %v", len(*messages), *messages)
+	}
+	if !strings.Contains((*messages)[1].Message, "퇴근") {
+		t.Fatalf("expected clock-out message, got %q", (*messages)[1])
+	}
+}
+
 type attendanceActionPost struct {
 	Message string
 	RootID  string
@@ -436,6 +523,8 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]attendanceAction
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Header.Get("Authorization") == "Bearer admin-token":
+			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"staff@example.com","username":"staff","nickname":"Staff"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/email/staff@example.com" && request.Header.Get("Authorization") == "Bearer admin-token":
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"staff@example.com","username":"staff","nickname":"Staff"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim":
 			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
