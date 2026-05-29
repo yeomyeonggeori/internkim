@@ -246,6 +246,9 @@ func (service *Service) handleMail(responseWriter http.ResponseWriter, request *
 
 func (service *Service) authorizeMailRequest(request *http.Request) bool {
 	actorEmail := service.mailActorEmail(request)
+	if actorEmail == "" {
+		return false
+	}
 	return isLocalRequest(request) || service.isFlowStaffActor(request.Context(), actorEmail)
 }
 
@@ -465,7 +468,7 @@ func (service *Service) readMailAccountForRequest(request *http.Request) (mailAc
 }
 
 func (service *Service) mailActorEmail(request *http.Request) string {
-	return strings.ToLower(strings.TrimSpace(firstNonEmpty(authenticatedCallerEmail(request), service.claimedAdminEmail(), service.seedAdminEmail())))
+	return authenticatedCallerEmail(request)
 }
 
 func (service *Service) openMailDatabase(ctx context.Context) (*sql.DB, error) {
