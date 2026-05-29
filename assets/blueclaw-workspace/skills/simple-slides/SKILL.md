@@ -138,12 +138,14 @@ Use vendored Paperlogy as the default display and body font. Read `assets/webfon
 Use this stack unless the user explicitly asks for a different font:
 
 ```css
-font-family: "Paperlogy", "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+font-family: "Paperlogy", "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
 ```
 
 Pretendard is only a fallback example when requested. If local font files are unavailable in an unusual runtime, use a robust Korean-capable system stack instead.
 
 If the deck uses embedded fonts, mention Paperlogy in `DESIGN.md`; otherwise keep `typography.display` and `typography.body` as system Korean sans.
+
+Do not use emoji as functional icons or bullets in presentation body text. Emoji fallback depends on the browser, PDF renderer, and PowerPoint/Keynote environment, and missing glyphs may render as boxes. Use text labels, CSS markers, inline SVG, or simple geometric PowerPoint shapes instead.
 
 ## Review Loop
 
@@ -152,5 +154,7 @@ The full build creates review PNGs, `slide-review.json`, `slide-review.md`, and 
 ## Output
 
 If the user asks for `html만`, build and attach only the HTML. If the user does not restrict formats, attaching PPTX, PDF, HTML, and notes is a good default.
+
+Marp PPTX output is a visual-fidelity artifact and may represent slides as images instead of fully editable PowerPoint objects. When the user needs a PPTX that preserves design but only a few fields must remain editable, use the `pptx` skill's hybrid pattern: static full-slide image background plus editable text overlays for the specific fields that need later changes.
 
 Do not say file delivery is impossible when the local tools are available. If the result is imperfect but usable, attach it and be honest about limitations. Never expose `sandbox:/mnt/data`, `file://`, `/workspace`, `/tmp`, or other local paths to the user.

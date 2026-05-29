@@ -31,6 +31,8 @@ Bundled scripts are responsible for their own Python dependencies. Run them thro
 
 For from-scratch presentation design, use the existing `simple-slides` skill unless the user specifically needs direct PowerPoint object editing, editable-only output, or preservation of an existing PPTX file.
 
+For high-fidelity PPTX where only some text needs later editing, use a hybrid deck: render the static visual design as a full-slide image, then overlay only the required editable titles, labels, numbers, or body text as PowerPoint text boxes. Do not force decorative lines, cards, screenshots, charts, or complex HTML layouts into editable shapes when they are not meant to be changed.
+
 ## Helper Scripts
 
 For normal decks, create a spec file:
@@ -55,6 +57,21 @@ For normal decks, create a spec file:
           "leftInches": 7,
           "topInches": 1.5,
           "widthInches": 5
+        }
+      ]
+    },
+    {
+      "layout": "hybrid",
+      "backgroundImage": "rendered-slide-03.png",
+      "editableTexts": [
+        {
+          "text": "Editable decision headline",
+          "leftInches": 0.8,
+          "topInches": 0.7,
+          "widthInches": 8.5,
+          "heightInches": 0.7,
+          "fontSize": 28,
+          "weight": "bold"
         }
       ]
     }
@@ -85,6 +102,8 @@ For work that exceeds the JSON script, create a task-local Python file such as `
 Inside that file, import the PowerPoint library normally; the wrapper has already created and selected the venv.
 
 Use Paperlogy as the default `fontName` when creating new objects. Font embedding depends on the recipient's PowerPoint environment, so treat PDF/HTML from `simple-slides` as the fidelity reference for new designed decks. For direct PPTX output, use a restrained palette, blank-layout slides, conclusion-first titles, and structured title/body/card/comparison/matrix/timeline layouts instead of bullet-only pages.
+
+When preserving design matters more than object editability, prefer `layout: "hybrid"` with `backgroundImage` and `editableTexts`. The full-slide image protects spacing, gradients, icons, charts, and card geometry from PowerPoint/Keynote conversion drift. Keep editable overlays limited to the fields the user is likely to change.
 
 ## Editing Existing Files
 

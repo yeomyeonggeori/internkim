@@ -43,7 +43,7 @@ Default for display text and body text. Good for title slides, section headers, 
 ```
 
 ```css
-font-family: "Paperlogy", "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+font-family: "Paperlogy", "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
 ```
 
 Use this CDN import only for quick drafts where local font access is unavailable:
