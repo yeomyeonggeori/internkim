@@ -34,7 +34,10 @@ export const attendanceText = {
 		loadFailed: '출결 정보를 불러오지 못했습니다.',
 		defaultLocation: '사무실',
 		hourUnit: '시간',
-		minuteUnit: '분'
+		minuteUnit: '분',
+		tabTeam: '팀',
+		tabPersonal: '개인',
+		teamBlocked: '관리자가 팀 출결을 비공개로 설정했습니다.'
 	},
 	en: {
 		pageTitle: 'Attendance · intern kim',
@@ -71,6 +74,9 @@ export const attendanceText = {
 		loadFailed: 'Could not load attendance information.',
 		defaultLocation: 'Office',
 		hourUnit: 'h',
-		minuteUnit: 'm'
+		minuteUnit: 'm',
+		tabTeam: 'Team',
+		tabPersonal: 'Personal',
+		teamBlocked: 'The administrator has hidden team attendance.'
 	}
 } as const;

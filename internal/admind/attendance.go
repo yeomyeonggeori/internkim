@@ -64,13 +64,15 @@ type attendanceEvent struct {
 }
 
 type attendanceSummaryResponse struct {
-	Month            string               `json:"month"`
-	CurrentUserEmail string               `json:"currentUserEmail"`
-	IsAdmin          bool                 `json:"isAdmin"`
-	TimeZone         string               `json:"timeZone"`
-	Events           []attendanceEvent    `json:"events"`
-	TodayStatus      string               `json:"todayStatus"`
-	Locations        []attendanceLocation `json:"locations"`
+	Month                string               `json:"month"`
+	CurrentUserEmail     string               `json:"currentUserEmail"`
+	IsAdmin              bool                 `json:"isAdmin"`
+	TimeZone             string               `json:"timeZone"`
+	Events               []attendanceEvent    `json:"events"`
+	TodayStatus          string               `json:"todayStatus"`
+	Locations            []attendanceLocation `json:"locations"`
+	TeamViewVisibleToAll bool                 `json:"teamViewVisibleToAll"`
+	TeamViewBlocked      bool                 `json:"teamViewBlocked"`
 }
 
 type attendanceUserTokenRecord struct {
@@ -126,6 +128,10 @@ func (service *Service) handleAttendance(responseWriter http.ResponseWriter, req
 	switch {
 	case request.Method == http.MethodGet && path == "/summary":
 		service.writeAttendanceSummary(responseWriter, request)
+	case request.Method == http.MethodPatch && path == "/settings":
+		service.writeAttendanceSettings(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/clock":
+		service.writeAttendanceClock(responseWriter, request)
 	default:
 		http.NotFound(responseWriter, request)
 	}
@@ -164,14 +170,63 @@ func (service *Service) writeAttendanceSummary(responseWriter http.ResponseWrite
 			statusEvents = actorEvents
 		}
 	}
+	teamVisible, errorValue := service.readAttendanceTeamViewVisibleToAll(request.Context())
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	teamViewBlocked := false
+	visibleEvents := events
+	if !isAdmin && !teamVisible {
+		teamViewBlocked = true
+		filtered := make([]attendanceEvent, 0, len(events))
+		for _, event := range events {
+			if strings.EqualFold(event.Email, actorEmail) {
+				filtered = append(filtered, event)
+			}
+		}
+		visibleEvents = filtered
+	}
 	service.writeJSON(responseWriter, attendanceSummaryResponse{
-		Month:            month,
-		CurrentUserEmail: actorEmail,
-		IsAdmin:          isAdmin,
-		TimeZone:         timeZoneName,
-		Events:           events,
-		TodayStatus:      attendanceStatusForEvents(statusEvents, time.Now().In(location).Format("2006-01-02")),
-		Locations:        locations,
+		Month:                month,
+		CurrentUserEmail:     actorEmail,
+		IsAdmin:              isAdmin,
+		TimeZone:             timeZoneName,
+		Events:               visibleEvents,
+		TodayStatus:          attendanceStatusForEvents(statusEvents, time.Now().In(location).Format("2006-01-02")),
+		Locations:            locations,
+		TeamViewVisibleToAll: teamVisible,
+		TeamViewBlocked:      teamViewBlocked,
+	})
+}
+
+type attendanceSettingsRequest struct {
+	TeamViewVisibleToAll *bool `json:"teamViewVisibleToAll"`
+}
+
+func (service *Service) writeAttendanceSettings(responseWriter http.ResponseWriter, request *http.Request) {
+	if !service.isAuthorized(request) {
+		http.Error(responseWriter, "admin required", http.StatusForbidden)
+		return
+	}
+	var body attendanceSettingsRequest
+	if errorValue := json.NewDecoder(request.Body).Decode(&body); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	if body.TeamViewVisibleToAll != nil {
+		if errorValue := service.writeAttendanceTeamViewVisibleToAll(request.Context(), *body.TeamViewVisibleToAll); errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+	teamVisible, errorValue := service.readAttendanceTeamViewVisibleToAll(request.Context())
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	service.writeJSON(responseWriter, map[string]any{
+		"teamViewVisibleToAll": teamVisible,
 	})
 }
 
@@ -182,6 +237,76 @@ func (service *Service) handleAttendanceToggleAction(responseWriter http.Respons
 		return
 	}
 	service.writeMattermostInteractiveError(responseWriter, errorValue.Error())
+}
+
+type attendanceClockRequest struct {
+	Kind       string `json:"kind"`
+	LocationID string `json:"locationID"`
+}
+
+func (service *Service) writeAttendanceClock(responseWriter http.ResponseWriter, request *http.Request) {
+	actorEmail := strings.ToLower(strings.TrimSpace(service.webStaffActorEmail(request)))
+	if actorEmail == "" {
+		http.Error(responseWriter, "actor email required", http.StatusForbidden)
+		return
+	}
+	var body attendanceClockRequest
+	if request.ContentLength > 0 {
+		if errorValue := json.NewDecoder(request.Body).Decode(&body); errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	kind := strings.TrimSpace(body.Kind)
+	if kind != "" && kind != attendanceKindClockIn && kind != attendanceKindClockOut {
+		http.Error(responseWriter, "invalid kind", http.StatusBadRequest)
+		return
+	}
+	ctx := request.Context()
+	adminToken, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	userRecord, found, errorValue := service.findMattermostUserByEmail(ctx, adminToken, actorEmail)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !found {
+		http.Error(responseWriter, "mattermost user not found", http.StatusNotFound)
+		return
+	}
+	teamRecord, errorValue := service.ensureMattermostTeam(ctx, adminToken)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	channelID, errorValue := service.ensureMattermostAttendanceChannel(ctx, adminToken, teamRecord.ID)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	if errorValue := service.ensureMattermostChannelMembership(ctx, adminToken, channelID, userRecord.ID); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	userToken, errorValue := service.ensureMattermostUserAccessToken(ctx, adminToken, userRecord.ID)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	locationID := strings.TrimSpace(body.LocationID)
+	if kind == "" {
+		errorValue = service.applyAttendanceToggle(ctx, userRecord, userToken, teamRecord.ID, channelID, "")
+	} else {
+		errorValue = service.applyAttendanceAction(ctx, userRecord, userToken, kind, teamRecord.ID, channelID, "", locationID)
+	}
+	if errorValue != nil && !errors.Is(errorValue, errAttendanceDuplicateIgnored) {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	service.writeJSON(responseWriter, map[string]any{"ok": true})
 }
 
 func (service *Service) handleAttendanceClockAction(responseWriter http.ResponseWriter, request *http.Request, payload mattermostInteractivePayload, kind string) {
@@ -387,6 +512,13 @@ CREATE TABLE IF NOT EXISTS attendance_events (
 		return errorValue
 	}
 	if errorValue := ensureAttendanceColumn(ctx, database, "location_name", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := database.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS attendance_settings (
+		key TEXT PRIMARY KEY,
+		value TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	)`); errorValue != nil {
 		return errorValue
 	}
 	_, errorValue = database.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS attendance_events_user_date ON attendance_events(email, local_date)")
@@ -1029,4 +1161,37 @@ func attendanceNextMonth(month string) string {
 		return month
 	}
 	return parsedTime.AddDate(0, 1, 0).Format("2006-01")
+}
+
+const attendanceSettingTeamViewVisibleToAll = "team_view_visible_to_all"
+
+func (service *Service) readAttendanceTeamViewVisibleToAll(ctx context.Context) (bool, error) {
+	database, errorValue := service.openAttendanceDatabase(ctx)
+	if errorValue != nil {
+		return true, errorValue
+	}
+	var value string
+	errorValue = database.QueryRowContext(ctx, `SELECT value FROM attendance_settings WHERE key = ?`, attendanceSettingTeamViewVisibleToAll).Scan(&value)
+	if errors.Is(errorValue, sql.ErrNoRows) {
+		return true, nil
+	}
+	if errorValue != nil {
+		return true, errorValue
+	}
+	return value == "true", nil
+}
+
+func (service *Service) writeAttendanceTeamViewVisibleToAll(ctx context.Context, visible bool) error {
+	database, errorValue := service.openAttendanceDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	value := "false"
+	if visible {
+		value = "true"
+	}
+	_, errorValue = database.ExecContext(ctx, `INSERT INTO attendance_settings (key, value, updated_at) VALUES (?, ?, ?)
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+		attendanceSettingTeamViewVisibleToAll, value, time.Now().UTC().Format(time.RFC3339))
+	return errorValue
 }
