@@ -128,6 +128,103 @@ func TestSiteAppStatusResolvesConversationSite(t *testing.T) {
 	}
 }
 
+func TestSiteAppStatusReturnsAmbiguousCandidates(t *testing.T) {
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			switch {
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/admin/api/sites":
+				return siteToolJSONResponse(`{"sites":[{"siteID":"site-1","slug":"one","title":"One","description":"First site","purpose":"portfolio","archetype":"portfolio","publishedURL":"https://one.example","platform":"mattermost","conversationID":"thread-1","ownerIdentity":{"personID":"person-1","displayName":"Owner"},"status":"draft"},{"siteID":"site-2","slug":"two","title":"Two","description":"Second site","purpose":"booking","archetype":"booking","publishedURL":"https://two.example","platform":"mattermost","conversationID":"thread-1","ownerIdentity":{"personID":"person-1","displayName":"Owner"},"status":"draft"}]}`), nil
+			default:
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+
+	response, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "site.app.status",
+		Input:    json.RawMessage(`{}`),
+		Context: capabilities.ToolInvokeContext{
+			RequesterPersonID: "person-1",
+			Platform:          "mattermost",
+			ConversationID:    "thread-1",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	result := string(response.Result)
+	if !strings.Contains(result, `"status":"ambiguous"`) || !strings.Contains(result, `"description":"First site"`) || !strings.Contains(result, `"archetype":"booking"`) {
+		t.Fatalf("expected ambiguous candidate summaries, got %s", result)
+	}
+}
+
+func TestSiteAppStatusIgnoresConversationSitesRequesterCannotEdit(t *testing.T) {
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			switch {
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/admin/api/sites":
+				return siteToolJSONResponse(`{"sites":[{"siteID":"site-1","slug":"demo","platform":"mattermost","conversationID":"thread-1","ownerIdentity":{"personID":"owner-person"},"status":"draft"}]}`), nil
+			default:
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+
+	response, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "site.app.status",
+		Input:    json.RawMessage(`{}`),
+		Context: capabilities.ToolInvokeContext{
+			RequesterPersonID: "other-person",
+			Platform:          "mattermost",
+			ConversationID:    "thread-1",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !strings.Contains(string(response.Result), `"status":"not_found"`) {
+		t.Fatalf("expected inaccessible site not to resolve, got %s", response.Result)
+	}
+}
+
+func TestSiteAppStatusBySlugHidesSourcePathsForNonEditor(t *testing.T) {
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			switch {
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/admin/api/sites":
+				return siteToolJSONResponse(`{"sites":[{"siteID":"site-1","slug":"demo","platform":"mattermost","conversationID":"thread-1","ownerIdentity":{"personID":"owner-person"},"status":"draft"}]}`), nil
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/admin/api/sites/site-1":
+				return siteToolJSONResponse(`{"siteID":"site-1","slug":"demo","title":"Demo","description":"Public description","sourceWorkspacePath":"home/sites/site-1","appWorkspacePath":"home/sites/site-1/app","hostSourcePath":"/root/sites/site-1","ownerIdentity":{"personID":"owner-person"},"status":"draft"}`), nil
+			default:
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+
+	response, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "site.app.status",
+		Input:    json.RawMessage(`{"slug":"demo"}`),
+		Context: capabilities.ToolInvokeContext{
+			RequesterPersonID: "other-person",
+			Platform:          "mattermost",
+			ConversationID:    "thread-1",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	result := string(response.Result)
+	if strings.Contains(result, "sourceWorkspacePath") || strings.Contains(result, "appWorkspacePath") || !strings.Contains(result, `"canEdit":false`) {
+		t.Fatalf("expected public status without source paths, got %s", result)
+	}
+}
+
 func TestSiteAppHistoryResolvesConversationSite(t *testing.T) {
 	requests := []string{}
 	service := Service{

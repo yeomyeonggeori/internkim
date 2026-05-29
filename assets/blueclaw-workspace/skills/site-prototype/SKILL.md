@@ -10,6 +10,8 @@ allowed-tools:
   - browser.screenshot
   - file.write
   - site.app.create
+  - site.app.build
+  - site.app.repair
   - site.app.publish
   - site.app.status
   - site.app.history
@@ -24,7 +26,7 @@ allowed-tools:
 completion:
   requiredEvidenceTools:
     - site.app.status
-    - terminal.run
+    - site.app.build
     - artifact.review
     - site.app.publish
 ---
@@ -54,18 +56,22 @@ For create, make, build, deploy, publish, prototype, demo, landing page, dashboa
 Start by resolving the existing site for the current conversation or slug with `site.app.status`. Updating the same public URL is the default. Create a new site only when no existing site is resolved or the user explicitly asks for a new site, new URL, or separate prototype.
 
 1. Call `site.app.status` with the known `siteID`, slug, or empty input for the current conversation.
-2. If no site is resolved, call `site.app.create` with a short DNS-safe slug and title, then call `site.app.status` for the new `siteID`.
-3. Use `sourceWorkspacePath` and `appWorkspacePath` exactly as returned.
-4. Choose a UI archetype before editing source: landing, dashboard, admin tool, booking, marketplace, portfolio, or content site.
-5. Write or update Stitch-compatible `DESIGN.md`, then create `app/src/prototype-data.ts` with domain-specific fake data and workflow state before editing UI.
-6. Replace the starter `app/src/App.tsx` entirely. Do not preserve starter copy, scaffold structure, or generic feature-card sections.
-7. Use `file.write` to update `app/src/App.tsx`, `app/src/index.css`, app-owned components, and app-owned data/source files according to `DESIGN.md`. Do not write `app/package.json`, `app/index.html`, `app/scripts/build.ts`, `app/tsconfig.json`, or `app/vite.config.ts`; those scaffold/build contract files are managed by `site.app.create`.
-8. Run `bun scripts/build.ts` with `terminal.run.workingDirectoryPath` set to `<appWorkspacePath>`. The build writes `.internkim/build-quality.json` and fails if starter markers or missing content model remain.
-9. Start a local preview with `terminal.session`, capture desktop and mobile screenshots with browser tools when available, then call `artifact.review` with the screenshots, intent, archetype, and rubric.
-10. Write `.internkim/review-log.json` with deterministic checks, vision review issues, attempt count, accepted warnings, and final decision. Revise and rebuild when any blocking issue remains; repeat at most three times.
-11. Call `site.app.publish` with `siteID` and a concise revision message. Same-site updates must publish the same `publishedURL`.
-12. Call `site.app.status` for the same `siteID` and confirm the status is `published`.
-13. Reply in Mattermost with the public URL, revision summary, how to try the main workflow, rollback availability, and any test login credentials.
+2. If `site.app.status` returns `ambiguous`, do not choose randomly. Show the candidate titles, descriptions, archetypes, owners, and URLs, then ask the user which site to update.
+3. If no site is resolved, call `site.app.create` with a short DNS-safe slug, title, description, idea, purpose, audience, archetype, and domain keywords, then call `site.app.status` for the new `siteID`.
+4. Use `sourceWorkspacePath` and `appWorkspacePath` exactly as returned.
+5. If `workspaceHealth` is `missing` or `permission_problem`, call `site.app.repair`, then call `site.app.status` again. If `workspaceHealth` is `stale_build`, continue to editing or build; do not repair.
+6. Choose a UI archetype before editing source: landing, dashboard, admin tool, booking, marketplace, portfolio, or content site.
+7. Read `.internkim/site.json` and `.internkim/idea.md` when present. The registry metadata is authoritative, but these files are the workspace-local copy of what the site is and why it exists.
+8. Write or update `.internkim/idea.md` when the user changes the core idea, audience, purpose, or positioning. Keep implementation notes out of `DESIGN.md`.
+9. Write or update Stitch-compatible `DESIGN.md`, then create `app/src/prototype-data.ts` with domain-specific fake data and workflow state before editing UI.
+10. Replace the starter `app/src/App.tsx` entirely. Do not preserve starter copy, scaffold structure, or generic feature-card sections.
+11. Use `file.write` to update `app/src/App.tsx`, `app/src/index.css`, app-owned components, and app-owned data/source files according to `DESIGN.md`. Do not write `app/package.json`, `app/index.html`, `app/scripts/build.ts`, `app/tsconfig.json`, or `app/vite.config.ts`; those scaffold/build contract files are managed by `site.app.create`.
+12. Call `site.app.build`. It resolves the canonical `appWorkspacePath`, runs `bun scripts/build.ts` there, writes `.internkim/build-quality.json`, and returns build evidence. Use raw `terminal.run` with `workingDirectoryPath` set to `<appWorkspacePath>` only as a fallback when `site.app.build` is unavailable.
+13. Start a local preview with `terminal.session`, capture desktop and mobile screenshots with browser tools when available, then call `artifact.review` with the screenshots, intent, archetype, and rubric.
+14. Write `.internkim/review-log.json` with deterministic checks, vision review issues, attempt count, accepted warnings, and final decision. Revise and rebuild when any blocking issue remains; repeat at most three times.
+15. Call `site.app.publish` with `siteID` and a concise revision message. Same-site updates must publish the same `publishedURL`.
+16. Call `site.app.status` for the same `siteID` and confirm the status is `published`.
+17. Reply in Mattermost with the public URL, revision summary, how to try the main workflow, rollback availability, and any test login credentials.
 
 Do not publish the uncustomized starter for a website creation request. The starter is only a safe scaffold while the real prototype is being written.
 
@@ -78,6 +84,8 @@ Use `user.confirm` only for rollback, unpublish, or delete requests. Do not use 
 Never ask for publish approval in natural language. Chat replies such as "확인해 주세요", "승인해 주세요", "말씀해 주시면 게시하겠습니다", or "다시 명령해 주세요" do not create a runtime approval job and cannot resume automatically.
 
 For follow-up feedback in the same conversation, call `site.app.status` with an empty input or the known slug. The tool can resolve the current conversation's bound site. Read the existing `DESIGN.md`, `app/src/prototype-data.ts`, `app/src/App.tsx`, `app/src/index.css`, and `.internkim/review-log.json` when present, update the returned workspace, rebuild from `app/`, run visual review, publish the same site, and reply with the same URL.
+
+Each site has metadata that explains what it is and who can edit it. Treat `description`, `idea`, `purpose`, `audience`, `archetype`, `domainKeywords`, `createdBy`, `ownerIdentity`, and `collaborators` from `site.app.status` as the decision context for whether a follow-up request should update an existing site. The creator or owner is the default editor. If the current requester cannot edit the site, do not work around the permission boundary; ask the owner to grant access or ask the user to create a separate site.
 
 If the user replies with a short continuation such as "해줘", "진행", "확인", "좋아", "응", "게시해", "배포해", or "publish", treat it as an instruction to finish the current site workflow. Resolve the current site with `site.app.status`, check whether the source is customized beyond the starter, complete missing implementation work if needed, build, publish, and then reply with the public URL. Do not repeat an approval request for publish.
 

@@ -78,17 +78,17 @@ func nativeActionToolForVariant(variant actionSchemaVariant) (nativeActionTool, 
 	if !isFound {
 		return nativeActionTool{}, false, nil
 	}
-	if action == "call_tool" {
+	if isNativeToolAction(action) {
 		toolName, isFound := enumStringValue(variant.Properties["toolName"])
 		if !isFound {
-			return nativeActionTool{}, false, errors.New("call_tool action schema is missing toolName enum")
+			return nativeActionTool{}, false, errors.New(action + " action schema is missing toolName enum")
 		}
 		return nativeActionTool{
-			FunctionName: nativeActionFunctionName(toolName),
+			FunctionName: nativeActionFunctionName(action, toolName),
 			Description:  "Call " + toolName,
 			Action:       action,
 			ToolName:     toolName,
-			Parameters:   objectSchemaDocument(variant.Properties["toolInput"]),
+			Parameters:   toolActionParameters(variant),
 		}, true, nil
 	}
 	return nativeActionTool{
@@ -108,12 +108,12 @@ func nativeActionJSON(toolSet nativeActionToolSet, functionName string, argument
 	if len(argumentDocument) == 0 {
 		argumentDocument = json.RawMessage(`{}`)
 	}
-	if tool.Action == "call_tool" {
-		content, errorValue := json.Marshal(map[string]any{
-			"action":    "call_tool",
-			"toolName":  tool.ToolName,
-			"toolInput": argumentDocument,
-		})
+	if isNativeToolAction(tool.Action) {
+		payload, errorValue := toolActionPayload(tool, argumentDocument)
+		if errorValue != nil {
+			return "", errorValue
+		}
+		content, errorValue := json.Marshal(payload)
 		return string(content), errorValue
 	}
 	var payload map[string]any
@@ -145,10 +145,54 @@ func nativeActionToolMatchesProviderName(tool nativeActionTool, functionName str
 	if functionName == tool.FunctionName {
 		return true
 	}
-	if tool.Action != "call_tool" {
+	if !isNativeToolAction(tool.Action) {
 		return functionName == tool.Action || functionName == nativeSafeFunctionName(tool.Action)
 	}
 	return functionName == tool.ToolName || functionName == nativeSafeFunctionName(tool.ToolName)
+}
+
+func isNativeToolAction(action string) bool {
+	return action == "continue"
+}
+
+func toolActionPayload(tool nativeActionTool, argumentDocument json.RawMessage) (map[string]any, error) {
+	var payload map[string]any
+	if errorValue := json.Unmarshal(argumentDocument, &payload); errorValue != nil {
+		return nil, errorValue
+	}
+	toolInput := payload["toolInput"]
+	if toolInput == nil {
+		toolInput = map[string]any{}
+	}
+	payload["action"] = tool.Action
+	payload["toolName"] = tool.ToolName
+	payload["toolInput"] = toolInput
+	return payload, nil
+}
+
+func toolActionParameters(variant actionSchemaVariant) json.RawMessage {
+	properties := map[string]json.RawMessage{
+		"toolInput": variant.Properties["toolInput"],
+	}
+	for _, fieldName := range []string{"message", "reason", "goalStatus", "goalSatisfied", "remainingWork", "executionStateUpdate"} {
+		if propertySchema, isFound := variant.Properties[fieldName]; isFound {
+			properties[fieldName] = propertySchema
+		}
+	}
+	content, errorValue := json.Marshal(map[string]any{
+		"type":                 "object",
+		"properties":           properties,
+		"required":             []string{"toolInput", "executionStateUpdate"},
+		"additionalProperties": false,
+	})
+	if errorValue != nil {
+		return json.RawMessage(`{"type":"object","properties":{}}`)
+	}
+	document, errorValue := ProjectToolParametersForProvider(content, ToolParameterProjectionOpenRouterNativeTool)
+	if errorValue != nil {
+		return json.RawMessage(`{"type":"object","properties":{}}`)
+	}
+	return document
 }
 
 func controlActionParameters(variant actionSchemaVariant) json.RawMessage {
@@ -349,20 +393,22 @@ func enumStringValue(schema json.RawMessage) (string, bool) {
 	return value, value != ""
 }
 
-func nativeActionFunctionName(toolName string) string {
-	return "call_tool__" + nativeSafeFunctionName(toolName)
+func nativeActionFunctionName(action string, toolName string) string {
+	return nativeSafeFunctionName(action) + "__" + nativeSafeFunctionName(toolName)
 }
 
 func nativeControlFunctionName(action string) string {
-	if strings.TrimSpace(action) == "final_reply" {
-		return "reply_now"
+	switch strings.TrimSpace(action) {
+	case "finish":
+		return "finish"
 	}
 	return nativeSafeFunctionName(action)
 }
 
 func nativeControlDescription(action string) string {
-	if strings.TrimSpace(action) == "final_reply" {
-		return "Reply to the user now when the request is satisfied without another tool call."
+	switch strings.TrimSpace(action) {
+	case "finish":
+		return "Finish the task only when the user goal is satisfied and completion evidence is available."
 	}
 	return "Return agent action " + action
 }

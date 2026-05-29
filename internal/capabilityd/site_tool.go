@@ -16,33 +16,67 @@ import (
 )
 
 type siteAppInput struct {
-	SiteID              string `json:"siteID"`
-	Slug                string `json:"slug"`
-	Title               string `json:"title"`
-	Prompt              string `json:"prompt"`
-	DesignBrief         string `json:"designBrief"`
-	PrototypeScope      string `json:"prototypeScope"`
-	SourceWorkspacePath string `json:"sourceWorkspacePath"`
-	SourceBundleBase64  string `json:"sourceBundleBase64"`
-	SourceBundleFormat  string `json:"sourceBundleFormat"`
-	FromRevision        string `json:"fromRevision"`
-	ToRevision          string `json:"toRevision"`
-	Revision            string `json:"revision"`
-	RequestedBy         string `json:"requestedBy"`
-	Platform            string `json:"platform"`
-	ConversationID      string `json:"conversationID"`
+	SiteID              string          `json:"siteID"`
+	Slug                string          `json:"slug"`
+	Title               string          `json:"title"`
+	Prompt              string          `json:"prompt"`
+	DesignBrief         string          `json:"designBrief"`
+	PrototypeScope      string          `json:"prototypeScope"`
+	Description         string          `json:"description"`
+	Idea                string          `json:"idea"`
+	Purpose             string          `json:"purpose"`
+	Audience            string          `json:"audience"`
+	Archetype           string          `json:"archetype"`
+	DomainKeywords      []string        `json:"domainKeywords"`
+	SourceWorkspacePath string          `json:"sourceWorkspacePath"`
+	SourceBundleBase64  string          `json:"sourceBundleBase64"`
+	SourceBundleFormat  string          `json:"sourceBundleFormat"`
+	FromRevision        string          `json:"fromRevision"`
+	ToRevision          string          `json:"toRevision"`
+	Revision            string          `json:"revision"`
+	RequestedBy         string          `json:"requestedBy"`
+	Requester           siteAppIdentity `json:"requester"`
+	CreatedBy           siteAppIdentity `json:"createdBy"`
+	OwnerIdentity       siteAppIdentity `json:"ownerIdentity"`
+	Platform            string          `json:"platform"`
+	ConversationID      string          `json:"conversationID"`
 }
 
 type siteAppRecord struct {
-	SiteID         string `json:"siteID"`
-	Slug           string `json:"slug"`
-	Platform       string `json:"platform"`
-	ConversationID string `json:"conversationID"`
-	Status         string `json:"status"`
+	SiteID         string                `json:"siteID"`
+	Slug           string                `json:"slug"`
+	Title          string                `json:"title"`
+	Description    string                `json:"description"`
+	Purpose        string                `json:"purpose"`
+	Archetype      string                `json:"archetype"`
+	PublishedURL   string                `json:"publishedURL"`
+	Owner          string                `json:"owner"`
+	OwnerIdentity  siteAppIdentity       `json:"ownerIdentity"`
+	CreatedBy      siteAppIdentity       `json:"createdBy"`
+	Collaborators  []siteAppCollaborator `json:"collaborators"`
+	Platform       string                `json:"platform"`
+	ConversationID string                `json:"conversationID"`
+	Status         string                `json:"status"`
+	UpdatedAt      time.Time             `json:"updatedAt"`
 }
 
 type siteAppListResponse struct {
 	Sites []siteAppRecord `json:"sites"`
+}
+
+type siteAppIdentity struct {
+	PersonID       string `json:"personID,omitempty"`
+	Platform       string `json:"platform,omitempty"`
+	PlatformUserID string `json:"platformUserID,omitempty"`
+	DisplayName    string `json:"displayName,omitempty"`
+}
+
+type siteAppCollaborator struct {
+	PersonID       string    `json:"personID,omitempty"`
+	PlatformUserID string    `json:"platformUserID,omitempty"`
+	Role           string    `json:"role"`
+	GrantedBy      string    `json:"grantedBy,omitempty"`
+	GrantedAt      time.Time `json:"grantedAt,omitempty"`
 }
 
 func isSiteAppTool(toolName string) bool {
@@ -78,11 +112,7 @@ func (service Service) invokeSiteApp(ctx context.Context, request capabilities.T
 		if errorValue != nil {
 			return nil, errorValue
 		}
-		siteID, errorValue := service.resolveAdmindSiteID(ctx, input)
-		if errorValue != nil {
-			return nil, errorValue
-		}
-		return service.getAdmindSite(ctx, "/admin/api/sites/"+url.PathEscape(siteID))
+		return service.getAdmindSiteStatus(ctx, input)
 	case "site.app.history":
 		input, errorValue := decodeSiteAppInput(inputDocument)
 		if errorValue != nil {
@@ -157,6 +187,52 @@ func (service Service) publishAdmindSite(ctx context.Context, inputDocument json
 	return service.postAdmindSite(ctx, "/admin/api/sites/"+url.PathEscape(siteID)+"/publish", inputDocument)
 }
 
+func (service Service) getAdmindSiteStatus(ctx context.Context, input siteAppInput) (json.RawMessage, error) {
+	if input.SiteID != "" || input.Slug != "" {
+		siteID, errorValue := service.resolveAdmindSiteID(ctx, input)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		return service.getAdmindSiteStatusByID(ctx, siteID, input)
+	}
+	sites, errorValue := service.listMatchingSiteAppRecords(ctx, input)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	switch len(sites) {
+	case 0:
+		return json.Marshal(map[string]any{"status": "not_found", "candidates": []siteAppRecord{}})
+	case 1:
+		return service.getAdmindSite(ctx, "/admin/api/sites/"+url.PathEscape(sites[0].SiteID))
+	default:
+		return json.Marshal(map[string]any{"status": "ambiguous", "candidates": siteAppCandidateSummaries(sites)})
+	}
+}
+
+func (service Service) getAdmindSiteStatusByID(ctx context.Context, siteID string, input siteAppInput) (json.RawMessage, error) {
+	document, errorValue := service.getAdmindSite(ctx, "/admin/api/sites/"+url.PathEscape(siteID))
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	var site siteAppRecord
+	if errorValue := json.Unmarshal(document, &site); errorValue != nil {
+		return nil, errorValue
+	}
+	if siteAppRecordCanEdit(site, input) {
+		return document, nil
+	}
+	publicDocument := map[string]any{}
+	if errorValue := json.Unmarshal(document, &publicDocument); errorValue != nil {
+		return nil, errorValue
+	}
+	for _, field := range []string{"workspacePath", "sourceWorkspacePath", "appWorkspacePath", "hostSourcePath"} {
+		delete(publicDocument, field)
+	}
+	publicDocument["canEdit"] = false
+	publicDocument["access"] = "viewer"
+	return json.Marshal(publicDocument)
+}
+
 func (service Service) postAdmindSiteAction(ctx context.Context, inputDocument json.RawMessage, action string) (json.RawMessage, error) {
 	input, errorValue := decodeSiteAppInput(inputDocument)
 	if errorValue != nil {
@@ -226,6 +302,11 @@ func decodeSiteAppInput(document json.RawMessage) (siteAppInput, error) {
 	input.SiteID = strings.TrimSpace(input.SiteID)
 	input.Slug = strings.TrimSpace(input.Slug)
 	input.Title = strings.TrimSpace(input.Title)
+	input.Description = strings.TrimSpace(input.Description)
+	input.Idea = strings.TrimSpace(input.Idea)
+	input.Purpose = strings.TrimSpace(input.Purpose)
+	input.Audience = strings.TrimSpace(input.Audience)
+	input.Archetype = strings.TrimSpace(input.Archetype)
 	input.Platform = strings.TrimSpace(input.Platform)
 	input.ConversationID = strings.TrimSpace(input.ConversationID)
 	input.FromRevision = strings.TrimSpace(input.FromRevision)
@@ -241,24 +322,37 @@ func (service Service) resolveAdmindSiteID(ctx context.Context, input siteAppInp
 	if strings.TrimSpace(input.SiteID) != "" {
 		return strings.TrimSpace(input.SiteID), nil
 	}
-	listDocument, errorValue := service.getAdmindSite(ctx, "/admin/api/sites")
+	sites, errorValue := service.listMatchingSiteAppRecords(ctx, input)
 	if errorValue != nil {
 		return "", errorValue
 	}
-	var listResponse siteAppListResponse
-	if errorValue := json.Unmarshal(listDocument, &listResponse); errorValue != nil {
-		return "", errorValue
+	switch len(sites) {
+	case 1:
+		return sites[0].SiteID, nil
+	case 0:
+		return "", errors.New("siteID could not be resolved")
+	default:
+		return "", errors.New("siteID could not be resolved unambiguously")
 	}
-	if siteID := matchSiteAppRecord(listResponse.Sites, input); siteID != "" {
-		return siteID, nil
-	}
-	return "", errors.New("siteID could not be resolved")
 }
 
-func matchSiteAppRecord(sites []siteAppRecord, input siteAppInput) string {
+func (service Service) listMatchingSiteAppRecords(ctx context.Context, input siteAppInput) ([]siteAppRecord, error) {
+	listDocument, errorValue := service.getAdmindSite(ctx, "/admin/api/sites")
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	var listResponse siteAppListResponse
+	if errorValue := json.Unmarshal(listDocument, &listResponse); errorValue != nil {
+		return nil, errorValue
+	}
+	return matchSiteAppRecords(listResponse.Sites, input), nil
+}
+
+func matchSiteAppRecords(sites []siteAppRecord, input siteAppInput) []siteAppRecord {
+	matches := []siteAppRecord{}
 	for _, site := range sites {
 		if input.Slug != "" && strings.EqualFold(site.Slug, input.Slug) {
-			return site.SiteID
+			return []siteAppRecord{site}
 		}
 	}
 	for _, site := range sites {
@@ -268,7 +362,91 @@ func matchSiteAppRecord(sites []siteAppRecord, input siteAppInput) string {
 		if input.Platform != "" && site.Platform != "" && !strings.EqualFold(site.Platform, input.Platform) {
 			continue
 		}
-		return site.SiteID
+		if !siteAppRecordCanEdit(site, input) {
+			continue
+		}
+		matches = append(matches, site)
+	}
+	return matches
+}
+
+func siteAppCandidateSummaries(sites []siteAppRecord) []map[string]any {
+	summaries := []map[string]any{}
+	for _, site := range sites {
+		summaries = append(summaries, map[string]any{
+			"siteID":       site.SiteID,
+			"slug":         site.Slug,
+			"title":        site.Title,
+			"description":  site.Description,
+			"purpose":      site.Purpose,
+			"archetype":    site.Archetype,
+			"owner":        firstNonEmptySiteString(site.OwnerIdentity.DisplayName, site.Owner),
+			"publishedURL": site.PublishedURL,
+			"updatedAt":    site.UpdatedAt,
+		})
+	}
+	return summaries
+}
+
+func siteAppRecordCanEdit(site siteAppRecord, input siteAppInput) bool {
+	if siteAppIdentityEmpty(site.OwnerIdentity) && strings.TrimSpace(site.Owner) == "" {
+		return true
+	}
+	if siteAppIdentityMatches(site.OwnerIdentity, input.Requester) {
+		return true
+	}
+	if siteAppIdentityStringMatches(input.RequestedBy, site.Owner) {
+		return true
+	}
+	for _, collaborator := range site.Collaborators {
+		if !siteAppCollaboratorCanEdit(collaborator.Role) {
+			continue
+		}
+		if collaborator.PersonID != "" && collaborator.PersonID == input.Requester.PersonID {
+			return true
+		}
+		if collaborator.PlatformUserID != "" && collaborator.PlatformUserID == input.Requester.PlatformUserID {
+			return true
+		}
+		if siteAppIdentityStringMatches(input.RequestedBy, collaborator.PersonID) || siteAppIdentityStringMatches(input.RequestedBy, collaborator.PlatformUserID) {
+			return true
+		}
+	}
+	return false
+}
+
+func siteAppIdentityEmpty(identity siteAppIdentity) bool {
+	return strings.TrimSpace(identity.PersonID) == "" &&
+		strings.TrimSpace(identity.PlatformUserID) == "" &&
+		strings.TrimSpace(identity.DisplayName) == ""
+}
+
+func siteAppIdentityMatches(owner siteAppIdentity, requester siteAppIdentity) bool {
+	if owner.PersonID != "" && requester.PersonID != "" && owner.PersonID == requester.PersonID {
+		return true
+	}
+	if owner.PlatformUserID != "" && requester.PlatformUserID != "" && owner.PlatformUserID == requester.PlatformUserID {
+		return owner.Platform == "" || requester.Platform == "" || strings.EqualFold(owner.Platform, requester.Platform)
+	}
+	return false
+}
+
+func siteAppCollaboratorCanEdit(role string) bool {
+	normalizedRole := strings.ToLower(strings.TrimSpace(role))
+	return normalizedRole == "editor" || normalizedRole == "owner"
+}
+
+func siteAppIdentityStringMatches(left string, right string) bool {
+	left = strings.TrimSpace(left)
+	right = strings.TrimSpace(right)
+	return left != "" && right != "" && strings.EqualFold(left, right)
+}
+
+func firstNonEmptySiteString(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
 	}
 	return ""
 }
@@ -283,6 +461,9 @@ func siteAppInputWithContext(document json.RawMessage, toolContext capabilities.
 	setSiteAppDefault(payload, "requestedBy", siteRequester(toolContext))
 	setSiteAppDefault(payload, "platform", strings.TrimSpace(toolContext.Platform))
 	setSiteAppDefault(payload, "conversationID", strings.TrimSpace(toolContext.ConversationID))
+	setSiteAppDefaultDocument(payload, "requester", siteRequesterIdentity(toolContext))
+	setSiteAppDefaultDocument(payload, "createdBy", siteRequesterIdentity(toolContext))
+	setSiteAppDefaultDocument(payload, "ownerIdentity", siteRequesterIdentity(toolContext))
 	enrichedDocument, errorValue := json.Marshal(payload)
 	if errorValue != nil {
 		return nil, errorValue
@@ -301,6 +482,17 @@ func setSiteAppDefault(payload map[string]any, key string, value string) {
 	payload[key] = value
 }
 
+func setSiteAppDefaultDocument(payload map[string]any, key string, value map[string]string) {
+	if len(value) == 0 {
+		return
+	}
+	currentValue, exists := payload[key]
+	if exists && fmt.Sprint(currentValue) != "" {
+		return
+	}
+	payload[key] = value
+}
+
 func siteRequester(toolContext capabilities.ToolInvokeContext) string {
 	for _, value := range []string{
 		toolContext.RequesterEmail,
@@ -313,4 +505,21 @@ func siteRequester(toolContext capabilities.ToolInvokeContext) string {
 		}
 	}
 	return ""
+}
+
+func siteRequesterIdentity(toolContext capabilities.ToolInvokeContext) map[string]string {
+	identity := map[string]string{}
+	if strings.TrimSpace(toolContext.RequesterPersonID) != "" {
+		identity["personID"] = strings.TrimSpace(toolContext.RequesterPersonID)
+	}
+	if strings.TrimSpace(toolContext.Platform) != "" {
+		identity["platform"] = strings.TrimSpace(toolContext.Platform)
+	}
+	if strings.TrimSpace(toolContext.RequesterPlatformUserID) != "" {
+		identity["platformUserID"] = strings.TrimSpace(toolContext.RequesterPlatformUserID)
+	}
+	if strings.TrimSpace(toolContext.RequesterName) != "" {
+		identity["displayName"] = strings.TrimSpace(toolContext.RequesterName)
+	}
+	return identity
 }
