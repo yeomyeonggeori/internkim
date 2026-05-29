@@ -25,3 +25,7 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 # Cloudflare Types
 /worker-configuration.d.ts
+
+# wrangler auto-generated (bun-only project)
+pnpm-lock.yaml
+pnpm-workspace.yaml
