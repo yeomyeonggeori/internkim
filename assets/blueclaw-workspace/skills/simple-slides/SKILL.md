@@ -21,8 +21,8 @@ Use this order for normal requests:
 2. Use `file.write` to create `tmp/<deck-slug>/DESIGN.md`; do not use Blueclaw internal temporary paths.
 3. Use `file.write` to create `tmp/<deck-slug>/presentation.md`.
 4. Use `terminal.run` with `workingDirectoryPath: "tmp/<deck-slug>"` to run the deterministic build script from the skill directory.
-5. Inspect `build/review/slide-review.md` or `build/review/slide-review.json` and the contact sheet images.
-6. If the review has warnings, revise `presentation.md` at least once and rebuild before accepting the deck.
+5. Inspect `build/review/slide-review.md` or `build/review/slide-review.json`, each contact sheet image, and its matching `fit-review-XX.md`.
+6. If the review has warnings, or if any expected visible text in `fit-review-XX.md` is missing, clipped, hidden, or pushed past the right or bottom frame edge in the contact sheet, revise `presentation.md` at least once and rebuild before accepting the deck.
 7. Promote accepted final files from `tmp/<deck-slug>/build/` to `artifacts/<deck-slug>/` with `file.promote` unless the user requested a circle or shared destination.
 8. Use `file.attach` on promoted files only, and attach only the files the user requested.
 
@@ -117,6 +117,10 @@ Use this HTML-first page shape when you need a reliable minimal look:
 - `.timeline`: sequence, rollout, or maturity path
 - `.recommendation`: final verdict and next action
 
+Use fit-safe CSS by default. `.frame` should use fixed 16:9 slide geometry with grid or flex layout, and content regions should use `minmax(0, 1fr)`, `min-width: 0`, `min-height: 0`, and `overflow-wrap: anywhere`. Do not use `overflow: hidden` or `overflow: clip` on cards, matrix cells, columns, or other variable text containers unless the user explicitly asks for cropped content.
+
+Keep variable text within a line budget: title 1-2 lines, takeaway 1-2 lines, cards 2-4 lines, matrix cells 2-3 lines, and timeline steps 2-3 lines. CSS reduces overflow risk, but it is not a guarantee; final fit must be checked in the render review bundle.
+
 Use these slide patterns as the default vocabulary: title thesis, section divider, comparison, matrix, timeline, evidence card, recommendation, and closing ask. A finished deck should feel like a paced argument, not a sequence of topic pages.
 
 Use `file.write` for `DESIGN.md` and `presentation.md`. Do not create source files with shell heredocs or `echo` inside `terminal.run`; reserve `terminal.run` for running the build.
@@ -149,7 +153,9 @@ Do not use emoji as functional icons or bullets in presentation body text. Emoji
 
 ## Review Loop
 
-The full build creates review PNGs, `slide-review.json`, `slide-review.md`, and contact sheets. Check for blank slides, unsafe margins, edge clipping, sparse slides, crowded slides, text overflow, cropped buttons, and excessive whitespace. A warning is a reason to revise the deck source before delivery unless it is clearly intentional, such as a sparse title divider.
+The full build creates review PNGs, `slide-review.json`, `slide-review.md`, 4-slide contact sheets, `fit-review.json`, and `fit-review-XX.md` files. Check each contact sheet together with its matching fit review file. Every expected visible text item must appear fully inside the slide frame. Treat missing text, clipped text, hidden overflow, right-edge collision, or bottom-edge collision as a reason to revise `presentation.md` and rebuild.
+
+`textOverflowRisk` and `frameFitRisk` are deterministic warning signals, not substitutes for visual review. They identify slides that require extra attention in the contact sheet.
 
 ## Output
 
