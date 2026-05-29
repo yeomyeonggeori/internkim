@@ -47,6 +47,12 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if !containsDescriptor(capabilityToolDescriptors, "user.confirm", "requiresApproval") {
 		t.Fatalf("expected user.confirm descriptor to require approval, got %+v", capabilityToolDescriptors)
 	}
+	if !containsCompletionEvidence(capabilityToolDescriptors, "mattermost.channel.post", "success", "post_message", "channel") {
+		t.Fatalf("expected Mattermost post descriptor to preserve completion evidence, got %+v", capabilityToolDescriptors)
+	}
+	if !containsCompletionEvidence(capabilityToolDescriptors, "mail.message.send", "success", "send_email", "email") {
+		t.Fatalf("expected mail send descriptor to preserve completion evidence, got %+v", capabilityToolDescriptors)
+	}
 	routing := capabilityConfiguration["routing"].(map[string]any)
 	if routing["localOnly"] != false {
 		t.Fatalf("expected default routing to allow remote fallback, got %v", routing["localOnly"])
@@ -380,6 +386,21 @@ func containsDescriptor(values []any, expectedName string, expectedField string)
 			_, isFound := descriptor[expectedField]
 			return isFound
 		}
+	}
+	return false
+}
+
+func containsCompletionEvidence(values []any, expectedName string, expectedMode string, expectedAction string, expectedTargetKind string) bool {
+	for _, value := range values {
+		descriptor, ok := value.(map[string]any)
+		if !ok || descriptor["name"] != expectedName {
+			continue
+		}
+		evidence, ok := descriptor["completionEvidence"].(map[string]any)
+		if !ok {
+			return false
+		}
+		return evidence["mode"] == expectedMode && evidence["action"] == expectedAction && evidence["targetKind"] == expectedTargetKind
 	}
 	return false
 }

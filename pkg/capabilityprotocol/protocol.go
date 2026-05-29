@@ -25,17 +25,24 @@ const (
 )
 
 type Descriptor struct {
-	Name                 string          `json:"name"`
-	Version              string          `json:"version"`
-	PrivacyClass         string          `json:"privacyClass"`
-	EstimatedLatency     string          `json:"estimatedLatency"`
-	RequiresUserPresence bool            `json:"requiresUserPresence"`
-	WorksOffline         bool            `json:"worksOffline"`
-	InputSchema          json.RawMessage `json:"inputSchema,omitempty"`
-	OutputSchema         json.RawMessage `json:"outputSchema,omitempty"`
-	PolicyResource       string          `json:"policyResource,omitempty"`
-	SideEffectClass      string          `json:"sideEffectClass,omitempty"`
-	RequiresApproval     bool            `json:"requiresApproval,omitempty"`
+	Name                 string                        `json:"name"`
+	Version              string                        `json:"version"`
+	PrivacyClass         string                        `json:"privacyClass"`
+	EstimatedLatency     string                        `json:"estimatedLatency"`
+	RequiresUserPresence bool                          `json:"requiresUserPresence"`
+	WorksOffline         bool                          `json:"worksOffline"`
+	InputSchema          json.RawMessage               `json:"inputSchema,omitempty"`
+	OutputSchema         json.RawMessage               `json:"outputSchema,omitempty"`
+	PolicyResource       string                        `json:"policyResource,omitempty"`
+	SideEffectClass      string                        `json:"sideEffectClass,omitempty"`
+	RequiresApproval     bool                          `json:"requiresApproval,omitempty"`
+	CompletionEvidence   *CompletionEvidenceDescriptor `json:"completionEvidence,omitempty"`
+}
+
+type CompletionEvidenceDescriptor struct {
+	Mode       string `json:"mode,omitempty"`
+	Action     string `json:"action,omitempty"`
+	TargetKind string `json:"targetKind,omitempty"`
 }
 
 type RegistryResponse struct {
