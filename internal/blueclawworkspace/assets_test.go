@@ -242,6 +242,71 @@ func TestSimpleSlidesBundlesPackageManifest(t *testing.T) {
 	}
 }
 
+func TestSimpleSlidesUsesVendoredPaperlogyDesignDefaults(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "simple-slides")
+	fontPath := filepath.Join(skillPath, "assets", "fonts", "paperlogy")
+	for _, fileName := range []string{
+		"Paperlogy-4Regular.woff2",
+		"Paperlogy-6SemiBold.woff2",
+		"Paperlogy-7Bold.woff2",
+		"Paperlogy-8ExtraBold.woff2",
+		"OFL-1.1.txt",
+		"README.md",
+	} {
+		if _, errorValue := os.Stat(filepath.Join(fontPath, fileName)); errorValue != nil {
+			t.Fatalf("simple-slides must vendor Paperlogy asset %s: %v", fileName, errorValue)
+		}
+	}
+
+	documentPaths := []string{
+		filepath.Join(skillPath, "SKILL.md"),
+		filepath.Join(skillPath, "assets", "webfonts.md"),
+		filepath.Join(skillPath, "assets", "minimal-design.md"),
+	}
+	for _, documentPath := range documentPaths {
+		document, errorValue := os.ReadFile(documentPath)
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		content := string(document)
+		for _, expectedText := range []string{"Paperlogy", `"Paperlogy", "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont`, `"Noto Color Emoji"`} {
+			if !strings.Contains(content, expectedText) {
+				t.Fatalf("%s must document Paperlogy default %q", documentPath, expectedText)
+			}
+		}
+		for _, forbiddenText := range []string{"Pretendard headings and body", "Freesentation body", "display text and Freesentation"} {
+			if strings.Contains(content, forbiddenText) {
+				t.Fatalf("%s must not keep stale default font guidance %q", documentPath, forbiddenText)
+			}
+		}
+	}
+}
+
+func TestSimpleSlidesDocumentsBeautifulDeckContract(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "simple-slides")
+	document, errorValue := os.ReadFile(filepath.Join(skillPath, "SKILL.md"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	content := string(document)
+	for _, expectedText := range []string{
+		"deck archetype",
+		"pitch, research report, executive briefing, education, portfolio, product proposal, or status report",
+		"title thesis, section divider, comparison, matrix, timeline, evidence card, recommendation, and closing ask",
+		"slide-review.json",
+		"contact sheets",
+		"revise `presentation.md` at least once",
+		"Do not use emoji as functional icons or bullets",
+		"hybrid pattern",
+	} {
+		if !strings.Contains(content, expectedText) {
+			t.Fatalf("simple-slides must document beautiful deck contract %q", expectedText)
+		}
+	}
+}
+
 func TestSimpleSlidesRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "simple-slides")
@@ -288,6 +353,73 @@ func TestSimpleSlidesRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 	for _, expectedText := range []string{"EXTRACT_NOTES_SCRIPT", "RENDER_REVIEW_SCRIPT", "SKILL_ASSET_DIRECTORY", "../assets/package.json", "BUILD_DIR", `export TMPDIR="${BUILD_PATH}/.tmp"`, `export TMP="$TMPDIR"`, `export TEMP="$TMPDIR"`, `export HOME="${TMPDIR}/home"`, `cd "$TMPDIR"`} {
 		if !strings.Contains(buildContent, expectedText) {
 			t.Fatalf("simple-slides build script must contain %q", expectedText)
+		}
+	}
+}
+
+func TestSimpleSlidesBuildAndReviewScriptsCheckFontsAndDensity(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "simple-slides")
+	buildScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "build.sh"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	buildContent := string(buildScript)
+	for _, expectedText := range []string{".woff2", ".woff", "font/woff2", "Embedding local fonts as base64 data URLs"} {
+		if !strings.Contains(buildContent, expectedText) {
+			t.Fatalf("simple-slides build script must inline local fonts with %q", expectedText)
+		}
+	}
+
+	reviewScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "render_review.py"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	reviewContent := string(reviewScript)
+	for _, expectedText := range []string{"contentDensity", "content_density", "notTooEmpty", "notTooDense"} {
+		if !strings.Contains(reviewContent, expectedText) {
+			t.Fatalf("render review must include density check %q", expectedText)
+		}
+	}
+}
+
+func TestPPTXSkillRoutesBeautifulNewDecksToSimpleSlides(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "pptx")
+	document, errorValue := os.ReadFile(filepath.Join(skillPath, "SKILL.md"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	content := string(document)
+	for _, expectedText := range []string{"simple-slides", "existing PPTX", "direct PowerPoint object editing", "editable-only", "Paperlogy", "hybrid deck", "backgroundImage", "editableTexts"} {
+		if !strings.Contains(content, expectedText) {
+			t.Fatalf("pptx skill must document routing and editability policy %q", expectedText)
+		}
+	}
+}
+
+func TestPPTXScriptsUsePaperlogyAndDesignWarnings(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "pptx")
+	createScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "create_pptx.py"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	createContent := string(createScript)
+	for _, expectedText := range []string{"Paperlogy", "DEFAULT_COLORS", "comparison", "matrix", "timeline", "backgroundImage", "editableTexts"} {
+		if !strings.Contains(createContent, expectedText) {
+			t.Fatalf("pptx create script must include Paperlogy layout helper %q", expectedText)
+		}
+	}
+
+	validateScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "validate_pptx.py"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	validateContent := string(validateScript)
+	for _, expectedText := range []string{"slide appears empty", "slide is missing a title", "Aptos", "Calibri", "excessive shape count"} {
+		if !strings.Contains(validateContent, expectedText) {
+			t.Fatalf("pptx validator must report design warning %q", expectedText)
 		}
 	}
 }

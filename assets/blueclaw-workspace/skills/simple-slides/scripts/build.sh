@@ -171,6 +171,77 @@ for img in sorted(img_refs):
 with open(path, 'w') as f:
     f.write(html)
 PY
+
+  echo "Embedding local fonts as base64 data URLs in HTML..."
+  python3 - "$BUILD_PATH" "$NAME" <<'PY'
+import base64
+import html as html_entities
+import mimetypes
+import os
+import re
+import sys
+import urllib.parse
+
+build_dir = sys.argv[1]
+name = sys.argv[2]
+html_path = os.path.join(build_dir, f"{name}.html")
+with open(html_path) as html_file:
+    html_content = html_file.read()
+
+
+def resolve_font_path(font_url):
+    font_url = html_entities.unescape(font_url).strip("\"'")
+    parsed = urllib.parse.urlparse(font_url)
+    if parsed.scheme in ("data", "http", "https"):
+        return None
+    if parsed.scheme == "file":
+        return urllib.parse.unquote(parsed.path)
+    decoded_path = urllib.parse.unquote(parsed.path)
+    if os.path.isabs(decoded_path):
+        return decoded_path
+    return os.path.normpath(os.path.join(os.path.dirname(html_path), decoded_path))
+
+
+def font_mime_type(font_path):
+    if font_path.lower().endswith(".woff2"):
+        return "font/woff2"
+    if font_path.lower().endswith(".woff"):
+        return "font/woff"
+    return mimetypes.guess_type(font_path)[0] or "application/octet-stream"
+
+
+def embed_font(match):
+    quote = match.group(1) or ""
+    font_url = match.group(2)
+    return embed_font_url(font_url, quote, match.group(0))
+
+
+def embed_encoded_font(match):
+    font_url = match.group(1)
+    return embed_font_url(font_url, "", match.group(0))
+
+
+def embed_font_url(font_url, quote, fallback):
+    font_path = resolve_font_path(font_url)
+    if not font_path:
+        return fallback
+    if not os.path.exists(font_path):
+        print(f"  - skipped font (not found): {font_url}")
+        return fallback
+    with open(font_path, "rb") as font_file:
+        encoded_font = base64.b64encode(font_file.read()).decode()
+    data_url = f"data:{font_mime_type(font_path)};base64,{encoded_font}"
+    print(f"  - embedded font {font_url}")
+    return f"url({quote}{data_url}{quote})"
+
+
+font_url_pattern = r"url\((['\"]?)([^)'\"]+\.(?:woff2|woff)(?:[?#][^)'\"]*)?)\1\)"
+encoded_font_url_pattern = r"url\((?:&quot;)?([^)]+?\.(?:woff2|woff)(?:[?#][^)]+?)?)(?:&quot;)?\)"
+html_content = re.sub(font_url_pattern, embed_font, html_content, flags=re.IGNORECASE)
+html_content = re.sub(encoded_font_url_pattern, embed_encoded_font, html_content, flags=re.IGNORECASE)
+with open(html_path, "w") as html_file:
+    html_file.write(html_content)
+PY
 fi
 
 if format_enabled notes; then

@@ -65,19 +65,23 @@ def review_slide(path: pathlib.Path, design: dict[str, str], index: int) -> dict
     image = read_png(path)
     background = corner_background_color(image)
     content_bounds = find_content_bounds(image, background)
+    density = content_density(image, background)
     margin = margin_pixels(image, design)
     checks = {
         "nonblank": content_bounds is not None,
         "safeMargin": safe_margin_passed(content_bounds, image, margin),
         "edgeOverflow": edge_overflow_passed(content_bounds, image),
+        "notTooEmpty": density >= 0.006,
+        "notTooDense": density <= 0.42,
     }
-    warnings = slide_warnings(checks, margin)
+    warnings = slide_warnings(checks, margin, density)
     return {
         "index": index,
         "filename": path.name,
         "width": image["width"],
         "height": image["height"],
         "contentBounds": content_bounds or {},
+        "contentDensity": density,
         "marginPixel": margin,
         "passed": all(checks.values()),
         "checks": checks,
@@ -247,6 +251,19 @@ def find_content_bounds(image: dict[str, object], background: tuple[int, int, in
     return {"left": minimum_x, "top": minimum_y, "right": maximum_x, "bottom": maximum_y}
 
 
+def content_density(image: dict[str, object], background: tuple[int, int, int, int]) -> float:
+    rows = image["rows"]
+    content_pixels = 0
+    total_pixels = image["width"] * image["height"]
+    for row in rows:
+        for pixel in row:
+            if not is_background_pixel(pixel, background):
+                content_pixels += 1
+    if total_pixels == 0:
+        return 0
+    return round(content_pixels / total_pixels, 4)
+
+
 def is_background_pixel(pixel: tuple[int, int, int, int], background: tuple[int, int, int, int]) -> bool:
     if pixel[3] < 8:
         return True
@@ -281,7 +298,7 @@ def edge_overflow_passed(bounds: typing.Optional[dict[str, int]], image: dict[st
     return bounds["left"] > edge and bounds["top"] > edge and image["width"] - bounds["right"] > edge and image["height"] - bounds["bottom"] > edge
 
 
-def slide_warnings(checks: dict[str, bool], margin: int) -> list[str]:
+def slide_warnings(checks: dict[str, bool], margin: int, density: float) -> list[str]:
     warnings = []
     if not checks["nonblank"]:
         warnings.append("slide render appears blank")
@@ -289,6 +306,10 @@ def slide_warnings(checks: dict[str, bool], margin: int) -> list[str]:
         warnings.append(f"content extends inside the recommended safe margin of {margin}px")
     if not checks["edgeOverflow"]:
         warnings.append("content touches the slide edge and may be clipped")
+    if not checks["notTooEmpty"]:
+        warnings.append(f"slide appears too sparse for a finished deck (content density {density:.1%})")
+    if not checks["notTooDense"]:
+        warnings.append(f"slide appears visually crowded (content density {density:.1%})")
     return warnings
 
 
@@ -447,6 +468,7 @@ def write_markdown(path: pathlib.Path, report: dict[str, object]) -> None:
         lines.append(f"## Slide {slide['index']}: {status}")
         lines.append("")
         lines.append(f"- File: {slide['filename']}")
+        lines.append(f"- Content density: {slide['contentDensity']:.1%}")
         lines.append(f"- Warnings: {warning_text}")
         lines.append("")
     path.write_text("\n".join(lines), encoding="utf-8")
