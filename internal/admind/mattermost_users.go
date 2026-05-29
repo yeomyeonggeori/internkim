@@ -67,12 +67,15 @@ type adminCircleRecord struct {
 }
 
 type mattermostPostRecord struct {
-	ID       string         `json:"id"`
-	UserID   string         `json:"user_id"`
-	Message  string         `json:"message"`
-	Type     string         `json:"type"`
-	IsPinned bool           `json:"is_pinned"`
-	Props    map[string]any `json:"props"`
+	ID        string         `json:"id"`
+	UserID    string         `json:"user_id"`
+	ChannelID string         `json:"channel_id"`
+	RootID    string         `json:"root_id"`
+	Message   string         `json:"message"`
+	Type      string         `json:"type"`
+	DeleteAt  int64          `json:"delete_at"`
+	IsPinned  bool           `json:"is_pinned"`
+	Props     map[string]any `json:"props"`
 }
 
 type mattermostPostsResponse struct {
@@ -953,9 +956,6 @@ func (service *Service) mattermostManagedPublicChannelHeader(channel mattermostd
 }
 
 func (service *Service) mattermostManagedPublicChannelPurpose(channel mattermostdefaults.PublicChannel) string {
-	if channel.Name == attendanceChannelName {
-		return service.mattermostAttendanceLink()
-	}
 	return channel.Purpose
 }
 

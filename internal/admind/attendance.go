@@ -614,6 +614,29 @@ func (service *Service) patchMattermostAttendanceEntryPost(ctx context.Context, 
 }
 
 func (service *Service) mattermostAttendanceEntryPost(ctx context.Context, token string, channelID string) (mattermostPostRecord, bool) {
+	if postRecord, found := service.storedMattermostAttendanceEntryPost(ctx, token, channelID); found {
+		return postRecord, true
+	}
+	return service.recentMattermostAttendanceEntryPost(ctx, token, channelID)
+}
+
+func (service *Service) storedMattermostAttendanceEntryPost(ctx context.Context, token string, channelID string) (mattermostPostRecord, bool) {
+	postID := readTrimmedFile(service.mattermostAttendanceEntryPostIDPath())
+	if postID == "" {
+		return mattermostPostRecord{}, false
+	}
+	var postRecord mattermostPostRecord
+	path := "/api/v4/posts/" + url.PathEscape(postID)
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, token, nil, &postRecord); errorValue != nil {
+		return mattermostPostRecord{}, false
+	}
+	if !isMattermostAttendanceEntryPostRecord(postRecord, channelID) {
+		return mattermostPostRecord{}, false
+	}
+	return postRecord, true
+}
+
+func (service *Service) recentMattermostAttendanceEntryPost(ctx context.Context, token string, channelID string) (mattermostPostRecord, bool) {
 	var response mattermostPostsResponse
 	path := "/api/v4/channels/" + url.PathEscape(channelID) + "/posts?per_page=50"
 	if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, token, nil, &response); errorValue != nil {
@@ -621,11 +644,29 @@ func (service *Service) mattermostAttendanceEntryPost(ctx context.Context, token
 	}
 	for _, postID := range response.Order {
 		postRecord := response.Posts[postID]
-		if postRecord.Props[attendanceEntryPostProperty] == true {
+		if isMattermostAttendanceEntryPostRecord(postRecord, channelID) {
+			return postRecord, true
+		}
+	}
+	for _, postRecord := range response.Posts {
+		if isMattermostAttendanceEntryPostRecord(postRecord, channelID) {
 			return postRecord, true
 		}
 	}
 	return mattermostPostRecord{}, false
+}
+
+func isMattermostAttendanceEntryPostRecord(postRecord mattermostPostRecord, channelID string) bool {
+	if strings.TrimSpace(postRecord.ID) == "" || postRecord.DeleteAt != 0 {
+		return false
+	}
+	if strings.TrimSpace(postRecord.ChannelID) != "" && strings.TrimSpace(postRecord.ChannelID) != strings.TrimSpace(channelID) {
+		return false
+	}
+	if strings.TrimSpace(postRecord.RootID) != "" {
+		return false
+	}
+	return postRecord.Props[attendanceEntryPostProperty] == true
 }
 
 func (service *Service) isMattermostAttendanceEntryPostCurrent(postRecord mattermostPostRecord) bool {
