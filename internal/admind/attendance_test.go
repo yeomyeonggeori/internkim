@@ -50,6 +50,26 @@ func TestAttendanceClockButtonsPostAsUserAndIgnoreInvalidState(t *testing.T) {
 	}
 }
 
+func TestAttendanceClockButtonUsesStoredEntryPostID(t *testing.T) {
+	service, posts := newAttendanceActionTestService(t)
+	service.saveMattermostAttendanceEntryPostID("entry-post")
+	payload := mattermostInteractivePayload{
+		UserID:    "user-1",
+		PostID:    "duplicate-entry-post",
+		ChannelID: "attendance-channel",
+		TeamID:    "team-1",
+		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken()},
+	}
+
+	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if len(*posts) != 1 || (*posts)[0].RootID != "entry-post" {
+		t.Fatalf("posts = %+v", *posts)
+	}
+}
+
 func TestAttendanceEntryPostUsesSeparateSafeActionIDs(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	props := service.mattermostAttendanceEntryPostProps()
@@ -233,6 +253,8 @@ func TestAttendanceEntryPostUsesStoredPostOutsideRecentPage(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/posts/stored-entry" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"id":"stored-entry","user_id":"bot-1","channel_id":"attendance-channel","message":"출퇴근 기록","is_pinned":true,"props":{"internkim_attendance_entry":true}}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/posts?per_page=50":
+			return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/posts/stored-entry/patch" && request.Method == http.MethodPut:
 			patched = true
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
