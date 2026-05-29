@@ -290,6 +290,70 @@ func TestSitePublishMaterializesEditableSourceBundle(t *testing.T) {
 	}
 }
 
+func TestSiteCreateStoresMetadataOwnershipAndIdeaMirror(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{
+		Slug:           "portfolio-demo",
+		Title:          "Portfolio Demo",
+		Prompt:         "김인턴 포트폴리오 사이트를 만들어줘",
+		Description:    "김인턴의 업무 자동화 역량을 보여주는 포트폴리오",
+		Idea:           "업무를 대신 처리하는 인턴형 AI 포트폴리오",
+		Purpose:        "portfolio",
+		Audience:       "잠재 사용자",
+		Archetype:      "portfolio",
+		DomainKeywords: []string{"ai assistant", "portfolio"},
+		RequestedBy:    "owner@example.com",
+		Requester: siteIdentity{
+			PersonID:       "person-1",
+			Platform:       "mattermost",
+			PlatformUserID: "user-1",
+			DisplayName:    "Owner",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if site.Description == "" || site.Idea == "" || site.Purpose != "portfolio" || site.Archetype != "portfolio" {
+		t.Fatalf("expected site metadata to be stored, got %+v", site)
+	}
+	if site.OwnerIdentity.PersonID != "person-1" || site.CreatedBy.PlatformUserID != "user-1" {
+		t.Fatalf("expected structured owner identity, got owner=%+v createdBy=%+v", site.OwnerIdentity, site.CreatedBy)
+	}
+	metadata := service.siteWorkspaceMetadata(site)
+	if !strings.Contains(metadata, `"idea"`) || !strings.Contains(metadata, `"owner"`) {
+		t.Fatalf("expected workspace metadata mirror to include idea and owner, got %s", metadata)
+	}
+	idea := siteIdeaMarkdown(site)
+	if !strings.Contains(idea, "업무를 대신 처리") {
+		t.Fatalf("expected idea mirror, got %s", idea)
+	}
+}
+
+func TestSitePublishRequiresOwnerOrEditor(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{
+		Slug:        "private-site",
+		Title:       "Private Site",
+		RequestedBy: "owner@example.com",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	sourceWorkspacePath := t.TempDir()
+	writeTestSourceBuild(t, sourceWorkspacePath, "private publish")
+	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:              site.SiteID,
+		RequestedBy:         "other@example.com",
+		Message:             "Publish from other user",
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, sourceWorkspacePath),
+		SourceBundleFormat:  "tar.gz",
+	})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "editor permission") {
+		t.Fatalf("expected editor permission failure, got %v", errorValue)
+	}
+}
+
 func TestSiteGatewayProxiesPocketBasePaths(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "api-demo"})

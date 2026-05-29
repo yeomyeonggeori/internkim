@@ -40,71 +40,99 @@ const (
 )
 
 type SiteRecord struct {
-	SiteID              string    `json:"siteID"`
-	Slug                string    `json:"slug"`
-	Title               string    `json:"title"`
-	Owner               string    `json:"owner,omitempty"`
-	Status              string    `json:"status"`
-	Visibility          string    `json:"visibility"`
-	Port                int       `json:"port"`
-	CurrentVersionID    string    `json:"currentVersionID,omitempty"`
-	PreviousVersionID   string    `json:"previousVersionID,omitempty"`
-	PublishedURL        string    `json:"publishedURL,omitempty"`
-	TLSStatus           string    `json:"tlsStatus,omitempty"`
-	Platform            string    `json:"platform,omitempty"`
-	ConversationID      string    `json:"conversationID,omitempty"`
-	WorkspacePath       string    `json:"workspacePath,omitempty"`
-	SourceWorkspacePath string    `json:"sourceWorkspacePath,omitempty"`
-	AppWorkspacePath    string    `json:"appWorkspacePath,omitempty"`
-	HostSourcePath      string    `json:"hostSourcePath,omitempty"`
-	LastPublishedCommit string    `json:"lastPublishedCommit,omitempty"`
-	RevisionCount       int       `json:"revisionCount"`
-	CreatedAt           time.Time `json:"createdAt"`
-	UpdatedAt           time.Time `json:"updatedAt"`
-	UnpublishedAt       time.Time `json:"unpublishedAt,omitempty"`
-	DeletedAt           time.Time `json:"deletedAt,omitempty"`
-	LastError           string    `json:"lastError,omitempty"`
+	SiteID              string             `json:"siteID"`
+	Slug                string             `json:"slug"`
+	Title               string             `json:"title"`
+	Owner               string             `json:"owner,omitempty"`
+	OwnerIdentity       siteIdentity       `json:"ownerIdentity,omitempty"`
+	CreatedBy           siteIdentity       `json:"createdBy,omitempty"`
+	Collaborators       []siteCollaborator `json:"collaborators,omitempty"`
+	Description         string             `json:"description,omitempty"`
+	Idea                string             `json:"idea,omitempty"`
+	OriginalPrompt      string             `json:"originalPrompt,omitempty"`
+	Purpose             string             `json:"purpose,omitempty"`
+	Audience            string             `json:"audience,omitempty"`
+	Archetype           string             `json:"archetype,omitempty"`
+	DomainKeywords      []string           `json:"domainKeywords,omitempty"`
+	Status              string             `json:"status"`
+	Visibility          string             `json:"visibility"`
+	Port                int                `json:"port"`
+	CurrentVersionID    string             `json:"currentVersionID,omitempty"`
+	PreviousVersionID   string             `json:"previousVersionID,omitempty"`
+	PublishedURL        string             `json:"publishedURL,omitempty"`
+	TLSStatus           string             `json:"tlsStatus,omitempty"`
+	Platform            string             `json:"platform,omitempty"`
+	ConversationID      string             `json:"conversationID,omitempty"`
+	WorkspacePath       string             `json:"workspacePath,omitempty"`
+	SourceWorkspacePath string             `json:"sourceWorkspacePath,omitempty"`
+	AppWorkspacePath    string             `json:"appWorkspacePath,omitempty"`
+	HostSourcePath      string             `json:"hostSourcePath,omitempty"`
+	LastPublishedCommit string             `json:"lastPublishedCommit,omitempty"`
+	RevisionCount       int                `json:"revisionCount"`
+	CreatedAt           time.Time          `json:"createdAt"`
+	UpdatedAt           time.Time          `json:"updatedAt"`
+	UnpublishedAt       time.Time          `json:"unpublishedAt,omitempty"`
+	DeletedAt           time.Time          `json:"deletedAt,omitempty"`
+	LastError           string             `json:"lastError,omitempty"`
 }
 
 type siteCreateRequest struct {
-	Slug                string `json:"slug"`
-	Title               string `json:"title"`
-	Prompt              string `json:"prompt"`
-	DesignBrief         string `json:"designBrief"`
-	PrototypeScope      string `json:"prototypeScope"`
-	SourceWorkspacePath string `json:"sourceWorkspacePath"`
-	Owner               string `json:"owner"`
-	Visibility          string `json:"visibility"`
-	RequestedBy         string `json:"requestedBy"`
-	Platform            string `json:"platform"`
-	ConversationID      string `json:"conversationID"`
+	Slug                string             `json:"slug"`
+	Title               string             `json:"title"`
+	Prompt              string             `json:"prompt"`
+	DesignBrief         string             `json:"designBrief"`
+	PrototypeScope      string             `json:"prototypeScope"`
+	Description         string             `json:"description"`
+	Idea                string             `json:"idea"`
+	Purpose             string             `json:"purpose"`
+	Audience            string             `json:"audience"`
+	Archetype           string             `json:"archetype"`
+	DomainKeywords      []string           `json:"domainKeywords"`
+	SourceWorkspacePath string             `json:"sourceWorkspacePath"`
+	Owner               string             `json:"owner"`
+	OwnerIdentity       siteIdentity       `json:"ownerIdentity"`
+	CreatedBy           siteIdentity       `json:"createdBy"`
+	Collaborators       []siteCollaborator `json:"collaborators"`
+	Visibility          string             `json:"visibility"`
+	RequestedBy         string             `json:"requestedBy"`
+	Requester           siteIdentity       `json:"requester"`
+	Platform            string             `json:"platform"`
+	ConversationID      string             `json:"conversationID"`
 }
 
 type sitePublishRequest struct {
-	SiteID                  string `json:"siteID"`
-	Slug                    string `json:"slug"`
-	Title                   string `json:"title"`
-	Owner                   string `json:"owner"`
-	Visibility              string `json:"visibility"`
-	FrontendSourcePath      string `json:"frontendSourcePath"`
-	PocketBaseMigrationPath string `json:"pocketBaseMigrationsPath"`
-	PocketBaseHookPath      string `json:"pocketBaseHooksPath"`
-	SourceWorkspacePath     string `json:"sourceWorkspacePath"`
-	SourceBundleBase64      string `json:"sourceBundleBase64"`
-	SourceBundleFormat      string `json:"sourceBundleFormat"`
-	RequestedBy             string `json:"requestedBy"`
-	Message                 string `json:"message"`
-	Platform                string `json:"platform"`
-	ConversationID          string `json:"conversationID"`
-	PocketBaseHooksApproved bool   `json:"pocketBaseHooksApproved"`
+	SiteID                  string       `json:"siteID"`
+	Slug                    string       `json:"slug"`
+	Title                   string       `json:"title"`
+	Owner                   string       `json:"owner"`
+	Visibility              string       `json:"visibility"`
+	Description             string       `json:"description"`
+	Idea                    string       `json:"idea"`
+	Purpose                 string       `json:"purpose"`
+	Audience                string       `json:"audience"`
+	Archetype               string       `json:"archetype"`
+	DomainKeywords          []string     `json:"domainKeywords"`
+	FrontendSourcePath      string       `json:"frontendSourcePath"`
+	PocketBaseMigrationPath string       `json:"pocketBaseMigrationsPath"`
+	PocketBaseHookPath      string       `json:"pocketBaseHooksPath"`
+	SourceWorkspacePath     string       `json:"sourceWorkspacePath"`
+	SourceBundleBase64      string       `json:"sourceBundleBase64"`
+	SourceBundleFormat      string       `json:"sourceBundleFormat"`
+	RequestedBy             string       `json:"requestedBy"`
+	Requester               siteIdentity `json:"requester"`
+	Message                 string       `json:"message"`
+	Platform                string       `json:"platform"`
+	ConversationID          string       `json:"conversationID"`
+	PocketBaseHooksApproved bool         `json:"pocketBaseHooksApproved"`
 }
 
 type siteLifecycleRequest struct {
-	RequestedBy   string `json:"requestedBy"`
-	Reason        string `json:"reason"`
-	Revision      string `json:"revision"`
-	Confirm       string `json:"confirm"`
-	UserConfirmed bool   `json:"userConfirmed"`
+	RequestedBy   string       `json:"requestedBy"`
+	Requester     siteIdentity `json:"requester"`
+	Reason        string       `json:"reason"`
+	Revision      string       `json:"revision"`
+	Confirm       string       `json:"confirm"`
+	UserConfirmed bool         `json:"userConfirmed"`
 }
 
 type siteDiffRequest struct {
@@ -117,15 +145,39 @@ type siteStateDocument struct {
 }
 
 type siteWorkspaceMetadata struct {
-	SiteID         string `json:"siteID"`
-	Slug           string `json:"slug"`
-	Title          string `json:"title"`
-	PublishedURL   string `json:"publishedURL"`
+	SiteID         string             `json:"siteID"`
+	Slug           string             `json:"slug"`
+	Title          string             `json:"title"`
+	PublishedURL   string             `json:"publishedURL"`
+	Platform       string             `json:"platform,omitempty"`
+	ConversationID string             `json:"conversationID,omitempty"`
+	Description    string             `json:"description,omitempty"`
+	Idea           string             `json:"idea,omitempty"`
+	OriginalPrompt string             `json:"originalPrompt,omitempty"`
+	Purpose        string             `json:"purpose"`
+	Audience       string             `json:"audience,omitempty"`
+	Archetype      string             `json:"archetype,omitempty"`
+	DomainKeywords []string           `json:"domainKeywords,omitempty"`
+	CreatedBy      siteIdentity       `json:"createdBy,omitempty"`
+	Owner          siteIdentity       `json:"owner,omitempty"`
+	Collaborators  []siteCollaborator `json:"collaborators,omitempty"`
+	Stack          string             `json:"stack"`
+	DesignDefault  string             `json:"designDefault"`
+}
+
+type siteIdentity struct {
+	PersonID       string `json:"personID,omitempty"`
 	Platform       string `json:"platform,omitempty"`
-	ConversationID string `json:"conversationID,omitempty"`
-	Purpose        string `json:"purpose"`
-	Stack          string `json:"stack"`
-	DesignDefault  string `json:"designDefault"`
+	PlatformUserID string `json:"platformUserID,omitempty"`
+	DisplayName    string `json:"displayName,omitempty"`
+}
+
+type siteCollaborator struct {
+	PersonID       string    `json:"personID,omitempty"`
+	PlatformUserID string    `json:"platformUserID,omitempty"`
+	Role           string    `json:"role"`
+	GrantedBy      string    `json:"grantedBy,omitempty"`
+	GrantedAt      time.Time `json:"grantedAt,omitempty"`
 }
 
 var siteSlugPattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
@@ -475,11 +527,23 @@ func (service *Service) createSiteRecord(payload siteCreateRequest) (*SiteRecord
 	}
 	now := time.Now().UTC()
 	siteID := randomHex(12)
+	createdBy := siteCreatorIdentity(payload)
+	ownerIdentity := siteOwnerIdentity(payload, createdBy)
 	site := &SiteRecord{
 		SiteID:              siteID,
 		Slug:                slug,
 		Title:               firstNonEmpty(strings.TrimSpace(payload.Title), slug),
 		Owner:               firstNonEmpty(strings.TrimSpace(payload.Owner), strings.TrimSpace(payload.RequestedBy)),
+		OwnerIdentity:       ownerIdentity,
+		CreatedBy:           createdBy,
+		Collaborators:       normalizeSiteCollaborators(payload.Collaborators),
+		Description:         siteDescriptionFromCreateRequest(payload),
+		Idea:                firstNonEmpty(strings.TrimSpace(payload.Idea), strings.TrimSpace(payload.Prompt)),
+		OriginalPrompt:      strings.TrimSpace(payload.Prompt),
+		Purpose:             firstNonEmpty(strings.TrimSpace(payload.Purpose), inferSitePurpose(payload)),
+		Audience:            strings.TrimSpace(payload.Audience),
+		Archetype:           firstNonEmpty(strings.TrimSpace(payload.Archetype), inferSiteArchetype(payload)),
+		DomainKeywords:      normalizeSiteKeywords(payload.DomainKeywords, payload),
 		Status:              SiteStatusDraft,
 		Visibility:          firstNonEmpty(strings.TrimSpace(payload.Visibility), "public"),
 		Port:                port,
@@ -501,6 +565,9 @@ func (service *Service) publishSite(ctx context.Context, payload sitePublishRequ
 	site, errorValue := service.siteForPublish(payload)
 	if errorValue != nil {
 		return nil, errorValue
+	}
+	if !siteModificationAllowed(site, payload.RequestedBy, payload.Requester, false) {
+		return nil, errors.New("site editor permission is required")
 	}
 	if errorValue := validateWorkspaceOnlyPublish(payload); errorValue != nil {
 		return nil, errorValue
@@ -552,6 +619,170 @@ func (service *Service) siteForPublish(payload sitePublishRequest) (*SiteRecord,
 	return nil, errors.New("siteID is required")
 }
 
+func siteCreatorIdentity(payload siteCreateRequest) siteIdentity {
+	for _, identity := range []siteIdentity{payload.CreatedBy, payload.Requester, payload.OwnerIdentity} {
+		if !siteIdentityEmpty(identity) {
+			return normalizeSiteIdentity(identity)
+		}
+	}
+	return siteIdentity{
+		Platform:       strings.TrimSpace(payload.Platform),
+		PlatformUserID: strings.TrimSpace(payload.RequestedBy),
+		DisplayName:    strings.TrimSpace(payload.RequestedBy),
+	}
+}
+
+func siteOwnerIdentity(payload siteCreateRequest, createdBy siteIdentity) siteIdentity {
+	if !siteIdentityEmpty(payload.OwnerIdentity) {
+		return normalizeSiteIdentity(payload.OwnerIdentity)
+	}
+	return createdBy
+}
+
+func siteDescriptionFromCreateRequest(payload siteCreateRequest) string {
+	return firstNonEmpty(
+		strings.TrimSpace(payload.Description),
+		strings.TrimSpace(payload.PrototypeScope),
+		strings.TrimSpace(payload.DesignBrief),
+		firstSentence(payload.Prompt),
+		firstNonEmpty(strings.TrimSpace(payload.Title), normalizeSiteSlug(payload.Slug)),
+	)
+}
+
+func inferSitePurpose(payload siteCreateRequest) string {
+	text := strings.ToLower(strings.Join([]string{payload.Title, payload.Prompt, payload.DesignBrief, payload.PrototypeScope}, " "))
+	switch {
+	case strings.Contains(text, "portfolio") || strings.Contains(text, "포트폴리오"):
+		return "portfolio"
+	case strings.Contains(text, "booking") || strings.Contains(text, "예약"):
+		return "booking"
+	case strings.Contains(text, "dashboard") || strings.Contains(text, "대시보드"):
+		return "dashboard"
+	case strings.Contains(text, "marketplace") || strings.Contains(text, "마켓"):
+		return "marketplace"
+	case strings.Contains(text, "admin") || strings.Contains(text, "관리"):
+		return "admin tool"
+	default:
+		return "prototype"
+	}
+}
+
+func inferSiteArchetype(payload siteCreateRequest) string {
+	purpose := inferSitePurpose(payload)
+	switch purpose {
+	case "portfolio", "booking", "dashboard", "marketplace":
+		return purpose
+	case "admin tool":
+		return "admin tool"
+	default:
+		return "landing"
+	}
+}
+
+func normalizeSiteKeywords(keywords []string, payload siteCreateRequest) []string {
+	seenKeywords := map[string]bool{}
+	result := []string{}
+	for _, keyword := range append(keywords, payload.Purpose, payload.Archetype, payload.Title) {
+		normalizedKeyword := strings.ToLower(strings.TrimSpace(keyword))
+		if normalizedKeyword == "" || seenKeywords[normalizedKeyword] {
+			continue
+		}
+		seenKeywords[normalizedKeyword] = true
+		result = append(result, normalizedKeyword)
+	}
+	return result
+}
+
+func firstSentence(value string) string {
+	trimmedValue := strings.TrimSpace(value)
+	if trimmedValue == "" {
+		return ""
+	}
+	for _, separator := range []string{".", "\n", "。", "!", "?"} {
+		if index := strings.Index(trimmedValue, separator); index > 0 {
+			return strings.TrimSpace(trimmedValue[:index])
+		}
+	}
+	return trimmedValue
+}
+
+func normalizeSiteIdentity(identity siteIdentity) siteIdentity {
+	return siteIdentity{
+		PersonID:       strings.TrimSpace(identity.PersonID),
+		Platform:       strings.TrimSpace(identity.Platform),
+		PlatformUserID: strings.TrimSpace(identity.PlatformUserID),
+		DisplayName:    strings.TrimSpace(identity.DisplayName),
+	}
+}
+
+func siteIdentityEmpty(identity siteIdentity) bool {
+	return strings.TrimSpace(identity.PersonID) == "" &&
+		strings.TrimSpace(identity.PlatformUserID) == "" &&
+		strings.TrimSpace(identity.DisplayName) == ""
+}
+
+func siteIdentityMatches(owner siteIdentity, requester siteIdentity) bool {
+	owner = normalizeSiteIdentity(owner)
+	requester = normalizeSiteIdentity(requester)
+	if owner.PersonID != "" && requester.PersonID != "" && owner.PersonID == requester.PersonID {
+		return true
+	}
+	if owner.PlatformUserID != "" && requester.PlatformUserID != "" && owner.PlatformUserID == requester.PlatformUserID {
+		return owner.Platform == "" || requester.Platform == "" || strings.EqualFold(owner.Platform, requester.Platform)
+	}
+	return false
+}
+
+func identityStringMatches(left string, right string) bool {
+	left = strings.TrimSpace(left)
+	right = strings.TrimSpace(right)
+	return left != "" && right != "" && strings.EqualFold(left, right)
+}
+
+func siteCollaboratorCanEdit(collaborators []siteCollaborator, requester siteIdentity, requestedBy string) bool {
+	for _, collaborator := range collaborators {
+		if !siteCollaboratorRoleCanEdit(collaborator.Role) {
+			continue
+		}
+		if collaborator.PersonID != "" && collaborator.PersonID == requester.PersonID {
+			return true
+		}
+		if collaborator.PlatformUserID != "" && collaborator.PlatformUserID == requester.PlatformUserID {
+			return true
+		}
+		if identityStringMatches(requestedBy, collaborator.PersonID) || identityStringMatches(requestedBy, collaborator.PlatformUserID) {
+			return true
+		}
+	}
+	return false
+}
+
+func siteCollaboratorRoleCanEdit(role string) bool {
+	normalizedRole := strings.ToLower(strings.TrimSpace(role))
+	return normalizedRole == "editor" || normalizedRole == "owner"
+}
+
+func normalizeSiteCollaborators(collaborators []siteCollaborator) []siteCollaborator {
+	result := []siteCollaborator{}
+	for _, collaborator := range collaborators {
+		normalizedCollaborator := siteCollaborator{
+			PersonID:       strings.TrimSpace(collaborator.PersonID),
+			PlatformUserID: strings.TrimSpace(collaborator.PlatformUserID),
+			Role:           strings.ToLower(strings.TrimSpace(collaborator.Role)),
+			GrantedBy:      strings.TrimSpace(collaborator.GrantedBy),
+			GrantedAt:      collaborator.GrantedAt,
+		}
+		if normalizedCollaborator.Role == "" {
+			normalizedCollaborator.Role = "viewer"
+		}
+		if normalizedCollaborator.PersonID == "" && normalizedCollaborator.PlatformUserID == "" {
+			continue
+		}
+		result = append(result, normalizedCollaborator)
+	}
+	return result
+}
+
 func validateWorkspaceOnlyPublish(payload sitePublishRequest) error {
 	if strings.TrimSpace(payload.FrontendSourcePath) != "" {
 		return errors.New("frontendSourcePath is not supported; publish the site workspace by siteID")
@@ -570,6 +801,9 @@ func (service *Service) prepareSiteSourceForPublish(ctx context.Context, site *S
 		if errorValue := service.materializeSiteSourceBundle(site, payload); errorValue != nil {
 			return errorValue
 		}
+		if errorValue := service.writeSiteMetadataMirror(site); errorValue != nil {
+			return errorValue
+		}
 		return service.initializeSiteGitRepository(ctx, site)
 	}
 	return errors.New("sourceBundleBase64 is required; publish from the Blueclaw editable source workspace")
@@ -578,6 +812,30 @@ func (service *Service) prepareSiteSourceForPublish(ctx context.Context, site *S
 func (service *Service) updateSiteFromPublishRequest(site *SiteRecord, payload sitePublishRequest) error {
 	if payload.Title != "" {
 		site.Title = strings.TrimSpace(payload.Title)
+	}
+	if payload.Description != "" {
+		site.Description = strings.TrimSpace(payload.Description)
+	}
+	if payload.Idea != "" {
+		site.Idea = strings.TrimSpace(payload.Idea)
+	}
+	if payload.Purpose != "" {
+		site.Purpose = strings.TrimSpace(payload.Purpose)
+	}
+	if payload.Audience != "" {
+		site.Audience = strings.TrimSpace(payload.Audience)
+	}
+	if payload.Archetype != "" {
+		site.Archetype = strings.TrimSpace(payload.Archetype)
+	}
+	if len(payload.DomainKeywords) > 0 {
+		site.DomainKeywords = normalizeSiteKeywords(payload.DomainKeywords, siteCreateRequest{Title: site.Title, Purpose: site.Purpose, Archetype: site.Archetype})
+	}
+	if payload.Owner != "" {
+		site.Owner = strings.TrimSpace(payload.Owner)
+	}
+	if !siteIdentityEmpty(payload.Requester) && siteIdentityEmpty(site.OwnerIdentity) {
+		site.OwnerIdentity = payload.Requester
 	}
 	if payload.Visibility != "" {
 		site.Visibility = strings.TrimSpace(payload.Visibility)
@@ -1008,14 +1266,26 @@ func (service *Service) deleteSite(ctx context.Context, siteID string, payload s
 }
 
 func siteLifecycleAllowed(site *SiteRecord, payload siteLifecycleRequest) bool {
-	requestedBy := strings.TrimSpace(payload.RequestedBy)
-	if strings.TrimSpace(site.Owner) == "" {
+	return siteModificationAllowed(site, payload.RequestedBy, payload.Requester, payload.UserConfirmed && payload.Confirm == "CONFIRM")
+}
+
+func siteModificationAllowed(site *SiteRecord, requestedBy string, requester siteIdentity, hasAdminConfirmation bool) bool {
+	if site == nil {
+		return false
+	}
+	if strings.TrimSpace(site.Owner) == "" && siteIdentityEmpty(site.OwnerIdentity) {
 		return true
 	}
-	if requestedBy != "" && strings.EqualFold(requestedBy, site.Owner) {
+	if siteIdentityMatches(site.OwnerIdentity, requester) {
 		return true
 	}
-	return payload.UserConfirmed && payload.Confirm == "CONFIRM"
+	if identityStringMatches(requestedBy, site.Owner) {
+		return true
+	}
+	if siteCollaboratorCanEdit(site.Collaborators, requester, requestedBy) {
+		return true
+	}
+	return hasAdminConfirmation
 }
 
 func (service *Service) prepareSiteWorkspace(ctx context.Context, site *SiteRecord) error {
@@ -1060,6 +1330,7 @@ func makeSiteWorkspaceCollaborative(workspacePath string) error {
 func (service *Service) writeSiteWorkspaceTemplate(site *SiteRecord) error {
 	files := []siteTemplateFile{
 		{Path: ".internkim/site.json", Document: service.siteWorkspaceMetadata(site)},
+		{Path: ".internkim/idea.md", Document: siteIdeaMarkdown(site)},
 		{Path: "DESIGN.md", Document: siteDesignMD(site)},
 		{Path: "app/package.json", Document: sitePackageJSON(site)},
 		{Path: "app/index.html", Document: siteIndexHTML(site)},
@@ -1097,6 +1368,23 @@ func (service *Service) writeSiteWorkspaceTemplate(site *SiteRecord) error {
 	return nil
 }
 
+func (service *Service) writeSiteMetadataMirror(site *SiteRecord) error {
+	files := []siteTemplateFile{
+		{Path: ".internkim/site.json", Document: service.siteWorkspaceMetadata(site)},
+		{Path: ".internkim/idea.md", Document: siteIdeaMarkdown(site)},
+	}
+	for _, file := range files {
+		path := filepath.Join(site.HostSourcePath, file.Path)
+		if errorValue := os.MkdirAll(filepath.Dir(path), 0o750); errorValue != nil {
+			return errorValue
+		}
+		if errorValue := os.WriteFile(path, []byte(file.Document), 0o640); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
+}
+
 type siteTemplateFile struct {
 	Path     string
 	Document string
@@ -1110,7 +1398,16 @@ func (service *Service) siteWorkspaceMetadata(site *SiteRecord) string {
 		PublishedURL:   site.PublishedURL,
 		Platform:       site.Platform,
 		ConversationID: site.ConversationID,
-		Purpose:        "prototype for idea validation",
+		Description:    site.Description,
+		Idea:           site.Idea,
+		OriginalPrompt: site.OriginalPrompt,
+		Purpose:        site.Purpose,
+		Audience:       site.Audience,
+		Archetype:      site.Archetype,
+		DomainKeywords: site.DomainKeywords,
+		CreatedBy:      site.CreatedBy,
+		Owner:          site.OwnerIdentity,
+		Collaborators:  site.Collaborators,
 		Stack:          "React + Vite + TypeScript + Tailwind + shadcn/ui scaffold with optional PocketBase files",
 		DesignDefault:  "Stitch-compatible DESIGN.md with beautiful shadcn prototype defaults; customize before publish",
 	}, "", "  ")
@@ -1118,6 +1415,29 @@ func (service *Service) siteWorkspaceMetadata(site *SiteRecord) string {
 		return "{}\n"
 	}
 	return string(document) + "\n"
+}
+
+func siteIdeaMarkdown(site *SiteRecord) string {
+	lines := []string{
+		"# Site Idea",
+		"",
+		"## Summary",
+		firstNonEmpty(site.Description, site.Title),
+		"",
+		"## Original Idea",
+		firstNonEmpty(site.Idea, site.OriginalPrompt, site.Description),
+		"",
+		"## Audience",
+		firstNonEmpty(site.Audience, "Unspecified"),
+		"",
+		"## Purpose",
+		firstNonEmpty(site.Purpose, "prototype"),
+		"",
+		"## Archetype",
+		firstNonEmpty(site.Archetype, "landing"),
+		"",
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (service *Service) initializeSiteGitRepository(ctx context.Context, site *SiteRecord) error {
@@ -1411,6 +1731,24 @@ func (service *Service) storeSite(site *SiteRecord) error {
 	}
 	if site.HostSourcePath == "" {
 		site.HostSourcePath = service.siteHostWorkspacePath(site.SiteID)
+	}
+	if site.Description == "" {
+		site.Description = firstNonEmpty(site.Idea, site.OriginalPrompt, site.Title)
+	}
+	if site.Idea == "" {
+		site.Idea = firstNonEmpty(site.OriginalPrompt, site.Description)
+	}
+	if site.Purpose == "" {
+		site.Purpose = "prototype"
+	}
+	if site.Archetype == "" {
+		site.Archetype = "landing"
+	}
+	if siteIdentityEmpty(site.OwnerIdentity) && strings.TrimSpace(site.Owner) != "" {
+		site.OwnerIdentity = siteIdentity{DisplayName: strings.TrimSpace(site.Owner)}
+	}
+	if siteIdentityEmpty(site.CreatedBy) {
+		site.CreatedBy = site.OwnerIdentity
 	}
 	service.mutex.Lock()
 	copiedSite := *site
