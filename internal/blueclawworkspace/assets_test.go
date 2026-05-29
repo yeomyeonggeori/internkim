@@ -297,6 +297,8 @@ func TestSimpleSlidesDocumentsBeautifulDeckContract(t *testing.T) {
 		"title thesis, section divider, comparison, matrix, timeline, evidence card, recommendation, and closing ask",
 		"slide-review.json",
 		"contact sheets",
+		"fit-review-XX.md",
+		"expected visible text",
 		"revise `presentation.md` at least once",
 		"Do not use emoji as functional icons or bullets",
 		"hybrid pattern",
@@ -376,9 +378,20 @@ func TestSimpleSlidesBuildAndReviewScriptsCheckFontsAndDensity(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	reviewContent := string(reviewScript)
-	for _, expectedText := range []string{"contentDensity", "content_density", "notTooEmpty", "notTooDense"} {
+	for _, expectedText := range []string{"contentDensity", "content_density", "notTooEmpty", "notTooDense", "fit-review.json", "fit-review-XX.md", "textOverflowRisk", "frameFitRisk", "fitReviewFilename"} {
 		if !strings.Contains(reviewContent, expectedText) {
 			t.Fatalf("render review must include density check %q", expectedText)
+		}
+	}
+
+	minimalDesign, errorValue := os.ReadFile(filepath.Join(skillPath, "assets", "minimal-design.md"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	minimalDesignContent := string(minimalDesign)
+	for _, expectedText := range []string{"minmax(0, 1fr)", "overflow-wrap: anywhere", "line budgets", "fit-review text files"} {
+		if !strings.Contains(minimalDesignContent, expectedText) {
+			t.Fatalf("minimal design reference must include fit-safe guidance %q", expectedText)
 		}
 	}
 }
