@@ -1,15 +1,20 @@
 package admind
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gitlab.com/eastriver/internkim/internal/identity"
 )
@@ -33,6 +38,26 @@ func defaultBotProfile() botProfile {
 		Aliases:            []string{"인턴킴", "intern kim"},
 		IdentityExtension:  "Use the current displayName naturally when introducing yourself.",
 	}
+}
+
+func (service *Service) startBotProfileSync(ctx context.Context) {
+	go func() {
+		timer := time.NewTimer(5 * time.Second)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+		}
+		profile, errorValue := service.loadOrSeedBotProfile(ctx)
+		if errorValue != nil {
+			log.Printf("bot profile startup sync skipped: %v", errorValue)
+			return
+		}
+		if errorValue := service.syncMattermostBotProfile(ctx, profile); errorValue != nil {
+			log.Printf("bot profile startup sync skipped: %v", errorValue)
+		}
+	}()
 }
 
 func (service *Service) writeBotProfile(responseWriter http.ResponseWriter, request *http.Request) {
@@ -177,6 +202,59 @@ func (service *Service) syncMattermostBotProfile(ctx context.Context, profile bo
 	if errorValue := service.mattermostRequest(ctx, http.MethodPut, "/api/v4/users/"+url.PathEscape(botRecord.ID)+"/patch", adminToken, body, nil); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := service.syncMattermostBotProfileImage(ctx, adminToken, botRecord.ID); errorValue != nil {
+		return errorValue
+	}
+	return nil
+}
+
+func (service *Service) syncMattermostBotProfileImage(ctx context.Context, token string, userID string) error {
+	imagePath := strings.TrimSpace(service.Configuration.BotProfileImagePath)
+	if imagePath == "" {
+		return nil
+	}
+	imageDocument, errorValue := os.ReadFile(imagePath)
+	if errorValue != nil {
+		if os.IsNotExist(errorValue) {
+			return nil
+		}
+		return fmt.Errorf("read bot profile image: %w", errorValue)
+	}
+	return service.mattermostUploadUserImage(ctx, token, userID, filepath.Base(imagePath), imageDocument)
+}
+
+func (service *Service) mattermostUploadUserImage(ctx context.Context, token string, userID string, filename string, imageDocument []byte) error {
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	imagePart, errorValue := writer.CreateFormFile("image", filename)
+	if errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := imagePart.Write(imageDocument); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := writer.Close(); errorValue != nil {
+		return errorValue
+	}
+
+	requestURL := strings.TrimRight(service.Configuration.MattermostBaseURL, "/") + "/api/v4/users/" + url.PathEscape(userID) + "/image"
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, body)
+	if errorValue != nil {
+		return errorValue
+	}
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	if token != "" {
+		request.Header.Set("Authorization", "Bearer "+token)
+	}
+	response, errorValue := service.httpClient().Do(request)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return mattermostStatusError(response)
+	}
+	_, _ = io.Copy(io.Discard, response.Body)
 	return nil
 }
 

@@ -60,6 +60,7 @@ type Configuration struct {
 	SiteSecretDirectory         string
 	SiteSystemdDirectory        string
 	BotProfilePath              string
+	BotProfileImagePath         string
 	BlueclawWorkspacePath       string
 	BlueclawRuntimeConfigPath   string
 }
@@ -217,6 +218,7 @@ func DefaultConfiguration() Configuration {
 		SiteSecretDirectory:         "/root/.internkim/secrets/sites",
 		SiteSystemdDirectory:        "/etc/systemd/system",
 		BotProfilePath:              "/root/.internkim/config/bot-profile.yaml",
+		BotProfileImagePath:         "/opt/internkim/assets/internkim.png",
 		BlueclawWorkspacePath:       "/root/.blueclaw/workspace",
 		BlueclawRuntimeConfigPath:   "/root/.blueclaw/config/runtime.json",
 	}
@@ -246,6 +248,7 @@ func NewService(configuration Configuration) *Service {
 }
 
 func (service *Service) Run(ctx context.Context) error {
+	service.startBotProfileSync(ctx)
 	service.startCompanionFileCleanup(ctx)
 	service.startMattermostProvisionerSync(ctx)
 	service.startMattermostCircleSync(ctx)
@@ -2464,6 +2467,9 @@ func (configuration Configuration) withDefaults() Configuration {
 		} else {
 			configuration.BotProfilePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "bot-profile.yaml")
 		}
+	}
+	if configuration.BotProfileImagePath == "" {
+		configuration.BotProfileImagePath = defaultConfiguration.BotProfileImagePath
 	}
 	if configuration.BlueclawWorkspacePath == "" {
 		configuration.BlueclawWorkspacePath = defaultConfiguration.BlueclawWorkspacePath
