@@ -213,7 +213,7 @@ func (service *Service) recordAttendanceFromMattermost(ctx context.Context, payl
 	if errorValue != nil {
 		return errorValue
 	}
-	channelID, errorValue := service.ensureMattermostAttendanceChannel(ctx, adminToken, teamRecord.ID)
+	channelID, errorValue := service.mattermostAttendanceActionChannelID(ctx, adminToken, teamRecord.ID, payload.ChannelID)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -225,10 +225,27 @@ func (service *Service) recordAttendanceFromMattermost(ctx context.Context, payl
 		return errorValue
 	}
 	teamID := firstNonEmpty(payload.TeamID, teamRecord.ID)
+	actionPostID := firstNonEmpty(readTrimmedFile(service.mattermostAttendanceEntryPostIDPath()), payload.PostID)
 	if requestedKind == "" {
-		return service.applyAttendanceToggle(ctx, userRecord, userToken, teamID, channelID, payload.PostID)
+		return service.applyAttendanceToggle(ctx, userRecord, userToken, teamID, channelID, actionPostID)
 	}
-	return service.applyAttendanceAction(ctx, userRecord, userToken, requestedKind, teamID, channelID, payload.PostID, payload.Context.LocationID)
+	return service.applyAttendanceAction(ctx, userRecord, userToken, requestedKind, teamID, channelID, actionPostID, payload.Context.LocationID)
+}
+
+func (service *Service) mattermostAttendanceActionChannelID(ctx context.Context, token string, teamID string, payloadChannelID string) (string, error) {
+	if channelID := strings.TrimSpace(payloadChannelID); channelID != "" {
+		service.saveMattermostAttendanceChannelID(channelID)
+		return channelID, nil
+	}
+	if channelID := readTrimmedFile(service.mattermostAttendanceChannelIDPath()); channelID != "" {
+		return channelID, nil
+	}
+	channelID, errorValue := service.mattermostChannelIDByName(ctx, token, teamID, attendanceChannelName)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	service.saveMattermostAttendanceChannelID(channelID)
+	return channelID, nil
 }
 
 func (service *Service) applyAttendanceToggle(ctx context.Context, userRecord mattermostUserRecord, userToken string, teamID string, channelID string, actionPostID string) error {
@@ -576,6 +593,9 @@ func (service *Service) ensureMattermostAttendanceEntryPost(ctx context.Context,
 	postRecord, found := service.mattermostAttendanceEntryPost(ctx, adminToken, channelID)
 	if found && strings.TrimSpace(postRecord.UserID) == botUserID {
 		service.saveMattermostAttendanceEntryPostID(postRecord.ID)
+		if errorValue := service.deleteRecentMattermostAttendanceEntryPostDuplicates(ctx, adminToken, channelID, postRecord.ID); errorValue != nil {
+			return errorValue
+		}
 		if !service.isMattermostAttendanceEntryPostCurrent(postRecord) {
 			if errorValue := service.patchMattermostAttendanceEntryPost(ctx, botToken, postRecord.ID, expectedProps); errorValue != nil {
 				return errorValue
@@ -637,23 +657,48 @@ func (service *Service) storedMattermostAttendanceEntryPost(ctx context.Context,
 }
 
 func (service *Service) recentMattermostAttendanceEntryPost(ctx context.Context, token string, channelID string) (mattermostPostRecord, bool) {
+	posts := service.recentMattermostAttendanceEntryPosts(ctx, token, channelID)
+	if len(posts) == 0 {
+		return mattermostPostRecord{}, false
+	}
+	return posts[0], true
+}
+
+func (service *Service) recentMattermostAttendanceEntryPosts(ctx context.Context, token string, channelID string) []mattermostPostRecord {
 	var response mattermostPostsResponse
 	path := "/api/v4/channels/" + url.PathEscape(channelID) + "/posts?per_page=50"
 	if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, token, nil, &response); errorValue != nil {
-		return mattermostPostRecord{}, false
+		return nil
 	}
+	posts := []mattermostPostRecord{}
 	for _, postID := range response.Order {
 		postRecord := response.Posts[postID]
 		if isMattermostAttendanceEntryPostRecord(postRecord, channelID) {
-			return postRecord, true
+			posts = append(posts, postRecord)
 		}
+	}
+	if len(posts) > 0 {
+		return posts
 	}
 	for _, postRecord := range response.Posts {
 		if isMattermostAttendanceEntryPostRecord(postRecord, channelID) {
-			return postRecord, true
+			posts = append(posts, postRecord)
 		}
 	}
-	return mattermostPostRecord{}, false
+	return posts
+}
+
+func (service *Service) deleteRecentMattermostAttendanceEntryPostDuplicates(ctx context.Context, token string, channelID string, keepPostID string) error {
+	for _, postRecord := range service.recentMattermostAttendanceEntryPosts(ctx, token, channelID) {
+		if strings.TrimSpace(postRecord.ID) == strings.TrimSpace(keepPostID) {
+			continue
+		}
+		path := "/api/v4/posts/" + url.PathEscape(postRecord.ID)
+		if errorValue := service.mattermostRequest(ctx, http.MethodDelete, path, token, nil, nil); errorValue != nil && !isMattermostNotFound(errorValue) {
+			return errorValue
+		}
+	}
+	return nil
 }
 
 func isMattermostAttendanceEntryPostRecord(postRecord mattermostPostRecord, channelID string) bool {
