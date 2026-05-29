@@ -324,6 +324,12 @@ func siteAppCreateInputSchema() json.RawMessage {
 		jsonschema.Field("prompt", jsonschema.String()),
 		jsonschema.Field("designBrief", jsonschema.String()),
 		jsonschema.Field("prototypeScope", jsonschema.String()),
+		jsonschema.Field("description", jsonschema.String()),
+		jsonschema.Field("idea", jsonschema.String()),
+		jsonschema.Field("purpose", jsonschema.String()),
+		jsonschema.Field("audience", jsonschema.String()),
+		jsonschema.Field("archetype", jsonschema.String()),
+		jsonschema.Field("domainKeywords", jsonschema.Array(jsonschema.String())),
 	).RawMessage()
 }
 
@@ -333,6 +339,12 @@ func siteAppPublishInputSchema() json.RawMessage {
 		jsonschema.Field("slug", jsonschema.String()),
 		jsonschema.Field("title", jsonschema.String()),
 		jsonschema.Field("visibility", jsonschema.String()),
+		jsonschema.Field("description", jsonschema.String()),
+		jsonschema.Field("idea", jsonschema.String()),
+		jsonschema.Field("purpose", jsonschema.String()),
+		jsonschema.Field("audience", jsonschema.String()),
+		jsonschema.Field("archetype", jsonschema.String()),
+		jsonschema.Field("domainKeywords", jsonschema.Array(jsonschema.String())),
 		jsonschema.Field("message", jsonschema.String()),
 		jsonschema.Field("sourceWorkspacePath", jsonschema.String()),
 		jsonschema.Field("appWorkspacePath", jsonschema.String()),
