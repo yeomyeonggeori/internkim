@@ -28,6 +28,7 @@ func main() {
 	flag.StringVar(&configuration.SitesRoot, "sites-root", configuration.SitesRoot, "dynamic sites root directory")
 	flag.StringVar(&configuration.SiteSecretDirectory, "site-secret-dir", configuration.SiteSecretDirectory, "dynamic site secret directory")
 	flag.StringVar(&configuration.SiteSystemdDirectory, "site-systemd-dir", configuration.SiteSystemdDirectory, "dynamic site systemd directory")
+	flag.StringVar(&configuration.BotProfileImagePath, "bot-profile-image", configuration.BotProfileImagePath, "bot profile image path")
 	flag.Parse()
 
 	if errorValue := admind.Run(configuration); errorValue != nil {
