@@ -432,6 +432,7 @@ func DefaultToolDescriptors() []Descriptor {
 	descriptors = append(descriptors, WebDescriptors()...)
 	descriptors = append(descriptors, FileDescriptors()...)
 	descriptors = append(descriptors, PlatformMessageDescriptors()...)
+	descriptors = append(descriptors, MattermostDescriptors()...)
 	descriptors = append(descriptors, FlowDescriptors()...)
 	descriptors = append(descriptors, CalendarDescriptors()...)
 	descriptors = append(descriptors, MailDescriptors()...)
