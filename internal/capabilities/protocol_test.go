@@ -71,6 +71,14 @@ func TestGoogleWorkspaceToolsAreNotDefaultDeviceCapabilities(t *testing.T) {
 	}
 }
 
+func TestMattermostToolsAreDefaultCapabilities(t *testing.T) {
+	for _, toolName := range []string{"mattermost.channel.posts.list", "mattermost.channel.post", "mattermost.post.update", "mattermost.post.delete", "mattermost.channel.update"} {
+		if !containsString(DefaultToolNames(), toolName) {
+			t.Fatalf("expected default tools to include %q, got %+v", toolName, DefaultToolNames())
+		}
+	}
+}
+
 func TestFlowDescriptorMatchesQuickTaskInput(t *testing.T) {
 	schema := descriptorSchema(t, FlowDescriptors(), "flow.task.add")
 
