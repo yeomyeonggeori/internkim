@@ -256,7 +256,7 @@ fi
 if format_enabled review; then
   echo "Rendering slide review images..."
   mkdir -p "${BUILD_PATH}/review"
-  rm -f "${BUILD_PATH}/review/${NAME}"*.png "${BUILD_PATH}/review/slide-review.json" "${BUILD_PATH}/review/slide-review.md"
+  rm -f "${BUILD_PATH}/review/${NAME}"*.png "${BUILD_PATH}/review/slide-review.json" "${BUILD_PATH}/review/slide-review.md" "${BUILD_PATH}/review/fit-review.json" "${BUILD_PATH}/review/fit-review-"*.md
   run_marp "$SOURCE_PATH" --images png --allow-local-files -o "${BUILD_PATH}/review/${NAME}.png"
   if [ -f "$RENDER_REVIEW_SCRIPT" ]; then
     if ! python3 "$RENDER_REVIEW_SCRIPT" "$SOURCE_PATH" "$NAME" "${BUILD_PATH}/review"; then
