@@ -106,9 +106,14 @@ def add_slide(presentation, slide_specification, style, modules):
         raise ValueError("each slide must be an object")
     layout_name = slide_specification.get("layout", "titleAndBody")
     slide = presentation.slides.add_slide(presentation.slide_layouts[6])
-    add_background(slide, presentation, style, modules)
-    add_top_rule(slide, presentation, style, modules)
-    if layout_name == "title":
+    if has_background_image(slide_specification):
+        add_full_slide_image(slide, presentation, slide_specification, modules)
+    else:
+        add_background(slide, presentation, style, modules)
+        add_top_rule(slide, presentation, style, modules)
+    if layout_name == "hybrid":
+        add_editable_texts(slide, slide_specification, style, modules)
+    elif layout_name == "title":
         add_title_slide(slide, presentation, slide_specification, style, modules)
     elif layout_name == "cards":
         add_cards_slide(slide, slide_specification, style, modules)
@@ -121,6 +126,17 @@ def add_slide(presentation, slide_specification, style, modules):
     else:
         add_body_slide(slide, slide_specification, style, modules)
     add_images(slide, slide_specification, modules["Inches"])
+    if layout_name != "hybrid":
+        add_editable_texts(slide, slide_specification, style, modules)
+
+
+def has_background_image(slide_specification):
+    return bool(optional_text(slide_specification.get("backgroundImage")))
+
+
+def add_full_slide_image(slide, presentation, slide_specification, modules):
+    path = require_text(slide_specification.get("backgroundImage"), "slide.backgroundImage")
+    slide.shapes.add_picture(path, 0, 0, width=presentation.slide_width, height=presentation.slide_height)
 
 
 def add_background(slide, presentation, style, modules):
@@ -353,6 +369,28 @@ def add_text_box(slide, text, left, top, width, height, font_size, style, module
     run.font.size = modules["Pt"](font_size)
     run.font.bold = weight == "bold"
     run.font.color.rgb = rgb_color(style, modules, color_name)
+
+
+def add_editable_texts(slide, slide_specification, style, modules):
+    editable_texts = slide_specification.get("editableTexts", [])
+    if not isinstance(editable_texts, list):
+        raise ValueError("editableTexts must be an array")
+    for index, editable_text in enumerate(editable_texts):
+        if not isinstance(editable_text, dict):
+            raise ValueError("each editableText must be an object")
+        add_text_box(
+            slide,
+            require_text(editable_text.get("text"), f"editableTexts[{index}].text"),
+            modules["Inches"](float(editable_text.get("leftInches", 0.8))),
+            modules["Inches"](float(editable_text.get("topInches", 0.8))),
+            modules["Inches"](float(editable_text.get("widthInches", 5.0))),
+            modules["Inches"](float(editable_text.get("heightInches", 0.8))),
+            float(editable_text.get("fontSize", 20)),
+            style,
+            modules,
+            weight=optional_text(editable_text.get("weight")) or "regular",
+            color_name=optional_text(editable_text.get("colorName")) or "ink",
+        )
 
 
 def add_images(slide, slide_specification, inches):

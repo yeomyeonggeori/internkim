@@ -270,7 +270,7 @@ func TestSimpleSlidesUsesVendoredPaperlogyDesignDefaults(t *testing.T) {
 			t.Fatal(errorValue)
 		}
 		content := string(document)
-		for _, expectedText := range []string{"Paperlogy", `"Paperlogy", "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, sans-serif`} {
+		for _, expectedText := range []string{"Paperlogy", `"Paperlogy", "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont`, `"Noto Color Emoji"`} {
 			if !strings.Contains(content, expectedText) {
 				t.Fatalf("%s must document Paperlogy default %q", documentPath, expectedText)
 			}
@@ -298,6 +298,8 @@ func TestSimpleSlidesDocumentsBeautifulDeckContract(t *testing.T) {
 		"slide-review.json",
 		"contact sheets",
 		"revise `presentation.md` at least once",
+		"Do not use emoji as functional icons or bullets",
+		"hybrid pattern",
 	} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("simple-slides must document beautiful deck contract %q", expectedText)
@@ -389,7 +391,7 @@ func TestPPTXSkillRoutesBeautifulNewDecksToSimpleSlides(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	content := string(document)
-	for _, expectedText := range []string{"simple-slides", "existing PPTX", "direct PowerPoint object editing", "editable-only", "Paperlogy"} {
+	for _, expectedText := range []string{"simple-slides", "existing PPTX", "direct PowerPoint object editing", "editable-only", "Paperlogy", "hybrid deck", "backgroundImage", "editableTexts"} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("pptx skill must document routing and editability policy %q", expectedText)
 		}
@@ -404,7 +406,7 @@ func TestPPTXScriptsUsePaperlogyAndDesignWarnings(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	createContent := string(createScript)
-	for _, expectedText := range []string{"Paperlogy", "DEFAULT_COLORS", "comparison", "matrix", "timeline"} {
+	for _, expectedText := range []string{"Paperlogy", "DEFAULT_COLORS", "comparison", "matrix", "timeline", "backgroundImage", "editableTexts"} {
 		if !strings.Contains(createContent, expectedText) {
 			t.Fatalf("pptx create script must include Paperlogy layout helper %q", expectedText)
 		}
