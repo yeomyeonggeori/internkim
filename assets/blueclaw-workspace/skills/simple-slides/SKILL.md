@@ -11,17 +11,20 @@ allowed-tools:
 
 # Simple Slides
 
-Create a useful slide deck and attach the requested files. This skill is intentionally small: write the deck yourself from the user request, use Stitch-compatible `DESIGN.md` as the design source, build with Marp, and attach the generated artifacts.
+Create a useful, visually strong slide deck and attach the requested files. This skill is intentionally small: write the deck yourself from the user request, use Stitch-compatible `DESIGN.md` as the design source, build with Marp, inspect render evidence, and attach the generated artifacts.
 
 ## Workflow
 
 Use this order for normal requests:
 
-1. Use `file.write` to create `tmp/<deck-slug>/DESIGN.md`; do not use Blueclaw internal temporary paths.
-2. Use `file.write` to create `tmp/<deck-slug>/presentation.md`.
-3. Use `terminal.run` with `workingDirectoryPath: "tmp/<deck-slug>"` to run the deterministic build script from the skill directory.
-4. Promote accepted final files from `tmp/<deck-slug>/build/` to `artifacts/<deck-slug>/` with `file.promote` unless the user requested a circle or shared destination.
-5. Use `file.attach` on promoted files only, and attach only the files the user requested.
+1. Decide the deck archetype and main narrative flow before writing source files.
+2. Use `file.write` to create `tmp/<deck-slug>/DESIGN.md`; do not use Blueclaw internal temporary paths.
+3. Use `file.write` to create `tmp/<deck-slug>/presentation.md`.
+4. Use `terminal.run` with `workingDirectoryPath: "tmp/<deck-slug>"` to run the deterministic build script from the skill directory.
+5. Inspect `build/review/slide-review.md` or `build/review/slide-review.json` and the contact sheet images.
+6. If the review has warnings, revise `presentation.md` at least once and rebuild before accepting the deck.
+7. Promote accepted final files from `tmp/<deck-slug>/build/` to `artifacts/<deck-slug>/` with `file.promote` unless the user requested a circle or shared destination.
+8. Use `file.attach` on promoted files only, and attach only the files the user requested.
 
 `file.write` creates parent directories, so do not spend a terminal call on `mkdir`. Do not use `file.pick`; it is for user-local file selection, not deck creation. Do not read reference assets during a normal request unless you truly need extra detail after drafting. The baseline below is enough for most decks.
 
@@ -61,6 +64,8 @@ Do not look for a content generator or layout renderer. There is no template dec
 
 `DESIGN.md` is required. It must stay Stitch-compatible: YAML front matter with only `colors`, `typography`, and `layout`, followed by a short rationale. Write it directly for the user's deck instead of copying a template. Keep the default direction minimal and mostly black-and-white unless the topic clearly needs a stronger accent. Read `assets/minimal-design.md` as a reference when you need a sober presentation style.
 
+Pick one deck archetype before writing `DESIGN.md`: pitch, research report, executive briefing, education, portfolio, product proposal, or status report. Infer the archetype from the audience, decision, and requested deliverable when the user does not name one. The archetype should determine first-slide structure, information density, section sequence, fake data style, and whether the deck should end in a recommendation, closing ask, next lesson, or status decision.
+
 Use this compact token shape:
 
 ```yaml
@@ -73,8 +78,8 @@ colors:
   accent: "#111827"
   line: "#CBD5E1"
 typography:
-  display: "embedded display font or system Korean sans"
-  body: "embedded body font or system Korean sans"
+  display: "Paperlogy, Noto Sans KR, system Korean sans"
+  body: "Paperlogy, Noto Sans KR, system Korean sans"
 layout:
   canvas: "16:9"
   margin: "68px"
@@ -98,6 +103,7 @@ Use Marp as the slide compiler, not as the layout designer. Prefer raw HTML insi
 - Avoid default Markdown-only title + bullet layouts except for very simple appendices.
 - Do not write raw `<section>` tags; Marp owns slide sections.
 - Make each slide title a conclusion or claim, not a topic label.
+- Do not make a bullet-only deck. Bullets may live inside cards, matrix cells, timelines, or appendix blocks, but each slide needs a visible designed structure.
 
 Use this HTML-first page shape when you need a reliable minimal look:
 
@@ -110,6 +116,8 @@ Use this HTML-first page shape when you need a reliable minimal look:
 - `.matrix`: criteria-based decisions or tradeoffs
 - `.timeline`: sequence, rollout, or maturity path
 - `.recommendation`: final verdict and next action
+
+Use these slide patterns as the default vocabulary: title thesis, section divider, comparison, matrix, timeline, evidence card, recommendation, and closing ask. A finished deck should feel like a paced argument, not a sequence of topic pages.
 
 Use `file.write` for `DESIGN.md` and `presentation.md`. Do not create source files with shell heredocs or `echo` inside `terminal.run`; reserve `terminal.run` for running the build.
 
@@ -125,18 +133,28 @@ Avoid bullet-only decks. Bullets are acceptable inside a card, column, matrix ce
 
 Use fonts that will actually render in the generated HTML/PDF/PPTX.
 
-When a custom Korean font helps the deck, read `assets/webfonts.md` and put the chosen `@import` statements at the top of the Marp `style` block in `presentation.md`. A good default is Paperlogy for display text and Freesentation or Noto Sans KR for body text.
+Use vendored Paperlogy as the default display and body font. Read `assets/webfonts.md` and put the local `@font-face` rules for the four vendored WOFF2 files at the top of the Marp `style` block in `presentation.md`. The build script keeps `--allow-local-files` for PDF/PPTX and inlines local `.woff2`/`.woff` URLs into the HTML artifact.
 
-If local font files are available in the deck workspace, embed them with `@font-face` and then use those family names. If no webfont or local font is appropriate, use a robust Korean-capable system stack instead:
+Use this stack unless the user explicitly asks for a different font:
 
 ```css
-font-family: system-ui, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+font-family: "Paperlogy", "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
 ```
 
-If the deck uses embedded fonts, mention that in `DESIGN.md`; otherwise keep `typography.display` and `typography.body` as system Korean sans.
+Pretendard is only a fallback example when requested. If local font files are unavailable in an unusual runtime, use a robust Korean-capable system stack instead.
+
+If the deck uses embedded fonts, mention Paperlogy in `DESIGN.md`; otherwise keep `typography.display` and `typography.body` as system Korean sans.
+
+Do not use emoji as functional icons or bullets in presentation body text. Emoji fallback depends on the browser, PDF renderer, and PowerPoint/Keynote environment, and missing glyphs may render as boxes. Use text labels, CSS markers, inline SVG, or simple geometric PowerPoint shapes instead.
+
+## Review Loop
+
+The full build creates review PNGs, `slide-review.json`, `slide-review.md`, and contact sheets. Check for blank slides, unsafe margins, edge clipping, sparse slides, crowded slides, text overflow, cropped buttons, and excessive whitespace. A warning is a reason to revise the deck source before delivery unless it is clearly intentional, such as a sparse title divider.
 
 ## Output
 
 If the user asks for `html만`, build and attach only the HTML. If the user does not restrict formats, attaching PPTX, PDF, HTML, and notes is a good default.
+
+Marp PPTX output is a visual-fidelity artifact and may represent slides as images instead of fully editable PowerPoint objects. When the user needs a PPTX that preserves design but only a few fields must remain editable, use the `pptx` skill's hybrid pattern: static full-slide image background plus editable text overlays for the specific fields that need later changes.
 
 Do not say file delivery is impossible when the local tools are available. If the result is imperfect but usable, attach it and be honest about limitations. Never expose `sandbox:/mnt/data`, `file://`, `/workspace`, `/tmp`, or other local paths to the user.
