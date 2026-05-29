@@ -126,7 +126,7 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	agentProfiles := runtimeConfiguration["agentProfiles"].([]any)
 	defaultProfile := agentProfiles[0].(map[string]any)
 	allowedToolNames := defaultProfile["allowedToolNames"].([]any)
-	for _, expectedToolName := range []string{"conversation.history", "memory.search", "memory.remember", "math.calculate", "web.search", "web.fetch", "terminal.run", "terminal.session", "browser_handoff.openURL", "ask.confirm", "ask.choice", "ask.input", "file.read", "file.write", "file.promote", "file.attach", "skill.add", "skill.remove", "skill.search", "tool.describe", "schedule.create", "schedule.cancel"} {
+	for _, expectedToolName := range []string{"conversation.history", "memory.search", "memory.remember", "math.calculate", "web.search", "web.fetch", "terminal.run", "terminal.session", "browser_handoff.openURL", "ask.confirm", "ask.choice", "ask.input", "file.read", "file.write", "file.promote", "file.attach", "skill.add", "skill.remove", "skill.search", "tool.describe", "schedule.create", "schedule.cancel", "mattermost.channel.posts.list", "mattermost.channel.post", "mattermost.post.update", "mattermost.post.delete", "mattermost.channel.update"} {
 		if !containsStringValue(allowedToolNames, expectedToolName) {
 			t.Fatalf("expected default agent profile to allow internal tool %q, got %+v", expectedToolName, allowedToolNames)
 		}
@@ -141,6 +141,11 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	}
 	capabilitiesConfiguration := runtimeConfiguration["capabilities"].(map[string]any)
 	capabilityToolNames = capabilitiesConfiguration["toolNames"].([]any)
+	for _, expectedToolName := range []string{"mattermost.channel.posts.list", "mattermost.channel.post", "mattermost.post.update", "mattermost.post.delete", "mattermost.channel.update"} {
+		if !containsStringValue(capabilityToolNames, expectedToolName) {
+			t.Fatalf("expected capability tool list to include Mattermost tool %q, got %+v", expectedToolName, capabilityToolNames)
+		}
+	}
 	for _, disabledToolName := range []string{"google.docs.create", "google.sheets.create", "google.gmail.send", "google.calendar.event", "google.calendar.list", "google.drive.import_pptx"} {
 		if containsStringValue(capabilityToolNames, disabledToolName) {
 			t.Fatalf("expected capability tool list to omit disabled Google Workspace tool %q, got %+v", disabledToolName, capabilityToolNames)
