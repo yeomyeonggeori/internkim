@@ -33,5 +33,9 @@ Black-and-white analytical presentation with restrained lines, compact hierarchy
 - Use `font-family: "Paperlogy", "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;` for both slide body and display text unless the user requests another font.
 - Keep the palette almost monochrome; reserve accent only for rules, tags, or one key number.
 - Use semantic HTML containers inside each slide: `.frame`, `.eyebrow`, `.takeaway`, `.cards`, `.card`, `.comparison`, `.matrix`, `.timeline`, `.recommendation`.
+- Use fit-safe layout defaults: `.frame` as fixed 16:9 grid or flex, variable content tracks as `minmax(0, 1fr)`, and text containers with `min-width: 0`, `min-height: 0`, and `overflow-wrap: anywhere`.
+- Do not hide variable text with `overflow: hidden` or `overflow: clip`; reduce copy, split cards, or lower type size instead.
+- Keep line budgets tight: title 1-2 lines, takeaway 1-2 lines, cards 2-4 lines, matrix cells 2-3 lines, timeline steps 2-3 lines.
+- Treat CSS as overflow prevention, not proof. Confirm final fit in the render review contact sheets and matching fit-review text files.
 - Keep radius at 8px or less unless the deck topic clearly asks for a softer visual language.
 - Prefer one-sentence conclusions over topic labels. For example, write "Operational separation makes failures auditable" instead of "Architecture".
