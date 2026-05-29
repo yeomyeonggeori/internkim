@@ -8,6 +8,7 @@ allowed-tools:
   - file.write
   - file.promote
   - file.attach
+  - artifact.review
 ---
 
 # PPTX Presentations
@@ -25,7 +26,8 @@ Use this skill when the user provides an existing PPTX, asks for direct PowerPoi
 5. For custom layouts, charts, notes, or edits that exceed the JSON script, write a task-local Python file and run it through `scripts/skill_runtime.py python <file.py>`.
 6. Use ZIP/XML inspection only when the library cannot preserve or reach the needed feature.
 7. Validate with `scripts/validate_pptx.py` or by reopening the generated deck and checking slide count, titles, text, images, and layout.
-8. Promote accepted final files from `tmp/<deck-slug>/build/` or the generated output path to `artifacts/<deck-slug>/` with `file.promote` unless the user requested a circle or shared destination, then attach the promoted `.pptx`; attach exported PDFs or images only if requested.
+8. When layout fidelity matters and exported slide images are available, call `artifact.review` on the rendered images before attaching. Treat blocking issues as reasons to revise and regenerate.
+9. Promote accepted final files from `tmp/<deck-slug>/build/` or the generated output path to `artifacts/<deck-slug>/` with `file.promote` unless the user requested a circle or shared destination, then attach the promoted `.pptx`; attach exported PDFs or images only if requested.
 
 Bundled scripts are responsible for their own Python dependencies. Run them through `scripts/skill_runtime.py`; the wrapper selects the built-in dependency environment first and prepares requester-owned fallback storage with `uv` only when needed. `/workspace/shared/cache/dependencies` is only a package cache. Do not run `pip install` directly. Do not call runtime paths outside `/workspace` directly. Do not stop at a missing-library error; run the helper script first. Do not use `python - <<'PY'` or system Python snippets for code that needs the PowerPoint library.
 
@@ -130,4 +132,4 @@ Add local image files with explicit dimensions from a script that runs through `
 
 Always run `scripts/validate_pptx.py` through `scripts/skill_runtime.py` after saving. Review warnings for empty slides, missing titles, excessive shape count, and lingering default Calibri/Aptos fonts.
 
-When layout fidelity matters and LibreOffice is available, export to PDF or slide images and inspect before attaching. If LibreOffice is not available, rely on python-pptx validation and be clear that object-level validation was performed.
+When layout fidelity matters and LibreOffice is available, export to PDF or slide images and inspect before attaching. Pass exported slide images to `artifact.review` with the intended deck purpose and editable-field requirements. If LibreOffice is not available, rely on python-pptx validation and be clear that object-level validation was performed.

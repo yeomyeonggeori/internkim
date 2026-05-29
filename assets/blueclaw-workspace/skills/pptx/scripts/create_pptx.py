@@ -136,7 +136,8 @@ def has_background_image(slide_specification):
 
 def add_full_slide_image(slide, presentation, slide_specification, modules):
     path = require_text(slide_specification.get("backgroundImage"), "slide.backgroundImage")
-    slide.shapes.add_picture(path, 0, 0, width=presentation.slide_width, height=presentation.slide_height)
+    background = slide.shapes.add_picture(path, 0, 0, width=presentation.slide_width, height=presentation.slide_height)
+    background.name = "Hybrid Background"
 
 
 def add_background(slide, presentation, style, modules):
@@ -369,6 +370,7 @@ def add_text_box(slide, text, left, top, width, height, font_size, style, module
     run.font.size = modules["Pt"](font_size)
     run.font.bold = weight == "bold"
     run.font.color.rgb = rgb_color(style, modules, color_name)
+    return text_box
 
 
 def add_editable_texts(slide, slide_specification, style, modules):
@@ -378,7 +380,7 @@ def add_editable_texts(slide, slide_specification, style, modules):
     for index, editable_text in enumerate(editable_texts):
         if not isinstance(editable_text, dict):
             raise ValueError("each editableText must be an object")
-        add_text_box(
+        text_box = add_text_box(
             slide,
             require_text(editable_text.get("text"), f"editableTexts[{index}].text"),
             modules["Inches"](float(editable_text.get("leftInches", 0.8))),
@@ -391,6 +393,7 @@ def add_editable_texts(slide, slide_specification, style, modules):
             weight=optional_text(editable_text.get("weight")) or "regular",
             color_name=optional_text(editable_text.get("colorName")) or "ink",
         )
+        text_box.name = "Editable Overlay"
 
 
 def add_images(slide, slide_specification, inches):

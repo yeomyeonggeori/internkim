@@ -118,7 +118,7 @@ func TestSitePrototypeUsesManagedScaffoldContract(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	content := string(document)
-	for _, expectedText := range []string{"React + Vite + TypeScript + Tailwind + shadcn/ui", "UI archetype", "Stitch canonical format", "browser tools", "`bun scripts/build.ts`"} {
+	for _, expectedText := range []string{"React + Vite + TypeScript + Tailwind + shadcn/ui", "UI archetype", "Stitch canonical format", "browser tools", "`bun scripts/build.ts`", "artifact.review", "same URL", "prototype-data.ts", "build-quality.json"} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("site-prototype must document managed scaffold contract %q", expectedText)
 		}
@@ -299,7 +299,10 @@ func TestSimpleSlidesDocumentsBeautifulDeckContract(t *testing.T) {
 		"contact sheets",
 		"fit-review-XX.md",
 		"expected visible text",
-		"revise `presentation.md` at least once",
+		"revise `presentation.md`",
+		"artifact.review",
+		"accept_review.py",
+		"REVIEW_STRICT=1",
 		"Do not use emoji as functional icons or bullets",
 		"hybrid pattern",
 	} {
@@ -352,7 +355,7 @@ func TestSimpleSlidesRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 	if strings.Contains(buildContent, "command -v marp") {
 		t.Fatal("simple-slides build script must not select ambiguous global Marp")
 	}
-	for _, expectedText := range []string{"EXTRACT_NOTES_SCRIPT", "RENDER_REVIEW_SCRIPT", "SKILL_ASSET_DIRECTORY", "../assets/package.json", "BUILD_DIR", `export TMPDIR="${BUILD_PATH}/.tmp"`, `export TMP="$TMPDIR"`, `export TEMP="$TMPDIR"`, `export HOME="${TMPDIR}/home"`, `cd "$TMPDIR"`} {
+	for _, expectedText := range []string{"EXTRACT_NOTES_SCRIPT", "RENDER_REVIEW_SCRIPT", "SKILL_ASSET_DIRECTORY", "../assets/package.json", "BUILD_DIR", `export TMPDIR="${BUILD_PATH}/.tmp"`, `export TMP="$TMPDIR"`, `export TEMP="$TMPDIR"`, `export HOME="${TMPDIR}/home"`, `cd "$TMPDIR"`, "REVIEW_STRICT"} {
 		if !strings.Contains(buildContent, expectedText) {
 			t.Fatalf("simple-slides build script must contain %q", expectedText)
 		}
@@ -384,6 +387,17 @@ func TestSimpleSlidesBuildAndReviewScriptsCheckFontsAndDensity(t *testing.T) {
 		}
 	}
 
+	acceptScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "accept_review.py"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	acceptContent := string(acceptScript)
+	for _, expectedText := range []string{"review-decision.json", "inspectedEvidence", "blocking issues", "acceptedWarnings"} {
+		if !strings.Contains(acceptContent, expectedText) {
+			t.Fatalf("review acceptance script must include %q", expectedText)
+		}
+	}
+
 	minimalDesign, errorValue := os.ReadFile(filepath.Join(skillPath, "assets", "minimal-design.md"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -404,7 +418,7 @@ func TestPPTXSkillRoutesBeautifulNewDecksToSimpleSlides(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	content := string(document)
-	for _, expectedText := range []string{"simple-slides", "existing PPTX", "direct PowerPoint object editing", "editable-only", "Paperlogy", "hybrid deck", "backgroundImage", "editableTexts"} {
+	for _, expectedText := range []string{"simple-slides", "existing PPTX", "direct PowerPoint object editing", "editable-only", "Paperlogy", "hybrid deck", "backgroundImage", "editableTexts", "artifact.review"} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("pptx skill must document routing and editability policy %q", expectedText)
 		}
@@ -430,7 +444,7 @@ func TestPPTXScriptsUsePaperlogyAndDesignWarnings(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	validateContent := string(validateScript)
-	for _, expectedText := range []string{"slide appears empty", "slide is missing a title", "Aptos", "Calibri", "excessive shape count"} {
+	for _, expectedText := range []string{"slide appears empty", "slide is missing a title", "Aptos", "Calibri", "excessive shape count", "hybrid background", "editable overlay out of bounds"} {
 		if !strings.Contains(validateContent, expectedText) {
 			t.Fatalf("pptx validator must report design warning %q", expectedText)
 		}

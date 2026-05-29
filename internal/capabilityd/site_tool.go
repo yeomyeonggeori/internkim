@@ -25,6 +25,9 @@ type siteAppInput struct {
 	SourceWorkspacePath string `json:"sourceWorkspacePath"`
 	SourceBundleBase64  string `json:"sourceBundleBase64"`
 	SourceBundleFormat  string `json:"sourceBundleFormat"`
+	FromRevision        string `json:"fromRevision"`
+	ToRevision          string `json:"toRevision"`
+	Revision            string `json:"revision"`
 	RequestedBy         string `json:"requestedBy"`
 	Platform            string `json:"platform"`
 	ConversationID      string `json:"conversationID"`
@@ -80,6 +83,18 @@ func (service Service) invokeSiteApp(ctx context.Context, request capabilities.T
 			return nil, errorValue
 		}
 		return service.getAdmindSite(ctx, "/admin/api/sites/"+url.PathEscape(siteID))
+	case "site.app.history":
+		input, errorValue := decodeSiteAppInput(inputDocument)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		siteID, errorValue := service.resolveAdmindSiteID(ctx, input)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		return service.getAdmindSite(ctx, "/admin/api/sites/"+url.PathEscape(siteID)+"/history")
+	case "site.app.diff":
+		return service.getAdmindSiteDiff(ctx, inputDocument)
 	case "site.app.logs":
 		input, errorValue := decodeSiteAppInput(inputDocument)
 		if errorValue != nil {
@@ -101,6 +116,29 @@ func (service Service) invokeSiteApp(ctx context.Context, request capabilities.T
 	default:
 		return nil, errors.New("site app tool is not configured: " + request.ToolName)
 	}
+}
+
+func (service Service) getAdmindSiteDiff(ctx context.Context, inputDocument json.RawMessage) (json.RawMessage, error) {
+	input, errorValue := decodeSiteAppInput(inputDocument)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	siteID, errorValue := service.resolveAdmindSiteID(ctx, input)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	query := url.Values{}
+	if input.FromRevision != "" {
+		query.Set("fromRevision", input.FromRevision)
+	}
+	if input.ToRevision != "" {
+		query.Set("toRevision", input.ToRevision)
+	}
+	path := "/admin/api/sites/" + url.PathEscape(siteID) + "/diff"
+	if encodedQuery := query.Encode(); encodedQuery != "" {
+		path += "?" + encodedQuery
+	}
+	return service.getAdmindSite(ctx, path)
 }
 
 func (service Service) publishAdmindSite(ctx context.Context, inputDocument json.RawMessage) (json.RawMessage, error) {
@@ -190,6 +228,9 @@ func decodeSiteAppInput(document json.RawMessage) (siteAppInput, error) {
 	input.Title = strings.TrimSpace(input.Title)
 	input.Platform = strings.TrimSpace(input.Platform)
 	input.ConversationID = strings.TrimSpace(input.ConversationID)
+	input.FromRevision = strings.TrimSpace(input.FromRevision)
+	input.ToRevision = strings.TrimSpace(input.ToRevision)
+	input.Revision = strings.TrimSpace(input.Revision)
 	if input.SiteID == "" && input.Slug == "" && input.ConversationID == "" {
 		return siteAppInput{}, errors.New("siteID, slug, or conversationID is required")
 	}

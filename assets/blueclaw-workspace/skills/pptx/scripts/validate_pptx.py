@@ -19,7 +19,7 @@ def summarize_presentation(presentation_path):
     slides = []
     warnings = []
     for index, slide in enumerate(presentation.slides, start=1):
-        slide_summary = summarize_slide(slide, index)
+        slide_summary = summarize_slide(slide, index, presentation.slide_width, presentation.slide_height)
         slides.append(slide_summary)
         warnings.extend(f"slide {index}: {warning}" for warning in slide_summary["warnings"])
     return {
@@ -31,13 +31,15 @@ def summarize_presentation(presentation_path):
     }
 
 
-def summarize_slide(slide, index):
+def summarize_slide(slide, index, slide_width, slide_height):
     text_entries = text_entries_from_slide(slide)
     title = slide_title(slide, text_entries)
     shape_count = len(slide.shapes)
     explicit_default_fonts = sorted(default_fonts_from_entries(text_entries))
     inherited_font_runs = sum(entry["inheritedFontRuns"] for entry in text_entries)
-    warnings = slide_warnings(title, text_entries, shape_count, explicit_default_fonts, inherited_font_runs)
+    hybrid_summary = hybrid_slide_summary(slide)
+    out_of_bounds_overlays = editable_overlays_out_of_bounds(slide, slide_width, slide_height)
+    warnings = slide_warnings(title, text_entries, shape_count, explicit_default_fonts, inherited_font_runs, hybrid_summary, out_of_bounds_overlays)
     return {
         "index": index,
         "title": title,
@@ -45,6 +47,9 @@ def summarize_slide(slide, index):
         "textShapeCount": len(text_entries),
         "explicitDefaultFonts": explicit_default_fonts,
         "inheritedFontRuns": inherited_font_runs,
+        "hybridBackgroundPresent": hybrid_summary["hasHybridBackground"],
+        "editableOverlayCount": hybrid_summary["editableOverlayCount"],
+        "outOfBoundsEditableOverlays": out_of_bounds_overlays,
         "warnings": warnings,
     }
 
@@ -92,7 +97,24 @@ def default_fonts_from_entries(text_entries):
     return fonts
 
 
-def slide_warnings(title, text_entries, shape_count, explicit_default_fonts, inherited_font_runs):
+def hybrid_slide_summary(slide):
+    return {
+        "hasHybridBackground": any(getattr(shape, "name", "") == "Hybrid Background" for shape in slide.shapes),
+        "editableOverlayCount": sum(1 for shape in slide.shapes if getattr(shape, "name", "") == "Editable Overlay"),
+    }
+
+
+def editable_overlays_out_of_bounds(slide, slide_width, slide_height):
+    indexes = []
+    for index, shape in enumerate(slide.shapes, start=1):
+        if getattr(shape, "name", "") != "Editable Overlay":
+            continue
+        if shape.left < 0 or shape.top < 0 or shape.left + shape.width > slide_width or shape.top + shape.height > slide_height:
+            indexes.append(index)
+    return indexes
+
+
+def slide_warnings(title, text_entries, shape_count, explicit_default_fonts, inherited_font_runs, hybrid_summary, out_of_bounds_overlays):
     warnings = []
     if not text_entries:
         warnings.append("slide appears empty")
@@ -104,6 +126,10 @@ def slide_warnings(title, text_entries, shape_count, explicit_default_fonts, inh
         warnings.append("default font remains: " + ", ".join(explicit_default_fonts))
     if inherited_font_runs:
         warnings.append(f"{inherited_font_runs} text runs inherit the theme font")
+    if hybrid_summary["editableOverlayCount"] and not hybrid_summary["hasHybridBackground"]:
+        warnings.append("editable overlays are present without a hybrid background image")
+    if out_of_bounds_overlays:
+        warnings.append("editable overlay out of bounds: " + ", ".join(str(index) for index in out_of_bounds_overlays))
     return warnings
 
 
