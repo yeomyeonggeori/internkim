@@ -436,16 +436,15 @@ func runModel() {
 		sub = os.Args[2]
 	}
 
+	configuration := loadConfig()
 	scriptDir, _ := os.Getwd()
 	sshpassBin := filepath.Join(scriptDir, "bin", "sshpass")
-
-	stateDir := internkimHomeDir()
-	boardIP, _ := detectBoardRPi(sshpassBin, stateDir)
-	if boardIP == "" {
-		fatal("Board not found. Run 'internkim setup' first or ensure the board is on the network.")
+	target := resolveCommandTarget(commandControlArguments(os.Args[2:]))
+	target = resolveLabHostForCommandTarget(target, scriptDir)
+	ssh, _, errorValue := resolveDeviceSSHConnection(configuration, sshpassBin, target)
+	if errorValue != nil {
+		fatal(errorValue.Error())
 	}
-
-	ssh := newSSH(sshpassBin, boardUser, "", boardIP)
 
 	switch sub {
 	case "current", "":
@@ -468,19 +467,16 @@ func modelCurrentCmd(ssh *sshClient) {
 	raw := strings.TrimSpace(ssh.run("cat " + blueclaw.BlueclawRuntimeConfigPath + " 2>/dev/null"))
 	var document map[string]any
 	_ = json.Unmarshal([]byte(raw), &document)
-	model := ""
-	if languageModel, ok := document["languageModel"].(map[string]any); ok {
-		if capabilityModel, ok := languageModel["capability"].(map[string]any); ok {
-			if value, ok := capabilityModel["model"].(string); ok {
-				model = strings.TrimSpace(value)
-			}
-		}
-	}
+	model := blueclawRuntimeModel(document)
 	if model == "" {
 		fmt.Println("No model configured.")
 		return
 	}
 	fmt.Printf("Model: %s\n", model)
+	workspaceModel := strings.TrimSpace(ssh.run("jq -r '.languageModel.capability.model // empty' " + blueclawWorkspaceRuntimeConfigPath() + " 2>/dev/null"))
+	if workspaceModel != "" && workspaceModel != model {
+		fmt.Printf("Workspace model differs: %s\n", workspaceModel)
+	}
 }
 
 func modelSetCmd(ssh *sshClient, modelID string) {
@@ -509,11 +505,45 @@ func modelSetCmd(ssh *sshClient, modelID string) {
 		fatal("Failed to stage blueclaw runtime config: " + err.Error())
 	}
 	defer os.Remove(temporaryPath)
-	ssh.scp(temporaryPath, blueclaw.BlueclawRuntimeConfigPath)
-	ssh.run("chown root:" + blueclaw.BlueclawUser + " " + blueclaw.BlueclawRuntimeConfigPath + " && chmod 640 " + blueclaw.BlueclawRuntimeConfigPath)
+	for _, runtimeConfigPath := range blueclawRuntimeConfigPaths() {
+		if errorValue := ssh.scp(temporaryPath, runtimeConfigPath); errorValue != nil {
+			fatal("Failed to upload blueclaw runtime config: " + errorValue.Error())
+		}
+	}
+	ssh.run("chown root:" + blueclaw.BlueclawUser + " " + quoteShellValues(blueclawRuntimeConfigPaths()) + " && chmod 640 " + quoteShellValues(blueclawRuntimeConfigPaths()))
 	ssh.run("systemctl restart " + blueclaw.BlueclawServiceName + " 2>/dev/null")
 	fmt.Printf("Model changed to: %s\n", modelID)
 	fmt.Println("blueclaw restarted.")
+}
+
+func blueclawRuntimeModel(document map[string]any) string {
+	if languageModel, ok := document["languageModel"].(map[string]any); ok {
+		if capabilityModel, ok := languageModel["capability"].(map[string]any); ok {
+			if value, ok := capabilityModel["model"].(string); ok {
+				return strings.TrimSpace(value)
+			}
+		}
+	}
+	return ""
+}
+
+func blueclawRuntimeConfigPaths() []string {
+	return []string{
+		blueclaw.BlueclawRuntimeConfigPath,
+		blueclawWorkspaceRuntimeConfigPath(),
+	}
+}
+
+func blueclawWorkspaceRuntimeConfigPath() string {
+	return blueclaw.BlueclawWorkspacePath + "/.blueclaw/config/runtime.json"
+}
+
+func quoteShellValues(values []string) string {
+	quotedValues := make([]string, 0, len(values))
+	for _, value := range values {
+		quotedValues = append(quotedValues, quoteShellValue(value))
+	}
+	return strings.Join(quotedValues, " ")
 }
 
 func modelListCmd(ssh *sshClient) {
