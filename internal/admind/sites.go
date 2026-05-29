@@ -58,6 +58,7 @@ type SiteRecord struct {
 	AppWorkspacePath    string    `json:"appWorkspacePath,omitempty"`
 	HostSourcePath      string    `json:"hostSourcePath,omitempty"`
 	LastPublishedCommit string    `json:"lastPublishedCommit,omitempty"`
+	RevisionCount       int       `json:"revisionCount"`
 	CreatedAt           time.Time `json:"createdAt"`
 	UpdatedAt           time.Time `json:"updatedAt"`
 	UnpublishedAt       time.Time `json:"unpublishedAt,omitempty"`
@@ -101,8 +102,14 @@ type sitePublishRequest struct {
 type siteLifecycleRequest struct {
 	RequestedBy   string `json:"requestedBy"`
 	Reason        string `json:"reason"`
+	Revision      string `json:"revision"`
 	Confirm       string `json:"confirm"`
 	UserConfirmed bool   `json:"userConfirmed"`
+}
+
+type siteDiffRequest struct {
+	FromRevision string `json:"fromRevision"`
+	ToRevision   string `json:"toRevision"`
 }
 
 type siteStateDocument struct {
@@ -283,6 +290,10 @@ func (service *Service) handleSite(responseWriter http.ResponseWriter, request *
 		service.writeSite(responseWriter, siteID)
 	case request.Method == http.MethodPost && action == "publish":
 		service.publishSiteFromRequest(responseWriter, request, siteID)
+	case request.Method == http.MethodGet && action == "history":
+		service.writeSiteHistory(responseWriter, request, siteID)
+	case request.Method == http.MethodGet && action == "diff":
+		service.writeSiteDiff(responseWriter, request, siteID)
 	case request.Method == http.MethodPost && action == "rollback":
 		service.rollbackSiteFromRequest(responseWriter, request, siteID)
 	case request.Method == http.MethodPost && action == "unpublish":
@@ -315,7 +326,39 @@ func (service *Service) writeSite(responseWriter http.ResponseWriter, siteID str
 		http.NotFound(responseWriter, nil)
 		return
 	}
-	service.writeJSON(responseWriter, site)
+	service.writeJSON(responseWriter, service.siteWithRevisionMetadata(site))
+}
+
+func (service *Service) writeSiteHistory(responseWriter http.ResponseWriter, request *http.Request, siteID string) {
+	site := service.findSiteByID(siteID)
+	if site == nil || site.Status == SiteStatusDeleted {
+		http.NotFound(responseWriter, request)
+		return
+	}
+	history, errorValue := service.siteGitHistory(request.Context(), site)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	service.writeJSON(responseWriter, history)
+}
+
+func (service *Service) writeSiteDiff(responseWriter http.ResponseWriter, request *http.Request, siteID string) {
+	site := service.findSiteByID(siteID)
+	if site == nil || site.Status == SiteStatusDeleted {
+		http.NotFound(responseWriter, request)
+		return
+	}
+	diffRequest := siteDiffRequest{
+		FromRevision: request.URL.Query().Get("fromRevision"),
+		ToRevision:   request.URL.Query().Get("toRevision"),
+	}
+	diff, errorValue := service.siteGitDiff(request.Context(), site, diffRequest)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	service.writeJSON(responseWriter, diff)
 }
 
 func (service *Service) publishSiteFromRequest(responseWriter http.ResponseWriter, request *http.Request, siteID string) {
@@ -488,6 +531,7 @@ func (service *Service) publishSite(ctx context.Context, payload sitePublishRequ
 	site.PreviousVersionID = site.CurrentVersionID
 	site.CurrentVersionID = versionID
 	site.LastPublishedCommit = commitSHA
+	site.RevisionCount = service.siteRevisionCount(site)
 	site.Status = SiteStatusPublished
 	site.TLSStatus = service.siteTLSStatus()
 	site.UpdatedAt = now
@@ -681,6 +725,9 @@ func (service *Service) prepareSiteVersion(site *SiteRecord, versionID string, p
 	if errorValue := ensureSiteFrontendBuildIsFresh(site.HostSourcePath, frontendBuildPath); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureSiteBuildQualityPassed(site.HostSourcePath); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := copyDirectory(frontendBuildPath, filepath.Join(versionPath, "frontend", "dist")); errorValue != nil {
 		return errorValue
 	}
@@ -708,6 +755,35 @@ func ensureSiteFrontendBuildIsFresh(workspacePath string, frontendBuildPath stri
 	}
 	if latestSourceModTime.After(earliestBuildModTime) {
 		return errors.New("site workspace app/dist is stale; run bun scripts/build.ts in app before publishing")
+	}
+	return nil
+}
+
+func ensureSiteBuildQualityPassed(workspacePath string) error {
+	path := filepath.Join(workspacePath, ".internkim", "build-quality.json")
+	document, errorValue := os.ReadFile(path)
+	if errorValue != nil {
+		return errors.New("site workspace is missing .internkim/build-quality.json; run bun scripts/build.ts in app before publishing")
+	}
+	var quality struct {
+		BlockingIssueCount int `json:"blockingIssueCount"`
+	}
+	if errorValue := json.Unmarshal(document, &quality); errorValue != nil {
+		return errorValue
+	}
+	if quality.BlockingIssueCount > 0 {
+		return errors.New("site workspace has blocking quality issues; see .internkim/build-quality.json")
+	}
+	qualityInformation, errorValue := os.Stat(path)
+	if errorValue != nil {
+		return errorValue
+	}
+	latestSourceModTime, errorValue := latestFrontendSourceModTime(filepath.Join(workspacePath, "app"))
+	if errorValue != nil {
+		return errorValue
+	}
+	if latestSourceModTime.After(qualityInformation.ModTime()) {
+		return errors.New("site workspace build-quality.json is stale; run bun scripts/build.ts in app before publishing")
 	}
 	return nil
 }
@@ -843,16 +919,21 @@ func (service *Service) rollbackSite(ctx context.Context, siteID string, payload
 	if !siteLifecycleAllowed(site, payload) {
 		return nil, errors.New("site owner confirmation is required")
 	}
-	if strings.TrimSpace(site.PreviousVersionID) == "" {
+	if strings.TrimSpace(site.PreviousVersionID) == "" && strings.TrimSpace(payload.Revision) == "" {
 		return nil, errors.New("previous version is not available")
 	}
-	nextVersionID := site.PreviousVersionID
+	nextVersionID, errorValue := service.siteRollbackVersionID(site, payload)
+	if errorValue != nil {
+		return nil, errorValue
+	}
 	site.PreviousVersionID = site.CurrentVersionID
 	site.CurrentVersionID = nextVersionID
 	if errorValue := service.activateSiteVersion(ctx, site, nextVersionID); errorValue != nil {
 		return nil, errorValue
 	}
 	site.Status = SiteStatusPublished
+	site.LastPublishedCommit = siteCommitFromVersionID(nextVersionID)
+	site.RevisionCount = service.siteRevisionCount(site)
 	site.UpdatedAt = time.Now().UTC()
 	site.UnpublishedAt = time.Time{}
 	site.LastError = ""
@@ -1076,6 +1157,177 @@ func (service *Service) commitSiteWorkspace(ctx context.Context, site *SiteRecor
 		return "", errorValue
 	}
 	return strings.TrimSpace(string(commitOutput)), nil
+}
+
+type siteHistoryResponse struct {
+	SiteID       string              `json:"siteID"`
+	Slug         string              `json:"slug"`
+	PublishedURL string              `json:"publishedURL"`
+	Revisions    []siteRevisionEntry `json:"revisions"`
+}
+
+type siteRevisionEntry struct {
+	Commit           string `json:"commit"`
+	ShortCommit      string `json:"shortCommit"`
+	VersionID        string `json:"versionID,omitempty"`
+	Message          string `json:"message"`
+	TimestampUnix    int64  `json:"timestampUnix"`
+	IsCurrent        bool   `json:"isCurrent"`
+	IsPrevious       bool   `json:"isPrevious"`
+	IsPublishedBuild bool   `json:"isPublishedBuild"`
+}
+
+type siteDiffResponse struct {
+	SiteID       string `json:"siteID"`
+	Slug         string `json:"slug"`
+	PublishedURL string `json:"publishedURL"`
+	FromRevision string `json:"fromRevision"`
+	ToRevision   string `json:"toRevision"`
+	Summary      string `json:"summary"`
+}
+
+func (service *Service) siteWithRevisionMetadata(site *SiteRecord) *SiteRecord {
+	copiedSite := *site
+	copiedSite.RevisionCount = service.siteRevisionCount(site)
+	return &copiedSite
+}
+
+func (service *Service) siteGitHistory(ctx context.Context, site *SiteRecord) (siteHistoryResponse, error) {
+	output, errorValue := service.runCommand(ctx, "git", siteGitArguments(site, "log", "--date=unix", "--pretty=format:%H%x1f%ct%x1f%s", "-n", "30")...)
+	if errorValue != nil {
+		return siteHistoryResponse{}, errorValue
+	}
+	return siteHistoryResponse{
+		SiteID:       site.SiteID,
+		Slug:         site.Slug,
+		PublishedURL: site.PublishedURL,
+		Revisions:    service.siteRevisionEntries(site, string(output)),
+	}, nil
+}
+
+func (service *Service) siteRevisionEntries(site *SiteRecord, output string) []siteRevisionEntry {
+	versionIDs := service.siteVersionIDs(site.SiteID)
+	entries := []siteRevisionEntry{}
+	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
+		parts := strings.SplitN(line, "\x1f", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		commit := strings.TrimSpace(parts[0])
+		shortCommit := shortSiteCommit(commit)
+		versionID := versionIDForShortCommit(versionIDs, shortCommit)
+		timestampUnix, _ := strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64)
+		entries = append(entries, siteRevisionEntry{
+			Commit:           commit,
+			ShortCommit:      shortCommit,
+			VersionID:        versionID,
+			Message:          strings.TrimSpace(parts[2]),
+			TimestampUnix:    timestampUnix,
+			IsCurrent:        commitMatchesVersion(commit, site.CurrentVersionID),
+			IsPrevious:       commitMatchesVersion(commit, site.PreviousVersionID),
+			IsPublishedBuild: versionID != "",
+		})
+	}
+	return entries
+}
+
+func (service *Service) siteGitDiff(ctx context.Context, site *SiteRecord, request siteDiffRequest) (siteDiffResponse, error) {
+	fromRevision := firstNonEmpty(strings.TrimSpace(request.FromRevision), siteCommitFromVersionID(site.PreviousVersionID))
+	toRevision := firstNonEmpty(strings.TrimSpace(request.ToRevision), strings.TrimSpace(site.LastPublishedCommit), "HEAD")
+	if fromRevision == "" {
+		fromRevision = "HEAD^"
+	}
+	output, errorValue := service.runCommand(ctx, "git", siteGitArguments(site, "diff", "--stat", "--summary", fromRevision, toRevision)...)
+	if errorValue != nil {
+		return siteDiffResponse{}, errorValue
+	}
+	return siteDiffResponse{
+		SiteID:       site.SiteID,
+		Slug:         site.Slug,
+		PublishedURL: site.PublishedURL,
+		FromRevision: fromRevision,
+		ToRevision:   toRevision,
+		Summary:      strings.TrimSpace(string(output)),
+	}, nil
+}
+
+func (service *Service) siteRollbackVersionID(site *SiteRecord, payload siteLifecycleRequest) (string, error) {
+	revision := strings.TrimSpace(payload.Revision)
+	if revision == "" {
+		return site.PreviousVersionID, nil
+	}
+	if isDirectory(service.siteVersionPath(site.SiteID, revision)) {
+		return revision, nil
+	}
+	shortCommit := shortSiteCommit(revision)
+	for _, versionID := range service.siteVersionIDs(site.SiteID) {
+		if strings.HasSuffix(versionID, "-"+shortCommit) {
+			return versionID, nil
+		}
+	}
+	return "", errors.New("requested site revision is not available as a published version")
+}
+
+func (service *Service) siteRevisionCount(site *SiteRecord) int {
+	if !isDirectory(filepath.Join(site.HostSourcePath, ".git")) {
+		return 0
+	}
+	output, errorValue := service.runCommand(context.Background(), "git", siteGitArguments(site, "rev-list", "--count", "HEAD")...)
+	if errorValue != nil {
+		return 0
+	}
+	count, errorValue := strconv.Atoi(strings.TrimSpace(string(output)))
+	if errorValue != nil {
+		return 0
+	}
+	return count
+}
+
+func (service *Service) siteVersionIDs(siteID string) []string {
+	entries, errorValue := os.ReadDir(filepath.Join(service.sitePath(siteID), "versions"))
+	if errorValue != nil {
+		return nil
+	}
+	versionIDs := []string{}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			versionIDs = append(versionIDs, entry.Name())
+		}
+	}
+	sort.Strings(versionIDs)
+	return versionIDs
+}
+
+func versionIDForShortCommit(versionIDs []string, shortCommit string) string {
+	for _, versionID := range versionIDs {
+		if strings.HasSuffix(versionID, "-"+shortCommit) {
+			return versionID
+		}
+	}
+	return ""
+}
+
+func commitMatchesVersion(commit string, versionID string) bool {
+	if strings.TrimSpace(versionID) == "" {
+		return false
+	}
+	return strings.HasSuffix(versionID, "-"+shortSiteCommit(commit))
+}
+
+func siteCommitFromVersionID(versionID string) string {
+	parts := strings.Split(strings.TrimSpace(versionID), "-")
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(parts[len(parts)-1])
+}
+
+func shortSiteCommit(commit string) string {
+	shortCommit := strings.TrimSpace(commit)
+	if len(shortCommit) > 12 {
+		return shortCommit[:12]
+	}
+	return shortCommit
 }
 
 func siteGitArguments(site *SiteRecord, arguments ...string) []string {
@@ -1540,15 +1792,22 @@ Build with shadcn-style primitives: buttons, inputs, labels, cards, badges, tabs
 
 func siteBuiltIndexHTML(site *SiteRecord) string {
 	title := html.EscapeString(firstNonEmpty(site.Title, site.Slug))
-	return "<!doctype html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"UTF-8\" />\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n<title>" + title + "</title>\n<style>body{margin:0;font-family:ui-sans-serif,system-ui;background:#f7f5ef;color:#0f172a}.shell{display:grid;min-height:100vh;place-items:center;padding:24px}.panel{max-width:680px;border:1px solid #d6d3c9;border-radius:12px;background:#fff;padding:28px}h1{margin:0;font-size:34px;line-height:1.1}.copy{color:#475569;line-height:1.6}</style>\n</head>\n<body><main class=\"shell\"><section class=\"panel\"><h1>" + title + "</h1><p class=\"copy\">React scaffold initialized. Customize DESIGN.md and app/src, then run bun scripts/build.ts before publishing.</p></section></main></body>\n</html>\n"
+	return "<!doctype html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"UTF-8\" />\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n<title>" + title + "</title>\n<style>body{margin:0;font-family:ui-sans-serif,system-ui;background:#fff;color:#111827}.shell{display:grid;min-height:100vh;place-items:center;padding:24px}</style>\n</head>\n<body><main class=\"shell\" data-starter-marker=\"INTERNKIM_SITE_STARTER_REPLACE_ME\"><h1>" + title + "</h1></main></body>\n</html>\n"
 }
 
 func siteBuildTS() string {
-	return `import { existsSync } from "node:fs";
+	return `import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 type Command = {
 	name: string;
 	arguments: string[];
+};
+
+type QualityIssue = {
+	severity: "blocking" | "warning";
+	category: string;
+	target: string;
+	message: string;
 };
 
 async function runCommand(command: Command): Promise<void> {
@@ -1562,8 +1821,61 @@ async function runCommand(command: Command): Promise<void> {
 	}
 }
 
+function readSource(path: string): string {
+	if (!existsSync(path)) return "";
+	return readFileSync(path, "utf8");
+}
+
+function sourceContainsAny(source: string, values: string[]): boolean {
+	return values.some((value) => source.includes(value));
+}
+
+function collectQualityIssues(): QualityIssue[] {
+	const appSource = readSource("src/App.tsx");
+	const styleSource = readSource("src/index.css");
+	const issues: QualityIssue[] = [];
+	if (!existsSync("src/prototype-data.ts")) {
+		issues.push({
+			severity: "blocking",
+			category: "contentModel",
+			target: "src/prototype-data.ts",
+			message: "Create domain-specific prototype data before building the site.",
+		});
+	}
+	if (sourceContainsAny(appSource + styleSource, [
+		"INTERNKIM_SITE_STARTER_REPLACE_ME",
+		"InternKim React prototype",
+		"Beautiful default scaffold",
+		"Replace this starter",
+		"workflowItems",
+	])) {
+		issues.push({
+			severity: "blocking",
+			category: "templateSmell",
+			target: "src/App.tsx",
+			message: "Replace the scaffold starter instead of editing its copy or card-grid structure.",
+		});
+	}
+	return issues;
+}
+
+function writeBuildQuality(issues: QualityIssue[]): void {
+	mkdirSync("../.internkim", { recursive: true });
+	writeFileSync("../.internkim/build-quality.json", JSON.stringify({
+		generatedAt: new Date().toISOString(),
+		blockingIssueCount: issues.filter((issue) => issue.severity === "blocking").length,
+		issues,
+	}, null, 2) + "\n");
+}
+
 if (!existsSync("../DESIGN.md")) {
 	throw new Error("DESIGN.md is required at the site workspace root");
+}
+
+const qualityIssues = collectQualityIssues();
+writeBuildQuality(qualityIssues);
+if (qualityIssues.some((issue) => issue.severity === "blocking")) {
+	throw new Error("site quality gate failed; see ../.internkim/build-quality.json");
 }
 
 if (!existsSync("node_modules")) {
@@ -1632,138 +1944,13 @@ createRoot(rootElement).render(
 }
 
 func siteAppTSX(site *SiteRecord) string {
-	title := strconv.Quote(firstNonEmpty(strings.TrimSpace(site.Title), site.Slug))
-	return `import {
-	ArrowRight,
-	BarChart3,
-	CalendarDays,
-	CheckCircle2,
-	LayoutDashboard,
-	Palette,
-	PanelTop,
-	Sparkles,
-	Workflow,
-} from "lucide-react";
-import { Badge } from "./components/ui/badge";
-import { Button } from "./components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card";
-import { Separator } from "./components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
-
-const prototypeTitle = ` + title + `;
-
-const showcaseMetrics = [
-	{ label: "Archetypes", value: "7", detail: "landing, dashboard, admin, booking, marketplace, portfolio, content" },
-	{ label: "Design tokens", value: "5", detail: "colors, typography, rounded, spacing, components" },
-	{ label: "QA passes", value: "2", detail: "desktop and mobile visual review before publish" },
-];
-
-const workflowItems = [
-	{ icon: Palette, title: "Stitch DESIGN.md", copy: "Start with canonical tokens and human guidance before writing UI code." },
-	{ icon: LayoutDashboard, title: "shadcn primitives", copy: "Compose real controls, data cards, tabs, dialogs, and tables instead of placeholder sections." },
-	{ icon: Workflow, title: "Usable first screen", copy: "Open on the requested workflow, not a generic marketing shell." },
-	{ icon: CheckCircle2, title: "Visual QA loop", copy: "Build, preview, inspect desktop and mobile, then fix obvious layout issues before publishing." },
-];
+	_ = site
+	return `const starterMarker = "INTERNKIM_SITE_STARTER_REPLACE_ME";
 
 function App() {
 	return (
-		<main className="min-h-screen overflow-hidden bg-background text-foreground">
-			<section className="relative border-b border-border">
-				<div className="mx-auto grid min-h-[92vh] w-full max-w-7xl gap-8 px-6 py-8 md:grid-cols-[1fr_440px] md:px-10 lg:px-12">
-					<div className="flex flex-col justify-between gap-10 py-8">
-						<div className="flex items-center gap-3">
-							<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-								<Sparkles className="h-5 w-5" />
-							</div>
-							<div>
-								<p className="text-sm font-semibold text-muted-foreground">InternKim React prototype</p>
-								<h1 className="text-4xl font-semibold tracking-[0px] text-foreground md:text-6xl">{prototypeTitle}</h1>
-							</div>
-						</div>
-
-						<div className="max-w-3xl space-y-7">
-							<Badge variant="secondary" className="w-fit">Beautiful default scaffold</Badge>
-							<p className="text-xl leading-8 text-muted-foreground md:text-2xl">
-								Replace this starter with the requested product workflow, keep DESIGN.md as the visual source of truth, and ship a prototype that looks composed before it is published.
-							</p>
-							<div className="flex flex-wrap gap-3">
-								<Button>
-									Start from the workflow
-									<ArrowRight className="h-4 w-4" />
-								</Button>
-								<Button variant="outline">
-									Review DESIGN.md
-								</Button>
-							</div>
-						</div>
-
-						<div className="grid gap-3 sm:grid-cols-3">
-							{showcaseMetrics.map((metric) => (
-								<Card key={metric.label}>
-									<CardHeader className="space-y-1">
-										<CardDescription>{metric.label}</CardDescription>
-										<CardTitle className="text-3xl">{metric.value}</CardTitle>
-									</CardHeader>
-									<CardContent>
-										<p className="text-sm leading-6 text-muted-foreground">{metric.detail}</p>
-									</CardContent>
-								</Card>
-							))}
-						</div>
-					</div>
-
-					<Card className="self-center">
-						<CardHeader>
-							<div className="flex items-center justify-between gap-4">
-								<div>
-									<CardDescription>Generation loop</CardDescription>
-									<CardTitle>Design before code</CardTitle>
-								</div>
-								<PanelTop className="h-5 w-5 text-muted-foreground" />
-							</div>
-						</CardHeader>
-						<CardContent>
-							<Tabs defaultValue="workflow">
-								<TabsList className="grid w-full grid-cols-2">
-									<TabsTrigger value="workflow">Workflow</TabsTrigger>
-									<TabsTrigger value="quality">Quality</TabsTrigger>
-								</TabsList>
-								<TabsContent value="workflow" className="mt-5 space-y-4">
-									{workflowItems.map((item) => (
-										<div key={item.title} className="flex gap-4 rounded-lg border border-border bg-card p-4">
-											<div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-secondary text-secondary-foreground">
-												<item.icon className="h-5 w-5" />
-											</div>
-											<div>
-												<h2 className="font-semibold">{item.title}</h2>
-												<p className="mt-1 text-sm leading-6 text-muted-foreground">{item.copy}</p>
-											</div>
-										</div>
-									))}
-								</TabsContent>
-								<TabsContent value="quality" className="mt-5 space-y-5">
-									<div className="rounded-lg border border-border bg-muted p-5">
-										<div className="flex items-center gap-2 text-sm font-semibold">
-											<BarChart3 className="h-4 w-4" />
-											Publish checklist
-										</div>
-										<Separator className="my-4" />
-										<div className="space-y-3 text-sm text-muted-foreground">
-											<p>Desktop and mobile layouts have no clipped text or overlapping controls.</p>
-											<p>The first viewport contains the actual requested experience.</p>
-											<p>Colors, spacing, radius, and component styles come from DESIGN.md tokens.</p>
-										</div>
-									</div>
-									<div className="flex items-center gap-3 rounded-lg bg-primary p-4 text-primary-foreground">
-										<CalendarDays className="h-5 w-5" />
-										<p className="text-sm font-medium">Run the preview, inspect the screen, fix once, then publish.</p>
-									</div>
-								</TabsContent>
-							</Tabs>
-						</CardContent>
-					</Card>
-				</div>
-			</section>
+		<main data-starter-marker={starterMarker}>
+			<h1>Replace this starter with the requested site.</h1>
 		</main>
 	);
 }

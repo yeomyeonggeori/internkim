@@ -128,6 +128,74 @@ func TestSiteAppStatusResolvesConversationSite(t *testing.T) {
 	}
 }
 
+func TestSiteAppHistoryResolvesConversationSite(t *testing.T) {
+	requests := []string{}
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			requests = append(requests, request.Method+" "+request.URL.Path)
+			switch {
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/admin/api/sites":
+				return siteToolJSONResponse(`{"sites":[{"siteID":"site-1","slug":"demo","platform":"mattermost","conversationID":"thread-1","status":"published"}]}`), nil
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/admin/api/sites/site-1/history":
+				return siteToolJSONResponse(`{"siteID":"site-1","revisions":[]}`), nil
+			default:
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+
+	_, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "site.app.history",
+		Input:    json.RawMessage(`{}`),
+		Context: capabilities.ToolInvokeContext{
+			Platform:       "mattermost",
+			ConversationID: "thread-1",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if strings.Join(requests, ",") != "GET /admin/api/sites,GET /admin/api/sites/site-1/history" {
+		t.Fatalf("unexpected requests: %+v", requests)
+	}
+}
+
+func TestSiteAppDiffPassesRevisionQuery(t *testing.T) {
+	requests := []string{}
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			requests = append(requests, request.Method+" "+request.URL.String())
+			switch {
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/admin/api/sites":
+				return siteToolJSONResponse(`{"sites":[{"siteID":"site-1","slug":"demo","platform":"mattermost","conversationID":"thread-1","status":"published"}]}`), nil
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/admin/api/sites/site-1/diff?fromRevision=abc&toRevision=def":
+				return siteToolJSONResponse(`{"siteID":"site-1","summary":"changed"}`), nil
+			default:
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+
+	_, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "site.app.diff",
+		Input:    json.RawMessage(`{"fromRevision":"abc","toRevision":"def"}`),
+		Context: capabilities.ToolInvokeContext{
+			Platform:       "mattermost",
+			ConversationID: "thread-1",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(requests) != 2 {
+		t.Fatalf("unexpected requests: %+v", requests)
+	}
+}
+
 func siteToolJSONResponse(document string) *http.Response {
 	return &http.Response{
 		StatusCode: http.StatusOK,

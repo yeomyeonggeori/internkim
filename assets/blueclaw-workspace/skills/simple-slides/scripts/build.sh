@@ -261,6 +261,9 @@ if format_enabled review; then
   if [ -f "$RENDER_REVIEW_SCRIPT" ]; then
     if ! python3 "$RENDER_REVIEW_SCRIPT" "$SOURCE_PATH" "$NAME" "${BUILD_PATH}/review"; then
       echo "  - slide render review reported warnings; see ${BUILD_DIR}/review/slide-review.json"
+      if [ "${REVIEW_STRICT:-0}" = "1" ]; then
+        exit 1
+      fi
     fi
   else
     echo "  - render_review.py not found, skipping slide render review"

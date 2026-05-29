@@ -170,6 +170,8 @@ func TestSiteAppDescriptorsUseRuntimeInputNames(t *testing.T) {
 	createSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.create")
 	publishSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.publish")
 	statusSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.status")
+	historySchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.history")
+	diffSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.diff")
 	deleteSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.delete")
 
 	assertSchemaHasProperties(t, createSchema, "slug", "title", "prompt", "designBrief", "prototypeScope")
@@ -177,8 +179,21 @@ func TestSiteAppDescriptorsUseRuntimeInputNames(t *testing.T) {
 	assertSchemaOmitsProperties(t, createSchema, "name", "sourcePath")
 	assertSchemaHasProperties(t, publishSchema, "siteID", "slug", "message")
 	assertSchemaHasProperties(t, statusSchema, "siteID", "slug")
+	assertSchemaHasProperties(t, historySchema, "siteID", "slug")
+	assertSchemaHasProperties(t, diffSchema, "siteID", "slug", "fromRevision", "toRevision")
 	assertSchemaHasProperties(t, deleteSchema, "siteID", "slug", "confirm", "userConfirmed")
 	assertSchemaRequires(t, deleteSchema, "confirm", "userConfirmed")
+}
+
+func TestArtifactReviewDescriptorUsesImageEvidenceInputs(t *testing.T) {
+	schema := descriptorSchema(t, ArtifactDescriptors(), "artifact.review")
+
+	assertSchemaHasProperties(t, schema, "artifactKind", "intent", "rubric", "evidence", "expectedText", "previousIssues")
+	assertSchemaRequires(t, schema, "artifactKind", "intent", "rubric", "evidence")
+	descriptor := descriptorForTool(t, ArtifactDescriptors(), "artifact.review")
+	if descriptor.SideEffectClass != "read" || descriptor.PrivacyClass != "workspace_document" || descriptor.RequiresApproval {
+		t.Fatalf("unexpected artifact.review descriptor: %+v", descriptor)
+	}
 }
 
 func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
@@ -255,6 +270,7 @@ func TestCapabilityDescriptorSchemasAreCanonicalObjects(t *testing.T) {
 		CalendarDescriptors(),
 		MailDescriptors(),
 		SiteAppDescriptors(),
+		ArtifactDescriptors(),
 		GoogleWorkspaceDescriptors(),
 	}
 	for _, descriptors := range descriptorGroups {

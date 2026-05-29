@@ -141,7 +141,7 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 		"agentProfiles": []map[string]any{
 			{
 				"name":             "default",
-				"allowedToolNames": []string{"conversation.history", "memory.search", "memory.remember", "math.calculate", "web.search", "web.fetch", "terminal.run", "terminal.session", "browser_handoff.openURL", "ask.confirm", "ask.choice", "ask.input", "file.read", "file.write", "file.promote", "file.attach", "skill.add", "skill.remove", "skill.search", "tool.describe", "schedule.create", "schedule.cancel", "mattermost.channel.posts.list", "mattermost.channel.post", "mattermost.post.update", "mattermost.post.delete", "mattermost.channel.update"},
+				"allowedToolNames": []string{"conversation.history", "memory.search", "memory.remember", "math.calculate", "web.search", "web.fetch", "terminal.run", "terminal.session", "browser_handoff.openURL", "ask.confirm", "ask.choice", "ask.input", "file.read", "file.write", "file.promote", "file.attach", "artifact.review", "skill.add", "skill.remove", "skill.search", "tool.describe", "schedule.create", "schedule.cancel", "mattermost.channel.posts.list", "mattermost.channel.post", "mattermost.post.update", "mattermost.post.delete", "mattermost.channel.update"},
 			},
 		},
 		"mcpServers": []map[string]any{},
@@ -267,6 +267,7 @@ func defaultResourceAccessPolicies() []map[string]any {
 		{"resource": "api:credentials.providers", "actions": []string{"manage"}, "circles": []string{"admin"}},
 		{"resource": "tool:web.search", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:web.fetch", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:artifact.review", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:flow.task.add", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:mattermost.channel.posts.list", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:mattermost.channel.post", "actions": []string{"execute"}, "circles": []string{"staff"}},
@@ -282,6 +283,8 @@ func defaultResourceAccessPolicies() []map[string]any {
 		{"resource": "tool:site.app.create", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:site.app.publish", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:site.app.status", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:site.app.history", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:site.app.diff", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:site.app.logs", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:site.app.restore", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:site.app.rollback", "actions": []string{"execute"}, "circles": []string{"staff"}},

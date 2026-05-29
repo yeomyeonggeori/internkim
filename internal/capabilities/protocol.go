@@ -128,11 +128,19 @@ func SiteAppDescriptors() []Descriptor {
 		{Name: "site.app.create", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppCreateInputSchema(), PolicyResource: "tool:site.app.create", SideEffectClass: "workspace_write"},
 		{Name: "site.app.publish", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppPublishInputSchema(), PolicyResource: "tool:site.app.publish", SideEffectClass: "site_publish"},
 		{Name: "site.app.status", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLookupInputSchema(), PolicyResource: "tool:site.app.status", SideEffectClass: "read"},
+		{Name: "site.app.history", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLookupInputSchema(), PolicyResource: "tool:site.app.history", SideEffectClass: "read"},
+		{Name: "site.app.diff", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppDiffInputSchema(), PolicyResource: "tool:site.app.diff", SideEffectClass: "read"},
 		{Name: "site.app.logs", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLookupInputSchema(), PolicyResource: "tool:site.app.logs", SideEffectClass: "read"},
 		{Name: "site.app.rollback", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLifecycleInputSchema(), PolicyResource: "tool:site.app.rollback", SideEffectClass: "external_publish", RequiresApproval: true},
 		{Name: "site.app.unpublish", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLifecycleInputSchema(), PolicyResource: "tool:site.app.unpublish", SideEffectClass: "external_publish", RequiresApproval: true},
 		{Name: "site.app.restore", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLifecycleInputSchema(), PolicyResource: "tool:site.app.restore", SideEffectClass: "workspace_write"},
 		{Name: "site.app.delete", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppDeleteInputSchema(), PolicyResource: "tool:site.app.delete", SideEffectClass: "destructive", RequiresApproval: true},
+	}
+}
+
+func ArtifactDescriptors() []Descriptor {
+	return []Descriptor{
+		{Name: "artifact.review", Version: "1", PrivacyClass: "workspace_document", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: artifactReviewInputSchema(), PolicyResource: "tool:artifact.review", SideEffectClass: "read"},
 	}
 }
 
@@ -338,14 +346,28 @@ func siteAppLookupInputSchema() json.RawMessage {
 	).RawMessage()
 }
 
+func siteAppDiffInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Field("siteID", jsonschema.String()),
+		jsonschema.Field("slug", jsonschema.String()),
+		jsonschema.Field("fromRevision", jsonschema.String()),
+		jsonschema.Field("toRevision", jsonschema.String()),
+	).RawMessage()
+}
+
 func siteAppLifecycleInputSchema() json.RawMessage {
 	return jsonschema.Object(
 		jsonschema.Field("siteID", jsonschema.String()),
 		jsonschema.Field("slug", jsonschema.String()),
 		jsonschema.Field("reason", jsonschema.String()),
+		jsonschema.Field("revision", jsonschema.String()),
 		jsonschema.Field("confirm", jsonschema.String()),
 		jsonschema.Field("userConfirmed", jsonschema.Boolean()),
 	).RawMessage()
+}
+
+func artifactReviewInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"artifactKind":{"type":"string","enum":["site","slides","pptx","docx","pdf"]},"intent":{"type":"string"},"rubric":{"type":"string"},"evidence":{"type":"array","items":{"type":"object","properties":{"role":{"type":"string"},"path":{"type":"string"},"mimeType":{"type":"string","enum":["image/png","image/jpeg"]},"label":{"type":"string"}},"required":["role","path","mimeType","label"],"additionalProperties":false}},"expectedText":{"type":"array","items":{"type":"object","properties":{"target":{"type":"string"},"text":{"type":"string"}},"required":["target","text"],"additionalProperties":false}},"previousIssues":{"type":"array","items":{"type":"object","properties":{"severity":{"type":"string"},"category":{"type":"string"},"target":{"type":"string"},"message":{"type":"string"},"suggestedFix":{"type":"string"}},"required":["severity","category","target","message","suggestedFix"],"additionalProperties":false}}},"required":["artifactKind","intent","rubric","evidence"],"additionalProperties":false}`)
 }
 
 func siteAppDeleteInputSchema() json.RawMessage {
@@ -437,6 +459,7 @@ func DefaultToolDescriptors() []Descriptor {
 	descriptors = append(descriptors, CalendarDescriptors()...)
 	descriptors = append(descriptors, MailDescriptors()...)
 	descriptors = append(descriptors, SiteAppDescriptors()...)
+	descriptors = append(descriptors, ArtifactDescriptors()...)
 	return descriptors
 }
 

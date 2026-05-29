@@ -189,6 +189,60 @@ func TestSiteDefaultDesignMDUsesStitchFormat(t *testing.T) {
 	}
 }
 
+func TestSiteRevisionEntriesMarkPublishedVersions(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site := &SiteRecord{
+		SiteID:            "site-1",
+		Slug:              "demo",
+		CurrentVersionID:  "20260529T010203-abcdef123456",
+		PreviousVersionID: "20260528T010203-111111111111",
+	}
+	if errorValue := os.MkdirAll(service.siteVersionPath(site.SiteID, site.CurrentVersionID), 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	output := "abcdef1234567890\x1f1770000000\x1fImprove layout\n2222222222229999\x1f1760000000\x1fDraft only"
+	entries := service.siteRevisionEntries(site, output)
+	if len(entries) != 2 {
+		t.Fatalf("revision entries = %+v", entries)
+	}
+	if !entries[0].IsCurrent || !entries[0].IsPublishedBuild || entries[0].VersionID != site.CurrentVersionID {
+		t.Fatalf("current revision metadata = %+v", entries[0])
+	}
+	if entries[1].IsPublishedBuild {
+		t.Fatalf("draft-only commit should not be marked published: %+v", entries[1])
+	}
+}
+
+func TestSiteRollbackCanTargetPublishedRevision(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "rollback-revision", RequestedBy: "owner@example.com"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	currentVersionID := "20260529T010203-abcdef123456"
+	targetVersionID := "20260528T010203-111111111111"
+	site.Status = SiteStatusPublished
+	site.CurrentVersionID = currentVersionID
+	if errorValue := service.storeSite(site); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, versionID := range []string{currentVersionID, targetVersionID} {
+		if errorValue := os.MkdirAll(service.siteVersionPath(site.SiteID, versionID), 0o700); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+	rolledBackSite, errorValue := service.rollbackSite(context.Background(), site.SiteID, siteLifecycleRequest{
+		RequestedBy: "owner@example.com",
+		Revision:    "1111111111119999",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if rolledBackSite.CurrentVersionID != targetVersionID || rolledBackSite.PreviousVersionID != currentVersionID {
+		t.Fatalf("rollback version metadata = %+v", rolledBackSite)
+	}
+}
+
 func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
 	packageJSON := sitePackageJSON(&SiteRecord{Slug: "react-demo"})
 	for _, expectedText := range []string{`"react"`, `"vite"`, `"@google/design.md"`, `"@vitejs/plugin-react"`, `"bun scripts/build.ts"`} {
@@ -486,6 +540,7 @@ func writeTestWorkspaceBuild(t *testing.T, site *SiteRecord, body string) {
 	writeFile(t, filepath.Join(site.HostSourcePath, "app", "src", "App.tsx"), "export default function App() { return <main>ok</main> }\n")
 	writeFile(t, filepath.Join(site.HostSourcePath, "app", "dist", "index.html"), "<!doctype html><html><body>"+body+"</body></html>")
 	writeFile(t, filepath.Join(site.HostSourcePath, "app", "dist", "assets", "app.js"), "console.log('ok')")
+	writeTestBuildQuality(t, site.HostSourcePath)
 }
 
 func writeTestSourceBuild(t *testing.T, workspacePath string, body string) {
@@ -500,6 +555,15 @@ func writeTestSourceBuild(t *testing.T, workspacePath string, body string) {
 	writeFile(t, filepath.Join(workspacePath, "app", "src", "App.tsx"), "export default function App() { return <main>ok</main> }\n")
 	writeFile(t, filepath.Join(workspacePath, "app", "dist", "index.html"), "<!doctype html><html><body>"+body+"</body></html>")
 	writeFile(t, filepath.Join(workspacePath, "app", "dist", "assets", "app.js"), "console.log('ok')")
+	writeTestBuildQuality(t, workspacePath)
+}
+
+func writeTestBuildQuality(t *testing.T, workspacePath string) {
+	t.Helper()
+	if errorValue := os.MkdirAll(filepath.Join(workspacePath, ".internkim"), 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeFile(t, filepath.Join(workspacePath, ".internkim", "build-quality.json"), `{"blockingIssueCount":0}`)
 }
 
 func testSourceBundleBase64(t *testing.T, sourceWorkspacePath string) string {
