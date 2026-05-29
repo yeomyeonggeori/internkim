@@ -19,7 +19,7 @@ func TestBlueclawRuntimeContractCheckCatchesStaleAgentConfiguration(t *testing.T
 		"terminal.session",
 		"browser_handoff.openURL",
 		"ask.confirm",
-		"web.fetch",
+		"runtime-profile-missing-capability-tools",
 		"tool.describe",
 		"runtime-config-mirror-drift",
 		"runtime-outbound-network-disabled",

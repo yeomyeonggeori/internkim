@@ -1723,6 +1723,71 @@ func TestBotProfileUpdatePatchesMattermostAndWorkspaceProfile(t *testing.T) {
 	}
 }
 
+func TestBotProfileUpdateUploadsMattermostProfileImage(t *testing.T) {
+	workspacePath := t.TempDir()
+	profilePath := filepath.Join(t.TempDir(), "bot-profile.yaml")
+	profileImagePath := writeTestFile(t, "profile-image")
+	uploadedImage := false
+	service := NewService(Configuration{
+		MattermostBaseURL:           "http://mattermost.local",
+		MattermostAdminPasswordPath: writeTestFile(t, "admin-password"),
+		BotProfilePath:              profilePath,
+		BotProfileImagePath:         profileImagePath,
+		BlueclawWorkspacePath:       workspacePath,
+		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
+	})
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
+			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/username/internkim":
+			return jsonResponse(http.StatusOK, `{"id":"bot-1","email":"internkim@localhost","username":"internkim","first_name":"Intern","last_name":"Kim","nickname":"김인턴","roles":"system_user"}`, nil), nil
+		case request.Method == http.MethodPut && request.URL.String() == "http://mattermost.local/api/v4/users/bot-1/patch":
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.Method == http.MethodPost && request.URL.String() == "http://mattermost.local/api/v4/users/bot-1/image":
+			assertMattermostBearerToken(t, request, "admin-token")
+			if !strings.Contains(request.Header.Get("Content-Type"), "multipart/form-data") {
+				t.Fatalf("profile image content type = %q", request.Header.Get("Content-Type"))
+			}
+			file, fileHeader, errorValue := request.FormFile("image")
+			if errorValue != nil {
+				t.Fatalf("expected multipart image: %v", errorValue)
+			}
+			defer file.Close()
+			document, errorValue := io.ReadAll(file)
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if fileHeader.Filename != filepath.Base(profileImagePath) || string(document) != "profile-image" {
+				t.Fatalf("unexpected profile image upload: %s %q", fileHeader.Filename, string(document))
+			}
+			uploadedImage = true
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	request := httptest.NewRequest(http.MethodPut, "/admin/api/bot-profile", strings.NewReader(`{
+		"displayName":"김인턴",
+		"englishDisplayName":"Intern Kim",
+		"aliases":["인턴킴"],
+		"publicDescription":"",
+		"identityExtension":"Always use the display name."
+	}`))
+	request.RemoteAddr = "127.0.0.1:12345"
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("bot profile status = %d: %s", response.Code, response.Body.String())
+	}
+	if !uploadedImage {
+		t.Fatal("expected profile image upload")
+	}
+}
+
 func TestBotProfileMigratesLegacyJSONStateToYAML(t *testing.T) {
 	stateDirectory := t.TempDir()
 	profilePath := filepath.Join(stateDirectory, "bot-profile.yaml")

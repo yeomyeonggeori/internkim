@@ -317,6 +317,11 @@ if [ -d "$STAGE/admin-ui" ]; then
   cp -af "$STAGE/admin-ui/." /opt/internkim/admin-ui/
   chmod -R a+rX /opt/internkim/admin-ui
 fi
+if [ -f "$STAGE/assets/internkim.png" ]; then
+  mkdir -p /opt/internkim/assets
+  cp -f "$STAGE/assets/internkim.png" /opt/internkim/assets/internkim.png
+  chmod 644 /opt/internkim/assets/internkim.png
+fi
 if [ -f "$STAGE/SOUL.md" ] && { [ ! -f /root/.blueclaw/workspace/SOUL.md ] || grep -q '^# IDENTITY.md' /root/.blueclaw/workspace/SOUL.md 2>/dev/null; }; then
   cp -f "$STAGE/SOUL.md" /root/.blueclaw/workspace/SOUL.md
 fi
@@ -751,6 +756,11 @@ SVCEOF
       -H "Authorization: Bearer $ADMIN_TOKEN" \
       -H 'Content-Type: application/json' \
       -d '{"first_name":"Intern","last_name":"Kim","nickname":"김인턴","position":""}' >/dev/null 2>&1 || true
+    if [ -f /opt/internkim/assets/internkim.png ]; then
+      curl -sf -X POST "$MM_URL/api/v4/users/$BOT_USER_ID/image" \
+        -H "Authorization: Bearer $ADMIN_TOKEN" \
+        -F "image=@/opt/internkim/assets/internkim.png;type=image/png" >/dev/null 2>&1 || true
+    fi
   fi
 
   BOT_TOKEN=""
