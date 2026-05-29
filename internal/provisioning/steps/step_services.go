@@ -345,7 +345,13 @@ for profile in runtime_configuration.get("agentProfiles", []):
         profile_tool_names = [str(tool_name) for tool_name in profile.get("allowedToolNames", [])]
         break
 
-mandatory_profile_tools = {"conversation.history", "memory.search", "terminal.run", "terminal.session", "browser_handoff.openURL", "ask.confirm", "ask.choice", "ask.input", "math.calculate", "web.search", "web.fetch", "file.read", "file.write", "file.promote", "file.attach", "skill.add", "skill.remove", "skill.search", "tool.describe", "schedule.create", "schedule.cancel", "mattermost.channel.posts.list", "mattermost.channel.post", "mattermost.post.update", "mattermost.post.delete", "mattermost.channel.update"}
+capability_tool_names = {str(tool_name) for tool_name in capabilities.get("toolNames", [])}
+missing_capability_profile_tools = sorted(capability_tool_names - set(profile_tool_names))
+if missing_capability_profile_tools:
+    print("runtime-profile-missing-capability-tools:" + ",".join(missing_capability_profile_tools))
+    raise SystemExit
+
+mandatory_profile_tools = {"conversation.history", "memory.search", "terminal.run", "terminal.session", "browser_handoff.openURL", "ask.confirm", "ask.choice", "ask.input", "math.calculate", "file.write", "file.promote", "file.attach", "skill.add", "skill.remove", "skill.search", "tool.describe", "schedule.create", "schedule.cancel"}
 missing_tools = sorted(mandatory_profile_tools - set(profile_tool_names))
 if missing_tools:
     print("runtime-profile-missing-tools:" + ",".join(missing_tools))

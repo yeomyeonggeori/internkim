@@ -2,9 +2,12 @@ package blueclaw
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"gitlab.com/eastriver/internkim/internal/capabilities"
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
@@ -23,28 +26,28 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if languageModel["defaultProvider"] != "capabilityLLM" {
 		t.Fatalf("expected capability default provider, got %q", languageModel["defaultProvider"])
 	}
-	capabilities := runtimeConfiguration["capabilities"].(map[string]any)
-	if capabilities["transport"] != "vsock" {
-		t.Fatalf("expected capability vsock transport, got %q", capabilities["transport"])
+	capabilityConfiguration := runtimeConfiguration["capabilities"].(map[string]any)
+	if capabilityConfiguration["transport"] != "vsock" {
+		t.Fatalf("expected capability vsock transport, got %q", capabilityConfiguration["transport"])
 	}
-	if capabilities["timeoutSecond"] != float64(BlueclawCapabilityTimeoutSecond) {
-		t.Fatalf("expected capability timeout %d, got %v", BlueclawCapabilityTimeoutSecond, capabilities["timeoutSecond"])
+	if capabilityConfiguration["timeoutSecond"] != float64(BlueclawCapabilityTimeoutSecond) {
+		t.Fatalf("expected capability timeout %d, got %v", BlueclawCapabilityTimeoutSecond, capabilityConfiguration["timeoutSecond"])
 	}
-	if capabilities["unixSocketPath"] != "" {
-		t.Fatalf("expected capability unix socket path to be omitted for guest runtime, got %q", capabilities["unixSocketPath"])
+	if capabilityConfiguration["unixSocketPath"] != "" {
+		t.Fatalf("expected capability unix socket path to be omitted for guest runtime, got %q", capabilityConfiguration["unixSocketPath"])
 	}
-	capabilityToolNames := capabilities["toolNames"].([]any)
+	capabilityToolNames := capabilityConfiguration["toolNames"].([]any)
 	if !containsStringValue(capabilityToolNames, "user.confirm") {
 		t.Fatalf("expected companion capability tools, got %+v", capabilityToolNames)
 	}
-	capabilityToolDescriptors := capabilities["toolDescriptors"].([]any)
+	capabilityToolDescriptors := capabilityConfiguration["toolDescriptors"].([]any)
 	if !containsDescriptor(capabilityToolDescriptors, "browser.open", "inputSchema") {
 		t.Fatalf("expected browser.open descriptor with input schema, got %+v", capabilityToolDescriptors)
 	}
 	if !containsDescriptor(capabilityToolDescriptors, "user.confirm", "requiresApproval") {
 		t.Fatalf("expected user.confirm descriptor to require approval, got %+v", capabilityToolDescriptors)
 	}
-	routing := capabilities["routing"].(map[string]any)
+	routing := capabilityConfiguration["routing"].(map[string]any)
 	if routing["localOnly"] != false {
 		t.Fatalf("expected default routing to allow remote fallback, got %v", routing["localOnly"])
 	}
@@ -126,24 +129,26 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	agentProfiles := runtimeConfiguration["agentProfiles"].([]any)
 	defaultProfile := agentProfiles[0].(map[string]any)
 	allowedToolNames := defaultProfile["allowedToolNames"].([]any)
-	for _, expectedToolName := range []string{"conversation.history", "memory.search", "memory.remember", "math.calculate", "web.search", "web.fetch", "terminal.run", "terminal.session", "browser_handoff.openURL", "ask.confirm", "ask.choice", "ask.input", "file.read", "file.write", "file.promote", "file.attach", "skill.add", "skill.remove", "skill.search", "tool.describe", "schedule.create", "schedule.cancel", "mattermost.channel.posts.list", "mattermost.channel.post", "mattermost.post.update", "mattermost.post.delete", "mattermost.channel.update"} {
+	for _, expectedToolName := range blueclawNativeToolNames {
 		if !containsStringValue(allowedToolNames, expectedToolName) {
 			t.Fatalf("expected default agent profile to allow internal tool %q, got %+v", expectedToolName, allowedToolNames)
 		}
 	}
-	if !containsStringValue(allowedToolNames, "conversation.history") || !containsStringValue(allowedToolNames, "memory.search") || !containsStringValue(allowedToolNames, "memory.remember") {
-		t.Fatalf("expected default agent profile to allow internal tools, got %+v", allowedToolNames)
-	}
-	for _, disabledToolName := range []string{"site.app.create", "site.app.publish", "platform.dm.send", "calendar.event.add", "mail.message.search", "flow.task.add", "google.docs.create", "google.sheets.create", "google.gmail.send", "google.calendar.event", "google.calendar.list", "google.drive.import_pptx"} {
-		if containsStringValue(allowedToolNames, disabledToolName) {
-			t.Fatalf("expected default profile to omit domain tool %q, got %+v", disabledToolName, allowedToolNames)
+	for _, expectedToolName := range capabilities.DefaultToolNames() {
+		if !containsStringValue(allowedToolNames, expectedToolName) {
+			t.Fatalf("expected default agent profile to allow default capability tool %q, got %+v", expectedToolName, allowedToolNames)
 		}
 	}
-	capabilitiesConfiguration := runtimeConfiguration["capabilities"].(map[string]any)
-	capabilityToolNames = capabilitiesConfiguration["toolNames"].([]any)
-	for _, expectedToolName := range []string{"mattermost.channel.posts.list", "mattermost.channel.post", "mattermost.post.update", "mattermost.post.delete", "mattermost.channel.update"} {
+	for _, disabledToolName := range []string{"google.docs.create", "google.sheets.create", "google.gmail.send", "google.calendar.event", "google.calendar.list", "google.drive.import_pptx"} {
+		if containsStringValue(allowedToolNames, disabledToolName) {
+			t.Fatalf("expected default profile to omit disabled Google Workspace tool %q, got %+v", disabledToolName, allowedToolNames)
+		}
+	}
+	capabilityConfiguration = runtimeConfiguration["capabilities"].(map[string]any)
+	capabilityToolNames = capabilityConfiguration["toolNames"].([]any)
+	for _, expectedToolName := range capabilities.DefaultToolNames() {
 		if !containsStringValue(capabilityToolNames, expectedToolName) {
-			t.Fatalf("expected capability tool list to include Mattermost tool %q, got %+v", expectedToolName, capabilityToolNames)
+			t.Fatalf("expected capability tool list to include default tool %q, got %+v", expectedToolName, capabilityToolNames)
 		}
 	}
 	for _, disabledToolName := range []string{"google.docs.create", "google.sheets.create", "google.gmail.send", "google.calendar.event", "google.calendar.list", "google.drive.import_pptx"} {
@@ -196,6 +201,33 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	for _, fragment := range []string{"maxWallClockSecond", "maxIterationsPerRequest", "maxToolCallsPerRequest"} {
 		if strings.Contains(document, fragment) {
 			t.Fatalf("expected runtime config to omit raw limit field %q", fragment)
+		}
+	}
+}
+
+func TestBlueclawRuntimeAllowsBuiltinSkillTools(t *testing.T) {
+	allowedToolNames := stringSet(BlueclawDefaultAllowedToolNames())
+	disabledSkillToolNames := stringSet([]string{
+		"google.docs.create",
+		"google.sheets.create",
+		"google.gmail.send",
+	})
+	skillPaths, errorValue := filepath.Glob(filepath.Join("..", "..", "..", "assets", "blueclaw-workspace", "skills", "*", "SKILL.md"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(skillPaths) == 0 {
+		t.Fatal("expected built-in skills to be present")
+	}
+
+	for _, skillPath := range skillPaths {
+		for _, toolName := range parseSkillAllowedToolNames(t, skillPath) {
+			if disabledSkillToolNames[toolName] {
+				continue
+			}
+			if !allowedToolNames[toolName] {
+				t.Fatalf("expected built-in skill tool %q from %s to be allowed by the default runtime profile", toolName, skillPath)
+			}
 		}
 	}
 }
@@ -300,6 +332,42 @@ func containsStringValue(values []any, expectedValue string) bool {
 		}
 	}
 	return false
+}
+
+func stringSet(values []string) map[string]bool {
+	set := map[string]bool{}
+	for _, value := range values {
+		set[value] = true
+	}
+	return set
+}
+
+func parseSkillAllowedToolNames(t *testing.T, skillPath string) []string {
+	t.Helper()
+	document, errorValue := os.ReadFile(skillPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	allowedToolNames := []string{}
+	isReadingAllowedTools := false
+	for _, line := range strings.Split(string(document), "\n") {
+		trimmedLine := strings.TrimSpace(line)
+		if trimmedLine == "allowed-tools:" {
+			isReadingAllowedTools = true
+			continue
+		}
+		if !isReadingAllowedTools {
+			continue
+		}
+		if trimmedLine == "" {
+			continue
+		}
+		if !strings.HasPrefix(trimmedLine, "- ") {
+			break
+		}
+		allowedToolNames = append(allowedToolNames, strings.TrimSpace(strings.TrimPrefix(trimmedLine, "- ")))
+	}
+	return allowedToolNames
 }
 
 func containsDescriptor(values []any, expectedName string, expectedField string) bool {
