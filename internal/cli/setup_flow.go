@@ -697,6 +697,8 @@ func (state *setupFlowState) deployAdminWeb(context *setup.Context) error {
 
 const (
 	remoteAdminUIDirectoryPath    = "/opt/internkim/admin-ui"
+	remoteInternKimAssetsPath     = "/opt/internkim/assets"
+	remoteBotProfileImagePath     = remoteInternKimAssetsPath + "/internkim.png"
 	temporaryAdminUIDirectoryPath = "/tmp/internkim-admin-ui"
 	temporaryAdminUIArchivePath   = "/tmp/internkim-admin-ui.tar"
 )
@@ -910,11 +912,27 @@ rm -f /usr/local/bin/gws-* /etc/sudoers.d/blueclaw-gws /etc/sudoers.d/blueclaw-m
 }
 
 func (state *setupFlowState) installAdmindSSH(context *setup.Context) error {
+	if errorValue := state.deployBotProfileImageSSH(); errorValue != nil {
+		return errorValue
+	}
 	return state.installGoServiceBinarySSH(localBinaryAsset{
 		name:       blueclaw.AdmindName,
 		localPath:  filepath.Join(state.boardBinDir, blueclaw.AdmindName),
 		remotePath: blueclaw.AdmindBinaryPath,
 	}, blueclaw.AdmindServiceName)
+}
+
+func (state *setupFlowState) deployBotProfileImageSSH() error {
+	sourcePath := filepath.Join(state.scriptDir, "assets", "internkim.png")
+	if _, errorValue := os.Stat(sourcePath); errorValue != nil {
+		return fmt.Errorf("bot profile image missing: %w", errorValue)
+	}
+	state.sshClient.run("mkdir -p " + quoteShellValue(remoteInternKimAssetsPath))
+	if errorValue := state.sshClient.scp(sourcePath, remoteBotProfileImagePath); errorValue != nil {
+		return errorValue
+	}
+	state.sshClient.run("chmod 644 " + quoteShellValue(remoteBotProfileImagePath))
+	return nil
 }
 
 func (state *setupFlowState) installCapabilitydSSH(context *setup.Context) error {
@@ -2281,6 +2299,13 @@ func (state *setupFlowState) stageBootstrapSD(context *setup.Context) error {
 		return err
 	}
 	if err := context.SD.WriteFile("BOT_PROFILE.yaml", []byte(workspaceDocuments.BotProfile), 0o644); err != nil {
+		return err
+	}
+	botProfileImageDocument, err := os.ReadFile(filepath.Join(state.scriptDir, "assets", "internkim.png"))
+	if err != nil {
+		return err
+	}
+	if err := context.SD.WriteFile("assets/internkim.png", botProfileImageDocument, 0o644); err != nil {
 		return err
 	}
 	agentBrowserSkillMarkdown, err := loadAgentBrowserSkillMarkdown(state.scriptDir)
