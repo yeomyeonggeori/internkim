@@ -28,6 +28,32 @@ var defaultCircleDefinitions = []defaultCircleDefinition{
 	{CircleID: "hr-compensation", DisplayName: "HR Compensation", MattermostChannelName: "circle-hr-compensation"},
 }
 
+var blueclawNativeToolNames = []string{
+	"conversation.history",
+	"memory.search",
+	"memory.remember",
+	"math.calculate",
+	"terminal.run",
+	"terminal.session",
+	"browser_handoff.openURL",
+	"ask.confirm",
+	"ask.choice",
+	"ask.input",
+	"file.write",
+	"file.promote",
+	"file.attach",
+	"skill.add",
+	"skill.remove",
+	"skill.search",
+	"tool.describe",
+	"schedule.create",
+	"schedule.cancel",
+}
+
+func BlueclawDefaultAllowedToolNames() []string {
+	return uniqueStringList(append(blueclawNativeToolNames, capabilities.DefaultToolNames()...))
+}
+
 func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 	capabilityLanguageModel := map[string]any{
 		"executionMode":         "auto",
@@ -141,7 +167,7 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 		"agentProfiles": []map[string]any{
 			{
 				"name":             "default",
-				"allowedToolNames": []string{"conversation.history", "memory.search", "memory.remember", "math.calculate", "web.search", "web.fetch", "terminal.run", "terminal.session", "browser_handoff.openURL", "ask.confirm", "ask.choice", "ask.input", "file.read", "file.write", "file.promote", "file.attach", "artifact.review", "skill.add", "skill.remove", "skill.search", "tool.describe", "schedule.create", "schedule.cancel", "mattermost.channel.posts.list", "mattermost.channel.post", "mattermost.post.update", "mattermost.post.delete", "mattermost.channel.update"},
+				"allowedToolNames": BlueclawDefaultAllowedToolNames(),
 			},
 		},
 		"mcpServers": []map[string]any{},
@@ -179,6 +205,20 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 	}
 
 	return string(documentBytes) + "\n", nil
+}
+
+func uniqueStringList(values []string) []string {
+	seenValues := map[string]bool{}
+	uniqueValues := []string{}
+	for _, value := range values {
+		trimmedValue := strings.TrimSpace(value)
+		if trimmedValue == "" || seenValues[trimmedValue] {
+			continue
+		}
+		seenValues[trimmedValue] = true
+		uniqueValues = append(uniqueValues, trimmedValue)
+	}
+	return uniqueValues
 }
 
 func BlueclawPolicyDocument(adminEmail string) (string, error) {
