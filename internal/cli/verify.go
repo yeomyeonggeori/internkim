@@ -124,7 +124,7 @@ func runVerifyMattermost(arguments []string) error {
 		return runMattermostBrowserOpenE2E(verifyTarget, promptText, *keep, *keepBrowser, *timeoutSeconds, *companionPath, *agentBrowserPath)
 	}
 	if strings.TrimSpace(*prompt) != "" {
-		return verifyTarget.runRemoteVerification(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, *expectBrowserOpen, expectedTools.Values(), expectedEvents.Values()))
+		return verifyTarget.runRemoteVerificationWithTimeout(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, *expectBrowserOpen, expectedTools.Values(), expectedEvents.Values()), mattermostPromptSSHTimeout(*timeoutSeconds))
 	}
 	if *expectBrowserOpen || len(expectedTools.Values()) > 0 || len(expectedEvents.Values()) > 0 {
 		return fmt.Errorf("--expect-browser-open, --expect-tool, and --expect-event require --prompt")
@@ -461,7 +461,7 @@ func resolveVerifyTarget(arguments []string) (verifyTarget, error) {
 	configuration := loadConfig()
 	sshClient := (*sshClient)(nil)
 	if strings.TrimSpace(target.host) != "" {
-		sshClient = newSSH(sshpassBin, target.sshUser, target.sshPassword, target.host)
+		sshClient = newVerifySSHClient(sshpassBin, target)
 	} else {
 		connection, isRemote, connectionError := resolveDeviceSSHConnection(configuration, sshpassBin, target)
 		if connectionError != nil || connection == nil {
@@ -485,8 +485,19 @@ func resolveVerifyTarget(arguments []string) (verifyTarget, error) {
 	}, nil
 }
 
+func newVerifySSHClient(sshpassBin string, target commandTarget) *sshClient {
+	if target.useRemoteSSH {
+		return newCloudflareSSH(sshpassBin, target.sshUser, target.sshPassword, target.host)
+	}
+	return newSSH(sshpassBin, target.sshUser, target.sshPassword, target.host)
+}
+
 func (target verifyTarget) runRemoteVerification(script string) error {
-	output, errorValue := target.sshClient.runResult(script)
+	return target.runRemoteVerificationWithTimeout(script, 60*time.Second)
+}
+
+func (target verifyTarget) runRemoteVerificationWithTimeout(script string, timeout time.Duration) error {
+	output, errorValue := target.sshClient.runResultWithTimeout(script, timeout)
 	if strings.TrimSpace(output) != "" {
 		fmt.Print(output)
 		if !strings.HasSuffix(output, "\n") {
@@ -497,6 +508,13 @@ func (target verifyTarget) runRemoteVerification(script string) error {
 		return fmt.Errorf("remote verification failed: %w", errorValue)
 	}
 	return nil
+}
+
+func mattermostPromptSSHTimeout(timeoutSeconds int) time.Duration {
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = 240
+	}
+	return time.Duration(timeoutSeconds+180) * time.Second
 }
 
 func runLocalBrowserVerification(target verifyTarget) error {
@@ -1366,6 +1384,18 @@ printf '{}' > "$task_detail_file"
 if [ -n "$task_run_id" ]; then
   blueclaw_request "probe task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id" > "$task_detail_file"
 fi
+expected_tool_count="$(printf '%%s' "$expected_tools_json" | jq 'length')"
+expected_event_count="$(printf '%%s' "$expected_events_json" | jq 'length')"
+if [ -n "$task_run_id" ] && { [ "$expect_browser_open" = "true" ] || [ "$expected_tool_count" != "0" ] || [ "$expected_event_count" != "0" ]; }; then
+  for _ in $(seq 1 "$timeout_seconds"); do
+    blueclaw_request "probe task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id" > "$task_detail_file"
+    task_status="$(jq -r 'def detail: if type == "array" then .[0] else . end; detail.taskRun.status // empty' "$task_detail_file")"
+    if [ "$task_status" = "completed" ] || [ "$task_status" = "blocked" ] || [ "$task_status" = "failed" ] || [ "$task_status" = "cancelled" ]; then
+      break
+    fi
+    sleep 1
+  done
+fi
 browser_open_verified=false
 if [ "$expect_browser_open" = "true" ]; then
   if [ -z "$task_run_id" ]; then
@@ -1405,8 +1435,6 @@ for expected_event in $(printf '%%s' "$expected_events_json" | jq -r '.[]'); do
   fi
 done
 
-expected_tool_count="$(printf '%%s' "$expected_tools_json" | jq 'length')"
-expected_event_count="$(printf '%%s' "$expected_events_json" | jq 'length')"
 if [ -n "$task_run_id" ] && { [ "$expect_browser_open" = "true" ] || [ "$expected_tool_count" != "0" ] || [ "$expected_event_count" != "0" ]; }; then
   task_status="$(jq -r 'def detail: if type == "array" then .[0] else . end; detail.taskRun.status // empty' "$task_detail_file")"
   if [ "$task_status" != "completed" ]; then

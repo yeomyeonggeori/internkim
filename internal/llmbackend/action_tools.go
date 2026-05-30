@@ -324,6 +324,7 @@ func nativeContinueDispatcherParameters(toolNames []string) (json.RawMessage, er
 			},
 			"toolInput": map[string]any{
 				"type":        "object",
+				"properties":  map[string]any{},
 				"description": "Input object for the selected tool. Use {} when the tool takes no input.",
 			},
 			"message":              map[string]any{"type": "string"},

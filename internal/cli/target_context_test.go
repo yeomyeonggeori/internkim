@@ -314,3 +314,25 @@ func TestResolveVerifyTargetAcceptsNodeArgument(t *testing.T) {
 		t.Fatalf("expected node-a, got %q", target.nodeID)
 	}
 }
+
+func TestResolveVerifyTargetUsesCloudflareSSHForExplicitHost(t *testing.T) {
+	homeDirectory := t.TempDir()
+	t.Setenv("HOME", homeDirectory)
+
+	target, errorValue := resolveVerifyTarget([]string{
+		"--cloudflare-ssh",
+		"--host", "ssh.example.test",
+		"--user", "internkim",
+		"--password", "blueclaw",
+	})
+	if errorValue != nil {
+		t.Fatalf("expected verify target: %v", errorValue)
+	}
+
+	if target.sshClient == nil {
+		t.Fatal("expected ssh client")
+	}
+	if target.sshClient.proxyCommand == "" {
+		t.Fatal("expected Cloudflare proxy command for explicit host")
+	}
+}
