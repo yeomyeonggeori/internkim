@@ -1043,6 +1043,53 @@ func TestMattermostReplyRequiresConnectorOutboxMetadata(t *testing.T) {
 	}
 }
 
+func TestMattermostReplyFallsBackWhenThreadRootIsInvalid(t *testing.T) {
+	postRequests := make(chan map[string]any, 2)
+	requestCount := 0
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Path != "/api/v4/posts" {
+			t.Fatalf("unexpected Mattermost request: %s", request.URL.Path)
+		}
+		var payload map[string]any
+		if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+			t.Fatalf("expected post request to decode: %v", errorValue)
+		}
+		postRequests <- payload
+		requestCount++
+		if requestCount == 1 {
+			return testJSONResponse(http.StatusBadRequest, map[string]any{
+				"id":      "api.post.create_post.root_id.app_error",
+				"message": "Invalid RootId parameter.",
+			}), nil
+		}
+		return testJSONResponse(http.StatusOK, map[string]string{"id": "post-2"}), nil
+	})}
+	replyTargetID, errorValue := encodePlatformHandle(platformHandle{Platform: "mattermost", ChannelID: "channel-1", RootID: "missing-root"})
+	if errorValue != nil {
+		t.Fatalf("expected reply target to encode: %v", errorValue)
+	}
+	tokenPath := t.TempDir() + "/mattermost-token"
+	if errorValue := os.WriteFile(tokenPath, []byte("test-token\n"), 0o600); errorValue != nil {
+		t.Fatalf("expected token file to be written: %v", errorValue)
+	}
+	configuration := DefaultConfiguration()
+	configuration.MattermostTokenPath = tokenPath
+	service := Service{Configuration: configuration, HTTPClient: httpClient}
+
+	_, errorValue = service.mattermostReply(context.Background(), json.RawMessage(`{"replyTargetID":"`+replyTargetID+`","message":"done","rawEventID":"raw-event-1","outboxID":"outbox-1"}`))
+	if errorValue != nil {
+		t.Fatalf("expected reply fallback to succeed: %v", errorValue)
+	}
+	firstPayload := <-postRequests
+	secondPayload := <-postRequests
+	if firstPayload["root_id"] != "missing-root" {
+		t.Fatalf("expected first post to target thread root, got %+v", firstPayload)
+	}
+	if _, exists := secondPayload["root_id"]; exists || secondPayload["channel_id"] != "channel-1" {
+		t.Fatalf("expected fallback post without root_id, got %+v", secondPayload)
+	}
+}
+
 func TestMattermostReplyRendersAskChoiceAttachment(t *testing.T) {
 	postRequests := make(chan map[string]any, 1)
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
