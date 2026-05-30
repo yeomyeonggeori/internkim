@@ -2211,8 +2211,8 @@ if (!existsSync("../DESIGN.md")) {
 }
 
 const qualityIssues = collectQualityIssues();
-writeBuildQuality(qualityIssues);
 if (qualityIssues.some((issue) => issue.severity === "blocking")) {
+	writeBuildQuality(qualityIssues);
 	throw new Error("site quality gate failed; see ../.internkim/build-quality.json");
 }
 
@@ -2222,6 +2222,7 @@ if (!existsSync("node_modules")) {
 
 await runCommand({ name: "bunx", arguments: ["@google/design.md", "lint", "../DESIGN.md"] });
 await runCommand({ name: "bunx", arguments: ["vite", "build"] });
+writeBuildQuality(qualityIssues);
 `
 }
 
