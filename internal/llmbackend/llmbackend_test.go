@@ -517,6 +517,39 @@ func TestNativeActionToolsDoNotCompactWhenControlActionsFitProviderBudget(t *tes
 	}
 }
 
+func TestNativeActionToolProjectionKeepsObjectSchemaAroundUnionRequirements(t *testing.T) {
+	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
+		Name: "blueclaw_agent_turn_action",
+		Document: testActionSchemaForDescriptors(t, []capabilities.Descriptor{{
+			Name:        "file.write",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"},"text":{"type":"string"}},"anyOf":[{"required":["path","content"]},{"required":["path","text"]}],"additionalProperties":false}`),
+		}}),
+	})
+	if errorValue != nil {
+		t.Fatalf("expected native tool set: %v", errorValue)
+	}
+	if !isActionSchema {
+		t.Fatal("expected action schema")
+	}
+	tool := toolSet.ToolByName[nativeActionFunctionName("continue", "file.write")]
+	var parameters map[string]any
+	if errorValue := json.Unmarshal(tool.Parameters, &parameters); errorValue != nil {
+		t.Fatalf("expected parameters json: %v", errorValue)
+	}
+	toolInputProperties, isFound := nativeToolInputProperties(parameters)
+	if !isFound {
+		t.Fatalf("expected object toolInput properties, got %s", tool.Parameters)
+	}
+	if _, isFound := toolInputProperties["path"]; !isFound {
+		t.Fatalf("expected path property to survive projection, got %+v", toolInputProperties)
+	}
+	required := nativeToolInputRequired(parameters)
+	if len(required) != 2 || required[0] != "path" || required[1] != "content" {
+		t.Fatalf("expected first union required fields to survive projection, got %+v in %s", required, tool.Parameters)
+	}
+	assertNativeSchemaIsProviderSafe(t, "file.write", tool.Parameters)
+}
+
 func TestOpenRouterBackendResolvesDefaultModel(t *testing.T) {
 	backend := OpenRouterBackend{ModelName: "google/default-remote"}
 	for _, modelName := range []string{"", "default", "DEFAULT", "local/anything"} {

@@ -413,6 +413,7 @@ func projectToolParametersArray(values []any, dialect ToolParameterProjectionDia
 }
 
 func projectToolParametersObject(document map[string]any, dialect ToolParameterProjectionDialect) any {
+	document = flattenObjectSchemaUnionRequirements(document)
 	if replacement, isFound := firstNativeToolSchemaUnionValue(document); isFound {
 		return projectToolParametersValue(replacement, dialect)
 	}
@@ -434,6 +435,47 @@ func projectToolParametersObject(document map[string]any, dialect ToolParameterP
 		projectedDocument[fieldName] = projectToolParametersValue(fieldValue, dialect)
 	}
 	return normalizeProjectedToolParameters(projectedDocument)
+}
+
+func flattenObjectSchemaUnionRequirements(document map[string]any) map[string]any {
+	if _, hasType := document["type"]; !hasType {
+		return document
+	}
+	if _, hasProperties := document["properties"]; !hasProperties {
+		return document
+	}
+	flattenedDocument := map[string]any{}
+	for key, value := range document {
+		if key == "oneOf" || key == "anyOf" || key == "allOf" {
+			continue
+		}
+		flattenedDocument[key] = value
+	}
+	if _, hasRequired := flattenedDocument["required"]; hasRequired {
+		return flattenedDocument
+	}
+	if unionRequired, isFound := firstUnionRequiredFields(document); isFound {
+		flattenedDocument["required"] = unionRequired
+	}
+	return flattenedDocument
+}
+
+func firstUnionRequiredFields(document map[string]any) ([]any, bool) {
+	for _, fieldName := range []string{"oneOf", "anyOf", "allOf"} {
+		values, isArray := document[fieldName].([]any)
+		if !isArray || len(values) == 0 {
+			continue
+		}
+		firstValue, isObject := values[0].(map[string]any)
+		if !isObject {
+			continue
+		}
+		required, isRequired := firstValue["required"].([]any)
+		if isRequired && len(required) > 0 {
+			return required, true
+		}
+	}
+	return nil, false
 }
 
 func projectOpenRouterNativeToolEnum(value any) ([]string, bool) {
