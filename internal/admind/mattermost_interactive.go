@@ -67,7 +67,7 @@ func (service *Service) mattermostInteractiveActionHandlers() map[string]matterm
 
 func (service *Service) handleAskInteractiveAction(responseWriter http.ResponseWriter, request *http.Request, payload mattermostInteractivePayload) {
 	go service.forwardMattermostAskActionInBackground(payload)
-	service.writeMattermostInteractiveSuccess(responseWriter)
+	service.writeMattermostAskInteractiveAccepted(responseWriter)
 }
 
 func (service *Service) forwardMattermostAskActionInBackground(payload mattermostInteractivePayload) {
@@ -123,6 +123,10 @@ func (service *Service) mattermostInteractiveButtonWithContext(actionID string, 
 
 func (service *Service) writeMattermostInteractiveSuccess(responseWriter http.ResponseWriter) {
 	service.writeJSON(responseWriter, mattermostInteractiveResponse{})
+}
+
+func (service *Service) writeMattermostAskInteractiveAccepted(responseWriter http.ResponseWriter) {
+	service.writeJSON(responseWriter, mattermostInteractiveResponse{Update: mattermostinteractive.ClearAttachmentsUpdate()})
 }
 
 func (service *Service) writeMattermostInteractiveError(responseWriter http.ResponseWriter, message string) {
