@@ -255,6 +255,11 @@ func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
 			t.Fatalf("site build script must contain %q", expectedText)
 		}
 	}
+	viteIndex := strings.Index(siteBuildTS(), `await runCommand({ name: "bunx", arguments: ["vite", "build"] });`)
+	qualityIndex := strings.LastIndex(siteBuildTS(), "writeBuildQuality(qualityIssues);")
+	if viteIndex < 0 || qualityIndex < viteIndex {
+		t.Fatalf("site build script must write build-quality.json after vite build")
+	}
 }
 
 func TestSitePublishMaterializesEditableSourceBundle(t *testing.T) {
