@@ -9,15 +9,6 @@ import (
 
 var nativeFunctionNamePattern = regexp.MustCompile(`[^A-Za-z0-9_-]+`)
 
-var openRouterNativeToolSchemaKeywordByName = map[string]bool{
-	"description": true,
-	"enum":        true,
-	"items":       true,
-	"properties":  true,
-	"required":    true,
-	"type":        true,
-}
-
 const openRouterNativeToolMaxFunctionCount = 20
 
 type nativeActionToolSet struct {
@@ -34,10 +25,6 @@ type nativeActionTool struct {
 	ToolNames    []string
 	IsDispatcher bool
 }
-
-type ToolParameterProjectionDialect string
-
-const ToolParameterProjectionOpenRouterNativeTool ToolParameterProjectionDialect = "openrouter_native_tool"
 
 type actionSchemaDocument struct {
 	OneOf []actionSchemaVariant `json:"oneOf"`
@@ -75,12 +62,16 @@ func nativeActionToolsForSchema(schema StructuredOutputSchema) (nativeActionTool
 		return nativeActionToolSet{}, true, errors.New("agent action schema did not include callable variants")
 	}
 	if len(toolSet.Tools) > openRouterNativeToolMaxFunctionCount {
-		toolSet = compactNativeActionToolSet(toolSet)
+		compactToolSet, errorValue := compactNativeActionToolSet(toolSet)
+		if errorValue != nil {
+			return nativeActionToolSet{}, true, errorValue
+		}
+		toolSet = compactToolSet
 	}
 	return toolSet, true, nil
 }
 
-func compactNativeActionToolSet(toolSet nativeActionToolSet) nativeActionToolSet {
+func compactNativeActionToolSet(toolSet nativeActionToolSet) (nativeActionToolSet, error) {
 	controlTools := []nativeActionTool{}
 	toolNames := []string{}
 	for _, tool := range toolSet.Tools {
@@ -91,14 +82,18 @@ func compactNativeActionToolSet(toolSet nativeActionToolSet) nativeActionToolSet
 		controlTools = append(controlTools, tool)
 	}
 	if len(toolNames) == 0 {
-		return toolSet
+		return toolSet, nil
 	}
 	compactToolSet := nativeActionToolSet{ToolByName: map[string]nativeActionTool{}}
 	for _, tool := range controlTools {
 		compactToolSet = addNativeActionTool(compactToolSet, tool)
 	}
-	compactToolSet = addNativeActionTool(compactToolSet, nativeContinueDispatcherTool(toolNames))
-	return compactToolSet
+	dispatcherTool, errorValue := nativeContinueDispatcherTool(toolNames)
+	if errorValue != nil {
+		return nativeActionToolSet{}, errorValue
+	}
+	compactToolSet = addNativeActionTool(compactToolSet, dispatcherTool)
+	return compactToolSet, nil
 }
 
 func addNativeActionTool(toolSet nativeActionToolSet, tool nativeActionTool) nativeActionToolSet {
@@ -117,19 +112,27 @@ func nativeActionToolForVariant(variant actionSchemaVariant) (nativeActionTool, 
 		if !isFound {
 			return nativeActionTool{}, false, errors.New(action + " action schema is missing toolName enum")
 		}
+		parameters, errorValue := toolActionParameters(variant)
+		if errorValue != nil {
+			return nativeActionTool{}, false, errorValue
+		}
 		return nativeActionTool{
 			FunctionName: nativeActionFunctionName(action, toolName),
 			Description:  "Call " + toolName,
 			Action:       action,
 			ToolName:     toolName,
-			Parameters:   toolActionParameters(variant),
+			Parameters:   parameters,
 		}, true, nil
+	}
+	parameters, errorValue := controlActionParameters(variant)
+	if errorValue != nil {
+		return nativeActionTool{}, false, errorValue
 	}
 	return nativeActionTool{
 		FunctionName: nativeControlFunctionName(action),
 		Description:  nativeControlDescription(action),
 		Action:       action,
-		Parameters:   controlActionParameters(variant),
+		Parameters:   parameters,
 	}, true, nil
 }
 
@@ -228,7 +231,6 @@ func dispatchContinueActionPayload(tool nativeActionTool, argumentDocument json.
 	payload["action"] = tool.Action
 	payload["toolName"] = toolName
 	payload["toolInput"] = toolInput
-	delete(payload, "toolInputJSON")
 	return payload, nil
 }
 
@@ -236,16 +238,7 @@ func dispatchedToolInput(payload map[string]any) (any, error) {
 	if toolInput, isFound := payload["toolInput"]; isFound {
 		return toolInput, nil
 	}
-	toolInputJSONString, _ := payload["toolInputJSON"].(string)
-	toolInputJSONString = strings.TrimSpace(toolInputJSONString)
-	if toolInputJSONString == "" {
-		return map[string]any{}, nil
-	}
-	var toolInput any
-	if errorValue := json.Unmarshal([]byte(toolInputJSONString), &toolInput); errorValue != nil {
-		return nil, errors.New("native continue dispatcher toolInputJSON was not valid JSON: " + errorValue.Error())
-	}
-	return toolInput, nil
+	return map[string]any{}, nil
 }
 
 func stringSliceContains(values []string, expected string) bool {
@@ -257,32 +250,31 @@ func stringSliceContains(values []string, expected string) bool {
 	return false
 }
 
-func toolActionParameters(variant actionSchemaVariant) json.RawMessage {
+func toolActionParameters(variant actionSchemaVariant) (json.RawMessage, error) {
 	properties := map[string]json.RawMessage{
 		"toolInput": variant.Properties["toolInput"],
 	}
-	for _, fieldName := range []string{"message", "reason", "goalStatus", "goalSatisfied", "remainingWork", "executionStateUpdate"} {
+	required := []string{"toolInput"}
+	for _, fieldName := range []string{"message", "reason", "goalStatus", "goalSatisfied", "remainingWork", "executionStateUpdate", "nextStepPlan"} {
 		if propertySchema, isFound := variant.Properties[fieldName]; isFound {
 			properties[fieldName] = propertySchema
+			if fieldName == "executionStateUpdate" || fieldName == "nextStepPlan" {
+				required = append(required, fieldName)
+			}
 		}
 	}
 	content, errorValue := json.Marshal(map[string]any{
-		"type":                 "object",
-		"properties":           properties,
-		"required":             []string{"toolInput", "executionStateUpdate"},
-		"additionalProperties": false,
+		"type":       "object",
+		"properties": properties,
+		"required":   required,
 	})
 	if errorValue != nil {
-		return json.RawMessage(`{"type":"object","properties":{}}`)
+		return nil, errorValue
 	}
-	document, errorValue := ProjectToolParametersForProvider(content, ToolParameterProjectionOpenRouterNativeTool)
-	if errorValue != nil {
-		return json.RawMessage(`{"type":"object","properties":{}}`)
-	}
-	return document
+	return content, nil
 }
 
-func controlActionParameters(variant actionSchemaVariant) json.RawMessage {
+func controlActionParameters(variant actionSchemaVariant) (json.RawMessage, error) {
 	properties := map[string]json.RawMessage{}
 	for propertyName, propertySchema := range variant.Properties {
 		if propertyName == "action" {
@@ -297,33 +289,32 @@ func controlActionParameters(variant actionSchemaVariant) json.RawMessage {
 		}
 	}
 	content, errorValue := json.Marshal(map[string]any{
-		"type":                 "object",
-		"properties":           properties,
-		"required":             required,
-		"additionalProperties": false,
+		"type":       "object",
+		"properties": properties,
+		"required":   required,
 	})
 	if errorValue != nil {
-		return json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)
+		return nil, errorValue
 	}
-	document, errorValue := ProjectToolParametersForProvider(content, ToolParameterProjectionOpenRouterNativeTool)
-	if errorValue != nil {
-		return json.RawMessage(`{"type":"object","properties":{}}`)
-	}
-	return document
+	return content, nil
 }
 
-func nativeContinueDispatcherTool(toolNames []string) nativeActionTool {
+func nativeContinueDispatcherTool(toolNames []string) (nativeActionTool, error) {
+	parameters, errorValue := nativeContinueDispatcherParameters(toolNames)
+	if errorValue != nil {
+		return nativeActionTool{}, errorValue
+	}
 	return nativeActionTool{
 		FunctionName: "continue",
 		Description:  "Continue work by calling one available tool. toolInput must be a JSON object for the selected tool.",
 		Action:       "continue",
-		Parameters:   nativeContinueDispatcherParameters(toolNames),
+		Parameters:   parameters,
 		ToolNames:    toolNames,
 		IsDispatcher: true,
-	}
+	}, nil
 }
 
-func nativeContinueDispatcherParameters(toolNames []string) json.RawMessage {
+func nativeContinueDispatcherParameters(toolNames []string) (json.RawMessage, error) {
 	content, errorValue := json.Marshal(map[string]any{
 		"type": "object",
 		"properties": map[string]any{
@@ -341,18 +332,14 @@ func nativeContinueDispatcherParameters(toolNames []string) json.RawMessage {
 			"goalSatisfied":        map[string]any{"type": "boolean"},
 			"remainingWork":        map[string]any{"type": "string"},
 			"executionStateUpdate": nativeDispatcherExecutionStateSchema(),
+			"nextStepPlan":         nativeDispatcherNextStepPlanSchema(),
 		},
-		"required":             []string{"toolName", "toolInput", "executionStateUpdate"},
-		"additionalProperties": false,
+		"required": []string{"toolName", "toolInput", "executionStateUpdate", "nextStepPlan"},
 	})
 	if errorValue != nil {
-		return json.RawMessage(`{"type":"object","properties":{}}`)
+		return nil, errorValue
 	}
-	document, errorValue := ProjectToolParametersForProvider(content, ToolParameterProjectionOpenRouterNativeTool)
-	if errorValue != nil {
-		return json.RawMessage(`{"type":"object","properties":{}}`)
-	}
-	return document
+	return content, nil
 }
 
 func nativeDispatcherExecutionStateSchema() map[string]any {
@@ -369,203 +356,19 @@ func nativeDispatcherExecutionStateSchema() map[string]any {
 	}
 }
 
-func objectSchemaDocument(schema json.RawMessage) json.RawMessage {
-	if len(schema) == 0 {
-		return json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)
+func nativeDispatcherNextStepPlanSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"objective":           map[string]any{"type": "string"},
+			"expectedTools":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"expectedNextResults": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"doneCriteria":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"risk":                map[string]any{"type": "string"},
+			"workingSetReason":    map[string]any{"type": "string"},
+		},
+		"required": []string{"objective", "expectedTools", "doneCriteria", "risk", "workingSetReason"},
 	}
-	document, errorValue := ProjectToolParametersForProvider(schema, ToolParameterProjectionOpenRouterNativeTool)
-	if errorValue != nil {
-		return json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)
-	}
-	return document
-}
-
-func ProjectToolParametersForProvider(schema json.RawMessage, dialect ToolParameterProjectionDialect) (json.RawMessage, error) {
-	var document any
-	if errorValue := json.Unmarshal(schema, &document); errorValue != nil {
-		return nil, errorValue
-	}
-	projectedDocument := projectToolParametersValue(document, dialect)
-	content, errorValue := json.Marshal(projectedDocument)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	return content, nil
-}
-
-func projectToolParametersValue(value any, dialect ToolParameterProjectionDialect) any {
-	switch typedValue := value.(type) {
-	case []any:
-		return projectToolParametersArray(typedValue, dialect)
-	case map[string]any:
-		return projectToolParametersObject(typedValue, dialect)
-	default:
-		return value
-	}
-}
-
-func projectToolParametersArray(values []any, dialect ToolParameterProjectionDialect) []any {
-	projectedValues := make([]any, 0, len(values))
-	for _, value := range values {
-		projectedValues = append(projectedValues, projectToolParametersValue(value, dialect))
-	}
-	return projectedValues
-}
-
-func projectToolParametersObject(document map[string]any, dialect ToolParameterProjectionDialect) any {
-	document = flattenObjectSchemaUnionRequirements(document)
-	if replacement, isFound := firstNativeToolSchemaUnionValue(document); isFound {
-		return projectToolParametersValue(replacement, dialect)
-	}
-	projectedDocument := map[string]any{}
-	for fieldName, fieldValue := range document {
-		if dialect == ToolParameterProjectionOpenRouterNativeTool && fieldName == "properties" {
-			projectedDocument[fieldName] = projectToolParameterProperties(fieldValue, dialect)
-			continue
-		}
-		if !toolParameterProjectionAllowsSchemaKeyword(fieldName, dialect) {
-			continue
-		}
-		if dialect == ToolParameterProjectionOpenRouterNativeTool && fieldName == "enum" {
-			if projectedEnum, isFound := projectOpenRouterNativeToolEnum(fieldValue); isFound {
-				projectedDocument[fieldName] = projectedEnum
-			}
-			continue
-		}
-		projectedDocument[fieldName] = projectToolParametersValue(fieldValue, dialect)
-	}
-	return normalizeProjectedToolParameters(projectedDocument)
-}
-
-func flattenObjectSchemaUnionRequirements(document map[string]any) map[string]any {
-	if _, hasType := document["type"]; !hasType {
-		return document
-	}
-	if _, hasProperties := document["properties"]; !hasProperties {
-		return document
-	}
-	flattenedDocument := map[string]any{}
-	for key, value := range document {
-		if key == "oneOf" || key == "anyOf" || key == "allOf" {
-			continue
-		}
-		flattenedDocument[key] = value
-	}
-	if _, hasRequired := flattenedDocument["required"]; hasRequired {
-		return flattenedDocument
-	}
-	if unionRequired, isFound := firstUnionRequiredFields(document); isFound {
-		flattenedDocument["required"] = unionRequired
-	}
-	return flattenedDocument
-}
-
-func firstUnionRequiredFields(document map[string]any) ([]any, bool) {
-	for _, fieldName := range []string{"oneOf", "anyOf", "allOf"} {
-		values, isArray := document[fieldName].([]any)
-		if !isArray || len(values) == 0 {
-			continue
-		}
-		firstValue, isObject := values[0].(map[string]any)
-		if !isObject {
-			continue
-		}
-		required, isRequired := firstValue["required"].([]any)
-		if isRequired && len(required) > 0 {
-			return required, true
-		}
-	}
-	return nil, false
-}
-
-func projectOpenRouterNativeToolEnum(value any) ([]string, bool) {
-	values, isArray := value.([]any)
-	if !isArray {
-		return nil, false
-	}
-	enumValues := make([]string, 0, len(values))
-	for _, value := range values {
-		enumValue, isString := value.(string)
-		if !isString || enumValue == "" {
-			return nil, false
-		}
-		enumValues = append(enumValues, enumValue)
-	}
-	return enumValues, len(enumValues) > 0
-}
-
-func projectToolParameterProperties(value any, dialect ToolParameterProjectionDialect) map[string]any {
-	properties, isObject := value.(map[string]any)
-	if !isObject {
-		return map[string]any{}
-	}
-	projectedProperties := map[string]any{}
-	for propertyName, propertySchema := range properties {
-		projectedProperties[propertyName] = projectToolParametersValue(propertySchema, dialect)
-	}
-	return projectedProperties
-}
-
-func normalizeProjectedToolParameters(document map[string]any) map[string]any {
-	switch document["type"] {
-	case "array":
-		if _, isFound := document["items"]; !isFound {
-			document["items"] = map[string]any{"type": "object", "properties": map[string]any{}}
-		}
-	case "object":
-		properties := nativeToolSchemaProperties(document["properties"])
-		if properties == nil {
-			document["properties"] = map[string]any{}
-		}
-		document = normalizeProjectedToolRequired(document)
-	}
-	return document
-}
-
-func normalizeProjectedToolRequired(document map[string]any) map[string]any {
-	properties := nativeToolSchemaProperties(document["properties"])
-	required, isFound := document["required"].([]any)
-	if !isFound {
-		return document
-	}
-	filteredRequired := make([]string, 0, len(required))
-	for _, fieldName := range required {
-		fieldNameString, isString := fieldName.(string)
-		if !isString {
-			continue
-		}
-		if _, isProperty := properties[fieldNameString]; isProperty {
-			filteredRequired = append(filteredRequired, fieldNameString)
-		}
-	}
-	if len(filteredRequired) == 0 {
-		delete(document, "required")
-		return document
-	}
-	document["required"] = filteredRequired
-	return document
-}
-
-func firstNativeToolSchemaUnionValue(document map[string]any) (any, bool) {
-	for _, fieldName := range []string{"oneOf", "anyOf", "allOf"} {
-		values, isArray := document[fieldName].([]any)
-		if isArray && len(values) > 0 {
-			return values[0], true
-		}
-	}
-	return nil, false
-}
-
-func toolParameterProjectionAllowsSchemaKeyword(fieldName string, dialect ToolParameterProjectionDialect) bool {
-	if dialect != ToolParameterProjectionOpenRouterNativeTool {
-		return true
-	}
-	return openRouterNativeToolSchemaKeywordByName[fieldName]
-}
-
-func nativeToolSchemaProperties(value any) map[string]any {
-	properties, _ := value.(map[string]any)
-	return properties
 }
 
 func enumStringValue(schema json.RawMessage) (string, bool) {
