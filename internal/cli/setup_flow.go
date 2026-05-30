@@ -919,7 +919,7 @@ func (state *setupFlowState) installAdmindSSH(context *setup.Context) error {
 		name:       blueclaw.AdmindName,
 		localPath:  filepath.Join(state.boardBinDir, blueclaw.AdmindName),
 		remotePath: blueclaw.AdmindBinaryPath,
-	}, blueclaw.AdmindServiceName)
+	}, blueclaw.AdmindServiceName, blueclaw.AdmindServicePath, blueclaw.AdmindServiceUnit())
 }
 
 func (state *setupFlowState) deployBotProfileImageSSH() error {
@@ -940,10 +940,10 @@ func (state *setupFlowState) installCapabilitydSSH(context *setup.Context) error
 		name:       blueclaw.CapabilitydName,
 		localPath:  filepath.Join(state.boardBinDir, blueclaw.CapabilitydName),
 		remotePath: blueclaw.CapabilitydBinaryPath,
-	}, blueclaw.CapabilitydServiceName)
+	}, blueclaw.CapabilitydServiceName, blueclaw.CapabilitydServicePath, blueclaw.CapabilitydServiceUnit())
 }
 
-func (state *setupFlowState) installGoServiceBinarySSH(asset localBinaryAsset, serviceName string) error {
+func (state *setupFlowState) installGoServiceBinarySSH(asset localBinaryAsset, serviceName string, servicePath string, serviceDocument string) error {
 	if err := os.MkdirAll(filepath.Dir(asset.localPath), 0o755); err != nil {
 		return err
 	}
@@ -964,12 +964,22 @@ func (state *setupFlowState) installGoServiceBinarySSH(asset localBinaryAsset, s
 		state.sshClient.run("chmod +x " + quoteShellValue(asset.remotePath))
 		fmt.Printf("  %s %s\n", asset.name, state.messenger.t("설치 완료", "installed"))
 	}
+	state.installGoServiceUnitSSH(servicePath, serviceDocument)
 	state.sshClient.run("systemctl restart " + serviceName)
 	if strings.TrimSpace(state.sshClient.run("systemctl is-active "+serviceName+" 2>/dev/null")) != "active" {
 		return fmt.Errorf("%s restart failed", serviceName)
 	}
 	fmt.Printf("  %s %s\n", serviceName, state.messenger.t("재시작 완료", "restarted"))
 	return nil
+}
+
+func (state *setupFlowState) installGoServiceUnitSSH(servicePath string, serviceDocument string) {
+	servicePath = strings.TrimSpace(servicePath)
+	serviceDocument = strings.TrimSpace(serviceDocument)
+	if servicePath == "" || serviceDocument == "" {
+		return
+	}
+	state.sshClient.run(fmt.Sprintf("cat > %s <<'SERVICEEOF'\n%s\nSERVICEEOF\nsystemctl daemon-reload", quoteShellValue(servicePath), serviceDocument))
 }
 
 func shouldInstallLocalLLMSSH(context *setup.Context) bool {

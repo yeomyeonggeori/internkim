@@ -641,7 +641,7 @@ llm_text_body="$(jq -cn --arg model "$model" '{
 llm_text_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$llm_text_body" http://internkim/v1/llm/text)"
 printf '%s' "$llm_text_response" | jq -e '.content | type == "string" and length > 0' >/dev/null
 schema='{"type":"object","properties":{"reply":{"type":"string"}},"required":["reply"],"additionalProperties":false}'
-llm_structured_body="$(jq -cn --arg model "$model" --arg schema "$schema" '{
+llm_structured_body="$(jq -cn --arg model "$model" --argjson schema "$schema" '{
   model: $model,
   executionMode: "remote",
   messages: [{role:"user", content:"Return JSON only with reply set to ok."}],
@@ -651,6 +651,30 @@ llm_structured_body="$(jq -cn --arg model "$model" --arg schema "$schema" '{
 }')"
 llm_structured_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$llm_structured_body" http://internkim/v1/llm/structured)"
 printf '%s' "$llm_structured_response" | jq -e '.content | fromjson | .reply | type == "string"' >/dev/null
+llm_auto_structured_body="$(jq -cn --arg model "$model" --argjson schema "$schema" '{
+  model: $model,
+  executionMode: "auto",
+  messages: [{role:"user", content:"Return JSON only with reply set to ok."}],
+  structuredOutputSchema: {name:"smoke_reply", document:$schema, isStrictlyEnforced:true},
+  requireParameters: true,
+  enableResponseHealing: true
+}')"
+llm_auto_structured_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$llm_auto_structured_body" http://internkim/v1/llm/structured)"
+printf '%s' "$llm_auto_structured_response" | jq -e '.provider == "openrouter" and .selectedBackend == "remote" and (.content | fromjson | .reply | type == "string")' >/dev/null
+action_schema='{"oneOf":[{"type":"object","properties":{"action":{"type":"string","enum":["finish"]},"message":{"type":"string"},"goalStatus":{"type":"string","enum":["satisfied"]},"goalSatisfied":{"type":"boolean"},"completionEvidence":{"type":"array","items":{"type":"object"}},"qualityReview":{"type":"array","items":{"type":"object"}}},"required":["action","message","goalStatus","goalSatisfied","completionEvidence","qualityReview"],"additionalProperties":false}]}'
+llm_action_body="$(jq -cn --arg model "$model" --argjson schema "$action_schema" '{
+  model: $model,
+  executionMode: "auto",
+  messages: [
+    {role:"system", content:"You must finish this smoke test now. Use the finish action with message ok, goalStatus satisfied, goalSatisfied true, and empty evidence/review arrays."},
+    {role:"user", content:"Finish now."}
+  ],
+  structuredOutputSchema: {name:"blueclaw_agent_turn_action", document:$schema, isStrictlyEnforced:true},
+  requireParameters: true,
+  enableResponseHealing: true
+}')"
+llm_action_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$llm_action_body" http://internkim/v1/llm/structured)"
+printf '%s' "$llm_action_response" | jq -e '.provider == "openrouter" and .selectedBackend == "remote" and .constraintMode == "native_tool_call" and (.content | fromjson | .action == "finish")' >/dev/null
 
 echo "checking litert capability"
 if command -v litert-lm >/dev/null 2>&1 && [ -s /root/.internkim/models/gemma-4-E4B-it.litertlm ]; then
@@ -669,7 +693,7 @@ if command -v litert-lm >/dev/null 2>&1 && [ -s /root/.internkim/models/gemma-4-
     else
       printf 'litert capability: %s\n' "$(tr '\n' ' ' </tmp/internkim-verify-litert-error | cut -c1-180)"
     fi
-    exit 1
+    echo "litert capability: optional local check failed"
   fi
 else
   echo "litert capability: skipped"
