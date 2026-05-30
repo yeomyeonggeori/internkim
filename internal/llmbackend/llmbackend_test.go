@@ -406,9 +406,10 @@ func TestNativeActionToolsCompactLargeToolSetsForOpenRouterCompatibility(t *test
 }
 
 func TestNativeActionToolsDoNotCompactWhenControlActionsFitProviderBudget(t *testing.T) {
+	toolCount := openRouterNativeToolMaxFunctionCount - 4
 	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
 		Name:     "blueclaw_agent_turn_action",
-		Document: testActionSchemaWithControlActionsAndToolCount(t, 16),
+		Document: testActionSchemaWithControlActionsAndToolCount(t, toolCount),
 	})
 	if errorValue != nil {
 		t.Fatalf("expected native tool set: %v", errorValue)
@@ -421,6 +422,25 @@ func TestNativeActionToolsDoNotCompactWhenControlActionsFitProviderBudget(t *tes
 	}
 	if _, isDispatcher := toolSet.ToolByName["continue"]; isDispatcher {
 		t.Fatalf("expected fixed continue tools instead of dispatcher, got %+v", toolSet.Tools)
+	}
+}
+
+func TestNativeActionToolsCompactRepresentativeSiteWorkingSet(t *testing.T) {
+	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
+		Name:     "blueclaw_agent_turn_action",
+		Document: testActionSchemaWithControlActionsAndToolCount(t, 13),
+	})
+	if errorValue != nil {
+		t.Fatalf("expected compact native site tool set: %v", errorValue)
+	}
+	if !isActionSchema {
+		t.Fatal("expected action schema")
+	}
+	if _, isDispatcher := toolSet.ToolByName["continue"]; !isDispatcher {
+		t.Fatalf("expected representative site working set to use dispatcher, got %+v", toolSet.Tools)
+	}
+	if len(toolSet.Tools) >= 13 {
+		t.Fatalf("expected native function count to shrink, got %+v", toolSet.Tools)
 	}
 }
 

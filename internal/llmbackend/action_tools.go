@@ -9,7 +9,7 @@ import (
 
 var nativeFunctionNamePattern = regexp.MustCompile(`[^A-Za-z0-9_-]+`)
 
-const openRouterNativeToolMaxFunctionCount = 20
+const openRouterNativeToolMaxFunctionCount = 12
 
 type nativeActionToolSet struct {
 	Tools      []nativeActionTool
