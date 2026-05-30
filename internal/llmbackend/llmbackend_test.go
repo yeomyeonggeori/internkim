@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -436,23 +437,56 @@ func TestNativeActionToolsPreserveCalendarRequiredForOpenRouterCompatibility(t *
 
 func TestNativeActionToolsProjectEveryDefaultCapabilitySchema(t *testing.T) {
 	descriptors := append(capabilities.DefaultToolDescriptors(), capabilities.GoogleWorkspaceDescriptors()...)
-	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
-		Name:     "blueclaw_agent_turn_action",
-		Document: testActionSchemaForDescriptors(t, descriptors),
-	})
-	if errorValue != nil {
-		t.Fatalf("expected native tool set: %v", errorValue)
-	}
-	if !isActionSchema {
-		t.Fatal("expected action schema")
-	}
-
 	for _, descriptor := range descriptors {
+		toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
+			Name:     "blueclaw_agent_turn_action",
+			Document: testActionSchemaForDescriptors(t, []capabilities.Descriptor{descriptor}),
+		})
+		if errorValue != nil {
+			t.Fatalf("expected native tool set for %s: %v", descriptor.Name, errorValue)
+		}
+		if !isActionSchema {
+			t.Fatal("expected action schema")
+		}
 		tool := toolSet.ToolByName[nativeActionFunctionName("continue", descriptor.Name)]
 		if strings.TrimSpace(tool.FunctionName) == "" {
 			t.Fatalf("expected native tool for %s", descriptor.Name)
 		}
 		assertNativeSchemaIsProviderSafe(t, descriptor.Name, tool.Parameters)
+	}
+}
+
+func TestNativeActionToolsCompactLargeToolSetsForOpenRouterCompatibility(t *testing.T) {
+	descriptors := make([]capabilities.Descriptor, 0, openRouterNativeToolMaxFunctionCount+1)
+	for index := 0; index <= openRouterNativeToolMaxFunctionCount; index++ {
+		descriptors = append(descriptors, capabilities.Descriptor{
+			Name:        fmt.Sprintf("tool.%02d", index),
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"value":{"type":"string"}},"required":["value"],"additionalProperties":false}`),
+		})
+	}
+	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
+		Name:     "blueclaw_agent_turn_action",
+		Document: testActionSchemaForDescriptors(t, descriptors),
+	})
+	if errorValue != nil {
+		t.Fatalf("expected compact native tool set: %v", errorValue)
+	}
+	if !isActionSchema {
+		t.Fatal("expected action schema")
+	}
+	if len(toolSet.Tools) != 1 {
+		t.Fatalf("expected dispatcher-only tool set, got %+v", toolSet.Tools)
+	}
+	dispatcher := toolSet.ToolByName["continue"]
+	if !dispatcher.IsDispatcher || len(dispatcher.ToolNames) != len(descriptors) {
+		t.Fatalf("expected continue dispatcher with tool names, got %+v", dispatcher)
+	}
+	content, errorValue := nativeActionJSON(toolSet, "continue", `{"toolName":"tool.03","toolInputJSON":"{\"value\":\"ok\"}","executionStateUpdate":{}}`)
+	if errorValue != nil {
+		t.Fatalf("expected dispatcher action JSON: %v", errorValue)
+	}
+	if !strings.Contains(content, `"toolName":"tool.03"`) || !strings.Contains(content, `"value":"ok"`) || strings.Contains(content, "toolInputJSON") {
+		t.Fatalf("expected decoded dispatcher payload, got %s", content)
 	}
 }
 

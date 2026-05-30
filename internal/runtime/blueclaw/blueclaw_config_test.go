@@ -205,8 +205,12 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	}
 }
 
-func TestBlueclawRuntimeAllowsBuiltinSkillTools(t *testing.T) {
+func TestBlueclawRuntimeKnowsBuiltinSkillToolsWithoutExposingAllByDefault(t *testing.T) {
 	allowedToolNames := stringSet(BlueclawDefaultAllowedToolNames())
+	skillScopedToolNames := stringSet([]string{
+		"site.app.build",
+		"site.app.repair",
+	})
 	disabledSkillToolNames := stringSet([]string{
 		"google.docs.create",
 		"google.sheets.create",
@@ -225,9 +229,16 @@ func TestBlueclawRuntimeAllowsBuiltinSkillTools(t *testing.T) {
 			if disabledSkillToolNames[toolName] {
 				continue
 			}
-			if !allowedToolNames[toolName] {
-				t.Fatalf("expected built-in skill tool %q from %s to be allowed by the default runtime profile", toolName, skillPath)
+			if allowedToolNames[toolName] || skillScopedToolNames[toolName] {
+				continue
 			}
+			t.Fatalf("expected built-in skill tool %q from %s to be default-allowed or explicitly skill-scoped", toolName, skillPath)
+		}
+	}
+
+	for toolName := range skillScopedToolNames {
+		if allowedToolNames[toolName] {
+			t.Fatalf("expected skill-scoped tool %q not to be exposed by the default runtime profile", toolName)
 		}
 	}
 }
@@ -430,10 +441,13 @@ func TestBlueclawServiceDoesNotExposeOpenRouterKeyAsEnvironmentFile(t *testing.T
 	}
 }
 
-func TestCapabilitydServicePrefersCompanionLLM(t *testing.T) {
+func TestCapabilitydServiceUsesOpenRouterFirstAutoRouting(t *testing.T) {
 	serviceDocument := CapabilitydServiceUnit()
-	if !strings.Contains(serviceDocument, "--prefer-companion-llm") {
-		t.Fatalf("expected capabilityd service to prefer companion LLM, got %s", serviceDocument)
+	if strings.Contains(serviceDocument, "--prefer-companion-llm") {
+		t.Fatalf("expected capabilityd service not to prefer companion LLM by default, got %s", serviceDocument)
+	}
+	if !strings.Contains(serviceDocument, "--companion-url http://127.0.0.1:18080/_internkim/companion") {
+		t.Fatalf("expected capabilityd service to keep companion URL without making it first, got %s", serviceDocument)
 	}
 }
 

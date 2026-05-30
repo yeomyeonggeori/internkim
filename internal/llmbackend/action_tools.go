@@ -18,6 +18,8 @@ var openRouterNativeToolSchemaKeywordByName = map[string]bool{
 	"type":        true,
 }
 
+const openRouterNativeToolMaxFunctionCount = 20
+
 type nativeActionToolSet struct {
 	Tools      []nativeActionTool
 	ToolByName map[string]nativeActionTool
@@ -29,6 +31,8 @@ type nativeActionTool struct {
 	Action       string
 	ToolName     string
 	Parameters   json.RawMessage
+	ToolNames    []string
+	IsDispatcher bool
 }
 
 type ToolParameterProjectionDialect string
@@ -70,7 +74,37 @@ func nativeActionToolsForSchema(schema StructuredOutputSchema) (nativeActionTool
 	if len(toolSet.Tools) == 0 {
 		return nativeActionToolSet{}, true, errors.New("agent action schema did not include callable variants")
 	}
+	if len(toolSet.Tools) > openRouterNativeToolMaxFunctionCount {
+		toolSet = compactNativeActionToolSet(toolSet)
+	}
 	return toolSet, true, nil
+}
+
+func compactNativeActionToolSet(toolSet nativeActionToolSet) nativeActionToolSet {
+	controlTools := []nativeActionTool{}
+	toolNames := []string{}
+	for _, tool := range toolSet.Tools {
+		if isNativeToolAction(tool.Action) {
+			toolNames = append(toolNames, tool.ToolName)
+			continue
+		}
+		controlTools = append(controlTools, tool)
+	}
+	if len(toolNames) == 0 {
+		return toolSet
+	}
+	compactToolSet := nativeActionToolSet{ToolByName: map[string]nativeActionTool{}}
+	for _, tool := range controlTools {
+		compactToolSet = addNativeActionTool(compactToolSet, tool)
+	}
+	compactToolSet = addNativeActionTool(compactToolSet, nativeContinueDispatcherTool(toolNames))
+	return compactToolSet
+}
+
+func addNativeActionTool(toolSet nativeActionToolSet, tool nativeActionTool) nativeActionToolSet {
+	toolSet.Tools = append(toolSet.Tools, tool)
+	toolSet.ToolByName[tool.FunctionName] = tool
+	return toolSet
 }
 
 func nativeActionToolForVariant(variant actionSchemaVariant) (nativeActionTool, bool, error) {
@@ -109,7 +143,7 @@ func nativeActionJSON(toolSet nativeActionToolSet, functionName string, argument
 		argumentDocument = json.RawMessage(`{}`)
 	}
 	if isNativeToolAction(tool.Action) {
-		payload, errorValue := toolActionPayload(tool, argumentDocument)
+		payload, errorValue := nativeContinueActionPayload(tool, argumentDocument)
 		if errorValue != nil {
 			return "", errorValue
 		}
@@ -155,7 +189,14 @@ func isNativeToolAction(action string) bool {
 	return action == "continue"
 }
 
-func toolActionPayload(tool nativeActionTool, argumentDocument json.RawMessage) (map[string]any, error) {
+func nativeContinueActionPayload(tool nativeActionTool, argumentDocument json.RawMessage) (map[string]any, error) {
+	if tool.IsDispatcher {
+		return dispatchContinueActionPayload(tool, argumentDocument)
+	}
+	return fixedContinueActionPayload(tool, argumentDocument)
+}
+
+func fixedContinueActionPayload(tool nativeActionTool, argumentDocument json.RawMessage) (map[string]any, error) {
 	var payload map[string]any
 	if errorValue := json.Unmarshal(argumentDocument, &payload); errorValue != nil {
 		return nil, errorValue
@@ -168,6 +209,52 @@ func toolActionPayload(tool nativeActionTool, argumentDocument json.RawMessage) 
 	payload["toolName"] = tool.ToolName
 	payload["toolInput"] = toolInput
 	return payload, nil
+}
+
+func dispatchContinueActionPayload(tool nativeActionTool, argumentDocument json.RawMessage) (map[string]any, error) {
+	var payload map[string]any
+	if errorValue := json.Unmarshal(argumentDocument, &payload); errorValue != nil {
+		return nil, errorValue
+	}
+	toolName, _ := payload["toolName"].(string)
+	toolName = strings.TrimSpace(toolName)
+	if !stringSliceContains(tool.ToolNames, toolName) {
+		return nil, errors.New("native continue dispatcher referenced unknown tool: " + toolName)
+	}
+	toolInput, errorValue := dispatchedToolInput(payload)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	payload["action"] = tool.Action
+	payload["toolName"] = toolName
+	payload["toolInput"] = toolInput
+	delete(payload, "toolInputJSON")
+	return payload, nil
+}
+
+func dispatchedToolInput(payload map[string]any) (any, error) {
+	if toolInput, isFound := payload["toolInput"]; isFound {
+		return toolInput, nil
+	}
+	toolInputJSONString, _ := payload["toolInputJSON"].(string)
+	toolInputJSONString = strings.TrimSpace(toolInputJSONString)
+	if toolInputJSONString == "" {
+		return map[string]any{}, nil
+	}
+	var toolInput any
+	if errorValue := json.Unmarshal([]byte(toolInputJSONString), &toolInput); errorValue != nil {
+		return nil, errors.New("native continue dispatcher toolInputJSON was not valid JSON: " + errorValue.Error())
+	}
+	return toolInput, nil
+}
+
+func stringSliceContains(values []string, expected string) bool {
+	for _, value := range values {
+		if strings.TrimSpace(value) == expected {
+			return true
+		}
+	}
+	return false
 }
 
 func toolActionParameters(variant actionSchemaVariant) json.RawMessage {
@@ -223,6 +310,63 @@ func controlActionParameters(variant actionSchemaVariant) json.RawMessage {
 		return json.RawMessage(`{"type":"object","properties":{}}`)
 	}
 	return document
+}
+
+func nativeContinueDispatcherTool(toolNames []string) nativeActionTool {
+	return nativeActionTool{
+		FunctionName: "continue",
+		Description:  "Continue work by calling one available tool. toolInputJSON must be a JSON string matching the selected tool input schema.",
+		Action:       "continue",
+		Parameters:   nativeContinueDispatcherParameters(toolNames),
+		ToolNames:    toolNames,
+		IsDispatcher: true,
+	}
+}
+
+func nativeContinueDispatcherParameters(toolNames []string) json.RawMessage {
+	content, errorValue := json.Marshal(map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"toolName": map[string]any{
+				"type": "string",
+				"enum": toolNames,
+			},
+			"toolInputJSON": map[string]any{
+				"type":        "string",
+				"description": "JSON-encoded input for the selected tool. Use {} when the tool takes no input.",
+			},
+			"message":              map[string]any{"type": "string"},
+			"reason":               map[string]any{"type": "string"},
+			"goalStatus":           map[string]any{"type": "string", "enum": []string{"in_progress"}},
+			"goalSatisfied":        map[string]any{"type": "boolean"},
+			"remainingWork":        map[string]any{"type": "string"},
+			"executionStateUpdate": nativeDispatcherExecutionStateSchema(),
+		},
+		"required":             []string{"toolName", "toolInputJSON", "executionStateUpdate"},
+		"additionalProperties": false,
+	})
+	if errorValue != nil {
+		return json.RawMessage(`{"type":"object","properties":{}}`)
+	}
+	document, errorValue := ProjectToolParametersForProvider(content, ToolParameterProjectionOpenRouterNativeTool)
+	if errorValue != nil {
+		return json.RawMessage(`{"type":"object","properties":{}}`)
+	}
+	return document
+}
+
+func nativeDispatcherExecutionStateSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"goal":           map[string]any{"type": "string"},
+			"workspace":      map[string]any{"type": "string"},
+			"knownFacts":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"triedAndFailed": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"currentBlocker": map[string]any{"type": "string"},
+			"nextPlan":       map[string]any{"type": "string"},
+		},
+	}
 }
 
 func objectSchemaDocument(schema json.RawMessage) json.RawMessage {
