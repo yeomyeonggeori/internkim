@@ -49,8 +49,8 @@ func TestSiteGatewayLifecycle(t *testing.T) {
 	if site.WorkspacePath == "" || site.HostSourcePath == "" || site.LastPublishedCommit == "" {
 		t.Fatalf("site workspace metadata missing: %+v", site)
 	}
-	if !strings.HasPrefix(site.SourceWorkspacePath, "home/sites/") {
-		t.Fatalf("site source workspace should be requester-private virtual path, got %q", site.SourceWorkspacePath)
+	if !strings.HasPrefix(site.SourceWorkspacePath, "/workspace/sites/") {
+		t.Fatalf("site source workspace should be canonical site virtual path, got %q", site.SourceWorkspacePath)
 	}
 
 	response := serveSiteRequest(service, "demo.device.example.test", "/")
@@ -128,8 +128,8 @@ func TestSitePrototypePublishesDefaultBuild(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !strings.HasPrefix(site.SourceWorkspacePath, "home/sites/") {
-		t.Fatalf("site source workspace should be requester-private virtual path, got %q", site.SourceWorkspacePath)
+	if !strings.HasPrefix(site.SourceWorkspacePath, "/workspace/sites/") {
+		t.Fatalf("site source workspace should be canonical site virtual path, got %q", site.SourceWorkspacePath)
 	}
 	if site.AppWorkspacePath != site.SourceWorkspacePath+"/app" {
 		t.Fatalf("site app workspace path = %q, source = %q", site.AppWorkspacePath, site.SourceWorkspacePath)
@@ -428,8 +428,8 @@ func TestSiteWorkspaceIsWritableByRequesterTerminal(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !strings.HasPrefix(site.SourceWorkspacePath, "home/sites/") {
-		t.Fatalf("expected requester-private virtual source workspace, got %q", site.SourceWorkspacePath)
+	if !strings.HasPrefix(site.SourceWorkspacePath, "/workspace/sites/") {
+		t.Fatalf("expected canonical site source workspace, got %q", site.SourceWorkspacePath)
 	}
 	if site.WorkspacePath != site.SourceWorkspacePath {
 		t.Fatalf("workspace path should point at source workspace: %+v", site)

@@ -1942,7 +1942,7 @@ func siteSourceWorkspacePath(siteID string, requestedPath string) string {
 	if strings.TrimSpace(requestedPath) != "" {
 		return strings.TrimSpace(requestedPath)
 	}
-	return filepath.ToSlash(filepath.Join("home", "sites", siteID))
+	return filepath.ToSlash(filepath.Join("/workspace", "sites", siteID))
 }
 
 func (service *Service) siteHostWorkspacePath(siteID string) string {
