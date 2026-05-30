@@ -83,6 +83,7 @@ func TestVerifyMattermostPromptScriptCanRequireToolAndTaskEvents(t *testing.T) {
 	requiredFragments := []string{
 		"expected_tools_json=",
 		"expected_events_json=",
+		`[ "$task_status" = "completed" ]`,
 		"tool.$expected_tool.requested",
 		"expected requested tool event for $expected_tool",
 		"expected task event $expected_event",

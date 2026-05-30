@@ -294,11 +294,11 @@ func calendarEventDeleteInputSchema() json.RawMessage {
 }
 
 func mailMessageListInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"limit":{"type":"integer"},"cursor":{"type":"string"}}}`)
+	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"limit":{"type":"number"},"cursor":{"type":"string"}}}`)
 }
 
 func mailMessageSearchInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"query":{"type":"string"},"limit":{"type":"integer"},"cursor":{"type":"string"}},"required":["query"]}`)
+	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"query":{"type":"string"},"limit":{"type":"number"},"cursor":{"type":"string"}},"required":["query"]}`)
 }
 
 func mailMessageReadInputSchema() json.RawMessage {

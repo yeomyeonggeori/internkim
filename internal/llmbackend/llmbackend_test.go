@@ -319,7 +319,7 @@ func TestNativeActionToolsRejectFunctionNameCollisions(t *testing.T) {
 	}
 }
 
-func TestNativeActionToolsPreserveCalendarRequiredForOpenRouterCompatibility(t *testing.T) {
+func TestNativeActionToolsOmitNestedToolInputRequiredForProviderCompatibility(t *testing.T) {
 	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
 		Name:     "blueclaw_agent_turn_action",
 		Document: testActionSchemaForDescriptors(t, capabilities.CalendarDescriptors()),
@@ -343,8 +343,8 @@ func TestNativeActionToolsPreserveCalendarRequiredForOpenRouterCompatibility(t *
 		}
 	}
 	required := nativeToolInputRequired(parameters)
-	if len(required) != 3 {
-		t.Fatalf("expected calendar required fields to be preserved, got %+v", parameters)
+	if len(required) != 0 {
+		t.Fatalf("expected nested toolInput required fields to be omitted, got %+v", parameters)
 	}
 	assertNativeRequiredFieldsHaveProperties(t, "calendar.event.add", parameters)
 }
@@ -451,8 +451,8 @@ func TestNativeActionToolUsesPortableInputSchemaWithoutProjection(t *testing.T) 
 		t.Fatalf("expected path property to survive projection, got %+v", toolInputProperties)
 	}
 	required := nativeToolInputRequired(parameters)
-	if len(required) != 2 || required[0] != "path" || required[1] != "content" {
-		t.Fatalf("expected portable required fields to survive unchanged, got %+v in %s", required, tool.Parameters)
+	if len(required) != 0 {
+		t.Fatalf("expected nested toolInput required fields to be omitted, got %+v in %s", required, tool.Parameters)
 	}
 	assertNativeSchemaIsProviderSafe(t, "file.write", tool.Parameters)
 }
@@ -933,6 +933,7 @@ func testActionSchemaForDescriptors(t *testing.T, descriptors []capabilities.Des
 		if errorValue := json.Unmarshal(inputSchema, &toolInput); errorValue != nil {
 			t.Fatalf("input schema for %s is invalid: %v", descriptor.Name, errorValue)
 		}
+		toolInput = testNativePortableNestedSchema(toolInput)
 		variants = append(variants, map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -963,6 +964,38 @@ func testActionSchemaForDescriptors(t *testing.T, descriptors []capabilities.Des
 		t.Fatalf("expected action schema: %v", errorValue)
 	}
 	return document
+}
+
+func testNativePortableNestedSchema(value any) any {
+	document, isObject := value.(map[string]any)
+	if isObject {
+		clone := map[string]any{}
+		for fieldName, fieldValue := range document {
+			if fieldName == "required" {
+				continue
+			}
+			if fieldName == "type" && fieldValue == "integer" {
+				clone[fieldName] = "number"
+				continue
+			}
+			clone[fieldName] = testNativePortableNestedSchema(fieldValue)
+		}
+		if clone["type"] == "object" {
+			if _, isFound := clone["properties"]; !isFound {
+				clone["properties"] = map[string]any{}
+			}
+		}
+		return clone
+	}
+	values, isArray := value.([]any)
+	if isArray {
+		clone := make([]any, 0, len(values))
+		for _, item := range values {
+			clone = append(clone, testNativePortableNestedSchema(item))
+		}
+		return clone
+	}
+	return value
 }
 
 func testActionSchemaWithControlActionsAndToolCount(t *testing.T, toolCount int) json.RawMessage {
@@ -1053,6 +1086,9 @@ func assertNativeSchemaMapIsProviderSafe(t *testing.T, toolName string, value an
 			}
 			if !nativeToolSchemaKeywordByName[fieldName] {
 				t.Fatalf("schema for %s has unsupported key %s: %+v", toolName, fieldName, document)
+			}
+			if fieldName == "type" && fieldValue == "integer" {
+				t.Fatalf("schema for %s uses unsupported integer type: %+v", toolName, document)
 			}
 			if fieldName == "properties" {
 				assertNativeSchemaMapIsProviderSafe(t, toolName, fieldValue, true)
