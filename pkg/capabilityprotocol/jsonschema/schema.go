@@ -53,7 +53,7 @@ func Boolean() Schema {
 }
 
 func Integer() Schema {
-	return typedSchema("integer")
+	return typedSchema("number")
 }
 
 func Number() Schema {

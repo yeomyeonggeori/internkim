@@ -287,6 +287,7 @@ func TestCapabilityDescriptorSchemasAreCanonicalObjects(t *testing.T) {
 			}
 			assertRequiredFieldsHaveProperties(t, descriptor.Name, schema)
 			assertSchemaDocumentOmitsKeywords(t, descriptor.Name, descriptor.InputSchema, "oneOf", "anyOf", "allOf")
+			assertSchemaDocumentOmitsType(t, descriptor.Name, descriptor.InputSchema, "integer")
 		}
 	}
 }
@@ -328,6 +329,41 @@ func decodeSchema(t *testing.T, toolName string, document json.RawMessage) schem
 		t.Fatalf("schema for %s is invalid: %v", toolName, errorValue)
 	}
 	return schema
+}
+
+func assertSchemaDocumentOmitsType(t *testing.T, toolName string, document json.RawMessage, schemaType string) {
+	t.Helper()
+	var value any
+	if errorValue := json.Unmarshal(document, &value); errorValue != nil {
+		t.Fatalf("schema for %s is invalid: %v", toolName, errorValue)
+	}
+	if schemaDocumentContainsType(value, schemaType) {
+		t.Fatalf("schema for %s must not use type %q: %s", toolName, schemaType, string(document))
+	}
+}
+
+func schemaDocumentContainsType(value any, schemaType string) bool {
+	document, isDocument := value.(map[string]any)
+	if isDocument {
+		if document["type"] == schemaType {
+			return true
+		}
+		for _, fieldValue := range document {
+			if schemaDocumentContainsType(fieldValue, schemaType) {
+				return true
+			}
+		}
+		return false
+	}
+	values, isValues := value.([]any)
+	if isValues {
+		for _, item := range values {
+			if schemaDocumentContainsType(item, schemaType) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func assertSchemaHasProperties(t *testing.T, schema schemaDocument, names ...string) {
