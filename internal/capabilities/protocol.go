@@ -241,7 +241,7 @@ func mattermostPostUpdateInputSchema() json.RawMessage {
 	return jsonschema.Object(
 		jsonschema.Required("postID", jsonschema.String()),
 		jsonschema.Field("message", jsonschema.String()),
-		jsonschema.Field("isPinned", jsonschema.Raw(json.RawMessage(`{"type":["boolean","null"]}`))),
+		jsonschema.Field("isPinned", jsonschema.Boolean()),
 	).RawMessage()
 }
 
@@ -260,7 +260,7 @@ func calendarEventWriteInputSchema() json.RawMessage {
 		jsonschema.Field("isAllDay", jsonschema.Boolean()),
 		jsonschema.Field("color", jsonschema.String()),
 		jsonschema.Field("people", jsonschema.Array(jsonschema.String())),
-		jsonschema.Field("reminderLeadHours", jsonschema.IntegerEnum(1, 2, 3, 6, 12, 24, 48)),
+		jsonschema.Field("reminderLeadHours", jsonschema.Integer()),
 	).RawMessage()
 }
 
@@ -285,7 +285,7 @@ func calendarEventUpdateInputSchema() json.RawMessage {
 		jsonschema.Field("isAllDay", jsonschema.Boolean()),
 		jsonschema.Field("color", jsonschema.String()),
 		jsonschema.Field("people", jsonschema.Array(jsonschema.String())),
-		jsonschema.Field("reminderLeadHours", jsonschema.IntegerEnum(1, 2, 3, 6, 12, 24, 48)),
+		jsonschema.Field("reminderLeadHours", jsonschema.Integer()),
 	).RawMessage()
 }
 
@@ -294,27 +294,27 @@ func calendarEventDeleteInputSchema() json.RawMessage {
 }
 
 func mailMessageListInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":50},"cursor":{"type":"string"}},"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"limit":{"type":"integer"},"cursor":{"type":"string"}}}`)
 }
 
 func mailMessageSearchInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"query":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":50},"cursor":{"type":"string"}},"required":["query"],"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"query":{"type":"string"},"limit":{"type":"integer"},"cursor":{"type":"string"}},"required":["query"]}`)
 }
 
 func mailMessageReadInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"uid":{"type":"string"}},"required":["mailbox","uid"],"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"uid":{"type":"string"}},"required":["mailbox","uid"]}`)
 }
 
 func mailMessageSendInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"to":{"type":"array","items":{"type":"string"}},"cc":{"type":"array","items":{"type":"string"}},"bcc":{"type":"array","items":{"type":"string"}},"subject":{"type":"string"},"body":{"type":"string"}},"required":["to","subject","body"],"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"to":{"type":"array","items":{"type":"string"}},"cc":{"type":"array","items":{"type":"string"}},"bcc":{"type":"array","items":{"type":"string"}},"subject":{"type":"string"},"body":{"type":"string"}},"required":["to","subject","body"]}`)
 }
 
 func mailMessageMoveInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"uid":{"type":"string"},"targetMailbox":{"type":"string"}},"required":["mailbox","uid","targetMailbox"],"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"uid":{"type":"string"},"targetMailbox":{"type":"string"}},"required":["mailbox","uid","targetMailbox"]}`)
 }
 
 func mailMessageMarkInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"uid":{"type":"string"},"seen":{"type":"boolean"},"flagged":{"type":"boolean"}},"required":["mailbox","uid"],"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"uid":{"type":"string"},"seen":{"type":"boolean"},"flagged":{"type":"boolean"}},"required":["mailbox","uid"]}`)
 }
 
 func siteAppCreateInputSchema() json.RawMessage {
@@ -379,7 +379,7 @@ func siteAppLifecycleInputSchema() json.RawMessage {
 }
 
 func artifactReviewInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"artifactKind":{"type":"string","enum":["site","slides","pptx","docx","pdf"]},"intent":{"type":"string"},"rubric":{"type":"string"},"evidence":{"type":"array","items":{"type":"object","properties":{"role":{"type":"string"},"path":{"type":"string"},"mimeType":{"type":"string","enum":["image/png","image/jpeg"]},"label":{"type":"string"}},"required":["role","path","mimeType","label"],"additionalProperties":false}},"expectedText":{"type":"array","items":{"type":"object","properties":{"target":{"type":"string"},"text":{"type":"string"}},"required":["target","text"],"additionalProperties":false}},"previousIssues":{"type":"array","items":{"type":"object","properties":{"severity":{"type":"string"},"category":{"type":"string"},"target":{"type":"string"},"message":{"type":"string"},"suggestedFix":{"type":"string"}},"required":["severity","category","target","message","suggestedFix"],"additionalProperties":false}}},"required":["artifactKind","intent","rubric","evidence"],"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"artifactKind":{"type":"string","enum":["site","slides","pptx","docx","pdf"]},"intent":{"type":"string"},"rubric":{"type":"string"},"evidence":{"type":"array","items":{"type":"object","properties":{"role":{"type":"string"},"path":{"type":"string"},"mimeType":{"type":"string","enum":["image/png","image/jpeg"]},"label":{"type":"string"}},"required":["role","path","mimeType","label"]}},"expectedText":{"type":"array","items":{"type":"object","properties":{"target":{"type":"string"},"text":{"type":"string"}},"required":["target","text"]}},"previousIssues":{"type":"array","items":{"type":"object","properties":{"severity":{"type":"string"},"category":{"type":"string"},"target":{"type":"string"},"message":{"type":"string"},"suggestedFix":{"type":"string"}},"required":["severity","category","target","message","suggestedFix"]}}},"required":["artifactKind","intent","rubric","evidence"]}`)
 }
 
 func siteAppDeleteInputSchema() json.RawMessage {
