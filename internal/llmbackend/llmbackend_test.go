@@ -481,12 +481,39 @@ func TestNativeActionToolsCompactLargeToolSetsForOpenRouterCompatibility(t *test
 	if !dispatcher.IsDispatcher || len(dispatcher.ToolNames) != len(descriptors) {
 		t.Fatalf("expected continue dispatcher with tool names, got %+v", dispatcher)
 	}
-	content, errorValue := nativeActionJSON(toolSet, "continue", `{"toolName":"tool.03","toolInputJSON":"{\"value\":\"ok\"}","executionStateUpdate":{}}`)
+	assertNativeSchemaDoesNotUseToolInputJSONString(t, dispatcher.Parameters)
+	content, errorValue := nativeActionJSON(toolSet, "continue", `{"toolName":"tool.03","toolInput":{"value":"ok"},"executionStateUpdate":{}}`)
 	if errorValue != nil {
 		t.Fatalf("expected dispatcher action JSON: %v", errorValue)
 	}
 	if !strings.Contains(content, `"toolName":"tool.03"`) || !strings.Contains(content, `"value":"ok"`) || strings.Contains(content, "toolInputJSON") {
 		t.Fatalf("expected decoded dispatcher payload, got %s", content)
+	}
+	legacyContent, errorValue := nativeActionJSON(toolSet, "continue", `{"toolName":"tool.03","toolInputJSON":"{\"value\":\"legacy\"}","executionStateUpdate":{}}`)
+	if errorValue != nil {
+		t.Fatalf("expected legacy dispatcher action JSON: %v", errorValue)
+	}
+	if !strings.Contains(legacyContent, `"value":"legacy"`) || strings.Contains(legacyContent, "toolInputJSON") {
+		t.Fatalf("expected decoded legacy dispatcher payload, got %s", legacyContent)
+	}
+}
+
+func TestNativeActionToolsDoNotCompactWhenControlActionsFitProviderBudget(t *testing.T) {
+	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
+		Name:     "blueclaw_agent_turn_action",
+		Document: testActionSchemaWithControlActionsAndToolCount(t, 16),
+	})
+	if errorValue != nil {
+		t.Fatalf("expected native tool set: %v", errorValue)
+	}
+	if !isActionSchema {
+		t.Fatal("expected action schema")
+	}
+	if len(toolSet.Tools) != openRouterNativeToolMaxFunctionCount {
+		t.Fatalf("expected %d native functions, got %+v", openRouterNativeToolMaxFunctionCount, toolSet.Tools)
+	}
+	if _, isDispatcher := toolSet.ToolByName["continue"]; isDispatcher {
+		t.Fatalf("expected fixed continue tools instead of dispatcher, got %+v", toolSet.Tools)
 	}
 }
 
@@ -984,6 +1011,46 @@ func testActionSchemaForDescriptors(t *testing.T, descriptors []capabilities.Des
 	return document
 }
 
+func testActionSchemaWithControlActionsAndToolCount(t *testing.T, toolCount int) json.RawMessage {
+	t.Helper()
+	variants := []any{
+		testControlActionVariant("finish"),
+		testControlActionVariant("fail"),
+		testControlActionVariant("require_capabilities"),
+		testControlActionVariant("set_quality_criteria"),
+	}
+	descriptors := make([]capabilities.Descriptor, 0, toolCount)
+	for index := 0; index < toolCount; index++ {
+		descriptors = append(descriptors, capabilities.Descriptor{
+			Name:        fmt.Sprintf("tool.%02d", index),
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"value":{"type":"string"}},"additionalProperties":false}`),
+		})
+	}
+	var document actionSchemaDocument
+	if errorValue := json.Unmarshal(testActionSchemaForDescriptors(t, descriptors), &document); errorValue != nil {
+		t.Fatalf("expected action schema: %v", errorValue)
+	}
+	for _, variant := range document.OneOf {
+		variants = append(variants, variant)
+	}
+	content, errorValue := json.Marshal(map[string]any{"oneOf": variants})
+	if errorValue != nil {
+		t.Fatalf("expected action schema: %v", errorValue)
+	}
+	return content
+}
+
+func testControlActionVariant(action string) map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"action": map[string]any{"type": "string", "enum": []string{action}},
+		},
+		"required":             []string{"action"},
+		"additionalProperties": false,
+	}
+}
+
 func assertNativeSchemaIsProviderSafe(t *testing.T, toolName string, schema json.RawMessage) {
 	t.Helper()
 	var document any
@@ -991,6 +1058,21 @@ func assertNativeSchemaIsProviderSafe(t *testing.T, toolName string, schema json
 		t.Fatalf("schema for %s is invalid: %v", toolName, errorValue)
 	}
 	assertNativeSchemaValueIsProviderSafe(t, toolName, document)
+}
+
+func assertNativeSchemaDoesNotUseToolInputJSONString(t *testing.T, schema json.RawMessage) {
+	t.Helper()
+	var document map[string]any
+	if errorValue := json.Unmarshal(schema, &document); errorValue != nil {
+		t.Fatalf("dispatcher schema is invalid: %v", errorValue)
+	}
+	properties, _ := document["properties"].(map[string]any)
+	if _, isFound := properties["toolInputJSON"]; isFound {
+		t.Fatalf("dispatcher schema must not require JSON strings: %+v", document)
+	}
+	if _, isFound := properties["toolInput"]; !isFound {
+		t.Fatalf("dispatcher schema must expose toolInput object: %+v", document)
+	}
 }
 
 func assertNativeSchemaValueIsProviderSafe(t *testing.T, toolName string, value any) {

@@ -315,7 +315,7 @@ func controlActionParameters(variant actionSchemaVariant) json.RawMessage {
 func nativeContinueDispatcherTool(toolNames []string) nativeActionTool {
 	return nativeActionTool{
 		FunctionName: "continue",
-		Description:  "Continue work by calling one available tool. toolInputJSON must be a JSON string matching the selected tool input schema.",
+		Description:  "Continue work by calling one available tool. toolInput must be a JSON object for the selected tool.",
 		Action:       "continue",
 		Parameters:   nativeContinueDispatcherParameters(toolNames),
 		ToolNames:    toolNames,
@@ -331,9 +331,9 @@ func nativeContinueDispatcherParameters(toolNames []string) json.RawMessage {
 				"type": "string",
 				"enum": toolNames,
 			},
-			"toolInputJSON": map[string]any{
-				"type":        "string",
-				"description": "JSON-encoded input for the selected tool. Use {} when the tool takes no input.",
+			"toolInput": map[string]any{
+				"type":        "object",
+				"description": "Input object for the selected tool. Use {} when the tool takes no input.",
 			},
 			"message":              map[string]any{"type": "string"},
 			"reason":               map[string]any{"type": "string"},
@@ -342,7 +342,7 @@ func nativeContinueDispatcherParameters(toolNames []string) json.RawMessage {
 			"remainingWork":        map[string]any{"type": "string"},
 			"executionStateUpdate": nativeDispatcherExecutionStateSchema(),
 		},
-		"required":             []string{"toolName", "toolInputJSON", "executionStateUpdate"},
+		"required":             []string{"toolName", "toolInput", "executionStateUpdate"},
 		"additionalProperties": false,
 	})
 	if errorValue != nil {
