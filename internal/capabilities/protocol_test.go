@@ -168,6 +168,7 @@ func TestFileReadDescriptorIsReadOnlyDefaultTool(t *testing.T) {
 
 func TestSiteAppDescriptorsUseRuntimeInputNames(t *testing.T) {
 	createSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.create")
+	previewSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.preview")
 	publishSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.publish")
 	statusSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.status")
 	historySchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.history")
@@ -177,6 +178,7 @@ func TestSiteAppDescriptorsUseRuntimeInputNames(t *testing.T) {
 	assertSchemaHasProperties(t, createSchema, "slug", "title", "prompt", "designBrief", "prototypeScope")
 	assertSchemaRequires(t, createSchema, "slug")
 	assertSchemaOmitsProperties(t, createSchema, "name", "sourcePath")
+	assertSchemaHasProperties(t, previewSchema, "siteID", "slug", "message")
 	assertSchemaHasProperties(t, publishSchema, "siteID", "slug", "message")
 	assertSchemaHasProperties(t, statusSchema, "siteID", "slug")
 	assertSchemaHasProperties(t, historySchema, "siteID", "slug")
@@ -207,6 +209,7 @@ func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
 	assertDescriptorApproval(t, WebDescriptors(), "web.fetch", false)
 	assertDescriptorApproval(t, CalendarDescriptors(), "calendar.event.delete", true)
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site.app.create", false)
+	assertDescriptorApproval(t, SiteAppDescriptors(), "site.app.preview", false)
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site.app.publish", false)
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site.app.delete", true)
 	assertDescriptorApproval(t, GoogleWorkspaceDescriptors(), "google.calendar.event", false)

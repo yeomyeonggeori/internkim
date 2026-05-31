@@ -49,8 +49,8 @@ func TestSiteGatewayLifecycle(t *testing.T) {
 	if site.WorkspacePath == "" || site.HostSourcePath == "" || site.LastPublishedCommit == "" {
 		t.Fatalf("site workspace metadata missing: %+v", site)
 	}
-	if !strings.HasPrefix(site.SourceWorkspacePath, "/workspace/sites/") {
-		t.Fatalf("site source workspace should be canonical site virtual path, got %q", site.SourceWorkspacePath)
+	if !strings.HasPrefix(site.SourceWorkspacePath, "home/sites/") || !strings.HasSuffix(site.SourceWorkspacePath, "/draft") {
+		t.Fatalf("site source workspace should be owner-private draft path, got %q", site.SourceWorkspacePath)
 	}
 
 	response := serveSiteRequest(service, "demo.device.intern.kim", "/")
@@ -128,8 +128,8 @@ func TestSitePrototypePublishesDefaultBuild(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !strings.HasPrefix(site.SourceWorkspacePath, "/workspace/sites/") {
-		t.Fatalf("site source workspace should be canonical site virtual path, got %q", site.SourceWorkspacePath)
+	if !strings.HasPrefix(site.SourceWorkspacePath, "home/sites/") || !strings.HasSuffix(site.SourceWorkspacePath, "/draft") {
+		t.Fatalf("site source workspace should be owner-private draft path, got %q", site.SourceWorkspacePath)
 	}
 	if site.AppWorkspacePath != site.SourceWorkspacePath+"/app" {
 		t.Fatalf("site app workspace path = %q, source = %q", site.AppWorkspacePath, site.SourceWorkspacePath)
@@ -157,6 +157,80 @@ func TestSitePrototypePublishesDefaultBuild(t *testing.T) {
 	}
 	if !containsCommandFragment(*commandLog, "safe.directory="+site.HostSourcePath) {
 		t.Fatalf("site git commands should trust the site workspace: %+v", *commandLog)
+	}
+}
+
+func TestSitePreviewDoesNotChangePublishedURLUntilPublish(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{
+		Slug:          "preview-flow",
+		Title:         "Preview Flow",
+		RequestedBy:   "owner@example.com",
+		OwnerIdentity: siteIdentity{PersonID: "person-1", DisplayName: "Owner"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeTestWorkspaceBuild(t, site, "published version")
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		RequestedBy:        "owner@example.com",
+		Message:            "Publish stable version",
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeTestWorkspaceBuild(t, site, "draft preview version")
+	site, errorValue = service.previewSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		RequestedBy:        "owner@example.com",
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if site.PreviewID == "" || !strings.Contains(site.PreviewURL, "/__preview/"+site.PreviewID) {
+		t.Fatalf("expected preview URL metadata, got %+v", site)
+	}
+	publishedResponse := serveSiteRequest(service, "preview-flow.device.intern.kim", "/")
+	if !strings.Contains(publishedResponse.Body.String(), "published version") || strings.Contains(publishedResponse.Body.String(), "draft preview version") {
+		t.Fatalf("preview should not change public response: %q", publishedResponse.Body.String())
+	}
+	previewResponse := serveSiteRequest(service, "preview-flow.device.intern.kim", "/__preview/"+site.PreviewID+"/")
+	if previewResponse.Code != http.StatusOK || !strings.Contains(previewResponse.Body.String(), "draft preview version") {
+		t.Fatalf("expected preview response, status=%d body=%q", previewResponse.Code, previewResponse.Body.String())
+	}
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		RequestedBy:        "owner@example.com",
+		Message:            "Publish preview version",
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if site.PreviewURL != "" || site.PreviewID != "" {
+		t.Fatalf("expected publish to clear preview metadata, got %+v", site)
+	}
+	ownerCurrentTarget, errorValue := os.Readlink(filepath.Join(service.sitePublishedRootPath(site), "current"))
+	if errorValue != nil || ownerCurrentTarget != service.sitePublishedVersionPath(site, site.CurrentVersionID) {
+		t.Fatalf("expected owner-private current symlink to point at live version, target=%q error=%v", ownerCurrentTarget, errorValue)
+	}
+	runtimeCurrentTarget, errorValue := os.Readlink(filepath.Join(service.sitePath(site.SiteID), "current"))
+	if errorValue != nil || runtimeCurrentTarget != service.sitePublishedVersionPath(site, site.CurrentVersionID) {
+		t.Fatalf("expected runtime current symlink to point at live version, target=%q error=%v", runtimeCurrentTarget, errorValue)
+	}
+	publishedResponse = serveSiteRequest(service, "preview-flow.device.intern.kim", "/")
+	if !strings.Contains(publishedResponse.Body.String(), "draft preview version") {
+		t.Fatalf("expected published response to update after publish: %q", publishedResponse.Body.String())
+	}
+	previewResponse = serveSiteRequest(service, "preview-flow.device.intern.kim", "/__preview/preview-missing/")
+	if previewResponse.Code != http.StatusNotFound {
+		t.Fatalf("expected preview to be closed after publish, got %d", previewResponse.Code)
 	}
 }
 
@@ -428,11 +502,11 @@ func TestSiteWorkspaceIsWritableByRequesterTerminal(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !strings.HasPrefix(site.SourceWorkspacePath, "/workspace/sites/") {
-		t.Fatalf("expected canonical site source workspace, got %q", site.SourceWorkspacePath)
+	if !strings.HasPrefix(site.SourceWorkspacePath, "home/sites/") || !strings.HasSuffix(site.SourceWorkspacePath, "/draft") {
+		t.Fatalf("expected owner-private draft workspace, got %q", site.SourceWorkspacePath)
 	}
-	if site.WorkspacePath != site.SourceWorkspacePath {
-		t.Fatalf("workspace path should point at source workspace: %+v", site)
+	if !strings.HasPrefix(site.WorkspacePath, "home/sites/") || strings.HasSuffix(site.WorkspacePath, "/draft") {
+		t.Fatalf("workspace path should point at project root: %+v", site)
 	}
 	if site.AppWorkspacePath != site.SourceWorkspacePath+"/app" {
 		t.Fatalf("app workspace path should point at app source: %+v", site)

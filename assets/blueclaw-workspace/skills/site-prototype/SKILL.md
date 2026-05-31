@@ -12,6 +12,7 @@ allowed-tools:
   - site.app.create
   - site.app.build
   - site.app.repair
+  - site.app.preview
   - site.app.publish
   - site.app.status
   - site.app.history
@@ -51,7 +52,7 @@ Create prototypes for non-developers to validate ideas quickly. Do not present t
 
 ## Workflow
 
-For create, make, build, deploy, publish, prototype, demo, landing page, dashboard, or app requests, the task is not complete until `site.app.publish` succeeds. Do not stop after `site.app.create`. Do not ask the user to review a draft URL before publishing; draft site URLs return 404 and are not useful for review.
+For create, make, build, deploy, publish, prototype, demo, landing page, dashboard, or app requests, the task is not complete until `site.app.publish` succeeds. Do not stop after `site.app.create`. Draft changes stay private until publish; use `site.app.preview` only as a temporary review URL when visual QA or user inspection needs a browser-accessible draft.
 
 Start by resolving the existing site for the current conversation or slug with `site.app.status`. Updating the same public URL is the default. Create a new site only when no existing site is resolved or the user explicitly asks for a new site, new URL, or separate prototype.
 
@@ -67,17 +68,17 @@ Start by resolving the existing site for the current conversation or slug with `
 10. Replace the starter `app/src/App.tsx` entirely. Do not preserve starter copy, scaffold structure, or generic feature-card sections.
 11. Use `file.write` to update `app/src/App.tsx`, `app/src/index.css`, app-owned components, and app-owned data/source files according to `DESIGN.md`. Do not write `app/package.json`, `app/index.html`, `app/scripts/build.ts`, `app/tsconfig.json`, or `app/vite.config.ts`; those scaffold/build contract files are managed by `site.app.create`.
 12. Call `site.app.build`. It resolves the canonical `appWorkspacePath`, runs `bun scripts/build.ts` there, writes `.internkim/build-quality.json`, and returns build evidence. Use raw `terminal.run` with `workingDirectoryPath` set to `<appWorkspacePath>` only as a fallback when `site.app.build` is unavailable.
-13. Start a local preview with `terminal.session`, capture desktop and mobile screenshots with browser tools when available, then call `artifact.review` with the screenshots, intent, archetype, and rubric.
+13. Call `site.app.preview` when a browser-accessible draft is useful, or start a local preview with `terminal.session` when local browser tools are the better fit. Capture desktop and mobile screenshots with browser tools when available, then call `artifact.review` with the screenshots, intent, archetype, and rubric.
 14. Write `.internkim/review-log.json` with deterministic checks, vision review issues, attempt count, accepted warnings, and final decision. Revise and rebuild when any blocking issue remains; repeat at most three times.
-15. Call `site.app.publish` with `siteID` and a concise revision message. Same-site updates must publish the same `publishedURL`.
+15. Call `site.app.publish` with `siteID` and a concise revision message. Same-site updates must publish the same `publishedURL`; successful publish closes the temporary preview.
 16. Call `site.app.status` for the same `siteID` and confirm the status is `published`.
 17. Reply in Mattermost with the public URL, revision summary, how to try the main workflow, rollback availability, and any test login credentials.
 
 Do not publish the uncustomized starter for a website creation request. The starter is only a safe scaffold while the real prototype is being written.
 
-Never say the website is ready, created, prepared, available, previewable, or done unless the site status is `published` after `site.app.publish`. If build or publish fails, report the actual failure and do not provide the draft URL as something the user can open.
+Never say the website is ready, created, prepared, available, or done unless the site status is `published` after `site.app.publish`. A preview URL is only a temporary draft review URL, not completion. If build or publish fails, report the actual failure and distinguish any preview from the final public URL.
 
-Do not ask for approval before `site.app.create`, `terminal.run` builds, `site.app.publish`, `site.app.status`, `site.app.logs`, or `site.app.restore`. `site.app.publish` is a normal part of creating a website prototype and never needs `user.confirm`. Ask for approval before `site.app.rollback`, `site.app.unpublish`, or `site.app.delete`.
+Do not ask for approval before `site.app.create`, `terminal.run` builds, `site.app.preview`, `site.app.publish`, `site.app.status`, `site.app.logs`, or `site.app.restore`. `site.app.publish` is a normal part of creating a website prototype and never needs `user.confirm`. Ask for approval before `site.app.rollback`, `site.app.unpublish`, or `site.app.delete`.
 
 Use `user.confirm` only for rollback, unpublish, or delete requests. Do not use `user.confirm` for create, build, publish, status, logs, or restore.
 
@@ -108,7 +109,7 @@ bun scripts/build.ts
 
 After terminal build success:
 
-- start preview from `<appWorkspacePath>` with `bun run preview -- --host 127.0.0.1 --port 4173`; if the port is busy, use the next open port
+- call `site.app.preview` for a temporary draft URL, or start preview from `<appWorkspacePath>` with `bun run preview -- --host 127.0.0.1 --port 4173`; if the port is busy, use the next open port
 - use browser tools to inspect `http://127.0.0.1:<port>` at desktop and mobile widths when available
 - check for text overflow, overlapping controls, clipped buttons, empty first screens, excessive whitespace, a one-note palette, and missing shadcn token usage
 - call `artifact.review` with desktop and mobile screenshots when screenshots are available; use the returned blocking/warning issues as the revision checklist

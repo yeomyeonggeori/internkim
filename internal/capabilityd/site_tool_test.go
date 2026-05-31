@@ -91,6 +91,40 @@ func TestSiteAppPublishResolvesConversationSite(t *testing.T) {
 	}
 }
 
+func TestSiteAppPreviewResolvesConversationSite(t *testing.T) {
+	requests := []string{}
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			requests = append(requests, request.Method+" "+request.URL.Path)
+			switch {
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/admin/api/sites":
+				return siteToolJSONResponse(`{"sites":[{"siteID":"site-1","slug":"demo","platform":"mattermost","conversationID":"thread-1","status":"draft"}]}`), nil
+			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/admin/api/sites/site-1/preview":
+				return siteToolJSONResponse(`{"siteID":"site-1","status":"draft","previewURL":"https://demo.example/__preview/task-1"}`), nil
+			default:
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+
+	_, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "site.app.preview",
+		Input:    json.RawMessage(`{"message":"Preview prototype"}`),
+		Context: capabilities.ToolInvokeContext{
+			Platform:       "mattermost",
+			ConversationID: "thread-1",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if strings.Join(requests, ",") != "GET /admin/api/sites,POST /admin/api/sites/site-1/preview" {
+		t.Fatalf("unexpected requests: %+v", requests)
+	}
+}
+
 func TestSiteAppStatusResolvesConversationSite(t *testing.T) {
 	requests := []string{}
 	service := Service{

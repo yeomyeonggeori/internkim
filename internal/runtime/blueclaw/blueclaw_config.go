@@ -51,7 +51,20 @@ var blueclawNativeToolNames = []string{
 }
 
 func BlueclawDefaultAllowedToolNames() []string {
-	return uniqueStringList(append(blueclawNativeToolNames, capabilities.DefaultToolNames()...))
+	return removeDefaultSkillScopedToolNames(uniqueStringList(append(blueclawNativeToolNames, capabilities.DefaultToolNames()...)))
+}
+
+func removeDefaultSkillScopedToolNames(toolNames []string) []string {
+	hiddenToolNames := map[string]bool{
+		"site.app.preview": true,
+	}
+	result := []string{}
+	for _, toolName := range toolNames {
+		if !hiddenToolNames[strings.TrimSpace(toolName)] {
+			result = append(result, toolName)
+		}
+	}
+	return result
 }
 
 func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
@@ -321,6 +334,7 @@ func defaultResourceAccessPolicies() []map[string]any {
 		{"resource": "tool:mail.message.move", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:mail.message.mark", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:site.app.create", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:site.app.preview", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:site.app.publish", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:site.app.status", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:site.app.history", "actions": []string{"execute"}, "circles": []string{"staff"}},
