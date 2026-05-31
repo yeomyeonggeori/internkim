@@ -135,6 +135,9 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 		}
 	}
 	for _, expectedToolName := range capabilities.DefaultToolNames() {
+		if expectedToolName == "site.app.preview" {
+			continue
+		}
 		if !containsStringValue(allowedToolNames, expectedToolName) {
 			t.Fatalf("expected default agent profile to allow default capability tool %q, got %+v", expectedToolName, allowedToolNames)
 		}
@@ -210,6 +213,7 @@ func TestBlueclawRuntimeKnowsBuiltinSkillToolsWithoutExposingAllByDefault(t *tes
 	skillScopedToolNames := stringSet([]string{
 		"site.app.build",
 		"site.app.repair",
+		"site.app.preview",
 	})
 	disabledSkillToolNames := stringSet([]string{
 		"google.docs.create",

@@ -66,7 +66,11 @@ type SiteRecord struct {
 	WorkspacePath       string             `json:"workspacePath,omitempty"`
 	SourceWorkspacePath string             `json:"sourceWorkspacePath,omitempty"`
 	AppWorkspacePath    string             `json:"appWorkspacePath,omitempty"`
+	DraftPath           string             `json:"draftPath,omitempty"`
 	HostSourcePath      string             `json:"hostSourcePath,omitempty"`
+	PreviewID           string             `json:"previewID,omitempty"`
+	PreviewURL          string             `json:"previewURL,omitempty"`
+	PreviewExpiresAt    time.Time          `json:"previewExpiresAt,omitempty"`
 	LastPublishedCommit string             `json:"lastPublishedCommit,omitempty"`
 	RevisionCount       int                `json:"revisionCount"`
 	CreatedAt           time.Time          `json:"createdAt"`
@@ -118,6 +122,7 @@ type sitePublishRequest struct {
 	SourceWorkspacePath     string       `json:"sourceWorkspacePath"`
 	SourceBundleBase64      string       `json:"sourceBundleBase64"`
 	SourceBundleFormat      string       `json:"sourceBundleFormat"`
+	PreviewID               string       `json:"previewID"`
 	RequestedBy             string       `json:"requestedBy"`
 	Requester               siteIdentity `json:"requester"`
 	Message                 string       `json:"message"`
@@ -149,8 +154,10 @@ type siteWorkspaceMetadata struct {
 	Slug           string             `json:"slug"`
 	Title          string             `json:"title"`
 	PublishedURL   string             `json:"publishedURL"`
+	PreviewURL     string             `json:"previewURL,omitempty"`
 	Platform       string             `json:"platform,omitempty"`
 	ConversationID string             `json:"conversationID,omitempty"`
+	DraftPath      string             `json:"draftPath,omitempty"`
 	Description    string             `json:"description,omitempty"`
 	Idea           string             `json:"idea,omitempty"`
 	OriginalPrompt string             `json:"originalPrompt,omitempty"`
@@ -202,6 +209,13 @@ func (service *Service) serveSiteHost(responseWriter http.ResponseWriter, reques
 	switch site.Status {
 	case SiteStatusPublished:
 		service.servePublishedSite(responseWriter, request, site)
+	case SiteStatusDraft:
+		previewID, _ := sitePreviewRequestPath(request.URL.Path)
+		if sitePreviewActive(site, previewID) {
+			service.serveSiteFrontend(responseWriter, request, site)
+			return
+		}
+		http.NotFound(responseWriter, request)
 	case SiteStatusUnpublished:
 		http.Error(responseWriter, "site is unpublished", http.StatusGone)
 	case SiteStatusFailed:
@@ -239,8 +253,16 @@ func (service *Service) proxySitePocketBase(responseWriter http.ResponseWriter, 
 }
 
 func (service *Service) serveSiteFrontend(responseWriter http.ResponseWriter, request *http.Request, site *SiteRecord) {
-	rootPath := filepath.Join(service.siteVersionPath(site.SiteID, site.CurrentVersionID), "frontend", "dist")
-	relativePath, errorValue := cleanSiteFrontendPath(request.URL.Path)
+	rootPath := filepath.Join(service.sitePublishedVersionPath(site, site.CurrentVersionID), "frontend", "dist")
+	previewID, requestPath := sitePreviewRequestPath(request.URL.Path)
+	if previewID != "" {
+		if !sitePreviewActive(site, previewID) {
+			http.NotFound(responseWriter, request)
+			return
+		}
+		rootPath = filepath.Join(service.sitePreviewPath(site, previewID), "frontend", "dist")
+	}
+	relativePath, errorValue := cleanSiteFrontendPath(requestPath)
 	if errorValue != nil {
 		http.NotFound(responseWriter, request)
 		return
@@ -251,6 +273,30 @@ func (service *Service) serveSiteFrontend(responseWriter http.ResponseWriter, re
 		return
 	}
 	http.ServeFile(responseWriter, request, filepath.Join(rootPath, "index.html"))
+}
+
+func sitePreviewRequestPath(path string) (string, string) {
+	cleanPath := "/" + strings.TrimLeft(path, "/")
+	if !strings.HasPrefix(cleanPath, "/__preview/") {
+		return "", path
+	}
+	rest := strings.TrimPrefix(cleanPath, "/__preview/")
+	previewID, suffix, _ := strings.Cut(rest, "/")
+	previewID = strings.TrimSpace(previewID)
+	if previewID == "" {
+		return "", path
+	}
+	if strings.TrimSpace(suffix) == "" {
+		suffix = "index.html"
+	}
+	return previewID, "/" + suffix
+}
+
+func sitePreviewActive(site *SiteRecord, previewID string) bool {
+	if site == nil || strings.TrimSpace(site.PreviewID) == "" || site.PreviewID != strings.TrimSpace(previewID) {
+		return false
+	}
+	return site.PreviewExpiresAt.IsZero() || time.Now().UTC().Before(site.PreviewExpiresAt)
 }
 
 func cleanSiteFrontendPath(path string) (string, error) {
@@ -342,6 +388,8 @@ func (service *Service) handleSite(responseWriter http.ResponseWriter, request *
 		service.writeSite(responseWriter, siteID)
 	case request.Method == http.MethodPost && action == "publish":
 		service.publishSiteFromRequest(responseWriter, request, siteID)
+	case request.Method == http.MethodPost && action == "preview":
+		service.previewSiteFromRequest(responseWriter, request, siteID)
 	case request.Method == http.MethodGet && action == "history":
 		service.writeSiteHistory(responseWriter, request, siteID)
 	case request.Method == http.MethodGet && action == "diff":
@@ -421,6 +469,21 @@ func (service *Service) publishSiteFromRequest(responseWriter http.ResponseWrite
 	}
 	payload.SiteID = firstNonEmpty(payload.SiteID, siteID)
 	site, errorValue := service.publishSite(request.Context(), payload)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	service.writeJSON(responseWriter, site)
+}
+
+func (service *Service) previewSiteFromRequest(responseWriter http.ResponseWriter, request *http.Request, siteID string) {
+	payload, errorValue := decodeSitePublishRequest(request.Body)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	payload.SiteID = siteID
+	site, errorValue := service.previewSite(request.Context(), payload)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
@@ -551,10 +614,11 @@ func (service *Service) createSiteRecord(payload siteCreateRequest) (*SiteRecord
 		TLSStatus:           service.siteTLSStatus(),
 		Platform:            strings.TrimSpace(payload.Platform),
 		ConversationID:      strings.TrimSpace(payload.ConversationID),
-		WorkspacePath:       siteSourceWorkspacePath(siteID, payload.SourceWorkspacePath),
-		SourceWorkspacePath: siteSourceWorkspacePath(siteID, payload.SourceWorkspacePath),
-		AppWorkspacePath:    filepath.ToSlash(filepath.Join(siteSourceWorkspacePath(siteID, payload.SourceWorkspacePath), "app")),
-		HostSourcePath:      service.siteHostWorkspacePath(siteID),
+		WorkspacePath:       siteProjectWorkspacePath(siteID),
+		SourceWorkspacePath: siteDraftWorkspacePath(siteID, payload.SourceWorkspacePath),
+		AppWorkspacePath:    filepath.ToSlash(filepath.Join(siteDraftWorkspacePath(siteID, payload.SourceWorkspacePath), "app")),
+		DraftPath:           siteDraftWorkspacePath(siteID, payload.SourceWorkspacePath),
+		HostSourcePath:      service.siteSourceLedgerPath(siteID),
 		CreatedAt:           now,
 		UpdatedAt:           now,
 	}
@@ -594,6 +658,7 @@ func (service *Service) publishSite(ctx context.Context, payload sitePublishRequ
 		service.updateSiteStatus(site.SiteID, SiteStatusFailed, errorValue.Error())
 		return nil, errorValue
 	}
+	service.clearSitePreview(site)
 	now := time.Now().UTC()
 	site.PreviousVersionID = site.CurrentVersionID
 	site.CurrentVersionID = versionID
@@ -605,6 +670,34 @@ func (service *Service) publishSite(ctx context.Context, payload sitePublishRequ
 	site.UnpublishedAt = time.Time{}
 	site.DeletedAt = time.Time{}
 	site.LastError = ""
+	return site, service.storeSite(site)
+}
+
+func (service *Service) previewSite(ctx context.Context, payload sitePublishRequest) (*SiteRecord, error) {
+	site, errorValue := service.siteForPublish(payload)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	if !siteModificationAllowed(site, payload.RequestedBy, payload.Requester, false) {
+		return nil, errors.New("site editor permission is required")
+	}
+	if errorValue := validateWorkspaceOnlyPublish(payload); errorValue != nil {
+		return nil, errorValue
+	}
+	if errorValue := service.updateSiteFromPublishRequest(site, payload); errorValue != nil {
+		return nil, errorValue
+	}
+	if errorValue := service.prepareSiteSourceForPublish(ctx, site, payload); errorValue != nil {
+		return nil, errorValue
+	}
+	previewID := firstNonEmpty(strings.TrimSpace(payload.PreviewID), "preview-"+randomHex(4))
+	if errorValue := service.prepareSitePreview(site, previewID); errorValue != nil {
+		return nil, errorValue
+	}
+	site.PreviewID = previewID
+	site.PreviewURL = service.sitePreviewURL(site, previewID)
+	site.PreviewExpiresAt = time.Now().UTC().Add(24 * time.Hour)
+	site.UpdatedAt = time.Now().UTC()
 	return site, service.storeSite(site)
 }
 
@@ -847,13 +940,16 @@ func (service *Service) updateSiteFromPublishRequest(site *SiteRecord, payload s
 		site.ConversationID = strings.TrimSpace(payload.ConversationID)
 	}
 	if site.HostSourcePath == "" {
-		site.HostSourcePath = service.siteHostWorkspacePath(site.SiteID)
+		site.HostSourcePath = service.siteSourceLedgerPath(site.SiteID)
 	}
 	if site.SourceWorkspacePath == "" {
-		site.SourceWorkspacePath = siteSourceWorkspacePath(site.SiteID, "")
+		site.SourceWorkspacePath = siteDraftWorkspacePath(site.SiteID, "")
 	}
 	if site.WorkspacePath == "" {
-		site.WorkspacePath = site.SourceWorkspacePath
+		site.WorkspacePath = siteProjectWorkspacePath(site.SiteID)
+	}
+	if site.DraftPath == "" {
+		site.DraftPath = site.SourceWorkspacePath
 	}
 	if site.AppWorkspacePath == "" {
 		site.AppWorkspacePath = filepath.ToSlash(filepath.Join(site.SourceWorkspacePath, "app"))
@@ -972,7 +1068,7 @@ func siteBundleFileMode(mode os.FileMode) os.FileMode {
 }
 
 func (service *Service) prepareSiteVersion(site *SiteRecord, versionID string, payload sitePublishRequest) error {
-	versionPath := service.siteVersionPath(site.SiteID, versionID)
+	versionPath := service.sitePublishedVersionPath(site, versionID)
 	if errorValue := os.MkdirAll(versionPath, 0o700); errorValue != nil {
 		return errorValue
 	}
@@ -986,7 +1082,7 @@ func (service *Service) prepareSiteVersion(site *SiteRecord, versionID string, p
 	if errorValue := ensureSiteBuildQualityPassed(site.HostSourcePath); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := copyDirectory(frontendBuildPath, filepath.Join(versionPath, "frontend", "dist")); errorValue != nil {
+	if errorValue := materializeDirectory(frontendBuildPath, filepath.Join(versionPath, "frontend", "dist")); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := copyOptionalDirectory(filepath.Join(site.HostSourcePath, "pocketbase", "pb_migrations"), filepath.Join(versionPath, "pb_migrations")); errorValue != nil {
@@ -996,6 +1092,27 @@ func (service *Service) prepareSiteVersion(site *SiteRecord, versionID string, p
 		return errorValue
 	}
 	return nil
+}
+
+func (service *Service) prepareSitePreview(site *SiteRecord, previewID string) error {
+	previewPath := service.sitePreviewPath(site, previewID)
+	if errorValue := os.RemoveAll(previewPath); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := os.MkdirAll(previewPath, 0o700); errorValue != nil {
+		return errorValue
+	}
+	frontendBuildPath := filepath.Join(site.HostSourcePath, "app", "dist")
+	if !isDirectory(frontendBuildPath) {
+		return errors.New("site workspace must contain app/dist; build in Blueclaw before preview")
+	}
+	if errorValue := ensureSiteFrontendBuildIsFresh(site.HostSourcePath, frontendBuildPath); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureSiteBuildQualityPassed(site.HostSourcePath); errorValue != nil {
+		return errorValue
+	}
+	return materializeDirectory(frontendBuildPath, filepath.Join(previewPath, "frontend", "dist"))
 }
 
 func ensureSiteFrontendBuildIsFresh(workspacePath string, frontendBuildPath string) error {
@@ -1098,10 +1215,11 @@ func (service *Service) activateSiteVersion(ctx context.Context, site *SiteRecor
 	if errorValue := service.ensureSiteRuntimeFiles(site, versionID); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := service.switchCurrentSiteVersion(site.SiteID, versionID); errorValue != nil {
+	if errorValue := service.switchCurrentSiteVersion(site, versionID); errorValue != nil {
 		return errorValue
 	}
 	_, _ = service.runCommand(ctx, "chown", "-R", "internkim-site:internkim-site", service.sitePath(site.SiteID))
+	_, _ = service.runCommand(ctx, "chown", "-R", "internkim-site:internkim-site", service.sitePublishedRootPath(site))
 	if _, errorValue := service.runCommand(ctx, "systemctl", "daemon-reload"); errorValue != nil {
 		return errorValue
 	}
@@ -1163,10 +1281,21 @@ WantedBy=multi-user.target
 	return os.WriteFile(templatePath, []byte(document), 0o644)
 }
 
-func (service *Service) switchCurrentSiteVersion(siteID string, versionID string) error {
-	currentPath := filepath.Join(service.sitePath(siteID), "current")
-	_ = os.Remove(currentPath)
-	return os.Symlink(service.siteVersionPath(siteID, versionID), currentPath)
+func (service *Service) switchCurrentSiteVersion(site *SiteRecord, versionID string) error {
+	currentPath := filepath.Join(service.sitePublishedRootPath(site), "current")
+	versionPath := service.sitePublishedVersionPath(site, versionID)
+	if errorValue := replaceSymlink(currentPath, versionPath); errorValue != nil {
+		return errorValue
+	}
+	return replaceSymlink(filepath.Join(service.sitePath(site.SiteID), "current"), versionPath)
+}
+
+func replaceSymlink(path string, target string) error {
+	_ = os.Remove(path)
+	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
+		return errorValue
+	}
+	return os.Symlink(target, path)
 }
 
 func (service *Service) rollbackSite(ctx context.Context, siteID string, payload siteLifecycleRequest) (*SiteRecord, error) {
@@ -1257,6 +1386,8 @@ func (service *Service) deleteSite(ctx context.Context, siteID string, payload s
 	}
 	_, _ = service.runCommand(ctx, "systemctl", "disable", "--now", siteServiceName(site.SiteID))
 	_ = os.RemoveAll(service.sitePath(site.SiteID))
+	_ = os.RemoveAll(service.siteOwnerProjectPath(site))
+	_ = os.RemoveAll(site.HostSourcePath)
 	_ = os.RemoveAll(filepath.Dir(service.siteSecretPath(site.SiteID)))
 	now := time.Now().UTC()
 	site.Status = SiteStatusDeleted
@@ -1324,6 +1455,29 @@ func makeSiteWorkspaceCollaborative(workspacePath string) error {
 			mode = 0o777
 		}
 		return os.Chmod(path, mode)
+	})
+}
+
+func materializeDirectory(sourceRoot string, targetRoot string) error {
+	return filepath.Walk(sourceRoot, func(sourcePath string, information os.FileInfo, walkError error) error {
+		if walkError != nil {
+			return walkError
+		}
+		relativePath, errorValue := filepath.Rel(sourceRoot, sourcePath)
+		if errorValue != nil || relativePath == "." {
+			return errorValue
+		}
+		targetPath := filepath.Join(targetRoot, relativePath)
+		if information.IsDir() {
+			return os.MkdirAll(targetPath, information.Mode())
+		}
+		if !information.Mode().IsRegular() {
+			return nil
+		}
+		if errorValue := os.MkdirAll(filepath.Dir(targetPath), 0o755); errorValue != nil {
+			return errorValue
+		}
+		return copyRegularFile(sourcePath, targetPath)
 	})
 }
 
@@ -1396,8 +1550,10 @@ func (service *Service) siteWorkspaceMetadata(site *SiteRecord) string {
 		Slug:           site.Slug,
 		Title:          site.Title,
 		PublishedURL:   site.PublishedURL,
+		PreviewURL:     site.PreviewURL,
 		Platform:       site.Platform,
 		ConversationID: site.ConversationID,
+		DraftPath:      site.DraftPath,
 		Description:    site.Description,
 		Idea:           site.Idea,
 		OriginalPrompt: site.OriginalPrompt,
@@ -1526,7 +1682,7 @@ func (service *Service) siteGitHistory(ctx context.Context, site *SiteRecord) (s
 }
 
 func (service *Service) siteRevisionEntries(site *SiteRecord, output string) []siteRevisionEntry {
-	versionIDs := service.siteVersionIDs(site.SiteID)
+	versionIDs := service.siteVersionIDs(site)
 	entries := []siteRevisionEntry{}
 	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
 		parts := strings.SplitN(line, "\x1f", 3)
@@ -1576,11 +1732,11 @@ func (service *Service) siteRollbackVersionID(site *SiteRecord, payload siteLife
 	if revision == "" {
 		return site.PreviousVersionID, nil
 	}
-	if isDirectory(service.siteVersionPath(site.SiteID, revision)) {
+	if isDirectory(service.sitePublishedVersionPath(site, revision)) || isDirectory(service.siteVersionPath(site.SiteID, revision)) {
 		return revision, nil
 	}
 	shortCommit := shortSiteCommit(revision)
-	for _, versionID := range service.siteVersionIDs(site.SiteID) {
+	for _, versionID := range service.siteVersionIDs(site) {
 		if strings.HasSuffix(versionID, "-"+shortCommit) {
 			return versionID, nil
 		}
@@ -1603,8 +1759,11 @@ func (service *Service) siteRevisionCount(site *SiteRecord) int {
 	return count
 }
 
-func (service *Service) siteVersionIDs(siteID string) []string {
-	entries, errorValue := os.ReadDir(filepath.Join(service.sitePath(siteID), "versions"))
+func (service *Service) siteVersionIDs(site *SiteRecord) []string {
+	entries, errorValue := os.ReadDir(filepath.Join(service.sitePublishedRootPath(site), "versions"))
+	if errorValue != nil {
+		entries, errorValue = os.ReadDir(filepath.Join(service.sitePath(site.SiteID), "versions"))
+	}
 	if errorValue != nil {
 		return nil
 	}
@@ -1724,13 +1883,13 @@ func (service *Service) storeSite(site *SiteRecord) error {
 	site.PublishedURL = service.sitePublishedURL(site.Slug)
 	site.TLSStatus = service.siteTLSStatus()
 	if site.SourceWorkspacePath == "" {
-		site.SourceWorkspacePath = siteSourceWorkspacePath(site.SiteID, "")
+		site.SourceWorkspacePath = siteDraftWorkspacePath(site.SiteID, "")
 	}
 	if site.WorkspacePath == "" {
-		site.WorkspacePath = site.SourceWorkspacePath
+		site.WorkspacePath = siteProjectWorkspacePath(site.SiteID)
 	}
 	if site.HostSourcePath == "" {
-		site.HostSourcePath = service.siteHostWorkspacePath(site.SiteID)
+		site.HostSourcePath = service.siteSourceLedgerPath(site.SiteID)
 	}
 	if site.Description == "" {
 		site.Description = firstNonEmpty(site.Idea, site.OriginalPrompt, site.Title)
@@ -1749,6 +1908,21 @@ func (service *Service) storeSite(site *SiteRecord) error {
 	}
 	if siteIdentityEmpty(site.CreatedBy) {
 		site.CreatedBy = site.OwnerIdentity
+	}
+	if strings.TrimSpace(site.WorkspacePath) == "" {
+		site.WorkspacePath = siteProjectWorkspacePath(site.SiteID)
+	}
+	if strings.TrimSpace(site.SourceWorkspacePath) == "" || strings.HasPrefix(strings.TrimSpace(site.SourceWorkspacePath), "/workspace/sites/") {
+		site.SourceWorkspacePath = siteDraftWorkspacePath(site.SiteID, "")
+	}
+	if strings.TrimSpace(site.DraftPath) == "" {
+		site.DraftPath = site.SourceWorkspacePath
+	}
+	if strings.TrimSpace(site.AppWorkspacePath) == "" || strings.HasPrefix(strings.TrimSpace(site.AppWorkspacePath), "/workspace/sites/") {
+		site.AppWorkspacePath = filepath.ToSlash(filepath.Join(site.SourceWorkspacePath, "app"))
+	}
+	if strings.TrimSpace(site.HostSourcePath) == "" || strings.HasPrefix(strings.TrimSpace(site.HostSourcePath), service.Configuration.BlueclawWorkspacePath) {
+		site.HostSourcePath = service.siteSourceLedgerPath(site.SiteID)
 	}
 	service.mutex.Lock()
 	copiedSite := *site
@@ -1848,6 +2022,31 @@ func (service *Service) siteVersionPath(siteID string, versionID string) string 
 	return filepath.Join(service.sitePath(siteID), "versions", versionID)
 }
 
+func (service *Service) siteOwnerProjectPath(site *SiteRecord) string {
+	if site != nil && strings.TrimSpace(site.OwnerIdentity.PersonID) != "" {
+		return filepath.Join(service.Configuration.BlueclawWorkspacePath, "private", "people", site.OwnerIdentity.PersonID, "sites", site.SiteID)
+	}
+	if site != nil && strings.TrimSpace(site.CreatedBy.PersonID) != "" {
+		return filepath.Join(service.Configuration.BlueclawWorkspacePath, "private", "people", site.CreatedBy.PersonID, "sites", site.SiteID)
+	}
+	if site != nil && strings.TrimSpace(site.SiteID) != "" {
+		return filepath.Join(service.Configuration.BlueclawWorkspacePath, "sites", site.SiteID)
+	}
+	return filepath.Join(service.Configuration.BlueclawWorkspacePath, "sites", "unknown")
+}
+
+func (service *Service) sitePublishedRootPath(site *SiteRecord) string {
+	return filepath.Join(service.siteOwnerProjectPath(site), "published")
+}
+
+func (service *Service) sitePublishedVersionPath(site *SiteRecord, versionID string) string {
+	return filepath.Join(service.sitePublishedRootPath(site), "versions", versionID)
+}
+
+func (service *Service) sitePreviewPath(site *SiteRecord, previewID string) string {
+	return filepath.Join(service.sitePublishedRootPath(site), "previews", strings.TrimSpace(previewID))
+}
+
 func (service *Service) siteSecretPath(siteID string) string {
 	return filepath.Join(service.Configuration.SiteSecretDirectory, siteID, "environment")
 }
@@ -1858,6 +2057,23 @@ func (service *Service) sitePublishedURL(slug string) string {
 		return ""
 	}
 	return "https://" + normalizeSiteSlug(slug) + "." + deviceHost
+}
+
+func (service *Service) sitePreviewURL(site *SiteRecord, previewID string) string {
+	if site == nil || strings.TrimSpace(site.PublishedURL) == "" || strings.TrimSpace(previewID) == "" {
+		return ""
+	}
+	return strings.TrimRight(site.PublishedURL, "/") + "/__preview/" + url.PathEscape(strings.TrimSpace(previewID))
+}
+
+func (service *Service) clearSitePreview(site *SiteRecord) {
+	if site == nil || strings.TrimSpace(site.PreviewID) == "" {
+		return
+	}
+	_ = os.RemoveAll(filepath.Join(service.sitePublishedRootPath(site), "previews"))
+	site.PreviewID = ""
+	site.PreviewURL = ""
+	site.PreviewExpiresAt = time.Time{}
 }
 
 func siteServiceName(siteID string) string {
@@ -1938,15 +2154,24 @@ func siteOperationalFileName(name string) bool {
 	}
 }
 
-func siteSourceWorkspacePath(siteID string, requestedPath string) string {
-	if strings.TrimSpace(requestedPath) != "" {
-		return strings.TrimSpace(requestedPath)
+func siteProjectWorkspacePath(siteID string) string {
+	if strings.TrimSpace(siteID) == "" {
+		return ""
 	}
-	return filepath.ToSlash(filepath.Join("/workspace", "sites", siteID))
+	return filepath.ToSlash(filepath.Join("home", "sites", strings.TrimSpace(siteID)))
 }
 
-func (service *Service) siteHostWorkspacePath(siteID string) string {
-	return filepath.Join(service.Configuration.BlueclawWorkspacePath, "sites", siteID)
+func siteDraftWorkspacePath(siteID string, requestedPath string) string {
+	canonicalPath := filepath.ToSlash(filepath.Join(siteProjectWorkspacePath(siteID), "draft"))
+	cleanRequestedPath := filepath.ToSlash(strings.TrimSpace(requestedPath))
+	if strings.HasPrefix(cleanRequestedPath, "home/sites/") && strings.HasSuffix(cleanRequestedPath, "/draft") {
+		return cleanRequestedPath
+	}
+	return canonicalPath
+}
+
+func (service *Service) siteSourceLedgerPath(siteID string) string {
+	return filepath.Join(filepath.Dir(service.Configuration.SitesRoot), "site-sources", siteID)
 }
 
 func siteVersionID(commitSHA string) string {
