@@ -158,6 +158,13 @@ func TestSitePrototypePublishesDefaultBuild(t *testing.T) {
 	if !containsCommandFragment(*commandLog, "safe.directory="+site.HostSourcePath) {
 		t.Fatalf("site git commands should trust the site workspace: %+v", *commandLog)
 	}
+	sourceInformation, errorValue := os.Stat(site.HostSourcePath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if sourceInformation.Mode().Perm()&0o007 != 0 {
+		t.Fatalf("site source ledger must not be world-accessible, got %o", sourceInformation.Mode().Perm())
+	}
 }
 
 func TestSitePreviewDoesNotChangePublishedURLUntilPublish(t *testing.T) {
@@ -324,10 +331,13 @@ func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
 			t.Fatalf("site package manifest must contain %q", expectedText)
 		}
 	}
-	for _, expectedText := range []string{`name: "bun", arguments: ["install"]`, "@google/design.md", "vite"} {
+	for _, expectedText := range []string{`name: "bun", arguments: ["install"]`, `name: "bun", arguments: ["x", "@google/design.md", "lint", "../DESIGN.md"]`, `name: "bun", arguments: ["x", "vite", "build"]`} {
 		if !strings.Contains(siteBuildTS(), expectedText) {
 			t.Fatalf("site build script must contain %q", expectedText)
 		}
+	}
+	if strings.Contains(siteBuildTS(), "Bun.execPath") || strings.Contains(siteBuildTS(), `name: "bunx"`) {
+		t.Fatalf("site build script must rely on canonical runtime PATH, got Bun.execPath/bunx")
 	}
 	if strings.Contains(siteBuildTS(), "site quality gate failed") {
 		t.Fatalf("site build script must not fail solely because quality issues were reported")
@@ -335,7 +345,7 @@ func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
 	if !strings.Contains(siteBuildTS(), "suggestedFix") {
 		t.Fatalf("site build script must include actionable quality fixes")
 	}
-	viteIndex := strings.Index(siteBuildTS(), `await runCommand({ name: "bunx", arguments: ["vite", "build"] });`)
+	viteIndex := strings.Index(siteBuildTS(), `await runCommand({ name: "bun", arguments: ["x", "vite", "build"] });`)
 	qualityIndex := strings.LastIndex(siteBuildTS(), "writeBuildQuality(qualityIssues);")
 	if viteIndex < 0 || qualityIndex < viteIndex {
 		t.Fatalf("site build script must write build-quality.json after vite build")

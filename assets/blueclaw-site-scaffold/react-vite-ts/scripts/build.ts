@@ -84,6 +84,6 @@ if (!existsSync("node_modules")) {
 	await runCommand({ name: "bun", arguments: ["install"] });
 }
 
-await runCommand({ name: "bunx", arguments: ["@google/design.md", "lint", "../DESIGN.md"] });
-await runCommand({ name: "bunx", arguments: ["vite", "build"] });
+await runCommand({ name: "bun", arguments: ["x", "@google/design.md", "lint", "../DESIGN.md"] });
+await runCommand({ name: "bun", arguments: ["x", "vite", "build"] });
 writeBuildQuality(qualityIssues);
