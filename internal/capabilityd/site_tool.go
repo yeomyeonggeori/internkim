@@ -31,6 +31,7 @@ type siteAppInput struct {
 	SourceWorkspacePath string          `json:"sourceWorkspacePath"`
 	SourceBundleBase64  string          `json:"sourceBundleBase64"`
 	SourceBundleFormat  string          `json:"sourceBundleFormat"`
+	PreviewID           string          `json:"previewID"`
 	FromRevision        string          `json:"fromRevision"`
 	ToRevision          string          `json:"toRevision"`
 	Revision            string          `json:"revision"`
@@ -43,21 +44,24 @@ type siteAppInput struct {
 }
 
 type siteAppRecord struct {
-	SiteID         string                `json:"siteID"`
-	Slug           string                `json:"slug"`
-	Title          string                `json:"title"`
-	Description    string                `json:"description"`
-	Purpose        string                `json:"purpose"`
-	Archetype      string                `json:"archetype"`
-	PublishedURL   string                `json:"publishedURL"`
-	Owner          string                `json:"owner"`
-	OwnerIdentity  siteAppIdentity       `json:"ownerIdentity"`
-	CreatedBy      siteAppIdentity       `json:"createdBy"`
-	Collaborators  []siteAppCollaborator `json:"collaborators"`
-	Platform       string                `json:"platform"`
-	ConversationID string                `json:"conversationID"`
-	Status         string                `json:"status"`
-	UpdatedAt      time.Time             `json:"updatedAt"`
+	SiteID           string                `json:"siteID"`
+	Slug             string                `json:"slug"`
+	Title            string                `json:"title"`
+	Description      string                `json:"description"`
+	Purpose          string                `json:"purpose"`
+	Archetype        string                `json:"archetype"`
+	PublishedURL     string                `json:"publishedURL"`
+	PreviewURL       string                `json:"previewURL"`
+	Owner            string                `json:"owner"`
+	OwnerIdentity    siteAppIdentity       `json:"ownerIdentity"`
+	CreatedBy        siteAppIdentity       `json:"createdBy"`
+	Collaborators    []siteAppCollaborator `json:"collaborators"`
+	Platform         string                `json:"platform"`
+	ConversationID   string                `json:"conversationID"`
+	Status           string                `json:"status"`
+	DraftPath        string                `json:"draftPath"`
+	AppWorkspacePath string                `json:"appWorkspacePath"`
+	UpdatedAt        time.Time             `json:"updatedAt"`
 }
 
 type siteAppListResponse struct {
@@ -107,6 +111,8 @@ func (service Service) invokeSiteApp(ctx context.Context, request capabilities.T
 		return service.postAdmindSite(ctx, "/admin/api/sites", inputDocument)
 	case "site.app.publish":
 		return service.publishAdmindSite(ctx, inputDocument)
+	case "site.app.preview":
+		return service.previewAdmindSite(ctx, inputDocument)
 	case "site.app.status":
 		input, errorValue := decodeSiteAppInput(inputDocument)
 		if errorValue != nil {
@@ -187,6 +193,22 @@ func (service Service) publishAdmindSite(ctx context.Context, inputDocument json
 	return service.postAdmindSite(ctx, "/admin/api/sites/"+url.PathEscape(siteID)+"/publish", inputDocument)
 }
 
+func (service Service) previewAdmindSite(ctx context.Context, inputDocument json.RawMessage) (json.RawMessage, error) {
+	input, errorValue := decodeSiteAppInput(inputDocument)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	siteID := input.SiteID
+	if siteID == "" {
+		resolvedSiteID, errorValue := service.resolveAdmindSiteID(ctx, input)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		siteID = resolvedSiteID
+	}
+	return service.postAdmindSite(ctx, "/admin/api/sites/"+url.PathEscape(siteID)+"/preview", inputDocument)
+}
+
 func (service Service) getAdmindSiteStatus(ctx context.Context, input siteAppInput) (json.RawMessage, error) {
 	if input.SiteID != "" || input.Slug != "" {
 		siteID, errorValue := service.resolveAdmindSiteID(ctx, input)
@@ -225,7 +247,7 @@ func (service Service) getAdmindSiteStatusByID(ctx context.Context, siteID strin
 	if errorValue := json.Unmarshal(document, &publicDocument); errorValue != nil {
 		return nil, errorValue
 	}
-	for _, field := range []string{"workspacePath", "sourceWorkspacePath", "appWorkspacePath", "hostSourcePath"} {
+	for _, field := range []string{"workspacePath", "sourceWorkspacePath", "appWorkspacePath", "draftPath", "hostSourcePath"} {
 		delete(publicDocument, field)
 	}
 	publicDocument["canEdit"] = false
@@ -382,6 +404,7 @@ func siteAppCandidateSummaries(sites []siteAppRecord) []map[string]any {
 			"archetype":    site.Archetype,
 			"owner":        firstNonEmptySiteString(site.OwnerIdentity.DisplayName, site.Owner),
 			"publishedURL": site.PublishedURL,
+			"previewURL":   site.PreviewURL,
 			"updatedAt":    site.UpdatedAt,
 		})
 	}
