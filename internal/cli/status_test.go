@@ -46,12 +46,27 @@ func TestPrintPublicStatusShowsMattermostWhenSSHIsUnavailable(t *testing.T) {
 	}
 }
 
-func TestFormatCloudflareSSHErrorIncludesAccessLoginHint(t *testing.T) {
+func TestFormatCloudflareSSHErrorIdentifiesMissingSSHBanner(t *testing.T) {
 	errorValue := formatCloudflareSSHError("0.ssh.example.com", "Connection timed out during banner exchange", os.ErrDeadlineExceeded)
 	errorMessage := errorValue.Error()
 	for _, expectedText := range []string{
 		"0.ssh.example.com",
 		"Connection timed out during banner exchange",
+		"SSH banner",
+		"sshd",
+		"cloudflared-node-ssh",
+	} {
+		if !strings.Contains(errorMessage, expectedText) {
+			t.Fatalf("expected error to contain %q, got %s", expectedText, errorMessage)
+		}
+	}
+}
+
+func TestFormatCloudflareSSHErrorKeepsAccessLoginHintForGenericFailures(t *testing.T) {
+	errorValue := formatCloudflareSSHError("0.ssh.example.com", "access token expired", os.ErrPermission)
+	errorMessage := errorValue.Error()
+	for _, expectedText := range []string{
+		"0.ssh.example.com",
 		"cloudflared access ssh --hostname 0.ssh.example.com",
 	} {
 		if !strings.Contains(errorMessage, expectedText) {
