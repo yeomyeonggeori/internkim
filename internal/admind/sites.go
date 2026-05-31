@@ -1493,19 +1493,19 @@ func siteModificationAllowed(site *SiteRecord, requestedBy string, requester sit
 }
 
 func (service *Service) prepareSiteWorkspace(ctx context.Context, site *SiteRecord) error {
-	if errorValue := os.MkdirAll(filepath.Dir(site.HostSourcePath), 0o777); errorValue != nil {
+	if errorValue := os.MkdirAll(filepath.Dir(site.HostSourcePath), 0o770); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := os.Chmod(filepath.Dir(site.HostSourcePath), 0o777); errorValue != nil {
+	if errorValue := os.Chmod(filepath.Dir(site.HostSourcePath), 0o770); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := os.MkdirAll(filepath.Join(site.HostSourcePath, "app", "src"), 0o750); errorValue != nil {
+	if errorValue := os.MkdirAll(filepath.Join(site.HostSourcePath, "app", "src"), 0o770); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := os.MkdirAll(filepath.Join(site.HostSourcePath, "pocketbase", "pb_migrations"), 0o750); errorValue != nil {
+	if errorValue := os.MkdirAll(filepath.Join(site.HostSourcePath, "pocketbase", "pb_migrations"), 0o770); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := os.MkdirAll(filepath.Join(site.HostSourcePath, "pocketbase", "pb_hooks"), 0o750); errorValue != nil {
+	if errorValue := os.MkdirAll(filepath.Join(site.HostSourcePath, "pocketbase", "pb_hooks"), 0o770); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := service.writeSiteWorkspaceTemplate(site); errorValue != nil {
@@ -1523,9 +1523,9 @@ func makeSiteWorkspaceCollaborative(workspacePath string) error {
 		if walkError != nil {
 			return walkError
 		}
-		mode := os.FileMode(0o666)
+		mode := os.FileMode(0o660)
 		if information.IsDir() || information.Mode()&0o111 != 0 {
-			mode = 0o777
+			mode = 0o770
 		}
 		return os.Chmod(path, mode)
 	})
@@ -2518,8 +2518,8 @@ if (!existsSync("node_modules")) {
 	await runCommand({ name: "bun", arguments: ["install"] });
 }
 
-await runCommand({ name: "bunx", arguments: ["@google/design.md", "lint", "../DESIGN.md"] });
-await runCommand({ name: "bunx", arguments: ["vite", "build"] });
+await runCommand({ name: "bun", arguments: ["x", "@google/design.md", "lint", "../DESIGN.md"] });
+await runCommand({ name: "bun", arguments: ["x", "vite", "build"] });
 writeBuildQuality(qualityIssues);
 `
 }

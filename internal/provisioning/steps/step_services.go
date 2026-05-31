@@ -404,6 +404,27 @@ if [ ! -x "$mount_path/usr/local/bin/uv" ]; then
   echo rootfs-uv-missing
   exit 0
 fi
+for managed_executable in marp bun bunx uv; do
+  managed_path="$mount_path/usr/local/bin/$managed_executable"
+  managed_stat_path="$managed_path"
+  if [ -L "$managed_path" ]; then
+    managed_target="$(readlink "$managed_path" 2>/dev/null || true)"
+    case "$managed_target" in
+      /*) managed_stat_path="$mount_path$managed_target" ;;
+      *) managed_stat_path="$(dirname "$managed_path")/$managed_target" ;;
+    esac
+  fi
+  managed_owner="$(stat -c '%u' "$managed_stat_path" 2>/dev/null || echo missing)"
+  managed_mode="$(stat -c '%a' "$managed_stat_path" 2>/dev/null || echo missing)"
+  case "$managed_owner" in
+    0|998) ;;
+    *) echo "rootfs-$managed_executable-owner-drift"; exit 0 ;;
+  esac
+  case "$managed_mode" in
+    555|755) ;;
+    *) echo "rootfs-$managed_executable-mode-drift"; exit 0 ;;
+  esac
+done
 if [ ! -x "$mount_path/opt/blueclaw/builtin-skills-venv/bin/python" ]; then
   echo rootfs-builtin-skills-python-missing
   exit 0

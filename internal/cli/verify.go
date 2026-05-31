@@ -47,6 +47,8 @@ func runVerifyArguments(arguments []string) error {
 		return runVerifyAPI(arguments)
 	case "mattermost":
 		return runVerifyMattermost(arguments)
+	case "site":
+		return runVerifySite(arguments)
 	case "browser":
 		return runVerifyBrowser(arguments)
 	default:
@@ -67,6 +69,7 @@ func runVerifyMattermost(arguments []string) error {
 	flagSet := flag.NewFlagSet("verify mattermost", flag.ContinueOnError)
 	prompt := flagSet.String("prompt", "", "Post this prompt through the real Mattermost ingress path")
 	expectBrowserOpen := flagSet.Bool("expect-browser-open", false, "Require a successful browser.open tool result for prompt verification")
+	expectPublicURL := flagSet.Bool("expect-public-url", false, "Require a public URL in the final bot reply and verify it returns site HTML")
 	expectedTools := repeatedStringFlag{}
 	expectedEvents := repeatedStringFlag{}
 	flagSet.Var(&expectedTools, "expect-tool", "Require a requested tool event for prompt verification; repeat for multiple tools")
@@ -124,12 +127,64 @@ func runVerifyMattermost(arguments []string) error {
 		return runMattermostBrowserOpenE2E(verifyTarget, promptText, *keep, *keepBrowser, *timeoutSeconds, *companionPath, *agentBrowserPath)
 	}
 	if strings.TrimSpace(*prompt) != "" {
-		return verifyTarget.runRemoteVerificationWithTimeout(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, *expectBrowserOpen, expectedTools.Values(), expectedEvents.Values()), mattermostPromptSSHTimeout(*timeoutSeconds))
+		return verifyTarget.runRemoteVerificationWithTimeout(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, *expectBrowserOpen, *expectPublicURL, expectedTools.Values(), expectedEvents.Values()), mattermostPromptSSHTimeout(*timeoutSeconds))
 	}
-	if *expectBrowserOpen || len(expectedTools.Values()) > 0 || len(expectedEvents.Values()) > 0 {
-		return fmt.Errorf("--expect-browser-open, --expect-tool, and --expect-event require --prompt")
+	if *expectBrowserOpen || *expectPublicURL || len(expectedTools.Values()) > 0 || len(expectedEvents.Values()) > 0 {
+		return fmt.Errorf("--expect-browser-open, --expect-public-url, --expect-tool, and --expect-event require --prompt")
 	}
 	return verifyTarget.runRemoteVerification(verifyMattermostScript())
+}
+
+func runVerifySite(arguments []string) error {
+	flagSet := flag.NewFlagSet("verify site", flag.ContinueOnError)
+	prompt := flagSet.String("prompt", "개인 홈페이지 하나 만들어서 배포해줘.", "Post this site creation prompt through Mattermost")
+	keep := flagSet.Bool("keep", false, "Keep probe messages, users, and site for inspection")
+	timeoutSeconds := flagSet.Int("timeout", 420, "Seconds to wait for the site deployment task")
+	host := flagSet.String("host", "", "Board host")
+	user := flagSet.String("user", "", "SSH user")
+	password := flagSet.String("password", "", "SSH password")
+	node := flagSet.String("node", "", "Fleet node target")
+	cloudflareSSH := flagSet.Bool("cloudflare-ssh", false, "Use Cloudflare SSH")
+	board := flagSet.String("board", "", "Board target")
+	simulation := flagSet.Bool("sim", false, "Use simulation target")
+	if errorValue := flagSet.Parse(arguments); errorValue != nil {
+		return errorValue
+	}
+
+	targetArguments := verifyTargetArguments(*host, *user, *password, *node, *cloudflareSSH, *board, *simulation)
+	verifyTarget, errorValue := resolveVerifyTarget(targetArguments)
+	if errorValue != nil {
+		return errorValue
+	}
+	fmt.Printf("verify site: %s@%s\n", verifyTarget.user, verifyTarget.host)
+	expectedTools := []string{"site.app.create", "site.app.build", "site.app.publish"}
+	return verifyTarget.runRemoteVerificationWithTimeout(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, false, true, expectedTools, nil), mattermostPromptSSHTimeout(*timeoutSeconds))
+}
+
+func verifyTargetArguments(host string, user string, password string, node string, cloudflareSSH bool, board string, simulation bool) []string {
+	targetArguments := []string{}
+	if strings.TrimSpace(host) != "" {
+		targetArguments = append(targetArguments, "--host", strings.TrimSpace(host))
+	}
+	if strings.TrimSpace(user) != "" {
+		targetArguments = append(targetArguments, "--user", strings.TrimSpace(user))
+	}
+	if strings.TrimSpace(password) != "" {
+		targetArguments = append(targetArguments, "--password", password)
+	}
+	if strings.TrimSpace(node) != "" {
+		targetArguments = append(targetArguments, "--node", strings.TrimSpace(node))
+	}
+	if cloudflareSSH {
+		targetArguments = append(targetArguments, "--cloudflare-ssh")
+	}
+	if strings.TrimSpace(board) != "" {
+		targetArguments = append(targetArguments, "--board", strings.TrimSpace(board))
+	}
+	if simulation {
+		targetArguments = append(targetArguments, "--sim")
+	}
+	return targetArguments
 }
 
 type repeatedStringFlag struct {
@@ -1158,7 +1213,7 @@ echo "verify mattermost: ok"
 `
 }
 
-func verifyMattermostPromptScript(prompt string, keep bool, timeoutSeconds int, expectBrowserOpen bool, expectedTools []string, expectedEvents []string) string {
+func verifyMattermostPromptScript(prompt string, keep bool, timeoutSeconds int, expectBrowserOpen bool, expectPublicURL bool, expectedTools []string, expectedEvents []string) string {
 	if timeoutSeconds <= 0 {
 		timeoutSeconds = 240
 	}
@@ -1175,6 +1230,10 @@ func verifyMattermostPromptScript(prompt string, keep bool, timeoutSeconds int, 
 	if expectBrowserOpen {
 		expectBrowserOpenValue = "true"
 	}
+	expectPublicURLValue := "false"
+	if expectPublicURL {
+		expectPublicURLValue = "true"
+	}
 	return fmt.Sprintf(`set -euo pipefail
 
 timestamp="$(date +%%s)"
@@ -1187,6 +1246,7 @@ expected_events_json="$(printf '%%s' %s | base64 -d)"
 keep_artifacts=%s
 timeout_seconds=%d
 expect_browser_open=%s
+expect_public_url=%s
 test_started_at="$(date +%%s%%3N)"
 
 api_request() {
@@ -1295,6 +1355,13 @@ cleanup() {
       "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null || \
       curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
         "http://localhost:8065/api/v4/users/$user_id" >/dev/null || true
+  fi
+  if [ -n "${channel_id:-}" ]; then
+    for site_id in $(curl --silent --show-error http://127.0.0.1:8080/admin/api/sites | jq -r --arg conversation_id "$channel_id" '.sites[]? | select(.conversationID == $conversation_id) | .siteID'); do
+      curl --silent --show-error -X DELETE -H "Content-Type: application/json" \
+        -d '{"confirm":"DELETE","userConfirmed":true}' \
+        "http://127.0.0.1:8080/admin/api/sites/$site_id" >/dev/null || true
+    done
   fi
   curl --silent --show-error -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$email" >/dev/null || true
 }
@@ -1444,6 +1511,43 @@ if [ -n "$task_run_id" ] && { [ "$expect_browser_open" = "true" ] || [ "$expecte
   fi
 fi
 
+if [ "$expect_public_url" = "true" ]; then
+  public_url=""
+  public_html_file="$(mktemp)"
+  for _ in $(seq 1 "$timeout_seconds"); do
+    bot_post_id="$(api_request "wait for final site reply" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=60" "$admin_token" |
+      jq -r --arg bot_user_id "$bot_user_id" --argjson posted_after "$user_post_create_at" \
+        '.posts[] | select(.user_id == $bot_user_id and .create_at >= $posted_after) | [.create_at, .id] | @tsv' |
+      sort -n | tail -1 | awk '{print $2}')"
+    if [ -n "$bot_post_id" ]; then
+      api_request "fetch final site reply" GET "http://localhost:8065/api/v4/posts/$bot_post_id" "$admin_token" > "$bot_post_file"
+      bot_message="$(jq -r '.message // ""' "$bot_post_file")"
+      if printf '%%s\n' "$bot_message" | grep -Eiq 'bun 없음|외부 호스팅|관리자 점검|Quality Gate 기준 미충족|품질 검사 기준.*완성하지 못'; then
+        echo "site deploy final reply contained a generic infrastructure excuse: $bot_message" >&2
+        exit 1
+      fi
+      public_url="$(printf '%%s\n' "$bot_message" | grep -Eo 'https://[^ )>\]"]+' | grep 'intern\.kim' | head -1 || true)"
+      if [ -n "$public_url" ]; then
+        if curl --location --fail --silent --show-error --max-time 30 "$public_url" -o "$public_html_file"; then
+          if ! grep -Fq 'Sorry, we could not find the page.' "$public_html_file" && [ "$(wc -c < "$public_html_file")" -gt 200 ]; then
+            break
+          fi
+        fi
+      fi
+    fi
+    sleep 1
+  done
+  if [ -z "$public_url" ]; then
+    echo "expected final site public URL in Mattermost bot reply" >&2
+    jq -r '.message // ""' "$bot_post_file" >&2 || true
+    exit 1
+  fi
+  if grep -Fq 'Sorry, we could not find the page.' "$public_html_file"; then
+    echo "site public URL returned not-found page: $public_url" >&2
+    exit 1
+  fi
+fi
+
 jq -cn \
   --arg channel_id "$channel_id" \
   --arg user_post_id "$user_post_id" \
@@ -1466,7 +1570,7 @@ jq -cn \
     taskStatus: ((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskRun.status // null),
     taskEvents: (((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskEvents // []) | map({name, body: ((.body // "") | tostring | .[0:1200])}))
   }'
-`, strconv.Quote(encodedPrompt), strconv.Quote(encodedExpectedTools), strconv.Quote(encodedExpectedEvents), keepValue, timeoutSeconds, expectBrowserOpenValue)
+`, strconv.Quote(encodedPrompt), strconv.Quote(encodedExpectedTools), strconv.Quote(encodedExpectedEvents), keepValue, timeoutSeconds, expectBrowserOpenValue, expectPublicURLValue)
 }
 
 func prepareMattermostBrowserOpenE2EScript() string {
