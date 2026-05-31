@@ -329,6 +329,12 @@ func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
 			t.Fatalf("site build script must contain %q", expectedText)
 		}
 	}
+	if strings.Contains(siteBuildTS(), "site quality gate failed") {
+		t.Fatalf("site build script must not fail solely because quality issues were reported")
+	}
+	if !strings.Contains(siteBuildTS(), "suggestedFix") {
+		t.Fatalf("site build script must include actionable quality fixes")
+	}
 	viteIndex := strings.Index(siteBuildTS(), `await runCommand({ name: "bunx", arguments: ["vite", "build"] });`)
 	qualityIndex := strings.LastIndex(siteBuildTS(), "writeBuildQuality(qualityIssues);")
 	if viteIndex < 0 || qualityIndex < viteIndex {
@@ -366,6 +372,53 @@ func TestSitePublishMaterializesEditableSourceBundle(t *testing.T) {
 	response := serveSiteRequest(service, "source-bundle.device.example.test", "/")
 	if !strings.Contains(response.Body.String(), "bundle publish") {
 		t.Fatalf("published body = %q", response.Body.String())
+	}
+}
+
+func TestSitePublishAllowsQualityIssuesWithFreshBuild(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{
+		Slug:        "quality-report",
+		Title:       "Quality Report",
+		RequestedBy: "owner@example.com",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	sourceWorkspacePath := t.TempDir()
+	writeTestSourceBuild(t, sourceWorkspacePath, "quality publish")
+	writeFile(t, filepath.Join(sourceWorkspacePath, ".internkim", "build-quality.json"), `{
+  "blockingIssueCount": 1,
+  "issues": [
+    {
+      "severity": "blocking",
+      "category": "templateSmell",
+      "target": "src/App.tsx",
+      "message": "Replace the scaffold starter.",
+      "suggestedFix": "Use a domain-specific first screen."
+    }
+  ]
+}`)
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:              site.SiteID,
+		RequestedBy:         "owner@example.com",
+		Message:             "Publish with quality report",
+		SourceBundleBase64:  testSourceBundleBase64(t, sourceWorkspacePath),
+		SourceBundleFormat:  "tar.gz",
+		SourceWorkspacePath: site.SourceWorkspacePath,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if site.QualityStatus != "needs_improvement" || site.QualityIssueCount != 1 {
+		t.Fatalf("expected publish to retain quality warning metadata, got %+v", site)
+	}
+	if len(site.QualitySummary) == 0 || !strings.Contains(site.QualitySummary[0], "src/App.tsx") {
+		t.Fatalf("expected quality summary to name affected source, got %+v", site.QualitySummary)
+	}
+	response := serveSiteRequest(service, "quality-report.device.example.test", "/")
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "quality publish") {
+		t.Fatalf("expected published site despite quality warnings, status=%d body=%q", response.Code, response.Body.String())
 	}
 }
 

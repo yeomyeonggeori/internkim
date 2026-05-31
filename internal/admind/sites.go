@@ -71,6 +71,10 @@ type SiteRecord struct {
 	PreviewID           string             `json:"previewID,omitempty"`
 	PreviewURL          string             `json:"previewURL,omitempty"`
 	PreviewExpiresAt    time.Time          `json:"previewExpiresAt,omitempty"`
+	QualityStatus       string             `json:"qualityStatus,omitempty"`
+	QualityIssueCount   int                `json:"qualityIssueCount,omitempty"`
+	QualitySummary      []string           `json:"qualitySummary,omitempty"`
+	QualityReportPath   string             `json:"qualityReportPath,omitempty"`
 	LastPublishedCommit string             `json:"lastPublishedCommit,omitempty"`
 	RevisionCount       int                `json:"revisionCount"`
 	CreatedAt           time.Time          `json:"createdAt"`
@@ -1079,9 +1083,7 @@ func (service *Service) prepareSiteVersion(site *SiteRecord, versionID string, p
 	if errorValue := ensureSiteFrontendBuildIsFresh(site.HostSourcePath, frontendBuildPath); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := ensureSiteBuildQualityPassed(site.HostSourcePath); errorValue != nil {
-		return errorValue
-	}
+	service.updateSiteBuildQualitySummary(site)
 	if errorValue := materializeDirectory(frontendBuildPath, filepath.Join(versionPath, "frontend", "dist")); errorValue != nil {
 		return errorValue
 	}
@@ -1109,9 +1111,7 @@ func (service *Service) prepareSitePreview(site *SiteRecord, previewID string) e
 	if errorValue := ensureSiteFrontendBuildIsFresh(site.HostSourcePath, frontendBuildPath); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := ensureSiteBuildQualityPassed(site.HostSourcePath); errorValue != nil {
-		return errorValue
-	}
+	service.updateSiteBuildQualitySummary(site)
 	return materializeDirectory(frontendBuildPath, filepath.Join(previewPath, "frontend", "dist"))
 }
 
@@ -1134,33 +1134,106 @@ func ensureSiteFrontendBuildIsFresh(workspacePath string, frontendBuildPath stri
 	return nil
 }
 
-func ensureSiteBuildQualityPassed(workspacePath string) error {
+type siteBuildQualityIssue struct {
+	Severity     string `json:"severity"`
+	Category     string `json:"category"`
+	Target       string `json:"target"`
+	Message      string `json:"message"`
+	SuggestedFix string `json:"suggestedFix"`
+}
+
+type siteBuildQualityDocument struct {
+	GeneratedAt         string                  `json:"generatedAt"`
+	BlockingIssueCount  int                     `json:"blockingIssueCount"`
+	Issues              []siteBuildQualityIssue `json:"issues"`
+	PostBuildNormalized bool                    `json:"postBuildNormalized"`
+}
+
+type siteBuildQualitySummary struct {
+	Status     string
+	IssueCount int
+	Lines      []string
+	Path       string
+}
+
+func (service *Service) updateSiteBuildQualitySummary(site *SiteRecord) {
+	summary := summarizeSiteBuildQuality(site.HostSourcePath)
+	site.QualityStatus = summary.Status
+	site.QualityIssueCount = summary.IssueCount
+	site.QualitySummary = summary.Lines
+	site.QualityReportPath = summary.Path
+}
+
+func summarizeSiteBuildQuality(workspacePath string) siteBuildQualitySummary {
 	path := filepath.Join(workspacePath, ".internkim", "build-quality.json")
 	document, errorValue := os.ReadFile(path)
 	if errorValue != nil {
-		return errors.New("site workspace is missing .internkim/build-quality.json; run bun scripts/build.ts in app before publishing")
+		return siteBuildQualitySummary{
+			Status: "missing_report",
+			Lines:  []string{"No build-quality.json was found; publish used the latest fresh dist snapshot."},
+			Path:   path,
+		}
 	}
-	var quality struct {
-		BlockingIssueCount int `json:"blockingIssueCount"`
-	}
+	var quality siteBuildQualityDocument
 	if errorValue := json.Unmarshal(document, &quality); errorValue != nil {
-		return errorValue
-	}
-	if quality.BlockingIssueCount > 0 {
-		return errors.New("site workspace has blocking quality issues; see .internkim/build-quality.json")
+		return siteBuildQualitySummary{
+			Status: "invalid_report",
+			Lines:  []string{"build-quality.json could not be parsed; publish used the latest fresh dist snapshot."},
+			Path:   path,
+		}
 	}
 	qualityInformation, errorValue := os.Stat(path)
 	if errorValue != nil {
-		return errorValue
+		return siteBuildQualitySummary{
+			Status: "missing_report",
+			Lines:  []string{"No build-quality.json was found; publish used the latest fresh dist snapshot."},
+			Path:   path,
+		}
 	}
 	latestSourceModTime, errorValue := latestFrontendSourceModTime(filepath.Join(workspacePath, "app"))
-	if errorValue != nil {
-		return errorValue
+	if errorValue == nil && latestSourceModTime.After(qualityInformation.ModTime()) {
+		return siteBuildQualitySummary{
+			Status:     "stale_report",
+			IssueCount: len(quality.Issues),
+			Lines:      siteBuildQualityLines(quality.Issues),
+			Path:       path,
+		}
 	}
-	if latestSourceModTime.After(qualityInformation.ModTime()) {
-		return errors.New("site workspace build-quality.json is stale; run bun scripts/build.ts in app before publishing")
+	if len(quality.Issues) > 0 {
+		return siteBuildQualitySummary{
+			Status:     "needs_improvement",
+			IssueCount: len(quality.Issues),
+			Lines:      siteBuildQualityLines(quality.Issues),
+			Path:       path,
+		}
 	}
-	return nil
+	return siteBuildQualitySummary{
+		Status: "passed",
+		Lines:  []string{},
+		Path:   path,
+	}
+}
+
+func siteBuildQualityLines(issues []siteBuildQualityIssue) []string {
+	lines := []string{}
+	for _, issue := range issues {
+		target := firstNonEmpty(strings.TrimSpace(issue.Target), "site")
+		message := strings.TrimSpace(issue.Message)
+		if message == "" {
+			message = strings.TrimSpace(issue.SuggestedFix)
+		}
+		if message == "" {
+			message = strings.TrimSpace(issue.Category)
+		}
+		if message == "" {
+			continue
+		}
+		lines = append(lines, target+": "+message)
+		if len(lines) >= 3 {
+			return lines
+		}
+	}
+	return lines
 }
 
 func latestFrontendSourceModTime(applicationPath string) (time.Time, error) {
@@ -2371,6 +2444,7 @@ type QualityIssue = {
 	category: string;
 	target: string;
 	message: string;
+	suggestedFix: string;
 };
 
 async function runCommand(command: Command): Promise<void> {
@@ -2403,6 +2477,7 @@ function collectQualityIssues(): QualityIssue[] {
 			category: "contentModel",
 			target: "src/prototype-data.ts",
 			message: "Create domain-specific prototype data before building the site.",
+			suggestedFix: "Add realistic domain data in src/prototype-data.ts and render that data from App.tsx.",
 		});
 	}
 	if (sourceContainsAny(appSource + styleSource, [
@@ -2417,6 +2492,7 @@ function collectQualityIssues(): QualityIssue[] {
 			category: "templateSmell",
 			target: "src/App.tsx",
 			message: "Replace the scaffold starter instead of editing its copy or card-grid structure.",
+			suggestedFix: "Replace starter sections with a domain-specific first screen, real content structure, and non-generic UI flow.",
 		});
 	}
 	return issues;
@@ -2436,10 +2512,7 @@ if (!existsSync("../DESIGN.md")) {
 }
 
 const qualityIssues = collectQualityIssues();
-if (qualityIssues.some((issue) => issue.severity === "blocking")) {
-	writeBuildQuality(qualityIssues);
-	throw new Error("site quality gate failed; see ../.internkim/build-quality.json");
-}
+writeBuildQuality(qualityIssues);
 
 if (!existsSync("node_modules")) {
 	await runCommand({ name: "bun", arguments: ["install"] });
