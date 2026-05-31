@@ -410,7 +410,15 @@ func formatCloudflareSSHError(hostname string, output string, errorValue error) 
 	if detail != "" {
 		message = fmt.Sprintf("Cloudflare SSH failed for %s: %s: %v", hostname, detail, errorValue)
 	}
-	return fmt.Errorf("%s\nCloudflare Access 인증이 만료되었을 수 있습니다. `cloudflared access ssh --hostname %s`로 브라우저 인증을 갱신한 뒤 다시 실행하세요.", message, hostname)
+	return fmt.Errorf("%s\n%s", message, cloudflareSSHRecoveryHint(hostname, detail))
+}
+
+func cloudflareSSHRecoveryHint(hostname string, detail string) string {
+	normalizedDetail := strings.ToLower(detail)
+	if strings.Contains(normalizedDetail, "banner exchange") {
+		return "Cloudflare Access 프록시는 열렸지만 SSH banner를 받지 못했습니다. 브라우저 인증보다 장비의 `sshd` 또는 `cloudflared-node-ssh` 터널 상태를 먼저 확인하세요."
+	}
+	return fmt.Sprintf("Cloudflare Access 인증이 만료되었을 수 있습니다. `cloudflared access ssh --hostname %s`로 브라우저 인증을 갱신한 뒤 다시 실행하세요.", hostname)
 }
 
 func cloudflareSSHTLSStatus(stateDir string) string {
@@ -4713,7 +4721,7 @@ func runSetupLive(messenger *msg) {
 		sshConnection = newCloudflareSSH(sshpassBin, sshUser, sshPassword, boardIP)
 		output, errorValue := sshConnection.runResult("true")
 		if errorValue != nil {
-			cloudflareSSHError = fmt.Errorf("Cloudflare SSH failed for %s: %s: %w", boardIP, strings.TrimSpace(output), errorValue)
+			cloudflareSSHError = formatCloudflareSSHError(boardIP, output, errorValue)
 			return false
 		}
 		target.useRemoteSSH = true
