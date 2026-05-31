@@ -67,10 +67,10 @@ Start by resolving the existing site for the current conversation or slug with `
 9. Write or update Stitch-compatible `DESIGN.md`, then create `app/src/prototype-data.ts` with domain-specific fake data and workflow state before editing UI.
 10. Replace the starter `app/src/App.tsx` entirely. Do not preserve starter copy, scaffold structure, or generic feature-card sections.
 11. Use `file.write` to update `app/src/App.tsx`, `app/src/index.css`, app-owned components, and app-owned data/source files according to `DESIGN.md`. Do not write `app/package.json`, `app/index.html`, `app/scripts/build.ts`, `app/tsconfig.json`, or `app/vite.config.ts`; those scaffold/build contract files are managed by `site.app.create`.
-12. Call `site.app.build`. It resolves the canonical `appWorkspacePath`, runs `bun scripts/build.ts` there, writes `.internkim/build-quality.json`, and returns build evidence. Use raw `terminal.run` with `workingDirectoryPath` set to `<appWorkspacePath>` only as a fallback when `site.app.build` is unavailable.
+12. Call `site.app.build`. It resolves the canonical `appWorkspacePath`, runs `bun scripts/build.ts` there, writes `.internkim/build-quality.json`, and returns build evidence plus any quality issues. Quality issues are a revision checklist, not a delivery blocker. Use raw `terminal.run` with `workingDirectoryPath` set to `<appWorkspacePath>` only as a fallback when `site.app.build` is unavailable.
 13. Call `site.app.preview` when a browser-accessible draft is useful, or start a local preview with `terminal.session` when local browser tools are the better fit. Capture desktop and mobile screenshots with browser tools when available, then call `artifact.review` with the screenshots, intent, archetype, and rubric.
-14. Write `.internkim/review-log.json` with deterministic checks, vision review issues, attempt count, accepted warnings, and final decision. Revise and rebuild when any blocking issue remains; repeat at most three times.
-15. Call `site.app.publish` with `siteID` and a concise revision message. Same-site updates must publish the same `publishedURL`; successful publish closes the temporary preview.
+14. Write `.internkim/review-log.json` with deterministic checks, vision review issues, attempt count, accepted warnings, and final decision. Revise and rebuild when quality issues remain and improvement budget remains; repeat at most three times.
+15. Call `site.app.publish` with `siteID` and a concise revision message. Same-site updates must publish the same `publishedURL`; successful publish closes the temporary preview. If the build produced a fresh `app/dist` but quality warnings remain after the improvement budget, publish with those warnings and report the top remaining issues.
 16. Call `site.app.status` for the same `siteID` and confirm the status is `published`.
 17. Reply in Mattermost with the public URL, revision summary, how to try the main workflow, rollback availability, and any test login credentials.
 
@@ -178,7 +178,7 @@ Infer the archetype from the domain and user goal when unspecified. App requests
 
 Never publish a generic feature-card page, empty hero, meaningless gradient, or workflow-free app. The first screen must be the requested experience or a meaningful landing page for the requested offer. Use realistic fake data where it helps the user understand the workflow.
 
-Use the shared artifact quality harness from `references/artifact-quality.md` when you need more detail, but keep the site loop self-contained: deterministic build-quality first, rendered screenshot review second, same-URL publish only after blocking issues are gone.
+Use the shared artifact quality harness from `references/artifact-quality.md` when you need more detail, but keep the site loop self-contained: deterministic build-quality first, rendered screenshot review second, and same-URL publish after improvement attempts. Build-quality is an improvement harness; compile failures, missing dist, stale dist, and permission failures are hard blockers, but aesthetic or scaffold-smell findings should be fixed when possible and otherwise reported with the published URL.
 
 ## Reply Format
 
