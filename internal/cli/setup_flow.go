@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
@@ -857,6 +858,10 @@ func (state *setupFlowState) installBinariesSSH(context *setup.Context) error {
 		return err
 	}
 
+	if err := state.ensureManagedHostExecutablesSSH(); err != nil {
+		return err
+	}
+
 	state.sshClient.run(`
 NOLOGIN_BIN=$(command -v nologin || echo /usr/sbin/nologin)
 getent group blueclaw >/dev/null 2>&1 || groupadd --system blueclaw
@@ -909,6 +914,65 @@ rm -f /usr/local/bin/gws-* /etc/sudoers.d/blueclaw-gws /etc/sudoers.d/blueclaw-m
 	}
 
 	return nil
+}
+
+func (state *setupFlowState) ensureManagedHostExecutablesSSH() error {
+	output, errorValue := state.sshClient.runResultWithTimeout(managedHostExecutablesScript(), 4*time.Minute)
+	if errorValue != nil {
+		return fmt.Errorf("ensure managed host executables: %s: %w", strings.TrimSpace(output), errorValue)
+	}
+	fmt.Printf("  managed host executables %s\n", state.messenger.t("준비 완료", "ready"))
+	return nil
+}
+
+func managedHostExecutablesScript() string {
+	return `set -eu
+install -d -o root -g root -m 755 /opt/internkim/managed-bin /usr/local/bin
+NOLOGIN_BIN=$(command -v nologin || echo /usr/sbin/nologin)
+getent group blueclaw >/dev/null 2>&1 || groupadd --system blueclaw
+id blueclaw >/dev/null 2>&1 || useradd -r -g blueclaw -m -d /home/blueclaw -s "$NOLOGIN_BIN" blueclaw
+install -d -o blueclaw -g blueclaw -m 755 /home/blueclaw /home/blueclaw/.bun
+if [ ! -x /opt/internkim/managed-bin/bun ]; then
+  if [ ! -x /home/blueclaw/.bun/bin/bun ]; then
+    su -s /bin/bash blueclaw -c 'env HOME=/home/blueclaw bash -lc "curl -fsSL https://bun.sh/install | bash"'
+  fi
+  install -o root -g root -m 755 /home/blueclaw/.bun/bin/bun /opt/internkim/managed-bin/bun
+fi
+install -o root -g root -m 755 /opt/internkim/managed-bin/bun /usr/local/bin/bun
+ln -sfn /usr/local/bin/bun /usr/local/bin/bunx
+cat > /usr/local/bin/marp <<'MARPEOF'
+#!/bin/sh
+exec /usr/local/bin/bun x --bun @marp-team/marp-cli "$@"
+MARPEOF
+chown root:root /usr/local/bin/bun /usr/local/bin/bunx /usr/local/bin/marp
+chmod 755 /usr/local/bin/bun /usr/local/bin/marp
+if ! command -v uv >/dev/null 2>&1; then
+  curl -LsSf https://astral.sh/uv/0.11.11/install.sh -o /tmp/internkim-uv-install.sh
+  UV_UNMANAGED_INSTALL=/usr/local/bin sh /tmp/internkim-uv-install.sh
+fi
+for managed_executable in bun bunx marp uv; do
+  managed_path="/usr/local/bin/$managed_executable"
+  test -x "$managed_path"
+  managed_stat_path="$managed_path"
+  if [ -L "$managed_path" ]; then
+    managed_target="$(readlink "$managed_path")"
+    case "$managed_target" in
+      /*) managed_stat_path="$managed_target" ;;
+      *) managed_stat_path="$(dirname "$managed_path")/$managed_target" ;;
+    esac
+  fi
+  managed_owner="$(stat -c '%u' "$managed_stat_path")"
+  managed_mode="$(stat -c '%a' "$managed_stat_path")"
+  case "$managed_owner" in
+    0|998) ;;
+    *) echo "host-$managed_executable-owner-drift"; exit 1 ;;
+  esac
+  case "$managed_mode" in
+    555|755) ;;
+    *) echo "host-$managed_executable-mode-drift"; exit 1 ;;
+  esac
+done
+`
 }
 
 func (state *setupFlowState) installAdmindSSH(context *setup.Context) error {
@@ -1259,13 +1323,18 @@ func (state *setupFlowState) installBlueclawPayloadSSH(context *setup.Context) e
 
 	fmt.Print("  blueclaw runtime payload... ")
 	remoteManifestDocument := state.sshClient.run("cat " + blueclaw.BlueclawPayloadManifestPath + " 2>/dev/null || true")
-	if manifestDocument == remoteManifestDocument {
+	remoteWorkspaceManifestDocument := state.sshClient.run(blueclawWorkspaceManifestCommand())
+	if manifestDocument == remoteManifestDocument && manifestDocument == remoteWorkspaceManifestDocument {
 		fmt.Println("already current")
 		return nil
 	}
 
 	temporaryPayloadPath := "/tmp/internkim-blueclaw-payload"
-	state.sshClient.run("systemctl stop " + blueclaw.BlueclawServiceName + " >/dev/null 2>&1 || true")
+	output, errorValue := state.sshClient.runResult(blueclawStopForPayloadSyncCommand())
+	if errorValue != nil {
+		fmt.Println("failed")
+		return fmt.Errorf("stop blueclaw before payload sync: %s: %w", strings.TrimSpace(output), errorValue)
+	}
 	state.sshClient.run("rm -rf " + temporaryPayloadPath + " && mkdir -p " + temporaryPayloadPath + " " + blueclaw.BlueclawRuntimeInstallPath)
 	if errorValue := state.sshClient.scpDir(blueclaw.PayloadWorkspacePath(artifactDirectoryPath), temporaryPayloadPath+"/workspace"); errorValue != nil {
 		fmt.Println("failed")
@@ -1276,16 +1345,27 @@ func (state *setupFlowState) installBlueclawPayloadSSH(context *setup.Context) e
 		return errorValue
 	}
 
+	output, errorValue = state.sshClient.runResult(blueclawHostWorkspacePayloadSyncCommand(temporaryPayloadPath))
+	if errorValue != nil {
+		fmt.Println("failed")
+		return fmt.Errorf("sync blueclaw payload host workspace: %s: %w", strings.TrimSpace(output), errorValue)
+	}
+
 	syncCommand := strings.Join([]string{
 		blueclaw.BlueclawSupervisorBinaryPath,
 		"sync-workspace",
 		"--workspace-image", quoteShellValue(blueclaw.BlueclawWorkspaceImagePath),
 		"--source", quoteShellValue(temporaryPayloadPath + "/workspace"),
 	}, " ")
-	output, errorValue := state.sshClient.runResult(syncCommand)
+	output, errorValue = state.sshClient.runResult(syncCommand)
 	if errorValue != nil {
 		fmt.Println("failed")
 		return fmt.Errorf("sync blueclaw payload workspace: %s: %w", strings.TrimSpace(output), errorValue)
+	}
+	remoteWorkspaceManifestDocument = state.sshClient.run(blueclawWorkspaceManifestCommand())
+	if manifestDocument != remoteWorkspaceManifestDocument {
+		fmt.Println("failed")
+		return fmt.Errorf("sync blueclaw payload workspace: workspace manifest mismatch")
 	}
 	output, errorValue = state.sshClient.runResult("install -m 0644 " + temporaryPayloadPath + "/manifest.json " + blueclaw.BlueclawPayloadManifestPath)
 	if errorValue != nil {
@@ -1295,6 +1375,41 @@ func (state *setupFlowState) installBlueclawPayloadSSH(context *setup.Context) e
 
 	fmt.Println("installed")
 	return nil
+}
+
+func blueclawHostWorkspacePayloadSyncCommand(temporaryPayloadPath string) string {
+	sourcePath := filepath.Join(temporaryPayloadPath, "workspace", ".blueclaw", "runtime")
+	targetPath := filepath.Join(blueclaw.BlueclawWorkspacePath, ".blueclaw", "runtime")
+	return strings.Join([]string{
+		"mkdir -p", quoteShellValue(filepath.Dir(targetPath)),
+		"&& rsync -a --delete", quoteShellValue(sourcePath + "/"), quoteShellValue(targetPath + "/"),
+		"&& chown -R blueclaw:blueclaw", quoteShellValue(targetPath),
+	}, " ")
+}
+
+func blueclawStopForPayloadSyncCommand() string {
+	return `systemctl stop ` + blueclaw.BlueclawServiceName + ` >/dev/null 2>&1 || true
+blueclaw_process_pattern='[/]usr/local/bin/blueclaw-supervisor|[/]firecracker .*--api-sock /firecracker-api.socket'
+for _ in $(seq 1 20); do
+  if ! systemctl is-active --quiet ` + blueclaw.BlueclawServiceName + ` && ! pgrep -f "$blueclaw_process_pattern" >/dev/null; then
+    exit 0
+  fi
+  sleep 1
+done
+systemctl kill ` + blueclaw.BlueclawServiceName + ` --kill-who=all --signal=KILL >/dev/null 2>&1 || true
+for _ in $(seq 1 20); do
+  if ! systemctl is-active --quiet ` + blueclaw.BlueclawServiceName + ` && ! pgrep -f "$blueclaw_process_pattern" >/dev/null; then
+    exit 0
+  fi
+  sleep 1
+done
+systemctl status ` + blueclaw.BlueclawServiceName + ` --no-pager -l 2>/dev/null || true
+pgrep -af "$blueclaw_process_pattern" || true
+exit 1`
+}
+
+func blueclawWorkspaceManifestCommand() string {
+	return "debugfs -R " + quoteShellValue("cat /.blueclaw/runtime/current/manifest.json") + " " + quoteShellValue(blueclaw.BlueclawWorkspaceImagePath) + " 2>/dev/null || true"
 }
 
 func (state *setupFlowState) blueclawPayloadManifest() string {

@@ -127,8 +127,26 @@ func TestBlueclawHostNetworkDependencyInstallCommandInstallsTapNATTools(t *testi
 	}
 }
 
-func TestJetsonServicesInstallLlamaCppUnits(t *testing.T) {
+func TestJetsonServicesDoNotInstallLlamaCppUnitsByDefault(t *testing.T) {
 	command := serviceUnitInstallCommand(&Context{BoardType: BoardJetsonOrinNano})
+
+	for _, unexpectedValue := range []string{
+		locallm.LlamaCppServiceName,
+		locallm.LlamaCppEmbeddingServiceName,
+		locallm.LlamaCppBinaryPath,
+		locallm.LlamaCppEmbeddingModelPath,
+	} {
+		if strings.Contains(command, unexpectedValue) {
+			t.Fatalf("expected default Jetson service command to exclude %q, got:\n%s", unexpectedValue, command)
+		}
+	}
+}
+
+func TestJetsonServicesInstallLlamaCppUnitsWhenLocalLLMIsPlanned(t *testing.T) {
+	command := serviceUnitInstallCommand(&Context{
+		BoardType:    BoardJetsonOrinNano,
+		PlannedSteps: map[string]bool{"local-llm": true},
+	})
 
 	for _, expectedValue := range []string{
 		locallm.LlamaCppServiceName,
@@ -156,11 +174,28 @@ func TestServiceHealthReportChecksAllServicesInOneCommand(t *testing.T) {
 		"curl --max-time 5 -fsS http://127.0.0.1:8080/admin/api/health",
 		"printf '%s=' 'capabilitydHealth'",
 		"curl --max-time 5 -fsS --unix-socket /run/internkim/capability.sock",
+	} {
+		if !strings.Contains(command, expectedValue) {
+			t.Fatalf("expected health report command to include %q, got:\n%s", expectedValue, command)
+		}
+	}
+	if strings.Contains(command, locallm.LlamaCppEmbeddingServiceName) {
+		t.Fatalf("expected default health report to skip local LLM services, got:\n%s", command)
+	}
+}
+
+func TestServiceHealthReportChecksLocalLLMWhenPlanned(t *testing.T) {
+	command := blueclawServiceHealthReportCommand(&Context{
+		BoardType:    BoardJetsonOrinNano,
+		PlannedSteps: map[string]bool{"local-llm": true},
+	})
+
+	for _, expectedValue := range []string{
 		"printf '%s=' 'embedding'",
 		locallm.LlamaCppEmbeddingServiceName,
 	} {
 		if !strings.Contains(command, expectedValue) {
-			t.Fatalf("expected health report command to include %q, got:\n%s", expectedValue, command)
+			t.Fatalf("expected local LLM health report command to include %q, got:\n%s", expectedValue, command)
 		}
 	}
 }
