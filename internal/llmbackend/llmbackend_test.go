@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -111,7 +112,7 @@ func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 			}
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"call_tool__site_app_publish","arguments":"{\"siteID\":\"site-1\"}"}}]}}]}`)),
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"continue__site_app_publish","arguments":"{\"toolInput\":{\"siteID\":\"site-1\"},\"message\":\"publishing\",\"executionStateUpdate\":{},\"nextStepPlan\":{\"objective\":\"confirm publish\",\"expectedTools\":[],\"doneCriteria\":[\"published\"],\"risk\":\"none\",\"workingSetReason\":\"publish result completes the task\"}}"}}]}}]}`)),
 				Header:     make(http.Header),
 			}, nil
 		})},
@@ -126,7 +127,7 @@ func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected native action response: %v", errorValue)
 	}
-	if response.Content != `{"action":"call_tool","toolInput":{"siteID":"site-1"},"toolName":"site.app.publish"}` {
+	if response.Content != `{"action":"continue","executionStateUpdate":{},"message":"publishing","nextStepPlan":{"doneCriteria":["published"],"expectedTools":[],"objective":"confirm publish","risk":"none","workingSetReason":"publish result completes the task"},"toolInput":{"siteID":"site-1"},"toolName":"site.app.publish"}` {
 		t.Fatalf("expected action JSON, got %s", response.Content)
 	}
 	if response.ConstraintMode != ConstraintModeNativeToolCall {
@@ -142,19 +143,21 @@ func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 		t.Fatalf("expected parallel tool calls to be disabled, got %+v", receivedDocument)
 	}
 	tools := receivedDocument["tools"].([]any)
-	if !openRouterRequestHasTool(tools, "reply_now") {
-		t.Fatalf("expected reply_now control tool, got %+v", tools)
+	if !openRouterRequestHasTool(tools, "finish") {
+		t.Fatalf("expected finish control tool, got %+v", tools)
 	}
-	parameters := openRouterRequestToolParameters(t, tools, "call_tool__site_app_publish")
+	parameters := openRouterRequestToolParameters(t, tools, "continue__site_app_publish")
 	if _, isFound := parameters["additionalProperties"]; isFound {
 		t.Fatalf("expected OpenRouter native tool parameters to omit additionalProperties, got %+v", parameters)
 	}
 	properties := parameters["properties"].(map[string]any)
-	if _, isFound := properties["siteID"]; !isFound {
+	toolInput := properties["toolInput"].(map[string]any)
+	toolInputProperties := toolInput["properties"].(map[string]any)
+	if _, isFound := toolInputProperties["siteID"]; !isFound {
 		t.Fatalf("expected projected tool parameters to preserve siteID, got %+v", parameters)
 	}
 	required := parameters["required"].([]any)
-	if len(required) != 1 || required[0] != "siteID" {
+	if len(required) != 3 || required[0] != "toolInput" || required[1] != "executionStateUpdate" || required[2] != "nextStepPlan" {
 		t.Fatalf("expected required field to be preserved, got %+v", parameters)
 	}
 	if receivedDocument["seed"] != float64(seed) {
@@ -211,7 +214,7 @@ func TestOpenRouterBackendRejectsActionContentWhenToolCallIsMissing(t *testing.T
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"stop","message":{"content":"{\"action\":\"final_reply\",\"finalReply\":\"할 수 있는 일을 설명드릴게요.\",\"goalStatus\":\"satisfied\",\"goalSatisfied\":true,\"completionEvidence\":[],\"qualityReview\":[]}"}}]}`)),
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"stop","message":{"content":"{\"action\":\"finish\",\"finishMessage\":\"할 수 있는 일을 설명드릴게요.\",\"goalStatus\":\"satisfied\",\"goalSatisfied\":true,\"completionEvidence\":[],\"qualityReview\":[]}"}}]}`)),
 				Header:     make(http.Header),
 			}, nil
 		})},
@@ -231,11 +234,11 @@ func TestOpenAICompatibleActionToolRequestUsesGenerationOptions(t *testing.T) {
 	seed := int64(12)
 	temperature := 0.6
 	request := openAIActionToolRequest("local-model", []Message{{Role: "user", Content: "publish"}}, []nativeActionTool{{
-		FunctionName: "call_tool__site_app_publish",
+		FunctionName: "continue__site_app_publish",
 		Description:  "Call site.app.publish",
-		Action:       "call_tool",
+		Action:       "continue",
 		ToolName:     "site.app.publish",
-		Parameters:   json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
+		Parameters:   json.RawMessage(`{"type":"object","properties":{}}`),
 	}}, GenerationOptions{Seed: &seed, Temperature: &temperature})
 
 	if request.Seed == nil || *request.Seed != seed {
@@ -244,7 +247,7 @@ func TestOpenAICompatibleActionToolRequestUsesGenerationOptions(t *testing.T) {
 	if request.Temperature == nil || *request.Temperature != temperature {
 		t.Fatalf("expected temperature on OpenAI-compatible request, got %+v", request)
 	}
-	if len(request.Tools) != 1 || request.Tools[0].Function.Name != "call_tool__site_app_publish" {
+	if len(request.Tools) != 1 || request.Tools[0].Function.Name != "continue__site_app_publish" {
 		t.Fatalf("expected native tool call shape to remain, got %+v", request.Tools)
 	}
 	if request.ToolChoice != "required" {
@@ -279,7 +282,7 @@ func TestOpenAICompatibleMessagePartsBecomeMultimodalContent(t *testing.T) {
 	}
 }
 
-func TestNativeActionToolsExposeFinalReplyAsReplyNow(t *testing.T) {
+func TestNativeActionToolsExposeFinishAsFinish(t *testing.T) {
 	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(testAgentActionSchema())
 	if errorValue != nil {
 		t.Fatalf("expected native tool set: %v", errorValue)
@@ -287,19 +290,19 @@ func TestNativeActionToolsExposeFinalReplyAsReplyNow(t *testing.T) {
 	if !isActionSchema {
 		t.Fatal("expected action schema")
 	}
-	tool, isFound := toolSet.ToolByName["reply_now"]
+	tool, isFound := toolSet.ToolByName["finish"]
 	if !isFound {
-		t.Fatalf("expected reply_now tool, got %+v", toolSet.Tools)
+		t.Fatalf("expected finish tool, got %+v", toolSet.Tools)
 	}
-	if tool.Action != "final_reply" {
-		t.Fatalf("expected reply_now to map to final_reply, got %+v", tool)
+	if tool.Action != "finish" {
+		t.Fatalf("expected finish tool to map to finish, got %+v", tool)
 	}
-	content, errorValue := nativeActionJSON(toolSet, "reply_now", `{"finalReply":"done","goalStatus":"satisfied","goalSatisfied":true,"completionEvidence":[],"qualityReview":[]}`)
+	content, errorValue := nativeActionJSON(toolSet, "finish", `{"message":"done","goalStatus":"satisfied","goalSatisfied":true,"completionEvidence":[],"qualityReview":[]}`)
 	if errorValue != nil {
-		t.Fatalf("expected reply_now action JSON: %v", errorValue)
+		t.Fatalf("expected finish action JSON: %v", errorValue)
 	}
-	if !strings.Contains(content, `"action":"final_reply"`) {
-		t.Fatalf("expected internal final_reply action, got %s", content)
+	if !strings.Contains(content, `"action":"finish"`) || !strings.Contains(content, `"message":"done"`) {
+		t.Fatalf("expected finish action, got %s", content)
 	}
 }
 
@@ -307,8 +310,8 @@ func TestNativeActionToolsRejectFunctionNameCollisions(t *testing.T) {
 	_, _, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
 		Name: "blueclaw_agent_turn_action",
 		Document: json.RawMessage(`{"oneOf":[
-			{"type":"object","properties":{"action":{"type":"string","enum":["call_tool"]},"toolName":{"type":"string","enum":["a.b"]},"toolInput":{"type":"object"}},"required":["action","toolName","toolInput"]},
-			{"type":"object","properties":{"action":{"type":"string","enum":["call_tool"]},"toolName":{"type":"string","enum":["a/b"]},"toolInput":{"type":"object"}},"required":["action","toolName","toolInput"]}
+			{"type":"object","properties":{"action":{"type":"string","enum":["continue"]},"toolName":{"type":"string","enum":["a.b"]},"toolInput":{"type":"object"}},"required":["action","toolName","toolInput"]},
+			{"type":"object","properties":{"action":{"type":"string","enum":["continue"]},"toolName":{"type":"string","enum":["a/b"]},"toolInput":{"type":"object"}},"required":["action","toolName","toolInput"]}
 		]}`),
 	})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "maps multiple actions") {
@@ -316,93 +319,7 @@ func TestNativeActionToolsRejectFunctionNameCollisions(t *testing.T) {
 	}
 }
 
-func TestNativeActionToolsRemoveUndefinedRequiredParameters(t *testing.T) {
-	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
-		Name: "blueclaw_agent_turn_action",
-		Document: json.RawMessage(`{"oneOf":[
-			{"type":"object","properties":{"action":{"type":"string","enum":["call_tool"]},"toolName":{"type":"string","enum":["browser.open"]},"toolInput":{"type":"object","required":["url"],"additionalProperties":false}},"required":["action","toolName","toolInput"]}
-		]}`),
-	})
-	if errorValue != nil {
-		t.Fatalf("expected native tool set: %v", errorValue)
-	}
-	if !isActionSchema || len(toolSet.Tools) != 1 {
-		t.Fatalf("expected one native action tool, got action=%v tools=%+v", isActionSchema, toolSet.Tools)
-	}
-
-	var parameters map[string]any
-	if errorValue := json.Unmarshal(toolSet.Tools[0].Parameters, &parameters); errorValue != nil {
-		t.Fatalf("expected parameters to decode: %v", errorValue)
-	}
-	properties, isFound := parameters["properties"].(map[string]any)
-	if !isFound || len(properties) != 0 {
-		t.Fatalf("expected empty properties to be explicit, got %+v", parameters)
-	}
-	assertNativeRequiredFieldsHaveProperties(t, "browser.open", parameters)
-	if _, isFound := parameters["additionalProperties"]; isFound {
-		t.Fatalf("expected unsupported native schema keywords to be removed, got %+v", parameters)
-	}
-}
-
-func TestNativeActionToolsSanitizeProviderSpecificSchemaKeywords(t *testing.T) {
-	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
-		Name: "blueclaw_agent_turn_action",
-		Document: json.RawMessage(`{"oneOf":[
-			{"type":"object","properties":{"action":{"type":"string","enum":["call_tool"]},"toolName":{"type":"string","enum":["calendar.event.add"]},"toolInput":{"type":"object","properties":{"people":{"oneOf":[{"type":"string"},{"type":"array","items":{"type":"string"}}]},"title":{"type":"string","default":"Untitled"}},"required":["title"],"additionalProperties":false}},"required":["action","toolName","toolInput"]}
-		]}`),
-	})
-	if errorValue != nil {
-		t.Fatalf("expected native tool set: %v", errorValue)
-	}
-	if !isActionSchema || len(toolSet.Tools) != 1 {
-		t.Fatalf("expected one native action tool, got action=%v tools=%+v", isActionSchema, toolSet.Tools)
-	}
-
-	var parameters map[string]any
-	if errorValue := json.Unmarshal(toolSet.Tools[0].Parameters, &parameters); errorValue != nil {
-		t.Fatalf("expected parameters to decode: %v", errorValue)
-	}
-	if documentContainsKey(parameters, "oneOf") || documentContainsKey(parameters, "additionalProperties") || documentContainsKey(parameters, "default") {
-		t.Fatalf("expected provider-specific schema keywords to be removed, got %+v", parameters)
-	}
-	properties := parameters["properties"].(map[string]any)
-	people := properties["people"].(map[string]any)
-	if people["type"] != "string" {
-		t.Fatalf("expected oneOf to collapse to first provider-compatible variant, got %+v", people)
-	}
-}
-
-func TestNativeActionToolsRemoveNonStringEnumsForOpenRouterCompatibility(t *testing.T) {
-	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
-		Name: "blueclaw_agent_turn_action",
-		Document: json.RawMessage(`{"oneOf":[
-			{"type":"object","properties":{"action":{"type":"string","enum":["call_tool"]},"toolName":{"type":"string","enum":["calendar.event.add"]},"toolInput":{"type":"object","properties":{"reminderLeadHours":{"type":"integer","enum":[1,2,3]},"color":{"type":"string","enum":["blue","green"]}},"required":["reminderLeadHours"],"additionalProperties":false}},"required":["action","toolName","toolInput"]}
-		]}`),
-	})
-	if errorValue != nil {
-		t.Fatalf("expected native tool set: %v", errorValue)
-	}
-	if !isActionSchema || len(toolSet.Tools) != 1 {
-		t.Fatalf("expected one native action tool, got action=%v tools=%+v", isActionSchema, toolSet.Tools)
-	}
-
-	var parameters map[string]any
-	if errorValue := json.Unmarshal(toolSet.Tools[0].Parameters, &parameters); errorValue != nil {
-		t.Fatalf("expected parameters to decode: %v", errorValue)
-	}
-	properties := parameters["properties"].(map[string]any)
-	reminderLeadHours := properties["reminderLeadHours"].(map[string]any)
-	if _, isFound := reminderLeadHours["enum"]; isFound {
-		t.Fatalf("expected non-string enum to be removed, got %+v", reminderLeadHours)
-	}
-	color := properties["color"].(map[string]any)
-	enumValues := color["enum"].([]any)
-	if len(enumValues) != 2 || enumValues[0] != "blue" || enumValues[1] != "green" {
-		t.Fatalf("expected string enum to be preserved, got %+v", color)
-	}
-}
-
-func TestNativeActionToolsPreserveCalendarRequiredForOpenRouterCompatibility(t *testing.T) {
+func TestNativeActionToolsOmitNestedToolInputRequiredForProviderCompatibility(t *testing.T) {
 	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
 		Name:     "blueclaw_agent_turn_action",
 		Document: testActionSchemaForDescriptors(t, capabilities.CalendarDescriptors()),
@@ -414,29 +331,85 @@ func TestNativeActionToolsPreserveCalendarRequiredForOpenRouterCompatibility(t *
 		t.Fatal("expected action schema")
 	}
 
-	calendarAddTool := toolSet.ToolByName["call_tool__calendar_event_add"]
+	calendarAddTool := toolSet.ToolByName["continue__calendar_event_add"]
 	var parameters map[string]any
 	if errorValue := json.Unmarshal(calendarAddTool.Parameters, &parameters); errorValue != nil {
 		t.Fatalf("expected calendar parameters: %v", errorValue)
 	}
-	properties := parameters["properties"].(map[string]any)
+	properties, _ := nativeToolInputProperties(parameters)
 	for _, fieldName := range []string{"title", "startISO", "endISO"} {
 		if _, isFound := properties[fieldName]; !isFound {
 			t.Fatalf("expected property %q in calendar schema: %+v", fieldName, parameters)
 		}
 	}
-	required := parameters["required"].([]any)
-	if len(required) != 3 {
-		t.Fatalf("expected calendar required fields to be preserved, got %+v", parameters)
+	required := nativeToolInputRequired(parameters)
+	if len(required) != 0 {
+		t.Fatalf("expected nested toolInput required fields to be omitted, got %+v", parameters)
 	}
 	assertNativeRequiredFieldsHaveProperties(t, "calendar.event.add", parameters)
 }
 
 func TestNativeActionToolsProjectEveryDefaultCapabilitySchema(t *testing.T) {
 	descriptors := append(capabilities.DefaultToolDescriptors(), capabilities.GoogleWorkspaceDescriptors()...)
+	for _, descriptor := range descriptors {
+		toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
+			Name:     "blueclaw_agent_turn_action",
+			Document: testActionSchemaForDescriptors(t, []capabilities.Descriptor{descriptor}),
+		})
+		if errorValue != nil {
+			t.Fatalf("expected native tool set for %s: %v", descriptor.Name, errorValue)
+		}
+		if !isActionSchema {
+			t.Fatal("expected action schema")
+		}
+		tool := toolSet.ToolByName[nativeActionFunctionName("continue", descriptor.Name)]
+		if strings.TrimSpace(tool.FunctionName) == "" {
+			t.Fatalf("expected native tool for %s", descriptor.Name)
+		}
+		assertNativeSchemaIsProviderSafe(t, descriptor.Name, tool.Parameters)
+	}
+}
+
+func TestNativeActionToolsCompactLargeToolSetsForOpenRouterCompatibility(t *testing.T) {
+	descriptors := make([]capabilities.Descriptor, 0, openRouterNativeToolMaxFunctionCount+1)
+	for index := 0; index <= openRouterNativeToolMaxFunctionCount; index++ {
+		descriptors = append(descriptors, capabilities.Descriptor{
+			Name:        fmt.Sprintf("tool.%02d", index),
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"value":{"type":"string"}},"required":["value"]}`),
+		})
+	}
 	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
 		Name:     "blueclaw_agent_turn_action",
 		Document: testActionSchemaForDescriptors(t, descriptors),
+	})
+	if errorValue != nil {
+		t.Fatalf("expected compact native tool set: %v", errorValue)
+	}
+	if !isActionSchema {
+		t.Fatal("expected action schema")
+	}
+	if len(toolSet.Tools) != 1 {
+		t.Fatalf("expected dispatcher-only tool set, got %+v", toolSet.Tools)
+	}
+	dispatcher := toolSet.ToolByName["continue"]
+	if !dispatcher.IsDispatcher || len(dispatcher.ToolNames) != len(descriptors) {
+		t.Fatalf("expected continue dispatcher with tool names, got %+v", dispatcher)
+	}
+	assertNativeSchemaDoesNotUseToolInputJSONString(t, dispatcher.Parameters)
+	content, errorValue := nativeActionJSON(toolSet, "continue", `{"toolName":"tool.03","toolInput":{"value":"ok"},"executionStateUpdate":{},"nextStepPlan":{"objective":"publish","expectedTools":[],"doneCriteria":[],"risk":"","workingSetReason":"continue"}}`)
+	if errorValue != nil {
+		t.Fatalf("expected dispatcher action JSON: %v", errorValue)
+	}
+	if !strings.Contains(content, `"toolName":"tool.03"`) || !strings.Contains(content, `"value":"ok"`) || strings.Contains(content, "toolInputJSON") {
+		t.Fatalf("expected decoded dispatcher payload, got %s", content)
+	}
+}
+
+func TestNativeActionToolsDoNotCompactWhenControlActionsFitProviderBudget(t *testing.T) {
+	toolCount := openRouterNativeToolMaxFunctionCount - 4
+	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
+		Name:     "blueclaw_agent_turn_action",
+		Document: testActionSchemaWithControlActionsAndToolCount(t, toolCount),
 	})
 	if errorValue != nil {
 		t.Fatalf("expected native tool set: %v", errorValue)
@@ -444,14 +417,64 @@ func TestNativeActionToolsProjectEveryDefaultCapabilitySchema(t *testing.T) {
 	if !isActionSchema {
 		t.Fatal("expected action schema")
 	}
-
-	for _, descriptor := range descriptors {
-		tool := toolSet.ToolByName[nativeActionFunctionName(descriptor.Name)]
-		if strings.TrimSpace(tool.FunctionName) == "" {
-			t.Fatalf("expected native tool for %s", descriptor.Name)
-		}
-		assertNativeSchemaIsProviderSafe(t, descriptor.Name, tool.Parameters)
+	if len(toolSet.Tools) != openRouterNativeToolMaxFunctionCount {
+		t.Fatalf("expected %d native functions, got %+v", openRouterNativeToolMaxFunctionCount, toolSet.Tools)
 	}
+	if _, isDispatcher := toolSet.ToolByName["continue"]; isDispatcher {
+		t.Fatalf("expected fixed continue tools instead of dispatcher, got %+v", toolSet.Tools)
+	}
+}
+
+func TestNativeActionToolsCompactRepresentativeSiteWorkingSet(t *testing.T) {
+	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
+		Name:     "blueclaw_agent_turn_action",
+		Document: testActionSchemaWithControlActionsAndToolCount(t, 13),
+	})
+	if errorValue != nil {
+		t.Fatalf("expected compact native site tool set: %v", errorValue)
+	}
+	if !isActionSchema {
+		t.Fatal("expected action schema")
+	}
+	if _, isDispatcher := toolSet.ToolByName["continue"]; !isDispatcher {
+		t.Fatalf("expected representative site working set to use dispatcher, got %+v", toolSet.Tools)
+	}
+	if len(toolSet.Tools) >= 13 {
+		t.Fatalf("expected native function count to shrink, got %+v", toolSet.Tools)
+	}
+}
+
+func TestNativeActionToolUsesPortableInputSchemaWithoutProjection(t *testing.T) {
+	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
+		Name: "blueclaw_agent_turn_action",
+		Document: testActionSchemaForDescriptors(t, []capabilities.Descriptor{{
+			Name:        "file.write",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]}`),
+		}}),
+	})
+	if errorValue != nil {
+		t.Fatalf("expected native tool set: %v", errorValue)
+	}
+	if !isActionSchema {
+		t.Fatal("expected action schema")
+	}
+	tool := toolSet.ToolByName[nativeActionFunctionName("continue", "file.write")]
+	var parameters map[string]any
+	if errorValue := json.Unmarshal(tool.Parameters, &parameters); errorValue != nil {
+		t.Fatalf("expected parameters json: %v", errorValue)
+	}
+	toolInputProperties, isFound := nativeToolInputProperties(parameters)
+	if !isFound {
+		t.Fatalf("expected object toolInput properties, got %s", tool.Parameters)
+	}
+	if _, isFound := toolInputProperties["path"]; !isFound {
+		t.Fatalf("expected path property to survive projection, got %+v", toolInputProperties)
+	}
+	required := nativeToolInputRequired(parameters)
+	if len(required) != 0 {
+		t.Fatalf("expected nested toolInput required fields to be omitted, got %+v in %s", required, tool.Parameters)
+	}
+	assertNativeSchemaIsProviderSafe(t, "file.write", tool.Parameters)
 }
 
 func TestOpenRouterBackendResolvesDefaultModel(t *testing.T) {
@@ -534,7 +557,7 @@ func TestLlamaCppBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 			}
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"reply_now","arguments":"{\"finalReply\":\"done\",\"goalStatus\":\"satisfied\",\"goalSatisfied\":true,\"completionEvidence\":[],\"qualityReview\":[]}"}}]}}]}`)),
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"finish","arguments":"{\"message\":\"done\",\"goalStatus\":\"satisfied\",\"goalSatisfied\":true,\"completionEvidence\":[],\"qualityReview\":[]}"}}]}}]}`)),
 				Header:     make(http.Header),
 			}, nil
 		})},
@@ -548,7 +571,7 @@ func TestLlamaCppBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected native action response: %v", errorValue)
 	}
-	if response.Content != `{"action":"final_reply","completionEvidence":[],"finalReply":"done","goalSatisfied":true,"goalStatus":"satisfied","qualityReview":[]}` {
+	if response.Content != `{"action":"finish","completionEvidence":[],"goalSatisfied":true,"goalStatus":"satisfied","message":"done","qualityReview":[]}` {
 		t.Fatalf("expected final reply action, got %s", response.Content)
 	}
 	if _, isFound := receivedDocument["response_format"]; isFound {
@@ -887,8 +910,8 @@ func testAgentActionSchema() StructuredOutputSchema {
 	return StructuredOutputSchema{
 		Name: "blueclaw_agent_turn_action",
 		Document: json.RawMessage(`{"oneOf":[
-			{"type":"object","properties":{"action":{"type":"string","enum":["final_reply"]},"finalReply":{"type":"string"},"goalStatus":{"type":"string","enum":["satisfied"]},"goalSatisfied":{"type":"boolean"},"completionEvidence":{"type":"array"},"qualityReview":{"type":"array"}},"required":["action","goalStatus","goalSatisfied","completionEvidence","qualityReview"],"additionalProperties":false},
-			{"type":"object","properties":{"action":{"type":"string","enum":["call_tool"]},"toolName":{"type":"string","enum":["site.app.publish"]},"toolInput":{"type":"object","properties":{"siteID":{"type":"string"}},"required":["siteID"],"additionalProperties":false}},"required":["action","toolName","toolInput"],"additionalProperties":false}
+			{"type":"object","properties":{"action":{"type":"string","enum":["finish"]},"message":{"type":"string"},"goalStatus":{"type":"string","enum":["satisfied"]},"goalSatisfied":{"type":"boolean"},"completionEvidence":{"type":"array"},"qualityReview":{"type":"array"},"executionStateUpdate":{"type":"object"}},"required":["action","message","goalStatus","goalSatisfied","completionEvidence","qualityReview","executionStateUpdate"]},
+			{"type":"object","properties":{"action":{"type":"string","enum":["continue"]},"toolName":{"type":"string","enum":["site.app.publish"]},"toolInput":{"type":"object","properties":{"siteID":{"type":"string"}},"required":["siteID"]},"message":{"type":"string"},"executionStateUpdate":{"type":"object"},"nextStepPlan":{"type":"object","properties":{"objective":{"type":"string"},"expectedTools":{"type":"array","items":{"type":"string"}},"doneCriteria":{"type":"array","items":{"type":"string"}},"risk":{"type":"string"},"workingSetReason":{"type":"string"}},"required":["objective","expectedTools","doneCriteria","risk","workingSetReason"]}},"required":["action","toolName","toolInput","executionStateUpdate","nextStepPlan"]}
 		]}`),
 		IsStrictlyEnforced: true,
 	}
@@ -924,21 +947,36 @@ func testActionSchemaForDescriptors(t *testing.T, descriptors []capabilities.Des
 	for _, descriptor := range descriptors {
 		inputSchema := descriptor.InputSchema
 		if len(inputSchema) == 0 {
-			inputSchema = json.RawMessage(`{"type":"object"}`)
+			inputSchema = json.RawMessage(`{"type":"object","properties":{}}`)
 		}
 		var toolInput any
 		if errorValue := json.Unmarshal(inputSchema, &toolInput); errorValue != nil {
 			t.Fatalf("input schema for %s is invalid: %v", descriptor.Name, errorValue)
 		}
+		toolInput = testNativePortableNestedSchema(toolInput)
 		variants = append(variants, map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"action":    map[string]any{"type": "string", "enum": []string{"call_tool"}},
+				"action":    map[string]any{"type": "string", "enum": []string{"continue"}},
 				"toolName":  map[string]any{"type": "string", "enum": []string{descriptor.Name}},
 				"toolInput": toolInput,
+				"executionStateUpdate": map[string]any{
+					"type":       "object",
+					"properties": map[string]any{},
+				},
+				"nextStepPlan": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"objective":        map[string]any{"type": "string"},
+						"expectedTools":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+						"doneCriteria":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+						"risk":             map[string]any{"type": "string"},
+						"workingSetReason": map[string]any{"type": "string"},
+					},
+					"required": []string{"objective", "expectedTools", "doneCriteria", "risk", "workingSetReason"},
+				},
 			},
-			"required":             []string{"action", "toolName", "toolInput"},
-			"additionalProperties": false,
+			"required": []string{"action", "toolName", "toolInput", "executionStateUpdate", "nextStepPlan"},
 		})
 	}
 	document, errorValue := json.Marshal(map[string]any{"oneOf": variants})
@@ -946,6 +984,77 @@ func testActionSchemaForDescriptors(t *testing.T, descriptors []capabilities.Des
 		t.Fatalf("expected action schema: %v", errorValue)
 	}
 	return document
+}
+
+func testNativePortableNestedSchema(value any) any {
+	document, isObject := value.(map[string]any)
+	if isObject {
+		clone := map[string]any{}
+		for fieldName, fieldValue := range document {
+			if fieldName == "required" {
+				continue
+			}
+			if fieldName == "type" && fieldValue == "integer" {
+				clone[fieldName] = "number"
+				continue
+			}
+			clone[fieldName] = testNativePortableNestedSchema(fieldValue)
+		}
+		if clone["type"] == "object" {
+			if _, isFound := clone["properties"]; !isFound {
+				clone["properties"] = map[string]any{}
+			}
+		}
+		return clone
+	}
+	values, isArray := value.([]any)
+	if isArray {
+		clone := make([]any, 0, len(values))
+		for _, item := range values {
+			clone = append(clone, testNativePortableNestedSchema(item))
+		}
+		return clone
+	}
+	return value
+}
+
+func testActionSchemaWithControlActionsAndToolCount(t *testing.T, toolCount int) json.RawMessage {
+	t.Helper()
+	variants := []any{
+		testControlActionVariant("finish"),
+		testControlActionVariant("fail"),
+		testControlActionVariant("require_capabilities"),
+		testControlActionVariant("set_quality_criteria"),
+	}
+	descriptors := make([]capabilities.Descriptor, 0, toolCount)
+	for index := 0; index < toolCount; index++ {
+		descriptors = append(descriptors, capabilities.Descriptor{
+			Name:        fmt.Sprintf("tool.%02d", index),
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"value":{"type":"string"}}}`),
+		})
+	}
+	var document actionSchemaDocument
+	if errorValue := json.Unmarshal(testActionSchemaForDescriptors(t, descriptors), &document); errorValue != nil {
+		t.Fatalf("expected action schema: %v", errorValue)
+	}
+	for _, variant := range document.OneOf {
+		variants = append(variants, variant)
+	}
+	content, errorValue := json.Marshal(map[string]any{"oneOf": variants})
+	if errorValue != nil {
+		t.Fatalf("expected action schema: %v", errorValue)
+	}
+	return content
+}
+
+func testControlActionVariant(action string) map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"action": map[string]any{"type": "string", "enum": []string{action}},
+		},
+		"required": []string{"action"},
+	}
 }
 
 func assertNativeSchemaIsProviderSafe(t *testing.T, toolName string, schema json.RawMessage) {
@@ -957,9 +1066,33 @@ func assertNativeSchemaIsProviderSafe(t *testing.T, toolName string, schema json
 	assertNativeSchemaValueIsProviderSafe(t, toolName, document)
 }
 
+func assertNativeSchemaDoesNotUseToolInputJSONString(t *testing.T, schema json.RawMessage) {
+	t.Helper()
+	var document map[string]any
+	if errorValue := json.Unmarshal(schema, &document); errorValue != nil {
+		t.Fatalf("dispatcher schema is invalid: %v", errorValue)
+	}
+	properties, _ := document["properties"].(map[string]any)
+	if _, isFound := properties["toolInputJSON"]; isFound {
+		t.Fatalf("dispatcher schema must not require JSON strings: %+v", document)
+	}
+	if _, isFound := properties["toolInput"]; !isFound {
+		t.Fatalf("dispatcher schema must expose toolInput object: %+v", document)
+	}
+}
+
 func assertNativeSchemaValueIsProviderSafe(t *testing.T, toolName string, value any) {
 	t.Helper()
 	assertNativeSchemaMapIsProviderSafe(t, toolName, value, false)
+}
+
+var nativeToolSchemaKeywordByName = map[string]bool{
+	"description": true,
+	"enum":        true,
+	"items":       true,
+	"properties":  true,
+	"required":    true,
+	"type":        true,
 }
 
 func assertNativeSchemaMapIsProviderSafe(t *testing.T, toolName string, value any, isPropertiesMap bool) {
@@ -971,8 +1104,11 @@ func assertNativeSchemaMapIsProviderSafe(t *testing.T, toolName string, value an
 				assertNativeSchemaMapIsProviderSafe(t, toolName, fieldValue, false)
 				continue
 			}
-			if !openRouterNativeToolSchemaKeywordByName[fieldName] {
+			if !nativeToolSchemaKeywordByName[fieldName] {
 				t.Fatalf("schema for %s has unsupported key %s: %+v", toolName, fieldName, document)
+			}
+			if fieldName == "type" && fieldValue == "integer" {
+				t.Fatalf("schema for %s uses unsupported integer type: %+v", toolName, document)
 			}
 			if fieldName == "properties" {
 				assertNativeSchemaMapIsProviderSafe(t, toolName, fieldValue, true)
@@ -1020,6 +1156,32 @@ func assertNativeRequiredFieldsHaveProperties(t *testing.T, toolName string, doc
 			t.Fatalf("schema for %s requires undefined field %q: %+v", toolName, fieldNameString, document)
 		}
 	}
+}
+
+func nativeToolInputProperties(parameters map[string]any) (map[string]any, bool) {
+	properties, isProperties := parameters["properties"].(map[string]any)
+	if !isProperties {
+		return nil, false
+	}
+	toolInput, isToolInput := properties["toolInput"].(map[string]any)
+	if !isToolInput {
+		return nil, false
+	}
+	toolInputProperties, isToolInputProperties := toolInput["properties"].(map[string]any)
+	return toolInputProperties, isToolInputProperties
+}
+
+func nativeToolInputRequired(parameters map[string]any) []any {
+	properties, isProperties := parameters["properties"].(map[string]any)
+	if !isProperties {
+		return nil
+	}
+	toolInput, isToolInput := properties["toolInput"].(map[string]any)
+	if !isToolInput {
+		return nil
+	}
+	required, _ := toolInput["required"].([]any)
+	return required
 }
 
 func openRouterRequestToolParameters(t *testing.T, tools []any, functionName string) map[string]any {

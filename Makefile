@@ -33,6 +33,7 @@ package-companion-beta: build-companion
 check: build build-companion
 	cd companion && bun run check
 	cd web && bun run check
+	cd web && bun run test:unit
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go test ./...
 	cd .dependency/blueclaw && GOCACHE=$(BLUECLAW_GO_CACHE) go test ./...
 

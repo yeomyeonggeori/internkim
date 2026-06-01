@@ -615,6 +615,10 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 		ID string `json:"id"`
 	}
 	errorValue = service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", body, &response)
+	if errorValue != nil && mattermostRootIDCanFallback(errorValue, handle) {
+		delete(body, "root_id")
+		errorValue = service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", body, &response)
+	}
 	if errorValue != nil {
 		log.Printf("mattermost reply failed: %v", errorValue)
 	}
@@ -889,15 +893,23 @@ func (service Service) sendMattermostTyping(ctx context.Context, handle platform
 		return nil
 	}
 
-	if errorValue := service.publishMattermostTyping(ctx, botUser.ID, handle.ChannelID, handle.RootID); errorValue != nil {
-		return errorValue
-	}
 	if strings.TrimSpace(handle.RootID) != "" {
-		if errorValue := service.publishMattermostTyping(ctx, botUser.ID, handle.ChannelID, ""); errorValue != nil {
+		if errorValue := service.publishMattermostTyping(ctx, botUser.ID, handle.ChannelID, handle.RootID); errorValue != nil && !mattermostRootIDCanFallback(errorValue, handle) {
 			return errorValue
 		}
 	}
+	if errorValue := service.publishMattermostTyping(ctx, botUser.ID, handle.ChannelID, ""); errorValue != nil {
+		return errorValue
+	}
 	return nil
+}
+
+func mattermostRootIDCanFallback(errorValue error, handle platformHandle) bool {
+	if errorValue == nil || strings.TrimSpace(handle.RootID) == "" {
+		return false
+	}
+	message := strings.ToLower(errorValue.Error())
+	return strings.Contains(message, "invalid rootid") || strings.Contains(message, "invalid root_id") || strings.Contains(message, "root_id")
 }
 
 func (service Service) publishMattermostTyping(ctx context.Context, botUserID string, channelID string, rootID string) error {

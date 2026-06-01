@@ -49,8 +49,8 @@ func TestSiteGatewayLifecycle(t *testing.T) {
 	if site.WorkspacePath == "" || site.HostSourcePath == "" || site.LastPublishedCommit == "" {
 		t.Fatalf("site workspace metadata missing: %+v", site)
 	}
-	if !strings.HasPrefix(site.SourceWorkspacePath, "home/sites/") {
-		t.Fatalf("site source workspace should be requester-private virtual path, got %q", site.SourceWorkspacePath)
+	if !strings.HasPrefix(site.SourceWorkspacePath, "home/sites/") || !strings.HasSuffix(site.SourceWorkspacePath, "/draft") {
+		t.Fatalf("site source workspace should be owner-private draft path, got %q", site.SourceWorkspacePath)
 	}
 
 	response := serveSiteRequest(service, "demo.device.example.test", "/")
@@ -128,8 +128,8 @@ func TestSitePrototypePublishesDefaultBuild(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !strings.HasPrefix(site.SourceWorkspacePath, "home/sites/") {
-		t.Fatalf("site source workspace should be requester-private virtual path, got %q", site.SourceWorkspacePath)
+	if !strings.HasPrefix(site.SourceWorkspacePath, "home/sites/") || !strings.HasSuffix(site.SourceWorkspacePath, "/draft") {
+		t.Fatalf("site source workspace should be owner-private draft path, got %q", site.SourceWorkspacePath)
 	}
 	if site.AppWorkspacePath != site.SourceWorkspacePath+"/app" {
 		t.Fatalf("site app workspace path = %q, source = %q", site.AppWorkspacePath, site.SourceWorkspacePath)
@@ -157,6 +157,87 @@ func TestSitePrototypePublishesDefaultBuild(t *testing.T) {
 	}
 	if !containsCommandFragment(*commandLog, "safe.directory="+site.HostSourcePath) {
 		t.Fatalf("site git commands should trust the site workspace: %+v", *commandLog)
+	}
+	sourceInformation, errorValue := os.Stat(site.HostSourcePath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if sourceInformation.Mode().Perm()&0o007 != 0 {
+		t.Fatalf("site source ledger must not be world-accessible, got %o", sourceInformation.Mode().Perm())
+	}
+}
+
+func TestSitePreviewDoesNotChangePublishedURLUntilPublish(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{
+		Slug:          "preview-flow",
+		Title:         "Preview Flow",
+		RequestedBy:   "owner@example.com",
+		OwnerIdentity: siteIdentity{PersonID: "person-1", DisplayName: "Owner"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeTestWorkspaceBuild(t, site, "published version")
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		RequestedBy:        "owner@example.com",
+		Message:            "Publish stable version",
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeTestWorkspaceBuild(t, site, "draft preview version")
+	site, errorValue = service.previewSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		RequestedBy:        "owner@example.com",
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if site.PreviewID == "" || !strings.Contains(site.PreviewURL, "/__preview/"+site.PreviewID) {
+		t.Fatalf("expected preview URL metadata, got %+v", site)
+	}
+	publishedResponse := serveSiteRequest(service, "preview-flow.device.example.test", "/")
+	if !strings.Contains(publishedResponse.Body.String(), "published version") || strings.Contains(publishedResponse.Body.String(), "draft preview version") {
+		t.Fatalf("preview should not change public response: %q", publishedResponse.Body.String())
+	}
+	previewResponse := serveSiteRequest(service, "preview-flow.device.example.test", "/__preview/"+site.PreviewID+"/")
+	if previewResponse.Code != http.StatusOK || !strings.Contains(previewResponse.Body.String(), "draft preview version") {
+		t.Fatalf("expected preview response, status=%d body=%q", previewResponse.Code, previewResponse.Body.String())
+	}
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		RequestedBy:        "owner@example.com",
+		Message:            "Publish preview version",
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if site.PreviewURL != "" || site.PreviewID != "" {
+		t.Fatalf("expected publish to clear preview metadata, got %+v", site)
+	}
+	ownerCurrentTarget, errorValue := os.Readlink(filepath.Join(service.sitePublishedRootPath(site), "current"))
+	if errorValue != nil || ownerCurrentTarget != service.sitePublishedVersionPath(site, site.CurrentVersionID) {
+		t.Fatalf("expected owner-private current symlink to point at live version, target=%q error=%v", ownerCurrentTarget, errorValue)
+	}
+	runtimeCurrentTarget, errorValue := os.Readlink(filepath.Join(service.sitePath(site.SiteID), "current"))
+	if errorValue != nil || runtimeCurrentTarget != service.sitePublishedVersionPath(site, site.CurrentVersionID) {
+		t.Fatalf("expected runtime current symlink to point at live version, target=%q error=%v", runtimeCurrentTarget, errorValue)
+	}
+	publishedResponse = serveSiteRequest(service, "preview-flow.device.example.test", "/")
+	if !strings.Contains(publishedResponse.Body.String(), "draft preview version") {
+		t.Fatalf("expected published response to update after publish: %q", publishedResponse.Body.String())
+	}
+	previewResponse = serveSiteRequest(service, "preview-flow.device.example.test", "/__preview/preview-missing/")
+	if previewResponse.Code != http.StatusNotFound {
+		t.Fatalf("expected preview to be closed after publish, got %d", previewResponse.Code)
 	}
 }
 
@@ -189,17 +270,137 @@ func TestSiteDefaultDesignMDUsesStitchFormat(t *testing.T) {
 	}
 }
 
+func TestSiteRevisionEntriesMarkPublishedVersions(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site := &SiteRecord{
+		SiteID:            "site-1",
+		Slug:              "demo",
+		CurrentVersionID:  "20260529T010203-abcdef123456",
+		PreviousVersionID: "20260528T010203-111111111111",
+	}
+	if errorValue := os.MkdirAll(service.siteVersionPath(site.SiteID, site.CurrentVersionID), 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	output := "abcdef1234567890\x1f1770000000\x1fImprove layout\n2222222222229999\x1f1760000000\x1fDraft only"
+	entries := service.siteRevisionEntries(site, output)
+	if len(entries) != 2 {
+		t.Fatalf("revision entries = %+v", entries)
+	}
+	if !entries[0].IsCurrent || !entries[0].IsPublishedBuild || entries[0].VersionID != site.CurrentVersionID {
+		t.Fatalf("current revision metadata = %+v", entries[0])
+	}
+	if entries[1].IsPublishedBuild {
+		t.Fatalf("draft-only commit should not be marked published: %+v", entries[1])
+	}
+}
+
+func TestSiteRollbackCanTargetPublishedRevision(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "rollback-revision", RequestedBy: "owner@example.com"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	currentVersionID := "20260529T010203-abcdef123456"
+	targetVersionID := "20260528T010203-111111111111"
+	site.Status = SiteStatusPublished
+	site.CurrentVersionID = currentVersionID
+	if errorValue := service.storeSite(site); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, versionID := range []string{currentVersionID, targetVersionID} {
+		if errorValue := os.MkdirAll(service.siteVersionPath(site.SiteID, versionID), 0o700); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+	rolledBackSite, errorValue := service.rollbackSite(context.Background(), site.SiteID, siteLifecycleRequest{
+		RequestedBy: "owner@example.com",
+		Revision:    "1111111111119999",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if rolledBackSite.CurrentVersionID != targetVersionID || rolledBackSite.PreviousVersionID != currentVersionID {
+		t.Fatalf("rollback version metadata = %+v", rolledBackSite)
+	}
+}
+
 func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
 	packageJSON := sitePackageJSON(&SiteRecord{Slug: "react-demo"})
-	for _, expectedText := range []string{`"react"`, `"vite"`, `"@google/design.md"`, `"@vitejs/plugin-react"`, `"bun scripts/build.ts"`} {
+	for _, expectedText := range []string{`"react"`, `"vite"`, `"@vitejs/plugin-react"`, `"bun scripts/build.ts"`} {
 		if !strings.Contains(packageJSON, expectedText) {
 			t.Fatalf("site package manifest must contain %q", expectedText)
 		}
 	}
-	for _, expectedText := range []string{`name: "bun", arguments: ["install"]`, "@google/design.md", "vite"} {
+	if strings.Contains(packageJSON, "@google/design.md") {
+		t.Fatalf("site package manifest must not depend on nested design.md CLI")
+	}
+	if strings.Contains(packageJSON, `": "^`) {
+		t.Fatalf("site package manifest must pin exact dependency versions")
+	}
+	for _, expectedText := range []string{`name: "bun", arguments: ["install"]`, `collectDesignQualityIssues`, `category: "designDocument"`, `await buildVite();`} {
 		if !strings.Contains(siteBuildTS(), expectedText) {
 			t.Fatalf("site build script must contain %q", expectedText)
 		}
+	}
+	if strings.Contains(siteBuildTS(), "Bun.execPath") || strings.Contains(siteBuildTS(), `name: "bunx"`) {
+		t.Fatalf("site build script must rely on canonical runtime PATH, got Bun.execPath/bunx")
+	}
+	if strings.Contains(siteBuildTS(), `arguments: ["x", "vite", "build"]`) {
+		t.Fatalf("site build script must call Vite in-process")
+	}
+	if !strings.Contains(siteBuildTS(), `PATH: canonicalRuntimePATH`) {
+		t.Fatalf("site build script must pass canonical PATH to child commands")
+	}
+	if strings.Contains(siteBuildTS(), "site quality gate failed") {
+		t.Fatalf("site build script must not fail solely because quality issues were reported")
+	}
+	if strings.Contains(siteBuildTS(), "DESIGN.md lint failed") {
+		t.Fatalf("site build script must report DESIGN.md issues without failing the build")
+	}
+	if strings.Contains(siteBuildTS(), "DESIGN.md is required") {
+		t.Fatalf("site build script must not fail solely because DESIGN.md is missing")
+	}
+	if !strings.Contains(siteBuildTS(), "suggestedFix") {
+		t.Fatalf("site build script must include actionable quality fixes")
+	}
+	viteIndex := strings.Index(siteBuildTS(), `await buildVite();`)
+	qualityIndex := strings.LastIndex(siteBuildTS(), "writeBuildQuality(qualityIssues);")
+	if viteIndex < 0 || qualityIndex < viteIndex {
+		t.Fatalf("site build script must write build-quality.json after vite build")
+	}
+}
+
+func TestSiteCreateAllocatesUniqueSlugWhenRequestedSlugExists(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	firstSite, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "portfolio", RequestedBy: "owner@example.com"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	secondSite, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "portfolio", RequestedBy: "owner@example.com"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if firstSite.Slug == secondSite.Slug {
+		t.Fatalf("expected unique slug, got %q", secondSite.Slug)
+	}
+	if !strings.HasPrefix(secondSite.Slug, "portfolio-") {
+		t.Fatalf("expected slug to preserve requested base, got %q", secondSite.Slug)
+	}
+	if !strings.Contains(secondSite.Slug, "owner-example-com") {
+		t.Fatalf("expected collision suffix to include requester, got %q", secondSite.Slug)
+	}
+	if firstSite.PublishedURL == secondSite.PublishedURL {
+		t.Fatalf("expected unique published URLs")
+	}
+}
+
+func TestSiteCreateUsesRequesterTimestampSlug(t *testing.T) {
+	slug := siteSlugWithSuffix("portfolio", siteCreationSlugSuffix(siteCreateRequest{
+		RequestedBy: "owner@example.com",
+	}, siteIdentity{DisplayName: "Owner Example"}, time.Date(2026, 6, 1, 5, 29, 17, 0, time.UTC)))
+
+	if slug != "portfolio-owner-example-20260601t052917z" {
+		t.Fatalf("unexpected requester timestamp slug %q", slug)
 	}
 }
 
@@ -233,6 +434,162 @@ func TestSitePublishMaterializesEditableSourceBundle(t *testing.T) {
 	response := serveSiteRequest(service, "source-bundle.device.example.test", "/")
 	if !strings.Contains(response.Body.String(), "bundle publish") {
 		t.Fatalf("published body = %q", response.Body.String())
+	}
+}
+
+func TestSitePublishAllowsQualityIssuesWithFreshBuild(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{
+		Slug:        "quality-report",
+		Title:       "Quality Report",
+		RequestedBy: "owner@example.com",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	sourceWorkspacePath := t.TempDir()
+	writeTestSourceBuild(t, sourceWorkspacePath, "quality publish")
+	writeFile(t, filepath.Join(sourceWorkspacePath, ".internkim", "build-quality.json"), `{
+  "blockingIssueCount": 1,
+  "issues": [
+    {
+      "severity": "warning",
+      "category": "visualHierarchy",
+      "target": "src/App.tsx",
+      "message": "Tighten the visual hierarchy.",
+      "suggestedFix": "Improve heading and card hierarchy."
+    }
+  ]
+}`)
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:              site.SiteID,
+		RequestedBy:         "owner@example.com",
+		Message:             "Publish with quality report",
+		SourceBundleBase64:  testSourceBundleBase64(t, sourceWorkspacePath),
+		SourceBundleFormat:  "tar.gz",
+		SourceWorkspacePath: site.SourceWorkspacePath,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if site.QualityStatus != "needs_improvement" || site.QualityIssueCount != 1 {
+		t.Fatalf("expected publish to retain quality warning metadata, got %+v", site)
+	}
+	if len(site.QualitySummary) == 0 || !strings.Contains(site.QualitySummary[0], "src/App.tsx") {
+		t.Fatalf("expected quality summary to name affected source, got %+v", site.QualitySummary)
+	}
+	response := serveSiteRequest(service, "quality-report.device.example.test", "/")
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "quality publish") {
+		t.Fatalf("expected published site despite quality warnings, status=%d body=%q", response.Code, response.Body.String())
+	}
+}
+
+func TestSitePublishRejectsStarterLeakage(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{
+		Slug:        "starter-leak",
+		Title:       "Starter Leak",
+		RequestedBy: "owner@example.com",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	sourceWorkspacePath := t.TempDir()
+	writeTestSourceBuild(t, sourceWorkspacePath, "starter publish")
+	writeFile(t, filepath.Join(sourceWorkspacePath, ".internkim", "build-quality.json"), `{
+  "blockingIssueCount": 1,
+  "issues": [
+    {
+      "severity": "blocking",
+      "category": "templateSmell",
+      "target": "src/App.tsx",
+      "message": "Replace the scaffold starter.",
+      "suggestedFix": "Use a domain-specific first screen."
+    }
+  ]
+}`)
+
+	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:              site.SiteID,
+		RequestedBy:         "owner@example.com",
+		Message:             "Publish starter leakage",
+		SourceBundleBase64:  testSourceBundleBase64(t, sourceWorkspacePath),
+		SourceBundleFormat:  "tar.gz",
+		SourceWorkspacePath: site.SourceWorkspacePath,
+	})
+	if errorValue == nil {
+		t.Fatal("expected starter leakage publish to fail")
+	}
+	if !strings.Contains(errorValue.Error(), "starter scaffold") || !strings.Contains(errorValue.Error(), "app/src/App.tsx") {
+		t.Fatalf("expected actionable starter leakage error, got %v", errorValue)
+	}
+	response := serveSiteRequest(service, "starter-leak.device.example.test", "/")
+	if response.Code == http.StatusOK {
+		t.Fatalf("starter leakage should not publish public content: %q", response.Body.String())
+	}
+}
+
+func TestSiteCreateStoresMetadataOwnershipAndIdeaMirror(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{
+		Slug:           "portfolio-demo",
+		Title:          "Portfolio Demo",
+		Prompt:         "김인턴 포트폴리오 사이트를 만들어줘",
+		Description:    "김인턴의 업무 자동화 역량을 보여주는 포트폴리오",
+		Idea:           "업무를 대신 처리하는 인턴형 AI 포트폴리오",
+		Purpose:        "portfolio",
+		Audience:       "잠재 사용자",
+		Archetype:      "portfolio",
+		DomainKeywords: []string{"ai assistant", "portfolio"},
+		RequestedBy:    "owner@example.com",
+		Requester: siteIdentity{
+			PersonID:       "person-1",
+			Platform:       "mattermost",
+			PlatformUserID: "user-1",
+			DisplayName:    "Owner",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if site.Description == "" || site.Idea == "" || site.Purpose != "portfolio" || site.Archetype != "portfolio" {
+		t.Fatalf("expected site metadata to be stored, got %+v", site)
+	}
+	if site.OwnerIdentity.PersonID != "person-1" || site.CreatedBy.PlatformUserID != "user-1" {
+		t.Fatalf("expected structured owner identity, got owner=%+v createdBy=%+v", site.OwnerIdentity, site.CreatedBy)
+	}
+	metadata := service.siteWorkspaceMetadata(site)
+	if !strings.Contains(metadata, `"idea"`) || !strings.Contains(metadata, `"owner"`) {
+		t.Fatalf("expected workspace metadata mirror to include idea and owner, got %s", metadata)
+	}
+	idea := siteIdeaMarkdown(site)
+	if !strings.Contains(idea, "업무를 대신 처리") {
+		t.Fatalf("expected idea mirror, got %s", idea)
+	}
+}
+
+func TestSitePublishRequiresOwnerOrEditor(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{
+		Slug:        "private-site",
+		Title:       "Private Site",
+		RequestedBy: "owner@example.com",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	sourceWorkspacePath := t.TempDir()
+	writeTestSourceBuild(t, sourceWorkspacePath, "private publish")
+	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:              site.SiteID,
+		RequestedBy:         "other@example.com",
+		Message:             "Publish from other user",
+		SourceWorkspacePath: site.SourceWorkspacePath,
+		SourceBundleBase64:  testSourceBundleBase64(t, sourceWorkspacePath),
+		SourceBundleFormat:  "tar.gz",
+	})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "editor permission") {
+		t.Fatalf("expected editor permission failure, got %v", errorValue)
 	}
 }
 
@@ -290,7 +647,7 @@ func TestSiteRegistryPersistsAndAllocatesDistinctPorts(t *testing.T) {
 	}
 
 	reloadedService := NewService(service.Configuration)
-	reloadedSite := reloadedService.findSiteBySlug("first")
+	reloadedSite := reloadedService.findSiteBySlug(firstSite.Slug)
 	if reloadedSite == nil {
 		t.Fatalf("reloaded site missing")
 	}
@@ -305,11 +662,11 @@ func TestSiteWorkspaceIsWritableByRequesterTerminal(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !strings.HasPrefix(site.SourceWorkspacePath, "home/sites/") {
-		t.Fatalf("expected requester-private virtual source workspace, got %q", site.SourceWorkspacePath)
+	if !strings.HasPrefix(site.SourceWorkspacePath, "home/sites/") || !strings.HasSuffix(site.SourceWorkspacePath, "/draft") {
+		t.Fatalf("expected owner-private draft workspace, got %q", site.SourceWorkspacePath)
 	}
-	if site.WorkspacePath != site.SourceWorkspacePath {
-		t.Fatalf("workspace path should point at source workspace: %+v", site)
+	if !strings.HasPrefix(site.WorkspacePath, "home/sites/") || strings.HasSuffix(site.WorkspacePath, "/draft") {
+		t.Fatalf("workspace path should point at project root: %+v", site)
 	}
 	if site.AppWorkspacePath != site.SourceWorkspacePath+"/app" {
 		t.Fatalf("app workspace path should point at app source: %+v", site)
@@ -486,6 +843,7 @@ func writeTestWorkspaceBuild(t *testing.T, site *SiteRecord, body string) {
 	writeFile(t, filepath.Join(site.HostSourcePath, "app", "src", "App.tsx"), "export default function App() { return <main>ok</main> }\n")
 	writeFile(t, filepath.Join(site.HostSourcePath, "app", "dist", "index.html"), "<!doctype html><html><body>"+body+"</body></html>")
 	writeFile(t, filepath.Join(site.HostSourcePath, "app", "dist", "assets", "app.js"), "console.log('ok')")
+	writeTestBuildQuality(t, site.HostSourcePath)
 }
 
 func writeTestSourceBuild(t *testing.T, workspacePath string, body string) {
@@ -500,6 +858,15 @@ func writeTestSourceBuild(t *testing.T, workspacePath string, body string) {
 	writeFile(t, filepath.Join(workspacePath, "app", "src", "App.tsx"), "export default function App() { return <main>ok</main> }\n")
 	writeFile(t, filepath.Join(workspacePath, "app", "dist", "index.html"), "<!doctype html><html><body>"+body+"</body></html>")
 	writeFile(t, filepath.Join(workspacePath, "app", "dist", "assets", "app.js"), "console.log('ok')")
+	writeTestBuildQuality(t, workspacePath)
+}
+
+func writeTestBuildQuality(t *testing.T, workspacePath string) {
+	t.Helper()
+	if errorValue := os.MkdirAll(filepath.Join(workspacePath, ".internkim"), 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeFile(t, filepath.Join(workspacePath, ".internkim", "build-quality.json"), `{"blockingIssueCount":0}`)
 }
 
 func testSourceBundleBase64(t *testing.T, sourceWorkspacePath string) string {

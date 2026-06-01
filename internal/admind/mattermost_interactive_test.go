@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func TestMattermostAskActionReturnsEmptySuccessAndForwardsEvent(t *testing.T) {
+func TestMattermostAskActionClearsButtonsAndForwardsEvent(t *testing.T) {
 	forwardedRequests := make(chan map[string]any, 1)
 	service := &Service{Configuration: DefaultConfiguration()}
 	service.Configuration.StateDirectory = t.TempDir()
@@ -38,8 +38,17 @@ func TestMattermostAskActionReturnsEmptySuccessAndForwardsEvent(t *testing.T) {
 	if errorValue := json.Unmarshal(responseRecorder.Body.Bytes(), &response); errorValue != nil {
 		t.Fatalf("expected response to decode: %v", errorValue)
 	}
-	if response.Update != nil {
-		t.Fatalf("expected immediate response not to update original post, got %+v", response.Update)
+	update, isMap := response.Update.(map[string]any)
+	if !isMap {
+		t.Fatalf("expected immediate response to update original post, got %+v", response.Update)
+	}
+	props, isMap := update["props"].(map[string]any)
+	if !isMap {
+		t.Fatalf("expected update props, got %+v", update)
+	}
+	attachments, isArray := props["attachments"].([]any)
+	if !isArray || len(attachments) != 0 {
+		t.Fatalf("expected ask action to clear buttons, got %+v", update)
 	}
 	select {
 	case payload := <-forwardedRequests:

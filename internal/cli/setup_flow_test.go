@@ -48,6 +48,70 @@ func TestSkillDependencySetupOnlyVerifiesRuntimeBaseEnvironment(t *testing.T) {
 	}
 }
 
+func TestManagedHostExecutablesScriptInstallsCanonicalRuntimeTools(t *testing.T) {
+	script := managedHostExecutablesScript()
+	for _, expectedText := range []string{
+		"/opt/internkim/managed-bin/bun",
+		"/usr/local/bin/bun",
+		"/usr/local/bin/bunx",
+		"/usr/local/bin/marp",
+		"su -s /bin/bash blueclaw",
+		"@marp-team/marp-cli",
+		"UV_UNMANAGED_INSTALL=/usr/local/bin",
+		"host-$managed_executable-owner-drift",
+		"host-$managed_executable-mode-drift",
+	} {
+		if !strings.Contains(script, expectedText) {
+			t.Fatalf("expected managed host executable script to include %q, got:\n%s", expectedText, script)
+		}
+	}
+	if strings.Contains(script, "sudo -u blueclaw") {
+		t.Fatalf("managed host executable script must not depend on sudo account validation, got:\n%s", script)
+	}
+}
+
+func TestBlueclawWorkspaceManifestCommandReadsPayloadManifestInsideImage(t *testing.T) {
+	command := blueclawWorkspaceManifestCommand()
+	for _, expectedText := range []string{
+		"debugfs -R",
+		"cat /.blueclaw/runtime/current/manifest.json",
+		"/var/lib/blueclaw/workspace.ext4",
+	} {
+		if !strings.Contains(command, expectedText) {
+			t.Fatalf("expected workspace manifest command to include %q, got:\n%s", expectedText, command)
+		}
+	}
+}
+
+func TestBlueclawStopForPayloadSyncWaitsForGuestProcesses(t *testing.T) {
+	command := blueclawStopForPayloadSyncCommand()
+	for _, expectedText := range []string{
+		"systemctl stop blueclaw",
+		"blueclaw-supervisor",
+		"/firecracker",
+		"systemctl kill blueclaw",
+		"pgrep -af",
+	} {
+		if !strings.Contains(command, expectedText) {
+			t.Fatalf("expected stop command to include %q, got:\n%s", expectedText, command)
+		}
+	}
+}
+
+func TestBlueclawHostWorkspacePayloadSyncCommandUpdatesCanonicalWorkspaceRuntime(t *testing.T) {
+	command := blueclawHostWorkspacePayloadSyncCommand("/tmp/internkim-blueclaw-payload")
+	for _, expectedText := range []string{
+		"/tmp/internkim-blueclaw-payload/workspace/.blueclaw/runtime/",
+		"/root/.blueclaw/workspace/.blueclaw/runtime/",
+		"rsync -a --delete",
+		"chown -R blueclaw:blueclaw",
+	} {
+		if !strings.Contains(command, expectedText) {
+			t.Fatalf("expected host workspace payload sync command to include %q, got:\n%s", expectedText, command)
+		}
+	}
+}
+
 func TestExtractFromZipWritesArchiveEntry(t *testing.T) {
 	var buffer bytes.Buffer
 	zipWriter := zip.NewWriter(&buffer)
@@ -213,6 +277,21 @@ func TestSSHPrivilegedCommandSuppressesSudoPrompt(t *testing.T) {
 	command := client.privilegedCommand("echo ok")
 	if !strings.Contains(command, "sudo -S -p '' bash -lc") {
 		t.Fatalf("expected sudo command to suppress password prompt, got %s", command)
+	}
+}
+
+func TestUploadMoveCommandIsNotPreWrappedWithSudo(t *testing.T) {
+	command := moveUploadedPathCommand("/tmp/internkim-upload-file", "/etc/systemd/system/file.service")
+	if strings.Contains(command, "sudo") {
+		t.Fatalf("expected upload move command to be wrapped only by runResult, got %s", command)
+	}
+	for _, expectedText := range []string{
+		"mkdir -p '/etc/systemd/system'",
+		"mv '/tmp/internkim-upload-file' '/etc/systemd/system/file.service'",
+	} {
+		if !strings.Contains(command, expectedText) {
+			t.Fatalf("expected upload move command to include %q, got %s", expectedText, command)
+		}
 	}
 }
 

@@ -7,6 +7,7 @@ allowed-tools:
   - file.write
   - file.promote
   - file.attach
+  - artifact.review
 ---
 
 # Simple Slides
@@ -20,11 +21,14 @@ Use this order for normal requests:
 1. Decide the deck archetype and main narrative flow before writing source files.
 2. Use `file.write` to create `tmp/<deck-slug>/DESIGN.md`; do not use Blueclaw internal temporary paths.
 3. Use `file.write` to create `tmp/<deck-slug>/presentation.md`.
-4. Use `terminal.run` with `workingDirectoryPath: "tmp/<deck-slug>"` to run the deterministic build script from the skill directory.
+4. Use `terminal.run` with `workingDirectoryPath: "tmp/<deck-slug>"` to run the deterministic build script from the skill directory with `REVIEW_STRICT=1`.
 5. Inspect `build/review/slide-review.md` or `build/review/slide-review.json`, each contact sheet image, and its matching `fit-review-XX.md`.
-6. If the review has warnings, or if any expected visible text in `fit-review-XX.md` is missing, clipped, hidden, or pushed past the right or bottom frame edge in the contact sheet, revise `presentation.md` at least once and rebuild before accepting the deck.
-7. Promote accepted final files from `tmp/<deck-slug>/build/` to `artifacts/<deck-slug>/` with `file.promote` unless the user requested a circle or shared destination.
-8. Use `file.attach` on promoted files only, and attach only the files the user requested.
+6. Call `artifact.review` for each `contact-sheet-XX.png` with the matching expected visible text from `fit-review-XX.md`.
+7. Write `build/review/review-decision.json` with inspected evidence, blocking/warning issues, accepted warnings, and a short summary.
+8. Run `python3 /workspace/skills/simple-slides/scripts/accept_review.py build/review`.
+9. If deterministic review, vision review, or acceptance fails, revise `presentation.md` and rebuild before accepting the deck. Repeat at most three times.
+10. Promote accepted final files from `tmp/<deck-slug>/build/` to `artifacts/<deck-slug>/` with `file.promote` unless the user requested a circle or shared destination.
+11. Use `file.attach` on promoted files only, and attach only the files the user requested.
 
 `file.write` creates parent directories, so do not spend a terminal call on `mkdir`. Do not use `file.pick`; it is for user-local file selection, not deck creation. Do not read reference assets during a normal request unless you truly need extra detail after drafting. The baseline below is enough for most decks.
 
@@ -32,12 +36,12 @@ Use this command shape after the source files exist. Do not copy `build.sh` into
 
 ```json
 {
-  "command": "NAME=<deck-slug> /workspace/skills/simple-slides/scripts/build.sh",
+  "command": "REVIEW_STRICT=1 NAME=<deck-slug> /workspace/skills/simple-slides/scripts/build.sh",
   "workingDirectoryPath": "tmp/<deck-slug>"
 }
 ```
 
-If the user explicitly requests one format, narrow the build with `FORMATS`. For `html만`, use `FORMATS=html NAME=<deck-slug> /workspace/skills/simple-slides/scripts/build.sh`. For a normal full deck, omit `FORMATS` so HTML, PPTX, PDF, notes, and review evidence are produced.
+If the user explicitly requests one format, narrow the build with `FORMATS`. For `html만`, use `FORMATS=html NAME=<deck-slug> /workspace/skills/simple-slides/scripts/build.sh`. For a normal full deck, omit `FORMATS` so HTML, PPTX, PDF, notes, and review evidence are produced. Use `REVIEW_STRICT=1` whenever review output is part of the requested formats.
 
 Use `file.promote` to promote final outputs after the build succeeds:
 
@@ -156,6 +160,19 @@ Do not use emoji as functional icons or bullets in presentation body text. Emoji
 The full build creates review PNGs, `slide-review.json`, `slide-review.md`, 4-slide contact sheets, `fit-review.json`, and `fit-review-XX.md` files. Check each contact sheet together with its matching fit review file. Every expected visible text item must appear fully inside the slide frame. Treat missing text, clipped text, hidden overflow, right-edge collision, or bottom-edge collision as a reason to revise `presentation.md` and rebuild.
 
 `textOverflowRisk` and `frameFitRisk` are deterministic warning signals, not substitutes for visual review. They identify slides that require extra attention in the contact sheet.
+
+Use `artifact.review` as the visual reviewer for each contact sheet. Include the deck intent, deck archetype, the contact sheet image path, and the expected visible text from the matching fit review file. A blocking issue from `artifact.review` means the deck must be revised and rebuilt. Warnings require either a revision or an explicit accepted warning in `build/review/review-decision.json`.
+
+Before `file.promote`, run:
+
+```json
+{
+  "command": "python3 /workspace/skills/simple-slides/scripts/accept_review.py build/review",
+  "workingDirectoryPath": "tmp/<deck-slug>"
+}
+```
+
+Do not promote or attach a deck if `accept_review.py` fails.
 
 ## Output
 

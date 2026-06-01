@@ -86,6 +86,9 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 	if isFileReadTool(request.ToolName) {
 		return service.invokeFileReadTool(ctx, request)
 	}
+	if isArtifactReviewTool(request.ToolName) {
+		return service.invokeArtifactReviewTool(ctx, request)
+	}
 	if request.ToolName == "flow.task.add" {
 		return service.invokeFlowTaskAdd(ctx, request)
 	}
