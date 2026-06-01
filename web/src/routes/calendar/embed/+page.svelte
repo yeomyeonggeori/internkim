@@ -1,132 +1,97 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
-	import { Button } from '$lib/components/ui/button';
-	import { CopyButton } from '$lib/components/ui/copy-button';
-	import { Separator } from '$lib/components/ui/separator';
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import { cn } from '$lib/utils';
-	import RotateCwIcon from '@lucide/svelte/icons/rotate-cw';
-	import WifiIcon from '@lucide/svelte/icons/wifi';
-	import {
-		createDayView,
-		createEventsPlugin,
-		createMonthView,
-		createWeekView,
-		DayFlowCalendar,
-		useCalendarApp,
-		ViewType
-	} from '@dayflow/svelte';
-	import { createEvent, recalculateEventDays, temporalToDate, type Event as DayFlowEvent } from '@dayflow/core';
+	import { createEventsPlugin, DayFlowCalendar, useCalendarApp, ViewType } from '@dayflow/svelte';
+	import { recalculateEventDays, type Event as DayFlowEvent } from '@dayflow/core';
 	import { createDragPlugin } from '@dayflow/plugin-drag';
-	import { createSidebarPlugin } from '@dayflow/plugin-sidebar';
+	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
+	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
+	import PlusIcon from '@lucide/svelte/icons/plus';
+	import SearchIcon from '@lucide/svelte/icons/search';
 	import { onMount } from 'svelte';
 	import '@dayflow/core/dist/styles.css';
 	import { calendarText } from '../text';
+	import { calendarAuditRows } from './calendar-audit';
+	import {
+		calendarColors,
+		createCalendarLocale,
+		createCalendarViews,
+		darkCalendarColors
+	} from './calendar-config';
+	import { fetchCalendarConflicts, dismissCalendarConflictOnServer, dismissCalendarConflictsOnServer, type CalendarConflict } from './calendar-conflicts';
+	import { CalendarDraftEventState, type DraftEventParams } from './calendar-draft-events';
+	import { calendarEventPayloadFromDayFlowEvent, dayFlowEventFromCalendarEvent } from './calendar-event-mapping';
+	import {
+		deletePersistedCalendarEvent,
+		fetchCalendarEvents,
+		writeCalendarEvent,
+		type CalendarEvent
+	} from './calendar-event-persistence';
+	import {
+		installCalendarMonthRangeAction,
+		monthRangePreviewSegmentsFromSelection as buildMonthRangePreviewSegments,
+		orderedDateKeys,
+		type MonthRangePreviewSegment,
+		type MonthRangeSelection
+	} from './calendar-month-range-action';
+	import {
+		dateFromDateKey,
+		refreshSelectedMonthDateCell as refreshSelectedMonthDateCellElement
+	} from './calendar-month-selection';
+	import { CalendarProgrammaticUpdateState } from './calendar-programmatic-updates';
+	import { syncRemoteCalendar } from './calendar-remote-sync';
+	import { searchCalendarEvents, type CalendarSearchResult } from './calendar-search';
+	import { loadSavedCalendarDate, saveCalendarDate } from './calendar-storage';
+	import { installCalendarWheelNavigation } from './calendar-wheel-navigation';
 
-	type CalendarEvent = {
-		id: string;
-		uid: string;
-		title: string;
-		description: string;
-		location: string;
-		startISO: string;
-		endISO: string;
-		timeZone: string;
-		isAllDay: boolean;
-		color: string;
-		updatedAt: string;
-	};
-
-	type CalendarEventsResponse = {
-		events: CalendarEvent[];
-	};
-
-	type CalendarSyncResponse = {
-		caldavURL: string;
-		caldavUsername: string;
-		caldavPassword: string;
-		icsURL: string;
-	};
-
-	type MonthRangeSelection = {
-		pointerID: number;
-		startDateKey: string;
-		endDateKey: string;
-		startClientX: number;
-		startClientY: number;
-		hasMoved: boolean;
-		isLongPressReady: boolean;
-	};
-
-	type MonthDateCell = {
-		element: HTMLElement;
-		dateKey: string;
-	};
-
-	type MonthRangePreviewSegment = {
-		id: string;
-		left: number;
-		top: number;
-		width: number;
-		height: number;
-	};
-
-	type CalendarDateParts = {
-		year: number;
-		month: number;
-		day: number;
+	type CalendarVisibilityMessage = {
+		type: 'calendar-visibility';
+		work: boolean;
 	};
 
 	const text = createPageText(calendarText);
-	const calendarColors = {
-		eventColor: '#eff6ff',
-		eventSelectedColor: 'rgb(59, 130, 246)',
-		lineColor: '#3b82f6',
-		textColor: '#1e3a8a'
-	};
-	const darkCalendarColors = {
-		eventColor: 'rgba(30, 64, 175, 0.8)',
-		eventSelectedColor: 'rgba(30, 58, 138, 1)',
-		lineColor: '#3b82f6',
-		textColor: '#dbeafe'
-	};
+	const localeCode = $derived(currentLocale.value === 'ko' ? 'ko-KR' : 'en-US');
+	const calendarLocale = $derived(createCalendarLocale(currentLocale.value, text));
+	const draftEventPlaceholderTitle = () => text.newEvent;
 	let visibleStartDate = $state<Date | null>(null);
 	let visibleEndDate = $state<Date | null>(null);
-	let syncInformation = $state<CalendarSyncResponse | null>(null);
 	let isLoading = $state(false);
 	let isSaving = $state(false);
 	let errorMessage = $state('');
 	let statusMessage = $state('');
 	let eventCount = $state(0);
+	let visibleEvents = $state<DayFlowEvent[]>([]);
+	let calendarWorkVisible = $state(true);
 	let calendarStageElement = $state<HTMLElement | null>(null);
 	let monthRangeSelection = $state<MonthRangeSelection | null>(null);
 	let monthRangePreviewSegments = $state<MonthRangePreviewSegment[]>([]);
 	let selectedMonthDateKey = $state<string | null>(null);
-	let lastMonthRangeCreationTime = 0;
+	let searchText = $state('');
+	let toolbarDate = $state(loadSavedCalendarDate(browser));
+	let toolbarView = $state(ViewType.MONTH);
+	let selectedAuditEventID = $state<string | null>(null);
 	let lastMonthCellCreationTime = 0;
-	let isDispatchingMonthCreateDoubleClick = false;
-	let monthLongPressTimer: ReturnType<typeof setTimeout> | null = null;
-	const monthLongPressDelay = 400;
-	const pendingCreateEvents = new Map<string, Promise<void>>();
-	const eventsDeletedDuringCreate = new Set<string>();
+	let loadEventsRequestID = 0;
+	const draftEvents = new CalendarDraftEventState(draftEventPlaceholderTitle, () => text.newEvent);
+	const programmaticUpdates = new CalendarProgrammaticUpdateState();
+
+	let calendarConflicts = $state<CalendarConflict[]>([]);
 
 	const calendar = useCalendarApp({
-		views: [
-			createDayView({ showAllDay: true, timeFormat: '24h' }),
-			createWeekView({ showWeekends: true, startOfWeek: 1, showAllDay: true }),
-			createMonthView({ showWeekNumbers: false })
-		],
+		views: createCalendarViews(),
 		defaultView: ViewType.MONTH,
-		initialDate: new Date(),
+		initialDate: loadSavedCalendarDate(browser),
+		locale: createCalendarLocale(currentLocale.value, text),
 		timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
 		switcherMode: 'buttons',
-		useCalendarHeader: true,
+		useCalendarHeader: false,
 		useEventDetailDialog: false,
 		useEventDetailPanel: true,
 		calendars: [
 			{
 				id: 'internkim',
-				name: 'Work',
+				name: text.work,
 				colors: calendarColors,
 				darkColors: darkCalendarColors,
 				isVisible: true
@@ -136,11 +101,6 @@
 		theme: { mode: 'light' },
 		allDaySortComparator: compareCalendarEventsForDisplay,
 		plugins: [
-			createSidebarPlugin({
-				width: 280,
-				initialCollapsed: false,
-				createCalendarMode: 'modal'
-			}),
 			createEventsPlugin(),
 			createDragPlugin({
 				enableDrag: true,
@@ -152,27 +112,183 @@
 			})
 		],
 		callbacks: {
-			onVisibleRangeChange: (startDate, endDate) => loadEvents(startDate, endDate),
+			onVisibleRangeChange: (startDate, endDate) => {
+				loadEvents(startDate, endDate);
+				const middle = new Date((startDate.getTime() + endDate.getTime()) / 2);
+				toolbarDate = middle;
+				saveCalendarDate(browser, middle);
+			},
 			onEventClick: (event) => openEventDetails(event.id),
 			onEventCreate: (event) => saveCreatedEvent(event),
 			onEventUpdate: (event) => saveUpdatedEvent(event),
 			onEventDelete: (eventID) => deleteEvent(eventID)
 		}
 	});
+	const selectedAuditEvent = $derived(
+		selectedAuditEventID ? (calendar.events.find((event) => event.id === selectedAuditEventID) ?? null) : null
+	);
+	const selectedAuditRows = $derived(calendarAuditRows(selectedAuditEvent));
+
+	$effect(() => {
+		calendar.app.updateConfig({ locale: calendarLocale });
+		calendar.app.triggerRender();
+	});
 
 	onMount(() => {
+		calendarWorkVisible = window.localStorage.getItem('internkim.calendar.workVisible') !== 'false';
 		calendar.changeView(ViewType.MONTH);
-		loadSyncInformation();
+		toolbarView = ViewType.MONTH;
+		syncCalendarThemeToDocument();
 		if (!visibleStartDate || !visibleEndDate) {
 			const today = new Date();
 			loadEvents(startOfMonthWindow(today), endOfMonthWindow(today));
 		}
-		return installMonthRangeCreate();
+		void Promise.all([syncRemoteCalendarAndRefresh(), loadCalendarConflicts()]).catch((error: unknown) => {
+			console.debug('calendar remote sync failed', { error });
+		});
+		const themeObserver = new MutationObserver(syncCalendarThemeToDocument);
+		themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+		const draftTitleObserver = new MutationObserver(() => {
+			scheduleDraftTitleInputPlaceholderUpdates();
+			scheduleDraftEventVisibilitySync();
+		});
+		draftTitleObserver.observe(document.body, { childList: true, subtree: true });
+		const visibilityChannel = new BroadcastChannel('internkim-calendar');
+		visibilityChannel.addEventListener('message', handleCalendarVisibilityMessage);
+		const stopMonthRangeCreate = calendarStageElement
+			? installCalendarMonthRangeAction({
+					stageElement: calendarStageElement,
+					currentView: () => calendar.currentView,
+					getSelection: () => monthRangeSelection,
+					setSelection: (selection) => {
+						monthRangeSelection = selection;
+					},
+					clearPreview: () => {
+						monthRangePreviewSegments = [];
+					},
+					selectDate: selectMonthDate,
+					createSingleDayEvent: createMonthSingleDayEvent,
+					createRangeEvent: createMonthRangeEvent
+				})
+			: undefined;
+		const stopWheelNavigation = calendarStageElement
+			? installCalendarWheelNavigation({
+					stageElement: calendarStageElement,
+					currentView: () => calendar.currentView,
+					goToPrevious: () => calendar.app.goToPrevious(),
+					goToNext: () => calendar.app.goToNext()
+				})
+			: undefined;
+		return () => {
+			visibilityChannel.removeEventListener('message', handleCalendarVisibilityMessage);
+			visibilityChannel.close();
+			themeObserver.disconnect();
+			draftTitleObserver.disconnect();
+			stopMonthRangeCreate?.();
+			stopWheelNavigation?.();
+		};
 	});
+
+	const currentMonthTitle = $derived(
+		toolbarDate.toLocaleDateString(localeCode, {
+			year: 'numeric',
+			month: 'long'
+		})
+	);
+	const searchResults = $derived(searchCalendarEvents(searchText, visibleEvents));
+
+	function changeCalendarView(viewType: ViewType) {
+		toolbarView = viewType;
+		calendar.changeView(viewType);
+	}
+
+	function goToToday() {
+		toolbarDate = new Date();
+		calendar.goToToday();
+	}
+
+	function goToPrevious() {
+		toolbarDate = shiftedToolbarDate(-1);
+		calendar.goToPrevious();
+	}
+
+	function goToNext() {
+		toolbarDate = shiftedToolbarDate(1);
+		calendar.goToNext();
+	}
+
+	function shiftedToolbarDate(direction: -1 | 1): Date {
+		const nextDate = new Date(toolbarDate);
+		if (toolbarView === ViewType.DAY) {
+			nextDate.setDate(nextDate.getDate() + direction);
+			return nextDate;
+		}
+		if (toolbarView === ViewType.WEEK) {
+			nextDate.setDate(nextDate.getDate() + direction * 7);
+			return nextDate;
+		}
+		nextDate.setMonth(nextDate.getMonth() + direction);
+		return nextDate;
+	}
+
+	function createQuickEvent() {
+		const baseDate = calendar.currentDate ?? new Date();
+		const startDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 9, 0, 0, 0);
+		const endDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 10, 0, 0, 0);
+		const event = createDraftEvent({
+			id: `quick-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+			start: startDate,
+			end: endDate,
+			allDay: false,
+			calendarId: 'internkim'
+		});
+		calendar.addEvent(event);
+		eventCount = calendar.app.getAllEvents().length;
+		visibleEvents = calendar.app.getAllEvents();
+		openEventDetailsAfterRender(event.id);
+	}
+
+	function syncCalendarThemeToDocument() {
+		const mode = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+		calendar.app.updateConfig({ theme: { mode } });
+	}
+
+	function handleCalendarVisibilityMessage(event: MessageEvent<unknown>) {
+		if (!isCalendarVisibilityMessage(event.data)) return;
+		setWorkCalendarVisibility(event.data.work);
+	}
+
+	function isCalendarVisibilityMessage(value: unknown): value is CalendarVisibilityMessage {
+		return Boolean(
+			value &&
+				typeof value === 'object' &&
+				'type' in value &&
+				value.type === 'calendar-visibility' &&
+				'work' in value &&
+				typeof value.work === 'boolean'
+		);
+	}
+
+	function setWorkCalendarVisibility(isVisible: boolean) {
+		calendarWorkVisible = isVisible;
+		renderCalendarEvents();
+	}
+
+	function renderCalendarEvents() {
+		if (!visibleStartDate) return;
+		replaceCalendarEvents(calendarWorkVisible ? visibleEvents : [], visibleStartDate);
+	}
+
+	function navigateToSearchResult(result: CalendarSearchResult) {
+		toolbarDate = result.startDate;
+		calendar.app.setCurrentDate(result.startDate);
+		calendar.app.selectDate(result.startDate);
+		saveCalendarDate(browser, result.startDate);
+	}
 
 	$effect(() => {
 		monthRangeSelection;
-		monthRangePreviewSegments = monthRangePreviewSegmentsFromSelection();
+		monthRangePreviewSegments = buildMonthRangePreviewSegments(calendarStageElement, monthRangeSelection);
 	});
 
 	$effect(() => {
@@ -191,25 +307,24 @@
 
 	async function loadEvents(startDate: Date, endDate: Date) {
 		if (!browser) return;
+		const requestID = (loadEventsRequestID += 1);
 		visibleStartDate = startDate;
 		visibleEndDate = endDate;
 		isLoading = true;
 		errorMessage = '';
 		try {
-			const query = new URLSearchParams({
-				startISO: startDate.toISOString(),
-				endISO: endDate.toISOString()
-			});
-			const response = await fetch(`/calendar/api/events?${query}`, { credentials: 'include' });
-			if (!response.ok) throw new Error(await responseErrorMessage(response, text.error));
-			const document = (await response.json()) as CalendarEventsResponse;
-			const events = document.events.map(dayFlowEventFromCalendarEvent);
+			const calendarEvents = await fetchCalendarEvents(startDate, endDate, text.error);
+			if (requestID !== loadEventsRequestID) return;
+			const events = calendarEvents.map(dayFlowEventFromCalendarEvent);
+			visibleEvents = events;
 			eventCount = events.length;
-			replaceCalendarEvents(events, startDate);
+			replaceCalendarEvents(calendarWorkVisible ? events : [], startDate);
 		} catch (error) {
+			if (requestID !== loadEventsRequestID) return;
+			visibleEvents = [];
 			errorMessage = error instanceof Error ? error.message : text.error;
 		} finally {
-			isLoading = false;
+			if (requestID === loadEventsRequestID) isLoading = false;
 		}
 	}
 
@@ -227,66 +342,85 @@
 		return leftEvent.title.localeCompare(rightEvent.title);
 	}
 
-	async function loadSyncInformation() {
-		try {
-			const response = await fetch('/calendar/api/sync', { credentials: 'include' });
-			if (!response.ok) return;
-			syncInformation = (await response.json()) as CalendarSyncResponse;
-		} catch {
-			syncInformation = null;
-		}
-	}
-
-	async function rotateSubscriptionURL() {
-		isSaving = true;
-		errorMessage = '';
-		try {
-			const response = await fetch('/calendar/api/ics-token', {
-				method: 'POST',
-				credentials: 'include'
-			});
-			if (!response.ok) throw new Error(await responseErrorMessage(response, text.saveError));
-			syncInformation = (await response.json()) as CalendarSyncResponse;
-		} catch (error) {
-			errorMessage = error instanceof Error ? error.message : text.saveError;
-		} finally {
-			isSaving = false;
-		}
-	}
-
 	async function refreshCalendar() {
 		if (!visibleStartDate || !visibleEndDate) return;
 		await loadEvents(visibleStartDate, visibleEndDate);
 	}
 
-	async function saveCreatedEvent(event: DayFlowEvent) {
-		const createEventPromise = createEventOnServer(event);
-		pendingCreateEvents.set(event.id, createEventPromise);
+	async function syncRemoteCalendarAndRefresh() {
+		await syncRemoteCalendar(text.error);
+		await refreshCalendar();
+	}
+
+	async function loadCalendarConflicts() {
+		if (!browser) return;
 		try {
-			await createEventPromise;
-		} finally {
-			pendingCreateEvents.delete(event.id);
-			eventsDeletedDuringCreate.delete(event.id);
+			calendarConflicts = await fetchCalendarConflicts();
+		} catch {
+			return;
 		}
 	}
 
-	async function createEventOnServer(event: DayFlowEvent) {
-		beginEventPersistence();
+	async function dismissCalendarConflict(conflictID: number) {
 		try {
-			await sendEventWriteRequest('/calendar/api/events', 'POST', event);
+			await dismissCalendarConflictOnServer(conflictID);
+			calendarConflicts = calendarConflicts.filter((conflict) => conflict.id !== conflictID);
 		} catch (error) {
-			if (!eventsDeletedDuringCreate.has(event.id)) {
+			errorMessage = error instanceof Error ? error.message : text.error;
+		}
+	}
+
+	async function dismissAllConflictsAndRefresh() {
+		const pendingIDs = calendarConflicts.map((conflict) => conflict.id);
+		try {
+			await dismissCalendarConflictsOnServer(pendingIDs);
+			calendarConflicts = [];
+			await syncRemoteCalendarAndRefresh();
+		} catch (error) {
+			errorMessage = error instanceof Error ? error.message : text.error;
+			await loadCalendarConflicts();
+		}
+	}
+
+	function calendarConflictFieldLabel(field: string): string {
+		return text.conflictField[field] ?? field;
+	}
+
+	async function saveCreatedEvent(event: DayFlowEvent) {
+		draftEvents.addCreatedEvent(event);
+		if (isPlaceholderEventTitle(event.title)) {
+			void resetDraftEventTitle(event.id);
+		}
+		scheduleDraftTitleInputPlaceholderUpdates();
+		scheduleDraftEventVisibilitySync();
+	}
+
+	async function createEventOnServer(event: DayFlowEvent) {
+		if (isPlaceholderEventTitle(event.title)) {
+			return;
+		}
+		beginEventPersistence();
+		let savedEvent: CalendarEvent;
+		try {
+			savedEvent = await sendEventWriteRequest('/calendar/api/events', 'POST', event);
+		} catch (error) {
+			if (draftEvents.shouldReportCreateError(event.id)) {
 				showEventPersistenceError(error, text.saveError);
 			}
 			finishEventPersistence();
 			return;
 		}
-		if (eventsDeletedDuringCreate.has(event.id)) {
+		if (draftEvents.wasDeletedDuringCreate(event.id)) {
 			await deleteEventCreatedDuringPendingCreate(event.id);
 			return;
 		}
+		await applyServerCalendarEventMetadata(event.id, savedEvent);
 		markEventPersisted();
 		finishEventPersistence();
+	}
+
+	function isPlaceholderEventTitle(title: string | undefined): boolean {
+		return draftEvents.isPlaceholderTitle(title);
 	}
 
 	async function deleteEventCreatedDuringPendingCreate(eventID: string) {
@@ -302,13 +436,32 @@
 	}
 
 	async function saveUpdatedEvent(event: DayFlowEvent) {
+		if (programmaticUpdates.isActive(event.id)) return;
+		if (draftEvents.isDraftEvent(event.id)) {
+			if (!draftEvents.hasMeaningfulTitle(event)) {
+				void resetDraftEventTitle(event.id);
+				scheduleDraftTitleInputPlaceholderUpdates();
+				return;
+			}
+			draftEvents.removeDraftEvent(event.id);
+			await persistCreatedEvent(event);
+			return;
+		}
 		await persistEvent(`/calendar/api/events/${encodeURIComponent(event.id)}`, 'PUT', event);
+	}
+
+	async function resetDraftEventTitle(eventID: string) {
+		await programmaticUpdates.run(eventID, () => calendar.updateEvent(eventID, { title: '' }, false));
+		visibleEvents = calendar.app.getAllEvents();
+		scheduleDraftTitleInputPlaceholderUpdates();
+		scheduleDraftEventVisibilitySync();
 	}
 
 	async function persistEvent(path: string, method: 'POST' | 'PUT', event: DayFlowEvent) {
 		beginEventPersistence();
 		try {
-			await sendEventWriteRequest(path, method, event);
+			const savedEvent = await sendEventWriteRequest(path, method, event);
+			await applyServerCalendarEventMetadata(event.id, savedEvent);
 			markEventPersisted();
 		} catch (error) {
 			showEventPersistenceError(error, text.saveError);
@@ -318,8 +471,16 @@
 	}
 
 	async function deleteEvent(eventID: string) {
-		if (pendingCreateEvents.has(eventID)) {
-			eventsDeletedDuringCreate.add(eventID);
+		if (selectedAuditEventID === eventID) {
+			selectedAuditEventID = null;
+		}
+		if (draftEvents.isDraftEvent(eventID)) {
+			draftEvents.removeDraftEvent(eventID);
+			refreshEventCountAfterRender();
+			return;
+		}
+		if (draftEvents.hasPendingCreate(eventID)) {
+			draftEvents.markDeletedDuringCreate(eventID);
 			refreshEventCountAfterRender();
 			return;
 		}
@@ -353,12 +514,14 @@
 	function markEventPersisted() {
 		statusMessage = text.shared;
 		eventCount = calendar.app.getAllEvents().length;
+		visibleEvents = calendar.app.getAllEvents();
 	}
 
 	function refreshEventCountAfterRender() {
 		if (!browser) return;
 		requestAnimationFrame(() => {
 			eventCount = calendar.app.getAllEvents().length;
+			visibleEvents = calendar.app.getAllEvents();
 		});
 	}
 
@@ -366,265 +529,50 @@
 		errorMessage = error instanceof Error ? error.message : fallback;
 	}
 
-	async function sendEventWriteRequest(path: string, method: 'POST' | 'PUT', event: DayFlowEvent) {
-		const response = await fetch(path, {
-			method,
-			credentials: 'include',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(calendarEventPayloadFromDayFlowEvent(event))
-		});
-		if (!response.ok) throw new Error(await responseErrorMessage(response, text.saveError));
+	async function sendEventWriteRequest(path: string, method: 'POST' | 'PUT', event: DayFlowEvent): Promise<CalendarEvent> {
+		const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+		const payload = calendarEventPayloadFromDayFlowEvent(event, calendarColors.lineColor, timeZone);
+		return writeCalendarEvent(path, method, payload, text.saveError);
 	}
 
 	async function deletePersistedEvent(eventID: string) {
-		const response = await fetch(`/calendar/api/events/${encodeURIComponent(eventID)}`, {
-			method: 'DELETE',
-			credentials: 'include'
-		});
-		if (!response.ok) throw new Error(await responseErrorMessage(response, text.deleteError));
+		await deletePersistedCalendarEvent(eventID, text.deleteError);
 	}
 
-	function dayFlowEventFromCalendarEvent(event: CalendarEvent) {
-		return createEvent({
-			id: event.id,
-			title: event.title,
-			description: event.description,
-			start: event.isAllDay ? localDateFromISODate(event.startISO) : new Date(event.startISO),
-			end: event.isAllDay ? dayBeforeLocalISODate(event.endISO) : new Date(event.endISO),
-			allDay: event.isAllDay,
-			calendarId: 'internkim',
-			meta: {
-				uid: event.uid,
-				location: event.location,
-				color: event.color,
-				timeZone: event.timeZone,
-				updatedAt: event.updatedAt
-			}
-		});
-	}
-
-	function calendarEventPayloadFromDayFlowEvent(event: DayFlowEvent) {
-		const startDate = calendarDateFromDayFlowEventStart(event);
-		const endDate = calendarDateFromDayFlowEventEnd(event);
-		return {
-			eventID: event.id,
-			title: event.title || 'Untitled event',
-			description: event.description ?? '',
-			location: typeof event.meta?.location === 'string' ? event.meta.location : '',
-			startISO: startDate.toISOString(),
-			endISO: endDate.toISOString(),
-			timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-			isAllDay: event.allDay ?? false,
-			color: calendarColors.lineColor
-		};
-	}
-
-	function calendarDateFromDayFlowEventStart(event: DayFlowEvent) {
-		if (event.allDay) return dateFromCalendarDateParts(calendarDatePartsFromTemporal(event.start));
-		return temporalToDate(event.start);
-	}
-
-	function calendarDateFromDayFlowEventEnd(event: DayFlowEvent) {
-		if (event.allDay) return dateFromCalendarDateParts(nextCalendarDateParts(calendarDatePartsFromTemporal(event.end)));
-		return temporalToDate(event.end);
-	}
-
-	function calendarDatePartsFromTemporal(value: DayFlowEvent['start']) {
-		if (isCalendarDateParts(value)) return value;
-		const date = temporalToDate(value);
-		return {
-			year: date.getFullYear(),
-			month: date.getMonth() + 1,
-			day: date.getDate()
-		};
-	}
-
-	function isCalendarDateParts(value: unknown): value is CalendarDateParts {
-		if (!value || typeof value !== 'object') return false;
-		return 'year' in value && 'month' in value && 'day' in value;
-	}
-
-	function dateFromCalendarDateParts(dateParts: CalendarDateParts) {
-		return new Date(Date.UTC(dateParts.year, dateParts.month - 1, dateParts.day));
-	}
-
-	function localDateFromISODate(isoDate: string) {
-		const date = new Date(isoDate);
-		return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-	}
-
-	function dayBeforeLocalISODate(isoDate: string) {
-		const date = localDateFromISODate(isoDate);
-		date.setDate(date.getDate() - 1);
-		return date;
-	}
-
-	function nextCalendarDateParts(dateParts: CalendarDateParts) {
-		const date = new Date(dateParts.year, dateParts.month - 1, dateParts.day);
-		date.setDate(date.getDate() + 1);
-		return {
-			year: date.getFullYear(),
-			month: date.getMonth() + 1,
-			day: date.getDate()
-		};
-	}
-
-	function installMonthRangeCreate() {
-		if (!browser || !calendarStageElement) return;
-		const stageElement = calendarStageElement;
-		const handlePointerDown = (event: PointerEvent) => startMonthRangeSelection(event);
-		const handlePointerMove = (event: PointerEvent) => moveMonthRangeSelection(event);
-		const handlePointerUp = (event: PointerEvent) => finishMonthRangeSelection(event);
-		const handleClick = (event: MouseEvent) => suppressMonthRangeClick(event);
-		const handleDoubleClick = (event: MouseEvent) => suppressNativeMonthDoubleClick(event);
-
-		stageElement.addEventListener('pointerdown', handlePointerDown);
-		document.addEventListener('pointermove', handlePointerMove);
-		document.addEventListener('pointerup', handlePointerUp);
-		document.addEventListener('pointercancel', handlePointerUp);
-		stageElement.addEventListener('click', handleClick, true);
-		stageElement.addEventListener('dblclick', handleDoubleClick, true);
-
-		return () => {
-			clearMonthLongPressCreateTimer();
-			stageElement.removeEventListener('pointerdown', handlePointerDown);
-			document.removeEventListener('pointermove', handlePointerMove);
-			document.removeEventListener('pointerup', handlePointerUp);
-			document.removeEventListener('pointercancel', handlePointerUp);
-			stageElement.removeEventListener('click', handleClick, true);
-			stageElement.removeEventListener('dblclick', handleDoubleClick, true);
-		};
-	}
-
-	function startMonthRangeSelection(event: PointerEvent) {
-		if (event.button !== 0 || monthRangeSelection) return;
-		const dateCell = monthDateCellFromEventTarget(event.target);
-		if (!dateCell) return;
-		monthRangeSelection = {
-			pointerID: event.pointerId,
-			startDateKey: dateCell.dateKey,
-			endDateKey: dateCell.dateKey,
-			startClientX: event.clientX,
-			startClientY: event.clientY,
-			hasMoved: false,
-			isLongPressReady: false
-		};
-		startMonthLongPressCreateTimer(event.pointerId);
-	}
-
-	function moveMonthRangeSelection(event: PointerEvent) {
-		if (!monthRangeSelection || monthRangeSelection.pointerID !== event.pointerId) return;
-		const hasMoved = monthRangeSelection.hasMoved || hasPointerMoved(monthRangeSelection, event);
-		const dateCell = monthDateCellFromPoint(event.clientX, event.clientY);
-		if (!dateCell && monthRangeSelection.hasMoved === hasMoved) return;
-		if (hasMoved) {
-			clearMonthLongPressCreateTimer();
-			event.preventDefault();
-		}
-		monthRangeSelection = {
-			...monthRangeSelection,
-			endDateKey: dateCell?.dateKey ?? monthRangeSelection.endDateKey,
-			hasMoved
-		};
-	}
-
-	function finishMonthRangeSelection(event: PointerEvent) {
-		if (!monthRangeSelection || monthRangeSelection.pointerID !== event.pointerId) return;
-		const selection = monthRangeSelection;
-		clearMonthLongPressCreateTimer();
-		monthRangeSelection = null;
-		monthRangePreviewSegments = [];
-		if (!selection.hasMoved) {
-			selectMonthDate(selection.startDateKey);
-			if (!selection.isLongPressReady) return;
-			event.preventDefault();
-			event.stopPropagation();
-			createMonthSingleDayEvent(selection.startDateKey, selection);
-			return;
-		}
-		event.preventDefault();
-		event.stopPropagation();
-		lastMonthRangeCreationTime = Date.now();
-		createMonthRangeEvent(selection);
-	}
-
-	function suppressMonthRangeClick(event: MouseEvent) {
-		if (Date.now() - lastMonthRangeCreationTime > 350) return;
-		event.preventDefault();
-		event.stopPropagation();
-		event.stopImmediatePropagation();
-	}
-
-	function suppressNativeMonthDoubleClick(event: MouseEvent) {
-		if (isDispatchingMonthCreateDoubleClick) return;
-		if (Date.now() - lastMonthCellCreationTime > 350) return;
-		const dateCell = monthDateCellFromEventTarget(event.target);
-		if (!dateCell) return;
-		event.preventDefault();
-		event.stopPropagation();
-		event.stopImmediatePropagation();
-	}
-
-	function startMonthLongPressCreateTimer(pointerID: number) {
-		clearMonthLongPressCreateTimer();
-		monthLongPressTimer = setTimeout(() => {
-			if (!monthRangeSelection || monthRangeSelection.pointerID !== pointerID || monthRangeSelection.hasMoved) return;
-			monthLongPressTimer = null;
-			monthRangeSelection = {
-				...monthRangeSelection,
-				isLongPressReady: true
-			};
-		}, monthLongPressDelay);
-	}
-
-	function clearMonthLongPressCreateTimer() {
-		if (!monthLongPressTimer) return;
-		clearTimeout(monthLongPressTimer);
-		monthLongPressTimer = null;
-	}
-
-	function hasPointerMoved(selection: MonthRangeSelection, event: PointerEvent) {
-		return Math.hypot(event.clientX - selection.startClientX, event.clientY - selection.startClientY) > 8;
-	}
-
-	function monthDateCellFromEventTarget(target: EventTarget | null) {
-		if (calendar.currentView !== ViewType.MONTH) return null;
-		if (!(target instanceof Element)) return null;
-		if (isMonthRangeIgnoredTarget(target)) return null;
-		return monthDateCellFromElement(target);
-	}
-
-	function monthDateCellFromPoint(clientX: number, clientY: number) {
-		const element = document.elementFromPoint(clientX, clientY);
-		if (!element) return null;
-		return monthDateCellFromElement(element);
-	}
-
-	function monthDateCellFromElement(element: Element): MonthDateCell | null {
-		const dateCell = element.closest('.df-month-day-cell[data-date]');
-		if (!(dateCell instanceof HTMLElement)) return null;
-		const dateKey = dateCell.dataset.date;
-		if (!dateKey) return null;
-		return { element: dateCell, dateKey };
-	}
-
-	function isMonthRangeIgnoredTarget(target: Element) {
-		return Boolean(
-			target.closest(
-				'.df-event, .df-month-more-events, .df-event-detail-panel, .df-dialog-container, .sync-popover, [data-range-picker-popup], [data-calendar-picker-dropdown]'
+	async function applyServerCalendarEventMetadata(eventID: string, event: CalendarEvent) {
+		const currentEvent = calendar.app.getAllEvents().find((candidate) => candidate.id === eventID);
+		await programmaticUpdates.run(eventID, () =>
+			calendar.updateEvent(
+				eventID,
+				{
+					meta: {
+						...(currentEvent?.meta ?? {}),
+						uid: event.uid,
+						location: event.location,
+						color: event.color,
+						timeZone: event.timeZone,
+						createdByEmail: event.createdByEmail,
+						createdByName: event.createdByName,
+						updatedByEmail: event.updatedByEmail ?? '',
+						updatedByName: event.updatedByName ?? '',
+						updatedByAt: event.updatedByAt ?? '',
+						updatedAt: event.updatedAt
+					}
+				},
+				false
 			)
 		);
+		visibleEvents = calendar.app.getAllEvents();
 	}
 
 	function createMonthRangeEvent(selection: MonthRangeSelection) {
 		const [startDateKey, endDateKey] = orderedDateKeys(selection.startDateKey, selection.endDateKey);
 		if (startDateKey === endDateKey) {
-			createMonthSingleDayEvent(startDateKey, selection);
+			createMonthSingleDayEvent(startDateKey);
 			return;
 		}
-		const event = createEvent({
+		const event = createDraftEvent({
 			id: `range-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-			title: text.newEvent,
 			start: dateFromDateKey(startDateKey),
 			end: dateFromDateKey(endDateKey),
 			allDay: true,
@@ -632,46 +580,42 @@
 		});
 		calendar.addEvent(event);
 		eventCount = calendar.app.getAllEvents().length;
+		visibleEvents = calendar.app.getAllEvents();
 		openEventDetailsAfterRender(event.id);
 	}
 
-	function createMonthSingleDayEvent(dateKey: string, source: MonthRangeSelection | PointerEvent) {
+	function createMonthSingleDayEvent(dateKey: string) {
 		if (Date.now() - lastMonthCellCreationTime < 250) return;
-		const pointerPosition = monthCreationPointerPosition(source);
 		lastMonthCellCreationTime = Date.now();
-		lastMonthRangeCreationTime = Date.now();
-		const dateCell = monthDateCellFromPoint(pointerPosition.clientX, pointerPosition.clientY) ?? monthDateCellByDateKey(dateKey);
-		if (!dateCell) return;
-		isDispatchingMonthCreateDoubleClick = true;
-		dateCell.element.dispatchEvent(
-			new MouseEvent('dblclick', {
-				bubbles: true,
-				cancelable: true,
-				view: window,
-				clientX: pointerPosition.clientX,
-				clientY: pointerPosition.clientY
-			})
-		);
-		requestAnimationFrame(() => {
-			isDispatchingMonthCreateDoubleClick = false;
+		const startDate = dateFromDateKey(dateKey);
+		startDate.setHours(9, 0, 0, 0);
+		const endDate = new Date(startDate);
+		endDate.setHours(10, 0, 0, 0);
+		const event = createDraftEvent({
+			id: `month-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+			start: startDate,
+			end: endDate,
+			allDay: false,
+			calendarId: 'internkim'
 		});
-	}
-
-	function monthCreationPointerPosition(source: MonthRangeSelection | PointerEvent) {
-		if ('startClientX' in source) {
-			return { clientX: source.startClientX, clientY: source.startClientY };
-		}
-		return { clientX: source.clientX, clientY: source.clientY };
+		calendar.addEvent(event);
+		eventCount = calendar.app.getAllEvents().length;
+		visibleEvents = calendar.app.getAllEvents();
+		openEventDetailsAfterRender(event.id);
 	}
 
 	function openEventDetailsAfterRender(eventID: string) {
 		if (!browser) return;
 		requestAnimationFrame(() => {
-			requestAnimationFrame(() => openEventDetails(eventID));
+			requestAnimationFrame(() => {
+				openEventDetails(eventID);
+				scheduleDraftTitleInputPlaceholderUpdates();
+			});
 		});
 	}
 
 	function openEventDetails(eventID: string) {
+		selectedAuditEventID = eventID;
 		calendar.app.selectEvent(eventID);
 		const eventElement = eventElementByID(eventID);
 		if (!eventElement) return;
@@ -690,13 +634,68 @@
 	}
 
 	function eventElementByID(eventID: string) {
+		const eventElements = eventElementsByID(eventID);
+		return eventElements.find(isVisibleEventElement) ?? eventElements[0] ?? null;
+	}
+
+	function eventElementsByID(eventID: string): HTMLElement[] {
 		const escapedEventID = window.CSS?.escape(eventID) ?? eventID.replaceAll('"', '\\"');
-		const eventElements = Array.from(
+		return Array.from(
 			calendarStageElement?.querySelectorAll<HTMLElement>(
 				`[data-event-id="${escapedEventID}"], [data-event-id^="${escapedEventID}::"]`
 			) ?? []
 		);
-		return eventElements.find(isVisibleEventElement) ?? eventElements[0] ?? null;
+	}
+
+	async function persistCreatedEvent(event: DayFlowEvent) {
+		await draftEvents.trackCreatedEvent(event, createEventOnServer);
+	}
+
+	function createDraftEvent(params: DraftEventParams) {
+		return draftEvents.createDraftEvent(params);
+	}
+
+	function scheduleDraftTitleInputPlaceholderUpdates() {
+		if (!browser) return;
+		updateDraftTitleInputPlaceholders();
+		requestAnimationFrame(updateDraftTitleInputPlaceholders);
+		window.setTimeout(updateDraftTitleInputPlaceholders, 50);
+	}
+
+	function updateDraftTitleInputPlaceholders() {
+		if (!browser) return;
+		draftEvents.updateTitleInputPlaceholders(draftEventPlaceholderTitle(), (input) => {
+			void commitDraftTitleInput(input);
+		});
+	}
+
+	async function commitDraftTitleInput(input: HTMLInputElement) {
+		const panel = input.closest<HTMLElement>('[data-event-id]');
+		const eventID = panel?.dataset.eventId ?? '';
+		if (!draftEvents.isDraftEvent(eventID)) return;
+		const title = input.value.trim();
+		if (isPlaceholderEventTitle(title)) {
+			await resetDraftEventTitle(eventID);
+			return;
+		}
+		await programmaticUpdates.run(eventID, () => calendar.updateEvent(eventID, { title }, false));
+		const event = calendar.app.getAllEvents().find((candidate) => candidate.id === eventID);
+		if (!event || !draftEvents.hasMeaningfulTitle(event)) return;
+		draftEvents.removeDraftEvent(eventID);
+		syncDraftEventVisibility();
+		await persistCreatedEvent(event);
+	}
+
+	function scheduleDraftEventVisibilitySync() {
+		if (!browser) return;
+		syncDraftEventVisibility();
+		requestAnimationFrame(syncDraftEventVisibility);
+		window.setTimeout(syncDraftEventVisibility, 50);
+	}
+
+	function syncDraftEventVisibility() {
+		if (!calendarStageElement) return;
+		draftEvents.syncVisibility(calendar.app.getAllEvents(), calendarStageElement, eventElementsByID);
 	}
 
 	function isVisibleEventElement(element: HTMLElement) {
@@ -711,13 +710,6 @@
 		);
 	}
 
-	function monthDateCellByDateKey(dateKey: string) {
-		const escapedDateKey = window.CSS?.escape(dateKey) ?? dateKey;
-		const element = calendarStageElement?.querySelector<HTMLElement>(`.df-month-day-cell[data-date="${escapedDateKey}"]`);
-		if (!element) return null;
-		return { element, dateKey };
-	}
-
 	function selectMonthDate(dateKey: string) {
 		selectedMonthDateKey = dateKey;
 		refreshSelectedMonthDateCellAfterRender();
@@ -729,90 +721,7 @@
 	}
 
 	function refreshSelectedMonthDateCell() {
-		if (!calendarStageElement) return;
-		for (const dateCell of calendarStageElement.querySelectorAll('.df-month-day-cell.month-selected-date')) {
-			dateCell.classList.remove('month-selected-date');
-		}
-		if (!selectedMonthDateKey) return;
-		monthDateCellByDateKey(selectedMonthDateKey)?.element.classList.add('month-selected-date');
-	}
-
-	function orderedDateKeys(firstDateKey: string, secondDateKey: string) {
-		if (firstDateKey <= secondDateKey) return [firstDateKey, secondDateKey];
-		return [secondDateKey, firstDateKey];
-	}
-
-	function dateFromDateKey(dateKey: string) {
-		const [year = '0', month = '1', day = '1'] = dateKey.split('-');
-		return new Date(Number(year), Number(month) - 1, Number(day));
-	}
-
-	function monthRangePreviewSegmentsFromSelection() {
-		if (!browser || !calendarStageElement) return [];
-		const selectedRange = selectedMonthRange();
-		if (!selectedRange) return [];
-		const stageRectangle = calendarStageElement.getBoundingClientRect();
-		const selectedDateCells = selectedMonthDateCells(selectedRange);
-		const dateCellsByWeek = new Map<HTMLElement, HTMLElement[]>();
-		for (const dateCell of selectedDateCells) {
-			const weekElement = dateCell.closest('.df-month-week-grid');
-			if (!(weekElement instanceof HTMLElement)) continue;
-			dateCellsByWeek.set(weekElement, [...(dateCellsByWeek.get(weekElement) ?? []), dateCell]);
-		}
-		return Array.from(dateCellsByWeek.entries()).flatMap(([weekElement, dateCells], index) =>
-			monthRangePreviewSegmentFromCells(weekElement, dateCells, stageRectangle, index)
-		);
-	}
-
-	function selectedMonthDateCells(selectedRange: { startDateKey: string; endDateKey: string }) {
-		if (!calendarStageElement) return [];
-		return Array.from(calendarStageElement.querySelectorAll('.df-month-day-cell[data-date]')).filter(
-			(element): element is HTMLElement => isSelectedMonthDateCell(element, selectedRange)
-		);
-	}
-
-	function isSelectedMonthDateCell(element: Element, selectedRange: { startDateKey: string; endDateKey: string }) {
-		if (!(element instanceof HTMLElement)) return false;
-		const dateKey = element.dataset.date ?? '';
-		return dateKey >= selectedRange.startDateKey && dateKey <= selectedRange.endDateKey;
-	}
-
-	function monthRangePreviewSegmentFromCells(
-		weekElement: HTMLElement,
-		dateCells: HTMLElement[],
-		stageRectangle: DOMRect,
-		index: number
-	) {
-		const sortedDateCells = [...dateCells].sort((firstDateCell, secondDateCell) =>
-			(firstDateCell.dataset.date ?? '').localeCompare(secondDateCell.dataset.date ?? '')
-		);
-		const firstDateCell = sortedDateCells[0];
-		const lastDateCell = sortedDateCells[sortedDateCells.length - 1];
-		if (!firstDateCell || !lastDateCell) return [];
-		const firstDateCellRectangle = firstDateCell.getBoundingClientRect();
-		const lastDateCellRectangle = lastDateCell.getBoundingClientRect();
-		const weekRectangle = weekElement.getBoundingClientRect();
-		return [
-			{
-				id: `${firstDateCell.dataset.date ?? index}-${lastDateCell.dataset.date ?? index}`,
-				left: firstDateCellRectangle.left - stageRectangle.left + 4,
-				top: weekRectangle.top - stageRectangle.top + 34,
-				width: Math.max(28, lastDateCellRectangle.right - firstDateCellRectangle.left - 8),
-				height: 18
-			}
-		];
-	}
-
-	function selectedMonthRange() {
-		if (!monthRangeSelection || (!monthRangeSelection.hasMoved && !monthRangeSelection.isLongPressReady)) return null;
-		const [startDateKey, endDateKey] = orderedDateKeys(monthRangeSelection.startDateKey, monthRangeSelection.endDateKey);
-		return { startDateKey, endDateKey };
-	}
-
-	async function responseErrorMessage(response: Response, fallback: string) {
-		const message = (await response.text()).trim();
-		if (!message || message.startsWith('<!doctype html>') || message.startsWith('<html')) return fallback;
-		return message;
+		refreshSelectedMonthDateCellElement(calendarStageElement, selectedMonthDateKey);
 	}
 </script>
 
@@ -820,7 +729,91 @@
 	<title>{text.pageTitle}</title>
 </svelte:head>
 
-<main class="min-h-screen bg-white text-zinc-950">
+<main class="calendar-page flex min-h-screen flex-col">
+	{#if calendarConflicts.length > 0}
+		<aside class="calendar-conflict-banner" role="alert" aria-live="polite">
+			<div class="conflict-banner-header">
+				<p class="conflict-banner-title">{text.conflictBannerTitle}</p>
+				<p class="conflict-banner-description">{text.conflictBannerDescription}</p>
+			</div>
+			<ul class="conflict-banner-list">
+				{#each calendarConflicts as conflict (conflict.id)}
+					<li class="conflict-banner-item">
+						<span class="conflict-banner-field">{calendarConflictFieldLabel(conflict.field)}</span>
+						<span class="conflict-banner-values">
+							<span><em>{text.conflictMine}:</em> {conflict.localValue || '—'}</span>
+							<span><em>{text.conflictRemote}:</em> {conflict.remoteValue || '—'}</span>
+						</span>
+						<button
+							type="button"
+							class="conflict-banner-action"
+							onclick={() => dismissCalendarConflict(conflict.id)}
+						>
+							{text.conflictDismiss}
+						</button>
+					</li>
+				{/each}
+			</ul>
+			<button
+				type="button"
+				class="conflict-banner-refresh"
+				onclick={() => dismissAllConflictsAndRefresh()}
+			>
+				{text.conflictRefresh}
+			</button>
+		</aside>
+	{/if}
+	<header class="calendar-toolbar">
+		<div class="calendar-toolbar-left">
+			<button type="button" class="toolbar-button today-button" onclick={goToToday}>
+				{text.today}
+			</button>
+			<button type="button" class="toolbar-icon-button" aria-label={text.previous} onclick={goToPrevious}>
+				<ChevronLeftIcon class="size-4" />
+			</button>
+			<button type="button" class="toolbar-icon-button" aria-label={text.next} onclick={goToNext}>
+				<ChevronRightIcon class="size-4" />
+			</button>
+			<h1 class="calendar-toolbar-title">{currentMonthTitle}</h1>
+		</div>
+		<div class="calendar-search-shell">
+			<label class="calendar-search">
+				<SearchIcon class="size-4" />
+				<input bind:value={searchText} placeholder={text.search} aria-label={text.searchCalendar} autocomplete="off" />
+			</label>
+			{#if searchResults.length > 0}
+				<div class="calendar-search-results" role="listbox" aria-label={text.searchResults}>
+					{#each searchResults as result (result.id)}
+						<button type="button" role="option" aria-selected="false" class="calendar-search-result" onclick={() => navigateToSearchResult(result)}>
+							<span class="calendar-search-result-date">{result.dateLabel}</span>
+							<span class="calendar-search-result-title">
+								{#each result.highlightParts as part}
+									{#if part.isMatch}
+										<mark>{part.text}</mark>
+									{:else}
+										{part.text}
+									{/if}
+								{/each}
+							</span>
+						</button>
+					{/each}
+				</div>
+			{:else if searchText.trim()}
+				<div class="calendar-search-results" role="status">
+					<p class="calendar-search-empty">{text.noResults}</p>
+				</div>
+			{/if}
+		</div>
+		<div class="calendar-view-switcher" aria-label={text.calendarView}>
+			<button type="button" class:active-view={toolbarView === ViewType.DAY} onclick={() => changeCalendarView(ViewType.DAY)}>{text.day}</button>
+			<button type="button" class:active-view={toolbarView === ViewType.WEEK} onclick={() => changeCalendarView(ViewType.WEEK)}>{text.week}</button>
+			<button type="button" class:active-view={toolbarView === ViewType.MONTH} onclick={() => changeCalendarView(ViewType.MONTH)}>{text.month}</button>
+		</div>
+		<button type="button" class="new-event-button" onclick={createQuickEvent}>
+			<PlusIcon class="size-4" />
+			<span>{text.new}</span>
+		</button>
+	</header>
 	<div bind:this={calendarStageElement} class="calendar-stage">
 		<DayFlowCalendar {calendar} />
 
@@ -830,90 +823,33 @@
 				style={`left: ${segment.left}px; top: ${segment.top}px; width: ${segment.width}px; height: ${segment.height}px;`}
 			>
 				<span class="month-range-preview-dot"></span>
-				<span class="month-range-preview-title">{text.newEvent}</span>
+				<span class="month-range-preview-title">{draftEventPlaceholderTitle()}</span>
 			</div>
 		{/each}
 
-		<details class="sync-popover">
-			<summary>
-				<WifiIcon class="size-4" />
-				<span>{text.syncTitle}</span>
-			</summary>
-			<div class="sync-body">
-				{#if errorMessage}
-					<p class="text-sm text-destructive">{errorMessage}</p>
-				{:else if isLoading}
-					<p class="text-sm text-muted-foreground">{text.loading}</p>
-				{:else if eventCount === 0}
-					<p class="text-sm text-muted-foreground">{text.empty}</p>
-				{:else if statusMessage}
-					<p class="text-sm text-muted-foreground">{statusMessage}</p>
-				{/if}
+		{#if selectedAuditRows.length > 0}
+			<aside class="event-audit-card" aria-label={text.eventAudit}>
+				{#each selectedAuditRows as row (row.label)}
+					<p>
+						<span>{row.label}</span>
+						<strong>{row.person}</strong>
+						{#if row.time}
+							<time>{row.time}</time>
+						{/if}
+					</p>
+				{/each}
+			</aside>
+		{/if}
 
-				<Separator />
-
-				<div class="space-y-3">
-					<div class="space-y-1.5">
-						<p class="text-xs font-medium uppercase text-muted-foreground">{text.caldav}</p>
-						<div class="flex items-center gap-2">
-							<code class="min-w-0 flex-1 truncate rounded-md bg-muted px-2 py-1.5 text-xs">
-								{syncInformation?.caldavURL ?? ''}
-							</code>
-							<CopyButton text={syncInformation?.caldavURL ?? ''} variant="outline" size="icon" disabled={!syncInformation?.caldavURL} />
-						</div>
-						<div class="grid grid-cols-2 gap-2">
-							<div class="min-w-0 space-y-1">
-								<p class="text-[11px] font-medium text-muted-foreground">{text.username}</p>
-								<div class="flex min-w-0 items-center gap-2">
-									<code class="min-w-0 flex-1 truncate rounded-md bg-muted px-2 py-1.5 text-xs">
-										{syncInformation?.caldavUsername ?? ''}
-									</code>
-									<CopyButton
-										text={syncInformation?.caldavUsername ?? ''}
-										variant="outline"
-										size="icon"
-										disabled={!syncInformation?.caldavUsername}
-									/>
-								</div>
-							</div>
-							<div class="min-w-0 space-y-1">
-								<p class="text-[11px] font-medium text-muted-foreground">{text.password}</p>
-								<div class="flex min-w-0 items-center gap-2">
-									<code class="min-w-0 flex-1 truncate rounded-md bg-muted px-2 py-1.5 text-xs">
-										{syncInformation?.caldavPassword ?? ''}
-									</code>
-									<CopyButton
-										text={syncInformation?.caldavPassword ?? ''}
-										variant="outline"
-										size="icon"
-										disabled={!syncInformation?.caldavPassword}
-									/>
-								</div>
-							</div>
-						</div>
-					</div>
-
-					<div class="space-y-1.5">
-						<p class="text-xs font-medium uppercase text-muted-foreground">{text.ics}</p>
-						<div class="flex items-center gap-2">
-							<code class="min-w-0 flex-1 truncate rounded-md bg-muted px-2 py-1.5 text-xs">
-								{syncInformation?.icsURL ?? ''}
-							</code>
-							<CopyButton text={syncInformation?.icsURL ?? ''} variant="outline" size="icon" disabled={!syncInformation?.icsURL} />
-						</div>
-					</div>
-				</div>
-
-				<Button variant="outline" class="w-full gap-2" onclick={rotateSubscriptionURL} disabled={isSaving}>
-					<RotateCwIcon class={cn('size-4', isSaving && 'animate-spin')} />
-					{text.rotate}
-				</Button>
-			</div>
-		</details>
 	</div>
 </main>
 
 <style>
+	.calendar-page {
+		background: #ffffff;
+		color: #18181b;
+	}
+
 	.calendar-stage {
 		--df-color-background: #ffffff;
 		--df-color-foreground: #2e2e2e;
@@ -923,7 +859,7 @@
 		--df-color-card-foreground: #2e2e2e;
 		--df-color-muted: #f3f4f6;
 		--df-color-muted-foreground: #6b7280;
-		--df-color-primary: #2e2e2e;
+		--df-color-primary: oklch(0.55 0.19 255);
 		--df-color-primary-foreground: #ffffff;
 		--df-color-secondary: #64748b;
 		--df-color-secondary-foreground: #ffffff;
@@ -938,16 +874,75 @@
 		--border: 214.3 31.8% 91.4%;
 		--destructive: 0 84.2% 60.2%;
 		position: relative;
-		min-height: calc(100svh - 48px);
-		padding: 16px;
+		min-height: 0;
+		flex: 1;
+		padding: 0;
 		color-scheme: light;
 		background: #ffffff;
 	}
 
 	.calendar-stage :global(.df-calendar-container) {
 		width: 100%;
-		--df-calendar-height: calc(100svh - 80px);
+		--df-calendar-height: calc(100svh - 52px);
 		color-scheme: light;
+		border-radius: 0;
+		border: 0;
+	}
+
+	.calendar-stage :global(.draft-empty-title-event) {
+		display: none !important;
+	}
+
+	.event-audit-card {
+		position: absolute;
+		right: 16px;
+		bottom: 16px;
+		z-index: 20;
+		display: grid;
+		gap: 6px;
+		max-width: min(360px, calc(100vw - 32px));
+		border: 1px solid #e5e7eb;
+		border-radius: 8px;
+		background: rgba(255, 255, 255, 0.96);
+		padding: 10px 12px;
+		box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
+		color: #111827;
+		font-size: 12px;
+		line-height: 1.35;
+	}
+
+	.event-audit-card p {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 8px;
+		margin: 0;
+	}
+
+	.event-audit-card span {
+		color: #6b7280;
+		font-weight: 600;
+	}
+
+	.event-audit-card strong {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-weight: 700;
+	}
+
+	.event-audit-card time {
+		color: #6b7280;
+		white-space: nowrap;
+	}
+
+	.calendar-stage :global(.df-header),
+	.calendar-stage :global(.df-view-header),
+	.calendar-stage :global(.df-view-header-container),
+	.calendar-stage :global(.df-calendar-container .df-view-header),
+	.calendar-stage :global(.df-calendar-container .df-view-header-container) {
+		display: none !important;
 	}
 
 	:global(.df-dialog-container),
@@ -962,7 +957,7 @@
 		--df-color-card-foreground: #2e2e2e;
 		--df-color-muted: #f3f4f6;
 		--df-color-muted-foreground: #6b7280;
-		--df-color-primary: #2e2e2e;
+		--df-color-primary: oklch(0.55 0.19 255);
 		--df-color-primary-foreground: #ffffff;
 		--df-color-secondary: #64748b;
 		--df-color-secondary-foreground: #ffffff;
@@ -971,21 +966,392 @@
 		color-scheme: light;
 	}
 
-	.calendar-stage :global(.df-month-day-cell.month-selected-date) {
-		background: rgb(239 246 255 / 0.72);
-		box-shadow: inset 0 0 0 1px rgb(59 130 246 / 0.28);
+	.calendar-stage :global(.df-month-day-cell-surface[data-other-month='true']) {
+		background: transparent;
 	}
 
-	.calendar-stage :global(.df-month-day-cell.month-selected-date .df-month-date-number) {
+	.calendar-stage :global(.df-month-day-cell-surface[data-other-month='true'] .df-month-date-number) {
+		opacity: 0.38;
+	}
+
+	.calendar-stage :global(.df-month-day-cell-surface[data-other-month='true'] .df-event) {
+		opacity: 0.52 !important;
+	}
+
+	.calendar-stage :global(.df-week-grid > .df-day-label:nth-child(1)),
+	.calendar-stage :global(.df-week-grid > .df-day-label:nth-child(7)) {
+		color: #ef4444;
+	}
+
+	.calendar-stage :global(.df-month-week-grid > .df-month-day-cell:nth-child(1) .df-month-date-number),
+	.calendar-stage :global(.df-month-week-grid > .df-month-day-cell:nth-child(7) .df-month-date-number) {
+		color: #ef4444;
+	}
+
+	.calendar-stage :global(.df-month-week-grid > .df-month-day-cell:nth-child(1)),
+	.calendar-stage :global(.df-month-week-grid > .df-month-day-cell:nth-child(7)) {
+		background: #fafafa;
+	}
+
+	.calendar-stage :global(.df-month-title) {
+		display: none !important;
+	}
+
+	.calendar-stage :global(.df-month-day-cell-surface[data-today='true'] .df-month-date-number),
+	.calendar-stage :global(.df-week-day-header[data-today='true'] .df-week-date-number) {
 		display: inline-flex;
-		min-width: 24px;
-		height: 24px;
+		min-width: 22px;
+		height: 22px;
 		align-items: center;
 		justify-content: center;
 		border-radius: 9999px;
-		background: rgb(59 130 246);
-		color: white;
+		background: oklch(0.55 0.19 255);
+		color: #ffffff;
 		font-weight: 700;
+	}
+
+	.calendar-toolbar {
+		display: flex;
+		height: 52px;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 8px;
+		border-bottom: 1px solid #e5e7eb;
+		background: #ffffff;
+		padding: 0 16px;
+	}
+
+	.calendar-toolbar-left {
+		display: flex;
+		min-width: 0;
+		align-items: center;
+		gap: 12px;
+	}
+
+	.toolbar-button,
+	.toolbar-icon-button,
+	.new-event-button,
+	.calendar-view-switcher button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		border: 1px solid #e5e7eb;
+		background: #ffffff;
+		color: #111827;
+		font-weight: 600;
+		white-space: nowrap;
+		transition:
+			background-color 120ms ease,
+			border-color 120ms ease,
+			color 120ms ease,
+			box-shadow 120ms ease;
+	}
+
+	.toolbar-button:hover,
+	.toolbar-icon-button:hover,
+	.calendar-view-switcher button:hover {
+		background: #f4f4f5;
+	}
+
+	.today-button {
+		height: 36px;
+		min-width: 94px;
+		border-radius: 8px;
+		padding: 0 12px;
+		font-size: 14px;
+	}
+
+	.toolbar-icon-button {
+		width: 32px;
+		height: 32px;
+		border-color: transparent;
+		border-radius: 8px;
+	}
+
+	.calendar-toolbar-title {
+		margin: 0 4px;
+		white-space: nowrap;
+		font-size: 20px;
+		font-weight: 800;
+		line-height: 1;
+		letter-spacing: 0;
+	}
+
+	.calendar-search-shell {
+		margin-left: auto;
+		position: relative;
+		width: min(220px, 20vw);
+		flex-shrink: 1;
+	}
+
+	.calendar-search {
+		display: flex;
+		height: 36px;
+		width: 100%;
+		align-items: center;
+		gap: 10px;
+		border: 1px solid #e5e7eb;
+		border-radius: 8px;
+		background: #ffffff;
+		padding: 0 12px;
+		color: #71717a;
+	}
+
+	.calendar-search input {
+		min-width: 0;
+		flex: 1;
+		border: 0;
+		background: transparent;
+		color: #111827;
+		font-size: 14px;
+		outline: none;
+	}
+
+	.calendar-search input::placeholder {
+		color: #71717a;
+	}
+
+	.calendar-search-results {
+		position: absolute;
+		z-index: 40;
+		top: calc(100% + 6px);
+		right: 0;
+		width: min(360px, 72vw);
+		overflow: hidden;
+		border: 1px solid #e5e7eb;
+		border-radius: 10px;
+		background: #ffffff;
+		box-shadow: 0 14px 30px rgb(15 23 42 / 0.16);
+	}
+
+	.calendar-search-result {
+		display: grid;
+		width: 100%;
+		grid-template-columns: 88px minmax(0, 1fr);
+		align-items: center;
+		gap: 10px;
+		border: 0;
+		background: transparent;
+		padding: 10px 12px;
+		text-align: left;
+		color: #18181b;
+		cursor: pointer;
+	}
+
+	.calendar-search-result:hover,
+	.calendar-search-result:focus-visible {
+		background: #f4f4f5;
+		outline: none;
+	}
+
+	.calendar-search-result-date {
+		color: #71717a;
+		font-size: 12px;
+		font-weight: 700;
+		white-space: nowrap;
+	}
+
+	.calendar-search-result-title {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: 13px;
+		font-weight: 650;
+	}
+
+	.calendar-search-result-title mark {
+		border-radius: 4px;
+		background: color-mix(in oklab, oklch(0.55 0.19 255) 20%, transparent);
+		color: inherit;
+		padding: 0 1px;
+	}
+
+	.calendar-search-empty {
+		margin: 0;
+		padding: 10px 12px;
+		color: #71717a;
+		font-size: 13px;
+	}
+
+	.calendar-view-switcher {
+		display: inline-flex;
+		height: 36px;
+		align-items: center;
+		border-radius: 8px;
+		background: #f4f4f5;
+		padding: 2px;
+	}
+
+	.calendar-view-switcher button {
+		height: 32px;
+		min-width: 58px;
+		border: 0;
+		border-radius: 7px;
+		background: transparent;
+		padding: 0 8px;
+		color: #71717a;
+		font-size: 14px;
+	}
+
+	.calendar-view-switcher button.active-view {
+		background: #ffffff;
+		color: #111827;
+		box-shadow: 0 1px 4px rgb(15 23 42 / 0.14);
+	}
+
+	.new-event-button {
+		height: 36px;
+		gap: 8px;
+		border-color: transparent;
+		border-radius: 8px;
+		background: oklch(0.55 0.19 255);
+		padding: 0 14px;
+		color: #ffffff;
+		font-size: 14px;
+	}
+
+	.new-event-button:hover {
+		background: color-mix(in oklch, oklch(0.55 0.19 255) 88%, black);
+	}
+
+	:global(html.dark) .calendar-page {
+		background: #09090b;
+		color: #f4f4f5;
+	}
+
+	:global(html.dark) .calendar-stage {
+		--df-color-background: #09090b;
+		--df-color-foreground: #f4f4f5;
+		--df-color-hover: #18181b;
+		--df-color-border: #27272a;
+		--df-color-card: #09090b;
+		--df-color-card-foreground: #f4f4f5;
+		--df-color-muted: #18181b;
+		--df-color-muted-foreground: #a1a1aa;
+		background: #09090b;
+		color-scheme: dark;
+	}
+
+	:global(html.dark) .calendar-stage :global(.df-calendar-container) {
+		color-scheme: dark;
+		background: #09090b;
+	}
+
+	:global(html.dark) .event-audit-card {
+		border-color: #27272a;
+		background: rgba(9, 9, 11, 0.96);
+		color: #f4f4f5;
+		box-shadow: 0 12px 30px rgba(0, 0, 0, 0.36);
+	}
+
+	:global(html.dark) .event-audit-card span,
+	:global(html.dark) .event-audit-card time {
+		color: #a1a1aa;
+	}
+
+	:global(html.dark) :global(.df-dialog-container),
+	:global(html.dark) :global(.df-event-detail-panel),
+	:global(html.dark) :global(.df-portal),
+	:global(html.dark) :global(.df-range-picker) {
+		--df-color-background: #09090b;
+		--df-color-foreground: #f4f4f5;
+		--df-color-hover: #18181b;
+		--df-color-border: #27272a;
+		--df-color-card: #09090b;
+		--df-color-card-foreground: #f4f4f5;
+		--df-color-muted: #18181b;
+		--df-color-muted-foreground: #a1a1aa;
+		color-scheme: dark;
+	}
+
+	:global(html.dark) .calendar-toolbar {
+		border-bottom-color: #27272a;
+		background: #09090b;
+	}
+
+	:global(html.dark) .toolbar-button,
+	:global(html.dark) .toolbar-icon-button,
+	:global(html.dark) .calendar-view-switcher button {
+		border-color: #27272a;
+		background: #09090b;
+		color: #f4f4f5;
+	}
+
+	:global(html.dark) .toolbar-button:hover,
+	:global(html.dark) .toolbar-icon-button:hover,
+	:global(html.dark) .calendar-view-switcher button:hover {
+		background: #18181b;
+	}
+
+	:global(html.dark) .calendar-search {
+		border-color: #27272a;
+		background: #09090b;
+		color: #a1a1aa;
+	}
+
+	:global(html.dark) .calendar-search input {
+		color: #f4f4f5;
+	}
+
+	:global(html.dark) .calendar-search-results {
+		border-color: #27272a;
+		background: #09090b;
+		box-shadow: 0 14px 30px rgb(0 0 0 / 0.38);
+	}
+
+	:global(html.dark) .calendar-search-result {
+		color: #f4f4f5;
+	}
+
+	:global(html.dark) .calendar-search-result:hover,
+	:global(html.dark) .calendar-search-result:focus-visible {
+		background: #18181b;
+	}
+
+	:global(html.dark) .calendar-search-result-title mark {
+		background: color-mix(in oklab, oklch(0.6 0.2 255) 36%, transparent);
+	}
+
+	:global(html.dark) .calendar-view-switcher {
+		background: #18181b;
+	}
+
+	:global(html.dark) .calendar-view-switcher button {
+		border-color: transparent;
+		background: transparent;
+		color: #a1a1aa;
+	}
+
+	:global(html.dark) .calendar-view-switcher button.active-view {
+		background: #27272a;
+		color: #f4f4f5;
+		box-shadow: none;
+	}
+
+	:global(html.dark) .calendar-stage :global(.df-month-week-grid > .df-month-day-cell:nth-child(1)),
+	:global(html.dark) .calendar-stage :global(.df-month-week-grid > .df-month-day-cell:nth-child(7)) {
+		background: #111113;
+	}
+
+	:global(html.dark) .calendar-stage :global(.df-month-week-grid > .df-month-day-cell:nth-child(1) .df-month-date-number),
+	:global(html.dark) .calendar-stage :global(.df-month-week-grid > .df-month-day-cell:nth-child(7) .df-month-date-number) {
+		color: #f87171;
+	}
+
+	:global(html.dark) .calendar-stage :global(.df-month-day-cell-surface[data-other-month='true']) {
+		background: transparent;
+	}
+
+	.calendar-stage :global(.df-month-day-cell.month-selected-date) {
+		background: color-mix(in oklab, var(--primary) 8%, transparent);
+		box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 28%, transparent);
+	}
+
+	.calendar-stage :global(.df-month-week-grid > .df-month-day-cell.month-selected-date:nth-child(1)),
+	.calendar-stage :global(.df-month-week-grid > .df-month-day-cell.month-selected-date:nth-child(7)) {
+		background: color-mix(in oklab, var(--primary) 8%, transparent);
 	}
 
 	.month-range-preview {
@@ -996,9 +1362,9 @@
 		gap: 6px;
 		overflow: hidden;
 		border-radius: 4px;
-		background: rgb(59 130 246 / 0.96);
+		background: var(--primary);
 		padding: 0 8px;
-		color: white;
+		color: var(--primary-foreground);
 		font-size: 12px;
 		font-weight: 600;
 		line-height: 1;
@@ -1013,7 +1379,7 @@
 		height: 6px;
 		flex: 0 0 auto;
 		border-radius: 9999px;
-		background: rgb(219 234 254);
+		background: color-mix(in oklab, var(--primary-foreground) 80%, transparent);
 	}
 
 	.month-range-preview-title {
@@ -1023,52 +1389,6 @@
 		white-space: nowrap;
 	}
 
-	.sync-popover {
-		position: absolute;
-		right: 32px;
-		bottom: 32px;
-		z-index: 20;
-		width: min(360px, calc(100vw - 64px));
-	}
-
-	.sync-popover summary {
-		display: inline-flex;
-		align-items: center;
-		gap: 8px;
-		float: right;
-		height: 36px;
-		cursor: pointer;
-		list-style: none;
-		border: 1px solid var(--df-color-border, hsl(var(--border)));
-		border-radius: 9999px;
-		background: var(--df-color-card, hsl(var(--card)));
-		padding: 0 14px;
-		font-size: 14px;
-		font-weight: 500;
-		box-shadow:
-			0 10px 15px -3px rgb(0 0 0 / 0.1),
-			0 4px 6px -4px rgb(0 0 0 / 0.1);
-	}
-
-	.sync-popover summary::-webkit-details-marker {
-		display: none;
-	}
-
-	.sync-body {
-		clear: both;
-		margin-top: 44px;
-		display: flex;
-		flex-direction: column;
-		gap: 16px;
-		border: 1px solid var(--df-color-border, hsl(var(--border)));
-		border-radius: 12px;
-		background: var(--df-color-card, hsl(var(--card)));
-		padding: 16px;
-		box-shadow:
-			0 20px 25px -5px rgb(0 0 0 / 0.1),
-			0 8px 10px -6px rgb(0 0 0 / 0.1);
-	}
-
 	@media (max-width: 767px) {
 		.calendar-stage {
 			padding: 0;
@@ -1076,13 +1396,114 @@
 
 		.calendar-stage :global(.df-calendar-container) {
 			border-radius: 0;
-			--df-calendar-height: calc(100svh - 48px);
+			--df-calendar-height: calc(100svh - 96px);
 		}
 
-		.sync-popover {
-			right: 16px;
-			bottom: 16px;
-			width: calc(100vw - 32px);
+		.calendar-toolbar {
+			height: auto;
+			flex-wrap: wrap;
+			gap: 8px;
+			padding: 10px;
 		}
+
+		.calendar-toolbar-title {
+			margin-left: 2px;
+			font-size: 16px;
+		}
+
+		.calendar-search-shell {
+			order: 4;
+			width: 100%;
+			margin-left: 0;
+		}
+
+		.new-event-button {
+			margin-left: auto;
+		}
+	}
+
+	.calendar-conflict-banner {
+		margin: 12px 16px 0;
+		padding: 12px 16px;
+		border-radius: var(--radius);
+		background-color: var(--warning-subtle);
+		border: 1px solid var(--warning);
+		color: var(--warning-subtle-foreground);
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		font-size: 13px;
+	}
+
+	.conflict-banner-title {
+		margin: 0;
+		font-weight: 600;
+		font-size: 14px;
+	}
+
+	.conflict-banner-description {
+		margin: 0;
+		color: var(--warning-subtle-foreground);
+		opacity: 0.85;
+	}
+
+	.conflict-banner-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.conflict-banner-item {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 8px;
+		padding: 6px 8px;
+		background-color: color-mix(in oklab, hsl(var(--card)) 70%, transparent);
+		border-radius: 6px;
+	}
+
+	.conflict-banner-field {
+		font-weight: 600;
+		min-width: 80px;
+	}
+
+	.conflict-banner-values {
+		display: flex;
+		flex: 1;
+		flex-wrap: wrap;
+		gap: 12px;
+		color: var(--warning-subtle-foreground);
+	}
+
+	.conflict-banner-values em {
+		font-style: normal;
+		color: var(--warning-subtle-foreground);
+		opacity: 0.7;
+		margin-right: 4px;
+	}
+
+	.conflict-banner-action,
+	.conflict-banner-refresh {
+		appearance: none;
+		border: 1px solid var(--warning);
+		background: transparent;
+		color: var(--warning-subtle-foreground);
+		padding: 4px 10px;
+		border-radius: 6px;
+		font-size: 12px;
+		cursor: pointer;
+	}
+
+	.conflict-banner-action:hover,
+	.conflict-banner-refresh:hover {
+		background-color: color-mix(in oklab, var(--warning) 10%, transparent);
+	}
+
+	.conflict-banner-refresh {
+		align-self: flex-end;
 	}
 </style>
