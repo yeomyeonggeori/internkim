@@ -1530,7 +1530,10 @@ if [ "$expect_public_url" = "true" ]; then
       public_url="$(printf '%%s\n' "$bot_message" | grep -Eo 'https://[^[:space:])>]+' | sed -E 's/[).,;:!?*]+$//' | grep 'intern\.kim' | head -1 || true)"
       if [ -n "$public_url" ]; then
         if curl --location --fail --silent --show-error --max-time 30 "$public_url" -o "$public_html_file"; then
-          if ! grep -Fq 'Sorry, we could not find the page.' "$public_html_file" && [ "$(wc -c < "$public_html_file")" -gt 200 ]; then
+          if ! grep -Fq 'Sorry, we could not find the page.' "$public_html_file" &&
+             ! grep -Fq 'INTERNKIM_SITE_STARTER_REPLACE_ME' "$public_html_file" &&
+             ! grep -Fq 'Replace this starter' "$public_html_file" &&
+             [ "$(wc -c < "$public_html_file")" -gt 200 ]; then
             public_url_verified=true
             break
           fi
@@ -1550,6 +1553,10 @@ if [ "$expect_public_url" = "true" ]; then
   fi
   if grep -Fq 'Sorry, we could not find the page.' "$public_html_file"; then
     echo "site public URL returned not-found page: $public_url" >&2
+    exit 1
+  fi
+  if grep -Fq 'INTERNKIM_SITE_STARTER_REPLACE_ME' "$public_html_file" || grep -Fq 'Replace this starter' "$public_html_file"; then
+    echo "site public URL returned starter scaffold instead of requested content: $public_url" >&2
     exit 1
   fi
 fi
