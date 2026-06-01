@@ -4020,12 +4020,7 @@ func (s *sshClient) scp(localPath, remotePath string) error {
 		if err := s.scpDirect(localPath, temporaryRemotePath); err != nil {
 			return err
 		}
-		output, err := s.runResult(s.privilegedCommand(fmt.Sprintf(
-			"mkdir -p %s && mv %s %s",
-			quoteShellValue(filepath.Dir(remotePath)),
-			quoteShellValue(temporaryRemotePath),
-			quoteShellValue(remotePath),
-		)))
+		output, err := s.runResult(moveUploadedPathCommand(temporaryRemotePath, remotePath))
 		if err != nil {
 			return fmt.Errorf("move uploaded file to %s: %s: %w", remotePath, strings.TrimSpace(output), err)
 		}
@@ -4055,12 +4050,7 @@ func (s *sshClient) rsyncSparse(localPath string, remotePath string) error {
 	if uploadRemotePath == remotePath {
 		return nil
 	}
-	moveOutput, errorValue := s.runResult(s.privilegedCommand(fmt.Sprintf(
-		"mkdir -p %s && mv %s %s",
-		quoteShellValue(filepath.Dir(remotePath)),
-		quoteShellValue(uploadRemotePath),
-		quoteShellValue(remotePath),
-	)))
+	moveOutput, errorValue := s.runResult(moveUploadedPathCommand(uploadRemotePath, remotePath))
 	if errorValue != nil {
 		return fmt.Errorf("move uploaded file to %s: %s: %w", remotePath, strings.TrimSpace(moveOutput), errorValue)
 	}
@@ -4080,6 +4070,15 @@ func (s *sshClient) runRsyncSparse(localPath string, remotePath string, target s
 		return fmt.Errorf("rsync sparse %s to %s failed: %s: %w", localPath, remotePath, strings.TrimSpace(output), errorValue)
 	}
 	return nil
+}
+
+func moveUploadedPathCommand(sourcePath string, targetPath string) string {
+	return fmt.Sprintf(
+		"mkdir -p %s && mv %s %s",
+		quoteShellValue(filepath.Dir(targetPath)),
+		quoteShellValue(sourcePath),
+		quoteShellValue(targetPath),
+	)
 }
 
 func rsyncSparseArguments(sshCommand string, localPath string, target string) []string {
