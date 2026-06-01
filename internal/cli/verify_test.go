@@ -108,6 +108,8 @@ func TestVerifyMattermostPromptScriptCanRequirePublicSiteURL(t *testing.T) {
 		"expected_tools_json=",
 		"tool.$expected_tool.requested",
 		"Sorry, we could not find the page.",
+		"INTERNKIM_SITE_STARTER_REPLACE_ME",
+		"site public URL returned starter scaffold",
 		"site public URL did not return valid HTML",
 		"site deploy final reply contained a generic infrastructure excuse",
 		"http://127.0.0.1:8080/admin/api/sites/$site_id",
