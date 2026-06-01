@@ -143,7 +143,7 @@ func TestVendoredSiteScaffoldIncludesBuildManifest(t *testing.T) {
 			t.Fatalf("vendored site scaffold package manifest must contain %q", expectedText)
 		}
 	}
-	for _, forbiddenText := range []string{"latest", `"dependencies": {}`, "@google/design.md"} {
+	for _, forbiddenText := range []string{"latest", `"dependencies": {}`, "@google/design.md", `": "^`} {
 		if strings.Contains(content, forbiddenText) {
 			t.Fatalf("vendored site scaffold package manifest must not require network dependency %q", forbiddenText)
 		}
