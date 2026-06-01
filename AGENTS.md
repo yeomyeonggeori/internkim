@@ -24,6 +24,27 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - Keep people, policy, platform account links, and secrets intact unless the task
   explicitly asks to reset them.
 
+## Agent Development Flow
+
+- For Blueclaw agent-loop, prompt, skill, policy, schedule/runtime, or tool
+  behavior changes, start with `./internkim dev simulate --scenario <name>`.
+- Use scripted/cassette virtual sessions for repeatability. Record live model
+  decisions with `--live-llm --record-cassette <path>`, then replay the same
+  cassette instead of relying on seed stability alone.
+- After local simulation passes, verify executable and Linux permission behavior
+  with `./internkim dev replay --target tart --scenario <name> --cassette <path>`.
+- Treat Tart as the required pre-deploy Linux/runtime gate for agent execution
+  that touches `terminal.run`, `bun`, `uv`, Python dependency wrappers,
+  POSIX users/groups, or workspace permissions.
+- Do not redeploy agent, Blueclaw, runtime, skill, or terminal-execution changes
+  until the relevant Tart replay produces the intended result. If Tart replay
+  fails, fix the behavior or explicitly report the unresolved failure instead of
+  proceeding to deployment.
+- Do not replace this gate with Docker or another container path unless the task
+  explicitly asks for a different executor model.
+- Run real Mattermost smoke only after the virtual-session and Tart replay
+  gates pass; keep platform cleanup requirements from Runtime Test Hygiene.
+
 ## Web Test Hygiene
 
 - Write Bun unit tests with `test`, `expect`, and `describe` from `bun:test`.
