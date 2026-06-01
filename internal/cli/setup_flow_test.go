@@ -280,6 +280,21 @@ func TestSSHPrivilegedCommandSuppressesSudoPrompt(t *testing.T) {
 	}
 }
 
+func TestUploadMoveCommandIsNotPreWrappedWithSudo(t *testing.T) {
+	command := moveUploadedPathCommand("/tmp/internkim-upload-file", "/etc/systemd/system/file.service")
+	if strings.Contains(command, "sudo") {
+		t.Fatalf("expected upload move command to be wrapped only by runResult, got %s", command)
+	}
+	for _, expectedText := range []string{
+		"mkdir -p '/etc/systemd/system'",
+		"mv '/tmp/internkim-upload-file' '/etc/systemd/system/file.service'",
+	} {
+		if !strings.Contains(command, expectedText) {
+			t.Fatalf("expected upload move command to include %q, got %s", expectedText, command)
+		}
+	}
+}
+
 func TestCloudflareSSHUsesAccessProxyCommand(t *testing.T) {
 	client := newCloudflareSSH("sshpass", "internkim", "blueclaw", "ssh.device.example.test")
 	sshArguments := strings.Join(client.sshArgs("internkim@ssh.device.example.test", "true"), "\n")
