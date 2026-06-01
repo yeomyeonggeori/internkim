@@ -156,18 +156,6 @@
     @apply text-primary underline;
   }
 
-  .internkim-app-shell {
-    min-height: 100svh;
-    width: 100%;
-    background: hsl(var(--background));
-    color: hsl(var(--foreground));
-  }
-
-  .internkim-app-inset {
-    min-width: 0;
-    background: hsl(var(--background));
-  }
-
   .internkim-app-header {
     position: sticky;
     top: 0;
@@ -181,10 +169,6 @@
     background: hsl(var(--background) / 0.95);
     padding: 0 12px;
     backdrop-filter: blur(8px);
-  }
-
-  .internkim-app-header-separator {
-    height: 16px;
   }
 
   .internkim-app-crumbs {
@@ -217,10 +201,6 @@
     font-weight: 500;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  .internkim-app-content {
-    min-width: 0;
   }
 
   @media (max-width: 639px) {
