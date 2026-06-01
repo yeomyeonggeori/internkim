@@ -334,7 +334,7 @@ func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
 	if strings.Contains(packageJSON, "@google/design.md") {
 		t.Fatalf("site package manifest must not depend on nested design.md CLI")
 	}
-	for _, expectedText := range []string{`name: "bun", arguments: ["install"]`, `lintDesignDocument();`, `collectDesignIssues`, `name: "bun", arguments: ["x", "vite", "build"]`} {
+	for _, expectedText := range []string{`name: "bun", arguments: ["install"]`, `collectDesignQualityIssues`, `category: "designDocument"`, `name: "bun", arguments: ["x", "vite", "build"]`} {
 		if !strings.Contains(siteBuildTS(), expectedText) {
 			t.Fatalf("site build script must contain %q", expectedText)
 		}
@@ -347,6 +347,12 @@ func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
 	}
 	if strings.Contains(siteBuildTS(), "site quality gate failed") {
 		t.Fatalf("site build script must not fail solely because quality issues were reported")
+	}
+	if strings.Contains(siteBuildTS(), "DESIGN.md lint failed") {
+		t.Fatalf("site build script must report DESIGN.md issues without failing the build")
+	}
+	if strings.Contains(siteBuildTS(), "DESIGN.md is required") {
+		t.Fatalf("site build script must not fail solely because DESIGN.md is missing")
 	}
 	if !strings.Contains(siteBuildTS(), "suggestedFix") {
 		t.Fatalf("site build script must include actionable quality fixes")
