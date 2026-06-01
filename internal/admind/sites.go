@@ -581,12 +581,9 @@ func decodeSitePublishRequest(reader io.Reader) (sitePublishRequest, error) {
 }
 
 func (service *Service) createSiteRecord(payload siteCreateRequest) (*SiteRecord, error) {
-	slug := normalizeSiteSlug(payload.Slug)
-	if !isValidSiteSlug(slug) {
+	baseSlug := normalizeSiteSlug(payload.Slug)
+	if !isValidSiteSlug(baseSlug) {
 		return nil, errors.New("site slug must be a valid DNS label")
-	}
-	if service.findSiteBySlug(slug) != nil {
-		return nil, errors.New("site slug already exists")
 	}
 	port, errorValue := service.allocateSitePort()
 	if errorValue != nil {
@@ -594,6 +591,10 @@ func (service *Service) createSiteRecord(payload siteCreateRequest) (*SiteRecord
 	}
 	now := time.Now().UTC()
 	siteID := randomHex(12)
+	slug, errorValue := service.availableSiteSlug(baseSlug, siteID)
+	if errorValue != nil {
+		return nil, errorValue
+	}
 	createdBy := siteCreatorIdentity(payload)
 	ownerIdentity := siteOwnerIdentity(payload, createdBy)
 	site := &SiteRecord{
@@ -627,6 +628,19 @@ func (service *Service) createSiteRecord(payload siteCreateRequest) (*SiteRecord
 		UpdatedAt:           now,
 	}
 	return site, service.storeSite(site)
+}
+
+func (service *Service) availableSiteSlug(baseSlug string, siteID string) (string, error) {
+	if service.findSiteBySlug(baseSlug) == nil {
+		return baseSlug, nil
+	}
+	for _, candidateSuffix := range []string{siteID[:6], siteID[:8], siteID[:12]} {
+		candidateSlug := siteSlugWithSuffix(baseSlug, candidateSuffix)
+		if isValidSiteSlug(candidateSlug) && service.findSiteBySlug(candidateSlug) == nil {
+			return candidateSlug, nil
+		}
+	}
+	return "", errors.New("site slug already exists")
 }
 
 func (service *Service) publishSite(ctx context.Context, payload sitePublishRequest) (*SiteRecord, error) {
@@ -2155,6 +2169,25 @@ func siteServiceName(siteID string) string {
 
 func normalizeSiteSlug(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func siteSlugWithSuffix(baseSlug string, suffix string) string {
+	cleanSuffix := strings.Trim(strings.ToLower(strings.TrimSpace(suffix)), "-")
+	if cleanSuffix == "" {
+		return strings.Trim(baseSlug, "-")
+	}
+	maxBaseLength := 63 - len(cleanSuffix) - 1
+	if maxBaseLength < 1 {
+		return cleanSuffix
+	}
+	cleanBase := strings.Trim(baseSlug, "-")
+	if len(cleanBase) > maxBaseLength {
+		cleanBase = strings.Trim(cleanBase[:maxBaseLength], "-")
+	}
+	if cleanBase == "" {
+		return cleanSuffix
+	}
+	return cleanBase + "-" + cleanSuffix
 }
 
 func isValidSiteSlug(value string) bool {

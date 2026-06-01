@@ -370,6 +370,27 @@ func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
 	}
 }
 
+func TestSiteCreateAllocatesUniqueSlugWhenRequestedSlugExists(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	firstSite, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "portfolio"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	secondSite, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "portfolio"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if firstSite.Slug == secondSite.Slug {
+		t.Fatalf("expected unique slug, got %q", secondSite.Slug)
+	}
+	if !strings.HasPrefix(secondSite.Slug, "portfolio-") {
+		t.Fatalf("expected slug to preserve requested base, got %q", secondSite.Slug)
+	}
+	if firstSite.PublishedURL == secondSite.PublishedURL {
+		t.Fatalf("expected unique published URLs")
+	}
+}
+
 func TestSitePublishMaterializesEditableSourceBundle(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	site, errorValue := service.createSiteRecord(siteCreateRequest{
