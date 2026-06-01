@@ -10,7 +10,6 @@
 	import LanguageSelector from '$lib/i18n/language-selector.svelte';
 	import { initializeLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
 	import { ModeWatcher } from 'mode-watcher';
 	import { onMount } from 'svelte';
 
@@ -58,9 +57,6 @@
 								<Breadcrumb.Item>
 									<Breadcrumb.Page>
 										<span>{currentApp(page.url.pathname)}</span>
-										{#if breadcrumbMeta.value}
-											<span class="ml-1.5 font-normal text-muted-foreground">· {breadcrumbMeta.value}</span>
-										{/if}
 									</Breadcrumb.Page>
 								</Breadcrumb.Item>
 							</Breadcrumb.List>
