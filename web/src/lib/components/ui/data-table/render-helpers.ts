@@ -1,5 +1,7 @@
 import type { Component, ComponentProps, Snippet } from "svelte";
 
+type RenderableSnippet<TProps> = (params: TProps) => unknown;
+
 /**
  * A helper class to make it easy to identify Svelte components in
  * `columnDef.cell` and `columnDef.header` properties.
@@ -46,8 +48,8 @@ export class RenderComponentConfig<TComponent extends Component> {
 export class RenderSnippetConfig<TProps> {
 	snippet: Snippet<[TProps]>;
 	params: TProps;
-	constructor(snippet: Snippet<[TProps]>, params: TProps) {
-		this.snippet = snippet;
+	constructor(snippet: RenderableSnippet<TProps>, params: TProps) {
+		this.snippet = snippet as Snippet<[TProps]>;
 		this.params = params;
 	}
 }
@@ -106,6 +108,6 @@ export function renderComponent<
  * ```
  * @see {@link https://tanstack.com/table/latest/docs/guide/column-defs}
  */
-export function renderSnippet<TProps>(snippet: Snippet<[TProps]>, params: TProps = {} as TProps) {
+export function renderSnippet<TProps>(snippet: RenderableSnippet<TProps>, params: TProps = {} as TProps) {
 	return new RenderSnippetConfig(snippet, params);
 }
