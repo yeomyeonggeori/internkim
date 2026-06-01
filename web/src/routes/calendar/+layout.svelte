@@ -6,6 +6,7 @@
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
 	import CalendarIcon from '@lucide/svelte/icons/calendar-days';
 	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
@@ -104,6 +105,14 @@
 	const monthShortLabels = $derived(
 		Array.from({ length: 12 }, (_, monthIndex) => new Date(2000, monthIndex, 1).toLocaleDateString(localeCode, { month: 'short' }))
 	);
+
+	$effect(() => {
+		if (isEmbed) return;
+		breadcrumbMeta.value = todayMonthLabel;
+		return () => {
+			breadcrumbMeta.value = '';
+		};
+	});
 
 	$effect(() => {
 		if (isEmbed) return;
