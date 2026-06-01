@@ -1,4 +1,3 @@
-<!-- 앱 전역 내비게이션 레일을 렌더링한다. -->
 <script lang="ts">
 	import { page } from '$app/state';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
