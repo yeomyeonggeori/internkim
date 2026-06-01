@@ -138,12 +138,12 @@ func TestVendoredSiteScaffoldIncludesBuildManifest(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	content := string(document)
-	for _, expectedText := range []string{`"build": "bun scripts/build.ts"`, `"react"`, `"vite"`, `"@google/design.md"`, `"@radix-ui/react-dialog"`, `"tailwindcss"`} {
+	for _, expectedText := range []string{`"build": "bun scripts/build.ts"`, `"react"`, `"vite"`, `"@radix-ui/react-dialog"`, `"tailwindcss"`} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("vendored site scaffold package manifest must contain %q", expectedText)
 		}
 	}
-	for _, forbiddenText := range []string{"latest", `"dependencies": {}`} {
+	for _, forbiddenText := range []string{"latest", `"dependencies": {}`, "@google/design.md"} {
 		if strings.Contains(content, forbiddenText) {
 			t.Fatalf("vendored site scaffold package manifest must not require network dependency %q", forbiddenText)
 		}
