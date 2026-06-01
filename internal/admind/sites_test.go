@@ -339,6 +339,9 @@ func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
 	if strings.Contains(siteBuildTS(), "Bun.execPath") || strings.Contains(siteBuildTS(), `name: "bunx"`) {
 		t.Fatalf("site build script must rely on canonical runtime PATH, got Bun.execPath/bunx")
 	}
+	if !strings.Contains(siteBuildTS(), `PATH: canonicalRuntimePATH`) {
+		t.Fatalf("site build script must pass canonical PATH to child commands")
+	}
 	if strings.Contains(siteBuildTS(), "site quality gate failed") {
 		t.Fatalf("site build script must not fail solely because quality issues were reported")
 	}
