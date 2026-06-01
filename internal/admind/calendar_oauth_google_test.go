@@ -75,6 +75,7 @@ func TestGoogleOAuthStartRedirectsWithStateAndScope(t *testing.T) {
 	service := newCalendarTestService(t)
 	writeGoogleClientFile(t, service, `{"installed":{"client_id":"client-1","client_secret":"secret-1"}}`)
 	request := httptest.NewRequest(http.MethodGet, "http://admind.local"+googleOAuthStartPath, nil)
+	request.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
 	recorder := httptest.NewRecorder()
 	service.handleGoogleOAuthStart(recorder, request)
 	if recorder.Code != http.StatusFound {
@@ -111,6 +112,16 @@ func TestGoogleOAuthStartRedirectsWithStateAndScope(t *testing.T) {
 	}
 	if _, found := service.googleOAuthStates.Load(state); !found {
 		t.Errorf("state %q not stored", state)
+	}
+}
+
+func TestGoogleOAuthStartRejectsUnauthorizedRequest(t *testing.T) {
+	service := newCalendarTestService(t)
+	request := httptest.NewRequest(http.MethodGet, "http://admind.local"+googleOAuthStartPath, nil)
+	recorder := httptest.NewRecorder()
+	service.handleGoogleOAuthStart(recorder, request)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status: got %d, want %d", recorder.Code, http.StatusForbidden)
 	}
 }
 
@@ -152,6 +163,7 @@ func TestGoogleOAuthCallbackPersistsTokenAndAccount(t *testing.T) {
 	t.Setenv(googleUserinfoURLOverrideEnv, userinfoServer.URL)
 
 	startRequest := httptest.NewRequest(http.MethodGet, "http://admind.local"+googleOAuthStartPath, nil)
+	startRequest.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
 	startRecorder := httptest.NewRecorder()
 	service.handleGoogleOAuthStart(startRecorder, startRequest)
 	if startRecorder.Code != http.StatusFound {
