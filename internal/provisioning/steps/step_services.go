@@ -29,9 +29,11 @@ var StepServices = Step{
 		return trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
-			localLLMServiceUnitsAreSatisfied(context) &&
+			trimmedRun(context, "systemctl is-active "+blueclaw.GraphitiMemorydServiceName) == "active" &&
+			localLLMServiceUnitsAreReady(context) &&
 			trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
 			trimmedRun(context, blueclaw.CapabilitydHealthCheckCommand()) == "ok" &&
+			trimmedRun(context, blueclaw.GraphitiMemorydHealthCheckCommand()) == "ok" &&
 			trimmedRun(context, "systemctl is-active mattermost") == "active" &&
 			runtimeCheck == "ok" &&
 			rootfsBaseCheck == "ok"
@@ -81,7 +83,6 @@ chmod -R u=rwX,g=rwX,o= /root/.blueclaw/workspace/.blueclaw`)
 
 		if isBlueclawHealthy {
 			fmt.Println("  " + context.T("blueclaw 실행 중", "blueclaw running"))
-			connection.Run("systemctl stop " + blueclaw.GraphitiMemorydServiceName + " 2>/dev/null || true; systemctl disable " + blueclaw.GraphitiMemorydServiceName + " 2>/dev/null || true")
 		} else {
 			fmt.Println("  " + context.T("gateway 시작 실패", "Gateway failed"))
 			return errBlueclawHealthCheckFailed
@@ -135,6 +136,13 @@ func localLLMServiceUnitsAreSatisfied(context *Context) bool {
 		strings.Contains(trimmedRun(context, "systemctl cat "+locallm.LlamaCppEmbeddingServiceName+" 2>/dev/null"), locallm.LlamaCppEmbeddingModelPath)
 }
 
+func localLLMServiceUnitsAreReady(context *Context) bool {
+	if !shouldManageLocalLLMServices(context) {
+		return true
+	}
+	return localLLMServiceUnitsAreSatisfied(context)
+}
+
 func serviceUnitInstallCommand(context *Context) string {
 	services := serviceUnitDocuments(context)
 	serviceNames := enabledServiceNames(context)
@@ -163,9 +171,13 @@ func serviceUnitDocuments(context *Context) []serviceUnitDocument {
 	services := []serviceUnitDocument{
 		{path: blueclaw.BlueclawServicePath, document: blueclaw.BlueclawServiceUnit()},
 		{path: blueclaw.CapabilitydServicePath, document: blueclaw.CapabilitydServiceUnit()},
+		{path: blueclaw.GraphitiMemorydServicePath, document: blueclaw.GraphitiMemorydServiceUnit()},
 		{path: blueclaw.AdmindServicePath, document: blueclaw.AdmindServiceUnit()},
 	}
 	if context.BoardType == BoardSimulation {
+		return services
+	}
+	if !shouldManageLocalLLMServices(context) {
 		return services
 	}
 	return append(services,
@@ -177,20 +189,25 @@ func serviceUnitDocuments(context *Context) []serviceUnitDocument {
 func enabledServiceNames(context *Context) []string {
 	serviceNames := []string{
 		blueclaw.CapabilitydServiceName,
+		blueclaw.GraphitiMemorydServiceName,
 		blueclaw.AdmindServiceName,
 		blueclaw.BlueclawServiceName,
 	}
 	if context.BoardType == BoardSimulation {
 		return serviceNames
 	}
+	if !shouldManageLocalLLMServices(context) {
+		return serviceNames
+	}
 	return append([]string{locallm.LlamaCppServiceName, locallm.LlamaCppEmbeddingServiceName}, serviceNames...)
 }
 
 func disabledServiceNames(context *Context) []string {
-	if context.BoardType == BoardSimulation {
-		return nil
-	}
-	return []string{locallm.LlamaCppServiceName, locallm.LlamaCppEmbeddingServiceName}
+	return nil
+}
+
+func shouldManageLocalLLMServices(context *Context) bool {
+	return context.BoardType != BoardSimulation && context.PlannedSteps["local-llm"]
 }
 
 func blueclawServicesAreHealthy(context *Context) bool {
@@ -204,13 +221,22 @@ func blueclawServicesAreHealthy(context *Context) bool {
 	if report["admind"] != "active" {
 		return false
 	}
+	if report["graphiti"] != "active" {
+		return false
+	}
 	if report["blueclawHealth"] != "ok" {
 		return false
 	}
 	if report["capabilitydHealth"] != "ok" {
 		return false
 	}
+	if report["graphitiHealth"] != "ok" {
+		return false
+	}
 	if context.BoardType == BoardSimulation {
+		return true
+	}
+	if !shouldManageLocalLLMServices(context) {
 		return true
 	}
 	return report["embedding"] == "active"
@@ -238,10 +264,12 @@ func blueclawServiceHealthReportCommand(context *Context) string {
 		{name: "blueclaw", command: "systemctl is-active " + blueclaw.BlueclawServiceName + " 2>/dev/null"},
 		{name: "capabilityd", command: "systemctl is-active " + blueclaw.CapabilitydServiceName + " 2>/dev/null"},
 		{name: "admind", command: "systemctl is-active " + blueclaw.AdmindServiceName + " 2>/dev/null"},
+		{name: "graphiti", command: "systemctl is-active " + blueclaw.GraphitiMemorydServiceName + " 2>/dev/null"},
 		{name: "blueclawHealth", command: blueclaw.BlueclawHealthCheckCommand()},
 		{name: "capabilitydHealth", command: blueclaw.CapabilitydHealthCheckCommand()},
+		{name: "graphitiHealth", command: blueclaw.GraphitiMemorydHealthCheckCommand()},
 	}
-	if context.BoardType != BoardSimulation {
+	if shouldManageLocalLLMServices(context) {
 		checks = append(checks, serviceHealthCheck{name: "embedding", command: "systemctl is-active " + locallm.LlamaCppEmbeddingServiceName + " 2>/dev/null"})
 	}
 
@@ -345,12 +373,6 @@ for profile in runtime_configuration.get("agentProfiles", []):
         profile_tool_names = [str(tool_name) for tool_name in profile.get("allowedToolNames", [])]
         break
 
-capability_tool_names = {str(tool_name) for tool_name in capabilities.get("toolNames", [])}
-missing_capability_profile_tools = sorted(capability_tool_names - set(profile_tool_names))
-if missing_capability_profile_tools:
-    print("runtime-profile-missing-capability-tools:" + ",".join(missing_capability_profile_tools))
-    raise SystemExit
-
 mandatory_profile_tools = {"conversation.history", "memory.search", "terminal.run", "terminal.session", "browser_handoff.openURL", "ask.confirm", "ask.choice", "ask.input", "math.calculate", "file.write", "file.promote", "file.attach", "skill.add", "skill.remove", "skill.search", "tool.describe", "schedule.create", "schedule.cancel"}
 missing_tools = sorted(mandatory_profile_tools - set(profile_tool_names))
 if missing_tools:
@@ -410,6 +432,27 @@ if [ ! -x "$mount_path/usr/local/bin/uv" ]; then
   echo rootfs-uv-missing
   exit 0
 fi
+for managed_executable in marp bun bunx uv; do
+  managed_path="$mount_path/usr/local/bin/$managed_executable"
+  managed_stat_path="$managed_path"
+  if [ -L "$managed_path" ]; then
+    managed_target="$(readlink "$managed_path" 2>/dev/null || true)"
+    case "$managed_target" in
+      /*) managed_stat_path="$mount_path$managed_target" ;;
+      *) managed_stat_path="$(dirname "$managed_path")/$managed_target" ;;
+    esac
+  fi
+  managed_owner="$(stat -c '%u' "$managed_stat_path" 2>/dev/null || echo missing)"
+  managed_mode="$(stat -c '%a' "$managed_stat_path" 2>/dev/null || echo missing)"
+  case "$managed_owner" in
+    0|998) ;;
+    *) echo "rootfs-$managed_executable-owner-drift"; exit 0 ;;
+  esac
+  case "$managed_mode" in
+    555|755) ;;
+    *) echo "rootfs-$managed_executable-mode-drift"; exit 0 ;;
+  esac
+done
 if [ ! -x "$mount_path/opt/blueclaw/builtin-skills-venv/bin/python" ]; then
   echo rootfs-builtin-skills-python-missing
   exit 0

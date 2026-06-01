@@ -10,18 +10,25 @@ allowed-tools:
   - browser.screenshot
   - file.write
   - site.app.create
+  - site.app.build
+  - site.app.repair
+  - site.app.preview
   - site.app.publish
   - site.app.status
+  - site.app.history
+  - site.app.diff
   - site.app.logs
   - site.app.rollback
   - site.app.unpublish
   - site.app.restore
   - site.app.delete
+  - artifact.review
   - user.confirm
 completion:
   requiredEvidenceTools:
-    - site.app.create
-    - terminal.run
+    - site.app.status
+    - site.app.build
+    - artifact.review
     - site.app.publish
 ---
 
@@ -45,31 +52,41 @@ Create prototypes for non-developers to validate ideas quickly. Do not present t
 
 ## Workflow
 
-For create, make, build, deploy, publish, prototype, demo, landing page, dashboard, or app requests, the task is not complete until `site.app.publish` succeeds. Do not stop after `site.app.create`. Do not ask the user to review a draft URL before publishing; draft site URLs return 404 and are not useful for review.
+For create, make, build, deploy, publish, prototype, demo, landing page, dashboard, or app requests, the task is not complete until `site.app.publish` succeeds. Do not stop after `site.app.create`. Draft changes stay private until publish; use `site.app.preview` only as a temporary review URL when visual QA or user inspection needs a browser-accessible draft.
 
-1. For a new prototype, call `site.app.create` with a short DNS-safe slug and title.
-2. Pass `prompt`, `designBrief`, or `prototypeScope` when the user gives enough detail.
-3. After `site.app.create` succeeds, call `site.app.status` for the same `siteID` and use `sourceWorkspacePath` and `appWorkspacePath`.
-4. Choose a UI archetype before editing source: landing, dashboard, admin tool, booking, marketplace, portfolio, or content site.
-5. Write a Stitch-compatible `DESIGN.md` into the site workspace before writing app source.
-6. Use `file.write` to update `app/src/App.tsx`, `app/src/index.css`, app-owned components, and app-owned data/source files according to `DESIGN.md`. Do not write `app/package.json`, `app/index.html`, `app/scripts/build.ts`, `app/tsconfig.json`, or `app/vite.config.ts`; those scaffold/build contract files are managed by `site.app.create`.
-7. Run `bun scripts/build.ts` with `terminal.run.workingDirectoryPath` set to `<appWorkspacePath>`; inside the command, use relative paths only. The `sourceWorkspacePath` should normally look like `home/sites/<siteID>`, not an absolute private path.
-8. Start a local preview with `terminal.session`, inspect desktop and mobile with browser tools when available, fix visible layout issues, then rebuild.
-9. Call `site.app.publish` with `siteID` and a concise `message`.
-10. Call `site.app.status` for the same `siteID` and confirm the status is `published`.
-11. Reply in Mattermost with the public URL, a short change summary, how to try the main workflow, and any test login credentials.
+Start by resolving the existing site for the current conversation or slug with `site.app.status`. Updating the same public URL is the default. Create a new site only when no existing site is resolved or the user explicitly asks for a new site, new URL, or separate prototype.
+
+1. Call `site.app.status` with the known `siteID`, slug, or empty input for the current conversation.
+2. If `site.app.status` returns `ambiguous`, do not choose randomly. Show the candidate titles, descriptions, archetypes, owners, and URLs, then ask the user which site to update.
+3. If no site is resolved, call `site.app.create` with a short DNS-safe slug, title, description, idea, purpose, audience, archetype, and domain keywords, then call `site.app.status` for the new `siteID`.
+4. Use `sourceWorkspacePath` and `appWorkspacePath` exactly as returned.
+5. If `workspaceHealth` is `missing` or `permission_problem`, call `site.app.repair`, then call `site.app.status` again. If `workspaceHealth` is `stale_build`, continue to editing or build; do not repair.
+6. Choose a UI archetype before editing source: landing, dashboard, admin tool, booking, marketplace, portfolio, or content site.
+7. Read `.internkim/site.json` and `.internkim/idea.md` when present. The registry metadata is authoritative, but these files are the workspace-local copy of what the site is and why it exists.
+8. Write or update `.internkim/idea.md` when the user changes the core idea, audience, purpose, or positioning. Keep implementation notes out of `DESIGN.md`.
+9. Write or update Stitch-compatible `DESIGN.md`, then create `app/src/prototype-data.ts` with domain-specific fake data and workflow state before editing UI.
+10. Replace the starter `app/src/App.tsx` entirely. Do not preserve starter copy, scaffold structure, or generic feature-card sections.
+11. Use `file.write` to update `app/src/App.tsx`, `app/src/index.css`, app-owned components, and app-owned data/source files according to `DESIGN.md`. Do not write `app/package.json`, `app/index.html`, `app/scripts/build.ts`, `app/tsconfig.json`, or `app/vite.config.ts`; those scaffold/build contract files are managed by `site.app.create`.
+12. Call `site.app.build`. It resolves the canonical `appWorkspacePath`, runs `bun scripts/build.ts` there, writes `.internkim/build-quality.json`, and returns build evidence plus any quality issues. Quality issues are a revision checklist, not a delivery blocker. Use raw `terminal.run` with `workingDirectoryPath` set to `<appWorkspacePath>` only as a fallback when `site.app.build` is unavailable.
+13. Call `site.app.preview` when a browser-accessible draft is useful, or start a local preview with `terminal.session` when local browser tools are the better fit. Capture desktop and mobile screenshots with browser tools when available, then call `artifact.review` with the screenshots, intent, archetype, and rubric.
+14. Write `.internkim/review-log.json` with deterministic checks, vision review issues, attempt count, accepted warnings, and final decision. Revise and rebuild when quality issues remain and improvement budget remains; repeat at most three times.
+15. Call `site.app.publish` with `siteID` and a concise revision message. Same-site updates must publish the same `publishedURL`; successful publish closes the temporary preview. If the build produced a fresh `app/dist` but quality warnings remain after the improvement budget, publish with those warnings and report the top remaining issues.
+16. Call `site.app.status` for the same `siteID` and confirm the status is `published`.
+17. Reply in Mattermost with the public URL, revision summary, how to try the main workflow, rollback availability, and any test login credentials.
 
 Do not publish the uncustomized starter for a website creation request. The starter is only a safe scaffold while the real prototype is being written.
 
-Never say the website is ready, created, prepared, available, previewable, or done unless the site status is `published` after `site.app.publish`. If build or publish fails, report the actual failure and do not provide the draft URL as something the user can open.
+Never say the website is ready, created, prepared, available, or done unless the site status is `published` after `site.app.publish`. A preview URL is only a temporary draft review URL, not completion. If build or publish fails, report the actual failure and distinguish any preview from the final public URL.
 
-Do not ask for approval before `site.app.create`, `terminal.run` builds, `site.app.publish`, `site.app.status`, `site.app.logs`, or `site.app.restore`. `site.app.publish` is a normal part of creating a website prototype and never needs `user.confirm`. Ask for approval before `site.app.rollback`, `site.app.unpublish`, or `site.app.delete`.
+Do not ask for approval before `site.app.create`, `terminal.run` builds, `site.app.preview`, `site.app.publish`, `site.app.status`, `site.app.logs`, or `site.app.restore`. `site.app.publish` is a normal part of creating a website prototype and never needs `user.confirm`. Ask for approval before `site.app.rollback`, `site.app.unpublish`, or `site.app.delete`.
 
 Use `user.confirm` only for rollback, unpublish, or delete requests. Do not use `user.confirm` for create, build, publish, status, logs, or restore.
 
 Never ask for publish approval in natural language. Chat replies such as "확인해 주세요", "승인해 주세요", "말씀해 주시면 게시하겠습니다", or "다시 명령해 주세요" do not create a runtime approval job and cannot resume automatically.
 
-For follow-up feedback in the same conversation, call `site.app.status` with an empty input or the known slug. The tool can resolve the current conversation's bound site. Read the existing `DESIGN.md`, update it for the new request, edit the returned workspace, rebuild from `app/`, publish the same site, and reply with the same URL.
+For follow-up feedback in the same conversation, call `site.app.status` with an empty input or the known slug. The tool can resolve the current conversation's bound site. Read the existing `DESIGN.md`, `app/src/prototype-data.ts`, `app/src/App.tsx`, `app/src/index.css`, and `.internkim/review-log.json` when present, update the returned workspace, rebuild from `app/`, run visual review, publish the same site, and reply with the same URL.
+
+Each site has metadata that explains what it is and who can edit it. Treat `description`, `idea`, `purpose`, `audience`, `archetype`, `domainKeywords`, `createdBy`, `ownerIdentity`, and `collaborators` from `site.app.status` as the decision context for whether a follow-up request should update an existing site. The creator or owner is the default editor. If the current requester cannot edit the site, do not work around the permission boundary; ask the owner to grant access or ask the user to create a separate site.
 
 If the user replies with a short continuation such as "해줘", "진행", "확인", "좋아", "응", "게시해", "배포해", or "publish", treat it as an instruction to finish the current site workflow. Resolve the current site with `site.app.status`, check whether the source is customized beyond the starter, complete missing implementation work if needed, build, publish, and then reply with the public URL. Do not repeat an approval request for publish.
 
@@ -92,10 +109,11 @@ bun scripts/build.ts
 
 After terminal build success:
 
-- start preview from `<appWorkspacePath>` with `bun run preview -- --host 127.0.0.1 --port 4173`; if the port is busy, use the next open port
+- call `site.app.preview` for a temporary draft URL, or start preview from `<appWorkspacePath>` with `bun run preview -- --host 127.0.0.1 --port 4173`; if the port is busy, use the next open port
 - use browser tools to inspect `http://127.0.0.1:<port>` at desktop and mobile widths when available
 - check for text overflow, overlapping controls, clipped buttons, empty first screens, excessive whitespace, a one-note palette, and missing shadcn token usage
-- if browser tools or screenshots are unavailable, rely on build and code inspection rather than blocking publish solely for visual QA
+- call `artifact.review` with desktop and mobile screenshots when screenshots are available; use the returned blocking/warning issues as the revision checklist
+- if browser tools or screenshots are unavailable, write `.internkim/review-log.json` with `visionReviewUnavailable: true` and rely on build and code inspection rather than pretending visual QA ran
 - call `site.app.publish` with `siteID` and a human-readable `message`
 - never claim deployment succeeded until the tool succeeds
 - after publish succeeds, call `site.app.status` and make sure `status` is `published`
@@ -160,6 +178,8 @@ Infer the archetype from the domain and user goal when unspecified. App requests
 
 Never publish a generic feature-card page, empty hero, meaningless gradient, or workflow-free app. The first screen must be the requested experience or a meaningful landing page for the requested offer. Use realistic fake data where it helps the user understand the workflow.
 
+Use the shared artifact quality harness from `references/artifact-quality.md` when you need more detail, but keep the site loop self-contained: deterministic build-quality first, rendered screenshot review second, and same-URL publish after improvement attempts. Build-quality is an improvement harness; compile failures, missing dist, stale dist, and permission failures are hard blockers, but aesthetic or scaffold-smell findings should be fixed when possible and otherwise reported with the published URL.
+
 ## Reply Format
 
 For a successful publish, reply with:
@@ -178,5 +198,7 @@ Do not use this successful publish reply format for draft sites. A draft site is
 
 - Use `site.app.unpublish` when the user asks to take the prototype down temporarily.
 - Use `site.app.restore` when the user asks to bring it back.
-- Use `site.app.rollback` when the user asks to return to the previous published version.
+- Use `site.app.history` when the user asks what changed or wants versions.
+- Use `site.app.diff` when the user asks for a revision comparison.
+- Use `site.app.rollback` when the user asks to return to the previous published version or a specific revision.
 - Use `site.app.delete` only after `user.confirm` succeeds. Pass `confirm: "DELETE"` and `userConfirmed: true`. Deletion is irreversible except from backups.

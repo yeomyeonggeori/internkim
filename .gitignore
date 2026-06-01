@@ -1,9 +1,13 @@
 .factory/
 .claude/
 .playwright-mcp/
+.playwright-cli/
 .artifacts/
 .cache/
 .gocache/
+.agents/
+.internkim-dev/
+local-captures/
 .DS_Store
 build/
 dist/
@@ -18,6 +22,12 @@ companion/src-tauri/gen/
 companion/src-tauri/target/
 .env
 .dev.vars
+secrets/
+*.token.enc
+*.key
+client_secret_*.apps.googleusercontent.com.json
 .dependency/*
 !.dependency/blueclaw
 !.dependency/blueclaw/
+.superpowers/
+docs/superpowers/

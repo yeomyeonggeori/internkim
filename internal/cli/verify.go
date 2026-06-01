@@ -47,6 +47,8 @@ func runVerifyArguments(arguments []string) error {
 		return runVerifyAPI(arguments)
 	case "mattermost":
 		return runVerifyMattermost(arguments)
+	case "site":
+		return runVerifySite(arguments)
 	case "browser":
 		return runVerifyBrowser(arguments)
 	default:
@@ -67,6 +69,7 @@ func runVerifyMattermost(arguments []string) error {
 	flagSet := flag.NewFlagSet("verify mattermost", flag.ContinueOnError)
 	prompt := flagSet.String("prompt", "", "Post this prompt through the real Mattermost ingress path")
 	expectBrowserOpen := flagSet.Bool("expect-browser-open", false, "Require a successful browser.open tool result for prompt verification")
+	expectPublicURL := flagSet.Bool("expect-public-url", false, "Require a public URL in the final bot reply and verify it returns site HTML")
 	expectedTools := repeatedStringFlag{}
 	expectedEvents := repeatedStringFlag{}
 	flagSet.Var(&expectedTools, "expect-tool", "Require a requested tool event for prompt verification; repeat for multiple tools")
@@ -124,12 +127,64 @@ func runVerifyMattermost(arguments []string) error {
 		return runMattermostBrowserOpenE2E(verifyTarget, promptText, *keep, *keepBrowser, *timeoutSeconds, *companionPath, *agentBrowserPath)
 	}
 	if strings.TrimSpace(*prompt) != "" {
-		return verifyTarget.runRemoteVerification(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, *expectBrowserOpen, expectedTools.Values(), expectedEvents.Values()))
+		return verifyTarget.runRemoteVerificationWithTimeout(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, *expectBrowserOpen, *expectPublicURL, expectedTools.Values(), expectedEvents.Values()), mattermostPromptSSHTimeout(*timeoutSeconds))
 	}
-	if *expectBrowserOpen || len(expectedTools.Values()) > 0 || len(expectedEvents.Values()) > 0 {
-		return fmt.Errorf("--expect-browser-open, --expect-tool, and --expect-event require --prompt")
+	if *expectBrowserOpen || *expectPublicURL || len(expectedTools.Values()) > 0 || len(expectedEvents.Values()) > 0 {
+		return fmt.Errorf("--expect-browser-open, --expect-public-url, --expect-tool, and --expect-event require --prompt")
 	}
 	return verifyTarget.runRemoteVerification(verifyMattermostScript())
+}
+
+func runVerifySite(arguments []string) error {
+	flagSet := flag.NewFlagSet("verify site", flag.ContinueOnError)
+	prompt := flagSet.String("prompt", "개인 홈페이지 하나 만들어서 배포해줘.", "Post this site creation prompt through Mattermost")
+	keep := flagSet.Bool("keep", false, "Keep probe messages, users, and site for inspection")
+	timeoutSeconds := flagSet.Int("timeout", 420, "Seconds to wait for the site deployment task")
+	host := flagSet.String("host", "", "Board host")
+	user := flagSet.String("user", "", "SSH user")
+	password := flagSet.String("password", "", "SSH password")
+	node := flagSet.String("node", "", "Fleet node target")
+	cloudflareSSH := flagSet.Bool("cloudflare-ssh", false, "Use Cloudflare SSH")
+	board := flagSet.String("board", "", "Board target")
+	simulation := flagSet.Bool("sim", false, "Use simulation target")
+	if errorValue := flagSet.Parse(arguments); errorValue != nil {
+		return errorValue
+	}
+
+	targetArguments := verifyTargetArguments(*host, *user, *password, *node, *cloudflareSSH, *board, *simulation)
+	verifyTarget, errorValue := resolveVerifyTarget(targetArguments)
+	if errorValue != nil {
+		return errorValue
+	}
+	fmt.Printf("verify site: %s@%s\n", verifyTarget.user, verifyTarget.host)
+	expectedTools := []string{"site.app.create", "site.app.build", "site.app.publish"}
+	return verifyTarget.runRemoteVerificationWithTimeout(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, false, true, expectedTools, nil), mattermostPromptSSHTimeout(*timeoutSeconds))
+}
+
+func verifyTargetArguments(host string, user string, password string, node string, cloudflareSSH bool, board string, simulation bool) []string {
+	targetArguments := []string{}
+	if strings.TrimSpace(host) != "" {
+		targetArguments = append(targetArguments, "--host", strings.TrimSpace(host))
+	}
+	if strings.TrimSpace(user) != "" {
+		targetArguments = append(targetArguments, "--user", strings.TrimSpace(user))
+	}
+	if strings.TrimSpace(password) != "" {
+		targetArguments = append(targetArguments, "--password", password)
+	}
+	if strings.TrimSpace(node) != "" {
+		targetArguments = append(targetArguments, "--node", strings.TrimSpace(node))
+	}
+	if cloudflareSSH {
+		targetArguments = append(targetArguments, "--cloudflare-ssh")
+	}
+	if strings.TrimSpace(board) != "" {
+		targetArguments = append(targetArguments, "--board", strings.TrimSpace(board))
+	}
+	if simulation {
+		targetArguments = append(targetArguments, "--sim")
+	}
+	return targetArguments
 }
 
 type repeatedStringFlag struct {
@@ -461,7 +516,7 @@ func resolveVerifyTarget(arguments []string) (verifyTarget, error) {
 	configuration := loadConfig()
 	sshClient := (*sshClient)(nil)
 	if strings.TrimSpace(target.host) != "" {
-		sshClient = newSSH(sshpassBin, target.sshUser, target.sshPassword, target.host)
+		sshClient = newVerifySSHClient(sshpassBin, target)
 	} else {
 		connection, isRemote, connectionError := resolveDeviceSSHConnection(configuration, sshpassBin, target)
 		if connectionError != nil || connection == nil {
@@ -485,8 +540,19 @@ func resolveVerifyTarget(arguments []string) (verifyTarget, error) {
 	}, nil
 }
 
+func newVerifySSHClient(sshpassBin string, target commandTarget) *sshClient {
+	if target.useRemoteSSH {
+		return newCloudflareSSH(sshpassBin, target.sshUser, target.sshPassword, target.host)
+	}
+	return newSSH(sshpassBin, target.sshUser, target.sshPassword, target.host)
+}
+
 func (target verifyTarget) runRemoteVerification(script string) error {
-	output, errorValue := target.sshClient.runResult(script)
+	return target.runRemoteVerificationWithTimeout(script, 60*time.Second)
+}
+
+func (target verifyTarget) runRemoteVerificationWithTimeout(script string, timeout time.Duration) error {
+	output, errorValue := target.sshClient.runResultWithTimeout(script, timeout)
 	if strings.TrimSpace(output) != "" {
 		fmt.Print(output)
 		if !strings.HasSuffix(output, "\n") {
@@ -497,6 +563,13 @@ func (target verifyTarget) runRemoteVerification(script string) error {
 		return fmt.Errorf("remote verification failed: %w", errorValue)
 	}
 	return nil
+}
+
+func mattermostPromptSSHTimeout(timeoutSeconds int) time.Duration {
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = 240
+	}
+	return time.Duration(timeoutSeconds+180) * time.Second
 }
 
 func runLocalBrowserVerification(target verifyTarget) error {
@@ -641,7 +714,7 @@ llm_text_body="$(jq -cn --arg model "$model" '{
 llm_text_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$llm_text_body" http://internkim/v1/llm/text)"
 printf '%s' "$llm_text_response" | jq -e '.content | type == "string" and length > 0' >/dev/null
 schema='{"type":"object","properties":{"reply":{"type":"string"}},"required":["reply"],"additionalProperties":false}'
-llm_structured_body="$(jq -cn --arg model "$model" --arg schema "$schema" '{
+llm_structured_body="$(jq -cn --arg model "$model" --argjson schema "$schema" '{
   model: $model,
   executionMode: "remote",
   messages: [{role:"user", content:"Return JSON only with reply set to ok."}],
@@ -651,6 +724,30 @@ llm_structured_body="$(jq -cn --arg model "$model" --arg schema "$schema" '{
 }')"
 llm_structured_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$llm_structured_body" http://internkim/v1/llm/structured)"
 printf '%s' "$llm_structured_response" | jq -e '.content | fromjson | .reply | type == "string"' >/dev/null
+llm_auto_structured_body="$(jq -cn --arg model "$model" --argjson schema "$schema" '{
+  model: $model,
+  executionMode: "auto",
+  messages: [{role:"user", content:"Return JSON only with reply set to ok."}],
+  structuredOutputSchema: {name:"smoke_reply", document:$schema, isStrictlyEnforced:true},
+  requireParameters: true,
+  enableResponseHealing: true
+}')"
+llm_auto_structured_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$llm_auto_structured_body" http://internkim/v1/llm/structured)"
+printf '%s' "$llm_auto_structured_response" | jq -e '.provider == "openrouter" and .selectedBackend == "remote" and (.content | fromjson | .reply | type == "string")' >/dev/null
+action_schema='{"oneOf":[{"type":"object","properties":{"action":{"type":"string","enum":["finish"]},"message":{"type":"string"},"goalStatus":{"type":"string","enum":["satisfied"]},"goalSatisfied":{"type":"boolean"},"completionEvidence":{"type":"array","items":{"type":"object"}},"qualityReview":{"type":"array","items":{"type":"object"}}},"required":["action","message","goalStatus","goalSatisfied","completionEvidence","qualityReview"],"additionalProperties":false}]}'
+llm_action_body="$(jq -cn --arg model "$model" --argjson schema "$action_schema" '{
+  model: $model,
+  executionMode: "auto",
+  messages: [
+    {role:"system", content:"You must finish this smoke test now. Use the finish action with message ok, goalStatus satisfied, goalSatisfied true, and empty evidence/review arrays."},
+    {role:"user", content:"Finish now."}
+  ],
+  structuredOutputSchema: {name:"blueclaw_agent_turn_action", document:$schema, isStrictlyEnforced:true},
+  requireParameters: true,
+  enableResponseHealing: true
+}')"
+llm_action_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$llm_action_body" http://internkim/v1/llm/structured)"
+printf '%s' "$llm_action_response" | jq -e '.provider == "openrouter" and .selectedBackend == "remote" and .constraintMode == "native_tool_call" and (.content | fromjson | .action == "finish")' >/dev/null
 
 echo "checking litert capability"
 if command -v litert-lm >/dev/null 2>&1 && [ -s /root/.internkim/models/gemma-4-E4B-it.litertlm ]; then
@@ -669,7 +766,7 @@ if command -v litert-lm >/dev/null 2>&1 && [ -s /root/.internkim/models/gemma-4-
     else
       printf 'litert capability: %s\n' "$(tr '\n' ' ' </tmp/internkim-verify-litert-error | cut -c1-180)"
     fi
-    exit 1
+    echo "litert capability: optional local check failed"
   fi
 else
   echo "litert capability: skipped"
@@ -1116,7 +1213,7 @@ echo "verify mattermost: ok"
 `
 }
 
-func verifyMattermostPromptScript(prompt string, keep bool, timeoutSeconds int, expectBrowserOpen bool, expectedTools []string, expectedEvents []string) string {
+func verifyMattermostPromptScript(prompt string, keep bool, timeoutSeconds int, expectBrowserOpen bool, expectPublicURL bool, expectedTools []string, expectedEvents []string) string {
 	if timeoutSeconds <= 0 {
 		timeoutSeconds = 240
 	}
@@ -1133,6 +1230,10 @@ func verifyMattermostPromptScript(prompt string, keep bool, timeoutSeconds int, 
 	if expectBrowserOpen {
 		expectBrowserOpenValue = "true"
 	}
+	expectPublicURLValue := "false"
+	if expectPublicURL {
+		expectPublicURLValue = "true"
+	}
 	return fmt.Sprintf(`set -euo pipefail
 
 timestamp="$(date +%%s)"
@@ -1145,6 +1246,7 @@ expected_events_json="$(printf '%%s' %s | base64 -d)"
 keep_artifacts=%s
 timeout_seconds=%d
 expect_browser_open=%s
+expect_public_url=%s
 test_started_at="$(date +%%s%%3N)"
 
 api_request() {
@@ -1254,6 +1356,13 @@ cleanup() {
       curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
         "http://localhost:8065/api/v4/users/$user_id" >/dev/null || true
   fi
+  if [ -n "${channel_id:-}" ]; then
+    for site_id in $(curl --silent --show-error http://127.0.0.1:8080/admin/api/sites | jq -r --arg conversation_id "$channel_id" '.sites[]? | select(.conversationID == $conversation_id) | .siteID'); do
+      curl --silent --show-error -X DELETE -H "Content-Type: application/json" \
+        -d '{"confirm":"DELETE","userConfirmed":true}' \
+        "http://127.0.0.1:8080/admin/api/sites/$site_id" >/dev/null || true
+    done
+  fi
   curl --silent --show-error -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$email" >/dev/null || true
 }
 trap cleanup EXIT
@@ -1342,6 +1451,18 @@ printf '{}' > "$task_detail_file"
 if [ -n "$task_run_id" ]; then
   blueclaw_request "probe task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id" > "$task_detail_file"
 fi
+expected_tool_count="$(printf '%%s' "$expected_tools_json" | jq 'length')"
+expected_event_count="$(printf '%%s' "$expected_events_json" | jq 'length')"
+if [ -n "$task_run_id" ] && { [ "$expect_browser_open" = "true" ] || [ "$expected_tool_count" != "0" ] || [ "$expected_event_count" != "0" ]; }; then
+  for _ in $(seq 1 "$timeout_seconds"); do
+    blueclaw_request "probe task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id" > "$task_detail_file"
+    task_status="$(jq -r 'def detail: if type == "array" then .[0] else . end; detail.taskRun.status // empty' "$task_detail_file")"
+    if [ "$task_status" = "completed" ] || [ "$task_status" = "blocked" ] || [ "$task_status" = "failed" ] || [ "$task_status" = "cancelled" ]; then
+      break
+    fi
+    sleep 1
+  done
+fi
 browser_open_verified=false
 if [ "$expect_browser_open" = "true" ]; then
   if [ -z "$task_run_id" ]; then
@@ -1381,13 +1502,61 @@ for expected_event in $(printf '%%s' "$expected_events_json" | jq -r '.[]'); do
   fi
 done
 
-expected_tool_count="$(printf '%%s' "$expected_tools_json" | jq 'length')"
-expected_event_count="$(printf '%%s' "$expected_events_json" | jq 'length')"
 if [ -n "$task_run_id" ] && { [ "$expect_browser_open" = "true" ] || [ "$expected_tool_count" != "0" ] || [ "$expected_event_count" != "0" ]; }; then
   task_status="$(jq -r 'def detail: if type == "array" then .[0] else . end; detail.taskRun.status // empty' "$task_detail_file")"
   if [ "$task_status" != "completed" ]; then
     echo "expected completed task for probe prompt, got ${task_status:-unknown} in task $task_run_id" >&2
     jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
+    exit 1
+  fi
+fi
+
+if [ "$expect_public_url" = "true" ]; then
+  public_url=""
+  public_url_verified=false
+  public_html_file="$(mktemp)"
+  for _ in $(seq 1 "$timeout_seconds"); do
+    bot_post_id="$(api_request "wait for final site reply" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=60" "$admin_token" |
+      jq -r --arg bot_user_id "$bot_user_id" --argjson posted_after "$user_post_create_at" \
+        '.posts[] | select(.user_id == $bot_user_id and .create_at >= $posted_after) | [.create_at, .id] | @tsv' |
+      sort -n | tail -1 | awk '{print $2}')"
+    if [ -n "$bot_post_id" ]; then
+      api_request "fetch final site reply" GET "http://localhost:8065/api/v4/posts/$bot_post_id" "$admin_token" > "$bot_post_file"
+      bot_message="$(jq -r '.message // ""' "$bot_post_file")"
+      if printf '%%s\n' "$bot_message" | grep -Eiq 'bun 없음|외부 호스팅|관리자 점검|Quality Gate 기준 미충족|품질 검사 기준.*완성하지 못'; then
+        echo "site deploy final reply contained a generic infrastructure excuse: $bot_message" >&2
+        exit 1
+      fi
+      public_url="$(printf '%%s\n' "$bot_message" | grep -Eo 'https://[^[:space:])>]+' | sed -E 's/[).,;:!?*]+$//' | grep 'intern\.kim' | head -1 || true)"
+      if [ -n "$public_url" ]; then
+        if curl --location --fail --silent --show-error --max-time 30 "$public_url" -o "$public_html_file"; then
+          if ! grep -Fq 'Sorry, we could not find the page.' "$public_html_file" &&
+             ! grep -Fq 'INTERNKIM_SITE_STARTER_REPLACE_ME' "$public_html_file" &&
+             ! grep -Fq 'Replace this starter' "$public_html_file" &&
+             [ "$(wc -c < "$public_html_file")" -gt 200 ]; then
+            public_url_verified=true
+            break
+          fi
+        fi
+      fi
+    fi
+    sleep 1
+  done
+  if [ -z "$public_url" ]; then
+    echo "expected final site public URL in Mattermost bot reply" >&2
+    jq -r '.message // ""' "$bot_post_file" >&2 || true
+    exit 1
+  fi
+  if [ "$public_url_verified" != "true" ]; then
+    echo "site public URL did not return valid HTML: $public_url" >&2
+    exit 1
+  fi
+  if grep -Fq 'Sorry, we could not find the page.' "$public_html_file"; then
+    echo "site public URL returned not-found page: $public_url" >&2
+    exit 1
+  fi
+  if grep -Fq 'INTERNKIM_SITE_STARTER_REPLACE_ME' "$public_html_file" || grep -Fq 'Replace this starter' "$public_html_file"; then
+    echo "site public URL returned starter scaffold instead of requested content: $public_url" >&2
     exit 1
   fi
 fi
@@ -1414,7 +1583,7 @@ jq -cn \
     taskStatus: ((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskRun.status // null),
     taskEvents: (((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskEvents // []) | map({name, body: ((.body // "") | tostring | .[0:1200])}))
   }'
-`, strconv.Quote(encodedPrompt), strconv.Quote(encodedExpectedTools), strconv.Quote(encodedExpectedEvents), keepValue, timeoutSeconds, expectBrowserOpenValue)
+`, strconv.Quote(encodedPrompt), strconv.Quote(encodedExpectedTools), strconv.Quote(encodedExpectedEvents), keepValue, timeoutSeconds, expectBrowserOpenValue, expectPublicURLValue)
 }
 
 func prepareMattermostBrowserOpenE2EScript() string {

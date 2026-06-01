@@ -118,8 +118,11 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   judgment, failure explanation, recovery direction, or confirmation wording.
 - When a failure requires judgment, request structured output first, then use it
   as input to an LLM-generated user reply.
-- If remote and local LLM paths both fail to produce a safe reply, leave task
-  events and admin-only diagnostics instead of sending a fixed outage message.
+- For real task failures, do not fully suppress the user reply. Try local LLM
+  failure wording first, then send a compact raw error summary if no LLM path can
+  produce a usable notice.
+- Full suppression is only for intentionally ignored control/runtime cases such
+  as duplicate delivery, cancelled task output, or self/bot messages.
 
 ## Companion Runtime Boundary
 
