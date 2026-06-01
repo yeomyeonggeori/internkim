@@ -29,9 +29,11 @@ var StepServices = Step{
 		return trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
+			trimmedRun(context, "systemctl is-active "+blueclaw.GraphitiMemorydServiceName) == "active" &&
 			localLLMServiceUnitsAreReady(context) &&
 			trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
 			trimmedRun(context, blueclaw.CapabilitydHealthCheckCommand()) == "ok" &&
+			trimmedRun(context, blueclaw.GraphitiMemorydHealthCheckCommand()) == "ok" &&
 			trimmedRun(context, "systemctl is-active mattermost") == "active" &&
 			runtimeCheck == "ok" &&
 			rootfsBaseCheck == "ok"
@@ -81,7 +83,6 @@ chmod -R u=rwX,g=rwX,o= /root/.blueclaw/workspace/.blueclaw`)
 
 		if isBlueclawHealthy {
 			fmt.Println("  " + context.T("blueclaw 실행 중", "blueclaw running"))
-			connection.Run("systemctl stop " + blueclaw.GraphitiMemorydServiceName + " 2>/dev/null || true; systemctl disable " + blueclaw.GraphitiMemorydServiceName + " 2>/dev/null || true")
 		} else {
 			fmt.Println("  " + context.T("gateway 시작 실패", "Gateway failed"))
 			return errBlueclawHealthCheckFailed
@@ -170,6 +171,7 @@ func serviceUnitDocuments(context *Context) []serviceUnitDocument {
 	services := []serviceUnitDocument{
 		{path: blueclaw.BlueclawServicePath, document: blueclaw.BlueclawServiceUnit()},
 		{path: blueclaw.CapabilitydServicePath, document: blueclaw.CapabilitydServiceUnit()},
+		{path: blueclaw.GraphitiMemorydServicePath, document: blueclaw.GraphitiMemorydServiceUnit()},
 		{path: blueclaw.AdmindServicePath, document: blueclaw.AdmindServiceUnit()},
 	}
 	if context.BoardType == BoardSimulation {
@@ -187,6 +189,7 @@ func serviceUnitDocuments(context *Context) []serviceUnitDocument {
 func enabledServiceNames(context *Context) []string {
 	serviceNames := []string{
 		blueclaw.CapabilitydServiceName,
+		blueclaw.GraphitiMemorydServiceName,
 		blueclaw.AdmindServiceName,
 		blueclaw.BlueclawServiceName,
 	}
@@ -218,10 +221,16 @@ func blueclawServicesAreHealthy(context *Context) bool {
 	if report["admind"] != "active" {
 		return false
 	}
+	if report["graphiti"] != "active" {
+		return false
+	}
 	if report["blueclawHealth"] != "ok" {
 		return false
 	}
 	if report["capabilitydHealth"] != "ok" {
+		return false
+	}
+	if report["graphitiHealth"] != "ok" {
 		return false
 	}
 	if context.BoardType == BoardSimulation {
@@ -255,8 +264,10 @@ func blueclawServiceHealthReportCommand(context *Context) string {
 		{name: "blueclaw", command: "systemctl is-active " + blueclaw.BlueclawServiceName + " 2>/dev/null"},
 		{name: "capabilityd", command: "systemctl is-active " + blueclaw.CapabilitydServiceName + " 2>/dev/null"},
 		{name: "admind", command: "systemctl is-active " + blueclaw.AdmindServiceName + " 2>/dev/null"},
+		{name: "graphiti", command: "systemctl is-active " + blueclaw.GraphitiMemorydServiceName + " 2>/dev/null"},
 		{name: "blueclawHealth", command: blueclaw.BlueclawHealthCheckCommand()},
 		{name: "capabilitydHealth", command: blueclaw.CapabilitydHealthCheckCommand()},
+		{name: "graphitiHealth", command: blueclaw.GraphitiMemorydHealthCheckCommand()},
 	}
 	if shouldManageLocalLLMServices(context) {
 		checks = append(checks, serviceHealthCheck{name: "embedding", command: "systemctl is-active " + locallm.LlamaCppEmbeddingServiceName + " 2>/dev/null"})

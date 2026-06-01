@@ -173,6 +173,10 @@ func CapabilitydHealthCheckCommand() string {
 	return "curl --max-time 5 -fsS --unix-socket " + CapabilitySocketPath + " http://internkim/health | jq -e '.status == \"ok\"' >/dev/null && echo ok || echo no"
 }
 
+func GraphitiMemorydHealthCheckCommand() string {
+	return "curl --max-time 5 -fsS " + GraphitiEndpoint + "/health | jq -e '.status == \"ok\"' >/dev/null && echo ok || echo no"
+}
+
 func BlueclawWorkspaceSkillPath(skillName string) string {
 	return filepath.Join(BlueclawWorkspacePath, "skills", skillName)
 }
