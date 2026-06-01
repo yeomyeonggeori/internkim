@@ -334,13 +334,16 @@ func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
 	if strings.Contains(packageJSON, "@google/design.md") {
 		t.Fatalf("site package manifest must not depend on nested design.md CLI")
 	}
-	for _, expectedText := range []string{`name: "bun", arguments: ["install"]`, `collectDesignQualityIssues`, `category: "designDocument"`, `name: "bun", arguments: ["x", "vite", "build"]`} {
+	for _, expectedText := range []string{`name: "bun", arguments: ["install"]`, `collectDesignQualityIssues`, `category: "designDocument"`, `await buildVite();`} {
 		if !strings.Contains(siteBuildTS(), expectedText) {
 			t.Fatalf("site build script must contain %q", expectedText)
 		}
 	}
 	if strings.Contains(siteBuildTS(), "Bun.execPath") || strings.Contains(siteBuildTS(), `name: "bunx"`) {
 		t.Fatalf("site build script must rely on canonical runtime PATH, got Bun.execPath/bunx")
+	}
+	if strings.Contains(siteBuildTS(), `arguments: ["x", "vite", "build"]`) {
+		t.Fatalf("site build script must call Vite in-process")
 	}
 	if !strings.Contains(siteBuildTS(), `PATH: canonicalRuntimePATH`) {
 		t.Fatalf("site build script must pass canonical PATH to child commands")
@@ -357,7 +360,7 @@ func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
 	if !strings.Contains(siteBuildTS(), "suggestedFix") {
 		t.Fatalf("site build script must include actionable quality fixes")
 	}
-	viteIndex := strings.Index(siteBuildTS(), `await runCommand({ name: "bun", arguments: ["x", "vite", "build"] });`)
+	viteIndex := strings.Index(siteBuildTS(), `await buildVite();`)
 	qualityIndex := strings.LastIndex(siteBuildTS(), "writeBuildQuality(qualityIssues);")
 	if viteIndex < 0 || qualityIndex < viteIndex {
 		t.Fatalf("site build script must write build-quality.json after vite build")
