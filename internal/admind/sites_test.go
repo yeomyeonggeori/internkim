@@ -453,11 +453,11 @@ func TestSitePublishAllowsQualityIssuesWithFreshBuild(t *testing.T) {
   "blockingIssueCount": 1,
   "issues": [
     {
-      "severity": "blocking",
-      "category": "templateSmell",
+      "severity": "warning",
+      "category": "visualHierarchy",
       "target": "src/App.tsx",
-      "message": "Replace the scaffold starter.",
-      "suggestedFix": "Use a domain-specific first screen."
+      "message": "Tighten the visual hierarchy.",
+      "suggestedFix": "Improve heading and card hierarchy."
     }
   ]
 }`)
@@ -481,6 +481,51 @@ func TestSitePublishAllowsQualityIssuesWithFreshBuild(t *testing.T) {
 	response := serveSiteRequest(service, "quality-report.device.intern.kim", "/")
 	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "quality publish") {
 		t.Fatalf("expected published site despite quality warnings, status=%d body=%q", response.Code, response.Body.String())
+	}
+}
+
+func TestSitePublishRejectsStarterLeakage(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{
+		Slug:        "starter-leak",
+		Title:       "Starter Leak",
+		RequestedBy: "owner@example.com",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	sourceWorkspacePath := t.TempDir()
+	writeTestSourceBuild(t, sourceWorkspacePath, "starter publish")
+	writeFile(t, filepath.Join(sourceWorkspacePath, ".internkim", "build-quality.json"), `{
+  "blockingIssueCount": 1,
+  "issues": [
+    {
+      "severity": "blocking",
+      "category": "templateSmell",
+      "target": "src/App.tsx",
+      "message": "Replace the scaffold starter.",
+      "suggestedFix": "Use a domain-specific first screen."
+    }
+  ]
+}`)
+
+	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:              site.SiteID,
+		RequestedBy:         "owner@example.com",
+		Message:             "Publish starter leakage",
+		SourceBundleBase64:  testSourceBundleBase64(t, sourceWorkspacePath),
+		SourceBundleFormat:  "tar.gz",
+		SourceWorkspacePath: site.SourceWorkspacePath,
+	})
+	if errorValue == nil {
+		t.Fatal("expected starter leakage publish to fail")
+	}
+	if !strings.Contains(errorValue.Error(), "starter scaffold") || !strings.Contains(errorValue.Error(), "app/src/App.tsx") {
+		t.Fatalf("expected actionable starter leakage error, got %v", errorValue)
+	}
+	response := serveSiteRequest(service, "starter-leak.device.intern.kim", "/")
+	if response.Code == http.StatusOK {
+		t.Fatalf("starter leakage should not publish public content: %q", response.Body.String())
 	}
 }
 
