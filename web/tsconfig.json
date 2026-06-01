@@ -13,7 +13,6 @@
 		"moduleResolution": "bundler",
 		"types": [
 			"./worker-configuration.d.ts",
-			"bun",
 			"@cloudflare/workers-types"
 		]
 	}
