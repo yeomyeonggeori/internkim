@@ -29,7 +29,7 @@ var StepServices = Step{
 		return trimmedRun(context, "systemctl is-active "+blueclaw.BlueclawServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
-			localLLMServiceUnitsAreSatisfied(context) &&
+			localLLMServiceUnitsAreReady(context) &&
 			trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
 			trimmedRun(context, blueclaw.CapabilitydHealthCheckCommand()) == "ok" &&
 			trimmedRun(context, "systemctl is-active mattermost") == "active" &&
@@ -135,6 +135,13 @@ func localLLMServiceUnitsAreSatisfied(context *Context) bool {
 		strings.Contains(trimmedRun(context, "systemctl cat "+locallm.LlamaCppEmbeddingServiceName+" 2>/dev/null"), locallm.LlamaCppEmbeddingModelPath)
 }
 
+func localLLMServiceUnitsAreReady(context *Context) bool {
+	if !shouldManageLocalLLMServices(context) {
+		return true
+	}
+	return localLLMServiceUnitsAreSatisfied(context)
+}
+
 func serviceUnitInstallCommand(context *Context) string {
 	services := serviceUnitDocuments(context)
 	serviceNames := enabledServiceNames(context)
@@ -168,6 +175,9 @@ func serviceUnitDocuments(context *Context) []serviceUnitDocument {
 	if context.BoardType == BoardSimulation {
 		return services
 	}
+	if !shouldManageLocalLLMServices(context) {
+		return services
+	}
 	return append(services,
 		serviceUnitDocument{path: locallm.LlamaCppServicePath, document: blueclaw.LlamaCppServiceUnit()},
 		serviceUnitDocument{path: locallm.LlamaCppEmbeddingServicePath, document: blueclaw.LlamaCppEmbeddingServiceUnit()},
@@ -183,14 +193,18 @@ func enabledServiceNames(context *Context) []string {
 	if context.BoardType == BoardSimulation {
 		return serviceNames
 	}
+	if !shouldManageLocalLLMServices(context) {
+		return serviceNames
+	}
 	return append([]string{locallm.LlamaCppServiceName, locallm.LlamaCppEmbeddingServiceName}, serviceNames...)
 }
 
 func disabledServiceNames(context *Context) []string {
-	if context.BoardType == BoardSimulation {
-		return nil
-	}
-	return []string{locallm.LlamaCppServiceName, locallm.LlamaCppEmbeddingServiceName}
+	return nil
+}
+
+func shouldManageLocalLLMServices(context *Context) bool {
+	return context.BoardType != BoardSimulation && context.PlannedSteps["local-llm"]
 }
 
 func blueclawServicesAreHealthy(context *Context) bool {
@@ -211,6 +225,9 @@ func blueclawServicesAreHealthy(context *Context) bool {
 		return false
 	}
 	if context.BoardType == BoardSimulation {
+		return true
+	}
+	if !shouldManageLocalLLMServices(context) {
 		return true
 	}
 	return report["embedding"] == "active"
@@ -241,7 +258,7 @@ func blueclawServiceHealthReportCommand(context *Context) string {
 		{name: "blueclawHealth", command: blueclaw.BlueclawHealthCheckCommand()},
 		{name: "capabilitydHealth", command: blueclaw.CapabilitydHealthCheckCommand()},
 	}
-	if context.BoardType != BoardSimulation {
+	if shouldManageLocalLLMServices(context) {
 		checks = append(checks, serviceHealthCheck{name: "embedding", command: "systemctl is-active " + locallm.LlamaCppEmbeddingServiceName + " 2>/dev/null"})
 	}
 

@@ -292,6 +292,21 @@ func TestOnlyBlueclawPayloadSkipsCurrentBlueclawConfiguration(t *testing.T) {
 	}
 }
 
+func TestBlueclawPayloadManifestCheckReadsWorkspaceImageManifest(t *testing.T) {
+	command := blueclawPayloadManifestCheckCommand(`{"runtimeName":"internkim-blueclaw-payload"}`)
+	for _, expectedText := range []string{
+		"payload-manifest.json",
+		"/root/.blueclaw/workspace/.blueclaw/runtime/current/manifest.json",
+		"debugfs -R",
+		"cat /.blueclaw/runtime/current/manifest.json",
+		"/var/lib/blueclaw/workspace.ext4",
+	} {
+		if !strings.Contains(command, expectedText) {
+			t.Fatalf("expected payload manifest check command to include %q, got:\n%s", expectedText, command)
+		}
+	}
+}
+
 func TestOnlyBlueclawPayloadIncludesChangedBlueclawConfiguration(t *testing.T) {
 	context := defaultBlueclawPlanContext("ok", "missing")
 	context.SSH = blueclawPlanBoardConnection{
