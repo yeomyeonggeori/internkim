@@ -127,13 +127,22 @@ func MailDescriptors() []Descriptor {
 func SiteAppDescriptors() []Descriptor {
 	return []Descriptor{
 		{Name: "site.app.create", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppCreateInputSchema(), PolicyResource: "tool:site.app.create", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "create_site", "site")},
+		{Name: "site.app.preview", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppPublishInputSchema(), PolicyResource: "tool:site.app.preview", SideEffectClass: "external_publish"},
 		{Name: "site.app.publish", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppPublishInputSchema(), PolicyResource: "tool:site.app.publish", SideEffectClass: "site_publish", CompletionEvidence: completionEvidence("success", "publish_site", "site")},
 		{Name: "site.app.status", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLookupInputSchema(), PolicyResource: "tool:site.app.status", SideEffectClass: "read"},
+		{Name: "site.app.history", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLookupInputSchema(), PolicyResource: "tool:site.app.history", SideEffectClass: "read"},
+		{Name: "site.app.diff", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppDiffInputSchema(), PolicyResource: "tool:site.app.diff", SideEffectClass: "read"},
 		{Name: "site.app.logs", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLookupInputSchema(), PolicyResource: "tool:site.app.logs", SideEffectClass: "read"},
 		{Name: "site.app.rollback", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLifecycleInputSchema(), PolicyResource: "tool:site.app.rollback", SideEffectClass: "external_publish", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "publish_site", "site")},
 		{Name: "site.app.unpublish", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLifecycleInputSchema(), PolicyResource: "tool:site.app.unpublish", SideEffectClass: "external_publish", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "publish_site", "site")},
 		{Name: "site.app.restore", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppLifecycleInputSchema(), PolicyResource: "tool:site.app.restore", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "publish_site", "site")},
 		{Name: "site.app.delete", Version: "1", PrivacyClass: "workspace_site", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: siteAppDeleteInputSchema(), PolicyResource: "tool:site.app.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "publish_site", "site")},
+	}
+}
+
+func ArtifactDescriptors() []Descriptor {
+	return []Descriptor{
+		{Name: "artifact.review", Version: "1", PrivacyClass: "workspace_document", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: artifactReviewInputSchema(), PolicyResource: "tool:artifact.review", SideEffectClass: "read"},
 	}
 }
 
@@ -238,7 +247,7 @@ func mattermostPostUpdateInputSchema() json.RawMessage {
 	return jsonschema.Object(
 		jsonschema.Required("postID", jsonschema.String()),
 		jsonschema.Field("message", jsonschema.String()),
-		jsonschema.Field("isPinned", jsonschema.Raw(json.RawMessage(`{"type":["boolean","null"]}`))),
+		jsonschema.Field("isPinned", jsonschema.Boolean()),
 	).RawMessage()
 }
 
@@ -257,7 +266,7 @@ func calendarEventWriteInputSchema() json.RawMessage {
 		jsonschema.Field("isAllDay", jsonschema.Boolean()),
 		jsonschema.Field("color", jsonschema.String()),
 		jsonschema.Field("people", jsonschema.Array(jsonschema.String())),
-		jsonschema.Field("reminderLeadHours", jsonschema.IntegerEnum(1, 2, 3, 6, 12, 24, 48)),
+		jsonschema.Field("reminderLeadHours", jsonschema.Integer()),
 	).RawMessage()
 }
 
@@ -282,7 +291,7 @@ func calendarEventUpdateInputSchema() json.RawMessage {
 		jsonschema.Field("isAllDay", jsonschema.Boolean()),
 		jsonschema.Field("color", jsonschema.String()),
 		jsonschema.Field("people", jsonschema.Array(jsonschema.String())),
-		jsonschema.Field("reminderLeadHours", jsonschema.IntegerEnum(1, 2, 3, 6, 12, 24, 48)),
+		jsonschema.Field("reminderLeadHours", jsonschema.Integer()),
 	).RawMessage()
 }
 
@@ -291,27 +300,27 @@ func calendarEventDeleteInputSchema() json.RawMessage {
 }
 
 func mailMessageListInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":50},"cursor":{"type":"string"}},"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"limit":{"type":"number"},"cursor":{"type":"string"}}}`)
 }
 
 func mailMessageSearchInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"query":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":50},"cursor":{"type":"string"}},"required":["query"],"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"query":{"type":"string"},"limit":{"type":"number"},"cursor":{"type":"string"}},"required":["query"]}`)
 }
 
 func mailMessageReadInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"uid":{"type":"string"}},"required":["mailbox","uid"],"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"uid":{"type":"string"}},"required":["mailbox","uid"]}`)
 }
 
 func mailMessageSendInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"to":{"type":"array","items":{"type":"string"}},"cc":{"type":"array","items":{"type":"string"}},"bcc":{"type":"array","items":{"type":"string"}},"subject":{"type":"string"},"body":{"type":"string"}},"required":["to","subject","body"],"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"to":{"type":"array","items":{"type":"string"}},"cc":{"type":"array","items":{"type":"string"}},"bcc":{"type":"array","items":{"type":"string"}},"subject":{"type":"string"},"body":{"type":"string"}},"required":["to","subject","body"]}`)
 }
 
 func mailMessageMoveInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"uid":{"type":"string"},"targetMailbox":{"type":"string"}},"required":["mailbox","uid","targetMailbox"],"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"uid":{"type":"string"},"targetMailbox":{"type":"string"}},"required":["mailbox","uid","targetMailbox"]}`)
 }
 
 func mailMessageMarkInputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"uid":{"type":"string"},"seen":{"type":"boolean"},"flagged":{"type":"boolean"}},"required":["mailbox","uid"],"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"mailbox":{"type":"string"},"uid":{"type":"string"},"seen":{"type":"boolean"},"flagged":{"type":"boolean"}},"required":["mailbox","uid"]}`)
 }
 
 func siteAppCreateInputSchema() json.RawMessage {
@@ -321,6 +330,12 @@ func siteAppCreateInputSchema() json.RawMessage {
 		jsonschema.Field("prompt", jsonschema.String()),
 		jsonschema.Field("designBrief", jsonschema.String()),
 		jsonschema.Field("prototypeScope", jsonschema.String()),
+		jsonschema.Field("description", jsonschema.String()),
+		jsonschema.Field("idea", jsonschema.String()),
+		jsonschema.Field("purpose", jsonschema.String()),
+		jsonschema.Field("audience", jsonschema.String()),
+		jsonschema.Field("archetype", jsonschema.String()),
+		jsonschema.Field("domainKeywords", jsonschema.Array(jsonschema.String())),
 	).RawMessage()
 }
 
@@ -330,6 +345,12 @@ func siteAppPublishInputSchema() json.RawMessage {
 		jsonschema.Field("slug", jsonschema.String()),
 		jsonschema.Field("title", jsonschema.String()),
 		jsonschema.Field("visibility", jsonschema.String()),
+		jsonschema.Field("description", jsonschema.String()),
+		jsonschema.Field("idea", jsonschema.String()),
+		jsonschema.Field("purpose", jsonschema.String()),
+		jsonschema.Field("audience", jsonschema.String()),
+		jsonschema.Field("archetype", jsonschema.String()),
+		jsonschema.Field("domainKeywords", jsonschema.Array(jsonschema.String())),
 		jsonschema.Field("message", jsonschema.String()),
 		jsonschema.Field("sourceWorkspacePath", jsonschema.String()),
 		jsonschema.Field("appWorkspacePath", jsonschema.String()),
@@ -343,14 +364,28 @@ func siteAppLookupInputSchema() json.RawMessage {
 	).RawMessage()
 }
 
+func siteAppDiffInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Field("siteID", jsonschema.String()),
+		jsonschema.Field("slug", jsonschema.String()),
+		jsonschema.Field("fromRevision", jsonschema.String()),
+		jsonschema.Field("toRevision", jsonschema.String()),
+	).RawMessage()
+}
+
 func siteAppLifecycleInputSchema() json.RawMessage {
 	return jsonschema.Object(
 		jsonschema.Field("siteID", jsonschema.String()),
 		jsonschema.Field("slug", jsonschema.String()),
 		jsonschema.Field("reason", jsonschema.String()),
+		jsonschema.Field("revision", jsonschema.String()),
 		jsonschema.Field("confirm", jsonschema.String()),
 		jsonschema.Field("userConfirmed", jsonschema.Boolean()),
 	).RawMessage()
+}
+
+func artifactReviewInputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"artifactKind":{"type":"string","enum":["site","slides","pptx","docx","pdf"]},"intent":{"type":"string"},"rubric":{"type":"string"},"evidence":{"type":"array","items":{"type":"object","properties":{"role":{"type":"string"},"path":{"type":"string"},"mimeType":{"type":"string","enum":["image/png","image/jpeg"]},"label":{"type":"string"}},"required":["role","path","mimeType","label"]}},"expectedText":{"type":"array","items":{"type":"object","properties":{"target":{"type":"string"},"text":{"type":"string"}},"required":["target","text"]}},"previousIssues":{"type":"array","items":{"type":"object","properties":{"severity":{"type":"string"},"category":{"type":"string"},"target":{"type":"string"},"message":{"type":"string"},"suggestedFix":{"type":"string"}},"required":["severity","category","target","message","suggestedFix"]}}},"required":["artifactKind","intent","rubric","evidence"]}`)
 }
 
 func siteAppDeleteInputSchema() json.RawMessage {
@@ -442,6 +477,7 @@ func DefaultToolDescriptors() []Descriptor {
 	descriptors = append(descriptors, CalendarDescriptors()...)
 	descriptors = append(descriptors, MailDescriptors()...)
 	descriptors = append(descriptors, SiteAppDescriptors()...)
+	descriptors = append(descriptors, ArtifactDescriptors()...)
 	return descriptors
 }
 

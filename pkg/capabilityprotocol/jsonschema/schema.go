@@ -27,9 +27,8 @@ func Object(fields ...FieldDefinition) Schema {
 		}
 	}
 	document := map[string]any{
-		"type":                 "object",
-		"properties":           properties,
-		"additionalProperties": false,
+		"type":       "object",
+		"properties": properties,
 	}
 	if len(required) > 0 {
 		document["required"] = required
@@ -54,7 +53,7 @@ func Boolean() Schema {
 }
 
 func Integer() Schema {
-	return typedSchema("integer")
+	return typedSchema("number")
 }
 
 func Number() Schema {
@@ -81,17 +80,6 @@ func StringEnum(values ...string) Schema {
 	}}
 }
 
-func IntegerEnum(values ...int) Schema {
-	enumValues := make([]int, 0, len(values))
-	for _, value := range values {
-		enumValues = append(enumValues, value)
-	}
-	return Schema{document: map[string]any{
-		"type": "integer",
-		"enum": enumValues,
-	}}
-}
-
 func Raw(document json.RawMessage) Schema {
 	var value map[string]any
 	if json.Unmarshal(document, &value) != nil {
@@ -112,7 +100,7 @@ func (schema Schema) WithDescription(description string) Schema {
 func (schema Schema) RawMessage() json.RawMessage {
 	content, errorValue := json.Marshal(schema.document)
 	if errorValue != nil {
-		return json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)
+		return json.RawMessage(`{"type":"object","properties":{}}`)
 	}
 	return json.RawMessage(content)
 }

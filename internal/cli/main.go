@@ -40,6 +40,12 @@ var (
 	boardUser          = "root"
 	boardPass          = ""
 	registerHTTPClient = &http.Client{Timeout: 30 * time.Second}
+	statusHTTPClient   = &http.Client{
+		Timeout: 8 * time.Second,
+		CheckRedirect: func(request *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 
 	// Armbian Trixie Minimal images per board
 	armbianImages = map[string]string{
@@ -394,10 +400,27 @@ func resolveCloudflareSSHConnection(configuration config, sshpassBin string, tar
 		return nil, false, errorValue
 	}
 	connection := newCloudflareSSH(sshpassBin, target.sshUser, target.sshPassword, target.sshHostname)
-	if _, errorValue := connection.runResult("true"); errorValue != nil {
-		return nil, false, fmt.Errorf("Cloudflare SSH failed for %s: %w", target.sshHostname, errorValue)
+	if output, errorValue := connection.runResult("true"); errorValue != nil {
+		return nil, false, formatCloudflareSSHError(target.sshHostname, output, errorValue)
 	}
 	return connection, true, nil
+}
+
+func formatCloudflareSSHError(hostname string, output string, errorValue error) error {
+	detail := strings.TrimSpace(output)
+	message := fmt.Sprintf("Cloudflare SSH failed for %s: %v", hostname, errorValue)
+	if detail != "" {
+		message = fmt.Sprintf("Cloudflare SSH failed for %s: %s: %v", hostname, detail, errorValue)
+	}
+	return fmt.Errorf("%s\n%s", message, cloudflareSSHRecoveryHint(hostname, detail))
+}
+
+func cloudflareSSHRecoveryHint(hostname string, detail string) string {
+	normalizedDetail := strings.ToLower(detail)
+	if strings.Contains(normalizedDetail, "banner exchange") {
+		return "Cloudflare Access 프록시는 열렸지만 SSH banner를 받지 못했습니다. 브라우저 인증보다 장비의 `sshd` 또는 `cloudflared-node-ssh` 터널 상태를 먼저 확인하세요."
+	}
+	return fmt.Sprintf("Cloudflare Access 인증이 만료되었을 수 있습니다. `cloudflared access ssh --hostname %s`로 브라우저 인증을 갱신한 뒤 다시 실행하세요.", hostname)
 }
 
 func cloudflareSSHTLSStatus(stateDir string) string {
@@ -438,16 +461,15 @@ func runModel() {
 		sub = os.Args[2]
 	}
 
+	configuration := loadConfig()
 	scriptDir, _ := os.Getwd()
 	sshpassBin := filepath.Join(scriptDir, "bin", "sshpass")
-
-	stateDir := internkimHomeDir()
-	boardIP, _ := detectBoardRPi(sshpassBin, stateDir)
-	if boardIP == "" {
-		fatal("Board not found. Run 'internkim setup' first or ensure the board is on the network.")
+	target := resolveCommandTarget(commandControlArguments(os.Args[2:]))
+	target = resolveLabHostForCommandTarget(target, scriptDir)
+	ssh, _, errorValue := resolveDeviceSSHConnection(configuration, sshpassBin, target)
+	if errorValue != nil {
+		fatal(errorValue.Error())
 	}
-
-	ssh := newSSH(sshpassBin, boardUser, "", boardIP)
 
 	switch sub {
 	case "current", "":
@@ -470,19 +492,16 @@ func modelCurrentCmd(ssh *sshClient) {
 	raw := strings.TrimSpace(ssh.run("cat " + blueclaw.BlueclawRuntimeConfigPath + " 2>/dev/null"))
 	var document map[string]any
 	_ = json.Unmarshal([]byte(raw), &document)
-	model := ""
-	if languageModel, ok := document["languageModel"].(map[string]any); ok {
-		if capabilityModel, ok := languageModel["capability"].(map[string]any); ok {
-			if value, ok := capabilityModel["model"].(string); ok {
-				model = strings.TrimSpace(value)
-			}
-		}
-	}
+	model := blueclawRuntimeModel(document)
 	if model == "" {
 		fmt.Println("No model configured.")
 		return
 	}
 	fmt.Printf("Model: %s\n", model)
+	workspaceModel := strings.TrimSpace(ssh.run("jq -r '.languageModel.capability.model // empty' " + blueclawWorkspaceRuntimeConfigPath() + " 2>/dev/null"))
+	if workspaceModel != "" && workspaceModel != model {
+		fmt.Printf("Workspace model differs: %s\n", workspaceModel)
+	}
 }
 
 func modelSetCmd(ssh *sshClient, modelID string) {
@@ -511,11 +530,45 @@ func modelSetCmd(ssh *sshClient, modelID string) {
 		fatal("Failed to stage blueclaw runtime config: " + err.Error())
 	}
 	defer os.Remove(temporaryPath)
-	ssh.scp(temporaryPath, blueclaw.BlueclawRuntimeConfigPath)
-	ssh.run("chown root:" + blueclaw.BlueclawUser + " " + blueclaw.BlueclawRuntimeConfigPath + " && chmod 640 " + blueclaw.BlueclawRuntimeConfigPath)
+	for _, runtimeConfigPath := range blueclawRuntimeConfigPaths() {
+		if errorValue := ssh.scp(temporaryPath, runtimeConfigPath); errorValue != nil {
+			fatal("Failed to upload blueclaw runtime config: " + errorValue.Error())
+		}
+	}
+	ssh.run("chown root:" + blueclaw.BlueclawUser + " " + quoteShellValues(blueclawRuntimeConfigPaths()) + " && chmod 640 " + quoteShellValues(blueclawRuntimeConfigPaths()))
 	ssh.run("systemctl restart " + blueclaw.BlueclawServiceName + " 2>/dev/null")
 	fmt.Printf("Model changed to: %s\n", modelID)
 	fmt.Println("blueclaw restarted.")
+}
+
+func blueclawRuntimeModel(document map[string]any) string {
+	if languageModel, ok := document["languageModel"].(map[string]any); ok {
+		if capabilityModel, ok := languageModel["capability"].(map[string]any); ok {
+			if value, ok := capabilityModel["model"].(string); ok {
+				return strings.TrimSpace(value)
+			}
+		}
+	}
+	return ""
+}
+
+func blueclawRuntimeConfigPaths() []string {
+	return []string{
+		blueclaw.BlueclawRuntimeConfigPath,
+		blueclawWorkspaceRuntimeConfigPath(),
+	}
+}
+
+func blueclawWorkspaceRuntimeConfigPath() string {
+	return blueclaw.BlueclawWorkspacePath + "/.blueclaw/config/runtime.json"
+}
+
+func quoteShellValues(values []string) string {
+	quotedValues := make([]string, 0, len(values))
+	for _, value := range values {
+		quotedValues = append(quotedValues, quoteShellValue(value))
+	}
+	return strings.Join(quotedValues, " ")
 }
 
 func modelListCmd(ssh *sshClient) {
@@ -768,12 +821,15 @@ func runStatusArguments(arguments []string) error {
 
 func printStatusForCommandTarget(m *msg, configuration config, sshpassBin string, target commandTarget) error {
 	if strings.TrimSpace(target.host) == "" {
-		target.host = findBoardIPForCredentials(sshpassBin, target.stateDir, target.sshUser, target.sshPassword)
+		target.host = findSavedSSHHostForStatus(target.stateDir)
 	}
 	if strings.TrimSpace(target.host) != "" {
 		printCommandTargetEvidence(target)
 		fmt.Printf("=== %s (%s: %s) ===\n\n", m.t("기기 상태", "Device Status"), target.boardType, target.host)
 		printBoardStatus(m, target, newSSH(sshpassBin, target.sshUser, target.sshPassword, target.host))
+		return nil
+	}
+	if !target.useRemoteSSH && printPublicStatusForCommandTarget(m, target) {
 		return nil
 	}
 	if connection, isRemote, errorValue := resolveCloudflareSSHConnection(configuration, sshpassBin, target, false); errorValue == nil && connection != nil {
@@ -802,11 +858,30 @@ func printStatusForCommandTarget(m *msg, configuration config, sshpassBin string
 		return errors.New("lab target not found; run `internkim lab status` or pass --host <ip>")
 	}
 
+	if printPublicStatusForCommandTarget(m, target) {
+		return nil
+	}
+
 	fmt.Printf("  %s\n", m.t(
 		"기기를 찾을 수 없습니다.\n  - Board: Wi-Fi 연결 확인\n  - Tart Lab: internkim lab vm-up",
 		"Device not found.\n  - Board: Check Wi-Fi\n  - Tart Lab: start with `internkim lab vm-up`",
 	))
 	return nil
+}
+
+func findSavedSSHHostForStatus(stateDirectory string) string {
+	for _, host := range uniqueNonEmptyStrings([]string{
+		loadState(stateDirectory, "board_ip"),
+		loadState(stateDirectory, "board_wifi_ip"),
+	}) {
+		connection, errorValue := net.DialTimeout("tcp", host+":22", time.Second)
+		if errorValue != nil {
+			continue
+		}
+		connection.Close()
+		return host
+	}
+	return ""
 }
 
 func printBoardStatus(m *msg, target commandTarget, sshClient *sshClient) {
@@ -846,6 +921,7 @@ func printBoardStatus(m *msg, target commandTarget, sshClient *sshClient) {
 	services := []struct{ name, label string }{
 		{"mattermost", "Mattermost"},
 		{blueclaw.BlueclawServiceName, "Blueclaw"},
+		{blueclaw.GraphitiMemorydServiceName, "Graphiti Memory"},
 		{"cloudflared", "Cloudflared"},
 		{"cloudflared-node-ssh", "Node SSH Tunnel"},
 		{"postgresql", "PostgreSQL"},
@@ -874,7 +950,93 @@ func printBoardStatus(m *msg, target commandTarget, sshClient *sshClient) {
 	if disk != "" {
 		fmt.Printf("  %-20s %s\n", m.t("디스크", "Disk"), disk)
 	}
+	printPublicStatusSection(m, target)
 }
+
+func printPublicStatusForCommandTarget(m *msg, target commandTarget) bool {
+	if strings.TrimSpace(target.deviceURL) == "" {
+		return false
+	}
+	printCommandTargetEvidence(target)
+	fmt.Printf("=== %s (%s) ===\n\n", m.t("공개 URL 상태", "Public URL Status"), target.boardType)
+	fmt.Printf("  %-20s %s\n", "SSH", "✗ "+m.t("로컬 SSH 미확인", "local SSH not found"))
+	printPublicStatusSection(m, target)
+	return true
+}
+
+func printPublicStatusSection(m *msg, target commandTarget) {
+	if strings.TrimSpace(target.deviceURL) == "" {
+		return
+	}
+	fmt.Println()
+	for _, result := range publicEndpointStatuses(m, target.deviceURL) {
+		fmt.Printf("  %-20s %s %s\n", result.label, result.marker, result.detail)
+	}
+}
+
+type publicEndpointStatus struct {
+	label  string
+	marker string
+	detail string
+}
+
+func publicEndpointStatuses(m *msg, deviceURL string) []publicEndpointStatus {
+	return []publicEndpointStatus{
+		publicEndpointStatusFor(m.t("Mattermost 공개 URL", "Mattermost public URL"), deviceURL, "/api/v4/system/ping", `"status":"OK"`),
+		publicEndpointStatusFor(m.t("Admin 공개 URL", "Admin public URL"), deviceURL, "/admin/api/health", `"status":"ok"`),
+	}
+}
+
+func publicEndpointStatusFor(label string, deviceURL string, path string, expectedBodyFragment string) publicEndpointStatus {
+	statusCode, responseBody, errorValue := fetchPublicEndpoint(deviceURL, path)
+	if errorValue != nil {
+		return publicEndpointStatus{label: label, marker: "✗", detail: errorValue.Error()}
+	}
+	if statusCode >= 200 && statusCode < 300 && strings.Contains(compactJSONSpaces(responseBody), expectedBodyFragment) {
+		return publicEndpointStatus{label: label, marker: "✓", detail: fmt.Sprintf("HTTP %d", statusCode)}
+	}
+	if statusCode >= 300 && statusCode < 400 {
+		return publicEndpointStatus{label: label, marker: "⏳", detail: fmt.Sprintf("HTTP %d redirect", statusCode)}
+	}
+	return publicEndpointStatus{label: label, marker: "✗", detail: fmt.Sprintf("HTTP %d", statusCode)}
+}
+
+func fetchPublicEndpoint(deviceURL string, path string) (int, string, error) {
+	endpointURL, errorValue := publicEndpointURL(deviceURL, path)
+	if errorValue != nil {
+		return 0, "", errorValue
+	}
+	request, errorValue := http.NewRequest(http.MethodGet, endpointURL, nil)
+	if errorValue != nil {
+		return 0, "", errorValue
+	}
+	response, errorValue := statusHTTPClient.Do(request)
+	if errorValue != nil {
+		return 0, "", errorValue
+	}
+	defer response.Body.Close()
+	responseBody, errorValue := io.ReadAll(io.LimitReader(response.Body, 4096))
+	if errorValue != nil {
+		return response.StatusCode, "", errorValue
+	}
+	return response.StatusCode, string(responseBody), nil
+}
+
+func publicEndpointURL(deviceURL string, path string) (string, error) {
+	parsedURL, errorValue := url.Parse(strings.TrimSpace(deviceURL))
+	if errorValue != nil {
+		return "", errorValue
+	}
+	parsedURL.Path = "/" + strings.TrimLeft(path, "/")
+	parsedURL.RawQuery = ""
+	parsedURL.Fragment = ""
+	return parsedURL.String(), nil
+}
+
+func compactJSONSpaces(value string) string {
+	return strings.ReplaceAll(strings.Join(strings.Fields(value), ""), " ", "")
+}
+
 func runUpdate() {
 	if errorValue := runUpdateArguments(os.Args[2:]); errorValue != nil {
 		fatal(errorValue.Error())
@@ -3860,12 +4022,7 @@ func (s *sshClient) scp(localPath, remotePath string) error {
 		if err := s.scpDirect(localPath, temporaryRemotePath); err != nil {
 			return err
 		}
-		output, err := s.runResult(fmt.Sprintf(
-			"mkdir -p %s && mv %s %s",
-			quoteShellValue(filepath.Dir(remotePath)),
-			quoteShellValue(temporaryRemotePath),
-			quoteShellValue(remotePath),
-		))
+		output, err := s.runResult(moveUploadedPathCommand(temporaryRemotePath, remotePath))
 		if err != nil {
 			return fmt.Errorf("move uploaded file to %s: %s: %w", remotePath, strings.TrimSpace(output), err)
 		}
@@ -3895,12 +4052,7 @@ func (s *sshClient) rsyncSparse(localPath string, remotePath string) error {
 	if uploadRemotePath == remotePath {
 		return nil
 	}
-	moveOutput, errorValue := s.runResult(fmt.Sprintf(
-		"mkdir -p %s && mv %s %s",
-		quoteShellValue(filepath.Dir(remotePath)),
-		quoteShellValue(uploadRemotePath),
-		quoteShellValue(remotePath),
-	))
+	moveOutput, errorValue := s.runResult(moveUploadedPathCommand(uploadRemotePath, remotePath))
 	if errorValue != nil {
 		return fmt.Errorf("move uploaded file to %s: %s: %w", remotePath, strings.TrimSpace(moveOutput), errorValue)
 	}
@@ -3920,6 +4072,15 @@ func (s *sshClient) runRsyncSparse(localPath string, remotePath string, target s
 		return fmt.Errorf("rsync sparse %s to %s failed: %s: %w", localPath, remotePath, strings.TrimSpace(output), errorValue)
 	}
 	return nil
+}
+
+func moveUploadedPathCommand(sourcePath string, targetPath string) string {
+	return fmt.Sprintf(
+		"mkdir -p %s && mv %s %s",
+		quoteShellValue(filepath.Dir(targetPath)),
+		quoteShellValue(sourcePath),
+		quoteShellValue(targetPath),
+	)
 }
 
 func rsyncSparseArguments(sshCommand string, localPath string, target string) []string {
@@ -4562,7 +4723,7 @@ func runSetupLive(messenger *msg) {
 		sshConnection = newCloudflareSSH(sshpassBin, sshUser, sshPassword, boardIP)
 		output, errorValue := sshConnection.runResult("true")
 		if errorValue != nil {
-			cloudflareSSHError = fmt.Errorf("Cloudflare SSH failed for %s: %s: %w", boardIP, strings.TrimSpace(output), errorValue)
+			cloudflareSSHError = formatCloudflareSSHError(boardIP, output, errorValue)
 			return false
 		}
 		target.useRemoteSSH = true

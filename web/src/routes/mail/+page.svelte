@@ -155,7 +155,6 @@
 			if (!account.isConfigured) {
 				mailboxes = [];
 				resetMessageList();
-				isSettingsOpen = true;
 				return;
 			}
 			await loadMailboxes();
@@ -285,6 +284,7 @@
 			accountDraft = createAccountDraft(account);
 			settingsMessage = text.settingsSheet.saved;
 			await loadMail();
+			isSettingsOpen = false;
 		} catch (error) {
 			settingsMessage = error instanceof Error ? error.message : text.settingsSheet.saveFailed;
 		} finally {
@@ -499,7 +499,7 @@
 				<p class="truncate text-sm font-medium">{text.pageName}</p>
 				<p class="truncate text-xs text-muted-foreground">{account.email || text.transportLabel}</p>
 			</div>
-			<Button variant="ghost" size="icon-sm" aria-label={text.settings} onclick={openSettings}>
+			<Button variant="ghost" size="icon-sm" aria-label={text.settings} onclick={() => openSettings()}>
 				<SettingsIcon />
 			</Button>
 		</div>
@@ -536,7 +536,7 @@
 		</nav>
 
 		<div class="border-t p-3">
-			<button type="button" class="w-full rounded-lg border bg-background p-3 text-left" onclick={openSettings}>
+			<button type="button" class="w-full rounded-lg border bg-background p-3 text-left" onclick={() => openSettings()}>
 				<p class="text-xs font-medium">{account.isConfigured ? text.connectedAccount : text.noAccountConnected}</p>
 				<p class="mt-1 text-xs leading-5 text-muted-foreground">
 					{account.isConfigured ? text.connectedAccountDescription : text.noAccountConnectedDescription}
@@ -547,7 +547,7 @@
 
 	<section class="flex min-h-0 flex-col border-r bg-muted/20 max-md:border-r-0">
 		<header class="flex h-14 shrink-0 items-center gap-2 border-b bg-background px-3">
-			<Button class="md:hidden" variant="ghost" size="icon-sm" aria-label={text.settings} onclick={openSettings}>
+			<Button class="md:hidden" variant="ghost" size="icon-sm" aria-label={text.settings} onclick={() => openSettings()}>
 				<PanelLeftIcon />
 			</Button>
 			<div class="min-w-0 flex-1">
@@ -609,12 +609,12 @@
 						<MailOpenIcon class="mx-auto size-5 text-muted-foreground" />
 						<p class="mt-3 text-sm font-medium">{account.isConfigured ? text.noMessages : text.connectMail}</p>
 						<p class="mt-1 text-xs text-muted-foreground">{account.isConfigured ? text.emptyMailbox : text.emptyUnconfigured}</p>
-						{#if !account.isConfigured}
-							<Button class="mt-4 gap-2" variant="secondary" onclick={openSettings}>
-								<SettingsIcon />
-								{text.settings}
-							</Button>
-						{/if}
+							{#if !account.isConfigured}
+								<Button class="mt-4 gap-2" variant="secondary" onclick={() => openSettings()}>
+									<SettingsIcon />
+									{text.connectAccount}
+								</Button>
+							{/if}
 					</div>
 				{/if}
 
@@ -686,13 +686,13 @@
 						</div>
 						<h2 class="mt-4 text-lg font-semibold">{account.isConfigured ? text.ready : text.notConnected}</h2>
 						<p class="mt-2 text-sm leading-6 text-muted-foreground">{account.isConfigured ? text.chooseMessage : text.connectDescription}</p>
-						<Button class="mt-4 gap-2" variant="secondary" onclick={account.isConfigured ? openCompose : openSettings}>
+						<Button class="mt-4 gap-2" variant="secondary" onclick={() => (account.isConfigured ? openCompose() : openSettings())}>
 							{#if account.isConfigured}
 								<PencilIcon />
 								{text.compose}
 							{:else}
 								<SettingsIcon />
-								{text.settings}
+								{text.connectAccount}
 							{/if}
 						</Button>
 					</div>

@@ -172,17 +172,34 @@ func TestFileReadDescriptorIsReadOnlyDefaultTool(t *testing.T) {
 
 func TestSiteAppDescriptorsUseRuntimeInputNames(t *testing.T) {
 	createSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.create")
+	previewSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.preview")
 	publishSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.publish")
 	statusSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.status")
+	historySchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.history")
+	diffSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.diff")
 	deleteSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.delete")
 
 	assertSchemaHasProperties(t, createSchema, "slug", "title", "prompt", "designBrief", "prototypeScope")
 	assertSchemaRequires(t, createSchema, "slug")
 	assertSchemaOmitsProperties(t, createSchema, "name", "sourcePath")
+	assertSchemaHasProperties(t, previewSchema, "siteID", "slug", "message")
 	assertSchemaHasProperties(t, publishSchema, "siteID", "slug", "message")
 	assertSchemaHasProperties(t, statusSchema, "siteID", "slug")
+	assertSchemaHasProperties(t, historySchema, "siteID", "slug")
+	assertSchemaHasProperties(t, diffSchema, "siteID", "slug", "fromRevision", "toRevision")
 	assertSchemaHasProperties(t, deleteSchema, "siteID", "slug", "confirm", "userConfirmed")
 	assertSchemaRequires(t, deleteSchema, "confirm", "userConfirmed")
+}
+
+func TestArtifactReviewDescriptorUsesImageEvidenceInputs(t *testing.T) {
+	schema := descriptorSchema(t, ArtifactDescriptors(), "artifact.review")
+
+	assertSchemaHasProperties(t, schema, "artifactKind", "intent", "rubric", "evidence", "expectedText", "previousIssues")
+	assertSchemaRequires(t, schema, "artifactKind", "intent", "rubric", "evidence")
+	descriptor := descriptorForTool(t, ArtifactDescriptors(), "artifact.review")
+	if descriptor.SideEffectClass != "read" || descriptor.PrivacyClass != "workspace_document" || descriptor.RequiresApproval {
+		t.Fatalf("unexpected artifact.review descriptor: %+v", descriptor)
+	}
 }
 
 func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
@@ -196,6 +213,7 @@ func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
 	assertDescriptorApproval(t, WebDescriptors(), "web.fetch", false)
 	assertDescriptorApproval(t, CalendarDescriptors(), "calendar.event.delete", true)
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site.app.create", false)
+	assertDescriptorApproval(t, SiteAppDescriptors(), "site.app.preview", false)
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site.app.publish", false)
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site.app.delete", true)
 	assertDescriptorApproval(t, GoogleWorkspaceDescriptors(), "google.calendar.event", false)
@@ -268,6 +286,7 @@ func TestCapabilityDescriptorSchemasAreCanonicalObjects(t *testing.T) {
 		CalendarDescriptors(),
 		MailDescriptors(),
 		SiteAppDescriptors(),
+		ArtifactDescriptors(),
 		GoogleWorkspaceDescriptors(),
 	}
 	for _, descriptors := range descriptorGroups {
@@ -284,6 +303,7 @@ func TestCapabilityDescriptorSchemasAreCanonicalObjects(t *testing.T) {
 			}
 			assertRequiredFieldsHaveProperties(t, descriptor.Name, schema)
 			assertSchemaDocumentOmitsKeywords(t, descriptor.Name, descriptor.InputSchema, "oneOf", "anyOf", "allOf")
+			assertSchemaDocumentOmitsType(t, descriptor.Name, descriptor.InputSchema, "integer")
 		}
 	}
 }
@@ -336,6 +356,41 @@ func decodeSchema(t *testing.T, toolName string, document json.RawMessage) schem
 		t.Fatalf("schema for %s is invalid: %v", toolName, errorValue)
 	}
 	return schema
+}
+
+func assertSchemaDocumentOmitsType(t *testing.T, toolName string, document json.RawMessage, schemaType string) {
+	t.Helper()
+	var value any
+	if errorValue := json.Unmarshal(document, &value); errorValue != nil {
+		t.Fatalf("schema for %s is invalid: %v", toolName, errorValue)
+	}
+	if schemaDocumentContainsType(value, schemaType) {
+		t.Fatalf("schema for %s must not use type %q: %s", toolName, schemaType, string(document))
+	}
+}
+
+func schemaDocumentContainsType(value any, schemaType string) bool {
+	document, isDocument := value.(map[string]any)
+	if isDocument {
+		if document["type"] == schemaType {
+			return true
+		}
+		for _, fieldValue := range document {
+			if schemaDocumentContainsType(fieldValue, schemaType) {
+				return true
+			}
+		}
+		return false
+	}
+	values, isValues := value.([]any)
+	if isValues {
+		for _, item := range values {
+			if schemaDocumentContainsType(item, schemaType) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func assertSchemaHasProperties(t *testing.T, schema schemaDocument, names ...string) {

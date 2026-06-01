@@ -203,7 +203,7 @@ func (backend OpenRouterBackend) sendChatAction(ctx context.Context, apiKey stri
 func buildOpenRouterStructuredRequest(request StructuredRequest, modelName string) ([]byte, error) {
 	document := map[string]any{
 		"model":    modelName,
-		"messages": request.Messages,
+		"messages": openAIMessages(request.Messages),
 		"response_format": map[string]any{
 			"type": "json_schema",
 			"json_schema": map[string]any{
@@ -232,7 +232,7 @@ func buildOpenRouterChatActionRequest(request StructuredRequest, modelName strin
 func buildOpenRouterTextRequest(request TextRequest, modelName string) ([]byte, error) {
 	document := map[string]any{
 		"model":    modelName,
-		"messages": request.Messages,
+		"messages": openAIMessages(request.Messages),
 		"stream":   false,
 	}
 	if request.RequireParameters {

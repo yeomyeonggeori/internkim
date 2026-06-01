@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -119,6 +120,31 @@ func TestOpenRouterLiveSingleCalendarActionSchemaFromEnv(t *testing.T) {
 	errorValue := assertOpenRouterLiveSchemaAccepted(ctx, backend, request)
 	if errorValue != nil {
 		t.Fatalf("expected live OpenRouter single calendar schema to be accepted: %v", errorValue)
+	}
+}
+
+func TestOpenRouterLiveCompactedLargeActionSchemaFromEnv(t *testing.T) {
+	backend, _ := liveOpenRouterBackendFromEnv(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	descriptors := make([]capabilities.Descriptor, 0, openRouterNativeToolMaxFunctionCount+1)
+	for index := 0; index <= openRouterNativeToolMaxFunctionCount; index++ {
+		descriptors = append(descriptors, capabilities.Descriptor{
+			Name:        "probe.tool." + strconv.Itoa(index),
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"value":{"type":"string"}},"required":["value"],"additionalProperties":false}`),
+		})
+	}
+	request := StructuredRequest{
+		Messages: []Message{{Role: "user", Content: "Call one available probe tool."}},
+		StructuredOutputSchema: StructuredOutputSchema{
+			Name:               "blueclaw_agent_turn_action",
+			Document:           testActionSchemaForDescriptors(t, descriptors),
+			IsStrictlyEnforced: true,
+		},
+	}
+	errorValue := assertOpenRouterLiveSchemaAccepted(ctx, backend, request)
+	if errorValue != nil {
+		t.Fatalf("expected compacted live OpenRouter native tool schema to be accepted: %v", errorValue)
 	}
 }
 

@@ -59,7 +59,7 @@ func PublicChannelsForLanguage(language string) []PublicChannel {
 		{Name: OffTopicChannelName, DisplayName: labels.OffTopicDisplayName},
 		{Name: FlowChannelName, DisplayName: labels.FlowDisplayName, Header: PublicChannelLink(FlowChannelName, language, "/flow/")},
 		{Name: CalendarChannelName, DisplayName: labels.CalendarDisplayName, Header: PublicChannelLink(CalendarChannelName, language, "/calendar/")},
-		{Name: AttendanceChannelName, DisplayName: labels.AttendanceDisplayName, Header: PublicChannelLink(AttendanceChannelName, language, "/attendance/"), Purpose: PublicChannelLink(AttendanceChannelName, language, "/attendance/")},
+		{Name: AttendanceChannelName, DisplayName: labels.AttendanceDisplayName, Header: PublicChannelLink(AttendanceChannelName, language, "/attendance/")},
 	}
 }
 
