@@ -591,12 +591,12 @@ func (service *Service) createSiteRecord(payload siteCreateRequest) (*SiteRecord
 	}
 	now := time.Now().UTC()
 	siteID := randomHex(12)
-	slug, errorValue := service.availableSiteSlug(baseSlug, siteID)
+	createdBy := siteCreatorIdentity(payload)
+	ownerIdentity := siteOwnerIdentity(payload, createdBy)
+	slug, errorValue := service.availableSiteSlug(baseSlug, siteID, siteCreationSlugSuffix(payload, createdBy, now))
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	createdBy := siteCreatorIdentity(payload)
-	ownerIdentity := siteOwnerIdentity(payload, createdBy)
 	site := &SiteRecord{
 		SiteID:              siteID,
 		Slug:                slug,
@@ -630,17 +630,75 @@ func (service *Service) createSiteRecord(payload siteCreateRequest) (*SiteRecord
 	return site, service.storeSite(site)
 }
 
-func (service *Service) availableSiteSlug(baseSlug string, siteID string) (string, error) {
+func (service *Service) availableSiteSlug(baseSlug string, siteID string, preferredSuffix string) (string, error) {
 	if service.findSiteBySlug(baseSlug) == nil {
 		return baseSlug, nil
 	}
-	for _, candidateSuffix := range []string{siteID[:6], siteID[:8], siteID[:12]} {
+	for _, candidateSuffix := range siteSlugCandidateSuffixes(siteID, preferredSuffix) {
 		candidateSlug := siteSlugWithSuffix(baseSlug, candidateSuffix)
 		if isValidSiteSlug(candidateSlug) && service.findSiteBySlug(candidateSlug) == nil {
 			return candidateSlug, nil
 		}
 	}
 	return "", errors.New("site slug already exists")
+}
+
+func siteSlugCandidateSuffixes(siteID string, preferredSuffix string) []string {
+	suffixes := []string{}
+	if strings.TrimSpace(preferredSuffix) != "" {
+		suffixes = append(suffixes, preferredSuffix)
+		if len(siteID) >= 6 {
+			suffixes = append(suffixes, siteSlugWithSuffix(preferredSuffix, siteID[:6]))
+		}
+	}
+	for _, suffixLength := range []int{6, 8, 12} {
+		if len(siteID) >= suffixLength {
+			suffixes = append(suffixes, siteID[:suffixLength])
+		}
+	}
+	return suffixes
+}
+
+func siteCreationSlugSuffix(payload siteCreateRequest, createdBy siteIdentity, createdAt time.Time) string {
+	requesterToken := siteRequesterSlugToken(payload, createdBy)
+	timestampToken := createdAt.UTC().Format("20060102t150405z")
+	return siteSlugWithSuffix(requesterToken, timestampToken)
+}
+
+func siteRequesterSlugToken(payload siteCreateRequest, createdBy siteIdentity) string {
+	for _, value := range []string{
+		createdBy.PersonID,
+		createdBy.PlatformUserID,
+		createdBy.DisplayName,
+		payload.RequestedBy,
+		payload.Owner,
+	} {
+		token := normalizeSiteSlugToken(value)
+		if token != "" {
+			return token
+		}
+	}
+	return "requester"
+}
+
+func normalizeSiteSlugToken(value string) string {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	builder := strings.Builder{}
+	previousHyphen := false
+	for _, character := range normalized {
+		isAllowedLetter := character >= 'a' && character <= 'z'
+		isAllowedDigit := character >= '0' && character <= '9'
+		if isAllowedLetter || isAllowedDigit {
+			builder.WriteRune(character)
+			previousHyphen = false
+			continue
+		}
+		if !previousHyphen && builder.Len() > 0 {
+			builder.WriteByte('-')
+			previousHyphen = true
+		}
+	}
+	return strings.Trim(builder.String(), "-")
 }
 
 func (service *Service) publishSite(ctx context.Context, payload sitePublishRequest) (*SiteRecord, error) {

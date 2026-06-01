@@ -372,11 +372,11 @@ func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
 
 func TestSiteCreateAllocatesUniqueSlugWhenRequestedSlugExists(t *testing.T) {
 	service, _ := newTestSiteService(t)
-	firstSite, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "portfolio"})
+	firstSite, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "portfolio", RequestedBy: "owner@example.com"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	secondSite, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "portfolio"})
+	secondSite, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "portfolio", RequestedBy: "owner@example.com"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -386,8 +386,21 @@ func TestSiteCreateAllocatesUniqueSlugWhenRequestedSlugExists(t *testing.T) {
 	if !strings.HasPrefix(secondSite.Slug, "portfolio-") {
 		t.Fatalf("expected slug to preserve requested base, got %q", secondSite.Slug)
 	}
+	if !strings.Contains(secondSite.Slug, "owner-example-com") {
+		t.Fatalf("expected collision suffix to include requester, got %q", secondSite.Slug)
+	}
 	if firstSite.PublishedURL == secondSite.PublishedURL {
 		t.Fatalf("expected unique published URLs")
+	}
+}
+
+func TestSiteCreateUsesRequesterTimestampSlug(t *testing.T) {
+	slug := siteSlugWithSuffix("portfolio", siteCreationSlugSuffix(siteCreateRequest{
+		RequestedBy: "owner@example.com",
+	}, siteIdentity{DisplayName: "Owner Example"}, time.Date(2026, 6, 1, 5, 29, 17, 0, time.UTC)))
+
+	if slug != "portfolio-owner-example-20260601t052917z" {
+		t.Fatalf("unexpected requester timestamp slug %q", slug)
 	}
 }
 
@@ -589,7 +602,7 @@ func TestSiteRegistryPersistsAndAllocatesDistinctPorts(t *testing.T) {
 	}
 
 	reloadedService := NewService(service.Configuration)
-	reloadedSite := reloadedService.findSiteBySlug("first")
+	reloadedSite := reloadedService.findSiteBySlug(firstSite.Slug)
 	if reloadedSite == nil {
 		t.Fatalf("reloaded site missing")
 	}
