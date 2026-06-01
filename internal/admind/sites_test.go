@@ -326,12 +326,15 @@ func TestSiteRollbackCanTargetPublishedRevision(t *testing.T) {
 
 func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
 	packageJSON := sitePackageJSON(&SiteRecord{Slug: "react-demo"})
-	for _, expectedText := range []string{`"react"`, `"vite"`, `"@google/design.md"`, `"@vitejs/plugin-react"`, `"bun scripts/build.ts"`} {
+	for _, expectedText := range []string{`"react"`, `"vite"`, `"@vitejs/plugin-react"`, `"bun scripts/build.ts"`} {
 		if !strings.Contains(packageJSON, expectedText) {
 			t.Fatalf("site package manifest must contain %q", expectedText)
 		}
 	}
-	for _, expectedText := range []string{`name: "bun", arguments: ["install"]`, `name: "bun", arguments: ["x", "@google/design.md", "lint", "../DESIGN.md"]`, `name: "bun", arguments: ["x", "vite", "build"]`} {
+	if strings.Contains(packageJSON, "@google/design.md") {
+		t.Fatalf("site package manifest must not depend on nested design.md CLI")
+	}
+	for _, expectedText := range []string{`name: "bun", arguments: ["install"]`, `lintDesignDocument();`, `collectDesignIssues`, `name: "bun", arguments: ["x", "vite", "build"]`} {
 		if !strings.Contains(siteBuildTS(), expectedText) {
 			t.Fatalf("site build script must contain %q", expectedText)
 		}
