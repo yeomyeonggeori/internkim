@@ -4019,12 +4019,12 @@ func (s *sshClient) scp(localPath, remotePath string) error {
 		if err := s.scpDirect(localPath, temporaryRemotePath); err != nil {
 			return err
 		}
-		output, err := s.runResult(fmt.Sprintf(
+		output, err := s.runResult(s.privilegedCommand(fmt.Sprintf(
 			"mkdir -p %s && mv %s %s",
 			quoteShellValue(filepath.Dir(remotePath)),
 			quoteShellValue(temporaryRemotePath),
 			quoteShellValue(remotePath),
-		))
+		)))
 		if err != nil {
 			return fmt.Errorf("move uploaded file to %s: %s: %w", remotePath, strings.TrimSpace(output), err)
 		}
@@ -4054,12 +4054,12 @@ func (s *sshClient) rsyncSparse(localPath string, remotePath string) error {
 	if uploadRemotePath == remotePath {
 		return nil
 	}
-	moveOutput, errorValue := s.runResult(fmt.Sprintf(
+	moveOutput, errorValue := s.runResult(s.privilegedCommand(fmt.Sprintf(
 		"mkdir -p %s && mv %s %s",
 		quoteShellValue(filepath.Dir(remotePath)),
 		quoteShellValue(uploadRemotePath),
 		quoteShellValue(remotePath),
-	))
+	)))
 	if errorValue != nil {
 		return fmt.Errorf("move uploaded file to %s: %s: %w", remotePath, strings.TrimSpace(moveOutput), errorValue)
 	}
