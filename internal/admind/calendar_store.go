@@ -291,6 +291,8 @@ func (service *Service) writeCalendarEvent(ctx context.Context, event calendarEv
 }
 
 func (service *Service) writeCalendarEventWithSource(ctx context.Context, event calendarEvent, source string) error {
+	service.calendarStoreWriteMutex.Lock()
+	defer service.calendarStoreWriteMutex.Unlock()
 	var previousEvent calendarEvent
 	if source == calendarSourceLocal {
 		existing, found, _ := service.readCalendarEventByID(ctx, event.ID)
@@ -371,6 +373,8 @@ func (service *Service) softDeleteCalendarEvent(ctx context.Context, eventID str
 }
 
 func (service *Service) softDeleteCalendarEventWithSource(ctx context.Context, eventID string, source string) error {
+	service.calendarStoreWriteMutex.Lock()
+	defer service.calendarStoreWriteMutex.Unlock()
 	event, found, errorValue := service.readCalendarEventByID(ctx, eventID)
 	if errorValue != nil {
 		return errorValue
