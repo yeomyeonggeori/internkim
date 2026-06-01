@@ -1513,6 +1513,7 @@ fi
 
 if [ "$expect_public_url" = "true" ]; then
   public_url=""
+  public_url_verified=false
   public_html_file="$(mktemp)"
   for _ in $(seq 1 "$timeout_seconds"); do
     bot_post_id="$(api_request "wait for final site reply" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=60" "$admin_token" |
@@ -1526,10 +1527,11 @@ if [ "$expect_public_url" = "true" ]; then
         echo "site deploy final reply contained a generic infrastructure excuse: $bot_message" >&2
         exit 1
       fi
-      public_url="$(printf '%%s\n' "$bot_message" | grep -Eo 'https://[^ )>\]"]+' | grep 'intern\.kim' | head -1 || true)"
+      public_url="$(printf '%%s\n' "$bot_message" | grep -Eo 'https://[^[:space:])>]+' | sed -E 's/[).,;:!?*]+$//' | grep 'intern\.kim' | head -1 || true)"
       if [ -n "$public_url" ]; then
         if curl --location --fail --silent --show-error --max-time 30 "$public_url" -o "$public_html_file"; then
           if ! grep -Fq 'Sorry, we could not find the page.' "$public_html_file" && [ "$(wc -c < "$public_html_file")" -gt 200 ]; then
+            public_url_verified=true
             break
           fi
         fi
@@ -1540,6 +1542,10 @@ if [ "$expect_public_url" = "true" ]; then
   if [ -z "$public_url" ]; then
     echo "expected final site public URL in Mattermost bot reply" >&2
     jq -r '.message // ""' "$bot_post_file" >&2 || true
+    exit 1
+  fi
+  if [ "$public_url_verified" != "true" ]; then
+    echo "site public URL did not return valid HTML: $public_url" >&2
     exit 1
   fi
   if grep -Fq 'Sorry, we could not find the page.' "$public_html_file"; then

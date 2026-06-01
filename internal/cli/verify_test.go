@@ -103,9 +103,12 @@ func TestVerifyMattermostPromptScriptCanRequirePublicSiteURL(t *testing.T) {
 	requiredFragments := []string{
 		"expect_public_url=true",
 		"wait for final site reply",
+		"public_url_verified=false",
+		"grep -Eo 'https://[^[:space:])>]+'",
 		"expected_tools_json=",
 		"tool.$expected_tool.requested",
 		"Sorry, we could not find the page.",
+		"site public URL did not return valid HTML",
 		"site deploy final reply contained a generic infrastructure excuse",
 		"http://127.0.0.1:8080/admin/api/sites/$site_id",
 	}
