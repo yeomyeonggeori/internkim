@@ -6,7 +6,6 @@
 	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import { mailUnseen } from '$lib/stores/mail-unseen.svelte';
 	import BadgeCheckIcon from '@lucide/svelte/icons/badge-check';
 	import BellIcon from '@lucide/svelte/icons/bell';
 	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
@@ -22,7 +21,6 @@
 		href: string;
 		label: string;
 		icon: typeof MailIcon;
-		badge?: () => number;
 	};
 
 	let userEmail = $state('');
@@ -34,7 +32,7 @@
 		{ href: '/flow/', label: text.flow, icon: ListChecksIcon },
 		{ href: '/memory/', label: text.memory, icon: NetworkIcon },
 		{ href: '/calendar/', label: text.calendar, icon: CalendarDaysIcon },
-		{ href: '/mail/', label: text.mail, icon: MailIcon, badge: () => mailUnseen.count },
+		{ href: '/mail/', label: text.mail, icon: MailIcon },
 		{ href: '/attendance/', label: text.attendance, icon: ClipboardCheckIcon }
 	]);
 
@@ -76,7 +74,6 @@
 
 	{#each apps as item (item.href)}
 		{@const Icon = item.icon}
-		{@const count = item.badge?.() ?? 0}
 		<Tooltip.Root>
 			<Tooltip.Trigger>
 				{#snippet child({ props })}
@@ -90,11 +87,6 @@
 						class="relative flex size-10 items-center justify-center rounded-md text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
 					>
 						<Icon class="size-5" />
-						{#if count > 0}
-							<span class="absolute right-0.5 top-0.5 min-w-[18px] rounded-full bg-primary px-1 text-[10px] font-semibold leading-[18px] text-primary-foreground" aria-label={`${count} ${text.unread}`}>
-								{count > 99 ? '99+' : count}
-							</span>
-						{/if}
 					</a>
 				{/snippet}
 			</Tooltip.Trigger>
