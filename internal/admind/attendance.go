@@ -1170,6 +1170,7 @@ func (service *Service) readAttendanceTeamViewVisibleToAll(ctx context.Context) 
 	if errorValue != nil {
 		return true, errorValue
 	}
+	defer database.Close()
 	var value string
 	errorValue = database.QueryRowContext(ctx, `SELECT value FROM attendance_settings WHERE key = ?`, attendanceSettingTeamViewVisibleToAll).Scan(&value)
 	if errors.Is(errorValue, sql.ErrNoRows) {
@@ -1186,6 +1187,7 @@ func (service *Service) writeAttendanceTeamViewVisibleToAll(ctx context.Context,
 	if errorValue != nil {
 		return errorValue
 	}
+	defer database.Close()
 	value := "false"
 	if visible {
 		value = "true"
