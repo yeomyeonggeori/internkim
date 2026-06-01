@@ -919,6 +919,7 @@ func printBoardStatus(m *msg, target commandTarget, sshClient *sshClient) {
 	services := []struct{ name, label string }{
 		{"mattermost", "Mattermost"},
 		{blueclaw.BlueclawServiceName, "Blueclaw"},
+		{blueclaw.GraphitiMemorydServiceName, "Graphiti Memory"},
 		{"cloudflared", "Cloudflared"},
 		{"cloudflared-node-ssh", "Node SSH Tunnel"},
 		{"postgresql", "PostgreSQL"},
