@@ -17,7 +17,7 @@ type remoteCalendarAccount struct {
 	HomeSetURL          string `json:"homeSetURL"`
 	DefaultCalendarURL  string `json:"defaultCalendarURL"`
 	DefaultCalendarCTag string `json:"defaultCalendarCTag"`
-	TokenFilePath       string `json:"tokenFilePath"`
+	TokenFilePath       string `json:"-"`
 	LastAuthError       string `json:"lastAuthError,omitempty"`
 	LastAuthErrorAt     string `json:"lastAuthErrorAt,omitempty"`
 	CreatedAt           string `json:"createdAt"`

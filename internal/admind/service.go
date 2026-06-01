@@ -85,6 +85,7 @@ type Service struct {
 	googleOAuthStates       sync.Map
 	calendarSyncWakeUp      chan struct{}
 	calendarSyncCycleMutex  sync.Mutex
+	calendarStoreWriteMutex sync.Mutex
 	calendarPullCacheMutex  sync.Mutex
 	lastCalendarPullAt      time.Time
 	calendarRecentPushMutex sync.Mutex

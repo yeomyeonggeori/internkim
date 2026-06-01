@@ -114,6 +114,10 @@ func (service *Service) buildGoogleOAuthConfig(redirectURI string) (*oauth2.Conf
 }
 
 func (service *Service) handleGoogleOAuthStart(writer http.ResponseWriter, request *http.Request) {
+	if !service.isAuthorized(request) {
+		http.Error(writer, "admin access required", http.StatusForbidden)
+		return
+	}
 	service.cleanupExpiredGoogleOAuthStates(time.Now())
 	redirectURI := googleOAuthRedirectURIFromRequest(request)
 	configuration, errorValue := service.buildGoogleOAuthConfig(redirectURI)
