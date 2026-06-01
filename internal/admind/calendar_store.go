@@ -30,6 +30,10 @@ CREATE TABLE IF NOT EXISTS calendar_events (
 	raw_ics TEXT NOT NULL,
 	reminder_lead_hours INTEGER NOT NULL DEFAULT 24,
 	created_by_email TEXT NOT NULL,
+	created_by_name TEXT NOT NULL DEFAULT '',
+	updated_by_email TEXT NOT NULL DEFAULT '',
+	updated_by_name TEXT NOT NULL DEFAULT '',
+	updated_by_at TEXT NOT NULL DEFAULT '',
 	mattermost_post_id TEXT NOT NULL DEFAULT '',
 	updated_at TEXT NOT NULL,
 	deleted_at TEXT NOT NULL
@@ -38,6 +42,18 @@ CREATE TABLE IF NOT EXISTS calendar_events (
 		return errorValue
 	}
 	if errorValue := ensureCalendarColumn(ctx, database, "calendar_events", "reminder_lead_hours", "INTEGER NOT NULL DEFAULT 24"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_events", "created_by_name", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_events", "updated_by_email", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_events", "updated_by_name", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_events", "updated_by_at", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := ensureCalendarColumn(ctx, database, "calendar_events", "mattermost_post_id", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
@@ -77,7 +93,19 @@ CREATE TABLE IF NOT EXISTS calendar_properties (
 	updated_at TEXT NOT NULL,
 	PRIMARY KEY(calendar_path, property_xmlns, property_local_name)
 )`)
-	return errorValue
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_events", "remote_source", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_events", "remote_etag", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_events", "remote_href", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	return ensureCalendarSyncSchema(ctx, database)
 }
 
 func ensureCalendarColumn(ctx context.Context, database *sql.DB, tableName string, columnName string, definition string) error {
@@ -104,6 +132,9 @@ func ensureCalendarColumn(ctx context.Context, database *sql.DB, tableName strin
 		return errorValue
 	}
 	_, errorValue = database.ExecContext(ctx, "ALTER TABLE "+tableName+" ADD COLUMN "+columnName+" "+definition)
+	if errorValue != nil && strings.Contains(strings.ToLower(errorValue.Error()), "duplicate column") {
+		return nil
+	}
 	return errorValue
 }
 
@@ -114,7 +145,7 @@ func (service *Service) readCalendarEvents(ctx context.Context, startTime time.T
 	}
 	defer database.Close()
 	query := `
-SELECT id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, mattermost_post_id, updated_at
+SELECT id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, created_by_name, updated_by_email, updated_by_name, updated_by_at, mattermost_post_id, updated_at, remote_source, remote_etag, remote_href
 FROM calendar_events
 WHERE deleted_at = ''`
 	arguments := []any{}
@@ -124,6 +155,58 @@ WHERE deleted_at = ''`
 	}
 	query += " ORDER BY start_at, title"
 	rows, errorValue := database.QueryContext(ctx, query, arguments...)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer rows.Close()
+	events := []calendarEvent{}
+	for rows.Next() {
+		event, errorValue := scanCalendarEvent(rows)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		events = append(events, event)
+	}
+	return events, rows.Err()
+}
+
+func (service *Service) readRemoteCalendarEventsByProvider(ctx context.Context, source string) ([]calendarEvent, error) {
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer database.Close()
+	rows, errorValue := database.QueryContext(ctx, `
+SELECT id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, created_by_name, updated_by_email, updated_by_name, updated_by_at, mattermost_post_id, updated_at, remote_source, remote_etag, remote_href
+FROM calendar_events
+WHERE deleted_at = '' AND remote_source = ?
+ORDER BY uid`, strings.TrimSpace(source))
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer rows.Close()
+	events := []calendarEvent{}
+	for rows.Next() {
+		event, errorValue := scanCalendarEvent(rows)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		events = append(events, event)
+	}
+	return events, rows.Err()
+}
+
+func (service *Service) readSoftDeletedCalendarEvents(ctx context.Context) ([]calendarEvent, error) {
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer database.Close()
+	rows, errorValue := database.QueryContext(ctx, `
+SELECT id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, created_by_name, updated_by_email, updated_by_name, updated_by_at, mattermost_post_id, updated_at, remote_source, remote_etag, remote_href
+FROM calendar_events
+WHERE deleted_at != ''
+ORDER BY uid`)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -154,7 +237,7 @@ func (service *Service) readCalendarEvent(ctx context.Context, columnName string
 	}
 	defer database.Close()
 	row := database.QueryRowContext(ctx, `
-SELECT id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, mattermost_post_id, updated_at
+SELECT id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, created_by_name, updated_by_email, updated_by_name, updated_by_at, mattermost_post_id, updated_at, remote_source, remote_etag, remote_href
 FROM calendar_events
 WHERE deleted_at = '' AND `+columnName+` = ?`, strings.TrimSpace(value))
 	event, errorValue := scanCalendarEvent(row)
@@ -188,8 +271,15 @@ func scanCalendarEvent(scanner calendarEventScanner) (calendarEvent, error) {
 		&event.RawICS,
 		&event.ReminderLeadHours,
 		&event.CreatedByEmail,
+		&event.CreatedByName,
+		&event.UpdatedByEmail,
+		&event.UpdatedByName,
+		&event.UpdatedByAt,
 		&event.MattermostPostID,
 		&event.UpdatedAt,
+		&event.RemoteSource,
+		&event.RemoteETag,
+		&event.RemoteHref,
 	)
 	event.IsAllDay = isAllDay == 1
 	event.ReminderLeadHours = normalizeCalendarReminderLeadHours(event.ReminderLeadHours)
@@ -197,6 +287,17 @@ func scanCalendarEvent(scanner calendarEventScanner) (calendarEvent, error) {
 }
 
 func (service *Service) writeCalendarEvent(ctx context.Context, event calendarEvent) error {
+	return service.writeCalendarEventWithSource(ctx, event, calendarSourceLocal)
+}
+
+func (service *Service) writeCalendarEventWithSource(ctx context.Context, event calendarEvent, source string) error {
+	var previousEvent calendarEvent
+	if source == calendarSourceLocal {
+		existing, found, _ := service.readCalendarEventByID(ctx, event.ID)
+		if found {
+			previousEvent = existing
+		}
+	}
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
 		return errorValue
@@ -205,8 +306,8 @@ func (service *Service) writeCalendarEvent(ctx context.Context, event calendarEv
 	updatedAt := time.Now().UTC().Format(time.RFC3339Nano)
 	_, errorValue = database.ExecContext(ctx, `
 INSERT INTO calendar_events (
-	id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, mattermost_post_id, updated_at, deleted_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '')
+	id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, created_by_name, updated_by_email, updated_by_name, updated_by_at, mattermost_post_id, updated_at, deleted_at, remote_source, remote_etag, remote_href
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
 	uid = excluded.uid,
 	title = excluded.title,
@@ -219,8 +320,14 @@ ON CONFLICT(id) DO UPDATE SET
 	color = excluded.color,
 	raw_ics = excluded.raw_ics,
 	reminder_lead_hours = excluded.reminder_lead_hours,
+	updated_by_email = excluded.updated_by_email,
+	updated_by_name = excluded.updated_by_name,
+	updated_by_at = excluded.updated_by_at,
 	mattermost_post_id = excluded.mattermost_post_id,
 	updated_at = excluded.updated_at,
+	remote_source = excluded.remote_source,
+	remote_etag = excluded.remote_etag,
+	remote_href = excluded.remote_href,
 	deleted_at = ''`,
 		event.ID,
 		event.UID,
@@ -235,18 +342,35 @@ ON CONFLICT(id) DO UPDATE SET
 		event.RawICS,
 		normalizeCalendarReminderLeadHours(event.ReminderLeadHours),
 		event.CreatedByEmail,
+		event.CreatedByName,
+		event.UpdatedByEmail,
+		event.UpdatedByName,
+		event.UpdatedByAt,
 		event.MattermostPostID,
 		updatedAt,
+		event.RemoteSource,
+		event.RemoteETag,
+		event.RemoteHref,
 	)
 	event.UpdatedAt = updatedAt
 	if errorValue == nil {
 		service.upsertCalendarNotifications(ctx, event)
 		service.syncCalendarMattermostLog(ctx, event)
+		if source == calendarSourceLocal {
+			changedFields := diffCalendarEventFields(previousEvent, event)
+			if outboxErr := service.enqueueCalendarOutboxForWrite(ctx, event, changedFields); outboxErr != nil {
+				log.Printf("calendar outbox enqueue (write) failed: %v", outboxErr)
+			}
+		}
 	}
 	return errorValue
 }
 
 func (service *Service) softDeleteCalendarEvent(ctx context.Context, eventID string) error {
+	return service.softDeleteCalendarEventWithSource(ctx, eventID, calendarSourceLocal)
+}
+
+func (service *Service) softDeleteCalendarEventWithSource(ctx context.Context, eventID string, source string) error {
 	event, found, errorValue := service.readCalendarEventByID(ctx, eventID)
 	if errorValue != nil {
 		return errorValue
@@ -274,6 +398,11 @@ func (service *Service) softDeleteCalendarEvent(ctx context.Context, eventID str
 		log.Printf("calendar notification cancel failed: %v", errorValue)
 	}
 	service.deleteCalendarMattermostLog(ctx, event)
+	if source == calendarSourceLocal {
+		if outboxErr := service.enqueueCalendarOutboxForDelete(ctx, event); outboxErr != nil {
+			log.Printf("calendar outbox enqueue (delete) failed: %v", outboxErr)
+		}
+	}
 	return nil
 }
 

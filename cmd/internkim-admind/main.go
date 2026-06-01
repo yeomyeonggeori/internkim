@@ -15,6 +15,7 @@ func main() {
 	flag.StringVar(&configuration.APIBaseURL, "api-url", configuration.APIBaseURL, "InternKim Pages API URL")
 	flag.StringVar(&configuration.StateDirectory, "state-dir", configuration.StateDirectory, "admin job state directory")
 	flag.StringVar(&configuration.CalendarDatabasePath, "calendar-db", configuration.CalendarDatabasePath, "calendar SQLite database path")
+	flag.StringVar(&configuration.CalendarSecretsDirectory, "calendar-secrets-dir", configuration.CalendarSecretsDirectory, "calendar OAuth secrets directory (contains Google client.json and token store)")
 	flag.StringVar(&configuration.MailDatabasePath, "mail-db", configuration.MailDatabasePath, "mail SQLite database path")
 	flag.StringVar(&configuration.AttendanceDatabasePath, "attendance-db", configuration.AttendanceDatabasePath, "attendance SQLite database path")
 	flag.StringVar(&configuration.AdminEmailPath, "admin-email-path", configuration.AdminEmailPath, "initial admin email file")
