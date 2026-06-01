@@ -334,6 +334,9 @@ func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
 	if strings.Contains(packageJSON, "@google/design.md") {
 		t.Fatalf("site package manifest must not depend on nested design.md CLI")
 	}
+	if strings.Contains(packageJSON, `": "^`) {
+		t.Fatalf("site package manifest must pin exact dependency versions")
+	}
 	for _, expectedText := range []string{`name: "bun", arguments: ["install"]`, `collectDesignQualityIssues`, `category: "designDocument"`, `await buildVite();`} {
 		if !strings.Contains(siteBuildTS(), expectedText) {
 			t.Fatalf("site build script must contain %q", expectedText)
