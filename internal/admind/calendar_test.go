@@ -45,6 +45,9 @@ func TestCalendarEventLifecycleAndICS(t *testing.T) {
 	if createdEvent.ID == "" || createdEvent.UID == "" {
 		t.Fatalf("created event identifiers missing: %#v", createdEvent)
 	}
+	if createdEvent.CreatedByEmail != "admin@example.com" || createdEvent.CreatedByName != "admin@example.com" {
+		t.Fatalf("created actor = %q/%q", createdEvent.CreatedByEmail, createdEvent.CreatedByName)
+	}
 
 	listRequest := httptest.NewRequest(http.MethodGet, "/calendar/api/events?startISO=2026-05-01T00:00:00Z&endISO=2026-06-01T00:00:00Z", nil)
 	listRequest.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
@@ -91,6 +94,20 @@ func TestCalendarEventLifecycleAndICS(t *testing.T) {
 	if token != syncDocument.CalDAVPassword {
 		t.Fatalf("ics token and caldav password differ")
 	}
+	remoteSyncRequest := httptest.NewRequest(http.MethodPost, "/calendar/api/remote-sync", nil)
+	remoteSyncRequest.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	remoteSyncResponse := httptest.NewRecorder()
+	service.router().ServeHTTP(remoteSyncResponse, remoteSyncRequest)
+	if remoteSyncResponse.Code != http.StatusOK {
+		t.Fatalf("remote sync status = %d body = %s", remoteSyncResponse.Code, remoteSyncResponse.Body.String())
+	}
+	var remoteSyncDocument calendarRemoteSyncResponse
+	if errorValue := json.Unmarshal(remoteSyncResponse.Body.Bytes(), &remoteSyncDocument); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if remoteSyncDocument.PullCacheTTLSeconds != int(calendarPullCacheTTL.Seconds()) {
+		t.Fatalf("remote sync response missing pull cache ttl: %#v", remoteSyncDocument)
+	}
 	icsRequest := httptest.NewRequest(http.MethodGet, "/calendar/ics/"+token+".ics", nil)
 	icsResponse := httptest.NewRecorder()
 	service.router().ServeHTTP(icsResponse, icsRequest)
@@ -118,6 +135,68 @@ func TestCalendarEventLifecycleAndICS(t *testing.T) {
 	service.router().ServeHTTP(oldICSResponse, icsRequest)
 	if oldICSResponse.Code != http.StatusNotFound {
 		t.Fatalf("old token status = %d", oldICSResponse.Code)
+	}
+}
+
+func TestCalendarEventStoresMattermostActorNames(t *testing.T) {
+	service := newCalendarTestService(t)
+	service.Configuration.MattermostBaseURL = "http://mattermost.local"
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/me" && strings.Contains(request.Header.Get("Cookie"), "MMAUTHTOKEN=session-token") {
+			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"creator@example.com","username":"creator","nickname":"등록자"}`, nil), nil
+		}
+		if request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/me" && strings.Contains(request.Header.Get("Cookie"), "MMAUTHTOKEN=editor-token") {
+			return jsonResponse(http.StatusOK, `{"id":"user-2","email":"editor@example.com","username":"editor","display_name":"수정자"}`, nil), nil
+		}
+		return jsonResponse(http.StatusNotFound, `{}`, nil), nil
+	})}
+
+	createRequest := httptest.NewRequest(http.MethodPost, "/calendar/api/events", strings.NewReader(`{
+		"title":"Actor audit",
+		"startISO":"2026-05-08T01:00:00Z",
+		"endISO":"2026-05-08T02:00:00Z",
+		"timeZone":"Asia/Seoul",
+		"color":"#2563eb"
+	}`))
+	createRequest.Header.Set("Content-Type", "application/json")
+	createRequest.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
+	createResponse := httptest.NewRecorder()
+	service.router().ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body = %s", createResponse.Code, createResponse.Body.String())
+	}
+	var createdEvent calendarEvent
+	if errorValue := json.Unmarshal(createResponse.Body.Bytes(), &createdEvent); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if createdEvent.CreatedByEmail != "creator@example.com" || createdEvent.CreatedByName != "등록자" {
+		t.Fatalf("created actor = %q/%q", createdEvent.CreatedByEmail, createdEvent.CreatedByName)
+	}
+
+	updateRequest := httptest.NewRequest(http.MethodPut, "/calendar/api/events/"+createdEvent.ID, strings.NewReader(`{
+		"title":"Actor audit edited",
+		"startISO":"2026-05-08T03:00:00Z",
+		"endISO":"2026-05-08T04:00:00Z",
+		"timeZone":"Asia/Seoul",
+		"color":"#2563eb"
+	}`))
+	updateRequest.Header.Set("Content-Type", "application/json")
+	updateRequest.Header.Set("Cookie", "MMAUTHTOKEN=editor-token")
+	updateResponse := httptest.NewRecorder()
+	service.router().ServeHTTP(updateResponse, updateRequest)
+	if updateResponse.Code != http.StatusOK {
+		t.Fatalf("update status = %d body = %s", updateResponse.Code, updateResponse.Body.String())
+	}
+
+	stored, found, errorValue := service.readCalendarEventByID(context.Background(), createdEvent.ID)
+	if errorValue != nil || !found {
+		t.Fatalf("event lookup after update: found=%v error=%v", found, errorValue)
+	}
+	if stored.CreatedByEmail != "creator@example.com" || stored.CreatedByName != "등록자" {
+		t.Fatalf("stored created actor = %q/%q", stored.CreatedByEmail, stored.CreatedByName)
+	}
+	if stored.UpdatedByEmail != "editor@example.com" || stored.UpdatedByName != "수정자" || stored.UpdatedByAt == "" {
+		t.Fatalf("stored updated actor = %q/%q at %q", stored.UpdatedByEmail, stored.UpdatedByName, stored.UpdatedByAt)
 	}
 }
 
@@ -785,6 +864,47 @@ func TestCalendarPropFindIncludesGetCTag(t *testing.T) {
 	}
 }
 
+func TestCalendarPropFindAdvertisesCalendarHomeSet(t *testing.T) {
+	service := newCalendarTestService(t)
+	body := `<?xml version="1.0" encoding="utf-8"?>
+<D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+  <D:prop><C:calendar-home-set/><C:calendar-user-address-set/><D:current-user-principal/></D:prop>
+</D:propfind>`
+	request := httptest.NewRequest("PROPFIND", calendarCollectionPath, strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/xml")
+	request.Header.Set("Depth", "0")
+	request.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, request)
+	if response.Code != http.StatusMultiStatus {
+		t.Fatalf("propfind status = %d body = %s", response.Code, response.Body.String())
+	}
+	results := parseCalendarMultistatusOrFatal(t, response.Body.Bytes())
+	if len(results) != 1 {
+		t.Fatalf("expected 1 response entry, got %d", len(results))
+	}
+	homeSetName := xml.Name{Space: "urn:ietf:params:xml:ns:caldav", Local: "calendar-home-set"}
+	homeSetValue, ok := results[0].OK[homeSetName]
+	if !ok {
+		t.Fatalf("calendar-home-set missing from 200 OK propstat: %#v", results[0])
+	}
+	if !strings.Contains(homeSetValue, calendarHomeSetPath) {
+		t.Fatalf("calendar-home-set href %q missing %s", homeSetValue, calendarHomeSetPath)
+	}
+	addressSetName := xml.Name{Space: "urn:ietf:params:xml:ns:caldav", Local: "calendar-user-address-set"}
+	addressSetValue, ok := results[0].OK[addressSetName]
+	if !ok {
+		t.Fatalf("calendar-user-address-set missing from 200 OK propstat: %#v", results[0])
+	}
+	if !strings.Contains(addressSetValue, calendarPrincipalPath) {
+		t.Fatalf("calendar-user-address-set href %q missing %s", addressSetValue, calendarPrincipalPath)
+	}
+	principalName := xml.Name{Space: "DAV:", Local: "current-user-principal"}
+	if _, ok := results[0].OK[principalName]; !ok {
+		t.Fatalf("current-user-principal missing from 200 OK propstat: %#v", results[0])
+	}
+}
+
 func TestCalendarPropFindReportsUnknownPropertyAs404(t *testing.T) {
 	service := newCalendarTestService(t)
 	body := `<?xml version="1.0" encoding="utf-8"?>
@@ -1051,12 +1171,14 @@ func newCalendarTestService(t *testing.T) *Service {
 		t.Fatal(errorValue)
 	}
 	return NewService(Configuration{
-		StateDirectory:       filepath.Join(rootPath, "state", "admin"),
-		CompanionJobPath:     filepath.Join(rootPath, "state", "companion-jobs.json"),
-		CalendarDatabasePath: filepath.Join(rootPath, "state", "calendar.sqlite"),
-		FlowDatabasePath:     filepath.Join(rootPath, "state", "flow.sqlite"),
-		AdminEmailPath:       writeTestFile(t, "admin@example.com"),
-		AdminUIPath:          adminUIPath,
+		StateDirectory:           filepath.Join(rootPath, "state", "admin"),
+		CompanionJobPath:         filepath.Join(rootPath, "state", "companion-jobs.json"),
+		CalendarDatabasePath:     filepath.Join(rootPath, "state", "calendar.sqlite"),
+		CalendarSecretsDirectory: filepath.Join(rootPath, "secrets", "google-oauth"),
+		FlowDatabasePath:         filepath.Join(rootPath, "state", "flow.sqlite"),
+		AdminEmailPath:           writeTestFile(t, "admin@example.com"),
+		AdminUIPath:              adminUIPath,
+		CalendarSyncDisabled:     true,
 	})
 }
 
@@ -1175,5 +1297,200 @@ func calendarTestEvent(eventID string, title string, description string) calenda
 		Color:             "#2563eb",
 		ReminderLeadHours: 24,
 		CreatedByEmail:    "admin@example.com",
+	}
+}
+
+func TestCalendarEventRemoteFieldsRoundTrip(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	startTime := time.Now().UTC().Add(2 * time.Hour)
+	endTime := startTime.Add(time.Hour)
+	event := calendarEvent{
+		ID:                "remote-roundtrip-1",
+		UID:               "remote-roundtrip-1@google",
+		Title:             "Remote event",
+		Description:       "Pulled from Google",
+		StartISO:          startTime.Format(time.RFC3339),
+		EndISO:            endTime.Format(time.RFC3339),
+		TimeZone:          "UTC",
+		Color:             "#10b981",
+		ReminderLeadHours: 24,
+		CreatedByEmail:    "admin@example.com",
+		RemoteSource:      remoteCalendarProviderGoogle,
+		RemoteETag:        `"abc-123"`,
+		RemoteHref:        "/calendars/v1/example@gmail.com/events/abc.ics",
+	}
+	if errorValue := service.writeCalendarEvent(ctx, event); errorValue != nil {
+		t.Fatalf("writeCalendarEvent: %v", errorValue)
+	}
+	stored, found, errorValue := service.readCalendarEventByID(ctx, event.ID)
+	if errorValue != nil {
+		t.Fatalf("readCalendarEventByID: %v", errorValue)
+	}
+	if !found {
+		t.Fatal("event not found after write")
+	}
+	if stored.RemoteSource != event.RemoteSource {
+		t.Errorf("RemoteSource: got %q, want %q", stored.RemoteSource, event.RemoteSource)
+	}
+	if stored.RemoteETag != event.RemoteETag {
+		t.Errorf("RemoteETag: got %q, want %q", stored.RemoteETag, event.RemoteETag)
+	}
+	if stored.RemoteHref != event.RemoteHref {
+		t.Errorf("RemoteHref: got %q, want %q", stored.RemoteHref, event.RemoteHref)
+	}
+}
+
+func TestCalendarEventLocalEventHasEmptyRemoteFields(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	startTime := time.Now().UTC().Add(time.Hour)
+	endTime := startTime.Add(time.Hour)
+	event := calendarEvent{
+		ID:                "local-1",
+		UID:               "local-1@internkim",
+		Title:             "Local event",
+		StartISO:          startTime.Format(time.RFC3339),
+		EndISO:            endTime.Format(time.RFC3339),
+		TimeZone:          "UTC",
+		Color:             "#2563eb",
+		ReminderLeadHours: 24,
+		CreatedByEmail:    "admin@example.com",
+	}
+	if errorValue := service.writeCalendarEvent(ctx, event); errorValue != nil {
+		t.Fatalf("writeCalendarEvent: %v", errorValue)
+	}
+	stored, found, errorValue := service.readCalendarEventByID(ctx, event.ID)
+	if errorValue != nil {
+		t.Fatalf("readCalendarEventByID: %v", errorValue)
+	}
+	if !found {
+		t.Fatal("event not found after write")
+	}
+	if stored.RemoteSource != "" || stored.RemoteETag != "" || stored.RemoteHref != "" {
+		t.Errorf("expected empty remote fields, got source=%q etag=%q href=%q",
+			stored.RemoteSource, stored.RemoteETag, stored.RemoteHref)
+	}
+}
+
+func TestRemoteCalendarAccountCRUD(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := remoteCalendarAccount{
+		ID:                  "account-google-1",
+		Provider:            remoteCalendarProviderGoogle,
+		AccountEmail:        "user@example.com",
+		PrincipalURL:        "https://apidata.googleusercontent.com/caldav/v2/user@example.com/user",
+		HomeSetURL:          "https://apidata.googleusercontent.com/caldav/v2/user@example.com/",
+		DefaultCalendarURL:  "https://apidata.googleusercontent.com/caldav/v2/user@example.com/events/",
+		DefaultCalendarCTag: "ctag-initial",
+		TokenFilePath:       "/tmp/example.token.enc",
+	}
+	saved, errorValue := service.upsertRemoteCalendarAccount(ctx, account)
+	if errorValue != nil {
+		t.Fatalf("upsert insert: %v", errorValue)
+	}
+	if saved.CreatedAt == "" || saved.UpdatedAt == "" {
+		t.Fatalf("expected timestamps populated, got %+v", saved)
+	}
+
+	loaded, found, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil {
+		t.Fatalf("read: %v", errorValue)
+	}
+	if !found {
+		t.Fatal("expected account found")
+	}
+	if loaded.AccountEmail != account.AccountEmail {
+		t.Errorf("AccountEmail: got %q, want %q", loaded.AccountEmail, account.AccountEmail)
+	}
+	if loaded.DefaultCalendarCTag != "ctag-initial" {
+		t.Errorf("DefaultCalendarCTag: got %q, want %q", loaded.DefaultCalendarCTag, "ctag-initial")
+	}
+
+	loaded.DefaultCalendarCTag = "ctag-updated"
+	if _, errorValue := service.upsertRemoteCalendarAccount(ctx, loaded); errorValue != nil {
+		t.Fatalf("upsert update: %v", errorValue)
+	}
+	reloaded, _, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil {
+		t.Fatalf("reload: %v", errorValue)
+	}
+	if reloaded.DefaultCalendarCTag != "ctag-updated" {
+		t.Errorf("ctag not updated: got %q", reloaded.DefaultCalendarCTag)
+	}
+
+	if errorValue := service.deleteRemoteCalendarAccount(ctx, account.ID); errorValue != nil {
+		t.Fatalf("delete: %v", errorValue)
+	}
+	_, found, errorValue = service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil {
+		t.Fatalf("read after delete: %v", errorValue)
+	}
+	if found {
+		t.Fatal("expected account not found after delete")
+	}
+}
+
+func TestUpdateCalendarEventPreservesRemoteIdentity(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+
+	seeded := calendarEvent{
+		ID:                "remote-id-1",
+		UID:               "remote-id-1@internkim",
+		Title:             "original",
+		Description:       "",
+		Location:          "",
+		StartISO:          "2026-05-27T00:00:00Z",
+		EndISO:            "2026-05-27T01:00:00Z",
+		TimeZone:          "Asia/Seoul",
+		IsAllDay:          false,
+		Color:             "#3b82f6",
+		RawICS:            "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n",
+		ReminderLeadHours: 24,
+		CreatedByEmail:    "admin@example.com",
+		RemoteSource:      remoteCalendarProviderGoogle,
+		RemoteETag:        `"etag-original"`,
+		RemoteHref:        "/calendars/me/events/remote-id-1.ics",
+	}
+	if errorValue := service.writeCalendarEventWithSource(ctx, seeded, calendarSourcePull); errorValue != nil {
+		t.Fatalf("seed: %v", errorValue)
+	}
+
+	updatePayload := `{
+		"title":"edited",
+		"startISO":"2026-05-27T03:00:00Z",
+		"endISO":"2026-05-27T04:00:00Z",
+		"timeZone":"Asia/Seoul",
+		"color":"#3b82f6"
+	}`
+	updateRequest := httptest.NewRequest(http.MethodPut, "/calendar/api/events/"+seeded.ID, strings.NewReader(updatePayload))
+	updateRequest.Header.Set("Content-Type", "application/json")
+	updateRequest.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	updateResponse := httptest.NewRecorder()
+	service.router().ServeHTTP(updateResponse, updateRequest)
+	if updateResponse.Code != http.StatusOK {
+		t.Fatalf("update status = %d body = %s", updateResponse.Code, updateResponse.Body.String())
+	}
+
+	stored, found, errorValue := service.readCalendarEventByID(ctx, seeded.ID)
+	if errorValue != nil || !found {
+		t.Fatalf("event lookup after update: found=%v error=%v", found, errorValue)
+	}
+	if stored.Title != "edited" {
+		t.Errorf("title not updated: got %q", stored.Title)
+	}
+	if stored.StartISO != "2026-05-27T03:00:00Z" {
+		t.Errorf("startISO not updated: got %q", stored.StartISO)
+	}
+	if stored.RemoteSource != remoteCalendarProviderGoogle {
+		t.Errorf("RemoteSource lost: got %q want %q", stored.RemoteSource, remoteCalendarProviderGoogle)
+	}
+	if stored.RemoteETag != `"etag-original"` {
+		t.Errorf("RemoteETag lost: got %q want %q", stored.RemoteETag, `"etag-original"`)
+	}
+	if stored.RemoteHref != "/calendars/me/events/remote-id-1.ics" {
+		t.Errorf("RemoteHref lost: got %q", stored.RemoteHref)
 	}
 }

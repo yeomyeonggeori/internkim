@@ -1,0 +1,372 @@
+package admind
+
+import (
+	"bytes"
+	"context"
+	"encoding/xml"
+	"errors"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/emersion/go-ical"
+	"github.com/emersion/go-webdav"
+	"github.com/emersion/go-webdav/caldav"
+)
+
+const (
+	caldavDefaultTimeout       = 30 * time.Second
+	caldavICalendarContentType = "text/calendar; charset=utf-8"
+	caldavIfMatchHeader        = "If-Match"
+	caldavIfNoneMatchHeader    = "If-None-Match"
+	caldavWildcardETag         = "*"
+)
+
+var errCalDAVPreconditionFailed = errors.New("caldav precondition failed")
+
+func isCalDAVPreconditionFailed(errorValue error) bool {
+	return errors.Is(errorValue, errCalDAVPreconditionFailed)
+}
+
+type calDAVCalendarInfo struct {
+	Path                string
+	Name                string
+	Description         string
+	CTag                string
+	SupportedComponents []string
+	MaxResourceSize     int64
+}
+
+type calDAVCalendarObject struct {
+	Path string
+	ETag string
+	Data []byte
+}
+
+type outboundCalDAVClient struct {
+	endpoint   string
+	httpClient webdav.HTTPClient
+	webdav     *webdav.Client
+	caldav     *caldav.Client
+}
+
+func newOutboundCalDAVClient(endpoint string, httpClient webdav.HTTPClient) (*outboundCalDAVClient, error) {
+	if strings.TrimSpace(endpoint) == "" {
+		return nil, errors.New("caldav endpoint is required")
+	}
+	webdavClient, errorValue := webdav.NewClient(httpClient, endpoint)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	caldavClient, errorValue := caldav.NewClient(httpClient, endpoint)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return &outboundCalDAVClient{
+		endpoint:   endpoint,
+		httpClient: httpClient,
+		webdav:     webdavClient,
+		caldav:     caldavClient,
+	}, nil
+}
+
+func (client *outboundCalDAVClient) discoverPrincipalURL(ctx context.Context) (string, error) {
+	return client.webdav.FindCurrentUserPrincipal(ctx)
+}
+
+func (client *outboundCalDAVClient) discoverHomeSetURL(ctx context.Context, principalURL string) (string, error) {
+	return client.caldav.FindCalendarHomeSet(ctx, calDAVPathOnly(principalURL))
+}
+
+func (client *outboundCalDAVClient) listCalendars(ctx context.Context, homeSetURL string) ([]calDAVCalendarInfo, error) {
+	calendars, errorValue := client.caldav.FindCalendars(ctx, calDAVPathOnly(homeSetURL))
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	result := make([]calDAVCalendarInfo, 0, len(calendars))
+	for _, calendar := range calendars {
+		result = append(result, calDAVCalendarInfo{
+			Path:                calendar.Path,
+			Name:                calendar.Name,
+			Description:         calendar.Description,
+			SupportedComponents: append([]string(nil), calendar.SupportedComponentSet...),
+			MaxResourceSize:     calendar.MaxResourceSize,
+		})
+	}
+	return result, nil
+}
+
+func (client *outboundCalDAVClient) queryAllCalendarEvents(ctx context.Context, calendarPath string) ([]calDAVCalendarObject, error) {
+	query := &caldav.CalendarQuery{
+		CompRequest: caldav.CalendarCompRequest{
+			Name: "VCALENDAR",
+			Comps: []caldav.CalendarCompRequest{{
+				Name:  "VEVENT",
+				Props: []string{"UID", "SUMMARY", "DTSTART", "DTEND", "DTSTAMP", "LAST-MODIFIED", "STATUS", "RRULE", "RECURRENCE-ID", "DESCRIPTION", "LOCATION", "ORGANIZER", "ATTENDEE"},
+			}},
+		},
+		CompFilter: caldav.CompFilter{
+			Name: "VCALENDAR",
+			Comps: []caldav.CompFilter{{
+				Name: "VEVENT",
+			}},
+		},
+	}
+	objects, errorValue := client.caldav.QueryCalendar(ctx, calDAVPathOnly(calendarPath), query)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return convertCalDAVObjects(objects), nil
+}
+
+func (client *outboundCalDAVClient) multiGetCalendarObjects(ctx context.Context, calendarPath string, paths []string) ([]calDAVCalendarObject, error) {
+	multiGet := &caldav.CalendarMultiGet{
+		Paths: append([]string(nil), paths...),
+		CompRequest: caldav.CalendarCompRequest{
+			Name:     "VCALENDAR",
+			AllProps: true,
+			AllComps: true,
+		},
+	}
+	objects, errorValue := client.caldav.MultiGetCalendar(ctx, calDAVPathOnly(calendarPath), multiGet)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return convertCalDAVObjects(objects), nil
+}
+
+func (client *outboundCalDAVClient) fetchCalendarCTag(ctx context.Context, calendarPath string) (string, error) {
+	requestURL, errorValue := client.absoluteURL(calendarPath)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	requestCtx, cancel := context.WithTimeout(ctx, caldavDefaultTimeout)
+	defer cancel()
+	body := strings.NewReader(`<?xml version="1.0" encoding="utf-8"?>
+<d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/">
+  <d:prop>
+    <cs:getctag/>
+  </d:prop>
+</d:propfind>`)
+	request, errorValue := http.NewRequestWithContext(requestCtx, "PROPFIND", requestURL, body)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	request.Header.Set("Depth", "0")
+	request.Header.Set("Content-Type", "application/xml; charset=utf-8")
+	response, errorValue := client.httpClient.Do(request)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	defer drainAndCloseResponse(response)
+	if response.StatusCode != http.StatusMultiStatus && response.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("caldav ctag propfind %s status %d: %s", requestURL, response.StatusCode, readCalDAVResponseExcerpt(response))
+	}
+	var decoded calDAVCTagMultiStatus
+	if errorValue := xml.NewDecoder(response.Body).Decode(&decoded); errorValue != nil {
+		return "", errorValue
+	}
+	for _, multistatusResponse := range decoded.Responses {
+		for _, propstat := range multistatusResponse.Propstats {
+			if propstat.Prop.CTag != "" {
+				return propstat.Prop.CTag, nil
+			}
+		}
+	}
+	return "", nil
+}
+
+type calDAVCTagMultiStatus struct {
+	XMLName   xml.Name             `xml:"DAV: multistatus"`
+	Responses []calDAVCTagResponse `xml:"DAV: response"`
+}
+
+type calDAVCTagResponse struct {
+	Href      string               `xml:"DAV: href"`
+	Propstats []calDAVCTagPropstat `xml:"DAV: propstat"`
+}
+
+type calDAVCTagPropstat struct {
+	Prop   calDAVCTagProp `xml:"DAV: prop"`
+	Status string         `xml:"DAV: status"`
+}
+
+type calDAVCTagProp struct {
+	CTag string `xml:"http://calendarserver.org/ns/ getctag"`
+}
+
+func (client *outboundCalDAVClient) getCalendarObject(ctx context.Context, objectPath string) (calDAVCalendarObject, error) {
+	object, errorValue := client.caldav.GetCalendarObject(ctx, calDAVPathOnly(objectPath))
+	if errorValue != nil {
+		return calDAVCalendarObject{}, errorValue
+	}
+	encoded, errorValue := encodeICalendarBytes(object)
+	if errorValue != nil {
+		return calDAVCalendarObject{}, errorValue
+	}
+	return calDAVCalendarObject{
+		Path: object.Path,
+		ETag: object.ETag,
+		Data: encoded,
+	}, nil
+}
+
+func (client *outboundCalDAVClient) putCalendarObject(ctx context.Context, objectPath string, ics []byte, ifMatch string, ifNoneMatch string) (string, error) {
+	requestURL, errorValue := client.absoluteURL(objectPath)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	requestCtx, cancel := context.WithTimeout(ctx, caldavDefaultTimeout)
+	defer cancel()
+	request, errorValue := http.NewRequestWithContext(requestCtx, http.MethodPut, requestURL, bytes.NewReader(ics))
+	if errorValue != nil {
+		return "", errorValue
+	}
+	request.Header.Set("Content-Type", caldavICalendarContentType)
+	if value := formatETagHeaderValue(ifMatch); value != "" {
+		request.Header.Set(caldavIfMatchHeader, value)
+	}
+	if value := formatETagHeaderValue(ifNoneMatch); value != "" {
+		request.Header.Set(caldavIfNoneMatchHeader, value)
+	}
+	response, errorValue := client.httpClient.Do(request)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	defer drainAndCloseResponse(response)
+	if response.StatusCode == http.StatusPreconditionFailed || response.StatusCode == http.StatusConflict {
+		log.Printf("caldav put conflict status=%d url=%s if-match=%q if-none-match=%q body=%s", response.StatusCode, requestURL, ifMatch, ifNoneMatch, readCalDAVResponseExcerpt(response))
+		return "", errCalDAVPreconditionFailed
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return "", fmt.Errorf("caldav put %s status %d: %s", requestURL, response.StatusCode, readCalDAVResponseExcerpt(response))
+	}
+	return strings.TrimSpace(response.Header.Get("ETag")), nil
+}
+
+func (client *outboundCalDAVClient) deleteCalendarObject(ctx context.Context, objectPath string, ifMatch string) error {
+	requestURL, errorValue := client.absoluteURL(objectPath)
+	if errorValue != nil {
+		return errorValue
+	}
+	requestCtx, cancel := context.WithTimeout(ctx, caldavDefaultTimeout)
+	defer cancel()
+	request, errorValue := http.NewRequestWithContext(requestCtx, http.MethodDelete, requestURL, nil)
+	if errorValue != nil {
+		return errorValue
+	}
+	if value := formatETagHeaderValue(ifMatch); value != "" {
+		request.Header.Set(caldavIfMatchHeader, value)
+	}
+	response, errorValue := client.httpClient.Do(request)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer drainAndCloseResponse(response)
+	if response.StatusCode == http.StatusPreconditionFailed {
+		return errCalDAVPreconditionFailed
+	}
+	if response.StatusCode == http.StatusNotFound {
+		return nil
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return fmt.Errorf("caldav delete %s status %d: %s", requestURL, response.StatusCode, readCalDAVResponseExcerpt(response))
+	}
+	return nil
+}
+
+func calDAVPathOnly(absoluteOrPath string) string {
+	if !strings.HasPrefix(absoluteOrPath, "http://") && !strings.HasPrefix(absoluteOrPath, "https://") {
+		return absoluteOrPath
+	}
+	parsed, errorValue := url.Parse(absoluteOrPath)
+	if errorValue != nil {
+		return absoluteOrPath
+	}
+	if parsed.Path == "" {
+		return "/"
+	}
+	return parsed.Path
+}
+
+func formatETagHeaderValue(etag string) string {
+	trimmed := strings.TrimSpace(etag)
+	if trimmed == "" || trimmed == "*" {
+		return trimmed
+	}
+	if strings.HasPrefix(trimmed, `W/"`) && strings.HasSuffix(trimmed, `"`) {
+		return trimmed
+	}
+	if strings.HasPrefix(trimmed, `"`) && strings.HasSuffix(trimmed, `"`) {
+		return trimmed
+	}
+	return `"` + trimmed + `"`
+}
+
+func (client *outboundCalDAVClient) absoluteURL(path string) (string, error) {
+	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+		return path, nil
+	}
+	base, errorValue := url.Parse(client.endpoint)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	reference, errorValue := url.Parse(path)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	return base.ResolveReference(reference).String(), nil
+}
+
+func convertCalDAVObjects(objects []caldav.CalendarObject) []calDAVCalendarObject {
+	result := make([]calDAVCalendarObject, 0, len(objects))
+	for index := range objects {
+		encoded, errorValue := encodeICalendarBytes(&objects[index])
+		if errorValue != nil {
+			continue
+		}
+		result = append(result, calDAVCalendarObject{
+			Path: objects[index].Path,
+			ETag: objects[index].ETag,
+			Data: encoded,
+		})
+	}
+	return result
+}
+
+func encodeICalendarBytes(object *caldav.CalendarObject) ([]byte, error) {
+	if object == nil || object.Data == nil {
+		return nil, nil
+	}
+	var buffer bytes.Buffer
+	if errorValue := ical.NewEncoder(&buffer).Encode(object.Data); errorValue != nil {
+		return nil, errorValue
+	}
+	return buffer.Bytes(), nil
+}
+
+func readCalDAVResponseExcerpt(response *http.Response) string {
+	if response == nil || response.Body == nil {
+		return ""
+	}
+	const limit = 512
+	body, errorValue := io.ReadAll(io.LimitReader(response.Body, limit))
+	if errorValue != nil {
+		return ""
+	}
+	excerpt := strings.TrimSpace(string(body))
+	excerpt = strings.ReplaceAll(excerpt, "\n", " ")
+	return excerpt
+}
+
+func drainAndCloseResponse(response *http.Response) {
+	if response == nil || response.Body == nil {
+		return
+	}
+	_, _ = io.Copy(io.Discard, response.Body)
+	_ = response.Body.Close()
+}

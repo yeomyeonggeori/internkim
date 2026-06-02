@@ -14,6 +14,7 @@ export default defineConfig({
 			'/calendar/api': admindTarget,
 			'/calendar/dav': admindTarget,
 			'/calendar/ics': admindTarget,
+			'/calendar/oauth': admindTarget,
 			'/flow/api': admindTarget,
 			'/mail/api': admindTarget
 		}
