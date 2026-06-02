@@ -385,10 +385,13 @@ func TestSimpleSlidesBuildAndReviewScriptsCheckFontsAndDensity(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	htmlExportContent := string(htmlExportScript)
-	for _, expectedText := range []string{".woff2", ".woff", "font/woff2", "base64_data_url", "inline_local_fonts", "write_image_backed_pptx", "data-internkim-slide-viewer", "bespoke-marp-parent", "bespoke-marp-osc", "internkim-deck-scale", "data-lucide", "lucideIcon", "bespoke-marp-tooltip", "Next slide (→ / Space / PageDown)", "Overview (O)", "Presenter view (P)", "Exit fullscreen (F)", "minimize", "window.opener.postMessage", "body[data-bespoke-view=\"presenter\"] .bespoke-marp-osc button:not", "width: 1600px", "height: 900px", "resolve_paperlogy_alias", "slideMasters/slideMaster1.xml", "slideLayouts/slideLayout1.xml", "theme/theme1.xml"} {
+	for _, expectedText := range []string{".woff2", ".woff", "font/woff2", "base64_data_url", "inline_local_fonts", "inject_vendored_paperlogy_fallback", "PaperlogyLocal", "add_paperlogy_local_to_font_family_lists", "write_image_backed_pptx", "data-internkim-slide-viewer", "bespoke-marp-parent", "bespoke-marp-osc", "internkim-deck-scale", "data-lucide", "lucideIcon", "bespoke-marp-tooltip", "Next slide (→ / Space / PageDown)", "Overview (O)", "Presenter view (P)", "Exit fullscreen (F)", "minimize", "window.opener.postMessage", "body[data-bespoke-view=\"presenter\"] .bespoke-marp-osc button:not", "width: 1600px", "height: 900px", "resolve_paperlogy_alias", "slideMasters/slideMaster1.xml", "slideLayouts/slideLayout1.xml", "theme/theme1.xml"} {
 		if !strings.Contains(htmlExportContent, expectedText) {
 			t.Fatalf("simple-slides HTML export script must inline fonts, present HTML as slides, and export valid PPTX with %q", expectedText)
 		}
+	}
+	if strings.Contains(htmlExportContent, "@layer internkim-fonts") {
+		t.Fatal("simple-slides font fallback must use plain @font-face rules for browser compatibility")
 	}
 	for _, forbiddenText := range []string{"is older than DESIGN.md"} {
 		if strings.Contains(htmlExportContent, forbiddenText) {
