@@ -52,8 +52,18 @@ func TestMattermostAskActionClearsButtonsAndForwardsEvent(t *testing.T) {
 	}
 	select {
 	case payload := <-forwardedRequests:
-		contextDocument := payload["context"].(map[string]any)
-		if contextDocument["action"] != "ask.cancel" || contextDocument["taskRunID"] != "task-1" {
+		eventDocument, isMap := payload["event"].(map[string]any)
+		if !isMap {
+			t.Fatalf("expected normalized event envelope, got %+v", payload)
+		}
+		if eventDocument["prompt"] != "rejected" || eventDocument["replyTargetID"] != "target-1" {
+			t.Fatalf("expected normalized ask prompt and target, got %+v", eventDocument)
+		}
+		legacyFields, isMap := eventDocument["legacyFields"].(map[string]any)
+		if !isMap {
+			t.Fatalf("expected legacy fields, got %+v", eventDocument)
+		}
+		if legacyFields["askAction"] != "cancel" || legacyFields["taskRunID"] != "task-1" || legacyFields["postID"] != "post-1" {
 			t.Fatalf("expected ask action to be forwarded, got %+v", payload)
 		}
 	case <-time.After(time.Second):
