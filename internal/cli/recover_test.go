@@ -67,15 +67,26 @@ func TestPerformSSHRecoveryRequestExplainsRedirectAsMissingEndpoint(t *testing.T
 
 	originalStatusHTTPClient := statusHTTPClient
 	defer func() { statusHTTPClient = originalStatusHTTPClient }()
-	statusHTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		return textHTTPResponse(http.StatusFound, ""), nil
-	})}
+	statusHTTPClient = &http.Client{
+		CheckRedirect: func(request *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+		Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.URL.Path == "/admin/api/health" {
+				return textHTTPResponse(http.StatusOK, `{"status":"ok","admindBuildID":"build-1","recoveryAvailable":true}`), nil
+			}
+			response := textHTTPResponse(http.StatusFound, "")
+			response.Header.Set("Location", "/admin/")
+			return response, nil
+		})}
 
 	_, errorValue := performSSHRecoveryRequest(commandTarget{
 		stateDir:  stateDirectory,
 		deviceURL: "https://device.example",
 	}, "status")
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "does not have SSH recovery installed") {
-		t.Fatalf("expected missing endpoint explanation, got %v", errorValue)
+	for _, expectedText := range []string{"recovery endpoint redirected", "location=\"/admin/\"", "health=HTTP 200"} {
+		if errorValue == nil || !strings.Contains(errorValue.Error(), expectedText) {
+			t.Fatalf("expected redirect explanation to contain %q, got %v", expectedText, errorValue)
+		}
 	}
 }

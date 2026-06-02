@@ -10,6 +10,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -62,6 +63,7 @@ func runRecoverSSH(arguments []string) error {
 	password := flagSet.String("password", "", "SSH password")
 	node := flagSet.String("node", "", "Fleet node target")
 	board := flagSet.String("board", "", "Board target")
+	diagnose := flagSet.Bool("diagnose", false, "Also check the local admind route when SSH is available")
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
@@ -71,10 +73,10 @@ func runRecoverSSH(arguments []string) error {
 	}
 	target := resolveCommandTarget(verifyTargetArguments(*host, *user, *password, *node, true, *board, false))
 	target = resolveLabHostForCommandTarget(target, repositoryRootPath)
-	return runSSHRecoveryForTarget(newMsg("ko"), loadConfig(), filepath.Join(repositoryRootPath, "bin", "sshpass"), target, *action)
+	return runSSHRecoveryForTarget(newMsg("ko"), loadConfig(), filepath.Join(repositoryRootPath, "bin", "sshpass"), target, *action, *diagnose)
 }
 
-func runSSHRecoveryForTarget(m *msg, configuration config, sshpassBin string, target commandTarget, action string) error {
+func runSSHRecoveryForTarget(m *msg, configuration config, sshpassBin string, target commandTarget, action string, diagnose bool) error {
 	action = strings.TrimSpace(action)
 	if !isAllowedCLIRecoveryAction(action) {
 		return fmt.Errorf("unsupported recovery action: %s", action)
@@ -93,6 +95,9 @@ func runSSHRecoveryForTarget(m *msg, configuration config, sshpassBin string, ta
 	if strings.TrimSpace(response.JournalTail) != "" {
 		fmt.Printf("\n--- recovery journal tail ---\n%s\n-----------------------------\n", response.JournalTail)
 	}
+	if diagnose {
+		printSSHRecoveryLocalDiagnostics(configuration, sshpassBin, target)
+	}
 	if action == "status" || action == "journal-tail" {
 		return nil
 	}
@@ -104,6 +109,20 @@ func runSSHRecoveryForTarget(m *msg, configuration config, sshpassBin string, ta
 		return errors.New("cloudflared-node-ssh restart was requested, but SSH still did not recover; try `./internkim recover ssh --action restart-ssh`")
 	}
 	return errors.New("SSH recovery action completed, but SSH still did not recover")
+}
+
+func printSSHRecoveryLocalDiagnostics(configuration config, sshpassBin string, target commandTarget) {
+	connection, _, errorValue := resolveCloudflareSSHConnection(configuration, sshpassBin, target, false)
+	if errorValue != nil || connection == nil {
+		fmt.Printf("  %-22s %s\n", "local admind", "SSH unavailable")
+		return
+	}
+	output, runError := connection.runResult("curl -fsS http://127.0.0.1:18080/admin/api/health")
+	if runError != nil {
+		fmt.Printf("  %-22s %s\n", "local admind", strings.TrimSpace(output))
+		return
+	}
+	fmt.Printf("  %-22s %s\n", "local admind", strings.TrimSpace(output))
 }
 
 func isAllowedCLIRecoveryAction(action string) bool {
@@ -145,16 +164,33 @@ func performSSHRecoveryRequest(target commandTarget, action string) (recoveryRes
 		return response, errorValue
 	}
 	defer httpResponse.Body.Close()
+	responseBody, _ := io.ReadAll(io.LimitReader(httpResponse.Body, 4096))
 	if httpResponse.StatusCode < 200 || httpResponse.StatusCode >= 300 {
-		if httpResponse.StatusCode == http.StatusFound || httpResponse.StatusCode == http.StatusTemporaryRedirect || httpResponse.StatusCode == http.StatusPermanentRedirect {
-			return response, errors.New("recovery endpoint redirected; the remote admind probably does not have SSH recovery installed yet, so deploy this build once over working SSH or local access")
-		}
-		return response, fmt.Errorf("recovery endpoint returned HTTP %d", httpResponse.StatusCode)
+		return response, recoveryHTTPStatusError(target, httpResponse, string(responseBody))
 	}
-	if errorValue := json.NewDecoder(httpResponse.Body).Decode(&response); errorValue != nil {
+	if errorValue := json.NewDecoder(bytes.NewReader(responseBody)).Decode(&response); errorValue != nil {
 		return response, errorValue
 	}
 	return response, nil
+}
+
+func recoveryHTTPStatusError(target commandTarget, response *http.Response, body string) error {
+	location := strings.TrimSpace(response.Header.Get("Location"))
+	healthStatus, healthBody, healthError := fetchPublicEndpoint(target.deviceURL, "/admin/api/health")
+	healthSummary := fmt.Sprintf("health=HTTP %d %s", healthStatus, strings.TrimSpace(healthBody))
+	if healthError != nil {
+		healthSummary = "health=" + healthError.Error()
+	}
+	switch response.StatusCode {
+	case http.StatusFound, http.StatusTemporaryRedirect, http.StatusPermanentRedirect:
+		return fmt.Errorf("recovery endpoint redirected: HTTP %d location=%q %s; public route is not reaching the recovery handler", response.StatusCode, location, healthSummary)
+	case http.StatusForbidden:
+		return fmt.Errorf("recovery endpoint rejected the signed request: HTTP 403 %s; check fleet id, fleet secret, timestamp, and nonce", healthSummary)
+	case http.StatusNotFound:
+		return fmt.Errorf("recovery endpoint not found: HTTP 404 %s; admind route is missing or reverse proxy path is wrong", healthSummary)
+	default:
+		return fmt.Errorf("recovery endpoint returned HTTP %d body=%q %s", response.StatusCode, strings.TrimSpace(body), healthSummary)
+	}
 }
 
 func signedRecoveryRequestPayload(secret string, action string, deviceID string) recoveryRequest {
