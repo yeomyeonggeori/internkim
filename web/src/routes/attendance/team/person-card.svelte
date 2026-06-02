@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import MapPinIcon from '@lucide/svelte/icons/map-pin';
 	import type { PersonToday } from '../shared/attendance-aggregation';
 	import { formatHoursMinutes } from '../shared/attendance-format';
 	import { STATUS_TONE } from '../shared/color-tokens';
+	import { attendanceText } from '../text';
 
 	type Props = {
 		person: PersonToday;
@@ -12,16 +14,17 @@
 
 	let { person, onSelect }: Props = $props();
 
+	const text = createPageText(attendanceText);
 	const statusLabel = $derived(buildStatusLabel(person));
 
 	function buildStatusLabel(p: PersonToday): string {
-		if (p.status === 'working' && p.clockIn) return `● 근무 중 (${p.clockIn.localTime}~)`;
+		if (p.status === 'working' && p.clockIn) return `● ${text.working} (${p.clockIn.localTime}~)`;
 		if (p.status === 'finished' && p.clockIn && p.clockOut) {
-			return `○ 퇴근 (${p.clockIn.localTime}–${p.clockOut.localTime})`;
+			return `○ ${text.finished} (${p.clockIn.localTime}–${p.clockOut.localTime})`;
 		}
-		if (p.status === 'upcoming') return '· 예정';
+		if (p.status === 'upcoming') return `· ${text.upcoming}`;
 		if (p.status === 'weekend') return '—';
-		return '— 미출근';
+		return `— ${text.absent}`;
 	}
 </script>
 
