@@ -1,4 +1,3 @@
-// bun:test 모듈 타입을 Svelte 타입체크에 제공한다.
 declare module 'bun:test' {
 	type TestCallback = () => void | Promise<void>;
 
