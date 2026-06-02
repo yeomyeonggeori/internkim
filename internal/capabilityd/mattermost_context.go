@@ -37,6 +37,7 @@ func (service Service) enrichMattermostEvent(ctx context.Context, event platform
 	nextContext.ChannelID = previousContext.ChannelID
 	nextContext.ChannelName = previousContext.ChannelName
 	nextContext.Addressing = previousContext.Addressing
+	nextContext.InputAttachments = append([]platformInputAttachment{}, previousContext.InputAttachments...)
 	nextContext.Sender = service.mattermostSender(ctx, event.SenderID)
 	nextContext.ReceivedAt = time.Now().UTC().Format(time.RFC3339)
 	event.Context = nextContext

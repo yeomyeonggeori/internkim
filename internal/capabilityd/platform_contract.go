@@ -17,20 +17,34 @@ type platformInboundEvent struct {
 }
 
 type platformEventContext struct {
-	Messages         []platformContextMessage `json:"messages"`
-	HasMoreBefore    bool                     `json:"hasMoreBefore"`
-	HistoryCursor    string                   `json:"historyCursor,omitempty"`
-	Sender           platformContextSender    `json:"sender,omitempty"`
-	ReceivedAt       string                   `json:"receivedAt,omitempty"`
-	ConversationType string                   `json:"conversationType,omitempty"`
-	ChannelID        string                   `json:"channelID,omitempty"`
-	ChannelName      string                   `json:"channelName,omitempty"`
-	Addressing       platformAddressing       `json:"addressing,omitempty"`
+	Messages         []platformContextMessage  `json:"messages"`
+	HasMoreBefore    bool                      `json:"hasMoreBefore"`
+	HistoryCursor    string                    `json:"historyCursor,omitempty"`
+	Sender           platformContextSender     `json:"sender,omitempty"`
+	ReceivedAt       string                    `json:"receivedAt,omitempty"`
+	ConversationType string                    `json:"conversationType,omitempty"`
+	ChannelID        string                    `json:"channelID,omitempty"`
+	ChannelName      string                    `json:"channelName,omitempty"`
+	Addressing       platformAddressing        `json:"addressing,omitempty"`
+	InputAttachments []platformInputAttachment `json:"inputAttachments,omitempty"`
 }
 
 type platformAddressing struct {
 	BotMentioned         bool `json:"botMentioned,omitempty"`
 	OtherPersonMentioned bool `json:"otherPersonMentioned,omitempty"`
+}
+
+type platformInputAttachment struct {
+	Platform    string `json:"platform,omitempty"`
+	FileID      string `json:"fileID,omitempty"`
+	MessageID   string `json:"messageID,omitempty"`
+	Filename    string `json:"filename,omitempty"`
+	ContentType string `json:"contentType,omitempty"`
+	SizeBytes   int64  `json:"sizeBytes,omitempty"`
+	Path        string `json:"path,omitempty"`
+	IsAvailable bool   `json:"isAvailable,omitempty"`
+	ErrorCode   string `json:"errorCode,omitempty"`
+	Message     string `json:"message,omitempty"`
 }
 
 type platformContextSender struct {

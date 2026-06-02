@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -66,6 +67,34 @@ func TestMattermostNormalizeSkipsSelfAndBuildsMinimalThreadEvent(t *testing.T) {
 	}
 	if hasSelfEvent {
 		t.Fatal("expected self message to be suppressed")
+	}
+}
+
+func TestMattermostNormalizePreservesInputAttachmentFileIDs(t *testing.T) {
+	event, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
+		ID:        "post-1",
+		UserID:    "user-1",
+		ChannelID: "channel-1",
+		FileIDs:   []string{"file-1", " ", "file-2"},
+		CreateAt:  1700000000000,
+	}, "bot-1", "D", "direct-message", platformAddressing{})
+	if errorValue != nil {
+		t.Fatalf("expected normalization to succeed: %v", errorValue)
+	}
+	if !hasEvent {
+		t.Fatal("expected attachment-only post to become an event")
+	}
+	if event.Prompt == "" {
+		t.Fatal("expected attachment-only post to have a prompt")
+	}
+	if len(event.Context.InputAttachments) != 2 {
+		t.Fatalf("expected two input attachments, got %+v", event.Context.InputAttachments)
+	}
+	if event.Context.InputAttachments[0].FileID != "file-1" || event.Context.InputAttachments[1].FileID != "file-2" {
+		t.Fatalf("expected file ids to be preserved, got %+v", event.Context.InputAttachments)
+	}
+	if event.Context.InputAttachments[0].MessageID != "post-1" || event.Context.InputAttachments[0].Platform != "mattermost" {
+		t.Fatalf("expected attachment reference metadata, got %+v", event.Context.InputAttachments[0])
 	}
 }
 
@@ -1701,6 +1730,81 @@ func TestSignalReplySendsAttachmentPaths(t *testing.T) {
 	}
 }
 
+func TestMattermostImportAttachmentsWritesSanitizedDuplicateFilenames(t *testing.T) {
+	workspacePath := t.TempDir()
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.Header.Get("Authorization") != "Bearer mattermost-token" {
+			t.Fatalf("expected mattermost bearer token, got %q", request.Header.Get("Authorization"))
+		}
+		switch request.URL.Path {
+		case "/api/v4/files/file-1/info":
+			return testJSONResponse(http.StatusOK, mattermostFileMetadata{ID: "file-1", Name: "../guide?.pdf", SizeBytes: 8, ContentType: "application/pdf"}), nil
+		case "/api/v4/files/file-1":
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("file-one")),
+				Header:     http.Header{"Content-Type": []string{"application/pdf"}},
+			}, nil
+		case "/api/v4/files/file-2/info":
+			return testJSONResponse(http.StatusOK, mattermostFileMetadata{ID: "file-2", Name: "guide.pdf", SizeBytes: 8, ContentType: "application/pdf"}), nil
+		case "/api/v4/files/file-2":
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("file-two")),
+				Header:     http.Header{"Content-Type": []string{"application/pdf"}},
+			}, nil
+		default:
+			t.Fatalf("unexpected mattermost request: %s", request.URL.Path)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	service := Service{
+		Configuration: Configuration{
+			MattermostBaseURL:     "https://mattermost.test",
+			MattermostTokenPath:   writePlatformTestFile(t, "mattermost-token"),
+			BlueclawWorkspacePath: workspacePath,
+		},
+		HTTPClient: httpClient,
+	}
+
+	response, errorValue := service.mattermostImportAttachments(context.Background(), json.RawMessage(`{
+		"messageID":"post-1",
+		"targetDirectoryPath":"/workspace/private/people/person-1/inbox/mattermost/post-1",
+		"inputAttachments":[
+			{"platform":"mattermost","fileID":"file-1","messageID":"post-1"},
+			{"platform":"mattermost","fileID":"file-2","messageID":"post-1"}
+		]
+	}`))
+	if errorValue != nil {
+		t.Fatalf("expected import to succeed: %v", errorValue)
+	}
+	if len(response.InputAttachments) != 2 {
+		t.Fatalf("expected two imported attachments, got %+v", response.InputAttachments)
+	}
+	firstAttachment := response.InputAttachments[0]
+	secondAttachment := response.InputAttachments[1]
+	if !firstAttachment.IsAvailable || !secondAttachment.IsAvailable {
+		t.Fatalf("expected attachments to be available, got %+v", response.InputAttachments)
+	}
+	if firstAttachment.Filename != "guide.pdf" || secondAttachment.Filename != "guide-2.pdf" {
+		t.Fatalf("expected sanitized duplicate filenames, got %+v", response.InputAttachments)
+	}
+	if firstAttachment.Path != "/workspace/private/people/person-1/inbox/mattermost/post-1/guide.pdf" {
+		t.Fatalf("expected virtual workspace path, got %q", firstAttachment.Path)
+	}
+	firstContent, errorValue := os.ReadFile(filepath.Join(workspacePath, "private", "people", "person-1", "inbox", "mattermost", "post-1", "guide.pdf"))
+	if errorValue != nil {
+		t.Fatalf("expected first imported file: %v", errorValue)
+	}
+	secondContent, errorValue := os.ReadFile(filepath.Join(workspacePath, "private", "people", "person-1", "inbox", "mattermost", "post-1", "guide-2.pdf"))
+	if errorValue != nil {
+		t.Fatalf("expected second imported file: %v", errorValue)
+	}
+	if string(firstContent) != "file-one" || string(secondContent) != "file-two" {
+		t.Fatalf("expected imported file contents, got %q and %q", string(firstContent), string(secondContent))
+	}
+}
+
 func handleTestBlueclawForward(t *testing.T, request *http.Request) (*http.Response, error) {
 	t.Helper()
 	var event platformInboundEvent
@@ -1712,6 +1816,9 @@ func handleTestBlueclawForward(t *testing.T, request *http.Request) (*http.Respo
 	}
 	if event.Context.Sender.Name != "이서연" || event.Context.Sender.CallingName != "서연" || event.Context.Sender.Handle != "seoyeon" || event.Context.Sender.Email != "seoyeon@example.com" {
 		t.Fatalf("expected sender identity, got %+v", event.Context.Sender)
+	}
+	if len(event.Context.InputAttachments) != 1 || event.Context.InputAttachments[0].FileID != "file-1" {
+		t.Fatalf("expected poll file_ids to be forwarded as input attachments, got %+v", event.Context.InputAttachments)
 	}
 	if _, errorValue := time.Parse(time.RFC3339, event.Context.ReceivedAt); errorValue != nil {
 		t.Fatalf("expected receivedAt RFC3339 timestamp, got %q", event.Context.ReceivedAt)
@@ -1738,14 +1845,14 @@ func handleTestMattermostPoll(t *testing.T, request *http.Request) *http.Respons
 			Order: []string{"new-1", "old-1"},
 			Posts: map[string]mattermostPolledPost{
 				"old-1": {ID: "old-1", UserID: "user-1", ChannelID: "dm-1", Message: "old dm", CreateAt: 1000},
-				"new-1": {ID: "new-1", UserID: "user-1", ChannelID: "dm-1", Message: "new dm", CreateAt: 2000},
+				"new-1": {ID: "new-1", UserID: "user-1", ChannelID: "dm-1", Message: "new dm", CreateAt: 2000, FileIDs: []string{"file-1"}},
 			},
 		})
 	case request.URL.Path == "/api/v4/channels/dm-1/posts" && request.URL.Query().Get("per_page") == "21":
 		return testJSONResponse(http.StatusOK, mattermostPostsResponse{
 			Order: []string{"new-1"},
 			Posts: map[string]mattermostPolledPost{
-				"new-1": {ID: "new-1", UserID: "user-1", ChannelID: "dm-1", Message: "new dm", CreateAt: 2000},
+				"new-1": {ID: "new-1", UserID: "user-1", ChannelID: "dm-1", Message: "new dm", CreateAt: 2000, FileIDs: []string{"file-1"}},
 			},
 		})
 	case request.URL.Path == "/api/v4/users/user-1":
