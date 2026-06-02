@@ -20,4 +20,16 @@ test.describe('attendance', () => {
 		await page.getByRole('tab', { name: '팀' }).click();
 		await expect(page.locator('text=출석률').first()).toBeVisible();
 	});
+
+	test('keeps the selected person tab after refreshing attendance', async ({ page }) => {
+		await page.goto('/attendance');
+		await page.getByLabel('Language').getByRole('button', { name: 'KO', exact: true }).click();
+		await page.getByRole('button', { name: /김철수/ }).first().click();
+		await expect(page.getByText('내 근무 시간')).toBeVisible();
+
+		await page.getByRole('button', { name: '출결 새로고침' }).click();
+
+		await expect(page.getByRole('tab', { name: '개인' })).toHaveAttribute('data-state', 'active');
+		await expect(page.getByText('내 근무 시간')).toBeVisible();
+	});
 });
