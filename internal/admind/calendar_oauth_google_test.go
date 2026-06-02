@@ -125,6 +125,24 @@ func TestGoogleOAuthStartRejectsUnauthorizedRequest(t *testing.T) {
 	}
 }
 
+func TestGoogleOAuthCallbackErrorUsesAcceptLanguage(t *testing.T) {
+	service := newCalendarTestService(t)
+	request := httptest.NewRequest(http.MethodGet, "http://admind.local"+googleOAuthCallbackPath+"?error=access_denied", nil)
+	request.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	recorder := httptest.NewRecorder()
+	service.handleGoogleOAuthCallback(recorder, request)
+	body := recorder.Body.String()
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status: got %d, body: %s", recorder.Code, body)
+	}
+	if !strings.Contains(body, `<html lang="en">`) || !strings.Contains(body, "Google Calendar connection failed") {
+		t.Fatalf("expected English error page, got: %s", body)
+	}
+	if !strings.Contains(body, "Google returned an error: access_denied") {
+		t.Fatalf("expected localized Google error message, got: %s", body)
+	}
+}
+
 func TestGoogleOAuthCallbackPersistsTokenAndAccount(t *testing.T) {
 	service := newCalendarTestService(t)
 	writeGoogleClientFile(t, service, `{"installed":{"client_id":"client-1","client_secret":"secret-1"}}`)
@@ -180,12 +198,15 @@ func TestGoogleOAuthCallbackPersistsTokenAndAccount(t *testing.T) {
 
 	callbackURL := "http://admind.local" + googleOAuthCallbackPath + "?state=" + url.QueryEscape(state) + "&code=auth-code-1"
 	callbackRequest := httptest.NewRequest(http.MethodGet, callbackURL, nil)
+	callbackRequest.Header.Set("Accept-Language", "en-US,en;q=0.9")
 	callbackRecorder := httptest.NewRecorder()
 	service.handleGoogleOAuthCallback(callbackRecorder, callbackRequest)
 	if callbackRecorder.Code != http.StatusOK {
 		t.Fatalf("callback status: %d, body: %s", callbackRecorder.Code, callbackRecorder.Body.String())
 	}
-	if !strings.Contains(callbackRecorder.Body.String(), issuedEmail) {
+	if !strings.Contains(callbackRecorder.Body.String(), issuedEmail) ||
+		!strings.Contains(callbackRecorder.Body.String(), `<html lang="en">`) ||
+		!strings.Contains(callbackRecorder.Body.String(), "Google Calendar connected") {
 		t.Errorf("success page missing email: %s", callbackRecorder.Body.String())
 	}
 	if _, stillStored := service.googleOAuthStates.Load(state); stillStored {
