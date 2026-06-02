@@ -64,7 +64,7 @@ func TestVerifyMattermostScriptUsesStrictChannelMembership(t *testing.T) {
 }
 
 func TestVerifyMattermostPromptScriptCanRequireBrowserOpenSuccess(t *testing.T) {
-	script := verifyMattermostPromptScript("브라우저 열어줘.", false, 90, true, false, nil, nil)
+	script := verifyMattermostPromptScript("브라우저 열어줘.", false, 90, true, false, nil, nil, false)
 	requiredFragments := []string{
 		"delete_stale_probe_users",
 		"probe-mattermost-",
@@ -82,7 +82,7 @@ func TestVerifyMattermostPromptScriptCanRequireBrowserOpenSuccess(t *testing.T) 
 }
 
 func TestVerifyMattermostPromptScriptCanRequireToolAndTaskEvents(t *testing.T) {
-	script := verifyMattermostPromptScript("1분마다 알려줘.", false, 90, false, false, []string{"schedule.create"}, []string{"schedule.created"})
+	script := verifyMattermostPromptScript("1분마다 알려줘.", false, 90, false, false, []string{"schedule.create"}, []string{"schedule.created"}, false)
 	requiredFragments := []string{
 		"expected_tools_json=",
 		"expected_events_json=",
@@ -101,7 +101,7 @@ func TestVerifyMattermostPromptScriptCanRequireToolAndTaskEvents(t *testing.T) {
 }
 
 func TestVerifyMattermostPromptScriptCanRequirePublicSiteURL(t *testing.T) {
-	script := verifyMattermostPromptScript("개인 홈페이지 하나 만들어서 배포해줘.", false, 90, false, true, []string{"site.app.create", "site.app.build", "site.app.publish"}, nil)
+	script := verifyMattermostPromptScript("개인 홈페이지 하나 만들어서 배포해줘.", false, 90, false, true, []string{"site.app.create", "site.app.build", "site.app.publish"}, nil, false)
 	requiredFragments := []string{
 		"expect_public_url=true",
 		"wait for final site reply",
@@ -129,7 +129,7 @@ func TestVerifyMattermostPromptScriptCanRequirePublicSiteURL(t *testing.T) {
 }
 
 func TestVerifyMattermostPromptScriptIsValidShell(t *testing.T) {
-	script := verifyMattermostPromptScript("개인 홈페이지 하나 만들어서 배포해줘.", false, 90, false, true, []string{"site.app.create", "site.app.build", "site.app.publish"}, nil)
+	script := verifyMattermostPromptScript("개인 홈페이지 하나 만들어서 배포해줘.", false, 90, false, true, []string{"site.app.create", "site.app.build", "site.app.publish"}, nil, false)
 	scriptPath := filepath.Join(t.TempDir(), "verify-site.sh")
 	if errorValue := os.WriteFile(scriptPath, []byte(script), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
@@ -138,6 +138,50 @@ func TestVerifyMattermostPromptScriptIsValidShell(t *testing.T) {
 	output, errorValue := exec.Command("bash", "-n", scriptPath).CombinedOutput()
 	if errorValue != nil {
 		t.Fatalf("expected generated verify script to parse, got %v: %s", errorValue, string(output))
+	}
+}
+
+func TestVerifyMattermostPromptScriptCanDownloadFinalAttachments(t *testing.T) {
+	script := verifyMattermostPromptScript("짧은 발표자료 만들어줘.", true, 90, false, false, []string{"file.attach"}, nil, true)
+	requiredFragments := []string{
+		"download_files=true",
+		"download_bot_files",
+		"http://localhost:8065/api/v4/files/$file_id/info",
+		"http://localhost:8065/api/v4/files/$file_id",
+		"--rawfile content_base64",
+		"contentBase64:$content_base64",
+		"downloadedFiles: ($downloaded_files[0] // [])",
+	}
+	for _, fragment := range requiredFragments {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected Mattermost prompt attachment download to include %q", fragment)
+		}
+	}
+}
+
+func TestRedactDownloadedMattermostFilesHidesAttachmentBytes(t *testing.T) {
+	output := "log line\n" + `{"downloadedFiles":[{"fileID":"file-1","filename":"deck.html","contentBase64":"YWJjZA=="}]}` + "\n"
+	redactedOutput := redactDownloadedMattermostFiles(output)
+	if strings.Contains(redactedOutput, "YWJjZA==") {
+		t.Fatalf("expected attachment base64 to be redacted, got %s", redactedOutput)
+	}
+	if !strings.Contains(redactedOutput, "redacted 8 base64 chars") {
+		t.Fatalf("expected redaction marker, got %s", redactedOutput)
+	}
+}
+
+func TestWriteDownloadedMattermostFilesWritesAttachments(t *testing.T) {
+	downloadDirectory := t.TempDir()
+	output := `{"downloadedFiles":[{"fileID":"file-1","filename":"deck.html","contentBase64":"PGh0bWw+PC9odG1sPg=="}]}`
+	if errorValue := writeDownloadedMattermostFiles(output, downloadDirectory); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	content, errorValue := os.ReadFile(filepath.Join(downloadDirectory, "deck.html"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if string(content) != "<html></html>" {
+		t.Fatalf("unexpected downloaded file content: %s", string(content))
 	}
 }
 
