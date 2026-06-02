@@ -26,10 +26,11 @@ layout:
 Black-and-white analytical presentation with restrained lines, compact hierarchy, vendored Paperlogy typography, and generous whitespace. Use a thin top rule, conclusion-first titles, quiet cards, comparison columns, matrices, and recommendation blocks. Avoid decorative gradients, stock-like backgrounds, and bullet-only slides.
 ```
 
-## Marp HTML Style Notes
+## HTML Slide Style Notes
 
-- Keep `<!-- design-source: DESIGN.md -->` near the top of `presentation.md`.
-- Put the vendored Paperlogy `@font-face` rules from `assets/webfonts.md` at the top of the Marp `style` block.
+- Keep `<!-- design-source: DESIGN.md -->` near the top of `slides.html`.
+- Put the vendored Paperlogy `@font-face` rules from `assets/webfonts.md` near the top of the `slides.html` style block.
+- Add `@page { size: 16in 9in; margin: 0; }` and print CSS so the browser PDF export keeps one slide per page.
 - Use `font-family: "Paperlogy", "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;` for both slide body and display text unless the user requests another font.
 - Keep the palette almost monochrome; reserve accent only for rules, tags, or one key number.
 - Use semantic HTML containers inside each slide: `.frame`, `.eyebrow`, `.takeaway`, `.cards`, `.card`, `.comparison`, `.matrix`, `.timeline`, `.recommendation`.
@@ -39,3 +40,5 @@ Black-and-white analytical presentation with restrained lines, compact hierarchy
 - Treat CSS as overflow prevention, not proof. Confirm final fit in the render review contact sheets and matching fit-review text files.
 - Keep radius at 8px or less unless the deck topic clearly asks for a softer visual language.
 - Prefer one-sentence conclusions over topic labels. For example, write "Operational separation makes failures auditable" instead of "Architecture".
+- If a contact sheet looks clean but thin, improve the slide's substance before changing decoration. Add a worked example, specific workflow, decision matrix, concrete tradeoff, or recommendation.
+- Keep each slide tied to the deck story spine: situation, tension, thesis, proof, and close.
