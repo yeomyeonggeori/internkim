@@ -3,6 +3,7 @@
 	import UserCheckIcon from '@lucide/svelte/icons/user-check';
 	import TrendingUpIcon from '@lucide/svelte/icons/trending-up';
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { getAttendanceState } from '../attendance-context.svelte';
 	import { todayDateInTimeZone, utcDateKey } from '../shared/attendance-date';
 	import KpiCardGrid, { type KpiItem } from '../shared/kpi-card-grid.svelte';
@@ -17,8 +18,10 @@
 	} from '../shared/attendance-aggregation';
 	import { eachDayOfMonth, isWeekday, isoWeekStart } from '../shared/attendance-date';
 	import { formatHoursMinutes } from '../shared/attendance-format';
+	import { attendanceText } from '../text';
 
 	const attendance = getAttendanceState();
+	const text = createPageText(attendanceText);
 
 	const realtimeEvents = $derived(attendance.currentMonthSummary?.events ?? []);
 	const chartEvents = $derived(attendance.summary?.events ?? []);
@@ -56,31 +59,39 @@
 		return count;
 	}
 
+	function formatCountTemplate(template: string, count: number): string {
+		return template.replace('{count}', String(count));
+	}
+
+	function formatTodayClockIn(worked: number, total: number): string {
+		return text.todayClockInTemplate.replace('{worked}', String(worked)).replace('{total}', String(total));
+	}
+
 	const items = $derived<KpiItem[]>([
 		{
 			icon: UsersIcon,
 			iconClass: statusIconClass,
-			label: '현재 상태',
-			value: `${todayBucket.workingNow}명 근무 중`,
-			sublabel: teamSize ? `오늘 출근 ${todayBucket.workedPeople}/${teamSize}명` : undefined,
+			label: text.currentStatus,
+			value: formatCountTemplate(text.peopleWorkingTemplate, todayBucket.workingNow),
+			sublabel: teamSize ? formatTodayClockIn(todayBucket.workedPeople, teamSize) : undefined,
 		},
 		{
 			icon: UserCheckIcon,
-			label: '오늘 출석',
-			value: teamSize ? `${todayBucket.workedPeople}/${teamSize}명` : '-',
+			label: text.todayAttendance,
+			value: teamSize ? `${todayBucket.workedPeople}/${formatCountTemplate(text.peopleCountTemplate, teamSize)}` : '-',
 			sublabel: teamSize ? `${todayRate}%` : undefined,
 		},
 		{
 			icon: TrendingUpIcon,
-			label: '이번 주 평균',
+			label: text.thisWeekAverage,
 			value: teamSize ? `${weekRate}%` : '-',
-			sublabel: weekdaysThisWeek ? `${weekdaysThisWeek}일 기준` : undefined,
+			sublabel: weekdaysThisWeek ? formatCountTemplate(text.dayBasisTemplate, weekdaysThisWeek) : undefined,
 		},
 		{
 			icon: CalendarIcon,
-			label: '이번 달 평균',
+			label: text.thisMonthAverage,
 			value: teamSize ? `${monthRate}%` : '-',
-			sublabel: weekdaysThisMonth ? `${weekdaysThisMonth}일 기준` : undefined,
+			sublabel: weekdaysThisMonth ? formatCountTemplate(text.dayBasisTemplate, weekdaysThisMonth) : undefined,
 		},
 	]);
 
@@ -108,5 +119,5 @@
 
 <div class="flex flex-col gap-4">
 	<KpiCardGrid {items} />
-	<WorkTimeChart title="팀 근무 시간" {dailyValues} formatValue={formatHoursMinutes} />
+	<WorkTimeChart title={text.teamWorkTime} {dailyValues} formatValue={formatHoursMinutes} />
 </div>

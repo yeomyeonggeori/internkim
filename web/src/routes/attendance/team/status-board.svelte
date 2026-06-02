@@ -1,11 +1,13 @@
 <script lang="ts">
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import PersonCard from './person-card.svelte';
 	import type { AttendancePresence } from '../attendance-context.svelte';
 	import { getAttendanceState } from '../attendance-context.svelte';
 	import { computePeopleToday, uniquePeople } from '../shared/attendance-aggregation';
 	import { todayDateInTimeZone } from '../shared/attendance-date';
+	import { attendanceText } from '../text';
 
 	type PresenceFilter = AttendancePresence | 'all';
 	type PresencePerson = {
@@ -14,16 +16,17 @@
 		presence: AttendancePresence;
 	};
 
-	const PRESENCE_OPTIONS: { value: PresenceFilter; label: string }[] = [
-		{ value: 'all', label: '전체' },
-		{ value: 'online', label: '온라인' },
-		{ value: 'away', label: '자리비움' },
-		{ value: 'dnd', label: '방해 금지' },
-		{ value: 'offline', label: '오프라인' },
-	];
-
 	const attendance = getAttendanceState();
+	const text = createPageText(attendanceText);
 	let presenceFilter = $state<PresenceFilter>('all');
+
+	const presenceOptions = $derived<{ value: PresenceFilter; label: string }[]>([
+		{ value: 'all', label: text.all },
+		{ value: 'online', label: text.online },
+		{ value: 'away', label: text.away },
+		{ value: 'dnd', label: text.dnd },
+		{ value: 'offline', label: text.offline },
+	]);
 
 	const displayDate = $derived(
 		attendance.selectedDate || resolveDefaultDate(attendance.summary?.month, attendance.summary?.events ?? [])
@@ -138,10 +141,25 @@
 
 	function formatHeader(date: string, todayFlag: boolean, currentMonth: boolean): string {
 		const d = new Date(`${date}T00:00:00Z`);
-		const weekday = ['일', '월', '화', '수', '목', '금', '토'][d.getUTCDay()];
+		const weekday = weekdayLabel(d.getUTCDay());
 		const label = `${d.getUTCMonth() + 1}/${d.getUTCDate()} (${weekday})`;
-		if (todayFlag) return `오늘 ${label}`;
-		return currentMonth ? `선택된 날 ${label}` : `${label} (첫 출근일)`;
+		if (todayFlag) return text.todayDateTemplate.replace('{date}', label);
+		return currentMonth
+			? text.selectedDayTemplate.replace('{date}', label)
+			: text.firstClockInDayTemplate.replace('{date}', label);
+	}
+
+	function weekdayLabel(day: number): string {
+		const labels = [
+			text.weekdaySunday,
+			text.weekdayMonday,
+			text.weekdayTuesday,
+			text.weekdayWednesday,
+			text.weekdayThursday,
+			text.weekdayFriday,
+			text.weekdaySaturday,
+		];
+		return labels[day] ?? '';
 	}
 </script>
 
@@ -150,24 +168,24 @@
 		<div>
 			<Card.Title class="text-base">{formatHeader(displayDate, isToday, isViewingCurrentMonth)}</Card.Title>
 			<p class="text-xs text-muted-foreground">
-				근무 {counts.working} · 퇴근 {counts.finished}
+				{text.working} {counts.working} · {text.finished} {counts.finished}
 				{#if counts.absent > 0}
-					· 미출근 {counts.absent}
+					· {text.absent} {counts.absent}
 				{/if}
 				{#if counts.upcoming > 0}
-					· 예정 {counts.upcoming}
+					· {text.upcoming} {counts.upcoming}
 				{/if}
 			</p>
 		</div>
 		{#if attendance.selectedDate}
-			<Button variant="ghost" size="sm" onclick={backToToday}>기본으로</Button>
+			<Button variant="ghost" size="sm" onclick={backToToday}>{text.defaultView}</Button>
 		{/if}
 	</Card.Header>
 	{#if presencePeople.length > 0}
 		<div class="border-t px-6 py-3">
 			<div class="flex flex-wrap items-center gap-2">
-				<span class="text-xs font-medium text-muted-foreground">현재 상태</span>
-				{#each PRESENCE_OPTIONS as option (option.value)}
+				<span class="text-xs font-medium text-muted-foreground">{text.currentPresence}</span>
+				{#each presenceOptions as option (option.value)}
 					<button
 						type="button"
 						class={presenceButtonClass(option.value)}
@@ -196,7 +214,7 @@
 			<PersonCard {person} onSelect={selectPerson} />
 		{/each}
 		{#if people.length === 0}
-			<p class="col-span-full text-sm text-muted-foreground">표시할 구성원이 없습니다.</p>
+			<p class="col-span-full text-sm text-muted-foreground">{text.noMembers}</p>
 		{/if}
 	</Card.Content>
 </Card.Root>
