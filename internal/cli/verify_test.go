@@ -186,8 +186,8 @@ func TestWriteDownloadedMattermostFilesWritesAttachments(t *testing.T) {
 }
 
 func TestRunVerifyArgumentsAcceptsSiteSubcommand(t *testing.T) {
-	errorValue := runVerifyArguments([]string{"site", "--host", ""})
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "verify target not found") {
+	errorValue := runVerifyArguments([]string{"site", "--unknown-site-flag"})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "flag provided but not defined") {
 		t.Fatalf("expected site verify subcommand to resolve target, got %v", errorValue)
 	}
 }

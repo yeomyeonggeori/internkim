@@ -44,6 +44,11 @@ func TestGatewayRoutesAdminAndMattermost(t *testing.T) {
 	if adminResponse.Code != http.StatusOK {
 		t.Fatalf("admin health status = %d", adminResponse.Code)
 	}
+	for _, expectedText := range []string{"\"status\":\"ok\"", "admindBuildID", "gitRevision", "recoveryAvailable"} {
+		if !strings.Contains(adminResponse.Body.String(), expectedText) {
+			t.Fatalf("expected admin health to include %q, got %s", expectedText, adminResponse.Body.String())
+		}
+	}
 
 	mattermostRequest := httptest.NewRequest(http.MethodGet, "/team/channels/town-square", nil)
 	mattermostResponse := httptest.NewRecorder()
@@ -358,7 +363,7 @@ func TestAdminRejectsUnauthorizedRemoteCaller(t *testing.T) {
 	service := NewService(Configuration{AdminEmailPath: writeTestFile(t, "admin@example.com")})
 	handler := service.router()
 
-	request := httptest.NewRequest(http.MethodGet, "/admin/api/health", nil)
+	request := httptest.NewRequest(http.MethodGet, "/admin/api/diagnostics/requests", nil)
 	request.RemoteAddr = "198.51.100.10:443"
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
@@ -366,7 +371,7 @@ func TestAdminRejectsUnauthorizedRemoteCaller(t *testing.T) {
 		t.Fatalf("unauthorized status = %d", response.Code)
 	}
 
-	request = httptest.NewRequest(http.MethodGet, "/admin/api/health", nil)
+	request = httptest.NewRequest(http.MethodGet, "/admin/api/diagnostics/requests", nil)
 	request.RemoteAddr = "198.51.100.10:443"
 	request.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
 	response = httptest.NewRecorder()
@@ -538,7 +543,7 @@ func TestAdminHealthDoesNotClaimFirstAuthenticatedCaller(t *testing.T) {
 	request.Header.Set("Cf-Access-Authenticated-User-Email", "lee@example.com")
 	response := httptest.NewRecorder()
 	service.router().ServeHTTP(response, request)
-	if response.Code != http.StatusForbidden {
+	if response.Code != http.StatusOK {
 		t.Fatalf("admin health status = %d body = %s", response.Code, response.Body.String())
 	}
 	if strings.TrimSpace(readTrimmedFile(claimedAdminEmailPath)) != "" {

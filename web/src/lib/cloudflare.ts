@@ -409,6 +409,20 @@ function companionBypassApplicationBody(env: CFEnv, fleetId: string) {
 	};
 }
 
+function maintenanceBypassApplicationBody(env: CFEnv, fleetId: string) {
+	const hostname = `${fleetId}.${env.CF_DOMAIN}`;
+
+	return {
+		name: `intern kim maintenance ${fleetId}`,
+		self_hosted_domains: [
+			`${hostname}/admin/api/health`,
+			`${hostname}/admin/api/recovery/ssh-tunnel/restart`
+		],
+		type: 'self_hosted',
+		session_duration: '1h'
+	};
+}
+
 function adminAccessApplicationBody(env: CFEnv, fleetId: string, identityProviderId: string) {
 	const hostname = `${fleetId}.${env.CF_DOMAIN}`;
 
@@ -474,6 +488,24 @@ export async function ensureCompanionBypassApplication(env: CFEnv, fleetId: stri
 	}
 
 	await ensureCompanionBypassPolicy(env, applicationId);
+	return applicationId;
+}
+
+export async function ensureMaintenanceBypassApplication(env: CFEnv, fleetId: string) {
+	const body = maintenanceBypassApplicationBody(env, fleetId);
+	const applications = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`)) as AccessApplication[];
+	const primaryDomain = body.self_hosted_domains[0];
+	const application = applications.find((item) => accessApplicationDomain(item) === primaryDomain);
+	const applicationId = application?.id ?? await createMaintenanceBypassApplication(env, body);
+
+	if (application?.id) {
+		await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${applicationId}`, {
+			method: 'PUT',
+			body: JSON.stringify(body)
+		});
+	}
+
+	await ensureBypassPolicy(env, applicationId, 'maintenance-health-and-recovery');
 	return applicationId;
 }
 
@@ -604,6 +636,17 @@ async function createCompanionBypassApplication(env: CFEnv, body: ReturnType<typ
 	})) as AccessApplication;
 	if (!application.id) {
 		throw new Error('Cloudflare companion bypass app response did not include an id');
+	}
+	return application.id;
+}
+
+async function createMaintenanceBypassApplication(env: CFEnv, body: ReturnType<typeof maintenanceBypassApplicationBody>) {
+	const application = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`, {
+		method: 'POST',
+		body: JSON.stringify(body)
+	})) as AccessApplication;
+	if (!application.id) {
+		throw new Error('Cloudflare maintenance bypass app response did not include an id');
 	}
 	return application.id;
 }

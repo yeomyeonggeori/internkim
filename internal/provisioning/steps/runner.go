@@ -6,8 +6,10 @@
 package setup
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // Step is one unit of provisioning work.
@@ -138,7 +140,7 @@ func (registry Registry) resolve(context *Context, selector Selector) ([]string,
 				continue
 			}
 			shouldForceDependency := selector.Force && isExplicitlySeeded(name, selector) && containsStepName(step.ForceDeps, dependencyName)
-			if !selector.ForceAll && !shouldForceDependency && dependencyStep.IsSatisfied != nil && dependencyStep.IsSatisfied(context) {
+			if !selector.DryRun && !selector.ForceAll && !shouldForceDependency && dependencyStep.IsSatisfied != nil && dependencyStep.IsSatisfied(context) {
 				continue
 			}
 			includeStepAndDeps(dependencyName)
@@ -179,7 +181,7 @@ func (registry Registry) plan(context *Context, selector Selector) ([]planEntry,
 		case skippedSteps[step.Name]:
 			entries = append(entries, planEntry{name: step.Name, status: "skip", reason: "requested"})
 		case !plannedSteps[step.Name]:
-			if step.IsSatisfied != nil && step.IsSatisfied(context) {
+			if !selector.DryRun && shouldCheckUnplannedStepSatisfaction(selector) && step.IsSatisfied != nil && step.IsSatisfied(context) {
 				entries = append(entries, planEntry{name: step.Name, status: "skip", reason: "satisfied"})
 			}
 		default:
@@ -188,7 +190,7 @@ func (registry Registry) plan(context *Context, selector Selector) ([]planEntry,
 				continue
 			}
 			shouldForce := registry.shouldForceStep(step.Name, selector)
-			if !shouldForce && step.IsSatisfied != nil && step.IsSatisfied(context) {
+			if !selector.DryRun && !shouldForce && step.IsSatisfied != nil && step.IsSatisfied(context) {
 				entries = append(entries, planEntry{name: step.Name, status: "skip", reason: "satisfied"})
 				continue
 			}
@@ -196,6 +198,10 @@ func (registry Registry) plan(context *Context, selector Selector) ([]planEntry,
 		}
 	}
 	return entries, nil
+}
+
+func shouldCheckUnplannedStepSatisfaction(selector Selector) bool {
+	return len(selector.Only) == 0 && selector.From == ""
 }
 
 func (registry Registry) PrintPlan(context *Context, selector Selector) error {
@@ -246,6 +252,10 @@ func (registry Registry) Run(context *Context, selector Selector) error {
 		fmt.Println("  no steps selected")
 		return nil
 	}
+	if err := acquireRemoteSetupLock(context); err != nil {
+		return err
+	}
+	defer releaseRemoteSetupLock(context)
 	previousPlannedSteps := context.PlannedSteps
 	context.PlannedSteps = plannedStepSet(plan)
 	defer func() {
@@ -275,6 +285,65 @@ func (registry Registry) Run(context *Context, selector Selector) error {
 		}
 	}
 	return nil
+}
+
+func acquireRemoteSetupLock(context *Context) error {
+	if context.Backend != BackendSSH || context.SSH == nil || context.SetupLockID == "" {
+		return nil
+	}
+	metadata := map[string]string{
+		"lockID":        context.SetupLockID,
+		"command":       context.SetupCommand,
+		"selectedSteps": context.SetupSteps,
+		"targetHost":    context.BoardIP,
+		"targetURL":     context.PublicURL,
+		"startedAt":     time.Now().UTC().Format(time.RFC3339),
+	}
+	document, errorValue := json.Marshal(metadata)
+	if errorValue != nil {
+		return errorValue
+	}
+	output := context.SSH.Run(remoteSetupLockAcquireCommand(string(document)))
+	if strings.Contains(output, "internkim-setup-lock-acquired") {
+		return nil
+	}
+	return fmt.Errorf("remote setup is already running or lock acquisition failed: %s", strings.TrimSpace(output))
+}
+
+func releaseRemoteSetupLock(context *Context) {
+	if context.Backend != BackendSSH || context.SSH == nil || context.SetupLockID == "" {
+		return
+	}
+	context.SSH.Run(remoteSetupLockReleaseCommand(context.SetupLockID))
+}
+
+func remoteSetupLockAcquireCommand(document string) string {
+	return strings.Join([]string{
+		"set -eu",
+		"lock_directory=/var/lock/internkim-setup.lock",
+		"if mkdir \"$lock_directory\" 2>/dev/null; then",
+		"  cat > \"$lock_directory/metadata.json\" <<'INTERNKIM_SETUP_LOCK'",
+		document,
+		"INTERNKIM_SETUP_LOCK",
+		"  echo internkim-setup-lock-acquired",
+		"else",
+		"  echo internkim-setup-lock-busy",
+		"  cat \"$lock_directory/metadata.json\" 2>/dev/null || true",
+		"  exit 73",
+		"fi",
+	}, "\n")
+}
+
+func remoteSetupLockReleaseCommand(lockID string) string {
+	escapedLockID := strings.ReplaceAll(lockID, "'", "'\"'\"'")
+	return strings.Join([]string{
+		"set -eu",
+		"lock_directory=/var/lock/internkim-setup.lock",
+		"metadata=\"$lock_directory/metadata.json\"",
+		"if [ -f \"$metadata\" ] && grep -q '\"lockID\":\"" + escapedLockID + "\"' \"$metadata\"; then",
+		"  rm -rf \"$lock_directory\"",
+		"fi",
+	}, "\n")
 }
 
 func (registry Registry) shouldForceStep(name string, selector Selector) bool {
