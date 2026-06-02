@@ -134,6 +134,7 @@ func normalizeMattermostPost(post mattermostPost, botUserID string, channelType 
 			ChannelName:      channelName,
 			Addressing:       addressing,
 			InputAttachments: inputAttachments,
+			Materials:        inputAttachments,
 		},
 	}, true, nil
 }

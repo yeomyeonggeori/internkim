@@ -156,17 +156,32 @@ func TestWebDescriptorsAreReadOnlyDefaultTools(t *testing.T) {
 	}
 }
 
-func TestFileReadDescriptorIsReadOnlyDefaultTool(t *testing.T) {
-	schema := descriptorSchema(t, FileDescriptors(), "file.read")
+func TestDocumentReadDescriptorIsReadOnlyDefaultTool(t *testing.T) {
+	schema := descriptorSchema(t, FileDescriptors(), "document.read")
 
-	assertSchemaHasProperties(t, schema, "path", "ocrMode", "maxPages", "maxOutputBytes")
+	assertSchemaHasProperties(t, schema, "path", "maxPages", "maxOutputBytes")
+	assertSchemaOmitsProperties(t, schema, "ocrMode")
 	assertSchemaRequires(t, schema, "path")
-	descriptor := descriptorForTool(t, FileDescriptors(), "file.read")
+	descriptor := descriptorForTool(t, FileDescriptors(), "document.read")
 	if descriptor.SideEffectClass != "read" || descriptor.PrivacyClass != "workspace_document" || descriptor.RequiresApproval {
-		t.Fatalf("unexpected file.read descriptor: %+v", descriptor)
+		t.Fatalf("unexpected document.read descriptor: %+v", descriptor)
 	}
-	if !containsString(DefaultToolNames(), "file.read") {
-		t.Fatalf("expected file.read in default tools, got %+v", DefaultToolNames())
+	if !containsString(DefaultToolNames(), "document.read") {
+		t.Fatalf("expected document.read in default tools, got %+v", DefaultToolNames())
+	}
+}
+
+func TestImageReadDescriptorIsReadOnlyDefaultTool(t *testing.T) {
+	schema := descriptorSchema(t, FileDescriptors(), "image.read")
+
+	assertSchemaHasProperties(t, schema, "path")
+	assertSchemaRequires(t, schema, "path")
+	descriptor := descriptorForTool(t, FileDescriptors(), "image.read")
+	if descriptor.SideEffectClass != "read" || descriptor.PrivacyClass != "workspace_document" || descriptor.RequiresApproval {
+		t.Fatalf("unexpected image.read descriptor: %+v", descriptor)
+	}
+	if !containsString(DefaultToolNames(), "image.read") {
+		t.Fatalf("expected image.read in default tools, got %+v", DefaultToolNames())
 	}
 }
 

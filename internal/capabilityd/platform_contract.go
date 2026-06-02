@@ -28,6 +28,7 @@ type platformEventContext struct {
 	ChannelName      string                    `json:"channelName,omitempty"`
 	Addressing       platformAddressing        `json:"addressing,omitempty"`
 	InputAttachments []platformInputAttachment `json:"inputAttachments,omitempty"`
+	Materials        []platformInputAttachment `json:"materials,omitempty"`
 }
 
 type platformAddressing struct {
@@ -93,10 +94,11 @@ type platformContextSender struct {
 }
 
 type platformContextMessage struct {
-	Speaker            string `json:"speaker"`
-	SpeakerCallingName string `json:"speakerCallingName,omitempty"`
-	SpeakerHandle      string `json:"speakerHandle,omitempty"`
-	Text               string `json:"text"`
+	Speaker            string                    `json:"speaker"`
+	SpeakerCallingName string                    `json:"speakerCallingName,omitempty"`
+	SpeakerHandle      string                    `json:"speakerHandle,omitempty"`
+	Text               string                    `json:"text"`
+	InputAttachments   []platformInputAttachment `json:"inputAttachments,omitempty"`
 }
 
 type platformHandle struct {

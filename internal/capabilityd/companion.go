@@ -83,8 +83,11 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 	if isWebTool(request.ToolName) {
 		return service.invokeWebTool(ctx, request)
 	}
-	if isFileReadTool(request.ToolName) {
-		return service.invokeFileReadTool(ctx, request)
+	if isDocumentReadTool(request.ToolName) {
+		return service.invokeDocumentReadTool(ctx, request)
+	}
+	if isImageReadTool(request.ToolName) {
+		return service.invokeImageReadTool(ctx, request)
 	}
 	if isArtifactReviewTool(request.ToolName) {
 		return service.invokeArtifactReviewTool(ctx, request)
