@@ -135,12 +135,15 @@ Short rationale for this deck's tone and layout.
 Use browser-rendered HTML as the layout surface:
 
 - Use a complete HTML document with `<style>` in the head.
-- Add `@page { size: 16in 9in; margin: 0; }` and print CSS so PDF export maps one slide to one page.
-- Use `<section class="slide">` with fixed 16:9 geometry and full-slide CSS.
+- Use `1600px × 900px` as the canonical slide coordinate system. Define `.slide { width: 1600px; height: 900px; }`.
+- Add `@page { size: 1600px 900px; margin: 0; }` so PDF export uses the same coordinate system.
+- Use `<section class="slide">` with fixed 16:9 pixel geometry and full-slide CSS.
 - Inside slides, use `<div class="frame">`, `<div class="card">`, `<div class="comparison">`, `<div class="matrix">`, and similar semantic containers.
 - Make each slide title a conclusion or claim, not a topic label.
 - Do not make a bullet-only deck. Bullets may live inside cards, matrix cells, timelines, or appendix blocks, but each slide needs a visible designed structure.
 - Put speaker notes in `<aside class="speaker-notes">...</aside>` if notes are useful; they are excluded from visible text review.
+
+The standalone HTML viewer, render-review screenshots, PDF export, and image-backed PPTX export all use the same `1600px × 900px` coordinate system.
 
 Use this page shape when you need a reliable minimal look:
 
