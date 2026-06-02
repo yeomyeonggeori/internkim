@@ -6,7 +6,6 @@
 	import { ConfirmDeleteDialog, confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import { FlexRender, createSvelteTable, renderSnippet } from '$lib/components/ui/data-table';
 	import { Input } from '$lib/components/ui/input';
-	import { Meter } from '$lib/components/ui/meter';
 	import * as Select from '$lib/components/ui/select';
 	import { Separator } from '$lib/components/ui/separator';
 	import * as Sheet from '$lib/components/ui/sheet';
@@ -35,6 +34,8 @@
 		getSortedRowModel
 	} from '@tanstack/table-core';
 	import { onMount, tick } from 'svelte';
+	import FlowReportCard from './report/flow-report-card.svelte';
+	import { buildFlowReportSections } from './report/flow-report-data';
 	import { flowText } from './text';
 
 	type FlowWeek = {
@@ -184,6 +185,29 @@
 		{ value: 'all', label: text.filters.all },
 		...members().map((member) => ({ value: member.id, label: member.name }))
 	];
+	const reportSections = () =>
+		buildFlowReportSections(metrics(), {
+			statusLabels: text.status as Record<string, string>,
+			emptyLabel: text.report.empty,
+			sectionLabels: {
+				weeklyStatus: {
+					title: text.report.weeklyStatus,
+					description: text.report.weeklyStatusDescription
+				},
+				memberScores: {
+					title: text.report.memberScores,
+					description: text.report.memberScoresDescription
+				},
+				businessDistance: {
+					title: text.report.businessDistance,
+					description: text.report.businessDistanceDescription
+				},
+				typeBreakdown: {
+					title: text.report.typeBreakdown,
+					description: text.report.typeBreakdownDescription
+				}
+			}
+		});
 	const categoryFilterOptions = () => [{ value: 'all', label: text.filters.all }, ...categoryOptions()];
 	const typeFilterOptions = () => [{ value: 'all', label: text.filters.all }, ...typeOptions()];
 	const statusSelectOptions = () => statusOptions().map((status) => ({ value: status, label: statusLabel(status) }));
@@ -555,14 +579,6 @@
 		}
 	}
 
-	function sortedEntries(values: Record<string, number>) {
-		return Object.entries(values).sort((left, right) => right[1] - left[1]);
-	}
-
-	function maxValue(values: Record<string, number>) {
-		return Math.max(1, ...Object.values(values));
-	}
-
 	function statusLabel(status: string) {
 		const labels = text.status as Record<string, string>;
 		return labels[status] ?? status;
@@ -723,10 +739,10 @@
 
 		{#if activeTab === 'report'}
 			<section class="grid gap-4 lg:grid-cols-2">
-				{@render ReportCard(text.report.weeklyStatus, text.report.weeklyStatusDescription, sortedEntries(metrics().statusCounts).map(([key, value]) => [statusLabel(key), value] as [string, number]), maxValue(metrics().statusCounts))}
-				{@render ReportCard(text.report.memberScores, text.report.memberScoresDescription, sortedEntries(metrics().memberScores), maxValue(metrics().memberScores))}
-				{@render ReportCard(text.report.businessDistance, '', sortedEntries(metrics().businessCounts), maxValue(metrics().businessCounts))}
-				{@render ReportCard(text.report.typeBreakdown, '', sortedEntries(metrics().typeCounts), maxValue(metrics().typeCounts))}
+				<FlowReportCard section={reportSections().weeklyStatus} />
+				<FlowReportCard section={reportSections().memberScores} />
+				<FlowReportCard section={reportSections().businessDistance} />
+				<FlowReportCard section={reportSections().typeBreakdown} />
 			</section>
 		{:else if activeTab === 'definitions'}
 			{#if canEditDefinitions()}
@@ -973,29 +989,6 @@
 		<Card.Content>
 			<div class="text-3xl font-semibold leading-none">{value}</div>
 			<div class="mt-2 text-xs text-muted-foreground">{subvalue}</div>
-		</Card.Content>
-	</Card.Root>
-{/snippet}
-
-{#snippet ReportCard(title: string, description: string, entries: [string, number][], max: number)}
-	<Card.Root>
-		<Card.Header>
-			<Card.Title>{title}</Card.Title>
-			{#if description}
-				<Card.Description>{description}</Card.Description>
-			{/if}
-		</Card.Header>
-		<Card.Content class="space-y-3">
-			{#each entries as [label, value]}
-				<div class="grid grid-cols-[8rem_1fr_3rem] items-center gap-3 text-sm">
-					<div class="truncate text-muted-foreground">{label}</div>
-					<Meter {value} max={max} />
-					<div class="text-right font-medium tabular-nums">{value}</div>
-				</div>
-			{/each}
-			{#if entries.length === 0}
-				<p class="text-sm text-muted-foreground">—</p>
-			{/if}
 		</Card.Content>
 	</Card.Root>
 {/snippet}
