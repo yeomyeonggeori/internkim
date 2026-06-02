@@ -296,6 +296,7 @@ func runSetup() {
 	if hasFlag("--only") || hasFlag("--skip") || hasFlag("--from") ||
 		containsArg("--force") || containsArg("--force-all") || containsArg("--plan") ||
 		containsArg("--ssh") || containsArg("--sd") || containsArg("--live") || containsArg("--with-google") ||
+		containsArg("--wait-lock") ||
 		argString("--host", "") != "" || argString("--slack-bot-token", "") != "" ||
 		argString("--slack-app-token", "") != "" || argString("--signal-jsonrpc-url", "") != "" ||
 		argString("--signal-account", "") != "" ||
@@ -321,6 +322,7 @@ func printSetupUsage() {
 	fmt.Println("  --fleet <fleet-id>   Join an existing fleet")
 	fmt.Println("  --fleet-secret <s>   Secret for joining an existing fleet (or INTERNKIM_FLEET_SECRET)")
 	fmt.Println("  --plan               Print the selected setup plan")
+	fmt.Println("  --wait-lock          Wait for another setup on the same target instead of failing fast")
 	fmt.Println("  --list-steps         Print available setup steps")
 	fmt.Println("  --sim                Run the Tart simulation flow")
 	fmt.Println()
@@ -843,7 +845,7 @@ func runStatusArguments(arguments []string) error {
 	target := resolveCommandTarget(arguments)
 	target = resolveLabHostForCommandTarget(target, repositoryRootPath)
 	if hasCommandArgument(arguments, "--recover-ssh") {
-		return runSSHRecoveryForTarget(m, configuration, sshpassBin, target, "restart-cloudflared-node-ssh")
+		return runSSHRecoveryForTarget(m, configuration, sshpassBin, target, "restart-cloudflared-node-ssh", false)
 	}
 	if hasCommandArgument(arguments, "--all-nodes") {
 		targets := allFleetCommandTargets(target)
@@ -2410,7 +2412,7 @@ func setupControlArguments(arguments []string) []string {
 				index++
 				filteredArguments = append(filteredArguments, arguments[index])
 			}
-		case "--force", "--force-all", "--plan", "--list-steps", "--en", "--non-interactive", "--verify", "--verify-browser", "--keep-artifacts", "--with-google":
+		case "--force", "--force-all", "--plan", "--list-steps", "--en", "--non-interactive", "--verify", "--verify-browser", "--keep-artifacts", "--with-google", "--wait-lock":
 			filteredArguments = append(filteredArguments, argument)
 		default:
 			if strings.HasPrefix(argument, "--only=") ||
@@ -4701,6 +4703,19 @@ func runSetupLive(messenger *msg) {
 	if boardType == setup.BoardJetsonOrinNano {
 		requestedSSH = true
 	}
+	if !containsArg("--plan") {
+		lockDocument := setupLockDocument{
+			Command:       commandLineForSetupLock(os.Args[2:]),
+			SelectedSteps: setupLockSelectedSteps(os.Args[2:]),
+			TargetHost:    firstNonEmptyString(hostOverride, cloudflareSSHHostname, loadState(stateDir, "ssh_hostname")),
+			TargetURL:     target.deviceURL,
+		}
+		lockHandle, errorValue := acquireSetupLock(stateDir, lockDocument, containsArg("--wait-lock"))
+		if errorValue != nil {
+			fatal(errorValue.Error())
+		}
+		defer lockHandle.release()
+	}
 
 	var (
 		selectedBackend    setup.Backend
@@ -4773,6 +4788,14 @@ func runSetupLive(messenger *msg) {
 	}
 
 	switch {
+	case containsArg("--plan"):
+		if requestedSD {
+			selectedBackend = setup.BackendSD
+			stagingRoot = findSDStagingRoot()
+		} else {
+			selectedBackend = setup.BackendSSH
+			boardIP = firstNonEmptyString(hostOverride, cloudflareSSHHostname, loadState(stateDir, "ssh_hostname"))
+		}
 	case requestedSSH:
 		sshReady := false
 		if requestedCloudflareSSH {
@@ -4850,18 +4873,24 @@ func runSetupLive(messenger *msg) {
 	}
 
 	pipelineContext := &setup.Context{
-		Backend:   selectedBackend,
-		Language:  messenger.lang,
-		StateDir:  stateDir,
-		ScriptDir: scriptDir,
-		BoardType: boardType,
-		BoardIP:   boardIP,
-		Force:     shouldForce,
-		HTTP:      &http.Client{Timeout: 30 * time.Second},
-		Callbacks: flowState.callbacks(),
+		Backend:      selectedBackend,
+		Language:     messenger.lang,
+		StateDir:     stateDir,
+		ScriptDir:    scriptDir,
+		BoardType:    boardType,
+		BoardIP:      boardIP,
+		PublicURL:    target.deviceURL,
+		SetupCommand: commandLineForSetupLock(os.Args[2:]),
+		SetupSteps:   setupLockSelectedSteps(os.Args[2:]),
+		SetupLockID:  randomHexString(12),
+		Force:        shouldForce,
+		HTTP:         &http.Client{Timeout: 30 * time.Second},
+		Callbacks:    flowState.callbacks(),
 	}
 	if selectedBackend == setup.BackendSSH {
-		pipelineContext.SSH = sshBoardConnection{client: sshConnection}
+		if sshConnection != nil {
+			pipelineContext.SSH = sshBoardConnection{client: sshConnection}
+		}
 	} else {
 		pipelineContext.SD = sdStagingTarget{stagingRoot: stagingRoot}
 	}

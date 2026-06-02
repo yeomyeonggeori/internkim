@@ -495,7 +495,12 @@ func (state *setupFlowState) ensureLocalBinaryAssets() ([]localBinaryAsset, erro
 
 func buildGoBinaryAsset(state *setupFlowState, asset localBinaryAsset) error {
 	fmt.Printf("  %s %s... ", state.messenger.t("빌드 중", "Building"), asset.name)
-	buildCommand := exec.Command("go", "build", "-o", asset.localPath, "./cmd/"+asset.name+"/")
+	arguments := []string{"build", "-o", asset.localPath}
+	if asset.name == blueclaw.AdmindName {
+		arguments = append(arguments, "-ldflags", admindBuildFlags(state))
+	}
+	arguments = append(arguments, "./cmd/"+asset.name+"/")
+	buildCommand := exec.Command("go", arguments...)
 	buildCommand.Dir = state.scriptDir
 	buildCommand.Env = append(os.Environ(), "GOOS=linux", "GOARCH=arm64")
 	if output, buildError := buildCommand.CombinedOutput(); buildError != nil {
@@ -504,6 +509,21 @@ func buildGoBinaryAsset(state *setupFlowState, asset localBinaryAsset) error {
 	}
 	fmt.Println("ok")
 	return nil
+}
+
+func admindBuildFlags(state *setupFlowState) string {
+	revision := strings.TrimSpace(runCmd("git", "-C", state.scriptDir, "rev-parse", "--short", "HEAD"))
+	buildID := strings.TrimSpace(state.setupBuildID)
+	if buildID == "" {
+		buildID = "unknown"
+	}
+	if revision == "" {
+		revision = "unknown"
+	}
+	return strings.Join([]string{
+		"-X", "gitlab.com/eastriver/internkim/internal/admind.BuildID=" + buildID,
+		"-X", "gitlab.com/eastriver/internkim/internal/admind.GitRevision=" + revision,
+	}, " ")
 }
 
 func (state *setupFlowState) binariesVersion() string {
@@ -979,11 +999,43 @@ func (state *setupFlowState) installAdmindSSH(context *setup.Context) error {
 	if errorValue := state.deployBotProfileImageSSH(); errorValue != nil {
 		return errorValue
 	}
-	return state.installGoServiceBinarySSH(localBinaryAsset{
+	if errorValue := state.installGoServiceBinarySSH(localBinaryAsset{
 		name:       blueclaw.AdmindName,
 		localPath:  filepath.Join(state.boardBinDir, blueclaw.AdmindName),
 		remotePath: blueclaw.AdmindBinaryPath,
-	}, blueclaw.AdmindServiceName, blueclaw.AdmindServicePath, blueclaw.AdmindServiceUnit())
+	}, blueclaw.AdmindServiceName, blueclaw.AdmindServicePath, blueclaw.AdmindServiceUnit()); errorValue != nil {
+		return errorValue
+	}
+	return state.verifyAdmindDeployment(context)
+}
+
+func (state *setupFlowState) verifyAdmindDeployment(context *setup.Context) error {
+	localHealth, errorValue := state.sshClient.runResult("curl -fsS http://127.0.0.1:18080/admin/api/health")
+	if errorValue != nil {
+		return fmt.Errorf("admind local health check failed: %s", strings.TrimSpace(localHealth))
+	}
+	if !strings.Contains(localHealth, `"status":"ok"`) || !strings.Contains(localHealth, `"recoveryAvailable":true`) {
+		return fmt.Errorf("admind local health response missing recovery status: %s", strings.TrimSpace(localHealth))
+	}
+	if strings.TrimSpace(context.PublicURL) == "" {
+		fmt.Printf("  %s\n", state.messenger.t("admind local 검증 완료", "admind local verification complete"))
+		return nil
+	}
+	statusCode, responseBody, errorValue := fetchPublicEndpoint(context.PublicURL, "/admin/api/health")
+	if errorValue != nil {
+		return fmt.Errorf("admind public health check failed: %w", errorValue)
+	}
+	if statusCode < 200 || statusCode >= 300 || !strings.Contains(compactJSONSpaces(responseBody), `"status":"ok"`) {
+		return fmt.Errorf("admind public health check failed: HTTP %d %s", statusCode, strings.TrimSpace(responseBody))
+	}
+	if _, errorValue := performSSHRecoveryRequest(commandTarget{
+		stateDir:  state.stateDir,
+		deviceURL: context.PublicURL,
+	}, "status"); errorValue != nil {
+		return fmt.Errorf("admind recovery route check failed: %w", errorValue)
+	}
+	fmt.Printf("  %s\n", state.messenger.t("admind public/recovery 검증 완료", "admind public/recovery verification complete"))
+	return nil
 }
 
 func (state *setupFlowState) deployBotProfileImageSSH() error {

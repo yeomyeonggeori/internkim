@@ -32,6 +32,9 @@ import (
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
+var BuildID = "unknown"
+var GitRevision = "unknown"
+
 type Configuration struct {
 	ListenAddress               string
 	MattermostBaseURL           string
@@ -92,6 +95,7 @@ type Service struct {
 	recentCalendarPushUIDs  map[string]time.Time
 	requestMetrics          *adminRequestMetrics
 	databaseSchemas         *adminDatabaseSchemas
+	startedAt               time.Time
 }
 
 type Job struct {
@@ -251,6 +255,7 @@ func NewService(configuration Configuration) *Service {
 		calendarSyncWakeUp:   make(chan struct{}, 1),
 		requestMetrics:       newAdminRequestMetrics(),
 		databaseSchemas:      newAdminDatabaseSchemas(),
+		startedAt:            time.Now().UTC(),
 	}
 	service.loadCompanions()
 	service.loadCompanionJobs()
@@ -525,6 +530,10 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeAdminSession(responseWriter, request)
 		return
 	}
+	if request.Method == http.MethodGet && path == "/health" {
+		service.writeAdminHealth(responseWriter)
+		return
+	}
 	if strings.HasPrefix(path, "/recovery/ssh-tunnel") {
 		service.handleSSHRecovery(responseWriter, request, path)
 		return
@@ -535,8 +544,6 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 	}
 
 	switch {
-	case request.Method == http.MethodGet && path == "/health":
-		service.writeJSON(responseWriter, map[string]string{"status": "ok"})
 	case request.Method == http.MethodGet && path == "/diagnostics/requests":
 		service.writeAdminRequestDiagnostics(responseWriter)
 	case request.Method == http.MethodGet && path == "/locale":
@@ -633,6 +640,20 @@ func (service *Service) writeAdminSession(responseWriter http.ResponseWriter, re
 		response.TemporaryPasswordEmail = passwordDocument.Email
 	}
 	service.writeJSON(responseWriter, response)
+}
+
+func (service *Service) writeAdminHealth(responseWriter http.ResponseWriter) {
+	startedAt := service.startedAt
+	if startedAt.IsZero() {
+		startedAt = time.Now().UTC()
+	}
+	service.writeJSON(responseWriter, map[string]any{
+		"status":            "ok",
+		"admindBuildID":     BuildID,
+		"gitRevision":       GitRevision,
+		"startedAt":         startedAt,
+		"recoveryAvailable": true,
+	})
 }
 
 func companionReleases() []companionRelease {
