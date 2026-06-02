@@ -1805,6 +1805,161 @@ func TestMattermostImportAttachmentsWritesSanitizedDuplicateFilenames(t *testing
 	}
 }
 
+func TestMattermostImportAttachmentsBuildsImageInputPart(t *testing.T) {
+	workspacePath := t.TempDir()
+	imageDocument := []byte("png-image")
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/files/file-1/info":
+			return testJSONResponse(http.StatusOK, mattermostFileMetadata{ID: "file-1", Name: "mascot.png", SizeBytes: int64(len(imageDocument)), ContentType: "image/png"}), nil
+		case "/api/v4/files/file-1":
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader(imageDocument)),
+				Header:     http.Header{"Content-Type": []string{"image/png"}},
+			}, nil
+		default:
+			t.Fatalf("unexpected mattermost request: %s", request.URL.Path)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	service := Service{
+		Configuration: Configuration{
+			MattermostBaseURL:     "https://mattermost.test",
+			MattermostTokenPath:   writePlatformTestFile(t, "mattermost-token"),
+			BlueclawWorkspacePath: workspacePath,
+		},
+		HTTPClient: httpClient,
+	}
+
+	response, errorValue := service.mattermostImportAttachments(context.Background(), json.RawMessage(`{
+		"messageID":"post-1",
+		"targetDirectoryPath":"/workspace/private/people/person-1/inbox/mattermost/post-1",
+		"inputAttachments":[{"platform":"mattermost","fileID":"file-1","messageID":"post-1"}]
+	}`))
+	if errorValue != nil {
+		t.Fatalf("expected import to succeed: %v", errorValue)
+	}
+	if len(response.InputParts) != 1 {
+		t.Fatalf("expected one input part, got %+v", response.InputParts)
+	}
+	part := response.InputParts[0]
+	if part.Type != "image" || part.Image == nil || part.Image.MimeType != "image/png" {
+		t.Fatalf("expected image part, got %+v", part)
+	}
+	if part.Image.DataBase64 != base64.StdEncoding.EncodeToString(imageDocument) {
+		t.Fatalf("expected image bytes to be base64 encoded, got %q", part.Image.DataBase64)
+	}
+	if part.File == nil || part.File.Path != "/workspace/private/people/person-1/inbox/mattermost/post-1/mascot.png" {
+		t.Fatalf("expected image file metadata, got %+v", part.File)
+	}
+}
+
+func TestMattermostImportAttachmentsBuildsMarkdownFilePart(t *testing.T) {
+	workspacePath := t.TempDir()
+	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-file")
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/files/file-1/info":
+			return testJSONResponse(http.StatusOK, mattermostFileMetadata{ID: "file-1", Name: "report.pdf", SizeBytes: 8, ContentType: "application/pdf"}), nil
+		case "/api/v4/files/file-1":
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("pdf")),
+				Header:     http.Header{"Content-Type": []string{"application/pdf"}},
+			}, nil
+		default:
+			t.Fatalf("unexpected mattermost request: %s", request.URL.Path)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	service := Service{
+		Configuration: Configuration{
+			MattermostBaseURL:     "https://mattermost.test",
+			MattermostTokenPath:   writePlatformTestFile(t, "mattermost-token"),
+			OpenRouterKeyPath:     secretPath,
+			OpenRouterBaseURL:     "https://openrouter.test/api/v1/chat/completions",
+			OpenRouterModel:       "openrouter/vision-model",
+			BlueclawWorkspacePath: workspacePath,
+			FileReadPythonPath:    "/test/python",
+		},
+		HTTPClient: httpClient,
+		RunCommand: func(_ context.Context, _ string, _ []string, input []byte) ([]byte, error) {
+			var helperRequest fileReadHelperRequest
+			if errorValue := json.Unmarshal(input, &helperRequest); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if helperRequest.OCRMode != "auto" || helperRequest.OpenRouterAPIKey != "sk-file" || helperRequest.OpenRouterBaseURL != "https://openrouter.test/api/v1" || helperRequest.OpenRouterModel != "openrouter/vision-model" {
+				t.Fatalf("expected OpenRouter OCR helper request, got %+v", helperRequest)
+			}
+			return []byte(`{"content":"# Report\n\nConverted content"}`), nil
+		},
+	}
+
+	response, errorValue := service.mattermostImportAttachments(context.Background(), json.RawMessage(`{
+		"messageID":"post-1",
+		"targetDirectoryPath":"/workspace/private/people/person-1/inbox/mattermost/post-1",
+		"inputAttachments":[{"platform":"mattermost","fileID":"file-1","messageID":"post-1"}]
+	}`))
+	if errorValue != nil {
+		t.Fatalf("expected import to succeed: %v", errorValue)
+	}
+	if len(response.InputParts) != 1 || response.InputParts[0].Type != "file" || response.InputParts[0].File == nil {
+		t.Fatalf("expected file input part, got %+v", response.InputParts)
+	}
+	filePart := response.InputParts[0].File
+	if filePart.ConversionStatus != "converted" || !strings.Contains(filePart.MarkdownPreview, "Converted content") {
+		t.Fatalf("expected converted markdown preview, got %+v", filePart)
+	}
+}
+
+func TestMattermostImportAttachmentsKeepsUnsupportedFileMetadata(t *testing.T) {
+	workspacePath := t.TempDir()
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/files/file-1/info":
+			return testJSONResponse(http.StatusOK, mattermostFileMetadata{ID: "file-1", Name: "archive.bin", SizeBytes: 4, ContentType: "application/octet-stream"}), nil
+		case "/api/v4/files/file-1":
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("data")),
+				Header:     http.Header{"Content-Type": []string{"application/octet-stream"}},
+			}, nil
+		default:
+			t.Fatalf("unexpected mattermost request: %s", request.URL.Path)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	service := Service{
+		Configuration: Configuration{
+			MattermostBaseURL:     "https://mattermost.test",
+			MattermostTokenPath:   writePlatformTestFile(t, "mattermost-token"),
+			BlueclawWorkspacePath: workspacePath,
+			FileReadPythonPath:    "/test/python",
+		},
+		HTTPClient: httpClient,
+		RunCommand: func(_ context.Context, _ string, _ []string, _ []byte) ([]byte, error) {
+			return []byte("unsupported format"), os.ErrInvalid
+		},
+	}
+
+	response, errorValue := service.mattermostImportAttachments(context.Background(), json.RawMessage(`{
+		"messageID":"post-1",
+		"targetDirectoryPath":"/workspace/private/people/person-1/inbox/mattermost/post-1",
+		"inputAttachments":[{"platform":"mattermost","fileID":"file-1","messageID":"post-1"}]
+	}`))
+	if errorValue != nil {
+		t.Fatalf("expected import to succeed: %v", errorValue)
+	}
+	if len(response.InputParts) != 1 || response.InputParts[0].Type != "file" || response.InputParts[0].File == nil {
+		t.Fatalf("expected file input part, got %+v", response.InputParts)
+	}
+	filePart := response.InputParts[0].File
+	if filePart.ConversionStatus != "failed" || filePart.MarkdownPreview != "" || !strings.Contains(filePart.Path, "archive.bin") {
+		t.Fatalf("expected failed conversion with accessible file metadata, got %+v", filePart)
+	}
+}
+
 func handleTestBlueclawForward(t *testing.T, request *http.Request) (*http.Response, error) {
 	t.Helper()
 	var event platformInboundEvent
