@@ -1442,8 +1442,9 @@ func (service *Service) activateSiteVersion(ctx context.Context, site *SiteRecor
 	if errorValue := service.switchCurrentSiteVersion(site, versionID); errorValue != nil {
 		return errorValue
 	}
-	_, _ = service.runCommand(ctx, "chown", "-R", "internkim-site:internkim-site", service.sitePath(site.SiteID))
-	_, _ = service.runCommand(ctx, "chown", "-R", "internkim-site:internkim-site", service.sitePublishedRootPath(site))
+	if _, errorValue := service.runCommand(ctx, "chown", "-R", "internkim-site:internkim-site", service.sitePath(site.SiteID)); errorValue != nil {
+		return errorValue
+	}
 	if _, errorValue := service.runCommand(ctx, "systemctl", "daemon-reload"); errorValue != nil {
 		return errorValue
 	}
@@ -1506,12 +1507,9 @@ WantedBy=multi-user.target
 }
 
 func (service *Service) switchCurrentSiteVersion(site *SiteRecord, versionID string) error {
-	currentPath := filepath.Join(service.sitePublishedRootPath(site), "current")
+	currentPath := filepath.Join(service.sitePath(site.SiteID), "current")
 	versionPath := service.sitePublishedVersionPath(site, versionID)
-	if errorValue := replaceSymlink(currentPath, versionPath); errorValue != nil {
-		return errorValue
-	}
-	return replaceSymlink(filepath.Join(service.sitePath(site.SiteID), "current"), versionPath)
+	return replaceSymlink(currentPath, versionPath)
 }
 
 func replaceSymlink(path string, target string) error {
@@ -2242,7 +2240,7 @@ func (service *Service) siteOwnerProjectPath(site *SiteRecord) string {
 }
 
 func (service *Service) sitePublishedRootPath(site *SiteRecord) string {
-	return filepath.Join(service.siteOwnerProjectPath(site), "published")
+	return service.sitePath(site.SiteID)
 }
 
 func (service *Service) sitePublishedVersionPath(site *SiteRecord, versionID string) string {
