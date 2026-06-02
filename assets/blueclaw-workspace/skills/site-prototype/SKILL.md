@@ -8,7 +8,10 @@ allowed-tools:
   - browser.open
   - browser.snapshot
   - browser.screenshot
+  - file.read
   - file.write
+  - file.edit
+  - file.patch
   - site.app.create
   - site.app.build
   - site.app.repair
@@ -62,17 +65,18 @@ Start by resolving the existing site for the current conversation or slug with `
 4. Use `sourceWorkspacePath` and `appWorkspacePath` exactly as returned.
 5. If `workspaceHealth` is `missing` or `permission_problem`, call `site.app.repair`, then call `site.app.status` again. If `workspaceHealth` is `stale_build`, continue to editing or build; do not repair.
 6. Choose a UI archetype before editing source: landing, dashboard, admin tool, booking, marketplace, portfolio, or content site.
-7. Read `.internkim/site.json` and `.internkim/idea.md` when present. The registry metadata is authoritative, but these files are the workspace-local copy of what the site is and why it exists.
+7. Read `.internkim/site.json`, `.internkim/idea.md`, `.internkim/artifact-brief.md`, and `.internkim/review-log.json` when present. The registry metadata is authoritative, but these files are the workspace-local copy of what the site is, why it exists, what visual result is intended, and what remained from the last review.
 8. Write or update `.internkim/idea.md` when the user changes the core idea, audience, purpose, or positioning. Keep implementation notes out of `DESIGN.md`.
-9. Write or update Stitch-compatible `DESIGN.md`, then create `app/src/prototype-data.ts` with domain-specific fake data and workflow state before editing UI.
-10. Replace the starter `app/src/App.tsx` entirely. Do not preserve starter copy, scaffold structure, or generic feature-card sections.
-11. Use `file.write` to update `app/src/App.tsx`, `app/src/index.css`, app-owned components, and app-owned data/source files according to `DESIGN.md`. Do not write `app/package.json`, `app/index.html`, `app/scripts/build.ts`, `app/tsconfig.json`, or `app/vite.config.ts`; those scaffold/build contract files are managed by `site.app.create`.
-12. Call `site.app.build`. It resolves the canonical `appWorkspacePath`, runs `bun scripts/build.ts` there, writes `.internkim/build-quality.json`, and returns build evidence plus any quality issues. Quality issues are a revision checklist, not a delivery blocker. Use raw `terminal.run` with `workingDirectoryPath` set to `<appWorkspacePath>` only as a fallback when `site.app.build` is unavailable.
-13. Call `site.app.preview` when a browser-accessible draft is useful, or start a local preview with `terminal.session` when local browser tools are the better fit. Capture desktop and mobile screenshots with browser tools when available, then call `artifact.review` with the screenshots, intent, archetype, and rubric.
-14. Write `.internkim/review-log.json` with deterministic checks, vision review issues, attempt count, accepted warnings, and final decision. Revise and rebuild when quality issues remain and improvement budget remains; repeat at most three times.
-15. Call `site.app.publish` with `siteID` and a concise revision message. Same-site updates must publish the same `publishedURL`; successful publish closes the temporary preview. If the build produced a fresh `app/dist` but quality warnings remain after the improvement budget, publish with those warnings and report the top remaining issues.
-16. Call `site.app.status` for the same `siteID` and confirm the status is `published`.
-17. Reply in Mattermost with the public URL, revision summary, how to try the main workflow, rollback availability, and any test login credentials.
+9. Write or update `.internkim/artifact-brief.md` before source edits. Keep it short and natural-language: request intent, audience, archetype, service mode if relevant, main workflow, visual direction, must-show content, and what would be too shallow.
+10. Write or update Stitch-compatible `DESIGN.md`, then create `app/src/prototype-data.ts` with domain-specific fake data and workflow state before editing UI.
+11. Replace the starter `app/src/App.tsx` entirely. Do not preserve starter copy, scaffold structure, or generic feature-card sections.
+12. Use `file.write`, `file.edit`, or `file.patch` to update `app/src/App.tsx`, `app/src/index.css`, app-owned components, and app-owned data/source files according to `DESIGN.md` and `.internkim/artifact-brief.md`. Do not write `app/package.json`, `app/index.html`, `app/scripts/build.ts`, `app/tsconfig.json`, or `app/vite.config.ts`; those scaffold/build contract files are managed by `site.app.create`.
+13. Call `site.app.build`. It resolves the canonical `appWorkspacePath`, runs `bun scripts/build.ts` there, writes `.internkim/build-quality.json`, and returns build evidence plus any quality issues. Quality issues are a revision checklist, not a delivery blocker. Use raw `terminal.run` with `workingDirectoryPath` set to `<appWorkspacePath>` only as a fallback when `site.app.build` is unavailable.
+14. Call `site.app.preview` when a browser-accessible draft is useful, or start a local preview with `terminal.session` when local browser tools are the better fit. Capture desktop and mobile screenshots with browser tools when available, then call `artifact.review` with the screenshots, artifact brief, source summary, archetype, and rubric.
+15. Write `.internkim/review-log.json` with `attempts`, `reviewedArtifacts`, `issues`, `changesMade`, `remainingNotes`, and either screenshot paths or `visualReviewUnavailable: true`. Revise and rebuild when the rendered images or review notes show useful improvements and the improvement budget remains; repeat at most three times.
+16. Call `site.app.publish` with `siteID` and a concise revision message. Same-site updates must publish the same `publishedURL`; successful publish closes the temporary preview. If the build produced a fresh `app/dist` but visual or quality warnings remain after the improvement budget, publish with those warnings and report the top remaining issues.
+17. Call `site.app.status` for the same `siteID` and confirm the status is `published`.
+18. Reply in Mattermost with the public URL, revision summary, how to try the main workflow, rollback availability, and any test login credentials.
 
 Do not publish the uncustomized starter for a website creation request. The starter is only a safe scaffold while the real prototype is being written.
 
@@ -112,8 +116,8 @@ After terminal build success:
 - call `site.app.preview` for a temporary draft URL, or start preview from `<appWorkspacePath>` with `bun run preview -- --host 127.0.0.1 --port 4173`; if the port is busy, use the next open port
 - use browser tools to inspect `http://127.0.0.1:<port>` at desktop and mobile widths when available
 - check for text overflow, overlapping controls, clipped buttons, empty first screens, excessive whitespace, a one-note palette, and missing shadcn token usage
-- call `artifact.review` with desktop and mobile screenshots when screenshots are available; use the returned blocking/warning issues as the revision checklist
-- if browser tools or screenshots are unavailable, write `.internkim/review-log.json` with `visionReviewUnavailable: true` and rely on build and code inspection rather than pretending visual QA ran
+- call `artifact.review` with desktop and mobile screenshots when screenshots are available; include `.internkim/artifact-brief.md`, the source summary, and the archetype so the LLM judges the rendered result against the intended artifact
+- if browser tools or screenshots are unavailable, write `.internkim/review-log.json` with `visualReviewUnavailable: true` and rely on build and code inspection rather than pretending visual QA ran
 - call `site.app.publish` with `siteID` and a human-readable `message`
 - never claim deployment succeeded until the tool succeeds
 - after publish succeeds, call `site.app.status` and make sure `status` is `published`
@@ -178,7 +182,9 @@ Infer the archetype from the domain and user goal when unspecified. App requests
 
 Never publish a generic feature-card page, empty hero, meaningless gradient, or workflow-free app. The first screen must be the requested experience or a meaningful landing page for the requested offer. Use realistic fake data where it helps the user understand the workflow.
 
-Use the shared artifact quality harness from `references/artifact-quality.md` when you need more detail, but keep the site loop self-contained: deterministic build-quality first, rendered screenshot review second, and same-URL publish after improvement attempts. Build-quality is an improvement harness; compile failures, missing dist, stale dist, and permission failures are hard blockers, but aesthetic or scaffold-smell findings should be fixed when possible and otherwise reported with the published URL.
+Use a simple LLM-led artifact quality loop: artifact brief first, deterministic build-quality second, rendered desktop/mobile screenshot review third, and same-URL publish after improvement attempts. Compile failures, missing dist, stale dist, permission failures, and starter scaffold leakage are hard blockers. Aesthetic, density, information-architecture, and workflow-completeness findings are soft review notes: fix them when useful and budget remains, otherwise publish the usable artifact and report the top remaining notes with the URL.
+
+For service-capable prototypes, keep the same loop. If the request needs login, saved records, files, realtime, reservations, admin state, or CRUD, use PocketBase as the default local backend unless the user explicitly asks for another backend. Let the LLM design the collections, rules, seed data, and test account from the artifact brief. Runtime safety should preserve project data across publish, unpublish, restore, and rollback; do not treat every site as a database app by default.
 
 ## Reply Format
 

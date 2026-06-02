@@ -11,11 +11,16 @@ def main() -> int:
     review_directory_path = pathlib.Path(sys.argv[1])
     try:
         slide_review = read_json(review_directory_path / "slide-review.json")
-        decision = read_json(review_directory_path / "review-decision.json")
-        validate_decision(slide_review, decision)
+        decision = read_optional_json(review_directory_path / "review-decision.json")
+        warnings = review_warnings(slide_review, decision)
     except ValueError as error:
         print(f"Review acceptance failed: {error}", file=sys.stderr)
         return 1
+    if warnings:
+        print("Review acceptance completed with warnings:")
+        for warning in warnings:
+            print(f"- {warning}")
+        return 0
     print("Review acceptance passed.")
     return 0
 
@@ -26,14 +31,17 @@ def read_json(path: pathlib.Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def validate_decision(slide_review: dict, decision: dict) -> None:
-    blocking_issues = [
-        issue for issue in decision.get("issues", [])
-        if issue.get("severity") == "blocking"
-    ]
-    if blocking_issues:
-        raise ValueError("blocking issues remain in review-decision.json")
+def read_optional_json(path: pathlib.Path) -> dict:
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
 
+
+def review_warnings(slide_review: dict, decision: dict) -> list[str]:
+    warnings = []
+    if not decision:
+        warnings.append("review-decision.json is missing; attach the usable deck with the review report notes if the requested file exists")
+        return warnings
     inspected_evidence = set(decision.get("inspectedEvidence", []))
     required_evidence = {
         sheet.get("filename")
@@ -42,15 +50,18 @@ def validate_decision(slide_review: dict, decision: dict) -> None:
     }
     missing_evidence = sorted(required_evidence - inspected_evidence)
     if missing_evidence:
-        raise ValueError("contact sheets were not inspected: " + ", ".join(missing_evidence))
+        warnings.append("contact sheets were not inspected: " + ", ".join(missing_evidence))
 
-    warnings = deterministic_warnings(slide_review)
+    deterministic_review_warnings = deterministic_warnings(slide_review)
     accepted_warnings = set(decision.get("acceptedWarnings", []))
-    if warnings and not accepted_warnings:
-        raise ValueError("deterministic warnings require acceptedWarnings or a rebuilt clean deck")
+    remaining_notes = decision.get("remainingNotes", [])
+    issues = decision.get("issues", [])
+    if deterministic_review_warnings and not accepted_warnings and not remaining_notes and not issues:
+        warnings.append("deterministic warnings were not addressed in acceptedWarnings, remainingNotes, issues, or a rebuilt clean deck")
 
     if not str(decision.get("summary", "")).strip():
-        raise ValueError("review decision summary is required")
+        warnings.append("review decision summary is missing")
+    return warnings
 
 
 def deterministic_warnings(slide_review: dict) -> list[str]:

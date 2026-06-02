@@ -475,7 +475,7 @@ func runModel() {
 	case "set":
 		if len(os.Args) < 4 {
 			fmt.Println("Usage: internkim model set <model-id>")
-			fmt.Println("Example: internkim model set google/gemini-3.1-flash-lite")
+			fmt.Println("Example: internkim model set " + blueclaw.BlueclawDefaultModelName)
 			os.Exit(1)
 		}
 		modelSetCmd(ssh, os.Args[3])
@@ -4472,8 +4472,7 @@ func ensureCloudflareSSHRegistration(configuration config, stateDir string, forc
 }
 
 func canReuseCloudflareSSHRegistration(configuration config, stateDir string, savedSSHHostname string, force bool) bool {
-	return !force &&
-		savedSSHHostname != "" &&
+	return savedSSHHostname != "" &&
 		loadState(stateDir, "node_tunnel_token") != "" &&
 		loadState(stateDir, "tunnel_revision") == setup.TunnelConfigurationRevision &&
 		cloudflareSSHTLSIsReady(cloudflareSSHTLSStatus(stateDir)) &&
