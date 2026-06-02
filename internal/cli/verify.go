@@ -78,6 +78,7 @@ func runVerifyMattermost(arguments []string) error {
 	browserOpenE2E := flagSet.Bool("browser-open-e2e", false, "Pair a local probe companion and require a successful browser.open result")
 	keep := flagSet.Bool("keep", false, "Keep probe messages and users for inspection")
 	keepBrowser := flagSet.Bool("keep-browser", false, "Keep the local browser window open after browser-open E2E")
+	downloadFilesTo := flagSet.String("download-files-to", "", "Download final Mattermost bot attachments into this local directory")
 	timeoutSeconds := flagSet.Int("timeout", 240, "Seconds to wait for the bot reply")
 	companionPath := flagSet.String("companion-path", "/Applications/Intern Kim Companion.app/Contents/MacOS/internkim-companion", "Local internkim-companion executable for browser-open E2E")
 	agentBrowserPath := flagSet.String("agent-browser-path", "/Applications/Intern Kim Companion.app/Contents/MacOS/agent-browser", "Local agent-browser executable for browser-open E2E")
@@ -128,7 +129,11 @@ func runVerifyMattermost(arguments []string) error {
 		return runMattermostBrowserOpenE2E(verifyTarget, promptText, *keep, *keepBrowser, *timeoutSeconds, *companionPath, *agentBrowserPath)
 	}
 	if strings.TrimSpace(*prompt) != "" {
-		return verifyTarget.runRemoteVerificationWithTimeout(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, *expectBrowserOpen, *expectPublicURL, expectedTools.Values(), expectedEvents.Values()), mattermostPromptSSHTimeout(*timeoutSeconds))
+		return verifyTarget.runMattermostPromptVerification(
+			verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, *expectBrowserOpen, *expectPublicURL, expectedTools.Values(), expectedEvents.Values(), strings.TrimSpace(*downloadFilesTo) != ""),
+			mattermostPromptSSHTimeout(*timeoutSeconds),
+			strings.TrimSpace(*downloadFilesTo),
+		)
 	}
 	if *expectBrowserOpen || *expectPublicURL || len(expectedTools.Values()) > 0 || len(expectedEvents.Values()) > 0 {
 		return fmt.Errorf("--expect-browser-open, --expect-public-url, --expect-tool, and --expect-event require --prompt")
@@ -159,7 +164,7 @@ func runVerifySite(arguments []string) error {
 	}
 	fmt.Printf("verify site: %s@%s\n", verifyTarget.user, verifyTarget.host)
 	expectedTools := []string{"site.app.create", "site.app.build", "site.app.publish"}
-	return verifyTarget.runRemoteVerificationWithTimeout(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, false, true, expectedTools, nil), mattermostPromptSSHTimeout(*timeoutSeconds))
+	return verifyTarget.runRemoteVerificationWithTimeout(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, false, true, expectedTools, nil, false), mattermostPromptSSHTimeout(*timeoutSeconds))
 }
 
 func verifyTargetArguments(host string, user string, password string, node string, cloudflareSSH bool, board string, simulation bool) []string {
@@ -567,6 +572,145 @@ func (target verifyTarget) runRemoteVerificationWithTimeout(script string, timeo
 		return fmt.Errorf("remote verification failed: %w", errorValue)
 	}
 	return nil
+}
+
+func (target verifyTarget) runMattermostPromptVerification(script string, timeout time.Duration, downloadDirectory string) error {
+	output, errorValue := target.sshClient.runResultWithTimeout(script, timeout)
+	if strings.TrimSpace(output) != "" {
+		fmt.Print(redactDownloadedMattermostFiles(output))
+		if !strings.HasSuffix(output, "\n") {
+			fmt.Println()
+		}
+	}
+	if errorValue != nil {
+		return fmt.Errorf("remote verification failed: %w", errorValue)
+	}
+	if strings.TrimSpace(downloadDirectory) == "" {
+		return nil
+	}
+	return writeDownloadedMattermostFiles(output, downloadDirectory)
+}
+
+type downloadedMattermostFile struct {
+	FileID        string `json:"fileID"`
+	Filename      string `json:"filename"`
+	ContentType   string `json:"contentType"`
+	ContentBase64 string `json:"contentBase64"`
+}
+
+type mattermostVerificationOutput struct {
+	DownloadedFiles []downloadedMattermostFile `json:"downloadedFiles"`
+}
+
+func writeDownloadedMattermostFiles(output string, downloadDirectory string) error {
+	document, found := parseLastJSONDocument(output)
+	if !found {
+		return fmt.Errorf("remote verification did not return JSON output with downloaded files")
+	}
+	var verificationOutput mattermostVerificationOutput
+	if errorValue := json.Unmarshal(document, &verificationOutput); errorValue != nil {
+		return fmt.Errorf("parse remote verification JSON: %w", errorValue)
+	}
+	if len(verificationOutput.DownloadedFiles) == 0 {
+		return fmt.Errorf("remote verification returned no downloaded Mattermost attachments")
+	}
+	if errorValue := os.MkdirAll(downloadDirectory, 0o755); errorValue != nil {
+		return fmt.Errorf("create download directory: %w", errorValue)
+	}
+	for _, downloadedFile := range verificationOutput.DownloadedFiles {
+		if errorValue := writeDownloadedMattermostFile(downloadedFile, downloadDirectory); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
+}
+
+func writeDownloadedMattermostFile(downloadedFile downloadedMattermostFile, downloadDirectory string) error {
+	filename := safeDownloadedMattermostFilename(downloadedFile)
+	content, errorValue := base64.StdEncoding.DecodeString(downloadedFile.ContentBase64)
+	if errorValue != nil {
+		return fmt.Errorf("decode Mattermost attachment %s: %w", downloadedFile.FileID, errorValue)
+	}
+	outputPath := filepath.Join(downloadDirectory, filename)
+	if errorValue := os.WriteFile(outputPath, content, 0o644); errorValue != nil {
+		return fmt.Errorf("write Mattermost attachment %s: %w", filename, errorValue)
+	}
+	fmt.Println("downloaded Mattermost attachment: " + outputPath)
+	return nil
+}
+
+func safeDownloadedMattermostFilename(downloadedFile downloadedMattermostFile) string {
+	filename := strings.TrimSpace(filepath.Base(downloadedFile.Filename))
+	if filename != "" && filename != "." {
+		return filename
+	}
+	fileID := strings.TrimSpace(downloadedFile.FileID)
+	if fileID != "" {
+		return fileID
+	}
+	return "mattermost-attachment"
+}
+
+func redactDownloadedMattermostFiles(output string) string {
+	document, found := parseLastJSONDocument(output)
+	if !found {
+		return output
+	}
+	var payload map[string]any
+	if errorValue := json.Unmarshal(document, &payload); errorValue != nil {
+		return output
+	}
+	downloadedFiles, isArray := payload["downloadedFiles"].([]any)
+	if !isArray {
+		return output
+	}
+	for _, value := range downloadedFiles {
+		fileDocument, isDocument := value.(map[string]any)
+		if !isDocument {
+			continue
+		}
+		contentBase64, isString := fileDocument["contentBase64"].(string)
+		if isString && contentBase64 != "" {
+			fileDocument["contentBase64"] = fmt.Sprintf("<redacted %d base64 chars>", len(contentBase64))
+		}
+	}
+	redactedDocument, errorValue := json.Marshal(payload)
+	if errorValue != nil {
+		return output
+	}
+	return replaceLastJSONDocument(output, string(redactedDocument))
+}
+
+func parseLastJSONDocument(output string) ([]byte, bool) {
+	trimmedOutput := strings.TrimSpace(output)
+	for index := len(trimmedOutput) - 1; index >= 0; index-- {
+		if trimmedOutput[index] != '{' {
+			continue
+		}
+		candidate := trimmedOutput[index:]
+		var document map[string]any
+		if json.Unmarshal([]byte(candidate), &document) == nil {
+			return []byte(candidate), true
+		}
+	}
+	return nil, false
+}
+
+func replaceLastJSONDocument(output string, replacement string) string {
+	trimmedOutput := strings.TrimSpace(output)
+	document, found := parseLastJSONDocument(trimmedOutput)
+	if !found {
+		return output
+	}
+	index := strings.LastIndex(trimmedOutput, string(document))
+	if index < 0 {
+		return output
+	}
+	prefix := trimmedOutput[:index]
+	if prefix == "" {
+		return replacement + "\n"
+	}
+	return prefix + replacement + "\n"
 }
 
 func mattermostPromptSSHTimeout(timeoutSeconds int) time.Duration {
@@ -1218,7 +1362,7 @@ echo "verify mattermost: ok"
 `
 }
 
-func verifyMattermostPromptScript(prompt string, keep bool, timeoutSeconds int, expectBrowserOpen bool, expectPublicURL bool, expectedTools []string, expectedEvents []string) string {
+func verifyMattermostPromptScript(prompt string, keep bool, timeoutSeconds int, expectBrowserOpen bool, expectPublicURL bool, expectedTools []string, expectedEvents []string, downloadFiles bool) string {
 	if timeoutSeconds <= 0 {
 		timeoutSeconds = 240
 	}
@@ -1239,6 +1383,10 @@ func verifyMattermostPromptScript(prompt string, keep bool, timeoutSeconds int, 
 	if expectPublicURL {
 		expectPublicURLValue = "true"
 	}
+	downloadFilesValue := "false"
+	if downloadFiles {
+		downloadFilesValue = "true"
+	}
 	return fmt.Sprintf(`set -euo pipefail
 
 timestamp="$(date +%%s)"
@@ -1252,6 +1400,7 @@ keep_artifacts=%s
 timeout_seconds=%d
 expect_browser_open=%s
 expect_public_url=%s
+download_files=%s
 test_started_at="$(date +%%s%%3N)"
 
 api_request() {
@@ -1331,6 +1480,35 @@ blueclaw_request() {
   fi
   cat "$response_file"
   rm -f "$response_file"
+}
+
+download_bot_files() {
+  if [ "$download_files" != "true" ]; then
+    return 0
+  fi
+  printf '[]' > "$downloaded_files_file"
+  for file_id in $(jq -r '.file_ids[]?' "$bot_post_file"); do
+    file_info="$(api_request "fetch bot attachment info" GET "http://localhost:8065/api/v4/files/$file_id/info" "$admin_token")"
+    filename="$(printf '%%s' "$file_info" | jq -r --arg file_id "$file_id" '.name // .filename // $file_id')"
+    content_type="$(printf '%%s' "$file_info" | jq -r '.mime_type // .content_type // ""')"
+    attachment_file="$(mktemp)"
+    content_base64_file="$(mktemp)"
+    curl --silent --show-error --fail \
+      -H "Authorization: Bearer $admin_token" \
+      "http://localhost:8065/api/v4/files/$file_id" \
+      -o "$attachment_file"
+    base64 -w 0 "$attachment_file" > "$content_base64_file" 2>/dev/null || base64 "$attachment_file" | tr -d '\n' > "$content_base64_file"
+    next_downloaded_files_file="$(mktemp)"
+    jq \
+      --arg file_id "$file_id" \
+      --arg filename "$filename" \
+      --arg content_type "$content_type" \
+      --rawfile content_base64 "$content_base64_file" \
+      '. + [{fileID:$file_id, filename:$filename, contentType:$content_type, contentBase64:$content_base64}]' \
+      "$downloaded_files_file" > "$next_downloaded_files_file"
+    mv "$next_downloaded_files_file" "$downloaded_files_file"
+    rm -f "$attachment_file" "$content_base64_file"
+  done
 }
 
 wait_for_blueclaw_health() {
@@ -1480,6 +1658,8 @@ if [ -z "$bot_post_id" ]; then
 fi
 
 bot_post_file="$(mktemp)"
+downloaded_files_file="$(mktemp)"
+printf '[]' > "$downloaded_files_file"
 api_request "fetch probe reply" GET "http://localhost:8065/api/v4/posts/$bot_post_id" "$admin_token" > "$bot_post_file"
 fetch_latest_bot_post() {
   latest_bot_post_id="$(api_request "wait for latest bot reply" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=60" "$admin_token" |
@@ -1561,6 +1741,7 @@ if [ -n "$task_run_id" ] && { [ "$expect_browser_open" = "true" ] || [ "$expecte
   fi
 fi
 fetch_latest_bot_post
+download_bot_files
 
 if [ "$expect_public_url" = "true" ]; then
   public_url=""
@@ -1630,6 +1811,7 @@ jq -cn \
   --argjson browser_open_verified "$browser_open_verified" \
   --argjson site_screenshots_verified "$site_screenshots_verified" \
   --slurpfile bot_post "$bot_post_file" \
+  --slurpfile downloaded_files "$downloaded_files_file" \
   --slurpfile task_detail "$task_detail_file" \
   '{
     ok: true,
@@ -1643,10 +1825,11 @@ jq -cn \
     siteScreenshotFiles: [$desktop_screenshot_file, $mobile_screenshot_file],
     botMessage: $bot_post[0].message,
     fileIDs: ($bot_post[0].file_ids // []),
+    downloadedFiles: ($downloaded_files[0] // []),
     taskStatus: ((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskRun.status // null),
     taskEvents: (((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskEvents // []) | map({name, body: ((.body // "") | tostring | .[0:1200])}))
   }'
-`, strconv.Quote(encodedPrompt), strconv.Quote(encodedExpectedTools), strconv.Quote(encodedExpectedEvents), keepValue, timeoutSeconds, expectBrowserOpenValue, expectPublicURLValue)
+`, strconv.Quote(encodedPrompt), strconv.Quote(encodedExpectedTools), strconv.Quote(encodedExpectedEvents), keepValue, timeoutSeconds, expectBrowserOpenValue, expectPublicURLValue, downloadFilesValue)
 }
 
 func prepareMattermostBrowserOpenE2EScript() string {
