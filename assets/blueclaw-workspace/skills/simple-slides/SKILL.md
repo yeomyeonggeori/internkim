@@ -4,7 +4,10 @@ description: Generate clean presentation slides with Marp and attach the request
 when_to_use: Use for slides, slide decks, presentations, pitch decks, research summaries, stakeholder reports, PPT, PPTX, PowerPoint, Google Slides, Keynote, 슬라이드, 발표, 발표자료, 프레젠테이션, 프리젠테이션, 파워포인트, or 피피티 requests.
 allowed-tools:
   - terminal.run
+  - file.read
   - file.write
+  - file.edit
+  - file.patch
   - file.promote
   - file.attach
   - artifact.review
@@ -12,23 +15,24 @@ allowed-tools:
 
 # Simple Slides
 
-Create a useful, visually strong slide deck and attach the requested files. This skill is intentionally small: write the deck yourself from the user request, use Stitch-compatible `DESIGN.md` as the design source, build with Marp, inspect render evidence, and attach the generated artifacts.
+Create a useful, visually strong slide deck and attach the requested files. This skill is intentionally small: write the deck yourself from the user request, use a short deck brief plus Stitch-compatible `DESIGN.md` as the design source, build with Marp, inspect rendered image evidence, and attach the generated artifacts.
 
 ## Workflow
 
 Use this order for normal requests:
 
 1. Decide the deck archetype and main narrative flow before writing source files.
-2. Use `file.write` to create `tmp/<deck-slug>/DESIGN.md`; do not use Blueclaw internal temporary paths.
-3. Use `file.write` to create `tmp/<deck-slug>/presentation.md`.
-4. Use `terminal.run` with `workingDirectoryPath: "tmp/<deck-slug>"` to run the deterministic build script from the skill directory with `REVIEW_STRICT=1`.
-5. Inspect `build/review/slide-review.md` or `build/review/slide-review.json`, each contact sheet image, and its matching `fit-review-XX.md`.
-6. Call `artifact.review` for each `contact-sheet-XX.png` with the matching expected visible text from `fit-review-XX.md`.
-7. Write `build/review/review-decision.json` with inspected evidence, blocking/warning issues, accepted warnings, and a short summary.
-8. Run `python3 /workspace/skills/simple-slides/scripts/accept_review.py build/review`.
-9. If deterministic review, vision review, or acceptance fails, revise `presentation.md` and rebuild before accepting the deck. Repeat at most three times.
-10. Promote accepted final files from `tmp/<deck-slug>/build/` to `artifacts/<deck-slug>/` with `file.promote` unless the user requested a circle or shared destination.
-11. Use `file.attach` on promoted files only, and attach only the files the user requested.
+2. Use `file.write` to create `tmp/<deck-slug>/deck-brief.md`; keep it short and natural-language: request intent, audience, deck archetype, main thesis, slide sequence, visual direction, must-show content, and what would be too shallow.
+3. Use `file.write` to create `tmp/<deck-slug>/DESIGN.md`; do not use Blueclaw internal temporary paths.
+4. Use `file.write` to create `tmp/<deck-slug>/presentation.md`.
+5. Use `terminal.run` with `workingDirectoryPath: "tmp/<deck-slug>"` to run the deterministic build script from the skill directory.
+6. Inspect `build/review/slide-review.md` or `build/review/slide-review.json`, each contact sheet image, and its matching `fit-review-XX.md`.
+7. Call `artifact.review` for each `contact-sheet-XX.png` with the matching expected visible text from `fit-review-XX.md`, the deck brief, and the deck archetype.
+8. Write `build/review/review-decision.json` with inspected evidence, issues, changes made, accepted warnings, `remainingNotes`, and a short summary.
+9. Run `python3 /workspace/skills/simple-slides/scripts/accept_review.py build/review` to summarize review readiness.
+10. If rendered images, deterministic review, or LLM review show useful improvements and the improvement budget remains, revise `presentation.md` and rebuild. Repeat at most three times. If the deck is usable after the budget, attach it and report the top remaining notes instead of failing solely on visual quality.
+11. Promote final files from `tmp/<deck-slug>/build/` to `artifacts/<deck-slug>/` with `file.promote` unless the user requested a circle or shared destination.
+12. Use `file.attach` on promoted files only, and attach only the files the user requested.
 
 `file.write` creates parent directories, so do not spend a terminal call on `mkdir`. Do not use `file.pick`; it is for user-local file selection, not deck creation. Do not read reference assets during a normal request unless you truly need extra detail after drafting. The baseline below is enough for most decks.
 
@@ -36,12 +40,12 @@ Use this command shape after the source files exist. Do not copy `build.sh` into
 
 ```json
 {
-  "command": "REVIEW_STRICT=1 NAME=<deck-slug> /workspace/skills/simple-slides/scripts/build.sh",
+  "command": "NAME=<deck-slug> /workspace/skills/simple-slides/scripts/build.sh",
   "workingDirectoryPath": "tmp/<deck-slug>"
 }
 ```
 
-If the user explicitly requests one format, narrow the build with `FORMATS`. For `html만`, use `FORMATS=html NAME=<deck-slug> /workspace/skills/simple-slides/scripts/build.sh`. For a normal full deck, omit `FORMATS` so HTML, PPTX, PDF, notes, and review evidence are produced. Use `REVIEW_STRICT=1` whenever review output is part of the requested formats.
+If the user explicitly requests one format, narrow the build with `FORMATS`. For `html만`, use `FORMATS=html NAME=<deck-slug> /workspace/skills/simple-slides/scripts/build.sh`. For a normal full deck, omit `FORMATS` so HTML, PPTX, PDF, notes, and review evidence are produced.
 
 Use `file.promote` to promote final outputs after the build succeeds:
 
@@ -65,6 +69,8 @@ The build script is responsible for Marp availability. It uses an existing `marp
 Do not look for a content generator or layout renderer. There is no template deck to fill in. The content, layout, and Marp source are your responsibility.
 
 ## Source Files
+
+`deck-brief.md` is the planning note for the deck. Use it to pin the audience, thesis, slide sequence, visual direction, and the line between a usable deck and a shallow deck. Keep it brief; do not let it become a hidden second deliverable.
 
 `DESIGN.md` is required. It must stay Stitch-compatible: YAML front matter with only `colors`, `typography`, and `layout`, followed by a short rationale. Write it directly for the user's deck instead of copying a template. Keep the default direction minimal and mostly black-and-white unless the topic clearly needs a stronger accent. Read `assets/minimal-design.md` as a reference when you need a sober presentation style.
 
@@ -129,7 +135,7 @@ Use these slide patterns as the default vocabulary: title thesis, section divide
 
 Use `file.write` for `DESIGN.md` and `presentation.md`. Do not create source files with shell heredocs or `echo` inside `terminal.run`; reserve `terminal.run` for running the build.
 
-Iterate on `presentation.md` when the draft needs improvement. Preserve important request constraints directly in the deck, such as `할 수`, `역량`, `capability`, `what I can do`, `6장`, or `html만`. Do not create a separate planning file.
+Iterate on `presentation.md` when the rendered images show useful improvements. Preserve important request constraints directly in the deck, such as `할 수`, `역량`, `capability`, `what I can do`, `6장`, or `html만`.
 
 ## Layout Choice
 
@@ -161,7 +167,7 @@ The full build creates review PNGs, `slide-review.json`, `slide-review.md`, 4-sl
 
 `textOverflowRisk` and `frameFitRisk` are deterministic warning signals, not substitutes for visual review. They identify slides that require extra attention in the contact sheet.
 
-Use `artifact.review` as the visual reviewer for each contact sheet. Include the deck intent, deck archetype, the contact sheet image path, and the expected visible text from the matching fit review file. A blocking issue from `artifact.review` means the deck must be revised and rebuilt. Warnings require either a revision or an explicit accepted warning in `build/review/review-decision.json`.
+Use `artifact.review` as the visual reviewer for each contact sheet. Include the deck intent, `deck-brief.md`, deck archetype, the contact sheet image path, and the expected visible text from the matching fit review file. Treat the returned issues as LLM review notes. Revise and rebuild when the notes identify a useful improvement and the improvement budget remains; otherwise record accepted warnings or `remainingNotes` in `build/review/review-decision.json`.
 
 Before `file.promote`, run:
 
@@ -172,7 +178,7 @@ Before `file.promote`, run:
 }
 ```
 
-Do not promote or attach a deck if `accept_review.py` fails.
+`accept_review.py` reports missing inspection evidence or unresolved deterministic warnings, but those warnings are improvement notes, not a delivery blocker. If the requested PPTX/PDF/HTML exists and is usable, promote and attach it after the improvement budget, then mention the top remaining review notes briefly.
 
 ## Output
 

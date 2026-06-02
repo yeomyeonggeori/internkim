@@ -27,6 +27,7 @@ import (
 	"gitlab.com/eastriver/internkim/internal/identity"
 	"gitlab.com/eastriver/internkim/internal/llmbackend"
 	"gitlab.com/eastriver/internkim/internal/mattermostinteractive"
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
@@ -185,7 +186,7 @@ func DefaultConfiguration() Configuration {
 		BlueclawBaseURL:                "http://127.0.0.1:8080",
 		AdmindBaseURL:                  "http://127.0.0.1:18080",
 		OpenRouterBaseURL:              "https://openrouter.ai/api/v1/chat/completions",
-		OpenRouterModel:                "google/gemini-3.1-flash-lite",
+		OpenRouterModel:                blueclaw.BlueclawDefaultModelName,
 		OpenRouterWebBaseURL:           "https://openrouter.ai/api/v1/chat/completions",
 		OpenRouterEmbeddingBaseURL:     "https://openrouter.ai/api/v1/embeddings",
 		OpenRouterEmbeddingModel:       "embeddinggemma",

@@ -1274,11 +1274,23 @@ test -x /usr/local/bin/firecracker
 test -x /usr/local/bin/jailer
 test -s /opt/internkim/blueclaw-runtime/vmlinux.bin
 test -s /opt/internkim/blueclaw-runtime/rootfs.ext4
+minimum_workspace_bytes=34359738368
+was_active="$(systemctl is-active blueclaw 2>/dev/null || true)"
 if [ ! -e /var/lib/blueclaw/workspace.ext4 ]; then
-  truncate -s 16G /var/lib/blueclaw/workspace.ext4
+  truncate -s "$minimum_workspace_bytes" /var/lib/blueclaw/workspace.ext4
 fi
 if ! blkid -o value -s TYPE /var/lib/blueclaw/workspace.ext4 2>/dev/null | grep -qx ext4; then
   mkfs.ext4 -F -L blueclaw-workspace /var/lib/blueclaw/workspace.ext4 >/dev/null
+fi
+workspace_bytes="$(stat -c '%s' /var/lib/blueclaw/workspace.ext4)"
+if [ "$workspace_bytes" -lt "$minimum_workspace_bytes" ]; then
+  systemctl stop blueclaw 2>/dev/null || true
+  truncate -s "$minimum_workspace_bytes" /var/lib/blueclaw/workspace.ext4
+  e2fsck -fy /var/lib/blueclaw/workspace.ext4 >/dev/null
+  resize2fs /var/lib/blueclaw/workspace.ext4 >/dev/null
+  if [ "$was_active" = "active" ]; then
+    systemctl start blueclaw 2>/dev/null || true
+  fi
 fi
 chmod 0600 /var/lib/blueclaw/workspace.ext4
 mkdir -p /var/log/blueclaw-supervisor

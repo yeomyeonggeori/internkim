@@ -6,6 +6,8 @@ allowed-tools:
   - file.read
   - terminal.run
   - file.write
+  - file.edit
+  - file.patch
   - file.promote
   - file.attach
   - artifact.review
