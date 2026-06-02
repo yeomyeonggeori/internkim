@@ -142,6 +142,9 @@ func (service Service) importMattermostAttachment(ctx context.Context, target ma
 	if errorValue != nil {
 		return unavailableMattermostAttachment(attachment, fallbackMessageID, "metadata_fetch_failed", errorValue.Error())
 	}
+	if importedAttachment, isFound := reusableMattermostImportedAttachment(target, usedFilenames, fallbackMessageID, attachment, metadata); isFound {
+		return importedAttachment
+	}
 	download, errorValue := service.downloadMattermostAttachment(ctx, fileID)
 	if errorValue != nil {
 		return unavailableMattermostAttachment(withMattermostAttachmentMetadata(attachment, metadata, fallbackMessageID), fallbackMessageID, "download_failed", errorValue.Error())
@@ -150,15 +153,36 @@ func (service Service) importMattermostAttachment(ctx context.Context, target ma
 }
 
 func (service Service) writeMattermostImportedAttachment(target mattermostAttachmentImportTarget, usedFilenames map[string]bool, fallbackMessageID string, attachment platformInputAttachment, metadata mattermostFileMetadata, download mattermostAttachmentDownload) platformInputAttachment {
-	filename := uniqueMattermostImportFilename(target.HostDirectoryPath, usedFilenames, mattermostImportFilename(attachment, metadata))
-	hostPath := filepath.Join(target.HostDirectoryPath, filename)
+	filename := mattermostImportFilename(attachment, metadata)
 	importedAttachment := withMattermostAttachmentMetadata(attachment, metadata, fallbackMessageID)
+	filename = uniqueMattermostImportFilename(target.HostDirectoryPath, usedFilenames, filename)
+	hostPath := filepath.Join(target.HostDirectoryPath, filename)
 	if errorValue := os.WriteFile(hostPath, download.Content, 0o644); errorValue != nil {
 		return unavailableMattermostAttachment(importedAttachment, fallbackMessageID, "write_failed", errorValue.Error())
 	}
+	return withMattermostImportedAttachmentPath(target, importedAttachment, download.ContentType, int64(len(download.Content)), filename)
+}
+
+func reusableMattermostImportedAttachment(target mattermostAttachmentImportTarget, usedFilenames map[string]bool, fallbackMessageID string, attachment platformInputAttachment, metadata mattermostFileMetadata) (platformInputAttachment, bool) {
+	filename := mattermostImportFilename(attachment, metadata)
+	if usedFilenames[filename] || metadata.SizeBytes <= 0 {
+		return platformInputAttachment{}, false
+	}
+	hostPath := filepath.Join(target.HostDirectoryPath, filename)
+	fileInformation, errorValue := os.Stat(hostPath)
+	if errorValue != nil || !fileInformation.Mode().IsRegular() || fileInformation.Size() != metadata.SizeBytes {
+		return platformInputAttachment{}, false
+	}
+	usedFilenames[filename] = true
+	attachment = withMattermostAttachmentMetadata(attachment, metadata, fallbackMessageID)
+	return withMattermostImportedAttachmentPath(target, attachment, metadata.ContentType, metadata.SizeBytes, filename), true
+}
+
+func withMattermostImportedAttachmentPath(target mattermostAttachmentImportTarget, attachment platformInputAttachment, contentType string, sizeBytes int64, filename string) platformInputAttachment {
+	importedAttachment := attachment
 	importedAttachment.Filename = filename
-	importedAttachment.ContentType = firstNonEmpty(importedAttachment.ContentType, download.ContentType)
-	importedAttachment.SizeBytes = int64(len(download.Content))
+	importedAttachment.ContentType = firstNonEmpty(importedAttachment.ContentType, contentType)
+	importedAttachment.SizeBytes = sizeBytes
 	importedAttachment.Path = filepath.ToSlash(filepath.Join(target.AgentDirectoryPath, filename))
 	importedAttachment.IsAvailable = true
 	importedAttachment.ErrorCode = ""
@@ -247,7 +271,7 @@ func (service Service) mattermostMarkdownPreview(ctx context.Context, attachment
 	if errorValue != nil {
 		return "", "failed", errorValue.Error()
 	}
-	helperResponse, errorValue := service.runFileReadHelper(ctx, service.mattermostMarkdownPreviewRequest(hostPath))
+	helperResponse, _, _, errorValue := service.convertDocument(ctx, hostPath, 20)
 	if errorValue != nil {
 		return "", "failed", errorValue.Error()
 	}
@@ -259,26 +283,6 @@ func (service Service) mattermostMarkdownPreview(ctx context.Context, attachment
 		return content, "truncated", "markdown preview was truncated"
 	}
 	return content, "converted", ""
-}
-
-func (service Service) mattermostMarkdownPreviewRequest(hostPath string) fileReadHelperRequest {
-	configuration := service.Configuration.WithDefaults()
-	apiKey := readSecretValue(configuration.OpenRouterKeyPath)
-	if configuration.LocalOnly || strings.TrimSpace(apiKey) == "" || isPlaceholderOpenRouterKey(apiKey) {
-		return fileReadHelperRequest{
-			Path:     hostPath,
-			OCRMode:  "never",
-			MaxPages: 20,
-		}
-	}
-	return fileReadHelperRequest{
-		Path:              hostPath,
-		OCRMode:           "auto",
-		MaxPages:          20,
-		OpenRouterAPIKey:  apiKey,
-		OpenRouterBaseURL: openRouterClientBaseURL(configuration.OpenRouterBaseURL),
-		OpenRouterModel:   configuration.OpenRouterModel,
-	}
 }
 
 func unavailableMattermostAttachment(attachment platformInputAttachment, fallbackMessageID string, errorCode string, message string) platformInputAttachment {

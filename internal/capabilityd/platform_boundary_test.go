@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -707,6 +708,49 @@ func TestMattermostContextUsesSingleNameForHistorySpeakers(t *testing.T) {
 	}
 	if contextValue.Messages[0].Speaker != "이서연" {
 		t.Fatalf("expected single name speaker, got %q", contextValue.Messages[0].Speaker)
+	}
+}
+
+func TestMattermostContextPreservesHistoryAttachments(t *testing.T) {
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/channels/channel-1/posts":
+			return testJSONResponse(http.StatusOK, struct {
+				Order []string                         `json:"order"`
+				Posts map[string]mattermostHistoryPost `json:"posts"`
+			}{
+				Order: []string{"post-1", "post-2"},
+				Posts: map[string]mattermostHistoryPost{
+					"post-1": {ID: "post-1", UserID: "user-1", Message: "첨부 확인", FileIDs: []string{"file-1"}, CreateAt: 1000},
+					"post-2": {ID: "post-2", UserID: "user-2", Message: "current", CreateAt: 2000},
+				},
+			}), nil
+		case "/api/v4/users/user-1":
+			return testJSONResponse(http.StatusOK, map[string]string{
+				"id":       "user-1",
+				"username": "lee",
+			}), nil
+		default:
+			t.Fatalf("unexpected Mattermost request: %s?%s", request.URL.Path, request.URL.RawQuery)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	service := Service{
+		Configuration: Configuration{MattermostBaseURL: "http://mattermost.test", MattermostTokenPath: writePlatformTestFile(t, "test-token")},
+		HTTPClient:    httpClient,
+	}
+
+	contextValue := service.mattermostContext(context.Background(), platformHandle{ChannelID: "channel-1", MessageID: "post-2"}, 20)
+
+	if len(contextValue.Messages) != 1 || len(contextValue.Messages[0].InputAttachments) != 1 {
+		t.Fatalf("expected message attachment catalog, got %+v", contextValue.Messages)
+	}
+	messageAttachment := contextValue.Messages[0].InputAttachments[0]
+	if messageAttachment.Platform != "mattermost" || messageAttachment.FileID != "file-1" || messageAttachment.MessageID != "post-1" {
+		t.Fatalf("unexpected message attachment catalog: %+v", messageAttachment)
+	}
+	if len(contextValue.Materials) != 1 || contextValue.Materials[0].FileID != "file-1" {
+		t.Fatalf("expected conversation material catalog, got %+v", contextValue.Materials)
 	}
 }
 
@@ -1805,6 +1849,63 @@ func TestMattermostImportAttachmentsWritesSanitizedDuplicateFilenames(t *testing
 	}
 }
 
+func TestMattermostImportAttachmentsReusesExistingFile(t *testing.T) {
+	workspacePath := t.TempDir()
+	downloadCount := 0
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/files/file-1/info":
+			return testJSONResponse(http.StatusOK, mattermostFileMetadata{ID: "file-1", Name: "report.pdf", SizeBytes: 8, ContentType: "application/pdf"}), nil
+		case "/api/v4/files/file-1":
+			downloadCount++
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("document")),
+				Header:     http.Header{"Content-Type": []string{"application/pdf"}},
+			}, nil
+		default:
+			t.Fatalf("unexpected mattermost request: %s", request.URL.Path)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	service := Service{
+		Configuration: Configuration{
+			MattermostBaseURL:     "https://mattermost.test",
+			MattermostTokenPath:   writePlatformTestFile(t, "mattermost-token"),
+			BlueclawWorkspacePath: workspacePath,
+		},
+		HTTPClient: httpClient,
+	}
+	payload := json.RawMessage(`{
+		"messageID":"post-1",
+		"targetDirectoryPath":"/workspace/circles/staff/inbox/mattermost/thread-1/post-1",
+		"inputAttachments":[{"platform":"mattermost","fileID":"file-1","messageID":"post-1"}]
+	}`)
+
+	firstResponse, errorValue := service.mattermostImportAttachments(context.Background(), payload)
+	if errorValue != nil {
+		t.Fatalf("expected first import to succeed: %v", errorValue)
+	}
+	secondResponse, errorValue := service.mattermostImportAttachments(context.Background(), payload)
+	if errorValue != nil {
+		t.Fatalf("expected second import to succeed: %v", errorValue)
+	}
+	if downloadCount != 1 {
+		t.Fatalf("expected one download, got %d", downloadCount)
+	}
+	if len(firstResponse.InputAttachments) != 1 || len(secondResponse.InputAttachments) != 1 {
+		t.Fatalf("expected imported attachments, got first=%+v second=%+v", firstResponse.InputAttachments, secondResponse.InputAttachments)
+	}
+	firstAttachment := firstResponse.InputAttachments[0]
+	secondAttachment := secondResponse.InputAttachments[0]
+	if firstAttachment.Path != secondAttachment.Path || secondAttachment.Filename != "report.pdf" {
+		t.Fatalf("expected existing import path to be reused, first=%+v second=%+v", firstAttachment, secondAttachment)
+	}
+	if _, errorValue := os.Stat(filepath.Join(workspacePath, "circles", "staff", "inbox", "mattermost", "thread-1", "post-1", "report-2.pdf")); !errors.Is(errorValue, os.ErrNotExist) {
+		t.Fatalf("expected no duplicate import file, stat error=%v", errorValue)
+	}
+}
+
 func TestMattermostImportAttachmentsBuildsImageInputPart(t *testing.T) {
 	workspacePath := t.TempDir()
 	imageDocument := []byte("png-image")
@@ -1889,7 +1990,7 @@ func TestMattermostImportAttachmentsBuildsMarkdownFilePart(t *testing.T) {
 			if errorValue := json.Unmarshal(input, &helperRequest); errorValue != nil {
 				t.Fatal(errorValue)
 			}
-			if helperRequest.OCRMode != "auto" || helperRequest.OpenRouterAPIKey != "sk-file" || helperRequest.OpenRouterBaseURL != "https://openrouter.test/api/v1" || helperRequest.OpenRouterModel != "openrouter/vision-model" {
+			if helperRequest.OCRMode != "always" || helperRequest.OpenRouterAPIKey != "sk-file" || helperRequest.OpenRouterBaseURL != "https://openrouter.test/api/v1" || helperRequest.OpenRouterModel != "openrouter/vision-model" {
 				t.Fatalf("expected OpenRouter OCR helper request, got %+v", helperRequest)
 			}
 			return []byte(`{"content":"# Report\n\nConverted content"}`), nil

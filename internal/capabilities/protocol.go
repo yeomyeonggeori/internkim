@@ -77,7 +77,8 @@ func WebDescriptors() []Descriptor {
 
 func FileDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "file.read", Version: "1", PrivacyClass: "workspace_document", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: fileReadInputSchema(), PolicyResource: "tool:file.read", SideEffectClass: "read"},
+		{Name: "document.read", Version: "1", PrivacyClass: "workspace_document", EstimatedLatency: "high", RequiresUserPresence: false, WorksOffline: false, InputSchema: documentReadInputSchema(), PolicyResource: "tool:document.read", SideEffectClass: "read"},
+		{Name: "image.read", Version: "1", PrivacyClass: "workspace_document", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: true, InputSchema: imageReadInputSchema(), PolicyResource: "tool:image.read", SideEffectClass: "read"},
 	}
 }
 
@@ -190,12 +191,17 @@ func webFetchInputSchema() json.RawMessage {
 	).RawMessage()
 }
 
-func fileReadInputSchema() json.RawMessage {
+func documentReadInputSchema() json.RawMessage {
 	return jsonschema.Object(
 		jsonschema.Required("path", jsonschema.String()),
-		jsonschema.Field("ocrMode", jsonschema.StringEnum("auto", "always", "never")),
 		jsonschema.Field("maxPages", jsonschema.Integer()),
 		jsonschema.Field("maxOutputBytes", jsonschema.Integer()),
+	).RawMessage()
+}
+
+func imageReadInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Required("path", jsonschema.String()),
 	).RawMessage()
 }
 

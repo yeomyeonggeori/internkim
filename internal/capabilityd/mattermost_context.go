@@ -15,12 +15,13 @@ import (
 )
 
 type mattermostHistoryPost struct {
-	ID       string `json:"id"`
-	UserID   string `json:"user_id"`
-	Message  string `json:"message"`
-	RootID   string `json:"root_id"`
-	Type     string `json:"type"`
-	CreateAt int64  `json:"create_at"`
+	ID       string   `json:"id"`
+	UserID   string   `json:"user_id"`
+	Message  string   `json:"message"`
+	RootID   string   `json:"root_id"`
+	Type     string   `json:"type"`
+	CreateAt int64    `json:"create_at"`
+	FileIDs  []string `json:"file_ids"`
 	Metadata struct {
 		Mentions []string `json:"mentions"`
 	} `json:"metadata"`
@@ -38,6 +39,8 @@ func (service Service) enrichMattermostEvent(ctx context.Context, event platform
 	nextContext.ChannelName = previousContext.ChannelName
 	nextContext.Addressing = previousContext.Addressing
 	nextContext.InputAttachments = append([]platformInputAttachment{}, previousContext.InputAttachments...)
+	nextContext.Materials = append(nextContext.Materials, previousContext.Materials...)
+	nextContext.Materials = append(nextContext.Materials, previousContext.InputAttachments...)
 	nextContext.Sender = service.mattermostSender(ctx, event.SenderID)
 	nextContext.ReceivedAt = time.Now().UTC().Format(time.RFC3339)
 	event.Context = nextContext
@@ -58,9 +61,10 @@ func (service Service) mattermostContext(ctx context.Context, handle platformHan
 	}
 
 	messages := make([]platformContextMessage, 0, len(previousPosts))
+	materials := []platformInputAttachment{}
 	senderByUserID := map[string]platformContextSender{}
 	for _, post := range previousPosts {
-		if strings.TrimSpace(post.Message) == "" || strings.TrimSpace(post.Type) != "" {
+		if strings.TrimSpace(post.Type) != "" {
 			continue
 		}
 		senderInfo, hasSender := senderByUserID[post.UserID]
@@ -69,16 +73,23 @@ func (service Service) mattermostContext(ctx context.Context, handle platformHan
 			senderByUserID[post.UserID] = senderInfo
 		}
 		text := service.mattermostTextWithReadableMentions(ctx, post.Message, post.Metadata.Mentions, senderByUserID)
+		inputAttachments := mattermostInputAttachments(post.ID, post.FileIDs)
+		materials = append(materials, inputAttachments...)
+		if strings.TrimSpace(text) == "" && len(inputAttachments) == 0 {
+			continue
+		}
 		messages = append(messages, platformContextMessage{
 			Speaker:            senderInfo.Name,
 			SpeakerCallingName: senderInfo.CallingName,
 			SpeakerHandle:      senderInfo.Handle,
 			Text:               text,
+			InputAttachments:   inputAttachments,
 		})
 	}
 
 	return platformEventContext{
 		Messages:      messages,
+		Materials:     materials,
 		HasMoreBefore: hasMoreBefore,
 		HistoryCursor: mustEncodePlatformHandle(handle),
 	}
