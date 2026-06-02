@@ -9,6 +9,7 @@ declare module 'bun:test' {
 		toThrow(): void;
 	};
 
+	export function describe(name: string, callback: TestCallback): void;
 	export function test(name: string, callback: TestCallback): void;
 	export function expect(actual: unknown): Expectation;
 }
