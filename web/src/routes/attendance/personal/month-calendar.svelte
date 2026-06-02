@@ -1,10 +1,13 @@
 <script lang="ts">
 	import * as Card from '$lib/components/ui/card';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { getAttendanceState } from '../attendance-context.svelte';
 	import { computeDayEvents, groupEventsByDay } from '../shared/attendance-aggregation';
 	import { eachDayOfMonth, isWeekend, todayDateInTimeZone } from '../shared/attendance-date';
+	import { attendanceText } from '../text';
 
 	const attendance = getAttendanceState();
+	const text = createPageText(attendanceText);
 
 	const targetEmail = $derived(attendance.selectedEmail || attendance.summary?.currentUserEmail || '');
 	const personalEvents = $derived(
@@ -33,18 +36,30 @@
 	function selectDate(date: string) {
 		attendance.selectedDate = date;
 	}
+
+	function weekdayLabels(): string[] {
+		return [
+			text.weekdaySunday,
+			text.weekdayMonday,
+			text.weekdayTuesday,
+			text.weekdayWednesday,
+			text.weekdayThursday,
+			text.weekdayFriday,
+			text.weekdaySaturday,
+		];
+	}
 </script>
 
 <Card.Root>
 	<Card.Header>
-		<Card.Title class="text-base">{attendance.summary?.month ?? ''} 캘린더</Card.Title>
+		<Card.Title class="text-base">{text.calendarTitleTemplate.replace('{month}', attendance.summary?.month ?? '')}</Card.Title>
 		{#if targetEmail}
 			<p class="text-xs text-muted-foreground">{targetEmail}</p>
 		{/if}
 	</Card.Header>
 	<Card.Content>
 		<div class="grid grid-cols-7 gap-1.5 text-xs">
-			{#each ['일', '월', '화', '수', '목', '금', '토'] as label}
+			{#each weekdayLabels() as label}
 				<div class="pb-1 text-center text-[11px] font-medium text-muted-foreground">{label}</div>
 			{/each}
 			{#each leadingBlanks(days[0] ?? '') as _}
@@ -62,13 +77,13 @@
 					{#if day.clockIn}
 						<div class="flex flex-col gap-0.5 text-[11px] font-semibold leading-tight tabular-nums">
 							<div class="flex items-center gap-1">
-								<span class="text-muted-foreground">출</span>
+								<span class="text-muted-foreground">{text.clockInShort}</span>
 								<span>{day.clockIn.localTime}</span>
 							</div>
 							<div class="flex items-center gap-1">
-								<span class="text-muted-foreground">퇴</span>
+								<span class="text-muted-foreground">{text.clockOutShort}</span>
 								{#if day.inProgress}
-									<span class="text-emerald-600 dark:text-emerald-400">진행중</span>
+									<span class="text-emerald-600 dark:text-emerald-400">{text.inProgress}</span>
 								{:else}
 									<span>{day.clockOut?.localTime ?? '-'}</span>
 								{/if}
@@ -78,7 +93,7 @@
 							{/if}
 						</div>
 					{:else if date < today && !isWeekend(date)}
-						<span class="text-[11px] font-semibold leading-tight text-rose-600 dark:text-rose-400">미출근</span>
+						<span class="text-[11px] font-semibold leading-tight text-rose-600 dark:text-rose-400">{text.absent}</span>
 					{/if}
 				</button>
 			{/each}

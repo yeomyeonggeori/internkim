@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ZapIcon from '@lucide/svelte/icons/zap';
 	import LogInIcon from '@lucide/svelte/icons/log-in';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
@@ -9,8 +10,10 @@
 	import { computeDayEvents, statusForDay } from './shared/attendance-aggregation';
 	import { todayDateInTimeZone } from './shared/attendance-date';
 	import { formatHoursMinutes } from './shared/attendance-format';
+	import { attendanceText } from './text';
 
 	const attendance = getAttendanceState();
+	const text = createPageText(attendanceText);
 
 	const today = $derived(todayDateInTimeZone(attendance.currentMonthSummary?.timeZone));
 
@@ -33,14 +36,14 @@
 	});
 
 	const statusLabel = $derived(
-		status === 'working' ? '근무 중' : status === 'finished' ? '퇴근' : '미출근'
+		status === 'working' ? text.working : status === 'finished' ? text.finished : text.absent
 	);
 	const statusDot = $derived(
 		status === 'working' ? 'bg-success' : status === 'finished' ? 'bg-muted-foreground' : 'bg-muted-foreground/50'
 	);
 
 	const nextKind = $derived<AttendanceKind>(status === 'working' ? 'clock_out' : 'clock_in');
-	const actionLabel = $derived(nextKind === 'clock_in' ? '출근' : '퇴근');
+	const actionLabel = $derived(nextKind === 'clock_in' ? text.clockIn : text.clockOut);
 
 	let selectedLocationID = $state<string>('');
 	$effect(() => {
@@ -64,7 +67,7 @@
 				nextKind === 'clock_in' ? selectedLocationID || undefined : undefined
 			);
 		} catch (error) {
-			errorMessage = error instanceof Error ? error.message : '처리 실패';
+			errorMessage = error instanceof Error ? error.message : text.processingFailed;
 		} finally {
 			isToggling = false;
 		}
@@ -78,7 +81,7 @@
 	<Card.Header class="space-y-0 pb-3">
 		<Card.Title class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
 			<ZapIcon class="size-3.5" />
-			오늘
+			{text.today}
 		</Card.Title>
 	</Card.Header>
 	<Card.Content class="space-y-3 pt-0">

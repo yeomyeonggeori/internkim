@@ -3,6 +3,7 @@
 	import TimerIcon from '@lucide/svelte/icons/timer';
 	import TrendingUpIcon from '@lucide/svelte/icons/trending-up';
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { getAttendanceState } from '../attendance-context.svelte';
 	import { todayDateInTimeZone } from '../shared/attendance-date';
 	import KpiCardGrid, { type KpiItem } from '../shared/kpi-card-grid.svelte';
@@ -17,8 +18,10 @@
 	} from '../shared/attendance-aggregation';
 	import { eachDayOfMonth } from '../shared/attendance-date';
 	import { formatHoursMinutes } from '../shared/attendance-format';
+	import { attendanceText } from '../text';
 
 	const attendance = getAttendanceState();
+	const text = createPageText(attendanceText);
 
 	const targetEmail = $derived(attendance.selectedEmail || attendance.summary?.currentUserEmail || '');
 
@@ -34,9 +37,9 @@
 
 	const statusLabel = $derived.by(() => {
 		const status = statusForDay(today, realtimeEvents);
-		if (status === 'working') return '근무 중';
-		if (status === 'finished') return '퇴근';
-		return '미출근';
+		if (status === 'working') return text.working;
+		if (status === 'finished') return text.finished;
+		return text.absent;
 	});
 
 	const statusIconClass = $derived.by(() => {
@@ -54,26 +57,26 @@
 		{
 			icon: ActivityIcon,
 			iconClass: statusIconClass,
-			label: '현재 상태',
+			label: text.currentStatus,
 			value: statusLabel,
 		},
 		{
 			icon: TimerIcon,
-			label: '오늘',
+			label: text.today,
 			value: formatHoursMinutes(todayBucket.minutes),
-			sublabel: todayBucket.inProgress ? '진행 중' : undefined,
+			sublabel: todayBucket.inProgress ? text.inProgress : undefined,
 		},
 		{
 			icon: TrendingUpIcon,
-			label: '이번 주',
+			label: text.thisWeek,
 			value: formatHoursMinutes(weekBucket.minutes),
-			sublabel: weekBucket.workedDays ? `${weekBucket.workedDays}일 근무` : undefined,
+			sublabel: weekBucket.workedDays ? text.workedDayTemplate.replace('{count}', String(weekBucket.workedDays)) : undefined,
 		},
 		{
 			icon: CalendarIcon,
-			label: '이번 달',
+			label: text.thisMonth,
 			value: formatHoursMinutes(monthBucket.minutes),
-			sublabel: monthBucket.workedDays ? `${monthBucket.workedDays}일 근무` : undefined,
+			sublabel: monthBucket.workedDays ? text.workedDayTemplate.replace('{count}', String(monthBucket.workedDays)) : undefined,
 		},
 	]);
 
@@ -91,5 +94,5 @@
 
 <div class="flex flex-col gap-4">
 	<KpiCardGrid {items} />
-	<WorkTimeChart title="내 근무 시간" {dailyValues} formatValue={formatHoursMinutes} />
+	<WorkTimeChart title={text.myWorkTime} {dailyValues} formatValue={formatHoursMinutes} />
 </div>
