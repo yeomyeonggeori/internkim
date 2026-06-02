@@ -2,6 +2,7 @@ package capabilityd
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +15,9 @@ import (
 	"strings"
 )
 
+const maximumInputImagePartBytes = 8 * 1024 * 1024
+const maximumInputMarkdownPreviewBytes = 120000
+
 type mattermostAttachmentImportRequest struct {
 	MessageID           string                    `json:"messageID"`
 	TargetDirectoryPath string                    `json:"targetDirectoryPath"`
@@ -23,6 +27,7 @@ type mattermostAttachmentImportRequest struct {
 
 type mattermostAttachmentImportResponse struct {
 	InputAttachments []platformInputAttachment `json:"inputAttachments"`
+	InputParts       []platformPart            `json:"inputParts,omitempty"`
 }
 
 type mattermostFileMetadata struct {
@@ -68,7 +73,10 @@ func (service Service) mattermostImportAttachments(ctx context.Context, payload 
 		return mattermostAttachmentImportResponse{}, errorValue
 	}
 	importedAttachments := service.importMattermostAttachments(ctx, target, request.MessageID, attachments)
-	return mattermostAttachmentImportResponse{InputAttachments: importedAttachments}, nil
+	return mattermostAttachmentImportResponse{
+		InputAttachments: importedAttachments,
+		InputParts:       service.mattermostInputParts(ctx, importedAttachments),
+	}, nil
 }
 
 func (request mattermostAttachmentImportRequest) importAttachments() []platformInputAttachment {
@@ -156,6 +164,121 @@ func (service Service) writeMattermostImportedAttachment(target mattermostAttach
 	importedAttachment.ErrorCode = ""
 	importedAttachment.Message = ""
 	return importedAttachment
+}
+
+func (service Service) mattermostInputParts(ctx context.Context, attachments []platformInputAttachment) []platformPart {
+	parts := []platformPart{}
+	for _, attachment := range attachments {
+		part := service.mattermostInputPart(ctx, attachment)
+		if strings.TrimSpace(part.Type) != "" {
+			parts = append(parts, part)
+		}
+	}
+	return parts
+}
+
+func (service Service) mattermostInputPart(ctx context.Context, attachment platformInputAttachment) platformPart {
+	filePart := platformFilePart{
+		Path:        strings.TrimSpace(attachment.Path),
+		Filename:    strings.TrimSpace(attachment.Filename),
+		ContentType: strings.TrimSpace(attachment.ContentType),
+		SizeBytes:   attachment.SizeBytes,
+	}
+	source := platformPartSource{
+		Platform:  strings.TrimSpace(attachment.Platform),
+		MessageID: strings.TrimSpace(attachment.MessageID),
+		FileID:    strings.TrimSpace(attachment.FileID),
+	}
+	if !attachment.IsAvailable {
+		filePart.ConversionStatus = "unavailable"
+		filePart.ConversionMessage = strings.TrimSpace(firstNonEmpty(attachment.Message, attachment.ErrorCode))
+		return platformPart{Type: "file", File: &filePart, Source: source, Visibility: "llm"}
+	}
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(attachment.ContentType)), "image/") {
+		return service.mattermostImageInputPart(attachment, filePart, source)
+	}
+	markdownPreview, conversionStatus, conversionMessage := service.mattermostMarkdownPreview(ctx, attachment)
+	filePart.MarkdownPreview = markdownPreview
+	filePart.ConversionStatus = conversionStatus
+	filePart.ConversionMessage = conversionMessage
+	return platformPart{Type: "file", File: &filePart, Source: source, Visibility: "llm"}
+}
+
+func (service Service) mattermostImageInputPart(attachment platformInputAttachment, filePart platformFilePart, source platformPartSource) platformPart {
+	hostPath, _, errorValue := service.resolveFileReadPath(attachment.Path)
+	if errorValue != nil {
+		filePart.ConversionStatus = "failed"
+		filePart.ConversionMessage = errorValue.Error()
+		return platformPart{Type: "file", File: &filePart, Source: source, Visibility: "llm"}
+	}
+	information, errorValue := os.Stat(hostPath)
+	if errorValue != nil {
+		filePart.ConversionStatus = "failed"
+		filePart.ConversionMessage = errorValue.Error()
+		return platformPart{Type: "file", File: &filePart, Source: source, Visibility: "llm"}
+	}
+	if information.Size() > maximumInputImagePartBytes {
+		filePart.ConversionStatus = "image_too_large"
+		filePart.ConversionMessage = "image is larger than the model input limit"
+		return platformPart{Type: "file", File: &filePart, Source: source, Visibility: "llm"}
+	}
+	document, errorValue := os.ReadFile(hostPath)
+	if errorValue != nil {
+		filePart.ConversionStatus = "failed"
+		filePart.ConversionMessage = errorValue.Error()
+		return platformPart{Type: "file", File: &filePart, Source: source, Visibility: "llm"}
+	}
+	return platformPart{
+		Type: "image",
+		Image: &platformImagePart{
+			MimeType:   strings.TrimSpace(attachment.ContentType),
+			DataBase64: base64.StdEncoding.EncodeToString(document),
+			Path:       strings.TrimSpace(attachment.Path),
+			Filename:   strings.TrimSpace(attachment.Filename),
+		},
+		File:       &filePart,
+		Source:     source,
+		Visibility: "llm",
+	}
+}
+
+func (service Service) mattermostMarkdownPreview(ctx context.Context, attachment platformInputAttachment) (string, string, string) {
+	hostPath, _, errorValue := service.resolveFileReadPath(attachment.Path)
+	if errorValue != nil {
+		return "", "failed", errorValue.Error()
+	}
+	helperResponse, errorValue := service.runFileReadHelper(ctx, service.mattermostMarkdownPreviewRequest(hostPath))
+	if errorValue != nil {
+		return "", "failed", errorValue.Error()
+	}
+	content, isTruncated := truncateTextByBytes(strings.TrimSpace(helperResponse.Content), maximumInputMarkdownPreviewBytes)
+	if content == "" {
+		return "", "empty", "markitdown returned no content"
+	}
+	if isTruncated {
+		return content, "truncated", "markdown preview was truncated"
+	}
+	return content, "converted", ""
+}
+
+func (service Service) mattermostMarkdownPreviewRequest(hostPath string) fileReadHelperRequest {
+	configuration := service.Configuration.WithDefaults()
+	apiKey := readSecretValue(configuration.OpenRouterKeyPath)
+	if configuration.LocalOnly || strings.TrimSpace(apiKey) == "" || isPlaceholderOpenRouterKey(apiKey) {
+		return fileReadHelperRequest{
+			Path:     hostPath,
+			OCRMode:  "never",
+			MaxPages: 20,
+		}
+	}
+	return fileReadHelperRequest{
+		Path:              hostPath,
+		OCRMode:           "auto",
+		MaxPages:          20,
+		OpenRouterAPIKey:  apiKey,
+		OpenRouterBaseURL: openRouterClientBaseURL(configuration.OpenRouterBaseURL),
+		OpenRouterModel:   configuration.OpenRouterModel,
+	}
 }
 
 func unavailableMattermostAttachment(attachment platformInputAttachment, fallbackMessageID string, errorCode string, message string) platformInputAttachment {
