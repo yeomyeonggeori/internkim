@@ -25,7 +25,7 @@ FIT_REVIEW_PROMPT = (
 def main() -> int:
     arguments = parse_arguments(sys.argv)
     if not arguments:
-        print("Usage: render_review.py <source.md> <deck-name> <review-dir>", file=sys.stderr)
+        print("Usage: render_review.py <source> <deck-name> <review-dir>", file=sys.stderr)
         return 2
     report = build_review_report(arguments["sourcePath"], arguments["deckName"], arguments["reviewDirectoryPath"])
     write_review_outputs(arguments["reviewDirectoryPath"], report)
@@ -114,40 +114,32 @@ def read_slide_texts(source_path: pathlib.Path, slide_count: int) -> list[dict[s
 
 
 def split_slide_sources(source_text: str) -> list[str]:
-    body = remove_front_matter(source_text)
-    return [part.strip() for part in re.split(r"(?m)^\s*---\s*$", body) if part.strip()]
-
-
-def remove_front_matter(source_text: str) -> str:
-    match = re.match(r"\A---\s*\n.*?\n---\s*(?:\n|$)", source_text, flags=re.DOTALL)
-    if not match:
-        return source_text
-    return source_text[match.end():]
+    sections = re.findall(r"<section\b[^>]*>.*?</section>", source_text, flags=re.DOTALL | re.IGNORECASE)
+    return [section.strip() for section in sections if section.strip()]
 
 
 def visible_slide_text(slide_source: str) -> str:
     text = remove_invisible_markup(slide_source)
-    text = convert_markdown_markup_to_text(text)
+    text = convert_html_markup_to_text(text)
     return normalize_visible_text(html.unescape(text))
 
 
 def remove_invisible_markup(text: str) -> str:
     text = re.sub(r"<!--.*?-->", " ", text, flags=re.DOTALL)
     text = re.sub(r"<style[^>]*>.*?</style>", " ", text, flags=re.DOTALL | re.IGNORECASE)
-    return re.sub(r"<script[^>]*>.*?</script>", " ", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<script[^>]*>.*?</script>", " ", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(
+        r"<(?:aside|div)\b[^>]*class=[\"'][^\"']*(?:speaker-notes|notes)[^\"']*[\"'][^>]*>.*?</(?:aside|div)>",
+        " ",
+        text,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+    return text
 
 
-def convert_markdown_markup_to_text(text: str) -> str:
+def convert_html_markup_to_text(text: str) -> str:
     replacements = [
-        (r"!\[([^\]]*)\]\([^)]+\)", r"\1"),
-        (r"\[([^\]]+)\]\([^)]+\)", r"\1"),
         (r"<[^>]+>", "\n"),
-        (r"(?m)^\s{0,3}#{1,6}\s*", ""),
-        (r"(?m)^\s*[-*+]\s+", "- "),
-        (r"(?m)^\s*\d+[.)]\s+", ""),
-        (r"(?m)^\s*>\s?", ""),
-        (r"(?m)^\s*```.*$", ""),
-        (r"`([^`]+)`", r"\1"),
     ]
     for pattern, replacement in replacements:
         text = re.sub(pattern, replacement, text)
@@ -409,12 +401,12 @@ def margin_pixels(image: dict[str, object], design: dict[str, str]) -> int:
     return max(16, round(margin * scale * 0.35))
 
 
-def parse_pixel_value(value: str, fallback: int) -> int:
+def parse_pixel_value(value: str, default_value: int) -> int:
     cleaned = value.strip().lower().removesuffix("px")
     try:
         return int(float(cleaned))
     except ValueError:
-        return fallback
+        return default_value
 
 
 def safe_margin_passed(bounds: typing.Optional[dict[str, int]], image: dict[str, object], margin: int) -> bool:

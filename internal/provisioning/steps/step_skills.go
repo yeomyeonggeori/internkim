@@ -40,8 +40,8 @@ var StepSkills = Step{
 			return errorValue
 		}
 		if context.Backend == BackendSSH && context.SSH != nil {
-			if serviceStatus := trimmedRun(context, "systemctl restart "+blueclaw.BlueclawServiceName+" && systemctl is-active "+blueclaw.BlueclawServiceName+" 2>/dev/null"); serviceStatus != "active" {
-				return fmt.Errorf("blueclaw restart after skills deploy failed: %s", serviceStatus)
+			if serviceStatus := trimmedRun(context, blueclawWorkspaceSkillsSyncCommand()); serviceStatus != "active" {
+				return fmt.Errorf("blueclaw workspace skills sync failed: %s", serviceStatus)
 			}
 		}
 		return nil
@@ -53,4 +53,22 @@ var StepSkills = Step{
 		fmt.Println("  " + context.T("firstboot이 첫 부팅에 처리합니다", "firstboot handles this on first boot"))
 		return nil
 	},
+}
+
+func blueclawWorkspaceSkillsSyncCommand() string {
+	blueclawProcessPattern := `[/]usr/local/bin/blueclaw-supervisor|[/]firecracker .*--api-sock /firecracker-api.socket`
+	return `set -eu
+systemctl stop ` + blueclaw.BlueclawServiceName + ` >/dev/null 2>&1 || true
+for _ in $(seq 1 20); do
+  if ! systemctl is-active --quiet ` + blueclaw.BlueclawServiceName + ` && ! pgrep -f ` + shellQuote(blueclawProcessPattern) + ` >/dev/null; then
+    break
+  fi
+  sleep 1
+done
+if systemctl is-active --quiet ` + blueclaw.BlueclawServiceName + ` || pgrep -f ` + shellQuote(blueclawProcessPattern) + ` >/dev/null; then
+  systemctl kill ` + blueclaw.BlueclawServiceName + ` --kill-who=all --signal=KILL >/dev/null 2>&1 || true
+fi
+` + blueclaw.BlueclawSupervisorBinaryPath + ` sync-workspace --workspace-image ` + shellQuote(blueclaw.BlueclawWorkspaceImagePath) + ` --source ` + shellQuote(blueclaw.BlueclawWorkspacePath) + `
+systemctl start ` + blueclaw.BlueclawServiceName + `
+systemctl is-active ` + blueclaw.BlueclawServiceName + ` 2>/dev/null`
 }

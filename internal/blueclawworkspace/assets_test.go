@@ -237,8 +237,12 @@ func TestSimpleSlidesBundlesPackageManifest(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !strings.Contains(string(packageDocument), "@marp-team/marp-cli") {
-		t.Fatal("simple-slides package manifest must include Marp CLI")
+	packageContent := string(packageDocument)
+	if !strings.Contains(packageContent, "playwright-core") {
+		t.Fatal("simple-slides package manifest must include Playwright Core")
+	}
+	if strings.Contains(packageContent, "@marp-team/marp-cli") {
+		t.Fatal("simple-slides package manifest must not include Marp CLI")
 	}
 }
 
@@ -300,14 +304,17 @@ func TestSimpleSlidesDocumentsBeautifulDeckContract(t *testing.T) {
 		"fit-review-XX.md",
 		"expected visible text",
 		"deck-brief.md",
+		"story spine",
+		"Reject shallow content",
+		"worked example",
 		"rendered image evidence",
-		"revise `presentation.md`",
+		"revise `slides.html`",
 		"artifact.review",
-		"accept_review.py",
-		"remainingNotes",
+		"`files` array",
+		"Do not spend delivery budget creating or attaching internal review-decision files",
 		"not a delivery blocker",
 		"Do not use emoji as functional icons or bullets",
-		"hybrid pattern",
+		"HTML-first",
 	} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("simple-slides must document beautiful deck contract %q", expectedText)
@@ -358,9 +365,14 @@ func TestSimpleSlidesRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 	if strings.Contains(buildContent, "command -v marp") {
 		t.Fatal("simple-slides build script must not select ambiguous global Marp")
 	}
-	for _, expectedText := range []string{"EXTRACT_NOTES_SCRIPT", "RENDER_REVIEW_SCRIPT", "SKILL_ASSET_DIRECTORY", "../assets/package.json", "BUILD_DIR", `export TMPDIR="${BUILD_PATH}/.tmp"`, `export TMP="$TMPDIR"`, `export TEMP="$TMPDIR"`, `export HOME="${TMPDIR}/home"`, `cd "$TMPDIR"`, "REVIEW_STRICT"} {
+	for _, expectedText := range []string{"slides.html", "HTML_EXPORT_SCRIPT", "HTML_RENDER_SCRIPT", "RENDER_REVIEW_SCRIPT", "SKILL_ASSET_DIRECTORY", "../assets/package.json", "BUILD_DIR", `export TMPDIR="${BUILD_PATH}/.tmp"`, `export TMP="$TMPDIR"`, `export TEMP="$TMPDIR"`, `export HOME="${TMPDIR}/home"`, `${WORK_DIR}/.skill-env/simple-slides`, "NODE_RUNTIME_BUN_INSTALL", "NODE_RUNTIME_BUN_CACHE", `export BUN_INSTALL="$NODE_RUNTIME_BUN_INSTALL"`, `export BUN_INSTALL_CACHE_DIR="$NODE_RUNTIME_BUN_CACHE"`, "playwright-core"} {
 		if !strings.Contains(buildContent, expectedText) {
 			t.Fatalf("simple-slides build script must contain %q", expectedText)
+		}
+	}
+	for _, forbiddenText := range []string{"presentation.md", "EXTRACT_NOTES_SCRIPT", "REVIEW_STRICT", `cd "$TMPDIR"`, "/workspace/shared/cache/dependencies/bun", "BLUECLAW_REQUESTER_TMP", "is older than DESIGN.md"} {
+		if strings.Contains(buildContent, forbiddenText) {
+			t.Fatalf("simple-slides build script must not contain old workflow fragment %q", forbiddenText)
 		}
 	}
 }
@@ -368,14 +380,30 @@ func TestSimpleSlidesRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 func TestSimpleSlidesBuildAndReviewScriptsCheckFontsAndDensity(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	skillPath := filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "simple-slides")
-	buildScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "build.sh"))
+	htmlExportScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "html_export.py"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	buildContent := string(buildScript)
-	for _, expectedText := range []string{".woff2", ".woff", "font/woff2", "Embedding local fonts as base64 data URLs"} {
-		if !strings.Contains(buildContent, expectedText) {
-			t.Fatalf("simple-slides build script must inline local fonts with %q", expectedText)
+	htmlExportContent := string(htmlExportScript)
+	for _, expectedText := range []string{".woff2", ".woff", "font/woff2", "base64_data_url", "inline_local_fonts", "write_image_backed_pptx", "data-internkim-slide-viewer", "bespoke-marp-parent", "bespoke-marp-osc", "internkim-deck-scale", "data-lucide", "lucideIcon", "bespoke-marp-tooltip", "Next slide (→ / Space / PageDown)", "Overview (O)", "Presenter view (P)", "Exit fullscreen (F)", "minimize", "window.opener.postMessage", "body[data-bespoke-view=\"presenter\"] .bespoke-marp-osc button:not", "width: 1600px", "height: 900px", "resolve_paperlogy_alias", "slideMasters/slideMaster1.xml", "slideLayouts/slideLayout1.xml", "theme/theme1.xml"} {
+		if !strings.Contains(htmlExportContent, expectedText) {
+			t.Fatalf("simple-slides HTML export script must inline fonts, present HTML as slides, and export valid PPTX with %q", expectedText)
+		}
+	}
+	for _, forbiddenText := range []string{"is older than DESIGN.md"} {
+		if strings.Contains(htmlExportContent, forbiddenText) {
+			t.Fatalf("simple-slides HTML export script must not contain old workflow fragment %q", forbiddenText)
+		}
+	}
+
+	htmlRenderScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "html_render.mjs"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	htmlRenderContent := string(htmlRenderScript)
+	for _, expectedText := range []string{"page.pdf", "preferCSSPageSize", "printBackground", "document.fonts.ready", "locator(\"section\")"} {
+		if !strings.Contains(htmlRenderContent, expectedText) {
+			t.Fatalf("simple-slides HTML render script must render text-preserving PDF and slide PNGs with %q", expectedText)
 		}
 	}
 
@@ -392,13 +420,18 @@ func TestSimpleSlidesBuildAndReviewScriptsCheckFontsAndDensity(t *testing.T) {
 	if strings.Contains(reviewContent, `return 0 if report["passed"] else 1`) {
 		t.Fatalf("render review warnings must remain LLM review input, not fail the build")
 	}
+	for _, forbiddenText := range []string{"presentation.md", "remove_front_matter", "split(r\"(?m)^\\s*---\\s*$\""} {
+		if strings.Contains(reviewContent, forbiddenText) {
+			t.Fatalf("render review must stay on HTML section source and not contain %q", forbiddenText)
+		}
+	}
 
 	acceptScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "accept_review.py"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	acceptContent := string(acceptScript)
-	for _, expectedText := range []string{"review-decision.json", "inspectedEvidence", "remainingNotes", "acceptedWarnings"} {
+	for _, expectedText := range []string{"review-decision.json", "inspectedEvidence", "remainingNotes", "acceptedWarnings", "string_set_field", "should be a list"} {
 		if !strings.Contains(acceptContent, expectedText) {
 			t.Fatalf("review acceptance script must include %q", expectedText)
 		}
