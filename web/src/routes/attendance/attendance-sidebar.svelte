@@ -72,11 +72,11 @@
 		{#if attendance.summary?.isAdmin}
 			<div class="space-y-1 rounded-md border p-3">
 				<Label for="attendance-team-visible" class="text-xs font-medium text-muted-foreground">
-					팀 탭 공개
+					{text.teamTabVisible}
 				</Label>
 				<div class="flex items-center justify-between">
 					<span class="text-xs text-muted-foreground">
-						{attendance.summary.teamViewVisibleToAll ? '전원 공개' : '관리자만'}
+						{attendance.summary.teamViewVisibleToAll ? text.visibleToAll : text.adminOnly}
 					</span>
 					<Switch
 						id="attendance-team-visible"
