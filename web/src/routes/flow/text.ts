@@ -28,7 +28,10 @@ export const flowText = {
 			memberScores: '구성원 거리',
 			memberScoresDescription: '완료와 진행 업무 기준의 주간 업무 거리입니다.',
 			businessDistance: '대분류별 업무',
-			typeBreakdown: '종류별 업무'
+			businessDistanceDescription: '팀 리소스가 어느 업무 영역에 몰려 있는지 봅니다.',
+			typeBreakdown: '종류별 업무',
+			typeBreakdownDescription: '이번 주 업무 성격의 분포를 확인합니다.',
+			empty: '이번 주 데이터 없음'
 		},
 		definitions: {
 			size: '크기',
@@ -170,7 +173,10 @@ export const flowText = {
 			memberScores: 'Member distance',
 			memberScoresDescription: 'Weekly work distance based on completed and active work.',
 			businessDistance: 'By category',
-			typeBreakdown: 'By type'
+			businessDistanceDescription: 'See where team resources are concentrated.',
+			typeBreakdown: 'By type',
+			typeBreakdownDescription: 'Review the shape of this week’s work.',
+			empty: 'No data for this week'
 		},
 		definitions: {
 			size: 'Size',
