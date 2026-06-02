@@ -6,13 +6,14 @@ import (
 )
 
 type mattermostPost struct {
-	ID        string `json:"id"`
-	UserID    string `json:"user_id"`
-	ChannelID string `json:"channel_id"`
-	Message   string `json:"message"`
-	RootID    string `json:"root_id"`
-	Type      string `json:"type"`
-	CreateAt  int64  `json:"create_at"`
+	ID        string   `json:"id"`
+	UserID    string   `json:"user_id"`
+	ChannelID string   `json:"channel_id"`
+	Message   string   `json:"message"`
+	RootID    string   `json:"root_id"`
+	Type      string   `json:"type"`
+	CreateAt  int64    `json:"create_at"`
+	FileIDs   []string `json:"file_ids"`
 	Metadata  struct {
 		Mentions []string `json:"mentions"`
 	} `json:"metadata"`
@@ -114,20 +115,43 @@ func normalizeMattermostPost(post mattermostPost, botUserID string, channelType 
 		return platformInboundEvent{}, false, errorValue
 	}
 
+	inputAttachments := mattermostInputAttachments(post.ID, post.FileIDs)
+	prompt := strings.TrimSpace(post.Message)
+	if prompt == "" && len(inputAttachments) > 0 {
+		prompt = "User attached file(s)."
+	}
+
 	return platformInboundEvent{
 		ConversationID: conversationID,
 		MessageID:      post.ID,
 		ReplyTargetID:  replyTargetID,
 		SenderID:       post.UserID,
-		Prompt:         post.Message,
+		Prompt:         prompt,
 		Context: platformEventContext{
 			HistoryCursor:    historyCursor,
 			ConversationType: channelType,
 			ChannelID:        post.ChannelID,
 			ChannelName:      channelName,
 			Addressing:       addressing,
+			InputAttachments: inputAttachments,
 		},
 	}, true, nil
+}
+
+func mattermostInputAttachments(messageID string, fileIDs []string) []platformInputAttachment {
+	attachments := []platformInputAttachment{}
+	for _, fileID := range fileIDs {
+		fileID = strings.TrimSpace(fileID)
+		if fileID == "" {
+			continue
+		}
+		attachments = append(attachments, platformInputAttachment{
+			Platform:  "mattermost",
+			FileID:    fileID,
+			MessageID: messageID,
+		})
+	}
+	return attachments
 }
 
 func mattermostDirectReplyRootID(post mattermostPost) string {

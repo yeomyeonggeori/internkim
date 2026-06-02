@@ -153,13 +153,14 @@ type progressRequest struct {
 }
 
 type mattermostPolledPost struct {
-	ID        string `json:"id"`
-	UserID    string `json:"user_id"`
-	ChannelID string `json:"channel_id"`
-	Message   string `json:"message"`
-	RootID    string `json:"root_id"`
-	Type      string `json:"type"`
-	CreateAt  int64  `json:"create_at"`
+	ID        string   `json:"id"`
+	UserID    string   `json:"user_id"`
+	ChannelID string   `json:"channel_id"`
+	Message   string   `json:"message"`
+	RootID    string   `json:"root_id"`
+	Type      string   `json:"type"`
+	CreateAt  int64    `json:"create_at"`
+	FileIDs   []string `json:"file_ids"`
 	Metadata  struct {
 		Mentions []string `json:"mentions"`
 	} `json:"metadata"`
@@ -272,6 +273,7 @@ func (service Service) router() http.Handler {
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/interaction.resolve", service.handleInteractionResolve)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/reaction.add", service.handleReactionAdd)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/history.fetch", service.handleHistoryFetch)
+	multiplexer.HandleFunc("POST /v1/platform/{platform}/attachments.import", service.handleAttachmentsImport)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.start", service.handleProgressStart)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.stop", service.handleProgressStop)
 	multiplexer.HandleFunc("POST /v1/tools/{toolName}/invoke", service.handleToolInvoke)
@@ -443,6 +445,19 @@ func (service Service) handleHistoryFetch(responseWriter http.ResponseWriter, re
 		response, errorValue = service.slackHistoryFromRequest(request.Context(), request.Body)
 	case "signal":
 		response, errorValue = service.signalHistoryFromRequest(request.Context(), request.Body)
+	default:
+		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
+		return
+	}
+	service.writeResponse(responseWriter, response, errorValue)
+}
+
+func (service Service) handleAttachmentsImport(responseWriter http.ResponseWriter, request *http.Request) {
+	var response any
+	var errorValue error
+	switch request.PathValue("platform") {
+	case "mattermost":
+		response, errorValue = service.mattermostImportAttachmentsFromRequest(request.Context(), request.Body)
 	default:
 		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
 		return
@@ -1488,6 +1503,7 @@ func (service Service) forwardMattermostChannelPosts(ctx context.Context, botUse
 			RootID:    post.RootID,
 			Type:      post.Type,
 			CreateAt:  post.CreateAt,
+			FileIDs:   post.FileIDs,
 			Metadata:  post.Metadata,
 		}, botUserID, channelType, channelName, addressing)
 		if errorValue != nil {
