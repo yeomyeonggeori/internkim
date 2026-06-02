@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	_ "modernc.org/sqlite"
@@ -23,7 +24,7 @@ func (service *Service) openSQLiteDatabase(ctx context.Context, databasePath str
 	if errorValue := os.MkdirAll(filepath.Dir(databasePath), 0o700); errorValue != nil {
 		return nil, errorValue
 	}
-	database, errorValue := sql.Open("sqlite", databasePath)
+	database, errorValue := sql.Open("sqlite", sqliteDatabaseDSN(databasePath))
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -39,9 +40,17 @@ func (service *Service) openSQLiteDatabase(ctx context.Context, databasePath str
 	return database, nil
 }
 
+func sqliteDatabaseDSN(databasePath string) string {
+	separator := "?"
+	if strings.Contains(databasePath, "?") {
+		separator = "&"
+	}
+	return databasePath + separator + "_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(on)"
+}
+
 func configureSQLiteDatabase(database *sql.DB) {
-	database.SetMaxOpenConns(4)
-	database.SetMaxIdleConns(4)
+	database.SetMaxOpenConns(1)
+	database.SetMaxIdleConns(1)
 }
 
 func configureSQLiteConnection(ctx context.Context, database *sql.DB) error {
