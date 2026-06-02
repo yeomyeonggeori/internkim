@@ -118,12 +118,12 @@ func TestSitePrototypeUsesManagedScaffoldContract(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	content := string(document)
-	for _, expectedText := range []string{"React + Vite + TypeScript + Tailwind + shadcn/ui", "UI archetype", "Stitch canonical format", "browser tools", "`bun scripts/build.ts`", "artifact.review", "same URL", "prototype-data.ts", "build-quality.json", ".internkim/idea.md", ".internkim/artifact-brief.md", "visualReviewUnavailable", "PocketBase", "ownerIdentity", "ambiguous", "site.app.build", "site.app.repair", "site.app.preview", "workspaceHealth"} {
+	for _, expectedText := range []string{"React + Vite + TypeScript + Tailwind + shadcn/ui", "UI archetype", "Stitch canonical format", "browser tools", "`bun scripts/build.ts`", "artifact.review", "same URL", "prototype-data.ts", "build-quality.json", ".internkim/idea.md", ".internkim/artifact-brief.md", "visualReviewUnavailable", "PocketBase", "ownerIdentity", "ambiguous", "site.app.build", "site.app.repair", "site.app.preview", "workspaceHealth", "black-on-white", "no dark navy shell"} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("site-prototype must document managed scaffold contract %q", expectedText)
 		}
 	}
-	for _, forbiddenText := range []string{"tmp/<slug>", "create missing `app/package.json`", `"workingDirectoryPath": "<sourceWorkspacePath>/app"`, "dependency-free HTML + CSS + JavaScript", "Do not use React"} {
+	for _, forbiddenText := range []string{"tmp/<slug>", "create missing `app/package.json`", `"workingDirectoryPath": "<sourceWorkspacePath>/app"`, "dependency-free HTML + CSS + JavaScript", "Do not use React", "warm limestone", "green secondary accents", "amber tertiary"} {
 		if strings.Contains(content, forbiddenText) {
 			t.Fatalf("site-prototype must not document stale site workspace pattern %q", forbiddenText)
 		}
