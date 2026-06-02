@@ -213,6 +213,8 @@ func Main() {
 			runUsers()
 		case "reset":
 			runReset()
+		case "recover":
+			runRecover()
 		case "status":
 			runStatus()
 		case "update":
@@ -253,6 +255,7 @@ func printUsage() {
 	fmt.Println("  invite   Add/invite an allowed user")
 	fmt.Println("  users    Manage allowed users")
 	fmt.Println("  reset    Reset board runtime data")
+	fmt.Println("  recover  Recover narrow device maintenance paths")
 	fmt.Println("  status   Check board and tunnel status")
 	fmt.Println("  update   Deploy current build to device")
 	fmt.Println("  deploy   Build and deploy web UI + board-bridge to board")
@@ -418,9 +421,44 @@ func formatCloudflareSSHError(hostname string, output string, errorValue error) 
 func cloudflareSSHRecoveryHint(hostname string, detail string) string {
 	normalizedDetail := strings.ToLower(detail)
 	if strings.Contains(normalizedDetail, "banner exchange") {
-		return "Cloudflare Access 프록시는 열렸지만 SSH banner를 받지 못했습니다. 브라우저 인증보다 장비의 `sshd` 또는 `cloudflared-node-ssh` 터널 상태를 먼저 확인하세요."
+		return "Cloudflare Access 프록시는 열렸지만 SSH banner를 받지 못했습니다. 브라우저 인증보다 장비의 `sshd` 또는 `cloudflared-node-ssh` 터널 상태를 먼저 확인하세요. HTTP가 살아 있으면 `./internkim recover ssh`로 SSH 터널 복구를 시도하세요."
 	}
 	return fmt.Sprintf("Cloudflare Access 인증이 만료되었을 수 있습니다. `cloudflared access ssh --hostname %s`로 브라우저 인증을 갱신한 뒤 다시 실행하세요.", hostname)
+}
+
+func cloudflareSSHFailureClass(message string) string {
+	normalizedMessage := strings.ToLower(message)
+	switch {
+	case strings.Contains(normalizedMessage, "banner exchange"):
+		return "origin_banner_timeout"
+	case strings.Contains(normalizedMessage, "lookup"):
+		return "dns"
+	case strings.Contains(normalizedMessage, "access") || strings.Contains(normalizedMessage, "authenticate") || strings.Contains(normalizedMessage, "forbidden"):
+		return "access_auth"
+	case strings.Contains(normalizedMessage, "connect to host") || strings.Contains(normalizedMessage, "operation timed out"):
+		return "direct_lan_unreachable"
+	default:
+		return "unknown"
+	}
+}
+
+func cloudflareSSHFailureSummary(errorValue error) string {
+	if errorValue == nil {
+		return "ok"
+	}
+	failureClass := cloudflareSSHFailureClass(errorValue.Error())
+	switch failureClass {
+	case "origin_banner_timeout":
+		return "origin_banner_timeout — SSH tunnel origin did not return an SSH banner; try `./internkim recover ssh`."
+	case "access_auth":
+		return "access_auth — refresh Cloudflare Access authentication."
+	case "dns":
+		return "dns — SSH hostname did not resolve."
+	case "direct_lan_unreachable":
+		return "direct_lan_unreachable — direct SSH target did not respond."
+	default:
+		return "unknown — inspect Cloudflare SSH and device network state."
+	}
 }
 
 func cloudflareSSHTLSStatus(stateDir string) string {
@@ -804,6 +842,9 @@ func runStatusArguments(arguments []string) error {
 	sshpassBin := filepath.Join(repositoryRootPath, "bin", "sshpass")
 	target := resolveCommandTarget(arguments)
 	target = resolveLabHostForCommandTarget(target, repositoryRootPath)
+	if hasCommandArgument(arguments, "--recover-ssh") {
+		return runSSHRecoveryForTarget(m, configuration, sshpassBin, target, "restart-cloudflared-node-ssh")
+	}
 	if hasCommandArgument(arguments, "--all-nodes") {
 		targets := allFleetCommandTargets(target)
 		if len(targets) == 0 {
@@ -839,6 +880,12 @@ func printStatusForCommandTarget(m *msg, configuration config, sshpassBin string
 		fmt.Printf("=== %s (%s: %s) ===\n\n", m.t("기기 상태", "Device Status"), target.boardType, target.host)
 		printBoardStatus(m, target, connection)
 		return nil
+	} else if target.useRemoteSSH && errorValue != nil {
+		if printPublicStatusForCommandTarget(m, target) {
+			fmt.Printf("\n  %-20s ✗ %s\n", "SSH", cloudflareSSHFailureSummary(errorValue))
+			return nil
+		}
+		return errorValue
 	}
 
 	connection, isRemote, errorValue := resolveDeviceSSHConnection(configuration, sshpassBin, target)
@@ -850,10 +897,6 @@ func printStatusForCommandTarget(m *msg, configuration config, sshpassBin string
 		printBoardStatus(m, target, connection)
 		return nil
 	}
-	if target.useRemoteSSH && errorValue != nil {
-		return errorValue
-	}
-
 	if target.mode == commandTargetModeLab {
 		return errors.New("lab target not found; run `internkim lab status` or pass --host <ip>")
 	}
