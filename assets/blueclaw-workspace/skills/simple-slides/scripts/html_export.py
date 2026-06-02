@@ -76,9 +76,65 @@ def extract_slide_sources(source_path: pathlib.Path) -> list[str]:
 
 def inline_local_resources(source_path: pathlib.Path) -> str:
     source_text = source_path.read_text(encoding="utf-8")
+    source_text = inject_vendored_paperlogy_fallback(source_text)
     source_text = inline_local_images(source_text, source_path.parent)
     source_text = inline_local_fonts(source_text, source_path.parent)
     return inject_screen_slide_viewer(source_text)
+
+
+def inject_vendored_paperlogy_fallback(source_text: str) -> str:
+    source_text = add_paperlogy_local_to_font_family_lists(source_text)
+    font_style = vendored_paperlogy_fallback_style()
+    if "data-internkim-vendored-fonts" in source_text:
+        return re.sub(
+            r"<style\b[^>]*data-internkim-vendored-fonts[^>]*>.*?</style>",
+            font_style,
+            source_text,
+            count=1,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+    style_match = re.search(r"<style\b[^>]*>", source_text, flags=re.IGNORECASE)
+    if style_match:
+        insert_index = style_match.start()
+        return source_text[:insert_index] + "\n" + font_style + "\n" + source_text[insert_index:]
+    head_match = re.search(r"</head>", source_text, flags=re.IGNORECASE)
+    if head_match:
+        insert_index = head_match.start()
+        return source_text[:insert_index] + "<style>\n" + font_style + "\n</style>\n" + source_text[insert_index:]
+    return "<style>\n" + font_style + "\n</style>\n" + source_text
+
+
+def add_paperlogy_local_to_font_family_lists(source_text: str) -> str:
+    if "PaperlogyLocal" in source_text:
+        return source_text
+    source_text = re.sub(
+        r'(["\']Paperlogy["\']\s*,)(?!\s*["\']PaperlogyLocal["\'])',
+        r'\1 "PaperlogyLocal",',
+        source_text,
+    )
+    return re.sub(
+        r'(?<![-\w])Paperlogy\s*,(?!\s*["\']?PaperlogyLocal)',
+        'Paperlogy, "PaperlogyLocal",',
+        source_text,
+    )
+
+
+def vendored_paperlogy_fallback_style() -> str:
+    fonts = [
+        (400, "Paperlogy-4Regular.woff2"),
+        (600, "Paperlogy-6SemiBold.woff2"),
+        (700, "Paperlogy-7Bold.woff2"),
+        (800, "Paperlogy-8ExtraBold.woff2"),
+    ]
+    rules = []
+    for weight, file_name in fonts:
+        font_path = pathlib.Path(__file__).resolve().parent.parent / "assets" / "fonts" / "paperlogy" / file_name
+        rules.append(
+            '@font-face { font-family: "PaperlogyLocal"; '
+            f"font-weight: {weight}; font-style: normal; font-display: swap; "
+            f'src: url("{base64_data_url("font/woff2", font_path)}") format("woff2"); }}'
+        )
+    return '<style data-internkim-vendored-fonts>' + "\n".join(rules) + "</style>"
 
 
 def inject_screen_slide_viewer(source_text: str) -> str:
