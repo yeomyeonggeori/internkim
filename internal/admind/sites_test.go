@@ -250,6 +250,9 @@ func TestSiteDefaultDesignMDUsesStitchFormat(t *testing.T) {
 		"rounded:",
 		"spacing:",
 		"components:",
+		"black-on-white",
+		"primary: \"#111111\"",
+		"background: \"#FFFFFF\"",
 		"## Overview",
 		"## Colors",
 		"## Typography",
@@ -263,7 +266,7 @@ func TestSiteDefaultDesignMDUsesStitchFormat(t *testing.T) {
 			t.Fatalf("default DESIGN.md must contain %q", expectedText)
 		}
 	}
-	for _, forbiddenText := range []string{"## Product", "## Audience", "## Prototype Scope", "## Workflows", "## Acceptance Criteria"} {
+	for _, forbiddenText := range []string{"## Product", "## Audience", "## Prototype Scope", "## Workflows", "## Acceptance Criteria", "warm limestone", "slate text", "green secondary accents", "amber tertiary highlights"} {
 		if strings.Contains(document, forbiddenText) {
 			t.Fatalf("default DESIGN.md must not contain legacy section %q", forbiddenText)
 		}
@@ -377,6 +380,18 @@ func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
 	qualityIndex := strings.LastIndex(buildScript, "writeBuildQuality(qualityIssues);")
 	if viteIndex < 0 || qualityIndex < viteIndex {
 		t.Fatalf("site build script must write build-quality.json after vite build")
+	}
+
+	indexCSS := readRepositoryFile(t, "assets", "blueclaw-site-scaffold", "react-vite-ts", "src", "index.css")
+	for _, expectedText := range []string{`--background: #ffffff`, `--foreground: #111111`, `--primary: #111111`, `--border: #e5e7eb`} {
+		if !strings.Contains(indexCSS, expectedText) {
+			t.Fatalf("site scaffold must default to black-on-white token %q", expectedText)
+		}
+	}
+	for _, forbiddenText := range []string{"#0f172a", "#f7f5ef", "#2f6b5f", "#d97706"} {
+		if strings.Contains(strings.ToLower(indexCSS), forbiddenText) {
+			t.Fatalf("site scaffold must not default to slate/navy accent token %q", forbiddenText)
+		}
 	}
 }
 
