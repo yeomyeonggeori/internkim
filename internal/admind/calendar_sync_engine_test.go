@@ -869,6 +869,74 @@ func TestPushCalendarOutboxDeletesObjectWithIfMatch(t *testing.T) {
 	}
 }
 
+func TestPushCalendarOutboxClearsAuthErrorAfterDeleteSuccess(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+	service.markRemoteCalendarAccountAuthError(ctx, account, errors.New("caldav delete status 401: Unauthorized"))
+	reloaded, _, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil {
+		t.Fatalf("read account: %v", errorValue)
+	}
+
+	event := newLocalTestCalendarEvent("push-del-auth-clear", "Push Delete Auth Clear")
+	event.RemoteSource = remoteCalendarProviderGoogle
+	event.RemoteETag = `"etag-del-auth-clear"`
+	event.RemoteHref = "/calendars/me/push-del-auth-clear.ics"
+	if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
+		t.Fatalf("seed write: %v", errorValue)
+	}
+	if errorValue := service.softDeleteCalendarEvent(ctx, event.ID); errorValue != nil {
+		t.Fatalf("soft delete: %v", errorValue)
+	}
+
+	client := &fakeCalDAVPushClient{}
+	if _, errorValue := service.pushCalendarOutboxForAccount(ctx, reloaded, client); errorValue != nil {
+		t.Fatalf("push: %v", errorValue)
+	}
+	refreshed, _, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil {
+		t.Fatalf("read refreshed account: %v", errorValue)
+	}
+	if refreshed.LastAuthError != "" || refreshed.LastAuthErrorAt != "" {
+		t.Fatalf("auth error should clear after delete success: %+v", refreshed)
+	}
+}
+
+func TestPushCalendarOutboxKeepsAuthErrorAfterNoopRow(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+	service.markRemoteCalendarAccountAuthError(ctx, account, errors.New("caldav put status 401: Unauthorized"))
+	reloaded, _, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil {
+		t.Fatalf("read account: %v", errorValue)
+	}
+	if errorValue := service.enqueueCalendarOutbox(ctx, calendarOutboxRow{
+		AccountID: account.ID,
+		EventID:   "missing-event",
+		EventUID:  "missing-event@internkim",
+		Operation: calendarOutboxOperationPut,
+	}); errorValue != nil {
+		t.Fatalf("enqueue outbox: %v", errorValue)
+	}
+
+	client := &fakeCalDAVPushClient{}
+	if _, errorValue := service.pushCalendarOutboxForAccount(ctx, reloaded, client); errorValue != nil {
+		t.Fatalf("push: %v", errorValue)
+	}
+	refreshed, _, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil {
+		t.Fatalf("read refreshed account: %v", errorValue)
+	}
+	if refreshed.LastAuthError == "" || refreshed.LastAuthErrorAt == "" {
+		t.Fatalf("auth error should remain after noop row: %+v", refreshed)
+	}
+	if len(client.putCalls) != 0 || len(client.deleteCalls) != 0 {
+		t.Fatalf("noop row should not call remote client: put=%d delete=%d", len(client.putCalls), len(client.deleteCalls))
+	}
+}
+
 func TestPushCalendarOutboxDropsRowAfterMaxAttempts(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
@@ -928,6 +996,34 @@ func TestPushCalendarOutboxKeepsRowOnTransientError(t *testing.T) {
 	}
 	if !strings.Contains(rows[0].LastError, "network unreachable") {
 		t.Errorf("last error not captured: %q", rows[0].LastError)
+	}
+}
+
+func TestPushCalendarOutboxMarksAccountAuthErrorOnCalDAVUnauthorized(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	account := seedAccountWithDiscovery(t, service)
+
+	event := newLocalTestCalendarEvent("push-auth", "Auth Failure")
+	if errorValue := service.writeCalendarEvent(ctx, event); errorValue != nil {
+		t.Fatalf("write: %v", errorValue)
+	}
+	expectedPath := account.DefaultCalendarURL + event.UID + ".ics"
+	client := &fakeCalDAVPushClient{
+		putErrors: map[string]error{expectedPath: errors.New("caldav put status 401: Unauthorized")},
+	}
+	if _, errorValue := service.pushCalendarOutboxForAccount(ctx, account, client); errorValue != nil {
+		t.Fatalf("push: %v", errorValue)
+	}
+	reloaded, _, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil {
+		t.Fatalf("read account: %v", errorValue)
+	}
+	if !strings.Contains(reloaded.LastAuthError, "401") {
+		t.Fatalf("last auth error: got %q", reloaded.LastAuthError)
+	}
+	if reloaded.LastAuthErrorAt == "" {
+		t.Fatal("last auth error timestamp should be set")
 	}
 }
 
