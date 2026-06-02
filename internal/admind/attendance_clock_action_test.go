@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 )
@@ -43,6 +44,29 @@ func TestAttendanceClockButtonsPostAsUserAndIgnoreInvalidState(t *testing.T) {
 	}
 	if len(events) != 2 || events[0].Kind != attendanceKindClockOut || events[1].Kind != attendanceKindClockIn {
 		t.Fatalf("events = %+v", events)
+	}
+}
+
+func TestAttendanceClockMessagesUseAdminLocale(t *testing.T) {
+	service, posts := newAttendanceActionTestService(t)
+	setAttendanceActionTestLocale(t, service, "en")
+	payload := mattermostInteractivePayload{
+		UserID:    "user-1",
+		PostID:    "entry-post",
+		ChannelID: "attendance-channel",
+		TeamID:    "team-1",
+		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken()},
+	}
+
+	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if len(*posts) != 2 || (*posts)[0].Message != "Clock in" || (*posts)[1].Message != "Clock out" {
+		t.Fatalf("posts = %+v", *posts)
 	}
 }
 
@@ -125,5 +149,38 @@ func TestAttendanceRepeatedClickCancelsEvent(t *testing.T) {
 	}
 	if found {
 		t.Fatalf("expected no active event, got %+v", event)
+	}
+}
+
+func TestAttendanceCancelMessageUsesAdminLocale(t *testing.T) {
+	service, posts := newAttendanceActionTestService(t)
+	setAttendanceActionTestLocale(t, service, "en")
+	payload := mattermostInteractivePayload{
+		UserID:    "user-1",
+		PostID:    "entry-post",
+		ChannelID: "attendance-channel",
+		TeamID:    "team-1",
+		Context:   mattermostInteractiveContext{Action: "attendance.toggle", Token: service.ensureMattermostInteractiveActionToken()},
+	}
+
+	if errorValue := service.toggleAttendanceFromMattermost(context.Background(), payload); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.toggleAttendanceFromMattermost(context.Background(), payload); errorValue != nil && errorValue != errAttendanceDuplicateIgnored {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.toggleAttendanceFromMattermost(context.Background(), payload); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if len(*posts) != 2 || (*posts)[1].Message != "Clock in canceled" || (*posts)[1].RootID != "entry-post" {
+		t.Fatalf("posts = %+v", *posts)
+	}
+}
+
+func setAttendanceActionTestLocale(t *testing.T, service *Service, locale string) {
+	t.Helper()
+	if errorValue := os.WriteFile(service.adminLocalePath(), []byte(locale), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
 	}
 }

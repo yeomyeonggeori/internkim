@@ -71,7 +71,7 @@ func (service *Service) createAttendanceEventForKind(ctx context.Context, databa
 }
 
 func (service *Service) cancelAttendanceEvent(ctx context.Context, database *sql.DB, userToken string, event attendanceEvent, canceledAt time.Time) error {
-	message := service.attendanceMessageForKindAndLocation(event.Kind, event.LocationName) + " 취소"
+	message := service.attendanceCancelMessage(event.Kind, event.LocationName)
 	if _, errorValue := service.postMattermostUserAttendanceMessage(ctx, userToken, event.ChannelID, event.ActionPostID, message); errorValue != nil {
 		return errorValue
 	}
@@ -124,20 +124,24 @@ func parseAttendanceEventTime(value string) (time.Time, error) {
 	return time.Parse(time.RFC3339, value)
 }
 
-func attendanceMessageForKind(kind string) string {
+func attendanceMessageForKind(text localizedAdminText, kind string) string {
 	if kind == attendanceKindClockOut {
-		return "퇴근"
+		return text.AttendanceClockOut
 	}
-	return "출근"
+	return text.AttendanceClockIn
 }
 
 func (service *Service) attendanceMessageForKindAndLocation(kind string, locationName string) string {
-	message := attendanceMessageForKind(kind)
+	message := attendanceMessageForKind(service.adminText(), kind)
 	trimmedLocationName := strings.TrimSpace(locationName)
 	if kind != attendanceKindClockIn || trimmedLocationName == "" || !service.hasMultipleAttendanceLocations() {
 		return message
 	}
 	return message + "(" + trimmedLocationName + ")"
+}
+
+func (service *Service) attendanceCancelMessage(kind string, locationName string) string {
+	return service.attendanceMessageForKindAndLocation(kind, locationName) + " " + service.adminText().AttendanceCanceled
 }
 
 func (service *Service) hasMultipleAttendanceLocations() bool {
