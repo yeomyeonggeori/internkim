@@ -136,6 +136,10 @@ func (backend calendarDAVBackend) PutCalendarObject(ctx context.Context, path st
 	}
 	if existingFound {
 		event.CreatedByEmail = existingEvent.CreatedByEmail
+		event.CreatedByName = existingEvent.CreatedByName
+		event.UpdatedByEmail = existingEvent.UpdatedByEmail
+		event.UpdatedByName = existingEvent.UpdatedByName
+		event.UpdatedByAt = existingEvent.UpdatedByAt
 		event.MattermostPostID = existingEvent.MattermostPostID
 	}
 	if errorValue := backend.service.writeCalendarEvent(ctx, event); errorValue != nil {

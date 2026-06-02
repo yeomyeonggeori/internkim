@@ -41,6 +41,7 @@ type Configuration struct {
 	CompanionJobPath            string
 	FlowDatabasePath            string
 	CalendarDatabasePath        string
+	CalendarSecretsDirectory    string
 	MailDatabasePath            string
 	AttendanceDatabasePath      string
 	MattermostAdminPasswordPath string
@@ -63,6 +64,7 @@ type Configuration struct {
 	BotProfileImagePath         string
 	BlueclawWorkspacePath       string
 	BlueclawRuntimeConfigPath   string
+	CalendarSyncDisabled        bool
 }
 
 type Service struct {
@@ -70,18 +72,26 @@ type Service struct {
 	HTTPClient    *http.Client
 	RunCommand    func(context.Context, string, ...string) ([]byte, error)
 
-	mutex                sync.Mutex
-	jobs                 map[string]*Job
-	uploads              map[string]*RestoreUpload
-	pairingCodes         map[string]*CompanionPairingCode
-	companions           map[string]*CompanionRecord
-	companionJobs        map[string]*CompanionJob
-	companionFileUploads map[string]*CompanionFileUpload
-	companionMounts      map[string]*CompanionMountRecord
-	sites                map[string]*SiteRecord
-	mailBackend          mailBackend
-	requestMetrics       *adminRequestMetrics
-	databaseSchemas      *adminDatabaseSchemas
+	mutex                   sync.Mutex
+	jobs                    map[string]*Job
+	uploads                 map[string]*RestoreUpload
+	pairingCodes            map[string]*CompanionPairingCode
+	companions              map[string]*CompanionRecord
+	companionJobs           map[string]*CompanionJob
+	companionFileUploads    map[string]*CompanionFileUpload
+	companionMounts         map[string]*CompanionMountRecord
+	sites                   map[string]*SiteRecord
+	mailBackend             mailBackend
+	googleOAuthStates       sync.Map
+	calendarSyncWakeUp      chan struct{}
+	calendarSyncCycleMutex  sync.Mutex
+	calendarStoreWriteMutex sync.Mutex
+	calendarPullCacheMutex  sync.Mutex
+	lastCalendarPullAt      time.Time
+	calendarRecentPushMutex sync.Mutex
+	recentCalendarPushUIDs  map[string]time.Time
+	requestMetrics          *adminRequestMetrics
+	databaseSchemas         *adminDatabaseSchemas
 }
 
 type Job struct {
@@ -199,6 +209,7 @@ func DefaultConfiguration() Configuration {
 		CompanionJobPath:            "/root/.internkim/state/companion-jobs.json",
 		FlowDatabasePath:            "/root/.internkim/state/flow.sqlite",
 		CalendarDatabasePath:        "/root/.internkim/state/calendar.sqlite",
+		CalendarSecretsDirectory:    "/root/.internkim/secrets/google-oauth",
 		MailDatabasePath:            "/root/.internkim/state/mail.sqlite",
 		AttendanceDatabasePath:      "/root/.internkim/state/attendance.sqlite",
 		MattermostAdminPasswordPath: "/root/.internkim/secrets/mm-admin-pass",
@@ -237,6 +248,7 @@ func NewService(configuration Configuration) *Service {
 		companionMounts:      map[string]*CompanionMountRecord{},
 		sites:                map[string]*SiteRecord{},
 		mailBackend:          standardMailBackend{},
+		calendarSyncWakeUp:   make(chan struct{}, 1),
 		requestMetrics:       newAdminRequestMetrics(),
 		databaseSchemas:      newAdminDatabaseSchemas(),
 	}
@@ -253,6 +265,7 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startMattermostProvisionerSync(ctx)
 	service.startMattermostCircleSync(ctx)
 	service.startCalendarNotificationWorker(ctx)
+	service.startCalendarSyncWorker(ctx)
 	server := &http.Server{
 		Addr:    service.Configuration.ListenAddress,
 		Handler: service.router(),
@@ -325,6 +338,8 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/calendar/api/", service.handleCalendar)
 	multiplexer.HandleFunc("/calendar/ics/", service.serveCalendarICS)
 	multiplexer.HandleFunc("/calendar/dav/", service.serveCalendarDAV)
+	multiplexer.HandleFunc("/calendar/oauth/google/start", service.handleGoogleOAuthStart)
+	multiplexer.HandleFunc("/calendar/oauth/google/callback", service.handleGoogleOAuthCallback)
 	multiplexer.HandleFunc("/calendar/", service.serveCalendarPage)
 	multiplexer.HandleFunc("/mail", service.serveMailPage)
 	multiplexer.HandleFunc("/mail/api/", service.handleMail)

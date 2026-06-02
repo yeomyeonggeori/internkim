@@ -46,8 +46,15 @@ type calendarEvent struct {
 	People            []string `json:"people"`
 	ReminderLeadHours int      `json:"reminderLeadHours"`
 	CreatedByEmail    string   `json:"createdByEmail"`
+	CreatedByName     string   `json:"createdByName"`
+	UpdatedByEmail    string   `json:"updatedByEmail,omitempty"`
+	UpdatedByName     string   `json:"updatedByName,omitempty"`
+	UpdatedByAt       string   `json:"updatedByAt,omitempty"`
 	UpdatedAt         string   `json:"updatedAt"`
 	MattermostPostID  string   `json:"mattermostPostID,omitempty"`
+	RemoteSource      string   `json:"remoteSource,omitempty"`
+	RemoteETag        string   `json:"remoteETag,omitempty"`
+	RemoteHref        string   `json:"remoteHref,omitempty"`
 	RawICS            string   `json:"-"`
 }
 
@@ -74,6 +81,14 @@ type calendarSyncResponse struct {
 	CalDAVUsername string `json:"caldavUsername"`
 	CalDAVPassword string `json:"caldavPassword"`
 	ICSURL         string `json:"icsURL"`
+}
+
+type calendarRemoteSyncResponse struct {
+	Changed             bool `json:"changed"`
+	PullAttempted       bool `json:"pullAttempted"`
+	PullSkippedByCache  bool `json:"pullSkippedByCache"`
+	SyncSkippedByLease  bool `json:"syncSkippedByLease"`
+	PullCacheTTLSeconds int  `json:"pullCacheTTLSeconds"`
 }
 
 type calendarPeopleInput []string
@@ -129,6 +144,14 @@ func (service *Service) handleCalendar(responseWriter http.ResponseWriter, reque
 		service.deleteCalendarEvent(responseWriter, request, strings.TrimPrefix(path, "/events/"))
 	case request.Method == http.MethodGet && path == "/sync":
 		service.writeCalendarSync(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/remote-sync":
+		service.runCalendarRemoteSync(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/account-status":
+		service.serveCalendarAccountStatus(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/conflicts":
+		service.serveCalendarConflicts(responseWriter, request)
+	case request.Method == http.MethodPost && strings.HasPrefix(path, "/conflicts/") && strings.HasSuffix(path, "/dismiss"):
+		service.dismissCalendarConflictRequest(responseWriter, request, path)
 	case request.Method == http.MethodPost && path == "/ics-token":
 		service.rotateCalendarICSToken(responseWriter, request)
 	default:
@@ -204,7 +227,13 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 	}
 	event.UID = existingEvent.UID
 	event.CreatedByEmail = existingEvent.CreatedByEmail
+	event.CreatedByName = existingEvent.CreatedByName
+	event.UpdatedByEmail, event.UpdatedByName = service.webStaffActorIdentity(request)
+	event.UpdatedByAt = time.Now().UTC().Format(time.RFC3339Nano)
 	event.MattermostPostID = existingEvent.MattermostPostID
+	event.RemoteSource = existingEvent.RemoteSource
+	event.RemoteETag = existingEvent.RemoteETag
+	event.RemoteHref = existingEvent.RemoteHref
 	regeneratedRawICS, errorValue := encodeCalendarObject(event)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
@@ -242,6 +271,34 @@ func (service *Service) writeCalendarSync(responseWriter http.ResponseWriter, re
 		CalDAVUsername: calendarDAVUsername,
 		CalDAVPassword: token,
 		ICSURL:         baseURL + "/calendar/ics/" + url.PathEscape(token) + ".ics",
+	})
+}
+
+func (service *Service) runCalendarRemoteSync(responseWriter http.ResponseWriter, request *http.Request) {
+	syncStartedAt := time.Now().UTC()
+	decision, errorValue := service.acquireCalendarRemoteSync(request.Context(), syncStartedAt)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !decision.Acquired {
+		service.writeJSON(responseWriter, calendarRemoteSyncResponse{
+			PullSkippedByCache:  decision.SkippedByCache,
+			SyncSkippedByLease:  decision.SkippedByLease,
+			PullCacheTTLSeconds: int(calendarRemoteSyncSuccessCacheDuration.Seconds()),
+		})
+		return
+	}
+	result := service.runCalendarUserSyncCycle(request.Context())
+	if errorValue := service.finishCalendarRemoteSync(request.Context(), decision, time.Now().UTC(), result.Succeeded()); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	service.writeJSON(responseWriter, calendarRemoteSyncResponse{
+		Changed:             result.Changed,
+		PullAttempted:       result.PullAttempted,
+		PullSkippedByCache:  result.PullSkippedByCache,
+		PullCacheTTLSeconds: int(calendarRemoteSyncSuccessCacheDuration.Seconds()),
 	})
 }
 
@@ -368,6 +425,7 @@ func (service *Service) normalizeCalendarEventWriteRequest(request *http.Request
 	}
 	people := normalizeCalendarPeople([]string(payload.People))
 	description := calendarDescriptionWithPeople(people, payload.Description)
+	createdByEmail, createdByName := service.webStaffActorIdentity(request)
 	event := calendarEvent{
 		ID:                id,
 		UID:               id + "@internkim",
@@ -381,7 +439,8 @@ func (service *Service) normalizeCalendarEventWriteRequest(request *http.Request
 		Color:             firstNonEmpty(strings.TrimSpace(payload.Color), "#2563eb"),
 		People:            people,
 		ReminderLeadHours: normalizeCalendarReminderLeadHours(payload.ReminderLeadHours),
-		CreatedByEmail:    service.webStaffActorEmail(request),
+		CreatedByEmail:    createdByEmail,
+		CreatedByName:     createdByName,
 	}
 	rawICS, errorValue := encodeCalendarObject(event)
 	if errorValue != nil {
@@ -389,6 +448,22 @@ func (service *Service) normalizeCalendarEventWriteRequest(request *http.Request
 	}
 	event.RawICS = rawICS
 	return event, nil
+}
+
+func (service *Service) webStaffActorIdentity(request *http.Request) (string, string) {
+	if actorEmail := authenticatedCallerEmail(request); actorEmail != "" {
+		return actorEmail, actorEmail
+	}
+	cookieHeader := mattermostSessionCookieHeader(request)
+	if cookieHeader == "" {
+		return "", ""
+	}
+	userRecord, ok := service.mattermostSessionUser(request, cookieHeader)
+	if !ok {
+		return "", ""
+	}
+	actorEmail := strings.ToLower(strings.TrimSpace(userRecord.Email))
+	return actorEmail, firstNonEmpty(mattermostDisplayName(userRecord), actorEmail)
 }
 
 func (people *calendarPeopleInput) UnmarshalJSON(document []byte) error {
