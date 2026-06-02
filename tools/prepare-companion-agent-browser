@@ -9,6 +9,8 @@ scriptDirectory="$(cd "$(dirname "${0}")" && pwd)"
 repositoryRoot="$(cd "${scriptDirectory}/.." && pwd)"
 cacheDirectory="${repositoryRoot}/.dependency/agent-browser"
 archivePath="${cacheDirectory}/agent-browser-${version}.tgz"
+downloadDirectory=""
+temporaryDirectory=""
 mkdir -p "${cacheDirectory}"
 
 nativeBinaryName() {
@@ -64,10 +66,13 @@ if [ -z "${binaryName}" ]; then
 fi
 
 if [ ! -f "${archivePath}" ]; then
-  npm pack "${packageName}" --pack-destination "${cacheDirectory}" >/dev/null
+  downloadDirectory="$(mktemp -d)"
+  printf '{"dependencies":{"agent-browser":"%s"}}\n' "${version}" > "${downloadDirectory}/package.json"
+  (cd "${downloadDirectory}" && bun install --production >/dev/null)
+  tar -czf "${archivePath}" -C "${downloadDirectory}/node_modules" agent-browser
 fi
 
 temporaryDirectory="$(mktemp -d)"
-trap 'rm -rf "${temporaryDirectory}"' EXIT
-tar -xzf "${archivePath}" -C "${temporaryDirectory}" "package/bin/${binaryName}"
-copyPreparedBinary "${temporaryDirectory}/package/bin/${binaryName}"
+trap 'rm -rf "${downloadDirectory}" "${temporaryDirectory}"' EXIT
+tar -xzf "${archivePath}" -C "${temporaryDirectory}" "agent-browser/bin/${binaryName}"
+copyPreparedBinary "${temporaryDirectory}/agent-browser/bin/${binaryName}"

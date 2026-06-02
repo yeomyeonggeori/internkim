@@ -72,8 +72,8 @@ fi
 NODE_RUNTIME_ROOT="${BLUECLAW_REQUESTER_TMP:-$(pwd)}/.skill-env/simple-slides/node"
 
 ensure_local_marp() {
-  if ! command -v npm &> /dev/null; then
-    echo "Marp CLI is not available and npm is not present for script-managed bootstrap."
+  if ! command -v bun &> /dev/null; then
+    echo "Marp CLI is not available and bun is not present for script-managed bootstrap."
     exit 1
   fi
   if [ ! -f "${SKILL_ASSET_DIRECTORY}/package.json" ]; then
@@ -82,12 +82,12 @@ ensure_local_marp() {
   fi
   mkdir -p "$NODE_RUNTIME_ROOT"
   if [ -d /workspace/shared/cache/dependencies ]; then
-    mkdir -p /workspace/shared/cache/dependencies/npm
-    export npm_config_cache=/workspace/shared/cache/dependencies/npm
+    mkdir -p /workspace/shared/cache/dependencies/bun
+    export BUN_INSTALL_CACHE_DIR=/workspace/shared/cache/dependencies/bun
   fi
   if [ ! -f "${NODE_RUNTIME_ROOT}/package.json" ] || ! cmp -s "${SKILL_ASSET_DIRECTORY}/package.json" "${NODE_RUNTIME_ROOT}/package.json" || [ ! -x "${NODE_RUNTIME_ROOT}/node_modules/.bin/marp" ]; then
     cp "${SKILL_ASSET_DIRECTORY}/package.json" "${NODE_RUNTIME_ROOT}/package.json"
-    npm install --prefix "$NODE_RUNTIME_ROOT" --omit=dev --no-audit --no-fund
+    (cd "$NODE_RUNTIME_ROOT" && bun install --production)
   fi
   MARP_COMMAND=("${NODE_RUNTIME_ROOT}/node_modules/.bin/marp")
 }

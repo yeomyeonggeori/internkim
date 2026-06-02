@@ -130,6 +130,10 @@ func TestMattermostDescriptorsMatchSkillInputs(t *testing.T) {
 	if descriptorForTool(t, descriptors, "mattermost.channel.update").PolicyResource != "tool:mattermost.channel.update" {
 		t.Fatalf("unexpected channel update policy resource")
 	}
+	assertDescriptorCompletionEvidence(t, descriptors, "mattermost.channel.post", "success", "post_message", "channel")
+	assertDescriptorCompletionEvidence(t, descriptors, "mattermost.post.update", "success", "update_message", "message")
+	assertDescriptorCompletionEvidence(t, descriptors, "mattermost.post.delete", "success", "delete_message", "message")
+	assertDescriptorCompletionEvidence(t, descriptors, "mattermost.channel.update", "success", "update_channel", "channel")
 }
 
 func TestWebDescriptorsAreReadOnlyDefaultTools(t *testing.T) {
@@ -214,6 +218,15 @@ func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site.app.delete", true)
 	assertDescriptorApproval(t, GoogleWorkspaceDescriptors(), "google.calendar.event", false)
 	assertDescriptorApproval(t, GoogleWorkspaceDescriptors(), "google.gmail.send", true)
+}
+
+func TestCapabilityDescriptorsExposeCompletionEvidence(t *testing.T) {
+	assertDescriptorCompletionEvidence(t, PlatformMessageDescriptors(), "platform.dm.send", "success", "send_message", "person")
+	assertDescriptorCompletionEvidence(t, MailDescriptors(), "mail.message.send", "success", "send_email", "email")
+	assertDescriptorCompletionEvidence(t, CalendarDescriptors(), "calendar.event.add", "success", "write_calendar", "calendar")
+	assertDescriptorCompletionEvidence(t, SiteAppDescriptors(), "site.app.publish", "success", "publish_site", "site")
+	assertDescriptorCompletionEvidence(t, GoogleWorkspaceDescriptors(), "google.gmail.send", "success", "send_email", "email")
+	assertDescriptorCompletionEvidence(t, GoogleWorkspaceDescriptors(), "google.calendar.event", "success", "write_calendar", "calendar")
 }
 
 func TestMailDescriptorsMatchSkillInputs(t *testing.T) {
@@ -307,6 +320,17 @@ func assertDescriptorApproval(t *testing.T, descriptors []Descriptor, toolName s
 		return
 	}
 	t.Fatalf("descriptor %s not found", toolName)
+}
+
+func assertDescriptorCompletionEvidence(t *testing.T, descriptors []Descriptor, toolName string, mode string, action string, targetKind string) {
+	t.Helper()
+	descriptor := descriptorForTool(t, descriptors, toolName)
+	if descriptor.CompletionEvidence == nil {
+		t.Fatalf("expected %s to define completion evidence", toolName)
+	}
+	if descriptor.CompletionEvidence.Mode != mode || descriptor.CompletionEvidence.Action != action || descriptor.CompletionEvidence.TargetKind != targetKind {
+		t.Fatalf("unexpected completion evidence for %s: %+v", toolName, descriptor.CompletionEvidence)
+	}
 }
 
 func descriptorSchema(t *testing.T, descriptors []Descriptor, toolName string) schemaDocument {

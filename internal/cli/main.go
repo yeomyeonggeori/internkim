@@ -225,6 +225,8 @@ func Main() {
 			runVerify()
 		case "llm":
 			runLLM()
+		case "dev":
+			runDev()
 		case "lab":
 			runLab()
 		case "sim":
