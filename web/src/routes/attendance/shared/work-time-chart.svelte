@@ -4,9 +4,11 @@
 <script lang="ts">
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ClockIcon from '@lucide/svelte/icons/clock';
 	import { getAttendanceState, type ChartMode } from '../attendance-context.svelte';
 	import { eachDayOfMonth, isoWeekStart } from './attendance-date';
+	import { attendanceText } from '../text';
 
 	instanceCounter += 1;
 	const gradientId = `work-time-chart-fill-${instanceCounter}`;
@@ -24,11 +26,12 @@
 	} = $props();
 
 	const attendance = getAttendanceState();
-	const modes: { value: ChartMode; label: string }[] = [
-		{ value: 'day', label: '일별' },
-		{ value: 'week', label: '주별' },
-		{ value: 'month', label: '월별' },
-	];
+	const text = createPageText(attendanceText);
+	const modes = $derived<{ value: ChartMode; label: string }[]>([
+		{ value: 'day', label: text.day },
+		{ value: 'week', label: text.week },
+		{ value: 'month', label: text.month },
+	]);
 
 	type Point = { key: string; label: string; value: number };
 
@@ -55,10 +58,14 @@
 			}
 			return [...buckets.entries()]
 				.sort((a, b) => a[0].localeCompare(b[0]))
-				.map(([key, value], idx) => ({ key, label: `${idx + 1}주`, value }));
+				.map(([key, value], idx) => ({
+					key,
+					label: text.weekLabelTemplate.replace('{index}', String(idx + 1)),
+					value,
+				}));
 		}
 		const total = dailyPoints.reduce((sum, d) => sum + d.value, 0);
-		return [{ key: 'total', label: '합계', value: total }];
+		return [{ key: 'total', label: text.total, value: total }];
 	}
 
 	const VIEW_W = 1000;

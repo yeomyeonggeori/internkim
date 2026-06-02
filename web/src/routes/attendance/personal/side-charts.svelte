@@ -1,9 +1,12 @@
 <script lang="ts">
 	import * as Card from '$lib/components/ui/card';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { getAttendanceState, type AttendanceEvent } from '../attendance-context.svelte';
 	import { computePersonalStats } from '../shared/attendance-aggregation';
+	import { attendanceText } from '../text';
 
 	const attendance = getAttendanceState();
+	const text = createPageText(attendanceText);
 
 	const targetEmail = $derived(attendance.selectedEmail || attendance.summary?.currentUserEmail || '');
 	const events = $derived(
@@ -28,12 +31,16 @@
 			.sort((a, b) => b[1] - a[1])
 			.map(([label, n]) => ({ label, count: n, percent: total ? Math.round((n / total) * 100) : 0 }));
 	}
+
+	function formatDayCount(count: number): string {
+		return text.subscriptionDayTemplate.replace('{count}', String(count));
+	}
 </script>
 
 <div class="flex flex-col gap-3">
 	{#if stats}
 		<Card.Root>
-			<Card.Header><Card.Title class="text-sm">출근율</Card.Title></Card.Header>
+			<Card.Header><Card.Title class="text-sm">{text.attendanceRate}</Card.Title></Card.Header>
 			<Card.Content class="flex flex-col items-center">
 				<div
 					class="flex h-20 w-20 items-center justify-center rounded-full"
@@ -49,16 +56,16 @@
 	{/if}
 
 	<Card.Root>
-		<Card.Header><Card.Title class="text-sm">위치 분포</Card.Title></Card.Header>
+		<Card.Header><Card.Title class="text-sm">{text.locationDistribution}</Card.Title></Card.Header>
 		<Card.Content class="space-y-1 text-xs">
 			{#each locationBreakdown as item (item.label)}
 				<div class="flex items-center justify-between">
 					<span>{item.label}</span>
-					<span class="text-muted-foreground">{item.count}일 ({item.percent}%)</span>
+					<span class="text-muted-foreground">{formatDayCount(item.count)} ({item.percent}%)</span>
 				</div>
 			{/each}
 			{#if locationBreakdown.length === 0}
-				<p class="text-muted-foreground">데이터 없음</p>
+				<p class="text-muted-foreground">{text.noData}</p>
 			{/if}
 		</Card.Content>
 	</Card.Root>
