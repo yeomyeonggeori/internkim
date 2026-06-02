@@ -16,3 +16,16 @@ export async function syncRemoteCalendar(errorFallback: string): Promise<void> {
 		remoteSyncInFlight = null;
 	}
 }
+
+export async function syncRemoteCalendarAndRefreshConflicts(
+	errorFallback: string,
+	refreshCalendar: () => Promise<void>,
+	loadCalendarConflicts: () => Promise<void>
+): Promise<void> {
+	try {
+		await syncRemoteCalendar(errorFallback);
+		await refreshCalendar();
+	} finally {
+		await loadCalendarConflicts();
+	}
+}
