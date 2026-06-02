@@ -14,7 +14,15 @@ type CalendarLocaleText = {
 	nextYear: string;
 	previousTwelveYears: string;
 	nextTwelveYears: string;
-	connected: string;
+	subscriptionSettings: string;
+	subscriptionReady: string;
+	externalCalendarAccount: string;
+	accountStatusLoading: string;
+	accountStatusLoadFailed: string;
+	googleCalendarDisconnected: string;
+	googleCalendarConnected: string;
+	googleCalendarConnectedTemplate: string;
+	googleCalendarReauthRequired: string;
 	shared: string;
 	refresh: string;
 	syncTitle: string;
@@ -71,11 +79,19 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		nextYear: '다음 해',
 		previousTwelveYears: '이전 12년',
 		nextTwelveYears: '다음 12년',
-		connected: '연결됨',
+		subscriptionSettings: '구독 설정',
+		subscriptionReady: 'CalDAV/ICS 구독 URL 준비됨',
+		externalCalendarAccount: '외부 캘린더 계정',
+		accountStatusLoading: '연결 상태 확인 중',
+		accountStatusLoadFailed: '연결 상태 확인 실패',
+		googleCalendarDisconnected: 'Google Calendar 미연결',
+		googleCalendarConnected: 'Google Calendar 연결됨',
+		googleCalendarConnectedTemplate: 'Google Calendar 연결됨: {email}',
+		googleCalendarReauthRequired: 'Google Calendar 재인증 필요',
 		shared: '공유',
 		refresh: '새로고침',
 		syncTitle: '연동',
-		syncDescription: 'Google은 구독 URL로 읽고, Apple 일정은 CalDAV로 연결합니다.',
+		syncDescription: 'CalDAV/ICS 구독 URL과 외부 캘린더 계정 상태를 확인합니다.',
 		caldav: 'CalDAV',
 		username: '사용자 이름',
 		password: '비밀번호',
@@ -137,11 +153,19 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		nextYear: 'Next year',
 		previousTwelveYears: 'Previous 12 years',
 		nextTwelveYears: 'Next 12 years',
-		connected: 'Connected',
+		subscriptionSettings: 'Subscription settings',
+		subscriptionReady: 'CalDAV/ICS subscription ready',
+		externalCalendarAccount: 'External calendar account',
+		accountStatusLoading: 'Checking connection status',
+		accountStatusLoadFailed: 'Could not check connection status',
+		googleCalendarDisconnected: 'Google Calendar not connected',
+		googleCalendarConnected: 'Google Calendar connected',
+		googleCalendarConnectedTemplate: 'Google Calendar connected: {email}',
+		googleCalendarReauthRequired: 'Google Calendar needs reauthorization',
 		shared: 'Shared',
 		refresh: 'Refresh',
 		syncTitle: 'Sync',
-		syncDescription: 'Google reads the subscription URL. Apple Calendar connects through CalDAV.',
+		syncDescription: 'Review CalDAV/ICS subscription URLs and external calendar account status.',
 		caldav: 'CalDAV',
 		username: 'Username',
 		password: 'Password',
