@@ -154,6 +154,14 @@ func (service *Service) writeAttendanceSummary(responseWriter http.ResponseWrite
 	actorEmail := strings.ToLower(strings.TrimSpace(service.webStaffActorEmail(request)))
 	isAdmin := service.isAuthorized(request)
 	targetEmail := strings.ToLower(strings.TrimSpace(request.URL.Query().Get("email")))
+	teamVisible, errorValue := service.readAttendanceTeamViewVisibleToAll(request.Context())
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !isAdmin && !teamVisible {
+		targetEmail = actorEmail
+	}
 	events, errorValue := service.readAttendanceEvents(request.Context(), month, targetEmail)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
@@ -169,11 +177,6 @@ func (service *Service) writeAttendanceSummary(responseWriter http.ResponseWrite
 		if actorEvents, actorError := service.readAttendanceEvents(request.Context(), month, actorEmail); actorError == nil {
 			statusEvents = actorEvents
 		}
-	}
-	teamVisible, errorValue := service.readAttendanceTeamViewVisibleToAll(request.Context())
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
 	}
 	teamViewBlocked := false
 	visibleEvents := events
