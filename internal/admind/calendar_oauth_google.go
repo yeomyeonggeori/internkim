@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html"
 	"io"
 	"log"
 	"net/http"
@@ -271,160 +270,10 @@ func (service *Service) fetchGoogleUserEmail(ctx context.Context, token *oauth2.
 	return parsed.Email, nil
 }
 
-func (service *Service) saveGoogleOAuthTokenAndAccount(ctx context.Context, token *oauth2.Token, email string) (remoteCalendarAccount, error) {
-	key, errorValue := service.loadOrCreateCalendarTokenEncryptionKey()
-	if errorValue != nil {
-		return remoteCalendarAccount{}, errorValue
-	}
-	accountID := googleOAuthAccountPrefix + sanitizeCalendarSecretComponent(email)
-	tokenPath := service.calendarTokenFilePath(accountID)
-	payload := oauthTokenPayloadFromOAuth2Token(token)
-	if errorValue := writeCalendarTokenFile(tokenPath, key, payload); errorValue != nil {
-		return remoteCalendarAccount{}, errorValue
-	}
-	existing, _, _ := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
-	account := remoteCalendarAccount{
-		ID:                  accountID,
-		Provider:            remoteCalendarProviderGoogle,
-		AccountEmail:        email,
-		PrincipalURL:        existing.PrincipalURL,
-		HomeSetURL:          existing.HomeSetURL,
-		DefaultCalendarURL:  existing.DefaultCalendarURL,
-		DefaultCalendarCTag: existing.DefaultCalendarCTag,
-		TokenFilePath:       tokenPath,
-	}
-	return service.upsertRemoteCalendarAccount(ctx, account)
-}
-
-func (service *Service) loadGoogleOAuthTokenForAccount(account remoteCalendarAccount) (*oauth2.Token, error) {
-	key, errorValue := service.loadOrCreateCalendarTokenEncryptionKey()
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	payload, errorValue := readCalendarTokenFile(account.TokenFilePath, key)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	return oauth2TokenFromPayload(payload), nil
-}
-
-func (service *Service) googleOAuthTokenSource(ctx context.Context, account remoteCalendarAccount, redirectURI string) (oauth2.TokenSource, error) {
-	initialToken, errorValue := service.loadGoogleOAuthTokenForAccount(account)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	configuration, errorValue := service.buildGoogleOAuthConfig(redirectURI)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	clientCtx := context.WithValue(ctx, oauth2.HTTPClient, service.googleOAuthHTTPClient())
-	baseSource := configuration.TokenSource(clientCtx, initialToken)
-	return &persistingGoogleOAuthTokenSource{
-		service: service,
-		account: account,
-		inner:   baseSource,
-		latest:  initialToken,
-	}, nil
-}
-
-type persistingGoogleOAuthTokenSource struct {
-	service *Service
-	account remoteCalendarAccount
-	inner   oauth2.TokenSource
-	latest  *oauth2.Token
-}
-
-func (source *persistingGoogleOAuthTokenSource) Token() (*oauth2.Token, error) {
-	token, errorValue := source.inner.Token()
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	if source.latest != nil && token.AccessToken == source.latest.AccessToken && token.Expiry.Equal(source.latest.Expiry) {
-		return token, nil
-	}
-	source.latest = token
-	key, errorValue := source.service.loadOrCreateCalendarTokenEncryptionKey()
-	if errorValue != nil {
-		return token, errorValue
-	}
-	payload := oauthTokenPayloadFromOAuth2Token(token)
-	if errorValue := writeCalendarTokenFile(source.account.TokenFilePath, key, payload); errorValue != nil {
-		return token, errorValue
-	}
-	return token, nil
-}
-
-func oauthTokenPayloadFromOAuth2Token(token *oauth2.Token) oauthTokenPayload {
-	expiresAt := ""
-	if !token.Expiry.IsZero() {
-		expiresAt = token.Expiry.UTC().Format(time.RFC3339Nano)
-	}
-	return oauthTokenPayload{
-		AccessToken:      token.AccessToken,
-		RefreshToken:     token.RefreshToken,
-		TokenType:        token.TokenType,
-		ExpiresAtRFC3339: expiresAt,
-	}
-}
-
-func oauth2TokenFromPayload(payload oauthTokenPayload) *oauth2.Token {
-	token := &oauth2.Token{
-		AccessToken:  payload.AccessToken,
-		RefreshToken: payload.RefreshToken,
-		TokenType:    payload.TokenType,
-	}
-	if payload.ExpiresAtRFC3339 != "" {
-		if parsed, errorValue := time.Parse(time.RFC3339Nano, payload.ExpiresAtRFC3339); errorValue == nil {
-			token.Expiry = parsed
-		}
-	}
-	return token
-}
-
-func googleOAuthRedirectURIFromRequest(request *http.Request) string {
-	scheme := "http"
-	if request.TLS != nil {
-		scheme = "https"
-	}
-	if forwarded := strings.TrimSpace(request.Header.Get("X-Forwarded-Proto")); forwarded != "" {
-		scheme = forwarded
-	}
-	return scheme + "://" + request.Host + googleOAuthCallbackPath
-}
-
 func generateRandomURLToken(byteCount int) (string, error) {
 	buffer := make([]byte, byteCount)
 	if _, errorValue := rand.Read(buffer); errorValue != nil {
 		return "", errorValue
 	}
 	return base64.RawURLEncoding.EncodeToString(buffer), nil
-}
-
-func respondGoogleOAuthSuccessHTML(writer http.ResponseWriter, email string) {
-	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(writer, `<!doctype html>
-<html lang="ko">
-<head><meta charset="utf-8"><title>Google 캘린더 연결 완료</title>
-<style>body{font-family:system-ui,sans-serif;margin:4rem auto;max-width:32rem;padding:0 1rem;line-height:1.6}h1{color:#2563eb}</style>
-</head>
-<body>
-<h1>Google 캘린더 연결 완료</h1>
-<p><strong>%s</strong> 계정으로 연결되었습니다. 이 탭은 닫아도 됩니다.</p>
-</body>
-</html>`, html.EscapeString(email))
-}
-
-func respondGoogleOAuthErrorHTML(writer http.ResponseWriter, status int, message string) {
-	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
-	writer.WriteHeader(status)
-	fmt.Fprintf(writer, `<!doctype html>
-<html lang="ko">
-<head><meta charset="utf-8"><title>Google 캘린더 연결 실패</title>
-<style>body{font-family:system-ui,sans-serif;margin:4rem auto;max-width:32rem;padding:0 1rem;line-height:1.6}h1{color:#dc2626}</style>
-</head>
-<body>
-<h1>Google 캘린더 연결 실패</h1>
-<p>%s</p>
-</body>
-</html>`, html.EscapeString(message))
 }
