@@ -30,6 +30,7 @@ type localizedAdminText struct {
 	AttendanceEntryText       string
 	AttendanceClockIn         string
 	AttendanceClockOut        string
+	AttendanceCanceled        string
 	AttendanceClockInTooltip  string
 	AttendanceClockOutTooltip string
 }
@@ -91,6 +92,7 @@ func localizedAdminTextForLocale(locale string) localizedAdminText {
 			AttendanceEntryText:       "Use separate buttons for clock-in and clock-out records.",
 			AttendanceClockIn:         "Clock in",
 			AttendanceClockOut:        "Clock out",
+			AttendanceCanceled:        "canceled",
 			AttendanceClockInTooltip:  "Record clock-in.",
 			AttendanceClockOutTooltip: "Record clock-out.",
 		}
@@ -109,6 +111,7 @@ func localizedAdminTextForLocale(locale string) localizedAdminText {
 		AttendanceEntryText:       "출근과 퇴근 버튼을 구분해서 기록합니다.",
 		AttendanceClockIn:         "출근",
 		AttendanceClockOut:        "퇴근",
+		AttendanceCanceled:        "취소",
 		AttendanceClockInTooltip:  "출근을 기록합니다.",
 		AttendanceClockOutTooltip: "퇴근을 기록합니다.",
 	}
