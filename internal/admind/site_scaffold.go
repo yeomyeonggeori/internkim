@@ -57,15 +57,15 @@ version: alpha
 name: ` + quotedTitle + `
 description: Beautiful default prototype design system for a shadcn React site.
 colors:
-  primary: "#0F172A"
-  primary-foreground: "#F8FAFC"
-  secondary: "#2F6B5F"
-  tertiary: "#D97706"
-  neutral: "#64748B"
-  background: "#F7F5EF"
+  primary: "#111111"
+  primary-foreground: "#FFFFFF"
+  secondary: "#F4F4F5"
+  tertiary: "#E5E7EB"
+  neutral: "#6B7280"
+  background: "#FFFFFF"
   surface: "#FFFFFF"
-  surface-muted: "#EEF2F0"
-  border: "#D6D3C9"
+  surface-muted: "#F7F7F8"
+  border: "#E5E7EB"
   destructive: "#B42318"
 typography:
   headline-display:
@@ -129,11 +129,11 @@ components:
 
 ## Overview
 
-The interface should feel like a polished prototype made for immediate idea validation: useful on the first screen, composed with confident spacing, and refined without looking like a generic SaaS landing page. Default to a calm editorial utility style unless the user request clearly calls for another archetype.
+The interface should feel like a polished prototype made for immediate idea validation: useful on the first screen, composed with confident spacing, and refined without looking like a generic SaaS landing page. Default to a black-on-white minimal utility style unless the user request clearly calls for another archetype.
 
 ## Colors
 
-The palette uses warm limestone background, crisp white surfaces, slate text, green secondary accents, and amber tertiary highlights. Primary actions use deep slate for contrast. Do not let a single hue dominate the whole page.
+The default palette is black-on-white: white background, near-black text, quiet gray borders, and restrained monochrome controls. Use color only when the domain clearly benefits from it, and keep any accent small enough that navy, blue, purple, or gradient themes do not become the default.
 
 ## Typography
 

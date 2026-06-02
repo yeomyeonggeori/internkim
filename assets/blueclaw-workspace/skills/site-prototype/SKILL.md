@@ -158,11 +158,11 @@ Do not add Kim Intern-specific implementation sections such as Product, Audience
 
 The `components` tokens should describe shadcn-style primitives such as `button-primary`, `button-primary-hover`, `card`, `input`, `tabs`, `dialog`, `table`, and `badge`.
 
-If the user does not specify a design direction, infer one from the domain and audience. A restaurant, portfolio, operations dashboard, campaign site, internal tool, game, and marketplace should not share the same visual structure. The first screen must be the actual usable experience or requested landing page, not generic feature cards.
+If the user does not specify a design direction, default the visual system to black-on-white minimal: white background, near-black text, quiet gray borders, restrained monochrome controls, and no dark navy shell. Infer structure from the domain and audience, but do not invent a blue, slate, purple, or gradient theme unless the request clearly calls for it. A restaurant, portfolio, operations dashboard, campaign site, internal tool, game, and marketplace should not share the same visual structure. The first screen must be the actual usable experience or requested landing page, not generic feature cards.
 
 For long or broad requests, publish a coherent first version instead of a shallow explanation page. Keep deferred work out of `DESIGN.md`; summarize it only in the final reply if useful.
 
-Use familiar controls and lucide icons where helpful. Keep layouts responsive, text readable, and controls stable across mobile and desktop. Avoid decorative filler, generic SaaS copy, and a single default palette across unrelated sites.
+Use familiar controls and lucide icons where helpful. Keep layouts responsive, text readable, and controls stable across mobile and desktop. Avoid decorative filler, generic SaaS copy, dark-mode-by-default pages, navy/slate dominance, and a single default palette across unrelated sites.
 
 ## UI Archetypes
 
