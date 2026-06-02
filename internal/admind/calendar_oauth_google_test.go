@@ -223,6 +223,42 @@ func TestGoogleOAuthCallbackPersistsTokenAndAccount(t *testing.T) {
 	}
 }
 
+func TestSaveGoogleOAuthTokenAndAccountResetsDiscoveryForDifferentEmail(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	existing := remoteCalendarAccount{
+		ID:                  googleOAuthAccountPrefix + "old_example_com",
+		Provider:            remoteCalendarProviderGoogle,
+		AccountEmail:        "old@example.com",
+		PrincipalURL:        "https://apidata.googleusercontent.com/caldav/v2/old@example.com/user",
+		HomeSetURL:          "https://apidata.googleusercontent.com/caldav/v2/old@example.com/",
+		DefaultCalendarURL:  "https://apidata.googleusercontent.com/caldav/v2/old@example.com/events/",
+		DefaultCalendarCTag: "old-ctag",
+		TokenFilePath:       "/tmp/old-google-token.enc",
+	}
+	if _, errorValue := service.upsertRemoteCalendarAccount(ctx, existing); errorValue != nil {
+		t.Fatalf("seed account: %v", errorValue)
+	}
+	token := &oauth2.Token{
+		AccessToken:  "new-access-token",
+		RefreshToken: "new-refresh-token",
+		TokenType:    "Bearer",
+		Expiry:       time.Now().UTC().Add(time.Hour),
+	}
+
+	account, errorValue := service.saveGoogleOAuthTokenAndAccount(ctx, token, "new@example.com")
+	if errorValue != nil {
+		t.Fatalf("save account: %v", errorValue)
+	}
+
+	if account.AccountEmail != "new@example.com" {
+		t.Fatalf("account email: got %q", account.AccountEmail)
+	}
+	if account.PrincipalURL != "" || account.HomeSetURL != "" || account.DefaultCalendarURL != "" || account.DefaultCalendarCTag != "" {
+		t.Fatalf("discovery fields should reset for a different email: %+v", account)
+	}
+}
+
 func TestGoogleOAuthCallbackRejectsUnknownState(t *testing.T) {
 	service := newCalendarTestService(t)
 	writeGoogleClientFile(t, service, `{"installed":{"client_id":"client-1","client_secret":"secret-1"}}`)
