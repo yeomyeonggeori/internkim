@@ -62,8 +62,8 @@ async function main() {
         path: path.join(buildPath, `${deckName}.pdf`),
         printBackground: true,
         preferCSSPageSize: true,
-        width: "16in",
-        height: "9in",
+        width: `${slideWidth}px`,
+        height: `${slideHeight}px`,
         margin: { top: "0", right: "0", bottom: "0", left: "0" },
       });
     }
