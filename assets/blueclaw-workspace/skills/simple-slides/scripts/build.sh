@@ -2,7 +2,7 @@
 set -e
 SCRIPT_DIRECTORY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-SRC="${SRC:-presentation.md}"
+SRC="${SRC:-slides.html}"
 NAME="${NAME:-$(basename "$(pwd)")}"
 FORMATS="${FORMATS:-html,pptx,pdf,notes,review}"
 BUILD_DIR="${BUILD_DIR:-build}"
@@ -23,7 +23,7 @@ if [ ! -f "$SRC" ]; then
   echo "SRC: $SRC" >&2
   echo "Directory entries:" >&2
   ls -la . 2>&1 | sed -n '1,5p' >&2
-  echo "Error: $SRC not found. Create presentation.md or set SRC=yourfile.md" >&2
+  echo "Error: $SRC not found. Create slides.html or set SRC=yourfile.html" >&2
   exit 1
 fi
 
@@ -36,6 +36,11 @@ if [ ! -f DESIGN.md ]; then
   exit 1
 fi
 
+case "$SOURCE_PATH" in
+  *.html) ;;
+  *) echo "Error: simple-slides now uses HTML-first source only. Create slides.html or set SRC=yourfile.html." >&2; exit 1 ;;
+esac
+
 python3 - "$SOURCE_PATH" <<'PY'
 import pathlib
 import sys
@@ -44,13 +49,11 @@ source_path = pathlib.Path(sys.argv[1])
 design_path = source_path.with_name("DESIGN.md")
 text = source_path.read_text()
 if "design-source: DESIGN.md" not in text:
-    print("Error: presentation.md must include design-source: DESIGN.md")
+    print(f"Error: {source_path.name} must include design-source: DESIGN.md")
     sys.exit(1)
 
-source_modified_at = source_path.stat().st_mtime
-design_modified_at = design_path.stat().st_mtime
-if source_modified_at + 1 < design_modified_at:
-    print(f"Error: {source_path.name} is older than DESIGN.md. Update the deck source before building.")
+if "<section" not in text.lower():
+    print("Error: slides.html must contain slide <section> elements.")
     sys.exit(1)
 PY
 
@@ -61,67 +64,56 @@ fi
 if [ ! -f "${SKILL_ASSET_DIRECTORY}/package.json" ] && [ -f "${SCRIPT_DIRECTORY}/../assets/package.json" ]; then
   SKILL_ASSET_DIRECTORY="${SCRIPT_DIRECTORY}/../assets"
 fi
-EXTRACT_NOTES_SCRIPT="${EXTRACT_NOTES_SCRIPT:-/workspace/skills/simple-slides/scripts/extract_notes.py}"
 RENDER_REVIEW_SCRIPT="${RENDER_REVIEW_SCRIPT:-/workspace/skills/simple-slides/scripts/render_review.py}"
-if [ ! -f "$EXTRACT_NOTES_SCRIPT" ] && [ -f "${SCRIPT_DIRECTORY}/../scripts/extract_notes.py" ]; then
-  EXTRACT_NOTES_SCRIPT="${SCRIPT_DIRECTORY}/../scripts/extract_notes.py"
-fi
+HTML_EXPORT_SCRIPT="${HTML_EXPORT_SCRIPT:-/workspace/skills/simple-slides/scripts/html_export.py}"
+HTML_RENDER_SCRIPT="${HTML_RENDER_SCRIPT:-/workspace/skills/simple-slides/scripts/html_render.mjs}"
 if [ ! -f "$RENDER_REVIEW_SCRIPT" ] && [ -f "${SCRIPT_DIRECTORY}/../scripts/render_review.py" ]; then
   RENDER_REVIEW_SCRIPT="${SCRIPT_DIRECTORY}/../scripts/render_review.py"
 fi
-NODE_RUNTIME_ROOT="${BLUECLAW_REQUESTER_TMP:-$(pwd)}/.skill-env/simple-slides/node"
+if [ ! -f "$HTML_EXPORT_SCRIPT" ] && [ -f "${SCRIPT_DIRECTORY}/../scripts/html_export.py" ]; then
+  HTML_EXPORT_SCRIPT="${SCRIPT_DIRECTORY}/../scripts/html_export.py"
+fi
+if [ ! -f "$HTML_RENDER_SCRIPT" ] && [ -f "${SCRIPT_DIRECTORY}/../scripts/html_render.mjs" ]; then
+  HTML_RENDER_SCRIPT="${SCRIPT_DIRECTORY}/../scripts/html_render.mjs"
+fi
+NODE_RUNTIME_ROOT="${WORK_DIR}/.skill-env/simple-slides/node"
+NODE_RUNTIME_TMP="${WORK_DIR}/.skill-env/simple-slides/tmp"
+NODE_RUNTIME_BUN_INSTALL="${WORK_DIR}/.skill-env/simple-slides/bun-install"
+NODE_RUNTIME_BUN_CACHE="${WORK_DIR}/.skill-env/simple-slides/bun-cache"
 
-ensure_local_marp() {
+ensure_node_environment() {
   if ! command -v bun &> /dev/null; then
-    echo "Marp CLI is not available and bun is not present for script-managed bootstrap."
+    echo "bun is required for script-managed HTML-first slide export."
     exit 1
   fi
   if [ ! -f "${SKILL_ASSET_DIRECTORY}/package.json" ]; then
-    echo "Marp package manifest is missing: ${SKILL_ASSET_DIRECTORY}/package.json"
+    echo "Slide export package manifest is missing: ${SKILL_ASSET_DIRECTORY}/package.json"
     exit 1
   fi
-  mkdir -p "$NODE_RUNTIME_ROOT"
-  if [ -d /workspace/shared/cache/dependencies ]; then
-    mkdir -p /workspace/shared/cache/dependencies/bun
-    export BUN_INSTALL_CACHE_DIR=/workspace/shared/cache/dependencies/bun
-  fi
-  if [ ! -f "${NODE_RUNTIME_ROOT}/package.json" ] || ! cmp -s "${SKILL_ASSET_DIRECTORY}/package.json" "${NODE_RUNTIME_ROOT}/package.json" || [ ! -x "${NODE_RUNTIME_ROOT}/node_modules/.bin/marp" ]; then
+  mkdir -p "$NODE_RUNTIME_ROOT" "$NODE_RUNTIME_TMP" "$NODE_RUNTIME_BUN_INSTALL" "$NODE_RUNTIME_BUN_CACHE"
+  export BUN_INSTALL="$NODE_RUNTIME_BUN_INSTALL"
+  export BUN_TMPDIR="$NODE_RUNTIME_TMP"
+  export BUN_INSTALL_CACHE_DIR="$NODE_RUNTIME_BUN_CACHE"
+  export TMPDIR="$NODE_RUNTIME_TMP"
+  export TMP="$NODE_RUNTIME_TMP"
+  export TEMP="$NODE_RUNTIME_TMP"
+  export HOME="${NODE_RUNTIME_TMP}/home"
+  export XDG_CACHE_HOME="${NODE_RUNTIME_TMP}/cache"
+  export XDG_CONFIG_HOME="${NODE_RUNTIME_TMP}/config"
+  mkdir -p "$HOME" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME"
+  if [ ! -f "${NODE_RUNTIME_ROOT}/package.json" ] || ! cmp -s "${SKILL_ASSET_DIRECTORY}/package.json" "${NODE_RUNTIME_ROOT}/package.json" || [ ! -d "${NODE_RUNTIME_ROOT}/node_modules/playwright-core" ]; then
     cp "${SKILL_ASSET_DIRECTORY}/package.json" "${NODE_RUNTIME_ROOT}/package.json"
     (cd "$NODE_RUNTIME_ROOT" && bun install --production)
   fi
-  MARP_COMMAND=("${NODE_RUNTIME_ROOT}/node_modules/.bin/marp")
-}
-
-if [ -f /opt/blueclaw/marp/node_modules/@marp-team/marp-cli/marp-cli.js ] && [ -x /usr/local/bin/bun ]; then
-  MARP_COMMAND=(/usr/local/bin/bun /opt/blueclaw/marp/node_modules/@marp-team/marp-cli/marp-cli.js)
-else
-  ensure_local_marp
-fi
-
-run_marp() {
-  (cd "$TMPDIR" && "${MARP_COMMAND[@]}" "$@")
-}
-
-format_enabled() {
-  case ",${FORMATS}," in
-    *",$1,"*) return 0 ;;
-    *) return 1 ;;
-  esac
+  cp "$HTML_RENDER_SCRIPT" "${NODE_RUNTIME_ROOT}/html_render.mjs"
+  HTML_RENDER_SCRIPT="${NODE_RUNTIME_ROOT}/html_render.mjs"
+  export NODE_PATH="${NODE_RUNTIME_ROOT}/node_modules${NODE_PATH:+:$NODE_PATH}"
 }
 
 export CHROME_PATH="${CHROME_PATH:-/usr/bin/chromium}"
 export PUPPETEER_EXECUTABLE_PATH="${PUPPETEER_EXECUTABLE_PATH:-$CHROME_PATH}"
 
-python3 - "$SOURCE_PATH" <<'PY'
-import pathlib, sys
-path = pathlib.Path(sys.argv[1])
-text = path.read_text()
-stripped = text.rstrip()
-while stripped.endswith("---"):
-    stripped = stripped[:-3].rstrip()
-if stripped != text.rstrip():
-    path.write_text(stripped + "\n")
-PY
+ensure_node_environment
 
 mkdir -p "$BUILD_PATH"
 export TMPDIR="${BUILD_PATH}/.tmp"
@@ -136,144 +128,8 @@ chmod 700 "$XDG_RUNTIME_DIR" 2>/dev/null || true
 rm -f "${BUILD_PATH}/${NAME}.html" "${BUILD_PATH}/${NAME}.pptx" "${BUILD_PATH}/${NAME}.pdf" "${BUILD_PATH}/${NAME}-notes.txt"
 
 echo "Building requested formats: ${FORMATS}"
-if format_enabled html; then
-  run_marp "$SOURCE_PATH" --html --allow-local-files -o "${BUILD_PATH}/${NAME}.html"
+if [ ! -f "$HTML_EXPORT_SCRIPT" ]; then
+  echo "Error: html_export.py not found. Cannot export HTML-first deck." >&2
+  exit 1
 fi
-if format_enabled pptx; then
-  run_marp "$SOURCE_PATH" --html --pptx --allow-local-files -o "${BUILD_PATH}/${NAME}.pptx"
-fi
-if format_enabled pdf; then
-  run_marp "$SOURCE_PATH" --html --pdf --allow-local-files -o "${BUILD_PATH}/${NAME}.pdf"
-fi
-
-if format_enabled html; then
-  echo "Embedding local images as base64 data URLs in HTML..."
-  python3 - "$BUILD_PATH" "$NAME" <<'PY'
-import base64, re, os, sys
-build_dir = sys.argv[1]
-name = sys.argv[2]
-path = os.path.join(build_dir, f"{name}.html")
-with open(path) as f:
-    html = f.read()
-img_refs = set(re.findall(r'src="([^"]+\.(?:png|jpg|jpeg|gif|webp|svg))"', html, re.IGNORECASE))
-mime_map = {'png': 'png', 'jpg': 'jpeg', 'jpeg': 'jpeg', 'gif': 'gif', 'webp': 'webp', 'svg': 'svg+xml'}
-for img in sorted(img_refs):
-    if img.startswith('data:') or img.startswith('http'):
-        continue
-    if not os.path.exists(img):
-        print(f'  - skipped (not found): {img}')
-        continue
-    with open(img, 'rb') as f:
-        data = base64.b64encode(f.read()).decode()
-    ext = img.rsplit('.', 1)[1].lower()
-    html = html.replace(f'src="{img}"', f'src="data:image/{mime_map[ext]};base64,{data}"')
-    print(f'  - embedded {img}')
-with open(path, 'w') as f:
-    f.write(html)
-PY
-
-  echo "Embedding local fonts as base64 data URLs in HTML..."
-  python3 - "$BUILD_PATH" "$NAME" <<'PY'
-import base64
-import html as html_entities
-import mimetypes
-import os
-import re
-import sys
-import urllib.parse
-
-build_dir = sys.argv[1]
-name = sys.argv[2]
-html_path = os.path.join(build_dir, f"{name}.html")
-with open(html_path) as html_file:
-    html_content = html_file.read()
-
-
-def resolve_font_path(font_url):
-    font_url = html_entities.unescape(font_url).strip("\"'")
-    parsed = urllib.parse.urlparse(font_url)
-    if parsed.scheme in ("data", "http", "https"):
-        return None
-    if parsed.scheme == "file":
-        return urllib.parse.unquote(parsed.path)
-    decoded_path = urllib.parse.unquote(parsed.path)
-    if os.path.isabs(decoded_path):
-        return decoded_path
-    return os.path.normpath(os.path.join(os.path.dirname(html_path), decoded_path))
-
-
-def font_mime_type(font_path):
-    if font_path.lower().endswith(".woff2"):
-        return "font/woff2"
-    if font_path.lower().endswith(".woff"):
-        return "font/woff"
-    return mimetypes.guess_type(font_path)[0] or "application/octet-stream"
-
-
-def embed_font(match):
-    quote = match.group(1) or ""
-    font_url = match.group(2)
-    return embed_font_url(font_url, quote, match.group(0))
-
-
-def embed_encoded_font(match):
-    font_url = match.group(1)
-    return embed_font_url(font_url, "", match.group(0))
-
-
-def embed_font_url(font_url, quote, fallback):
-    font_path = resolve_font_path(font_url)
-    if not font_path:
-        return fallback
-    if not os.path.exists(font_path):
-        print(f"  - skipped font (not found): {font_url}")
-        return fallback
-    with open(font_path, "rb") as font_file:
-        encoded_font = base64.b64encode(font_file.read()).decode()
-    data_url = f"data:{font_mime_type(font_path)};base64,{encoded_font}"
-    print(f"  - embedded font {font_url}")
-    return f"url({quote}{data_url}{quote})"
-
-
-font_url_pattern = r"url\((['\"]?)([^)'\"]+\.(?:woff2|woff)(?:[?#][^)'\"]*)?)\1\)"
-encoded_font_url_pattern = r"url\((?:&quot;)?([^)]+?\.(?:woff2|woff)(?:[?#][^)]+?)?)(?:&quot;)?\)"
-html_content = re.sub(font_url_pattern, embed_font, html_content, flags=re.IGNORECASE)
-html_content = re.sub(encoded_font_url_pattern, embed_encoded_font, html_content, flags=re.IGNORECASE)
-with open(html_path, "w") as html_file:
-    html_file.write(html_content)
-PY
-fi
-
-if format_enabled notes; then
-  echo "Extracting speaker notes..."
-  if [ -f "$EXTRACT_NOTES_SCRIPT" ]; then
-    python3 "$EXTRACT_NOTES_SCRIPT" "$SOURCE_PATH" "${BUILD_PATH}/${NAME}-notes.txt"
-  else
-    echo "  - extract_notes.py not found, skipping notes extraction"
-  fi
-fi
-
-if format_enabled review; then
-  echo "Rendering slide review images..."
-  mkdir -p "${BUILD_PATH}/review"
-  rm -f "${BUILD_PATH}/review/${NAME}"*.png "${BUILD_PATH}/review/slide-review.json" "${BUILD_PATH}/review/slide-review.md" "${BUILD_PATH}/review/fit-review.json" "${BUILD_PATH}/review/fit-review-"*.md
-  run_marp "$SOURCE_PATH" --images png --allow-local-files -o "${BUILD_PATH}/review/${NAME}.png"
-  if [ -f "$RENDER_REVIEW_SCRIPT" ]; then
-    if ! python3 "$RENDER_REVIEW_SCRIPT" "$SOURCE_PATH" "$NAME" "${BUILD_PATH}/review"; then
-      echo "  - slide render review reported warnings; see ${BUILD_DIR}/review/slide-review.json"
-      if [ "${REVIEW_STRICT:-0}" = "1" ]; then
-        exit 1
-      fi
-    fi
-  else
-    echo "  - render_review.py not found, skipping slide render review"
-  fi
-fi
-
-echo ""
-echo "Done."
-if format_enabled html; then echo "  ${BUILD_DIR}/${NAME}.html            (share this — images inlined, iframes need internet)"; fi
-if format_enabled pptx; then echo "  ${BUILD_DIR}/${NAME}.pptx            (PowerPoint / Keynote)"; fi
-if format_enabled pdf; then echo "  ${BUILD_DIR}/${NAME}.pdf             (PDF — iframes will appear blank, that's expected)"; fi
-if format_enabled notes; then echo "  ${BUILD_DIR}/${NAME}-notes.txt       (speaker notes)"; fi
-if format_enabled review; then echo "  ${BUILD_DIR}/review/slide-review.json (per-slide render review)"; fi
+python3 "$HTML_EXPORT_SCRIPT" "$SOURCE_PATH" "$NAME" "$BUILD_PATH" "$FORMATS" "$RENDER_REVIEW_SCRIPT" "$HTML_RENDER_SCRIPT"
