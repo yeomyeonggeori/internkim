@@ -325,7 +325,7 @@ func TestSiteRollbackCanTargetPublishedRevision(t *testing.T) {
 }
 
 func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
-	packageJSON := sitePackageJSON(&SiteRecord{Slug: "react-demo"})
+	packageJSON := readRepositoryFile(t, "assets", "blueclaw-site-scaffold", "react-vite-ts", "package.json")
 	for _, expectedText := range []string{`"react"`, `"vite"`, `"@vitejs/plugin-react"`, `"bun scripts/build.ts"`} {
 		if !strings.Contains(packageJSON, expectedText) {
 			t.Fatalf("site package manifest must contain %q", expectedText)
@@ -337,36 +337,63 @@ func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
 	if strings.Contains(packageJSON, `": "^`) {
 		t.Fatalf("site package manifest must pin exact dependency versions")
 	}
-	for _, expectedText := range []string{`name: "bun", arguments: ["install"]`, `collectDesignQualityIssues`, `category: "designDocument"`, `await buildVite();`} {
-		if !strings.Contains(siteBuildTS(), expectedText) {
+	buildScript := readRepositoryFile(t, "assets", "blueclaw-site-scaffold", "react-vite-ts", "scripts", "build.ts")
+	for _, expectedText := range []string{`name: "bun", arguments: ["install"]`, `arguments: ["--bun", "./node_modules/vite/bin/vite.js", "build"]`, `collectDesignQualityIssues`, `category: "designDocument"`, `await buildVite();`} {
+		if !strings.Contains(buildScript, expectedText) {
 			t.Fatalf("site build script must contain %q", expectedText)
 		}
 	}
-	if strings.Contains(siteBuildTS(), "Bun.execPath") || strings.Contains(siteBuildTS(), `name: "bunx"`) {
+	if strings.Contains(buildScript, "Bun.execPath") || strings.Contains(buildScript, `name: "bunx"`) {
 		t.Fatalf("site build script must rely on canonical runtime PATH, got Bun.execPath/bunx")
 	}
-	if strings.Contains(siteBuildTS(), `arguments: ["x", "vite", "build"]`) {
-		t.Fatalf("site build script must call Vite in-process")
+	if strings.Contains(buildScript, `import("vite")`) {
+		t.Fatalf("site build script must use the installed local Vite binary instead of resolving Vite through Bun's package cache")
 	}
-	if !strings.Contains(siteBuildTS(), `PATH: canonicalRuntimePATH`) {
+	if strings.Contains(buildScript, `name: "./node_modules/.bin/vite"`) {
+		t.Fatalf("site build script must not require a node executable through Vite's shebang")
+	}
+	if strings.Contains(buildScript, `arguments: ["x", "vite", "build"]`) {
+		t.Fatalf("site build script must not spawn nested bun x vite")
+	}
+	if !strings.Contains(buildScript, `PATH: canonicalRuntimePATH`) {
 		t.Fatalf("site build script must pass canonical PATH to child commands")
 	}
-	if strings.Contains(siteBuildTS(), "site quality gate failed") {
+	if strings.Contains(buildScript, `existsSync("node_modules")`) {
+		t.Fatalf("site build script must refresh dependencies instead of trusting stale node_modules")
+	}
+	if strings.Contains(buildScript, "site quality gate failed") {
 		t.Fatalf("site build script must not fail solely because quality issues were reported")
 	}
-	if strings.Contains(siteBuildTS(), "DESIGN.md lint failed") {
+	if strings.Contains(buildScript, "DESIGN.md lint failed") {
 		t.Fatalf("site build script must report DESIGN.md issues without failing the build")
 	}
-	if strings.Contains(siteBuildTS(), "DESIGN.md is required") {
+	if strings.Contains(buildScript, "DESIGN.md is required") {
 		t.Fatalf("site build script must not fail solely because DESIGN.md is missing")
 	}
-	if !strings.Contains(siteBuildTS(), "suggestedFix") {
+	if !strings.Contains(buildScript, "suggestedFix") {
 		t.Fatalf("site build script must include actionable quality fixes")
 	}
-	viteIndex := strings.Index(siteBuildTS(), `await buildVite();`)
-	qualityIndex := strings.LastIndex(siteBuildTS(), "writeBuildQuality(qualityIssues);")
+	viteIndex := strings.Index(buildScript, `await buildVite();`)
+	qualityIndex := strings.LastIndex(buildScript, "writeBuildQuality(qualityIssues);")
 	if viteIndex < 0 || qualityIndex < viteIndex {
 		t.Fatalf("site build script must write build-quality.json after vite build")
+	}
+}
+
+func TestSiteScaffoldMirrorsCanonicalAssets(t *testing.T) {
+	assertDirectoriesMatch(t,
+		repositoryPath("assets", "blueclaw-site-scaffold", "react-vite-ts"),
+		repositoryPath("internal", "admind", "site_scaffold", "react-vite-ts"),
+	)
+	assertDirectoriesMatch(t,
+		repositoryPath("assets", "blueclaw-site-scaffold", "react-vite-ts"),
+		repositoryPath(".dependency", "blueclaw", "internal", "agentruntime", "site_scaffold", "react-vite-ts"),
+	)
+	siteSource := readRepositoryFile(t, "internal", "admind", "sites.go")
+	for _, forbiddenText := range []string{"func sitePackageJSON", "func siteBuildTS", "func siteAppTSX", "func siteIndexCSS"} {
+		if strings.Contains(siteSource, forbiddenText) {
+			t.Fatalf("admind must materialize the canonical scaffold instead of keeping duplicate %q", forbiddenText)
+		}
 	}
 }
 
@@ -988,4 +1015,67 @@ func assertPathPermission(t *testing.T, path string, expected os.FileMode) {
 	if information.Mode().Perm() != expected {
 		t.Fatalf("%s permission = %o, expected %o", path, information.Mode().Perm(), expected)
 	}
+}
+
+func repositoryPath(pathParts ...string) string {
+	return filepath.Join(append([]string{"..", ".."}, pathParts...)...)
+}
+
+func readRepositoryFile(t *testing.T, pathParts ...string) string {
+	t.Helper()
+	document, errorValue := os.ReadFile(repositoryPath(pathParts...))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return string(document)
+}
+
+func assertDirectoriesMatch(t *testing.T, expectedRootPath string, actualRootPath string) {
+	t.Helper()
+	expectedFiles := readDirectoryFiles(t, expectedRootPath)
+	actualFiles := readDirectoryFiles(t, actualRootPath)
+	for relativePath, expectedContent := range expectedFiles {
+		actualContent, isFound := actualFiles[relativePath]
+		if !isFound {
+			t.Fatalf("%s missing mirrored scaffold file %s", actualRootPath, relativePath)
+		}
+		if actualContent != expectedContent {
+			t.Fatalf("%s differs from canonical scaffold file %s", actualRootPath, relativePath)
+		}
+	}
+	for relativePath := range actualFiles {
+		if _, isFound := expectedFiles[relativePath]; !isFound {
+			t.Fatalf("%s has extra scaffold file %s", actualRootPath, relativePath)
+		}
+	}
+}
+
+func readDirectoryFiles(t *testing.T, rootPath string) map[string]string {
+	t.Helper()
+	files := map[string]string{}
+	errorValue := filepath.Walk(rootPath, func(path string, information os.FileInfo, walkError error) error {
+		if walkError != nil {
+			return walkError
+		}
+		if information.IsDir() {
+			return nil
+		}
+		if !information.Mode().IsRegular() {
+			return nil
+		}
+		relativePath, errorValue := filepath.Rel(rootPath, path)
+		if errorValue != nil {
+			return errorValue
+		}
+		document, errorValue := os.ReadFile(path)
+		if errorValue != nil {
+			return errorValue
+		}
+		files[filepath.ToSlash(relativePath)] = string(document)
+		return nil
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return files
 }

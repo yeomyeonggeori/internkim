@@ -391,7 +391,7 @@ func TestResolveCloudflareSSHHostnameIgnoresLegacyFlatNodeHostname(t *testing.T)
 	}
 }
 
-func TestCloudflareSSHRegistrationCacheIsBypassedWhenForced(t *testing.T) {
+func TestCloudflareSSHRegistrationCacheIsReusableWhenSetupIsForced(t *testing.T) {
 	homeDirectory := t.TempDir()
 	t.Setenv("HOME", homeDirectory)
 	stateDirectory := setupStateDir(filepath.Join(homeDirectory, ".internkim"), setup.BoardJetsonOrinNano)
@@ -402,8 +402,8 @@ func TestCloudflareSSHRegistrationCacheIsBypassedWhenForced(t *testing.T) {
 	if !canReuseCloudflareSSHRegistration(config{CFDomain: "example.test"}, stateDirectory, savedSSHHostname, false) {
 		t.Fatalf("expected current SSH registration cache to be reusable")
 	}
-	if canReuseCloudflareSSHRegistration(config{CFDomain: "example.test"}, stateDirectory, savedSSHHostname, true) {
-		t.Fatalf("expected forced setup to refresh SSH registration")
+	if !canReuseCloudflareSSHRegistration(config{CFDomain: "example.test"}, stateDirectory, savedSSHHostname, true) {
+		t.Fatalf("expected forced setup to reuse valid SSH registration cache")
 	}
 }
 

@@ -60,7 +60,7 @@ const (
 	LiteRTModelSourceURL                  = "https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it.litertlm"
 	LiteRTModelRepository                 = "litert-community/gemma-4-E4B-it-litert-lm"
 	LiteRTModelFilename                   = "gemma-4-E4B-it.litertlm"
-	BlueclawDefaultModelName              = "google/gemini-3.1-flash-lite"
+	BlueclawDefaultModelName              = "google/gemini-3.5-flash"
 	BlueclawDefaultModelContextTokens     = 1048576
 	BlueclawFirecrackerPath               = "/usr/local/bin/firecracker"
 	BlueclawJailerPath                    = "/usr/local/bin/jailer"

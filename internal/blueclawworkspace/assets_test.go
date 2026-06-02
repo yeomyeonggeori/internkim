@@ -118,7 +118,7 @@ func TestSitePrototypeUsesManagedScaffoldContract(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	content := string(document)
-	for _, expectedText := range []string{"React + Vite + TypeScript + Tailwind + shadcn/ui", "UI archetype", "Stitch canonical format", "browser tools", "`bun scripts/build.ts`", "artifact.review", "same URL", "prototype-data.ts", "build-quality.json", ".internkim/idea.md", "ownerIdentity", "ambiguous", "site.app.build", "site.app.repair", "site.app.preview", "workspaceHealth"} {
+	for _, expectedText := range []string{"React + Vite + TypeScript + Tailwind + shadcn/ui", "UI archetype", "Stitch canonical format", "browser tools", "`bun scripts/build.ts`", "artifact.review", "same URL", "prototype-data.ts", "build-quality.json", ".internkim/idea.md", ".internkim/artifact-brief.md", "visualReviewUnavailable", "PocketBase", "ownerIdentity", "ambiguous", "site.app.build", "site.app.repair", "site.app.preview", "workspaceHealth"} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("site-prototype must document managed scaffold contract %q", expectedText)
 		}
@@ -299,10 +299,13 @@ func TestSimpleSlidesDocumentsBeautifulDeckContract(t *testing.T) {
 		"contact sheets",
 		"fit-review-XX.md",
 		"expected visible text",
+		"deck-brief.md",
+		"rendered image evidence",
 		"revise `presentation.md`",
 		"artifact.review",
 		"accept_review.py",
-		"REVIEW_STRICT=1",
+		"remainingNotes",
+		"not a delivery blocker",
 		"Do not use emoji as functional icons or bullets",
 		"hybrid pattern",
 	} {
@@ -386,15 +389,23 @@ func TestSimpleSlidesBuildAndReviewScriptsCheckFontsAndDensity(t *testing.T) {
 			t.Fatalf("render review must include density check %q", expectedText)
 		}
 	}
+	if strings.Contains(reviewContent, `return 0 if report["passed"] else 1`) {
+		t.Fatalf("render review warnings must remain LLM review input, not fail the build")
+	}
 
 	acceptScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "accept_review.py"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	acceptContent := string(acceptScript)
-	for _, expectedText := range []string{"review-decision.json", "inspectedEvidence", "blocking issues", "acceptedWarnings"} {
+	for _, expectedText := range []string{"review-decision.json", "inspectedEvidence", "remainingNotes", "acceptedWarnings"} {
 		if !strings.Contains(acceptContent, expectedText) {
 			t.Fatalf("review acceptance script must include %q", expectedText)
+		}
+	}
+	for _, forbiddenText := range []string{"blocking issues remain", "raise ValueError(\"contact sheets were not inspected"} {
+		if strings.Contains(acceptContent, forbiddenText) {
+			t.Fatalf("review acceptance must report review warnings without hard-blocking delivery on %q", forbiddenText)
 		}
 	}
 

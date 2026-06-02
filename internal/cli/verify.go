@@ -16,6 +16,7 @@ import (
 	"time"
 
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 type verifyTarget struct {
@@ -510,10 +511,13 @@ func resolveVerifyTarget(arguments []string) (verifyTarget, error) {
 	}
 	target = resolveLabHostForCommandTarget(target, repositoryRootPath)
 	target = simulationHostTarget(repositoryRootPath, target)
-	if strings.TrimSpace(target.host) == "" && target.mode != commandTargetModeSimulation {
+	configuration := loadConfig()
+	if target.useRemoteSSH && strings.TrimSpace(target.host) == "" {
+		target.host = firstNonEmptyString(target.sshHostname, resolveCloudflareSSHHostname(configuration, target))
+	}
+	if !target.useRemoteSSH && strings.TrimSpace(target.host) == "" && target.mode != commandTargetModeSimulation {
 		target.host = findBoardIPForCredentials(sshpassBin, target.stateDir, target.sshUser, target.sshPassword)
 	}
-	configuration := loadConfig()
 	sshClient := (*sshClient)(nil)
 	if strings.TrimSpace(target.host) != "" {
 		sshClient = newVerifySSHClient(sshpassBin, target)
@@ -655,7 +659,7 @@ func runPlaywright(specPath string, environmentVariables map[string]string) erro
 }
 
 func verifyAPIScript() string {
-	return `set -euo pipefail
+	script := `set -euo pipefail
 
 echo "checking services"
 systemctl is-active mattermost | grep -q '^active$'
@@ -703,7 +707,7 @@ lookup_body="$(jq -cn --arg senderID "$bot_user_id" '{senderID:$senderID}')"
 curl --silent --show-error --fail --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$lookup_body" http://internkim/v1/platform/mattermost/identity.resolve | jq -e '.email != null' >/dev/null
 
 echo "checking llm capability"
-model="$(jq -r '.languageModel.capability.model // "google/gemini-3.1-flash-lite"' /root/.blueclaw/config/runtime.json)"
+model="$(jq -r '.languageModel.capability.model // "__DEFAULT_OPENROUTER_MODEL__"' /root/.blueclaw/config/runtime.json)"
 llm_text_body="$(jq -cn --arg model "$model" '{
   model: $model,
   executionMode: "remote",
@@ -827,6 +831,7 @@ PY
 
 echo "verify api: ok"
 `
+	return strings.ReplaceAll(script, "__DEFAULT_OPENROUTER_MODEL__", blueclaw.BlueclawDefaultModelName)
 }
 
 func verifyMattermostScript() string {
@@ -1328,6 +1333,36 @@ blueclaw_request() {
   rm -f "$response_file"
 }
 
+wait_for_blueclaw_health() {
+  for _ in $(seq 1 "$timeout_seconds"); do
+    if curl --silent --show-error --fail --max-time 5 http://127.0.0.1:8080/admin/api/health |
+      jq -e '.status == "ok"' >/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "Blueclaw API did not become healthy before probe setup" >&2
+  return 1
+}
+
+capture_site_screenshots() {
+  local public_url="$1"
+  local browser_path
+  browser_path="$(command -v chromium || command -v chromium-browser || command -v google-chrome || command -v google-chrome-stable || true)"
+  if [ -z "$browser_path" ]; then
+    echo "expected Chromium-compatible browser for site screenshot verification" >&2
+    return 1
+  fi
+  desktop_screenshot_file="/tmp/internkim-site-$timestamp-desktop.png"
+  mobile_screenshot_file="/tmp/internkim-site-$timestamp-mobile.png"
+  timeout 45s "$browser_path" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=1440,1000 \
+    --screenshot="$desktop_screenshot_file" "$public_url" >/tmp/internkim-site-screenshot-desktop.log 2>&1
+  timeout 45s "$browser_path" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=390,900 \
+    --screenshot="$mobile_screenshot_file" "$public_url" >/tmp/internkim-site-screenshot-mobile.log 2>&1
+  test -s "$desktop_screenshot_file"
+  test -s "$mobile_screenshot_file"
+}
+
 login_headers="$(mktemp)"
 admin_password="$(cat /root/.internkim/secrets/mm-admin-pass)"
 login_body="$(jq -cn --arg login_id admin --arg password "$admin_password" '{login_id:$login_id,password:$password}')"
@@ -1401,6 +1436,8 @@ test -n "$bot_user_id"
 
 delete_stale_probe_users
 
+wait_for_blueclaw_health
+
 user_body="$(jq -cn --arg email "$email" --arg username "$username" --arg password "$password" '{email:$email,username:$username,password:$password}')"
 user_id="$(api_request "create probe user" POST http://localhost:8065/api/v4/users "$admin_token" "$user_body" | jq -r '.id')"
 test -n "$user_id"
@@ -1444,6 +1481,16 @@ fi
 
 bot_post_file="$(mktemp)"
 api_request "fetch probe reply" GET "http://localhost:8065/api/v4/posts/$bot_post_id" "$admin_token" > "$bot_post_file"
+fetch_latest_bot_post() {
+  latest_bot_post_id="$(api_request "wait for latest bot reply" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=60" "$admin_token" |
+    jq -r --arg bot_user_id "$bot_user_id" --argjson posted_after "$user_post_create_at" \
+      '.posts[] | select(.user_id == $bot_user_id and .create_at >= $posted_after) | [.create_at, .id] | @tsv' |
+    sort -n | tail -1 | awk '{print $2}')"
+  if [ -n "$latest_bot_post_id" ]; then
+    bot_post_id="$latest_bot_post_id"
+    api_request "fetch latest bot reply" GET "http://localhost:8065/api/v4/posts/$bot_post_id" "$admin_token" > "$bot_post_file"
+  fi
+}
 task_run_id="$(blueclaw_request "find probe task" GET http://127.0.0.1:8080/admin/api/task |
   jq -r --arg prompt "$prompt" '[.[] | select(.prompt == $prompt)] | sort_by(.createdAt) | last | .taskRunID // empty')"
 task_detail_file="$(mktemp)"
@@ -1464,6 +1511,9 @@ if [ -n "$task_run_id" ] && { [ "$expect_browser_open" = "true" ] || [ "$expecte
   done
 fi
 browser_open_verified=false
+desktop_screenshot_file=""
+mobile_screenshot_file=""
+site_screenshots_verified=false
 if [ "$expect_browser_open" = "true" ]; then
   if [ -z "$task_run_id" ]; then
     echo "expected successful browser.open result, but no task was created for probe prompt" >&2
@@ -1510,6 +1560,7 @@ if [ -n "$task_run_id" ] && { [ "$expect_browser_open" = "true" ] || [ "$expecte
     exit 1
   fi
 fi
+fetch_latest_bot_post
 
 if [ "$expect_public_url" = "true" ]; then
   public_url=""
@@ -1551,6 +1602,13 @@ if [ "$expect_public_url" = "true" ]; then
     echo "site public URL did not return valid HTML: $public_url" >&2
     exit 1
   fi
+  if capture_site_screenshots "$public_url"; then
+    site_screenshots_verified=true
+  else
+    echo "site public URL could not be verified with browser screenshots: $public_url" >&2
+    jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | .[-10:] | map({name, body})' "$task_detail_file" >&2 || true
+    exit 1
+  fi
   if grep -Fq 'Sorry, we could not find the page.' "$public_html_file"; then
     echo "site public URL returned not-found page: $public_url" >&2
     exit 1
@@ -1566,8 +1624,11 @@ jq -cn \
   --arg user_post_id "$user_post_id" \
   --arg bot_post_id "$bot_post_id" \
   --arg task_run_id "$task_run_id" \
+  --arg desktop_screenshot_file "$desktop_screenshot_file" \
+  --arg mobile_screenshot_file "$mobile_screenshot_file" \
   --argjson keep "$keep_artifacts" \
   --argjson browser_open_verified "$browser_open_verified" \
+  --argjson site_screenshots_verified "$site_screenshots_verified" \
   --slurpfile bot_post "$bot_post_file" \
   --slurpfile task_detail "$task_detail_file" \
   '{
@@ -1578,6 +1639,8 @@ jq -cn \
     botPostID: $bot_post_id,
     taskRunID: $task_run_id,
     browserOpenVerified: $browser_open_verified,
+    siteScreenshotsVerified: $site_screenshots_verified,
+    siteScreenshotFiles: [$desktop_screenshot_file, $mobile_screenshot_file],
     botMessage: $bot_post[0].message,
     fileIDs: ($bot_post[0].file_ids // []),
     taskStatus: ((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskRun.status // null),

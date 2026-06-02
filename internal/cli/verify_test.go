@@ -90,6 +90,8 @@ func TestVerifyMattermostPromptScriptCanRequireToolAndTaskEvents(t *testing.T) {
 		"tool.$expected_tool.requested",
 		"expected requested tool event for $expected_tool",
 		"expected task event $expected_event",
+		"fetch_latest_bot_post",
+		"fetch latest bot reply",
 	}
 	for _, fragment := range requiredFragments {
 		if !strings.Contains(script, fragment) {
@@ -111,6 +113,11 @@ func TestVerifyMattermostPromptScriptCanRequirePublicSiteURL(t *testing.T) {
 		"INTERNKIM_SITE_STARTER_REPLACE_ME",
 		"site public URL returned starter scaffold",
 		"site public URL did not return valid HTML",
+		"capture_site_screenshots",
+		"--screenshot=\"$desktop_screenshot_file\"",
+		"--screenshot=\"$mobile_screenshot_file\"",
+		"siteScreenshotsVerified: $site_screenshots_verified",
+		"siteScreenshotFiles: [$desktop_screenshot_file, $mobile_screenshot_file]",
 		"site deploy final reply contained a generic infrastructure excuse",
 		"http://127.0.0.1:8080/admin/api/sites/$site_id",
 	}

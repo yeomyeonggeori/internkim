@@ -336,3 +336,25 @@ func TestResolveVerifyTargetUsesCloudflareSSHForExplicitHost(t *testing.T) {
 		t.Fatal("expected Cloudflare proxy command for explicit host")
 	}
 }
+
+func TestResolveVerifyTargetUsesCloudflareSSHHostnameWithoutLocalProbe(t *testing.T) {
+	homeDirectory := t.TempDir()
+	t.Setenv("HOME", homeDirectory)
+	stateDir := filepath.Join(homeDirectory, ".internkim", "devices", setup.BoardJetsonOrinNano)
+	if errorValue := os.MkdirAll(stateDir, 0o700); errorValue != nil {
+		t.Fatalf("expected state dir: %v", errorValue)
+	}
+	saveState(stateDir, "ssh_hostname", "0.ssh.example.test")
+
+	target, errorValue := resolveVerifyTarget([]string{"--cloudflare-ssh"})
+	if errorValue != nil {
+		t.Fatalf("expected verify target: %v", errorValue)
+	}
+
+	if target.host != "0.ssh.example.test" {
+		t.Fatalf("expected Cloudflare SSH hostname, got %q", target.host)
+	}
+	if target.sshClient == nil || target.sshClient.proxyCommand == "" {
+		t.Fatal("expected Cloudflare proxy command")
+	}
+}
