@@ -17,73 +17,12 @@ import (
 	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 )
 
-const (
-	attendanceKindClockIn            = "clock_in"
-	attendanceKindClockOut           = "clock_out"
-	attendanceSourceMattermostButton = "mattermost_button"
-	attendanceChannelName            = mattermostdefaults.AttendanceChannelName
-	attendanceChannelDisplayName     = mattermostdefaults.AttendanceChannelDisplayName
-	attendanceClockInAction          = "attendanceClockIn"
-	attendanceClockOutAction         = "attendanceClockOut"
-	attendanceToggleAction           = "attendance.toggle"
-	attendanceEntryPostProperty      = "internkim_attendance_entry"
-	attendanceEntryPostIDFilename    = "mattermost-attendance-entry-post-id"
-	attendanceChannelIDFilename      = "mattermost-attendance-channel-id"
-	attendanceCancelReason           = "repeated click confirmed"
-	attendanceDuplicateWindow        = 5 * time.Minute
-)
-
 const attendanceEventSelectColumns = `
 id, mattermost_user_id, mattermost_username, email, display_name, kind, occurred_at, local_date, local_time,
 	time_zone_at_event, source, team_id, channel_id, action_post_id, result_post_id, location_id, location_name,
 	canceled_at, cancel_reason, repeated_click_at`
 
 var errAttendanceDuplicateIgnored = errors.New("attendance duplicate ignored")
-
-type attendanceEvent struct {
-	ID                 string `json:"id"`
-	MattermostUserID   string `json:"mattermostUserID"`
-	MattermostUsername string `json:"mattermostUsername"`
-	Email              string `json:"email"`
-	DisplayName        string `json:"displayName"`
-	Kind               string `json:"kind"`
-	OccurredAt         string `json:"occurredAt"`
-	LocalDate          string `json:"localDate"`
-	LocalTime          string `json:"localTime"`
-	TimeZoneAtEvent    string `json:"timeZoneAtEvent"`
-	Source             string `json:"source"`
-	TeamID             string `json:"teamID"`
-	ChannelID          string `json:"channelID"`
-	ActionPostID       string `json:"actionPostID"`
-	ResultPostID       string `json:"resultPostID"`
-	LocationID         string `json:"locationID,omitempty"`
-	LocationName       string `json:"locationName,omitempty"`
-	CanceledAt         string `json:"canceledAt,omitempty"`
-	CancelReason       string `json:"cancelReason,omitempty"`
-	RepeatedClickAt    string `json:"repeatedClickAt,omitempty"`
-}
-
-type attendanceSummaryResponse struct {
-	Month                string               `json:"month"`
-	CurrentUserEmail     string               `json:"currentUserEmail"`
-	IsAdmin              bool                 `json:"isAdmin"`
-	TimeZone             string               `json:"timeZone"`
-	Events               []attendanceEvent    `json:"events"`
-	TodayStatus          string               `json:"todayStatus"`
-	Locations            []attendanceLocation `json:"locations"`
-	TeamViewVisibleToAll bool                 `json:"teamViewVisibleToAll"`
-	TeamViewBlocked      bool                 `json:"teamViewBlocked"`
-}
-
-type attendanceUserTokenRecord struct {
-	UserID    string `json:"userID"`
-	Token     string `json:"token"`
-	UpdatedAt string `json:"updatedAt"`
-}
-
-type mattermostTokenResponse struct {
-	Token string `json:"token"`
-}
 
 func (service *Service) serveAttendancePage(responseWriter http.ResponseWriter, request *http.Request) {
 	if request.URL.Path == "/attendance" {
@@ -201,10 +140,6 @@ func (service *Service) writeAttendanceSummary(responseWriter http.ResponseWrite
 		TeamViewVisibleToAll: teamVisible,
 		TeamViewBlocked:      teamViewBlocked,
 	})
-}
-
-type attendanceSettingsRequest struct {
-	TeamViewVisibleToAll *bool `json:"teamViewVisibleToAll"`
 }
 
 func (service *Service) writeAttendanceSettings(responseWriter http.ResponseWriter, request *http.Request) {
@@ -482,77 +417,6 @@ func (service *Service) createAttendanceEvent(userRecord mattermostUserRecord, k
 
 func (service *Service) openAttendanceDatabase(ctx context.Context) (*sql.DB, error) {
 	return service.openSQLiteDatabase(ctx, service.Configuration.AttendanceDatabasePath, ensureAttendanceSchema)
-}
-
-func ensureAttendanceSchema(ctx context.Context, database *sql.DB) error {
-	_, errorValue := database.ExecContext(ctx, `
-CREATE TABLE IF NOT EXISTS attendance_events (
-	id TEXT PRIMARY KEY,
-	mattermost_user_id TEXT NOT NULL,
-	mattermost_username TEXT NOT NULL,
-	email TEXT NOT NULL,
-	display_name TEXT NOT NULL,
-	kind TEXT NOT NULL,
-	occurred_at TEXT NOT NULL,
-	local_date TEXT NOT NULL,
-	local_time TEXT NOT NULL,
-	time_zone_at_event TEXT NOT NULL,
-	source TEXT NOT NULL,
-	team_id TEXT NOT NULL,
-	channel_id TEXT NOT NULL,
-	action_post_id TEXT NOT NULL,
-	result_post_id TEXT NOT NULL,
-	location_id TEXT NOT NULL DEFAULT '',
-	location_name TEXT NOT NULL DEFAULT '',
-	canceled_at TEXT NOT NULL,
-	cancel_reason TEXT NOT NULL,
-	repeated_click_at TEXT NOT NULL
-)`)
-	if errorValue != nil {
-		return errorValue
-	}
-	if errorValue := ensureAttendanceColumn(ctx, database, "location_id", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := ensureAttendanceColumn(ctx, database, "location_name", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
-		return errorValue
-	}
-	if _, errorValue := database.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS attendance_settings (
-		key TEXT PRIMARY KEY,
-		value TEXT NOT NULL,
-		updated_at TEXT NOT NULL
-	)`); errorValue != nil {
-		return errorValue
-	}
-	_, errorValue = database.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS attendance_events_user_date ON attendance_events(email, local_date)")
-	return errorValue
-}
-
-func ensureAttendanceColumn(ctx context.Context, database *sql.DB, columnName string, columnDefinition string) error {
-	rows, errorValue := database.QueryContext(ctx, "PRAGMA table_info(attendance_events)")
-	if errorValue != nil {
-		return errorValue
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var columnIndex int
-		var name string
-		var columnType string
-		var isNotNull int
-		var defaultValue any
-		var primaryKey int
-		if errorValue := rows.Scan(&columnIndex, &name, &columnType, &isNotNull, &defaultValue, &primaryKey); errorValue != nil {
-			return errorValue
-		}
-		if name == columnName {
-			return rows.Err()
-		}
-	}
-	if errorValue := rows.Err(); errorValue != nil {
-		return errorValue
-	}
-	_, errorValue = database.ExecContext(ctx, "ALTER TABLE attendance_events ADD COLUMN "+columnName+" "+columnDefinition)
-	return errorValue
 }
 
 func (service *Service) insertAttendanceEvent(ctx context.Context, database *sql.DB, event attendanceEvent) error {
