@@ -129,7 +129,7 @@
 
 	function selectPerson(email: string) {
 		attendance.selectedEmail = email;
-		attendance.tab = 'personal';
+		attendance.setTab('personal');
 	}
 
 	function backToToday() {
