@@ -55,10 +55,22 @@ func TestFormatCloudflareSSHErrorIdentifiesMissingSSHBanner(t *testing.T) {
 		"SSH banner",
 		"sshd",
 		"cloudflared-node-ssh",
+		"./internkim recover ssh",
 	} {
 		if !strings.Contains(errorMessage, expectedText) {
 			t.Fatalf("expected error to contain %q, got %s", expectedText, errorMessage)
 		}
+	}
+}
+
+func TestCloudflareSSHFailureClassDistinguishesBannerTimeout(t *testing.T) {
+	failureClass := cloudflareSSHFailureClass("Connection timed out during banner exchange")
+	if failureClass != "origin_banner_timeout" {
+		t.Fatalf("failure class = %q, expected origin_banner_timeout", failureClass)
+	}
+	summary := cloudflareSSHFailureSummary(os.ErrDeadlineExceeded)
+	if !strings.Contains(summary, "unknown") {
+		t.Fatalf("generic summary should not invent a recovery class, got %s", summary)
 	}
 }
 
