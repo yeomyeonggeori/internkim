@@ -25,6 +25,14 @@
 		icsURL: string;
 	};
 
+	type CalendarAccountStatusResponse = {
+		connected: boolean;
+		provider?: string;
+		accountEmail?: string;
+		lastAuthError?: string;
+		needsReauth: boolean;
+	};
+
 	type CalendarEvent = {
 		id?: string;
 		title?: string;
@@ -52,6 +60,9 @@
 	const localeCode = $derived(currentLocale.value === 'ko' ? 'ko-KR' : 'en-US');
 
 	let syncInformation = $state<CalendarSyncResponse | null>(null);
+	let accountStatus = $state<CalendarAccountStatusResponse | null>(null);
+	let accountStatusError = $state(false);
+	let isLoadingAccountStatus = $state(false);
 	let isSyncSheetOpen = $state(false);
 	let isRotatingSync = $state(false);
 	let syncError = $state('');
@@ -133,6 +144,7 @@
 	onMount(() => {
 		if (isEmbed) return;
 		loadSyncInformation();
+		loadAccountStatus();
 		const savedVisibility = window.localStorage.getItem('internkim.calendar.workVisible');
 		if (savedVisibility) calendarVisibility.work = savedVisibility === 'true';
 	});
@@ -153,6 +165,21 @@
 			syncInformation = (await response.json()) as CalendarSyncResponse;
 		} catch {
 			syncInformation = null;
+		}
+	}
+
+	async function loadAccountStatus() {
+		isLoadingAccountStatus = true;
+		accountStatusError = false;
+		try {
+			const response = await fetch('/calendar/api/account-status', { credentials: 'include' });
+			if (!response.ok) throw new Error('account status failed');
+			accountStatus = (await response.json()) as CalendarAccountStatusResponse;
+		} catch {
+			accountStatus = null;
+			accountStatusError = true;
+		} finally {
+			isLoadingAccountStatus = false;
 		}
 	}
 
@@ -200,6 +227,25 @@
 	function openSyncSheet() {
 		syncError = '';
 		isSyncSheetOpen = true;
+		loadSyncInformation();
+		loadAccountStatus();
+	}
+
+	function accountStatusLabel() {
+		if (isLoadingAccountStatus) return text.accountStatusLoading;
+		if (accountStatusError) return text.accountStatusLoadFailed;
+		if (!accountStatus?.connected) return text.googleCalendarDisconnected;
+		if (accountStatus.needsReauth) return text.googleCalendarReauthRequired;
+		if (accountStatus.accountEmail) {
+			return text.googleCalendarConnectedTemplate.replace('{email}', accountStatus.accountEmail);
+		}
+		return text.googleCalendarConnected;
+	}
+
+	function accountStatusDotClass() {
+		if (accountStatusError || accountStatus?.needsReauth) return 'bg-warning';
+		if (accountStatus?.connected) return 'bg-success';
+		return 'bg-muted-foreground/50';
 	}
 
 	const weekdayLabels = $derived(
@@ -462,8 +508,8 @@
 				class="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent"
 				onclick={openSyncSheet}
 			>
-				<span class="size-1.5 rounded-full bg-success" aria-hidden="true"></span>
-				<span class="min-w-0 flex-1 truncate text-muted-foreground">{text.connected}</span>
+				<span class="size-1.5 rounded-full bg-muted-foreground/50" aria-hidden="true"></span>
+				<span class="min-w-0 flex-1 truncate text-muted-foreground">{text.subscriptionSettings}</span>
 			</button>
 			<Button variant="ghost" size="icon-sm" aria-label={text.refresh} class="size-7" onclick={bumpCalendarRefresh}>
 				<RefreshCwIcon class="size-3.5" />
@@ -487,7 +533,16 @@
 					<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{syncError}</p>
 				{/if}
 
+				<div class="space-y-2 rounded-md border p-3">
+					<p class="text-xs font-medium uppercase text-muted-foreground">{text.externalCalendarAccount}</p>
+					<div class="flex items-center gap-2 text-sm">
+						<span class={`size-2 rounded-full ${accountStatusDotClass()}`} aria-hidden="true"></span>
+						<span class="min-w-0 flex-1 truncate">{accountStatusLabel()}</span>
+					</div>
+				</div>
+
 				<div class="space-y-3">
+					<p class="text-xs font-medium text-muted-foreground">{text.subscriptionReady}</p>
 					<p class="text-xs font-medium uppercase text-muted-foreground">{text.caldav}</p>
 					<div class="flex min-w-0 items-start gap-2">
 						<code class="block min-w-0 flex-1 rounded-md bg-muted px-2 py-1.5 font-mono text-xs break-all">
