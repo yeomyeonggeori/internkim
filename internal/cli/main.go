@@ -331,7 +331,7 @@ func printSetupUsage() {
 	fmt.Println("  internkim setup --only admin-web --force")
 	fmt.Println("  internkim setup --only admind --force")
 	fmt.Println("  internkim setup --only admin-web,admind --force")
-	fmt.Println("  internkim setup --profile acme --node office-1 --only blueclaw-payload-direct --force")
+	fmt.Println("  internkim setup --profile acme --node 1 --only blueclaw-payload-direct --force")
 }
 
 func runDeviceSSH() {
