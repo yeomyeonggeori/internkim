@@ -282,6 +282,46 @@ func TestOpenAICompatibleMessagePartsBecomeMultimodalContent(t *testing.T) {
 	}
 }
 
+func TestOpenRouterChatActionRequestUsesDocumentedImageInputShape(t *testing.T) {
+	requestDocument, errorValue := buildOpenRouterChatActionRequest(StructuredRequest{
+		Messages: []Message{{
+			Role:    "user",
+			Content: "inspect this",
+			Parts: []MessagePart{{
+				Type:       "image",
+				MimeType:   "image/png",
+				DataBase64: "aW1hZ2U=",
+			}},
+		}},
+	}, "openrouter/model", []nativeActionTool{{
+		FunctionName: "finish",
+		Parameters:   json.RawMessage(`{"type":"object","properties":{}}`),
+	}})
+	if errorValue != nil {
+		t.Fatalf("expected request document: %v", errorValue)
+	}
+	var request struct {
+		Messages []struct {
+			Role    string           `json:"role"`
+			Content []map[string]any `json:"content"`
+		} `json:"messages"`
+	}
+	if errorValue := json.Unmarshal(requestDocument, &request); errorValue != nil {
+		t.Fatalf("expected json request: %v", errorValue)
+	}
+	if len(request.Messages) != 1 || request.Messages[0].Role != "user" {
+		t.Fatalf("expected user message for image input, got %s", string(requestDocument))
+	}
+	content := request.Messages[0].Content
+	if len(content) != 2 || content[0]["type"] != "text" || content[1]["type"] != "image_url" {
+		t.Fatalf("expected text first, then image_url content, got %s", string(requestDocument))
+	}
+	imageURL, ok := content[1]["image_url"].(map[string]any)
+	if !ok || imageURL["url"] != "data:image/png;base64,aW1hZ2U=" {
+		t.Fatalf("expected OpenRouter data image URL, got %s", string(requestDocument))
+	}
+}
+
 func TestNativeActionToolsExposeFinishAsFinish(t *testing.T) {
 	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(testAgentActionSchema())
 	if errorValue != nil {
