@@ -78,6 +78,7 @@ type Service struct {
 	mutex                   sync.Mutex
 	jobs                    map[string]*Job
 	uploads                 map[string]*RestoreUpload
+	blueclawUpdateUploads   map[string]*BlueclawUpdateUpload
 	pairingCodes            map[string]*CompanionPairingCode
 	companions              map[string]*CompanionRecord
 	companionJobs           map[string]*CompanionJob
@@ -242,20 +243,21 @@ func DefaultConfiguration() Configuration {
 func NewService(configuration Configuration) *Service {
 	configuration = configuration.withDefaults()
 	service := &Service{
-		Configuration:        configuration,
-		jobs:                 map[string]*Job{},
-		uploads:              map[string]*RestoreUpload{},
-		pairingCodes:         map[string]*CompanionPairingCode{},
-		companions:           map[string]*CompanionRecord{},
-		companionJobs:        map[string]*CompanionJob{},
-		companionFileUploads: map[string]*CompanionFileUpload{},
-		companionMounts:      map[string]*CompanionMountRecord{},
-		sites:                map[string]*SiteRecord{},
-		mailBackend:          standardMailBackend{},
-		calendarSyncWakeUp:   make(chan struct{}, 1),
-		requestMetrics:       newAdminRequestMetrics(),
-		databaseSchemas:      newAdminDatabaseSchemas(),
-		startedAt:            time.Now().UTC(),
+		Configuration:         configuration,
+		jobs:                  map[string]*Job{},
+		uploads:               map[string]*RestoreUpload{},
+		blueclawUpdateUploads: map[string]*BlueclawUpdateUpload{},
+		pairingCodes:          map[string]*CompanionPairingCode{},
+		companions:            map[string]*CompanionRecord{},
+		companionJobs:         map[string]*CompanionJob{},
+		companionFileUploads:  map[string]*CompanionFileUpload{},
+		companionMounts:       map[string]*CompanionMountRecord{},
+		sites:                 map[string]*SiteRecord{},
+		mailBackend:           standardMailBackend{},
+		calendarSyncWakeUp:    make(chan struct{}, 1),
+		requestMetrics:        newAdminRequestMetrics(),
+		databaseSchemas:       newAdminDatabaseSchemas(),
+		startedAt:             time.Now().UTC(),
 	}
 	service.loadCompanions()
 	service.loadCompanionJobs()
@@ -538,12 +540,22 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.handleSSHRecovery(responseWriter, request, path)
 		return
 	}
+	if strings.HasPrefix(path, "/updates/blueclaw/uploads") {
+		service.handleBlueclawUpdateUpload(responseWriter, request, path)
+		return
+	}
 	if !service.isAuthorized(request) {
 		http.Error(responseWriter, "admin access required", http.StatusForbidden)
 		return
 	}
 
 	switch {
+	case request.Method == http.MethodGet && path == "/updates/blueclaw/status":
+		service.writeBlueclawUpdateStatus(responseWriter)
+	case request.Method == http.MethodPost && path == "/updates/blueclaw/apply":
+		service.applyLatestBlueclawUpdate(responseWriter, request)
+	case request.Method == http.MethodGet && strings.HasPrefix(path, "/updates/blueclaw/jobs/"):
+		service.writeJob(responseWriter, strings.TrimPrefix(path, "/updates/blueclaw/jobs/"))
 	case request.Method == http.MethodGet && path == "/diagnostics/requests":
 		service.writeAdminRequestDiagnostics(responseWriter)
 	case request.Method == http.MethodGet && path == "/locale":
@@ -1618,18 +1630,22 @@ func (service *Service) markUploadChunk(uploadID string, chunkIndex int) {
 }
 
 func (service *Service) assembleRestoreUpload(upload *RestoreUpload, chunkCount int, bundlePath string) error {
-	bundleFile, errorValue := os.OpenFile(bundlePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	return assembleChunkDirectory(upload.DirectoryPath, chunkCount, bundlePath, "restore upload")
+}
+
+func assembleChunkDirectory(directoryPath string, chunkCount int, targetPath string, label string) error {
+	targetFile, errorValue := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if errorValue != nil {
 		return errorValue
 	}
-	defer bundleFile.Close()
+	defer targetFile.Close()
 	for chunkIndex := 0; chunkIndex < chunkCount; chunkIndex++ {
-		chunkPath := filepath.Join(upload.DirectoryPath, "chunks", strconv.Itoa(chunkIndex))
+		chunkPath := filepath.Join(directoryPath, "chunks", strconv.Itoa(chunkIndex))
 		chunkFile, errorValue := os.Open(chunkPath)
 		if errorValue != nil {
-			return errors.New("restore upload is missing chunk " + strconv.Itoa(chunkIndex))
+			return errors.New(label + " is missing chunk " + strconv.Itoa(chunkIndex))
 		}
-		_, copyErrorValue := io.Copy(bundleFile, chunkFile)
+		_, copyErrorValue := io.Copy(targetFile, chunkFile)
 		closeErrorValue := chunkFile.Close()
 		if copyErrorValue != nil {
 			return copyErrorValue

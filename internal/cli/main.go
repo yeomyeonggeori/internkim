@@ -318,6 +318,7 @@ func printSetupUsage() {
 	fmt.Println("  --host <ip>          Override the saved board IP")
 	fmt.Println("  --user <name>        Override the SSH user")
 	fmt.Println("  --password <value>   Override the SSH password")
+	fmt.Println("  --profile <name>     Use an isolated company/customer profile")
 	fmt.Println("  --node <number>      Target a numbered fleet node")
 	fmt.Println("  --fleet <fleet-id>   Join an existing fleet")
 	fmt.Println("  --fleet-secret <s>   Secret for joining an existing fleet (or INTERNKIM_FLEET_SECRET)")
@@ -330,6 +331,7 @@ func printSetupUsage() {
 	fmt.Println("  internkim setup --only admin-web --force")
 	fmt.Println("  internkim setup --only admind --force")
 	fmt.Println("  internkim setup --only admin-web,admind --force")
+	fmt.Println("  internkim setup --profile acme --node office-1 --only blueclaw-payload-direct --force")
 }
 
 func runDeviceSSH() {
@@ -3945,6 +3947,9 @@ func newSSHWithPort(sshpassBin, user, pass, host, port string) *sshClient {
 }
 
 func newCloudflareSSH(sshpassBin, user, pass, host string) *sshClient {
+	if port := strings.TrimSpace(os.Getenv("INTERNKIM_CLOUDFLARE_SSH_LOCAL_PORT")); port != "" {
+		return newSSHWithPort(sshpassBin, user, pass, "localhost", port)
+	}
 	client := newSSH(sshpassBin, user, pass, host)
 	client.proxyCommand = "env GODEBUG=netdns=go TUNNEL_EDGE_IP_VERSION=4 cloudflared --edge-ip-version 4 --edge-bind-address 0.0.0.0 access ssh --hostname %h"
 	return client

@@ -135,11 +135,13 @@ func signedRecoveryRequest(t *testing.T, service *Service, action string, nonce 
 	deviceID := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath))
 	secret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
 	payload := sshRecoveryRequest{
-		Action:    action,
-		DeviceID:  deviceID,
-		Nonce:     nonce,
-		Timestamp: timestamp,
-		Signature: signSSHRecoveryPayload(secret, action, deviceID, nonce, timestamp),
+		fleetSignedRequest: fleetSignedRequest{
+			Action:    action,
+			DeviceID:  deviceID,
+			Nonce:     nonce,
+			Timestamp: timestamp,
+			Signature: signFleetPayload(secret, action, deviceID, nonce, timestamp),
+		},
 	}
 	document, errorValue := json.Marshal(payload)
 	if errorValue != nil {

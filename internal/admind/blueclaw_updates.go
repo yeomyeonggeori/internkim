@@ -1,0 +1,657 @@
+package admind
+
+import (
+	"archive/tar"
+	"compress/gzip"
+	"context"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+
+	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+)
+
+const blueclawUpdateChunkSize = 4 << 20
+
+type BlueclawUpdateUpload struct {
+	UploadID       string
+	Token          string
+	Version        string
+	Filename       string
+	Size           int64
+	SHA256         string
+	CreatedAt      time.Time
+	DirectoryPath  string
+	ReceivedChunks map[int]bool
+}
+
+type blueclawUpdateUploadCreateRequest struct {
+	fleetSignedRequest
+	Version  string `json:"version"`
+	Filename string `json:"filename"`
+	Size     int64  `json:"size"`
+	SHA256   string `json:"sha256"`
+}
+
+type blueclawUpdateUploadCreateResponse struct {
+	UploadID    string `json:"uploadID"`
+	UploadToken string `json:"uploadToken"`
+	ChunkSize   int    `json:"chunkSize"`
+}
+
+type blueclawUpdateUploadCompleteRequest struct {
+	Chunks int    `json:"chunks"`
+	SHA256 string `json:"sha256"`
+	Apply  *bool  `json:"apply,omitempty"`
+}
+
+type blueclawUpdateStatusResponse struct {
+	Current       *blueclawUpdateArtifactMetadata `json:"current,omitempty"`
+	Latest        *blueclawUpdateArtifactMetadata `json:"latest,omitempty"`
+	State         string                          `json:"state"`
+	UpdateAllowed bool                            `json:"updateAllowed"`
+	ActiveJob     *Job                            `json:"activeJob,omitempty"`
+}
+
+type blueclawUpdateArtifactMetadata struct {
+	Component        string                                  `json:"component"`
+	Version          string                                  `json:"version"`
+	BlueclawRevision string                                  `json:"blueclawRevision"`
+	SHA256           string                                  `json:"sha256"`
+	ManifestSHA256   string                                  `json:"manifestSHA256"`
+	DownloadURL      string                                  `json:"downloadURL,omitempty"`
+	CreatedAt        string                                  `json:"createdAt"`
+	Manifest         blueclawruntime.PayloadArtifactManifest `json:"manifest"`
+	ArchivePath      string                                  `json:"archivePath,omitempty"`
+}
+
+func (service *Service) handleBlueclawUpdateUpload(responseWriter http.ResponseWriter, request *http.Request, path string) {
+	switch {
+	case request.Method == http.MethodPost && path == "/updates/blueclaw/uploads":
+		service.createBlueclawUpdateUpload(responseWriter, request)
+	case request.Method == http.MethodPut && strings.HasPrefix(path, "/updates/blueclaw/uploads/") && strings.Contains(path, "/chunks/"):
+		service.writeBlueclawUpdateUploadChunk(responseWriter, request, path)
+	case request.Method == http.MethodPost && strings.HasPrefix(path, "/updates/blueclaw/uploads/") && strings.HasSuffix(path, "/complete"):
+		service.completeBlueclawUpdateUpload(responseWriter, request, path)
+	default:
+		http.NotFound(responseWriter, request)
+	}
+}
+
+func (service *Service) createBlueclawUpdateUpload(responseWriter http.ResponseWriter, request *http.Request) {
+	var payload blueclawUpdateUploadCreateRequest
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	if errorValue := service.validateFleetSignedRequest(payload.fleetSignedRequest, isAllowedBlueclawUpdateSignedAction); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusForbidden)
+		return
+	}
+	if errorValue := validateBlueclawUpdateUploadRequest(payload); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	uploadID := randomHex(16)
+	uploadToken := randomHex(24)
+	directoryPath := filepath.Join(service.Configuration.StateDirectory, "blueclaw-updates", "uploads", uploadID)
+	if errorValue := os.MkdirAll(filepath.Join(directoryPath, "chunks"), 0o700); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	service.mutex.Lock()
+	service.blueclawUpdateUploads[uploadID] = &BlueclawUpdateUpload{
+		UploadID:       uploadID,
+		Token:          uploadToken,
+		Version:        strings.TrimSpace(payload.Version),
+		Filename:       filepath.Base(payload.Filename),
+		Size:           payload.Size,
+		SHA256:         strings.ToLower(strings.TrimSpace(payload.SHA256)),
+		CreatedAt:      time.Now().UTC(),
+		DirectoryPath:  directoryPath,
+		ReceivedChunks: map[int]bool{},
+	}
+	service.mutex.Unlock()
+	service.writeJSON(responseWriter, blueclawUpdateUploadCreateResponse{UploadID: uploadID, UploadToken: uploadToken, ChunkSize: blueclawUpdateChunkSize})
+}
+
+func validateBlueclawUpdateUploadRequest(payload blueclawUpdateUploadCreateRequest) error {
+	if payload.Size <= 0 {
+		return errors.New("blueclaw update artifact size is required")
+	}
+	sha256Value := strings.TrimSpace(payload.SHA256)
+	if len(sha256Value) != 64 {
+		return errors.New("blueclaw update artifact sha256 is invalid")
+	}
+	if _, errorValue := hex.DecodeString(sha256Value); errorValue != nil {
+		return errors.New("blueclaw update artifact sha256 is invalid")
+	}
+	return nil
+}
+
+func isAllowedBlueclawUpdateSignedAction(action string) bool {
+	return action == "blueclaw-update-upload"
+}
+
+func (service *Service) writeBlueclawUpdateUploadChunk(responseWriter http.ResponseWriter, request *http.Request, path string) {
+	uploadID, chunkIndex, isValid := parseBlueclawUpdateUploadChunkPath(path)
+	if !isValid {
+		http.NotFound(responseWriter, request)
+		return
+	}
+	upload, isFound := service.findBlueclawUpdateUpload(uploadID)
+	if !isFound || !blueclawUpdateUploadTokenMatches(request, upload) {
+		http.Error(responseWriter, "upload token invalid", http.StatusForbidden)
+		return
+	}
+	chunkPath := filepath.Join(upload.DirectoryPath, "chunks", strconv.Itoa(chunkIndex))
+	if errorValue := writeLimitedRequestBody(chunkPath, request.Body, blueclawUpdateChunkSize); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	service.markBlueclawUpdateUploadChunk(uploadID, chunkIndex)
+	service.writeJSON(responseWriter, map[string]string{"status": "ok"})
+}
+
+func (service *Service) completeBlueclawUpdateUpload(responseWriter http.ResponseWriter, request *http.Request, path string) {
+	uploadID := strings.TrimSuffix(strings.TrimPrefix(path, "/updates/blueclaw/uploads/"), "/complete")
+	upload, isFound := service.findBlueclawUpdateUpload(uploadID)
+	if !isFound || !blueclawUpdateUploadTokenMatches(request, upload) {
+		http.Error(responseWriter, "upload token invalid", http.StatusForbidden)
+		return
+	}
+	var payload blueclawUpdateUploadCompleteRequest
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	archivePath := filepath.Join(upload.DirectoryPath, firstNonEmpty(upload.Filename, "blueclaw-payload.tar.gz"))
+	if errorValue := assembleChunkDirectory(upload.DirectoryPath, payload.Chunks, archivePath, "blueclaw update upload"); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	if errorValue := validateBlueclawUpdateArchiveHash(archivePath, firstNonEmpty(payload.SHA256, upload.SHA256)); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	artifactPath, metadata, errorValue := service.prepareBlueclawUpdateArtifact(upload, archivePath)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	if payload.Apply != nil && !*payload.Apply {
+		service.writeJSON(responseWriter, metadata)
+		return
+	}
+	job := service.newJob("blueclaw-update")
+	service.runBlueclawUpdateJob(request.Context(), job.JobID, artifactPath, metadata)
+	if completedJob, isFound := service.findJob(job.JobID); isFound {
+		service.writeJSON(responseWriter, completedJob)
+		return
+	}
+	service.writeJSON(responseWriter, job)
+}
+
+func (service *Service) writeBlueclawUpdateStatus(responseWriter http.ResponseWriter) {
+	latest := service.readLatestBlueclawUpdateMetadata()
+	current := service.readCurrentBlueclawUpdateMetadata()
+	response := blueclawUpdateStatusResponse{
+		Current:       publicBlueclawUpdateMetadata(current),
+		Latest:        publicBlueclawUpdateMetadata(latest),
+		State:         blueclawUpdateState(current, latest),
+		UpdateAllowed: latest != nil,
+		ActiveJob:     service.activeBlueclawUpdateJob(),
+	}
+	service.writeJSON(responseWriter, response)
+}
+
+func (service *Service) applyLatestBlueclawUpdate(responseWriter http.ResponseWriter, _ *http.Request) {
+	if job := service.activeBlueclawUpdateJob(); job != nil {
+		service.writeJSON(responseWriter, job)
+		return
+	}
+	metadata := service.readLatestBlueclawUpdateMetadata()
+	if metadata == nil || strings.TrimSpace(metadata.ArchivePath) == "" {
+		http.Error(responseWriter, "no blueclaw update artifact is available", http.StatusBadRequest)
+		return
+	}
+	artifactPath, errorValue := service.extractBlueclawUpdateArchive(metadata.ArchivePath)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	job := service.newJob("blueclaw-update")
+	service.writeJSON(responseWriter, job)
+	go service.runBlueclawUpdateJob(context.Background(), job.JobID, artifactPath, metadata)
+}
+
+func (service *Service) runBlueclawUpdateJob(ctx context.Context, jobID string, artifactPath string, metadata *blueclawUpdateArtifactMetadata) {
+	service.updateJob(jobID, "running", "verifying", "")
+	if _, errorValue := blueclawruntime.ValidatePayloadArtifactDirectory(artifactPath); errorValue != nil {
+		service.updateJob(jobID, "failed", "verifying", errorValue.Error())
+		return
+	}
+	if service.isBlueclawPayloadAlreadyCurrent(artifactPath) {
+		service.finishBlueclawUpdateJob(jobID, "already_current", metadata)
+		return
+	}
+	if errorValue := service.installBlueclawPayloadArtifact(ctx, jobID, artifactPath); errorValue != nil {
+		_, _ = service.runCommand(ctx, "sh", "-lc", blueclawruntime.StartAfterPayloadSyncCommand())
+		service.updateJob(jobID, "failed", "installing", errorValue.Error())
+		return
+	}
+	service.finishBlueclawUpdateJob(jobID, "completed", metadata)
+}
+
+func (service *Service) finishBlueclawUpdateJob(jobID string, status string, metadata *blueclawUpdateArtifactMetadata) {
+	service.mutex.Lock()
+	job := service.jobs[jobID]
+	if job != nil {
+		job.Status = status
+		job.Phase = status
+		job.UpdatedAt = time.Now().UTC()
+		job.Result = map[string]string{
+			"blueclawRevision": metadata.BlueclawRevision,
+			"version":          metadata.Version,
+		}
+	}
+	service.mutex.Unlock()
+}
+
+func (service *Service) installBlueclawPayloadArtifact(ctx context.Context, jobID string, artifactPath string) error {
+	service.updateJob(jobID, "running", "stopping", "")
+	if output, errorValue := service.runCommand(ctx, "sh", "-lc", blueclawruntime.StopForPayloadSyncCommand()); errorValue != nil {
+		return fmt.Errorf("stop blueclaw before payload sync: %s: %w", strings.TrimSpace(string(output)), errorValue)
+	}
+	service.updateJob(jobID, "running", "installing", "")
+	if output, errorValue := service.runCommand(ctx, "sh", "-lc", blueclawruntime.HostWorkspacePayloadSyncCommand(artifactPath)); errorValue != nil {
+		return fmt.Errorf("sync blueclaw payload host workspace: %s: %w", strings.TrimSpace(string(output)), errorValue)
+	}
+	syncCommand := strings.Join([]string{
+		blueclawruntime.BlueclawSupervisorBinaryPath,
+		"sync-workspace",
+		"--workspace-image", quoteBlueclawUpdateShellValue(blueclawruntime.BlueclawWorkspaceImagePath),
+		"--source", quoteBlueclawUpdateShellValue(filepath.Join(artifactPath, "workspace")),
+	}, " ")
+	if output, errorValue := service.runCommand(ctx, "sh", "-lc", syncCommand); errorValue != nil {
+		return fmt.Errorf("sync blueclaw payload workspace: %s: %w", strings.TrimSpace(string(output)), errorValue)
+	}
+	if !service.blueclawWorkspaceManifestMatches(artifactPath) {
+		return errors.New("sync blueclaw payload workspace: workspace manifest mismatch")
+	}
+	installManifestCommand := "install -m 0644 " + quoteBlueclawUpdateShellValue(filepath.Join(artifactPath, "manifest.json")) + " " + quoteBlueclawUpdateShellValue(blueclawruntime.BlueclawPayloadManifestPath)
+	if output, errorValue := service.runCommand(ctx, "sh", "-lc", installManifestCommand); errorValue != nil {
+		return fmt.Errorf("install blueclaw payload manifest: %s: %w", strings.TrimSpace(string(output)), errorValue)
+	}
+	service.updateJob(jobID, "running", "restarting", "")
+	if output, errorValue := service.runCommand(ctx, "sh", "-lc", blueclawruntime.StartAfterPayloadSyncCommand()); errorValue != nil {
+		return fmt.Errorf("start blueclaw after payload sync: %s: %w", strings.TrimSpace(string(output)), errorValue)
+	}
+	return nil
+}
+
+func (service *Service) isBlueclawPayloadAlreadyCurrent(artifactPath string) bool {
+	manifestDocument, errorValue := os.ReadFile(filepath.Join(artifactPath, "manifest.json"))
+	if errorValue != nil {
+		return false
+	}
+	currentManifestDocument, errorValue := os.ReadFile(blueclawruntime.BlueclawPayloadManifestPath)
+	if errorValue != nil || string(manifestDocument) != string(currentManifestDocument) {
+		return false
+	}
+	return service.blueclawWorkspaceManifestMatches(artifactPath)
+}
+
+func (service *Service) blueclawWorkspaceManifestMatches(artifactPath string) bool {
+	manifestDocument, errorValue := os.ReadFile(filepath.Join(artifactPath, "manifest.json"))
+	if errorValue != nil {
+		return false
+	}
+	command := "debugfs -R " + quoteBlueclawUpdateShellValue("cat /.blueclaw/runtime/current/manifest.json") + " " + quoteBlueclawUpdateShellValue(blueclawruntime.BlueclawWorkspaceImagePath) + " 2>/dev/null || true"
+	output, errorValue := service.runCommand(context.Background(), "sh", "-lc", command)
+	return errorValue == nil && string(manifestDocument) == string(output)
+}
+
+func (service *Service) prepareBlueclawUpdateArtifact(upload *BlueclawUpdateUpload, archivePath string) (string, *blueclawUpdateArtifactMetadata, error) {
+	artifactPath, errorValue := service.extractBlueclawUpdateArchive(archivePath)
+	if errorValue != nil {
+		return "", nil, errorValue
+	}
+	manifest, errorValue := blueclawruntime.ValidatePayloadArtifactDirectory(artifactPath)
+	if errorValue != nil {
+		return "", nil, errorValue
+	}
+	metadata, errorValue := service.persistBlueclawUpdateArtifact(upload, archivePath, artifactPath, manifest)
+	if errorValue != nil {
+		return "", nil, errorValue
+	}
+	return artifactPath, metadata, nil
+}
+
+func (service *Service) persistBlueclawUpdateArtifact(upload *BlueclawUpdateUpload, archivePath string, artifactPath string, manifest blueclawruntime.PayloadArtifactManifest) (*blueclawUpdateArtifactMetadata, error) {
+	version := firstNonEmpty(upload.Version, manifest.BlueclawRevision)
+	artifactDirectoryPath := filepath.Join(service.Configuration.StateDirectory, "blueclaw-updates", "artifacts", safeBlueclawUpdateVersion(version))
+	if errorValue := os.MkdirAll(artifactDirectoryPath, 0o700); errorValue != nil {
+		return nil, errorValue
+	}
+	storedArchivePath := filepath.Join(artifactDirectoryPath, "payload.tar.gz")
+	if errorValue := copyFile(archivePath, storedArchivePath, 0o600); errorValue != nil {
+		return nil, errorValue
+	}
+	manifestDocument, errorValue := os.ReadFile(filepath.Join(artifactPath, "manifest.json"))
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	metadata := &blueclawUpdateArtifactMetadata{
+		Component:        "blueclaw",
+		Version:          version,
+		BlueclawRevision: manifest.BlueclawRevision,
+		SHA256:           fileSHA256(storedArchivePath),
+		ManifestSHA256:   bytesSHA256(manifestDocument),
+		CreatedAt:        time.Now().UTC().Format(time.RFC3339),
+		Manifest:         manifest,
+		ArchivePath:      storedArchivePath,
+	}
+	if errorValue := writeBlueclawUpdateMetadata(filepath.Join(artifactDirectoryPath, "metadata.json"), metadata); errorValue != nil {
+		return nil, errorValue
+	}
+	if errorValue := writeBlueclawUpdateMetadata(service.latestBlueclawUpdateMetadataPath(), metadata); errorValue != nil {
+		return nil, errorValue
+	}
+	return metadata, nil
+}
+
+func (service *Service) extractBlueclawUpdateArchive(archivePath string) (string, error) {
+	directoryPath := filepath.Join(service.Configuration.StateDirectory, "blueclaw-updates", "staging", randomHex(12))
+	if errorValue := os.MkdirAll(directoryPath, 0o700); errorValue != nil {
+		return "", errorValue
+	}
+	if errorValue := extractTarGzip(archivePath, directoryPath); errorValue != nil {
+		return "", errorValue
+	}
+	return directoryPath, nil
+}
+
+func extractTarGzip(archivePath string, targetDirectoryPath string) error {
+	archiveFile, errorValue := os.Open(archivePath)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer archiveFile.Close()
+	gzipReader, errorValue := gzip.NewReader(archiveFile)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer gzipReader.Close()
+	return extractTar(gzipReader, targetDirectoryPath)
+}
+
+func extractTar(reader io.Reader, targetDirectoryPath string) error {
+	tarReader := tar.NewReader(reader)
+	for {
+		header, errorValue := tarReader.Next()
+		if errors.Is(errorValue, io.EOF) {
+			return nil
+		}
+		if errorValue != nil {
+			return errorValue
+		}
+		if errorValue := extractTarEntry(tarReader, header, targetDirectoryPath); errorValue != nil {
+			return errorValue
+		}
+	}
+}
+
+func extractTarEntry(reader io.Reader, header *tar.Header, targetDirectoryPath string) error {
+	targetPath, errorValue := safeTarTargetPath(targetDirectoryPath, header.Name)
+	if errorValue != nil {
+		return errorValue
+	}
+	switch header.Typeflag {
+	case tar.TypeDir:
+		return os.MkdirAll(targetPath, 0o700)
+	case tar.TypeReg:
+		if errorValue := os.MkdirAll(filepath.Dir(targetPath), 0o700); errorValue != nil {
+			return errorValue
+		}
+		return writeReaderToFile(targetPath, reader, os.FileMode(header.Mode)&0o777)
+	default:
+		return nil
+	}
+}
+
+func safeTarTargetPath(directoryPath string, name string) (string, error) {
+	cleanName := filepath.Clean(strings.TrimPrefix(name, "/"))
+	if cleanName == "." || strings.HasPrefix(cleanName, "..") {
+		return "", errors.New("archive contains unsafe path")
+	}
+	targetPath := filepath.Join(directoryPath, cleanName)
+	if !strings.HasPrefix(targetPath, filepath.Clean(directoryPath)+string(os.PathSeparator)) {
+		return "", errors.New("archive contains path outside target")
+	}
+	return targetPath, nil
+}
+
+func writeReaderToFile(path string, reader io.Reader, mode os.FileMode) error {
+	if mode == 0 {
+		mode = 0o600
+	}
+	file, errorValue := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+	if errorValue != nil {
+		return errorValue
+	}
+	_, copyErrorValue := io.Copy(file, reader)
+	closeErrorValue := file.Close()
+	if copyErrorValue != nil {
+		return copyErrorValue
+	}
+	return closeErrorValue
+}
+
+func writeLimitedRequestBody(path string, reader io.Reader, limit int64) error {
+	file, errorValue := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if errorValue != nil {
+		return errorValue
+	}
+	copiedBytes, copyErrorValue := io.Copy(file, io.LimitReader(reader, limit+1))
+	closeErrorValue := file.Close()
+	if copyErrorValue != nil {
+		return copyErrorValue
+	}
+	if copiedBytes > limit {
+		return errors.New("request body exceeds limit")
+	}
+	return closeErrorValue
+}
+
+func (service *Service) findBlueclawUpdateUpload(uploadID string) (*BlueclawUpdateUpload, bool) {
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	upload, isFound := service.blueclawUpdateUploads[uploadID]
+	return upload, isFound
+}
+
+func (service *Service) markBlueclawUpdateUploadChunk(uploadID string, chunkIndex int) {
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	upload := service.blueclawUpdateUploads[uploadID]
+	if upload != nil {
+		upload.ReceivedChunks[chunkIndex] = true
+	}
+}
+
+func blueclawUpdateUploadTokenMatches(request *http.Request, upload *BlueclawUpdateUpload) bool {
+	token := strings.TrimSpace(request.Header.Get("X-InternKim-Upload-Token"))
+	if token == "" {
+		token = strings.TrimPrefix(strings.TrimSpace(request.Header.Get("Authorization")), "Bearer ")
+	}
+	return token != "" && subtle.ConstantTimeCompare([]byte(token), []byte(upload.Token)) == 1
+}
+
+func parseBlueclawUpdateUploadChunkPath(path string) (string, int, bool) {
+	trimmedPath := strings.TrimPrefix(path, "/updates/blueclaw/uploads/")
+	parts := strings.Split(trimmedPath, "/chunks/")
+	if len(parts) != 2 {
+		return "", 0, false
+	}
+	chunkIndex, errorValue := strconv.Atoi(parts[1])
+	return parts[0], chunkIndex, errorValue == nil && parts[0] != "" && chunkIndex >= 0
+}
+
+func validateBlueclawUpdateArchiveHash(path string, expectedSHA256 string) error {
+	expectedSHA256 = strings.ToLower(strings.TrimSpace(expectedSHA256))
+	if expectedSHA256 == "" {
+		return nil
+	}
+	actualSHA256 := fileSHA256(path)
+	if !strings.EqualFold(actualSHA256, expectedSHA256) {
+		return fmt.Errorf("blueclaw update archive checksum mismatch")
+	}
+	return nil
+}
+
+func (service *Service) latestBlueclawUpdateMetadataPath() string {
+	return filepath.Join(service.Configuration.StateDirectory, "blueclaw-updates", "latest.json")
+}
+
+func (service *Service) readLatestBlueclawUpdateMetadata() *blueclawUpdateArtifactMetadata {
+	return readBlueclawUpdateMetadata(service.latestBlueclawUpdateMetadataPath())
+}
+
+func (service *Service) readCurrentBlueclawUpdateMetadata() *blueclawUpdateArtifactMetadata {
+	document, errorValue := os.ReadFile(blueclawruntime.BlueclawPayloadManifestPath)
+	if errorValue != nil {
+		return nil
+	}
+	manifest, errorValue := blueclawruntime.ParsePayloadArtifactManifest(document)
+	if errorValue != nil {
+		return nil
+	}
+	return &blueclawUpdateArtifactMetadata{
+		Component:        "blueclaw",
+		Version:          manifest.BlueclawRevision,
+		BlueclawRevision: manifest.BlueclawRevision,
+		ManifestSHA256:   bytesSHA256(document),
+		CreatedAt:        "",
+		Manifest:         manifest,
+	}
+}
+
+func readBlueclawUpdateMetadata(path string) *blueclawUpdateArtifactMetadata {
+	document, errorValue := os.ReadFile(path)
+	if errorValue != nil {
+		return nil
+	}
+	var metadata blueclawUpdateArtifactMetadata
+	if errorValue := json.Unmarshal(document, &metadata); errorValue != nil {
+		return nil
+	}
+	return &metadata
+}
+
+func writeBlueclawUpdateMetadata(path string, metadata *blueclawUpdateArtifactMetadata) error {
+	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
+		return errorValue
+	}
+	document, errorValue := json.MarshalIndent(metadata, "", "  ")
+	if errorValue != nil {
+		return errorValue
+	}
+	return os.WriteFile(path, append(document, '\n'), 0o600)
+}
+
+func publicBlueclawUpdateMetadata(metadata *blueclawUpdateArtifactMetadata) *blueclawUpdateArtifactMetadata {
+	if metadata == nil {
+		return nil
+	}
+	publicMetadata := *metadata
+	publicMetadata.ArchivePath = ""
+	return &publicMetadata
+}
+
+func blueclawUpdateState(current *blueclawUpdateArtifactMetadata, latest *blueclawUpdateArtifactMetadata) string {
+	if latest == nil {
+		return "idle"
+	}
+	if current != nil && current.BlueclawRevision == latest.BlueclawRevision {
+		return "already_current"
+	}
+	return "idle"
+}
+
+func (service *Service) activeBlueclawUpdateJob() *Job {
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	for _, job := range service.jobs {
+		if job.Type == "blueclaw-update" && (job.Status == "pending" || job.Status == "running") {
+			return job
+		}
+	}
+	return nil
+}
+
+func fileSHA256(path string) string {
+	file, errorValue := os.Open(path)
+	if errorValue != nil {
+		return ""
+	}
+	defer file.Close()
+	hash := sha256.New()
+	_, _ = io.Copy(hash, file)
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
+func bytesSHA256(document []byte) string {
+	hash := sha256.Sum256(document)
+	return hex.EncodeToString(hash[:])
+}
+
+func copyFile(sourcePath string, targetPath string, mode os.FileMode) error {
+	sourceFile, errorValue := os.Open(sourcePath)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer sourceFile.Close()
+	if errorValue := os.MkdirAll(filepath.Dir(targetPath), 0o700); errorValue != nil {
+		return errorValue
+	}
+	targetFile, errorValue := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+	if errorValue != nil {
+		return errorValue
+	}
+	_, copyErrorValue := io.Copy(targetFile, sourceFile)
+	closeErrorValue := targetFile.Close()
+	if copyErrorValue != nil {
+		return copyErrorValue
+	}
+	return closeErrorValue
+}
+
+func safeBlueclawUpdateVersion(version string) string {
+	normalizedVersion := strings.ToLower(strings.TrimSpace(version))
+	normalizedVersion = strings.Map(func(character rune) rune {
+		if character >= 'a' && character <= 'z' || character >= '0' && character <= '9' || character == '-' || character == '_' || character == '.' {
+			return character
+		}
+		return '-'
+	}, normalizedVersion)
+	normalizedVersion = strings.Trim(normalizedVersion, "-_.")
+	if normalizedVersion == "" {
+		return randomHex(8)
+	}
+	return normalizedVersion
+}
+
+func quoteBlueclawUpdateShellValue(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
+}

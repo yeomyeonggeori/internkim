@@ -50,6 +50,31 @@ export const adminText = {
 			notAdmin: '관리자 아님',
 			firstAdminClaimPending: '첫 관리자 등록 대기'
 		},
+		deviceUpdate: {
+			title: 'Blueclaw 업데이트',
+			description: '기기가 등록된 payload를 직접 받아 적용합니다.',
+			currentRevision: '현재 revision',
+			latestRevision: '최신 revision',
+			jobPhase: '진행 상태',
+			notAvailable: '없음',
+			refresh: '새로고침',
+			apply: '업데이트',
+			notice: '업데이트 중에는 Blueclaw만 재시작되며, 초기 설치나 복구가 필요할 때만 SSH fallback을 사용합니다.',
+			loadError: '업데이트 상태를 불러오지 못했습니다.',
+			applyError: '업데이트를 시작하지 못했습니다.',
+			states: {
+				idle: '대기',
+				checking: '확인 중',
+				downloading: '다운로드 중',
+				verifying: '검증 중',
+				installing: '설치 중',
+				restarting: '재시작 중',
+				running: '진행 중',
+				completed: '완료',
+				failed: '실패',
+				alreadyCurrent: '최신 상태'
+			}
+		},
 		bot: {
 			title: '봇 프로필',
 			description: '사용자에게 보이는 이름과 공개 설명을 바꿉니다. 내부 username은 internkim으로 유지됩니다.',
@@ -234,6 +259,31 @@ export const adminText = {
 			claimFailed: 'claim failed',
 			notAdmin: 'not admin',
 			firstAdminClaimPending: 'first admin claim pending'
+		},
+		deviceUpdate: {
+			title: 'Blueclaw Update',
+			description: 'The device pulls and applies the registered payload itself.',
+			currentRevision: 'Current revision',
+			latestRevision: 'Latest revision',
+			jobPhase: 'Progress',
+			notAvailable: 'none',
+			refresh: 'Refresh',
+			apply: 'Update',
+			notice: 'Only Blueclaw restarts during update. SSH fallback is reserved for first install or recovery.',
+			loadError: 'Could not load update status.',
+			applyError: 'Could not start the update.',
+			states: {
+				idle: 'idle',
+				checking: 'checking',
+				downloading: 'downloading',
+				verifying: 'verifying',
+				installing: 'installing',
+				restarting: 'restarting',
+				running: 'running',
+				completed: 'completed',
+				failed: 'failed',
+				alreadyCurrent: 'current'
+			}
 		},
 		bot: {
 			title: 'Bot Profile',

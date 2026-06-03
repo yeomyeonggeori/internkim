@@ -35,6 +35,8 @@ type recoveryResponse struct {
 	ObservedAt  time.Time         `json:"observedAt"`
 }
 
+const recoveryResponseBodyLimitBytes = 256 * 1024
+
 func runRecover() {
 	if errorValue := runRecoverArguments(os.Args[2:]); errorValue != nil {
 		fatal(errorValue.Error())
@@ -164,7 +166,7 @@ func performSSHRecoveryRequest(target commandTarget, action string) (recoveryRes
 		return response, errorValue
 	}
 	defer httpResponse.Body.Close()
-	responseBody, _ := io.ReadAll(io.LimitReader(httpResponse.Body, 4096))
+	responseBody, _ := io.ReadAll(io.LimitReader(httpResponse.Body, recoveryResponseBodyLimitBytes))
 	if httpResponse.StatusCode < 200 || httpResponse.StatusCode >= 300 {
 		return response, recoveryHTTPStatusError(target, httpResponse, string(responseBody))
 	}

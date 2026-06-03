@@ -1386,6 +1386,12 @@ func (state *setupFlowState) installBlueclawPayloadSSH(context *setup.Context) e
 	}
 
 	fmt.Print("  blueclaw runtime payload... ")
+	if result, errorValue := state.installBlueclawPayloadHTTPS(artifactDirectoryPath, manifest); errorValue == nil {
+		fmt.Println(result)
+		return nil
+	} else {
+		fmt.Printf("https self-update unavailable (%s); falling back to SSH... ", strings.TrimSpace(errorValue.Error()))
+	}
 	remoteManifestDocument := state.sshClient.run("cat " + blueclaw.BlueclawPayloadManifestPath + " 2>/dev/null || true")
 	remoteWorkspaceManifestDocument := state.sshClient.run(blueclawWorkspaceManifestCommand())
 	if manifestDocument == remoteManifestDocument && manifestDocument == remoteWorkspaceManifestDocument {
@@ -1447,46 +1453,15 @@ func (state *setupFlowState) installBlueclawPayloadSSH(context *setup.Context) e
 }
 
 func blueclawHostWorkspacePayloadSyncCommand(temporaryPayloadPath string) string {
-	sourcePath := filepath.Join(temporaryPayloadPath, "workspace", ".blueclaw", "runtime")
-	targetPath := filepath.Join(blueclaw.BlueclawWorkspacePath, ".blueclaw", "runtime")
-	return strings.Join([]string{
-		"mkdir -p", quoteShellValue(filepath.Dir(targetPath)),
-		"&& rsync -a --delete", quoteShellValue(sourcePath + "/"), quoteShellValue(targetPath + "/"),
-		"&& chown -R blueclaw:blueclaw", quoteShellValue(targetPath),
-	}, " ")
+	return blueclaw.HostWorkspacePayloadSyncCommand(temporaryPayloadPath)
 }
 
 func blueclawStopForPayloadSyncCommand() string {
-	return `systemctl stop ` + blueclaw.BlueclawServiceName + ` >/dev/null 2>&1 || true
-blueclaw_process_pattern='[/]usr/local/bin/blueclaw-supervisor|[/]firecracker .*--api-sock /firecracker-api.socket'
-for _ in $(seq 1 20); do
-  if ! systemctl is-active --quiet ` + blueclaw.BlueclawServiceName + ` && ! pgrep -f "$blueclaw_process_pattern" >/dev/null; then
-    exit 0
-  fi
-  sleep 1
-done
-systemctl kill ` + blueclaw.BlueclawServiceName + ` --kill-who=all --signal=KILL >/dev/null 2>&1 || true
-for _ in $(seq 1 20); do
-  if ! systemctl is-active --quiet ` + blueclaw.BlueclawServiceName + ` && ! pgrep -f "$blueclaw_process_pattern" >/dev/null; then
-    exit 0
-  fi
-  sleep 1
-done
-systemctl status ` + blueclaw.BlueclawServiceName + ` --no-pager -l 2>/dev/null || true
-pgrep -af "$blueclaw_process_pattern" || true
-exit 1`
+	return blueclaw.StopForPayloadSyncCommand()
 }
 
 func blueclawStartAfterPayloadSyncCommand() string {
-	return `systemctl start ` + blueclaw.BlueclawServiceName + `
-for _ in $(seq 1 20); do
-  if systemctl is-active --quiet ` + blueclaw.BlueclawServiceName + `; then
-    exit 0
-  fi
-  sleep 1
-done
-systemctl status ` + blueclaw.BlueclawServiceName + ` --no-pager -l 2>/dev/null || true
-exit 1`
+	return blueclaw.StartAfterPayloadSyncCommand()
 }
 
 func blueclawWorkspaceManifestCommand() string {

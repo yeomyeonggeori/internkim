@@ -89,6 +89,23 @@
 		logs?: string[];
 	};
 
+	type BlueclawUpdateArtifact = {
+		component: string;
+		version: string;
+		blueclawRevision: string;
+		sha256?: string;
+		manifestSHA256?: string;
+		createdAt?: string;
+	};
+
+	type BlueclawUpdateStatus = {
+		current?: BlueclawUpdateArtifact;
+		latest?: BlueclawUpdateArtifact;
+		state: string;
+		updateAllowed: boolean;
+		activeJob?: AdminJob;
+	};
+
 	type RestoreUploadResponse = {
 		uploadID: string;
 		chunkSize: number;
@@ -201,6 +218,11 @@
 	let restoreJob = $state<AdminJob | null>(null);
 	let isCreatingBackup = $state(false);
 	let isRestoring = $state(false);
+	let blueclawUpdateStatus = $state<BlueclawUpdateStatus | null>(null);
+	let blueclawUpdateJob = $state<AdminJob | null>(null);
+	let blueclawUpdateMessage = $state('');
+	let isLoadingBlueclawUpdate = $state(false);
+	let isApplyingBlueclawUpdate = $state(false);
 	let companionStatuses = $state<CompanionStatus[]>([]);
 	let companionReleases = $state<CompanionRelease[]>([]);
 	let companionPairingCode = $state<CompanionPairingCodeResponse | null>(null);
@@ -305,6 +327,23 @@
 		{ value: 'ko', label: text.settings.workspaceLanguageKorean },
 		{ value: 'en', label: text.settings.workspaceLanguageEnglish }
 	];
+	const shortRevision = (revision: string | undefined) => {
+		const value = revision?.trim() ?? '';
+		return value ? value.slice(0, 8) : text.deviceUpdate.notAvailable;
+	};
+	const blueclawUpdateStateLabel = (state: string | undefined) => {
+		const labels = text.deviceUpdate.states;
+		if (state === 'already_current') return labels.alreadyCurrent;
+		if (state === 'completed') return labels.completed;
+		if (state === 'failed') return labels.failed;
+		if (state === 'running') return labels.running;
+		if (state === 'checking') return labels.checking;
+		if (state === 'downloading') return labels.downloading;
+		if (state === 'verifying') return labels.verifying;
+		if (state === 'installing') return labels.installing;
+		if (state === 'restarting') return labels.restarting;
+		return labels.idle;
+	};
 
 	onMount(() => {
 		const queryFleetId = new URLSearchParams(location.search).get('fleet_id')?.trim().toLowerCase() ?? '';
@@ -917,8 +956,70 @@
 		} finally {
 			isCheckingDevice = false;
 		}
+		if (!isDeviceReachable) {
+			blueclawUpdateStatus = null;
+			blueclawUpdateJob = null;
+		}
 		if (isDeviceReachable) await loadCompanions();
 		if (isDeviceReachable) await loadWorkspaceSettings();
+		if (isDeviceReachable) await loadBlueclawUpdateStatus();
+	}
+
+	async function loadBlueclawUpdateStatus() {
+		if (!adminBaseURL()) return;
+
+		isLoadingBlueclawUpdate = true;
+		blueclawUpdateMessage = '';
+		try {
+			const response = await fetch(`${adminBaseURL()}/updates/blueclaw/status`, { credentials: 'include' });
+			if (!response.ok) {
+				blueclawUpdateMessage = text.deviceUpdate.loadError;
+				return;
+			}
+			blueclawUpdateStatus = (await response.json()) as BlueclawUpdateStatus;
+			blueclawUpdateJob = blueclawUpdateStatus.activeJob ?? blueclawUpdateJob;
+		} catch {
+			blueclawUpdateMessage = text.deviceUpdate.loadError;
+		} finally {
+			isLoadingBlueclawUpdate = false;
+		}
+	}
+
+	async function applyBlueclawUpdate() {
+		if (!adminBaseURL()) return;
+
+		isApplyingBlueclawUpdate = true;
+		blueclawUpdateMessage = '';
+		try {
+			const response = await fetch(`${adminBaseURL()}/updates/blueclaw/apply`, {
+				method: 'POST',
+				credentials: 'include'
+			});
+			if (!response.ok) {
+				blueclawUpdateMessage = (await response.text()).trim() || text.deviceUpdate.applyError;
+				return;
+			}
+			blueclawUpdateJob = (await response.json()) as AdminJob;
+			await pollBlueclawUpdateJob(blueclawUpdateJob.jobID);
+		} catch {
+			blueclawUpdateMessage = text.deviceUpdate.applyError;
+		} finally {
+			isApplyingBlueclawUpdate = false;
+		}
+	}
+
+	async function pollBlueclawUpdateJob(jobID: string) {
+		for (let attempt = 0; attempt < 120; attempt += 1) {
+			const response = await fetch(`${adminBaseURL()}/updates/blueclaw/jobs/${encodeURIComponent(jobID)}`, { credentials: 'include' });
+			if (response.ok) {
+				blueclawUpdateJob = (await response.json()) as AdminJob;
+				if (blueclawUpdateJob.status === 'completed' || blueclawUpdateJob.status === 'failed' || blueclawUpdateJob.status === 'already_current') {
+					await loadBlueclawUpdateStatus();
+					return;
+				}
+			}
+			await new Promise((resolve) => setTimeout(resolve, 1500));
+		}
 	}
 
 	async function loadCompanions() {
@@ -1220,6 +1321,63 @@
 				{#if adminErrorMessage}
 					<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{adminErrorMessage}</p>
 				{/if}
+
+				<div class="rounded-lg border p-4">
+					<div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+						<div>
+							<h3 class="text-sm font-semibold">{text.deviceUpdate.title}</h3>
+							<p class="text-muted-foreground mt-1 text-sm">{text.deviceUpdate.description}</p>
+						</div>
+						<Badge variant={blueclawUpdateStatus?.state === 'already_current' ? 'secondary' : 'outline'}>
+							{blueclawUpdateStateLabel(blueclawUpdateJob?.phase || blueclawUpdateJob?.status || blueclawUpdateStatus?.state)}
+						</Badge>
+					</div>
+					<div class="grid gap-3 md:grid-cols-3">
+						<div class="rounded-md bg-muted/30 p-3">
+							<p class="text-muted-foreground text-xs">{text.deviceUpdate.currentRevision}</p>
+							<p class="mt-1 font-mono text-sm">{shortRevision(blueclawUpdateStatus?.current?.blueclawRevision)}</p>
+						</div>
+						<div class="rounded-md bg-muted/30 p-3">
+							<p class="text-muted-foreground text-xs">{text.deviceUpdate.latestRevision}</p>
+							<p class="mt-1 font-mono text-sm">{shortRevision(blueclawUpdateStatus?.latest?.blueclawRevision)}</p>
+						</div>
+						<div class="rounded-md bg-muted/30 p-3">
+							<p class="text-muted-foreground text-xs">{text.deviceUpdate.jobPhase}</p>
+							<p class="mt-1 text-sm">{blueclawUpdateStateLabel(blueclawUpdateJob?.phase || blueclawUpdateJob?.status || blueclawUpdateStatus?.state)}</p>
+						</div>
+					</div>
+					<div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+						<p class="text-muted-foreground text-xs">{text.deviceUpdate.notice}</p>
+						<div class="flex gap-2">
+							<Button variant="outline" size="sm" class="gap-2" disabled={!isDeviceReachable || isLoadingBlueclawUpdate} onclick={loadBlueclawUpdateStatus}>
+								{#if isLoadingBlueclawUpdate}
+									<LoaderIcon class="size-4 animate-spin" />
+								{:else}
+									<RefreshCwIcon class="size-4" />
+								{/if}
+								{text.deviceUpdate.refresh}
+							</Button>
+							<Button
+								size="sm"
+								class="gap-2"
+								disabled={!isDeviceReachable || isApplyingBlueclawUpdate || !blueclawUpdateStatus?.updateAllowed || blueclawUpdateStatus?.state === 'already_current'}
+								onclick={applyBlueclawUpdate}
+							>
+								{#if isApplyingBlueclawUpdate}
+									<LoaderIcon class="size-4 animate-spin" />
+								{:else}
+									<UploadIcon class="size-4" />
+								{/if}
+								{text.deviceUpdate.apply}
+							</Button>
+						</div>
+					</div>
+					{#if blueclawUpdateMessage || blueclawUpdateJob?.error}
+						<p class="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+							{blueclawUpdateMessage || blueclawUpdateJob?.error}
+						</p>
+					{/if}
+				</div>
 
 				{/if}
 
