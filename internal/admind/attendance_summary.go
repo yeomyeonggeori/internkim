@@ -60,34 +60,3 @@ func (service *Service) writeAttendanceSummary(responseWriter http.ResponseWrite
 		TeamViewBlocked:      teamViewBlocked,
 	})
 }
-
-func attendanceStatusForEvents(events []attendanceEvent, localDate string) string {
-	for _, event := range events {
-		if event.LocalDate != localDate || event.CanceledAt != "" {
-			continue
-		}
-		if event.Kind == attendanceKindClockIn {
-			return "clocked_in"
-		}
-		if event.Kind == attendanceKindClockOut {
-			return "clocked_out"
-		}
-	}
-	return "not_clocked_in"
-}
-
-func normalizeAttendanceMonth(value string, fallback time.Time) string {
-	trimmedValue := strings.TrimSpace(value)
-	if _, errorValue := time.Parse("2006-01", trimmedValue); errorValue == nil {
-		return trimmedValue
-	}
-	return fallback.Format("2006-01")
-}
-
-func attendanceNextMonth(month string) string {
-	parsedTime, errorValue := time.Parse("2006-01", month)
-	if errorValue != nil {
-		return month
-	}
-	return parsedTime.AddDate(0, 1, 0).Format("2006-01")
-}
