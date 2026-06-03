@@ -193,7 +193,8 @@ func webFetchInputSchema() json.RawMessage {
 
 func documentReadInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Required("path", jsonschema.String()),
+		jsonschema.Field("materialID", jsonschema.String()),
+		jsonschema.Field("path", jsonschema.String()),
 		jsonschema.Field("maxPages", jsonschema.Integer()),
 		jsonschema.Field("maxOutputBytes", jsonschema.Integer()),
 	).RawMessage()
@@ -201,7 +202,8 @@ func documentReadInputSchema() json.RawMessage {
 
 func imageReadInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Required("path", jsonschema.String()),
+		jsonschema.Field("materialID", jsonschema.String()),
+		jsonschema.Field("path", jsonschema.String()),
 	).RawMessage()
 }
 
