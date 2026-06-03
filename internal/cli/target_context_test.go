@@ -64,6 +64,57 @@ func TestResolveCommandTargetKeepsSimulationOutOfDeviceState(t *testing.T) {
 	}
 }
 
+func TestResolveCommandTargetUsesProfileScopedState(t *testing.T) {
+	homeDirectory := t.TempDir()
+	t.Setenv("HOME", homeDirectory)
+
+	target := resolveCommandTarget([]string{"--profile", "Company A"})
+	expectedStateDir := filepath.Join(homeDirectory, ".internkim", "profiles", "company-a", "devices", setup.BoardJetsonOrinNano)
+
+	if target.profile != "company-a" {
+		t.Fatalf("expected profile company-a, got %q", target.profile)
+	}
+	if target.stateDir != expectedStateDir {
+		t.Fatalf("expected profile state dir %q, got %q", expectedStateDir, target.stateDir)
+	}
+}
+
+func TestResolveCommandTargetKeepsProfilesIsolated(t *testing.T) {
+	homeDirectory := t.TempDir()
+	t.Setenv("HOME", homeDirectory)
+	defaultStateDir := filepath.Join(homeDirectory, ".internkim", "devices", setup.BoardJetsonOrinNano)
+	profileStateDir := filepath.Join(homeDirectory, ".internkim", "profiles", "acme", "devices", setup.BoardJetsonOrinNano)
+	if errorValue := os.MkdirAll(defaultStateDir, 0o700); errorValue != nil {
+		t.Fatalf("expected default state dir: %v", errorValue)
+	}
+	if errorValue := os.MkdirAll(profileStateDir, 0o700); errorValue != nil {
+		t.Fatalf("expected profile state dir: %v", errorValue)
+	}
+	saveState(defaultStateDir, "fleet_id", "default-fleet")
+	saveState(profileStateDir, "fleet_id", "acme-fleet")
+
+	target := resolveCommandTarget([]string{"--profile", "acme"})
+
+	if loadState(target.stateDir, "fleet_id") != "acme-fleet" {
+		t.Fatalf("expected profile fleet id, got %q", loadState(target.stateDir, "fleet_id"))
+	}
+}
+
+func TestResolveCommandTargetUsesProfileAndNodeScopedState(t *testing.T) {
+	homeDirectory := t.TempDir()
+	t.Setenv("HOME", homeDirectory)
+
+	target := resolveCommandTarget([]string{"--profile", "acme", "--node", "Device 1"})
+	expectedStateDir := filepath.Join(homeDirectory, ".internkim", "profiles", "acme", "devices", setup.BoardJetsonOrinNano, "boards", "device-1")
+
+	if target.stateDir != expectedStateDir {
+		t.Fatalf("expected profile node state dir %q, got %q", expectedStateDir, target.stateDir)
+	}
+	if loadState(target.stateDir, "node_id") != "device-1" {
+		t.Fatalf("expected profile node id, got %q", loadState(target.stateDir, "node_id"))
+	}
+}
+
 func TestResolveCommandTargetReadsCloudflareSSHFlag(t *testing.T) {
 	homeDirectory := t.TempDir()
 	t.Setenv("HOME", homeDirectory)

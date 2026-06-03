@@ -171,6 +171,17 @@ LAN 탐색을 건너뛰고 Cloudflare SSH를 바로 쓰려면 `--cloudflare-ssh`
 ./internkim ssh -- uptime -p
 ```
 
+여러 회사 또는 고객 기기를 한 개발 머신에서 관리할 때는 `--profile`로 회사 단위 state를 분리하고, `--node`로 그 회사 안의 기기를 고릅니다. 같은 `--profile/--node` 조합은 setup, update, status, verify, ssh에서 같은 target state를 사용합니다.
+
+```bash
+./internkim setup --profile acme --node office-1 --host <jetson-ip>
+./internkim setup --profile acme --node office-1 --only blueclaw-payload-direct --force
+./internkim status --profile acme --node office-1
+
+./internkim setup --profile dawn --node lab-1 --host <jetson-ip>
+./internkim update --profile dawn --node lab-1 --web
+```
+
 Go 코드나 provisioning/runtime config를 바꾼 뒤에는 setup 전에 반드시 `make build`를 다시 실행하세요. `./internkim`은 로컬 바이너리라 자동 재빌드되지 않으며, 오래된 바이너리로 setup을 실행하면 장비의 Blueclaw runtime config가 이전 schema로 되돌아갈 수 있습니다. `services`와 `health` 단계는 실제 `/root/.blueclaw/config/runtime.json` contract를 검사해 stale config를 실패 처리합니다.
 
 Blueclaw submodule은 기본 setup에서 local change가 있으면 멈추고 `origin/main`으로 fast-forward 합니다. 커밋 전 `.dependency/blueclaw` 워킹디렉토리를 그대로 빌드해야 할 때는 setup 실행에 `INTERNKIM_BLUECLAW_USE_LOCAL=1`을 붙이세요.
