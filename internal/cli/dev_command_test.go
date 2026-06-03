@@ -2,6 +2,7 @@ package cli
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -83,5 +84,31 @@ func TestDevVirtualSessionCommandArguments(t *testing.T) {
 	}
 	if !reflect.DeepEqual(arguments, expectedArguments) {
 		t.Fatalf("unexpected command arguments:\n got: %#v\nwant: %#v", arguments, expectedArguments)
+	}
+}
+
+func TestTartDevVirtualSessionInvocationUsesNamedWorkspaceSharePath(t *testing.T) {
+	invocation, errorValue := tartDevVirtualSessionInvocation(devVirtualSessionArguments{
+		ScenarioName: "attachment_material_read",
+	})
+	if errorValue != nil {
+		t.Fatalf("expected invocation: %v", errorValue)
+	}
+	if invocation.WorkingDirectoryPath != "/mnt/shared/workspace/workspace/.dependency/blueclaw" {
+		t.Fatalf("expected named workspace share path, got %q", invocation.WorkingDirectoryPath)
+	}
+}
+
+func TestTartDevSharedWorkspaceCommandMountsAutomountTag(t *testing.T) {
+	command := tartDevSharedWorkspaceCommand("/mnt/shared/workspace/workspace/.dependency/blueclaw", "lab-password")
+	for _, expectedFragment := range []string{
+		"com.apple.virtio-fs.automount",
+		"/mnt/shared/workspace",
+		"/mnt/shared/workspace/workspace/.dependency/blueclaw",
+		"lab-password",
+	} {
+		if !strings.Contains(command, expectedFragment) {
+			t.Fatalf("expected shared workspace command to contain %q, got %s", expectedFragment, command)
+		}
 	}
 }
