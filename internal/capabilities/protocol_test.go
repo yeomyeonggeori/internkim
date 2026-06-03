@@ -159,9 +159,8 @@ func TestWebDescriptorsAreReadOnlyDefaultTools(t *testing.T) {
 func TestDocumentReadDescriptorIsReadOnlyDefaultTool(t *testing.T) {
 	schema := descriptorSchema(t, FileDescriptors(), "document.read")
 
-	assertSchemaHasProperties(t, schema, "path", "maxPages", "maxOutputBytes")
+	assertSchemaHasProperties(t, schema, "materialID", "path", "maxPages", "maxOutputBytes")
 	assertSchemaOmitsProperties(t, schema, "ocrMode")
-	assertSchemaRequires(t, schema, "path")
 	descriptor := descriptorForTool(t, FileDescriptors(), "document.read")
 	if descriptor.SideEffectClass != "read" || descriptor.PrivacyClass != "workspace_document" || descriptor.RequiresApproval {
 		t.Fatalf("unexpected document.read descriptor: %+v", descriptor)
@@ -174,8 +173,7 @@ func TestDocumentReadDescriptorIsReadOnlyDefaultTool(t *testing.T) {
 func TestImageReadDescriptorIsReadOnlyDefaultTool(t *testing.T) {
 	schema := descriptorSchema(t, FileDescriptors(), "image.read")
 
-	assertSchemaHasProperties(t, schema, "path")
-	assertSchemaRequires(t, schema, "path")
+	assertSchemaHasProperties(t, schema, "materialID", "path")
 	descriptor := descriptorForTool(t, FileDescriptors(), "image.read")
 	if descriptor.SideEffectClass != "read" || descriptor.PrivacyClass != "workspace_document" || descriptor.RequiresApproval {
 		t.Fatalf("unexpected image.read descriptor: %+v", descriptor)
