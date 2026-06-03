@@ -3,6 +3,7 @@ name: xlsx
 description: Create, read, edit, clean, calculate, format, and attach spreadsheet files. Use for .xlsx, .xlsm, .csv, .tsv, Excel, tables, formulas, charts, spreadsheet cleanup, 엑셀, 스프레드시트, 시트, 표, or 계산표 requests. Do not use when the primary deliverable is a Word document, PDF, slide deck, database pipeline, or Google Sheets file.
 when_to_use: Use when the user asks for Excel, .xlsx, .xlsm, .csv, .tsv, spreadsheet, table cleanup, formulas, charts, 엑셀, 스프레드시트, 시트, 표, or a spreadsheet deliverable.
 allowed-tools:
+  - file.preview
   - file.read
   - terminal.run
   - file.write
@@ -19,7 +20,7 @@ Create or modify spreadsheet files as local artifacts, then attach the final wor
 ## Workflow
 
 1. Clarify only missing inputs that affect workbook structure, such as columns, source data, formulas, or output format.
-2. When the user asks to read, summarize, extract, OCR, or reuse content from an existing workbook, call `file.read` first.
+2. When the user asks to read, summarize, extract, OCR, or reuse content from an existing workbook, call `file.preview` first; use `file.read` only for exact UTF-8 text ranges after previewing.
 3. Create work under `tmp/<workbook-slug>` relative to the default writable workspace directory; do not use Blueclaw internal temporary paths.
 4. For straightforward new workbooks, write a JSON spec and run `scripts/create_xlsx.py`.
 5. For custom charts, advanced formulas, macros, or edits that exceed the JSON script, write a task-local Python file and run it through `scripts/skill_runtime.py python <file.py>`.

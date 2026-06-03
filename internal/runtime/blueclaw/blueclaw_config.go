@@ -40,6 +40,7 @@ var blueclawNativeToolNames = []string{
 	"ask.choice",
 	"ask.input",
 	"file.read",
+	"file.preview",
 	"file.write",
 	"file.edit",
 	"file.patch",

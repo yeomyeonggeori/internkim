@@ -3,6 +3,7 @@ name: pptx
 description: Create, read, edit, combine, clean, and attach PowerPoint files. Use for existing .pptx files, direct PowerPoint object editing, templates, speaker notes, comments, editable-only decks, 발표자료, 프레젠테이션, 파워포인트, 피피티, or slide file requests. For new designed decks, prefer the simple-slides skill.
 when_to_use: Use when the user asks for PowerPoint, .pptx, slide deck, presentation, deck editing, speaker notes, 발표자료, 프레젠테이션, 파워포인트, 피피티, or a PPTX deliverable.
 allowed-tools:
+  - file.preview
   - file.read
   - terminal.run
   - file.write
@@ -22,7 +23,7 @@ Use this skill when the user provides an existing PPTX, asks for direct PowerPoi
 ## Workflow
 
 1. Clarify only missing inputs that change the deck, such as audience, slide count, aspect ratio, source file, or required sections.
-2. When the user asks to read, summarize, extract, OCR, or reuse content from an existing deck, call `file.read` first.
+2. When the user asks to read, summarize, extract, OCR, or reuse content from an existing deck, call `file.preview` first; use `file.read` only for exact UTF-8 text ranges after previewing.
 3. Create work under `tmp/<deck-slug>` relative to the default writable workspace directory; do not use Blueclaw internal temporary paths.
 4. For straightforward direct-PPTX decks, write a JSON spec and run `scripts/create_pptx.py`.
 5. For custom layouts, charts, notes, or edits that exceed the JSON script, write a task-local Python file and run it through `scripts/skill_runtime.py python <file.py>`.

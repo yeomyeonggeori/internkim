@@ -4,6 +4,7 @@ description: Generate clean presentation slides from an HTML-first source and at
 when_to_use: Use for slides, slide decks, presentations, pitch decks, research summaries, stakeholder reports, PPT, PPTX, PowerPoint, Google Slides, Keynote, 슬라이드, 발표, 발표자료, 프레젠테이션, 프리젠테이션, 파워포인트, or 피피티 requests.
 allowed-tools:
   - terminal.run
+  - file.preview
   - file.read
   - file.write
   - file.edit

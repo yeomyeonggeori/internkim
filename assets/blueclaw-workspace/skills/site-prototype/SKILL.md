@@ -8,6 +8,7 @@ allowed-tools:
   - browser.open
   - browser.snapshot
   - browser.screenshot
+  - file.preview
   - file.read
   - file.write
   - file.edit

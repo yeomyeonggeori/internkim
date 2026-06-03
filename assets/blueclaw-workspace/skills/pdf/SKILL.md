@@ -6,6 +6,7 @@ description:
   pypdf for reading or editing existing PDF files."
 when_to_use: Use for PDF, document, report, invoice, 문서, 보고서, 견적서, 청구서, PDF generation, or PDF reading/editing requests.
 allowed-tools:
+  - file.preview
   - file.read
   - terminal.run
   - file.write
@@ -22,7 +23,7 @@ Pure Python — no Node.js required. Works on any architecture including RISC-V.
 ## Workflow
 
 1. Create new PDF work under `tmp/<pdf-slug>` relative to the default writable workspace directory; do not use Blueclaw internal temporary paths.
-2. When the user asks to read, summarize, extract, OCR, or reuse content from an existing PDF or image, call `file.read` first.
+2. When the user asks to read, summarize, extract, OCR, or reuse content from an existing PDF or image, call `file.preview` first; use `file.read` only for exact UTF-8 text ranges after previewing.
 3. Keep drafts, downloaded fonts, and generated previews in the task temporary directory while iterating.
 4. Promote accepted final PDFs to `artifacts/<pdf-slug>/` with `file.promote` unless the user requested a circle or shared destination.
 5. Attach the promoted PDF. Attach intermediate files only if the user asks.
