@@ -229,7 +229,14 @@ func resolveCommandTargetStateDir(baseStateDir string, requestedNodeID string, h
 }
 
 func commandTargetNodeID(arguments []string) string {
-	return commandArgumentValue(arguments, "--node", "")
+	nodeID := strings.TrimSpace(commandArgumentValue(arguments, "--node", ""))
+	if nodeID == "" {
+		return ""
+	}
+	if !isCommandTargetNodeNumber(nodeID) {
+		fatal("--node must be a positive number such as 1, 2, or 3")
+	}
+	return nodeID
 }
 
 func setupNodeIdentityName(nodeID string) string {
@@ -247,6 +254,19 @@ func setupNodeIdentityName(nodeID string) string {
 		}
 	}
 	return strings.Trim(builder.String(), "-")
+}
+
+func isCommandTargetNodeNumber(nodeID string) bool {
+	nodeID = strings.TrimSpace(nodeID)
+	if nodeID == "" || nodeID[0] == '0' {
+		return false
+	}
+	for _, character := range nodeID {
+		if character < '0' || character > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func firstActiveFleetNodeID(baseStateDir string) string {
