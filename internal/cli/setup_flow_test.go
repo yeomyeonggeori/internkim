@@ -98,6 +98,19 @@ func TestBlueclawStopForPayloadSyncWaitsForGuestProcesses(t *testing.T) {
 	}
 }
 
+func TestBlueclawStartAfterPayloadSyncWaitsForService(t *testing.T) {
+	command := blueclawStartAfterPayloadSyncCommand()
+	for _, expectedText := range []string{
+		"systemctl start blueclaw",
+		"systemctl is-active --quiet blueclaw",
+		"systemctl status blueclaw",
+	} {
+		if !strings.Contains(command, expectedText) {
+			t.Fatalf("expected start command to include %q, got:\n%s", expectedText, command)
+		}
+	}
+}
+
 func TestBlueclawHostWorkspacePayloadSyncCommandUpdatesCanonicalWorkspaceRuntime(t *testing.T) {
 	command := blueclawHostWorkspacePayloadSyncCommand("/tmp/internkim-blueclaw-payload")
 	for _, expectedText := range []string{
