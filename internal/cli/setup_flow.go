@@ -1436,6 +1436,11 @@ func (state *setupFlowState) installBlueclawPayloadSSH(context *setup.Context) e
 		fmt.Println("failed")
 		return fmt.Errorf("install blueclaw payload manifest: %s: %w", strings.TrimSpace(output), errorValue)
 	}
+	output, errorValue = state.sshClient.runResult(blueclawStartAfterPayloadSyncCommand())
+	if errorValue != nil {
+		fmt.Println("failed")
+		return fmt.Errorf("start blueclaw after payload sync: %s: %w", strings.TrimSpace(output), errorValue)
+	}
 
 	fmt.Println("installed")
 	return nil
@@ -1469,6 +1474,18 @@ for _ in $(seq 1 20); do
 done
 systemctl status ` + blueclaw.BlueclawServiceName + ` --no-pager -l 2>/dev/null || true
 pgrep -af "$blueclaw_process_pattern" || true
+exit 1`
+}
+
+func blueclawStartAfterPayloadSyncCommand() string {
+	return `systemctl start ` + blueclaw.BlueclawServiceName + `
+for _ in $(seq 1 20); do
+  if systemctl is-active --quiet ` + blueclaw.BlueclawServiceName + `; then
+    exit 0
+  fi
+  sleep 1
+done
+systemctl status ` + blueclaw.BlueclawServiceName + ` --no-pager -l 2>/dev/null || true
 exit 1`
 }
 
