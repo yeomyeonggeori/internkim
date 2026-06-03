@@ -117,7 +117,7 @@ func printUpdateUsage() {
 	fmt.Println("  internkim update")
 	fmt.Println("  internkim update --web")
 	fmt.Println("  internkim update --binaries --host 192.168.1.50")
-	fmt.Println("  internkim update --profile acme --node office-1")
+	fmt.Println("  internkim update --profile acme --node 1")
 	fmt.Println("  internkim update --sim-first")
 	fmt.Println("  internkim update --plan")
 }
