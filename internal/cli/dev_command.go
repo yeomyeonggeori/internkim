@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	internkimlab "gitlab.com/eastriver/internkim/internal/lab"
 )
 
 type devVirtualSessionArguments struct {
@@ -156,6 +158,9 @@ func runTartDevVirtualSession(sessionArguments devVirtualSessionArguments) error
 	if errorValue := runLabArguments([]string{"vm-up"}); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureTartDevSharedWorkspace(invocation); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := checkTartDevDependencies(sessionArguments); errorValue != nil {
 		return errorValue
 	}
@@ -175,9 +180,36 @@ func localDevVirtualSessionInvocation(sessionArguments devVirtualSessionArgument
 
 func tartDevVirtualSessionInvocation(sessionArguments devVirtualSessionArguments) (devCommandInvocation, error) {
 	return devCommandInvocation{
-		WorkingDirectoryPath: "/mnt/shared/.dependency/blueclaw",
+		WorkingDirectoryPath: filepath.Join("/mnt/shared", "workspace", "workspace", ".dependency", "blueclaw"),
 		Arguments:            devVirtualSessionCommandArguments(sessionArguments),
 	}, nil
+}
+
+func ensureTartDevSharedWorkspace(invocation devCommandInvocation) error {
+	repositoryRootPath, errorValue := resolveRepositoryRootPath()
+	if errorValue != nil {
+		return errorValue
+	}
+	configuration, errorValue := internkimlab.LoadConfiguration(internkimlab.DefaultConfigurationPath(repositoryRootPath))
+	if errorValue != nil {
+		return errorValue
+	}
+	command := tartDevSharedWorkspaceCommand(invocation.WorkingDirectoryPath, configuration.VirtualMachine.SSHPassword)
+	if errorValue := runLabArguments([]string{"vm-ssh", command}); errorValue != nil {
+		return fmt.Errorf("dev tart shared workspace mount failed: %w", errorValue)
+	}
+	return nil
+}
+
+func tartDevSharedWorkspaceCommand(workingDirectoryPath string, password string) string {
+	mountPoint := filepath.Join("/mnt/shared", "workspace")
+	return strings.Join([]string{
+		"set -eu",
+		"if [ -d " + quoteDevShellArgument(workingDirectoryPath) + " ]; then exit 0; fi",
+		"(sudo -n mkdir -p " + quoteDevShellArgument(mountPoint) + " 2>/dev/null || printf '%s\\n' " + quoteDevShellArgument(password) + " | sudo -S mkdir -p " + quoteDevShellArgument(mountPoint) + ")",
+		"if ! mountpoint -q " + quoteDevShellArgument(mountPoint) + "; then (sudo -n mount -t virtiofs com.apple.virtio-fs.automount " + quoteDevShellArgument(mountPoint) + " 2>/dev/null || printf '%s\\n' " + quoteDevShellArgument(password) + " | sudo -S mount -t virtiofs com.apple.virtio-fs.automount " + quoteDevShellArgument(mountPoint) + "); fi",
+		"test -d " + quoteDevShellArgument(workingDirectoryPath),
+	}, "; ")
 }
 
 func devVirtualSessionCommandArguments(sessionArguments devVirtualSessionArguments) []string {
