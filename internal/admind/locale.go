@@ -30,6 +30,7 @@ type localizedAdminText struct {
 	AttendanceEntryText       string
 	AttendanceClockIn         string
 	AttendanceClockOut        string
+	AttendanceCanceled        string
 	AttendanceClockInTooltip  string
 	AttendanceClockOutTooltip string
 }
@@ -91,15 +92,16 @@ func localizedAdminTextForLocale(locale string) localizedAdminText {
 			AttendanceEntryText:       "Use separate buttons for clock-in and clock-out records.",
 			AttendanceClockIn:         "Clock in",
 			AttendanceClockOut:        "Clock out",
+			AttendanceCanceled:        "canceled",
 			AttendanceClockInTooltip:  "Record clock-in.",
 			AttendanceClockOutTooltip: "Record clock-out.",
 		}
 	}
 	return localizedAdminText{
 		FlowOpen:                  "업무 열기",
-		FlowEntryMessage:          "Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다.",
-		CalendarOpen:              "캘린더 열기",
-		CalendarReminder:          "캘린더 알림",
+		FlowEntryMessage:          "업무에서 이번 주 일을 보고, 요청하고, 정리합니다.",
+		CalendarOpen:              "일정 열기",
+		CalendarReminder:          "일정 알림",
 		Time:                      "시간",
 		Location:                  "장소",
 		People:                    "대상",
@@ -109,6 +111,7 @@ func localizedAdminTextForLocale(locale string) localizedAdminText {
 		AttendanceEntryText:       "출근과 퇴근 버튼을 구분해서 기록합니다.",
 		AttendanceClockIn:         "출근",
 		AttendanceClockOut:        "퇴근",
+		AttendanceCanceled:        "취소",
 		AttendanceClockInTooltip:  "출근을 기록합니다.",
 		AttendanceClockOutTooltip: "퇴근을 기록합니다.",
 	}

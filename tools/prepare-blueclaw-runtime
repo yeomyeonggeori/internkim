@@ -22,6 +22,7 @@ ssh_host=""
 ssh_user="${USER:-admin}"
 ssh_password=""
 remote_directory="/tmp/internkim-blueclaw-runtime-builder"
+stop_tart_after_build=0
 rsync_excludes=(
   --exclude '.git'
   --exclude '.dependency/agent-browser'
@@ -101,13 +102,29 @@ ensure_internkim_binary() {
   GOCACHE="$go_cache" go build -o "$repository_root/internkim" "$repository_root/cmd/internkim"
 }
 
+cleanup_tart_builder() {
+  if [ "$stop_tart_after_build" = "1" ]; then
+    echo "stopping Tart builder VM"
+    "$repository_root/internkim" lab vm-down >/dev/null 2>&1 || echo "warning: failed to stop Tart builder VM" >&2
+  fi
+}
+
 run_tart_builder() {
   ensure_internkim_binary
+  local tart_status_before
+  tart_status_before="$("$repository_root/internkim" lab status 2>/dev/null || true)"
+  stop_tart_after_build=0
+  if [ "$tart_status_before" != "running" ] && [ "${INTERNKIM_KEEP_TART_VM:-0}" != "1" ]; then
+    stop_tart_after_build=1
+  fi
+  trap cleanup_tart_builder EXIT
   "$repository_root/internkim" lab runtime-builder-prepare
   ssh_host="$("$repository_root/internkim" lab vm-ip)"
   ssh_user="admin"
   ssh_password="admin"
   run_ssh_builder
+  trap - EXIT
+  cleanup_tart_builder
 }
 
 ssh_base_command() {

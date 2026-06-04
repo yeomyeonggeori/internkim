@@ -32,7 +32,7 @@
 	let llamaCppModelOptions = $state<string[]>([]);
 	let mlxModelOptions = $state<string[]>([]);
 	const remoteModelOptions = [
-		'google/gemini-3.1-flash-lite-preview',
+		'google/gemini-3.5-flash',
 		'google/gemini-3.1-flash-preview',
 		'openai/gpt-5.1',
 		'anthropic/claude-sonnet-4.5'
@@ -619,7 +619,7 @@
 				disabled={!isCompanionVerified(status)}
 				list="remote-models"
 				oninput={scheduleRemoteModelApply}
-				placeholder="google/gemini-3.1-flash-lite-preview"
+				placeholder="google/gemini-3.5-flash"
 			/>
 			<datalist id="remote-models">
 				{#each remoteModelOptions as modelName}

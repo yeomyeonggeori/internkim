@@ -28,6 +28,49 @@ var defaultCircleDefinitions = []defaultCircleDefinition{
 	{CircleID: "hr-compensation", DisplayName: "HR Compensation", MattermostChannelName: "circle-hr-compensation"},
 }
 
+var blueclawNativeToolNames = []string{
+	"conversation.history",
+	"memory.search",
+	"memory.remember",
+	"math.calculate",
+	"terminal.run",
+	"terminal.session",
+	"browser_handoff.openURL",
+	"ask.confirm",
+	"ask.choice",
+	"ask.input",
+	"file.read",
+	"file.preview",
+	"file.write",
+	"file.edit",
+	"file.patch",
+	"file.promote",
+	"file.attach",
+	"skill.add",
+	"skill.remove",
+	"skill.search",
+	"tool.describe",
+	"schedule.create",
+	"schedule.cancel",
+}
+
+func BlueclawDefaultAllowedToolNames() []string {
+	return removeDefaultSkillScopedToolNames(uniqueStringList(append(blueclawNativeToolNames, capabilities.DefaultToolNames()...)))
+}
+
+func removeDefaultSkillScopedToolNames(toolNames []string) []string {
+	hiddenToolNames := map[string]bool{
+		"site.app.preview": true,
+	}
+	result := []string{}
+	for _, toolName := range toolNames {
+		if !hiddenToolNames[strings.TrimSpace(toolName)] {
+			result = append(result, toolName)
+		}
+	}
+	return result
+}
+
 func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 	capabilityLanguageModel := map[string]any{
 		"executionMode":         "auto",
@@ -141,7 +184,7 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 		"agentProfiles": []map[string]any{
 			{
 				"name":             "default",
-				"allowedToolNames": []string{"conversation.history", "memory.search", "memory.remember", "math.calculate", "web.search", "web.fetch", "terminal.run", "terminal.session", "browser_handoff.openURL", "ask.confirm", "ask.choice", "ask.input", "file.read", "file.write", "file.promote", "file.attach", "skill.add", "skill.remove", "skill.search", "tool.describe", "schedule.create", "schedule.cancel"},
+				"allowedToolNames": BlueclawDefaultAllowedToolNames(),
 			},
 		},
 		"mcpServers": []map[string]any{},
@@ -179,6 +222,20 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 	}
 
 	return string(documentBytes) + "\n", nil
+}
+
+func uniqueStringList(values []string) []string {
+	seenValues := map[string]bool{}
+	uniqueValues := []string{}
+	for _, value := range values {
+		trimmedValue := strings.TrimSpace(value)
+		if trimmedValue == "" || seenValues[trimmedValue] {
+			continue
+		}
+		seenValues[trimmedValue] = true
+		uniqueValues = append(uniqueValues, trimmedValue)
+	}
+	return uniqueValues
 }
 
 func BlueclawPolicyDocument(adminEmail string) (string, error) {
@@ -267,7 +324,13 @@ func defaultResourceAccessPolicies() []map[string]any {
 		{"resource": "api:credentials.providers", "actions": []string{"manage"}, "circles": []string{"admin"}},
 		{"resource": "tool:web.search", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:web.fetch", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:artifact.review", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:flow.task.add", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:mattermost.channel.posts.list", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:mattermost.channel.post", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:mattermost.post.update", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:mattermost.post.delete", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:mattermost.channel.update", "actions": []string{"execute"}, "circles": []string{"admin"}},
 		{"resource": "tool:mail.message.list", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:mail.message.search", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:mail.message.read", "actions": []string{"execute"}, "circles": []string{"staff"}},
@@ -275,8 +338,11 @@ func defaultResourceAccessPolicies() []map[string]any {
 		{"resource": "tool:mail.message.move", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:mail.message.mark", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:site.app.create", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:site.app.preview", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:site.app.publish", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:site.app.status", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:site.app.history", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:site.app.diff", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:site.app.logs", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:site.app.restore", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:site.app.rollback", "actions": []string{"execute"}, "circles": []string{"staff"}},

@@ -34,6 +34,65 @@ func TestOnlyIncludesUnsatisfiedDependencies(t *testing.T) {
 	}
 }
 
+func TestOnlyPlanDoesNotProbeUnplannedStepSatisfaction(t *testing.T) {
+	probed := false
+	registry := Registry{
+		{
+			Name: "alpha",
+			Run:  func(context *Context) error { return nil },
+		},
+		{
+			Name: "beta",
+			IsSatisfied: func(context *Context) bool {
+				probed = true
+				return true
+			},
+			Run: func(context *Context) error { return nil },
+		},
+	}
+
+	entries, err := registry.plan(&Context{Backend: BackendSSH}, Selector{Only: []string{"alpha"}})
+	if err != nil {
+		t.Fatalf("plan failed: %v", err)
+	}
+	if probed {
+		t.Fatal("unplanned step satisfaction should not be probed for --only plan")
+	}
+	if entryStatuses(entries) != "alpha=run" {
+		t.Fatalf("unexpected entries: %s", entryStatuses(entries))
+	}
+}
+
+func TestDryRunPlanDoesNotProbeDependencySatisfaction(t *testing.T) {
+	probed := false
+	registry := Registry{
+		{
+			Name: "alpha",
+			IsSatisfied: func(context *Context) bool {
+				probed = true
+				return true
+			},
+			Run: func(context *Context) error { return nil },
+		},
+		{
+			Name: "beta",
+			Deps: []string{"alpha"},
+			Run:  func(context *Context) error { return nil },
+		},
+	}
+
+	entries, err := registry.plan(&Context{Backend: BackendSSH}, Selector{Only: []string{"beta"}, DryRun: true})
+	if err != nil {
+		t.Fatalf("plan failed: %v", err)
+	}
+	if probed {
+		t.Fatal("dependency satisfaction should not be probed for dry-run plan")
+	}
+	if entryStatuses(entries) != "alpha=run,beta=run" {
+		t.Fatalf("unexpected entries: %s", entryStatuses(entries))
+	}
+}
+
 func TestSkipExcludesRequestedSteps(t *testing.T) {
 	registry := testRegistry(false, false, false)
 	context := &Context{Backend: BackendSSH}
@@ -110,6 +169,54 @@ func TestDryRunDoesNotExecuteSteps(t *testing.T) {
 	}
 }
 
+func TestRunAcquiresAndReleasesRemoteSetupLock(t *testing.T) {
+	connection := &setupLockBoardConnection{}
+	runCount := 0
+	registry := Registry{{
+		Name: "alpha",
+		Run: func(context *Context) error {
+			runCount++
+			return nil
+		},
+	}}
+
+	err := registry.Run(&Context{
+		Backend:      BackendSSH,
+		SSH:          connection,
+		SetupLockID:  "lock-1",
+		SetupCommand: "internkim setup --only alpha",
+		SetupSteps:   "--only=alpha",
+	}, Selector{})
+	if err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	if runCount != 1 {
+		t.Fatalf("expected step to run once, got %d", runCount)
+	}
+	commands := strings.Join(connection.commands, "\n---\n")
+	for _, expectedText := range []string{"internkim-setup-lock-acquired", `"lockID":"lock-1"`, "rm -rf \"$lock_directory\""} {
+		if !strings.Contains(commands, expectedText) {
+			t.Fatalf("expected commands to contain %q, got\n%s", expectedText, commands)
+		}
+	}
+}
+
+func TestRunStopsWhenRemoteSetupLockIsBusy(t *testing.T) {
+	connection := &setupLockBoardConnection{busy: true}
+	registry := Registry{{
+		Name: "alpha",
+		Run:  func(context *Context) error { return nil },
+	}}
+
+	err := registry.Run(&Context{Backend: BackendSSH, SSH: connection, SetupLockID: "lock-1"}, Selector{})
+	if err == nil || !strings.Contains(err.Error(), "remote setup is already running") {
+		t.Fatalf("expected busy lock error, got %v", err)
+	}
+	if len(connection.commands) != 1 {
+		t.Fatalf("expected only acquire command, got %+v", connection.commands)
+	}
+}
+
 func TestExplicitUnsupportedBackendReturnsError(t *testing.T) {
 	registry := Registry{{
 		Name: "alpha",
@@ -120,6 +227,26 @@ func TestExplicitUnsupportedBackendReturnsError(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "step does not support this backend") {
 		t.Fatalf("expected unsupported backend error, got %v", err)
 	}
+}
+
+type setupLockBoardConnection struct {
+	commands []string
+	busy     bool
+}
+
+func (connection *setupLockBoardConnection) Run(command string) string {
+	connection.commands = append(connection.commands, command)
+	if strings.Contains(command, "mkdir \"$lock_directory\"") {
+		if connection.busy {
+			return "internkim-setup-lock-busy\n{\"command\":\"other setup\"}"
+		}
+		return "internkim-setup-lock-acquired"
+	}
+	return ""
+}
+
+func (connection *setupLockBoardConnection) SCP(localPath, remotePath string) error {
+	return nil
 }
 
 func TestJetsonDefaultResolveIncludesLocalLLMAndSkipsGoogle(t *testing.T) {
@@ -289,6 +416,21 @@ func TestOnlyBlueclawPayloadSkipsCurrentBlueclawConfiguration(t *testing.T) {
 	}
 	if !strings.Contains(joinedPlan, "blueclaw-payload") {
 		t.Fatalf("expected payload to remain planned, got %s", joinedPlan)
+	}
+}
+
+func TestBlueclawPayloadManifestCheckReadsWorkspaceImageManifest(t *testing.T) {
+	command := blueclawPayloadManifestCheckCommand(`{"runtimeName":"internkim-blueclaw-payload"}`)
+	for _, expectedText := range []string{
+		"payload-manifest.json",
+		"/root/.blueclaw/workspace/.blueclaw/runtime/current/manifest.json",
+		"debugfs -R",
+		"cat /.blueclaw/runtime/current/manifest.json",
+		"/var/lib/blueclaw/workspace.ext4",
+	} {
+		if !strings.Contains(command, expectedText) {
+			t.Fatalf("expected payload manifest check command to include %q, got:\n%s", expectedText, command)
+		}
 	}
 }
 

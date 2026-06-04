@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -66,6 +68,34 @@ func TestMattermostNormalizeSkipsSelfAndBuildsMinimalThreadEvent(t *testing.T) {
 	}
 	if hasSelfEvent {
 		t.Fatal("expected self message to be suppressed")
+	}
+}
+
+func TestMattermostNormalizePreservesInputAttachmentFileIDs(t *testing.T) {
+	event, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
+		ID:        "post-1",
+		UserID:    "user-1",
+		ChannelID: "channel-1",
+		FileIDs:   []string{"file-1", " ", "file-2"},
+		CreateAt:  1700000000000,
+	}, "bot-1", "D", "direct-message", platformAddressing{})
+	if errorValue != nil {
+		t.Fatalf("expected normalization to succeed: %v", errorValue)
+	}
+	if !hasEvent {
+		t.Fatal("expected attachment-only post to become an event")
+	}
+	if event.Prompt == "" {
+		t.Fatal("expected attachment-only post to have a prompt")
+	}
+	if len(event.Context.InputAttachments) != 2 {
+		t.Fatalf("expected two input attachments, got %+v", event.Context.InputAttachments)
+	}
+	if event.Context.InputAttachments[0].FileID != "file-1" || event.Context.InputAttachments[1].FileID != "file-2" {
+		t.Fatalf("expected file ids to be preserved, got %+v", event.Context.InputAttachments)
+	}
+	if event.Context.InputAttachments[0].MessageID != "post-1" || event.Context.InputAttachments[0].Platform != "mattermost" {
+		t.Fatalf("expected attachment reference metadata, got %+v", event.Context.InputAttachments[0])
 	}
 }
 
@@ -681,6 +711,103 @@ func TestMattermostContextUsesSingleNameForHistorySpeakers(t *testing.T) {
 	}
 }
 
+func TestMattermostContextPreservesHistoryAttachments(t *testing.T) {
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/channels/channel-1/posts":
+			return testJSONResponse(http.StatusOK, struct {
+				Order []string                         `json:"order"`
+				Posts map[string]mattermostHistoryPost `json:"posts"`
+			}{
+				Order: []string{"post-1", "post-2"},
+				Posts: map[string]mattermostHistoryPost{
+					"post-1": {ID: "post-1", UserID: "user-1", Message: "첨부 확인", FileIDs: []string{"file-1"}, CreateAt: 1000},
+					"post-2": {ID: "post-2", UserID: "user-2", Message: "current", CreateAt: 2000},
+				},
+			}), nil
+		case "/api/v4/users/user-1":
+			return testJSONResponse(http.StatusOK, map[string]string{
+				"id":       "user-1",
+				"username": "lee",
+			}), nil
+		default:
+			t.Fatalf("unexpected Mattermost request: %s?%s", request.URL.Path, request.URL.RawQuery)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	service := Service{
+		Configuration: Configuration{MattermostBaseURL: "http://mattermost.test", MattermostTokenPath: writePlatformTestFile(t, "test-token")},
+		HTTPClient:    httpClient,
+	}
+
+	contextValue := service.mattermostContext(context.Background(), platformHandle{ChannelID: "channel-1", MessageID: "post-2"}, 20)
+
+	if len(contextValue.Messages) != 1 || len(contextValue.Messages[0].InputAttachments) != 1 {
+		t.Fatalf("expected message attachment catalog, got %+v", contextValue.Messages)
+	}
+	messageAttachment := contextValue.Messages[0].InputAttachments[0]
+	if messageAttachment.Platform != "mattermost" || messageAttachment.FileID != "file-1" || messageAttachment.MessageID != "post-1" {
+		t.Fatalf("unexpected message attachment catalog: %+v", messageAttachment)
+	}
+	if len(contextValue.Materials) != 1 || contextValue.Materials[0].FileID != "file-1" {
+		t.Fatalf("expected conversation material catalog, got %+v", contextValue.Materials)
+	}
+}
+
+func TestMattermostContextAnnotatesReadableMentions(t *testing.T) {
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/channels/channel-1/posts":
+			return testJSONResponse(http.StatusOK, struct {
+				Order []string                         `json:"order"`
+				Posts map[string]mattermostHistoryPost `json:"posts"`
+			}{
+				Order: []string{"post-1", "post-2"},
+				Posts: map[string]mattermostHistoryPost{
+					"post-1": {
+						ID:       "post-1",
+						UserID:   "user-1",
+						Message:  "@lee 시간 확인해주세요.",
+						CreateAt: 1000,
+						Metadata: struct {
+							Mentions []string `json:"mentions"`
+						}{Mentions: []string{"user-2"}},
+					},
+					"post-2": {ID: "post-2", UserID: "user-2", Message: "current", CreateAt: 2000},
+				},
+			}), nil
+		case "/api/v4/users/user-1":
+			return testJSONResponse(http.StatusOK, map[string]string{
+				"id":       "user-1",
+				"username": "kim",
+				"nickname": "김여명",
+			}), nil
+		case "/api/v4/users/user-2":
+			return testJSONResponse(http.StatusOK, map[string]string{
+				"id":       "user-2",
+				"username": "lee",
+				"nickname": "이동하",
+			}), nil
+		default:
+			t.Fatalf("unexpected Mattermost request: %s?%s", request.URL.Path, request.URL.RawQuery)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	service := Service{
+		Configuration: Configuration{MattermostBaseURL: "http://mattermost.test", MattermostTokenPath: writePlatformTestFile(t, "test-token")},
+		HTTPClient:    httpClient,
+	}
+
+	contextValue := service.mattermostContext(context.Background(), platformHandle{ChannelID: "channel-1", MessageID: "post-2"}, 20)
+
+	if len(contextValue.Messages) != 1 {
+		t.Fatalf("expected one history message, got %+v", contextValue.Messages)
+	}
+	if contextValue.Messages[0].Text != "@lee(이동하) 시간 확인해주세요." {
+		t.Fatalf("expected readable mention annotation, got %q", contextValue.Messages[0].Text)
+	}
+}
+
 func TestMattermostContextKeepsHistoryCursorForDirectRoot(t *testing.T) {
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch request.URL.Path {
@@ -989,6 +1116,53 @@ func TestMattermostReplyRequiresConnectorOutboxMetadata(t *testing.T) {
 	}
 }
 
+func TestMattermostReplyFallsBackWhenThreadRootIsInvalid(t *testing.T) {
+	postRequests := make(chan map[string]any, 2)
+	requestCount := 0
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Path != "/api/v4/posts" {
+			t.Fatalf("unexpected Mattermost request: %s", request.URL.Path)
+		}
+		var payload map[string]any
+		if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+			t.Fatalf("expected post request to decode: %v", errorValue)
+		}
+		postRequests <- payload
+		requestCount++
+		if requestCount == 1 {
+			return testJSONResponse(http.StatusBadRequest, map[string]any{
+				"id":      "api.post.create_post.root_id.app_error",
+				"message": "Invalid RootId parameter.",
+			}), nil
+		}
+		return testJSONResponse(http.StatusOK, map[string]string{"id": "post-2"}), nil
+	})}
+	replyTargetID, errorValue := encodePlatformHandle(platformHandle{Platform: "mattermost", ChannelID: "channel-1", RootID: "missing-root"})
+	if errorValue != nil {
+		t.Fatalf("expected reply target to encode: %v", errorValue)
+	}
+	tokenPath := t.TempDir() + "/mattermost-token"
+	if errorValue := os.WriteFile(tokenPath, []byte("test-token\n"), 0o600); errorValue != nil {
+		t.Fatalf("expected token file to be written: %v", errorValue)
+	}
+	configuration := DefaultConfiguration()
+	configuration.MattermostTokenPath = tokenPath
+	service := Service{Configuration: configuration, HTTPClient: httpClient}
+
+	_, errorValue = service.mattermostReply(context.Background(), json.RawMessage(`{"replyTargetID":"`+replyTargetID+`","message":"done","rawEventID":"raw-event-1","outboxID":"outbox-1"}`))
+	if errorValue != nil {
+		t.Fatalf("expected reply fallback to succeed: %v", errorValue)
+	}
+	firstPayload := <-postRequests
+	secondPayload := <-postRequests
+	if firstPayload["root_id"] != "missing-root" {
+		t.Fatalf("expected first post to target thread root, got %+v", firstPayload)
+	}
+	if _, exists := secondPayload["root_id"]; exists || secondPayload["channel_id"] != "channel-1" {
+		t.Fatalf("expected fallback post without root_id, got %+v", secondPayload)
+	}
+}
+
 func TestMattermostReplyRendersAskChoiceAttachment(t *testing.T) {
 	postRequests := make(chan map[string]any, 1)
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -1111,6 +1285,54 @@ func TestMattermostInteractionResolveClearsAttachments(t *testing.T) {
 		}
 	default:
 		t.Fatal("expected patch request")
+	}
+}
+
+func TestMattermostReactionAddCreatesBotReaction(t *testing.T) {
+	reactionRequests := make(chan map[string]string, 1)
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1"}), nil
+		case "/api/v4/reactions":
+			if request.Method != http.MethodPost {
+				t.Fatalf("unexpected reaction method: %s", request.Method)
+			}
+			var payload map[string]string
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatalf("expected reaction payload to decode: %v", errorValue)
+			}
+			reactionRequests <- payload
+			return testJSONResponse(http.StatusOK, map[string]string{}), nil
+		default:
+			t.Fatalf("unexpected Mattermost request: %s", request.URL.Path)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	tokenPath := t.TempDir() + "/mattermost-token"
+	if errorValue := os.WriteFile(tokenPath, []byte("test-token\n"), 0o600); errorValue != nil {
+		t.Fatalf("expected token file to be written: %v", errorValue)
+	}
+	configuration := DefaultConfiguration()
+	configuration.MattermostBaseURL = "http://mattermost.test"
+	configuration.MattermostTokenPath = tokenPath
+	service := Service{Configuration: configuration, HTTPClient: httpClient}
+	request := httptest.NewRequest(http.MethodPost, "/v1/platform/mattermost/reaction.add", strings.NewReader(`{"messageID":"post-1","emojiName":"white_check_mark","reason":"consume"}`))
+	request.SetPathValue("platform", "mattermost")
+	responseRecorder := httptest.NewRecorder()
+
+	service.handleReactionAdd(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("expected reaction response ok, got %d %s", responseRecorder.Code, responseRecorder.Body.String())
+	}
+	select {
+	case payload := <-reactionRequests:
+		if payload["user_id"] != "bot-1" || payload["post_id"] != "post-1" || payload["emoji_name"] != "white_check_mark" {
+			t.Fatalf("unexpected reaction payload: %+v", payload)
+		}
+	default:
+		t.Fatal("expected reaction request")
 	}
 }
 
@@ -1552,6 +1774,342 @@ func TestSignalReplySendsAttachmentPaths(t *testing.T) {
 	}
 }
 
+func TestMattermostImportAttachmentsWritesSanitizedDuplicateFilenames(t *testing.T) {
+	workspacePath := t.TempDir()
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.Header.Get("Authorization") != "Bearer mattermost-token" {
+			t.Fatalf("expected mattermost bearer token, got %q", request.Header.Get("Authorization"))
+		}
+		switch request.URL.Path {
+		case "/api/v4/files/file-1/info":
+			return testJSONResponse(http.StatusOK, mattermostFileMetadata{ID: "file-1", Name: "../guide?.pdf", SizeBytes: 8, ContentType: "application/pdf"}), nil
+		case "/api/v4/files/file-1":
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("file-one")),
+				Header:     http.Header{"Content-Type": []string{"application/pdf"}},
+			}, nil
+		case "/api/v4/files/file-2/info":
+			return testJSONResponse(http.StatusOK, mattermostFileMetadata{ID: "file-2", Name: "guide.pdf", SizeBytes: 8, ContentType: "application/pdf"}), nil
+		case "/api/v4/files/file-2":
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("file-two")),
+				Header:     http.Header{"Content-Type": []string{"application/pdf"}},
+			}, nil
+		default:
+			t.Fatalf("unexpected mattermost request: %s", request.URL.Path)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	service := Service{
+		Configuration: Configuration{
+			MattermostBaseURL:     "https://mattermost.test",
+			MattermostTokenPath:   writePlatformTestFile(t, "mattermost-token"),
+			BlueclawWorkspacePath: workspacePath,
+		},
+		HTTPClient: httpClient,
+	}
+
+	response, errorValue := service.mattermostImportAttachments(context.Background(), json.RawMessage(`{
+		"messageID":"post-1",
+		"targetDirectoryPath":"/workspace/private/people/person-1/inbox/mattermost/post-1",
+		"inputAttachments":[
+			{"platform":"mattermost","fileID":"file-1","messageID":"post-1"},
+			{"platform":"mattermost","fileID":"file-2","messageID":"post-1"}
+		]
+	}`))
+	if errorValue != nil {
+		t.Fatalf("expected import to succeed: %v", errorValue)
+	}
+	if len(response.InputAttachments) != 2 {
+		t.Fatalf("expected two imported attachments, got %+v", response.InputAttachments)
+	}
+	firstAttachment := response.InputAttachments[0]
+	secondAttachment := response.InputAttachments[1]
+	if !firstAttachment.IsAvailable || !secondAttachment.IsAvailable {
+		t.Fatalf("expected attachments to be available, got %+v", response.InputAttachments)
+	}
+	if firstAttachment.Filename != "guide.pdf" || secondAttachment.Filename != "guide-2.pdf" {
+		t.Fatalf("expected sanitized duplicate filenames, got %+v", response.InputAttachments)
+	}
+	if firstAttachment.Path != "/workspace/private/people/person-1/inbox/mattermost/post-1/guide.pdf" {
+		t.Fatalf("expected virtual workspace path, got %q", firstAttachment.Path)
+	}
+	firstContent, errorValue := os.ReadFile(filepath.Join(workspacePath, "private", "people", "person-1", "inbox", "mattermost", "post-1", "guide.pdf"))
+	if errorValue != nil {
+		t.Fatalf("expected first imported file: %v", errorValue)
+	}
+	secondContent, errorValue := os.ReadFile(filepath.Join(workspacePath, "private", "people", "person-1", "inbox", "mattermost", "post-1", "guide-2.pdf"))
+	if errorValue != nil {
+		t.Fatalf("expected second imported file: %v", errorValue)
+	}
+	if string(firstContent) != "file-one" || string(secondContent) != "file-two" {
+		t.Fatalf("expected imported file contents, got %q and %q", string(firstContent), string(secondContent))
+	}
+}
+
+func TestMattermostImportAttachmentsReusesExistingFile(t *testing.T) {
+	workspacePath := t.TempDir()
+	downloadCount := 0
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/files/file-1/info":
+			return testJSONResponse(http.StatusOK, mattermostFileMetadata{ID: "file-1", Name: "report.pdf", SizeBytes: 8, ContentType: "application/pdf"}), nil
+		case "/api/v4/files/file-1":
+			downloadCount++
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("document")),
+				Header:     http.Header{"Content-Type": []string{"application/pdf"}},
+			}, nil
+		default:
+			t.Fatalf("unexpected mattermost request: %s", request.URL.Path)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	service := Service{
+		Configuration: Configuration{
+			MattermostBaseURL:     "https://mattermost.test",
+			MattermostTokenPath:   writePlatformTestFile(t, "mattermost-token"),
+			BlueclawWorkspacePath: workspacePath,
+		},
+		HTTPClient: httpClient,
+	}
+	payload := json.RawMessage(`{
+		"messageID":"post-1",
+		"targetDirectoryPath":"/workspace/circles/staff/inbox/mattermost/thread-1/post-1",
+		"inputAttachments":[{"platform":"mattermost","fileID":"file-1","messageID":"post-1"}]
+	}`)
+
+	firstResponse, errorValue := service.mattermostImportAttachments(context.Background(), payload)
+	if errorValue != nil {
+		t.Fatalf("expected first import to succeed: %v", errorValue)
+	}
+	secondResponse, errorValue := service.mattermostImportAttachments(context.Background(), payload)
+	if errorValue != nil {
+		t.Fatalf("expected second import to succeed: %v", errorValue)
+	}
+	if downloadCount != 1 {
+		t.Fatalf("expected one download, got %d", downloadCount)
+	}
+	if len(firstResponse.InputAttachments) != 1 || len(secondResponse.InputAttachments) != 1 {
+		t.Fatalf("expected imported attachments, got first=%+v second=%+v", firstResponse.InputAttachments, secondResponse.InputAttachments)
+	}
+	firstAttachment := firstResponse.InputAttachments[0]
+	secondAttachment := secondResponse.InputAttachments[0]
+	if firstAttachment.Path != secondAttachment.Path || secondAttachment.Filename != "report.pdf" {
+		t.Fatalf("expected existing import path to be reused, first=%+v second=%+v", firstAttachment, secondAttachment)
+	}
+	if _, errorValue := os.Stat(filepath.Join(workspacePath, "circles", "staff", "inbox", "mattermost", "thread-1", "post-1", "report-2.pdf")); !errors.Is(errorValue, os.ErrNotExist) {
+		t.Fatalf("expected no duplicate import file, stat error=%v", errorValue)
+	}
+}
+
+func TestMattermostImportAttachmentsBuildsImageInputPart(t *testing.T) {
+	workspacePath := t.TempDir()
+	imageDocument := []byte("png-image")
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/files/file-1/info":
+			return testJSONResponse(http.StatusOK, mattermostFileMetadata{ID: "file-1", Name: "mascot.png", SizeBytes: int64(len(imageDocument)), ContentType: "image/png"}), nil
+		case "/api/v4/files/file-1":
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader(imageDocument)),
+				Header:     http.Header{"Content-Type": []string{"image/png"}},
+			}, nil
+		default:
+			t.Fatalf("unexpected mattermost request: %s", request.URL.Path)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	service := Service{
+		Configuration: Configuration{
+			MattermostBaseURL:     "https://mattermost.test",
+			MattermostTokenPath:   writePlatformTestFile(t, "mattermost-token"),
+			BlueclawWorkspacePath: workspacePath,
+		},
+		HTTPClient: httpClient,
+	}
+
+	response, errorValue := service.mattermostImportAttachments(context.Background(), json.RawMessage(`{
+		"messageID":"post-1",
+		"targetDirectoryPath":"/workspace/private/people/person-1/inbox/mattermost/post-1",
+		"inputAttachments":[{"platform":"mattermost","fileID":"file-1","messageID":"post-1"}]
+	}`))
+	if errorValue != nil {
+		t.Fatalf("expected import to succeed: %v", errorValue)
+	}
+	if len(response.InputParts) != 1 {
+		t.Fatalf("expected one input part, got %+v", response.InputParts)
+	}
+	part := response.InputParts[0]
+	if part.Type != "image" || part.Image == nil || part.Image.MimeType != "image/png" {
+		t.Fatalf("expected image part, got %+v", part)
+	}
+	if part.Image.DataBase64 != base64.StdEncoding.EncodeToString(imageDocument) {
+		t.Fatalf("expected image bytes to be base64 encoded, got %q", part.Image.DataBase64)
+	}
+	if part.File == nil || part.File.Path != "/workspace/private/people/person-1/inbox/mattermost/post-1/mascot.png" {
+		t.Fatalf("expected image file metadata, got %+v", part.File)
+	}
+}
+
+func TestMattermostImportAttachmentsBuildsMarkdownFilePart(t *testing.T) {
+	workspacePath := t.TempDir()
+	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-file")
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/files/file-1/info":
+			return testJSONResponse(http.StatusOK, mattermostFileMetadata{ID: "file-1", Name: "report.pdf", SizeBytes: 8, ContentType: "application/pdf"}), nil
+		case "/api/v4/files/file-1":
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("pdf")),
+				Header:     http.Header{"Content-Type": []string{"application/pdf"}},
+			}, nil
+		default:
+			t.Fatalf("unexpected mattermost request: %s", request.URL.Path)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	service := Service{
+		Configuration: Configuration{
+			MattermostBaseURL:     "https://mattermost.test",
+			MattermostTokenPath:   writePlatformTestFile(t, "mattermost-token"),
+			OpenRouterKeyPath:     secretPath,
+			OpenRouterBaseURL:     "https://openrouter.test/api/v1/chat/completions",
+			OpenRouterModel:       "openrouter/vision-model",
+			BlueclawWorkspacePath: workspacePath,
+			FileReadPythonPath:    "/test/python",
+		},
+		HTTPClient: httpClient,
+		RunCommand: func(_ context.Context, _ string, _ []string, input []byte) ([]byte, error) {
+			var helperRequest fileReadHelperRequest
+			if errorValue := json.Unmarshal(input, &helperRequest); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if helperRequest.OCRMode != "always" || helperRequest.OpenRouterAPIKey != "sk-file" || helperRequest.OpenRouterBaseURL != "https://openrouter.test/api/v1" || helperRequest.OpenRouterModel != "openrouter/vision-model" {
+				t.Fatalf("expected OpenRouter OCR helper request, got %+v", helperRequest)
+			}
+			return []byte(`{"content":"# Report\n\nConverted content"}`), nil
+		},
+	}
+
+	response, errorValue := service.mattermostImportAttachments(context.Background(), json.RawMessage(`{
+		"messageID":"post-1",
+		"targetDirectoryPath":"/workspace/private/people/person-1/inbox/mattermost/post-1",
+		"inputAttachments":[{"platform":"mattermost","fileID":"file-1","messageID":"post-1"}]
+	}`))
+	if errorValue != nil {
+		t.Fatalf("expected import to succeed: %v", errorValue)
+	}
+	if len(response.InputParts) != 1 || response.InputParts[0].Type != "file" || response.InputParts[0].File == nil {
+		t.Fatalf("expected file input part, got %+v", response.InputParts)
+	}
+	filePart := response.InputParts[0].File
+	if filePart.ConversionStatus != "converted" || !strings.Contains(filePart.MarkdownPreview, "Converted content") {
+		t.Fatalf("expected converted markdown preview, got %+v", filePart)
+	}
+}
+
+func TestMattermostImportAttachmentsUsesRawTextPreviewForHTML(t *testing.T) {
+	workspacePath := t.TempDir()
+	htmlDocument := "<!doctype html><html><body><h1>Raw HTML Title</h1></body></html>"
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/files/file-1/info":
+			return testJSONResponse(http.StatusOK, mattermostFileMetadata{ID: "file-1", Name: "page.html", SizeBytes: int64(len(htmlDocument)), ContentType: "text/html"}), nil
+		case "/api/v4/files/file-1":
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(htmlDocument)),
+				Header:     http.Header{"Content-Type": []string{"text/html"}},
+			}, nil
+		default:
+			t.Fatalf("unexpected mattermost request: %s", request.URL.Path)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	service := Service{
+		Configuration: Configuration{
+			MattermostBaseURL:     "https://mattermost.test",
+			MattermostTokenPath:   writePlatformTestFile(t, "mattermost-token"),
+			BlueclawWorkspacePath: workspacePath,
+			FileReadPythonPath:    "/test/python",
+		},
+		HTTPClient: httpClient,
+		RunCommand: func(_ context.Context, _ string, _ []string, _ []byte) ([]byte, error) {
+			t.Fatal("HTML attachment preview should not call MarkItDown helper")
+			return nil, nil
+		},
+	}
+
+	response, errorValue := service.mattermostImportAttachments(context.Background(), json.RawMessage(`{
+		"messageID":"post-1",
+		"targetDirectoryPath":"/workspace/private/people/person-1/inbox/mattermost/post-1",
+		"inputAttachments":[{"platform":"mattermost","fileID":"file-1","messageID":"post-1"}]
+	}`))
+	if errorValue != nil {
+		t.Fatalf("expected import to succeed: %v", errorValue)
+	}
+	if len(response.InputParts) != 1 || response.InputParts[0].Type != "file" || response.InputParts[0].File == nil {
+		t.Fatalf("expected file input part, got %+v", response.InputParts)
+	}
+	filePart := response.InputParts[0].File
+	if filePart.ConversionStatus != "converted" || !strings.Contains(filePart.MarkdownPreview, "<h1>Raw HTML Title</h1>") {
+		t.Fatalf("expected raw HTML preview, got %+v", filePart)
+	}
+}
+
+func TestMattermostImportAttachmentsKeepsUnsupportedFileMetadata(t *testing.T) {
+	workspacePath := t.TempDir()
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/files/file-1/info":
+			return testJSONResponse(http.StatusOK, mattermostFileMetadata{ID: "file-1", Name: "archive.bin", SizeBytes: 4, ContentType: "application/octet-stream"}), nil
+		case "/api/v4/files/file-1":
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("data")),
+				Header:     http.Header{"Content-Type": []string{"application/octet-stream"}},
+			}, nil
+		default:
+			t.Fatalf("unexpected mattermost request: %s", request.URL.Path)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	service := Service{
+		Configuration: Configuration{
+			MattermostBaseURL:     "https://mattermost.test",
+			MattermostTokenPath:   writePlatformTestFile(t, "mattermost-token"),
+			BlueclawWorkspacePath: workspacePath,
+			FileReadPythonPath:    "/test/python",
+		},
+		HTTPClient: httpClient,
+		RunCommand: func(_ context.Context, _ string, _ []string, _ []byte) ([]byte, error) {
+			return []byte("unsupported format"), os.ErrInvalid
+		},
+	}
+
+	response, errorValue := service.mattermostImportAttachments(context.Background(), json.RawMessage(`{
+		"messageID":"post-1",
+		"targetDirectoryPath":"/workspace/private/people/person-1/inbox/mattermost/post-1",
+		"inputAttachments":[{"platform":"mattermost","fileID":"file-1","messageID":"post-1"}]
+	}`))
+	if errorValue != nil {
+		t.Fatalf("expected import to succeed: %v", errorValue)
+	}
+	if len(response.InputParts) != 1 || response.InputParts[0].Type != "file" || response.InputParts[0].File == nil {
+		t.Fatalf("expected file input part, got %+v", response.InputParts)
+	}
+	filePart := response.InputParts[0].File
+	if filePart.ConversionStatus != "failed" || filePart.MarkdownPreview != "" || !strings.Contains(filePart.Path, "archive.bin") {
+		t.Fatalf("expected failed conversion with accessible file metadata, got %+v", filePart)
+	}
+}
+
 func handleTestBlueclawForward(t *testing.T, request *http.Request) (*http.Response, error) {
 	t.Helper()
 	var event platformInboundEvent
@@ -1563,6 +2121,9 @@ func handleTestBlueclawForward(t *testing.T, request *http.Request) (*http.Respo
 	}
 	if event.Context.Sender.Name != "이서연" || event.Context.Sender.CallingName != "서연" || event.Context.Sender.Handle != "seoyeon" || event.Context.Sender.Email != "seoyeon@example.com" {
 		t.Fatalf("expected sender identity, got %+v", event.Context.Sender)
+	}
+	if len(event.Context.InputAttachments) != 1 || event.Context.InputAttachments[0].FileID != "file-1" {
+		t.Fatalf("expected poll file_ids to be forwarded as input attachments, got %+v", event.Context.InputAttachments)
 	}
 	if _, errorValue := time.Parse(time.RFC3339, event.Context.ReceivedAt); errorValue != nil {
 		t.Fatalf("expected receivedAt RFC3339 timestamp, got %q", event.Context.ReceivedAt)
@@ -1589,14 +2150,14 @@ func handleTestMattermostPoll(t *testing.T, request *http.Request) *http.Respons
 			Order: []string{"new-1", "old-1"},
 			Posts: map[string]mattermostPolledPost{
 				"old-1": {ID: "old-1", UserID: "user-1", ChannelID: "dm-1", Message: "old dm", CreateAt: 1000},
-				"new-1": {ID: "new-1", UserID: "user-1", ChannelID: "dm-1", Message: "new dm", CreateAt: 2000},
+				"new-1": {ID: "new-1", UserID: "user-1", ChannelID: "dm-1", Message: "new dm", CreateAt: 2000, FileIDs: []string{"file-1"}},
 			},
 		})
 	case request.URL.Path == "/api/v4/channels/dm-1/posts" && request.URL.Query().Get("per_page") == "21":
 		return testJSONResponse(http.StatusOK, mattermostPostsResponse{
 			Order: []string{"new-1"},
 			Posts: map[string]mattermostPolledPost{
-				"new-1": {ID: "new-1", UserID: "user-1", ChannelID: "dm-1", Message: "new dm", CreateAt: 2000},
+				"new-1": {ID: "new-1", UserID: "user-1", ChannelID: "dm-1", Message: "new dm", CreateAt: 2000, FileIDs: []string{"file-1"}},
 			},
 		})
 	case request.URL.Path == "/api/v4/users/user-1":

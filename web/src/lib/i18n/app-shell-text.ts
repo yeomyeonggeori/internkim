@@ -1,11 +1,16 @@
 export const appShellText = {
 	ko: {
 		apps: '앱',
-		workspace: '워크스페이스',
-		activeWorkspace: '활성 워크스페이스',
+		workspace: '작업공간',
+		activeWorkspace: '활성 작업공간',
 		account: '계정',
 		activity: '활동',
 		logOut: '로그아웃',
+		admin: '관리',
+		flow: '업무',
+		memory: '기억',
+		calendar: '일정',
+		mail: '메일',
 		attendance: '출결'
 	},
 	en: {
@@ -15,6 +20,11 @@ export const appShellText = {
 		account: 'Account',
 		activity: 'Activity',
 		logOut: 'Log out',
+		admin: 'Admin',
+		flow: 'Flow',
+		memory: 'Memory',
+		calendar: 'Calendar',
+		mail: 'Mail',
 		attendance: 'Attendance'
 	}
 } as const;

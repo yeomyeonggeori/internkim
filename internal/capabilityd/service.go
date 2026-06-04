@@ -27,6 +27,7 @@ import (
 	"gitlab.com/eastriver/internkim/internal/identity"
 	"gitlab.com/eastriver/internkim/internal/llmbackend"
 	"gitlab.com/eastriver/internkim/internal/mattermostinteractive"
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
@@ -110,6 +111,13 @@ type interactionResolveRequest struct {
 	DispatchID string `json:"dispatchID"`
 }
 
+type reactionAddRequest struct {
+	ConversationID string `json:"conversationID"`
+	MessageID      string `json:"messageID"`
+	EmojiName      string `json:"emojiName"`
+	Reason         string `json:"reason"`
+}
+
 type platformAskInteraction struct {
 	InteractionID        string                    `json:"interactionID"`
 	TaskRunID            string                    `json:"taskRunID"`
@@ -145,13 +153,14 @@ type progressRequest struct {
 }
 
 type mattermostPolledPost struct {
-	ID        string `json:"id"`
-	UserID    string `json:"user_id"`
-	ChannelID string `json:"channel_id"`
-	Message   string `json:"message"`
-	RootID    string `json:"root_id"`
-	Type      string `json:"type"`
-	CreateAt  int64  `json:"create_at"`
+	ID        string   `json:"id"`
+	UserID    string   `json:"user_id"`
+	ChannelID string   `json:"channel_id"`
+	Message   string   `json:"message"`
+	RootID    string   `json:"root_id"`
+	Type      string   `json:"type"`
+	CreateAt  int64    `json:"create_at"`
+	FileIDs   []string `json:"file_ids"`
 	Metadata  struct {
 		Mentions []string `json:"mentions"`
 	} `json:"metadata"`
@@ -178,7 +187,7 @@ func DefaultConfiguration() Configuration {
 		BlueclawBaseURL:                "http://127.0.0.1:8080",
 		AdmindBaseURL:                  "http://127.0.0.1:18080",
 		OpenRouterBaseURL:              "https://openrouter.ai/api/v1/chat/completions",
-		OpenRouterModel:                "google/gemini-3.1-flash-lite-preview",
+		OpenRouterModel:                blueclaw.BlueclawDefaultModelName,
 		OpenRouterWebBaseURL:           "https://openrouter.ai/api/v1/chat/completions",
 		OpenRouterEmbeddingBaseURL:     "https://openrouter.ai/api/v1/embeddings",
 		OpenRouterEmbeddingModel:       "embeddinggemma",
@@ -262,7 +271,9 @@ func (service Service) router() http.Handler {
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/identity.resolve", service.handleIdentityResolve)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/reply.send", service.handleReplySend)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/interaction.resolve", service.handleInteractionResolve)
+	multiplexer.HandleFunc("POST /v1/platform/{platform}/reaction.add", service.handleReactionAdd)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/history.fetch", service.handleHistoryFetch)
+	multiplexer.HandleFunc("POST /v1/platform/{platform}/attachments.import", service.handleAttachmentsImport)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.start", service.handleProgressStart)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.stop", service.handleProgressStop)
 	multiplexer.HandleFunc("POST /v1/tools/{toolName}/invoke", service.handleToolInvoke)
@@ -409,6 +420,21 @@ func (service Service) handleInteractionResolve(responseWriter http.ResponseWrit
 	service.writeResponse(responseWriter, response, errorValue)
 }
 
+func (service Service) handleReactionAdd(responseWriter http.ResponseWriter, request *http.Request) {
+	var response any
+	var errorValue error
+	switch request.PathValue("platform") {
+	case "mattermost":
+		response, errorValue = service.mattermostAddReactionFromRequest(request.Context(), request.Body)
+	case "slack", "signal":
+		response = map[string]string{"status": "noop"}
+	default:
+		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
+		return
+	}
+	service.writeResponse(responseWriter, response, errorValue)
+}
+
 func (service Service) handleHistoryFetch(responseWriter http.ResponseWriter, request *http.Request) {
 	var response any
 	var errorValue error
@@ -419,6 +445,19 @@ func (service Service) handleHistoryFetch(responseWriter http.ResponseWriter, re
 		response, errorValue = service.slackHistoryFromRequest(request.Context(), request.Body)
 	case "signal":
 		response, errorValue = service.signalHistoryFromRequest(request.Context(), request.Body)
+	default:
+		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
+		return
+	}
+	service.writeResponse(responseWriter, response, errorValue)
+}
+
+func (service Service) handleAttachmentsImport(responseWriter http.ResponseWriter, request *http.Request) {
+	var response any
+	var errorValue error
+	switch request.PathValue("platform") {
+	case "mattermost":
+		response, errorValue = service.mattermostImportAttachmentsFromRequest(request.Context(), request.Body)
 	default:
 		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
 		return
@@ -592,6 +631,10 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 		ID string `json:"id"`
 	}
 	errorValue = service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", body, &response)
+	if errorValue != nil && mattermostRootIDCanFallback(errorValue, handle) {
+		delete(body, "root_id")
+		errorValue = service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", body, &response)
+	}
 	if errorValue != nil {
 		log.Printf("mattermost reply failed: %v", errorValue)
 	}
@@ -610,6 +653,34 @@ func (service Service) mattermostInteractionResolve(ctx context.Context, reader 
 	body := map[string]any{"props": mattermostinteractive.ClearAttachmentsUpdate()["props"]}
 	path := "/api/v4/posts/" + url.PathEscape(dispatchID) + "/patch"
 	return map[string]bool{"resolved": true}, service.mattermostRequest(ctx, http.MethodPut, path, body, nil)
+}
+
+func (service Service) mattermostAddReactionFromRequest(ctx context.Context, reader io.Reader) (any, error) {
+	var request reactionAddRequest
+	if errorValue := json.NewDecoder(reader).Decode(&request); errorValue != nil {
+		return nil, errorValue
+	}
+	messageID := strings.TrimSpace(request.MessageID)
+	emojiName := strings.TrimSpace(request.EmojiName)
+	if messageID == "" {
+		return nil, errors.New("messageID is required")
+	}
+	if emojiName == "" {
+		return nil, errors.New("emojiName is required")
+	}
+	var botUser struct {
+		ID string `json:"id"`
+	}
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", nil, &botUser); errorValue != nil {
+		return nil, errorValue
+	}
+	body := map[string]any{
+		"user_id":    botUser.ID,
+		"post_id":    messageID,
+		"emoji_name": emojiName,
+	}
+	errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/reactions", body, nil)
+	return map[string]string{"status": "ok"}, errorValue
 }
 
 func (service Service) mattermostReplyProperties(request replyRequest, handle platformHandle) map[string]any {
@@ -838,15 +909,23 @@ func (service Service) sendMattermostTyping(ctx context.Context, handle platform
 		return nil
 	}
 
-	if errorValue := service.publishMattermostTyping(ctx, botUser.ID, handle.ChannelID, handle.RootID); errorValue != nil {
-		return errorValue
-	}
 	if strings.TrimSpace(handle.RootID) != "" {
-		if errorValue := service.publishMattermostTyping(ctx, botUser.ID, handle.ChannelID, ""); errorValue != nil {
+		if errorValue := service.publishMattermostTyping(ctx, botUser.ID, handle.ChannelID, handle.RootID); errorValue != nil && !mattermostRootIDCanFallback(errorValue, handle) {
 			return errorValue
 		}
 	}
+	if errorValue := service.publishMattermostTyping(ctx, botUser.ID, handle.ChannelID, ""); errorValue != nil {
+		return errorValue
+	}
 	return nil
+}
+
+func mattermostRootIDCanFallback(errorValue error, handle platformHandle) bool {
+	if errorValue == nil || strings.TrimSpace(handle.RootID) == "" {
+		return false
+	}
+	message := strings.ToLower(errorValue.Error())
+	return strings.Contains(message, "invalid rootid") || strings.Contains(message, "invalid root_id") || strings.Contains(message, "root_id")
 }
 
 func (service Service) publishMattermostTyping(ctx context.Context, botUserID string, channelID string, rootID string) error {
@@ -1089,16 +1168,18 @@ func (service Service) runCommand(ctx context.Context, executablePath string, ar
 		return service.RunCommand(ctx, executablePath, arguments, standardInput)
 	}
 
-	commandContext, cancel := context.WithTimeout(ctx, 10*time.Minute)
-	defer cancel()
+	return defaultCommandLimiter.Run(ctx, func() ([]byte, error) {
+		commandContext, cancel := context.WithTimeout(ctx, 10*time.Minute)
+		defer cancel()
 
-	command := exec.CommandContext(commandContext, executablePath, arguments...)
-	command.Stdin = bytes.NewReader(standardInput)
-	output, errorValue := command.CombinedOutput()
-	if errorValue != nil {
-		return nil, fmt.Errorf("%s failed: %w: %s", executablePath, errorValue, strings.TrimSpace(string(output)))
-	}
-	return output, nil
+		command := exec.CommandContext(commandContext, executablePath, arguments...)
+		command.Stdin = bytes.NewReader(standardInput)
+		output, errorValue := command.CombinedOutput()
+		if errorValue != nil {
+			return nil, fmt.Errorf("%s failed: %w: %s", executablePath, errorValue, strings.TrimSpace(string(output)))
+		}
+		return output, nil
+	})
 }
 
 func readSecretValue(path string) string {
@@ -1422,6 +1503,7 @@ func (service Service) forwardMattermostChannelPosts(ctx context.Context, botUse
 			RootID:    post.RootID,
 			Type:      post.Type,
 			CreateAt:  post.CreateAt,
+			FileIDs:   post.FileIDs,
 			Metadata:  post.Metadata,
 		}, botUserID, channelType, channelName, addressing)
 		if errorValue != nil {

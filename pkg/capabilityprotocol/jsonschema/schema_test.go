@@ -28,8 +28,8 @@ func TestObjectBuildsCanonicalSchema(t *testing.T) {
 	if len(required) != 1 || required[0] != "title" {
 		t.Fatalf("expected required title, got %+v", required)
 	}
-	if parsed["additionalProperties"] != false {
-		t.Fatalf("expected additionalProperties=false, got %+v", parsed)
+	if _, isFound := parsed["additionalProperties"]; isFound {
+		t.Fatalf("expected portable schema to omit additionalProperties, got %+v", parsed)
 	}
 }
 

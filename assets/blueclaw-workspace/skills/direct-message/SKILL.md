@@ -1,7 +1,7 @@
 ---
 name: direct-message
-description: Send or schedule direct messages to approved InternKim people through platform.dm.send.
-when_to_use: Use when the user asks InternKim to send, DM, message, tell, or notify a named person such as 동하에게 보내줘, DM 보내, 메시지 보내, 알려줘, 전달해줘, or says to send something to a person rather than the current conversation.
+description: Send or schedule direct messages to approved InternKim people through platform.dm.send. Do not use for Mattermost channel posts or named channel messages.
+when_to_use: Use when the user asks InternKim to send, DM, message, tell, or notify a named person such as 동하에게 보내줘, DM 보내, 메시지 보내, 알려줘, 전달해줘, or says to send something to a person rather than the current conversation. Do not use when the target is a channel such as 광장 채널, town-square, off-topic, or another Mattermost channel.
 allowed-tools:
   - ask.confirm
   - platform.dm.send

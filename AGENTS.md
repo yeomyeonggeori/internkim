@@ -24,6 +24,37 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - Keep people, policy, platform account links, and secrets intact unless the task
   explicitly asks to reset them.
 
+## Agent Development Flow
+
+- For Blueclaw agent-loop, prompt, skill, policy, schedule/runtime, or tool
+  behavior changes, start with `./internkim dev simulate --scenario <name>`.
+- Use scripted/cassette virtual sessions for repeatability. Record live model
+  decisions with `--live-llm --record-cassette <path>`, then replay the same
+  cassette instead of relying on seed stability alone.
+- After local simulation passes, verify executable and Linux permission behavior
+  with `./internkim dev replay --target tart --scenario <name> --cassette <path>`.
+- Treat Tart as the required pre-deploy Linux/runtime gate for agent execution
+  that touches `terminal.run`, `bun`, `uv`, Python dependency wrappers,
+  POSIX users/groups, or workspace permissions.
+- Do not redeploy agent, Blueclaw, runtime, skill, or terminal-execution changes
+  until the relevant Tart replay produces the intended result. If Tart replay
+  fails, fix the behavior or explicitly report the unresolved failure instead of
+  proceeding to deployment.
+- Do not replace this gate with Docker or another container path unless the task
+  explicitly asks for a different executor model.
+- Run real Mattermost smoke only after the virtual-session and Tart replay
+  gates pass; keep platform cleanup requirements from Runtime Test Hygiene.
+
+## Web Test Hygiene
+
+- Write Bun unit tests with `test`, `expect`, and `describe` from `bun:test`.
+- Do not write top-level assertion scripts in `*.test.ts` files; Bun must report
+  real test counts.
+- Keep web unit tests under `web/tests/unit/**` and make them runnable through
+  `cd web && bun test tests/unit`.
+- Add or update a `web/package.json` script when adding a new test category, and
+  wire important regression tests into the normal verification path.
+
 ## Deployment Hygiene
 
 - After changing Go setup, provisioning, runtime, or service code, run
@@ -82,10 +113,16 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - Deterministic runtime code may validate, normalize, enforce schemas,
   orchestrate retries, and record diagnostics, but must not compose fallback
   sentences for users.
+- Exact control acknowledgements for slash commands, such as stop/stop-all, may
+  use deterministic system responses; do not expand that exception to task
+  judgment, failure explanation, recovery direction, or confirmation wording.
 - When a failure requires judgment, request structured output first, then use it
   as input to an LLM-generated user reply.
-- If remote and local LLM paths both fail to produce a safe reply, leave task
-  events and admin-only diagnostics instead of sending a fixed outage message.
+- For real task failures, do not fully suppress the user reply. Try local LLM
+  failure wording first, then send a compact raw error summary if no LLM path can
+  produce a usable notice.
+- Full suppression is only for intentionally ignored control/runtime cases such
+  as duplicate delivery, cancelled task output, or self/bot messages.
 
 ## Companion Runtime Boundary
 
@@ -123,13 +160,184 @@ Run `agent-browser --help` for syntax. Core flow: `agent-browser open <url>`,
 `agent-browser snapshot -i`, interact with refs such as `@e1`, then snapshot
 again.
 
+## Core Principles
+
+1. **Readability is the highest priority** - code should be self-explanatory
+2. **Functional style** - prefer pure functions, avoid side effects
+3. **Efficiency** - no redundant operations
+4. **Simplicity** - minimal code that solves the problem
+
 ## Code Style
 
-- Follow surrounding code first.
-- Prefer descriptive names; avoid unclear abbreviations.
-- Use leading lowercase initialisms (`apiKey`) and trailing uppercase initialisms
-  (`userID`) when writing camelCase.
-- Keep functions focused with guard clauses when they improve readability.
-- Avoid `any`, non-null assertions, and broad type assertions in TypeScript.
-- Validate external input at boundaries; trust internal values after validation.
-- Throw for real failures, not expected empty states.
+### No Comments
+Code should be self-documenting through descriptive names and small functions.
+
+### No Abbreviations
+Use full names: `response` not `res`, `error` not `err`, `configuration` not `config`
+
+### Initialism Casing (camelCase)
+- **Leading**: lowercase (`idToken`, `urlParams`, `apiKey`)
+- **Trailing**: UPPERCASE (`userID`, `callbackURL`, `oauthAPI`)
+
+### Naming Conventions
+- **Functions**: Clear verbs (`calculateTotalPrice`, `validateUserInput`)
+- **Variables**: Descriptive nouns (`userAccountBalance`, `authenticationToken`)
+- **Booleans**: is/has/can prefixes (`isAuthenticated`, `hasPermission`)
+
+### Function Design
+- Each function does ONE thing
+- 10-20 lines maximum when possible
+- Use early returns and guard clauses
+- Same level of abstraction within a function
+
+```js
+// BAD - mixed abstraction
+async function processOrder(order) {
+  const user = await database.query(`SELECT * FROM users WHERE id = ${order.userID}`);
+  if (!user.isActive) throw new Error('Inactive user');
+  await sendEmail(user.email, 'Order confirmed');
+  return { success: true };
+}
+
+// GOOD - consistent abstraction
+async function processOrder(order) {
+  const user = await fetchUser(order.userID);
+  validateUserIsActive(user);
+  await notifyOrderConfirmation(user);
+  return createSuccessResponse();
+}
+```
+
+```js
+// BAD - nested conditionals
+function processUser(user) {
+  if (user) {
+    if (user.isActive) {
+      if (user.hasPermission) {
+        return doWork(user);
+      }
+    }
+  }
+  return null;
+}
+
+// GOOD - guard clauses
+function processUser(user) {
+  if (!user) return null;
+  if (!user.isActive) return null;
+  if (!user.hasPermission) return null;
+  return doWork(user);
+}
+```
+
+### Functional Style
+- Prefer pure functions (same inputs → same outputs)
+- Avoid side effects and mutations
+- But readability wins over functional purity
+
+```js
+// GOOD - functional and readable
+const activeUserEmails = users
+  .filter(user => user.isActive)
+  .map(user => user.email);
+
+// Also GOOD - imperative but clear
+const result = {};
+for (const item of items) {
+  if (item.isValid) {
+    result[item.id] = item.value;
+  }
+}
+```
+
+### TypeScript Types
+- Define meaningful domain types (User, Order, Product)
+- Avoid: `any`, `as` assertions, non-null assertions (!)
+- Use `unknown` at boundaries before validation, then narrow to a proper type
+- Validate at boundaries, trust internal code
+
+```ts
+// BAD
+function processData(data: any) {
+  return data.map((item: any) => item.value);
+}
+
+// GOOD
+function processData(data: unknown): string[] {
+  const validatedData: DataItem[] = validateAndParseData(data);
+  return validatedData.map(item => item.value);
+}
+```
+
+## Error Handling
+
+**Throw errors only for real errors:**
+- External API failures
+- Network errors
+- Resource exhaustion (not enough credits, disk full)
+- Authentication/authorization failures
+- Database connection issues
+
+**Be specific and accurate:**
+```ts
+// BAD - vague
+throw new Error('Something went wrong');
+
+// GOOD - specific
+throw new Error('Stripe API returned 402: insufficient funds for charge');
+```
+
+**Don't wrap everything in try-catch:**
+- Only catch errors you expect and can handle
+- Let unexpected errors bubble up naturally
+- Catching everything hides bugs
+
+```ts
+// BAD - catching everything
+try {
+  const user = await fetchUser(id);
+  const orders = await fetchOrders(user.id);
+  return processOrders(orders);
+} catch (error) {
+  return null; // Hides all problems
+}
+
+// GOOD - catch specific expected errors
+const user = await fetchUser(id);
+const orders = await fetchOrders(user.id);
+return processOrders(orders);
+// Let errors bubble up - they indicate real problems
+```
+
+**Handle edge cases without throwing:**
+```ts
+// BAD - throwing for non-errors
+function findUser(users: User[], id: string): User {
+  const user = users.find(u => u.id === id);
+  if (!user) throw new Error('User not found');
+  return user;
+}
+
+// GOOD - handle expected cases gracefully
+function findUser(users: User[], id: string): User | undefined {
+  return users.find(user => user.id === id);
+}
+```
+
+**Validate at boundaries:**
+- Validate user input at entry points
+- Validate external API responses
+- Trust internal code once validated
+
+## Quality Checklist
+
+Before considering implementation complete:
+- [ ] Code is readable without comments
+- [ ] Functions are small and focused
+- [ ] No abbreviations in names
+- [ ] No redundant operations
+- [ ] No dead code
+- [ ] Edge cases handled
+- [ ] Follows existing codebase patterns
+- [ ] Efficient - no unnecessary work
+- [ ] Proper types defined (no any/unknown cheating)

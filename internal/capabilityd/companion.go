@@ -83,8 +83,14 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 	if isWebTool(request.ToolName) {
 		return service.invokeWebTool(ctx, request)
 	}
-	if isFileReadTool(request.ToolName) {
-		return service.invokeFileReadTool(ctx, request)
+	if isDocumentReadTool(request.ToolName) {
+		return service.invokeDocumentReadTool(ctx, request)
+	}
+	if isImageReadTool(request.ToolName) {
+		return service.invokeImageReadTool(ctx, request)
+	}
+	if isArtifactReviewTool(request.ToolName) {
+		return service.invokeArtifactReviewTool(ctx, request)
 	}
 	if request.ToolName == "flow.task.add" {
 		return service.invokeFlowTaskAdd(ctx, request)
@@ -94,6 +100,9 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 	}
 	if request.ToolName == "platform.dm.inspect" {
 		return service.invokePlatformDMInspect(ctx, request)
+	}
+	if isMattermostTool(request.ToolName) {
+		return service.invokeMattermostTool(ctx, request)
 	}
 	if isCalendarTool(request.ToolName) {
 		return service.invokeCalendarTool(ctx, request)

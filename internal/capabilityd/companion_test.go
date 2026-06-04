@@ -239,7 +239,7 @@ func TestAutoProviderConfiguredCompanionFallsBackToLocalAfterRemote(t *testing.T
 }
 
 func TestAutoProviderDefaultsToRemoteBeforeLocalFallback(t *testing.T) {
-	service := Service{}
+	service := Service{Configuration: Configuration{CompanionBaseURL: "https://companion.test"}}
 	providers := service.automaticLLMProviders(
 		staticLLMProvider{response: LLMResponse{Provider: "litert", SelectedBackend: "cpu", Content: `{"reply":"device"}`}},
 		staticLLMProvider{response: LLMResponse{Provider: "companion", SelectedBackend: testCompanionBackend, Content: `{"reply":"companion"}`}},

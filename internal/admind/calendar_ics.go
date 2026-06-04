@@ -131,6 +131,7 @@ func calendarEventFromCalendarObject(path string, calendar *ical.Calendar, actor
 		Color:             firstNonEmpty(strings.TrimSpace(color), "#2563eb"),
 		ReminderLeadHours: calendarDefaultReminderLeadHours,
 		CreatedByEmail:    actorEmail,
+		CreatedByName:     actorEmail,
 		RawICS:            rawICS,
 	}, nil
 }

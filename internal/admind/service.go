@@ -32,6 +32,9 @@ import (
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
+var BuildID = "unknown"
+var GitRevision = "unknown"
+
 type Configuration struct {
 	ListenAddress               string
 	MattermostBaseURL           string
@@ -41,12 +44,15 @@ type Configuration struct {
 	CompanionJobPath            string
 	FlowDatabasePath            string
 	CalendarDatabasePath        string
+	CalendarSecretsDirectory    string
 	MailDatabasePath            string
 	AttendanceDatabasePath      string
 	MattermostAdminPasswordPath string
 	MattermostTokenPath         string
 	OpenRouterKeyPath           string
 	OpenRouterModelsURL         string
+	ReleaseRegistryURL          string
+	ReleaseSigningKeyPath       string
 	MattermostBotTokenPath      string
 	AdminEmailPath              string
 	ClaimedAdminEmailPath       string
@@ -60,8 +66,10 @@ type Configuration struct {
 	SiteSecretDirectory         string
 	SiteSystemdDirectory        string
 	BotProfilePath              string
+	BotProfileImagePath         string
 	BlueclawWorkspacePath       string
 	BlueclawRuntimeConfigPath   string
+	CalendarSyncDisabled        bool
 }
 
 type Service struct {
@@ -69,16 +77,28 @@ type Service struct {
 	HTTPClient    *http.Client
 	RunCommand    func(context.Context, string, ...string) ([]byte, error)
 
-	mutex                sync.Mutex
-	jobs                 map[string]*Job
-	uploads              map[string]*RestoreUpload
-	pairingCodes         map[string]*CompanionPairingCode
-	companions           map[string]*CompanionRecord
-	companionJobs        map[string]*CompanionJob
-	companionFileUploads map[string]*CompanionFileUpload
-	companionMounts      map[string]*CompanionMountRecord
-	sites                map[string]*SiteRecord
-	mailBackend          mailBackend
+	mutex                   sync.Mutex
+	jobs                    map[string]*Job
+	uploads                 map[string]*RestoreUpload
+	blueclawUpdateUploads   map[string]*BlueclawUpdateUpload
+	pairingCodes            map[string]*CompanionPairingCode
+	companions              map[string]*CompanionRecord
+	companionJobs           map[string]*CompanionJob
+	companionFileUploads    map[string]*CompanionFileUpload
+	companionMounts         map[string]*CompanionMountRecord
+	sites                   map[string]*SiteRecord
+	mailBackend             mailBackend
+	googleOAuthStates       sync.Map
+	calendarSyncWakeUp      chan struct{}
+	calendarSyncCycleMutex  sync.Mutex
+	calendarStoreWriteMutex sync.Mutex
+	calendarPullCacheMutex  sync.Mutex
+	lastCalendarPullAt      time.Time
+	calendarRecentPushMutex sync.Mutex
+	recentCalendarPushUIDs  map[string]time.Time
+	requestMetrics          *adminRequestMetrics
+	databaseSchemas         *adminDatabaseSchemas
+	startedAt               time.Time
 }
 
 type Job struct {
@@ -196,12 +216,15 @@ func DefaultConfiguration() Configuration {
 		CompanionJobPath:            "/root/.internkim/state/companion-jobs.json",
 		FlowDatabasePath:            "/root/.internkim/state/flow.sqlite",
 		CalendarDatabasePath:        "/root/.internkim/state/calendar.sqlite",
+		CalendarSecretsDirectory:    "/root/.internkim/secrets/google-oauth",
 		MailDatabasePath:            "/root/.internkim/state/mail.sqlite",
 		AttendanceDatabasePath:      "/root/.internkim/state/attendance.sqlite",
 		MattermostAdminPasswordPath: "/root/.internkim/secrets/mm-admin-pass",
 		MattermostTokenPath:         "/root/.internkim/secrets/mattermost-bot-token",
 		OpenRouterKeyPath:           "/root/.internkim/secrets/openrouter-api-key",
 		OpenRouterModelsURL:         "https://openrouter.ai/api/v1/models",
+		ReleaseRegistryURL:          "https://updates.intern.kim",
+		ReleaseSigningKeyPath:       "/root/.internkim/secrets/release-signing-key",
 		MattermostBotTokenPath:      "/root/.internkim/secrets/mattermost-bot-token",
 		AdminEmailPath:              "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:       "/root/.internkim/state/admin/claimed-admin-email",
@@ -215,6 +238,7 @@ func DefaultConfiguration() Configuration {
 		SiteSecretDirectory:         "/root/.internkim/secrets/sites",
 		SiteSystemdDirectory:        "/etc/systemd/system",
 		BotProfilePath:              "/root/.internkim/config/bot-profile.yaml",
+		BotProfileImagePath:         "/opt/internkim/assets/internkim.png",
 		BlueclawWorkspacePath:       "/root/.blueclaw/workspace",
 		BlueclawRuntimeConfigPath:   "/root/.blueclaw/config/runtime.json",
 	}
@@ -223,16 +247,21 @@ func DefaultConfiguration() Configuration {
 func NewService(configuration Configuration) *Service {
 	configuration = configuration.withDefaults()
 	service := &Service{
-		Configuration:        configuration,
-		jobs:                 map[string]*Job{},
-		uploads:              map[string]*RestoreUpload{},
-		pairingCodes:         map[string]*CompanionPairingCode{},
-		companions:           map[string]*CompanionRecord{},
-		companionJobs:        map[string]*CompanionJob{},
-		companionFileUploads: map[string]*CompanionFileUpload{},
-		companionMounts:      map[string]*CompanionMountRecord{},
-		sites:                map[string]*SiteRecord{},
-		mailBackend:          standardMailBackend{},
+		Configuration:         configuration,
+		jobs:                  map[string]*Job{},
+		uploads:               map[string]*RestoreUpload{},
+		blueclawUpdateUploads: map[string]*BlueclawUpdateUpload{},
+		pairingCodes:          map[string]*CompanionPairingCode{},
+		companions:            map[string]*CompanionRecord{},
+		companionJobs:         map[string]*CompanionJob{},
+		companionFileUploads:  map[string]*CompanionFileUpload{},
+		companionMounts:       map[string]*CompanionMountRecord{},
+		sites:                 map[string]*SiteRecord{},
+		mailBackend:           standardMailBackend{},
+		calendarSyncWakeUp:    make(chan struct{}, 1),
+		requestMetrics:        newAdminRequestMetrics(),
+		databaseSchemas:       newAdminDatabaseSchemas(),
+		startedAt:             time.Now().UTC(),
 	}
 	service.loadCompanions()
 	service.loadCompanionJobs()
@@ -242,10 +271,12 @@ func NewService(configuration Configuration) *Service {
 }
 
 func (service *Service) Run(ctx context.Context) error {
+	service.startBotProfileSync(ctx)
 	service.startCompanionFileCleanup(ctx)
 	service.startMattermostProvisionerSync(ctx)
 	service.startMattermostCircleSync(ctx)
 	service.startCalendarNotificationWorker(ctx)
+	service.startCalendarSyncWorker(ctx)
 	server := &http.Server{
 		Addr:    service.Configuration.ListenAddress,
 		Handler: service.router(),
@@ -311,10 +342,15 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/flow", service.serveFlowPage)
 	multiplexer.HandleFunc("/flow/api/", service.handleFlow)
 	multiplexer.HandleFunc("/flow/", service.serveFlowPage)
+	multiplexer.HandleFunc("/memory", service.serveMemoryPage)
+	multiplexer.HandleFunc("/memory/api/", service.handleMemory)
+	multiplexer.HandleFunc("/memory/", service.serveMemoryPage)
 	multiplexer.HandleFunc("/calendar", service.serveCalendarPage)
 	multiplexer.HandleFunc("/calendar/api/", service.handleCalendar)
 	multiplexer.HandleFunc("/calendar/ics/", service.serveCalendarICS)
 	multiplexer.HandleFunc("/calendar/dav/", service.serveCalendarDAV)
+	multiplexer.HandleFunc("/calendar/oauth/google/start", service.handleGoogleOAuthStart)
+	multiplexer.HandleFunc("/calendar/oauth/google/callback", service.handleGoogleOAuthCallback)
 	multiplexer.HandleFunc("/calendar/", service.serveCalendarPage)
 	multiplexer.HandleFunc("/mail", service.serveMailPage)
 	multiplexer.HandleFunc("/mail/api/", service.handleMail)
@@ -330,7 +366,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/_internkim/mattermost/commands", service.handleMattermostCommand)
 	multiplexer.HandleFunc("/_internkim/mattermost/actions", service.handleMattermostInteractiveAction)
 	multiplexer.Handle("/", service.managedChannelWriteGuard(service.attendancePostDeleteSync(service.mattermostProxy())))
-	return service.withCORS(service.withSiteGateway(multiplexer))
+	return service.withRequestMetrics(service.withReadAPITimeout(service.withCORS(service.withSiteGateway(multiplexer))))
 }
 
 func (service *Service) withCORS(next http.Handler) http.Handler {
@@ -353,6 +389,7 @@ func (service *Service) withCORS(next http.Handler) http.Handler {
 func isInternKimCORSPath(path string) bool {
 	return path == "/admin" ||
 		path == "/flow" ||
+		path == "/memory" ||
 		path == "/calendar" ||
 		path == "/mail" ||
 		path == "/attendance" ||
@@ -360,6 +397,7 @@ func isInternKimCORSPath(path string) bool {
 		path == "/.well-known/caldav" ||
 		strings.HasPrefix(path, "/admin/") ||
 		strings.HasPrefix(path, "/flow/") ||
+		strings.HasPrefix(path, "/memory/") ||
 		strings.HasPrefix(path, "/calendar/") ||
 		strings.HasPrefix(path, "/mail/") ||
 		strings.HasPrefix(path, "/attendance/") ||
@@ -501,14 +539,48 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeAdminSession(responseWriter, request)
 		return
 	}
+	if request.Method == http.MethodGet && path == "/health" {
+		service.writeAdminHealth(responseWriter)
+		return
+	}
+	if strings.HasPrefix(path, "/recovery/ssh-tunnel") {
+		service.handleSSHRecovery(responseWriter, request, path)
+		return
+	}
+	if strings.HasPrefix(path, "/updates/blueclaw/uploads") {
+		service.handleBlueclawUpdateUpload(responseWriter, request, path)
+		return
+	}
+	if request.Method == http.MethodGet && path == "/updates/status" {
+		service.writeReleaseUpdateStatus(responseWriter, request)
+		return
+	}
+	if request.Method == http.MethodGet && strings.HasPrefix(path, "/updates/jobs/") {
+		service.writeJob(responseWriter, strings.TrimPrefix(path, "/updates/jobs/"))
+		return
+	}
+	if request.Method == http.MethodPost && path == "/updates/apply" && !service.isAuthorized(request) {
+		service.applyReleaseUpdateSigned(responseWriter, request)
+		return
+	}
 	if !service.isAuthorized(request) {
 		http.Error(responseWriter, "admin access required", http.StatusForbidden)
 		return
 	}
 
 	switch {
-	case request.Method == http.MethodGet && path == "/health":
-		service.writeJSON(responseWriter, map[string]string{"status": "ok"})
+	case request.Method == http.MethodPost && path == "/updates/apply":
+		service.applyReleaseUpdate(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/updates/rollback":
+		service.rollbackReleaseUpdate(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/updates/blueclaw/status":
+		service.writeBlueclawUpdateStatus(responseWriter)
+	case request.Method == http.MethodPost && path == "/updates/blueclaw/apply":
+		service.applyLatestBlueclawUpdate(responseWriter, request)
+	case request.Method == http.MethodGet && strings.HasPrefix(path, "/updates/blueclaw/jobs/"):
+		service.writeJob(responseWriter, strings.TrimPrefix(path, "/updates/blueclaw/jobs/"))
+	case request.Method == http.MethodGet && path == "/diagnostics/requests":
+		service.writeAdminRequestDiagnostics(responseWriter)
 	case request.Method == http.MethodGet && path == "/locale":
 		service.writeAdminLocale(responseWriter)
 	case request.Method == http.MethodPut && path == "/locale":
@@ -603,6 +675,20 @@ func (service *Service) writeAdminSession(responseWriter http.ResponseWriter, re
 		response.TemporaryPasswordEmail = passwordDocument.Email
 	}
 	service.writeJSON(responseWriter, response)
+}
+
+func (service *Service) writeAdminHealth(responseWriter http.ResponseWriter) {
+	startedAt := service.startedAt
+	if startedAt.IsZero() {
+		startedAt = time.Now().UTC()
+	}
+	service.writeJSON(responseWriter, map[string]any{
+		"status":            "ok",
+		"admindBuildID":     BuildID,
+		"gitRevision":       GitRevision,
+		"startedAt":         startedAt,
+		"recoveryAvailable": true,
+	})
 }
 
 func companionReleases() []companionRelease {
@@ -1567,18 +1653,22 @@ func (service *Service) markUploadChunk(uploadID string, chunkIndex int) {
 }
 
 func (service *Service) assembleRestoreUpload(upload *RestoreUpload, chunkCount int, bundlePath string) error {
-	bundleFile, errorValue := os.OpenFile(bundlePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	return assembleChunkDirectory(upload.DirectoryPath, chunkCount, bundlePath, "restore upload")
+}
+
+func assembleChunkDirectory(directoryPath string, chunkCount int, targetPath string, label string) error {
+	targetFile, errorValue := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if errorValue != nil {
 		return errorValue
 	}
-	defer bundleFile.Close()
+	defer targetFile.Close()
 	for chunkIndex := 0; chunkIndex < chunkCount; chunkIndex++ {
-		chunkPath := filepath.Join(upload.DirectoryPath, "chunks", strconv.Itoa(chunkIndex))
+		chunkPath := filepath.Join(directoryPath, "chunks", strconv.Itoa(chunkIndex))
 		chunkFile, errorValue := os.Open(chunkPath)
 		if errorValue != nil {
-			return errors.New("restore upload is missing chunk " + strconv.Itoa(chunkIndex))
+			return errors.New(label + " is missing chunk " + strconv.Itoa(chunkIndex))
 		}
-		_, copyErrorValue := io.Copy(bundleFile, chunkFile)
+		_, copyErrorValue := io.Copy(targetFile, chunkFile)
 		closeErrorValue := chunkFile.Close()
 		if copyErrorValue != nil {
 			return copyErrorValue
@@ -2414,6 +2504,12 @@ func (configuration Configuration) withDefaults() Configuration {
 	if configuration.OpenRouterModelsURL == "" {
 		configuration.OpenRouterModelsURL = defaultConfiguration.OpenRouterModelsURL
 	}
+	if configuration.ReleaseRegistryURL == "" {
+		configuration.ReleaseRegistryURL = defaultConfiguration.ReleaseRegistryURL
+	}
+	if configuration.ReleaseSigningKeyPath == "" {
+		configuration.ReleaseSigningKeyPath = defaultConfiguration.ReleaseSigningKeyPath
+	}
 	if configuration.MattermostBotTokenPath == "" {
 		configuration.MattermostBotTokenPath = defaultConfiguration.MattermostBotTokenPath
 	}
@@ -2456,6 +2552,9 @@ func (configuration Configuration) withDefaults() Configuration {
 		} else {
 			configuration.BotProfilePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "bot-profile.yaml")
 		}
+	}
+	if configuration.BotProfileImagePath == "" {
+		configuration.BotProfileImagePath = defaultConfiguration.BotProfileImagePath
 	}
 	if configuration.BlueclawWorkspacePath == "" {
 		configuration.BlueclawWorkspacePath = defaultConfiguration.BlueclawWorkspacePath
