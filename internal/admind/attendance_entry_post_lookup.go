@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 )
 
@@ -115,7 +116,7 @@ func (service *Service) isMattermostAttendanceEntryPostCurrent(postRecord matter
 	actions := attachment.Actions
 	for index, action := range actions {
 		expectedAction := expectedActions[index]
-		if action.ID != expectedAction.ID || action.Name != expectedAction.Name {
+		if !reflect.DeepEqual(action, expectedAction) {
 			return false
 		}
 	}
