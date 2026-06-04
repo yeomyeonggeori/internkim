@@ -98,6 +98,26 @@ func (service *Service) attendanceLocationByID(locationID string) attendanceLoca
 	return service.defaultAttendanceLocation()
 }
 
+func (service *Service) attendanceLocationByName(locationName string) (attendanceLocation, bool) {
+	normalizedLocationName := strings.ToLower(strings.TrimSpace(locationName))
+	if normalizedLocationName == "" {
+		return attendanceLocation{}, false
+	}
+	locations, errorValue := service.readAttendanceLocations()
+	if errorValue != nil {
+		locations = defaultAttendanceLocations()
+	}
+	for _, location := range locations {
+		if strings.ToLower(strings.TrimSpace(location.Name)) == normalizedLocationName {
+			return location, true
+		}
+		if strings.ToLower(strings.TrimSpace(service.attendanceDisplayLocationName(location))) == normalizedLocationName {
+			return location, true
+		}
+	}
+	return attendanceLocation{}, false
+}
+
 func (service *Service) writeAttendanceLocationsFile(locations []attendanceLocation) error {
 	document, errorValue := json.MarshalIndent(attendanceLocationsResponse{Locations: locations}, "", "  ")
 	if errorValue != nil {

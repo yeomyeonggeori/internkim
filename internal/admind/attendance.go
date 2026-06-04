@@ -1,16 +1,20 @@
 package admind
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,6 +38,8 @@ const (
 	attendanceCancelReason           = "repeated click confirmed"
 	attendanceDuplicateWindow        = 5 * time.Minute
 )
+
+var attendanceTimeMessagePattern = regexp.MustCompile(`^([01]?\d|2[0-3]):([0-5]\d)$`)
 
 const attendanceEventSelectColumns = `
 id, mattermost_user_id, mattermost_username, email, display_name, kind, occurred_at, local_date, local_time,
@@ -79,6 +85,19 @@ type attendanceUserTokenRecord struct {
 	UserID    string `json:"userID"`
 	Token     string `json:"token"`
 	UpdatedAt string `json:"updatedAt"`
+}
+
+type mattermostPostCreatePayload struct {
+	ChannelID string `json:"channel_id"`
+	RootID    string `json:"root_id"`
+	Message   string `json:"message"`
+}
+
+type attendancePostCommand struct {
+	Kind         string
+	LocationID   string
+	TimeText     string
+	IsTimeUpdate bool
 }
 
 type mattermostTokenResponse struct {
@@ -177,6 +196,185 @@ func (service *Service) writeAttendanceSummary(responseWriter http.ResponseWrite
 	})
 }
 
+func (service *Service) handleMattermostAttendancePostCreate(responseWriter http.ResponseWriter, request *http.Request) bool {
+	payload, ok := mattermostPostCreatePayloadFromRequest(request)
+	if !ok {
+		return false
+	}
+	if strings.TrimSpace(payload.ChannelID) != strings.TrimSpace(readTrimmedFile(service.mattermostAttendanceChannelIDPath())) {
+		return false
+	}
+	if !service.isMattermostAttendanceEntryPostID(payload.RootID) {
+		return false
+	}
+	command, isCommand, errorValue := service.parseAttendancePostCommand(payload.Message)
+	if !isCommand {
+		return false
+	}
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return true
+	}
+	postID, errorValue := service.applyMattermostAttendancePostCommand(request.Context(), request, payload, command)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return true
+	}
+	responseWriter.Header().Set("Content-Type", "application/json")
+	responseWriter.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(responseWriter).Encode(map[string]string{"id": postID})
+	return true
+}
+
+func mattermostPostCreatePayloadFromRequest(request *http.Request) (mattermostPostCreatePayload, bool) {
+	if request.Method != http.MethodPost || request.URL.Path != "/api/v4/posts" {
+		return mattermostPostCreatePayload{}, false
+	}
+	document, errorValue := io.ReadAll(request.Body)
+	if errorValue != nil {
+		return mattermostPostCreatePayload{}, false
+	}
+	request.Body = io.NopCloser(bytes.NewReader(document))
+	var payload mattermostPostCreatePayload
+	if errorValue := json.Unmarshal(document, &payload); errorValue != nil {
+		return mattermostPostCreatePayload{}, false
+	}
+	return payload, true
+}
+
+func (service *Service) applyMattermostAttendancePostCommand(ctx context.Context, request *http.Request, payload mattermostPostCreatePayload, command attendancePostCommand) (string, error) {
+	userRecord, found := service.mattermostPostCreateUser(request)
+	if !found {
+		return "", fmt.Errorf("Mattermost user session was not found")
+	}
+	if command.IsTimeUpdate {
+		return service.updateAttendanceTimeFromMattermostPost(ctx, userRecord, command.TimeText)
+	}
+	adminToken, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	if errorValue := service.recordAttendanceForMattermostUser(ctx, adminToken, userRecord, command.Kind, "", payload.ChannelID, payload.RootID, command.LocationID); errorValue != nil {
+		return "", errorValue
+	}
+	database, errorValue := service.openAttendanceDatabase(ctx)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	defer database.Close()
+	event, found, errorValue := service.latestActiveAttendanceEventForKind(ctx, database, command.Kind)
+	if errorValue != nil || !found {
+		return "", errorValue
+	}
+	return event.ResultPostID, nil
+}
+
+func (service *Service) mattermostPostCreateUser(request *http.Request) (mattermostUserRecord, bool) {
+	token := strings.TrimPrefix(strings.TrimSpace(request.Header.Get("Authorization")), "Bearer ")
+	if token != "" {
+		var userRecord mattermostUserRecord
+		if errorValue := service.mattermostRequest(request.Context(), http.MethodGet, "/api/v4/users/me", token, nil, &userRecord); errorValue == nil && strings.TrimSpace(userRecord.ID) != "" {
+			return userRecord, true
+		}
+	}
+	cookieHeader := mattermostSessionCookieHeader(request)
+	if cookieHeader == "" {
+		return mattermostUserRecord{}, false
+	}
+	return service.mattermostSessionUser(request, cookieHeader)
+}
+
+func (service *Service) parseAttendancePostCommand(message string) (attendancePostCommand, bool, error) {
+	trimmedMessage := strings.TrimSpace(message)
+	if matches := attendanceTimeMessagePattern.FindStringSubmatch(trimmedMessage); matches != nil {
+		hour, _ := strconv.Atoi(matches[1])
+		return attendancePostCommand{TimeText: fmt.Sprintf("%02d:%s", hour, matches[2]), IsTimeUpdate: true}, true, nil
+	}
+	kind, locationName, found := service.parseAttendanceKindMessage(trimmedMessage)
+	if !found {
+		return attendancePostCommand{}, false, nil
+	}
+	if kind == attendanceKindClockOut {
+		return attendancePostCommand{Kind: kind}, true, nil
+	}
+	location := service.defaultAttendanceLocation()
+	if strings.TrimSpace(locationName) != "" {
+		var locationFound bool
+		location, locationFound = service.attendanceLocationByName(locationName)
+		if !locationFound {
+			return attendancePostCommand{}, true, fmt.Errorf("attendance location %q was not found", strings.TrimSpace(locationName))
+		}
+	}
+	return attendancePostCommand{Kind: kind, LocationID: location.ID}, true, nil
+}
+
+func (service *Service) parseAttendanceKindMessage(message string) (string, string, bool) {
+	baseMessage, locationName := splitAttendanceLocationMessage(message)
+	normalizedMessage := strings.ToLower(strings.TrimSpace(baseMessage))
+	switch normalizedMessage {
+	case "출근", "clock in", "clock-in", "clockin":
+		return attendanceKindClockIn, locationName, true
+	case "퇴근", "clock out", "clock-out", "clockout":
+		return attendanceKindClockOut, "", true
+	default:
+		return "", "", false
+	}
+}
+
+func splitAttendanceLocationMessage(message string) (string, string) {
+	trimmedMessage := strings.TrimSpace(message)
+	openIndex := strings.LastIndex(trimmedMessage, "(")
+	if openIndex < 0 || !strings.HasSuffix(trimmedMessage, ")") {
+		return trimmedMessage, ""
+	}
+	return strings.TrimSpace(trimmedMessage[:openIndex]), strings.TrimSpace(strings.TrimSuffix(trimmedMessage[openIndex+1:], ")"))
+}
+
+func (service *Service) updateAttendanceTimeFromMattermostPost(ctx context.Context, userRecord mattermostUserRecord, timeText string) (string, error) {
+	database, errorValue := service.openAttendanceDatabase(ctx)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	defer database.Close()
+	event, found, errorValue := service.latestActiveAttendanceEvent(ctx, database, userRecord.ID)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	if !found {
+		return "", fmt.Errorf("active attendance event was not found")
+	}
+	localTime, errorValue := service.attendanceLocalTimeForEvent(event, timeText)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	updatedEvent := event
+	updatedEvent.OccurredAt = localTime.UTC().Format(time.RFC3339Nano)
+	updatedEvent.LocalDate = localTime.Format("2006-01-02")
+	updatedEvent.LocalTime = localTime.Format("15:04:05")
+	updatedEvent.TimeZoneAtEvent = localTime.Location().String()
+	adminToken, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	userToken, errorValue := service.ensureMattermostUserAccessToken(ctx, adminToken, userRecord.ID)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	if errorValue := service.patchMattermostAttendanceResultPost(ctx, userToken, event.ResultPostID, service.attendanceMessageForEvent(updatedEvent, true)); errorValue != nil {
+		return "", errorValue
+	}
+	return event.ResultPostID, service.updateAttendanceEventTime(ctx, database, event, localTime)
+}
+
+func (service *Service) attendanceLocalTimeForEvent(event attendanceEvent, timeText string) (time.Time, error) {
+	location, _ := service.workspaceTimeLocation()
+	localTime, errorValue := time.ParseInLocation("2006-01-02 15:04", event.LocalDate+" "+strings.TrimSpace(timeText), location)
+	if errorValue != nil {
+		return time.Time{}, errorValue
+	}
+	return localTime, nil
+}
+
 func (service *Service) handleAttendanceToggleAction(responseWriter http.ResponseWriter, request *http.Request, payload mattermostInteractivePayload) {
 	errorValue := service.toggleAttendanceFromMattermost(request.Context(), payload)
 	if errorValue == nil || errors.Is(errorValue, errAttendanceDuplicateIgnored) {
@@ -211,29 +409,36 @@ func (service *Service) recordAttendanceFromMattermost(ctx context.Context, payl
 	if !found {
 		return fmt.Errorf("Mattermost user %s was not found", payload.UserID)
 	}
+	return service.recordAttendanceForMattermostUser(ctx, adminToken, userRecord, requestedKind, payload.TeamID, payload.ChannelID, payload.PostID, payload.Context.LocationID)
+}
+
+func (service *Service) recordAttendanceForMattermostUser(ctx context.Context, adminToken string, userRecord mattermostUserRecord, requestedKind string, teamID string, channelID string, actionPostID string, locationID string) error {
 	teamRecord, errorValue := service.ensureMattermostTeam(ctx, adminToken)
 	if errorValue != nil {
 		return errorValue
 	}
-	channelID, errorValue := service.ensureMattermostAttendanceChannel(ctx, adminToken, teamRecord.ID)
+	attendanceChannelID, errorValue := service.ensureMattermostAttendanceChannel(ctx, adminToken, teamRecord.ID)
 	if errorValue != nil {
 		return errorValue
 	}
-	if errorValue := service.ensureMattermostChannelMembership(ctx, adminToken, channelID, userRecord.ID); errorValue != nil {
+	if strings.TrimSpace(channelID) != "" && strings.TrimSpace(channelID) != attendanceChannelID {
+		return fmt.Errorf("attendance channel mismatch")
+	}
+	if errorValue := service.ensureMattermostChannelMembership(ctx, adminToken, attendanceChannelID, userRecord.ID); errorValue != nil {
 		return errorValue
 	}
 	userToken, errorValue := service.ensureMattermostUserAccessToken(ctx, adminToken, userRecord.ID)
 	if errorValue != nil {
 		return errorValue
 	}
-	teamID := firstNonEmpty(payload.TeamID, teamRecord.ID)
+	effectiveTeamID := firstNonEmpty(teamID, teamRecord.ID)
 	if requestedKind == "" {
-		return service.applyAttendanceToggle(ctx, userRecord, userToken, teamID, channelID, payload.PostID)
+		return service.applyAttendanceToggle(ctx, adminToken, userRecord, userToken, effectiveTeamID, attendanceChannelID, actionPostID)
 	}
-	return service.applyAttendanceAction(ctx, userRecord, userToken, requestedKind, teamID, channelID, payload.PostID, payload.Context.LocationID)
+	return service.applyAttendanceAction(ctx, adminToken, userRecord, userToken, requestedKind, effectiveTeamID, attendanceChannelID, actionPostID, locationID)
 }
 
-func (service *Service) applyAttendanceToggle(ctx context.Context, userRecord mattermostUserRecord, userToken string, teamID string, channelID string, actionPostID string) error {
+func (service *Service) applyAttendanceToggle(ctx context.Context, adminToken string, userRecord mattermostUserRecord, userToken string, teamID string, channelID string, actionPostID string) error {
 	now := time.Now().UTC()
 	database, errorValue := service.openAttendanceDatabase(ctx)
 	if errorValue != nil {
@@ -247,10 +452,10 @@ func (service *Service) applyAttendanceToggle(ctx context.Context, userRecord ma
 	if found && attendanceEventOccurredWithin(lastEvent, now, attendanceDuplicateWindow) {
 		return service.handleRepeatedAttendanceClick(ctx, database, userToken, lastEvent, now)
 	}
-	return service.createNextAttendanceEvent(ctx, database, userRecord, userToken, lastEvent, found, teamID, channelID, actionPostID, now)
+	return service.createNextAttendanceEvent(ctx, database, adminToken, userRecord, userToken, lastEvent, found, teamID, channelID, actionPostID, now)
 }
 
-func (service *Service) applyAttendanceAction(ctx context.Context, userRecord mattermostUserRecord, userToken string, kind string, teamID string, channelID string, actionPostID string, locationID string) error {
+func (service *Service) applyAttendanceAction(ctx context.Context, adminToken string, userRecord mattermostUserRecord, userToken string, kind string, teamID string, channelID string, actionPostID string, locationID string) error {
 	now := time.Now().UTC()
 	database, errorValue := service.openAttendanceDatabase(ctx)
 	if errorValue != nil {
@@ -265,10 +470,13 @@ func (service *Service) applyAttendanceAction(ctx context.Context, userRecord ma
 		return nil
 	}
 	eventLocation := attendanceLocation{}
-	if kind == attendanceKindClockIn && strings.TrimSpace(locationID) != "" {
-		eventLocation = service.attendanceLocationByID(locationID)
+	if kind == attendanceKindClockIn {
+		eventLocation = service.defaultAttendanceLocation()
+		if strings.TrimSpace(locationID) != "" {
+			eventLocation = service.attendanceLocationByID(locationID)
+		}
 	}
-	return service.createAttendanceEventForKind(ctx, database, userRecord, userToken, kind, teamID, channelID, actionPostID, now, eventLocation)
+	return service.createAttendanceEventForKind(ctx, database, adminToken, userRecord, userToken, kind, teamID, channelID, actionPostID, now, eventLocation)
 }
 
 func (service *Service) handleRepeatedAttendanceClick(ctx context.Context, database *sql.DB, userToken string, event attendanceEvent, occurredAt time.Time) error {
@@ -278,17 +486,20 @@ func (service *Service) handleRepeatedAttendanceClick(ctx context.Context, datab
 	return service.cancelAttendanceEvent(ctx, database, userToken, event, occurredAt)
 }
 
-func (service *Service) createNextAttendanceEvent(ctx context.Context, database *sql.DB, userRecord mattermostUserRecord, userToken string, lastEvent attendanceEvent, hasLastEvent bool, teamID string, channelID string, actionPostID string, occurredAt time.Time) error {
+func (service *Service) createNextAttendanceEvent(ctx context.Context, database *sql.DB, adminToken string, userRecord mattermostUserRecord, userToken string, lastEvent attendanceEvent, hasLastEvent bool, teamID string, channelID string, actionPostID string, occurredAt time.Time) error {
 	kind := nextAttendanceKind(lastEvent, hasLastEvent)
 	eventLocation := attendanceLocation{}
 	if kind == attendanceKindClockIn {
 		eventLocation = service.defaultAttendanceLocation()
 	}
-	return service.createAttendanceEventForKind(ctx, database, userRecord, userToken, kind, teamID, channelID, actionPostID, occurredAt, eventLocation)
+	return service.createAttendanceEventForKind(ctx, database, adminToken, userRecord, userToken, kind, teamID, channelID, actionPostID, occurredAt, eventLocation)
 }
 
-func (service *Service) createAttendanceEventForKind(ctx context.Context, database *sql.DB, userRecord mattermostUserRecord, userToken string, kind string, teamID string, channelID string, actionPostID string, occurredAt time.Time, eventLocation attendanceLocation) error {
-	resultPostID, errorValue := service.postMattermostUserAttendanceMessage(ctx, userToken, channelID, actionPostID, service.attendanceMessageForKindAndLocation(kind, eventLocation.Name))
+func (service *Service) createAttendanceEventForKind(ctx context.Context, database *sql.DB, adminToken string, userRecord mattermostUserRecord, userToken string, kind string, teamID string, channelID string, actionPostID string, occurredAt time.Time, eventLocation attendanceLocation) error {
+	if errorValue := service.deleteLatestAttendanceResultPostForKind(ctx, database, adminToken, kind); errorValue != nil {
+		return errorValue
+	}
+	resultPostID, errorValue := service.postMattermostUserAttendanceMessage(ctx, userToken, channelID, actionPostID, service.attendanceMessageForKindAndLocation(kind, eventLocation))
 	if errorValue != nil {
 		return errorValue
 	}
@@ -297,7 +508,7 @@ func (service *Service) createAttendanceEventForKind(ctx context.Context, databa
 }
 
 func (service *Service) cancelAttendanceEvent(ctx context.Context, database *sql.DB, userToken string, event attendanceEvent, canceledAt time.Time) error {
-	message := service.attendanceMessageForKindAndLocation(event.Kind, event.LocationName) + " 취소"
+	message := service.attendanceMessageForKindAndLocation(event.Kind, attendanceLocation{ID: event.LocationID, Name: event.LocationName}) + " 취소"
 	if _, errorValue := service.postMattermostUserAttendanceMessage(ctx, userToken, event.ChannelID, event.ActionPostID, message); errorValue != nil {
 		return errorValue
 	}
@@ -463,6 +674,30 @@ LIMIT 1`, mattermostUserID)
 	return event, true, nil
 }
 
+func (service *Service) latestActiveAttendanceEventForKind(ctx context.Context, database *sql.DB, kind string) (attendanceEvent, bool, error) {
+	row := database.QueryRowContext(ctx, "SELECT "+attendanceEventSelectColumns+`
+FROM attendance_events
+WHERE kind = ? AND canceled_at = ''
+ORDER BY occurred_at DESC
+LIMIT 1`, kind)
+	event, errorValue := scanAttendanceEvent(row)
+	if errors.Is(errorValue, sql.ErrNoRows) {
+		return attendanceEvent{}, false, nil
+	}
+	if errorValue != nil {
+		return attendanceEvent{}, false, errorValue
+	}
+	return event, true, nil
+}
+
+func (service *Service) deleteLatestAttendanceResultPostForKind(ctx context.Context, database *sql.DB, adminToken string, kind string) error {
+	event, found, errorValue := service.latestActiveAttendanceEventForKind(ctx, database, kind)
+	if errorValue != nil || !found {
+		return errorValue
+	}
+	return service.deleteMattermostAttendanceResultPost(ctx, adminToken, event.ResultPostID)
+}
+
 func (service *Service) markAttendanceRepeatedClick(ctx context.Context, database *sql.DB, eventID string, occurredAt time.Time) error {
 	_, errorValue := database.ExecContext(ctx, "UPDATE attendance_events SET repeated_click_at = ? WHERE id = ?", occurredAt.Format(time.RFC3339), eventID)
 	if errorValue != nil {
@@ -502,6 +737,20 @@ WHERE local_date >= ? AND local_date < ?`
 		events = append(events, event)
 	}
 	return events, rows.Err()
+}
+
+func (service *Service) updateAttendanceEventTime(ctx context.Context, database *sql.DB, event attendanceEvent, localTime time.Time) error {
+	_, errorValue := database.ExecContext(ctx, `
+UPDATE attendance_events
+SET occurred_at = ?, local_date = ?, local_time = ?, time_zone_at_event = ?
+WHERE id = ?`,
+		localTime.UTC().Format(time.RFC3339Nano),
+		localTime.Format("2006-01-02"),
+		localTime.Format("15:04:05"),
+		localTime.Location().String(),
+		event.ID,
+	)
+	return errorValue
 }
 
 func (service *Service) deleteAttendanceEventByResultPostID(ctx context.Context, resultPostID string) error {
@@ -570,6 +819,9 @@ func (service *Service) updateMattermostAttendanceChannelText(ctx context.Contex
 func (service *Service) syncMattermostAttendanceEntryPost(ctx context.Context, adminToken string, channelID string) {
 	if errorValue := service.ensureMattermostAttendanceEntryPost(ctx, adminToken, channelID); errorValue != nil {
 		log.Printf("Mattermost Attendance entry post sync failed: %v", errorValue)
+	}
+	if errorValue := service.cleanupMattermostAttendanceResultPosts(ctx, adminToken); errorValue != nil {
+		log.Printf("Mattermost Attendance result post cleanup failed: %v", errorValue)
 	}
 }
 
@@ -681,6 +933,56 @@ func (service *Service) pinMattermostPost(ctx context.Context, token string, pos
 	return service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts/"+url.PathEscape(postID)+"/pin", token, nil, nil)
 }
 
+func (service *Service) cleanupMattermostAttendanceResultPosts(ctx context.Context, adminToken string) error {
+	if _, errorValue := os.Stat(service.Configuration.AttendanceDatabasePath); os.IsNotExist(errorValue) {
+		return nil
+	} else if errorValue != nil {
+		return errorValue
+	}
+	database, errorValue := service.openAttendanceDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	rows, errorValue := database.QueryContext(ctx, `
+SELECT kind, result_post_id
+FROM attendance_events
+WHERE canceled_at = '' AND result_post_id != '' AND kind IN (?, ?)
+ORDER BY occurred_at DESC`, attendanceKindClockIn, attendanceKindClockOut)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer rows.Close()
+	keptKinds := map[string]bool{}
+	for rows.Next() {
+		var kind string
+		var resultPostID string
+		if errorValue := rows.Scan(&kind, &resultPostID); errorValue != nil {
+			return errorValue
+		}
+		if !keptKinds[kind] {
+			keptKinds[kind] = true
+			continue
+		}
+		if errorValue := service.deleteMattermostAttendanceResultPost(ctx, adminToken, resultPostID); errorValue != nil {
+			return errorValue
+		}
+	}
+	return rows.Err()
+}
+
+func (service *Service) deleteMattermostAttendanceResultPost(ctx context.Context, adminToken string, postID string) error {
+	trimmedPostID := strings.TrimSpace(postID)
+	if trimmedPostID == "" {
+		return nil
+	}
+	errorValue := service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/posts/"+url.PathEscape(trimmedPostID), adminToken, nil, nil)
+	if errorValue != nil && !isMattermostNotFound(errorValue) {
+		return errorValue
+	}
+	return nil
+}
+
 func (service *Service) mattermostAttendanceEntryPostProps() map[string]any {
 	text := service.adminText()
 	return map[string]any{
@@ -772,6 +1074,14 @@ func (service *Service) postMattermostUserAttendanceMessage(ctx context.Context,
 	}
 	errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", userToken, body, &response)
 	return strings.TrimSpace(response.ID), errorValue
+}
+
+func (service *Service) patchMattermostAttendanceResultPost(ctx context.Context, userToken string, postID string, message string) error {
+	if strings.TrimSpace(postID) == "" {
+		return fmt.Errorf("Mattermost attendance result post ID is empty")
+	}
+	body := map[string]string{"message": message}
+	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/posts/"+url.PathEscape(postID)+"/patch", userToken, body, nil)
 }
 
 func (service *Service) saveMattermostAttendanceEntryPostID(postID string) {
@@ -893,13 +1203,42 @@ func attendanceMessageForKind(kind string) string {
 	return "출근"
 }
 
-func (service *Service) attendanceMessageForKindAndLocation(kind string, locationName string) string {
-	message := attendanceMessageForKind(kind)
-	trimmedLocationName := strings.TrimSpace(locationName)
-	if kind != attendanceKindClockIn || trimmedLocationName == "" || !service.hasMultipleAttendanceLocations() {
+func (service *Service) attendanceMessageForKind(kind string) string {
+	if service.workspaceLanguage() == workspaceLanguageEnglish {
+		if kind == attendanceKindClockOut {
+			return "Clock out"
+		}
+		return "Clock in"
+	}
+	return attendanceMessageForKind(kind)
+}
+
+func (service *Service) attendanceMessageForKindAndLocation(kind string, location attendanceLocation) string {
+	message := service.attendanceMessageForKind(kind)
+	locationName := strings.TrimSpace(service.attendanceDisplayLocationName(location))
+	if kind != attendanceKindClockIn || locationName == "" {
 		return message
 	}
-	return message + "(" + trimmedLocationName + ")"
+	return message + "(" + locationName + ")"
+}
+
+func (service *Service) attendanceMessageForEvent(event attendanceEvent, includeTime bool) string {
+	message := service.attendanceMessageForKindAndLocation(event.Kind, attendanceLocation{ID: event.LocationID, Name: event.LocationName})
+	if !includeTime {
+		return message
+	}
+	if len(event.LocalTime) < 5 {
+		return message
+	}
+	return message + " " + event.LocalTime[:5]
+}
+
+func (service *Service) attendanceDisplayLocationName(location attendanceLocation) string {
+	locationName := strings.TrimSpace(location.Name)
+	if service.workspaceLanguage() == workspaceLanguageEnglish && location.ID == "office" && locationName == "사무실" {
+		return "Office"
+	}
+	return locationName
 }
 
 func (service *Service) hasMultipleAttendanceLocations() bool {
