@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -33,7 +35,7 @@ func TestAttendanceClockButtonsPostAsUserAndIgnoreInvalidState(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 
-	if len(*posts) != 2 || (*posts)[0].Message != "출근" || (*posts)[1].Message != "퇴근" {
+	if len(*posts) != 2 || (*posts)[0].Message != "출근(사무실)" || (*posts)[1].Message != "퇴근" {
 		t.Fatalf("posts = %+v", *posts)
 	}
 	for _, post := range *posts {
@@ -116,6 +118,226 @@ func TestAttendanceClockInMultipleLocationsPostsLocationName(t *testing.T) {
 
 	if len(*posts) != 1 || (*posts)[0].Message != "출근(사무실)" {
 		t.Fatalf("posts = %+v", *posts)
+	}
+}
+
+func TestAttendanceClockButtonsKeepOnlyLatestClockInAndClockOutPosts(t *testing.T) {
+	service, posts := newAttendanceActionTestService(t)
+	payload := mattermostInteractivePayload{
+		UserID:    "user-1",
+		PostID:    "entry-post",
+		ChannelID: "attendance-channel",
+		TeamID:    "team-1",
+		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken()},
+	}
+
+	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if len(*posts) != 3 {
+		t.Fatalf("posts = %+v", *posts)
+	}
+	if !(*posts)[0].Deleted || (*posts)[1].Deleted || (*posts)[2].Deleted {
+		t.Fatalf("deleted posts = %+v", *posts)
+	}
+	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(events) != 3 {
+		t.Fatalf("events = %+v", events)
+	}
+}
+
+func TestAttendanceEntryCommentCreatesAttendanceEvent(t *testing.T) {
+	service, posts := newAttendanceActionTestService(t)
+	service.saveMattermostAttendanceChannelID("attendance-channel")
+	service.saveMattermostAttendanceEntryPostID("entry-post")
+	request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"attendance-channel","root_id":"entry-post","message":"출근"}`))
+	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+	if len(*posts) != 1 || (*posts)[0].Message != "출근(사무실)" || (*posts)[0].RootID != "entry-post" {
+		t.Fatalf("posts = %+v", *posts)
+	}
+	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(events) != 1 || events[0].Kind != attendanceKindClockIn || events[0].LocationName != "사무실" {
+		t.Fatalf("events = %+v", events)
+	}
+}
+
+func TestAttendanceEntryCommentAcceptsEnglishAliases(t *testing.T) {
+	service, posts := newAttendanceActionTestService(t)
+	service.saveMattermostAttendanceChannelID("attendance-channel")
+	service.saveMattermostAttendanceEntryPostID("entry-post")
+	for _, message := range []string{"Clock in", "Clock out"} {
+		request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"attendance-channel","root_id":"entry-post","message":"`+message+`"}`))
+		request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
+		response := httptest.NewRecorder()
+		service.router().ServeHTTP(response, request)
+		if response.Code != http.StatusCreated {
+			t.Fatalf("%s status = %d body = %s", message, response.Code, response.Body.String())
+		}
+	}
+
+	if len(*posts) != 2 || (*posts)[0].Message != "출근(사무실)" || (*posts)[1].Message != "퇴근" {
+		t.Fatalf("posts = %+v", *posts)
+	}
+}
+
+func TestAttendanceEntryCommentUpdatesCurrentEventTime(t *testing.T) {
+	service, posts := newAttendanceActionTestService(t)
+	service.saveMattermostAttendanceChannelID("attendance-channel")
+	service.saveMattermostAttendanceEntryPostID("entry-post")
+	payload := mattermostInteractivePayload{
+		UserID:    "user-1",
+		PostID:    "entry-post",
+		ChannelID: "attendance-channel",
+		TeamID:    "team-1",
+		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken()},
+	}
+	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"attendance-channel","root_id":"entry-post","message":"9:00"}`))
+	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+	if len(*posts) != 1 || (*posts)[0].Message != "출근(사무실) 09:00" {
+		t.Fatalf("posts = %+v", *posts)
+	}
+	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(events) != 1 || events[0].LocalTime != "09:00:00" {
+		t.Fatalf("events = %+v", events)
+	}
+}
+
+func TestAttendanceEntryCommentUpdatesClockOutTime(t *testing.T) {
+	service, posts := newAttendanceActionTestService(t)
+	service.saveMattermostAttendanceChannelID("attendance-channel")
+	service.saveMattermostAttendanceEntryPostID("entry-post")
+	payload := mattermostInteractivePayload{
+		UserID:    "user-1",
+		PostID:    "entry-post",
+		ChannelID: "attendance-channel",
+		TeamID:    "team-1",
+		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken()},
+	}
+	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"attendance-channel","root_id":"entry-post","message":"18:30"}`))
+	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+	if len(*posts) != 2 || (*posts)[1].Message != "퇴근 18:30" {
+		t.Fatalf("posts = %+v", *posts)
+	}
+	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(events) != 2 || events[0].Kind != attendanceKindClockOut || events[0].LocalTime != "18:30:00" {
+		t.Fatalf("events = %+v", events)
+	}
+}
+
+func TestAttendanceEntryCommentBlocksUnknownMessage(t *testing.T) {
+	service, posts := newAttendanceActionTestService(t)
+	service.saveMattermostAttendanceChannelID("attendance-channel")
+	service.saveMattermostAttendanceEntryPostID("entry-post")
+	request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"attendance-channel","root_id":"entry-post","message":"hello"}`))
+	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+	if len(*posts) != 0 {
+		t.Fatalf("posts = %+v", *posts)
+	}
+}
+
+func TestAttendanceCleanupKeepsLatestClockInAndClockOutPosts(t *testing.T) {
+	stateDirectory := t.TempDir()
+	service := NewService(Configuration{
+		StateDirectory:         stateDirectory,
+		AttendanceDatabasePath: filepath.Join(stateDirectory, "attendance.sqlite"),
+		MattermostBaseURL:      "http://mattermost.local",
+	})
+	deletedPostIDs := []string{}
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.Method == http.MethodDelete && strings.HasPrefix(request.URL.Path, "/api/v4/posts/") {
+			deletedPostIDs = append(deletedPostIDs, strings.TrimPrefix(request.URL.Path, "/api/v4/posts/"))
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		}
+		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+		return nil, nil
+	})}
+	database, errorValue := service.openAttendanceDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	baseTime := time.Now().UTC().Add(-4 * time.Hour)
+	events := []attendanceEvent{
+		service.createAttendanceEvent(mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com"}, attendanceKindClockIn, baseTime, "team-1", "attendance-channel", "entry-post", "old-in", attendanceLocation{}),
+		service.createAttendanceEvent(mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com"}, attendanceKindClockOut, baseTime.Add(time.Hour), "team-1", "attendance-channel", "entry-post", "old-out", attendanceLocation{}),
+		service.createAttendanceEvent(mattermostUserRecord{ID: "user-2", Username: "other", Email: "other@example.com"}, attendanceKindClockIn, baseTime.Add(2*time.Hour), "team-1", "attendance-channel", "entry-post", "new-in", attendanceLocation{}),
+		service.createAttendanceEvent(mattermostUserRecord{ID: "user-2", Username: "other", Email: "other@example.com"}, attendanceKindClockOut, baseTime.Add(3*time.Hour), "team-1", "attendance-channel", "entry-post", "new-out", attendanceLocation{}),
+	}
+	for _, event := range events {
+		if errorValue := service.insertAttendanceEvent(context.Background(), database, event); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+
+	if errorValue := service.cleanupMattermostAttendanceResultPosts(context.Background(), "admin-token"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if len(deletedPostIDs) != 2 || !containsString(deletedPostIDs, "old-in") || !containsString(deletedPostIDs, "old-out") {
+		t.Fatalf("deleted post ids = %+v", deletedPostIDs)
+	}
+	remainingEvents, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(remainingEvents) != 4 {
+		t.Fatalf("events = %+v", remainingEvents)
 	}
 }
 
@@ -339,7 +561,7 @@ func TestAttendanceRepeatedClickCancelsEvent(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 
-	if len(*posts) != 2 || (*posts)[1].Message != "출근 취소" || (*posts)[1].RootID != "entry-post" {
+	if len(*posts) != 2 || (*posts)[1].Message != "출근(사무실) 취소" || (*posts)[1].RootID != "entry-post" {
 		t.Fatalf("posts = %+v", *posts)
 	}
 	database, errorValue := service.openAttendanceDatabase(context.Background())
@@ -357,8 +579,10 @@ func TestAttendanceRepeatedClickCancelsEvent(t *testing.T) {
 }
 
 type attendanceActionPost struct {
+	ID      string
 	Message string
 	RootID  string
+	Deleted bool
 }
 
 func newAttendanceActionTestService(t *testing.T) (*Service, *[]attendanceActionPost) {
@@ -401,6 +625,8 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]attendanceAction
 			return jsonResponse(http.StatusCreated, `{"token":"user-token"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Header.Get("Authorization") == "Bearer user-token":
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"staff@example.com","username":"staff"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/me" && strings.Contains(request.Header.Get("Cookie"), "MMAUTHTOKEN=session-token"):
+			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"staff@example.com","username":"staff","nickname":"Staff"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/posts" && request.Method == http.MethodPost:
 			var payload map[string]string
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
@@ -409,8 +635,37 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]attendanceAction
 			if request.Header.Get("Authorization") != "Bearer user-token" {
 				t.Fatalf("post token = %q", request.Header.Get("Authorization"))
 			}
-			posts = append(posts, attendanceActionPost{Message: payload["message"], RootID: payload["root_id"]})
-			return jsonResponse(http.StatusCreated, `{"id":"attendance-post-1"}`, nil), nil
+			postID := "attendance-post-" + strconv.Itoa(len(posts)+1)
+			posts = append(posts, attendanceActionPost{ID: postID, Message: payload["message"], RootID: payload["root_id"]})
+			return jsonResponse(http.StatusCreated, `{"id":"`+postID+`"}`, nil), nil
+		case strings.HasPrefix(request.URL.String(), "http://mattermost.local/api/v4/posts/") && strings.HasSuffix(request.URL.String(), "/patch") && request.Method == http.MethodPut:
+			if request.Header.Get("Authorization") != "Bearer user-token" {
+				t.Fatalf("patch token = %q", request.Header.Get("Authorization"))
+			}
+			postID := strings.TrimSuffix(strings.TrimPrefix(request.URL.Path, "/api/v4/posts/"), "/patch")
+			var payload map[string]string
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			for index := range posts {
+				if posts[index].ID == postID {
+					posts[index].Message = payload["message"]
+					return jsonResponse(http.StatusOK, `{}`, nil), nil
+				}
+			}
+			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
+		case strings.HasPrefix(request.URL.String(), "http://mattermost.local/api/v4/posts/") && request.Method == http.MethodDelete:
+			if request.Header.Get("Authorization") != "Bearer admin-token" {
+				t.Fatalf("delete token = %q", request.Header.Get("Authorization"))
+			}
+			postID := strings.TrimPrefix(request.URL.Path, "/api/v4/posts/")
+			for index := range posts {
+				if posts[index].ID == postID {
+					posts[index].Deleted = true
+					return jsonResponse(http.StatusOK, `{}`, nil), nil
+				}
+			}
+			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil

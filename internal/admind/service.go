@@ -383,6 +383,9 @@ func (service *Service) mattermostProxy() http.Handler {
 
 func (service *Service) managedChannelWriteGuard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if service.handleMattermostAttendancePostCreate(responseWriter, request) {
+			return
+		}
 		if !service.isMattermostManagedPostCreateRequest(request) {
 			next.ServeHTTP(responseWriter, request)
 			return
