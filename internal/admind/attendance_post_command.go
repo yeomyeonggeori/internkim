@@ -109,7 +109,7 @@ func (service *Service) applyMattermostAttendancePostCommand(ctx context.Context
 		return "", errorValue
 	}
 	defer database.Close()
-	event, found, errorValue := service.latestActiveAttendanceEventForKind(ctx, database, command.Kind)
+	event, found, errorValue := service.latestActiveAttendanceEventForUserAndKind(ctx, database, userRecord.ID, command.Kind)
 	if errorValue != nil || !found {
 		return "", errorValue
 	}

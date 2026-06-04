@@ -64,12 +64,12 @@ LIMIT 1`, mattermostUserID)
 	return event, true, nil
 }
 
-func (service *Service) latestActiveAttendanceEventForKind(ctx context.Context, database *sql.DB, kind string) (attendanceEvent, bool, error) {
+func (service *Service) latestActiveAttendanceEventForUserAndKind(ctx context.Context, database *sql.DB, mattermostUserID string, kind string) (attendanceEvent, bool, error) {
 	row := database.QueryRowContext(ctx, "SELECT "+attendanceEventSelectColumns+`
 FROM attendance_events
-WHERE kind = ? AND canceled_at = ''
+WHERE mattermost_user_id = ? AND kind = ? AND canceled_at = ''
 ORDER BY occurred_at DESC
-LIMIT 1`, kind)
+LIMIT 1`, mattermostUserID, kind)
 	event, errorValue := scanAttendanceEvent(row)
 	if errors.Is(errorValue, sql.ErrNoRows) {
 		return attendanceEvent{}, false, nil

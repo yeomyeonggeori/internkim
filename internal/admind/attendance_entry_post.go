@@ -94,7 +94,7 @@ func (service *Service) cleanupMattermostAttendanceResultPosts(ctx context.Conte
 	}
 	defer database.Close()
 	rows, errorValue := database.QueryContext(ctx, `
-SELECT kind, result_post_id
+SELECT mattermost_user_id, kind, result_post_id
 FROM attendance_events
 WHERE canceled_at = '' AND result_post_id != '' AND kind IN (?, ?)
 ORDER BY occurred_at DESC`, attendanceKindClockIn, attendanceKindClockOut)
@@ -102,15 +102,17 @@ ORDER BY occurred_at DESC`, attendanceKindClockIn, attendanceKindClockOut)
 		return errorValue
 	}
 	defer rows.Close()
-	keptKinds := map[string]bool{}
+	keptEvents := map[string]bool{}
 	for rows.Next() {
+		var mattermostUserID string
 		var kind string
 		var resultPostID string
-		if errorValue := rows.Scan(&kind, &resultPostID); errorValue != nil {
+		if errorValue := rows.Scan(&mattermostUserID, &kind, &resultPostID); errorValue != nil {
 			return errorValue
 		}
-		if !keptKinds[kind] {
-			keptKinds[kind] = true
+		eventKey := mattermostUserID + "\x00" + kind
+		if !keptEvents[eventKey] {
+			keptEvents[eventKey] = true
 			continue
 		}
 		if errorValue := service.deleteMattermostAttendanceResultPost(ctx, adminToken, resultPostID); errorValue != nil {

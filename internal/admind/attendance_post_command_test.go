@@ -202,11 +202,15 @@ func TestAttendanceCleanupKeepsLatestClockInAndClockOutPosts(t *testing.T) {
 	}
 	defer database.Close()
 	baseTime := time.Now().UTC().Add(-4 * time.Hour)
+	firstUser := mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com"}
+	secondUser := mattermostUserRecord{ID: "user-2", Username: "other", Email: "other@example.com"}
 	events := []attendanceEvent{
-		service.createAttendanceEvent(mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com"}, attendanceKindClockIn, baseTime, "team-1", "attendance-channel", "entry-post", "old-in", attendanceLocation{}),
-		service.createAttendanceEvent(mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com"}, attendanceKindClockOut, baseTime.Add(time.Hour), "team-1", "attendance-channel", "entry-post", "old-out", attendanceLocation{}),
-		service.createAttendanceEvent(mattermostUserRecord{ID: "user-2", Username: "other", Email: "other@example.com"}, attendanceKindClockIn, baseTime.Add(2*time.Hour), "team-1", "attendance-channel", "entry-post", "new-in", attendanceLocation{}),
-		service.createAttendanceEvent(mattermostUserRecord{ID: "user-2", Username: "other", Email: "other@example.com"}, attendanceKindClockOut, baseTime.Add(3*time.Hour), "team-1", "attendance-channel", "entry-post", "new-out", attendanceLocation{}),
+		service.createAttendanceEvent(firstUser, attendanceKindClockIn, baseTime, "team-1", "attendance-channel", "entry-post", "old-in", attendanceLocation{}),
+		service.createAttendanceEvent(firstUser, attendanceKindClockOut, baseTime.Add(time.Hour), "team-1", "attendance-channel", "entry-post", "old-out", attendanceLocation{}),
+		service.createAttendanceEvent(firstUser, attendanceKindClockIn, baseTime.Add(2*time.Hour), "team-1", "attendance-channel", "entry-post", "new-in", attendanceLocation{}),
+		service.createAttendanceEvent(firstUser, attendanceKindClockOut, baseTime.Add(3*time.Hour), "team-1", "attendance-channel", "entry-post", "new-out", attendanceLocation{}),
+		service.createAttendanceEvent(secondUser, attendanceKindClockIn, baseTime.Add(30*time.Minute), "team-1", "attendance-channel", "entry-post", "other-in", attendanceLocation{}),
+		service.createAttendanceEvent(secondUser, attendanceKindClockOut, baseTime.Add(90*time.Minute), "team-1", "attendance-channel", "entry-post", "other-out", attendanceLocation{}),
 	}
 	for _, event := range events {
 		if errorValue := service.insertAttendanceEvent(context.Background(), database, event); errorValue != nil {
@@ -221,11 +225,16 @@ func TestAttendanceCleanupKeepsLatestClockInAndClockOutPosts(t *testing.T) {
 	if len(deletedPostIDs) != 2 || !containsString(deletedPostIDs, "old-in") || !containsString(deletedPostIDs, "old-out") {
 		t.Fatalf("deleted post ids = %+v", deletedPostIDs)
 	}
+	for _, postID := range []string{"new-in", "new-out", "other-in", "other-out"} {
+		if containsString(deletedPostIDs, postID) {
+			t.Fatalf("deleted latest per-user post %q: %+v", postID, deletedPostIDs)
+		}
+	}
 	remainingEvents, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(remainingEvents) != 4 {
+	if len(remainingEvents) != 6 {
 		t.Fatalf("events = %+v", remainingEvents)
 	}
 }
