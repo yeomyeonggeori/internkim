@@ -2014,6 +2014,55 @@ func TestMattermostImportAttachmentsBuildsMarkdownFilePart(t *testing.T) {
 	}
 }
 
+func TestMattermostImportAttachmentsUsesRawTextPreviewForHTML(t *testing.T) {
+	workspacePath := t.TempDir()
+	htmlDocument := "<!doctype html><html><body><h1>Raw HTML Title</h1></body></html>"
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/files/file-1/info":
+			return testJSONResponse(http.StatusOK, mattermostFileMetadata{ID: "file-1", Name: "page.html", SizeBytes: int64(len(htmlDocument)), ContentType: "text/html"}), nil
+		case "/api/v4/files/file-1":
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(htmlDocument)),
+				Header:     http.Header{"Content-Type": []string{"text/html"}},
+			}, nil
+		default:
+			t.Fatalf("unexpected mattermost request: %s", request.URL.Path)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	service := Service{
+		Configuration: Configuration{
+			MattermostBaseURL:     "https://mattermost.test",
+			MattermostTokenPath:   writePlatformTestFile(t, "mattermost-token"),
+			BlueclawWorkspacePath: workspacePath,
+			FileReadPythonPath:    "/test/python",
+		},
+		HTTPClient: httpClient,
+		RunCommand: func(_ context.Context, _ string, _ []string, _ []byte) ([]byte, error) {
+			t.Fatal("HTML attachment preview should not call MarkItDown helper")
+			return nil, nil
+		},
+	}
+
+	response, errorValue := service.mattermostImportAttachments(context.Background(), json.RawMessage(`{
+		"messageID":"post-1",
+		"targetDirectoryPath":"/workspace/private/people/person-1/inbox/mattermost/post-1",
+		"inputAttachments":[{"platform":"mattermost","fileID":"file-1","messageID":"post-1"}]
+	}`))
+	if errorValue != nil {
+		t.Fatalf("expected import to succeed: %v", errorValue)
+	}
+	if len(response.InputParts) != 1 || response.InputParts[0].Type != "file" || response.InputParts[0].File == nil {
+		t.Fatalf("expected file input part, got %+v", response.InputParts)
+	}
+	filePart := response.InputParts[0].File
+	if filePart.ConversionStatus != "converted" || !strings.Contains(filePart.MarkdownPreview, "<h1>Raw HTML Title</h1>") {
+		t.Fatalf("expected raw HTML preview, got %+v", filePart)
+	}
+}
+
 func TestMattermostImportAttachmentsKeepsUnsupportedFileMetadata(t *testing.T) {
 	workspacePath := t.TempDir()
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
