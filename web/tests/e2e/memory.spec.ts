@@ -36,13 +36,13 @@ const memoryGraphFixture = {
 };
 
 type GraphMetrics = {
-	canvas: GraphRectangle | null;
-	container: GraphRectangle | null;
+	canvas: GraphSize | null;
+	container: GraphSize | null;
 	hasHorizontalOverflow: boolean;
 	viewportWidth: number;
 };
 
-type GraphRectangle = {
+type GraphSize = {
 	height: number;
 	width: number;
 };
@@ -87,9 +87,12 @@ async function graphMetrics(page: Page): Promise<GraphMetrics> {
 	return page.evaluate(() => {
 		const canvas = document.querySelector('canvas');
 		const container = canvas?.parentElement ?? null;
+		const canvasRectangle = canvas?.getBoundingClientRect() ?? null;
 		return {
-			canvas: canvas?.getBoundingClientRect().toJSON() ?? null,
-			container: container?.getBoundingClientRect().toJSON() ?? null,
+			canvas: canvasRectangle
+				? { height: canvasRectangle.height, width: canvasRectangle.width }
+				: null,
+			container: container ? { height: container.clientHeight, width: container.clientWidth } : null,
 			hasHorizontalOverflow: document.body.scrollWidth > window.innerWidth,
 			viewportWidth: window.innerWidth
 		};
