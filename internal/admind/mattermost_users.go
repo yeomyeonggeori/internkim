@@ -725,13 +725,12 @@ func (service *Service) ensureMattermostDefaultChannelMembership(ctx context.Con
 	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/teams/"+url.PathEscape(teamID)+"/members", token, teamMember, nil); errorValue != nil && !isMattermostBadRequest(errorValue) {
 		return errorValue
 	}
-	channelMember := map[string]string{"user_id": userID}
 	var membershipErrors []error
 	for _, channelID := range channelIDs {
 		if channelID == "" {
 			continue
 		}
-		if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/channels/"+url.PathEscape(channelID)+"/members", token, channelMember, nil); errorValue != nil && !isMattermostBadRequest(errorValue) {
+		if errorValue := service.ensureMattermostChannelMembership(ctx, token, channelID, userID); errorValue != nil {
 			membershipErrors = append(membershipErrors, errorValue)
 		}
 	}
