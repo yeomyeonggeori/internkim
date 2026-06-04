@@ -111,26 +111,6 @@ func (service *Service) createAttendanceEvent(userRecord mattermostUserRecord, k
 	}
 }
 
-func attendanceEventOccurredWithin(event attendanceEvent, now time.Time, window time.Duration) bool {
-	occurredAt, errorValue := parseAttendanceEventTime(event.OccurredAt)
-	return errorValue == nil && now.Sub(occurredAt) >= 0 && now.Sub(occurredAt) <= window
-}
-
-func parseAttendanceEventTime(value string) (time.Time, error) {
-	occurredAt, errorValue := time.Parse(time.RFC3339Nano, value)
-	if errorValue == nil {
-		return occurredAt, nil
-	}
-	return time.Parse(time.RFC3339, value)
-}
-
-func attendanceMessageForKind(text localizedAdminText, kind string) string {
-	if kind == attendanceKindClockOut {
-		return text.AttendanceClockOut
-	}
-	return text.AttendanceClockIn
-}
-
 func (service *Service) attendanceMessageForKindAndLocation(kind string, locationName string) string {
 	message := attendanceMessageForKind(service.adminText(), kind)
 	trimmedLocationName := strings.TrimSpace(locationName)
@@ -150,21 +130,4 @@ func (service *Service) hasMultipleAttendanceLocations() bool {
 		locations = defaultAttendanceLocations()
 	}
 	return len(locations) > 1
-}
-
-func nextAttendanceKind(event attendanceEvent, hasEvent bool) string {
-	if hasEvent && event.Kind == attendanceKindClockIn {
-		return attendanceKindClockOut
-	}
-	return attendanceKindClockIn
-}
-
-func shouldIgnoreAttendanceAction(kind string, event attendanceEvent, hasEvent bool) bool {
-	if kind == attendanceKindClockIn {
-		return hasEvent && event.Kind == attendanceKindClockIn
-	}
-	if kind == attendanceKindClockOut {
-		return !hasEvent || event.Kind != attendanceKindClockIn
-	}
-	return true
 }
