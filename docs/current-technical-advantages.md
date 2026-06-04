@@ -2,6 +2,8 @@
 
 김인턴의 강점은 단순히 LLM을 붙인 자동화가 아니라, 여러 사용자가 실제 업무 데이터를 맡겨도 사고 범위를 작게 유지하도록 런타임 경계를 분리한 데 있다. 현재 구조는 데이터 무결성, 사용자 격리, 비밀값 격리, 로컬 자원 보호, 감사 가능한 실행 흐름을 각각 별도 계층에서 처리한다.
 
+또한 김인턴은 기술 사용자가 직접 tool과 workflow를 조립해야 하는 agent라기보다, 일반 직원과 AI가 함께 쓰는 first-party 업무 도구를 appliance 안에 묶는 방향이다. 현재 진입점은 Mattermost이고, 출결, 메일, 일정, 업무 관리는 같은 권한/승인/기록 구조 위에 올라가는 업무 운영 capability로 설계되어 있다.
+
 ## 보안 경계 요약
 
 | 경계 | LLM/agent가 직접 보지 않는 것 | 실제 담당 계층 |
@@ -11,10 +13,13 @@
 | 로컬 컴퓨터 경계 | local absolute path, browser cookie, local profile path, sensitive login step | `internkim-companion` |
 | 산출물 경계 | 임시 파일이나 내부 path를 완료 증거로 사용 | `file.promote`와 `file.attach` 기반 artifact flow |
 | LLM 운영 연속성 경계 | remote provider만 유일한 실행 경로로 고정 | `internkim-capabilityd` local/companion/remote provider routing |
+| 업무 운영 경계 | 출결, 메일, 일정, 업무 관리를 각기 다른 SaaS 권한 모델에 흩어두기 | Mattermost와 Blueclaw task/capability/event model |
 
-## 1. 3대 이상 기기에서 데이터 무결성을 지키는 fleet 구조
+## 1. Fleet scale-up으로 데이터 무결성, 처리 성능, 안정성을 함께 높임
 
 김인턴은 단일 기기 appliance로 시작할 수 있지만, `internal/fleet`에는 3대 이상 기기 구성을 위한 무결성 모델이 들어 있다. 핵심은 활성 노드 수를 홀수 투표군으로 유지하고, ledger commit에는 과반 quorum을 요구하는 것이다.
+
+기술적으로 이 구조는 단순히 "기기를 여러 대 붙일 수 있다"가 아니다. 기기를 늘릴수록 더 많은 요청을 처리할 여지를 만들고, 특정 기기 장애 시 서비스 중단 위험을 낮추며, 작업 상태를 일관되게 확정하기 위한 기반을 제공한다. 제품 관점에서는 고객사의 사용량과 중요도가 커질수록 appliance 공급을 늘릴 수 있는 scale-up 모델과도 연결된다.
 
 정확히 말하면 이 부분은 현재 `internal/fleet`에 코드화된 topology, ledger, workspace bundle 모델과 단위 테스트 기준의 보장이다. 완성된 Raft/Paxos 계열 consensus store나 운영 중인 multi-master replication engine이라고 표현하면 과장이다.
 
@@ -28,7 +33,7 @@
 - active 노드를 그냥 제거해 짝수 투표군으로 만드는 동작은 막고, standalone reset 같은 명시적 복구 경로를 요구한다.
 - 작업 소유자는 rendezvous hashing으로 결정해 같은 key는 안정적으로 같은 active node에 배정된다.
 
-이 구조의 장점은 split-brain과 중복 실행 위험을 초기에 줄인다는 점이다. 특히 `job.reserved`, `outbox.reserved`, `outbox.sent`, `workspace.published` 같은 ledger entry는 과반이 없으면 기록되지 않으므로, 네트워크가 갈라졌을 때 소수 파티션이 독자적으로 작업을 확정하기 어렵다.
+이 구조의 장점은 split-brain과 중복 실행 위험을 초기에 줄인다는 점이다. 특히 `job.reserved`, `outbox.reserved`, `outbox.sent`, `workspace.published` 같은 ledger entry는 과반이 없으면 기록되지 않으므로, 네트워크가 갈라졌을 때 소수 파티션이 독자적으로 작업을 확정하기 어렵다. 즉 fleet은 데이터 무결성과 서비스 안정성을 높이는 장치이며, 향후 처리 성능 확장과 appliance 공급 확장까지 염두에 둔 기반이다.
 
 Workspace 변경도 내용 기반 bundle로 다룬다. 변경 목록은 path 정규화와 정렬을 거쳐 content hash를 만들고, bundle ID는 그 hash에서 나온다. 같은 변경은 같은 bundle ID가 되므로 재시도와 비교가 쉽고, workspace path는 성격에 따라 일반 content, append log, sealed snapshot, ephemeral, runtime cache로 분류된다. 즉 동기화할 데이터와 버릴 데이터를 런타임이 구분할 수 있다.
 
@@ -105,23 +110,29 @@ flowchart LR
 
 따라서 크레딧이 떨어지거나 provider 장애가 생겼을 때 전체 제품이 외부 API에만 묶이는 구조를 피할 수 있다. 고품질 작업은 remote 모델을 쓰고, 운영 연속성이 중요하거나 민감도가 높은 작업은 local model로 보내는 식의 운영 전략을 세울 수 있다. 향후 고성능 Companion host를 로컬 모델 노드로 쓰면 외부 LLM provider 없이 내부망에서 동작하는 local-only 구성도 가능하다.
 
-## 6. Portable-first 산출물과 승인 중심 실행
+## 6. First-party 업무 운영 도구와 portable-first 실행
 
 김인턴은 Google Workspace나 특정 SaaS를 기본 전제로 두지 않는다. 문서, 시트, 슬라이드, 일정, 이메일은 먼저 인증 없는 portable artifact로 만들고, 사용자가 원할 때만 Google import, publish, sync 같은 선택 단계를 실행한다.
 
+이 방향은 first-party 업무 도구 패키지와도 연결된다. 기술 이해도가 높은 사용자가 원하는 외부 tool을 직접 조립하는 모델이 아니라, 일반 직원이 Mattermost에서 AI와 함께 출결, 메일, 일정, 업무 관리, 문서 작업을 바로 시작할 수 있는 기본 capability를 제공하는 방향이다.
+
 기본 방향은 다음과 같다.
 
+- 출결은 `attendance_event`와 quick clock-in/out capability로 분리한다.
+- 업무 관리는 `task`, `task_assignee`, `task_event` 기반으로 상태와 담당자를 기록한다.
 - 일정은 ICS/CalDAV first, Google Calendar는 optional sync target이다.
 - 문서는 DOCX, PDF, HTML, Markdown first, Google Docs는 optional import target이다.
 - 시트는 XLSX, CSV first, Google Sheets는 optional import target이다.
 - 슬라이드는 `DESIGN.md`와 HTML/PPTX/PDF first, Google Slides는 optional import target이다.
 - 이메일은 `.eml` 또는 draft text first, 실제 발송은 preview와 승인 후 provider bridge로 처리한다.
 
-이 설계의 장점은 외부 계정 인증이 없어도 결과물을 만들 수 있고, 외부 공유나 발송 같은 irreversible action은 capability 단위 승인 정책으로 묶을 수 있다는 점이다. 특히 이메일 발송, 외부 공유, Google import/publish, 파일 이동/삭제, 브라우저 제출, 터미널 write 명령은 승인 없이 실행하지 않는 방향으로 정리되어 있다.
+이 설계의 장점은 외부 계정 인증이 없어도 기본 업무를 시작할 수 있고, 외부 공유나 발송 같은 irreversible action은 capability 단위 승인 정책으로 묶을 수 있다는 점이다. 특히 이메일 발송, 외부 공유, Google import/publish, 파일 이동/삭제, 브라우저 제출, 터미널 write 명령은 승인 없이 실행하지 않는 방향으로 정리되어 있다.
 
-## 7. 사용자 로컬 자원을 device와 LLM에서 숨기는 Companion 구조
+따라서 김인턴의 업무 기능은 흩어진 SaaS를 단순히 대신 호출하는 것이 아니라, Mattermost, Blueclaw task/event model, capability provider를 같은 권한/승인/기록 구조로 묶는 방식에 가깝다. Slack, Signal, Google Chat 같은 채널은 현재 지원이 아니라 같은 경계 위에 붙일 예정 채널이다.
 
-Companion은 사용자의 로컬 컴퓨터를 trusted runtime으로 다루지만, 그 신뢰를 device나 LLM에 그대로 확장하지 않는다.
+## 7. 직원 PC를 통째로 열지 않고 연결하는 Companion 구조
+
+Companion은 사용자의 로컬 컴퓨터를 trusted runtime으로 다루지만, 그 신뢰를 device나 LLM에 그대로 확장하지 않는다. 기술적 목적은 로컬 파일과 브라우저라는 강력한 업무 접점을 쓰면서도, 직원 PC 전체를 agent에게 열어주는 인상을 만들지 않는 것이다.
 
 현재 Companion 경계의 강점은 다음과 같다.
 
@@ -132,7 +143,7 @@ Companion은 사용자의 로컬 컴퓨터를 trusted runtime으로 다루지만
 - screenshot은 Companion browser에서만 허용하고, device fallback에서는 제한한다.
 - browser observe 응답은 cookie, local profile path, CDP URL, local screenshot path를 노출하지 않는 계약을 갖는다.
 
-이 구조 덕분에 김인턴은 로컬 브라우저와 파일이라는 강력한 자동화 지점을 활용하면서도, 사용자의 컴퓨터 경로와 세션 비밀값을 agent runtime 밖에 둘 수 있다.
+이 구조 덕분에 김인턴은 로컬 브라우저와 파일이라는 강력한 자동화 지점을 활용하면서도, 사용자의 컴퓨터 경로와 세션 비밀값을 agent runtime 밖에 둘 수 있다. 사용자는 자기 PC의 통제권을 유지하고, 김인턴은 승인된 파일과 브라우저 작업의 제한된 결과만 이어받는다.
 
 ## 8. 감사 가능하고 복구 가능한 실행 흐름
 
@@ -148,7 +159,7 @@ Companion은 사용자의 로컬 컴퓨터를 trusted runtime으로 다루지만
 
 ## 한 문장 요약
 
-김인턴의 현재 기술적 장점은 LLM 자동화를 제품 기능으로 감싼 것이 아니라, multi-device quorum, POSIX actor boundary, secret-bearing capability proxy, Companion local boundary, portable artifact pipeline을 조합해 실제 업무 환경에서 데이터와 권한을 잃지 않도록 만든 점이다.
+김인턴의 현재 기술적 장점은 LLM 자동화를 제품 기능으로 감싼 것이 아니라, fleet quorum, POSIX actor boundary, secret-bearing capability proxy, Companion local boundary, local/remote LLM routing, first-party 업무 capability, portable artifact pipeline을 조합해 실제 업무 환경에서 데이터와 권한을 잃지 않도록 만든 점이다.
 
 ## 근거가 되는 주요 위치
 
@@ -158,6 +169,13 @@ Companion은 사용자의 로컬 컴퓨터를 trusted runtime으로 다루지만
 - `internal/fleet/workspace_policy.go`
 - `docs/architecture.md`
 - `docs/blueclaw-oss-boundary.md`
+- `docs/capability-expansion-design.md`
 - `docs/skill-orchestration-design.md`
+- `docs/schema/task.md`
+- `docs/schema/task-assignee.md`
+- `docs/schema/task-event.md`
+- `docs/flows/user/track-attendance.md`
+- `docs/flows/user/draft-email.md`
+- `docs/flows/user/send-email-with-approval.md`
 - `README.md`
 - `assets/blueclaw-workspace/AGENTS.md`
