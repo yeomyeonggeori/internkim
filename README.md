@@ -23,7 +23,7 @@ Jetson Orin Nano Super에 Blueclaw 런타임과 InternKim capability layer를 �
                    │    └─ companion broker
                    ├─ internkim-capabilityd
                    │    ├─ LLM routing: OpenRouter / local model / companion
-                   │    ├─ platform I/O: Mattermost / Slack / Signal
+                   │    ├─ platform I/O: Mattermost
                    │    ├─ browser routing: companion-first / Lightpanda fallback
                    │    └─ local capability API for Blueclaw
                    ├─ graphiti-memoryd :7791
@@ -40,8 +40,9 @@ Jetson Orin Nano Super에 Blueclaw 런타임과 InternKim capability layer를 �
                         ├─ state/
                         └─ models/
 
-Slack workspace ── Socket Mode ──▶ internkim-capabilityd ──▶ Blueclaw
-Signal account ── JSON-RPC poll ─▶ internkim-capabilityd ──▶ Blueclaw
+Planned external channels
+    ├─ Slack workspace ── Socket Mode ──▶ internkim-capabilityd ──▶ Blueclaw
+    └─ Signal account ── JSON-RPC poll ─▶ internkim-capabilityd ──▶ Blueclaw
 
 사용자 컴퓨터
     └─ internkim-companion
@@ -110,8 +111,8 @@ flowchart LR
 | `/root/.internkim/models/*` | `internkim-capabilityd`, local model wrapper | local model runtime |
 | `/root/.internkim/secrets/google-sa.json` | `gws`, `gws-bot`, Apps Script helper | Google Workspace 연동 |
 | `/root/.internkim/secrets/gas-webhook-url` | GAS bridge helper | Apps Script bridge 호출 |
-| `/root/.internkim/secrets/slack-*` | `internkim-capabilityd` | Slack Socket Mode와 reply |
-| `/root/.internkim/config/signal-*` | `internkim-capabilityd` | Signal JSON-RPC poll/reply |
+| `/root/.internkim/secrets/slack-*` | `internkim-capabilityd` | planned Slack Socket Mode와 reply |
+| `/root/.internkim/config/signal-*` | `internkim-capabilityd` | planned Signal JSON-RPC poll/reply |
 | `/root/.internkim/state/companion-jobs.json` | `internkim-admind` | companion broker restart recovery |
 
 Graphiti는 memory sidecar로만 동작하고 secrets 디렉토리를 직접 읽지 않습니다. Companion signing private key는 device state JSON에 저장하지 않고 사용자 컴퓨터의 secure storage에 둡니다.
@@ -122,14 +123,14 @@ Graphiti는 memory sidecar로만 동작하고 secrets 디렉토리를 직접 읽
 |------|------|
 | **Go CLI** (`cmd/internkim/main.go`) | 셋업, lab, reset, deploy, verify를 수행하는 운영 CLI |
 | **internkim-admind** | 기기 관리자 API. admin UI reverse proxy, companion pairing/broker, backup/restore, 상태 조회 담당 |
-| **internkim-capabilityd** | OpenRouter, local model, Mattermost, Slack, Signal, companion credential을 보유하고 capability API만 노출 |
+| **internkim-capabilityd** | OpenRouter, local model, Mattermost, companion credential을 보유하고 capability API만 노출. Slack/Signal은 같은 경계로 확장 예정 |
 | **internkim-local-llm-runner** | LiteRT local model runner. llama.cpp는 상주 `llama-server` provider로 처리 |
 | **Blueclaw** | Firecracker guest 안의 agent runtime. host는 `blueclaw-supervisor`로 guest를 띄우고, guest는 `/workspace/.blueclaw/config/*.json`와 `/workspace/.blueclaw/runtime/current/bin/blueclaw` 계약을 사용 |
 | **Graphiti memoryd** | Blueclaw memory sidecar. `graphiti-core[kuzu]`로 episode ingestion, temporal graph extraction, hybrid graph search 수행 |
 | **internkim-companion** | 사용자 컴퓨터의 cross-platform trusted runtime. 브라우저 human-in-the-loop와 향후 local-only LLM capability 제공 |
 | **gws** | Google Workspace CLI. Drive/Docs/Gmail/Sheets 조작. MCP 서버 모드 지원 |
-| **Mattermost** | 온보드 채팅 서버. 기기 협업 채널과 모바일 알림에 사용 |
-| **Slack/Signal connector** | 외부 메시징 이벤트를 capabilityd에서 정규화해 Blueclaw 작업으로 전달 |
+| **Mattermost** | 온보드 채팅 서버. 셀프호스팅 가능한 사내 메신저로 기기 협업 채널, 모바일 알림, AI 업무 진입점에 사용 |
+| **Slack/Signal connector** | 예정 채널. 외부 메시징 이벤트를 capabilityd에서 정규화해 Blueclaw 작업으로 전달하는 구조로 확장 |
 | **SvelteKit 웹앱** (`web/`) | Cloudflare Pages. 기기 등록 API, Access policy 동기화, OTA |
 | **Blueclaw workspace assets** (`assets/blueclaw-workspace/`) | 설치 시 host `/root/.blueclaw/workspace`에 배치되고 guest `/workspace`로 mount되는 AGENTS.md, skills, helpers, GAS source |
 | **기기 바이너리** (`build/board-bin/`) | ARM64 기기용 바이너리 [gitignored] |
@@ -235,7 +236,7 @@ make prepare-blueclaw-payload
 7. 기기 등록 + Cloudflare 터널 시작
 8. Google Workspace credential은 사용자가 직접 만들거나 Companion으로 전달한 것만 설치
 9. Mattermost 설정 (URL / admin token / bot token / channel ID, 건너뛰기 가능)
-10. Slack/Signal/Users sync 구성
+10. Users sync 구성. Slack/Signal은 예정 채널로 별도 확장
 11. `blueclaw.service` 시작 + 최종 health check
 
 Mattermost self-hosted는 기본적으로 한 team의 총 멤버 수에 제한이 있습니다. 기본값은 `TeamSettings.MaxUsersPerTeam = 50`이며, 활성/비활성 사용자를 포함합니다. 반복 검증에서 테스트 사용자를 지우지 않으면 이 제한에 걸려 team/channel join API가 실패할 수 있습니다. 필요하면 운영 환경에서 이 값을 늘릴 수 있지만, 테스트 코드는 생성한 Mattermost 테스트 사용자를 정리해야 합니다.
@@ -328,7 +329,7 @@ go run ./cmd/blueclaw-lab virtual-session \
 
 ### Companion Runtime
 
-`internkim-companion`은 사용자 컴퓨터에서 실행되는 capability provider입니다. v1은 브라우저 작업 중 사용자 로그인, MFA, 파일 선택, 승인 입력처럼 사람이 필요한 단계를 처리하기 위한 데몬 골격을 제공합니다. 장기적으로는 같은 capability contract로 사용자 컴퓨터의 더 강한 로컬 모델, embedding, 파일, desktop action도 처리합니다.
+`internkim-companion`은 사용자 컴퓨터에서 실행되는 capability provider입니다. v1은 브라우저 작업 중 사용자 로그인, MFA, 파일 선택, 승인 입력처럼 사람이 필요한 단계를 처리하기 위한 데몬 골격을 제공합니다. 장기적으로는 같은 capability contract로 사용자 컴퓨터나 사내 워크스테이션의 더 강한 로컬 모델, embedding, 파일, desktop action도 처리합니다. 충분한 GPU/메모리/NPU가 있는 Companion host를 쓰면 외부 LLM provider 없이 내부망 local-only 운영으로 확장할 수 있습니다.
 
 ```bash
 make build-companion
@@ -383,9 +384,9 @@ Terminal은 제품 기능에서도 쓰되 requester actor/POSIX boundary 안에�
 ./internkim reset blueclaw-history --keep-mattermost-posts --confirm <deviceID>
 ```
 
-기본 reset은 Blueclaw task, raw event, conversation, legacy memory, Graphiti mirror, Kuzu memory files와 Mattermost 화면에 보이는 post/reaction/thread 기록을 함께 지웁니다. 초대 사용자, policy, platform account link, secrets, Mattermost 사용자, 팀, 채널은 유지합니다. 디버깅 때문에 Mattermost 화면 기록만 남겨야 할 때는 `--keep-mattermost-posts`를 명시합니다. Mattermost/Slack/Signal 검증에서 만든 테스트 메시지와 봇 답변은 검증 직후 삭제해야 합니다.
+기본 reset은 Blueclaw task, raw event, conversation, legacy memory, Graphiti mirror, Kuzu memory files와 Mattermost 화면에 보이는 post/reaction/thread 기록을 함께 지웁니다. 초대 사용자, policy, platform account link, secrets, Mattermost 사용자, 팀, 채널은 유지합니다. 디버깅 때문에 Mattermost 화면 기록만 남겨야 할 때는 `--keep-mattermost-posts`를 명시합니다. Mattermost 검증에서 만든 테스트 메시지와 봇 답변은 검증 직후 삭제해야 하며, Slack/Signal 예정 채널을 검증할 때도 같은 정리 원칙을 적용합니다.
 
-Slack과 Signal은 외부 플랫폼이므로 이 reset이 원격 서비스의 전체 메시지 기록을 강제로 비우지는 않습니다. InternKim이 만든 테스트 메시지와 봇 답변은 가능한 범위에서 삭제하고, Blueclaw/Graphiti 쪽 기억과 작업 기록은 항상 reset 대상에 포함합니다.
+Slack과 Signal 예정 채널은 외부 플랫폼이므로, 해당 검증을 추가하더라도 이 reset이 원격 서비스의 전체 메시지 기록을 강제로 비우지는 않습니다. InternKim이 만든 테스트 메시지와 봇 답변은 가능한 범위에서 삭제하고, Blueclaw/Graphiti 쪽 기억과 작업 기록은 항상 reset 대상에 포함합니다.
 
 ### 웹앱 (Cloudflare Pages)
 
@@ -472,6 +473,7 @@ internkim/
 - 도메인: ~$10/년
 - Cloudflare (Tunnel + Access + Pages + KV): 무료 tier
 - OpenRouter API: 종량제 (무료 모델 사용 가능)
+- LLM 운영 연속성/비용 대응: remote provider를 기본 활용하되 기기 local model 경로와 향후 고성능 Companion local model 경로로 fallback하도록 설계
 - Google Cloud IAM: 무료
 
 ## 라이선스
