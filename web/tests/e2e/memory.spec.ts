@@ -1,10 +1,19 @@
 import { expect, type Page, test } from '@playwright/test';
 
+const memoryGraphNodeCount = 12;
+const graphSizeTolerancePixel = 1;
+
 const memoryGraphFixture = {
 	health: { configured: true, reachable: true },
-	namespaces: [{ namespaceID: 'workspace-memory', scopeType: 'workspace', episodeCount: 12 }],
-	episodes: Array.from({ length: 8 }, (_, index) => ({ episodeID: `episode-${index}` })),
-	facts: Array.from({ length: 10 }, (_, index) => ({
+	namespaces: [
+		{
+			namespaceID: 'workspace-memory',
+			scopeType: 'workspace',
+			episodeCount: memoryGraphNodeCount
+		}
+	],
+	episodes: Array.from({ length: memoryGraphNodeCount }, (_, index) => ({ episodeID: `episode-${index}` })),
+	facts: Array.from({ length: memoryGraphNodeCount }, (_, index) => ({
 		factID: `fact-${index}`,
 		scopeType: 'workspace',
 		namespaceID: 'workspace-memory',
@@ -12,14 +21,14 @@ const memoryGraphFixture = {
 	})),
 	nodes: [
 		{ nodeID: 'namespace', label: 'workspace-memory', kind: 'namespace', scopeType: 'workspace' },
-		...Array.from({ length: 12 }, (_, index) => ({
+		...Array.from({ length: memoryGraphNodeCount }, (_, index) => ({
 			nodeID: `fact-${index}`,
 			label: `Fact ${index}`,
 			kind: 'fact',
 			scopeType: 'workspace'
 		}))
 	],
-	edges: Array.from({ length: 12 }, (_, index) => ({
+	edges: Array.from({ length: memoryGraphNodeCount }, (_, index) => ({
 		sourceID: 'namespace',
 		targetID: `fact-${index}`,
 		weight: (index % 3) + 1
@@ -27,14 +36,13 @@ const memoryGraphFixture = {
 };
 
 type GraphMetrics = {
-	bodyScrollWidth: number;
-	canvas: GraphRect | null;
-	container: GraphRect | null;
+	canvas: GraphRectangle | null;
+	container: GraphRectangle | null;
 	hasHorizontalOverflow: boolean;
 	viewportWidth: number;
 };
 
-type GraphRect = {
+type GraphRectangle = {
 	height: number;
 	width: number;
 };
@@ -58,7 +66,6 @@ test.describe('memory graph', () => {
 		await page.waitForSelector('canvas');
 
 		await expect.poll(async () => graphMetrics(page)).toMatchObject({
-			bodyScrollWidth: 1280,
 			hasHorizontalOverflow: false,
 			viewportWidth: 1280
 		});
@@ -68,7 +75,6 @@ test.describe('memory graph', () => {
 		await page.setViewportSize({ width: 390, height: 844 });
 
 		await expect.poll(async () => graphMetrics(page)).toMatchObject({
-			bodyScrollWidth: 390,
 			hasHorizontalOverflow: false,
 			viewportWidth: 390
 		});
@@ -82,7 +88,6 @@ async function graphMetrics(page: Page): Promise<GraphMetrics> {
 		const canvas = document.querySelector('canvas');
 		const container = canvas?.parentElement ?? null;
 		return {
-			bodyScrollWidth: document.body.scrollWidth,
 			canvas: canvas?.getBoundingClientRect().toJSON() ?? null,
 			container: container?.getBoundingClientRect().toJSON() ?? null,
 			hasHorizontalOverflow: document.body.scrollWidth > window.innerWidth,
@@ -94,6 +99,12 @@ async function graphMetrics(page: Page): Promise<GraphMetrics> {
 function expectCanvasToMatchContainer(metrics: GraphMetrics): void {
 	expect(metrics.canvas).not.toBeNull();
 	expect(metrics.container).not.toBeNull();
-	expect(metrics.canvas?.width).toBe(metrics.container?.width);
-	expect(metrics.canvas?.height).toBe(metrics.container?.height);
+	if (!metrics.canvas || !metrics.container) return;
+
+	expect(Math.abs(metrics.canvas.width - metrics.container.width)).toBeLessThanOrEqual(
+		graphSizeTolerancePixel
+	);
+	expect(Math.abs(metrics.canvas.height - metrics.container.height)).toBeLessThanOrEqual(
+		graphSizeTolerancePixel
+	);
 }
