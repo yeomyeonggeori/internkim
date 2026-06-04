@@ -32,6 +32,13 @@
 
 	let containerElement: HTMLDivElement;
 	let graph: ForceGraphDefault<ForceGraphNode, ForceGraphLink> | null = null;
+	let graphFitTimeoutID: number | null = null;
+
+	const graphFitDelayMillisecond = 120;
+	const graphFitDurationMillisecond = 250;
+	const graphFitPaddingPixel = 48;
+	const graphLayoutCooldownTickCount = 120;
+	const graphLayoutWarmupTickCount = 30;
 
 	const graphData = $derived({
 		nodes: nodes.map((node) => ({ ...node, id: node.nodeID })),
@@ -45,7 +52,9 @@
 	$effect(() => {
 		if (!graph) return;
 		graph.graphData(graphData);
-		fitGraphToContainer();
+		syncGraphSize();
+		graph.d3ReheatSimulation();
+		scheduleGraphFit();
 	});
 
 	onMount(() => {
@@ -57,6 +66,7 @@
 		return () => {
 			isMounted = false;
 			resizeObserver?.disconnect();
+			clearGraphFit();
 			graph?.pauseAnimation();
 			graph = null;
 		};
@@ -73,44 +83,62 @@
 				.nodeVal((node: ForceGraphNode) => nodeValue(node))
 				.linkColor(() => 'rgba(100,116,139,0.35)')
 				.linkWidth((link: ForceGraphLink) => Math.max(1, Number(link.weight || 1)))
+				.warmupTicks(graphLayoutWarmupTickCount)
+				.cooldownTicks(graphLayoutCooldownTickCount)
+				.onEngineStop(() => scheduleGraphFit())
 				.backgroundColor('rgba(0,0,0,0)')
 				.graphData(graphData);
 
-			resizeObserver = new ResizeObserver(() => resizeGraph());
+			resizeObserver = new ResizeObserver(() => {
+				syncGraphSize();
+				scheduleGraphFit();
+			});
 			resizeObserver.observe(containerElement);
-			resizeGraph();
-			fitGraphToContainer();
+			syncGraphSize();
+			scheduleGraphFit();
 		}
 	});
 
-	function resizeGraph() {
+	function syncGraphSize(): void {
 		if (!graph || !containerElement) return;
-		graph.width(containerElement.clientWidth);
-		graph.height(containerElement.clientHeight);
-		fitGraphToContainer();
+		if (containerElement.clientWidth === 0 || containerElement.clientHeight === 0) return;
+		graph.width(containerElement.clientWidth).height(containerElement.clientHeight);
 	}
 
-	function fitGraphToContainer() {
-		if (!graph) return;
-		window.setTimeout(() => graph?.zoomToFit(250, 56), 100);
+	function scheduleGraphFit(): void {
+		if (!browser || !graph) return;
+		clearGraphFit();
+		graphFitTimeoutID = window.setTimeout(() => {
+			graph?.zoomToFit(graphFitDurationMillisecond, graphFitPaddingPixel);
+			graphFitTimeoutID = null;
+		}, graphFitDelayMillisecond);
 	}
 
-	function nodeLabel(node: ForceGraphNode) {
+	function clearGraphFit(): void {
+		if (graphFitTimeoutID === null) return;
+		window.clearTimeout(graphFitTimeoutID);
+		graphFitTimeoutID = null;
+	}
+
+	function nodeLabel(node: ForceGraphNode): string {
 		return [node.label, node.kind, node.scopeType, node.status].filter(Boolean).join(' · ');
 	}
 
-	function nodeColor(node: ForceGraphNode) {
+	function nodeColor(node: ForceGraphNode): string {
 		if (node.kind === 'namespace') return '#0f766e';
 		if (node.kind === 'fact') return '#7c3aed';
 		if (node.status === 'failed') return '#dc2626';
 		return '#475569';
 	}
 
-	function nodeValue(node: ForceGraphNode) {
+	function nodeValue(node: ForceGraphNode): number {
 		if (node.kind === 'namespace') return 9;
 		if (node.kind === 'fact') return 5;
 		return 4;
 	}
 </script>
 
-<div bind:this={containerElement} class="h-[420px] w-full min-w-0 overflow-hidden rounded-lg border bg-muted/20 sm:h-[520px]"></div>
+<div
+	bind:this={containerElement}
+	class="h-[min(58svh,520px)] min-h-[360px] w-full min-w-0 overflow-hidden rounded-lg border bg-muted/20"
+></div>

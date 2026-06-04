@@ -98,7 +98,7 @@
 	<title>{text.pageTitle}</title>
 </svelte:head>
 
-<main class="grid min-h-[calc(100svh-48px)] gap-5 overflow-x-hidden px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
+<main class="grid min-h-[calc(100svh-48px)] w-full flex-1 gap-5 overflow-x-hidden px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
 	<section class="flex min-w-0 flex-wrap items-start justify-between gap-3">
 		<div class="min-w-0">
 			<h1 class="flex items-center gap-2 text-xl font-semibold">
