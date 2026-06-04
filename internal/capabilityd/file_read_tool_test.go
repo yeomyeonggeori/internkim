@@ -109,6 +109,63 @@ func TestDocumentReadFallsBackToNoOCRWithoutOpenRouterKey(t *testing.T) {
 	}
 }
 
+func TestDocumentReadUsesNoOCRForHTMLWithOpenRouterKey(t *testing.T) {
+	workspacePath := t.TempDir()
+	sourcePath := filepath.Join(workspacePath, "index.html")
+	writeFileReadTestFile(t, sourcePath, "<h1>HTML Title</h1>")
+	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-file")
+	var helperRequest fileReadHelperRequest
+	service := Service{
+		Configuration: Configuration{
+			OpenRouterKeyPath:     secretPath,
+			OpenRouterBaseURL:     "https://openrouter.test/api/v1/chat/completions",
+			OpenRouterModel:       "openrouter/vision-model",
+			BlueclawWorkspacePath: workspacePath,
+			FileReadPythonPath:    "/test/python",
+		}.WithDefaults(),
+		RunCommand: func(ctx context.Context, executable string, arguments []string, input []byte) ([]byte, error) {
+			if errorValue := json.Unmarshal(input, &helperRequest); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			return []byte(`{"content":"# HTML Title"}`), nil
+		},
+	}
+
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "document.read", strings.NewReader(`{"input":{"path":"/workspace/index.html"}}`))
+	if errorValue != nil {
+		t.Fatalf("expected document.read: %v", errorValue)
+	}
+	if response.IsError || response.Content != "# HTML Title" {
+		t.Fatalf("unexpected response: %+v", response)
+	}
+	if helperRequest.Path != sourcePath || helperRequest.OCRMode != "never" || helperRequest.OpenRouterAPIKey != "" {
+		t.Fatalf("expected HTML to use no-OCR conversion, got %+v", helperRequest)
+	}
+}
+
+func TestFileReadHelperIgnoresStderrNoise(t *testing.T) {
+	workspacePath := t.TempDir()
+	pythonPath := filepath.Join(workspacePath, "fake-python")
+	writeFileReadTestFile(t, pythonPath, "#!/bin/sh\nprintf '\\033[32mnoise\\033[0m\\n' >&2\nprintf '{\"content\":\"# Clean\"}'\n")
+	if errorValue := os.Chmod(pythonPath, 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	service := Service{
+		Configuration: Configuration{
+			BlueclawWorkspacePath: workspacePath,
+			FileReadPythonPath:    pythonPath,
+		}.WithDefaults(),
+	}
+
+	response, errorValue := service.runFileReadHelper(context.Background(), fileReadHelperRequest{Path: filepath.Join(workspacePath, "document.html")})
+	if errorValue != nil {
+		t.Fatalf("expected stderr noise to be ignored: %v", errorValue)
+	}
+	if response.Content != "# Clean" {
+		t.Fatalf("unexpected response: %+v", response)
+	}
+}
+
 func TestDocumentReadUsesNoOCRFallbackWhenOCRAttemptFails(t *testing.T) {
 	workspacePath := t.TempDir()
 	writeFileReadTestFile(t, filepath.Join(workspacePath, "scan.pdf"), "pdf")

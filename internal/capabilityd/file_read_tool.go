@@ -284,7 +284,15 @@ func (service Service) runFileReadHelper(ctx context.Context, request fileReadHe
 	} else {
 		command := exec.CommandContext(ctx, pythonPath, helperPath)
 		command.Stdin = bytes.NewReader(requestDocument)
-		output, errorValue = command.CombinedOutput()
+		var stdout bytes.Buffer
+		var stderr bytes.Buffer
+		command.Stdout = &stdout
+		command.Stderr = &stderr
+		errorValue = command.Run()
+		output = stdout.Bytes()
+		if errorValue != nil {
+			return fileReadHelperResponse{}, fmt.Errorf("%w: %s", errorValue, strings.TrimSpace(stderr.String()))
+		}
 	}
 	if errorValue != nil {
 		return fileReadHelperResponse{}, fmt.Errorf("%w: %s", errorValue, strings.TrimSpace(string(output)))
@@ -322,7 +330,7 @@ func (service Service) documentConversionAttempts(hostPath string, maxPages int)
 	configuration := service.Configuration.WithDefaults()
 	attempts := []documentConversionAttempt{}
 	apiKey := readSecretValue(configuration.OpenRouterKeyPath)
-	if !configuration.LocalOnly && strings.TrimSpace(apiKey) != "" && !isPlaceholderOpenRouterKey(apiKey) {
+	if documentConversionShouldTryOCR(hostPath) && !configuration.LocalOnly && strings.TrimSpace(apiKey) != "" && !isPlaceholderOpenRouterKey(apiKey) {
 		attempts = append(attempts, documentConversionAttempt{
 			Backend: "openrouter",
 			Model:   configuration.OpenRouterModel,
@@ -337,6 +345,10 @@ func (service Service) documentConversionAttempts(hostPath string, maxPages int)
 		})
 	}
 	return attempts
+}
+
+func documentConversionShouldTryOCR(hostPath string) bool {
+	return strings.EqualFold(filepath.Ext(strings.TrimSpace(hostPath)), ".pdf")
 }
 
 func writeFileReadHelper() (string, func(), error) {
