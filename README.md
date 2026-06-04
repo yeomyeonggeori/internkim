@@ -192,6 +192,39 @@ INTERNKIM_BLUECLAW_USE_LOCAL=1 ./internkim setup --only binaries,blueclaw-payloa
 
 Firecracker runtime payload에 Blueclaw Go 소스 변경을 확실히 포함해야 할 때는 setup 전에 `make prepare-blueclaw-payload`를 실행하고, 이어지는 setup에는 `INTERNKIM_BLUECLAW_USE_LOCAL=1`을 유지하세요. Skill/script만 바꾸는 경우에도 payload 또는 workspace skill 배포가 필요합니다. Lab setup은 이 로컬 Blueclaw 모드를 기본으로 켭니다.
 
+### Manual Release Updates
+
+제품 업데이트는 v1에서 자동 설치하지 않습니다. 개발 머신이나 CI가 검증된 release set을 R2에 publish하고, 각 기기는 Admin Web UI에서 현재 release와 stable release를 비교한 뒤 운영자가 버튼을 눌러 적용합니다. 기기는 component별 latest를 따로 적용하지 않고 하나의 release set만 적용합니다.
+
+Publish에 필요한 R2 환경 변수:
+
+```bash
+export INTERNKIM_RELEASE_R2_ACCOUNT_ID=<cloudflare-account-id>
+export INTERNKIM_RELEASE_R2_BUCKET=<bucket>
+export INTERNKIM_RELEASE_R2_ACCESS_KEY_ID=<access-key-id>
+export INTERNKIM_RELEASE_R2_SECRET_ACCESS_KEY=<secret-access-key>
+export INTERNKIM_RELEASE_PUBLIC_BASE_URL=https://updates.intern.kim
+export INTERNKIM_RELEASE_SIGNING_KEY=<optional-shared-signing-key>
+```
+
+Release set publish 전에 board UI와 Blueclaw payload를 최신으로 준비합니다.
+
+```bash
+cd web && bun run build:board
+cd ..
+make prepare-blueclaw-payload
+./internkim release publish
+```
+
+기기 상태와 적용은 CLI에서도 같은 release set API를 사용합니다.
+
+```bash
+./internkim update check --profile dawn --node 1
+./internkim update apply --profile dawn --node 1
+```
+
+`blueclaw-payload-direct`는 복구와 디버그용 fallback입니다. 일반 업데이트는 release set publish와 Admin Web UI 또는 `internkim update apply`를 사용하세요.
+
 주요 setup 단계:
 1. SSH로 Jetson 연결
 2. 웹 앱 빌드 + Cloudflare Pages 배포

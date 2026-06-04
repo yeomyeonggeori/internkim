@@ -51,6 +51,8 @@ type Configuration struct {
 	MattermostTokenPath         string
 	OpenRouterKeyPath           string
 	OpenRouterModelsURL         string
+	ReleaseRegistryURL          string
+	ReleaseSigningKeyPath       string
 	MattermostBotTokenPath      string
 	AdminEmailPath              string
 	ClaimedAdminEmailPath       string
@@ -221,6 +223,8 @@ func DefaultConfiguration() Configuration {
 		MattermostTokenPath:         "/root/.internkim/secrets/mattermost-bot-token",
 		OpenRouterKeyPath:           "/root/.internkim/secrets/openrouter-api-key",
 		OpenRouterModelsURL:         "https://openrouter.ai/api/v1/models",
+		ReleaseRegistryURL:          "https://updates.intern.kim",
+		ReleaseSigningKeyPath:       "/root/.internkim/secrets/release-signing-key",
 		MattermostBotTokenPath:      "/root/.internkim/secrets/mattermost-bot-token",
 		AdminEmailPath:              "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:       "/root/.internkim/state/admin/claimed-admin-email",
@@ -544,12 +548,28 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.handleBlueclawUpdateUpload(responseWriter, request, path)
 		return
 	}
+	if request.Method == http.MethodGet && path == "/updates/status" {
+		service.writeReleaseUpdateStatus(responseWriter, request)
+		return
+	}
+	if request.Method == http.MethodGet && strings.HasPrefix(path, "/updates/jobs/") {
+		service.writeJob(responseWriter, strings.TrimPrefix(path, "/updates/jobs/"))
+		return
+	}
+	if request.Method == http.MethodPost && path == "/updates/apply" && !service.isAuthorized(request) {
+		service.applyReleaseUpdateSigned(responseWriter, request)
+		return
+	}
 	if !service.isAuthorized(request) {
 		http.Error(responseWriter, "admin access required", http.StatusForbidden)
 		return
 	}
 
 	switch {
+	case request.Method == http.MethodPost && path == "/updates/apply":
+		service.applyReleaseUpdate(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/updates/rollback":
+		service.rollbackReleaseUpdate(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/updates/blueclaw/status":
 		service.writeBlueclawUpdateStatus(responseWriter)
 	case request.Method == http.MethodPost && path == "/updates/blueclaw/apply":
@@ -2480,6 +2500,12 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.OpenRouterModelsURL == "" {
 		configuration.OpenRouterModelsURL = defaultConfiguration.OpenRouterModelsURL
+	}
+	if configuration.ReleaseRegistryURL == "" {
+		configuration.ReleaseRegistryURL = defaultConfiguration.ReleaseRegistryURL
+	}
+	if configuration.ReleaseSigningKeyPath == "" {
+		configuration.ReleaseSigningKeyPath = defaultConfiguration.ReleaseSigningKeyPath
 	}
 	if configuration.MattermostBotTokenPath == "" {
 		configuration.MattermostBotTokenPath = defaultConfiguration.MattermostBotTokenPath
