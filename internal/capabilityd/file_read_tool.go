@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,11 +24,14 @@ var fileReadHelperDocument string
 const defaultFileReadMaximumOutputBytes = 200000
 const hardFileReadMaximumOutputBytes = 1000000
 
-type fileReadInput struct {
+type documentReadInput struct {
 	Path           string `json:"path"`
-	OCRMode        string `json:"ocrMode"`
 	MaxPages       int    `json:"maxPages"`
 	MaxOutputBytes int    `json:"maxOutputBytes"`
+}
+
+type imageReadInput struct {
+	Path string `json:"path"`
 }
 
 type fileReadHelperRequest struct {
@@ -43,7 +48,7 @@ type fileReadHelperResponse struct {
 	Warnings []string `json:"warnings,omitempty"`
 }
 
-type fileReadResult struct {
+type documentReadResult struct {
 	Status    string   `json:"status"`
 	Path      string   `json:"path"`
 	Format    string   `json:"format"`
@@ -54,50 +59,49 @@ type fileReadResult struct {
 	Truncated bool     `json:"truncated,omitempty"`
 }
 
-func isFileReadTool(toolName string) bool {
-	return strings.TrimSpace(toolName) == "file.read"
+type documentConversionAttempt struct {
+	Backend string
+	Model   string
+	Request fileReadHelperRequest
 }
 
-func (service Service) invokeFileReadTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	input, errorValue := decodeFileReadInput(request.Input)
+func isDocumentReadTool(toolName string) bool {
+	return strings.TrimSpace(toolName) == "document.read"
+}
+
+func isImageReadTool(toolName string) bool {
+	return strings.TrimSpace(toolName) == "image.read"
+}
+
+func (service Service) invokeDocumentReadTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	input, errorValue := decodeDocumentReadInput(request.Input)
 	if errorValue != nil {
-		return fileReadErrorResponse(request.ToolName, errorValue.Error(), "invalid_input", "input_validation", false), nil
+		return documentReadErrorResponse(request.ToolName, errorValue.Error(), "invalid_input", "input_validation", false), nil
 	}
-	configuration := service.Configuration.WithDefaults()
 	hostPath, agentPath, errorValue := service.resolveFileReadPath(input.Path)
 	if errorValue != nil {
-		return fileReadErrorResponse(request.ToolName, errorValue.Error(), "invalid_workspace_path", "path_validation", false), nil
+		return documentReadErrorResponse(request.ToolName, errorValue.Error(), "invalid_workspace_path", "path_validation", false), nil
 	}
-	if input.OCRMode != "never" && configuration.LocalOnly {
-		return fileReadErrorResponse(request.ToolName, "remote OCR is disabled in local-only mode", "local_only", "openrouter_configuration", false), nil
+	contentType := detectWorkspaceFileContentType(hostPath)
+	if strings.HasPrefix(contentType, "image/") {
+		return documentReadErrorResponse(request.ToolName, "image files must be read with image.read", "use_image_read", "content_type", false), nil
 	}
-	apiKey := readSecretValue(configuration.OpenRouterKeyPath)
-	if input.OCRMode != "never" && (strings.TrimSpace(apiKey) == "" || isPlaceholderOpenRouterKey(apiKey)) {
-		return fileReadErrorResponse(request.ToolName, "OpenRouter API key is not configured", "missing_openrouter_key", "openrouter_configuration", false), nil
-	}
-	helperResponse, errorValue := service.runFileReadHelper(ctx, fileReadHelperRequest{
-		Path:              hostPath,
-		OCRMode:           input.OCRMode,
-		MaxPages:          input.MaxPages,
-		OpenRouterAPIKey:  apiKey,
-		OpenRouterBaseURL: openRouterClientBaseURL(configuration.OpenRouterBaseURL),
-		OpenRouterModel:   configuration.OpenRouterModel,
-	})
+	helperResponse, backend, model, errorValue := service.convertDocument(ctx, hostPath, input.MaxPages)
 	if errorValue != nil {
-		return fileReadErrorResponse(request.ToolName, errorValue.Error(), "file_read_failed", "markitdown_conversion", true), nil
+		return documentReadErrorResponse(request.ToolName, errorValue.Error(), "document_read_failed", "markitdown_conversion", true), nil
 	}
 	content := strings.TrimSpace(helperResponse.Content)
 	if content == "" {
-		return fileReadErrorResponse(request.ToolName, "converted file content was empty", "file_read_empty", "markitdown_conversion", false), nil
+		return documentReadErrorResponse(request.ToolName, "converted file content was empty", "document_read_empty", "markitdown_conversion", false), nil
 	}
 	content, isTruncated := truncateTextByBytes(content, input.MaxOutputBytes)
-	result := fileReadResult{
+	result := documentReadResult{
 		Status:    "ok",
 		Path:      agentPath,
 		Format:    "markdown",
 		Content:   content,
-		Backend:   "openrouter",
-		Model:     configuration.OpenRouterModel,
+		Backend:   backend,
+		Model:     model,
 		Warnings:  helperResponse.Warnings,
 		Truncated: isTruncated,
 	}
@@ -107,7 +111,7 @@ func (service Service) invokeFileReadTool(ctx context.Context, request capabilit
 	}
 	return capabilities.ToolInvokeResponse{
 		Provider:        "markitdown",
-		SelectedBackend: capabilities.LLMBackendRemote,
+		SelectedBackend: selectedDocumentBackend(backend),
 		ToolName:        request.ToolName,
 		Status:          "ok",
 		Content:         content,
@@ -115,30 +119,84 @@ func (service Service) invokeFileReadTool(ctx context.Context, request capabilit
 	}, nil
 }
 
-func decodeFileReadInput(document json.RawMessage) (fileReadInput, error) {
-	var input fileReadInput
+func (service Service) invokeImageReadTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	input, errorValue := decodeImageReadInput(request.Input)
+	if errorValue != nil {
+		return documentReadErrorResponse(request.ToolName, errorValue.Error(), "invalid_input", "input_validation", false), nil
+	}
+	hostPath, agentPath, errorValue := service.resolveFileReadPath(input.Path)
+	if errorValue != nil {
+		return documentReadErrorResponse(request.ToolName, errorValue.Error(), "invalid_workspace_path", "path_validation", false), nil
+	}
+	contentType := detectWorkspaceFileContentType(hostPath)
+	if !strings.HasPrefix(contentType, "image/") {
+		return documentReadErrorResponse(request.ToolName, "non-image files must be read with document.read or file.read", "use_document_read", "content_type", false), nil
+	}
+	fileInformation, errorValue := os.Stat(hostPath)
+	if errorValue != nil {
+		return documentReadErrorResponse(request.ToolName, errorValue.Error(), "image_stat_failed", "path_validation", false), nil
+	}
+	if fileInformation.Size() > maximumInputImagePartBytes {
+		return documentReadErrorResponse(request.ToolName, "image is larger than the model input limit", "image_too_large", "image_read", false), nil
+	}
+	document, errorValue := os.ReadFile(hostPath)
+	if errorValue != nil {
+		return documentReadErrorResponse(request.ToolName, errorValue.Error(), "image_read_failed", "image_read", true), nil
+	}
+	result := map[string]any{
+		"status": "ok",
+		"path":   agentPath,
+		"attachments": []map[string]any{{
+			"devicePath":    agentPath,
+			"filename":      filepath.Base(agentPath),
+			"contentType":   contentType,
+			"sizeBytes":     fileInformation.Size(),
+			"contentBase64": base64.StdEncoding.EncodeToString(document),
+		}},
+	}
+	resultDocument, errorValue := json.Marshal(result)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	return capabilities.ToolInvokeResponse{
+		Provider:        "workspace",
+		SelectedBackend: capabilities.LLMBackendDevice,
+		ToolName:        request.ToolName,
+		Status:          "ok",
+		Content:         "image loaded",
+		Result:          resultDocument,
+	}, nil
+}
+
+func decodeDocumentReadInput(document json.RawMessage) (documentReadInput, error) {
+	var input documentReadInput
 	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
-		return fileReadInput{}, errorValue
+		return documentReadInput{}, errorValue
 	}
 	input.Path = strings.TrimSpace(input.Path)
-	input.OCRMode = strings.ToLower(strings.TrimSpace(input.OCRMode))
-	if input.OCRMode == "" {
-		input.OCRMode = "auto"
-	}
 	if input.Path == "" {
-		return fileReadInput{}, errors.New("path is required")
-	}
-	if input.OCRMode != "auto" && input.OCRMode != "always" && input.OCRMode != "never" {
-		return fileReadInput{}, errors.New("ocrMode must be auto, always, or never")
+		return documentReadInput{}, errors.New("path is required")
 	}
 	if input.MaxPages < 0 || input.MaxPages > 500 {
-		return fileReadInput{}, errors.New("maxPages must be between 0 and 500")
+		return documentReadInput{}, errors.New("maxPages must be between 0 and 500")
 	}
 	if input.MaxOutputBytes == 0 {
 		input.MaxOutputBytes = defaultFileReadMaximumOutputBytes
 	}
 	if input.MaxOutputBytes < 1024 || input.MaxOutputBytes > hardFileReadMaximumOutputBytes {
-		return fileReadInput{}, fmt.Errorf("maxOutputBytes must be between 1024 and %d", hardFileReadMaximumOutputBytes)
+		return documentReadInput{}, fmt.Errorf("maxOutputBytes must be between 1024 and %d", hardFileReadMaximumOutputBytes)
+	}
+	return input, nil
+}
+
+func decodeImageReadInput(document json.RawMessage) (imageReadInput, error) {
+	var input imageReadInput
+	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
+		return imageReadInput{}, errorValue
+	}
+	input.Path = strings.TrimSpace(input.Path)
+	if input.Path == "" {
+		return imageReadInput{}, errors.New("path is required")
 	}
 	return input, nil
 }
@@ -226,7 +284,15 @@ func (service Service) runFileReadHelper(ctx context.Context, request fileReadHe
 	} else {
 		command := exec.CommandContext(ctx, pythonPath, helperPath)
 		command.Stdin = bytes.NewReader(requestDocument)
-		output, errorValue = command.CombinedOutput()
+		var stdout bytes.Buffer
+		var stderr bytes.Buffer
+		command.Stdout = &stdout
+		command.Stderr = &stderr
+		errorValue = command.Run()
+		output = stdout.Bytes()
+		if errorValue != nil {
+			return fileReadHelperResponse{}, fmt.Errorf("%w: %s", errorValue, strings.TrimSpace(stderr.String()))
+		}
 	}
 	if errorValue != nil {
 		return fileReadHelperResponse{}, fmt.Errorf("%w: %s", errorValue, strings.TrimSpace(string(output)))
@@ -236,6 +302,53 @@ func (service Service) runFileReadHelper(ctx context.Context, request fileReadHe
 		return fileReadHelperResponse{}, errorValue
 	}
 	return response, nil
+}
+
+func (service Service) convertDocument(ctx context.Context, hostPath string, maxPages int) (fileReadHelperResponse, string, string, error) {
+	attempts := service.documentConversionAttempts(hostPath, maxPages)
+	failures := []string{}
+	for _, attempt := range attempts {
+		response, errorValue := service.runFileReadHelper(ctx, attempt.Request)
+		if errorValue == nil {
+			return response, attempt.Backend, attempt.Model, nil
+		}
+		failures = append(failures, attempt.Backend+": "+errorValue.Error())
+	}
+	fallbackResponse, errorValue := service.runFileReadHelper(ctx, fileReadHelperRequest{
+		Path:     hostPath,
+		OCRMode:  "never",
+		MaxPages: maxPages,
+	})
+	if errorValue != nil {
+		return fileReadHelperResponse{}, "", "", errors.New(strings.Join(append(failures, "no_ocr: "+errorValue.Error()), "; "))
+	}
+	fallbackResponse.Warnings = append(fallbackResponse.Warnings, "OCR failed; returned non-OCR extraction. "+strings.Join(failures, "; "))
+	return fallbackResponse, "markitdown", "no_ocr", nil
+}
+
+func (service Service) documentConversionAttempts(hostPath string, maxPages int) []documentConversionAttempt {
+	configuration := service.Configuration.WithDefaults()
+	attempts := []documentConversionAttempt{}
+	apiKey := readSecretValue(configuration.OpenRouterKeyPath)
+	if documentConversionShouldTryOCR(hostPath) && !configuration.LocalOnly && strings.TrimSpace(apiKey) != "" && !isPlaceholderOpenRouterKey(apiKey) {
+		attempts = append(attempts, documentConversionAttempt{
+			Backend: "openrouter",
+			Model:   configuration.OpenRouterModel,
+			Request: fileReadHelperRequest{
+				Path:              hostPath,
+				OCRMode:           "always",
+				MaxPages:          maxPages,
+				OpenRouterAPIKey:  apiKey,
+				OpenRouterBaseURL: openRouterClientBaseURL(configuration.OpenRouterBaseURL),
+				OpenRouterModel:   configuration.OpenRouterModel,
+			},
+		})
+	}
+	return attempts
+}
+
+func documentConversionShouldTryOCR(hostPath string) bool {
+	return strings.EqualFold(filepath.Ext(strings.TrimSpace(hostPath)), ".pdf")
 }
 
 func writeFileReadHelper() (string, func(), error) {
@@ -263,6 +376,24 @@ func openRouterClientBaseURL(value string) string {
 	return strings.TrimRight(baseURL, "/")
 }
 
+func selectedDocumentBackend(backend string) string {
+	if strings.TrimSpace(backend) == "local" {
+		return capabilities.LLMBackendDevice
+	}
+	return capabilities.LLMBackendRemote
+}
+
+func detectWorkspaceFileContentType(path string) string {
+	file, errorValue := os.Open(path)
+	if errorValue != nil {
+		return "application/octet-stream"
+	}
+	defer file.Close()
+	buffer := make([]byte, 512)
+	byteCount, _ := file.Read(buffer)
+	return http.DetectContentType(buffer[:byteCount])
+}
+
 func truncateTextByBytes(value string, maximumBytes int) (string, bool) {
 	if len(value) <= maximumBytes {
 		return value, false
@@ -283,7 +414,7 @@ func truncateTextByBytes(value string, maximumBytes int) (string, bool) {
 	return value[:endIndex], true
 }
 
-func fileReadErrorResponse(toolName string, message string, code string, stage string, retryable bool) capabilities.ToolInvokeResponse {
+func documentReadErrorResponse(toolName string, message string, code string, stage string, retryable bool) capabilities.ToolInvokeResponse {
 	result, _ := json.Marshal(map[string]any{
 		"status":       "error",
 		"message":      message,

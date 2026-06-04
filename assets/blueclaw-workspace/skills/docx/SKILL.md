@@ -3,9 +3,12 @@ name: docx
 description: Create, read, edit, and attach Word documents in .docx format. Use for Word documents, reports, memos, letters, templates, tracked changes review, comments, document cleanup, .docx conversion, 워드, 문서, 보고서, 메모, 서식, or docx requests. Do not use for PDFs, spreadsheets, or slide decks unless the user also asks for a Word output.
 when_to_use: Use when the user asks for Word, .docx, report, memo, letter, template, document formatting, document editing, 문서, 워드, 보고서, 메모, 서식, or a polished Word deliverable.
 allowed-tools:
+  - file.preview
   - file.read
   - terminal.run
   - file.write
+  - file.edit
+  - file.patch
   - file.promote
   - file.attach
 ---
@@ -17,7 +20,7 @@ Create and modify Word documents as local `.docx` files, then attach the final f
 ## Workflow
 
 1. Clarify only missing requirements that change the document structure, such as audience, title, language, required sections, or source file.
-2. When the user asks to read, summarize, extract, OCR, or reuse content from an existing file, call `file.read` first.
+2. When the user asks to read, summarize, extract, OCR, or reuse content from an existing file, call `file.preview` first; use `file.read` only for exact UTF-8 text ranges after previewing.
 3. Create work under `tmp/<document-slug>` relative to the default writable workspace directory; do not use Blueclaw internal temporary paths.
 4. For straightforward new documents, write a JSON spec and run `scripts/create_docx.py`.
 5. For custom layouts or edits that exceed the JSON script, write a task-local Python file and run it through `scripts/skill_runtime.py python <file.py>`.

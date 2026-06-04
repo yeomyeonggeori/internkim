@@ -16,6 +16,7 @@ import (
 	"time"
 
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 type verifyTarget struct {
@@ -47,6 +48,8 @@ func runVerifyArguments(arguments []string) error {
 		return runVerifyAPI(arguments)
 	case "mattermost":
 		return runVerifyMattermost(arguments)
+	case "site":
+		return runVerifySite(arguments)
 	case "browser":
 		return runVerifyBrowser(arguments)
 	default:
@@ -67,6 +70,8 @@ func runVerifyMattermost(arguments []string) error {
 	flagSet := flag.NewFlagSet("verify mattermost", flag.ContinueOnError)
 	prompt := flagSet.String("prompt", "", "Post this prompt through the real Mattermost ingress path")
 	expectBrowserOpen := flagSet.Bool("expect-browser-open", false, "Require a successful browser.open tool result for prompt verification")
+	expectPublicURL := flagSet.Bool("expect-public-url", false, "Require a public URL in the final bot reply and verify it returns site HTML")
+	htmlAttachmentFollowupE2E := flagSet.Bool("html-attachment-followup-e2e", false, "Upload an HTML file through Mattermost and verify current and follow-up attachment preview")
 	expectedTools := repeatedStringFlag{}
 	expectedEvents := repeatedStringFlag{}
 	flagSet.Var(&expectedTools, "expect-tool", "Require a requested tool event for prompt verification; repeat for multiple tools")
@@ -74,6 +79,7 @@ func runVerifyMattermost(arguments []string) error {
 	browserOpenE2E := flagSet.Bool("browser-open-e2e", false, "Pair a local probe companion and require a successful browser.open result")
 	keep := flagSet.Bool("keep", false, "Keep probe messages and users for inspection")
 	keepBrowser := flagSet.Bool("keep-browser", false, "Keep the local browser window open after browser-open E2E")
+	downloadFilesTo := flagSet.String("download-files-to", "", "Download final Mattermost bot attachments into this local directory")
 	timeoutSeconds := flagSet.Int("timeout", 240, "Seconds to wait for the bot reply")
 	companionPath := flagSet.String("companion-path", "/Applications/Intern Kim Companion.app/Contents/MacOS/internkim-companion", "Local internkim-companion executable for browser-open E2E")
 	agentBrowserPath := flagSet.String("agent-browser-path", "/Applications/Intern Kim Companion.app/Contents/MacOS/agent-browser", "Local agent-browser executable for browser-open E2E")
@@ -116,6 +122,9 @@ func runVerifyMattermost(arguments []string) error {
 		return errorValue
 	}
 	fmt.Printf("verify mattermost: %s@%s\n", verifyTarget.user, verifyTarget.host)
+	if *htmlAttachmentFollowupE2E {
+		return verifyTarget.runRemoteVerificationWithTimeout(verifyMattermostHTMLAttachmentFollowupScript(*keep, *timeoutSeconds), mattermostPromptSSHTimeout(*timeoutSeconds))
+	}
 	if *browserOpenE2E {
 		promptText := strings.TrimSpace(*prompt)
 		if promptText == "" {
@@ -124,12 +133,68 @@ func runVerifyMattermost(arguments []string) error {
 		return runMattermostBrowserOpenE2E(verifyTarget, promptText, *keep, *keepBrowser, *timeoutSeconds, *companionPath, *agentBrowserPath)
 	}
 	if strings.TrimSpace(*prompt) != "" {
-		return verifyTarget.runRemoteVerification(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, *expectBrowserOpen, expectedTools.Values(), expectedEvents.Values()))
+		return verifyTarget.runMattermostPromptVerification(
+			verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, *expectBrowserOpen, *expectPublicURL, expectedTools.Values(), expectedEvents.Values(), strings.TrimSpace(*downloadFilesTo) != ""),
+			mattermostPromptSSHTimeout(*timeoutSeconds),
+			strings.TrimSpace(*downloadFilesTo),
+		)
 	}
-	if *expectBrowserOpen || len(expectedTools.Values()) > 0 || len(expectedEvents.Values()) > 0 {
-		return fmt.Errorf("--expect-browser-open, --expect-tool, and --expect-event require --prompt")
+	if *expectBrowserOpen || *expectPublicURL || len(expectedTools.Values()) > 0 || len(expectedEvents.Values()) > 0 {
+		return fmt.Errorf("--expect-browser-open, --expect-public-url, --expect-tool, and --expect-event require --prompt")
 	}
 	return verifyTarget.runRemoteVerification(verifyMattermostScript())
+}
+
+func runVerifySite(arguments []string) error {
+	flagSet := flag.NewFlagSet("verify site", flag.ContinueOnError)
+	prompt := flagSet.String("prompt", "개인 홈페이지 하나 만들어서 배포해줘.", "Post this site creation prompt through Mattermost")
+	keep := flagSet.Bool("keep", false, "Keep probe messages, users, and site for inspection")
+	timeoutSeconds := flagSet.Int("timeout", 420, "Seconds to wait for the site deployment task")
+	host := flagSet.String("host", "", "Board host")
+	user := flagSet.String("user", "", "SSH user")
+	password := flagSet.String("password", "", "SSH password")
+	node := flagSet.String("node", "", "Fleet node target")
+	cloudflareSSH := flagSet.Bool("cloudflare-ssh", false, "Use Cloudflare SSH")
+	board := flagSet.String("board", "", "Board target")
+	simulation := flagSet.Bool("sim", false, "Use simulation target")
+	if errorValue := flagSet.Parse(arguments); errorValue != nil {
+		return errorValue
+	}
+
+	targetArguments := verifyTargetArguments(*host, *user, *password, *node, *cloudflareSSH, *board, *simulation)
+	verifyTarget, errorValue := resolveVerifyTarget(targetArguments)
+	if errorValue != nil {
+		return errorValue
+	}
+	fmt.Printf("verify site: %s@%s\n", verifyTarget.user, verifyTarget.host)
+	expectedTools := []string{"site.app.create", "site.app.build", "site.app.publish"}
+	return verifyTarget.runRemoteVerificationWithTimeout(verifyMattermostPromptScript(*prompt, *keep, *timeoutSeconds, false, true, expectedTools, nil, false), mattermostPromptSSHTimeout(*timeoutSeconds))
+}
+
+func verifyTargetArguments(host string, user string, password string, node string, cloudflareSSH bool, board string, simulation bool) []string {
+	targetArguments := []string{}
+	if strings.TrimSpace(host) != "" {
+		targetArguments = append(targetArguments, "--host", strings.TrimSpace(host))
+	}
+	if strings.TrimSpace(user) != "" {
+		targetArguments = append(targetArguments, "--user", strings.TrimSpace(user))
+	}
+	if strings.TrimSpace(password) != "" {
+		targetArguments = append(targetArguments, "--password", password)
+	}
+	if strings.TrimSpace(node) != "" {
+		targetArguments = append(targetArguments, "--node", strings.TrimSpace(node))
+	}
+	if cloudflareSSH {
+		targetArguments = append(targetArguments, "--cloudflare-ssh")
+	}
+	if strings.TrimSpace(board) != "" {
+		targetArguments = append(targetArguments, "--board", strings.TrimSpace(board))
+	}
+	if simulation {
+		targetArguments = append(targetArguments, "--sim")
+	}
+	return targetArguments
 }
 
 type repeatedStringFlag struct {
@@ -455,13 +520,16 @@ func resolveVerifyTarget(arguments []string) (verifyTarget, error) {
 	}
 	target = resolveLabHostForCommandTarget(target, repositoryRootPath)
 	target = simulationHostTarget(repositoryRootPath, target)
-	if strings.TrimSpace(target.host) == "" && target.mode != commandTargetModeSimulation {
+	configuration := loadConfig()
+	if target.useRemoteSSH && strings.TrimSpace(target.host) == "" {
+		target.host = firstNonEmptyString(target.sshHostname, resolveCloudflareSSHHostname(configuration, target))
+	}
+	if !target.useRemoteSSH && strings.TrimSpace(target.host) == "" && target.mode != commandTargetModeSimulation {
 		target.host = findBoardIPForCredentials(sshpassBin, target.stateDir, target.sshUser, target.sshPassword)
 	}
-	configuration := loadConfig()
 	sshClient := (*sshClient)(nil)
 	if strings.TrimSpace(target.host) != "" {
-		sshClient = newSSH(sshpassBin, target.sshUser, target.sshPassword, target.host)
+		sshClient = newVerifySSHClient(sshpassBin, target)
 	} else {
 		connection, isRemote, connectionError := resolveDeviceSSHConnection(configuration, sshpassBin, target)
 		if connectionError != nil || connection == nil {
@@ -485,8 +553,19 @@ func resolveVerifyTarget(arguments []string) (verifyTarget, error) {
 	}, nil
 }
 
+func newVerifySSHClient(sshpassBin string, target commandTarget) *sshClient {
+	if target.useRemoteSSH {
+		return newCloudflareSSH(sshpassBin, target.sshUser, target.sshPassword, target.host)
+	}
+	return newSSH(sshpassBin, target.sshUser, target.sshPassword, target.host)
+}
+
 func (target verifyTarget) runRemoteVerification(script string) error {
-	output, errorValue := target.sshClient.runResult(script)
+	return target.runRemoteVerificationWithTimeout(script, 60*time.Second)
+}
+
+func (target verifyTarget) runRemoteVerificationWithTimeout(script string, timeout time.Duration) error {
+	output, errorValue := target.sshClient.runResultWithTimeout(script, timeout)
 	if strings.TrimSpace(output) != "" {
 		fmt.Print(output)
 		if !strings.HasSuffix(output, "\n") {
@@ -497,6 +576,152 @@ func (target verifyTarget) runRemoteVerification(script string) error {
 		return fmt.Errorf("remote verification failed: %w", errorValue)
 	}
 	return nil
+}
+
+func (target verifyTarget) runMattermostPromptVerification(script string, timeout time.Duration, downloadDirectory string) error {
+	output, errorValue := target.sshClient.runResultWithTimeout(script, timeout)
+	if strings.TrimSpace(output) != "" {
+		fmt.Print(redactDownloadedMattermostFiles(output))
+		if !strings.HasSuffix(output, "\n") {
+			fmt.Println()
+		}
+	}
+	if errorValue != nil {
+		return fmt.Errorf("remote verification failed: %w", errorValue)
+	}
+	if strings.TrimSpace(downloadDirectory) == "" {
+		return nil
+	}
+	return writeDownloadedMattermostFiles(output, downloadDirectory)
+}
+
+type downloadedMattermostFile struct {
+	FileID        string `json:"fileID"`
+	Filename      string `json:"filename"`
+	ContentType   string `json:"contentType"`
+	ContentBase64 string `json:"contentBase64"`
+}
+
+type mattermostVerificationOutput struct {
+	DownloadedFiles []downloadedMattermostFile `json:"downloadedFiles"`
+}
+
+func writeDownloadedMattermostFiles(output string, downloadDirectory string) error {
+	document, found := parseLastJSONDocument(output)
+	if !found {
+		return fmt.Errorf("remote verification did not return JSON output with downloaded files")
+	}
+	var verificationOutput mattermostVerificationOutput
+	if errorValue := json.Unmarshal(document, &verificationOutput); errorValue != nil {
+		return fmt.Errorf("parse remote verification JSON: %w", errorValue)
+	}
+	if len(verificationOutput.DownloadedFiles) == 0 {
+		return fmt.Errorf("remote verification returned no downloaded Mattermost attachments")
+	}
+	if errorValue := os.MkdirAll(downloadDirectory, 0o755); errorValue != nil {
+		return fmt.Errorf("create download directory: %w", errorValue)
+	}
+	for _, downloadedFile := range verificationOutput.DownloadedFiles {
+		if errorValue := writeDownloadedMattermostFile(downloadedFile, downloadDirectory); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
+}
+
+func writeDownloadedMattermostFile(downloadedFile downloadedMattermostFile, downloadDirectory string) error {
+	filename := safeDownloadedMattermostFilename(downloadedFile)
+	content, errorValue := base64.StdEncoding.DecodeString(downloadedFile.ContentBase64)
+	if errorValue != nil {
+		return fmt.Errorf("decode Mattermost attachment %s: %w", downloadedFile.FileID, errorValue)
+	}
+	outputPath := filepath.Join(downloadDirectory, filename)
+	if errorValue := os.WriteFile(outputPath, content, 0o644); errorValue != nil {
+		return fmt.Errorf("write Mattermost attachment %s: %w", filename, errorValue)
+	}
+	fmt.Println("downloaded Mattermost attachment: " + outputPath)
+	return nil
+}
+
+func safeDownloadedMattermostFilename(downloadedFile downloadedMattermostFile) string {
+	filename := strings.TrimSpace(filepath.Base(downloadedFile.Filename))
+	if filename != "" && filename != "." {
+		return filename
+	}
+	fileID := strings.TrimSpace(downloadedFile.FileID)
+	if fileID != "" {
+		return fileID
+	}
+	return "mattermost-attachment"
+}
+
+func redactDownloadedMattermostFiles(output string) string {
+	document, found := parseLastJSONDocument(output)
+	if !found {
+		return output
+	}
+	var payload map[string]any
+	if errorValue := json.Unmarshal(document, &payload); errorValue != nil {
+		return output
+	}
+	downloadedFiles, isArray := payload["downloadedFiles"].([]any)
+	if !isArray {
+		return output
+	}
+	for _, value := range downloadedFiles {
+		fileDocument, isDocument := value.(map[string]any)
+		if !isDocument {
+			continue
+		}
+		contentBase64, isString := fileDocument["contentBase64"].(string)
+		if isString && contentBase64 != "" {
+			fileDocument["contentBase64"] = fmt.Sprintf("<redacted %d base64 chars>", len(contentBase64))
+		}
+	}
+	redactedDocument, errorValue := json.Marshal(payload)
+	if errorValue != nil {
+		return output
+	}
+	return replaceLastJSONDocument(output, string(redactedDocument))
+}
+
+func parseLastJSONDocument(output string) ([]byte, bool) {
+	trimmedOutput := strings.TrimSpace(output)
+	for index := len(trimmedOutput) - 1; index >= 0; index-- {
+		if trimmedOutput[index] != '{' {
+			continue
+		}
+		candidate := trimmedOutput[index:]
+		var document map[string]any
+		if json.Unmarshal([]byte(candidate), &document) == nil {
+			return []byte(candidate), true
+		}
+	}
+	return nil, false
+}
+
+func replaceLastJSONDocument(output string, replacement string) string {
+	trimmedOutput := strings.TrimSpace(output)
+	document, found := parseLastJSONDocument(trimmedOutput)
+	if !found {
+		return output
+	}
+	index := strings.LastIndex(trimmedOutput, string(document))
+	if index < 0 {
+		return output
+	}
+	prefix := trimmedOutput[:index]
+	if prefix == "" {
+		return replacement + "\n"
+	}
+	return prefix + replacement + "\n"
+}
+
+func mattermostPromptSSHTimeout(timeoutSeconds int) time.Duration {
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = 240
+	}
+	return time.Duration(timeoutSeconds+180) * time.Second
 }
 
 func runLocalBrowserVerification(target verifyTarget) error {
@@ -582,7 +807,7 @@ func runPlaywright(specPath string, environmentVariables map[string]string) erro
 }
 
 func verifyAPIScript() string {
-	return `set -euo pipefail
+	script := `set -euo pipefail
 
 echo "checking services"
 systemctl is-active mattermost | grep -q '^active$'
@@ -630,7 +855,7 @@ lookup_body="$(jq -cn --arg senderID "$bot_user_id" '{senderID:$senderID}')"
 curl --silent --show-error --fail --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$lookup_body" http://internkim/v1/platform/mattermost/identity.resolve | jq -e '.email != null' >/dev/null
 
 echo "checking llm capability"
-model="$(jq -r '.languageModel.capability.model // "google/gemini-3.1-flash-lite-preview"' /root/.blueclaw/config/runtime.json)"
+model="$(jq -r '.languageModel.capability.model // "__DEFAULT_OPENROUTER_MODEL__"' /root/.blueclaw/config/runtime.json)"
 llm_text_body="$(jq -cn --arg model "$model" '{
   model: $model,
   executionMode: "remote",
@@ -641,7 +866,7 @@ llm_text_body="$(jq -cn --arg model "$model" '{
 llm_text_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$llm_text_body" http://internkim/v1/llm/text)"
 printf '%s' "$llm_text_response" | jq -e '.content | type == "string" and length > 0' >/dev/null
 schema='{"type":"object","properties":{"reply":{"type":"string"}},"required":["reply"],"additionalProperties":false}'
-llm_structured_body="$(jq -cn --arg model "$model" --arg schema "$schema" '{
+llm_structured_body="$(jq -cn --arg model "$model" --argjson schema "$schema" '{
   model: $model,
   executionMode: "remote",
   messages: [{role:"user", content:"Return JSON only with reply set to ok."}],
@@ -651,6 +876,30 @@ llm_structured_body="$(jq -cn --arg model "$model" --arg schema "$schema" '{
 }')"
 llm_structured_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$llm_structured_body" http://internkim/v1/llm/structured)"
 printf '%s' "$llm_structured_response" | jq -e '.content | fromjson | .reply | type == "string"' >/dev/null
+llm_auto_structured_body="$(jq -cn --arg model "$model" --argjson schema "$schema" '{
+  model: $model,
+  executionMode: "auto",
+  messages: [{role:"user", content:"Return JSON only with reply set to ok."}],
+  structuredOutputSchema: {name:"smoke_reply", document:$schema, isStrictlyEnforced:true},
+  requireParameters: true,
+  enableResponseHealing: true
+}')"
+llm_auto_structured_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$llm_auto_structured_body" http://internkim/v1/llm/structured)"
+printf '%s' "$llm_auto_structured_response" | jq -e '.provider == "openrouter" and .selectedBackend == "remote" and (.content | fromjson | .reply | type == "string")' >/dev/null
+action_schema='{"oneOf":[{"type":"object","properties":{"action":{"type":"string","enum":["finish"]},"message":{"type":"string"},"goalStatus":{"type":"string","enum":["satisfied"]},"goalSatisfied":{"type":"boolean"},"completionEvidence":{"type":"array","items":{"type":"object"}},"qualityReview":{"type":"array","items":{"type":"object"}}},"required":["action","message","goalStatus","goalSatisfied","completionEvidence","qualityReview"],"additionalProperties":false}]}'
+llm_action_body="$(jq -cn --arg model "$model" --argjson schema "$action_schema" '{
+  model: $model,
+  executionMode: "auto",
+  messages: [
+    {role:"system", content:"You must finish this smoke test now. Use the finish action with message ok, goalStatus satisfied, goalSatisfied true, and empty evidence/review arrays."},
+    {role:"user", content:"Finish now."}
+  ],
+  structuredOutputSchema: {name:"blueclaw_agent_turn_action", document:$schema, isStrictlyEnforced:true},
+  requireParameters: true,
+  enableResponseHealing: true
+}')"
+llm_action_response="$(curl --silent --show-error --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$llm_action_body" http://internkim/v1/llm/structured)"
+printf '%s' "$llm_action_response" | jq -e '.provider == "openrouter" and .selectedBackend == "remote" and .constraintMode == "native_tool_call" and (.content | fromjson | .action == "finish")' >/dev/null
 
 echo "checking litert capability"
 if command -v litert-lm >/dev/null 2>&1 && [ -s /root/.internkim/models/gemma-4-E4B-it.litertlm ]; then
@@ -669,7 +918,7 @@ if command -v litert-lm >/dev/null 2>&1 && [ -s /root/.internkim/models/gemma-4-
     else
       printf 'litert capability: %s\n' "$(tr '\n' ' ' </tmp/internkim-verify-litert-error | cut -c1-180)"
     fi
-    exit 1
+    echo "litert capability: optional local check failed"
   fi
 else
   echo "litert capability: skipped"
@@ -730,6 +979,7 @@ PY
 
 echo "verify api: ok"
 `
+	return strings.ReplaceAll(script, "__DEFAULT_OPENROUTER_MODEL__", blueclaw.BlueclawDefaultModelName)
 }
 
 func verifyMattermostScript() string {
@@ -1116,7 +1366,7 @@ echo "verify mattermost: ok"
 `
 }
 
-func verifyMattermostPromptScript(prompt string, keep bool, timeoutSeconds int, expectBrowserOpen bool, expectedTools []string, expectedEvents []string) string {
+func verifyMattermostPromptScript(prompt string, keep bool, timeoutSeconds int, expectBrowserOpen bool, expectPublicURL bool, expectedTools []string, expectedEvents []string, downloadFiles bool) string {
 	if timeoutSeconds <= 0 {
 		timeoutSeconds = 240
 	}
@@ -1133,6 +1383,14 @@ func verifyMattermostPromptScript(prompt string, keep bool, timeoutSeconds int, 
 	if expectBrowserOpen {
 		expectBrowserOpenValue = "true"
 	}
+	expectPublicURLValue := "false"
+	if expectPublicURL {
+		expectPublicURLValue = "true"
+	}
+	downloadFilesValue := "false"
+	if downloadFiles {
+		downloadFilesValue = "true"
+	}
 	return fmt.Sprintf(`set -euo pipefail
 
 timestamp="$(date +%%s)"
@@ -1145,6 +1403,8 @@ expected_events_json="$(printf '%%s' %s | base64 -d)"
 keep_artifacts=%s
 timeout_seconds=%d
 expect_browser_open=%s
+expect_public_url=%s
+download_files=%s
 test_started_at="$(date +%%s%%3N)"
 
 api_request() {
@@ -1226,6 +1486,65 @@ blueclaw_request() {
   rm -f "$response_file"
 }
 
+download_bot_files() {
+  if [ "$download_files" != "true" ]; then
+    return 0
+  fi
+  printf '[]' > "$downloaded_files_file"
+  for file_id in $(jq -r '.file_ids[]?' "$bot_post_file"); do
+    file_info="$(api_request "fetch bot attachment info" GET "http://localhost:8065/api/v4/files/$file_id/info" "$admin_token")"
+    filename="$(printf '%%s' "$file_info" | jq -r --arg file_id "$file_id" '.name // .filename // $file_id')"
+    content_type="$(printf '%%s' "$file_info" | jq -r '.mime_type // .content_type // ""')"
+    attachment_file="$(mktemp)"
+    content_base64_file="$(mktemp)"
+    curl --silent --show-error --fail \
+      -H "Authorization: Bearer $admin_token" \
+      "http://localhost:8065/api/v4/files/$file_id" \
+      -o "$attachment_file"
+    base64 -w 0 "$attachment_file" > "$content_base64_file" 2>/dev/null || base64 "$attachment_file" | tr -d '\n' > "$content_base64_file"
+    next_downloaded_files_file="$(mktemp)"
+    jq \
+      --arg file_id "$file_id" \
+      --arg filename "$filename" \
+      --arg content_type "$content_type" \
+      --rawfile content_base64 "$content_base64_file" \
+      '. + [{fileID:$file_id, filename:$filename, contentType:$content_type, contentBase64:$content_base64}]' \
+      "$downloaded_files_file" > "$next_downloaded_files_file"
+    mv "$next_downloaded_files_file" "$downloaded_files_file"
+    rm -f "$attachment_file" "$content_base64_file"
+  done
+}
+
+wait_for_blueclaw_health() {
+  for _ in $(seq 1 "$timeout_seconds"); do
+    if curl --silent --show-error --fail --max-time 5 http://127.0.0.1:8080/admin/api/health |
+      jq -e '.status == "ok"' >/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "Blueclaw API did not become healthy before probe setup" >&2
+  return 1
+}
+
+capture_site_screenshots() {
+  local public_url="$1"
+  local browser_path
+  browser_path="$(command -v chromium || command -v chromium-browser || command -v google-chrome || command -v google-chrome-stable || true)"
+  if [ -z "$browser_path" ]; then
+    echo "expected Chromium-compatible browser for site screenshot verification" >&2
+    return 1
+  fi
+  desktop_screenshot_file="/tmp/internkim-site-$timestamp-desktop.png"
+  mobile_screenshot_file="/tmp/internkim-site-$timestamp-mobile.png"
+  timeout 45s "$browser_path" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=1440,1000 \
+    --screenshot="$desktop_screenshot_file" "$public_url" >/tmp/internkim-site-screenshot-desktop.log 2>&1
+  timeout 45s "$browser_path" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=390,900 \
+    --screenshot="$mobile_screenshot_file" "$public_url" >/tmp/internkim-site-screenshot-mobile.log 2>&1
+  test -s "$desktop_screenshot_file"
+  test -s "$mobile_screenshot_file"
+}
+
 login_headers="$(mktemp)"
 admin_password="$(cat /root/.internkim/secrets/mm-admin-pass)"
 login_body="$(jq -cn --arg login_id admin --arg password "$admin_password" '{login_id:$login_id,password:$password}')"
@@ -1253,6 +1572,13 @@ cleanup() {
       "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null || \
       curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
         "http://localhost:8065/api/v4/users/$user_id" >/dev/null || true
+  fi
+  if [ -n "${channel_id:-}" ]; then
+    for site_id in $(curl --silent --show-error http://127.0.0.1:8080/admin/api/sites | jq -r --arg conversation_id "$channel_id" '.sites[]? | select(.conversationID == $conversation_id) | .siteID'); do
+      curl --silent --show-error -X DELETE -H "Content-Type: application/json" \
+        -d '{"confirm":"DELETE","userConfirmed":true}' \
+        "http://127.0.0.1:8080/admin/api/sites/$site_id" >/dev/null || true
+    done
   fi
   curl --silent --show-error -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$email" >/dev/null || true
 }
@@ -1291,6 +1617,8 @@ bot_username="$(printf '%%s' "$bot_user" | jq -r '.username // empty')"
 test -n "$bot_user_id"
 
 delete_stale_probe_users
+
+wait_for_blueclaw_health
 
 user_body="$(jq -cn --arg email "$email" --arg username "$username" --arg password "$password" '{email:$email,username:$username,password:$password}')"
 user_id="$(api_request "create probe user" POST http://localhost:8065/api/v4/users "$admin_token" "$user_body" | jq -r '.id')"
@@ -1334,7 +1662,19 @@ if [ -z "$bot_post_id" ]; then
 fi
 
 bot_post_file="$(mktemp)"
+downloaded_files_file="$(mktemp)"
+printf '[]' > "$downloaded_files_file"
 api_request "fetch probe reply" GET "http://localhost:8065/api/v4/posts/$bot_post_id" "$admin_token" > "$bot_post_file"
+fetch_latest_bot_post() {
+  latest_bot_post_id="$(api_request "wait for latest bot reply" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=60" "$admin_token" |
+    jq -r --arg bot_user_id "$bot_user_id" --argjson posted_after "$user_post_create_at" \
+      '.posts[] | select(.user_id == $bot_user_id and .create_at >= $posted_after) | [.create_at, .id] | @tsv' |
+    sort -n | tail -1 | awk '{print $2}')"
+  if [ -n "$latest_bot_post_id" ]; then
+    bot_post_id="$latest_bot_post_id"
+    api_request "fetch latest bot reply" GET "http://localhost:8065/api/v4/posts/$bot_post_id" "$admin_token" > "$bot_post_file"
+  fi
+}
 task_run_id="$(blueclaw_request "find probe task" GET http://127.0.0.1:8080/admin/api/task |
   jq -r --arg prompt "$prompt" '[.[] | select(.prompt == $prompt)] | sort_by(.createdAt) | last | .taskRunID // empty')"
 task_detail_file="$(mktemp)"
@@ -1342,7 +1682,22 @@ printf '{}' > "$task_detail_file"
 if [ -n "$task_run_id" ]; then
   blueclaw_request "probe task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id" > "$task_detail_file"
 fi
+expected_tool_count="$(printf '%%s' "$expected_tools_json" | jq 'length')"
+expected_event_count="$(printf '%%s' "$expected_events_json" | jq 'length')"
+if [ -n "$task_run_id" ] && { [ "$expect_browser_open" = "true" ] || [ "$expected_tool_count" != "0" ] || [ "$expected_event_count" != "0" ]; }; then
+  for _ in $(seq 1 "$timeout_seconds"); do
+    blueclaw_request "probe task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id" > "$task_detail_file"
+    task_status="$(jq -r 'def detail: if type == "array" then .[0] else . end; detail.taskRun.status // empty' "$task_detail_file")"
+    if [ "$task_status" = "completed" ] || [ "$task_status" = "blocked" ] || [ "$task_status" = "failed" ] || [ "$task_status" = "cancelled" ]; then
+      break
+    fi
+    sleep 1
+  done
+fi
 browser_open_verified=false
+desktop_screenshot_file=""
+mobile_screenshot_file=""
+site_screenshots_verified=false
 if [ "$expect_browser_open" = "true" ]; then
   if [ -z "$task_run_id" ]; then
     echo "expected successful browser.open result, but no task was created for probe prompt" >&2
@@ -1381,13 +1736,70 @@ for expected_event in $(printf '%%s' "$expected_events_json" | jq -r '.[]'); do
   fi
 done
 
-expected_tool_count="$(printf '%%s' "$expected_tools_json" | jq 'length')"
-expected_event_count="$(printf '%%s' "$expected_events_json" | jq 'length')"
 if [ -n "$task_run_id" ] && { [ "$expect_browser_open" = "true" ] || [ "$expected_tool_count" != "0" ] || [ "$expected_event_count" != "0" ]; }; then
   task_status="$(jq -r 'def detail: if type == "array" then .[0] else . end; detail.taskRun.status // empty' "$task_detail_file")"
   if [ "$task_status" != "completed" ]; then
     echo "expected completed task for probe prompt, got ${task_status:-unknown} in task $task_run_id" >&2
     jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
+    exit 1
+  fi
+fi
+fetch_latest_bot_post
+download_bot_files
+
+if [ "$expect_public_url" = "true" ]; then
+  public_url=""
+  public_url_verified=false
+  public_html_file="$(mktemp)"
+  for _ in $(seq 1 "$timeout_seconds"); do
+    bot_post_id="$(api_request "wait for final site reply" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=60" "$admin_token" |
+      jq -r --arg bot_user_id "$bot_user_id" --argjson posted_after "$user_post_create_at" \
+        '.posts[] | select(.user_id == $bot_user_id and .create_at >= $posted_after) | [.create_at, .id] | @tsv' |
+      sort -n | tail -1 | awk '{print $2}')"
+    if [ -n "$bot_post_id" ]; then
+      api_request "fetch final site reply" GET "http://localhost:8065/api/v4/posts/$bot_post_id" "$admin_token" > "$bot_post_file"
+      bot_message="$(jq -r '.message // ""' "$bot_post_file")"
+      if printf '%%s\n' "$bot_message" | grep -Eiq 'bun 없음|외부 호스팅|관리자 점검|Quality Gate 기준 미충족|품질 검사 기준.*완성하지 못'; then
+        echo "site deploy final reply contained a generic infrastructure excuse: $bot_message" >&2
+        exit 1
+      fi
+      public_url="$(printf '%%s\n' "$bot_message" | grep -Eo 'https://[^[:space:])>]+' | sed -E 's/[).,;:!?*]+$//' | grep 'intern\.kim' | head -1 || true)"
+      if [ -n "$public_url" ]; then
+        if curl --location --fail --silent --show-error --max-time 30 "$public_url" -o "$public_html_file"; then
+          if ! grep -Fq 'Sorry, we could not find the page.' "$public_html_file" &&
+             ! grep -Fq 'INTERNKIM_SITE_STARTER_REPLACE_ME' "$public_html_file" &&
+             ! grep -Fq 'Replace this starter' "$public_html_file" &&
+             [ "$(wc -c < "$public_html_file")" -gt 200 ]; then
+            public_url_verified=true
+            break
+          fi
+        fi
+      fi
+    fi
+    sleep 1
+  done
+  if [ -z "$public_url" ]; then
+    echo "expected final site public URL in Mattermost bot reply" >&2
+    jq -r '.message // ""' "$bot_post_file" >&2 || true
+    exit 1
+  fi
+  if [ "$public_url_verified" != "true" ]; then
+    echo "site public URL did not return valid HTML: $public_url" >&2
+    exit 1
+  fi
+  if capture_site_screenshots "$public_url"; then
+    site_screenshots_verified=true
+  else
+    echo "site public URL could not be verified with browser screenshots: $public_url" >&2
+    jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | .[-10:] | map({name, body})' "$task_detail_file" >&2 || true
+    exit 1
+  fi
+  if grep -Fq 'Sorry, we could not find the page.' "$public_html_file"; then
+    echo "site public URL returned not-found page: $public_url" >&2
+    exit 1
+  fi
+  if grep -Fq 'INTERNKIM_SITE_STARTER_REPLACE_ME' "$public_html_file" || grep -Fq 'Replace this starter' "$public_html_file"; then
+    echo "site public URL returned starter scaffold instead of requested content: $public_url" >&2
     exit 1
   fi
 fi
@@ -1397,9 +1809,13 @@ jq -cn \
   --arg user_post_id "$user_post_id" \
   --arg bot_post_id "$bot_post_id" \
   --arg task_run_id "$task_run_id" \
+  --arg desktop_screenshot_file "$desktop_screenshot_file" \
+  --arg mobile_screenshot_file "$mobile_screenshot_file" \
   --argjson keep "$keep_artifacts" \
   --argjson browser_open_verified "$browser_open_verified" \
+  --argjson site_screenshots_verified "$site_screenshots_verified" \
   --slurpfile bot_post "$bot_post_file" \
+  --slurpfile downloaded_files "$downloaded_files_file" \
   --slurpfile task_detail "$task_detail_file" \
   '{
     ok: true,
@@ -1409,12 +1825,286 @@ jq -cn \
     botPostID: $bot_post_id,
     taskRunID: $task_run_id,
     browserOpenVerified: $browser_open_verified,
+    siteScreenshotsVerified: $site_screenshots_verified,
+    siteScreenshotFiles: [$desktop_screenshot_file, $mobile_screenshot_file],
     botMessage: $bot_post[0].message,
     fileIDs: ($bot_post[0].file_ids // []),
+    downloadedFiles: ($downloaded_files[0] // []),
     taskStatus: ((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskRun.status // null),
     taskEvents: (((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskEvents // []) | map({name, body: ((.body // "") | tostring | .[0:1200])}))
   }'
-`, strconv.Quote(encodedPrompt), strconv.Quote(encodedExpectedTools), strconv.Quote(encodedExpectedEvents), keepValue, timeoutSeconds, expectBrowserOpenValue)
+`, strconv.Quote(encodedPrompt), strconv.Quote(encodedExpectedTools), strconv.Quote(encodedExpectedEvents), keepValue, timeoutSeconds, expectBrowserOpenValue, expectPublicURLValue, downloadFilesValue)
+}
+
+func verifyMattermostHTMLAttachmentFollowupScript(keep bool, timeoutSeconds int) string {
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = 300
+	}
+	keepValue := "false"
+	if keep {
+		keepValue = "true"
+	}
+	return fmt.Sprintf(`set -euo pipefail
+
+timestamp="$(date +%%s)"
+email="probe-mattermost-attachment-$timestamp@internkim.test"
+username="probeattach$timestamp"
+password="ProbePass!$timestamp-InternKim-Mattermost"
+root_prompt="이 HTML 파일 내용 보고 개선점 말해줘. probe-$timestamp"
+followup_prompt="다시 시도해보자. probe-$timestamp"
+unique_title="InternKim Attachment Preview $timestamp"
+keep_artifacts=%s
+timeout_seconds=%d
+test_started_at="$(date +%%s%%3N)"
+
+api_request() {
+  local phase_name="$1"
+  local method="$2"
+  local url="$3"
+  local token="${4:-}"
+  local body="${5:-}"
+  local response_file
+  local status
+  local curl_status
+  response_file="$(mktemp)"
+  if [ -n "$body" ]; then
+    status="$(curl --silent --show-error --output "$response_file" --write-out "%%{http_code}" \
+      -X "$method" -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
+      -d "$body" "$url")" || curl_status="$?"
+  else
+    status="$(curl --silent --show-error --output "$response_file" --write-out "%%{http_code}" \
+      -X "$method" -H "Authorization: Bearer $token" "$url")" || curl_status="$?"
+  fi
+  if [ "${curl_status:-0}" != "0" ]; then
+    echo "Mattermost API curl failure during $phase_name: $method $url (curl exit ${curl_status:-0})" >&2
+    cat "$response_file" >&2 || true
+    rm -f "$response_file"
+    return "${curl_status:-1}"
+  fi
+  if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+    echo "Mattermost API failure during $phase_name: $method $url returned HTTP $status" >&2
+    cat "$response_file" >&2 || true
+    echo >&2
+    rm -f "$response_file"
+    return 22
+  fi
+  cat "$response_file"
+  rm -f "$response_file"
+}
+
+blueclaw_request() {
+  local phase_name="$1"
+  local method="$2"
+  local url="$3"
+  local body="${4:-}"
+  local response_file
+  local status
+  local curl_status
+  response_file="$(mktemp)"
+  if [ -n "$body" ]; then
+    status="$(curl --silent --show-error --output "$response_file" --write-out "%%{http_code}" \
+      -X "$method" -H "Content-Type: application/json" -d "$body" "$url")" || curl_status="$?"
+  else
+    status="$(curl --silent --show-error --output "$response_file" --write-out "%%{http_code}" \
+      -X "$method" "$url")" || curl_status="$?"
+  fi
+  if [ "${curl_status:-0}" != "0" ]; then
+    echo "Blueclaw API curl failure during $phase_name: $method $url (curl exit ${curl_status:-0})" >&2
+    cat "$response_file" >&2 || true
+    rm -f "$response_file"
+    return "${curl_status:-1}"
+  fi
+  if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+    echo "Blueclaw API failure during $phase_name: $method $url returned HTTP $status" >&2
+    cat "$response_file" >&2 || true
+    echo >&2
+    rm -f "$response_file"
+    return 22
+  fi
+  cat "$response_file"
+  rm -f "$response_file"
+}
+
+wait_for_blueclaw_health() {
+  for _ in $(seq 1 "$timeout_seconds"); do
+    if curl --silent --show-error --fail --max-time 5 http://127.0.0.1:8080/admin/api/health |
+      jq -e '.status == "ok"' >/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "Blueclaw API did not become healthy before attachment probe setup" >&2
+  return 1
+}
+
+task_id_for_prompt() {
+  local prompt="$1"
+  blueclaw_request "list tasks for attachment probe" GET http://127.0.0.1:8080/admin/api/task |
+    jq -r --arg prompt "$prompt" '[.[] | select(.prompt == $prompt)] | sort_by(.createdAt) | last | .taskRunID // empty'
+}
+
+wait_for_task_attachment_read() {
+  local prompt="$1"
+  local label="$2"
+  local task_id=""
+  local task_detail_file
+  task_detail_file="$(mktemp)"
+  for _ in $(seq 1 "$timeout_seconds"); do
+    task_id="$(task_id_for_prompt "$prompt")"
+    if [ -n "$task_id" ]; then
+      blueclaw_request "$label task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_id" > "$task_detail_file"
+      if jq -e --arg title "$unique_title" 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; (.name == "tool.file.preview.result" or .name == "tool.file.read.result" or .name == "tool.document.read.result") and ((.body // "") | tostring | contains($title)))' "$task_detail_file" >/dev/null; then
+        if jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "tool.terminal.run.requested")' "$task_detail_file" >/dev/null; then
+          echo "$label task used terminal.run instead of attachment read tools" >&2
+          jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
+          return 1
+        fi
+        task_status="$(jq -r 'def detail: if type == "array" then .[0] else . end; detail.taskRun.status // empty' "$task_detail_file")"
+        if [ "$task_status" = "completed" ]; then
+          printf '%%s' "$task_id"
+          return 0
+        fi
+      fi
+      task_status="$(jq -r 'def detail: if type == "array" then .[0] else . end; detail.taskRun.status // empty' "$task_detail_file")"
+      if [ "$task_status" = "completed" ]; then
+        echo "$label task completed without reading the Mattermost HTML attachment content: $task_id" >&2
+        jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
+        return 1
+      fi
+      if [ "$task_status" = "blocked" ] || [ "$task_status" = "failed" ] || [ "$task_status" = "cancelled" ]; then
+        echo "$label task ended as $task_status before successful attachment read: $task_id" >&2
+        jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
+        return 1
+      fi
+    fi
+    sleep 1
+  done
+  echo "timed out waiting for $label task to read Mattermost HTML attachment" >&2
+  return 1
+}
+
+latest_bot_message_after() {
+  local posted_after="$1"
+  api_request "fetch bot replies" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=80" "$admin_token" |
+    jq -r --arg bot_user_id "$bot_user_id" --argjson posted_after "$posted_after" \
+      '.posts[] | select(.user_id == $bot_user_id and .create_at >= $posted_after) | [.create_at, .message] | @tsv' |
+    sort -n | tail -1 | cut -f2-
+}
+
+assert_no_file_excuse() {
+  local message="$1"
+  local label="$2"
+  if printf '%%s\n' "$message" | grep -Eiq '파일을 찾을 수|파일에 접근할 수|다시.*업로드|직접.*공유|내용을 확인하지 못'; then
+    echo "$label bot reply still claims the attachment cannot be read: $message" >&2
+    return 1
+  fi
+}
+
+login_headers="$(mktemp)"
+admin_password="$(cat /root/.internkim/secrets/mm-admin-pass)"
+login_body="$(jq -cn --arg login_id admin --arg password "$admin_password" '{login_id:$login_id,password:$password}')"
+curl --silent --show-error --fail -D "$login_headers" -o /tmp/internkim-admin-attachment-e2e-login.json \
+  -H "Content-Type: application/json" \
+  -d "$login_body" \
+  http://localhost:8065/api/v4/users/login >/dev/null
+admin_token="$(awk 'tolower($1) == "token:" {print $2}' "$login_headers" | tr -d '\r')"
+test -n "$admin_token"
+
+cleanup() {
+  if [ "$keep_artifacts" = "true" ]; then
+    return 0
+  fi
+  if [ -n "${channel_id:-}" ]; then
+    api_request "cleanup bot replies" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=100" "$admin_token" |
+      jq -r --arg bot_user_id "${bot_user_id:-}" '.posts[] | select(.user_id == $bot_user_id) | .id' |
+      while read -r post_id; do
+        [ -n "$post_id" ] && curl --silent --show-error -X DELETE -H "Authorization: Bearer $mattermost_token" "http://localhost:8065/api/v4/posts/$post_id" >/dev/null || true
+      done
+  fi
+  for post_id in "${followup_post_id:-}" "${root_post_id:-}"; do
+    [ -n "$post_id" ] && curl --silent --show-error -X DELETE -H "Authorization: Bearer ${user_token:-}" "http://localhost:8065/api/v4/posts/$post_id" >/dev/null || true
+  done
+  if [ -n "${user_id:-}" ]; then
+    curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+      "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null || \
+      curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+        "http://localhost:8065/api/v4/users/$user_id" >/dev/null || true
+  fi
+  curl --silent --show-error -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$email" >/dev/null || true
+  rm -f "${html_file:-}"
+}
+trap cleanup EXIT
+
+mattermost_token="$(cat /root/.internkim/secrets/mattermost-bot-token)"
+bot_user="$(api_request "bot lookup" GET http://localhost:8065/api/v4/users/me "$mattermost_token")"
+bot_user_id="$(printf '%%s' "$bot_user" | jq -r '.id // empty')"
+test -n "$bot_user_id"
+
+wait_for_blueclaw_health
+
+user_body="$(jq -cn --arg email "$email" --arg username "$username" --arg password "$password" '{email:$email,username:$username,password:$password}')"
+user_id="$(api_request "create attachment probe user" POST http://localhost:8065/api/v4/users "$admin_token" "$user_body" | jq -r '.id')"
+test -n "$user_id"
+
+user_login_headers="$(mktemp)"
+user_login_body="$(jq -cn --arg login_id "$username" --arg password "$password" '{login_id:$login_id,password:$password}')"
+curl --silent --show-error --fail -D "$user_login_headers" -o /tmp/internkim-attachment-probe-user-login.json \
+  -H "Content-Type: application/json" \
+  -d "$user_login_body" \
+  http://localhost:8065/api/v4/users/login >/dev/null
+user_token="$(awk 'tolower($1) == "token:" {print $2}' "$user_login_headers" | tr -d '\r')"
+test -n "$user_token"
+
+blueclaw_request "invite attachment probe user" POST http://127.0.0.1:8080/admin/api/people/invite \
+  "$(jq -cn --arg email "$email" '{email:$email}')" >/dev/null
+
+channel_id="$(api_request "create attachment probe dm" POST http://localhost:8065/api/v4/channels/direct "$user_token" \
+  "$(jq -cn --arg user_id "$user_id" --arg bot_user_id "$bot_user_id" '[$user_id,$bot_user_id]')" | jq -r '.id')"
+test -n "$channel_id"
+
+html_file="/tmp/internkim-attachment-probe-$timestamp.html"
+printf '<!doctype html><html><body><h1>%%s</h1><p>Automation workflow content for Mattermost attachment E2E.</p></body></html>' "$unique_title" > "$html_file"
+upload_response="$(curl --silent --show-error --fail \
+  -H "Authorization: Bearer $user_token" \
+  -F "channel_id=$channel_id" \
+  -F "files=@$html_file;type=text/html;filename=kim-intern-automation-$timestamp.html" \
+  http://localhost:8065/api/v4/files)"
+file_id="$(printf '%%s' "$upload_response" | jq -r '.file_infos[0].id // empty')"
+test -n "$file_id"
+
+root_post_body="$(jq -cn --arg channel_id "$channel_id" --arg message "$root_prompt" --arg file_id "$file_id" '{channel_id:$channel_id,message:$message,file_ids:[$file_id]}')"
+root_post="$(api_request "post attachment probe root" POST http://localhost:8065/api/v4/posts "$user_token" "$root_post_body")"
+root_post_id="$(printf '%%s' "$root_post" | jq -r '.id')"
+root_post_create_at="$(printf '%%s' "$root_post" | jq -r '.create_at')"
+test -n "$root_post_id"
+
+root_task_id="$(wait_for_task_attachment_read "$root_prompt" "root attachment")"
+root_bot_message="$(latest_bot_message_after "$root_post_create_at")"
+assert_no_file_excuse "$root_bot_message" "root attachment"
+
+followup_body="$(jq -cn --arg channel_id "$channel_id" --arg root_id "$root_post_id" --arg message "$followup_prompt" '{channel_id:$channel_id,root_id:$root_id,message:$message}')"
+followup_post="$(api_request "post attachment probe followup" POST http://localhost:8065/api/v4/posts "$user_token" "$followup_body")"
+followup_post_id="$(printf '%%s' "$followup_post" | jq -r '.id')"
+followup_post_create_at="$(printf '%%s' "$followup_post" | jq -r '.create_at')"
+test -n "$followup_post_id"
+
+followup_task_id="$(wait_for_task_attachment_read "$followup_prompt" "follow-up attachment")"
+followup_bot_message="$(latest_bot_message_after "$followup_post_create_at")"
+assert_no_file_excuse "$followup_bot_message" "follow-up attachment"
+
+jq -cn \
+  --arg channel_id "$channel_id" \
+  --arg root_post_id "$root_post_id" \
+  --arg followup_post_id "$followup_post_id" \
+  --arg file_id "$file_id" \
+  --arg root_task_id "$root_task_id" \
+  --arg followup_task_id "$followup_task_id" \
+  --arg root_bot_message "$root_bot_message" \
+  --arg followup_bot_message "$followup_bot_message" \
+  --arg unique_title "$unique_title" \
+  --argjson keep "$keep_artifacts" \
+  '{ok:true, kept:$keep, channelID:$channel_id, rootPostID:$root_post_id, followupPostID:$followup_post_id, fileID:$file_id, rootTaskID:$root_task_id, followupTaskID:$followup_task_id, uniqueTitle:$unique_title, rootBotMessage:$root_bot_message, followupBotMessage:$followup_bot_message}'
+`, keepValue, timeoutSeconds)
 }
 
 func prepareMattermostBrowserOpenE2EScript() string {

@@ -28,6 +28,26 @@ type mattermostInteractiveActionHandler func(http.ResponseWriter, *http.Request,
 type mattermostAttachment = mattermostinteractive.Attachment
 type mattermostAction = mattermostinteractive.Action
 
+type normalizedConnectorEventEnvelope struct {
+	Event normalizedConnectorEvent `json:"event"`
+}
+
+type normalizedConnectorEvent struct {
+	ConversationID   string                 `json:"conversationID"`
+	MessageID        string                 `json:"messageID"`
+	SenderID         string                 `json:"senderID"`
+	ReplyTargetID    string                 `json:"replyTargetID"`
+	Prompt           string                 `json:"prompt"`
+	ResponseLanguage string                 `json:"responseLanguage,omitempty"`
+	Context          normalizedEventContext `json:"context"`
+	LegacyFields     map[string]any         `json:"legacyFields,omitempty"`
+}
+
+type normalizedEventContext struct {
+	ChannelID        string `json:"channelID,omitempty"`
+	ConversationType string `json:"conversationType,omitempty"`
+}
+
 func (service *Service) handleMattermostInteractiveAction(responseWriter http.ResponseWriter, request *http.Request) {
 	if request.Method != http.MethodPost {
 		http.NotFound(responseWriter, request)
@@ -67,7 +87,7 @@ func (service *Service) mattermostInteractiveActionHandlers() map[string]matterm
 
 func (service *Service) handleAskInteractiveAction(responseWriter http.ResponseWriter, request *http.Request, payload mattermostInteractivePayload) {
 	go service.forwardMattermostAskActionInBackground(payload)
-	service.writeMattermostInteractiveSuccess(responseWriter)
+	service.writeMattermostAskInteractiveAccepted(responseWriter)
 }
 
 func (service *Service) forwardMattermostAskActionInBackground(payload mattermostInteractivePayload) {
@@ -79,7 +99,7 @@ func (service *Service) forwardMattermostAskActionInBackground(payload mattermos
 }
 
 func (service *Service) forwardMattermostAskAction(ctx context.Context, payload mattermostInteractivePayload) error {
-	document, errorValue := json.Marshal(payload)
+	document, errorValue := json.Marshal(normalizedMattermostAskEventEnvelope(payload))
 	if errorValue != nil {
 		return errorValue
 	}
@@ -98,6 +118,44 @@ func (service *Service) forwardMattermostAskAction(ctx context.Context, payload 
 		return nil
 	}
 	return fmt.Errorf("Blueclaw ask action returned %d", response.StatusCode)
+}
+
+func normalizedMattermostAskEventEnvelope(payload mattermostInteractivePayload) normalizedConnectorEventEnvelope {
+	action := strings.TrimSpace(payload.Context.Action)
+	choiceKey := firstNonEmpty(strings.TrimSpace(payload.Context.ChoiceKey), strings.TrimSpace(payload.SelectedOption))
+	messageIDParts := []string{"ask", strings.TrimSpace(payload.PostID), action, strings.TrimSpace(payload.Context.InteractionID), choiceKey}
+	return normalizedConnectorEventEnvelope{Event: normalizedConnectorEvent{
+		ConversationID:   strings.TrimSpace(payload.Context.ConversationID),
+		MessageID:        strings.Join(messageIDParts, ":"),
+		SenderID:         strings.TrimSpace(payload.UserID),
+		ReplyTargetID:    strings.TrimSpace(payload.Context.ReplyTargetID),
+		Prompt:           mattermostAskActionPrompt(action, choiceKey),
+		ResponseLanguage: strings.TrimSpace(payload.Context.ResponseLanguage),
+		Context: normalizedEventContext{
+			ChannelID:        strings.TrimSpace(payload.ChannelID),
+			ConversationType: "direct",
+		},
+		LegacyFields: map[string]any{
+			"askAction":     strings.TrimPrefix(action, "ask."),
+			"interactionID": strings.TrimSpace(payload.Context.InteractionID),
+			"taskRunID":     strings.TrimSpace(payload.Context.TaskRunID),
+			"choiceKey":     choiceKey,
+			"postID":        strings.TrimSpace(payload.PostID),
+		},
+	}}
+}
+
+func mattermostAskActionPrompt(action string, choiceKey string) string {
+	switch strings.TrimSpace(action) {
+	case "ask.confirm":
+		return "approved"
+	case "ask.cancel":
+		return "rejected"
+	case "ask.choice":
+		return "selected " + strings.TrimSpace(choiceKey)
+	default:
+		return strings.TrimSpace(action)
+	}
 }
 
 func (service *Service) isValidMattermostInteractivePayload(payload mattermostInteractivePayload) bool {
@@ -123,6 +181,10 @@ func (service *Service) mattermostInteractiveButtonWithContext(actionID string, 
 
 func (service *Service) writeMattermostInteractiveSuccess(responseWriter http.ResponseWriter) {
 	service.writeJSON(responseWriter, mattermostInteractiveResponse{})
+}
+
+func (service *Service) writeMattermostAskInteractiveAccepted(responseWriter http.ResponseWriter) {
+	service.writeJSON(responseWriter, mattermostInteractiveResponse{Update: mattermostinteractive.ClearAttachmentsUpdate()})
 }
 
 func (service *Service) writeMattermostInteractiveError(responseWriter http.ResponseWriter, message string) {

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -116,6 +117,38 @@ func TestAdminWebDeployTargetsProductionPagesBranch(t *testing.T) {
 	expectedCommand := `"bunx", "wrangler", "pages", "deploy", ".svelte-kit/cloudflare", "--project-name", "internkim", "--branch", "main"`
 	if !strings.Contains(string(document), expectedCommand) {
 		t.Fatalf("admin web deploy must target the production Pages branch")
+	}
+}
+
+func TestRegisterAPIEnsuresMaintenanceBypassApplication(t *testing.T) {
+	document, errorValue := os.ReadFile(filepath.Join("..", "..", "web", "src", "routes", "api", "register", "+server.ts"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, expectedText := range []string{
+		"ensureMaintenanceBypassApplication",
+		"ensurePublicBypassApplications",
+	} {
+		if !strings.Contains(string(document), expectedText) {
+			t.Fatalf("register API must include %q", expectedText)
+		}
+	}
+}
+
+func TestCloudflareMaintenanceBypassApplicationCoversHealthAndRecovery(t *testing.T) {
+	document, errorValue := os.ReadFile(filepath.Join("..", "..", "web", "src", "lib", "cloudflare.ts"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, expectedText := range []string{
+		"intern kim maintenance",
+		"/admin/api/health",
+		"/admin/api/recovery/ssh-tunnel/restart",
+		"maintenance-health-and-recovery",
+	} {
+		if !strings.Contains(string(document), expectedText) {
+			t.Fatalf("Cloudflare maintenance bypass must include %q", expectedText)
+		}
 	}
 }
 

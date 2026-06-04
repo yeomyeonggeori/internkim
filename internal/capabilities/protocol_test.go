@@ -71,6 +71,14 @@ func TestGoogleWorkspaceToolsAreNotDefaultDeviceCapabilities(t *testing.T) {
 	}
 }
 
+func TestMattermostToolsAreDefaultCapabilities(t *testing.T) {
+	for _, toolName := range []string{"mattermost.channel.posts.list", "mattermost.channel.post", "mattermost.post.update", "mattermost.post.delete", "mattermost.channel.update"} {
+		if !containsString(DefaultToolNames(), toolName) {
+			t.Fatalf("expected default tools to include %q, got %+v", toolName, DefaultToolNames())
+		}
+	}
+}
+
 func TestFlowDescriptorMatchesQuickTaskInput(t *testing.T) {
 	schema := descriptorSchema(t, FlowDescriptors(), "flow.task.add")
 
@@ -98,6 +106,36 @@ func TestPlatformDMInspectDescriptorIsReadOnly(t *testing.T) {
 	}
 }
 
+func TestMattermostDescriptorsMatchSkillInputs(t *testing.T) {
+	descriptors := MattermostDescriptors()
+	listSchema := descriptorSchema(t, descriptors, "mattermost.channel.posts.list")
+	postSchema := descriptorSchema(t, descriptors, "mattermost.channel.post")
+	updateSchema := descriptorSchema(t, descriptors, "mattermost.post.update")
+	deleteSchema := descriptorSchema(t, descriptors, "mattermost.post.delete")
+	channelUpdateSchema := descriptorSchema(t, descriptors, "mattermost.channel.update")
+
+	assertSchemaHasProperties(t, listSchema, "channelID", "channelName", "page", "perPage")
+	assertSchemaHasProperties(t, postSchema, "channelID", "channelName", "message", "pin")
+	assertSchemaRequires(t, postSchema, "message")
+	assertSchemaHasProperties(t, updateSchema, "postID", "message", "isPinned")
+	assertSchemaRequires(t, updateSchema, "postID")
+	assertSchemaHasProperties(t, deleteSchema, "postID")
+	assertSchemaRequires(t, deleteSchema, "postID")
+	assertSchemaHasProperties(t, channelUpdateSchema, "channelID", "channelName", "header", "displayName", "inviteeHints")
+	assertDescriptorApproval(t, descriptors, "mattermost.channel.posts.list", false)
+	assertDescriptorApproval(t, descriptors, "mattermost.channel.post", true)
+	assertDescriptorApproval(t, descriptors, "mattermost.post.update", true)
+	assertDescriptorApproval(t, descriptors, "mattermost.post.delete", true)
+	assertDescriptorApproval(t, descriptors, "mattermost.channel.update", true)
+	if descriptorForTool(t, descriptors, "mattermost.channel.update").PolicyResource != "tool:mattermost.channel.update" {
+		t.Fatalf("unexpected channel update policy resource")
+	}
+	assertDescriptorCompletionEvidence(t, descriptors, "mattermost.channel.post", "success", "post_message", "channel")
+	assertDescriptorCompletionEvidence(t, descriptors, "mattermost.post.update", "success", "update_message", "message")
+	assertDescriptorCompletionEvidence(t, descriptors, "mattermost.post.delete", "success", "delete_message", "message")
+	assertDescriptorCompletionEvidence(t, descriptors, "mattermost.channel.update", "success", "update_channel", "channel")
+}
+
 func TestWebDescriptorsAreReadOnlyDefaultTools(t *testing.T) {
 	searchSchema := descriptorSchema(t, WebDescriptors(), "web.search")
 	fetchSchema := descriptorSchema(t, WebDescriptors(), "web.fetch")
@@ -118,37 +156,69 @@ func TestWebDescriptorsAreReadOnlyDefaultTools(t *testing.T) {
 	}
 }
 
-func TestFileReadDescriptorIsReadOnlyDefaultTool(t *testing.T) {
-	schema := descriptorSchema(t, FileDescriptors(), "file.read")
+func TestDocumentReadDescriptorIsReadOnlyDefaultTool(t *testing.T) {
+	schema := descriptorSchema(t, FileDescriptors(), "document.read")
 
-	assertSchemaHasProperties(t, schema, "path", "ocrMode", "maxPages", "maxOutputBytes")
-	assertSchemaRequires(t, schema, "path")
-	descriptor := descriptorForTool(t, FileDescriptors(), "file.read")
+	assertSchemaHasProperties(t, schema, "materialID", "path", "maxPages", "maxOutputBytes")
+	assertSchemaOmitsProperties(t, schema, "ocrMode")
+	descriptor := descriptorForTool(t, FileDescriptors(), "document.read")
 	if descriptor.SideEffectClass != "read" || descriptor.PrivacyClass != "workspace_document" || descriptor.RequiresApproval {
-		t.Fatalf("unexpected file.read descriptor: %+v", descriptor)
+		t.Fatalf("unexpected document.read descriptor: %+v", descriptor)
 	}
-	if !containsString(DefaultToolNames(), "file.read") {
-		t.Fatalf("expected file.read in default tools, got %+v", DefaultToolNames())
+	if !containsString(DefaultToolNames(), "document.read") {
+		t.Fatalf("expected document.read in default tools, got %+v", DefaultToolNames())
+	}
+}
+
+func TestImageReadDescriptorIsReadOnlyDefaultTool(t *testing.T) {
+	schema := descriptorSchema(t, FileDescriptors(), "image.read")
+
+	assertSchemaHasProperties(t, schema, "materialID", "path")
+	descriptor := descriptorForTool(t, FileDescriptors(), "image.read")
+	if descriptor.SideEffectClass != "read" || descriptor.PrivacyClass != "workspace_document" || descriptor.RequiresApproval {
+		t.Fatalf("unexpected image.read descriptor: %+v", descriptor)
+	}
+	if !containsString(DefaultToolNames(), "image.read") {
+		t.Fatalf("expected image.read in default tools, got %+v", DefaultToolNames())
 	}
 }
 
 func TestSiteAppDescriptorsUseRuntimeInputNames(t *testing.T) {
 	createSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.create")
+	previewSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.preview")
 	publishSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.publish")
 	statusSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.status")
+	historySchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.history")
+	diffSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.diff")
 	deleteSchema := descriptorSchema(t, SiteAppDescriptors(), "site.app.delete")
 
 	assertSchemaHasProperties(t, createSchema, "slug", "title", "prompt", "designBrief", "prototypeScope")
 	assertSchemaRequires(t, createSchema, "slug")
 	assertSchemaOmitsProperties(t, createSchema, "name", "sourcePath")
+	assertSchemaHasProperties(t, previewSchema, "siteID", "slug", "message")
 	assertSchemaHasProperties(t, publishSchema, "siteID", "slug", "message")
 	assertSchemaHasProperties(t, statusSchema, "siteID", "slug")
+	assertSchemaHasProperties(t, historySchema, "siteID", "slug")
+	assertSchemaHasProperties(t, diffSchema, "siteID", "slug", "fromRevision", "toRevision")
 	assertSchemaHasProperties(t, deleteSchema, "siteID", "slug", "confirm", "userConfirmed")
 	assertSchemaRequires(t, deleteSchema, "confirm", "userConfirmed")
 }
 
+func TestArtifactReviewDescriptorUsesImageEvidenceInputs(t *testing.T) {
+	schema := descriptorSchema(t, ArtifactDescriptors(), "artifact.review")
+
+	assertSchemaHasProperties(t, schema, "artifactKind", "intent", "rubric", "evidence", "expectedText", "previousIssues")
+	assertSchemaRequires(t, schema, "artifactKind", "intent", "rubric", "evidence")
+	descriptor := descriptorForTool(t, ArtifactDescriptors(), "artifact.review")
+	if descriptor.SideEffectClass != "read" || descriptor.PrivacyClass != "workspace_document" || descriptor.RequiresApproval {
+		t.Fatalf("unexpected artifact.review descriptor: %+v", descriptor)
+	}
+}
+
 func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
 	assertDescriptorApproval(t, PlatformMessageDescriptors(), "platform.dm.send", true)
+	assertDescriptorApproval(t, MattermostDescriptors(), "mattermost.channel.post", true)
+	assertDescriptorApproval(t, MattermostDescriptors(), "mattermost.channel.update", true)
 	assertDescriptorApproval(t, CalendarDescriptors(), "calendar.event.add", false)
 	assertDescriptorApproval(t, MailDescriptors(), "mail.message.send", true)
 	assertDescriptorApproval(t, MailDescriptors(), "mail.message.search", false)
@@ -156,10 +226,20 @@ func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
 	assertDescriptorApproval(t, WebDescriptors(), "web.fetch", false)
 	assertDescriptorApproval(t, CalendarDescriptors(), "calendar.event.delete", true)
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site.app.create", false)
+	assertDescriptorApproval(t, SiteAppDescriptors(), "site.app.preview", false)
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site.app.publish", false)
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site.app.delete", true)
 	assertDescriptorApproval(t, GoogleWorkspaceDescriptors(), "google.calendar.event", false)
 	assertDescriptorApproval(t, GoogleWorkspaceDescriptors(), "google.gmail.send", true)
+}
+
+func TestCapabilityDescriptorsExposeCompletionEvidence(t *testing.T) {
+	assertDescriptorCompletionEvidence(t, PlatformMessageDescriptors(), "platform.dm.send", "success", "send_message", "person")
+	assertDescriptorCompletionEvidence(t, MailDescriptors(), "mail.message.send", "success", "send_email", "email")
+	assertDescriptorCompletionEvidence(t, CalendarDescriptors(), "calendar.event.add", "success", "write_calendar", "calendar")
+	assertDescriptorCompletionEvidence(t, SiteAppDescriptors(), "site.app.publish", "success", "publish_site", "site")
+	assertDescriptorCompletionEvidence(t, GoogleWorkspaceDescriptors(), "google.gmail.send", "success", "send_email", "email")
+	assertDescriptorCompletionEvidence(t, GoogleWorkspaceDescriptors(), "google.calendar.event", "success", "write_calendar", "calendar")
 }
 
 func TestMailDescriptorsMatchSkillInputs(t *testing.T) {
@@ -214,10 +294,12 @@ func TestCapabilityDescriptorSchemasAreCanonicalObjects(t *testing.T) {
 		WebDescriptors(),
 		FileDescriptors(),
 		PlatformMessageDescriptors(),
+		MattermostDescriptors(),
 		FlowDescriptors(),
 		CalendarDescriptors(),
 		MailDescriptors(),
 		SiteAppDescriptors(),
+		ArtifactDescriptors(),
 		GoogleWorkspaceDescriptors(),
 	}
 	for _, descriptors := range descriptorGroups {
@@ -234,6 +316,7 @@ func TestCapabilityDescriptorSchemasAreCanonicalObjects(t *testing.T) {
 			}
 			assertRequiredFieldsHaveProperties(t, descriptor.Name, schema)
 			assertSchemaDocumentOmitsKeywords(t, descriptor.Name, descriptor.InputSchema, "oneOf", "anyOf", "allOf")
+			assertSchemaDocumentOmitsType(t, descriptor.Name, descriptor.InputSchema, "integer")
 		}
 	}
 }
@@ -250,6 +333,17 @@ func assertDescriptorApproval(t *testing.T, descriptors []Descriptor, toolName s
 		return
 	}
 	t.Fatalf("descriptor %s not found", toolName)
+}
+
+func assertDescriptorCompletionEvidence(t *testing.T, descriptors []Descriptor, toolName string, mode string, action string, targetKind string) {
+	t.Helper()
+	descriptor := descriptorForTool(t, descriptors, toolName)
+	if descriptor.CompletionEvidence == nil {
+		t.Fatalf("expected %s to define completion evidence", toolName)
+	}
+	if descriptor.CompletionEvidence.Mode != mode || descriptor.CompletionEvidence.Action != action || descriptor.CompletionEvidence.TargetKind != targetKind {
+		t.Fatalf("unexpected completion evidence for %s: %+v", toolName, descriptor.CompletionEvidence)
+	}
 }
 
 func descriptorSchema(t *testing.T, descriptors []Descriptor, toolName string) schemaDocument {
@@ -275,6 +369,41 @@ func decodeSchema(t *testing.T, toolName string, document json.RawMessage) schem
 		t.Fatalf("schema for %s is invalid: %v", toolName, errorValue)
 	}
 	return schema
+}
+
+func assertSchemaDocumentOmitsType(t *testing.T, toolName string, document json.RawMessage, schemaType string) {
+	t.Helper()
+	var value any
+	if errorValue := json.Unmarshal(document, &value); errorValue != nil {
+		t.Fatalf("schema for %s is invalid: %v", toolName, errorValue)
+	}
+	if schemaDocumentContainsType(value, schemaType) {
+		t.Fatalf("schema for %s must not use type %q: %s", toolName, schemaType, string(document))
+	}
+}
+
+func schemaDocumentContainsType(value any, schemaType string) bool {
+	document, isDocument := value.(map[string]any)
+	if isDocument {
+		if document["type"] == schemaType {
+			return true
+		}
+		for _, fieldValue := range document {
+			if schemaDocumentContainsType(fieldValue, schemaType) {
+				return true
+			}
+		}
+		return false
+	}
+	values, isValues := value.([]any)
+	if isValues {
+		for _, item := range values {
+			if schemaDocumentContainsType(item, schemaType) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func assertSchemaHasProperties(t *testing.T, schema schemaDocument, names ...string) {

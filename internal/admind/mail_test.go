@@ -135,6 +135,46 @@ func TestMailAccountSavePreservesStoredPasswords(t *testing.T) {
 	}
 }
 
+func TestMailAccountSavePersistsForSubsequentRequests(t *testing.T) {
+	service := newMailTestService(t)
+
+	saveResponse := performMailRequest(t, service, http.MethodPut, "/mail/api/account", `{
+		"email":"admin@example.com",
+		"fromAddress":"Admin <admin@example.com>",
+		"displayName":"Admin",
+		"imapHost":"imap.example.com",
+		"imapPort":993,
+		"imapSecurity":"tls",
+		"imapUsername":"admin@example.com",
+		"imapPassword":"imap-secret",
+		"smtpHost":"smtp.example.com",
+		"smtpPort":587,
+		"smtpSecurity":"starttls",
+		"smtpUsername":"admin@example.com",
+		"smtpPassword":"smtp-secret",
+		"defaultMailbox":"INBOX",
+		"sentMailbox":"Sent"
+	}`)
+	if saveResponse.Code != http.StatusOK {
+		t.Fatalf("save status = %d body = %s", saveResponse.Code, saveResponse.Body.String())
+	}
+
+	accountResponse := performMailRequest(t, service, http.MethodGet, "/mail/api/account", "")
+	if accountResponse.Code != http.StatusOK {
+		t.Fatalf("account status = %d body = %s", accountResponse.Code, accountResponse.Body.String())
+	}
+	var account mailAccountResponse
+	if errorValue := json.Unmarshal(accountResponse.Body.Bytes(), &account); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !account.IsConfigured || account.Email != "admin@example.com" || account.IMAPHost != "imap.example.com" || account.SMTPHost != "smtp.example.com" {
+		t.Fatalf("account was not persisted for later page loads: %#v", account)
+	}
+	if !account.HasIMAPPassword || !account.HasSMTPPassword {
+		t.Fatalf("password presence was not persisted: %#v", account)
+	}
+}
+
 func TestMailHandlersUseBackendForActions(t *testing.T) {
 	service := newMailTestService(t)
 	backend := &fakeMailBackend{
@@ -181,6 +221,42 @@ func TestMailHandlersUseBackendForActions(t *testing.T) {
 	markResponse := performMailRequest(t, service, http.MethodPost, "/mail/api/messages/INBOX/42/flags", `{"seen":true}`)
 	if markResponse.Code != http.StatusOK || backend.markedSeen == nil || !*backend.markedSeen {
 		t.Fatalf("mark status=%d seen=%v", markResponse.Code, backend.markedSeen)
+	}
+}
+
+func TestMailAccountRequiresAuthenticatedActor(t *testing.T) {
+	service := newMailTestService(t)
+	saveConfiguredMailTestAccount(t, service)
+
+	request := httptest.NewRequest(http.MethodGet, "/mail/api/account", nil)
+	request.RemoteAddr = "127.0.0.1:12345"
+	response := httptest.NewRecorder()
+	service.handleMail(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestMailAccountDoesNotFallbackToAdminForAuthenticatedUser(t *testing.T) {
+	service := newMailTestService(t)
+	saveConfiguredMailTestAccount(t, service)
+
+	accountResponse := performMailRequestAs(t, service, "staff@example.com", http.MethodGet, "/mail/api/account", "")
+	if accountResponse.Code != http.StatusOK {
+		t.Fatalf("account status = %d body = %s", accountResponse.Code, accountResponse.Body.String())
+	}
+	var account mailAccountResponse
+	if errorValue := json.Unmarshal(accountResponse.Body.Bytes(), &account); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if account.IsConfigured || account.Email != "staff@example.com" {
+		t.Fatalf("account should be an unconfigured staff account: %#v", account)
+	}
+
+	mailboxesResponse := performMailRequestAs(t, service, "staff@example.com", http.MethodGet, "/mail/api/mailboxes", "")
+	if mailboxesResponse.Code != http.StatusBadRequest {
+		t.Fatalf("mailboxes status = %d body = %s", mailboxesResponse.Code, mailboxesResponse.Body.String())
 	}
 }
 
@@ -376,6 +452,11 @@ func saveConfiguredMailTestAccount(t *testing.T, service *Service) {
 
 func performMailRequest(t *testing.T, service *Service, method string, path string, body string) *httptest.ResponseRecorder {
 	t.Helper()
+	return performMailRequestAs(t, service, "admin@example.com", method, path, body)
+}
+
+func performMailRequestAs(t *testing.T, service *Service, actorEmail string, method string, path string, body string) *httptest.ResponseRecorder {
+	t.Helper()
 	var reader *bytes.Reader
 	if body == "" {
 		reader = bytes.NewReader(nil)
@@ -384,7 +465,7 @@ func performMailRequest(t *testing.T, service *Service, method string, path stri
 	}
 	request := httptest.NewRequest(method, path, reader)
 	request.RemoteAddr = "127.0.0.1:12345"
-	request.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	request.Header.Set("CF-Access-Authenticated-User-Email", actorEmail)
 	if strings.TrimSpace(body) != "" {
 		request.Header.Set("Content-Type", "application/json")
 	}

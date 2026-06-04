@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
@@ -494,7 +495,12 @@ func (state *setupFlowState) ensureLocalBinaryAssets() ([]localBinaryAsset, erro
 
 func buildGoBinaryAsset(state *setupFlowState, asset localBinaryAsset) error {
 	fmt.Printf("  %s %s... ", state.messenger.t("빌드 중", "Building"), asset.name)
-	buildCommand := exec.Command("go", "build", "-o", asset.localPath, "./cmd/"+asset.name+"/")
+	arguments := []string{"build", "-o", asset.localPath}
+	if asset.name == blueclaw.AdmindName {
+		arguments = append(arguments, "-ldflags", admindBuildFlags(state))
+	}
+	arguments = append(arguments, "./cmd/"+asset.name+"/")
+	buildCommand := exec.Command("go", arguments...)
 	buildCommand.Dir = state.scriptDir
 	buildCommand.Env = append(os.Environ(), "GOOS=linux", "GOARCH=arm64")
 	if output, buildError := buildCommand.CombinedOutput(); buildError != nil {
@@ -503,6 +509,21 @@ func buildGoBinaryAsset(state *setupFlowState, asset localBinaryAsset) error {
 	}
 	fmt.Println("ok")
 	return nil
+}
+
+func admindBuildFlags(state *setupFlowState) string {
+	revision := strings.TrimSpace(runCmd("git", "-C", state.scriptDir, "rev-parse", "--short", "HEAD"))
+	buildID := strings.TrimSpace(state.setupBuildID)
+	if buildID == "" {
+		buildID = "unknown"
+	}
+	if revision == "" {
+		revision = "unknown"
+	}
+	return strings.Join([]string{
+		"-X", "gitlab.com/eastriver/internkim/internal/admind.BuildID=" + buildID,
+		"-X", "gitlab.com/eastriver/internkim/internal/admind.GitRevision=" + revision,
+	}, " ")
 }
 
 func (state *setupFlowState) binariesVersion() string {
@@ -697,6 +718,8 @@ func (state *setupFlowState) deployAdminWeb(context *setup.Context) error {
 
 const (
 	remoteAdminUIDirectoryPath    = "/opt/internkim/admin-ui"
+	remoteInternKimAssetsPath     = "/opt/internkim/assets"
+	remoteBotProfileImagePath     = remoteInternKimAssetsPath + "/internkim.png"
 	temporaryAdminUIDirectoryPath = "/tmp/internkim-admin-ui"
 	temporaryAdminUIArchivePath   = "/tmp/internkim-admin-ui.tar"
 )
@@ -855,6 +878,10 @@ func (state *setupFlowState) installBinariesSSH(context *setup.Context) error {
 		return err
 	}
 
+	if err := state.ensureManagedHostExecutablesSSH(); err != nil {
+		return err
+	}
+
 	state.sshClient.run(`
 NOLOGIN_BIN=$(command -v nologin || echo /usr/sbin/nologin)
 getent group blueclaw >/dev/null 2>&1 || groupadd --system blueclaw
@@ -909,12 +936,119 @@ rm -f /usr/local/bin/gws-* /etc/sudoers.d/blueclaw-gws /etc/sudoers.d/blueclaw-m
 	return nil
 }
 
+func (state *setupFlowState) ensureManagedHostExecutablesSSH() error {
+	output, errorValue := state.sshClient.runResultWithTimeout(managedHostExecutablesScript(), 4*time.Minute)
+	if errorValue != nil {
+		return fmt.Errorf("ensure managed host executables: %s: %w", strings.TrimSpace(output), errorValue)
+	}
+	fmt.Printf("  managed host executables %s\n", state.messenger.t("준비 완료", "ready"))
+	return nil
+}
+
+func managedHostExecutablesScript() string {
+	return `set -eu
+install -d -o root -g root -m 755 /opt/internkim/managed-bin /usr/local/bin
+NOLOGIN_BIN=$(command -v nologin || echo /usr/sbin/nologin)
+getent group blueclaw >/dev/null 2>&1 || groupadd --system blueclaw
+id blueclaw >/dev/null 2>&1 || useradd -r -g blueclaw -m -d /home/blueclaw -s "$NOLOGIN_BIN" blueclaw
+install -d -o blueclaw -g blueclaw -m 755 /home/blueclaw /home/blueclaw/.bun
+if [ ! -x /opt/internkim/managed-bin/bun ]; then
+  if [ ! -x /home/blueclaw/.bun/bin/bun ]; then
+    su -s /bin/bash blueclaw -c 'env HOME=/home/blueclaw bash -lc "curl -fsSL https://bun.sh/install | bash"'
+  fi
+  install -o root -g root -m 755 /home/blueclaw/.bun/bin/bun /opt/internkim/managed-bin/bun
+fi
+install -o root -g root -m 755 /opt/internkim/managed-bin/bun /usr/local/bin/bun
+ln -sfn /usr/local/bin/bun /usr/local/bin/bunx
+cat > /usr/local/bin/marp <<'MARPEOF'
+#!/bin/sh
+exec /usr/local/bin/bun x --bun @marp-team/marp-cli "$@"
+MARPEOF
+chown root:root /usr/local/bin/bun /usr/local/bin/bunx /usr/local/bin/marp
+chmod 755 /usr/local/bin/bun /usr/local/bin/marp
+if ! command -v uv >/dev/null 2>&1; then
+  curl -LsSf https://astral.sh/uv/0.11.11/install.sh -o /tmp/internkim-uv-install.sh
+  UV_UNMANAGED_INSTALL=/usr/local/bin sh /tmp/internkim-uv-install.sh
+fi
+for managed_executable in bun bunx marp uv; do
+  managed_path="/usr/local/bin/$managed_executable"
+  test -x "$managed_path"
+  managed_stat_path="$managed_path"
+  if [ -L "$managed_path" ]; then
+    managed_target="$(readlink "$managed_path")"
+    case "$managed_target" in
+      /*) managed_stat_path="$managed_target" ;;
+      *) managed_stat_path="$(dirname "$managed_path")/$managed_target" ;;
+    esac
+  fi
+  managed_owner="$(stat -c '%u' "$managed_stat_path")"
+  managed_mode="$(stat -c '%a' "$managed_stat_path")"
+  case "$managed_owner" in
+    0|998) ;;
+    *) echo "host-$managed_executable-owner-drift"; exit 1 ;;
+  esac
+  case "$managed_mode" in
+    555|755) ;;
+    *) echo "host-$managed_executable-mode-drift"; exit 1 ;;
+  esac
+done
+`
+}
+
 func (state *setupFlowState) installAdmindSSH(context *setup.Context) error {
-	return state.installGoServiceBinarySSH(localBinaryAsset{
+	if errorValue := state.deployBotProfileImageSSH(); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := state.installGoServiceBinarySSH(localBinaryAsset{
 		name:       blueclaw.AdmindName,
 		localPath:  filepath.Join(state.boardBinDir, blueclaw.AdmindName),
 		remotePath: blueclaw.AdmindBinaryPath,
-	}, blueclaw.AdmindServiceName)
+	}, blueclaw.AdmindServiceName, blueclaw.AdmindServicePath, blueclaw.AdmindServiceUnit()); errorValue != nil {
+		return errorValue
+	}
+	return state.verifyAdmindDeployment(context)
+}
+
+func (state *setupFlowState) verifyAdmindDeployment(context *setup.Context) error {
+	localHealth, errorValue := state.sshClient.runResult("curl -fsS http://127.0.0.1:18080/admin/api/health")
+	if errorValue != nil {
+		return fmt.Errorf("admind local health check failed: %s", strings.TrimSpace(localHealth))
+	}
+	if !strings.Contains(localHealth, `"status":"ok"`) || !strings.Contains(localHealth, `"recoveryAvailable":true`) {
+		return fmt.Errorf("admind local health response missing recovery status: %s", strings.TrimSpace(localHealth))
+	}
+	if strings.TrimSpace(context.PublicURL) == "" {
+		fmt.Printf("  %s\n", state.messenger.t("admind local 검증 완료", "admind local verification complete"))
+		return nil
+	}
+	statusCode, responseBody, errorValue := fetchPublicEndpoint(context.PublicURL, "/admin/api/health")
+	if errorValue != nil {
+		return fmt.Errorf("admind public health check failed: %w", errorValue)
+	}
+	if statusCode < 200 || statusCode >= 300 || !strings.Contains(compactJSONSpaces(responseBody), `"status":"ok"`) {
+		return fmt.Errorf("admind public health check failed: HTTP %d %s", statusCode, strings.TrimSpace(responseBody))
+	}
+	if _, errorValue := performSSHRecoveryRequest(commandTarget{
+		stateDir:  state.stateDir,
+		deviceURL: context.PublicURL,
+	}, "status"); errorValue != nil {
+		return fmt.Errorf("admind recovery route check failed: %w", errorValue)
+	}
+	fmt.Printf("  %s\n", state.messenger.t("admind public/recovery 검증 완료", "admind public/recovery verification complete"))
+	return nil
+}
+
+func (state *setupFlowState) deployBotProfileImageSSH() error {
+	sourcePath := filepath.Join(state.scriptDir, "assets", "internkim.png")
+	if _, errorValue := os.Stat(sourcePath); errorValue != nil {
+		return fmt.Errorf("bot profile image missing: %w", errorValue)
+	}
+	state.sshClient.run("mkdir -p " + quoteShellValue(remoteInternKimAssetsPath))
+	if errorValue := state.sshClient.scp(sourcePath, remoteBotProfileImagePath); errorValue != nil {
+		return errorValue
+	}
+	state.sshClient.run("chmod 644 " + quoteShellValue(remoteBotProfileImagePath))
+	return nil
 }
 
 func (state *setupFlowState) installCapabilitydSSH(context *setup.Context) error {
@@ -922,10 +1056,10 @@ func (state *setupFlowState) installCapabilitydSSH(context *setup.Context) error
 		name:       blueclaw.CapabilitydName,
 		localPath:  filepath.Join(state.boardBinDir, blueclaw.CapabilitydName),
 		remotePath: blueclaw.CapabilitydBinaryPath,
-	}, blueclaw.CapabilitydServiceName)
+	}, blueclaw.CapabilitydServiceName, blueclaw.CapabilitydServicePath, blueclaw.CapabilitydServiceUnit())
 }
 
-func (state *setupFlowState) installGoServiceBinarySSH(asset localBinaryAsset, serviceName string) error {
+func (state *setupFlowState) installGoServiceBinarySSH(asset localBinaryAsset, serviceName string, servicePath string, serviceDocument string) error {
 	if err := os.MkdirAll(filepath.Dir(asset.localPath), 0o755); err != nil {
 		return err
 	}
@@ -946,12 +1080,22 @@ func (state *setupFlowState) installGoServiceBinarySSH(asset localBinaryAsset, s
 		state.sshClient.run("chmod +x " + quoteShellValue(asset.remotePath))
 		fmt.Printf("  %s %s\n", asset.name, state.messenger.t("설치 완료", "installed"))
 	}
+	state.installGoServiceUnitSSH(servicePath, serviceDocument)
 	state.sshClient.run("systemctl restart " + serviceName)
 	if strings.TrimSpace(state.sshClient.run("systemctl is-active "+serviceName+" 2>/dev/null")) != "active" {
 		return fmt.Errorf("%s restart failed", serviceName)
 	}
 	fmt.Printf("  %s %s\n", serviceName, state.messenger.t("재시작 완료", "restarted"))
 	return nil
+}
+
+func (state *setupFlowState) installGoServiceUnitSSH(servicePath string, serviceDocument string) {
+	servicePath = strings.TrimSpace(servicePath)
+	serviceDocument = strings.TrimSpace(serviceDocument)
+	if servicePath == "" || serviceDocument == "" {
+		return
+	}
+	state.sshClient.run(fmt.Sprintf("cat > %s <<'SERVICEEOF'\n%s\nSERVICEEOF\nsystemctl daemon-reload", quoteShellValue(servicePath), serviceDocument))
 }
 
 func shouldInstallLocalLLMSSH(context *setup.Context) bool {
@@ -1182,11 +1326,23 @@ test -x /usr/local/bin/firecracker
 test -x /usr/local/bin/jailer
 test -s /opt/internkim/blueclaw-runtime/vmlinux.bin
 test -s /opt/internkim/blueclaw-runtime/rootfs.ext4
+minimum_workspace_bytes=34359738368
+was_active="$(systemctl is-active blueclaw 2>/dev/null || true)"
 if [ ! -e /var/lib/blueclaw/workspace.ext4 ]; then
-  truncate -s 16G /var/lib/blueclaw/workspace.ext4
+  truncate -s "$minimum_workspace_bytes" /var/lib/blueclaw/workspace.ext4
 fi
 if ! blkid -o value -s TYPE /var/lib/blueclaw/workspace.ext4 2>/dev/null | grep -qx ext4; then
   mkfs.ext4 -F -L blueclaw-workspace /var/lib/blueclaw/workspace.ext4 >/dev/null
+fi
+workspace_bytes="$(stat -c '%s' /var/lib/blueclaw/workspace.ext4)"
+if [ "$workspace_bytes" -lt "$minimum_workspace_bytes" ]; then
+  systemctl stop blueclaw 2>/dev/null || true
+  truncate -s "$minimum_workspace_bytes" /var/lib/blueclaw/workspace.ext4
+  e2fsck -fy /var/lib/blueclaw/workspace.ext4 >/dev/null
+  resize2fs /var/lib/blueclaw/workspace.ext4 >/dev/null
+  if [ "$was_active" = "active" ]; then
+    systemctl start blueclaw 2>/dev/null || true
+  fi
 fi
 chmod 0600 /var/lib/blueclaw/workspace.ext4
 mkdir -p /var/log/blueclaw-supervisor
@@ -1230,14 +1386,25 @@ func (state *setupFlowState) installBlueclawPayloadSSH(context *setup.Context) e
 	}
 
 	fmt.Print("  blueclaw runtime payload... ")
+	if result, errorValue := state.installBlueclawPayloadHTTPS(artifactDirectoryPath, manifest); errorValue == nil {
+		fmt.Println(result)
+		return nil
+	} else {
+		fmt.Printf("https self-update unavailable (%s); falling back to SSH... ", strings.TrimSpace(errorValue.Error()))
+	}
 	remoteManifestDocument := state.sshClient.run("cat " + blueclaw.BlueclawPayloadManifestPath + " 2>/dev/null || true")
-	if manifestDocument == remoteManifestDocument {
+	remoteWorkspaceManifestDocument := state.sshClient.run(blueclawWorkspaceManifestCommand())
+	if manifestDocument == remoteManifestDocument && manifestDocument == remoteWorkspaceManifestDocument {
 		fmt.Println("already current")
 		return nil
 	}
 
 	temporaryPayloadPath := "/tmp/internkim-blueclaw-payload"
-	state.sshClient.run("systemctl stop " + blueclaw.BlueclawServiceName + " >/dev/null 2>&1 || true")
+	output, errorValue := state.sshClient.runResult(blueclawStopForPayloadSyncCommand())
+	if errorValue != nil {
+		fmt.Println("failed")
+		return fmt.Errorf("stop blueclaw before payload sync: %s: %w", strings.TrimSpace(output), errorValue)
+	}
 	state.sshClient.run("rm -rf " + temporaryPayloadPath + " && mkdir -p " + temporaryPayloadPath + " " + blueclaw.BlueclawRuntimeInstallPath)
 	if errorValue := state.sshClient.scpDir(blueclaw.PayloadWorkspacePath(artifactDirectoryPath), temporaryPayloadPath+"/workspace"); errorValue != nil {
 		fmt.Println("failed")
@@ -1248,25 +1415,57 @@ func (state *setupFlowState) installBlueclawPayloadSSH(context *setup.Context) e
 		return errorValue
 	}
 
+	output, errorValue = state.sshClient.runResult(blueclawHostWorkspacePayloadSyncCommand(temporaryPayloadPath))
+	if errorValue != nil {
+		fmt.Println("failed")
+		return fmt.Errorf("sync blueclaw payload host workspace: %s: %w", strings.TrimSpace(output), errorValue)
+	}
+
 	syncCommand := strings.Join([]string{
 		blueclaw.BlueclawSupervisorBinaryPath,
 		"sync-workspace",
 		"--workspace-image", quoteShellValue(blueclaw.BlueclawWorkspaceImagePath),
 		"--source", quoteShellValue(temporaryPayloadPath + "/workspace"),
 	}, " ")
-	output, errorValue := state.sshClient.runResult(syncCommand)
+	output, errorValue = state.sshClient.runResult(syncCommand)
 	if errorValue != nil {
 		fmt.Println("failed")
 		return fmt.Errorf("sync blueclaw payload workspace: %s: %w", strings.TrimSpace(output), errorValue)
+	}
+	remoteWorkspaceManifestDocument = state.sshClient.run(blueclawWorkspaceManifestCommand())
+	if manifestDocument != remoteWorkspaceManifestDocument {
+		fmt.Println("failed")
+		return fmt.Errorf("sync blueclaw payload workspace: workspace manifest mismatch")
 	}
 	output, errorValue = state.sshClient.runResult("install -m 0644 " + temporaryPayloadPath + "/manifest.json " + blueclaw.BlueclawPayloadManifestPath)
 	if errorValue != nil {
 		fmt.Println("failed")
 		return fmt.Errorf("install blueclaw payload manifest: %s: %w", strings.TrimSpace(output), errorValue)
 	}
+	output, errorValue = state.sshClient.runResult(blueclawStartAfterPayloadSyncCommand())
+	if errorValue != nil {
+		fmt.Println("failed")
+		return fmt.Errorf("start blueclaw after payload sync: %s: %w", strings.TrimSpace(output), errorValue)
+	}
 
 	fmt.Println("installed")
 	return nil
+}
+
+func blueclawHostWorkspacePayloadSyncCommand(temporaryPayloadPath string) string {
+	return blueclaw.HostWorkspacePayloadSyncCommand(temporaryPayloadPath)
+}
+
+func blueclawStopForPayloadSyncCommand() string {
+	return blueclaw.StopForPayloadSyncCommand()
+}
+
+func blueclawStartAfterPayloadSyncCommand() string {
+	return blueclaw.StartAfterPayloadSyncCommand()
+}
+
+func blueclawWorkspaceManifestCommand() string {
+	return "debugfs -R " + quoteShellValue("cat /.blueclaw/runtime/current/manifest.json") + " " + quoteShellValue(blueclaw.BlueclawWorkspaceImagePath) + " 2>/dev/null || true"
 }
 
 func (state *setupFlowState) blueclawPayloadManifest() string {
@@ -2281,6 +2480,13 @@ func (state *setupFlowState) stageBootstrapSD(context *setup.Context) error {
 		return err
 	}
 	if err := context.SD.WriteFile("BOT_PROFILE.yaml", []byte(workspaceDocuments.BotProfile), 0o644); err != nil {
+		return err
+	}
+	botProfileImageDocument, err := os.ReadFile(filepath.Join(state.scriptDir, "assets", "internkim.png"))
+	if err != nil {
+		return err
+	}
+	if err := context.SD.WriteFile("assets/internkim.png", botProfileImageDocument, 0o644); err != nil {
 		return err
 	}
 	agentBrowserSkillMarkdown, err := loadAgentBrowserSkillMarkdown(state.scriptDir)

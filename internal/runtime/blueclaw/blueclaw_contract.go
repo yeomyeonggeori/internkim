@@ -60,7 +60,7 @@ const (
 	LiteRTModelSourceURL                  = "https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it.litertlm"
 	LiteRTModelRepository                 = "litert-community/gemma-4-E4B-it-litert-lm"
 	LiteRTModelFilename                   = "gemma-4-E4B-it.litertlm"
-	BlueclawDefaultModelName              = "google/gemini-3.1-flash-lite-preview"
+	BlueclawDefaultModelName              = "google/gemini-3.5-flash"
 	BlueclawDefaultModelContextTokens     = 1048576
 	BlueclawFirecrackerPath               = "/usr/local/bin/firecracker"
 	BlueclawJailerPath                    = "/usr/local/bin/jailer"
@@ -171,6 +171,10 @@ func BlueclawHealthCheckCommand() string {
 
 func CapabilitydHealthCheckCommand() string {
 	return "curl --max-time 5 -fsS --unix-socket " + CapabilitySocketPath + " http://internkim/health | jq -e '.status == \"ok\"' >/dev/null && echo ok || echo no"
+}
+
+func GraphitiMemorydHealthCheckCommand() string {
+	return "curl --max-time 5 -fsS " + GraphitiEndpoint + "/health | jq -e '.status == \"ok\"' >/dev/null && echo ok || echo no"
 }
 
 func BlueclawWorkspaceSkillPath(skillName string) string {

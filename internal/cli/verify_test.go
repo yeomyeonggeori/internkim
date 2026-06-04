@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -61,7 +64,7 @@ func TestVerifyMattermostScriptUsesStrictChannelMembership(t *testing.T) {
 }
 
 func TestVerifyMattermostPromptScriptCanRequireBrowserOpenSuccess(t *testing.T) {
-	script := verifyMattermostPromptScript("브라우저 열어줘.", false, 90, true, nil, nil)
+	script := verifyMattermostPromptScript("브라우저 열어줘.", false, 90, true, false, nil, nil, false)
 	requiredFragments := []string{
 		"delete_stale_probe_users",
 		"probe-mattermost-",
@@ -79,18 +82,113 @@ func TestVerifyMattermostPromptScriptCanRequireBrowserOpenSuccess(t *testing.T) 
 }
 
 func TestVerifyMattermostPromptScriptCanRequireToolAndTaskEvents(t *testing.T) {
-	script := verifyMattermostPromptScript("1분마다 알려줘.", false, 90, false, []string{"schedule.create"}, []string{"schedule.created"})
+	script := verifyMattermostPromptScript("1분마다 알려줘.", false, 90, false, false, []string{"schedule.create"}, []string{"schedule.created"}, false)
 	requiredFragments := []string{
 		"expected_tools_json=",
 		"expected_events_json=",
+		`[ "$task_status" = "completed" ]`,
 		"tool.$expected_tool.requested",
 		"expected requested tool event for $expected_tool",
 		"expected task event $expected_event",
+		"fetch_latest_bot_post",
+		"fetch latest bot reply",
 	}
 	for _, fragment := range requiredFragments {
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("expected Mattermost prompt event verification to include %q", fragment)
 		}
+	}
+}
+
+func TestVerifyMattermostPromptScriptCanRequirePublicSiteURL(t *testing.T) {
+	script := verifyMattermostPromptScript("개인 홈페이지 하나 만들어서 배포해줘.", false, 90, false, true, []string{"site.app.create", "site.app.build", "site.app.publish"}, nil, false)
+	requiredFragments := []string{
+		"expect_public_url=true",
+		"wait for final site reply",
+		"public_url_verified=false",
+		"grep -Eo 'https://[^[:space:])>]+'",
+		"expected_tools_json=",
+		"tool.$expected_tool.requested",
+		"Sorry, we could not find the page.",
+		"INTERNKIM_SITE_STARTER_REPLACE_ME",
+		"site public URL returned starter scaffold",
+		"site public URL did not return valid HTML",
+		"capture_site_screenshots",
+		"--screenshot=\"$desktop_screenshot_file\"",
+		"--screenshot=\"$mobile_screenshot_file\"",
+		"siteScreenshotsVerified: $site_screenshots_verified",
+		"siteScreenshotFiles: [$desktop_screenshot_file, $mobile_screenshot_file]",
+		"site deploy final reply contained a generic infrastructure excuse",
+		"http://127.0.0.1:8080/admin/api/sites/$site_id",
+	}
+	for _, fragment := range requiredFragments {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected Mattermost prompt site verification to include %q", fragment)
+		}
+	}
+}
+
+func TestVerifyMattermostPromptScriptIsValidShell(t *testing.T) {
+	script := verifyMattermostPromptScript("개인 홈페이지 하나 만들어서 배포해줘.", false, 90, false, true, []string{"site.app.create", "site.app.build", "site.app.publish"}, nil, false)
+	scriptPath := filepath.Join(t.TempDir(), "verify-site.sh")
+	if errorValue := os.WriteFile(scriptPath, []byte(script), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	output, errorValue := exec.Command("bash", "-n", scriptPath).CombinedOutput()
+	if errorValue != nil {
+		t.Fatalf("expected generated verify script to parse, got %v: %s", errorValue, string(output))
+	}
+}
+
+func TestVerifyMattermostPromptScriptCanDownloadFinalAttachments(t *testing.T) {
+	script := verifyMattermostPromptScript("짧은 발표자료 만들어줘.", true, 90, false, false, []string{"file.attach"}, nil, true)
+	requiredFragments := []string{
+		"download_files=true",
+		"download_bot_files",
+		"http://localhost:8065/api/v4/files/$file_id/info",
+		"http://localhost:8065/api/v4/files/$file_id",
+		"--rawfile content_base64",
+		"contentBase64:$content_base64",
+		"downloadedFiles: ($downloaded_files[0] // [])",
+	}
+	for _, fragment := range requiredFragments {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected Mattermost prompt attachment download to include %q", fragment)
+		}
+	}
+}
+
+func TestRedactDownloadedMattermostFilesHidesAttachmentBytes(t *testing.T) {
+	output := "log line\n" + `{"downloadedFiles":[{"fileID":"file-1","filename":"deck.html","contentBase64":"YWJjZA=="}]}` + "\n"
+	redactedOutput := redactDownloadedMattermostFiles(output)
+	if strings.Contains(redactedOutput, "YWJjZA==") {
+		t.Fatalf("expected attachment base64 to be redacted, got %s", redactedOutput)
+	}
+	if !strings.Contains(redactedOutput, "redacted 8 base64 chars") {
+		t.Fatalf("expected redaction marker, got %s", redactedOutput)
+	}
+}
+
+func TestWriteDownloadedMattermostFilesWritesAttachments(t *testing.T) {
+	downloadDirectory := t.TempDir()
+	output := `{"downloadedFiles":[{"fileID":"file-1","filename":"deck.html","contentBase64":"PGh0bWw+PC9odG1sPg=="}]}`
+	if errorValue := writeDownloadedMattermostFiles(output, downloadDirectory); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	content, errorValue := os.ReadFile(filepath.Join(downloadDirectory, "deck.html"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if string(content) != "<html></html>" {
+		t.Fatalf("unexpected downloaded file content: %s", string(content))
+	}
+}
+
+func TestRunVerifyArgumentsAcceptsSiteSubcommand(t *testing.T) {
+	errorValue := runVerifyArguments([]string{"site", "--unknown-site-flag"})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "flag provided but not defined") {
+		t.Fatalf("expected site verify subcommand to resolve target, got %v", errorValue)
 	}
 }
 
@@ -100,6 +198,7 @@ func TestVerifyAPIScriptChecksLiteRTWithCPUAccelerator(t *testing.T) {
 		`accelerator: "cpu"`,
 		`python3 -c 'import json, sys; document=json.load(sys.stdin); backend=document.get("selectedBackend"); content=document.get("content"); raise SystemExit(0 if backend in ("gpu", "cpu") and isinstance(content, str) and len(content) > 0 else 1)'`,
 		`litert capability: %s`,
+		`litert capability: optional local check failed`,
 	}
 	for _, fragment := range requiredFragments {
 		if !strings.Contains(script, fragment) {
@@ -108,6 +207,25 @@ func TestVerifyAPIScriptChecksLiteRTWithCPUAccelerator(t *testing.T) {
 	}
 	if strings.Contains(script, `jq -e '.selectedBackend as $backend`) {
 		t.Fatal("expected LiteRT verify to avoid raw jq parsing of possibly non-JSON responses")
+	}
+}
+
+func TestVerifyAPIScriptChecksRemoteStructuredLLM(t *testing.T) {
+	script := verifyAPIScript()
+	requiredFragments := []string{
+		`executionMode: "remote"`,
+		`executionMode: "auto"`,
+		`http://internkim/v1/llm/structured`,
+		`--argjson schema "$schema"`,
+		`structuredOutputSchema: {name:"smoke_reply", document:$schema, isStrictlyEnforced:true}`,
+		`structuredOutputSchema: {name:"blueclaw_agent_turn_action", document:$schema, isStrictlyEnforced:true}`,
+		`.provider == "openrouter" and .selectedBackend == "remote"`,
+		`.constraintMode == "native_tool_call"`,
+	}
+	for _, fragment := range requiredFragments {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected API verify script to include %q", fragment)
+		}
 	}
 }
 

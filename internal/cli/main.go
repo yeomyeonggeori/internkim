@@ -40,6 +40,12 @@ var (
 	boardUser          = "root"
 	boardPass          = ""
 	registerHTTPClient = &http.Client{Timeout: 30 * time.Second}
+	statusHTTPClient   = &http.Client{
+		Timeout: 8 * time.Second,
+		CheckRedirect: func(request *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 
 	// Armbian Trixie Minimal images per board
 	armbianImages = map[string]string{
@@ -207,6 +213,10 @@ func Main() {
 			runUsers()
 		case "reset":
 			runReset()
+		case "recover":
+			runRecover()
+		case "release":
+			runRelease()
 		case "status":
 			runStatus()
 		case "update":
@@ -219,6 +229,8 @@ func Main() {
 			runVerify()
 		case "llm":
 			runLLM()
+		case "dev":
+			runDev()
 		case "lab":
 			runLab()
 		case "sim":
@@ -245,6 +257,8 @@ func printUsage() {
 	fmt.Println("  invite   Add/invite an allowed user")
 	fmt.Println("  users    Manage allowed users")
 	fmt.Println("  reset    Reset board runtime data")
+	fmt.Println("  recover  Recover narrow device maintenance paths")
+	fmt.Println("  release  Publish and inspect release sets")
 	fmt.Println("  status   Check board and tunnel status")
 	fmt.Println("  update   Deploy current build to device")
 	fmt.Println("  deploy   Build and deploy web UI + board-bridge to board")
@@ -285,6 +299,7 @@ func runSetup() {
 	if hasFlag("--only") || hasFlag("--skip") || hasFlag("--from") ||
 		containsArg("--force") || containsArg("--force-all") || containsArg("--plan") ||
 		containsArg("--ssh") || containsArg("--sd") || containsArg("--live") || containsArg("--with-google") ||
+		containsArg("--wait-lock") ||
 		argString("--host", "") != "" || argString("--slack-bot-token", "") != "" ||
 		argString("--slack-app-token", "") != "" || argString("--signal-jsonrpc-url", "") != "" ||
 		argString("--signal-account", "") != "" ||
@@ -306,10 +321,12 @@ func printSetupUsage() {
 	fmt.Println("  --host <ip>          Override the saved board IP")
 	fmt.Println("  --user <name>        Override the SSH user")
 	fmt.Println("  --password <value>   Override the SSH password")
+	fmt.Println("  --profile <name>     Use an isolated company/customer profile")
 	fmt.Println("  --node <number>      Target a numbered fleet node")
 	fmt.Println("  --fleet <fleet-id>   Join an existing fleet")
 	fmt.Println("  --fleet-secret <s>   Secret for joining an existing fleet (or INTERNKIM_FLEET_SECRET)")
 	fmt.Println("  --plan               Print the selected setup plan")
+	fmt.Println("  --wait-lock          Wait for another setup on the same target instead of failing fast")
 	fmt.Println("  --list-steps         Print available setup steps")
 	fmt.Println("  --sim                Run the Tart simulation flow")
 	fmt.Println()
@@ -317,6 +334,7 @@ func printSetupUsage() {
 	fmt.Println("  internkim setup --only admin-web --force")
 	fmt.Println("  internkim setup --only admind --force")
 	fmt.Println("  internkim setup --only admin-web,admind --force")
+	fmt.Println("  internkim setup --profile acme --node 1 --only blueclaw-payload-direct --force")
 }
 
 func runDeviceSSH() {
@@ -392,10 +410,62 @@ func resolveCloudflareSSHConnection(configuration config, sshpassBin string, tar
 		return nil, false, errorValue
 	}
 	connection := newCloudflareSSH(sshpassBin, target.sshUser, target.sshPassword, target.sshHostname)
-	if _, errorValue := connection.runResult("true"); errorValue != nil {
-		return nil, false, fmt.Errorf("Cloudflare SSH failed for %s: %w", target.sshHostname, errorValue)
+	if output, errorValue := connection.runResult("true"); errorValue != nil {
+		return nil, false, formatCloudflareSSHError(target.sshHostname, output, errorValue)
 	}
 	return connection, true, nil
+}
+
+func formatCloudflareSSHError(hostname string, output string, errorValue error) error {
+	detail := strings.TrimSpace(output)
+	message := fmt.Sprintf("Cloudflare SSH failed for %s: %v", hostname, errorValue)
+	if detail != "" {
+		message = fmt.Sprintf("Cloudflare SSH failed for %s: %s: %v", hostname, detail, errorValue)
+	}
+	return fmt.Errorf("%s\n%s", message, cloudflareSSHRecoveryHint(hostname, detail))
+}
+
+func cloudflareSSHRecoveryHint(hostname string, detail string) string {
+	normalizedDetail := strings.ToLower(detail)
+	if strings.Contains(normalizedDetail, "banner exchange") {
+		return "Cloudflare Access 프록시는 열렸지만 SSH banner를 받지 못했습니다. 브라우저 인증보다 장비의 `sshd` 또는 `cloudflared-node-ssh` 터널 상태를 먼저 확인하세요. HTTP가 살아 있으면 `./internkim recover ssh`로 SSH 터널 복구를 시도하세요."
+	}
+	return fmt.Sprintf("Cloudflare Access 인증이 만료되었을 수 있습니다. `cloudflared access ssh --hostname %s`로 브라우저 인증을 갱신한 뒤 다시 실행하세요.", hostname)
+}
+
+func cloudflareSSHFailureClass(message string) string {
+	normalizedMessage := strings.ToLower(message)
+	switch {
+	case strings.Contains(normalizedMessage, "banner exchange"):
+		return "origin_banner_timeout"
+	case strings.Contains(normalizedMessage, "lookup"):
+		return "dns"
+	case strings.Contains(normalizedMessage, "access") || strings.Contains(normalizedMessage, "authenticate") || strings.Contains(normalizedMessage, "forbidden"):
+		return "access_auth"
+	case strings.Contains(normalizedMessage, "connect to host") || strings.Contains(normalizedMessage, "operation timed out"):
+		return "direct_lan_unreachable"
+	default:
+		return "unknown"
+	}
+}
+
+func cloudflareSSHFailureSummary(errorValue error) string {
+	if errorValue == nil {
+		return "ok"
+	}
+	failureClass := cloudflareSSHFailureClass(errorValue.Error())
+	switch failureClass {
+	case "origin_banner_timeout":
+		return "origin_banner_timeout — SSH tunnel origin did not return an SSH banner; try `./internkim recover ssh`."
+	case "access_auth":
+		return "access_auth — refresh Cloudflare Access authentication."
+	case "dns":
+		return "dns — SSH hostname did not resolve."
+	case "direct_lan_unreachable":
+		return "direct_lan_unreachable — direct SSH target did not respond."
+	default:
+		return "unknown — inspect Cloudflare SSH and device network state."
+	}
 }
 
 func cloudflareSSHTLSStatus(stateDir string) string {
@@ -436,16 +506,15 @@ func runModel() {
 		sub = os.Args[2]
 	}
 
+	configuration := loadConfig()
 	scriptDir, _ := os.Getwd()
 	sshpassBin := filepath.Join(scriptDir, "bin", "sshpass")
-
-	stateDir := internkimHomeDir()
-	boardIP, _ := detectBoardRPi(sshpassBin, stateDir)
-	if boardIP == "" {
-		fatal("Board not found. Run 'internkim setup' first or ensure the board is on the network.")
+	target := resolveCommandTarget(commandControlArguments(os.Args[2:]))
+	target = resolveLabHostForCommandTarget(target, scriptDir)
+	ssh, _, errorValue := resolveDeviceSSHConnection(configuration, sshpassBin, target)
+	if errorValue != nil {
+		fatal(errorValue.Error())
 	}
-
-	ssh := newSSH(sshpassBin, boardUser, "", boardIP)
 
 	switch sub {
 	case "current", "":
@@ -453,7 +522,7 @@ func runModel() {
 	case "set":
 		if len(os.Args) < 4 {
 			fmt.Println("Usage: internkim model set <model-id>")
-			fmt.Println("Example: internkim model set google/gemini-3.1-flash-lite-preview")
+			fmt.Println("Example: internkim model set " + blueclaw.BlueclawDefaultModelName)
 			os.Exit(1)
 		}
 		modelSetCmd(ssh, os.Args[3])
@@ -468,19 +537,16 @@ func modelCurrentCmd(ssh *sshClient) {
 	raw := strings.TrimSpace(ssh.run("cat " + blueclaw.BlueclawRuntimeConfigPath + " 2>/dev/null"))
 	var document map[string]any
 	_ = json.Unmarshal([]byte(raw), &document)
-	model := ""
-	if languageModel, ok := document["languageModel"].(map[string]any); ok {
-		if capabilityModel, ok := languageModel["capability"].(map[string]any); ok {
-			if value, ok := capabilityModel["model"].(string); ok {
-				model = strings.TrimSpace(value)
-			}
-		}
-	}
+	model := blueclawRuntimeModel(document)
 	if model == "" {
 		fmt.Println("No model configured.")
 		return
 	}
 	fmt.Printf("Model: %s\n", model)
+	workspaceModel := strings.TrimSpace(ssh.run("jq -r '.languageModel.capability.model // empty' " + blueclawWorkspaceRuntimeConfigPath() + " 2>/dev/null"))
+	if workspaceModel != "" && workspaceModel != model {
+		fmt.Printf("Workspace model differs: %s\n", workspaceModel)
+	}
 }
 
 func modelSetCmd(ssh *sshClient, modelID string) {
@@ -509,11 +575,45 @@ func modelSetCmd(ssh *sshClient, modelID string) {
 		fatal("Failed to stage blueclaw runtime config: " + err.Error())
 	}
 	defer os.Remove(temporaryPath)
-	ssh.scp(temporaryPath, blueclaw.BlueclawRuntimeConfigPath)
-	ssh.run("chown root:" + blueclaw.BlueclawUser + " " + blueclaw.BlueclawRuntimeConfigPath + " && chmod 640 " + blueclaw.BlueclawRuntimeConfigPath)
+	for _, runtimeConfigPath := range blueclawRuntimeConfigPaths() {
+		if errorValue := ssh.scp(temporaryPath, runtimeConfigPath); errorValue != nil {
+			fatal("Failed to upload blueclaw runtime config: " + errorValue.Error())
+		}
+	}
+	ssh.run("chown root:" + blueclaw.BlueclawUser + " " + quoteShellValues(blueclawRuntimeConfigPaths()) + " && chmod 640 " + quoteShellValues(blueclawRuntimeConfigPaths()))
 	ssh.run("systemctl restart " + blueclaw.BlueclawServiceName + " 2>/dev/null")
 	fmt.Printf("Model changed to: %s\n", modelID)
 	fmt.Println("blueclaw restarted.")
+}
+
+func blueclawRuntimeModel(document map[string]any) string {
+	if languageModel, ok := document["languageModel"].(map[string]any); ok {
+		if capabilityModel, ok := languageModel["capability"].(map[string]any); ok {
+			if value, ok := capabilityModel["model"].(string); ok {
+				return strings.TrimSpace(value)
+			}
+		}
+	}
+	return ""
+}
+
+func blueclawRuntimeConfigPaths() []string {
+	return []string{
+		blueclaw.BlueclawRuntimeConfigPath,
+		blueclawWorkspaceRuntimeConfigPath(),
+	}
+}
+
+func blueclawWorkspaceRuntimeConfigPath() string {
+	return blueclaw.BlueclawWorkspacePath + "/.blueclaw/config/runtime.json"
+}
+
+func quoteShellValues(values []string) string {
+	quotedValues := make([]string, 0, len(values))
+	for _, value := range values {
+		quotedValues = append(quotedValues, quoteShellValue(value))
+	}
+	return strings.Join(quotedValues, " ")
 }
 
 func modelListCmd(ssh *sshClient) {
@@ -749,6 +849,9 @@ func runStatusArguments(arguments []string) error {
 	sshpassBin := filepath.Join(repositoryRootPath, "bin", "sshpass")
 	target := resolveCommandTarget(arguments)
 	target = resolveLabHostForCommandTarget(target, repositoryRootPath)
+	if hasCommandArgument(arguments, "--recover-ssh") {
+		return runSSHRecoveryForTarget(m, configuration, sshpassBin, target, "restart-cloudflared-node-ssh", false)
+	}
 	if hasCommandArgument(arguments, "--all-nodes") {
 		targets := allFleetCommandTargets(target)
 		if len(targets) == 0 {
@@ -766,12 +869,15 @@ func runStatusArguments(arguments []string) error {
 
 func printStatusForCommandTarget(m *msg, configuration config, sshpassBin string, target commandTarget) error {
 	if strings.TrimSpace(target.host) == "" {
-		target.host = findBoardIPForCredentials(sshpassBin, target.stateDir, target.sshUser, target.sshPassword)
+		target.host = findSavedSSHHostForStatus(target.stateDir)
 	}
 	if strings.TrimSpace(target.host) != "" {
 		printCommandTargetEvidence(target)
 		fmt.Printf("=== %s (%s: %s) ===\n\n", m.t("기기 상태", "Device Status"), target.boardType, target.host)
 		printBoardStatus(m, target, newSSH(sshpassBin, target.sshUser, target.sshPassword, target.host))
+		return nil
+	}
+	if !target.useRemoteSSH && printPublicStatusForCommandTarget(m, target) {
 		return nil
 	}
 	if connection, isRemote, errorValue := resolveCloudflareSSHConnection(configuration, sshpassBin, target, false); errorValue == nil && connection != nil {
@@ -781,6 +887,12 @@ func printStatusForCommandTarget(m *msg, configuration config, sshpassBin string
 		fmt.Printf("=== %s (%s: %s) ===\n\n", m.t("기기 상태", "Device Status"), target.boardType, target.host)
 		printBoardStatus(m, target, connection)
 		return nil
+	} else if target.useRemoteSSH && errorValue != nil {
+		if printPublicStatusForCommandTarget(m, target) {
+			fmt.Printf("\n  %-20s ✗ %s\n", "SSH", cloudflareSSHFailureSummary(errorValue))
+			return nil
+		}
+		return errorValue
 	}
 
 	connection, isRemote, errorValue := resolveDeviceSSHConnection(configuration, sshpassBin, target)
@@ -792,12 +904,12 @@ func printStatusForCommandTarget(m *msg, configuration config, sshpassBin string
 		printBoardStatus(m, target, connection)
 		return nil
 	}
-	if target.useRemoteSSH && errorValue != nil {
-		return errorValue
-	}
-
 	if target.mode == commandTargetModeLab {
 		return errors.New("lab target not found; run `internkim lab status` or pass --host <ip>")
+	}
+
+	if printPublicStatusForCommandTarget(m, target) {
+		return nil
 	}
 
 	fmt.Printf("  %s\n", m.t(
@@ -805,6 +917,21 @@ func printStatusForCommandTarget(m *msg, configuration config, sshpassBin string
 		"Device not found.\n  - Board: Check Wi-Fi\n  - Tart Lab: start with `internkim lab vm-up`",
 	))
 	return nil
+}
+
+func findSavedSSHHostForStatus(stateDirectory string) string {
+	for _, host := range uniqueNonEmptyStrings([]string{
+		loadState(stateDirectory, "board_ip"),
+		loadState(stateDirectory, "board_wifi_ip"),
+	}) {
+		connection, errorValue := net.DialTimeout("tcp", host+":22", time.Second)
+		if errorValue != nil {
+			continue
+		}
+		connection.Close()
+		return host
+	}
+	return ""
 }
 
 func printBoardStatus(m *msg, target commandTarget, sshClient *sshClient) {
@@ -844,6 +971,7 @@ func printBoardStatus(m *msg, target commandTarget, sshClient *sshClient) {
 	services := []struct{ name, label string }{
 		{"mattermost", "Mattermost"},
 		{blueclaw.BlueclawServiceName, "Blueclaw"},
+		{blueclaw.GraphitiMemorydServiceName, "Graphiti Memory"},
 		{"cloudflared", "Cloudflared"},
 		{"cloudflared-node-ssh", "Node SSH Tunnel"},
 		{"postgresql", "PostgreSQL"},
@@ -872,7 +1000,93 @@ func printBoardStatus(m *msg, target commandTarget, sshClient *sshClient) {
 	if disk != "" {
 		fmt.Printf("  %-20s %s\n", m.t("디스크", "Disk"), disk)
 	}
+	printPublicStatusSection(m, target)
 }
+
+func printPublicStatusForCommandTarget(m *msg, target commandTarget) bool {
+	if strings.TrimSpace(target.deviceURL) == "" {
+		return false
+	}
+	printCommandTargetEvidence(target)
+	fmt.Printf("=== %s (%s) ===\n\n", m.t("공개 URL 상태", "Public URL Status"), target.boardType)
+	fmt.Printf("  %-20s %s\n", "SSH", "✗ "+m.t("로컬 SSH 미확인", "local SSH not found"))
+	printPublicStatusSection(m, target)
+	return true
+}
+
+func printPublicStatusSection(m *msg, target commandTarget) {
+	if strings.TrimSpace(target.deviceURL) == "" {
+		return
+	}
+	fmt.Println()
+	for _, result := range publicEndpointStatuses(m, target.deviceURL) {
+		fmt.Printf("  %-20s %s %s\n", result.label, result.marker, result.detail)
+	}
+}
+
+type publicEndpointStatus struct {
+	label  string
+	marker string
+	detail string
+}
+
+func publicEndpointStatuses(m *msg, deviceURL string) []publicEndpointStatus {
+	return []publicEndpointStatus{
+		publicEndpointStatusFor(m.t("Mattermost 공개 URL", "Mattermost public URL"), deviceURL, "/api/v4/system/ping", `"status":"OK"`),
+		publicEndpointStatusFor(m.t("Admin 공개 URL", "Admin public URL"), deviceURL, "/admin/api/health", `"status":"ok"`),
+	}
+}
+
+func publicEndpointStatusFor(label string, deviceURL string, path string, expectedBodyFragment string) publicEndpointStatus {
+	statusCode, responseBody, errorValue := fetchPublicEndpoint(deviceURL, path)
+	if errorValue != nil {
+		return publicEndpointStatus{label: label, marker: "✗", detail: errorValue.Error()}
+	}
+	if statusCode >= 200 && statusCode < 300 && strings.Contains(compactJSONSpaces(responseBody), expectedBodyFragment) {
+		return publicEndpointStatus{label: label, marker: "✓", detail: fmt.Sprintf("HTTP %d", statusCode)}
+	}
+	if statusCode >= 300 && statusCode < 400 {
+		return publicEndpointStatus{label: label, marker: "⏳", detail: fmt.Sprintf("HTTP %d redirect", statusCode)}
+	}
+	return publicEndpointStatus{label: label, marker: "✗", detail: fmt.Sprintf("HTTP %d", statusCode)}
+}
+
+func fetchPublicEndpoint(deviceURL string, path string) (int, string, error) {
+	endpointURL, errorValue := publicEndpointURL(deviceURL, path)
+	if errorValue != nil {
+		return 0, "", errorValue
+	}
+	request, errorValue := http.NewRequest(http.MethodGet, endpointURL, nil)
+	if errorValue != nil {
+		return 0, "", errorValue
+	}
+	response, errorValue := statusHTTPClient.Do(request)
+	if errorValue != nil {
+		return 0, "", errorValue
+	}
+	defer response.Body.Close()
+	responseBody, errorValue := io.ReadAll(io.LimitReader(response.Body, 4096))
+	if errorValue != nil {
+		return response.StatusCode, "", errorValue
+	}
+	return response.StatusCode, string(responseBody), nil
+}
+
+func publicEndpointURL(deviceURL string, path string) (string, error) {
+	parsedURL, errorValue := url.Parse(strings.TrimSpace(deviceURL))
+	if errorValue != nil {
+		return "", errorValue
+	}
+	parsedURL.Path = "/" + strings.TrimLeft(path, "/")
+	parsedURL.RawQuery = ""
+	parsedURL.Fragment = ""
+	return parsedURL.String(), nil
+}
+
+func compactJSONSpaces(value string) string {
+	return strings.ReplaceAll(strings.Join(strings.Fields(value), ""), " ", "")
+}
+
 func runUpdate() {
 	if errorValue := runUpdateArguments(os.Args[2:]); errorValue != nil {
 		fatal(errorValue.Error())
@@ -1197,7 +1411,7 @@ chmod -R g+w /opt/mattermost
 cd /opt/mattermost
 cp config/config.defaults.json config/config.json 2>/dev/null && echo "defaults_used" || echo "defaults_missing"
 DB_PASS="%s"
-MATTERMOST_DB_PASS="$DB_PASS" MATTERMOST_SITE_URL="http://localhost:8065" python3 - <<'PY' && chown mattermost:mattermost config/config.json && echo "config_ok" || echo "config_failed"
+MATTERMOST_DB_PASS="$DB_PASS" MATTERMOST_SITE_URL="http://localhost:8065" MATTERMOST_MANAGED_RESOURCE_PATHS="%s" python3 - <<'PY' && chown mattermost:mattermost config/config.json && echo "config_ok" || echo "config_failed"
 import json
 import os
 from pathlib import Path
@@ -1212,7 +1426,7 @@ document["SqlSettings"]["DataSource"] = "postgres://mmuser:%%s@localhost/matterm
 document["ServiceSettings"]["SiteURL"] = os.environ["MATTERMOST_SITE_URL"]
 document["ServiceSettings"]["AllowCorsFrom"] = os.environ["MATTERMOST_SITE_URL"]
 document["ServiceSettings"]["CorsAllowCredentials"] = True
-document["ServiceSettings"]["ManagedResourcePaths"] = "admin,attendance,calendar,flow,mail"
+document["ServiceSettings"]["ManagedResourcePaths"] = os.environ["MATTERMOST_MANAGED_RESOURCE_PATHS"]
 document["TeamSettings"]["TeammateNameDisplay"] = "nickname_full_name"
 path.write_text(json.dumps(document, indent=2, sort_keys=True))
 PY
@@ -1239,7 +1453,7 @@ WantedBy=multi-user.target
 SVCEOF
 systemctl daemon-reload
 systemctl enable mattermost 2>&1 && echo "enable_ok" || echo "enable_failed"
-systemctl start mattermost 2>&1 && echo "start_ok" || echo "start_failed"`, mmDBPass))
+systemctl start mattermost 2>&1 && echo "start_ok" || echo "start_failed"`, mmDBPass, mattermostManagedResourcePathSetting()))
 
 	if strings.Contains(installResult, "tar_failed") {
 		fmt.Printf("  ERROR: %s\n", m.t("압축 해제 실패", "Failed to extract tarball"))
@@ -1860,7 +2074,12 @@ func setupMattermostConnectCommand(m *msg, ssh *sshClient, mmAPI mattermostSetup
 		}
 		writeMattermostSetupConnectCommandToken(ssh, createdRecord.Token)
 	}
-	fmt.Printf("  %s\n", m.t("Mattermost /connect /stop /stop-all /중단 /중단-전부 명령 확인", "Mattermost /connect /stop /stop-all /중단 /중단-전부 commands verified"))
+	for _, trigger := range mattermostSetupDeprecatedCommandTriggers() {
+		if commandRecord, found := findMattermostSetupCommand(mmAPI, adminToken, teamID, trigger); found {
+			mmAPI("DELETE", "/api/v4/commands/"+commandRecord.ID, nil, adminToken)
+		}
+	}
+	fmt.Printf("  %s\n", m.t("Mattermost /connect /stop /stop-all 명령 확인", "Mattermost /connect /stop /stop-all commands verified"))
 }
 
 func findMattermostSetupCommand(mmAPI mattermostSetupAPI, adminToken string, teamID string, trigger string) (mattermostSetupCommandRecord, bool) {
@@ -1909,11 +2128,11 @@ func mattermostSetupCommandPayload(teamID string, commandID string, trigger stri
 		Autocomplete: true,
 	}
 	switch trigger {
-	case "stop", "중단":
+	case "stop":
 		commandRecord.DisplayName = "Stop InternKim task"
 		commandRecord.Description = "Stop your current InternKim task."
 		commandRecord.AutocompleteDesc = "Stop your current task"
-	case "stop-all", "중단-전부":
+	case "stop-all":
 		commandRecord.DisplayName = "Stop all InternKim tasks"
 		commandRecord.Description = "Stop all of your active InternKim tasks."
 		commandRecord.AutocompleteDesc = "Stop all active tasks"
@@ -1944,7 +2163,11 @@ chmod 600 %s`,
 }
 
 func mattermostSetupCommandTriggers() []string {
-	return []string{"connect", "stop", "stop-all", "중단", "중단-전부"}
+	return []string{"connect", "stop", "stop-all"}
+}
+
+func mattermostSetupDeprecatedCommandTriggers() []string {
+	return []string{"중단", "중단-전부"}
 }
 
 func runLab() {
@@ -2203,7 +2426,7 @@ func setupControlArguments(arguments []string) []string {
 				index++
 				filteredArguments = append(filteredArguments, arguments[index])
 			}
-		case "--force", "--force-all", "--plan", "--list-steps", "--en", "--non-interactive", "--verify", "--verify-browser", "--keep-artifacts", "--with-google":
+		case "--force", "--force-all", "--plan", "--list-steps", "--en", "--non-interactive", "--verify", "--verify-browser", "--keep-artifacts", "--with-google", "--wait-lock":
 			filteredArguments = append(filteredArguments, argument)
 		default:
 			if strings.HasPrefix(argument, "--only=") ||
@@ -3736,6 +3959,9 @@ func newSSHWithPort(sshpassBin, user, pass, host, port string) *sshClient {
 }
 
 func newCloudflareSSH(sshpassBin, user, pass, host string) *sshClient {
+	if port := strings.TrimSpace(os.Getenv("INTERNKIM_CLOUDFLARE_SSH_LOCAL_PORT")); port != "" {
+		return newSSHWithPort(sshpassBin, user, pass, "localhost", port)
+	}
 	client := newSSH(sshpassBin, user, pass, host)
 	client.proxyCommand = "env GODEBUG=netdns=go TUNNEL_EDGE_IP_VERSION=4 cloudflared --edge-ip-version 4 --edge-bind-address 0.0.0.0 access ssh --hostname %h"
 	return client
@@ -3858,12 +4084,7 @@ func (s *sshClient) scp(localPath, remotePath string) error {
 		if err := s.scpDirect(localPath, temporaryRemotePath); err != nil {
 			return err
 		}
-		output, err := s.runResult(fmt.Sprintf(
-			"mkdir -p %s && mv %s %s",
-			quoteShellValue(filepath.Dir(remotePath)),
-			quoteShellValue(temporaryRemotePath),
-			quoteShellValue(remotePath),
-		))
+		output, err := s.runResult(moveUploadedPathCommand(temporaryRemotePath, remotePath))
 		if err != nil {
 			return fmt.Errorf("move uploaded file to %s: %s: %w", remotePath, strings.TrimSpace(output), err)
 		}
@@ -3893,12 +4114,7 @@ func (s *sshClient) rsyncSparse(localPath string, remotePath string) error {
 	if uploadRemotePath == remotePath {
 		return nil
 	}
-	moveOutput, errorValue := s.runResult(fmt.Sprintf(
-		"mkdir -p %s && mv %s %s",
-		quoteShellValue(filepath.Dir(remotePath)),
-		quoteShellValue(uploadRemotePath),
-		quoteShellValue(remotePath),
-	))
+	moveOutput, errorValue := s.runResult(moveUploadedPathCommand(uploadRemotePath, remotePath))
 	if errorValue != nil {
 		return fmt.Errorf("move uploaded file to %s: %s: %w", remotePath, strings.TrimSpace(moveOutput), errorValue)
 	}
@@ -3918,6 +4134,15 @@ func (s *sshClient) runRsyncSparse(localPath string, remotePath string, target s
 		return fmt.Errorf("rsync sparse %s to %s failed: %s: %w", localPath, remotePath, strings.TrimSpace(output), errorValue)
 	}
 	return nil
+}
+
+func moveUploadedPathCommand(sourcePath string, targetPath string) string {
+	return fmt.Sprintf(
+		"mkdir -p %s && mv %s %s",
+		quoteShellValue(filepath.Dir(targetPath)),
+		quoteShellValue(sourcePath),
+		quoteShellValue(targetPath),
+	)
 }
 
 func rsyncSparseArguments(sshCommand string, localPath string, target string) []string {
@@ -4311,8 +4536,7 @@ func ensureCloudflareSSHRegistration(configuration config, stateDir string, forc
 }
 
 func canReuseCloudflareSSHRegistration(configuration config, stateDir string, savedSSHHostname string, force bool) bool {
-	return !force &&
-		savedSSHHostname != "" &&
+	return savedSSHHostname != "" &&
 		loadState(stateDir, "node_tunnel_token") != "" &&
 		loadState(stateDir, "tunnel_revision") == setup.TunnelConfigurationRevision &&
 		cloudflareSSHTLSIsReady(cloudflareSSHTLSStatus(stateDir)) &&
@@ -4496,6 +4720,19 @@ func runSetupLive(messenger *msg) {
 	if boardType == setup.BoardJetsonOrinNano {
 		requestedSSH = true
 	}
+	if !containsArg("--plan") {
+		lockDocument := setupLockDocument{
+			Command:       commandLineForSetupLock(os.Args[2:]),
+			SelectedSteps: setupLockSelectedSteps(os.Args[2:]),
+			TargetHost:    firstNonEmptyString(hostOverride, cloudflareSSHHostname, loadState(stateDir, "ssh_hostname")),
+			TargetURL:     target.deviceURL,
+		}
+		lockHandle, errorValue := acquireSetupLock(stateDir, lockDocument, containsArg("--wait-lock"))
+		if errorValue != nil {
+			fatal(errorValue.Error())
+		}
+		defer lockHandle.release()
+	}
 
 	var (
 		selectedBackend    setup.Backend
@@ -4560,7 +4797,7 @@ func runSetupLive(messenger *msg) {
 		sshConnection = newCloudflareSSH(sshpassBin, sshUser, sshPassword, boardIP)
 		output, errorValue := sshConnection.runResult("true")
 		if errorValue != nil {
-			cloudflareSSHError = fmt.Errorf("Cloudflare SSH failed for %s: %s: %w", boardIP, strings.TrimSpace(output), errorValue)
+			cloudflareSSHError = formatCloudflareSSHError(boardIP, output, errorValue)
 			return false
 		}
 		target.useRemoteSSH = true
@@ -4568,6 +4805,14 @@ func runSetupLive(messenger *msg) {
 	}
 
 	switch {
+	case containsArg("--plan"):
+		if requestedSD {
+			selectedBackend = setup.BackendSD
+			stagingRoot = findSDStagingRoot()
+		} else {
+			selectedBackend = setup.BackendSSH
+			boardIP = firstNonEmptyString(hostOverride, cloudflareSSHHostname, loadState(stateDir, "ssh_hostname"))
+		}
 	case requestedSSH:
 		sshReady := false
 		if requestedCloudflareSSH {
@@ -4645,18 +4890,24 @@ func runSetupLive(messenger *msg) {
 	}
 
 	pipelineContext := &setup.Context{
-		Backend:   selectedBackend,
-		Language:  messenger.lang,
-		StateDir:  stateDir,
-		ScriptDir: scriptDir,
-		BoardType: boardType,
-		BoardIP:   boardIP,
-		Force:     shouldForce,
-		HTTP:      &http.Client{Timeout: 30 * time.Second},
-		Callbacks: flowState.callbacks(),
+		Backend:      selectedBackend,
+		Language:     messenger.lang,
+		StateDir:     stateDir,
+		ScriptDir:    scriptDir,
+		BoardType:    boardType,
+		BoardIP:      boardIP,
+		PublicURL:    target.deviceURL,
+		SetupCommand: commandLineForSetupLock(os.Args[2:]),
+		SetupSteps:   setupLockSelectedSteps(os.Args[2:]),
+		SetupLockID:  randomHexString(12),
+		Force:        shouldForce,
+		HTTP:         &http.Client{Timeout: 30 * time.Second},
+		Callbacks:    flowState.callbacks(),
 	}
 	if selectedBackend == setup.BackendSSH {
-		pipelineContext.SSH = sshBoardConnection{client: sshConnection}
+		if sshConnection != nil {
+			pipelineContext.SSH = sshBoardConnection{client: sshConnection}
+		}
 	} else {
 		pipelineContext.SD = sdStagingTarget{stagingRoot: stagingRoot}
 	}

@@ -1,8 +1,10 @@
 # Simple Slides Layouts
 
-Use these as authoring patterns for `presentation.md`. They are not templates to copy wholesale; choose the structure that fits each slide and write concise CSS classes in the Marp `style` block. Marp should compile the deck, while HTML inside each slide should carry the layout.
+Use these as authoring patterns for `slides.html`. They are not templates to copy wholesale; choose the structure that fits each slide and write concise CSS classes in the deck style block.
 
-Use raw HTML containers inside Marp slides. Avoid relying on default Markdown title-plus-bullets as the main layout.
+Use explicit HTML containers inside each `<section class="slide">`. Avoid default title-plus-bullets as the main layout.
+
+Every layout needs a content reason. Choose it because it helps the audience compare, decide, understand a workflow, or trust a recommendation. Do not use cards or matrices as decoration for thin copy.
 
 Common page skeleton:
 
@@ -75,6 +77,27 @@ Use for the final slide.
 - Next action
 - HTML shape: `.recommendation` with verdict, rationale cards, and next-step footer
 
+## Worked Example
+
+Use when the deck needs to prove that a workflow, tool, or concept is real.
+
+- Input or starting state
+- Action or transformation
+- Output or decision
+- One limitation or guardrail
+- HTML shape: `.worked-example` with before/action/after panels and a short caveat
+
+## Decision Narrative
+
+Use when the deck must persuade rather than describe.
+
+- Situation or constraint
+- Two or three options
+- Evaluation criteria
+- Recommended option
+- Next action
+- HTML shape: `.decision-narrative` with a compact criteria matrix and a recommendation footer
+
 ## Consulting Page
 
 Use for analytical decks that need to feel sharper than a normal report.
@@ -105,3 +128,5 @@ Define only the classes the deck actually uses. Useful names:
 - `.recommendation`
 
 Keep the visual language minimal: black-and-white first, restrained lines, enough whitespace, and no decorative gradients.
+
+If a slide feels generic, change the content structure before changing the styling. Add a concrete example, scenario number, contrast, caveat, or decision criterion.

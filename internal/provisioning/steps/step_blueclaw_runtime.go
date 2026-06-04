@@ -3,6 +3,7 @@ package setup
 import (
 	"errors"
 	"fmt"
+	"path"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
@@ -68,7 +69,7 @@ var StepBlueclawPayload = Step{
 		if localManifest == "" {
 			return false
 		}
-		return trimmedRun(context, "printf '%s' "+shellQuote(localManifest)+" | cmp -s - "+shellQuote(blueclaw.BlueclawPayloadManifestPath)+" && echo ok || echo missing") == "ok"
+		return trimmedRun(context, blueclawPayloadManifestCheckCommand(localManifest)) == "ok"
 	},
 	Run: func(context *Context) error {
 		if context.Callbacks.InstallBlueclawPayloadSSH == nil {
@@ -84,4 +85,30 @@ var StepBlueclawPayload = Step{
 		}
 		return nil
 	},
+}
+
+var StepBlueclawPayloadDirect = Step{
+	Name:        "blueclaw-payload-direct",
+	Title:       StepBlueclawPayload.Title,
+	IsSatisfied: StepBlueclawPayload.IsSatisfied,
+	Run:         StepBlueclawPayload.Run,
+}
+
+func blueclawPayloadManifestCheckCommand(localManifest string) string {
+	return `set -eu
+expected_manifest_path="$(mktemp /tmp/internkim-blueclaw-expected-manifest.XXXXXX)"
+host_workspace_manifest_path="$(mktemp /tmp/internkim-blueclaw-host-workspace-manifest.XXXXXX)"
+workspace_manifest_path="$(mktemp /tmp/internkim-blueclaw-workspace-manifest.XXXXXX)"
+cleanup_blueclaw_payload_manifest_check() {
+  rm -f "$expected_manifest_path" "$host_workspace_manifest_path" "$workspace_manifest_path"
+}
+trap cleanup_blueclaw_payload_manifest_check EXIT
+printf '%s' ` + shellQuote(localManifest) + ` > "$expected_manifest_path"
+cat ` + shellQuote(path.Join(blueclaw.BlueclawWorkspacePath, ".blueclaw", "runtime", "current", "manifest.json")) + ` > "$host_workspace_manifest_path" 2>/dev/null || true
+debugfs -R ` + shellQuote("cat /.blueclaw/runtime/current/manifest.json") + ` ` + shellQuote(blueclaw.BlueclawWorkspaceImagePath) + ` > "$workspace_manifest_path" 2>/dev/null || true
+if cmp -s "$expected_manifest_path" ` + shellQuote(blueclaw.BlueclawPayloadManifestPath) + ` && cmp -s "$expected_manifest_path" "$host_workspace_manifest_path" && cmp -s "$expected_manifest_path" "$workspace_manifest_path"; then
+  echo ok
+else
+  echo missing
+fi`
 }

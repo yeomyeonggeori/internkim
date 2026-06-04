@@ -92,6 +92,10 @@ type Context struct {
 	ScriptDir    string
 	BoardType    string
 	BoardIP      string
+	PublicURL    string
+	SetupCommand string
+	SetupSteps   string
+	SetupLockID  string
 	Force        bool
 	PlannedSteps map[string]bool
 
