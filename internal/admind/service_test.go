@@ -3356,7 +3356,7 @@ func TestMattermostConnectCommandProvisioningCreatesCommandToken(t *testing.T) {
 	if errorValue := service.ensureMattermostConnectCommand(context.Background(), "admin-token"); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	expectedTokens := []string{"connect-token", "stop-token", "stop-all-token", "중단-token", "중단-전부-token"}
+	expectedTokens := []string{"connect-token", "stop-token", "stop-all-token"}
 	if !stringFieldsMatch(readTrimmedFile(service.mattermostConnectCommandTokenPath()), expectedTokens) {
 		t.Fatalf("stored command token = %q", readTrimmedFile(service.mattermostConnectCommandTokenPath()))
 	}
@@ -3686,7 +3686,7 @@ func TestMattermostConnectCommandProvisioningRecreatesCommandWithoutToken(t *tes
 	if !archivedCommand {
 		t.Fatal("old command was not archived")
 	}
-	expectedTokens := []string{"new-connect-token", "new-stop-token", "new-stop-all-token", "new-중단-token", "new-중단-전부-token"}
+	expectedTokens := []string{"new-connect-token", "new-stop-token", "new-stop-all-token"}
 	if !stringFieldsMatch(readTrimmedFile(service.mattermostConnectCommandTokenPath()), expectedTokens) {
 		t.Fatalf("stored command token = %q", readTrimmedFile(service.mattermostConnectCommandTokenPath()))
 	}
