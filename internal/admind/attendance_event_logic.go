@@ -69,7 +69,7 @@ func (service *Service) createAttendanceEventForKind(ctx context.Context, databa
 	if errorValue != nil {
 		return errorValue
 	}
-	if errorValue := service.deleteLatestAttendanceResultPostForKind(ctx, database, adminToken, kind); errorValue != nil {
+	if errorValue := service.deleteLatestAttendanceResultPostForUserAndKind(ctx, database, adminToken, userRecord.ID, kind); errorValue != nil {
 		return errorValue
 	}
 	resultPostID, errorValue := service.postMattermostUserAttendanceMessage(ctx, userToken, channelID, actionPostID, service.attendanceMessageForKindAndLocation(kind, eventLocation))
@@ -80,8 +80,8 @@ func (service *Service) createAttendanceEventForKind(ctx context.Context, databa
 	return service.insertAttendanceEvent(ctx, database, event)
 }
 
-func (service *Service) deleteLatestAttendanceResultPostForKind(ctx context.Context, database *sql.DB, adminToken string, kind string) error {
-	event, found, errorValue := service.latestActiveAttendanceEventForKind(ctx, database, kind)
+func (service *Service) deleteLatestAttendanceResultPostForUserAndKind(ctx context.Context, database *sql.DB, adminToken string, mattermostUserID string, kind string) error {
+	event, found, errorValue := service.latestActiveAttendanceEventForUserAndKind(ctx, database, mattermostUserID, kind)
 	if errorValue != nil || !found {
 		return errorValue
 	}
