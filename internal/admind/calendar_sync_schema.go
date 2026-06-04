@@ -64,6 +64,21 @@ CREATE TABLE IF NOT EXISTS calendar_remote_accounts (
 	if errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_remote_accounts", "principal_url", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_remote_accounts", "home_set_url", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_remote_accounts", "default_calendar_url", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_remote_accounts", "default_calendar_ctag", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureCalendarColumn(ctx, database, "calendar_remote_accounts", "token_file_path", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := ensureCalendarColumn(ctx, database, "calendar_remote_accounts", "last_auth_error", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
 		return errorValue
 	}
