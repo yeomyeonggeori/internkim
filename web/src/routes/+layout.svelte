@@ -1,7 +1,6 @@
 <script lang="ts">
 	import '../app.css';
 	import { page } from '$app/state';
-	import favicon from '$lib/assets/favicon.svg';
 	import AppRail from '$lib/components/app-rail.svelte';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb/index.js';
 	import { ThemeSelector } from '$lib/components/ui/theme-selector';
@@ -37,7 +36,7 @@
 </script>
 
 <svelte:head>
-	<link rel="icon" href={favicon} />
+	<link rel="icon" href="/logo.svg" />
 </svelte:head>
 
 <ModeWatcher />
