@@ -215,6 +215,8 @@ func Main() {
 			runReset()
 		case "recover":
 			runRecover()
+		case "release":
+			runRelease()
 		case "status":
 			runStatus()
 		case "update":
@@ -256,6 +258,7 @@ func printUsage() {
 	fmt.Println("  users    Manage allowed users")
 	fmt.Println("  reset    Reset board runtime data")
 	fmt.Println("  recover  Recover narrow device maintenance paths")
+	fmt.Println("  release  Publish and inspect release sets")
 	fmt.Println("  status   Check board and tunnel status")
 	fmt.Println("  update   Deploy current build to device")
 	fmt.Println("  deploy   Build and deploy web UI + board-bridge to board")

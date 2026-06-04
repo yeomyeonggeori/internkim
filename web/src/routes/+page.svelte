@@ -89,18 +89,16 @@
 		logs?: string[];
 	};
 
-	type BlueclawUpdateArtifact = {
-		component: string;
-		version: string;
-		blueclawRevision: string;
-		sha256?: string;
-		manifestSHA256?: string;
+	type ReleaseUpdateSummary = {
+		releaseID: string;
+		channel?: string;
 		createdAt?: string;
+		components?: Record<string, { revision: string; sha256?: string }>;
 	};
 
 	type BlueclawUpdateStatus = {
-		current?: BlueclawUpdateArtifact;
-		latest?: BlueclawUpdateArtifact;
+		current?: ReleaseUpdateSummary;
+		latest?: ReleaseUpdateSummary;
 		state: string;
 		updateAllowed: boolean;
 		activeJob?: AdminJob;
@@ -331,8 +329,16 @@
 		const value = revision?.trim() ?? '';
 		return value ? value.slice(0, 8) : text.deviceUpdate.notAvailable;
 	};
+	const releaseComponents = (summary: ReleaseUpdateSummary | undefined) => {
+		const components = summary?.components ?? {};
+		return Object.entries(components).sort(([leftName], [rightName]) => leftName.localeCompare(rightName));
+	};
 	const blueclawUpdateStateLabel = (state: string | undefined) => {
 		const labels = text.deviceUpdate.states;
+		if (state === 'current') return labels.current;
+		if (state === 'update_available') return labels.updateAvailable;
+		if (state === 'updating') return labels.updating;
+		if (state === 'unknown') return labels.unknown;
 		if (state === 'already_current') return labels.alreadyCurrent;
 		if (state === 'completed') return labels.completed;
 		if (state === 'failed') return labels.failed;
@@ -971,7 +977,7 @@
 		isLoadingBlueclawUpdate = true;
 		blueclawUpdateMessage = '';
 		try {
-			const response = await fetch(`${adminBaseURL()}/updates/blueclaw/status`, { credentials: 'include' });
+			const response = await fetch(`${adminBaseURL()}/updates/status`, { credentials: 'include' });
 			if (!response.ok) {
 				blueclawUpdateMessage = text.deviceUpdate.loadError;
 				return;
@@ -991,7 +997,7 @@
 		isApplyingBlueclawUpdate = true;
 		blueclawUpdateMessage = '';
 		try {
-			const response = await fetch(`${adminBaseURL()}/updates/blueclaw/apply`, {
+			const response = await fetch(`${adminBaseURL()}/updates/apply`, {
 				method: 'POST',
 				credentials: 'include'
 			});
@@ -1010,7 +1016,7 @@
 
 	async function pollBlueclawUpdateJob(jobID: string) {
 		for (let attempt = 0; attempt < 120; attempt += 1) {
-			const response = await fetch(`${adminBaseURL()}/updates/blueclaw/jobs/${encodeURIComponent(jobID)}`, { credentials: 'include' });
+			const response = await fetch(`${adminBaseURL()}/updates/jobs/${encodeURIComponent(jobID)}`, { credentials: 'include' });
 			if (response.ok) {
 				blueclawUpdateJob = (await response.json()) as AdminJob;
 				if (blueclawUpdateJob.status === 'completed' || blueclawUpdateJob.status === 'failed' || blueclawUpdateJob.status === 'already_current') {
@@ -1328,24 +1334,37 @@
 							<h3 class="text-sm font-semibold">{text.deviceUpdate.title}</h3>
 							<p class="text-muted-foreground mt-1 text-sm">{text.deviceUpdate.description}</p>
 						</div>
-						<Badge variant={blueclawUpdateStatus?.state === 'already_current' ? 'secondary' : 'outline'}>
+						<Badge variant={blueclawUpdateStatus?.state === 'current' ? 'secondary' : 'outline'}>
 							{blueclawUpdateStateLabel(blueclawUpdateJob?.phase || blueclawUpdateJob?.status || blueclawUpdateStatus?.state)}
 						</Badge>
 					</div>
 					<div class="grid gap-3 md:grid-cols-3">
 						<div class="rounded-md bg-muted/30 p-3">
 							<p class="text-muted-foreground text-xs">{text.deviceUpdate.currentRevision}</p>
-							<p class="mt-1 font-mono text-sm">{shortRevision(blueclawUpdateStatus?.current?.blueclawRevision)}</p>
+							<p class="mt-1 font-mono text-sm">{shortRevision(blueclawUpdateStatus?.current?.releaseID)}</p>
 						</div>
 						<div class="rounded-md bg-muted/30 p-3">
 							<p class="text-muted-foreground text-xs">{text.deviceUpdate.latestRevision}</p>
-							<p class="mt-1 font-mono text-sm">{shortRevision(blueclawUpdateStatus?.latest?.blueclawRevision)}</p>
+							<p class="mt-1 font-mono text-sm">{shortRevision(blueclawUpdateStatus?.latest?.releaseID)}</p>
 						</div>
 						<div class="rounded-md bg-muted/30 p-3">
 							<p class="text-muted-foreground text-xs">{text.deviceUpdate.jobPhase}</p>
 							<p class="mt-1 text-sm">{blueclawUpdateStateLabel(blueclawUpdateJob?.phase || blueclawUpdateJob?.status || blueclawUpdateStatus?.state)}</p>
 						</div>
 					</div>
+					{#if releaseComponents(blueclawUpdateStatus?.latest).length > 0}
+						<div class="mt-3 rounded-md bg-muted/20 p-3">
+							<p class="text-muted-foreground mb-2 text-xs">{text.deviceUpdate.components}</p>
+							<div class="grid gap-2 sm:grid-cols-2">
+								{#each releaseComponents(blueclawUpdateStatus?.latest) as [componentName, component]}
+									<div class="flex items-center justify-between gap-3 rounded border bg-background px-2 py-1.5 text-xs">
+										<span class="font-medium">{componentName}</span>
+										<span class="font-mono text-muted-foreground">{shortRevision(component.revision)}</span>
+									</div>
+								{/each}
+							</div>
+						</div>
+					{/if}
 					<div class="mt-4 flex flex-wrap items-center justify-between gap-3">
 						<p class="text-muted-foreground text-xs">{text.deviceUpdate.notice}</p>
 						<div class="flex gap-2">
@@ -1360,7 +1379,7 @@
 							<Button
 								size="sm"
 								class="gap-2"
-								disabled={!isDeviceReachable || isApplyingBlueclawUpdate || !blueclawUpdateStatus?.updateAllowed || blueclawUpdateStatus?.state === 'already_current'}
+								disabled={!isDeviceReachable || isApplyingBlueclawUpdate || !blueclawUpdateStatus?.updateAllowed || blueclawUpdateStatus?.state === 'current'}
 								onclick={applyBlueclawUpdate}
 							>
 								{#if isApplyingBlueclawUpdate}
