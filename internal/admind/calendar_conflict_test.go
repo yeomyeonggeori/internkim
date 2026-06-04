@@ -153,6 +153,13 @@ func TestPushConflictDifferentFieldsPreservesBothSides(t *testing.T) {
 	if final.RemoteETag != `"etag-after-merge"` {
 		t.Errorf("remoteETag: got %q, want etag-after-merge", final.RemoteETag)
 	}
+	finalRawEvent := decodeCalendarEventFromRawICS(final.RawICS, final.RemoteHref, final.CreatedByEmail)
+	if finalRawEvent.Title != "Local Renamed" {
+		t.Errorf("raw title: got %q, want Local Renamed", finalRawEvent.Title)
+	}
+	if finalRawEvent.Location != "Conference Room A" {
+		t.Errorf("raw location: got %q, want Conference Room A", finalRawEvent.Location)
+	}
 
 	conflicts, errorValue := service.listActiveCalendarConflicts(ctx)
 	if errorValue != nil {
