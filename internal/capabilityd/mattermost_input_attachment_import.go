@@ -1,6 +1,7 @@
 package capabilityd
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 )
 
 const maximumInputImagePartBytes = 8 * 1024 * 1024
@@ -271,6 +273,9 @@ func (service Service) mattermostMarkdownPreview(ctx context.Context, attachment
 	if errorValue != nil {
 		return "", "failed", errorValue.Error()
 	}
+	if preview, status, message, isRawText := mattermostRawTextPreview(hostPath, attachment.ContentType, attachment.SizeBytes); isRawText {
+		return preview, status, message
+	}
 	helperResponse, _, _, errorValue := service.convertDocument(ctx, hostPath, 20)
 	if errorValue != nil {
 		return "", "failed", errorValue.Error()
@@ -283,6 +288,40 @@ func (service Service) mattermostMarkdownPreview(ctx context.Context, attachment
 		return content, "truncated", "markdown preview was truncated"
 	}
 	return content, "converted", ""
+}
+
+func mattermostRawTextPreview(hostPath string, contentType string, sizeBytes int64) (string, string, string, bool) {
+	if !mattermostAttachmentLooksLikeRawText(hostPath, contentType) {
+		return "", "", "", false
+	}
+	document, errorValue := os.ReadFile(hostPath)
+	if errorValue != nil {
+		return "", "failed", errorValue.Error(), true
+	}
+	if !utf8.Valid(document) || bytes.IndexByte(document, 0) >= 0 {
+		return "", "", "", false
+	}
+	content, isTruncated := truncateTextByBytes(strings.TrimSpace(string(document)), maximumInputMarkdownPreviewBytes)
+	if content == "" {
+		return "", "empty", "file contains no text", true
+	}
+	if isTruncated || sizeBytes > int64(maximumInputMarkdownPreviewBytes) {
+		return content, "truncated", "raw text preview was truncated", true
+	}
+	return content, "converted", "", true
+}
+
+func mattermostAttachmentLooksLikeRawText(hostPath string, contentType string) bool {
+	normalizedContentType := strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
+	if strings.HasPrefix(normalizedContentType, "text/") {
+		return true
+	}
+	switch strings.ToLower(filepath.Ext(strings.TrimSpace(hostPath))) {
+	case ".html", ".htm", ".css", ".js", ".jsx", ".ts", ".tsx", ".json", ".md", ".txt", ".csv", ".xml", ".svg":
+		return true
+	default:
+		return false
+	}
 }
 
 func unavailableMattermostAttachment(attachment platformInputAttachment, fallbackMessageID string, errorCode string, message string) platformInputAttachment {
