@@ -3,10 +3,11 @@ declare module 'bun:test' {
 
 	type Expectation<T> = {
 		readonly not: Expectation<T>;
+		readonly rejects: Expectation<Awaited<T>>;
 		toBe(expected: unknown): void;
 		toEqual(expected: unknown): void;
 		toMatchObject(expected: unknown): void;
-		toThrow(): void;
+		toThrow(expected?: unknown): void;
 	};
 
 	export function beforeEach(callback: () => void | Promise<void>): void;

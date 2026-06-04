@@ -1,4 +1,3 @@
-// Flow 보고 탭 테스트용 summary fixture를 제공합니다.
 export type FlowReportFixtureMetrics = {
 	totalTasks: number;
 	completedTasks: number;

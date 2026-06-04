@@ -11,10 +11,20 @@ const statusLabels: Record<string, string> = {
 	중단: '중단'
 };
 
+const statusDescriptions: Record<string, string> = {
+	완료: '종료됨',
+	진행: '작업 중',
+	요청: '확인 대기',
+	예정: '시작 전',
+	일시정지: '재개 가능',
+	중단: '종료 처리'
+};
+
 describe('buildFlowReportSections', () => {
 	test('builds sorted report chart sections from flow metrics', () => {
 		const sections = buildFlowReportSections(flowReportFixtureMetrics, {
 			statusLabels,
+			statusDescriptions,
 			emptyLabel: '이번 주 데이터 없음',
 			sectionLabels: {
 				weeklyStatus: {
@@ -41,7 +51,7 @@ describe('buildFlowReportSections', () => {
 		expect(sections.weeklyStatus.alertValue).toBe(2);
 		expect(sections.weeklyStatus.items.map((item) => item.label)).toEqual(['완료', '진행', '요청', '예정', '일시정지']);
 		expect(sections.weeklyStatus.items[0]).toMatchObject({ value: 5, percent: 36, tone: 'success' });
-		expect(sections.weeklyStatus.items[4]).toMatchObject({ value: 1, percent: 7, tone: 'blocked' });
+		expect(sections.weeklyStatus.items[4]).toMatchObject({ value: 1, percent: 7, tone: 'paused', description: '재개 가능' });
 		expect(sections.weeklyStatus.items.some((item) => item.label === '중단')).toBe(false);
 
 		expect(sections.memberScores.chartKind).toBe('workload');
@@ -74,6 +84,7 @@ describe('buildFlowReportSections', () => {
 			},
 			{
 				statusLabels,
+				statusDescriptions,
 				emptyLabel: '이번 주 데이터 없음',
 				sectionLabels: {
 					weeklyStatus: { title: '주간 상태', description: '' },
