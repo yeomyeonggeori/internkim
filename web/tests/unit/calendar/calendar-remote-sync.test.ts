@@ -42,8 +42,9 @@ test('loads conflicts after remote sync fails', async () => {
 			{ preconnect: originalFetch.preconnect }
 		);
 
-		await expect(
-			syncRemoteCalendarAndRefreshConflicts(
+		let caughtError: unknown;
+		try {
+			await syncRemoteCalendarAndRefreshConflicts(
 				'Remote sync failed',
 				async () => {
 					calls.push('refresh');
@@ -51,8 +52,13 @@ test('loads conflicts after remote sync fails', async () => {
 				async () => {
 					calls.push('conflicts');
 				}
-			)
-		).rejects.toThrow('Unauthorized');
+			);
+		} catch (error) {
+			caughtError = error;
+		}
+
+		expect(caughtError instanceof Error).toBe(true);
+		expect(caughtError instanceof Error ? caughtError.message : '').toBe('Unauthorized');
 	} finally {
 		globalThis.fetch = originalFetch;
 	}
