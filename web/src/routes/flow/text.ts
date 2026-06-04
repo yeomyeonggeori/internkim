@@ -11,6 +11,7 @@ export const flowText = {
 		metrics: {
 			total: '전체 업무',
 			completed: '완료',
+			completedDistance: '완료·진행 거리',
 			requested: '요청',
 			blocked: '멈춘 일',
 			requestedDescription: '타인 시트에 추가 요청',
@@ -138,6 +139,15 @@ export const flowText = {
 			일시정지: '일시정지',
 			중단: '중단'
 		},
+		statusDescriptions: {
+			예정: '',
+			요청: '',
+			진행: '',
+			완료: '',
+			기각: '반려됨',
+			일시정지: '재개 가능',
+			중단: '종료 처리'
+		},
 		user: {
 			logout: '로그아웃',
 			signedOut: '게스트'
@@ -156,6 +166,7 @@ export const flowText = {
 		metrics: {
 			total: 'Total tasks',
 			completed: 'Completed',
+			completedDistance: 'Completed + active distance',
 			requested: 'Requested',
 			blocked: 'Blocked',
 			requestedDescription: 'Tasks requested on another member sheet',
@@ -282,6 +293,15 @@ export const flowText = {
 			기각: 'Rejected',
 			일시정지: 'Paused',
 			중단: 'Stopped'
+		},
+		statusDescriptions: {
+			예정: '',
+			요청: '',
+			진행: '',
+			완료: '',
+			기각: 'Rejected',
+			일시정지: 'Can resume',
+			중단: 'Closed out'
 		},
 		user: {
 			logout: 'Sign out',
