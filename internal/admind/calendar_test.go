@@ -1432,6 +1432,65 @@ func TestRemoteCalendarAccountCRUD(t *testing.T) {
 	}
 }
 
+func TestRemoteCalendarAccountSchemaMigratesLegacyColumns(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	database, errorValue := service.openSQLiteDatabase(ctx, service.Configuration.CalendarDatabasePath, nil)
+	if errorValue != nil {
+		t.Fatalf("open legacy database: %v", errorValue)
+	}
+	_, errorValue = database.ExecContext(ctx, `
+CREATE TABLE calendar_remote_accounts (
+	id TEXT PRIMARY KEY,
+	provider TEXT NOT NULL,
+	account_email TEXT NOT NULL,
+	principal_url TEXT NOT NULL DEFAULT '',
+	home_set_url TEXT NOT NULL DEFAULT '',
+	default_calendar_url TEXT NOT NULL DEFAULT '',
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL,
+	UNIQUE(provider, account_email)
+)`)
+	if errorValue != nil {
+		t.Fatalf("create legacy remote accounts: %v", errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatalf("close legacy database: %v", errorValue)
+	}
+
+	account := remoteCalendarAccount{
+		ID:                  "legacy-account-google",
+		Provider:            remoteCalendarProviderGoogle,
+		AccountEmail:        "legacy@example.com",
+		DefaultCalendarCTag: "legacy-ctag",
+		TokenFilePath:       "/tmp/legacy-token.enc",
+		LastAuthError:       "expired token",
+		LastAuthErrorAt:     "2026-06-01T00:00:00Z",
+	}
+	if _, errorValue := service.upsertRemoteCalendarAccount(ctx, account); errorValue != nil {
+		t.Fatalf("upsert migrated account: %v", errorValue)
+	}
+	loaded, found, errorValue := service.readRemoteCalendarAccountByProvider(ctx, remoteCalendarProviderGoogle)
+	if errorValue != nil {
+		t.Fatalf("read migrated account: %v", errorValue)
+	}
+	if !found {
+		t.Fatal("expected migrated account found")
+	}
+	if loaded.DefaultCalendarCTag != account.DefaultCalendarCTag {
+		t.Errorf("DefaultCalendarCTag: got %q, want %q", loaded.DefaultCalendarCTag, account.DefaultCalendarCTag)
+	}
+	if loaded.TokenFilePath != account.TokenFilePath {
+		t.Errorf("TokenFilePath: got %q, want %q", loaded.TokenFilePath, account.TokenFilePath)
+	}
+	if loaded.LastAuthError != account.LastAuthError {
+		t.Errorf("LastAuthError: got %q, want %q", loaded.LastAuthError, account.LastAuthError)
+	}
+	if loaded.LastAuthErrorAt != account.LastAuthErrorAt {
+		t.Errorf("LastAuthErrorAt: got %q, want %q", loaded.LastAuthErrorAt, account.LastAuthErrorAt)
+	}
+}
+
 func TestUpdateCalendarEventPreservesRemoteIdentity(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
