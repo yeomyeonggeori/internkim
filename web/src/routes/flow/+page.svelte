@@ -188,6 +188,7 @@
 	const reportSections = () =>
 		buildFlowReportSections(metrics(), {
 			statusLabels: text.status as Record<string, string>,
+			statusDescriptions: text.statusDescriptions as Record<string, string>,
 			emptyLabel: text.report.empty,
 			sectionLabels: {
 				weeklyStatus: {
@@ -685,10 +686,10 @@
 	<title>{text.pageTitle}</title>
 </svelte:head>
 
-<main class="min-h-screen bg-background text-foreground">
-	<div class="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 md:px-8">
-		<header class="flex flex-col gap-4 border-b pb-5 md:flex-row md:items-end md:justify-between">
-			<div class="space-y-1">
+<main class="min-h-screen min-w-0 flex-1 bg-background text-foreground">
+	<div class="flex w-full min-w-0 flex-col gap-6 px-4 py-6 md:px-8">
+		<header class="flex min-w-0 flex-col gap-4 border-b pb-5 md:flex-row md:items-end md:justify-between">
+			<div class="min-w-0 space-y-1">
 				<p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.product}</p>
 				<h1 class="text-2xl font-semibold">{text.title}</h1>
 				<p class="text-sm text-muted-foreground">{text.description}</p>
@@ -720,25 +721,28 @@
 			</div>
 		{/if}
 
-		<section class="grid gap-3 md:grid-cols-4">
+		<section class="grid min-w-0 gap-3 md:grid-cols-4">
 			{@render MetricCard(text.metrics.total, metrics().totalTasks, `${summary?.week.startISO ?? ''} – ${summary?.week.endISO ?? ''}`)}
-			{@render MetricCard(text.metrics.completed, metrics().completedTasks, `${metrics().totalScore} km`)}
+			{@render MetricCard(text.metrics.completed, metrics().completedTasks, `${text.metrics.completedDistance} ${metrics().totalScore}km`)}
 			{@render MetricCard(text.metrics.requested, metrics().requestedTasks, text.metrics.requestedDescription)}
 			{@render MetricCard(text.metrics.blocked, metrics().pausedTasks + metrics().stoppedTasks, text.metrics.blockedDescription)}
 		</section>
 
-		<div class="flex w-full items-center gap-1 overflow-x-auto border-b">
+		<div class="flex w-full min-w-0 items-center gap-1 overflow-x-auto border-b">
 			{@render TabButton('report', text.tabs.report)}
 			{@render TabButton('tasks', text.tabs.tasks)}
+			{@render TabButton('definitions', text.tabs.definitions, !canEditDefinitions())}
+			{@render TabButton('members', text.tabs.members)}
+			{#if members().length > 0}
+				<div class="mx-2 h-5 w-px shrink-0 bg-border"></div>
+			{/if}
 			{#each members() as member}
 				{@render MemberTabButton(member)}
 			{/each}
-			{@render TabButton('definitions', text.tabs.definitions, !canEditDefinitions())}
-			{@render TabButton('members', text.tabs.members)}
 		</div>
 
 		{#if activeTab === 'report'}
-			<section class="grid gap-4 lg:grid-cols-2">
+			<section class="grid min-w-0 gap-4 lg:grid-cols-2">
 				<FlowReportCard section={reportSections().weeklyStatus} />
 				<FlowReportCard section={reportSections().memberScores} />
 				<FlowReportCard section={reportSections().businessDistance} />

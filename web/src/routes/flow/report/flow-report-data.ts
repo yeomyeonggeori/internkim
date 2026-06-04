@@ -1,4 +1,3 @@
-// Flow 보고 탭 통계 데이터를 차트 렌더링용 구조로 변환합니다.
 export type FlowReportMetrics = {
 	totalTasks: number;
 	completedTasks: number;
@@ -24,18 +23,20 @@ export type FlowReportSectionLabels = Record<FlowReportSectionID, FlowReportSect
 
 export type FlowReportOptions = {
 	statusLabels: Record<string, string>;
+	statusDescriptions: Record<string, string>;
 	emptyLabel: string;
 	sectionLabels: FlowReportSectionLabels;
 };
 
 export type FlowReportItem = {
 	label: string;
+	description: string;
 	value: number;
 	percent: number;
 	tone: FlowReportTone;
 };
 
-export type FlowReportTone = 'success' | 'active' | 'request' | 'planned' | 'blocked' | 'member' | 'business' | 'type';
+export type FlowReportTone = 'success' | 'active' | 'request' | 'planned' | 'paused' | 'stopped' | 'member' | 'business' | 'type';
 
 export type FlowReportSection = {
 	id: FlowReportSectionID;
@@ -64,6 +65,7 @@ export function buildFlowReportSections(metrics: FlowReportMetrics, options: Flo
 			unit: '개',
 			alertValue: metrics.pausedTasks + metrics.stoppedTasks,
 			labelValue: (label) => options.statusLabels[label] ?? label,
+			descriptionValue: (label) => options.statusDescriptions[label] ?? '',
 			toneValue: statusTone
 		}),
 		memberScores: buildSection({
@@ -75,6 +77,7 @@ export function buildFlowReportSections(metrics: FlowReportMetrics, options: Flo
 			unit: 'km',
 			averageValue: averagePositiveValue(metrics.memberScores),
 			labelValue: (label) => label,
+			descriptionValue: () => '',
 			toneValue: () => 'member'
 		}),
 		businessDistance: buildSection({
@@ -85,6 +88,7 @@ export function buildFlowReportSections(metrics: FlowReportMetrics, options: Flo
 			emptyLabel: options.emptyLabel,
 			unit: '개',
 			labelValue: (label) => label,
+			descriptionValue: () => '',
 			toneValue: () => 'business'
 		}),
 		typeBreakdown: buildSection({
@@ -95,6 +99,7 @@ export function buildFlowReportSections(metrics: FlowReportMetrics, options: Flo
 			emptyLabel: options.emptyLabel,
 			unit: '개',
 			labelValue: (label) => label,
+			descriptionValue: () => '',
 			toneValue: () => 'type'
 		})
 	};
@@ -110,6 +115,7 @@ type BuildSectionInput = {
 	averageValue?: number;
 	alertValue?: number;
 	labelValue: (label: string) => string;
+	descriptionValue: (label: string) => string;
 	toneValue: (label: string) => FlowReportTone;
 };
 
@@ -131,6 +137,7 @@ function buildSection(input: BuildSectionInput): FlowReportSection {
 		emptyLabel: input.emptyLabel,
 		items: entries.map(([label, value]) => ({
 			label: input.labelValue(label),
+			description: input.descriptionValue(label),
 			value,
 			percent: percentage(value, total),
 			tone: input.toneValue(label)
@@ -167,9 +174,10 @@ function statusTone(status: string): FlowReportTone {
 		case '예정':
 			return 'planned';
 		case '일시정지':
+			return 'paused';
 		case '중단':
 		case '기각':
-			return 'blocked';
+			return 'stopped';
 		default:
 			return 'planned';
 	}
