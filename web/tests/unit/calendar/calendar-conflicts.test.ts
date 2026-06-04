@@ -13,7 +13,15 @@ test('throws server message when dismiss conflict fails', async () => {
 			{ preconnect: originalFetch.preconnect }
 		);
 
-		await expect(dismissCalendarConflictOnServer(12)).rejects.toThrow('dismiss failed');
+		let caughtError: unknown;
+		try {
+			await dismissCalendarConflictOnServer(12);
+		} catch (error) {
+			caughtError = error;
+		}
+
+		expect(caughtError instanceof Error).toBe(true);
+		expect(caughtError instanceof Error ? caughtError.message : '').toBe('dismiss failed');
 	} finally {
 		globalThis.fetch = originalFetch;
 	}
