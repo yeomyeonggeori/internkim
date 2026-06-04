@@ -263,14 +263,14 @@ curl -fsS --unix-socket /run/internkim/capability.sock -H "Content-Type: applica
 }
 
 func checkLLMCapability(context *Context, failedChecks *[]string) {
-	check := strings.TrimSpace(context.SSH.Run(`model="$(python3 - <<'PY'
+	command := strings.ReplaceAll(`model="$(python3 - <<'PY'
 import json
 try:
     with open("/root/.blueclaw/config/runtime.json") as file:
         document = json.load(file)
-    print(document.get("languageModel", {}).get("capability", {}).get("model") or "google/gemini-3.1-flash-lite-preview")
+    print(document.get("languageModel", {}).get("capability", {}).get("model") or "__DEFAULT_OPENROUTER_MODEL__")
 except Exception:
-    print("google/gemini-3.1-flash-lite-preview")
+    print("__DEFAULT_OPENROUTER_MODEL__")
 PY
 )"
 text_body="$(MODEL="$model" python3 - <<'PY'
@@ -313,7 +313,8 @@ if printf '%s' "$structured_response" | python3 -c 'import json, sys; document=j
   echo ok
 else
   printf '%s' "$structured_response" | tr '\n' ' ' | cut -c1-180
-fi`))
+fi`, "__DEFAULT_OPENROUTER_MODEL__", blueclaw.BlueclawDefaultModelName)
+	check := strings.TrimSpace(context.SSH.Run(command))
 	if check == "ok" {
 		fmt.Println("  llm capability: ok")
 		return
@@ -474,6 +475,12 @@ PY`))
 		workspaceFilesystem := strings.TrimSpace(context.SSH.Run("blkid -o value -s TYPE /var/lib/blueclaw/workspace.ext4 2>/dev/null || true"))
 		if workspaceFilesystem != "ext4" {
 			check = "workspace-not-ext4"
+		}
+	}
+	if check == "ok" {
+		workspaceSizeCheck := strings.TrimSpace(context.SSH.Run("bytes=$(stat -c '%s' /var/lib/blueclaw/workspace.ext4 2>/dev/null || echo 0); [ \"$bytes\" -ge 34359738368 ] && echo ok || echo workspace-too-small"))
+		if workspaceSizeCheck != "ok" {
+			check = "workspace-too-small"
 		}
 	}
 	if check == "ok" {

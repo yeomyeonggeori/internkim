@@ -324,6 +324,8 @@ func defaultCalendarCollectionPropertyNames() []xml.Name {
 		{Space: calendarDAVNamespace, Local: "owner"},
 		{Space: calendarDAVNamespace, Local: "current-user-principal"},
 		{Space: calendarDAVNamespace, Local: "supported-report-set"},
+		{Space: calendarCalDAVXMLNamespace, Local: "calendar-home-set"},
+		{Space: calendarCalDAVXMLNamespace, Local: "calendar-user-address-set"},
 		{Space: calendarCalDAVXMLNamespace, Local: "supported-calendar-component-set"},
 		{Space: calendarCalDAVXMLNamespace, Local: "calendar-description"},
 		{Space: calendarCalDAVXMLNamespace, Local: "max-resource-size"},
@@ -360,6 +362,16 @@ func writeCalendarCollectionProperty(buffer *bytes.Buffer, name xml.Name, stored
 		buffer.WriteString(`<D:principal-URL><D:href>`)
 		xml.EscapeText(buffer, []byte(calendarPrincipalPath))
 		buffer.WriteString(`</D:href></D:principal-URL>`)
+		return true
+	case name.Space == calendarCalDAVXMLNamespace && name.Local == "calendar-home-set":
+		buffer.WriteString(`<C:calendar-home-set xmlns:C="urn:ietf:params:xml:ns:caldav"><D:href>`)
+		xml.EscapeText(buffer, []byte(calendarHomeSetPath))
+		buffer.WriteString(`</D:href></C:calendar-home-set>`)
+		return true
+	case name.Space == calendarCalDAVXMLNamespace && name.Local == "calendar-user-address-set":
+		buffer.WriteString(`<C:calendar-user-address-set xmlns:C="urn:ietf:params:xml:ns:caldav"><D:href>`)
+		xml.EscapeText(buffer, []byte(calendarPrincipalPath))
+		buffer.WriteString(`</D:href></C:calendar-user-address-set>`)
 		return true
 	case name.Space == calendarDAVNamespace && name.Local == "supported-report-set":
 		buffer.WriteString(`<D:supported-report-set>`)

@@ -14,6 +14,7 @@ func DefaultRegistry() Registry {
 		StepBlueclawRuntimeBase,
 		StepBlueclawConfiguration,
 		StepBlueclawPayload,
+		StepBlueclawPayloadDirect,
 		StepOpenRouter,
 		StepLocalLLM,
 		StepTunnel,

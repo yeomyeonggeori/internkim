@@ -1,36 +1,71 @@
 #!/usr/bin/env python3
+import html
 import json
 import pathlib
+import re
 import struct
 import sys
 import typing
 import zlib
 
 
+FIT_REVIEW_FILE_PATTERN = "fit-review-XX.md"
+CONTACT_SHEET_GROUP_SIZE = 4
+CONTACT_SHEET_THUMBNAIL_WIDTH = 560
+CONTENT_DENSITY_MINIMUM = 0.006
+CONTENT_DENSITY_MAXIMUM = 0.42
+TEXT_OVERFLOW_CHARACTER_LIMIT = 900
+TEXT_OVERFLOW_LINE_LIMIT = 16
+FIT_REVIEW_PROMPT = (
+    "Open the paired contact sheet and verify every expected visible text item is fully inside the slide frame, "
+    "not clipped, hidden, or pushed past the right or bottom edge."
+)
+
+
 def main() -> int:
-    if len(sys.argv) != 4:
-        print("Usage: render_review.py <source.md> <deck-name> <review-dir>", file=sys.stderr)
+    arguments = parse_arguments(sys.argv)
+    if not arguments:
+        print("Usage: render_review.py <source> <deck-name> <review-dir>", file=sys.stderr)
         return 2
-    source_path = pathlib.Path(sys.argv[1])
-    deck_name = sys.argv[2]
-    review_directory_path = pathlib.Path(sys.argv[3])
+    report = build_review_report(arguments["sourcePath"], arguments["deckName"], arguments["reviewDirectoryPath"])
+    write_review_outputs(arguments["reviewDirectoryPath"], report)
+    print(f"  - Slide render review: {report['slideCount']} slides, passed={str(report['passed']).lower()}")
+    return 0
+
+
+def parse_arguments(raw_arguments: list[str]) -> typing.Optional[dict[str, object]]:
+    if len(raw_arguments) != 4:
+        return None
+    return {
+        "sourcePath": pathlib.Path(raw_arguments[1]),
+        "deckName": raw_arguments[2],
+        "reviewDirectoryPath": pathlib.Path(raw_arguments[3]),
+    }
+
+
+def build_review_report(source_path: pathlib.Path, deck_name: str, review_directory_path: pathlib.Path) -> dict[str, object]:
     image_paths = sorted(review_directory_path.glob(deck_name + "*.png"))
     design = read_design_tokens(source_path.parent / "DESIGN.md")
-    slides = [review_slide(path, design, index + 1) for index, path in enumerate(image_paths)]
+    slide_texts = read_slide_texts(source_path, len(image_paths))
+    slides = [review_slide(path, design, index + 1, slide_texts[index]) for index, path in enumerate(image_paths)]
     contact_sheets = write_contact_sheets(review_directory_path, deck_name, image_paths)
-    report = {
+    fit_reviews = create_fit_reviews(contact_sheets, slides)
+    return {
         "passed": all(slide["passed"] for slide in slides) and len(slides) > 0,
         "source": source_path.name,
         "deckName": deck_name,
         "slideCount": len(slides),
         "design": design,
-        "contactSheets": contact_sheets,
+        "contactSheets": attach_fit_review_metadata(contact_sheets, fit_reviews),
+        "fitReviews": fit_reviews,
         "slides": slides,
     }
+
+
+def write_review_outputs(review_directory_path: pathlib.Path, report: dict[str, object]) -> None:
+    write_fit_reviews(review_directory_path, report["fitReviews"])
     write_json(review_directory_path / "slide-review.json", report)
     write_markdown(review_directory_path / "slide-review.md", report)
-    print(f"  - Slide render review: {len(slides)} slides, passed={str(report['passed']).lower()}")
-    return 0 if report["passed"] else 1
 
 
 def read_design_tokens(path: pathlib.Path) -> dict[str, str]:
@@ -61,27 +96,114 @@ def read_design_tokens(path: pathlib.Path) -> dict[str, str]:
     return tokens
 
 
-def review_slide(path: pathlib.Path, design: dict[str, str], index: int) -> dict[str, object]:
+def read_slide_texts(source_path: pathlib.Path, slide_count: int) -> list[dict[str, object]]:
+    source_text = source_path.read_text(encoding="utf-8")
+    slide_sources = split_slide_sources(source_text)
+    slide_texts = []
+    for index in range(slide_count):
+        visible_text = visible_slide_text(slide_sources[index]) if index < len(slide_sources) else ""
+        lines = [line for line in visible_text.splitlines() if line.strip()]
+        slide_texts.append({
+            "index": index + 1,
+            "expectedVisibleText": visible_text,
+            "textCharacterCount": len(visible_text),
+            "textLineCount": len(lines),
+            "textPreview": preview_text(visible_text),
+        })
+    return slide_texts
+
+
+def split_slide_sources(source_text: str) -> list[str]:
+    sections = re.findall(r"<section\b[^>]*>.*?</section>", source_text, flags=re.DOTALL | re.IGNORECASE)
+    return [section.strip() for section in sections if section.strip()]
+
+
+def visible_slide_text(slide_source: str) -> str:
+    text = remove_invisible_markup(slide_source)
+    text = convert_html_markup_to_text(text)
+    return normalize_visible_text(html.unescape(text))
+
+
+def remove_invisible_markup(text: str) -> str:
+    text = re.sub(r"<!--.*?-->", " ", text, flags=re.DOTALL)
+    text = re.sub(r"<style[^>]*>.*?</style>", " ", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<script[^>]*>.*?</script>", " ", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(
+        r"<(?:aside|div)\b[^>]*class=[\"'][^\"']*(?:speaker-notes|notes)[^\"']*[\"'][^>]*>.*?</(?:aside|div)>",
+        " ",
+        text,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+    return text
+
+
+def convert_html_markup_to_text(text: str) -> str:
+    replacements = [
+        (r"<[^>]+>", "\n"),
+    ]
+    for pattern, replacement in replacements:
+        text = re.sub(pattern, replacement, text)
+    return text
+
+
+def normalize_visible_text(text: str) -> str:
+    lines = []
+    for raw_line in text.splitlines():
+        line = re.sub(r"\s+", " ", raw_line).strip()
+        if line:
+            lines.append(line)
+    return "\n".join(lines)
+
+
+def preview_text(text: str) -> str:
+    compact_text = re.sub(r"\s+", " ", text).strip()
+    if len(compact_text) <= 180:
+        return compact_text
+    return compact_text[:177].rstrip() + "..."
+
+
+def review_slide(path: pathlib.Path, design: dict[str, str], index: int, slide_text: dict[str, object]) -> dict[str, object]:
     image = read_png(path)
     background = corner_background_color(image)
     content_bounds = find_content_bounds(image, background)
+    density = content_density(image, background)
     margin = margin_pixels(image, design)
-    checks = {
-        "nonblank": content_bounds is not None,
-        "safeMargin": safe_margin_passed(content_bounds, image, margin),
-        "edgeOverflow": edge_overflow_passed(content_bounds, image),
-    }
-    warnings = slide_warnings(checks, margin)
+    checks = slide_checks(content_bounds, image, margin, density)
+    risks = slide_risks(content_bounds, image, margin, slide_text)
+    warnings = slide_warnings(checks, margin, density, risks)
     return {
         "index": index,
         "filename": path.name,
         "width": image["width"],
         "height": image["height"],
         "contentBounds": content_bounds or {},
+        "contentDensity": density,
+        "expectedVisibleText": slide_text["expectedVisibleText"],
+        "textCharacterCount": slide_text["textCharacterCount"],
+        "textLineCount": slide_text["textLineCount"],
+        "textPreview": slide_text["textPreview"],
         "marginPixel": margin,
         "passed": all(checks.values()),
         "checks": checks,
+        "risks": risks,
         "warnings": warnings,
+    }
+
+
+def slide_checks(bounds: typing.Optional[dict[str, int]], image: dict[str, object], margin: int, density: float) -> dict[str, bool]:
+    return {
+        "nonblank": bounds is not None,
+        "safeMargin": safe_margin_passed(bounds, image, margin),
+        "edgeOverflow": edge_overflow_passed(bounds, image),
+        "notTooEmpty": density >= CONTENT_DENSITY_MINIMUM,
+        "notTooDense": density <= CONTENT_DENSITY_MAXIMUM,
+    }
+
+
+def slide_risks(bounds: typing.Optional[dict[str, int]], image: dict[str, object], margin: int, slide_text: dict[str, object]) -> dict[str, bool]:
+    return {
+        "textOverflowRisk": text_overflow_risk(slide_text),
+        "frameFitRisk": frame_fit_risk(bounds, image, margin),
     }
 
 
@@ -124,7 +246,13 @@ def parse_palette(chunk_data: bytes) -> list[tuple[int, int, int, int]]:
     return [(chunk_data[index], chunk_data[index + 1], chunk_data[index + 2], 255) for index in range(0, len(chunk_data), 3)]
 
 
-def decode_png_rows(width: int, height: int, color_type: int, palette: list[tuple[int, int, int, int]], compressed_data: bytes) -> list[list[tuple[int, int, int, int]]]:
+def decode_png_rows(
+    width: int,
+    height: int,
+    color_type: int,
+    palette: list[tuple[int, int, int, int]],
+    compressed_data: bytes,
+) -> list[list[tuple[int, int, int, int]]]:
     raw = zlib.decompress(compressed_data)
     bytes_per_pixel = png_bytes_per_pixel(color_type)
     stride = width * bytes_per_pixel
@@ -247,6 +375,19 @@ def find_content_bounds(image: dict[str, object], background: tuple[int, int, in
     return {"left": minimum_x, "top": minimum_y, "right": maximum_x, "bottom": maximum_y}
 
 
+def content_density(image: dict[str, object], background: tuple[int, int, int, int]) -> float:
+    rows = image["rows"]
+    content_pixels = 0
+    total_pixels = image["width"] * image["height"]
+    for row in rows:
+        for pixel in row:
+            if not is_background_pixel(pixel, background):
+                content_pixels += 1
+    if total_pixels == 0:
+        return 0
+    return round(content_pixels / total_pixels, 4)
+
+
 def is_background_pixel(pixel: tuple[int, int, int, int], background: tuple[int, int, int, int]) -> bool:
     if pixel[3] < 8:
         return True
@@ -260,18 +401,23 @@ def margin_pixels(image: dict[str, object], design: dict[str, str]) -> int:
     return max(16, round(margin * scale * 0.35))
 
 
-def parse_pixel_value(value: str, fallback: int) -> int:
+def parse_pixel_value(value: str, default_value: int) -> int:
     cleaned = value.strip().lower().removesuffix("px")
     try:
         return int(float(cleaned))
     except ValueError:
-        return fallback
+        return default_value
 
 
 def safe_margin_passed(bounds: typing.Optional[dict[str, int]], image: dict[str, object], margin: int) -> bool:
     if bounds is None:
         return False
-    return bounds["left"] >= margin and bounds["top"] >= margin and image["width"] - bounds["right"] >= margin and image["height"] - bounds["bottom"] >= margin
+    return all([
+        bounds["left"] >= margin,
+        bounds["top"] >= margin,
+        image["width"] - bounds["right"] >= margin,
+        image["height"] - bounds["bottom"] >= margin,
+    ])
 
 
 def edge_overflow_passed(bounds: typing.Optional[dict[str, int]], image: dict[str, object]) -> bool:
@@ -281,7 +427,20 @@ def edge_overflow_passed(bounds: typing.Optional[dict[str, int]], image: dict[st
     return bounds["left"] > edge and bounds["top"] > edge and image["width"] - bounds["right"] > edge and image["height"] - bounds["bottom"] > edge
 
 
-def slide_warnings(checks: dict[str, bool], margin: int) -> list[str]:
+def text_overflow_risk(slide_text: dict[str, object]) -> bool:
+    return int(slide_text["textCharacterCount"]) > TEXT_OVERFLOW_CHARACTER_LIMIT or int(slide_text["textLineCount"]) > TEXT_OVERFLOW_LINE_LIMIT
+
+
+def frame_fit_risk(bounds: typing.Optional[dict[str, int]], image: dict[str, object], margin: int) -> bool:
+    if bounds is None:
+        return False
+    clearance = max(round(margin * 1.75), 36)
+    right_clearance = image["width"] - bounds["right"]
+    bottom_clearance = image["height"] - bounds["bottom"]
+    return right_clearance < clearance or bottom_clearance < clearance
+
+
+def slide_warnings(checks: dict[str, bool], margin: int, density: float, risks: dict[str, bool]) -> list[str]:
     warnings = []
     if not checks["nonblank"]:
         warnings.append("slide render appears blank")
@@ -289,15 +448,22 @@ def slide_warnings(checks: dict[str, bool], margin: int) -> list[str]:
         warnings.append(f"content extends inside the recommended safe margin of {margin}px")
     if not checks["edgeOverflow"]:
         warnings.append("content touches the slide edge and may be clipped")
+    if not checks["notTooEmpty"]:
+        warnings.append(f"slide appears too sparse for a finished deck (content density {density:.1%})")
+    if not checks["notTooDense"]:
+        warnings.append(f"slide appears visually crowded (content density {density:.1%})")
+    if risks["textOverflowRisk"]:
+        warnings.append("textOverflowRisk: extracted slide text is long enough to require contact sheet verification")
+    if risks["frameFitRisk"]:
+        warnings.append("frameFitRisk: rendered content is close to the right or bottom frame edge")
     return warnings
 
 
 def write_contact_sheets(review_directory_path: pathlib.Path, deck_name: str, image_paths: list[pathlib.Path]) -> list[dict[str, object]]:
     contact_sheets = []
-    group_size = 4
-    for group_index in range(0, len(image_paths), group_size):
-        group_paths = image_paths[group_index:group_index + group_size]
-        sheet_path = review_directory_path / f"contact-sheet-{(group_index // group_size) + 1:02d}.png"
+    for group_index in range(0, len(image_paths), CONTACT_SHEET_GROUP_SIZE):
+        group_paths = image_paths[group_index:group_index + CONTACT_SHEET_GROUP_SIZE]
+        sheet_path = review_directory_path / f"contact-sheet-{(group_index // CONTACT_SHEET_GROUP_SIZE) + 1:02d}.png"
         slide_numbers = list(range(group_index + 1, group_index + len(group_paths) + 1))
         sheet = compose_contact_sheet(group_paths, slide_numbers)
         write_png(sheet_path, sheet["width"], sheet["height"], sheet["rows"])
@@ -308,9 +474,94 @@ def write_contact_sheets(review_directory_path: pathlib.Path, deck_name: str, im
     return contact_sheets
 
 
+def create_fit_reviews(contact_sheets: list[dict[str, object]], slides: list[dict[str, object]]) -> list[dict[str, object]]:
+    fit_reviews = []
+    for sheet_index, contact_sheet in enumerate(contact_sheets, start=1):
+        filename = f"fit-review-{sheet_index:02d}.md"
+        group_slides = [slides[number - 1] for number in contact_sheet["slideNumbers"] if number - 1 < len(slides)]
+        review = {
+            "filename": filename,
+            "contactSheetFilename": contact_sheet["filename"],
+            "slideNumbers": contact_sheet["slideNumbers"],
+            "reviewPrompt": FIT_REVIEW_PROMPT,
+            "slides": [fit_review_slide(slide) for slide in group_slides],
+        }
+        fit_reviews.append(review)
+    return fit_reviews
+
+
+def write_fit_reviews(review_directory_path: pathlib.Path, fit_reviews: list[dict[str, object]]) -> None:
+    for fit_review in fit_reviews:
+        write_fit_review_markdown(review_directory_path / fit_review["filename"], fit_review)
+    write_json(review_directory_path / "fit-review.json", {
+        "reviewPrompt": FIT_REVIEW_PROMPT,
+        "filenamePattern": FIT_REVIEW_FILE_PATTERN,
+        "groups": fit_reviews,
+    })
+
+
+def fit_review_slide(slide: dict[str, object]) -> dict[str, object]:
+    return {
+        "index": slide["index"],
+        "expectedVisibleText": slide["expectedVisibleText"],
+        "textCharacterCount": slide["textCharacterCount"],
+        "textLineCount": slide["textLineCount"],
+        "textPreview": slide["textPreview"],
+        "warnings": slide["warnings"],
+        "risks": slide["risks"],
+    }
+
+
+def attach_fit_review_metadata(contact_sheets: list[dict[str, object]], fit_reviews: list[dict[str, object]]) -> list[dict[str, object]]:
+    return [
+        contact_sheet | {
+            "fitReviewFilename": fit_review["filename"],
+            "slideTextSummary": fit_review_text_summary(fit_review),
+        }
+        for contact_sheet, fit_review in zip(contact_sheets, fit_reviews)
+    ]
+
+
+def fit_review_text_summary(fit_review: dict[str, object]) -> list[dict[str, object]]:
+    return [
+        {
+            "index": slide["index"],
+            "textPreview": slide["textPreview"],
+            "textCharacterCount": slide["textCharacterCount"],
+            "textLineCount": slide["textLineCount"],
+        }
+        for slide in fit_review["slides"]
+    ]
+
+
+def write_fit_review_markdown(path: pathlib.Path, review: dict[str, object]) -> None:
+    lines = [
+        f"# Fit Review {path.stem.removeprefix('fit-review-')}",
+        "",
+        f"- Contact sheet: {review['contactSheetFilename']}",
+        f"- Slides: {', '.join(str(number) for number in review['slideNumbers'])}",
+        f"- Check: {review['reviewPrompt']}",
+        "",
+    ]
+    for slide in review["slides"]:
+        warning_text = "; ".join(slide["warnings"]) if slide["warnings"] else "none"
+        lines.append(f"## Slide {slide['index']}")
+        lines.append("")
+        lines.append(f"- Text length: {slide['textCharacterCount']} chars, {slide['textLineCount']} lines")
+        lines.append(f"- Deterministic warnings: {warning_text}")
+        lines.append("")
+        lines.append("Expected visible text:")
+        lines.append("")
+        lines.append("```text")
+        lines.append(str(slide["expectedVisibleText"]) or "(no visible text extracted)")
+        lines.append("```")
+        lines.append("")
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
 def compose_contact_sheet(image_paths: list[pathlib.Path], slide_numbers: list[int]) -> dict[str, object]:
     images = [read_png(path) for path in image_paths]
-    thumbnail_width = 560
+    thumbnail_width = CONTACT_SHEET_THUMBNAIL_WIDTH
     thumbnail_height = round(thumbnail_width * images[0]["height"] / images[0]["width"]) if images else 315
     columns = 2
     rows = max(1, (len(images) + columns - 1) // columns)
@@ -439,6 +690,11 @@ def write_markdown(path: pathlib.Path, report: dict[str, object]) -> None:
         f"- Passed: {report['passed']}",
         f"- Slide count: {report['slideCount']}",
         f"- Contact sheets: {', '.join(sheet['filename'] for sheet in report['contactSheets'])}",
+        f"- Fit reviews: {', '.join(review['filename'] for review in report['fitReviews'])}",
+        "",
+        "## Fit Review Instructions",
+        "",
+        FIT_REVIEW_PROMPT,
         "",
     ]
     for slide in report["slides"]:
@@ -447,6 +703,8 @@ def write_markdown(path: pathlib.Path, report: dict[str, object]) -> None:
         lines.append(f"## Slide {slide['index']}: {status}")
         lines.append("")
         lines.append(f"- File: {slide['filename']}")
+        lines.append(f"- Content density: {slide['contentDensity']:.1%}")
+        lines.append(f"- Text length: {slide['textCharacterCount']} chars, {slide['textLineCount']} lines")
         lines.append(f"- Warnings: {warning_text}")
         lines.append("")
     path.write_text("\n".join(lines), encoding="utf-8")

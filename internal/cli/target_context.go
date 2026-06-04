@@ -23,6 +23,7 @@ const (
 
 type commandTarget struct {
 	mode           commandTargetMode
+	profile        string
 	boardType      string
 	baseStateDir   string
 	stateDir       string
@@ -42,7 +43,8 @@ func resolveCommandTarget(arguments []string) commandTarget {
 	if hasCommandArgument(arguments, "--sim") {
 		boardType = commandTargetBoardSimulation
 	}
-	baseStateDir := commandTargetStateDir(internkimHomeDir(), boardType)
+	profile := commandTargetProfileName(arguments)
+	baseStateDir := commandTargetStateDir(commandTargetRootDir(profile), boardType)
 	nodeID := commandTargetNodeID(arguments)
 	stateDir := resolveCommandTargetStateDir(baseStateDir, nodeID, commandArgumentValue(arguments, "--host", "") != "")
 	applyFleetTargetArguments(stateDir, baseStateDir, arguments)
@@ -53,6 +55,7 @@ func resolveCommandTarget(arguments []string) commandTarget {
 	)
 	return commandTarget{
 		mode:           commandTargetModeForBoardType(boardType),
+		profile:        profile,
 		boardType:      boardType,
 		baseStateDir:   baseStateDir,
 		stateDir:       stateDir,
@@ -66,6 +69,25 @@ func resolveCommandTarget(arguments []string) commandTarget {
 		sshHostname:    loadState(stateDir, "ssh_hostname"),
 		useRemoteSSH:   hasCommandArgument(arguments, "--cloudflare-ssh"),
 	}
+}
+
+func commandTargetProfileName(arguments []string) string {
+	value := strings.TrimSpace(commandArgumentValue(arguments, "--profile", ""))
+	if value == "" {
+		value = strings.TrimSpace(os.Getenv("INTERNKIM_PROFILE"))
+	}
+	normalizedValue := setupNodeIdentityName(value)
+	if normalizedValue == "default" {
+		return ""
+	}
+	return normalizedValue
+}
+
+func commandTargetRootDir(profile string) string {
+	if strings.TrimSpace(profile) == "" {
+		return internkimHomeDir()
+	}
+	return filepath.Join(internkimHomeDir(), "profiles", profile)
 }
 
 func commandTargetModeForBoardType(boardType string) commandTargetMode {
@@ -101,6 +123,9 @@ func resolveLabHostForCommandTarget(target commandTarget, repositoryRootPath str
 
 func printCommandTargetEvidence(target commandTarget) {
 	fmt.Printf("Target: %s (%s)\n", target.boardType, target.mode)
+	if strings.TrimSpace(target.profile) != "" {
+		fmt.Printf("Profile: %s\n", target.profile)
+	}
 	fmt.Printf("State: %s\n", target.stateDir)
 	if strings.TrimSpace(target.nodeID) != "" {
 		fmt.Printf("Node: %s\n", target.nodeID)
@@ -204,7 +229,14 @@ func resolveCommandTargetStateDir(baseStateDir string, requestedNodeID string, h
 }
 
 func commandTargetNodeID(arguments []string) string {
-	return commandArgumentValue(arguments, "--node", "")
+	nodeID := strings.TrimSpace(commandArgumentValue(arguments, "--node", ""))
+	if nodeID == "" {
+		return ""
+	}
+	if !isCommandTargetNodeNumber(nodeID) {
+		fatal("--node must be a positive number such as 1, 2, or 3")
+	}
+	return nodeID
 }
 
 func setupNodeIdentityName(nodeID string) string {
@@ -222,6 +254,19 @@ func setupNodeIdentityName(nodeID string) string {
 		}
 	}
 	return strings.Trim(builder.String(), "-")
+}
+
+func isCommandTargetNodeNumber(nodeID string) bool {
+	nodeID = strings.TrimSpace(nodeID)
+	if nodeID == "" || nodeID[0] == '0' {
+		return false
+	}
+	for _, character := range nodeID {
+		if character < '0' || character > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func firstActiveFleetNodeID(baseStateDir string) string {

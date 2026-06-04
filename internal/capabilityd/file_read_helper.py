@@ -1,6 +1,7 @@
 import json
 import sys
 import tempfile
+import contextlib
 from pathlib import Path
 
 
@@ -18,7 +19,8 @@ def main():
         elif max_pages > 0:
             warnings.append("maxPages is only applied to PDF files")
 
-        markdown = build_markitdown(request).convert(str(converted_path))
+        with contextlib.redirect_stdout(sys.stderr):
+            markdown = build_markitdown(request).convert(str(converted_path))
         content = getattr(markdown, "text_content", "")
         print(json.dumps({"content": content, "warnings": warnings}, ensure_ascii=False))
     finally:

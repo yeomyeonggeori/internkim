@@ -163,9 +163,6 @@ func (service Service) automaticLLMProviders(localProvider LLMProvider, companio
 	if service.Configuration.PreferCompanionLLM {
 		return []LLMProvider{companionProvider, remoteProvider, localProvider}
 	}
-	if strings.TrimSpace(service.Configuration.CompanionBaseURL) != "" {
-		return []LLMProvider{companionProvider, remoteProvider, localProvider}
-	}
 	return []LLMProvider{remoteProvider, companionProvider, localProvider}
 }
 

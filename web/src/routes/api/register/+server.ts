@@ -12,6 +12,7 @@ import {
 	ensureWildcardDNSRecord,
 	ensureOneTimePinIdentityProvider,
 	ensureCompanionBypassApplication,
+	ensureMaintenanceBypassApplication,
 	ensureFleetCertificateCoverage,
 	ensureNodeSSHAccessApplication,
 	deleteDNSRecord,
@@ -125,7 +126,7 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 		const deviceWithFleet = { ...ownedDevice, admin_email: resolvedAdminEmail, fleet };
 		await configureTunnel(cfEnv, ownedDevice.tunnel_id, fleetID);
 		await ensureWildcardDNSRecord(cfEnv, ownedDevice.tunnel_id, fleetID);
-		await ensureCompanionBypassApplication(cfEnv, fleetID);
+		await ensurePublicBypassApplications(cfEnv, fleetID);
 		const device = await ensureFleetAccessApplications(cfEnv, fleetID, identityProviderId, deviceWithFleet, records, resolvedAdminEmail);
 		await kv.putDevice(env.KV, fleetID, device);
 		return json({
@@ -147,7 +148,7 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 	await configureTunnel(cfEnv, tunnelId, fleetID);
 	const dnsRecordId = await createDNSRecord(cfEnv, tunnelId, fleetID);
 	await ensureWildcardDNSRecord(cfEnv, tunnelId, fleetID);
-	await ensureCompanionBypassApplication(cfEnv, fleetID);
+	await ensurePublicBypassApplications(cfEnv, fleetID);
 	const nodeID = resolveFleetNodeID(undefined, requestedNodeID, nodeKey);
 	const certificateCoverage = await ensureFleetCertificateCoverage(cfEnv, fleetID, nodeID);
 	const memberSSH = await ensureFleetMemberSSH(cfEnv, undefined, fleetID, nodeID, identityProviderId, accessAdminEmails);
@@ -273,7 +274,7 @@ async function migrateRegisteredFleet(
 	await configureTunnel(cfEnv, ownedDevice.tunnel_id, newFleetID, [oldFleetID]);
 	await ensureFleetDNSRecord(cfEnv, ownedDevice.tunnel_id, newFleetID);
 	await ensureWildcardDNSRecord(cfEnv, ownedDevice.tunnel_id, newFleetID);
-	await ensureCompanionBypassApplication(cfEnv, newFleetID);
+	await ensurePublicBypassApplications(cfEnv, newFleetID);
 	const device = await ensureFleetAccessApplications(cfEnv, newFleetID, identityProviderId, deviceWithoutAccess, records, resolvedAdminEmail);
 
 	await kv.putDevice(env.KV, newFleetID, device);
@@ -323,6 +324,11 @@ function accessAdminEmailsForRegistration(records: Parameters<typeof fleetAdminA
 	const emails = fleetAdminAccessEmails(records, fallbackAdminEmail);
 	if (emails.length > 0) return emails;
 	throw error(400, 'admin_email is required for SSH and admin access');
+}
+
+async function ensurePublicBypassApplications(cfEnv: Parameters<typeof ensureCompanionBypassApplication>[0], fleetID: string) {
+	await ensureCompanionBypassApplication(cfEnv, fleetID);
+	await ensureMaintenanceBypassApplication(cfEnv, fleetID);
 }
 
 async function ensureFleetMemberSSH(

@@ -8,6 +8,7 @@ const (
 	CalendarResourcePath   = "calendar"
 	FlowResourcePath       = "flow"
 	MailResourcePath       = "mail"
+	MemoryResourcePath     = "memory"
 
 	TownSquareChannelName        = "town-square"
 	TownSquareChannelDisplayName = "광장"
@@ -19,7 +20,7 @@ const (
 	FlowChannelDisplayName = "업무"
 
 	CalendarChannelName        = "calendar"
-	CalendarChannelDisplayName = "캘린더"
+	CalendarChannelDisplayName = "일정"
 
 	AttendanceChannelName        = "attendance"
 	AttendanceChannelDisplayName = "출결"
@@ -39,6 +40,7 @@ func ManagedResourcePaths() []string {
 		CalendarResourcePath,
 		FlowResourcePath,
 		MailResourcePath,
+		MemoryResourcePath,
 	}
 }
 
@@ -57,7 +59,7 @@ func PublicChannelsForLanguage(language string) []PublicChannel {
 		{Name: OffTopicChannelName, DisplayName: labels.OffTopicDisplayName},
 		{Name: FlowChannelName, DisplayName: labels.FlowDisplayName, Header: PublicChannelLink(FlowChannelName, language, "/flow/")},
 		{Name: CalendarChannelName, DisplayName: labels.CalendarDisplayName, Header: PublicChannelLink(CalendarChannelName, language, "/calendar/")},
-		{Name: AttendanceChannelName, DisplayName: labels.AttendanceDisplayName, Header: PublicChannelLink(AttendanceChannelName, language, "/attendance/"), Purpose: PublicChannelLink(AttendanceChannelName, language, "/attendance/")},
+		{Name: AttendanceChannelName, DisplayName: labels.AttendanceDisplayName, Header: PublicChannelLink(AttendanceChannelName, language, "/attendance/")},
 	}
 }
 
@@ -133,7 +135,7 @@ func publicChannelLabelsForLanguage(language string) publicChannelLabels {
 		FlowDisplayName:       FlowChannelDisplayName,
 		FlowLinkLabel:         "업무 열기",
 		CalendarDisplayName:   CalendarChannelDisplayName,
-		CalendarLinkLabel:     "캘린더 열기",
+		CalendarLinkLabel:     "일정 열기",
 		AttendanceDisplayName: AttendanceChannelDisplayName,
 		AttendanceLinkLabel:   "출결 열기",
 	}

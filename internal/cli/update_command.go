@@ -20,6 +20,14 @@ func runUpdateArguments(arguments []string) error {
 		printUpdateUsage()
 		return nil
 	}
+	if len(arguments) > 0 {
+		switch arguments[0] {
+		case "check":
+			return runReleaseUpdateCheck(arguments[1:])
+		case "apply":
+			return runReleaseUpdateApply(arguments[1:])
+		}
+	}
 	setupSlice, errorValue := updateSetupSlice(arguments)
 	if errorValue != nil {
 		return errorValue
@@ -112,11 +120,14 @@ func runStreamingUpdateCommand(directoryPath string, name string, arguments ...s
 }
 
 func printUpdateUsage() {
-	fmt.Println("Usage: internkim update [--all|--web|--binaries] [--sim-first] [--plan] [target options]")
+	fmt.Println("Usage: internkim update [check|apply] [--all|--web|--binaries] [--sim-first] [--plan] [target options]")
 	fmt.Println("Examples:")
 	fmt.Println("  internkim update")
+	fmt.Println("  internkim update check --node 1")
+	fmt.Println("  internkim update apply --node 1")
 	fmt.Println("  internkim update --web")
 	fmt.Println("  internkim update --binaries --host 192.168.1.50")
+	fmt.Println("  internkim update --profile acme --node 1")
 	fmt.Println("  internkim update --sim-first")
 	fmt.Println("  internkim update --plan")
 }

@@ -64,6 +64,57 @@ func TestResolveCommandTargetKeepsSimulationOutOfDeviceState(t *testing.T) {
 	}
 }
 
+func TestResolveCommandTargetUsesProfileScopedState(t *testing.T) {
+	homeDirectory := t.TempDir()
+	t.Setenv("HOME", homeDirectory)
+
+	target := resolveCommandTarget([]string{"--profile", "Company A"})
+	expectedStateDir := filepath.Join(homeDirectory, ".internkim", "profiles", "company-a", "devices", setup.BoardJetsonOrinNano)
+
+	if target.profile != "company-a" {
+		t.Fatalf("expected profile company-a, got %q", target.profile)
+	}
+	if target.stateDir != expectedStateDir {
+		t.Fatalf("expected profile state dir %q, got %q", expectedStateDir, target.stateDir)
+	}
+}
+
+func TestResolveCommandTargetKeepsProfilesIsolated(t *testing.T) {
+	homeDirectory := t.TempDir()
+	t.Setenv("HOME", homeDirectory)
+	defaultStateDir := filepath.Join(homeDirectory, ".internkim", "devices", setup.BoardJetsonOrinNano)
+	profileStateDir := filepath.Join(homeDirectory, ".internkim", "profiles", "acme", "devices", setup.BoardJetsonOrinNano)
+	if errorValue := os.MkdirAll(defaultStateDir, 0o700); errorValue != nil {
+		t.Fatalf("expected default state dir: %v", errorValue)
+	}
+	if errorValue := os.MkdirAll(profileStateDir, 0o700); errorValue != nil {
+		t.Fatalf("expected profile state dir: %v", errorValue)
+	}
+	saveState(defaultStateDir, "fleet_id", "default-fleet")
+	saveState(profileStateDir, "fleet_id", "acme-fleet")
+
+	target := resolveCommandTarget([]string{"--profile", "acme"})
+
+	if loadState(target.stateDir, "fleet_id") != "acme-fleet" {
+		t.Fatalf("expected profile fleet id, got %q", loadState(target.stateDir, "fleet_id"))
+	}
+}
+
+func TestResolveCommandTargetUsesProfileAndNodeScopedState(t *testing.T) {
+	homeDirectory := t.TempDir()
+	t.Setenv("HOME", homeDirectory)
+
+	target := resolveCommandTarget([]string{"--profile", "acme", "--node", "1"})
+	expectedStateDir := filepath.Join(homeDirectory, ".internkim", "profiles", "acme", "devices", setup.BoardJetsonOrinNano, "boards", "1")
+
+	if target.stateDir != expectedStateDir {
+		t.Fatalf("expected profile node state dir %q, got %q", expectedStateDir, target.stateDir)
+	}
+	if loadState(target.stateDir, "node_id") != "1" {
+		t.Fatalf("expected profile node id, got %q", loadState(target.stateDir, "node_id"))
+	}
+}
+
 func TestResolveCommandTargetReadsCloudflareSSHFlag(t *testing.T) {
 	homeDirectory := t.TempDir()
 	t.Setenv("HOME", homeDirectory)
@@ -93,13 +144,13 @@ func TestResolveCommandTargetUsesNodeScopedFleetState(t *testing.T) {
 	saveState(baseStateDir, "fleet_id", "fleet-one")
 	saveState(baseStateDir, "fleet_secret", "fleet-secret")
 
-	target := resolveCommandTarget([]string{"--node", "Board-B"})
-	expectedStateDir := filepath.Join(baseStateDir, "boards", "board-b")
+	target := resolveCommandTarget([]string{"--node", "2"})
+	expectedStateDir := filepath.Join(baseStateDir, "boards", "2")
 
 	if target.stateDir != expectedStateDir {
 		t.Fatalf("expected board scoped state dir %q, got %q", expectedStateDir, target.stateDir)
 	}
-	if loadState(target.stateDir, "node_id") != "board-b" {
+	if loadState(target.stateDir, "node_id") != "2" {
 		t.Fatalf("expected node id to be stored")
 	}
 	if loadState(target.stateDir, "fleet_id") != "fleet-one" {
@@ -108,7 +159,7 @@ func TestResolveCommandTargetUsesNodeScopedFleetState(t *testing.T) {
 	if loadState(target.stateDir, "fleet_secret") != "fleet-secret" {
 		t.Fatalf("expected fleet secret to be copied")
 	}
-	if target.nodeID != "board-b" {
+	if target.nodeID != "2" {
 		t.Fatalf("expected node id, got %q", target.nodeID)
 	}
 }
@@ -119,7 +170,7 @@ func TestResolveCommandTargetAcceptsExplicitFleetJoin(t *testing.T) {
 
 	target := resolveCommandTarget([]string{
 		"--node",
-		"board-c",
+		"3",
 		"--fleet",
 		"fleet-two",
 		"--fleet-secret",
@@ -134,13 +185,29 @@ func TestResolveCommandTargetAcceptsExplicitFleetJoin(t *testing.T) {
 	}
 }
 
-func TestResolveCommandTargetNormalizesNodeID(t *testing.T) {
+func TestResolveCommandTargetAcceptsOnlyPositiveNodeNumbers(t *testing.T) {
+	validNodeIDs := []string{"1", "2", "10"}
+	for _, nodeID := range validNodeIDs {
+		if !isCommandTargetNodeNumber(nodeID) {
+			t.Fatalf("expected node id %q to be valid", nodeID)
+		}
+	}
+
+	invalidNodeIDs := []string{"", "0", "01", "node-a", "office-1", "Device 1"}
+	for _, nodeID := range invalidNodeIDs {
+		if isCommandTargetNodeNumber(nodeID) {
+			t.Fatalf("expected node id %q to be invalid", nodeID)
+		}
+	}
+}
+
+func TestResolveCommandTargetStoresNumericNodeID(t *testing.T) {
 	homeDirectory := t.TempDir()
 	t.Setenv("HOME", homeDirectory)
 
-	target := resolveCommandTarget([]string{"--node", "Node_B"})
+	target := resolveCommandTarget([]string{"--node", "4"})
 
-	if loadState(target.stateDir, "node_id") != "node-b" {
+	if loadState(target.stateDir, "node_id") != "4" {
 		t.Fatalf("expected DNS-safe node id, got %q", loadState(target.stateDir, "node_id"))
 	}
 }
@@ -149,13 +216,13 @@ func TestResolveCommandTargetDefaultsToSavedDefaultNode(t *testing.T) {
 	homeDirectory := t.TempDir()
 	t.Setenv("HOME", homeDirectory)
 	baseStateDir := filepath.Join(homeDirectory, ".internkim", "devices", setup.BoardJetsonOrinNano)
-	nodeStateDir := filepath.Join(baseStateDir, "boards", "node-a")
+	nodeStateDir := filepath.Join(baseStateDir, "boards", "1")
 	if errorValue := os.MkdirAll(nodeStateDir, 0o700); errorValue != nil {
 		t.Fatalf("expected node state dir: %v", errorValue)
 	}
-	saveState(baseStateDir, "default_node_id", "node-a")
+	saveState(baseStateDir, "default_node_id", "1")
 	saveState(baseStateDir, "fleet_id", "fleet-one")
-	saveState(nodeStateDir, "node_id", "node-a")
+	saveState(nodeStateDir, "node_id", "1")
 	saveState(nodeStateDir, "fleet_role", "active")
 
 	target := resolveCommandTarget(nil)
@@ -163,8 +230,8 @@ func TestResolveCommandTargetDefaultsToSavedDefaultNode(t *testing.T) {
 	if target.stateDir != nodeStateDir {
 		t.Fatalf("expected default node state dir %q, got %q", nodeStateDir, target.stateDir)
 	}
-	if target.nodeID != "node-a" {
-		t.Fatalf("expected node-a, got %q", target.nodeID)
+	if target.nodeID != "1" {
+		t.Fatalf("expected 1, got %q", target.nodeID)
 	}
 }
 
@@ -172,17 +239,17 @@ func TestResolveCommandTargetDefaultsToFirstActiveNode(t *testing.T) {
 	homeDirectory := t.TempDir()
 	t.Setenv("HOME", homeDirectory)
 	baseStateDir := filepath.Join(homeDirectory, ".internkim", "devices", setup.BoardJetsonOrinNano)
-	activeStateDir := filepath.Join(baseStateDir, "boards", "node-a")
-	pendingStateDir := filepath.Join(baseStateDir, "boards", "node-b")
+	activeStateDir := filepath.Join(baseStateDir, "boards", "1")
+	pendingStateDir := filepath.Join(baseStateDir, "boards", "2")
 	if errorValue := os.MkdirAll(activeStateDir, 0o700); errorValue != nil {
 		t.Fatalf("expected active node state dir: %v", errorValue)
 	}
 	if errorValue := os.MkdirAll(pendingStateDir, 0o700); errorValue != nil {
 		t.Fatalf("expected pending node state dir: %v", errorValue)
 	}
-	saveState(activeStateDir, "node_id", "node-a")
+	saveState(activeStateDir, "node_id", "1")
 	saveState(activeStateDir, "fleet_role", "active")
-	saveState(pendingStateDir, "node_id", "node-b")
+	saveState(pendingStateDir, "node_id", "2")
 	saveState(pendingStateDir, "fleet_role", "pending")
 
 	target := resolveCommandTarget(nil)
@@ -196,12 +263,12 @@ func TestResolveCommandTargetHostKeepsBaseStateWithoutExplicitNode(t *testing.T)
 	homeDirectory := t.TempDir()
 	t.Setenv("HOME", homeDirectory)
 	baseStateDir := filepath.Join(homeDirectory, ".internkim", "devices", setup.BoardJetsonOrinNano)
-	nodeStateDir := filepath.Join(baseStateDir, "boards", "node-a")
+	nodeStateDir := filepath.Join(baseStateDir, "boards", "1")
 	if errorValue := os.MkdirAll(nodeStateDir, 0o700); errorValue != nil {
 		t.Fatalf("expected node state dir: %v", errorValue)
 	}
-	saveState(baseStateDir, "default_node_id", "node-a")
-	saveState(nodeStateDir, "node_id", "node-a")
+	saveState(baseStateDir, "default_node_id", "1")
+	saveState(nodeStateDir, "node_id", "1")
 	saveState(nodeStateDir, "fleet_role", "active")
 
 	target := resolveCommandTarget([]string{"--host", "192.0.2.10"})
@@ -295,14 +362,14 @@ func TestResolveVerifyTargetAcceptsNodeArgument(t *testing.T) {
 	homeDirectory := t.TempDir()
 	t.Setenv("HOME", homeDirectory)
 	baseStateDir := filepath.Join(homeDirectory, ".internkim", "devices", setup.BoardJetsonOrinNano)
-	nodeStateDir := filepath.Join(baseStateDir, "boards", "node-a")
+	nodeStateDir := filepath.Join(baseStateDir, "boards", "5")
 	if errorValue := os.MkdirAll(nodeStateDir, 0o700); errorValue != nil {
 		t.Fatalf("expected node state dir: %v", errorValue)
 	}
-	saveState(nodeStateDir, "node_id", "node-a")
+	saveState(nodeStateDir, "node_id", "5")
 	saveState(nodeStateDir, "fleet_role", "active")
 
-	target, errorValue := resolveVerifyTarget([]string{"--node", "node-a", "--host", "192.0.2.30"})
+	target, errorValue := resolveVerifyTarget([]string{"--node", "5", "--host", "192.0.2.30"})
 	if errorValue != nil {
 		t.Fatalf("expected verify target: %v", errorValue)
 	}
@@ -310,7 +377,51 @@ func TestResolveVerifyTargetAcceptsNodeArgument(t *testing.T) {
 	if target.stateDir != nodeStateDir {
 		t.Fatalf("expected node state dir %q, got %q", nodeStateDir, target.stateDir)
 	}
-	if target.nodeID != "node-a" {
-		t.Fatalf("expected node-a, got %q", target.nodeID)
+	if target.nodeID != "5" {
+		t.Fatalf("expected 5, got %q", target.nodeID)
+	}
+}
+
+func TestResolveVerifyTargetUsesCloudflareSSHForExplicitHost(t *testing.T) {
+	homeDirectory := t.TempDir()
+	t.Setenv("HOME", homeDirectory)
+
+	target, errorValue := resolveVerifyTarget([]string{
+		"--cloudflare-ssh",
+		"--host", "ssh.example.test",
+		"--user", "internkim",
+		"--password", "blueclaw",
+	})
+	if errorValue != nil {
+		t.Fatalf("expected verify target: %v", errorValue)
+	}
+
+	if target.sshClient == nil {
+		t.Fatal("expected ssh client")
+	}
+	if target.sshClient.proxyCommand == "" {
+		t.Fatal("expected Cloudflare proxy command for explicit host")
+	}
+}
+
+func TestResolveVerifyTargetUsesCloudflareSSHHostnameWithoutLocalProbe(t *testing.T) {
+	homeDirectory := t.TempDir()
+	t.Setenv("HOME", homeDirectory)
+	stateDir := filepath.Join(homeDirectory, ".internkim", "devices", setup.BoardJetsonOrinNano)
+	if errorValue := os.MkdirAll(stateDir, 0o700); errorValue != nil {
+		t.Fatalf("expected state dir: %v", errorValue)
+	}
+	saveState(stateDir, "ssh_hostname", "0.ssh.example.test")
+
+	target, errorValue := resolveVerifyTarget([]string{"--cloudflare-ssh"})
+	if errorValue != nil {
+		t.Fatalf("expected verify target: %v", errorValue)
+	}
+
+	if target.host != "0.ssh.example.test" {
+		t.Fatalf("expected Cloudflare SSH hostname, got %q", target.host)
+	}
+	if target.sshClient == nil || target.sshClient.proxyCommand == "" {
+		t.Fatal("expected Cloudflare proxy command")
 	}
 }

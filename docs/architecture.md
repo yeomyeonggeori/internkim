@@ -29,7 +29,7 @@
                  │    └─ companion broker / admin UI / backup
                  ├─ internkim-capabilityd
                  │    ├─ OpenRouter / local model / companion LLM routing
-                 │    ├─ Mattermost / Slack / Signal platform I/O
+                 │    ├─ Mattermost platform I/O
                  │    └─ browser capability adapter
                  ├─ graphiti-memoryd :7791
                  └─ Firecracker guest
@@ -38,17 +38,22 @@
                            ├─ workspace actor boundary
                            └─ gws / gws-bot helper 경로
 
-Slack workspace
-  └─ Slack Socket Mode
-       └─ internkim-capabilityd
-            └─ Blueclaw
+Planned external channels
+  ├─ Slack workspace
+  │    └─ Slack Socket Mode
+  │         └─ internkim-capabilityd
+  │              └─ Blueclaw
+  └─ Signal account
+       └─ JSON-RPC poll
+            └─ internkim-capabilityd
+                 └─ Blueclaw
 
 사용자 컴퓨터
   └─ internkim-companion
        └─ internkim-admind companion broker
 ```
 
-Mattermost와 관리자 UI는 Cloudflare Access 뒤의 외부 진입점이고, Blueclaw는 로컬 루프백에서만 응답합니다. Slack과 Signal은 `internkim-capabilityd`가 외부 이벤트를 받아 Blueclaw 작업으로 정규화합니다. Google, Mattermost, Slack, Signal, Cloudflare 설정은 host-side setup이 관리하고, Blueclaw는 이미 배치된 파일과 capability endpoint를 사용합니다.
+Mattermost와 관리자 UI는 Cloudflare Access 뒤의 외부 진입점이고, Blueclaw는 로컬 루프백에서만 응답합니다. Slack과 Signal은 예정 채널이며, 같은 구조에서 `internkim-capabilityd`가 외부 이벤트를 받아 Blueclaw 작업으로 정규화하도록 확장합니다. Google, Mattermost, Cloudflare 설정은 host-side setup이 관리하고, Blueclaw는 이미 배치된 파일과 capability endpoint를 사용합니다.
 
 ## 디렉토리 구조
 
