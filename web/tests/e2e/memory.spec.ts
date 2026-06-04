@@ -70,7 +70,7 @@ test.describe('memory graph', () => {
 			viewportWidth: 1280
 		});
 
-		expectCanvasToMatchContainer(await graphMetrics(page));
+		await expectCanvasToMatchContainer(page);
 
 		await page.setViewportSize({ width: 390, height: 844 });
 
@@ -79,7 +79,7 @@ test.describe('memory graph', () => {
 			viewportWidth: 390
 		});
 
-		expectCanvasToMatchContainer(await graphMetrics(page));
+		await expectCanvasToMatchContainer(page);
 	});
 });
 
@@ -96,15 +96,17 @@ async function graphMetrics(page: Page): Promise<GraphMetrics> {
 	});
 }
 
-function expectCanvasToMatchContainer(metrics: GraphMetrics): void {
-	expect(metrics.canvas).not.toBeNull();
-	expect(metrics.container).not.toBeNull();
-	if (!metrics.canvas || !metrics.container) return;
+async function expectCanvasToMatchContainer(page: Page): Promise<void> {
+	await expect
+		.poll(async () => calculateGraphSizeDifference(await graphMetrics(page)))
+		.toBeLessThanOrEqual(graphSizeTolerancePixel);
+}
 
-	expect(Math.abs(metrics.canvas.width - metrics.container.width)).toBeLessThanOrEqual(
-		graphSizeTolerancePixel
-	);
-	expect(Math.abs(metrics.canvas.height - metrics.container.height)).toBeLessThanOrEqual(
-		graphSizeTolerancePixel
+function calculateGraphSizeDifference(metrics: GraphMetrics): number {
+	if (!metrics.canvas || !metrics.container) return Number.MAX_SAFE_INTEGER;
+
+	return Math.max(
+		Math.abs(metrics.canvas.width - metrics.container.width),
+		Math.abs(metrics.canvas.height - metrics.container.height)
 	);
 }
