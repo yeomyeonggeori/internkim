@@ -23,6 +23,9 @@ type CalendarLocaleText = {
 	googleCalendarConnected: string;
 	googleCalendarConnectedTemplate: string;
 	googleCalendarReauthRequired: string;
+	googleCalendarConnectAction: string;
+	googleCalendarReconnectAction: string;
+	googleCalendarReconnectHint: string;
 	shared: string;
 	refresh: string;
 	syncTitle: string;
@@ -88,6 +91,9 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		googleCalendarConnected: 'Google Calendar 연결됨',
 		googleCalendarConnectedTemplate: 'Google Calendar 연결됨: {email}',
 		googleCalendarReauthRequired: 'Google Calendar 재인증 필요',
+		googleCalendarConnectAction: 'Google Calendar 연결',
+		googleCalendarReconnectAction: 'Google Calendar 다시 연결',
+		googleCalendarReconnectHint: '외부 캘린더 연동을 다시 시작하려면 계정을 다시 연결하세요.',
 		shared: '공유',
 		refresh: '새로고침',
 		syncTitle: '연동',
@@ -162,6 +168,9 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		googleCalendarConnected: 'Google Calendar connected',
 		googleCalendarConnectedTemplate: 'Google Calendar connected: {email}',
 		googleCalendarReauthRequired: 'Google Calendar needs reauthorization',
+		googleCalendarConnectAction: 'Connect Google Calendar',
+		googleCalendarReconnectAction: 'Reconnect Google Calendar',
+		googleCalendarReconnectHint: 'Reconnect the account to resume remote calendar sync.',
 		shared: 'Shared',
 		refresh: 'Refresh',
 		syncTitle: 'Sync',
