@@ -1943,7 +1943,7 @@ task_id_for_prompt() {
     jq -r --arg prompt "$prompt" '[.[] | select(.prompt == $prompt)] | sort_by(.createdAt) | last | .taskRunID // empty'
 }
 
-wait_for_task_preview() {
+wait_for_task_attachment_read() {
   local prompt="$1"
   local label="$2"
   local task_id=""
@@ -1953,9 +1953,9 @@ wait_for_task_preview() {
     task_id="$(task_id_for_prompt "$prompt")"
     if [ -n "$task_id" ]; then
       blueclaw_request "$label task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_id" > "$task_detail_file"
-      if jq -e --arg title "$unique_title" 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "tool.file.preview.result" and ((.body // "") | tostring | contains($title)))' "$task_detail_file" >/dev/null; then
+      if jq -e --arg title "$unique_title" 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; (.name == "tool.file.preview.result" or .name == "tool.file.read.result" or .name == "tool.document.read.result") and ((.body // "") | tostring | contains($title)))' "$task_detail_file" >/dev/null; then
         if jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "tool.terminal.run.requested")' "$task_detail_file" >/dev/null; then
-          echo "$label task used terminal.run instead of attachment preview" >&2
+          echo "$label task used terminal.run instead of attachment read tools" >&2
           jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
           return 1
         fi
@@ -1966,15 +1966,20 @@ wait_for_task_preview() {
         fi
       fi
       task_status="$(jq -r 'def detail: if type == "array" then .[0] else . end; detail.taskRun.status // empty' "$task_detail_file")"
+      if [ "$task_status" = "completed" ]; then
+        echo "$label task completed without reading the Mattermost HTML attachment content: $task_id" >&2
+        jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
+        return 1
+      fi
       if [ "$task_status" = "blocked" ] || [ "$task_status" = "failed" ] || [ "$task_status" = "cancelled" ]; then
-        echo "$label task ended as $task_status before successful file.preview: $task_id" >&2
+        echo "$label task ended as $task_status before successful attachment read: $task_id" >&2
         jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
         return 1
       fi
     fi
     sleep 1
   done
-  echo "timed out waiting for $label task to preview Mattermost HTML attachment" >&2
+  echo "timed out waiting for $label task to read Mattermost HTML attachment" >&2
   return 1
 }
 
@@ -2073,7 +2078,7 @@ root_post_id="$(printf '%%s' "$root_post" | jq -r '.id')"
 root_post_create_at="$(printf '%%s' "$root_post" | jq -r '.create_at')"
 test -n "$root_post_id"
 
-root_task_id="$(wait_for_task_preview "$root_prompt" "root attachment")"
+root_task_id="$(wait_for_task_attachment_read "$root_prompt" "root attachment")"
 root_bot_message="$(latest_bot_message_after "$root_post_create_at")"
 assert_no_file_excuse "$root_bot_message" "root attachment"
 
@@ -2083,7 +2088,7 @@ followup_post_id="$(printf '%%s' "$followup_post" | jq -r '.id')"
 followup_post_create_at="$(printf '%%s' "$followup_post" | jq -r '.create_at')"
 test -n "$followup_post_id"
 
-followup_task_id="$(wait_for_task_preview "$followup_prompt" "follow-up attachment")"
+followup_task_id="$(wait_for_task_attachment_read "$followup_prompt" "follow-up attachment")"
 followup_bot_message="$(latest_bot_message_after "$followup_post_create_at")"
 assert_no_file_excuse "$followup_bot_message" "follow-up attachment"
 
