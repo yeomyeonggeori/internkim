@@ -242,6 +242,16 @@
 		return text.googleCalendarConnected;
 	}
 
+	function shouldShowGoogleOAuthAction() {
+		if (isLoadingAccountStatus || accountStatusError) return false;
+		return !accountStatus?.connected || accountStatus.needsReauth;
+	}
+
+	function googleOAuthActionLabel() {
+		if (accountStatus?.needsReauth) return text.googleCalendarReconnectAction;
+		return text.googleCalendarConnectAction;
+	}
+
 	function accountStatusDotClass() {
 		if (accountStatusError || accountStatus?.needsReauth) return 'bg-warning';
 		if (accountStatus?.connected) return 'bg-success';
@@ -539,6 +549,15 @@
 						<span class={`size-2 rounded-full ${accountStatusDotClass()}`} aria-hidden="true"></span>
 						<span class="min-w-0 flex-1 truncate">{accountStatusLabel()}</span>
 					</div>
+					{#if accountStatus?.needsReauth}
+						<p class="text-xs leading-relaxed text-muted-foreground">{text.googleCalendarReconnectHint}</p>
+					{/if}
+					{#if shouldShowGoogleOAuthAction()}
+						<Button href="/calendar/oauth/google/start" variant="outline" class="w-full justify-center gap-2">
+							<RefreshCwIcon class="size-4" />
+							<span>{googleOAuthActionLabel()}</span>
+						</Button>
+					{/if}
 				</div>
 
 				<div class="space-y-3">
