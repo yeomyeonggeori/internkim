@@ -16,8 +16,6 @@ import (
 const mattermostConnectCommandTrigger = "connect"
 const mattermostStopCommandTrigger = "stop"
 const mattermostStopAllCommandTrigger = "stop-all"
-const mattermostKoreanStopCommandTrigger = "중단"
-const mattermostKoreanStopAllCommandTrigger = "중단-전부"
 const mattermostConnectCommandTokenFilename = "mattermost-connect-command-token"
 
 type mattermostCommandRecord struct {
@@ -69,10 +67,10 @@ func (service *Service) handleMattermostCommand(responseWriter http.ResponseWrit
 			return
 		}
 		service.handleMattermostConnectCommand(responseWriter, request)
-	case mattermostStopCommandTrigger, mattermostStopAllCommandTrigger, mattermostKoreanStopCommandTrigger, mattermostKoreanStopAllCommandTrigger:
+	case mattermostStopCommandTrigger, mattermostStopAllCommandTrigger:
 		service.handleMattermostStopCommand(responseWriter, request, command)
 	default:
-		service.writeMattermostCommandResponse(responseWriter, request, "지원하지 않는 명령입니다. `/connect`, `/stop`, `/stop-all`, `/중단`, `/중단-전부`를 사용할 수 있습니다.")
+		service.writeMattermostCommandResponse(responseWriter, request, "지원하지 않는 명령입니다. `/connect`, `/stop`, `/stop-all`을 사용할 수 있습니다.")
 		return
 	}
 }
@@ -101,7 +99,7 @@ func (service *Service) handleMattermostStopCommand(responseWriter http.Response
 		return
 	}
 	mode := "stop"
-	if command == mattermostStopAllCommandTrigger || command == mattermostKoreanStopAllCommandTrigger {
+	if command == mattermostStopAllCommandTrigger {
 		mode = "stop_all"
 	}
 	stopResponse := blueclawTaskStopResponse{}
@@ -196,6 +194,17 @@ func (service *Service) ensureMattermostConnectCommand(ctx context.Context, toke
 			return errorValue
 		}
 	}
+	for _, trigger := range mattermostDeprecatedCommandTriggers() {
+		commandRecord, found, errorValue := service.findMattermostCommand(ctx, token, teamRecord.ID, trigger)
+		if errorValue != nil {
+			return errorValue
+		}
+		if found {
+			if errorValue := service.archiveMattermostConnectCommand(ctx, token, commandRecord.ID); errorValue != nil {
+				return errorValue
+			}
+		}
+	}
 	return nil
 }
 
@@ -262,11 +271,11 @@ func (service *Service) mattermostCommandPayload(teamID string, commandID string
 		Autocomplete: true,
 	}
 	switch trigger {
-	case mattermostStopCommandTrigger, mattermostKoreanStopCommandTrigger:
+	case mattermostStopCommandTrigger:
 		commandRecord.DisplayName = "Stop InternKim task"
 		commandRecord.Description = "Stop your current InternKim task."
 		commandRecord.AutocompleteDesc = "Stop your current task"
-	case mattermostStopAllCommandTrigger, mattermostKoreanStopAllCommandTrigger:
+	case mattermostStopAllCommandTrigger:
 		commandRecord.DisplayName = "Stop all InternKim tasks"
 		commandRecord.Description = "Stop all of your active InternKim tasks."
 		commandRecord.AutocompleteDesc = "Stop all active tasks"
@@ -342,9 +351,11 @@ func mattermostManagedCommandTriggers() []string {
 		mattermostConnectCommandTrigger,
 		mattermostStopCommandTrigger,
 		mattermostStopAllCommandTrigger,
-		mattermostKoreanStopCommandTrigger,
-		mattermostKoreanStopAllCommandTrigger,
 	}
+}
+
+func mattermostDeprecatedCommandTriggers() []string {
+	return []string{"중단", "중단-전부"}
 }
 
 func mattermostSlashCommandConversationIDs(request *http.Request) []string {
@@ -357,7 +368,7 @@ func mattermostSlashCommandConversationIDs(request *http.Request) []string {
 
 func mattermostStopCommandMessage(response blueclawTaskStopResponse) string {
 	if response.MultipleTargets {
-		return "진행 중인 작업이 여러 개입니다. 모두 멈추려면 `/중단-전부`를 사용해 주세요."
+		return "진행 중인 작업이 여러 개입니다. 모두 멈추려면 `/stop-all`을 사용해 주세요."
 	}
 	if response.CancelledTaskRunCount == 0 {
 		return "현재 중단할 작업이 없습니다."

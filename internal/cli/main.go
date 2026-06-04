@@ -2074,7 +2074,12 @@ func setupMattermostConnectCommand(m *msg, ssh *sshClient, mmAPI mattermostSetup
 		}
 		writeMattermostSetupConnectCommandToken(ssh, createdRecord.Token)
 	}
-	fmt.Printf("  %s\n", m.t("Mattermost /connect /stop /stop-all /중단 /중단-전부 명령 확인", "Mattermost /connect /stop /stop-all /중단 /중단-전부 commands verified"))
+	for _, trigger := range mattermostSetupDeprecatedCommandTriggers() {
+		if commandRecord, found := findMattermostSetupCommand(mmAPI, adminToken, teamID, trigger); found {
+			mmAPI("DELETE", "/api/v4/commands/"+commandRecord.ID, nil, adminToken)
+		}
+	}
+	fmt.Printf("  %s\n", m.t("Mattermost /connect /stop /stop-all 명령 확인", "Mattermost /connect /stop /stop-all commands verified"))
 }
 
 func findMattermostSetupCommand(mmAPI mattermostSetupAPI, adminToken string, teamID string, trigger string) (mattermostSetupCommandRecord, bool) {
@@ -2123,11 +2128,11 @@ func mattermostSetupCommandPayload(teamID string, commandID string, trigger stri
 		Autocomplete: true,
 	}
 	switch trigger {
-	case "stop", "중단":
+	case "stop":
 		commandRecord.DisplayName = "Stop InternKim task"
 		commandRecord.Description = "Stop your current InternKim task."
 		commandRecord.AutocompleteDesc = "Stop your current task"
-	case "stop-all", "중단-전부":
+	case "stop-all":
 		commandRecord.DisplayName = "Stop all InternKim tasks"
 		commandRecord.Description = "Stop all of your active InternKim tasks."
 		commandRecord.AutocompleteDesc = "Stop all active tasks"
@@ -2158,7 +2163,11 @@ chmod 600 %s`,
 }
 
 func mattermostSetupCommandTriggers() []string {
-	return []string{"connect", "stop", "stop-all", "중단", "중단-전부"}
+	return []string{"connect", "stop", "stop-all"}
+}
+
+func mattermostSetupDeprecatedCommandTriggers() []string {
+	return []string{"중단", "중단-전부"}
 }
 
 func runLab() {
