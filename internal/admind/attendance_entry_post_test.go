@@ -154,8 +154,15 @@ func TestAttendanceEntryPostPatchRefreshesStaleActionContext(t *testing.T) {
 		MattermostBotTokenPath: writeTestFile(t, "bot-token"),
 		ListenAddress:          "127.0.0.1:9000",
 	})
+	expectedToken := service.ensureMattermostInteractiveActionToken()
 	staleProps := service.mattermostAttendanceEntryPostProps()
-	attachments := staleProps["attachments"].([]mattermostAttachment)
+	attachments, ok := staleProps["attachments"].([]mattermostAttachment)
+	if !ok || len(attachments) != 1 {
+		t.Fatalf("attachments = %+v", staleProps["attachments"])
+	}
+	if len(attachments[0].Actions) == 0 {
+		t.Fatalf("actions = %+v", attachments[0].Actions)
+	}
 	attachments[0].Actions[0].Integration.Context.Token = "stale-token"
 	staleProps["attachments"] = attachments
 	stalePropsDocument, errorValue := json.Marshal(staleProps)
@@ -176,6 +183,21 @@ func TestAttendanceEntryPostPatchRefreshesStaleActionContext(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"order":["entry-post"],"posts":{"entry-post":{"id":"entry-post","user_id":"bot-1","channel_id":"attendance-channel","message":"출퇴근 기록","is_pinned":true,"props":`+string(stalePropsDocument)+`}}}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/posts/entry-post/patch" && request.Method == http.MethodPut:
 			assertMattermostBearerToken(t, request, "bot-token")
+			var payload struct {
+				Props struct {
+					Attachments []mattermostAttachment `json:"attachments"`
+				} `json:"props"`
+			}
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if len(payload.Props.Attachments) != 1 || len(payload.Props.Attachments[0].Actions) == 0 {
+				t.Fatalf("patch attachments = %+v", payload.Props.Attachments)
+			}
+			actualToken := payload.Props.Attachments[0].Actions[0].Integration.Context.Token
+			if actualToken != expectedToken || actualToken == "stale-token" {
+				t.Fatalf("patch action token = %q, expected %q", actualToken, expectedToken)
+			}
 			patched = true
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
