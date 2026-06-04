@@ -146,6 +146,74 @@ func TestAttendanceEntryPostPatchKeepsExistingBotPost(t *testing.T) {
 	}
 }
 
+func TestAttendanceEntryPostPatchRefreshesStaleActionContext(t *testing.T) {
+	stateDirectory := t.TempDir()
+	service := NewService(Configuration{
+		StateDirectory:         stateDirectory,
+		MattermostBaseURL:      "http://mattermost.local",
+		MattermostBotTokenPath: writeTestFile(t, "bot-token"),
+		ListenAddress:          "127.0.0.1:9000",
+	})
+	expectedToken := service.ensureMattermostInteractiveActionToken()
+	staleProps := service.mattermostAttendanceEntryPostProps()
+	attachments, ok := staleProps["attachments"].([]mattermostAttachment)
+	if !ok || len(attachments) != 1 {
+		t.Fatalf("attachments = %+v", staleProps["attachments"])
+	}
+	if len(attachments[0].Actions) == 0 {
+		t.Fatalf("actions = %+v", attachments[0].Actions)
+	}
+	attachments[0].Actions[0].Integration.Context.Token = "stale-token"
+	staleProps["attachments"] = attachments
+	stalePropsDocument, errorValue := json.Marshal(staleProps)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var patched bool
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "http://mattermost.local/api/v4/users/me":
+			assertMattermostBearerToken(t, request, "bot-token")
+			return jsonResponse(http.StatusOK, `{"id":"bot-1","username":"internkim"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members" && request.Method == http.MethodPost:
+			return jsonResponse(http.StatusCreated, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members/bot-1/schemeRoles" && request.Method == http.MethodPut:
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/posts?per_page=50":
+			return jsonResponse(http.StatusOK, `{"order":["entry-post"],"posts":{"entry-post":{"id":"entry-post","user_id":"bot-1","channel_id":"attendance-channel","message":"출퇴근 기록","is_pinned":true,"props":`+string(stalePropsDocument)+`}}}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/posts/entry-post/patch" && request.Method == http.MethodPut:
+			assertMattermostBearerToken(t, request, "bot-token")
+			var payload struct {
+				Props struct {
+					Attachments []mattermostAttachment `json:"attachments"`
+				} `json:"props"`
+			}
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if len(payload.Props.Attachments) != 1 || len(payload.Props.Attachments[0].Actions) == 0 {
+				t.Fatalf("patch attachments = %+v", payload.Props.Attachments)
+			}
+			actualToken := payload.Props.Attachments[0].Actions[0].Integration.Context.Token
+			if actualToken != expectedToken || actualToken == "stale-token" {
+				t.Fatalf("patch action token = %q, expected %q", actualToken, expectedToken)
+			}
+			patched = true
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	if errorValue := service.ensureMattermostAttendanceEntryPost(context.Background(), "admin-token", "attendance-channel"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !patched {
+		t.Fatal("stale attendance action context was not patched")
+	}
+}
+
 func TestAttendanceEntryPostUsesStoredPostOutsideRecentPage(t *testing.T) {
 	stateDirectory := t.TempDir()
 	service := NewService(Configuration{
