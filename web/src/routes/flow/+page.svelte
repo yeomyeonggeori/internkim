@@ -34,8 +34,10 @@
 		getSortedRowModel
 	} from '@tanstack/table-core';
 	import { onMount, tick } from 'svelte';
+	import FlowWeekSelector from './flow-week-selector.svelte';
+	import { flowProjectColor, flowTypeColor } from './flow-report-colors';
 	import FlowReportCard from './report/flow-report-card.svelte';
-	import { buildFlowReportSections } from './report/flow-report-data';
+	import { buildFlowReportSections, type FlowReportSnapshot } from './report/flow-report-data';
 	import { flowText } from './text';
 
 	type FlowWeek = {
@@ -115,6 +117,7 @@
 		tasks: FlowTask[];
 		metrics: FlowMetrics;
 		definitions: FlowDefinitions;
+		report?: FlowReportSnapshot;
 		statusOptions: string[];
 		currentUserEmail: string;
 		currentUserName: string;
@@ -164,6 +167,7 @@
 	const members = () => summary?.members ?? [];
 	const tasks = () => summary?.tasks ?? [];
 	const metrics = () => summary?.metrics ?? emptyMetrics;
+	const memberDistanceTotal = () => Object.values(metrics().memberScores).reduce((total, distance) => total + distance, 0);
 	const definitions = () =>
 		summary?.definitions ?? {
 			categories: [],
@@ -187,27 +191,33 @@
 	];
 	const reportSections = () =>
 		buildFlowReportSections(metrics(), {
-			statusLabels: text.status as Record<string, string>,
-			statusDescriptions: text.statusDescriptions as Record<string, string>,
 			emptyLabel: text.report.empty,
 			sectionLabels: {
 				weeklyStatus: {
 					title: text.report.weeklyStatus,
 					description: text.report.weeklyStatusDescription
 				},
-				memberScores: {
-					title: text.report.memberScores,
-					description: text.report.memberScoresDescription
+				memberDistance: {
+					title: text.report.memberDistance,
+					description: text.report.memberDistanceDescription
+				},
+				weeklyDistanceTrend: {
+					title: text.report.weeklyDistanceTrend,
+					description: text.report.weeklyDistanceTrendDescription
+				},
+				monthlyDistanceTrend: {
+					title: text.report.monthlyDistanceTrend,
+					description: text.report.monthlyDistanceTrendDescription
 				},
 				businessDistance: {
 					title: text.report.businessDistance,
 					description: text.report.businessDistanceDescription
-				},
-				typeBreakdown: {
-					title: text.report.typeBreakdown,
-					description: text.report.typeBreakdownDescription
 				}
-			}
+			},
+			report: summary?.report,
+			tasks: tasks(),
+			definitions: definitions(),
+			weekStartISO: summary?.week.startISO
 		});
 	const categoryFilterOptions = () => [{ value: 'all', label: text.filters.all }, ...categoryOptions()];
 	const typeFilterOptions = () => [{ value: 'all', label: text.filters.all }, ...typeOptions()];
@@ -699,15 +709,17 @@
 					<ChevronLeftIcon />
 					{text.previousWeek}
 				</Button>
-				<div class="rounded-lg border bg-card px-3 py-1.5 text-sm font-medium tabular-nums">
-					{summary?.week.code || (summary?.week.startISO ? `${summary.week.startISO} – ${summary.week.endISO}` : '...')}
-				</div>
+				<FlowWeekSelector
+					week={summary?.week}
+					disabled={!summary || isLoading}
+					selectDateLabel={text.selectWeekDate}
+					currentWeekLabel={text.currentWeekAction}
+					onSelectWeek={selectWeek}
+					onSelectCurrentWeek={selectCurrentWeek}
+				/>
 				<Button variant="outline" size="sm" onclick={() => selectWeek(summary?.week.next ?? '')} disabled={!summary || isLoading}>
 					{text.nextWeek}
 					<ChevronRightIcon />
-				</Button>
-				<Button variant="secondary" size="sm" onclick={selectCurrentWeek} disabled={isLoading}>
-					{text.currentWeek}
 				</Button>
 				<Button variant="ghost" size="icon-sm" aria-label={text.refresh} onclick={() => loadFlow(currentWeek())} disabled={isLoading}>
 					<RefreshCwIcon class={isLoading ? 'animate-spin' : ''} />
@@ -723,7 +735,7 @@
 
 		<section class="grid min-w-0 gap-3 md:grid-cols-4">
 			{@render MetricCard(text.metrics.total, metrics().totalTasks, `${summary?.week.startISO ?? ''} – ${summary?.week.endISO ?? ''}`)}
-			{@render MetricCard(text.metrics.completed, metrics().completedTasks, `${text.metrics.completedDistance} ${metrics().totalScore}km`)}
+			{@render MetricCard(text.metrics.completed, metrics().completedTasks, `${text.metrics.completedDistance} ${memberDistanceTotal()}${text.metrics.distanceUnit}`)}
 			{@render MetricCard(text.metrics.requested, metrics().requestedTasks, text.metrics.requestedDescription)}
 			{@render MetricCard(text.metrics.blocked, metrics().pausedTasks + metrics().stoppedTasks, text.metrics.blockedDescription)}
 		</section>
@@ -743,10 +755,15 @@
 
 		{#if activeTab === 'report'}
 			<section class="grid min-w-0 gap-4 lg:grid-cols-2">
-				<FlowReportCard section={reportSections().weeklyStatus} />
-				<FlowReportCard section={reportSections().memberScores} />
-				<FlowReportCard section={reportSections().businessDistance} />
-				<FlowReportCard section={reportSections().typeBreakdown} />
+				<div class="grid min-w-0 gap-4">
+					<FlowReportCard section={reportSections().weeklyStatus} />
+					<FlowReportCard section={reportSections().businessDistance} />
+				</div>
+				<div class="min-w-0">
+					<FlowReportCard section={reportSections().memberDistance} />
+				</div>
+				<FlowReportCard section={reportSections().weeklyDistanceTrend} />
+				<FlowReportCard section={reportSections().monthlyDistanceTrend} />
 			</section>
 		{:else if activeTab === 'definitions'}
 			{#if canEditDefinitions()}
@@ -761,7 +778,8 @@
 							updateCategory,
 							confirmRemoveCategory,
 							addCategory,
-							(value: string) => (newCategoryText = value)
+							(value: string) => (newCategoryText = value),
+							flowProjectColor
 						)}
 						{@render EditableListCard(
 							text.definitions.type,
@@ -771,7 +789,8 @@
 							updateType,
 							confirmRemoveType,
 							addType,
-							(value: string) => (newTypeText = value)
+							(value: string) => (newTypeText = value),
+							flowTypeColor
 						)}
 					</div>
 					{#if summary?.isAdmin}
@@ -1260,7 +1279,8 @@
 	update: (index: number, value: string) => void,
 	remove: (index: number) => void,
 	add: () => void,
-	setNewValue: (value: string) => void
+	setNewValue: (value: string) => void,
+	itemColor: (index: number) => string
 )}
 	<Card.Root size="sm">
 		<Card.Header>
@@ -1269,7 +1289,8 @@
 		</Card.Header>
 		<Card.Content class="space-y-2">
 			{#each items as item, index}
-				<div class="grid grid-cols-[1fr_auto] gap-2">
+				<div class="grid grid-cols-[auto_1fr_auto] items-center gap-2">
+					<span class="size-2.5 rounded-full" style={`background: ${itemColor(index)}`}></span>
 					<Input
 						value={item}
 						disabled={!summary?.isAdmin}
@@ -1287,7 +1308,8 @@
 				</div>
 			{/each}
 			{#if summary?.isAdmin}
-				<div class="grid grid-cols-[1fr_auto] gap-2">
+				<div class="grid grid-cols-[auto_1fr_auto] items-center gap-2">
+					<span class="size-2.5 rounded-full" style={`background: ${itemColor(items.length)}`}></span>
 					<Input value={newValue} placeholder={title} oninput={(event) => setNewValue(event.currentTarget.value)} />
 					<Button variant="outline" size="icon" onclick={add} aria-label={text.definitions.add}>
 						<PlusIcon class="size-4" />
