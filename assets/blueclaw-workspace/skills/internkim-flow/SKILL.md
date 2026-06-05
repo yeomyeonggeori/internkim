@@ -1,11 +1,11 @@
 ---
 name: internkim-flow
-description: Add, find, or complete weekly work items when the user asks Intern Kim to handle work, todos, requests, deadlines, or task notes.
-when_to_use: Use when the user asks to add, record, request, find, or complete work items, todos, 업무, 회의 준비, 미팅 준비, 추가, 넣어, 등록, 요청, 완료, 마감, 전달, 할 일, or 할일.
+description: Add, find, update, or complete weekly work items when the user asks Intern Kim to handle work, todos, requests, deadlines, or task notes.
+when_to_use: Use when the user asks to add, record, request, find, update, change, or complete work items, todos, 업무, 회의 준비, 미팅 준비, 추가, 넣어, 등록, 요청, 수정, 변경, 완료, 마감, 전달, 할 일, or 할일.
 allowed-tools:
   - flow.task.add
   - flow.task.list
-  - flow.task.complete
+  - flow.task.update
   - calendar.event.add
   - calendar.event.list
   - calendar.event.update
@@ -13,7 +13,7 @@ allowed-tools:
 
 # 업무 관리
 
-Use the work tools when the user asks to add, record, request, find, or complete a work item.
+Use the work tools when the user asks to add, record, request, find, update, or complete a work item.
 
 Rules:
 
@@ -21,10 +21,11 @@ Rules:
 - Work for another person must be added as `요청`, not as a direct assignment.
 - Decide by intent, not by the noun the user used. Deliverables, deadlines, todos, requests, handoffs, and completion targets are work. Meetings, appointments, attendance blocks, locations, and time blocks are calendar events.
 - If the user asks for a schedule but the content is a deadline-driven deliverable, call `flow.task.add` and also call `calendar.event.add` when a due time should appear on the calendar.
-- If the user says something is complete, prefer `flow.task.complete`. Use `calendar.event.update` only when the user clearly means changing a calendar event.
+- If the user says something is complete, prefer `flow.task.update`. Use `calendar.event.update` only when the user clearly means changing a calendar event.
+- If the user asks to edit, rename, change, or revise an existing work item, use `flow.task.update`. Do not create a new work item with `flow.task.add` for edits.
 - Call `flow.task.add` with `prompt` containing the user's natural-language task request.
-- Call `flow.task.list` before completion when the matching work item is uncertain.
-- Call `flow.task.complete` with `taskID` when you have one, or with `query` when the user gives a natural-language target.
+- Call `flow.task.list` before update or completion when the matching work item is uncertain.
+- Call `flow.task.update` with `taskID` when you have one, or with `query` when the user gives a natural-language target. If no update fields are provided, the tool marks the item complete.
 - Use `targetPersonHint` only when the target person is explicit. The hint may be a real name, a Mattermost `@handle`, or an email if the user provided one.
 - Use `weekCode` only when the user names a specific work week.
 - Do not add the requester as a participant by default when asking another person to do work. Include the requester only when the user implies joint work, such as 같이, 함께, 나랑, 저랑, 우리, with me, with us, together, joint, or collaborate.
@@ -32,7 +33,7 @@ Rules:
 - If `flow.task.add` returns `flow_owner_ambiguous`, ask the user which candidate they mean and show the `@handle` candidates returned by the tool.
 - If `flow.task.add` returns `status: skipped_duplicate`, tell the user the matching work item is already in the 업무 목록 and ask whether to add another copy. Do not call the tool again unless the user explicitly says to add it anyway.
 - When the user explicitly confirms adding a duplicate, call `flow.task.add` again with the same input and `allowDuplicate: true`.
-- If `flow.task.complete` returns multiple candidates, ask the user which work item to complete.
+- If `flow.task.update` returns multiple candidates, ask the user which work item to update or complete.
 - After success, reply with the created task summary: 담당자, 상태, 대분류, 종류, 크기, 내용, 목표, 주간코드.
 - In Korean replies, say `업무`, `업무 목록`, or `업무 관리`; do not call the product `Flow` unless the user explicitly uses that English name.
 - If the tool fails, explain the failure honestly and do not fabricate a task.

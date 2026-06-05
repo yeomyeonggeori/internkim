@@ -340,7 +340,7 @@ func TestPreferCompanionBrowserRoutesGenericBrowserTool(t *testing.T) {
 	if !router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: "browser.navigate"}) {
 		t.Fatal("expected browser tool to route to companion when PreferCompanionBrowser is true")
 	}
-	for _, toolName := range []string{"flow.task.add", "flow.task.list", "flow.task.complete"} {
+	for _, toolName := range []string{"flow.task.add", "flow.task.list", "flow.task.update"} {
 		if router.ShouldRouteToCompanion(capabilities.ToolInvokeRequest{ToolName: toolName}) {
 			t.Fatalf("expected %s to stay device-side", toolName)
 		}
