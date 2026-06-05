@@ -50,6 +50,7 @@ Create prototypes for non-developers to validate ideas quickly. Do not present t
 - Use PocketBase files and migrations only when the prototype needs local data, auth, files, realtime, or migrations.
 - Do not use Next.js, SvelteKit, arbitrary Node servers, cloud databases, hosted backends, or paid APIs for v1 prototypes unless the user explicitly asks for that stack.
 - The managed build may run `bun install` inside `app/` on first build. Do not add extra dependencies unless the request truly needs them.
+- Use system fonts by default. If the site embeds a custom or local font, use WOFF2 assets, declare them with `@font-face` and `format("woff2")`, and keep the CSS in `app/src/index.css` or app-owned styles. Do not embed TTF/OTF files, paste base64 fonts into React components, or rely on CDN-only fonts for a finished artifact.
 - `site.app.create` initializes the editable website project scaffold, not a finished website.
 - Use the returned `sourceWorkspacePath` exactly as the canonical virtual workspace path for all follow-up source writes. Do not rewrite it into a concrete private POSIX path.
 - Use the returned `appWorkspacePath` exactly as the build working directory.

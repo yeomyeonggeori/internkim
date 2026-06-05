@@ -4,6 +4,8 @@ Use these when a deck needs Korean typography that will actually render. Put loc
 
 Do not write a custom font name unless the deck imports or embeds that font. Prefer vendored local fonts for finished artifacts so HTML/PDF/PPTX rendering does not depend on CDN access.
 
+When embedding fonts, use WOFF2. Do not add TTF/OTF font files or non-WOFF2 fallbacks to generated decks unless the user supplies only those files and explicitly asks to use them. The Paperlogy block below is the canonical embedded font source.
+
 ## Paperlogy
 
 Default for display text and body text. Good for title slides, section headers, analytical decks, and confident Korean writing.

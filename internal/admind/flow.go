@@ -608,7 +608,7 @@ func (service *Service) createQuickFlowTask(responseWriter http.ResponseWriter, 
 func (service *Service) writeQuickFlowTaskDuplicate(responseWriter http.ResponseWriter, task flowTask, reason string) {
 	service.writeJSON(responseWriter, map[string]any{
 		"status":        "skipped_duplicate",
-		"message":       "이미 추가된 Flow 업무라 건너뛰었습니다. 그래도 추가하려면 다시 추가하라고 확인해 주세요.",
+		"message":       "이미 추가된 업무라 건너뛰었습니다. 그래도 추가하려면 다시 추가하라고 확인해 주세요.",
 		"duplicateTask": task,
 		"reason":        strings.TrimSpace(reason),
 	})
