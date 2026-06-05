@@ -499,6 +499,23 @@ func TestMattermostSetupEnablesUserTokensAndBots(t *testing.T) {
 	}
 }
 
+func TestMattermostSetupEnablesMobilePushNotifications(t *testing.T) {
+	configurationPatch := mattermostSetupConfigurationPatch("https://device.example")
+	emailSettings, ok := configurationPatch["EmailSettings"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected EmailSettings in Mattermost setup patch, got %+v", configurationPatch)
+	}
+	if emailSettings["SendPushNotifications"] != true {
+		t.Fatalf("expected Mattermost setup to enable push notifications, got %+v", emailSettings)
+	}
+	if emailSettings["PushNotificationServer"] != mattermostDefaultPushNotificationServer {
+		t.Fatalf("expected default push notification server, got %+v", emailSettings)
+	}
+	if emailSettings["PushNotificationContents"] != "id_loaded" {
+		t.Fatalf("expected id-only push notification contents, got %+v", emailSettings)
+	}
+}
+
 func TestMattermostSetupUsesAbsoluteFileStorageDirectory(t *testing.T) {
 	configurationPatch := mattermostSetupConfigurationPatch("https://device.example")
 	fileSettings, ok := configurationPatch["FileSettings"].(map[string]any)
