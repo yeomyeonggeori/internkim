@@ -22,17 +22,14 @@
 		children,
 	}: CopyButtonProps = $props();
 
-	if (size === 'icon' && children) {
-		size = 'default';
-	}
-
+	const buttonSize = $derived(size === 'icon' && children ? 'default' : size);
 	const clipboard = new UseClipboard();
 </script>
 
 <Button
 	bind:ref
 	{variant}
-	{size}
+	size={buttonSize}
 	{tabindex}
 	{disabled}
 	class={cn('flex items-center gap-2', className)}
