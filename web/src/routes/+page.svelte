@@ -1212,9 +1212,9 @@
 	<title>{text.title}</title>
 </svelte:head>
 
-<main class="bg-background text-foreground min-h-svh">
-	<div class="mx-auto flex min-h-svh w-full max-w-4xl flex-col px-5 py-6">
-		<header class="flex items-center justify-between gap-4">
+<main class="bg-background text-foreground min-h-svh w-full min-w-0 flex-1">
+	<div class="mx-auto flex min-h-svh w-full max-w-6xl min-w-0 flex-col px-4 py-5 sm:px-5 sm:py-6">
+		<header class="flex flex-wrap items-center justify-between gap-4">
 			<div class="flex items-center gap-3">
 				<img src={logoSrc} alt={text.title} class="size-9" />
 				<div>
@@ -1263,7 +1263,7 @@
 
 		<Separator />
 
-		<nav class="flex gap-1 overflow-x-auto py-4">
+		<nav class="flex w-full min-w-0 gap-1 overflow-x-auto py-4">
 			{#each adminSections() as section}
 				<Button
 					variant={activeAdminSection === section.value ? 'default' : 'ghost'}
@@ -1275,7 +1275,7 @@
 			{/each}
 		</nav>
 
-		<section class="grid gap-5 py-6">
+		<section class="grid min-w-0 gap-5 py-6">
 			{#if activeAdminSection === 'device'}
 				<div class="flex flex-wrap items-center justify-between gap-3">
 					<div>
@@ -1824,7 +1824,7 @@
 		{#if activeAdminSection === 'users'}
 			<Separator />
 
-			<section class="grid gap-5 py-6">
+			<section class="grid min-w-0 gap-5 py-6">
 			<div class="flex flex-wrap items-center justify-between gap-3">
 				<div>
 					<h2 class="text-base font-semibold">{text.users.title}</h2>
