@@ -149,7 +149,9 @@ func (service *Service) handleCalendarPushConflict(ctx context.Context, account 
 		log.Printf("calendar push conflict decode failed for %s: %v", localEvent.UID, errorValue)
 		return false, errorValue
 	}
-	service.recordCalendarFieldConflicts(ctx, localEvent, remoteEvent, row.ChangedFields)
+	if errorValue := service.recordCalendarFieldConflicts(ctx, localEvent, remoteEvent, row.ChangedFields); errorValue != nil {
+		return false, errorValue
+	}
 	mergedEvent := mergeCalendarEventChanges(remoteEvent, localEvent, row.ChangedFields)
 	mergedEvent.ID = localEvent.ID
 	mergedEvent.CreatedByEmail = localEvent.CreatedByEmail
@@ -171,25 +173,6 @@ func (service *Service) handleCalendarPushConflict(ctx context.Context, account 
 	}
 	log.Printf("calendar push conflict resolved for %s — merged %d local field(s) over remote update", localEvent.UID, len(row.ChangedFields))
 	return true, service.applyCalendarPushSuccess(ctx, mergedEvent, remoteObject.Path, newETag, mergedICS)
-}
-
-func (service *Service) recordCalendarFieldConflicts(ctx context.Context, localEvent calendarEvent, remoteEvent calendarEvent, localChangedFields []string) {
-	if len(localChangedFields) == 0 {
-		return
-	}
-	previousRemote := decodeCalendarEventFromRawICS(localEvent.RawICS, localEvent.RemoteHref, localEvent.CreatedByEmail)
-	remoteChangedFields := diffCalendarEventFields(previousRemote, remoteEvent)
-	collisions := intersectCalendarFields(localChangedFields, remoteChangedFields)
-	if len(collisions) == 0 {
-		return
-	}
-	for _, field := range collisions {
-		localValue := calendarEventFieldStringValue(localEvent, field)
-		remoteValue := calendarEventFieldStringValue(remoteEvent, field)
-		if errorValue := service.recordCalendarConflict(ctx, localEvent.ID, localEvent.UID, field, localValue, remoteValue); errorValue != nil {
-			log.Printf("record calendar conflict %s/%s failed: %v", localEvent.UID, field, errorValue)
-		}
-	}
 }
 
 func resolveCalendarPushTarget(account remoteCalendarAccount, row calendarOutboxRow, event calendarEvent) (string, string, string) {

@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/xml"
 	"errors"
-	"log"
 	"strings"
 	"time"
 )
@@ -284,130 +283,6 @@ func scanCalendarEvent(scanner calendarEventScanner) (calendarEvent, error) {
 	event.IsAllDay = isAllDay == 1
 	event.ReminderLeadHours = normalizeCalendarReminderLeadHours(event.ReminderLeadHours)
 	return event, errorValue
-}
-
-func (service *Service) writeCalendarEvent(ctx context.Context, event calendarEvent) error {
-	return service.writeCalendarEventWithSource(ctx, event, calendarSourceLocal)
-}
-
-func (service *Service) writeCalendarEventWithSource(ctx context.Context, event calendarEvent, source string) error {
-	service.calendarStoreWriteMutex.Lock()
-	defer service.calendarStoreWriteMutex.Unlock()
-	var previousEvent calendarEvent
-	if source == calendarSourceLocal {
-		existing, found, _ := service.readCalendarEventByID(ctx, event.ID)
-		if found {
-			previousEvent = existing
-		}
-	}
-	database, errorValue := service.openCalendarDatabase(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer database.Close()
-	updatedAt := time.Now().UTC().Format(time.RFC3339Nano)
-	_, errorValue = database.ExecContext(ctx, `
-INSERT INTO calendar_events (
-	id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, created_by_name, updated_by_email, updated_by_name, updated_by_at, mattermost_post_id, updated_at, deleted_at, remote_source, remote_etag, remote_href
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?)
-ON CONFLICT(id) DO UPDATE SET
-	uid = excluded.uid,
-	title = excluded.title,
-	description = excluded.description,
-	location = excluded.location,
-	start_at = excluded.start_at,
-	end_at = excluded.end_at,
-	time_zone = excluded.time_zone,
-	is_all_day = excluded.is_all_day,
-	color = excluded.color,
-	raw_ics = excluded.raw_ics,
-	reminder_lead_hours = excluded.reminder_lead_hours,
-	updated_by_email = excluded.updated_by_email,
-	updated_by_name = excluded.updated_by_name,
-	updated_by_at = excluded.updated_by_at,
-	mattermost_post_id = excluded.mattermost_post_id,
-	updated_at = excluded.updated_at,
-	remote_source = excluded.remote_source,
-	remote_etag = excluded.remote_etag,
-	remote_href = excluded.remote_href,
-	deleted_at = ''`,
-		event.ID,
-		event.UID,
-		event.Title,
-		event.Description,
-		event.Location,
-		event.StartISO,
-		event.EndISO,
-		event.TimeZone,
-		boolToSQLiteInteger(event.IsAllDay),
-		event.Color,
-		event.RawICS,
-		normalizeCalendarReminderLeadHours(event.ReminderLeadHours),
-		event.CreatedByEmail,
-		event.CreatedByName,
-		event.UpdatedByEmail,
-		event.UpdatedByName,
-		event.UpdatedByAt,
-		event.MattermostPostID,
-		updatedAt,
-		event.RemoteSource,
-		event.RemoteETag,
-		event.RemoteHref,
-	)
-	event.UpdatedAt = updatedAt
-	if errorValue == nil {
-		service.upsertCalendarNotifications(ctx, event)
-		service.syncCalendarMattermostLog(ctx, event)
-		if source == calendarSourceLocal {
-			changedFields := diffCalendarEventFields(previousEvent, event)
-			if outboxErr := service.enqueueCalendarOutboxForWrite(ctx, event, changedFields); outboxErr != nil {
-				log.Printf("calendar outbox enqueue (write) failed: %v", outboxErr)
-			}
-		}
-	}
-	return errorValue
-}
-
-func (service *Service) softDeleteCalendarEvent(ctx context.Context, eventID string) error {
-	return service.softDeleteCalendarEventWithSource(ctx, eventID, calendarSourceLocal)
-}
-
-func (service *Service) softDeleteCalendarEventWithSource(ctx context.Context, eventID string, source string) error {
-	service.calendarStoreWriteMutex.Lock()
-	defer service.calendarStoreWriteMutex.Unlock()
-	event, found, errorValue := service.readCalendarEventByID(ctx, eventID)
-	if errorValue != nil {
-		return errorValue
-	}
-	if !found {
-		return sql.ErrNoRows
-	}
-	database, errorValue := service.openCalendarDatabase(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer database.Close()
-	result, errorValue := database.ExecContext(ctx, "UPDATE calendar_events SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at = ''", time.Now().UTC().Format(time.RFC3339Nano), time.Now().UTC().Format(time.RFC3339Nano), strings.TrimSpace(eventID))
-	if errorValue != nil {
-		return errorValue
-	}
-	affectedRows, errorValue := result.RowsAffected()
-	if errorValue != nil {
-		return errorValue
-	}
-	if affectedRows == 0 {
-		return sql.ErrNoRows
-	}
-	if errorValue := service.cancelCalendarNotifications(ctx, eventID); errorValue != nil {
-		log.Printf("calendar notification cancel failed: %v", errorValue)
-	}
-	service.deleteCalendarMattermostLog(ctx, event)
-	if source == calendarSourceLocal {
-		if outboxErr := service.enqueueCalendarOutboxForDelete(ctx, event); outboxErr != nil {
-			log.Printf("calendar outbox enqueue (delete) failed: %v", outboxErr)
-		}
-	}
-	return nil
 }
 
 func (service *Service) updateCalendarEventMattermostPostID(ctx context.Context, eventID string, postID string) error {
