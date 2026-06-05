@@ -2,6 +2,7 @@ import { getContext, setContext } from 'svelte';
 import {
 	fetchAttendanceSummary,
 	toggleAttendanceOnServer,
+	updateAttendanceEventLocation,
 	updateAttendanceTeamViewVisibility
 } from './attendance-api';
 import { readPersistedAttendanceFilters, writePersistedAttendanceFilters } from './attendance-storage';
@@ -11,6 +12,7 @@ export type AttendanceKind = 'clock_in' | 'clock_out';
 export type ChartMode = 'day' | 'week' | 'month';
 export type AttendanceTab = 'team' | 'personal';
 export type AttendancePresence = 'online' | 'away' | 'offline' | 'dnd';
+export type AttendanceSource = 'mattermost_button' | 'mattermost_post';
 
 export type AttendanceLocation = {
 	id: string;
@@ -30,7 +32,7 @@ export type AttendanceEvent = {
 	localDate: string;
 	localTime: string;
 	timeZoneAtEvent: string;
-	source: string;
+	source: AttendanceSource | string;
 	resultPostID: string;
 	locationID?: string;
 	locationName?: string;
@@ -39,6 +41,8 @@ export type AttendanceEvent = {
 	sourceMessage?: string;
 	confidence?: number;
 	parsedAs?: { kind?: AttendanceKind; locationID?: string };
+	originalLocationID?: string;
+	originalLocationName?: string;
 	overriddenBy?: string;
 	overriddenAt?: string;
 	manualEntry?: boolean;
@@ -137,67 +141,22 @@ export class AttendanceState {
 		}
 	}
 
-	overrideLocation(eventID: string, newLocationID: string) {
-		if (!this.summary) return;
-		const overriddenAt = new Date().toISOString();
-		const overriddenBy = this.summary.currentUserEmail;
-		this.applyOverride(this.summary, eventID, newLocationID, overriddenAt, overriddenBy);
+	async overrideLocation(eventID: string, newLocationID: string) {
+		const updatedEvent = await updateAttendanceEventLocation(eventID, newLocationID);
+		if (this.summary) {
+			this.replaceEvent(this.summary, updatedEvent);
+		}
 		if (this.currentMonthSummary && this.currentMonthSummary !== this.summary) {
-			this.applyOverride(this.currentMonthSummary, eventID, newLocationID, overriddenAt, overriddenBy);
+			this.replaceEvent(this.currentMonthSummary, updatedEvent);
 		}
 	}
 
-	private applyOverride(target: AttendanceSummary, eventID: string, newLocationID: string, overriddenAt: string, overriddenBy: string) {
-		const location = target.locations.find((l) => l.id === newLocationID);
+	private replaceEvent(target: AttendanceSummary, updatedEvent: AttendanceEvent) {
 		target.events = target.events.map((event) =>
-			event.id === eventID
+			event.id === updatedEvent.id
 				? {
 						...event,
-						parsedAs: event.parsedAs ?? { kind: event.kind, locationID: event.locationID },
-						locationID: newLocationID,
-						locationName: location?.name ?? event.locationName,
-						overriddenBy,
-						overriddenAt,
-					}
-				: event
-		);
-	}
-
-	dismissEvent(eventID: string, reason: string) {
-		if (!this.summary) return;
-		const canceledAt = new Date().toISOString();
-		this.applyDismiss(this.summary, eventID, canceledAt, reason);
-		if (this.currentMonthSummary && this.currentMonthSummary !== this.summary) {
-			this.applyDismiss(this.currentMonthSummary, eventID, canceledAt, reason);
-		}
-	}
-
-	private applyDismiss(target: AttendanceSummary, eventID: string, canceledAt: string, reason: string) {
-		target.events = target.events.map((event) =>
-			event.id === eventID
-				? { ...event, canceledAt, cancelReason: reason }
-				: event
-		);
-	}
-
-	confirmClassification(eventID: string) {
-		if (!this.summary) return;
-		const overriddenAt = new Date().toISOString();
-		const overriddenBy = this.summary.currentUserEmail;
-		this.applyConfirm(this.summary, eventID, overriddenAt, overriddenBy);
-		if (this.currentMonthSummary && this.currentMonthSummary !== this.summary) {
-			this.applyConfirm(this.currentMonthSummary, eventID, overriddenAt, overriddenBy);
-		}
-	}
-
-	private applyConfirm(target: AttendanceSummary, eventID: string, overriddenAt: string, overriddenBy: string) {
-		target.events = target.events.map((event) =>
-			event.id === eventID
-				? {
-						...event,
-						parsedAs: event.parsedAs ?? { kind: event.kind, locationID: event.locationID },
-						overriddenBy,
-						overriddenAt,
+						...updatedEvent
 					}
 				: event
 		);

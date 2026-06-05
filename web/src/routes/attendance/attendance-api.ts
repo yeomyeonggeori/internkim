@@ -1,4 +1,4 @@
-import type { AttendanceKind, AttendanceSummary } from './attendance-context.svelte';
+import type { AttendanceEvent, AttendanceKind, AttendanceSummary } from './attendance-context.svelte';
 
 export type AttendanceSummaryRequest = {
 	month: string;
@@ -20,6 +20,17 @@ export async function updateAttendanceTeamViewVisibility(visible: boolean): Prom
 		body: JSON.stringify({ teamViewVisibleToAll: visible })
 	});
 	if (!response.ok) throw new Error(await response.text());
+}
+
+export async function updateAttendanceEventLocation(eventID: string, locationID: string): Promise<AttendanceEvent> {
+	const response = await fetch(`/attendance/api/events/${encodeURIComponent(eventID)}/location`, {
+		method: 'PATCH',
+		credentials: 'include',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ locationID })
+	});
+	if (!response.ok) throw new Error(await response.text());
+	return (await response.json()) as AttendanceEvent;
 }
 
 export async function toggleAttendanceOnServer(kind?: AttendanceKind, locationID?: string): Promise<void> {

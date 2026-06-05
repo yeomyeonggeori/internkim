@@ -9,24 +9,22 @@
 		event: AttendanceEvent;
 		locations: AttendanceLocation[];
 		isExpanded: boolean;
+		isUpdating: boolean;
 		onToggle: (eventID: string) => void;
 		onPickLocation: (
 			eventID: string,
 			currentLocationID: string | undefined,
 			newLocationID: string
-		) => void;
-		onConfirmClockOut: (eventID: string) => void;
-		onSkip: (eventID: string) => void;
+		) => void | Promise<void>;
 	};
 
 	let {
 		event,
 		locations,
 		isExpanded,
+		isUpdating,
 		onToggle,
-		onPickLocation,
-		onConfirmClockOut,
-		onSkip
+		onPickLocation
 	}: Props = $props();
 
 	const text = createPageText(attendanceText);
@@ -43,8 +41,23 @@
 		return locations.find((location) => location.id === locationID)?.name ?? locationID;
 	}
 
+	function originalLocationName(): string {
+		return event.originalLocationName || locationNameOf(event.parsedAs?.locationID);
+	}
+
 	function eventKindLabel(kind: AttendanceEvent['kind']): string {
 		return kind === 'clock_in' ? `▶ ${text.clockIn}` : `◀ ${text.clockOut}`;
+	}
+
+	function sourceLabel(source: string): string {
+		switch (source) {
+			case 'mattermost_button':
+				return text.sourceMattermostButton;
+			case 'mattermost_post':
+				return text.sourceMattermostPost;
+			default:
+				return source;
+		}
 	}
 
 	function formatAgentConfidence(confidence: number): string {
@@ -80,6 +93,21 @@
 	</button>
 	{#if isExpanded}
 		<div class="space-y-2 border-t border-border/40 p-2">
+			<div class="space-y-1 text-muted-foreground">
+				{#if event.source}
+					<div>
+						<span class="text-[10px] uppercase tracking-wide">{text.source}</span>
+						<span class="ml-1 text-foreground">{sourceLabel(event.source)}</span>
+					</div>
+				{/if}
+				{#if event.resultPostID}
+					<div>
+						<span class="text-[10px] uppercase tracking-wide">{text.resultPost}</span>
+						<span class="ml-1 font-mono text-[11px] text-foreground">{event.resultPostID}</span>
+					</div>
+				{/if}
+			</div>
+
 			{#if event.sourceMessage}
 				<div>
 					<div class="text-[10px] uppercase tracking-wide text-muted-foreground">{text.originalMessage}</div>
@@ -95,7 +123,7 @@
 
 			{#if parsedMismatch}
 				<div class="text-muted-foreground">
-					{text.agentInitialClassification}: <span class="text-foreground">{locationNameOf(event.parsedAs?.locationID)}</span>
+					{text.originalLocation}: <span class="text-foreground">{originalLocationName()}</span>
 					→ {text.current} <span class="text-foreground">{event.locationName ?? '?'}</span>
 				</div>
 			{/if}
@@ -110,40 +138,24 @@
 				<div class="text-muted-foreground">{formatCancelReason(event.cancelReason)}</div>
 			{/if}
 
-			{#if !event.canceledAt && locations.length > 0}
+			{#if !event.canceledAt && event.kind === 'clock_in' && locations.length > 1}
 				<div>
-					<div class="text-[10px] uppercase tracking-wide text-muted-foreground">{text.classification}</div>
+					<div class="text-[10px] uppercase tracking-wide text-muted-foreground">{text.locationOverride}</div>
 					<div class="mt-1 flex flex-wrap items-center gap-1">
-						{#if event.kind === 'clock_in'}
-							{#each locations as location (location.id)}
-								<button
-									type="button"
-									class={`rounded border px-2 py-1 transition ${
-										event.locationID === location.id
-											? 'border-foreground/60 bg-foreground/5 font-medium'
-											: 'border-border/40 hover:bg-accent/40'
-									}`}
-									onclick={() => onPickLocation(event.id, event.locationID, location.id)}
-								>
-									{location.name}
-								</button>
-							{/each}
-						{:else}
+						{#each locations as location (location.id)}
 							<button
 								type="button"
-								class="rounded border border-foreground/60 bg-foreground/5 px-2 py-1 font-medium"
-								onclick={() => onConfirmClockOut(event.id)}
+								class={`rounded border px-2 py-1 transition disabled:cursor-not-allowed disabled:opacity-60 ${
+									event.locationID === location.id
+										? 'border-foreground/60 bg-foreground/5 font-medium'
+										: 'border-border/40 hover:bg-accent/40'
+								}`}
+								disabled={isUpdating || event.locationID === location.id}
+								onclick={() => onPickLocation(event.id, event.locationID, location.id)}
 							>
-								{text.confirmClockOut}
+								{location.name}
 							</button>
-						{/if}
-						<button
-							type="button"
-							class="ml-1 rounded border border-border/40 bg-background px-2 py-1 text-muted-foreground hover:bg-muted/40"
-							onclick={() => onSkip(event.id)}
-						>
-							{text.skip}
-						</button>
+						{/each}
 					</div>
 				</div>
 			{/if}

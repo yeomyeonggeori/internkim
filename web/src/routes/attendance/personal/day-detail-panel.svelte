@@ -21,25 +21,26 @@
 	const locations = $derived(attendance.summary?.locations ?? []);
 
 	let expanded = $state<Record<string, boolean>>({});
+	let updatingEventID = $state('');
+	let errorMessage = $state('');
 
 	function toggle(eventID: string) {
 		expanded[eventID] = !expanded[eventID];
 	}
 
-	function pickLocation(eventID: string, currentLocationID: string | undefined, newLocationID: string) {
+	async function pickLocation(eventID: string, currentLocationID: string | undefined, newLocationID: string) {
 		if (newLocationID === currentLocationID) {
-			attendance.confirmClassification(eventID);
-		} else {
-			attendance.overrideLocation(eventID, newLocationID);
+			return;
 		}
-	}
-
-	function skipEvent(eventID: string) {
-		attendance.dismissEvent(eventID, 'classification_dismissed');
-	}
-
-	function confirmClockOut(eventID: string) {
-		attendance.confirmClassification(eventID);
+		updatingEventID = eventID;
+		errorMessage = '';
+		try {
+			await attendance.overrideLocation(eventID, newLocationID);
+		} catch (error) {
+			errorMessage = error instanceof Error ? error.message : text.processingFailed;
+		} finally {
+			updatingEventID = '';
+		}
 	}
 </script>
 
@@ -54,12 +55,14 @@
 					{event}
 					{locations}
 					isExpanded={!!expanded[event.id]}
+					isUpdating={updatingEventID === event.id}
 					onToggle={toggle}
 					onPickLocation={pickLocation}
-					onConfirmClockOut={confirmClockOut}
-					onSkip={skipEvent}
 				/>
 			{/each}
+			{#if errorMessage}
+				<p class="text-xs text-destructive">{errorMessage}</p>
+			{/if}
 			{#if dayEvents.length === 0}
 				<p class="text-muted-foreground">{text.eventNone}</p>
 			{/if}
