@@ -175,7 +175,30 @@
 	{#if nodes().length === 0}
 		<p class="rounded-md border bg-muted/30 px-3 py-12 text-center text-sm text-muted-foreground">{text.noVisibleMemory}</p>
 	{:else}
-		<MemoryNetwork nodes={nodes()} edges={edges()} />
+		<section class="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+			<MemoryNetwork nodes={nodes()} edges={edges()} />
+			<aside class="flex h-[min(58svh,520px)] min-h-[360px] min-w-0 flex-col overflow-hidden rounded-lg border bg-background">
+				<div class="flex items-center justify-between gap-3 border-b px-3 py-2">
+					<div class="min-w-0">
+						<h2 class="truncate text-sm font-semibold">{text.memoryDetails}</h2>
+						<p class="text-xs text-muted-foreground">{facts().length} {text.facts}</p>
+					</div>
+					<Badge variant="secondary">{memoryGraph?.health?.reachable ? text.reachable : text.unreachable}</Badge>
+				</div>
+				<div class="min-h-0 overflow-y-auto">
+					{#each facts() as fact}
+						<article class="grid gap-2 border-b px-3 py-3 last:border-b-0">
+							<div class="flex min-w-0 flex-wrap items-center gap-2">
+								<Badge variant="outline">{fact.sourceKind ?? text.source}</Badge>
+								<span class="truncate text-xs text-muted-foreground">{fact.namespaceID}</span>
+								<span class="ml-auto text-xs tabular-nums text-muted-foreground">{text.score} {Math.round((fact.score ?? 0) * 100)}%</span>
+							</div>
+							<p class="text-sm leading-5">{fact.content}</p>
+						</article>
+					{/each}
+				</div>
+			</aside>
+		</section>
 	{/if}
 
 	{#if namespaces().length > 0}
