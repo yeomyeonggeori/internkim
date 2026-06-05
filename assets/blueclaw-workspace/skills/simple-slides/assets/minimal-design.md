@@ -29,7 +29,7 @@ Black-and-white analytical presentation with restrained lines, compact hierarchy
 ## HTML Slide Style Notes
 
 - Keep `<!-- design-source: DESIGN.md -->` near the top of `slides.html`.
-- Put the vendored Paperlogy `@font-face` rules from `assets/webfonts.md` near the top of the `slides.html` style block.
+- Put the vendored Paperlogy WOFF2 `@font-face` rules from `assets/webfonts.md` near the top of the `slides.html` style block.
 - Use `1600px × 900px` as the slide layout coordinate system: `.slide { width: 1600px; height: 900px; }`.
 - Add `@page { size: 1600px 900px; margin: 0; }` so PDF export uses the same geometry.
 - Keep HTML, PDF, render-review screenshots, and PPTX image export on the same `1600px × 900px` geometry.

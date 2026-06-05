@@ -87,6 +87,21 @@ func TestFlowDescriptorMatchesQuickTaskInput(t *testing.T) {
 	assertSchemaOmitsProperties(t, schema, "title", "description", "assignee", "dueDate")
 }
 
+func TestFlowListDescriptorMatchesTaskLookupInput(t *testing.T) {
+	schema := descriptorSchema(t, FlowDescriptors(), "flow.task.list")
+
+	assertSchemaHasProperties(t, schema, "query", "targetPersonHint", "weekCode", "status", "limit")
+	assertSchemaOmitsProperties(t, schema, "title", "description", "assignee", "dueDate")
+}
+
+func TestFlowCompleteDescriptorMatchesTaskCompletionInput(t *testing.T) {
+	schema := descriptorSchema(t, FlowDescriptors(), "flow.task.complete")
+
+	assertSchemaHasProperties(t, schema, "taskID", "query", "targetPersonHint", "weekCode", "completionNote")
+	assertSchemaOmitsProperties(t, schema, "title", "description", "assignee", "dueDate")
+	assertDescriptorCompletionEvidence(t, FlowDescriptors(), "flow.task.complete", "success", "write_task", "task")
+}
+
 func TestPlatformDMDescriptorRequiresRecipientAndMessage(t *testing.T) {
 	schema := descriptorSchema(t, PlatformMessageDescriptors(), "platform.dm.send")
 

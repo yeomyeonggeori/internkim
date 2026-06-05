@@ -178,7 +178,9 @@ Avoid bullet-only decks. Bullets are acceptable inside a card, column, matrix ce
 
 Use fonts that will actually render in the generated HTML/PDF/PPTX.
 
-Use Paperlogy as the default display and body font. External font URLs are acceptable, but the final HTML export always injects vendored `PaperlogyLocal` as a data-URL fallback and adds it after `"Paperlogy"` in font-family lists. This keeps Mattermost attachments readable when CDN fonts are blocked.
+Use Paperlogy as the default display and body font. Embedded slide fonts must be WOFF2. The final HTML export injects vendored `PaperlogyLocal` WOFF2 files as `font/woff2` data URLs and adds `"PaperlogyLocal"` after `"Paperlogy"` in font-family lists. This keeps Mattermost attachments readable when CDN fonts are blocked without embedding heavier TTF/OTF files.
+
+External font URLs are acceptable while authoring, but a finished standalone HTML artifact must have a WOFF2 local fallback or inlined WOFF2 data URLs. Do not paste raw base64 font data into `slides.html`; let the exporter inline local WOFF2 files.
 
 Use this stack unless the user explicitly asks for a different font:
 

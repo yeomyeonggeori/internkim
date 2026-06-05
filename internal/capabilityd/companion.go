@@ -92,8 +92,8 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 	if isArtifactReviewTool(request.ToolName) {
 		return service.invokeArtifactReviewTool(ctx, request)
 	}
-	if request.ToolName == "flow.task.add" {
-		return service.invokeFlowTaskAdd(ctx, request)
+	if isFlowTaskTool(request.ToolName) {
+		return service.invokeFlowTaskTool(ctx, request)
 	}
 	if request.ToolName == "platform.dm.send" {
 		return service.invokePlatformDMSend(ctx, request)

@@ -88,6 +88,31 @@ func TestAgentsAssetDocumentsWorkspacePermissionBoundaries(t *testing.T) {
 	}
 }
 
+func TestCalendarAndWorkSkillsDocumentSemanticRouting(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	calendarDocument, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "calendar", "SKILL.md"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	calendarContent := string(calendarDocument)
+	for _, expectedText := range []string{"flow.task.add", "flow.task.complete", "Decide by the user's intent", "deadline-driven deliverable", "Do not mark calendar events with `[완료]`"} {
+		if !strings.Contains(calendarContent, expectedText) {
+			t.Fatalf("calendar skill must document mixed calendar/work routing %q", expectedText)
+		}
+	}
+
+	workDocument, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "internkim-flow", "SKILL.md"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	workContent := string(workDocument)
+	for _, expectedText := range []string{"flow.task.list", "flow.task.complete", "calendar.event.add", "Decide by intent", "do not call the product `Flow`"} {
+		if !strings.Contains(workContent, expectedText) {
+			t.Fatalf("work skill must document localized semantic routing %q", expectedText)
+		}
+	}
+}
+
 func TestModelFacingWorkspaceDocsDoNotExposeConcretePrivatePaths(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	documentPaths := []string{
@@ -118,7 +143,7 @@ func TestSitePrototypeUsesManagedScaffoldContract(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	content := string(document)
-	for _, expectedText := range []string{"React + Vite + TypeScript + Tailwind + shadcn/ui", "UI archetype", "Stitch canonical format", "browser tools", "`bun scripts/build.ts`", "artifact.review", "same URL", "prototype-data.ts", "build-quality.json", ".internkim/idea.md", ".internkim/artifact-brief.md", "visualReviewUnavailable", "PocketBase", "ownerIdentity", "ambiguous", "site.app.build", "site.app.repair", "site.app.preview", "workspaceHealth", "black-on-white", "no dark navy shell"} {
+	for _, expectedText := range []string{"React + Vite + TypeScript + Tailwind + shadcn/ui", "UI archetype", "Stitch canonical format", "browser tools", "`bun scripts/build.ts`", "artifact.review", "same URL", "prototype-data.ts", "build-quality.json", ".internkim/idea.md", ".internkim/artifact-brief.md", "visualReviewUnavailable", "PocketBase", "ownerIdentity", "ambiguous", "site.app.build", "site.app.repair", "site.app.preview", "workspaceHealth", "black-on-white", "no dark navy shell", "WOFF2 assets", `format("woff2")`} {
 		if !strings.Contains(content, expectedText) {
 			t.Fatalf("site-prototype must document managed scaffold contract %q", expectedText)
 		}
@@ -274,7 +299,7 @@ func TestSimpleSlidesUsesVendoredPaperlogyDesignDefaults(t *testing.T) {
 			t.Fatal(errorValue)
 		}
 		content := string(document)
-		for _, expectedText := range []string{"Paperlogy", `"Paperlogy", "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont`, `"Noto Color Emoji"`} {
+		for _, expectedText := range []string{"Paperlogy", "WOFF2", `"Paperlogy", "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont`, `"Noto Color Emoji"`} {
 			if !strings.Contains(content, expectedText) {
 				t.Fatalf("%s must document Paperlogy default %q", documentPath, expectedText)
 			}
