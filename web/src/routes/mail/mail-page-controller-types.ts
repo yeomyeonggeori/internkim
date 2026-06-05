@@ -1,0 +1,40 @@
+import type { MailErrorMessages } from './mail-api';
+import type { ComposeDraft, MailAccount, MailAccountDraft, Mailbox, MailMessage } from './mail-types';
+import type { mailText } from './text';
+
+export type MailPageText = (typeof mailText)['ko'];
+
+export type MailPageControllerState = {
+	account: MailAccount;
+	accountDraft: MailAccountDraft;
+	composeDraft: ComposeDraft;
+	mailboxes: Mailbox[];
+	messages: MailMessage[];
+	selectedMailbox: string;
+	selectedMessage: MailMessage | null;
+	searchText: string;
+	activeSearchText: string;
+	nextCursor: string;
+	hasMoreMessages: boolean;
+	isUnreadOnly: boolean;
+	isLoading: boolean;
+	isLoadingMessage: boolean;
+	isLoadingMore: boolean;
+	isSavingAccount: boolean;
+	isTestingAccount: boolean;
+	isSending: boolean;
+	isSettingsOpen: boolean;
+	isComposeOpen: boolean;
+	errorMessage: string;
+	settingsMessage: string;
+	composeMessage: string;
+	messageListRequestID: number;
+	messageDetailRequestID: number;
+	pageMailboxes: () => Mailbox[];
+	visibleMessages: () => MailMessage[];
+	mailActorEmail: () => string;
+	mailErrors: (fallback: string) => MailErrorMessages;
+	resetMessageList: () => void;
+	loadMail: () => Promise<void>;
+	loadMessages: () => Promise<void>;
+};
