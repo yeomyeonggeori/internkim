@@ -1,12 +1,12 @@
-// Flow 사업별 거리 섹션을 계산합니다.
 import { taskTeamDistance } from './flow-report-distance';
 import { emptyTrend, percentage } from './flow-report-section-helpers';
-import type { FlowReportDefinitions, FlowReportSection, FlowReportSectionID, FlowReportSectionLabel, FlowReportTask } from './flow-report-types';
+import type { FlowReportCopy, FlowReportDefinitions, FlowReportSection, FlowReportSectionID, FlowReportSectionLabel, FlowReportTask } from './flow-report-types';
 
 type BuildBusinessDistanceSectionInput = {
 	id: FlowReportSectionID;
 	labels: FlowReportSectionLabel;
 	emptyLabel: string;
+	copy: FlowReportCopy;
 	tasks: FlowReportTask[];
 	definitions: FlowReportDefinitions;
 };
@@ -17,7 +17,7 @@ export function buildBusinessDistanceSection(input: BuildBusinessDistanceSection
 		const distance = taskTeamDistance(task, input.definitions);
 		if (distance <= 0) continue;
 
-		const business = task.business.trim() || '미지정';
+		const business = task.business.trim() || input.copy.fallbackBusiness;
 		values.set(business, (values.get(business) ?? 0) + distance);
 	}
 
@@ -36,6 +36,8 @@ export function buildBusinessDistanceSection(input: BuildBusinessDistanceSection
 		averageValue: 0,
 		alertValue: 0,
 		emptyLabel: input.emptyLabel,
+		teamAverageLabel: input.copy.teamAverageLabel,
+		memberScrollHint: input.copy.memberScrollHint,
 		rows: [],
 		trend: emptyTrend('km'),
 		items: entries.map(([label, value]) => ({

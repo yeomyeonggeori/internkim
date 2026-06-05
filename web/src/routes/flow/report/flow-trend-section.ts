@@ -1,16 +1,16 @@
-// Flow 거리 추세 섹션을 계산합니다.
 import { emptyTrend } from './flow-report-section-helpers';
-import type { FlowReportSection, FlowReportSectionID, FlowReportSectionLabel, FlowReportTrend } from './flow-report-types';
+import type { FlowReportCopy, FlowReportSection, FlowReportSectionID, FlowReportSectionLabel, FlowReportTrend } from './flow-report-types';
 
 type BuildTrendSectionInput = {
 	id: FlowReportSectionID;
 	labels: FlowReportSectionLabel;
 	emptyLabel: string;
+	copy: FlowReportCopy;
 	trend?: FlowReportTrend;
 };
 
 export function buildTrendSection(input: BuildTrendSectionInput): FlowReportSection {
-	const trend = input.trend ?? emptyTrend('km');
+	const trend = localizedTrend(input.trend ?? emptyTrend('km'), input.id, input.copy);
 	const maxValue = Math.max(1, ...trend.currentValues, ...trend.previousValues);
 
 	return {
@@ -24,8 +24,30 @@ export function buildTrendSection(input: BuildTrendSectionInput): FlowReportSect
 		averageValue: 0,
 		alertValue: trend.currentTotal - trend.previousTotal,
 		emptyLabel: input.emptyLabel,
+		teamAverageLabel: input.copy.teamAverageLabel,
+		memberScrollHint: input.copy.memberScrollHint,
 		items: [],
 		rows: [],
 		trend
 	};
+}
+
+function localizedTrend(trend: FlowReportTrend, id: FlowReportSectionID, copy: FlowReportCopy): FlowReportTrend {
+	if (id === 'weeklyDistanceTrend') {
+		return {
+			...trend,
+			labels: copy.weekdays.length === 7 ? copy.weekdays : trend.labels,
+			currentLabel: copy.currentWeekTrend,
+			previousLabel: copy.previousWeekTrend
+		};
+	}
+	if (id === 'monthlyDistanceTrend') {
+		return {
+			...trend,
+			currentLabel: copy.currentMonthTrend,
+			previousLabel: copy.previousMonthTrend,
+			labelTemplate: copy.monthlyDayLabelTemplate
+		};
+	}
+	return trend;
 }
