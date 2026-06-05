@@ -137,7 +137,17 @@ func (service *Service) parseAttendancePostCommand(message string) (attendancePo
 		hour, _ := strconv.Atoi(matches[1])
 		return attendancePostCommand{TimeText: fmt.Sprintf("%02d:%s", hour, matches[2]), IsTimeUpdate: true}, true, nil
 	}
-	kind, locationName, found := service.parseAttendanceKindMessage(trimmedMessage)
+	if command, found, errorValue := service.parseAttendanceKindPostCommand(trimmedMessage); found || errorValue != nil {
+		return command, found, errorValue
+	}
+	if command, found := service.parseAttendanceLocationPostCommand(trimmedMessage); found {
+		return command, true, nil
+	}
+	return attendancePostCommand{}, false, nil
+}
+
+func (service *Service) parseAttendanceKindPostCommand(message string) (attendancePostCommand, bool, error) {
+	kind, locationName, found := service.parseAttendanceKindMessage(message)
 	if !found {
 		return attendancePostCommand{}, false, nil
 	}
@@ -153,6 +163,14 @@ func (service *Service) parseAttendancePostCommand(message string) (attendancePo
 		}
 	}
 	return attendancePostCommand{Kind: kind, LocationID: location.ID}, true, nil
+}
+
+func (service *Service) parseAttendanceLocationPostCommand(message string) (attendancePostCommand, bool) {
+	location, found := service.attendanceLocationByName(message)
+	if !found {
+		return attendancePostCommand{}, false
+	}
+	return attendancePostCommand{Kind: attendanceKindClockIn, LocationID: location.ID}, true
 }
 
 func (service *Service) parseAttendanceKindMessage(message string) (string, string, bool) {

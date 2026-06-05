@@ -70,6 +70,56 @@ func TestAttendanceEntryCommentCreatesAttendanceEvent(t *testing.T) {
 	}
 }
 
+func TestAttendanceEntryCommentClockInFormsUseSameAction(t *testing.T) {
+	cases := []struct {
+		name                 string
+		message              string
+		expectedResultPost   string
+		expectedLocationID   string
+		expectedLocationName string
+	}{
+		{name: "kind only", message: "출근", expectedResultPost: "출근(사무실)", expectedLocationID: "office", expectedLocationName: "사무실"},
+		{name: "kind with location", message: "출근(사무실)", expectedResultPost: "출근(사무실)", expectedLocationID: "office", expectedLocationName: "사무실"},
+		{name: "default location only", message: "사무실", expectedResultPost: "출근(사무실)", expectedLocationID: "office", expectedLocationName: "사무실"},
+		{name: "custom location only", message: "재택", expectedResultPost: "출근(재택)", expectedLocationID: "home", expectedLocationName: "재택"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			service, posts := newAttendanceActionTestService(t)
+			service.saveMattermostAttendanceChannelID("attendance-channel")
+			service.saveMattermostAttendanceEntryPostID("entry-post")
+			if errorValue := service.writeAttendanceLocationsFile([]attendanceLocation{
+				{ID: "office", Name: "사무실", Color: "#16a34a", IsDefault: true},
+				{ID: "home", Name: "재택", Color: "#2563eb"},
+			}); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"attendance-channel","root_id":"entry-post","message":"`+testCase.message+`"}`))
+			request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
+			response := httptest.NewRecorder()
+
+			service.router().ServeHTTP(response, request)
+
+			if response.Code != http.StatusCreated {
+				t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+			}
+			if len(*posts) != 1 || (*posts)[0].Message != testCase.expectedResultPost {
+				t.Fatalf("posts = %+v", *posts)
+			}
+			events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if len(events) != 1 ||
+				events[0].Kind != attendanceKindClockIn ||
+				events[0].LocationID != testCase.expectedLocationID ||
+				events[0].LocationName != testCase.expectedLocationName {
+				t.Fatalf("events = %+v", events)
+			}
+		})
+	}
+}
+
 func TestAttendanceEntryCommentAcceptsEnglishAliases(t *testing.T) {
 	service, posts := newAttendanceActionTestService(t)
 	service.saveMattermostAttendanceChannelID("attendance-channel")
