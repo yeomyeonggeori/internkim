@@ -9,7 +9,7 @@ allowed-tools:
   - calendar.event.delete
   - flow.task.add
   - flow.task.list
-  - flow.task.complete
+  - flow.task.update
 ---
 
 # InternKim Work Calendar
@@ -76,7 +76,7 @@ Delete an event by `eventID`. This requires approval. List matching events first
 - Prefer the Work calendar tools over Google Workspace tools for ordinary schedule requests.
 - Decide by the user's intent, not by the noun they used. A meeting, appointment, attendance block, location-based visit, or time block is a calendar event. A deliverable, deadline, todo, request, handoff, or completion target is work.
 - If the user asks to add a schedule but the content is a deadline-driven deliverable, create the work item with `flow.task.add` and also create a calendar deadline/reminder when a due time is given.
-- If the user says a task-like item is complete, use `flow.task.complete` before considering `calendar.event.update`.
+- If the user says a task-like item is complete, use `flow.task.update` before considering `calendar.event.update`.
 - Do not mark calendar events with `[완료]` for task-like completion. Update or delete calendar events only when the user clearly asks to change, cancel, delete, or reschedule a calendar event.
 - Do not ask for approval before `calendar.event.add`, `calendar.event.list`, or `calendar.event.update`.
 - Ask for approval before `calendar.event.delete`.

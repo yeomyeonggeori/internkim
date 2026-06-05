@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestFlowTasksWithMatchingDatesUsesStartAndEndDateOnly(t *testing.T) {
@@ -48,6 +49,36 @@ func TestFlowMembersWithoutFleetCredentialsDoesNotReturnSeedMembers(t *testing.T
 
 	if len(members) != 0 {
 		t.Fatalf("members = %+v", members)
+	}
+}
+
+func TestNormalizeFlowTaskDatesSetsCompletedStartEndAndWeek(t *testing.T) {
+	now := time.Date(2026, time.June, 11, 10, 0, 0, 0, flowDateLocation())
+
+	dates := normalizeFlowTaskDates(flowTaskWriteRequest{}, "완료", now)
+
+	if dates.StartDate != "2026-06-11" || dates.EndDate != "2026-06-11" || dates.WeekCode != "26W24" {
+		t.Fatalf("dates = %+v", dates)
+	}
+}
+
+func TestNormalizeFlowTaskDatesPreservesExplicitCompletedDates(t *testing.T) {
+	now := time.Date(2026, time.June, 11, 10, 0, 0, 0, flowDateLocation())
+
+	dates := normalizeFlowTaskDates(flowTaskWriteRequest{StartDate: "2026-06-09", EndDate: "2026-06-10"}, "완료", now)
+
+	if dates.StartDate != "2026-06-09" || dates.EndDate != "2026-06-10" || dates.WeekCode != "26W24" {
+		t.Fatalf("dates = %+v", dates)
+	}
+}
+
+func TestNormalizeFlowTaskDatesSetsPlannedStartAndWeek(t *testing.T) {
+	now := time.Date(2026, time.June, 11, 10, 0, 0, 0, flowDateLocation())
+
+	dates := normalizeFlowTaskDates(flowTaskWriteRequest{}, "예정", now)
+
+	if dates.StartDate != "2026-06-11" || dates.EndDate != "" || dates.WeekCode != "26W24" {
+		t.Fatalf("dates = %+v", dates)
 	}
 }
 
