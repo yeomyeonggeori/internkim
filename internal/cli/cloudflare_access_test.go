@@ -152,6 +152,33 @@ func TestCloudflareMaintenanceBypassApplicationCoversHealthAndRecovery(t *testin
 	}
 }
 
+func TestCloudflareWebSessionAccessApplicationCoversOnlyAuthCallback(t *testing.T) {
+	document, errorValue := os.ReadFile(filepath.Join("..", "..", "web", "src", "lib", "cloudflare.ts"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, expectedText := range []string{
+		"intern kim web session",
+		"/auth/cloudflare/*",
+		"Cloudflare web session access",
+	} {
+		if !strings.Contains(string(document), expectedText) {
+			t.Fatalf("Cloudflare web session access must include %q", expectedText)
+		}
+	}
+	for _, forbiddenText := range []string{
+		"${hostname}/flow*",
+		"${hostname}/calendar*",
+		"${hostname}/attendance*",
+		"${hostname}/mail*",
+		"${hostname}/memory*",
+	} {
+		if strings.Contains(string(document), forbiddenText) {
+			t.Fatalf("Cloudflare web session access must not protect app pages with %q", forbiddenText)
+		}
+	}
+}
+
 type roundTripFunc func(request *http.Request) (*http.Response, error)
 
 func (function roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {

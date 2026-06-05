@@ -29,7 +29,7 @@ func TestUpdateArgumentsBuildsAndDeploysDefaultSlice(t *testing.T) {
 	if (*calls)[0].name != "make" || !equalStrings((*calls)[0].arguments, []string{"build"}) {
 		t.Fatalf("first call = %+v", (*calls)[0])
 	}
-	expectedSetupArguments := []string{"setup", "--only", "admin-web,binaries,services", "--force", "--host", "192.0.2.10"}
+	expectedSetupArguments := []string{"setup", "--only", "web,binaries,services", "--force", "--host", "192.0.2.10"}
 	if (*calls)[1].name != "./internkim" || !equalStrings((*calls)[1].arguments, expectedSetupArguments) {
 		t.Fatalf("second call = %+v", (*calls)[1])
 	}
@@ -47,7 +47,7 @@ func TestUpdatePlanSkipsBuildAndUsesWebSlice(t *testing.T) {
 	if len(*calls) != 1 {
 		t.Fatalf("calls = %+v", *calls)
 	}
-	expectedSetupArguments := []string{"setup", "--only", "admin-web", "--force", "--plan"}
+	expectedSetupArguments := []string{"setup", "--only", "web", "--force", "--plan"}
 	if (*calls)[0].name != "./internkim" || !equalStrings((*calls)[0].arguments, expectedSetupArguments) {
 		t.Fatalf("call = %+v", (*calls)[0])
 	}
@@ -81,7 +81,7 @@ func TestUpdateSimFirstRunsGateBeforeDeploy(t *testing.T) {
 	if len(*calls) != 1 {
 		t.Fatalf("calls = %+v", *calls)
 	}
-	expectedSetupArguments := []string{"setup", "--only", "admin-web,binaries,services", "--force", "--host", "192.0.2.10"}
+	expectedSetupArguments := []string{"setup", "--only", "web,binaries,services", "--force", "--host", "192.0.2.10"}
 	if (*calls)[0].name != "./internkim" || !equalStrings((*calls)[0].arguments, expectedSetupArguments) {
 		t.Fatalf("call = %+v", (*calls)[0])
 	}
@@ -122,7 +122,7 @@ func TestUpdateSimFirstPlanRunsPlansOnly(t *testing.T) {
 	if *stopCalls != 0 {
 		t.Fatalf("stop calls = %d", *stopCalls)
 	}
-	expectedSetupArguments := []string{"setup", "--only", "admin-web,binaries,services", "--force", "--plan"}
+	expectedSetupArguments := []string{"setup", "--only", "web,binaries,services", "--force", "--plan"}
 	if len(*calls) != 1 || !equalStrings((*calls)[0].arguments, expectedSetupArguments) {
 		t.Fatalf("calls = %+v", *calls)
 	}

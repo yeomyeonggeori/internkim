@@ -50,12 +50,36 @@
 	async function loadUser() {
 		try {
 			const response = await fetch('/admin/api/session', { credentials: 'include' });
-			if (!response.ok) return;
+			if (!response.ok) {
+				await loadWebUser();
+				return;
+			}
 			const session = (await response.json()) as { email?: string; claimedAdminEmail?: string };
 			userEmail = session.email || session.claimedAdminEmail || '';
 			userName = userEmail ? userEmail.split('@')[0] : '';
 		} catch {
+			await loadWebUser();
+		}
+	}
+
+	async function loadWebUser() {
+		try {
+			const response = await fetch('/auth/session', { credentials: 'include' });
+			if (!response.ok) return;
+			const session = (await response.json()) as { authenticated?: boolean; email?: string };
+			if (!session.authenticated) return;
+			userEmail = session.email || '';
+			userName = userEmail ? userEmail.split('@')[0] : '';
+		} catch {
 			userEmail = '';
+		}
+	}
+
+	async function logOut() {
+		try {
+			await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
+		} finally {
+			location.href = '/flow/';
 		}
 	}
 </script>
@@ -96,7 +120,7 @@
 			{text.activity}
 		</DropdownMenu.Item>
 		<DropdownMenu.Separator />
-		<DropdownMenu.Item onclick={() => (location.href = '/cdn-cgi/access/logout')}>
+		<DropdownMenu.Item onclick={logOut}>
 			<LogOutIcon />
 			{text.logOut}
 		</DropdownMenu.Item>

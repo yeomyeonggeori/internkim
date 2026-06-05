@@ -49,6 +49,7 @@ type Configuration struct {
 	AttendanceDatabasePath      string
 	MattermostAdminPasswordPath string
 	MattermostTokenPath         string
+	MattermostOAuthClientPath   string
 	OpenRouterKeyPath           string
 	OpenRouterModelsURL         string
 	ReleaseRegistryURL          string
@@ -89,6 +90,7 @@ type Service struct {
 	sites                   map[string]*SiteRecord
 	mailBackend             mailBackend
 	googleOAuthStates       sync.Map
+	webOAuthStates          sync.Map
 	calendarSyncWakeUp      chan struct{}
 	calendarSyncCycleMutex  sync.Mutex
 	calendarStoreWriteMutex sync.Mutex
@@ -221,6 +223,7 @@ func DefaultConfiguration() Configuration {
 		AttendanceDatabasePath:      "/root/.internkim/state/attendance.sqlite",
 		MattermostAdminPasswordPath: "/root/.internkim/secrets/mm-admin-pass",
 		MattermostTokenPath:         "/root/.internkim/secrets/mattermost-bot-token",
+		MattermostOAuthClientPath:   "/root/.internkim/secrets/mattermost-oauth-client.json",
 		OpenRouterKeyPath:           "/root/.internkim/secrets/openrouter-api-key",
 		OpenRouterModelsURL:         "https://openrouter.ai/api/v1/models",
 		ReleaseRegistryURL:          "https://updates.intern.kim",
@@ -352,6 +355,12 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/calendar/oauth/google/start", service.handleGoogleOAuthStart)
 	multiplexer.HandleFunc("/calendar/oauth/google/callback", service.handleGoogleOAuthCallback)
 	multiplexer.HandleFunc("/calendar/", service.serveCalendarPage)
+	multiplexer.HandleFunc("/auth/session", service.handleWebSession)
+	multiplexer.HandleFunc("/auth/cloudflare/start", service.handleCloudflareAuthStart)
+	multiplexer.HandleFunc("/auth/cloudflare/callback", service.handleCloudflareAuthCallback)
+	multiplexer.HandleFunc("/auth/mattermost/start", service.handleMattermostOAuthStart)
+	multiplexer.HandleFunc("/auth/mattermost/callback", service.handleMattermostOAuthCallback)
+	multiplexer.HandleFunc("/auth/logout", service.handleWebLogout)
 	multiplexer.HandleFunc("/mail", service.serveMailPage)
 	multiplexer.HandleFunc("/mail/api/", service.handleMail)
 	multiplexer.HandleFunc("/mail/", service.serveMailPage)
@@ -2497,6 +2506,9 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.MattermostTokenPath == "" {
 		configuration.MattermostTokenPath = defaultConfiguration.MattermostTokenPath
+	}
+	if configuration.MattermostOAuthClientPath == "" {
+		configuration.MattermostOAuthClientPath = defaultConfiguration.MattermostOAuthClientPath
 	}
 	if configuration.OpenRouterKeyPath == "" {
 		configuration.OpenRouterKeyPath = defaultConfiguration.OpenRouterKeyPath

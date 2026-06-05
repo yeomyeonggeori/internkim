@@ -442,6 +442,25 @@ export function adminAccessApplicationDomains(env: CFEnv, fleetId: string) {
 	return [`${hostname}/admin*`];
 }
 
+function webSessionAccessApplicationBody(env: CFEnv, fleetId: string, identityProviderId: string) {
+	const hostname = `${fleetId}.${env.CF_DOMAIN}`;
+
+	return {
+		name: `intern kim web session ${fleetId}`,
+		self_hosted_domains: webSessionAccessApplicationDomains(env, fleetId),
+		type: 'self_hosted',
+		session_duration: '720h',
+		logo_url: `https://${hostname}/logo.svg`,
+		allowed_idps: [identityProviderId],
+		auto_redirect_to_identity: true
+	};
+}
+
+export function webSessionAccessApplicationDomains(env: CFEnv, fleetId: string) {
+	const hostname = `${fleetId}.${env.CF_DOMAIN}`;
+	return [`${hostname}/auth/cloudflare/*`];
+}
+
 function sshAccessApplicationBody(env: CFEnv, fleetId: string, identityProviderId: string) {
 	return sshAccessApplicationBodyForHostname(env, fleetId, fleetSSHHostname(env, fleetId), identityProviderId);
 }
@@ -515,6 +534,24 @@ export async function ensureAdminAccessApplications(env: CFEnv, fleetId: string,
 	await syncAccessPolicyEmails(env, applicationID, normalizeRequiredAccessEmails(adminEmails, 'Cloudflare admin access'));
 }
 
+export async function ensureWebSessionAccessApplication(env: CFEnv, fleetId: string, identityProviderId: string, emails: string[] | string) {
+	const body = webSessionAccessApplicationBody(env, fleetId, identityProviderId);
+	const applications = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`)) as AccessApplication[];
+	const primaryDomain = body.self_hosted_domains[0];
+	const application = applications.find((item) => accessApplicationDomain(item) === primaryDomain);
+	const applicationID = application?.id ?? await createWebSessionAccessApplication(env, body);
+
+	if (application?.id) {
+		await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${applicationID}`, {
+			method: 'PUT',
+			body: JSON.stringify(body)
+		});
+	}
+
+	await syncAccessPolicyEmails(env, applicationID, normalizeRequiredAccessEmails(emails, 'Cloudflare web session access'));
+	return applicationID;
+}
+
 export async function deleteRootAccessApplication(env: CFEnv, fleetId: string, applicationId?: string) {
 	const hostname = `${fleetId}.${env.CF_DOMAIN}`;
 	const applications = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`)) as AccessApplication[];
@@ -575,6 +612,17 @@ async function createAdminAccessApplication(env: CFEnv, body: ReturnType<typeof 
 	})) as AccessApplication;
 	if (!application.id) {
 		throw new Error('Cloudflare admin app response did not include an id');
+	}
+	return application.id;
+}
+
+async function createWebSessionAccessApplication(env: CFEnv, body: ReturnType<typeof webSessionAccessApplicationBody>) {
+	const application = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`, {
+		method: 'POST',
+		body: JSON.stringify(body)
+	})) as AccessApplication;
+	if (!application.id) {
+		throw new Error('Cloudflare web session app response did not include an id');
 	}
 	return application.id;
 }

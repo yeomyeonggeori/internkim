@@ -71,12 +71,12 @@ func updateSetupSlice(arguments []string) (string, error) {
 		return "", errors.New("choose only one of --all, --web, or --binaries")
 	}
 	if hasCommandArgument(arguments, "--web") {
-		return "admin-web", nil
+		return "web", nil
 	}
 	if hasCommandArgument(arguments, "--binaries") {
 		return "binaries,services", nil
 	}
-	return "admin-web,binaries,services", nil
+	return "web,binaries,services", nil
 }
 
 func updateSetupArguments(setupSlice string, arguments []string) []string {

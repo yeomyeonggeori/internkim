@@ -140,7 +140,6 @@ func (service *Service) calendarMattermostLogMessage(event calendarEvent) string
 	if note := calendarMattermostNoteText(event.Description); note != "" {
 		lines = append(lines, "메모: "+note)
 	}
-	lines = append(lines, service.mattermostCalendarLink(event.StartISO))
 	return strings.Join(lines, "\n")
 }
 
@@ -555,7 +554,6 @@ func (service *Service) calendarMattermostNotificationMessage(event calendarEven
 	if note := calendarNotificationNoteText(event.Description, targetType); note != "" {
 		lines = append(lines, "Note: "+note)
 	}
-	lines = append(lines, service.mattermostCalendarLink(""))
 	return strings.Join(lines, "\n")
 }
 

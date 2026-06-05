@@ -270,22 +270,18 @@ func TestJetsonDefaultResolveIncludesLocalLLMAndSkipsGoogle(t *testing.T) {
 	}
 }
 
-func TestAdminWebAliasResolvesToWeb(t *testing.T) {
+func TestAdminWebAliasIsNotSupported(t *testing.T) {
 	names := ParseNames("admin-web,binaries")
-	if strings.Join(names, ",") != "web,binaries" {
-		t.Fatalf("expected admin-web alias to become web, got %v", names)
+	if strings.Join(names, ",") != "admin-web,binaries" {
+		t.Fatalf("unexpected names: %v", names)
 	}
 
 	registry := Registry{
-		{Name: "web", Run: func(context *Context) error { return nil }},
-		{Name: "binaries", Deps: []string{"web"}, Run: func(context *Context) error { return nil }},
+	{Name: "web", Run: func(context *Context) error { return nil }},
+	{Name: "binaries", Deps: []string{"web"}, Run: func(context *Context) error { return nil }},
 	}
-	plan, err := registry.resolve(&Context{Backend: BackendSSH}, Selector{Only: []string{"admin-web"}})
-	if err != nil {
-		t.Fatalf("resolve failed: %v", err)
-	}
-	if strings.Join(plan, ",") != "web" {
-		t.Fatalf("unexpected plan: %v", plan)
+	if _, errorValue := registry.resolve(&Context{Backend: BackendSSH}, Selector{Only: []string{"admin-web"}}); errorValue == nil {
+		t.Fatal("expected admin-web to be rejected")
 	}
 }
 

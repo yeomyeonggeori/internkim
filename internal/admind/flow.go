@@ -313,14 +313,32 @@ func (service *Service) flowActorEmail(request *http.Request) string {
 }
 
 func (service *Service) webStaffActorEmail(request *http.Request) string {
-	return service.webActorEmail(request)
+	actorEmail := service.webActorEmail(request)
+	if actorEmail == "" || !service.isFlowStaffActor(request.Context(), actorEmail) {
+		return ""
+	}
+	return actorEmail
+}
+
+func (service *Service) authorizeWebStaffRequest(request *http.Request) bool {
+	return service.webStaffActorEmail(request) != ""
+}
+
+func (service *Service) authorizeInternalOrWebStaffRequest(request *http.Request) bool {
+	if isLocalRequest(request) {
+		return true
+	}
+	return service.authorizeWebStaffRequest(request)
 }
 
 func (service *Service) webActorEmail(request *http.Request) string {
 	if actorEmail := authenticatedCallerEmail(request); actorEmail != "" {
 		return actorEmail
 	}
-	return strings.ToLower(strings.TrimSpace(service.mattermostSessionActorEmail(request)))
+	if actorEmail := service.mattermostSessionActorEmail(request); actorEmail != "" {
+		return strings.ToLower(strings.TrimSpace(actorEmail))
+	}
+	return strings.ToLower(strings.TrimSpace(service.webSessionActorEmail(request)))
 }
 
 func (service *Service) mattermostSessionActorEmail(request *http.Request) string {
@@ -1181,7 +1199,6 @@ func (service *Service) flowMattermostNotificationMessage(task flowTask) string 
 	if reason := firstNonEmpty(task.RequestReason, task.DecisionReason); strings.TrimSpace(reason) != "" {
 		lines = append(lines, "사유: "+strings.TrimSpace(reason))
 	}
-	lines = append(lines, service.mattermostFlowLink(task.WeekCode))
 	return strings.Join(lines, "\n")
 }
 

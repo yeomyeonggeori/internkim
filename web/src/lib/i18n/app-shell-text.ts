@@ -11,7 +11,13 @@ export const appShellText = {
 		memory: '기억',
 		calendar: '일정',
 		mail: '메일',
-		attendance: '출결'
+		attendance: '출결',
+		checkingSession: '로그인 상태를 확인하고 있습니다',
+		signInTitle: 'InternKim 구성원 인증이 필요합니다',
+		signInDescription: '업무, 일정, 기억, 메일, 출결 화면은 InternKim 구성원만 열 수 있습니다.',
+		continueWithMattermost: 'Mattermost로 계속하기',
+		continueWithCloudflare: '이메일 OTP로 계속하기',
+		webSessionUnavailable: '로그인 상태 확인에 실패했습니다. Mattermost 로그인이나 이메일 OTP로 다시 연결할 수 있습니다.'
 	},
 	en: {
 		apps: 'Apps',
@@ -25,6 +31,12 @@ export const appShellText = {
 		memory: 'Memory',
 		calendar: 'Calendar',
 		mail: 'Mail',
-		attendance: 'Attendance'
+		attendance: 'Attendance',
+		checkingSession: 'Checking your session',
+		signInTitle: 'InternKim member sign-in required',
+		signInDescription: 'Flow, Calendar, Memory, Mail, and Attendance are available to InternKim members only.',
+		continueWithMattermost: 'Continue with Mattermost',
+		continueWithCloudflare: 'Continue with email OTP',
+		webSessionUnavailable: 'Could not check your session. You can continue with Mattermost or email OTP.'
 	}
 } as const;
