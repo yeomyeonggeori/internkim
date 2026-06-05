@@ -1,12 +1,12 @@
-// Flow 구성원별 거리 섹션을 계산합니다.
 import { distanceForTaskProgress } from './flow-report-distance';
 import { emptyTrend, incrementNested, percentage, sortedTypeDistances, typeIndex } from './flow-report-section-helpers';
-import type { FlowReportDefinitions, FlowReportRow, FlowReportSection, FlowReportSectionID, FlowReportSectionLabel, FlowReportTask } from './flow-report-types';
+import type { FlowReportCopy, FlowReportDefinitions, FlowReportRow, FlowReportSection, FlowReportSectionID, FlowReportSectionLabel, FlowReportTask } from './flow-report-types';
 
 type BuildMemberDistanceSectionInput = {
 	id: FlowReportSectionID;
 	labels: FlowReportSectionLabel;
 	emptyLabel: string;
+	copy: FlowReportCopy;
 	tasks: FlowReportTask[];
 	definitions: FlowReportDefinitions;
 	memberDistances?: Record<string, number>;
@@ -24,10 +24,10 @@ export function buildMemberDistanceSection(input: BuildMemberDistanceSectionInpu
 	}
 
 	if (input.memberDistances) {
-		reconcileMemberDistanceRows(rowTotals, input.memberDistances);
+		reconcileMemberDistanceRows(rowTotals, input.memberDistances, input.copy.fallbackType);
 	}
 
-	const rows = buildMemberDistanceRows(rowTotals, [...input.definitions.types, '기타']);
+	const rows = buildMemberDistanceRows(rowTotals, [...input.definitions.types, input.copy.fallbackType]);
 	const total = rows.reduce((sum, row) => sum + row.total, 0);
 	const maxValue = Math.max(1, ...rows.map((row) => row.total));
 
@@ -42,6 +42,8 @@ export function buildMemberDistanceSection(input: BuildMemberDistanceSectionInpu
 		averageValue: input.averageValue ?? 0,
 		alertValue: 0,
 		emptyLabel: input.emptyLabel,
+		teamAverageLabel: input.copy.teamAverageLabel,
+		memberScrollHint: input.copy.memberScrollHint,
 		items: [],
 		trend: emptyTrend('km'),
 		rows: rows.map((row) => ({ ...row, percent: percentage(row.total, total) }))
@@ -69,7 +71,7 @@ function buildMemberDistanceRows(rowTotals: Map<string, Map<string, number>>, ty
 		.sort((left, right) => right.total - left.total || left.label.localeCompare(right.label));
 }
 
-function reconcileMemberDistanceRows(rowTotals: Map<string, Map<string, number>>, memberDistances: Record<string, number>): void {
+function reconcileMemberDistanceRows(rowTotals: Map<string, Map<string, number>>, memberDistances: Record<string, number>, fallbackType: string): void {
 	for (const [memberName, totalDistance] of Object.entries(memberDistances)) {
 		if (totalDistance <= 0) continue;
 
@@ -77,7 +79,7 @@ function reconcileMemberDistanceRows(rowTotals: Map<string, Map<string, number>>
 		const knownDistance = Array.from(typeDistances.values()).reduce((sum, distance) => sum + distance, 0);
 		const remainingDistance = Math.max(0, totalDistance - knownDistance);
 		if (remainingDistance > 0) {
-			typeDistances.set('기타', (typeDistances.get('기타') ?? 0) + remainingDistance);
+			typeDistances.set(fallbackType, (typeDistances.get(fallbackType) ?? 0) + remainingDistance);
 		}
 		rowTotals.set(memberName, typeDistances);
 	}

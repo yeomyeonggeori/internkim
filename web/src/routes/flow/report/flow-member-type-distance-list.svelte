@@ -32,7 +32,7 @@
 	}
 
 	function workloadScrollHint(itemCount: number): string {
-		return `${itemCount}명 전체 · 목록 안에서 스크롤`;
+		return section.memberScrollHint.replace('{count}', String(itemCount));
 	}
 
 	function updateRowScrollFade(): void {

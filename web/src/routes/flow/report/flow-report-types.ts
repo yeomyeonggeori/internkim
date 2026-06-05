@@ -1,15 +1,16 @@
-// Flow 보고 섹션 타입을 정의합니다.
 export type FlowReportMetrics = {
 	totalTasks: number;
 	completedTasks: number;
 	requestedTasks: number;
 	pausedTasks: number;
 	stoppedTasks: number;
-	totalScore: number;
+	totalDistance?: number;
+	totalScore?: number;
 	statusCounts: Record<string, number>;
 	businessCounts: Record<string, number>;
 	typeCounts: Record<string, number>;
-	memberScores: Record<string, number>;
+	memberDistances?: Record<string, number>;
+	memberScores?: Record<string, number>;
 };
 
 export type FlowReportSectionID = 'weeklyStatus' | 'memberDistance' | 'weeklyDistanceTrend' | 'monthlyDistanceTrend' | 'businessDistance';
@@ -22,9 +23,23 @@ export type FlowReportSectionLabel = {
 
 export type FlowReportSectionLabels = Record<FlowReportSectionID, FlowReportSectionLabel>;
 
+export type FlowReportCopy = {
+	weekdays: string[];
+	fallbackType: string;
+	fallbackBusiness: string;
+	teamAverageLabel: string;
+	memberScrollHint: string;
+	currentWeekTrend: string;
+	previousWeekTrend: string;
+	currentMonthTrend: string;
+	previousMonthTrend: string;
+	monthlyDayLabelTemplate: string;
+};
+
 export type FlowReportOptions = {
 	emptyLabel: string;
 	sectionLabels: FlowReportSectionLabels;
+	copy: FlowReportCopy;
 	report?: FlowReportSnapshot;
 	tasks?: FlowReportTask[];
 	definitions?: FlowReportDefinitions;
@@ -66,6 +81,7 @@ export type FlowReportTrend = {
 	currentTotal: number;
 	previousTotal: number;
 	unit: string;
+	labelTemplate?: string;
 };
 
 export type FlowReportSnapshot = {
@@ -84,6 +100,8 @@ export type FlowReportSection = {
 	averageValue: number;
 	alertValue: number;
 	emptyLabel: string;
+	teamAverageLabel: string;
+	memberScrollHint: string;
 	items: FlowReportItem[];
 	rows: FlowReportRow[];
 	trend: FlowReportTrend;
