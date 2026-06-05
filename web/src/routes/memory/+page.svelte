@@ -33,7 +33,7 @@
 		scopeType: string;
 		namespaceID: string;
 		content: string;
-		score?: number;
+		score?: number | null;
 		sourceKind?: string;
 	};
 
@@ -74,6 +74,11 @@
 
 	onMount(loadMemoryGraph);
 
+	function factScoreText(score: number | null | undefined): string {
+		if (typeof score !== 'number' || !Number.isFinite(score)) return text.scoreUnavailable;
+		return `${text.score} ${Math.round(score * 100)}%`;
+	}
+
 	async function loadMemoryGraph() {
 		isLoading = true;
 		errorMessage = '';
@@ -98,7 +103,7 @@
 	<title>{text.pageTitle}</title>
 </svelte:head>
 
-<main class="grid min-h-[calc(100svh-48px)] gap-5 overflow-x-hidden px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
+<main class="grid min-h-[calc(100svh-48px)] w-full flex-1 gap-5 overflow-x-hidden px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
 	<section class="flex min-w-0 flex-wrap items-start justify-between gap-3">
 		<div class="min-w-0">
 			<h1 class="flex items-center gap-2 text-xl font-semibold">
@@ -175,7 +180,30 @@
 	{#if nodes().length === 0}
 		<p class="rounded-md border bg-muted/30 px-3 py-12 text-center text-sm text-muted-foreground">{text.noVisibleMemory}</p>
 	{:else}
-		<MemoryNetwork nodes={nodes()} edges={edges()} />
+		<section class="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+			<MemoryNetwork nodes={nodes()} edges={edges()} />
+			<aside class="flex h-[min(58svh,520px)] min-h-[360px] min-w-0 flex-col overflow-hidden rounded-lg border bg-background">
+				<div class="flex items-center justify-between gap-3 border-b px-3 py-2">
+					<div class="min-w-0">
+						<h2 class="truncate text-sm font-semibold">{text.memoryDetails}</h2>
+						<p class="text-xs text-muted-foreground">{facts().length} {text.facts}</p>
+					</div>
+					<Badge variant="secondary">{memoryGraph?.health?.reachable ? text.reachable : text.unreachable}</Badge>
+				</div>
+				<div class="min-h-0 overflow-y-auto">
+					{#each facts() as fact}
+						<article class="grid gap-2 border-b px-3 py-3 last:border-b-0">
+							<div class="flex min-w-0 flex-wrap items-center gap-2">
+								<Badge variant="outline">{fact.sourceKind ?? text.source}</Badge>
+								<span class="truncate text-xs text-muted-foreground">{fact.namespaceID}</span>
+								<span class="ml-auto text-xs tabular-nums text-muted-foreground">{factScoreText(fact.score)}</span>
+							</div>
+							<p class="text-sm leading-5">{fact.content}</p>
+						</article>
+					{/each}
+				</div>
+			</aside>
+		</section>
 	{/if}
 
 	{#if namespaces().length > 0}
