@@ -34,7 +34,7 @@
 		getPaginationRowModel,
 		getSortedRowModel
 	} from '@tanstack/table-core';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { flowText } from './text';
 
 	type FlowWeek = {
@@ -139,6 +139,7 @@
 	let selectedTask = $state<FlowTask | null>(null);
 	let taskDraft = $state<FlowTask | null>(null);
 	let pendingTaskID = $state('');
+	let focusedTaskID = $state('');
 	let searchText = $state('');
 	let statusFilter = $state('all');
 	let ownerFilter = $state('all');
@@ -222,7 +223,7 @@
 			if (!response.ok) throw new Error(await responseErrorMessage(response, text.loadError));
 			summary = (await response.json()) as FlowSummary;
 			syncDefinitionDrafts();
-			openPendingTask();
+			await openPendingTask();
 			if (isMemberTab()) {
 				const memberID = activeTab.replace('member:', '');
 				if (!members().some((member) => member.id === memberID)) activeTab = 'tasks';
@@ -250,11 +251,26 @@
 		taskErrorMessage = '';
 	}
 
-	function openPendingTask() {
+	async function openPendingTask() {
 		if (!pendingTaskID) return;
 		const task = summary?.tasks.find((candidate) => candidate.id === pendingTaskID);
 		pendingTaskID = '';
-		if (task) openTask(task);
+		if (!task) return;
+		focusedTaskID = task.id;
+		resetFilters();
+		activeTab = task.participantIDs.includes(task.ownerID) ? `member:${task.ownerID}` : 'tasks';
+		await tick();
+		showFocusedTaskPage(task.id);
+	}
+
+	function showFocusedTaskPage(taskID: string) {
+		const rows = taskTable.getSortedRowModel().rows;
+		const rowIndex = rows.findIndex((row) => row.original.id === taskID);
+		if (rowIndex < 0) return;
+		taskPagination = {
+			...taskPagination,
+			pageIndex: Math.floor(rowIndex / taskPagination.pageSize)
+		};
 	}
 
 	function createTask() {
@@ -1161,7 +1177,10 @@
 				</Table.Header>
 				<Table.Body>
 					{#each rowModel.rows as row (row.id)}
-						<Table.Row class="cursor-pointer hover:bg-muted/40" onclick={() => openTask(row.original)}>
+						<Table.Row
+							class={cn('cursor-pointer hover:bg-muted/40', row.original.id === focusedTaskID && 'bg-primary/10 ring-1 ring-primary/30')}
+							onclick={() => openTask(row.original)}
+						>
 							{#each row.getVisibleCells() as cell (cell.id)}
 								<Table.Cell>
 									<FlexRender content={cell.column.columnDef.cell} context={cell.getContext()} />
