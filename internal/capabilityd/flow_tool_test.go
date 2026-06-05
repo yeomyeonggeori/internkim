@@ -246,16 +246,61 @@ func TestFlowTaskListFiltersTasksByQueryIgnoringSpaces(t *testing.T) {
 	}
 }
 
-func TestFlowTaskCompleteUpdatesSingleMatchingTask(t *testing.T) {
-	var payload map[string]any
+func TestFlowTaskUpdateUsesSharedPutAPIWithoutCreatingTask(t *testing.T) {
+	postCalled := false
+	var updatedPayload map[string]any
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/summary":
-				return flowToolJSONResponse(`{"week":{"code":"26W23"},"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-1","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"business":"기타","type":"기타","content":"디플랫코리아 기획안 전달","goal":"전달 완료","size":"S","status":"예정","weekCode":"26W23"}]}`), nil
+				return flowToolJSONResponse(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-1","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"business":"개발","type":"회의","content":"10분 회의","goal":"정리","size":"XS","status":"진행","weekCode":"26W24"}]}`), nil
 			case request.Method == http.MethodPut && request.URL.String() == "http://admind.local/flow/api/tasks/task-1":
-				if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				if errorValue := json.NewDecoder(request.Body).Decode(&updatedPayload); errorValue != nil {
+					t.Fatal(errorValue)
+				}
+				return flowToolJSONResponse(`{"id":"task-1","content":"15분 회의","status":"진행"}`), nil
+			case request.Method == http.MethodPost && request.URL.String() == "http://admind.local/flow/api/tasks/quick":
+				postCalled = true
+				return flowToolJSONResponse(`{"id":"new-task"}`), nil
+			default:
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+
+	response, errorValue := service.invokeFlowTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "flow.task.update",
+		Input:    []byte(`{"taskID":"task-1","content":"15분 회의"}`),
+		Context: capabilities.ToolInvokeContext{
+			RequesterEmail: "staff@example.com",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.IsError || response.Status != "진행" {
+		t.Fatalf("response = %+v", response)
+	}
+	if postCalled {
+		t.Fatal("update must not call quick create")
+	}
+	if updatedPayload["content"] != "15분 회의" || updatedPayload["status"] != "진행" || updatedPayload["goal"] != "정리" {
+		t.Fatalf("updated payload = %+v", updatedPayload)
+	}
+}
+
+func TestFlowTaskUpdateQueryOnlyDefaultsToComplete(t *testing.T) {
+	var updatedPayload map[string]any
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			switch {
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/summary?week=26W24":
+				return flowToolJSONResponse(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-1","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"business":"개발","type":"회의","content":"10분 회의","goal":"정리","size":"XS","status":"진행","weekCode":"26W24"}]}`), nil
+			case request.Method == http.MethodPut && request.URL.String() == "http://admind.local/flow/api/tasks/task-1":
+				if errorValue := json.NewDecoder(request.Body).Decode(&updatedPayload); errorValue != nil {
 					t.Fatal(errorValue)
 				}
 				return flowToolJSONResponse(`{"id":"task-1","status":"완료"}`), nil
@@ -266,33 +311,35 @@ func TestFlowTaskCompleteUpdatesSingleMatchingTask(t *testing.T) {
 		})},
 	}
 
-	response, errorValue := service.invokeFlowTaskComplete(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "flow.task.complete",
-		Input:    []byte(`{"query":"디플랫 코리아","completionNote":"사용자가 완료라고 말함"}`),
-		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
+	response, errorValue := service.invokeFlowTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "flow.task.update",
+		Input:    []byte(`{"query":"10분 회의","weekCode":"26W24"}`),
+		Context: capabilities.ToolInvokeContext{
+			RequesterEmail: "staff@example.com",
+		},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != "completed" {
-		t.Fatalf("status = %q result=%s", response.Status, string(response.Result))
+	if response.IsError || response.Status != "완료" {
+		t.Fatalf("response = %+v", response)
 	}
-	if payload["status"] != "완료" || payload["decisionReason"] != "사용자가 완료라고 말함" {
-		t.Fatalf("payload = %+v", payload)
+	if updatedPayload["status"] != "완료" {
+		t.Fatalf("updated payload = %+v", updatedPayload)
 	}
 }
 
-func TestFlowTaskCompleteReturnsAmbiguousCandidates(t *testing.T) {
+func TestFlowTaskUpdateAmbiguousQueryDoesNotWrite(t *testing.T) {
 	putCalled := false
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/summary":
-				return flowToolJSONResponse(`{"week":{"code":"26W23"},"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-1","ownerID":"staff","ownerName":"Staff","content":"디플랫코리아 기획안 전달","status":"예정","weekCode":"26W23"},{"id":"task-2","ownerID":"staff","ownerName":"Staff","content":"디플랫코리아 보고서 전달","status":"예정","weekCode":"26W23"}]}`), nil
+				return flowToolJSONResponse(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-1","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"type":"회의","content":"회의 준비","size":"XS","status":"진행","weekCode":"26W24"},{"id":"task-2","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"type":"회의","content":"회의 정리","size":"XS","status":"진행","weekCode":"26W24"}]}`), nil
 			case request.Method == http.MethodPut:
 				putCalled = true
-				return flowToolJSONResponse(`{"id":"task-1","status":"완료"}`), nil
+				return flowToolJSONResponse(`{"id":"task-1"}`), nil
 			default:
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 				return nil, nil
@@ -300,43 +347,24 @@ func TestFlowTaskCompleteReturnsAmbiguousCandidates(t *testing.T) {
 		})},
 	}
 
-	response, errorValue := service.invokeFlowTaskComplete(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "flow.task.complete",
-		Input:    []byte(`{"query":"디플랫 코리아"}`),
-		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
+	response, errorValue := service.invokeFlowTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "flow.task.update",
+		Input:    []byte(`{"query":"회의"}`),
+		Context: capabilities.ToolInvokeContext{
+			RequesterEmail: "staff@example.com",
+		},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !response.IsError || response.ErrorCode != "flow_task_ambiguous" {
+	if !response.IsError || response.ErrorCode != "flow_task_ambiguous" || !response.SafeRetry {
 		t.Fatalf("response = %+v", response)
 	}
 	if putCalled {
-		t.Fatal("ambiguous completion should not update any task")
+		t.Fatal("ambiguous update must not write")
 	}
-}
-
-func TestFlowTaskCompleteReportsAlreadyCompletedTask(t *testing.T) {
-	service := Service{
-		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			if request.Method != http.MethodGet || request.URL.String() != "http://admind.local/flow/api/summary" {
-				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
-			}
-			return flowToolJSONResponse(`{"week":{"code":"26W23"},"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-1","ownerID":"staff","ownerName":"Staff","content":"디플랫코리아 기획안 전달","status":"완료","weekCode":"26W23"}]}`), nil
-		})},
-	}
-
-	response, errorValue := service.invokeFlowTaskComplete(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "flow.task.complete",
-		Input:    []byte(`{"query":"디플랫 코리아"}`),
-		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
-	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if response.Status != "already_completed" {
-		t.Fatalf("status = %q", response.Status)
+	if !strings.Contains(string(response.Result), "task-1") || !strings.Contains(string(response.Result), "task-2") {
+		t.Fatalf("result = %s", string(response.Result))
 	}
 }
 

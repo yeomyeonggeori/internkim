@@ -24,6 +24,8 @@ import (
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
+var flowDateTimezone = loadFlowDateTimezone()
+
 type flowSummaryResponse struct {
 	Week             flowWeek        `json:"week"`
 	Members          []flowMember    `json:"members"`
@@ -168,6 +170,12 @@ type flowDuplicateDecision struct {
 	IsDuplicate     bool   `json:"isDuplicate"`
 	DuplicateTaskID string `json:"duplicateTaskID"`
 	Reason          string `json:"reason"`
+}
+
+type normalizedFlowTaskDates struct {
+	StartDate string
+	EndDate   string
+	WeekCode  string
 }
 
 type capabilityLLMResponse struct {
@@ -650,10 +658,6 @@ func (service *Service) flowTaskFromRequest(request *http.Request, members []flo
 	if content == "" {
 		return flowTask{}, flowValidationError("content is required")
 	}
-	weekCode := strings.TrimSpace(payload.WeekCode)
-	if weekCode == "" {
-		weekCode = weekCodeForDate(time.Now())
-	}
 	status := firstNonEmpty(strings.TrimSpace(payload.Status), "예정")
 	callerEmail := strings.ToLower(strings.TrimSpace(service.flowActorEmail(request)))
 	if callerEmail != "" && !service.isFlowAdminEmail(request.Context(), callerEmail) && !strings.EqualFold(owner.Email, callerEmail) {
@@ -679,9 +683,10 @@ func (service *Service) flowTaskFromRequest(request *http.Request, members []flo
 	if !containsFlowSize(definitions.Sizes, size) {
 		return flowTask{}, flowValidationError("size is not allowed")
 	}
+	dates := normalizeFlowTaskDates(payload, status, flowDateNow())
 	id := strings.TrimSpace(taskID)
 	if id == "" {
-		id = stableFlowID(weekCode + owner.ID + content + time.Now().UTC().Format(time.RFC3339Nano))
+		id = stableFlowID(dates.WeekCode + owner.ID + content + time.Now().UTC().Format(time.RFC3339Nano))
 	}
 	return flowTask{
 		ID:               id,
@@ -695,13 +700,64 @@ func (service *Service) flowTaskFromRequest(request *http.Request, members []flo
 		Goal:             strings.TrimSpace(payload.Goal),
 		Size:             size,
 		Status:           status,
-		StartDate:        strings.TrimSpace(payload.StartDate),
-		EndDate:          strings.TrimSpace(payload.EndDate),
-		WeekCode:         weekCode,
+		StartDate:        dates.StartDate,
+		EndDate:          dates.EndDate,
+		WeekCode:         dates.WeekCode,
 		Flag:             payload.Flag,
 		RequestReason:    strings.TrimSpace(payload.RequestReason),
 		DecisionReason:   strings.TrimSpace(payload.DecisionReason),
 	}, nil
+}
+
+func normalizeFlowTaskDates(payload flowTaskWriteRequest, status string, now time.Time) normalizedFlowTaskDates {
+	startDate := strings.TrimSpace(payload.StartDate)
+	endDate := strings.TrimSpace(payload.EndDate)
+	weekCode := strings.TrimSpace(payload.WeekCode)
+	today := now.Format("2006-01-02")
+	switch strings.TrimSpace(status) {
+	case "완료":
+		if endDate == "" {
+			endDate = today
+		}
+		if startDate == "" {
+			startDate = endDate
+		}
+		weekCode = weekCodeForFlowDate(endDate, now)
+	case "예정":
+		if startDate == "" {
+			startDate = today
+		}
+		weekCode = weekCodeForFlowDate(startDate, now)
+	default:
+		if weekCode == "" {
+			weekCode = weekCodeForDate(now)
+		}
+	}
+	return normalizedFlowTaskDates{StartDate: startDate, EndDate: endDate, WeekCode: weekCode}
+}
+
+func weekCodeForFlowDate(dateText string, fallback time.Time) string {
+	date, errorValue := time.ParseInLocation("2006-01-02", strings.TrimSpace(dateText), fallback.Location())
+	if errorValue != nil {
+		return weekCodeForDate(fallback)
+	}
+	return weekCodeForDate(date)
+}
+
+func flowDateNow() time.Time {
+	return time.Now().In(flowDateLocation())
+}
+
+func flowDateLocation() *time.Location {
+	return flowDateTimezone
+}
+
+func loadFlowDateTimezone() *time.Location {
+	location, errorValue := time.LoadLocation("Asia/Seoul")
+	if errorValue != nil {
+		return time.FixedZone("Asia/Seoul", 9*60*60)
+	}
+	return location
 }
 
 func (service *Service) openFlowDatabase(ctx context.Context) (*sql.DB, error) {

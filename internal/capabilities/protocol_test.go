@@ -94,12 +94,12 @@ func TestFlowListDescriptorMatchesTaskLookupInput(t *testing.T) {
 	assertSchemaOmitsProperties(t, schema, "title", "description", "assignee", "dueDate")
 }
 
-func TestFlowCompleteDescriptorMatchesTaskCompletionInput(t *testing.T) {
-	schema := descriptorSchema(t, FlowDescriptors(), "flow.task.complete")
+func TestFlowDescriptorIncludesTaskUpdateInput(t *testing.T) {
+	schema := descriptorSchema(t, FlowDescriptors(), "flow.task.update")
 
-	assertSchemaHasProperties(t, schema, "taskID", "query", "targetPersonHint", "weekCode", "completionNote")
-	assertSchemaOmitsProperties(t, schema, "title", "description", "assignee", "dueDate")
-	assertDescriptorCompletionEvidence(t, FlowDescriptors(), "flow.task.complete", "success", "write_task", "task")
+	assertSchemaHasProperties(t, schema, "taskID", "query", "targetPersonHint", "weekCode", "content", "goal", "status", "size", "category", "type", "startDate", "endDate", "flag", "requestReason", "decisionReason")
+	assertSchemaOmitsProperties(t, schema, "prompt", "allowDuplicate")
+	assertDescriptorCompletionEvidence(t, FlowDescriptors(), "flow.task.update", "success", "write_task", "task")
 }
 
 func TestPlatformDMDescriptorRequiresRecipientAndMessage(t *testing.T) {

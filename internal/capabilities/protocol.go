@@ -103,7 +103,7 @@ func FlowDescriptors() []Descriptor {
 	return []Descriptor{
 		{Name: "flow.task.add", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskAddInputSchema(), PolicyResource: "tool:flow.task.add", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_task", "task")},
 		{Name: "flow.task.list", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskListInputSchema(), PolicyResource: "tool:flow.task.list", SideEffectClass: "read"},
-		{Name: "flow.task.complete", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskCompleteInputSchema(), PolicyResource: "tool:flow.task.complete", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_task", "task")},
+		{Name: "flow.task.update", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskUpdateInputSchema(), PolicyResource: "tool:flow.task.update", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_task", "task")},
 	}
 }
 
@@ -183,13 +183,23 @@ func flowTaskListInputSchema() json.RawMessage {
 	).RawMessage()
 }
 
-func flowTaskCompleteInputSchema() json.RawMessage {
+func flowTaskUpdateInputSchema() json.RawMessage {
 	return jsonschema.Object(
 		jsonschema.Field("taskID", jsonschema.String()),
 		jsonschema.Field("query", jsonschema.String()),
 		jsonschema.Field("targetPersonHint", jsonschema.String()),
 		jsonschema.Field("weekCode", jsonschema.String()),
-		jsonschema.Field("completionNote", jsonschema.String()),
+		jsonschema.Field("content", jsonschema.String()),
+		jsonschema.Field("goal", jsonschema.String()),
+		jsonschema.Field("status", jsonschema.String()),
+		jsonschema.Field("size", jsonschema.String()),
+		jsonschema.Field("category", jsonschema.String()),
+		jsonschema.Field("type", jsonschema.String()),
+		jsonschema.Field("startDate", jsonschema.String()),
+		jsonschema.Field("endDate", jsonschema.String()),
+		jsonschema.Field("flag", jsonschema.Integer()),
+		jsonschema.Field("requestReason", jsonschema.String()),
+		jsonschema.Field("decisionReason", jsonschema.String()),
 	).RawMessage()
 }
 
