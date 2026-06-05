@@ -491,7 +491,7 @@ func TestDecodeRemoteCalendarObjectMarksProvenance(t *testing.T) {
 func TestSoftDeleteMissingRemoteEventsDeletesAllUntrackedGoogleEvents(t *testing.T) {
 	service := newCalendarTestService(t)
 	ctx := context.Background()
-	seedAccountWithDiscovery(t, service)
+	account := seedAccountWithDiscovery(t, service)
 
 	recentEvent := newLocalTestCalendarEvent("recent", "Recent")
 	recentEvent.RemoteSource = remoteCalendarProviderGoogle
@@ -521,7 +521,7 @@ func TestSoftDeleteMissingRemoteEventsDeletesAllUntrackedGoogleEvents(t *testing
 
 	allEvents, _ := service.readCalendarEvents(ctx, time.Time{}, time.Time{})
 	emptyRemoteUIDs := map[string]struct{}{}
-	if errorValue := service.softDeleteMissingRemoteEvents(ctx, allEvents, emptyRemoteUIDs, nil); errorValue != nil {
+	if errorValue := service.softDeleteMissingRemoteEvents(ctx, account.ID, allEvents, emptyRemoteUIDs, nil); errorValue != nil {
 		t.Fatalf("softDelete: %v", errorValue)
 	}
 
