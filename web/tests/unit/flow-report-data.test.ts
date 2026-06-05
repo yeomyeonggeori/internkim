@@ -1,71 +1,88 @@
 import { describe, expect, test } from 'bun:test';
 import { buildFlowReportSections } from '../../src/routes/flow/report/flow-report-data';
-import { flowReportFixtureMetrics } from './fixtures/flow-report-summary';
-
-const statusLabels: Record<string, string> = {
-	완료: '완료',
-	진행: '진행',
-	요청: '요청',
-	예정: '예정',
-	일시정지: '일시정지',
-	중단: '중단'
-};
-
-const statusDescriptions: Record<string, string> = {
-	완료: '종료됨',
-	진행: '작업 중',
-	요청: '확인 대기',
-	예정: '시작 전',
-	일시정지: '재개 가능',
-	중단: '종료 처리'
-};
+import { flowReportFixtureDefinitions, flowReportFixtureMetrics, flowReportFixtureSnapshot, flowReportFixtureTasks } from './fixtures/flow-report-summary';
 
 describe('buildFlowReportSections', () => {
 	test('builds sorted report chart sections from flow metrics', () => {
 		const sections = buildFlowReportSections(flowReportFixtureMetrics, {
-			statusLabels,
-			statusDescriptions,
 			emptyLabel: '이번 주 데이터 없음',
 			sectionLabels: {
 				weeklyStatus: {
 					title: '주간 상태',
 					description: '상태별 업무 분포와 막힌 일을 빠르게 확인합니다.'
 				},
-				memberScores: {
+				memberDistance: {
 					title: '구성원 거리',
 					description: '완료와 진행 업무 기준의 주간 업무 거리입니다.'
+				},
+				weeklyDistanceTrend: {
+					title: '주간 통계',
+					description: '지난주와 이번주의 일별 팀 거리 합을 비교합니다.'
+				},
+				monthlyDistanceTrend: {
+					title: '월간 통계',
+					description: '지난달과 이번달의 일별 팀 거리 합을 비교합니다.'
 				},
 				businessDistance: {
 					title: '대분류별 업무',
 					description: ''
-				},
-				typeBreakdown: {
-					title: '종류별 업무',
-					description: ''
 				}
-			}
+			},
+			report: flowReportFixtureSnapshot,
+			tasks: flowReportFixtureTasks,
+			definitions: flowReportFixtureDefinitions,
+			weekStartISO: '2026-06-01'
 		});
 
-		expect(sections.weeklyStatus.chartKind).toBe('stacked');
-		expect(sections.weeklyStatus.total).toBe(14);
-		expect(sections.weeklyStatus.alertValue).toBe(2);
-		expect(sections.weeklyStatus.items.map((item) => item.label)).toEqual(['완료', '진행', '요청', '예정', '일시정지']);
-		expect(sections.weeklyStatus.items[0]).toMatchObject({ value: 5, percent: 36, tone: 'success' });
-		expect(sections.weeklyStatus.items[4]).toMatchObject({ value: 1, percent: 7, tone: 'paused', description: '재개 가능' });
-		expect(sections.weeklyStatus.items.some((item) => item.label === '중단')).toBe(false);
+		expect(sections.weeklyStatus.chartKind).toBe('dailyTypeStacked');
+		expect(sections.weeklyStatus.total).toBe(9);
+		expect(sections.weeklyStatus.unit).toBe('km');
+		expect(sections.weeklyStatus.rows.map((row) => row.label)).toEqual(['월', '화', '수', '목', '금', '토', '일']);
+		expect(sections.weeklyStatus.rows.map((row) => row.total)).toEqual([5, 2, 2, 0, 0, 0, 0]);
+		expect(sections.weeklyStatus.rows[0].segments).toEqual([
+			{ label: '구현', value: 5, percent: 100, tone: 'type', colorIndex: 0 }
+		]);
+		expect(sections.weeklyStatus.items.map((item) => [item.label, item.value])).toEqual([
+			['구현', 5],
+			['회의', 2],
+			['검증', 2]
+		]);
+		expect(sections.weeklyStatus.items.map((item) => [item.label, item.colorIndex])).toEqual([
+			['구현', 0],
+			['회의', 1],
+			['검증', 2]
+		]);
 
-		expect(sections.memberScores.chartKind).toBe('workload');
-		expect(sections.memberScores.total).toBe(27);
-		expect(sections.memberScores.averageValue).toBe(7);
-		expect(sections.memberScores.items.map((item) => item.label)).toEqual(['김표본', '박예시', '최견본', '정의']);
-		expect(sections.memberScores.items[0]).toMatchObject({ value: 11, percent: 41, tone: 'member' });
+		expect(sections.memberDistance.chartKind).toBe('memberTypeStacked');
+		expect(sections.memberDistance.unit).toBe('km');
+		expect(sections.memberDistance.total).toBe(27);
+		expect(sections.memberDistance.averageValue).toBe(7);
+		expect(sections.memberDistance.rows.map((row) => row.label)).toEqual(['김표본', '박예시', '최견본', '정의']);
+		expect(sections.memberDistance.rows[0]).toMatchObject({ label: '김표본', total: 11, percent: 41 });
+		expect(sections.memberDistance.rows[0].segments.map((segment) => [segment.label, segment.value])).toEqual([
+			['구현', 5],
+			['기타', 5],
+			['검증', 1]
+		]);
+
+		expect(sections.weeklyDistanceTrend.chartKind).toBe('lineComparison');
+		expect(sections.weeklyDistanceTrend.total).toBe(18);
+		expect(sections.weeklyDistanceTrend.alertValue).toBe(7);
+		expect(sections.weeklyDistanceTrend.trend.currentValues).toEqual([0, 7, 10, 10, 15, 18, 18]);
+
+		expect(sections.monthlyDistanceTrend.chartKind).toBe('lineComparison');
+		expect(sections.monthlyDistanceTrend.total).toBe(18);
+		expect(sections.monthlyDistanceTrend.alertValue).toBe(7);
+		expect(sections.monthlyDistanceTrend.trend.currentValues).toEqual([0, 6, 9, 12, 15, 18, 18]);
 
 		expect(sections.businessDistance.chartKind).toBe('donut');
-		expect(sections.businessDistance.items.map((item) => item.label)).toEqual(['개발', '운영', '기획']);
-		expect(sections.businessDistance.items[0]).toMatchObject({ tone: 'business' });
-		expect(sections.typeBreakdown.chartKind).toBe('treemap');
-		expect(sections.typeBreakdown.items.map((item) => item.label)).toEqual(['구현', '회의', '검증', '문서']);
-		expect(sections.typeBreakdown.items[0]).toMatchObject({ tone: 'type' });
+		expect(sections.businessDistance.unit).toBe('km');
+		expect(sections.businessDistance.total).toBe(9);
+		expect(sections.businessDistance.items.map((item) => [item.label, item.value])).toEqual([
+			['여명거리', 7],
+			['김인턴', 2]
+		]);
+		expect(sections.businessDistance.items[0]).toMatchObject({ tone: 'business', percent: 78 });
 	});
 
 	test('keeps empty report sections explicit when metrics have no values', () => {
@@ -81,24 +98,25 @@ describe('buildFlowReportSections', () => {
 				businessCounts: {},
 				typeCounts: {},
 				memberScores: {}
-			},
+		},
 			{
-				statusLabels,
-				statusDescriptions,
 				emptyLabel: '이번 주 데이터 없음',
 				sectionLabels: {
 					weeklyStatus: { title: '주간 상태', description: '' },
-					memberScores: { title: '구성원 거리', description: '' },
-					businessDistance: { title: '대분류별 업무', description: '' },
-					typeBreakdown: { title: '종류별 업무', description: '' }
+					memberDistance: { title: '구성원 거리', description: '' },
+					weeklyDistanceTrend: { title: '주간 통계', description: '' },
+					monthlyDistanceTrend: { title: '월간 통계', description: '' },
+					businessDistance: { title: '대분류별 업무', description: '' }
 				}
 			}
 		);
 
-		expect(sections.weeklyStatus.items).toEqual([]);
+		expect(sections.weeklyStatus.rows.length).toBe(7);
+		expect(sections.weeklyStatus.rows.every((row) => row.total === 0 && row.segments.length === 0)).toBe(true);
 		expect(sections.weeklyStatus.emptyLabel).toBe('이번 주 데이터 없음');
-		expect(sections.memberScores.total).toBe(0);
+		expect(sections.memberDistance.total).toBe(0);
+		expect(sections.weeklyDistanceTrend.total).toBe(0);
+		expect(sections.monthlyDistanceTrend.total).toBe(0);
 		expect(sections.businessDistance.maxValue).toBe(1);
-		expect(sections.typeBreakdown.maxValue).toBe(1);
 	});
 });

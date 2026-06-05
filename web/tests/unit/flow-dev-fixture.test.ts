@@ -19,9 +19,26 @@ describe('createDevFlowSummary', () => {
 		expect(Object.keys(summary.metrics.memberScores).length).toBe(10);
 		expect(summary.tasks.length > 0).toBe(true);
 		expect(summary.metrics.totalTasks).toBe(summary.tasks.length);
+		expect(summary.report.weeklyDistanceTrend.currentValues.length).toBe(7);
+		expect(summary.report.weeklyDistanceTrend.labels).toEqual(['월', '화', '수', '목', '금', '토', '일']);
+		expect(summary.report.monthlyDistanceTrend.currentValues.length).toBe(30);
 		expect(summary.metrics.completedTasks > 0).toBe(true);
 		expect(summary.metrics.requestedTasks > 0).toBe(true);
 		expect(summary.metrics.pausedTasks > 0).toBe(true);
 		expect(summary.metrics.stoppedTasks > 0).toBe(true);
+	});
+
+	test('varies mock report data by selected week', () => {
+		const previousWeek = createDevFlowSummary('26W22', 'admin@example.com');
+		const currentWeek = createDevFlowSummary('26W23', 'admin@example.com');
+		const nextWeek = createDevFlowSummary('26W24', 'admin@example.com');
+
+		expect(previousWeek.week.code).toBe('26W22');
+		expect(currentWeek.week.code).toBe('26W23');
+		expect(nextWeek.week.code).toBe('26W24');
+		expect(previousWeek.report.weeklyDistanceTrend.currentValues).not.toEqual(currentWeek.report.weeklyDistanceTrend.currentValues);
+		expect(nextWeek.report.weeklyDistanceTrend.currentValues).not.toEqual(currentWeek.report.weeklyDistanceTrend.currentValues);
+		expect(previousWeek.metrics.memberScores).not.toEqual(currentWeek.metrics.memberScores);
+		expect(nextWeek.metrics.memberScores).not.toEqual(currentWeek.metrics.memberScores);
 	});
 });
