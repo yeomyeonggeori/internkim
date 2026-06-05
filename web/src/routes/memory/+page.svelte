@@ -33,7 +33,7 @@
 		scopeType: string;
 		namespaceID: string;
 		content: string;
-		score?: number;
+		score?: number | null;
 		sourceKind?: string;
 	};
 
@@ -73,6 +73,11 @@
 	const episodes = () => memoryGraph?.episodes ?? [];
 
 	onMount(loadMemoryGraph);
+
+	function factScoreText(score: number | null | undefined): string {
+		if (typeof score !== 'number' || !Number.isFinite(score)) return text.scoreUnavailable;
+		return `${text.score} ${Math.round(score * 100)}%`;
+	}
 
 	async function loadMemoryGraph() {
 		isLoading = true;
@@ -191,7 +196,7 @@
 							<div class="flex min-w-0 flex-wrap items-center gap-2">
 								<Badge variant="outline">{fact.sourceKind ?? text.source}</Badge>
 								<span class="truncate text-xs text-muted-foreground">{fact.namespaceID}</span>
-								<span class="ml-auto text-xs tabular-nums text-muted-foreground">{text.score} {Math.round((fact.score ?? 0) * 100)}%</span>
+								<span class="ml-auto text-xs tabular-nums text-muted-foreground">{factScoreText(fact.score)}</span>
 							</div>
 							<p class="text-sm leading-5">{fact.content}</p>
 						</article>
