@@ -65,6 +65,9 @@ test.describe('memory graph', () => {
 		await page.goto('/memory/');
 		await page.waitForSelector('canvas');
 
+		await expect(page.getByText('Memory fact 0')).toBeVisible();
+		await expect(page.getByText('신뢰도 미제공').first()).toBeVisible();
+
 		await expect.poll(async () => graphMetrics(page)).toMatchObject({
 			hasHorizontalOverflow: false,
 			viewportWidth: 1280
