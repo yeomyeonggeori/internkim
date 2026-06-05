@@ -11,7 +11,7 @@ class StepperRootState {
 	constructor(readonly opts: StepperRootProps) {}
 
 	registerStep(step: StepperItemState): number {
-		return this.steps.push({ id: step.opts.id, triggerRef: () => step.getTriggerRef() });
+		return this.steps.push({ id: step.opts.id.current, triggerRef: () => step.getTriggerRef() });
 	}
 
 	next() {
@@ -72,9 +72,9 @@ class StepperNavState {
 	}));
 }
 
-type StepperItemProps = {
+type StepperItemProps = ReadableBoxedValues<{
 	id: string;
-};
+}>;
 
 class StepperItemState {
 	step: number;
@@ -106,8 +106,8 @@ class StepperItemState {
 	});
 
 	props = $derived.by(() => ({
-		id: this.opts.id,
-		'data-step': this.opts.id,
+		id: this.opts.id.current,
+		'data-step': this.opts.id.current,
 		'data-state': this.state
 	}));
 }
@@ -133,7 +133,7 @@ class StepperItemTriggerState {
 	}
 
 	_onclick(e: MouseEvent & { currentTarget: EventTarget & HTMLButtonElement }) {
-		this.itemState.rootState.selectStep(this.itemState.opts.id);
+		this.itemState.rootState.selectStep(this.itemState.opts.id.current);
 		this.opts.onclick.current?.(e);
 	}
 
@@ -163,7 +163,7 @@ class StepperItemTriggerState {
 	}
 
 	props = $derived.by(() => ({
-		id: `${this.itemState.opts.id}-trigger`,
+		id: `${this.itemState.opts.id.current}-trigger`,
 		disabled: this.opts.disabled.current,
 		onclick: this._onclick.bind(this),
 		onkeydown: this._onkeydown.bind(this),
