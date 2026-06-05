@@ -37,9 +37,9 @@ func buildWeeklyDistanceTrend(currentTasks []flowTask, previousTasks []flowTask,
 	currentValues := cumulativeDailyTeamDistances(currentTasks, definitions, weekStart, 7)
 	previousValues := cumulativeDailyTeamDistances(previousTasks, definitions, weekStart.AddDate(0, 0, -7), 7)
 	return flowDistanceTrend{
-		Labels:         []string{"월", "화", "수", "목", "금", "토", "일"},
-		CurrentLabel:   "이번 주",
-		PreviousLabel:  "지난 주",
+		Labels:         dayNumberLabels(7),
+		CurrentLabel:   "current",
+		PreviousLabel:  "previous",
 		CurrentValues:  currentValues,
 		PreviousValues: previousValues,
 		CurrentTotal:   lastInt(currentValues),
@@ -54,8 +54,8 @@ func buildMonthlyDistanceTrend(currentTasks []flowTask, previousTasks []flowTask
 	previousValues := cumulativeDailyTeamDistances(previousTasks, definitions, previousStart, dayCount)
 	return flowDistanceTrend{
 		Labels:         dayNumberLabels(dayCount),
-		CurrentLabel:   "이번 달",
-		PreviousLabel:  "지난 달",
+		CurrentLabel:   "current",
+		PreviousLabel:  "previous",
 		CurrentValues:  currentValues,
 		PreviousValues: previousValues,
 		CurrentTotal:   lastInt(currentValues),
@@ -67,11 +67,11 @@ func buildMonthlyDistanceTrend(currentTasks []flowTask, previousTasks []flowTask
 func cumulativeDailyTeamDistances(tasks []flowTask, definitions flowDefinitions, startDate time.Time, dayCount int) []int {
 	dailyDistances := make([]int, dayCount)
 	for _, task := range tasks {
-		scoreDate, ok := flowTaskScoreDate(task, startDate.Location())
+		distanceDate, ok := flowTaskDistanceDate(task, startDate.Location())
 		if !ok {
 			continue
 		}
-		dayIndex := int(scoreDate.Sub(startDate).Hours() / 24)
+		dayIndex := int(distanceDate.Sub(startDate).Hours() / 24)
 		if dayIndex < 0 || dayIndex >= dayCount {
 			continue
 		}
@@ -109,7 +109,7 @@ func flowTaskParticipantCount(task flowTask) int {
 	return 1
 }
 
-func flowTaskScoreDate(task flowTask, location *time.Location) (time.Time, bool) {
+func flowTaskDistanceDate(task flowTask, location *time.Location) (time.Time, bool) {
 	value := strings.TrimSpace(task.StartDate)
 	if task.Status == "완료" && strings.TrimSpace(task.EndDate) != "" {
 		value = strings.TrimSpace(task.EndDate)
