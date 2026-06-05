@@ -14,6 +14,7 @@ type CalendarEventLoaderContext = {
 	setIsLoading: (isLoading: boolean) => void;
 	setErrorMessage: (message: string) => void;
 	refreshSelectedMonthDateCell: () => void;
+	afterRenderEvents?: (events: DayFlowEvent[]) => void;
 };
 
 export type CalendarEventLoader = {
@@ -44,6 +45,7 @@ export function createCalendarEventLoader(context: CalendarEventLoaderContext): 
 			context.setVisibleEvents(events);
 			context.setEventCount(events.length);
 			replaceCalendarEvents(context.isWorkCalendarVisible() ? events : [], startDate);
+			context.afterRenderEvents?.(events);
 		} catch (error) {
 			if (requestID !== loadEventsRequestID) return;
 			context.setVisibleEvents([]);

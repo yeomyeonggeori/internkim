@@ -2527,7 +2527,7 @@ func TestFlowMattermostNotificationCreatesUpdatesAndDeletesPost(t *testing.T) {
 	if task.MattermostPostID != "flow-post-1" {
 		t.Fatalf("created post id = %q", task.MattermostPostID)
 	}
-	if requests.createdMessages[0] == "" || !strings.Contains(requests.createdMessages[0], "요청 · 김민수 · 10분 회의") || strings.Contains(requests.createdMessages[0], "업무 열기") {
+	if requests.createdMessages[0] == "" || !strings.Contains(requests.createdMessages[0], "요청 · 김민수 · [10분 회의](") || !strings.Contains(requests.createdMessages[0], "task=task-1") || strings.Contains(requests.createdMessages[0], "업무 열기") {
 		t.Fatalf("created messages = %+v", requests.createdMessages)
 	}
 
@@ -2540,7 +2540,7 @@ func TestFlowMattermostNotificationCreatesUpdatesAndDeletesPost(t *testing.T) {
 	if len(requests.createdMessages) != 1 {
 		t.Fatalf("expected one created post, got %+v", requests.createdMessages)
 	}
-	if len(requests.updatedMessages) != 1 || !strings.Contains(requests.updatedMessages[0], "완료 · 김민수 · 회의 완료") || strings.Contains(requests.updatedMessages[0], "업무 열기") {
+	if len(requests.updatedMessages) != 1 || !strings.Contains(requests.updatedMessages[0], "완료 · 김민수 · [회의 완료](") || !strings.Contains(requests.updatedMessages[0], "task=task-1") || strings.Contains(requests.updatedMessages[0], "업무 열기") {
 		t.Fatalf("updated messages = %+v", requests.updatedMessages)
 	}
 
@@ -2758,6 +2758,8 @@ func mattermostExistingFlowSetupResponse(t *testing.T, request *http.Request) *h
 		return jsonResponse(http.StatusOK, `{}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/posts?per_page=50":
 		return jsonResponse(http.StatusOK, `{"order":["flow-entry"],"posts":{"flow-entry":{"id":"flow-entry","user_id":"bot-1","message":"Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다.","props":{"internkim_flow_entry":true}}}}`, nil)
+	case request.URL.String() == "http://mattermost.local/api/v4/posts/flow-entry" && request.Method == http.MethodDelete:
+		return jsonResponse(http.StatusOK, `{}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/posts?per_page=100":
 		return jsonResponse(http.StatusOK, `{"order":["system-add"],"posts":{"system-add":{"id":"system-add","type":"system_add_to_channel","message":"lee added to the channel by admin."}}}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/posts/system-add" && request.Method == http.MethodDelete:
@@ -3027,11 +3029,7 @@ func mattermostFlowSetupResponse(t *testing.T, request *http.Request) *http.Resp
 			return jsonResponse(http.StatusCreated, `{"id":"attendance-entry"}`, nil)
 		}
 		if payload["channel_id"] == "flow-channel" {
-			assertMattermostBearerToken(t, request, "bot-token")
-			if message, _ := payload["message"].(string); strings.Contains(message, "업무 열기") {
-				t.Fatalf("flow entry message = %q", message)
-			}
-			return jsonResponse(http.StatusCreated, `{"id":"flow-entry"}`, nil)
+			t.Fatalf("unexpected flow entry post payload: %+v", payload)
 		}
 		return jsonResponse(http.StatusCreated, `{}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/posts/attendance-entry/pin" && request.Method == http.MethodPost:
@@ -3822,8 +3820,6 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 	writeFile(t, fleetSecretPath, "fleet-secret")
 	flowChannelCreated := false
 	flowChannelPatched := false
-	flowEntryPostCreated := false
-	botJoinedFlowChannel := false
 	adminJoinedFlowChannel := false
 	calendarChannelCreated := false
 	calendarChannelPatched := false
@@ -3933,9 +3929,7 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 				t.Fatal(errorValue)
 			}
 			if payload["channel_id"] == "flow-channel" {
-				assertMattermostBearerToken(t, request, "bot-token")
-				flowEntryPostCreated = true
-				return jsonResponse(http.StatusCreated, `{"id":"flow-entry"}`, nil), nil
+				t.Fatalf("unexpected flow entry post payload: %+v", payload)
 			}
 			if payload["channel_id"] == "attendance-channel" {
 				assertMattermostBearerToken(t, request, "bot-token")
@@ -3958,9 +3952,6 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/members" && request.Method == http.MethodPost:
 			userID := mattermostChannelMemberUserID(t, request)
-			if userID == "bot-1" {
-				botJoinedFlowChannel = true
-			}
 			if userID == "admin" {
 				adminJoinedFlowChannel = true
 			}
@@ -4012,8 +4003,8 @@ func TestMattermostProvisionerAccountCreatesDefaultFlowChannel(t *testing.T) {
 	if errorValue := service.ensureMattermostProvisionerDefaults(context.Background()); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !flowChannelCreated || !flowChannelPatched || !flowEntryPostCreated || !botJoinedFlowChannel || !adminJoinedFlowChannel || !calendarChannelCreated || !calendarChannelPatched || !adminJoinedCalendarChannel || !adminJoinedAttendanceChannel {
-		t.Fatalf("default channel setup flags flow=%v/%v/%v/%v/%v calendar=%v/%v/%v attendance=%v", flowChannelCreated, flowChannelPatched, flowEntryPostCreated, botJoinedFlowChannel, adminJoinedFlowChannel, calendarChannelCreated, calendarChannelPatched, adminJoinedCalendarChannel, adminJoinedAttendanceChannel)
+	if !flowChannelCreated || !flowChannelPatched || !adminJoinedFlowChannel || !calendarChannelCreated || !calendarChannelPatched || !adminJoinedCalendarChannel || !adminJoinedAttendanceChannel {
+		t.Fatalf("default channel setup flags flow=%v/%v/%v calendar=%v/%v/%v attendance=%v", flowChannelCreated, flowChannelPatched, adminJoinedFlowChannel, calendarChannelCreated, calendarChannelPatched, adminJoinedCalendarChannel, adminJoinedAttendanceChannel)
 	}
 	if !oauthAppCreated {
 		t.Fatal("oauth app was not created")
