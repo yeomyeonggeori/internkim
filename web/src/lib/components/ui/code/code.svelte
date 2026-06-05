@@ -31,8 +31,6 @@
 </div>
 
 <style>
-	@reference '../../../../app.css';
-
 	:global(html.dark .shiki, html.dark .shiki span) {
 		color: var(--shiki-dark) !important;
 		font-style: var(--shiki-dark-font-style) !important;
@@ -42,16 +40,25 @@
 	}
 
 	:global(pre.shiki) {
-		@apply overflow-x-auto py-4 text-sm;
+		overflow-x: auto;
+		padding-block: 1rem;
+		font-size: 0.875rem;
+		line-height: 1.25rem;
 	}
 
 	:global(pre.shiki:not([data-code-overflow] *):not([data-code-overflow])) {
-		@apply overflow-y-auto;
+		overflow-y: auto;
 		max-height: min(100%, 650px);
 	}
 
 	:global(pre.shiki code) {
-		@apply grid min-w-full rounded-none border-0 bg-transparent p-0 break-words;
+		display: grid;
+		min-width: 100%;
+		border-width: 0;
+		border-radius: 0;
+		background-color: transparent;
+		padding: 0;
+		overflow-wrap: break-word;
 		counter-reset: line;
 		box-decoration-break: clone;
 	}
@@ -71,22 +78,26 @@
 	}
 
 	:global(pre.line-numbers .line::before) {
-		@apply text-muted-foreground;
+		color: hsl(var(--muted-foreground));
 	}
 
 	:global(pre .line.line--highlighted) {
-		@apply bg-secondary;
+		background-color: hsl(var(--secondary));
 	}
 
 	:global(pre .line.line--highlighted span) {
-		@apply relative;
+		position: relative;
 	}
 
 	:global(pre .line) {
-		@apply inline-block min-h-4 w-full px-4 py-0.5;
+		display: inline-block;
+		min-height: 1rem;
+		width: 100%;
+		padding-block: 0.125rem;
+		padding-inline: 1rem;
 	}
 
 	:global(pre.line-numbers .line) {
-		@apply px-2;
+		padding-inline: 0.5rem;
 	}
 </style>
