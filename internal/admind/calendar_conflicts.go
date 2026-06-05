@@ -90,6 +90,26 @@ func (service *Service) dismissCalendarConflict(ctx context.Context, conflictID 
 	return errorValue
 }
 
+func (service *Service) recordCalendarFieldConflicts(ctx context.Context, localEvent calendarEvent, remoteEvent calendarEvent, localChangedFields []string) error {
+	if len(localChangedFields) == 0 {
+		return nil
+	}
+	previousRemote := decodeCalendarEventFromRawICS(localEvent.RawICS, localEvent.RemoteHref, localEvent.CreatedByEmail)
+	remoteChangedFields := diffCalendarEventFields(previousRemote, remoteEvent)
+	collisions := intersectCalendarFields(localChangedFields, remoteChangedFields)
+	if len(collisions) == 0 {
+		return nil
+	}
+	for _, field := range collisions {
+		localValue := calendarEventFieldStringValue(localEvent, field)
+		remoteValue := calendarEventFieldStringValue(remoteEvent, field)
+		if errorValue := service.recordCalendarConflict(ctx, localEvent.ID, localEvent.UID, field, localValue, remoteValue); errorValue != nil {
+			return fmt.Errorf("record calendar conflict %s/%s: %w", localEvent.UID, field, errorValue)
+		}
+	}
+	return nil
+}
+
 func calendarEventFieldStringValue(event calendarEvent, field string) string {
 	switch field {
 	case calendarFieldTitle:
