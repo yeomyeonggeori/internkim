@@ -2,6 +2,7 @@
 	import '../app.css';
 	import { page } from '$app/state';
 	import AppRail from '$lib/components/app-rail.svelte';
+	import WebAuthGate from '$lib/components/web-auth-gate.svelte';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb/index.js';
 	import { ThemeSelector } from '$lib/components/ui/theme-selector';
 	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
@@ -32,6 +33,16 @@
 		if (pathname.startsWith('/mail')) return text.mail;
 		if (pathname.startsWith('/attendance')) return text.attendance;
 		return text.flow;
+	}
+
+	function usesWebAuthGate(pathname: string) {
+		return ['/flow/', '/memory/', '/calendar/', '/mail/', '/attendance/'].some(
+			(prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix)
+		);
+	}
+
+	function currentReturnPath() {
+		return page.url.pathname + page.url.search;
 	}
 </script>
 
@@ -71,7 +82,13 @@
 					</div>
 				</header>
 				<div class="flex min-h-0 flex-1 overflow-y-auto">
-					{@render children()}
+					{#if usesWebAuthGate(page.url.pathname)}
+						<WebAuthGate returnPath={currentReturnPath()}>
+							{@render children()}
+						</WebAuthGate>
+					{:else}
+						{@render children()}
+					{/if}
 				</div>
 			</div>
 		</div>

@@ -60,12 +60,5 @@ func (service *Service) handleAttendance(responseWriter http.ResponseWriter, req
 }
 
 func (service *Service) authorizeAttendanceRequest(request *http.Request) bool {
-	if isLocalRequest(request) {
-		return true
-	}
-	actorEmail := service.webStaffActorEmail(request)
-	if actorEmail == "" {
-		return false
-	}
-	return service.isFlowStaffActor(request.Context(), actorEmail)
+	return service.authorizeInternalOrWebStaffRequest(request)
 }

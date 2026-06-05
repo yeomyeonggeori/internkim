@@ -77,7 +77,7 @@ func (service *Service) writeUserMemoryGraph(responseWriter http.ResponseWriter,
 }
 
 func (service *Service) memoryActorEmail(request *http.Request) string {
-	if actorEmail := service.webActorEmail(request); actorEmail != "" {
+	if actorEmail := service.webStaffActorEmail(request); actorEmail != "" {
 		return actorEmail
 	}
 	if !isLocalRequest(request) {

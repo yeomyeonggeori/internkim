@@ -64,7 +64,7 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - Stop if the plan unexpectedly includes `binaries`, `local-llm`, `llama.cpp`,
   `llama-server`, CUDA, or Jetson model runtime work.
 - For Admin/Flow web UI-only changes, use
-  `./internkim setup --only admin-web`; add `--force` only when needed.
+  `./internkim setup --only web`; add `--force` only when needed.
 - For a small `internkim-admind` change, use `make build` and
   `./internkim setup --only admind --force`.
 - For a small `internkim-capabilityd` change, use `make build` and

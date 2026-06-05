@@ -6,13 +6,11 @@ test('loads conflicts after remote sync and calendar refresh complete', async ()
 	const originalFetch = globalThis.fetch;
 	const calls: string[] = [];
 	try {
-		globalThis.fetch = Object.assign(
-			async (input: RequestInfo | URL): Promise<Response> => {
-				calls.push(`fetch:${String(input)}`);
-				return new Response('{}', { status: 200 });
-			},
-			{ preconnect: originalFetch.preconnect }
-		);
+		const mockFetch: typeof fetch = async (input) => {
+			calls.push(`fetch:${String(input)}`);
+			return new Response('{}', { status: 200 });
+		};
+		globalThis.fetch = mockFetch;
 
 		await syncRemoteCalendarAndRefreshConflicts(
 			'Remote sync failed',
@@ -34,13 +32,11 @@ test('loads conflicts after remote sync fails', async () => {
 	const originalFetch = globalThis.fetch;
 	const calls: string[] = [];
 	try {
-		globalThis.fetch = Object.assign(
-			async (input: RequestInfo | URL): Promise<Response> => {
-				calls.push(`fetch:${String(input)}`);
-				return new Response('Unauthorized', { status: 401 });
-			},
-			{ preconnect: originalFetch.preconnect }
-		);
+		const mockFetch: typeof fetch = async (input) => {
+			calls.push(`fetch:${String(input)}`);
+			return new Response('Unauthorized', { status: 401 });
+		};
+		globalThis.fetch = mockFetch;
 
 		let caughtError: unknown;
 		try {

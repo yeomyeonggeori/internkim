@@ -160,7 +160,7 @@ make build
 터널 설정이 한 번 끝난 기기는 LAN 밖에서도 setup할 수 있습니다. 로컬에 `cloudflared`가 설치되어 있으면 CLI가 LAN SSH를 먼저 찾고, 보드가 로컬 네트워크에 없을 때 `ssh.<deviceID>.example.test` 경로의 Cloudflare Access SSH로 자동 전환합니다. Setup의 디렉터리 업로드는 tar-over-ssh를 사용하고, sparse runtime artifact는 rsync를 사용합니다. SSH 명령은 재시도와 per-attempt timeout을 갖습니다.
 
 ```bash
-./internkim setup --only admin-web --force
+./internkim setup --only web --force
 ```
 
 LAN 탐색을 건너뛰고 Cloudflare SSH를 바로 쓰려면 `--cloudflare-ssh`를 붙입니다.
@@ -271,7 +271,7 @@ make deploy-after-sim
 ./internkim sim cleanup
 ```
 
-`internkim update --sim-first`는 먼저 `make build`와 `internkim sim gate`를 실행하고, gate가 성공한 경우에만 실기기 `setup --only admin-web,binaries,services --force`를 진행합니다. 실기기 배포 직전 sim tunnel 충돌을 피하기 위해 sim VM 또는 cloudflared를 중지합니다. gate가 실패하면 실기기 배포는 중단하고 실패한 단계의 로그를 먼저 확인해야 합니다.
+`internkim update --sim-first`는 먼저 `make build`와 `internkim sim gate`를 실행하고, gate가 성공한 경우에만 실기기 `setup --only web,binaries,services --force`를 진행합니다. 실기기 배포 직전 sim tunnel 충돌을 피하기 위해 sim VM 또는 cloudflared를 중지합니다. gate가 실패하면 실기기 배포는 중단하고 실패한 단계의 로그를 먼저 확인해야 합니다.
 
 `sim`은 `.internkim/simulations/sim` 상태만 사용하며 실기기 상태와 fleet/tunnel 값이 겹치면 실행을 중단합니다. Cloudflare Pages 배포는 sim에서 건너뛰고, VM 내부 board UI와 public URL smoke를 검증합니다. Jetson 전용 LiteRT/GPU smoke는 sim에서 `not applicable`입니다.
 
@@ -342,6 +342,10 @@ make build-companion-shell
 Primary flow는 Mattermost 어디서나 실행할 수 있는 `/connect`입니다. 일반 사용자는 Admin 권한 없이 자기 Mattermost identity에 묶인 10분짜리 one-time pairing code를 ephemeral 응답으로 받고 Companion 앱을 연결합니다. slash command가 아직 provision되지 않은 환경에서는 InternKim DM의 `connect` 또는 `컴패니언 연결` 텍스트 fallback도 동작합니다. Pages 관리자 화면은 다운로드, 상태 확인, revoke, 진단용으로 남깁니다. 연결된 companion은 inbound port를 열지 않고 device broker를 long-poll합니다.
 
 관리자 화면은 `https://<deviceID>.example.test/admin`에서 엽니다. 이 주소는 Cloudflare Access 인증 뒤 기기 안의 관리자 UI를 same-origin으로 서빙하므로 초대, Companion 연결, 백업/복구가 브라우저에서 바로 동작합니다. `https://api.example.test/?device_id=<deviceID>`는 배포/진입용 Pages 주소이며, 실제 작업은 기기 주소의 `/admin`으로 이동합니다.
+
+Flow, 일정, 출결 웹앱은 Admin/SSH와 같은 Cloudflare Access application으로 직접 막지 않습니다. 브라우저 요청은 Mattermost session, InternKim web session, Cloudflare Access email 중 하나로 신원을 확인한 뒤 현재 InternKim people/policy에서 active staff인지 다시 판정합니다. Mattermost 앱에서 이미 로그인되어 있으면 Mattermost session으로 통과하고, 없으면 Mattermost OAuth 또는 Cloudflare Access email OTP로 `internkim_session`을 발급합니다. Admin API는 일반 web session만으로 열지 않고 기존 admin 권한 경계를 유지합니다.
+
+김인턴 내부 호출은 사용자 웹 인증에 의존하지 않습니다. admind와 capabilityd는 Mattermost API, Blueclaw API, Flow/일정/출결 내부 경로를 로컬 루프백 또는 내부 서비스 경계로 호출합니다. 사용자-facing 웹 API를 강화할 때도 local/internal 호출 예외는 유지해야 합니다.
 
 Deep link를 직접 넘기는 CLI fallback도 지원합니다.
 

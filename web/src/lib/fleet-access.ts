@@ -2,6 +2,7 @@ import {
 	deleteRootAccessApplication,
 	ensureAdminAccessApplications,
 	ensureOneTimePinIdentityProvider,
+	ensureWebSessionAccessApplication,
 	syncSSHAccessPolicyEmails,
 	type CFEnv
 } from './cloudflare';
@@ -25,6 +26,16 @@ export function fleetAdminAccessEmails(records: UserRecord[], fallbackAdminEmail
 	const emails = adminEmails(records);
 	if (emails.length > 0) return emails;
 	if (records.length > 0) return [];
+	const fallbackEmail = normalizeEmail(fallbackAdminEmail);
+	return fallbackEmail ? [fallbackEmail] : [];
+}
+
+export function fleetWebSessionAccessEmails(records: UserRecord[], fallbackAdminEmail: string): string[] {
+	const emails = records
+		.filter((record) => !record.isIncomplete && record.status !== 'inactive')
+		.map((record) => normalizeEmail(record.email))
+		.filter(Boolean);
+	if (emails.length > 0) return [...new Set(emails)];
 	const fallbackEmail = normalizeEmail(fallbackAdminEmail);
 	return fallbackEmail ? [fallbackEmail] : [];
 }
@@ -58,6 +69,7 @@ export async function ensureFleetAccessApplications(
 
 	const deviceWithoutRootAccess = await removeLegacyRootAccessApplication(env, fleetID, device);
 	await ensureAdminAccessApplications(env, fleetID, identityProviderID, adminAccessEmails);
+	await ensureWebSessionAccessApplication(env, fleetID, identityProviderID, fleetWebSessionAccessEmails(records, fallbackAdminEmail));
 	await Promise.all(
 		fleetSSHAccessApplicationIDs(deviceWithoutRootAccess).map((applicationID) =>
 			syncSSHAccessPolicyEmails(env, applicationID, adminAccessEmails)
