@@ -660,7 +660,7 @@ else
   jq --arg ds "postgres://mmuser:${MM_DB_PASS}@localhost/mattermost?sslmode=disable&connect_timeout=10" \
      --arg url "$SITE_URL" \
      --arg resourcePaths "__MANAGED_RESOURCE_PATHS__" \
-     '.SqlSettings.DriverName = "postgres" | .SqlSettings.DataSource = $ds | .FileSettings.DriverName = "local" | .FileSettings.Directory = "/opt/mattermost/data" | .FileSettings.EnableFileAttachments = true | .ServiceSettings.SiteURL = $url | .ServiceSettings.AllowCorsFrom = $url | .ServiceSettings.CorsAllowCredentials = true | .ServiceSettings.ManagedResourcePaths = $resourcePaths | .ServiceSettings.EnableUserAccessTokens = true | .ServiceSettings.EnableBotAccountCreation = true | .TeamSettings.TeammateNameDisplay = "nickname_full_name"' \
+     '.SqlSettings.DriverName = "postgres" | .SqlSettings.DataSource = $ds | .FileSettings.DriverName = "local" | .FileSettings.Directory = "/opt/mattermost/data" | .FileSettings.EnableFileAttachments = true | .ServiceSettings.SiteURL = $url | .ServiceSettings.AllowCorsFrom = $url | .ServiceSettings.CorsAllowCredentials = true | .ServiceSettings.ManagedResourcePaths = $resourcePaths | .ServiceSettings.EnableUserAccessTokens = true | .ServiceSettings.EnableBotAccountCreation = true | .TeamSettings.TeammateNameDisplay = "nickname_full_name" | .EmailSettings.SendPushNotifications = true | .EmailSettings.PushNotificationServer = "https://push-test.mattermost.com" | .EmailSettings.PushNotificationContents = "id_loaded"' \
      /opt/mattermost/config/config.json > /opt/mattermost/config/config.tmp \
      && mv /opt/mattermost/config/config.tmp /opt/mattermost/config/config.json
   chown mattermost:mattermost /opt/mattermost/config/config.json

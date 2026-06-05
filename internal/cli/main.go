@@ -56,6 +56,7 @@ var (
 
 const jetsonDefaultUser = "internkim"
 const jetsonDefaultPassword = "blueclaw"
+const mattermostDefaultPushNotificationServer = "https://push-test.mattermost.com"
 
 type config struct {
 	APIBaseURL     string
@@ -1422,6 +1423,7 @@ document.setdefault("SqlSettings", {})
 document.setdefault("ServiceSettings", {})
 document.setdefault("FileSettings", {})
 document.setdefault("TeamSettings", {})
+document.setdefault("EmailSettings", {})
 document["SqlSettings"]["DriverName"] = "postgres"
 document["SqlSettings"]["DataSource"] = "postgres://mmuser:%%s@localhost/mattermost?sslmode=disable&connect_timeout=10" %% os.environ["MATTERMOST_DB_PASS"]
 document["FileSettings"]["DriverName"] = "local"
@@ -1432,6 +1434,9 @@ document["ServiceSettings"]["AllowCorsFrom"] = os.environ["MATTERMOST_SITE_URL"]
 document["ServiceSettings"]["CorsAllowCredentials"] = True
 document["ServiceSettings"]["ManagedResourcePaths"] = os.environ["MATTERMOST_MANAGED_RESOURCE_PATHS"]
 document["TeamSettings"]["TeammateNameDisplay"] = "nickname_full_name"
+document["EmailSettings"]["SendPushNotifications"] = True
+document["EmailSettings"]["PushNotificationServer"] = "%s"
+document["EmailSettings"]["PushNotificationContents"] = "id_loaded"
 path.write_text(json.dumps(document, indent=2, sort_keys=True))
 PY
 cat > /etc/systemd/system/mattermost.service <<'SVCEOF'
@@ -1457,7 +1462,7 @@ WantedBy=multi-user.target
 SVCEOF
 systemctl daemon-reload
 systemctl enable mattermost 2>&1 && echo "enable_ok" || echo "enable_failed"
-systemctl start mattermost 2>&1 && echo "start_ok" || echo "start_failed"`, mmDBPass, mattermostManagedResourcePathSetting()))
+systemctl start mattermost 2>&1 && echo "start_ok" || echo "start_failed"`, mmDBPass, mattermostManagedResourcePathSetting(), mattermostDefaultPushNotificationServer))
 
 	if strings.Contains(installResult, "tar_failed") {
 		fmt.Printf("  ERROR: %s\n", m.t("압축 해제 실패", "Failed to extract tarball"))
@@ -1905,7 +1910,9 @@ func mattermostSetupConfigurationPatch(siteURL string) map[string]any {
 		"TeamSettings": map[string]any{
 			"TeammateNameDisplay": "nickname_full_name",
 		},
-		"EmailSettings": map[string]string{
+		"EmailSettings": map[string]any{
+			"SendPushNotifications":    true,
+			"PushNotificationServer":   mattermostDefaultPushNotificationServer,
 			"PushNotificationContents": "id_loaded",
 		},
 	}
