@@ -201,6 +201,12 @@
 		box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 28%, transparent);
 	}
 
+	.calendar-stage :global(.internkim-calendar-event-focused) {
+		box-shadow:
+			0 0 0 2px color-mix(in oklab, var(--primary) 70%, transparent),
+			0 10px 24px color-mix(in oklab, var(--primary) 18%, transparent);
+	}
+
 	.calendar-stage :global(.df-month-week-grid > .df-month-day-cell.month-selected-date:nth-child(1)),
 	.calendar-stage :global(.df-month-week-grid > .df-month-day-cell.month-selected-date:nth-child(7)) {
 		background: color-mix(in oklab, var(--primary) 8%, transparent);
