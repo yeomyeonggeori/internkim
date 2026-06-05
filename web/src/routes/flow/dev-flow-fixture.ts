@@ -1,3 +1,5 @@
+import { distanceForTaskProgress, taskTeamDistance } from './report/flow-report-distance';
+
 type FlowWeek = {
 	code: string;
 	startISO: string;
@@ -52,6 +54,22 @@ type FlowMetrics = {
 	memberScores: Record<string, number>;
 };
 
+type FlowReportTrend = {
+	labels: string[];
+	currentLabel: string;
+	previousLabel: string;
+	currentValues: number[];
+	previousValues: number[];
+	currentTotal: number;
+	previousTotal: number;
+	unit: string;
+};
+
+type FlowReportSnapshot = {
+	weeklyDistanceTrend: FlowReportTrend;
+	monthlyDistanceTrend: FlowReportTrend;
+};
+
 type FlowSizeDefinition = {
 	name: string;
 	distanceKm: number;
@@ -75,6 +93,7 @@ export type DevFlowSummary = {
 	tasks: FlowTask[];
 	metrics: FlowMetrics;
 	definitions: FlowDefinitions;
+	report: FlowReportSnapshot;
 	statusOptions: string[];
 	currentUserEmail: string;
 	currentUserName: string;
@@ -82,8 +101,9 @@ export type DevFlowSummary = {
 	source: string;
 };
 
-const flowTypes = ['기능', '개선', '변경', '수정', '기획', '디자인', '마케팅', '운영', '회의', '미팅', '문서', '기타'];
+const flowTypes = ['운동', '마케팅', '데이터 분석', '운영', '기획', '미팅', '회의', '문서', '보안', '연동', '변경', '설계', 'UI', '기능 추가', '리팩터링', '버그 수정', '기능', '개선', '검증', '디자인', '기타'];
 const flowStatuses = ['요청', '예정', '진행', '완료', '일시정지', '기각', '중단'];
+const baselineWeekStartISO = '2026-06-01';
 
 const flowSizes: FlowSizeDefinition[] = [
 	sizeDefinition('XS', 1, 1, '아주 사소한 변경', '전화 / 10분 회의 / 전달 / 정리 / 일정 조율', '잠깐이면 끝낼 것'),
@@ -110,7 +130,7 @@ const fixtureMembers: FlowMember[] = [
 export function createDevFlowSummary(weekCode: string | null | undefined, currentUserEmail = 'admin@example.com'): DevFlowSummary {
 	const week = buildFlowWeek(weekCode);
 	const tasks = createFixtureTasks(week);
-	const definitions = { categories: ['개발', '운영', '기획', '디자인'], types: flowTypes, sizes: flowSizes };
+	const definitions = { categories: ['여명거리', '김인턴'], types: flowTypes, sizes: flowSizes };
 	const members = scoreMembers(fixtureMembers, tasks, definitions);
 
 	return {
@@ -119,6 +139,7 @@ export function createDevFlowSummary(weekCode: string | null | undefined, curren
 		tasks,
 		metrics: buildMetrics(tasks, definitions),
 		definitions,
+		report: buildReportSnapshot(tasks, members, definitions, week),
 		statusOptions: flowStatuses,
 		currentUserEmail,
 		currentUserName: memberNameForEmail(members, currentUserEmail),
@@ -128,22 +149,49 @@ export function createDevFlowSummary(weekCode: string | null | undefined, curren
 }
 
 function createFixtureTasks(week: FlowWeek): FlowTask[] {
-	return [
-		task('flow-dashboard', week, 'kim-intern', ['kim-intern', 'engineer'], '개발', '기능', 'Flow 주간 리포트 카드 정리', '업무 진행도 화면에서 상태와 거리 흐름을 빠르게 본다.', 'L', '진행', 0, 0),
-		task('calendar-sync', week, 'engineer', ['engineer'], '개발', '개선', '캘린더 원격 동기화 재시도 점검', '반복 동기화 실패를 줄인다.', 'M', '완료', 1, 2),
-		task('attendance-policy', week, 'operator', ['operator', 'kim-intern'], '운영', '기획', '근태 위치 정책 초안 작성', '오피스 출퇴근 판정 기준을 명확히 한다.', 'M', '요청', 2, 0, '운영팀 검토 후 진행'),
-		task('mail-triage', week, 'kim-intern', ['kim-intern'], '운영', '문서', '메일 분류 규칙 정리', '반복 문의를 빠르게 triage한다.', 'S', '예정', 3, 0),
-		task('design-pass', week, 'designer', ['designer'], '디자인', '디자인', 'Flow 모바일 간격 점검', '모바일에서 카드와 표가 안정적으로 보이게 한다.', 'S', '완료', 4, 4),
-		task('mattermost-smoke', week, 'operator', ['operator', 'engineer'], '운영', '검증', 'Mattermost smoke 시나리오 재정리', '실서버 배포 전 수동 확인 범위를 줄인다.', 'M', '일시정지', 2, 0, '실서버 계정 준비 대기'),
-		task('memory-graph', week, 'engineer', ['engineer', 'kim-intern'], '개발', '기능', 'Memory 그래프 빈 상태 처리', 'Blueclaw 연결 전에도 화면이 깨지지 않게 한다.', 'L', '중단', 5, 0, 'Blueclaw API 계약 변경 대기'),
-		task('launch-brief', week, 'designer', ['designer', 'operator'], '기획', '문서', '내부 데모 브리프 작성', '팀이 데모 흐름을 같은 순서로 볼 수 있게 한다.', 'XS', '완료', 1, 3),
-		task('roadmap-review', week, 'planner', ['planner'], '기획', '기획', '다음 스프린트 로드맵 정리', '우선순위와 진행 순서를 정리한다.', 'M', '진행', 1, 0),
-		task('campaign-copy', week, 'marketer', ['marketer'], '기획', '마케팅', '온보딩 캠페인 문구 작성', '신규 사용자가 첫 업무를 빠르게 등록하게 한다.', 'S', '완료', 2, 4),
-		task('regression-check', week, 'qa', ['qa'], '개발', '검증', 'Flow 회귀 테스트 체크리스트 실행', '보고 탭 주요 흐름을 배포 전에 확인한다.', 'M', '완료', 3, 5),
-		task('customer-reply', week, 'support', ['support'], '운영', '운영', '고객 문의 답변 정리', '반복 문의 답변을 표준화한다.', 'S', '진행', 2, 0),
-		task('release-note', week, 'writer', ['writer'], '운영', '문서', '릴리즈 노트 초안 작성', '팀 변경 사항을 읽기 쉽게 정리한다.', 'S', '완료', 4, 5),
-		task('market-scan', week, 'researcher', ['researcher'], '기획', '기타', '경쟁 서비스 화면 조사', '업무 대시보드 비교 기준을 수집한다.', 'M', '진행', 0, 0)
+	const tasks = [
+		task('flow-dashboard', week, 'kim-intern', ['kim-intern', 'engineer'], '여명거리', '기능', 'Flow 주간 리포트 카드 정리', '업무 진행도 화면에서 상태와 거리 흐름을 빠르게 본다.', 'L', '진행', 0, 0),
+		task('calendar-sync', week, 'engineer', ['engineer'], '여명거리', '개선', '캘린더 원격 동기화 재시도 점검', '반복 동기화 실패를 줄인다.', 'M', '완료', 1, 2),
+		task('attendance-policy', week, 'operator', ['operator', 'kim-intern'], '김인턴', '기획', '근태 위치 정책 초안 작성', '오피스 출퇴근 판정 기준을 명확히 한다.', 'M', '요청', 2, 0, '운영팀 검토 후 진행'),
+		task('mail-triage', week, 'kim-intern', ['kim-intern'], '김인턴', '문서', '메일 분류 규칙 정리', '반복 문의를 빠르게 triage한다.', 'S', '예정', 3, 0),
+		task('design-pass', week, 'designer', ['designer'], '여명거리', '디자인', 'Flow 모바일 간격 점검', '모바일에서 카드와 표가 안정적으로 보이게 한다.', 'S', '완료', 4, 4),
+		task('mattermost-smoke', week, 'operator', ['operator', 'engineer'], '김인턴', '검증', 'Mattermost smoke 시나리오 재정리', '실서버 배포 전 수동 확인 범위를 줄인다.', 'M', '일시정지', 2, 0, '실서버 계정 준비 대기'),
+		task('memory-graph', week, 'engineer', ['engineer', 'kim-intern'], '여명거리', '기능', 'Memory 그래프 빈 상태 처리', 'Blueclaw 연결 전에도 화면이 깨지지 않게 한다.', 'L', '중단', 5, 0, 'Blueclaw API 계약 변경 대기'),
+		task('launch-brief', week, 'designer', ['designer', 'operator'], '김인턴', '문서', '내부 데모 브리프 작성', '팀이 데모 흐름을 같은 순서로 볼 수 있게 한다.', 'XS', '완료', 1, 3),
+		task('roadmap-review', week, 'planner', ['planner'], '여명거리', '기획', '다음 스프린트 로드맵 정리', '우선순위와 진행 순서를 정리한다.', 'M', '진행', 1, 0),
+		task('campaign-copy', week, 'marketer', ['marketer'], '김인턴', '마케팅', '온보딩 캠페인 문구 작성', '신규 사용자가 첫 업무를 빠르게 등록하게 한다.', 'S', '완료', 2, 4),
+		task('regression-check', week, 'qa', ['qa'], '여명거리', '검증', 'Flow 회귀 테스트 체크리스트 실행', '보고 탭 주요 흐름을 배포 전에 확인한다.', 'M', '완료', 3, 5),
+		task('customer-reply', week, 'support', ['support'], '김인턴', '운영', '고객 문의 답변 정리', '반복 문의 답변을 표준화한다.', 'S', '진행', 2, 0),
+		task('release-note', week, 'writer', ['writer'], '여명거리', '문서', '릴리즈 노트 초안 작성', '팀 변경 사항을 읽기 쉽게 정리한다.', 'S', '완료', 4, 5),
+		task('market-scan', week, 'researcher', ['researcher'], '김인턴', '기타', '경쟁 서비스 화면 조사', '업무 대시보드 비교 기준을 수집한다.', 'M', '진행', 0, 0)
 	];
+	const weekOffset = weekOffsetFromBaseline(week);
+	if (weekOffset < 0) return previousFixtureTasks(tasks, Math.abs(weekOffset));
+	if (weekOffset > 0) return [...tasks, ...futureFixtureTasks(week).slice(0, Math.min(weekOffset, 4))];
+	return tasks;
+}
+
+function previousFixtureTasks(tasks: FlowTask[], weekOffset: number): FlowTask[] {
+	const completedSizes = ['XS', 'S', 'M'];
+	const progressSizes = ['S', 'M', 'L'];
+	return tasks.map((task, index) => {
+		if (task.status === '완료') return { ...task, size: completedSizes[(index + weekOffset) % completedSizes.length] ?? task.size };
+		if (task.status === '진행') return { ...task, size: progressSizes[(index + weekOffset) % progressSizes.length] ?? task.size };
+		return task;
+	});
+}
+
+function futureFixtureTasks(week: FlowWeek): FlowTask[] {
+	return [
+		task('partner-demo', week, 'planner', ['planner', 'marketer'], '여명거리', '미팅', '파트너 데모 리허설', '외부 데모 전 흐름과 메시지를 맞춘다.', 'S', '완료', 0, 1),
+		task('qa-followup', week, 'qa', ['qa', 'engineer'], '김인턴', '검증', 'Flow 보고 그래프 재확인', '주차 이동과 거리 그래프 반영을 확인한다.', 'M', '진행', 2, 0),
+		task('release-review', week, 'writer', ['writer'], '여명거리', '문서', '릴리즈 문구 검수', '변경 내용을 팀이 같은 표현으로 안내한다.', 'M', '완료', 4, 4),
+		task('support-cleanup', week, 'support', ['support', 'operator'], '김인턴', '운영', '운영 문의 정리', '반복 문의와 답변 기준을 정리한다.', 'S', '완료', 5, 5)
+	];
+}
+
+function weekOffsetFromBaseline(week: FlowWeek): number {
+	return Math.trunc(dateOffset(baselineWeekStartISO, week.startISO) / 7);
 }
 
 function task(
@@ -209,33 +257,106 @@ function buildMetrics(tasks: FlowTask[], definitions: FlowDefinitions): FlowMetr
 		if (task.status === '일시정지') metrics.pausedTasks += 1;
 		if (task.status === '중단') metrics.stoppedTasks += 1;
 
-		const score = scoreForTask(task, definitions);
-		metrics.totalScore += score;
-		for (const participantName of task.participantNames) {
-			increment(metrics.memberScores, participantName, score);
+			const distance = distanceForTaskProgress(task, definitions);
+			metrics.totalScore += distance;
+			for (const participantName of task.participantNames) {
+				increment(metrics.memberScores, participantName, distance);
+			}
 		}
-	}
 
 	return metrics;
 }
 
-function scoreMembers(members: FlowMember[], tasks: FlowTask[], definitions: FlowDefinitions): FlowMember[] {
-	return members.map((member) => {
-		const memberTasks = tasks.filter((task) => task.participantIDs.includes(member.id));
-		return {
-			...member,
-			score: memberTasks.reduce((total, task) => total + scoreForTask(task, definitions), 0),
-			activeTaskCount: memberTasks.filter((task) => task.status !== '완료' && task.status !== '기각' && task.status !== '중단').length,
-			completeTaskCount: memberTasks.filter((task) => task.status === '완료').length
-		};
+function buildReportSnapshot(tasks: FlowTask[], members: FlowMember[], definitions: FlowDefinitions, week: FlowWeek): FlowReportSnapshot {
+	return {
+		weeklyDistanceTrend: buildWeeklyDistanceTrend(tasks, definitions, week),
+		monthlyDistanceTrend: buildMonthlyDistanceTrend(tasks, members, definitions, week)
+	};
+}
+
+function buildWeeklyDistanceTrend(tasks: FlowTask[], definitions: FlowDefinitions, week: FlowWeek): FlowReportTrend {
+	const currentValues = cumulativeDailyTeamDistances(tasks, definitions, week.startISO, 7);
+	const previousValues = currentValues.map((value, index) => Math.max(0, value - index - 1));
+
+	return {
+		labels: ['월', '화', '수', '목', '금', '토', '일'],
+		currentLabel: '이번 주',
+		previousLabel: '지난 주',
+		currentValues,
+		previousValues,
+		currentTotal: currentValues.at(-1) ?? 0,
+		previousTotal: previousValues.at(-1) ?? 0,
+		unit: 'km'
+	};
+}
+
+function buildMonthlyDistanceTrend(tasks: FlowTask[], members: FlowMember[], definitions: FlowDefinitions, week: FlowWeek): FlowReportTrend {
+	const monthStart = monthStartISO(week.startISO);
+	const dayCount = daysInMonth(monthStart);
+	const currentValues = cumulativeDailyTeamDistances(tasks, definitions, monthStart, dayCount);
+	const currentTotal = currentValues.at(-1) ?? 0;
+	const baselineTotal = Math.max(currentTotal, members.reduce((total, member) => total + member.score, 0));
+	const previousValues = buildPreviousMonthDistances(dayCount, baselineTotal);
+
+	return {
+		labels: Array.from({ length: dayCount }, (_, index) => String(index + 1)),
+		currentLabel: '이번 달',
+		previousLabel: '지난 달',
+		currentValues,
+		previousValues,
+		currentTotal,
+		previousTotal: previousValues.at(-1) ?? 0,
+		unit: 'km'
+	};
+}
+
+function cumulativeDailyTeamDistances(tasks: FlowTask[], definitions: FlowDefinitions, startISO: string, dayCount: number): number[] {
+	const dailyDistances = Array.from({ length: dayCount }, () => 0);
+	for (const task of tasks) {
+		const dayIndex = dateOffset(startISO, distanceDateForTask(task));
+		if (dayIndex < 0 || dayIndex >= dayCount) continue;
+		dailyDistances[dayIndex] += taskTeamDistance(task, definitions);
+	}
+
+	let runningTotal = 0;
+	return dailyDistances.map((distance) => {
+		runningTotal += distance;
+		return runningTotal;
 	});
 }
 
-function scoreForTask(task: FlowTask, definitions: FlowDefinitions): number {
-	const distance = definitions.sizes.find((size) => size.name === task.size)?.distanceKm ?? 0;
-	if (task.status === '완료') return distance;
-	if (task.status === '진행') return Math.floor(distance / 2);
-	return 0;
+function scoreMembers(members: FlowMember[], tasks: FlowTask[], definitions: FlowDefinitions): FlowMember[] {
+	return members.map((member) => {
+			const memberTasks = tasks.filter((task) => task.participantIDs.includes(member.id));
+			return {
+				...member,
+				score: memberTasks.reduce((total, task) => total + distanceForTaskProgress(task, definitions), 0),
+				activeTaskCount: memberTasks.filter((task) => task.status !== '완료' && task.status !== '기각' && task.status !== '중단').length,
+				completeTaskCount: memberTasks.filter((task) => task.status === '완료').length
+			};
+		});
+}
+
+function buildPreviousMonthDistances(dayCount: number, currentTotal: number): number[] {
+	const targetTotal = Math.max(0, currentTotal - Math.max(4, Math.round(currentTotal * 0.18)));
+	let runningTotal = 0;
+	return Array.from({ length: dayCount }, (_, index) => {
+		const isWorkdayLike = index % 7 !== 5 && index % 7 !== 6;
+		if (isWorkdayLike && runningTotal < targetTotal) {
+			runningTotal = Math.min(targetTotal, runningTotal + Math.max(1, Math.round(targetTotal / Math.max(8, dayCount - 8))));
+		}
+		return runningTotal;
+	});
+}
+
+function monthStartISO(value: string): string {
+	const date = new Date(`${value}T00:00:00Z`);
+	return dateISO(new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1)));
+}
+
+function daysInMonth(monthStart: string): number {
+	const date = new Date(`${monthStart}T00:00:00Z`);
+	return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
 }
 
 function buildFlowWeek(inputWeekCode: string | null | undefined): FlowWeek {
@@ -273,6 +394,11 @@ function weekCodeForMonday(monday: Date): string {
 	return `${String(year).slice(2)}W${String(week).padStart(2, '0')}`;
 }
 
+function distanceDateForTask(task: FlowTask): string {
+	if (task.status === '완료' && task.endDate) return task.endDate;
+	return task.startDate || task.endDate || '';
+}
+
 function member(id: string, name: string, email: string, role: string, hireDate: string): FlowMember {
 	return { id, name, email, role, hireDate, mattermostStatus: 'active', score: 0, activeTaskCount: 0, completeTaskCount: 0 };
 }
@@ -306,6 +432,13 @@ function increment(record: Record<string, number>, key: string, amount: number):
 
 function addDays(isoDate: string, days: number): string {
 	return dateISO(addDate(new Date(`${isoDate}T00:00:00.000Z`), days));
+}
+
+function dateOffset(startISO: string, targetISO: string): number {
+	if (!targetISO) return -1;
+	const start = new Date(`${startISO}T00:00:00.000Z`).getTime();
+	const target = new Date(`${targetISO}T00:00:00.000Z`).getTime();
+	return Math.floor((target - start) / (24 * 60 * 60 * 1000));
 }
 
 function addDate(date: Date, days: number): Date {
