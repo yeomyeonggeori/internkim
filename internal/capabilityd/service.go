@@ -618,7 +618,7 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 	}
 	body := map[string]any{
 		"channel_id": handle.ChannelID,
-		"message":    mattermostAskMessage(message, request.Interaction),
+		"message":    strings.TrimSpace(message),
 		"props":      service.mattermostReplyProperties(request, handle),
 	}
 	if strings.TrimSpace(handle.RootID) != "" {
@@ -694,25 +694,6 @@ func (service Service) mattermostReplyProperties(request replyRequest, handle pl
 	return properties
 }
 
-func mattermostAskMessage(message string, interaction *platformAskInteraction) string {
-	if interaction == nil || !strings.HasPrefix(strings.TrimSpace(interaction.Kind), "ask_choice") {
-		return message
-	}
-	lines := []string{strings.TrimSpace(message)}
-	for index, option := range interaction.Options {
-		label := strings.TrimSpace(option.Label)
-		if label == "" {
-			continue
-		}
-		suffix := ""
-		if strings.TrimSpace(option.Key) == strings.TrimSpace(interaction.RecommendedOptionKey) {
-			suffix = " (추천)"
-		}
-		lines = append(lines, strconv.Itoa(index+1)+". "+label+suffix)
-	}
-	return strings.Join(trimNonEmptyPlatformStrings(lines), "\n")
-}
-
 func (service Service) mattermostAskAttachment(request replyRequest, handle platformHandle) *mattermostinteractive.Attachment {
 	if request.Interaction == nil {
 		return nil
@@ -746,10 +727,11 @@ func (service Service) mattermostChoiceAttachment(request replyRequest, handle p
 		for _, option := range options {
 			actions = append(actions, service.mattermostAskButton("askChoice"+option.Key, option.Label, "", request, handle, "ask.choice", option.Key))
 		}
-		return &mattermostinteractive.Attachment{Fallback: strings.TrimSpace(request.Message), Actions: actions}
+		return &mattermostinteractive.Attachment{Fallback: strings.TrimSpace(request.Message), Text: mattermostChoiceAttachmentText(request.Interaction), Actions: actions}
 	}
 	return &mattermostinteractive.Attachment{
 		Fallback: strings.TrimSpace(request.Message),
+		Text:     mattermostChoiceAttachmentText(request.Interaction),
 		Actions: []mattermostinteractive.Action{
 			mattermostinteractive.Select(
 				"askChoiceMenu",
@@ -760,6 +742,25 @@ func (service Service) mattermostChoiceAttachment(request replyRequest, handle p
 			),
 		},
 	}
+}
+
+func mattermostChoiceAttachmentText(interaction *platformAskInteraction) string {
+	if interaction == nil {
+		return ""
+	}
+	lines := []string{}
+	for index, option := range interaction.Options {
+		label := strings.TrimSpace(option.Label)
+		if label == "" {
+			continue
+		}
+		suffix := ""
+		if strings.TrimSpace(option.Key) == strings.TrimSpace(interaction.RecommendedOptionKey) {
+			suffix = " (추천)"
+		}
+		lines = append(lines, strconv.Itoa(index+1)+". "+label+suffix)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (service Service) mattermostAskButton(id string, name string, style string, request replyRequest, handle platformHandle, action string, choiceKey string) mattermostinteractive.Action {

@@ -1222,8 +1222,8 @@ func TestMattermostReplyRendersAskChoiceAttachment(t *testing.T) {
 
 	select {
 	case payload := <-postRequests:
-		if !strings.Contains(payload["message"].(string), "1. 최대한 가독성 있게 (추천)") {
-			t.Fatalf("expected visible choice list, got %+v", payload)
+		if strings.Contains(payload["message"].(string), "1. 최대한 가독성 있게") {
+			t.Fatalf("expected choice list to stay in interactive attachment, got %+v", payload)
 		}
 		props, isMap := payload["props"].(map[string]any)
 		if !isMap {
@@ -1234,6 +1234,9 @@ func TestMattermostReplyRendersAskChoiceAttachment(t *testing.T) {
 			t.Fatalf("expected interactive attachment, got %+v", props)
 		}
 		attachment := attachments[0].(map[string]any)
+		if !strings.Contains(attachment["text"].(string), "1. 최대한 가독성 있게 (추천)") {
+			t.Fatalf("expected attachment text to include choice list, got %+v", attachment)
+		}
 		actions := attachment["actions"].([]any)
 		action := actions[0].(map[string]any)
 		integration := action["integration"].(map[string]any)
@@ -1278,6 +1281,9 @@ func TestMattermostInteractionResolveClearsAttachments(t *testing.T) {
 
 	select {
 	case payload := <-patchRequests:
+		if _, hasMessage := payload["message"]; hasMessage {
+			t.Fatalf("expected resolve patch not to update message body, got %+v", payload)
+		}
 		props := payload["props"].(map[string]any)
 		attachments := props["attachments"].([]any)
 		if len(attachments) != 0 {
