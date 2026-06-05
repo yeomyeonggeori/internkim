@@ -135,7 +135,7 @@ func (service *Service) pushCalendarOutboxPut(ctx context.Context, account remot
 		}
 		return false, errorValue
 	}
-	return true, service.applyCalendarPushSuccess(ctx, event, objectPath, newETag)
+	return true, service.applyCalendarPushSuccess(ctx, event, objectPath, newETag, ics)
 }
 
 func (service *Service) handleCalendarPushConflict(ctx context.Context, account remoteCalendarAccount, client calDAVPushClient, row calendarOutboxRow, localEvent calendarEvent, objectPath string) (bool, error) {
@@ -170,7 +170,7 @@ func (service *Service) handleCalendarPushConflict(ctx context.Context, account 
 		return false, errorValue
 	}
 	log.Printf("calendar push conflict resolved for %s — merged %d local field(s) over remote update", localEvent.UID, len(row.ChangedFields))
-	return true, service.applyCalendarPushSuccess(ctx, mergedEvent, remoteObject.Path, newETag)
+	return true, service.applyCalendarPushSuccess(ctx, mergedEvent, remoteObject.Path, newETag, mergedICS)
 }
 
 func (service *Service) recordCalendarFieldConflicts(ctx context.Context, localEvent calendarEvent, remoteEvent calendarEvent, localChangedFields []string) {
@@ -204,10 +204,11 @@ func resolveCalendarPushTarget(account remoteCalendarAccount, row calendarOutbox
 	return objectPath, ifMatch, ifNoneMatch
 }
 
-func (service *Service) applyCalendarPushSuccess(ctx context.Context, event calendarEvent, objectPath string, newETag string) error {
+func (service *Service) applyCalendarPushSuccess(ctx context.Context, event calendarEvent, objectPath string, newETag string, rawICS []byte) error {
 	event.RemoteSource = remoteCalendarProviderGoogle
 	event.RemoteHref = objectPath
 	event.RemoteETag = newETag
+	event.RawICS = string(rawICS)
 	return service.writeCalendarEventWithSource(ctx, event, calendarSourcePull)
 }
 
