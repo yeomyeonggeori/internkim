@@ -499,6 +499,23 @@ func TestMattermostSetupEnablesUserTokensAndBots(t *testing.T) {
 	}
 }
 
+func TestMattermostSetupUsesAbsoluteFileStorageDirectory(t *testing.T) {
+	configurationPatch := mattermostSetupConfigurationPatch("https://device.example")
+	fileSettings, ok := configurationPatch["FileSettings"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected FileSettings in Mattermost setup patch, got %+v", configurationPatch)
+	}
+	if fileSettings["DriverName"] != "local" {
+		t.Fatalf("expected local file storage, got %+v", fileSettings)
+	}
+	if fileSettings["Directory"] != "/opt/mattermost/data" {
+		t.Fatalf("expected absolute Mattermost data directory, got %+v", fileSettings)
+	}
+	if fileSettings["EnableFileAttachments"] != true {
+		t.Fatalf("expected file attachments to stay enabled, got %+v", fileSettings)
+	}
+}
+
 func TestMattermostSetupEnsuresDefaultChannels(t *testing.T) {
 	var createdChannels []map[string]string
 	var patchedChannels []map[string]string

@@ -1420,9 +1420,13 @@ path = Path("config/config.json")
 document = json.loads(path.read_text())
 document.setdefault("SqlSettings", {})
 document.setdefault("ServiceSettings", {})
+document.setdefault("FileSettings", {})
 document.setdefault("TeamSettings", {})
 document["SqlSettings"]["DriverName"] = "postgres"
 document["SqlSettings"]["DataSource"] = "postgres://mmuser:%%s@localhost/mattermost?sslmode=disable&connect_timeout=10" %% os.environ["MATTERMOST_DB_PASS"]
+document["FileSettings"]["DriverName"] = "local"
+document["FileSettings"]["Directory"] = "/opt/mattermost/data"
+document["FileSettings"]["EnableFileAttachments"] = True
 document["ServiceSettings"]["SiteURL"] = os.environ["MATTERMOST_SITE_URL"]
 document["ServiceSettings"]["AllowCorsFrom"] = os.environ["MATTERMOST_SITE_URL"]
 document["ServiceSettings"]["CorsAllowCredentials"] = True
@@ -1893,6 +1897,11 @@ func mattermostSetupConfigurationPatch(siteURL string) map[string]any {
 	}
 	return map[string]any{
 		"ServiceSettings": serviceSettings,
+		"FileSettings": map[string]any{
+			"DriverName":            "local",
+			"Directory":             "/opt/mattermost/data",
+			"EnableFileAttachments": true,
+		},
 		"TeamSettings": map[string]any{
 			"TeammateNameDisplay": "nickname_full_name",
 		},
