@@ -27,7 +27,10 @@
 		createCalendarEventLoader,
 		type CalendarEventLoader
 	} from './calendar-event-loader';
-	import { openCalendarEventDetailPanel } from './calendar-event-elements';
+	import {
+		focusCalendarEventElement,
+		openCalendarEventDetailPanel
+	} from './calendar-event-elements';
 	import {
 		installCalendarMonthRangeAction,
 		monthRangePreviewSegmentsFromSelection as buildMonthRangePreviewSegments,
@@ -403,7 +406,9 @@
 		if (!events.some((event) => event.id === pendingEventID)) return;
 		const eventID = pendingEventID;
 		pendingEventID = '';
-		requestAnimationFrame(() => openEventDetails(eventID));
+		selectedAuditEventID = eventID;
+		calendar.app.selectEvent(eventID);
+		requestAnimationFrame(() => focusCalendarEventElement(calendarStageElement, eventID));
 	}
 
 	function selectMonthDate(dateKey: string) {
