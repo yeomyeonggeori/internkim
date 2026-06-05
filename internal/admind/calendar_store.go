@@ -169,6 +169,32 @@ WHERE deleted_at = ''`
 	return events, rows.Err()
 }
 
+func (service *Service) readCalendarEventsWithMattermostPosts(ctx context.Context) ([]calendarEvent, error) {
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer database.Close()
+	rows, errorValue := database.QueryContext(ctx, `
+SELECT id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, created_by_name, updated_by_email, updated_by_name, updated_by_at, mattermost_post_id, updated_at, remote_source, remote_etag, remote_href
+FROM calendar_events
+WHERE deleted_at = '' AND mattermost_post_id != ''
+ORDER BY start_at, title`)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer rows.Close()
+	events := []calendarEvent{}
+	for rows.Next() {
+		event, errorValue := scanCalendarEvent(rows)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		events = append(events, event)
+	}
+	return events, rows.Err()
+}
+
 func (service *Service) readRemoteCalendarEventsByProvider(ctx context.Context, source string) ([]calendarEvent, error) {
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {

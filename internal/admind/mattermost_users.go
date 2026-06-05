@@ -751,6 +751,7 @@ func (service *Service) ensureMattermostDefaultChannelIDs(ctx context.Context, t
 		}
 		channelIDs = append(channelIDs, channelID)
 	}
+	service.syncExistingMattermostManagedPosts(ctx)
 	return uniqueNonEmpty(channelIDs), errors.Join(channelErrors...)
 }
 
@@ -1005,12 +1006,12 @@ func (service *Service) cleanupMattermostManagedChannelSystemPosts(ctx context.C
 }
 
 func (service *Service) syncMattermostFlowEntryPost(ctx context.Context, adminToken string, channelID string) {
-	if errorValue := service.ensureMattermostFlowEntryPost(ctx, adminToken, channelID); errorValue != nil {
+	if errorValue := service.deleteMattermostFlowEntryPost(ctx, adminToken, channelID); errorValue != nil {
 		log.Printf("Mattermost Flow entry post sync failed: %v", errorValue)
 	}
 }
 
-func (service *Service) ensureMattermostFlowEntryPost(ctx context.Context, adminToken string, channelID string) error {
+func (service *Service) deleteMattermostFlowEntryPost(ctx context.Context, adminToken string, channelID string) error {
 	botToken, errorValue := service.mattermostBotToken()
 	if errorValue != nil {
 		return errorValue
@@ -1019,33 +1020,15 @@ func (service *Service) ensureMattermostFlowEntryPost(ctx context.Context, admin
 	if errorValue != nil {
 		return errorValue
 	}
-	if errorValue := service.ensureMattermostBotCanPost(ctx, adminToken, channelID, botUserID); errorValue != nil {
-		return errorValue
-	}
-	message := service.mattermostFlowEntryPostMessage()
 	post, found := service.mattermostFlowEntryPost(ctx, adminToken, channelID)
-	if found && strings.TrimSpace(post.UserID) == botUserID && strings.TrimSpace(post.Message) == message {
+	if !found || strings.TrimSpace(post.ID) == "" || strings.TrimSpace(post.UserID) != botUserID {
 		return nil
 	}
-	if found && strings.TrimSpace(post.ID) != "" {
-		path := "/api/v4/posts/" + url.PathEscape(post.ID)
-		if errorValue := service.mattermostRequest(ctx, http.MethodDelete, path, adminToken, nil, nil); errorValue != nil && !isMattermostNotFound(errorValue) {
-			return errorValue
-		}
+	path := "/api/v4/posts/" + url.PathEscape(post.ID)
+	if errorValue := service.mattermostRequest(ctx, http.MethodDelete, path, adminToken, nil, nil); errorValue != nil && !isMattermostNotFound(errorValue) {
+		return errorValue
 	}
-	body := map[string]any{
-		"channel_id": channelID,
-		"message":    message,
-		"props":      map[string]any{"internkim_flow_entry": true},
-	}
-	return service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", botToken, body, nil)
-}
-
-func (service *Service) mattermostFlowEntryPostMessage() string {
-	if service.workspaceLanguage() == workspaceLanguageEnglish {
-		return "View, request, and organize this week's work in Flow."
-	}
-	return "Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다."
+	return nil
 }
 
 func (service *Service) mattermostFlowEntryPost(ctx context.Context, token string, channelID string) (mattermostPostRecord, bool) {

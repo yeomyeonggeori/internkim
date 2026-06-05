@@ -969,6 +969,32 @@ WHERE id = ?`, taskID)
 	return task, true, rows.Err()
 }
 
+func (service *Service) readFlowTasksWithMattermostPosts(ctx context.Context) ([]flowTask, error) {
+	database, errorValue := service.openFlowDatabase(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer database.Close()
+	rows, errorValue := database.QueryContext(ctx, `
+SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id
+FROM flow_tasks
+WHERE mattermost_post_id != ''
+ORDER BY updated_at DESC`)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer rows.Close()
+	tasks := []flowTask{}
+	for rows.Next() {
+		task, errorValue := scanFlowTask(rows)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		tasks = append(tasks, task)
+	}
+	return tasks, rows.Err()
+}
+
 func (service *Service) existingFlowMattermostPostID(ctx context.Context, taskID string) string {
 	task, found, errorValue := service.readFlowTaskByID(ctx, taskID)
 	if errorValue != nil || !found {
@@ -1189,7 +1215,7 @@ func (service *Service) deleteFlowMattermostNotification(ctx context.Context, to
 }
 
 func (service *Service) flowMattermostNotificationMessage(task flowTask) string {
-	lines := []string{fmt.Sprintf("**%s · %s · %s**", task.Status, task.OwnerName, task.Content)}
+	lines := []string{fmt.Sprintf("**%s · %s · %s**", task.Status, task.OwnerName, mattermostMarkdownLink(task.Content, service.mattermostFlowTaskURL(task)))}
 	if task.Type != "" || task.Size != "" {
 		lines = append(lines, "유형/크기: "+strings.TrimSpace(task.Type+" "+task.Size))
 	}
@@ -1220,6 +1246,25 @@ func (service *Service) mattermostFlowURL(weekCode string) string {
 	weekCode = strings.TrimSpace(weekCode)
 	if weekCode != "" {
 		path += "?week=" + url.QueryEscape(weekCode)
+	}
+	baseURL := strings.TrimRight(strings.TrimSpace(service.mattermostFlowBaseURL()), "/")
+	if baseURL == "" {
+		return path
+	}
+	return baseURL + path
+}
+
+func (service *Service) mattermostFlowTaskURL(task flowTask) string {
+	query := url.Values{}
+	if weekCode := strings.TrimSpace(task.WeekCode); weekCode != "" {
+		query.Set("week", weekCode)
+	}
+	if taskID := strings.TrimSpace(task.ID); taskID != "" {
+		query.Set("task", taskID)
+	}
+	path := "/flow/"
+	if encodedQuery := query.Encode(); encodedQuery != "" {
+		path += "?" + encodedQuery
 	}
 	baseURL := strings.TrimRight(strings.TrimSpace(service.mattermostFlowBaseURL()), "/")
 	if baseURL == "" {
