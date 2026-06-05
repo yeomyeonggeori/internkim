@@ -184,7 +184,7 @@ func (service *Service) writeMattermostInteractiveSuccess(responseWriter http.Re
 }
 
 func (service *Service) writeMattermostAskInteractiveAccepted(responseWriter http.ResponseWriter) {
-	service.writeJSON(responseWriter, mattermostInteractiveResponse{Update: mattermostinteractive.ClearAttachmentsUpdate()})
+	service.writeJSON(responseWriter, mattermostInteractiveResponse{})
 }
 
 func (service *Service) writeMattermostInteractiveError(responseWriter http.ResponseWriter, message string) {
