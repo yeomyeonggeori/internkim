@@ -1973,6 +1973,49 @@ func TestFlowAPIAllowsSignedWebSessionStaffSummary(t *testing.T) {
 	}
 }
 
+func TestFlowSummaryIncludesDistanceReport(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	staffID := stableFlowID("staff@example.com")
+	otherID := stableFlowID("other@example.com")
+	tasks := []flowTask{
+		flowReportTestTask("current", "26W18", []string{staffID, otherID}, []string{"Staff", "Other"}, "M", "완료", "2026-04-27", "2026-04-29"),
+		flowReportTestTask("previous-week", "26W17", []string{otherID}, []string{"Other"}, "S", "완료", "2026-04-20", "2026-04-21"),
+		flowReportTestTask("previous-month", "26W10", []string{staffID}, []string{"Staff"}, "XS", "완료", "2026-03-03", "2026-03-03"),
+	}
+	for _, task := range tasks {
+		if errorValue := service.writeFlowTask(context.Background(), task); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/flow/api/summary?week=26W18", nil)
+	request.RemoteAddr = "198.51.100.10:443"
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("summary status = %d body = %s", response.Code, response.Body.String())
+	}
+	var summary flowSummaryResponse
+	if errorValue := json.NewDecoder(response.Body).Decode(&summary); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if summary.Report.WeeklyDistanceTrend.CurrentTotal != 6 || summary.Report.WeeklyDistanceTrend.PreviousTotal != 2 {
+		t.Fatalf("weekly trend = %+v", summary.Report.WeeklyDistanceTrend)
+	}
+	if len(summary.Report.WeeklyDistanceTrend.CurrentValues) != 7 || summary.Report.WeeklyDistanceTrend.CurrentValues[2] != 6 {
+		t.Fatalf("weekly values = %+v", summary.Report.WeeklyDistanceTrend.CurrentValues)
+	}
+	if summary.Report.MonthlyDistanceTrend.CurrentTotal != 8 || summary.Report.MonthlyDistanceTrend.PreviousTotal != 1 {
+		t.Fatalf("monthly trend = %+v", summary.Report.MonthlyDistanceTrend)
+	}
+	if len(summary.Report.MonthlyDistanceTrend.CurrentValues) != 30 || summary.Report.MonthlyDistanceTrend.CurrentValues[28] != 8 {
+		t.Fatalf("monthly values = %+v", summary.Report.MonthlyDistanceTrend.CurrentValues)
+	}
+}
+
 func TestWebSessionRejectsExpiredTamperedAndStaleCookies(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
 	expiredCookie := expiredWebSessionCookieForTest(t, service, "staff@example.com")
@@ -2805,6 +2848,25 @@ func flowNotificationTestTask(status string) flowTask {
 		Status:           status,
 		WeekCode:         "26W18",
 		RequestReason:    "검토 요청",
+	}
+}
+
+func flowReportTestTask(id string, weekCode string, participantIDs []string, participantNames []string, size string, status string, startDate string, endDate string) flowTask {
+	return flowTask{
+		ID:               id,
+		OwnerID:          participantIDs[0],
+		OwnerName:        participantNames[0],
+		ParticipantIDs:   participantIDs,
+		ParticipantNames: participantNames,
+		Business:         "개발",
+		Type:             "회의",
+		Content:          id,
+		Goal:             "거리 리포트 검증",
+		Size:             size,
+		Status:           status,
+		StartDate:        startDate,
+		EndDate:          endDate,
+		WeekCode:         weekCode,
 	}
 }
 
