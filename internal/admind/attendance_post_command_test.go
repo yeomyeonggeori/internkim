@@ -157,9 +157,19 @@ func TestAttendanceEntryCommentUpdatesClockOutTime(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(events) != 2 || events[0].Kind != attendanceKindClockOut || events[0].LocalTime != "18:30:00" {
+	clockOutEvent, found := findAttendanceEventByKind(events, attendanceKindClockOut)
+	if len(events) != 2 || !found || clockOutEvent.LocalTime != "18:30:00" {
 		t.Fatalf("events = %+v", events)
 	}
+}
+
+func findAttendanceEventByKind(events []attendanceEvent, kind string) (attendanceEvent, bool) {
+	for _, event := range events {
+		if event.Kind == kind {
+			return event, true
+		}
+	}
+	return attendanceEvent{}, false
 }
 
 func TestAttendanceEntryCommentBlocksUnknownMessage(t *testing.T) {

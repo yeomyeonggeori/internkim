@@ -308,7 +308,8 @@ func (service *Service) ensureMattermostProvisionerDefaults(ctx context.Context)
 	adminMembershipError := service.ensureMattermostDefaultChannelMembership(ctx, adminToken, teamRecord.ID, adminUser.ID, channelIDs)
 	userMembershipError := service.ensureMattermostDefaultChannelMemberships(ctx, adminToken, teamRecord.ID, channelIDs)
 	connectCommandError := service.ensureMattermostConnectCommand(ctx, adminToken)
-	return errors.Join(channelError, adminMembershipError, userMembershipError, connectCommandError)
+	oauthAppError := service.ensureMattermostWebOAuthApp(ctx, adminToken)
+	return errors.Join(channelError, adminMembershipError, userMembershipError, connectCommandError, oauthAppError)
 }
 
 func (service *Service) ensureMattermostProvisionerIdentity(ctx context.Context) (string, mattermostUserRecord, error) {
@@ -659,6 +660,7 @@ func (service *Service) mattermostServiceSettingsPatch() map[string]any {
 	settings := map[string]any{
 		"AllowedUntrustedInternalConnections": "127.0.0.1 localhost",
 		"EnableBotAccountCreation":            true,
+		"EnableOAuthServiceProvider":          true,
 		"EnableUserAccessTokens":              true,
 		"ManagedResourcePaths":                mattermostdefaults.ManagedResourcePathSetting(),
 	}
@@ -1041,9 +1043,9 @@ func (service *Service) ensureMattermostFlowEntryPost(ctx context.Context, admin
 
 func (service *Service) mattermostFlowEntryPostMessage() string {
 	if service.workspaceLanguage() == workspaceLanguageEnglish {
-		return "View, request, and organize this week's work in Flow. " + service.mattermostFlowLink("")
+		return "View, request, and organize this week's work in Flow."
 	}
-	return "Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다. " + service.mattermostFlowLink("")
+	return "Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다."
 }
 
 func (service *Service) mattermostFlowEntryPost(ctx context.Context, token string, channelID string) (mattermostPostRecord, bool) {

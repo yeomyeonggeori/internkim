@@ -429,10 +429,5 @@ func canonicalStepNames(names []string) []string {
 }
 
 func canonicalStepName(name string) string {
-	switch strings.TrimSpace(name) {
-	case "admin-web":
-		return "web"
-	default:
-		return strings.TrimSpace(name)
-	}
+	return strings.TrimSpace(name)
 }

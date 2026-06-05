@@ -166,11 +166,7 @@ func (service *Service) authorizeCalendarRequest(request *http.Request) bool {
 	if service.authorizeCalendarTokenRequest(request) {
 		return true
 	}
-	actorEmail := service.webStaffActorEmail(request)
-	if actorEmail == "" {
-		return false
-	}
-	return service.isFlowStaffActor(request.Context(), actorEmail)
+	return service.authorizeWebStaffRequest(request)
 }
 
 func (service *Service) authorizeCalendarTokenRequest(request *http.Request) bool {

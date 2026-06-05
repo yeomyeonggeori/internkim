@@ -340,7 +340,7 @@ func TestCalendarNotificationPostsAnnouncementsForAllHands(t *testing.T) {
 	if postCount != 1 {
 		t.Fatalf("postCount = %d", postCount)
 	}
-	if !strings.Contains(postedMessage, "Company offsite") || !strings.Contains(postedMessage, "Travel prep") {
+	if !strings.Contains(postedMessage, "Company offsite") || !strings.Contains(postedMessage, "Travel prep") || strings.Contains(postedMessage, "일정 열기") {
 		t.Fatalf("posted message = %q", postedMessage)
 	}
 }
@@ -390,7 +390,7 @@ func TestCalendarNotificationPostsDirectMessageForPeopleLine(t *testing.T) {
 	if strings.Join(directChannelMembers, "|") != "user-1|bot-1" {
 		t.Fatalf("direct members = %+v", directChannelMembers)
 	}
-	if !strings.Contains(postedMessage, "Online sync") || !strings.Contains(postedMessage, "Bring agenda") || strings.Contains(postedMessage, "샘플") {
+	if !strings.Contains(postedMessage, "Online sync") || !strings.Contains(postedMessage, "Bring agenda") || strings.Contains(postedMessage, "샘플") || strings.Contains(postedMessage, "일정 열기") {
 		t.Fatalf("posted message = %q", postedMessage)
 	}
 }
@@ -411,7 +411,7 @@ func TestCalendarMattermostLogCreatesUpdatesAndDeletesPost(t *testing.T) {
 	if reloadedEvent.MattermostPostID != "calendar-post-1" {
 		t.Fatalf("post id = %q", reloadedEvent.MattermostPostID)
 	}
-	if len(requests.createdMessages) != 1 || !strings.Contains(requests.createdMessages[0], "Design review") || !strings.Contains(requests.createdMessages[0], "대상: 샘플") {
+	if len(requests.createdMessages) != 1 || !strings.Contains(requests.createdMessages[0], "Design review") || !strings.Contains(requests.createdMessages[0], "대상: 샘플") || strings.Contains(requests.createdMessages[0], "일정 열기") {
 		t.Fatalf("created messages = %+v", requests.createdMessages)
 	}
 	if len(requests.createTokens) != 1 || requests.createTokens[0] != "Bearer bot-token" {
@@ -421,7 +421,7 @@ func TestCalendarMattermostLogCreatesUpdatesAndDeletesPost(t *testing.T) {
 	if errorValue := service.writeCalendarEvent(context.Background(), reloadedEvent); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(requests.updatedMessages) != 1 || !strings.Contains(requests.updatedMessages[0], "Updated review") {
+	if len(requests.updatedMessages) != 1 || !strings.Contains(requests.updatedMessages[0], "Updated review") || strings.Contains(requests.updatedMessages[0], "일정 열기") {
 		t.Fatalf("updated messages = %+v", requests.updatedMessages)
 	}
 	if len(requests.updateTokens) != 1 || requests.updateTokens[0] != "Bearer bot-token" {
