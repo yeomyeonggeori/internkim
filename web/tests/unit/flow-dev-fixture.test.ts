@@ -16,11 +16,13 @@ describe('createDevFlowSummary', () => {
 		expect(summary.currentUserName).toBe('김철수');
 		expect(summary.source).toBe('dev-mock');
 		expect(summary.members.length).toBe(10);
-		expect(Object.keys(summary.metrics.memberScores).length).toBe(10);
+		expect(Object.keys(summary.metrics.memberDistances).length).toBe(10);
+		expect(summary.metrics.memberScores).toEqual(summary.metrics.memberDistances);
+		expect(summary.metrics.totalScore).toBe(summary.metrics.totalDistance);
 		expect(summary.tasks.length > 0).toBe(true);
 		expect(summary.metrics.totalTasks).toBe(summary.tasks.length);
 		expect(summary.report.weeklyDistanceTrend.currentValues.length).toBe(7);
-		expect(summary.report.weeklyDistanceTrend.labels).toEqual(['월', '화', '수', '목', '금', '토', '일']);
+		expect(summary.report.weeklyDistanceTrend.labels).toEqual(['1', '2', '3', '4', '5', '6', '7']);
 		expect(summary.report.monthlyDistanceTrend.currentValues.length).toBe(30);
 		expect(summary.metrics.completedTasks > 0).toBe(true);
 		expect(summary.metrics.requestedTasks > 0).toBe(true);
@@ -38,7 +40,7 @@ describe('createDevFlowSummary', () => {
 		expect(nextWeek.week.code).toBe('26W24');
 		expect(previousWeek.report.weeklyDistanceTrend.currentValues).not.toEqual(currentWeek.report.weeklyDistanceTrend.currentValues);
 		expect(nextWeek.report.weeklyDistanceTrend.currentValues).not.toEqual(currentWeek.report.weeklyDistanceTrend.currentValues);
-		expect(previousWeek.metrics.memberScores).not.toEqual(currentWeek.metrics.memberScores);
-		expect(nextWeek.metrics.memberScores).not.toEqual(currentWeek.metrics.memberScores);
+		expect(previousWeek.metrics.memberDistances).not.toEqual(currentWeek.metrics.memberDistances);
+		expect(nextWeek.metrics.memberDistances).not.toEqual(currentWeek.metrics.memberDistances);
 	});
 });

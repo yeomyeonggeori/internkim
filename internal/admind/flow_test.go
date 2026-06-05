@@ -82,6 +82,49 @@ func TestNormalizeFlowTaskDatesSetsPlannedStartAndWeek(t *testing.T) {
 	}
 }
 
+func TestBuildFlowMetricsKeepsDistanceAndLegacyScoreAliases(t *testing.T) {
+	metrics := buildFlowMetrics([]flowTask{
+		{
+			ParticipantNames: []string{"김철수", "이영희"},
+			Business:         "여명거리",
+			Type:             "기능",
+			Size:             "M",
+			Status:           "완료",
+		},
+		{
+			ParticipantNames: []string{"김철수"},
+			Business:         "김인턴",
+			Type:             "문서",
+			Size:             "S",
+			Status:           "진행",
+		},
+	}, flowDefinitions{
+		Sizes: []flowSizeDefinition{
+			{Name: "S", DistanceKM: 2},
+			{Name: "M", DistanceKM: 5},
+		},
+	})
+
+	if metrics.TotalDistance != 6 {
+		t.Fatalf("total distance = %d, want 6", metrics.TotalDistance)
+	}
+	if metrics.TotalScore != metrics.TotalDistance {
+		t.Fatalf("legacy total score = %d, want %d", metrics.TotalScore, metrics.TotalDistance)
+	}
+	if metrics.MemberDistances["김철수"] != 6 {
+		t.Fatalf("김철수 distance = %d, want 6", metrics.MemberDistances["김철수"])
+	}
+	if metrics.MemberScores["김철수"] != metrics.MemberDistances["김철수"] {
+		t.Fatalf("김철수 legacy score = %d, want %d", metrics.MemberScores["김철수"], metrics.MemberDistances["김철수"])
+	}
+	if metrics.MemberDistances["이영희"] != 5 {
+		t.Fatalf("이영희 distance = %d, want 5", metrics.MemberDistances["이영희"])
+	}
+	if metrics.MemberScores["이영희"] != metrics.MemberDistances["이영희"] {
+		t.Fatalf("이영희 legacy score = %d, want %d", metrics.MemberScores["이영희"], metrics.MemberDistances["이영희"])
+	}
+}
+
 func TestMembersFromUserRecordsSortsByHireDate(t *testing.T) {
 	members := membersFromUserRecords([]adminUserMutation{
 		{Email: "late@example.com", Name: "Late", HireDate: "2026-05-10", Role: "admin"},

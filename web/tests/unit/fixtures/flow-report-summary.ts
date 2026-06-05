@@ -4,11 +4,11 @@ export type FlowReportFixtureMetrics = {
 	requestedTasks: number;
 	pausedTasks: number;
 	stoppedTasks: number;
-	totalScore: number;
+	totalDistance: number;
 	statusCounts: Record<string, number>;
 	businessCounts: Record<string, number>;
 	typeCounts: Record<string, number>;
-	memberScores: Record<string, number>;
+	memberDistances: Record<string, number>;
 };
 
 export type FlowReportFixtureTask = {
@@ -59,7 +59,7 @@ export const flowReportFixtureMetrics: FlowReportFixtureMetrics = {
 	requestedTasks: 2,
 	pausedTasks: 1,
 	stoppedTasks: 1,
-	totalScore: 27,
+	totalDistance: 27,
 	statusCounts: {
 		완료: 5,
 		진행: 4,
@@ -78,7 +78,7 @@ export const flowReportFixtureMetrics: FlowReportFixtureMetrics = {
 		문서: 2,
 		검증: 3
 	},
-	memberScores: {
+	memberDistances: {
 		김표본: 11,
 		박예시: 7,
 		최견본: 5,
@@ -107,9 +107,9 @@ export const flowReportFixtureTasks: FlowReportFixtureTask[] = [
 
 export const flowReportFixtureSnapshot: FlowReportFixtureSnapshot = {
 	weeklyDistanceTrend: {
-		labels: ['월', '화', '수', '목', '금', '토', '일'],
-		currentLabel: '이번 주',
-		previousLabel: '지난 주',
+		labels: ['1', '2', '3', '4', '5', '6', '7'],
+		currentLabel: 'current',
+		previousLabel: 'previous',
 		currentValues: [0, 7, 10, 10, 15, 18, 18],
 		previousValues: [0, 3, 6, 8, 8, 11, 11],
 		currentTotal: 18,
@@ -118,8 +118,8 @@ export const flowReportFixtureSnapshot: FlowReportFixtureSnapshot = {
 	},
 	monthlyDistanceTrend: {
 		labels: ['1', '2', '3', '4', '5', '6', '7'],
-		currentLabel: '이번 달',
-		previousLabel: '지난 달',
+		currentLabel: 'current',
+		previousLabel: 'previous',
 		currentValues: [0, 6, 9, 12, 15, 18, 18],
 		previousValues: [0, 3, 6, 8, 10, 11, 11],
 		currentTotal: 18,
