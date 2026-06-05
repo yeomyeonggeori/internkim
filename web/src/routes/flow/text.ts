@@ -37,7 +37,17 @@ export const flowText = {
 			monthlyDistanceTrendDescription: '지난달과 이번달의 일별 팀 거리 합을 비교합니다.',
 			businessDistance: '이번 주간 사업 거리 분포',
 			businessDistanceDescription: '이번 주 거리 합이 어느 사업 항목에 몰려 있는지 봅니다.',
-			empty: '이번 주 데이터 없음'
+			empty: '이번 주 데이터 없음',
+			weekdays: ['월', '화', '수', '목', '금', '토', '일'],
+			fallbackType: '기타',
+			fallbackBusiness: '미지정',
+			teamAverageLabel: '팀 평균',
+			memberScrollHint: '{count}명 전체 · 목록 안에서 스크롤',
+			currentWeekTrend: '이번 주',
+			previousWeekTrend: '지난 주',
+			currentMonthTrend: '이번 달',
+			previousMonthTrend: '지난 달',
+			monthlyDayLabelTemplate: '{day}일'
 		},
 		definitions: {
 			size: '크기',
@@ -81,6 +91,8 @@ export const flowText = {
 			quickAdd: 'AI로 업무 추가',
 			quickAddHint: '짧게 적으면 AI가 종류, 크기, 상태를 추정해 이번 주 업무로 추가합니다.',
 			quickAddError: 'AI 업무 추가에 실패했습니다.',
+			quickAddDuplicate: '이미 있는 업무로 보여 추가하지 않았습니다.',
+			quickAddDuplicateAction: '그래도 추가',
 			editTitle: '업무 수정',
 			createTitle: '업무 요청',
 			content: '내용',
@@ -132,7 +144,7 @@ export const flowText = {
 			mattermost: 'Mattermost',
 			active: '진행',
 			completed: '완료',
-			score: '거리',
+			distance: '거리',
 			empty: '구성원이 아직 없습니다.'
 		},
 		status: {
@@ -197,7 +209,17 @@ export const flowText = {
 			monthlyDistanceTrendDescription: 'Compare daily team distance totals from this month and last month.',
 			businessDistance: 'Weekly business distance',
 			businessDistanceDescription: 'See which business items generated this week’s distance.',
-			empty: 'No data for this week'
+			empty: 'No data for this week',
+			weekdays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+			fallbackType: 'Other',
+			fallbackBusiness: 'Unassigned',
+			teamAverageLabel: 'Team average',
+			memberScrollHint: '{count} members total · scroll inside list',
+			currentWeekTrend: 'This week',
+			previousWeekTrend: 'Last week',
+			currentMonthTrend: 'This month',
+			previousMonthTrend: 'Last month',
+			monthlyDayLabelTemplate: 'Day {day}'
 		},
 		definitions: {
 			size: 'Size',
@@ -241,6 +263,8 @@ export const flowText = {
 			quickAdd: 'Add with AI',
 			quickAddHint: 'Write a short note and AI will infer the type, size, and status for this week’s task.',
 			quickAddError: 'Could not add the task with AI.',
+			quickAddDuplicate: 'This looks like an existing task, so it was not added.',
+			quickAddDuplicateAction: 'Add anyway',
 			editTitle: 'Edit task',
 			createTitle: 'Request task',
 			content: 'Content',
@@ -292,7 +316,7 @@ export const flowText = {
 			mattermost: 'Mattermost',
 			active: 'Active',
 			completed: 'Completed',
-			score: 'Distance',
+			distance: 'Distance',
 			empty: 'No members yet.'
 		},
 		status: {
