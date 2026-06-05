@@ -1925,37 +1925,23 @@ func setupMattermostDefaultChannels(mmAPI mattermostSetupAPI, adminToken string,
 			fmt.Printf("  channel: %s (%s)\n", channel.Name, channelID)
 		}
 		if channel.Name == mattermostdefaults.FlowChannelName {
-			ensureMattermostSetupFlowEntryPost(mmAPI, adminToken, botToken, channelID, botUserID, language)
+			deleteMattermostSetupFlowEntryPost(mmAPI, adminToken, channelID, botUserID)
 		}
 	}
 }
 
-func ensureMattermostSetupFlowEntryPost(mmAPI mattermostSetupAPI, adminToken string, botToken string, channelID string, botUserID string, language string) {
-	if strings.TrimSpace(channelID) == "" || strings.TrimSpace(botToken) == "" || strings.TrimSpace(botUserID) == "" {
+func deleteMattermostSetupFlowEntryPost(mmAPI mattermostSetupAPI, adminToken string, channelID string, botUserID string) {
+	if strings.TrimSpace(channelID) == "" || strings.TrimSpace(botUserID) == "" {
 		return
 	}
-	memberDocument, _ := json.Marshal(map[string]string{"user_id": botUserID})
-	mmAPI("POST", "/api/v4/channels/"+url.PathEscape(channelID)+"/members", memberDocument, adminToken)
 	postsCode, postsResponseBody := mmAPI("GET", "/api/v4/channels/"+url.PathEscape(channelID)+"/posts?per_page=50", nil, adminToken)
-	if postsCode >= 200 && postsCode < 300 && hasMattermostSetupBotFlowEntryPost(mmAPI, adminToken, postsResponseBody, botUserID) {
+	if postsCode < 200 || postsCode >= 300 {
 		return
 	}
-	postDocument, _ := json.Marshal(map[string]any{
-		"channel_id": channelID,
-		"message":    mattermostSetupFlowEntryPostMessage(language),
-		"props":      map[string]any{"internkim_flow_entry": true},
-	})
-	mmAPI("POST", "/api/v4/posts", postDocument, botToken)
+	deleteMattermostSetupBotFlowEntryPost(mmAPI, adminToken, postsResponseBody, botUserID)
 }
 
-func mattermostSetupFlowEntryPostMessage(language string) string {
-	if strings.EqualFold(strings.TrimSpace(language), "en") {
-		return "View, request, and organize this week's work in Flow. " + mattermostdefaults.PublicChannelLink(mattermostdefaults.FlowChannelName, language, "/flow/")
-	}
-	return "Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다. " + mattermostdefaults.PublicChannelLink(mattermostdefaults.FlowChannelName, language, "/flow/")
-}
-
-func hasMattermostSetupBotFlowEntryPost(mmAPI mattermostSetupAPI, adminToken string, postsResponseBody []byte, botUserID string) bool {
+func deleteMattermostSetupBotFlowEntryPost(mmAPI mattermostSetupAPI, adminToken string, postsResponseBody []byte, botUserID string) {
 	var postsResponse struct {
 		Order []string `json:"order"`
 		Posts map[string]struct {
@@ -1964,20 +1950,18 @@ func hasMattermostSetupBotFlowEntryPost(mmAPI mattermostSetupAPI, adminToken str
 		} `json:"posts"`
 	}
 	if json.Unmarshal(postsResponseBody, &postsResponse) != nil {
-		return false
+		return
 	}
 	for _, postID := range postsResponse.Order {
 		postRecord := postsResponse.Posts[postID]
 		if postRecord.Props["internkim_flow_entry"] != true {
 			continue
 		}
-		if postRecord.UserID == botUserID {
-			return true
+		if postRecord.UserID != botUserID {
+			continue
 		}
 		mmAPI("DELETE", "/api/v4/posts/"+url.PathEscape(postID), nil, adminToken)
-		return false
 	}
-	return false
 }
 
 func ensureMattermostSetupDefaultChannel(mmAPI mattermostSetupAPI, adminToken string, teamID string, channel mattermostdefaults.PublicChannel) string {

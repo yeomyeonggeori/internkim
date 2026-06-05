@@ -138,6 +138,7 @@
 	let activeTab = $state('report');
 	let selectedTask = $state<FlowTask | null>(null);
 	let taskDraft = $state<FlowTask | null>(null);
+	let pendingTaskID = $state('');
 	let searchText = $state('');
 	let statusFilter = $state('all');
 	let ownerFilter = $state('all');
@@ -206,7 +207,9 @@
 	});
 
 	onMount(() => {
-		const week = new URLSearchParams(location.search).get('week') ?? '';
+		const params = new URLSearchParams(location.search);
+		const week = params.get('week') ?? '';
+		pendingTaskID = params.get('task') ?? '';
 		loadFlow(week);
 	});
 
@@ -219,6 +222,7 @@
 			if (!response.ok) throw new Error(await responseErrorMessage(response, text.loadError));
 			summary = (await response.json()) as FlowSummary;
 			syncDefinitionDrafts();
+			openPendingTask();
 			if (isMemberTab()) {
 				const memberID = activeTab.replace('member:', '');
 				if (!members().some((member) => member.id === memberID)) activeTab = 'tasks';
@@ -244,6 +248,13 @@
 		selectedTask = task;
 		taskDraft = cloneTask(task);
 		taskErrorMessage = '';
+	}
+
+	function openPendingTask() {
+		if (!pendingTaskID) return;
+		const task = summary?.tasks.find((candidate) => candidate.id === pendingTaskID);
+		pendingTaskID = '';
+		if (task) openTask(task);
 	}
 
 	function createTask() {

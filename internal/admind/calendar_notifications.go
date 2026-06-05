@@ -130,7 +130,7 @@ func (service *Service) tryDeleteCalendarMattermostLog(ctx context.Context, even
 }
 
 func (service *Service) calendarMattermostLogMessage(event calendarEvent) string {
-	lines := []string{fmt.Sprintf("**%s · %s**", calendarMattermostEventDateText(event), event.Title)}
+	lines := []string{fmt.Sprintf("**%s · %s**", calendarMattermostEventDateText(event), mattermostMarkdownLink(event.Title, service.mattermostCalendarEventURL(event)))}
 	if strings.TrimSpace(event.Location) != "" {
 		lines = append(lines, "장소: "+strings.TrimSpace(event.Location))
 	}
@@ -200,6 +200,25 @@ func (service *Service) mattermostCalendarURL(startISO string) string {
 	path := "/calendar/"
 	if startTime, errorValue := time.Parse(time.RFC3339, strings.TrimSpace(startISO)); errorValue == nil {
 		path += "?date=" + url.QueryEscape(startTime.Format("2006-01-02"))
+	}
+	baseURL := strings.TrimRight(strings.TrimSpace(service.mattermostFlowBaseURL()), "/")
+	if baseURL == "" {
+		return path
+	}
+	return baseURL + path
+}
+
+func (service *Service) mattermostCalendarEventURL(event calendarEvent) string {
+	query := url.Values{}
+	if startTime, errorValue := time.Parse(time.RFC3339, strings.TrimSpace(event.StartISO)); errorValue == nil {
+		query.Set("date", startTime.Format("2006-01-02"))
+	}
+	if eventID := strings.TrimSpace(event.ID); eventID != "" {
+		query.Set("event", eventID)
+	}
+	path := "/calendar/"
+	if encodedQuery := query.Encode(); encodedQuery != "" {
+		path += "?" + encodedQuery
 	}
 	baseURL := strings.TrimRight(strings.TrimSpace(service.mattermostFlowBaseURL()), "/")
 	if baseURL == "" {
@@ -545,7 +564,7 @@ func (service *Service) postCalendarMattermostNotification(ctx context.Context, 
 func (service *Service) calendarMattermostNotificationMessage(event calendarEvent, targetType string) string {
 	lines := []string{
 		"Calendar reminder",
-		"**" + event.Title + "**",
+		"**" + mattermostMarkdownLink(event.Title, service.mattermostCalendarEventURL(event)) + "**",
 		"Time: " + calendarNotificationTimeText(event),
 	}
 	if strings.TrimSpace(event.Location) != "" {

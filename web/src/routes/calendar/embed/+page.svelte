@@ -58,6 +58,18 @@
 	const localeCode = $derived(currentLocale.value === 'ko' ? 'ko-KR' : 'en-US');
 	const calendarLocale = $derived(createCalendarLocale(currentLocale.value, text));
 	const draftEventPlaceholderTitle = () => text.newEvent;
+	const initialCalendarDate = () => {
+		if (!browser) return loadSavedCalendarDate(browser);
+		const dateValue = new URLSearchParams(window.location.search).get('date') ?? '';
+		if (!dateValue) return loadSavedCalendarDate(browser);
+		const parsedDate = new Date(`${dateValue}T00:00:00`);
+		if (Number.isNaN(parsedDate.getTime())) return loadSavedCalendarDate(browser);
+		return parsedDate;
+	};
+	const initialCalendarEventID = () => {
+		if (!browser) return '';
+		return new URLSearchParams(window.location.search).get('event') ?? '';
+	};
 	let isLoading = $state(false);
 	let isSaving = $state(false);
 	let errorMessage = $state('');
@@ -70,9 +82,10 @@
 	let monthRangePreviewSegments = $state<MonthRangePreviewSegment[]>([]);
 	let selectedMonthDateKey = $state<string | null>(null);
 	let searchText = $state('');
-	let toolbarDate = $state(loadSavedCalendarDate(browser));
+	let toolbarDate = $state(initialCalendarDate());
 	let toolbarView = $state(ViewType.MONTH);
 	let selectedAuditEventID = $state<string | null>(null);
+	let pendingEventID = $state(initialCalendarEventID());
 	const draftEvents = new CalendarDraftEventState(draftEventPlaceholderTitle, () => text.newEvent);
 	const programmaticUpdates = new CalendarProgrammaticUpdateState();
 
@@ -117,6 +130,9 @@
 		},
 		refreshSelectedMonthDateCell: () => {
 			refreshSelectedMonthDateCellAfterRender();
+		},
+		afterRenderEvents: (events) => {
+			openPendingCalendarEvent(events);
 		}
 	});
 
@@ -175,7 +191,7 @@
 	const calendar = useCalendarApp({
 		views: createCalendarViews(),
 		defaultView: ViewType.MONTH,
-		initialDate: loadSavedCalendarDate(browser),
+		initialDate: initialCalendarDate(),
 		locale: createCalendarLocale(currentLocale.value, text),
 		timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
 		switcherMode: 'buttons',
@@ -235,8 +251,8 @@
 		toolbarView = ViewType.MONTH;
 		syncCalendarThemeToDocument();
 		if (!eventLoader.hasVisibleRange()) {
-			const today = new Date();
-			eventLoader.loadEvents(startOfMonthWindow(today), endOfMonthWindow(today));
+			const initialDate = initialCalendarDate();
+			eventLoader.loadEvents(startOfMonthWindow(initialDate), endOfMonthWindow(initialDate));
 		}
 		void syncRemoteCalendarAndRefresh().catch((error: unknown) => {
 			console.debug('calendar remote sync failed', { error });
@@ -380,6 +396,14 @@
 		selectedAuditEventID = eventID;
 		calendar.app.selectEvent(eventID);
 		openCalendarEventDetailPanel(calendarStageElement, eventID);
+	}
+
+	function openPendingCalendarEvent(events: DayFlowEvent[]) {
+		if (!pendingEventID) return;
+		if (!events.some((event) => event.id === pendingEventID)) return;
+		const eventID = pendingEventID;
+		pendingEventID = '';
+		requestAnimationFrame(() => openEventDetails(eventID));
 	}
 
 	function selectMonthDate(dateKey: string) {
