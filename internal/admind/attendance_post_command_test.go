@@ -68,6 +68,9 @@ func TestAttendanceEntryCommentCreatesAttendanceEvent(t *testing.T) {
 	if len(events) != 1 || events[0].Kind != attendanceKindClockIn || events[0].LocationName != "사무실" {
 		t.Fatalf("events = %+v", events)
 	}
+	if events[0].Source != attendanceSourceMattermostPost || events[0].SourceMessage != "출근" {
+		t.Fatalf("event source = %q message = %q", events[0].Source, events[0].SourceMessage)
+	}
 }
 
 func TestAttendanceEntryCommentAcceptsEnglishAliases(t *testing.T) {
