@@ -27,7 +27,12 @@ CREATE TABLE IF NOT EXISTS attendance_events (
 	location_name TEXT NOT NULL DEFAULT '',
 	canceled_at TEXT NOT NULL,
 	cancel_reason TEXT NOT NULL,
-	repeated_click_at TEXT NOT NULL
+	repeated_click_at TEXT NOT NULL,
+	source_message TEXT NOT NULL DEFAULT '',
+	original_location_id TEXT NOT NULL DEFAULT '',
+	original_location_name TEXT NOT NULL DEFAULT '',
+	overridden_by TEXT NOT NULL DEFAULT '',
+	overridden_at TEXT NOT NULL DEFAULT ''
 )`)
 	if errorValue != nil {
 		return errorValue
@@ -36,6 +41,21 @@ CREATE TABLE IF NOT EXISTS attendance_events (
 		return errorValue
 	}
 	if errorValue := ensureAttendanceColumn(ctx, database, "location_name", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureAttendanceColumn(ctx, database, "source_message", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureAttendanceColumn(ctx, database, "original_location_id", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureAttendanceColumn(ctx, database, "original_location_name", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureAttendanceColumn(ctx, database, "overridden_by", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := ensureAttendanceColumn(ctx, database, "overridden_at", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
 		return errorValue
 	}
 	if _, errorValue := database.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS attendance_settings (

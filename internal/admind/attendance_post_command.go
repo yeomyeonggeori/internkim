@@ -101,7 +101,7 @@ func (service *Service) applyMattermostAttendancePostCommand(ctx context.Context
 	if errorValue != nil {
 		return "", errorValue
 	}
-	if errorValue := service.applyAttendanceAction(ctx, userRecord, userToken, command.Kind, teamRecord.ID, channelID, payload.RootID, command.LocationID); errorValue != nil {
+	if errorValue := service.applyAttendanceActionWithSource(ctx, userRecord, userToken, command.Kind, teamRecord.ID, channelID, payload.RootID, command.LocationID, attendanceSourceMattermostPost, payload.Message); errorValue != nil {
 		return "", errorValue
 	}
 	database, errorValue := service.openAttendanceDatabase(ctx)

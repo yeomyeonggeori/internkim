@@ -25,6 +25,10 @@ func (service *Service) applyAttendanceToggle(ctx context.Context, userRecord ma
 }
 
 func (service *Service) applyAttendanceAction(ctx context.Context, userRecord mattermostUserRecord, userToken string, kind string, teamID string, channelID string, actionPostID string, locationID string) error {
+	return service.applyAttendanceActionWithSource(ctx, userRecord, userToken, kind, teamID, channelID, actionPostID, locationID, attendanceSourceMattermostButton, "")
+}
+
+func (service *Service) applyAttendanceActionWithSource(ctx context.Context, userRecord mattermostUserRecord, userToken string, kind string, teamID string, channelID string, actionPostID string, locationID string, source string, sourceMessage string) error {
 	now := time.Now().UTC()
 	database, errorValue := service.openAttendanceDatabase(ctx)
 	if errorValue != nil {
@@ -45,7 +49,7 @@ func (service *Service) applyAttendanceAction(ctx context.Context, userRecord ma
 			eventLocation = service.attendanceLocationByID(locationID)
 		}
 	}
-	return service.createAttendanceEventForKind(ctx, database, userRecord, userToken, kind, teamID, channelID, actionPostID, now, eventLocation)
+	return service.createAttendanceEventForKindWithSource(ctx, database, userRecord, userToken, kind, teamID, channelID, actionPostID, now, eventLocation, source, sourceMessage)
 }
 
 func (service *Service) handleRepeatedAttendanceClick(ctx context.Context, database *sql.DB, userToken string, event attendanceEvent, occurredAt time.Time) error {
@@ -65,6 +69,10 @@ func (service *Service) createNextAttendanceEvent(ctx context.Context, database 
 }
 
 func (service *Service) createAttendanceEventForKind(ctx context.Context, database *sql.DB, userRecord mattermostUserRecord, userToken string, kind string, teamID string, channelID string, actionPostID string, occurredAt time.Time, eventLocation attendanceLocation) error {
+	return service.createAttendanceEventForKindWithSource(ctx, database, userRecord, userToken, kind, teamID, channelID, actionPostID, occurredAt, eventLocation, attendanceSourceMattermostButton, "")
+}
+
+func (service *Service) createAttendanceEventForKindWithSource(ctx context.Context, database *sql.DB, userRecord mattermostUserRecord, userToken string, kind string, teamID string, channelID string, actionPostID string, occurredAt time.Time, eventLocation attendanceLocation, source string, sourceMessage string) error {
 	adminToken, errorValue := service.mattermostAdminToken(ctx)
 	if errorValue != nil {
 		return errorValue
@@ -76,7 +84,7 @@ func (service *Service) createAttendanceEventForKind(ctx context.Context, databa
 	if errorValue != nil {
 		return errorValue
 	}
-	event := service.createAttendanceEvent(userRecord, kind, occurredAt, teamID, channelID, actionPostID, resultPostID, eventLocation)
+	event := service.createAttendanceEventWithSource(userRecord, kind, occurredAt, teamID, channelID, actionPostID, resultPostID, eventLocation, source, sourceMessage)
 	return service.insertAttendanceEvent(ctx, database, event)
 }
 
@@ -106,6 +114,10 @@ WHERE id = ?`,
 }
 
 func (service *Service) createAttendanceEvent(userRecord mattermostUserRecord, kind string, occurredAt time.Time, teamID string, channelID string, actionPostID string, resultPostID string, eventLocation attendanceLocation) attendanceEvent {
+	return service.createAttendanceEventWithSource(userRecord, kind, occurredAt, teamID, channelID, actionPostID, resultPostID, eventLocation, attendanceSourceMattermostButton, "")
+}
+
+func (service *Service) createAttendanceEventWithSource(userRecord mattermostUserRecord, kind string, occurredAt time.Time, teamID string, channelID string, actionPostID string, resultPostID string, eventLocation attendanceLocation, source string, sourceMessage string) attendanceEvent {
 	location, timeZoneName := service.workspaceTimeLocation()
 	localTime := occurredAt.In(location)
 	return attendanceEvent{
@@ -119,13 +131,14 @@ func (service *Service) createAttendanceEvent(userRecord mattermostUserRecord, k
 		LocalDate:          localTime.Format("2006-01-02"),
 		LocalTime:          localTime.Format("15:04:05"),
 		TimeZoneAtEvent:    timeZoneName,
-		Source:             attendanceSourceMattermostButton,
+		Source:             strings.TrimSpace(source),
 		TeamID:             strings.TrimSpace(teamID),
 		ChannelID:          strings.TrimSpace(channelID),
 		ActionPostID:       strings.TrimSpace(actionPostID),
 		ResultPostID:       strings.TrimSpace(resultPostID),
 		LocationID:         strings.TrimSpace(eventLocation.ID),
 		LocationName:       strings.TrimSpace(eventLocation.Name),
+		SourceMessage:      strings.TrimSpace(sourceMessage),
 	}
 }
 

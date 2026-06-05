@@ -11,7 +11,10 @@ import (
 const attendanceEventSelectColumns = `
 id, mattermost_user_id, mattermost_username, email, display_name, kind, occurred_at, local_date, local_time,
 	time_zone_at_event, source, team_id, channel_id, action_post_id, result_post_id, location_id, location_name,
-	canceled_at, cancel_reason, repeated_click_at`
+	canceled_at, cancel_reason, repeated_click_at, source_message, original_location_id, original_location_name,
+	overridden_by, overridden_at`
+
+var errAttendanceEventLocationConflict = errors.New("attendance event can no longer change location")
 
 func (service *Service) openAttendanceDatabase(ctx context.Context) (*sql.DB, error) {
 	return service.openSQLiteDatabase(ctx, service.Configuration.AttendanceDatabasePath, ensureAttendanceSchema)
@@ -22,8 +25,9 @@ func (service *Service) insertAttendanceEvent(ctx context.Context, database *sql
 INSERT INTO attendance_events (
 	id, mattermost_user_id, mattermost_username, email, display_name, kind, occurred_at, local_date, local_time,
 	time_zone_at_event, source, team_id, channel_id, action_post_id, result_post_id, location_id, location_name,
-	canceled_at, cancel_reason, repeated_click_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	canceled_at, cancel_reason, repeated_click_at, source_message, original_location_id, original_location_name,
+	overridden_by, overridden_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		event.ID,
 		event.MattermostUserID,
 		event.MattermostUsername,
@@ -44,6 +48,11 @@ INSERT INTO attendance_events (
 		"",
 		"",
 		"",
+		event.SourceMessage,
+		event.OriginalLocationID,
+		event.OriginalLocationName,
+		event.OverriddenBy,
+		event.OverriddenAt,
 	)
 	return errorValue
 }
@@ -70,6 +79,20 @@ FROM attendance_events
 WHERE mattermost_user_id = ? AND kind = ? AND canceled_at = ''
 ORDER BY occurred_at DESC
 LIMIT 1`, mattermostUserID, kind)
+	event, errorValue := scanAttendanceEvent(row)
+	if errors.Is(errorValue, sql.ErrNoRows) {
+		return attendanceEvent{}, false, nil
+	}
+	if errorValue != nil {
+		return attendanceEvent{}, false, errorValue
+	}
+	return event, true, nil
+}
+
+func (service *Service) attendanceEventByID(ctx context.Context, database *sql.DB, eventID string) (attendanceEvent, bool, error) {
+	row := database.QueryRowContext(ctx, "SELECT "+attendanceEventSelectColumns+`
+FROM attendance_events
+WHERE id = ?`, strings.TrimSpace(eventID))
 	event, errorValue := scanAttendanceEvent(row)
 	if errors.Is(errorValue, sql.ErrNoRows) {
 		return attendanceEvent{}, false, nil
@@ -135,6 +158,46 @@ WHERE id = ?`,
 	return errorValue
 }
 
+func (service *Service) updateAttendanceEventLocation(ctx context.Context, database *sql.DB, event attendanceEvent, location attendanceLocation, actorEmail string, overriddenAt time.Time) (attendanceEvent, error) {
+	originalLocationID := strings.TrimSpace(event.OriginalLocationID)
+	originalLocationName := strings.TrimSpace(event.OriginalLocationName)
+	if originalLocationID == "" {
+		originalLocationID = strings.TrimSpace(event.LocationID)
+		originalLocationName = strings.TrimSpace(event.LocationName)
+	}
+	overriddenAtText := overriddenAt.UTC().Format(time.RFC3339)
+	result, errorValue := database.ExecContext(ctx, `
+UPDATE attendance_events
+SET location_id = ?, location_name = ?, original_location_id = ?, original_location_name = ?, overridden_by = ?, overridden_at = ?
+WHERE id = ? AND kind = ? AND canceled_at = ''`,
+		strings.TrimSpace(location.ID),
+		strings.TrimSpace(location.Name),
+		originalLocationID,
+		originalLocationName,
+		strings.ToLower(strings.TrimSpace(actorEmail)),
+		overriddenAtText,
+		event.ID,
+		attendanceKindClockIn,
+	)
+	if errorValue != nil {
+		return attendanceEvent{}, errorValue
+	}
+	affectedRows, errorValue := result.RowsAffected()
+	if errorValue != nil {
+		return attendanceEvent{}, errorValue
+	}
+	if affectedRows == 0 {
+		return attendanceEvent{}, errAttendanceEventLocationConflict
+	}
+	event.LocationID = strings.TrimSpace(location.ID)
+	event.LocationName = strings.TrimSpace(location.Name)
+	event.OriginalLocationID = originalLocationID
+	event.OriginalLocationName = originalLocationName
+	event.OverriddenBy = strings.ToLower(strings.TrimSpace(actorEmail))
+	event.OverriddenAt = overriddenAtText
+	return event.withDerivedAttendanceFields(), nil
+}
+
 func (service *Service) deleteAttendanceEventByResultPostID(ctx context.Context, resultPostID string) error {
 	if strings.TrimSpace(resultPostID) == "" {
 		return nil
@@ -175,6 +238,22 @@ func scanAttendanceEvent(scanner attendanceEventScanner) (attendanceEvent, error
 		&event.CanceledAt,
 		&event.CancelReason,
 		&event.RepeatedClickAt,
+		&event.SourceMessage,
+		&event.OriginalLocationID,
+		&event.OriginalLocationName,
+		&event.OverriddenBy,
+		&event.OverriddenAt,
 	)
-	return event, errorValue
+	return event.withDerivedAttendanceFields(), errorValue
+}
+
+func (event attendanceEvent) withDerivedAttendanceFields() attendanceEvent {
+	if strings.TrimSpace(event.OriginalLocationID) == "" {
+		return event
+	}
+	event.ParsedAs = &attendanceParsedClassification{
+		Kind:       event.Kind,
+		LocationID: event.OriginalLocationID,
+	}
+	return event
 }

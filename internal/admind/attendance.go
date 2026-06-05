@@ -54,6 +54,8 @@ func (service *Service) handleAttendance(responseWriter http.ResponseWriter, req
 		service.writeAttendanceSettings(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/clock":
 		service.writeAttendanceClock(responseWriter, request)
+	case request.Method == http.MethodPatch && strings.HasPrefix(path, "/events/") && strings.HasSuffix(path, "/location"):
+		service.writeAttendanceEventLocation(responseWriter, request, strings.TrimSuffix(strings.TrimPrefix(path, "/events/"), "/location"))
 	default:
 		http.NotFound(responseWriter, request)
 	}

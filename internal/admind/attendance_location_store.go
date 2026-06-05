@@ -49,6 +49,23 @@ func (service *Service) attendanceLocationByID(locationID string) attendanceLoca
 	return service.defaultAttendanceLocation()
 }
 
+func (service *Service) attendanceLocationByIDExact(locationID string) (attendanceLocation, bool, error) {
+	normalizedLocationID := strings.TrimSpace(locationID)
+	if normalizedLocationID == "" {
+		return attendanceLocation{}, false, nil
+	}
+	locations, errorValue := service.readAttendanceLocations()
+	if errorValue != nil {
+		return attendanceLocation{}, false, errorValue
+	}
+	for _, location := range locations {
+		if location.ID == normalizedLocationID {
+			return location, true, nil
+		}
+	}
+	return attendanceLocation{}, false, nil
+}
+
 func (service *Service) attendanceLocationByName(locationName string) (attendanceLocation, bool) {
 	normalizedLocationName := strings.ToLower(strings.TrimSpace(locationName))
 	if normalizedLocationName == "" {
