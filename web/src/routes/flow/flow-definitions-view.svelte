@@ -1,0 +1,211 @@
+<script lang="ts">
+	import { Badge } from '$lib/components/ui/badge';
+	import { Button } from '$lib/components/ui/button';
+	import * as Card from '$lib/components/ui/card';
+	import { Input } from '$lib/components/ui/input';
+	import * as Table from '$lib/components/ui/table';
+	import PlusIcon from '@lucide/svelte/icons/plus';
+	import Trash2Icon from '@lucide/svelte/icons/trash-2';
+	import { flowProjectColor, flowTypeColor } from './flow-report-colors';
+	import { sizeBadgeClass } from './flow-style';
+	import type { FlowDefinitions } from './flow-types';
+
+	type DefinitionsText = {
+		size: string;
+		sizeDescription: string;
+		sizeName: string;
+		distance: string;
+		maxHours: string;
+		developmentExample: string;
+		otherExample: string;
+		note: string;
+		category: string;
+		categoryDescription: string;
+		type: string;
+		typeDescription: string;
+		adminOnly: string;
+		saving: string;
+		save: string;
+		removeAction: string;
+		add: string;
+	};
+
+	type Props = {
+		definitions: FlowDefinitions;
+		categoryDrafts: string[];
+		typeDrafts: string[];
+		newCategoryText: string;
+		newTypeText: string;
+		isAdmin: boolean;
+		canEditDefinitions: boolean;
+		isSavingDefinitions: boolean;
+		definitionErrorMessage: string;
+		loadError: string;
+		text: DefinitionsText;
+		updateCategory: (index: number, value: string) => void;
+		updateType: (index: number, value: string) => void;
+		removeCategory: (index: number) => void;
+		removeType: (index: number) => void;
+		addCategory: () => void;
+		addType: () => void;
+		setNewCategoryText: (value: string) => void;
+		setNewTypeText: (value: string) => void;
+		saveDefinitions: () => void;
+	};
+
+	let {
+		definitions,
+		categoryDrafts,
+		typeDrafts,
+		newCategoryText,
+		newTypeText,
+		isAdmin,
+		canEditDefinitions,
+		isSavingDefinitions,
+		definitionErrorMessage,
+		loadError,
+		text,
+		updateCategory,
+		updateType,
+		removeCategory,
+		removeType,
+		addCategory,
+		addType,
+		setNewCategoryText,
+		setNewTypeText,
+		saveDefinitions
+	}: Props = $props();
+</script>
+
+{#if canEditDefinitions}
+	<section class="grid gap-4">
+		{@render SizeDefinitionCard()}
+		<div class="grid gap-4 lg:grid-cols-2">
+			{@render EditableListCard(
+				text.category,
+				text.categoryDescription,
+				categoryDrafts,
+				newCategoryText,
+				updateCategory,
+				removeCategory,
+				addCategory,
+				setNewCategoryText,
+				flowProjectColor
+			)}
+			{@render EditableListCard(
+				text.type,
+				text.typeDescription,
+				typeDrafts,
+				newTypeText,
+				updateType,
+				removeType,
+				addType,
+				setNewTypeText,
+				flowTypeColor
+			)}
+		</div>
+		{#if isAdmin}
+			<div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
+				<p class="text-sm text-muted-foreground">{definitionErrorMessage || text.adminOnly}</p>
+				<Button onclick={saveDefinitions} disabled={isSavingDefinitions || typeDrafts.filter((value) => value.trim()).length === 0}>
+					{isSavingDefinitions ? text.saving : text.save}
+				</Button>
+			</div>
+		{:else}
+			<p class="text-sm text-muted-foreground">{text.adminOnly}</p>
+		{/if}
+	</section>
+{:else}
+	<div class="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
+		{loadError}
+	</div>
+{/if}
+
+{#snippet SizeDefinitionCard()}
+	<Card.Root>
+		<Card.Header>
+			<Card.Title>{text.size}</Card.Title>
+			<Card.Description>{text.sizeDescription}</Card.Description>
+		</Card.Header>
+		<Card.Content>
+			<div class="overflow-hidden rounded-lg border">
+				<Table.Root class="min-w-[980px]">
+					<Table.Header class="bg-muted/40">
+						<Table.Row class="hover:bg-transparent">
+							<Table.Head class="h-10 text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.sizeName}</Table.Head>
+							<Table.Head class="h-10 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.distance}</Table.Head>
+							<Table.Head class="h-10 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.maxHours}</Table.Head>
+							<Table.Head class="h-10 text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.developmentExample}</Table.Head>
+							<Table.Head class="h-10 text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.otherExample}</Table.Head>
+							<Table.Head class="h-10 text-xs font-medium uppercase tracking-wide text-muted-foreground">{text.note}</Table.Head>
+						</Table.Row>
+					</Table.Header>
+					<Table.Body>
+						{#each definitions.sizes as size (size.name)}
+							<Table.Row>
+								<Table.Cell><Badge class={sizeBadgeClass(size.name)}>{size.name}</Badge></Table.Cell>
+								<Table.Cell class="text-right tabular-nums">{size.distanceKm}</Table.Cell>
+								<Table.Cell class="text-right tabular-nums">{size.maxHours}</Table.Cell>
+								<Table.Cell>{size.developmentExample}</Table.Cell>
+								<Table.Cell>{size.otherExample}</Table.Cell>
+								<Table.Cell class="text-muted-foreground">{size.note}</Table.Cell>
+							</Table.Row>
+						{/each}
+					</Table.Body>
+				</Table.Root>
+			</div>
+		</Card.Content>
+	</Card.Root>
+{/snippet}
+
+{#snippet EditableListCard(
+	title: string,
+	description: string,
+	items: string[],
+	newValue: string,
+	update: (index: number, value: string) => void,
+	remove: (index: number) => void,
+	add: () => void,
+	setNewValue: (value: string) => void,
+	itemColor: (index: number) => string
+)}
+	<Card.Root size="sm">
+		<Card.Header>
+			<Card.Title>{title}</Card.Title>
+			<Card.Description>{description}</Card.Description>
+		</Card.Header>
+		<Card.Content class="space-y-2">
+			{#each items as item, index}
+				<div class="grid grid-cols-[auto_1fr_auto] items-center gap-2">
+					<span class="size-2.5 rounded-full" style={`background: ${itemColor(index)}`}></span>
+					<Input
+						value={item}
+						disabled={!isAdmin}
+						oninput={(event) => update(index, event.currentTarget.value)}
+					/>
+					<Button
+						variant="ghost"
+						size="icon"
+						disabled={!isAdmin}
+						onclick={() => remove(index)}
+						aria-label={text.removeAction}
+					>
+						<Trash2Icon class="size-4" />
+					</Button>
+				</div>
+			{/each}
+			{#if isAdmin}
+				<div class="grid grid-cols-[auto_1fr_auto] items-center gap-2">
+					<span class="size-2.5 rounded-full" style={`background: ${itemColor(items.length)}`}></span>
+					<Input value={newValue} placeholder={title} oninput={(event) => setNewValue(event.currentTarget.value)} />
+					<Button variant="outline" size="icon" onclick={add} aria-label={text.add}>
+						<PlusIcon class="size-4" />
+					</Button>
+				</div>
+			{/if}
+			{#if items.length === 0 && !isAdmin}
+				<p class="rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">—</p>
+			{/if}
+		</Card.Content>
+	</Card.Root>
+{/snippet}
