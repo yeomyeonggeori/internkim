@@ -228,6 +228,23 @@ func waitForHandoffActive(t *testing.T, handoffStore *BrowserHandoffStore) {
 	t.Fatal("timed out waiting for active handoff")
 }
 
+func completeActiveBrowserHandoffForExecutorTest(t *testing.T, store *BrowserHandoffStore, completion HandoffCompletion) {
+	t.Helper()
+	store.mutex.Lock()
+	handoff, errorValue := store.validateCompletionLocked(completion)
+	if errorValue != nil {
+		store.mutex.Unlock()
+		t.Fatalf("validate handoff completion: %v", errorValue)
+	}
+	if handoff == nil {
+		store.mutex.Unlock()
+		return
+	}
+	waiter := handoff.waiter
+	store.mutex.Unlock()
+	waiter <- completion
+}
+
 func TestBrowserNavigateOpensValidatedURL(t *testing.T) {
 	browserRuntime := &fakeBrowserRuntime{}
 	executor := Executor{BrowserRuntime: browserRuntime}
@@ -568,26 +585,21 @@ func TestBrowserHandoffReusesActiveHandoffWithoutReopeningBrowser(t *testing.T) 
 	}
 	browserRuntime := &fakeBrowserRuntime{}
 	executor := Executor{BrowserRuntime: browserRuntime, HandoffStore: handoffStore}
-	completionErrors := make(chan error, 1)
-	go func() {
-		completionErrors <- handoffStore.Complete(HandoffCompletion{
-			HandoffID:  activeHandoff.HandoffID,
-			SessionID:  activeHandoff.SessionID,
-			URL:        "https://example.com/app",
-			CapturedAt: time.Now().UTC().Format(time.RFC3339),
-		})
-	}()
+	completeActiveBrowserHandoffForExecutorTest(t, handoffStore, HandoffCompletion{
+		HandoffID:  activeHandoff.HandoffID,
+		SessionID:  activeHandoff.SessionID,
+		URL:        "https://example.com/app",
+		CapturedAt: time.Now().UTC().Format(time.RFC3339),
+	})
 
 	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-2", ToolName: "browser.handoff"}, capabilities.ToolInvokeRequest{
 		ToolName: "browser.handoff",
 		Input:    json.RawMessage(`{"url":"https://example.com/projectselector2/iam-admin/serviceaccounts?supportedpurview=project","message":"로그인 후 완료를 눌러주세요."}`),
 	})
-	if completionError := <-completionErrors; completionError != nil {
-		t.Fatalf("expected handoff completion: %v", completionError)
-	}
 	if errorValue != nil {
 		t.Fatalf("expected active handoff reuse: %v", errorValue)
 	}
+	handoffStore.End(activeHandoff.HandoffID, HandoffStateCompleted)
 
 	var result BrowserHandoffResult
 	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
