@@ -32,6 +32,7 @@ type flowSummaryResponse struct {
 	Tasks            []flowTask      `json:"tasks"`
 	Metrics          flowMetrics     `json:"metrics"`
 	Definitions      flowDefinitions `json:"definitions"`
+	Report           flowReport      `json:"report"`
 	StatusOptions    []string        `json:"statusOptions"`
 	CurrentUserEmail string          `json:"currentUserEmail"`
 	CurrentUserName  string          `json:"currentUserName"`
@@ -100,6 +101,22 @@ type flowMetrics struct {
 	BusinessCounts map[string]int `json:"businessCounts"`
 	TypeCounts     map[string]int `json:"typeCounts"`
 	MemberScores   map[string]int `json:"memberScores"`
+}
+
+type flowReport struct {
+	WeeklyDistanceTrend  flowDistanceTrend `json:"weeklyDistanceTrend"`
+	MonthlyDistanceTrend flowDistanceTrend `json:"monthlyDistanceTrend"`
+}
+
+type flowDistanceTrend struct {
+	Labels         []string `json:"labels"`
+	CurrentLabel   string   `json:"currentLabel"`
+	PreviousLabel  string   `json:"previousLabel"`
+	CurrentValues  []int    `json:"currentValues"`
+	PreviousValues []int    `json:"previousValues"`
+	CurrentTotal   int      `json:"currentTotal"`
+	PreviousTotal  int      `json:"previousTotal"`
+	Unit           string   `json:"unit"`
 }
 
 type flowDefinitions struct {
@@ -465,6 +482,11 @@ func (service *Service) writeFlowSummary(responseWriter http.ResponseWriter, req
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
+	report, errorValue := service.buildFlowReport(request.Context(), weekStart, members, tasks, definitions)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
 	callerEmail := service.flowActorEmail(request)
 	scoredMembers := scoreFlowMembers(members, tasks, definitions)
 	response := flowSummaryResponse{
@@ -473,6 +495,7 @@ func (service *Service) writeFlowSummary(responseWriter http.ResponseWriter, req
 		Tasks:            tasks,
 		Metrics:          buildFlowMetrics(tasks, definitions),
 		Definitions:      definitions,
+		Report:           report,
 		StatusOptions:    flowStatusOptions(),
 		CurrentUserEmail: callerEmail,
 		CurrentUserName:  resolveCurrentUserName(scoredMembers, callerEmail),
@@ -930,6 +953,32 @@ SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, 
 FROM flow_tasks
 WHERE week_code = ?
 ORDER BY status = '요청' DESC, owner_name, updated_at DESC`, weekCode)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer rows.Close()
+	tasks := []flowTask{}
+	for rows.Next() {
+		task, errorValue := scanFlowTask(rows)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		tasks = append(tasks, task)
+	}
+	return alignFlowTasksWithMembers(tasks, members), rows.Err()
+}
+
+func (service *Service) readFlowTasksBetweenDates(ctx context.Context, startDate string, endDate string, members []flowMember) ([]flowTask, error) {
+	database, errorValue := service.openFlowDatabase(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer database.Close()
+	rows, errorValue := database.QueryContext(ctx, `
+SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id
+FROM flow_tasks
+WHERE (start_date >= ? AND start_date <= ?) OR (end_date >= ? AND end_date <= ?)
+ORDER BY start_date, owner_name, updated_at DESC`, startDate, endDate, startDate, endDate)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -1949,7 +1998,7 @@ func scoreFlowMembers(members []flowMember, tasks []flowTask, definitions flowDe
 			} else if task.Status != "기각" && task.Status != "중단" {
 				result[index].ActiveTaskCount++
 			}
-			result[index].Score += scoreForTask(task, definitions)
+			result[index].Score += progressDistanceForTask(task, definitions)
 		}
 	}
 	return result
@@ -1981,16 +2030,16 @@ func buildFlowMetrics(tasks []flowTask, definitions flowDefinitions) flowMetrics
 		if task.Status == "중단" {
 			metrics.StoppedTasks++
 		}
-		score := scoreForTask(task, definitions)
-		metrics.TotalScore += score
+		distance := progressDistanceForTask(task, definitions)
+		metrics.TotalScore += distance
 		for _, name := range task.ParticipantNames {
-			metrics.MemberScores[name] += score
+			metrics.MemberScores[name] += distance
 		}
 	}
 	return metrics
 }
 
-func scoreForTask(task flowTask, definitions flowDefinitions) int {
+func progressDistanceForTask(task flowTask, definitions flowDefinitions) int {
 	distance := distanceForTaskSize(task.Size, definitions.Sizes)
 	switch task.Status {
 	case "완료":
