@@ -1,20 +1,19 @@
-// Flow 주간 업무 종류 거리 섹션을 계산합니다.
 import { taskTeamDistance, weeklyTaskDayIndex } from './flow-report-distance';
 import { emptyTrend, incrementNested, percentage, sortedTypeDistances, typeIndex } from './flow-report-section-helpers';
-import type { FlowReportDefinitions, FlowReportRow, FlowReportSection, FlowReportSectionID, FlowReportSectionLabel, FlowReportTask } from './flow-report-types';
+import type { FlowReportCopy, FlowReportDefinitions, FlowReportRow, FlowReportSection, FlowReportSectionID, FlowReportSectionLabel, FlowReportTask } from './flow-report-types';
 
 type BuildWeeklyTypeDistanceSectionInput = {
 	id: FlowReportSectionID;
 	labels: FlowReportSectionLabel;
 	emptyLabel: string;
+	copy: FlowReportCopy;
 	tasks: FlowReportTask[];
 	definitions: FlowReportDefinitions;
 	weekStartISO?: string;
 };
 
-const weeklyDayLabels = ['월', '화', '수', '목', '금', '토', '일'];
-
 export function buildWeeklyTypeDistanceSection(input: BuildWeeklyTypeDistanceSectionInput): FlowReportSection {
+	const weeklyDayLabels = normalizedWeekdays(input.copy.weekdays);
 	const dailyTypeDistances = new Map<string, Map<string, number>>();
 	for (const label of weeklyDayLabels) {
 		dailyTypeDistances.set(label, new Map<string, number>());
@@ -30,7 +29,7 @@ export function buildWeeklyTypeDistanceSection(input: BuildWeeklyTypeDistanceSec
 		incrementNested(dailyTypeDistances, weeklyDayLabels[dayIndex], task.type, distance);
 	}
 
-	const typeOrder = [...input.definitions.types, '기타'];
+	const typeOrder = [...input.definitions.types, input.copy.fallbackType];
 	const rows = weeklyDayLabels.map((label) => dailyTypeDistanceRow(label, dailyTypeDistances.get(label) ?? new Map<string, number>(), typeOrder));
 	const total = rows.reduce((sum, row) => sum + row.total, 0);
 	const typeTotals = totalTypeDistances(rows, typeOrder);
@@ -46,6 +45,8 @@ export function buildWeeklyTypeDistanceSection(input: BuildWeeklyTypeDistanceSec
 		averageValue: 0,
 		alertValue: 0,
 		emptyLabel: input.emptyLabel,
+		teamAverageLabel: input.copy.teamAverageLabel,
+		memberScrollHint: input.copy.memberScrollHint,
 		items: typeTotals.map(([typeName, value]) => ({
 			label: typeName,
 			description: '',
@@ -57,6 +58,10 @@ export function buildWeeklyTypeDistanceSection(input: BuildWeeklyTypeDistanceSec
 		rows: rows.map((row) => ({ ...row, percent: percentage(row.total, total) })),
 		trend: emptyTrend('km')
 	};
+}
+
+function normalizedWeekdays(weekdays: string[]): string[] {
+	return weekdays.length === 7 ? weekdays : ['1', '2', '3', '4', '5', '6', '7'];
 }
 
 function dailyTypeDistanceRow(label: string, typeDistances: Map<string, number>, typeOrder: string[]): FlowReportRow {

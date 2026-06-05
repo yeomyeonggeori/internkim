@@ -1,4 +1,3 @@
-// Flow 보고 섹션 계산의 공통 함수를 제공합니다.
 import type { FlowReportTrend } from './flow-report-types';
 
 export function percentage(value: number, total: number): number {

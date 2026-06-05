@@ -7,6 +7,7 @@ import type { FlowReportDefinitions, FlowReportMetrics, FlowReportOptions, FlowR
 
 export type {
 	FlowReportChartKind,
+	FlowReportCopy,
 	FlowReportDefinitions,
 	FlowReportItem,
 	FlowReportMetrics,
@@ -38,12 +39,14 @@ export function buildFlowReportSections(metrics: FlowReportMetrics, options: Flo
 	const definitions = options.definitions ?? emptyDefinitions;
 	const tasks = options.tasks ?? [];
 	const metricDistances = distancesFromMetrics(metrics);
+	const copy = options.copy;
 
 	return {
 		weeklyStatus: buildWeeklyTypeDistanceSection({
 			id: 'weeklyStatus',
 			labels: options.sectionLabels.weeklyStatus,
 			emptyLabel: options.emptyLabel,
+			copy,
 			tasks,
 			definitions,
 			weekStartISO: options.weekStartISO
@@ -52,6 +55,7 @@ export function buildFlowReportSections(metrics: FlowReportMetrics, options: Flo
 			id: 'memberDistance',
 			labels: options.sectionLabels.memberDistance,
 			emptyLabel: options.emptyLabel,
+			copy,
 			tasks,
 			definitions,
 			memberDistances: metricDistances.memberDistances,
@@ -61,18 +65,21 @@ export function buildFlowReportSections(metrics: FlowReportMetrics, options: Flo
 			id: 'weeklyDistanceTrend',
 			labels: options.sectionLabels.weeklyDistanceTrend,
 			emptyLabel: options.emptyLabel,
+			copy,
 			trend: options.report?.weeklyDistanceTrend
 		}),
 		monthlyDistanceTrend: buildTrendSection({
 			id: 'monthlyDistanceTrend',
 			labels: options.sectionLabels.monthlyDistanceTrend,
 			emptyLabel: options.emptyLabel,
+			copy,
 			trend: options.report?.monthlyDistanceTrend
 		}),
 		businessDistance: buildBusinessDistanceSection({
 			id: 'businessDistance',
 			labels: options.sectionLabels.businessDistance,
 			emptyLabel: options.emptyLabel,
+			copy,
 			tasks,
 			definitions
 		})
@@ -81,6 +88,6 @@ export function buildFlowReportSections(metrics: FlowReportMetrics, options: Flo
 
 function distancesFromMetrics(metrics: FlowReportMetrics): FlowMetricDistances {
 	return {
-		memberDistances: metrics.memberScores
+		memberDistances: metrics.memberDistances ?? metrics.memberScores ?? {}
 	};
 }

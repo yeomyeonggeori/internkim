@@ -44,7 +44,7 @@
 				<Card.Description class="text-sm leading-snug">{section.description}</Card.Description>
 			{/if}
 			{#if section.id === 'memberDistance'}
-				<Card.Description class="text-xs font-medium leading-snug tabular-nums">팀 평균: {formatValue(section.averageValue, section.unit)}</Card.Description>
+				<Card.Description class="text-xs font-medium leading-snug tabular-nums">{section.teamAverageLabel}: {formatValue(section.averageValue, section.unit)}</Card.Description>
 			{/if}
 		</div>
 	</Card.Header>
