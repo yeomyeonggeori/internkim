@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 type updateCommandRunner func(directoryPath string, name string, arguments ...string) error
@@ -26,6 +28,8 @@ func runUpdateArguments(arguments []string) error {
 			return runReleaseUpdateCheck(arguments[1:])
 		case "apply":
 			return runReleaseUpdateApply(arguments[1:])
+		case "blueclaw-payload":
+			return runBlueclawPayloadHTTPUpdate(arguments[1:])
 		}
 	}
 	setupSlice, errorValue := updateSetupSlice(arguments)
@@ -125,9 +129,46 @@ func printUpdateUsage() {
 	fmt.Println("  internkim update")
 	fmt.Println("  internkim update check --node 1")
 	fmt.Println("  internkim update apply --node 1")
+	fmt.Println("  internkim update blueclaw-payload")
 	fmt.Println("  internkim update --web")
 	fmt.Println("  internkim update --binaries --host 192.168.1.50")
 	fmt.Println("  internkim update --profile acme --node 1")
 	fmt.Println("  internkim update --sim-first")
 	fmt.Println("  internkim update --plan")
+}
+
+func runBlueclawPayloadHTTPUpdate(arguments []string) error {
+	repositoryRootPath, errorValue := resolveRepositoryRootPath()
+	if errorValue != nil {
+		return errorValue
+	}
+	target := resolveCommandTarget(arguments)
+	target = resolveLabHostForCommandTarget(target, repositoryRootPath)
+	state := newSetupFlowState(
+		newMsg("ko"),
+		loadConfig(),
+		collectSetupParameterValues(),
+		target.stateDir,
+		repositoryRootPath,
+		currentExecutableFingerprint(),
+		nil,
+		true,
+	)
+	artifactDirectoryPath, errorValue := state.ensureBlueclawPayloadArtifact()
+	if errorValue != nil {
+		return errorValue
+	}
+	manifest, errorValue := blueclaw.ValidatePayloadArtifactDirectory(artifactDirectoryPath)
+	if errorValue != nil {
+		return errorValue
+	}
+	printCommandTargetEvidence(target)
+	fmt.Print("  blueclaw runtime payload via HTTPS... ")
+	result, errorValue := state.installBlueclawPayloadHTTPS(artifactDirectoryPath, manifest)
+	if errorValue != nil {
+		fmt.Println("failed")
+		return errorValue
+	}
+	fmt.Println(result)
+	return nil
 }
