@@ -25,7 +25,7 @@ Immediate direct messages to someone else require confirmation. First call `ask.
 
 Immediate direct messages to the requester themselves do not require approval.
 
-Scheduled direct messages do not require approval at run time. For a future or recurring message to a named person, call `schedule.create` with `executionMode: "agent"` and make the prompt a direct future instruction to use DM delivery.
+Scheduled direct messages do not require approval at run time. For a future or recurring message to a named person, call `schedule.create` and make `taskInstruction` the direct future instruction to use DM delivery.
 
 ## Workflow
 
@@ -33,7 +33,7 @@ Scheduled direct messages do not require approval at run time. For a future or r
 2. Identify the exact message to send.
 3. If this is an immediate send to someone else, call `ask.confirm`.
 4. If the latest task context says the user approved the pending action, call `platform.dm.send`.
-5. If this is scheduled for later, call `schedule.create` with `executionMode: "agent"`.
+5. If this is scheduled for later, call `schedule.create` with a `taskInstruction` that names the recipient and message.
 
 If `platform.dm.send` reports that a recipient was not found, say that the recipient could not be resolved. Do not combine that with approval language; approval is separate from recipient resolution.
 
@@ -60,12 +60,11 @@ For scheduled "1분 뒤 동하에게 테스트라고 보내줘", use:
 
 ```json
 {
-  "prompt": "동하 님에게 \"테스트\"라고 DM으로 보내세요.",
-  "executionMode": "agent",
+  "taskInstruction": "동하 님에게 \"테스트\"라고 DM으로 보낸다.",
   "kind": "once",
   "runAt": "<RFC3339 timestamp one minute from now>",
   "timeZone": "Asia/Seoul"
 }
 ```
 
-For current-conversation reminders like "나한테 1분마다 죄송합니다 2번 해봐", use the scheduled-task workflow with `executionMode: "message"` instead of this direct-message workflow.
+For current-conversation reminders like "나한테 1분마다 죄송합니다 2번 해봐", use the scheduled-task workflow with `taskInstruction` such as `현재 대화에 "죄송합니다"라고 보낸다.`
