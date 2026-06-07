@@ -159,6 +159,24 @@ func TestVerifyMattermostPromptScriptCanDownloadFinalAttachments(t *testing.T) {
 	}
 }
 
+func TestVerifyMattermostMessageDeleteE2EChecksIdentityBeforeWaitingForTask(t *testing.T) {
+	script := verifyMattermostMessageDeleteE2EScript(false, 90)
+	requiredFragments := []string{
+		"verify delete probe policy",
+		"identity.resolve",
+		"delete E2E Mattermost identity resolve did not return the probe email",
+		"probe identity resolve: $identity_response",
+		"diagnose delete E2E channel posts",
+		"connector event diagnostics for Mattermost message",
+		"/admin/api/connector/events?platform=mattermost&messageID=$message_id&limit=5",
+	}
+	for _, fragment := range requiredFragments {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected Mattermost delete E2E script to include %q", fragment)
+		}
+	}
+}
+
 func TestRedactDownloadedMattermostFilesHidesAttachmentBytes(t *testing.T) {
 	output := "log line\n" + `{"downloadedFiles":[{"fileID":"file-1","filename":"deck.html","contentBase64":"YWJjZA=="}]}` + "\n"
 	redactedOutput := redactDownloadedMattermostFiles(output)

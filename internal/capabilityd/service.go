@@ -171,6 +171,12 @@ type mattermostPostsResponse struct {
 	Posts map[string]mattermostPolledPost `json:"posts"`
 }
 
+type mattermostPollState struct {
+	LastSeenByChannel map[string]int64
+	IsInitialized     bool
+	LastPollStartedAt int64
+}
+
 func DefaultConfiguration() Configuration {
 	return Configuration{
 		SocketPath:                     "/run/internkim/capability.sock",
@@ -1355,7 +1361,8 @@ func (service Service) startMattermostForwarder(ctx context.Context) {
 		state.MattermostForwarderRunning = true
 		state.LastForwardError = ""
 	})
-	lastSeenByChannel := map[string]int64{}
+	log.Printf("mattermost forwarder enabled: botUserID=%s botUsername=%s baseURL=%s", botUser.ID, botUser.Username, service.Configuration.MattermostBaseURL)
+	pollState := mattermostPollState{LastSeenByChannel: map[string]int64{}}
 	var lastSeenMutex sync.Mutex
 	listener := MattermostWebSocketForwarder{
 		URL:         deriveMattermostWebSocketURL(service.Configuration.MattermostBaseURL),
@@ -1386,8 +1393,8 @@ func (service Service) startMattermostForwarder(ctx context.Context) {
 				return
 			}
 			lastSeenMutex.Lock()
-			if post.CreateAt > lastSeenByChannel[post.ChannelID] {
-				lastSeenByChannel[post.ChannelID] = post.CreateAt
+			if post.CreateAt > pollState.LastSeenByChannel[post.ChannelID] {
+				pollState.LastSeenByChannel[post.ChannelID] = post.CreateAt
 			}
 			lastSeenMutex.Unlock()
 		},
@@ -1397,23 +1404,57 @@ func (service Service) startMattermostForwarder(ctx context.Context) {
 			})
 		},
 		PollFallback: func(ctx context.Context) {
-			service.healthState().Update(func(state *platformHealthState) {
-				state.MattermostFallbackActive = true
-			})
-			lastSeenMutex.Lock()
-			defer lastSeenMutex.Unlock()
-			if errorValue := service.pollMattermost(ctx, lastSeenByChannel); errorValue != nil {
-				service.healthState().Update(func(state *platformHealthState) {
-					state.LastForwardError = errorValue.Error()
-				})
-				log.Printf("mattermost fallback poll failed: %v", errorValue)
-			}
+			service.pollMattermostFallback(ctx, &pollState, &lastSeenMutex)
 		},
 	}
+	service.pollMattermostFallback(ctx, &pollState, &lastSeenMutex)
+	go service.runMattermostPollingFallback(ctx, &pollState, &lastSeenMutex)
 	go listener.Start(ctx)
 }
 
-func (service Service) pollMattermost(ctx context.Context, lastSeenByChannel map[string]int64) error {
+func (service Service) runMattermostPollingFallback(ctx context.Context, pollState *mattermostPollState, mutex *sync.Mutex) {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+	for ctx.Err() == nil {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			service.pollMattermostFallback(ctx, pollState, mutex)
+		}
+	}
+}
+
+func (service Service) pollMattermostFallback(ctx context.Context, pollState *mattermostPollState, mutex *sync.Mutex) {
+	service.healthState().Update(func(state *platformHealthState) {
+		state.MattermostFallbackActive = true
+	})
+	mutex.Lock()
+	defer mutex.Unlock()
+	wasInitialized := pollState.IsInitialized
+	previousChannelCount := len(pollState.LastSeenByChannel)
+	if errorValue := service.pollMattermost(ctx, pollState); errorValue != nil {
+		service.healthState().Update(func(state *platformHealthState) {
+			state.LastForwardError = errorValue.Error()
+		})
+		log.Printf("mattermost fallback poll failed: %v", errorValue)
+		return
+	}
+	if !wasInitialized {
+		log.Printf("mattermost fallback poll initialized: channels=%d", len(pollState.LastSeenByChannel))
+		return
+	}
+	if len(pollState.LastSeenByChannel) > previousChannelCount {
+		log.Printf("mattermost fallback poll discovered channels: previous=%d current=%d", previousChannelCount, len(pollState.LastSeenByChannel))
+	}
+}
+
+func (service Service) pollMattermost(ctx context.Context, state *mattermostPollState) error {
+	if state.LastSeenByChannel == nil {
+		state.LastSeenByChannel = map[string]int64{}
+	}
+	previousPollStartedAt := state.LastPollStartedAt
+	pollStartedAt := time.Now().UnixMilli()
 	var botUser struct {
 		ID       string `json:"id"`
 		Username string `json:"username"`
@@ -1425,12 +1466,8 @@ func (service Service) pollMattermost(ctx context.Context, lastSeenByChannel map
 		return errors.New("mattermost bot user id is empty")
 	}
 
-	var channels []struct {
-		ID   string `json:"id"`
-		Type string `json:"type"`
-		Name string `json:"name"`
-	}
-	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/"+url.PathEscape(botUser.ID)+"/channels", nil, &channels); errorValue != nil {
+	channels, errorValue := service.mattermostBotChannels(ctx, botUser.ID)
+	if errorValue != nil {
 		return errorValue
 	}
 
@@ -1438,26 +1475,61 @@ func (service Service) pollMattermost(ctx context.Context, lastSeenByChannel map
 		if strings.TrimSpace(channel.ID) == "" {
 			continue
 		}
-		if _, isFound := lastSeenByChannel[channel.ID]; !isFound {
-			latestCreateAt, errorValue := service.latestMattermostChannelPostCreateAt(ctx, channel.ID)
-			if errorValue != nil {
-				log.Printf("mattermost channel watermark failed: %s: %v", channel.ID, errorValue)
-				lastSeenByChannel[channel.ID] = time.Now().UnixMilli()
+		if _, isFound := state.LastSeenByChannel[channel.ID]; !isFound {
+			if state.IsInitialized {
+				nextSeen, errorValue := service.forwardMattermostChannelPosts(ctx, botUser.ID, botUser.Username, channel.ID, channel.Type, channel.Name, mattermostNewChannelSince(previousPollStartedAt))
+				if errorValue != nil {
+					log.Printf("mattermost new channel poll failed: %s: %v", channel.ID, errorValue)
+					continue
+				}
+				state.LastSeenByChannel[channel.ID] = nextSeen
 				continue
 			}
-			lastSeenByChannel[channel.ID] = latestCreateAt
+			state.LastSeenByChannel[channel.ID] = pollStartedAt
 			continue
 		}
-		nextSeen, errorValue := service.forwardMattermostChannelPosts(ctx, botUser.ID, botUser.Username, channel.ID, channel.Type, channel.Name, lastSeenByChannel[channel.ID])
+		nextSeen, errorValue := service.forwardMattermostChannelPosts(ctx, botUser.ID, botUser.Username, channel.ID, channel.Type, channel.Name, state.LastSeenByChannel[channel.ID])
 		if errorValue != nil {
 			log.Printf("mattermost channel poll failed: %s: %v", channel.ID, errorValue)
 			continue
 		}
-		if nextSeen > lastSeenByChannel[channel.ID] {
-			lastSeenByChannel[channel.ID] = nextSeen
+		if nextSeen > state.LastSeenByChannel[channel.ID] {
+			state.LastSeenByChannel[channel.ID] = nextSeen
 		}
 	}
+	state.IsInitialized = true
+	state.LastPollStartedAt = pollStartedAt
 	return nil
+}
+
+type mattermostBotChannel struct {
+	ID   string `json:"id"`
+	Type string `json:"type"`
+	Name string `json:"name"`
+}
+
+func (service Service) mattermostBotChannels(ctx context.Context, botUserID string) ([]mattermostBotChannel, error) {
+	const perPage = 200
+	channels := []mattermostBotChannel{}
+	for page := 0; page < 100; page++ {
+		pageChannels := []mattermostBotChannel{}
+		path := fmt.Sprintf("/api/v4/users/%s/channels?page=%d&per_page=%d", url.PathEscape(botUserID), page, perPage)
+		if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, nil, &pageChannels); errorValue != nil {
+			return nil, errorValue
+		}
+		channels = append(channels, pageChannels...)
+		if len(pageChannels) < perPage {
+			return channels, nil
+		}
+	}
+	return channels, nil
+}
+
+func mattermostNewChannelSince(previousPollStartedAt int64) int64 {
+	if previousPollStartedAt <= 1000 {
+		return 0
+	}
+	return previousPollStartedAt - 1000
 }
 
 func (service Service) latestMattermostChannelPostCreateAt(ctx context.Context, channelID string) (int64, error) {
@@ -1485,7 +1557,10 @@ func (service Service) forwardMattermostChannelPosts(ctx context.Context, botUse
 	if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, nil, &response); errorValue != nil {
 		return since, errorValue
 	}
+	return service.forwardMattermostPosts(ctx, botUserID, botUsername, channelType, channelName, response, since)
+}
 
+func (service Service) forwardMattermostPosts(ctx context.Context, botUserID string, botUsername string, channelType string, channelName string, response mattermostPostsResponse, since int64) (int64, error) {
 	nextSeen := since
 	for index := len(response.Order) - 1; index >= 0; index-- {
 		post := response.Posts[response.Order[index]]
@@ -1536,6 +1611,7 @@ func (service Service) forwardMattermostChannelPosts(ctx context.Context, botUse
 			log.Printf("mattermost post forward failed: %s: %v", post.ID, errorValue)
 			continue
 		}
+		log.Printf("mattermost post forwarded: postID=%s channelID=%s", post.ID, post.ChannelID)
 		if post.CreateAt > nextSeen {
 			nextSeen = post.CreateAt
 		}
@@ -1579,10 +1655,11 @@ func (service Service) forwardPlatformEventWithoutLock(ctx context.Context, plat
 		return errorValue
 	}
 	defer response.Body.Close()
+	responseDocument, _ := io.ReadAll(response.Body)
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		responseDocument, _ := io.ReadAll(response.Body)
 		return errors.New(string(responseDocument))
 	}
+	log.Printf("platform event forward result: platform=%s messageID=%s response=%s", platform, event.MessageID, strings.TrimSpace(string(responseDocument)))
 	return nil
 }
 

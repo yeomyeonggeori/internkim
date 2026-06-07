@@ -1662,6 +1662,13 @@ for _ in $(seq 1 "$timeout_seconds"); do
 done
 if [ -z "$bot_post_id" ]; then
   echo "expected Mattermost bot reply for probe post $user_post_id" >&2
+  echo "probe channel: $channel_id" >&2
+  echo "probe bot membership status: $(curl --silent --show-error --output /tmp/internkim-probe-bot-member.json --write-out '%%{http_code}' -H "Authorization: Bearer $mattermost_token" "http://localhost:8065/api/v4/channels/$channel_id/members/$bot_user_id" || true)" >&2
+  echo "probe bot channel posts status: $(curl --silent --show-error --output /tmp/internkim-probe-bot-posts.json --write-out '%%{http_code}' -H "Authorization: Bearer $mattermost_token" "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=5" || true)" >&2
+  jq -r '.order // [] | @json' /tmp/internkim-probe-bot-posts.json >&2 || true
+  echo "probe bot channel list contains channel: $(curl --silent --show-error -H "Authorization: Bearer $mattermost_token" "http://localhost:8065/api/v4/users/$bot_user_id/channels" | jq -r --arg channel_id "$channel_id" 'map(.id == $channel_id) | any')" >&2
+  blueclaw_request "probe task list after missing reply" GET http://127.0.0.1:8080/admin/api/task |
+    jq -r --arg prompt "$prompt" '[.[] | select(.prompt == $prompt)] | @json' >&2 || true
   exit 1
 fi
 
@@ -1855,7 +1862,8 @@ email="probe-mattermost-delete-$timestamp@internkim.test"
 username="probedelete$timestamp"
 password="ProbePass!$timestamp-InternKim-Mattermost"
 marker="internkim-delete-e2e-$timestamp"
-prompt="방금 김인턴이 보낸 $marker 테스트 메시지 두 개만 삭제해줘. 내가 보낸 $marker 메시지는 삭제하지 마."
+target_count=24
+prompt="방금 김인턴이 보낸 $marker 테스트 메시지들을 모두 삭제해줘. 내가 보낸 $marker 메시지는 삭제하지 마."
 keep_artifacts=%s
 timeout_seconds=%d
 
@@ -1942,6 +1950,19 @@ wait_for_blueclaw_health() {
 find_task_id() {
   blueclaw_request "list message delete E2E tasks" GET http://127.0.0.1:8080/admin/api/task |
     jq -r --arg prompt "$prompt" '[.[] | select(.prompt == $prompt)] | sort_by(.createdAt) | last | .taskRunID // empty'
+}
+
+diagnose_connector_event() {
+  local message_id="$1"
+  local response_file
+  local status
+  response_file="$(mktemp)"
+  status="$(curl --silent --show-error --output "$response_file" --write-out "%%{http_code}" \
+    "http://127.0.0.1:8080/admin/api/connector/events?platform=mattermost&messageID=$message_id&limit=5")" || status="000"
+  echo "connector event diagnostics for Mattermost message $message_id returned HTTP $status" >&2
+  cat "$response_file" >&2 || true
+  echo >&2
+  rm -f "$response_file"
 }
 
 is_post_deleted() {
@@ -2031,20 +2052,31 @@ test -n "$user_token"
 
 blueclaw_request "invite delete probe user" POST http://127.0.0.1:8080/admin/api/people/invite \
   "$(jq -cn --arg email "$email" '{email:$email}')" >/dev/null
+if ! blueclaw_request "verify delete probe policy" GET http://127.0.0.1:8080/admin/api/policy |
+  jq -e --arg email "$email" 'any(.people[]?; any(.emails[]?; ascii_downcase == $email))' >/dev/null; then
+  echo "delete E2E probe user was not present in Blueclaw policy after invite: $email" >&2
+  exit 1
+fi
+identity_body="$(jq -cn --arg senderID "$user_id" '{senderID:$senderID}')"
+identity_response="$(curl --silent --show-error --fail --unix-socket /run/internkim/capability.sock \
+  -H "Content-Type: application/json" -d "$identity_body" \
+  http://internkim/v1/platform/mattermost/identity.resolve)"
+if ! printf '%%s' "$identity_response" | jq -e --arg email "$email" '(.email // "" | ascii_downcase) == $email' >/dev/null; then
+  echo "delete E2E Mattermost identity resolve did not return the probe email" >&2
+  printf '%%s\n' "$identity_response" >&2
+  exit 1
+fi
 
 channel_id="$(api_request "create delete probe dm" POST http://localhost:8065/api/v4/channels/direct "$user_token" \
   "$(jq -cn --arg user_id "$user_id" --arg bot_user_id "$bot_user_id" '[$user_id,$bot_user_id]')" | jq -r '.id')"
 test -n "$channel_id"
 
-bot_body_1="$(jq -cn --arg channel_id "$channel_id" --arg message "$marker bot-target-one" '{channel_id:$channel_id,message:$message}')"
-bot_body_2="$(jq -cn --arg channel_id "$channel_id" --arg message "$marker bot-target-two" '{channel_id:$channel_id,message:$message}')"
-user_keep_body="$(jq -cn --arg channel_id "$channel_id" --arg message "$marker user-keep" '{channel_id:$channel_id,message:$message}')"
-bot_post_1="$(api_request "create first bot target" POST http://localhost:8065/api/v4/posts "$mattermost_token" "$bot_body_1" | jq -r '.id')"
-bot_post_2="$(api_request "create second bot target" POST http://localhost:8065/api/v4/posts "$mattermost_token" "$bot_body_2" | jq -r '.id')"
-user_keep_post="$(api_request "create user keep post" POST http://localhost:8065/api/v4/posts "$user_token" "$user_keep_body" | jq -r '.id')"
-test -n "$bot_post_1"
-test -n "$bot_post_2"
-test -n "$user_keep_post"
+bot_post_ids_file="$(mktemp)"
+for index in $(seq 1 "$target_count"); do
+  bot_body="$(jq -cn --arg channel_id "$channel_id" --arg message "$marker bot-target-$index" '{channel_id:$channel_id,message:$message}')"
+  api_request "create bot target $index" POST http://localhost:8065/api/v4/posts "$mattermost_token" "$bot_body" | jq -r '.id' >> "$bot_post_ids_file"
+done
+test "$(wc -l < "$bot_post_ids_file" | tr -d ' ')" = "$target_count"
 
 prompt_body="$(jq -cn --arg channel_id "$channel_id" --arg message "$prompt" '{channel_id:$channel_id,message:$message}')"
 prompt_post="$(api_request "post delete request" POST http://localhost:8065/api/v4/posts "$user_token" "$prompt_body")"
@@ -2074,6 +2106,11 @@ done
 
 if [ -z "$task_run_id" ]; then
   echo "message delete E2E did not create a task" >&2
+  echo "probe identity resolve: $identity_response" >&2
+  echo "probe channel: $channel_id prompt post: $prompt_post_id" >&2
+  diagnose_connector_event "$prompt_post_id"
+  api_request "diagnose delete E2E channel posts" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=20" "$admin_token" |
+    jq -r '.order as $order | $order[] as $id | .posts[$id] | {id,user_id,message,root_id,create_at,delete_at}' >&2 || true
   exit 1
 fi
 
@@ -2081,6 +2118,7 @@ blueclaw_request "final delete E2E task detail" GET "http://127.0.0.1:8080/admin
 task_status="$(jq -r 'def detail: if type == "array" then .[0] else . end; detail.taskRun.status // empty' "$task_detail_file")"
 if [ "$task_status" != "completed" ]; then
   echo "message delete E2E task did not complete: $task_status ($task_run_id)" >&2
+  diagnose_connector_event "$prompt_post_id"
   jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
   exit 1
 fi
@@ -2101,15 +2139,21 @@ for old_tool in platform.dm.inspect platform.dm.send mattermost.post.delete matt
   fi
 done
 
-if ! is_post_deleted "$bot_post_1"; then
-  echo "first bot target was not deleted: $bot_post_1" >&2
-  exit 1
-fi
-if ! is_post_deleted "$bot_post_2"; then
-  echo "second bot target was not deleted: $bot_post_2" >&2
-  exit 1
-fi
-assert_post_alive "$user_keep_post" "user keep post"
+for forbidden_tool in file.read file.preview terminal.run; do
+  if jq -e --arg forbidden_tool "$forbidden_tool" 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; (.name // "") | contains("tool." + $forbidden_tool + ".requested"))' "$task_detail_file" >/dev/null; then
+    echo "message delete E2E leaked into unrelated tool: $forbidden_tool" >&2
+    jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
+    exit 1
+  fi
+done
+
+while read -r bot_post_id; do
+  if ! is_post_deleted "$bot_post_id"; then
+    echo "bot target was not deleted: $bot_post_id" >&2
+    exit 1
+  fi
+done < "$bot_post_ids_file"
+assert_post_alive "$prompt_post_id" "user request post"
 
 bot_post_file="$(mktemp)"
 latest_bot_post_id="$(api_request "fetch delete E2E bot replies" GET "http://localhost:8065/api/v4/channels/$channel_id/posts?per_page=100" "$admin_token" |
@@ -2121,8 +2165,8 @@ if [ -n "$latest_bot_post_id" ]; then
 else
   printf '{"message":""}' > "$bot_post_file"
 fi
-if ! jq -e '(.message // "") | test("2|두")' "$bot_post_file" >/dev/null; then
-  echo "final reply did not report the deletion count" >&2
+if ! jq -e '(.message // "") | test("삭제|deleted|완료")' "$bot_post_file" >/dev/null; then
+  echo "final reply did not report deletion completion" >&2
   cat "$bot_post_file" >&2
   exit 1
 fi
@@ -2130,9 +2174,8 @@ fi
 jq -cn \
   --arg channel_id "$channel_id" \
   --arg task_run_id "$task_run_id" \
-  --arg bot_post_1 "$bot_post_1" \
-  --arg bot_post_2 "$bot_post_2" \
-  --arg user_keep_post "$user_keep_post" \
+  --rawfile deleted_bot_post_ids "$bot_post_ids_file" \
+  --arg user_keep_post "$prompt_post_id" \
   --argjson keep "$keep_artifacts" \
   --slurpfile bot_post "$bot_post_file" \
   --slurpfile task_detail "$task_detail_file" \
@@ -2141,7 +2184,7 @@ jq -cn \
     kept: $keep,
     channelID: $channel_id,
     taskRunID: $task_run_id,
-    deletedBotPostIDs: [$bot_post_1, $bot_post_2],
+    deletedBotPostIDs: ($deleted_bot_post_ids | split("\n") | map(select(. != ""))),
     preservedUserPostID: $user_keep_post,
     botMessage: ($bot_post[0].message // ""),
     taskEvents: (((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskEvents // []) | map({name, body: ((.body // "") | tostring | .[0:1200])}))

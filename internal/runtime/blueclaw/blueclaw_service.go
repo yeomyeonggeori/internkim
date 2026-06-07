@@ -60,7 +60,11 @@ RestartSec=2
 
 [Install]
 WantedBy=multi-user.target
-`, CapabilitydBinaryPath, CapabilityVSockPort)
+`, capabilitydStartCommand(), CapabilityVSockPort)
+}
+
+func capabilitydStartCommand() string {
+	return fmt.Sprintf("%s --mattermost-url %s --mattermost-token %s", CapabilitydBinaryPath, BlueclawMattermostLocalURL, BlueclawMattermostTokenPath)
 }
 
 func AdmindServiceUnit() string {
