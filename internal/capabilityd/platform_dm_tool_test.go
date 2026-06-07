@@ -49,9 +49,9 @@ func TestPlatformDMSendScheduledRunSendsMattermostDM(t *testing.T) {
 		})},
 	}
 
-	response, errorValue := service.invokePlatformDMSend(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.dm.send",
-		Input:    []byte(`{"recipientHint":"샘플","message":"테스트"}`),
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.message.send",
+		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플"},"message":"테스트"}`),
 		Context: capabilities.ToolInvokeContext{
 			IsScheduledRun: true,
 		},
@@ -59,8 +59,8 @@ func TestPlatformDMSendScheduledRunSendsMattermostDM(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != "ok" || response.IsError {
-		t.Fatalf("expected ok response, got %+v", response)
+	if response.Status != "sent" || response.IsError {
+		t.Fatalf("expected sent response, got %+v", response)
 	}
 	if strings.Join(directChannelBody, ",") != "user-gamyeong,bot-user" {
 		t.Fatalf("unexpected direct channel body: %+v", directChannelBody)
@@ -77,9 +77,9 @@ func TestPlatformDMSendImmediateRunRequiresApprovalContext(t *testing.T) {
 	tokenPath := writePlatformDMTestFile(t, "bot-token")
 	service := platformDMTestService(t, tokenPath, `[{"id":"user-gamyeong","email":"gamyeong@example.com","username":"gamyeong"}]`)
 
-	response, errorValue := service.invokePlatformDMSend(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.dm.send",
-		Input:    []byte(`{"recipientHint":"샘플","message":"테스트"}`),
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.message.send",
+		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플"},"message":"테스트"}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterPersonID:       "person-other",
 			RequesterPlatformUserID: "user-other",
@@ -98,9 +98,9 @@ func TestPlatformDMSendImmediateSelfDoesNotRequireApproval(t *testing.T) {
 	tokenPath := writePlatformDMTestFile(t, "bot-token")
 	service := platformDMTestService(t, tokenPath, `[{"id":"user-gamyeong","email":"gamyeong@example.com","username":"gamyeong","nickname":"샘플"}]`)
 
-	response, errorValue := service.invokePlatformDMSend(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.dm.send",
-		Input:    []byte(`{"recipientHint":"샘플","message":"본인 확인"}`),
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.message.send",
+		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플"},"message":"본인 확인"}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterPersonID:       "person-gamyeong",
 			RequesterPlatformUserID: "user-gamyeong",
@@ -109,7 +109,7 @@ func TestPlatformDMSendImmediateSelfDoesNotRequireApproval(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != "ok" || response.IsError {
+	if response.Status != "sent" || response.IsError {
 		t.Fatalf("expected self DM to send without approval, got %+v", response)
 	}
 }
@@ -118,9 +118,9 @@ func TestPlatformDMSendApprovedContinuationSendsMattermostDM(t *testing.T) {
 	tokenPath := writePlatformDMTestFile(t, "bot-token")
 	service := platformDMTestService(t, tokenPath, `[{"id":"user-gamyeong","email":"gamyeong@example.com","username":"gamyeong"}]`)
 
-	response, errorValue := service.invokePlatformDMSend(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.dm.send",
-		Input:    []byte(`{"recipientHint":"@gamyeong","message":"승인 후 전송"}`),
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.message.send",
+		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"@gamyeong"},"message":"승인 후 전송"}`),
 		Context: capabilities.ToolInvokeContext{
 			IsApprovalContinuation: true,
 		},
@@ -128,7 +128,7 @@ func TestPlatformDMSendApprovedContinuationSendsMattermostDM(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != "ok" || response.IsError {
+	if response.Status != "sent" || response.IsError {
 		t.Fatalf("expected approved continuation to send, got %+v", response)
 	}
 }
@@ -137,9 +137,9 @@ func TestPlatformDMSendMatchesMattermostNickname(t *testing.T) {
 	tokenPath := writePlatformDMTestFile(t, "bot-token")
 	service := platformDMTestService(t, tokenPath, `[{"id":"user-gamyeong","email":"gamyeong@example.com","username":"member-42","nickname":"샘플"}]`)
 
-	response, errorValue := service.invokePlatformDMSend(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.dm.send",
-		Input:    []byte(`{"recipientHint":"샘플","message":"테스트"}`),
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.message.send",
+		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플"},"message":"테스트"}`),
 		Context: capabilities.ToolInvokeContext{
 			IsScheduledRun: true,
 		},
@@ -147,7 +147,7 @@ func TestPlatformDMSendMatchesMattermostNickname(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != "ok" || response.IsError {
+	if response.Status != "sent" || response.IsError {
 		t.Fatalf("expected Mattermost nickname match, got %+v", response)
 	}
 }
@@ -159,9 +159,9 @@ func TestPlatformDMSendAmbiguousRecipientDoesNotSend(t *testing.T) {
 		{"id":"user-two","email":"two@example.com","username":"lee-two"}
 	]`)
 
-	response, errorValue := service.invokePlatformDMSend(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.dm.send",
-		Input:    []byte(`{"recipientHint":"lee","message":"테스트"}`),
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.message.send",
+		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"lee"},"message":"테스트"}`),
 		Context: capabilities.ToolInvokeContext{
 			IsScheduledRun: true,
 		},
@@ -178,9 +178,9 @@ func TestPlatformDMSendAmbiguousRecipientDoesNotSend(t *testing.T) {
 func TestPlatformDMSendMissingMattermostTokenDoesNotSend(t *testing.T) {
 	service := platformDMTestService(t, "/missing/token", `[{"id":"user-gamyeong","email":"gamyeong@example.com","username":"gamyeong"}]`)
 
-	response, errorValue := service.invokePlatformDMSend(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.dm.send",
-		Input:    []byte(`{"recipientHint":"샘플","message":"테스트"}`),
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.message.send",
+		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플"},"message":"테스트"}`),
 		Context: capabilities.ToolInvokeContext{
 			IsScheduledRun: true,
 		},
@@ -221,9 +221,9 @@ func TestPlatformDMSendPostFailureIsNotSafeToRetry(t *testing.T) {
 		})},
 	}
 
-	response, errorValue := service.invokePlatformDMSend(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.dm.send",
-		Input:    []byte(`{"recipientHint":"샘플","message":"테스트"}`),
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.message.send",
+		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플"},"message":"테스트"}`),
 		Context: capabilities.ToolInvokeContext{
 			IsScheduledRun: true,
 		},
@@ -259,9 +259,9 @@ func TestPlatformDMSendDirectChannelFailureUsesSpecificStage(t *testing.T) {
 		})},
 	}
 
-	response, errorValue := service.invokePlatformDMSend(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.dm.send",
-		Input:    []byte(`{"recipientHint":"샘플","message":"테스트"}`),
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.message.send",
+		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플"},"message":"테스트"}`),
 		Context: capabilities.ToolInvokeContext{
 			IsScheduledRun: true,
 		},
@@ -272,7 +272,7 @@ func TestPlatformDMSendDirectChannelFailureUsesSpecificStage(t *testing.T) {
 	assertPlatformDMStructuredFailure(t, response, "error", "direct_channel_create_failed", "direct_channel_create", true, true)
 }
 
-func TestPlatformDMInspectReturnsCandidatesWithoutSending(t *testing.T) {
+func TestPlatformMessageSendAmbiguousRecipientReturnsCandidatesWithoutSending(t *testing.T) {
 	tokenPath := writePlatformDMTestFile(t, "bot-token")
 	requestPaths := []string{}
 	service := Service{
@@ -285,9 +285,9 @@ func TestPlatformDMInspectReturnsCandidatesWithoutSending(t *testing.T) {
 			requestPaths = append(requestPaths, request.URL.String())
 			switch request.URL.String() {
 			case "http://blueclaw.local/admin/api/policy":
-				return platformDMTestJSONResponse(`{"people":[{"personID":"person-gamyeong","displayName":"이샘플","emails":["gamyeong@example.com"]}]}`), nil
+				return platformDMTestJSONResponse(`{"people":[{"personID":"person-one","displayName":"Lee One","emails":["one@example.com"]},{"personID":"person-two","displayName":"Lee Two","emails":["two@example.com"]}]}`), nil
 			case "http://mattermost.local/api/v4/users?per_page=200":
-				return platformDMTestJSONResponse(`[{"id":"user-gamyeong","email":"gamyeong@example.com","username":"gamyeong","nickname":"샘플"}]`), nil
+				return platformDMTestJSONResponse(`[{"id":"user-one","email":"one@example.com","username":"lee"},{"id":"user-two","email":"two@example.com","username":"lee-two"}]`), nil
 			case "http://mattermost.local/api/v4/users/me":
 				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim"}`), nil
 			default:
@@ -297,37 +297,34 @@ func TestPlatformDMInspectReturnsCandidatesWithoutSending(t *testing.T) {
 		})},
 	}
 
-	response, errorValue := service.invokePlatformDMInspect(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.dm.inspect",
-		Input:    []byte(`{"recipientHint":"샘플"}`),
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.message.send",
+		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"lee"},"message":"테스트"}`),
+		Context:  capabilities.ToolInvokeContext{IsScheduledRun: true},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != "ok" || response.IsError {
-		t.Fatalf("expected ok inspect response, got %+v", response)
+	if response.Status != "error" || response.ErrorCode != "recipient_ambiguous" {
+		t.Fatalf("expected ambiguous send failure, got %+v", response)
 	}
 	if strings.Contains(strings.Join(requestPaths, "\n"), "/api/v4/posts") {
-		t.Fatalf("inspect sent a message: %+v", requestPaths)
+		t.Fatalf("ambiguous send posted a message: %+v", requestPaths)
 	}
 	if strings.Contains(strings.Join(requestPaths, "\n"), "/api/v4/channels/direct") {
-		t.Fatalf("inspect created a direct channel: %+v", requestPaths)
+		t.Fatalf("ambiguous send created a direct channel: %+v", requestPaths)
 	}
 	assertPlatformDMRequestCount(t, requestPaths, "http://blueclaw.local/admin/api/policy", 1)
 	assertPlatformDMRequestCount(t, requestPaths, "http://mattermost.local/api/v4/users?per_page=200", 1)
-	assertPlatformDMRequestCount(t, requestPaths, "http://mattermost.local/api/v4/users/me", 1)
-	var resultDocument struct {
-		CandidateCount int                   `json:"candidateCount"`
-		Candidates     []platformDMRecipient `json:"candidates"`
-	}
-	if errorValue := json.Unmarshal(response.Result, &resultDocument); errorValue != nil {
+	var failure platformDMFailure
+	if errorValue := json.Unmarshal(response.Result, &failure); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if resultDocument.CandidateCount != 1 || len(resultDocument.Candidates) != 1 {
-		t.Fatalf("expected one candidate, got %+v", resultDocument)
+	if len(failure.Candidates) != 2 {
+		t.Fatalf("expected two candidates, got %+v", failure)
 	}
-	if resultDocument.Candidates[0].MattermostUserID != "user-gamyeong" {
-		t.Fatalf("unexpected candidate: %+v", resultDocument.Candidates[0])
+	if failure.Candidates[0].MattermostUserID == "" || failure.Candidates[1].MattermostUserID == "" {
+		t.Fatalf("expected Mattermost candidate ids, got %+v", failure.Candidates)
 	}
 }
 
