@@ -121,6 +121,11 @@ type mattermostPostSearchResult struct {
 	Candidates []mattermostPostSearchCandidate `json:"candidates"`
 }
 
+type mattermostPostSearchCursor struct {
+	Page        int
+	MatchOffset int
+}
+
 type mattermostPostDeleteResult struct {
 	DeletedPostIDs []string                      `json:"deletedPostIDs"`
 	DeletedCount   int                           `json:"deletedCount"`
@@ -529,8 +534,9 @@ func (service Service) searchMattermostPostCandidates(ctx context.Context, toolC
 	if hasFailure {
 		return mattermostPostSearchResult{}, failure, true
 	}
-	page := normalizedMattermostToolSearchPage(input.Cursor)
-	posts, hasMore, failure, hasFailure := service.searchMattermostPosts(ctx, searchHandle, normalizedMattermostToolSearchLimit(input.Limit), page)
+	limit := normalizedMattermostToolSearchLimit(input.Limit)
+	cursor := normalizedMattermostToolSearchCursor(input.Cursor)
+	candidates, nextCursor, hasMore, failure, hasFailure := service.scanMattermostPostSearchCandidates(ctx, searchHandle, input, toolContext, limit, cursor)
 	if hasFailure {
 		return mattermostPostSearchResult{}, failure, true
 	}
@@ -540,12 +546,47 @@ func (service Service) searchMattermostPostCandidates(ctx context.Context, toolC
 		RootPostID: searchHandle.RootID,
 		Queries:    input.Queries,
 		AuthoredBy: input.AuthoredBy,
-		Cursor:     normalizedMattermostToolSearchCursor(page),
-		NextCursor: nextMattermostToolSearchCursor(page, hasMore),
+		Cursor:     mattermostToolSearchCursorString(cursor),
+		NextCursor: mattermostToolSearchCursorString(nextCursor),
 		HasMore:    hasMore,
-		Candidates: service.mattermostPostSearchCandidates(ctx, posts, input, toolContext),
+		Candidates: candidates,
 	}
 	return result, mattermostToolFailure{}, false
+}
+
+func (service Service) scanMattermostPostSearchCandidates(ctx context.Context, handle platformHandle, input mattermostPostSearchInput, toolContext capabilities.ToolInvokeContext, limit int, cursor mattermostPostSearchCursor) ([]mattermostPostSearchCandidate, mattermostPostSearchCursor, bool, mattermostToolFailure, bool) {
+	candidates := []mattermostPostSearchCandidate{}
+	page := cursor.Page
+	firstPageMatchOffset := cursor.MatchOffset
+	for scannedPageCount := 0; scannedPageCount < mattermostPostSearchMaxScannedPages; scannedPageCount++ {
+		posts, hasMorePosts, failure, hasFailure := service.searchMattermostPosts(ctx, handle, mattermostPostSearchFetchPageLimit, page)
+		if hasFailure {
+			return nil, mattermostPostSearchCursor{}, false, failure, true
+		}
+		pageCandidates := service.mattermostPostSearchCandidates(ctx, posts, input, toolContext)
+		if firstPageMatchOffset > 0 {
+			if firstPageMatchOffset >= len(pageCandidates) {
+				pageCandidates = nil
+			} else {
+				pageCandidates = pageCandidates[firstPageMatchOffset:]
+			}
+		}
+		remaining := limit - len(candidates)
+		if remaining <= 0 {
+			return candidates, mattermostPostSearchCursor{Page: page, MatchOffset: firstPageMatchOffset}, true, mattermostToolFailure{}, false
+		}
+		if len(pageCandidates) > remaining {
+			candidates = append(candidates, pageCandidates[:remaining]...)
+			return candidates, mattermostPostSearchCursor{Page: page, MatchOffset: firstPageMatchOffset + remaining}, true, mattermostToolFailure{}, false
+		}
+		candidates = append(candidates, pageCandidates...)
+		if !hasMorePosts {
+			return candidates, mattermostPostSearchCursor{}, false, mattermostToolFailure{}, false
+		}
+		page++
+		firstPageMatchOffset = 0
+	}
+	return candidates, mattermostPostSearchCursor{Page: page}, true, mattermostToolFailure{}, false
 }
 
 func normalizedMattermostPostSearchScope(scope string, toolContext capabilities.ToolInvokeContext) string {
@@ -665,19 +706,21 @@ func mattermostHandleFromContext(toolContext capabilities.ToolInvokeContext) (pl
 
 func (service Service) searchMattermostPosts(ctx context.Context, handle platformHandle, limit int, page int) ([]mattermostToolPost, bool, mattermostToolFailure, bool) {
 	var response mattermostToolPostsResponse
-	requestLimit := limit + 1
+	requestLimit := limit
 	path := "/api/v4/channels/" + url.PathEscape(handle.ChannelID) + "/posts?page=" + strconv.Itoa(page) + "&per_page=" + strconv.Itoa(requestLimit)
+	isThreadSearch := strings.TrimSpace(handle.RootID) != ""
 	if strings.TrimSpace(handle.RootID) != "" {
 		path = "/api/v4/posts/" + url.PathEscape(handle.RootID) + "/thread"
 	}
 	if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, nil, &response); errorValue != nil {
 		return nil, false, mattermostToolFailureForError("post_search", "mattermost_unavailable", errorValue), true
 	}
-	posts := mattermostPostsFromResponse(response, requestLimit)
-	hasMore := len(posts) > limit
-	if hasMore {
-		posts = posts[:limit]
+	if isThreadSearch {
+		posts := mattermostPostsFromResponse(response, mattermostPostSearchThreadFetchLimit)
+		return posts, false, mattermostToolFailure{}, false
 	}
+	posts := mattermostPostsFromResponse(response, requestLimit)
+	hasMore := len(response.Order) >= requestLimit
 	return posts, hasMore, mattermostToolFailure{}, false
 }
 
@@ -725,6 +768,9 @@ func mattermostPostMatchesSearchQueries(post mattermostToolPost, queries []strin
 }
 
 const mattermostPostSearchPageLimit = 25
+const mattermostPostSearchFetchPageLimit = 100
+const mattermostPostSearchThreadFetchLimit = 1000
+const mattermostPostSearchMaxScannedPages = 20
 
 func platformMessageAuthorLabel(author string) string {
 	switch strings.TrimSpace(author) {
@@ -836,30 +882,33 @@ func normalizedMattermostToolSearchLimit(limit int) int {
 	return limit
 }
 
-func normalizedMattermostToolSearchPage(cursor string) int {
-	cursor = strings.TrimSpace(cursor)
-	if cursor == "" {
-		return 0
+func normalizedMattermostToolSearchCursor(value string) mattermostPostSearchCursor {
+	parts := strings.Split(strings.TrimSpace(value), ":")
+	if len(parts) == 0 || strings.TrimSpace(parts[0]) == "" {
+		return mattermostPostSearchCursor{}
 	}
-	page, errorValue := strconv.Atoi(cursor)
+	page, errorValue := strconv.Atoi(parts[0])
 	if errorValue != nil || page < 0 {
-		return 0
+		return mattermostPostSearchCursor{}
 	}
-	return page
+	matchOffset := 0
+	if len(parts) > 1 {
+		parsedMatchOffset, offsetError := strconv.Atoi(parts[1])
+		if offsetError == nil && parsedMatchOffset > 0 {
+			matchOffset = parsedMatchOffset
+		}
+	}
+	return mattermostPostSearchCursor{Page: page, MatchOffset: matchOffset}
 }
 
-func normalizedMattermostToolSearchCursor(page int) string {
-	if page <= 0 {
+func mattermostToolSearchCursorString(cursor mattermostPostSearchCursor) string {
+	if cursor.Page <= 0 && cursor.MatchOffset <= 0 {
 		return ""
 	}
-	return strconv.Itoa(page)
-}
-
-func nextMattermostToolSearchCursor(page int, hasMore bool) string {
-	if !hasMore {
-		return ""
+	if cursor.MatchOffset > 0 {
+		return strconv.Itoa(cursor.Page) + ":" + strconv.Itoa(cursor.MatchOffset)
 	}
-	return strconv.Itoa(page + 1)
+	return strconv.Itoa(cursor.Page)
 }
 
 func (service Service) mattermostToolPost(ctx context.Context, postID string) (mattermostToolPost, mattermostToolFailure, bool) {
