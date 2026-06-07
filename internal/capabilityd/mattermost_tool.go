@@ -14,26 +14,12 @@ import (
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
-type mattermostChannelPostInput struct {
-	ChannelID   string `json:"channelID"`
-	ChannelName string `json:"channelName"`
-	Message     string `json:"message"`
-	Pin         bool   `json:"pin"`
-}
-
 type mattermostChannelUpdateInput struct {
 	ChannelID    string    `json:"channelID"`
 	ChannelName  string    `json:"channelName"`
 	Header       *string   `json:"header"`
 	DisplayName  *string   `json:"displayName"`
 	InviteeHints *[]string `json:"inviteeHints"`
-}
-
-type mattermostChannelPostsListInput struct {
-	ChannelID   string `json:"channelID"`
-	ChannelName string `json:"channelName"`
-	Page        int    `json:"page"`
-	PerPage     int    `json:"perPage"`
 }
 
 type mattermostPostSearchInput struct {
@@ -129,7 +115,7 @@ const (
 
 func isMattermostTool(toolName string) bool {
 	switch toolName {
-	case "mattermost.context.inspect", "mattermost.post.search", "mattermost.channel.posts.list", "mattermost.channel.post", "mattermost.post.update", "mattermost.post.delete", "mattermost.channel.update":
+	case "mattermost.channel.update":
 		return true
 	default:
 		return false
@@ -141,18 +127,6 @@ func (service Service) invokeMattermostTool(ctx context.Context, request capabil
 		return response, nil
 	}
 	switch request.ToolName {
-	case "mattermost.context.inspect":
-		return service.invokeMattermostContextInspect(ctx, request)
-	case "mattermost.post.search":
-		return service.invokeMattermostPostSearch(ctx, request)
-	case "mattermost.channel.posts.list":
-		return service.invokeMattermostChannelPostsList(ctx, request)
-	case "mattermost.channel.post":
-		return service.invokeMattermostChannelPost(ctx, request)
-	case "mattermost.post.update":
-		return service.invokeMattermostPostUpdate(ctx, request)
-	case "mattermost.post.delete":
-		return service.invokeMattermostPostDelete(ctx, request)
 	case "mattermost.channel.update":
 		return service.invokeMattermostChannelUpdate(ctx, request)
 	default:
@@ -182,73 +156,11 @@ func mattermostRequiredCircle(toolName string) string {
 
 func mattermostToolRequiresApproval(toolName string) bool {
 	switch toolName {
-	case "mattermost.channel.post", "mattermost.post.update", "mattermost.post.delete", "mattermost.channel.update":
+	case "mattermost.channel.update":
 		return true
 	default:
 		return false
 	}
-}
-
-func (service Service) invokeMattermostChannelPost(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	input, errorValue := decodeMattermostChannelPostInput(request.Input)
-	if errorValue != nil {
-		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
-	}
-	channel, failure, hasFailure := service.resolveMattermostToolChannel(ctx, input.ChannelID, input.ChannelName)
-	if hasFailure {
-		return mattermostToolErrorResponse(request.ToolName, failure), nil
-	}
-	var postResponse struct {
-		ID string `json:"id"`
-	}
-	body := map[string]any{
-		"channel_id": channel.ID,
-		"message":    input.Message,
-		"props":      map[string]any{"internkim_mattermost_tool_post": true},
-	}
-	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", body, &postResponse); errorValue != nil {
-		return mattermostToolErrorResponse(request.ToolName, mattermostToolFailureForError("post_create", "mattermost_unavailable", errorValue)), nil
-	}
-	if strings.TrimSpace(postResponse.ID) == "" {
-		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("post_create_failed", "post_create", "mattermost did not return a post ID")), nil
-	}
-	if input.Pin {
-		if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts/"+url.PathEscape(postResponse.ID)+"/pin", nil, nil); errorValue != nil {
-			return mattermostToolErrorResponse(request.ToolName, mattermostToolFailureForError("post_pin", "mattermost_unavailable", errorValue)), nil
-		}
-	}
-	result := map[string]any{"dispatchID": postResponse.ID, "channelID": channel.ID, "isPinned": input.Pin}
-	return mattermostToolSuccessResponse(request.ToolName, "posted", result), nil
-}
-
-func (service Service) invokeMattermostChannelPostsList(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	input, errorValue := decodeMattermostChannelPostsListInput(request.Input)
-	if errorValue != nil {
-		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
-	}
-	channel, failure, hasFailure := service.resolveMattermostToolChannel(ctx, input.ChannelID, input.ChannelName)
-	if hasFailure {
-		return mattermostToolErrorResponse(request.ToolName, failure), nil
-	}
-	perPage := normalizedMattermostToolPerPage(input.PerPage)
-	path := "/api/v4/channels/" + url.PathEscape(channel.ID) + "/posts?page=" + strconv.Itoa(normalizedMattermostToolPage(input.Page)) + "&per_page=" + strconv.Itoa(perPage)
-	var response mattermostToolPostsResponse
-	if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, nil, &response); errorValue != nil {
-		return mattermostToolErrorResponse(request.ToolName, mattermostToolFailureForError("posts_list", "mattermost_unavailable", errorValue)), nil
-	}
-	result := map[string]any{
-		"channel": map[string]string{
-			"id":          channel.ID,
-			"name":        channel.Name,
-			"displayName": channel.DisplayName,
-		},
-		"order":   response.Order,
-		"posts":   response.Posts,
-		"page":    normalizedMattermostToolPage(input.Page),
-		"perPage": perPage,
-		"hasMore": len(response.Order) == perPage,
-	}
-	return mattermostToolSuccessResponse(request.ToolName, "ok", result), nil
 }
 
 func (service Service) invokeMattermostContextInspect(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -400,26 +312,6 @@ func (service Service) invokeMattermostChannelUpdate(ctx context.Context, reques
 	return mattermostToolSuccessResponse(request.ToolName, "updated", result), nil
 }
 
-func decodeMattermostChannelPostInput(document json.RawMessage) (mattermostChannelPostInput, error) {
-	if len(bytes.TrimSpace(document)) == 0 {
-		return mattermostChannelPostInput{}, fmt.Errorf("mattermost.channel.post input is required")
-	}
-	var input mattermostChannelPostInput
-	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
-		return mattermostChannelPostInput{}, errorValue
-	}
-	input.ChannelID = strings.TrimSpace(input.ChannelID)
-	input.ChannelName = strings.TrimSpace(input.ChannelName)
-	input.Message = strings.TrimSpace(input.Message)
-	if errorValue := validateMattermostChannelReference(input.ChannelID, input.ChannelName); errorValue != nil {
-		return mattermostChannelPostInput{}, errorValue
-	}
-	if input.Message == "" {
-		return mattermostChannelPostInput{}, fmt.Errorf("message is required")
-	}
-	return input, nil
-}
-
 func decodeMattermostChannelUpdateInput(document json.RawMessage) (mattermostChannelUpdateInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
 		return mattermostChannelUpdateInput{}, fmt.Errorf("mattermost.channel.update input is required")
@@ -435,21 +327,6 @@ func decodeMattermostChannelUpdateInput(document json.RawMessage) (mattermostCha
 	}
 	if input.Header == nil && input.DisplayName == nil && len(mattermostToolInviteeHints(input)) == 0 {
 		return mattermostChannelUpdateInput{}, fmt.Errorf("header, displayName, or inviteeHints is required")
-	}
-	return input, nil
-}
-
-func decodeMattermostChannelPostsListInput(document json.RawMessage) (mattermostChannelPostsListInput, error) {
-	var input mattermostChannelPostsListInput
-	if len(bytes.TrimSpace(document)) > 0 {
-		if errorValue := json.Unmarshal(document, &input); errorValue != nil {
-			return mattermostChannelPostsListInput{}, errorValue
-		}
-	}
-	input.ChannelID = strings.TrimSpace(input.ChannelID)
-	input.ChannelName = strings.TrimSpace(input.ChannelName)
-	if errorValue := validateMattermostChannelReference(input.ChannelID, input.ChannelName); errorValue != nil {
-		return mattermostChannelPostsListInput{}, errorValue
 	}
 	return input, nil
 }
@@ -479,7 +356,7 @@ func decodeMattermostPostSearchInput(document json.RawMessage) (mattermostPostSe
 
 func decodeMattermostPostUpdateInput(document json.RawMessage) (mattermostPostUpdateInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return mattermostPostUpdateInput{}, fmt.Errorf("mattermost.post.update input is required")
+		return mattermostPostUpdateInput{}, fmt.Errorf("platform.message.update input is required")
 	}
 	var input mattermostPostUpdateInput
 	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
@@ -500,7 +377,7 @@ func decodeMattermostPostUpdateInput(document json.RawMessage) (mattermostPostUp
 
 func decodeMattermostPostDeleteInput(document json.RawMessage) (mattermostPostDeleteInput, error) {
 	if len(bytes.TrimSpace(document)) == 0 {
-		return mattermostPostDeleteInput{}, fmt.Errorf("mattermost.post.delete input is required")
+		return mattermostPostDeleteInput{}, fmt.Errorf("platform.message.delete input is required")
 	}
 	var input mattermostPostDeleteInput
 	if errorValue := json.Unmarshal(document, &input); errorValue != nil {

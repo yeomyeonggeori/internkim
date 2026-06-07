@@ -84,19 +84,16 @@ func FileDescriptors() []Descriptor {
 
 func PlatformMessageDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "platform.dm.send", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformDMSendInputSchema(), PolicyResource: "tool:platform.dm.send", SideEffectClass: "external_send", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "send_message", "person")},
-		{Name: "platform.dm.inspect", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformDMInspectInputSchema(), PolicyResource: "tool:platform.dm.send", SideEffectClass: "read"},
+		{Name: "platform.message.context", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformMessageContextInputSchema(), PolicyResource: "tool:platform.message.context", SideEffectClass: "read"},
+		{Name: "platform.message.search", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformMessageSearchInputSchema(), PolicyResource: "tool:platform.message.search", SideEffectClass: "read"},
+		{Name: "platform.message.send", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformMessageSendInputSchema(), PolicyResource: "tool:platform.message.send", SideEffectClass: "external_send", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "send_message", "message")},
+		{Name: "platform.message.update", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformMessageUpdateInputSchema(), PolicyResource: "tool:platform.message.update", SideEffectClass: "external_write", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "update_message", "message")},
+		{Name: "platform.message.delete", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: platformMessageDeleteInputSchema(), PolicyResource: "tool:platform.message.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "delete_message", "message")},
 	}
 }
 
 func MattermostDescriptors() []Descriptor {
 	return []Descriptor{
-		{Name: "mattermost.context.inspect", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: mattermostContextInspectInputSchema(), PolicyResource: "tool:mattermost.context.inspect", SideEffectClass: "read"},
-		{Name: "mattermost.post.search", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: mattermostPostSearchInputSchema(), PolicyResource: "tool:mattermost.post.search", SideEffectClass: "read"},
-		{Name: "mattermost.channel.posts.list", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: mattermostChannelPostsListInputSchema(), PolicyResource: "tool:mattermost.channel.posts.list", SideEffectClass: "read"},
-		{Name: "mattermost.channel.post", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mattermostChannelPostInputSchema(), PolicyResource: "tool:mattermost.channel.post", SideEffectClass: "external_send", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "post_message", "channel")},
-		{Name: "mattermost.post.update", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mattermostPostUpdateInputSchema(), PolicyResource: "tool:mattermost.post.update", SideEffectClass: "external_write", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "update_message", "message")},
-		{Name: "mattermost.post.delete", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mattermostPostDeleteInputSchema(), PolicyResource: "tool:mattermost.post.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "delete_message", "message")},
 		{Name: "mattermost.channel.update", Version: "1", PrivacyClass: "platform_message", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mattermostChannelUpdateInputSchema(), PolicyResource: "tool:mattermost.channel.update", SideEffectClass: "external_write", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "update_channel", "channel")},
 	}
 }
@@ -241,29 +238,48 @@ func imageReadInputSchema() json.RawMessage {
 	).RawMessage()
 }
 
-func platformDMSendInputSchema() json.RawMessage {
+func platformMessageDeliveryTargetSchema() jsonschema.Schema {
 	return jsonschema.Object(
-		jsonschema.Required("recipientHint", jsonschema.String()),
+		jsonschema.Required("type", jsonschema.StringEnum("directMessage", "currentThread", "currentChannel", "channel")),
+		jsonschema.Field("personHint", jsonschema.String()),
+		jsonschema.Field("channelID", jsonschema.String()),
+		jsonschema.Field("channelName", jsonschema.String()),
+	)
+}
+
+func platformMessageContextInputSchema() json.RawMessage {
+	return jsonschema.Object().RawMessage()
+}
+
+func platformMessageSearchInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Field("scope", jsonschema.StringEnum("currentThread", "currentChannel", "directMessage", "channel")),
+		jsonschema.Field("deliveryTarget", platformMessageDeliveryTargetSchema()),
+		jsonschema.Field("authoredBy", jsonschema.StringEnum("assistant", "requester", "anyone")),
+		jsonschema.Field("query", jsonschema.String()),
+		jsonschema.Field("limit", jsonschema.Integer()),
+	).RawMessage()
+}
+
+func platformMessageSendInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Required("deliveryTarget", platformMessageDeliveryTargetSchema()),
 		jsonschema.Required("message", jsonschema.String()),
-		jsonschema.Field("platform", jsonschema.StringEnum("mattermost")),
+		jsonschema.Field("pin", jsonschema.Boolean()),
 		jsonschema.Field("reason", jsonschema.String()),
 	).RawMessage()
 }
 
-func platformDMInspectInputSchema() json.RawMessage {
+func platformMessageUpdateInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Field("recipientHint", jsonschema.String()),
-		jsonschema.Field("platform", jsonschema.StringEnum("mattermost")),
+		jsonschema.Required("messageID", jsonschema.String()),
+		jsonschema.Field("message", jsonschema.String()),
+		jsonschema.Field("isPinned", jsonschema.Boolean()),
 	).RawMessage()
 }
 
-func mattermostChannelPostInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("channelID", jsonschema.String()),
-		jsonschema.Field("channelName", jsonschema.String()),
-		jsonschema.Required("message", jsonschema.String()),
-		jsonschema.Field("pin", jsonschema.Boolean()),
-	).RawMessage()
+func platformMessageDeleteInputSchema() json.RawMessage {
+	return jsonschema.Object(jsonschema.Required("messageIDs", jsonschema.Array(jsonschema.String()))).RawMessage()
 }
 
 func mattermostChannelUpdateInputSchema() json.RawMessage {
