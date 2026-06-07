@@ -4689,6 +4689,11 @@ func ensureCloudflaredAccessSSHAvailable() error {
 	return errors.New("cloudflared is required for Cloudflare SSH fallback; install it locally, then rerun setup")
 }
 
+func isBlueclawPayloadDirectOnlySetup(arguments []string) bool {
+	onlyNames := setup.ParseNames(commandArgumentValue(arguments, "--only", ""))
+	return len(onlyNames) == 1 && onlyNames[0] == "blueclaw-payload-direct"
+}
+
 func runSetupLive(messenger *msg) {
 	configuration := loadConfig()
 	scriptDir, _ := os.Getwd()
@@ -4741,6 +4746,30 @@ func runSetupLive(messenger *msg) {
 		boardIP            string
 		cloudflareSSHError error
 	)
+
+	if isBlueclawPayloadDirectOnlySetup(os.Args[2:]) {
+		target.useRemoteSSH = false
+		printCommandTargetEvidence(target)
+		fmt.Printf("Backend: http maintenance\n")
+		if containsArg("--plan") {
+			fmt.Printf("  blueclaw-payload-direct run\n")
+			return
+		}
+		flowState := newSetupFlowState(
+			messenger,
+			configuration,
+			collectSetupParameterValues(),
+			stateDir,
+			scriptDir,
+			setupBuildID,
+			nil,
+			nonInteractive,
+		)
+		if errorValue := flowState.installBlueclawPayloadDirectHTTPS(); errorValue != nil {
+			fatal(errorValue.Error())
+		}
+		return
+	}
 
 	// Board detection over Wi-Fi has a short TCP dial timeout (3s per
 	// saved IP) and occasionally loses the first round — the ARP cache may
