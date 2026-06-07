@@ -1452,6 +1452,25 @@ func (state *setupFlowState) installBlueclawPayloadSSH(context *setup.Context) e
 	return nil
 }
 
+func (state *setupFlowState) installBlueclawPayloadDirectHTTPS() error {
+	artifactDirectoryPath, errorValue := state.ensureBlueclawPayloadArtifact()
+	if errorValue != nil {
+		return errorValue
+	}
+	manifest, errorValue := blueclaw.ValidatePayloadArtifactDirectory(artifactDirectoryPath)
+	if errorValue != nil {
+		return fmt.Errorf("blueclaw payload artifact invalid: %w", errorValue)
+	}
+	fmt.Print("  blueclaw runtime payload... ")
+	result, errorValue := state.installBlueclawPayloadHTTPS(artifactDirectoryPath, manifest)
+	if errorValue != nil {
+		fmt.Println("failed")
+		return errorValue
+	}
+	fmt.Println(result)
+	return nil
+}
+
 func blueclawHostWorkspacePayloadSyncCommand(temporaryPayloadPath string) string {
 	return blueclaw.HostWorkspacePayloadSyncCommand(temporaryPayloadPath)
 }

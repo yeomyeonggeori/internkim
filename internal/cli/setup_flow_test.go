@@ -321,6 +321,18 @@ func TestCloudflareSSHUsesAccessProxyCommand(t *testing.T) {
 	}
 }
 
+func TestBlueclawPayloadDirectOnlySetupUsesHTTPMaintenancePath(t *testing.T) {
+	if !isBlueclawPayloadDirectOnlySetup([]string{"--only", "blueclaw-payload-direct"}) {
+		t.Fatalf("expected blueclaw-payload-direct only setup to use HTTP maintenance path")
+	}
+	if isBlueclawPayloadDirectOnlySetup([]string{"--only", "blueclaw-payload-direct,capabilityd"}) {
+		t.Fatalf("expected mixed setup slices to keep normal backend selection")
+	}
+	if isBlueclawPayloadDirectOnlySetup([]string{"--only", "capabilityd"}) {
+		t.Fatalf("expected capabilityd setup to keep normal backend selection")
+	}
+}
+
 func TestCloudflareSSHHostnameFromDeviceURL(t *testing.T) {
 	hostname := cloudflareSSHHostnameFromDeviceURL("https://device-1.example.test/admin")
 	if hostname != "ssh-device-1.example.test" {
