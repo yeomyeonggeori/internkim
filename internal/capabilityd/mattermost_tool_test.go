@@ -319,7 +319,7 @@ func TestMattermostPostUpdateAndDeleteGuardrails(t *testing.T) {
 
 	deleteResponse, errorValue := service.invokeMattermostTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "mattermost.post.delete",
-		Input:    mustJSON(t, map[string]any{"postID": "bot-post"}),
+		Input:    mustJSON(t, map[string]any{"postIDs": []string{"bot-post"}}),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail:         "staff@example.com",
 			IsApprovalContinuation: true,
@@ -330,6 +330,220 @@ func TestMattermostPostUpdateAndDeleteGuardrails(t *testing.T) {
 	}
 	if deleteResponse.Status != "deleted" || !botPostDeleted {
 		t.Fatalf("expected bot post delete, response=%+v deleted=%v", deleteResponse, botPostDeleted)
+	}
+}
+
+func TestMattermostPostDeleteDeletesMultiplePostsAndReportsFailures(t *testing.T) {
+	deletedPostIDs := []string{}
+	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "http://blueclaw.test/admin/api/policy":
+			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
+		case request.URL.String() == "http://mattermost.test/api/v4/posts/bot-post-1" && request.Method == http.MethodGet:
+			return testJSONResponse(http.StatusOK, mattermostToolPost{ID: "bot-post-1", UserID: "bot-1"}), nil
+		case request.URL.String() == "http://mattermost.test/api/v4/posts/bot-post-2" && request.Method == http.MethodGet:
+			return testJSONResponse(http.StatusOK, mattermostToolPost{ID: "bot-post-2", UserID: "bot-1"}), nil
+		case request.URL.String() == "http://mattermost.test/api/v4/posts/user-post" && request.Method == http.MethodGet:
+			return testJSONResponse(http.StatusOK, mattermostToolPost{ID: "user-post", UserID: "user-1"}), nil
+		case request.URL.String() == "http://mattermost.test/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim"}), nil
+		case strings.HasPrefix(request.URL.String(), "http://mattermost.test/api/v4/posts/bot-post-") && request.Method == http.MethodDelete:
+			deletedPostIDs = append(deletedPostIDs, strings.TrimPrefix(request.URL.Path, "/api/v4/posts/"))
+			return testJSONResponse(http.StatusOK, map[string]string{"status": "ok"}), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})
+
+	response, errorValue := service.invokeMattermostTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "mattermost.post.delete",
+		Input:    mustJSON(t, map[string]any{"postIDs": []string{"bot-post-1", "user-post", "bot-post-2"}}),
+		Context: capabilities.ToolInvokeContext{
+			RequesterEmail:         "staff@example.com",
+			IsApprovalContinuation: true,
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != "deleted" || len(deletedPostIDs) != 2 {
+		t.Fatalf("expected partial delete success, response=%+v deleted=%+v", response, deletedPostIDs)
+	}
+	var result struct {
+		DeletedCount int `json:"deletedCount"`
+		FailedCount  int `json:"failedCount"`
+	}
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if result.DeletedCount != 2 || result.FailedCount != 1 {
+		t.Fatalf("unexpected delete result: %+v", result)
+	}
+}
+
+func TestMattermostPostDeleteFailsWhenNothingWasDeleted(t *testing.T) {
+	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		switch request.URL.String() {
+		case "http://blueclaw.test/admin/api/policy":
+			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
+		case "http://mattermost.test/api/v4/posts/user-post":
+			return testJSONResponse(http.StatusOK, mattermostToolPost{ID: "user-post", UserID: "user-1"}), nil
+		case "http://mattermost.test/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim"}), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})
+
+	response, errorValue := service.invokeMattermostTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "mattermost.post.delete",
+		Input:    mustJSON(t, map[string]any{"postIDs": []string{"user-post"}}),
+		Context: capabilities.ToolInvokeContext{
+			RequesterEmail:         "staff@example.com",
+			IsApprovalContinuation: true,
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !response.IsError || response.ErrorCode != "post_delete_not_completed" {
+		t.Fatalf("expected delete failure, got %+v", response)
+	}
+}
+
+func TestMattermostContextInspectReturnsCurrentMattermostContext(t *testing.T) {
+	replyTargetID, errorValue := encodePlatformHandle(platformHandle{Platform: "mattermost", ConversationID: "thread:channel-1:root-1", ChannelID: "channel-1", ChannelType: "O", RootID: "root-1", MessageID: "post-1"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if request.URL.String() == "http://blueclaw.test/admin/api/policy" {
+			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
+		}
+		if request.URL.String() == "http://mattermost.test/api/v4/users/me" {
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim"}), nil
+		}
+		t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+		return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+	})
+
+	response, errorValue := service.invokeMattermostTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "mattermost.context.inspect",
+		Context: capabilities.ToolInvokeContext{
+			Platform:       "mattermost",
+			ConversationID: "thread:channel-1:root-1",
+			ChannelID:      "channel-1",
+			ChannelName:    "town-square",
+			ReplyTargetID:  replyTargetID,
+			RequesterEmail: "staff@example.com",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != "ok" {
+		t.Fatalf("expected inspect success, got %+v", response)
+	}
+}
+
+func TestMattermostPostSearchUsesCurrentThreadScope(t *testing.T) {
+	replyTargetID, errorValue := encodePlatformHandle(platformHandle{Platform: "mattermost", ConversationID: "thread:channel-1:root-1", ChannelID: "channel-1", ChannelType: "O", RootID: "root-1"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		switch request.URL.String() {
+		case "http://blueclaw.test/admin/api/policy":
+			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
+		case "http://mattermost.test/api/v4/posts/root-1/thread":
+			return testJSONResponse(http.StatusOK, mattermostToolPostsResponse{
+				Order: []string{"bot-post", "user-post"},
+				Posts: map[string]mattermostToolPost{
+					"bot-post":  {ID: "bot-post", UserID: "bot-1", ChannelID: "channel-1", RootID: "root-1", Message: "테스트 메시지", CreateAt: 1},
+					"user-post": {ID: "user-post", UserID: "user-1", ChannelID: "channel-1", RootID: "root-1", Message: "사용자 메시지", CreateAt: 2},
+				},
+			}), nil
+		case "http://mattermost.test/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim"}), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})
+
+	response, errorValue := service.invokeMattermostTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "mattermost.post.search",
+		Input:    mustJSON(t, map[string]any{"scope": "currentThread", "authoredBy": "internkim"}),
+		Context: capabilities.ToolInvokeContext{
+			Platform:       "mattermost",
+			ConversationID: "thread:channel-1:root-1",
+			ChannelID:      "channel-1",
+			ReplyTargetID:  replyTargetID,
+			RequesterEmail: "staff@example.com",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var result struct {
+		CandidateCount int `json:"candidateCount"`
+	}
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != "ok" || result.CandidateCount != 1 {
+		t.Fatalf("expected one bot candidate, response=%+v result=%+v", response, result)
+	}
+}
+
+func TestMattermostPostSearchUsesDirectMessageScope(t *testing.T) {
+	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		switch request.URL.String() {
+		case "http://blueclaw.test/admin/api/policy":
+			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
+		case "http://mattermost.test/api/v4/users?per_page=200":
+			return testJSONResponse(http.StatusOK, []platformDMMattermostUser{{ID: "alice-1", Email: "alice@example.com", Username: "alice"}}), nil
+		case "http://mattermost.test/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim"}), nil
+		case "http://mattermost.test/api/v4/users/me/channels?per_page=200":
+			return testJSONResponse(http.StatusOK, []mattermostToolChannel{{ID: "dm-1", Name: "alice-1__bot-1", Type: "D"}}), nil
+		case "http://mattermost.test/api/v4/channels/dm-1/posts?page=0&per_page=50":
+			return testJSONResponse(http.StatusOK, mattermostToolPostsResponse{
+				Order: []string{"bot-dm-post"},
+				Posts: map[string]mattermostToolPost{
+					"bot-dm-post": {ID: "bot-dm-post", UserID: "bot-1", ChannelID: "dm-1", Message: "안녕", CreateAt: 1},
+				},
+			}), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})
+
+	response, errorValue := service.invokeMattermostTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "mattermost.post.search",
+		Input:    mustJSON(t, map[string]any{"scope": "directMessage", "personHint": "alice@example.com", "authoredBy": "internkim"}),
+		Context: capabilities.ToolInvokeContext{
+			Platform:       "mattermost",
+			RequesterEmail: "staff@example.com",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var result struct {
+		Channel struct {
+			ID string `json:"id"`
+		} `json:"channel"`
+		CandidateCount int `json:"candidateCount"`
+	}
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != "ok" || result.Channel.ID != "dm-1" || result.CandidateCount != 1 {
+		t.Fatalf("expected direct message candidate, response=%+v result=%+v", response, result)
 	}
 }
 
