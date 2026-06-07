@@ -3,6 +3,7 @@ package capabilityd
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -211,7 +212,7 @@ func TestPlatformMessageSearchUsesChannelScope(t *testing.T) {
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
 		case "http://mattermost.test/api/v4/channels/channel-1":
 			return testJSONResponse(http.StatusOK, mattermostToolChannel{ID: "channel-1", Name: "random"}), nil
-		case "http://mattermost.test/api/v4/channels/channel-1/posts?page=0&per_page=3":
+		case "http://mattermost.test/api/v4/channels/channel-1/posts?page=0&per_page=4":
 			return testJSONResponse(http.StatusOK, mattermostToolPostsResponse{
 				Order: []string{"post-1", "post-2", "post-3"},
 				Posts: map[string]mattermostToolPost{
@@ -252,6 +253,74 @@ func TestPlatformMessageSearchUsesChannelScope(t *testing.T) {
 	}
 	if result.CandidateCount != 2 {
 		t.Fatalf("unexpected search result: %+v", result)
+	}
+}
+
+func TestPlatformMessageSearchPaginatesCandidates(t *testing.T) {
+	posts := mattermostToolPostsResponse{Order: []string{}, Posts: map[string]mattermostToolPost{}}
+	for index := 1; index <= 30; index++ {
+		postID := fmt.Sprintf("bot-post-%02d", index)
+		posts.Order = append(posts.Order, postID)
+		posts.Posts[postID] = mattermostToolPost{ID: postID, UserID: "bot-1", ChannelID: "channel-1", Message: "삭제대상", CreateAt: int64(index)}
+	}
+	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		switch request.URL.String() {
+		case "http://blueclaw.test/admin/api/policy":
+			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
+		case "http://mattermost.test/api/v4/channels/channel-1/posts?page=1&per_page=26":
+			page := mattermostToolPostsResponse{Order: posts.Order[25:], Posts: posts.Posts}
+			return testJSONResponse(http.StatusOK, page), nil
+		case "http://mattermost.test/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim"}), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})
+
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.message.search",
+		Input: mustJSON(t, map[string]any{
+			"scope":      "currentChannel",
+			"authoredBy": "assistant",
+			"query":      "삭제대상",
+			"cursor":     "1",
+		}),
+		Context: capabilities.ToolInvokeContext{
+			Platform:       "mattermost",
+			ConversationID: "channel:channel-1",
+			ChannelID:      "channel-1",
+			RequesterEmail: "staff@example.com",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var result struct {
+		CandidateCount         int      `json:"candidateCount"`
+		ReturnedCandidateCount int      `json:"returnedCandidateCount"`
+		HasMore                bool     `json:"hasMore"`
+		Cursor                 string   `json:"cursor"`
+		NextCursor             string   `json:"nextCursor"`
+		MessageIDs             []string `json:"messageIDs"`
+		Candidates             []struct {
+			PostID string `json:"postID"`
+		} `json:"candidates"`
+	}
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if result.HasMore || result.Cursor != "1" || result.NextCursor != "" {
+		t.Fatalf("unexpected pagination state: %+v", result)
+	}
+	if result.CandidateCount != 5 || result.ReturnedCandidateCount != 5 {
+		t.Fatalf("unexpected candidate counts: %+v", result)
+	}
+	if result.Candidates[0].PostID != "bot-post-26" {
+		t.Fatalf("expected second page candidates with exact IDs, got %+v", result.Candidates)
+	}
+	if len(result.MessageIDs) != 5 || result.MessageIDs[0] != "bot-post-26" {
+		t.Fatalf("expected compact candidate ids before previews, got %+v", result.MessageIDs)
 	}
 }
 
@@ -395,6 +464,150 @@ func TestMattermostPostDeleteDeletesMultiplePostsAndReportsFailures(t *testing.T
 	}
 }
 
+func TestPlatformMessageDeleteRejectsTooManyExactIDs(t *testing.T) {
+	messageIDs := []string{}
+	for index := 1; index <= 26; index++ {
+		messageIDs = append(messageIDs, fmt.Sprintf("post-%02d", index))
+	}
+	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if request.URL.String() == "http://blueclaw.test/admin/api/policy" {
+			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
+		}
+		t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+		return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+	})
+
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.message.delete",
+		Input:    mustJSON(t, map[string]any{"messageIDs": messageIDs}),
+		Context: capabilities.ToolInvokeContext{
+			RequesterEmail:         "staff@example.com",
+			IsApprovalContinuation: true,
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !response.IsError || response.ErrorCode != "too_many_message_ids" {
+		t.Fatalf("expected too_many_message_ids failure, got %+v", response)
+	}
+}
+
+func TestPlatformMessageDeleteRejectsCriteriaWithoutExactIDs(t *testing.T) {
+	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if request.URL.String() == "http://blueclaw.test/admin/api/policy" {
+			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
+		}
+		t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+		return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+	})
+
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.message.delete",
+		Input: mustJSON(t, map[string]any{
+			"scope":      "currentChannel",
+			"authoredBy": "assistant",
+			"query":      "삭제대상",
+			"limit":      25,
+		}),
+		Context: capabilities.ToolInvokeContext{
+			Platform:                "mattermost",
+			ConversationID:          "channel:channel-1",
+			ChannelID:               "channel-1",
+			RequesterEmail:          "staff@example.com",
+			RequesterPlatformUserID: "user-1",
+			IsApprovalContinuation:  true,
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !response.IsError || response.ErrorCode != "invalid_input" {
+		t.Fatalf("expected exact messageIDs to be required, got %+v", response)
+	}
+}
+
+func TestPlatformMessageSearchSkipsDeletedPosts(t *testing.T) {
+	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		switch request.URL.String() {
+		case "http://blueclaw.test/admin/api/policy":
+			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
+		case "http://mattermost.test/api/v4/channels/channel-1/posts?page=0&per_page=26":
+			return testJSONResponse(http.StatusOK, mattermostToolPostsResponse{
+				Order: []string{"deleted-match", "active-match"},
+				Posts: map[string]mattermostToolPost{
+					"deleted-match": {ID: "deleted-match", UserID: "bot-1", ChannelID: "channel-1", Message: "삭제대상", CreateAt: 1, DeleteAt: 2},
+					"active-match":  {ID: "active-match", UserID: "bot-1", ChannelID: "channel-1", Message: "삭제대상", CreateAt: 3},
+				},
+			}), nil
+		case "http://mattermost.test/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim"}), nil
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})
+
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.message.search",
+		Input: mustJSON(t, map[string]any{
+			"scope":      "currentChannel",
+			"authoredBy": "assistant",
+			"query":      "삭제대상",
+		}),
+		Context: capabilities.ToolInvokeContext{
+			Platform:                "mattermost",
+			ConversationID:          "channel:channel-1",
+			ChannelID:               "channel-1",
+			RequesterEmail:          "staff@example.com",
+			RequesterPlatformUserID: "user-1",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var result mattermostPostSearchResult
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(result.Candidates) != 1 || result.Candidates[0].PostID != "active-match" {
+		t.Fatalf("expected only active post candidate, got %+v", result.Candidates)
+	}
+}
+
+func TestPlatformMessageDeleteRejectsCriteriaWithoutMessageIDs(t *testing.T) {
+	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
+		if request.URL.String() == "http://blueclaw.test/admin/api/policy" {
+			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
+		}
+		t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+		return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+	})
+
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.message.delete",
+		Input: mustJSON(t, map[string]any{
+			"scope":      "currentChannel",
+			"authoredBy": "anyone",
+			"query":      "삭제대상",
+		}),
+		Context: capabilities.ToolInvokeContext{
+			Platform:                "mattermost",
+			ConversationID:          "channel:channel-1",
+			ChannelID:               "channel-1",
+			RequesterEmail:          "staff@example.com",
+			RequesterPlatformUserID: "user-1",
+			IsApprovalContinuation:  true,
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !response.IsError || response.ErrorCode != "invalid_input" {
+		t.Fatalf("expected exact messageIDs to be required, got %+v", response)
+	}
+}
+
 func TestMattermostPostDeleteFailsWhenNothingWasDeleted(t *testing.T) {
 	service := mattermostToolTestService(t, func(request *http.Request) (*http.Response, error) {
 		switch request.URL.String() {
@@ -501,13 +714,18 @@ func TestMattermostPostSearchUsesCurrentThreadScope(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	var result struct {
-		CandidateCount int `json:"candidateCount"`
+		CandidateCount int      `json:"candidateCount"`
+		AuthoredBy     string   `json:"authoredBy"`
+		MessageIDs     []string `json:"messageIDs"`
 	}
 	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if response.Status != "ok" || result.CandidateCount != 1 {
 		t.Fatalf("expected one bot candidate, response=%+v result=%+v", response, result)
+	}
+	if result.AuthoredBy != "assistant" || len(result.MessageIDs) != 1 || result.MessageIDs[0] != "bot-post" {
+		t.Fatalf("expected platform-facing exact delete ids, got %+v", result)
 	}
 }
 
@@ -522,7 +740,7 @@ func TestMattermostPostSearchUsesDirectMessageScope(t *testing.T) {
 			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim"}), nil
 		case "http://mattermost.test/api/v4/users/me/channels?per_page=200":
 			return testJSONResponse(http.StatusOK, []mattermostToolChannel{{ID: "dm-1", Name: "alice-1__bot-1", Type: "D"}}), nil
-		case "http://mattermost.test/api/v4/channels/dm-1/posts?page=0&per_page=50":
+		case "http://mattermost.test/api/v4/channels/dm-1/posts?page=0&per_page=26":
 			return testJSONResponse(http.StatusOK, mattermostToolPostsResponse{
 				Order: []string{"bot-dm-post"},
 				Posts: map[string]mattermostToolPost{

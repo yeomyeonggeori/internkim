@@ -258,6 +258,7 @@ func platformMessageSearchInputSchema() json.RawMessage {
 		jsonschema.Field("authoredBy", jsonschema.StringEnum("assistant", "requester", "anyone")),
 		jsonschema.Field("query", jsonschema.String()),
 		jsonschema.Field("limit", jsonschema.Integer()),
+		jsonschema.Field("cursor", jsonschema.String()),
 	).RawMessage()
 }
 
@@ -279,7 +280,9 @@ func platformMessageUpdateInputSchema() json.RawMessage {
 }
 
 func platformMessageDeleteInputSchema() json.RawMessage {
-	return jsonschema.Object(jsonschema.Required("messageIDs", jsonschema.Array(jsonschema.String()))).RawMessage()
+	return jsonschema.Object(
+		jsonschema.Required("messageIDs", jsonschema.Array(jsonschema.String())),
+	).RawMessage()
 }
 
 func mattermostChannelUpdateInputSchema() json.RawMessage {
