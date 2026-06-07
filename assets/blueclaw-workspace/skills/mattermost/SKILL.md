@@ -22,7 +22,7 @@ If the current conversation is Mattermost, use this skill when the user asks abo
 
 Use `platform.message.context` when you need the current channel, thread, DM, post, bot user, or requester context.
 
-Use `platform.message.search` when the user refers to messages without exact IDs.
+Use `platform.message.search` when the user refers to messages without exact IDs. Pass `queries` as a string array; one query is `["keyword"]`, and multiple queries are OR-matched.
 
 Search scopes:
 
