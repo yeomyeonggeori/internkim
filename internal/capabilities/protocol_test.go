@@ -72,7 +72,7 @@ func TestGoogleWorkspaceToolsAreNotDefaultDeviceCapabilities(t *testing.T) {
 }
 
 func TestMattermostToolsAreDefaultCapabilities(t *testing.T) {
-	for _, toolName := range []string{"mattermost.channel.posts.list", "mattermost.channel.post", "mattermost.post.update", "mattermost.post.delete", "mattermost.channel.update"} {
+	for _, toolName := range []string{"mattermost.context.inspect", "mattermost.post.search", "mattermost.channel.posts.list", "mattermost.channel.post", "mattermost.post.update", "mattermost.post.delete", "mattermost.channel.update"} {
 		if !containsString(DefaultToolNames(), toolName) {
 			t.Fatalf("expected default tools to include %q, got %+v", toolName, DefaultToolNames())
 		}
@@ -123,20 +123,26 @@ func TestPlatformDMInspectDescriptorIsReadOnly(t *testing.T) {
 
 func TestMattermostDescriptorsMatchSkillInputs(t *testing.T) {
 	descriptors := MattermostDescriptors()
+	contextSchema := descriptorSchema(t, descriptors, "mattermost.context.inspect")
+	searchSchema := descriptorSchema(t, descriptors, "mattermost.post.search")
 	listSchema := descriptorSchema(t, descriptors, "mattermost.channel.posts.list")
 	postSchema := descriptorSchema(t, descriptors, "mattermost.channel.post")
 	updateSchema := descriptorSchema(t, descriptors, "mattermost.post.update")
 	deleteSchema := descriptorSchema(t, descriptors, "mattermost.post.delete")
 	channelUpdateSchema := descriptorSchema(t, descriptors, "mattermost.channel.update")
 
+	assertSchemaHasProperties(t, contextSchema)
+	assertSchemaHasProperties(t, searchSchema, "scope", "channelID", "channelName", "personHint", "rootPostID", "authoredBy", "query", "limit")
 	assertSchemaHasProperties(t, listSchema, "channelID", "channelName", "page", "perPage")
 	assertSchemaHasProperties(t, postSchema, "channelID", "channelName", "message", "pin")
 	assertSchemaRequires(t, postSchema, "message")
 	assertSchemaHasProperties(t, updateSchema, "postID", "message", "isPinned")
 	assertSchemaRequires(t, updateSchema, "postID")
-	assertSchemaHasProperties(t, deleteSchema, "postID")
-	assertSchemaRequires(t, deleteSchema, "postID")
+	assertSchemaHasProperties(t, deleteSchema, "postIDs")
+	assertSchemaRequires(t, deleteSchema, "postIDs")
 	assertSchemaHasProperties(t, channelUpdateSchema, "channelID", "channelName", "header", "displayName", "inviteeHints")
+	assertDescriptorApproval(t, descriptors, "mattermost.context.inspect", false)
+	assertDescriptorApproval(t, descriptors, "mattermost.post.search", false)
 	assertDescriptorApproval(t, descriptors, "mattermost.channel.posts.list", false)
 	assertDescriptorApproval(t, descriptors, "mattermost.channel.post", true)
 	assertDescriptorApproval(t, descriptors, "mattermost.post.update", true)

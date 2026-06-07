@@ -1,9 +1,11 @@
 ---
 name: mattermost
-description: Read Mattermost channel posts, post to channels, pin posts, update or delete InternKim bot posts, and manage Mattermost channels when the user asks about Mattermost messages, channels, pins, headers, names, or invites.
-when_to_use: Use when the user asks to post in Mattermost, read channel posts, pin or unpin a Mattermost post, edit or delete a Kim Intern post, update a channel header or name, or invite people to a Mattermost channel.
+description: Work with Mattermost conversations, posts, threads, attachments, channels, pins, and InternKim bot messages when the user is talking with InternKim inside Mattermost.
+when_to_use: Use when the user asks about Mattermost messages, threads, replies, attachments, DMs, channels, pins, headers, invites, or asks to edit/delete messages that InternKim posted.
 allowed-tools:
   - ask.confirm
+  - mattermost.context.inspect
+  - mattermost.post.search
   - mattermost.channel.posts.list
   - mattermost.channel.post
   - mattermost.post.update
@@ -15,7 +17,22 @@ allowed-tools:
 
 Use Mattermost tools for Mattermost-only messaging and channel operations.
 
+If the current conversation is Mattermost, use this skill when the user asks about messages in the current thread, current channel, a DM, a named channel, or bot messages that InternKim already sent.
+
 ## Read
+
+Use `mattermost.context.inspect` when you need the current Mattermost channel, thread, DM, post, bot user, or requester context.
+
+Use `mattermost.post.search` when the user refers to posts without exact post IDs.
+
+Search scopes:
+
+- `currentThread`: only the current thread.
+- `currentChannel`: the current channel or DM channel.
+- `directMessage`: a DM with `personHint`, or the current DM when no person is needed.
+- `channel`: a named channel with `channelID` or `channelName`.
+
+Use `authoredBy: "internkim"` when the user asks about messages InternKim sent. Use the returned previews to decide which posts match the user's intent. Do not delete from a natural-language description without first finding candidate post IDs.
 
 Use `mattermost.channel.posts.list` to read posts from a channel. This does not require approval.
 
@@ -40,9 +57,17 @@ Use `mattermost.post.update` to edit an InternKim bot post or pin/unpin a post. 
 
 Set `isPinned: true` to pin, `isPinned: false` to unpin, and omit `isPinned` when only changing message text.
 
-Use `mattermost.post.delete` to delete an InternKim bot post. Ask for confirmation first with `ask.confirm`.
+Use `mattermost.post.delete` to delete one or more InternKim bot posts. Ask for confirmation first with `ask.confirm`.
 
-Do not claim that a post was changed or deleted until the tool succeeds. The backend blocks edits and deletes of posts that were not written by InternKim, and blocks Flow, calendar, and attendance automated posts.
+Pass all selected IDs in `postIDs`, even when deleting a single post:
+
+```json
+{"postIDs":["post-id-1","post-id-2"]}
+```
+
+Do not claim that a post was changed or deleted until the tool succeeds. If deletion is partial, report the actual deleted and failed counts. The backend blocks edits and deletes of posts that were not written by InternKim, and blocks 업무, 캘린더, and 출결 automated posts.
+
+When the user asks to stop future messages, use `schedule.cancel`. When the user asks to remove messages already sent in Mattermost, use `mattermost.post.search` and `mattermost.post.delete`.
 
 ## Channel Management
 
