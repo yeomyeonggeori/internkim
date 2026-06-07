@@ -23,15 +23,15 @@ type mattermostChannelUpdateInput struct {
 }
 
 type mattermostPostSearchInput struct {
-	Scope       string `json:"scope"`
-	ChannelID   string `json:"channelID"`
-	ChannelName string `json:"channelName"`
-	PersonHint  string `json:"personHint"`
-	RootPostID  string `json:"rootPostID"`
-	AuthoredBy  string `json:"authoredBy"`
-	Query       string `json:"query"`
-	Limit       int    `json:"limit"`
-	Cursor      string `json:"cursor"`
+	Scope       string   `json:"scope"`
+	ChannelID   string   `json:"channelID"`
+	ChannelName string   `json:"channelName"`
+	PersonHint  string   `json:"personHint"`
+	RootPostID  string   `json:"rootPostID"`
+	AuthoredBy  string   `json:"authoredBy"`
+	Queries     []string `json:"queries"`
+	Limit       int      `json:"limit"`
+	Cursor      string   `json:"cursor"`
 }
 
 type mattermostPostUpdateInput struct {
@@ -113,7 +113,7 @@ type mattermostPostSearchResult struct {
 	Scope      string                          `json:"scope"`
 	Channel    map[string]string               `json:"channel"`
 	RootPostID string                          `json:"rootPostID"`
-	Query      string                          `json:"query"`
+	Queries    []string                        `json:"queries"`
 	AuthoredBy string                          `json:"authoredBy"`
 	Cursor     string                          `json:"cursor"`
 	NextCursor string                          `json:"nextCursor"`
@@ -223,7 +223,7 @@ func (service Service) invokeMattermostPostSearch(ctx context.Context, request c
 		"scope":                  searchResult.Scope,
 		"channel":                searchResult.Channel,
 		"rootPostID":             searchResult.RootPostID,
-		"query":                  searchResult.Query,
+		"queries":                searchResult.Queries,
 		"authoredBy":             platformMessageAuthorLabel(searchResult.AuthoredBy),
 		"cursor":                 searchResult.Cursor,
 		"nextCursor":             searchResult.NextCursor,
@@ -371,7 +371,7 @@ func decodeMattermostPostSearchInput(document json.RawMessage) (mattermostPostSe
 	input.PersonHint = strings.TrimSpace(input.PersonHint)
 	input.RootPostID = strings.TrimSpace(input.RootPostID)
 	input.AuthoredBy = strings.TrimSpace(input.AuthoredBy)
-	input.Query = strings.TrimSpace(input.Query)
+	input.Queries = normalizePlatformMessageSearchQueries(input.Queries)
 	if !isValidMattermostPostSearchScope(input.Scope) {
 		return mattermostPostSearchInput{}, fmt.Errorf("scope must be currentThread, currentChannel, directMessage, or channel")
 	}
@@ -538,7 +538,7 @@ func (service Service) searchMattermostPostCandidates(ctx context.Context, toolC
 		Scope:      normalizedMattermostPostSearchScope(input.Scope, toolContext),
 		Channel:    channel,
 		RootPostID: searchHandle.RootID,
-		Query:      input.Query,
+		Queries:    input.Queries,
 		AuthoredBy: input.AuthoredBy,
 		Cursor:     normalizedMattermostToolSearchCursor(page),
 		NextCursor: nextMattermostToolSearchCursor(page, hasMore),
@@ -703,20 +703,25 @@ func (service Service) mattermostPostSearchCandidates(ctx context.Context, posts
 		if !mattermostPostMatchesSearchAuthor(post, botUser.ID, toolContext.RequesterPlatformUserID, input.AuthoredBy) {
 			continue
 		}
-		if !mattermostPostMatchesSearchQuery(post, input.Query) {
+		if !mattermostPostMatchesSearchQueries(post, input.Queries) {
 			continue
 		}
-		candidates = append(candidates, service.mattermostPostSearchCandidate(ctx, post, botUser.ID, input.Query))
+		candidates = append(candidates, service.mattermostPostSearchCandidate(ctx, post, botUser.ID, input.Queries))
 	}
 	return candidates
 }
 
-func mattermostPostMatchesSearchQuery(post mattermostToolPost, query string) bool {
-	query = normalizeMattermostSearchText(query)
-	if query == "" {
+func mattermostPostMatchesSearchQueries(post mattermostToolPost, queries []string) bool {
+	if len(queries) == 0 {
 		return true
 	}
-	return strings.Contains(normalizeMattermostSearchText(post.Message), query)
+	message := normalizeMattermostSearchText(post.Message)
+	for _, query := range queries {
+		if strings.Contains(message, normalizeMattermostSearchText(query)) {
+			return true
+		}
+	}
+	return false
 }
 
 const mattermostPostSearchPageLimit = 25
@@ -734,7 +739,7 @@ func normalizeMattermostSearchText(value string) string {
 	return strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(value)), " "))
 }
 
-func (service Service) mattermostPostSearchCandidate(ctx context.Context, post mattermostToolPost, botUserID string, query string) mattermostPostSearchCandidate {
+func (service Service) mattermostPostSearchCandidate(ctx context.Context, post mattermostToolPost, botUserID string, queries []string) mattermostPostSearchCandidate {
 	failure, isBlocked := service.validateMattermostPostDeleteWithBotUserID(post, botUserID)
 	candidate := mattermostPostSearchCandidate{
 		PostID:     post.ID,
@@ -743,7 +748,7 @@ func (service Service) mattermostPostSearchCandidate(ctx context.Context, post m
 		UserID:     post.UserID,
 		AuthoredBy: mattermostPostAuthorLabel(post, botUserID),
 		CreateAt:   post.CreateAt,
-		Preview:    mattermostPostSearchPreview(post.Message, query),
+		Preview:    mattermostPostSearchPreview(post.Message, queries),
 		Deletable:  !isBlocked,
 	}
 	if isBlocked {
@@ -772,9 +777,9 @@ func mattermostPostAuthorLabel(post mattermostToolPost, botUserID string) string
 	return "user"
 }
 
-func mattermostPostSearchPreview(message string, query string) string {
+func mattermostPostSearchPreview(message string, queries []string) string {
 	message = strings.Join(strings.Fields(strings.TrimSpace(message)), " ")
-	query = strings.Join(strings.Fields(strings.TrimSpace(query)), " ")
+	query := firstMattermostPreviewQuery(message, queries)
 	if query == "" {
 		return clippedMattermostPostPreview(message)
 	}
@@ -796,6 +801,20 @@ func mattermostPostSearchPreview(message string, query string) string {
 		suffix = "..."
 	}
 	return prefix + string(runes[start:end]) + suffix
+}
+
+func firstMattermostPreviewQuery(message string, queries []string) string {
+	normalizedMessage := strings.ToLower(message)
+	for _, value := range queries {
+		query := strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
+		if query == "" {
+			continue
+		}
+		if strings.Contains(normalizedMessage, strings.ToLower(query)) {
+			return query
+		}
+	}
+	return ""
 }
 
 func clippedMattermostPostPreview(message string) string {

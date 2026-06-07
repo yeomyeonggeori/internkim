@@ -23,7 +23,7 @@ type platformMessageSearchInput struct {
 	Scope          string                        `json:"scope"`
 	DeliveryTarget platformMessageDeliveryTarget `json:"deliveryTarget"`
 	AuthoredBy     string                        `json:"authoredBy"`
-	Query          string                        `json:"query"`
+	Queries        []string                      `json:"queries"`
 	Limit          int                           `json:"limit"`
 	Cursor         string                        `json:"cursor"`
 }
@@ -106,7 +106,7 @@ func (service Service) invokePlatformMessageSearch(ctx context.Context, request 
 		ChannelName: input.DeliveryTarget.ChannelName,
 		PersonHint:  input.DeliveryTarget.PersonHint,
 		AuthoredBy:  platformMessageSearchAuthor(input.AuthoredBy),
-		Query:       input.Query,
+		Queries:     input.Queries,
 		Limit:       input.Limit,
 		Cursor:      input.Cursor,
 	}
@@ -208,7 +208,7 @@ func decodePlatformMessageSearchInput(document json.RawMessage) (platformMessage
 	}
 	input.Scope = strings.TrimSpace(input.Scope)
 	input.AuthoredBy = strings.TrimSpace(input.AuthoredBy)
-	input.Query = strings.TrimSpace(input.Query)
+	input.Queries = normalizePlatformMessageSearchQueries(input.Queries)
 	input.Cursor = strings.TrimSpace(input.Cursor)
 	input.DeliveryTarget = normalizePlatformMessageDeliveryTarget(input.DeliveryTarget)
 	if !isValidPlatformMessageScope(input.Scope) {
@@ -218,6 +218,24 @@ func decodePlatformMessageSearchInput(document json.RawMessage) (platformMessage
 		return platformMessageSearchInput{}, fmt.Errorf("authoredBy must be assistant, requester, or anyone")
 	}
 	return input, nil
+}
+
+func normalizePlatformMessageSearchQueries(values []string) []string {
+	queries := []string{}
+	seen := map[string]bool{}
+	for _, value := range values {
+		query := strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
+		if query == "" {
+			continue
+		}
+		key := strings.ToLower(query)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		queries = append(queries, query)
+	}
+	return queries
 }
 
 func decodePlatformMessageSendInput(document json.RawMessage) (platformMessageSendInput, error) {
@@ -265,6 +283,9 @@ func decodePlatformMessageDeleteInput(document json.RawMessage) (platformMessage
 	if len(bytes.TrimSpace(document)) == 0 {
 		return platformMessageDeleteInput{}, fmt.Errorf("platform.message.delete input is required")
 	}
+	if errorValue := rejectUnexpectedPlatformMessageDeleteFields(document); errorValue != nil {
+		return platformMessageDeleteInput{}, errorValue
+	}
 	var input platformMessageDeleteInput
 	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
 		return platformMessageDeleteInput{}, errorValue
@@ -274,6 +295,19 @@ func decodePlatformMessageDeleteInput(document json.RawMessage) (platformMessage
 		return platformMessageDeleteInput{}, fmt.Errorf("messageIDs is required")
 	}
 	return input, nil
+}
+
+func rejectUnexpectedPlatformMessageDeleteFields(document json.RawMessage) error {
+	var input map[string]json.RawMessage
+	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
+		return errorValue
+	}
+	for fieldName := range input {
+		if fieldName != "messageIDs" {
+			return fmt.Errorf("platform.message.delete accepts only messageIDs; use platform.message.search for criteria")
+		}
+	}
+	return nil
 }
 
 func deletableMattermostCandidateIDs(candidates []mattermostPostSearchCandidate) []string {

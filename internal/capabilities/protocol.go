@@ -256,7 +256,7 @@ func platformMessageSearchInputSchema() json.RawMessage {
 		jsonschema.Field("scope", jsonschema.StringEnum("currentThread", "currentChannel", "directMessage", "channel")),
 		jsonschema.Field("deliveryTarget", platformMessageDeliveryTargetSchema()),
 		jsonschema.Field("authoredBy", jsonschema.StringEnum("assistant", "requester", "anyone")),
-		jsonschema.Field("query", jsonschema.String()),
+		jsonschema.Field("queries", jsonschema.Array(jsonschema.String())),
 		jsonschema.Field("limit", jsonschema.Integer()),
 		jsonschema.Field("cursor", jsonschema.String()),
 	).RawMessage()
@@ -316,7 +316,7 @@ func mattermostPostSearchInputSchema() json.RawMessage {
 		jsonschema.Field("personHint", jsonschema.String()),
 		jsonschema.Field("rootPostID", jsonschema.String()),
 		jsonschema.Field("authoredBy", jsonschema.String()),
-		jsonschema.Field("query", jsonschema.String()),
+		jsonschema.Field("queries", jsonschema.Array(jsonschema.String())),
 		jsonschema.Field("limit", jsonschema.Integer()),
 	).RawMessage()
 }
