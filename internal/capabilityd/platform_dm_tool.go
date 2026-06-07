@@ -1,7 +1,6 @@
 package capabilityd
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -12,24 +11,13 @@ import (
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
-type platformDMSendInput struct {
-	RecipientHint string `json:"recipientHint"`
-	Message       string `json:"message"`
-	Platform      string `json:"platform"`
-	Reason        string `json:"reason"`
-}
-
-type platformDMInspectInput struct {
-	RecipientHint string `json:"recipientHint"`
-	Platform      string `json:"platform"`
-}
-
 type platformDMFailure struct {
-	ErrorCode    string `json:"errorCode"`
-	FailureStage string `json:"failureStage"`
-	Message      string `json:"message"`
-	Retryable    bool   `json:"retryable"`
-	SafeRetry    bool   `json:"safeRetry"`
+	ErrorCode    string                `json:"errorCode"`
+	FailureStage string                `json:"failureStage"`
+	Message      string                `json:"message"`
+	Retryable    bool                  `json:"retryable"`
+	SafeRetry    bool                  `json:"safeRetry"`
+	Candidates   []platformDMRecipient `json:"candidates,omitempty"`
 }
 
 type platformDMPolicyDocument struct {
@@ -62,118 +50,6 @@ type platformDMRecipient struct {
 	MattermostAliases  []string `json:"mattermostAliases"`
 }
 
-type platformDMInspectSnapshot struct {
-	IsTokenConfigured    bool
-	PolicyDocument       platformDMPolicyDocument
-	PolicyError          error
-	MattermostUsers      []platformDMMattermostUser
-	MattermostUsersError error
-	BotUser              platformDMMattermostUser
-	BotUserError         error
-}
-
-func (service Service) invokePlatformDMSend(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	input, errorValue := decodePlatformDMSendInput(request.Input)
-	if errorValue != nil {
-		return platformDMErrorResponse(request.ToolName, platformDMStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
-	}
-	recipient, failure, hasFailure := service.resolvePlatformDMRecipient(ctx, input.RecipientHint)
-	if hasFailure {
-		return platformDMErrorResponse(request.ToolName, failure), nil
-	}
-	if errorMessage := validatePlatformDMSendAuthorization(request.Context, recipient); errorMessage != "" {
-		return platformDMDeniedResponse(request.ToolName, platformDMStaticFailure("approval_required", "authorization", errorMessage)), nil
-	}
-	dispatchID, failure, hasFailure := service.sendMattermostDirectMessageWithDispatch(ctx, recipient.MattermostUserID, input.Message)
-	if hasFailure {
-		return platformDMErrorResponse(request.ToolName, failure), nil
-	}
-	result := map[string]string{
-		"platform":           "mattermost",
-		"dispatchID":         dispatchID,
-		"personID":           recipient.PersonID,
-		"mattermostUserID":   recipient.MattermostUserID,
-		"mattermostUsername": recipient.MattermostUsername,
-	}
-	resultDocument, _ := json.Marshal(result)
-	return capabilities.ToolInvokeResponse{
-		Provider:        "internkim",
-		SelectedBackend: "device",
-		ToolName:        request.ToolName,
-		Status:          "ok",
-		Content:         "direct message sent",
-		Result:          resultDocument,
-	}, nil
-}
-
-func (service Service) invokePlatformDMInspect(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	input, errorValue := decodePlatformDMInspectInput(request.Input)
-	if errorValue != nil {
-		return platformDMErrorResponse(request.ToolName, platformDMStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
-	}
-	snapshot := service.platformDMInspectSnapshot(ctx)
-	candidates, candidateFailure, hasCandidateFailure := platformDMInspectCandidates(input.RecipientHint, snapshot)
-	diagnosis := platformDMDiagnosis(snapshot)
-	result := map[string]any{
-		"platform":       "mattermost",
-		"recipientHint":  input.RecipientHint,
-		"candidateCount": len(candidates),
-		"candidates":     candidates,
-		"diagnosis":      diagnosis,
-	}
-	resultDocument, _ := json.Marshal(result)
-	if hasCandidateFailure {
-		return platformDMErrorResponse(request.ToolName, candidateFailure), nil
-	}
-	return capabilities.ToolInvokeResponse{
-		Provider:        "internkim",
-		SelectedBackend: "device",
-		ToolName:        request.ToolName,
-		Status:          "ok",
-		Content:         platformDMInspectSummary(input.RecipientHint, candidates, diagnosis),
-		Result:          resultDocument,
-	}, nil
-}
-
-func decodePlatformDMSendInput(document json.RawMessage) (platformDMSendInput, error) {
-	if len(bytes.TrimSpace(document)) == 0 {
-		return platformDMSendInput{}, fmt.Errorf("platform.dm.send input is required")
-	}
-	var input platformDMSendInput
-	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
-		return platformDMSendInput{}, errorValue
-	}
-	input.RecipientHint = strings.TrimSpace(input.RecipientHint)
-	input.Message = strings.TrimSpace(input.Message)
-	input.Platform = firstNonEmpty(strings.TrimSpace(input.Platform), "mattermost")
-	input.Reason = strings.TrimSpace(input.Reason)
-	if input.RecipientHint == "" {
-		return platformDMSendInput{}, fmt.Errorf("recipientHint is required")
-	}
-	if input.Message == "" {
-		return platformDMSendInput{}, fmt.Errorf("message is required")
-	}
-	if input.Platform != "mattermost" {
-		return platformDMSendInput{}, fmt.Errorf("platform %q is not supported", input.Platform)
-	}
-	return input, nil
-}
-
-func decodePlatformDMInspectInput(document json.RawMessage) (platformDMInspectInput, error) {
-	var input platformDMInspectInput
-	if len(bytes.TrimSpace(document)) > 0 {
-		if errorValue := json.Unmarshal(document, &input); errorValue != nil {
-			return platformDMInspectInput{}, errorValue
-		}
-	}
-	input.RecipientHint = strings.TrimSpace(input.RecipientHint)
-	input.Platform = firstNonEmpty(strings.TrimSpace(input.Platform), "mattermost")
-	if input.Platform != "mattermost" {
-		return platformDMInspectInput{}, fmt.Errorf("platform %q is not supported", input.Platform)
-	}
-	return input, nil
-}
-
 func validatePlatformDMSendAuthorization(toolContext capabilities.ToolInvokeContext, recipient platformDMRecipient) string {
 	if toolContext.IsScheduledRun || toolContext.IsApprovalContinuation {
 		return ""
@@ -181,7 +57,7 @@ func validatePlatformDMSendAuthorization(toolContext capabilities.ToolInvokeCont
 	if isPlatformDMSelfRecipient(toolContext, recipient) {
 		return ""
 	}
-	return "platform.dm.send requires approval for immediate sends; scheduled runs may send without approval"
+	return "platform.message.send requires approval for immediate sends; scheduled runs may send without approval"
 }
 
 func isPlatformDMSelfRecipient(toolContext capabilities.ToolInvokeContext, recipient platformDMRecipient) bool {
@@ -194,24 +70,26 @@ func isPlatformDMSelfRecipient(toolContext capabilities.ToolInvokeContext, recip
 	return false
 }
 
-func (service Service) resolvePlatformDMRecipient(ctx context.Context, recipientHint string) (platformDMRecipient, platformDMFailure, bool) {
-	candidates, failure, hasFailure := service.resolvePlatformDMCandidates(ctx, recipientHint)
+func (service Service) resolvePlatformDMRecipient(ctx context.Context, personHint string) (platformDMRecipient, platformDMFailure, bool) {
+	candidates, failure, hasFailure := service.resolvePlatformDMCandidates(ctx, personHint)
 	if hasFailure {
 		return platformDMRecipient{}, failure, true
 	}
 	switch len(candidates) {
 	case 0:
-		message := fmt.Sprintf("recipient %q was not found among approved InternKim people with active Mattermost accounts", recipientHint)
+		message := fmt.Sprintf("recipient %q was not found among approved InternKim people with active Mattermost accounts", personHint)
 		return platformDMRecipient{}, platformDMStaticFailure("recipient_not_found", "recipient_resolve", message), true
 	case 1:
 		return candidates[0], platformDMFailure{}, false
 	default:
-		message := fmt.Sprintf("recipient %q is ambiguous: %s", recipientHint, platformDMRecipientList(candidates))
-		return platformDMRecipient{}, platformDMStaticFailure("recipient_ambiguous", "recipient_resolve", message), true
+		message := fmt.Sprintf("recipient %q is ambiguous: %s", personHint, platformDMRecipientList(candidates))
+		failure := platformDMStaticFailure("recipient_ambiguous", "recipient_resolve", message)
+		failure.Candidates = candidates
+		return platformDMRecipient{}, failure, true
 	}
 }
 
-func (service Service) resolvePlatformDMCandidates(ctx context.Context, recipientHint string) ([]platformDMRecipient, platformDMFailure, bool) {
+func (service Service) resolvePlatformDMCandidates(ctx context.Context, personHint string) ([]platformDMRecipient, platformDMFailure, bool) {
 	policyDocument, errorValue := service.fetchPlatformDMPolicy(ctx)
 	if errorValue != nil {
 		return nil, platformDMFailureForError("mattermost_lookup", "mattermost_unavailable", errorValue, true), true
@@ -220,35 +98,7 @@ func (service Service) resolvePlatformDMCandidates(ctx context.Context, recipien
 	if errorValue != nil {
 		return nil, platformDMFailureForError("mattermost_lookup", "mattermost_unavailable", errorValue, true), true
 	}
-	return matchingPlatformDMRecipients(recipientHint, policyDocument.People, mattermostUsers), platformDMFailure{}, false
-}
-
-func (service Service) platformDMInspectSnapshot(ctx context.Context) platformDMInspectSnapshot {
-	policyDocument, policyError := service.fetchPlatformDMPolicy(ctx)
-	mattermostUsers, mattermostUsersError := service.listPlatformDMMattermostUsers(ctx)
-	botUser, botUserError := service.resolveMattermostBotUser(ctx)
-	return platformDMInspectSnapshot{
-		IsTokenConfigured:    readSecretValue(service.Configuration.MattermostTokenPath) != "",
-		PolicyDocument:       policyDocument,
-		PolicyError:          policyError,
-		MattermostUsers:      mattermostUsers,
-		MattermostUsersError: mattermostUsersError,
-		BotUser:              botUser,
-		BotUserError:         botUserError,
-	}
-}
-
-func platformDMInspectCandidates(recipientHint string, snapshot platformDMInspectSnapshot) ([]platformDMRecipient, platformDMFailure, bool) {
-	if strings.TrimSpace(recipientHint) == "" {
-		return []platformDMRecipient{}, platformDMFailure{}, false
-	}
-	if snapshot.PolicyError != nil {
-		return nil, platformDMFailureForError("mattermost_lookup", "mattermost_unavailable", snapshot.PolicyError, true), true
-	}
-	if snapshot.MattermostUsersError != nil {
-		return nil, platformDMFailureForError("mattermost_lookup", "mattermost_unavailable", snapshot.MattermostUsersError, true), true
-	}
-	return matchingPlatformDMRecipients(recipientHint, snapshot.PolicyDocument.People, snapshot.MattermostUsers), platformDMFailure{}, false
+	return matchingPlatformDMRecipients(personHint, policyDocument.People, mattermostUsers), platformDMFailure{}, false
 }
 
 func (service Service) fetchPlatformDMPolicy(ctx context.Context) (platformDMPolicyDocument, error) {
@@ -287,11 +137,11 @@ func (service Service) listPlatformDMMattermostUsers(ctx context.Context) ([]pla
 	return activeUsers, nil
 }
 
-func matchingPlatformDMRecipients(recipientHint string, people []platformDMPolicyPerson, users []platformDMMattermostUser) []platformDMRecipient {
+func matchingPlatformDMRecipients(personHint string, people []platformDMPolicyPerson, users []platformDMMattermostUser) []platformDMRecipient {
 	candidates := platformDMRecipientsForApprovedPeople(people, users)
 	matches := []platformDMRecipient{}
 	for _, candidate := range candidates {
-		if platformDMRecipientMatches(recipientHint, candidate) {
+		if platformDMRecipientMatches(personHint, candidate) {
 			matches = append(matches, candidate)
 		}
 	}
@@ -333,8 +183,8 @@ func platformDMRecipientsForApprovedPeople(people []platformDMPolicyPerson, user
 	return recipients
 }
 
-func platformDMRecipientMatches(recipientHint string, recipient platformDMRecipient) bool {
-	hint := normalizePlatformDMMatchValue(strings.TrimPrefix(recipientHint, "@"))
+func platformDMRecipientMatches(personHint string, recipient platformDMRecipient) bool {
+	hint := normalizePlatformDMMatchValue(strings.TrimPrefix(personHint, "@"))
 	if hint == "" {
 		return false
 	}
@@ -404,96 +254,6 @@ func platformDMRecipientList(recipients []platformDMRecipient) string {
 		parts = append(parts, firstNonEmpty(recipient.DisplayName, recipient.PersonID)+" <"+strings.Join(recipient.Emails, ",")+">")
 	}
 	return strings.Join(parts, "; ")
-}
-
-func platformDMInspectSummary(recipientHint string, candidates []platformDMRecipient, diagnosis map[string]any) string {
-	parts := []string{platformDMDiagnosisSummary(diagnosis)}
-	if strings.TrimSpace(recipientHint) == "" {
-		return strings.Join(parts, " ")
-	}
-	if len(candidates) == 0 {
-		parts = append(parts, fmt.Sprintf("No active approved Mattermost recipient matched %q.", recipientHint))
-		return strings.Join(parts, " ")
-	}
-	parts = append(parts, fmt.Sprintf("Found %d active approved Mattermost recipient candidate(s): %s.", len(candidates), platformDMRecipientList(candidates)))
-	return strings.Join(parts, " ")
-}
-
-func platformDMDiagnosis(snapshot platformDMInspectSnapshot) map[string]any {
-	checks := []map[string]any{}
-	checks = append(checks, platformDMCheck("mattermost_bot_token", snapshot.IsTokenConfigured, platformDMTokenSummary(snapshot.IsTokenConfigured)))
-	checks = append(checks, platformDMPolicyCheck(snapshot))
-	checks = append(checks, platformDMMattermostBotCheck(snapshot))
-	checks = append(checks, platformDMMattermostUserListCheck(snapshot))
-	return map[string]any{
-		"platform": "mattermost",
-		"ok":       platformDMChecksAreOK(checks),
-		"checks":   checks,
-	}
-}
-
-func platformDMPolicyCheck(snapshot platformDMInspectSnapshot) map[string]any {
-	if snapshot.PolicyError != nil {
-		return platformDMFailedCheck("blueclaw_policy", snapshot.PolicyError)
-	}
-	return map[string]any{"name": "blueclaw_policy", "ok": true, "summary": fmt.Sprintf("%d approved people loaded", len(snapshot.PolicyDocument.People))}
-}
-
-func platformDMMattermostBotCheck(snapshot platformDMInspectSnapshot) map[string]any {
-	if snapshot.BotUserError != nil {
-		return platformDMFailedCheck("mattermost_bot_user", snapshot.BotUserError)
-	}
-	return map[string]any{"name": "mattermost_bot_user", "ok": true, "summary": "bot user resolved as " + firstNonEmpty(snapshot.BotUser.Username, snapshot.BotUser.ID)}
-}
-
-func platformDMMattermostUserListCheck(snapshot platformDMInspectSnapshot) map[string]any {
-	if snapshot.MattermostUsersError != nil {
-		return platformDMFailedCheck("mattermost_user_list", snapshot.MattermostUsersError)
-	}
-	return map[string]any{"name": "mattermost_user_list", "ok": true, "summary": fmt.Sprintf("%d active users loaded", len(snapshot.MattermostUsers))}
-}
-
-func platformDMCheck(name string, isOK bool, summary string) map[string]any {
-	return map[string]any{"name": name, "ok": isOK, "summary": summary}
-}
-
-func platformDMTokenSummary(isConfigured bool) string {
-	if isConfigured {
-		return "Mattermost bot token is configured"
-	}
-	return "Mattermost bot token is not configured"
-}
-
-func platformDMFailedCheck(name string, errorValue error) map[string]any {
-	return map[string]any{"name": name, "ok": false, "summary": safePlatformDMError(errorValue)}
-}
-
-func platformDMChecksAreOK(checks []map[string]any) bool {
-	for _, check := range checks {
-		isOK, _ := check["ok"].(bool)
-		if !isOK {
-			return false
-		}
-	}
-	return true
-}
-
-func platformDMDiagnosisSummary(result map[string]any) string {
-	checks, _ := result["checks"].([]map[string]any)
-	failedChecks := []string{}
-	for _, check := range checks {
-		isOK, _ := check["ok"].(bool)
-		if isOK {
-			continue
-		}
-		name, _ := check["name"].(string)
-		summary, _ := check["summary"].(string)
-		failedChecks = append(failedChecks, name+": "+summary)
-	}
-	if len(failedChecks) == 0 {
-		return "Mattermost DM diagnostics passed."
-	}
-	return "Mattermost DM diagnostics found issues: " + strings.Join(failedChecks, "; ")
 }
 
 func safePlatformDMError(errorValue error) string {

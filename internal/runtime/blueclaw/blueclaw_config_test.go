@@ -47,8 +47,8 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if !containsDescriptor(capabilityToolDescriptors, "user.confirm", "requiresApproval") {
 		t.Fatalf("expected user.confirm descriptor to require approval, got %+v", capabilityToolDescriptors)
 	}
-	if !containsCompletionEvidence(capabilityToolDescriptors, "mattermost.channel.post", "success", "post_message", "channel") {
-		t.Fatalf("expected Mattermost post descriptor to preserve completion evidence, got %+v", capabilityToolDescriptors)
+	if !containsCompletionEvidence(capabilityToolDescriptors, "platform.message.send", "success", "send_message", "message") {
+		t.Fatalf("expected platform message send descriptor to preserve completion evidence, got %+v", capabilityToolDescriptors)
 	}
 	if !containsCompletionEvidence(capabilityToolDescriptors, "mail.message.send", "success", "send_email", "email") {
 		t.Fatalf("expected mail send descriptor to preserve completion evidence, got %+v", capabilityToolDescriptors)
@@ -329,17 +329,10 @@ func TestBlueclawPolicyDocumentSeedsResourceFirstCircles(t *testing.T) {
 	if !containsPolicyResource(resourceAccess, "tool:flow.task.update", "staff") {
 		t.Fatalf("expected staff Flow update tool rule, got %+v", resourceAccess)
 	}
-	if !containsPolicyResource(resourceAccess, "tool:mattermost.channel.posts.list", "staff") {
-		t.Fatalf("expected staff Mattermost list tool rule, got %+v", resourceAccess)
-	}
-	if !containsPolicyResource(resourceAccess, "tool:mattermost.channel.post", "staff") {
-		t.Fatalf("expected staff Mattermost post tool rule, got %+v", resourceAccess)
-	}
-	if !containsPolicyResource(resourceAccess, "tool:mattermost.post.update", "staff") {
-		t.Fatalf("expected staff Mattermost update tool rule, got %+v", resourceAccess)
-	}
-	if !containsPolicyResource(resourceAccess, "tool:mattermost.post.delete", "staff") {
-		t.Fatalf("expected staff Mattermost delete tool rule, got %+v", resourceAccess)
+	for _, toolName := range []string{"platform.message.context", "platform.message.search", "platform.message.send", "platform.message.update", "platform.message.delete"} {
+		if !containsPolicyResource(resourceAccess, "tool:"+toolName, "staff") {
+			t.Fatalf("expected staff %s tool rule, got %+v", toolName, resourceAccess)
+		}
 	}
 	if !containsPolicyResource(resourceAccess, "tool:mattermost.channel.update", "admin") {
 		t.Fatalf("expected admin Mattermost channel update tool rule, got %+v", resourceAccess)
