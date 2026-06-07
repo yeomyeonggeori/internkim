@@ -473,6 +473,12 @@ func TestCapabilitydServiceUsesOpenRouterFirstAutoRouting(t *testing.T) {
 	if !strings.Contains(serviceDocument, "--companion-url http://127.0.0.1:18080/_internkim/companion") {
 		t.Fatalf("expected capabilityd service to keep companion URL without making it first, got %s", serviceDocument)
 	}
+	if !strings.Contains(serviceDocument, "--mattermost-url "+BlueclawMattermostLocalURL) {
+		t.Fatalf("expected capabilityd service to use local Mattermost URL, got %s", serviceDocument)
+	}
+	if !strings.Contains(serviceDocument, "--mattermost-token "+BlueclawMattermostTokenPath) {
+		t.Fatalf("expected capabilityd service to include Mattermost bot token path, got %s", serviceDocument)
+	}
 }
 
 func TestLlamaCppServiceUnitRunsLocalServer(t *testing.T) {

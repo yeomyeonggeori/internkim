@@ -25,6 +25,7 @@ type platformMessageSearchInput struct {
 	AuthoredBy     string                        `json:"authoredBy"`
 	Query          string                        `json:"query"`
 	Limit          int                           `json:"limit"`
+	Cursor         string                        `json:"cursor"`
 }
 
 type platformMessageSendInput struct {
@@ -107,6 +108,7 @@ func (service Service) invokePlatformMessageSearch(ctx context.Context, request 
 		AuthoredBy:  platformMessageSearchAuthor(input.AuthoredBy),
 		Query:       input.Query,
 		Limit:       input.Limit,
+		Cursor:      input.Cursor,
 	}
 	return service.invokeMattermostPostSearch(ctx, capabilities.ToolInvokeRequest{
 		ToolName: request.ToolName,
@@ -181,6 +183,14 @@ func (service Service) invokePlatformMessageDelete(ctx context.Context, request 
 	if errorValue != nil {
 		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
 	}
+	if len(input.MessageIDs) == 0 {
+		failure := mattermostToolStaticFailure("invalid_input", "input_decode", "messageIDs is required; use platform.message.search first to find message IDs")
+		return mattermostToolErrorResponse(request.ToolName, failure), nil
+	}
+	if len(input.MessageIDs) > mattermostPostSearchPageLimit {
+		failure := mattermostToolStaticFailure("too_many_message_ids", "input_decode", "platform.message.delete accepts at most 25 messageIDs per call; delete one search page at a time")
+		return mattermostToolErrorResponse(request.ToolName, failure), nil
+	}
 	mattermostInput := mattermostPostDeleteInput{PostIDs: input.MessageIDs}
 	return service.invokeMattermostPostDelete(ctx, capabilities.ToolInvokeRequest{
 		ToolName: request.ToolName,
@@ -199,6 +209,7 @@ func decodePlatformMessageSearchInput(document json.RawMessage) (platformMessage
 	input.Scope = strings.TrimSpace(input.Scope)
 	input.AuthoredBy = strings.TrimSpace(input.AuthoredBy)
 	input.Query = strings.TrimSpace(input.Query)
+	input.Cursor = strings.TrimSpace(input.Cursor)
 	input.DeliveryTarget = normalizePlatformMessageDeliveryTarget(input.DeliveryTarget)
 	if !isValidPlatformMessageScope(input.Scope) {
 		return platformMessageSearchInput{}, fmt.Errorf("scope must be currentThread, currentChannel, directMessage, or channel")
@@ -263,6 +274,16 @@ func decodePlatformMessageDeleteInput(document json.RawMessage) (platformMessage
 		return platformMessageDeleteInput{}, fmt.Errorf("messageIDs is required")
 	}
 	return input, nil
+}
+
+func deletableMattermostCandidateIDs(candidates []mattermostPostSearchCandidate) []string {
+	postIDs := []string{}
+	for _, candidate := range candidates {
+		if candidate.Deletable {
+			postIDs = append(postIDs, candidate.PostID)
+		}
+	}
+	return postIDs
 }
 
 func normalizePlatformMessageDeliveryTarget(target platformMessageDeliveryTarget) platformMessageDeliveryTarget {

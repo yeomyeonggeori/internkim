@@ -47,11 +47,21 @@ Set `isPinned: true` to pin, `isPinned: false` to unpin, and omit `isPinned` whe
 
 Use `platform.message.delete` to delete one or more InternKim bot messages. Ask for confirmation first with `ask.confirm`.
 
-Pass all selected IDs in `messageIDs`, even when deleting a single message:
+For precise deletion, pass all selected IDs in `messageIDs`, even when deleting a single message:
 
 ```json
 {"messageIDs":["message-id-1","message-id-2"]}
 ```
+
+Search is paginated. A search returns at most 25 candidates and a compact `messageIDs` array for the deletable InternKim bot messages on that page.
+
+Delete does not search internally and does not use pagination. Pass only `messageIDs`:
+
+```json
+{"messageIDs":["message-id-1","message-id-2"]}
+```
+
+For "delete all matching messages", repeat this loop: search, delete the returned `messageIDs`, then run the same search again until `messageIDs` is empty. Do not advance to `nextCursor` after deleting, because deleted messages can shift later matches into the first page.
 
 Do not claim that a message was changed or deleted until the tool succeeds. If deletion is partial, report the actual deleted and failed counts. The backend blocks edits and deletes of messages that were not written by InternKim, and blocks 업무, 캘린더, and 출결 automated messages.
 
