@@ -7,6 +7,7 @@
 .gocache/
 .agents/
 .internkim-dev/
+.local/
 local-captures/
 .DS_Store
 build/
@@ -14,6 +15,7 @@ dist/
 /internkim
 /internkim-admind
 /internkim-companion
+/internkim-llm-gateway
 .github/
 companion/dist/
 companion/node_modules/

@@ -46,6 +46,10 @@ WantedBy=multi-user.target
 }
 
 func CapabilitydServiceUnit() string {
+	return CapabilitydServiceUnitForLocalInferenceMode("")
+}
+
+func CapabilitydServiceUnitForLocalInferenceMode(localInferenceMode string) string {
 	return fmt.Sprintf(`[Unit]
 Description=InternKim Capability Daemon
 After=network-online.target time-sync.target mattermost.service
@@ -60,11 +64,15 @@ RestartSec=2
 
 [Install]
 WantedBy=multi-user.target
-`, capabilitydStartCommand(), CapabilityVSockPort)
+`, capabilitydStartCommand(localInferenceMode), CapabilityVSockPort)
 }
 
-func capabilitydStartCommand() string {
-	return fmt.Sprintf("%s --mattermost-url %s --mattermost-token %s", CapabilitydBinaryPath, BlueclawMattermostLocalURL, BlueclawMattermostTokenPath)
+func capabilitydStartCommand(localInferenceMode string) string {
+	command := fmt.Sprintf("%s --mattermost-url %s --mattermost-token %s", CapabilitydBinaryPath, BlueclawMattermostLocalURL, BlueclawMattermostTokenPath)
+	if localInferenceMode != "" {
+		command += " --local-inference-mode " + localInferenceMode
+	}
+	return command
 }
 
 func AdmindServiceUnit() string {
