@@ -160,6 +160,8 @@ internkim tenant bootstrap-mattermost \
   --token-output-root /srv/internkim-mattermost-instances
 ```
 
+`bootstrap-mattermost`는 Mattermost 리소스만 보정합니다. 고객에게 pilot URL을 열기 전에는 각 tenant의 admin 계정이 `internkim` team member인지, `/flow`, `/calendar`, `/attendance`, `/_app` 라우트가 해당 tenant의 admind로 가는지, 해당 tenant의 Blueclaw/capabilityd가 같은 tenant Mattermost bot token과 `LLM_DEVICE_TOKEN`으로 기동 중인지 확인해야 합니다. 기존 단일 `internkim-admind`, `internkim-capabilityd`, `blueclaw.service`를 pilot 여러 개에 공유하면 웹/메모리/워크스페이스/비밀값이 섞이므로 customer-ready 상태로 보지 않습니다. 코드와 binary는 공유하되 runtime state, workspace, bot token, admin secret, LLM device token은 tenant별로 분리합니다.
+
 ## 구성 요소
 
 | 구성 | 설명 |

@@ -43,6 +43,9 @@ func TestBootstrapMattermostFleetResourcesEnsuresBotChannelsAndToken(t *testing.
 	if server.channels["flow"].DisplayName != "업무" || server.channels["attendance"].DisplayName != "출결" {
 		t.Fatalf("expected localized channels, got %+v", server.channels)
 	}
+	if !server.teamMembers["admin-1"] || !server.teamMembers["bot-1"] {
+		t.Fatalf("expected admin and bot team members, got %+v", server.teamMembers)
+	}
 }
 
 func writeMattermostBootstrapTestCredentials(t *testing.T, path string) {
@@ -57,6 +60,7 @@ type mattermostBootstrapTestServer struct {
 	*httptest.Server
 	configuration map[string]any
 	channels      map[string]mattermostBootstrapTestChannel
+	teamMembers   map[string]bool
 }
 
 type mattermostBootstrapTestChannel struct {
@@ -70,6 +74,7 @@ func newMattermostBootstrapTestServer(t *testing.T) *mattermostBootstrapTestServ
 	server := &mattermostBootstrapTestServer{
 		configuration: map[string]any{},
 		channels:      map[string]mattermostBootstrapTestChannel{},
+		teamMembers:   map[string]bool{},
 	}
 	server.Server = httptest.NewServer(http.HandlerFunc(server.handle))
 	t.Cleanup(server.Close)
@@ -104,6 +109,11 @@ func (server *mattermostBootstrapTestServer) handle(responseWriter http.Response
 		return
 	}
 	if request.URL.Path == "/api/v4/teams/team-1/members" && request.Method == http.MethodPost {
+		body := readMattermostBootstrapTestBody(request)
+		userID, _ := body["user_id"].(string)
+		if strings.TrimSpace(userID) != "" {
+			server.teamMembers[userID] = true
+		}
 		writeMattermostBootstrapJSON(responseWriter, http.StatusCreated, map[string]bool{"ok": true})
 		return
 	}

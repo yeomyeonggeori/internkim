@@ -96,7 +96,7 @@ func bootstrapMattermostTenantResources(credential mattermostBootstrapCredential
 	baseURL := expandMattermostBootstrapTemplate(options.BaseURLTemplate, credential.TenantID, tenantPort)
 	publicURL := expandMattermostBootstrapTemplate(options.PublicURLTemplate, credential.TenantID, tenantPort)
 	client := mattermostBootstrapClient{baseURL: strings.TrimRight(baseURL, "/"), httpClient: http.DefaultClient}
-	adminToken, errorValue := client.login(credential.AdminUsername, credential.AdminPassword)
+	adminToken, adminUserID, errorValue := client.login(credential.AdminUsername, credential.AdminPassword)
 	if errorValue != nil {
 		return MattermostBootstrapStatus{}, errorValue
 	}
@@ -105,6 +105,9 @@ func bootstrapMattermostTenantResources(credential mattermostBootstrapCredential
 	}
 	teamID, errorValue := client.ensureTeam(adminToken)
 	if errorValue != nil {
+		return MattermostBootstrapStatus{}, errorValue
+	}
+	if errorValue := client.ensureTeamMember(adminToken, teamID, adminUserID); errorValue != nil {
 		return MattermostBootstrapStatus{}, errorValue
 	}
 	botUserID, botToken, errorValue := client.ensureBot(adminToken, teamID)
@@ -147,19 +150,19 @@ func expandMattermostBootstrapTemplate(template string, tenantID string, port in
 	return strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(template), "{tenant}", tenantID), "{port}", strconv.Itoa(port))
 }
 
-func (client mattermostBootstrapClient) login(username string, password string) (string, error) {
+func (client mattermostBootstrapClient) login(username string, password string) (string, string, error) {
 	response, errorValue := client.request(http.MethodPost, "/api/v4/users/login", "", map[string]string{
 		"login_id": strings.TrimSpace(username),
 		"password": password,
 	})
 	if errorValue != nil {
-		return "", errorValue
+		return "", "", errorValue
 	}
 	token := strings.TrimSpace(response.Header.Get("Token"))
 	if response.StatusCode != http.StatusOK || token == "" {
-		return "", errors.New("Mattermost admin login failed")
+		return "", "", errors.New("Mattermost admin login failed")
 	}
-	return token, nil
+	return token, response.stringField("id"), nil
 }
 
 func (client mattermostBootstrapClient) configure(adminToken string, publicURL string) error {
@@ -212,6 +215,23 @@ func (client mattermostBootstrapClient) ensureTeam(adminToken string) (string, e
 		return "", errors.New("Mattermost team create failed")
 	}
 	return teamID, nil
+}
+
+func (client mattermostBootstrapClient) ensureTeamMember(adminToken string, teamID string, userID string) error {
+	if strings.TrimSpace(teamID) == "" || strings.TrimSpace(userID) == "" {
+		return errors.New("Mattermost team member requires team and user ids")
+	}
+	response, errorValue := client.request(http.MethodPost, "/api/v4/teams/"+url.PathEscape(teamID)+"/members", adminToken, map[string]string{
+		"team_id": teamID,
+		"user_id": userID,
+	})
+	if errorValue != nil {
+		return errorValue
+	}
+	if response.StatusCode == http.StatusCreated || response.StatusCode == http.StatusOK || response.StatusCode == http.StatusBadRequest {
+		return nil
+	}
+	return errors.New("Mattermost team member create failed")
 }
 
 func (client mattermostBootstrapClient) ensureBot(adminToken string, teamID string) (string, string, error) {
