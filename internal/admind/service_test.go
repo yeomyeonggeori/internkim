@@ -2002,16 +2002,16 @@ func TestFlowSummaryIncludesDistanceReport(t *testing.T) {
 	if errorValue := json.NewDecoder(response.Body).Decode(&summary); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if summary.Report.WeeklyDistanceTrend.CurrentTotal != 6 || summary.Report.WeeklyDistanceTrend.PreviousTotal != 2 {
+	if summary.Report.WeeklyDistanceTrend.CurrentTotal != 3 || summary.Report.WeeklyDistanceTrend.PreviousTotal != 2 {
 		t.Fatalf("weekly trend = %+v", summary.Report.WeeklyDistanceTrend)
 	}
-	if len(summary.Report.WeeklyDistanceTrend.CurrentValues) != 7 || summary.Report.WeeklyDistanceTrend.CurrentValues[2] != 6 {
+	if len(summary.Report.WeeklyDistanceTrend.CurrentValues) != 7 || summary.Report.WeeklyDistanceTrend.CurrentValues[2] != 3 {
 		t.Fatalf("weekly values = %+v", summary.Report.WeeklyDistanceTrend.CurrentValues)
 	}
-	if summary.Report.MonthlyDistanceTrend.CurrentTotal != 8 || summary.Report.MonthlyDistanceTrend.PreviousTotal != 1 {
+	if summary.Report.MonthlyDistanceTrend.CurrentTotal != 5 || summary.Report.MonthlyDistanceTrend.PreviousTotal != 1 {
 		t.Fatalf("monthly trend = %+v", summary.Report.MonthlyDistanceTrend)
 	}
-	if len(summary.Report.MonthlyDistanceTrend.CurrentValues) != 30 || summary.Report.MonthlyDistanceTrend.CurrentValues[28] != 8 {
+	if len(summary.Report.MonthlyDistanceTrend.CurrentValues) != 30 || summary.Report.MonthlyDistanceTrend.CurrentValues[28] != 5 {
 		t.Fatalf("monthly values = %+v", summary.Report.MonthlyDistanceTrend.CurrentValues)
 	}
 }

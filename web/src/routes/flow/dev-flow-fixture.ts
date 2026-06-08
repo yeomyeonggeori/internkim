@@ -1,4 +1,4 @@
-import { distanceForTaskProgress, taskTeamDistance } from './report/flow-report-distance';
+import { completedDistanceForTask, taskTeamDistance } from './report/flow-report-distance';
 import {
 	addDays,
 	buildFlowWeek,
@@ -122,7 +122,7 @@ function buildMetrics(tasks: FlowTask[], definitions: FlowDefinitions): DevFlowM
 		if (task.status === '일시정지') metrics.pausedTasks += 1;
 		if (task.status === '중단') metrics.stoppedTasks += 1;
 
-		const distance = distanceForTaskProgress(task, definitions);
+		const distance = completedDistanceForTask(task, definitions);
 		metrics.totalDistance += distance;
 		metrics.totalScore += distance;
 		for (const participantName of task.participantNames) {
@@ -195,7 +195,7 @@ function cumulativeDailyTeamDistances(tasks: FlowTask[], definitions: FlowDefini
 function calculateMemberDistances(members: FlowMember[], tasks: FlowTask[], definitions: FlowDefinitions): FlowMember[] {
 	return members.map((member) => {
 		const memberTasks = tasks.filter((task) => task.participantIDs.includes(member.id));
-		const distance = memberTasks.reduce((total, task) => total + distanceForTaskProgress(task, definitions), 0);
+		const distance = memberTasks.reduce((total, task) => total + completedDistanceForTask(task, definitions), 0);
 		return {
 			...member,
 			distance,
@@ -219,8 +219,8 @@ function buildPreviousMonthDistances(dayCount: number, currentTotal: number): nu
 }
 
 function distanceDateForTask(task: FlowTask): string {
-	if (task.status === '완료' && task.endDate) return task.endDate;
-	return task.startDate || task.endDate || '';
+	if (task.status !== '완료') return '';
+	return task.endDate || '';
 }
 
 function memberByID(id: string): FlowMember {

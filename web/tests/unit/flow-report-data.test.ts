@@ -50,34 +50,30 @@ describe('buildFlowReportSections', () => {
 		});
 
 		expect(sections.weeklyStatus.chartKind).toBe('dailyTypeStacked');
-		expect(sections.weeklyStatus.total).toBe(9);
+		expect(sections.weeklyStatus.total).toBe(7);
 		expect(sections.weeklyStatus.unit).toBe('km');
 		expect(sections.weeklyStatus.rows.map((row) => row.label)).toEqual(['월', '화', '수', '목', '금', '토', '일']);
-		expect(sections.weeklyStatus.rows.map((row) => row.total)).toEqual([5, 2, 2, 0, 0, 0, 0]);
+		expect(sections.weeklyStatus.rows.map((row) => row.total)).toEqual([5, 0, 2, 0, 0, 0, 0]);
 		expect(sections.weeklyStatus.rows[0].segments).toEqual([
 			{ label: '구현', value: 5, percent: 100, tone: 'type', colorIndex: 0 }
 		]);
 		expect(sections.weeklyStatus.items.map((item) => [item.label, item.value])).toEqual([
 			['구현', 5],
-			['회의', 2],
-			['검증', 2]
+			['회의', 2]
 		]);
 		expect(sections.weeklyStatus.items.map((item) => [item.label, item.colorIndex])).toEqual([
 			['구현', 0],
-			['회의', 1],
-			['검증', 2]
+			['회의', 1]
 		]);
 
 		expect(sections.memberDistance.chartKind).toBe('memberTypeStacked');
 		expect(sections.memberDistance.unit).toBe('km');
-		expect(sections.memberDistance.total).toBe(27);
-		expect(sections.memberDistance.averageValue).toBe(7);
-		expect(sections.memberDistance.rows.map((row) => row.label)).toEqual(['김여명', '박예시', '최견본', '정의']);
-		expect(sections.memberDistance.rows[0]).toMatchObject({ label: '김여명', total: 11, percent: 41 });
+		expect(sections.memberDistance.total).toBe(7);
+		expect(sections.memberDistance.averageValue).toBe(4);
+		expect(sections.memberDistance.rows.map((row) => row.label)).toEqual(['김여명', '박예시']);
+		expect(sections.memberDistance.rows[0]).toMatchObject({ label: '김여명', total: 5, percent: 71 });
 		expect(sections.memberDistance.rows[0].segments.map((segment) => [segment.label, segment.value])).toEqual([
-			['구현', 5],
-			['기타', 5],
-			['검증', 1]
+			['구현', 5]
 		]);
 
 		expect(sections.weeklyDistanceTrend.chartKind).toBe('lineComparison');
@@ -92,12 +88,12 @@ describe('buildFlowReportSections', () => {
 
 		expect(sections.businessDistance.chartKind).toBe('donut');
 		expect(sections.businessDistance.unit).toBe('km');
-		expect(sections.businessDistance.total).toBe(9);
+		expect(sections.businessDistance.total).toBe(7);
 		expect(sections.businessDistance.items.map((item) => [item.label, item.value])).toEqual([
-			['여명거리', 7],
+			['여명거리', 5],
 			['김인턴', 2]
 		]);
-		expect(sections.businessDistance.items[0]).toMatchObject({ tone: 'business', percent: 78 });
+		expect(sections.businessDistance.items[0]).toMatchObject({ tone: 'business', percent: 71 });
 	});
 
 	test('keeps empty report sections explicit when metrics have no values', () => {
@@ -158,9 +154,9 @@ describe('buildFlowReportSections', () => {
 			definitions: flowReportFixtureDefinitions
 		});
 
-		expect(sections.memberDistance.total).toBe(27);
-		expect(sections.memberDistance.averageValue).toBe(7);
-		expect(sections.memberDistance.rows.map((row) => row.label)).toEqual(['김여명', '박예시', '최견본', '정의']);
+		expect(sections.memberDistance.total).toBe(7);
+		expect(sections.memberDistance.averageValue).toBe(4);
+		expect(sections.memberDistance.rows.map((row) => row.label)).toEqual(['김여명', '박예시']);
 	});
 
 	test('localizes report system labels without translating user definitions', () => {
@@ -199,7 +195,7 @@ describe('buildFlowReportSections', () => {
 		expect(sections.weeklyStatus.rows.map((row) => row.label)).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
 		expect(sections.weeklyStatus.items[0].label).toBe('구현');
 		expect(sections.businessDistance.items.map((item) => item.label)).toEqual(['여명거리', '김인턴', 'Unassigned']);
-		expect(sections.memberDistance.rows[0].segments.map((segment) => segment.label)).toEqual(['구현', 'Other', '검증']);
+		expect(sections.memberDistance.rows[0].segments.map((segment) => segment.label)).toEqual(['구현']);
 		expect(sections.memberDistance.teamAverageLabel).toBe('Team average');
 		expect(sections.memberDistance.memberScrollHint).toBe('{count} members total · scroll inside list');
 		expect(sections.weeklyDistanceTrend.trend.labels).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
