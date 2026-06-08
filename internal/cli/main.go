@@ -262,7 +262,7 @@ func printUsage() {
 	fmt.Println("  release  Publish and inspect release sets")
 	fmt.Println("  status   Check board and tunnel status")
 	fmt.Println("  update   Deploy current build to device")
-	fmt.Println("  deploy   Build and deploy web UI + board-bridge to board")
+	fmt.Println("  deploy   Build and apply a signed release over Admin HTTPS")
 	fmt.Println("  doctor   Check host dependencies")
 	fmt.Println("  verify   Run API, Mattermost, and browser verification")
 	fmt.Println("  llm      One-shot LLM ping (local by default, --remote for OpenRouter)")
@@ -671,6 +671,16 @@ func detectBoardWifi(_ string) string {
 // --- Subcommands (stubs) ---
 
 func runDeploy() {
+	if hasCommandArgument(os.Args[2:], "--legacy-ssh") {
+		runDeployLegacySSH()
+		return
+	}
+	if errorValue := runDirectReleaseDeploy(os.Args[2:]); errorValue != nil {
+		fatal(errorValue.Error())
+	}
+}
+
+func runDeployLegacySSH() {
 	configuration := loadConfig()
 	scriptDir, _ := os.Getwd()
 	binDir := filepath.Join(scriptDir, "bin")
