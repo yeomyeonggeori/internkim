@@ -58,23 +58,26 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 ## Deployment Hygiene
 
 - After changing Go setup, provisioning, runtime, or service code, run
-  `make build` before any `./internkim setup ...` command.
-- Use the smallest setup slice that matches the change. Run the same command
-  with `--plan` before any non-trivial real-device setup.
+  `make build` before deployment.
+- Prefer `./internkim deploy --components <components>` for normal device
+  deployment. It uses the OTA release apply engine over Admin HTTPS.
+- Use the smallest deploy component set that matches the change.
 - Stop if the plan unexpectedly includes `binaries`, `local-llm`, `llama.cpp`,
   `llama-server`, CUDA, or Jetson model runtime work.
 - For Admin/Flow web UI-only changes, use
-  `./internkim setup --only web`; add `--force` only when needed.
+  `./internkim deploy --components web`.
 - For a small `internkim-admind` change, use `make build` and
-  `./internkim setup --only admind --force`.
+  `./internkim deploy --components admind`.
 - For a small `internkim-capabilityd` change, use `make build` and
-  `./internkim setup --only capabilityd --force`.
+  `./internkim deploy --components capabilityd`.
 - For Blueclaw-only agent-loop, prompt, skill, policy, or schedule/runtime
-  logic, inspect a narrow `--plan` first and avoid defaulting to `services` or
-  `binaries,services`.
+  logic, deploy only the Blueclaw payload or related component.
 - For uncommitted `.dependency/blueclaw` changes, use
   `INTERNKIM_BLUECLAW_USE_LOCAL=1`. If those changes must enter the Firecracker
-  payload, run `make prepare-blueclaw-payload` before setup.
+  payload, run `make prepare-blueclaw-payload` before deploy.
+- Use `./internkim setup ...` only for first-time bootstrap, Admin HTTPS
+  recovery, or explicit SSH provisioning/debug paths. Run `--plan` before any
+  non-trivial real-device setup.
 - Avoid `--force-all` unless recovering a broken setup or explicitly asked.
 - Do not include `--host`, `--user`, or `--password` when the saved/default target
   works.

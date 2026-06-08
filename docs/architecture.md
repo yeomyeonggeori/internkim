@@ -188,18 +188,20 @@ su -s /bin/bash blueclaw -c \
 
 ## 배포 흐름
 
-`make build`는 host-side setup CLI와 services binary를 갱신합니다. Blueclaw guest payload에 submodule 변경을 넣으려면 `make prepare-blueclaw-payload`가 필요합니다. Runtime base helper, rootfs package, guest-init이 바뀌면 `make prepare-blueclaw-runtime-base`까지 필요합니다.
+`make build`는 host-side CLI와 service binary를 갱신합니다. 일반 배포는 `internkim deploy`가 만든 release bundle을 Admin HTTPS로 direct upload하고, 기기 안의 OTA apply engine이 manifest 검증, component staging, install, restart, current manifest 기록을 수행합니다. Blueclaw guest payload에 submodule 변경을 넣으려면 `make prepare-blueclaw-payload`가 필요합니다. Runtime base helper, rootfs package, guest-init이 바뀌면 `make prepare-blueclaw-runtime-base`까지 필요합니다.
 
 ```mermaid
 flowchart LR
   Code["Go / skills / Blueclaw submodule"] --> Build["make build"]
-  Build --> Payload["make prepare-blueclaw-payload"]
-  Payload --> Plan["setup --only blueclaw-payload --plan"]
-  Plan --> Deploy["setup --only blueclaw-payload"]
-  Deploy --> Verify["status / health / artifact smoke"]
+  Build --> Bundle["internkim deploy builds release bundle"]
+  Bundle --> Upload["signed Admin HTTPS upload"]
+  Upload --> Apply["OTA apply engine"]
+  Apply --> Verify["status / health / artifact smoke"]
+  Code --> Payload["make prepare-blueclaw-payload when payload changes"]
+  Payload --> Bundle
 ```
 
-Directory upload는 `scp -r` 대신 tar-over-ssh를 사용합니다. Password sudo와 tar stream stdin이 충돌하지 않도록 `/tmp/internkim-upload-<pid>-<name>`에 unprivileged extract 후, 별도 sudo command로 최종 위치에 copy합니다. SSH command에는 timeout과 retry가 적용됩니다.
+R2 release channel과 direct upload release는 같은 manifest/apply engine을 공유합니다. R2는 fleet-wide stable channel 배포에 쓰고, direct upload는 개발 머신에서 특정 기기에 바로 적용할 때 씁니다. SSH setup은 초기 설치와 Admin HTTPS 장애 복구 경로입니다. Directory upload는 legacy setup에서만 사용하며 `scp -r` 대신 tar-over-ssh를 사용합니다. Password sudo와 tar stream stdin이 충돌하지 않도록 `/tmp/internkim-upload-<pid>-<name>`에 unprivileged extract 후, 별도 sudo command로 최종 위치에 copy합니다. SSH command에는 timeout과 retry가 적용됩니다.
 
 ## Google Workspace 연동
 
