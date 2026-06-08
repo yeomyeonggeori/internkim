@@ -34,9 +34,10 @@ func buildFlowMemberScores(tasks []flowTask, members []flowMember, definitions f
 
 	scores := map[string]int{}
 	for _, member := range members {
-		weeklyScore := weightedFlowScore(weeklyDistances[member.Name])
-		monthlyScore := weightedFlowScore(monthlyDistances[member.Name])
-		scores[member.Name] = int(math.Round((weeklyScore + monthlyScore) / 2))
+		key := flowMemberScoreKey(member)
+		weeklyScore := weightedFlowScore(weeklyDistances[key])
+		monthlyScore := weightedFlowScore(monthlyDistances[key])
+		scores[key] = int(math.Round((weeklyScore + monthlyScore) / 2))
 	}
 	return scores
 }
@@ -44,7 +45,7 @@ func buildFlowMemberScores(tasks []flowTask, members []flowMember, definitions f
 func initializedMemberScorePeriods(members []flowMember) map[string][]int {
 	values := map[string][]int{}
 	for _, member := range members {
-		values[member.Name] = make([]int, flowScorePeriodCount)
+		values[flowMemberScoreKey(member)] = make([]int, flowScorePeriodCount)
 	}
 	return values
 }
@@ -53,8 +54,8 @@ func addTaskScoreDistance(periodDistances map[string][]int, index int, task flow
 	if index < 0 || index >= flowScorePeriodCount {
 		return
 	}
-	for _, participantName := range flowScoreParticipantNames(task, members) {
-		distances, found := periodDistances[participantName]
+	for _, participantKey := range flowScoreParticipantKeys(task, members) {
+		distances, found := periodDistances[participantKey]
 		if !found {
 			continue
 		}
@@ -62,27 +63,46 @@ func addTaskScoreDistance(periodDistances map[string][]int, index int, task flow
 	}
 }
 
-func flowScoreParticipantNames(task flowTask, members []flowMember) []string {
-	memberNamesByID := map[string]string{}
+func flowScoreParticipantKeys(task flowTask, members []flowMember) []string {
+	memberKeysByID := map[string]string{}
+	memberKeysByName := map[string][]string{}
 	for _, member := range members {
-		memberNamesByID[member.ID] = member.Name
+		key := flowMemberScoreKey(member)
+		if member.ID != "" {
+			memberKeysByID[member.ID] = key
+		}
+		if member.Name != "" {
+			memberKeysByName[member.Name] = append(memberKeysByName[member.Name], key)
+		}
 	}
-	names := make([]string, 0, len(task.ParticipantIDs)+len(task.ParticipantNames))
+	keys := make([]string, 0, len(task.ParticipantIDs)+len(task.ParticipantNames))
 	seen := map[string]bool{}
 	for _, participantID := range task.ParticipantIDs {
-		name := memberNamesByID[participantID]
-		if name != "" && !seen[name] {
-			names = append(names, name)
-			seen[name] = true
+		key := memberKeysByID[participantID]
+		if key != "" && !seen[key] {
+			keys = append(keys, key)
+			seen[key] = true
 		}
 	}
 	for _, name := range task.ParticipantNames {
-		if name != "" && !seen[name] {
-			names = append(names, name)
-			seen[name] = true
+		nameKeys := memberKeysByName[name]
+		if len(nameKeys) != 1 {
+			continue
+		}
+		key := nameKeys[0]
+		if key != "" && !seen[key] {
+			keys = append(keys, key)
+			seen[key] = true
 		}
 	}
-	return names
+	return keys
+}
+
+func flowMemberScoreKey(member flowMember) string {
+	if member.ID != "" {
+		return member.ID
+	}
+	return member.Name
 }
 
 func flowScoreWeekIndex(weekStart time.Time, date time.Time) int {
@@ -139,7 +159,7 @@ func averageDistance(distances []int) float64 {
 func applyFlowMemberScores(members []flowMember, scores map[string]int) []flowMember {
 	result := append([]flowMember(nil), members...)
 	for index, member := range result {
-		result[index].Score = scores[member.Name]
+		result[index].Score = scores[flowMemberScoreKey(member)]
 	}
 	return result
 }

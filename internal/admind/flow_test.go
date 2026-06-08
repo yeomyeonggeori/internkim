@@ -154,11 +154,43 @@ func TestBuildFlowMemberScoresUsesSpreadsheetWeights(t *testing.T) {
 		},
 	}, members, definitions, weekStart)
 
-	if scores["김철수"] != 115 {
-		t.Fatalf("김철수 score = %d, want 115", scores["김철수"])
+	if scores["member-a"] != 115 {
+		t.Fatalf("member-a score = %d, want 115", scores["member-a"])
 	}
-	if scores["이영희"] != 0 {
-		t.Fatalf("이영희 score = %d, want 0", scores["이영희"])
+	if scores["member-b"] != 0 {
+		t.Fatalf("member-b score = %d, want 0", scores["member-b"])
+	}
+}
+
+func TestBuildFlowMemberScoresKeepsDuplicateNamesSeparate(t *testing.T) {
+	members := []flowMember{
+		{ID: "member-a", Name: "김철수"},
+		{ID: "member-b", Name: "김철수"},
+	}
+	definitions := flowDefinitions{
+		Sizes: []flowSizeDefinition{
+			{Name: "S", DistanceKM: 2},
+		},
+	}
+	weekStart := time.Date(2026, time.June, 1, 0, 0, 0, 0, flowDateLocation())
+	scores := buildFlowMemberScores([]flowTask{
+		{
+			ParticipantIDs:   []string{"member-a"},
+			ParticipantNames: []string{"김철수"},
+			Size:             "S",
+			Status:           "완료",
+			EndDate:          "2026-06-01",
+		},
+	}, members, definitions, weekStart)
+
+	if scores["member-a"] != 115 {
+		t.Fatalf("member-a score = %d, want 115", scores["member-a"])
+	}
+	if scores["member-b"] != 0 {
+		t.Fatalf("member-b score = %d, want 0", scores["member-b"])
+	}
+	if _, found := scores["김철수"]; found {
+		t.Fatalf("score should not use duplicate member name key: %+v", scores)
 	}
 }
 

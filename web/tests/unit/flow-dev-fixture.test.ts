@@ -19,9 +19,9 @@ describe('createDevFlowSummary', () => {
 		expect(Object.keys(summary.metrics.memberDistances).length).toBe(10);
 		expect(summary.metrics.memberScores).not.toEqual(summary.metrics.memberDistances);
 		expect(summary.metrics.memberScores).toMatchObject({
-			이영희: 134,
-			박민준: 134,
-			윤도현: 137
+			designer: 134,
+			engineer: 134,
+			qa: 137
 		});
 		expect(summary.metrics.totalScore).toBe(778);
 		expect(summary.members.find((member) => member.name === '윤도현')?.score).toBe(137);

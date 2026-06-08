@@ -23,9 +23,9 @@ export function buildDevFlowMemberScores(tasks: FlowTask[], members: FlowMember[
 
 	return Object.fromEntries(
 		members.map((member) => {
-			const weeklyScore = weightedScore(weeklyDistances[member.name] ?? []);
-			const monthlyScore = weightedScore(monthlyDistances[member.name] ?? []);
-			return [member.name, Math.round((weeklyScore + monthlyScore) / 2)];
+			const weeklyScore = weightedScore(weeklyDistances[member.id] ?? []);
+			const monthlyScore = weightedScore(monthlyDistances[member.id] ?? []);
+			return [member.id, Math.round((weeklyScore + monthlyScore) / 2)];
 		})
 	);
 }
@@ -35,31 +35,35 @@ export function totalDevFlowMemberScore(scores: Record<string, number>): number 
 }
 
 function initializedMemberPeriods(members: FlowMember[]): Record<string, number[]> {
-	return Object.fromEntries(members.map((member) => [member.name, Array.from({ length: scorePeriodCount }, () => 0)]));
+	return Object.fromEntries(members.map((member) => [member.id, Array.from({ length: scorePeriodCount }, () => 0)]));
 }
 
 function addScoreDistance(periodDistances: Record<string, number[]>, index: number, task: FlowTask, members: FlowMember[], distance: number): void {
 	if (index < 0 || index >= scorePeriodCount) return;
 
-	for (const participantName of scoreParticipantNames(task, members)) {
-		const distances = periodDistances[participantName];
+	for (const participantID of scoreParticipantIDs(task, members)) {
+		const distances = periodDistances[participantID];
 		if (!distances) continue;
 		distances[index] += distance;
 	}
 }
 
-function scoreParticipantNames(task: FlowTask, members: FlowMember[]): string[] {
-	const memberNamesByID = new Map(members.map((member) => [member.id, member.name]));
-	const names = new Set<string>();
+function scoreParticipantIDs(task: FlowTask, members: FlowMember[]): string[] {
+	const memberIDs = new Set(members.map((member) => member.id));
+	const memberIDsByName = members.reduce<Record<string, string[]>>((result, member) => {
+		result[member.name] = [...(result[member.name] ?? []), member.id];
+		return result;
+	}, {});
+	const ids = new Set<string>();
 
 	for (const participantID of task.participantIDs) {
-		const name = memberNamesByID.get(participantID);
-		if (name) names.add(name);
+		if (memberIDs.has(participantID)) ids.add(participantID);
 	}
 	for (const name of task.participantNames) {
-		if (name) names.add(name);
+		const nameIDs = memberIDsByName[name] ?? [];
+		if (nameIDs.length === 1 && nameIDs[0]) ids.add(nameIDs[0]);
 	}
-	return Array.from(names);
+	return Array.from(ids);
 }
 
 function completedTaskEndDate(task: FlowTask): string {

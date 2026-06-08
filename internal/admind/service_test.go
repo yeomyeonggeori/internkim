@@ -2014,7 +2014,7 @@ func TestFlowSummaryIncludesDistanceReport(t *testing.T) {
 	if len(summary.Report.MonthlyDistanceTrend.CurrentValues) != 30 || summary.Report.MonthlyDistanceTrend.CurrentValues[28] != 5 {
 		t.Fatalf("monthly values = %+v", summary.Report.MonthlyDistanceTrend.CurrentValues)
 	}
-	if summary.Metrics.MemberScores["Staff"] != 144 || summary.Metrics.MemberScores["Other"] != 135 {
+	if summary.Metrics.MemberScores[staffID] != 144 || summary.Metrics.MemberScores[otherID] != 135 {
 		t.Fatalf("member scores = %+v", summary.Metrics.MemberScores)
 	}
 	if summary.Metrics.TotalScore != 279 {
