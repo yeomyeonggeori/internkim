@@ -49,6 +49,8 @@ type Configuration struct {
 	AdmindBaseURL                  string
 	OpenRouterBaseURL              string
 	OpenRouterModel                string
+	OpenRouterGatewaySecretPath    string
+	OpenRouterGatewaySecretHeader  string
 	OpenRouterWebBaseURL           string
 	OpenRouterEmbeddingBaseURL     string
 	OpenRouterEmbeddingModel       string
@@ -194,6 +196,7 @@ func DefaultConfiguration() Configuration {
 		AdmindBaseURL:                  "http://127.0.0.1:18080",
 		OpenRouterBaseURL:              "https://openrouter.ai/api/v1/chat/completions",
 		OpenRouterModel:                blueclaw.BlueclawDefaultModelName,
+		OpenRouterGatewaySecretHeader:  "X-InternKim-Gateway-Secret",
 		OpenRouterWebBaseURL:           "https://openrouter.ai/api/v1/chat/completions",
 		OpenRouterEmbeddingBaseURL:     "https://openrouter.ai/api/v1/embeddings",
 		OpenRouterEmbeddingModel:       "embeddinggemma",
@@ -1724,6 +1727,9 @@ func (configuration Configuration) WithDefaults() Configuration {
 	}
 	if configuration.OpenRouterBaseURL == "" {
 		configuration.OpenRouterBaseURL = defaultConfiguration.OpenRouterBaseURL
+	}
+	if configuration.OpenRouterGatewaySecretHeader == "" {
+		configuration.OpenRouterGatewaySecretHeader = defaultConfiguration.OpenRouterGatewaySecretHeader
 	}
 	if configuration.OpenRouterModel == "" {
 		configuration.OpenRouterModel = defaultConfiguration.OpenRouterModel

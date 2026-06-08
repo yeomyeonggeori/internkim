@@ -14,10 +14,12 @@ import (
 )
 
 type OpenRouterBackend struct {
-	KeyPath    string
-	BaseURL    string
-	ModelName  string
-	HTTPClient *http.Client
+	KeyPath             string
+	BaseURL             string
+	ModelName           string
+	GatewaySecretPath   string
+	GatewaySecretHeader string
+	HTTPClient          *http.Client
 }
 
 func (backend OpenRouterBackend) Name() string { return "openrouter" }
@@ -129,6 +131,7 @@ func (backend OpenRouterBackend) send(ctx context.Context, apiKey string, reques
 	}
 	httpRequest.Header.Set("Authorization", "Bearer "+apiKey)
 	httpRequest.Header.Set("Content-Type", "application/json")
+	backend.setGatewaySecretHeader(httpRequest)
 
 	httpResponse, errorValue := backend.HTTPClient.Do(httpRequest)
 	if errorValue != nil {
@@ -170,6 +173,7 @@ func (backend OpenRouterBackend) sendChatAction(ctx context.Context, apiKey stri
 	}
 	httpRequest.Header.Set("Authorization", "Bearer "+apiKey)
 	httpRequest.Header.Set("Content-Type", "application/json")
+	backend.setGatewaySecretHeader(httpRequest)
 
 	httpResponse, errorValue := backend.HTTPClient.Do(httpRequest)
 	if errorValue != nil {
@@ -198,6 +202,18 @@ func (backend OpenRouterBackend) sendChatAction(ctx context.Context, apiKey stri
 		}
 	}
 	return "", errors.New("openrouter chat completion response did not include tool_calls")
+}
+
+func (backend OpenRouterBackend) setGatewaySecretHeader(request *http.Request) {
+	gatewaySecret := strings.TrimSpace(readOpenRouterKey(backend.GatewaySecretPath))
+	if gatewaySecret == "" {
+		return
+	}
+	headerName := strings.TrimSpace(backend.GatewaySecretHeader)
+	if headerName == "" {
+		headerName = "X-InternKim-Gateway-Secret"
+	}
+	request.Header.Set(headerName, gatewaySecret)
 }
 
 func buildOpenRouterStructuredRequest(request StructuredRequest, modelName string) ([]byte, error) {
