@@ -3,7 +3,9 @@ import { CalendarDraftEventState, type DraftEventParams } from './calendar-draft
 import {
 	monthRangeDraftEventParams,
 	monthSingleDayDraftEventParams,
-	quickDraftEventParams
+	quickDraftEventParams,
+	timelineRangeDraftEventParams,
+	timelineSingleDraftEventParams
 } from './calendar-draft-event-params';
 import {
 	createCalendarDraftEventDOMActions,
@@ -44,6 +46,8 @@ export type CalendarEventActions = {
 	createQuickEvent: () => void;
 	createMonthRangeEvent: (selection: MonthRangeSelection) => void;
 	createMonthSingleDayEvent: (dateKey: string) => void;
+	createTimelineSingleEvent: (startDate: Date) => void;
+	createTimelineRangeEvent: (firstDate: Date, secondDate: Date) => void;
 	saveCreatedEvent: (event: DayFlowEvent) => Promise<void>;
 	saveUpdatedEvent: (event: DayFlowEvent) => Promise<void>;
 	deleteEvent: (eventID: string) => Promise<void>;
@@ -57,6 +61,7 @@ export function createCalendarEventActions(
 	programmaticUpdates: CalendarProgrammaticUpdateState
 ): CalendarEventActions {
 	let lastMonthCellCreationTime = 0;
+	let lastTimelineSlotCreationTime = 0;
 	const persistedEvents = createCalendarPersistedEventActions(context, programmaticUpdates);
 	const draftEventDOM: CalendarDraftEventDOMActions = createCalendarDraftEventDOMActions(
 		{
@@ -103,6 +108,18 @@ export function createCalendarEventActions(
 		if (Date.now() - lastMonthCellCreationTime < 250) return;
 		lastMonthCellCreationTime = Date.now();
 		addDraftEvent(monthSingleDayDraftEventParams(dateKey));
+	}
+
+	function createTimelineSingleEvent(startDate: Date): void {
+		if (Date.now() - lastTimelineSlotCreationTime < 80) return;
+		lastTimelineSlotCreationTime = Date.now();
+		addDraftEvent(timelineSingleDraftEventParams(startDate));
+	}
+
+	function createTimelineRangeEvent(firstDate: Date, secondDate: Date): void {
+		if (Date.now() - lastTimelineSlotCreationTime < 80) return;
+		lastTimelineSlotCreationTime = Date.now();
+		addDraftEvent(timelineRangeDraftEventParams(firstDate, secondDate));
 	}
 
 	async function saveCreatedEvent(event: DayFlowEvent): Promise<void> {
@@ -259,6 +276,8 @@ export function createCalendarEventActions(
 		createQuickEvent,
 		createMonthRangeEvent,
 		createMonthSingleDayEvent,
+		createTimelineSingleEvent,
+		createTimelineRangeEvent,
 		saveCreatedEvent,
 		saveUpdatedEvent,
 		deleteEvent,

@@ -97,6 +97,10 @@ func releaseUpdateApplyRequestDocument(target commandTarget) ([]byte, error) {
 
 func fetchDeviceReleaseUpdateStatus(arguments []string) (releaseUpdateStatusResponse, error) {
 	target := resolveCommandTarget(arguments)
+	return fetchDeviceReleaseUpdateStatusForTarget(target)
+}
+
+func fetchDeviceReleaseUpdateStatusForTarget(target commandTarget) (releaseUpdateStatusResponse, error) {
 	endpointURL, errorValue := releaseDeviceEndpointURL(target, "/admin/api/updates/status")
 	if errorValue != nil {
 		return releaseUpdateStatusResponse{}, errorValue
@@ -123,7 +127,12 @@ func releaseDeviceEndpointURL(target commandTarget, endpointPath string) (string
 }
 
 func getReleaseUpdateJSON(endpointURL string, value any) error {
-	response, errorValue := statusHTTPClient.Get(endpointURL)
+	request, errorValue := http.NewRequest(http.MethodGet, endpointURL, nil)
+	if errorValue != nil {
+		return errorValue
+	}
+	attachCloudflareAccessCookie(request)
+	response, errorValue := statusHTTPClient.Do(request)
 	if errorValue != nil {
 		return errorValue
 	}

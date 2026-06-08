@@ -1,5 +1,5 @@
-export function createFetchMock(handler: (...parameters: Parameters<typeof fetch>) => ReturnType<typeof fetch>): typeof fetch {
-	const originalPreconnect = globalThis.fetch.preconnect;
-	const preconnect: typeof fetch.preconnect = (...parameters) => originalPreconnect?.(...parameters);
-	return Object.assign(handler, { preconnect });
+type FetchImplementation = (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => ReturnType<typeof fetch>;
+
+export function createMockFetch(implementation: FetchImplementation): typeof fetch {
+	return Object.assign(implementation, { preconnect() {} });
 }

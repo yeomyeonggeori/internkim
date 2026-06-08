@@ -45,6 +45,10 @@
 	import { searchCalendarEvents, type CalendarSearchResult } from './calendar-search';
 	import CalendarStage from './calendar-stage.svelte';
 	import { loadSavedCalendarDate, saveCalendarDate } from './calendar-storage';
+	import {
+		installCalendarTimelineRangeAction,
+		type TimelineRangeSelection
+	} from './calendar-timeline-range-action';
 	import CalendarToolbar from './calendar-toolbar.svelte';
 	import {
 		endOfMonthWindow,
@@ -83,6 +87,7 @@
 	let calendarStageElement = $state<HTMLElement | null>(null);
 	let monthRangeSelection = $state<MonthRangeSelection | null>(null);
 	let monthRangePreviewSegments = $state<MonthRangePreviewSegment[]>([]);
+	let timelineRangeSelection = $state<TimelineRangeSelection | null>(null);
 	let selectedMonthDateKey = $state<string | null>(null);
 	let searchText = $state('');
 	let toolbarDate = $state(initialCalendarDate());
@@ -218,7 +223,7 @@
 			createDragPlugin({
 				enableDrag: true,
 				enableResize: true,
-				enableCreate: true,
+				enableCreate: false,
 				enableAllDayCreate: true,
 				onEventDrop: (updatedEvent) => eventActions.saveUpdatedEvent(updatedEvent),
 				onEventResize: (updatedEvent) => eventActions.saveUpdatedEvent(updatedEvent)
@@ -285,6 +290,19 @@
 					createRangeEvent: eventActions.createMonthRangeEvent
 				})
 			: undefined;
+		const stopTimelineRangeCreate = calendarStageElement
+			? installCalendarTimelineRangeAction({
+					stageElement: calendarStageElement,
+					currentView: () => calendar.currentView,
+					currentDate: () => toolbarDate,
+					getSelection: () => timelineRangeSelection,
+					setSelection: (selection) => {
+						timelineRangeSelection = selection;
+					},
+					createSingleEvent: eventActions.createTimelineSingleEvent,
+					createRangeEvent: eventActions.createTimelineRangeEvent
+				})
+			: undefined;
 		const stopWheelNavigation = calendarStageElement
 			? installCalendarWheelNavigation({
 					stageElement: calendarStageElement,
@@ -299,6 +317,7 @@
 			themeObserver.disconnect();
 			draftTitleObserver.disconnect();
 			stopMonthRangeCreate?.();
+			stopTimelineRangeCreate?.();
 			stopWheelNavigation?.();
 		};
 	});

@@ -40,6 +40,8 @@ type releaseUpdateApplyRequest struct {
 	fleetSignedRequest
 }
 
+type releaseComponentProvider func(context.Context, *releaseset.Manifest, string) error
+
 func (service *Service) writeReleaseUpdateStatus(responseWriter http.ResponseWriter, request *http.Request) {
 	latest, _ := service.fetchLatestReleaseManifest(request.Context())
 	current := service.readCurrentReleaseManifest()
@@ -102,6 +104,10 @@ func (service *Service) rollbackReleaseUpdate(responseWriter http.ResponseWriter
 }
 
 func (service *Service) runReleaseUpdateJob(ctx context.Context, jobID string, manifest *releaseset.Manifest) {
+	service.runReleaseUpdateJobWithProvider(ctx, jobID, manifest, service.downloadReleaseComponents)
+}
+
+func (service *Service) runReleaseUpdateJobWithProvider(ctx context.Context, jobID string, manifest *releaseset.Manifest, provider releaseComponentProvider) {
 	service.updateJob(jobID, "running", "verifying", "")
 	if errorValue := manifest.Validate(); errorValue != nil {
 		service.updateJob(jobID, "failed", "verifying", errorValue.Error())
@@ -114,7 +120,7 @@ func (service *Service) runReleaseUpdateJob(ctx context.Context, jobID string, m
 		return
 	}
 	service.updateJob(jobID, "running", "downloading", "")
-	if errorValue := service.downloadReleaseComponents(ctx, manifest, stagingPath); errorValue != nil {
+	if errorValue := provider(ctx, manifest, stagingPath); errorValue != nil {
 		service.updateJob(jobID, "failed", "downloading", errorValue.Error())
 		return
 	}
