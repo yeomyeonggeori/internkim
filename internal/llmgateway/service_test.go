@@ -81,6 +81,62 @@ func TestDeviceTokenProviderKeyCanReplaceGatewayMasterKey(t *testing.T) {
 	}
 }
 
+func TestValidDeviceTokenProxiesEmbeddingRequest(t *testing.T) {
+	providerAuthorization := ""
+	providerPath := ""
+	provider := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		providerAuthorization = request.Header.Get("Authorization")
+		providerPath = request.URL.Path
+		responseWriter.Header().Set("Content-Type", "application/json")
+		_, _ = responseWriter.Write([]byte(`{"model":"embeddinggemma","data":[{"embedding":[0.1,0.2]}],"usage":{"prompt_tokens":3,"total_tokens":3}}`))
+	}))
+	defer provider.Close()
+
+	ledger := &MemoryUsageLedger{}
+	service := newTestService(t, provider.URL+"/api/v1/chat/completions", ledger)
+	gateway := httptest.NewServer(service.Handler())
+	defer gateway.Close()
+
+	response := postEmbedding(t, gateway.URL, "device-token", `{"model":"embeddinggemma","input":"hello"}`)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", response.Code, response.Body)
+	}
+	if providerAuthorization != "Bearer provider-secret" {
+		t.Fatalf("expected provider authorization to use provider key, got %q", providerAuthorization)
+	}
+	if providerPath != "/api/v1/embeddings" {
+		t.Fatalf("expected embedding provider path, got %q", providerPath)
+	}
+	if len(ledger.Records) != 1 || ledger.Records[0].Model != "embeddinggemma" {
+		t.Fatalf("expected embedding usage record, got %+v", ledger.Records)
+	}
+}
+
+func TestExplicitProviderEmbeddingsURLOverridesDerivedPath(t *testing.T) {
+	providerPath := ""
+	provider := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		providerPath = request.URL.Path
+		responseWriter.Header().Set("Content-Type", "application/json")
+		_, _ = responseWriter.Write([]byte(`{"model":"embeddinggemma","data":[{"embedding":[0.1]}],"usage":{"total_tokens":1}}`))
+	}))
+	defer provider.Close()
+
+	service := newTestService(t, provider.URL+"/chat/completions", &MemoryUsageLedger{})
+	service.Configuration.ProviderEmbeddingsURL = provider.URL + "/custom/embeddings"
+	gateway := httptest.NewServer(service.Handler())
+	defer gateway.Close()
+
+	response := postEmbedding(t, gateway.URL, "device-token", `{"model":"embeddinggemma","input":"hello"}`)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", response.Code, response.Body)
+	}
+	if providerPath != "/custom/embeddings" {
+		t.Fatalf("expected explicit embedding provider path, got %q", providerPath)
+	}
+}
+
 func TestRevokedDeviceTokenIsRejectedBeforeProviderCall(t *testing.T) {
 	providerCalls := 0
 	provider := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
@@ -226,7 +282,17 @@ func newTestService(t *testing.T, providerURL string, ledger *MemoryUsageLedger)
 
 func postChatCompletion(t *testing.T, baseURL string, token string, body string) gatewayResponse {
 	t.Helper()
-	request, errorValue := http.NewRequest(http.MethodPost, baseURL+"/api/v1/chat/completions", strings.NewReader(body))
+	return postGatewayRequest(t, baseURL+"/api/v1/chat/completions", token, body)
+}
+
+func postEmbedding(t *testing.T, baseURL string, token string, body string) gatewayResponse {
+	t.Helper()
+	return postGatewayRequest(t, baseURL+"/api/v1/embeddings", token, body)
+}
+
+func postGatewayRequest(t *testing.T, url string, token string, body string) gatewayResponse {
+	t.Helper()
+	request, errorValue := http.NewRequest(http.MethodPost, url, strings.NewReader(body))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

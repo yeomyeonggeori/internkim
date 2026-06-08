@@ -118,6 +118,25 @@ class FetchProviderClient {
 			}
 		});
 	}
+
+	createEmbedding(providerAPIKey: string, requestDocument: string): Promise<Response> {
+		return fetch(embeddingURL(this.openRouterBaseURL), {
+			method: 'POST',
+			body: requestDocument,
+			headers: {
+				Authorization: `Bearer ${providerAPIKey}`,
+				'Content-Type': 'application/json'
+			}
+		});
+	}
+}
+
+function embeddingURL(openRouterBaseURL: string): string {
+	const trimmedURL = openRouterBaseURL.trim();
+	if (trimmedURL.endsWith('/chat/completions')) {
+		return trimmedURL.slice(0, -'/chat/completions'.length) + '/embeddings';
+	}
+	return trimmedURL.replace(/\/+$/, '') + '/embeddings';
 }
 
 function jsonResponse(document: unknown, status: number): Response {

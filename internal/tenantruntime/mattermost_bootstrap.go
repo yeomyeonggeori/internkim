@@ -336,8 +336,28 @@ func (client mattermostBootstrapClient) ensureChannel(adminToken string, teamID 
 	if errorValue := client.patchChannel(adminToken, channelID, channel); errorValue != nil {
 		return "", errorValue
 	}
-	_, _ = client.request(http.MethodPost, "/api/v4/channels/"+url.PathEscape(channelID)+"/members", adminToken, map[string]string{"user_id": botUserID})
+	if errorValue := client.ensureChannelBotCanPost(adminToken, channelID, botUserID); errorValue != nil {
+		return "", errorValue
+	}
 	return channelID, nil
+}
+
+func (client mattermostBootstrapClient) ensureChannelBotCanPost(adminToken string, channelID string, botUserID string) error {
+	response, errorValue := client.request(http.MethodPost, "/api/v4/channels/"+url.PathEscape(channelID)+"/members", adminToken, map[string]string{"user_id": botUserID})
+	if errorValue != nil {
+		return errorValue
+	}
+	if !isSuccessStatus(response.StatusCode) && response.StatusCode != http.StatusBadRequest {
+		return errors.New("Mattermost bot channel member create failed")
+	}
+	response, errorValue = client.request(http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/members/"+url.PathEscape(botUserID)+"/schemeRoles", adminToken, map[string]bool{"scheme_admin": true, "scheme_user": true})
+	if errorValue != nil {
+		return errorValue
+	}
+	if !isSuccessStatus(response.StatusCode) {
+		return errors.New("Mattermost bot channel scheme role update failed")
+	}
+	return nil
 }
 
 func (client mattermostBootstrapClient) patchChannel(adminToken string, channelID string, channel mattermostdefaults.PublicChannel) error {

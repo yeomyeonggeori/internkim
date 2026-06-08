@@ -40,6 +40,7 @@ export type DeviceTokenStore = {
 
 export type ProviderClient = {
 	createChatCompletion(providerAPIKey: string, requestDocument: string): Promise<Response>;
+	createEmbedding(providerAPIKey: string, requestDocument: string): Promise<Response>;
 };
 
 export type GatewayEnvironment = {
@@ -61,10 +62,10 @@ export async function handleGatewayRequest(request: Request, environment: Gatewa
 	if (request.method === 'PUT' && url.pathname === '/admin/device-tokens') {
 		return handleDeviceTokenUpsert(request, environment);
 	}
-	if (request.method !== 'POST' || !chatCompletionPath(url.pathname)) {
+	if (request.method !== 'POST' || !gatewayProxyPath(url.pathname)) {
 		return jsonResponse({ error: 'not found' }, 404);
 	}
-	return handleChatCompletions(request, environment);
+	return handleProviderProxy(request, environment, url.pathname);
 }
 
 async function handleDeviceTokenUpsert(request: Request, environment: GatewayEnvironment): Promise<Response> {
@@ -80,7 +81,7 @@ async function handleDeviceTokenUpsert(request: Request, environment: GatewayEnv
 	return jsonResponse({ status: 'ok' }, 200);
 }
 
-async function handleChatCompletions(request: Request, environment: GatewayEnvironment): Promise<Response> {
+async function handleProviderProxy(request: Request, environment: GatewayEnvironment, pathname: string): Promise<Response> {
 	const token = bearerToken(request);
 	if (!token) {
 		return jsonResponse({ error: 'device token is required' }, 401);
@@ -91,13 +92,18 @@ async function handleChatCompletions(request: Request, environment: GatewayEnvir
 		return failedReservationResponse(reservation.failureReason);
 	}
 	const requestDocument = await request.text();
-	const providerResponse = await environment.providerClient.createChatCompletion(reservation.reservedToken.record.providerAPIKey, requestDocument);
+	const providerResponse = await createProviderResponse(environment.providerClient, pathname, reservation.reservedToken.record.providerAPIKey, requestDocument);
 	const responseDocument = await providerResponse.text();
 	if (providerResponse.status >= 400) {
 		return new Response(responseDocument, responseMetadata(providerResponse.status));
 	}
 	await environment.deviceTokenStore.recordUsage(tokenHash, usageRecordForResponse(reservation.reservedToken.record, requestDocument, responseDocument));
 	return new Response(responseDocument, responseMetadata(providerResponse.status));
+}
+
+function createProviderResponse(providerClient: ProviderClient, pathname: string, providerAPIKey: string, requestDocument: string): Promise<Response> {
+	if (embeddingPath(pathname)) return providerClient.createEmbedding(providerAPIKey, requestDocument);
+	return providerClient.createChatCompletion(providerAPIKey, requestDocument);
 }
 
 function parseDeviceTokenRecord(document: unknown): DeviceTokenRecord | undefined {
@@ -204,8 +210,16 @@ function failedReservationResponse(failureReason: DeviceTokenReservation['failur
 	return jsonResponse({ error: 'device token is revoked or unknown' }, 401);
 }
 
+function gatewayProxyPath(pathname: string): boolean {
+	return chatCompletionPath(pathname) || embeddingPath(pathname);
+}
+
 function chatCompletionPath(pathname: string): boolean {
 	return pathname === '/api/v1/chat/completions' || pathname === '/v1/chat/completions';
+}
+
+function embeddingPath(pathname: string): boolean {
+	return pathname === '/api/v1/embeddings' || pathname === '/v1/embeddings';
 }
 
 async function sha256Hex(value: string): Promise<string> {

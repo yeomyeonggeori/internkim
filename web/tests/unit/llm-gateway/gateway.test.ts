@@ -49,6 +49,36 @@ describe('LLM Gateway Worker', () => {
 		expect(provider.callCount).toBe(0);
 	});
 
+	test('proxies OpenRouter-compatible embedding requests through the same device token boundary', async () => {
+		const token = 'ik_or_tenant_token';
+		const tokenHash = await sha256Hex(token);
+		const store = new MemoryDeviceTokenStore({
+			tokenHash,
+			tenantID: 'tenant-a',
+			deviceID: 'device-a',
+			providerAPIKey: 'sk-or-v1-upstream-a',
+			hardLimitMicrounits: 100,
+			requestsPerMinute: 30
+		});
+		const provider = new CapturingProviderClient();
+
+		const response = await handleGatewayRequest(
+			embeddingRequest(token, '{"model":"embeddinggemma","input":"hello"}'),
+			{
+				deviceTokenStore: store,
+				providerClient: provider,
+				sharedSecret: 'gateway-secret',
+				now: () => 1_000_000
+			}
+		);
+
+		expect(response.status).toBe(200);
+		expect(provider.embeddingCallCount).toBe(1);
+		expect(provider.providerAPIKey).toBe('sk-or-v1-upstream-a');
+		expect(store.usageRecords).toHaveLength(1);
+		expect(store.usageRecords[0].model).toBe('embeddinggemma');
+	});
+
 	test('blocks exhausted quota before provider call', async () => {
 		const token = 'ik_or_tenant_token';
 		const tokenHash = await sha256Hex(token);
@@ -170,12 +200,22 @@ class MemoryDeviceTokenStore implements DeviceTokenStore {
 
 class CapturingProviderClient {
 	callCount = 0;
+	embeddingCallCount = 0;
 	providerAPIKey = '';
 
 	async createChatCompletion(providerAPIKey: string) {
 		this.callCount += 1;
 		this.providerAPIKey = providerAPIKey;
 		return new Response('{"choices":[{"message":{"content":"ok"}}],"usage":{"prompt_tokens":7,"completion_tokens":5,"total_tokens":12}}', {
+			status: 200,
+			headers: { 'Content-Type': 'application/json' }
+		});
+	}
+
+	async createEmbedding(providerAPIKey: string) {
+		this.embeddingCallCount += 1;
+		this.providerAPIKey = providerAPIKey;
+		return new Response('{"model":"embeddinggemma","data":[{"embedding":[0.1,0.2]}],"usage":{"prompt_tokens":3,"total_tokens":3}}', {
 			status: 200,
 			headers: { 'Content-Type': 'application/json' }
 		});
@@ -199,6 +239,18 @@ function chatRequestWithoutGatewaySecret(token: string, body: string) {
 		method: 'POST',
 		headers: {
 			Authorization: `Bearer ${token}`,
+			'Content-Type': 'application/json'
+		},
+		body
+	});
+}
+
+function embeddingRequest(token: string, body: string) {
+	return new Request('https://gateway.test/api/v1/embeddings', {
+		method: 'POST',
+		headers: {
+			Authorization: `Bearer ${token}`,
+			'X-InternKim-Gateway-Secret': 'gateway-secret',
 			'Content-Type': 'application/json'
 		},
 		body
