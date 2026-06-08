@@ -123,10 +123,12 @@ func (service Service) localProviderSet(providerName, accelerator string, allowS
 
 func (service Service) openRouterBackend() OpenRouterBackend {
 	return OpenRouterBackend{
-		KeyPath:    service.Configuration.OpenRouterKeyPath,
-		BaseURL:    service.Configuration.OpenRouterBaseURL,
-		ModelName:  firstNonEmpty(service.Configuration.OpenRouterModel, DefaultConfiguration().OpenRouterModel),
-		HTTPClient: service.httpClient(),
+		KeyPath:             service.Configuration.OpenRouterKeyPath,
+		BaseURL:             service.Configuration.OpenRouterBaseURL,
+		ModelName:           firstNonEmpty(service.Configuration.OpenRouterModel, DefaultConfiguration().OpenRouterModel),
+		GatewaySecretPath:   service.Configuration.OpenRouterGatewaySecretPath,
+		GatewaySecretHeader: service.Configuration.OpenRouterGatewaySecretHeader,
+		HTTPClient:          service.httpClient(),
 	}
 }
 
