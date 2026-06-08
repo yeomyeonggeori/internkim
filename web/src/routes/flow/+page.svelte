@@ -100,6 +100,7 @@
 			},
 			report: summary?.report,
 			tasks: tasks(),
+			members: members(),
 			definitions: definitions(),
 			weekStartISO: summary?.week.startISO
 		});

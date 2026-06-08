@@ -3,13 +3,14 @@ import { buildMemberScoreSection } from './flow-member-score-section';
 import { averagePositiveValue } from './flow-report-section-helpers';
 import { buildTrendSection } from './flow-trend-section';
 import { buildWeeklyTypeDistanceSection } from './flow-weekly-type-distance-section';
-import type { FlowReportDefinitions, FlowReportMetrics, FlowReportOptions, FlowReportSections } from './flow-report-types';
+import type { FlowReportDefinitions, FlowReportMember, FlowReportMetrics, FlowReportOptions, FlowReportSections } from './flow-report-types';
 
 export type {
 	FlowReportChartKind,
 	FlowReportCopy,
 	FlowReportDefinitions,
 	FlowReportItem,
+	FlowReportMember,
 	FlowReportMetrics,
 	FlowReportOptions,
 	FlowReportRow,
@@ -38,7 +39,7 @@ const emptyDefinitions: FlowReportDefinitions = {
 export function buildFlowReportSections(metrics: FlowReportMetrics, options: FlowReportOptions): FlowReportSections {
 	const definitions = options.definitions ?? emptyDefinitions;
 	const tasks = options.tasks ?? [];
-	const metricScores = scoresFromMetrics(metrics);
+	const metricScores = scoresFromMetrics(metrics, options.members ?? []);
 	const copy = options.copy;
 
 	return {
@@ -84,8 +85,22 @@ export function buildFlowReportSections(metrics: FlowReportMetrics, options: Flo
 	};
 }
 
-function scoresFromMetrics(metrics: FlowReportMetrics): FlowMetricScores {
+function scoresFromMetrics(metrics: FlowReportMetrics, members: FlowReportMember[]): FlowMetricScores {
+	const scores = metrics.memberScores ?? metrics.memberDistances ?? {};
 	return {
-		memberScores: metrics.memberScores ?? metrics.memberDistances ?? {}
+		memberScores: labelMemberScores(scores, members)
 	};
+}
+
+function labelMemberScores(scores: Record<string, number>, members: FlowReportMember[]): Record<string, number> {
+	const labels = memberScoreLabels(members);
+	return Object.fromEntries(Object.entries(scores).map(([key, score]) => [labels.get(key) ?? key, score]));
+}
+
+function memberScoreLabels(members: FlowReportMember[]): Map<string, string> {
+	const nameCounts = members.reduce<Record<string, number>>((counts, member) => {
+		counts[member.name] = (counts[member.name] ?? 0) + 1;
+		return counts;
+	}, {});
+	return new Map(members.map((member) => [member.id, nameCounts[member.name] === 1 ? member.name : `${member.name} (${member.id})`]));
 }

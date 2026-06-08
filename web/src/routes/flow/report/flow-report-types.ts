@@ -44,8 +44,14 @@ export type FlowReportOptions = {
 	copy: FlowReportCopy;
 	report?: FlowReportSnapshot;
 	tasks?: FlowReportTask[];
+	members?: FlowReportMember[];
 	definitions?: FlowReportDefinitions;
 	weekStartISO?: string;
+};
+
+export type FlowReportMember = {
+	id: string;
+	name: string;
 };
 
 export type FlowReportItem = {
