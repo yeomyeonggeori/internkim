@@ -1,21 +1,13 @@
+import { isFlowStatusCompleted, isFlowStatusInProgress, isFlowStatusPaused, isFlowStatusPlanned, isFlowStatusRejected, isFlowStatusRequested, isFlowStatusStopped } from './flow-status';
+
 export function statusBadgeClass(status: string): string {
-	switch (status) {
-		case '완료':
-			return 'bg-[#d4edbc] text-[#1f3826] border-transparent';
-		case '진행':
-			return 'bg-[#bfe1f6] text-[#0b3d63] border-transparent';
-		case '예정':
-			return 'bg-[#ffe5a0] text-[#473821] border-transparent';
-		case '요청':
-			return 'bg-[#e6cff2] text-[#3d1c52] border-transparent';
-		case '일시정지':
-			return 'bg-[#ffcfc9] text-[#5b1c14] border-transparent';
-		case '기각':
-		case '중단':
-			return 'bg-[#f6c1bd] text-[#5b1c14] border-transparent';
-		default:
-			return 'bg-muted text-muted-foreground border-transparent';
-	}
+	if (isFlowStatusCompleted(status)) return 'bg-[#d4edbc] text-[#1f3826] border-transparent';
+	if (isFlowStatusInProgress(status)) return 'bg-[#bfe1f6] text-[#0b3d63] border-transparent';
+	if (isFlowStatusPlanned(status)) return 'bg-[#ffe5a0] text-[#473821] border-transparent';
+	if (isFlowStatusRequested(status)) return 'bg-[#e6cff2] text-[#3d1c52] border-transparent';
+	if (isFlowStatusPaused(status)) return 'bg-[#ffcfc9] text-[#5b1c14] border-transparent';
+	if (isFlowStatusRejected(status) || isFlowStatusStopped(status)) return 'bg-[#f6c1bd] text-[#5b1c14] border-transparent';
+	return 'bg-muted text-muted-foreground border-transparent';
 }
 
 export function sizeBadgeClass(size: string): string {

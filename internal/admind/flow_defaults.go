@@ -39,10 +39,6 @@ func flowSizeLabel(size flowSizeDefinition) string {
 	return fmt.Sprintf("%dkm · 최대 %dh", size.DistanceKM, size.MaxHours)
 }
 
-func flowStatusOptions() []string {
-	return []string{"요청", "예정", "진행", "완료", "일시정지", "기각", "중단"}
-}
-
 func containsFlowSize(values []flowSizeDefinition, target string) bool {
 	for _, value := range values {
 		if value.Name == target {

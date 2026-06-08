@@ -104,9 +104,9 @@ func calculateFlowMemberDistances(members []flowMember, tasks []flowTask, defini
 			if !found {
 				continue
 			}
-			if task.Status == "완료" {
+			if isFlowCompletedStatus(task.Status) {
 				result[index].CompleteTaskCount++
-			} else if task.Status != "기각" && task.Status != "중단" {
+			} else if !isFlowInactiveStatus(task.Status) {
 				result[index].ActiveTaskCount++
 			}
 			result[index].Distance += progressDistanceForTask(task, definitions)

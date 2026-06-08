@@ -57,8 +57,8 @@ func (service *Service) trySyncFlowMattermostNotification(ctx context.Context, t
 }
 
 func shouldNotifyFlowTask(task flowTask) bool {
-	switch strings.TrimSpace(task.Status) {
-	case "요청", "기각", "중단", "완료":
+	switch {
+	case isFlowRequestedStatus(task.Status), isFlowRejectedStatus(task.Status), isFlowStoppedStatus(task.Status), isFlowCompletedStatus(task.Status):
 		return true
 	default:
 		return false

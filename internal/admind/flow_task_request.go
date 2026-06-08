@@ -39,17 +39,17 @@ func (service *Service) flowTaskFromRequest(request *http.Request, members []flo
 	if content == "" {
 		return flowTask{}, flowValidationError("content is required")
 	}
-	status := firstNonEmpty(strings.TrimSpace(payload.Status), "예정")
+	status := firstNonEmpty(cleanFlowStatus(payload.Status), defaultFlowStatus())
 	callerEmail := strings.ToLower(strings.TrimSpace(service.flowActorEmail(request)))
 	if callerEmail != "" && !service.isFlowAdminEmail(request.Context(), callerEmail) && !strings.EqualFold(owner.Email, callerEmail) {
-		status = "요청"
+		status = flowStatusRequested
 		payload.RequestReason = firstNonEmpty(strings.TrimSpace(payload.RequestReason), "타인 업무 추가 요청")
 		if requesterID := memberIDForEmail(members, callerEmail); requesterID != "" && shouldIncludeRequesterAsFlowParticipant(payload) && !containsString(participantIDs, requesterID) {
 			participantIDs = append(participantIDs, requesterID)
 			participants = append(participants, memberByID[requesterID])
 		}
 	}
-	if !containsString(flowStatusOptions(), status) {
+	if !isAllowedFlowStatus(status) {
 		return flowTask{}, flowValidationError("status is not allowed")
 	}
 	category := strings.TrimSpace(firstNonEmpty(payload.Category, payload.Business))

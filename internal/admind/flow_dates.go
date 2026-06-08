@@ -19,8 +19,8 @@ func normalizeFlowTaskDates(payload flowTaskWriteRequest, status string, now tim
 	endDate := strings.TrimSpace(payload.EndDate)
 	weekCode := strings.TrimSpace(payload.WeekCode)
 	today := now.Format("2006-01-02")
-	switch strings.TrimSpace(status) {
-	case "완료":
+	switch {
+	case isFlowCompletedStatus(status):
 		if endDate == "" {
 			endDate = today
 		}
@@ -28,7 +28,7 @@ func normalizeFlowTaskDates(payload flowTaskWriteRequest, status string, now tim
 			startDate = endDate
 		}
 		weekCode = weekCodeForFlowDate(endDate, now)
-	case "예정":
+	case isFlowPlannedStatus(status):
 		if startDate == "" {
 			startDate = today
 		}
