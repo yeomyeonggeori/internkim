@@ -2,6 +2,20 @@ import { expect, test } from '@playwright/test';
 
 test.describe('calendar localization', () => {
 	test('updates embedded calendar labels when language changes', async ({ page }) => {
+		let locale = 'ko';
+		await page.route('**/admin/api/session', async (route) => {
+			await route.fulfill({ json: { email: 'tester@example.com' } });
+		});
+		await page.route('**/auth/session**', async (route) => {
+			await route.fulfill({ json: { authenticated: true, email: 'tester@example.com' } });
+		});
+		await page.route('**/admin/api/locale', async (route) => {
+			if (route.request().method() === 'PUT') {
+				const payload = route.request().postDataJSON() as { locale?: string };
+				locale = payload.locale === 'en' ? 'en' : 'ko';
+			}
+			await route.fulfill({ json: { locale } });
+		});
 		await page.route('**/calendar/api/events?**', async (route) => {
 			await route.fulfill({ json: { events: [] } });
 		});
@@ -20,6 +34,7 @@ test.describe('calendar localization', () => {
 		});
 
 		await page.goto('/calendar/');
+		await expect(page.getByRole('button', { name: '구독 설정' })).toBeVisible();
 		await page.getByLabel('Language').getByRole('button', { name: 'EN', exact: true }).click();
 
 		await expect(page.getByRole('button', { name: 'Subscription settings' })).toBeVisible();
@@ -30,6 +45,6 @@ test.describe('calendar localization', () => {
 
 		const calendarFrame = page.frameLocator('iframe');
 		await expect(calendarFrame.getByRole('button', { name: 'Today' })).toBeVisible();
-		await expect(calendarFrame.getByText('Sun').first()).toBeVisible();
+		await expect(calendarFrame.getByRole('button', { name: 'Month' })).toBeVisible();
 	});
 });
