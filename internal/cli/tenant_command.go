@@ -29,12 +29,16 @@ func runTenant() {
 		runTenantRestore(os.Args[3:])
 	case "install-container":
 		runTenantInstallContainer(os.Args[3:])
+	case "install-host-runtime":
+		runTenantInstallHostRuntime(os.Args[3:])
 	case "bootstrap":
 		runTenantBootstrap(os.Args[3:])
 	case "bootstrap-mattermost":
 		runTenantBootstrapMattermost(os.Args[3:])
 	case "expose-mattermost":
 		runTenantExposeMattermost(os.Args[3:])
+	case "sync-cloudflare-tunnel":
+		runTenantSyncCloudflareTunnel(os.Args[3:])
 	case "start":
 		runTenantStart(os.Args[3:])
 	case "stop":
@@ -54,9 +58,11 @@ func printTenantUsage() {
 	fmt.Println("  backup   Create an encrypted tenant backup")
 	fmt.Println("  restore  Restore an encrypted tenant backup")
 	fmt.Println("  install-container  Write the systemd-nspawn container configuration")
+	fmt.Println("  install-host-runtime  Write tenant-scoped host runtime services")
 	fmt.Println("  bootstrap  Install tenant rootfs services and gateway token")
 	fmt.Println("  bootstrap-mattermost  Ensure tenant Mattermost team, bot, and default channels")
 	fmt.Println("  expose-mattermost  Start Cloudflare quick tunnels for tenant Mattermost instances")
+	fmt.Println("  sync-cloudflare-tunnel  Route tenant app paths and Mattermost through a Cloudflare named tunnel")
 	fmt.Println("  start    Start the tenant systemd-nspawn container")
 	fmt.Println("  stop     Stop the tenant systemd-nspawn container")
 }
@@ -210,6 +216,41 @@ func runTenantStart(arguments []string) {
 	fmt.Printf("tenant started: %s\n", *tenantID)
 }
 
+func runTenantInstallHostRuntime(arguments []string) {
+	flags := flag.NewFlagSet("tenant install-host-runtime", flag.ExitOnError)
+	tenantID := flags.String("tenant", "", "tenant id")
+	basePath := flags.String("base", "/srv/internkim/tenants", "tenant base path")
+	systemdDirectoryPath := flags.String("systemd-dir", "/etc/systemd/system", "systemd unit directory")
+	gatewayURL := flags.String("gateway-url", "", "LLM gateway OpenRouter-compatible chat completion URL")
+	gatewaySharedSecret := flags.String("gateway-shared-secret", "", "tenant LLM gateway shared secret")
+	modelName := flags.String("model", "", "optional remote model override")
+	rootFilesystemTemplatePath := flags.String("rootfs-image", "/opt/internkim/blueclaw-runtime/rootfs.ext4", "Blueclaw rootfs image template path")
+	workspaceImageTemplatePath := flags.String("workspace-image", "/var/lib/blueclaw/workspace.ext4", "Blueclaw workspace image template path")
+	portBase := flags.Int("port-base", 0, "optional first tenant runtime port")
+	if errorValue := flags.Parse(arguments); errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	status, errorValue := (tenantruntime.Service{
+		BasePath:                   *basePath,
+		SystemdSystemDirectoryPath: *systemdDirectoryPath,
+	}).InstallHostRuntime(context.Background(), *tenantID, tenantruntime.HostRuntimeOptions{
+		GatewayURL:                 *gatewayURL,
+		GatewaySharedSecret:        *gatewaySharedSecret,
+		ModelName:                  *modelName,
+		RootFilesystemTemplatePath: *rootFilesystemTemplatePath,
+		WorkspaceImageTemplatePath: *workspaceImageTemplatePath,
+		PortBase:                   *portBase,
+	})
+	if errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	document, errorValue := json.MarshalIndent(status, "", "  ")
+	if errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	fmt.Println(string(document))
+}
+
 func runTenantExposeMattermost(arguments []string) {
 	flags := flag.NewFlagSet("tenant expose-mattermost", flag.ExitOnError)
 	tenantIDs := flags.String("tenants", "", "comma-separated tenant ids")
@@ -228,6 +269,36 @@ func runTenantExposeMattermost(arguments []string) {
 		fatal(errorValue.Error())
 	}
 	printMattermostExposures(exposures)
+}
+
+func runTenantSyncCloudflareTunnel(arguments []string) {
+	flags := flag.NewFlagSet("tenant sync-cloudflare-tunnel", flag.ExitOnError)
+	tenantIDs := flags.String("tenants", "", "comma-separated tenant ids")
+	basePath := flags.String("base", "/srv/internkim/tenants", "tenant base path")
+	accountID := flags.String("account-id", "", "Cloudflare account id")
+	tunnelID := flags.String("tunnel-id", "", "Cloudflare tunnel id")
+	apiTokenPath := flags.String("api-token-path", "", "Cloudflare API token file path")
+	apiBaseURL := flags.String("api-base-url", tenantruntime.DefaultCloudflareAPIBaseURL, "Cloudflare API base URL")
+	publicHostnameTemplate := flags.String("hostname-template", "", "optional public hostname template containing {tenant}")
+	if errorValue := flags.Parse(arguments); errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	status, errorValue := (tenantruntime.Service{BasePath: *basePath}).SyncCloudflareTenantTunnel(context.Background(), tenantruntime.CloudflareTunnelSyncOptions{
+		AccountID:              *accountID,
+		TunnelID:               *tunnelID,
+		APITokenPath:           *apiTokenPath,
+		APIBaseURL:             *apiBaseURL,
+		PublicHostnameTemplate: *publicHostnameTemplate,
+		TenantIDs:              splitCommaValues(*tenantIDs),
+	})
+	if errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	document, errorValue := json.MarshalIndent(status, "", "  ")
+	if errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	fmt.Println(string(document))
 }
 
 func runTenantBootstrapMattermost(arguments []string) {

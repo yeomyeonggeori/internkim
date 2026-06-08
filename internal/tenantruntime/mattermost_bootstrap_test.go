@@ -46,6 +46,9 @@ func TestBootstrapMattermostFleetResourcesEnsuresBotChannelsAndToken(t *testing.
 	if !server.teamMembers["admin-1"] || !server.teamMembers["bot-1"] {
 		t.Fatalf("expected admin and bot team members, got %+v", server.teamMembers)
 	}
+	if !server.schemeRoles["channel-flow:bot-1"] || !server.schemeRoles["channel-calendar:bot-1"] || !server.schemeRoles["channel-attendance:bot-1"] {
+		t.Fatalf("expected bot channel scheme roles, got %+v", server.schemeRoles)
+	}
 }
 
 func writeMattermostBootstrapTestCredentials(t *testing.T, path string) {
@@ -61,6 +64,7 @@ type mattermostBootstrapTestServer struct {
 	configuration map[string]any
 	channels      map[string]mattermostBootstrapTestChannel
 	teamMembers   map[string]bool
+	schemeRoles   map[string]bool
 }
 
 type mattermostBootstrapTestChannel struct {
@@ -75,6 +79,7 @@ func newMattermostBootstrapTestServer(t *testing.T) *mattermostBootstrapTestServ
 		configuration: map[string]any{},
 		channels:      map[string]mattermostBootstrapTestChannel{},
 		teamMembers:   map[string]bool{},
+		schemeRoles:   map[string]bool{},
 	}
 	server.Server = httptest.NewServer(http.HandlerFunc(server.handle))
 	t.Cleanup(server.Close)
@@ -152,6 +157,14 @@ func (server *mattermostBootstrapTestServer) handle(responseWriter http.Response
 	}
 	if strings.HasPrefix(request.URL.Path, "/api/v4/channels/channel-") && strings.HasSuffix(request.URL.Path, "/members") && request.Method == http.MethodPost {
 		writeMattermostBootstrapJSON(responseWriter, http.StatusCreated, map[string]bool{"ok": true})
+		return
+	}
+	if strings.HasPrefix(request.URL.Path, "/api/v4/channels/channel-") && strings.HasSuffix(request.URL.Path, "/schemeRoles") && request.Method == http.MethodPut {
+		parts := strings.Split(request.URL.Path, "/")
+		if len(parts) >= 8 {
+			server.schemeRoles[parts[4]+":"+parts[6]] = true
+		}
+		writeMattermostBootstrapJSON(responseWriter, http.StatusOK, map[string]bool{"ok": true})
 		return
 	}
 	writeMattermostBootstrapJSON(responseWriter, http.StatusNotFound, map[string]string{"path": request.URL.Path})

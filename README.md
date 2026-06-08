@@ -145,7 +145,16 @@ chmod 600 .local/secrets/openrouter-management-key .local/secrets/cloudflare-api
 
 Cloudflare Worker LLM Gateway에는 배포 secret과 state binding만 둡니다. tenant별 upstream OpenRouter key는 `tenant create-fleet --openrouter-management-key .local/secrets/openrouter-management-key`가 발급하고, Worker state에는 raw gateway token 대신 `tokenHash`를 저장합니다.
 
-cloud-shared bootstrap은 runtime model을 명시해서 배포합니다. PoC Worker 경로에서는 `google/gemini-3.5-flash`가 provider region policy로 거절될 수 있으므로, 현재 smoke 통과 모델인 `x-ai/grok-4.3`을 `tenant bootstrap --model x-ai/grok-4.3`으로 지정합니다.
+Worker 배포는 account ID를 함께 넘깁니다. `CF_API_TOKEN`만 있으면 Wrangler가 `/memberships` 조회에서 인증 실패할 수 있습니다.
+
+```bash
+cd workers/llm-gateway
+CLOUDFLARE_API_TOKEN="$(awk 'BEGIN{FS="="} $1=="CF_API_TOKEN"{sub(/^[^=]*=/,""); print}' ../../.env)" \
+CLOUDFLARE_ACCOUNT_ID="$(awk 'BEGIN{FS="="} $1=="CF_ACCOUNT_ID"{sub(/^[^=]*=/,""); print}' ../../.env)" \
+../../web/node_modules/.bin/wrangler deploy --keep-vars
+```
+
+cloud-shared bootstrap은 runtime model을 명시해서 배포합니다. PoC Worker 경로에서는 `google/gemini-3.5-flash`가 provider region policy로 거절될 수 있으므로, 현재 smoke 통과 모델인 `x-ai/grok-4.3`을 `tenant bootstrap --model x-ai/grok-4.3` 또는 `tenant install-host-runtime --model x-ai/grok-4.3`으로 지정합니다. chat, web tool, embedding 요청은 모두 gateway를 통해야 합니다. cloud-shared에서 `embeddinggemma` 같은 로컬 embedding alias가 들어오면 capabilityd가 OpenRouter embedding model로 정규화합니다.
 
 cloud-shared Mattermost admin password의 운영 기준은 실제 인스턴스가 읽는 credentials 파일입니다. 이미 VM 안에서 Mattermost 인스턴스를 만든 뒤에는 로컬 `.local/tenants/*` bundle 값을 고객에게 안내하지 말고, VM의 `/srv/internkim-mattermost-instances/credentials.json` 또는 동일한 배포 source of truth에서 다시 읽어야 합니다.
 
@@ -157,10 +166,28 @@ internkim tenant bootstrap-mattermost \
   --base-url-template 'http://127.0.0.1:{port}' \
   --port-start 18065 \
   --public-url-template 'https://{tenant}.example.test' \
-  --token-output-root /srv/internkim-mattermost-instances
+  --token-output-root /srv/internkim/tenants
 ```
 
-`bootstrap-mattermost`는 Mattermost 리소스만 보정합니다. 고객에게 pilot URL을 열기 전에는 각 tenant의 admin 계정이 `internkim` team member인지, `/flow`, `/calendar`, `/attendance`, `/_app` 라우트가 해당 tenant의 admind로 가는지, 해당 tenant의 Blueclaw/capabilityd가 같은 tenant Mattermost bot token과 `LLM_DEVICE_TOKEN`으로 기동 중인지 확인해야 합니다. 기존 단일 `internkim-admind`, `internkim-capabilityd`, `blueclaw.service`를 pilot 여러 개에 공유하면 웹/메모리/워크스페이스/비밀값이 섞이므로 customer-ready 상태로 보지 않습니다. 코드와 binary는 공유하되 runtime state, workspace, bot token, admin secret, LLM device token은 tenant별로 분리합니다.
+`bootstrap-mattermost`는 bot을 기본 채널 멤버로 넣고 channel scheme role까지 보정해야 합니다. `업무`와 `일정`은 read-only moderation scheme이 걸릴 수 있어서 membership만으로는 bot reply가 403으로 실패합니다.
+
+pilot public URL은 named tunnel 설정까지 맞아야 합니다. manifest의 기존 `publicURL`이 `pilot-01.mattermost.example.test`처럼 stale일 수 있으므로 pilot 배포에는 hostname template을 명시합니다.
+
+```bash
+internkim tenant sync-cloudflare-tunnel \
+  --base .local/tenants \
+  --tenants pilot-01 \
+  --hostname-template '{tenant}.example.test' \
+  --account-id "$CF_ACCOUNT_ID" \
+  --tunnel-id "$PILOT_TUNNEL_ID" \
+  --api-token-path .local/secrets/cloudflare-api-token
+
+sudo systemctl restart internkim-pilot-tunnel.service
+```
+
+`cloudflared.service`와 `internkim-pilot-tunnel.service`는 다른 tunnel일 수 있습니다. pilot route 변경 후에는 pilot tunnel service를 재시작하고 `/flow`, `/calendar`, `/attendance`, `/_app/version.json`, `/admin/api/health`가 tenant admind로 가는지 확인합니다.
+
+`bootstrap-mattermost`는 Mattermost 리소스만 보정합니다. 고객에게 pilot URL을 열기 전에는 각 tenant의 admin 계정이 `internkim` team member인지, `/flow`, `/calendar`, `/attendance`, `/_app` 라우트가 해당 tenant의 admind로 가는지, 해당 tenant의 Blueclaw/capabilityd가 같은 tenant Mattermost bot token과 `LLM_DEVICE_TOKEN`으로 기동 중인지 확인해야 합니다. 실제 smoke는 `@internkim` 테스트 post를 만들고 reply를 확인한 뒤 원문과 reply를 삭제합니다. 기존 단일 `internkim-admind`, `internkim-capabilityd`, `blueclaw.service`를 pilot 여러 개에 공유하면 웹/메모리/워크스페이스/비밀값이 섞이므로 customer-ready 상태로 보지 않습니다. 코드와 binary는 공유하되 runtime state, workspace, bot token, admin secret, LLM device token은 tenant별로 분리합니다.
 
 ## 구성 요소
 
