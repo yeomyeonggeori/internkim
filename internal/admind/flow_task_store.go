@@ -84,6 +84,32 @@ WHERE id = ?`, taskID)
 	return task, true, rows.Err()
 }
 
+func (service *Service) readFlowTasksWithMattermostPosts(ctx context.Context) ([]flowTask, error) {
+	database, errorValue := service.openFlowDatabase(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer database.Close()
+	rows, errorValue := database.QueryContext(ctx, `
+SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id
+FROM flow_tasks
+WHERE mattermost_post_id != ''
+ORDER BY updated_at DESC`)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer rows.Close()
+	tasks := []flowTask{}
+	for rows.Next() {
+		task, errorValue := scanFlowTask(rows)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		tasks = append(tasks, task)
+	}
+	return tasks, rows.Err()
+}
+
 func (service *Service) existingFlowMattermostPostID(ctx context.Context, taskID string) string {
 	task, found, errorValue := service.readFlowTaskByID(ctx, taskID)
 	if errorValue != nil || !found {

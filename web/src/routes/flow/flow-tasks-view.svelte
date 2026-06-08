@@ -12,12 +12,13 @@
 	type Props = {
 		summary: FlowSummary | null;
 		activeMemberID: string;
+		focusedTaskID: string;
 		text: FlowPageText;
 		loadFlow: (week: string) => Promise<void>;
 		setPageErrorMessage: (message: string) => void;
 	};
 
-	let { summary, activeMemberID, text, loadFlow, setPageErrorMessage }: Props = $props();
+	let { summary, activeMemberID, focusedTaskID, text, loadFlow, setPageErrorMessage }: Props = $props();
 
 	const page = createFlowTasksController();
 
@@ -65,6 +66,7 @@
 		statusLabel={page.statusLabel}
 		updateTaskStatus={page.updateTaskStatus}
 		openTask={page.openTask}
+		{focusedTaskID}
 	/>
 </div>
 
