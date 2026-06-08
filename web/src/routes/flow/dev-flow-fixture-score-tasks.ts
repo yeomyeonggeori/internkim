@@ -1,4 +1,3 @@
-// Dev Flow mock의 점수 계산용 기간 업무 생성을 담당합니다.
 import { addDays, monthStartISO } from './dev-flow-fixture-date';
 import type { FlowTask, FlowWeek } from './flow-types';
 

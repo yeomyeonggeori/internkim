@@ -1,4 +1,3 @@
-// Flow 기본 정의와 정의 입력 정리를 담당합니다.
 package admind
 
 import (

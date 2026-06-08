@@ -1,4 +1,3 @@
-// Flow 전역 식별자와 공통 문자열 helper를 담당합니다.
 package admind
 
 import (
