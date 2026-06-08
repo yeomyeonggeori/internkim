@@ -208,7 +208,7 @@ function calculateMemberDistances(members: FlowMember[], tasks: FlowTask[], defi
 }
 
 function applyMemberScores(members: FlowMember[], scores: Record<string, number>): FlowMember[] {
-	return members.map((member) => ({ ...member, score: scores[member.name] ?? 0 }));
+	return members.map((member) => ({ ...member, score: scores[member.id] ?? 0 }));
 }
 
 function buildPreviousMonthDistances(dayCount: number, currentTotal: number): number[] {

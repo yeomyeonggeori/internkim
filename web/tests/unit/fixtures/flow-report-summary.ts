@@ -13,6 +13,11 @@ export type FlowReportFixtureMetrics = {
 	memberScores: Record<string, number>;
 };
 
+export type FlowReportFixtureMember = {
+	id: string;
+	name: string;
+};
+
 export type FlowReportFixtureTask = {
 	participantNames: string[];
 	business: string;
@@ -89,13 +94,21 @@ export const flowReportFixtureMetrics: FlowReportFixtureMetrics = {
 		장가칭: 0
 	},
 	memberScores: {
-		김표본: 144,
-		박예시: 135,
-		최견본: 0,
-		정의: 0,
-		장가칭: 0
+		'member-kim': 144,
+		'member-park': 135,
+		'member-lee': 0,
+		'member-jeong': 0,
+		'member-jang': 0
 	}
 };
+
+export const flowReportFixtureMembers: FlowReportFixtureMember[] = [
+	{ id: 'member-kim', name: '김표본' },
+	{ id: 'member-park', name: '박예시' },
+	{ id: 'member-lee', name: '최견본' },
+	{ id: 'member-jeong', name: '정의' },
+	{ id: 'member-jang', name: '장가칭' }
+];
 
 export const flowReportFixtureDefinitions: FlowReportFixtureDefinitions = {
 	categories: ['여명거리', '김인턴'],

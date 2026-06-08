@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { buildFlowReportSections } from '../../src/routes/flow/report/flow-report-data';
 import type { FlowReportCopy, FlowReportMetrics } from '../../src/routes/flow/report/flow-report-data';
-import { flowReportFixtureDefinitions, flowReportFixtureMetrics, flowReportFixtureSnapshot, flowReportFixtureTasks } from './fixtures/flow-report-summary';
+import { flowReportFixtureDefinitions, flowReportFixtureMembers, flowReportFixtureMetrics, flowReportFixtureSnapshot, flowReportFixtureTasks } from './fixtures/flow-report-summary';
 
 const koreanReportCopy: FlowReportCopy = {
 	weekdays: ['월', '화', '수', '목', '금', '토', '일'],
@@ -47,6 +47,7 @@ describe('buildFlowReportSections', () => {
 			copy: koreanReportCopy,
 			report: flowReportFixtureSnapshot,
 			tasks: flowReportFixtureTasks,
+			members: flowReportFixtureMembers,
 			definitions: flowReportFixtureDefinitions,
 			weekStartISO: '2026-06-01'
 		});
@@ -153,6 +154,7 @@ describe('buildFlowReportSections', () => {
 			},
 			copy: koreanReportCopy,
 			tasks: flowReportFixtureTasks,
+			members: flowReportFixtureMembers,
 			definitions: flowReportFixtureDefinitions
 		});
 
@@ -186,6 +188,7 @@ describe('buildFlowReportSections', () => {
 				monthlyDayLabelTemplate: 'Day {day}'
 			},
 			report: flowReportFixtureSnapshot,
+			members: flowReportFixtureMembers,
 			tasks: [
 				...flowReportFixtureTasks,
 				{ participantNames: ['정의'], business: '', type: '구현', size: 'S', status: '완료', startDate: '2026-06-01', endDate: '2026-06-01' }
@@ -208,5 +211,44 @@ describe('buildFlowReportSections', () => {
 		expect(sections.monthlyDistanceTrend.trend.currentLabel).toBe('This month');
 		expect(sections.monthlyDistanceTrend.trend.previousLabel).toBe('Last month');
 		expect(sections.monthlyDistanceTrend.trend.labelTemplate).toBe('Day {day}');
+	});
+
+	test('disambiguates duplicate member names when score metrics are keyed by member id', () => {
+		const sections = buildFlowReportSections(
+			{
+				totalTasks: 0,
+				completedTasks: 0,
+				requestedTasks: 0,
+				pausedTasks: 0,
+				stoppedTasks: 0,
+				totalDistance: 0,
+				totalScore: 18,
+				statusCounts: {},
+				businessCounts: {},
+				typeCounts: {},
+				memberDistances: {},
+				memberScores: {
+					'member-a': 10,
+					'member-b': 8
+				}
+			},
+			{
+				emptyLabel: '이번 주 데이터 없음',
+				sectionLabels: {
+					weeklyStatus: { title: '주간 상태', description: '' },
+					memberDistance: { title: '구성원 점수', description: '' },
+					weeklyDistanceTrend: { title: '주간 통계', description: '' },
+					monthlyDistanceTrend: { title: '월간 통계', description: '' },
+					businessDistance: { title: '대분류별 업무', description: '' }
+				},
+				copy: koreanReportCopy,
+				members: [
+					{ id: 'member-a', name: '김철수' },
+					{ id: 'member-b', name: '김철수' }
+				]
+			}
+		);
+
+		expect(sections.memberDistance.rows.map((row) => row.label)).toEqual(['김철수 (member-a)', '김철수 (member-b)']);
 	});
 });
