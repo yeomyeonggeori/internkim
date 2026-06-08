@@ -23,6 +23,9 @@ describe('createDevFlowSummary', () => {
 			engineer: 134,
 			qa: 137
 		});
+		expect(summary.metrics.memberScoreDetails.qa).toMatchObject({
+			currentScore: 137
+		});
 		expect(summary.metrics.totalScore).toBe(778);
 		expect(summary.members.find((member) => member.name === '윤도현')?.score).toBe(137);
 		expect(summary.tasks.length > 0).toBe(true);

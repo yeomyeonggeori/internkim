@@ -66,18 +66,25 @@ type flowTask struct {
 }
 
 type flowMetrics struct {
-	TotalTasks      int            `json:"totalTasks"`
-	CompletedTasks  int            `json:"completedTasks"`
-	RequestedTasks  int            `json:"requestedTasks"`
-	PausedTasks     int            `json:"pausedTasks"`
-	StoppedTasks    int            `json:"stoppedTasks"`
-	TotalDistance   int            `json:"totalDistance"`
-	TotalScore      int            `json:"totalScore"`
-	StatusCounts    map[string]int `json:"statusCounts"`
-	BusinessCounts  map[string]int `json:"businessCounts"`
-	TypeCounts      map[string]int `json:"typeCounts"`
-	MemberDistances map[string]int `json:"memberDistances"`
-	MemberScores    map[string]int `json:"memberScores"`
+	TotalTasks         int                            `json:"totalTasks"`
+	CompletedTasks     int                            `json:"completedTasks"`
+	RequestedTasks     int                            `json:"requestedTasks"`
+	PausedTasks        int                            `json:"pausedTasks"`
+	StoppedTasks       int                            `json:"stoppedTasks"`
+	TotalDistance      int                            `json:"totalDistance"`
+	TotalScore         int                            `json:"totalScore"`
+	StatusCounts       map[string]int                 `json:"statusCounts"`
+	BusinessCounts     map[string]int                 `json:"businessCounts"`
+	TypeCounts         map[string]int                 `json:"typeCounts"`
+	MemberDistances    map[string]int                 `json:"memberDistances"`
+	MemberScores       map[string]int                 `json:"memberScores"`
+	MemberScoreDetails map[string]flowMemberScoreItem `json:"memberScoreDetails"`
+}
+
+type flowMemberScoreItem struct {
+	WeeklyScore  int `json:"weeklyScore"`
+	MonthlyScore int `json:"monthlyScore"`
+	CurrentScore int `json:"currentScore"`
 }
 
 type flowReport struct {

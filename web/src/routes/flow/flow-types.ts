@@ -55,6 +55,13 @@ export type FlowMetrics = {
 	typeCounts: Record<string, number>;
 	memberDistances?: Record<string, number>;
 	memberScores?: Record<string, number>;
+	memberScoreDetails?: Record<string, FlowMemberScoreDetail>;
+};
+
+export type FlowMemberScoreDetail = {
+	weeklyScore: number;
+	monthlyScore: number;
+	currentScore: number;
 };
 
 export type FlowSizeDefinition = {

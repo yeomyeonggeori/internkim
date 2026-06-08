@@ -3,7 +3,14 @@ import { buildMemberScoreSection } from './flow-member-score-section';
 import { averagePositiveValue } from './flow-report-section-helpers';
 import { buildTrendSection } from './flow-trend-section';
 import { buildWeeklyTypeDistanceSection } from './flow-weekly-type-distance-section';
-import type { FlowReportDefinitions, FlowReportMember, FlowReportMetrics, FlowReportOptions, FlowReportSections } from './flow-report-types';
+import type {
+	FlowReportDefinitions,
+	FlowReportMember,
+	FlowReportMemberScoreDetail,
+	FlowReportMetrics,
+	FlowReportOptions,
+	FlowReportSections
+} from './flow-report-types';
 
 export type {
 	FlowReportChartKind,
@@ -11,6 +18,7 @@ export type {
 	FlowReportDefinitions,
 	FlowReportItem,
 	FlowReportMember,
+	FlowReportMemberScoreDetail,
 	FlowReportMetrics,
 	FlowReportOptions,
 	FlowReportRow,
@@ -86,10 +94,15 @@ export function buildFlowReportSections(metrics: FlowReportMetrics, options: Flo
 }
 
 function scoresFromMetrics(metrics: FlowReportMetrics, members: FlowReportMember[]): FlowMetricScores {
-	const scores = metrics.memberScores ?? metrics.memberDistances ?? {};
+	const scores = currentScoresFromDetails(metrics.memberScoreDetails) ?? metrics.memberScores ?? metrics.memberDistances ?? {};
 	return {
 		memberScores: labelMemberScores(scores, members)
 	};
+}
+
+function currentScoresFromDetails(details: Record<string, FlowReportMemberScoreDetail> | undefined): Record<string, number> | undefined {
+	if (!details) return undefined;
+	return Object.fromEntries(Object.entries(details).map(([memberKey, detail]) => [memberKey, detail.currentScore]));
 }
 
 function labelMemberScores(scores: Record<string, number>, members: FlowReportMember[]): Record<string, number> {

@@ -11,6 +11,13 @@ export type FlowReportFixtureMetrics = {
 	typeCounts: Record<string, number>;
 	memberDistances: Record<string, number>;
 	memberScores: Record<string, number>;
+	memberScoreDetails: Record<string, FlowReportFixtureMemberScoreDetail>;
+};
+
+export type FlowReportFixtureMemberScoreDetail = {
+	weeklyScore: number;
+	monthlyScore: number;
+	currentScore: number;
 };
 
 export type FlowReportFixtureMember = {
@@ -99,6 +106,13 @@ export const flowReportFixtureMetrics: FlowReportFixtureMetrics = {
 		'member-lee': 0,
 		'member-jeong': 0,
 		'member-jang': 0
+	},
+	memberScoreDetails: {
+		'member-kim': { weeklyScore: 115, monthlyScore: 173, currentScore: 144 },
+		'member-park': { weeklyScore: 155, monthlyScore: 115, currentScore: 135 },
+		'member-lee': { weeklyScore: 0, monthlyScore: 0, currentScore: 0 },
+		'member-jeong': { weeklyScore: 0, monthlyScore: 0, currentScore: 0 },
+		'member-jang': { weeklyScore: 0, monthlyScore: 0, currentScore: 0 }
 	}
 };
 
