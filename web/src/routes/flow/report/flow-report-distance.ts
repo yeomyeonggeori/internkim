@@ -1,31 +1,25 @@
-import { isFlowStatusCompleted, isFlowStatusInProgress } from '../flow-status';
+import { isFlowStatusCompleted } from '../flow-status';
 import type { FlowReportDefinitions, FlowReportTask } from './flow-report-types';
 
-export function distanceForTaskProgress(task: FlowReportTask, definitions: FlowReportDefinitions): number {
-	const distance = distanceForTaskSize(task.size, definitions);
-	if (isFlowStatusCompleted(task.status)) return distance;
-	if (isFlowStatusInProgress(task.status)) return Math.floor(distance / 2);
-	return 0;
+export function completedDistanceForTask(task: FlowReportTask, definitions: FlowReportDefinitions): number {
+	if (!isFlowStatusCompleted(task.status)) return 0;
+	return distanceForTaskSize(task.size, definitions);
 }
 
 export function taskTeamDistance(task: FlowReportTask, definitions: FlowReportDefinitions): number {
-	return distanceForTaskProgress(task, definitions) * participantCount(task);
+	return completedDistanceForTask(task, definitions);
 }
 
 export function weeklyTaskDayIndex(task: FlowReportTask, weekStartISO: string | undefined): number {
 	if (!weekStartISO) return -1;
-	const taskDate = distanceDateForTask(task);
+	const taskDate = completedTaskEndDate(task);
 	if (!taskDate) return -1;
 	return dateOffset(weekStartISO, taskDate);
 }
 
-function participantCount(task: FlowReportTask): number {
-	return Math.max(1, task.participantNames.length);
-}
-
-function distanceDateForTask(task: FlowReportTask): string {
-	if (isFlowStatusCompleted(task.status) && task.endDate?.trim()) return task.endDate.trim();
-	return task.startDate?.trim() ?? '';
+function completedTaskEndDate(task: FlowReportTask): string {
+	if (!isFlowStatusCompleted(task.status)) return '';
+	return task.endDate?.trim() ?? '';
 }
 
 function dateOffset(startISO: string, value: string): number {

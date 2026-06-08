@@ -59,7 +59,7 @@ export const flowReportFixtureMetrics: FlowReportFixtureMetrics = {
 	requestedTasks: 2,
 	pausedTasks: 1,
 	stoppedTasks: 1,
-	totalDistance: 27,
+	totalDistance: 7,
 	statusCounts: {
 		완료: 5,
 		진행: 4,
@@ -79,10 +79,10 @@ export const flowReportFixtureMetrics: FlowReportFixtureMetrics = {
 		검증: 3
 	},
 	memberDistances: {
-		김여명: 11,
-		박세은: 7,
-		이찬희: 5,
-		정의: 4,
+		김여명: 5,
+		박세은: 2,
+		이찬희: 0,
+		정의: 0,
 		장석민: 0
 	}
 };

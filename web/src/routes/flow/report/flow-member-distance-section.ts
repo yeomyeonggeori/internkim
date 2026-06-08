@@ -1,4 +1,4 @@
-import { distanceForTaskProgress } from './flow-report-distance';
+import { completedDistanceForTask } from './flow-report-distance';
 import { emptyTrend, incrementNested, percentage, sortedTypeDistances, typeIndex } from './flow-report-section-helpers';
 import type { FlowReportCopy, FlowReportDefinitions, FlowReportRow, FlowReportSection, FlowReportSectionID, FlowReportSectionLabel, FlowReportTask } from './flow-report-types';
 
@@ -16,7 +16,7 @@ type BuildMemberDistanceSectionInput = {
 export function buildMemberDistanceSection(input: BuildMemberDistanceSectionInput): FlowReportSection {
 	const rowTotals = new Map<string, Map<string, number>>();
 	for (const task of input.tasks) {
-		const distance = distanceForTaskProgress(task, input.definitions);
+		const distance = completedDistanceForTask(task, input.definitions);
 		if (distance <= 0) continue;
 		for (const participantName of task.participantNames) {
 			incrementNested(rowTotals, participantName, task.type, distance);

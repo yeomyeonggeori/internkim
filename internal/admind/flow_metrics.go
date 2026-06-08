@@ -29,7 +29,7 @@ func buildFlowMetrics(tasks []flowTask, definitions flowDefinitions) flowMetrics
 		if isFlowStoppedStatus(task.Status) {
 			metrics.StoppedTasks++
 		}
-		distance := progressDistanceForTask(task, definitions)
+		distance := completedDistanceForTask(task, definitions)
 		metrics.TotalDistance += distance
 		metrics.TotalScore += distance
 		for _, name := range task.ParticipantNames {
@@ -40,18 +40,11 @@ func buildFlowMetrics(tasks []flowTask, definitions flowDefinitions) flowMetrics
 	return metrics
 }
 
-func progressDistanceForTask(task flowTask, definitions flowDefinitions) int {
-	distance := distanceForTaskSize(task.Size, definitions.Sizes)
-	switch {
-	case isFlowCompletedStatus(task.Status):
-		return distance
-	case isFlowInProgressStatus(task.Status):
-		return distance / 2
-	case isFlowRequestedStatus(task.Status), isFlowPlannedStatus(task.Status), isFlowPausedStatus(task.Status):
-		return 0
-	default:
+func completedDistanceForTask(task flowTask, definitions flowDefinitions) int {
+	if !isFlowCompletedStatus(task.Status) {
 		return 0
 	}
+	return distanceForTaskSize(task.Size, definitions.Sizes)
 }
 
 func distanceForTaskSize(sizeName string, definitions []flowSizeDefinition) int {
