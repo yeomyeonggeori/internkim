@@ -193,9 +193,28 @@ INTERNKIM_BLUECLAW_USE_LOCAL=1 ./internkim setup --only binaries,blueclaw-payloa
 
 Firecracker runtime payload에 Blueclaw Go 소스 변경을 확실히 포함해야 할 때는 setup 전에 `make prepare-blueclaw-payload`를 실행하고, 이어지는 setup에는 `INTERNKIM_BLUECLAW_USE_LOCAL=1`을 유지하세요. Skill/script만 바꾸는 경우에도 payload 또는 workspace skill 배포가 필요합니다. Lab setup은 이 로컬 Blueclaw 모드를 기본으로 켭니다.
 
-### Manual Release Updates
+### OTA Release Deploy
 
-제품 업데이트는 v1에서 자동 설치하지 않습니다. 개발 머신이나 CI가 검증된 release set을 R2에 publish하고, 각 기기는 Admin Web UI에서 현재 release와 stable release를 비교한 뒤 운영자가 버튼을 눌러 적용합니다. 기기는 component별 latest를 따로 적용하지 않고 하나의 release set만 적용합니다.
+일상 배포는 SSH 직접 복사 대신 OTA release apply 엔진을 사용합니다. `internkim deploy`는 로컬 빌드 산출물로 release manifest와 component bundle을 만들고, Admin HTTPS에 signed direct upload로 올린 뒤 기기 안의 기존 OTA apply engine을 실행합니다. SSH는 초기 설치, admind direct-upload route가 없는 구버전 bootstrap, systemd deep repair 용도로 남깁니다.
+
+```bash
+make build
+./internkim deploy --components capabilityd
+./internkim deploy --components admind,capabilityd
+```
+
+`--components`를 생략하면 전체 release set을 만듭니다. 전체 release에는 board UI와 Blueclaw payload 산출물이 필요합니다.
+
+```bash
+cd web && bun run build:board
+cd ..
+make prepare-blueclaw-payload
+./internkim deploy
+```
+
+기기는 component별 latest를 따로 적용하지 않고 하나의 manifest를 current release로 기록합니다. direct upload release도 R2 release와 같은 `releaseset.Manifest`, component checksum 검증, staging, install, service restart, current manifest 기록 흐름을 사용합니다.
+
+R2는 여러 기기가 가져갈 stable release channel을 publish할 때 사용합니다.
 
 Publish에 필요한 R2 환경 변수:
 
@@ -217,14 +236,14 @@ make prepare-blueclaw-payload
 ./internkim release publish
 ```
 
-기기 상태와 적용은 CLI에서도 같은 release set API를 사용합니다.
+R2 stable channel 상태와 적용은 CLI에서도 같은 release set API를 사용합니다.
 
 ```bash
 ./internkim update check --profile dawn --node 1
 ./internkim update apply --profile dawn --node 1
 ```
 
-`blueclaw-payload-direct`는 복구와 디버그용 fallback입니다. 일반 업데이트는 release set publish와 Admin Web UI 또는 `internkim update apply`를 사용하세요.
+`setup --only admind --force`는 direct upload route가 아직 없는 기기를 첫 1회 bootstrap하거나 Admin HTTPS가 죽었을 때 복구하는 경로입니다. `blueclaw-payload-direct`와 `deploy --legacy-ssh`는 복구와 디버그용 fallback입니다.
 
 주요 setup 단계:
 1. SSH로 Jetson 연결
@@ -257,8 +276,8 @@ make deps-sim
 # 변경 없이 실행 계획 확인
 ./internkim sim gate --plan
 
-# sim gate 성공 후 웹 포함 실기기 배포
-./internkim update --sim-first
+# sim gate 성공 후 OTA로 실기기 배포
+./internkim deploy
 
 # Makefile alias
 make sim-gate
@@ -271,7 +290,7 @@ make deploy-after-sim
 ./internkim sim cleanup
 ```
 
-`internkim update --sim-first`는 먼저 `make build`와 `internkim sim gate`를 실행하고, gate가 성공한 경우에만 실기기 `setup --only web,binaries,services --force`를 진행합니다. 실기기 배포 직전 sim tunnel 충돌을 피하기 위해 sim VM 또는 cloudflared를 중지합니다. gate가 실패하면 실기기 배포는 중단하고 실패한 단계의 로그를 먼저 확인해야 합니다.
+실기기 배포 전에는 `make build`와 `internkim sim gate`를 먼저 통과시키고, gate가 성공한 뒤 `internkim deploy`로 OTA release를 적용합니다. 실기기 배포 직전 sim tunnel 충돌을 피하기 위해 sim VM 또는 cloudflared를 중지합니다. gate가 실패하면 실기기 배포는 중단하고 실패한 단계의 로그를 먼저 확인해야 합니다.
 
 `sim`은 `.internkim/simulations/sim` 상태만 사용하며 실기기 상태와 fleet/tunnel 값이 겹치면 실행을 중단합니다. Cloudflare Pages 배포는 sim에서 건너뛰고, VM 내부 board UI와 public URL smoke를 검증합니다. Jetson 전용 LiteRT/GPU smoke는 sim에서 `not applicable`입니다.
 

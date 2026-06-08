@@ -86,7 +86,8 @@ sim-gate: build
 	./internkim sim gate
 
 deploy-after-sim: build
-	./internkim update --sim-first
+	./internkim sim gate
+	./internkim deploy
 
 verify-api: build
 	./internkim verify api
