@@ -48,6 +48,10 @@ func (service *Service) handleMemory(responseWriter http.ResponseWriter, request
 		service.writeUserMemoryGraph(responseWriter, request)
 		return
 	}
+	if request.Method == http.MethodGet && path == "/schedules" {
+		service.writeUserMemorySchedules(responseWriter, request)
+		return
+	}
 	http.NotFound(responseWriter, request)
 }
 
