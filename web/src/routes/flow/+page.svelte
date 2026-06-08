@@ -88,6 +88,8 @@
 				weekdays: [...text.report.weekdays],
 				fallbackType: text.report.fallbackType,
 				fallbackBusiness: text.report.fallbackBusiness,
+				memberScoreLabel: text.report.memberScoreLabel,
+				scoreUnit: text.report.scoreUnit,
 				teamAverageLabel: text.report.teamAverageLabel,
 				memberScrollHint: text.report.memberScrollHint,
 				currentWeekTrend: text.report.currentWeekTrend,

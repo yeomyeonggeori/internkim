@@ -1,5 +1,5 @@
 import { buildBusinessDistanceSection } from './flow-business-distance-section';
-import { buildMemberDistanceSection } from './flow-member-distance-section';
+import { buildMemberScoreSection } from './flow-member-score-section';
 import { averagePositiveValue } from './flow-report-section-helpers';
 import { buildTrendSection } from './flow-trend-section';
 import { buildWeeklyTypeDistanceSection } from './flow-weekly-type-distance-section';
@@ -25,8 +25,8 @@ export type {
 	FlowReportTrend
 } from './flow-report-types';
 
-type FlowMetricDistances = {
-	memberDistances: Record<string, number>;
+type FlowMetricScores = {
+	memberScores: Record<string, number>;
 };
 
 const emptyDefinitions: FlowReportDefinitions = {
@@ -38,7 +38,7 @@ const emptyDefinitions: FlowReportDefinitions = {
 export function buildFlowReportSections(metrics: FlowReportMetrics, options: FlowReportOptions): FlowReportSections {
 	const definitions = options.definitions ?? emptyDefinitions;
 	const tasks = options.tasks ?? [];
-	const metricDistances = distancesFromMetrics(metrics);
+	const metricScores = scoresFromMetrics(metrics);
 	const copy = options.copy;
 
 	return {
@@ -51,15 +51,13 @@ export function buildFlowReportSections(metrics: FlowReportMetrics, options: Flo
 			definitions,
 			weekStartISO: options.weekStartISO
 		}),
-		memberDistance: buildMemberDistanceSection({
+		memberDistance: buildMemberScoreSection({
 			id: 'memberDistance',
 			labels: options.sectionLabels.memberDistance,
 			emptyLabel: options.emptyLabel,
 			copy,
-			tasks,
-			definitions,
-			memberDistances: metricDistances.memberDistances,
-			averageValue: averagePositiveValue(metricDistances.memberDistances)
+			memberScores: metricScores.memberScores,
+			averageValue: averagePositiveValue(metricScores.memberScores)
 		}),
 		weeklyDistanceTrend: buildTrendSection({
 			id: 'weeklyDistanceTrend',
@@ -86,8 +84,8 @@ export function buildFlowReportSections(metrics: FlowReportMetrics, options: Flo
 	};
 }
 
-function distancesFromMetrics(metrics: FlowReportMetrics): FlowMetricDistances {
+function scoresFromMetrics(metrics: FlowReportMetrics): FlowMetricScores {
 	return {
-		memberDistances: metrics.memberDistances ?? metrics.memberScores ?? {}
+		memberScores: metrics.memberScores ?? metrics.memberDistances ?? {}
 	};
 }
