@@ -1,15 +1,16 @@
 import { expect, test } from 'bun:test';
 
 import { syncRemoteCalendarAndRefreshConflicts } from '../../../src/routes/calendar/embed/calendar-remote-sync';
+import { createFetchMock } from '../test-fetch';
 
 test('loads conflicts after remote sync and calendar refresh complete', async () => {
 	const originalFetch = globalThis.fetch;
 	const calls: string[] = [];
 	try {
-		const mockFetch: typeof fetch = async (input) => {
+		const mockFetch = createFetchMock(async (input) => {
 			calls.push(`fetch:${String(input)}`);
 			return new Response('{}', { status: 200 });
-		};
+		});
 		globalThis.fetch = mockFetch;
 
 		await syncRemoteCalendarAndRefreshConflicts(
@@ -32,10 +33,10 @@ test('loads conflicts after remote sync fails', async () => {
 	const originalFetch = globalThis.fetch;
 	const calls: string[] = [];
 	try {
-		const mockFetch: typeof fetch = async (input) => {
+		const mockFetch = createFetchMock(async (input) => {
 			calls.push(`fetch:${String(input)}`);
 			return new Response('Unauthorized', { status: 401 });
-		};
+		});
 		globalThis.fetch = mockFetch;
 
 		let caughtError: unknown;
