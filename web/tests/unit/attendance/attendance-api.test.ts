@@ -7,7 +7,7 @@ describe('fetchAttendanceSummary', () => {
 		const originalFetch = globalThis.fetch;
 
 		let requestedURL = '';
-		try {
+	try {
 			globalThis.fetch = createMockFetch(async (input) => {
 				requestedURL = String(input);
 				return Response.json({
