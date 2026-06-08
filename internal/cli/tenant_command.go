@@ -31,6 +31,8 @@ func runTenant() {
 		runTenantInstallContainer(os.Args[3:])
 	case "bootstrap":
 		runTenantBootstrap(os.Args[3:])
+	case "bootstrap-mattermost":
+		runTenantBootstrapMattermost(os.Args[3:])
 	case "expose-mattermost":
 		runTenantExposeMattermost(os.Args[3:])
 	case "start":
@@ -53,6 +55,7 @@ func printTenantUsage() {
 	fmt.Println("  restore  Restore an encrypted tenant backup")
 	fmt.Println("  install-container  Write the systemd-nspawn container configuration")
 	fmt.Println("  bootstrap  Install tenant rootfs services and gateway token")
+	fmt.Println("  bootstrap-mattermost  Ensure tenant Mattermost team, bot, and default channels")
 	fmt.Println("  expose-mattermost  Start Cloudflare quick tunnels for tenant Mattermost instances")
 	fmt.Println("  start    Start the tenant systemd-nspawn container")
 	fmt.Println("  stop     Stop the tenant systemd-nspawn container")
@@ -225,6 +228,35 @@ func runTenantExposeMattermost(arguments []string) {
 		fatal(errorValue.Error())
 	}
 	printMattermostExposures(exposures)
+}
+
+func runTenantBootstrapMattermost(arguments []string) {
+	flags := flag.NewFlagSet("tenant bootstrap-mattermost", flag.ExitOnError)
+	credentialsPath := flags.String("credentials", "", "tenant Mattermost credentials JSON path")
+	baseURLTemplate := flags.String("base-url-template", "http://127.0.0.1:{port}", "Mattermost base URL template containing {tenant} or {port}")
+	publicURLTemplate := flags.String("public-url-template", "", "tenant public URL template containing {tenant}")
+	portStart := flags.Int("port-start", 18065, "first tenant Mattermost port")
+	language := flags.String("language", "ko", "workspace language")
+	tokenOutputRoot := flags.String("token-output-root", "", "optional tenant root for writing Mattermost bot tokens")
+	if errorValue := flags.Parse(arguments); errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	statuses, errorValue := tenantruntime.BootstrapMattermostFleetResources(tenantruntime.MattermostFleetBootstrapOptions{
+		CredentialsPath:   *credentialsPath,
+		BaseURLTemplate:   *baseURLTemplate,
+		PublicURLTemplate: *publicURLTemplate,
+		PortStart:         *portStart,
+		Language:          *language,
+		TokenOutputRoot:   *tokenOutputRoot,
+	})
+	if errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	document, errorValue := json.MarshalIndent(statuses, "", "  ")
+	if errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	fmt.Println(string(document))
 }
 
 func splitCommaValues(value string) []string {
