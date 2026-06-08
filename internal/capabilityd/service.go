@@ -199,7 +199,7 @@ func DefaultConfiguration() Configuration {
 		OpenRouterGatewaySecretHeader:  "X-InternKim-Gateway-Secret",
 		OpenRouterWebBaseURL:           "https://openrouter.ai/api/v1/chat/completions",
 		OpenRouterEmbeddingBaseURL:     "https://openrouter.ai/api/v1/embeddings",
-		OpenRouterEmbeddingModel:       "embeddinggemma",
+		OpenRouterEmbeddingModel:       "openai/text-embedding-3-small",
 		EmbeddingProviderOrder:         llmbackend.DefaultLocalEmbeddingProviderOrder,
 		OllamaBaseURL:                  "http://127.0.0.1:11434",
 		OllamaModel:                    "gemma3:1b",

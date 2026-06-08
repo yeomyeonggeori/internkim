@@ -15,6 +15,7 @@ import (
 
 type Configuration struct {
 	ProviderChatCompletionsURL string
+	ProviderEmbeddingsURL      string
 	ProviderAPIKeyPath         string
 	DeviceTokensPath           string
 	LedgerPath                 string
@@ -70,6 +71,8 @@ func (service Service) Handler() http.Handler {
 	multiplexer := http.NewServeMux()
 	multiplexer.HandleFunc("POST /api/v1/chat/completions", service.handleChatCompletions)
 	multiplexer.HandleFunc("POST /v1/chat/completions", service.handleChatCompletions)
+	multiplexer.HandleFunc("POST /api/v1/embeddings", service.handleEmbeddings)
+	multiplexer.HandleFunc("POST /v1/embeddings", service.handleEmbeddings)
 	multiplexer.HandleFunc("GET /health", service.handleHealth)
 	return multiplexer
 }
@@ -81,6 +84,14 @@ func (service Service) handleHealth(responseWriter http.ResponseWriter, request 
 }
 
 func (service Service) handleChatCompletions(responseWriter http.ResponseWriter, request *http.Request) {
+	service.handleProviderProxy(responseWriter, request, service.providerChatCompletionsURL())
+}
+
+func (service Service) handleEmbeddings(responseWriter http.ResponseWriter, request *http.Request) {
+	service.handleProviderProxy(responseWriter, request, service.providerEmbeddingsURL())
+}
+
+func (service Service) handleProviderProxy(responseWriter http.ResponseWriter, request *http.Request, providerURL string) {
 	deviceToken, errorValue := service.authenticate(request)
 	if errorValue != nil {
 		writeJSONError(responseWriter, http.StatusUnauthorized, errorValue.Error())
@@ -99,7 +110,7 @@ func (service Service) handleChatCompletions(responseWriter http.ResponseWriter,
 		writeJSONError(responseWriter, http.StatusBadRequest, "read request body: "+errorValue.Error())
 		return
 	}
-	providerResponse, responseDocument, errorValue := service.proxyChatCompletions(request.Context(), deviceToken, requestDocument)
+	providerResponse, responseDocument, errorValue := service.proxyProviderRequest(request.Context(), deviceToken, providerURL, requestDocument)
 	if errorValue != nil {
 		writeJSONError(responseWriter, http.StatusBadGateway, errorValue.Error())
 		return
@@ -150,7 +161,7 @@ func (service Service) checkRateLimitBeforeProvider(deviceToken DeviceToken) err
 	return errors.New("tenant llm rate limit is exceeded")
 }
 
-func (service Service) proxyChatCompletions(ctx context.Context, deviceToken DeviceToken, requestDocument []byte) (*http.Response, []byte, error) {
+func (service Service) proxyProviderRequest(ctx context.Context, deviceToken DeviceToken, providerURL string, requestDocument []byte) (*http.Response, []byte, error) {
 	providerAPIKey := service.providerAPIKey(deviceToken)
 	if providerAPIKey == "" {
 		return nil, nil, errors.New("provider api key is not configured")
@@ -158,7 +169,7 @@ func (service Service) proxyChatCompletions(ctx context.Context, deviceToken Dev
 	providerRequest, errorValue := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		service.Configuration.ProviderChatCompletionsURL,
+		providerURL,
 		bytes.NewReader(requestDocument),
 	)
 	if errorValue != nil {
@@ -176,6 +187,21 @@ func (service Service) proxyChatCompletions(ctx context.Context, deviceToken Dev
 		return nil, nil, errorValue
 	}
 	return providerResponse, responseDocument, nil
+}
+
+func (service Service) providerChatCompletionsURL() string {
+	return strings.TrimSpace(service.Configuration.ProviderChatCompletionsURL)
+}
+
+func (service Service) providerEmbeddingsURL() string {
+	if strings.TrimSpace(service.Configuration.ProviderEmbeddingsURL) != "" {
+		return strings.TrimSpace(service.Configuration.ProviderEmbeddingsURL)
+	}
+	chatURL := strings.TrimSpace(service.Configuration.ProviderChatCompletionsURL)
+	if strings.HasSuffix(chatURL, "/chat/completions") {
+		return strings.TrimSuffix(chatURL, "/chat/completions") + "/embeddings"
+	}
+	return strings.TrimRight(chatURL, "/") + "/embeddings"
 }
 
 func (service Service) providerAPIKey(deviceToken DeviceToken) string {
