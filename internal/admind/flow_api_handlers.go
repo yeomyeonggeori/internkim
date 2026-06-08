@@ -83,13 +83,23 @@ func (service *Service) writeFlowSummary(responseWriter http.ResponseWriter, req
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
+	scoreStart, scoreEnd := flowScoreDateRange(weekStart)
+	scoreTasks, errorValue := service.readFlowTasksBetweenDates(request.Context(), scoreStart.Format("2006-01-02"), scoreEnd.Format("2006-01-02"), members)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
 	callerEmail := service.flowActorEmail(request)
-	distanceMembers := calculateFlowMemberDistances(members, tasks, definitions)
+	memberScores := buildFlowMemberScores(scoreTasks, members, definitions, weekStart)
+	distanceMembers := applyFlowMemberScores(calculateFlowMemberDistances(members, tasks, definitions), memberScores)
+	metrics := buildFlowMetrics(tasks, definitions)
+	metrics.MemberScores = memberScores
+	metrics.TotalScore = totalFlowScore(memberScores)
 	response := flowSummaryResponse{
 		Week:             buildFlowWeek(weekCode, weekStart, now),
 		Members:          distanceMembers,
 		Tasks:            tasks,
-		Metrics:          buildFlowMetrics(tasks, definitions),
+		Metrics:          metrics,
 		Definitions:      definitions,
 		Report:           report,
 		StatusOptions:    flowStatusOptions(),

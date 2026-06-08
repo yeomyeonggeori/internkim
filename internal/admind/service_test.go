@@ -2014,6 +2014,12 @@ func TestFlowSummaryIncludesDistanceReport(t *testing.T) {
 	if len(summary.Report.MonthlyDistanceTrend.CurrentValues) != 30 || summary.Report.MonthlyDistanceTrend.CurrentValues[28] != 5 {
 		t.Fatalf("monthly values = %+v", summary.Report.MonthlyDistanceTrend.CurrentValues)
 	}
+	if summary.Metrics.MemberScores["Staff"] != 144 || summary.Metrics.MemberScores["Other"] != 135 {
+		t.Fatalf("member scores = %+v", summary.Metrics.MemberScores)
+	}
+	if summary.Metrics.TotalScore != 279 {
+		t.Fatalf("total score = %d, want 279", summary.Metrics.TotalScore)
+	}
 }
 
 func TestWebSessionRejectsExpiredTamperedAndStaleCookies(t *testing.T) {
