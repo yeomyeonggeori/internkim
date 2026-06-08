@@ -90,6 +90,14 @@ func TestBuildFlowMetricsCountsCompletedDistanceAndKeepsLegacyScoreAliases(t *te
 			Type:             "기능",
 			Size:             "M",
 			Status:           "완료",
+			EndDate:          "2026-06-02",
+		},
+		{
+			ParticipantNames: []string{"김철수"},
+			Business:         "여명거리",
+			Type:             "개선",
+			Size:             "M",
+			Status:           "완료",
 		},
 		{
 			ParticipantNames: []string{"김철수"},

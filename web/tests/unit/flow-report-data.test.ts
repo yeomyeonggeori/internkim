@@ -136,6 +136,61 @@ describe('buildFlowReportSections', () => {
 		expect(sections.businessDistance.maxValue).toBe(1);
 	});
 
+	test('excludes completed tasks without end dates from distance sections', () => {
+		const sections = buildFlowReportSections(
+			{
+				totalTasks: 2,
+				completedTasks: 2,
+				requestedTasks: 0,
+				pausedTasks: 0,
+				stoppedTasks: 0,
+				totalDistance: 3,
+				statusCounts: { 완료: 2 },
+				businessCounts: { 여명거리: 2 },
+				typeCounts: { 구현: 2 },
+				memberDistances: { 김표본: 3 }
+			},
+			{
+				emptyLabel: '이번 주 데이터 없음',
+				sectionLabels: {
+					weeklyStatus: { title: '주간 상태', description: '' },
+					memberDistance: { title: '구성원 점수', description: '' },
+					weeklyDistanceTrend: { title: '주간 통계', description: '' },
+					monthlyDistanceTrend: { title: '월간 통계', description: '' },
+					businessDistance: { title: '사업 거리', description: '' }
+				},
+				copy: koreanReportCopy,
+				tasks: [
+					{
+						participantNames: ['김표본'],
+						business: '여명거리',
+						type: '구현',
+						size: 'M',
+						status: '완료',
+						startDate: '',
+						endDate: '2026-06-02'
+					},
+					{
+						participantNames: ['김표본'],
+						business: '여명거리',
+						type: '구현',
+						size: 'M',
+						status: '완료',
+						startDate: '',
+						endDate: ''
+					}
+				],
+				members: flowReportFixtureMembers,
+				definitions: flowReportFixtureDefinitions,
+				weekStartISO: '2026-06-01'
+			}
+		);
+
+		expect(sections.weeklyStatus.total).toBe(3);
+		expect(sections.weeklyStatus.rows.map((row) => row.total)).toEqual([0, 3, 0, 0, 0, 0, 0]);
+		expect(sections.businessDistance.total).toBe(3);
+	});
+
 	test('reads legacy score metrics as distance metrics', () => {
 		const { totalScore, memberScores, memberScoreDetails, ...legacyMetricBase } = flowReportFixtureMetrics;
 		const legacyMetrics: FlowReportMetrics = {
