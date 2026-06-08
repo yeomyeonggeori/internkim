@@ -174,6 +174,14 @@ func TestBuildFlowMemberScoresUsesSpreadsheetWeights(t *testing.T) {
 	}
 }
 
+func TestWeightedFlowScoreUsesRecentFivePeriodBaseline(t *testing.T) {
+	score := weightedFlowScore([]int{4, 3, 2, 1, 0})
+
+	if score < 107.69 || score > 107.70 {
+		t.Fatalf("score = %.2f, want 107.69", score)
+	}
+}
+
 func TestBuildFlowMemberScoresKeepsDuplicateNamesSeparate(t *testing.T) {
 	members := []flowMember{
 		{ID: "member-a", Name: "김철수"},
