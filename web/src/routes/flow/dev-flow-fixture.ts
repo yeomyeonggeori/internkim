@@ -17,6 +17,8 @@ import {
 	devFlowTypes,
 	type DevFlowTaskSpec
 } from './dev-flow-fixture-data';
+import { buildDevFlowMemberScores, totalDevFlowMemberScore } from './dev-flow-fixture-score';
+import { createDevFlowScoreTasks } from './dev-flow-fixture-score-tasks';
 import type { FlowDefinitions, FlowMember, FlowMetrics, FlowSummary, FlowTask, FlowWeek } from './flow-types';
 import type { FlowReportSnapshot, FlowReportTrend } from './report/flow-report-data';
 
@@ -36,13 +38,14 @@ export function createDevFlowSummary(weekCode: string | null | undefined, curren
 	const week = buildFlowWeek(weekCode);
 	const tasks = createFixtureTasks(week);
 	const definitions = { categories: ['여명거리', '김인턴'], types: devFlowTypes, sizes: devFlowSizes };
-	const members = calculateMemberDistances(devFlowMembers, tasks, definitions);
+	const memberScores = buildDevFlowMemberScores(createDevFlowScoreTasks(week, createFixtureTasks), devFlowMembers, definitions, week);
+	const members = applyMemberScores(calculateMemberDistances(devFlowMembers, tasks, definitions), memberScores);
 
 	return {
 		week,
 		members,
 		tasks,
-		metrics: buildMetrics(tasks, definitions),
+		metrics: buildMetrics(tasks, definitions, memberScores),
 		definitions,
 		report: buildReportSnapshot(tasks, members, definitions, week),
 		statusOptions: devFlowStatuses,
@@ -96,7 +99,7 @@ function taskFromSpec(spec: DevFlowTaskSpec, week: FlowWeek): FlowTask {
 	};
 }
 
-function buildMetrics(tasks: FlowTask[], definitions: FlowDefinitions): DevFlowMetrics {
+function buildMetrics(tasks: FlowTask[], definitions: FlowDefinitions, memberScores: Record<string, number>): DevFlowMetrics {
 	const metrics: DevFlowMetrics = {
 		totalTasks: 0,
 		completedTasks: 0,
@@ -104,12 +107,12 @@ function buildMetrics(tasks: FlowTask[], definitions: FlowDefinitions): DevFlowM
 		pausedTasks: 0,
 		stoppedTasks: 0,
 		totalDistance: 0,
-		totalScore: 0,
+		totalScore: totalDevFlowMemberScore(memberScores),
 		statusCounts: {},
 		businessCounts: {},
 		typeCounts: {},
 		memberDistances: {},
-		memberScores: {}
+		memberScores: { ...memberScores }
 	};
 
 	for (const task of tasks) {
@@ -124,10 +127,8 @@ function buildMetrics(tasks: FlowTask[], definitions: FlowDefinitions): DevFlowM
 
 		const distance = completedDistanceForTask(task, definitions);
 		metrics.totalDistance += distance;
-		metrics.totalScore += distance;
 		for (const participantName of task.participantNames) {
 			increment(metrics.memberDistances, participantName, distance);
-			increment(metrics.memberScores, participantName, distance);
 		}
 	}
 
@@ -199,11 +200,15 @@ function calculateMemberDistances(members: FlowMember[], tasks: FlowTask[], defi
 		return {
 			...member,
 			distance,
-			score: distance,
+			score: 0,
 			activeTaskCount: memberTasks.filter((task) => task.status !== '완료' && task.status !== '기각' && task.status !== '중단').length,
 			completeTaskCount: memberTasks.filter((task) => task.status === '완료').length
 		};
 	});
+}
+
+function applyMemberScores(members: FlowMember[], scores: Record<string, number>): FlowMember[] {
+	return members.map((member) => ({ ...member, score: scores[member.name] ?? 0 }));
 }
 
 function buildPreviousMonthDistances(dayCount: number, currentTotal: number): number[] {
