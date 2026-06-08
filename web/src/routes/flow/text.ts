@@ -53,9 +53,9 @@ export const flowText = {
 		},
 		definitions: {
 			size: '크기',
-			sizeDescription: '거리(Km)는 업무 크기 기준입니다. 완료 업무는 전체 거리, 진행 업무는 절반 거리로 반영됩니다.',
+			sizeDescription: '거리(km)는 업무 크기 기준입니다. 완료 업무는 종료일 기준으로 거리와 점수에 반영됩니다.',
 			sizeName: '크기',
-			distance: '거리(Km)',
+			distance: '거리(km)',
 			maxHours: '최대 예상 시간(H)',
 			developmentExample: '예시(개발)',
 			otherExample: '예시(기타)',
@@ -227,7 +227,7 @@ export const flowText = {
 		},
 		definitions: {
 			size: 'Size',
-			sizeDescription: 'Distance (km) is the task size baseline. Completed work receives full distance; active work receives half distance.',
+			sizeDescription: 'Distance (km) is the task size baseline. Completed work is counted toward distance and score by its end date.',
 			sizeName: 'Size',
 			distance: 'Distance (km)',
 			maxHours: 'Max hours',

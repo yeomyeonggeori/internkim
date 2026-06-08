@@ -17,8 +17,14 @@ describe('createDevFlowSummary', () => {
 		expect(summary.source).toBe('dev-mock');
 		expect(summary.members.length).toBe(10);
 		expect(Object.keys(summary.metrics.memberDistances).length).toBe(10);
-		expect(summary.metrics.memberScores).toEqual(summary.metrics.memberDistances);
-		expect(summary.metrics.totalScore).toBe(summary.metrics.totalDistance);
+		expect(summary.metrics.memberScores).not.toEqual(summary.metrics.memberDistances);
+		expect(summary.metrics.memberScores).toMatchObject({
+			이영희: 134,
+			박민준: 134,
+			윤도현: 137
+		});
+		expect(summary.metrics.totalScore).toBe(778);
+		expect(summary.members.find((member) => member.name === '윤도현')?.score).toBe(137);
 		expect(summary.tasks.length > 0).toBe(true);
 		expect(summary.metrics.totalTasks).toBe(summary.tasks.length);
 		expect(summary.report.weeklyDistanceTrend.currentValues.length).toBe(7);
