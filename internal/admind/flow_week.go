@@ -1,4 +1,3 @@
-// Flow 주차 코드와 주간 범위 계산을 담당합니다.
 package admind
 
 import (

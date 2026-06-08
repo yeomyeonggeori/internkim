@@ -1,4 +1,3 @@
-// Dev Flow mock의 구성원 점수 계산을 담당합니다.
 import { isFlowStatusCompleted } from './flow-status';
 import { completedDistanceForTask } from './report/flow-report-distance';
 import type { FlowDefinitions, FlowMember, FlowMemberScoreDetail, FlowTask, FlowWeek } from './flow-types';
