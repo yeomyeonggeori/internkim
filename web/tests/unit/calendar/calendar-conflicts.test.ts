@@ -5,10 +5,13 @@ test('throws server message when dismiss conflict fails', async () => {
 	const originalFetch = globalThis.fetch;
 
 	try {
-		const mockFetch: typeof fetch = async () =>
-			new Response('dismiss failed', {
-				status: 500
-			});
+		const mockFetch = Object.assign(
+			async () =>
+				new Response('dismiss failed', {
+					status: 500
+				}),
+			{ preconnect: originalFetch.preconnect }
+		);
 		globalThis.fetch = mockFetch;
 
 		let caughtError: unknown;
