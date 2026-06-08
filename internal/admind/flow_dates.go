@@ -1,4 +1,3 @@
-// Flow 업무 날짜와 주차 보정을 담당합니다.
 package admind
 
 import (
