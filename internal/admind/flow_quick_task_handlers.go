@@ -51,7 +51,7 @@ func (service *Service) createQuickFlowTask(responseWriter http.ResponseWriter, 
 		RequestReason:  inferredTask.RequestReason,
 	}
 	if shouldForceQuickTaskRequest(owner, requesterEmail) {
-		writeRequest.Status = "요청"
+		writeRequest.Status = flowStatusRequested
 		writeRequest.RequestReason = firstNonEmpty(writeRequest.RequestReason, prompt)
 		includesRequester := shouldIncludeRequesterAsFlowParticipant(writeRequest)
 		if requesterID := memberIDForEmail(members, requesterEmail); requesterID != "" {

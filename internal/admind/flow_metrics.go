@@ -17,16 +17,16 @@ func buildFlowMetrics(tasks []flowTask, definitions flowDefinitions) flowMetrics
 			metrics.BusinessCounts[task.Business]++
 		}
 		metrics.TypeCounts[task.Type]++
-		if task.Status == "완료" {
+		if isFlowCompletedStatus(task.Status) {
 			metrics.CompletedTasks++
 		}
-		if task.Status == "요청" {
+		if isFlowRequestedStatus(task.Status) {
 			metrics.RequestedTasks++
 		}
-		if task.Status == "일시정지" {
+		if isFlowPausedStatus(task.Status) {
 			metrics.PausedTasks++
 		}
-		if task.Status == "중단" {
+		if isFlowStoppedStatus(task.Status) {
 			metrics.StoppedTasks++
 		}
 		distance := progressDistanceForTask(task, definitions)
@@ -42,12 +42,12 @@ func buildFlowMetrics(tasks []flowTask, definitions flowDefinitions) flowMetrics
 
 func progressDistanceForTask(task flowTask, definitions flowDefinitions) int {
 	distance := distanceForTaskSize(task.Size, definitions.Sizes)
-	switch task.Status {
-	case "완료":
+	switch {
+	case isFlowCompletedStatus(task.Status):
 		return distance
-	case "진행":
+	case isFlowInProgressStatus(task.Status):
 		return distance / 2
-	case "요청", "예정", "일시정지":
+	case isFlowRequestedStatus(task.Status), isFlowPlannedStatus(task.Status), isFlowPausedStatus(task.Status):
 		return 0
 	default:
 		return 0

@@ -1,9 +1,10 @@
+import { isFlowStatusCompleted, isFlowStatusInProgress } from '../flow-status';
 import type { FlowReportDefinitions, FlowReportTask } from './flow-report-types';
 
 export function distanceForTaskProgress(task: FlowReportTask, definitions: FlowReportDefinitions): number {
 	const distance = distanceForTaskSize(task.size, definitions);
-	if (task.status === '완료') return distance;
-	if (task.status === '진행') return Math.floor(distance / 2);
+	if (isFlowStatusCompleted(task.status)) return distance;
+	if (isFlowStatusInProgress(task.status)) return Math.floor(distance / 2);
 	return 0;
 }
 
@@ -23,7 +24,7 @@ function participantCount(task: FlowReportTask): number {
 }
 
 function distanceDateForTask(task: FlowReportTask): string {
-	if (task.status === '완료' && task.endDate?.trim()) return task.endDate.trim();
+	if (isFlowStatusCompleted(task.status) && task.endDate?.trim()) return task.endDate.trim();
 	return task.startDate?.trim() ?? '';
 }
 
