@@ -68,7 +68,7 @@ func runReleasePublish(arguments []string) error {
 		return errorValue
 	}
 	defer os.RemoveAll(temporaryDirectoryPath)
-	blobs, errorValue := createReleaseBlobs(repositoryRootPath, temporaryDirectoryPath)
+	blobs, errorValue := createReleaseBlobs(repositoryRootPath, temporaryDirectoryPath, nil)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -130,7 +130,7 @@ func runReleaseStatus(arguments []string) error {
 	return nil
 }
 
-func createReleaseBlobs(repositoryRootPath string, temporaryDirectoryPath string) ([]releaseBlob, error) {
+func createReleaseBlobs(repositoryRootPath string, temporaryDirectoryPath string, selectedComponentNames map[string]bool) ([]releaseBlob, error) {
 	gitRevision := gitRevision(repositoryRootPath)
 	blobInputs := []struct {
 		name         string
@@ -149,6 +149,9 @@ func createReleaseBlobs(repositoryRootPath string, temporaryDirectoryPath string
 	}
 	blobs := []releaseBlob{}
 	for _, input := range blobInputs {
+		if len(selectedComponentNames) > 0 && !selectedComponentNames[input.name] {
+			continue
+		}
 		if input.builder != nil {
 			if errorValue := input.builder(repositoryRootPath, input.sourcePath); errorValue != nil {
 				return nil, errorValue
