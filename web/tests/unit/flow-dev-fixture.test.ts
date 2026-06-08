@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { createDevFlowSummary } from '../../src/routes/flow/dev-flow-fixture';
+import { buildDevFlowMemberScoreDetails } from '../../src/routes/flow/dev-flow-fixture-score';
 
 describe('createDevFlowSummary', () => {
 	test('builds a populated local Flow summary for the requested week', () => {
@@ -19,15 +20,15 @@ describe('createDevFlowSummary', () => {
 		expect(Object.keys(summary.metrics.memberDistances).length).toBe(10);
 		expect(summary.metrics.memberScores).not.toEqual(summary.metrics.memberDistances);
 		expect(summary.metrics.memberScores).toMatchObject({
-			designer: 134,
-			engineer: 134,
-			qa: 137
+			designer: 104,
+			engineer: 104,
+			qa: 105
 		});
 		expect(summary.metrics.memberScoreDetails.qa).toMatchObject({
-			currentScore: 137
+			currentScore: 105
 		});
-		expect(summary.metrics.totalScore).toBe(778);
-		expect(summary.members.find((member) => member.name === '윤도현')?.score).toBe(137);
+		expect(summary.metrics.totalScore).toBe(624);
+		expect(summary.members.find((member) => member.name === '윤도현')?.score).toBe(105);
 		expect(summary.tasks.length > 0).toBe(true);
 		expect(summary.metrics.totalTasks).toBe(summary.tasks.length);
 		expect(summary.report.weeklyDistanceTrend.currentValues.length).toBe(7);
@@ -52,4 +53,79 @@ describe('createDevFlowSummary', () => {
 		expect(previousWeek.metrics.memberDistances).not.toEqual(currentWeek.metrics.memberDistances);
 		expect(nextWeek.metrics.memberDistances).not.toEqual(currentWeek.metrics.memberDistances);
 	});
+
+	test('scores member growth against the recent five period baseline', () => {
+		const details = buildDevFlowMemberScoreDetails(
+			[
+				scoreTask('current', 'D4', '2026-06-01'),
+				scoreTask('previous-1', 'D3', '2026-05-25'),
+				scoreTask('previous-2', 'D2', '2026-05-18'),
+				scoreTask('previous-3', 'D1', '2026-05-11')
+			],
+			[
+				{
+					id: 'member-a',
+					name: '김철수',
+					email: 'member-a@example.com',
+					role: 'member',
+					mattermostStatus: '',
+					activeTaskCount: 0,
+					completeTaskCount: 0
+				}
+			],
+			{
+				categories: ['여명거리'],
+				types: ['기능'],
+				sizes: [
+					sizeDefinition('D1', 1),
+					sizeDefinition('D2', 2),
+					sizeDefinition('D3', 3),
+					sizeDefinition('D4', 4)
+				]
+			},
+			{
+				code: '26W23',
+				startISO: '2026-06-01',
+				endISO: '2026-06-07',
+				previous: '26W22',
+				next: '26W24',
+				isCurrent: true
+			}
+		);
+
+		expect(details['member-a']?.weeklyScore).toBe(108);
+	});
 });
+
+function scoreTask(id: string, size: string, endDate: string) {
+	return {
+		id,
+		ownerID: 'member-a',
+		ownerName: '김철수',
+		participantIDs: ['member-a'],
+		participantNames: ['김철수'],
+		business: '여명거리',
+		type: '기능',
+		content: id,
+		goal: '',
+		size,
+		status: '완료',
+		startDate: endDate,
+		endDate,
+		weekCode: '',
+		flag: 0
+	};
+}
+
+function sizeDefinition(name: string, distanceKm: number) {
+	return {
+		name,
+		distanceKm,
+		maxHours: distanceKm,
+		developmentExample: '',
+		otherExample: '',
+		note: '',
+		score: distanceKm,
+		label: `${distanceKm}km`
+	};
+}
