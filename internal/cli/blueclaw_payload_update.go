@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -16,6 +17,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
@@ -293,7 +295,9 @@ func cloudflareAccessToken(applicationURL string) string {
 	if token := strings.TrimSpace(cloudflareAccessTokenByHost[host]); token != "" {
 		return token
 	}
-	command := exec.Command("cloudflared", "access", "token", "--app="+applicationURL)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, "cloudflared", "access", "token", "--app="+applicationURL)
 	output, errorValue := command.Output()
 	if errorValue != nil {
 		return ""
