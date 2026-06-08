@@ -106,21 +106,21 @@ function scoreMonthIndex(weekStartISO: string, dateISO: string): number {
 function weightedScore(distances: number[]): number {
 	if (distances.length === 0) return 0;
 
+	const baseline = averageDistance(distances);
 	let weightedTotal = 0;
 	let weightTotal = 0;
 	for (const [index, weight] of scoreWeights.entries()) {
 		if (index >= distances.length) break;
-		weightedTotal += scoreUnit(distances[index] ?? 0, distances.slice(index)) * weight;
+		weightedTotal += scoreUnit(distances[index] ?? 0, baseline) * weight;
 		weightTotal += weight;
 	}
 	if (weightTotal === 0) return 0;
 	return (weightedTotal / weightTotal) * 100;
 }
 
-function scoreUnit(distance: number, comparisonDistances: number[]): number {
-	const average = averageDistance(comparisonDistances);
-	if (average === 0) return 0;
-	return distance / average;
+function scoreUnit(distance: number, baseline: number): number {
+	if (baseline === 0) return 0;
+	return distance / baseline;
 }
 
 function averageDistance(distances: number[]): number {

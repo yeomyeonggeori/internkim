@@ -2014,17 +2014,17 @@ func TestFlowSummaryIncludesDistanceReport(t *testing.T) {
 	if len(summary.Report.MonthlyDistanceTrend.CurrentValues) != 30 || summary.Report.MonthlyDistanceTrend.CurrentValues[28] != 5 {
 		t.Fatalf("monthly values = %+v", summary.Report.MonthlyDistanceTrend.CurrentValues)
 	}
-	if summary.Metrics.MemberScores[staffID] != 144 || summary.Metrics.MemberScores[otherID] != 135 {
+	if summary.Metrics.MemberScores[staffID] != 114 || summary.Metrics.MemberScores[otherID] != 114 {
 		t.Fatalf("member scores = %+v", summary.Metrics.MemberScores)
 	}
-	if summary.Metrics.MemberScoreDetails[staffID].WeeklyScore != 115 || summary.Metrics.MemberScoreDetails[staffID].MonthlyScore != 173 || summary.Metrics.MemberScoreDetails[staffID].CurrentScore != 144 {
+	if summary.Metrics.MemberScoreDetails[staffID].WeeklyScore != 115 || summary.Metrics.MemberScoreDetails[staffID].MonthlyScore != 113 || summary.Metrics.MemberScoreDetails[staffID].CurrentScore != 114 {
 		t.Fatalf("staff score detail = %+v", summary.Metrics.MemberScoreDetails[staffID])
 	}
-	if summary.Metrics.MemberScoreDetails[otherID].WeeklyScore != 155 || summary.Metrics.MemberScoreDetails[otherID].MonthlyScore != 115 || summary.Metrics.MemberScoreDetails[otherID].CurrentScore != 135 {
+	if summary.Metrics.MemberScoreDetails[otherID].WeeklyScore != 112 || summary.Metrics.MemberScoreDetails[otherID].MonthlyScore != 115 || summary.Metrics.MemberScoreDetails[otherID].CurrentScore != 114 {
 		t.Fatalf("other score detail = %+v", summary.Metrics.MemberScoreDetails[otherID])
 	}
-	if summary.Metrics.TotalScore != 279 {
-		t.Fatalf("total score = %d, want 279", summary.Metrics.TotalScore)
+	if summary.Metrics.TotalScore != 228 {
+		t.Fatalf("total score = %d, want 228", summary.Metrics.TotalScore)
 	}
 }
 

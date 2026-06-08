@@ -134,13 +134,14 @@ func weightedFlowScore(distances []int) float64 {
 	if len(distances) == 0 {
 		return 0
 	}
+	baseline := averageDistance(distances)
 	weightedTotal := 0.0
 	weightTotal := 0.0
 	for index, weight := range flowScoreWeights() {
 		if index >= len(distances) {
 			break
 		}
-		weightedTotal += flowScoreUnit(distances[index], distances[index:]) * weight
+		weightedTotal += flowScoreUnit(distances[index], baseline) * weight
 		weightTotal += weight
 	}
 	if weightTotal == 0 {
@@ -153,12 +154,11 @@ func flowScoreWeights() [flowScorePeriodCount]float64 {
 	return [flowScorePeriodCount]float64{1.5, 1.4, 1.3, 1.2, 1.1}
 }
 
-func flowScoreUnit(distance int, comparisonDistances []int) float64 {
-	average := averageDistance(comparisonDistances)
-	if average == 0 {
+func flowScoreUnit(distance int, baseline float64) float64 {
+	if baseline == 0 {
 		return 0
 	}
-	return float64(distance) / average
+	return float64(distance) / baseline
 }
 
 func averageDistance(distances []int) float64 {
