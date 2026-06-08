@@ -1,12 +1,21 @@
 // Dev Flow mock의 구성원 점수 계산을 담당합니다.
 import { isFlowStatusCompleted } from './flow-status';
 import { completedDistanceForTask } from './report/flow-report-distance';
-import type { FlowDefinitions, FlowMember, FlowTask, FlowWeek } from './flow-types';
+import type { FlowDefinitions, FlowMember, FlowMemberScoreDetail, FlowTask, FlowWeek } from './flow-types';
 
 const scorePeriodCount = 5;
 const scoreWeights = [1.5, 1.4, 1.3, 1.2, 1.1] as const;
 
 export function buildDevFlowMemberScores(tasks: FlowTask[], members: FlowMember[], definitions: FlowDefinitions, week: FlowWeek): Record<string, number> {
+	return currentDevFlowMemberScores(buildDevFlowMemberScoreDetails(tasks, members, definitions, week));
+}
+
+export function buildDevFlowMemberScoreDetails(
+	tasks: FlowTask[],
+	members: FlowMember[],
+	definitions: FlowDefinitions,
+	week: FlowWeek
+): Record<string, FlowMemberScoreDetail> {
 	const weeklyDistances = initializedMemberPeriods(members);
 	const monthlyDistances = initializedMemberPeriods(members);
 
@@ -25,9 +34,20 @@ export function buildDevFlowMemberScores(tasks: FlowTask[], members: FlowMember[
 		members.map((member) => {
 			const weeklyScore = weightedScore(weeklyDistances[member.id] ?? []);
 			const monthlyScore = weightedScore(monthlyDistances[member.id] ?? []);
-			return [member.id, Math.round((weeklyScore + monthlyScore) / 2)];
+			return [
+				member.id,
+				{
+					weeklyScore: Math.round(weeklyScore),
+					monthlyScore: Math.round(monthlyScore),
+					currentScore: Math.round((weeklyScore + monthlyScore) / 2)
+				}
+			];
 		})
 	);
+}
+
+export function currentDevFlowMemberScores(details: Record<string, FlowMemberScoreDetail>): Record<string, number> {
+	return Object.fromEntries(Object.entries(details).map(([memberID, detail]) => [memberID, detail.currentScore]));
 }
 
 export function totalDevFlowMemberScore(scores: Record<string, number>): number {

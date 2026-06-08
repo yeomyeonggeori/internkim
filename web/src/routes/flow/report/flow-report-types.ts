@@ -11,6 +11,13 @@ export type FlowReportMetrics = {
 	typeCounts: Record<string, number>;
 	memberDistances?: Record<string, number>;
 	memberScores?: Record<string, number>;
+	memberScoreDetails?: Record<string, FlowReportMemberScoreDetail>;
+};
+
+export type FlowReportMemberScoreDetail = {
+	weeklyScore: number;
+	monthlyScore: number;
+	currentScore: number;
 };
 
 export type FlowReportSectionID = 'weeklyStatus' | 'memberDistance' | 'weeklyDistanceTrend' | 'monthlyDistanceTrend' | 'businessDistance';

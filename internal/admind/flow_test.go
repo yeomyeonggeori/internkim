@@ -137,7 +137,7 @@ func TestBuildFlowMemberScoresUsesSpreadsheetWeights(t *testing.T) {
 		},
 	}
 	weekStart := time.Date(2026, time.June, 1, 0, 0, 0, 0, flowDateLocation())
-	scores := buildFlowMemberScores([]flowTask{
+	scoreDetails := buildFlowMemberScoreDetails([]flowTask{
 		{
 			ParticipantIDs:   []string{"member-a"},
 			ParticipantNames: []string{"김철수"},
@@ -153,9 +153,13 @@ func TestBuildFlowMemberScoresUsesSpreadsheetWeights(t *testing.T) {
 			EndDate:          "2026-06-01",
 		},
 	}, members, definitions, weekStart)
+	scores := currentFlowMemberScores(scoreDetails)
 
 	if scores["member-a"] != 115 {
 		t.Fatalf("member-a score = %d, want 115", scores["member-a"])
+	}
+	if scoreDetails["member-a"].WeeklyScore != 115 || scoreDetails["member-a"].MonthlyScore != 115 || scoreDetails["member-a"].CurrentScore != 115 {
+		t.Fatalf("member-a score detail = %+v", scoreDetails["member-a"])
 	}
 	if scores["member-b"] != 0 {
 		t.Fatalf("member-b score = %d, want 0", scores["member-b"])

@@ -7,8 +7,9 @@ func buildFlowMetrics(tasks []flowTask, definitions flowDefinitions) flowMetrics
 		StatusCounts:    map[string]int{},
 		BusinessCounts:  map[string]int{},
 		TypeCounts:      map[string]int{},
-		MemberDistances: map[string]int{},
-		MemberScores:    map[string]int{},
+		MemberDistances:    map[string]int{},
+		MemberScores:       map[string]int{},
+		MemberScoreDetails: map[string]flowMemberScoreItem{},
 	}
 	for _, task := range tasks {
 		metrics.TotalTasks++
