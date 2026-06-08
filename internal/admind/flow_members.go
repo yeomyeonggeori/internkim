@@ -109,7 +109,7 @@ func calculateFlowMemberDistances(members []flowMember, tasks []flowTask, defini
 			} else if !isFlowInactiveStatus(task.Status) {
 				result[index].ActiveTaskCount++
 			}
-			result[index].Distance += progressDistanceForTask(task, definitions)
+			result[index].Distance += completedDistanceForTask(task, definitions)
 			result[index].Score = result[index].Distance
 		}
 	}

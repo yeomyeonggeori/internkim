@@ -67,7 +67,7 @@ func buildMonthlyDistanceTrend(currentTasks []flowTask, previousTasks []flowTask
 func cumulativeDailyTeamDistances(tasks []flowTask, definitions flowDefinitions, startDate time.Time, dayCount int) []int {
 	dailyDistances := make([]int, dayCount)
 	for _, task := range tasks {
-		distanceDate, ok := flowTaskDistanceDate(task, startDate.Location())
+		distanceDate, ok := flowCompletedTaskEndDate(task, startDate.Location())
 		if !ok {
 			continue
 		}
@@ -75,7 +75,7 @@ func cumulativeDailyTeamDistances(tasks []flowTask, definitions flowDefinitions,
 		if dayIndex < 0 || dayIndex >= dayCount {
 			continue
 		}
-		dailyDistances[dayIndex] += progressDistanceForTask(task, definitions) * flowTaskParticipantCount(task)
+		dailyDistances[dayIndex] += completedDistanceForTask(task, definitions)
 	}
 
 	values := make([]int, 0, dayCount)
@@ -99,21 +99,11 @@ func dayNumberLabels(dayCount int) []string {
 	return labels
 }
 
-func flowTaskParticipantCount(task flowTask) int {
-	if len(task.ParticipantIDs) > 0 {
-		return len(task.ParticipantIDs)
+func flowCompletedTaskEndDate(task flowTask, location *time.Location) (time.Time, bool) {
+	if !isFlowCompletedStatus(task.Status) {
+		return time.Time{}, false
 	}
-	if len(task.ParticipantNames) > 0 {
-		return len(task.ParticipantNames)
-	}
-	return 1
-}
-
-func flowTaskDistanceDate(task flowTask, location *time.Location) (time.Time, bool) {
-	value := strings.TrimSpace(task.StartDate)
-	if isFlowCompletedStatus(task.Status) && strings.TrimSpace(task.EndDate) != "" {
-		value = strings.TrimSpace(task.EndDate)
-	}
+	value := strings.TrimSpace(task.EndDate)
 	if value == "" {
 		return time.Time{}, false
 	}
