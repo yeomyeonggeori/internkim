@@ -74,6 +74,7 @@ describe('buildFlowReportSections', () => {
 		expect(sections.memberDistance.total).toBe(279);
 		expect(sections.memberDistance.averageValue).toBe(140);
 		expect(sections.memberDistance.rows.map((row) => row.label)).toEqual(['김표본', '박예시']);
+		expect(sections.memberDistance.rows[0].total).toBe(flowReportFixtureMetrics.memberScoreDetails['member-kim'].currentScore);
 		expect(sections.memberDistance.rows[0]).toMatchObject({ label: '김표본', total: 144, percent: 52 });
 		expect(sections.memberDistance.rows[0].segments.map((segment) => [segment.label, segment.value])).toEqual([
 			['점수', 144]
@@ -136,7 +137,7 @@ describe('buildFlowReportSections', () => {
 	});
 
 	test('reads legacy score metrics as distance metrics', () => {
-		const { totalScore, memberScores, ...legacyMetricBase } = flowReportFixtureMetrics;
+		const { totalScore, memberScores, memberScoreDetails, ...legacyMetricBase } = flowReportFixtureMetrics;
 		const legacyMetrics: FlowReportMetrics = {
 			...legacyMetricBase,
 			totalDistance: totalScore,
@@ -227,9 +228,9 @@ describe('buildFlowReportSections', () => {
 				businessCounts: {},
 				typeCounts: {},
 				memberDistances: {},
-				memberScores: {
-					'member-a': 10,
-					'member-b': 8
+				memberScoreDetails: {
+					'member-a': { weeklyScore: 9, monthlyScore: 11, currentScore: 10 },
+					'member-b': { weeklyScore: 7, monthlyScore: 9, currentScore: 8 }
 				}
 			},
 			{

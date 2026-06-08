@@ -17,6 +17,10 @@ func flowScoreDateRange(weekStart time.Time) (time.Time, time.Time) {
 }
 
 func buildFlowMemberScores(tasks []flowTask, members []flowMember, definitions flowDefinitions, weekStart time.Time) map[string]int {
+	return currentFlowMemberScores(buildFlowMemberScoreDetails(tasks, members, definitions, weekStart))
+}
+
+func buildFlowMemberScoreDetails(tasks []flowTask, members []flowMember, definitions flowDefinitions, weekStart time.Time) map[string]flowMemberScoreItem {
 	weeklyDistances := initializedMemberScorePeriods(members)
 	monthlyDistances := initializedMemberScorePeriods(members)
 	for _, task := range tasks {
@@ -32,12 +36,24 @@ func buildFlowMemberScores(tasks []flowTask, members []flowMember, definitions f
 		addTaskScoreDistance(monthlyDistances, flowScoreMonthIndex(startOfMonth(weekStart), endDate), task, members, distance)
 	}
 
-	scores := map[string]int{}
+	scores := map[string]flowMemberScoreItem{}
 	for _, member := range members {
 		key := flowMemberScoreKey(member)
 		weeklyScore := weightedFlowScore(weeklyDistances[key])
 		monthlyScore := weightedFlowScore(monthlyDistances[key])
-		scores[key] = int(math.Round((weeklyScore + monthlyScore) / 2))
+		scores[key] = flowMemberScoreItem{
+			WeeklyScore:  int(math.Round(weeklyScore)),
+			MonthlyScore: int(math.Round(monthlyScore)),
+			CurrentScore: int(math.Round((weeklyScore + monthlyScore) / 2)),
+		}
+	}
+	return scores
+}
+
+func currentFlowMemberScores(details map[string]flowMemberScoreItem) map[string]int {
+	scores := map[string]int{}
+	for memberKey, detail := range details {
+		scores[memberKey] = detail.CurrentScore
 	}
 	return scores
 }

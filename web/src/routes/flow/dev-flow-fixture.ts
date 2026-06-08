@@ -17,7 +17,7 @@ import {
 	devFlowTypes,
 	type DevFlowTaskSpec
 } from './dev-flow-fixture-data';
-import { buildDevFlowMemberScores, totalDevFlowMemberScore } from './dev-flow-fixture-score';
+import { buildDevFlowMemberScoreDetails, currentDevFlowMemberScores, totalDevFlowMemberScore } from './dev-flow-fixture-score';
 import { createDevFlowScoreTasks } from './dev-flow-fixture-score-tasks';
 import type { FlowDefinitions, FlowMember, FlowMetrics, FlowSummary, FlowTask, FlowWeek } from './flow-types';
 import type { FlowReportSnapshot, FlowReportTrend } from './report/flow-report-data';
@@ -27,6 +27,7 @@ type DevFlowMetrics = FlowMetrics & {
 	totalScore: number;
 	memberDistances: Record<string, number>;
 	memberScores: Record<string, number>;
+	memberScoreDetails: NonNullable<FlowMetrics['memberScoreDetails']>;
 };
 
 export type DevFlowSummary = Omit<FlowSummary, 'metrics' | 'report'> & {
@@ -38,14 +39,15 @@ export function createDevFlowSummary(weekCode: string | null | undefined, curren
 	const week = buildFlowWeek(weekCode);
 	const tasks = createFixtureTasks(week);
 	const definitions = { categories: ['여명거리', '김인턴'], types: devFlowTypes, sizes: devFlowSizes };
-	const memberScores = buildDevFlowMemberScores(createDevFlowScoreTasks(week, createFixtureTasks), devFlowMembers, definitions, week);
+	const memberScoreDetails = buildDevFlowMemberScoreDetails(createDevFlowScoreTasks(week, createFixtureTasks), devFlowMembers, definitions, week);
+	const memberScores = currentDevFlowMemberScores(memberScoreDetails);
 	const members = applyMemberScores(calculateMemberDistances(devFlowMembers, tasks, definitions), memberScores);
 
 	return {
 		week,
 		members,
 		tasks,
-		metrics: buildMetrics(tasks, definitions, memberScores),
+		metrics: buildMetrics(tasks, definitions, memberScores, memberScoreDetails),
 		definitions,
 		report: buildReportSnapshot(tasks, members, definitions, week),
 		statusOptions: devFlowStatuses,
@@ -99,7 +101,12 @@ function taskFromSpec(spec: DevFlowTaskSpec, week: FlowWeek): FlowTask {
 	};
 }
 
-function buildMetrics(tasks: FlowTask[], definitions: FlowDefinitions, memberScores: Record<string, number>): DevFlowMetrics {
+function buildMetrics(
+	tasks: FlowTask[],
+	definitions: FlowDefinitions,
+	memberScores: Record<string, number>,
+	memberScoreDetails: NonNullable<FlowMetrics['memberScoreDetails']>
+): DevFlowMetrics {
 	const metrics: DevFlowMetrics = {
 		totalTasks: 0,
 		completedTasks: 0,
@@ -112,7 +119,8 @@ function buildMetrics(tasks: FlowTask[], definitions: FlowDefinitions, memberSco
 		businessCounts: {},
 		typeCounts: {},
 		memberDistances: {},
-		memberScores: { ...memberScores }
+		memberScores: { ...memberScores },
+		memberScoreDetails: { ...memberScoreDetails }
 	};
 
 	for (const task of tasks) {

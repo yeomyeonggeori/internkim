@@ -90,10 +90,12 @@ func (service *Service) writeFlowSummary(responseWriter http.ResponseWriter, req
 		return
 	}
 	callerEmail := service.flowActorEmail(request)
-	memberScores := buildFlowMemberScores(scoreTasks, members, definitions, weekStart)
+	memberScoreDetails := buildFlowMemberScoreDetails(scoreTasks, members, definitions, weekStart)
+	memberScores := currentFlowMemberScores(memberScoreDetails)
 	distanceMembers := applyFlowMemberScores(calculateFlowMemberDistances(members, tasks, definitions), memberScores)
 	metrics := buildFlowMetrics(tasks, definitions)
 	metrics.MemberScores = memberScores
+	metrics.MemberScoreDetails = memberScoreDetails
 	metrics.TotalScore = totalFlowScore(memberScores)
 	response := flowSummaryResponse{
 		Week:             buildFlowWeek(weekCode, weekStart, now),
