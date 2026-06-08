@@ -147,6 +147,19 @@ Cloudflare Worker LLM Gateway에는 배포 secret과 state binding만 둡니다.
 
 cloud-shared bootstrap은 runtime model을 명시해서 배포합니다. PoC Worker 경로에서는 `google/gemini-3.5-flash`가 provider region policy로 거절될 수 있으므로, 현재 smoke 통과 모델인 `x-ai/grok-4.3`을 `tenant bootstrap --model x-ai/grok-4.3`으로 지정합니다.
 
+cloud-shared Mattermost admin password의 운영 기준은 실제 인스턴스가 읽는 credentials 파일입니다. 이미 VM 안에서 Mattermost 인스턴스를 만든 뒤에는 로컬 `.local/tenants/*` bundle 값을 고객에게 안내하지 말고, VM의 `/srv/internkim-mattermost-instances/credentials.json` 또는 동일한 배포 source of truth에서 다시 읽어야 합니다.
+
+Mattermost fleet는 admin 계정 생성만으로 완료된 것으로 보지 않습니다. 배포 후 아래 자동 보정 명령을 실행해 tenant별 team, `internkim` bot, `업무`, `일정`, `출결` 기본 채널, managed resource paths, bot token을 idempotent하게 보장합니다.
+
+```bash
+internkim tenant bootstrap-mattermost \
+  --credentials /srv/internkim-mattermost-instances/credentials.json \
+  --base-url-template 'http://127.0.0.1:{port}' \
+  --port-start 18065 \
+  --public-url-template 'https://{tenant}.example.test' \
+  --token-output-root /srv/internkim-mattermost-instances
+```
+
 ## 구성 요소
 
 | 구성 | 설명 |
