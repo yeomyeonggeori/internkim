@@ -34,7 +34,7 @@ func (service *Service) inferFlowTask(ctx context.Context, prompt string, weekCo
 	task.Content = firstNonEmpty(strings.TrimSpace(task.Content), prompt)
 	task.Type = firstNonEmpty(strings.TrimSpace(task.Type), "기타")
 	task.Size = firstNonEmpty(strings.ToUpper(strings.TrimSpace(task.Size)), "XS")
-	task.Status = firstNonEmpty(strings.TrimSpace(task.Status), "예정")
+	task.Status = firstNonEmpty(cleanFlowStatus(task.Status), defaultFlowStatus())
 	if !containsString(definitions.Types, task.Type) {
 		task.Type = "기타"
 	}
@@ -44,8 +44,8 @@ func (service *Service) inferFlowTask(ctx context.Context, prompt string, weekCo
 	if task.Category != "" && !containsString(definitions.Categories, task.Category) {
 		task.Category = ""
 	}
-	if !containsString(flowStatusOptions(), task.Status) {
-		task.Status = "예정"
+	if !isAllowedFlowStatus(task.Status) {
+		task.Status = defaultFlowStatus()
 	}
 	task.StartDate = strings.TrimSpace(task.StartDate)
 	task.EndDate = strings.TrimSpace(task.EndDate)

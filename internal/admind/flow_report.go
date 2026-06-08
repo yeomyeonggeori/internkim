@@ -111,7 +111,7 @@ func flowTaskParticipantCount(task flowTask) int {
 
 func flowTaskDistanceDate(task flowTask, location *time.Location) (time.Time, bool) {
 	value := strings.TrimSpace(task.StartDate)
-	if task.Status == "완료" && strings.TrimSpace(task.EndDate) != "" {
+	if isFlowCompletedStatus(task.Status) && strings.TrimSpace(task.EndDate) != "" {
 		value = strings.TrimSpace(task.EndDate)
 	}
 	if value == "" {
