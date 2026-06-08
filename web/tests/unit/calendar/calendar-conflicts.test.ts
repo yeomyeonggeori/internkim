@@ -1,18 +1,15 @@
 import { expect, test } from 'bun:test';
 import { dismissCalendarConflictOnServer } from '../../../src/routes/calendar/embed/calendar-conflicts';
+import { createMockFetch } from '../test-fetch';
 
 test('throws server message when dismiss conflict fails', async () => {
 	const originalFetch = globalThis.fetch;
 
 	try {
-		const mockFetch = Object.assign(
-			async () =>
-				new Response('dismiss failed', {
-					status: 500
-				}),
-			{ preconnect: originalFetch.preconnect }
-		);
-		globalThis.fetch = mockFetch;
+		globalThis.fetch = createMockFetch(async () =>
+			new Response('dismiss failed', {
+				status: 500
+			}));
 
 		let caughtError: unknown;
 		try {
