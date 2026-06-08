@@ -42,7 +42,7 @@ func buildFlowMetrics(tasks []flowTask, definitions flowDefinitions) flowMetrics
 }
 
 func completedDistanceForTask(task flowTask, definitions flowDefinitions) int {
-	if !isFlowCompletedStatus(task.Status) {
+	if _, ok := flowCompletedTaskEndDate(task, flowDateLocation()); !ok {
 		return 0
 	}
 	return distanceForTaskSize(task.Size, definitions.Sizes)

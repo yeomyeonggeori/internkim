@@ -2,7 +2,7 @@ import { isFlowStatusCompleted } from '../flow-status';
 import type { FlowReportDefinitions, FlowReportTask } from './flow-report-types';
 
 export function completedDistanceForTask(task: FlowReportTask, definitions: FlowReportDefinitions): number {
-	if (!isFlowStatusCompleted(task.status)) return 0;
+	if (!completedTaskEndDate(task)) return 0;
 	return distanceForTaskSize(task.size, definitions);
 }
 
@@ -19,7 +19,9 @@ export function weeklyTaskDayIndex(task: FlowReportTask, weekStartISO: string | 
 
 function completedTaskEndDate(task: FlowReportTask): string {
 	if (!isFlowStatusCompleted(task.status)) return '';
-	return task.endDate?.trim() ?? '';
+	const value = task.endDate?.trim() ?? '';
+	if (!Number.isFinite(Date.parse(`${value}T00:00:00Z`))) return '';
+	return value;
 }
 
 function dateOffset(startISO: string, value: string): number {
