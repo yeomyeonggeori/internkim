@@ -17,7 +17,7 @@ func TestAttendanceAbsenceCreateSummaryAndCancel(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 
 	createResponse := createAttendanceAbsenceForTest(t, service, "staff@example.com", `{
-		"kind": "annual_leave",
+		"kind": "leave",
 		"startDate": "2026-05-13",
 		"endDate": "2026-05-15",
 		"reason": "family"
@@ -29,10 +29,10 @@ func TestAttendanceAbsenceCreateSummaryAndCancel(t *testing.T) {
 	if createResponse.Absences[0].Email != "staff@example.com" {
 		t.Fatalf("expected created absence to use actor email, got %q", createResponse.Absences[0].Email)
 	}
-	if createResponse.Absences[0].Kind != attendanceAbsenceAnnualLeave {
-		t.Fatalf("expected annual leave kind, got %q", createResponse.Absences[0].Kind)
+	if createResponse.Absences[0].Kind != "leave" {
+		t.Fatalf("expected leave kind, got %q", createResponse.Absences[0].Kind)
 	}
-	if createResponse.Absences[0].LabelKey != attendanceAbsenceAnnualLeave {
+	if createResponse.Absences[0].LabelKey != "leave" {
 		t.Fatalf("expected locale-neutral label key, got %q", createResponse.Absences[0].LabelKey)
 	}
 
@@ -63,11 +63,11 @@ func TestAttendanceAbsenceCreateIsIdempotentForActiveDate(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 
 	firstResponse := createAttendanceAbsenceForTest(t, service, "staff@example.com", `{
-		"kind": "annual_leave",
+		"kind": "leave",
 		"startDate": "2026-05-13"
 	}`)
 	secondResponse := createAttendanceAbsenceForTest(t, service, "staff@example.com", `{
-		"kind": "annual_leave",
+		"kind": "leave",
 		"startDate": "2026-05-13"
 	}`)
 
@@ -88,11 +88,11 @@ func TestAttendanceAbsenceResponseKeepsLabelsLocaleNeutral(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 
 	response := createAttendanceAbsenceForTest(t, service, "staff@example.com", `{
-		"kind": "annual_leave",
+		"kind": "leave",
 		"startDate": "2026-05-13"
 	}`)
 
-	if response.Absences[0].LabelKey != attendanceAbsenceAnnualLeave {
+	if response.Absences[0].LabelKey != "leave" {
 		t.Fatalf("expected label key to match kind, got %q", response.Absences[0].LabelKey)
 	}
 
@@ -110,7 +110,7 @@ func TestAttendanceAbsenceBlocksNonAdminOtherEmail(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodPost, "/attendance/api/absences", strings.NewReader(`{
 		"email": "other@example.com",
-		"kind": "annual_leave",
+		"kind": "leave",
 		"startDate": "2026-05-13"
 	}`))
 	request.RemoteAddr = "203.0.113.10:1234"
@@ -129,7 +129,7 @@ func TestAttendanceAbsenceAllowsAdminOtherEmail(t *testing.T) {
 
 	response := createAttendanceAbsenceForTest(t, service, "admin@example.com", `{
 		"email": "other@example.com",
-		"kind": "annual_leave",
+		"kind": "leave",
 		"startDate": "2026-05-13"
 	}`)
 
@@ -146,7 +146,7 @@ func TestAttendanceAbsenceLocalAdminUsesSystemCreatedBy(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodPost, "/attendance/api/absences", strings.NewReader(`{
 		"email": "other@example.com",
-		"kind": "annual_leave",
+		"kind": "leave",
 		"startDate": "2026-05-13"
 	}`))
 	request.RemoteAddr = "127.0.0.1:1234"
@@ -170,7 +170,7 @@ func TestAttendanceAbsenceCancelRequiresOwnerOrAdmin(t *testing.T) {
 
 	response := createAttendanceAbsenceForTest(t, service, "admin@example.com", `{
 		"email": "other@example.com",
-		"kind": "annual_leave",
+		"kind": "leave",
 		"startDate": "2026-05-13"
 	}`)
 	absenceID := response.Absences[0].ID
@@ -212,12 +212,32 @@ func TestAttendanceAbsenceRejectsUnknownKind(t *testing.T) {
 	}
 }
 
-func TestAttendanceAbsenceSummarySanitizesSensitiveKindForOtherStaff(t *testing.T) {
+func TestAttendanceAbsenceRejectsPrivateKindInputs(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+
+	for _, kind := range []string{"sick_leave", "private_leave"} {
+		request := httptest.NewRequest(http.MethodPost, "/attendance/api/absences", strings.NewReader(`{
+			"kind": "`+kind+`",
+			"startDate": "2026-05-13"
+		}`))
+		request.RemoteAddr = "203.0.113.10:1234"
+		request.Header.Set("X-Forwarded-Email", "staff@example.com")
+		recorder := httptest.NewRecorder()
+
+		service.handleAttendance(recorder, request)
+
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("expected status 400 for %q, got %d: %s", kind, recorder.Code, recorder.Body.String())
+		}
+	}
+}
+
+func TestAttendanceAbsenceSummaryHidesPrivateFieldsForOtherStaff(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 
 	createAttendanceAbsenceForTest(t, service, "admin@example.com", `{
 		"email": "other@example.com",
-		"kind": "sick_leave",
+		"kind": "other",
 		"startDate": "2026-05-13",
 		"reason": "hospital"
 	}`)
@@ -226,11 +246,11 @@ func TestAttendanceAbsenceSummarySanitizesSensitiveKindForOtherStaff(t *testing.
 	if len(staffSummary.Absences) != 1 {
 		t.Fatalf("expected 1 staff-visible absence, got %d", len(staffSummary.Absences))
 	}
-	if staffSummary.Absences[0].Kind != attendanceAbsencePrivateLeave {
-		t.Fatalf("expected sanitized private leave kind, got %q", staffSummary.Absences[0].Kind)
+	if staffSummary.Absences[0].Kind != "other" {
+		t.Fatalf("expected staff-visible other kind, got %q", staffSummary.Absences[0].Kind)
 	}
-	if staffSummary.Absences[0].LabelKey != attendanceAbsencePrivateLeave {
-		t.Fatalf("expected sanitized private leave label key, got %q", staffSummary.Absences[0].LabelKey)
+	if staffSummary.Absences[0].LabelKey != "other" {
+		t.Fatalf("expected staff-visible other label key, got %q", staffSummary.Absences[0].LabelKey)
 	}
 	if staffSummary.Absences[0].Reason != "" {
 		t.Fatalf("expected sanitized reason, got %q", staffSummary.Absences[0].Reason)
@@ -243,14 +263,36 @@ func TestAttendanceAbsenceSummarySanitizesSensitiveKindForOtherStaff(t *testing.
 	if len(ownerSummary.Absences) != 1 {
 		t.Fatalf("expected 1 owner-visible absence, got %d", len(ownerSummary.Absences))
 	}
-	if ownerSummary.Absences[0].Kind != attendanceAbsenceSickLeave {
-		t.Fatalf("expected owner-visible sick leave kind, got %q", ownerSummary.Absences[0].Kind)
+	if ownerSummary.Absences[0].Kind != "other" {
+		t.Fatalf("expected owner-visible other kind, got %q", ownerSummary.Absences[0].Kind)
 	}
 	if ownerSummary.Absences[0].Reason != "hospital" {
 		t.Fatalf("expected owner-visible reason, got %q", ownerSummary.Absences[0].Reason)
 	}
 	if ownerSummary.Absences[0].CreatedBy != "admin@example.com" {
 		t.Fatalf("expected owner-visible createdBy, got %q", ownerSummary.Absences[0].CreatedBy)
+	}
+}
+
+func TestAttendanceAbsenceRejectsRangeOverPerRequestLimit(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+
+	request := httptest.NewRequest(http.MethodPost, "/attendance/api/absences", strings.NewReader(`{
+		"kind": "leave",
+		"startDate": "2026-01-01",
+		"endDate": "2027-01-02"
+	}`))
+	request.RemoteAddr = "203.0.113.10:1234"
+	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	recorder := httptest.NewRecorder()
+
+	service.handleAttendance(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), "366 days or fewer per request") {
+		t.Fatalf("expected per-request limit message, got %q", recorder.Body.String())
 	}
 }
 

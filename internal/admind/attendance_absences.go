@@ -75,16 +75,9 @@ func projectAttendanceAbsences(absences []attendanceAbsence, actorEmail string, 
 }
 
 func projectAttendanceAbsence(absence attendanceAbsence, actorEmail string, isAdmin bool) attendanceAbsence {
-	canViewPrivateLabel := isAdmin || strings.EqualFold(absence.Email, actorEmail)
-	if isSensitiveAttendanceAbsenceKind(absence.Kind) && !canViewPrivateLabel {
-		absence.Kind = attendanceAbsencePrivateLeave
-		absence.LabelKey = attendanceAbsencePrivateLeave
-		absence.Reason = ""
-		absence.CreatedBy = ""
-		return absence
-	}
+	canViewPrivateFields := isAdmin || strings.EqualFold(absence.Email, actorEmail)
 	absence.LabelKey = absence.Kind
-	if !canViewPrivateLabel {
+	if !canViewPrivateFields {
 		absence.Reason = ""
 		absence.CreatedBy = ""
 	}
