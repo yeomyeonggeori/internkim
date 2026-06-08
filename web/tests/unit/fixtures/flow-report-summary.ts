@@ -5,10 +5,12 @@ export type FlowReportFixtureMetrics = {
 	pausedTasks: number;
 	stoppedTasks: number;
 	totalDistance: number;
+	totalScore: number;
 	statusCounts: Record<string, number>;
 	businessCounts: Record<string, number>;
 	typeCounts: Record<string, number>;
 	memberDistances: Record<string, number>;
+	memberScores: Record<string, number>;
 };
 
 export type FlowReportFixtureTask = {
@@ -60,6 +62,7 @@ export const flowReportFixtureMetrics: FlowReportFixtureMetrics = {
 	pausedTasks: 1,
 	stoppedTasks: 1,
 	totalDistance: 7,
+	totalScore: 279,
 	statusCounts: {
 		완료: 5,
 		진행: 4,
@@ -81,6 +84,13 @@ export const flowReportFixtureMetrics: FlowReportFixtureMetrics = {
 	memberDistances: {
 		김여명: 5,
 		박세은: 2,
+		이찬희: 0,
+		정의: 0,
+		장석민: 0
+	},
+	memberScores: {
+		김여명: 144,
+		박세은: 135,
 		이찬희: 0,
 		정의: 0,
 		장석민: 0

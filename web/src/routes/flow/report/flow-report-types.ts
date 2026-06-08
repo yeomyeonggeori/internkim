@@ -14,7 +14,7 @@ export type FlowReportMetrics = {
 };
 
 export type FlowReportSectionID = 'weeklyStatus' | 'memberDistance' | 'weeklyDistanceTrend' | 'monthlyDistanceTrend' | 'businessDistance';
-export type FlowReportChartKind = 'lineComparison' | 'donut' | 'memberTypeStacked' | 'dailyTypeStacked';
+export type FlowReportChartKind = 'lineComparison' | 'donut' | 'memberScoreList' | 'dailyTypeStacked';
 
 export type FlowReportSectionLabel = {
 	title: string;
@@ -27,6 +27,8 @@ export type FlowReportCopy = {
 	weekdays: string[];
 	fallbackType: string;
 	fallbackBusiness: string;
+	memberScoreLabel: string;
+	scoreUnit: string;
 	teamAverageLabel: string;
 	memberScrollHint: string;
 	currentWeekTrend: string;

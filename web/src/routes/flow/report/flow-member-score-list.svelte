@@ -19,7 +19,7 @@
 		tick().then(updateRowScrollFade);
 	});
 
-	function typeSegmentColor(index: number): string {
+	function scoreSegmentColor(index: number): string {
 		return flowTypeColor(index);
 	}
 
@@ -31,7 +31,7 @@
 		return `${value}${unit}`;
 	}
 
-	function workloadScrollHint(itemCount: number): string {
+	function memberScrollHint(itemCount: number): string {
 		return section.memberScrollHint.replace('{count}', String(itemCount));
 	}
 
@@ -68,7 +68,7 @@
 						<div class="flex h-full w-full">
 							{#each row.segments as segment}
 								<div
-									style={`width: ${Math.max(4, segment.percent)}%; background: ${typeSegmentColor(segment.colorIndex)}`}
+									style={`width: ${Math.max(4, segment.percent)}%; background: ${scoreSegmentColor(segment.colorIndex)}`}
 									aria-label={`${row.label} ${segment.label} ${formatValue(segment.value, section.unit)}`}
 								></div>
 							{/each}
@@ -77,7 +77,7 @@
 					<div class="flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] leading-none text-muted-foreground">
 						{#each row.segments as segment}
 							<div class="flex items-center gap-1.5">
-								<span class="size-2 rounded-full" style={`background: ${typeSegmentColor(segment.colorIndex)}`}></span>
+								<span class="size-2 rounded-full" style={`background: ${scoreSegmentColor(segment.colorIndex)}`}></span>
 								<span>{segment.label} {formatValue(segment.value, section.unit)}</span>
 							</div>
 						{/each}
@@ -90,6 +90,6 @@
 		{/if}
 	</div>
 	{#if section.rows.length > 4}
-		<div class="text-xs text-muted-foreground">{workloadScrollHint(section.rows.length)}</div>
+		<div class="text-xs text-muted-foreground">{memberScrollHint(section.rows.length)}</div>
 	{/if}
 </div>
