@@ -49,6 +49,8 @@ export const enFlowText = {
 		"fallbackType": "Other",
 		"fallbackBusiness": "Unassigned",
 		"memberScoreLabel": "Score",
+		"weeklyScoreLabel": "Weekly",
+		"monthlyScoreLabel": "Monthly",
 		"scoreUnit": " pts",
 		"teamAverageLabel": "Team average",
 		"memberScrollHint": "{count} members total · scroll inside list",

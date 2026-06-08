@@ -61,7 +61,7 @@
 					<div class="flex items-baseline justify-between gap-3 text-sm">
 						<span class="min-w-0 truncate font-semibold">{row.label}</span>
 						<span class={row.total > section.averageValue ? 'shrink-0 text-teal-700 tabular-nums' : 'shrink-0 text-muted-foreground tabular-nums'}>
-							{formatValue(row.total, section.unit)} · {row.percent}%
+							{formatValue(row.total, section.unit)}
 						</span>
 					</div>
 					<div class="h-2 overflow-hidden rounded-full bg-muted" style={`width: ${rowWidth(row.total)}%`}>
@@ -75,12 +75,19 @@
 						</div>
 					</div>
 					<div class="flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] leading-none text-muted-foreground">
-						{#each row.segments as segment}
+						{#if row.summary}
 							<div class="flex items-center gap-1.5">
-								<span class="size-2 rounded-full" style={`background: ${scoreSegmentColor(segment.colorIndex)}`}></span>
-								<span>{segment.label} {formatValue(segment.value, section.unit)}</span>
+								<span class="size-2 rounded-full" style={`background: ${scoreSegmentColor(0)}`}></span>
+								<span>{row.summary}</span>
 							</div>
-						{/each}
+						{:else}
+							{#each row.segments as segment}
+								<div class="flex items-center gap-1.5">
+									<span class="size-2 rounded-full" style={`background: ${scoreSegmentColor(segment.colorIndex)}`}></span>
+									<span>{segment.label} {formatValue(segment.value, section.unit)}</span>
+								</div>
+							{/each}
+						{/if}
 					</div>
 				</div>
 			{/each}

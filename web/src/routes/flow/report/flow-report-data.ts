@@ -36,6 +36,7 @@ export type {
 
 type FlowMetricScores = {
 	memberScores: Record<string, number>;
+	memberScoreDetails: Record<string, FlowReportMemberScoreDetail>;
 };
 
 const emptyDefinitions: FlowReportDefinitions = {
@@ -66,6 +67,7 @@ export function buildFlowReportSections(metrics: FlowReportMetrics, options: Flo
 			emptyLabel: options.emptyLabel,
 			copy,
 			memberScores: metricScores.memberScores,
+			memberScoreDetails: metricScores.memberScoreDetails,
 			averageValue: averagePositiveValue(metricScores.memberScores)
 		}),
 		weeklyDistanceTrend: buildTrendSection({
@@ -96,7 +98,8 @@ export function buildFlowReportSections(metrics: FlowReportMetrics, options: Flo
 function scoresFromMetrics(metrics: FlowReportMetrics, members: FlowReportMember[]): FlowMetricScores {
 	const scores = currentScoresFromDetails(metrics.memberScoreDetails) ?? metrics.memberScores ?? metrics.memberDistances ?? {};
 	return {
-		memberScores: labelMemberScores(scores, members)
+		memberScores: labelMemberScores(scores, members),
+		memberScoreDetails: labelMemberScoreDetails(metrics.memberScoreDetails ?? {}, members)
 	};
 }
 
@@ -108,6 +111,11 @@ function currentScoresFromDetails(details: Record<string, FlowReportMemberScoreD
 function labelMemberScores(scores: Record<string, number>, members: FlowReportMember[]): Record<string, number> {
 	const labels = memberScoreLabels(members);
 	return Object.fromEntries(Object.entries(scores).map(([key, score]) => [labels.get(key) ?? key, score]));
+}
+
+function labelMemberScoreDetails(details: Record<string, FlowReportMemberScoreDetail>, members: FlowReportMember[]): Record<string, FlowReportMemberScoreDetail> {
+	const labels = memberScoreLabels(members);
+	return Object.fromEntries(Object.entries(details).map(([key, detail]) => [labels.get(key) ?? key, detail]));
 }
 
 function memberScoreLabels(members: FlowReportMember[]): Map<string, string> {
