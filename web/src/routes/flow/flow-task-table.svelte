@@ -2,6 +2,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { FlexRender } from '$lib/components/ui/data-table';
 	import * as Table from '$lib/components/ui/table';
+	import { cn } from '$lib/utils';
 	import type { Table as TableInstance } from '@tanstack/table-core';
 	import type { FlowTask } from './flow-types';
 
@@ -18,9 +19,10 @@
 		emptyLabel: string;
 		pagination: PaginationText;
 		openTask: (task: FlowTask) => void;
+		focusedTaskID: string;
 	};
 
-	let { taskTable, columnCount, pageSize, emptyLabel, pagination, openTask }: Props = $props();
+	let { taskTable, columnCount, pageSize, emptyLabel, pagination, openTask, focusedTaskID }: Props = $props();
 	let rowModel = $derived(taskTable.getRowModel());
 	let totalRows = $derived(taskTable.getFilteredRowModel().rows.length);
 	let pageCount = $derived(taskTable.getPageCount());
@@ -45,7 +47,13 @@
 			</Table.Header>
 			<Table.Body>
 				{#each rowModel.rows as row (row.id)}
-					<Table.Row class="cursor-pointer hover:bg-muted/40" onclick={() => openTask(row.original)}>
+					<Table.Row
+						class={cn(
+							'cursor-pointer hover:bg-muted/40',
+							row.original.id === focusedTaskID && 'bg-primary/10 ring-1 ring-primary/30'
+						)}
+						onclick={() => openTask(row.original)}
+					>
 						{#each row.getVisibleCells() as cell (cell.id)}
 							<Table.Cell>
 								<FlexRender content={cell.column.columnDef.cell} context={cell.getContext()} />

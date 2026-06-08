@@ -153,7 +153,7 @@ func (service *Service) deleteFlowMattermostNotification(ctx context.Context, to
 }
 
 func (service *Service) flowMattermostNotificationMessage(task flowTask) string {
-	lines := []string{fmt.Sprintf("**%s · %s · %s**", task.Status, task.OwnerName, task.Content)}
+	lines := []string{fmt.Sprintf("**%s · %s · %s**", task.Status, task.OwnerName, mattermostMarkdownLink(task.Content, service.mattermostFlowTaskURL(task)))}
 	if task.Type != "" || task.Size != "" {
 		lines = append(lines, "유형/크기: "+strings.TrimSpace(task.Type+" "+task.Size))
 	}
@@ -163,7 +163,6 @@ func (service *Service) flowMattermostNotificationMessage(task flowTask) string 
 	if reason := firstNonEmpty(task.RequestReason, task.DecisionReason); strings.TrimSpace(reason) != "" {
 		lines = append(lines, "사유: "+strings.TrimSpace(reason))
 	}
-	lines = append(lines, service.mattermostFlowLink(task.WeekCode))
 	return strings.Join(lines, "\n")
 }
 
@@ -185,6 +184,25 @@ func (service *Service) mattermostFlowURL(weekCode string) string {
 	weekCode = strings.TrimSpace(weekCode)
 	if weekCode != "" {
 		path += "?week=" + url.QueryEscape(weekCode)
+	}
+	baseURL := strings.TrimRight(strings.TrimSpace(service.mattermostFlowBaseURL()), "/")
+	if baseURL == "" {
+		return path
+	}
+	return baseURL + path
+}
+
+func (service *Service) mattermostFlowTaskURL(task flowTask) string {
+	query := url.Values{}
+	if weekCode := strings.TrimSpace(task.WeekCode); weekCode != "" {
+		query.Set("week", weekCode)
+	}
+	if taskID := strings.TrimSpace(task.ID); taskID != "" {
+		query.Set("task", taskID)
+	}
+	path := "/flow/"
+	if encodedQuery := query.Encode(); encodedQuery != "" {
+		path += "?" + encodedQuery
 	}
 	baseURL := strings.TrimRight(strings.TrimSpace(service.mattermostFlowBaseURL()), "/")
 	if baseURL == "" {

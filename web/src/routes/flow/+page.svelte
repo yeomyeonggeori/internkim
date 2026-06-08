@@ -34,6 +34,8 @@
 
 	let summary = $state<FlowSummary | null>(null);
 	let activeTab = $state('report');
+	let pendingTaskID = $state('');
+	let focusedTaskID = $state('');
 	let isLoading = $state(false);
 	let errorMessage = $state('');
 
@@ -108,7 +110,9 @@
 	const canEditDefinitions = () => hasFlowData() && definitions().sizes.length > 0;
 
 	onMount(() => {
-		const week = new URLSearchParams(location.search).get('week') ?? '';
+		const params = new URLSearchParams(location.search);
+		const week = params.get('week') ?? '';
+		pendingTaskID = params.get('task') ?? '';
 		loadFlow(week);
 	});
 
@@ -117,6 +121,7 @@
 		errorMessage = '';
 		try {
 			summary = await fetchFlowSummary(week, text.loadError);
+			openPendingTask();
 			if (isMemberTab()) {
 				const memberID = activeTab.replace('member:', '');
 				if (!members().some((member) => member.id === memberID)) activeTab = 'tasks';
@@ -129,6 +134,15 @@
 		} finally {
 			isLoading = false;
 		}
+	}
+
+	function openPendingTask() {
+		if (!pendingTaskID || !summary) return;
+		const task = summary.tasks.find((candidate) => candidate.id === pendingTaskID);
+		pendingTaskID = '';
+		if (!task) return;
+		focusedTaskID = task.id;
+		activeTab = task.participantIDs.includes(task.ownerID) ? `member:${task.ownerID}` : 'tasks';
 	}
 
 	function replaceWeekQuery(week: string) {
@@ -212,6 +226,7 @@
 			<FlowTasksView
 				{summary}
 				activeMemberID={activeMemberID()}
+				{focusedTaskID}
 				{text}
 				{loadFlow}
 				setPageErrorMessage={(message) => {
