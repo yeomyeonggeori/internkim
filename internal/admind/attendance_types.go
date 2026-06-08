@@ -45,16 +45,41 @@ type attendanceEvent struct {
 	RepeatedClickAt    string `json:"repeatedClickAt,omitempty"`
 }
 
+type attendanceAbsence struct {
+	ID         string `json:"id"`
+	Email      string `json:"email"`
+	Kind       string `json:"kind"`
+	LabelKey   string `json:"labelKey"`
+	Date       string `json:"date"`
+	Reason     string `json:"reason,omitempty"`
+	CreatedBy  string `json:"createdBy,omitempty"`
+	CreatedAt  string `json:"createdAt"`
+	CanceledAt string `json:"canceledAt,omitempty"`
+}
+
 type attendanceSummaryResponse struct {
 	Month                string               `json:"month"`
 	CurrentUserEmail     string               `json:"currentUserEmail"`
 	IsAdmin              bool                 `json:"isAdmin"`
 	TimeZone             string               `json:"timeZone"`
 	Events               []attendanceEvent    `json:"events"`
+	Absences             []attendanceAbsence  `json:"absences"`
 	TodayStatus          string               `json:"todayStatus"`
 	Locations            []attendanceLocation `json:"locations"`
 	TeamViewVisibleToAll bool                 `json:"teamViewVisibleToAll"`
 	TeamViewBlocked      bool                 `json:"teamViewBlocked"`
+}
+
+type attendanceAbsenceRequest struct {
+	Email     string `json:"email"`
+	Kind      string `json:"kind"`
+	StartDate string `json:"startDate"`
+	EndDate   string `json:"endDate"`
+	Reason    string `json:"reason"`
+}
+
+type attendanceAbsencesResponse struct {
+	Absences []attendanceAbsence `json:"absences"`
 }
 
 type attendanceSettingsRequest struct {
