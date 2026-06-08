@@ -35,6 +35,8 @@ export type FlowReportCopy = {
 	fallbackType: string;
 	fallbackBusiness: string;
 	memberScoreLabel: string;
+	weeklyScoreLabel: string;
+	monthlyScoreLabel: string;
 	scoreUnit: string;
 	teamAverageLabel: string;
 	memberScrollHint: string;
@@ -84,6 +86,7 @@ export type FlowReportRow = {
 	label: string;
 	total: number;
 	percent: number;
+	summary?: string;
 	segments: FlowReportSegment[];
 };
 

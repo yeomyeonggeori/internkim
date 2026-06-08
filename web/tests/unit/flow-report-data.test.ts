@@ -8,6 +8,8 @@ const koreanReportCopy: FlowReportCopy = {
 	fallbackType: '기타',
 	fallbackBusiness: '미지정',
 	memberScoreLabel: '점수',
+	weeklyScoreLabel: '주간',
+	monthlyScoreLabel: '월간',
 	scoreUnit: '점',
 	teamAverageLabel: '팀 평균',
 	memberScrollHint: '{count}명 전체 · 목록 안에서 스크롤',
@@ -76,6 +78,7 @@ describe('buildFlowReportSections', () => {
 		expect(sections.memberDistance.rows.map((row) => row.label)).toEqual(['김표본', '박예시']);
 		expect(sections.memberDistance.rows[0].total).toBe(flowReportFixtureMetrics.memberScoreDetails['member-kim'].currentScore);
 		expect(sections.memberDistance.rows[0]).toMatchObject({ label: '김표본', total: 144, percent: 52 });
+		expect(sections.memberDistance.rows[0].summary).toBe('주간 115점 · 월간 173점');
 		expect(sections.memberDistance.rows[0].segments.map((segment) => [segment.label, segment.value])).toEqual([
 			['점수', 144]
 		]);
@@ -234,6 +237,8 @@ describe('buildFlowReportSections', () => {
 				fallbackType: 'Other',
 				fallbackBusiness: 'Unassigned',
 				memberScoreLabel: 'Score',
+				weeklyScoreLabel: 'Weekly',
+				monthlyScoreLabel: 'Monthly',
 				scoreUnit: ' pts',
 				teamAverageLabel: 'Team average',
 				memberScrollHint: '{count} members total · scroll inside list',
@@ -258,7 +263,7 @@ describe('buildFlowReportSections', () => {
 		expect(sections.weeklyStatus.rows.map((row) => row.label)).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
 		expect(sections.weeklyStatus.items[0].label).toBe('구현');
 		expect(sections.businessDistance.items.map((item) => item.label)).toEqual(['여명거리', '김인턴', 'Unassigned']);
-		expect(sections.memberDistance.rows[0].segments.map((segment) => segment.label)).toEqual(['Score']);
+		expect(sections.memberDistance.rows[0].summary).toBe('Weekly 115 pts · Monthly 173 pts');
 		expect(sections.memberDistance.teamAverageLabel).toBe('Team average');
 		expect(sections.memberDistance.memberScrollHint).toBe('{count} members total · scroll inside list');
 		expect(sections.weeklyDistanceTrend.trend.labels).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);

@@ -49,6 +49,8 @@ export const koFlowText = {
 		"fallbackType": "기타",
 		"fallbackBusiness": "미지정",
 		"memberScoreLabel": "점수",
+		"weeklyScoreLabel": "주간",
+		"monthlyScoreLabel": "월간",
 		"scoreUnit": "점",
 		"teamAverageLabel": "팀 평균",
 		"memberScrollHint": "{count}명 전체 · 목록 안에서 스크롤",
