@@ -6,6 +6,7 @@
 	import { Separator } from '$lib/components/ui/separator';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { TagsInput } from '$lib/components/ui/tags-input';
+	import { isFlowStatusRejected, isFlowStatusRequested, isFlowStatusStopped } from './flow-status';
 	import { sizeBadgeClass, statusBadgeClass } from './flow-style';
 	import type { FlowMember, FlowTask } from './flow-types';
 
@@ -192,13 +193,13 @@
 						onValueChange={setParticipantNames}
 					/>
 				</div>
-				{#if taskDraft.status === '요청'}
+				{#if isFlowStatusRequested(taskDraft.status)}
 					<label class="grid gap-1 text-xs font-medium text-muted-foreground">
 						{text.requestReason}
 						<Input bind:value={taskDraft.requestReason} />
 					</label>
 				{/if}
-				{#if taskDraft.status === '기각' || taskDraft.status === '중단'}
+				{#if isFlowStatusRejected(taskDraft.status) || isFlowStatusStopped(taskDraft.status)}
 					<label class="grid gap-1 text-xs font-medium text-muted-foreground">
 						{text.reason}
 						<Input bind:value={taskDraft.decisionReason} />
