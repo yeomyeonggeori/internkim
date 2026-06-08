@@ -7,41 +7,28 @@ import (
 )
 
 const (
-	attendanceAbsenceAnnualLeave     = "annual_leave"
+	attendanceAbsenceLeave           = "leave"
 	attendanceAbsenceBusinessTrip    = "business_trip"
 	attendanceAbsenceDayOff          = "day_off"
-	attendanceAbsenceSickLeave       = "sick_leave"
-	attendanceAbsencePrivateLeave    = "private_leave"
+	attendanceAbsenceOther           = "other"
 	attendanceAbsenceLocalAdminActor = "local_admin"
-	attendanceAbsenceDateLimit       = 31
+	attendanceAbsenceDateLimit       = 366
 )
 
-type attendanceAbsenceKindDefinition struct {
-	IsSensitive bool
-}
-
-var attendanceAbsenceKindDefinitions = map[string]attendanceAbsenceKindDefinition{
-	attendanceAbsenceAnnualLeave:  {},
+var attendanceAbsenceKinds = map[string]struct{}{
+	attendanceAbsenceLeave:        {},
 	attendanceAbsenceBusinessTrip: {},
 	attendanceAbsenceDayOff:       {},
-	attendanceAbsenceSickLeave: {
-		IsSensitive: true,
-	},
-	attendanceAbsencePrivateLeave: {},
+	attendanceAbsenceOther:        {},
 }
 
 func normalizeAttendanceAbsenceKind(value string) (string, error) {
 	kind := strings.ToLower(strings.TrimSpace(value))
-	_, exists := attendanceAbsenceKindDefinitions[kind]
-	if !exists || kind == attendanceAbsencePrivateLeave {
+	_, exists := attendanceAbsenceKinds[kind]
+	if !exists {
 		return "", errors.New("unsupported attendance absence kind")
 	}
 	return kind, nil
-}
-
-func isSensitiveAttendanceAbsenceKind(kind string) bool {
-	definition, exists := attendanceAbsenceKindDefinitions[kind]
-	return exists && definition.IsSensitive
 }
 
 func attendanceAbsenceDates(startDate string, endDate string) ([]string, error) {
@@ -59,7 +46,7 @@ func attendanceAbsenceDates(startDate string, endDate string) ([]string, error) 
 	dates := []string{}
 	for date := start; !date.After(end); date = date.AddDate(0, 0, 1) {
 		if len(dates) >= attendanceAbsenceDateLimit {
-			return nil, errors.New("attendance absence range must be 31 days or fewer")
+			return nil, errors.New("attendance absence range must be 366 days or fewer per request")
 		}
 		dates = append(dates, date.Format("2006-01-02"))
 	}
