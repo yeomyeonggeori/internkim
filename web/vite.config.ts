@@ -11,12 +11,14 @@ export default defineConfig({
 			'/.well-known/caldav': admindTarget,
 			'/admin/api': admindTarget,
 			'/attendance/api': admindTarget,
+			'/auth': admindTarget,
 			'/calendar/api': admindTarget,
 			'/calendar/dav': admindTarget,
 			'/calendar/ics': admindTarget,
 			'/calendar/oauth': admindTarget,
 			'/flow/api': admindTarget,
-			'/mail/api': admindTarget
+			'/mail/api': admindTarget,
+			'/memory/api': admindTarget,
 		}
 	}
 });

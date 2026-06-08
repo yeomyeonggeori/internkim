@@ -35,6 +35,31 @@ const memoryGraphFixture = {
 	}))
 };
 
+const unavailableMemoryGraphFixture = {
+	...memoryGraphFixture,
+	health: { configured: false, reachable: false }
+};
+
+const memoryScheduleFixture = {
+	schedules: [
+		{
+			taskScheduleID: 'schedule-daily-brief',
+			creatorPersonID: 'user:person-1',
+			executionMode: 'agent',
+			kind: 'cron',
+			cronExpression: '0 9 * * *',
+			nextRunAt: '2026-06-09T00:00:00Z',
+			createdAt: '2026-06-08T00:00:00Z',
+			updatedAt: '2026-06-08T00:00:00Z',
+			deliveryChannelID: 'channel-1',
+			promptPreview: '팀 일정을 매일 오전에 알려주기',
+			timeZone: 'Asia/Seoul'
+		}
+	],
+	count: 1,
+	checkedAt: '2026-06-08T00:00:00Z'
+};
+
 type GraphMetrics = {
 	canvas: GraphSize | null;
 	container: GraphSize | null;
@@ -52,11 +77,17 @@ test.describe('memory graph', () => {
 		await page.route('**/admin/api/session', async (route) => {
 			await route.fulfill({ json: { email: 'tester@example.com' } });
 		});
+		await page.route('**/auth/session**', async (route) => {
+			await route.fulfill({ json: { authenticated: true, email: 'tester@example.com' } });
+		});
 		await page.route('**/admin/api/locale', async (route) => {
 			await route.fulfill({ json: { locale: 'ko' } });
 		});
 		await page.route('**/memory/api/graph**', async (route) => {
 			await route.fulfill({ json: memoryGraphFixture });
+		});
+		await page.route('**/memory/api/schedules**', async (route) => {
+			await route.fulfill({ json: memoryScheduleFixture });
 		});
 	});
 
@@ -83,6 +114,69 @@ test.describe('memory graph', () => {
 		});
 
 		await expectCanvasToMatchContainer(page);
+	});
+
+	test('shows user schedules in the schedules tab', async ({ page }) => {
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await page.goto('/memory/');
+
+		await page.getByRole('tab', { name: '예약 작업' }).click();
+		const schedulesPanel = page.getByLabel('예약 작업');
+
+		await expect(page.getByText('팀 일정을 매일 오전에 알려주기')).toBeVisible();
+		await expect(schedulesPanel.getByText('유형', { exact: true })).toBeVisible();
+		await expect(schedulesPanel.getByText('일정', { exact: true })).toBeVisible();
+		await expect(page.getByText('정기 반복')).toBeVisible();
+		await expect(page.getByText('매일 오전 9:00')).toBeVisible();
+		await expect(page.getByText('2026. 6. 9.')).toBeVisible();
+	});
+
+	test('shows an empty schedules state', async ({ page }) => {
+		await page.route('**/memory/api/schedules**', async (route) => {
+			await route.fulfill({ json: { schedules: [], count: 0 } });
+		});
+		await page.goto('/memory/');
+
+		await page.getByRole('tab', { name: '예약 작업' }).click();
+
+		await expect(page.getByText('아직 예약 작업이 없습니다.')).toBeVisible();
+	});
+
+	test('shows a schedules failure state without raw backend details', async ({ page }) => {
+		await page.route('**/memory/api/schedules**', async (route) => {
+			await route.fulfill({
+				status: 500,
+				body: 'Traceback File "/opt/blueclaw/internal.py" RuntimeError: private backend detail'
+			});
+		});
+		await page.goto('/memory/');
+
+		await page.getByRole('tab', { name: '예약 작업' }).click();
+
+		await expect(page.getByText('예약 작업을 불러오지 못했습니다.')).toBeVisible();
+		await expect(page.getByText('private backend detail')).toHaveCount(0);
+	});
+
+	test('keeps memory graph health badges tied to graph health', async ({ page }) => {
+		await page.route('**/memory/api/graph**', async (route) => {
+			await route.fulfill({ json: unavailableMemoryGraphFixture });
+		});
+		await page.goto('/memory/');
+
+		await expect(page.getByText('미설정')).toBeVisible();
+		await expect(page.getByText('연결 불가')).toBeVisible();
+	});
+
+	test('formats schedule next run in the selected English locale', async ({ page }) => {
+		await page.route('**/admin/api/locale', async (route) => {
+			await route.fulfill({ json: { locale: 'en' } });
+		});
+		await page.goto('/memory/');
+
+		await page.getByRole('tab', { name: 'Schedules' }).click();
+
+		await expect(page.getByText('Jun')).toBeVisible();
+		await expect(page.getByText('2026. 6. 9.')).toHaveCount(0);
 	});
 });
 
