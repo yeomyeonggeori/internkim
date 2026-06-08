@@ -1,9 +1,9 @@
 <script lang="ts">
-	import * as Card from '$lib/components/ui/card';
-	import FlowBusinessDistanceDonut from './flow-business-distance-donut.svelte';
-	import FlowDailyTypeDistanceChart from './flow-daily-type-distance-chart.svelte';
-	import FlowDistanceLineChart from './flow-distance-line-chart.svelte';
-	import FlowMemberTypeDistanceList from './flow-member-type-distance-list.svelte';
+import * as Card from '$lib/components/ui/card';
+import FlowBusinessDistanceDonut from './flow-business-distance-donut.svelte';
+import FlowDailyTypeDistanceChart from './flow-daily-type-distance-chart.svelte';
+import FlowDistanceLineChart from './flow-distance-line-chart.svelte';
+import FlowMemberScoreList from './flow-member-score-list.svelte';
 	import type { FlowReportSection } from './flow-report-data';
 
 	type Props = {
@@ -21,7 +21,7 @@
 	}
 
 	function isSectionEmpty(): boolean {
-		if (section.chartKind === 'memberTypeStacked') return section.rows.length === 0;
+		if (section.chartKind === 'memberScoreList') return section.rows.length === 0;
 		if (section.chartKind === 'lineComparison') return section.trend.currentValues.length === 0 && section.trend.previousValues.length === 0;
 		return section.items.length === 0;
 	}
@@ -59,8 +59,8 @@
 			<FlowDistanceLineChart section={section} variant={section.id === 'monthlyDistanceTrend' ? 'monthly' : 'weekly'} />
 		{:else if section.chartKind === 'donut'}
 			<FlowBusinessDistanceDonut section={section} />
-		{:else if section.chartKind === 'memberTypeStacked'}
-			<FlowMemberTypeDistanceList section={section} />
+		{:else if section.chartKind === 'memberScoreList'}
+			<FlowMemberScoreList section={section} />
 		{/if}
 	</Card.Content>
 </Card.Root>

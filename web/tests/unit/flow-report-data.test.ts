@@ -7,6 +7,8 @@ const koreanReportCopy: FlowReportCopy = {
 	weekdays: ['월', '화', '수', '목', '금', '토', '일'],
 	fallbackType: '기타',
 	fallbackBusiness: '미지정',
+	memberScoreLabel: '점수',
+	scoreUnit: '점',
 	teamAverageLabel: '팀 평균',
 	memberScrollHint: '{count}명 전체 · 목록 안에서 스크롤',
 	currentWeekTrend: '이번 주',
@@ -26,8 +28,8 @@ describe('buildFlowReportSections', () => {
 					description: '상태별 업무 분포와 막힌 일을 빠르게 확인합니다.'
 				},
 				memberDistance: {
-					title: '구성원 거리',
-					description: '완료와 진행 업무 기준의 주간 업무 거리입니다.'
+					title: '구성원 점수',
+					description: '최근 5주와 5개월의 완료 거리 가중 점수입니다.'
 				},
 				weeklyDistanceTrend: {
 					title: '주간 통계',
@@ -66,14 +68,14 @@ describe('buildFlowReportSections', () => {
 			['회의', 1]
 		]);
 
-		expect(sections.memberDistance.chartKind).toBe('memberTypeStacked');
-		expect(sections.memberDistance.unit).toBe('km');
-		expect(sections.memberDistance.total).toBe(7);
-		expect(sections.memberDistance.averageValue).toBe(4);
+		expect(sections.memberDistance.chartKind).toBe('memberScoreList');
+		expect(sections.memberDistance.unit).toBe('점');
+		expect(sections.memberDistance.total).toBe(279);
+		expect(sections.memberDistance.averageValue).toBe(140);
 		expect(sections.memberDistance.rows.map((row) => row.label)).toEqual(['김표본', '박예시']);
-		expect(sections.memberDistance.rows[0]).toMatchObject({ label: '김표본', total: 5, percent: 71 });
+		expect(sections.memberDistance.rows[0]).toMatchObject({ label: '김표본', total: 144, percent: 52 });
 		expect(sections.memberDistance.rows[0].segments.map((segment) => [segment.label, segment.value])).toEqual([
-			['구현', 5]
+			['점수', 144]
 		]);
 
 		expect(sections.weeklyDistanceTrend.chartKind).toBe('lineComparison');
@@ -114,7 +116,7 @@ describe('buildFlowReportSections', () => {
 				emptyLabel: '이번 주 데이터 없음',
 				sectionLabels: {
 					weeklyStatus: { title: '주간 상태', description: '' },
-					memberDistance: { title: '구성원 거리', description: '' },
+					memberDistance: { title: '구성원 점수', description: '' },
 					weeklyDistanceTrend: { title: '주간 통계', description: '' },
 					monthlyDistanceTrend: { title: '월간 통계', description: '' },
 					businessDistance: { title: '대분류별 업무', description: '' }
@@ -133,18 +135,18 @@ describe('buildFlowReportSections', () => {
 	});
 
 	test('reads legacy score metrics as distance metrics', () => {
-		const { totalDistance, memberDistances, ...legacyMetricBase } = flowReportFixtureMetrics;
+		const { totalScore, memberScores, ...legacyMetricBase } = flowReportFixtureMetrics;
 		const legacyMetrics: FlowReportMetrics = {
 			...legacyMetricBase,
-			totalScore: totalDistance,
-			memberScores: memberDistances
+			totalDistance: totalScore,
+			memberDistances: memberScores
 		};
 
 		const sections = buildFlowReportSections(legacyMetrics, {
 			emptyLabel: '이번 주 데이터 없음',
 			sectionLabels: {
 				weeklyStatus: { title: '주간 상태', description: '' },
-				memberDistance: { title: '구성원 거리', description: '' },
+				memberDistance: { title: '구성원 점수', description: '' },
 				weeklyDistanceTrend: { title: '주간 통계', description: '' },
 				monthlyDistanceTrend: { title: '월간 통계', description: '' },
 				businessDistance: { title: '대분류별 업무', description: '' }
@@ -154,8 +156,8 @@ describe('buildFlowReportSections', () => {
 			definitions: flowReportFixtureDefinitions
 		});
 
-		expect(sections.memberDistance.total).toBe(7);
-		expect(sections.memberDistance.averageValue).toBe(4);
+		expect(sections.memberDistance.total).toBe(279);
+		expect(sections.memberDistance.averageValue).toBe(140);
 		expect(sections.memberDistance.rows.map((row) => row.label)).toEqual(['김표본', '박예시']);
 	});
 
@@ -164,7 +166,7 @@ describe('buildFlowReportSections', () => {
 			emptyLabel: 'No data for this week',
 			sectionLabels: {
 				weeklyStatus: { title: 'Weekly daily type distance', description: '' },
-				memberDistance: { title: 'Member distance', description: '' },
+				memberDistance: { title: 'Member score', description: '' },
 				weeklyDistanceTrend: { title: 'Weekly statistics', description: '' },
 				monthlyDistanceTrend: { title: 'Monthly statistics', description: '' },
 				businessDistance: { title: 'Weekly business distance', description: '' }
@@ -173,6 +175,8 @@ describe('buildFlowReportSections', () => {
 				weekdays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
 				fallbackType: 'Other',
 				fallbackBusiness: 'Unassigned',
+				memberScoreLabel: 'Score',
+				scoreUnit: ' pts',
 				teamAverageLabel: 'Team average',
 				memberScrollHint: '{count} members total · scroll inside list',
 				currentWeekTrend: 'This week',
@@ -195,7 +199,7 @@ describe('buildFlowReportSections', () => {
 		expect(sections.weeklyStatus.rows.map((row) => row.label)).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
 		expect(sections.weeklyStatus.items[0].label).toBe('구현');
 		expect(sections.businessDistance.items.map((item) => item.label)).toEqual(['여명거리', '김인턴', 'Unassigned']);
-		expect(sections.memberDistance.rows[0].segments.map((segment) => segment.label)).toEqual(['구현']);
+		expect(sections.memberDistance.rows[0].segments.map((segment) => segment.label)).toEqual(['Score']);
 		expect(sections.memberDistance.teamAverageLabel).toBe('Team average');
 		expect(sections.memberDistance.memberScrollHint).toBe('{count} members total · scroll inside list');
 		expect(sections.weeklyDistanceTrend.trend.labels).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
