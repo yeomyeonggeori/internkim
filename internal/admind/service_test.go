@@ -251,7 +251,7 @@ func TestGatewayBlocksAttendanceChannelPostCreation(t *testing.T) {
 		return nil, nil
 	})}
 
-	request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"attendance-channel","message":"출근"}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"attendance-channel","message":"blocked"}`))
 	response := httptest.NewRecorder()
 	service.router().ServeHTTP(response, request)
 

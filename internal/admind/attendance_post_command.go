@@ -28,34 +28,22 @@ type attendancePostCommand struct {
 	IsTimeUpdate bool
 }
 
-func (service *Service) handleMattermostAttendancePostCreate(responseWriter http.ResponseWriter, request *http.Request) bool {
+func (service *Service) mattermostAttendancePostCreateCommand(request *http.Request) (mattermostPostCreatePayload, attendancePostCommand, bool, error) {
 	payload, ok := mattermostPostCreatePayloadFromRequest(request)
 	if !ok {
-		return false
+		return mattermostPostCreatePayload{}, attendancePostCommand{}, false, nil
 	}
 	if strings.TrimSpace(payload.ChannelID) != strings.TrimSpace(readTrimmedFile(service.mattermostAttendanceChannelIDPath())) {
-		return false
+		return mattermostPostCreatePayload{}, attendancePostCommand{}, false, nil
 	}
-	if !service.isMattermostAttendanceEntryPostID(payload.RootID) {
-		return false
+	if strings.TrimSpace(payload.RootID) != "" && !service.isMattermostAttendanceEntryPostID(payload.RootID) {
+		return mattermostPostCreatePayload{}, attendancePostCommand{}, false, nil
 	}
 	command, isCommand, errorValue := service.parseAttendancePostCommand(payload.Message)
 	if !isCommand {
-		return false
+		return mattermostPostCreatePayload{}, attendancePostCommand{}, false, errorValue
 	}
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-		return true
-	}
-	postID, errorValue := service.applyMattermostAttendancePostCommand(request.Context(), request, payload, command)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-		return true
-	}
-	responseWriter.Header().Set("Content-Type", "application/json")
-	responseWriter.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(responseWriter).Encode(map[string]string{"id": postID})
-	return true
+	return payload, command, true, errorValue
 }
 
 func mattermostPostCreatePayloadFromRequest(request *http.Request) (mattermostPostCreatePayload, bool) {
@@ -72,6 +60,29 @@ func mattermostPostCreatePayloadFromRequest(request *http.Request) (mattermostPo
 		return mattermostPostCreatePayload{}, false
 	}
 	return payload, true
+}
+
+func (service *Service) syncMattermostAttendancePostCommand(ctx context.Context, request *http.Request, payload mattermostPostCreatePayload, command attendancePostCommand, responseBody []byte) error {
+	commandPostID := mattermostCreatedPostID(responseBody)
+	if commandPostID == "" {
+		return fmt.Errorf("Mattermost attendance command post ID was not found")
+	}
+	if _, errorValue := service.applyMattermostAttendancePostCommand(ctx, request, payload, command); errorValue != nil {
+		return errorValue
+	}
+	adminToken, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	return service.deleteMattermostAttendanceResultPost(ctx, adminToken, commandPostID)
+}
+
+func mattermostCreatedPostID(responseBody []byte) string {
+	var postRecord mattermostPostRecord
+	if errorValue := json.Unmarshal(responseBody, &postRecord); errorValue != nil {
+		return ""
+	}
+	return strings.TrimSpace(postRecord.ID)
 }
 
 func (service *Service) applyMattermostAttendancePostCommand(ctx context.Context, request *http.Request, payload mattermostPostCreatePayload, command attendancePostCommand) (string, error) {
@@ -101,7 +112,8 @@ func (service *Service) applyMattermostAttendancePostCommand(ctx context.Context
 	if errorValue != nil {
 		return "", errorValue
 	}
-	if errorValue := service.applyAttendanceAction(ctx, userRecord, userToken, command.Kind, teamRecord.ID, channelID, payload.RootID, command.LocationID); errorValue != nil {
+	actionPostID := firstNonEmpty(payload.RootID, readTrimmedFile(service.mattermostAttendanceEntryPostIDPath()))
+	if errorValue := service.applyAttendanceAction(ctx, userRecord, userToken, command.Kind, teamRecord.ID, channelID, actionPostID, command.LocationID); errorValue != nil {
 		return "", errorValue
 	}
 	database, errorValue := service.openAttendanceDatabase(ctx)
