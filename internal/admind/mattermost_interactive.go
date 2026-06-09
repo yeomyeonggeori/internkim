@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -88,6 +89,11 @@ func (service *Service) mattermostInteractiveActionHandlers() map[string]matterm
 }
 
 func (service *Service) handleAskInteractiveAction(responseWriter http.ResponseWriter, request *http.Request, payload mattermostInteractivePayload) {
+	if !isMattermostAskActionTarget(payload) {
+		service.writeMattermostAskTargetMismatch(responseWriter)
+		return
+	}
+	service.deleteMattermostAskControlPost(request.Context(), payload.PostID)
 	go service.forwardMattermostAskActionInBackground(payload)
 	service.writeMattermostAskInteractiveAccepted(responseWriter)
 }
@@ -143,6 +149,7 @@ func normalizedMattermostAskEventEnvelope(payload mattermostInteractivePayload) 
 			"taskRunID":     strings.TrimSpace(payload.Context.TaskRunID),
 			"choiceKey":     choiceKey,
 			"postID":        strings.TrimSpace(payload.PostID),
+			"ephemeralAsk":  true,
 		},
 	}}
 }
@@ -186,11 +193,40 @@ func (service *Service) writeMattermostInteractiveSuccess(responseWriter http.Re
 }
 
 func (service *Service) writeMattermostAskInteractiveAccepted(responseWriter http.ResponseWriter) {
-	service.writeJSON(responseWriter, mattermostInteractiveResponse{})
+	service.writeJSON(responseWriter, mattermostInteractiveResponse{Update: mattermostinteractive.ClearAttachmentsUpdate()})
 }
 
 func (service *Service) writeMattermostInteractiveError(responseWriter http.ResponseWriter, message string) {
 	service.writeJSON(responseWriter, mattermostInteractiveResponse{Error: &mattermostInteractiveError{Message: message}})
+}
+
+func (service *Service) writeMattermostAskTargetMismatch(responseWriter http.ResponseWriter) {
+	service.writeJSON(responseWriter, mattermostInteractiveResponse{EphemeralText: "이 선택지는 요청한 사용자만 사용할 수 있습니다."})
+}
+
+func (service *Service) deleteMattermostAskControlPost(ctx context.Context, postID string) {
+	trimmedPostID := strings.TrimSpace(postID)
+	if trimmedPostID == "" {
+		return
+	}
+	token, errorValue := service.mattermostBotToken()
+	if errorValue != nil {
+		return
+	}
+	deleteContext, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	path := "/api/v4/posts/" + url.PathEscape(trimmedPostID)
+	if errorValue := service.mattermostRequest(deleteContext, http.MethodDelete, path, token, nil, nil); errorValue != nil && !isMattermostNotFound(errorValue) {
+		log.Printf("mattermost ask control delete failed: %v", errorValue)
+	}
+}
+
+func isMattermostAskActionTarget(payload mattermostInteractivePayload) bool {
+	targetUserID := strings.TrimSpace(payload.Context.TargetUserID)
+	if targetUserID == "" {
+		return false
+	}
+	return strings.TrimSpace(payload.UserID) == targetUserID
 }
 
 func (service *Service) mattermostInteractiveActionURL() string {
