@@ -205,11 +205,47 @@ func (service *Service) installReleaseComponents(ctx context.Context, jobID stri
 		return errorValue
 	}
 	if _, hasCapabilityd := manifest.Components["capabilityd"]; hasCapabilityd {
-		if output, errorValue := service.runCommand(ctx, "systemctl", "restart", blueclawruntime.CapabilitydServiceName); errorValue != nil {
-			return fmt.Errorf("restart capabilityd: %s: %w", strings.TrimSpace(string(output)), errorValue)
+		if errorValue := service.restartReleaseCapabilitydServices(ctx); errorValue != nil {
+			return errorValue
 		}
 	}
 	return nil
+}
+
+func (service *Service) restartReleaseCapabilitydServices(ctx context.Context) error {
+	for _, serviceName := range releaseCapabilitydServiceNames(blueclawUpdateTenantBasePath) {
+		if output, errorValue := service.runCommand(ctx, "systemctl", "restart", serviceName); errorValue != nil {
+			return fmt.Errorf("restart capabilityd %s: %s: %w", serviceName, strings.TrimSpace(string(output)), errorValue)
+		}
+	}
+	return nil
+}
+
+func releaseCapabilitydServiceNames(tenantBasePath string) []string {
+	tenantIDs := releaseTenantIDs(tenantBasePath)
+	if len(tenantIDs) == 0 {
+		return []string{blueclawruntime.CapabilitydServiceName}
+	}
+	serviceNames := make([]string, 0, len(tenantIDs))
+	for _, tenantID := range tenantIDs {
+		serviceNames = append(serviceNames, "internkim-tenant-capabilityd-"+tenantID+".service")
+	}
+	return serviceNames
+}
+
+func releaseTenantIDs(tenantBasePath string) []string {
+	runtimeConfigurationPaths, errorValue := filepath.Glob(filepath.Join(tenantBasePath, "*", "blueclaw", "config", "runtime.json"))
+	if errorValue != nil {
+		return nil
+	}
+	tenantIDs := make([]string, 0, len(runtimeConfigurationPaths))
+	for _, runtimeConfigurationPath := range runtimeConfigurationPaths {
+		tenantID := filepath.Base(filepath.Dir(filepath.Dir(filepath.Dir(runtimeConfigurationPath))))
+		if strings.TrimSpace(tenantID) != "" {
+			tenantIDs = append(tenantIDs, tenantID)
+		}
+	}
+	return tenantIDs
 }
 
 func (service *Service) installReleaseBinary(stagingPath string, componentName string, targetPath string) error {

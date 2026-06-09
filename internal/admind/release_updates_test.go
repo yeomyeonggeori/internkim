@@ -145,6 +145,29 @@ func TestReleaseWebComponentRootFallsBackToAdminWeb(t *testing.T) {
 	}
 }
 
+func TestReleaseCapabilitydServiceNamesUseTenantServices(t *testing.T) {
+	tenantBasePath := t.TempDir()
+	writeReleaseTenantRuntimeConfiguration(t, tenantBasePath, "pilot-02")
+	writeReleaseTenantRuntimeConfiguration(t, tenantBasePath, "pilot-01")
+
+	serviceNames := releaseCapabilitydServiceNames(tenantBasePath)
+	expectedServiceNames := []string{
+		"internkim-tenant-capabilityd-pilot-01.service",
+		"internkim-tenant-capabilityd-pilot-02.service",
+	}
+	if strings.Join(serviceNames, "\n") != strings.Join(expectedServiceNames, "\n") {
+		t.Fatalf("service names = %+v, want %+v", serviceNames, expectedServiceNames)
+	}
+}
+
+func TestReleaseCapabilitydServiceNamesFallbackToDeviceService(t *testing.T) {
+	serviceNames := releaseCapabilitydServiceNames(t.TempDir())
+	expectedServiceNames := []string{"internkim-capabilityd"}
+	if strings.Join(serviceNames, "\n") != strings.Join(expectedServiceNames, "\n") {
+		t.Fatalf("service names = %+v, want %+v", serviceNames, expectedServiceNames)
+	}
+}
+
 func TestFetchReleaseStablePointerUsesDownloadToken(t *testing.T) {
 	tokenPath := filepath.Join(t.TempDir(), "release-download-token")
 	writeFile(t, tokenPath, "download-token")
@@ -193,6 +216,15 @@ func TestFetchReleaseStablePointerUsesDownloadToken(t *testing.T) {
 	if pointer.ReleaseID != "release-1" {
 		t.Fatalf("release id = %q", pointer.ReleaseID)
 	}
+}
+
+func writeReleaseTenantRuntimeConfiguration(t *testing.T, tenantBasePath string, tenantID string) {
+	t.Helper()
+	runtimeConfigurationPath := filepath.Join(tenantBasePath, tenantID, "blueclaw", "config", "runtime.json")
+	if errorValue := os.MkdirAll(filepath.Dir(runtimeConfigurationPath), 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeFile(t, runtimeConfigurationPath, "{}")
 }
 
 func testReleaseManifest(releaseID string) *releaseset.Manifest {
