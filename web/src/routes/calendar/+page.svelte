@@ -1,13 +1,27 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { onMount } from 'svelte';
+	import type { CalendarNavigationMessage } from './calendar-navigation-message';
 	import { calendarText } from './text';
-	import { calendarRefresh } from './refresh-signal.svelte';
+	import { calendarNavigation, calendarRefresh } from './refresh-signal.svelte';
 
 	const text = createPageText(calendarText);
-	const iframeKey = $derived(calendarRefresh.ticks);
+	const iframeKey = $derived(`${calendarRefresh.ticks}-${currentLocale.value}`);
+	let calendarFrame = $state<HTMLIFrameElement | null>(null);
 	let embedQuery = $state('');
+
+	$effect(() => {
+		if (!calendarFrame?.contentWindow || !calendarNavigation.dateKey) return;
+		calendarFrame.contentWindow.postMessage(
+			{
+				type: 'calendar-navigate',
+				dateKey: calendarNavigation.dateKey
+			} satisfies CalendarNavigationMessage,
+			window.location.origin
+		);
+	});
 
 	onMount(() => {
 		embedQuery = window.location.search;
@@ -20,6 +34,11 @@
 
 <main class="flex min-h-0 flex-1 flex-col bg-background text-foreground">
 	{#key iframeKey}
-		<iframe title={text.title} src={browser ? `/calendar/embed${embedQuery}` : '/calendar/embed'} class="min-h-0 flex-1 border-0 bg-background"></iframe>
+		<iframe
+			bind:this={calendarFrame}
+			title={text.title}
+			src={browser ? `/calendar/embed${embedQuery}` : '/calendar/embed'}
+			class="min-h-0 flex-1 border-0 bg-background"
+		></iframe>
 	{/key}
 </main>
