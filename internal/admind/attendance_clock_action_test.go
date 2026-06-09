@@ -17,16 +17,16 @@ func TestAttendanceClockButtonsPostAsUserAndIgnoreInvalidState(t *testing.T) {
 		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken()},
 	}
 
-	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
@@ -58,10 +58,10 @@ func TestAttendanceClockMessagesUseAdminLocale(t *testing.T) {
 		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken()},
 	}
 
-	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
@@ -81,7 +81,7 @@ func TestAttendanceClockButtonUsesStoredEntryPostID(t *testing.T) {
 		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken()},
 	}
 
-	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
@@ -106,12 +106,53 @@ func TestAttendanceClockInMultipleLocationsPostsLocationName(t *testing.T) {
 		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken(), LocationID: "office"},
 	}
 
-	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
 	if len(*posts) != 1 || (*posts)[0].Message != "출근(사무실)" {
 		t.Fatalf("posts = %+v", *posts)
+	}
+}
+
+func TestAttendanceClockInButtonCreatesEventAfterClockOut(t *testing.T) {
+	service, posts := newAttendanceActionTestService(t)
+	if errorValue := service.writeAttendanceLocationsFile([]attendanceLocation{
+		{ID: "office", Name: "사무실", Color: "#16a34a", IsDefault: true},
+		{ID: "home", Name: "재택", Color: "#2563eb"},
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	payload := mattermostInteractivePayload{
+		UserID:    "user-1",
+		PostID:    "entry-post",
+		ChannelID: "attendance-channel",
+		TeamID:    "team-1",
+		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken(), LocationID: "home"},
+	}
+
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if len(*posts) != 3 ||
+		!(*posts)[0].Deleted ||
+		(*posts)[1].Message != "퇴근" ||
+		(*posts)[2].Message != "출근(재택)" {
+		t.Fatalf("posts = %+v", *posts)
+	}
+	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(events) != 3 || events[0].Kind != attendanceKindClockIn || events[0].LocationName != "재택" {
+		t.Fatalf("events = %+v", events)
 	}
 }
 
@@ -125,13 +166,13 @@ func TestAttendanceRepeatedClickCancelsEvent(t *testing.T) {
 		Context:   mattermostInteractiveContext{Action: "attendance.toggle", Token: service.ensureMattermostInteractiveActionToken()},
 	}
 
-	if errorValue := service.toggleAttendanceFromMattermost(context.Background(), payload); errorValue != nil {
+	if _, errorValue := service.toggleAttendanceFromMattermost(context.Background(), payload); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := service.toggleAttendanceFromMattermost(context.Background(), payload); errorValue != nil && errorValue != errAttendanceDuplicateIgnored {
+	if _, errorValue := service.toggleAttendanceFromMattermost(context.Background(), payload); errorValue != nil && errorValue != errAttendanceDuplicateIgnored {
 		t.Fatal(errorValue)
 	}
-	if errorValue := service.toggleAttendanceFromMattermost(context.Background(), payload); errorValue != nil {
+	if _, errorValue := service.toggleAttendanceFromMattermost(context.Background(), payload); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
@@ -163,13 +204,13 @@ func TestAttendanceCancelMessageUsesAdminLocale(t *testing.T) {
 		Context:   mattermostInteractiveContext{Action: "attendance.toggle", Token: service.ensureMattermostInteractiveActionToken()},
 	}
 
-	if errorValue := service.toggleAttendanceFromMattermost(context.Background(), payload); errorValue != nil {
+	if _, errorValue := service.toggleAttendanceFromMattermost(context.Background(), payload); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := service.toggleAttendanceFromMattermost(context.Background(), payload); errorValue != nil && errorValue != errAttendanceDuplicateIgnored {
+	if _, errorValue := service.toggleAttendanceFromMattermost(context.Background(), payload); errorValue != nil && errorValue != errAttendanceDuplicateIgnored {
 		t.Fatal(errorValue)
 	}
-	if errorValue := service.toggleAttendanceFromMattermost(context.Background(), payload); errorValue != nil {
+	if _, errorValue := service.toggleAttendanceFromMattermost(context.Background(), payload); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 

@@ -64,6 +64,22 @@ LIMIT 1`, mattermostUserID)
 	return event, true, nil
 }
 
+func (service *Service) latestActiveAttendanceEventForLocalDate(ctx context.Context, database *sql.DB, mattermostUserID string, localDate string) (attendanceEvent, bool, error) {
+	row := database.QueryRowContext(ctx, "SELECT "+attendanceEventSelectColumns+`
+FROM attendance_events
+WHERE mattermost_user_id = ? AND local_date = ? AND canceled_at = ''
+ORDER BY occurred_at DESC
+LIMIT 1`, mattermostUserID, localDate)
+	event, errorValue := scanAttendanceEvent(row)
+	if errors.Is(errorValue, sql.ErrNoRows) {
+		return attendanceEvent{}, false, nil
+	}
+	if errorValue != nil {
+		return attendanceEvent{}, false, errorValue
+	}
+	return event, true, nil
+}
+
 func (service *Service) latestActiveAttendanceEventForUserAndKind(ctx context.Context, database *sql.DB, mattermostUserID string, kind string) (attendanceEvent, bool, error) {
 	row := database.QueryRowContext(ctx, "SELECT "+attendanceEventSelectColumns+`
 FROM attendance_events

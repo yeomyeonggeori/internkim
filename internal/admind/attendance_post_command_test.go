@@ -20,13 +20,13 @@ func TestAttendanceClockButtonsKeepOnlyLatestClockInAndClockOutPosts(t *testing.
 		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken()},
 	}
 
-	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
@@ -58,10 +58,10 @@ func TestAttendanceEntryCommentCreatesAttendanceEvent(t *testing.T) {
 	if response.Code != http.StatusCreated {
 		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
 	}
-	if len(*posts) != 2 ||
-		!(*posts)[0].Deleted ||
-		(*posts)[1].Message != "출근(사무실)" ||
-		(*posts)[1].RootID != "entry-post" {
+	if len(*posts) != 1 ||
+		(*posts)[0].Deleted ||
+		(*posts)[0].Message != "출근(사무실)" ||
+		(*posts)[0].RootID != "entry-post" {
 		t.Fatalf("posts = %+v", *posts)
 	}
 	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
@@ -106,10 +106,10 @@ func TestAttendanceEntryCommentClockInFormsUseSameAction(t *testing.T) {
 			if response.Code != http.StatusCreated {
 				t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
 			}
-			if len(*posts) != 2 ||
-				!(*posts)[0].Deleted ||
-				(*posts)[1].Message != testCase.expectedResultPost ||
-				(*posts)[1].RootID != "entry-post" {
+			if len(*posts) != 1 ||
+				(*posts)[0].Deleted ||
+				(*posts)[0].Message != testCase.expectedResultPost ||
+				(*posts)[0].RootID != "entry-post" {
 				t.Fatalf("posts = %+v", *posts)
 			}
 			events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
@@ -160,6 +160,44 @@ func TestAttendanceChannelPostCreatesAttendanceEvent(t *testing.T) {
 	}
 }
 
+func TestAttendanceEntryCommentDeletesDuplicateCommand(t *testing.T) {
+	service, posts := newAttendanceActionTestService(t)
+	service.saveMattermostAttendanceChannelID("attendance-channel")
+	service.saveMattermostAttendanceEntryPostID("entry-post")
+	payload := mattermostInteractivePayload{
+		UserID:    "user-1",
+		PostID:    "entry-post",
+		ChannelID: "attendance-channel",
+		TeamID:    "team-1",
+		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken()},
+	}
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"attendance-channel","root_id":"entry-post","message":"출근"}`))
+	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+	if len(*posts) != 2 ||
+		(*posts)[0].Deleted ||
+		!(*posts)[1].Deleted ||
+		(*posts)[1].Message != "출근" {
+		t.Fatalf("posts = %+v", *posts)
+	}
+	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(events) != 1 || events[0].Kind != attendanceKindClockIn {
+		t.Fatalf("events = %+v", events)
+	}
+}
+
 func TestAttendanceEntryCommentAcceptsEnglishAliases(t *testing.T) {
 	service, posts := newAttendanceActionTestService(t)
 	service.saveMattermostAttendanceChannelID("attendance-channel")
@@ -174,11 +212,11 @@ func TestAttendanceEntryCommentAcceptsEnglishAliases(t *testing.T) {
 		}
 	}
 
-	if len(*posts) != 4 ||
-		!(*posts)[0].Deleted ||
-		(*posts)[1].Message != "출근(사무실)" ||
-		!(*posts)[2].Deleted ||
-		(*posts)[3].Message != "퇴근" {
+	if len(*posts) != 2 ||
+		(*posts)[0].Deleted ||
+		(*posts)[0].Message != "출근(사무실)" ||
+		(*posts)[1].Deleted ||
+		(*posts)[1].Message != "퇴근" {
 		t.Fatalf("posts = %+v", *posts)
 	}
 }
@@ -194,7 +232,7 @@ func TestAttendanceEntryCommentUpdatesCurrentEventTime(t *testing.T) {
 		TeamID:    "team-1",
 		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken()},
 	}
-	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"attendance-channel","root_id":"entry-post","message":"9:00"}`))
@@ -229,10 +267,10 @@ func TestAttendanceEntryCommentUpdatesClockOutTime(t *testing.T) {
 		TeamID:    "team-1",
 		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken()},
 	}
-	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"attendance-channel","root_id":"entry-post","message":"18:30"}`))

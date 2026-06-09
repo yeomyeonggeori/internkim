@@ -470,7 +470,7 @@ func (service *Service) managedChannelWriteGuard(next http.Handler) http.Handler
 			next.ServeHTTP(recorder, request)
 			if recorder.statusCode >= http.StatusOK && recorder.statusCode < http.StatusMultipleChoices {
 				if errorValue := service.syncMattermostAttendancePostCommand(request.Context(), request, payload, command, recorder.body.Bytes()); errorValue != nil {
-					log.Printf("Mattermost Attendance post command sync failed: %v", errorValue)
+					log.Printf("Mattermost Attendance post command sync failed: channelID=%q rootID=%q kind=%q timeUpdate=%v: %v", strings.TrimSpace(payload.ChannelID), strings.TrimSpace(payload.RootID), strings.TrimSpace(command.Kind), command.IsTimeUpdate, errorValue)
 				}
 			}
 			return
