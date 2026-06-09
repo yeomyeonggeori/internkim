@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/tenantruntime"
@@ -178,6 +179,7 @@ func runTenantBootstrap(arguments []string) {
 	gatewayURL := flags.String("gateway-url", "", "LLM gateway OpenRouter-compatible chat completion URL")
 	deviceToken := flags.String("device-token", "", "tenant device-scoped LLM token")
 	gatewaySharedSecret := flags.String("gateway-shared-secret", "", "tenant LLM gateway shared secret")
+	releaseDownloadToken := flags.String("release-download-token", "", "release registry download token")
 	adminPassword := flags.String("admin-password", "", "tenant initial admin password")
 	adminEmail := flags.String("admin-email", "", "tenant admin email")
 	modelName := flags.String("model", "", "optional remote model override")
@@ -185,13 +187,14 @@ func runTenantBootstrap(arguments []string) {
 		fatal(errorValue.Error())
 	}
 	status, errorValue := (tenantruntime.Service{BasePath: *basePath}).BootstrapTenant(*tenantID, tenantruntime.BootstrapOptions{
-		BinaryDirectoryPath: *binaryDirectoryPath,
-		GatewayURL:          *gatewayURL,
-		DeviceToken:         *deviceToken,
-		GatewaySharedSecret: *gatewaySharedSecret,
-		AdminPassword:       *adminPassword,
-		AdminEmail:          *adminEmail,
-		ModelName:           *modelName,
+		BinaryDirectoryPath:  *binaryDirectoryPath,
+		GatewayURL:           *gatewayURL,
+		DeviceToken:          *deviceToken,
+		GatewaySharedSecret:  *gatewaySharedSecret,
+		ReleaseDownloadToken: resolveReleaseDownloadToken(*releaseDownloadToken),
+		AdminPassword:        *adminPassword,
+		AdminEmail:           *adminEmail,
+		ModelName:            *modelName,
 	})
 	if errorValue != nil {
 		fatal(errorValue.Error())
@@ -223,6 +226,7 @@ func runTenantInstallHostRuntime(arguments []string) {
 	systemdDirectoryPath := flags.String("systemd-dir", "/etc/systemd/system", "systemd unit directory")
 	gatewayURL := flags.String("gateway-url", "", "LLM gateway OpenRouter-compatible chat completion URL")
 	gatewaySharedSecret := flags.String("gateway-shared-secret", "", "tenant LLM gateway shared secret")
+	releaseDownloadToken := flags.String("release-download-token", "", "release registry download token")
 	modelName := flags.String("model", "", "optional remote model override")
 	rootFilesystemTemplatePath := flags.String("rootfs-image", "/opt/internkim/blueclaw-runtime/rootfs.ext4", "Blueclaw rootfs image template path")
 	workspaceImageTemplatePath := flags.String("workspace-image", "/var/lib/blueclaw/workspace.ext4", "Blueclaw workspace image template path")
@@ -236,6 +240,7 @@ func runTenantInstallHostRuntime(arguments []string) {
 	}).InstallHostRuntime(context.Background(), *tenantID, tenantruntime.HostRuntimeOptions{
 		GatewayURL:                 *gatewayURL,
 		GatewaySharedSecret:        *gatewaySharedSecret,
+		ReleaseDownloadToken:       resolveReleaseDownloadToken(*releaseDownloadToken),
 		ModelName:                  *modelName,
 		RootFilesystemTemplatePath: *rootFilesystemTemplatePath,
 		WorkspaceImageTemplatePath: *workspaceImageTemplatePath,
@@ -269,6 +274,24 @@ func runTenantExposeMattermost(arguments []string) {
 		fatal(errorValue.Error())
 	}
 	printMattermostExposures(exposures)
+}
+
+func resolveReleaseDownloadToken(explicitToken string) string {
+	if strings.TrimSpace(explicitToken) != "" {
+		return strings.TrimSpace(explicitToken)
+	}
+	if token := strings.TrimSpace(os.Getenv("INTERNKIM_RELEASE_DOWNLOAD_TOKEN")); token != "" {
+		return token
+	}
+	repositoryRootPath, errorValue := resolveRepositoryRootPath()
+	if errorValue != nil {
+		return ""
+	}
+	document, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, ".local", "secrets", "release-download-token"))
+	if errorValue != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(document))
 }
 
 func runTenantSyncCloudflareTunnel(arguments []string) {

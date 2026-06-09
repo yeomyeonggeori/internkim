@@ -905,6 +905,10 @@ chmod 755 /root/.internkim
 chmod 750 /root/.internkim/sites /root/.internkim/secrets/sites
 chmod 755 /root/.blueclaw/workspace/bin /root/.blueclaw/workspace/downloads`)
 
+	if err := state.installReleaseDownloadTokenSSH(); err != nil {
+		return err
+	}
+
 	if err := state.installBlueclawMigrationsSSH(); err != nil {
 		return err
 	}
@@ -934,6 +938,54 @@ rm -f /usr/local/bin/gws-* /etc/sudoers.d/blueclaw-gws /etc/sudoers.d/blueclaw-m
 	}
 
 	return nil
+}
+
+func (state *setupFlowState) installReleaseDownloadTokenSSH() error {
+	tokenPath, cleanup, errorValue := state.releaseDownloadTokenSourcePath()
+	if errorValue != nil {
+		return errorValue
+	}
+	if cleanup != nil {
+		defer cleanup()
+	}
+	if tokenPath == "" {
+		return nil
+	}
+	remotePath := "/root/.internkim/secrets/release-download-token"
+	if errorValue := state.sshClient.scp(tokenPath, remotePath); errorValue != nil {
+		return errorValue
+	}
+	state.sshClient.run("chown root:root " + quoteShellValue(remotePath) + " && chmod 600 " + quoteShellValue(remotePath))
+	return nil
+}
+
+func (state *setupFlowState) releaseDownloadTokenSourcePath() (string, func(), error) {
+	if token := strings.TrimSpace(os.Getenv("INTERNKIM_RELEASE_DOWNLOAD_TOKEN")); token != "" {
+		file, errorValue := os.CreateTemp("", "internkim-release-token-*")
+		if errorValue != nil {
+			return "", nil, errorValue
+		}
+		cleanup := func() { _ = os.Remove(file.Name()) }
+		if _, errorValue := file.WriteString(token + "\n"); errorValue != nil {
+			_ = file.Close()
+			cleanup()
+			return "", nil, errorValue
+		}
+		if errorValue := file.Close(); errorValue != nil {
+			cleanup()
+			return "", nil, errorValue
+		}
+		if errorValue := os.Chmod(file.Name(), 0o600); errorValue != nil {
+			cleanup()
+			return "", nil, errorValue
+		}
+		return file.Name(), cleanup, nil
+	}
+	localPath := filepath.Join(state.scriptDir, ".local", "secrets", "release-download-token")
+	if information, errorValue := os.Stat(localPath); errorValue == nil && !information.IsDir() {
+		return localPath, nil, nil
+	}
+	return "", nil, nil
 }
 
 func (state *setupFlowState) ensureManagedHostExecutablesSSH() error {

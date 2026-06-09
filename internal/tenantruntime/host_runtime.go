@@ -15,6 +15,7 @@ import (
 type HostRuntimeOptions struct {
 	GatewayURL                 string
 	GatewaySharedSecret        string
+	ReleaseDownloadToken       string
 	ModelName                  string
 	RootFilesystemTemplatePath string
 	WorkspaceImageTemplatePath string
@@ -75,6 +76,7 @@ func hostRuntimeConfiguration(manifest Manifest, paths RuntimePaths, options Hos
 	return hostRuntimeConfigurationDocument{
 		GatewayURL:                 strings.TrimSpace(options.GatewayURL),
 		GatewaySharedSecret:        strings.TrimSpace(options.GatewaySharedSecret),
+		ReleaseDownloadToken:       strings.TrimSpace(options.ReleaseDownloadToken),
 		ModelName:                  strings.TrimSpace(options.ModelName),
 		RootFilesystemTemplatePath: firstNonEmptyTenantString(options.RootFilesystemTemplatePath, blueclaw.BlueclawRootFilesystemImagePath),
 		WorkspaceImageTemplatePath: firstNonEmptyTenantString(options.WorkspaceImageTemplatePath, blueclaw.BlueclawWorkspaceImagePath),
@@ -97,6 +99,7 @@ func hostRuntimeConfiguration(manifest Manifest, paths RuntimePaths, options Hos
 type hostRuntimeConfigurationDocument struct {
 	GatewayURL                 string
 	GatewaySharedSecret        string
+	ReleaseDownloadToken       string
 	ModelName                  string
 	RootFilesystemTemplatePath string
 	WorkspaceImageTemplatePath string
@@ -140,6 +143,11 @@ func installHostRuntimeFiles(manifest Manifest, paths RuntimePaths, configuratio
 	}
 	if strings.TrimSpace(configuration.GatewaySharedSecret) != "" {
 		if errorValue := writeTenantFile(paths.InternKimPath, "secrets/llm-gateway-shared-secret", configuration.GatewaySharedSecret, 0o600); errorValue != nil {
+			return errorValue
+		}
+	}
+	if strings.TrimSpace(configuration.ReleaseDownloadToken) != "" {
+		if errorValue := writeTenantFile(paths.InternKimPath, "secrets/release-download-token", configuration.ReleaseDownloadToken, 0o600); errorValue != nil {
 			return errorValue
 		}
 	}
