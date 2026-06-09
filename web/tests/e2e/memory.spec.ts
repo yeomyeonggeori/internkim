@@ -131,6 +131,91 @@ test.describe('memory graph', () => {
 		await expect(page.getByText('2026. 6. 9.')).toBeVisible();
 	});
 
+	test('pages through all visible schedules', async ({ page }) => {
+		await page.route('**/memory/api/schedules**', async (route) => {
+			const requestURL = new URL(route.request().url());
+			const pageNumber = Number(requestURL.searchParams.get('page') ?? '1');
+			await route.fulfill({
+				json: {
+					schedules: [
+						{
+							taskScheduleID: `schedule-page-${pageNumber}`,
+							creatorPersonID: `person-${pageNumber}`,
+							executionMode: 'agent',
+							kind: 'cron',
+							cronExpression: '0 9 * * *',
+							nextRunAt: '2026-06-09T00:00:00Z',
+							createdAt: '2026-06-08T00:00:00Z',
+							updatedAt: '2026-06-08T00:00:00Z',
+							deliveryChannelID: 'channel-1',
+							promptPreview: `예약 페이지 ${pageNumber}`,
+							timeZone: 'Asia/Seoul'
+						}
+					],
+					count: 1,
+					totalCount: 50,
+					page: pageNumber,
+					pageSize: 25,
+					checkedAt: '2026-06-08T00:00:00Z'
+				}
+			});
+		});
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await page.goto('/memory/');
+
+		await page.getByRole('tab', { name: '예약 작업' }).click();
+
+		await expect(page.getByText('예약 페이지 1')).toBeVisible();
+		await expect(page.getByText('1-25 / 50')).toBeVisible();
+
+		await page.getByRole('button', { name: '2' }).click();
+
+		await expect(page.getByText('예약 페이지 2')).toBeVisible();
+		await expect(page.getByText('26-50 / 50')).toBeVisible();
+	});
+
+	test('moves back when the selected schedule page becomes empty', async ({ page }) => {
+		await page.route('**/memory/api/schedules**', async (route) => {
+			const requestURL = new URL(route.request().url());
+			const pageNumber = Number(requestURL.searchParams.get('page') ?? '1');
+			const isStalePage = pageNumber === 2;
+			await route.fulfill({
+				json: {
+					schedules: isStalePage
+						? []
+						: [
+								{
+									taskScheduleID: 'schedule-page-1',
+									creatorPersonID: 'person-1',
+									executionMode: 'agent',
+									kind: 'cron',
+									cronExpression: '0 9 * * *',
+									nextRunAt: '2026-06-09T00:00:00Z',
+									createdAt: '2026-06-08T00:00:00Z',
+									updatedAt: '2026-06-08T00:00:00Z',
+									deliveryChannelID: 'channel-1',
+									promptPreview: '예약 페이지 1',
+									timeZone: 'Asia/Seoul'
+								}
+							],
+					count: isStalePage ? 0 : 1,
+					totalCount: isStalePage ? 25 : 50,
+					page: pageNumber,
+					pageSize: 25,
+					checkedAt: '2026-06-08T00:00:00Z'
+				}
+			});
+		});
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await page.goto('/memory/');
+
+		await page.getByRole('tab', { name: '예약 작업' }).click();
+		await page.getByRole('button', { name: '2' }).click();
+
+		await expect(page.getByText('예약 페이지 1')).toBeVisible();
+		await expect(page.getByText('아직 예약 작업이 없습니다.')).toHaveCount(0);
+	});
+
 	test('shows an empty schedules state', async ({ page }) => {
 		await page.route('**/memory/api/schedules**', async (route) => {
 			await route.fulfill({ json: { schedules: [], count: 0 } });

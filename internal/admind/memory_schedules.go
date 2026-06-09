@@ -12,7 +12,7 @@ func (service *Service) writeUserMemorySchedules(responseWriter http.ResponseWri
 		http.Error(responseWriter, "memory access required", http.StatusForbidden)
 		return
 	}
-	personID, errorValue := service.resolveMemoryPersonID(request.Context(), actorEmail)
+	personID, errorValue := service.resolveMemoryPersonIDFromPolicy(request.Context(), actorEmail)
 	if errorValue != nil {
 		log.Printf("memory schedules identity resolution failed: %v", errorValue)
 		http.Error(responseWriter, "memory identity unavailable", http.StatusBadGateway)
@@ -24,18 +24,26 @@ func (service *Service) writeUserMemorySchedules(responseWriter http.ResponseWri
 	}
 
 	var schedules map[string]any
-	path := "/admin/api/task-schedules?" + memorySchedulesQuery(personID)
+	path := "/admin/api/task-schedules"
+	if query := memorySchedulesQuery(request.URL.Query()); query != "" {
+		path += "?" + query
+	}
 	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, path, nil, &schedules); errorValue != nil {
 		log.Printf("memory schedules upstream failed: %v", errorValue)
 		http.Error(responseWriter, "memory schedules unavailable", http.StatusBadGateway)
 		return
 	}
+	schedules["currentPersonID"] = personID
 	service.writeJSON(responseWriter, schedules)
 }
 
-func memorySchedulesQuery(personID string) string {
+func memorySchedulesQuery(values url.Values) string {
 	query := url.Values{}
-	query.Set("creatorPersonID", personID)
-	query.Set("limit", "50")
+	if page := values.Get("page"); page != "" {
+		query.Set("page", page)
+	}
+	if pageSize := values.Get("pageSize"); pageSize != "" {
+		query.Set("pageSize", pageSize)
+	}
 	return query.Encode()
 }

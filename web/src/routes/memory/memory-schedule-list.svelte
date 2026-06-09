@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import * as Pagination from '$lib/components/ui/pagination';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
@@ -15,23 +16,53 @@
 
 	let { text }: { text: MemoryText } = $props();
 
+	const defaultPageSize = 25;
+
 	let schedules = $state<MemorySchedule[]>([]);
+	let currentPage = $state(1);
+	let pageSize = $state(defaultPageSize);
+	let totalCount = $state(0);
 	let hasLoadError = $state(false);
 	let isLoading = $state(false);
 
-	onMount(loadSchedules);
+	let shouldShowPagination = $derived(totalCount > pageSize);
 
-	async function loadSchedules(): Promise<void> {
+	onMount(() => {
+		void loadSchedules(currentPage);
+	});
+
+	async function loadSchedules(page: number): Promise<void> {
 		isLoading = true;
 		hasLoadError = false;
 		try {
-			const response = await fetchMemorySchedules();
-			schedules = response.schedules ?? [];
+			const response = await fetchMemorySchedules({ page, pageSize });
+			const loadedSchedules = response.schedules ?? [];
+			const loadedPageSize = response.pageSize && response.pageSize > 0 ? response.pageSize : pageSize;
+			const loadedTotalCount = response.totalCount ?? response.count ?? loadedSchedules.length;
+			const lastPage = Math.max(1, Math.ceil(loadedTotalCount / loadedPageSize));
+			if (page > lastPage && loadedSchedules.length === 0 && loadedTotalCount > 0) {
+				await loadSchedules(lastPage);
+				return;
+			}
+			schedules = loadedSchedules;
+			currentPage = response.page ?? page;
+			pageSize = loadedPageSize;
+			totalCount = loadedTotalCount;
 		} catch {
 			hasLoadError = true;
 		} finally {
 			isLoading = false;
 		}
+	}
+
+	function refreshSchedules(): void {
+		void loadSchedules(currentPage);
+	}
+
+	function changeSchedulePage(page: number): void {
+		if (page === currentPage || isLoading) return;
+		currentPage = page;
+		void loadSchedules(page);
 	}
 
 	function scheduleTitle(schedule: MemorySchedule): string {
@@ -67,6 +98,15 @@
 	function dateTimeLocale(): string {
 		return currentLocale.value === 'ko' ? 'ko-KR' : 'en-US';
 	}
+
+	function pageSummary(): string {
+		const start = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+		const end = Math.min(currentPage * pageSize, totalCount);
+		return text.schedulePageSummaryTemplate
+			.replace('{start}', String(start))
+			.replace('{end}', String(end))
+			.replace('{total}', String(totalCount));
+	}
 </script>
 
 <section class="grid min-w-0 gap-3">
@@ -75,7 +115,7 @@
 			<h2 class="text-base font-semibold">{text.scheduleTab}</h2>
 			<p class="text-sm text-muted-foreground">{text.scheduleDescription}</p>
 		</div>
-		<Button type="button" variant="outline" disabled={isLoading} onclick={loadSchedules} class="gap-2">
+		<Button type="button" variant="outline" disabled={isLoading} onclick={refreshSchedules} class="gap-2">
 			{#if isLoading}
 				<LoaderIcon class="size-4 animate-spin" />
 			{:else}
@@ -115,5 +155,42 @@
 				</article>
 			{/each}
 		</div>
+		{#if shouldShowPagination}
+			<div class="flex flex-col items-center justify-between gap-3 sm:flex-row">
+				<p class="text-sm text-muted-foreground">{pageSummary()}</p>
+				<Pagination.Root
+					count={totalCount}
+					perPage={pageSize}
+					page={currentPage}
+					onPageChange={changeSchedulePage}
+					role="navigation"
+					aria-label={text.schedulePagination}
+				>
+					{#snippet children({ pages, currentPage })}
+						<Pagination.Content>
+							<Pagination.Item>
+								<Pagination.Previous>{text.schedulePreviousPage}</Pagination.Previous>
+							</Pagination.Item>
+							{#each pages as page (page.key)}
+								{#if page.type === 'ellipsis'}
+									<Pagination.Item>
+										<Pagination.Ellipsis label={text.scheduleMorePages} />
+									</Pagination.Item>
+								{:else}
+									<Pagination.Item>
+										<Pagination.Link {page} isActive={currentPage === page.value}>
+											{page.value}
+										</Pagination.Link>
+									</Pagination.Item>
+								{/if}
+							{/each}
+							<Pagination.Item>
+								<Pagination.Next>{text.scheduleNextPage}</Pagination.Next>
+							</Pagination.Item>
+						</Pagination.Content>
+					{/snippet}
+				</Pagination.Root>
+			</div>
+		{/if}
 	{/if}
 </section>

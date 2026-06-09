@@ -67,20 +67,29 @@ func TestMemoryAPIUsesMattermostSessionUserSchedules(t *testing.T) {
 		if request.URL.String() == "https://api.intern.kim/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","userID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
+		if request.URL.Path == "/admin/api/policy" && request.Method == http.MethodGet {
+			return jsonResponse(http.StatusOK, `{"people":[{"personID":"person-1","emails":["member@example.com"]}]}`, nil), nil
+		}
 		if request.URL.Path == "/admin/api/task-schedules" && request.Method == http.MethodGet {
-			if request.URL.Query().Get("creatorPersonID") != "user:person-1" {
+			if request.URL.Query().Get("creatorPersonID") != "" {
 				t.Fatalf("creatorPersonID = %q", request.URL.Query().Get("creatorPersonID"))
 			}
-			if request.URL.Query().Get("limit") != "50" {
+			if request.URL.Query().Get("limit") != "" {
 				t.Fatalf("limit = %q", request.URL.Query().Get("limit"))
 			}
-			return jsonResponse(http.StatusOK, `{"schedules":[{"taskScheduleID":"schedule-1","creatorPersonID":"user:person-1","executionMode":"agent","kind":"cron","cronExpression":"0 9 * * *","nextRunAt":"2026-06-09T00:00:00Z","createdAt":"2026-06-08T00:00:00Z","updatedAt":"2026-06-08T00:00:00Z","deliveryChannelID":"channel-1","promptPreview":"팀 일정 알려주기"}],"count":1}`, nil), nil
+			if request.URL.Query().Get("page") != "3" {
+				t.Fatalf("page = %q", request.URL.Query().Get("page"))
+			}
+			if request.URL.Query().Get("pageSize") != "25" {
+				t.Fatalf("pageSize = %q", request.URL.Query().Get("pageSize"))
+			}
+			return jsonResponse(http.StatusOK, `{"schedules":[{"taskScheduleID":"schedule-1","creatorPersonID":"person-1","executionMode":"agent","kind":"cron","cronExpression":"0 9 * * *","nextRunAt":"2026-06-09T00:00:00Z","createdAt":"2026-06-08T00:00:00Z","updatedAt":"2026-06-08T00:00:00Z","deliveryChannelID":"channel-1","promptPreview":"팀 일정 알려주기"},{"taskScheduleID":"schedule-2","creatorPersonID":"person-2","executionMode":"agent","kind":"cron","cronExpression":"0 10 * * *","nextRunAt":"2026-06-09T01:00:00Z","createdAt":"2026-06-08T00:00:00Z","updatedAt":"2026-06-08T00:00:00Z","deliveryChannelID":"channel-1","promptPreview":"다른 사람 예약"}],"count":2,"totalCount":70,"page":3,"pageSize":25}`, nil), nil
 		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}
 
-	request := httptest.NewRequest(http.MethodGet, "/memory/api/schedules?creatorPersonID=other-person&limit=200", nil)
+	request := httptest.NewRequest(http.MethodGet, "/memory/api/schedules?creatorPersonID=other-person&limit=200&page=3&pageSize=25", nil)
 	request.RemoteAddr = "198.51.100.10:443"
 	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
 	response := httptest.NewRecorder()
@@ -94,7 +103,13 @@ func TestMemoryAPIUsesMattermostSessionUserSchedules(t *testing.T) {
 	if errorValue := json.NewDecoder(response.Body).Decode(&schedules); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if schedules["count"] != float64(1) {
+	if schedules["count"] != float64(2) {
+		t.Fatalf("memory schedules response = %+v", schedules)
+	}
+	if schedules["currentPersonID"] != "person-1" {
+		t.Fatalf("memory schedules response = %+v", schedules)
+	}
+	if schedules["totalCount"] != float64(70) || schedules["page"] != float64(3) || schedules["pageSize"] != float64(25) {
 		t.Fatalf("memory schedules response = %+v", schedules)
 	}
 }
@@ -113,6 +128,9 @@ func TestMemoryAPISchedulesHidesUpstreamFailureDetails(t *testing.T) {
 		}
 		if request.URL.String() == "https://api.intern.kim/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","userID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
+		}
+		if request.URL.Path == "/admin/api/policy" && request.Method == http.MethodGet {
+			return jsonResponse(http.StatusOK, `{"people":[{"personID":"person-1","emails":["member@example.com"]}]}`, nil), nil
 		}
 		if request.URL.Path == "/admin/api/task-schedules" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusInternalServerError, `private backend detail`, nil), nil

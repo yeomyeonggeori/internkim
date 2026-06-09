@@ -22,11 +22,20 @@ export type MemorySchedule = {
 export type MemoryScheduleListResponse = {
 	schedules?: MemorySchedule[];
 	count?: number;
+	totalCount?: number;
+	page?: number;
+	pageSize?: number;
 	checkedAt?: string;
+	currentPersonID?: string;
 };
 
-export async function fetchMemorySchedules(): Promise<MemoryScheduleListResponse> {
-	const response = await fetch('/memory/api/schedules', { credentials: 'include' });
+export type MemoryScheduleListRequest = {
+	page?: number;
+	pageSize?: number;
+};
+
+export async function fetchMemorySchedules(request: MemoryScheduleListRequest = {}): Promise<MemoryScheduleListResponse> {
+	const response = await fetch(memorySchedulesURL(request), { credentials: 'include' });
 	if (!response.ok) {
 		throw new Error(`Memory schedules request returned ${response.status}`);
 	}
@@ -45,13 +54,34 @@ export function normalizeMemoryScheduleListResponse(document: unknown): MemorySc
 			})
 		: undefined;
 	const count = readNumber(record.count);
+	const totalCount = readNumber(record.totalCount);
+	const page = readNumber(record.page);
+	const pageSize = readNumber(record.pageSize);
 	const checkedAt = readString(record.checkedAt);
+	const currentPersonID = readString(record.currentPersonID);
 
 	return {
 		...(schedules ? { schedules } : {}),
 		...(typeof count === 'number' ? { count } : {}),
-		...(checkedAt ? { checkedAt } : {})
+		...(typeof totalCount === 'number' ? { totalCount } : {}),
+		...(typeof page === 'number' ? { page } : {}),
+		...(typeof pageSize === 'number' ? { pageSize } : {}),
+		...(checkedAt ? { checkedAt } : {}),
+		...(currentPersonID ? { currentPersonID } : {})
 	};
+}
+
+function memorySchedulesURL(request: MemoryScheduleListRequest): string {
+	const query = new URLSearchParams();
+	setPositiveIntegerQuery(query, 'page', request.page);
+	setPositiveIntegerQuery(query, 'pageSize', request.pageSize);
+	const queryString = query.toString();
+	return queryString ? `/memory/api/schedules?${queryString}` : '/memory/api/schedules';
+}
+
+function setPositiveIntegerQuery(query: URLSearchParams, name: string, value: number | undefined): void {
+	if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return;
+	query.set(name, String(Math.floor(value)));
 }
 
 function normalizeMemorySchedule(document: unknown): MemorySchedule | undefined {
