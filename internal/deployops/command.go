@@ -1,0 +1,150 @@
+package deployops
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+)
+
+type CommandPlan struct {
+	DirectoryPath string
+	Name          string
+	Arguments     []string
+	Environment   []string
+}
+
+func (server *Server) runJob(contextValue context.Context, job *JobRunner, target Target, action string) {
+	switch action {
+	case JobActionCheck:
+		status := server.CheckStatus(contextValue, target)
+		job.Info(formatStatus(status))
+	case JobActionDeployAdmind:
+		job.Error(server.runCommandPlan(contextValue, job, deployCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, target, "admind")))
+	case JobActionDeployRuntime:
+		job.Error(server.runCommandPlan(contextValue, job, deployCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, target, "capabilityd,blueclawPayload,skills")))
+	case JobActionDeployWeb:
+		job.Error(server.runCommandPlan(contextValue, job, deployCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, target, "web")))
+	case JobActionPilotStandard:
+		server.runPilotStandardDeploy(contextValue, job, target)
+	case JobActionRestartSSH, JobActionRestartSSHRoute:
+		job.Error(server.runCommandPlan(contextValue, job, recoveryCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, target, action)))
+	case JobActionMattermostSmoke:
+		job.Error(server.runCommandPlan(contextValue, job, mattermostSmokeCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, target)))
+	default:
+		job.Error(fmt.Errorf("unsupported job action: %s", action))
+	}
+}
+
+func (server *Server) runPilotStandardDeploy(contextValue context.Context, job *JobRunner, target Target) {
+	if errorValue := server.runCommandPlan(contextValue, job, CommandPlan{DirectoryPath: server.options.RepositoryRootPath, Name: "make", Arguments: []string{"build"}, Environment: os.Environ()}); errorValue != nil {
+		job.Error(errorValue)
+		return
+	}
+	if errorValue := server.runCommandPlan(contextValue, job, deployCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, target, "admind")); errorValue != nil {
+		job.Error(errorValue)
+		return
+	}
+	job.Info(formatStatus(server.CheckStatus(contextValue, target)))
+	if errorValue := server.runCommandPlan(contextValue, job, deployCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, target, "capabilityd,blueclawPayload,skills")); errorValue != nil {
+		job.Error(errorValue)
+		return
+	}
+	job.Info(formatStatus(server.CheckStatus(contextValue, target)))
+}
+
+func (server *Server) runCommandPlan(contextValue context.Context, job *JobRunner, plan CommandPlan) error {
+	job.Info("$ " + strings.Join(append([]string{plan.Name}, plan.Arguments...), " "))
+	command := exec.CommandContext(contextValue, plan.Name, plan.Arguments...)
+	command.Dir = plan.DirectoryPath
+	command.Env = plan.Environment
+	outputPipe, errorValue := command.StdoutPipe()
+	if errorValue != nil {
+		return errorValue
+	}
+	errorPipe, errorValue := command.StderrPipe()
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := command.Start(); errorValue != nil {
+		return errorValue
+	}
+	done := make(chan struct{}, 2)
+	go scanLines(outputPipe, job, done)
+	go scanLines(errorPipe, job, done)
+	<-done
+	<-done
+	if errorValue := command.Wait(); errorValue != nil {
+		return errorValue
+	}
+	return nil
+}
+
+func scanLines(pipe interface{ Read([]byte) (int, error) }, job *JobRunner, done chan struct{}) {
+	defer func() { done <- struct{}{} }()
+	scanner := bufio.NewScanner(pipe)
+	buffer := make([]byte, 0, 1024*64)
+	scanner.Buffer(buffer, 1024*1024)
+	for scanner.Scan() {
+		job.appendLine(scanner.Text())
+	}
+}
+
+func runBufferedCommand(contextValue context.Context, plan CommandPlan) (string, error) {
+	command := exec.CommandContext(contextValue, plan.Name, plan.Arguments...)
+	command.Dir = plan.DirectoryPath
+	command.Env = plan.Environment
+	var output bytes.Buffer
+	command.Stdout = &output
+	command.Stderr = &output
+	errorValue := command.Run()
+	return output.String(), errorValue
+}
+
+func deployCommand(repositoryRootPath string, executablePath string, target Target, components string) CommandPlan {
+	arguments := commandTargetArguments(target, []string{"deploy", "--components", components})
+	return CommandPlan{
+		DirectoryPath: repositoryRootPath,
+		Name:          executablePath,
+		Arguments:     arguments,
+		Environment:   commandEnvironment(target),
+	}
+}
+
+func recoveryCommand(repositoryRootPath string, executablePath string, target Target, action string) CommandPlan {
+	arguments := commandTargetArguments(target, []string{"recover", "ssh", "--action", action})
+	return CommandPlan{
+		DirectoryPath: repositoryRootPath,
+		Name:          executablePath,
+		Arguments:     arguments,
+		Environment:   commandEnvironment(target),
+	}
+}
+
+func mattermostSmokeCommand(repositoryRootPath string, executablePath string, target Target) CommandPlan {
+	arguments := commandTargetArguments(target, []string{"verify", "mattermost"})
+	return CommandPlan{
+		DirectoryPath: repositoryRootPath,
+		Name:          executablePath,
+		Arguments:     arguments,
+		Environment:   commandEnvironment(target),
+	}
+}
+
+func commandTargetArguments(target Target, arguments []string) []string {
+	if strings.TrimSpace(target.NodeArgument) == "" {
+		return append([]string(nil), arguments...)
+	}
+	return append(append([]string(nil), arguments...), "--node", target.NodeArgument)
+}
+
+func commandEnvironment(target Target) []string {
+	environment := os.Environ()
+	if strings.TrimSpace(target.Profile) != "" {
+		environment = append(environment, "INTERNKIM_PROFILE="+target.Profile)
+	}
+	return environment
+}
