@@ -131,6 +131,7 @@ export function buildAttendanceSummaryFixture(month: string): AttendanceSummary 
 	};
 
 	const events: AttendanceSummary['events'] = [];
+	const absences: AttendanceSummary['absences'] = [];
 	let idSeed = 0;
 
 	function pickLocation(personIndex: number, day: number) {
@@ -155,6 +156,7 @@ export function buildAttendanceSummaryFixture(month: string): AttendanceSummary 
 			isAdmin: true,
 			timeZone: 'Asia/Seoul',
 			events,
+			absences,
 			todayStatus: '근무 중',
 			locations,
 			teamViewVisibleToAll: true,
@@ -172,12 +174,37 @@ export function buildAttendanceSummaryFixture(month: string): AttendanceSummary 
 		endDay = 0;
 	}
 
+	const teamAbsenceDate = month === todayMonth ? todayDate : `${month}-01`;
+	const personalAbsenceDate = month === todayMonth ? `${month}-${pad(Math.min(lastDayInMonth, today.getDate() + 1))}` : `${month}-04`;
+	absences.push(
+		{
+			id: 'absence-team-business-trip',
+			email: 'lee@example.com',
+			kind: 'business_trip',
+			labelKey: 'business_trip',
+			date: teamAbsenceDate,
+			createdAt: `${teamAbsenceDate}T09:00:00+09:00`
+		},
+		{
+			id: 'absence-personal-leave',
+			email: 'kim@example.com',
+			kind: 'leave',
+			labelKey: 'leave',
+			date: personalAbsenceDate,
+			reason: 'family',
+			createdBy: 'kim@example.com',
+			createdAt: `${personalAbsenceDate}T09:00:00+09:00`
+		}
+	);
+
 	for (let d = 1; d <= endDay; d++) {
 		const date = `${month}-${pad(d)}`;
 		const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
 		if (weekday === 0 || weekday === 6) continue;
 
 		people.forEach((person, personIndex) => {
+			if (absences.some((absence) => absence.date === date && absence.email === person.email)) return;
+
 			const isAbsentToday = person.email === 'jung@example.com' && d % 3 === 0;
 			const isAbsentLate = person.email === 'kang@example.com' && d % 4 === 0;
 			if (isAbsentToday || isAbsentLate) return;
@@ -266,6 +293,7 @@ export function buildAttendanceSummaryFixture(month: string): AttendanceSummary 
 		isAdmin: true,
 		timeZone: 'Asia/Seoul',
 		events,
+		absences,
 		todayStatus: '근무 중',
 		locations,
 		teamViewVisibleToAll: true,

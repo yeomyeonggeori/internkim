@@ -1,5 +1,7 @@
 import { getContext, setContext } from 'svelte';
 import {
+	createAttendanceAbsence,
+	type CreateAttendanceAbsenceRequest,
 	fetchAttendanceSummary,
 	toggleAttendanceOnServer,
 	updateAttendanceTeamViewVisibility
@@ -8,6 +10,7 @@ import { readPersistedAttendanceFilters, writePersistedAttendanceFilters } from 
 import { currentMonthInTimeZone } from './shared/attendance-date';
 
 export type AttendanceKind = 'clock_in' | 'clock_out';
+export type AttendanceAbsenceKind = 'leave' | 'business_trip' | 'day_off' | 'other';
 export type ChartMode = 'day' | 'week' | 'month';
 export type AttendanceTab = 'team' | 'personal';
 export type AttendancePresence = 'online' | 'away' | 'offline' | 'dnd';
@@ -44,12 +47,25 @@ export type AttendanceEvent = {
 	manualEntry?: boolean;
 };
 
+export type AttendanceAbsence = {
+	id: string;
+	email: string;
+	kind: AttendanceAbsenceKind;
+	labelKey: AttendanceAbsenceKind;
+	date: string;
+	reason?: string;
+	createdBy?: string;
+	createdAt: string;
+	canceledAt?: string;
+};
+
 export type AttendanceSummary = {
 	month: string;
 	currentUserEmail: string;
 	isAdmin: boolean;
 	timeZone: string;
 	events: AttendanceEvent[];
+	absences: AttendanceAbsence[];
 	todayStatus: string;
 	locations: AttendanceLocation[];
 	teamViewVisibleToAll: boolean;
@@ -210,6 +226,11 @@ export class AttendanceState {
 
 	async toggleAttendance(kind?: AttendanceKind, locationID?: string) {
 		await toggleAttendanceOnServer(kind, locationID);
+		await this.load();
+	}
+
+	async createAbsence(request: CreateAttendanceAbsenceRequest) {
+		await createAttendanceAbsence(request);
 		await this.load();
 	}
 }

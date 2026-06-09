@@ -43,7 +43,9 @@
 		!!attendance.summary && attendance.summary.month === today.slice(0, 7)
 	);
 	const people = $derived(
-		attendance.summary ? computePeopleToday(displayDate, attendance.summary.events, undefined, today) : []
+		attendance.summary
+			? computePeopleToday(displayDate, attendance.summary.events, undefined, today, attendance.summary.absences)
+			: []
 	);
 	const counts = $derived(summarizePeople(people));
 	const presencePeople = $derived(
@@ -95,6 +97,9 @@
 			<Card.Title class="text-base">{formatHeader(displayDate, isToday, isViewingCurrentMonth)}</Card.Title>
 			<p class="text-xs text-muted-foreground">
 				{text.working} {counts.working} · {text.finished} {counts.finished}
+				{#if counts.absence > 0}
+					· {text.absence} {counts.absence}
+				{/if}
 				{#if counts.absent > 0}
 					· {text.absent} {counts.absent}
 				{/if}

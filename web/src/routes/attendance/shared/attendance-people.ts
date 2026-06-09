@@ -1,8 +1,9 @@
-import type { AttendanceEvent, AttendancePresence } from '../attendance-context.svelte';
+import type { AttendanceAbsence, AttendanceEvent, AttendancePresence } from '../attendance-context.svelte';
+import { absencesForDate } from './attendance-absence';
 import { isWeekend, todayDateInTimeZone } from './attendance-date';
 import { computeDayEvents } from './attendance-day-events';
 
-export type PersonStatus = 'working' | 'finished' | 'absent' | 'weekend' | 'upcoming';
+export type PersonStatus = 'working' | 'finished' | 'absence' | 'absent' | 'weekend' | 'upcoming';
 
 export type PersonToday = {
 	email: string;
@@ -11,13 +12,17 @@ export type PersonToday = {
 	status: PersonStatus;
 	clockIn?: AttendanceEvent;
 	clockOut?: AttendanceEvent;
+	absence?: AttendanceAbsence;
 	workedMinutes: number;
 	locationName?: string;
 	locationID?: string;
 	presence?: AttendancePresence;
 };
 
-export function uniquePeople(events: AttendanceEvent[]): Pick<PersonToday, 'email' | 'displayName' | 'mattermostUsername'>[] {
+export function uniquePeople(
+	events: AttendanceEvent[],
+	absences: AttendanceAbsence[] = []
+): Pick<PersonToday, 'email' | 'displayName' | 'mattermostUsername'>[] {
 	const map = new Map<string, Pick<PersonToday, 'email' | 'displayName' | 'mattermostUsername'>>();
 	for (const event of events) {
 		if (!map.has(event.email)) {
@@ -25,6 +30,15 @@ export function uniquePeople(events: AttendanceEvent[]): Pick<PersonToday, 'emai
 				email: event.email,
 				displayName: event.displayName || event.mattermostUsername || event.email,
 				mattermostUsername: event.mattermostUsername,
+			});
+		}
+	}
+	for (const absence of absences) {
+		if (!map.has(absence.email)) {
+			map.set(absence.email, {
+				email: absence.email,
+				displayName: absence.email,
+				mattermostUsername: ''
 			});
 		}
 	}
@@ -36,8 +50,9 @@ export function computePeopleToday(
 	events: AttendanceEvent[],
 	presences?: Record<string, AttendancePresence>,
 	today: string = todayDateInTimeZone(),
+	absences: AttendanceAbsence[] = []
 ): PersonToday[] {
-	const people = uniquePeople(events);
+	const people = uniquePeople(events, absences);
 	const byPerson = new Map<string, AttendanceEvent[]>();
 	for (const event of events) {
 		if (event.localDate !== date) continue;
@@ -53,15 +68,18 @@ export function computePeopleToday(
 			: 'absent';
 	return people.map((person) => {
 		const day = computeDayEvents(date, byPerson.get(person.email) ?? []);
+		const absence = absencesForDate(absences, date, person.email)[0];
 		let status: PersonStatus = fallbackStatus;
 		if (day.inProgress) status = 'working';
 		else if (day.clockIn && day.clockOut) status = 'finished';
 		else if (day.clockIn) status = 'working';
+		else if (absence) status = 'absence';
 		return {
 			...person,
 			status,
 			clockIn: day.clockIn,
 			clockOut: day.clockOut,
+			absence,
 			workedMinutes: day.workedMinutes,
 			locationID: day.clockIn?.locationID,
 			locationName: day.clockIn?.locationName,
@@ -70,9 +88,14 @@ export function computePeopleToday(
 	});
 }
 
-export function statusForDay(date: string, events: AttendanceEvent[]): PersonStatus {
+export function statusForDay(
+	date: string,
+	events: AttendanceEvent[],
+	absences: AttendanceAbsence[] = []
+): PersonStatus {
 	const day = computeDayEvents(date, events.filter((event) => event.localDate === date));
 	if (day.inProgress) return 'working';
 	if (day.clockIn && day.clockOut) return 'finished';
+	if (absences.some((absence) => absence.date === date && !absence.canceledAt)) return 'absence';
 	return 'absent';
 }

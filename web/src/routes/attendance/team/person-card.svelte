@@ -3,6 +3,7 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import MapPinIcon from '@lucide/svelte/icons/map-pin';
 	import type { PersonToday } from '../shared/attendance-aggregation';
+	import { absenceLabelText } from '../shared/attendance-absence';
 	import { formatHoursMinutes } from '../shared/attendance-format';
 	import { STATUS_TONE } from '../shared/color-tokens';
 	import { attendanceText } from '../text';
@@ -24,6 +25,7 @@
 		}
 		if (p.status === 'upcoming') return `· ${text.upcoming}`;
 		if (p.status === 'weekend') return '—';
+		if (p.status === 'absence' && p.absence) return `— ${text.absence} · ${absenceLabelText(p.absence, text)}`;
 		return `— ${text.absent}`;
 	}
 </script>

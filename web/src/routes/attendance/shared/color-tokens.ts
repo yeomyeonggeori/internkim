@@ -12,6 +12,7 @@ export const HEAT_LEVEL_CLASSES = {
 export const STATUS_TONE = {
 	working: 'text-success',
 	finished: 'text-muted-foreground',
+	absence: 'text-info',
 	absent: 'text-destructive',
 	weekend: 'text-muted-foreground',
 	upcoming: 'text-muted-foreground',
