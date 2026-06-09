@@ -2060,6 +2060,49 @@ func TestMattermostOAuthStartUsesPublicAuthorizeURL(t *testing.T) {
 	}
 }
 
+func TestMattermostOAuthStartUsesRequestHostForPublicAlias(t *testing.T) {
+	rootPath := t.TempDir()
+	clientPath := filepath.Join(rootPath, "secrets", "mattermost-oauth.json")
+	deviceURLPath := filepath.Join(rootPath, "device-url")
+	writeFile(t, deviceURLPath, "https://device.example")
+	service := NewService(Configuration{
+		StateDirectory:            filepath.Join(rootPath, "state"),
+		MattermostBaseURL:         "http://mattermost.local",
+		MattermostOAuthClientPath: clientPath,
+		DeviceURLPath:             deviceURLPath,
+	})
+	if errorValue := service.writeMattermostOAuthClientForHomepage("https://pilot-01.intern.kim", mattermostOAuthClientFile{
+		ClientID:     "pilot-client",
+		ClientSecret: "pilot-secret",
+		CallbackURL:  "https://pilot-01.intern.kim/auth/mattermost/callback",
+		Homepage:     "https://pilot-01.intern.kim",
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	request := httptest.NewRequest(http.MethodGet, "https://pilot-01.intern.kim/auth/mattermost/start?return=/flow/", nil)
+	request.RemoteAddr = "198.51.100.10:443"
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusFound {
+		t.Fatalf("start status = %d body = %s", response.Code, response.Body.String())
+	}
+	location, errorValue := url.Parse(response.Header().Get("Location"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if location.Host != "pilot-01.intern.kim" || location.Path != "/oauth/authorize" {
+		t.Fatalf("authorize location = %q", response.Header().Get("Location"))
+	}
+	if location.Query().Get("client_id") != "pilot-client" {
+		t.Fatalf("client id = %q", location.Query().Get("client_id"))
+	}
+	if location.Query().Get("redirect_uri") != "https://pilot-01.intern.kim/auth/mattermost/callback" {
+		t.Fatalf("redirect uri = %q", location.Query().Get("redirect_uri"))
+	}
+}
+
 func TestMattermostOAuthStartUsesPublicRedirectWhenRequestLooksLocal(t *testing.T) {
 	rootPath := t.TempDir()
 	clientPath := filepath.Join(rootPath, "secrets", "mattermost-oauth.json")
