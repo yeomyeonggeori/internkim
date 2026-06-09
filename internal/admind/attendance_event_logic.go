@@ -66,7 +66,7 @@ func (service *Service) applyAttendanceAction(ctx context.Context, userRecord ma
 	if errorValue != nil {
 		return attendanceActionResult{}, errorValue
 	}
-	shouldIgnore, errorValue := service.shouldIgnoreMattermostAttendanceAction(ctx, kind, lastEvent, found)
+	shouldIgnore, errorValue := service.shouldIgnoreMattermostAttendanceAction(ctx, kind, lastEvent, found, channelID, actionPostID)
 	if errorValue != nil {
 		return attendanceActionResult{}, errorValue
 	}
@@ -89,7 +89,7 @@ func (service *Service) latestActiveAttendanceEventForToday(ctx context.Context,
 	return service.latestActiveAttendanceEventForLocalDate(ctx, database, mattermostUserID, localDate)
 }
 
-func (service *Service) shouldIgnoreMattermostAttendanceAction(ctx context.Context, kind string, event attendanceEvent, hasEvent bool) (bool, error) {
+func (service *Service) shouldIgnoreMattermostAttendanceAction(ctx context.Context, kind string, event attendanceEvent, hasEvent bool, channelID string, actionPostID string) (bool, error) {
 	if !shouldIgnoreAttendanceAction(kind, event, hasEvent) {
 		return false, nil
 	}
@@ -100,7 +100,7 @@ func (service *Service) shouldIgnoreMattermostAttendanceAction(ctx context.Conte
 	if errorValue != nil {
 		return false, errorValue
 	}
-	postExists, errorValue := service.mattermostAttendanceResultPostExists(ctx, adminToken, event.ResultPostID)
+	postExists, errorValue := service.mattermostAttendanceResultPostExists(ctx, adminToken, event.ResultPostID, channelID, actionPostID)
 	if errorValue != nil {
 		return false, errorValue
 	}
