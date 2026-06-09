@@ -42,7 +42,7 @@
 		statusMessage = '';
 		errorMessage = '';
 		try {
-			await attendance.createAbsence({
+			const createdAbsences = await attendance.createAbsence({
 				kind,
 				startDate,
 				endDate,
@@ -50,7 +50,7 @@
 			});
 			reason = '';
 			hasEditedDateRange = false;
-			statusMessage = text.absenceCreated;
+			statusMessage = createdAbsences.length === 0 ? text.absenceNoWeekdays : text.absenceCreated;
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.processingFailed;
 		} finally {

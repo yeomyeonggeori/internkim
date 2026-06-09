@@ -223,8 +223,9 @@ export class AttendanceState {
 	}
 
 	async createAbsence(request: CreateAttendanceAbsenceRequest) {
-		await createAttendanceAbsence(request);
+		const absences = await createAttendanceAbsence(request);
 		await this.load();
+		return absences;
 	}
 }
 

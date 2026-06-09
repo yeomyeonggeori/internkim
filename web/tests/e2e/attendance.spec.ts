@@ -86,4 +86,19 @@ test.describe('attendance', () => {
 			reason: 'family'
 		});
 	});
+
+	test('shows a weekday-only notice when a weekend absence creates no records', async ({ page }) => {
+		await page.route('**/attendance/api/absences', async (route) => {
+			await route.fulfill({ json: { absences: [] } });
+		});
+
+		await page.goto('/attendance?tab=personal');
+		await page.getByLabel('Language').getByRole('button', { name: 'KO', exact: true }).click();
+		await page.getByLabel('시작일').fill('2026-06-13');
+		await page.getByLabel('종료일').fill('2026-06-14');
+		await page.getByRole('button', { name: '부재 등록' }).click();
+
+		await expect(page.getByText('등록할 평일이 없습니다.')).toBeVisible();
+		await expect(page.getByText('부재를 등록했습니다.')).toHaveCount(0);
+	});
 });
