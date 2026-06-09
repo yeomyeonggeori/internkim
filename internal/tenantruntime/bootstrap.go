@@ -12,17 +12,19 @@ import (
 
 const tenantDeviceTokenPath = "/root/.internkim/secrets/llm-device-token"
 const tenantGatewaySecretPath = "/root/.internkim/secrets/llm-gateway-shared-secret"
+const tenantReleaseDownloadTokenPath = "/root/.internkim/secrets/release-download-token"
 const tenantMattermostFirstBootScriptPath = "/usr/local/bin/internkim-tenant-mattermost-firstboot.sh"
 const tenantMattermostFirstBootServicePath = "/etc/systemd/system/internkim-tenant-mattermost-firstboot.service"
 
 type BootstrapOptions struct {
-	BinaryDirectoryPath string
-	GatewayURL          string
-	DeviceToken         string
-	GatewaySharedSecret string
-	AdminPassword       string
-	AdminEmail          string
-	ModelName           string
+	BinaryDirectoryPath  string
+	GatewayURL           string
+	DeviceToken          string
+	GatewaySharedSecret  string
+	ReleaseDownloadToken string
+	AdminPassword        string
+	AdminEmail           string
+	ModelName            string
 }
 
 func (service Service) BootstrapTenant(tenantID string, options BootstrapOptions) (TenantStatus, error) {
@@ -217,6 +219,11 @@ func installTenantRuntimeConfiguration(paths RuntimePaths, options BootstrapOpti
 	}
 	if strings.TrimSpace(options.GatewaySharedSecret) != "" {
 		if errorValue := writeTenantFile(paths.InternKimPath, "secrets/llm-gateway-shared-secret", strings.TrimSpace(options.GatewaySharedSecret), 0o600); errorValue != nil {
+			return errorValue
+		}
+	}
+	if strings.TrimSpace(options.ReleaseDownloadToken) != "" {
+		if errorValue := writeTenantFile(paths.InternKimPath, "secrets/release-download-token", strings.TrimSpace(options.ReleaseDownloadToken), 0o600); errorValue != nil {
 			return errorValue
 		}
 	}

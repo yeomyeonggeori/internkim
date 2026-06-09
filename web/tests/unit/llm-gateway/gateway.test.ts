@@ -33,7 +33,7 @@ describe('LLM Gateway Worker', () => {
 
 		expect(response.status).toBe(200);
 		expect(provider.providerAPIKey).toBe('sk-or-v1-upstream-a');
-		expect(store.usageRecords).toHaveLength(1);
+		expect(store.usageRecords.length).toBe(1);
 		expect(store.records.get(tokenHash)?.usedMicrounits).toBe(12);
 	});
 
@@ -75,7 +75,7 @@ describe('LLM Gateway Worker', () => {
 		expect(response.status).toBe(200);
 		expect(provider.embeddingCallCount).toBe(1);
 		expect(provider.providerAPIKey).toBe('sk-or-v1-upstream-a');
-		expect(store.usageRecords).toHaveLength(1);
+		expect(store.usageRecords.length).toBe(1);
 		expect(store.usageRecords[0].model).toBe('embeddinggemma');
 	});
 
@@ -101,7 +101,7 @@ describe('LLM Gateway Worker', () => {
 
 		expect(response.status).toBe(402);
 		expect(provider.callCount).toBe(0);
-		expect(store.usageRecords).toHaveLength(0);
+		expect(store.usageRecords.length).toBe(0);
 	});
 
 	test('blocks requests per minute before provider call', async () => {
@@ -128,7 +128,7 @@ describe('LLM Gateway Worker', () => {
 		expect(firstResponse.status).toBe(200);
 		expect(secondResponse.status).toBe(429);
 		expect(provider.callCount).toBe(1);
-		expect(store.usageRecords).toHaveLength(1);
+		expect(store.usageRecords.length).toBe(1);
 	});
 
 	test('accepts admin upsert of hashed token records only', async () => {

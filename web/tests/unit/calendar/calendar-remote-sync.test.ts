@@ -1,7 +1,40 @@
 import { expect, test } from 'bun:test';
 
-import { syncRemoteCalendarAndRefreshConflicts } from '../../../src/routes/calendar/embed/calendar-remote-sync';
+import {
+	syncRemoteCalendar,
+	syncRemoteCalendarAndRefreshConflicts
+} from '../../../src/routes/calendar/embed/calendar-remote-sync';
 import { createMockFetch } from '../test-fetch';
+
+test('coalesces concurrent remote sync requests and resets after completion', async () => {
+	const originalFetch = globalThis.fetch;
+	const calls: string[] = [];
+	let completeRemoteSync = (response: Response) => {
+		void response;
+	};
+	try {
+		globalThis.fetch = createMockFetch((input) => {
+			calls.push(`fetch:${String(input)}`);
+			return new Promise<Response>((resolve) => {
+				completeRemoteSync = resolve;
+			});
+		});
+
+		const firstSync = syncRemoteCalendar('Remote sync failed');
+		const secondSync = syncRemoteCalendar('Remote sync failed');
+		expect(calls).toEqual(['fetch:/calendar/api/remote-sync']);
+
+		completeRemoteSync(new Response('{}', { status: 200 }));
+		await Promise.all([firstSync, secondSync]);
+
+		const thirdSync = syncRemoteCalendar('Remote sync failed');
+		expect(calls).toEqual(['fetch:/calendar/api/remote-sync', 'fetch:/calendar/api/remote-sync']);
+		completeRemoteSync(new Response('{}', { status: 200 }));
+		await thirdSync;
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+});
 
 test('loads conflicts after remote sync and calendar refresh complete', async () => {
 	const originalFetch = globalThis.fetch;

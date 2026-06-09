@@ -45,7 +45,28 @@ CREATE TABLE IF NOT EXISTS attendance_events (
 	)`); errorValue != nil {
 		return errorValue
 	}
-	_, errorValue = database.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS attendance_events_user_date ON attendance_events(email, local_date)")
+	if _, errorValue := database.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS attendance_absences (
+		id TEXT PRIMARY KEY,
+		email TEXT NOT NULL,
+		kind TEXT NOT NULL,
+		date TEXT NOT NULL,
+		reason TEXT NOT NULL,
+		created_by TEXT NOT NULL,
+		created_at TEXT NOT NULL,
+		canceled_at TEXT NOT NULL
+	)`); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := database.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS attendance_events_user_date ON attendance_events(email, local_date)"); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := database.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS attendance_absences_user_date ON attendance_absences(email, date)"); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := database.ExecContext(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS attendance_absences_active_user_date ON attendance_absences(email, date) WHERE canceled_at = ''"); errorValue != nil {
+		return errorValue
+	}
+	_, errorValue = database.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS attendance_absences_active_date ON attendance_absences(canceled_at, date)")
 	return errorValue
 }
 

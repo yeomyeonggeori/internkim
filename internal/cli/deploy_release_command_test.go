@@ -15,6 +15,16 @@ func TestSelectedReleaseComponentNamesParsesCommaList(t *testing.T) {
 	}
 }
 
+func TestSelectedReleaseComponentNamesNormalizesLegacyWebNames(t *testing.T) {
+	components, errorValue := selectedReleaseComponentNames([]string{"--components", "adminWeb,admin-web,web"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(components) != 1 || !components["web"] {
+		t.Fatalf("components = %+v", components)
+	}
+}
+
 func TestSelectedReleaseComponentNamesAllowsAllByDefault(t *testing.T) {
 	components, errorValue := selectedReleaseComponentNames(nil)
 	if errorValue != nil {

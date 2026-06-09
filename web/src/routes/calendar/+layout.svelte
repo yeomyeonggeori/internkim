@@ -8,14 +8,18 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
 	import CalendarIcon from '@lucide/svelte/icons/calendar-days';
-	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
-	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import RotateCwIcon from '@lucide/svelte/icons/rotate-cw';
-	import { Popover } from 'bits-ui';
 	import { onMount } from 'svelte';
-	import { bumpCalendarRefresh, calendarVisibility } from './refresh-signal.svelte';
+	import CalendarMiniMonth from './calendar-mini-month.svelte';
+	import {
+		broadcastCalendarNavigation,
+		calendarChannelName,
+		bumpCalendarRefresh,
+		calendarDateStorageKey,
+		calendarVisibility
+	} from './refresh-signal.svelte';
 	import { calendarText } from './text';
 
 	type CalendarSyncResponse = {
@@ -68,6 +72,7 @@
 	let syncError = $state('');
 	let miniMonthEventDates = $state<Set<string>>(new Set());
 	let miniMonthEventCount = $state(0);
+	let selectedMiniDateKey = $state('');
 
 	const today = new Date();
 	let miniMonth = $state(new Date(today.getFullYear(), today.getMonth(), 1));
@@ -79,43 +84,11 @@
 		})
 	);
 
-	const miniMonthLabel = $derived(miniMonth.toLocaleDateString(localeCode, { year: 'numeric', month: 'long' }));
-
-	function shiftMiniMonth(delta: number) {
-		miniMonth = new Date(miniMonth.getFullYear(), miniMonth.getMonth() + delta, 1);
+	function selectMiniMonthDate(date: Date) {
+		setMiniMonth(date);
+		selectedMiniDateKey = dateKey(date);
+		broadcastCalendarNavigation(new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0));
 	}
-
-	function isSameDay(a: Date, b: Date) {
-		return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-	}
-
-	let isMonthPickerOpen = $state(false);
-	let pickerMode = $state<'month' | 'year'>('month');
-	let pickerYear = $state(today.getFullYear());
-	let pickerYearWindowStart = $state(Math.floor(today.getFullYear() / 12) * 12);
-
-	function handlePickerOpenChange(open: boolean) {
-		isMonthPickerOpen = open;
-		if (open) {
-			pickerMode = 'month';
-			pickerYear = miniMonth.getFullYear();
-			pickerYearWindowStart = Math.floor(pickerYear / 12) * 12;
-		}
-	}
-
-	function selectPickerMonth(monthIndex: number) {
-		miniMonth = new Date(pickerYear, monthIndex, 1);
-		isMonthPickerOpen = false;
-	}
-
-	function selectPickerYear(year: number) {
-		pickerYear = year;
-		pickerMode = 'month';
-	}
-
-	const monthShortLabels = $derived(
-		Array.from({ length: 12 }, (_, monthIndex) => new Date(2000, monthIndex, 1).toLocaleDateString(localeCode, { month: 'short' }))
-	);
 
 	$effect(() => {
 		if (isEmbed) return;
@@ -145,6 +118,14 @@
 		if (isEmbed) return;
 		loadSyncInformation();
 		loadAccountStatus();
+		const savedVisibleDate = window.localStorage.getItem(calendarDateStorageKey);
+		if (savedVisibleDate) {
+			const visibleDate = new Date(savedVisibleDate);
+			if (!Number.isNaN(visibleDate.getTime())) {
+				miniMonth = new Date(visibleDate.getFullYear(), visibleDate.getMonth(), 1);
+				selectedMiniDateKey = dateKey(visibleDate);
+			}
+		}
 		const savedVisibility = window.localStorage.getItem('internkim.calendar.workVisible');
 		if (savedVisibility) calendarVisibility.work = savedVisibility === 'true';
 	});
@@ -153,7 +134,7 @@
 		if (sourceID !== 'work') return;
 		calendarVisibility.work = !calendarVisibility.work;
 		window.localStorage.setItem('internkim.calendar.workVisible', String(calendarVisibility.work));
-		const channel = new BroadcastChannel('internkim-calendar');
+		const channel = new BroadcastChannel(calendarChannelName);
 		channel.postMessage({ type: 'calendar-visibility', work: calendarVisibility.work });
 		channel.close();
 	}
@@ -258,11 +239,9 @@
 		return 'bg-muted-foreground/50';
 	}
 
-	const weekdayLabels = $derived(
-		Array.from({ length: 7 }, (_, weekdayIndex) => new Date(2026, 4, 24 + weekdayIndex).toLocaleDateString(localeCode, { weekday: 'narrow' }))
-	);
-
-	type MiniMonthCell = { date: Date; isOther: boolean; isToday: boolean };
+	function setMiniMonth(month: Date) {
+		miniMonth = new Date(month.getFullYear(), month.getMonth(), 1);
+	}
 
 	function eventDateKeysForMonth(events: CalendarEvent[], monthDate: Date): Set<string> {
 		const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
@@ -302,28 +281,6 @@
 		return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 	}
 
-	function miniMonthCells(): MiniMonthCell[] {
-		const year = miniMonth.getFullYear();
-		const month = miniMonth.getMonth();
-		const firstWeekday = new Date(year, month, 1).getDay();
-		const cells: MiniMonthCell[] = [];
-		for (let i = firstWeekday; i > 0; i -= 1) {
-			const date = new Date(year, month, 1 - i);
-			cells.push({ date, isOther: true, isToday: isSameDay(date, today) });
-		}
-		const daysInMonth = new Date(year, month + 1, 0).getDate();
-		for (let d = 1; d <= daysInMonth; d += 1) {
-			const date = new Date(year, month, d);
-			cells.push({ date, isOther: false, isToday: isSameDay(date, today) });
-		}
-		let trailing = 1;
-		while (cells.length < 42) {
-			const date = new Date(year, month + 1, trailing);
-			cells.push({ date, isOther: true, isToday: isSameDay(date, today) });
-			trailing += 1;
-		}
-		return cells;
-	}
 </script>
 
 {#if isEmbed}
@@ -370,147 +327,13 @@
 			</section>
 		</div>
 
-		<section class="shrink-0 border-t px-5 pb-3 pt-4">
-			<header class="mb-2 flex items-center gap-1">
-				<button
-					type="button"
-					aria-label={text.previousMonth}
-					class="flex size-7 items-center justify-center rounded text-foreground hover:bg-accent"
-					onclick={() => shiftMiniMonth(-1)}
-				>
-					<ChevronLeftIcon class="size-3.5" />
-				</button>
-				<Popover.Root open={isMonthPickerOpen} onOpenChange={handlePickerOpenChange}>
-					<Popover.Trigger
-						class="flex h-7 flex-1 items-center justify-center rounded text-center text-[14px] font-bold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-						aria-label={text.pickMonthAndYear}
-					>
-						{miniMonthLabel}
-					</Popover.Trigger>
-					<Popover.Portal>
-						<Popover.Content
-							side="bottom"
-							align="center"
-							sideOffset={6}
-							class="z-50 w-56 rounded-md border border-border/50 bg-popover p-2 text-popover-foreground shadow-sm outline-none data-open:animate-in data-closed:animate-out data-open:fade-in-0 data-closed:fade-out-0 data-open:zoom-in-95 data-closed:zoom-out-95"
-						>
-							<header class="mb-1.5 flex items-center gap-1">
-								<button
-									type="button"
-									aria-label={pickerMode === 'month' ? text.previousYear : text.previousTwelveYears}
-									class="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
-									onclick={() => {
-										if (pickerMode === 'month') pickerYear -= 1;
-										else pickerYearWindowStart -= 12;
-									}}
-								>
-									<ChevronLeftIcon class="size-3.5" />
-								</button>
-								<button
-									type="button"
-									class="flex-1 rounded py-1 text-xs font-semibold tabular-nums hover:bg-accent"
-									onclick={() => {
-										if (pickerMode === 'month') {
-											pickerYearWindowStart = Math.floor(pickerYear / 12) * 12;
-											pickerMode = 'year';
-										} else {
-											pickerMode = 'month';
-										}
-									}}
-								>
-									{#if pickerMode === 'month'}
-										{pickerYear}
-									{:else}
-										{pickerYearWindowStart}–{pickerYearWindowStart + 11}
-									{/if}
-								</button>
-								<button
-									type="button"
-									aria-label={pickerMode === 'month' ? text.nextYear : text.nextTwelveYears}
-									class="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
-									onclick={() => {
-										if (pickerMode === 'month') pickerYear += 1;
-										else pickerYearWindowStart += 12;
-									}}
-								>
-									<ChevronRightIcon class="size-3.5" />
-								</button>
-							</header>
-
-							{#if pickerMode === 'month'}
-								<div class="grid grid-cols-3 gap-1">
-									{#each monthShortLabels as label, i (i)}
-										<button
-											type="button"
-											class="flex h-8 items-center justify-center rounded text-xs tabular-nums transition-colors {pickerYear === miniMonth.getFullYear() && i === miniMonth.getMonth()
-												? 'bg-primary font-semibold text-primary-foreground'
-												: pickerYear === today.getFullYear() && i === today.getMonth()
-													? 'font-semibold text-primary hover:bg-accent'
-													: 'text-foreground hover:bg-accent'}"
-											onclick={() => selectPickerMonth(i)}
-										>
-											{label}
-										</button>
-									{/each}
-								</div>
-							{:else}
-								<div class="grid grid-cols-3 gap-1">
-									{#each Array.from({ length: 12 }, (_, i) => pickerYearWindowStart + i) as year (year)}
-										<button
-											type="button"
-											class="flex h-8 items-center justify-center rounded text-xs tabular-nums transition-colors {year === pickerYear
-												? 'bg-primary font-semibold text-primary-foreground'
-												: year === today.getFullYear()
-													? 'font-semibold text-primary hover:bg-accent'
-													: 'text-foreground hover:bg-accent'}"
-											onclick={() => selectPickerYear(year)}
-										>
-											{year}
-										</button>
-									{/each}
-								</div>
-							{/if}
-						</Popover.Content>
-					</Popover.Portal>
-				</Popover.Root>
-				<button
-					type="button"
-					aria-label={text.nextMonth}
-					class="flex size-7 items-center justify-center rounded text-foreground hover:bg-accent"
-					onclick={() => shiftMiniMonth(1)}
-				>
-					<ChevronRightIcon class="size-3.5" />
-				</button>
-			</header>
-			<div class="grid grid-cols-7 gap-y-0.5">
-				{#each weekdayLabels as wd, index (index)}
-					<span class="py-0.5 text-center text-[11px] font-bold text-muted-foreground">
-						{wd}
-					</span>
-				{/each}
-				{#each miniMonthCells() as cell, index (index)}
-					{@const isWeekend = cell.date.getDay() === 0 || cell.date.getDay() === 6}
-					{@const hasEvent = miniMonthEventDates.has(dateKey(cell.date))}
-					<span
-						class="relative mx-auto flex size-7 items-start justify-center rounded-md pt-0.5 text-[12px] tabular-nums {cell.isToday
-							? 'bg-primary font-bold text-primary-foreground'
-							: cell.isOther
-								? 'text-muted-foreground opacity-45'
-								: isWeekend
-									? 'text-foreground hover:bg-accent'
-									: 'text-foreground hover:bg-accent'}"
-					>
-						{cell.date.getDate()}
-						{#if hasEvent}
-							<span
-								class="absolute bottom-0.5 left-1/2 size-1.5 -translate-x-1/2 rounded-full {cell.isToday ? 'bg-primary-foreground' : 'bg-primary'}"
-								aria-hidden="true"
-							></span>
-						{/if}
-					</span>
-				{/each}
-			</div>
-		</section>
+		<CalendarMiniMonth
+			month={miniMonth}
+			eventDates={miniMonthEventDates}
+			selectedDateKey={selectedMiniDateKey}
+			onMonthChange={setMiniMonth}
+			onSelectDate={selectMiniMonthDate}
+		/>
 
 		<div class="flex shrink-0 items-center gap-1 border-t px-2 py-2 text-xs">
 			<button

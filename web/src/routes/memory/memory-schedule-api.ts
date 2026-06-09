@@ -1,0 +1,118 @@
+export type MemorySchedule = {
+	taskScheduleID: string;
+	creatorPersonID?: string;
+	executionMode: string;
+	kind: string;
+	intervalSecond?: number;
+	cronExpression?: string;
+	maxRunCount?: number;
+	completedRunCount?: number;
+	createdAt?: string;
+	updatedAt?: string;
+	nextRunAt?: string;
+	lastRunAt?: string;
+	expiresAt?: string;
+	failureCount?: number;
+	deliveryChannelID?: string;
+	replyTargetID?: string;
+	promptPreview?: string;
+	timeZone?: string;
+};
+
+export type MemoryScheduleListResponse = {
+	schedules?: MemorySchedule[];
+	count?: number;
+	checkedAt?: string;
+};
+
+export async function fetchMemorySchedules(): Promise<MemoryScheduleListResponse> {
+	const response = await fetch('/memory/api/schedules', { credentials: 'include' });
+	if (!response.ok) {
+		throw new Error(`Memory schedules request returned ${response.status}`);
+	}
+	const document: unknown = await response.json();
+	return normalizeMemoryScheduleListResponse(document);
+}
+
+export function normalizeMemoryScheduleListResponse(document: unknown): MemoryScheduleListResponse {
+	const record = readRecord(document);
+	if (!record) return {};
+
+	const schedules = Array.isArray(record.schedules)
+		? record.schedules.flatMap((schedule) => {
+				const normalizedSchedule = normalizeMemorySchedule(schedule);
+				return normalizedSchedule ? [normalizedSchedule] : [];
+			})
+		: undefined;
+	const count = readNumber(record.count);
+	const checkedAt = readString(record.checkedAt);
+
+	return {
+		...(schedules ? { schedules } : {}),
+		...(typeof count === 'number' ? { count } : {}),
+		...(checkedAt ? { checkedAt } : {})
+	};
+}
+
+function normalizeMemorySchedule(document: unknown): MemorySchedule | undefined {
+	const record = readRecord(document);
+	if (!record) return undefined;
+
+	const taskScheduleID = readString(record.taskScheduleID);
+	const executionMode = readString(record.executionMode);
+	const kind = readString(record.kind);
+	if (!taskScheduleID || !executionMode || !kind) return undefined;
+
+	const creatorPersonID = readString(record.creatorPersonID);
+	const intervalSecond = readNumber(record.intervalSecond);
+	const cronExpression = readString(record.cronExpression);
+	const maxRunCount = readNumber(record.maxRunCount);
+	const completedRunCount = readNumber(record.completedRunCount);
+	const createdAt = readString(record.createdAt);
+	const updatedAt = readString(record.updatedAt);
+	const nextRunAt = readString(record.nextRunAt);
+	const lastRunAt = readString(record.lastRunAt);
+	const expiresAt = readString(record.expiresAt);
+	const failureCount = readNumber(record.failureCount);
+	const deliveryChannelID = readString(record.deliveryChannelID);
+	const replyTargetID = readString(record.replyTargetID);
+	const promptPreview = readString(record.promptPreview);
+	const timeZone = readString(record.timeZone);
+
+	return {
+		taskScheduleID,
+		executionMode,
+		kind,
+		...(creatorPersonID ? { creatorPersonID } : {}),
+		...(typeof intervalSecond === 'number' ? { intervalSecond } : {}),
+		...(cronExpression ? { cronExpression } : {}),
+		...(typeof maxRunCount === 'number' ? { maxRunCount } : {}),
+		...(typeof completedRunCount === 'number' ? { completedRunCount } : {}),
+		...(createdAt ? { createdAt } : {}),
+		...(updatedAt ? { updatedAt } : {}),
+		...(nextRunAt ? { nextRunAt } : {}),
+		...(lastRunAt ? { lastRunAt } : {}),
+		...(expiresAt ? { expiresAt } : {}),
+		...(typeof failureCount === 'number' ? { failureCount } : {}),
+		...(deliveryChannelID ? { deliveryChannelID } : {}),
+		...(replyTargetID ? { replyTargetID } : {}),
+		...(promptPreview ? { promptPreview } : {}),
+		...(timeZone ? { timeZone } : {})
+	};
+}
+
+function readRecord(document: unknown): Record<string, unknown> | undefined {
+	return isRecord(document) ? document : undefined;
+}
+
+function isRecord(document: unknown): document is Record<string, unknown> {
+	return Boolean(document) && typeof document === 'object' && !Array.isArray(document);
+}
+
+function readString(value: unknown): string | undefined {
+	return typeof value === 'string' ? value : undefined;
+}
+
+function readNumber(value: unknown): number | undefined {
+	return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}

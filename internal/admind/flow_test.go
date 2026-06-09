@@ -82,6 +82,138 @@ func TestNormalizeFlowTaskDatesSetsPlannedStartAndWeek(t *testing.T) {
 	}
 }
 
+func TestBuildFlowMetricsCountsCompletedDistanceAndKeepsLegacyScoreAliases(t *testing.T) {
+	metrics := buildFlowMetrics([]flowTask{
+		{
+			ParticipantNames: []string{"김철수", "이영희"},
+			Business:         "여명거리",
+			Type:             "기능",
+			Size:             "M",
+			Status:           "완료",
+			EndDate:          "2026-06-02",
+		},
+		{
+			ParticipantNames: []string{"김철수"},
+			Business:         "여명거리",
+			Type:             "개선",
+			Size:             "M",
+			Status:           "완료",
+		},
+		{
+			ParticipantNames: []string{"김철수"},
+			Business:         "김인턴",
+			Type:             "문서",
+			Size:             "S",
+			Status:           "진행",
+		},
+	}, flowDefinitions{
+		Sizes: []flowSizeDefinition{
+			{Name: "S", DistanceKM: 2},
+			{Name: "M", DistanceKM: 5},
+		},
+	})
+
+	if metrics.TotalDistance != 5 {
+		t.Fatalf("total distance = %d, want 5", metrics.TotalDistance)
+	}
+	if metrics.TotalScore != metrics.TotalDistance {
+		t.Fatalf("legacy total score = %d, want %d", metrics.TotalScore, metrics.TotalDistance)
+	}
+	if metrics.MemberDistances["김철수"] != 5 {
+		t.Fatalf("김철수 distance = %d, want 5", metrics.MemberDistances["김철수"])
+	}
+	if metrics.MemberScores["김철수"] != metrics.MemberDistances["김철수"] {
+		t.Fatalf("김철수 legacy score = %d, want %d", metrics.MemberScores["김철수"], metrics.MemberDistances["김철수"])
+	}
+	if metrics.MemberDistances["이영희"] != 5 {
+		t.Fatalf("이영희 distance = %d, want 5", metrics.MemberDistances["이영희"])
+	}
+	if metrics.MemberScores["이영희"] != metrics.MemberDistances["이영희"] {
+		t.Fatalf("이영희 legacy score = %d, want %d", metrics.MemberScores["이영희"], metrics.MemberDistances["이영희"])
+	}
+}
+
+func TestBuildFlowMemberScoresUsesSpreadsheetWeights(t *testing.T) {
+	members := []flowMember{
+		{ID: "member-a", Name: "김철수"},
+		{ID: "member-b", Name: "이영희"},
+	}
+	definitions := flowDefinitions{
+		Sizes: []flowSizeDefinition{
+			{Name: "S", DistanceKM: 2},
+			{Name: "M", DistanceKM: 5},
+		},
+	}
+	weekStart := time.Date(2026, time.June, 1, 0, 0, 0, 0, flowDateLocation())
+	scoreDetails := buildFlowMemberScoreDetails([]flowTask{
+		{
+			ParticipantIDs:   []string{"member-a"},
+			ParticipantNames: []string{"김철수"},
+			Size:             "S",
+			Status:           "완료",
+			EndDate:          "2026-06-01",
+		},
+		{
+			ParticipantIDs:   []string{"member-b"},
+			ParticipantNames: []string{"이영희"},
+			Size:             "M",
+			Status:           "진행",
+			EndDate:          "2026-06-01",
+		},
+	}, members, definitions, weekStart)
+	scores := currentFlowMemberScores(scoreDetails)
+
+	if scores["member-a"] != 115 {
+		t.Fatalf("member-a score = %d, want 115", scores["member-a"])
+	}
+	if scoreDetails["member-a"].WeeklyScore != 115 || scoreDetails["member-a"].MonthlyScore != 115 || scoreDetails["member-a"].CurrentScore != 115 {
+		t.Fatalf("member-a score detail = %+v", scoreDetails["member-a"])
+	}
+	if scores["member-b"] != 0 {
+		t.Fatalf("member-b score = %d, want 0", scores["member-b"])
+	}
+}
+
+func TestWeightedFlowScoreUsesRecentFivePeriodBaseline(t *testing.T) {
+	score := weightedFlowScore([]int{4, 3, 2, 1, 0})
+
+	if score < 107.69 || score > 107.70 {
+		t.Fatalf("score = %.2f, want 107.69", score)
+	}
+}
+
+func TestBuildFlowMemberScoresKeepsDuplicateNamesSeparate(t *testing.T) {
+	members := []flowMember{
+		{ID: "member-a", Name: "김철수"},
+		{ID: "member-b", Name: "김철수"},
+	}
+	definitions := flowDefinitions{
+		Sizes: []flowSizeDefinition{
+			{Name: "S", DistanceKM: 2},
+		},
+	}
+	weekStart := time.Date(2026, time.June, 1, 0, 0, 0, 0, flowDateLocation())
+	scores := buildFlowMemberScores([]flowTask{
+		{
+			ParticipantIDs:   []string{"member-a"},
+			ParticipantNames: []string{"김철수"},
+			Size:             "S",
+			Status:           "완료",
+			EndDate:          "2026-06-01",
+		},
+	}, members, definitions, weekStart)
+
+	if scores["member-a"] != 115 {
+		t.Fatalf("member-a score = %d, want 115", scores["member-a"])
+	}
+	if scores["member-b"] != 0 {
+		t.Fatalf("member-b score = %d, want 0", scores["member-b"])
+	}
+	if _, found := scores["김철수"]; found {
+		t.Fatalf("score should not use duplicate member name key: %+v", scores)
+	}
+}
+
 func TestMembersFromUserRecordsSortsByHireDate(t *testing.T) {
 	members := membersFromUserRecords([]adminUserMutation{
 		{Email: "late@example.com", Name: "Late", HireDate: "2026-05-10", Role: "admin"},
