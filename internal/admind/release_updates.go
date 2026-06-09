@@ -163,6 +163,7 @@ func (service *Service) downloadReleaseBlob(ctx context.Context, component relea
 	if errorValue != nil {
 		return errorValue
 	}
+	service.addReleaseDownloadHeaders(request)
 	response, errorValue := service.httpClient().Do(request)
 	if errorValue != nil {
 		return errorValue
@@ -358,6 +359,7 @@ func (service *Service) fetchReleaseStablePointer(ctx context.Context) (releases
 	if errorValue != nil {
 		return releaseset.StablePointer{}, errorValue
 	}
+	service.addReleaseDownloadHeaders(request)
 	response, errorValue := service.httpClient().Do(request)
 	if errorValue != nil {
 		return releaseset.StablePointer{}, errorValue
@@ -381,6 +383,7 @@ func (service *Service) fetchReleaseManifest(ctx context.Context, manifestURL st
 	if errorValue != nil {
 		return nil, errorValue
 	}
+	service.addReleaseDownloadHeaders(request)
 	response, errorValue := service.httpClient().Do(request)
 	if errorValue != nil {
 		return nil, errorValue
@@ -404,6 +407,14 @@ func (service *Service) fetchReleaseManifest(ctx context.Context, manifestURL st
 
 func (service *Service) releaseRegistryURL(relativePath string) string {
 	return strings.TrimRight(service.Configuration.ReleaseRegistryURL, "/") + "/" + strings.TrimLeft(relativePath, "/")
+}
+
+func (service *Service) addReleaseDownloadHeaders(request *http.Request) {
+	token := strings.TrimSpace(readTrimmedFile(service.Configuration.ReleaseDownloadTokenPath))
+	if token == "" {
+		return
+	}
+	request.Header.Set("X-InternKim-Release-Token", token)
 }
 
 func (service *Service) releaseSigningKey() string {
