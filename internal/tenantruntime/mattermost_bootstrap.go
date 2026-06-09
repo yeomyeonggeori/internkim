@@ -18,21 +18,25 @@ import (
 const defaultMattermostTeamName = "internkim"
 const defaultMattermostBotUsername = "internkim"
 const defaultMattermostBotDisplayName = "김인턴"
+const defaultMattermostBotWelcomeMessage = "Please add me to teams and channels you want me to interact in. To do this, use the browser or Mattermost Desktop App."
 
 type MattermostFleetBootstrapOptions struct {
-	CredentialsPath   string
-	BaseURLTemplate   string
-	PublicURLTemplate string
-	PortStart         int
-	Language          string
-	TokenOutputRoot   string
+	CredentialsPath     string
+	BaseURLTemplate     string
+	BlueclawURLTemplate string
+	PublicURLTemplate   string
+	PortStart           int
+	Language            string
+	TokenOutputRoot     string
 }
 
 type MattermostBootstrapStatus struct {
-	TenantID  string            `json:"tenantID"`
-	PublicURL string            `json:"publicURL"`
-	BotUserID string            `json:"botUserID"`
-	Channels  map[string]string `json:"channels"`
+	TenantID        string            `json:"tenantID"`
+	PublicURL       string            `json:"publicURL"`
+	AdminEmail      string            `json:"adminEmail"`
+	BotUserID       string            `json:"botUserID"`
+	BlueclawInvited bool              `json:"blueclawInvited,omitempty"`
+	Channels        map[string]string `json:"channels"`
 }
 
 type mattermostBootstrapCredential struct {
@@ -100,6 +104,10 @@ func bootstrapMattermostTenantResources(credential mattermostBootstrapCredential
 	if errorValue != nil {
 		return MattermostBootstrapStatus{}, errorValue
 	}
+	adminEmail := DefaultTenantAdminEmail(credential.TenantID)
+	if errorValue := client.ensureAdminProfile(adminToken, adminUserID, adminEmail, credential.AdminPassword); errorValue != nil {
+		return MattermostBootstrapStatus{}, errorValue
+	}
 	if errorValue := client.configure(adminToken, publicURL); errorValue != nil {
 		return MattermostBootstrapStatus{}, errorValue
 	}
@@ -114,7 +122,14 @@ func bootstrapMattermostTenantResources(credential mattermostBootstrapCredential
 	if errorValue != nil {
 		return MattermostBootstrapStatus{}, errorValue
 	}
-	channels, errorValue := client.ensureDefaultChannels(adminToken, teamID, botUserID, options.Language)
+	channels, errorValue := client.ensureDefaultChannels(adminToken, teamID, []string{adminUserID, botUserID}, botUserID, options.Language)
+	if errorValue != nil {
+		return MattermostBootstrapStatus{}, errorValue
+	}
+	if errorValue := client.cleanupDefaultBotWelcomeMessage(adminToken, adminUserID, botUserID); errorValue != nil {
+		return MattermostBootstrapStatus{}, errorValue
+	}
+	blueclawInvited, errorValue := inviteMattermostBootstrapBlueclawAdmin(credential.TenantID, adminEmail, options)
 	if errorValue != nil {
 		return MattermostBootstrapStatus{}, errorValue
 	}
@@ -124,10 +139,12 @@ func bootstrapMattermostTenantResources(credential mattermostBootstrapCredential
 		}
 	}
 	return MattermostBootstrapStatus{
-		TenantID:  credential.TenantID,
-		PublicURL: publicURL,
-		BotUserID: botUserID,
-		Channels:  channels,
+		TenantID:        credential.TenantID,
+		PublicURL:       publicURL,
+		AdminEmail:      adminEmail,
+		BotUserID:       botUserID,
+		BlueclawInvited: blueclawInvited,
+		Channels:        channels,
 	}, nil
 }
 
@@ -150,6 +167,15 @@ func expandMattermostBootstrapTemplate(template string, tenantID string, port in
 	return strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(template), "{tenant}", tenantID), "{port}", strconv.Itoa(port))
 }
 
+func expandMattermostBootstrapBlueclawTemplate(template string, tenantID string) string {
+	tenantIndex := tenantNumericSuffix(tenantID)
+	blueclawPort := defaultTenantHostRuntimePortBase(tenantIndex)
+	expandedURL := strings.TrimSpace(template)
+	expandedURL = strings.ReplaceAll(expandedURL, "{tenant}", tenantID)
+	expandedURL = strings.ReplaceAll(expandedURL, "{blueclawPort}", strconv.Itoa(blueclawPort))
+	return expandedURL
+}
+
 func (client mattermostBootstrapClient) login(username string, password string) (string, string, error) {
 	response, errorValue := client.request(http.MethodPost, "/api/v4/users/login", "", map[string]string{
 		"login_id": strings.TrimSpace(username),
@@ -163,6 +189,32 @@ func (client mattermostBootstrapClient) login(username string, password string) 
 		return "", "", errors.New("Mattermost admin login failed")
 	}
 	return token, response.stringField("id"), nil
+}
+
+func (client mattermostBootstrapClient) ensureAdminProfile(adminToken string, adminUserID string, adminEmail string, adminPassword string) error {
+	if strings.TrimSpace(adminUserID) == "" {
+		return errors.New("Mattermost admin user id is required")
+	}
+	response, errorValue := client.request(http.MethodPut, "/api/v4/users/"+url.PathEscape(adminUserID)+"/patch", adminToken, map[string]string{
+		"email":    strings.TrimSpace(adminEmail),
+		"password": adminPassword,
+	})
+	if errorValue != nil {
+		return errorValue
+	}
+	if !isSuccessStatus(response.StatusCode) {
+		return errors.New("Mattermost admin profile patch failed")
+	}
+	response, errorValue = client.request(http.MethodPut, "/api/v4/users/"+url.PathEscape(adminUserID)+"/roles", adminToken, map[string]string{
+		"roles": "system_admin system_user",
+	})
+	if errorValue != nil {
+		return errorValue
+	}
+	if !isSuccessStatus(response.StatusCode) {
+		return errors.New("Mattermost admin role patch failed")
+	}
+	return nil
 }
 
 func (client mattermostBootstrapClient) configure(adminToken string, publicURL string) error {
@@ -285,10 +337,10 @@ func (client mattermostBootstrapClient) patchBotProfile(adminToken string, botUs
 	return nil
 }
 
-func (client mattermostBootstrapClient) ensureDefaultChannels(adminToken string, teamID string, botUserID string, language string) (map[string]string, error) {
+func (client mattermostBootstrapClient) ensureDefaultChannels(adminToken string, teamID string, memberUserIDs []string, botUserID string, language string) (map[string]string, error) {
 	channels := map[string]string{}
 	for _, channel := range append(mattermostdefaults.PublicChannelsForLanguage(language), defaultPrivateMattermostChannels()...) {
-		channelID, errorValue := client.ensureChannel(adminToken, teamID, botUserID, channel)
+		channelID, errorValue := client.ensureChannel(adminToken, teamID, memberUserIDs, botUserID, channel)
 		if errorValue != nil {
 			return nil, errorValue
 		}
@@ -305,7 +357,7 @@ func defaultPrivateMattermostChannels() []mattermostdefaults.PublicChannel {
 	}
 }
 
-func (client mattermostBootstrapClient) ensureChannel(adminToken string, teamID string, botUserID string, channel mattermostdefaults.PublicChannel) (string, error) {
+func (client mattermostBootstrapClient) ensureChannel(adminToken string, teamID string, memberUserIDs []string, botUserID string, channel mattermostdefaults.PublicChannel) (string, error) {
 	response, errorValue := client.request(http.MethodGet, "/api/v4/teams/"+url.PathEscape(teamID)+"/channels/name/"+url.PathEscape(channel.Name), adminToken, nil)
 	if errorValue != nil {
 		return "", errorValue
@@ -336,21 +388,36 @@ func (client mattermostBootstrapClient) ensureChannel(adminToken string, teamID 
 	if errorValue := client.patchChannel(adminToken, channelID, channel); errorValue != nil {
 		return "", errorValue
 	}
+	for _, memberUserID := range memberUserIDs {
+		if errorValue := client.ensureChannelMember(adminToken, channelID, memberUserID); errorValue != nil {
+			return "", errorValue
+		}
+	}
 	if errorValue := client.ensureChannelBotCanPost(adminToken, channelID, botUserID); errorValue != nil {
 		return "", errorValue
 	}
 	return channelID, nil
 }
 
-func (client mattermostBootstrapClient) ensureChannelBotCanPost(adminToken string, channelID string, botUserID string) error {
-	response, errorValue := client.request(http.MethodPost, "/api/v4/channels/"+url.PathEscape(channelID)+"/members", adminToken, map[string]string{"user_id": botUserID})
+func (client mattermostBootstrapClient) ensureChannelMember(adminToken string, channelID string, userID string) error {
+	if strings.TrimSpace(userID) == "" {
+		return nil
+	}
+	response, errorValue := client.request(http.MethodPost, "/api/v4/channels/"+url.PathEscape(channelID)+"/members", adminToken, map[string]string{"user_id": userID})
 	if errorValue != nil {
 		return errorValue
 	}
 	if !isSuccessStatus(response.StatusCode) && response.StatusCode != http.StatusBadRequest {
-		return errors.New("Mattermost bot channel member create failed")
+		return errors.New("Mattermost channel member create failed")
 	}
-	response, errorValue = client.request(http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/members/"+url.PathEscape(botUserID)+"/schemeRoles", adminToken, map[string]bool{"scheme_admin": true, "scheme_user": true})
+	return nil
+}
+
+func (client mattermostBootstrapClient) ensureChannelBotCanPost(adminToken string, channelID string, botUserID string) error {
+	if strings.TrimSpace(botUserID) == "" {
+		return nil
+	}
+	response, errorValue := client.request(http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/members/"+url.PathEscape(botUserID)+"/schemeRoles", adminToken, map[string]bool{"scheme_admin": true, "scheme_user": true})
 	if errorValue != nil {
 		return errorValue
 	}
@@ -358,6 +425,59 @@ func (client mattermostBootstrapClient) ensureChannelBotCanPost(adminToken strin
 		return errors.New("Mattermost bot channel scheme role update failed")
 	}
 	return nil
+}
+
+func (client mattermostBootstrapClient) cleanupDefaultBotWelcomeMessage(adminToken string, adminUserID string, botUserID string) error {
+	if strings.TrimSpace(adminUserID) == "" || strings.TrimSpace(botUserID) == "" {
+		return nil
+	}
+	response, errorValue := client.request(http.MethodPost, "/api/v4/channels/direct", adminToken, []string{adminUserID, botUserID})
+	if errorValue != nil {
+		return errorValue
+	}
+	if !isSuccessStatus(response.StatusCode) {
+		return errors.New("Mattermost direct channel lookup failed")
+	}
+	channelID := response.stringField("id")
+	if channelID == "" {
+		return nil
+	}
+	response, errorValue = client.request(http.MethodGet, "/api/v4/channels/"+url.PathEscape(channelID)+"/posts?per_page=200", adminToken, nil)
+	if errorValue != nil {
+		return errorValue
+	}
+	if !isSuccessStatus(response.StatusCode) {
+		return errors.New("Mattermost direct channel posts lookup failed")
+	}
+	postID := mattermostDefaultBotWelcomePostID(response.Document)
+	if postID == "" {
+		return nil
+	}
+	response, errorValue = client.request(http.MethodDelete, "/api/v4/posts/"+url.PathEscape(postID), adminToken, nil)
+	if errorValue != nil {
+		return errorValue
+	}
+	if !isSuccessStatus(response.StatusCode) {
+		return errors.New("Mattermost default bot welcome post delete failed")
+	}
+	return nil
+}
+
+func mattermostDefaultBotWelcomePostID(document []byte) string {
+	var response struct {
+		Order []string `json:"order"`
+		Posts map[string]struct {
+			Message string `json:"message"`
+		} `json:"posts"`
+	}
+	if json.Unmarshal(document, &response) != nil || len(response.Order) == 0 {
+		return ""
+	}
+	oldestPostID := response.Order[len(response.Order)-1]
+	if response.Posts[oldestPostID].Message != defaultMattermostBotWelcomeMessage {
+		return ""
+	}
+	return oldestPostID
 }
 
 func (client mattermostBootstrapClient) patchChannel(adminToken string, channelID string, channel mattermostdefaults.PublicChannel) error {
@@ -402,6 +522,26 @@ func (client mattermostBootstrapClient) request(method string, path string, toke
 		return mattermostBootstrapResponse{}, errorValue
 	}
 	return mattermostBootstrapResponse{StatusCode: response.StatusCode, Header: response.Header, Document: document}, nil
+}
+
+func inviteMattermostBootstrapBlueclawAdmin(tenantID string, adminEmail string, options MattermostFleetBootstrapOptions) (bool, error) {
+	template := strings.TrimSpace(options.BlueclawURLTemplate)
+	if template == "" {
+		return false, nil
+	}
+	baseURL := expandMattermostBootstrapBlueclawTemplate(template, tenantID)
+	client := mattermostBootstrapClient{baseURL: strings.TrimRight(baseURL, "/"), httpClient: http.DefaultClient}
+	response, errorValue := client.request(http.MethodPost, "/admin/api/people/invite", "", map[string]string{
+		"email":       strings.TrimSpace(adminEmail),
+		"displayName": "Intern Kim Admin",
+	})
+	if errorValue != nil {
+		return false, errorValue
+	}
+	if !isSuccessStatus(response.StatusCode) {
+		return false, errors.New("Blueclaw admin invite failed")
+	}
+	return true, nil
 }
 
 type mattermostBootstrapResponse struct {

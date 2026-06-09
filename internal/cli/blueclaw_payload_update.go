@@ -24,8 +24,17 @@ import (
 
 const blueclawUpdateUploadAction = "blueclaw-update-upload"
 const blueclawUpdateUploadChunkSize = 4 << 20
+const blueclawUpdateHTTPTimeout = 2 * time.Minute
 
-var cloudflareAccessTokenByHost = map[string]string{}
+var (
+	blueclawUpdateHTTPClient = &http.Client{
+		Timeout: blueclawUpdateHTTPTimeout,
+		CheckRedirect: func(request *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	cloudflareAccessTokenByHost = map[string]string{}
+)
 
 type blueclawUpdateUploadCreateRequest struct {
 	recoveryRequest
@@ -175,7 +184,7 @@ func postBlueclawUpdateJSON(endpointURL string, requestPayload any, token string
 		request.Header.Set("X-InternKim-Upload-Token", token)
 	}
 	attachCloudflareAccessCookie(request)
-	response, errorValue := statusHTTPClient.Do(request)
+	response, errorValue := blueclawUpdateHTTPClient.Do(request)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -194,7 +203,7 @@ func putBlueclawUpdateChunk(endpointURL string, token string, document []byte) e
 	}
 	request.Header.Set("X-InternKim-Upload-Token", token)
 	attachCloudflareAccessCookie(request)
-	response, errorValue := statusHTTPClient.Do(request)
+	response, errorValue := blueclawUpdateHTTPClient.Do(request)
 	if errorValue != nil {
 		return errorValue
 	}

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
 	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
@@ -22,6 +23,18 @@ func TestUsersSyncDependencyInstallScriptInstallsJQ(t *testing.T) {
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("expected users sync dependency script to include %q, got:\n%s", fragment, script)
 		}
+	}
+}
+
+func TestBlueclawPayloadUpdateHTTPClientWaitsForApply(t *testing.T) {
+	if blueclawUpdateHTTPClient.Timeout < 2*time.Minute {
+		t.Fatalf("expected Blueclaw update client to allow payload apply latency, got %s", blueclawUpdateHTTPClient.Timeout)
+	}
+	if releaseUpdateHTTPClient.Timeout < 2*time.Minute {
+		t.Fatalf("expected release update client to allow payload apply latency, got %s", releaseUpdateHTTPClient.Timeout)
+	}
+	if statusHTTPClient.Timeout >= blueclawUpdateHTTPClient.Timeout {
+		t.Fatalf("expected general status client to stay shorter than payload update client")
 	}
 }
 

@@ -6,7 +6,7 @@ describe('Release Registry Worker', () => {
 		const bucket = new MemoryR2Bucket({ 'channels/stable.json': 'ok' });
 
 		const response = await handleReleaseRegistryRequest(new Request('https://updates.intern.kim/channels/stable.json'), {
-			RELEASE_BUCKET: bucket,
+			RELEASE_BUCKET: bucket as unknown as R2Bucket,
 			RELEASE_DOWNLOAD_TOKEN: 'download-token'
 		});
 
@@ -22,7 +22,7 @@ describe('Release Registry Worker', () => {
 				headers: { 'X-InternKim-Release-Token': 'download-token' }
 			}),
 			{
-				RELEASE_BUCKET: bucket,
+				RELEASE_BUCKET: bucket as unknown as R2Bucket,
 				RELEASE_DOWNLOAD_TOKEN: 'download-token'
 			}
 		);
@@ -40,7 +40,7 @@ describe('Release Registry Worker', () => {
 				headers: { 'X-InternKim-Release-Token': 'download-token' }
 			}),
 			{
-				RELEASE_BUCKET: bucket,
+				RELEASE_BUCKET: bucket as unknown as R2Bucket,
 				RELEASE_DOWNLOAD_TOKEN: 'download-token'
 			}
 		);
