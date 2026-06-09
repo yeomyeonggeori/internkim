@@ -3,6 +3,7 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { getAttendanceState } from '../attendance-context.svelte';
 	import { computeDayEvents, groupEventsByDay } from '../shared/attendance-aggregation';
+	import { absenceLabelText, absencesForDate } from '../shared/attendance-absence';
 	import { eachDayOfMonth, isWeekend, todayDateInTimeZone } from '../shared/attendance-date';
 	import { attendanceText } from '../text';
 
@@ -12,6 +13,9 @@
 	const targetEmail = $derived(attendance.selectedEmail || attendance.summary?.currentUserEmail || '');
 	const personalEvents = $derived(
 		attendance.summary ? attendance.summary.events.filter((e) => e.email === targetEmail) : []
+	);
+	const personalAbsences = $derived(
+		attendance.summary ? attendance.summary.absences.filter((absence) => absence.email === targetEmail) : []
 	);
 	const byDay = $derived(groupEventsByDay(personalEvents));
 	const days = $derived(attendance.summary ? eachDayOfMonth(attendance.summary.month) : []);
@@ -26,8 +30,9 @@
 		return Array.from({ length: day }, (_, i) => i);
 	}
 
-	function cellClass(date: string, hasClockIn: boolean): string {
+	function cellClass(date: string, hasClockIn: boolean, hasAbsence: boolean): string {
 		if (hasClockIn) return 'bg-emerald-100/70 dark:bg-emerald-950/40';
+		if (hasAbsence) return 'bg-sky-100/70 dark:bg-sky-950/40';
 		if (isWeekend(date)) return 'bg-transparent text-muted-foreground';
 		if (date < today) return 'bg-rose-100/70 dark:bg-rose-950/40';
 		return 'bg-transparent';
@@ -68,9 +73,10 @@
 			{#each days as date (date)}
 				{@const day = computeDayEvents(date, byDay.get(date) ?? [])}
 				{@const location = day.clockIn?.locationID ? locationMap.get(day.clockIn.locationID) : null}
+				{@const dayAbsence = absencesForDate(personalAbsences, date, targetEmail)[0]}
 				<button
 					type="button"
-					class={`flex aspect-[1.05] flex-col justify-between rounded-md p-1.5 text-left transition ${cellClass(date, !!day.clockIn)} ${attendance.selectedDate === date ? 'outline outline-2 outline-foreground' : ''} ${date === today ? 'ring-1 ring-foreground/40' : ''}`}
+					class={`flex aspect-[1.05] flex-col justify-between rounded-md p-1.5 text-left transition ${cellClass(date, !!day.clockIn, !!dayAbsence)} ${attendance.selectedDate === date ? 'outline outline-2 outline-foreground' : ''} ${date === today ? 'ring-1 ring-foreground/40' : ''}`}
 					onclick={() => selectDate(date)}
 				>
 					<span class="text-sm font-semibold leading-none">{Number(date.slice(-2))}</span>
@@ -92,6 +98,10 @@
 								<span class="truncate text-[10px] font-medium text-muted-foreground">{location.name}</span>
 							{/if}
 						</div>
+					{:else if dayAbsence}
+						<span class="text-[11px] font-semibold leading-tight text-info">
+							{absenceLabelText(dayAbsence, text)}
+						</span>
 					{:else if date < today && !isWeekend(date)}
 						<span class="text-[11px] font-semibold leading-tight text-rose-600 dark:text-rose-400">{text.absent}</span>
 					{/if}
