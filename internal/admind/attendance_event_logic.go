@@ -66,7 +66,11 @@ func (service *Service) applyAttendanceAction(ctx context.Context, userRecord ma
 	if errorValue != nil {
 		return attendanceActionResult{}, errorValue
 	}
-	if shouldIgnoreAttendanceAction(kind, lastEvent, found) {
+	shouldIgnore, errorValue := service.shouldIgnoreMattermostAttendanceAction(ctx, kind, lastEvent, found)
+	if errorValue != nil {
+		return attendanceActionResult{}, errorValue
+	}
+	if shouldIgnore {
 		return ignoredAttendanceActionResult(), nil
 	}
 	eventLocation := attendanceLocation{}
@@ -83,6 +87,24 @@ func (service *Service) latestActiveAttendanceEventForToday(ctx context.Context,
 	location, _ := service.workspaceTimeLocation()
 	localDate := now.In(location).Format("2006-01-02")
 	return service.latestActiveAttendanceEventForLocalDate(ctx, database, mattermostUserID, localDate)
+}
+
+func (service *Service) shouldIgnoreMattermostAttendanceAction(ctx context.Context, kind string, event attendanceEvent, hasEvent bool) (bool, error) {
+	if !shouldIgnoreAttendanceAction(kind, event, hasEvent) {
+		return false, nil
+	}
+	if kind != attendanceKindClockIn || !hasEvent {
+		return true, nil
+	}
+	adminToken, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		return false, errorValue
+	}
+	postExists, errorValue := service.mattermostAttendanceResultPostExists(ctx, adminToken, event.ResultPostID)
+	if errorValue != nil {
+		return false, errorValue
+	}
+	return postExists, nil
 }
 
 func (service *Service) handleRepeatedAttendanceClick(ctx context.Context, database *sql.DB, userToken string, event attendanceEvent, occurredAt time.Time) (attendanceActionResult, error) {

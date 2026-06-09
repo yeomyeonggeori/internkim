@@ -145,7 +145,11 @@ func (service *Service) applyMattermostAttendanceReplyPostCommand(ctx context.Co
 	if errorValue != nil {
 		return attendanceActionResult{}, errorValue
 	}
-	if shouldIgnoreAttendanceAction(command.Kind, lastEvent, found) {
+	shouldIgnore, errorValue := service.shouldIgnoreMattermostAttendanceAction(ctx, command.Kind, lastEvent, found)
+	if errorValue != nil {
+		return attendanceActionResult{}, errorValue
+	}
+	if shouldIgnore {
 		return ignoredAttendanceActionResult(), nil
 	}
 	eventLocation := attendanceLocation{}

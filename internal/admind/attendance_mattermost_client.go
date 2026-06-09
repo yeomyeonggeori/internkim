@@ -56,6 +56,21 @@ func (service *Service) patchMattermostAttendanceResultPost(ctx context.Context,
 	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/posts/"+url.PathEscape(postID)+"/patch", userToken, body, nil)
 }
 
+func (service *Service) mattermostAttendanceResultPostExists(ctx context.Context, adminToken string, postID string) (bool, error) {
+	trimmedPostID := strings.TrimSpace(postID)
+	if trimmedPostID == "" {
+		return false, nil
+	}
+	errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/posts/"+url.PathEscape(trimmedPostID), adminToken, nil, nil)
+	if errorValue == nil {
+		return true, nil
+	}
+	if isMattermostNotFound(errorValue) {
+		return false, nil
+	}
+	return false, errorValue
+}
+
 func (service *Service) deleteMattermostAttendanceResultPost(ctx context.Context, adminToken string, postID string) error {
 	trimmedPostID := strings.TrimSpace(postID)
 	if trimmedPostID == "" {
