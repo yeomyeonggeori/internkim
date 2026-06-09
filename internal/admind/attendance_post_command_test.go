@@ -324,6 +324,25 @@ func TestAttendanceEntryCommentUpdatesClockOutTime(t *testing.T) {
 	}
 }
 
+func TestAttendanceTimeUpdateUsesPreviousDayWhenTimeIsAfterCommandPost(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	if errorValue := service.writeWorkspaceSettingsFile(workspaceSettings{Language: workspaceLanguageKorean, TimeZone: "Asia/Seoul"}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	location, _ := time.LoadLocation("Asia/Seoul")
+	event := attendanceEvent{LocalDate: "2026-06-10"}
+	commandPostCreatedAt := time.Date(2026, 6, 10, 0, 30, 0, 0, location).UTC()
+
+	localTime, errorValue := service.attendanceLocalTimeForEvent(event, "23:30", commandPostCreatedAt)
+
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if localTime.Format("2006-01-02 15:04") != "2026-06-09 23:30" {
+		t.Fatalf("local time = %s", localTime.Format("2006-01-02 15:04"))
+	}
+}
+
 func findAttendanceEventByKind(events []attendanceEvent, kind string) (attendanceEvent, bool) {
 	for _, event := range events {
 		if event.Kind == kind {

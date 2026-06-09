@@ -278,6 +278,9 @@ func NewService(configuration Configuration) *Service {
 }
 
 func (service *Service) Run(ctx context.Context) error {
+	if errorValue := service.repairFutureAttendanceEvents(ctx, time.Now().UTC()); errorValue != nil {
+		log.Printf("attendance future event repair failed: %v", errorValue)
+	}
 	service.startBotProfileSync(ctx)
 	service.startCompanionFileCleanup(ctx)
 	service.startMattermostProvisionerSync(ctx)

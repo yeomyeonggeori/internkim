@@ -68,11 +68,13 @@ func mattermostPostCreatePayloadFromRequest(request *http.Request) (mattermostPo
 }
 
 func (service *Service) syncMattermostAttendancePostCommand(ctx context.Context, request *http.Request, payload mattermostPostCreatePayload, command attendancePostCommand, responseBody []byte) error {
-	commandPostID := mattermostCreatedPostID(responseBody)
+	commandPost := mattermostCreatedPost(responseBody)
+	commandPostID := strings.TrimSpace(commandPost.ID)
 	if commandPostID == "" {
 		return fmt.Errorf("Mattermost attendance command post ID was not found")
 	}
-	result, errorValue := service.applyMattermostAttendancePostCommand(ctx, request, payload, command, commandPostID)
+	commandPostCreatedAt := mattermostPostCreatedAt(commandPost, time.Now().UTC())
+	result, errorValue := service.applyMattermostAttendancePostCommand(ctx, request, payload, command, commandPostID, commandPostCreatedAt)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -87,20 +89,31 @@ func (service *Service) syncMattermostAttendancePostCommand(ctx context.Context,
 }
 
 func mattermostCreatedPostID(responseBody []byte) string {
-	var postRecord mattermostPostRecord
-	if errorValue := json.Unmarshal(responseBody, &postRecord); errorValue != nil {
-		return ""
-	}
-	return strings.TrimSpace(postRecord.ID)
+	return strings.TrimSpace(mattermostCreatedPost(responseBody).ID)
 }
 
-func (service *Service) applyMattermostAttendancePostCommand(ctx context.Context, request *http.Request, payload mattermostPostCreatePayload, command attendancePostCommand, commandPostID string) (attendancePostCommandResult, error) {
+func mattermostCreatedPost(responseBody []byte) mattermostPostRecord {
+	var postRecord mattermostPostRecord
+	if errorValue := json.Unmarshal(responseBody, &postRecord); errorValue != nil {
+		return mattermostPostRecord{}
+	}
+	return postRecord
+}
+
+func mattermostPostCreatedAt(postRecord mattermostPostRecord, fallback time.Time) time.Time {
+	if postRecord.CreateAt <= 0 {
+		return fallback
+	}
+	return time.UnixMilli(postRecord.CreateAt).UTC()
+}
+
+func (service *Service) applyMattermostAttendancePostCommand(ctx context.Context, request *http.Request, payload mattermostPostCreatePayload, command attendancePostCommand, commandPostID string, commandPostCreatedAt time.Time) (attendancePostCommandResult, error) {
 	userRecord, found := service.mattermostPostCreateUser(request)
 	if !found {
 		return attendancePostCommandResult{}, fmt.Errorf("Mattermost user session was not found")
 	}
 	if command.IsTimeUpdate {
-		resultPostID, errorValue := service.updateAttendanceTimeFromMattermostPost(ctx, userRecord, command.TimeText)
+		resultPostID, errorValue := service.updateAttendanceTimeFromMattermostPost(ctx, userRecord, command.TimeText, commandPostCreatedAt)
 		return attendancePostCommandResult{
 			ActionResult:            updatedAttendanceActionResult(resultPostID),
 			ShouldDeleteCommandPost: true,
@@ -249,7 +262,7 @@ func splitAttendanceLocationMessage(message string) (string, string) {
 	return strings.TrimSpace(trimmedMessage[:openIndex]), strings.TrimSpace(strings.TrimSuffix(trimmedMessage[openIndex+1:], ")"))
 }
 
-func (service *Service) updateAttendanceTimeFromMattermostPost(ctx context.Context, userRecord mattermostUserRecord, timeText string) (string, error) {
+func (service *Service) updateAttendanceTimeFromMattermostPost(ctx context.Context, userRecord mattermostUserRecord, timeText string, commandPostCreatedAt time.Time) (string, error) {
 	database, errorValue := service.openAttendanceDatabase(ctx)
 	if errorValue != nil {
 		return "", errorValue
@@ -262,7 +275,7 @@ func (service *Service) updateAttendanceTimeFromMattermostPost(ctx context.Conte
 	if !found {
 		return "", fmt.Errorf("active attendance event was not found")
 	}
-	localTime, errorValue := service.attendanceLocalTimeForEvent(event, timeText)
+	localTime, errorValue := service.attendanceLocalTimeForEvent(event, timeText, commandPostCreatedAt)
 	if errorValue != nil {
 		return "", errorValue
 	}
@@ -285,11 +298,15 @@ func (service *Service) updateAttendanceTimeFromMattermostPost(ctx context.Conte
 	return event.ResultPostID, service.updateAttendanceEventTime(ctx, database, event, localTime)
 }
 
-func (service *Service) attendanceLocalTimeForEvent(event attendanceEvent, timeText string) (time.Time, error) {
+func (service *Service) attendanceLocalTimeForEvent(event attendanceEvent, timeText string, commandPostCreatedAt time.Time) (time.Time, error) {
 	location, _ := service.workspaceTimeLocation()
 	localTime, errorValue := time.ParseInLocation("2006-01-02 15:04", event.LocalDate+" "+strings.TrimSpace(timeText), location)
 	if errorValue != nil {
 		return time.Time{}, errorValue
+	}
+	referenceTime := commandPostCreatedAt.In(location)
+	if localTime.After(referenceTime) {
+		return localTime.AddDate(0, 0, -1), nil
 	}
 	return localTime, nil
 }

@@ -60,7 +60,7 @@ func (service *Service) writeAttendanceSummary(responseWriter http.ResponseWrite
 		TimeZone:             timeZoneName,
 		Events:               visibleEvents,
 		Absences:             projectAttendanceAbsences(absences, actorEmail, isAdmin),
-		TodayStatus:          attendanceStatusForEvents(statusEvents, time.Now().In(location).Format("2006-01-02")),
+		TodayStatus:          attendanceStatusForEvents(statusEvents, time.Now().In(location).Format("2006-01-02"), time.Now().UTC()),
 		Locations:            locations,
 		TeamViewVisibleToAll: teamVisible,
 		TeamViewBlocked:      teamViewBlocked,
