@@ -49,6 +49,7 @@
 	const selectedJobEvents = () => selectedJob()?.events ?? [];
 	const selectedTarget = () => targets.find((target) => target.id === selectedTargetID) ?? targets[0];
 	const targetStatus = (targetID: string) => statuses[targetID];
+	const displayStatus = (targetID: string) => targetStatus(targetID) ?? pendingTargetStatus(targetID);
 	const releaseCurrentText = (status: TargetStatus | undefined) => shortRelease(status?.release.currentRelease || status?.release.release);
 	const releaseLatestText = (status: TargetStatus | undefined) => shortRelease(status?.release.latestRelease);
 	const releaseActionDisabled = (status: TargetStatus | undefined) => !status?.release.updateAllowed || status.release.state === 'current' || status.release.state === 'updating';
@@ -139,6 +140,18 @@
 		return endpointStatusLabel(status);
 	}
 
+	function pendingTargetStatus(targetID: string): TargetStatus {
+		const state = isLoading ? 'checking' : 'unknown';
+		return {
+			targetID,
+			checkedAt: '',
+			admin: { state },
+			mattermost: { state },
+			release: { state },
+			recovery: { state }
+		};
+	}
+
 	function formatDate(value?: string) {
 		if (!value) return '';
 		return new Intl.DateTimeFormat('ko-KR', {
@@ -185,7 +198,7 @@
 
 			<div class="grid gap-3 lg:grid-cols-2">
 				{#each targets as target}
-					{@const status = targetStatus(target.id)}
+					{@const status = displayStatus(target.id)}
 					<Card.Root class="overflow-hidden border-border/80">
 						<Card.Header class="border-b bg-card/80 pb-3">
 							<div class="flex items-start justify-between gap-3">
@@ -225,18 +238,18 @@
 									<p class="mt-1 text-foreground">{statusLabel(status?.release)}</p>
 								</div>
 							</div>
-							<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+							<div class="grid grid-cols-[repeat(auto-fit,minmax(132px,1fr))] gap-2">
 								{#each actions as action}
 									{@const ActionIcon = action.icon}
 									<Button
 										variant={action.variant}
 										size="sm"
-										class="justify-start"
+										class="min-w-0 justify-start overflow-hidden px-2 text-xs"
 										disabled={action.id === 'apply-release' && releaseActionDisabled(status)}
 										onclick={() => runTargetAction(target.id, action.id)}
 									>
-										<ActionIcon />
-										{action.label}
+										<ActionIcon class="shrink-0" />
+										<span class="min-w-0 truncate">{action.label}</span>
 									</Button>
 								{/each}
 							</div>
@@ -329,7 +342,7 @@
 						</div>
 						<div class="flex items-center justify-between gap-2">
 							<span class="text-muted-foreground">Last check</span>
-							<span>{formatDate(targetStatus(target.id)?.checkedAt)}</span>
+							<span>{formatDate(displayStatus(target.id).checkedAt)}</span>
 						</div>
 					{/if}
 				</Card.Content>
