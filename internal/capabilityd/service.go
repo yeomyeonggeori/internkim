@@ -1170,7 +1170,18 @@ func (service Service) httpClient() *http.Client {
 	if service.HTTPClient != nil {
 		return service.HTTPClient
 	}
-	return &http.Client{Timeout: 120 * time.Second}
+	return &http.Client{Timeout: service.httpClientTimeout()}
+}
+
+func (service Service) httpClientTimeout() time.Duration {
+	providerTimeout := service.Configuration.ProviderAttemptTimeout
+	if providerTimeout <= 0 {
+		providerTimeout = DefaultConfiguration().ProviderAttemptTimeout
+	}
+	if providerTimeout <= 120*time.Second {
+		return 120 * time.Second
+	}
+	return providerTimeout + 30*time.Second
 }
 
 func (service Service) runCommand(ctx context.Context, executablePath string, arguments []string, standardInput []byte) ([]byte, error) {
