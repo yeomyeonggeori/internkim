@@ -23,6 +23,7 @@
 		{ id: 'deploy-admind', label: 'Deploy admind', icon: CloudUploadIcon, variant: 'default' },
 		{ id: 'deploy-runtime', label: 'Deploy runtime', icon: CloudUploadIcon, variant: 'secondary' },
 		{ id: 'deploy-web', label: 'Deploy web', icon: CloudUploadIcon, variant: 'secondary' },
+		{ id: 'apply-release', label: 'Apply release', icon: CloudUploadIcon, variant: 'default' },
 		{ id: 'pilot-standard', label: 'Pilot standard', icon: ActivityIcon, variant: 'default' },
 		{ id: 'restart-cloudflared-node-ssh', label: 'Restart tunnel', icon: RotateCwIcon, variant: 'outline' },
 		{ id: 'restart-ssh', label: 'Restart SSH', icon: RotateCwIcon, variant: 'outline' },
@@ -48,6 +49,9 @@
 	const selectedJobEvents = () => selectedJob()?.events ?? [];
 	const selectedTarget = () => targets.find((target) => target.id === selectedTargetID) ?? targets[0];
 	const targetStatus = (targetID: string) => statuses[targetID];
+	const releaseCurrentText = (status: TargetStatus | undefined) => shortRelease(status?.release.currentRelease || status?.release.release);
+	const releaseLatestText = (status: TargetStatus | undefined) => shortRelease(status?.release.latestRelease);
+	const releaseActionDisabled = (status: TargetStatus | undefined) => !status?.release.updateAllowed || status.release.state === 'current' || status.release.state === 'updating';
 
 	onMount(() => {
 		void loadTargets();
@@ -145,6 +149,11 @@
 			day: '2-digit'
 		}).format(new Date(value));
 	}
+
+	function shortRelease(value?: string) {
+		const release = value?.trim() ?? '';
+		return release ? release.slice(0, 12) : 'none';
+	}
 </script>
 
 <svelte:head>
@@ -202,6 +211,20 @@
 								<div class="truncate">node: {target.nodeID || target.nodeArgument || 'default'}</div>
 								<div class="truncate">secret: {target.secretSource ? 'local reference' : 'state'}</div>
 							</div>
+							<div class="grid gap-2 rounded-md border bg-muted/20 p-2 text-xs md:grid-cols-3">
+								<div>
+									<p class="text-muted-foreground">Current</p>
+									<p class="mt-1 font-mono text-foreground">{releaseCurrentText(status)}</p>
+								</div>
+								<div>
+									<p class="text-muted-foreground">Latest</p>
+									<p class="mt-1 font-mono text-foreground">{releaseLatestText(status)}</p>
+								</div>
+								<div>
+									<p class="text-muted-foreground">Release state</p>
+									<p class="mt-1 text-foreground">{statusLabel(status?.release)}</p>
+								</div>
+							</div>
 							<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
 								{#each actions as action}
 									{@const ActionIcon = action.icon}
@@ -209,6 +232,7 @@
 										variant={action.variant}
 										size="sm"
 										class="justify-start"
+										disabled={action.id === 'apply-release' && releaseActionDisabled(status)}
 										onclick={() => runTargetAction(target.id, action.id)}
 									>
 										<ActionIcon />

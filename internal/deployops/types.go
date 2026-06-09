@@ -36,11 +36,14 @@ type TargetStatus struct {
 }
 
 type EndpointStatus struct {
-	State     string `json:"state"`
-	Code      int    `json:"code,omitempty"`
-	Message   string `json:"message,omitempty"`
-	StartedAt string `json:"startedAt,omitempty"`
-	Release   string `json:"release,omitempty"`
+	State          string `json:"state"`
+	Code           int    `json:"code,omitempty"`
+	Message        string `json:"message,omitempty"`
+	StartedAt      string `json:"startedAt,omitempty"`
+	Release        string `json:"release,omitempty"`
+	CurrentRelease string `json:"currentRelease,omitempty"`
+	LatestRelease  string `json:"latestRelease,omitempty"`
+	UpdateAllowed  bool   `json:"updateAllowed,omitempty"`
 }
 
 type RecoveryStatus struct {
@@ -77,6 +80,7 @@ const (
 	JobActionDeployAdmind    = "deploy-admind"
 	JobActionDeployRuntime   = "deploy-runtime"
 	JobActionDeployWeb       = "deploy-web"
+	JobActionApplyRelease    = "apply-release"
 	JobActionPilotStandard   = "pilot-standard"
 	JobActionRestartSSH      = "restart-ssh"
 	JobActionRestartSSHRoute = "restart-cloudflared-node-ssh"
