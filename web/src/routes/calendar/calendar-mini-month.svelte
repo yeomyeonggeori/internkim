@@ -4,6 +4,7 @@
 	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import { Popover } from 'bits-ui';
+	import CalendarMiniMonthDay from './calendar-mini-month-day.svelte';
 	import { calendarText } from './text';
 
 	type MiniMonthCell = { date: Date; isOther: boolean; isToday: boolean };
@@ -213,80 +214,22 @@
 				{weekdayLabel}
 			</span>
 		{/each}
-		{#each miniMonthCells() as cell, index (index)}
-			{@const isWeekend = cell.date.getDay() === 0 || cell.date.getDay() === 6}
-			{@const cellDateKey = dateKey(cell.date)}
-			{@const hasEvent = eventDates.has(cellDateKey)}
-			{@const isSelected = selectedDateKey === cellDateKey}
-			<button
-				type="button"
-				aria-label={miniMonthDateLabel(cell.date)}
-				aria-pressed={isSelected}
-				data-mini-date-key={cellDateKey}
-				data-selected={isSelected ? 'true' : 'false'}
-				data-weekend={isWeekend ? 'true' : 'false'}
-				class="relative mx-auto flex size-7 items-start justify-center rounded-none bg-transparent pt-0.5 text-[12px] tabular-nums transition-colors {cell.isToday
-						? 'font-bold text-primary ring-1 ring-primary/60'
-						: cell.isOther
-							? isWeekend
-								? 'text-red-400 opacity-45 hover:bg-accent/50'
-								: 'text-muted-foreground opacity-45 hover:bg-accent/50'
-							: isWeekend
-								? 'text-red-400 hover:bg-accent/50'
-								: 'text-foreground hover:bg-accent/50'}"
-				onclick={() => onSelectDate(cell.date)}
-			>
-				<span class="mini-month-date-number">{cell.date.getDate()}</span>
-				<span
-					class="mini-month-event-dot-slot"
-					data-has-event={hasEvent ? 'true' : 'false'}
-					data-other-month={cell.isOther ? 'true' : 'false'}
-					aria-hidden="true"
-				></span>
-			</button>
-		{/each}
-	</div>
-</section>
-
-<style>
-	button[data-mini-date-key] {
-		width: 100%;
-		height: 1.75rem;
-		min-height: 1.75rem;
-		padding-top: 0;
-	}
-
-	button[data-mini-date-key][data-selected='true'] {
-		box-shadow: inset 0 0 0 1px rgb(80 150 232 / 0.7);
-	}
-
-	button[data-mini-date-key] .mini-month-date-number {
-		position: absolute;
-		z-index: 1;
-		top: 0.3125rem;
-		left: 50%;
-		line-height: 1;
-		transform: translateX(-50%);
-	}
-
-	button[data-mini-date-key] .mini-month-event-dot-slot {
-		position: absolute;
-		z-index: 1;
-		bottom: 0.25rem;
-		left: 50%;
-		width: 0.375rem;
-		height: 0.375rem;
-		border-radius: 9999px;
-		background: rgb(59 130 246);
-		opacity: 0;
-		transform: translateX(-50%);
-	}
-
-	button[data-mini-date-key] .mini-month-event-dot-slot[data-has-event='true'] {
-		opacity: 1;
-	}
-
-	button[data-mini-date-key] .mini-month-event-dot-slot[data-has-event='true'][data-other-month='true'] {
-		opacity: 0.45;
-	}
-</style>
+			{#each miniMonthCells() as cell, index (index)}
+				{@const isWeekend = cell.date.getDay() === 0 || cell.date.getDay() === 6}
+				{@const cellDateKey = dateKey(cell.date)}
+				{@const hasEvent = eventDates.has(cellDateKey)}
+				{@const isSelected = selectedDateKey === cellDateKey}
+				<CalendarMiniMonthDay
+					date={cell.date}
+					dateKey={cellDateKey}
+					dateLabel={miniMonthDateLabel(cell.date)}
+					{hasEvent}
+					isOtherMonth={cell.isOther}
+					{isSelected}
+					isToday={cell.isToday}
+					{isWeekend}
+					{onSelectDate}
+				/>
+			{/each}
+		</div>
+	</section>
