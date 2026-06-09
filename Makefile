@@ -11,6 +11,7 @@ COMPANION_BETA_MACOS_ARTIFACT ?= internkim-companion-beta-macos-aarch64.dmg
 
 build:
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim ./cmd/internkim
+	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim-llm-gateway ./cmd/internkim-llm-gateway
 
 build-companion:
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim-companion ./cmd/internkim-companion
@@ -86,7 +87,8 @@ sim-gate: build
 	./internkim sim gate
 
 deploy-after-sim: build
-	./internkim update --sim-first
+	./internkim sim gate
+	./internkim deploy
 
 verify-api: build
 	./internkim verify api

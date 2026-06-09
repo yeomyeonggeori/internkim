@@ -38,6 +38,7 @@
 		type MonthRangeSelection
 	} from './calendar-month-range-action';
 	import {
+		dateFromDateKey,
 		refreshSelectedMonthDateCell as refreshSelectedMonthDateCellElement
 	} from './calendar-month-selection';
 	import { CalendarProgrammaticUpdateState } from './calendar-programmatic-updates';
@@ -60,6 +61,8 @@
 		isCalendarVisibilityMessage,
 		loadSavedWorkCalendarVisibility
 	} from './calendar-work-visibility';
+	import { isCalendarNavigationMessage } from '../calendar-navigation-message';
+	import { calendarChannelName } from '../refresh-signal.svelte';
 
 	const text = createPageText(calendarText);
 	const localeCode = $derived(currentLocale.value === 'ko' ? 'ko-KR' : 'en-US');
@@ -272,8 +275,9 @@
 			eventActions.scheduleDraftEventVisibilitySync();
 		});
 		draftTitleObserver.observe(document.body, { childList: true, subtree: true });
-		const visibilityChannel = new BroadcastChannel('internkim-calendar');
+		const visibilityChannel = new BroadcastChannel(calendarChannelName);
 		visibilityChannel.addEventListener('message', handleCalendarVisibilityMessage);
+		window.addEventListener('message', handleCalendarWindowMessage);
 		const stopMonthRangeCreate = calendarStageElement
 			? installCalendarMonthRangeAction({
 					stageElement: calendarStageElement,
@@ -313,6 +317,7 @@
 			: undefined;
 		return () => {
 			visibilityChannel.removeEventListener('message', handleCalendarVisibilityMessage);
+			window.removeEventListener('message', handleCalendarWindowMessage);
 			visibilityChannel.close();
 			themeObserver.disconnect();
 			draftTitleObserver.disconnect();
@@ -360,6 +365,12 @@
 		setWorkCalendarVisibility(event.data.work);
 	}
 
+	function handleCalendarWindowMessage(event: MessageEvent<unknown>) {
+		if (event.origin !== window.location.origin) return;
+		if (!isCalendarNavigationMessage(event.data)) return;
+		navigateToDateKey(event.data.dateKey);
+	}
+
 	function setWorkCalendarVisibility(isVisible: boolean) {
 		calendarWorkVisible = isVisible;
 		renderCalendarEvents();
@@ -367,6 +378,15 @@
 
 	function renderCalendarEvents() {
 		eventLoader.renderVisibleEvents(visibleEvents);
+	}
+
+	function navigateToDateKey(dateKey: string) {
+		const date = dateFromDateKey(dateKey);
+		const navigationDate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0);
+		toolbarDate = navigationDate;
+		calendar.app.setCurrentDate(navigationDate);
+		calendar.app.selectDate(navigationDate);
+		saveCalendarDate(browser, navigationDate);
 	}
 
 	function navigateToSearchResult(result: CalendarSearchResult) {

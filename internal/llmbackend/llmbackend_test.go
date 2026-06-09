@@ -168,6 +168,43 @@ func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 	}
 }
 
+func TestOpenRouterBackendSendsGatewaySecretHeader(t *testing.T) {
+	secretDirectory := t.TempDir()
+	apiKeyPath := filepath.Join(secretDirectory, "openrouter-api-key")
+	gatewaySecretPath := filepath.Join(secretDirectory, "gateway-secret")
+	if errorValue := os.WriteFile(apiKeyPath, []byte("sk-test"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(gatewaySecretPath, []byte("gateway-secret"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	receivedGatewaySecret := ""
+	backend := OpenRouterBackend{
+		KeyPath:             apiKeyPath,
+		GatewaySecretPath:   gatewaySecretPath,
+		GatewaySecretHeader: "X-InternKim-Gateway-Secret",
+		BaseURL:             "https://openrouter.test/api/v1/chat/completions",
+		ModelName:           "configured-model",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			receivedGatewaySecret = request.Header.Get("X-InternKim-Gateway-Secret")
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"ok"}}]}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	_, errorValue := backend.CompleteText(context.Background(), TextRequest{Messages: []Message{{Role: "user", Content: "hello"}}})
+
+	if errorValue != nil {
+		t.Fatalf("expected text response: %v", errorValue)
+	}
+	if receivedGatewaySecret != "gateway-secret" {
+		t.Fatalf("expected gateway secret header, got %q", receivedGatewaySecret)
+	}
+}
+
 func TestOpenRouterBackendAcceptsProviderReturnedToolName(t *testing.T) {
 	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
 	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {

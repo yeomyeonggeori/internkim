@@ -246,3 +246,35 @@ func TestEmbeddingCreateUsesOpenRouterSecretWithoutReturningIt(t *testing.T) {
 		t.Fatalf("unexpected embedding response: %s", responseDocument)
 	}
 }
+
+func TestRemoteEmbeddingModeMapsLocalEmbeddingAliasToOpenRouterDefault(t *testing.T) {
+	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
+	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	service := Service{Configuration: Configuration{
+		OpenRouterKeyPath:          secretPath,
+		OpenRouterEmbeddingBaseURL: "https://example.test/embeddings",
+		LocalInferenceMode:         "remote",
+	}}
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		var document map[string]any
+		if errorValue := json.NewDecoder(request.Body).Decode(&document); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if document["model"] != "openai/text-embedding-3-small" {
+			t.Fatalf("expected remote embedding model default, got %v", document["model"])
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(`{"model":"openai/text-embedding-3-small","data":[{"embedding":[0.1,0.2]}]}`)),
+			Header:     make(http.Header),
+		}, nil
+	})}
+
+	_, errorValue := service.createEmbedding(context.Background(), EmbeddingRequest{Input: "hello", Model: "embeddinggemma", ExecutionMode: "auto"})
+	if errorValue != nil {
+		t.Fatalf("expected remote embedding creation to succeed: %v", errorValue)
+	}
+}

@@ -230,6 +230,8 @@ func Main() {
 			runVerify()
 		case "llm":
 			runLLM()
+		case "tenant":
+			runTenant()
 		case "dev":
 			runDev()
 		case "lab":
@@ -266,6 +268,7 @@ func printUsage() {
 	fmt.Println("  doctor   Check host dependencies")
 	fmt.Println("  verify   Run API, Mattermost, and browser verification")
 	fmt.Println("  llm      One-shot LLM ping (local by default, --remote for OpenRouter)")
+	fmt.Println("  tenant   Manage PoC tenant runtime manifests")
 	fmt.Println("  lab      Run Tart-based Blueclaw-aligned lab workflows")
 	fmt.Println("  sim      Deprecated alias for lab")
 }
@@ -4973,6 +4976,13 @@ func runSetupLive(messenger *msg) {
 func applySetupBoardDefaults(boardType string, withGoogle bool, selector setup.Selector) setup.Selector {
 	if boardType == setup.BoardJetsonOrinNano && !withGoogle && !containsName(selector.Only, "google") {
 		selector.Skip = appendMissingName(selector.Skip, "google")
+	}
+	if boardType == setup.BoardCloudShared {
+		for _, name := range []string{"wifi", "local-llm", "google"} {
+			if !containsName(selector.Only, name) {
+				selector.Skip = appendMissingName(selector.Skip, name)
+			}
+		}
 	}
 	return selector
 }

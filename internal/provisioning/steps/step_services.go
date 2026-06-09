@@ -170,7 +170,7 @@ systemctl enable systemd-time-wait-sync.service 2>/dev/null
 func serviceUnitDocuments(context *Context) []serviceUnitDocument {
 	services := []serviceUnitDocument{
 		{path: blueclaw.BlueclawServicePath, document: blueclaw.BlueclawServiceUnit()},
-		{path: blueclaw.CapabilitydServicePath, document: blueclaw.CapabilitydServiceUnit()},
+		{path: blueclaw.CapabilitydServicePath, document: capabilitydServiceUnitForContext(context)},
 		{path: blueclaw.GraphitiMemorydServicePath, document: blueclaw.GraphitiMemorydServiceUnit()},
 		{path: blueclaw.AdmindServicePath, document: blueclaw.AdmindServiceUnit()},
 	}
@@ -184,6 +184,13 @@ func serviceUnitDocuments(context *Context) []serviceUnitDocument {
 		serviceUnitDocument{path: locallm.LlamaCppServicePath, document: blueclaw.LlamaCppServiceUnit()},
 		serviceUnitDocument{path: locallm.LlamaCppEmbeddingServicePath, document: blueclaw.LlamaCppEmbeddingServiceUnit()},
 	)
+}
+
+func capabilitydServiceUnitForContext(context *Context) string {
+	if context.BoardType == BoardCloudShared {
+		return blueclaw.CapabilitydServiceUnitForLocalInferenceMode("remote")
+	}
+	return blueclaw.CapabilitydServiceUnit()
 }
 
 func enabledServiceNames(context *Context) []string {
