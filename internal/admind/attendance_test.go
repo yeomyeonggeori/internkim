@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 type attendanceActionPost struct {
@@ -48,6 +49,14 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]attendanceAction
 			return jsonResponse(http.StatusOK, `{"id":"bot-1","email":"internkim@localhost","username":"internkim"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/posts/entry-post" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"id":"entry-post","user_id":"bot-1","channel_id":"attendance-channel","is_pinned":true,"message":"출퇴근 기록","props":{"internkim_attendance_entry":true,"attachments":[{"fallback":"출퇴근 기록","text":"출근과 퇴근 버튼을 구분해서 기록합니다.","actions":[{"id":"attendanceClockIn","name":"출근"},{"id":"attendanceClockOut","name":"퇴근"}]}]}}`, nil), nil
+		case strings.HasPrefix(request.URL.String(), "http://mattermost.local/api/v4/posts/") && request.Method == http.MethodGet:
+			postID := strings.TrimPrefix(request.URL.Path, "/api/v4/posts/")
+			for _, post := range posts {
+				if post.ID == postID && !post.Deleted {
+					return jsonResponse(http.StatusOK, `{"id":"`+post.ID+`","channel_id":"attendance-channel","root_id":"`+post.RootID+`","message":"`+post.Message+`"}`, nil), nil
+				}
+			}
+			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/posts?per_page=50":
 			return jsonResponse(http.StatusOK, `{"order":["entry-post"],"posts":{"entry-post":{"id":"entry-post","user_id":"bot-1","is_pinned":true,"message":"출퇴근 기록","props":{"internkim_attendance_entry":true,"attachments":[{"fallback":"출퇴근 기록","text":"출근과 퇴근 버튼을 구분해서 기록합니다.","actions":[{"id":"attendanceClockIn","name":"출근"},{"id":"attendanceClockOut","name":"퇴근"}]}]}}}}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/posts/entry-post/patch" && request.Method == http.MethodPut:
@@ -108,4 +117,18 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]attendanceAction
 		}
 	})}
 	return service, &posts
+}
+
+func insertGhostClockInEventForTest(t *testing.T, service *Service, resultPostID string) {
+	t.Helper()
+	database, errorValue := service.openAttendanceDatabase(t.Context())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	userRecord := mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com", Nickname: "Staff"}
+	event := service.createAttendanceEvent(userRecord, attendanceKindClockIn, time.Now().UTC(), "team-1", "attendance-channel", "entry-post", resultPostID, service.attendanceLocationByID("office"))
+	if errorValue := service.insertAttendanceEvent(t.Context(), database, event); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 }
