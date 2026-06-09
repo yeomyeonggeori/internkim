@@ -1,6 +1,7 @@
 import type { Plugin } from 'vite';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AttendanceAbsence, AttendanceAbsenceKind } from './src/routes/attendance/attendance-context.svelte';
+import { todayDateInTimeZone } from './src/routes/attendance/shared/attendance-date';
 import { buildAttendanceSummaryFixture } from './tests/fixtures/attendance-summary';
 
 type DevAttendanceMockPluginOptions = {
@@ -183,7 +184,7 @@ function currentMonth(): string {
 }
 
 function todayDate(): string {
-	return new Date().toISOString().slice(0, 10);
+	return todayDateInTimeZone('Asia/Seoul');
 }
 
 function readRequestBody(request: IncomingMessage, callback: (body: string) => void) {

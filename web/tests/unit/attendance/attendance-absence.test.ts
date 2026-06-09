@@ -60,4 +60,19 @@ describe('attendance absence helpers', () => {
 		expect(people.find((person) => person.email === 'kim@example.com')?.status).toBe('absence');
 		expect(people.find((person) => person.email === 'lee@example.com')?.status).toBe('absence');
 	});
+
+	test('does not add people to today from absences on another date', () => {
+		const people = computePeopleToday('2026-06-10', [], undefined, '2026-06-10', [
+			{
+				id: 'future-absence',
+				email: 'future@example.com',
+				kind: 'leave',
+				labelKey: 'leave',
+				date: '2026-06-11',
+				createdAt: '2026-06-01T09:00:00Z'
+			}
+		]);
+
+		expect(people.some((person) => person.email === 'future@example.com')).toBe(false);
+	});
 });
