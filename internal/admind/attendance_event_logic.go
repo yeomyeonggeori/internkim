@@ -86,7 +86,7 @@ func (service *Service) applyAttendanceAction(ctx context.Context, userRecord ma
 func (service *Service) latestActiveAttendanceEventForToday(ctx context.Context, database *sql.DB, mattermostUserID string, now time.Time) (attendanceEvent, bool, error) {
 	location, _ := service.workspaceTimeLocation()
 	localDate := now.In(location).Format("2006-01-02")
-	return service.latestActiveAttendanceEventForLocalDate(ctx, database, mattermostUserID, localDate)
+	return service.latestActiveAttendanceEventForLocalDateAtOrBefore(ctx, database, mattermostUserID, localDate, now)
 }
 
 func (service *Service) shouldIgnoreMattermostAttendanceAction(ctx context.Context, kind string, event attendanceEvent, hasEvent bool, channelID string, actionPostID string) (bool, error) {

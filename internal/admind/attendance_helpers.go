@@ -5,9 +5,12 @@ import (
 	"time"
 )
 
-func attendanceStatusForEvents(events []attendanceEvent, localDate string) string {
+func attendanceStatusForEvents(events []attendanceEvent, localDate string, now time.Time) string {
 	for _, event := range events {
 		if event.LocalDate != localDate || event.CanceledAt != "" {
+			continue
+		}
+		if attendanceEventIsAfter(event, now) {
 			continue
 		}
 		if event.Kind == attendanceKindClockIn {
@@ -18,6 +21,11 @@ func attendanceStatusForEvents(events []attendanceEvent, localDate string) strin
 		}
 	}
 	return "not_clocked_in"
+}
+
+func attendanceEventIsAfter(event attendanceEvent, now time.Time) bool {
+	occurredAt, errorValue := parseAttendanceEventTime(event.OccurredAt)
+	return errorValue == nil && occurredAt.After(now)
 }
 
 func normalizeAttendanceMonth(value string, fallback time.Time) string {
