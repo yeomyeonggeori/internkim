@@ -47,8 +47,8 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if !containsDescriptor(capabilityToolDescriptors, "user.confirm", "requiresApproval") {
 		t.Fatalf("expected user.confirm descriptor to require approval, got %+v", capabilityToolDescriptors)
 	}
-	if !containsCompletionEvidence(capabilityToolDescriptors, "mattermost.channel.post", "success", "post_message", "channel") {
-		t.Fatalf("expected Mattermost post descriptor to preserve completion evidence, got %+v", capabilityToolDescriptors)
+	if !containsCompletionEvidence(capabilityToolDescriptors, "platform.message.send", "success", "send_message", "message") {
+		t.Fatalf("expected platform message send descriptor to preserve completion evidence, got %+v", capabilityToolDescriptors)
 	}
 	if !containsCompletionEvidence(capabilityToolDescriptors, "mail.message.send", "success", "send_email", "email") {
 		t.Fatalf("expected mail send descriptor to preserve completion evidence, got %+v", capabilityToolDescriptors)
@@ -274,6 +274,56 @@ func TestBlueclawRuntimeConfigSupportsOptionalModelOverride(t *testing.T) {
 	}
 }
 
+func TestBlueclawRuntimeConfigSupportsTenantRuntimeIsolation(t *testing.T) {
+	document, errorValue := BlueclawRuntimeConfigDocumentWithOptions(RuntimeConfigOptions{
+		ModelName:                "x-ai/grok-4.3",
+		BaseURL:                  "http://127.0.0.1:18100",
+		CapabilitySocketPath:     "/srv/internkim/tenants/pilot-01/internkim/run/capability.sock",
+		CapabilityVSockPort:      17100,
+		GraphitiEndpoint:         "http://127.0.0.1:18791",
+		MattermostBaseURL:        "http://127.0.0.1:18065",
+		HostWorkspacePath:        "/srv/internkim/tenants/pilot-01/blueclaw/workspace",
+		RootFilesystemImagePath:  "/srv/internkim/tenants/pilot-01/blueclaw/firecracker/rootfs.ext4",
+		WorkspaceImagePath:       "/srv/internkim/tenants/pilot-01/blueclaw/firecracker/workspace.ext4",
+		HostHTTPListenAddress:    "127.0.0.1:18100",
+		HealthPortOrService:      "18102",
+		GuestHTTPPortOrService:   "18101",
+		LogDirectoryPath:         "/srv/internkim/tenants/pilot-01/blueclaw/logs/supervisor",
+		RuntimeDirectoryPath:     "/srv/internkim/tenants/pilot-01/blueclaw/firecracker/runtime",
+		OutboundHostDeviceName:   "bctap101",
+		OutboundGuestMACAddress:  "AA:FC:00:00:01:01",
+		OutboundNetworkCIDR:      "172.31.101.0/30",
+		OutboundHostAddressCIDR:  "172.31.101.1/30",
+		OutboundGuestAddressCIDR: "172.31.101.2/30",
+		OutboundGuestGateway:     "172.31.101.1",
+		BridgeListenAddress:      "127.0.0.1:17781",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	var runtimeConfiguration map[string]any
+	if errorValue := json.Unmarshal([]byte(document), &runtimeConfiguration); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	assertNestedValue(t, runtimeConfiguration, []string{"baseURL"}, "http://127.0.0.1:18100")
+	assertNestedValue(t, runtimeConfiguration, []string{"capabilities", "vsockPort"}, float64(17100))
+	guestListenerProxies := runtimeConfiguration["firecracker"].(map[string]any)["guestListenerProxies"].([]any)
+	firstGuestListenerProxy := guestListenerProxies[0].(map[string]any)
+	if firstGuestListenerProxy["targetUnixSocketPath"] != "/srv/internkim/tenants/pilot-01/internkim/run/capability.sock" {
+		t.Fatalf("unexpected tenant capability socket proxy: %+v", firstGuestListenerProxy)
+	}
+	assertNestedValue(t, runtimeConfiguration, []string{"languageModel", "capability", "model"}, "x-ai/grok-4.3")
+	assertNestedValue(t, runtimeConfiguration, []string{"memory", "graphitiEndpoint"}, "http://127.0.0.1:18791")
+	assertNestedValue(t, runtimeConfiguration, []string{"connectors", "mattermost", "baseURL"}, "http://127.0.0.1:18065")
+	assertNestedValue(t, runtimeConfiguration, []string{"firecracker", "hostWorkspacePath"}, "/srv/internkim/tenants/pilot-01/blueclaw/workspace")
+	assertNestedValue(t, runtimeConfiguration, []string{"firecracker", "workspaceImagePath"}, "/srv/internkim/tenants/pilot-01/blueclaw/firecracker/workspace.ext4")
+	assertNestedValue(t, runtimeConfiguration, []string{"firecracker", "hostHTTPListenAddress"}, "127.0.0.1:18100")
+	assertNestedValue(t, runtimeConfiguration, []string{"firecracker", "outboundNetwork", "hostDeviceName"}, "bctap101")
+	assertNestedValue(t, runtimeConfiguration, []string{"bridge", "listenAddress"}, "127.0.0.1:17781")
+}
+
 func TestBlueclawPolicyDocumentSeedsResourceFirstCircles(t *testing.T) {
 	document, errorValue := BlueclawPolicyDocument("owner@example.com")
 	if errorValue != nil {
@@ -329,17 +379,10 @@ func TestBlueclawPolicyDocumentSeedsResourceFirstCircles(t *testing.T) {
 	if !containsPolicyResource(resourceAccess, "tool:flow.task.update", "staff") {
 		t.Fatalf("expected staff Flow update tool rule, got %+v", resourceAccess)
 	}
-	if !containsPolicyResource(resourceAccess, "tool:mattermost.channel.posts.list", "staff") {
-		t.Fatalf("expected staff Mattermost list tool rule, got %+v", resourceAccess)
-	}
-	if !containsPolicyResource(resourceAccess, "tool:mattermost.channel.post", "staff") {
-		t.Fatalf("expected staff Mattermost post tool rule, got %+v", resourceAccess)
-	}
-	if !containsPolicyResource(resourceAccess, "tool:mattermost.post.update", "staff") {
-		t.Fatalf("expected staff Mattermost update tool rule, got %+v", resourceAccess)
-	}
-	if !containsPolicyResource(resourceAccess, "tool:mattermost.post.delete", "staff") {
-		t.Fatalf("expected staff Mattermost delete tool rule, got %+v", resourceAccess)
+	for _, toolName := range []string{"platform.message.context", "platform.message.search", "platform.message.send", "platform.message.update", "platform.message.delete"} {
+		if !containsPolicyResource(resourceAccess, "tool:"+toolName, "staff") {
+			t.Fatalf("expected staff %s tool rule, got %+v", toolName, resourceAccess)
+		}
 	}
 	if !containsPolicyResource(resourceAccess, "tool:mattermost.channel.update", "admin") {
 		t.Fatalf("expected admin Mattermost channel update tool rule, got %+v", resourceAccess)
@@ -349,6 +392,21 @@ func TestBlueclawPolicyDocumentSeedsResourceFirstCircles(t *testing.T) {
 	}
 	if !containsPolicyResource(resourceAccess, "tool:company.broadcast.send", "representative") {
 		t.Fatalf("expected representative broadcast tool rule, got %+v", resourceAccess)
+	}
+}
+
+func assertNestedValue(t *testing.T, document map[string]any, path []string, expectedValue any) {
+	t.Helper()
+	var currentValue any = document
+	for _, key := range path {
+		currentDocument, isDocument := currentValue.(map[string]any)
+		if !isDocument {
+			t.Fatalf("expected document at %v, got %+v", path, currentValue)
+		}
+		currentValue = currentDocument[key]
+	}
+	if currentValue != expectedValue {
+		t.Fatalf("expected %v at %v, got %+v", expectedValue, path, currentValue)
 	}
 }
 
@@ -479,6 +537,12 @@ func TestCapabilitydServiceUsesOpenRouterFirstAutoRouting(t *testing.T) {
 	}
 	if !strings.Contains(serviceDocument, "--companion-url http://127.0.0.1:18080/_internkim/companion") {
 		t.Fatalf("expected capabilityd service to keep companion URL without making it first, got %s", serviceDocument)
+	}
+	if !strings.Contains(serviceDocument, "--mattermost-url "+BlueclawMattermostLocalURL) {
+		t.Fatalf("expected capabilityd service to use local Mattermost URL, got %s", serviceDocument)
+	}
+	if !strings.Contains(serviceDocument, "--mattermost-token "+BlueclawMattermostTokenPath) {
+		t.Fatalf("expected capabilityd service to include Mattermost bot token path, got %s", serviceDocument)
 	}
 }
 

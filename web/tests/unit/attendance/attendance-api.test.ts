@@ -1,13 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 import { fetchAttendanceSummary } from '../../../src/routes/attendance/attendance-api';
+import { createMockFetch } from '../test-fetch';
 
 describe('fetchAttendanceSummary', () => {
 	test('omits empty summary query parameters', async () => {
 		const originalFetch = globalThis.fetch;
 
 		let requestedURL = '';
-		try {
-			const mockFetch: typeof fetch = async (input) => {
+	try {
+			globalThis.fetch = createMockFetch(async (input) => {
 				requestedURL = String(input);
 				return Response.json({
 					month: '2026-05',
@@ -20,8 +21,7 @@ describe('fetchAttendanceSummary', () => {
 					teamViewVisibleToAll: false,
 					teamViewBlocked: true
 				});
-			};
-			globalThis.fetch = mockFetch;
+			});
 
 			await fetchAttendanceSummary({ month: '', selectedEmail: '' });
 

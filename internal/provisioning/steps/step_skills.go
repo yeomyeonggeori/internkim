@@ -11,7 +11,6 @@ const skillsManifestPath = "/root/.blueclaw/workspace/skills/.internkim-skills-m
 
 var StepSkills = Step{
 	Name: "skills",
-	Deps: []string{"binaries"},
 	Title: func(context *Context) string {
 		return context.T("Blueclaw 스킬 정리...", "Preparing Blueclaw skills...")
 	},

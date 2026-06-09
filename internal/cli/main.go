@@ -230,6 +230,8 @@ func Main() {
 			runVerify()
 		case "llm":
 			runLLM()
+		case "tenant":
+			runTenant()
 		case "dev":
 			runDev()
 		case "lab":
@@ -262,10 +264,11 @@ func printUsage() {
 	fmt.Println("  release  Publish and inspect release sets")
 	fmt.Println("  status   Check board and tunnel status")
 	fmt.Println("  update   Deploy current build to device")
-	fmt.Println("  deploy   Build and deploy web UI + board-bridge to board")
+	fmt.Println("  deploy   Build and apply a signed release over Admin HTTPS")
 	fmt.Println("  doctor   Check host dependencies")
 	fmt.Println("  verify   Run API, Mattermost, and browser verification")
 	fmt.Println("  llm      One-shot LLM ping (local by default, --remote for OpenRouter)")
+	fmt.Println("  tenant   Manage PoC tenant runtime manifests")
 	fmt.Println("  lab      Run Tart-based Blueclaw-aligned lab workflows")
 	fmt.Println("  sim      Deprecated alias for lab")
 }
@@ -671,6 +674,16 @@ func detectBoardWifi(_ string) string {
 // --- Subcommands (stubs) ---
 
 func runDeploy() {
+	if hasCommandArgument(os.Args[2:], "--legacy-ssh") {
+		runDeployLegacySSH()
+		return
+	}
+	if errorValue := runDirectReleaseDeploy(os.Args[2:]); errorValue != nil {
+		fatal(errorValue.Error())
+	}
+}
+
+func runDeployLegacySSH() {
 	configuration := loadConfig()
 	scriptDir, _ := os.Getwd()
 	binDir := filepath.Join(scriptDir, "bin")
@@ -4689,6 +4702,11 @@ func ensureCloudflaredAccessSSHAvailable() error {
 	return errors.New("cloudflared is required for Cloudflare SSH fallback; install it locally, then rerun setup")
 }
 
+func isBlueclawPayloadDirectOnlySetup(arguments []string) bool {
+	onlyNames := setup.ParseNames(commandArgumentValue(arguments, "--only", ""))
+	return len(onlyNames) == 1 && onlyNames[0] == "blueclaw-payload-direct"
+}
+
 func runSetupLive(messenger *msg) {
 	configuration := loadConfig()
 	scriptDir, _ := os.Getwd()
@@ -4741,6 +4759,30 @@ func runSetupLive(messenger *msg) {
 		boardIP            string
 		cloudflareSSHError error
 	)
+
+	if isBlueclawPayloadDirectOnlySetup(os.Args[2:]) {
+		target.useRemoteSSH = false
+		printCommandTargetEvidence(target)
+		fmt.Printf("Backend: http maintenance\n")
+		if containsArg("--plan") {
+			fmt.Printf("  blueclaw-payload-direct run\n")
+			return
+		}
+		flowState := newSetupFlowState(
+			messenger,
+			configuration,
+			collectSetupParameterValues(),
+			stateDir,
+			scriptDir,
+			setupBuildID,
+			nil,
+			nonInteractive,
+		)
+		if errorValue := flowState.installBlueclawPayloadDirectHTTPS(); errorValue != nil {
+			fatal(errorValue.Error())
+		}
+		return
+	}
 
 	// Board detection over Wi-Fi has a short TCP dial timeout (3s per
 	// saved IP) and occasionally loses the first round — the ARP cache may
@@ -4934,6 +4976,13 @@ func runSetupLive(messenger *msg) {
 func applySetupBoardDefaults(boardType string, withGoogle bool, selector setup.Selector) setup.Selector {
 	if boardType == setup.BoardJetsonOrinNano && !withGoogle && !containsName(selector.Only, "google") {
 		selector.Skip = appendMissingName(selector.Skip, "google")
+	}
+	if boardType == setup.BoardCloudShared {
+		for _, name := range []string{"wifi", "local-llm", "google"} {
+			if !containsName(selector.Only, name) {
+				selector.Skip = appendMissingName(selector.Skip, name)
+			}
+		}
 	}
 	return selector
 }

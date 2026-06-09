@@ -192,6 +192,23 @@ func TestJetsonServicesInstallLlamaCppUnitsWhenLocalLLMIsPlanned(t *testing.T) {
 	}
 }
 
+func TestCloudSharedServicesUseRemoteInferenceMode(t *testing.T) {
+	command := serviceUnitInstallCommand(&Context{BoardType: BoardCloudShared})
+
+	if !strings.Contains(command, "--local-inference-mode remote") {
+		t.Fatalf("expected cloud-shared capabilityd service to use remote inference, got:\n%s", command)
+	}
+	for _, unexpectedValue := range []string{
+		locallm.LlamaCppServiceName,
+		locallm.LlamaCppEmbeddingServiceName,
+		locallm.LlamaCppBinaryPath,
+	} {
+		if strings.Contains(command, unexpectedValue) {
+			t.Fatalf("expected cloud-shared service command to exclude %q, got:\n%s", unexpectedValue, command)
+		}
+	}
+}
+
 func TestServiceHealthReportChecksAllServicesInOneCommand(t *testing.T) {
 	command := blueclawServiceHealthReportCommand(&Context{BoardType: BoardJetsonOrinNano})
 
