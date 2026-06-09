@@ -2,7 +2,7 @@ import type { Plugin } from 'vite';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AttendanceAbsence, AttendanceAbsenceKind } from './src/routes/attendance/attendance-context.svelte';
 import { todayDateInTimeZone } from './src/routes/attendance/shared/attendance-date';
-import { buildAttendanceSummaryFixture } from './tests/fixtures/attendance-summary';
+import { buildAttendanceSummaryFixture } from './dev-attendance-summary-fixture';
 
 type DevAttendanceMockPluginOptions = {
 	isEnabled: boolean;

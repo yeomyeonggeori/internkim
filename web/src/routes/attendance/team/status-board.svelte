@@ -54,11 +54,6 @@
 	const filteredPresencePeople = $derived(filterPresencePeople(presencePeople, presenceFilter));
 	const presenceCounts = $derived(summarizePresences(presencePeople));
 
-	function selectPerson(email: string) {
-		attendance.selectedEmail = email;
-		attendance.setTab('personal');
-	}
-
 	function backToToday() {
 		attendance.selectedDate = '';
 	}
@@ -123,7 +118,7 @@
 	/>
 	<Card.Content class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
 		{#each people as person (person.email)}
-			<PersonCard {person} onSelect={selectPerson} />
+			<PersonCard {person} />
 		{/each}
 		{#if people.length === 0}
 			<p class="col-span-full text-sm text-muted-foreground">{text.noMembers}</p>

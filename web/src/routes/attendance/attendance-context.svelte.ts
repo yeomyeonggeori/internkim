@@ -77,7 +77,6 @@ export class AttendanceState {
 	summary = $state<AttendanceSummary | null>(null);
 	currentMonthSummary = $state<AttendanceSummary | null>(null);
 	selectedMonth = $state<string>('');
-	selectedEmail = $state<string>('');
 	chartMode = $state<ChartMode>('day');
 	tab = $state<AttendanceTab>('team');
 	selectedDate = $state<string>('');
@@ -91,14 +90,12 @@ export class AttendanceState {
 		this.loadFailedMessage = loadFailedMessage;
 		const persisted = readPersistedAttendanceFilters();
 		if (persisted.selectedMonth) this.selectedMonth = persisted.selectedMonth;
-		if (persisted.selectedEmail) this.selectedEmail = persisted.selectedEmail;
 		if (persisted.chartMode) this.chartMode = persisted.chartMode;
 	}
 
 	persistFilters() {
 		writePersistedAttendanceFilters({
 			selectedMonth: this.selectedMonth,
-			selectedEmail: this.selectedEmail,
 			chartMode: this.chartMode
 		});
 	}
@@ -116,10 +113,6 @@ export class AttendanceState {
 			this.summary = next;
 			this.selectedMonth = next.month;
 			const personalOnly = !next.isAdmin && next.teamViewBlocked;
-			if (personalOnly && this.selectedEmail) {
-				this.selectedEmail = '';
-				this.persistFilters();
-			}
 			if (!this.tabExplicitlySet) {
 				this.tab = next.isAdmin ? 'team' : 'personal';
 			}
@@ -137,7 +130,7 @@ export class AttendanceState {
 	}
 
 	private fetchSummaryForMonth(month: string): Promise<AttendanceSummary> {
-		return fetchAttendanceSummary({ month, selectedEmail: this.selectedEmail });
+		return fetchAttendanceSummary({ month });
 	}
 
 	private async refreshCurrentMonthSnapshot(filteredSummary: AttendanceSummary) {

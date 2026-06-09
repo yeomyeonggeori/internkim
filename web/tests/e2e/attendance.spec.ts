@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { buildAttendanceSummaryFixture } from '../fixtures/attendance-summary';
+import { buildAttendanceSummaryFixture } from '../../dev-attendance-summary-fixture';
 
 test.describe('attendance', () => {
 	test.beforeEach(async ({ page }) => {
@@ -24,25 +24,31 @@ test.describe('attendance', () => {
 		await page.getByLabel('Language').getByRole('button', { name: 'KO', exact: true }).click();
 		await expect(page.getByRole('tab', { name: '팀' })).toBeVisible();
 		await expect(page.getByRole('tab', { name: '개인' })).toBeVisible();
+		await expect(page.getByLabel('사용자')).toHaveCount(0);
 		await expect(page.getByText(/부재 · 출장/)).toBeVisible();
 		await page.getByRole('tab', { name: '개인' }).click();
 		await expect(page.getByText('내 근무 시간')).toBeVisible();
 		await expect(page.getByRole('button', { name: '부재 등록' })).toBeVisible();
-		await expect(page.getByRole('button', { name: /4 휴가/ })).toBeVisible();
+		await page.getByRole('button', { name: /4 휴가/ }).click();
+		await expect(page.getByLabel('시작일')).toHaveValue('2026-05-04');
+		await expect(page.getByLabel('종료일')).toHaveValue('2026-05-04');
 		await page.getByRole('tab', { name: '팀' }).click();
 		await expect(page.locator('text=출석률').first()).toBeVisible();
 	});
 
-	test('keeps the selected person tab after refreshing attendance', async ({ page }) => {
+	test('keeps team cards as status-only and personal tab scoped to self', async ({ page }) => {
 		await page.goto('/attendance');
 		await page.getByLabel('Language').getByRole('button', { name: 'KO', exact: true }).click();
-		await page.getByRole('button', { name: /김철수/ }).first().click();
-		await expect(page.getByText('내 근무 시간')).toBeVisible();
+		await expect(page.getByRole('button', { name: /김철수/ })).toHaveCount(0);
+		await expect(page.getByText(/김철수/).first()).toBeVisible();
+		await expect(page.getByRole('tab', { name: '팀' })).toHaveAttribute('data-state', 'active');
 
 		await page.getByRole('button', { name: '출결 새로고침' }).click();
 
-		await expect(page.getByRole('tab', { name: '개인' })).toHaveAttribute('data-state', 'active');
+		await expect(page.getByRole('tab', { name: '팀' })).toHaveAttribute('data-state', 'active');
+		await page.getByRole('tab', { name: '개인' }).click();
 		await expect(page.getByText('내 근무 시간')).toBeVisible();
+		await expect(page.getByText('kim@example.com')).toBeVisible();
 	});
 
 	test('registers own absence without sending an email override', async ({ page }) => {
