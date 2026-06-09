@@ -305,6 +305,7 @@ func runTenantBootstrapMattermost(arguments []string) {
 	flags := flag.NewFlagSet("tenant bootstrap-mattermost", flag.ExitOnError)
 	credentialsPath := flags.String("credentials", "", "tenant Mattermost credentials JSON path")
 	baseURLTemplate := flags.String("base-url-template", "http://127.0.0.1:{port}", "Mattermost base URL template containing {tenant} or {port}")
+	blueclawURLTemplate := flags.String("blueclaw-url-template", "http://127.0.0.1:{blueclawPort}", "Blueclaw URL template containing {tenant} or {blueclawPort}; empty disables policy invite")
 	publicURLTemplate := flags.String("public-url-template", "", "tenant public URL template containing {tenant}")
 	portStart := flags.Int("port-start", 18065, "first tenant Mattermost port")
 	language := flags.String("language", "ko", "workspace language")
@@ -313,12 +314,13 @@ func runTenantBootstrapMattermost(arguments []string) {
 		fatal(errorValue.Error())
 	}
 	statuses, errorValue := tenantruntime.BootstrapMattermostFleetResources(tenantruntime.MattermostFleetBootstrapOptions{
-		CredentialsPath:   *credentialsPath,
-		BaseURLTemplate:   *baseURLTemplate,
-		PublicURLTemplate: *publicURLTemplate,
-		PortStart:         *portStart,
-		Language:          *language,
-		TokenOutputRoot:   *tokenOutputRoot,
+		CredentialsPath:     *credentialsPath,
+		BaseURLTemplate:     *baseURLTemplate,
+		BlueclawURLTemplate: *blueclawURLTemplate,
+		PublicURLTemplate:   *publicURLTemplate,
+		PortStart:           *portStart,
+		Language:            *language,
+		TokenOutputRoot:     *tokenOutputRoot,
 	})
 	if errorValue != nil {
 		fatal(errorValue.Error())

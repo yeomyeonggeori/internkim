@@ -17,12 +17,13 @@ func TestBootstrapMattermostFleetResourcesEnsuresBotChannelsAndToken(t *testing.
 	writeMattermostBootstrapTestCredentials(t, credentialsPath)
 
 	statuses, errorValue := BootstrapMattermostFleetResources(MattermostFleetBootstrapOptions{
-		CredentialsPath:   credentialsPath,
-		BaseURLTemplate:   server.URL,
-		PublicURLTemplate: "https://{tenant}.example.test",
-		PortStart:         18065,
-		Language:          "ko",
-		TokenOutputRoot:   tokenOutputRoot,
+		CredentialsPath:     credentialsPath,
+		BaseURLTemplate:     server.URL,
+		BlueclawURLTemplate: server.URL + "/blueclaw/{tenant}/{blueclawPort}",
+		PublicURLTemplate:   "https://{tenant}.example.test",
+		PortStart:           18065,
+		Language:            "ko",
+		TokenOutputRoot:     tokenOutputRoot,
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -31,10 +32,19 @@ func TestBootstrapMattermostFleetResourcesEnsuresBotChannelsAndToken(t *testing.
 	if len(statuses) != 1 || statuses[0].TenantID != "pilot-01" || statuses[0].BotUserID != "bot-1" {
 		t.Fatalf("unexpected statuses: %+v", statuses)
 	}
+	if statuses[0].AdminEmail != "admin@pilot-01.local" || !statuses[0].BlueclawInvited {
+		t.Fatalf("expected admin email and Blueclaw invite in bootstrap status: %+v", statuses[0])
+	}
 	for _, channelName := range []string{"flow", "calendar", "attendance"} {
 		if statuses[0].Channels[channelName] == "" {
 			t.Fatalf("expected channel %q in bootstrap status: %+v", channelName, statuses[0].Channels)
 		}
+	}
+	if server.adminEmail != "admin@pilot-01.local" || server.adminPassword != "password" {
+		t.Fatalf("expected Mattermost admin profile patch, got email=%q password=%q", server.adminEmail, server.adminPassword)
+	}
+	if server.blueclawInvitedEmail != "admin@pilot-01.local" || server.blueclawInvitePath != "/blueclaw/pilot-01/18100/admin/api/people/invite" {
+		t.Fatalf("expected Blueclaw invite, got email=%q path=%q", server.blueclawInvitedEmail, server.blueclawInvitePath)
 	}
 	assertFileContains(t, filepath.Join(tokenOutputRoot, "pilot-01", "internkim", "secrets", "mattermost-bot-token"), "bot-token-1")
 	if server.configuration["ServiceSettings"].(map[string]any)["ManagedResourcePaths"] != "admin,attendance,calendar,flow,mail,memory" {
@@ -46,8 +56,14 @@ func TestBootstrapMattermostFleetResourcesEnsuresBotChannelsAndToken(t *testing.
 	if !server.teamMembers["admin-1"] || !server.teamMembers["bot-1"] {
 		t.Fatalf("expected admin and bot team members, got %+v", server.teamMembers)
 	}
+	if !server.channelMembers["channel-flow:admin-1"] || !server.channelMembers["channel-calendar:admin-1"] || !server.channelMembers["channel-attendance:admin-1"] {
+		t.Fatalf("expected admin default channel memberships, got %+v", server.channelMembers)
+	}
 	if !server.schemeRoles["channel-flow:bot-1"] || !server.schemeRoles["channel-calendar:bot-1"] || !server.schemeRoles["channel-attendance:bot-1"] {
 		t.Fatalf("expected bot channel scheme roles, got %+v", server.schemeRoles)
+	}
+	if !server.deletedWelcomePost {
+		t.Fatal("expected Mattermost bot welcome DM cleanup")
 	}
 }
 
@@ -61,10 +77,16 @@ func writeMattermostBootstrapTestCredentials(t *testing.T, path string) {
 
 type mattermostBootstrapTestServer struct {
 	*httptest.Server
-	configuration map[string]any
-	channels      map[string]mattermostBootstrapTestChannel
-	teamMembers   map[string]bool
-	schemeRoles   map[string]bool
+	adminEmail           string
+	adminPassword        string
+	blueclawInvitedEmail string
+	blueclawInvitePath   string
+	configuration        map[string]any
+	channels             map[string]mattermostBootstrapTestChannel
+	channelMembers       map[string]bool
+	teamMembers          map[string]bool
+	schemeRoles          map[string]bool
+	deletedWelcomePost   bool
 }
 
 type mattermostBootstrapTestChannel struct {
@@ -76,10 +98,11 @@ type mattermostBootstrapTestChannel struct {
 func newMattermostBootstrapTestServer(t *testing.T) *mattermostBootstrapTestServer {
 	t.Helper()
 	server := &mattermostBootstrapTestServer{
-		configuration: map[string]any{},
-		channels:      map[string]mattermostBootstrapTestChannel{},
-		teamMembers:   map[string]bool{},
-		schemeRoles:   map[string]bool{},
+		configuration:  map[string]any{},
+		channels:       map[string]mattermostBootstrapTestChannel{},
+		channelMembers: map[string]bool{},
+		teamMembers:    map[string]bool{},
+		schemeRoles:    map[string]bool{},
 	}
 	server.Server = httptest.NewServer(http.HandlerFunc(server.handle))
 	t.Cleanup(server.Close)
@@ -94,6 +117,17 @@ func (server *mattermostBootstrapTestServer) handle(responseWriter http.Response
 	}
 	if request.URL.Path == "/api/v4/config/patch" && request.Method == http.MethodPut {
 		server.configuration = readMattermostBootstrapTestBody(request)
+		writeMattermostBootstrapJSON(responseWriter, http.StatusOK, map[string]bool{"ok": true})
+		return
+	}
+	if request.URL.Path == "/api/v4/users/admin-1/patch" && request.Method == http.MethodPut {
+		body := readMattermostBootstrapTestBody(request)
+		server.adminEmail, _ = body["email"].(string)
+		server.adminPassword, _ = body["password"].(string)
+		writeMattermostBootstrapJSON(responseWriter, http.StatusOK, map[string]bool{"ok": true})
+		return
+	}
+	if request.URL.Path == "/api/v4/users/admin-1/roles" && request.Method == http.MethodPut {
 		writeMattermostBootstrapJSON(responseWriter, http.StatusOK, map[string]bool{"ok": true})
 		return
 	}
@@ -156,6 +190,12 @@ func (server *mattermostBootstrapTestServer) handle(responseWriter http.Response
 		return
 	}
 	if strings.HasPrefix(request.URL.Path, "/api/v4/channels/channel-") && strings.HasSuffix(request.URL.Path, "/members") && request.Method == http.MethodPost {
+		parts := strings.Split(request.URL.Path, "/")
+		body := readMattermostBootstrapTestBody(request)
+		userID, _ := body["user_id"].(string)
+		if len(parts) >= 5 && strings.TrimSpace(userID) != "" {
+			server.channelMembers[parts[4]+":"+userID] = true
+		}
 		writeMattermostBootstrapJSON(responseWriter, http.StatusCreated, map[string]bool{"ok": true})
 		return
 	}
@@ -164,6 +204,33 @@ func (server *mattermostBootstrapTestServer) handle(responseWriter http.Response
 		if len(parts) >= 8 {
 			server.schemeRoles[parts[4]+":"+parts[6]] = true
 		}
+		writeMattermostBootstrapJSON(responseWriter, http.StatusOK, map[string]bool{"ok": true})
+		return
+	}
+	if request.URL.Path == "/api/v4/channels/direct" && request.Method == http.MethodPost {
+		writeMattermostBootstrapJSON(responseWriter, http.StatusCreated, map[string]string{"id": "direct-1"})
+		return
+	}
+	if request.URL.Path == "/api/v4/channels/direct-1/posts" && request.Method == http.MethodGet {
+		writeMattermostBootstrapJSON(responseWriter, http.StatusOK, map[string]any{
+			"order": []string{"welcome-1"},
+			"posts": map[string]any{
+				"welcome-1": map[string]string{
+					"message": defaultMattermostBotWelcomeMessage,
+				},
+			},
+		})
+		return
+	}
+	if request.URL.Path == "/api/v4/posts/welcome-1" && request.Method == http.MethodDelete {
+		server.deletedWelcomePost = true
+		writeMattermostBootstrapJSON(responseWriter, http.StatusOK, map[string]bool{"ok": true})
+		return
+	}
+	if request.URL.Path == "/blueclaw/pilot-01/18100/admin/api/people/invite" && request.Method == http.MethodPost {
+		body := readMattermostBootstrapTestBody(request)
+		server.blueclawInvitedEmail, _ = body["email"].(string)
+		server.blueclawInvitePath = request.URL.Path
 		writeMattermostBootstrapJSON(responseWriter, http.StatusOK, map[string]bool{"ok": true})
 		return
 	}
