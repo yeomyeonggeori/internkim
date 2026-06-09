@@ -112,6 +112,21 @@ LIMIT 1`, mattermostUserID, kind)
 	return event, true, nil
 }
 
+func (service *Service) attendanceEventByResultPostID(ctx context.Context, database *sql.DB, resultPostID string) (attendanceEvent, bool, error) {
+	row := database.QueryRowContext(ctx, "SELECT "+attendanceEventSelectColumns+`
+FROM attendance_events
+WHERE result_post_id = ?
+LIMIT 1`, strings.TrimSpace(resultPostID))
+	event, errorValue := scanAttendanceEvent(row)
+	if errors.Is(errorValue, sql.ErrNoRows) {
+		return attendanceEvent{}, false, nil
+	}
+	if errorValue != nil {
+		return attendanceEvent{}, false, errorValue
+	}
+	return event, true, nil
+}
+
 func (service *Service) markAttendanceRepeatedClick(ctx context.Context, database *sql.DB, eventID string, occurredAt time.Time) error {
 	_, errorValue := database.ExecContext(ctx, "UPDATE attendance_events SET repeated_click_at = ? WHERE id = ?", occurredAt.Format(time.RFC3339), eventID)
 	if errorValue != nil {
@@ -213,6 +228,18 @@ WHERE id = ?`,
 		localTime.Format("15:04:05"),
 		localTime.Location().String(),
 		event.ID,
+	)
+	return errorValue
+}
+
+func (service *Service) updateAttendanceEventPostIDs(ctx context.Context, database *sql.DB, eventID string, actionPostID string, resultPostID string) error {
+	_, errorValue := database.ExecContext(ctx, `
+UPDATE attendance_events
+SET action_post_id = ?, result_post_id = ?
+WHERE id = ?`,
+		strings.TrimSpace(actionPostID),
+		strings.TrimSpace(resultPostID),
+		strings.TrimSpace(eventID),
 	)
 	return errorValue
 }
