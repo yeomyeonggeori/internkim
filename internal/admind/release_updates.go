@@ -231,10 +231,10 @@ func releaseAdmindServiceNames(tenantBasePath string) []string {
 
 func releaseTenantServiceNames(tenantBasePath string, tenantServicePrefix string, fallbackServiceName string) []string {
 	tenantIDs := releaseTenantIDs(tenantBasePath)
+	serviceNames := []string{fallbackServiceName}
 	if len(tenantIDs) == 0 {
-		return []string{fallbackServiceName}
+		return serviceNames
 	}
-	serviceNames := make([]string, 0, len(tenantIDs))
 	for _, tenantID := range tenantIDs {
 		serviceNames = append(serviceNames, tenantServicePrefix+tenantID+".service")
 	}
