@@ -265,6 +265,25 @@ func TestJetsonOnlyGoogleStillWorks(t *testing.T) {
 	}
 }
 
+func TestCloudSharedSetupSkipsHardwareAndOptionalProviderSteps(t *testing.T) {
+	selector := applySetupBoardDefaults(setup.BoardCloudShared, false, setup.Selector{})
+	for _, expectedName := range []string{"wifi", "local-llm", "google"} {
+		if !containsName(selector.Skip, expectedName) {
+			t.Fatalf("expected cloud-shared setup to skip %s, got %+v", expectedName, selector.Skip)
+		}
+	}
+}
+
+func TestCloudSharedOnlyLocalLLMCanExplicitlySelectLocalLLM(t *testing.T) {
+	selector := applySetupBoardDefaults(setup.BoardCloudShared, false, setup.Selector{Only: []string{"local-llm"}})
+	if containsName(selector.Skip, "local-llm") {
+		t.Fatalf("expected --only local-llm to avoid local-llm skip, got %+v", selector.Skip)
+	}
+	if !containsName(selector.Skip, "wifi") {
+		t.Fatalf("expected cloud-shared setup to keep skipping wifi, got %+v", selector.Skip)
+	}
+}
+
 func TestJetsonSetupDefaultsSSHCredentials(t *testing.T) {
 	username, password := resolveSetupSSHCredentials(setup.BoardJetsonOrinNano, "", "")
 	if username != jetsonDefaultUser {
@@ -318,6 +337,18 @@ func TestCloudflareSSHUsesAccessProxyCommand(t *testing.T) {
 		if !strings.Contains(value, "ProxyCommand=env GODEBUG=netdns=go TUNNEL_EDGE_IP_VERSION=4 cloudflared --edge-ip-version 4 --edge-bind-address 0.0.0.0 access ssh --hostname %h") {
 			t.Fatalf("expected Cloudflare Access ProxyCommand, got %s", value)
 		}
+	}
+}
+
+func TestBlueclawPayloadDirectOnlySetupUsesHTTPMaintenancePath(t *testing.T) {
+	if !isBlueclawPayloadDirectOnlySetup([]string{"--only", "blueclaw-payload-direct"}) {
+		t.Fatalf("expected blueclaw-payload-direct only setup to use HTTP maintenance path")
+	}
+	if isBlueclawPayloadDirectOnlySetup([]string{"--only", "blueclaw-payload-direct,capabilityd"}) {
+		t.Fatalf("expected mixed setup slices to keep normal backend selection")
+	}
+	if isBlueclawPayloadDirectOnlySetup([]string{"--only", "capabilityd"}) {
+		t.Fatalf("expected capabilityd setup to keep normal backend selection")
 	}
 }
 

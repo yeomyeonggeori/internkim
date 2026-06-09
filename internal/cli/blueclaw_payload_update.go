@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -11,15 +12,20 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 const blueclawUpdateUploadAction = "blueclaw-update-upload"
 const blueclawUpdateUploadChunkSize = 4 << 20
+
+var cloudflareAccessTokenByHost = map[string]string{}
 
 type blueclawUpdateUploadCreateRequest struct {
 	recoveryRequest
@@ -168,6 +174,7 @@ func postBlueclawUpdateJSON(endpointURL string, requestPayload any, token string
 	if token != "" {
 		request.Header.Set("X-InternKim-Upload-Token", token)
 	}
+	attachCloudflareAccessCookie(request)
 	response, errorValue := statusHTTPClient.Do(request)
 	if errorValue != nil {
 		return errorValue
@@ -186,6 +193,7 @@ func putBlueclawUpdateChunk(endpointURL string, token string, document []byte) e
 		return errorValue
 	}
 	request.Header.Set("X-InternKim-Upload-Token", token)
+	attachCloudflareAccessCookie(request)
 	response, errorValue := statusHTTPClient.Do(request)
 	if errorValue != nil {
 		return errorValue
@@ -268,6 +276,37 @@ func writeTarEntry(writer *tar.Writer, directoryPath string, path string, entry 
 	defer file.Close()
 	_, errorValue = io.Copy(writer, file)
 	return errorValue
+}
+
+func attachCloudflareAccessCookie(request *http.Request) {
+	token := cloudflareAccessToken(request.URL.String())
+	if token == "" {
+		return
+	}
+	request.AddCookie(&http.Cookie{Name: "CF_Authorization", Value: token})
+}
+
+func cloudflareAccessToken(applicationURL string) string {
+	parsedURL, errorValue := url.Parse(applicationURL)
+	if errorValue != nil {
+		return ""
+	}
+	host := parsedURL.Host
+	if token := strings.TrimSpace(cloudflareAccessTokenByHost[host]); token != "" {
+		return token
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, "cloudflared", "access", "token", "--app="+applicationURL)
+	output, errorValue := command.Output()
+	if errorValue != nil {
+		return ""
+	}
+	token := strings.TrimSpace(string(output))
+	if token != "" {
+		cloudflareAccessTokenByHost[host] = token
+	}
+	return token
 }
 
 func fileSHA256AndSize(path string) (string, int64, error) {

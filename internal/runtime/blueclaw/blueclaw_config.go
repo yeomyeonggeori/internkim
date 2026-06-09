@@ -20,6 +20,30 @@ type defaultCircleDefinition struct {
 	MattermostChannelName string
 }
 
+type RuntimeConfigOptions struct {
+	ModelName                string
+	BaseURL                  string
+	CapabilitySocketPath     string
+	CapabilityVSockPort      int
+	GraphitiEndpoint         string
+	MattermostBaseURL        string
+	HostWorkspacePath        string
+	RootFilesystemImagePath  string
+	WorkspaceImagePath       string
+	HostHTTPListenAddress    string
+	HealthPortOrService      string
+	GuestHTTPPortOrService   string
+	LogDirectoryPath         string
+	RuntimeDirectoryPath     string
+	OutboundHostDeviceName   string
+	OutboundGuestMACAddress  string
+	OutboundNetworkCIDR      string
+	OutboundHostAddressCIDR  string
+	OutboundGuestAddressCIDR string
+	OutboundGuestGateway     string
+	BridgeListenAddress      string
+}
+
 var defaultCircleDefinitions = []defaultCircleDefinition{
 	{CircleID: "staff", DisplayName: "Staff"},
 	{CircleID: "c-level", DisplayName: "C-level", MattermostChannelName: "circle-c-level"},
@@ -72,6 +96,10 @@ func removeDefaultSkillScopedToolNames(toolNames []string) []string {
 }
 
 func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
+	return BlueclawRuntimeConfigDocumentWithOptions(RuntimeConfigOptions{ModelName: modelName})
+}
+
+func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (string, error) {
 	capabilityLanguageModel := map[string]any{
 		"executionMode":         "auto",
 		"model":                 BlueclawDefaultModelName,
@@ -79,19 +107,39 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 		"requireParameters":     true,
 		"enableResponseHealing": true,
 	}
-	if strings.TrimSpace(modelName) != "" {
-		capabilityLanguageModel["model"] = strings.TrimSpace(modelName)
+	if strings.TrimSpace(options.ModelName) != "" {
+		capabilityLanguageModel["model"] = strings.TrimSpace(options.ModelName)
 	}
 
+	capabilityVSockPort := firstPositiveInt(options.CapabilityVSockPort, CapabilityVSockPort)
+	capabilitySocketPath := firstNonEmptyString(options.CapabilitySocketPath, CapabilitySocketPath)
+	graphitiEndpoint := firstNonEmptyString(options.GraphitiEndpoint, GraphitiEndpoint)
+	mattermostBaseURL := firstNonEmptyString(options.MattermostBaseURL, "http://localhost:8065")
+	hostWorkspacePath := firstNonEmptyString(options.HostWorkspacePath, BlueclawWorkspacePath)
+	rootFilesystemImagePath := firstNonEmptyString(options.RootFilesystemImagePath, BlueclawRootFilesystemImagePath)
+	workspaceImagePath := firstNonEmptyString(options.WorkspaceImagePath, BlueclawWorkspaceImagePath)
+	hostHTTPListenAddress := firstNonEmptyString(options.HostHTTPListenAddress, "127.0.0.1:8080")
+	healthPortOrService := firstNonEmptyString(options.HealthPortOrService, "8082")
+	guestHTTPPortOrService := firstNonEmptyString(options.GuestHTTPPortOrService, "8081")
+	logDirectoryPath := firstNonEmptyString(options.LogDirectoryPath, BlueclawSupervisorLogDirectoryPath)
+	runtimeDirectoryPath := firstNonEmptyString(options.RuntimeDirectoryPath, "/var/lib/bc")
+	outboundHostDeviceName := firstNonEmptyString(options.OutboundHostDeviceName, "bctap0")
+	outboundGuestMACAddress := firstNonEmptyString(options.OutboundGuestMACAddress, "AA:FC:00:00:00:01")
+	outboundNetworkCIDR := firstNonEmptyString(options.OutboundNetworkCIDR, "172.31.0.0/30")
+	outboundHostAddressCIDR := firstNonEmptyString(options.OutboundHostAddressCIDR, "172.31.0.1/30")
+	outboundGuestAddressCIDR := firstNonEmptyString(options.OutboundGuestAddressCIDR, "172.31.0.2/30")
+	outboundGuestGateway := firstNonEmptyString(options.OutboundGuestGateway, "172.31.0.1")
+	bridgeListenAddress := firstNonEmptyString(options.BridgeListenAddress, BlueclawBridgeListenAddress)
+
 	document := map[string]any{
-		"baseURL": BlueclawBaseURL,
+		"baseURL": firstNonEmptyString(options.BaseURL, BlueclawBaseURL),
 		"capabilities": map[string]any{
 			"transport":       "vsock",
 			"unixSocketPath":  "",
 			"endpoint":        "http://internkim-capability",
 			"timeoutSecond":   BlueclawCapabilityTimeoutSecond,
 			"vsockCID":        CapabilityVSockHostCID,
-			"vsockPort":       CapabilityVSockPort,
+			"vsockPort":       capabilityVSockPort,
 			"toolNames":       capabilities.DefaultToolNames(),
 			"toolDescriptors": capabilities.DefaultToolDescriptors(),
 			"routing": map[string]any{
@@ -108,30 +156,30 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 			"firecrackerPath":        BlueclawFirecrackerPath,
 			"jailerPath":             BlueclawJailerPath,
 			"kernelImagePath":        BlueclawKernelImagePath,
-			"rootfsImagePath":        BlueclawRootFilesystemImagePath,
-			"workspaceImagePath":     BlueclawWorkspaceImagePath,
-			"hostWorkspacePath":      BlueclawWorkspacePath,
+			"rootfsImagePath":        rootFilesystemImagePath,
+			"workspaceImagePath":     workspaceImagePath,
+			"hostWorkspacePath":      hostWorkspacePath,
 			"vcpuCount":              4,
 			"memoryMiB":              8192,
 			"vsockCID":               52,
-			"healthPortOrService":    "8082",
-			"guestHTTPPortOrService": "8081",
-			"hostHTTPListenAddress":  "127.0.0.1:8080",
-			"logDirectoryPath":       BlueclawSupervisorLogDirectoryPath,
-			"runtimeDirectoryPath":   "/var/lib/bc",
+			"healthPortOrService":    healthPortOrService,
+			"guestHTTPPortOrService": guestHTTPPortOrService,
+			"hostHTTPListenAddress":  hostHTTPListenAddress,
+			"logDirectoryPath":       logDirectoryPath,
+			"runtimeDirectoryPath":   runtimeDirectoryPath,
 			"outboundNetwork": map[string]any{
 				"enabled":          true,
-				"hostDeviceName":   "bctap0",
-				"guestMACAddress":  "AA:FC:00:00:00:01",
-				"networkCIDR":      "172.31.0.0/30",
-				"hostAddressCIDR":  "172.31.0.1/30",
-				"guestAddressCIDR": "172.31.0.2/30",
-				"guestGateway":     "172.31.0.1",
+				"hostDeviceName":   outboundHostDeviceName,
+				"guestMACAddress":  outboundGuestMACAddress,
+				"networkCIDR":      outboundNetworkCIDR,
+				"hostAddressCIDR":  outboundHostAddressCIDR,
+				"guestAddressCIDR": outboundGuestAddressCIDR,
+				"guestGateway":     outboundGuestGateway,
 			},
 			"guestListenerProxies": []map[string]any{
 				{
-					"guestPort":            CapabilityVSockPort,
-					"targetUnixSocketPath": CapabilitySocketPath,
+					"guestPort":            capabilityVSockPort,
+					"targetUnixSocketPath": capabilitySocketPath,
 				},
 			},
 		},
@@ -139,7 +187,7 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 			"mode":                     "localAgent",
 			"authMode":                 "sshKeyReuse",
 			"authorizedPublicKeysPath": BlueclawBridgeAuthorizedKeysPath,
-			"listenAddress":            BlueclawBridgeListenAddress,
+			"listenAddress":            bridgeListenAddress,
 		},
 		"database": map[string]any{
 			"driver":                 "postgres",
@@ -148,7 +196,7 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 		},
 		"memory": map[string]any{
 			"workspaceID":                                 "default",
-			"graphitiEndpoint":                            GraphitiEndpoint,
+			"graphitiEndpoint":                            graphitiEndpoint,
 			"graphitiKuzuPath":                            path.Join(BlueclawGuestWorkspacePath, ".blueclaw", "graphiti", "kuzu"),
 			"pinnedMemoryRootPath":                        path.Join(BlueclawGuestWorkspacePath, ".blueclaw", "memory"),
 			"pinnedMemoryHardLimitCharacterCount":         BlueclawPinnedMemoryHardLimitCharacterCount,
@@ -175,7 +223,7 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 		},
 		"connectors": map[string]any{
 			"mattermost": map[string]any{
-				"baseURL": "http://localhost:8065",
+				"baseURL": mattermostBaseURL,
 			},
 			"slack": map[string]any{
 				"baseURL": BlueclawSlackAPIBaseURL,
@@ -222,6 +270,25 @@ func BlueclawRuntimeConfigDocument(modelName string) (string, error) {
 	}
 
 	return string(documentBytes) + "\n", nil
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		trimmedValue := strings.TrimSpace(value)
+		if trimmedValue != "" {
+			return trimmedValue
+		}
+	}
+	return ""
+}
+
+func firstPositiveInt(values ...int) int {
+	for _, value := range values {
+		if value > 0 {
+			return value
+		}
+	}
+	return 0
 }
 
 func uniqueStringList(values []string) []string {
@@ -328,10 +395,11 @@ func defaultResourceAccessPolicies() []map[string]any {
 		{"resource": "tool:flow.task.add", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:flow.task.list", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:flow.task.update", "actions": []string{"execute"}, "circles": []string{"staff"}},
-		{"resource": "tool:mattermost.channel.posts.list", "actions": []string{"execute"}, "circles": []string{"staff"}},
-		{"resource": "tool:mattermost.channel.post", "actions": []string{"execute"}, "circles": []string{"staff"}},
-		{"resource": "tool:mattermost.post.update", "actions": []string{"execute"}, "circles": []string{"staff"}},
-		{"resource": "tool:mattermost.post.delete", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:platform.message.context", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:platform.message.search", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:platform.message.send", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:platform.message.update", "actions": []string{"execute"}, "circles": []string{"staff"}},
+		{"resource": "tool:platform.message.delete", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:mattermost.channel.update", "actions": []string{"execute"}, "circles": []string{"admin"}},
 		{"resource": "tool:mail.message.list", "actions": []string{"execute"}, "circles": []string{"staff"}},
 		{"resource": "tool:mail.message.search", "actions": []string{"execute"}, "circles": []string{"staff"}},
