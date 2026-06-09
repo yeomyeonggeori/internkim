@@ -8,8 +8,9 @@
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import { onMount } from 'svelte';
 	import { fetchMemoryGraph, type MemoryGraphResponse } from './memory-graph-api';
+	import type { MemoryText } from './text';
 
-	let { text }: { text: Record<string, string> } = $props();
+	let { text }: { text: MemoryText } = $props();
 
 	let memoryGraph = $state<MemoryGraphResponse | null>(null);
 	let memoryGraphQuery = $state('');
