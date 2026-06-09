@@ -152,6 +152,7 @@ func TestReleaseCapabilitydServiceNamesUseTenantServices(t *testing.T) {
 
 	serviceNames := releaseCapabilitydServiceNames(tenantBasePath)
 	expectedServiceNames := []string{
+		"internkim-capabilityd",
 		"internkim-tenant-capabilityd-pilot-01.service",
 		"internkim-tenant-capabilityd-pilot-02.service",
 	}
@@ -175,6 +176,7 @@ func TestReleaseAdmindServiceNamesUseTenantServices(t *testing.T) {
 
 	serviceNames := releaseAdmindServiceNames(tenantBasePath)
 	expectedServiceNames := []string{
+		"internkim-admind",
 		"internkim-tenant-admind-pilot-01.service",
 		"internkim-tenant-admind-pilot-02.service",
 	}
