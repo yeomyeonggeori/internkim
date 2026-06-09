@@ -102,8 +102,8 @@
 	function confirmRemoveCategory(index: number): void {
 		const value = categoryDrafts[index];
 		confirmDelete({
-			title: text.removeCategoryTitle,
-			description: text.removeCategoryDescription.replace('{value}', value),
+			title: text.removeBusinessTitle,
+			description: text.removeBusinessDescription.replace('{value}', value),
 			confirm: { text: text.removeAction },
 			cancel: { text: text.cancel },
 			onConfirm: async () => {
