@@ -58,7 +58,10 @@ func TestAttendanceEntryCommentCreatesAttendanceEvent(t *testing.T) {
 	if response.Code != http.StatusCreated {
 		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
 	}
-	if len(*posts) != 1 || (*posts)[0].Message != "출근(사무실)" || (*posts)[0].RootID != "entry-post" {
+	if len(*posts) != 2 ||
+		!(*posts)[0].Deleted ||
+		(*posts)[1].Message != "출근(사무실)" ||
+		(*posts)[1].RootID != "entry-post" {
 		t.Fatalf("posts = %+v", *posts)
 	}
 	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
@@ -103,7 +106,10 @@ func TestAttendanceEntryCommentClockInFormsUseSameAction(t *testing.T) {
 			if response.Code != http.StatusCreated {
 				t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
 			}
-			if len(*posts) != 1 || (*posts)[0].Message != testCase.expectedResultPost {
+			if len(*posts) != 2 ||
+				!(*posts)[0].Deleted ||
+				(*posts)[1].Message != testCase.expectedResultPost ||
+				(*posts)[1].RootID != "entry-post" {
 				t.Fatalf("posts = %+v", *posts)
 			}
 			events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
@@ -117,6 +123,40 @@ func TestAttendanceEntryCommentClockInFormsUseSameAction(t *testing.T) {
 				t.Fatalf("events = %+v", events)
 			}
 		})
+	}
+}
+
+func TestAttendanceChannelPostCreatesAttendanceEvent(t *testing.T) {
+	service, posts := newAttendanceActionTestService(t)
+	service.saveMattermostAttendanceChannelID("attendance-channel")
+	service.saveMattermostAttendanceEntryPostID("entry-post")
+	if errorValue := service.writeAttendanceLocationsFile([]attendanceLocation{
+		{ID: "office", Name: "사무실", Color: "#16a34a", IsDefault: true},
+		{ID: "home", Name: "재택", Color: "#2563eb"},
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"attendance-channel","message":"출근(재택)"}`))
+	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+	if len(*posts) != 2 ||
+		!(*posts)[0].Deleted ||
+		(*posts)[1].Message != "출근(재택)" ||
+		(*posts)[1].RootID != "entry-post" {
+		t.Fatalf("posts = %+v", *posts)
+	}
+	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(events) != 1 || events[0].Kind != attendanceKindClockIn || events[0].LocationName != "재택" {
+		t.Fatalf("events = %+v", events)
 	}
 }
 
@@ -134,7 +174,11 @@ func TestAttendanceEntryCommentAcceptsEnglishAliases(t *testing.T) {
 		}
 	}
 
-	if len(*posts) != 2 || (*posts)[0].Message != "출근(사무실)" || (*posts)[1].Message != "퇴근" {
+	if len(*posts) != 4 ||
+		!(*posts)[0].Deleted ||
+		(*posts)[1].Message != "출근(사무실)" ||
+		!(*posts)[2].Deleted ||
+		(*posts)[3].Message != "퇴근" {
 		t.Fatalf("posts = %+v", *posts)
 	}
 }
@@ -162,7 +206,7 @@ func TestAttendanceEntryCommentUpdatesCurrentEventTime(t *testing.T) {
 	if response.Code != http.StatusCreated {
 		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
 	}
-	if len(*posts) != 1 || (*posts)[0].Message != "출근(사무실) 09:00" {
+	if len(*posts) != 2 || (*posts)[0].Message != "출근(사무실) 09:00" || !(*posts)[1].Deleted {
 		t.Fatalf("posts = %+v", *posts)
 	}
 	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
@@ -200,7 +244,7 @@ func TestAttendanceEntryCommentUpdatesClockOutTime(t *testing.T) {
 	if response.Code != http.StatusCreated {
 		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
 	}
-	if len(*posts) != 2 || (*posts)[1].Message != "퇴근 18:30" {
+	if len(*posts) != 3 || (*posts)[1].Message != "퇴근 18:30" || !(*posts)[2].Deleted {
 		t.Fatalf("posts = %+v", *posts)
 	}
 	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
