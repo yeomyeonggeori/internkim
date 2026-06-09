@@ -2704,7 +2704,7 @@ func TestFlowMattermostProjectionOutboxRetriesFailedCreate(t *testing.T) {
 	}
 	assertFlowProjectionOutboxCount(t, service, 1)
 
-	service.reconcileFlowMattermostProjections(context.Background())
+	service.drainFlowMattermostProjectionOutbox(context.Background())
 
 	reloadedTask, found, errorValue := service.readFlowTaskByID(context.Background(), task.ID)
 	if errorValue != nil || !found {
