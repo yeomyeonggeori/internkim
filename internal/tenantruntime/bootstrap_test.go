@@ -19,12 +19,13 @@ func TestBootstrapTenantInstallsServicesAndDeviceTokenWithoutProviderKey(t *test
 	}
 
 	status, errorValue := service.BootstrapTenant(manifest.TenantID, BootstrapOptions{
-		BinaryDirectoryPath: createTenantBinaryDirectory(t),
-		GatewayURL:          "http://10.0.0.1:18081/api/v1/chat/completions",
-		DeviceToken:         "device-token-acme",
-		GatewaySharedSecret: "gateway-secret-acme",
-		AdminPassword:       "admin-password-acme",
-		AdminEmail:          "admin@acme.test",
+		BinaryDirectoryPath:  createTenantBinaryDirectory(t),
+		GatewayURL:           "http://10.0.0.1:18081/api/v1/chat/completions",
+		DeviceToken:          "device-token-acme",
+		GatewaySharedSecret:  "gateway-secret-acme",
+		ReleaseDownloadToken: "release-token-acme",
+		AdminPassword:        "admin-password-acme",
+		AdminEmail:           "admin@acme.test",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -42,6 +43,7 @@ func TestBootstrapTenantInstallsServicesAndDeviceTokenWithoutProviderKey(t *test
 	assertFileContains(t, filepath.Join(paths.ContainerRootPath, "usr/local/bin/internkim-tenant-mattermost-firstboot.sh"), `\"username\":\"$admin_username\"`)
 	assertFileContains(t, filepath.Join(paths.InternKimSecretsPath, "llm-device-token"), "device-token-acme")
 	assertFileContains(t, filepath.Join(paths.InternKimSecretsPath, "llm-gateway-shared-secret"), "gateway-secret-acme")
+	assertFileContains(t, filepath.Join(paths.InternKimSecretsPath, "release-download-token"), "release-token-acme")
 	assertFileContains(t, filepath.Join(paths.InternKimSecretsPath, "mm-admin-pass"), "admin-password-acme")
 	assertFileContains(t, filepath.Join(paths.InternKimPath, "config/admin-username"), "admin")
 	if fileExists(filepath.Join(paths.InternKimSecretsPath, "openrouter-api-key")) {

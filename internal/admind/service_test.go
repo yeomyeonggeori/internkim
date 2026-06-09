@@ -1973,6 +1973,61 @@ func TestFlowAPIAllowsSignedWebSessionStaffSummary(t *testing.T) {
 	}
 }
 
+func TestFlowSummaryIncludesDistanceReport(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	staffID := stableFlowID("staff@example.com")
+	otherID := stableFlowID("other@example.com")
+	tasks := []flowTask{
+		flowReportTestTask("current", "26W18", []string{staffID, otherID}, []string{"Staff", "Other"}, "M", "완료", "2026-04-27", "2026-04-29"),
+		flowReportTestTask("previous-week", "26W17", []string{otherID}, []string{"Other"}, "S", "완료", "2026-04-20", "2026-04-21"),
+		flowReportTestTask("previous-month", "26W10", []string{staffID}, []string{"Staff"}, "XS", "완료", "2026-03-03", "2026-03-03"),
+	}
+	for _, task := range tasks {
+		if errorValue := service.writeFlowTask(context.Background(), task); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/flow/api/summary?week=26W18", nil)
+	request.RemoteAddr = "198.51.100.10:443"
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("summary status = %d body = %s", response.Code, response.Body.String())
+	}
+	var summary flowSummaryResponse
+	if errorValue := json.NewDecoder(response.Body).Decode(&summary); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if summary.Report.WeeklyDistanceTrend.CurrentTotal != 3 || summary.Report.WeeklyDistanceTrend.PreviousTotal != 2 {
+		t.Fatalf("weekly trend = %+v", summary.Report.WeeklyDistanceTrend)
+	}
+	if len(summary.Report.WeeklyDistanceTrend.CurrentValues) != 7 || summary.Report.WeeklyDistanceTrend.CurrentValues[2] != 3 {
+		t.Fatalf("weekly values = %+v", summary.Report.WeeklyDistanceTrend.CurrentValues)
+	}
+	if summary.Report.MonthlyDistanceTrend.CurrentTotal != 5 || summary.Report.MonthlyDistanceTrend.PreviousTotal != 1 {
+		t.Fatalf("monthly trend = %+v", summary.Report.MonthlyDistanceTrend)
+	}
+	if len(summary.Report.MonthlyDistanceTrend.CurrentValues) != 30 || summary.Report.MonthlyDistanceTrend.CurrentValues[28] != 5 {
+		t.Fatalf("monthly values = %+v", summary.Report.MonthlyDistanceTrend.CurrentValues)
+	}
+	if summary.Metrics.MemberScores[staffID] != 114 || summary.Metrics.MemberScores[otherID] != 114 {
+		t.Fatalf("member scores = %+v", summary.Metrics.MemberScores)
+	}
+	if summary.Metrics.MemberScoreDetails[staffID].WeeklyScore != 115 || summary.Metrics.MemberScoreDetails[staffID].MonthlyScore != 113 || summary.Metrics.MemberScoreDetails[staffID].CurrentScore != 114 {
+		t.Fatalf("staff score detail = %+v", summary.Metrics.MemberScoreDetails[staffID])
+	}
+	if summary.Metrics.MemberScoreDetails[otherID].WeeklyScore != 112 || summary.Metrics.MemberScoreDetails[otherID].MonthlyScore != 115 || summary.Metrics.MemberScoreDetails[otherID].CurrentScore != 114 {
+		t.Fatalf("other score detail = %+v", summary.Metrics.MemberScoreDetails[otherID])
+	}
+	if summary.Metrics.TotalScore != 228 {
+		t.Fatalf("total score = %d, want 228", summary.Metrics.TotalScore)
+	}
+}
+
 func TestWebSessionRejectsExpiredTamperedAndStaleCookies(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
 	expiredCookie := expiredWebSessionCookieForTest(t, service, "staff@example.com")
@@ -2056,6 +2111,49 @@ func TestMattermostOAuthStartUsesPublicAuthorizeURL(t *testing.T) {
 		t.Fatalf("authorize location = %q", response.Header().Get("Location"))
 	}
 	if location.Query().Get("redirect_uri") != "https://device.example/auth/mattermost/callback" {
+		t.Fatalf("redirect uri = %q", location.Query().Get("redirect_uri"))
+	}
+}
+
+func TestMattermostOAuthStartUsesRequestHostForPublicAlias(t *testing.T) {
+	rootPath := t.TempDir()
+	clientPath := filepath.Join(rootPath, "secrets", "mattermost-oauth.json")
+	deviceURLPath := filepath.Join(rootPath, "device-url")
+	writeFile(t, deviceURLPath, "https://device.example")
+	service := NewService(Configuration{
+		StateDirectory:            filepath.Join(rootPath, "state"),
+		MattermostBaseURL:         "http://mattermost.local",
+		MattermostOAuthClientPath: clientPath,
+		DeviceURLPath:             deviceURLPath,
+	})
+	if errorValue := service.writeMattermostOAuthClientForHomepage("https://pilot-01.intern.kim", mattermostOAuthClientFile{
+		ClientID:     "pilot-client",
+		ClientSecret: "pilot-secret",
+		CallbackURL:  "https://pilot-01.intern.kim/auth/mattermost/callback",
+		Homepage:     "https://pilot-01.intern.kim",
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	request := httptest.NewRequest(http.MethodGet, "https://pilot-01.intern.kim/auth/mattermost/start?return=/flow/", nil)
+	request.RemoteAddr = "198.51.100.10:443"
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusFound {
+		t.Fatalf("start status = %d body = %s", response.Code, response.Body.String())
+	}
+	location, errorValue := url.Parse(response.Header().Get("Location"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if location.Host != "pilot-01.intern.kim" || location.Path != "/oauth/authorize" {
+		t.Fatalf("authorize location = %q", response.Header().Get("Location"))
+	}
+	if location.Query().Get("client_id") != "pilot-client" {
+		t.Fatalf("client id = %q", location.Query().Get("client_id"))
+	}
+	if location.Query().Get("redirect_uri") != "https://pilot-01.intern.kim/auth/mattermost/callback" {
 		t.Fatalf("redirect uri = %q", location.Query().Get("redirect_uri"))
 	}
 }
@@ -2805,6 +2903,25 @@ func flowNotificationTestTask(status string) flowTask {
 		Status:           status,
 		WeekCode:         "26W18",
 		RequestReason:    "검토 요청",
+	}
+}
+
+func flowReportTestTask(id string, weekCode string, participantIDs []string, participantNames []string, size string, status string, startDate string, endDate string) flowTask {
+	return flowTask{
+		ID:               id,
+		OwnerID:          participantIDs[0],
+		OwnerName:        participantNames[0],
+		ParticipantIDs:   participantIDs,
+		ParticipantNames: participantNames,
+		Business:         "개발",
+		Type:             "회의",
+		Content:          id,
+		Goal:             "거리 리포트 검증",
+		Size:             size,
+		Status:           status,
+		StartDate:        startDate,
+		EndDate:          endDate,
+		WeekCode:         weekCode,
 	}
 }
 
