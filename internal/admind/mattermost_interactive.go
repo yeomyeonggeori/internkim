@@ -59,11 +59,13 @@ func (service *Service) handleMattermostInteractiveAction(responseWriter http.Re
 		return
 	}
 	if !service.isValidMattermostInteractivePayload(payload) {
+		log.Printf("Mattermost interactive action rejected: invalid token action=%q postID=%q channelID=%q", strings.TrimSpace(payload.Context.Action), strings.TrimSpace(payload.PostID), strings.TrimSpace(payload.ChannelID))
 		service.writeMattermostInteractiveError(responseWriter, "invalid action token")
 		return
 	}
 	handler, isFound := service.mattermostInteractiveActionHandlers()[strings.TrimSpace(payload.Context.Action)]
 	if !isFound {
+		log.Printf("Mattermost interactive action rejected: unsupported action=%q postID=%q channelID=%q", strings.TrimSpace(payload.Context.Action), strings.TrimSpace(payload.PostID), strings.TrimSpace(payload.ChannelID))
 		service.writeMattermostInteractiveError(responseWriter, "unsupported action")
 		return
 	}
