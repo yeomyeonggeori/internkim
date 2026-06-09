@@ -84,6 +84,28 @@ func TestAttendanceAbsenceCreateIsIdempotentForActiveDate(t *testing.T) {
 	}
 }
 
+func TestAttendanceAbsenceCreateSkipsWeekends(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+
+	response := createAttendanceAbsenceForTest(t, service, "staff@example.com", `{
+		"kind": "leave",
+		"startDate": "2026-05-15",
+		"endDate": "2026-05-18"
+	}`)
+
+	if len(response.Absences) != 2 {
+		t.Fatalf("expected 2 weekday absences, got %d", len(response.Absences))
+	}
+	if response.Absences[0].Date != "2026-05-15" || response.Absences[1].Date != "2026-05-18" {
+		t.Fatalf("expected Friday and Monday absences, got %+v", response.Absences)
+	}
+
+	summaryResponse := readAttendanceSummaryForTest(t, service, "staff@example.com", "2026-05")
+	if len(summaryResponse.Absences) != 2 {
+		t.Fatalf("expected 2 summary absences, got %d", len(summaryResponse.Absences))
+	}
+}
+
 func TestAttendanceAbsenceResponseKeepsLabelsLocaleNeutral(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 

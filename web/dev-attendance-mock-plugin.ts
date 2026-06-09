@@ -1,7 +1,7 @@
 import type { Plugin } from 'vite';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AttendanceAbsence, AttendanceAbsenceKind } from './src/routes/attendance/attendance-context.svelte';
-import { todayDateInTimeZone } from './src/routes/attendance/shared/attendance-date';
+import { isWeekday, todayDateInTimeZone } from './src/routes/attendance/shared/attendance-date';
 import { buildAttendanceSummaryFixture } from './dev-attendance-summary-fixture';
 
 type DevAttendanceMockPluginOptions = {
@@ -173,7 +173,10 @@ function datesBetween(startDate: string, endDate: string): string[] {
 	const dates: string[] = [];
 	const cursor = new Date(start);
 	while (cursor <= end && dates.length < 31) {
-		dates.push(cursor.toISOString().slice(0, 10));
+		const date = cursor.toISOString().slice(0, 10);
+		if (isWeekday(date)) {
+			dates.push(date);
+		}
 		cursor.setUTCDate(cursor.getUTCDate() + 1);
 	}
 	return dates;
