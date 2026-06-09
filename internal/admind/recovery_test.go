@@ -61,6 +61,42 @@ func TestSSHRecoveryRejectsUnsupportedAction(t *testing.T) {
 	}
 }
 
+func TestSSHRecoveryUnlockMattermostAdminUsesAllowlistedDatabaseReset(t *testing.T) {
+	service := newRecoveryTestService(t)
+	commands := []string{}
+	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+		commands = append(commands, strings.TrimSpace(name+" "+strings.Join(arguments, " ")))
+		if name == "sh" && len(arguments) == 2 && arguments[0] == "-lc" {
+			if !strings.Contains(arguments[1], "UPDATE users SET failedattempts = 0 WHERE username = 'admin'") {
+				t.Fatalf("unlock command does not reset admin failed attempts: %s", arguments[1])
+			}
+			return []byte("mattermost: admin failedattempts reset\n"), nil
+		}
+		if name == "systemctl" && len(arguments) == 2 && arguments[0] == "is-active" {
+			return []byte("active\n"), nil
+		}
+		if name == "journalctl" {
+			return []byte("ok\n"), nil
+		}
+		t.Fatalf("unexpected command %s %v", name, arguments)
+		return nil, nil
+	}
+
+	recorder := httptest.NewRecorder()
+	request := signedRecoveryRequest(t, service, "unlock-mattermost-admin", "nonce-1", time.Now().UTC())
+	service.handleAdmin(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	if !containsString(commands, "sh -lc "+mattermostAdminUnlockCommand()) {
+		t.Fatalf("expected Mattermost admin unlock command, got %+v", commands)
+	}
+	if !strings.Contains(recorder.Body.String(), "admin failedattempts reset") {
+		t.Fatalf("expected unlock result in response, got %s", recorder.Body.String())
+	}
+}
+
 func TestSSHRecoveryRejectsInvalidSignature(t *testing.T) {
 	service := newRecoveryTestService(t)
 	request := signedRecoveryRequest(t, service, "status", "nonce-1", time.Now().UTC())
