@@ -42,7 +42,7 @@ describe('buildFlowReportSections', () => {
 					description: '지난달과 이번달의 일별 팀 거리 합을 비교합니다.'
 				},
 				businessDistance: {
-					title: '대분류별 업무',
+					title: '프로젝트별 업무',
 					description: ''
 				}
 			},
@@ -124,7 +124,7 @@ describe('buildFlowReportSections', () => {
 					memberDistance: { title: '구성원 점수', description: '' },
 					weeklyDistanceTrend: { title: '주간 통계', description: '' },
 					monthlyDistanceTrend: { title: '월간 통계', description: '' },
-					businessDistance: { title: '대분류별 업무', description: '' }
+					businessDistance: { title: '프로젝트별 업무', description: '' }
 				},
 				copy: koreanReportCopy
 			}
@@ -160,7 +160,7 @@ describe('buildFlowReportSections', () => {
 					memberDistance: { title: '구성원 점수', description: '' },
 					weeklyDistanceTrend: { title: '주간 통계', description: '' },
 					monthlyDistanceTrend: { title: '월간 통계', description: '' },
-					businessDistance: { title: '사업 거리', description: '' }
+					businessDistance: { title: '프로젝트 거리', description: '' }
 				},
 				copy: koreanReportCopy,
 				tasks: [
@@ -209,7 +209,7 @@ describe('buildFlowReportSections', () => {
 				memberDistance: { title: '구성원 점수', description: '' },
 				weeklyDistanceTrend: { title: '주간 통계', description: '' },
 				monthlyDistanceTrend: { title: '월간 통계', description: '' },
-				businessDistance: { title: '대분류별 업무', description: '' }
+				businessDistance: { title: '프로젝트별 업무', description: '' }
 			},
 			copy: koreanReportCopy,
 			tasks: flowReportFixtureTasks,
@@ -230,7 +230,7 @@ describe('buildFlowReportSections', () => {
 				memberDistance: { title: 'Member score', description: '' },
 				weeklyDistanceTrend: { title: 'Weekly statistics', description: '' },
 				monthlyDistanceTrend: { title: 'Monthly statistics', description: '' },
-				businessDistance: { title: 'Weekly business distance', description: '' }
+				businessDistance: { title: 'Weekly project distance', description: '' }
 			},
 			copy: {
 				weekdays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
@@ -300,7 +300,7 @@ describe('buildFlowReportSections', () => {
 					memberDistance: { title: '구성원 점수', description: '' },
 					weeklyDistanceTrend: { title: '주간 통계', description: '' },
 					monthlyDistanceTrend: { title: '월간 통계', description: '' },
-					businessDistance: { title: '대분류별 업무', description: '' }
+					businessDistance: { title: '프로젝트별 업무', description: '' }
 				},
 				copy: koreanReportCopy,
 				members: [
