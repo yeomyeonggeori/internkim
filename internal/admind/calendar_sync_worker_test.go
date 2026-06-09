@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -181,6 +182,37 @@ func TestRunCalendarUserSyncCycleRespectsPullCache(t *testing.T) {
 	}
 	if pushCalls.Load() != 2 {
 		t.Fatalf("push calls: got %d, want 2", pushCalls.Load())
+	}
+}
+
+func TestRunCalendarUserSyncCycleRetriesPullAfterFailure(t *testing.T) {
+	service := newCalendarTestService(t)
+	ctx := context.Background()
+	now := time.Unix(1000, 0).UTC()
+	var pullCalls atomic.Int32
+	var pushCalls atomic.Int32
+	pull := func(ctx context.Context, protectedUIDs map[string]struct{}) (bool, error) {
+		pullCalls.Add(1)
+		return false, errors.New("pull unavailable")
+	}
+	push := func(ctx context.Context) (map[string]struct{}, error) {
+		pushCalls.Add(1)
+		return nil, nil
+	}
+	clock := func() time.Time { return now }
+	firstResult := service.runCalendarSyncCycleWithHooks(ctx, clock, pull, push, true)
+	now = now.Add(30 * time.Second)
+	secondResult := service.runCalendarSyncCycleWithHooks(ctx, clock, pull, push, true)
+	if pullCalls.Load() != 2 {
+		t.Fatalf("failed pull should not populate cache, got %d pull calls", pullCalls.Load())
+	}
+	if pushCalls.Load() != 2 {
+		t.Fatalf("push calls: got %d, want 2", pushCalls.Load())
+	}
+	for _, result := range []calendarSyncCycleResult{firstResult, secondResult} {
+		if !result.PullAttempted || !result.PullFailed || result.PullSkippedByCache || result.Succeeded() {
+			t.Fatalf("failed pull result should be reported without cache skip: %#v", result)
+		}
 	}
 }
 
