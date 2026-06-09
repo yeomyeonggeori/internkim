@@ -22,6 +22,22 @@ import (
 )
 
 const blueclawUpdateChunkSize = 4 << 20
+const blueclawUpdateTenantBasePath = "/srv/internkim/tenants"
+
+type blueclawPayloadInstallTarget struct {
+	Name                string
+	ServiceName         string
+	HostWorkspacePath   string
+	WorkspaceImagePath  string
+	PayloadManifestPath string
+}
+
+type blueclawPayloadRuntimeConfiguration struct {
+	Firecracker struct {
+		HostWorkspacePath  string `json:"hostWorkspacePath"`
+		WorkspaceImagePath string `json:"workspaceImagePath"`
+	} `json:"firecracker"`
+}
 
 type BlueclawUpdateUpload struct {
 	UploadID       string
@@ -269,33 +285,46 @@ func (service *Service) finishBlueclawUpdateJob(jobID string, status string, met
 }
 
 func (service *Service) installBlueclawPayloadArtifact(ctx context.Context, jobID string, artifactPath string) error {
+	targets := service.blueclawPayloadInstallTargets()
+	if len(targets) == 0 {
+		targets = []blueclawPayloadInstallTarget{canonicalBlueclawPayloadInstallTarget()}
+	}
+	for _, target := range targets {
+		if errorValue := service.installBlueclawPayloadArtifactForTarget(ctx, jobID, artifactPath, target); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
+}
+
+func (service *Service) installBlueclawPayloadArtifactForTarget(ctx context.Context, jobID string, artifactPath string, target blueclawPayloadInstallTarget) error {
 	service.updateJob(jobID, "running", "stopping", "")
-	if output, errorValue := service.runCommand(ctx, "sh", "-lc", blueclawruntime.StopForPayloadSyncCommand()); errorValue != nil {
-		return fmt.Errorf("stop blueclaw before payload sync: %s: %w", strings.TrimSpace(string(output)), errorValue)
+	if output, errorValue := service.runCommand(ctx, "sh", "-lc", stopBlueclawPayloadTargetCommand(target)); errorValue != nil {
+		return fmt.Errorf("%s: stop blueclaw before payload sync: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
 	}
 	service.updateJob(jobID, "running", "installing", "")
-	if output, errorValue := service.runCommand(ctx, "sh", "-lc", blueclawruntime.HostWorkspacePayloadSyncCommand(artifactPath)); errorValue != nil {
-		return fmt.Errorf("sync blueclaw payload host workspace: %s: %w", strings.TrimSpace(string(output)), errorValue)
+	if output, errorValue := service.runCommand(ctx, "sh", "-lc", hostWorkspacePayloadSyncCommandForTarget(artifactPath, target)); errorValue != nil {
+		return fmt.Errorf("%s: sync blueclaw payload host workspace: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
 	}
 	syncCommand := strings.Join([]string{
 		blueclawruntime.BlueclawSupervisorBinaryPath,
 		"sync-workspace",
-		"--workspace-image", quoteBlueclawUpdateShellValue(blueclawruntime.BlueclawWorkspaceImagePath),
+		"--workspace-image", quoteBlueclawUpdateShellValue(target.WorkspaceImagePath),
 		"--source", quoteBlueclawUpdateShellValue(filepath.Join(artifactPath, "workspace")),
 	}, " ")
 	if output, errorValue := service.runCommand(ctx, "sh", "-lc", syncCommand); errorValue != nil {
-		return fmt.Errorf("sync blueclaw payload workspace: %s: %w", strings.TrimSpace(string(output)), errorValue)
+		return fmt.Errorf("%s: sync blueclaw payload workspace: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
 	}
-	if !service.blueclawWorkspaceManifestMatches(artifactPath) {
-		return errors.New("sync blueclaw payload workspace: workspace manifest mismatch")
+	if !service.blueclawWorkspaceManifestMatchesTarget(artifactPath, target) {
+		return fmt.Errorf("%s: sync blueclaw payload workspace: workspace manifest mismatch", target.Name)
 	}
-	installManifestCommand := "install -m 0644 " + quoteBlueclawUpdateShellValue(filepath.Join(artifactPath, "manifest.json")) + " " + quoteBlueclawUpdateShellValue(blueclawruntime.BlueclawPayloadManifestPath)
+	installManifestCommand := "install -m 0644 " + quoteBlueclawUpdateShellValue(filepath.Join(artifactPath, "manifest.json")) + " " + quoteBlueclawUpdateShellValue(target.PayloadManifestPath)
 	if output, errorValue := service.runCommand(ctx, "sh", "-lc", installManifestCommand); errorValue != nil {
-		return fmt.Errorf("install blueclaw payload manifest: %s: %w", strings.TrimSpace(string(output)), errorValue)
+		return fmt.Errorf("%s: install blueclaw payload manifest: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
 	}
 	service.updateJob(jobID, "running", "restarting", "")
-	if output, errorValue := service.runCommand(ctx, "sh", "-lc", blueclawruntime.StartAfterPayloadSyncCommand()); errorValue != nil {
-		return fmt.Errorf("start blueclaw after payload sync: %s: %w", strings.TrimSpace(string(output)), errorValue)
+	if output, errorValue := service.runCommand(ctx, "sh", "-lc", startBlueclawPayloadTargetCommand(target)); errorValue != nil {
+		return fmt.Errorf("%s: start blueclaw after payload sync: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
 	}
 	return nil
 }
@@ -305,21 +334,130 @@ func (service *Service) isBlueclawPayloadAlreadyCurrent(artifactPath string) boo
 	if errorValue != nil {
 		return false
 	}
-	currentManifestDocument, errorValue := os.ReadFile(blueclawruntime.BlueclawPayloadManifestPath)
-	if errorValue != nil || string(manifestDocument) != string(currentManifestDocument) {
-		return false
+	targets := service.blueclawPayloadInstallTargets()
+	if len(targets) == 0 {
+		targets = []blueclawPayloadInstallTarget{canonicalBlueclawPayloadInstallTarget()}
 	}
-	return service.blueclawWorkspaceManifestMatches(artifactPath)
+	for _, target := range targets {
+		currentManifestDocument, errorValue := os.ReadFile(target.PayloadManifestPath)
+		if errorValue != nil || string(manifestDocument) != string(currentManifestDocument) {
+			return false
+		}
+		if !service.blueclawWorkspaceManifestMatchesTarget(artifactPath, target) {
+			return false
+		}
+	}
+	return true
 }
 
 func (service *Service) blueclawWorkspaceManifestMatches(artifactPath string) bool {
+	return service.blueclawWorkspaceManifestMatchesTarget(artifactPath, canonicalBlueclawPayloadInstallTarget())
+}
+
+func (service *Service) blueclawWorkspaceManifestMatchesTarget(artifactPath string, target blueclawPayloadInstallTarget) bool {
 	manifestDocument, errorValue := os.ReadFile(filepath.Join(artifactPath, "manifest.json"))
 	if errorValue != nil {
 		return false
 	}
-	command := "debugfs -R " + quoteBlueclawUpdateShellValue("cat /.blueclaw/runtime/current/manifest.json") + " " + quoteBlueclawUpdateShellValue(blueclawruntime.BlueclawWorkspaceImagePath) + " 2>/dev/null || true"
+	command := "debugfs -R " + quoteBlueclawUpdateShellValue("cat /.blueclaw/runtime/current/manifest.json") + " " + quoteBlueclawUpdateShellValue(target.WorkspaceImagePath) + " 2>/dev/null || true"
 	output, errorValue := service.runCommand(context.Background(), "sh", "-lc", command)
 	return errorValue == nil && string(manifestDocument) == string(output)
+}
+
+func (service *Service) blueclawPayloadInstallTargets() []blueclawPayloadInstallTarget {
+	return blueclawPayloadTenantInstallTargets(blueclawUpdateTenantBasePath)
+}
+
+func blueclawPayloadTenantInstallTargets(tenantBasePath string) []blueclawPayloadInstallTarget {
+	runtimeConfigurationPaths, errorValue := filepath.Glob(filepath.Join(tenantBasePath, "*", "blueclaw", "config", "runtime.json"))
+	if errorValue != nil {
+		return nil
+	}
+	targets := []blueclawPayloadInstallTarget{}
+	for _, runtimeConfigurationPath := range runtimeConfigurationPaths {
+		if target, ok := blueclawPayloadTenantInstallTarget(runtimeConfigurationPath); ok {
+			targets = append(targets, target)
+		}
+	}
+	return targets
+}
+
+func blueclawPayloadTenantInstallTarget(runtimeConfigurationPath string) (blueclawPayloadInstallTarget, bool) {
+	document, errorValue := os.ReadFile(runtimeConfigurationPath)
+	if errorValue != nil {
+		return blueclawPayloadInstallTarget{}, false
+	}
+	var runtimeConfiguration blueclawPayloadRuntimeConfiguration
+	if errorValue := json.Unmarshal(document, &runtimeConfiguration); errorValue != nil {
+		return blueclawPayloadInstallTarget{}, false
+	}
+	tenantID := filepath.Base(filepath.Dir(filepath.Dir(filepath.Dir(runtimeConfigurationPath))))
+	hostWorkspacePath := strings.TrimSpace(runtimeConfiguration.Firecracker.HostWorkspacePath)
+	workspaceImagePath := strings.TrimSpace(runtimeConfiguration.Firecracker.WorkspaceImagePath)
+	if strings.TrimSpace(tenantID) == "" || hostWorkspacePath == "" || workspaceImagePath == "" {
+		return blueclawPayloadInstallTarget{}, false
+	}
+	blueclawRootPath := filepath.Dir(filepath.Dir(runtimeConfigurationPath))
+	return blueclawPayloadInstallTarget{
+		Name:                tenantID,
+		ServiceName:         "internkim-tenant-blueclaw-" + tenantID + ".service",
+		HostWorkspacePath:   hostWorkspacePath,
+		WorkspaceImagePath:  workspaceImagePath,
+		PayloadManifestPath: filepath.Join(blueclawRootPath, "payload-manifest.json"),
+	}, true
+}
+
+func canonicalBlueclawPayloadInstallTarget() blueclawPayloadInstallTarget {
+	return blueclawPayloadInstallTarget{
+		Name:                "blueclaw",
+		ServiceName:         blueclawruntime.BlueclawServiceName,
+		HostWorkspacePath:   blueclawruntime.BlueclawWorkspacePath,
+		WorkspaceImagePath:  blueclawruntime.BlueclawWorkspaceImagePath,
+		PayloadManifestPath: blueclawruntime.BlueclawPayloadManifestPath,
+	}
+}
+
+func hostWorkspacePayloadSyncCommandForTarget(artifactPath string, target blueclawPayloadInstallTarget) string {
+	sourcePath := filepath.Join(artifactPath, "workspace", ".blueclaw", "runtime")
+	targetPath := filepath.Join(target.HostWorkspacePath, ".blueclaw", "runtime")
+	return strings.Join([]string{
+		"mkdir -p", quoteBlueclawUpdateShellValue(filepath.Dir(targetPath)),
+		"&& rsync -a --delete", quoteBlueclawUpdateShellValue(sourcePath + "/"), quoteBlueclawUpdateShellValue(targetPath + "/"),
+		"&& chown -R blueclaw:blueclaw", quoteBlueclawUpdateShellValue(targetPath),
+	}, " ")
+}
+
+func stopBlueclawPayloadTargetCommand(target blueclawPayloadInstallTarget) string {
+	serviceName := quoteBlueclawUpdateShellValue(target.ServiceName)
+	return `systemctl stop ` + serviceName + ` >/dev/null 2>&1 || true
+for _ in $(seq 1 20); do
+  if ! systemctl is-active --quiet ` + serviceName + `; then
+    exit 0
+  fi
+  sleep 1
+done
+systemctl kill ` + serviceName + ` --kill-who=all --signal=KILL >/dev/null 2>&1 || true
+for _ in $(seq 1 20); do
+  if ! systemctl is-active --quiet ` + serviceName + `; then
+    exit 0
+  fi
+  sleep 1
+done
+systemctl status ` + serviceName + ` --no-pager -l 2>/dev/null || true
+exit 1`
+}
+
+func startBlueclawPayloadTargetCommand(target blueclawPayloadInstallTarget) string {
+	serviceName := quoteBlueclawUpdateShellValue(target.ServiceName)
+	return `systemctl start ` + serviceName + `
+for _ in $(seq 1 20); do
+  if systemctl is-active --quiet ` + serviceName + `; then
+    exit 0
+  fi
+  sleep 1
+done
+systemctl status ` + serviceName + ` --no-pager -l 2>/dev/null || true
+exit 1`
 }
 
 func (service *Service) prepareBlueclawUpdateArtifact(upload *BlueclawUpdateUpload, archivePath string) (string, *blueclawUpdateArtifactMetadata, error) {
