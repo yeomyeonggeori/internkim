@@ -30,6 +30,11 @@ func (service *Service) writeAttendanceSummary(responseWriter http.ResponseWrite
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
+	absences, errorValue := service.readAttendanceAbsences(request.Context(), month, targetEmail)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
 	statusEvents := events
 	if actorEmail != "" && targetEmail != actorEmail {
 		if actorEvents, actorError := service.readAttendanceEvents(request.Context(), month, actorEmail); actorError == nil {
@@ -54,6 +59,7 @@ func (service *Service) writeAttendanceSummary(responseWriter http.ResponseWrite
 		IsAdmin:              isAdmin,
 		TimeZone:             timeZoneName,
 		Events:               visibleEvents,
+		Absences:             projectAttendanceAbsences(absences, actorEmail, isAdmin),
 		TodayStatus:          attendanceStatusForEvents(statusEvents, time.Now().In(location).Format("2006-01-02")),
 		Locations:            locations,
 		TeamViewVisibleToAll: teamVisible,
