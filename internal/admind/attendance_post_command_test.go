@@ -160,6 +160,35 @@ func TestAttendanceChannelPostCreatesAttendanceEvent(t *testing.T) {
 	}
 }
 
+func TestAttendanceChannelPostCreatesEventWhenExistingResultPostIsMissing(t *testing.T) {
+	service, posts := newAttendanceActionTestService(t)
+	service.saveMattermostAttendanceChannelID("attendance-channel")
+	service.saveMattermostAttendanceEntryPostID("entry-post")
+	insertGhostClockInEventForTest(t, service, "missing-post")
+	request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"attendance-channel","message":"출근"}`))
+	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+	if len(*posts) != 2 ||
+		!(*posts)[0].Deleted ||
+		(*posts)[1].Message != "출근(사무실)" ||
+		(*posts)[1].RootID != "entry-post" {
+		t.Fatalf("posts = %+v", *posts)
+	}
+	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(events) != 2 || events[0].Kind != attendanceKindClockIn || events[0].ResultPostID != "attendance-post-2" {
+		t.Fatalf("events = %+v", events)
+	}
+}
+
 func TestAttendanceEntryCommentDeletesDuplicateCommand(t *testing.T) {
 	service, posts := newAttendanceActionTestService(t)
 	service.saveMattermostAttendanceChannelID("attendance-channel")

@@ -156,6 +156,33 @@ func TestAttendanceClockInButtonCreatesEventAfterClockOut(t *testing.T) {
 	}
 }
 
+func TestAttendanceClockInButtonCreatesEventWhenExistingResultPostIsMissing(t *testing.T) {
+	service, posts := newAttendanceActionTestService(t)
+	insertGhostClockInEventForTest(t, service, "missing-post")
+	payload := mattermostInteractivePayload{
+		UserID:    "user-1",
+		PostID:    "entry-post",
+		ChannelID: "attendance-channel",
+		TeamID:    "team-1",
+		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken(), LocationID: "office"},
+	}
+
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if len(*posts) != 1 || (*posts)[0].Message != "출근(사무실)" || (*posts)[0].RootID != "entry-post" {
+		t.Fatalf("posts = %+v", *posts)
+	}
+	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(events) != 2 || events[0].Kind != attendanceKindClockIn || events[0].ResultPostID != "attendance-post-1" {
+		t.Fatalf("events = %+v", events)
+	}
+}
+
 func TestAttendanceRepeatedClickCancelsEvent(t *testing.T) {
 	service, posts := newAttendanceActionTestService(t)
 	payload := mattermostInteractivePayload{
