@@ -72,7 +72,7 @@ func (service Service) InstallHostRuntime(ctx context.Context, tenantID string, 
 
 func hostRuntimeConfiguration(manifest Manifest, paths RuntimePaths, options HostRuntimeOptions) hostRuntimeConfigurationDocument {
 	tenantIndex := tenantNumericSuffix(manifest.TenantID)
-	portBase := firstPositiveTenantInt(options.PortBase, 18100+(tenantIndex-1)*100)
+	portBase := firstPositiveTenantInt(options.PortBase, defaultTenantHostRuntimePortBase(tenantIndex))
 	return hostRuntimeConfigurationDocument{
 		GatewayURL:                 strings.TrimSpace(options.GatewayURL),
 		GatewaySharedSecret:        strings.TrimSpace(options.GatewaySharedSecret),
@@ -157,7 +157,7 @@ func installHostRuntimeFiles(manifest Manifest, paths RuntimePaths, configuratio
 	if errorValue := writeTenantFile(paths.InternKimPath, "env/fleet-id", manifest.AssignedHost, 0o640); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := writeTenantFile(paths.InternKimPath, "config/admin-email", TenantInitialAdminUsername+"@"+manifest.TenantID+".local", 0o640); errorValue != nil {
+	if errorValue := writeTenantFile(paths.InternKimPath, "config/admin-email", DefaultTenantAdminEmail(manifest.TenantID), 0o640); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := copyRegularFile(configuration.RootFilesystemTemplatePath, configuration.RootFilesystemImagePath, 0o600); errorValue != nil {
@@ -180,6 +180,7 @@ func (service Service) patchHostRuntimeRootFilesystemImage(ctx context.Context, 
 func hostRuntimeRootFilesystemPatchScript(configuration hostRuntimeConfigurationDocument) string {
 	return strings.Join([]string{
 		"set -eu",
+		tenantE2fsckFunction(),
 		"image_path=" + quoteShellArgument(configuration.RootFilesystemImagePath),
 		"mount_path=\"$(mktemp -d)\"",
 		"cleanup() {",
@@ -187,13 +188,13 @@ func hostRuntimeRootFilesystemPatchScript(configuration hostRuntimeConfiguration
 		"  rmdir \"$mount_path\"",
 		"}",
 		"trap cleanup EXIT",
-		"e2fsck -fy \"$image_path\" >/dev/null",
+		"tenant_e2fsck \"$image_path\"",
 		"mount -o loop \"$image_path\" \"$mount_path\"",
 		"sed -i 's/-target-tcp 127\\.0\\.0\\.1:8080/-target-tcp 127.0.0.1:" + intString(configuration.BlueclawPort) + "/g' \"$mount_path/sbin/init\"",
 		"umount \"$mount_path\"",
 		"rmdir \"$mount_path\"",
 		"trap - EXIT",
-		"e2fsck -fy \"$image_path\" >/dev/null",
+		"tenant_e2fsck \"$image_path\"",
 	}, "\n")
 }
 
@@ -202,7 +203,7 @@ func (service Service) installHostRuntimeUnits(ctx context.Context, manifest Man
 	if errorValue != nil {
 		return errorValue
 	}
-	policyDocument, errorValue := blueclaw.BlueclawPolicyDocument(TenantInitialAdminUsername + "@" + manifest.TenantID + ".local")
+	policyDocument, errorValue := blueclaw.BlueclawPolicyDocument(DefaultTenantAdminEmail(manifest.TenantID))
 	if errorValue != nil {
 		return errorValue
 	}
@@ -258,13 +259,14 @@ func (service Service) stopHostRuntimeBlueclaw(ctx context.Context, manifest Man
 func (service Service) repairHostRuntimeWorkspaceImage(ctx context.Context, configuration hostRuntimeConfigurationDocument) error {
 	command := strings.Join([]string{
 		"set -eu",
+		tenantE2fsckFunction(),
 		"mount_path=\"$(mktemp -d)\"",
 		"cleanup() {",
 		"  if mountpoint -q \"$mount_path\"; then umount \"$mount_path\"; fi",
 		"  rmdir \"$mount_path\"",
 		"}",
 		"trap cleanup EXIT",
-		"e2fsck -fy " + quoteShellArgument(configuration.WorkspaceImagePath) + " >/dev/null",
+		"tenant_e2fsck " + quoteShellArgument(configuration.WorkspaceImagePath),
 		"mount -o loop " + quoteShellArgument(configuration.WorkspaceImagePath) + " \"$mount_path\"",
 		"rm -rf \"$mount_path/.blueclaw/postgres/data\"",
 		"rm -f \"$mount_path/.blueclaw/postgres/.s.PGSQL.5432\" \"$mount_path/.blueclaw/postgres/.s.PGSQL.5432.lock\"",
@@ -273,13 +275,25 @@ func (service Service) repairHostRuntimeWorkspaceImage(ctx context.Context, conf
 		"umount \"$mount_path\"",
 		"rmdir \"$mount_path\"",
 		"trap - EXIT",
-		"e2fsck -fy " + quoteShellArgument(configuration.WorkspaceImagePath) + " >/dev/null",
+		"tenant_e2fsck " + quoteShellArgument(configuration.WorkspaceImagePath),
 	}, "\n")
 	_, errorValue := service.commandRunner().Run(ctx, ExecutableCommand{
 		ExecutableName: "sh",
 		Arguments:      []string{"-c", command},
 	})
 	return errorValue
+}
+
+func tenantE2fsckFunction() string {
+	return strings.Join([]string{
+		"tenant_e2fsck() {",
+		"  set +e",
+		"  e2fsck -fy \"$1\" >/dev/null",
+		"  status=\"$?\"",
+		"  set -e",
+		"  [ \"$status\" = 0 ] || [ \"$status\" = 1 ]",
+		"}",
+	}, "\n")
 }
 
 func (service Service) syncHostRuntimeWorkspaceImage(ctx context.Context, paths RuntimePaths, configuration hostRuntimeConfigurationDocument) error {
@@ -383,6 +397,7 @@ ExecStart=` + blueclaw.AdmindBinaryPath +
 		" --attendance-db " + filepath.Join(paths.InternKimPath, "state", "admin", "attendance.sqlite") +
 		" --admin-email-path " + filepath.Join(paths.InternKimPath, "config", "admin-email") +
 		" --device-url-path " + filepath.Join(paths.InternKimPath, "env", "device-url") +
+		" --fleet-id-path " + filepath.Join(paths.InternKimPath, "env", "fleet-id") +
 		" --openrouter-key " + filepath.Join(paths.InternKimSecretsPath, "llm-device-token") +
 		" --blueclaw-workspace " + paths.BlueclawWorkspacePath + `
 Restart=on-failure
@@ -548,6 +563,10 @@ func tenantNumericSuffix(tenantID string) int {
 		return 1
 	}
 	return value
+}
+
+func defaultTenantHostRuntimePortBase(tenantIndex int) int {
+	return 18100 + (tenantIndex-1)*100
 }
 
 func tenantGuestMACAddress(networkIndex int) string {

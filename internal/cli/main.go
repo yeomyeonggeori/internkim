@@ -230,6 +230,8 @@ func Main() {
 			runVerify()
 		case "llm":
 			runLLM()
+		case "ops":
+			runOps()
 		case "tenant":
 			runTenant()
 		case "dev":
@@ -268,6 +270,7 @@ func printUsage() {
 	fmt.Println("  doctor   Check host dependencies")
 	fmt.Println("  verify   Run API, Mattermost, and browser verification")
 	fmt.Println("  llm      One-shot LLM ping (local by default, --remote for OpenRouter)")
+	fmt.Println("  ops      Serve the local personal fleet console")
 	fmt.Println("  tenant   Manage PoC tenant runtime manifests")
 	fmt.Println("  lab      Run Tart-based Blueclaw-aligned lab workflows")
 	fmt.Println("  sim      Deprecated alias for lab")
