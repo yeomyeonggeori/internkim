@@ -79,6 +79,10 @@
 		return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 	}
 
+	function miniMonthDateLabel(date: Date): string {
+		return date.toLocaleDateString(localeCode, { year: 'numeric', month: 'long', day: 'numeric' });
+	}
+
 	function miniMonthCells(): MiniMonthCell[] {
 		const year = month.getFullYear();
 		const monthIndex = month.getMonth();
@@ -200,7 +204,12 @@
 	</header>
 	<div class="grid grid-cols-7 gap-y-0.5">
 		{#each weekdayLabels as weekdayLabel, index (index)}
-			<span class="py-0.5 text-center text-[11px] font-bold text-muted-foreground">
+			{@const isWeekendHeader = index === 0 || index === 6}
+			<span
+				data-mini-weekday-index={index}
+				data-weekend={isWeekendHeader ? 'true' : 'false'}
+				class="py-0.5 text-center text-[11px] font-bold {isWeekendHeader ? 'text-red-400' : 'text-muted-foreground'}"
+			>
 				{weekdayLabel}
 			</span>
 		{/each}
@@ -211,27 +220,73 @@
 			{@const isSelected = selectedDateKey === cellDateKey}
 			<button
 				type="button"
+				aria-label={miniMonthDateLabel(cell.date)}
 				aria-pressed={isSelected}
 				data-mini-date-key={cellDateKey}
-				class="relative mx-auto flex size-7 items-start justify-center rounded-md pt-0.5 text-[12px] tabular-nums transition-colors {isSelected
-					? 'bg-primary font-bold text-primary-foreground'
-					: cell.isToday
+				data-selected={isSelected ? 'true' : 'false'}
+				data-weekend={isWeekend ? 'true' : 'false'}
+				class="relative mx-auto flex size-7 items-start justify-center rounded-none bg-transparent pt-0.5 text-[12px] tabular-nums transition-colors {cell.isToday
 						? 'font-bold text-primary ring-1 ring-primary/60'
 						: cell.isOther
-							? 'text-muted-foreground opacity-45 hover:bg-accent'
+							? isWeekend
+								? 'text-red-400 opacity-45 hover:bg-accent/50'
+								: 'text-muted-foreground opacity-45 hover:bg-accent/50'
 							: isWeekend
-								? 'text-foreground hover:bg-accent'
-								: 'text-foreground hover:bg-accent'}"
+								? 'text-red-400 hover:bg-accent/50'
+								: 'text-foreground hover:bg-accent/50'}"
 				onclick={() => onSelectDate(cell.date)}
 			>
-				{cell.date.getDate()}
-				{#if hasEvent}
-					<span
-						class="absolute bottom-0.5 left-1/2 size-1.5 -translate-x-1/2 rounded-full {isSelected ? 'bg-primary-foreground' : 'bg-primary'}"
-						aria-hidden="true"
-					></span>
-				{/if}
+				<span class="mini-month-date-number">{cell.date.getDate()}</span>
+				<span
+					class="mini-month-event-dot-slot"
+					data-has-event={hasEvent ? 'true' : 'false'}
+					data-other-month={cell.isOther ? 'true' : 'false'}
+					aria-hidden="true"
+				></span>
 			</button>
 		{/each}
 	</div>
 </section>
+
+<style>
+	button[data-mini-date-key] {
+		width: 100%;
+		height: 1.75rem;
+		min-height: 1.75rem;
+		padding-top: 0;
+	}
+
+	button[data-mini-date-key][data-selected='true'] {
+		box-shadow: inset 0 0 0 1px rgb(80 150 232 / 0.7);
+	}
+
+	button[data-mini-date-key] .mini-month-date-number {
+		position: absolute;
+		z-index: 1;
+		top: 0.3125rem;
+		left: 50%;
+		line-height: 1;
+		transform: translateX(-50%);
+	}
+
+	button[data-mini-date-key] .mini-month-event-dot-slot {
+		position: absolute;
+		z-index: 1;
+		bottom: 0.25rem;
+		left: 50%;
+		width: 0.375rem;
+		height: 0.375rem;
+		border-radius: 9999px;
+		background: rgb(59 130 246);
+		opacity: 0;
+		transform: translateX(-50%);
+	}
+
+	button[data-mini-date-key] .mini-month-event-dot-slot[data-has-event='true'] {
+		opacity: 1;
+	}
+
+	button[data-mini-date-key] .mini-month-event-dot-slot[data-has-event='true'][data-other-month='true'] {
+		opacity: 0.45;
+	}
+</style>
