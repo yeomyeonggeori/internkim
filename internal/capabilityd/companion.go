@@ -95,11 +95,8 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 	if isFlowTaskTool(request.ToolName) {
 		return service.invokeFlowTaskTool(ctx, request)
 	}
-	if request.ToolName == "platform.dm.send" {
-		return service.invokePlatformDMSend(ctx, request)
-	}
-	if request.ToolName == "platform.dm.inspect" {
-		return service.invokePlatformDMInspect(ctx, request)
+	if isPlatformMessageTool(request.ToolName) {
+		return service.invokePlatformMessageTool(ctx, request)
 	}
 	if isMattermostTool(request.ToolName) {
 		return service.invokeMattermostTool(ctx, request)

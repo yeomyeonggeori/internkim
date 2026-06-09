@@ -14,6 +14,7 @@ const (
 
 const (
 	BoardJetsonOrinNano = "jetson-orin-nano"
+	BoardCloudShared    = "cloud-shared"
 	BoardSimulation     = "sim"
 )
 

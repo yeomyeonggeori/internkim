@@ -9,7 +9,6 @@ import (
 
 var StepBlueclawConfiguration = Step{
 	Name: "blueclaw-config",
-	Deps: []string{"blueclaw-runtime-base"},
 	Title: func(context *Context) string {
 		return context.T("Blueclaw 런타임 설정 배포 중...", "Deploying Blueclaw runtime configuration...")
 	},

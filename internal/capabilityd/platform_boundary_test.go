@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +19,8 @@ import (
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
+
+const testFutureMattermostPostCreateAt = int64(4102444800000)
 
 func TestMattermostNormalizeSkipsSelfAndBuildsMinimalThreadEvent(t *testing.T) {
 	event, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
@@ -894,26 +897,148 @@ func TestMattermostPollerSeedsWatermarkWithoutReplayingDirectMessage(t *testing.
 	configuration.MattermostTokenPath = tokenPath
 	configuration.BlueclawBaseURL = "http://blueclaw.test"
 	service := Service{Configuration: configuration, HTTPClient: httpClient}
-	lastSeenByChannel := map[string]int64{}
+	pollState := &mattermostPollState{LastSeenByChannel: map[string]int64{}}
 
-	if errorValue := service.pollMattermost(context.Background(), lastSeenByChannel); errorValue != nil {
+	if errorValue := service.pollMattermost(context.Background(), pollState); errorValue != nil {
 		t.Fatalf("expected first poll to seed watermark: %v", errorValue)
 	}
 	if forwardedCount != 0 {
 		t.Fatalf("expected first poll not to replay old dm, got %d forwards", forwardedCount)
 	}
-	if lastSeenByChannel["dm-1"] != 1000 {
-		t.Fatalf("expected dm watermark to seed at latest existing post, got %d", lastSeenByChannel["dm-1"])
+	if pollState.LastSeenByChannel["dm-1"] <= 0 {
+		t.Fatalf("expected dm watermark to seed, got %d", pollState.LastSeenByChannel["dm-1"])
 	}
 
-	if errorValue := service.pollMattermost(context.Background(), lastSeenByChannel); errorValue != nil {
+	if errorValue := service.pollMattermost(context.Background(), pollState); errorValue != nil {
 		t.Fatalf("expected second poll to forward new message: %v", errorValue)
 	}
 	if forwardedCount != 1 {
 		t.Fatalf("expected only new dm to be forwarded once, got %d forwards", forwardedCount)
 	}
-	if lastSeenByChannel["dm-1"] != 2000 {
-		t.Fatalf("expected dm watermark to advance, got %d", lastSeenByChannel["dm-1"])
+	if pollState.LastSeenByChannel["dm-1"] != testFutureMattermostPostCreateAt {
+		t.Fatalf("expected dm watermark to advance, got %d", pollState.LastSeenByChannel["dm-1"])
+	}
+}
+
+func TestMattermostPollerForwardsFirstMessageInNewDirectChannel(t *testing.T) {
+	forwardedCount := 0
+	channelListRequestCount := 0
+	newPostCreateAt := time.Now().UnixMilli() + 1000
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Host == "blueclaw.test" {
+			forwardedCount++
+			return handleTestBlueclawForward(t, request)
+		}
+		if request.URL.Host != "mattermost.test" {
+			t.Fatalf("unexpected request host: %s", request.URL.Host)
+		}
+		switch {
+		case request.URL.Path == "/api/v4/users/me":
+			return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1", "username": "internkim"}), nil
+		case request.URL.Path == "/api/v4/users/bot-1/channels":
+			channelListRequestCount++
+			if channelListRequestCount == 1 {
+				return testJSONResponse(http.StatusOK, []map[string]string{{"id": "dm-1", "type": "D", "name": "user-1__bot-1"}}), nil
+			}
+			return testJSONResponse(http.StatusOK, []map[string]string{
+				{"id": "dm-1", "type": "D", "name": "user-1__bot-1"},
+				{"id": "dm-2", "type": "D", "name": "user-1__bot-1"},
+			}), nil
+		case request.URL.Path == "/api/v4/channels/dm-1/posts" && request.URL.Query().Get("since") != "":
+			return testJSONResponse(http.StatusOK, mattermostPostsResponse{Order: []string{}, Posts: map[string]mattermostPolledPost{}}), nil
+		case request.URL.Path == "/api/v4/channels/dm-2/posts" && request.URL.Query().Get("since") != "":
+			return testJSONResponse(http.StatusOK, mattermostPostsResponse{
+				Order: []string{"new-2"},
+				Posts: map[string]mattermostPolledPost{
+					"new-2": {ID: "new-2", UserID: "user-1", ChannelID: "dm-2", Message: "new dm", CreateAt: newPostCreateAt, FileIDs: []string{"file-1"}},
+				},
+			}), nil
+		case request.URL.Path == "/api/v4/channels/dm-2/posts" && request.URL.Query().Get("per_page") == "21":
+			return testJSONResponse(http.StatusOK, mattermostPostsResponse{
+				Order: []string{"new-2"},
+				Posts: map[string]mattermostPolledPost{
+					"new-2": {ID: "new-2", UserID: "user-1", ChannelID: "dm-2", Message: "new dm", CreateAt: newPostCreateAt, FileIDs: []string{"file-1"}},
+				},
+			}), nil
+		case request.URL.Path == "/api/v4/users/user-1":
+			return testJSONResponse(http.StatusOK, map[string]string{
+				"id":         "user-1",
+				"email":      "seoyeon@example.com",
+				"username":   "seoyeon",
+				"first_name": "서연",
+				"last_name":  "이",
+				"nickname":   "이서연",
+			}), nil
+		default:
+			t.Fatalf("unexpected Mattermost request: %s?%s", request.URL.Path, request.URL.RawQuery)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+
+	tokenPath := t.TempDir() + "/mattermost-token"
+	if errorValue := os.WriteFile(tokenPath, []byte("test-token\n"), 0o600); errorValue != nil {
+		t.Fatalf("expected token file to be written: %v", errorValue)
+	}
+	configuration := DefaultConfiguration()
+	configuration.MattermostBaseURL = "http://mattermost.test"
+	configuration.MattermostTokenPath = tokenPath
+	configuration.BlueclawBaseURL = "http://blueclaw.test"
+	service := Service{Configuration: configuration, HTTPClient: httpClient}
+	pollState := &mattermostPollState{LastSeenByChannel: map[string]int64{}}
+
+	if errorValue := service.pollMattermost(context.Background(), pollState); errorValue != nil {
+		t.Fatalf("expected initial poll to seed existing channel: %v", errorValue)
+	}
+	if forwardedCount != 0 {
+		t.Fatalf("expected no forward during initial seed, got %d", forwardedCount)
+	}
+	if errorValue := service.pollMattermost(context.Background(), pollState); errorValue != nil {
+		t.Fatalf("expected new channel poll to forward first message: %v", errorValue)
+	}
+	if forwardedCount != 1 {
+		t.Fatalf("expected new direct channel first message to be forwarded, got %d forwards", forwardedCount)
+	}
+	if pollState.LastSeenByChannel["dm-2"] != newPostCreateAt {
+		t.Fatalf("expected new channel watermark to advance, got %d", pollState.LastSeenByChannel["dm-2"])
+	}
+}
+
+func TestMattermostBotChannelsPaginates(t *testing.T) {
+	requestedPages := []string{}
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Host != "mattermost.test" {
+			t.Fatalf("unexpected request host: %s", request.URL.Host)
+		}
+		if request.URL.Path != "/api/v4/users/bot-1/channels" {
+			t.Fatalf("unexpected Mattermost request: %s?%s", request.URL.Path, request.URL.RawQuery)
+		}
+		requestedPages = append(requestedPages, request.URL.Query().Get("page"))
+		if request.URL.Query().Get("page") == "0" {
+			channels := make([]mattermostBotChannel, 200)
+			for index := range channels {
+				channels[index] = mattermostBotChannel{ID: fmt.Sprintf("old-%d", index), Type: "D"}
+			}
+			return testJSONResponse(http.StatusOK, channels), nil
+		}
+		return testJSONResponse(http.StatusOK, []mattermostBotChannel{{ID: "new-dm", Type: "D"}}), nil
+	})}
+	service := Service{
+		Configuration: Configuration{MattermostBaseURL: "http://mattermost.test", MattermostTokenPath: writePlatformTestFile(t, "test-token")},
+		HTTPClient:    httpClient,
+	}
+
+	channels, errorValue := service.mattermostBotChannels(context.Background(), "bot-1")
+	if errorValue != nil {
+		t.Fatalf("expected channels to load: %v", errorValue)
+	}
+	if len(channels) != 201 {
+		t.Fatalf("expected paginated channels, got %d", len(channels))
+	}
+	if channels[200].ID != "new-dm" {
+		t.Fatalf("expected second page channel, got %+v", channels[200])
+	}
+	if strings.Join(requestedPages, ",") != "0,1" {
+		t.Fatalf("expected page 0 and 1, got %v", requestedPages)
 	}
 }
 
@@ -938,16 +1063,16 @@ func TestMattermostPollerDoesNotAdvanceWatermarkWhenBlueclawForwardFails(t *test
 	configuration.MattermostTokenPath = tokenPath
 	configuration.BlueclawBaseURL = "http://blueclaw.test"
 	service := Service{Configuration: configuration, HTTPClient: httpClient}
-	lastSeenByChannel := map[string]int64{"dm-1": 1000}
+	pollState := &mattermostPollState{LastSeenByChannel: map[string]int64{"dm-1": 1000}, IsInitialized: true}
 
-	if errorValue := service.pollMattermost(context.Background(), lastSeenByChannel); errorValue != nil {
+	if errorValue := service.pollMattermost(context.Background(), pollState); errorValue != nil {
 		t.Fatalf("expected failed forward to stay in poll loop: %v", errorValue)
 	}
 	if forwardedCount != 1 {
 		t.Fatalf("expected one forward attempt, got %d", forwardedCount)
 	}
-	if lastSeenByChannel["dm-1"] != 1000 {
-		t.Fatalf("expected watermark to remain at failed event, got %d", lastSeenByChannel["dm-1"])
+	if pollState.LastSeenByChannel["dm-1"] != 1000 {
+		t.Fatalf("expected watermark to remain at failed event, got %d", pollState.LastSeenByChannel["dm-1"])
 	}
 }
 
@@ -2144,19 +2269,12 @@ func handleTestMattermostPoll(t *testing.T, request *http.Request) *http.Respons
 		return testJSONResponse(http.StatusOK, map[string]string{"id": "bot-1", "username": "internkim"})
 	case request.URL.Path == "/api/v4/users/bot-1/channels":
 		return testJSONResponse(http.StatusOK, []map[string]string{{"id": "dm-1", "type": "D", "name": "user-1__bot-1"}})
-	case request.URL.Path == "/api/v4/channels/dm-1/posts" && request.URL.Query().Get("per_page") == "1":
-		return testJSONResponse(http.StatusOK, mattermostPostsResponse{
-			Order: []string{"old-1"},
-			Posts: map[string]mattermostPolledPost{
-				"old-1": {ID: "old-1", UserID: "user-1", ChannelID: "dm-1", Message: "old dm", CreateAt: 1000},
-			},
-		})
-	case request.URL.Path == "/api/v4/channels/dm-1/posts" && request.URL.Query().Get("since") == "1000":
+	case request.URL.Path == "/api/v4/channels/dm-1/posts" && request.URL.Query().Get("since") != "":
 		return testJSONResponse(http.StatusOK, mattermostPostsResponse{
 			Order: []string{"new-1", "old-1"},
 			Posts: map[string]mattermostPolledPost{
 				"old-1": {ID: "old-1", UserID: "user-1", ChannelID: "dm-1", Message: "old dm", CreateAt: 1000},
-				"new-1": {ID: "new-1", UserID: "user-1", ChannelID: "dm-1", Message: "new dm", CreateAt: 2000, FileIDs: []string{"file-1"}},
+				"new-1": {ID: "new-1", UserID: "user-1", ChannelID: "dm-1", Message: "new dm", CreateAt: testFutureMattermostPostCreateAt, FileIDs: []string{"file-1"}},
 			},
 		})
 	case request.URL.Path == "/api/v4/channels/dm-1/posts" && request.URL.Query().Get("per_page") == "21":

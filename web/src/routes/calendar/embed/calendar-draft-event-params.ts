@@ -40,6 +40,49 @@ export function monthSingleDayDraftEventParams(dateKey: string): DraftEventParam
 	};
 }
 
+export function timelineSingleDraftEventParams(startDate: Date): DraftEventParams {
+	const normalizedStartDate = normalizedTimelineDate(startDate);
+	const endDate = new Date(normalizedStartDate);
+	endDate.setHours(normalizedStartDate.getHours() + 1, normalizedStartDate.getMinutes(), 0, 0);
+	return {
+		id: draftEventID('timeline'),
+		start: normalizedStartDate,
+		end: endDate,
+		allDay: false,
+		calendarId: 'internkim'
+	};
+}
+
+export function timelineRangeDraftEventParams(firstDate: Date, secondDate: Date): DraftEventParams {
+	const [startDate, endDate] = orderedTimelineRangeDates(firstDate, secondDate);
+	return {
+		id: draftEventID('timeline'),
+		start: startDate,
+		end: endDate,
+		allDay: false,
+		calendarId: 'internkim'
+	};
+}
+
+export function orderedTimelineRangeDates(firstDate: Date, secondDate: Date): [Date, Date] {
+	const normalizedFirstDate = normalizedTimelineDate(firstDate);
+	const normalizedSecondDate = normalizedTimelineDate(secondDate);
+	const startDate =
+		normalizedFirstDate.getTime() <= normalizedSecondDate.getTime() ? normalizedFirstDate : normalizedSecondDate;
+	const endDate =
+		normalizedFirstDate.getTime() <= normalizedSecondDate.getTime() ? normalizedSecondDate : normalizedFirstDate;
+	if (endDate.getTime() - startDate.getTime() < 30 * 60 * 1000) {
+		endDate.setTime(startDate.getTime() + 30 * 60 * 1000);
+	}
+	return [startDate, endDate];
+}
+
+function normalizedTimelineDate(date: Date): Date {
+	const normalizedDate = new Date(date);
+	normalizedDate.setSeconds(0, 0);
+	return normalizedDate;
+}
+
 function draftEventID(prefix: string): string {
 	return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }

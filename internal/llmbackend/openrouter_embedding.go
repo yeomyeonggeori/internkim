@@ -13,10 +13,12 @@ import (
 )
 
 type OpenRouterEmbeddingBackend struct {
-	KeyPath    string
-	BaseURL    string
-	ModelName  string
-	HTTPClient *http.Client
+	KeyPath             string
+	BaseURL             string
+	ModelName           string
+	GatewaySecretPath   string
+	GatewaySecretHeader string
+	HTTPClient          *http.Client
 }
 
 type openRouterEmbeddingRequest struct {
@@ -83,10 +85,14 @@ func (backend OpenRouterEmbeddingBackend) resolveAPIKey() (string, error) {
 
 func (backend OpenRouterEmbeddingBackend) resolveModelName(requestedModel string) string {
 	normalized := strings.TrimSpace(requestedModel)
-	if normalized == "" || strings.EqualFold(normalized, "default") || isLocalModelReference(normalized) {
+	if normalized == "" || strings.EqualFold(normalized, "default") || isLocalModelReference(normalized) || isLocalEmbeddingModelReference(normalized) {
 		return strings.TrimSpace(backend.ModelName)
 	}
 	return normalized
+}
+
+func isLocalEmbeddingModelReference(modelName string) bool {
+	return strings.EqualFold(strings.TrimSpace(modelName), DefaultEmbeddingGemmaModel)
 }
 
 func (backend OpenRouterEmbeddingBackend) send(ctx context.Context, apiKey string, requestDocument []byte) (EmbeddingResponse, error) {
@@ -96,6 +102,9 @@ func (backend OpenRouterEmbeddingBackend) send(ctx context.Context, apiKey strin
 	}
 	httpRequest.Header.Set("Authorization", "Bearer "+apiKey)
 	httpRequest.Header.Set("Content-Type", "application/json")
+	if gatewaySecret := readOpenRouterKey(backend.GatewaySecretPath); strings.TrimSpace(gatewaySecret) != "" {
+		httpRequest.Header.Set(firstNonEmpty(backend.GatewaySecretHeader, "X-InternKim-Gateway-Secret"), strings.TrimSpace(gatewaySecret))
+	}
 
 	httpResponse, errorValue := backend.client().Do(httpRequest)
 	if errorValue != nil {

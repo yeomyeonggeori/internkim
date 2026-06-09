@@ -72,9 +72,14 @@ func TestGoogleWorkspaceToolsAreNotDefaultDeviceCapabilities(t *testing.T) {
 }
 
 func TestMattermostToolsAreDefaultCapabilities(t *testing.T) {
-	for _, toolName := range []string{"mattermost.channel.posts.list", "mattermost.channel.post", "mattermost.post.update", "mattermost.post.delete", "mattermost.channel.update"} {
+	for _, toolName := range []string{"platform.message.context", "platform.message.search", "platform.message.send", "platform.message.update", "platform.message.delete", "mattermost.channel.update"} {
 		if !containsString(DefaultToolNames(), toolName) {
 			t.Fatalf("expected default tools to include %q, got %+v", toolName, DefaultToolNames())
+		}
+	}
+	for _, toolName := range []string{"platform.dm.send", "platform.dm.inspect", "mattermost.context.inspect", "mattermost.post.search", "mattermost.channel.posts.list", "mattermost.channel.post", "mattermost.post.update", "mattermost.post.delete"} {
+		if containsString(DefaultToolNames(), toolName) {
+			t.Fatalf("expected default tools to omit old message tool %q, got %+v", toolName, DefaultToolNames())
 		}
 	}
 }
@@ -102,52 +107,42 @@ func TestFlowDescriptorIncludesTaskUpdateInput(t *testing.T) {
 	assertDescriptorCompletionEvidence(t, FlowDescriptors(), "flow.task.update", "success", "write_task", "task")
 }
 
-func TestPlatformDMDescriptorRequiresRecipientAndMessage(t *testing.T) {
-	schema := descriptorSchema(t, PlatformMessageDescriptors(), "platform.dm.send")
+func TestPlatformMessageDescriptorsMatchMessageInputs(t *testing.T) {
+	contextSchema := descriptorSchema(t, PlatformMessageDescriptors(), "platform.message.context")
+	searchSchema := descriptorSchema(t, PlatformMessageDescriptors(), "platform.message.search")
+	sendSchema := descriptorSchema(t, PlatformMessageDescriptors(), "platform.message.send")
+	updateSchema := descriptorSchema(t, PlatformMessageDescriptors(), "platform.message.update")
+	deleteSchema := descriptorSchema(t, PlatformMessageDescriptors(), "platform.message.delete")
 
-	assertSchemaHasProperties(t, schema, "recipientHint", "message", "platform", "reason")
-	assertSchemaRequires(t, schema, "recipientHint", "message")
-	assertDescriptorApproval(t, PlatformMessageDescriptors(), "platform.dm.send", true)
-}
-
-func TestPlatformDMInspectDescriptorIsReadOnly(t *testing.T) {
-	schema := descriptorSchema(t, PlatformMessageDescriptors(), "platform.dm.inspect")
-
-	assertSchemaHasProperties(t, schema, "recipientHint", "platform")
-	assertDescriptorApproval(t, PlatformMessageDescriptors(), "platform.dm.inspect", false)
-	descriptor := descriptorForTool(t, PlatformMessageDescriptors(), "platform.dm.inspect")
-	if descriptor.SideEffectClass != "read" {
-		t.Fatalf("platform.dm.inspect side effect class = %q", descriptor.SideEffectClass)
-	}
+	assertSchemaHasProperties(t, contextSchema)
+	assertSchemaHasProperties(t, searchSchema, "scope", "deliveryTarget", "authoredBy", "queries", "limit", "cursor")
+	assertSchemaOmitsProperties(t, searchSchema, "query")
+	assertSchemaHasProperties(t, sendSchema, "deliveryTarget", "message", "pin", "reason")
+	assertSchemaRequires(t, sendSchema, "deliveryTarget", "message")
+	assertSchemaHasProperties(t, updateSchema, "messageID", "message", "isPinned")
+	assertSchemaRequires(t, updateSchema, "messageID")
+	assertSchemaHasProperties(t, deleteSchema, "messageIDs")
+	assertSchemaRequires(t, deleteSchema, "messageIDs")
+	assertSchemaOmitsProperties(t, deleteSchema, "scope", "deliveryTarget", "authoredBy", "query", "queries", "limit", "cursor")
+	assertDescriptorApproval(t, PlatformMessageDescriptors(), "platform.message.context", false)
+	assertDescriptorApproval(t, PlatformMessageDescriptors(), "platform.message.search", false)
+	assertDescriptorApproval(t, PlatformMessageDescriptors(), "platform.message.send", true)
+	assertDescriptorApproval(t, PlatformMessageDescriptors(), "platform.message.update", true)
+	assertDescriptorApproval(t, PlatformMessageDescriptors(), "platform.message.delete", true)
+	assertDescriptorCompletionEvidence(t, PlatformMessageDescriptors(), "platform.message.send", "success", "send_message", "message")
+	assertDescriptorCompletionEvidence(t, PlatformMessageDescriptors(), "platform.message.update", "success", "update_message", "message")
+	assertDescriptorCompletionEvidence(t, PlatformMessageDescriptors(), "platform.message.delete", "success", "delete_message", "message")
 }
 
 func TestMattermostDescriptorsMatchSkillInputs(t *testing.T) {
 	descriptors := MattermostDescriptors()
-	listSchema := descriptorSchema(t, descriptors, "mattermost.channel.posts.list")
-	postSchema := descriptorSchema(t, descriptors, "mattermost.channel.post")
-	updateSchema := descriptorSchema(t, descriptors, "mattermost.post.update")
-	deleteSchema := descriptorSchema(t, descriptors, "mattermost.post.delete")
 	channelUpdateSchema := descriptorSchema(t, descriptors, "mattermost.channel.update")
 
-	assertSchemaHasProperties(t, listSchema, "channelID", "channelName", "page", "perPage")
-	assertSchemaHasProperties(t, postSchema, "channelID", "channelName", "message", "pin")
-	assertSchemaRequires(t, postSchema, "message")
-	assertSchemaHasProperties(t, updateSchema, "postID", "message", "isPinned")
-	assertSchemaRequires(t, updateSchema, "postID")
-	assertSchemaHasProperties(t, deleteSchema, "postID")
-	assertSchemaRequires(t, deleteSchema, "postID")
 	assertSchemaHasProperties(t, channelUpdateSchema, "channelID", "channelName", "header", "displayName", "inviteeHints")
-	assertDescriptorApproval(t, descriptors, "mattermost.channel.posts.list", false)
-	assertDescriptorApproval(t, descriptors, "mattermost.channel.post", true)
-	assertDescriptorApproval(t, descriptors, "mattermost.post.update", true)
-	assertDescriptorApproval(t, descriptors, "mattermost.post.delete", true)
 	assertDescriptorApproval(t, descriptors, "mattermost.channel.update", true)
 	if descriptorForTool(t, descriptors, "mattermost.channel.update").PolicyResource != "tool:mattermost.channel.update" {
 		t.Fatalf("unexpected channel update policy resource")
 	}
-	assertDescriptorCompletionEvidence(t, descriptors, "mattermost.channel.post", "success", "post_message", "channel")
-	assertDescriptorCompletionEvidence(t, descriptors, "mattermost.post.update", "success", "update_message", "message")
-	assertDescriptorCompletionEvidence(t, descriptors, "mattermost.post.delete", "success", "delete_message", "message")
 	assertDescriptorCompletionEvidence(t, descriptors, "mattermost.channel.update", "success", "update_channel", "channel")
 }
 
@@ -231,8 +226,8 @@ func TestArtifactReviewDescriptorUsesImageEvidenceInputs(t *testing.T) {
 }
 
 func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
-	assertDescriptorApproval(t, PlatformMessageDescriptors(), "platform.dm.send", true)
-	assertDescriptorApproval(t, MattermostDescriptors(), "mattermost.channel.post", true)
+	assertDescriptorApproval(t, PlatformMessageDescriptors(), "platform.message.send", true)
+	assertDescriptorApproval(t, PlatformMessageDescriptors(), "platform.message.delete", true)
 	assertDescriptorApproval(t, MattermostDescriptors(), "mattermost.channel.update", true)
 	assertDescriptorApproval(t, CalendarDescriptors(), "calendar.event.add", false)
 	assertDescriptorApproval(t, MailDescriptors(), "mail.message.send", true)
@@ -249,7 +244,7 @@ func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
 }
 
 func TestCapabilityDescriptorsExposeCompletionEvidence(t *testing.T) {
-	assertDescriptorCompletionEvidence(t, PlatformMessageDescriptors(), "platform.dm.send", "success", "send_message", "person")
+	assertDescriptorCompletionEvidence(t, PlatformMessageDescriptors(), "platform.message.send", "success", "send_message", "message")
 	assertDescriptorCompletionEvidence(t, MailDescriptors(), "mail.message.send", "success", "send_email", "email")
 	assertDescriptorCompletionEvidence(t, CalendarDescriptors(), "calendar.event.add", "success", "write_calendar", "calendar")
 	assertDescriptorCompletionEvidence(t, SiteAppDescriptors(), "site.app.publish", "success", "publish_site", "site")
