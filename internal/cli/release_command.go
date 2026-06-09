@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,6 +24,18 @@ import (
 type releaseBlob struct {
 	component releaseset.Component
 	path      string
+}
+
+type releaseObjectPublisher interface {
+	PutObject(objectKey string, document []byte, contentType string) error
+	PublicURL(objectKey string) string
+}
+
+type wranglerReleasePublisher struct {
+	accountID     string
+	bucket        string
+	commandPath   string
+	publicBaseURL string
 }
 
 func runRelease() {
@@ -53,6 +66,7 @@ func printReleaseUsage() {
 	fmt.Println("  INTERNKIM_RELEASE_R2_ACCESS_KEY_ID")
 	fmt.Println("  INTERNKIM_RELEASE_R2_SECRET_ACCESS_KEY")
 	fmt.Println("  INTERNKIM_RELEASE_PUBLIC_BASE_URL")
+	fmt.Println("  INTERNKIM_RELEASE_R2_PUBLISHER optional: s3 or wrangler")
 	fmt.Println("  INTERNKIM_RELEASE_SIGNING_KEY optional")
 }
 
@@ -84,7 +98,7 @@ func runReleasePublish(arguments []string) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	r2Client, errorValue := releaseR2Client()
+	publisher, errorValue := releasePublisherFromEnvironment(repositoryRootPath)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -93,25 +107,25 @@ func runReleasePublish(arguments []string) error {
 		if errorValue != nil {
 			return errorValue
 		}
-		if errorValue := r2Client.PutObject(blob.component.BlobPath, document, "application/gzip"); errorValue != nil {
+		if errorValue := publisher.PutObject(blob.component.BlobPath, document, "application/gzip"); errorValue != nil {
 			return errorValue
 		}
 		fmt.Printf("uploaded %s %s\n", blob.component.Name, blob.component.SHA256[:12])
 	}
 	manifestKey := "releases/" + releaseID + "/manifest.json"
-	if errorValue := r2Client.PutObject(manifestKey, append(manifestDocument, '\n'), "application/json"); errorValue != nil {
+	if errorValue := publisher.PutObject(manifestKey, append(manifestDocument, '\n'), "application/json"); errorValue != nil {
 		return errorValue
 	}
 	pointer := releaseset.StablePointer{
 		ReleaseID:   releaseID,
-		ManifestURL: r2Client.PublicURL(manifestKey),
+		ManifestURL: publisher.PublicURL(manifestKey),
 		UpdatedAt:   time.Now().UTC().Format(time.RFC3339),
 	}
 	pointerDocument, errorValue := json.MarshalIndent(pointer, "", "  ")
 	if errorValue != nil {
 		return errorValue
 	}
-	if errorValue := r2Client.PutObject("channels/"+channel+".json", append(pointerDocument, '\n'), "application/json"); errorValue != nil {
+	if errorValue := publisher.PutObject("channels/"+channel+".json", append(pointerDocument, '\n'), "application/json"); errorValue != nil {
 		return errorValue
 	}
 	fmt.Printf("published %s -> %s\n", channel, releaseID)
@@ -278,12 +292,109 @@ func releaseR2Client() (releaseset.R2Client, error) {
 	})
 }
 
+func releasePublisherFromEnvironment(repositoryRootPath string) (releaseObjectPublisher, error) {
+	publisherName := strings.ToLower(strings.TrimSpace(os.Getenv("INTERNKIM_RELEASE_R2_PUBLISHER")))
+	if publisherName == "" || publisherName == "s3" {
+		return releaseR2Client()
+	}
+	if publisherName == "wrangler" {
+		return releaseWranglerPublisher(repositoryRootPath)
+	}
+	return nil, fmt.Errorf("unsupported INTERNKIM_RELEASE_R2_PUBLISHER %q", publisherName)
+}
+
+func releaseWranglerPublisher(repositoryRootPath string) (wranglerReleasePublisher, error) {
+	bucket := strings.TrimSpace(os.Getenv("INTERNKIM_RELEASE_R2_BUCKET"))
+	if bucket == "" {
+		return wranglerReleasePublisher{}, errors.New("INTERNKIM_RELEASE_R2_BUCKET is required")
+	}
+	publicBaseURL := strings.TrimSpace(os.Getenv("INTERNKIM_RELEASE_PUBLIC_BASE_URL"))
+	if publicBaseURL == "" {
+		return wranglerReleasePublisher{}, errors.New("INTERNKIM_RELEASE_PUBLIC_BASE_URL is required")
+	}
+	return wranglerReleasePublisher{
+		accountID:     strings.TrimSpace(os.Getenv("INTERNKIM_RELEASE_R2_ACCOUNT_ID")),
+		bucket:        bucket,
+		commandPath:   releaseWranglerCommandPath(repositoryRootPath),
+		publicBaseURL: publicBaseURL,
+	}, nil
+}
+
+func releaseWranglerCommandPath(repositoryRootPath string) string {
+	if commandPath := strings.TrimSpace(os.Getenv("INTERNKIM_RELEASE_WRANGLER_BIN")); commandPath != "" {
+		return commandPath
+	}
+	localCommandPath := filepath.Join(repositoryRootPath, "web", "node_modules", ".bin", "wrangler")
+	if information, errorValue := os.Stat(localCommandPath); errorValue == nil && !information.IsDir() {
+		return localCommandPath
+	}
+	return "wrangler"
+}
+
+func (publisher wranglerReleasePublisher) PublicURL(objectKey string) string {
+	return strings.TrimRight(strings.TrimSpace(publisher.publicBaseURL), "/") + "/" + strings.TrimLeft(filepath.ToSlash(objectKey), "/")
+}
+
+func (publisher wranglerReleasePublisher) PutObject(objectKey string, document []byte, contentType string) error {
+	temporaryDirectoryPath, errorValue := os.MkdirTemp("", "internkim-r2-object-*")
+	if errorValue != nil {
+		return errorValue
+	}
+	defer os.RemoveAll(temporaryDirectoryPath)
+	objectDocumentPath := filepath.Join(temporaryDirectoryPath, "object")
+	if errorValue := os.WriteFile(objectDocumentPath, document, 0o600); errorValue != nil {
+		return errorValue
+	}
+	arguments := wranglerObjectPutArguments(publisher.bucket, objectKey, objectDocumentPath, contentType)
+	command := exec.Command(publisher.commandPath, arguments...)
+	command.Dir = temporaryDirectoryPath
+	command.Env = wranglerObjectPutEnvironment(os.Environ(), publisher.accountID)
+	output, errorValue := command.CombinedOutput()
+	if errorValue != nil {
+		return fmt.Errorf("wrangler R2 put object %s failed: %s", objectKey, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+func wranglerObjectPutArguments(bucket string, objectKey string, filePath string, contentType string) []string {
+	arguments := []string{
+		"r2", "object", "put", strings.TrimSpace(bucket) + "/" + strings.TrimLeft(filepath.ToSlash(objectKey), "/"),
+		"--file", filePath,
+		"--force",
+		"--remote",
+	}
+	if strings.TrimSpace(contentType) != "" {
+		arguments = append(arguments, "--content-type", strings.TrimSpace(contentType))
+	}
+	return arguments
+}
+
+func wranglerObjectPutEnvironment(environment []string, accountID string) []string {
+	filteredEnvironment := []string{}
+	for _, value := range environment {
+		name := strings.SplitN(value, "=", 2)[0]
+		if name == "CF_API_TOKEN" || name == "CLOUDFLARE_API_TOKEN" || name == "CF_ACCOUNT_ID" || name == "CLOUDFLARE_ACCOUNT_ID" {
+			continue
+		}
+		filteredEnvironment = append(filteredEnvironment, value)
+	}
+	if strings.TrimSpace(accountID) != "" {
+		filteredEnvironment = append(filteredEnvironment, "CLOUDFLARE_ACCOUNT_ID="+strings.TrimSpace(accountID))
+	}
+	return filteredEnvironment
+}
+
 func fetchReleaseStablePointer(channel string) (releaseset.StablePointer, error) {
 	publicBaseURL := strings.TrimRight(os.Getenv("INTERNKIM_RELEASE_PUBLIC_BASE_URL"), "/")
 	if publicBaseURL == "" {
 		return releaseset.StablePointer{}, errors.New("INTERNKIM_RELEASE_PUBLIC_BASE_URL is required")
 	}
-	response, errorValue := statusHTTPClient.Get(publicBaseURL + "/channels/" + channel + ".json")
+	request, errorValue := http.NewRequest(http.MethodGet, publicBaseURL+"/channels/"+channel+".json", nil)
+	if errorValue != nil {
+		return releaseset.StablePointer{}, errorValue
+	}
+	addReleaseDownloadHeaders(request)
+	response, errorValue := statusHTTPClient.Do(request)
 	if errorValue != nil {
 		return releaseset.StablePointer{}, errorValue
 	}
@@ -296,6 +407,14 @@ func fetchReleaseStablePointer(channel string) (releaseset.StablePointer, error)
 		return releaseset.StablePointer{}, errorValue
 	}
 	return pointer, nil
+}
+
+func addReleaseDownloadHeaders(request *http.Request) {
+	token := strings.TrimSpace(os.Getenv("INTERNKIM_RELEASE_DOWNLOAD_TOKEN"))
+	if token == "" {
+		return
+	}
+	request.Header.Set("X-InternKim-Release-Token", token)
 }
 
 func defaultReleaseID(repositoryRootPath string) string {
