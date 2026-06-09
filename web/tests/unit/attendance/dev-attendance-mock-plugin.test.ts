@@ -64,6 +64,24 @@ describe('dev attendance mock plugin', () => {
 			reason: 'local test'
 		});
 	});
+
+	test('skips weekend dates in development absence ranges', async () => {
+		const state = createDevAttendanceMockState('kim@example.com');
+		const response = await createDevAttendanceMockResponse(state, {
+			method: 'POST',
+			pathname: '/attendance/api/absences',
+			searchParams: new URLSearchParams(),
+			body: JSON.stringify({
+				kind: 'leave',
+				startDate: '2026-05-15',
+				endDate: '2026-05-18'
+			})
+		});
+
+		expect(response?.status).toBe(200);
+		const body = response?.body as { absences: AttendanceAbsence[] } | undefined;
+		expect(body?.absences.map((absence) => absence.date)).toEqual(['2026-05-15', '2026-05-18']);
+	});
 });
 
 function hasKey(value: unknown, key: string): boolean {

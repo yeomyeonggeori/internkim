@@ -44,13 +44,23 @@ func attendanceAbsenceDates(startDate string, endDate string) ([]string, error) 
 		return nil, errors.New("attendance absence endDate must be on or after startDate")
 	}
 	dates := []string{}
+	rangeDays := 0
 	for date := start; !date.After(end); date = date.AddDate(0, 0, 1) {
-		if len(dates) >= attendanceAbsenceDateLimit {
+		if rangeDays >= attendanceAbsenceDateLimit {
 			return nil, errors.New("attendance absence range must be 366 days or fewer per request")
+		}
+		rangeDays++
+		if isAttendanceAbsenceWeekend(date) {
+			continue
 		}
 		dates = append(dates, date.Format("2006-01-02"))
 	}
 	return dates, nil
+}
+
+func isAttendanceAbsenceWeekend(date time.Time) bool {
+	weekday := date.Weekday()
+	return weekday == time.Saturday || weekday == time.Sunday
 }
 
 func parseAttendanceAbsenceDate(value string) (time.Time, error) {
