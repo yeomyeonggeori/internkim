@@ -67,12 +67,13 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]attendanceAction
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 				t.Fatal(errorValue)
 			}
-			if request.Header.Get("Authorization") != "Bearer user-token" {
-				t.Fatalf("post token = %q", request.Header.Get("Authorization"))
+			postIDPrefix := "command-post-"
+			if request.Header.Get("Authorization") == "Bearer user-token" {
+				postIDPrefix = "attendance-post-"
 			}
-			postID := "attendance-post-" + strconv.Itoa(len(posts)+1)
+			postID := postIDPrefix + strconv.Itoa(len(posts)+1)
 			posts = append(posts, attendanceActionPost{ID: postID, Message: payload["message"], RootID: payload["root_id"]})
-			return jsonResponse(http.StatusCreated, `{"id":"`+postID+`"}`, nil), nil
+			return jsonResponse(http.StatusCreated, `{"id":"`+postID+`","channel_id":"`+payload["channel_id"]+`","root_id":"`+payload["root_id"]+`","message":"`+payload["message"]+`"}`, nil), nil
 		case strings.HasPrefix(request.URL.String(), "http://mattermost.local/api/v4/posts/") && strings.HasSuffix(request.URL.String(), "/patch") && request.Method == http.MethodPut:
 			if request.Header.Get("Authorization") != "Bearer user-token" {
 				t.Fatalf("patch token = %q", request.Header.Get("Authorization"))

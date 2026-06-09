@@ -434,7 +434,19 @@ func (service *Service) mattermostProxy() http.Handler {
 
 func (service *Service) managedChannelWriteGuard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
-		if service.handleMattermostAttendancePostCreate(responseWriter, request) {
+		payload, command, isAttendanceCommand, errorValue := service.mattermostAttendancePostCreateCommand(request)
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+			return
+		}
+		if isAttendanceCommand {
+			recorder := &bodyRecordingResponseWriter{ResponseWriter: responseWriter, statusCode: http.StatusOK}
+			next.ServeHTTP(recorder, request)
+			if recorder.statusCode >= http.StatusOK && recorder.statusCode < http.StatusMultipleChoices {
+				if errorValue := service.syncMattermostAttendancePostCommand(request.Context(), request, payload, command, recorder.body.Bytes()); errorValue != nil {
+					log.Printf("Mattermost Attendance post command sync failed: %v", errorValue)
+				}
+			}
 			return
 		}
 		if !service.isMattermostManagedPostCreateRequest(request) {
@@ -505,6 +517,22 @@ type statusRecordingResponseWriter struct {
 func (responseWriter *statusRecordingResponseWriter) WriteHeader(statusCode int) {
 	responseWriter.statusCode = statusCode
 	responseWriter.ResponseWriter.WriteHeader(statusCode)
+}
+
+type bodyRecordingResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+	body       bytes.Buffer
+}
+
+func (responseWriter *bodyRecordingResponseWriter) WriteHeader(statusCode int) {
+	responseWriter.statusCode = statusCode
+	responseWriter.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (responseWriter *bodyRecordingResponseWriter) Write(document []byte) (int, error) {
+	responseWriter.body.Write(document)
+	return responseWriter.ResponseWriter.Write(document)
 }
 
 func mattermostDeletedPostID(request *http.Request) (string, bool) {
