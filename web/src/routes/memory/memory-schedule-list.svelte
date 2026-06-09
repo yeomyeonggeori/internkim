@@ -6,9 +6,14 @@
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { onMount } from 'svelte';
 	import { fetchMemorySchedules, type MemorySchedule } from './memory-schedule-api';
-	import { formatScheduleCronExpression, formatScheduleDateTime } from './memory-schedule-format';
+	import {
+		formatScheduleCronExpression,
+		formatScheduleDateTime,
+		formatScheduleInterval
+	} from './memory-schedule-format';
+	import type { MemoryText } from './text';
 
-	let { text }: { text: Record<string, string> } = $props();
+	let { text }: { text: MemoryText } = $props();
 
 	let schedules = $state<MemorySchedule[]>([]);
 	let hasLoadError = $state(false);
@@ -47,16 +52,12 @@
 	}
 
 	function scheduleTiming(schedule: MemorySchedule): string {
-		if (schedule.kind === 'cron' && schedule.cronExpression) return formatScheduleCronExpression(schedule.cronExpression, currentLocale.value);
-		if (schedule.kind === 'interval' && schedule.intervalSecond) return intervalText(schedule.intervalSecond);
+		if (schedule.kind === 'cron' && schedule.cronExpression) {
+			return formatScheduleCronExpression(schedule.cronExpression, currentLocale.value, text);
+		}
+		if (schedule.kind === 'interval' && schedule.intervalSecond) return formatScheduleInterval(schedule.intervalSecond, text);
 		if (schedule.kind === 'once') return text.scheduleOnce;
 		return text.scheduleTimingUnavailable;
-	}
-
-	function intervalText(intervalSecond: number): string {
-		if (intervalSecond % 3600 === 0) return `${intervalSecond / 3600}${text.scheduleHourInterval}`;
-		if (intervalSecond % 60 === 0) return `${intervalSecond / 60}${text.scheduleMinuteInterval}`;
-		return `${intervalSecond}${text.scheduleSecondInterval}`;
 	}
 
 	function dateTimeText(value: string | undefined, timeZone: string | undefined): string {

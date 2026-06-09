@@ -43,9 +43,22 @@ export const memoryText = {
 		scheduleOnce: '1회 실행',
 		scheduleTimingUnavailable: '일정 없음',
 		scheduleTimeUnavailable: '다음 실행 없음',
-		scheduleHourInterval: '시간마다',
-		scheduleMinuteInterval: '분마다',
-		scheduleSecondInterval: '초마다'
+		scheduleCronDailyTemplate: '매일 {time}',
+		scheduleCronWeekdaysTemplate: '평일 {time}',
+		scheduleCronWeeklyTemplate: '매주 {weekday} {time}',
+		scheduleWeekdaySunday: '일요일',
+		scheduleWeekdayMonday: '월요일',
+		scheduleWeekdayTuesday: '화요일',
+		scheduleWeekdayWednesday: '수요일',
+		scheduleWeekdayThursday: '목요일',
+		scheduleWeekdayFriday: '금요일',
+		scheduleWeekdaySaturday: '토요일',
+		scheduleHourIntervalSingularTemplate: '{count}시간마다',
+		scheduleHourIntervalTemplate: '{count}시간마다',
+		scheduleMinuteIntervalSingularTemplate: '{count}분마다',
+		scheduleMinuteIntervalTemplate: '{count}분마다',
+		scheduleSecondIntervalSingularTemplate: '{count}초마다',
+		scheduleSecondIntervalTemplate: '{count}초마다'
 	},
 	en: {
 		pageTitle: 'Memory · intern kim',
@@ -91,8 +104,23 @@ export const memoryText = {
 		scheduleOnce: 'one-time run',
 		scheduleTimingUnavailable: 'schedule unavailable',
 		scheduleTimeUnavailable: 'next run unavailable',
-		scheduleHourInterval: 'h interval',
-		scheduleMinuteInterval: 'm interval',
-		scheduleSecondInterval: 's interval'
+		scheduleCronDailyTemplate: 'Every day at {time}',
+		scheduleCronWeekdaysTemplate: 'Weekdays at {time}',
+		scheduleCronWeeklyTemplate: 'Every {weekday} at {time}',
+		scheduleWeekdaySunday: 'Sunday',
+		scheduleWeekdayMonday: 'Monday',
+		scheduleWeekdayTuesday: 'Tuesday',
+		scheduleWeekdayWednesday: 'Wednesday',
+		scheduleWeekdayThursday: 'Thursday',
+		scheduleWeekdayFriday: 'Friday',
+		scheduleWeekdaySaturday: 'Saturday',
+		scheduleHourIntervalSingularTemplate: 'Every {count} hour',
+		scheduleHourIntervalTemplate: 'Every {count} hours',
+		scheduleMinuteIntervalSingularTemplate: 'Every {count} minute',
+		scheduleMinuteIntervalTemplate: 'Every {count} minutes',
+		scheduleSecondIntervalSingularTemplate: 'Every {count} second',
+		scheduleSecondIntervalTemplate: 'Every {count} seconds'
 	}
 } as const;
+
+export type MemoryText = { readonly [Key in keyof typeof memoryText.ko]: string };

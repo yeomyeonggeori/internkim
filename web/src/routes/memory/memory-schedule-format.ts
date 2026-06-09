@@ -1,3 +1,5 @@
+import type { MemoryText } from './text';
+
 export function formatScheduleDateTime(
 	value: string | undefined,
 	timeZone: string | undefined,
@@ -14,22 +16,49 @@ export function formatScheduleDateTime(
 	}).format(date);
 }
 
-export function formatScheduleCronExpression(cronExpression: string, locale: 'ko' | 'en'): string {
+export function formatScheduleCronExpression(cronExpression: string, locale: 'ko' | 'en', text: MemoryText): string {
 	const parsedCronExpression = parseSimpleCronExpression(cronExpression);
 	if (!parsedCronExpression) return cronExpression;
 
 	const timeText = formatCronTime(parsedCronExpression.hour, parsedCronExpression.minute, locale);
 	if (parsedCronExpression.dayOfWeek === '*') {
-		return locale === 'ko' ? `매일 ${timeText}` : `Every day at ${timeText}`;
+		return fillScheduleTemplate(text.scheduleCronDailyTemplate, { time: timeText });
 	}
 	if (parsedCronExpression.dayOfWeek === '1-5') {
-		return locale === 'ko' ? `평일 ${timeText}` : `Weekdays at ${timeText}`;
+		return fillScheduleTemplate(text.scheduleCronWeekdaysTemplate, { time: timeText });
 	}
-	const weekDayText = cronWeekDayText(parsedCronExpression.dayOfWeek, locale);
+	const weekDayText = cronWeekDayText(parsedCronExpression.dayOfWeek, text);
 	if (weekDayText) {
-		return locale === 'ko' ? `매주 ${weekDayText} ${timeText}` : `Every ${weekDayText} at ${timeText}`;
+		return fillScheduleTemplate(text.scheduleCronWeeklyTemplate, {
+			time: timeText,
+			weekday: weekDayText
+		});
 	}
 	return cronExpression;
+}
+
+export function formatScheduleInterval(intervalSecond: number, text: MemoryText): string {
+	if (intervalSecond % 3600 === 0) {
+		const hourCount = intervalSecond / 3600;
+		return fillCountTemplate(
+			hourCount,
+			text.scheduleHourIntervalSingularTemplate,
+			text.scheduleHourIntervalTemplate
+		);
+	}
+	if (intervalSecond % 60 === 0) {
+		const minuteCount = intervalSecond / 60;
+		return fillCountTemplate(
+			minuteCount,
+			text.scheduleMinuteIntervalSingularTemplate,
+			text.scheduleMinuteIntervalTemplate
+		);
+	}
+	return fillCountTemplate(
+		intervalSecond,
+		text.scheduleSecondIntervalSingularTemplate,
+		text.scheduleSecondIntervalTemplate
+	);
 }
 
 type SimpleCronExpression = {
@@ -61,13 +90,33 @@ function formatCronTime(hour: number, minute: number, locale: 'ko' | 'en'): stri
 	return `${period} ${hour12}:${minute.toString().padStart(2, '0')}`;
 }
 
-function cronWeekDayText(dayOfWeek: string, locale: 'ko' | 'en'): string | undefined {
+function cronWeekDayText(dayOfWeek: string, text: MemoryText): string | undefined {
 	const dayIndex = Number(dayOfWeek);
 	if (!Number.isInteger(dayIndex) || dayIndex < 0 || dayIndex > 7) return undefined;
 	const normalizedDayIndex = dayIndex === 7 ? 0 : dayIndex;
-	const koreanWeekDays = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
-	const englishWeekDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-	return locale === 'ko' ? koreanWeekDays[normalizedDayIndex] : englishWeekDays[normalizedDayIndex];
+	const weekDays = [
+		text.scheduleWeekdaySunday,
+		text.scheduleWeekdayMonday,
+		text.scheduleWeekdayTuesday,
+		text.scheduleWeekdayWednesday,
+		text.scheduleWeekdayThursday,
+		text.scheduleWeekdayFriday,
+		text.scheduleWeekdaySaturday
+	];
+	return weekDays[normalizedDayIndex];
+}
+
+function fillScheduleTemplate(template: string, values: Record<string, string>): string {
+	return Object.entries(values).reduce(
+		(result, [key, value]) => result.replaceAll(`{${key}}`, value),
+		template
+	);
+}
+
+function fillCountTemplate(count: number, singularTemplate: string, pluralTemplate: string): string {
+	return fillScheduleTemplate(count === 1 ? singularTemplate : pluralTemplate, {
+		count: String(count)
+	});
 }
 
 function normalizeScheduleTimeZone(timeZone: string | undefined, fallbackTimeZone: string): string {
