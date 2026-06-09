@@ -157,8 +157,10 @@ func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 		t.Fatalf("expected projected tool parameters to preserve siteID, got %+v", parameters)
 	}
 	required := parameters["required"].([]any)
-	if len(required) != 3 || required[0] != "toolInput" || required[1] != "executionStateUpdate" || required[2] != "nextStepPlan" {
-		t.Fatalf("expected required field to be preserved, got %+v", parameters)
+	for _, fieldName := range []string{"executionStateUpdate", "message", "nextStepPlan", "toolInput"} {
+		if !requiredContains(required, fieldName) {
+			t.Fatalf("expected required fields to include %s, got %+v", fieldName, parameters)
+		}
 	}
 	if receivedDocument["seed"] != float64(seed) {
 		t.Fatalf("expected seed to be forwarded, got %+v", receivedDocument)
@@ -396,7 +398,7 @@ func TestNativeActionToolsRejectFunctionNameCollisions(t *testing.T) {
 	}
 }
 
-func TestNativeActionToolsOmitNestedToolInputRequiredForProviderCompatibility(t *testing.T) {
+func TestNativeActionToolsRequireEveryNestedToolInputPropertyForProviderCompatibility(t *testing.T) {
 	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
 		Name:     "blueclaw_agent_turn_action",
 		Document: testActionSchemaForDescriptors(t, capabilities.CalendarDescriptors()),
@@ -420,8 +422,10 @@ func TestNativeActionToolsOmitNestedToolInputRequiredForProviderCompatibility(t 
 		}
 	}
 	required := nativeToolInputRequired(parameters)
-	if len(required) != 0 {
-		t.Fatalf("expected nested toolInput required fields to be omitted, got %+v", parameters)
+	for _, fieldName := range []string{"title", "startISO", "endISO"} {
+		if !requiredContains(required, fieldName) {
+			t.Fatalf("expected nested toolInput required fields to include %s, got %+v", fieldName, parameters)
+		}
 	}
 	assertNativeRequiredFieldsHaveProperties(t, "calendar.event.add", parameters)
 }
@@ -548,8 +552,10 @@ func TestNativeActionToolUsesPortableInputSchemaWithoutProjection(t *testing.T) 
 		t.Fatalf("expected path property to survive projection, got %+v", toolInputProperties)
 	}
 	required := nativeToolInputRequired(parameters)
-	if len(required) != 0 {
-		t.Fatalf("expected nested toolInput required fields to be omitted, got %+v in %s", required, tool.Parameters)
+	for _, fieldName := range []string{"path", "content"} {
+		if !requiredContains(required, fieldName) {
+			t.Fatalf("expected nested toolInput required fields to include %s, got %+v in %s", fieldName, required, tool.Parameters)
+		}
 	}
 	assertNativeSchemaIsProviderSafe(t, "file.write", tool.Parameters)
 }
@@ -1259,6 +1265,15 @@ func nativeToolInputRequired(parameters map[string]any) []any {
 	}
 	required, _ := toolInput["required"].([]any)
 	return required
+}
+
+func requiredContains(required []any, expected string) bool {
+	for _, fieldName := range required {
+		if fieldName == expected {
+			return true
+		}
+	}
+	return false
 }
 
 func openRouterRequestToolParameters(t *testing.T, tools []any, functionName string) map[string]any {
