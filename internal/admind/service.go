@@ -282,7 +282,7 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startCompanionFileCleanup(ctx)
 	service.startMattermostProvisionerSync(ctx)
 	service.startMattermostCircleSync(ctx)
-	service.startMattermostProjectionSync(ctx)
+	service.startMattermostProjectionOutboxWorker(ctx)
 	service.startCalendarNotificationWorker(ctx)
 	service.startCalendarSyncWorker(ctx)
 	server := &http.Server{
@@ -321,12 +321,12 @@ func (service *Service) startMattermostCircleSync(ctx context.Context) {
 	}()
 }
 
-func (service *Service) startMattermostProjectionSync(ctx context.Context) {
+func (service *Service) startMattermostProjectionOutboxWorker(ctx context.Context) {
 	if strings.TrimSpace(readTrimmedFile(service.Configuration.MattermostAdminPasswordPath)) == "" {
 		return
 	}
 	go func() {
-		service.syncMattermostProjectionsWithTimeout(ctx)
+		service.repairMattermostProjectionsWithTimeout(ctx)
 		ticker := time.NewTicker(time.Minute)
 		defer ticker.Stop()
 		for {
@@ -334,16 +334,22 @@ func (service *Service) startMattermostProjectionSync(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				service.syncMattermostProjectionsWithTimeout(ctx)
+				service.drainMattermostProjectionOutboxWithTimeout(ctx)
 			}
 		}
 	}()
 }
 
-func (service *Service) syncMattermostProjectionsWithTimeout(ctx context.Context) {
+func (service *Service) repairMattermostProjectionsWithTimeout(ctx context.Context) {
 	syncContext, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	service.syncExistingMattermostManagedPosts(syncContext)
+}
+
+func (service *Service) drainMattermostProjectionOutboxWithTimeout(ctx context.Context) {
+	syncContext, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	service.drainMattermostManagedChannelProjections(syncContext)
 }
 
 func (service *Service) syncMattermostCirclesWithTimeout(ctx context.Context) {
