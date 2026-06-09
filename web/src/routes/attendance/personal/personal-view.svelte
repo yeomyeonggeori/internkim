@@ -11,13 +11,13 @@
 
 <div class="flex flex-col gap-4">
 	<OverviewDashboard />
-	<AbsenceForm />
 	<div class="grid grid-cols-1 gap-4 lg:grid-cols-[1.8fr_1fr]">
 		<MonthCalendar />
 		<div class="flex flex-col gap-3">
 			{#if attendance.selectedDate}
 				<DayDetailPanel />
 			{/if}
+			<AbsenceForm />
 			<SideCharts />
 		</div>
 	</div>
