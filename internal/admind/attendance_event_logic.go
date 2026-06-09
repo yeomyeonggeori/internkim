@@ -7,16 +7,47 @@ import (
 	"time"
 )
 
-func (service *Service) applyAttendanceToggle(ctx context.Context, userRecord mattermostUserRecord, userToken string, teamID string, channelID string, actionPostID string) error {
+type attendanceActionResult struct {
+	Status       string
+	ResultPostID string
+}
+
+const (
+	attendanceActionStatusCreated = "created"
+	attendanceActionStatusIgnored = "ignored"
+	attendanceActionStatusUpdated = "updated"
+)
+
+func createdAttendanceActionResult(resultPostID string) attendanceActionResult {
+	return attendanceActionResult{Status: attendanceActionStatusCreated, ResultPostID: strings.TrimSpace(resultPostID)}
+}
+
+func ignoredAttendanceActionResult() attendanceActionResult {
+	return attendanceActionResult{Status: attendanceActionStatusIgnored}
+}
+
+func updatedAttendanceActionResult(resultPostID string) attendanceActionResult {
+	return attendanceActionResult{Status: attendanceActionStatusUpdated, ResultPostID: strings.TrimSpace(resultPostID)}
+}
+
+func (result attendanceActionResult) isCreated() bool {
+	return result.Status == attendanceActionStatusCreated
+}
+
+func (result attendanceActionResult) isIgnored() bool {
+	return result.Status == attendanceActionStatusIgnored
+}
+
+func (service *Service) applyAttendanceToggle(ctx context.Context, userRecord mattermostUserRecord, userToken string, teamID string, channelID string, actionPostID string) (attendanceActionResult, error) {
 	now := time.Now().UTC()
 	database, errorValue := service.openAttendanceDatabase(ctx)
 	if errorValue != nil {
-		return errorValue
+		return attendanceActionResult{}, errorValue
 	}
 	defer database.Close()
-	lastEvent, found, errorValue := service.latestActiveAttendanceEvent(ctx, database, userRecord.ID)
+	lastEvent, found, errorValue := service.latestActiveAttendanceEventForToday(ctx, database, userRecord.ID, now)
 	if errorValue != nil {
-		return errorValue
+		return attendanceActionResult{}, errorValue
 	}
 	if found && attendanceEventOccurredWithin(lastEvent, now, attendanceDuplicateWindow) {
 		return service.handleRepeatedAttendanceClick(ctx, database, userToken, lastEvent, now)
@@ -24,19 +55,19 @@ func (service *Service) applyAttendanceToggle(ctx context.Context, userRecord ma
 	return service.createNextAttendanceEvent(ctx, database, userRecord, userToken, lastEvent, found, teamID, channelID, actionPostID, now)
 }
 
-func (service *Service) applyAttendanceAction(ctx context.Context, userRecord mattermostUserRecord, userToken string, kind string, teamID string, channelID string, actionPostID string, locationID string) error {
+func (service *Service) applyAttendanceAction(ctx context.Context, userRecord mattermostUserRecord, userToken string, kind string, teamID string, channelID string, actionPostID string, locationID string) (attendanceActionResult, error) {
 	now := time.Now().UTC()
 	database, errorValue := service.openAttendanceDatabase(ctx)
 	if errorValue != nil {
-		return errorValue
+		return attendanceActionResult{}, errorValue
 	}
 	defer database.Close()
-	lastEvent, found, errorValue := service.latestActiveAttendanceEvent(ctx, database, userRecord.ID)
+	lastEvent, found, errorValue := service.latestActiveAttendanceEventForToday(ctx, database, userRecord.ID, now)
 	if errorValue != nil {
-		return errorValue
+		return attendanceActionResult{}, errorValue
 	}
 	if shouldIgnoreAttendanceAction(kind, lastEvent, found) {
-		return nil
+		return ignoredAttendanceActionResult(), nil
 	}
 	eventLocation := attendanceLocation{}
 	if kind == attendanceKindClockIn {
@@ -48,14 +79,20 @@ func (service *Service) applyAttendanceAction(ctx context.Context, userRecord ma
 	return service.createAttendanceEventForKind(ctx, database, userRecord, userToken, kind, teamID, channelID, actionPostID, now, eventLocation)
 }
 
-func (service *Service) handleRepeatedAttendanceClick(ctx context.Context, database *sql.DB, userToken string, event attendanceEvent, occurredAt time.Time) error {
-	if strings.TrimSpace(event.RepeatedClickAt) == "" {
-		return service.markAttendanceRepeatedClick(ctx, database, event.ID, occurredAt)
-	}
-	return service.cancelAttendanceEvent(ctx, database, userToken, event, occurredAt)
+func (service *Service) latestActiveAttendanceEventForToday(ctx context.Context, database *sql.DB, mattermostUserID string, now time.Time) (attendanceEvent, bool, error) {
+	location, _ := service.workspaceTimeLocation()
+	localDate := now.In(location).Format("2006-01-02")
+	return service.latestActiveAttendanceEventForLocalDate(ctx, database, mattermostUserID, localDate)
 }
 
-func (service *Service) createNextAttendanceEvent(ctx context.Context, database *sql.DB, userRecord mattermostUserRecord, userToken string, lastEvent attendanceEvent, hasLastEvent bool, teamID string, channelID string, actionPostID string, occurredAt time.Time) error {
+func (service *Service) handleRepeatedAttendanceClick(ctx context.Context, database *sql.DB, userToken string, event attendanceEvent, occurredAt time.Time) (attendanceActionResult, error) {
+	if strings.TrimSpace(event.RepeatedClickAt) == "" {
+		return ignoredAttendanceActionResult(), service.markAttendanceRepeatedClick(ctx, database, event.ID, occurredAt)
+	}
+	return updatedAttendanceActionResult(event.ResultPostID), service.cancelAttendanceEvent(ctx, database, userToken, event, occurredAt)
+}
+
+func (service *Service) createNextAttendanceEvent(ctx context.Context, database *sql.DB, userRecord mattermostUserRecord, userToken string, lastEvent attendanceEvent, hasLastEvent bool, teamID string, channelID string, actionPostID string, occurredAt time.Time) (attendanceActionResult, error) {
 	kind := nextAttendanceKind(lastEvent, hasLastEvent)
 	eventLocation := attendanceLocation{}
 	if kind == attendanceKindClockIn {
@@ -64,20 +101,20 @@ func (service *Service) createNextAttendanceEvent(ctx context.Context, database 
 	return service.createAttendanceEventForKind(ctx, database, userRecord, userToken, kind, teamID, channelID, actionPostID, occurredAt, eventLocation)
 }
 
-func (service *Service) createAttendanceEventForKind(ctx context.Context, database *sql.DB, userRecord mattermostUserRecord, userToken string, kind string, teamID string, channelID string, actionPostID string, occurredAt time.Time, eventLocation attendanceLocation) error {
+func (service *Service) createAttendanceEventForKind(ctx context.Context, database *sql.DB, userRecord mattermostUserRecord, userToken string, kind string, teamID string, channelID string, actionPostID string, occurredAt time.Time, eventLocation attendanceLocation) (attendanceActionResult, error) {
 	adminToken, errorValue := service.mattermostAdminToken(ctx)
 	if errorValue != nil {
-		return errorValue
+		return attendanceActionResult{}, errorValue
 	}
 	if errorValue := service.deleteLatestAttendanceResultPostForUserAndKind(ctx, database, adminToken, userRecord.ID, kind); errorValue != nil {
-		return errorValue
+		return attendanceActionResult{}, errorValue
 	}
 	resultPostID, errorValue := service.postMattermostUserAttendanceMessage(ctx, userToken, channelID, actionPostID, service.attendanceMessageForKindAndLocation(kind, eventLocation))
 	if errorValue != nil {
-		return errorValue
+		return attendanceActionResult{}, errorValue
 	}
 	event := service.createAttendanceEvent(userRecord, kind, occurredAt, teamID, channelID, actionPostID, resultPostID, eventLocation)
-	return service.insertAttendanceEvent(ctx, database, event)
+	return createdAttendanceActionResult(resultPostID), service.insertAttendanceEvent(ctx, database, event)
 }
 
 func (service *Service) deleteLatestAttendanceResultPostForUserAndKind(ctx context.Context, database *sql.DB, adminToken string, mattermostUserID string, kind string) error {
