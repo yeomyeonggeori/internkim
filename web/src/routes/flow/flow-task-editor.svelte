@@ -24,7 +24,7 @@
 		goalPlaceholder: string;
 		owner: string;
 		status: string;
-		category: string;
+		business: string;
 		type: string;
 		size: string;
 		flag: string;
@@ -131,7 +131,7 @@
 					</label>
 					{#if categoryOptions.length > 1}
 						<label class="grid gap-1 text-xs font-medium text-muted-foreground">
-							{text.category}
+							{text.business}
 							<Select.Root type="single" bind:value={taskDraft.business}>
 								<Select.Trigger class="w-full">
 									{taskDraft.business || '-'}

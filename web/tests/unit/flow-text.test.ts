@@ -9,18 +9,23 @@ describe('flowText', () => {
 		expect(collectTextShape(flowText.en).sort()).toEqual(collectTextShape(flowText.ko).sort());
 	});
 
-	test('uses category copy for user-facing category labels', () => {
-		expect(flowText.ko.report.businessDistance).toBe('이번 주간 대분류 거리 분포');
-		expect(flowText.ko.definitions.category).toBe('대분류');
-		expect(flowText.ko.filters.business).toBe('대분류');
-		expect(flowText.ko.task.category).toBe('대분류');
-		expect(flowText.ko.table.business).toBe('대분류');
+	test('uses business copy for user-facing business labels', () => {
+		expect(flowText.ko.report.businessDistance).toBe('이번 주간 사업 거리 분포');
+		expect(flowText.ko.definitions.business).toBe('사업');
+		expect(flowText.ko.filters.business).toBe('사업');
+		expect(flowText.ko.task.business).toBe('사업');
+		expect(flowText.ko.table.business).toBe('사업');
 
-		expect(flowText.en.report.businessDistance).toBe('Weekly category distance');
-		expect(flowText.en.definitions.category).toBe('Category');
-		expect(flowText.en.filters.business).toBe('Category');
-		expect(flowText.en.task.category).toBe('Category');
-		expect(flowText.en.table.business).toBe('Category');
+		expect(flowText.en.report.businessDistance).toBe('Weekly business distance');
+		expect(flowText.en.definitions.business).toBe('Business');
+		expect(flowText.en.filters.business).toBe('Business');
+		expect(flowText.en.task.business).toBe('Business');
+		expect(flowText.en.table.business).toBe('Business');
+	});
+
+	test('does not keep user-facing category text keys', () => {
+		expect(collectTextShape(flowText.ko).some((path) => path.includes('category'))).toBe(false);
+		expect(collectTextShape(flowText.en).some((path) => path.includes('category'))).toBe(false);
 	});
 });
 
