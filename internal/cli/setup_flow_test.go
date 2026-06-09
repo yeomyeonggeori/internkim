@@ -265,6 +265,25 @@ func TestJetsonOnlyGoogleStillWorks(t *testing.T) {
 	}
 }
 
+func TestCloudSharedSetupSkipsHardwareAndOptionalProviderSteps(t *testing.T) {
+	selector := applySetupBoardDefaults(setup.BoardCloudShared, false, setup.Selector{})
+	for _, expectedName := range []string{"wifi", "local-llm", "google"} {
+		if !containsName(selector.Skip, expectedName) {
+			t.Fatalf("expected cloud-shared setup to skip %s, got %+v", expectedName, selector.Skip)
+		}
+	}
+}
+
+func TestCloudSharedOnlyLocalLLMCanExplicitlySelectLocalLLM(t *testing.T) {
+	selector := applySetupBoardDefaults(setup.BoardCloudShared, false, setup.Selector{Only: []string{"local-llm"}})
+	if containsName(selector.Skip, "local-llm") {
+		t.Fatalf("expected --only local-llm to avoid local-llm skip, got %+v", selector.Skip)
+	}
+	if !containsName(selector.Skip, "wifi") {
+		t.Fatalf("expected cloud-shared setup to keep skipping wifi, got %+v", selector.Skip)
+	}
+}
+
 func TestJetsonSetupDefaultsSSHCredentials(t *testing.T) {
 	username, password := resolveSetupSSHCredentials(setup.BoardJetsonOrinNano, "", "")
 	if username != jetsonDefaultUser {
