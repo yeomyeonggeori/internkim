@@ -23,7 +23,7 @@ describe('fetchAttendanceSummary', () => {
 				});
 			});
 
-			await fetchAttendanceSummary({ month: '', selectedEmail: '' });
+			await fetchAttendanceSummary({ month: '' });
 
 			expect(requestedURL).toBe('/attendance/api/summary');
 		} finally {

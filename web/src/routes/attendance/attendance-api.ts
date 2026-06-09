@@ -7,7 +7,6 @@ import type {
 
 export type AttendanceSummaryRequest = {
 	month: string;
-	selectedEmail: string;
 };
 
 export type CreateAttendanceAbsenceRequest = {
@@ -59,7 +58,6 @@ export async function toggleAttendanceOnServer(kind?: AttendanceKind, locationID
 function attendanceSummaryPath(request: AttendanceSummaryRequest): string {
 	const query = new URLSearchParams();
 	if (request.month) query.set('month', request.month);
-	if (request.selectedEmail) query.set('email', request.selectedEmail);
 	const queryString = query.toString();
 	return queryString ? `/attendance/api/summary?${queryString}` : '/attendance/api/summary';
 }

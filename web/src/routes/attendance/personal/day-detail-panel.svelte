@@ -13,7 +13,7 @@
 		attendance.summary && attendance.selectedDate
 			? attendance.summary.events.filter(
 					(event) =>
-						event.email === (attendance.selectedEmail || attendance.summary?.currentUserEmail) &&
+						event.email === attendance.summary?.currentUserEmail &&
 						event.localDate === attendance.selectedDate
 				)
 			: []
@@ -25,7 +25,7 @@
 			? absencesForDate(
 					attendance.summary.absences,
 					attendance.selectedDate,
-					attendance.selectedEmail || attendance.summary.currentUserEmail
+					attendance.summary.currentUserEmail
 				)
 			: []
 	);

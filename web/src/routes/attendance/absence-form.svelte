@@ -20,11 +20,13 @@
 	let isSubmitting = $state(false);
 	let statusMessage = $state('');
 	let errorMessage = $state('');
+	let hasEditedDateRange = $state(false);
 
 	$effect(() => {
 		const defaultDate = attendance.selectedDate || today;
-		if (!startDate) startDate = defaultDate;
-		if (!endDate) endDate = defaultDate;
+		if (hasEditedDateRange) return;
+		startDate = defaultDate;
+		endDate = defaultDate;
 	});
 
 	const kindOptions = $derived([
@@ -47,6 +49,7 @@
 				reason: reason.trim()
 			});
 			reason = '';
+			hasEditedDateRange = false;
 			statusMessage = text.absenceCreated;
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.processingFailed;
@@ -82,11 +85,29 @@
 			</label>
 			<label class="grid gap-1 text-xs font-medium text-muted-foreground">
 				<span>{text.absenceStartDate}</span>
-				<Input type="date" bind:value={startDate} max={endDate || undefined} disabled={isSubmitting} required />
+				<Input
+					type="date"
+					bind:value={startDate}
+					max={endDate || undefined}
+					disabled={isSubmitting}
+					required
+					oninput={() => {
+						hasEditedDateRange = true;
+					}}
+				/>
 			</label>
 			<label class="grid gap-1 text-xs font-medium text-muted-foreground">
 				<span>{text.absenceEndDate}</span>
-				<Input type="date" bind:value={endDate} min={startDate || undefined} disabled={isSubmitting} required />
+				<Input
+					type="date"
+					bind:value={endDate}
+					min={startDate || undefined}
+					disabled={isSubmitting}
+					required
+					oninput={() => {
+						hasEditedDateRange = true;
+					}}
+				/>
 			</label>
 			<label class="grid gap-1 text-xs font-medium text-muted-foreground sm:col-span-2">
 				<span>{text.absenceReason}</span>
