@@ -69,7 +69,23 @@ CREATE TABLE IF NOT EXISTS flow_size_definitions (
 	if errorValue := ensureFlowColumn(ctx, database, "flow_tasks", "mattermost_post_id", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureFlowChannelOutboxTable(ctx, database); errorValue != nil {
+		return errorValue
+	}
 	return seedFlowDefinitions(ctx, database)
+}
+
+func ensureFlowChannelOutboxTable(ctx context.Context, database *sql.DB) error {
+	_, errorValue := database.ExecContext(ctx, `
+	CREATE TABLE IF NOT EXISTS flow_channel_outbox (
+		task_id TEXT PRIMARY KEY,
+		attempt_count INTEGER NOT NULL DEFAULT 0,
+		last_error TEXT NOT NULL DEFAULT '',
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL,
+		last_attempted_at TEXT NOT NULL DEFAULT ''
+	)`)
+	return errorValue
 }
 
 func ensureFlowColumn(ctx context.Context, database *sql.DB, tableName string, columnName string, definition string) error {

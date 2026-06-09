@@ -2659,6 +2659,66 @@ func TestFlowMattermostNotificationCreatesUpdatesAndDeletesPost(t *testing.T) {
 	}
 }
 
+func TestFlowMattermostProjectionOutboxRetriesFailedCreate(t *testing.T) {
+	createAttempts := 0
+	service := NewService(Configuration{
+		MattermostBaseURL:           "http://mattermost.local",
+		MattermostAdminPasswordPath: writeTestFile(t, "admin-pass"),
+		MattermostBotTokenPath:      writeTestFile(t, "bot-token"),
+		FlowDatabasePath:            filepath.Join(t.TempDir(), "flow.sqlite"),
+	})
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
+			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/me":
+			return jsonResponse(http.StatusOK, `{"id":"bot-1","username":"internkim"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/username/internkim":
+			return jsonResponse(http.StatusOK, `{"id":"bot-1","username":"internkim"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim":
+			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/members" && request.Method == http.MethodPost:
+			return jsonResponse(http.StatusCreated, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/members/bot-1/schemeRoles" && request.Method == http.MethodPut:
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/posts" && request.Method == http.MethodPost:
+			createAttempts++
+			if createAttempts == 1 {
+				return jsonResponse(http.StatusServiceUnavailable, `{}`, nil), nil
+			}
+			return jsonResponse(http.StatusCreated, `{"id":"flow-post-1"}`, nil), nil
+		case isMattermostFlowSetupRequest(request):
+			return mattermostExistingFlowSetupResponse(t, request), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+	task := flowNotificationTestTask("요청")
+	if errorValue := service.writeFlowTask(context.Background(), task); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	task = service.applyFlowMattermostProjection(context.Background(), task)
+	if task.MattermostPostID != "" {
+		t.Fatalf("post id after failed projection = %q", task.MattermostPostID)
+	}
+	assertFlowProjectionOutboxCount(t, service, 1)
+
+	service.reconcileFlowMattermostProjections(context.Background())
+
+	reloadedTask, found, errorValue := service.readFlowTaskByID(context.Background(), task.ID)
+	if errorValue != nil || !found {
+		t.Fatalf("expected reloaded task: found=%v error=%v", found, errorValue)
+	}
+	if reloadedTask.MattermostPostID != "flow-post-1" {
+		t.Fatalf("post id after reconcile = %q", reloadedTask.MattermostPostID)
+	}
+	if createAttempts != 2 {
+		t.Fatalf("create attempts = %d", createAttempts)
+	}
+	assertFlowProjectionOutboxCount(t, service, 0)
+}
+
 func TestFlowMattermostNotificationReplacesAdminPostWithBotPost(t *testing.T) {
 	deletedPostIDs := []string{}
 	createdPostToken := ""
@@ -2724,6 +2784,22 @@ func TestFlowMattermostNotificationReplacesAdminPostWithBotPost(t *testing.T) {
 	}
 	if reloadedTask.MattermostPostID != "bot-post-1" {
 		t.Fatalf("reloaded post id = %q", reloadedTask.MattermostPostID)
+	}
+}
+
+func assertFlowProjectionOutboxCount(t *testing.T, service *Service, expectedCount int) {
+	t.Helper()
+	database, errorValue := service.openFlowDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	var count int
+	if errorValue := database.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM flow_channel_outbox").Scan(&count); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if count != expectedCount {
+		t.Fatalf("flow projection outbox count = %d, want %d", count, expectedCount)
 	}
 }
 

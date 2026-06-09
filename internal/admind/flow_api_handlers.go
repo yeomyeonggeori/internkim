@@ -129,7 +129,7 @@ func (service *Service) createFlowTask(responseWriter http.ResponseWriter, reque
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	task = service.syncFlowMattermostNotification(request.Context(), task)
+	task = service.applyFlowMattermostProjection(request.Context(), task)
 	service.writeJSON(responseWriter, task)
 }
 
@@ -150,7 +150,7 @@ func (service *Service) updateFlowTask(responseWriter http.ResponseWriter, reque
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	task = service.syncFlowMattermostNotification(request.Context(), task)
+	task = service.applyFlowMattermostProjection(request.Context(), task)
 	service.writeJSON(responseWriter, task)
 }
 
