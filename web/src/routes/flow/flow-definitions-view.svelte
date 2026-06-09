@@ -19,8 +19,8 @@
 		developmentExample: string;
 		otherExample: string;
 		note: string;
-		category: string;
-		categoryDescription: string;
+		business: string;
+		businessDescription: string;
 		type: string;
 		typeDescription: string;
 		adminOnly: string;
@@ -82,8 +82,8 @@
 		{@render SizeDefinitionCard()}
 		<div class="grid gap-4 lg:grid-cols-2">
 			{@render EditableListCard(
-				text.category,
-				text.categoryDescription,
+				text.business,
+				text.businessDescription,
 				categoryDrafts,
 				newCategoryText,
 				updateCategory,
