@@ -20,6 +20,14 @@ import (
 
 const releaseUpdateUploadAction = "release-update-upload"
 const releaseUpdateUploadChunkSize = 4 << 20
+const releaseUpdateHTTPTimeout = 2 * time.Minute
+
+var releaseUpdateHTTPClient = &http.Client{
+	Timeout: releaseUpdateHTTPTimeout,
+	CheckRedirect: func(request *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	},
+}
 
 type releaseUpdateUploadCreateRequest struct {
 	recoveryRequest
@@ -310,7 +318,7 @@ func postReleaseUpdateJSON(endpointURL string, requestPayload any, token string,
 		request.Header.Set("X-InternKim-Upload-Token", token)
 	}
 	attachCloudflareAccessCookie(request)
-	response, errorValue := statusHTTPClient.Do(request)
+	response, errorValue := releaseUpdateHTTPClient.Do(request)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -329,7 +337,7 @@ func putReleaseUpdateChunk(endpointURL string, token string, document []byte) er
 	}
 	request.Header.Set("X-InternKim-Upload-Token", token)
 	attachCloudflareAccessCookie(request)
-	response, errorValue := statusHTTPClient.Do(request)
+	response, errorValue := releaseUpdateHTTPClient.Do(request)
 	if errorValue != nil {
 		return errorValue
 	}

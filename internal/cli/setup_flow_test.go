@@ -30,6 +30,9 @@ func TestBlueclawPayloadUpdateHTTPClientWaitsForApply(t *testing.T) {
 	if blueclawUpdateHTTPClient.Timeout < 2*time.Minute {
 		t.Fatalf("expected Blueclaw update client to allow payload apply latency, got %s", blueclawUpdateHTTPClient.Timeout)
 	}
+	if releaseUpdateHTTPClient.Timeout < 2*time.Minute {
+		t.Fatalf("expected release update client to allow payload apply latency, got %s", releaseUpdateHTTPClient.Timeout)
+	}
 	if statusHTTPClient.Timeout >= blueclawUpdateHTTPClient.Timeout {
 		t.Fatalf("expected general status client to stay shorter than payload update client")
 	}
