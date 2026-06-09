@@ -2,6 +2,12 @@
 import { describe, expect, test } from 'bun:test';
 import { createQuickFlowTask, fetchFlowSummary } from '../../src/routes/flow/flow-api';
 
+type FetchWithPreconnect = typeof fetch & { preconnect?: unknown };
+
+function fetchPreconnect(fetchValue: typeof fetch) {
+	return (fetchValue as FetchWithPreconnect).preconnect;
+}
+
 describe('flow API', () => {
 	test('returns skipped duplicate quick task responses', async () => {
 		const originalFetch = globalThis.fetch;
@@ -13,7 +19,7 @@ describe('flow API', () => {
 						status: 'skipped_duplicate',
 						reason: 'same date and content'
 					}),
-				{ preconnect: originalFetch.preconnect }
+				{ preconnect: fetchPreconnect(originalFetch) }
 			);
 
 			const result = await createQuickFlowTask(
@@ -42,7 +48,7 @@ describe('flow API', () => {
 					requestBody = JSON.parse(String(init?.body ?? '{}'));
 					return Response.json({ id: 'task-1' });
 				},
-				{ preconnect: originalFetch.preconnect }
+				{ preconnect: fetchPreconnect(originalFetch) }
 			);
 
 			const result = await createQuickFlowTask(
@@ -75,7 +81,7 @@ describe('flow API', () => {
 		try {
 			globalThis.fetch = Object.assign(
 				async (): Promise<Response> => new Response('이미 추가된 업무입니다.', { status: 409 }),
-				{ preconnect: originalFetch.preconnect }
+				{ preconnect: fetchPreconnect(originalFetch) }
 			);
 
 			await expect(
@@ -120,7 +126,7 @@ describe('flow API', () => {
 						metrics: {}
 					});
 				},
-				{ preconnect: originalFetch.preconnect }
+				{ preconnect: fetchPreconnect(originalFetch) }
 			);
 
 			await fetchFlowSummary('', 'Could not load Flow data.');
