@@ -397,6 +397,7 @@ ExecStart=` + blueclaw.AdmindBinaryPath +
 		" --attendance-db " + filepath.Join(paths.InternKimPath, "state", "admin", "attendance.sqlite") +
 		" --admin-email-path " + filepath.Join(paths.InternKimPath, "config", "admin-email") +
 		" --device-url-path " + filepath.Join(paths.InternKimPath, "env", "device-url") +
+		" --fleet-id-path " + filepath.Join(paths.InternKimPath, "env", "fleet-id") +
 		" --openrouter-key " + filepath.Join(paths.InternKimSecretsPath, "llm-device-token") +
 		" --blueclaw-workspace " + paths.BlueclawWorkspacePath + `
 Restart=on-failure
