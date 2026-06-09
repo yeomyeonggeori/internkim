@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -263,15 +264,7 @@ func toolActionParameters(variant actionSchemaVariant) (json.RawMessage, error) 
 			}
 		}
 	}
-	content, errorValue := json.Marshal(map[string]any{
-		"type":       "object",
-		"properties": properties,
-		"required":   required,
-	})
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	return content, nil
+	return nativeStrictObjectParameters(properties, required)
 }
 
 func controlActionParameters(variant actionSchemaVariant) (json.RawMessage, error) {
@@ -288,15 +281,7 @@ func controlActionParameters(variant actionSchemaVariant) (json.RawMessage, erro
 			required = append(required, fieldName)
 		}
 	}
-	content, errorValue := json.Marshal(map[string]any{
-		"type":       "object",
-		"properties": properties,
-		"required":   required,
-	})
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	return content, nil
+	return nativeStrictObjectParameters(properties, required)
 }
 
 func nativeContinueDispatcherTool(toolNames []string) (nativeActionTool, error) {
@@ -315,7 +300,7 @@ func nativeContinueDispatcherTool(toolNames []string) (nativeActionTool, error) 
 }
 
 func nativeContinueDispatcherParameters(toolNames []string) (json.RawMessage, error) {
-	content, errorValue := json.Marshal(map[string]any{
+	parameters := nativeStrictSchemaValue(map[string]any{
 		"type": "object",
 		"properties": map[string]any{
 			"toolName": map[string]any{
@@ -337,10 +322,196 @@ func nativeContinueDispatcherParameters(toolNames []string) (json.RawMessage, er
 		},
 		"required": []string{"toolName", "toolInput", "executionStateUpdate", "nextStepPlan"},
 	})
+	content, errorValue := json.Marshal(parameters)
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	return content, nil
+}
+
+func nativeStrictObjectParameters(properties map[string]json.RawMessage, required []string) (json.RawMessage, error) {
+	document := map[string]any{
+		"type":       "object",
+		"properties": nativeRawSchemaProperties(properties),
+		"required":   required,
+	}
+	content, errorValue := json.Marshal(nativeStrictSchemaValue(document))
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return content, nil
+}
+
+func nativeRawSchemaProperties(properties map[string]json.RawMessage) map[string]any {
+	result := map[string]any{}
+	for propertyName, propertySchema := range properties {
+		var document any
+		if errorValue := json.Unmarshal(propertySchema, &document); errorValue != nil {
+			result[propertyName] = map[string]any{"type": "object", "properties": map[string]any{}}
+			continue
+		}
+		result[propertyName] = document
+	}
+	return result
+}
+
+func nativeStrictSchemaValue(value any) any {
+	document, isDocument := value.(map[string]any)
+	if isDocument {
+		clone := map[string]any{}
+		requiredFieldNames := stringSetForNativeSchema(stringSliceFromNativeSchema(document["required"]))
+		for fieldName, fieldValue := range document {
+			if fieldName == "required" {
+				continue
+			}
+			if fieldName == "type" {
+				clone[fieldName] = nativeStrictSchemaType(fieldValue)
+				continue
+			}
+			if fieldName == "properties" {
+				clone[fieldName] = nativeStrictSchemaProperties(fieldValue, requiredFieldNames)
+				continue
+			}
+			clone[fieldName] = nativeStrictSchemaValue(fieldValue)
+		}
+		if clone["type"] == "object" {
+			properties := mapFromNativeSchema(clone["properties"])
+			clone["properties"] = properties
+			clone["required"] = sortedNativeSchemaPropertyNames(properties)
+		}
+		return clone
+	}
+	values, isValues := value.([]any)
+	if isValues {
+		clone := make([]any, 0, len(values))
+		for _, item := range values {
+			clone = append(clone, nativeStrictSchemaValue(item))
+		}
+		return clone
+	}
+	return value
+}
+
+func nativeStrictSchemaProperties(value any, requiredFieldNames map[string]bool) map[string]any {
+	properties := mapFromNativeSchema(value)
+	clone := map[string]any{}
+	for propertyName, propertySchema := range properties {
+		normalizedSchema := nativeStrictSchemaValue(propertySchema)
+		if !requiredFieldNames[propertyName] {
+			normalizedSchema = nullableNativeSchemaValue(normalizedSchema)
+		}
+		clone[propertyName] = normalizedSchema
+	}
+	return clone
+}
+
+func nativeStrictSchemaType(value any) any {
+	if value == "integer" {
+		return "number"
+	}
+	values, isValues := value.([]any)
+	if !isValues {
+		return value
+	}
+	clone := make([]any, 0, len(values))
+	for _, item := range values {
+		if item == "integer" {
+			clone = append(clone, "number")
+			continue
+		}
+		clone = append(clone, item)
+	}
+	return clone
+}
+
+func nullableNativeSchemaValue(value any) any {
+	document, isDocument := value.(map[string]any)
+	if !isDocument {
+		return value
+	}
+	clone := map[string]any{}
+	for fieldName, fieldValue := range document {
+		clone[fieldName] = fieldValue
+	}
+	clone["type"] = nullableNativeSchemaType(clone["type"])
+	if enumValues, ok := clone["enum"].([]any); ok && !nativeEnumContainsNull(enumValues) {
+		clone["enum"] = append(enumValues, nil)
+	}
+	return clone
+}
+
+func nullableNativeSchemaType(value any) any {
+	values, isValues := value.([]any)
+	if isValues {
+		for _, item := range values {
+			if item == nil || item == "null" {
+				return values
+			}
+		}
+		return append(values, "null")
+	}
+	if strings.TrimSpace(stringFromNativeSchema(value)) == "" {
+		return value
+	}
+	return []any{value, "null"}
+}
+
+func nativeEnumContainsNull(values []any) bool {
+	for _, value := range values {
+		if value == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func sortedNativeSchemaPropertyNames(properties map[string]any) []string {
+	names := make([]string, 0, len(properties))
+	for name := range properties {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func stringSetForNativeSchema(values []string) map[string]bool {
+	result := map[string]bool{}
+	for _, value := range values {
+		result[value] = true
+	}
+	return result
+}
+
+func stringSliceFromNativeSchema(value any) []string {
+	stringValues, isStringValues := value.([]string)
+	if isStringValues {
+		return append([]string{}, stringValues...)
+	}
+	values, isValues := value.([]any)
+	if !isValues {
+		return nil
+	}
+	result := []string{}
+	for _, item := range values {
+		stringValue := strings.TrimSpace(stringFromNativeSchema(item))
+		if stringValue != "" {
+			result = append(result, stringValue)
+		}
+	}
+	return result
+}
+
+func mapFromNativeSchema(value any) map[string]any {
+	document, isDocument := value.(map[string]any)
+	if isDocument {
+		return document
+	}
+	return map[string]any{}
+}
+
+func stringFromNativeSchema(value any) string {
+	stringValue, _ := value.(string)
+	return stringValue
 }
 
 func nativeDispatcherExecutionStateSchema() map[string]any {

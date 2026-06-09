@@ -277,8 +277,8 @@ func TestAdminWebAliasIsNotSupported(t *testing.T) {
 	}
 
 	registry := Registry{
-	{Name: "web", Run: func(context *Context) error { return nil }},
-	{Name: "binaries", Deps: []string{"web"}, Run: func(context *Context) error { return nil }},
+		{Name: "web", Run: func(context *Context) error { return nil }},
+		{Name: "binaries", Deps: []string{"web"}, Run: func(context *Context) error { return nil }},
 	}
 	if _, errorValue := registry.resolve(&Context{Backend: BackendSSH}, Selector{Only: []string{"admin-web"}}); errorValue == nil {
 		t.Fatal("expected admin-web to be rejected")
@@ -327,6 +327,27 @@ func TestOnlyAdmindDoesNotIncludeBroadRuntimeSteps(t *testing.T) {
 	for _, disallowedName := range []string{"binaries", "services", "local-llm"} {
 		if strings.Contains(joinedPlan, disallowedName) {
 			t.Fatalf("admind deploy must not include %s, got %s", disallowedName, joinedPlan)
+		}
+	}
+}
+
+func TestOnlyBlueclawPayloadDirectDoesNotIncludeBroadRuntimeSteps(t *testing.T) {
+	context := &Context{
+		Backend: BackendSSH,
+		SSH:     blueclawPlanBoardConnection{},
+		BoardIP: "192.0.2.10",
+	}
+	plan, err := DefaultRegistry().resolve(context, Selector{Only: []string{"blueclaw-payload-direct"}, Force: true})
+	if err != nil {
+		t.Fatalf("resolve failed: %v", err)
+	}
+	joinedPlan := strings.Join(plan, ",")
+	if joinedPlan != "blueclaw-payload-direct" {
+		t.Fatalf("unexpected plan: %s", joinedPlan)
+	}
+	for _, disallowedName := range []string{"binaries", "blueclaw-runtime-base", "services", "local-llm"} {
+		if strings.Contains(joinedPlan, disallowedName) {
+			t.Fatalf("payload direct deploy must not include %s, got %s", disallowedName, joinedPlan)
 		}
 	}
 }
