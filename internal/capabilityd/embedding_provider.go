@@ -61,14 +61,35 @@ func (service Service) localEmbeddingProviderSet(providerName string) llmbackend
 
 func (service Service) openRouterEmbeddingBackend() llmbackend.OpenRouterEmbeddingBackend {
 	return llmbackend.OpenRouterEmbeddingBackend{
-		KeyPath:    service.Configuration.OpenRouterKeyPath,
-		BaseURL:    service.Configuration.OpenRouterEmbeddingBaseURL,
-		ModelName:  firstNonEmpty(service.Configuration.OpenRouterEmbeddingModel, DefaultConfiguration().OpenRouterEmbeddingModel),
-		HTTPClient: service.httpClient(),
+		KeyPath:             service.Configuration.OpenRouterKeyPath,
+		BaseURL:             service.Configuration.OpenRouterEmbeddingBaseURL,
+		ModelName:           firstNonEmpty(service.Configuration.OpenRouterEmbeddingModel, DefaultConfiguration().OpenRouterEmbeddingModel),
+		GatewaySecretPath:   service.Configuration.OpenRouterGatewaySecretPath,
+		GatewaySecretHeader: service.Configuration.OpenRouterGatewaySecretHeader,
+		HTTPClient:          service.httpClient(),
 	}
 }
 
 func (service Service) automaticEmbeddingProviders(localProvider EmbeddingProvider, companionProvider EmbeddingProvider, remoteProvider EmbeddingProvider) []EmbeddingProvider {
+	switch service.localInferenceMode() {
+	case "device":
+		if service.Configuration.LocalOnly {
+			return []EmbeddingProvider{localProvider, companionProvider}
+		}
+		return []EmbeddingProvider{localProvider, remoteProvider, companionProvider}
+	case "companion_preferred":
+		if service.Configuration.LocalOnly {
+			return []EmbeddingProvider{companionProvider, localProvider}
+		}
+		return []EmbeddingProvider{companionProvider, remoteProvider, localProvider}
+	case "companion_only":
+		return []EmbeddingProvider{companionProvider}
+	case "remote":
+		if service.Configuration.LocalOnly {
+			return []EmbeddingProvider{companionProvider, localProvider}
+		}
+		return []EmbeddingProvider{remoteProvider, companionProvider}
+	}
 	if service.Configuration.LocalOnly {
 		return []EmbeddingProvider{localProvider, companionProvider}
 	}
