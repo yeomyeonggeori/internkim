@@ -80,14 +80,12 @@ function parseSimpleCronExpression(cronExpression: string): SimpleCronExpression
 }
 
 function formatCronTime(hour: number, minute: number, locale: 'ko' | 'en'): string {
-	if (locale === 'en') {
-		const period = hour >= 12 ? 'PM' : 'AM';
-		const hour12 = hour % 12 || 12;
-		return `${hour12}:${minute.toString().padStart(2, '0')} ${period}`;
-	}
-	const period = hour >= 12 ? '오후' : '오전';
-	const hour12 = hour % 12 || 12;
-	return `${period} ${hour12}:${minute.toString().padStart(2, '0')}`;
+	const date = new Date(Date.UTC(2000, 0, 1, hour, minute));
+	return new Intl.DateTimeFormat(locale === 'ko' ? 'ko-KR' : 'en-US', {
+		hour: 'numeric',
+		minute: '2-digit',
+		timeZone: 'UTC'
+	}).format(date);
 }
 
 function cronWeekDayText(dayOfWeek: string, text: MemoryText): string | undefined {
