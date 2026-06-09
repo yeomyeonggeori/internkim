@@ -168,6 +168,29 @@ func TestReleaseCapabilitydServiceNamesFallbackToDeviceService(t *testing.T) {
 	}
 }
 
+func TestReleaseAdmindServiceNamesUseTenantServices(t *testing.T) {
+	tenantBasePath := t.TempDir()
+	writeReleaseTenantRuntimeConfiguration(t, tenantBasePath, "pilot-02")
+	writeReleaseTenantRuntimeConfiguration(t, tenantBasePath, "pilot-01")
+
+	serviceNames := releaseAdmindServiceNames(tenantBasePath)
+	expectedServiceNames := []string{
+		"internkim-tenant-admind-pilot-01.service",
+		"internkim-tenant-admind-pilot-02.service",
+	}
+	if strings.Join(serviceNames, "\n") != strings.Join(expectedServiceNames, "\n") {
+		t.Fatalf("service names = %+v, want %+v", serviceNames, expectedServiceNames)
+	}
+}
+
+func TestReleaseAdmindServiceNamesFallbackToDeviceService(t *testing.T) {
+	serviceNames := releaseAdmindServiceNames(t.TempDir())
+	expectedServiceNames := []string{"internkim-admind"}
+	if strings.Join(serviceNames, "\n") != strings.Join(expectedServiceNames, "\n") {
+		t.Fatalf("service names = %+v, want %+v", serviceNames, expectedServiceNames)
+	}
+}
+
 func TestFetchReleaseStablePointerUsesDownloadToken(t *testing.T) {
 	tokenPath := filepath.Join(t.TempDir(), "release-download-token")
 	writeFile(t, tokenPath, "download-token")

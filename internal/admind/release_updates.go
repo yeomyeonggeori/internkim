@@ -222,13 +222,21 @@ func (service *Service) restartReleaseCapabilitydServices(ctx context.Context) e
 }
 
 func releaseCapabilitydServiceNames(tenantBasePath string) []string {
+	return releaseTenantServiceNames(tenantBasePath, "internkim-tenant-capabilityd-", blueclawruntime.CapabilitydServiceName)
+}
+
+func releaseAdmindServiceNames(tenantBasePath string) []string {
+	return releaseTenantServiceNames(tenantBasePath, "internkim-tenant-admind-", blueclawruntime.AdmindServiceName)
+}
+
+func releaseTenantServiceNames(tenantBasePath string, tenantServicePrefix string, fallbackServiceName string) []string {
 	tenantIDs := releaseTenantIDs(tenantBasePath)
 	if len(tenantIDs) == 0 {
-		return []string{blueclawruntime.CapabilitydServiceName}
+		return []string{fallbackServiceName}
 	}
 	serviceNames := make([]string, 0, len(tenantIDs))
 	for _, tenantID := range tenantIDs {
-		serviceNames = append(serviceNames, "internkim-tenant-capabilityd-"+tenantID+".service")
+		serviceNames = append(serviceNames, tenantServicePrefix+tenantID+".service")
 	}
 	return serviceNames
 }
@@ -378,7 +386,9 @@ func (service *Service) restartAdmindAfterReleaseUpdate(ctx context.Context, man
 	}
 	go func() {
 		time.Sleep(800 * time.Millisecond)
-		_, _ = service.runCommand(ctx, "systemctl", "restart", blueclawruntime.AdmindServiceName)
+		for _, serviceName := range releaseAdmindServiceNames(blueclawUpdateTenantBasePath) {
+			_, _ = service.runCommand(ctx, "systemctl", "restart", serviceName)
+		}
 	}()
 }
 
