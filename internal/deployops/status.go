@@ -62,12 +62,26 @@ func enrichEndpointStatus(status *EndpointStatus, body []byte) {
 		status.Message = strings.TrimSpace(string(body))
 		return
 	}
+	enrichReleaseStatus(status, document)
 	status.Message = valueString(document, "status")
 	status.StartedAt = valueString(document, "startedAt")
 	status.Release = firstValueString(document, "currentRelease", "releaseID", "version", "build")
 	if status.Message == "" {
 		status.Message = "ok"
 	}
+}
+
+func enrichReleaseStatus(status *EndpointStatus, document map[string]any) {
+	currentRelease := nestedValueString(document, "current", "releaseID")
+	latestRelease := nestedValueString(document, "latest", "releaseID")
+	if currentRelease == "" && latestRelease == "" {
+		return
+	}
+	status.State = firstValueString(document, "state")
+	status.CurrentRelease = currentRelease
+	status.LatestRelease = latestRelease
+	status.Release = currentRelease
+	status.UpdateAllowed = valueBool(document, "updateAllowed")
 }
 
 func valueString(document map[string]any, key string) string {
@@ -93,6 +107,27 @@ func firstValueString(document map[string]any, keys ...string) string {
 		}
 	}
 	return ""
+}
+
+func nestedValueString(document map[string]any, objectKey string, valueKey string) string {
+	value, ok := document[objectKey]
+	if !ok {
+		return ""
+	}
+	object, ok := value.(map[string]any)
+	if !ok {
+		return ""
+	}
+	return valueString(object, valueKey)
+}
+
+func valueBool(document map[string]any, key string) bool {
+	value, ok := document[key]
+	if !ok {
+		return false
+	}
+	typedValue, ok := value.(bool)
+	return ok && typedValue
 }
 
 func parseRecoveryServices(output string) map[string]string {
