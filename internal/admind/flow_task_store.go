@@ -91,10 +91,15 @@ func (service *Service) readFlowTasksWithMattermostPosts(ctx context.Context) ([
 	}
 	defer database.Close()
 	rows, errorValue := database.QueryContext(ctx, `
-SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id
-FROM flow_tasks
-WHERE mattermost_post_id != ''
-ORDER BY updated_at DESC`)
+	SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id
+	FROM flow_tasks
+	WHERE mattermost_post_id != '' OR status IN (?, ?, ?, ?) OR id IN (SELECT task_id FROM flow_channel_outbox)
+	ORDER BY updated_at DESC`,
+		flowStatusRequested,
+		flowStatusCompleted,
+		flowStatusRejected,
+		flowStatusStopped,
+	)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -132,10 +137,14 @@ func (service *Service) writeFlowTask(ctx context.Context, task flowTask) error 
 	if errorValue != nil {
 		return errorValue
 	}
-	_, errorValue = database.ExecContext(ctx, `
-INSERT INTO flow_tasks (
-	id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	transaction, errorValue := database.BeginTx(ctx, nil)
+	if errorValue != nil {
+		return errorValue
+	}
+	_, errorValue = transaction.ExecContext(ctx, `
+	INSERT INTO flow_tasks (
+		id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
 	week_code = excluded.week_code,
 	owner_id = excluded.owner_id,
@@ -175,7 +184,15 @@ ON CONFLICT(id) DO UPDATE SET
 		task.MattermostPostID,
 		time.Now().UTC().Format(time.RFC3339),
 	)
-	return errorValue
+	if errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	if errorValue := enqueueFlowChannelProjection(ctx, transaction, task.ID); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	return transaction.Commit()
 }
 
 func (service *Service) updateFlowTaskMattermostPostID(ctx context.Context, taskID string, postID string) error {

@@ -435,6 +435,48 @@ func TestCalendarMattermostLogCreatesUpdatesAndDeletesPost(t *testing.T) {
 	}
 }
 
+func TestCalendarMattermostProjectionOutboxRetriesFailedCreate(t *testing.T) {
+	createAttempts := 0
+	service := newCalendarMattermostTestService(t, func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.Method == http.MethodPost && request.URL.Path == "/api/v4/posts":
+			createAttempts++
+			if createAttempts == 1 {
+				return jsonResponse(http.StatusServiceUnavailable, `{}`, nil), nil
+			}
+			return jsonResponse(http.StatusCreated, `{"id":"calendar-post-1"}`, nil), nil
+		default:
+			return mattermostCalendarLogLifecycleResponse(t, request, &calendarMattermostLogRequests{})
+		}
+	})
+	event := calendarTestEvent("logged", "Design review", "샘플\nBring agenda")
+	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	reloadedEvent, found, errorValue := service.readCalendarEventByID(context.Background(), event.ID)
+	if errorValue != nil || !found {
+		t.Fatalf("expected reloaded event: found=%v error=%v", found, errorValue)
+	}
+	if reloadedEvent.MattermostPostID != "" {
+		t.Fatalf("post id after failed projection = %q", reloadedEvent.MattermostPostID)
+	}
+	assertCalendarProjectionOutboxCount(t, service, 1)
+
+	service.reconcileCalendarMattermostProjections(context.Background())
+
+	reloadedEvent, found, errorValue = service.readCalendarEventByID(context.Background(), event.ID)
+	if errorValue != nil || !found {
+		t.Fatalf("expected reloaded event: found=%v error=%v", found, errorValue)
+	}
+	if reloadedEvent.MattermostPostID != "calendar-post-1" {
+		t.Fatalf("post id after reconcile = %q", reloadedEvent.MattermostPostID)
+	}
+	if createAttempts != 2 {
+		t.Fatalf("create attempts = %d", createAttempts)
+	}
+	assertCalendarProjectionOutboxCount(t, service, 0)
+}
+
 func TestCalendarNotificationCancelsWhenEventIsDeleted(t *testing.T) {
 	service := newCalendarTestService(t)
 	event := calendarTestEvent("cancel-me", "Canceled meeting", "")
@@ -456,6 +498,22 @@ func TestCalendarNotificationCancelsWhenEventIsDeleted(t *testing.T) {
 	}
 	if status != "canceled" {
 		t.Fatalf("status = %q", status)
+	}
+}
+
+func assertCalendarProjectionOutboxCount(t *testing.T, service *Service, expectedCount int) {
+	t.Helper()
+	database, errorValue := service.openCalendarDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	var count int
+	if errorValue := database.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM calendar_channel_outbox").Scan(&count); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if count != expectedCount {
+		t.Fatalf("calendar projection outbox count = %d, want %d", count, expectedCount)
 	}
 }
 

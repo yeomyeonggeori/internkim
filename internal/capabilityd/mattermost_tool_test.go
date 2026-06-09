@@ -452,6 +452,8 @@ func TestMattermostPostUpdateAndDeleteGuardrails(t *testing.T) {
 			return testJSONResponse(http.StatusOK, mattermostToolPost{ID: "bot-post", UserID: "bot-1"}), nil
 		case request.URL.String() == "http://mattermost.test/api/v4/posts/protected-post":
 			return testJSONResponse(http.StatusOK, mattermostToolPost{ID: "protected-post", UserID: "bot-1", Props: map[string]any{"internkim_calendar_event": true}}), nil
+		case request.URL.String() == "http://mattermost.test/api/v4/posts/protected-flow-post":
+			return testJSONResponse(http.StatusOK, mattermostToolPost{ID: "protected-flow-post", UserID: "bot-1", Props: map[string]any{"internkim_flow_task": true}}), nil
 		case request.URL.String() == "http://mattermost.test/api/v4/users/me":
 			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim"}), nil
 		case request.URL.String() == "http://mattermost.test/api/v4/posts/user-post/pin":
@@ -512,6 +514,21 @@ func TestMattermostPostUpdateAndDeleteGuardrails(t *testing.T) {
 	}
 	if protectedResponse.Status != "denied" || protectedResponse.ErrorCode != "protected_post" {
 		t.Fatalf("expected protected post denial, got %+v", protectedResponse)
+	}
+
+	protectedFlowResponse, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.message.delete",
+		Input:    mustJSON(t, map[string]any{"messageIDs": []string{"protected-flow-post"}}),
+		Context: capabilities.ToolInvokeContext{
+			RequesterEmail:         "staff@example.com",
+			IsApprovalContinuation: true,
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if protectedFlowResponse.Status != "error" || protectedFlowResponse.ErrorCode != "post_delete_not_completed" {
+		t.Fatalf("expected protected Flow post delete denial, got %+v", protectedFlowResponse)
 	}
 
 	deleteResponse, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{

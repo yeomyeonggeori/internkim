@@ -86,7 +86,7 @@ func (service *Service) createQuickFlowTask(responseWriter http.ResponseWriter, 
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	task = service.syncFlowMattermostNotification(request.Context(), task)
+	task = service.applyFlowMattermostProjection(request.Context(), task)
 	service.writeJSON(responseWriter, task)
 }
 
