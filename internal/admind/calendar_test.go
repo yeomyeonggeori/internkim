@@ -462,7 +462,7 @@ func TestCalendarMattermostProjectionOutboxRetriesFailedCreate(t *testing.T) {
 	}
 	assertCalendarProjectionOutboxCount(t, service, 1)
 
-	service.reconcileCalendarMattermostProjections(context.Background())
+	service.drainCalendarMattermostProjectionOutbox(context.Background())
 
 	reloadedEvent, found, errorValue = service.readCalendarEventByID(context.Background(), event.ID)
 	if errorValue != nil || !found {
