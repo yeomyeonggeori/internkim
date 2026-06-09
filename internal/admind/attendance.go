@@ -54,6 +54,8 @@ func (service *Service) handleAttendance(responseWriter http.ResponseWriter, req
 		service.writeAttendanceSettings(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/clock":
 		service.writeAttendanceClock(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/repair-result-post":
+		service.writeAttendanceResultPostRepair(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/absences":
 		service.writeAttendanceAbsences(responseWriter, request)
 	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/absences/"):

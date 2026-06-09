@@ -189,6 +189,47 @@ func TestAttendanceChannelPostCreatesEventWhenExistingResultPostIsMissing(t *tes
 	}
 }
 
+func TestAttendanceResultPostRepairMovesRootPostToEntryThread(t *testing.T) {
+	service, posts := newAttendanceActionTestService(t)
+	service.saveMattermostAttendanceChannelID("attendance-channel")
+	service.saveMattermostAttendanceEntryPostID("entry-post")
+	*posts = append(*posts, attendanceActionPost{ID: "root-post", Message: "출근(재택)"})
+	database, errorValue := service.openAttendanceDatabase(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	userRecord := mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com", Nickname: "Staff"}
+	event := service.createAttendanceEvent(userRecord, attendanceKindClockIn, time.Now().UTC(), "team-1", "attendance-channel", "", "root-post", attendanceLocation{ID: "home", Name: "재택"})
+	if errorValue := service.insertAttendanceEvent(context.Background(), database, event); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := database.Close(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	result, errorValue := service.moveAttendanceResultPostToEntryThread(context.Background(), "root-post")
+
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if result.OriginalResultPostID != "root-post" || result.ResultPostID != "attendance-post-2" || result.ActionPostID != "entry-post" {
+		t.Fatalf("result = %+v", result)
+	}
+	if len(*posts) != 2 ||
+		!(*posts)[0].Deleted ||
+		(*posts)[1].Message != "출근(재택)" ||
+		(*posts)[1].RootID != "entry-post" {
+		t.Fatalf("posts = %+v", *posts)
+	}
+	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(events) != 1 || events[0].ActionPostID != "entry-post" || events[0].ResultPostID != "attendance-post-2" {
+		t.Fatalf("events = %+v", events)
+	}
+}
+
 func TestAttendanceEntryCommentDeletesDuplicateCommand(t *testing.T) {
 	service, posts := newAttendanceActionTestService(t)
 	service.saveMattermostAttendanceChannelID("attendance-channel")
