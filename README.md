@@ -269,14 +269,43 @@ Firecracker runtime payload에 Blueclaw Go 소스 변경을 확실히 포함해�
 
 제품 업데이트는 v1에서 자동 설치하지 않습니다. 개발 머신이나 CI가 검증된 release set을 R2에 publish하고, 각 기기는 Admin Web UI에서 현재 release와 stable release를 비교한 뒤 운영자가 버튼을 눌러 적용합니다. 기기는 component별 latest를 따로 적용하지 않고 하나의 release set만 적용합니다.
 
-Publish에 필요한 R2 환경 변수:
+Release bucket은 `internkim-releases`, public base URL은 `https://updates.example.test`을 사용합니다. `updates.example.test`은 R2 직접 공개가 아니라 `internkim-release-registry` Worker를 통해서만 읽히며, Worker는 `X-InternKim-Release-Token`이 맞는 요청만 R2에서 내려줍니다. token 없는 다운로드는 401이어야 합니다.
+
+운영자 로컬 secret:
+
+```bash
+openssl rand -base64 32 > .local/secrets/release-download-token
+chmod 600 .local/secrets/release-download-token
+```
+
+같은 값을 Worker secret으로 넣습니다.
+
+```bash
+cd workers/release-registry
+../../web/node_modules/.bin/wrangler secret put RELEASE_DOWNLOAD_TOKEN
+../../web/node_modules/.bin/wrangler deploy
+```
+
+개발 머신에서 Wrangler OAuth 세션으로 publish할 때 필요한 환경 변수:
 
 ```bash
 export INTERNKIM_RELEASE_R2_ACCOUNT_ID=<cloudflare-account-id>
-export INTERNKIM_RELEASE_R2_BUCKET=<bucket>
+export INTERNKIM_RELEASE_R2_BUCKET=internkim-releases
+export INTERNKIM_RELEASE_R2_PUBLISHER=wrangler
+export INTERNKIM_RELEASE_PUBLIC_BASE_URL=https://updates.example.test
+export INTERNKIM_RELEASE_DOWNLOAD_TOKEN="$(cat .local/secrets/release-download-token)"
+export INTERNKIM_RELEASE_SIGNING_KEY=<optional-shared-signing-key>
+```
+
+CI나 장기 자동화에서 Wrangler OAuth 세션을 쓰지 않을 때는 R2 S3 credential 방식으로 publish합니다.
+
+```bash
+export INTERNKIM_RELEASE_R2_ACCOUNT_ID=<cloudflare-account-id>
+export INTERNKIM_RELEASE_R2_BUCKET=internkim-releases
 export INTERNKIM_RELEASE_R2_ACCESS_KEY_ID=<access-key-id>
 export INTERNKIM_RELEASE_R2_SECRET_ACCESS_KEY=<secret-access-key>
 export INTERNKIM_RELEASE_PUBLIC_BASE_URL=https://updates.example.test
+export INTERNKIM_RELEASE_DOWNLOAD_TOKEN=<release-download-token>
 export INTERNKIM_RELEASE_SIGNING_KEY=<optional-shared-signing-key>
 ```
 
