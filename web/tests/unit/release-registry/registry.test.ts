@@ -6,12 +6,12 @@ describe('Release Registry Worker', () => {
 		const bucket = new MemoryR2Bucket({ 'channels/stable.json': 'ok' });
 
 		const response = await handleReleaseRegistryRequest(new Request('https://updates.example.test/channels/stable.json'), {
-			RELEASE_BUCKET: bucket,
+			RELEASE_BUCKET: bucket as unknown as R2Bucket,
 			RELEASE_DOWNLOAD_TOKEN: 'download-token'
 		});
 
 		expect(response.status).toBe(401);
-		expect(bucket.getCalls).toHaveLength(0);
+		expect(bucket.getCalls.length).toBe(0);
 	});
 
 	test('serves R2 object when release download token matches', async () => {
@@ -22,7 +22,7 @@ describe('Release Registry Worker', () => {
 				headers: { 'X-InternKim-Release-Token': 'download-token' }
 			}),
 			{
-				RELEASE_BUCKET: bucket,
+				RELEASE_BUCKET: bucket as unknown as R2Bucket,
 				RELEASE_DOWNLOAD_TOKEN: 'download-token'
 			}
 		);
@@ -40,13 +40,13 @@ describe('Release Registry Worker', () => {
 				headers: { 'X-InternKim-Release-Token': 'download-token' }
 			}),
 			{
-				RELEASE_BUCKET: bucket,
+				RELEASE_BUCKET: bucket as unknown as R2Bucket,
 				RELEASE_DOWNLOAD_TOKEN: 'download-token'
 			}
 		);
 
 		expect(response.status).toBe(404);
-		expect(bucket.getCalls).toHaveLength(0);
+		expect(bucket.getCalls.length).toBe(0);
 	});
 });
 
