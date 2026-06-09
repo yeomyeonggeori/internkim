@@ -23,7 +23,7 @@
 	const attendance = getAttendanceState();
 	const text = createPageText(attendanceText);
 
-	const targetEmail = $derived(attendance.selectedEmail || attendance.summary?.currentUserEmail || '');
+	const targetEmail = $derived(attendance.summary?.currentUserEmail || '');
 
 	const realtimeEvents = $derived(
 		(attendance.currentMonthSummary?.events ?? []).filter((event) => event.email === targetEmail)

@@ -1,5 +1,5 @@
-import type { AttendanceKind, AttendancePresence, AttendanceSummary } from '../../src/routes/attendance/attendance-context.svelte';
-import { todayDateInTimeZone } from '../../src/routes/attendance/shared/attendance-date';
+import type { AttendanceKind, AttendancePresence, AttendanceSummary } from './src/routes/attendance/attendance-context.svelte';
+import { todayDateInTimeZone } from './src/routes/attendance/shared/attendance-date';
 
 type Scenario = 'normal' | 'ambiguous' | 'overridden' | 'manual';
 

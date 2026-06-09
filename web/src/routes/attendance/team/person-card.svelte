@@ -10,10 +10,9 @@
 
 	type Props = {
 		person: PersonToday;
-		onSelect: (email: string) => void;
 	};
 
-	let { person, onSelect }: Props = $props();
+	let { person }: Props = $props();
 
 	const text = createPageText(attendanceText);
 	const statusLabel = $derived(buildStatusLabel(person));
@@ -30,11 +29,7 @@
 	}
 </script>
 
-<button
-	type="button"
-	class="flex flex-col items-start gap-1 rounded-md border bg-card p-3 text-left transition hover:bg-accent"
-	onclick={() => onSelect(person.email)}
->
+<div class="flex flex-col items-start gap-1 rounded-md border bg-card p-3 text-left">
 	<span class="text-sm font-medium">{person.displayName}</span>
 	<span class={`text-xs ${STATUS_TONE[person.status]}`}>{statusLabel}</span>
 	<div class="flex items-center gap-2 text-xs text-muted-foreground">
@@ -48,4 +43,4 @@
 			<span>{formatHoursMinutes(person.workedMinutes)}</span>
 		{/if}
 	</div>
-</button>
+</div>
