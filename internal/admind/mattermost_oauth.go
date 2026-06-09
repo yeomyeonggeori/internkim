@@ -59,6 +59,11 @@ func (service *Service) handleMattermostOAuthStart(responseWriter http.ResponseW
 		return
 	}
 	redirectURI := service.mattermostOAuthRedirectURI(request)
+	if errorValue := service.ensureMattermostWebOAuthAppForRedirectURI(request.Context(), redirectURI); errorValue != nil {
+		respondMattermostAuthError(responseWriter, http.StatusServiceUnavailable, "Mattermost 로그인 앱을 준비하지 못했습니다.")
+		logAuditEvent("mattermost oauth start failed: client")
+		return
+	}
 	configuration, errorValue := service.buildMattermostOAuthConfig(redirectURI)
 	if errorValue != nil {
 		respondMattermostAuthError(responseWriter, http.StatusServiceUnavailable, "Mattermost 로그인이 아직 설정되지 않았습니다.")
@@ -169,7 +174,8 @@ func (service *Service) completeMattermostOAuthExchange(responseWriter http.Resp
 }
 
 func (service *Service) buildMattermostOAuthConfig(redirectURI string) (*oauth2.Config, error) {
-	clientFile, errorValue := service.loadMattermostOAuthClient()
+	homepage := mattermostOAuthHomepageFromRedirectURI(redirectURI)
+	clientFile, errorValue := service.loadMattermostOAuthClientForHomepage(homepage)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -177,7 +183,7 @@ func (service *Service) buildMattermostOAuthConfig(redirectURI string) (*oauth2.
 	if internalBaseURL == "" {
 		return nil, errors.New("mattermost internal base url is not configured")
 	}
-	publicBaseURL := strings.TrimRight(service.mattermostPublicBaseURL(), "/")
+	publicBaseURL := homepage
 	if publicBaseURL == "" {
 		return nil, errors.New("mattermost public base url is not configured")
 	}
@@ -193,6 +199,9 @@ func (service *Service) buildMattermostOAuthConfig(redirectURI string) (*oauth2.
 }
 
 func (service *Service) mattermostOAuthRedirectURI(request *http.Request) string {
+	if !isLocalRequest(request) {
+		return webAuthBaseURLFromRequest(request) + mattermostOAuthCallbackPath
+	}
 	publicBaseURL := strings.TrimRight(strings.TrimSpace(service.mattermostPublicBaseURL()), "/")
 	if publicBaseURL != "" {
 		return publicBaseURL + mattermostOAuthCallbackPath
@@ -237,7 +246,15 @@ func (service *Service) cleanupExpiredMattermostOAuthStates(now time.Time) {
 }
 
 func (service *Service) loadMattermostOAuthClient() (mattermostOAuthClientFile, error) {
-	document, errorValue := os.ReadFile(service.Configuration.MattermostOAuthClientPath)
+	return service.loadMattermostOAuthClientFromPath(service.Configuration.MattermostOAuthClientPath)
+}
+
+func (service *Service) loadMattermostOAuthClientForHomepage(homepage string) (mattermostOAuthClientFile, error) {
+	return service.loadMattermostOAuthClientFromPath(service.mattermostOAuthClientPathForHomepage(homepage))
+}
+
+func (service *Service) loadMattermostOAuthClientFromPath(path string) (mattermostOAuthClientFile, error) {
+	document, errorValue := os.ReadFile(path)
 	if errorValue != nil {
 		return mattermostOAuthClientFile{}, errorValue
 	}
@@ -252,18 +269,55 @@ func (service *Service) loadMattermostOAuthClient() (mattermostOAuthClientFile, 
 }
 
 func (service *Service) writeMattermostOAuthClient(clientFile mattermostOAuthClientFile) error {
-	if errorValue := os.MkdirAll(filepath.Dir(service.Configuration.MattermostOAuthClientPath), 0o700); errorValue != nil {
+	return service.writeMattermostOAuthClientForHomepage(clientFile.Homepage, clientFile)
+}
+
+func (service *Service) writeMattermostOAuthClientForHomepage(homepage string, clientFile mattermostOAuthClientFile) error {
+	path := service.mattermostOAuthClientPathForHomepage(homepage)
+	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
 		return errorValue
 	}
 	document, errorValue := json.MarshalIndent(clientFile, "", "  ")
 	if errorValue != nil {
 		return errorValue
 	}
-	return os.WriteFile(service.Configuration.MattermostOAuthClientPath, document, 0o600)
+	return os.WriteFile(path, document, 0o600)
 }
 
 func (service *Service) ensureMattermostWebOAuthApp(ctx context.Context, token string) error {
 	homepage := strings.TrimRight(strings.TrimSpace(service.mattermostPublicBaseURL()), "/")
+	return service.ensureMattermostWebOAuthAppForHomepage(ctx, token, homepage)
+}
+
+func (service *Service) ensureMattermostWebOAuthAppForRedirectURI(ctx context.Context, redirectURI string) error {
+	homepage := mattermostOAuthHomepageFromRedirectURI(redirectURI)
+	if homepage == "" {
+		return errors.New("mattermost oauth redirect uri is missing host")
+	}
+	clientFile, errorValue := service.loadMattermostOAuthClientForHomepage(homepage)
+	if errorValue == nil && clientFile.CallbackURL == redirectURI && clientFile.Homepage == homepage {
+		token, tokenError := service.mattermostAdminToken(ctx)
+		if tokenError != nil {
+			return nil
+		}
+		isCurrent, currentError := service.mattermostOAuthClientIsCurrent(ctx, token, clientFile, homepage, redirectURI)
+		if currentError != nil {
+			return currentError
+		}
+		if isCurrent {
+			return nil
+		}
+		return service.createMattermostWebOAuthApp(ctx, token, homepage, redirectURI)
+	}
+	token, tokenError := service.mattermostAdminToken(ctx)
+	if tokenError != nil {
+		return tokenError
+	}
+	return service.ensureMattermostWebOAuthAppForHomepage(ctx, token, homepage)
+}
+
+func (service *Service) ensureMattermostWebOAuthAppForHomepage(ctx context.Context, token string, homepage string) error {
+	homepage = strings.TrimRight(strings.TrimSpace(homepage), "/")
 	if homepage == "" {
 		return nil
 	}
@@ -322,7 +376,7 @@ func (service *Service) createMattermostWebOAuthApp(ctx context.Context, token s
 	if strings.TrimSpace(clientID) == "" || strings.TrimSpace(response.ClientSecret) == "" {
 		return errors.New("mattermost oauth app response missing credentials")
 	}
-	return service.writeMattermostOAuthClient(mattermostOAuthClientFile{
+	return service.writeMattermostOAuthClientForHomepage(homepage, mattermostOAuthClientFile{
 		AppID:        response.ID,
 		ClientID:     clientID,
 		ClientSecret: response.ClientSecret,
@@ -333,6 +387,46 @@ func (service *Service) createMattermostWebOAuthApp(ctx context.Context, token s
 
 func (service *Service) mattermostPublicBaseURL() string {
 	return service.mattermostFlowBaseURL()
+}
+
+func (service *Service) mattermostOAuthClientPathForHomepage(homepage string) string {
+	basePath := service.Configuration.MattermostOAuthClientPath
+	if strings.TrimSpace(basePath) == "" {
+		return basePath
+	}
+	defaultHomepage := strings.TrimRight(strings.TrimSpace(service.mattermostPublicBaseURL()), "/")
+	normalizedHomepage := strings.TrimRight(strings.TrimSpace(homepage), "/")
+	if normalizedHomepage == "" || normalizedHomepage == defaultHomepage {
+		return basePath
+	}
+	filename := "mattermost-oauth-" + safeMattermostOAuthClientName(normalizedHomepage) + ".json"
+	return filepath.Join(filepath.Dir(basePath), filename)
+}
+
+func mattermostOAuthHomepageFromRedirectURI(redirectURI string) string {
+	parsedURL, errorValue := url.Parse(redirectURI)
+	if errorValue != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
+		return ""
+	}
+	return parsedURL.Scheme + "://" + parsedURL.Host
+}
+
+func safeMattermostOAuthClientName(value string) string {
+	parsedURL, errorValue := url.Parse(value)
+	name := value
+	if errorValue == nil && parsedURL.Hostname() != "" {
+		name = parsedURL.Hostname()
+	}
+	name = strings.ToLower(strings.TrimSpace(name))
+	builder := strings.Builder{}
+	for _, character := range name {
+		if character >= 'a' && character <= 'z' || character >= '0' && character <= '9' {
+			builder.WriteRune(character)
+			continue
+		}
+		builder.WriteRune('-')
+	}
+	return strings.Trim(builder.String(), "-")
 }
 
 func respondMattermostAuthError(responseWriter http.ResponseWriter, status int, message string) {

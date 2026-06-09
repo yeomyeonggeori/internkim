@@ -51,6 +51,7 @@ func TestInstallHostRuntimeWritesTenantScopedServices(t *testing.T) {
 	status, errorValue := service.InstallHostRuntime(context.Background(), manifest.TenantID, HostRuntimeOptions{
 		GatewayURL:                 "https://internkim-llm-gateway.example/api/v1/chat/completions",
 		GatewaySharedSecret:        "gateway-secret",
+		ReleaseDownloadToken:       "release-token",
 		ModelName:                  "x-ai/grok-4.3",
 		RootFilesystemTemplatePath: rootFilesystemImagePath,
 		WorkspaceImageTemplatePath: workspaceImagePath,
@@ -79,6 +80,7 @@ func TestInstallHostRuntimeWritesTenantScopedServices(t *testing.T) {
 	assertFileContains(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-capabilityd-pilot-01.service"), "--openrouter-key "+filepath.Join(paths.InternKimSecretsPath, "llm-device-token"))
 	assertFileContains(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-capabilityd-pilot-01.service"), "--openrouter-web-url https://internkim-llm-gateway.example/api/v1/chat/completions")
 	assertFileContains(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-capabilityd-pilot-01.service"), "--openrouter-embedding-url https://internkim-llm-gateway.example/api/v1/embeddings")
+	assertFileContains(t, filepath.Join(paths.InternKimSecretsPath, "release-download-token"), "release-token")
 	assertFileDoesNotContain(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-capabilityd-pilot-01.service"), "--vsock-port")
 	assertFileContains(t, filepath.Join(service.SystemdSystemDirectoryPath, "internkim-tenant-blueclaw-pilot-01.service"), filepath.Join(paths.BlueclawRootPath, "config", "runtime.json"))
 	assertTenantRuntimeConfiguration(t, filepath.Join(paths.BlueclawRootPath, "config", "runtime.json"), runtimeDirectoryBasePath)

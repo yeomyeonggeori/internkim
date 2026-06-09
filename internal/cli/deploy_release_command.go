@@ -137,7 +137,7 @@ func selectedReleaseComponentNames(arguments []string) (map[string]bool, error) 
 	}
 	selectedComponentNames := map[string]bool{}
 	for _, componentName := range strings.Split(value, ",") {
-		componentName = strings.TrimSpace(componentName)
+		componentName = normalizedReleaseComponentName(strings.TrimSpace(componentName))
 		if componentName != "" {
 			selectedComponentNames[componentName] = true
 		}
@@ -146,6 +146,15 @@ func selectedReleaseComponentNames(arguments []string) (map[string]bool, error) 
 		return nil, errors.New("--components did not name any components")
 	}
 	return selectedComponentNames, nil
+}
+
+func normalizedReleaseComponentName(componentName string) string {
+	switch componentName {
+	case "adminWeb", "admin-web":
+		return "web"
+	default:
+		return componentName
+	}
 }
 
 func writeDirectReleaseBundleArchive(archivePath string, manifest releaseset.Manifest, blobs []releaseBlob) error {

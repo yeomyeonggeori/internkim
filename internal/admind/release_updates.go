@@ -163,6 +163,7 @@ func (service *Service) downloadReleaseBlob(ctx context.Context, component relea
 	if errorValue != nil {
 		return errorValue
 	}
+	service.addReleaseDownloadHeaders(request)
 	response, errorValue := service.httpClient().Do(request)
 	if errorValue != nil {
 		return errorValue
@@ -191,7 +192,7 @@ func (service *Service) installReleaseComponents(ctx context.Context, jobID stri
 	if errorValue := service.installReleaseBinary(stagingPath, "capabilityd", blueclawruntime.CapabilitydBinaryPath); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := service.installReleaseAdminWeb(stagingPath); errorValue != nil {
+	if errorValue := service.installReleaseWeb(stagingPath); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := service.installReleaseSkills(stagingPath); errorValue != nil {
@@ -236,8 +237,8 @@ func (service *Service) installReleaseBinary(stagingPath string, componentName s
 	return os.Rename(temporaryPath, targetPath)
 }
 
-func (service *Service) installReleaseAdminWeb(stagingPath string) error {
-	componentRoot, errorValue := releaseComponentRoot(filepath.Join(stagingPath, "adminWeb"))
+func (service *Service) installReleaseWeb(stagingPath string) error {
+	componentRoot, errorValue := service.releaseWebComponentRoot(stagingPath)
 	if errorValue != nil {
 		if errors.Is(errorValue, os.ErrNotExist) {
 			return nil
@@ -257,6 +258,14 @@ func (service *Service) installReleaseAdminWeb(stagingPath string) error {
 		}
 	}
 	return os.Rename(temporaryPath, service.Configuration.AdminUIPath)
+}
+
+func (service *Service) releaseWebComponentRoot(stagingPath string) (string, error) {
+	componentRoot, errorValue := releaseComponentRoot(filepath.Join(stagingPath, "web"))
+	if errorValue == nil || !errors.Is(errorValue, os.ErrNotExist) {
+		return componentRoot, errorValue
+	}
+	return releaseComponentRoot(filepath.Join(stagingPath, "adminWeb"))
 }
 
 func (service *Service) installReleaseSkills(stagingPath string) error {
@@ -350,6 +359,7 @@ func (service *Service) fetchReleaseStablePointer(ctx context.Context) (releases
 	if errorValue != nil {
 		return releaseset.StablePointer{}, errorValue
 	}
+	service.addReleaseDownloadHeaders(request)
 	response, errorValue := service.httpClient().Do(request)
 	if errorValue != nil {
 		return releaseset.StablePointer{}, errorValue
@@ -373,6 +383,7 @@ func (service *Service) fetchReleaseManifest(ctx context.Context, manifestURL st
 	if errorValue != nil {
 		return nil, errorValue
 	}
+	service.addReleaseDownloadHeaders(request)
 	response, errorValue := service.httpClient().Do(request)
 	if errorValue != nil {
 		return nil, errorValue
@@ -396,6 +407,14 @@ func (service *Service) fetchReleaseManifest(ctx context.Context, manifestURL st
 
 func (service *Service) releaseRegistryURL(relativePath string) string {
 	return strings.TrimRight(service.Configuration.ReleaseRegistryURL, "/") + "/" + strings.TrimLeft(relativePath, "/")
+}
+
+func (service *Service) addReleaseDownloadHeaders(request *http.Request) {
+	token := strings.TrimSpace(readTrimmedFile(service.Configuration.ReleaseDownloadTokenPath))
+	if token == "" {
+		return
+	}
+	request.Header.Set("X-InternKim-Release-Token", token)
 }
 
 func (service *Service) releaseSigningKey() string {
