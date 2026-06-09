@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestConfigurationDefaultsIncludeAdmindBaseURL(t *testing.T) {
@@ -18,6 +19,19 @@ func TestConfigurationDefaultsIncludeAdmindBaseURL(t *testing.T) {
 
 	if configuration.AdmindBaseURL != DefaultConfiguration().AdmindBaseURL {
 		t.Fatalf("expected admind base url default, got %q", configuration.AdmindBaseURL)
+	}
+}
+
+func TestHTTPClientTimeoutTracksProviderAttemptTimeout(t *testing.T) {
+	service := Service{Configuration: Configuration{}.WithDefaults()}
+
+	if service.httpClientTimeout() != 5*time.Minute+30*time.Second {
+		t.Fatalf("expected default provider timeout with buffer, got %s", service.httpClientTimeout())
+	}
+
+	shortTimeoutService := Service{Configuration: Configuration{ProviderAttemptTimeout: 30 * time.Second}.WithDefaults()}
+	if shortTimeoutService.httpClientTimeout() != 120*time.Second {
+		t.Fatalf("expected minimum http timeout, got %s", shortTimeoutService.httpClientTimeout())
 	}
 }
 
