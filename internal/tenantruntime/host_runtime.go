@@ -71,7 +71,7 @@ func (service Service) InstallHostRuntime(ctx context.Context, tenantID string, 
 
 func hostRuntimeConfiguration(manifest Manifest, paths RuntimePaths, options HostRuntimeOptions) hostRuntimeConfigurationDocument {
 	tenantIndex := tenantNumericSuffix(manifest.TenantID)
-	portBase := firstPositiveTenantInt(options.PortBase, 18100+(tenantIndex-1)*100)
+	portBase := firstPositiveTenantInt(options.PortBase, defaultTenantHostRuntimePortBase(tenantIndex))
 	return hostRuntimeConfigurationDocument{
 		GatewayURL:                 strings.TrimSpace(options.GatewayURL),
 		GatewaySharedSecret:        strings.TrimSpace(options.GatewaySharedSecret),
@@ -149,7 +149,7 @@ func installHostRuntimeFiles(manifest Manifest, paths RuntimePaths, configuratio
 	if errorValue := writeTenantFile(paths.InternKimPath, "env/fleet-id", manifest.AssignedHost, 0o640); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := writeTenantFile(paths.InternKimPath, "config/admin-email", TenantInitialAdminUsername+"@"+manifest.TenantID+".local", 0o640); errorValue != nil {
+	if errorValue := writeTenantFile(paths.InternKimPath, "config/admin-email", DefaultTenantAdminEmail(manifest.TenantID), 0o640); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := copyRegularFile(configuration.RootFilesystemTemplatePath, configuration.RootFilesystemImagePath, 0o600); errorValue != nil {
@@ -195,7 +195,7 @@ func (service Service) installHostRuntimeUnits(ctx context.Context, manifest Man
 	if errorValue != nil {
 		return errorValue
 	}
-	policyDocument, errorValue := blueclaw.BlueclawPolicyDocument(TenantInitialAdminUsername + "@" + manifest.TenantID + ".local")
+	policyDocument, errorValue := blueclaw.BlueclawPolicyDocument(DefaultTenantAdminEmail(manifest.TenantID))
 	if errorValue != nil {
 		return errorValue
 	}
@@ -554,6 +554,10 @@ func tenantNumericSuffix(tenantID string) int {
 		return 1
 	}
 	return value
+}
+
+func defaultTenantHostRuntimePortBase(tenantIndex int) int {
+	return 18100 + (tenantIndex-1)*100
 }
 
 func tenantGuestMACAddress(networkIndex int) string {

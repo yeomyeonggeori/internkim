@@ -265,7 +265,11 @@ func tenantAdminEmail(paths RuntimePaths, options BootstrapOptions) string {
 	if strings.TrimSpace(options.AdminEmail) != "" {
 		return strings.TrimSpace(options.AdminEmail)
 	}
-	return TenantInitialAdminUsername + "@" + filepath.Base(paths.TenantRootPath) + ".local"
+	return DefaultTenantAdminEmail(filepath.Base(paths.TenantRootPath))
+}
+
+func DefaultTenantAdminEmail(tenantID string) string {
+	return TenantInitialAdminUsername + "@" + strings.TrimSpace(tenantID) + ".local"
 }
 
 func installTenantMattermostFirstBootScript(paths RuntimePaths) error {
