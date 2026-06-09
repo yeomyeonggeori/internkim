@@ -1,0 +1,12 @@
+{
+	"$schema": "../../web/node_modules/wrangler/config-schema.json",
+	"name": "internkim-release-registry",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-04-04",
+	"routes": [
+		{ "pattern": "updates.example.test/*", "zone_name": "example.test" }
+	],
+	"r2_buckets": [
+		{ "binding": "RELEASE_BUCKET", "bucket_name": "internkim-releases" }
+	]
+}

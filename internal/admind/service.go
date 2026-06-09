@@ -53,6 +53,7 @@ type Configuration struct {
 	OpenRouterKeyPath           string
 	OpenRouterModelsURL         string
 	ReleaseRegistryURL          string
+	ReleaseDownloadTokenPath    string
 	ReleaseSigningKeyPath       string
 	MattermostBotTokenPath      string
 	AdminEmailPath              string
@@ -227,6 +228,7 @@ func DefaultConfiguration() Configuration {
 		OpenRouterKeyPath:           "/root/.internkim/secrets/openrouter-api-key",
 		OpenRouterModelsURL:         "https://openrouter.ai/api/v1/models",
 		ReleaseRegistryURL:          "https://updates.example.test",
+		ReleaseDownloadTokenPath:    "/root/.internkim/secrets/release-download-token",
 		ReleaseSigningKeyPath:       "/root/.internkim/secrets/release-signing-key",
 		MattermostBotTokenPath:      "/root/.internkim/secrets/mattermost-bot-token",
 		AdminEmailPath:              "/root/.internkim/config/admin-email",
@@ -2518,6 +2520,9 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.ReleaseRegistryURL == "" {
 		configuration.ReleaseRegistryURL = defaultConfiguration.ReleaseRegistryURL
+	}
+	if configuration.ReleaseDownloadTokenPath == "" {
+		configuration.ReleaseDownloadTokenPath = defaultConfiguration.ReleaseDownloadTokenPath
 	}
 	if configuration.ReleaseSigningKeyPath == "" {
 		configuration.ReleaseSigningKeyPath = defaultConfiguration.ReleaseSigningKeyPath
