@@ -20,6 +20,7 @@ function createTextProxy(messages: PageMessages, path: string[]): unknown {
 				const value = localizedValue ?? fallbackValue;
 
 				if (isTextTree(value)) return createTextProxy(messages, nextPath);
+				if (Array.isArray(value)) return value;
 				if (typeof value === 'string') return value;
 				return '';
 			}
