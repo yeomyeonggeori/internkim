@@ -3,7 +3,6 @@ package admind
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -12,12 +11,7 @@ import (
 )
 
 func (service *Service) syncFlowMattermostNotification(ctx context.Context, task flowTask) flowTask {
-	nextTask, errorValue := service.trySyncFlowMattermostNotification(ctx, task)
-	if errorValue != nil {
-		log.Printf("Flow Mattermost notification sync failed: %v", errorValue)
-		return task
-	}
-	return nextTask
+	return service.applyFlowMattermostProjection(ctx, task)
 }
 
 func (service *Service) trySyncFlowMattermostNotification(ctx context.Context, task flowTask) (flowTask, error) {

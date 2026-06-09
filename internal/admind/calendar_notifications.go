@@ -31,12 +31,7 @@ type calendarNotification struct {
 }
 
 func (service *Service) syncCalendarMattermostLog(ctx context.Context, event calendarEvent) calendarEvent {
-	nextEvent, errorValue := service.trySyncCalendarMattermostLog(ctx, event)
-	if errorValue != nil {
-		log.Printf("calendar Mattermost log sync failed: %v", errorValue)
-		return event
-	}
-	return nextEvent
+	return service.applyCalendarMattermostProjection(ctx, event)
 }
 
 func (service *Service) trySyncCalendarMattermostLog(ctx context.Context, event calendarEvent) (calendarEvent, error) {
