@@ -172,6 +172,7 @@ func (service Service) patchHostRuntimeRootFilesystemImage(ctx context.Context, 
 func hostRuntimeRootFilesystemPatchScript(configuration hostRuntimeConfigurationDocument) string {
 	return strings.Join([]string{
 		"set -eu",
+		tenantE2fsckFunction(),
 		"image_path=" + quoteShellArgument(configuration.RootFilesystemImagePath),
 		"mount_path=\"$(mktemp -d)\"",
 		"cleanup() {",
@@ -179,13 +180,13 @@ func hostRuntimeRootFilesystemPatchScript(configuration hostRuntimeConfiguration
 		"  rmdir \"$mount_path\"",
 		"}",
 		"trap cleanup EXIT",
-		"e2fsck -fy \"$image_path\" >/dev/null",
+		"tenant_e2fsck \"$image_path\"",
 		"mount -o loop \"$image_path\" \"$mount_path\"",
 		"sed -i 's/-target-tcp 127\\.0\\.0\\.1:8080/-target-tcp 127.0.0.1:" + intString(configuration.BlueclawPort) + "/g' \"$mount_path/sbin/init\"",
 		"umount \"$mount_path\"",
 		"rmdir \"$mount_path\"",
 		"trap - EXIT",
-		"e2fsck -fy \"$image_path\" >/dev/null",
+		"tenant_e2fsck \"$image_path\"",
 	}, "\n")
 }
 
@@ -250,13 +251,14 @@ func (service Service) stopHostRuntimeBlueclaw(ctx context.Context, manifest Man
 func (service Service) repairHostRuntimeWorkspaceImage(ctx context.Context, configuration hostRuntimeConfigurationDocument) error {
 	command := strings.Join([]string{
 		"set -eu",
+		tenantE2fsckFunction(),
 		"mount_path=\"$(mktemp -d)\"",
 		"cleanup() {",
 		"  if mountpoint -q \"$mount_path\"; then umount \"$mount_path\"; fi",
 		"  rmdir \"$mount_path\"",
 		"}",
 		"trap cleanup EXIT",
-		"e2fsck -fy " + quoteShellArgument(configuration.WorkspaceImagePath) + " >/dev/null",
+		"tenant_e2fsck " + quoteShellArgument(configuration.WorkspaceImagePath),
 		"mount -o loop " + quoteShellArgument(configuration.WorkspaceImagePath) + " \"$mount_path\"",
 		"rm -rf \"$mount_path/.blueclaw/postgres/data\"",
 		"rm -f \"$mount_path/.blueclaw/postgres/.s.PGSQL.5432\" \"$mount_path/.blueclaw/postgres/.s.PGSQL.5432.lock\"",
@@ -265,13 +267,25 @@ func (service Service) repairHostRuntimeWorkspaceImage(ctx context.Context, conf
 		"umount \"$mount_path\"",
 		"rmdir \"$mount_path\"",
 		"trap - EXIT",
-		"e2fsck -fy " + quoteShellArgument(configuration.WorkspaceImagePath) + " >/dev/null",
+		"tenant_e2fsck " + quoteShellArgument(configuration.WorkspaceImagePath),
 	}, "\n")
 	_, errorValue := service.commandRunner().Run(ctx, ExecutableCommand{
 		ExecutableName: "sh",
 		Arguments:      []string{"-c", command},
 	})
 	return errorValue
+}
+
+func tenantE2fsckFunction() string {
+	return strings.Join([]string{
+		"tenant_e2fsck() {",
+		"  set +e",
+		"  e2fsck -fy \"$1\" >/dev/null",
+		"  status=\"$?\"",
+		"  set -e",
+		"  [ \"$status\" = 0 ] || [ \"$status\" = 1 ]",
+		"}",
+	}, "\n")
 }
 
 func (service Service) syncHostRuntimeWorkspaceImage(ctx context.Context, paths RuntimePaths, configuration hostRuntimeConfigurationDocument) error {
