@@ -145,7 +145,7 @@ func (service *Service) applyMattermostAttendanceReplyPostCommand(ctx context.Co
 	if errorValue != nil {
 		return attendanceActionResult{}, errorValue
 	}
-	shouldIgnore, errorValue := service.shouldIgnoreMattermostAttendanceAction(ctx, command.Kind, lastEvent, found)
+	shouldIgnore, errorValue := service.shouldIgnoreMattermostAttendanceAction(ctx, command.Kind, lastEvent, found, channelID, actionPostID)
 	if errorValue != nil {
 		return attendanceActionResult{}, errorValue
 	}
