@@ -109,6 +109,42 @@ func TestReleaseUpdateUploadRejectsWrongSignedAction(t *testing.T) {
 	}
 }
 
+func TestReleaseWebComponentRootPrefersWeb(t *testing.T) {
+	stagingPath := t.TempDir()
+	webRoot := filepath.Join(stagingPath, "web", "board-ui")
+	legacyRoot := filepath.Join(stagingPath, "adminWeb", "legacy-board-ui")
+	if errorValue := os.MkdirAll(webRoot, 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.MkdirAll(legacyRoot, 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	componentRoot, errorValue := (&Service{}).releaseWebComponentRoot(stagingPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if componentRoot != webRoot {
+		t.Fatalf("component root = %q, want %q", componentRoot, webRoot)
+	}
+}
+
+func TestReleaseWebComponentRootFallsBackToAdminWeb(t *testing.T) {
+	stagingPath := t.TempDir()
+	legacyRoot := filepath.Join(stagingPath, "adminWeb", "legacy-board-ui")
+	if errorValue := os.MkdirAll(legacyRoot, 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	componentRoot, errorValue := (&Service{}).releaseWebComponentRoot(stagingPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if componentRoot != legacyRoot {
+		t.Fatalf("component root = %q, want %q", componentRoot, legacyRoot)
+	}
+}
+
 func testReleaseManifest(releaseID string) *releaseset.Manifest {
 	manifest := releaseset.NewManifest(releaseID, "stable", map[string]releaseset.Component{
 		"blueclawPayload": {
