@@ -143,7 +143,7 @@ func createReleaseBlobs(repositoryRootPath string, temporaryDirectoryPath string
 		{name: "internkim", revision: gitRevision, restartGroup: "admind", healthCheck: "binary", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", "internkim"), builder: buildReleaseBinary("./cmd/internkim")},
 		{name: "admind", revision: gitRevision, restartGroup: "admind", healthCheck: "admind", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.AdmindName), builder: buildReleaseBinary("./cmd/" + blueclaw.AdmindName)},
 		{name: "capabilityd", revision: gitRevision, restartGroup: "capabilityd", healthCheck: "capabilityd", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.CapabilitydName), builder: buildReleaseBinary("./cmd/" + blueclaw.CapabilitydName)},
-		{name: "adminWeb", revision: adminWebRevision(repositoryRootPath), restartGroup: "admind", healthCheck: "admin-web", sourcePath: filepath.Join(repositoryRootPath, "build", "board-ui")},
+		{name: "web", revision: webRevision(repositoryRootPath), restartGroup: "admind", healthCheck: "web", sourcePath: filepath.Join(repositoryRootPath, "build", "board-ui")},
 		{name: "blueclawPayload", revision: blueclawPayloadRevision(repositoryRootPath), restartGroup: "blueclaw", healthCheck: "blueclaw", sourcePath: filepath.Join(repositoryRootPath, blueclaw.BlueclawPayloadArtifactPath)},
 		{name: "skills", revision: gitRevision, restartGroup: "blueclaw", healthCheck: "skills", sourcePath: blueclawworkspace.SkillsPath(repositoryRootPath)},
 	}
@@ -317,7 +317,7 @@ func shortRevision(revision string) string {
 	return revision[:12]
 }
 
-func adminWebRevision(repositoryRootPath string) string {
+func webRevision(repositoryRootPath string) string {
 	version, errorValue := readAdminUIVersion(filepath.Join(repositoryRootPath, "build", "board-ui"))
 	if errorValue == nil && strings.TrimSpace(version) != "" {
 		return strings.TrimSpace(version)
