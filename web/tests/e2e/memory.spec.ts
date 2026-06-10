@@ -49,6 +49,7 @@ const memoryScheduleFixture = {
 			kind: 'cron',
 			cronExpression: '0 9 * * *',
 			nextRunAt: '2026-06-09T00:00:00Z',
+			expiresAt: '2026-06-10T09:00:00Z',
 			createdAt: '2026-06-08T00:00:00Z',
 			updatedAt: '2026-06-08T00:00:00Z',
 			deliveryChannelID: 'channel-1',
@@ -126,9 +127,11 @@ test.describe('memory graph', () => {
 		await expect(page.getByText('팀 일정을 매일 오전에 알려주기')).toBeVisible();
 		await expect(schedulesPanel.getByText('유형', { exact: true })).toBeVisible();
 		await expect(schedulesPanel.getByText('일정', { exact: true })).toBeVisible();
+		await expect(schedulesPanel.getByText('종료일', { exact: true })).toBeVisible();
 		await expect(page.getByText('정기 반복')).toBeVisible();
 		await expect(page.getByText('매일 오전 9:00')).toBeVisible();
 		await expect(page.getByText('2026. 6. 9.')).toBeVisible();
+		await expect(page.getByText('2026. 6. 10.')).toBeVisible();
 	});
 
 	test('pages through visible schedules', async ({ page }) => {

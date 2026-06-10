@@ -108,9 +108,61 @@ func TestPublicToolGatewayAllowsConnectScope(t *testing.T) {
 	}
 }
 
+func TestPublicToolGatewayRequiresExplicitDestructiveScope(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{Scopes: []string{"write"}})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/flow.task.delete/invoke", strings.NewReader(`{"input":{"taskID":"task-1"}}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	response := httptest.NewRecorder()
+
+	service.handlePublicAPI(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestPublicToolGatewayAllowsDestructiveScope(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, func(request capabilities.ToolInvokeRequest) capabilities.ToolInvokeResponse {
+		if request.ToolName != "flow.task.delete" {
+			t.Fatalf("tool name = %q", request.ToolName)
+		}
+		if !request.Context.IsApprovalContinuation {
+			t.Fatal("delete tool should be treated as approved continuation for public token scope")
+		}
+		return capabilities.ToolInvokeResponse{Provider: "internkim", SelectedBackend: "device", ToolName: request.ToolName, Status: "deleted", Result: json.RawMessage(`{"status":"deleted"}`)}
+	})
+	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{Scopes: []string{"destructive"}})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/flow.task.delete/invoke", strings.NewReader(`{"input":{"taskID":"task-1"}}`))
+	request.Header.Set("Authorization", "Bearer "+token)
+	response := httptest.NewRecorder()
+
+	service.handlePublicAPI(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+}
+
 func TestPublicToolGatewayRejectsRemovedTokenOwner(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
-	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "removed@example.com", publicAPITokenCreateRequest{})
+	token := "ik_removed_owner"
+	errorValue := service.writePublicAPITokenRecords(context.Background(), []publicAPITokenRecord{{
+		ID:        "tok-removed",
+		Label:     "Removed owner",
+		Email:     "removed@example.com",
+		PersonID:  "user-removed",
+		TokenHash: publicAPITokenHash(token),
+		Scopes:    []string{"read"},
+		CreatedAt: time.Now().UTC(),
+	}})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

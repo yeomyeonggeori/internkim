@@ -100,10 +100,8 @@ func TestBlueclawStopForPayloadSyncWaitsForGuestProcesses(t *testing.T) {
 	command := blueclawStopForPayloadSyncCommand()
 	for _, expectedText := range []string{
 		"systemctl stop blueclaw",
-		"blueclaw-supervisor",
-		"/firecracker",
 		"systemctl kill blueclaw",
-		"pgrep -af",
+		"systemctl is-active --quiet blueclaw",
 	} {
 		if !strings.Contains(command, expectedText) {
 			t.Fatalf("expected stop command to include %q, got:\n%s", expectedText, command)

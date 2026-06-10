@@ -1339,7 +1339,7 @@ test -n "$uninvited_token"
 
 phase "invite policy"
 blueclaw_request "invite policy" POST http://127.0.0.1:8080/admin/api/people/invite \
-  "$(jq -cn --arg email "$invited_email" '{email:$email}')" >/dev/null
+  "$(jq -cn --arg personID "$invited_user_id" --arg email "$invited_email" '{personID:$personID,email:$email}')" >/dev/null
 
 phase "invited post"
 before_count="$(task_count)"
@@ -1638,7 +1638,7 @@ user_token="$(awk 'tolower($1) == "token:" {print $2}' "$user_login_headers" | t
 test -n "$user_token"
 
 blueclaw_request "invite probe user" POST http://127.0.0.1:8080/admin/api/people/invite \
-  "$(jq -cn --arg email "$email" '{email:$email}')" >/dev/null
+  "$(jq -cn --arg personID "$user_id" --arg email "$email" '{personID:$personID,email:$email}')" >/dev/null
 
 channel_id="$(api_request "create probe dm" POST http://localhost:8065/api/v4/channels/direct "$user_token" \
   "$(jq -cn --arg user_id "$user_id" --arg bot_user_id "$bot_user_id" '[$user_id,$bot_user_id]')" | jq -r '.id')"
@@ -2051,7 +2051,7 @@ user_token="$(awk 'tolower($1) == "token:" {print $2}' "$user_login_headers" | t
 test -n "$user_token"
 
 blueclaw_request "invite delete probe user" POST http://127.0.0.1:8080/admin/api/people/invite \
-  "$(jq -cn --arg email "$email" '{email:$email}')" >/dev/null
+  "$(jq -cn --arg personID "$user_id" --arg email "$email" '{personID:$personID,email:$email}')" >/dev/null
 if ! blueclaw_request "verify delete probe policy" GET http://127.0.0.1:8080/admin/api/policy |
   jq -e --arg email "$email" 'any(.people[]?; any(.emails[]?; ascii_downcase == $email))' >/dev/null; then
   echo "delete E2E probe user was not present in Blueclaw policy after invite: $email" >&2
@@ -2412,7 +2412,7 @@ user_token="$(awk 'tolower($1) == "token:" {print $2}' "$user_login_headers" | t
 test -n "$user_token"
 
 blueclaw_request "invite attachment probe user" POST http://127.0.0.1:8080/admin/api/people/invite \
-  "$(jq -cn --arg email "$email" '{email:$email}')" >/dev/null
+  "$(jq -cn --arg personID "$user_id" --arg email "$email" '{personID:$personID,email:$email}')" >/dev/null
 
 channel_id="$(api_request "create attachment probe dm" POST http://localhost:8065/api/v4/channels/direct "$user_token" \
   "$(jq -cn --arg user_id "$user_id" --arg bot_user_id "$bot_user_id" '[$user_id,$bot_user_id]')" | jq -r '.id')"
@@ -2568,7 +2568,7 @@ user_id="$(api_request "create probe browser user" POST http://localhost:8065/ap
 test -n "$user_id"
 
 admind_request "invite probe browser user" POST http://127.0.0.1:8080/admin/api/people/invite \
-  "$(jq -cn --arg email "$email" '{email:$email}')" >/dev/null
+  "$(jq -cn --arg personID "$user_id" --arg email "$email" '{personID:$personID,email:$email}')" >/dev/null
 
 user_login_headers="$(mktemp)"
 curl --silent --show-error --fail -D "$user_login_headers" -o /tmp/internkim-probe-browser-e2e-login.json \

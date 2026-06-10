@@ -107,6 +107,15 @@ func TestFlowDescriptorIncludesTaskUpdateInput(t *testing.T) {
 	assertDescriptorCompletionEvidence(t, FlowDescriptors(), "flow.task.update", "success", "write_task", "task")
 }
 
+func TestFlowDescriptorIncludesTaskDeleteInput(t *testing.T) {
+	schema := descriptorSchema(t, FlowDescriptors(), "flow.task.delete")
+
+	assertSchemaHasProperties(t, schema, "taskID", "query", "targetPersonHint", "weekCode")
+	assertSchemaOmitsProperties(t, schema, "prompt", "allowDuplicate", "content")
+	assertDescriptorApproval(t, FlowDescriptors(), "flow.task.delete", true)
+	assertDescriptorCompletionEvidence(t, FlowDescriptors(), "flow.task.delete", "success", "delete_task", "task")
+}
+
 func TestPlatformMessageDescriptorsMatchMessageInputs(t *testing.T) {
 	contextSchema := descriptorSchema(t, PlatformMessageDescriptors(), "platform.message.context")
 	searchSchema := descriptorSchema(t, PlatformMessageDescriptors(), "platform.message.search")
