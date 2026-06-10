@@ -51,6 +51,26 @@ type googleOAuthStateRecord struct {
 	RedirectURI string
 }
 
+type googleOAuthStartResponse struct {
+	Provider         string `json:"provider"`
+	Status           string `json:"status"`
+	AuthorizationURL string `json:"authorizationURL"`
+	RedirectURI      string `json:"redirectURI"`
+}
+
+type googleOAuthStartError struct {
+	Stage string
+	Cause error
+}
+
+func (errorValue googleOAuthStartError) Error() string {
+	return errorValue.Stage + ": " + errorValue.Cause.Error()
+}
+
+func (errorValue googleOAuthStartError) Unwrap() error {
+	return errorValue.Cause
+}
+
 func googleAuthorizeEndpoint() string {
 	if override := strings.TrimSpace(os.Getenv(googleAuthURLOverrideEnv)); override != "" {
 		return override
@@ -119,28 +139,57 @@ func (service *Service) handleGoogleOAuthStart(writer http.ResponseWriter, reque
 	}
 	service.cleanupExpiredGoogleOAuthStates(time.Now())
 	redirectURI := googleOAuthRedirectURIFromRequest(request)
-	configuration, errorValue := service.buildGoogleOAuthConfig(redirectURI)
+	response, errorValue := service.createGoogleOAuthStartResponse(redirectURI)
 	if errorValue != nil {
 		log.Printf("google oauth start: %v", errorValue)
-		respondGoogleOAuthErrorHTML(writer, request, http.StatusInternalServerError, googleOAuthResponseTextForRequest(request).ClientConfigurationError)
+		text := googleOAuthResponseTextForRequest(request)
+		var startError googleOAuthStartError
+		if errors.As(errorValue, &startError) && startError.Stage == "client_configuration" {
+			respondGoogleOAuthErrorHTML(writer, request, http.StatusInternalServerError, text.ClientConfigurationError)
+			return
+		}
+		respondGoogleOAuthErrorHTML(writer, request, http.StatusInternalServerError, text.StateGenerationError)
 		return
+	}
+	http.Redirect(writer, request, response.AuthorizationURL, http.StatusFound)
+}
+
+func (service *Service) startCalendarConnection(writer http.ResponseWriter, request *http.Request) {
+	service.cleanupExpiredGoogleOAuthStates(time.Now())
+	redirectURI := strings.TrimRight(service.calendarExternalBaseURL(request), "/") + googleOAuthCallbackPath
+	response, errorValue := service.createGoogleOAuthStartResponse(redirectURI)
+	if errorValue != nil {
+		log.Printf("calendar connection start: %v", errorValue)
+		http.Error(writer, "calendar connection start failed", http.StatusInternalServerError)
+		return
+	}
+	service.writeJSON(writer, response)
+}
+
+func (service *Service) createGoogleOAuthStartResponse(redirectURI string) (googleOAuthStartResponse, error) {
+	configuration, errorValue := service.buildGoogleOAuthConfig(redirectURI)
+	if errorValue != nil {
+		return googleOAuthStartResponse{}, googleOAuthStartError{Stage: "client_configuration", Cause: errorValue}
 	}
 	state, errorValue := generateRandomURLToken(32)
 	if errorValue != nil {
-		log.Printf("google oauth state generation: %v", errorValue)
-		respondGoogleOAuthErrorHTML(writer, request, http.StatusInternalServerError, googleOAuthResponseTextForRequest(request).StateGenerationError)
-		return
+		return googleOAuthStartResponse{}, googleOAuthStartError{Stage: "state_generation", Cause: errorValue}
 	}
 	service.googleOAuthStates.Store(state, &googleOAuthStateRecord{
 		CreatedAt:   time.Now().UTC(),
 		RedirectURI: redirectURI,
 	})
-	authorizeURL := configuration.AuthCodeURL(state,
+	authorizationURL := configuration.AuthCodeURL(state,
 		oauth2.AccessTypeOffline,
 		oauth2.SetAuthURLParam("prompt", "consent"),
 		oauth2.SetAuthURLParam("include_granted_scopes", "true"),
 	)
-	http.Redirect(writer, request, authorizeURL, http.StatusFound)
+	return googleOAuthStartResponse{
+		Provider:         "google",
+		Status:           "authorization_required",
+		AuthorizationURL: authorizationURL,
+		RedirectURI:      redirectURI,
+	}, nil
 }
 
 func (service *Service) handleGoogleOAuthCallback(writer http.ResponseWriter, request *http.Request) {

@@ -49,7 +49,7 @@ type mailMessageMarkInput struct {
 
 func isMailTool(toolName string) bool {
 	switch strings.TrimSpace(toolName) {
-	case "mail.message.list", "mail.message.search", "mail.message.read", "mail.message.send", "mail.message.move", "mail.message.mark":
+	case "mail.message.list", "mail.message.search", "mail.message.read", "mail.message.send", "mail.message.move", "mail.message.mark", "mail.connection.status", "mail.connection.start":
 		return true
 	default:
 		return false
@@ -84,6 +84,10 @@ func (service Service) invokeMail(ctx context.Context, request capabilities.Tool
 		return service.invokeMailMessageMove(ctx, request)
 	case "mail.message.mark":
 		return service.invokeMailMessageMark(ctx, request)
+	case "mail.connection.status":
+		return service.invokeMailConnectionStatus(ctx, request)
+	case "mail.connection.start":
+		return service.invokeMailConnectionStart(ctx, request)
 	default:
 		return nil, fmt.Errorf("mail tool is not configured: %s", request.ToolName)
 	}
@@ -141,6 +145,23 @@ func (service Service) invokeMailMessageMark(ctx context.Context, request capabi
 	}
 	path := "/mail/api/messages/" + url.PathEscape(input.Mailbox) + "/" + url.PathEscape(input.UID) + "/flags"
 	return service.sendMailToolRequest(ctx, http.MethodPost, path, input, request.Context.RequesterEmail)
+}
+
+func (service Service) invokeMailConnectionStatus(ctx context.Context, request capabilities.ToolInvokeRequest) (json.RawMessage, error) {
+	return service.sendMailToolRequest(ctx, http.MethodGet, "/mail/api/account", nil, request.Context.RequesterEmail)
+}
+
+func (service Service) invokeMailConnectionStart(ctx context.Context, request capabilities.ToolInvokeRequest) (json.RawMessage, error) {
+	baseURL := strings.TrimRight(service.Configuration.AdmindBaseURL, "/")
+	document, errorValue := json.Marshal(map[string]any{
+		"status":   "configuration_required",
+		"provider": "manual",
+		"setupURL": baseURL + "/mail/",
+	})
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return document, nil
 }
 
 func decodeMailMessageListInput(document json.RawMessage) (mailMessageListInput, error) {
