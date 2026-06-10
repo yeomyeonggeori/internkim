@@ -5,6 +5,7 @@ export const appShellText = {
 		activeWorkspace: '활성 작업공간',
 		account: '계정',
 		activity: '활동',
+		apiTokens: 'API 토큰',
 		logOut: '로그아웃',
 		admin: '관리',
 		flow: '업무',
@@ -17,7 +18,34 @@ export const appShellText = {
 		signInDescription: '업무, 일정, 기억, 메일, 출결 화면은 InternKim 구성원만 열 수 있습니다.',
 		continueWithMattermost: 'Mattermost로 계속하기',
 		continueWithCloudflare: '이메일 OTP로 계속하기',
-		webSessionUnavailable: '로그인 상태 확인에 실패했습니다. Mattermost 로그인이나 이메일 OTP로 다시 연결할 수 있습니다.'
+		webSessionUnavailable: '로그인 상태 확인에 실패했습니다. Mattermost 로그인이나 이메일 OTP로 다시 연결할 수 있습니다.',
+		apiTokenSheet: {
+			title: 'API 토큰',
+			description: '외부 개발 도구가 김인턴 API를 호출할 때 쓰는 사용자 토큰입니다.',
+			label: '토큰 이름',
+			labelPlaceholder: 'Claude Code',
+			create: '토큰 발급',
+			createSuccess: '토큰이 발급되었습니다. 이 값은 다시 볼 수 없습니다.',
+			createError: '토큰 발급에 실패했습니다.',
+			shownOnce: '한 번만 표시됩니다. 지금 복사해 두세요.',
+			ownerBoundary: '요청 본문에 다른 사용자가 들어 있어도 항상 이 토큰을 발급받은 사용자 권한으로 실행됩니다.',
+			scopesTitle: '권한 범위',
+			copy: '토큰 복사',
+			scopes: {
+				read: '읽기',
+				write: '쓰기',
+				connect: '연결',
+				externalSend: '외부 전송',
+				destructive: '삭제'
+			},
+			scopeDescriptions: {
+				read: '업무, 일정, 메일, 메시지를 조회합니다.',
+				write: '업무와 일정을 만들거나 수정합니다.',
+				connect: '캘린더나 메일 연결을 시작합니다.',
+				externalSend: 'DM, 메일, 채널 메시지를 전송합니다.',
+				destructive: '삭제 같은 되돌리기 어려운 작업을 허용합니다.'
+			}
+		}
 	},
 	en: {
 		apps: 'Apps',
@@ -25,6 +53,7 @@ export const appShellText = {
 		activeWorkspace: 'Active workspace',
 		account: 'Account',
 		activity: 'Activity',
+		apiTokens: 'API tokens',
 		logOut: 'Log out',
 		admin: 'Admin',
 		flow: 'Flow',
@@ -37,6 +66,33 @@ export const appShellText = {
 		signInDescription: 'Flow, Calendar, Memory, Mail, and Attendance are available to InternKim members only.',
 		continueWithMattermost: 'Continue with Mattermost',
 		continueWithCloudflare: 'Continue with email OTP',
-		webSessionUnavailable: 'Could not check your session. You can continue with Mattermost or email OTP.'
+		webSessionUnavailable: 'Could not check your session. You can continue with Mattermost or email OTP.',
+		apiTokenSheet: {
+			title: 'API Tokens',
+			description: 'User-scoped tokens for external developer tools that call the InternKim API.',
+			label: 'Token name',
+			labelPlaceholder: 'Claude Code',
+			create: 'Create token',
+			createSuccess: 'Token created. This value cannot be shown again.',
+			createError: 'Could not create the token.',
+			shownOnce: 'Shown once. Copy it now.',
+			ownerBoundary: 'Even if the request body names another user, calls always run as the token owner.',
+			scopesTitle: 'Scopes',
+			copy: 'Copy token',
+			scopes: {
+				read: 'Read',
+				write: 'Write',
+				connect: 'Connect',
+				externalSend: 'External send',
+				destructive: 'Delete'
+			},
+			scopeDescriptions: {
+				read: 'Read tasks, events, mail, and messages.',
+				write: 'Create or update tasks and events.',
+				connect: 'Start calendar or mail connection flows.',
+				externalSend: 'Send DMs, mail, and channel messages.',
+				destructive: 'Allow irreversible operations such as delete.'
+			}
+		}
 	}
 } as const;

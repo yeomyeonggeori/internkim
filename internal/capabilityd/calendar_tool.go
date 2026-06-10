@@ -60,7 +60,7 @@ type calendarEventForTool struct {
 
 func isCalendarTool(toolName string) bool {
 	switch strings.TrimSpace(toolName) {
-	case "calendar.event.add", "calendar.event.list", "calendar.event.update", "calendar.event.delete":
+	case "calendar.event.add", "calendar.event.list", "calendar.event.update", "calendar.event.delete", "calendar.connection.status", "calendar.connection.start":
 		return true
 	default:
 		return false
@@ -77,6 +77,10 @@ func (service Service) invokeCalendarTool(ctx context.Context, request capabilit
 		return service.invokeCalendarEventUpdate(ctx, request)
 	case "calendar.event.delete":
 		return service.invokeCalendarEventDelete(ctx, request)
+	case "calendar.connection.status":
+		return service.invokeCalendarConnectionStatus(ctx, request)
+	case "calendar.connection.start":
+		return service.invokeCalendarConnectionStart(ctx, request)
 	default:
 		return capabilities.ToolInvokeResponse{}, fmt.Errorf("calendar tool is not configured: %s", request.ToolName)
 	}
@@ -134,6 +138,22 @@ func (service Service) invokeCalendarEventDelete(ctx context.Context, request ca
 	}
 	result, _ := json.Marshal(map[string]any{"eventID": input.EventID, "deleted": true})
 	return calendarToolResponse(request.ToolName, "deleted", result), nil
+}
+
+func (service Service) invokeCalendarConnectionStatus(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	result, errorValue := service.sendCalendarToolRequest(ctx, http.MethodGet, "/calendar/api/account-status", nil, request.Context.RequesterEmail)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	return calendarToolResponse(request.ToolName, "ok", result), nil
+}
+
+func (service Service) invokeCalendarConnectionStart(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	result, errorValue := service.sendCalendarToolRequest(ctx, http.MethodPost, "/calendar/api/connection/start", nil, request.Context.RequesterEmail)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	return calendarToolResponse(request.ToolName, "connection_required", result), nil
 }
 
 func decodeCalendarEventWriteInput(document json.RawMessage, needsEventID bool) (calendarEventWriteInput, error) {

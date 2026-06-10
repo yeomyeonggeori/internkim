@@ -58,6 +58,7 @@ type ToolInvokeRequest struct {
 	ToolName             string            `json:"toolName"`
 	Input                json.RawMessage   `json:"input"`
 	Context              ToolInvokeContext `json:"context,omitempty"`
+	Actor                ActorContext      `json:"actor,omitempty"`
 	ExecutionMode        string            `json:"executionMode"`
 	RequiresUserPresence bool              `json:"requiresUserPresence"`
 	PrivacyClass         string            `json:"privacyClass"`
@@ -82,6 +83,15 @@ type ToolInvokeContext struct {
 	ChannelName             string `json:"channelName,omitempty"`
 	ReplyTargetID           string `json:"replyTargetID,omitempty"`
 	Platform                string `json:"platform,omitempty"`
+}
+
+type ActorContext struct {
+	PersonID    string   `json:"personID,omitempty"`
+	Email       string   `json:"email,omitempty"`
+	DisplayName string   `json:"displayName,omitempty"`
+	Source      string   `json:"source,omitempty"`
+	Scopes      []string `json:"scopes,omitempty"`
+	IsAdmin     bool     `json:"isAdmin,omitempty"`
 }
 
 type ToolInvokeResponse struct {

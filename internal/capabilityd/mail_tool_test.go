@@ -129,6 +129,45 @@ func TestMailMessageListRejectsTooLargeLimit(t *testing.T) {
 	}
 }
 
+func TestMailConnectionStatusUsesAccountEndpoint(t *testing.T) {
+	var requesterEmail string
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.Method != http.MethodGet || request.URL.String() != "http://admind.local/mail/api/account" {
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			}
+			requesterEmail = request.Header.Get("CF-Access-Authenticated-User-Email")
+			return mailToolJSONResponse(`{"configured":true,"email":"staff@example.com"}`), nil
+		})},
+	}
+
+	result, errorValue := service.invokeMailConnectionStatus(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "mail.connection.status",
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "Staff@Example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if requesterEmail != "staff@example.com" {
+		t.Fatalf("requesterEmail = %q", requesterEmail)
+	}
+	if !strings.Contains(string(result), `"configured":true`) {
+		t.Fatalf("result = %s", string(result))
+	}
+}
+
+func TestMailConnectionStartReturnsSetupURL(t *testing.T) {
+	service := Service{Configuration: Configuration{AdmindBaseURL: "http://admind.local"}}
+	result, errorValue := service.invokeMailConnectionStart(context.Background(), capabilities.ToolInvokeRequest{ToolName: "mail.connection.start"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !strings.Contains(string(result), `"setupURL":"http://admind.local/mail/"`) {
+		t.Fatalf("result = %s", string(result))
+	}
+}
+
 func mailToolJSONResponse(document string) *http.Response {
 	return &http.Response{
 		StatusCode: http.StatusOK,

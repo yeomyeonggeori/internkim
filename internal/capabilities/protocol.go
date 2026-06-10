@@ -31,6 +31,7 @@ type CompletionEvidenceDescriptor = capabilityprotocol.CompletionEvidenceDescrip
 type RegistryResponse = capabilityprotocol.RegistryResponse
 type ToolInvokeRequest = capabilityprotocol.ToolInvokeRequest
 type ToolInvokeContext = capabilityprotocol.ToolInvokeContext
+type ActorContext = capabilityprotocol.ActorContext
 type ToolInvokeResponse = capabilityprotocol.ToolInvokeResponse
 type ResourceScope = capabilityprotocol.ResourceScope
 type CompanionJobEnvelope = capabilityprotocol.CompanionJobEnvelope
@@ -108,6 +109,8 @@ func FlowDescriptors() []Descriptor {
 
 func CalendarDescriptors() []Descriptor {
 	return []Descriptor{
+		{Name: "calendar.connection.status", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: emptyInputSchema(), PolicyResource: "tool:calendar.connection.status", SideEffectClass: "read"},
+		{Name: "calendar.connection.start", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: emptyInputSchema(), PolicyResource: "tool:calendar.connection.start", SideEffectClass: "connect", RequiresApproval: true},
 		{Name: "calendar.event.add", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventWriteInputSchema(), PolicyResource: "tool:calendar.event.add", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_calendar", "calendar")},
 		{Name: "calendar.event.list", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventListInputSchema(), PolicyResource: "tool:calendar.event.list", SideEffectClass: "read"},
 		{Name: "calendar.event.update", Version: "1", PrivacyClass: "workspace_calendar", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: calendarEventUpdateInputSchema(), PolicyResource: "tool:calendar.event.update", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_calendar", "calendar")},
@@ -117,6 +120,8 @@ func CalendarDescriptors() []Descriptor {
 
 func MailDescriptors() []Descriptor {
 	return []Descriptor{
+		{Name: "mail.connection.status", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: emptyInputSchema(), PolicyResource: "tool:mail.connection.status", SideEffectClass: "read"},
+		{Name: "mail.connection.start", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "interactive", RequiresUserPresence: true, WorksOffline: false, InputSchema: emptyInputSchema(), PolicyResource: "tool:mail.connection.start", SideEffectClass: "connect", RequiresApproval: true},
 		{Name: "mail.message.list", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mailMessageListInputSchema(), PolicyResource: "tool:mail.message.list", SideEffectClass: "read"},
 		{Name: "mail.message.search", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mailMessageSearchInputSchema(), PolicyResource: "tool:mail.message.search", SideEffectClass: "read"},
 		{Name: "mail.message.read", Version: "1", PrivacyClass: "workspace_mail", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: mailMessageReadInputSchema(), PolicyResource: "tool:mail.message.read", SideEffectClass: "read"},
@@ -346,6 +351,10 @@ func calendarEventWriteInputSchema() json.RawMessage {
 		jsonschema.Field("people", jsonschema.Array(jsonschema.String())),
 		jsonschema.Field("reminderLeadHours", jsonschema.Integer()),
 	).RawMessage()
+}
+
+func emptyInputSchema() json.RawMessage {
+	return jsonschema.Object().RawMessage()
 }
 
 func calendarEventListInputSchema() json.RawMessage {
