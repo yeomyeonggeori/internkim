@@ -19,7 +19,7 @@ func (service *Service) authorizeFlowRequest(request *http.Request, action strin
 	if resource == flowResourceSummary && action == flowActionRead {
 		return service.isFlowStaffActor(request.Context(), actorEmail)
 	}
-	if resource == flowResourceTask && (action == flowActionCreate || action == flowActionUpdate) {
+	if resource == flowResourceTask && (action == flowActionCreate || action == flowActionUpdate || action == flowActionDelete) {
 		return service.isFlowStaffActor(request.Context(), actorEmail)
 	}
 	return false

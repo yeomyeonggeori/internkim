@@ -61,7 +61,7 @@ cleanup() {
 trap cleanup EXIT
 
 curl --silent --show-error --fail -H "Content-Type: application/json" \
-  -d "$(jq -cn --arg email "$email" '{email:$email}')" \
+  -d "$(jq -cn --arg person_id "lab-$timestamp" --arg email "$email" '{personID:$person_id,email:$email}')" \
   http://127.0.0.1:8080/admin/api/people/invite >/dev/null
 
 before_count="$(curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/task | jq 'length')"

@@ -47,10 +47,18 @@ type flowTaskUpdateInput struct {
 	DecisionReason   *string `json:"decisionReason"`
 }
 
+type flowTaskDeleteInput struct {
+	TaskID           string `json:"taskID"`
+	Query            string `json:"query"`
+	TargetPersonHint string `json:"targetPersonHint"`
+	WeekCode         string `json:"weekCode"`
+}
+
 type flowSummaryForTool struct {
-	Week    flowWeekForTool     `json:"week"`
-	Members []flowMemberForTool `json:"members"`
-	Tasks   []flowTaskForTool   `json:"tasks"`
+	Week        flowWeekForTool     `json:"week"`
+	Members     []flowMemberForTool `json:"members"`
+	Tasks       []flowTaskForTool   `json:"tasks"`
+	WeeklyTasks []flowTaskForTool   `json:"weeklyTasks"`
 }
 
 type flowWeekForTool struct {
@@ -89,7 +97,7 @@ const flowRequesterEmailHeader = "X-InternKim-Requester-Email"
 
 func isFlowTaskTool(toolName string) bool {
 	switch strings.TrimSpace(toolName) {
-	case "flow.task.add", "flow.task.list", "flow.task.update":
+	case "flow.task.add", "flow.task.list", "flow.task.update", "flow.task.delete":
 		return true
 	default:
 		return false
@@ -104,6 +112,8 @@ func (service Service) invokeFlowTaskTool(ctx context.Context, request capabilit
 		return service.invokeFlowTaskList(ctx, request)
 	case "flow.task.update":
 		return service.invokeFlowTaskUpdate(ctx, request)
+	case "flow.task.delete":
+		return service.invokeFlowTaskDelete(ctx, request)
 	default:
 		return capabilities.ToolInvokeResponse{}, fmt.Errorf("flow task tool is not configured: %s", request.ToolName)
 	}
@@ -194,6 +204,32 @@ func (service Service) invokeFlowTaskList(ctx context.Context, request capabilit
 		SelectedBackend: "device",
 		ToolName:        request.ToolName,
 		Status:          "ok",
+		Result:          result,
+	}, nil
+}
+
+func (service Service) invokeFlowTaskDelete(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	input, errorValue := decodeFlowTaskDeleteInput(request.Input)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	summary, errorValue := service.fetchFlowSummary(ctx, request.Context.RequesterEmail, input.WeekCode)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	task, failure := resolveFlowTaskDeleteTarget(input, summary)
+	if failure != nil {
+		return flowTaskUpdateErrorResponse(request.ToolName, *failure), nil
+	}
+	result, errorValue := service.deleteFlowTask(ctx, task.ID, request.Context.RequesterEmail)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	return capabilities.ToolInvokeResponse{
+		Provider:        "internkim",
+		SelectedBackend: "device",
+		ToolName:        request.ToolName,
+		Status:          flowTaskResponseStatus(result),
 		Result:          result,
 	}, nil
 }
@@ -310,6 +346,24 @@ func decodeFlowTaskUpdateInput(document json.RawMessage) (flowTaskUpdateInput, e
 	return input, nil
 }
 
+func decodeFlowTaskDeleteInput(document json.RawMessage) (flowTaskDeleteInput, error) {
+	if len(bytes.TrimSpace(document)) == 0 {
+		return flowTaskDeleteInput{}, fmt.Errorf("flow.task.delete input is required")
+	}
+	var input flowTaskDeleteInput
+	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
+		return flowTaskDeleteInput{}, errorValue
+	}
+	input.TaskID = strings.TrimSpace(input.TaskID)
+	input.Query = strings.TrimSpace(input.Query)
+	input.TargetPersonHint = strings.TrimSpace(input.TargetPersonHint)
+	input.WeekCode = strings.TrimSpace(input.WeekCode)
+	if input.TaskID == "" && input.Query == "" {
+		return flowTaskDeleteInput{}, fmt.Errorf("taskID or query is required")
+	}
+	return input, nil
+}
+
 func trimStringPointer(value **string) {
 	if value == nil || *value == nil {
 		return
@@ -351,6 +405,9 @@ func (service Service) fetchFlowSummary(ctx context.Context, requesterEmail stri
 	var summary flowSummaryForTool
 	if errorValue := json.Unmarshal(body, &summary); errorValue != nil {
 		return flowSummaryForTool{}, errorValue
+	}
+	if len(summary.Tasks) == 0 && len(summary.WeeklyTasks) > 0 {
+		summary.Tasks = summary.WeeklyTasks
 	}
 	return summary, nil
 }
@@ -463,6 +520,29 @@ func (service Service) putFlowTask(ctx context.Context, task flowTaskForTool, re
 	return json.RawMessage(body), nil
 }
 
+func (service Service) deleteFlowTask(ctx context.Context, taskID string, requesterEmail string) (json.RawMessage, error) {
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodDelete, strings.TrimRight(service.Configuration.AdmindBaseURL, "/")+"/flow/api/tasks/"+url.PathEscape(taskID), nil)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	setFlowRequesterEmailHeader(httpRequest, requesterEmail)
+	httpResponse, errorValue := service.httpClient().Do(httpRequest)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer httpResponse.Body.Close()
+	body, readError := io.ReadAll(httpResponse.Body)
+	if readError != nil {
+		return nil, readError
+	}
+	if httpResponse.StatusCode >= http.StatusBadRequest {
+		return nil, fmt.Errorf("flow task delete failed: %s", strings.TrimSpace(string(body)))
+	}
+	return json.RawMessage(body), nil
+}
+
 type flowTaskFilter struct {
 	Query   string
 	OwnerID string
@@ -562,6 +642,15 @@ func resolveFlowTaskUpdateTarget(input flowTaskUpdateInput, summary flowSummaryF
 		failure.Candidates = flowTaskUpdateCandidateSummaries(candidates, "matched")
 	}
 	return flowTaskForTool{}, &failure
+}
+
+func resolveFlowTaskDeleteTarget(input flowTaskDeleteInput, summary flowSummaryForTool) (flowTaskForTool, *flowTaskUpdateFailure) {
+	return resolveFlowTaskUpdateTarget(flowTaskUpdateInput{
+		TaskID:           input.TaskID,
+		Query:            input.Query,
+		TargetPersonHint: input.TargetPersonHint,
+		WeekCode:         input.WeekCode,
+	}, summary)
 }
 
 func flowTaskUpdateCandidates(input flowTaskUpdateInput, summary flowSummaryForTool) []flowTaskForTool {

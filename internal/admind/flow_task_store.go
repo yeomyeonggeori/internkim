@@ -230,6 +230,27 @@ func (service *Service) updateFlowTaskMattermostPostID(ctx context.Context, task
 	return errorValue
 }
 
+func (service *Service) deleteFlowTaskByID(ctx context.Context, taskID string) error {
+	database, errorValue := service.openFlowDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	transaction, errorValue := database.BeginTx(ctx, nil)
+	if errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue = transaction.ExecContext(ctx, "DELETE FROM flow_channel_outbox WHERE task_id = ?", taskID); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	if _, errorValue = transaction.ExecContext(ctx, "DELETE FROM flow_tasks WHERE id = ?", taskID); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	return transaction.Commit()
+}
+
 func scanFlowTask(rows *sql.Rows) (flowTask, error) {
 	var task flowTask
 	var participantIDsDocument string

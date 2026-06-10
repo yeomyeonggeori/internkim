@@ -104,6 +104,7 @@ func FlowDescriptors() []Descriptor {
 		{Name: "flow.task.add", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskAddInputSchema(), PolicyResource: "tool:flow.task.add", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_task", "task")},
 		{Name: "flow.task.list", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "low", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskListInputSchema(), PolicyResource: "tool:flow.task.list", SideEffectClass: "read"},
 		{Name: "flow.task.update", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskUpdateInputSchema(), PolicyResource: "tool:flow.task.update", SideEffectClass: "workspace_write", CompletionEvidence: completionEvidence("success", "write_task", "task")},
+		{Name: "flow.task.delete", Version: "1", PrivacyClass: "workspace_task", EstimatedLatency: "medium", RequiresUserPresence: false, WorksOffline: false, InputSchema: flowTaskDeleteInputSchema(), PolicyResource: "tool:flow.task.delete", SideEffectClass: "destructive", RequiresApproval: true, CompletionEvidence: completionEvidence("success", "delete_task", "task")},
 	}
 }
 
@@ -204,6 +205,15 @@ func flowTaskUpdateInputSchema() json.RawMessage {
 		jsonschema.Field("flag", jsonschema.Integer()),
 		jsonschema.Field("requestReason", jsonschema.String()),
 		jsonschema.Field("decisionReason", jsonschema.String()),
+	).RawMessage()
+}
+
+func flowTaskDeleteInputSchema() json.RawMessage {
+	return jsonschema.Object(
+		jsonschema.Field("taskID", jsonschema.String()),
+		jsonschema.Field("query", jsonschema.String()),
+		jsonschema.Field("targetPersonHint", jsonschema.String()),
+		jsonschema.Field("weekCode", jsonschema.String()),
 	).RawMessage()
 }
 

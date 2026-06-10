@@ -532,6 +532,7 @@ func inviteMattermostBootstrapBlueclawAdmin(tenantID string, adminEmail string, 
 	baseURL := expandMattermostBootstrapBlueclawTemplate(template, tenantID)
 	client := mattermostBootstrapClient{baseURL: strings.TrimRight(baseURL, "/"), httpClient: http.DefaultClient}
 	response, errorValue := client.request(http.MethodPost, "/admin/api/people/invite", "", map[string]string{
+		"personID":    "tenant:" + strings.TrimSpace(tenantID) + ":admin",
 		"email":       strings.TrimSpace(adminEmail),
 		"displayName": "Intern Kim Admin",
 	})
