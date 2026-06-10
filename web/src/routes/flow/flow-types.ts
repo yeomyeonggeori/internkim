@@ -83,11 +83,35 @@ export type FlowDefinitions = {
 
 export type FlowSummary = {
 	week: FlowWeek;
+	currentWeek?: FlowWeek;
+	members: FlowMember[];
+	tasks: FlowTask[];
+	weeklyTasks?: FlowTask[];
+	metrics: FlowMetrics;
+	definitions: FlowDefinitions;
+	report?: FlowReportSnapshot;
+	statusOptions: string[];
+	currentUserEmail: string;
+	currentUserName: string;
+	isAdmin: boolean;
+	source: string;
+};
+
+export type FlowWeeklySummary = {
+	week: FlowWeek;
+	currentWeek?: FlowWeek;
+	weeklyTasks: FlowTask[];
+	metrics: FlowMetrics;
+	report?: FlowReportSnapshot;
+	source: string;
+};
+
+export type FlowState = {
+	currentWeek?: FlowWeek;
 	members: FlowMember[];
 	tasks: FlowTask[];
 	metrics: FlowMetrics;
 	definitions: FlowDefinitions;
-	report?: FlowReportSnapshot;
 	statusOptions: string[];
 	currentUserEmail: string;
 	currentUserName: string;

@@ -1,6 +1,6 @@
 import type { Plugin } from 'vite';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { createDevFlowSummary } from './src/routes/flow/dev-flow-fixture';
+import { createDevFlowState, createDevFlowWeeklySummary } from './src/routes/flow/dev-flow-fixture';
 
 type DevFlowMockPluginOptions = {
 	isEnabled: boolean;
@@ -18,8 +18,12 @@ export function devFlowMockPlugin(options: DevFlowMockPluginOptions): Plugin {
 			server.middlewares.use((request, response, next) => {
 				const requestURL = new URL(request.url ?? '/', 'http://localhost');
 				if (request.method === 'GET' && requestURL.pathname === '/flow/api/summary') {
-					const summary = createDevFlowSummary(requestURL.searchParams.get('week'), options.userEmail);
+					const summary = createDevFlowWeeklySummary(requestURL.searchParams.get('week'));
 					writeJSON(response, summary);
+					return;
+				}
+				if (request.method === 'GET' && requestURL.pathname === '/flow/api/state') {
+					writeJSON(response, createDevFlowState(options.userEmail));
 					return;
 				}
 				if (request.method === 'GET' && requestURL.pathname === '/auth/session') {
