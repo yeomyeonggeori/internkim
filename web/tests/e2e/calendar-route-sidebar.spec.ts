@@ -23,6 +23,28 @@ test.describe('calendar route sidebar', () => {
 			.toBe(true);
 	});
 
+	test('renders reference mini month visual states', async ({ page }) => {
+		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
+		await page.goto('/calendar/');
+
+		const sundayHeader = page.locator('[data-mini-weekday-index="0"]');
+		const weekendDate = page.locator('[data-mini-date-key="2026-06-14"]');
+		const eventDotSlot = page.locator('[data-mini-date-key="2026-06-15"] .mini-month-event-dot-slot');
+		const emptyDotSlot = page.locator('[data-mini-date-key="2026-06-16"] .mini-month-event-dot-slot');
+
+		await expect(sundayHeader).toHaveAttribute('data-weekend', 'true');
+		await expect(sundayHeader).toHaveClass(/text-red-400/);
+		await expect(weekendDate).toHaveAttribute('data-weekend', 'true');
+		await expect(weekendDate).toHaveClass(/text-red-400/);
+		await expect(eventDotSlot).toHaveAttribute('data-has-event', 'true');
+		await expect(emptyDotSlot).toHaveAttribute('data-has-event', 'false');
+
+		await page.locator('[data-mini-date-key="2026-06-16"]').click();
+		await expect(page.locator('[data-mini-date-key="2026-06-16"]')).toHaveAttribute('data-selected', 'true');
+		await expect(page.locator('[data-mini-date-key="2026-06-16"]')).toHaveClass(/bg-transparent/);
+		await expect(page.locator('[data-mini-date-key="2026-06-16"]')).toHaveClass(/rounded-none/);
+	});
+
 	test('keeps subscription copy actions disabled when values are empty', async ({ page }) => {
 		await page.goto('/calendar/');
 		await page.getByRole('button', { name: '구독 설정' }).click();
