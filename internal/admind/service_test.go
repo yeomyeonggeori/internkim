@@ -61,6 +61,72 @@ func TestGatewayRoutesAdminAndMattermost(t *testing.T) {
 	}
 }
 
+func TestMattermostPostMaintenanceRepairsMessageRootAndTimestamps(t *testing.T) {
+	service := NewService(Configuration{AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	queries := []string{}
+	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+		if name != "su" || len(arguments) != 4 || arguments[0] != "-" || arguments[1] != "postgres" || arguments[2] != "-c" {
+			t.Fatalf("command = %s %v", name, arguments)
+		}
+		query := arguments[3]
+		queries = append(queries, query)
+		switch {
+		case strings.Contains(query, "row_to_json") && strings.Contains(query, "post-1"):
+			return []byte(`{"id":"post-1","channelid":"channel-1","rootid":"","message":"old","createat":1,"updateat":1,"editat":0,"deleteat":0}`), nil
+		case strings.Contains(query, "row_to_json") && strings.Contains(query, "root-1"):
+			return []byte(`{"id":"root-1","channelid":"channel-1","rootid":"","message":"root","createat":1,"updateat":1,"editat":0,"deleteat":0}`), nil
+		case strings.Contains(query, "UPDATE posts SET"):
+			return nil, nil
+		default:
+			t.Fatalf("query = %s", query)
+			return nil, nil
+		}
+	}
+	body := `{"message":"new","rootID":"root-1","createAt":"2026-06-09T23:00:58+09:00","updateAt":1777734058000}`
+	request := httptest.NewRequest(http.MethodPost, "/admin/api/maintenance/mattermost-posts/post-1/repair", strings.NewReader(body))
+	request.RemoteAddr = "127.0.0.1:12345"
+	response := httptest.NewRecorder()
+
+	service.handleAdmin(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+	if len(queries) != 3 {
+		t.Fatalf("queries = %+v", queries)
+	}
+	updateQuery := queries[2]
+	for _, expectedText := range []string{"message", "new", "rootid", "root-1", "createat = 1781013658000", "updateat = 1777734058000"} {
+		if !strings.Contains(updateQuery, expectedText) {
+			t.Fatalf("update query %q missing %q", updateQuery, expectedText)
+		}
+	}
+	var repairResponse mattermostPostRepairResponse
+	if errorValue := json.Unmarshal(response.Body.Bytes(), &repairResponse); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if repairResponse.After.Message != "new" || repairResponse.After.RootID != "root-1" || len(repairResponse.Updates) != 4 {
+		t.Fatalf("response = %+v", repairResponse)
+	}
+}
+
+func TestMattermostPostMaintenanceRequiresClaimedAdminForRemoteRequests(t *testing.T) {
+	service := NewService(Configuration{
+		AdminEmailPath:        writeTestFile(t, "admin@example.com"),
+		ClaimedAdminEmailPath: writeTestFile(t, "lee@example.com"),
+	})
+	request := httptest.NewRequest(http.MethodPost, "/admin/api/maintenance/mattermost-posts/post-1/repair", strings.NewReader(`{"message":"new"}`))
+	request.RemoteAddr = "203.0.113.10:12345"
+	request.Header.Set("X-Forwarded-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+
+	service.handleAdmin(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+}
+
 func TestAdminRequestMetricsClassifiesAndRecordsSlowRequests(t *testing.T) {
 	service := NewService(Configuration{})
 	staticRequest := httptest.NewRequest(http.MethodGet, "/flow/", nil)
