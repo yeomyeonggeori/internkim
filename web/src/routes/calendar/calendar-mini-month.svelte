@@ -4,6 +4,7 @@
 	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import { Popover } from 'bits-ui';
+	import CalendarMiniMonthDay from './calendar-mini-month-day.svelte';
 	import { calendarText } from './text';
 
 	type MiniMonthCell = { date: Date; isOther: boolean; isToday: boolean };
@@ -77,6 +78,10 @@
 
 	function dateKey(date: Date): string {
 		return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+	}
+
+	function miniMonthDateLabel(date: Date): string {
+		return date.toLocaleDateString(localeCode, { year: 'numeric', month: 'long', day: 'numeric' });
 	}
 
 	function miniMonthCells(): MiniMonthCell[] {
@@ -200,38 +205,31 @@
 	</header>
 	<div class="grid grid-cols-7 gap-y-0.5">
 		{#each weekdayLabels as weekdayLabel, index (index)}
-			<span class="py-0.5 text-center text-[11px] font-bold text-muted-foreground">
+			{@const isWeekendHeader = index === 0 || index === 6}
+			<span
+				data-mini-weekday-index={index}
+				data-weekend={isWeekendHeader ? 'true' : 'false'}
+				class="py-0.5 text-center text-[11px] font-bold {isWeekendHeader ? 'text-red-400' : 'text-muted-foreground'}"
+			>
 				{weekdayLabel}
 			</span>
 		{/each}
-		{#each miniMonthCells() as cell, index (index)}
-			{@const isWeekend = cell.date.getDay() === 0 || cell.date.getDay() === 6}
-			{@const cellDateKey = dateKey(cell.date)}
-			{@const hasEvent = eventDates.has(cellDateKey)}
-			{@const isSelected = selectedDateKey === cellDateKey}
-			<button
-				type="button"
-				aria-pressed={isSelected}
-				data-mini-date-key={cellDateKey}
-				class="relative mx-auto flex size-7 items-start justify-center rounded-md pt-0.5 text-[12px] tabular-nums transition-colors {isSelected
-					? 'bg-primary font-bold text-primary-foreground'
-					: cell.isToday
-						? 'font-bold text-primary ring-1 ring-primary/60'
-						: cell.isOther
-							? 'text-muted-foreground opacity-45 hover:bg-accent'
-							: isWeekend
-								? 'text-foreground hover:bg-accent'
-								: 'text-foreground hover:bg-accent'}"
-				onclick={() => onSelectDate(cell.date)}
-			>
-				{cell.date.getDate()}
-				{#if hasEvent}
-					<span
-						class="absolute bottom-0.5 left-1/2 size-1.5 -translate-x-1/2 rounded-full {isSelected ? 'bg-primary-foreground' : 'bg-primary'}"
-						aria-hidden="true"
-					></span>
-				{/if}
-			</button>
-		{/each}
-	</div>
-</section>
+			{#each miniMonthCells() as cell, index (index)}
+				{@const isWeekend = cell.date.getDay() === 0 || cell.date.getDay() === 6}
+				{@const cellDateKey = dateKey(cell.date)}
+				{@const hasEvent = eventDates.has(cellDateKey)}
+				{@const isSelected = selectedDateKey === cellDateKey}
+				<CalendarMiniMonthDay
+					date={cell.date}
+					dateKey={cellDateKey}
+					dateLabel={miniMonthDateLabel(cell.date)}
+					{hasEvent}
+					isOtherMonth={cell.isOther}
+					{isSelected}
+					isToday={cell.isToday}
+					{isWeekend}
+					{onSelectDate}
+				/>
+			{/each}
+		</div>
+	</section>

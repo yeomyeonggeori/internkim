@@ -1,6 +1,8 @@
 import type { Event as DayFlowEvent } from '@dayflow/core';
 import { eventStartDate } from './calendar-event-mapping';
 
+const weekdayLabels = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as const;
+
 export type CalendarSearchResult = {
 	id: string;
 	title: string;
@@ -28,14 +30,17 @@ export function searchCalendarEvents(query: string, events: DayFlowEvent[]): Cal
 				id: event.id,
 				title: event.title,
 				startDate,
-				dateLabel: startDate.toLocaleDateString('en-US', {
-					month: 'short',
-					day: 'numeric',
-					weekday: 'short'
-				}),
+				dateLabel: searchDateLabel(startDate),
 				highlightParts: highlightSearchMatch(event.title, trimmedQuery)
 			};
 		});
+}
+
+export function searchDateLabel(date: Date): string {
+	const year = String(date.getFullYear());
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const day = String(date.getDate()).padStart(2, '0');
+	return `${year}.${month}.${day} ${weekdayLabels[date.getDay()]}`;
 }
 
 function highlightSearchMatch(value: string, query: string): HighlightPart[] {
