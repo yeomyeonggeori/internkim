@@ -102,6 +102,37 @@ func TestCalendarEventDeleteRequiresEventID(t *testing.T) {
 	}
 }
 
+func TestCalendarConnectionStartUsesAdmindOAuthEndpoint(t *testing.T) {
+	var requesterEmail string
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if request.Method != http.MethodPost || request.URL.String() != "http://admind.local/calendar/api/connection/start" {
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			}
+			requesterEmail = request.Header.Get("CF-Access-Authenticated-User-Email")
+			return calendarToolJSONResponse(`{"provider":"google","status":"authorization_required","authorizationURL":"https://accounts.google.com/oauth"}`), nil
+		})},
+	}
+
+	response, errorValue := service.invokeCalendarConnectionStart(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "calendar.connection.start",
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "Staff@Example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != "connection_required" {
+		t.Fatalf("status = %q", response.Status)
+	}
+	if requesterEmail != "staff@example.com" {
+		t.Fatalf("requesterEmail = %q", requesterEmail)
+	}
+	if !strings.Contains(string(response.Result), "authorization_required") {
+		t.Fatalf("result = %s", string(response.Result))
+	}
+}
+
 func calendarToolJSONResponse(document string) *http.Response {
 	return &http.Response{
 		StatusCode: http.StatusOK,

@@ -24,6 +24,7 @@ export default defineConfig(({ mode }) => {
 		server: {
 			proxy: {
 				'/.well-known/caldav': admindTarget,
+				'/api/v1': admindTarget,
 				'/admin/api': admindTarget,
 				'/attendance/api': admindTarget,
 				'/auth': admindTarget,

@@ -1,7 +1,9 @@
 package admind
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -162,12 +164,30 @@ func (service *Service) createFlowTask(responseWriter http.ResponseWriter, reque
 		writeFlowRequestError(responseWriter, errorValue)
 		return
 	}
+	task.Business = firstNonEmpty(task.Business, defaultFlowTaskBusiness(definitions))
 	if errorValue := service.writeFlowTask(request.Context(), task); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
 	task = service.applyFlowMattermostProjection(request.Context(), task)
 	service.writeJSON(responseWriter, task)
+}
+
+func defaultFlowTaskBusiness(definitions flowDefinitions) string {
+	if len(definitions.Categories) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(definitions.Categories[0])
+}
+
+func flowTaskPayloadHasBusiness(document []byte) bool {
+	var payload map[string]json.RawMessage
+	if json.Unmarshal(document, &payload) != nil {
+		return false
+	}
+	_, hasCategory := payload["category"]
+	_, hasBusiness := payload["business"]
+	return hasCategory || hasBusiness
 }
 
 func (service *Service) updateFlowTask(responseWriter http.ResponseWriter, request *http.Request, taskID string) {
@@ -177,12 +197,26 @@ func (service *Service) updateFlowTask(responseWriter http.ResponseWriter, reque
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
+	document, errorValue := io.ReadAll(request.Body)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	request.Body = io.NopCloser(bytes.NewReader(document))
 	task, errorValue := service.flowTaskFromRequest(request, members, definitions, taskID)
 	if errorValue != nil {
 		writeFlowRequestError(responseWriter, errorValue)
 		return
 	}
-	task.MattermostPostID = service.existingFlowMattermostPostID(request.Context(), task.ID)
+	existingTask, found, errorValue := service.readFlowTaskByID(request.Context(), task.ID)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	if found && !flowTaskPayloadHasBusiness(document) {
+		task.Business = existingTask.Business
+	}
+	task.MattermostPostID = existingTask.MattermostPostID
 	if errorValue := service.writeFlowTask(request.Context(), task); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return

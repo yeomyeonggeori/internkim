@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import AccountAPITokenSheet from '$lib/components/account-api-token-sheet.svelte';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
 	import { appShellText } from '$lib/i18n/app-shell-text';
@@ -13,6 +14,7 @@
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import MailIcon from '@lucide/svelte/icons/mail';
 	import NetworkIcon from '@lucide/svelte/icons/network';
+	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import { onMount } from 'svelte';
 
 	type RailItem = {
@@ -24,6 +26,7 @@
 	let userEmail = $state('');
 	const text = createPageText(appShellText);
 	let isProfileMenuOpen = $state(false);
+	let isAPITokenSheetOpen = $state(false);
 	let userName = $state('');
 	const displayUserName = $derived(userName || text.workspace);
 	const profileMenuSideOffset = 6;
@@ -116,6 +119,10 @@
 			<BadgeCheckIcon />
 			{text.account}
 		</DropdownMenu.Item>
+		<DropdownMenu.Item onclick={() => (isAPITokenSheetOpen = true)}>
+			<SettingsIcon />
+			{text.apiTokens}
+		</DropdownMenu.Item>
 		<DropdownMenu.Item onclick={() => (location.href = '/flow/')}>
 			<BellIcon />
 			{text.activity}
@@ -179,3 +186,5 @@
 		</DropdownMenu.Root>
 	</div>
 </aside>
+
+<AccountAPITokenSheet bind:open={isAPITokenSheetOpen} />
