@@ -1403,6 +1403,110 @@ func TestMattermostReplyRendersAskChoiceEphemeralControl(t *testing.T) {
 	}
 }
 
+func TestMattermostReplySendsAskAttachmentAsEphemeralForRequester(t *testing.T) {
+	postRequests := make(chan map[string]any, 1)
+	ephemeralRequests := make(chan map[string]any, 1)
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/v4/posts":
+			var payload map[string]any
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatalf("expected post request to decode: %v", errorValue)
+			}
+			postRequests <- payload
+			return testJSONResponse(http.StatusOK, map[string]string{"id": "post-1"}), nil
+		case "/api/v4/posts/ephemeral":
+			var payload map[string]any
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatalf("expected ephemeral request to decode: %v", errorValue)
+			}
+			ephemeralRequests <- payload
+			return testJSONResponse(http.StatusOK, map[string]string{"id": "ephemeral-1"}), nil
+		default:
+			t.Fatalf("unexpected Mattermost request: %s", request.URL.Path)
+			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
+		}
+	})}
+	tokenPath := t.TempDir() + "/mattermost-token"
+	if errorValue := os.WriteFile(tokenPath, []byte("test-token\n"), 0o600); errorValue != nil {
+		t.Fatalf("expected token file to be written: %v", errorValue)
+	}
+	replyTargetID, errorValue := encodePlatformHandle(platformHandle{Platform: "mattermost", ConversationID: "thread:channel-1:root-1", ChannelID: "channel-1", RootID: "root-1"})
+	if errorValue != nil {
+		t.Fatalf("expected reply target to encode: %v", errorValue)
+	}
+	configuration := DefaultConfiguration()
+	configuration.MattermostBaseURL = "http://mattermost.test"
+	configuration.BlueclawBaseURL = "http://blueclaw.test"
+	configuration.AdmindBaseURL = "http://admind.test"
+	configuration.MattermostTokenPath = tokenPath
+	configuration.MattermostInteractiveTokenPath = t.TempDir() + "/interactive-token"
+	service := Service{Configuration: configuration, HTTPClient: httpClient}
+	requestDocument := map[string]any{
+		"replyTargetID":   replyTargetID,
+		"message":         "우경 님에게 다음 DM을 보내도 될까요?\n\n바보",
+		"rawEventID":      "raw-event-1",
+		"outboxID":        "outbox-1",
+		"ephemeralUserID": "requester-1",
+		"interaction": map[string]any{
+			"interactionID": "interaction-1",
+			"taskRunID":     "task-1",
+			"kind":          "ask_confirm",
+			"message":       "우경 님에게 다음 DM을 보내도 될까요?\n\n바보",
+		},
+	}
+	payload, _ := json.Marshal(requestDocument)
+
+	_, errorValue = service.mattermostReply(context.Background(), payload)
+	if errorValue != nil {
+		t.Fatalf("expected reply to succeed: %v", errorValue)
+	}
+
+	select {
+	case payload := <-postRequests:
+		props, isMap := payload["props"].(map[string]any)
+		if !isMap {
+			t.Fatalf("expected post props, got %+v", payload)
+		}
+		if _, hasAttachments := props["attachments"]; hasAttachments {
+			t.Fatalf("expected public post without ask attachments, got %+v", payload)
+		}
+	default:
+		t.Fatal("expected public post request")
+	}
+	select {
+	case payload := <-ephemeralRequests:
+		if payload["user_id"] != "requester-1" {
+			t.Fatalf("expected requester-only ephemeral post, got %+v", payload)
+		}
+		post := payload["post"].(map[string]any)
+		if post["channel_id"] != "channel-1" || post["root_id"] != "root-1" {
+			t.Fatalf("expected ephemeral post in original thread, got %+v", post)
+		}
+		if post["message"] != "" {
+			t.Fatalf("expected attachment-only ephemeral post, got %+v", post)
+		}
+		props := post["props"].(map[string]any)
+		attachments := props["attachments"].([]any)
+		if len(attachments) != 1 {
+			t.Fatalf("expected ephemeral ask attachment, got %+v", payload)
+		}
+		attachment := attachments[0].(map[string]any)
+		actions := attachment["actions"].([]any)
+		if len(actions) != 2 {
+			t.Fatalf("expected confirm actions, got %+v", attachment)
+		}
+		action := actions[0].(map[string]any)
+		integration := action["integration"].(map[string]any)
+		contextDocument := integration["context"].(map[string]any)
+		if _, hasMessage := contextDocument["message"]; hasMessage {
+			t.Fatalf("expected action context without message copy, got %+v", contextDocument)
+		}
+	default:
+		t.Fatal("expected ephemeral request")
+	}
+}
+
 func TestMattermostInteractionResolveClearsAttachments(t *testing.T) {
 	patchRequests := make(chan map[string]any, 1)
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {

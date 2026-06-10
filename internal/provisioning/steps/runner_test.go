@@ -303,10 +303,22 @@ func TestOnlyCloudflareAccessDoesNotIncludeRuntimeOrTunnelSteps(t *testing.T) {
 	if joinedPlan != "web,cloudflare-access" {
 		t.Fatalf("unexpected plan: %s", joinedPlan)
 	}
-	for _, disallowedName := range []string{"binaries", "local-llm", "tunnel"} {
+	for _, disallowedName := range []string{"preflight", "board", "binaries", "local-llm", "tunnel"} {
 		if strings.Contains(joinedPlan, disallowedName) {
 			t.Fatalf("cloudflare-access sync must not include %s, got %s", disallowedName, joinedPlan)
 		}
+	}
+}
+
+func TestOnlyWebDoesNotRequireBoard(t *testing.T) {
+	context := &Context{Backend: BackendSSH}
+	plan, err := DefaultRegistry().resolve(context, Selector{Only: []string{"web"}, Force: true})
+	if err != nil {
+		t.Fatalf("resolve failed: %v", err)
+	}
+	joinedPlan := strings.Join(plan, ",")
+	if joinedPlan != "web" {
+		t.Fatalf("web deploy should not require board setup, got %s", joinedPlan)
 	}
 }
 

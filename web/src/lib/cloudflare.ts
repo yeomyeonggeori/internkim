@@ -105,7 +105,7 @@ export async function configureNodeSSHTunnel(env: CFEnv, tunnelId: string, fleet
 	const ingress = [fleetId, ...aliasFleetIds]
 		.map((value) => value.trim())
 		.filter(Boolean)
-		.map((value) => ({ hostname: nodeSSHHostname(env, value, nodeId), service: 'ssh://localhost:22' }));
+		.map((value) => ({ hostname: nodeSSHHostname(env, value, nodeId), service: 'ssh://127.0.0.1:22' }));
 
 	await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/cfd_tunnel/${tunnelId}/configurations`, {
 		method: 'PUT',
@@ -416,7 +416,38 @@ function maintenanceBypassApplicationBody(env: CFEnv, fleetId: string) {
 		name: `intern kim maintenance ${fleetId}`,
 		self_hosted_domains: [
 			`${hostname}/admin/api/health`,
-			`${hostname}/admin/api/recovery/ssh-tunnel/restart`
+			`${hostname}/admin/api/recovery/ssh-tunnel/restart`,
+			`${hostname}/admin/api/updates/blueclaw/uploads`,
+			`${hostname}/admin/api/updates/blueclaw/uploads/*`
+		],
+		type: 'self_hosted',
+		session_duration: '1h'
+	};
+}
+
+function releaseUpdateBypassApplicationBody(env: CFEnv, fleetId: string) {
+	const hostname = `${fleetId}.${env.CF_DOMAIN}`;
+
+	return {
+		name: `intern kim release updates ${fleetId}`,
+		self_hosted_domains: [
+			`${hostname}/admin/api/updates/apply`,
+			`${hostname}/admin/api/updates/status`,
+			`${hostname}/admin/api/updates/jobs/*`
+		],
+		type: 'self_hosted',
+		session_duration: '1h'
+	};
+}
+
+function releaseUploadBypassApplicationBody(env: CFEnv, fleetId: string) {
+	const hostname = `${fleetId}.${env.CF_DOMAIN}`;
+
+	return {
+		name: `intern kim release uploads ${fleetId}`,
+		self_hosted_domains: [
+			`${hostname}/admin/api/updates/uploads`,
+			`${hostname}/admin/api/updates/uploads/*`
 		],
 		type: 'self_hosted',
 		session_duration: '1h'
@@ -525,6 +556,42 @@ export async function ensureMaintenanceBypassApplication(env: CFEnv, fleetId: st
 	}
 
 	await ensureBypassPolicy(env, applicationId, 'maintenance-health-and-recovery');
+	return applicationId;
+}
+
+export async function ensureReleaseUpdateBypassApplication(env: CFEnv, fleetId: string) {
+	const body = releaseUpdateBypassApplicationBody(env, fleetId);
+	const applications = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`)) as AccessApplication[];
+	const primaryDomain = body.self_hosted_domains[0];
+	const application = applications.find((item) => accessApplicationDomain(item) === primaryDomain);
+	const applicationId = application?.id ?? await createReleaseUpdateBypassApplication(env, body);
+
+	if (application?.id) {
+		await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${applicationId}`, {
+			method: 'PUT',
+			body: JSON.stringify(body)
+		});
+	}
+
+	await ensureBypassPolicy(env, applicationId, 'release-update-signed-api');
+	return applicationId;
+}
+
+export async function ensureReleaseUploadBypassApplication(env: CFEnv, fleetId: string) {
+	const body = releaseUploadBypassApplicationBody(env, fleetId);
+	const applications = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`)) as AccessApplication[];
+	const primaryDomain = body.self_hosted_domains[0];
+	const application = applications.find((item) => accessApplicationDomain(item) === primaryDomain);
+	const applicationId = application?.id ?? await createReleaseUploadBypassApplication(env, body);
+
+	if (application?.id) {
+		await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${applicationId}`, {
+			method: 'PUT',
+			body: JSON.stringify(body)
+		});
+	}
+
+	await ensureBypassPolicy(env, applicationId, 'release-upload-signed-api');
 	return applicationId;
 }
 
@@ -695,6 +762,28 @@ async function createMaintenanceBypassApplication(env: CFEnv, body: ReturnType<t
 	})) as AccessApplication;
 	if (!application.id) {
 		throw new Error('Cloudflare maintenance bypass app response did not include an id');
+	}
+	return application.id;
+}
+
+async function createReleaseUpdateBypassApplication(env: CFEnv, body: ReturnType<typeof releaseUpdateBypassApplicationBody>) {
+	const application = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`, {
+		method: 'POST',
+		body: JSON.stringify(body)
+	})) as AccessApplication;
+	if (!application.id) {
+		throw new Error('Cloudflare release update bypass app response did not include an id');
+	}
+	return application.id;
+}
+
+async function createReleaseUploadBypassApplication(env: CFEnv, body: ReturnType<typeof releaseUploadBypassApplicationBody>) {
+	const application = (await cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps`, {
+		method: 'POST',
+		body: JSON.stringify(body)
+	})) as AccessApplication;
+	if (!application.id) {
+		throw new Error('Cloudflare release upload bypass app response did not include an id');
 	}
 	return application.id;
 }

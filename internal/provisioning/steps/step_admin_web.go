@@ -4,7 +4,6 @@ import "errors"
 
 var StepAdminWeb = Step{
 	Name: "web",
-	Deps: []string{"board"},
 	Title: func(context *Context) string {
 		return context.T("웹 배포 중...", "Deploying web...")
 	},
