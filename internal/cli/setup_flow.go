@@ -1443,6 +1443,10 @@ func (state *setupFlowState) installBlueclawPayloadSSH(context *setup.Context) e
 		return nil
 	} else {
 		fmt.Printf("https self-update unavailable (%s); falling back to SSH... ", strings.TrimSpace(errorValue.Error()))
+		if state.sshClient == nil {
+			fmt.Println("failed")
+			return fmt.Errorf("blueclaw payload deploy requires SSH because https self-update failed: %w", errorValue)
+		}
 	}
 	remoteManifestDocument := state.sshClient.run("cat " + blueclaw.BlueclawPayloadManifestPath + " 2>/dev/null || true")
 	remoteWorkspaceManifestDocument := state.sshClient.run(blueclawWorkspaceManifestCommand())
@@ -2122,9 +2126,6 @@ func (state *setupFlowState) syncCloudflareAccess(context *setup.Context) error 
 	adminEmail := state.cloudflareAccessAdminEmail()
 	if fleetID == "" || fleetSecret == "" || nodeID == "" || nodeKey == "" {
 		return errors.New("cloudflare access sync requires fleet_id, fleet_secret, node_id, and node_key in local state")
-	}
-	if strings.TrimSpace(state.configuration.RegisterSecret) == "" {
-		return errors.New("cloudflare access sync requires INTERNKIM_REGISTER_SECRET")
 	}
 	response, errorValue := registerFleetNode(state.configuration, fleetID, nodeID, nodeKey, fleetSecret, adminEmail)
 	if errorValue != nil {

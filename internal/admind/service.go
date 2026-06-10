@@ -36,43 +36,44 @@ var BuildID = "unknown"
 var GitRevision = "unknown"
 
 type Configuration struct {
-	ListenAddress               string
-	MattermostBaseURL           string
-	APIBaseURL                  string
-	BlueclawBaseURL             string
-	CapabilitySocketPath        string
-	StateDirectory              string
-	CompanionJobPath            string
-	FlowDatabasePath            string
-	CalendarDatabasePath        string
-	CalendarSecretsDirectory    string
-	MailDatabasePath            string
-	AttendanceDatabasePath      string
-	MattermostAdminPasswordPath string
-	MattermostTokenPath         string
-	MattermostOAuthClientPath   string
-	OpenRouterKeyPath           string
-	OpenRouterModelsURL         string
-	ReleaseRegistryURL          string
-	ReleaseDownloadTokenPath    string
-	ReleaseSigningKeyPath       string
-	MattermostBotTokenPath      string
-	AdminEmailPath              string
-	ClaimedAdminEmailPath       string
-	FleetIDPath                 string
-	DeviceURLPath               string
-	FleetSecretPath             string
-	AdminUIPath                 string
-	RepositoryRoot              string
-	CompanionFileDirectory      string
-	SitesRoot                   string
-	SiteSecretDirectory         string
-	SiteSystemdDirectory        string
-	BotProfilePath              string
-	BotProfileImagePath         string
-	BlueclawWorkspacePath       string
-	BlueclawRuntimeConfigPath   string
-	CalendarSyncDisabled        bool
+	ListenAddress                  string
+	MattermostBaseURL              string
+	APIBaseURL                     string
+	BlueclawBaseURL                string
+	CapabilitySocketPath           string
+	StateDirectory                 string
+	CompanionJobPath               string
+	FlowDatabasePath               string
+	CalendarDatabasePath           string
+	CalendarSecretsDirectory       string
+	MailDatabasePath               string
+	AttendanceDatabasePath         string
+	MattermostAdminPasswordPath    string
+	MattermostTokenPath            string
+	MattermostInteractiveTokenPath string
+	MattermostOAuthClientPath      string
+	OpenRouterKeyPath              string
+	OpenRouterModelsURL            string
+	ReleaseRegistryURL             string
+	ReleaseDownloadTokenPath       string
+	ReleaseSigningKeyPath          string
+	MattermostBotTokenPath         string
+	AdminEmailPath                 string
+	ClaimedAdminEmailPath          string
+	FleetIDPath                    string
+	DeviceURLPath                  string
+	FleetSecretPath                string
+	AdminUIPath                    string
+	RepositoryRoot                 string
+	CompanionFileDirectory         string
+	SitesRoot                      string
+	SiteSecretDirectory            string
+	SiteSystemdDirectory           string
+	BotProfilePath                 string
+	BotProfileImagePath            string
+	BlueclawWorkspacePath          string
+	BlueclawRuntimeConfigPath      string
+	CalendarSyncDisabled           bool
 }
 
 type Service struct {
@@ -213,42 +214,43 @@ const firstAdminPolicyVersion = "blueclaw-admin-claim-v1"
 
 func DefaultConfiguration() Configuration {
 	return Configuration{
-		ListenAddress:               "127.0.0.1:18080",
-		MattermostBaseURL:           "http://127.0.0.1:8065",
-		APIBaseURL:                  "https://api.example.test",
-		BlueclawBaseURL:             "http://127.0.0.1:8080",
-		CapabilitySocketPath:        blueclawruntime.CapabilitySocketPath,
-		StateDirectory:              "/root/.internkim/state/admin",
-		CompanionJobPath:            "/root/.internkim/state/companion-jobs.json",
-		FlowDatabasePath:            "/root/.internkim/state/flow.sqlite",
-		CalendarDatabasePath:        "/root/.internkim/state/calendar.sqlite",
-		CalendarSecretsDirectory:    "/root/.internkim/secrets/google-oauth",
-		MailDatabasePath:            "/root/.internkim/state/mail.sqlite",
-		AttendanceDatabasePath:      "/root/.internkim/state/attendance.sqlite",
-		MattermostAdminPasswordPath: "/root/.internkim/secrets/mm-admin-pass",
-		MattermostTokenPath:         "/root/.internkim/secrets/mattermost-bot-token",
-		MattermostOAuthClientPath:   "/root/.internkim/secrets/mattermost-oauth-client.json",
-		OpenRouterKeyPath:           "/root/.internkim/secrets/openrouter-api-key",
-		OpenRouterModelsURL:         "https://openrouter.ai/api/v1/models",
-		ReleaseRegistryURL:          "https://updates.example.test",
-		ReleaseDownloadTokenPath:    "/root/.internkim/secrets/release-download-token",
-		ReleaseSigningKeyPath:       "/root/.internkim/secrets/release-signing-key",
-		MattermostBotTokenPath:      "/root/.internkim/secrets/mattermost-bot-token",
-		AdminEmailPath:              "/root/.internkim/config/admin-email",
-		ClaimedAdminEmailPath:       "/root/.internkim/state/admin/claimed-admin-email",
-		FleetIDPath:                 "/root/.internkim/env/fleet-id",
-		DeviceURLPath:               "/root/.internkim/env/device-url",
-		FleetSecretPath:             "/root/.internkim/secrets/fleet-secret",
-		AdminUIPath:                 "/opt/internkim/admin-ui",
-		RepositoryRoot:              "/",
-		CompanionFileDirectory:      "/tmp/internkim-companion-files",
-		SitesRoot:                   "/root/.internkim/sites",
-		SiteSecretDirectory:         "/root/.internkim/secrets/sites",
-		SiteSystemdDirectory:        "/etc/systemd/system",
-		BotProfilePath:              "/root/.internkim/config/bot-profile.yaml",
-		BotProfileImagePath:         "/opt/internkim/assets/internkim.png",
-		BlueclawWorkspacePath:       "/root/.blueclaw/workspace",
-		BlueclawRuntimeConfigPath:   "/root/.blueclaw/config/runtime.json",
+		ListenAddress:                  "127.0.0.1:18080",
+		MattermostBaseURL:              "http://127.0.0.1:8065",
+		APIBaseURL:                     "https://api.example.test",
+		BlueclawBaseURL:                "http://127.0.0.1:8080",
+		CapabilitySocketPath:           blueclawruntime.CapabilitySocketPath,
+		StateDirectory:                 "/root/.internkim/state/admin",
+		CompanionJobPath:               "/root/.internkim/state/companion-jobs.json",
+		FlowDatabasePath:               "/root/.internkim/state/flow.sqlite",
+		CalendarDatabasePath:           "/root/.internkim/state/calendar.sqlite",
+		CalendarSecretsDirectory:       "/root/.internkim/secrets/google-oauth",
+		MailDatabasePath:               "/root/.internkim/state/mail.sqlite",
+		AttendanceDatabasePath:         "/root/.internkim/state/attendance.sqlite",
+		MattermostAdminPasswordPath:    "/root/.internkim/secrets/mm-admin-pass",
+		MattermostTokenPath:            "/root/.internkim/secrets/mattermost-bot-token",
+		MattermostInteractiveTokenPath: "/root/.internkim/state/admin/mattermost-interactive-token",
+		MattermostOAuthClientPath:      "/root/.internkim/secrets/mattermost-oauth-client.json",
+		OpenRouterKeyPath:              "/root/.internkim/secrets/openrouter-api-key",
+		OpenRouterModelsURL:            "https://openrouter.ai/api/v1/models",
+		ReleaseRegistryURL:             "https://updates.example.test",
+		ReleaseDownloadTokenPath:       "/root/.internkim/secrets/release-download-token",
+		ReleaseSigningKeyPath:          "/root/.internkim/secrets/release-signing-key",
+		MattermostBotTokenPath:         "/root/.internkim/secrets/mattermost-bot-token",
+		AdminEmailPath:                 "/root/.internkim/config/admin-email",
+		ClaimedAdminEmailPath:          "/root/.internkim/state/admin/claimed-admin-email",
+		FleetIDPath:                    "/root/.internkim/env/fleet-id",
+		DeviceURLPath:                  "/root/.internkim/env/device-url",
+		FleetSecretPath:                "/root/.internkim/secrets/fleet-secret",
+		AdminUIPath:                    "/opt/internkim/admin-ui",
+		RepositoryRoot:                 "/",
+		CompanionFileDirectory:         "/tmp/internkim-companion-files",
+		SitesRoot:                      "/root/.internkim/sites",
+		SiteSecretDirectory:            "/root/.internkim/secrets/sites",
+		SiteSystemdDirectory:           "/etc/systemd/system",
+		BotProfilePath:                 "/root/.internkim/config/bot-profile.yaml",
+		BotProfileImagePath:            "/opt/internkim/assets/internkim.png",
+		BlueclawWorkspacePath:          "/root/.blueclaw/workspace",
+		BlueclawRuntimeConfigPath:      "/root/.blueclaw/config/runtime.json",
 	}
 }
 
@@ -2634,6 +2636,9 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.MattermostTokenPath == "" {
 		configuration.MattermostTokenPath = defaultConfiguration.MattermostTokenPath
+	}
+	if configuration.MattermostInteractiveTokenPath == "" {
+		configuration.MattermostInteractiveTokenPath = defaultConfiguration.MattermostInteractiveTokenPath
 	}
 	if configuration.MattermostOAuthClientPath == "" {
 		configuration.MattermostOAuthClientPath = defaultConfiguration.MattermostOAuthClientPath

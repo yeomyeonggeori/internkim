@@ -149,6 +149,12 @@ go test ./internal/e2e -run 'TestScheduleCreateAcceptance|TestSitePrototypeAccep
 ./internkim verify mattermost --prompt '웹사이트 하나 만들어서 배포해봐' --expect-tool site.app.create --expect-tool site.app.publish
 ```
 
+Mattermost ask 선택지 attachment와 버튼 ACK 회귀는 Tart lab에서 별도 smoke로 확인합니다. public 봇 답변에 선택지 attachment가 붙지 않고, requester-only ephemeral post가 생성되며, 버튼 ACK는 빈 ephemeral text 없이 delete update를 반환해야 합니다.
+
+```bash
+lab/scripts/run-smoke-mattermost-ask-ephemeral-tart.sh internkim-lab
+```
+
 배포 전 기능별 확인:
 
 - 스케줄링: Mattermost prompt smoke, `schedule.create`, `schedule.created`, due-run delivery

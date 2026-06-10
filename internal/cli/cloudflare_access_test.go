@@ -96,6 +96,44 @@ func TestSyncCloudflareAccessRegistersCurrentFleetState(t *testing.T) {
 	}
 }
 
+func TestSyncCloudflareAccessCanUseFleetCredentialsWithoutRegisterSecret(t *testing.T) {
+	stateDirectory := t.TempDir()
+	saveState(stateDirectory, "fleet_id", "fleet-1")
+	saveState(stateDirectory, "fleet_secret", "secret-1")
+	saveState(stateDirectory, "node_id", "node-1")
+	saveState(stateDirectory, "node_key", "node-key-1")
+
+	originalClient := registerHTTPClient
+	defer func() { registerHTTPClient = originalClient }()
+	registerHTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.Header.Get("Authorization") != "" {
+			t.Fatalf("unexpected authorization header: %s", request.Header.Get("Authorization"))
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body: io.NopCloser(bytes.NewBufferString(`{
+				"fleet_id":"fleet-1",
+				"node_id":"node-1",
+				"tunnel_token":"tunnel-token-2",
+				"node_tunnel_token":"node-token-2",
+				"mattermost_url":"https://fleet-1.example",
+				"ssh_hostname":"node-1.ssh.fleet-1.example"
+			}`)),
+		}, nil
+	})}
+
+	state := &setupFlowState{
+		messenger:     newMsg("en"),
+		configuration: config{APIBaseURL: "https://api.example"},
+		stateDir:      stateDirectory,
+	}
+
+	if errorValue := state.syncCloudflareAccess(&setup.Context{}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
+
 func TestSyncCloudflareAccessRequiresExistingLocalIdentity(t *testing.T) {
 	state := &setupFlowState{
 		messenger:     newMsg("en"),
@@ -127,10 +165,29 @@ func TestRegisterAPIEnsuresMaintenanceBypassApplication(t *testing.T) {
 	}
 	for _, expectedText := range []string{
 		"ensureMaintenanceBypassApplication",
+		"ensureReleaseUpdateBypassApplication",
+		"ensureReleaseUploadBypassApplication",
 		"ensurePublicBypassApplications",
 	} {
 		if !strings.Contains(string(document), expectedText) {
 			t.Fatalf("register API must include %q", expectedText)
+		}
+	}
+}
+
+func TestRegisterAPIAllowsExistingFleetCredentialSyncOnly(t *testing.T) {
+	document, errorValue := os.ReadFile(filepath.Join("..", "..", "web", "src", "routes", "api", "register", "+server.ts"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, expectedText := range []string{
+		"validateExistingFleetRegistrationAuthority",
+		"Register secret required for fleet migration",
+		"Register secret required for admin email changes",
+		"existingFleetAdminEmail",
+	} {
+		if !strings.Contains(string(document), expectedText) {
+			t.Fatalf("register API must include existing fleet credential guard %q", expectedText)
 		}
 	}
 }
@@ -144,10 +201,47 @@ func TestCloudflareMaintenanceBypassApplicationCoversHealthAndRecovery(t *testin
 		"intern kim maintenance",
 		"/admin/api/health",
 		"/admin/api/recovery/ssh-tunnel/restart",
+		"/admin/api/updates/blueclaw/uploads",
+		"/admin/api/updates/blueclaw/uploads/*",
 		"maintenance-health-and-recovery",
 	} {
 		if !strings.Contains(string(document), expectedText) {
 			t.Fatalf("Cloudflare maintenance bypass must include %q", expectedText)
+		}
+	}
+}
+
+func TestCloudflareReleaseUpdateBypassApplicationCoversSignedReleaseUpdate(t *testing.T) {
+	document, errorValue := os.ReadFile(filepath.Join("..", "..", "web", "src", "lib", "cloudflare.ts"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, expectedText := range []string{
+		"intern kim release updates",
+		"/admin/api/updates/apply",
+		"/admin/api/updates/status",
+		"/admin/api/updates/jobs/*",
+		"release-update-signed-api",
+	} {
+		if !strings.Contains(string(document), expectedText) {
+			t.Fatalf("Cloudflare release update bypass must include %q", expectedText)
+		}
+	}
+}
+
+func TestCloudflareReleaseUploadBypassApplicationCoversSignedReleaseUpload(t *testing.T) {
+	document, errorValue := os.ReadFile(filepath.Join("..", "..", "web", "src", "lib", "cloudflare.ts"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, expectedText := range []string{
+		"intern kim release uploads",
+		"/admin/api/updates/uploads",
+		"/admin/api/updates/uploads/*",
+		"release-upload-signed-api",
+	} {
+		if !strings.Contains(string(document), expectedText) {
+			t.Fatalf("Cloudflare release upload bypass must include %q", expectedText)
 		}
 	}
 }

@@ -2655,7 +2655,9 @@ func registerFleetRequest(configuration config, requestBody map[string]string) (
 
 	req, _ := http.NewRequest("POST", configuration.APIBaseURL+"/api/register", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+configuration.RegisterSecret)
+	if strings.TrimSpace(configuration.RegisterSecret) != "" {
+		req.Header.Set("Authorization", "Bearer "+configuration.RegisterSecret)
+	}
 
 	resp, err := registerHTTPClient.Do(req)
 	if err != nil {
@@ -4738,6 +4740,7 @@ func runSetupLive(messenger *msg) {
 	sshUser := target.sshUser
 	sshPassword := target.sshPassword
 	nonInteractive := containsArg("--non-interactive")
+	canRunWithoutSSH := setupCanRunWithoutSSH(os.Args[2:])
 	if boardType == setup.BoardJetsonOrinNano {
 		requestedSSH = true
 	}
@@ -4858,6 +4861,9 @@ func runSetupLive(messenger *msg) {
 			selectedBackend = setup.BackendSSH
 			boardIP = firstNonEmptyString(hostOverride, cloudflareSSHHostname, loadState(stateDir, "ssh_hostname"))
 		}
+	case canRunWithoutSSH:
+		selectedBackend = setup.BackendSSH
+		boardIP = firstNonEmptyString(hostOverride, cloudflareSSHHostname, loadState(stateDir, "ssh_hostname"))
 	case requestedSSH:
 		sshReady := false
 		if requestedCloudflareSSH {
@@ -4974,6 +4980,17 @@ func runSetupLive(messenger *msg) {
 	if err := registry.Run(pipelineContext, selector); err != nil {
 		fatal(err.Error())
 	}
+}
+
+func setupCanRunWithoutSSH(arguments []string) bool {
+	if strings.TrimSpace(commandArgumentValue(arguments, "--from", "")) != "" {
+		return false
+	}
+	onlySteps := setup.ParseNames(commandArgumentValue(arguments, "--only", ""))
+	if len(onlySteps) != 1 {
+		return false
+	}
+	return onlySteps[0] == "blueclaw-payload-direct" || onlySteps[0] == "cloudflare-access"
 }
 
 func applySetupBoardDefaults(boardType string, withGoogle bool, selector setup.Selector) setup.Selector {

@@ -134,6 +134,21 @@ func TestResolveCommandTargetReadsCloudflareSSHFlag(t *testing.T) {
 	}
 }
 
+func TestSetupCanRunWithoutSSH(t *testing.T) {
+	if !setupCanRunWithoutSSH([]string{"--only", "blueclaw-payload-direct", "--force"}) {
+		t.Fatal("expected blueclaw-payload-direct-only setup to allow public self-update without SSH")
+	}
+	if !setupCanRunWithoutSSH([]string{"--only", "cloudflare-access", "--force"}) {
+		t.Fatal("expected cloudflare-access-only setup to sync policies without SSH")
+	}
+	if setupCanRunWithoutSSH([]string{"--only", "blueclaw-payload-direct,admind"}) {
+		t.Fatal("expected mixed setup slice to require normal target resolution")
+	}
+	if setupCanRunWithoutSSH([]string{"--from", "blueclaw-payload-direct"}) {
+		t.Fatal("expected --from setup to require normal target resolution")
+	}
+}
+
 func TestResolveCommandTargetUsesNodeScopedFleetState(t *testing.T) {
 	homeDirectory := t.TempDir()
 	t.Setenv("HOME", homeDirectory)
