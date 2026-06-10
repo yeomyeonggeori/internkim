@@ -52,7 +52,6 @@ function buildMemberScoreRows(memberScores: Record<string, number>, memberScoreD
 				}
 			]
 		}))
-		.filter((row) => row.total > 0)
 		.sort((left, right) => right.total - left.total || left.label.localeCompare(right.label));
 }
 

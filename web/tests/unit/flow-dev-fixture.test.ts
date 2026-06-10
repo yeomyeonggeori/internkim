@@ -13,6 +13,10 @@ describe('createDevFlowSummary', () => {
 			previous: '26W15',
 			next: '26W17'
 		});
+		expect(summary.currentWeek).toMatchObject({
+			code: '26W23',
+			isCurrent: true
+		});
 		expect(summary.currentUserEmail).toBe('admin@example.com');
 		expect(summary.currentUserName).toBe('김철수');
 		expect(summary.source).toBe('dev-mock');
@@ -20,17 +24,19 @@ describe('createDevFlowSummary', () => {
 		expect(Object.keys(summary.metrics.memberDistances).length).toBe(10);
 		expect(summary.metrics.memberScores).not.toEqual(summary.metrics.memberDistances);
 		expect(summary.metrics.memberScores).toMatchObject({
-			designer: 104,
-			engineer: 104,
-			qa: 105
+			designer: 100,
+			engineer: 103,
+			qa: 101
 		});
 		expect(summary.metrics.memberScoreDetails.qa).toMatchObject({
-			currentScore: 105
+			currentScore: 101
 		});
-		expect(summary.metrics.totalScore).toBe(624);
-		expect(summary.members.find((member) => member.name === '윤도현')?.score).toBe(105);
+		expect(summary.metrics.totalScore).toBe(603);
+		expect(summary.members.find((member) => member.name === '윤도현')?.score).toBe(101);
 		expect(summary.tasks.length > 0).toBe(true);
-		expect(summary.metrics.totalTasks).toBe(summary.tasks.length);
+		expect((summary.weeklyTasks?.length ?? 0) > 0).toBe(true);
+		expect(summary.tasks.length > (summary.weeklyTasks?.length ?? 0)).toBe(true);
+		expect(summary.metrics.totalTasks).toBe(summary.weeklyTasks?.length);
 		expect(summary.report.weeklyDistanceTrend.currentValues.length).toBe(7);
 		expect(summary.report.weeklyDistanceTrend.labels).toEqual(['1', '2', '3', '4', '5', '6', '7']);
 		expect(summary.report.monthlyDistanceTrend.currentValues.length).toBe(30);
@@ -52,6 +58,11 @@ describe('createDevFlowSummary', () => {
 		expect(nextWeek.report.weeklyDistanceTrend.currentValues).not.toEqual(currentWeek.report.weeklyDistanceTrend.currentValues);
 		expect(previousWeek.metrics.memberDistances).not.toEqual(currentWeek.metrics.memberDistances);
 		expect(nextWeek.metrics.memberDistances).not.toEqual(currentWeek.metrics.memberDistances);
+		expect(previousWeek.tasks.map((task) => task.id)).toEqual(currentWeek.tasks.map((task) => task.id));
+		expect(nextWeek.tasks.map((task) => task.id)).toEqual(currentWeek.tasks.map((task) => task.id));
+		expect(previousWeek.weeklyTasks?.every((task) => task.weekCode === '26W22')).toBe(true);
+		expect(currentWeek.weeklyTasks?.every((task) => task.weekCode === '26W23')).toBe(true);
+		expect(nextWeek.weeklyTasks?.every((task) => task.weekCode === '26W24')).toBe(true);
 	});
 
 	test('scores member growth against the recent five period baseline', () => {

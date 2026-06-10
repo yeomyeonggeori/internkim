@@ -18,6 +18,12 @@ func (service *Service) handleFlow(responseWriter http.ResponseWriter, request *
 			return
 		}
 		service.writeFlowSummary(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/state":
+		if !service.authorizeFlowRequest(request, flowActionRead, flowResourceSummary) {
+			http.Error(responseWriter, "flow access required", http.StatusForbidden)
+			return
+		}
+		service.writeFlowState(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/status":
 		service.writeFlowStatus(responseWriter)
 	case request.Method == http.MethodPut && path == "/definitions":
@@ -67,43 +73,74 @@ func (service *Service) writeFlowSummary(responseWriter http.ResponseWriter, req
 		weekCode = weekCodeForDate(now)
 	}
 	weekStart := weekStartForCode(weekCode, now)
+	currentWeekCode := weekCodeForDate(now)
+	currentWeekStart := weekStartForCode(currentWeekCode, now)
 	members := service.flowMembers(request)
 	definitions, errorValue := service.readFlowDefinitions(request.Context())
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	tasks, errorValue := service.readFlowTasks(request.Context(), weekCode, members)
+	weeklyTasks, errorValue := service.readFlowTasks(request.Context(), weekCode, members)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	report, errorValue := service.buildFlowReport(request.Context(), weekStart, members, tasks, definitions)
+	report, errorValue := service.buildFlowReport(request.Context(), weekStart, members, weeklyTasks, definitions)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	scoreStart, scoreEnd := flowScoreDateRange(weekStart)
+	metrics := buildFlowMetrics(weeklyTasks, definitions)
+	metrics.MemberScores = map[string]int{}
+	metrics.MemberScoreDetails = map[string]flowMemberScoreItem{}
+	metrics.TotalScore = 0
+	response := flowSummaryResponse{
+		Week:        buildFlowWeek(weekCode, weekStart, now),
+		CurrentWeek: buildFlowWeek(currentWeekCode, currentWeekStart, now),
+		WeeklyTasks: weeklyTasks,
+		Metrics:     metrics,
+		Report:      report,
+		Source:      "sqlite",
+	}
+	service.writeJSON(responseWriter, response)
+}
+
+func (service *Service) writeFlowState(responseWriter http.ResponseWriter, request *http.Request) {
+	now := time.Now()
+	currentWeekCode := weekCodeForDate(now)
+	currentWeekStart := weekStartForCode(currentWeekCode, now)
+	members := service.flowMembers(request)
+	definitions, errorValue := service.readFlowDefinitions(request.Context())
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	allTasks, errorValue := service.readAllFlowTasks(request.Context(), members)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	scoreStart, scoreEnd := flowScoreDateRange(currentWeekStart)
 	scoreTasks, errorValue := service.readFlowTasksBetweenDates(request.Context(), scoreStart.Format("2006-01-02"), scoreEnd.Format("2006-01-02"), members)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
 	callerEmail := service.flowActorEmail(request)
-	memberScoreDetails := buildFlowMemberScoreDetails(scoreTasks, members, definitions, weekStart)
+	memberScoreDetails := buildFlowMemberScoreDetails(scoreTasks, members, definitions, currentWeekStart)
 	memberScores := currentFlowMemberScores(memberScoreDetails)
-	distanceMembers := applyFlowMemberScores(calculateFlowMemberDistances(members, tasks, definitions), memberScores)
-	metrics := buildFlowMetrics(tasks, definitions)
+	distanceMembers := applyFlowMemberScores(calculateFlowMemberDistances(members, allTasks, definitions), memberScores)
+	metrics := buildFlowMetrics(nil, definitions)
 	metrics.MemberScores = memberScores
 	metrics.MemberScoreDetails = memberScoreDetails
 	metrics.TotalScore = totalFlowScore(memberScores)
-	response := flowSummaryResponse{
-		Week:             buildFlowWeek(weekCode, weekStart, now),
+	response := flowStateResponse{
+		CurrentWeek:      buildFlowWeek(currentWeekCode, currentWeekStart, now),
 		Members:          distanceMembers,
-		Tasks:            tasks,
+		Tasks:            allTasks,
 		Metrics:          metrics,
 		Definitions:      definitions,
-		Report:           report,
 		StatusOptions:    flowStatusOptions(),
 		CurrentUserEmail: callerEmail,
 		CurrentUserName:  resolveCurrentUserName(distanceMembers, callerEmail),

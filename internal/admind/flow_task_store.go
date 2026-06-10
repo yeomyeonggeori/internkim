@@ -34,6 +34,31 @@ ORDER BY status = '요청' DESC, owner_name, updated_at DESC`, weekCode)
 	return alignFlowTasksWithMembers(tasks, members), rows.Err()
 }
 
+func (service *Service) readAllFlowTasks(ctx context.Context, members []flowMember) ([]flowTask, error) {
+	database, errorValue := service.openFlowDatabase(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer database.Close()
+	rows, errorValue := database.QueryContext(ctx, `
+SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, goal, size, status, start_date, end_date, flag, request_reason, decision_reason, mattermost_post_id
+FROM flow_tasks
+ORDER BY status = '요청' DESC, week_code DESC, owner_name, updated_at DESC`)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer rows.Close()
+	tasks := []flowTask{}
+	for rows.Next() {
+		task, errorValue := scanFlowTask(rows)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		tasks = append(tasks, task)
+	}
+	return alignFlowTasksWithMembers(tasks, members), rows.Err()
+}
+
 func (service *Service) readFlowTasksBetweenDates(ctx context.Context, startDate string, endDate string, members []flowMember) ([]flowTask, error) {
 	database, errorValue := service.openFlowDatabase(ctx)
 	if errorValue != nil {
