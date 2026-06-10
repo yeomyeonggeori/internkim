@@ -3,66 +3,57 @@ package cli
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	"gitlab.com/eastriver/internkim/internal/localfleet"
 )
 
-func TestSimGatePlanDoesNotBuildOrStartVirtualMachine(t *testing.T) {
+func TestSimGatePlanPrintsAliasWithoutRunningFleet(t *testing.T) {
 	withIsolatedInternkimHome(t)
-	commandCalls := captureSimCommandCalls(t)
-	setupArguments := captureSimSetup(t, nil)
-	captureSimLabTarget(t, nil)
+	requests := captureSimLocalFleet(t, nil)
 
 	errorValue := runSimArguments([]string{"gate", "--plan"})
 
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(*commandCalls) != 0 {
-		t.Fatalf("command calls = %+v", *commandCalls)
-	}
-	if !equalStrings(*setupArguments, []string{"--plan", "--force", "--verify-browser"}) {
-		t.Fatalf("setup arguments = %+v", *setupArguments)
+	if len(*requests) != 0 {
+		t.Fatalf("local fleet requests = %+v", *requests)
 	}
 }
 
-func TestSimGateBuildsBeforeFullVerification(t *testing.T) {
+func TestSimGateRunsPredeployRecipe(t *testing.T) {
 	withIsolatedInternkimHome(t)
-	commandCalls := captureSimCommandCalls(t)
-	setupArguments := captureSimSetup(t, nil)
-	captureSimLabTarget(t, nil)
+	requests := captureSimLocalFleet(t, nil)
 
 	errorValue := runSimArguments([]string{"gate"})
 
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(*commandCalls) != 1 || (*commandCalls)[0].name != "make" || !equalStrings((*commandCalls)[0].arguments, []string{"build"}) {
-		t.Fatalf("command calls = %+v", *commandCalls)
-	}
-	if !equalStrings(*setupArguments, []string{"--force", "--verify-browser"}) {
-		t.Fatalf("setup arguments = %+v", *setupArguments)
+	if len(*requests) != 1 || (*requests)[0].Action != localfleet.ActionRunRecipe || (*requests)[0].Recipe != localfleet.DefaultRecipe {
+		t.Fatalf("local fleet requests = %+v", *requests)
 	}
 }
 
-func TestSimGateRejectsSharedPhysicalState(t *testing.T) {
+func TestSimGateUsesLocalFleetInsteadOfLegacySimulationState(t *testing.T) {
 	withIsolatedInternkimHome(t)
 	commandCalls := captureSimCommandCalls(t)
 	captureSimSetup(t, nil)
-	captureSimLabTarget(t, nil)
+	requests := captureSimLocalFleet(t, nil)
 	saveState(simulationStateDirectoryPath(), "fleet_id", "shared-fleet")
 	saveState(physicalStateDirectoryPath(), "fleet_id", "shared-fleet")
 
 	errorValue := runSimArguments([]string{"gate"})
 
-	if errorValue == nil {
-		t.Fatal("expected isolation error")
-	}
-	if !strings.Contains(errorValue.Error(), "shares fleet_id") {
-		t.Fatalf("error = %v", errorValue)
+	if errorValue != nil {
+		t.Fatal(errorValue)
 	}
 	if len(*commandCalls) != 0 {
 		t.Fatalf("command calls = %+v", *commandCalls)
+	}
+	if len(*requests) != 1 {
+		t.Fatalf("local fleet requests = %+v", *requests)
 	}
 }
 
@@ -70,7 +61,7 @@ func TestSimCleanupStopsVirtualMachineAndRemovesState(t *testing.T) {
 	withIsolatedInternkimHome(t)
 	captureSimCommandCalls(t)
 	captureSimSetup(t, nil)
-	labArguments := captureSimLabTarget(t, nil)
+	requests := captureSimLocalFleet(t, nil)
 	stateDir := simulationStateDirectoryPath()
 	saveState(stateDir, "fleet_id", "sim-fleet")
 
@@ -79,12 +70,26 @@ func TestSimCleanupStopsVirtualMachineAndRemovesState(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !equalStrings(*labArguments, []string{"vm-down"}) {
-		t.Fatalf("lab arguments = %+v", *labArguments)
+	if len(*requests) != 2 || (*requests)[0].Action != localfleet.ActionReset || (*requests)[1].Action != localfleet.ActionDown {
+		t.Fatalf("local fleet requests = %+v", *requests)
 	}
 	if _, statError := os.Stat(stateDir); !os.IsNotExist(statError) {
 		t.Fatalf("expected simulation state removal, got %v", statError)
 	}
+}
+
+func captureSimLocalFleet(t *testing.T, errorValue error) *[]localfleet.JobRequest {
+	t.Helper()
+	previousRunner := runSimLocalFleet
+	var requests []localfleet.JobRequest
+	runSimLocalFleet = func(request localfleet.JobRequest) error {
+		requests = append(requests, request)
+		return errorValue
+	}
+	t.Cleanup(func() {
+		runSimLocalFleet = previousRunner
+	})
+	return &requests
 }
 
 func TestSimulationHostTargetResolvesTartHostAndCredentials(t *testing.T) {

@@ -175,7 +175,7 @@ describe('flow API', () => {
 						}
 					});
 				},
-				{ preconnect: originalFetch.preconnect }
+				{ preconnect: fetchPreconnect(originalFetch) }
 			);
 
 			await fetchFlowState('Could not load Flow data.');
