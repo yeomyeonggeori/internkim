@@ -35,6 +35,7 @@ export function summarizePeople(people: TeamStatusPerson[]): TeamStatusCounts {
 	const counts: TeamStatusCounts = {
 		working: 0,
 		finished: 0,
+		absence: 0,
 		absent: 0,
 		weekend: 0,
 		upcoming: 0

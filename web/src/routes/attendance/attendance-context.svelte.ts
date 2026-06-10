@@ -1,5 +1,7 @@
 import { getContext, setContext } from 'svelte';
 import {
+	createAttendanceAbsence,
+	type CreateAttendanceAbsenceRequest,
 	fetchAttendanceSummary,
 	toggleAttendanceOnServer,
 	updateAttendanceTeamViewVisibility
@@ -8,6 +10,7 @@ import { readPersistedAttendanceFilters, writePersistedAttendanceFilters } from 
 import { currentMonthInTimeZone } from './shared/attendance-date';
 
 export type AttendanceKind = 'clock_in' | 'clock_out';
+export type AttendanceAbsenceKind = 'leave' | 'business_trip' | 'day_off' | 'other';
 export type ChartMode = 'day' | 'week' | 'month';
 export type AttendanceTab = 'team' | 'personal';
 export type AttendancePresence = 'online' | 'away' | 'offline' | 'dnd';
@@ -44,12 +47,25 @@ export type AttendanceEvent = {
 	manualEntry?: boolean;
 };
 
+export type AttendanceAbsence = {
+	id: string;
+	email: string;
+	kind: AttendanceAbsenceKind;
+	labelKey: AttendanceAbsenceKind;
+	date: string;
+	reason?: string;
+	createdBy?: string;
+	createdAt: string;
+	canceledAt?: string;
+};
+
 export type AttendanceSummary = {
 	month: string;
 	currentUserEmail: string;
 	isAdmin: boolean;
 	timeZone: string;
 	events: AttendanceEvent[];
+	absences: AttendanceAbsence[];
 	todayStatus: string;
 	locations: AttendanceLocation[];
 	teamViewVisibleToAll: boolean;
@@ -61,7 +77,6 @@ export class AttendanceState {
 	summary = $state<AttendanceSummary | null>(null);
 	currentMonthSummary = $state<AttendanceSummary | null>(null);
 	selectedMonth = $state<string>('');
-	selectedEmail = $state<string>('');
 	chartMode = $state<ChartMode>('day');
 	tab = $state<AttendanceTab>('team');
 	selectedDate = $state<string>('');
@@ -75,14 +90,12 @@ export class AttendanceState {
 		this.loadFailedMessage = loadFailedMessage;
 		const persisted = readPersistedAttendanceFilters();
 		if (persisted.selectedMonth) this.selectedMonth = persisted.selectedMonth;
-		if (persisted.selectedEmail) this.selectedEmail = persisted.selectedEmail;
 		if (persisted.chartMode) this.chartMode = persisted.chartMode;
 	}
 
 	persistFilters() {
 		writePersistedAttendanceFilters({
 			selectedMonth: this.selectedMonth,
-			selectedEmail: this.selectedEmail,
 			chartMode: this.chartMode
 		});
 	}
@@ -100,10 +113,6 @@ export class AttendanceState {
 			this.summary = next;
 			this.selectedMonth = next.month;
 			const personalOnly = !next.isAdmin && next.teamViewBlocked;
-			if (personalOnly && this.selectedEmail) {
-				this.selectedEmail = '';
-				this.persistFilters();
-			}
 			if (!this.tabExplicitlySet) {
 				this.tab = next.isAdmin ? 'team' : 'personal';
 			}
@@ -121,7 +130,7 @@ export class AttendanceState {
 	}
 
 	private fetchSummaryForMonth(month: string): Promise<AttendanceSummary> {
-		return fetchAttendanceSummary({ month, selectedEmail: this.selectedEmail });
+		return fetchAttendanceSummary({ month });
 	}
 
 	private async refreshCurrentMonthSnapshot(filteredSummary: AttendanceSummary) {
@@ -211,6 +220,12 @@ export class AttendanceState {
 	async toggleAttendance(kind?: AttendanceKind, locationID?: string) {
 		await toggleAttendanceOnServer(kind, locationID);
 		await this.load();
+	}
+
+	async createAbsence(request: CreateAttendanceAbsenceRequest) {
+		const absences = await createAttendanceAbsence(request);
+		await this.load();
+		return absences;
 	}
 }
 

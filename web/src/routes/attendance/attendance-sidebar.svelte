@@ -13,24 +13,8 @@
 	const text = createPageText(attendanceText);
 	const attendance = getAttendanceState();
 
-	const userOptions = () =>
-		Array.from(
-			new Map((attendance.summary?.events ?? []).map((event) => [event.email, event])).values()
-		)
-			.filter((event) => event.email)
-			.sort((a, b) => displayName(a).localeCompare(displayName(b)));
-
-	function displayName(event: { displayName?: string; mattermostUsername?: string; email?: string }) {
-		return event.displayName || event.mattermostUsername || event.email || '';
-	}
-
 	function selectMonth(month: string) {
 		attendance.selectedMonth = month;
-		attendance.load();
-	}
-
-	function selectUser() {
-		attendance.setTab(attendance.selectedEmail ? 'personal' : 'team');
 		attendance.load();
 	}
 </script>
@@ -51,22 +35,6 @@
 		<div class="space-y-2">
 			<Label class="text-xs font-medium text-muted-foreground">{text.month}</Label>
 			<AttendanceMonthPicker selectedMonth={attendance.selectedMonth} onSelectMonth={selectMonth} />
-		</div>
-
-		<div class="space-y-2">
-			<Label for="attendance-user" class="text-xs font-medium text-muted-foreground">{text.user}</Label>
-			<select
-				id="attendance-user"
-				class="border-input bg-background h-9 w-full rounded-md border px-2 text-sm"
-				bind:value={attendance.selectedEmail}
-				onchange={selectUser}
-				disabled={!attendance.summary?.isAdmin}
-			>
-				<option value="">{text.allUsers}</option>
-				{#each userOptions() as event (event.email)}
-					<option value={event.email}>{displayName(event)}</option>
-				{/each}
-			</select>
 		</div>
 
 		{#if attendance.summary?.isAdmin}

@@ -1,6 +1,7 @@
 import tailwindcss from '@tailwindcss/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig, loadEnv } from 'vite';
+import { devAttendanceMockPlugin } from './dev-attendance-mock-plugin';
 import { devFlowMockPlugin } from './dev-flow-mock-plugin';
 
 const admindTarget = 'http://127.0.0.1:18080';
@@ -9,6 +10,10 @@ export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), '');
 	return {
 		plugins: [
+			devAttendanceMockPlugin({
+				isEnabled: env.VITE_MOCK_ATTENDANCE === '1',
+				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com'
+			}),
 			devFlowMockPlugin({
 				isEnabled: env.VITE_MOCK_FLOW === '1',
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'admin@example.com'
