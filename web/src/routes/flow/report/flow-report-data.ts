@@ -110,12 +110,25 @@ function currentScoresFromDetails(details: Record<string, FlowReportMemberScoreD
 
 function labelMemberScores(scores: Record<string, number>, members: FlowReportMember[]): Record<string, number> {
 	const labels = memberScoreLabels(members);
-	return Object.fromEntries(Object.entries(scores).map(([key, score]) => [labels.get(key) ?? key, score]));
+	const values = Object.fromEntries(members.map((member) => [labels.get(member.id) ?? member.name, scores[member.id] ?? scores[member.name] ?? 0]));
+	for (const [key, score] of Object.entries(scores)) {
+		values[labels.get(key) ?? key] = score;
+	}
+	return values;
 }
 
 function labelMemberScoreDetails(details: Record<string, FlowReportMemberScoreDetail>, members: FlowReportMember[]): Record<string, FlowReportMemberScoreDetail> {
 	const labels = memberScoreLabels(members);
-	return Object.fromEntries(Object.entries(details).map(([key, detail]) => [labels.get(key) ?? key, detail]));
+	const values = Object.fromEntries(
+		members.map((member) => [
+			labels.get(member.id) ?? member.name,
+			details[member.id] ?? details[member.name] ?? { weeklyScore: 0, monthlyScore: 0, currentScore: 0 }
+		])
+	);
+	for (const [key, detail] of Object.entries(details)) {
+		values[labels.get(key) ?? key] = detail;
+	}
+	return values;
 }
 
 function memberScoreLabels(members: FlowReportMember[]): Map<string, string> {
