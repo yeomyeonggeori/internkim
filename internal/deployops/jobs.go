@@ -145,7 +145,7 @@ func (store *JobStore) finish(jobID string, errorMessage string, errorValue erro
 }
 
 func (runner *JobRunner) Info(message string) {
-	runner.store.appendEvent(runner.jobID, "info", message)
+	runner.store.appendEvent(runner.jobID, "info", Redact(message))
 }
 
 func (runner *JobRunner) Error(errorValue error) {

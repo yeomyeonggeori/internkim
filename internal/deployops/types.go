@@ -32,6 +32,8 @@ type TargetStatus struct {
 	Mattermost EndpointStatus    `json:"mattermost"`
 	Release    EndpointStatus    `json:"release"`
 	Recovery   RecoveryStatus    `json:"recovery"`
+	LLM        LLMModelStatus    `json:"llm"`
+	Versions   VersionStatus     `json:"versions"`
 	Services   map[string]string `json:"services,omitempty"`
 }
 
@@ -50,6 +52,43 @@ type RecoveryStatus struct {
 	State    string            `json:"state"`
 	Message  string            `json:"message,omitempty"`
 	Services map[string]string `json:"services,omitempty"`
+}
+
+type VersionStatus struct {
+	Admind  string         `json:"admind,omitempty"`
+	Runtime string         `json:"runtime,omitempty"`
+	Web     string         `json:"web,omitempty"`
+	Current ReleaseVersion `json:"current,omitempty"`
+	Latest  ReleaseVersion `json:"latest,omitempty"`
+}
+
+type ReleaseVersion struct {
+	ReleaseID       string                    `json:"releaseID,omitempty"`
+	Admind          string                    `json:"admind,omitempty"`
+	Capabilityd     string                    `json:"capabilityd,omitempty"`
+	BlueclawPayload string                    `json:"blueclawPayload,omitempty"`
+	Skills          string                    `json:"skills,omitempty"`
+	Runtime         string                    `json:"runtime,omitempty"`
+	Web             string                    `json:"web,omitempty"`
+	Components      map[string]ComponentBrief `json:"components,omitempty"`
+}
+
+type ComponentBrief struct {
+	Revision string `json:"revision,omitempty"`
+	SHA256   string `json:"sha256,omitempty"`
+}
+
+type LLMModelStatus struct {
+	State       string `json:"state"`
+	Model       string `json:"model,omitempty"`
+	Message     string `json:"message,omitempty"`
+	RuntimePath string `json:"runtimePath,omitempty"`
+	UpdatedAt   string `json:"updatedAt,omitempty"`
+	Restarted   bool   `json:"restarted,omitempty"`
+}
+
+type UpdateLLMModelRequest struct {
+	Model string `json:"model"`
 }
 
 type JobRequest struct {
