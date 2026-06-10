@@ -17,10 +17,43 @@ export type EndpointStatus = {
 	release?: string;
 };
 
+export type VersionStatus = {
+	admind?: string;
+	runtime?: string;
+	web?: string;
+	current?: ReleaseVersion;
+	latest?: ReleaseVersion;
+};
+
+export type ReleaseVersion = {
+	releaseID?: string;
+	admind?: string;
+	capabilityd?: string;
+	blueclawPayload?: string;
+	skills?: string;
+	runtime?: string;
+	web?: string;
+	components?: Record<string, ComponentBrief>;
+};
+
+export type ComponentBrief = {
+	revision?: string;
+	sha256?: string;
+};
+
 export type RecoveryStatus = {
 	state: string;
 	message?: string;
 	services?: Record<string, string>;
+};
+
+export type LLMModelStatus = {
+	state: string;
+	model?: string;
+	message?: string;
+	runtimePath?: string;
+	updatedAt?: string;
+	restarted?: boolean;
 };
 
 export type TargetStatus = {
@@ -30,6 +63,8 @@ export type TargetStatus = {
 	mattermost: EndpointStatus;
 	release: EndpointStatus;
 	recovery: RecoveryStatus;
+	llm: LLMModelStatus;
+	versions: VersionStatus;
 };
 
 export type Job = {
@@ -49,6 +84,26 @@ export type JobEvent = {
 	at: string;
 	level: string;
 	message: string;
+};
+
+export type LocalFleetStatus = {
+	checkedAt: string;
+	virtualMachine: EndpointStatus;
+	ssh: EndpointStatus;
+	admin: EndpointStatus;
+	mattermost: EndpointStatus;
+	adminURL?: string;
+	mattermostURL?: string;
+	lastResult?: string;
+	cleanupNeeded: boolean;
+	statePath?: string;
+};
+
+export type LocalFleetJobRequest = {
+	action: string;
+	recipe?: string;
+	scenario?: string;
+	base?: string;
 };
 
 export type NewTarget = {

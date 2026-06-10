@@ -1,0 +1,264 @@
+package localfleet
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"time"
+)
+
+type Service struct {
+	options Options
+	client  *http.Client
+}
+
+func NewService(options Options) (Service, error) {
+	normalizedOptions, errorValue := normalizeOptions(options)
+	if errorValue != nil {
+		return Service{}, errorValue
+	}
+	return Service{
+		options: normalizedOptions,
+		client:  &http.Client{Timeout: 3 * time.Second},
+	}, nil
+}
+
+func (service Service) Status(contextValue context.Context) Status {
+	adminURL := "http://127.0.0.1:18080"
+	mattermostURL := "http://127.0.0.1:8065"
+	if errorValue := service.EnsureConfiguration(); errorValue != nil {
+		return Status{
+			CheckedAt: time.Now(),
+			VirtualMachine: EndpointStatus{
+				State:   "failed",
+				Message: "configuration failed: " + errorValue.Error(),
+			},
+			SSH:           EndpointStatus{State: "unknown", Message: "VM status unavailable"},
+			Admin:         EndpointStatus{State: "unknown", Message: "configuration unavailable"},
+			Mattermost:    EndpointStatus{State: "unknown", Message: "configuration unavailable"},
+			AdminURL:      adminURL,
+			MattermostURL: mattermostURL,
+			LastResult:    readTrimmedFile(service.lastResultPath()),
+			CleanupNeeded: fileExists(service.leasesPath()),
+			StatePath:     service.options.StateRootPath,
+		}
+	}
+	virtualMachineState := service.readCommandState(contextValue, service.labCommand("status"))
+	return Status{
+		CheckedAt:      time.Now(),
+		VirtualMachine: virtualMachineState,
+		SSH:            service.sshStatus(contextValue, virtualMachineState),
+		Admin:          service.httpStatus(contextValue, adminURL+"/admin/api/health", "admind"),
+		Mattermost:     service.httpStatus(contextValue, mattermostURL+"/api/v4/system/ping", "mattermost"),
+		AdminURL:       adminURL,
+		MattermostURL:  mattermostURL,
+		LastResult:     readTrimmedFile(service.lastResultPath()),
+		CleanupNeeded:  fileExists(service.leasesPath()),
+		StatePath:      service.options.StateRootPath,
+	}
+}
+
+func (service Service) Run(contextValue context.Context, logger Logger, request JobRequest) error {
+	switch request.Action {
+	case ActionUp:
+		return service.runPlans(contextValue, logger, service.upPlans())
+	case ActionDown:
+		return service.runPlans(contextValue, logger, service.downPlans())
+	case ActionReset:
+		return service.runPlans(contextValue, logger, service.resetPlans())
+	case ActionRunRecipe:
+		return service.RunRecipe(contextValue, logger, firstNonEmpty(request.Recipe, DefaultRecipe))
+	case ActionRunScenario:
+		return service.RunScenario(contextValue, logger, request.Scenario)
+	case ActionVerifyRegression:
+		return service.VerifyRegression(contextValue, logger, request.Base, request.Scenario)
+	default:
+		return fmt.Errorf("unsupported local fleet action: %s", request.Action)
+	}
+}
+
+func (service Service) RunRecipe(contextValue context.Context, logger Logger, recipe string) error {
+	switch strings.TrimSpace(recipe) {
+	case "", DefaultRecipe:
+		return service.runPlans(contextValue, logger, service.predeployGatePlans())
+	default:
+		return fmt.Errorf("unsupported local fleet recipe: %s", recipe)
+	}
+}
+
+func (service Service) RunScenario(contextValue context.Context, logger Logger, scenario string) error {
+	normalizedScenario := strings.TrimSpace(scenario)
+	if normalizedScenario == "" {
+		return errors.New("scenario is required")
+	}
+	switch normalizedScenario {
+	case "mattermost-bot-invited":
+		return service.runPlans(contextValue, logger, service.mattermostScenarioPlans())
+	case "web-backed-ui", "regression-proof":
+		return service.runPlans(contextValue, logger, service.webBackedScenarioPlans(normalizedScenario))
+	default:
+		return fmt.Errorf("unsupported local fleet scenario: %s", normalizedScenario)
+	}
+}
+
+func (service Service) VerifyRegression(contextValue context.Context, logger Logger, base string, scenario string) error {
+	normalizedBase := firstNonEmpty(base, "main")
+	normalizedScenario := strings.TrimSpace(scenario)
+	if normalizedScenario == "" {
+		return errors.New("scenario is required")
+	}
+	logger.Info("checking base branch " + normalizedBase)
+	if errorValue := service.runPlans(contextValue, logger, service.baseRegressionPlans(normalizedBase, normalizedScenario)); errorValue == nil {
+		return fmt.Errorf("scenario %s passed on %s; regression test is not proving the fix", normalizedScenario, normalizedBase)
+	}
+	logger.Info("base failed as expected")
+	return service.RunScenario(contextValue, logger, normalizedScenario)
+}
+
+func (service Service) EnsureConfiguration() error {
+	if errorValue := os.MkdirAll(service.options.StateRootPath, 0o700); errorValue != nil {
+		return errorValue
+	}
+	document, errorValue := json.MarshalIndent(service.configurationDocument(), "", "  ")
+	if errorValue != nil {
+		return errorValue
+	}
+	return os.WriteFile(service.configurationPath(), document, 0o600)
+}
+
+func normalizeOptions(options Options) (Options, error) {
+	if strings.TrimSpace(options.RepositoryRootPath) == "" {
+		workingDirectoryPath, errorValue := os.Getwd()
+		if errorValue != nil {
+			return options, errorValue
+		}
+		options.RepositoryRootPath = workingDirectoryPath
+	}
+	if strings.TrimSpace(options.ExecutablePath) == "" {
+		executablePath, errorValue := os.Executable()
+		if errorValue != nil {
+			return options, errorValue
+		}
+		options.ExecutablePath = executablePath
+	}
+	if strings.TrimSpace(options.StateRootPath) == "" {
+		options.StateRootPath = filepath.Join(options.RepositoryRootPath, ".local", "local-fleet")
+	}
+	if strings.TrimSpace(options.VirtualMachineName) == "" {
+		options.VirtualMachineName = DefaultVirtualMachineName
+	}
+	return options, nil
+}
+
+func (service Service) configurationDocument() map[string]any {
+	return map[string]any{
+		"host": map[string]any{"mode": "single-mac"},
+		"vm": map[string]any{
+			"tart": map[string]any{
+				"binaryPath":    "tart",
+				"name":          service.options.VirtualMachineName,
+				"image":         "ghcr.io/cirruslabs/ubuntu:latest",
+				"nestedEnabled": true,
+				"cpuCount":      6,
+				"memoryMiB":     8192,
+				"diskGiB":       80,
+			},
+			"mattermost":          map[string]any{"listenAddress": "127.0.0.1:8065"},
+			"sharedWorkspacePath": service.options.RepositoryRootPath,
+			"mountDirectoryPath":  "/mnt/shared",
+			"sshUsername":         "admin",
+			"sshPassword":         "admin",
+		},
+	}
+}
+
+func (service Service) readCommandState(contextValue context.Context, plan CommandPlan) EndpointStatus {
+	output, errorValue := service.runBufferedPlan(contextValue, plan)
+	if errorValue != nil {
+		return EndpointStatus{State: "failed", Message: strings.TrimSpace(output)}
+	}
+	if strings.Contains(output, "running") {
+		return EndpointStatus{State: "ok", Message: "running"}
+	}
+	return EndpointStatus{State: "stopped", Message: strings.TrimSpace(output)}
+}
+
+func (service Service) sshStatus(contextValue context.Context, virtualMachine EndpointStatus) EndpointStatus {
+	if virtualMachine.State != "ok" {
+		return EndpointStatus{State: "unknown", Message: "VM is not running"}
+	}
+	_, errorValue := service.runBufferedPlan(contextValue, service.labCommand("vm-ssh", "true"))
+	if errorValue != nil {
+		return EndpointStatus{State: "failed", Message: "SSH unavailable"}
+	}
+	return EndpointStatus{State: "ok", Message: "ready"}
+}
+
+func (service Service) httpStatus(contextValue context.Context, rawURL string, name string) EndpointStatus {
+	if !isLoopbackURL(rawURL) {
+		return EndpointStatus{State: "failed", Message: name + " URL is not loopback"}
+	}
+	request, errorValue := http.NewRequestWithContext(contextValue, http.MethodGet, rawURL, nil)
+	if errorValue != nil {
+		return EndpointStatus{State: "failed", Message: errorValue.Error()}
+	}
+	response, errorValue := service.client.Do(request)
+	if errorValue != nil {
+		return EndpointStatus{State: "unknown", Message: errorValue.Error()}
+	}
+	defer response.Body.Close()
+	if response.StatusCode >= 200 && response.StatusCode < 300 {
+		return EndpointStatus{State: "ok", Message: fmt.Sprintf("HTTP %d", response.StatusCode)}
+	}
+	return EndpointStatus{State: "failed", Message: fmt.Sprintf("HTTP %d", response.StatusCode)}
+}
+
+func isLoopbackURL(rawURL string) bool {
+	trimmedURL := strings.TrimPrefix(strings.TrimPrefix(rawURL, "http://"), "https://")
+	host, _, errorValue := net.SplitHostPort(strings.Split(trimmedURL, "/")[0])
+	if errorValue != nil {
+		host = strings.Split(trimmedURL, "/")[0]
+	}
+	if host == "localhost" {
+		return true
+	}
+	parsedIP := net.ParseIP(host)
+	return parsedIP != nil && parsedIP.IsLoopback()
+}
+
+func (service Service) runBufferedPlan(contextValue context.Context, plan CommandPlan) (string, error) {
+	command := exec.CommandContext(contextValue, plan.Name, plan.Arguments...)
+	command.Dir = plan.DirectoryPath
+	command.Env = plan.Environment
+	output, errorValue := command.CombinedOutput()
+	return string(output), errorValue
+}
+
+func readTrimmedFile(path string) string {
+	document, errorValue := os.ReadFile(path)
+	if errorValue != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(document))
+}
+
+func fileExists(path string) bool {
+	_, errorValue := os.Stat(path)
+	return errorValue == nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}

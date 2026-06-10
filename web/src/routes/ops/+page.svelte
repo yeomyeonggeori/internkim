@@ -6,17 +6,20 @@
 	import * as Table from '$lib/components/ui/table';
 	import { onMount } from 'svelte';
 	import ActivityIcon from '@lucide/svelte/icons/activity';
+	import BrainCircuitIcon from '@lucide/svelte/icons/brain-circuit';
 	import CloudUploadIcon from '@lucide/svelte/icons/cloud-upload';
+	import FlaskConicalIcon from '@lucide/svelte/icons/flask-conical';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import RotateCwIcon from '@lucide/svelte/icons/rotate-cw';
+	import SaveIcon from '@lucide/svelte/icons/save';
 	import SearchCheckIcon from '@lucide/svelte/icons/search-check';
 	import ServerIcon from '@lucide/svelte/icons/server';
 	import ShieldIcon from '@lucide/svelte/icons/shield';
 	import TerminalIcon from '@lucide/svelte/icons/terminal';
-	import { createTarget, fetchTargets, fetchTargetStatus, startJob, streamJobEvents } from './ops-api';
-	import type { Job, NewTarget, OpsTarget, TargetStatus } from './ops-types';
-	import { endpointStatusLabel, statusBadgeVariant } from './ops-view';
+	import { createTarget, fetchLocalFleetStatus, fetchTargets, fetchTargetStatus, startJob, startLocalFleetJob, streamJobEvents, updateTargetModel } from './ops-api';
+	import type { Job, LLMModelStatus, LocalFleetJobRequest, LocalFleetStatus, NewTarget, OpsTarget, TargetStatus } from './ops-types';
+	import { endpointStatusLabel, hasVersion, readableModelLabel, runtimeVersionDetail, shortRelease, shortVersion, statusBadgeVariant } from './ops-view';
 
 	const actions = [
 		{ id: 'check', label: 'Check', icon: SearchCheckIcon, variant: 'outline' },
@@ -29,9 +32,15 @@
 		{ id: 'mattermost-smoke', label: 'Mattermost smoke', icon: ShieldIcon, variant: 'outline' }
 	] as const;
 
+	const modelPresets = ['google/gemini-3.5-flash', 'google/gemini-3.1-flash-lite', 'openai/gpt-5.4-nano', 'x-ai/grok-4.3'];
+
 	let targets = $state<OpsTarget[]>([]);
 	let statuses = $state<Record<string, TargetStatus>>({});
+	let localFleetStatus = $state<LocalFleetStatus | undefined>();
 	let jobs = $state<Record<string, Job>>({});
+	let modelDrafts = $state<Record<string, string>>({});
+	let modelErrors = $state<Record<string, string>>({});
+	let modelSaving = $state<Record<string, boolean>>({});
 	let selectedJobID = $state('');
 	let selectedTargetID = $state('');
 	let isLoading = $state(false);
@@ -59,12 +68,28 @@
 		try {
 			targets = await fetchTargets();
 			selectedTargetID = selectedTargetID || targets[0]?.id || '';
-			await Promise.all(targets.map((target) => checkTarget(target.id)));
+			const [nextStatuses, nextLocalFleetStatus] = await Promise.all([fetchStatuses(targets), readLocalFleetStatus()]);
+			statuses = nextStatuses;
+			localFleetStatus = nextLocalFleetStatus;
+			syncModelDrafts(nextStatuses, false);
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : 'failed to load targets';
 		} finally {
 			isLoading = false;
 		}
+	}
+
+	async function readLocalFleetStatus(): Promise<LocalFleetStatus | undefined> {
+		try {
+			return await fetchLocalFleetStatus();
+		} catch {
+			return undefined;
+		}
+	}
+
+	async function fetchStatuses(nextTargets: OpsTarget[]): Promise<Record<string, TargetStatus>> {
+		const entries = await Promise.all(nextTargets.map(async (target) => [target.id, await readTargetStatus(target.id)] as const));
+		return Object.fromEntries(entries);
 	}
 
 	async function addTarget() {
@@ -80,22 +105,77 @@
 	}
 
 	async function checkTarget(targetID: string) {
+		const status = await readTargetStatus(targetID);
+		statuses = { ...statuses, [targetID]: status };
+		syncModelDrafts({ [targetID]: status }, true);
+	}
+
+	async function readTargetStatus(targetID: string): Promise<TargetStatus> {
 		try {
-			statuses = { ...statuses, [targetID]: await fetchTargetStatus(targetID) };
+			return await fetchTargetStatus(targetID);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : 'status check failed';
-			statuses = {
-				...statuses,
-				[targetID]: {
-					targetID,
-					checkedAt: new Date().toISOString(),
-					admin: { state: 'failed', message },
-					mattermost: { state: 'unknown' },
-					release: { state: 'unknown' },
-					recovery: { state: 'unknown' }
-				}
+			return {
+				targetID,
+				checkedAt: new Date().toISOString(),
+				admin: { state: 'failed', message },
+				mattermost: { state: 'unknown' },
+				release: { state: 'unknown' },
+				recovery: { state: 'unknown' },
+				llm: { state: 'unknown' },
+				versions: {}
 			};
 		}
+	}
+
+	async function saveTargetModel(targetID: string) {
+		const model = modelDraft(targetID).trim();
+		if (!model) {
+			modelErrors = { ...modelErrors, [targetID]: 'Model is required' };
+			return;
+		}
+		modelSaving = { ...modelSaving, [targetID]: true };
+		modelErrors = { ...modelErrors, [targetID]: '' };
+		try {
+			const llm = await updateTargetModel(targetID, model);
+			modelDrafts = { ...modelDrafts, [targetID]: llm.model || model };
+			mergeTargetModelStatus(targetID, llm);
+		} catch (error) {
+			modelErrors = { ...modelErrors, [targetID]: error instanceof Error ? error.message : 'failed to update model' };
+		} finally {
+			modelSaving = { ...modelSaving, [targetID]: false };
+		}
+	}
+
+	function syncModelDrafts(nextStatuses: Record<string, TargetStatus>, shouldOverwrite: boolean) {
+		const nextDrafts = { ...modelDrafts };
+		for (const [targetID, status] of Object.entries(nextStatuses)) {
+			const model = status.llm?.model ?? '';
+			if (shouldOverwrite || !nextDrafts[targetID]) nextDrafts[targetID] = model;
+		}
+		modelDrafts = nextDrafts;
+	}
+
+	function mergeTargetModelStatus(targetID: string, llm: LLMModelStatus) {
+		const currentStatus = statuses[targetID];
+		if (!currentStatus) return;
+		statuses = {
+			...statuses,
+			[targetID]: {
+				...currentStatus,
+				llm,
+				checkedAt: new Date().toISOString()
+			}
+		};
+	}
+
+	function modelDraft(targetID: string, status?: TargetStatus) {
+		return modelDrafts[targetID] ?? status?.llm?.model ?? '';
+	}
+
+	function updateModelDraft(targetID: string, event: Event) {
+		if (!(event.currentTarget instanceof HTMLInputElement)) return;
+		modelDrafts = { ...modelDrafts, [targetID]: event.currentTarget.value };
 	}
 
 	async function runTargetAction(targetID: string, action: string) {
@@ -127,12 +207,51 @@
 		}
 	}
 
+	async function runLocalFleetAction(payload: LocalFleetJobRequest) {
+		errorMessage = '';
+		try {
+			const job = await startLocalFleetJob(payload);
+			jobs = { ...jobs, [job.id]: job };
+			selectedJobID = job.id;
+			streamJobEvents(
+				job.id,
+				(event) => {
+					const currentJob = jobs[job.id];
+					jobs = {
+						...jobs,
+						[job.id]: {
+							...currentJob,
+							events: [...(currentJob?.events ?? []), event],
+							state: event.message === 'completed' ? 'succeeded' : currentJob?.state ?? 'running'
+						}
+					};
+					if (event.message === 'completed') void refreshLocalFleetStatus();
+				},
+				(message) => {
+					errorMessage = message;
+				}
+			);
+		} catch (error) {
+			errorMessage = error instanceof Error ? error.message : 'failed to start local fleet job';
+		}
+	}
+
+	async function refreshLocalFleetStatus() {
+		localFleetStatus = await readLocalFleetStatus();
+	}
+
 	function statusVariant(state: string) {
 		return statusBadgeVariant(state);
 	}
 
 	function statusLabel(status?: { state?: string; code?: number }) {
+		if (!status && isLoading) return 'Checking';
 		return endpointStatusLabel(status);
+	}
+
+	function statusState(status?: { state?: string }) {
+		if (!status && isLoading) return 'running';
+		return status?.state ?? 'unknown';
 	}
 
 	function formatDate(value?: string) {
@@ -152,6 +271,11 @@
 </svelte:head>
 
 <main class="min-h-svh bg-background text-foreground">
+	<datalist id="llm-model-presets">
+		{#each modelPresets as model}
+			<option value={model}></option>
+		{/each}
+	</datalist>
 	<header class="border-b bg-muted/30">
 		<div class="mx-auto flex max-w-[1500px] flex-col gap-3 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
 			<div class="min-w-0">
@@ -174,11 +298,56 @@
 				<div class="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">{errorMessage}</div>
 			{/if}
 
-			<div class="grid gap-3 lg:grid-cols-2">
+			<Card.Root class="overflow-hidden border-border/70 bg-card shadow-sm ring-1 ring-white/5">
+				<Card.Header class="border-b bg-muted/20 px-4 py-3">
+					<div class="flex items-start justify-between gap-3">
+						<div class="min-w-0">
+							<Card.Title class="flex items-center gap-2 text-base">
+								<FlaskConicalIcon class="size-4 text-muted-foreground" />
+								Local Fleet
+							</Card.Title>
+							<Card.Description class="mt-1 truncate">{localFleetStatus?.statePath ?? '.local/local-fleet'}</Card.Description>
+						</div>
+						<Badge variant={statusVariant(statusState(localFleetStatus?.virtualMachine))}>{statusLabel(localFleetStatus?.virtualMachine)}</Badge>
+					</div>
+				</Card.Header>
+				<Card.Content class="space-y-3 p-4">
+					<div class="grid gap-2 text-xs sm:grid-cols-2 xl:grid-cols-4">
+						{@render StatusCell('VM', localFleetStatus?.virtualMachine)}
+						{@render StatusCell('SSH', localFleetStatus?.ssh)}
+						{@render StatusCell('Admin', localFleetStatus?.admin)}
+						{@render StatusCell('Mattermost', localFleetStatus?.mattermost)}
+					</div>
+					<div class="grid gap-2 rounded-md border border-border/60 bg-background/40 px-3 py-2 text-xs text-muted-foreground sm:grid-cols-2">
+						<a class="truncate text-primary underline-offset-4 hover:underline" href={localFleetStatus?.adminURL || undefined} target="_blank" rel="noreferrer">
+							Admin: {localFleetStatus?.adminURL || 'not available'}
+						</a>
+						<a class="truncate text-primary underline-offset-4 hover:underline" href={localFleetStatus?.mattermostURL || undefined} target="_blank" rel="noreferrer">
+							Mattermost: {localFleetStatus?.mattermostURL || 'not available'}
+						</a>
+					</div>
+					<div class="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(148px,1fr))]">
+						<Button variant="outline" size="sm" class="justify-start" onclick={() => runLocalFleetAction({ action: 'up' })}><ServerIcon /> Up</Button>
+						<Button variant="outline" size="sm" class="justify-start" onclick={refreshLocalFleetStatus}><SearchCheckIcon /> Status</Button>
+						<Button variant="default" size="sm" class="justify-start" onclick={() => runLocalFleetAction({ action: 'runRecipe', recipe: 'predeploy-gate' })}><ActivityIcon /> Predeploy gate</Button>
+						<Button variant="outline" size="sm" class="justify-start" onclick={() => runLocalFleetAction({ action: 'runScenario', scenario: 'mattermost-bot-invited' })}><ShieldIcon /> Mattermost smoke</Button>
+						<Button variant="secondary" size="sm" class="justify-start" onclick={() => runLocalFleetAction({ action: 'verifyRegression', base: 'main', scenario: 'regression-proof' })}><FlaskConicalIcon /> Verify regression</Button>
+						<Button variant="outline" size="sm" class="justify-start" onclick={() => runLocalFleetAction({ action: 'reset' })}><RotateCwIcon /> Reset</Button>
+						<Button variant="outline" size="sm" class="justify-start" onclick={() => runLocalFleetAction({ action: 'down' })}><RotateCwIcon /> Down</Button>
+					</div>
+					{#if localFleetStatus?.lastResult || localFleetStatus?.cleanupNeeded}
+						<div class="text-xs text-muted-foreground">
+							{localFleetStatus?.lastResult || 'No prior result'}{localFleetStatus?.cleanupNeeded ? ' · cleanup needed' : ''}
+						</div>
+					{/if}
+				</Card.Content>
+			</Card.Root>
+
+			<div class="grid gap-3 2xl:grid-cols-2">
 				{#each targets as target}
 					{@const status = targetStatus(target.id)}
-					<Card.Root class="overflow-hidden border-border/80">
-						<Card.Header class="border-b bg-card/80 pb-3">
+					<Card.Root class="overflow-hidden border-border/70 bg-card shadow-sm ring-1 ring-white/5">
+						<Card.Header class="border-b bg-muted/20 px-4 py-3">
 							<div class="flex items-start justify-between gap-3">
 								<div class="min-w-0">
 									<Card.Title class="flex items-center gap-2 text-base">
@@ -187,28 +356,36 @@
 									</Card.Title>
 									<Card.Description class="mt-1 truncate">{target.adminURL}</Card.Description>
 								</div>
-								<Badge variant={statusVariant(status?.admin.state ?? 'unknown')}>{statusLabel(status?.admin)}</Badge>
+								<Badge variant={statusVariant(statusState(status?.admin))}>{statusLabel(status?.admin)}</Badge>
 							</div>
 						</Card.Header>
-						<Card.Content class="space-y-3 p-3">
-							<div class="grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
+						<Card.Content class="space-y-3 p-4">
+							<div class="grid gap-2 text-xs sm:grid-cols-2 xl:grid-cols-4">
 								{@render StatusCell('Admin', status?.admin)}
 								{@render StatusCell('Mattermost', status?.mattermost)}
 								{@render StatusCell('Release', status?.release)}
 								{@render StatusCell('Recovery', status?.recovery)}
 							</div>
-							<div class="grid gap-2 text-xs text-muted-foreground md:grid-cols-3">
+							<div class="grid gap-2 rounded-md border border-border/60 bg-background/40 px-3 py-2 text-xs text-muted-foreground sm:grid-cols-3">
 								<div class="truncate">profile: {target.profile || 'default'}</div>
 								<div class="truncate">node: {target.nodeID || target.nodeArgument || 'default'}</div>
 								<div class="truncate">secret: {target.secretSource ? 'local reference' : 'state'}</div>
 							</div>
-							<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+							<div class="grid gap-2 rounded-md border border-border/70 bg-muted/10 p-3 text-xs [grid-template-columns:repeat(auto-fit,minmax(118px,1fr))]">
+								{@render VersionCell('Admind', status?.versions.admind, '', status === undefined && isLoading)}
+								{@render VersionCell('Runtime', status?.versions.runtime, runtimeVersionDetail(status?.versions.current), status === undefined && isLoading)}
+								{@render VersionCell('Web', status?.versions.web, '', status === undefined && isLoading)}
+								{@render ReleaseCell('Current', status?.versions.current?.releaseID, status === undefined && isLoading)}
+								{@render ReleaseCell('Latest', status?.versions.latest?.releaseID, status === undefined && isLoading)}
+							</div>
+							{@render ModelEditor(target, status)}
+							<div class="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(148px,1fr))]">
 								{#each actions as action}
 									{@const ActionIcon = action.icon}
 									<Button
 										variant={action.variant}
 										size="sm"
-										class="justify-start"
+										class="min-h-9 min-w-0 justify-start whitespace-normal px-2 text-left leading-tight"
 										onclick={() => runTargetAction(target.id, action.id)}
 									>
 										<ActionIcon />
@@ -315,11 +492,60 @@
 </main>
 
 {#snippet StatusCell(label: string, status?: { state?: string; code?: number; message?: string })}
-	<div class="rounded-md border bg-muted/20 p-2">
-		<div class="mb-1 text-muted-foreground">{label}</div>
-		<Badge variant={statusVariant(status?.state ?? 'unknown')}>{statusLabel(status)}</Badge>
+	<div class="min-w-0 rounded-md bg-muted/20 px-2.5 py-2 ring-1 ring-border/60">
+		<div class="mb-1 truncate text-muted-foreground">{label}</div>
+		<Badge variant={statusVariant(statusState(status))} class="max-w-full">{statusLabel(status)}</Badge>
 		{#if status?.message}
 			<div class="mt-1 truncate text-muted-foreground" title={status.message}>{status.message}</div>
 		{/if}
+	</div>
+{/snippet}
+
+{#snippet ModelEditor(target: OpsTarget, status?: TargetStatus)}
+	<div class="rounded-md border border-border/70 bg-background/50 p-3">
+		<div class="mb-2 flex items-center justify-between gap-2">
+			<div class="flex min-w-0 items-center gap-2 text-xs font-medium">
+				<BrainCircuitIcon class="size-4 text-muted-foreground" />
+				<span>LLM model</span>
+				<span class="truncate font-mono text-[11px] text-muted-foreground" title={status?.llm?.model || status?.llm?.message || ''}>{readableModelLabel(status?.llm)}</span>
+			</div>
+			<Badge variant={statusVariant(statusState(status?.llm))}>{statusLabel(status?.llm)}</Badge>
+		</div>
+		<div class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_120px]">
+			<Input
+				class="font-mono text-xs"
+				list="llm-model-presets"
+				placeholder="Enter model id"
+				value={modelDraft(target.id, status)}
+				oninput={(event) => updateModelDraft(target.id, event)}
+			/>
+			<Button size="sm" variant="outline" class="justify-center" disabled={modelSaving[target.id] || !modelDraft(target.id, status).trim()} onclick={() => saveTargetModel(target.id)}>
+				<SaveIcon />
+				{modelSaving[target.id] ? 'Saving' : 'Save model'}
+			</Button>
+		</div>
+		{#if modelErrors[target.id] || status?.llm?.message}
+			<div class="mt-2 truncate text-xs text-muted-foreground" title={modelErrors[target.id] || status?.llm?.message}>
+				{modelErrors[target.id] || status?.llm?.message}
+			</div>
+		{/if}
+	</div>
+{/snippet}
+
+{#snippet VersionCell(label: string, value?: string, title?: string, isChecking = false)}
+	<div class="min-w-0" title={title || value || ''}>
+		<div class="text-muted-foreground">{label}</div>
+		<div class={hasVersion(value) ? 'truncate font-mono text-[11px] font-semibold text-foreground' : 'truncate text-muted-foreground'}>
+			{isChecking ? 'Checking' : shortVersion(value)}
+		</div>
+	</div>
+{/snippet}
+
+{#snippet ReleaseCell(label: string, value?: string, isChecking = false)}
+	<div class="min-w-0" title={value || ''}>
+		<div class="text-muted-foreground">{label}</div>
+		<div class={hasVersion(value) ? 'truncate font-mono text-[11px] font-semibold text-foreground' : 'truncate text-muted-foreground'}>
+			{isChecking ? 'Checking' : shortRelease(value)}
+		</div>
 	</div>
 {/snippet}

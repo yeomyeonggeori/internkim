@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/localfleet"
 )
 
 type Server struct {
@@ -119,6 +121,8 @@ func (server *Server) routes() http.Handler {
 	mux.HandleFunc("/admin/api/locale", server.handleLocale)
 	mux.HandleFunc("/api/targets", server.handleTargets)
 	mux.HandleFunc("/api/targets/", server.handleTargetResource)
+	mux.HandleFunc("/api/local-fleet/status", server.handleLocalFleetStatus)
+	mux.HandleFunc("/api/local-fleet/jobs", server.handleLocalFleetJobs)
 	mux.HandleFunc("/api/jobs/", server.handleJobResource)
 	mux.HandleFunc("/", server.handleUI)
 	return mux
@@ -176,11 +180,29 @@ func (server *Server) handleTargetResource(responseWriter http.ResponseWriter, r
 	switch {
 	case request.Method == http.MethodGet && suffix == "status":
 		writeJSON(responseWriter, http.StatusOK, server.CheckStatus(request.Context(), target))
+	case request.Method == http.MethodGet && suffix == "llm-model":
+		writeJSON(responseWriter, http.StatusOK, server.ReadLLMModel(request.Context(), target))
+	case request.Method == http.MethodPut && suffix == "llm-model":
+		server.handleUpdateLLMModel(responseWriter, request, target)
 	case request.Method == http.MethodPost && suffix == "jobs":
 		server.handleCreateJob(responseWriter, request, target)
 	default:
 		writeError(responseWriter, http.StatusNotFound, "resource not found")
 	}
+}
+
+func (server *Server) handleUpdateLLMModel(responseWriter http.ResponseWriter, request *http.Request, target Target) {
+	var payload UpdateLLMModelRequest
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		writeError(responseWriter, http.StatusBadRequest, errorValue.Error())
+		return
+	}
+	status, errorValue := server.UpdateLLMModel(request.Context(), target, payload.Model)
+	if errorValue != nil {
+		writeError(responseWriter, http.StatusBadRequest, Redact(errorValue.Error()))
+		return
+	}
+	writeJSON(responseWriter, http.StatusOK, status)
 }
 
 func (server *Server) handleCreateJob(responseWriter http.ResponseWriter, request *http.Request, target Target) {
@@ -191,6 +213,39 @@ func (server *Server) handleCreateJob(responseWriter http.ResponseWriter, reques
 	}
 	job, errorValue := server.jobs.Start(target.ID, jobRequest.Action, func(job *JobRunner) {
 		server.runJob(request.Context(), job, target, jobRequest.Action)
+	})
+	if errorValue != nil {
+		writeError(responseWriter, http.StatusConflict, errorValue.Error())
+		return
+	}
+	writeJSON(responseWriter, http.StatusAccepted, job)
+}
+
+func (server *Server) handleLocalFleetStatus(responseWriter http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodGet {
+		writeError(responseWriter, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	service, errorValue := server.localFleetService()
+	if errorValue != nil {
+		writeError(responseWriter, http.StatusInternalServerError, errorValue.Error())
+		return
+	}
+	writeJSON(responseWriter, http.StatusOK, service.Status(request.Context()))
+}
+
+func (server *Server) handleLocalFleetJobs(responseWriter http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodPost {
+		writeError(responseWriter, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var jobRequest localfleet.JobRequest
+	if errorValue := json.NewDecoder(request.Body).Decode(&jobRequest); errorValue != nil {
+		writeError(responseWriter, http.StatusBadRequest, errorValue.Error())
+		return
+	}
+	job, errorValue := server.jobs.Start("local-fleet", "local-fleet:"+jobRequest.Action, func(job *JobRunner) {
+		server.runLocalFleetJob(request.Context(), job, jobRequest)
 	})
 	if errorValue != nil {
 		writeError(responseWriter, http.StatusConflict, errorValue.Error())
@@ -236,6 +291,13 @@ func (server *Server) findTarget(targetID string) (Target, bool) {
 		}
 	}
 	return Target{}, false
+}
+
+func (server *Server) localFleetService() (localfleet.Service, error) {
+	return localfleet.NewService(localfleet.Options{
+		RepositoryRootPath: server.options.RepositoryRootPath,
+		ExecutablePath:     server.options.ExecutablePath,
+	})
 }
 
 func splitResourcePath(path string) (string, string) {

@@ -42,8 +42,16 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   proceeding to deployment.
 - Do not replace this gate with Docker or another container path unless the task
   explicitly asks for a different executor model.
+- For web, admind, capabilityd, Mattermost connector, or cross-service behavior
+  changes, verify the current checkout through the local fleet with
+  `./internkim dev fleet run --recipe predeploy-gate` or a narrower
+  `./internkim dev fleet run --scenario <name>`.
+- When claiming a user-visible fix, prefer
+  `./internkim dev fleet verify-regression --base main --scenario <name>` so the
+  same scenario fails on the base revision and passes on the current checkout.
 - Run real Mattermost smoke only after the virtual-session and Tart replay
-  gates pass; keep platform cleanup requirements from Runtime Test Hygiene.
+  gates pass; keep platform cleanup requirements from Runtime Test Hygiene and
+  use `./internkim dev fleet reset` after local fleet Mattermost tests.
 
 ## Web Test Hygiene
 
