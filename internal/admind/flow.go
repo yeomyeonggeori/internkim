@@ -4,6 +4,7 @@ const (
 	flowActionRead   = "read"
 	flowActionCreate = "create"
 	flowActionUpdate = "update"
+	flowActionDelete = "delete"
 	flowActionManage = "manage"
 
 	flowResourceSummary    = "api:flow.summary"

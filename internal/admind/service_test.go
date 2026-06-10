@@ -1951,6 +1951,7 @@ func TestFlowAPIRejectsUnauthenticatedRemoteCaller(t *testing.T) {
 		httptest.NewRequest(http.MethodGet, "/flow/api/summary", nil),
 		httptest.NewRequest(http.MethodGet, "/flow/api/state", nil),
 		httptest.NewRequest(http.MethodPost, "/flow/api/tasks", strings.NewReader(`{}`)),
+		httptest.NewRequest(http.MethodDelete, "/flow/api/tasks/task-1", nil),
 		httptest.NewRequest(http.MethodPut, "/flow/api/definitions", strings.NewReader(`{}`)),
 	} {
 		request.RemoteAddr = "198.51.100.10:443"
@@ -1994,6 +1995,66 @@ func TestFlowAPIAllowsStaffSummaryAndOwnTask(t *testing.T) {
 	}
 	if task.Status != "진행" || task.OwnerID != stableFlowID("staff@example.com") {
 		t.Fatalf("task = %+v", task)
+	}
+}
+
+func TestFlowAPIDeletesOwnTask(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	handler := service.router()
+	taskRequest := newFlowTaskRequest("staff@example.com", "staff@example.com")
+	taskResponse := httptest.NewRecorder()
+	handler.ServeHTTP(taskResponse, taskRequest)
+	if taskResponse.Code != http.StatusOK {
+		t.Fatalf("task status = %d body = %s", taskResponse.Code, taskResponse.Body.String())
+	}
+	var task flowTask
+	if errorValue := json.NewDecoder(taskResponse.Body).Decode(&task); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	deleteRequest := httptest.NewRequest(http.MethodDelete, "/flow/api/tasks/"+task.ID, nil)
+	deleteRequest.RemoteAddr = "198.51.100.10:443"
+	deleteRequest.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	deleteResponse := httptest.NewRecorder()
+	handler.ServeHTTP(deleteResponse, deleteRequest)
+	if deleteResponse.Code != http.StatusOK {
+		t.Fatalf("delete status = %d body = %s", deleteResponse.Code, deleteResponse.Body.String())
+	}
+	_, found, errorValue := service.readFlowTaskByID(context.Background(), task.ID)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if found {
+		t.Fatal("expected task to be deleted")
+	}
+}
+
+func TestFlowAPIRejectsDeletingOtherUserTask(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	handler := service.router()
+	taskRequest := newFlowTaskRequest("other@example.com", "other@example.com")
+	taskResponse := httptest.NewRecorder()
+	handler.ServeHTTP(taskResponse, taskRequest)
+	if taskResponse.Code != http.StatusOK {
+		t.Fatalf("task status = %d body = %s", taskResponse.Code, taskResponse.Body.String())
+	}
+	var task flowTask
+	if errorValue := json.NewDecoder(taskResponse.Body).Decode(&task); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	deleteRequest := httptest.NewRequest(http.MethodDelete, "/flow/api/tasks/"+task.ID, nil)
+	deleteRequest.RemoteAddr = "198.51.100.10:443"
+	deleteRequest.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	deleteResponse := httptest.NewRecorder()
+	handler.ServeHTTP(deleteResponse, deleteRequest)
+	if deleteResponse.Code != http.StatusForbidden {
+		t.Fatalf("delete status = %d body = %s", deleteResponse.Code, deleteResponse.Body.String())
+	}
+	_, found, errorValue := service.readFlowTaskByID(context.Background(), task.ID)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !found {
+		t.Fatal("expected task to remain")
 	}
 }
 
@@ -3203,7 +3264,7 @@ func newFlowAuthorizationTestService(t *testing.T) *Service {
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"admin@example.com","name":"Admin","role":"admin","status":"active"},{"email":"staff@example.com","name":"Staff","role":"member","status":"active"},{"email":"other@example.com","name":"Other","role":"member","status":"active"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"userID":"user-admin","email":"admin@example.com","name":"Admin","role":"admin","status":"active"},{"userID":"user-staff","email":"staff@example.com","name":"Staff","role":"member","status":"active"},{"userID":"user-other","email":"other@example.com","name":"Other","role":"member","status":"active"}]}`, nil), nil
 		}
 		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet && strings.Contains(request.Header.Get("Cookie"), "MMAUTHTOKEN=session-token") {
 			return jsonResponse(http.StatusOK, `{"id":"staff-mm","email":"staff@example.com","username":"staff"}`, nil), nil

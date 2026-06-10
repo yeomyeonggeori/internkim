@@ -368,6 +368,42 @@ func TestFlowTaskUpdateAmbiguousQueryDoesNotWrite(t *testing.T) {
 	}
 }
 
+func TestFlowTaskDeleteUsesSharedDeleteAPI(t *testing.T) {
+	var deletedRequesterEmail string
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			switch {
+			case request.Method == http.MethodGet && request.URL.String() == "http://admind.local/flow/api/summary?week=26W24":
+				return flowToolJSONResponse(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"weeklyTasks":[{"id":"task-1","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"business":"개발","type":"회의","content":"10분 회의","goal":"정리","size":"XS","status":"진행","weekCode":"26W24"}]}`), nil
+			case request.Method == http.MethodDelete && request.URL.String() == "http://admind.local/flow/api/tasks/task-1":
+				deletedRequesterEmail = request.Header.Get(flowRequesterEmailHeader)
+				return flowToolJSONResponse(`{"status":"deleted","task":{"id":"task-1"}}`), nil
+			default:
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+				return nil, nil
+			}
+		})},
+	}
+
+	response, errorValue := service.invokeFlowTaskDelete(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "flow.task.delete",
+		Input:    []byte(`{"query":"10분 회의","weekCode":"26W24"}`),
+		Context: capabilities.ToolInvokeContext{
+			RequesterEmail: "staff@example.com",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != "deleted" {
+		t.Fatalf("response = %+v", response)
+	}
+	if deletedRequesterEmail != "staff@example.com" {
+		t.Fatalf("requester email = %q", deletedRequesterEmail)
+	}
+}
+
 func flowToolJSONResponse(document string) *http.Response {
 	return &http.Response{
 		StatusCode: http.StatusOK,
