@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -83,6 +84,33 @@ func (service *Service) writeAdminRequestDiagnostics(responseWriter http.Respons
 	service.writeJSON(responseWriter, map[string]any{
 		"recentSlowRequests": service.requestMetricState().RecentSlowRequests(),
 	})
+}
+
+func (service *Service) proxyBlueclawConnectorEvents(responseWriter http.ResponseWriter, request *http.Request) {
+	path := "/admin/api/connector/events"
+	if strings.TrimSpace(request.URL.RawQuery) != "" {
+		path += "?" + request.URL.RawQuery
+	}
+	var diagnostics []map[string]any
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, path, nil, &diagnostics); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	service.writeJSON(responseWriter, diagnostics)
+}
+
+func (service *Service) proxyBlueclawTaskDetail(responseWriter http.ResponseWriter, request *http.Request) {
+	taskRunID := strings.TrimSpace(request.URL.Query().Get("taskRunID"))
+	if taskRunID == "" {
+		http.Error(responseWriter, "taskRunID is required", http.StatusBadRequest)
+		return
+	}
+	var detail map[string]any
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, "/admin/api/task/detail?taskRunID="+url.QueryEscape(taskRunID), nil, &detail); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	service.writeJSON(responseWriter, detail)
 }
 
 func (service *Service) recordAdminRequest(request *http.Request, status int, duration time.Duration, startedAt time.Time) {

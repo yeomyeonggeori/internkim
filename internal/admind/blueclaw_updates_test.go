@@ -125,6 +125,23 @@ func TestBlueclawPayloadTenantInstallTargetsReadRuntimeConfiguration(t *testing.
 	}
 }
 
+func TestBlueclawPayloadInstallTargetsIncludeCanonicalAndTenants(t *testing.T) {
+	tenantBasePath := t.TempDir()
+	writeBlueclawPayloadTenantRuntimeConfiguration(t, tenantBasePath, "pilot-02")
+	writeBlueclawPayloadTenantRuntimeConfiguration(t, tenantBasePath, "pilot-01")
+
+	targets := blueclawPayloadInstallTargets(tenantBasePath)
+	targetNames := []string{}
+	for _, target := range targets {
+		targetNames = append(targetNames, target.Name)
+	}
+
+	expectedTargetNames := []string{"blueclaw", "pilot-01", "pilot-02"}
+	if strings.Join(targetNames, "\n") != strings.Join(expectedTargetNames, "\n") {
+		t.Fatalf("target names = %+v, want %+v", targetNames, expectedTargetNames)
+	}
+}
+
 func TestHostWorkspacePayloadSyncCommandUsesTenantTarget(t *testing.T) {
 	target := blueclawPayloadInstallTarget{
 		HostWorkspacePath: "/srv/internkim/tenants/pilot-01/blueclaw/workspace",
@@ -144,5 +161,23 @@ func TestHostWorkspacePayloadSyncCommandUsesTenantTarget(t *testing.T) {
 	}
 	if strings.Contains(command, "/root/.blueclaw/workspace") {
 		t.Fatalf("tenant sync command must not use canonical workspace, got:\n%s", command)
+	}
+}
+
+func writeBlueclawPayloadTenantRuntimeConfiguration(t *testing.T, tenantBasePath string, tenantID string) {
+	t.Helper()
+	runtimeConfigurationPath := filepath.Join(tenantBasePath, tenantID, "blueclaw", "config", "runtime.json")
+	if errorValue := os.MkdirAll(filepath.Dir(runtimeConfigurationPath), 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	runtimeConfiguration := blueclawPayloadRuntimeConfiguration{}
+	runtimeConfiguration.Firecracker.HostWorkspacePath = filepath.Join(tenantBasePath, tenantID, "blueclaw", "workspace")
+	runtimeConfiguration.Firecracker.WorkspaceImagePath = filepath.Join(tenantBasePath, tenantID, "blueclaw", "firecracker", "workspace.ext4")
+	document, errorValue := json.Marshal(runtimeConfiguration)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(runtimeConfigurationPath, document, 0o600); errorValue != nil {
+		t.Fatal(errorValue)
 	}
 }
