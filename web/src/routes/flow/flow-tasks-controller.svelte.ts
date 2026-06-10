@@ -58,6 +58,7 @@ class FlowTasksController {
 	};
 
 	currentWeek = () => this.summary?.week.code ?? '';
+	taskWeek = () => this.summary?.currentWeek?.code ?? this.summary?.week.code ?? '';
 	members = () => this.summary?.members ?? [];
 	tasks = () => this.summary?.tasks ?? [];
 	definitions = () => this.summary?.definitions ?? emptyDefinitions;
@@ -110,7 +111,7 @@ class FlowTasksController {
 	createTask = (): void => {
 		const owner = this.defaultTaskOwner();
 		if (!owner || !this.summary) return;
-		this.taskDraft = createFlowTaskDraft(owner, this.definitions(), this.summary.week.code);
+		this.taskDraft = createFlowTaskDraft(owner, this.definitions(), this.taskWeek());
 		this.taskErrorMessage = '';
 	};
 
@@ -130,7 +131,7 @@ class FlowTasksController {
 					prompt,
 					ownerID: owner.id,
 					participantIDs: [owner.id],
-					weekCode: this.summary.week.code,
+					weekCode: this.taskWeek(),
 					allowDuplicate
 				},
 				this.text.task.quickAddError

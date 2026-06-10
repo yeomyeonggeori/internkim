@@ -1,4 +1,4 @@
-import type { FlowDefinitions, FlowSummary, FlowTask } from './flow-types';
+import type { FlowDefinitions, FlowState, FlowSummary, FlowTask, FlowWeeklySummary } from './flow-types';
 
 export type FlowQuickTaskRequest = {
 	prompt: string;
@@ -13,11 +13,40 @@ export type FlowQuickTaskResult = {
 	reason: string;
 };
 
-export async function fetchFlowSummary(week: string, fallbackMessage: string): Promise<FlowSummary> {
+export async function fetchFlowWeeklySummary(week: string, fallbackMessage: string): Promise<FlowWeeklySummary> {
 	const query = week ? `?week=${encodeURIComponent(week)}` : '';
 	const response = await fetch(`/flow/api/summary${query}`, { credentials: 'include' });
 	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
-	return (await response.json()) as FlowSummary;
+	return (await response.json()) as FlowWeeklySummary;
+}
+
+export async function fetchFlowState(fallbackMessage: string): Promise<FlowState> {
+	const response = await fetch('/flow/api/state', { credentials: 'include' });
+	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
+	return (await response.json()) as FlowState;
+}
+
+export function mergeFlowSummary(state: FlowState, weeklySummary: FlowWeeklySummary): FlowSummary {
+	return {
+		week: weeklySummary.week,
+		currentWeek: state.currentWeek ?? weeklySummary.currentWeek,
+		members: state.members,
+		tasks: state.tasks,
+		weeklyTasks: weeklySummary.weeklyTasks,
+		metrics: {
+			...weeklySummary.metrics,
+			memberScores: state.metrics.memberScores ?? {},
+			memberScoreDetails: state.metrics.memberScoreDetails ?? {},
+			totalScore: state.metrics.totalScore ?? 0
+		},
+		definitions: state.definitions,
+		report: weeklySummary.report,
+		statusOptions: state.statusOptions,
+		currentUserEmail: state.currentUserEmail,
+		currentUserName: state.currentUserName,
+		isAdmin: state.isAdmin,
+		source: state.source
+	};
 }
 
 export async function createQuickFlowTask(request: FlowQuickTaskRequest, fallbackMessage: string): Promise<FlowQuickTaskResult> {
