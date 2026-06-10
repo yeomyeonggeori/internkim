@@ -310,7 +310,8 @@ func (service *Service) ensureMattermostProvisionerDefaults(ctx context.Context)
 	userMembershipError := service.ensureMattermostDefaultChannelMemberships(ctx, adminToken, teamRecord.ID, channelIDs)
 	connectCommandError := service.ensureMattermostConnectCommand(ctx, adminToken)
 	oauthAppError := service.ensureMattermostWebOAuthApp(ctx, adminToken)
-	return errors.Join(channelError, adminMembershipError, userMembershipError, connectCommandError, oauthAppError)
+	botPermissionError := service.ensureMattermostBotEphemeralPermission(ctx, adminToken)
+	return errors.Join(channelError, adminMembershipError, userMembershipError, connectCommandError, oauthAppError, botPermissionError)
 }
 
 func (service *Service) ensureMattermostProvisionerIdentity(ctx context.Context) (string, mattermostUserRecord, error) {
@@ -1464,6 +1465,21 @@ func (service *Service) setMattermostRole(ctx context.Context, token string, use
 	}
 	body := map[string]string{"roles": mattermostRoles}
 	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/users/"+url.PathEscape(userID)+"/roles", token, body, nil)
+}
+
+func (service *Service) ensureMattermostBotEphemeralPermission(ctx context.Context, token string) error {
+	botRecord, found, errorValue := service.findMattermostUserByUsername(ctx, token, "internkim")
+	if errorValue != nil {
+		return errorValue
+	}
+	if !found || botRecord.DeleteAt != 0 || strings.TrimSpace(botRecord.ID) == "" {
+		return nil
+	}
+	if strings.Contains(" "+botRecord.Roles+" ", " system_admin ") {
+		return nil
+	}
+	body := map[string]string{"roles": strings.TrimSpace(botRecord.Roles + " system_admin")}
+	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/users/"+url.PathEscape(botRecord.ID)+"/roles", token, body, nil)
 }
 
 func (service *Service) mattermostRequest(ctx context.Context, method string, path string, token string, body any, responseValue any) error {

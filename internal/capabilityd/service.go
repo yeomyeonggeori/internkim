@@ -104,6 +104,7 @@ type replyRequest struct {
 	Message         string                        `json:"message"`
 	RawEventID      string                        `json:"rawEventID,omitempty"`
 	OutboxID        string                        `json:"outboxID,omitempty"`
+	EphemeralUserID string                        `json:"ephemeralUserID,omitempty"`
 	Attachments     []platformFileSpec            `json:"attachments,omitempty"`
 	RecoveryActions []capabilities.RecoveryAction `json:"recoveryActions,omitempty"`
 	Interaction     *platformAskInteraction       `json:"interaction,omitempty"`
@@ -649,59 +650,9 @@ func (service Service) mattermostReply(ctx context.Context, payload json.RawMess
 		log.Printf("mattermost reply failed: %v", errorValue)
 	}
 	if errorValue == nil {
-		errorValue = service.mattermostSendAskControl(ctx, response.ID, request, handle)
-		if errorValue != nil {
-			service.deleteMattermostReplyPost(ctx, response.ID)
-		}
+		errorValue = service.sendMattermostAskEphemeral(ctx, handle, request)
 	}
 	return map[string]string{"dispatchID": response.ID}, errorValue
-}
-
-func (service Service) mattermostSendAskControl(ctx context.Context, questionPostID string, request replyRequest, handle platformHandle) error {
-	attachment := service.mattermostAskAttachment(request, handle)
-	if attachment == nil {
-		return nil
-	}
-	targetUserID := strings.TrimSpace(request.Interaction.TargetPlatformUserID)
-	if targetUserID == "" {
-		return errors.New("mattermost ask target user id is required")
-	}
-	post := map[string]any{
-		"channel_id": handle.ChannelID,
-		"message":    "",
-		"props": map[string]any{
-			"attachments": []any{attachment},
-		},
-	}
-	if strings.TrimSpace(handle.RootID) != "" {
-		post["root_id"] = handle.RootID
-	}
-	body := map[string]any{
-		"user_id": targetUserID,
-		"post":    post,
-	}
-	var response struct {
-		ID string `json:"id"`
-	}
-	errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts/ephemeral", body, &response)
-	if errorValue != nil {
-		return errorValue
-	}
-	if strings.TrimSpace(response.ID) == "" {
-		response.ID = questionPostID
-	}
-	return nil
-}
-
-func (service Service) deleteMattermostReplyPost(ctx context.Context, postID string) {
-	trimmedPostID := strings.TrimSpace(postID)
-	if trimmedPostID == "" {
-		return
-	}
-	path := "/api/v4/posts/" + url.PathEscape(trimmedPostID)
-	if errorValue := service.mattermostRequest(ctx, http.MethodDelete, path, nil, nil); errorValue != nil {
-		log.Printf("mattermost ask question cleanup failed: %v", errorValue)
-	}
 }
 
 func (service Service) mattermostInteractionResolve(ctx context.Context, reader io.Reader) (any, error) {
@@ -747,10 +698,62 @@ func (service Service) mattermostAddReactionFromRequest(ctx context.Context, rea
 }
 
 func (service Service) mattermostReplyProperties(request replyRequest, handle platformHandle) map[string]any {
-	return map[string]any{
+	properties := map[string]any{
 		"internkim_raw_event_id": request.RawEventID,
 		"internkim_outbox_id":    request.OutboxID,
 	}
+	if request.shouldSendMattermostAskAttachmentInline() {
+		if attachment := service.mattermostAskAttachment(request, handle); attachment != nil {
+			properties["attachments"] = []any{attachment}
+		}
+	}
+	return properties
+}
+
+func (request replyRequest) shouldSendMattermostAskAttachmentInline() bool {
+	return request.Interaction != nil && request.mattermostAskEphemeralUserID() == ""
+}
+
+func (service Service) sendMattermostAskEphemeral(ctx context.Context, handle platformHandle, request replyRequest) error {
+	targetUserID := request.mattermostAskEphemeralUserID()
+	if request.Interaction == nil || targetUserID == "" {
+		return nil
+	}
+	attachment := service.mattermostAskAttachment(request, handle)
+	if attachment == nil {
+		return nil
+	}
+	post := map[string]any{
+		"channel_id": handle.ChannelID,
+		"message":    "",
+		"props": map[string]any{
+			"attachments":             []any{attachment},
+			"internkim_raw_event_id":  request.RawEventID,
+			"internkim_outbox_id":     request.OutboxID,
+			"internkim_ephemeral_ask": true,
+		},
+	}
+	if strings.TrimSpace(handle.RootID) != "" {
+		post["root_id"] = handle.RootID
+	}
+	body := map[string]any{
+		"user_id": targetUserID,
+		"post":    post,
+	}
+	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts/ephemeral", body, nil); errorValue != nil {
+		return errorValue
+	}
+	return nil
+}
+
+func (request replyRequest) mattermostAskEphemeralUserID() string {
+	if request.Interaction == nil {
+		return ""
+	}
+	return firstNonEmpty(
+		strings.TrimSpace(request.EphemeralUserID),
+		strings.TrimSpace(request.Interaction.TargetPlatformUserID),
+	)
 }
 
 func (service Service) mattermostAskAttachment(request replyRequest, handle platformHandle) *mattermostinteractive.Attachment {
@@ -836,7 +839,7 @@ func (service Service) mattermostAskActionContext(request replyRequest, handle p
 		ReplyTargetID:    request.ReplyTargetID,
 		ChoiceKey:        choiceKey,
 		ResponseLanguage: request.Interaction.ResponseLanguage,
-		TargetUserID:     request.Interaction.TargetPlatformUserID,
+		TargetUserID:     request.mattermostAskEphemeralUserID(),
 		Token:            service.ensureMattermostInteractiveActionToken(),
 	}
 }

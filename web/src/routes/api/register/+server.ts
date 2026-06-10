@@ -13,6 +13,8 @@ import {
 	ensureOneTimePinIdentityProvider,
 	ensureCompanionBypassApplication,
 	ensureMaintenanceBypassApplication,
+	ensureReleaseUpdateBypassApplication,
+	ensureReleaseUploadBypassApplication,
 	ensureFleetCertificateCoverage,
 	ensureNodeSSHAccessApplication,
 	deleteDNSRecord,
@@ -83,10 +85,6 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 	if (!env?.KV) throw error(500, 'KV not available');
 
 	const auth = request.headers.get('authorization');
-	if (auth !== `Bearer ${env.INTERNKIM_REGISTER_SECRET}`) {
-		throw error(401, 'Invalid registration secret');
-	}
-
 	const requestBody = (await request.json()) as {
 		fleet_id?: string;
 		fleet_secret?: string;
@@ -108,16 +106,21 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 	if (!nodeKey) throw error(400, 'node_key required');
 
 	const cfEnv = cloudflareEnvironment(env);
-
 	const existing = await kv.getDevice(env.KV, fleetID);
+	const registerSecret = env.INTERNKIM_REGISTER_SECRET.trim();
+	const hasRegisterSecret = registerSecret !== '' && auth === `Bearer ${registerSecret}`;
+	if (!existing && !hasRegisterSecret) {
+		throw error(401, 'Invalid registration secret');
+	}
 	const identityProviderId = await ensureOneTimePinIdentityProvider(cfEnv);
 	if (existing) {
 		const ownedDevice = await ensureSameFleet(existing, fleetSecret);
+		validateExistingFleetRegistrationAuthority(hasRegisterSecret, ownedDevice, newFleetID, adminEmail);
 		if (newFleetID && newFleetID !== fleetID) {
 			return migrateRegisteredFleet(env, cfEnv, ownedDevice, fleetID, newFleetID, requestedNodeID, nodeKey, adminEmail, identityProviderId);
 		}
 		const records = await kv.getUserRecords(env.KV, fleetID);
-		const resolvedAdminEmail = adminEmail || ownedDevice.admin_email || '';
+		const resolvedAdminEmail = existingFleetAdminEmail(hasRegisterSecret, ownedDevice, adminEmail);
 		const nodeID = resolveFleetNodeID(ownedDevice.fleet, requestedNodeID, nodeKey);
 		const accessAdminEmails = accessAdminEmailsForRegistration(records, resolvedAdminEmail);
 		const certificateCoverage = await ensureFleetCertificateCoverage(cfEnv, fleetID, nodeID);
@@ -183,6 +186,22 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 		tls_certificate_status: certificateCoverage.status,
 		...fleetResponseFields(device.fleet, nodeID)
 	});
+}
+
+function validateExistingFleetRegistrationAuthority(hasRegisterSecret: boolean, device: Device, newFleetID: string, adminEmail: string) {
+	if (hasRegisterSecret) return;
+	if (newFleetID && newFleetID !== normalizeFleetID(device.fleet_id)) {
+		throw error(401, 'Register secret required for fleet migration');
+	}
+	const currentAdminEmail = normalizeEmail(device.admin_email ?? '');
+	if (adminEmail && adminEmail !== currentAdminEmail) {
+		throw error(401, 'Register secret required for admin email changes');
+	}
+}
+
+function existingFleetAdminEmail(hasRegisterSecret: boolean, device: Device, adminEmail: string) {
+	if (!hasRegisterSecret) return normalizeEmail(device.admin_email ?? '');
+	return adminEmail || normalizeEmail(device.admin_email ?? '');
 }
 
 async function handleRegistrationDelete(request: Request, platform: App.Platform | undefined) {
@@ -329,6 +348,8 @@ function accessAdminEmailsForRegistration(records: Parameters<typeof fleetAdminA
 async function ensurePublicBypassApplications(cfEnv: Parameters<typeof ensureCompanionBypassApplication>[0], fleetID: string) {
 	await ensureCompanionBypassApplication(cfEnv, fleetID);
 	await ensureMaintenanceBypassApplication(cfEnv, fleetID);
+	await ensureReleaseUpdateBypassApplication(cfEnv, fleetID);
+	await ensureReleaseUploadBypassApplication(cfEnv, fleetID);
 }
 
 async function ensureFleetMemberSSH(

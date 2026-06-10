@@ -17,7 +17,7 @@ import (
 	"gitlab.com/eastriver/internkim/internal/mattermostinteractive"
 )
 
-const mattermostInteractiveActionTokenFilename = "mattermost-interactive-action-token"
+const legacyMattermostInteractiveActionTokenFilename = "mattermost-interactive-action-token"
 
 type mattermostInteractivePayload = mattermostinteractive.Payload
 type mattermostInteractiveContext = mattermostinteractive.Context
@@ -95,7 +95,7 @@ func (service *Service) handleAskInteractiveAction(responseWriter http.ResponseW
 	}
 	service.deleteMattermostAskControlPost(request.Context(), payload.PostID)
 	go service.forwardMattermostAskActionInBackground(payload)
-	service.writeMattermostAskInteractiveAccepted(responseWriter)
+	service.writeMattermostInteractiveDeleted(responseWriter, payload)
 }
 
 func (service *Service) forwardMattermostAskActionInBackground(payload mattermostInteractivePayload) {
@@ -168,12 +168,16 @@ func mattermostAskActionPrompt(action string, choiceKey string) string {
 }
 
 func (service *Service) isValidMattermostInteractivePayload(payload mattermostInteractivePayload) bool {
-	expectedToken := strings.TrimSpace(readTrimmedFile(service.mattermostInteractiveActionTokenPath()))
 	actualToken := strings.TrimSpace(payload.Context.Token)
-	if expectedToken == "" || actualToken == "" {
+	if actualToken == "" {
 		return false
 	}
-	return expectedToken == actualToken
+	for _, expectedToken := range service.mattermostInteractiveActionTokens() {
+		if expectedToken == actualToken {
+			return true
+		}
+	}
+	return false
 }
 
 func (service *Service) mattermostInteractiveButton(actionID string, name string, tooltip string, style string) mattermostAction {
@@ -192,8 +196,16 @@ func (service *Service) writeMattermostInteractiveSuccess(responseWriter http.Re
 	service.writeJSON(responseWriter, mattermostInteractiveResponse{})
 }
 
-func (service *Service) writeMattermostAskInteractiveAccepted(responseWriter http.ResponseWriter) {
-	service.writeJSON(responseWriter, mattermostInteractiveResponse{Update: mattermostinteractive.ClearAttachmentsUpdate()})
+func (service *Service) writeMattermostInteractiveDeleted(responseWriter http.ResponseWriter, payload mattermostInteractivePayload) {
+	service.writeJSON(responseWriter, mattermostInteractiveResponse{
+		Update: map[string]any{
+			"id":         strings.TrimSpace(payload.PostID),
+			"channel_id": strings.TrimSpace(payload.ChannelID),
+			"message":    "",
+			"delete_at":  time.Now().UnixMilli(),
+			"props":      mattermostinteractive.ClearAttachmentsUpdate()["props"],
+		},
+	})
 }
 
 func (service *Service) writeMattermostInteractiveError(responseWriter http.ResponseWriter, message string) {
@@ -255,5 +267,33 @@ func (service *Service) ensureMattermostInteractiveActionToken() string {
 }
 
 func (service *Service) mattermostInteractiveActionTokenPath() string {
-	return filepath.Join(service.Configuration.StateDirectory, mattermostInteractiveActionTokenFilename)
+	path := strings.TrimSpace(service.Configuration.MattermostInteractiveTokenPath)
+	if path != "" && !service.isDefaultMattermostInteractiveActionTokenPath(path) {
+		return path
+	}
+	return filepath.Join(service.Configuration.StateDirectory, "mattermost-interactive-token")
+}
+
+func (service *Service) isDefaultMattermostInteractiveActionTokenPath(path string) bool {
+	return path == DefaultConfiguration().MattermostInteractiveTokenPath && service.Configuration.StateDirectory != DefaultConfiguration().StateDirectory
+}
+
+func (service *Service) mattermostInteractiveActionTokens() []string {
+	tokens := []string{}
+	for _, path := range service.mattermostInteractiveActionTokenPaths() {
+		token := strings.TrimSpace(readTrimmedFile(path))
+		if token != "" {
+			tokens = append(tokens, token)
+		}
+	}
+	return tokens
+}
+
+func (service *Service) mattermostInteractiveActionTokenPaths() []string {
+	paths := []string{service.mattermostInteractiveActionTokenPath()}
+	legacyPath := filepath.Join(service.Configuration.StateDirectory, legacyMattermostInteractiveActionTokenFilename)
+	if legacyPath != paths[0] {
+		paths = append(paths, legacyPath)
+	}
+	return paths
 }
