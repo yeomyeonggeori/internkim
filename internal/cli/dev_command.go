@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"strings"
 
 	internkimlab "gitlab.com/eastriver/internkim/internal/lab"
+	"gitlab.com/eastriver/internkim/internal/localfleet"
 )
 
 type devVirtualSessionArguments struct {
@@ -59,12 +61,116 @@ func runDevArguments(arguments []string) error {
 		return runDevSimulateArguments(commandArguments)
 	case "replay":
 		return runDevReplayArguments(commandArguments)
+	case "fleet":
+		return runDevFleetArguments(commandArguments)
 	case "help":
 		printDevUsage()
 		return nil
 	default:
 		return fmt.Errorf("unknown dev subcommand: %s", subcommand)
 	}
+}
+
+type standardLocalFleetLogger struct{}
+
+func (logger standardLocalFleetLogger) Info(message string) {
+	fmt.Println(message)
+}
+
+func runDevFleetArguments(arguments []string) error {
+	service, errorValue := newLocalFleetService()
+	if errorValue != nil {
+		return errorValue
+	}
+	if len(arguments) == 0 {
+		return printLocalFleetStatus(service)
+	}
+	subcommand := arguments[0]
+	commandArguments := arguments[1:]
+	switch subcommand {
+	case "up":
+		return service.Run(context.Background(), standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionUp})
+	case "down":
+		return service.Run(context.Background(), standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionDown})
+	case "status":
+		return printLocalFleetStatus(service)
+	case "reset":
+		return service.Run(context.Background(), standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionReset})
+	case "run":
+		return runDevFleetRunArguments(service, commandArguments)
+	case "verify-regression":
+		return runDevFleetVerifyRegressionArguments(service, commandArguments)
+	case "help":
+		printDevFleetUsage()
+		return nil
+	default:
+		return fmt.Errorf("unknown dev fleet subcommand: %s", subcommand)
+	}
+}
+
+func runDevFleetRunArguments(service localfleet.Service, arguments []string) error {
+	flagSet := flag.NewFlagSet("dev fleet run", flag.ContinueOnError)
+	recipe := flagSet.String("recipe", "", "Local fleet recipe to run")
+	scenario := flagSet.String("scenario", "", "Local fleet scenario to run")
+	if errorValue := flagSet.Parse(arguments); errorValue != nil {
+		return errorValue
+	}
+	if strings.TrimSpace(*scenario) != "" {
+		return service.Run(context.Background(), standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionRunScenario, Scenario: *scenario})
+	}
+	return service.Run(context.Background(), standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionRunRecipe, Recipe: firstNonEmptyLocalFleetValue(*recipe, localfleet.DefaultRecipe)})
+}
+
+func runDevFleetVerifyRegressionArguments(service localfleet.Service, arguments []string) error {
+	flagSet := flag.NewFlagSet("dev fleet verify-regression", flag.ContinueOnError)
+	base := flagSet.String("base", "main", "Base branch or revision that should fail the scenario")
+	scenario := flagSet.String("scenario", "", "Scenario that should fail on base and pass on current checkout")
+	if errorValue := flagSet.Parse(arguments); errorValue != nil {
+		return errorValue
+	}
+	return service.Run(context.Background(), standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionVerifyRegression, Base: *base, Scenario: *scenario})
+}
+
+func newLocalFleetService() (localfleet.Service, error) {
+	repositoryRootPath, errorValue := resolveRepositoryRootPath()
+	if errorValue != nil {
+		return localfleet.Service{}, errorValue
+	}
+	executablePath, errorValue := currentExecutablePath()
+	if errorValue != nil {
+		return localfleet.Service{}, errorValue
+	}
+	return localfleet.NewService(localfleet.Options{
+		RepositoryRootPath: repositoryRootPath,
+		ExecutablePath:     executablePath,
+	})
+}
+
+func printLocalFleetStatus(service localfleet.Service) error {
+	status := service.Status(context.Background())
+	fmt.Printf("VM: %s %s\n", status.VirtualMachine.State, status.VirtualMachine.Message)
+	fmt.Printf("SSH: %s %s\n", status.SSH.State, status.SSH.Message)
+	fmt.Printf("Admin: %s %s\n", status.Admin.State, status.Admin.Message)
+	fmt.Printf("Mattermost: %s %s\n", status.Mattermost.State, status.Mattermost.Message)
+	if status.AdminURL != "" {
+		fmt.Println("Admin URL: " + status.AdminURL)
+	}
+	if status.MattermostURL != "" {
+		fmt.Println("Mattermost URL: " + status.MattermostURL)
+	}
+	if status.LastResult != "" {
+		fmt.Println("Last result: " + status.LastResult)
+	}
+	return nil
+}
+
+func firstNonEmptyLocalFleetValue(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func runDevSimulateArguments(arguments []string) error {
@@ -347,7 +453,17 @@ func quoteDevShellArgument(argument string) string {
 }
 
 func printDevUsage() {
-	fmt.Println("Usage: internkim dev <simulate|replay> [--scenario name] [--cassette path] [--target local|tart]")
+	fmt.Println("Usage: internkim dev <simulate|replay|fleet> [options]")
+	fmt.Println("  internkim dev fleet up")
+	fmt.Println("  internkim dev fleet run --recipe predeploy-gate")
+	fmt.Println("  internkim dev fleet run --scenario mattermost-bot-invited")
+	fmt.Println("  internkim dev fleet verify-regression --base main --scenario regression-proof")
+}
+
+func printDevFleetUsage() {
+	fmt.Println("Usage: internkim dev fleet <up|down|status|reset|run|verify-regression>")
+	fmt.Println("  internkim dev fleet run --recipe predeploy-gate")
+	fmt.Println("  internkim dev fleet run --scenario mattermost-bot-invited")
 }
 
 type repeatedDevStringFlag struct {

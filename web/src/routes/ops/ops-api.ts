@@ -1,4 +1,4 @@
-import type { Job, JobEvent, NewTarget, OpsTarget, TargetStatus } from './ops-types';
+import type { Job, JobEvent, LLMModelStatus, LocalFleetJobRequest, LocalFleetStatus, NewTarget, OpsTarget, TargetStatus } from './ops-types';
 
 async function readJSON<T>(response: Response): Promise<T> {
 	if (!response.ok) {
@@ -36,11 +36,34 @@ export async function fetchTargetStatus(targetID: string): Promise<TargetStatus>
 	return readJSON<TargetStatus>(response);
 }
 
+export async function updateTargetModel(targetID: string, model: string): Promise<LLMModelStatus> {
+	const response = await fetch(`/api/targets/${encodeURIComponent(targetID)}/llm-model`, {
+		method: 'PUT',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ model })
+	});
+	return readJSON<LLMModelStatus>(response);
+}
+
 export async function startJob(targetID: string, action: string): Promise<Job> {
 	const response = await fetch(`/api/targets/${encodeURIComponent(targetID)}/jobs`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ action })
+	});
+	return readJSON<Job>(response);
+}
+
+export async function fetchLocalFleetStatus(): Promise<LocalFleetStatus> {
+	const response = await fetch('/api/local-fleet/status');
+	return readJSON<LocalFleetStatus>(response);
+}
+
+export async function startLocalFleetJob(payload: LocalFleetJobRequest): Promise<Job> {
+	const response = await fetch('/api/local-fleet/jobs', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(payload)
 	});
 	return readJSON<Job>(response);
 }

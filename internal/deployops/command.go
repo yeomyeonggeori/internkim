@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/localfleet"
 )
 
 type CommandPlan struct {
@@ -56,6 +58,15 @@ func (server *Server) runPilotStandardDeploy(contextValue context.Context, job *
 		return
 	}
 	job.Info(formatStatus(server.CheckStatus(contextValue, target)))
+}
+
+func (server *Server) runLocalFleetJob(contextValue context.Context, job *JobRunner, request localfleet.JobRequest) {
+	service, errorValue := server.localFleetService()
+	if errorValue != nil {
+		job.Error(errorValue)
+		return
+	}
+	job.Error(service.Run(contextValue, job, request))
 }
 
 func (server *Server) runCommandPlan(contextValue context.Context, job *JobRunner, plan CommandPlan) error {

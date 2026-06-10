@@ -361,9 +361,9 @@ R2 stable channel 상태와 적용은 CLI에서도 같은 release set API를 사
 
 Mattermost self-hosted는 기본적으로 한 team의 총 멤버 수에 제한이 있습니다. 기본값은 `TeamSettings.MaxUsersPerTeam = 50`이며, 활성/비활성 사용자를 포함합니다. 반복 검증에서 테스트 사용자를 지우지 않으면 이 제한에 걸려 team/channel join API가 실패할 수 있습니다. 필요하면 운영 환경에서 이 값을 늘릴 수 있지만, 테스트 코드는 생성한 Mattermost 테스트 사용자를 정리해야 합니다.
 
-### Sim-first Deployment
+### Local Fleet Verification
 
-실제 보드에 올리기 전에 macOS + Tart ARM Linux VM에서 로컬 변경을 먼저 검증합니다. 표준 협업 흐름은 sim gate 성공 후 실기기에 배포하는 방식입니다:
+실제 보드에 올리기 전에 macOS + Tart ARM Linux VM에서 현재 checkout을 실제 서비스 경계로 검증합니다. canonical 흐름은 Local Fleet recipe/scenario이며, 기존 `sim gate`는 같은 predeploy recipe를 호출하는 legacy alias입니다.
 
 ```bash
 make deps-sim
@@ -371,11 +371,21 @@ make deps-sim
 # 최초 1회 Tart 이미지 준비
 ./internkim lab image-build
 
-# sim 전체 게이트: 빌드, VM setup, API/Mattermost, 브라우저, public URL smoke
-./internkim sim gate
+# Local Fleet 시작과 상태 확인
+./internkim dev fleet up
+./internkim dev fleet status
 
-# 변경 없이 실행 계획 확인
-./internkim sim gate --plan
+# predeploy 전체 게이트: 빌드, VM setup, API/Mattermost, 브라우저 smoke
+./internkim dev fleet run --recipe predeploy-gate
+
+# 특정 실제 서비스 경계 scenario
+./internkim dev fleet run --scenario mattermost-bot-invited
+
+# "고쳤다" 검증: base 실패/current 성공을 강제
+./internkim dev fleet verify-regression --base main --scenario regression-proof
+
+# Mattermost 테스트 사용자, 메시지, Blueclaw 테스트 상태 정리
+./internkim dev fleet reset
 
 # sim gate 성공 후 OTA로 실기기 배포
 ./internkim deploy
@@ -384,18 +394,27 @@ make deps-sim
 make sim-gate
 make deploy-after-sim
 
-# 운영 명령
+# legacy alias
+./internkim sim gate
 ./internkim sim status
 ./internkim sim ssh
 ./internkim sim stop
 ./internkim sim cleanup
 ```
 
-실기기 배포 전에는 `make build`와 `internkim sim gate`를 먼저 통과시키고, gate가 성공한 뒤 `internkim deploy`로 OTA release를 적용합니다. 실기기 배포 직전 sim tunnel 충돌을 피하기 위해 sim VM 또는 cloudflared를 중지합니다. gate가 실패하면 실기기 배포는 중단하고 실패한 단계의 로그를 먼저 확인해야 합니다.
+실기기 배포 전에는 `./internkim dev fleet run --recipe predeploy-gate`를 먼저 통과시키고, gate가 성공한 뒤 `internkim deploy`로 OTA release를 적용합니다. `./internkim sim gate`는 하위 호환을 위해 유지되지만 새 문서와 자동화는 Local Fleet 명령을 기준으로 작성합니다. gate가 실패하면 실기기 배포는 중단하고 실패한 단계의 로그를 먼저 확인해야 합니다.
 
-`sim`은 `.internkim/simulations/sim` 상태만 사용하며 실기기 상태와 fleet/tunnel 값이 겹치면 실행을 중단합니다. Cloudflare Pages 배포는 sim에서 건너뛰고, VM 내부 board UI와 public URL smoke를 검증합니다. Jetson 전용 LiteRT/GPU smoke는 sim에서 `not applicable`입니다.
+Local Fleet는 `.local/local-fleet` 상태만 사용하며 실기기, pilot, Jetson secret을 복사하지 않습니다. Cloudflare Pages 배포는 Local Fleet에서 건너뛰고, VM 내부 Admin/Web UI와 localhost smoke를 검증합니다. Jetson 전용 LiteRT/GPU smoke는 Local Fleet에서 `not applicable`입니다.
 
 Mattermost gate는 초대된 테스트 사용자와 초대되지 않은 테스트 사용자를 만들고, 봇 응답과 초대 차단이 모두 동작하는지 확인한 뒤 테스트 메시지와 사용자를 정리합니다. self-hosted Mattermost의 비밀번호 정책이 강화되어도 통과하도록 검증 사용자는 충분히 긴 임시 비밀번호를 씁니다. cleanup 중 Mattermost system post 정리는 SSH 계정에 passwordless sudo가 없으면 건너뛰며, 사용자와 봇 reply 정리는 Mattermost API로 계속 수행합니다.
+
+Ops 콘솔에서도 같은 Local Fleet engine을 실행할 수 있습니다:
+
+```bash
+./internkim ops serve
+```
+
+`http://127.0.0.1:8789/ops`에서 Local Fleet 카드의 `Up`, `Predeploy gate`, `Mattermost smoke`, `Verify regression`, `Reset`, `Down` 버튼을 사용할 수 있습니다. CLI와 Ops UI는 모두 `internal/localfleet`를 호출하므로 검증 순서가 갈라지지 않습니다.
 
 실기기 배포 후 빠른 확인은 다음 순서로 합니다:
 

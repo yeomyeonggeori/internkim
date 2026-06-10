@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	internkimlab "gitlab.com/eastriver/internkim/internal/lab"
+	"gitlab.com/eastriver/internkim/internal/localfleet"
 	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
 )
 
@@ -19,6 +21,8 @@ var runSimCommand updateCommandRunner = runStreamingUpdateCommand
 var runSimSetup = runSetupSimulationArguments
 var runSimLabTarget = runLabArgumentsForTarget
 var resolveSimulationVirtualMachineIPAddress = resolveLabVirtualMachineIPAddress
+var runSimLocalFleet = runLocalFleetRequest
+var printSimLocalFleetStatus = printLocalFleetStatus
 
 func runSimArguments(arguments []string) error {
 	command := "gate"
@@ -38,11 +42,15 @@ func runSimArguments(arguments []string) error {
 		}
 		return runSimGateArguments(nil)
 	case "stop":
-		return runSimLabTarget([]string{"vm-down"}, commandTargetBoardSimulation)
+		return runSimLocalFleet(localfleet.JobRequest{Action: localfleet.ActionDown})
 	case "ssh":
 		return runSimLabTarget(append([]string{"vm-ssh"}, commandArguments...), commandTargetBoardSimulation)
 	case "status":
-		return runSimLabTarget([]string{"status"}, commandTargetBoardSimulation)
+		service, errorValue := newLocalFleetService()
+		if errorValue != nil {
+			return errorValue
+		}
+		return printSimLocalFleetStatus(service)
 	case "help":
 		printSimUsage()
 		return nil
@@ -56,21 +64,11 @@ func runSimGateArguments(arguments []string) error {
 		printSimUsage()
 		return nil
 	}
-	if errorValue := validateSimulationStateIsolation(); errorValue != nil {
-		return errorValue
-	}
-	setupArguments := simGateSetupArguments(arguments)
 	if hasCommandArgument(arguments, "--plan") {
-		return runSimSetup(setupArguments)
+		fmt.Println("sim gate is a legacy alias for `internkim dev fleet run --recipe predeploy-gate`")
+		return nil
 	}
-	repositoryRootPath, errorValue := resolveRepositoryRootPath()
-	if errorValue != nil {
-		return errorValue
-	}
-	if errorValue := runSimCommand(repositoryRootPath, "make", "build"); errorValue != nil {
-		return errorValue
-	}
-	return runSimSetup(setupArguments)
+	return runSimLocalFleet(localfleet.JobRequest{Action: localfleet.ActionRunRecipe, Recipe: localfleet.DefaultRecipe})
 }
 
 func runSimCleanupArguments(arguments []string) error {
@@ -86,13 +84,24 @@ func runSimCleanupArguments(arguments []string) error {
 			return errorValue
 		}
 	}
-	if errorValue := runSimLabTarget([]string{"vm-down"}, commandTargetBoardSimulation); errorValue != nil {
+	if errorValue := runSimLocalFleet(localfleet.JobRequest{Action: localfleet.ActionReset}); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := runSimLocalFleet(localfleet.JobRequest{Action: localfleet.ActionDown}); errorValue != nil {
 		return errorValue
 	}
 	if hasCommandArgument(arguments, "--keep-state") {
 		return nil
 	}
 	return removeSimulationLocalState()
+}
+
+func runLocalFleetRequest(request localfleet.JobRequest) error {
+	service, errorValue := newLocalFleetService()
+	if errorValue != nil {
+		return errorValue
+	}
+	return service.Run(context.Background(), standardLocalFleetLogger{}, request)
 }
 
 func simGateSetupArguments(arguments []string) []string {
