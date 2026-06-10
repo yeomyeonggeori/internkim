@@ -17,22 +17,20 @@ func HostWorkspacePayloadSyncCommand(temporaryPayloadPath string) string {
 
 func StopForPayloadSyncCommand() string {
 	return `systemctl stop ` + BlueclawServiceName + ` >/dev/null 2>&1 || true
-blueclaw_process_pattern='[/]usr/local/bin/blueclaw-supervisor|[/]firecracker .*--api-sock /firecracker-api.socket'
 for _ in $(seq 1 20); do
-  if ! systemctl is-active --quiet ` + BlueclawServiceName + ` && ! pgrep -f "$blueclaw_process_pattern" >/dev/null; then
+  if ! systemctl is-active --quiet ` + BlueclawServiceName + `; then
     exit 0
   fi
   sleep 1
 done
 systemctl kill ` + BlueclawServiceName + ` --kill-who=all --signal=KILL >/dev/null 2>&1 || true
 for _ in $(seq 1 20); do
-  if ! systemctl is-active --quiet ` + BlueclawServiceName + ` && ! pgrep -f "$blueclaw_process_pattern" >/dev/null; then
+  if ! systemctl is-active --quiet ` + BlueclawServiceName + `; then
     exit 0
   fi
   sleep 1
 done
 systemctl status ` + BlueclawServiceName + ` --no-pager -l 2>/dev/null || true
-pgrep -af "$blueclaw_process_pattern" || true
 exit 1`
 }
 

@@ -52,6 +52,12 @@ func (service *Service) handleFlow(responseWriter http.ResponseWriter, request *
 			return
 		}
 		service.updateFlowTask(responseWriter, request, strings.TrimPrefix(path, "/tasks/"))
+	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/tasks/"):
+		if !service.authorizeFlowRequest(request, flowActionDelete, flowResourceTask) {
+			http.Error(responseWriter, "flow access required", http.StatusForbidden)
+			return
+		}
+		service.deleteFlowTask(responseWriter, request, strings.TrimPrefix(path, "/tasks/"))
 	default:
 		http.NotFound(responseWriter, request)
 	}
@@ -223,6 +229,48 @@ func (service *Service) updateFlowTask(responseWriter http.ResponseWriter, reque
 	}
 	task = service.applyFlowMattermostProjection(request.Context(), task)
 	service.writeJSON(responseWriter, task)
+}
+
+func (service *Service) deleteFlowTask(responseWriter http.ResponseWriter, request *http.Request, taskID string) {
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
+		http.Error(responseWriter, "task id is required", http.StatusBadRequest)
+		return
+	}
+	task, found, errorValue := service.readFlowTaskByID(request.Context(), taskID)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !found {
+		http.Error(responseWriter, "task not found", http.StatusNotFound)
+		return
+	}
+	if !service.canDeleteFlowTask(request, task) {
+		http.Error(responseWriter, "task owner or admin access required", http.StatusForbidden)
+		return
+	}
+	if errorValue := service.deleteFlowTaskByID(request.Context(), taskID); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	service.writeJSON(responseWriter, map[string]any{
+		"status": "deleted",
+		"task":   task,
+	})
+}
+
+func (service *Service) canDeleteFlowTask(request *http.Request, task flowTask) bool {
+	actorEmail := service.flowActorEmail(request)
+	if service.isFlowAdminEmail(request.Context(), actorEmail) {
+		return true
+	}
+	for _, member := range service.flowMembers(request) {
+		if member.ID == task.OwnerID && strings.EqualFold(member.Email, actorEmail) {
+			return true
+		}
+	}
+	return false
 }
 
 func (service *Service) updateFlowDefinitions(responseWriter http.ResponseWriter, request *http.Request) {

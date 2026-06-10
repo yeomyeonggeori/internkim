@@ -19,7 +19,7 @@ func (service *Service) writeUserMemorySchedules(responseWriter http.ResponseWri
 		http.Error(responseWriter, "memory access required", http.StatusForbidden)
 		return
 	}
-	personID, errorValue := service.resolveMemoryPersonIDFromPolicy(request.Context(), actorEmail)
+	personID, errorValue := service.resolveMemoryPersonID(request.Context(), actorEmail)
 	if errorValue != nil {
 		log.Printf("memory schedules identity resolution failed: %v", errorValue)
 		http.Error(responseWriter, "memory identity unavailable", http.StatusBadGateway)
@@ -43,6 +43,7 @@ func (service *Service) writeUserMemorySchedules(responseWriter http.ResponseWri
 func memorySchedulesQuery(values url.Values, personID string) string {
 	query := url.Values{}
 	query.Set("creatorPersonID", personID)
+	query.Set("includeExpired", "true")
 	query.Set("page", strconv.Itoa(memorySchedulesPage(values.Get("page"))))
 	query.Set("pageSize", strconv.Itoa(memorySchedulesPageSize(values.Get("pageSize"))))
 	return query.Encode()

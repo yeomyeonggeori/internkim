@@ -846,6 +846,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	var upsertedRole string
 	var upsertedCircles []string
 	var upsertedMattermostUserID string
+	var upsertedUserID string
 	var hasExplicitCircleMutation bool
 	if request.Method == http.MethodPost {
 		var payload adminUserMutation
@@ -867,6 +868,12 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		payload.Name = firstNonEmpty(strings.TrimSpace(payload.Name), payload.Handle)
 		payload.HireDate = strings.TrimSpace(payload.HireDate)
 		payload.Role = normalizeAdminUserRole(payload.Role)
+		userID, errorValue := service.userIDForAdminUserMutation(request.Context(), fleetID, fleetSecret, payload)
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+			return
+		}
+		payload.UserID = userID
 		upsertedEmail = payload.Email
 		upsertedName = payload.Name
 		if payload.Role != "admin" && strings.EqualFold(payload.Email, authenticatedCallerEmail(request)) {
@@ -883,6 +890,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			}
 		}
 		payload.Circles = normalizeAdminUserCircles(payload.Circles, payload.Role)
+		upsertedUserID = strings.TrimSpace(payload.UserID)
 		upsertedRole = payload.Role
 		upsertedCircles = append([]string{}, payload.Circles...)
 		isLastAdminDemotion, errorValue := service.isLastAdminDemotion(request.Context(), fleetID, fleetSecret, payload.Email, payload.Role)
@@ -951,21 +959,24 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
-	if request.Method == http.MethodPost && response.StatusCode >= 200 && response.StatusCode < 300 && temporaryPassword != "" {
-		var responseDocument map[string]any
-		if errorValue := json.Unmarshal(responseBody, &responseDocument); errorValue == nil {
-			responseDocument["temporaryPassword"] = temporaryPassword
-			responseDocument["temporaryPasswordEmail"] = temporaryPasswordEmail
-			responseBody, _ = json.Marshal(responseDocument)
-		}
-	}
 	if response.StatusCode >= 200 && response.StatusCode < 300 {
+		if request.Method == http.MethodPost {
+			upsertedUserID = firstNonEmpty(upsertedUserID, userIDFromAdminUsersResponse(responseBody, upsertedEmail))
+		}
+		if request.Method == http.MethodPost && temporaryPassword != "" {
+			var responseDocument map[string]any
+			if errorValue := json.Unmarshal(responseBody, &responseDocument); errorValue == nil {
+				responseDocument["temporaryPassword"] = temporaryPassword
+				responseDocument["temporaryPasswordEmail"] = temporaryPasswordEmail
+				responseBody, _ = json.Marshal(responseDocument)
+			}
+		}
 		if upsertedEmail != "" {
 			var errorValue error
 			if hasExplicitCircleMutation {
-				errorValue = service.upsertBlueclawPerson(request.Context(), upsertedEmail, upsertedName, upsertedRole, upsertedCircles)
+				errorValue = service.upsertBlueclawPerson(request.Context(), upsertedUserID, upsertedEmail, upsertedName, upsertedRole, upsertedCircles)
 			} else {
-				errorValue = service.inviteBlueclawPerson(request.Context(), upsertedEmail, upsertedName)
+				errorValue = service.inviteBlueclawPerson(request.Context(), upsertedUserID, upsertedEmail, upsertedName)
 			}
 			if errorValue != nil {
 				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
@@ -1016,6 +1027,39 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	}
 	responseWriter.WriteHeader(response.StatusCode)
 	_, _ = responseWriter.Write(responseBody)
+}
+
+func userIDFromAdminUsersResponse(responseBody []byte, email string) string {
+	var responseDocument pagesUsersResponse
+	if json.Unmarshal(responseBody, &responseDocument) != nil {
+		return ""
+	}
+	for _, record := range responseDocument.Records {
+		if strings.EqualFold(record.Email, email) {
+			return strings.TrimSpace(record.UserID)
+		}
+	}
+	return ""
+}
+
+func (service *Service) userIDForAdminUserMutation(ctx context.Context, fleetID string, fleetSecret string, payload adminUserMutation) (string, error) {
+	if userID := strings.TrimSpace(payload.UserID); userID != "" {
+		return userID, nil
+	}
+	records, errorValue := service.lookupUserRecords(ctx, fleetID, fleetSecret)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	for _, record := range records {
+		if strings.EqualFold(record.Email, payload.Email) && strings.TrimSpace(record.UserID) != "" {
+			return strings.TrimSpace(record.UserID), nil
+		}
+	}
+	return newInternKimUserID(), nil
+}
+
+func newInternKimUserID() string {
+	return "user-" + randomHex(16)
 }
 
 func normalizeAdminUserRole(role string) string {
@@ -2035,20 +2079,24 @@ func blueclawPersonEmailsExcept(person map[string]any, excludedEmail string) []s
 	return emails
 }
 
-func (service *Service) inviteBlueclawPerson(ctx context.Context, email string, name string) error {
+func (service *Service) inviteBlueclawPerson(ctx context.Context, userID string, email string, name string) error {
+	normalizedUserID := strings.TrimSpace(userID)
+	if normalizedUserID == "" {
+		return fmt.Errorf("userID required")
+	}
 	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
 	if normalizedEmail == "" {
 		return fmt.Errorf("email required")
 	}
-	body := map[string]string{"email": normalizedEmail}
+	body := map[string]string{"personID": normalizedUserID, "email": normalizedEmail}
 	if strings.TrimSpace(name) != "" {
 		body["displayName"] = strings.TrimSpace(name)
 	}
 	return service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/people/invite", body, nil)
 }
 
-func (service *Service) upsertBlueclawPerson(ctx context.Context, email string, name string, role string, circles []string) error {
-	if errorValue := service.inviteBlueclawPerson(ctx, email, name); errorValue != nil {
+func (service *Service) upsertBlueclawPerson(ctx context.Context, userID string, email string, name string, role string, circles []string) error {
+	if errorValue := service.inviteBlueclawPerson(ctx, userID, email, name); errorValue != nil {
 		return errorValue
 	}
 	normalizedEmail := strings.ToLower(strings.TrimSpace(email))

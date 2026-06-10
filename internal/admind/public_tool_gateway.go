@@ -107,6 +107,13 @@ func (service *Service) createPublicAPIToken(responseWriter http.ResponseWriter,
 }
 
 func (service *Service) issuePublicAPIToken(ctx context.Context, actorEmail string, payload publicAPITokenCreateRequest) (string, publicAPITokenRecord, error) {
+	actor, found, errorValue := service.resolveUserActorByEmail(ctx, actorEmail)
+	if errorValue != nil {
+		return "", publicAPITokenRecord{}, errorValue
+	}
+	if !found || strings.TrimSpace(actor.UserID) == "" {
+		return "", publicAPITokenRecord{}, fmt.Errorf("token owner is not active staff")
+	}
 	service.mutex.Lock()
 	defer service.mutex.Unlock()
 	token := "ik_" + randomHex(32)
@@ -114,7 +121,9 @@ func (service *Service) issuePublicAPIToken(ctx context.Context, actorEmail stri
 	record := publicAPITokenRecord{
 		ID:        "tok_" + randomHex(12),
 		Label:     firstNonEmpty(strings.TrimSpace(payload.Label), "API token"),
-		Email:     strings.ToLower(strings.TrimSpace(actorEmail)),
+		Email:     actor.Email,
+		Name:      actor.Name,
+		PersonID:  actor.UserID,
 		TokenHash: publicAPITokenHash(token),
 		Scopes:    normalizePublicAPITokenScopes(payload.Scopes),
 		CreatedAt: now,
@@ -135,13 +144,18 @@ func (service *Service) authenticatePublicAPIToolRequest(responseWriter http.Res
 		http.Error(responseWriter, "invalid bearer token", http.StatusUnauthorized)
 		return publicToolGatewayActor{}, false
 	}
-	if !service.isFlowStaffActor(request.Context(), record.Email) {
+	actor, found, errorValue := service.resolveUserActorByEmail(request.Context(), record.Email)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return publicToolGatewayActor{}, false
+	}
+	if !found || strings.TrimSpace(actor.UserID) == "" {
 		http.Error(responseWriter, "token owner is not active staff", http.StatusForbidden)
 		return publicToolGatewayActor{}, false
 	}
-	isAdmin := service.isFlowAdminEmail(request.Context(), record.Email)
-	actor := publicAPIActorContext(record, isAdmin)
-	return publicToolGatewayActor{Record: record, Actor: actor}, true
+	record.PersonID = actor.UserID
+	record.Name = actor.Name
+	return publicToolGatewayActor{Record: record, Actor: publicAPIActorContext(record, actor.isAdmin())}, true
 }
 
 func (service *Service) writePublicTools(responseWriter http.ResponseWriter, actor publicToolGatewayActor) {
@@ -282,6 +296,7 @@ func publicToolDescriptors() []capabilities.Descriptor {
 		"flow.task.add":              true,
 		"flow.task.list":             true,
 		"flow.task.update":           true,
+		"flow.task.delete":           true,
 		"calendar.event.add":         true,
 		"calendar.event.list":        true,
 		"calendar.event.update":      true,
