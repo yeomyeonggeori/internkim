@@ -10,7 +10,7 @@ import {
 } from './dev-flow-fixture-metrics';
 import { buildDevFlowReportSnapshot } from './dev-flow-fixture-report';
 import { createFixtureTasks } from './dev-flow-fixture-tasks';
-import type { FlowDefinitions, FlowMember, FlowSummary } from './flow-types';
+import type { FlowDefinitions, FlowMember, FlowState, FlowSummary, FlowTask, FlowWeek, FlowWeeklySummary } from './flow-types';
 import type { FlowReportSnapshot } from './report/flow-report-data';
 
 export type DevFlowSummary = Omit<FlowSummary, 'metrics' | 'report'> & {
@@ -18,28 +18,87 @@ export type DevFlowSummary = Omit<FlowSummary, 'metrics' | 'report'> & {
 	report: FlowReportSnapshot;
 };
 
+export type DevFlowWeeklySummary = Omit<FlowWeeklySummary, 'metrics' | 'report'> & {
+	metrics: DevFlowMetrics;
+	report: FlowReportSnapshot;
+};
+
+export type DevFlowState = Omit<FlowState, 'metrics'> & {
+	metrics: DevFlowMetrics;
+};
+
 export function createDevFlowSummary(weekCode: string | null | undefined, currentUserEmail = 'admin@example.com'): DevFlowSummary {
+	const state = createDevFlowState(currentUserEmail);
+	const weeklySummary = createDevFlowWeeklySummary(weekCode);
+
+	return {
+		week: weeklySummary.week,
+		currentWeek: state.currentWeek,
+		members: state.members,
+		tasks: state.tasks,
+		weeklyTasks: weeklySummary.weeklyTasks,
+		metrics: {
+			...weeklySummary.metrics,
+			memberScores: state.metrics.memberScores,
+			memberScoreDetails: state.metrics.memberScoreDetails,
+			totalScore: state.metrics.totalScore
+		},
+		definitions: state.definitions,
+		report: weeklySummary.report,
+		statusOptions: state.statusOptions,
+		currentUserEmail: state.currentUserEmail,
+		currentUserName: state.currentUserName,
+		isAdmin: state.isAdmin,
+		source: state.source
+	};
+}
+
+export function createDevFlowWeeklySummary(weekCode: string | null | undefined): DevFlowWeeklySummary {
 	const week = buildFlowWeek(weekCode);
-	const tasks = createFixtureTasks(week);
-	const definitions: FlowDefinitions = { categories: ['여명거리', '김인턴'], types: devFlowTypes, sizes: devFlowSizes };
-	const memberScoreDetails = buildDevFlowMemberScoreDetails(createDevFlowScoreTasks(week, createFixtureTasks), devFlowMembers, definitions, week);
+	const currentWeek = buildFlowWeek(undefined);
+	const weeklyTasks = createFixtureTasks(week);
+	const definitions = createDevFlowDefinitions();
+
+	return {
+		week,
+		currentWeek,
+		weeklyTasks,
+		metrics: buildDevFlowMetrics(weeklyTasks, definitions, {}, {}),
+		report: buildDevFlowReportSnapshot(weeklyTasks, devFlowMembers, definitions, week),
+		source: 'dev-mock'
+	};
+}
+
+export function createDevFlowState(currentUserEmail = 'admin@example.com'): DevFlowState {
+	const currentWeek = buildFlowWeek(undefined);
+	const tasks = createGlobalFixtureTasks(currentWeek);
+	const definitions = createDevFlowDefinitions();
+	const memberScoreDetails = buildDevFlowMemberScoreDetails(createDevFlowScoreTasks(currentWeek, createFixtureTasks), devFlowMembers, definitions, currentWeek);
 	const memberScores = currentDevFlowMemberScores(memberScoreDetails);
 	const memberDistances = calculateDevFlowMemberDistances(devFlowMembers, tasks, definitions);
 	const members = applyDevFlowMemberScores(memberDistances, memberScores);
 
 	return {
-		week,
+		currentWeek,
 		members,
 		tasks,
-		metrics: buildDevFlowMetrics(tasks, definitions, memberScores, memberScoreDetails),
+		metrics: buildDevFlowMetrics([], definitions, memberScores, memberScoreDetails),
 		definitions,
-		report: buildDevFlowReportSnapshot(tasks, members, definitions, week),
 		statusOptions: devFlowStatuses,
 		currentUserEmail,
 		currentUserName: memberNameForEmail(members, currentUserEmail),
 		isAdmin: true,
 		source: 'dev-mock'
 	};
+}
+
+function createDevFlowDefinitions(): FlowDefinitions {
+	return { categories: ['여명거리', '김인턴'], types: devFlowTypes, sizes: devFlowSizes };
+}
+
+function createGlobalFixtureTasks(currentWeek: FlowWeek): FlowTask[] {
+	const weeks = [buildFlowWeek(currentWeek.previous), currentWeek, buildFlowWeek(currentWeek.next)];
+	return weeks.flatMap((week) => createFixtureTasks(week).map((task) => ({ ...task, id: `${week.code}-${task.id}` })));
 }
 
 function memberNameForEmail(members: FlowMember[], email: string): string {

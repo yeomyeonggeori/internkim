@@ -75,7 +75,7 @@ describe('buildFlowReportSections', () => {
 		expect(sections.memberDistance.unit).toBe('점');
 		expect(sections.memberDistance.total).toBe(279);
 		expect(sections.memberDistance.averageValue).toBe(140);
-		expect(sections.memberDistance.rows.map((row) => row.label)).toEqual(['김여명', '박예시']);
+		expect(sections.memberDistance.rows.map((row) => row.label)).toEqual(['김여명', '박예시', '최견본', '장석민', '정의']);
 		expect(sections.memberDistance.rows[0].total).toBe(flowReportFixtureMetrics.memberScoreDetails['member-kim'].currentScore);
 		expect(sections.memberDistance.rows[0]).toMatchObject({ label: '김여명', total: 144, percent: 52 });
 		expect(sections.memberDistance.rows[0].summary).toBe('주간 115점 · 월간 173점');
@@ -137,6 +137,32 @@ describe('buildFlowReportSections', () => {
 		expect(sections.weeklyDistanceTrend.total).toBe(0);
 		expect(sections.monthlyDistanceTrend.total).toBe(0);
 		expect(sections.businessDistance.maxValue).toBe(1);
+	});
+
+	test('keeps zero score members visible in member score rows', () => {
+		const sections = buildFlowReportSections(flowReportFixtureMetrics, {
+			emptyLabel: '이번 주 데이터 없음',
+			sectionLabels: {
+				weeklyStatus: { title: '주간 상태', description: '' },
+				memberDistance: { title: '구성원 점수', description: '' },
+				weeklyDistanceTrend: { title: '주간 통계', description: '' },
+				monthlyDistanceTrend: { title: '월간 통계', description: '' },
+				businessDistance: { title: '사업별 업무', description: '' }
+			},
+			copy: koreanReportCopy,
+			tasks: flowReportFixtureTasks,
+			members: flowReportFixtureMembers,
+			definitions: flowReportFixtureDefinitions,
+			weekStartISO: '2026-06-01'
+		});
+
+		expect(sections.memberDistance.rows.map((row) => [row.label, row.total, row.summary])).toEqual([
+			['김여명', 144, '주간 115점 · 월간 173점'],
+			['박예시', 135, '주간 155점 · 월간 115점'],
+			['최견본', 0, '주간 0점 · 월간 0점'],
+			['장석민', 0, '주간 0점 · 월간 0점'],
+			['정의', 0, '주간 0점 · 월간 0점']
+		]);
 	});
 
 	test('excludes completed tasks without end dates from distance sections', () => {
@@ -219,7 +245,7 @@ describe('buildFlowReportSections', () => {
 
 		expect(sections.memberDistance.total).toBe(279);
 		expect(sections.memberDistance.averageValue).toBe(140);
-		expect(sections.memberDistance.rows.map((row) => row.label)).toEqual(['김여명', '박예시']);
+		expect(sections.memberDistance.rows.map((row) => row.label)).toEqual(['김여명', '박예시', '최견본', '장석민', '정의']);
 	});
 
 	test('localizes report system labels without translating user definitions', () => {
