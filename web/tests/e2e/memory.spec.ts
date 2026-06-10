@@ -131,6 +131,47 @@ test.describe('memory graph', () => {
 		await expect(page.getByText('2026. 6. 9.')).toBeVisible();
 	});
 
+	test('pages through visible schedules', async ({ page }) => {
+		await page.route('**/memory/api/schedules**', async (route) => {
+			const requestURL = new URL(route.request().url());
+			const pageNumber = Number(requestURL.searchParams.get('page') ?? '1');
+			await route.fulfill({
+				json: {
+					schedules: [
+						{
+							taskScheduleID: `schedule-page-${pageNumber}`,
+							creatorPersonID: `person-${pageNumber}`,
+							executionMode: 'agent',
+							kind: 'cron',
+							cronExpression: '0 9 * * *',
+							nextRunAt: '2026-06-09T00:00:00Z',
+							createdAt: '2026-06-08T00:00:00Z',
+							updatedAt: '2026-06-08T00:00:00Z',
+							deliveryChannelID: 'channel-1',
+							promptPreview: `예약 페이지 ${pageNumber}`,
+							timeZone: 'Asia/Seoul'
+						}
+					],
+					count: 1,
+					totalCount: 50,
+					page: pageNumber,
+					pageSize: 25
+				}
+			});
+		});
+		await page.goto('/memory/');
+
+		await page.getByRole('tab', { name: '예약 작업' }).click();
+
+		await expect(page.getByText('예약 페이지 1')).toBeVisible();
+		await expect(page.getByText('1-25 / 50')).toBeVisible();
+
+		await page.getByRole('button', { name: '2' }).click();
+
+		await expect(page.getByText('예약 페이지 2')).toBeVisible();
+		await expect(page.getByText('26-50 / 50')).toBeVisible();
+	});
+
 	test('shows an empty schedules state', async ({ page }) => {
 		await page.route('**/memory/api/schedules**', async (route) => {
 			await route.fulfill({ json: { schedules: [], count: 0 } });
