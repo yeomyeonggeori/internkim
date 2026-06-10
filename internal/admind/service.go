@@ -40,6 +40,7 @@ type Configuration struct {
 	MattermostBaseURL           string
 	APIBaseURL                  string
 	BlueclawBaseURL             string
+	CapabilitySocketPath        string
 	StateDirectory              string
 	CompanionJobPath            string
 	FlowDatabasePath            string
@@ -216,6 +217,7 @@ func DefaultConfiguration() Configuration {
 		MattermostBaseURL:           "http://127.0.0.1:8065",
 		APIBaseURL:                  "https://api.example.test",
 		BlueclawBaseURL:             "http://127.0.0.1:8080",
+		CapabilitySocketPath:        blueclawruntime.CapabilitySocketPath,
 		StateDirectory:              "/root/.internkim/state/admin",
 		CompanionJobPath:            "/root/.internkim/state/companion-jobs.json",
 		FlowDatabasePath:            "/root/.internkim/state/flow.sqlite",
@@ -381,6 +383,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/admin", service.serveAdminPage)
 	multiplexer.HandleFunc("/admin/api/", service.handleAdmin)
 	multiplexer.HandleFunc("/admin/", service.serveAdminPage)
+	multiplexer.HandleFunc("/api/v1/", service.handlePublicAPI)
 	multiplexer.HandleFunc("/flow", service.serveFlowPage)
 	multiplexer.HandleFunc("/flow/api/", service.handleFlow)
 	multiplexer.HandleFunc("/flow/", service.serveFlowPage)
@@ -423,7 +426,7 @@ func (service *Service) withCORS(next http.Handler) http.Handler {
 		if isInternKimCORSPath(request.URL.Path) && isAllowedOrigin(origin) {
 			responseWriter.Header().Set("Access-Control-Allow-Origin", origin)
 			responseWriter.Header().Set("Access-Control-Allow-Credentials", "true")
-			responseWriter.Header().Set("Access-Control-Allow-Headers", "Content-Type, CF-Access-Authenticated-User-Email, X-InternKim-Companion-ID, X-InternKim-Companion-Token")
+			responseWriter.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, CF-Access-Authenticated-User-Email, X-InternKim-Companion-ID, X-InternKim-Companion-Token")
 			responseWriter.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS,PROPFIND,REPORT")
 			if request.Method == http.MethodOptions {
 				responseWriter.WriteHeader(http.StatusNoContent)
@@ -443,6 +446,7 @@ func isInternKimCORSPath(path string) bool {
 		path == "/attendance" ||
 		path == "/logo.svg" ||
 		path == "/.well-known/caldav" ||
+		strings.HasPrefix(path, "/api/v1/") ||
 		strings.HasPrefix(path, "/admin/") ||
 		strings.HasPrefix(path, "/flow/") ||
 		strings.HasPrefix(path, "/memory/") ||
@@ -2535,6 +2539,9 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.BlueclawBaseURL == "" {
 		configuration.BlueclawBaseURL = defaultConfiguration.BlueclawBaseURL
+	}
+	if configuration.CapabilitySocketPath == "" {
+		configuration.CapabilitySocketPath = defaultConfiguration.CapabilitySocketPath
 	}
 	if configuration.StateDirectory == "" {
 		configuration.StateDirectory = defaultConfiguration.StateDirectory
