@@ -4,6 +4,7 @@
 	import SideCharts from './side-charts.svelte';
 	import DayDetailPanel from './day-detail-panel.svelte';
 	import { getAttendanceState } from '../attendance-context.svelte';
+	import AbsenceForm from '../absence-form.svelte';
 
 	const attendance = getAttendanceState();
 </script>
@@ -16,6 +17,7 @@
 			{#if attendance.selectedDate}
 				<DayDetailPanel />
 			{/if}
+			<AbsenceForm />
 			<SideCharts />
 		</div>
 	</div>

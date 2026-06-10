@@ -23,10 +23,13 @@
 	const attendance = getAttendanceState();
 	const text = createPageText(attendanceText);
 
-	const targetEmail = $derived(attendance.selectedEmail || attendance.summary?.currentUserEmail || '');
+	const targetEmail = $derived(attendance.summary?.currentUserEmail || '');
 
 	const realtimeEvents = $derived(
 		(attendance.currentMonthSummary?.events ?? []).filter((event) => event.email === targetEmail)
+	);
+	const realtimeAbsences = $derived(
+		(attendance.currentMonthSummary?.absences ?? []).filter((absence) => absence.email === targetEmail)
 	);
 
 	const chartEvents = $derived(
@@ -36,15 +39,17 @@
 	const today = $derived(todayDateInTimeZone(attendance.currentMonthSummary?.timeZone));
 
 	const statusLabel = $derived.by(() => {
-		const status = statusForDay(today, realtimeEvents);
+		const status = statusForDay(today, realtimeEvents, realtimeAbsences);
 		if (status === 'working') return text.working;
 		if (status === 'finished') return text.finished;
+		if (status === 'absence') return text.absence;
 		return text.absent;
 	});
 
 	const statusIconClass = $derived.by(() => {
-		const status = statusForDay(today, realtimeEvents);
+		const status = statusForDay(today, realtimeEvents, realtimeAbsences);
 		if (status === 'working') return 'text-success';
+		if (status === 'absence') return 'text-info';
 		if (status === 'finished') return 'text-muted-foreground';
 		return 'text-muted-foreground';
 	});
