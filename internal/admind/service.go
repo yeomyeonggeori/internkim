@@ -667,6 +667,12 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeJob(responseWriter, strings.TrimPrefix(path, "/updates/blueclaw/jobs/"))
 	case request.Method == http.MethodGet && path == "/diagnostics/requests":
 		service.writeAdminRequestDiagnostics(responseWriter)
+	case request.Method == http.MethodGet && path == "/diagnostics/connector-events":
+		service.proxyBlueclawConnectorEvents(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/diagnostics/task-detail":
+		service.proxyBlueclawTaskDetail(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/diagnostics/mattermost-post":
+		service.writeMattermostPostDiagnostic(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/locale":
 		service.writeAdminLocale(responseWriter)
 	case request.Method == http.MethodPut && path == "/locale":

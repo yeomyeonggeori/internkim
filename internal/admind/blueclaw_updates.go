@@ -365,7 +365,12 @@ func (service *Service) blueclawWorkspaceManifestMatchesTarget(artifactPath stri
 }
 
 func (service *Service) blueclawPayloadInstallTargets() []blueclawPayloadInstallTarget {
-	return blueclawPayloadTenantInstallTargets(blueclawUpdateTenantBasePath)
+	return blueclawPayloadInstallTargets(blueclawUpdateTenantBasePath)
+}
+
+func blueclawPayloadInstallTargets(tenantBasePath string) []blueclawPayloadInstallTarget {
+	targets := []blueclawPayloadInstallTarget{canonicalBlueclawPayloadInstallTarget()}
+	return append(targets, blueclawPayloadTenantInstallTargets(tenantBasePath)...)
 }
 
 func blueclawPayloadTenantInstallTargets(tenantBasePath string) []blueclawPayloadInstallTarget {
