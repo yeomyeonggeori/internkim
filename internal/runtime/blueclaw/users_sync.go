@@ -82,8 +82,8 @@ curl -fsS \
 revision="$(jq -r '.revision // empty' "$response_path")"
 last_revision="$(jq -r '.revision // empty' "$STATE_PATH" 2>/dev/null || true)"
 admin_email="$(cat /root/.internkim/config/admin-email 2>/dev/null || cat /root/.internkim/admin-email 2>/dev/null || true)"
-jq -r 'if (.records | type) == "array" then .records[]? | [.email, (.name // "")] | @tsv else .users[]? | [., ""] | @tsv end' "$response_path" | awk 'NF' | sort -u > "$desired_records_path"
-cut -f1 "$desired_records_path" | awk 'NF {print tolower($0)}' | sort -u > "$desired_path"
+jq -r 'if (.records | type) == "array" then .records[]? | [(.userID // ""), .email, (.name // ""), (.role // ""), ((.circles // []) | join(","))] | @tsv else .users[]? | ["", ., "", "", ""] | @tsv end' "$response_path" | awk 'NF' | sort -u > "$desired_records_path"
+cut -f2 "$desired_records_path" | awk 'NF {print tolower($0)}' | sort -u > "$desired_path"
 jq -r '.users[]?' "$STATE_PATH" 2>/dev/null | awk 'NF {print tolower($0)}' | sort -u > "$previous_path" || true
 jq -r '.people[]?.emails[]?' "$POLICY_PATH" 2>/dev/null | awk 'NF {print tolower($0)}' | sort -u > "$policy_all_path" || true
 jq -r '.people[]? | select(.isAdmin != true) | .emails[]?' "$POLICY_PATH" 2>/dev/null | awk 'NF {print tolower($0)}' | sort -u > "$policy_removable_path" || true
@@ -99,9 +99,10 @@ if [ -n "$revision" ] && [ "$revision" = "$last_revision" ]; then
   fi
 fi
 
-while IFS="$(printf '\t')" read -r email display_name; do
+while IFS="$(printf '\t')" read -r person_id email display_name role circle_list; do
+  [ -n "$person_id" ] || continue
   [ -n "$email" ] || continue
-  body="$(jq -cn --arg email "$email" --arg displayName "$display_name" '{email:$email,circles:["staff"]} + (if $displayName == "" then {} else {displayName:$displayName} end)')"
+  body="$(jq -cn --arg personID "$person_id" --arg email "$email" --arg displayName "$display_name" --arg role "$role" --arg circles "$circle_list" '{personID:$personID,email:$email,circles:((($circles | split(",") | map(select(. != ""))) + ["staff"]) | unique)} + (if $displayName == "" then {} else {displayName:$displayName} end) + (if $role == "admin" then {isAdmin:true} else {} end)')"
   curl -fsS -X POST \
     -H "Content-Type: application/json" \
     -d "$body" \

@@ -22,7 +22,7 @@ func TestUsersSyncScriptRefreshesPOSIXWorkspaceAfterPolicyChanges(t *testing.T) 
 	script := InternKimUsersSyncScript()
 
 	for _, fragment := range []string{
-		`{email:$email,circles:["staff"]}`,
+		`{personID:$personID,email:$email,circles:`,
 		"blueclaw-posix-helper sync",
 		"install -d -m 0711 \"$WORKSPACE_PATH/private\" \"$WORKSPACE_PATH/private/people\" \"$WORKSPACE_PATH/circles\"",
 		"chmod 0711 \"$WORKSPACE_PATH/private\" \"$WORKSPACE_PATH/private/people\" \"$WORKSPACE_PATH/circles\"",

@@ -2,6 +2,7 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import * as Pagination from '$lib/components/ui/pagination';
+	import * as Table from '$lib/components/ui/table';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
@@ -24,8 +25,6 @@
 	let totalCount = $state(0);
 	let hasLoadError = $state(false);
 	let isLoading = $state(false);
-
-	let shouldShowPagination = $derived(totalCount > pageSize);
 
 	onMount(() => {
 		void loadSchedules(currentPage);
@@ -94,6 +93,10 @@
 		return formatScheduleDateTime(value, timeZone, dateTimeLocale()) ?? text.scheduleTimeUnavailable;
 	}
 
+	function expirationText(schedule: MemorySchedule): string {
+		return schedule.expiresAt ? dateTimeText(schedule.expiresAt, schedule.timeZone) : text.scheduleNoExpiration;
+	}
+
 	function dateTimeLocale(): string {
 		return currentLocale.value === 'ko' ? 'ko-KR' : 'en-US';
 	}
@@ -130,62 +133,73 @@
 	{:else if schedules.length === 0 && !hasLoadError}
 		<p class="rounded-md border bg-muted/30 px-3 py-12 text-center text-sm text-muted-foreground">{text.scheduleEmpty}</p>
 	{:else if schedules.length > 0}
-		<div class="overflow-hidden rounded-lg border">
-			<div class="hidden grid-cols-[minmax(0,1.5fr)_110px_110px_170px_minmax(140px,1fr)] gap-3 border-b bg-muted/30 px-3 py-2 text-xs font-medium text-muted-foreground md:grid">
-				<span>{text.scheduleTitle}</span>
-				<span>{text.scheduleStatus}</span>
-				<span>{text.scheduleKind}</span>
-				<span>{text.scheduleNextRun}</span>
-				<span>{text.scheduleTiming}</span>
-			</div>
-			{#each schedules as schedule}
-				<article class="grid gap-2 border-b px-3 py-3 last:border-b-0 md:grid-cols-[minmax(0,1.5fr)_110px_110px_170px_minmax(140px,1fr)] md:items-center md:gap-3">
-					<div class="min-w-0">
-						<p class="truncate text-sm font-medium">{scheduleTitle(schedule)}</p>
-						<p class="truncate text-xs text-muted-foreground">{schedule.taskScheduleID}</p>
-					</div>
-					<Badge variant="secondary" class="w-fit">{scheduleStatus(schedule)}</Badge>
-					<span class="text-sm">{scheduleKind(schedule)}</span>
-					<span class="text-sm tabular-nums">{dateTimeText(schedule.nextRunAt, schedule.timeZone)}</span>
-					<span class="break-words text-sm text-muted-foreground">{scheduleTiming(schedule)}</span>
-				</article>
-			{/each}
+		<div class="rounded-lg border">
+			<Table.Root>
+				<Table.Header>
+					<Table.Row>
+						<Table.Head class="min-w-72">{text.scheduleTitle}</Table.Head>
+						<Table.Head>{text.scheduleStatus}</Table.Head>
+						<Table.Head>{text.scheduleKind}</Table.Head>
+						<Table.Head>{text.scheduleNextRun}</Table.Head>
+						<Table.Head>{text.scheduleExpiresAt}</Table.Head>
+						<Table.Head class="min-w-40">{text.scheduleTiming}</Table.Head>
+					</Table.Row>
+				</Table.Header>
+				<Table.Body>
+					{#each schedules as schedule}
+						<Table.Row>
+							<Table.Cell class="max-w-96">
+								<p class="truncate font-medium">{scheduleTitle(schedule)}</p>
+								<p class="truncate text-xs text-muted-foreground">{schedule.taskScheduleID}</p>
+							</Table.Cell>
+							<Table.Cell>
+								<Badge variant="secondary" class="w-fit">{scheduleStatus(schedule)}</Badge>
+							</Table.Cell>
+							<Table.Cell>{scheduleKind(schedule)}</Table.Cell>
+							<Table.Cell class="whitespace-nowrap tabular-nums">{dateTimeText(schedule.nextRunAt, schedule.timeZone)}</Table.Cell>
+							<Table.Cell class="whitespace-nowrap tabular-nums">{expirationText(schedule)}</Table.Cell>
+							<Table.Cell class="max-w-72 break-words text-muted-foreground">{scheduleTiming(schedule)}</Table.Cell>
+						</Table.Row>
+					{/each}
+				</Table.Body>
+			</Table.Root>
 		</div>
-		{#if shouldShowPagination}
-			<div class="flex flex-col items-center justify-between gap-3 sm:flex-row">
-				<p class="text-sm text-muted-foreground">{pageSummary()}</p>
-				<Pagination.Root
-					count={totalCount}
-					perPage={pageSize}
-					page={currentPage}
-					onPageChange={changeSchedulePage}
-					aria-label={text.schedulePagination}
-				>
-					{#snippet children({ pages, currentPage })}
-						<Pagination.Content>
-							<Pagination.Item>
-								<Pagination.PrevButton aria-label={text.schedulePreviousPage}>{text.schedulePreviousPage}</Pagination.PrevButton>
-							</Pagination.Item>
-							{#each pages as page (page.key)}
-								{#if page.type === 'ellipsis'}
-									<Pagination.Item>
-										<Pagination.Ellipsis />
-									</Pagination.Item>
-								{:else}
-									<Pagination.Item>
-										<Pagination.Link {page} isActive={currentPage === page.value}>
-											{page.value}
-										</Pagination.Link>
-									</Pagination.Item>
-								{/if}
-							{/each}
-							<Pagination.Item>
-								<Pagination.NextButton aria-label={text.scheduleNextPage}>{text.scheduleNextPage}</Pagination.NextButton>
-							</Pagination.Item>
-						</Pagination.Content>
-					{/snippet}
-				</Pagination.Root>
-			</div>
-		{/if}
+	{/if}
+
+	{#if !hasLoadError && !(isLoading && schedules.length === 0)}
+		<div class="flex flex-col items-center justify-between gap-3 sm:flex-row">
+			<p class="text-sm text-muted-foreground">{pageSummary()}</p>
+			<Pagination.Root
+				count={totalCount}
+				perPage={pageSize}
+				page={currentPage}
+				onPageChange={changeSchedulePage}
+				aria-label={text.schedulePagination}
+			>
+				{#snippet children({ pages, currentPage })}
+					<Pagination.Content>
+						<Pagination.Item>
+							<Pagination.PrevButton aria-label={text.schedulePreviousPage}>{text.schedulePreviousPage}</Pagination.PrevButton>
+						</Pagination.Item>
+						{#each pages as page (page.key)}
+							{#if page.type === 'ellipsis'}
+								<Pagination.Item>
+									<Pagination.Ellipsis />
+								</Pagination.Item>
+							{:else}
+								<Pagination.Item>
+									<Pagination.Link {page} isActive={currentPage === page.value}>
+										{page.value}
+									</Pagination.Link>
+								</Pagination.Item>
+							{/if}
+						{/each}
+						<Pagination.Item>
+							<Pagination.NextButton aria-label={text.scheduleNextPage}>{text.scheduleNextPage}</Pagination.NextButton>
+						</Pagination.Item>
+					</Pagination.Content>
+				{/snippet}
+			</Pagination.Root>
+		</div>
 	{/if}
 </section>

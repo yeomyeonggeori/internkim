@@ -97,31 +97,11 @@ func memoryGraphQuery(request *http.Request, personID string) string {
 }
 
 func (service *Service) resolveMemoryPersonID(ctx context.Context, actorEmail string) (string, error) {
-	if service.hasDeviceAuth() {
-		personID, errorValue := service.resolveMemoryPersonIDFromUserRecords(ctx, actorEmail)
-		if errorValue != nil {
-			return "", errorValue
-		}
-		if personID != "" {
-			return personID, nil
-		}
-	}
-	return service.resolveMemoryPersonIDFromPolicy(ctx, actorEmail)
-}
-
-func (service *Service) resolveMemoryPersonIDFromUserRecords(ctx context.Context, actorEmail string) (string, error) {
-	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
-	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
-	records, errorValue := service.lookupUserRecords(ctx, fleetID, fleetSecret)
-	if errorValue != nil {
+	actor, found, errorValue := service.resolveUserActorByEmail(ctx, actorEmail)
+	if errorValue != nil || !found {
 		return "", errorValue
 	}
-	for _, record := range records {
-		if strings.EqualFold(record.Email, actorEmail) && isActiveFlowUser(record) {
-			return strings.TrimSpace(record.UserID), nil
-		}
-	}
-	return "", nil
+	return actor.UserID, nil
 }
 
 func (service *Service) resolveMemoryPersonIDFromPolicy(ctx context.Context, actorEmail string) (string, error) {

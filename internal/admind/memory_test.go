@@ -68,12 +68,12 @@ func TestMemoryAPIUsesMattermostSessionUserSchedules(t *testing.T) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","userID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
-		if request.URL.Path == "/admin/api/policy" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"people":[{"personID":"person-1","emails":["member@example.com"]}]}`, nil), nil
-		}
 		if request.URL.Path == "/admin/api/task-schedules" && request.Method == http.MethodGet {
-			if request.URL.Query().Get("creatorPersonID") != "person-1" {
+			if request.URL.Query().Get("creatorPersonID") != "user:person-1" {
 				t.Fatalf("creatorPersonID = %q", request.URL.Query().Get("creatorPersonID"))
+			}
+			if request.URL.Query().Get("includeExpired") != "true" {
+				t.Fatalf("includeExpired = %q", request.URL.Query().Get("includeExpired"))
 			}
 			if request.URL.Query().Get("limit") != "" {
 				t.Fatalf("limit = %q", request.URL.Query().Get("limit"))
@@ -84,7 +84,7 @@ func TestMemoryAPIUsesMattermostSessionUserSchedules(t *testing.T) {
 			if request.URL.Query().Get("pageSize") != "25" {
 				t.Fatalf("pageSize = %q", request.URL.Query().Get("pageSize"))
 			}
-			return jsonResponse(http.StatusOK, `{"schedules":[{"taskScheduleID":"schedule-1","creatorPersonID":"person-1","executionMode":"agent","kind":"cron","cronExpression":"0 9 * * *","nextRunAt":"2026-06-09T00:00:00Z","createdAt":"2026-06-08T00:00:00Z","updatedAt":"2026-06-08T00:00:00Z","deliveryChannelID":"channel-1","promptPreview":"팀 일정 알려주기"}],"count":1}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"schedules":[{"taskScheduleID":"schedule-1","creatorPersonID":"user:person-1","executionMode":"agent","kind":"cron","cronExpression":"0 9 * * *","nextRunAt":"2026-06-09T00:00:00Z","createdAt":"2026-06-08T00:00:00Z","updatedAt":"2026-06-08T00:00:00Z","deliveryChannelID":"channel-1","promptPreview":"팀 일정 알려주기"}],"count":1,"totalCount":1,"page":3,"pageSize":25}`, nil), nil
 		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
@@ -115,13 +115,16 @@ func TestMemorySchedulesQuerySanitizesPagination(t *testing.T) {
 		"limit":           []string{"200"},
 		"page":            []string{"0"},
 		"pageSize":        []string{"999"},
-	}, "person-1")
+	}, "user:person-1")
 	values, errorValue := url.ParseQuery(query)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if values.Get("creatorPersonID") != "person-1" {
+	if values.Get("creatorPersonID") != "user:person-1" {
 		t.Fatalf("creatorPersonID = %q", values.Get("creatorPersonID"))
+	}
+	if values.Get("includeExpired") != "true" {
+		t.Fatalf("includeExpired = %q", values.Get("includeExpired"))
 	}
 	if values.Get("limit") != "" {
 		t.Fatalf("limit = %q", values.Get("limit"))
@@ -148,9 +151,6 @@ func TestMemoryAPISchedulesHidesUpstreamFailureDetails(t *testing.T) {
 		}
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","userID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
-		}
-		if request.URL.Path == "/admin/api/policy" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"people":[{"personID":"person-1","emails":["member@example.com"]}]}`, nil), nil
 		}
 		if request.URL.Path == "/admin/api/task-schedules" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusInternalServerError, `private backend detail`, nil), nil
