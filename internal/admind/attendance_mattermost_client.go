@@ -56,6 +56,32 @@ func (service *Service) patchMattermostAttendanceResultPost(ctx context.Context,
 	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/posts/"+url.PathEscape(postID)+"/patch", userToken, body, nil)
 }
 
+func (service *Service) mattermostAttendanceResultPostExists(ctx context.Context, adminToken string, postID string, channelID string, rootID string) (bool, error) {
+	trimmedPostID := strings.TrimSpace(postID)
+	if trimmedPostID == "" {
+		return false, nil
+	}
+	var postRecord mattermostPostRecord
+	errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/posts/"+url.PathEscape(trimmedPostID), adminToken, nil, &postRecord)
+	if errorValue == nil {
+		return isMattermostAttendanceResultPostCurrent(postRecord, channelID, rootID), nil
+	}
+	if isMattermostNotFound(errorValue) {
+		return false, nil
+	}
+	return false, errorValue
+}
+
+func isMattermostAttendanceResultPostCurrent(postRecord mattermostPostRecord, channelID string, rootID string) bool {
+	if strings.TrimSpace(postRecord.ID) == "" || postRecord.DeleteAt != 0 {
+		return false
+	}
+	if strings.TrimSpace(postRecord.ChannelID) != "" && strings.TrimSpace(postRecord.ChannelID) != strings.TrimSpace(channelID) {
+		return false
+	}
+	return strings.TrimSpace(postRecord.RootID) == strings.TrimSpace(rootID)
+}
+
 func (service *Service) deleteMattermostAttendanceResultPost(ctx context.Context, adminToken string, postID string) error {
 	trimmedPostID := strings.TrimSpace(postID)
 	if trimmedPostID == "" {

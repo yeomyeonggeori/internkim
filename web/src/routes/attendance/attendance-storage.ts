@@ -4,7 +4,6 @@ const STORAGE_KEY = 'attendance.filters';
 
 export type PersistedAttendanceFilters = {
 	selectedMonth?: string;
-	selectedEmail?: string;
 	chartMode?: ChartMode;
 };
 

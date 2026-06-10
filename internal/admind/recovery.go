@@ -53,7 +53,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail":
+	case "status", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin":
 		return true
 	default:
 		return false
@@ -77,10 +77,28 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "restart cloudflared-node-ssh", "systemctl", "restart", "cloudflared-node-ssh"))
 	case "journal-tail":
 		response.JournalTail = service.sshRecoveryJournalTail(ctx)
+	case "unlock-mattermost-admin":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "unlock Mattermost admin", "sh", "-lc", mattermostAdminUnlockCommand()))
 	}
 	response.Services = service.sshRecoveryServiceStates(ctx)
 	response.JournalTail = service.sshRecoveryJournalTail(ctx)
 	return response
+}
+
+func mattermostAdminUnlockCommand() string {
+	return strings.TrimSpace(`
+set -eu
+su - postgres -c "psql -X -qAt -c \"SELECT datname FROM pg_database WHERE datistemplate = false\"" | while IFS= read -r database; do
+  [ -n "$database" ] || continue
+  escaped_database=$(printf "%s" "$database" | sed "s/'/'\\\\''/g")
+  has_users=$(su - postgres -c "psql -X -qAt -d '$escaped_database' -c \"SELECT to_regclass('public.users') IS NOT NULL\"")
+  [ "$has_users" = "t" ] || continue
+  has_failed_attempts=$(su - postgres -c "psql -X -qAt -d '$escaped_database' -c \"SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'failedattempts')\"")
+  [ "$has_failed_attempts" = "t" ] || continue
+  updated=$(su - postgres -c "psql -X -qAt -d '$escaped_database' -c \"UPDATE users SET failedattempts = 0 WHERE username = 'admin' RETURNING username\"")
+  [ -z "$updated" ] || printf "%s: admin failedattempts reset\n" "$database"
+done
+`)
 }
 
 func (service *Service) sshRecoveryServiceStates(ctx context.Context) map[string]string {

@@ -22,10 +22,15 @@
 			(event) => event.email === attendance.currentMonthSummary?.currentUserEmail
 		)
 	);
+	const myAbsences = $derived(
+		(attendance.currentMonthSummary?.absences ?? []).filter(
+			(absence) => absence.email === attendance.currentMonthSummary?.currentUserEmail
+		)
+	);
 
 	const todayMyEvents = $derived(myEvents.filter((event) => event.localDate === today));
 	const todayDay = $derived(computeDayEvents(today, todayMyEvents));
-	const status = $derived(statusForDay(today, myEvents));
+	const status = $derived(statusForDay(today, myEvents, myAbsences));
 
 	const elapsedMinutes = $derived.by(() => {
 		if (todayDay.inProgress && todayDay.clockIn) {
@@ -36,10 +41,22 @@
 	});
 
 	const statusLabel = $derived(
-		status === 'working' ? text.working : status === 'finished' ? text.finished : text.absent
+		status === 'working'
+			? text.working
+			: status === 'finished'
+				? text.finished
+				: status === 'absence'
+					? text.absence
+					: text.absent
 	);
 	const statusDot = $derived(
-		status === 'working' ? 'bg-success' : status === 'finished' ? 'bg-muted-foreground' : 'bg-muted-foreground/50'
+		status === 'working'
+			? 'bg-success'
+			: status === 'absence'
+				? 'bg-info'
+				: status === 'finished'
+					? 'bg-muted-foreground'
+					: 'bg-muted-foreground/50'
 	);
 
 	const nextKind = $derived<AttendanceKind>(status === 'working' ? 'clock_out' : 'clock_in');

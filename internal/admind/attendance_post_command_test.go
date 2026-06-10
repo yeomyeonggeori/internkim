@@ -20,13 +20,13 @@ func TestAttendanceClockButtonsKeepOnlyLatestClockInAndClockOutPosts(t *testing.
 		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken()},
 	}
 
-	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
@@ -58,7 +58,10 @@ func TestAttendanceEntryCommentCreatesAttendanceEvent(t *testing.T) {
 	if response.Code != http.StatusCreated {
 		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
 	}
-	if len(*posts) != 1 || (*posts)[0].Message != "출근(사무실)" || (*posts)[0].RootID != "entry-post" {
+	if len(*posts) != 1 ||
+		(*posts)[0].Deleted ||
+		(*posts)[0].Message != "출근(사무실)" ||
+		(*posts)[0].RootID != "entry-post" {
 		t.Fatalf("posts = %+v", *posts)
 	}
 	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
@@ -103,7 +106,10 @@ func TestAttendanceEntryCommentClockInFormsUseSameAction(t *testing.T) {
 			if response.Code != http.StatusCreated {
 				t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
 			}
-			if len(*posts) != 1 || (*posts)[0].Message != testCase.expectedResultPost {
+			if len(*posts) != 1 ||
+				(*posts)[0].Deleted ||
+				(*posts)[0].Message != testCase.expectedResultPost ||
+				(*posts)[0].RootID != "entry-post" {
 				t.Fatalf("posts = %+v", *posts)
 			}
 			events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
@@ -117,6 +123,107 @@ func TestAttendanceEntryCommentClockInFormsUseSameAction(t *testing.T) {
 				t.Fatalf("events = %+v", events)
 			}
 		})
+	}
+}
+
+func TestAttendanceChannelPostCreatesAttendanceEvent(t *testing.T) {
+	service, posts := newAttendanceActionTestService(t)
+	service.saveMattermostAttendanceChannelID("attendance-channel")
+	service.saveMattermostAttendanceEntryPostID("entry-post")
+	if errorValue := service.writeAttendanceLocationsFile([]attendanceLocation{
+		{ID: "office", Name: "사무실", Color: "#16a34a", IsDefault: true},
+		{ID: "home", Name: "재택", Color: "#2563eb"},
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"attendance-channel","message":"출근(재택)"}`))
+	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+	if len(*posts) != 2 ||
+		!(*posts)[0].Deleted ||
+		(*posts)[1].Message != "출근(재택)" ||
+		(*posts)[1].RootID != "entry-post" {
+		t.Fatalf("posts = %+v", *posts)
+	}
+	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(events) != 1 || events[0].Kind != attendanceKindClockIn || events[0].LocationName != "재택" {
+		t.Fatalf("events = %+v", events)
+	}
+}
+
+func TestAttendanceChannelPostCreatesEventWhenExistingResultPostIsMissing(t *testing.T) {
+	service, posts := newAttendanceActionTestService(t)
+	service.saveMattermostAttendanceChannelID("attendance-channel")
+	service.saveMattermostAttendanceEntryPostID("entry-post")
+	insertGhostClockInEventForTest(t, service, "missing-post")
+	request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"attendance-channel","message":"출근"}`))
+	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+	if len(*posts) != 2 ||
+		!(*posts)[0].Deleted ||
+		(*posts)[1].Message != "출근(사무실)" ||
+		(*posts)[1].RootID != "entry-post" {
+		t.Fatalf("posts = %+v", *posts)
+	}
+	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(events) != 2 || events[0].Kind != attendanceKindClockIn || events[0].ResultPostID != "attendance-post-2" {
+		t.Fatalf("events = %+v", events)
+	}
+}
+
+func TestAttendanceEntryCommentDeletesDuplicateCommand(t *testing.T) {
+	service, posts := newAttendanceActionTestService(t)
+	service.saveMattermostAttendanceChannelID("attendance-channel")
+	service.saveMattermostAttendanceEntryPostID("entry-post")
+	payload := mattermostInteractivePayload{
+		UserID:    "user-1",
+		PostID:    "entry-post",
+		ChannelID: "attendance-channel",
+		TeamID:    "team-1",
+		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken()},
+	}
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"attendance-channel","root_id":"entry-post","message":"출근"}`))
+	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+	if len(*posts) != 2 ||
+		(*posts)[0].Deleted ||
+		!(*posts)[1].Deleted ||
+		(*posts)[1].Message != "출근" {
+		t.Fatalf("posts = %+v", *posts)
+	}
+	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(events) != 1 || events[0].Kind != attendanceKindClockIn {
+		t.Fatalf("events = %+v", events)
 	}
 }
 
@@ -134,7 +241,11 @@ func TestAttendanceEntryCommentAcceptsEnglishAliases(t *testing.T) {
 		}
 	}
 
-	if len(*posts) != 2 || (*posts)[0].Message != "출근(사무실)" || (*posts)[1].Message != "퇴근" {
+	if len(*posts) != 2 ||
+		(*posts)[0].Deleted ||
+		(*posts)[0].Message != "출근(사무실)" ||
+		(*posts)[1].Deleted ||
+		(*posts)[1].Message != "퇴근" {
 		t.Fatalf("posts = %+v", *posts)
 	}
 }
@@ -150,7 +261,7 @@ func TestAttendanceEntryCommentUpdatesCurrentEventTime(t *testing.T) {
 		TeamID:    "team-1",
 		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken()},
 	}
-	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"attendance-channel","root_id":"entry-post","message":"9:00"}`))
@@ -162,7 +273,7 @@ func TestAttendanceEntryCommentUpdatesCurrentEventTime(t *testing.T) {
 	if response.Code != http.StatusCreated {
 		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
 	}
-	if len(*posts) != 1 || (*posts)[0].Message != "출근(사무실) 09:00" {
+	if len(*posts) != 2 || (*posts)[0].Message != "출근(사무실) 09:00" || !(*posts)[1].Deleted {
 		t.Fatalf("posts = %+v", *posts)
 	}
 	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
@@ -185,10 +296,10 @@ func TestAttendanceEntryCommentUpdatesClockOutTime(t *testing.T) {
 		TeamID:    "team-1",
 		Context:   mattermostInteractiveContext{Action: attendanceClockInAction, Token: service.ensureMattermostInteractiveActionToken()},
 	}
-	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockIn); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
+	if _, errorValue := service.recordAttendanceFromMattermost(context.Background(), payload, attendanceKindClockOut); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"attendance-channel","root_id":"entry-post","message":"18:30"}`))
@@ -200,7 +311,7 @@ func TestAttendanceEntryCommentUpdatesClockOutTime(t *testing.T) {
 	if response.Code != http.StatusCreated {
 		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
 	}
-	if len(*posts) != 2 || (*posts)[1].Message != "퇴근 18:30" {
+	if len(*posts) != 3 || (*posts)[1].Message != "퇴근 18:30" || !(*posts)[2].Deleted {
 		t.Fatalf("posts = %+v", *posts)
 	}
 	events, errorValue := service.readAttendanceEvents(context.Background(), time.Now().Format("2006-01"), "")
@@ -210,6 +321,25 @@ func TestAttendanceEntryCommentUpdatesClockOutTime(t *testing.T) {
 	clockOutEvent, found := findAttendanceEventByKind(events, attendanceKindClockOut)
 	if len(events) != 2 || !found || clockOutEvent.LocalTime != "18:30:00" {
 		t.Fatalf("events = %+v", events)
+	}
+}
+
+func TestAttendanceTimeUpdateUsesPreviousDayWhenTimeIsAfterCommandPost(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	if errorValue := service.writeWorkspaceSettingsFile(workspaceSettings{Language: workspaceLanguageKorean, TimeZone: "Asia/Seoul"}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	location, _ := time.LoadLocation("Asia/Seoul")
+	event := attendanceEvent{LocalDate: "2026-06-10"}
+	commandPostCreatedAt := time.Date(2026, 6, 10, 0, 30, 0, 0, location).UTC()
+
+	localTime, errorValue := service.attendanceLocalTimeForEvent(event, "23:30", commandPostCreatedAt)
+
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if localTime.Format("2006-01-02 15:04") != "2026-06-09 23:30" {
+		t.Fatalf("local time = %s", localTime.Format("2006-01-02 15:04"))
 	}
 }
 

@@ -40,6 +40,7 @@ type Configuration struct {
 	MattermostBaseURL           string
 	APIBaseURL                  string
 	BlueclawBaseURL             string
+	CapabilitySocketPath        string
 	StateDirectory              string
 	CompanionJobPath            string
 	FlowDatabasePath            string
@@ -216,6 +217,7 @@ func DefaultConfiguration() Configuration {
 		MattermostBaseURL:           "http://127.0.0.1:8065",
 		APIBaseURL:                  "https://api.intern.kim",
 		BlueclawBaseURL:             "http://127.0.0.1:8080",
+		CapabilitySocketPath:        blueclawruntime.CapabilitySocketPath,
 		StateDirectory:              "/root/.internkim/state/admin",
 		CompanionJobPath:            "/root/.internkim/state/companion-jobs.json",
 		FlowDatabasePath:            "/root/.internkim/state/flow.sqlite",
@@ -278,10 +280,14 @@ func NewService(configuration Configuration) *Service {
 }
 
 func (service *Service) Run(ctx context.Context) error {
+	if errorValue := service.repairFutureAttendanceEvents(ctx, time.Now().UTC()); errorValue != nil {
+		log.Printf("attendance future event repair failed: %v", errorValue)
+	}
 	service.startBotProfileSync(ctx)
 	service.startCompanionFileCleanup(ctx)
 	service.startMattermostProvisionerSync(ctx)
 	service.startMattermostCircleSync(ctx)
+	service.startMattermostProjectionOutboxWorker(ctx)
 	service.startCalendarNotificationWorker(ctx)
 	service.startCalendarSyncWorker(ctx)
 	server := &http.Server{
@@ -320,6 +326,37 @@ func (service *Service) startMattermostCircleSync(ctx context.Context) {
 	}()
 }
 
+func (service *Service) startMattermostProjectionOutboxWorker(ctx context.Context) {
+	if strings.TrimSpace(readTrimmedFile(service.Configuration.MattermostAdminPasswordPath)) == "" {
+		return
+	}
+	go func() {
+		service.repairMattermostProjectionsWithTimeout(ctx)
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				service.drainMattermostProjectionOutboxWithTimeout(ctx)
+			}
+		}
+	}()
+}
+
+func (service *Service) repairMattermostProjectionsWithTimeout(ctx context.Context) {
+	syncContext, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	service.syncExistingMattermostManagedPosts(syncContext)
+}
+
+func (service *Service) drainMattermostProjectionOutboxWithTimeout(ctx context.Context) {
+	syncContext, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	service.drainMattermostManagedChannelProjections(syncContext)
+}
+
 func (service *Service) syncMattermostCirclesWithTimeout(ctx context.Context) {
 	syncContext, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -346,6 +383,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/admin", service.serveAdminPage)
 	multiplexer.HandleFunc("/admin/api/", service.handleAdmin)
 	multiplexer.HandleFunc("/admin/", service.serveAdminPage)
+	multiplexer.HandleFunc("/api/v1/", service.handlePublicAPI)
 	multiplexer.HandleFunc("/flow", service.serveFlowPage)
 	multiplexer.HandleFunc("/flow/api/", service.handleFlow)
 	multiplexer.HandleFunc("/flow/", service.serveFlowPage)
@@ -388,7 +426,7 @@ func (service *Service) withCORS(next http.Handler) http.Handler {
 		if isInternKimCORSPath(request.URL.Path) && isAllowedOrigin(origin) {
 			responseWriter.Header().Set("Access-Control-Allow-Origin", origin)
 			responseWriter.Header().Set("Access-Control-Allow-Credentials", "true")
-			responseWriter.Header().Set("Access-Control-Allow-Headers", "Content-Type, CF-Access-Authenticated-User-Email, X-InternKim-Companion-ID, X-InternKim-Companion-Token")
+			responseWriter.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, CF-Access-Authenticated-User-Email, X-InternKim-Companion-ID, X-InternKim-Companion-Token")
 			responseWriter.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS,PROPFIND,REPORT")
 			if request.Method == http.MethodOptions {
 				responseWriter.WriteHeader(http.StatusNoContent)
@@ -408,6 +446,7 @@ func isInternKimCORSPath(path string) bool {
 		path == "/attendance" ||
 		path == "/logo.svg" ||
 		path == "/.well-known/caldav" ||
+		strings.HasPrefix(path, "/api/v1/") ||
 		strings.HasPrefix(path, "/admin/") ||
 		strings.HasPrefix(path, "/flow/") ||
 		strings.HasPrefix(path, "/memory/") ||
@@ -434,7 +473,19 @@ func (service *Service) mattermostProxy() http.Handler {
 
 func (service *Service) managedChannelWriteGuard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
-		if service.handleMattermostAttendancePostCreate(responseWriter, request) {
+		payload, command, isAttendanceCommand, errorValue := service.mattermostAttendancePostCreateCommand(request)
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+			return
+		}
+		if isAttendanceCommand {
+			recorder := &bodyRecordingResponseWriter{ResponseWriter: responseWriter, statusCode: http.StatusOK}
+			next.ServeHTTP(recorder, request)
+			if recorder.statusCode >= http.StatusOK && recorder.statusCode < http.StatusMultipleChoices {
+				if errorValue := service.syncMattermostAttendancePostCommand(request.Context(), request, payload, command, recorder.body.Bytes()); errorValue != nil {
+					log.Printf("Mattermost Attendance post command sync failed: channelID=%q rootID=%q kind=%q timeUpdate=%v: %v", strings.TrimSpace(payload.ChannelID), strings.TrimSpace(payload.RootID), strings.TrimSpace(command.Kind), command.IsTimeUpdate, errorValue)
+				}
+			}
 			return
 		}
 		if !service.isMattermostManagedPostCreateRequest(request) {
@@ -505,6 +556,22 @@ type statusRecordingResponseWriter struct {
 func (responseWriter *statusRecordingResponseWriter) WriteHeader(statusCode int) {
 	responseWriter.statusCode = statusCode
 	responseWriter.ResponseWriter.WriteHeader(statusCode)
+}
+
+type bodyRecordingResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+	body       bytes.Buffer
+}
+
+func (responseWriter *bodyRecordingResponseWriter) WriteHeader(statusCode int) {
+	responseWriter.statusCode = statusCode
+	responseWriter.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (responseWriter *bodyRecordingResponseWriter) Write(document []byte) (int, error) {
+	responseWriter.body.Write(document)
+	return responseWriter.ResponseWriter.Write(document)
 }
 
 func mattermostDeletedPostID(request *http.Request) (string, bool) {
@@ -642,6 +709,8 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeAttendanceLocations(responseWriter)
 	case request.Method == http.MethodPut && path == "/attendance-locations":
 		service.updateAttendanceLocations(responseWriter, request)
+	case request.Method == http.MethodPost && strings.HasPrefix(path, "/maintenance/mattermost-posts/") && strings.HasSuffix(path, "/repair"):
+		service.repairMattermostPost(responseWriter, request, strings.TrimSuffix(strings.TrimPrefix(path, "/maintenance/mattermost-posts/"), "/repair"))
 	case request.Method == http.MethodGet && path == "/sites":
 		service.listSites(responseWriter)
 	case request.Method == http.MethodPost && path == "/sites":
@@ -2470,6 +2539,9 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.BlueclawBaseURL == "" {
 		configuration.BlueclawBaseURL = defaultConfiguration.BlueclawBaseURL
+	}
+	if configuration.CapabilitySocketPath == "" {
+		configuration.CapabilitySocketPath = defaultConfiguration.CapabilitySocketPath
 	}
 	if configuration.StateDirectory == "" {
 		configuration.StateDirectory = defaultConfiguration.StateDirectory

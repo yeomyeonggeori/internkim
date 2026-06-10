@@ -1,6 +1,6 @@
 // Flow API 오류 문구 로컬라이제이션 경계를 검증합니다.
 import { describe, expect, test } from 'bun:test';
-import { createQuickFlowTask, fetchFlowSummary } from '../../src/routes/flow/flow-api';
+import { createQuickFlowTask, fetchFlowState, fetchFlowWeeklySummary, mergeFlowSummary } from '../../src/routes/flow/flow-api';
 
 type FetchWithPreconnect = typeof fetch & { preconnect?: unknown };
 
@@ -129,11 +129,142 @@ describe('flow API', () => {
 				{ preconnect: fetchPreconnect(originalFetch) }
 			);
 
-			await fetchFlowSummary('', 'Could not load Flow data.');
+			await fetchFlowWeeklySummary('', 'Could not load Flow data.');
 
 			expect(requestedURL).toBe('/flow/api/summary');
 		} finally {
 			globalThis.fetch = originalFetch;
 		}
 	});
+
+	test('loads global state from the state request', async () => {
+		const originalFetch = globalThis.fetch;
+		let requestedURL = '';
+
+		try {
+			globalThis.fetch = Object.assign(
+				async (input: RequestInfo | URL): Promise<Response> => {
+					requestedURL = String(input);
+					return Response.json({
+						currentWeek: {
+							code: '26W23',
+							startISO: '2026-06-01',
+							endISO: '2026-06-07',
+							previous: '26W22',
+							next: '26W24',
+							isCurrent: true
+						},
+						currentUserEmail: 'member@example.com',
+						currentUserName: 'Member',
+						isAdmin: false,
+						members: [],
+						tasks: [],
+						definitions: { categories: [], types: [], sizes: [] },
+						statusOptions: [],
+						metrics: {
+							totalTasks: 0,
+							completedTasks: 0,
+							requestedTasks: 0,
+							pausedTasks: 0,
+							stoppedTasks: 0,
+							statusCounts: {},
+							businessCounts: {},
+							typeCounts: {},
+							memberScores: {},
+							memberScoreDetails: {}
+						}
+					});
+				},
+				{ preconnect: fetchPreconnect(originalFetch) }
+			);
+
+			await fetchFlowState('Could not load Flow data.');
+
+			expect(requestedURL).toBe('/flow/api/state');
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	test('merges weekly metrics with current member scores from state', () => {
+		const week = {
+			code: '26W23',
+			startISO: '2026-06-01',
+			endISO: '2026-06-07',
+			previous: '26W22',
+			next: '26W24',
+			isCurrent: true
+		};
+		const state = {
+			currentWeek: week,
+			currentUserEmail: 'member@example.com',
+			currentUserName: 'Member',
+			isAdmin: false,
+			members: [],
+			tasks: [flowTask('global-task')],
+			definitions: { categories: [], types: [], sizes: [] },
+			statusOptions: [],
+			source: 'sqlite',
+			metrics: {
+				totalTasks: 0,
+				completedTasks: 0,
+				requestedTasks: 0,
+				pausedTasks: 0,
+				stoppedTasks: 0,
+				statusCounts: {},
+				businessCounts: {},
+				typeCounts: {},
+				memberScores: { 'member-1': 42 },
+				memberScoreDetails: { 'member-1': { weeklyScore: 10, monthlyScore: 32, currentScore: 42 } },
+				totalScore: 42
+			}
+		};
+		const weeklySummary = {
+			week,
+			currentWeek: week,
+			weeklyTasks: [flowTask('weekly-task')],
+			source: 'sqlite',
+			metrics: {
+				totalTasks: 1,
+				completedTasks: 1,
+				requestedTasks: 0,
+				pausedTasks: 0,
+				stoppedTasks: 0,
+				statusCounts: { 완료: 1 },
+				businessCounts: { 사업: 1 },
+				typeCounts: { 기타: 1 },
+				memberScores: { 'member-1': 7 },
+				memberScoreDetails: { 'member-1': { weeklyScore: 7, monthlyScore: 7, currentScore: 7 } },
+				totalScore: 7
+			}
+		};
+
+		const summary = mergeFlowSummary(state, weeklySummary);
+
+		expect(summary.tasks).toEqual([flowTask('global-task')]);
+		expect(summary.weeklyTasks).toEqual([flowTask('weekly-task')]);
+		expect(summary.metrics.totalTasks).toBe(1);
+		expect(summary.metrics.memberScores).toEqual({ 'member-1': 42 });
+		expect(summary.metrics.memberScoreDetails?.['member-1'].currentScore).toBe(42);
+		expect(summary.metrics.totalScore).toBe(42);
+	});
+
 });
+
+function flowTask(id: string) {
+	return {
+		id,
+		ownerID: 'member-1',
+		ownerName: 'Member',
+		participantIDs: ['member-1'],
+		participantNames: ['Member'],
+		business: '사업',
+		type: '기타',
+		content: 'Task',
+		goal: '',
+		size: 'S',
+		status: '완료',
+		weekCode: '26W23',
+		flag: 0
+	};
+}

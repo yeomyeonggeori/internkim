@@ -14,8 +14,9 @@
 	import FlowTabRow from './flow-tab-row.svelte';
 	import FlowTasksView from './flow-tasks-view.svelte';
 	import FlowWeekSelector from './flow-week-selector.svelte';
-	import { fetchFlowSummary } from './flow-api';
-	import type { FlowMetrics, FlowSummary } from './flow-types';
+	import { fetchFlowState, fetchFlowWeeklySummary, mergeFlowSummary } from './flow-api';
+	import { createFlowLoadTracker } from './flow-load-tracker';
+	import type { FlowMetrics, FlowState, FlowSummary } from './flow-types';
 	import { buildFlowReportSections } from './report/flow-report-data';
 	import { flowText } from './text';
 
@@ -33,6 +34,7 @@
 	};
 
 	let summary = $state<FlowSummary | null>(null);
+	let flowState = $state<FlowState | null>(null);
 	let activeTab = $state('report');
 	let pendingTaskID = $state('');
 	let focusedTaskID = $state('');
@@ -42,6 +44,7 @@
 	const currentWeek = () => summary?.week.code ?? '';
 	const members = () => summary?.members ?? [];
 	const tasks = () => summary?.tasks ?? [];
+	const weeklyTasks = () => summary?.weeklyTasks ?? tasks();
 	const metrics = () => summary?.metrics ?? emptyMetrics;
 	const metricMemberDistances = () => {
 		const metricValues = metrics();
@@ -103,26 +106,32 @@
 				monthlyDayLabelTemplate: text.report.monthlyDayLabelTemplate
 			},
 			report: summary?.report,
-			tasks: tasks(),
+			tasks: weeklyTasks(),
 			members: members(),
 			definitions: definitions(),
 			weekStartISO: summary?.week.startISO
 		});
 	const hasFlowData = () => summary !== null;
 	const canEditDefinitions = () => hasFlowData() && definitions().sizes.length > 0;
+	const flowLoadTracker = createFlowLoadTracker();
 
 	onMount(() => {
 		const params = new URLSearchParams(location.search);
 		const week = params.get('week') ?? '';
 		pendingTaskID = params.get('task') ?? '';
-		loadFlow(week);
+		loadFlow(week, true);
 	});
 
-	async function loadFlow(week: string) {
+	async function loadFlow(week: string, reloadState = true) {
+		const loadID = flowLoadTracker.start();
 		isLoading = true;
 		errorMessage = '';
 		try {
-			summary = await fetchFlowSummary(week, text.loadError);
+			const nextState = reloadState || !flowState ? await fetchFlowState(text.loadError) : flowState;
+			const weeklySummary = await fetchFlowWeeklySummary(week, text.loadError);
+			if (!flowLoadTracker.isCurrent(loadID)) return;
+			flowState = nextState;
+			summary = mergeFlowSummary(nextState, weeklySummary);
 			openPendingTask();
 			if (isMemberTab()) {
 				const memberID = activeTab.replace('member:', '');
@@ -130,11 +139,12 @@
 			}
 			if (summary.week.code) replaceWeekQuery(summary.week.code);
 		} catch (error) {
+			if (!flowLoadTracker.isCurrent(loadID)) return;
 			errorMessage = error instanceof Error ? error.message : text.loadError;
-			summary = null;
+			if (!flowState) summary = null;
 			activeTab = 'report';
 		} finally {
-			isLoading = false;
+			if (flowLoadTracker.isCurrent(loadID)) isLoading = false;
 		}
 	}
 
@@ -154,11 +164,11 @@
 	}
 
 	function selectCurrentWeek() {
-		loadFlow('');
+		loadFlow('', false);
 	}
 
 	function selectWeek(week: string) {
-		loadFlow(week);
+		loadFlow(week, false);
 	}
 
 </script>
@@ -192,7 +202,7 @@
 					{text.nextWeek}
 					<ChevronRightIcon />
 				</Button>
-				<Button variant="ghost" size="icon-sm" aria-label={text.refresh} onclick={() => loadFlow(currentWeek())} disabled={isLoading}>
+				<Button variant="ghost" size="icon-sm" aria-label={text.refresh} onclick={() => loadFlow(currentWeek(), true)} disabled={isLoading}>
 					<RefreshCwIcon class={isLoading ? 'animate-spin' : ''} />
 				</Button>
 			</div>

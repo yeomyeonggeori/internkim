@@ -71,6 +71,7 @@ func (service *Service) createQuickFlowTask(responseWriter http.ResponseWriter, 
 		writeFlowRequestError(responseWriter, errorValue)
 		return
 	}
+	task.Business = firstNonEmpty(task.Business, defaultFlowTaskBusiness(definitions))
 	if !payload.AllowDuplicate {
 		duplicateTask, reason, found, errorValue := service.findQuickFlowTaskDuplicate(request.Context(), task, members)
 		if errorValue != nil {
@@ -86,7 +87,7 @@ func (service *Service) createQuickFlowTask(responseWriter http.ResponseWriter, 
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	task = service.syncFlowMattermostNotification(request.Context(), task)
+	task = service.applyFlowMattermostProjection(request.Context(), task)
 	service.writeJSON(responseWriter, task)
 }
 

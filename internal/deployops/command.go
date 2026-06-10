@@ -30,6 +30,8 @@ func (server *Server) runJob(contextValue context.Context, job *JobRunner, targe
 		job.Error(server.runCommandPlan(contextValue, job, deployCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, target, "capabilityd,blueclawPayload,skills")))
 	case JobActionDeployWeb:
 		job.Error(server.runCommandPlan(contextValue, job, deployCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, target, "web")))
+	case JobActionApplyRelease:
+		job.Error(server.runCommandPlan(contextValue, job, updateApplyCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, target)))
 	case JobActionPilotStandard:
 		server.runPilotStandardDeploy(contextValue, job, target)
 	case JobActionRestartSSH, JobActionRestartSSHRoute:
@@ -117,6 +119,16 @@ func runBufferedCommand(contextValue context.Context, plan CommandPlan) (string,
 
 func deployCommand(repositoryRootPath string, executablePath string, target Target, components string) CommandPlan {
 	arguments := commandTargetArguments(target, []string{"deploy", "--components", components})
+	return CommandPlan{
+		DirectoryPath: repositoryRootPath,
+		Name:          executablePath,
+		Arguments:     arguments,
+		Environment:   commandEnvironment(target),
+	}
+}
+
+func updateApplyCommand(repositoryRootPath string, executablePath string, target Target) CommandPlan {
+	arguments := commandTargetArguments(target, []string{"update", "apply"})
 	return CommandPlan{
 		DirectoryPath: repositoryRootPath,
 		Name:          executablePath,

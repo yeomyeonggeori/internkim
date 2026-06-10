@@ -104,7 +104,23 @@ CREATE TABLE IF NOT EXISTS calendar_properties (
 	if errorValue := ensureCalendarColumn(ctx, database, "calendar_events", "remote_href", "TEXT NOT NULL DEFAULT ''"); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := ensureCalendarChannelOutboxTable(ctx, database); errorValue != nil {
+		return errorValue
+	}
 	return ensureCalendarSyncSchema(ctx, database)
+}
+
+func ensureCalendarChannelOutboxTable(ctx context.Context, database *sql.DB) error {
+	_, errorValue := database.ExecContext(ctx, `
+	CREATE TABLE IF NOT EXISTS calendar_channel_outbox (
+		event_id TEXT PRIMARY KEY,
+		attempt_count INTEGER NOT NULL DEFAULT 0,
+		last_error TEXT NOT NULL DEFAULT '',
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL,
+		last_attempted_at TEXT NOT NULL DEFAULT ''
+	)`)
+	return errorValue
 }
 
 func ensureCalendarColumn(ctx context.Context, database *sql.DB, tableName string, columnName string, definition string) error {
@@ -195,6 +211,32 @@ ORDER BY start_at, title`)
 	return events, rows.Err()
 }
 
+func (service *Service) readCalendarEventIDsRequiringMattermostProjection(ctx context.Context) ([]string, error) {
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer database.Close()
+	rows, errorValue := database.QueryContext(ctx, `
+	SELECT id
+	FROM calendar_events
+	WHERE deleted_at = '' OR mattermost_post_id != '' OR id IN (SELECT event_id FROM calendar_channel_outbox)
+	ORDER BY updated_at DESC`)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer rows.Close()
+	var eventIDs []string
+	for rows.Next() {
+		var eventID string
+		if errorValue := rows.Scan(&eventID); errorValue != nil {
+			return nil, errorValue
+		}
+		eventIDs = append(eventIDs, strings.TrimSpace(eventID))
+	}
+	return uniqueNonEmpty(eventIDs), rows.Err()
+}
+
 func (service *Service) readRemoteCalendarEventsByProvider(ctx context.Context, source string) ([]calendarEvent, error) {
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
@@ -255,6 +297,31 @@ func (service *Service) readCalendarEventByUID(ctx context.Context, uid string) 
 	return service.readCalendarEvent(ctx, "uid", uid)
 }
 
+type calendarEventProjection struct {
+	Event     calendarEvent
+	IsDeleted bool
+}
+
+func (service *Service) readCalendarEventProjectionByID(ctx context.Context, eventID string) (calendarEventProjection, bool, error) {
+	database, errorValue := service.openCalendarDatabase(ctx)
+	if errorValue != nil {
+		return calendarEventProjection{}, false, errorValue
+	}
+	defer database.Close()
+	row := database.QueryRowContext(ctx, `
+	SELECT id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, created_by_name, updated_by_email, updated_by_name, updated_by_at, mattermost_post_id, updated_at, remote_source, remote_etag, remote_href, deleted_at
+	FROM calendar_events
+	WHERE id = ?`, strings.TrimSpace(eventID))
+	projection, errorValue := scanCalendarEventProjection(row)
+	if errorValue == nil {
+		return projection, true, nil
+	}
+	if errors.Is(errorValue, sql.ErrNoRows) {
+		return calendarEventProjection{}, false, nil
+	}
+	return calendarEventProjection{}, false, errorValue
+}
+
 func (service *Service) readCalendarEvent(ctx context.Context, columnName string, value string) (calendarEvent, bool, error) {
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
@@ -309,6 +376,41 @@ func scanCalendarEvent(scanner calendarEventScanner) (calendarEvent, error) {
 	event.IsAllDay = isAllDay == 1
 	event.ReminderLeadHours = normalizeCalendarReminderLeadHours(event.ReminderLeadHours)
 	return event, errorValue
+}
+
+func scanCalendarEventProjection(scanner calendarEventScanner) (calendarEventProjection, error) {
+	var projection calendarEventProjection
+	var isAllDay int
+	var deletedAt string
+	errorValue := scanner.Scan(
+		&projection.Event.ID,
+		&projection.Event.UID,
+		&projection.Event.Title,
+		&projection.Event.Description,
+		&projection.Event.Location,
+		&projection.Event.StartISO,
+		&projection.Event.EndISO,
+		&projection.Event.TimeZone,
+		&isAllDay,
+		&projection.Event.Color,
+		&projection.Event.RawICS,
+		&projection.Event.ReminderLeadHours,
+		&projection.Event.CreatedByEmail,
+		&projection.Event.CreatedByName,
+		&projection.Event.UpdatedByEmail,
+		&projection.Event.UpdatedByName,
+		&projection.Event.UpdatedByAt,
+		&projection.Event.MattermostPostID,
+		&projection.Event.UpdatedAt,
+		&projection.Event.RemoteSource,
+		&projection.Event.RemoteETag,
+		&projection.Event.RemoteHref,
+		&deletedAt,
+	)
+	projection.Event.IsAllDay = isAllDay == 1
+	projection.Event.ReminderLeadHours = normalizeCalendarReminderLeadHours(projection.Event.ReminderLeadHours)
+	projection.IsDeleted = strings.TrimSpace(deletedAt) != ""
+	return projection, errorValue
 }
 
 func (service *Service) updateCalendarEventMattermostPostID(ctx context.Context, eventID string, postID string) error {

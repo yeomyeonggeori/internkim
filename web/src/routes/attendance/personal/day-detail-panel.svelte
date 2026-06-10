@@ -2,6 +2,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { getAttendanceState } from '../attendance-context.svelte';
+	import { absenceLabelText, absencesForDate, hasAbsenceDetails } from '../shared/attendance-absence';
 	import { attendanceText } from '../text';
 	import DayEventRow from './day-event-row.svelte';
 
@@ -12,13 +13,22 @@
 		attendance.summary && attendance.selectedDate
 			? attendance.summary.events.filter(
 					(event) =>
-						event.email === (attendance.selectedEmail || attendance.summary?.currentUserEmail) &&
+						event.email === attendance.summary?.currentUserEmail &&
 						event.localDate === attendance.selectedDate
 				)
 			: []
 	);
 
 	const locations = $derived(attendance.summary?.locations ?? []);
+	const dayAbsences = $derived(
+		attendance.summary && attendance.selectedDate
+			? absencesForDate(
+					attendance.summary.absences,
+					attendance.selectedDate,
+					attendance.summary.currentUserEmail
+				)
+			: []
+	);
 
 	let expanded = $state<Record<string, boolean>>({});
 
@@ -49,6 +59,21 @@
 			<Card.Title class="text-sm">{attendance.selectedDate}</Card.Title>
 		</Card.Header>
 		<Card.Content class="space-y-2 text-xs">
+			{#each dayAbsences as absence (absence.id)}
+				<div class="rounded-md border border-info/30 bg-info/10 p-3">
+					<p class="font-medium text-info">{absenceLabelText(absence, text)}</p>
+					{#if hasAbsenceDetails(absence)}
+						<div class="mt-1 space-y-1 text-muted-foreground">
+							{#if absence.reason}
+								<p>{absence.reason}</p>
+							{/if}
+							{#if absence.createdBy}
+								<p>{text.absenceCreatedByTemplate.replace('{user}', absence.createdBy)}</p>
+							{/if}
+						</div>
+					{/if}
+				</div>
+			{/each}
 			{#each dayEvents as event (event.id)}
 				<DayEventRow
 					{event}
@@ -60,7 +85,7 @@
 					onSkip={skipEvent}
 				/>
 			{/each}
-			{#if dayEvents.length === 0}
+			{#if dayEvents.length === 0 && dayAbsences.length === 0}
 				<p class="text-muted-foreground">{text.eventNone}</p>
 			{/if}
 		</Card.Content>

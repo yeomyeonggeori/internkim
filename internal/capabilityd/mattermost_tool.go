@@ -1017,6 +1017,7 @@ func isDefaultMattermostToolChannel(channelName string) bool {
 func isProtectedMattermostToolPost(post mattermostToolPost) bool {
 	protectedProperties := []string{
 		"internkim_flow_entry",
+		"internkim_flow_task",
 		"internkim_attendance_entry",
 		"internkim_calendar_event",
 		"internkim_calendar_notification",

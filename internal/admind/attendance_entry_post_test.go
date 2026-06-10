@@ -164,6 +164,8 @@ func TestAttendanceEntryPostPatchRefreshesStaleActionContext(t *testing.T) {
 		t.Fatalf("actions = %+v", attachments[0].Actions)
 	}
 	attachments[0].Actions[0].Integration.Context.Token = "stale-token"
+	attachments[0].Actions[0].Integration.Context.Action = "attendanceClockInoffice"
+	attachments[0].Actions[0].Integration.Context.LocationID = ""
 	staleProps["attachments"] = attachments
 	stalePropsDocument, errorValue := json.Marshal(staleProps)
 	if errorValue != nil {
@@ -197,6 +199,10 @@ func TestAttendanceEntryPostPatchRefreshesStaleActionContext(t *testing.T) {
 			actualToken := payload.Props.Attachments[0].Actions[0].Integration.Context.Token
 			if actualToken != expectedToken || actualToken == "stale-token" {
 				t.Fatalf("patch action token = %q, expected %q", actualToken, expectedToken)
+			}
+			actualContext := payload.Props.Attachments[0].Actions[0].Integration.Context
+			if actualContext.Action != attendanceClockInAction || actualContext.LocationID != "office" {
+				t.Fatalf("patch action context = %+v", actualContext)
 			}
 			patched = true
 			return jsonResponse(http.StatusOK, `{}`, nil), nil

@@ -64,6 +64,38 @@ LIMIT 1`, mattermostUserID)
 	return event, true, nil
 }
 
+func (service *Service) latestActiveAttendanceEventForLocalDate(ctx context.Context, database *sql.DB, mattermostUserID string, localDate string) (attendanceEvent, bool, error) {
+	row := database.QueryRowContext(ctx, "SELECT "+attendanceEventSelectColumns+`
+FROM attendance_events
+WHERE mattermost_user_id = ? AND local_date = ? AND canceled_at = ''
+ORDER BY occurred_at DESC
+LIMIT 1`, mattermostUserID, localDate)
+	event, errorValue := scanAttendanceEvent(row)
+	if errors.Is(errorValue, sql.ErrNoRows) {
+		return attendanceEvent{}, false, nil
+	}
+	if errorValue != nil {
+		return attendanceEvent{}, false, errorValue
+	}
+	return event, true, nil
+}
+
+func (service *Service) latestActiveAttendanceEventForLocalDateAtOrBefore(ctx context.Context, database *sql.DB, mattermostUserID string, localDate string, now time.Time) (attendanceEvent, bool, error) {
+	row := database.QueryRowContext(ctx, "SELECT "+attendanceEventSelectColumns+`
+FROM attendance_events
+WHERE mattermost_user_id = ? AND local_date = ? AND occurred_at <= ? AND canceled_at = ''
+ORDER BY occurred_at DESC
+LIMIT 1`, mattermostUserID, localDate, now.UTC().Format(time.RFC3339Nano))
+	event, errorValue := scanAttendanceEvent(row)
+	if errors.Is(errorValue, sql.ErrNoRows) {
+		return attendanceEvent{}, false, nil
+	}
+	if errorValue != nil {
+		return attendanceEvent{}, false, errorValue
+	}
+	return event, true, nil
+}
+
 func (service *Service) latestActiveAttendanceEventForUserAndKind(ctx context.Context, database *sql.DB, mattermostUserID string, kind string) (attendanceEvent, bool, error) {
 	row := database.QueryRowContext(ctx, "SELECT "+attendanceEventSelectColumns+`
 FROM attendance_events
@@ -119,6 +151,56 @@ WHERE local_date >= ? AND local_date < ?`
 		events = append(events, event)
 	}
 	return events, rows.Err()
+}
+
+func (service *Service) repairFutureAttendanceEvents(ctx context.Context, now time.Time) error {
+	database, errorValue := service.openAttendanceDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	rows, errorValue := database.QueryContext(ctx, "SELECT "+attendanceEventSelectColumns+`
+FROM attendance_events
+WHERE occurred_at > ? AND canceled_at = ''
+ORDER BY occurred_at ASC`, now.UTC().Format(time.RFC3339Nano))
+	if errorValue != nil {
+		return errorValue
+	}
+	defer rows.Close()
+	events := []attendanceEvent{}
+	for rows.Next() {
+		event, errorValue := scanAttendanceEvent(rows)
+		if errorValue != nil {
+			return errorValue
+		}
+		events = append(events, event)
+	}
+	if errorValue := rows.Err(); errorValue != nil {
+		return errorValue
+	}
+	for _, event := range events {
+		localTime, errorValue := service.repairedFutureAttendanceLocalTime(event, now)
+		if errorValue != nil {
+			return errorValue
+		}
+		if errorValue := service.updateAttendanceEventTime(ctx, database, event, localTime); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
+}
+
+func (service *Service) repairedFutureAttendanceLocalTime(event attendanceEvent, now time.Time) (time.Time, error) {
+	occurredAt, errorValue := parseAttendanceEventTime(event.OccurredAt)
+	if errorValue != nil {
+		return time.Time{}, errorValue
+	}
+	location, _ := service.workspaceTimeLocation()
+	localTime := occurredAt.In(location)
+	for localTime.UTC().After(now) {
+		localTime = localTime.AddDate(0, 0, -1)
+	}
+	return localTime, nil
 }
 
 func (service *Service) updateAttendanceEventTime(ctx context.Context, database *sql.DB, event attendanceEvent, localTime time.Time) error {

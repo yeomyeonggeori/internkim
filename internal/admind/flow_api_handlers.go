@@ -1,7 +1,9 @@
 package admind
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -18,6 +20,12 @@ func (service *Service) handleFlow(responseWriter http.ResponseWriter, request *
 			return
 		}
 		service.writeFlowSummary(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/state":
+		if !service.authorizeFlowRequest(request, flowActionRead, flowResourceSummary) {
+			http.Error(responseWriter, "flow access required", http.StatusForbidden)
+			return
+		}
+		service.writeFlowState(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/status":
 		service.writeFlowStatus(responseWriter)
 	case request.Method == http.MethodPut && path == "/definitions":
@@ -67,43 +75,74 @@ func (service *Service) writeFlowSummary(responseWriter http.ResponseWriter, req
 		weekCode = weekCodeForDate(now)
 	}
 	weekStart := weekStartForCode(weekCode, now)
+	currentWeekCode := weekCodeForDate(now)
+	currentWeekStart := weekStartForCode(currentWeekCode, now)
 	members := service.flowMembers(request)
 	definitions, errorValue := service.readFlowDefinitions(request.Context())
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	tasks, errorValue := service.readFlowTasks(request.Context(), weekCode, members)
+	weeklyTasks, errorValue := service.readFlowTasks(request.Context(), weekCode, members)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	report, errorValue := service.buildFlowReport(request.Context(), weekStart, members, tasks, definitions)
+	report, errorValue := service.buildFlowReport(request.Context(), weekStart, members, weeklyTasks, definitions)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	scoreStart, scoreEnd := flowScoreDateRange(weekStart)
+	metrics := buildFlowMetrics(weeklyTasks, definitions)
+	metrics.MemberScores = map[string]int{}
+	metrics.MemberScoreDetails = map[string]flowMemberScoreItem{}
+	metrics.TotalScore = 0
+	response := flowSummaryResponse{
+		Week:        buildFlowWeek(weekCode, weekStart, now),
+		CurrentWeek: buildFlowWeek(currentWeekCode, currentWeekStart, now),
+		WeeklyTasks: weeklyTasks,
+		Metrics:     metrics,
+		Report:      report,
+		Source:      "sqlite",
+	}
+	service.writeJSON(responseWriter, response)
+}
+
+func (service *Service) writeFlowState(responseWriter http.ResponseWriter, request *http.Request) {
+	now := time.Now()
+	currentWeekCode := weekCodeForDate(now)
+	currentWeekStart := weekStartForCode(currentWeekCode, now)
+	members := service.flowMembers(request)
+	definitions, errorValue := service.readFlowDefinitions(request.Context())
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	allTasks, errorValue := service.readAllFlowTasks(request.Context(), members)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	scoreStart, scoreEnd := flowScoreDateRange(currentWeekStart)
 	scoreTasks, errorValue := service.readFlowTasksBetweenDates(request.Context(), scoreStart.Format("2006-01-02"), scoreEnd.Format("2006-01-02"), members)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
 	callerEmail := service.flowActorEmail(request)
-	memberScoreDetails := buildFlowMemberScoreDetails(scoreTasks, members, definitions, weekStart)
+	memberScoreDetails := buildFlowMemberScoreDetails(scoreTasks, members, definitions, currentWeekStart)
 	memberScores := currentFlowMemberScores(memberScoreDetails)
-	distanceMembers := applyFlowMemberScores(calculateFlowMemberDistances(members, tasks, definitions), memberScores)
-	metrics := buildFlowMetrics(tasks, definitions)
+	distanceMembers := applyFlowMemberScores(calculateFlowMemberDistances(members, allTasks, definitions), memberScores)
+	metrics := buildFlowMetrics(nil, definitions)
 	metrics.MemberScores = memberScores
 	metrics.MemberScoreDetails = memberScoreDetails
 	metrics.TotalScore = totalFlowScore(memberScores)
-	response := flowSummaryResponse{
-		Week:             buildFlowWeek(weekCode, weekStart, now),
+	response := flowStateResponse{
+		CurrentWeek:      buildFlowWeek(currentWeekCode, currentWeekStart, now),
 		Members:          distanceMembers,
-		Tasks:            tasks,
+		Tasks:            allTasks,
 		Metrics:          metrics,
 		Definitions:      definitions,
-		Report:           report,
 		StatusOptions:    flowStatusOptions(),
 		CurrentUserEmail: callerEmail,
 		CurrentUserName:  resolveCurrentUserName(distanceMembers, callerEmail),
@@ -125,12 +164,30 @@ func (service *Service) createFlowTask(responseWriter http.ResponseWriter, reque
 		writeFlowRequestError(responseWriter, errorValue)
 		return
 	}
+	task.Business = firstNonEmpty(task.Business, defaultFlowTaskBusiness(definitions))
 	if errorValue := service.writeFlowTask(request.Context(), task); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	task = service.syncFlowMattermostNotification(request.Context(), task)
+	task = service.applyFlowMattermostProjection(request.Context(), task)
 	service.writeJSON(responseWriter, task)
+}
+
+func defaultFlowTaskBusiness(definitions flowDefinitions) string {
+	if len(definitions.Categories) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(definitions.Categories[0])
+}
+
+func flowTaskPayloadHasBusiness(document []byte) bool {
+	var payload map[string]json.RawMessage
+	if json.Unmarshal(document, &payload) != nil {
+		return false
+	}
+	_, hasCategory := payload["category"]
+	_, hasBusiness := payload["business"]
+	return hasCategory || hasBusiness
 }
 
 func (service *Service) updateFlowTask(responseWriter http.ResponseWriter, request *http.Request, taskID string) {
@@ -140,17 +197,31 @@ func (service *Service) updateFlowTask(responseWriter http.ResponseWriter, reque
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
+	document, errorValue := io.ReadAll(request.Body)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	request.Body = io.NopCloser(bytes.NewReader(document))
 	task, errorValue := service.flowTaskFromRequest(request, members, definitions, taskID)
 	if errorValue != nil {
 		writeFlowRequestError(responseWriter, errorValue)
 		return
 	}
-	task.MattermostPostID = service.existingFlowMattermostPostID(request.Context(), task.ID)
+	existingTask, found, errorValue := service.readFlowTaskByID(request.Context(), task.ID)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	if found && !flowTaskPayloadHasBusiness(document) {
+		task.Business = existingTask.Business
+	}
+	task.MattermostPostID = existingTask.MattermostPostID
 	if errorValue := service.writeFlowTask(request.Context(), task); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	task = service.syncFlowMattermostNotification(request.Context(), task)
+	task = service.applyFlowMattermostProjection(request.Context(), task)
 	service.writeJSON(responseWriter, task)
 }
 

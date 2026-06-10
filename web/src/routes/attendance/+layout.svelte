@@ -15,7 +15,6 @@
 
 	$effect(() => {
 		attendance.selectedMonth;
-		attendance.selectedEmail;
 		attendance.chartMode;
 		attendance.persistFilters();
 	});

@@ -73,6 +73,7 @@ type mattermostPostRecord struct {
 	RootID    string         `json:"root_id"`
 	Message   string         `json:"message"`
 	Type      string         `json:"type"`
+	CreateAt  int64          `json:"create_at"`
 	DeleteAt  int64          `json:"delete_at"`
 	IsPinned  bool           `json:"is_pinned"`
 	Props     map[string]any `json:"props"`

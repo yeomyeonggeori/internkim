@@ -26,6 +26,7 @@
 		{ id: 'deploy-admind', label: 'Deploy admind', icon: CloudUploadIcon, variant: 'default' },
 		{ id: 'deploy-runtime', label: 'Deploy runtime', icon: CloudUploadIcon, variant: 'secondary' },
 		{ id: 'deploy-web', label: 'Deploy web', icon: CloudUploadIcon, variant: 'secondary' },
+		{ id: 'apply-release', label: 'Apply release', icon: CloudUploadIcon, variant: 'default' },
 		{ id: 'pilot-standard', label: 'Pilot standard', icon: ActivityIcon, variant: 'default' },
 		{ id: 'restart-cloudflared-node-ssh', label: 'Restart tunnel', icon: RotateCwIcon, variant: 'outline' },
 		{ id: 'restart-ssh', label: 'Restart SSH', icon: RotateCwIcon, variant: 'outline' },
@@ -57,6 +58,8 @@
 	const selectedJobEvents = () => selectedJob()?.events ?? [];
 	const selectedTarget = () => targets.find((target) => target.id === selectedTargetID) ?? targets[0];
 	const targetStatus = (targetID: string) => statuses[targetID];
+	const displayStatus = (targetID: string) => targetStatus(targetID) ?? pendingTargetStatus(targetID);
+	const releaseActionDisabled = (status: TargetStatus | undefined) => !status?.release.updateAllowed || status.release.state === 'current' || status.release.state === 'updating';
 
 	onMount(() => {
 		void loadTargets();
@@ -254,6 +257,20 @@
 		return status?.state ?? 'unknown';
 	}
 
+	function pendingTargetStatus(targetID: string): TargetStatus {
+		const state = isLoading ? 'checking' : 'unknown';
+		return {
+			targetID,
+			checkedAt: '',
+			admin: { state },
+			mattermost: { state },
+			release: { state },
+			recovery: { state },
+			llm: { state },
+			versions: {}
+		};
+	}
+
 	function formatDate(value?: string) {
 		if (!value) return '';
 		return new Intl.DateTimeFormat('ko-KR', {
@@ -264,6 +281,7 @@
 			day: '2-digit'
 		}).format(new Date(value));
 	}
+
 </script>
 
 <svelte:head>
@@ -345,7 +363,8 @@
 
 			<div class="grid gap-3 2xl:grid-cols-2">
 				{#each targets as target}
-					{@const status = targetStatus(target.id)}
+					{@const status = displayStatus(target.id)}
+					{@const isStatusPending = targetStatus(target.id) === undefined && isLoading}
 					<Card.Root class="overflow-hidden border-border/70 bg-card shadow-sm ring-1 ring-white/5">
 						<Card.Header class="border-b bg-muted/20 px-4 py-3">
 							<div class="flex items-start justify-between gap-3">
@@ -372,11 +391,11 @@
 								<div class="truncate">secret: {target.secretSource ? 'local reference' : 'state'}</div>
 							</div>
 							<div class="grid gap-2 rounded-md border border-border/70 bg-muted/10 p-3 text-xs [grid-template-columns:repeat(auto-fit,minmax(118px,1fr))]">
-								{@render VersionCell('Admind', status?.versions.admind, '', status === undefined && isLoading)}
-								{@render VersionCell('Runtime', status?.versions.runtime, runtimeVersionDetail(status?.versions.current), status === undefined && isLoading)}
-								{@render VersionCell('Web', status?.versions.web, '', status === undefined && isLoading)}
-								{@render ReleaseCell('Current', status?.versions.current?.releaseID, status === undefined && isLoading)}
-								{@render ReleaseCell('Latest', status?.versions.latest?.releaseID, status === undefined && isLoading)}
+								{@render VersionCell('Admind', status.versions.admind, '', isStatusPending)}
+								{@render VersionCell('Runtime', status.versions.runtime, runtimeVersionDetail(status.versions.current), isStatusPending)}
+								{@render VersionCell('Web', status.versions.web, '', isStatusPending)}
+								{@render ReleaseCell('Current', status.versions.current?.releaseID, isStatusPending)}
+								{@render ReleaseCell('Latest', status.versions.latest?.releaseID, isStatusPending)}
 							</div>
 							{@render ModelEditor(target, status)}
 							<div class="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(148px,1fr))]">
@@ -386,10 +405,11 @@
 										variant={action.variant}
 										size="sm"
 										class="min-h-9 min-w-0 justify-start whitespace-normal px-2 text-left leading-tight"
+										disabled={action.id === 'apply-release' && releaseActionDisabled(status)}
 										onclick={() => runTargetAction(target.id, action.id)}
 									>
-										<ActionIcon />
-										{action.label}
+										<ActionIcon class="shrink-0" />
+										<span class="min-w-0 truncate">{action.label}</span>
 									</Button>
 								{/each}
 							</div>
@@ -482,7 +502,7 @@
 						</div>
 						<div class="flex items-center justify-between gap-2">
 							<span class="text-muted-foreground">Last check</span>
-							<span>{formatDate(targetStatus(target.id)?.checkedAt)}</span>
+							<span>{formatDate(displayStatus(target.id).checkedAt)}</span>
 						</div>
 					{/if}
 				</Card.Content>

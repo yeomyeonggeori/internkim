@@ -1288,8 +1288,9 @@ func TestMattermostReplyFallsBackWhenThreadRootIsInvalid(t *testing.T) {
 	}
 }
 
-func TestMattermostReplyRendersAskChoiceAttachment(t *testing.T) {
+func TestMattermostReplyRendersAskChoiceEphemeralControl(t *testing.T) {
 	postRequests := make(chan map[string]any, 1)
+	ephemeralRequests := make(chan map[string]any, 1)
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch request.URL.Path {
 		case "/api/v4/posts":
@@ -1299,6 +1300,13 @@ func TestMattermostReplyRendersAskChoiceAttachment(t *testing.T) {
 			}
 			postRequests <- payload
 			return testJSONResponse(http.StatusOK, map[string]string{"id": "post-1"}), nil
+		case "/api/v4/posts/ephemeral":
+			var payload map[string]any
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatalf("expected ephemeral request to decode: %v", errorValue)
+			}
+			ephemeralRequests <- payload
+			return testJSONResponse(http.StatusOK, map[string]string{"id": "ephemeral-1"}), nil
 		default:
 			t.Fatalf("unexpected Mattermost request: %s", request.URL.Path)
 			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
@@ -1331,6 +1339,7 @@ func TestMattermostReplyRendersAskChoiceAttachment(t *testing.T) {
 			"question":             "구현은 어떻게 하는 게 좋을까요?",
 			"recommendedOptionKey": "A",
 			"selectionMode":        "single",
+			"targetPlatformUserID": "user-1",
 			"options": []map[string]string{
 				{"key": "A", "label": "최대한 가독성 있게"},
 				{"key": "B", "label": "최대한 빠르게"},
@@ -1347,16 +1356,33 @@ func TestMattermostReplyRendersAskChoiceAttachment(t *testing.T) {
 
 	select {
 	case payload := <-postRequests:
-		if strings.Contains(payload["message"].(string), "1. 최대한 가독성 있게") {
-			t.Fatalf("expected choice list to stay in interactive attachment, got %+v", payload)
+		if payload["message"] != "구현은 어떻게 하는 게 좋을까요?" || payload["root_id"] != "root-1" {
+			t.Fatalf("expected question post in thread, got %+v", payload)
 		}
 		props, isMap := payload["props"].(map[string]any)
 		if !isMap {
 			t.Fatalf("expected props, got %+v", payload)
 		}
-		attachments, isArray := props["attachments"].([]any)
-		if !isArray || len(attachments) != 1 {
-			t.Fatalf("expected interactive attachment, got %+v", props)
+		if _, hasAttachments := props["attachments"]; hasAttachments {
+			t.Fatalf("expected question post without interactive attachment, got %+v", props)
+		}
+	default:
+		t.Fatal("expected question post request")
+	}
+
+	select {
+	case payload := <-ephemeralRequests:
+		if payload["user_id"] != "user-1" {
+			t.Fatalf("expected requester-only ephemeral control, got %+v", payload)
+		}
+		post := payload["post"].(map[string]any)
+		if post["channel_id"] != "channel-1" || post["root_id"] != "root-1" {
+			t.Fatalf("expected ephemeral control in original thread, got %+v", post)
+		}
+		props := post["props"].(map[string]any)
+		attachments := props["attachments"].([]any)
+		if len(attachments) != 1 {
+			t.Fatalf("expected one interactive attachment, got %+v", props)
 		}
 		attachment := attachments[0].(map[string]any)
 		if !strings.Contains(attachment["text"].(string), "1. 최대한 가독성 있게 (추천)") {
@@ -1369,11 +1395,11 @@ func TestMattermostReplyRendersAskChoiceAttachment(t *testing.T) {
 			t.Fatalf("expected admind action URL, got %+v", integration)
 		}
 		contextDocument := integration["context"].(map[string]any)
-		if contextDocument["token"] == "" || contextDocument["action"] != "ask.choice" || contextDocument["conversationID"] != "thread:channel-1:root-1" {
+		if contextDocument["token"] == "" || contextDocument["action"] != "ask.choice" || contextDocument["conversationID"] != "thread:channel-1:root-1" || contextDocument["targetUserID"] != "user-1" {
 			t.Fatalf("expected ask action token context, got %+v", contextDocument)
 		}
 	default:
-		t.Fatal("expected post request")
+		t.Fatal("expected ephemeral control request")
 	}
 }
 

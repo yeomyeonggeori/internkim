@@ -31,11 +31,15 @@ func (service *Service) writeCalendarEventWithSourceLocked(ctx context.Context, 
 		return errorValue
 	}
 	defer database.Close()
+	transaction, errorValue := database.BeginTx(ctx, nil)
+	if errorValue != nil {
+		return errorValue
+	}
 	updatedAt := time.Now().UTC().Format(time.RFC3339Nano)
-	_, errorValue = database.ExecContext(ctx, `
-INSERT INTO calendar_events (
-	id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, created_by_name, updated_by_email, updated_by_name, updated_by_at, mattermost_post_id, updated_at, deleted_at, remote_source, remote_etag, remote_href
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?)
+	_, errorValue = transaction.ExecContext(ctx, `
+	INSERT INTO calendar_events (
+		id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, created_by_name, updated_by_email, updated_by_name, updated_by_at, mattermost_post_id, updated_at, deleted_at, remote_source, remote_etag, remote_href
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
 	uid = excluded.uid,
 	title = excluded.title,
@@ -81,17 +85,26 @@ ON CONFLICT(id) DO UPDATE SET
 		event.RemoteHref,
 	)
 	event.UpdatedAt = updatedAt
-	if errorValue == nil {
-		service.upsertCalendarNotifications(ctx, event)
-		service.syncCalendarMattermostLog(ctx, event)
-		if source == calendarSourceLocal {
-			changedFields := diffCalendarEventFields(previousEvent, event)
-			if outboxErr := service.enqueueCalendarOutboxForWrite(ctx, event, changedFields); outboxErr != nil {
-				log.Printf("calendar outbox enqueue (write) failed: %v", outboxErr)
-			}
+	if errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	if errorValue := enqueueCalendarChannelProjection(ctx, transaction, event.ID); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	if errorValue := transaction.Commit(); errorValue != nil {
+		return errorValue
+	}
+	service.upsertCalendarNotifications(ctx, event)
+	event = service.applyCalendarMattermostProjection(ctx, event)
+	if source == calendarSourceLocal {
+		changedFields := diffCalendarEventFields(previousEvent, event)
+		if outboxErr := service.enqueueCalendarOutboxForWrite(ctx, event, changedFields); outboxErr != nil {
+			log.Printf("calendar outbox enqueue (write) failed: %v", outboxErr)
 		}
 	}
-	return errorValue
+	return nil
 }
 
 func (service *Service) softDeleteCalendarEvent(ctx context.Context, eventID string) error {
@@ -117,21 +130,35 @@ func (service *Service) softDeleteCalendarEventWithSourceLocked(ctx context.Cont
 		return errorValue
 	}
 	defer database.Close()
-	result, errorValue := database.ExecContext(ctx, "UPDATE calendar_events SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at = ''", time.Now().UTC().Format(time.RFC3339Nano), time.Now().UTC().Format(time.RFC3339Nano), strings.TrimSpace(eventID))
+	transaction, errorValue := database.BeginTx(ctx, nil)
 	if errorValue != nil {
+		return errorValue
+	}
+	result, errorValue := transaction.ExecContext(ctx, "UPDATE calendar_events SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at = ''", time.Now().UTC().Format(time.RFC3339Nano), time.Now().UTC().Format(time.RFC3339Nano), strings.TrimSpace(eventID))
+	if errorValue != nil {
+		_ = transaction.Rollback()
 		return errorValue
 	}
 	affectedRows, errorValue := result.RowsAffected()
 	if errorValue != nil {
+		_ = transaction.Rollback()
 		return errorValue
 	}
 	if affectedRows == 0 {
+		_ = transaction.Rollback()
 		return sql.ErrNoRows
+	}
+	if errorValue := enqueueCalendarChannelProjection(ctx, transaction, eventID); errorValue != nil {
+		_ = transaction.Rollback()
+		return errorValue
+	}
+	if errorValue := transaction.Commit(); errorValue != nil {
+		return errorValue
 	}
 	if errorValue := service.cancelCalendarNotifications(ctx, eventID); errorValue != nil {
 		log.Printf("calendar notification cancel failed: %v", errorValue)
 	}
-	service.deleteCalendarMattermostLog(ctx, event)
+	service.applyCalendarMattermostProjectionByID(ctx, event.ID)
 	if source == calendarSourceLocal {
 		if outboxErr := service.enqueueCalendarOutboxForDelete(ctx, event); outboxErr != nil {
 			log.Printf("calendar outbox enqueue (delete) failed: %v", outboxErr)

@@ -15,6 +15,9 @@ export type EndpointStatus = {
 	message?: string;
 	startedAt?: string;
 	release?: string;
+	currentRelease?: string;
+	latestRelease?: string;
+	updateAllowed?: boolean;
 };
 
 export type VersionStatus = {

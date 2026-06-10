@@ -24,6 +24,22 @@ func TestDeployCommandUsesProfileAndNode(t *testing.T) {
 	}
 }
 
+func TestUpdateApplyCommandUsesProfileAndNode(t *testing.T) {
+	target := Target{
+		Profile:      "pilot",
+		NodeArgument: "2",
+	}
+
+	plan := updateApplyCommand("/repo", "/tmp/internkim", target)
+	arguments := strings.Join(plan.Arguments, " ")
+	if arguments != "update apply --node 2" {
+		t.Fatalf("unexpected arguments: %s", arguments)
+	}
+	if !containsValue(plan.Environment, "INTERNKIM_PROFILE=pilot") {
+		t.Fatalf("expected profile environment in %#v", plan.Environment)
+	}
+}
+
 func TestRedactRemovesSecrets(t *testing.T) {
 	value := Redact("fleet_secret=abcdefghijklmnopqrstuvwxyz012345 url=https://pilot-01.intern.kim")
 	if strings.Contains(value, "abcdefghijklmnopqrstuvwxyz012345") {
