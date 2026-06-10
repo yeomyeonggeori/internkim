@@ -1,12 +1,20 @@
 package admind
 
 type flowSummaryResponse struct {
-	Week             flowWeek        `json:"week"`
+	Week        flowWeek    `json:"week"`
+	CurrentWeek flowWeek    `json:"currentWeek"`
+	WeeklyTasks []flowTask  `json:"weeklyTasks"`
+	Metrics     flowMetrics `json:"metrics"`
+	Report      flowReport  `json:"report"`
+	Source      string      `json:"source"`
+}
+
+type flowStateResponse struct {
+	CurrentWeek      flowWeek        `json:"currentWeek"`
 	Members          []flowMember    `json:"members"`
 	Tasks            []flowTask      `json:"tasks"`
 	Metrics          flowMetrics     `json:"metrics"`
 	Definitions      flowDefinitions `json:"definitions"`
-	Report           flowReport      `json:"report"`
 	StatusOptions    []string        `json:"statusOptions"`
 	CurrentUserEmail string          `json:"currentUserEmail"`
 	CurrentUserName  string          `json:"currentUserName"`

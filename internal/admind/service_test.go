@@ -1883,6 +1883,7 @@ func TestFlowAPIRejectsUnauthenticatedRemoteCaller(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
 	for _, request := range []*http.Request{
 		httptest.NewRequest(http.MethodGet, "/flow/api/summary", nil),
+		httptest.NewRequest(http.MethodGet, "/flow/api/state", nil),
 		httptest.NewRequest(http.MethodPost, "/flow/api/tasks", strings.NewReader(`{}`)),
 		httptest.NewRequest(http.MethodPut, "/flow/api/definitions", strings.NewReader(`{}`)),
 	} {
@@ -1899,20 +1900,20 @@ func TestFlowAPIAllowsStaffSummaryAndOwnTask(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
 	handler := service.router()
 
-	summaryRequest := httptest.NewRequest(http.MethodGet, "/flow/api/summary", nil)
-	summaryRequest.RemoteAddr = "198.51.100.10:443"
-	summaryRequest.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
-	summaryResponse := httptest.NewRecorder()
-	handler.ServeHTTP(summaryResponse, summaryRequest)
-	if summaryResponse.Code != http.StatusOK {
-		t.Fatalf("summary status = %d body = %s", summaryResponse.Code, summaryResponse.Body.String())
+	stateRequest := httptest.NewRequest(http.MethodGet, "/flow/api/state", nil)
+	stateRequest.RemoteAddr = "198.51.100.10:443"
+	stateRequest.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	stateResponse := httptest.NewRecorder()
+	handler.ServeHTTP(stateResponse, stateRequest)
+	if stateResponse.Code != http.StatusOK {
+		t.Fatalf("state status = %d body = %s", stateResponse.Code, stateResponse.Body.String())
 	}
-	var summary flowSummaryResponse
-	if errorValue := json.NewDecoder(summaryResponse.Body).Decode(&summary); errorValue != nil {
+	var state flowStateResponse
+	if errorValue := json.NewDecoder(stateResponse.Body).Decode(&state); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if summary.CurrentUserEmail != "staff@example.com" || summary.IsAdmin {
-		t.Fatalf("summary current user email=%q isAdmin=%v", summary.CurrentUserEmail, summary.IsAdmin)
+	if state.CurrentUserEmail != "staff@example.com" || state.IsAdmin {
+		t.Fatalf("state current user email=%q isAdmin=%v", state.CurrentUserEmail, state.IsAdmin)
 	}
 
 	taskRequest := newFlowTaskRequest("staff@example.com", "staff@example.com")
@@ -1932,7 +1933,7 @@ func TestFlowAPIAllowsStaffSummaryAndOwnTask(t *testing.T) {
 
 func TestFlowAPIAllowsMattermostSessionStaffSummary(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
-	request := httptest.NewRequest(http.MethodGet, "/flow/api/summary", nil)
+	request := httptest.NewRequest(http.MethodGet, "/flow/api/state", nil)
 	request.RemoteAddr = "198.51.100.10:443"
 	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
 	response := httptest.NewRecorder()
@@ -1940,21 +1941,21 @@ func TestFlowAPIAllowsMattermostSessionStaffSummary(t *testing.T) {
 	service.router().ServeHTTP(response, request)
 
 	if response.Code != http.StatusOK {
-		t.Fatalf("summary status = %d body = %s", response.Code, response.Body.String())
+		t.Fatalf("state status = %d body = %s", response.Code, response.Body.String())
 	}
-	var summary flowSummaryResponse
-	if errorValue := json.NewDecoder(response.Body).Decode(&summary); errorValue != nil {
+	var state flowStateResponse
+	if errorValue := json.NewDecoder(response.Body).Decode(&state); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if summary.CurrentUserEmail != "staff@example.com" || summary.IsAdmin {
-		t.Fatalf("summary current user email=%q isAdmin=%v", summary.CurrentUserEmail, summary.IsAdmin)
+	if state.CurrentUserEmail != "staff@example.com" || state.IsAdmin {
+		t.Fatalf("state current user email=%q isAdmin=%v", state.CurrentUserEmail, state.IsAdmin)
 	}
 }
 
 func TestFlowAPIAllowsSignedWebSessionStaffSummary(t *testing.T) {
 	service := newFlowAuthorizationTestService(t)
 	cookieValue := webSessionCookieForTest(t, service, "staff@example.com")
-	request := httptest.NewRequest(http.MethodGet, "/flow/api/summary", nil)
+	request := httptest.NewRequest(http.MethodGet, "/flow/api/state", nil)
 	request.RemoteAddr = "198.51.100.10:443"
 	request.AddCookie(&http.Cookie{Name: webSessionCookieName, Value: cookieValue})
 	response := httptest.NewRecorder()
@@ -1962,14 +1963,14 @@ func TestFlowAPIAllowsSignedWebSessionStaffSummary(t *testing.T) {
 	service.router().ServeHTTP(response, request)
 
 	if response.Code != http.StatusOK {
-		t.Fatalf("summary status = %d body = %s", response.Code, response.Body.String())
+		t.Fatalf("state status = %d body = %s", response.Code, response.Body.String())
 	}
-	var summary flowSummaryResponse
-	if errorValue := json.NewDecoder(response.Body).Decode(&summary); errorValue != nil {
+	var state flowStateResponse
+	if errorValue := json.NewDecoder(response.Body).Decode(&state); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if summary.CurrentUserEmail != "staff@example.com" || summary.IsAdmin {
-		t.Fatalf("summary current user email=%q isAdmin=%v", summary.CurrentUserEmail, summary.IsAdmin)
+	if state.CurrentUserEmail != "staff@example.com" || state.IsAdmin {
+		t.Fatalf("state current user email=%q isAdmin=%v", state.CurrentUserEmail, state.IsAdmin)
 	}
 }
 
@@ -1981,6 +1982,7 @@ func TestFlowSummaryIncludesDistanceReport(t *testing.T) {
 		flowReportTestTask("current", "26W18", []string{staffID, otherID}, []string{"Staff", "Other"}, "M", "완료", "2026-04-27", "2026-04-29"),
 		flowReportTestTask("previous-week", "26W17", []string{otherID}, []string{"Other"}, "S", "완료", "2026-04-20", "2026-04-21"),
 		flowReportTestTask("previous-month", "26W10", []string{staffID}, []string{"Staff"}, "XS", "완료", "2026-03-03", "2026-03-03"),
+		flowReportTestTask("future-week", "26W19", []string{staffID}, []string{"Staff"}, "XS", "예정", "2026-05-04", ""),
 	}
 	for _, task := range tasks {
 		if errorValue := service.writeFlowTask(context.Background(), task); errorValue != nil {
@@ -1998,8 +2000,9 @@ func TestFlowSummaryIncludesDistanceReport(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("summary status = %d body = %s", response.Code, response.Body.String())
 	}
+	body := response.Body.Bytes()
 	var summary flowSummaryResponse
-	if errorValue := json.NewDecoder(response.Body).Decode(&summary); errorValue != nil {
+	if errorValue := json.NewDecoder(bytes.NewReader(body)).Decode(&summary); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if summary.Report.WeeklyDistanceTrend.CurrentTotal != 3 || summary.Report.WeeklyDistanceTrend.PreviousTotal != 2 {
@@ -2014,17 +2017,134 @@ func TestFlowSummaryIncludesDistanceReport(t *testing.T) {
 	if len(summary.Report.MonthlyDistanceTrend.CurrentValues) != 30 || summary.Report.MonthlyDistanceTrend.CurrentValues[28] != 5 {
 		t.Fatalf("monthly values = %+v", summary.Report.MonthlyDistanceTrend.CurrentValues)
 	}
-	if summary.Metrics.MemberScores[staffID] != 114 || summary.Metrics.MemberScores[otherID] != 114 {
-		t.Fatalf("member scores = %+v", summary.Metrics.MemberScores)
+	if len(summary.WeeklyTasks) != 1 || summary.WeeklyTasks[0].ID != "current" {
+		t.Fatalf("weekly tasks = %+v", summary.WeeklyTasks)
 	}
-	if summary.Metrics.MemberScoreDetails[staffID].WeeklyScore != 115 || summary.Metrics.MemberScoreDetails[staffID].MonthlyScore != 113 || summary.Metrics.MemberScoreDetails[staffID].CurrentScore != 114 {
-		t.Fatalf("staff score detail = %+v", summary.Metrics.MemberScoreDetails[staffID])
+	if summary.CurrentWeek.Code == "" {
+		t.Fatalf("current week = %+v selected week = %+v", summary.CurrentWeek, summary.Week)
 	}
-	if summary.Metrics.MemberScoreDetails[otherID].WeeklyScore != 112 || summary.Metrics.MemberScoreDetails[otherID].MonthlyScore != 115 || summary.Metrics.MemberScoreDetails[otherID].CurrentScore != 114 {
-		t.Fatalf("other score detail = %+v", summary.Metrics.MemberScoreDetails[otherID])
+	if len(summary.Metrics.MemberScores) != 0 || len(summary.Metrics.MemberScoreDetails) != 0 || summary.Metrics.TotalScore != 0 {
+		t.Fatalf("summary score metrics = %+v", summary.Metrics)
 	}
-	if summary.Metrics.TotalScore != 228 {
-		t.Fatalf("total score = %d, want 228", summary.Metrics.TotalScore)
+	assertJSONFieldsAbsent(t, body, "members", "tasks", "definitions", "statusOptions", "currentUserEmail", "currentUserName", "isAdmin")
+}
+
+func TestFlowStateIncludesCurrentGlobalData(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	staffID := stableFlowID("staff@example.com")
+	otherID := stableFlowID("other@example.com")
+	now := time.Now()
+	currentWeekCode := weekCodeForDate(now)
+	currentWeekStart := weekStartForCode(currentWeekCode, now)
+	tasks := []flowTask{
+		flowReportTestTask("current-score", currentWeekCode, []string{staffID}, []string{"Staff"}, "M", "완료", currentWeekStart.Format("2006-01-02"), currentWeekStart.Format("2006-01-02")),
+		flowReportTestTask("older", weekCodeForDate(currentWeekStart.AddDate(0, 0, -7*2)), []string{otherID}, []string{"Other"}, "XS", "진행", currentWeekStart.AddDate(0, 0, -14).Format("2006-01-02"), ""),
+	}
+	for _, task := range tasks {
+		if errorValue := service.writeFlowTask(context.Background(), task); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/flow/api/state", nil)
+	request.RemoteAddr = "198.51.100.10:443"
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("state status = %d body = %s", response.Code, response.Body.String())
+	}
+	body := response.Body.Bytes()
+	var state flowStateResponse
+	if errorValue := json.NewDecoder(bytes.NewReader(body)).Decode(&state); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if state.CurrentWeek.Code != currentWeekCode {
+		t.Fatalf("current week = %+v, want %s", state.CurrentWeek, currentWeekCode)
+	}
+	if len(state.Tasks) != 2 {
+		t.Fatalf("state tasks = %+v", state.Tasks)
+	}
+	if len(state.Members) != 3 {
+		t.Fatalf("state members = %+v", state.Members)
+	}
+	if state.Metrics.MemberScores[staffID] == 0 || state.Metrics.MemberScoreDetails[staffID].CurrentScore == 0 {
+		t.Fatalf("state member scores = %+v details = %+v", state.Metrics.MemberScores, state.Metrics.MemberScoreDetails)
+	}
+	assertJSONFieldsAbsent(t, body, "week", "weeklyTasks", "report")
+}
+
+func assertJSONFieldsAbsent(t *testing.T, document []byte, fields ...string) {
+	t.Helper()
+	values := map[string]json.RawMessage{}
+	if errorValue := json.Unmarshal(document, &values); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, field := range fields {
+		if _, found := values[field]; found {
+			t.Fatalf("unexpected JSON field %q in %s", field, string(document))
+		}
+	}
+}
+
+func TestFlowSummaryMemberScoresUseCurrentWeek(t *testing.T) {
+	service := newFlowAuthorizationTestService(t)
+	staffID := stableFlowID("staff@example.com")
+	now := time.Now()
+	currentWeekCode := weekCodeForDate(now)
+	currentWeekStart := weekStartForCode(currentWeekCode, now)
+	previousCurrentWeekStart := currentWeekStart.AddDate(0, 0, -7)
+	previousCurrentWeekCode := weekCodeForDate(previousCurrentWeekStart)
+	selectedWeekStart := currentWeekStart.AddDate(0, 0, -7*30)
+	selectedWeekCode := weekCodeForDate(selectedWeekStart)
+	tasks := []flowTask{
+		flowReportTestTask("selected-score", selectedWeekCode, []string{staffID}, []string{"Staff"}, "M", "완료", selectedWeekStart.Format("2006-01-02"), selectedWeekStart.Format("2006-01-02")),
+		flowReportTestTask("current-score", currentWeekCode, []string{staffID}, []string{"Staff"}, "M", "완료", currentWeekStart.Format("2006-01-02"), currentWeekStart.Format("2006-01-02")),
+		flowReportTestTask("previous-current-score", previousCurrentWeekCode, []string{staffID}, []string{"Staff"}, "M", "완료", previousCurrentWeekStart.Format("2006-01-02"), previousCurrentWeekStart.Format("2006-01-02")),
+	}
+	for _, task := range tasks {
+		if errorValue := service.writeFlowTask(context.Background(), task); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/flow/api/state", nil)
+	request.RemoteAddr = "198.51.100.10:443"
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("state status = %d body = %s", response.Code, response.Body.String())
+	}
+	var state flowStateResponse
+	if errorValue := json.NewDecoder(response.Body).Decode(&state); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	members := service.flowMembers(request)
+	currentScoreStart, currentScoreEnd := flowScoreDateRange(currentWeekStart)
+	currentScoreTasks, errorValue := service.readFlowTasksBetweenDates(context.Background(), currentScoreStart.Format("2006-01-02"), currentScoreEnd.Format("2006-01-02"), members)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	expectedCurrentDetails := buildFlowMemberScoreDetails(currentScoreTasks, members, state.Definitions, currentWeekStart)
+	selectedScoreStart, selectedScoreEnd := flowScoreDateRange(selectedWeekStart)
+	selectedScoreTasks, errorValue := service.readFlowTasksBetweenDates(context.Background(), selectedScoreStart.Format("2006-01-02"), selectedScoreEnd.Format("2006-01-02"), members)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	selectedWeekDetails := buildFlowMemberScoreDetails(selectedScoreTasks, members, state.Definitions, selectedWeekStart)
+	if expectedCurrentDetails[staffID].CurrentScore == selectedWeekDetails[staffID].CurrentScore {
+		t.Fatalf("test setup did not distinguish current and selected score details: current=%+v selected=%+v", expectedCurrentDetails[staffID], selectedWeekDetails[staffID])
+	}
+	if state.Metrics.MemberScoreDetails[staffID] != expectedCurrentDetails[staffID] {
+		t.Fatalf("staff score detail = %+v, want current-week detail %+v", state.Metrics.MemberScoreDetails[staffID], expectedCurrentDetails[staffID])
+	}
+	if state.Metrics.MemberScores[staffID] != expectedCurrentDetails[staffID].CurrentScore {
+		t.Fatalf("staff score = %d, want %d", state.Metrics.MemberScores[staffID], expectedCurrentDetails[staffID].CurrentScore)
 	}
 }
 
@@ -2555,20 +2675,20 @@ func TestFlowAPILocalCapabilityRequiresRequesterActor(t *testing.T) {
 		t.Fatalf("local summary status = %d body = %s", response.Code, response.Body.String())
 	}
 
-	request = httptest.NewRequest(http.MethodGet, "/flow/api/summary", nil)
+	request = httptest.NewRequest(http.MethodGet, "/flow/api/state", nil)
 	request.RemoteAddr = "127.0.0.1:12345"
 	request.Header.Set(flowRequesterEmailHeader, "staff@example.com")
 	response = httptest.NewRecorder()
 	service.router().ServeHTTP(response, request)
 	if response.Code != http.StatusOK {
-		t.Fatalf("local requester summary status = %d body = %s", response.Code, response.Body.String())
+		t.Fatalf("local requester state status = %d body = %s", response.Code, response.Body.String())
 	}
-	var summary flowSummaryResponse
-	if errorValue := json.NewDecoder(response.Body).Decode(&summary); errorValue != nil {
+	var state flowStateResponse
+	if errorValue := json.NewDecoder(response.Body).Decode(&state); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if summary.CurrentUserEmail != "staff@example.com" || summary.IsAdmin {
-		t.Fatalf("local requester summary current user email=%q isAdmin=%v", summary.CurrentUserEmail, summary.IsAdmin)
+	if state.CurrentUserEmail != "staff@example.com" || state.IsAdmin {
+		t.Fatalf("local requester state current user email=%q isAdmin=%v", state.CurrentUserEmail, state.IsAdmin)
 	}
 }
 
