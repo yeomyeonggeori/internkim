@@ -44,6 +44,12 @@ type openAIJSONSchemaPayload struct {
 	Schema json.RawMessage `json:"schema"`
 }
 
+type openAIUsage struct {
+	PromptTokens     int64 `json:"prompt_tokens"`
+	CompletionTokens int64 `json:"completion_tokens"`
+	TotalTokens      int64 `json:"total_tokens"`
+}
+
 type openAIResponse struct {
 	Choices []struct {
 		FinishReason string `json:"finish_reason"`
@@ -52,6 +58,17 @@ type openAIResponse struct {
 			ToolCalls []openAIToolCall `json:"tool_calls"`
 		} `json:"message"`
 	} `json:"choices"`
+}
+
+type openAIResponseWithUsage struct {
+	Choices []struct {
+		FinishReason string `json:"finish_reason"`
+		Message      struct {
+			Content   string           `json:"content"`
+			ToolCalls []openAIToolCall `json:"tool_calls"`
+		} `json:"message"`
+	} `json:"choices"`
+	Usage openAIUsage `json:"usage"`
 }
 
 type openAITool struct {
@@ -74,64 +91,65 @@ type openAIToolCall struct {
 	} `json:"function"`
 }
 
-func (client openAICompatClient) chatCompletions(ctx context.Context, request openAIRequest) (string, error) {
+func (client openAICompatClient) chatCompletions(ctx context.Context, request openAIRequest) (string, Usage, error) {
 	response, errorValue := client.chatCompletionResponse(ctx, request)
 	if errorValue != nil {
-		return "", errorValue
+		return "", Usage{}, errorValue
 	}
 	content := response.Choices[0].Message.Content
 	if strings.TrimSpace(content) == "" {
-		return "", errors.New("response content was empty")
+		return "", Usage{}, errors.New("response content was empty")
 	}
-	return content, nil
+	return content, normalizeUsage(response.Usage), nil
 }
 
-func (client openAICompatClient) chatCompletionAction(ctx context.Context, request openAIRequest, toolSet nativeActionToolSet) (string, error) {
+func (client openAICompatClient) chatCompletionAction(ctx context.Context, request openAIRequest, toolSet nativeActionToolSet) (string, Usage, error) {
 	response, errorValue := client.chatCompletionResponse(ctx, request)
 	if errorValue != nil {
-		return "", errorValue
+		return "", Usage{}, errorValue
 	}
 	for _, toolCall := range response.Choices[0].Message.ToolCalls {
 		if toolCall.Type == "" || toolCall.Type == "function" {
-			return nativeActionJSON(toolSet, toolCall.Function.Name, toolCall.Function.Arguments)
+			content, errorValue := nativeActionJSON(toolSet, toolCall.Function.Name, toolCall.Function.Arguments)
+			return content, normalizeUsage(response.Usage), errorValue
 		}
 	}
-	return "", errors.New("chat completion response did not include tool_calls")
+	return "", Usage{}, errors.New("chat completion response did not include tool_calls")
 }
 
-func (client openAICompatClient) chatCompletionResponse(ctx context.Context, request openAIRequest) (openAIResponse, error) {
+func (client openAICompatClient) chatCompletionResponse(ctx context.Context, request openAIRequest) (openAIResponseWithUsage, error) {
 	requestDocument, errorValue := json.Marshal(request)
 	if errorValue != nil {
-		return openAIResponse{}, errorValue
+		return openAIResponseWithUsage{}, errorValue
 	}
 
 	endpoint := strings.TrimRight(client.BaseURL, "/") + "/v1/chat/completions"
 	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(requestDocument))
 	if errorValue != nil {
-		return openAIResponse{}, errorValue
+		return openAIResponseWithUsage{}, errorValue
 	}
 	httpRequest.Header.Set("Content-Type", "application/json")
 
 	httpResponse, errorValue := client.client().Do(httpRequest)
 	if errorValue != nil {
-		return openAIResponse{}, errorValue
+		return openAIResponseWithUsage{}, errorValue
 	}
 	defer httpResponse.Body.Close()
 
 	responseDocument, errorValue := io.ReadAll(httpResponse.Body)
 	if errorValue != nil {
-		return openAIResponse{}, errors.New("read response: " + errorValue.Error())
+		return openAIResponseWithUsage{}, errors.New("read response: " + errorValue.Error())
 	}
 	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return openAIResponse{}, errors.New(string(responseDocument))
+		return openAIResponseWithUsage{}, errors.New(string(responseDocument))
 	}
 
-	var response openAIResponse
+	var response openAIResponseWithUsage
 	if errorValue := json.Unmarshal(responseDocument, &response); errorValue != nil {
-		return openAIResponse{}, errorValue
+		return openAIResponseWithUsage{}, errorValue
 	}
 	if len(response.Choices) == 0 {
-		return openAIResponse{}, errors.New("response did not include choices")
+		return openAIResponseWithUsage{}, errors.New("response did not include choices")
 	}
 	return response, nil
 }
@@ -241,6 +259,18 @@ func openAIMessageContent(message Message) any {
 		return message.Content
 	}
 	return parts
+}
+
+func normalizeUsage(raw openAIUsage) Usage {
+	totalTokens := raw.TotalTokens
+	if totalTokens == 0 {
+		totalTokens = raw.PromptTokens + raw.CompletionTokens
+	}
+	return Usage{
+		PromptTokens:     raw.PromptTokens,
+		CompletionTokens: raw.CompletionTokens,
+		TotalTokens:      totalTokens,
+	}
 }
 
 func openAIActionTools(tools []nativeActionTool) []openAITool {

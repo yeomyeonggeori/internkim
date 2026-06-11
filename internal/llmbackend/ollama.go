@@ -29,8 +29,10 @@ type ollamaRequest struct {
 }
 
 type ollamaResponse struct {
-	Message ollamaMessage `json:"message"`
-	Done    bool          `json:"done"`
+	Message         ollamaMessage `json:"message"`
+	Done            bool          `json:"done"`
+	PromptEvalCount int64         `json:"prompt_eval_count"`
+	EvalCount       int64         `json:"eval_count"`
 }
 
 func (backend OllamaBackend) Name() string { return "ollama" }
@@ -59,7 +61,7 @@ func (backend OllamaBackend) CompleteStructured(ctx context.Context, request Str
 }
 
 func (backend OllamaBackend) CompleteText(ctx context.Context, request TextRequest) (Response, error) {
-	content, modelName, errorValue := backend.complete(ctx, request.Messages, nil)
+	content, modelName, usage, errorValue := backend.complete(ctx, request.Messages, nil)
 	if errorValue != nil {
 		return Response{}, errorValue
 	}
@@ -68,10 +70,11 @@ func (backend OllamaBackend) CompleteText(ctx context.Context, request TextReque
 		Model:           modelName,
 		Content:         content,
 		SelectedBackend: "ollama",
+		Usage:           usage,
 	}, nil
 }
 
-func (backend OllamaBackend) complete(ctx context.Context, messages []Message, format json.RawMessage) (string, string, error) {
+func (backend OllamaBackend) complete(ctx context.Context, messages []Message, format json.RawMessage) (string, string, Usage, error) {
 	modelName := strings.TrimSpace(backend.ModelName)
 	requestDocument, errorValue := json.Marshal(ollamaRequest{
 		Model:    modelName,
@@ -80,38 +83,43 @@ func (backend OllamaBackend) complete(ctx context.Context, messages []Message, f
 		Format:   format,
 	})
 	if errorValue != nil {
-		return "", "", errorValue
+		return "", "", Usage{}, errorValue
 	}
 
 	endpoint := strings.TrimRight(backend.BaseURL, "/") + "/api/chat"
 	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(requestDocument))
 	if errorValue != nil {
-		return "", "", errorValue
+		return "", "", Usage{}, errorValue
 	}
 	httpRequest.Header.Set("Content-Type", "application/json")
 
 	httpResponse, errorValue := backend.client().Do(httpRequest)
 	if errorValue != nil {
-		return "", "", errorValue
+		return "", "", Usage{}, errorValue
 	}
 	defer httpResponse.Body.Close()
 
 	responseDocument, errorValue := io.ReadAll(httpResponse.Body)
 	if errorValue != nil {
-		return "", "", errors.New("read ollama response: " + errorValue.Error())
+		return "", "", Usage{}, errors.New("read ollama response: " + errorValue.Error())
 	}
 	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return "", "", errors.New(string(responseDocument))
+		return "", "", Usage{}, errors.New(string(responseDocument))
 	}
 
 	var response ollamaResponse
 	if errorValue := json.Unmarshal(responseDocument, &response); errorValue != nil {
-		return "", "", errorValue
+		return "", "", Usage{}, errorValue
 	}
 	if strings.TrimSpace(response.Message.Content) == "" {
-		return "", "", errors.New("ollama response content was empty")
+		return "", "", Usage{}, errors.New("ollama response content was empty")
 	}
-	return response.Message.Content, modelName, nil
+	usage := Usage{
+		PromptTokens:     response.PromptEvalCount,
+		CompletionTokens: response.EvalCount,
+		TotalTokens:      response.PromptEvalCount + response.EvalCount,
+	}
+	return response.Message.Content, modelName, usage, nil
 }
 
 func (backend OllamaBackend) StreamText(ctx context.Context, request TextRequest, emit func(token string)) error {

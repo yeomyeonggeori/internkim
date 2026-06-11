@@ -48,7 +48,7 @@ func (backend OpenRouterBackend) CompleteStructured(ctx context.Context, request
 	if errorValue != nil {
 		return Response{}, errorValue
 	}
-	content, errorValue := backend.send(ctx, apiKey, requestDocument)
+	content, usage, errorValue := backend.send(ctx, apiKey, requestDocument)
 	if errorValue != nil {
 		return Response{}, errorValue
 	}
@@ -58,6 +58,7 @@ func (backend OpenRouterBackend) CompleteStructured(ctx context.Context, request
 		Content:         content,
 		SelectedBackend: capabilities.LLMBackendRemote,
 		ConstraintMode:  ConstraintModeOpenAIJSONSchema,
+		Usage:           usage,
 	}, nil
 }
 
@@ -70,7 +71,7 @@ func (backend OpenRouterBackend) completeNativeAction(ctx context.Context, apiKe
 	if errorValue != nil {
 		return Response{}, true, errorValue
 	}
-	content, errorValue := backend.sendChatAction(ctx, apiKey, requestDocument, toolSet)
+	content, usage, errorValue := backend.sendChatAction(ctx, apiKey, requestDocument, toolSet)
 	if errorValue != nil {
 		return Response{}, true, errorValue
 	}
@@ -80,6 +81,7 @@ func (backend OpenRouterBackend) completeNativeAction(ctx context.Context, apiKe
 		Content:         content,
 		SelectedBackend: capabilities.LLMBackendRemote,
 		ConstraintMode:  ConstraintModeNativeToolCall,
+		Usage:           usage,
 	}, true, nil
 }
 
@@ -93,7 +95,7 @@ func (backend OpenRouterBackend) CompleteText(ctx context.Context, request TextR
 	if errorValue != nil {
 		return Response{}, errorValue
 	}
-	content, errorValue := backend.send(ctx, apiKey, requestDocument)
+	content, usage, errorValue := backend.send(ctx, apiKey, requestDocument)
 	if errorValue != nil {
 		return Response{}, errorValue
 	}
@@ -102,6 +104,7 @@ func (backend OpenRouterBackend) CompleteText(ctx context.Context, request TextR
 		Model:           modelName,
 		Content:         content,
 		SelectedBackend: capabilities.LLMBackendRemote,
+		Usage:           usage,
 	}, nil
 }
 
@@ -124,10 +127,10 @@ func (backend OpenRouterBackend) resolveModelName(requestedModel string) string 
 	return normalized
 }
 
-func (backend OpenRouterBackend) send(ctx context.Context, apiKey string, requestDocument []byte) (string, error) {
+func (backend OpenRouterBackend) send(ctx context.Context, apiKey string, requestDocument []byte) (string, Usage, error) {
 	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, backend.BaseURL, bytes.NewReader(requestDocument))
 	if errorValue != nil {
-		return "", errorValue
+		return "", Usage{}, errorValue
 	}
 	httpRequest.Header.Set("Authorization", "Bearer "+apiKey)
 	httpRequest.Header.Set("Content-Type", "application/json")
@@ -135,19 +138,19 @@ func (backend OpenRouterBackend) send(ctx context.Context, apiKey string, reques
 
 	httpResponse, errorValue := backend.HTTPClient.Do(httpRequest)
 	if errorValue != nil {
-		return "", errorValue
+		return "", Usage{}, errorValue
 	}
 	defer httpResponse.Body.Close()
 
 	responseDocument, errorValue := io.ReadAll(httpResponse.Body)
 	if errorValue != nil {
-		return "", errors.New("read openrouter response: " + errorValue.Error())
+		return "", Usage{}, errors.New("read openrouter response: " + errorValue.Error())
 	}
 	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return "", errors.New(string(responseDocument))
+		return "", Usage{}, errors.New(string(responseDocument))
 	}
 	if len(bytes.TrimSpace(responseDocument)) == 0 {
-		return "", errors.New("openrouter response body was empty")
+		return "", Usage{}, errors.New("openrouter response body was empty")
 	}
 
 	var parsed struct {
@@ -156,20 +159,21 @@ func (backend OpenRouterBackend) send(ctx context.Context, apiKey string, reques
 				Content string `json:"content"`
 			} `json:"message"`
 		} `json:"choices"`
+		Usage openAIUsage `json:"usage"`
 	}
 	if errorValue := json.Unmarshal(responseDocument, &parsed); errorValue != nil {
-		return "", errorValue
+		return "", Usage{}, errorValue
 	}
 	if len(parsed.Choices) == 0 {
-		return "", errors.New("openrouter response did not include choices")
+		return "", Usage{}, errors.New("openrouter response did not include choices")
 	}
-	return parsed.Choices[0].Message.Content, nil
+	return parsed.Choices[0].Message.Content, normalizeUsage(parsed.Usage), nil
 }
 
-func (backend OpenRouterBackend) sendChatAction(ctx context.Context, apiKey string, requestDocument []byte, toolSet nativeActionToolSet) (string, error) {
+func (backend OpenRouterBackend) sendChatAction(ctx context.Context, apiKey string, requestDocument []byte, toolSet nativeActionToolSet) (string, Usage, error) {
 	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, backend.BaseURL, bytes.NewReader(requestDocument))
 	if errorValue != nil {
-		return "", errorValue
+		return "", Usage{}, errorValue
 	}
 	httpRequest.Header.Set("Authorization", "Bearer "+apiKey)
 	httpRequest.Header.Set("Content-Type", "application/json")
@@ -177,31 +181,32 @@ func (backend OpenRouterBackend) sendChatAction(ctx context.Context, apiKey stri
 
 	httpResponse, errorValue := backend.HTTPClient.Do(httpRequest)
 	if errorValue != nil {
-		return "", errorValue
+		return "", Usage{}, errorValue
 	}
 	defer httpResponse.Body.Close()
 
 	responseDocument, errorValue := io.ReadAll(httpResponse.Body)
 	if errorValue != nil {
-		return "", errors.New("read openrouter response: " + errorValue.Error())
+		return "", Usage{}, errors.New("read openrouter response: " + errorValue.Error())
 	}
 	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return "", errors.New(string(responseDocument))
+		return "", Usage{}, errors.New(string(responseDocument))
 	}
 
-	var response openAIResponse
+	var response openAIResponseWithUsage
 	if errorValue := json.Unmarshal(responseDocument, &response); errorValue != nil {
-		return "", errorValue
+		return "", Usage{}, errorValue
 	}
 	if len(response.Choices) == 0 {
-		return "", errors.New("openrouter response did not include choices")
+		return "", Usage{}, errors.New("openrouter response did not include choices")
 	}
 	for _, toolCall := range response.Choices[0].Message.ToolCalls {
 		if toolCall.Type == "" || toolCall.Type == "function" {
-			return nativeActionJSON(toolSet, toolCall.Function.Name, toolCall.Function.Arguments)
+			content, errorValue := nativeActionJSON(toolSet, toolCall.Function.Name, toolCall.Function.Arguments)
+			return content, normalizeUsage(response.Usage), errorValue
 		}
 	}
-	return "", errors.New("openrouter chat completion response did not include tool_calls")
+	return "", Usage{}, errors.New("openrouter chat completion response did not include tool_calls")
 }
 
 func (backend OpenRouterBackend) setGatewaySecretHeader(request *http.Request) {

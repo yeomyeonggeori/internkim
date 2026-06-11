@@ -1313,3 +1313,196 @@ func (provider staticProvider) CompleteStructured(context.Context, StructuredReq
 func (provider staticProvider) CompleteText(context.Context, TextRequest) (Response, error) {
 	return provider.response, provider.errorValue
 }
+
+func TestOpenRouterBackendPopulatesUsageFromStructuredResponse(t *testing.T) {
+	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
+	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	backend := OpenRouterBackend{
+		KeyPath:   secretPath,
+		BaseURL:   "https://openrouter.test/api/v1/chat/completions",
+		ModelName: "test-model",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"{\"reply\":\"ok\"}"}}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	response, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
+		Messages: []Message{{Role: "user", Content: "hello"}},
+		StructuredOutputSchema: StructuredOutputSchema{
+			Name:     "reply",
+			Document: json.RawMessage(`{"type":"object","required":["reply"]}`),
+		},
+	})
+	if errorValue != nil {
+		t.Fatalf("expected structured response: %v", errorValue)
+	}
+	if response.Usage.PromptTokens != 10 {
+		t.Fatalf("expected 10 prompt tokens, got %d", response.Usage.PromptTokens)
+	}
+	if response.Usage.CompletionTokens != 5 {
+		t.Fatalf("expected 5 completion tokens, got %d", response.Usage.CompletionTokens)
+	}
+	if response.Usage.TotalTokens != 15 {
+		t.Fatalf("expected 15 total tokens, got %d", response.Usage.TotalTokens)
+	}
+}
+
+func TestOpenRouterBackendNormalizesUsageWhenTotalTokensIsZero(t *testing.T) {
+	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
+	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	backend := OpenRouterBackend{
+		KeyPath:   secretPath,
+		BaseURL:   "https://openrouter.test/api/v1/chat/completions",
+		ModelName: "test-model",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"plain reply"}}],"usage":{"prompt_tokens":8,"completion_tokens":3,"total_tokens":0}}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	response, errorValue := backend.CompleteText(context.Background(), TextRequest{
+		Messages: []Message{{Role: "user", Content: "hello"}},
+	})
+	if errorValue != nil {
+		t.Fatalf("expected text response: %v", errorValue)
+	}
+	if response.Usage.TotalTokens != 11 {
+		t.Fatalf("expected total tokens normalized to 11, got %d", response.Usage.TotalTokens)
+	}
+	if response.Usage.PromptTokens != 8 {
+		t.Fatalf("expected 8 prompt tokens, got %d", response.Usage.PromptTokens)
+	}
+	if response.Usage.CompletionTokens != 3 {
+		t.Fatalf("expected 3 completion tokens, got %d", response.Usage.CompletionTokens)
+	}
+}
+
+func TestOpenRouterBackendPopulatesUsageFromNativeActionResponse(t *testing.T) {
+	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
+	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	backend := OpenRouterBackend{
+		KeyPath:   secretPath,
+		BaseURL:   "https://openrouter.ai/api/v1/chat/completions",
+		ModelName: "configured-model",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"continue__site_app_publish","arguments":"{\"toolInput\":{\"siteID\":\"site-1\"},\"message\":\"publishing\",\"executionStateUpdate\":{},\"nextStepPlan\":{\"objective\":\"confirm publish\",\"expectedTools\":[],\"doneCriteria\":[\"published\"],\"risk\":\"none\",\"workingSetReason\":\"publish result completes the task\"}}"}}]}}],"usage":{"prompt_tokens":20,"completion_tokens":8,"total_tokens":28}}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	response, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
+		Messages:               []Message{{Role: "user", Content: "publish"}},
+		StructuredOutputSchema: testAgentActionSchema(),
+	})
+	if errorValue != nil {
+		t.Fatalf("expected native action response: %v", errorValue)
+	}
+	if response.Usage.PromptTokens != 20 {
+		t.Fatalf("expected 20 prompt tokens, got %d", response.Usage.PromptTokens)
+	}
+	if response.Usage.CompletionTokens != 8 {
+		t.Fatalf("expected 8 completion tokens, got %d", response.Usage.CompletionTokens)
+	}
+	if response.Usage.TotalTokens != 28 {
+		t.Fatalf("expected 28 total tokens, got %d", response.Usage.TotalTokens)
+	}
+}
+
+func TestOpenRouterBackendReturnsZeroUsageWhenUsageBlockIsAbsent(t *testing.T) {
+	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
+	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	backend := OpenRouterBackend{
+		KeyPath:   secretPath,
+		BaseURL:   "https://openrouter.test/api/v1/chat/completions",
+		ModelName: "test-model",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"plain reply"}}]}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	response, errorValue := backend.CompleteText(context.Background(), TextRequest{
+		Messages: []Message{{Role: "user", Content: "hello"}},
+	})
+	if errorValue != nil {
+		t.Fatalf("expected text response: %v", errorValue)
+	}
+	if response.Usage.PromptTokens != 0 || response.Usage.CompletionTokens != 0 || response.Usage.TotalTokens != 0 {
+		t.Fatalf("expected zero usage when block is absent, got %+v", response.Usage)
+	}
+}
+
+func TestOllamaBackendPopulatesUsageFromEvalCounts(t *testing.T) {
+	backend := OllamaBackend{
+		BaseURL:   "https://ollama.test",
+		ModelName: "gemma3:1b",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"message":{"role":"assistant","content":"hello from ollama"},"done":true,"prompt_eval_count":12,"eval_count":6}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	response, errorValue := backend.CompleteText(context.Background(), TextRequest{
+		Messages: []Message{{Role: "user", Content: "hello"}},
+	})
+	if errorValue != nil {
+		t.Fatalf("expected ollama text response: %v", errorValue)
+	}
+	if response.Usage.PromptTokens != 12 {
+		t.Fatalf("expected 12 prompt tokens, got %d", response.Usage.PromptTokens)
+	}
+	if response.Usage.CompletionTokens != 6 {
+		t.Fatalf("expected 6 completion tokens, got %d", response.Usage.CompletionTokens)
+	}
+	if response.Usage.TotalTokens != 18 {
+		t.Fatalf("expected 18 total tokens (12+6), got %d", response.Usage.TotalTokens)
+	}
+}
+
+func TestOllamaBackendReturnsZeroUsageWhenEvalCountsAreAbsent(t *testing.T) {
+	backend := OllamaBackend{
+		BaseURL:   "https://ollama.test",
+		ModelName: "gemma3:1b",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"message":{"role":"assistant","content":"hello from ollama"},"done":true}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	response, errorValue := backend.CompleteText(context.Background(), TextRequest{
+		Messages: []Message{{Role: "user", Content: "hello"}},
+	})
+	if errorValue != nil {
+		t.Fatalf("expected ollama text response: %v", errorValue)
+	}
+	if response.Usage.PromptTokens != 0 || response.Usage.CompletionTokens != 0 || response.Usage.TotalTokens != 0 {
+		t.Fatalf("expected zero usage when eval counts are absent, got %+v", response.Usage)
+	}
+}

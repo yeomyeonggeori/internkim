@@ -68,12 +68,19 @@ type TextRequest struct {
 	EnableResponseHealing bool           `json:"enableResponseHealing"`
 }
 
+type Usage struct {
+	PromptTokens     int64 `json:"promptTokens"`
+	CompletionTokens int64 `json:"completionTokens"`
+	TotalTokens      int64 `json:"totalTokens"`
+}
+
 type Response struct {
 	Provider        string `json:"provider"`
 	Model           string `json:"model"`
 	Content         string `json:"content"`
 	SelectedBackend string `json:"selectedBackend"`
 	ConstraintMode  string `json:"constraintMode,omitempty"`
+	Usage           Usage  `json:"usage"`
 }
 
 const (
