@@ -14,9 +14,18 @@ import (
 
 var errorUnsupportedHostMode = errors.New("unsupported host mode")
 
-type tartVirtualMachineListEntry struct {
-	Name    string `json:"Name"`
-	Running bool   `json:"Running"`
+type containerListEntry struct {
+	Configuration containerListEntryConfiguration `json:"configuration"`
+	Status        string                          `json:"status"`
+	Networks      []containerListEntryNetwork     `json:"networks"`
+}
+
+type containerListEntryConfiguration struct {
+	ID string `json:"id"`
+}
+
+type containerListEntryNetwork struct {
+	IPv4Address string `json:"ipv4Address"`
 }
 
 type Service struct {
@@ -34,53 +43,59 @@ func NewService(configuration Configuration, commandRunner CommandRunner, reposi
 }
 
 func (service Service) ImageBuild(ctx context.Context) error {
-	for _, executableCommand := range service.buildImageBuildCommands() {
-		errorValue := service.commandRunner.Run(ctx, executableCommand)
-		if errorValue != nil {
-			return fmt.Errorf("run %q: %w", executableCommand.String(), errorValue)
-		}
+	executableCommand := service.buildImageBuildCommand()
+	errorValue := service.commandRunner.Run(ctx, executableCommand)
+	if errorValue != nil {
+		return fmt.Errorf("run %q: %w", executableCommand.String(), errorValue)
 	}
 
 	return nil
 }
 
 func (service Service) VirtualMachineExists(ctx context.Context) (bool, error) {
-	output, errorValue := service.commandRunner.Output(ctx, service.buildVirtualMachineListCommand())
+	containerEntry, errorValue := service.findContainerListEntry(ctx)
 	if errorValue != nil {
-		return false, fmt.Errorf("run %q: %w", service.buildVirtualMachineListCommand().String(), errorValue)
+		return false, errorValue
 	}
 
-	for _, line := range strings.Split(output, "\n") {
-		if strings.TrimSpace(line) == service.configuration.VirtualMachine.Tart.Name {
-			return true, nil
-		}
-	}
-
-	return false, nil
+	return containerEntry != nil, nil
 }
 
 func (service Service) VirtualMachineRunning(ctx context.Context) (bool, error) {
-	output, errorValue := service.commandRunner.Output(ctx, service.buildVirtualMachineListJSONCommand())
+	containerEntry, errorValue := service.findContainerListEntry(ctx)
 	if errorValue != nil {
-		return false, fmt.Errorf("run %q: %w", service.buildVirtualMachineListJSONCommand().String(), errorValue)
+		return false, errorValue
+	}
+	if containerEntry == nil {
+		return false, nil
 	}
 
-	var virtualMachines []tartVirtualMachineListEntry
-	if errorValue := json.Unmarshal([]byte(output), &virtualMachines); errorValue != nil {
-		return false, fmt.Errorf("parse Tart VM list: %w", errorValue)
+	return containerEntry.Status == "running", nil
+}
+
+func (service Service) findContainerListEntry(ctx context.Context) (*containerListEntry, error) {
+	listCommand := service.buildContainerListCommand()
+	output, errorValue := service.commandRunner.Output(ctx, listCommand)
+	if errorValue != nil {
+		return nil, fmt.Errorf("run %q: %w", listCommand.String(), errorValue)
 	}
 
-	for _, virtualMachine := range virtualMachines {
-		if virtualMachine.Name == service.configuration.VirtualMachine.Tart.Name {
-			return virtualMachine.Running, nil
+	var containerEntries []containerListEntry
+	if errorValue := json.Unmarshal([]byte(output), &containerEntries); errorValue != nil {
+		return nil, fmt.Errorf("parse container list: %w", errorValue)
+	}
+
+	for index := range containerEntries {
+		if containerEntries[index].Configuration.ID == service.configuration.VirtualMachine.Container.Name {
+			return &containerEntries[index], nil
 		}
 	}
 
-	return false, nil
+	return nil, nil
 }
 
 func (service Service) EnsureVirtualMachineImage(ctx context.Context) error {
-	fmt.Println("checking Tart VM")
+	fmt.Println("checking container")
 
 	hasVirtualMachine, errorValue := service.VirtualMachineExists(ctx)
 	if errorValue != nil {
@@ -90,9 +105,9 @@ func (service Service) EnsureVirtualMachineImage(ctx context.Context) error {
 		return nil
 	}
 
-	fmt.Printf("creating VM %q\n", service.configuration.VirtualMachine.Tart.Name)
+	fmt.Printf("creating container %q\n", service.configuration.VirtualMachine.Container.Name)
 	if errorValue := service.ImageBuild(ctx); errorValue != nil {
-		return fmt.Errorf("create VM %q: %w", service.configuration.VirtualMachine.Tart.Name, errorValue)
+		return fmt.Errorf("create container %q: %w", service.configuration.VirtualMachine.Container.Name, errorValue)
 	}
 
 	return nil
@@ -112,19 +127,17 @@ func (service Service) VirtualMachineUp(ctx context.Context) error {
 		if errorValue == nil && strings.TrimSpace(virtualMachineIPAddress) != "" {
 			return nil
 		}
-	} else if errorValue := service.removeStaleVirtualMachineControlSocket(); errorValue != nil {
-		return errorValue
 	}
 
-	fmt.Printf("starting VM %q\n", service.configuration.VirtualMachine.Tart.Name)
-	errorValue = service.commandRunner.Start(ctx, service.buildVirtualMachineUpCommand())
+	fmt.Printf("starting container %q\n", service.configuration.VirtualMachine.Container.Name)
+	errorValue = service.commandRunner.Run(ctx, service.buildVirtualMachineUpCommand())
 	if errorValue != nil {
 		return fmt.Errorf("run %q: %w", service.buildVirtualMachineUpCommand().String(), errorValue)
 	}
 
 	fmt.Println("waiting for IP")
 	if errorValue := service.waitForVirtualMachineIPAddress(ctx); errorValue != nil {
-		return fmt.Errorf("wait for VM %q IP address: %w\n%s", service.configuration.VirtualMachine.Tart.Name, errorValue, service.VirtualMachineDiagnostics(ctx))
+		return fmt.Errorf("wait for container %q IP address: %w\n%s", service.configuration.VirtualMachine.Container.Name, errorValue, service.VirtualMachineDiagnostics(ctx))
 	}
 
 	return nil
@@ -218,27 +231,20 @@ func (service Service) runtimeBuilderCheck(ctx context.Context, mountDirectoryPa
 }
 
 func (service Service) VirtualMachineDiagnostics(ctx context.Context) string {
-	listOutput, listError := service.commandRunner.Output(ctx, service.buildVirtualMachineListJSONCommand())
-	ipOutput, ipError := service.commandRunner.Output(ctx, service.buildVirtualMachineIPCommand())
+	listOutput, listError := service.commandRunner.Output(ctx, service.buildContainerListCommand())
 
 	var message strings.Builder
-	message.WriteString("Tart VM diagnostics:\n")
-	message.WriteString("  name: " + service.configuration.VirtualMachine.Tart.Name + "\n")
-	message.WriteString("  log: " + filepath.Join(os.TempDir(), "internkim-lab-tart.log") + "\n")
+	message.WriteString("container diagnostics:\n")
+	message.WriteString("  name: " + service.configuration.VirtualMachine.Container.Name + "\n")
 	if listError == nil {
-		message.WriteString("  tart list: " + strings.TrimSpace(listOutput) + "\n")
+		message.WriteString("  container ls: " + strings.TrimSpace(listOutput) + "\n")
 	} else {
-		message.WriteString("  tart list error: " + listError.Error() + "\n")
-	}
-	if ipError == nil {
-		message.WriteString("  tart ip: " + strings.TrimSpace(ipOutput) + "\n")
-	} else {
-		message.WriteString("  tart ip error: " + ipError.Error() + "\n")
+		message.WriteString("  container ls error: " + listError.Error() + "\n")
 	}
 	message.WriteString("Recovery:\n")
 	message.WriteString("  1. Run `internkim lab vm-down`.\n")
-	message.WriteString("  2. Run `internkim lab vm-up` and confirm the VM gets an IP.\n")
-	message.WriteString("  3. If it still fails, recreate the Tart VM or use `tools/prepare-blueclaw-runtime --builder ssh --host <linux-arm64>`.\n")
+	message.WriteString("  2. Run `internkim lab vm-up` and confirm the container gets an IP.\n")
+	message.WriteString("  3. If the container API server is down, run `container system start`, then retry `internkim lab vm-up`.\n")
 	return message.String()
 }
 
@@ -350,12 +356,12 @@ func (service Service) PrintSimulationPlan(ctx context.Context, executablePath s
 		return errorValue
 	}
 	if !hasVirtualMachine {
-		fmt.Printf("VM %q: missing\n", service.configuration.VirtualMachine.Tart.Name)
-		fmt.Println("inner setup plan: unavailable until the VM exists")
+		fmt.Printf("container %q: missing\n", service.configuration.VirtualMachine.Container.Name)
+		fmt.Println("inner setup plan: unavailable until the container exists")
 		return nil
 	}
 
-	fmt.Printf("VM %q: exists\n", service.configuration.VirtualMachine.Tart.Name)
+	fmt.Printf("container %q: exists\n", service.configuration.VirtualMachine.Container.Name)
 
 	virtualMachineIPAddress, errorValue := service.resolveVirtualMachineIPAddress(ctx)
 	if errorValue != nil || strings.TrimSpace(virtualMachineIPAddress) == "" {
@@ -461,26 +467,12 @@ func containsSetupPlan(arguments []string) bool {
 	return false
 }
 
-func (service Service) buildVirtualMachineListCommand() ExecutableCommand {
+func (service Service) buildContainerListCommand() ExecutableCommand {
 	return ExecutableCommand{
-		ExecutableName: service.configuration.VirtualMachine.Tart.BinaryPath,
+		ExecutableName: service.configuration.VirtualMachine.Container.BinaryPath,
 		Arguments: []string{
-			"list",
-			"--source",
-			"local",
-			"--quiet",
-		},
-		WorkingDirectoryPath: service.repositoryRootPath,
-	}
-}
-
-func (service Service) buildVirtualMachineListJSONCommand() ExecutableCommand {
-	return ExecutableCommand{
-		ExecutableName: service.configuration.VirtualMachine.Tart.BinaryPath,
-		Arguments: []string{
-			"list",
-			"--source",
-			"local",
+			"ls",
+			"-a",
 			"--format",
 			"json",
 		},
@@ -488,98 +480,64 @@ func (service Service) buildVirtualMachineListJSONCommand() ExecutableCommand {
 	}
 }
 
-func (service Service) buildImageBuildCommands() []ExecutableCommand {
-	return []ExecutableCommand{
-		{
-			ExecutableName: service.configuration.VirtualMachine.Tart.BinaryPath,
-			Arguments: []string{
-				"clone",
-				service.configuration.VirtualMachine.Tart.Image,
-				service.configuration.VirtualMachine.Tart.Name,
-			},
-			WorkingDirectoryPath: service.repositoryRootPath,
+func (service Service) buildImageBuildCommand() ExecutableCommand {
+	return ExecutableCommand{
+		ExecutableName: service.configuration.VirtualMachine.Container.BinaryPath,
+		Arguments: []string{
+			"create",
+			"--name",
+			service.configuration.VirtualMachine.Container.Name,
+			"--cpus",
+			formatInteger(service.configuration.VirtualMachine.Container.CPUCount),
+			"--memory",
+			formatInteger(service.configuration.VirtualMachine.Container.MemoryMiB) + "M",
+			"--virtualization",
+			"--kernel",
+			service.configuration.VirtualMachine.Container.KernelImagePath,
+			"--volume",
+			service.sharedWorkspacePath() + ":/mnt/shared/workspace",
+			service.configuration.VirtualMachine.Container.Image,
+			"sh",
+			"-c",
+			service.buildBootstrapScript(),
 		},
-		{
-			ExecutableName: service.configuration.VirtualMachine.Tart.BinaryPath,
-			Arguments: []string{
-				"set",
-				service.configuration.VirtualMachine.Tart.Name,
-				"--cpu",
-				formatInteger(service.configuration.VirtualMachine.Tart.CPUCount),
-				"--memory",
-				formatInteger(service.configuration.VirtualMachine.Tart.MemoryMiB),
-				"--disk-size",
-				formatInteger(service.configuration.VirtualMachine.Tart.DiskGiB),
-			},
-			WorkingDirectoryPath: service.repositoryRootPath,
-		},
+		WorkingDirectoryPath: service.repositoryRootPath,
 	}
+}
+
+func (service Service) buildBootstrapScript() string {
+	sshUsername := service.configuration.VirtualMachine.SSHUsername
+	sshCredentials := sshUsername + ":" + service.configuration.VirtualMachine.SSHPassword
+	return strings.Join([]string{
+		"set -eu",
+		"export DEBIAN_FRONTEND=noninteractive",
+		"if [ ! -x /lib/systemd/systemd ]; then apt-get update && apt-get install -y systemd systemd-sysv openssh-server sudo rsync curl jq make; fi",
+		"id " + sshUsername + " >/dev/null 2>&1 || useradd -m -s /bin/bash " + sshUsername,
+		"echo '" + sshCredentials + "' | chpasswd",
+		"printf '" + sshUsername + " ALL=(ALL) NOPASSWD:ALL\\n' > /etc/sudoers.d/" + sshUsername,
+		"chmod 440 /etc/sudoers.d/" + sshUsername,
+		"systemctl enable ssh >/dev/null 2>&1 || true",
+		"exec /lib/systemd/systemd",
+	}, "\n")
 }
 
 func (service Service) buildVirtualMachineUpCommand() ExecutableCommand {
-	commandArguments := []string{"run", "--no-graphics"}
-	if service.configuration.VirtualMachine.Tart.NestedEnabled {
-		commandArguments = append(commandArguments, "--nested")
-	}
-	commandArguments = append(commandArguments,
-		"--dir=workspace:"+service.sharedWorkspacePath(),
-		service.configuration.VirtualMachine.Tart.Name,
-	)
-
 	return ExecutableCommand{
-		ExecutableName:       service.configuration.VirtualMachine.Tart.BinaryPath,
-		Arguments:            commandArguments,
+		ExecutableName: service.configuration.VirtualMachine.Container.BinaryPath,
+		Arguments: []string{
+			"start",
+			service.configuration.VirtualMachine.Container.Name,
+		},
 		WorkingDirectoryPath: service.repositoryRootPath,
-		DetachedLogPath:      filepath.Join(os.TempDir(), "internkim-lab-tart.log"),
 	}
-}
-
-func (service Service) removeStaleVirtualMachineControlSocket() error {
-	controlSocketPath, errorValue := service.virtualMachineControlSocketPath()
-	if errorValue != nil {
-		return errorValue
-	}
-
-	if errorValue := os.Remove(controlSocketPath); errorValue != nil {
-		if os.IsNotExist(errorValue) {
-			return nil
-		}
-		return fmt.Errorf("remove stale Tart control socket %q: %w", controlSocketPath, errorValue)
-	}
-
-	return nil
-}
-
-func (service Service) virtualMachineControlSocketPath() (string, error) {
-	if homeDirectoryPath := os.Getenv("HOME"); strings.TrimSpace(homeDirectoryPath) != "" {
-		return filepath.Join(homeDirectoryPath, ".tart", "vms", service.configuration.VirtualMachine.Tart.Name, "control.sock"), nil
-	}
-
-	homeDirectoryPath, errorValue := os.UserHomeDir()
-	if errorValue != nil {
-		return "", fmt.Errorf("find user home directory: %w", errorValue)
-	}
-
-	return filepath.Join(homeDirectoryPath, ".tart", "vms", service.configuration.VirtualMachine.Tart.Name, "control.sock"), nil
 }
 
 func (service Service) buildVirtualMachineDownCommand() ExecutableCommand {
 	return ExecutableCommand{
-		ExecutableName: service.configuration.VirtualMachine.Tart.BinaryPath,
+		ExecutableName: service.configuration.VirtualMachine.Container.BinaryPath,
 		Arguments: []string{
 			"stop",
-			service.configuration.VirtualMachine.Tart.Name,
-		},
-		WorkingDirectoryPath: service.repositoryRootPath,
-	}
-}
-
-func (service Service) buildVirtualMachineIPCommand() ExecutableCommand {
-	return ExecutableCommand{
-		ExecutableName: service.configuration.VirtualMachine.Tart.BinaryPath,
-		Arguments: []string{
-			"ip",
-			service.configuration.VirtualMachine.Tart.Name,
+			service.configuration.VirtualMachine.Container.Name,
 		},
 		WorkingDirectoryPath: service.repositoryRootPath,
 	}
@@ -629,12 +587,24 @@ func (service Service) sshpassExecutablePath() string {
 }
 
 func (service Service) resolveVirtualMachineIPAddress(ctx context.Context) (string, error) {
-	output, errorValue := service.commandRunner.Output(ctx, service.buildVirtualMachineIPCommand())
+	containerEntry, errorValue := service.findContainerListEntry(ctx)
 	if errorValue != nil {
 		return "", errorValue
 	}
+	if containerEntry == nil || containerEntry.Status != "running" || len(containerEntry.Networks) == 0 {
+		return "", nil
+	}
 
-	return strings.TrimSpace(output), nil
+	return stripAddressSuffix(containerEntry.Networks[0].IPv4Address), nil
+}
+
+func stripAddressSuffix(address string) string {
+	trimmedAddress := strings.TrimSpace(address)
+	if slashIndex := strings.IndexByte(trimmedAddress, '/'); slashIndex >= 0 {
+		return trimmedAddress[:slashIndex]
+	}
+
+	return trimmedAddress
 }
 
 func (service Service) waitForVirtualMachineIPAddress(ctx context.Context) error {
@@ -681,14 +651,14 @@ func (service Service) ensureRunningVirtualMachineWithSSH(ctx context.Context) e
 		return errorValue
 	}
 	if !isVirtualMachineRunning {
-		return errors.New("Tart VM is not running\n" + service.VirtualMachineDiagnostics(ctx))
+		return errors.New("container is not running\n" + service.VirtualMachineDiagnostics(ctx))
 	}
 	virtualMachineIPAddress, errorValue := service.resolveVirtualMachineIPAddress(ctx)
 	if errorValue != nil || strings.TrimSpace(virtualMachineIPAddress) == "" {
-		return errors.New("Tart VM is running but has no IP address\n" + service.VirtualMachineDiagnostics(ctx))
+		return errors.New("container is running but has no IP address\n" + service.VirtualMachineDiagnostics(ctx))
 	}
 	if !service.virtualMachineSSHReady(ctx) {
-		return errors.New("Tart VM SSH is not ready\n" + service.VirtualMachineDiagnostics(ctx))
+		return errors.New("container SSH is not ready\n" + service.VirtualMachineDiagnostics(ctx))
 	}
 	return nil
 }
@@ -741,7 +711,7 @@ func (service Service) ensureVirtualMachineWritableRoot(ctx context.Context) err
 		WorkingDirectoryPath: service.repositoryRootPath,
 	})
 	if errorValue != nil {
-		return fmt.Errorf("Tart VM root filesystem is not writable: %w", errorValue)
+		return fmt.Errorf("container root filesystem is not writable: %w", errorValue)
 	}
 
 	return nil
@@ -783,6 +753,9 @@ func formatInteger(value int) string {
 func applyRuntimeConfiguration(configuration Configuration, repositoryRootPath string) Configuration {
 	if shouldUseRepositoryRootForSharedWorkspace(configuration.VirtualMachine.SharedWorkspacePath) {
 		configuration.VirtualMachine.SharedWorkspacePath = repositoryRootPath
+	}
+	if strings.TrimSpace(configuration.VirtualMachine.Container.KernelImagePath) == "" {
+		configuration.VirtualMachine.Container.KernelImagePath = filepath.Join(repositoryRootPath, ".dependency", "container-kernel", "Image-6.1.68-kvm")
 	}
 
 	return configuration

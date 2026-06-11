@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 
-	internkimlab "gitlab.com/eastriver/internkim/internal/lab"
 	"gitlab.com/eastriver/internkim/internal/localfleet"
 )
 
@@ -40,7 +39,7 @@ type devCommandInvocation struct {
 }
 
 var runDevLocalVirtualSession = runLocalDevVirtualSession
-var runDevTartVirtualSession = runTartDevVirtualSession
+var runDevContainerVirtualSession = runContainerDevVirtualSession
 
 func runDev() {
 	if errorValue := runDevArguments(os.Args[2:]); errorValue != nil {
@@ -179,7 +178,7 @@ func runDevSimulateArguments(arguments []string) error {
 		return errorValue
 	}
 	if sessionArguments.TargetName != "local" {
-		return errors.New("dev simulate only supports --target local; use dev replay --target tart for Linux permission checks")
+		return errors.New("dev simulate only supports --target local; use dev replay --target container for Linux permission checks")
 	}
 	return runDevLocalVirtualSession(sessionArguments)
 }
@@ -192,8 +191,10 @@ func runDevReplayArguments(arguments []string) error {
 	switch sessionArguments.TargetName {
 	case "local":
 		return runDevLocalVirtualSession(sessionArguments)
+	case "container":
+		return runDevContainerVirtualSession(sessionArguments)
 	case "tart":
-		return runDevTartVirtualSession(sessionArguments)
+		return errors.New("the tart target was removed; use --target container")
 	default:
 		return fmt.Errorf("unsupported dev replay target: %s", sessionArguments.TargetName)
 	}
@@ -208,14 +209,14 @@ func parseDevVirtualSessionArguments(commandName string, arguments []string) (de
 	skillDirectoryPath := flagSet.String("skill-dir", "", "Skill directory to load into the virtual workspace")
 	languageModelEndpoint := flagSet.String("llm-endpoint", "", "Live LLM capability endpoint")
 	languageModelSocket := flagSet.String("llm-unix-socket", "", "Live LLM capability unix socket path")
-	languageModelName := flagSet.String("llm-model", "", "Live LLM model name")
+	languageModelName := flagSet.String("llm-model", "google/gemini-3.1-flash-lite", "Live LLM model name")
 	executionMode := flagSet.String("llm-execution-mode", "", "Live LLM execution mode")
-	targetName := flagSet.String("target", "local", "Replay target: local or tart")
+	targetName := flagSet.String("target", "local", "Replay target: local or container")
 	liveLanguageModel := flagSet.Bool("live-llm", false, "Allow live LLM calls")
 	skipPreflight := flagSet.Bool("skip-preflight", false, "Skip executable dependency checks")
 	requiredExecutables := repeatedDevStringFlag{}
 	flagSet.Var(&requiredExecutables, "require-executable", "Require an executable before running; repeat for multiple executables")
-	seedValue := flagSet.Int64("seed", 0, "Generation seed for live LLM calls")
+	seedValue := flagSet.Int64("seed", 41, "Generation seed for live LLM calls")
 	temperatureValue := flagSet.Float64("temperature", 0, "Generation temperature for live LLM calls")
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
 		return devVirtualSessionArguments{}, errorValue
@@ -232,7 +233,7 @@ func parseDevVirtualSessionArguments(commandName string, arguments []string) (de
 		LanguageModelName:     strings.TrimSpace(*languageModelName),
 		ExecutionMode:         strings.TrimSpace(*executionMode),
 		TargetName:            strings.TrimSpace(*targetName),
-		Seed:                  optionalIntegerArgument(flagSet, "seed", *seedValue),
+		Seed:                  strconv.FormatInt(*seedValue, 10),
 		Temperature:           optionalFloatArgument(flagSet, "temperature", *temperatureValue),
 		RequiredExecutables:   devRequiredExecutables(strings.TrimSpace(*scenarioName), requiredExecutables.Values()),
 		IsLiveLanguageModel:   *liveLanguageModel,
@@ -256,18 +257,18 @@ func runLocalDevVirtualSession(sessionArguments devVirtualSessionArguments) erro
 	return command.Run()
 }
 
-func runTartDevVirtualSession(sessionArguments devVirtualSessionArguments) error {
-	invocation, errorValue := tartDevVirtualSessionInvocation(sessionArguments)
+func runContainerDevVirtualSession(sessionArguments devVirtualSessionArguments) error {
+	invocation, errorValue := containerDevVirtualSessionInvocation(sessionArguments)
 	if errorValue != nil {
 		return errorValue
 	}
 	if errorValue := runLabArguments([]string{"vm-up"}); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := ensureTartDevSharedWorkspace(invocation); errorValue != nil {
+	if errorValue := ensureContainerDevSharedWorkspace(invocation); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := checkTartDevDependencies(sessionArguments); errorValue != nil {
+	if errorValue := checkContainerDevDependencies(sessionArguments); errorValue != nil {
 		return errorValue
 	}
 	return runLabArguments([]string{"vm-ssh", devRemoteShellCommand(invocation)})
@@ -284,37 +285,25 @@ func localDevVirtualSessionInvocation(sessionArguments devVirtualSessionArgument
 	}, nil
 }
 
-func tartDevVirtualSessionInvocation(sessionArguments devVirtualSessionArguments) (devCommandInvocation, error) {
+func containerDevVirtualSessionInvocation(sessionArguments devVirtualSessionArguments) (devCommandInvocation, error) {
 	return devCommandInvocation{
-		WorkingDirectoryPath: filepath.Join("/mnt/shared", "workspace", "workspace", ".dependency", "blueclaw"),
+		WorkingDirectoryPath: filepath.Join("/mnt/shared", "workspace", ".dependency", "blueclaw"),
 		Arguments:            devVirtualSessionCommandArguments(sessionArguments),
 	}, nil
 }
 
-func ensureTartDevSharedWorkspace(invocation devCommandInvocation) error {
-	repositoryRootPath, errorValue := resolveRepositoryRootPath()
-	if errorValue != nil {
-		return errorValue
-	}
-	configuration, errorValue := internkimlab.LoadConfiguration(internkimlab.DefaultConfigurationPath(repositoryRootPath))
-	if errorValue != nil {
-		return errorValue
-	}
-	command := tartDevSharedWorkspaceCommand(invocation.WorkingDirectoryPath, configuration.VirtualMachine.SSHPassword)
+func ensureContainerDevSharedWorkspace(invocation devCommandInvocation) error {
+	command := containerDevSharedWorkspaceCommand(invocation.WorkingDirectoryPath)
 	if errorValue := runLabArguments([]string{"vm-ssh", command}); errorValue != nil {
-		return fmt.Errorf("dev tart shared workspace mount failed: %w", errorValue)
+		return fmt.Errorf("dev container shared workspace check failed: %w", errorValue)
 	}
 	return nil
 }
 
-func tartDevSharedWorkspaceCommand(workingDirectoryPath string, password string) string {
-	mountPoint := filepath.Join("/mnt/shared", "workspace")
+func containerDevSharedWorkspaceCommand(workingDirectoryPath string) string {
 	return strings.Join([]string{
 		"set -eu",
-		"if [ -d " + quoteDevShellArgument(workingDirectoryPath) + " ]; then exit 0; fi",
-		"(sudo -n mkdir -p " + quoteDevShellArgument(mountPoint) + " 2>/dev/null || printf '%s\\n' " + quoteDevShellArgument(password) + " | sudo -S mkdir -p " + quoteDevShellArgument(mountPoint) + ")",
-		"if ! mountpoint -q " + quoteDevShellArgument(mountPoint) + "; then (sudo -n mount -t virtiofs com.apple.virtio-fs.automount " + quoteDevShellArgument(mountPoint) + " 2>/dev/null || printf '%s\\n' " + quoteDevShellArgument(password) + " | sudo -S mount -t virtiofs com.apple.virtio-fs.automount " + quoteDevShellArgument(mountPoint) + "); fi",
-		"test -d " + quoteDevShellArgument(workingDirectoryPath),
+		"if [ ! -d " + quoteDevShellArgument(workingDirectoryPath) + " ]; then echo " + quoteDevShellArgument("missing shared workspace at "+workingDirectoryPath) + " >&2; exit 1; fi",
 	}, "; ")
 }
 
@@ -355,13 +344,13 @@ func checkLocalDevDependencies(sessionArguments devVirtualSessionArguments) erro
 	return fmt.Errorf("dev %s preflight failed; missing executable(s): %s", sessionArguments.TargetName, strings.Join(missingExecutables, ", "))
 }
 
-func checkTartDevDependencies(sessionArguments devVirtualSessionArguments) error {
+func checkContainerDevDependencies(sessionArguments devVirtualSessionArguments) error {
 	if sessionArguments.ShouldSkipPreflight {
 		return nil
 	}
 	command := "missing=''; for executable in " + quoteDevShellArguments(sessionArguments.RequiredExecutables) + "; do command -v \"$executable\" >/dev/null 2>&1 || missing=\"$missing $executable\"; done; if [ -n \"$missing\" ]; then echo \"missing executable(s):$missing\" >&2; exit 127; fi"
 	if errorValue := runLabArguments([]string{"vm-ssh", command}); errorValue != nil {
-		return fmt.Errorf("dev tart preflight failed: %w", errorValue)
+		return fmt.Errorf("dev container preflight failed: %w", errorValue)
 	}
 	return nil
 }
@@ -409,13 +398,6 @@ func sortedDevExecutableNames(executableSet map[string]bool) []string {
 	}
 	sort.Strings(executableNames)
 	return executableNames
-}
-
-func optionalIntegerArgument(flagSet *flag.FlagSet, name string, value int64) string {
-	if !flagWasPassed(flagSet, name) {
-		return ""
-	}
-	return strconv.FormatInt(value, 10)
 }
 
 func optionalFloatArgument(flagSet *flag.FlagSet, name string, value float64) string {

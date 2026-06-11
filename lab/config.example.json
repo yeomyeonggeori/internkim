@@ -7,14 +7,12 @@
     }
   },
   "vm": {
-    "tart": {
-      "binaryPath": "tart",
+    "container": {
+      "binaryPath": "container",
       "name": "internkim-lab",
-      "image": "ghcr.io/cirruslabs/ubuntu:latest",
-      "nestedEnabled": true,
+      "image": "ubuntu:24.04",
       "cpuCount": 6,
-      "memoryMiB": 8192,
-      "diskGiB": 80
+      "memoryMiB": 8192
     },
     "mattermost": {
       "listenAddress": "127.0.0.1:8065"

@@ -272,7 +272,7 @@ func printUsage() {
 	fmt.Println("  llm      One-shot LLM ping (local by default, --remote for OpenRouter)")
 	fmt.Println("  ops      Serve the local personal fleet console")
 	fmt.Println("  tenant   Manage PoC tenant runtime manifests")
-	fmt.Println("  lab      Run Tart-based Blueclaw-aligned lab workflows")
+	fmt.Println("  lab      Run container-based Blueclaw-aligned lab workflows")
 	fmt.Println("  sim      Deprecated alias for lab")
 }
 
@@ -335,7 +335,7 @@ func printSetupUsage() {
 	fmt.Println("  --plan               Print the selected setup plan")
 	fmt.Println("  --wait-lock          Wait for another setup on the same target instead of failing fast")
 	fmt.Println("  --list-steps         Print available setup steps")
-	fmt.Println("  --sim                Run the Tart simulation flow")
+	fmt.Println("  --sim                Run the container lab simulation flow")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  internkim setup --only web --force")
@@ -930,8 +930,8 @@ func printStatusForCommandTarget(m *msg, configuration config, sshpassBin string
 	}
 
 	fmt.Printf("  %s\n", m.t(
-		"기기를 찾을 수 없습니다.\n  - Board: Wi-Fi 연결 확인\n  - Tart Lab: internkim lab vm-up",
-		"Device not found.\n  - Board: Check Wi-Fi\n  - Tart Lab: start with `internkim lab vm-up`",
+		"기기를 찾을 수 없습니다.\n  - Board: Wi-Fi 연결 확인\n  - Lab: internkim lab vm-up",
+		"Device not found.\n  - Board: Check Wi-Fi\n  - Lab: start with `internkim lab vm-up`",
 	))
 	return nil
 }
@@ -2335,9 +2335,9 @@ type hostDependency struct {
 func simulationDependencies(configuration internkimlab.Configuration) []hostDependency {
 	return []hostDependency{
 		{
-			name:        configuration.VirtualMachine.Tart.BinaryPath,
-			purpose:     "Tart VM simulation",
-			installHint: "brew install cirruslabs/cli/tart",
+			name:        configuration.VirtualMachine.Container.BinaryPath,
+			purpose:     "container CLI lab simulation",
+			installHint: "install the container CLI from https://github.com/apple/container/releases",
 		},
 	}
 }
@@ -3150,10 +3150,10 @@ func runSetupSD(m *msg) {
 	fmt.Printf("=== Intern Kim Setup (%s, Armbian Trixie) ===\n", boardNames[boardType])
 	fmt.Println()
 
-	// Stop the Tart lab VM if it is running so the same Cloudflare tunnel
+	// Stop the lab VM if it is running so the same Cloudflare tunnel
 	// token cannot race between the VM and the real device.
 	if labVirtualMachineIPAddress := resolveLabVirtualMachineIPAddress(); labVirtualMachineIPAddress != "" {
-		fmt.Printf("  %s\n", m.t("Tart Lab VM 중지 중 (터널 충돌 방지)...", "Stopping Tart lab VM (tunnel conflict)..."))
+		fmt.Printf("  %s\n", m.t("Lab VM 중지 중 (터널 충돌 방지)...", "Stopping lab VM (tunnel conflict)..."))
 		if errorValue := runLabArguments([]string{"vm-down"}); errorValue != nil {
 			fmt.Printf("  %s: %v\n", m.t("Lab VM 중지 실패", "Failed to stop lab VM"), errorValue)
 		} else {
