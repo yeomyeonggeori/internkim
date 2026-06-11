@@ -121,6 +121,11 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 
 - User-facing answers, failure explanations, approval wording, and recovery
   direction must go through the LLM.
+- Keep LLM tool schemas shallow and provider-portable. Prefer simple scalar
+  fields and string arrays over repeated nested objects unless the extra
+  structure is required for runtime correctness. When native tool calling uses a
+  forced tool-call mode, treat schema depth and total parameter complexity as a
+  budget, not just function count.
 - Deterministic runtime code may validate, normalize, enforce schemas,
   orchestrate retries, and record diagnostics, but must not compose fallback
   sentences for users.

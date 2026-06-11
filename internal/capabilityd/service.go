@@ -786,8 +786,8 @@ func (service Service) mattermostChoiceAttachment(request replyRequest, handle p
 	options := trimNonEmptyPlatformAskOptions(request.Interaction.Options)
 	if len(options) <= 3 && request.Interaction.Kind == "ask_choice_single" {
 		actions := []mattermostinteractive.Action{}
-		for _, option := range options {
-			actions = append(actions, service.mattermostAskButton("askChoice"+option.Key, option.Label, "", request, handle, "ask.choice", option.Key))
+		for index, option := range options {
+			actions = append(actions, service.mattermostAskButton("askChoice"+option.Key, numberedChoiceLabel(index, option.Label), "", request, handle, "ask.choice", option.Key))
 		}
 		return &mattermostinteractive.Attachment{Fallback: strings.TrimSpace(request.Message), Text: mattermostChoiceAttachmentText(request.Interaction), Actions: actions}
 	}
@@ -820,9 +820,13 @@ func mattermostChoiceAttachmentText(interaction *platformAskInteraction) string 
 		if strings.TrimSpace(option.Key) == strings.TrimSpace(interaction.RecommendedOptionKey) {
 			suffix = " (추천)"
 		}
-		lines = append(lines, strconv.Itoa(index+1)+". "+label+suffix)
+		lines = append(lines, numberedChoiceLabel(index, label)+suffix)
 	}
 	return strings.Join(lines, "\n")
+}
+
+func numberedChoiceLabel(index int, label string) string {
+	return strconv.Itoa(index+1) + ". " + strings.TrimSpace(label)
 }
 
 func (service Service) mattermostAskButton(id string, name string, style string, request replyRequest, handle platformHandle, action string, choiceKey string) mattermostinteractive.Action {
@@ -846,8 +850,8 @@ func (service Service) mattermostAskActionContext(request replyRequest, handle p
 
 func mattermostAskMenuOptions(options []platformAskChoiceOption) []mattermostinteractive.Option {
 	menuOptions := []mattermostinteractive.Option{}
-	for _, option := range options {
-		menuOptions = append(menuOptions, mattermostinteractive.Option{Text: option.Label, Value: option.Key})
+	for index, option := range options {
+		menuOptions = append(menuOptions, mattermostinteractive.Option{Text: numberedChoiceLabel(index, option.Label), Value: option.Key})
 	}
 	return menuOptions
 }
