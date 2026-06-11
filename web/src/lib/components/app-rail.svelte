@@ -9,6 +9,7 @@
 	import BellIcon from '@lucide/svelte/icons/bell';
 	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import ClipboardCheckIcon from '@lucide/svelte/icons/clipboard-check';
+	import ActivityIcon from '@lucide/svelte/icons/activity';
 	import CogIcon from '@lucide/svelte/icons/cog';
 	import ListChecksIcon from '@lucide/svelte/icons/list-checks';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
@@ -40,6 +41,7 @@
 	]);
 
 	const workspace = $derived<RailItem[]>([
+		{ href: '/tasks/', label: text.tasks, icon: ActivityIcon },
 		{ href: '/admin/', label: text.admin, icon: CogIcon }
 	]);
 
