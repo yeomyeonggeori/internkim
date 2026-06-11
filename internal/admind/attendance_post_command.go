@@ -154,7 +154,7 @@ func (service *Service) applyMattermostAttendanceReplyPostCommand(ctx context.Co
 		return attendanceActionResult{}, errorValue
 	}
 	defer database.Close()
-	lastEvent, found, errorValue := service.latestActiveAttendanceEventForToday(ctx, database, userRecord.ID, now)
+	lastEvent, found, errorValue := service.latestAttendanceActionEvent(ctx, database, userRecord.ID, command.Kind, now)
 	if errorValue != nil {
 		return attendanceActionResult{}, errorValue
 	}
