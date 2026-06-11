@@ -1417,12 +1417,24 @@ curl -fsSL -o /tmp/mattermost.tar.gz "$URL" 2>&1 | tail -1 && echo "download_ok"
 
 	installResult := ssh.run(fmt.Sprintf(`
 cd /tmp && tar -xzf mattermost.tar.gz 2>&1 && echo "tar_ok" || echo "tar_failed"
+legacy_data="%s"
+persistent_data="%s"
+if [ -d "$legacy_data" ] && [ ! -L "$legacy_data" ]; then
+  mkdir -p "$(dirname "$persistent_data")"
+  if [ ! -e "$persistent_data" ]; then
+    mv "$legacy_data" "$persistent_data"
+  else
+    cp -an "$legacy_data"/. "$persistent_data"/ 2>/dev/null || true
+  fi
+fi
 rm -rf /opt/mattermost
 mv /tmp/mattermost /opt/mattermost
-mkdir -p /opt/mattermost/data
+mkdir -p "$persistent_data"
+rm -rf "$legacy_data"
+ln -s "$persistent_data" "$legacy_data"
 id mattermost &>/dev/null || useradd --system --user-group mattermost
-chown -R mattermost:mattermost /opt/mattermost
-chmod -R g+w /opt/mattermost
+chown -R mattermost:mattermost /opt/mattermost "$(dirname "$persistent_data")"
+chmod -R g+w /opt/mattermost "$(dirname "$persistent_data")"
 
 # Write config
 cd /opt/mattermost
@@ -1443,7 +1455,7 @@ document.setdefault("EmailSettings", {})
 document["SqlSettings"]["DriverName"] = "postgres"
 document["SqlSettings"]["DataSource"] = "postgres://mmuser:%%s@localhost/mattermost?sslmode=disable&connect_timeout=10" %% os.environ["MATTERMOST_DB_PASS"]
 document["FileSettings"]["DriverName"] = "local"
-document["FileSettings"]["Directory"] = "/opt/mattermost/data"
+document["FileSettings"]["Directory"] = "%s"
 document["FileSettings"]["EnableFileAttachments"] = True
 document["ServiceSettings"]["SiteURL"] = os.environ["MATTERMOST_SITE_URL"]
 document["ServiceSettings"]["AllowCorsFrom"] = os.environ["MATTERMOST_SITE_URL"]
@@ -1478,7 +1490,7 @@ WantedBy=multi-user.target
 SVCEOF
 systemctl daemon-reload
 systemctl enable mattermost 2>&1 && echo "enable_ok" || echo "enable_failed"
-systemctl start mattermost 2>&1 && echo "start_ok" || echo "start_failed"`, mmDBPass, mattermostManagedResourcePathSetting(), mattermostDefaultPushNotificationServer))
+systemctl start mattermost 2>&1 && echo "start_ok" || echo "start_failed"`, mattermostLegacyFileStorageDirectory, mattermostPersistentFileStorageDirectory, mmDBPass, mattermostManagedResourcePathSetting(), mattermostPersistentFileStorageDirectory, mattermostDefaultPushNotificationServer))
 
 	if strings.Contains(installResult, "tar_failed") {
 		fmt.Printf("  ERROR: %s\n", m.t("압축 해제 실패", "Failed to extract tarball"))
@@ -1899,6 +1911,8 @@ type mattermostSetupCommandRecord struct {
 }
 
 const mattermostConnectSetupCommandTokenPath = "/root/.internkim/state/admin/mattermost-connect-command-token"
+const mattermostLegacyFileStorageDirectory = "/opt/mattermost/data"
+const mattermostPersistentFileStorageDirectory = "/var/lib/mattermost/data"
 
 func mattermostManagedResourcePathSetting() string {
 	return mattermostdefaults.ManagedResourcePathSetting()
@@ -1920,7 +1934,7 @@ func mattermostSetupConfigurationPatch(siteURL string) map[string]any {
 		"ServiceSettings": serviceSettings,
 		"FileSettings": map[string]any{
 			"DriverName":            "local",
-			"Directory":             "/opt/mattermost/data",
+			"Directory":             mattermostPersistentFileStorageDirectory,
 			"EnableFileAttachments": true,
 		},
 		"TeamSettings": map[string]any{
