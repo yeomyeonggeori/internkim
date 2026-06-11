@@ -95,6 +95,10 @@ func (service Service) mattermostScenarioPlans() []CommandPlan {
 	return append(service.upPlans(), service.labCommand("scenario-mattermost"))
 }
 
+func (service Service) mattermostDirectMessageScenarioPlans() []CommandPlan {
+	return append(service.upPlans(), service.shellPlan("verify direct message", service.verifyCommand("mattermost --direct-message-e2e")))
+}
+
 func (service Service) webBackedScenarioPlans(scenario string) []CommandPlan {
 	return append(service.upPlans(), service.shellPlan("run "+scenario, service.verifyCommand("browser --local")))
 }
@@ -147,7 +151,7 @@ func (service Service) setupCommand() string {
 	return strings.Join([]string{
 		"host=$(" + hostCommand + ")",
 		"test -n \"$host\"",
-		quoteShell(service.options.ExecutablePath) + " setup --board lab --ssh --host \"$host\" --user admin --password admin --skip wifi,local-llm,cloudflare-access,tunnel,google,slack",
+		quoteShell(service.options.ExecutablePath) + " setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --skip wifi,local-llm,cloudflare-access,tunnel,google,slack",
 	}, " && ")
 }
 
@@ -160,9 +164,7 @@ func (service Service) startTunnelCommand() string {
 		"host=$(" + hostCommand + ")",
 		"test -n \"$host\"",
 		"if [ -s " + pidPath + " ] && kill -0 \"$(cat " + pidPath + ")\" 2>/dev/null; then exit 0; fi",
-		sshpassPath + " -p admin ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ExitOnForwardFailure=yes -N -L 127.0.0.1:18080:127.0.0.1:18080 -L 127.0.0.1:8065:127.0.0.1:8065 admin@\"$host\" > " + logPath + " 2>&1 & echo $! > " + pidPath,
-		"sleep 1",
-		"kill -0 \"$(cat " + pidPath + ")\"",
+		"for attempt in 1 2 3; do rm -f " + pidPath + "; (nohup " + sshpassPath + " -p admin ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ExitOnForwardFailure=yes -N -L 127.0.0.1:18080:127.0.0.1:18080 -L 127.0.0.1:8065:127.0.0.1:8065 admin@\"$host\" > " + logPath + " 2>&1 < /dev/null & echo $! > " + pidPath + "); sleep 1; if [ -s " + pidPath + " ] && kill -0 \"$(cat " + pidPath + ")\" 2>/dev/null; then exit 0; fi; sleep 2; done; cat " + logPath + " 2>/dev/null || true; exit 1",
 	}, " && ")
 }
 

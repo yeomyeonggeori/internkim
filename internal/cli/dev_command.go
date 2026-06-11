@@ -457,6 +457,7 @@ func printDevUsage() {
 	fmt.Println("  internkim dev fleet up")
 	fmt.Println("  internkim dev fleet run --recipe predeploy-gate")
 	fmt.Println("  internkim dev fleet run --scenario mattermost-bot-invited")
+	fmt.Println("  internkim dev fleet run --scenario mattermost-direct-message-send")
 	fmt.Println("  internkim dev fleet verify-regression --base main --scenario regression-proof")
 }
 
@@ -464,6 +465,7 @@ func printDevFleetUsage() {
 	fmt.Println("Usage: internkim dev fleet <up|down|status|reset|run|verify-regression>")
 	fmt.Println("  internkim dev fleet run --recipe predeploy-gate")
 	fmt.Println("  internkim dev fleet run --scenario mattermost-bot-invited")
+	fmt.Println("  internkim dev fleet run --scenario mattermost-direct-message-send")
 }
 
 type repeatedDevStringFlag struct {

@@ -270,6 +270,19 @@ func TestJetsonDefaultResolveIncludesLocalLLMAndSkipsGoogle(t *testing.T) {
 	}
 }
 
+func TestSkillsRunAfterBlueclawRuntimeBase(t *testing.T) {
+	context := &Context{Backend: BackendSSH}
+	plan, err := DefaultRegistry().resolve(context, Selector{Skip: []string{"google"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtimeBaseIndex := setupPlanIndex(plan, "blueclaw-runtime-base")
+	skillsIndex := setupPlanIndex(plan, "skills")
+	if runtimeBaseIndex < 0 || skillsIndex < 0 || runtimeBaseIndex > skillsIndex {
+		t.Fatalf("expected blueclaw-runtime-base before skills, got %s", strings.Join(plan, ","))
+	}
+}
+
 func TestAdminWebAliasIsNotSupported(t *testing.T) {
 	names := ParseNames("admin-web,binaries")
 	if strings.Join(names, ",") != "admin-web,binaries" {
@@ -686,4 +699,13 @@ func entryStatuses(entries []planEntry) string {
 		statuses = append(statuses, status)
 	}
 	return strings.Join(statuses, ",")
+}
+
+func setupPlanIndex(plan []string, stepName string) int {
+	for index, plannedStepName := range plan {
+		if plannedStepName == stepName {
+			return index
+		}
+	}
+	return -1
 }

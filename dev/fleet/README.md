@@ -9,6 +9,7 @@ InternKim fleet. They are for localhost-only validation, not deployment.
 ./internkim dev fleet up
 ./internkim dev fleet run --recipe predeploy-gate
 ./internkim dev fleet run --scenario mattermost-bot-invited
+./internkim dev fleet run --scenario mattermost-direct-message-send
 ./internkim dev fleet verify-regression --base main --scenario regression-proof
 ./internkim dev fleet reset
 ```
@@ -29,5 +30,7 @@ New automation should call `./internkim dev fleet ...` directly.
 ## Current Scenarios
 
 - `mattermost-bot-invited`: verifies real Mattermost ingress and bot replies.
+- `mattermost-direct-message-send`: verifies real Mattermost DM recipient
+  resolution, approval, platform.message.send, and recipient DM delivery.
 - `web-backed-ui`: verifies UI behavior against local fleet admind.
 - `regression-proof`: verifies base-fails/current-passes regression plumbing.
