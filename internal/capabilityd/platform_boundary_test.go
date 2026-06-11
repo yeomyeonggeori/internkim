@@ -1390,6 +1390,9 @@ func TestMattermostReplyRendersAskChoiceEphemeralControl(t *testing.T) {
 		}
 		actions := attachment["actions"].([]any)
 		action := actions[0].(map[string]any)
+		if action["name"] != "1. 최대한 가독성 있게" {
+			t.Fatalf("expected numbered choice button, got %+v", action)
+		}
 		integration := action["integration"].(map[string]any)
 		if integration["url"] != "http://admind.test/_internkim/mattermost/actions" {
 			t.Fatalf("expected admind action URL, got %+v", integration)
