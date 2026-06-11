@@ -229,17 +229,21 @@ func validateReleaseSource(name string, sourcePath string) error {
 }
 
 func writeReleaseArchive(sourcePath string, archivePath string) error {
+	archiveSourcePath, errorValue := releaseArchiveSourcePath(sourcePath)
+	if errorValue != nil {
+		return errorValue
+	}
 	file, errorValue := os.Create(archivePath)
 	if errorValue != nil {
 		return errorValue
 	}
 	gzipWriter := gzip.NewWriter(file)
 	tarWriter := tar.NewWriter(gzipWriter)
-	walkError := filepath.WalkDir(sourcePath, func(path string, entry os.DirEntry, errorValue error) error {
+	walkError := filepath.WalkDir(archiveSourcePath, func(path string, entry os.DirEntry, errorValue error) error {
 		if errorValue != nil {
 			return errorValue
 		}
-		return writeReleaseArchiveEntry(tarWriter, sourcePath, path, entry)
+		return writeReleaseArchiveEntry(tarWriter, archiveSourcePath, path, entry)
 	})
 	closeTarError := tarWriter.Close()
 	closeGzipError := gzipWriter.Close()
@@ -250,6 +254,21 @@ func writeReleaseArchive(sourcePath string, archivePath string) error {
 		}
 	}
 	return nil
+}
+
+func releaseArchiveSourcePath(sourcePath string) (string, error) {
+	information, errorValue := os.Stat(sourcePath)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	if !information.IsDir() {
+		return sourcePath, nil
+	}
+	resolvedPath, errorValue := filepath.EvalSymlinks(sourcePath)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	return resolvedPath, nil
 }
 
 func writeReleaseArchiveEntry(writer *tar.Writer, sourcePath string, currentPath string, entry os.DirEntry) error {
