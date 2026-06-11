@@ -5,6 +5,7 @@
 	import { onMount } from 'svelte';
 	import {
 		eventLane,
+		fetchServiceLogs,
 		fetchTaskDetail,
 		formatEventBody,
 		summarizeTimeline,
@@ -30,12 +31,29 @@
 		control: text.laneControl
 	});
 
+	let serviceLogLines = $state<string[] | undefined>(undefined);
+	let serviceLogsLoading = $state(false);
+	let serviceLogsError = $state('');
+
 	async function load() {
 		loadError = '';
 		try {
 			detail = await fetchTaskDetail(page.params.id ?? '');
 		} catch {
 			loadError = text.detailLoadError;
+		}
+	}
+
+	async function loadServiceLogs() {
+		serviceLogsLoading = true;
+		serviceLogsError = '';
+		try {
+			const logsResponse = await fetchServiceLogs('blueclaw', page.params.id ?? '');
+			serviceLogLines = logsResponse.lines;
+		} catch {
+			serviceLogsError = text.serviceLogsError;
+		} finally {
+			serviceLogsLoading = false;
 		}
 	}
 
@@ -105,6 +123,28 @@
 					<pre class="overflow-x-auto border-t bg-muted/30 px-3 py-2 text-[11px] leading-relaxed">{formatEventBody(taskEvent.body)}</pre>
 				</details>
 			{/each}
+		</section>
+
+		<section class="grid min-w-0 gap-1.5">
+			<h2 class="text-sm font-semibold">{text.serviceLogsTitle}</h2>
+			<div>
+				<button
+					onclick={loadServiceLogs}
+					disabled={serviceLogsLoading}
+					class="rounded-md border px-3 py-1.5 text-xs disabled:opacity-50"
+				>
+					{text.serviceLogsLoad}
+				</button>
+			</div>
+			{#if serviceLogsError}
+				<p class="text-sm text-red-600">{serviceLogsError}</p>
+			{:else if serviceLogLines !== undefined}
+				{#if serviceLogLines.length === 0}
+					<p class="text-sm text-muted-foreground">{text.serviceLogsEmpty}</p>
+				{:else}
+					<pre class="overflow-x-auto rounded-md border bg-muted/30 px-3 py-2 text-[11px] leading-relaxed">{serviceLogLines.join('\n')}</pre>
+				{/if}
+			{/if}
 		</section>
 	{/if}
 </main>

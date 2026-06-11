@@ -111,6 +111,29 @@ export function formatEventBody(body: string): string {
 	return JSON.stringify(parsed, undefined, 2);
 }
 
+export type ServiceLogsResponse = { service: string; taskRunID?: string; count: number; lines: string[] };
+
+export async function fetchServiceLogs(service: string, taskRunID: string, limit = 200): Promise<ServiceLogsResponse> {
+	const query = new URLSearchParams({ service, taskRunID, limit: String(limit) });
+	const response = await fetch(`/admin/api/diagnostics/service-logs?${query.toString()}`, {
+		credentials: 'include'
+	});
+	if (!response.ok) {
+		throw new Error(`Service logs request returned ${response.status}`);
+	}
+	const document: unknown = await response.json();
+	const record = readRecord(document);
+	return {
+		service: record && typeof record.service === 'string' ? record.service : service,
+		taskRunID: record && typeof record.taskRunID === 'string' ? record.taskRunID : undefined,
+		count: record && typeof record.count === 'number' ? record.count : 0,
+		lines:
+			record && Array.isArray(record.lines)
+				? record.lines.filter((line): line is string => typeof line === 'string')
+				: []
+	};
+}
+
 function readTaskRunSummary(entry: unknown): TaskRunSummary | undefined {
 	const record = readRecord(entry);
 	if (!record || typeof record.taskRunID !== 'string' || typeof record.status !== 'string') {
