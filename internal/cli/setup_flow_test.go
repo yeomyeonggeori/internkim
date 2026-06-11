@@ -567,7 +567,7 @@ func TestMattermostSetupUsesAbsoluteFileStorageDirectory(t *testing.T) {
 	if fileSettings["DriverName"] != "local" {
 		t.Fatalf("expected local file storage, got %+v", fileSettings)
 	}
-	if fileSettings["Directory"] != "/opt/mattermost/data" {
+	if fileSettings["Directory"] != mattermostPersistentFileStorageDirectory {
 		t.Fatalf("expected absolute Mattermost data directory, got %+v", fileSettings)
 	}
 	if fileSettings["EnableFileAttachments"] != true {
