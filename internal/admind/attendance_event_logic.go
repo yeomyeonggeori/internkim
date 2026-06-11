@@ -45,7 +45,7 @@ func (service *Service) applyAttendanceToggle(ctx context.Context, userRecord ma
 		return attendanceActionResult{}, errorValue
 	}
 	defer database.Close()
-	lastEvent, found, errorValue := service.latestActiveAttendanceEventForToday(ctx, database, userRecord.ID, now)
+	lastEvent, found, errorValue := service.latestAttendanceActionEvent(ctx, database, userRecord.ID, "", now)
 	if errorValue != nil {
 		return attendanceActionResult{}, errorValue
 	}
@@ -62,7 +62,7 @@ func (service *Service) applyAttendanceAction(ctx context.Context, userRecord ma
 		return attendanceActionResult{}, errorValue
 	}
 	defer database.Close()
-	lastEvent, found, errorValue := service.latestActiveAttendanceEventForToday(ctx, database, userRecord.ID, now)
+	lastEvent, found, errorValue := service.latestAttendanceActionEvent(ctx, database, userRecord.ID, kind, now)
 	if errorValue != nil {
 		return attendanceActionResult{}, errorValue
 	}
@@ -87,6 +87,24 @@ func (service *Service) latestActiveAttendanceEventForToday(ctx context.Context,
 	location, _ := service.workspaceTimeLocation()
 	localDate := now.In(location).Format("2006-01-02")
 	return service.latestActiveAttendanceEventForLocalDateAtOrBefore(ctx, database, mattermostUserID, localDate, now)
+}
+
+func (service *Service) latestAttendanceActionEvent(ctx context.Context, database *sql.DB, mattermostUserID string, kind string, now time.Time) (attendanceEvent, bool, error) {
+	event, found, errorValue := service.latestActiveAttendanceEventForToday(ctx, database, mattermostUserID, now)
+	if errorValue != nil || found || kind == attendanceKindClockIn {
+		return event, found, errorValue
+	}
+	return service.openClockInFromYesterday(ctx, database, mattermostUserID, now)
+}
+
+func (service *Service) openClockInFromYesterday(ctx context.Context, database *sql.DB, mattermostUserID string, now time.Time) (attendanceEvent, bool, error) {
+	location, _ := service.workspaceTimeLocation()
+	yesterdayDate := now.In(location).AddDate(0, 0, -1).Format("2006-01-02")
+	yesterdayEvent, found, errorValue := service.latestActiveAttendanceEventForLocalDateAtOrBefore(ctx, database, mattermostUserID, yesterdayDate, now)
+	if errorValue != nil || !found || yesterdayEvent.Kind != attendanceKindClockIn {
+		return attendanceEvent{}, false, errorValue
+	}
+	return yesterdayEvent, true, nil
 }
 
 func (service *Service) shouldIgnoreMattermostAttendanceAction(ctx context.Context, kind string, event attendanceEvent, hasEvent bool, channelID string, actionPostID string) (bool, error) {
