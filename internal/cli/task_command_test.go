@@ -55,7 +55,7 @@ func TestTaskListFiltersFailedRuns(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if client.requests[0] != "GET /diagnostics/tasks" {
+	if client.requests[0] != "GET /diagnostics/tasks?limit=20&status=failed" {
 		t.Fatalf("requests = %v", client.requests)
 	}
 	if !strings.Contains(output.String(), "task-failed") || strings.Contains(output.String(), "task-completed") {
