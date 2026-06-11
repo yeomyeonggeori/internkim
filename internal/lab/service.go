@@ -521,6 +521,8 @@ func (service Service) buildBootstrapScript() string {
 		"printf '" + sshUsername + " ALL=(ALL) NOPASSWD:ALL\\n' > /etc/sudoers.d/" + sshUsername,
 		"chmod 440 /etc/sudoers.d/" + sshUsername,
 		"systemctl enable ssh >/dev/null 2>&1 || true",
+		"if [ -L /etc/resolv.conf ]; then cp /etc/resolv.conf /etc/resolv.conf.static && rm /etc/resolv.conf && mv /etc/resolv.conf.static /etc/resolv.conf; fi",
+		"ln -sf /dev/null /etc/systemd/system/systemd-resolved.service",
 		"exec /lib/systemd/systemd",
 	}, "\n")
 }
