@@ -11,11 +11,9 @@ import (
 func main() {
 	defaultConfiguration := capabilityd.DefaultConfiguration()
 	configuration := capabilityd.Configuration{}
-	openRouterGatewaySecretPath := ""
 	flag.StringVar(&configuration.SocketPath, "socket", defaultConfiguration.SocketPath, "capability socket path")
 	flag.IntVar(&configuration.VSockPort, "vsock-port", defaultConfiguration.VSockPort, "optional host vsock port for Firecracker guests")
 	flag.StringVar(&configuration.OpenRouterKeyPath, "openrouter-key", defaultConfiguration.OpenRouterKeyPath, "OpenRouter key path")
-	flag.StringVar(&configuration.OpenRouterBaseURL, "openrouter-url", defaultConfiguration.OpenRouterBaseURL, "OpenRouter chat completion URL")
 	flag.StringVar(&configuration.MattermostBaseURL, "mattermost-url", defaultConfiguration.MattermostBaseURL, "Mattermost base URL")
 	flag.StringVar(&configuration.MattermostTokenPath, "mattermost-token", defaultConfiguration.MattermostTokenPath, "Mattermost bot token path")
 	flag.StringVar(&configuration.MattermostInteractiveTokenPath, "mattermost-interactive-token", defaultConfiguration.MattermostInteractiveTokenPath, "Mattermost interactive action token path")
@@ -44,7 +42,6 @@ func main() {
 	flag.StringVar(&configuration.FileReadPythonPath, "file-read-python", defaultConfiguration.FileReadPythonPath, "Python executable for file.read conversions")
 	flag.StringVar(&configuration.AgentBrowserPath, "agent-browser", defaultConfiguration.AgentBrowserPath, "agent-browser executable path")
 	flag.StringVar(&configuration.DeviceBrowserPath, "device-browser", defaultConfiguration.DeviceBrowserPath, "device Chromium executable path")
-	flag.StringVar(&openRouterGatewaySecretPath, "openrouter-gateway-secret", openRouterGatewaySecretPath, "OpenRouter gateway shared secret path")
 	flag.BoolVar(&configuration.PreferCompanionLLM, "prefer-companion-llm", defaultConfiguration.PreferCompanionLLM, "prefer companion local LLM when available")
 	flag.StringVar(&configuration.LocalInferenceMode, "local-inference-mode", defaultConfiguration.LocalInferenceMode, "local inference mode: device, companion_preferred, companion_only, remote")
 	flag.BoolVar(&configuration.LocalOnly, "local-only", defaultConfiguration.LocalOnly, "disable remote LLM fallback")
