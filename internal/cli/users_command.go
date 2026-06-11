@@ -13,11 +13,11 @@ import (
 	"strings"
 )
 
-type usersAdminAPIClient interface {
+type adminAPIClient interface {
 	request(method string, path string, requestBody any, responseBody any) ([]byte, error)
 }
 
-type usersSSHAdminAPIClient struct {
+type sshAdminAPIClient struct {
 	connection *sshClient
 }
 
@@ -75,7 +75,7 @@ func runInviteArguments(arguments []string) error {
 	return addUserWithClient(arguments, client, "member")
 }
 
-func runUsersArgumentsWithClient(arguments []string, client usersAdminAPIClient) error {
+func runUsersArgumentsWithClient(arguments []string, client adminAPIClient) error {
 	command, commandArguments := splitUsersCommand(arguments)
 	switch command {
 	case "list":
@@ -122,7 +122,7 @@ func validateUsersArguments(command string, arguments []string) error {
 	}
 }
 
-func resolveUsersAdminAPIClient(arguments []string) (usersAdminAPIClient, error) {
+func resolveAdminAPIClient(arguments []string) (adminAPIClient, error) {
 	repositoryRootPath, errorValue := resolveRepositoryRootPath()
 	if errorValue != nil {
 		return nil, errorValue
@@ -138,10 +138,10 @@ func resolveUsersAdminAPIClient(arguments []string) (usersAdminAPIClient, error)
 	if connection == nil {
 		return nil, errors.New("device is not reachable; pass --host <ip> or run setup once")
 	}
-	return usersSSHAdminAPIClient{connection: connection}, nil
+	return sshAdminAPIClient{connection: connection}, nil
 }
 
-func listUsersWithClient(arguments []string, client usersAdminAPIClient) error {
+func listUsersWithClient(arguments []string, client adminAPIClient) error {
 	response := commandUsersResponse{}
 	rawResponse, errorValue := client.request("GET", "/users", nil, &response)
 	if errorValue != nil {
@@ -155,7 +155,7 @@ func listUsersWithClient(arguments []string, client usersAdminAPIClient) error {
 	return nil
 }
 
-func addUserWithClient(arguments []string, client usersAdminAPIClient, defaultRole string) error {
+func addUserWithClient(arguments []string, client adminAPIClient, defaultRole string) error {
 	record, errorValue := commandUserRecordFromArguments(arguments, defaultRole)
 	if errorValue != nil {
 		return errorValue
@@ -180,7 +180,7 @@ func addUserWithClient(arguments []string, client usersAdminAPIClient, defaultRo
 	return nil
 }
 
-func removeUserWithClient(arguments []string, client usersAdminAPIClient) error {
+func removeUserWithClient(arguments []string, client adminAPIClient) error {
 	email := userEmailFromArguments(arguments)
 	if email == "" {
 		return errors.New("usage: internkim users remove <email>")
@@ -193,7 +193,7 @@ func removeUserWithClient(arguments []string, client usersAdminAPIClient) error 
 	return nil
 }
 
-func changeUserRoleWithClient(arguments []string, client usersAdminAPIClient, role string) error {
+func changeUserRoleWithClient(arguments []string, client adminAPIClient, role string) error {
 	email := userEmailFromArguments(arguments)
 	if email == "" {
 		return errors.New("usage: internkim users promote|demote <email>")
@@ -310,7 +310,7 @@ func printUsersResponse(response commandUsersResponse) {
 	}
 }
 
-func (client usersSSHAdminAPIClient) request(method string, path string, requestBody any, responseBody any) ([]byte, error) {
+func (client sshAdminAPIClient) request(method string, path string, requestBody any, responseBody any) ([]byte, error) {
 	command, errorValue := adminAPICurlCommand(method, path, requestBody)
 	if errorValue != nil {
 		return nil, errorValue

@@ -212,6 +212,8 @@ func Main() {
 			runInvite()
 		case "users":
 			runUsers()
+		case "task":
+			runTask()
 		case "reset":
 			runReset()
 		case "recover":
@@ -261,6 +263,7 @@ func printUsage() {
 	fmt.Println("  companion Build and upgrade the local companion app")
 	fmt.Println("  invite   Add/invite an allowed user")
 	fmt.Println("  users    Manage allowed users")
+	fmt.Println("  task     Inspect task runs and failure logs")
 	fmt.Println("  reset    Reset board runtime data")
 	fmt.Println("  recover  Recover narrow device maintenance paths")
 	fmt.Println("  release  Publish and inspect release sets")
@@ -843,6 +846,12 @@ func runInvite() {
 
 func runUsers() {
 	if errorValue := runUsersArguments(os.Args[2:]); errorValue != nil {
+		fatal(errorValue.Error())
+	}
+}
+
+func runTask() {
+	if errorValue := runTaskArguments(os.Args[2:]); errorValue != nil {
 		fatal(errorValue.Error())
 	}
 }
