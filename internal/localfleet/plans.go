@@ -64,7 +64,7 @@ func (service Service) upPlans() []CommandPlan {
 	return []CommandPlan{
 		service.labCommand("vm-up"),
 		service.shellPlan("start localhost tunnel", service.startTunnelCommand()),
-		service.shellPlan("mount shared workspace", service.mountSharedWorkspaceCommand()),
+		service.shellPlan("check shared workspace", service.checkSharedWorkspaceCommand()),
 		service.command("make", "build"),
 		service.shellPlan("setup local fleet", service.setupCommand()),
 	}
@@ -140,10 +140,8 @@ func (service Service) shellPlan(label string, command string) CommandPlan {
 	}
 }
 
-func (service Service) mountSharedWorkspaceCommand() string {
-	return strings.Join([]string{
-		quoteShell(service.options.ExecutablePath) + " lab vm-ssh --config " + quoteShell(service.configurationPath()) + " " + quoteShell("sudo mkdir -p /mnt/shared && (mountpoint -q /mnt/shared || sudo mount -t virtiofs com.apple.virtio-fs.automount /mnt/shared)"),
-	}, " && ")
+func (service Service) checkSharedWorkspaceCommand() string {
+	return quoteShell(service.options.ExecutablePath) + " lab vm-ssh --config " + quoteShell(service.configurationPath()) + " " + quoteShell("test -d /mnt/shared/workspace")
 }
 
 func (service Service) setupCommand() string {
