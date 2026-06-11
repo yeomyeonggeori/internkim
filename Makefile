@@ -7,7 +7,7 @@ AGENT_BROWSER_VERSION ?= 0.26.0
 COMPANION_BETA_DIST ?= dist/companion
 COMPANION_BETA_MACOS_ARTIFACT ?= internkim-companion-beta-macos-aarch64.dmg
 
-.PHONY: build build-companion build-companion-shell package-companion-beta check test doctor deps-sim deps-browser deps-companion deps-companion-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload smoke-blueclaw-runtime-tart deps-graphiti setup-sim sim-gate deploy-after-sim verify-api verify-browser verify-graphiti-local
+.PHONY: build build-companion build-companion-shell package-companion-beta check test doctor deps-sim deps-browser deps-companion deps-companion-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload smoke-blueclaw-runtime-lab smoke-blueclaw-runtime-lab-fast deps-graphiti setup-sim sim-gate deploy-after-sim verify-api verify-browser verify-graphiti-local
 
 build:
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim ./cmd/internkim
@@ -44,7 +44,7 @@ doctor: build
 	./internkim doctor
 
 deps-sim:
-	brew install cirruslabs/cli/tart
+	@echo "install the container CLI from https://github.com/apple/container/releases"
 
 deps-browser:
 	cd web && bun install
@@ -62,15 +62,15 @@ prepare-blueclaw-runtime-builder: build
 	./internkim lab runtime-builder-prepare
 
 prepare-blueclaw-runtime-base:
-	if [ "$$(uname -s)" = "Linux" ]; then GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) tools/prepare-blueclaw-runtime --builder local; else GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) tools/prepare-blueclaw-runtime --builder tart; fi
+	if [ "$$(uname -s)" = "Linux" ]; then GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) tools/prepare-blueclaw-runtime --builder local; else GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) tools/prepare-blueclaw-runtime --builder container; fi
 
 prepare-blueclaw-payload:
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) tools/prepare-blueclaw-payload
 
-smoke-blueclaw-runtime-tart: build
+smoke-blueclaw-runtime-lab: build
 	./internkim setup --sim --only blueclaw-runtime-base,blueclaw-payload,skills,services,users-sync --force-all --verify
 
-smoke-blueclaw-runtime-tart-fast: build
+smoke-blueclaw-runtime-lab-fast: build
 	./internkim setup --sim --only binaries,blueclaw-runtime-base,blueclaw-payload,services --verify
 
 build-litert-lm-main:

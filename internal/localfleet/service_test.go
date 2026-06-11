@@ -84,6 +84,20 @@ func TestStartTunnelCommandKeepsSSHAliveAfterShellExit(t *testing.T) {
 	}
 }
 
+func TestCheckSharedWorkspaceCommandUsesBindMountedDirectory(t *testing.T) {
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	command := service.checkSharedWorkspaceCommand()
+	if !strings.Contains(command, "test -d /mnt/shared/workspace") {
+		t.Fatalf("expected shared workspace check, got %s", command)
+	}
+	if strings.Contains(command, "virtiofs") || strings.Contains(command, "mountpoint") {
+		t.Fatalf("expected no mount logic, got %s", command)
+	}
+}
+
 func TestUnsupportedScenarioFails(t *testing.T) {
 	service, errorValue := NewService(Options{RepositoryRootPath: t.TempDir(), ExecutablePath: "/bin/echo"})
 	if errorValue != nil {

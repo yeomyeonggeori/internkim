@@ -1,6 +1,6 @@
 # Local Fleet Scenarios
 
-Local Fleet scenarios verify the current checkout against a Tart-hosted local
+Local Fleet scenarios verify the current checkout against an apple/container-hosted local
 InternKim fleet. They are for localhost-only validation, not deployment.
 
 ## Commands

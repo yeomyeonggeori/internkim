@@ -1,11 +1,11 @@
-# Testing with Tart Lab
+# Testing with the container Lab
 
-`internkim`의 macOS 소프트웨어 테스트 환경은 이제 Tart 기반입니다. 목표는 Blueclaw lab과 비슷한 토폴로지로, macOS host 위에 Tart ARM Linux VM을 올리고 그 VM 안에서 `blueclaw`, `mattermost`, `cloudflared`, Google 연동을 실제처럼 검증하는 것입니다.
+`internkim`의 macOS 소프트웨어 테스트 환경은 이제 apple/container 기반입니다. 목표는 Blueclaw lab과 비슷한 토폴로지로, macOS host 위에 apple/container ARM Linux VM을 올리고 그 VM 안에서 `blueclaw`, `mattermost`, `cloudflared`, Google 연동을 실제처럼 검증하는 것입니다.
 
 ## 요구사항
 
 - Apple Silicon macOS
-- `tart` 설치: `make deps-sim`
+- `container` CLI 설치: `make deps-sim`
 - `ssh`, `sshpass`
 - 실서비스 자격증명
   - `INTERNKIM_REGISTER_SECRET`
@@ -20,7 +20,7 @@
 # 빌드
 make build
 
-# Tart 이미지 준비
+# 컨테이너 이미지 준비
 ./internkim lab image-build
 
 # VM 부팅
@@ -149,10 +149,10 @@ go test ./internal/e2e -run 'TestScheduleCreateAcceptance|TestSitePrototypeAccep
 ./internkim verify mattermost --prompt '웹사이트 하나 만들어서 배포해봐' --expect-tool site.app.create --expect-tool site.app.publish
 ```
 
-Mattermost ask 선택지 attachment와 버튼 ACK 회귀는 Tart lab에서 별도 smoke로 확인합니다. public 봇 답변에 선택지 attachment가 붙지 않고, requester-only ephemeral post가 생성되며, 버튼 ACK는 빈 ephemeral text 없이 delete update를 반환해야 합니다.
+Mattermost ask 선택지 attachment와 버튼 ACK 회귀는 container lab에서 별도 smoke로 확인합니다. public 봇 답변에 선택지 attachment가 붙지 않고, requester-only ephemeral post가 생성되며, 버튼 ACK는 빈 ephemeral text 없이 delete update를 반환해야 합니다.
 
 ```bash
-lab/scripts/run-smoke-mattermost-ask-ephemeral-tart.sh internkim-lab
+lab/scripts/run-smoke-mattermost-ask-ephemeral-container.sh internkim-lab
 ```
 
 배포 전 기능별 확인:
@@ -164,7 +164,7 @@ lab/scripts/run-smoke-mattermost-ask-ephemeral-tart.sh internkim-lab
 
 ### Phase A
 
-macOS + Tart 기반 소프트웨어 E2E.
+macOS + apple/container 기반 소프트웨어 E2E.
 
 - 모든 로컬 개발자는 먼저 이 경로를 통과시킵니다.
 - Google, Mattermost, Cloudflare는 실제 자격증명 기준으로 검증합니다.
