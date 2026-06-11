@@ -26,7 +26,7 @@ var StepBlueclawConfiguration = Step{
 			return errors.New("blueclaw configuration SSH connection missing")
 		}
 
-		runtimeConfiguration, errorValue := blueclaw.BlueclawRuntimeConfigDocument("")
+		runtimeConfiguration, errorValue := generatedBlueclawRuntimeConfiguration(context)
 		if errorValue != nil {
 			return errorValue
 		}
@@ -49,7 +49,7 @@ var StepBlueclawConfiguration = Step{
 }
 
 func blueclawConfigurationFilesMatchGenerated(context *Context) bool {
-	runtimeConfiguration, errorValue := blueclaw.BlueclawRuntimeConfigDocument("")
+	runtimeConfiguration, errorValue := generatedBlueclawRuntimeConfiguration(context)
 	if errorValue != nil {
 		return false
 	}
@@ -65,6 +65,19 @@ func blueclawConfigurationFilesMatchGenerated(context *Context) bool {
 
 func remoteFileMatchesContent(context *Context, path string, content string) bool {
 	return trimmedRun(context, "printf '%s' "+shellQuote(content)+" | cmp -s - "+shellQuote(path)+" && echo ok || echo missing") == "ok"
+}
+
+func generatedBlueclawRuntimeConfiguration(context *Context) (string, error) {
+	return blueclaw.BlueclawRuntimeConfigDocumentWithOptions(blueclaw.RuntimeConfigOptions{
+		AdminTaskLinkBaseURL: loadDeviceURL(context),
+	})
+}
+
+func loadDeviceURL(context *Context) string {
+	if context.Callbacks.LoadState == nil {
+		return ""
+	}
+	return context.Callbacks.LoadState("device_url")
 }
 
 func loadGoogleEmail(context *Context) string {
