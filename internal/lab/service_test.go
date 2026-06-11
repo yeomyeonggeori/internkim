@@ -132,6 +132,7 @@ func TestVirtualMachineUpSkipsImageBuildWhenVirtualMachineRunning(t *testing.T) 
 func TestVirtualMachineUpCreatesMissingVirtualMachine(t *testing.T) {
 	commandRunner := &fakeCommandRunner{
 		outputValues: []string{missingContainerListJSON, stoppedContainerListJSON, runningContainerListJSON},
+		outputValue:  runningContainerListJSON,
 	}
 	service := NewService(buildTestConfiguration(), commandRunner, "/repo")
 
@@ -139,8 +140,8 @@ func TestVirtualMachineUpCreatesMissingVirtualMachine(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected vm up to succeed: %v", errorValue)
 	}
-	if len(commandRunner.runCommands) != 2 {
-		t.Fatalf("expected create and start commands, got %d", len(commandRunner.runCommands))
+	if len(commandRunner.runCommands) != 3 {
+		t.Fatalf("expected create, start, and ssh probe commands, got %d", len(commandRunner.runCommands))
 	}
 	if commandRunner.runCommands[0].Arguments[0] != "create" {
 		t.Fatalf("expected create command, got %v", commandRunner.runCommands[0].Arguments)
@@ -157,6 +158,7 @@ func TestVirtualMachineUpCreatesMissingVirtualMachine(t *testing.T) {
 func TestVirtualMachineUpStartsStoppedVirtualMachine(t *testing.T) {
 	commandRunner := &fakeCommandRunner{
 		outputValues: []string{stoppedContainerListJSON, stoppedContainerListJSON, runningContainerListJSON},
+		outputValue:  runningContainerListJSON,
 	}
 	service := NewService(buildTestConfiguration(), commandRunner, "/repo")
 
@@ -164,8 +166,8 @@ func TestVirtualMachineUpStartsStoppedVirtualMachine(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected vm up to succeed: %v", errorValue)
 	}
-	if len(commandRunner.runCommands) != 1 {
-		t.Fatalf("expected only start command for existing container, got %d", len(commandRunner.runCommands))
+	if len(commandRunner.runCommands) != 2 {
+		t.Fatalf("expected start and ssh probe commands for existing container, got %d", len(commandRunner.runCommands))
 	}
 	if strings.Join(commandRunner.runCommands[0].Arguments, " ") != "start internkim-lab" {
 		t.Fatalf("expected container start command, got %v", commandRunner.runCommands[0].Arguments)
