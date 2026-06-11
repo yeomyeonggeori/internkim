@@ -73,6 +73,7 @@ func runVerifyMattermost(arguments []string) error {
 	expectPublicURL := flagSet.Bool("expect-public-url", false, "Require a public URL in the final bot reply and verify it returns site HTML")
 	htmlAttachmentFollowupE2E := flagSet.Bool("html-attachment-followup-e2e", false, "Upload an HTML file through Mattermost and verify current and follow-up attachment preview")
 	messageDeleteE2E := flagSet.Bool("message-delete-e2e", false, "Create Mattermost test posts and verify InternKim deletes only its own posts")
+	directMessageE2E := flagSet.Bool("direct-message-e2e", false, "Create Mattermost probe users and verify platform.message.send sends a direct message")
 	expectedTools := repeatedStringFlag{}
 	expectedEvents := repeatedStringFlag{}
 	flagSet.Var(&expectedTools, "expect-tool", "Require a requested tool event for prompt verification; repeat for multiple tools")
@@ -128,6 +129,9 @@ func runVerifyMattermost(arguments []string) error {
 	}
 	if *messageDeleteE2E {
 		return verifyTarget.runRemoteVerificationWithTimeout(verifyMattermostMessageDeleteE2EScript(*keep, *timeoutSeconds), mattermostPromptSSHTimeout(*timeoutSeconds))
+	}
+	if *directMessageE2E {
+		return verifyTarget.runRemoteVerificationWithTimeout(verifyMattermostDirectMessageE2EScript(*keep, *timeoutSeconds), mattermostPromptSSHTimeout(*timeoutSeconds))
 	}
 	if *browserOpenE2E {
 		promptText := strings.TrimSpace(*prompt)
@@ -1845,6 +1849,294 @@ jq -cn \
     taskEvents: (((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskEvents // []) | map({name, body: ((.body // "") | tostring | .[0:1200])}))
   }'
 `, strconv.Quote(encodedPrompt), strconv.Quote(encodedExpectedTools), strconv.Quote(encodedExpectedEvents), keepValue, timeoutSeconds, expectBrowserOpenValue, expectPublicURLValue, downloadFilesValue)
+}
+
+func verifyMattermostDirectMessageE2EScript(keep bool, timeoutSeconds int) string {
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = 300
+	}
+	keepValue := "false"
+	if keep {
+		keepValue = "true"
+	}
+	return fmt.Sprintf(`set -euo pipefail
+
+timestamp="$(date +%%s)"
+requester_email="probe-mattermost-dm-requester-$timestamp@internkim.test"
+requester_username="probedmreq$timestamp"
+recipient_email="probe-mattermost-dm-recipient-$timestamp@internkim.test"
+recipient_username="probedmto$timestamp"
+password="ProbePass!$timestamp-InternKim-Mattermost"
+target_message="InternKim DM E2E $timestamp"
+prompt="${recipient_username}에게 ${target_message}라고 DM 보내줘"
+keep_artifacts=%s
+timeout_seconds=%d
+test_started_at="$(date +%%s%%3N)"
+
+api_request() {
+  local phase_name="$1"
+  local method="$2"
+  local url="$3"
+  local token="${4:-}"
+  local body="${5:-}"
+  local response_file
+  local status
+  local curl_status
+  response_file="$(mktemp)"
+  if [ -n "$body" ]; then
+    status="$(curl --silent --show-error --output "$response_file" --write-out "%%{http_code}" \
+      -X "$method" -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
+      -d "$body" "$url")" || curl_status="$?"
+  else
+    status="$(curl --silent --show-error --output "$response_file" --write-out "%%{http_code}" \
+      -X "$method" -H "Authorization: Bearer $token" "$url")" || curl_status="$?"
+  fi
+  if [ "${curl_status:-0}" != "0" ]; then
+    echo "Mattermost API curl failure during $phase_name: $method $url (curl exit ${curl_status:-0})" >&2
+    cat "$response_file" >&2 || true
+    rm -f "$response_file"
+    return "${curl_status:-1}"
+  fi
+  if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+    echo "Mattermost API failure during $phase_name: $method $url returned HTTP $status" >&2
+    cat "$response_file" >&2 || true
+    echo >&2
+    rm -f "$response_file"
+    return 22
+  fi
+  cat "$response_file"
+  rm -f "$response_file"
+}
+
+blueclaw_request() {
+  local phase_name="$1"
+  local method="$2"
+  local url="$3"
+  local body="${4:-}"
+  local response_file
+  local status
+  local curl_status
+  response_file="$(mktemp)"
+  if [ -n "$body" ]; then
+    status="$(curl --silent --show-error --output "$response_file" --write-out "%%{http_code}" \
+      -X "$method" -H "Content-Type: application/json" -d "$body" "$url")" || curl_status="$?"
+  else
+    status="$(curl --silent --show-error --output "$response_file" --write-out "%%{http_code}" \
+      -X "$method" "$url")" || curl_status="$?"
+  fi
+  if [ "${curl_status:-0}" != "0" ]; then
+    echo "Blueclaw API curl failure during $phase_name: $method $url (curl exit ${curl_status:-0})" >&2
+    cat "$response_file" >&2 || true
+    rm -f "$response_file"
+    return "${curl_status:-1}"
+  fi
+  if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+    echo "Blueclaw API failure during $phase_name: $method $url returned HTTP $status" >&2
+    cat "$response_file" >&2 || true
+    echo >&2
+    rm -f "$response_file"
+    return 22
+  fi
+  cat "$response_file"
+  rm -f "$response_file"
+}
+
+wait_for_blueclaw_health() {
+  for _ in $(seq 1 "$timeout_seconds"); do
+    if curl --silent --show-error --fail --max-time 5 http://127.0.0.1:8080/admin/api/health |
+      jq -e '.status == "ok"' >/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "Blueclaw API did not become healthy before direct-message E2E" >&2
+  return 1
+}
+
+login_user() {
+  local username="$1"
+  local headers
+  headers="$(mktemp)"
+  curl --silent --show-error --fail -D "$headers" -o /tmp/internkim-dm-user-login.json \
+    -H "Content-Type: application/json" \
+    -d "$(jq -cn --arg login_id "$username" --arg password "$password" '{login_id:$login_id,password:$password}')" \
+    http://localhost:8065/api/v4/users/login >/dev/null
+  awk 'tolower($1) == "token:" {print $2}' "$headers" | tr -d '\r'
+}
+
+create_user() {
+  local email="$1"
+  local username="$2"
+  api_request "create user $username" POST http://localhost:8065/api/v4/users "$admin_token" \
+    "$(jq -cn --arg email "$email" --arg username "$username" --arg password "$password" '{email:$email,username:$username,password:$password}')" |
+    jq -r '.id'
+}
+
+delete_user() {
+  local user_id="$1"
+  if [ -z "$user_id" ] || [ "$user_id" = "null" ]; then
+    return 0
+  fi
+  curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+    "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null || \
+    curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
+      "http://localhost:8065/api/v4/users/$user_id" >/dev/null || \
+    echo "cleanup warning: failed to delete Mattermost user $user_id" >&2
+}
+
+delete_post() {
+  local token="$1"
+  local post_id="$2"
+  if [ -z "$post_id" ] || [ "$post_id" = "null" ]; then
+    return 0
+  fi
+  curl --silent --show-error -X DELETE -H "Authorization: Bearer $token" \
+    "http://localhost:8065/api/v4/posts/$post_id" >/dev/null || echo "cleanup warning: failed to delete Mattermost post $post_id" >&2
+}
+
+cleanup() {
+  if [ "$keep_artifacts" = "true" ]; then
+    return 0
+  fi
+  delete_post "${requester_token:-}" "${request_post_id:-}"
+  delete_post "${requester_token:-}" "${approval_post_id:-}"
+  delete_post "${mattermost_token:-}" "${bot_reply_post_id:-}"
+  delete_post "${mattermost_token:-}" "${recipient_dm_post_id:-}"
+  delete_user "${requester_user_id:-}"
+  delete_user "${recipient_user_id:-}"
+  curl --silent --show-error -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$requester_email" >/dev/null || true
+  curl --silent --show-error -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$recipient_email" >/dev/null || true
+}
+trap cleanup EXIT
+
+admin_password="$(cat /root/.internkim/secrets/mm-admin-pass)"
+admin_headers="$(mktemp)"
+curl --silent --show-error --fail -D "$admin_headers" -o /tmp/internkim-dm-admin-login.json \
+  -H "Content-Type: application/json" \
+  -d "$(jq -cn --arg login_id admin --arg password "$admin_password" '{login_id:$login_id,password:$password}')" \
+  http://localhost:8065/api/v4/users/login >/dev/null
+admin_token="$(awk 'tolower($1) == "token:" {print $2}' "$admin_headers" | tr -d '\r')"
+test -n "$admin_token"
+
+mattermost_token="$(cat /root/.internkim/secrets/mattermost-bot-token)"
+bot_user_id="$(api_request "bot lookup" GET http://localhost:8065/api/v4/users/me "$mattermost_token" | jq -r '.id // empty')"
+test -n "$bot_user_id"
+wait_for_blueclaw_health
+
+requester_user_id="$(create_user "$requester_email" "$requester_username")"
+recipient_user_id="$(create_user "$recipient_email" "$recipient_username")"
+test -n "$requester_user_id"
+test -n "$recipient_user_id"
+requester_token="$(login_user "$requester_username")"
+recipient_token="$(login_user "$recipient_username")"
+test -n "$requester_token"
+test -n "$recipient_token"
+
+blueclaw_request "invite requester" POST http://127.0.0.1:8080/admin/api/people/invite \
+  "$(jq -cn --arg personID "$requester_user_id" --arg email "$requester_email" '{personID:$personID,email:$email}')" >/dev/null
+blueclaw_request "invite recipient" POST http://127.0.0.1:8080/admin/api/people/invite \
+  "$(jq -cn --arg personID "$recipient_user_id" --arg email "$recipient_email" '{personID:$personID,email:$email}')" >/dev/null
+
+request_channel_id="$(api_request "create requester dm" POST http://localhost:8065/api/v4/channels/direct "$requester_token" \
+  "$(jq -cn --arg requester_user_id "$requester_user_id" --arg bot_user_id "$bot_user_id" '[$requester_user_id,$bot_user_id]')" | jq -r '.id')"
+recipient_channel_id="$(api_request "create recipient dm" POST http://localhost:8065/api/v4/channels/direct "$recipient_token" \
+  "$(jq -cn --arg recipient_user_id "$recipient_user_id" --arg bot_user_id "$bot_user_id" '[$recipient_user_id,$bot_user_id]')" | jq -r '.id')"
+test -n "$request_channel_id"
+test -n "$recipient_channel_id"
+
+request_post="$(api_request "post direct-message request" POST http://localhost:8065/api/v4/posts "$requester_token" \
+  "$(jq -cn --arg channel_id "$request_channel_id" --arg message "$prompt" '{channel_id:$channel_id,message:$message}')")"
+request_post_id="$(printf '%%s' "$request_post" | jq -r '.id')"
+request_post_create_at="$(printf '%%s' "$request_post" | jq -r '.create_at')"
+test -n "$request_post_id"
+
+find_task_id() {
+  blueclaw_request "find direct-message task" GET http://127.0.0.1:8080/admin/api/task |
+    jq -r --arg prompt "$prompt" '[.[] | select(.prompt == $prompt)] | sort_by(.createdAt) | last | .taskRunID // empty'
+}
+
+task_detail_file="$(mktemp)"
+approval_post_id=""
+task_run_id=""
+for _ in $(seq 1 "$timeout_seconds"); do
+  task_run_id="$(find_task_id)"
+  if [ -n "$task_run_id" ]; then
+    blueclaw_request "direct-message task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id" > "$task_detail_file"
+    if [ -z "$approval_post_id" ] && jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "confirmation.requested")' "$task_detail_file" >/dev/null; then
+      approval_post="$(api_request "post direct-message approval" POST http://localhost:8065/api/v4/posts "$requester_token" \
+        "$(jq -cn --arg channel_id "$request_channel_id" --arg root_id "$request_post_id" '{channel_id:$channel_id,root_id:$root_id,message:"해"}')")"
+      approval_post_id="$(printf '%%s' "$approval_post" | jq -r '.id')"
+    fi
+    task_status="$(jq -r 'def detail: if type == "array" then .[0] else . end; detail.taskRun.status // empty' "$task_detail_file")"
+    if [ "$task_status" = "completed" ] || [ "$task_status" = "failed" ] || [ "$task_status" = "blocked" ] || [ "$task_status" = "cancelled" ]; then
+      break
+    fi
+  fi
+  sleep 1
+done
+
+if [ -z "$task_run_id" ]; then
+  echo "direct-message E2E did not create a task" >&2
+  exit 1
+fi
+blueclaw_request "final direct-message task detail" GET "http://127.0.0.1:8080/admin/api/task/detail?taskRunID=$task_run_id" > "$task_detail_file"
+task_status="$(jq -r 'def detail: if type == "array" then .[0] else . end; detail.taskRun.status // empty' "$task_detail_file")"
+if [ "$task_status" != "completed" ]; then
+  echo "direct-message E2E task did not complete: $task_status ($task_run_id)" >&2
+  jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
+  exit 1
+fi
+if ! jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; .name == "tool.platform.message.send.requested")' "$task_detail_file" >/dev/null; then
+  echo "expected platform.message.send request in direct-message E2E task $task_run_id" >&2
+  jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
+  exit 1
+fi
+if jq -e 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; (.name // "") | contains("platform.dm.send"))' "$task_detail_file" >/dev/null; then
+  echo "legacy platform.dm.send appeared in direct-message E2E task $task_run_id" >&2
+  jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
+  exit 1
+fi
+
+recipient_dm_post_id=""
+for _ in $(seq 1 "$timeout_seconds"); do
+  recipient_dm_post_id="$(api_request "wait for recipient dm" GET "http://localhost:8065/api/v4/channels/$recipient_channel_id/posts?per_page=60" "$admin_token" |
+    jq -r --arg bot_user_id "$bot_user_id" --arg target_message "$target_message" --argjson posted_after "$request_post_create_at" \
+      '.posts[] | select(.user_id == $bot_user_id and .create_at >= $posted_after and (.message | contains($target_message))) | .id' | head -1)"
+  if [ -n "$recipient_dm_post_id" ]; then
+    break
+  fi
+  sleep 1
+done
+if [ -z "$recipient_dm_post_id" ]; then
+  echo "expected recipient DM post containing: $target_message" >&2
+  api_request "diagnose recipient dm posts" GET "http://localhost:8065/api/v4/channels/$recipient_channel_id/posts?per_page=20" "$admin_token" |
+    jq -r '.order as $order | $order[] as $id | .posts[$id] | {id,user_id,message,root_id,create_at,delete_at}' >&2 || true
+  jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
+  exit 1
+fi
+
+bot_reply_post_id="$(api_request "fetch requester replies" GET "http://localhost:8065/api/v4/channels/$request_channel_id/posts?per_page=60" "$admin_token" |
+  jq -r --arg bot_user_id "$bot_user_id" --argjson posted_after "$request_post_create_at" \
+    '.posts[] | select(.user_id == $bot_user_id and .create_at >= $posted_after) | [.create_at, .id] | @tsv' |
+  sort -n | tail -1 | awk '{print $2}')"
+
+jq -cn \
+  --arg task_run_id "$task_run_id" \
+  --arg requester_channel_id "$request_channel_id" \
+  --arg recipient_channel_id "$recipient_channel_id" \
+  --arg recipient_dm_post_id "$recipient_dm_post_id" \
+  --argjson keep "$keep_artifacts" \
+  --slurpfile task_detail "$task_detail_file" \
+  '{
+    ok: true,
+    kept: $keep,
+    taskRunID: $task_run_id,
+    requesterChannelID: $requester_channel_id,
+    recipientChannelID: $recipient_channel_id,
+    recipientDMPostID: $recipient_dm_post_id,
+    taskEvents: (((if ($task_detail[0] | type) == "array" then $task_detail[0][0] else $task_detail[0] end).taskEvents // []) | map({name, body: ((.body // "") | tostring | .[0:1200])}))
+  }'
+`, keepValue, timeoutSeconds)
 }
 
 func verifyMattermostMessageDeleteE2EScript(keep bool, timeoutSeconds int) string {

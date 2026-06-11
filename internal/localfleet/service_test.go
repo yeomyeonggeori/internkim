@@ -44,12 +44,42 @@ func TestPredeployGateUsesOneRecipePlan(t *testing.T) {
 		"-L 127.0.0.1:8065:127.0.0.1:8065",
 		"make build",
 		"setup --board lab",
+		"--admin-email local-fleet-admin@internkim.test",
 		"verify api",
 		"verify mattermost",
 		"verify browser --local",
 	} {
 		if !strings.Contains(joinedPlans, expectedFragment) {
 			t.Fatalf("expected %q in plans:\n%s", expectedFragment, joinedPlans)
+		}
+	}
+}
+
+func TestMattermostDirectMessageScenarioUsesVerifyGate(t *testing.T) {
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	plans := service.mattermostDirectMessageScenarioPlans()
+	joinedPlans := joinedPlanArguments(plans)
+	if !strings.Contains(joinedPlans, "verify mattermost --direct-message-e2e") {
+		t.Fatalf("expected direct-message verify gate in plans:\n%s", joinedPlans)
+	}
+}
+
+func TestStartTunnelCommandKeepsSSHAliveAfterShellExit(t *testing.T) {
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	command := service.startTunnelCommand()
+	for _, expectedFragment := range []string{
+		"(nohup '/repo/bin/sshpass'",
+		"tunnel.log' 2>&1 < /dev/null & echo $! >",
+		"tunnel.pid')",
+	} {
+		if !strings.Contains(command, expectedFragment) {
+			t.Fatalf("expected %q in tunnel command:\n%s", expectedFragment, command)
 		}
 	}
 }

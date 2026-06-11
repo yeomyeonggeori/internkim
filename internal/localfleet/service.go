@@ -101,6 +101,8 @@ func (service Service) RunScenario(contextValue context.Context, logger Logger, 
 	switch normalizedScenario {
 	case "mattermost-bot-invited":
 		return service.runPlans(contextValue, logger, service.mattermostScenarioPlans())
+	case "mattermost-direct-message-send":
+		return service.runPlans(contextValue, logger, service.mattermostDirectMessageScenarioPlans())
 	case "web-backed-ui", "regression-proof":
 		return service.runPlans(contextValue, logger, service.webBackedScenarioPlans(normalizedScenario))
 	default:

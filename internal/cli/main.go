@@ -4256,9 +4256,12 @@ func (s *sshClient) runTarToRemote(localDir string, remoteCommand string) (strin
 	commandArguments := s.sshArgs(target, remoteCommand)
 	if s.pass != "" {
 		commandName = s.sshpassBin
-		commandArguments = append([]string{"-p", s.pass, "ssh"}, commandArguments...)
+		commandArguments = append([]string{"-e", "ssh"}, commandArguments...)
 	}
 	sshCommand := exec.Command(commandName, commandArguments...)
+	if s.pass != "" {
+		sshCommand.Env = append(os.Environ(), "SSHPASS="+s.pass)
+	}
 	sshCommand.Stdin = tarOutput
 	var output bytes.Buffer
 	sshCommand.Stdout = &output
@@ -4266,6 +4269,7 @@ func (s *sshClient) runTarToRemote(localDir string, remoteCommand string) (strin
 	if errorValue := sshCommand.Start(); errorValue != nil {
 		return output.String(), errorValue
 	}
+	_ = tarOutput.Close()
 	if errorValue := tarCommand.Start(); errorValue != nil {
 		_ = sshCommand.Process.Kill()
 		return output.String(), errorValue

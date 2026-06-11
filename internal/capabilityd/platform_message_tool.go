@@ -30,6 +30,7 @@ type platformMessageSearchInput struct {
 
 type platformMessageSendInput struct {
 	DeliveryTarget platformMessageDeliveryTarget `json:"deliveryTarget"`
+	RecipientHint  string                        `json:"recipientHint"`
 	Message        string                        `json:"message"`
 	Pin            bool                          `json:"pin"`
 	Reason         string                        `json:"reason"`
@@ -140,23 +141,12 @@ func (service Service) invokePlatformMessageSend(ctx context.Context, request ca
 }
 
 func (service Service) invokePlatformMessageDirectSend(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSendInput) (capabilities.ToolInvokeResponse, error) {
-	recipient, failure, hasFailure := service.resolvePlatformDMRecipient(ctx, input.DeliveryTarget.PersonHint)
+	result, failure, hasFailure := service.sendPlatformDirectMessage(ctx, request.Context, input.DeliveryTarget.PersonHint, input.Message)
 	if hasFailure {
+		if failure.ErrorCode == "approval_required" {
+			return platformDMDeniedResponse(request.ToolName, failure), nil
+		}
 		return platformDMErrorResponse(request.ToolName, failure), nil
-	}
-	if errorMessage := validatePlatformDMSendAuthorization(request.Context, recipient); errorMessage != "" {
-		return platformDMDeniedResponse(request.ToolName, platformDMStaticFailure("approval_required", "authorization", errorMessage)), nil
-	}
-	dispatchID, failure, hasFailure := service.sendMattermostDirectMessageWithDispatch(ctx, recipient.MattermostUserID, input.Message)
-	if hasFailure {
-		return platformDMErrorResponse(request.ToolName, failure), nil
-	}
-	result := map[string]string{
-		"platform":           "mattermost",
-		"dispatchID":         dispatchID,
-		"personID":           recipient.PersonID,
-		"mattermostUserID":   recipient.MattermostUserID,
-		"mattermostUsername": recipient.MattermostUsername,
 	}
 	return mattermostToolSuccessResponse(request.ToolName, "sent", result), nil
 }
@@ -247,15 +237,43 @@ func decodePlatformMessageSendInput(document json.RawMessage) (platformMessageSe
 		return platformMessageSendInput{}, errorValue
 	}
 	input.Message = strings.TrimSpace(input.Message)
+	input.RecipientHint = strings.TrimSpace(input.RecipientHint)
 	input.Reason = strings.TrimSpace(input.Reason)
 	input.DeliveryTarget = normalizePlatformMessageDeliveryTarget(input.DeliveryTarget)
 	if input.Message == "" {
 		return platformMessageSendInput{}, fmt.Errorf("message is required")
 	}
+	if errorValue := applyPlatformMessageSendRecipientHint(&input); errorValue != nil {
+		return platformMessageSendInput{}, errorValue
+	}
 	if errorValue := validatePlatformMessageDeliveryTarget(input.DeliveryTarget); errorValue != nil {
 		return platformMessageSendInput{}, errorValue
 	}
 	return input, nil
+}
+
+func applyPlatformMessageSendRecipientHint(input *platformMessageSendInput) error {
+	if input.RecipientHint == "" {
+		return nil
+	}
+	if input.DeliveryTarget.Type == "" {
+		input.DeliveryTarget = platformMessageDeliveryTarget{
+			Type:       "directMessage",
+			PersonHint: input.RecipientHint,
+		}
+		return nil
+	}
+	if input.DeliveryTarget.Type != "directMessage" {
+		return fmt.Errorf("recipientHint can only be used with a directMessage deliveryTarget")
+	}
+	if input.DeliveryTarget.PersonHint == "" {
+		input.DeliveryTarget.PersonHint = input.RecipientHint
+		return nil
+	}
+	if normalizePlatformDMMatchValue(input.DeliveryTarget.PersonHint) != normalizePlatformDMMatchValue(input.RecipientHint) {
+		return fmt.Errorf("recipientHint conflicts with deliveryTarget.personHint")
+	}
+	return nil
 }
 
 func decodePlatformMessageUpdateInput(document json.RawMessage) (platformMessageUpdateInput, error) {

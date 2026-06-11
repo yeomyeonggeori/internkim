@@ -73,6 +73,42 @@ func TestPlatformDMSendScheduledRunSendsMattermostDM(t *testing.T) {
 	}
 }
 
+func TestPlatformMessageSendRecipientHintSendsMattermostDM(t *testing.T) {
+	tokenPath := writePlatformDMTestFile(t, "bot-token")
+	service := platformDMTestService(t, tokenPath, `[{"id":"user-dongha","email":"dongha@example.com","username":"dongha","nickname":"샘플"}]`)
+
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.message.send",
+		Input:    []byte(`{"recipientHint":"샘플","message":"테스트"}`),
+		Context: capabilities.ToolInvokeContext{
+			IsScheduledRun: true,
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != "sent" || response.IsError {
+		t.Fatalf("expected recipientHint DM to send, got %+v", response)
+	}
+}
+
+func TestPlatformMessageSendRejectsConflictingRecipientHint(t *testing.T) {
+	response, errorValue := Service{}.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.message.send",
+		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플"},"recipientHint":"다른 사람","message":"테스트"}`),
+		Context:  capabilities.ToolInvokeContext{IsScheduledRun: true},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != "error" || response.ErrorCode != "invalid_input" {
+		t.Fatalf("expected invalid input conflict, got %+v", response)
+	}
+	if !strings.Contains(response.Content, "recipientHint conflicts") {
+		t.Fatalf("expected conflict message, got %+v", response)
+	}
+}
+
 func TestPlatformDMSendImmediateRunRequiresApprovalContext(t *testing.T) {
 	tokenPath := writePlatformDMTestFile(t, "bot-token")
 	service := platformDMTestService(t, tokenPath, `[{"id":"user-dongha","email":"dongha@example.com","username":"dongha"}]`)
@@ -152,7 +188,7 @@ func TestPlatformDMSendMatchesMattermostNickname(t *testing.T) {
 	}
 }
 
-func TestPlatformDMSendAmbiguousRecipientDoesNotSend(t *testing.T) {
+func TestPlatformDMSendExactRecipientWinsOverSubstringMatches(t *testing.T) {
 	tokenPath := writePlatformDMTestFile(t, "bot-token")
 	service := platformDMTestService(t, tokenPath, `[
 		{"id":"user-one","email":"one@example.com","username":"lee"},
@@ -169,10 +205,9 @@ func TestPlatformDMSendAmbiguousRecipientDoesNotSend(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != "error" || !strings.Contains(response.Content, "ambiguous") {
-		t.Fatalf("expected ambiguous error, got %+v", response)
+	if response.Status != "sent" || response.IsError {
+		t.Fatalf("expected exact username match to win, got %+v", response)
 	}
-	assertPlatformDMStructuredFailure(t, response, "error", "recipient_ambiguous", "recipient_resolve", false, false)
 }
 
 func TestPlatformDMSendMissingMattermostTokenDoesNotSend(t *testing.T) {
@@ -287,7 +322,7 @@ func TestPlatformMessageSendAmbiguousRecipientReturnsCandidatesWithoutSending(t 
 			case "http://blueclaw.local/admin/api/policy":
 				return platformDMTestJSONResponse(`{"people":[{"personID":"person-one","displayName":"Lee One","emails":["one@example.com"]},{"personID":"person-two","displayName":"Lee Two","emails":["two@example.com"]}]}`), nil
 			case "http://mattermost.local/api/v4/users?per_page=200":
-				return platformDMTestJSONResponse(`[{"id":"user-one","email":"one@example.com","username":"lee"},{"id":"user-two","email":"two@example.com","username":"lee-two"}]`), nil
+				return platformDMTestJSONResponse(`[{"id":"user-one","email":"one@example.com","username":"onelee"},{"id":"user-two","email":"two@example.com","username":"twolee"}]`), nil
 			case "http://mattermost.local/api/v4/users/me":
 				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim"}`), nil
 			default:
