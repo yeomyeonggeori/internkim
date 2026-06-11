@@ -104,12 +104,14 @@ func taskLogsUsageError(arguments []string) error {
 }
 
 func listTaskRunsWithClient(arguments []string, client adminAPIClient) error {
-	taskRuns, errorValue := fetchTaskRuns(client)
+	status := taskStatusFilterFromArguments(arguments)
+	limit := taskLimitFromArguments(arguments)
+	taskRuns, errorValue := fetchTaskRuns(client, taskListQuery(status, limit))
 	if errorValue != nil {
 		return errorValue
 	}
-	filteredTaskRuns := filterTaskRunsByStatus(taskRuns, taskStatusFilterFromArguments(arguments))
-	limitedTaskRuns := limitTaskRuns(filteredTaskRuns, taskLimitFromArguments(arguments))
+	filteredTaskRuns := filterTaskRunsByStatus(taskRuns, status)
+	limitedTaskRuns := limitTaskRuns(filteredTaskRuns, limit)
 	if hasCommandArgument(arguments, "--json") {
 		return printTaskJSON(limitedTaskRuns)
 	}
@@ -135,9 +137,22 @@ func showTaskLogsWithClient(arguments []string, client adminAPIClient) error {
 	return nil
 }
 
-func fetchTaskRuns(client adminAPIClient) ([]commandTaskRun, error) {
+func taskListQuery(status string, limit int) string {
+	values := url.Values{}
+	if status != "" {
+		values.Set("status", status)
+	}
+	values.Set("limit", strconv.Itoa(limit))
+	return values.Encode()
+}
+
+func fetchTaskRuns(client adminAPIClient, query string) ([]commandTaskRun, error) {
+	path := "/diagnostics/tasks"
+	if query != "" {
+		path += "?" + query
+	}
 	taskRuns := []commandTaskRun{}
-	if _, errorValue := client.request("GET", "/diagnostics/tasks", nil, &taskRuns); errorValue != nil {
+	if _, errorValue := client.request("GET", path, nil, &taskRuns); errorValue != nil {
 		return nil, errorValue
 	}
 	sort.Slice(taskRuns, func(leftIndex int, rightIndex int) bool {
@@ -150,7 +165,7 @@ func resolveTaskRunID(arguments []string, client adminAPIClient) (string, error)
 	if errorValue := taskLogsUsageError(arguments); errorValue != nil {
 		return "", errorValue
 	}
-	taskRuns, errorValue := fetchTaskRuns(client)
+	taskRuns, errorValue := fetchTaskRuns(client, "")
 	if errorValue != nil {
 		return "", errorValue
 	}

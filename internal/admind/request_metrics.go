@@ -100,8 +100,12 @@ func (service *Service) proxyBlueclawConnectorEvents(responseWriter http.Respons
 }
 
 func (service *Service) proxyBlueclawTaskList(responseWriter http.ResponseWriter, request *http.Request) {
+	path := "/admin/api/task"
+	if strings.TrimSpace(request.URL.RawQuery) != "" {
+		path += "?" + request.URL.RawQuery
+	}
 	var taskRuns []map[string]any
-	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, "/admin/api/task", nil, &taskRuns); errorValue != nil {
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, path, nil, &taskRuns); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
