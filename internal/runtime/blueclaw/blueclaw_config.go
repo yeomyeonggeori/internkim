@@ -22,6 +22,7 @@ type defaultCircleDefinition struct {
 
 type RuntimeConfigOptions struct {
 	ModelName                string
+	AdminTaskLinkBaseURL     string
 	BaseURL                  string
 	CapabilitySocketPath     string
 	CapabilityVSockPort      int
@@ -204,6 +205,7 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			"timeoutSecond":                               60,
 		},
 		"agent": map[string]any{
+			"adminTaskLinkBaseURL": strings.TrimRight(strings.TrimSpace(options.AdminTaskLinkBaseURL), "/"),
 			"intake": map[string]any{
 				"enabled":       true,
 				"executionMode": "auto",
