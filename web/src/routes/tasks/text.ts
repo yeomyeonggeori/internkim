@@ -25,7 +25,11 @@ export const tasksText = {
 		laneLLM: 'LLM',
 		laneTool: '도구',
 		laneFailure: '실패',
-		laneControl: '제어'
+		laneControl: '제어',
+		serviceLogsTitle: '서비스 로그',
+		serviceLogsLoad: '로그 불러오기',
+		serviceLogsEmpty: '관련 로그가 없습니다.',
+		serviceLogsError: '로그를 불러오지 못했습니다.'
 	},
 	en: {
 		pageTitle: 'Task Runs · InternKim',
@@ -53,7 +57,11 @@ export const tasksText = {
 		laneLLM: 'LLM',
 		laneTool: 'Tool',
 		laneFailure: 'Failure',
-		laneControl: 'Control'
+		laneControl: 'Control',
+		serviceLogsTitle: 'Service logs',
+		serviceLogsLoad: 'Load logs',
+		serviceLogsEmpty: 'No correlated log lines.',
+		serviceLogsError: 'Could not load service logs.'
 	}
 };
 
