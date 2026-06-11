@@ -23,13 +23,16 @@ import (
 
 const blueclawUpdateChunkSize = 4 << 20
 const blueclawUpdateTenantBasePath = "/srv/internkim/tenants"
+const legacyBlueclawGuestMigrationPath = "/workspace/.blueclaw/migrations"
 
 type blueclawPayloadInstallTarget struct {
-	Name                string
-	ServiceName         string
-	HostWorkspacePath   string
-	WorkspaceImagePath  string
-	PayloadManifestPath string
+	Name                              string
+	ServiceName                       string
+	HostWorkspacePath                 string
+	WorkspaceImagePath                string
+	RuntimeConfigurationPath          string
+	WorkspaceRuntimeConfigurationPath string
+	PayloadManifestPath               string
 }
 
 type blueclawPayloadRuntimeConfiguration struct {
@@ -298,6 +301,9 @@ func (service *Service) installBlueclawPayloadArtifact(ctx context.Context, jobI
 }
 
 func (service *Service) installBlueclawPayloadArtifactForTarget(ctx context.Context, jobID string, artifactPath string, target blueclawPayloadInstallTarget) error {
+	if errorValue := syncBlueclawRuntimeConfigurationForTarget(target); errorValue != nil {
+		return fmt.Errorf("%s: sync blueclaw runtime configuration: %w", target.Name, errorValue)
+	}
 	service.updateJob(jobID, "running", "stopping", "")
 	if output, errorValue := service.runCommand(ctx, "sh", "-lc", stopBlueclawPayloadTargetCommand(target)); errorValue != nil {
 		return fmt.Errorf("%s: stop blueclaw before payload sync: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
@@ -344,6 +350,9 @@ func (service *Service) isBlueclawPayloadAlreadyCurrent(artifactPath string) boo
 			return false
 		}
 		if !service.blueclawWorkspaceManifestMatchesTarget(artifactPath, target) {
+			return false
+		}
+		if !isBlueclawRuntimeConfigurationCurrentForTarget(target) {
 			return false
 		}
 	}
@@ -404,21 +413,83 @@ func blueclawPayloadTenantInstallTarget(runtimeConfigurationPath string) (bluecl
 	}
 	blueclawRootPath := filepath.Dir(filepath.Dir(runtimeConfigurationPath))
 	return blueclawPayloadInstallTarget{
-		Name:                tenantID,
-		ServiceName:         "internkim-tenant-blueclaw-" + tenantID + ".service",
-		HostWorkspacePath:   hostWorkspacePath,
-		WorkspaceImagePath:  workspaceImagePath,
-		PayloadManifestPath: filepath.Join(blueclawRootPath, "payload-manifest.json"),
+		Name:                              tenantID,
+		ServiceName:                       "internkim-tenant-blueclaw-" + tenantID + ".service",
+		HostWorkspacePath:                 hostWorkspacePath,
+		WorkspaceImagePath:                workspaceImagePath,
+		RuntimeConfigurationPath:          runtimeConfigurationPath,
+		WorkspaceRuntimeConfigurationPath: filepath.Join(hostWorkspacePath, ".blueclaw", "config", "runtime.json"),
+		PayloadManifestPath:               filepath.Join(blueclawRootPath, "payload-manifest.json"),
 	}, true
 }
 
 func canonicalBlueclawPayloadInstallTarget() blueclawPayloadInstallTarget {
 	return blueclawPayloadInstallTarget{
-		Name:                "blueclaw",
-		ServiceName:         blueclawruntime.BlueclawServiceName,
-		HostWorkspacePath:   blueclawruntime.BlueclawWorkspacePath,
-		WorkspaceImagePath:  blueclawruntime.BlueclawWorkspaceImagePath,
-		PayloadManifestPath: blueclawruntime.BlueclawPayloadManifestPath,
+		Name:                              "blueclaw",
+		ServiceName:                       blueclawruntime.BlueclawServiceName,
+		HostWorkspacePath:                 blueclawruntime.BlueclawWorkspacePath,
+		WorkspaceImagePath:                blueclawruntime.BlueclawWorkspaceImagePath,
+		RuntimeConfigurationPath:          blueclawruntime.BlueclawRuntimeConfigPath,
+		WorkspaceRuntimeConfigurationPath: filepath.Join(blueclawruntime.BlueclawWorkspacePath, ".blueclaw", "config", "runtime.json"),
+		PayloadManifestPath:               blueclawruntime.BlueclawPayloadManifestPath,
+	}
+}
+
+func syncBlueclawRuntimeConfigurationForTarget(target blueclawPayloadInstallTarget) error {
+	for _, configurationPath := range blueclawRuntimeConfigurationPathsForTarget(target) {
+		if errorValue := syncBlueclawRuntimeConfigurationPath(configurationPath); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
+}
+
+func syncBlueclawRuntimeConfigurationPath(configurationPath string) error {
+	if strings.TrimSpace(configurationPath) == "" {
+		return nil
+	}
+	document, errorValue := os.ReadFile(configurationPath)
+	if os.IsNotExist(errorValue) {
+		return nil
+	}
+	if errorValue != nil {
+		return errorValue
+	}
+	updatedDocument := strings.ReplaceAll(string(document), legacyBlueclawGuestMigrationPath, blueclawruntime.BlueclawGuestMigrationPath)
+	if updatedDocument == string(document) {
+		return nil
+	}
+	return os.WriteFile(configurationPath, []byte(updatedDocument), 0o640)
+}
+
+func isBlueclawRuntimeConfigurationCurrentForTarget(target blueclawPayloadInstallTarget) bool {
+	for _, configurationPath := range blueclawRuntimeConfigurationPathsForTarget(target) {
+		if !isBlueclawRuntimeConfigurationPathCurrent(configurationPath) {
+			return false
+		}
+	}
+	return true
+}
+
+func isBlueclawRuntimeConfigurationPathCurrent(configurationPath string) bool {
+	if strings.TrimSpace(configurationPath) == "" {
+		return true
+	}
+	document, errorValue := os.ReadFile(configurationPath)
+	if os.IsNotExist(errorValue) {
+		return true
+	}
+	if errorValue != nil {
+		return false
+	}
+	text := string(document)
+	return !strings.Contains(text, legacyBlueclawGuestMigrationPath) && strings.Contains(text, blueclawruntime.BlueclawGuestMigrationPath)
+}
+
+func blueclawRuntimeConfigurationPathsForTarget(target blueclawPayloadInstallTarget) []string {
+	return []string{
+		target.RuntimeConfigurationPath,
+		target.WorkspaceRuntimeConfigurationPath,
 	}
 }
 

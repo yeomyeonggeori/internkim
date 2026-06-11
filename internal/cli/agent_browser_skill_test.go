@@ -148,7 +148,7 @@ func TestFirstbootUsesCanonicalConfigurationPaths(t *testing.T) {
 
 	for _, fragment := range []string{
 		"/root/.internkim/config/admin-email",
-		"/root/.blueclaw/workspace/.blueclaw/migrations",
+		"/root/.blueclaw/workspace/.blueclaw/runtime/current/migrations",
 	} {
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("expected firstboot staged files section to include %q", fragment)
@@ -156,7 +156,7 @@ func TestFirstbootUsesCanonicalConfigurationPaths(t *testing.T) {
 	}
 	for _, forbiddenFragment := range []string{
 		"/root/.internkim/admin-email",
-		"/root/.blueclaw/migrations",
+		"/root/.blueclaw/runtime/current/migrations",
 	} {
 		if strings.Contains(script, forbiddenFragment) {
 			t.Fatalf("firstboot staged files section must not include %q", forbiddenFragment)

@@ -120,6 +120,12 @@ func TestBlueclawPayloadTenantInstallTargetsReadRuntimeConfiguration(t *testing.
 	if target.WorkspaceImagePath != runtimeConfiguration.Firecracker.WorkspaceImagePath {
 		t.Fatalf("unexpected workspace image path: %+v", target)
 	}
+	if target.RuntimeConfigurationPath != runtimeConfigurationPath {
+		t.Fatalf("unexpected runtime configuration path: %+v", target)
+	}
+	if target.WorkspaceRuntimeConfigurationPath != filepath.Join(runtimeConfiguration.Firecracker.HostWorkspacePath, ".blueclaw", "config", "runtime.json") {
+		t.Fatalf("unexpected workspace runtime configuration path: %+v", target)
+	}
 	if target.PayloadManifestPath != filepath.Join(tenantBasePath, "pilot-01", "blueclaw", "payload-manifest.json") {
 		t.Fatalf("unexpected payload manifest path: %+v", target)
 	}
@@ -161,6 +167,41 @@ func TestHostWorkspacePayloadSyncCommandUsesTenantTarget(t *testing.T) {
 	}
 	if strings.Contains(command, "/root/.blueclaw/workspace") {
 		t.Fatalf("tenant sync command must not use canonical workspace, got:\n%s", command)
+	}
+}
+
+func TestSyncBlueclawRuntimeConfigurationForTargetUpdatesMigrationPath(t *testing.T) {
+	directoryPath := t.TempDir()
+	runtimeConfigurationPath := filepath.Join(directoryPath, "config", "runtime.json")
+	workspaceRuntimeConfigurationPath := filepath.Join(directoryPath, "workspace", ".blueclaw", "config", "runtime.json")
+	for _, path := range []string{runtimeConfigurationPath, workspaceRuntimeConfigurationPath} {
+		if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		writeFile(t, path, `{"database":{"migrationDirectoryPath":"/workspace/.blueclaw/migrations"}}`)
+	}
+	target := blueclawPayloadInstallTarget{
+		RuntimeConfigurationPath:          runtimeConfigurationPath,
+		WorkspaceRuntimeConfigurationPath: workspaceRuntimeConfigurationPath,
+	}
+
+	if isBlueclawRuntimeConfigurationCurrentForTarget(target) {
+		t.Fatal("expected stale runtime configuration to be detected")
+	}
+	if errorValue := syncBlueclawRuntimeConfigurationForTarget(target); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !isBlueclawRuntimeConfigurationCurrentForTarget(target) {
+		t.Fatal("expected runtime configuration to be current")
+	}
+	for _, path := range []string{runtimeConfigurationPath, workspaceRuntimeConfigurationPath} {
+		document, errorValue := os.ReadFile(path)
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if !strings.Contains(string(document), "/workspace/.blueclaw/runtime/current/migrations") {
+			t.Fatalf("expected current migration path in %s: %s", path, string(document))
+		}
 	}
 }
 
