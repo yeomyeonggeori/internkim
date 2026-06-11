@@ -669,6 +669,8 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeAdminRequestDiagnostics(responseWriter)
 	case request.Method == http.MethodGet && path == "/diagnostics/connector-events":
 		service.proxyBlueclawConnectorEvents(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/diagnostics/tasks":
+		service.proxyBlueclawTaskList(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/diagnostics/task-detail":
 		service.proxyBlueclawTaskDetail(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/diagnostics/mattermost-post":
