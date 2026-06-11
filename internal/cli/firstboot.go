@@ -646,13 +646,25 @@ else
   fi
   echo "  Using pre-injected archive"
   cd /var/cache/internkim && tar -xzf mattermost.tar.gz
+  legacy_data="/opt/mattermost/data"
+  persistent_data="/var/lib/mattermost/data"
+  if [ -d "$legacy_data" ] && [ ! -L "$legacy_data" ]; then
+    mkdir -p "$(dirname "$persistent_data")"
+    if [ ! -e "$persistent_data" ]; then
+      mv "$legacy_data" "$persistent_data"
+    else
+      cp -an "$legacy_data"/. "$persistent_data"/ 2>/dev/null || true
+    fi
+  fi
   rm -rf /opt/mattermost
   mv /var/cache/internkim/mattermost /opt/mattermost
   rm -f /var/cache/internkim/mattermost.tar.gz
-  mkdir -p /opt/mattermost/data
+  mkdir -p "$persistent_data"
+  rm -rf "$legacy_data"
+  ln -s "$persistent_data" "$legacy_data"
   id mattermost &>/dev/null || useradd --system --user-group mattermost
-  chown -R mattermost:mattermost /opt/mattermost
-  chmod -R g+w /opt/mattermost
+  chown -R mattermost:mattermost /opt/mattermost "$(dirname "$persistent_data")"
+  chmod -R g+w /opt/mattermost "$(dirname "$persistent_data")"
 
   SITE_URL="__DEVICE_URL__"
   [ -z "$SITE_URL" ] && SITE_URL="http://localhost:8065"
@@ -660,7 +672,7 @@ else
   jq --arg ds "postgres://mmuser:${MM_DB_PASS}@localhost/mattermost?sslmode=disable&connect_timeout=10" \
      --arg url "$SITE_URL" \
      --arg resourcePaths "__MANAGED_RESOURCE_PATHS__" \
-     '.SqlSettings.DriverName = "postgres" | .SqlSettings.DataSource = $ds | .FileSettings.DriverName = "local" | .FileSettings.Directory = "/opt/mattermost/data" | .FileSettings.EnableFileAttachments = true | .ServiceSettings.SiteURL = $url | .ServiceSettings.AllowCorsFrom = $url | .ServiceSettings.CorsAllowCredentials = true | .ServiceSettings.ManagedResourcePaths = $resourcePaths | .ServiceSettings.EnableUserAccessTokens = true | .ServiceSettings.EnableBotAccountCreation = true | .TeamSettings.TeammateNameDisplay = "nickname_full_name" | .EmailSettings.SendPushNotifications = true | .EmailSettings.PushNotificationServer = "https://push-test.mattermost.com" | .EmailSettings.PushNotificationContents = "id_loaded"' \
+     '.SqlSettings.DriverName = "postgres" | .SqlSettings.DataSource = $ds | .FileSettings.DriverName = "local" | .FileSettings.Directory = "/var/lib/mattermost/data" | .FileSettings.EnableFileAttachments = true | .ServiceSettings.SiteURL = $url | .ServiceSettings.AllowCorsFrom = $url | .ServiceSettings.CorsAllowCredentials = true | .ServiceSettings.ManagedResourcePaths = $resourcePaths | .ServiceSettings.EnableUserAccessTokens = true | .ServiceSettings.EnableBotAccountCreation = true | .TeamSettings.TeammateNameDisplay = "nickname_full_name" | .EmailSettings.SendPushNotifications = true | .EmailSettings.PushNotificationServer = "https://push-test.mattermost.com" | .EmailSettings.PushNotificationContents = "id_loaded"' \
      /opt/mattermost/config/config.json > /opt/mattermost/config/config.tmp \
      && mv /opt/mattermost/config/config.tmp /opt/mattermost/config/config.json
   chown mattermost:mattermost /opt/mattermost/config/config.json
