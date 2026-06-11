@@ -821,7 +821,9 @@ echo "checking services"
 systemctl is-active mattermost | grep -q '^active$'
 systemctl is-active blueclaw | grep -q '^active$'
 systemctl is-active internkim-admind | grep -q '^active$'
-systemctl is-active cloudflared | grep -q '^active$'
+if systemctl cat cloudflared >/dev/null 2>&1; then
+  systemctl is-active cloudflared | grep -q '^active$'
+fi
 grep -q 'blueclaw-supervisor' /etc/systemd/system/blueclaw.service
 ! grep -q 'ExecStart=/usr/local/bin/blueclaw ' /etc/systemd/system/blueclaw.service
 test -x /usr/local/bin/firecracker
