@@ -54,7 +54,7 @@ func TestSkillDependencySetupOnlyVerifiesRuntimeBaseEnvironment(t *testing.T) {
 			t.Fatalf("skills setup must not install dependencies during deployment: found %q in\n%s", forbiddenText, command)
 		}
 	}
-	for _, expectedText := range []string{"/opt/blueclaw/builtin-skills-venv/bin/python", "/opt/blueclaw/builtin-skills-requirements.txt", "deploy blueclaw-runtime-base first"} {
+	for _, expectedText := range []string{"/opt/internkim/blueclaw-runtime/rootfs.ext4", "rootfs-builtin-skills-python-missing", `if [ "$contract_output" != "ok" ]`} {
 		if !strings.Contains(command, expectedText) {
 			t.Fatalf("skills setup must verify %q, got:\n%s", expectedText, command)
 		}
@@ -68,6 +68,7 @@ func TestManagedHostExecutablesScriptInstallsCanonicalRuntimeTools(t *testing.T)
 		"/usr/local/bin/bun",
 		"/usr/local/bin/bunx",
 		"/usr/local/bin/marp",
+		"apt-get install -y --no-install-recommends unzip",
 		"su -s /bin/bash blueclaw",
 		"@marp-team/marp-cli",
 		"UV_UNMANAGED_INSTALL=/usr/local/bin",
@@ -80,6 +81,16 @@ func TestManagedHostExecutablesScriptInstallsCanonicalRuntimeTools(t *testing.T)
 	}
 	if strings.Contains(script, "sudo -u blueclaw") {
 		t.Fatalf("managed host executable script must not depend on sudo account validation, got:\n%s", script)
+	}
+}
+
+func TestSetupContextSkipsStepParsesSkipSelection(t *testing.T) {
+	context := &setup.Context{SetupSteps: "--skip=wifi,local-llm,cloudflare-access,tunnel,google,slack"}
+	if !setupContextSkipsStep(context, "tunnel") {
+		t.Fatal("expected tunnel to be skipped")
+	}
+	if setupContextSkipsStep(context, "web") {
+		t.Fatal("expected web not to be skipped")
 	}
 }
 
@@ -112,6 +123,7 @@ func TestBlueclawStopForPayloadSyncWaitsForGuestProcesses(t *testing.T) {
 func TestBlueclawStartAfterPayloadSyncWaitsForService(t *testing.T) {
 	command := blueclawStartAfterPayloadSyncCommand()
 	for _, expectedText := range []string{
+		"systemctl cat blueclaw",
 		"systemctl start blueclaw",
 		"systemctl is-active --quiet blueclaw",
 		"systemctl status blueclaw",

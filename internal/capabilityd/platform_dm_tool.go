@@ -101,6 +101,28 @@ func (service Service) resolvePlatformDMCandidates(ctx context.Context, personHi
 	return matchingPlatformDMRecipients(personHint, policyDocument.People, mattermostUsers), platformDMFailure{}, false
 }
 
+func (service Service) sendPlatformDirectMessage(ctx context.Context, toolContext capabilities.ToolInvokeContext, personHint string, message string) (map[string]string, platformDMFailure, bool) {
+	recipient, failure, hasFailure := service.resolvePlatformDMRecipient(ctx, personHint)
+	if hasFailure {
+		return nil, failure, true
+	}
+	if errorMessage := validatePlatformDMSendAuthorization(toolContext, recipient); errorMessage != "" {
+		return nil, platformDMStaticFailure("approval_required", "authorization", errorMessage), true
+	}
+	dispatchID, failure, hasFailure := service.sendMattermostDirectMessageWithDispatch(ctx, recipient.MattermostUserID, message)
+	if hasFailure {
+		return nil, failure, true
+	}
+	result := map[string]string{
+		"platform":           "mattermost",
+		"dispatchID":         dispatchID,
+		"personID":           recipient.PersonID,
+		"mattermostUserID":   recipient.MattermostUserID,
+		"mattermostUsername": recipient.MattermostUsername,
+	}
+	return result, platformDMFailure{}, false
+}
+
 func (service Service) fetchPlatformDMPolicy(ctx context.Context) (platformDMPolicyDocument, error) {
 	endpoint := strings.TrimRight(firstNonEmpty(service.Configuration.BlueclawBaseURL, DefaultConfiguration().BlueclawBaseURL), "/") + "/admin/api/policy"
 	request, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
@@ -140,8 +162,17 @@ func (service Service) listPlatformDMMattermostUsers(ctx context.Context) ([]pla
 func matchingPlatformDMRecipients(personHint string, people []platformDMPolicyPerson, users []platformDMMattermostUser) []platformDMRecipient {
 	candidates := platformDMRecipientsForApprovedPeople(people, users)
 	matches := []platformDMRecipient{}
+	bestScore := 0
 	for _, candidate := range candidates {
-		if platformDMRecipientMatches(personHint, candidate) {
+		score := platformDMRecipientMatchScore(personHint, candidate)
+		if score == 0 {
+			continue
+		}
+		if bestScore == 0 || score < bestScore {
+			bestScore = score
+			matches = nil
+		}
+		if score == bestScore {
 			matches = append(matches, candidate)
 		}
 	}
@@ -183,26 +214,26 @@ func platformDMRecipientsForApprovedPeople(people []platformDMPolicyPerson, user
 	return recipients
 }
 
-func platformDMRecipientMatches(personHint string, recipient platformDMRecipient) bool {
-	hint := normalizePlatformDMMatchValue(strings.TrimPrefix(personHint, "@"))
+func platformDMRecipientMatchScore(personHint string, recipient platformDMRecipient) int {
+	hint := normalizePlatformDMMatchValue(personHint)
 	if hint == "" {
-		return false
+		return 0
 	}
 	values := []string{recipient.PersonID, recipient.DisplayName, recipient.MattermostUsername}
 	values = append(values, recipient.Emails...)
 	values = append(values, recipient.MattermostAliases...)
 	for _, value := range values {
 		if normalizePlatformDMMatchValue(value) == hint {
-			return true
+			return 1
 		}
 	}
 	for _, value := range values {
 		normalizedValue := normalizePlatformDMMatchValue(value)
 		if normalizedValue != "" && (strings.Contains(normalizedValue, hint) || strings.Contains(hint, normalizedValue)) {
-			return true
+			return 2
 		}
 	}
-	return false
+	return 0
 }
 
 func normalizedPlatformDMEmails(emails []string) []string {
@@ -264,7 +295,7 @@ func safePlatformDMError(errorValue error) string {
 }
 
 func normalizePlatformDMMatchValue(value string) string {
-	return strings.ToLower(strings.TrimSpace(value))
+	return strings.Join(strings.Fields(strings.ToLower(strings.TrimSpace(strings.TrimPrefix(value, "@")))), "")
 }
 
 func (service Service) sendMattermostDirectMessageWithDispatch(ctx context.Context, userID string, message string) (string, platformDMFailure, bool) {

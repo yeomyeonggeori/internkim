@@ -3,6 +3,8 @@ package setup
 import (
 	"errors"
 	"fmt"
+	"os"
+	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
@@ -35,9 +37,28 @@ var StepBlueclawConfiguration = Step{
 			return errorValue
 		}
 
-		context.SSH.Run(buildBlueclawConfigurationInstallCommand(runtimeConfiguration, policyConfiguration))
-		if serviceStatus := trimmedRun(context, "systemctl restart "+blueclaw.BlueclawServiceName+" && systemctl is-active "+blueclaw.BlueclawServiceName+" 2>/dev/null"); serviceStatus != "active" {
-			return fmt.Errorf("blueclaw restart after configuration deploy failed: %s", serviceStatus)
+		context.SSH.Run(buildBlueclawConfigurationDirectoryCommand())
+		for _, file := range []struct {
+			path    string
+			content string
+		}{
+			{path: blueclaw.BlueclawRuntimeConfigPath, content: runtimeConfiguration},
+			{path: blueclaw.BlueclawPolicyConfigPath, content: policyConfiguration},
+			{path: blueclaw.BlueclawWorkspacePath + "/.blueclaw/config/runtime.json", content: runtimeConfiguration},
+			{path: blueclaw.BlueclawWorkspacePath + "/.blueclaw/config/policy.json", content: policyConfiguration},
+		} {
+			if errorValue := uploadBlueclawConfigurationFile(context, file.path, file.content); errorValue != nil {
+				return errorValue
+			}
+		}
+		installOutput := context.SSH.Run(buildBlueclawConfigurationPermissionCommand() + "\necho blueclaw-config-installed")
+		if !strings.Contains(installOutput, "blueclaw-config-installed") {
+			return fmt.Errorf("blueclaw configuration install failed: %s", strings.TrimSpace(installOutput))
+		}
+		if trimmedRun(context, "systemctl cat "+blueclaw.BlueclawServiceName+" >/dev/null 2>&1 && echo present || echo missing") == "present" {
+			if serviceStatus := trimmedRun(context, "systemctl restart "+blueclaw.BlueclawServiceName+" && systemctl is-active "+blueclaw.BlueclawServiceName+" 2>/dev/null"); serviceStatus != "active" {
+				return fmt.Errorf("blueclaw restart after configuration deploy failed: %s", serviceStatus)
+			}
 		}
 
 		if runtimeCheck := trimmedRun(context, blueclawRuntimeContractCheckCommand()); runtimeCheck != "ok" {
@@ -74,30 +95,38 @@ func loadGoogleEmail(context *Context) string {
 	return context.Callbacks.LoadState("google_email")
 }
 
-func buildBlueclawConfigurationInstallCommand(runtimeConfiguration string, policyConfiguration string) string {
-	return fmt.Sprintf(`mkdir -p %s %s
-printf '%%s' %s > %s
-printf '%%s' %s > %s
-mkdir -p %s
-printf '%%s' %s > %s
-printf '%%s' %s > %s
+func uploadBlueclawConfigurationFile(context *Context, path string, content string) error {
+	file, errorValue := os.CreateTemp("", "internkim-blueclaw-config-*.json")
+	if errorValue != nil {
+		return errorValue
+	}
+	temporaryPath := file.Name()
+	defer os.Remove(temporaryPath)
+	if _, errorValue := file.WriteString(content); errorValue != nil {
+		file.Close()
+		return errorValue
+	}
+	if errorValue := file.Close(); errorValue != nil {
+		return errorValue
+	}
+	return context.SSH.SCP(temporaryPath, path)
+}
+
+func buildBlueclawConfigurationDirectoryCommand() string {
+	return fmt.Sprintf(`mkdir -p %s %s`,
+		blueclaw.BlueclawConfigPath,
+		blueclaw.BlueclawWorkspacePath+"/.blueclaw/config",
+	)
+}
+
+func buildBlueclawConfigurationPermissionCommand() string {
+	return fmt.Sprintf(`set -e
 chown -R root:blueclaw %s
 chmod 770 %s
 chmod 640 %s %s
 chown -R blueclaw:blueclaw %s
 chmod 750 %s
 chmod 640 %s %s`,
-		blueclaw.BlueclawConfigPath,
-		blueclaw.BlueclawWorkspacePath+"/.blueclaw/config",
-		shellQuote(runtimeConfiguration),
-		blueclaw.BlueclawRuntimeConfigPath,
-		shellQuote(policyConfiguration),
-		blueclaw.BlueclawPolicyConfigPath,
-		blueclaw.BlueclawWorkspacePath+"/.blueclaw/config",
-		shellQuote(runtimeConfiguration),
-		blueclaw.BlueclawWorkspacePath+"/.blueclaw/config/runtime.json",
-		shellQuote(policyConfiguration),
-		blueclaw.BlueclawWorkspacePath+"/.blueclaw/config/policy.json",
 		blueclaw.BlueclawConfigPath,
 		blueclaw.BlueclawConfigPath,
 		blueclaw.BlueclawRuntimeConfigPath,
