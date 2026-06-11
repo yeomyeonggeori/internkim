@@ -150,7 +150,7 @@ func runVerifyMattermost(arguments []string) error {
 	if *expectBrowserOpen || *expectPublicURL || len(expectedTools.Values()) > 0 || len(expectedEvents.Values()) > 0 {
 		return fmt.Errorf("--expect-browser-open, --expect-public-url, --expect-tool, and --expect-event require --prompt")
 	}
-	return verifyTarget.runRemoteVerification(verifyMattermostScript())
+	return verifyTarget.runRemoteVerificationWithTimeout(verifyMattermostScript(), 6*time.Minute)
 }
 
 func runVerifySite(arguments []string) error {
