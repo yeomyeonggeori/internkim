@@ -8,6 +8,13 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - Prefer existing codebase patterns over new abstractions.
 - Use `rg` or `rg --files` for searches.
 - Use `apply_patch` for manual edits.
+- In new agent worktrees, run
+  `tools/sync-worktree-local-state <main-worktree-path>` from the new worktree
+  before tests or deployments that need local ignored state. The script links
+  `.env`, `web/.dev.vars`, `.local/secrets`, `.agents`, and root secret files
+  from the main worktree without copying generated artifacts. Missing paths are
+  reported as skipped. Use `--copy` before the path only when symlinks are not
+  appropriate.
 - Do not revert user or generated changes unless explicitly asked.
 - Keep generated test artifacts, platform users, memories, and remote messages
   cleaned up after real-platform tests.
