@@ -48,7 +48,11 @@ var StepHealth = Step{
 		checkFirstAdminBootstrap(context, &failedChecks)
 		checkMattermostPing(context, &failedChecks)
 		checkMattermostURL(context, &failedChecks)
-		checkMattermostPublic(context, &failedChecks)
+		if isPlannedStep(context, "tunnel") {
+			checkMattermostPublic(context, &failedChecks)
+		} else {
+			fmt.Println("  mattermost public: skipped")
+		}
 		checkAgentBrowser(context, &failedChecks)
 		checkBlueclawBackupManifest(context, &failedChecks)
 		checkBlueclawUsersPolicy(context, &failedChecks)
