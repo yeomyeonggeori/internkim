@@ -1,33 +1,39 @@
 package capabilityd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"sort"
+	"net/url"
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
 type platformDMFailure struct {
-	ErrorCode    string                `json:"errorCode"`
-	FailureStage string                `json:"failureStage"`
-	Message      string                `json:"message"`
-	Retryable    bool                  `json:"retryable"`
-	SafeRetry    bool                  `json:"safeRetry"`
-	Candidates   []platformDMRecipient `json:"candidates,omitempty"`
+	ErrorCode      string                `json:"errorCode"`
+	FailureStage   string                `json:"failureStage"`
+	Message        string                `json:"message"`
+	Retryable      bool                  `json:"retryable"`
+	SafeRetry      bool                  `json:"safeRetry"`
+	Candidates     []platformDMRecipient `json:"candidates,omitempty"`
+	ApprovedPeople []string              `json:"approvedPeople,omitempty"`
 }
 
-type platformDMPolicyDocument struct {
-	People []platformDMPolicyPerson `json:"people"`
+type blueclawRecipientResolution struct {
+	Status         string                       `json:"status"`
+	Recipient      *blueclawRecipientCandidate  `json:"recipient,omitempty"`
+	Candidates     []blueclawRecipientCandidate `json:"candidates,omitempty"`
+	ApprovedPeople []string                     `json:"approvedPeople,omitempty"`
 }
 
-type platformDMPolicyPerson struct {
-	PersonID    string   `json:"personID"`
-	DisplayName string   `json:"displayName"`
-	Emails      []string `json:"emails"`
+type blueclawRecipientCandidate struct {
+	PersonID       string   `json:"personID"`
+	DisplayName    string   `json:"displayName"`
+	Emails         []string `json:"emails,omitempty"`
+	ExternalUserID string   `json:"externalUserID,omitempty"`
 }
 
 type platformDMMattermostUser struct {
@@ -47,7 +53,6 @@ type platformDMRecipient struct {
 	Emails             []string `json:"emails"`
 	MattermostUserID   string   `json:"mattermostUserID"`
 	MattermostUsername string   `json:"mattermostUsername"`
-	MattermostAliases  []string `json:"mattermostAliases"`
 }
 
 func validatePlatformDMSendAuthorization(toolContext capabilities.ToolInvokeContext, recipient platformDMRecipient) string {
@@ -71,34 +76,106 @@ func isPlatformDMSelfRecipient(toolContext capabilities.ToolInvokeContext, recip
 }
 
 func (service Service) resolvePlatformDMRecipient(ctx context.Context, personHint string) (platformDMRecipient, platformDMFailure, bool) {
-	candidates, failure, hasFailure := service.resolvePlatformDMCandidates(ctx, personHint)
-	if hasFailure {
-		return platformDMRecipient{}, failure, true
+	resolution, errorValue := service.fetchBlueclawRecipientResolution(ctx, personHint)
+	if errorValue != nil {
+		return platformDMRecipient{}, platformDMFailureForError("recipient_resolve", "identity_unavailable", errorValue, true), true
 	}
-	switch len(candidates) {
-	case 0:
-		message := fmt.Sprintf("recipient %q was not found among approved InternKim people with active Mattermost accounts", personHint)
-		return platformDMRecipient{}, platformDMStaticFailure("recipient_not_found", "recipient_resolve", message), true
-	case 1:
-		return candidates[0], platformDMFailure{}, false
-	default:
+	switch resolution.Status {
+	case "resolved":
+		return platformDMRecipientFromResolution(resolution)
+	case "unlinked":
+		return service.resolveUnlinkedPlatformDMRecipient(ctx, resolution)
+	case "ambiguous":
+		candidates := platformDMRecipientsFromCandidates(resolution.Candidates)
 		message := fmt.Sprintf("recipient %q is ambiguous: %s", personHint, platformDMRecipientList(candidates))
 		failure := platformDMStaticFailure("recipient_ambiguous", "recipient_resolve", message)
 		failure.Candidates = candidates
 		return platformDMRecipient{}, failure, true
+	default:
+		message := fmt.Sprintf("recipient %q was not found among approved InternKim people; approved people: %s", personHint, strings.Join(resolution.ApprovedPeople, ", "))
+		failure := platformDMStaticFailure("recipient_not_found", "recipient_resolve", message)
+		failure.ApprovedPeople = resolution.ApprovedPeople
+		return platformDMRecipient{}, failure, true
 	}
 }
 
-func (service Service) resolvePlatformDMCandidates(ctx context.Context, personHint string) ([]platformDMRecipient, platformDMFailure, bool) {
-	policyDocument, errorValue := service.fetchPlatformDMPolicy(ctx)
-	if errorValue != nil {
-		return nil, platformDMFailureForError("mattermost_lookup", "mattermost_unavailable", errorValue, true), true
+func platformDMRecipientFromResolution(resolution blueclawRecipientResolution) (platformDMRecipient, platformDMFailure, bool) {
+	if resolution.Recipient == nil {
+		return platformDMRecipient{}, platformDMStaticFailure("identity_unavailable", "recipient_resolve", "identity resolution returned no recipient"), true
 	}
-	mattermostUsers, errorValue := service.listPlatformDMMattermostUsers(ctx)
-	if errorValue != nil {
-		return nil, platformDMFailureForError("mattermost_lookup", "mattermost_unavailable", errorValue, true), true
+	return platformDMRecipientFromCandidate(*resolution.Recipient), platformDMFailure{}, false
+}
+
+func (service Service) resolveUnlinkedPlatformDMRecipient(ctx context.Context, resolution blueclawRecipientResolution) (platformDMRecipient, platformDMFailure, bool) {
+	if resolution.Recipient == nil {
+		return platformDMRecipient{}, platformDMStaticFailure("identity_unavailable", "recipient_resolve", "identity resolution returned no recipient"), true
 	}
-	return matchingPlatformDMRecipients(personHint, policyDocument.People, mattermostUsers), platformDMFailure{}, false
+	recipient := platformDMRecipientFromCandidate(*resolution.Recipient)
+	for _, email := range recipient.Emails {
+		user, errorValue := service.fetchMattermostUserByEmail(ctx, email)
+		if errorValue != nil {
+			continue
+		}
+		recipient.MattermostUserID = user.ID
+		recipient.MattermostUsername = user.Username
+		return recipient, platformDMFailure{}, false
+	}
+	message := fmt.Sprintf("approved person %q has no active Mattermost account", recipient.DisplayName)
+	return platformDMRecipient{}, platformDMStaticFailure("recipient_not_found", "recipient_resolve", message), true
+}
+
+func platformDMRecipientFromCandidate(candidate blueclawRecipientCandidate) platformDMRecipient {
+	return platformDMRecipient{
+		PersonID:         candidate.PersonID,
+		DisplayName:      candidate.DisplayName,
+		Emails:           candidate.Emails,
+		MattermostUserID: candidate.ExternalUserID,
+	}
+}
+
+func platformDMRecipientsFromCandidates(candidates []blueclawRecipientCandidate) []platformDMRecipient {
+	recipients := []platformDMRecipient{}
+	for _, candidate := range candidates {
+		recipients = append(recipients, platformDMRecipientFromCandidate(candidate))
+	}
+	return recipients
+}
+
+func (service Service) fetchBlueclawRecipientResolution(ctx context.Context, personHint string) (blueclawRecipientResolution, error) {
+	endpoint := strings.TrimRight(firstNonEmpty(service.Configuration.BlueclawBaseURL, DefaultConfiguration().BlueclawBaseURL), "/") + "/admin/api/identity/resolve-recipient"
+	requestBody, errorValue := json.Marshal(map[string]string{"platform": "mattermost", "hint": personHint})
+	if errorValue != nil {
+		return blueclawRecipientResolution{}, errorValue
+	}
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(requestBody))
+	if errorValue != nil {
+		return blueclawRecipientResolution{}, errorValue
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, errorValue := service.httpClient().Do(request)
+	if errorValue != nil {
+		return blueclawRecipientResolution{}, errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return blueclawRecipientResolution{}, fmt.Errorf("recipient resolution failed with status %d", response.StatusCode)
+	}
+	var resolution blueclawRecipientResolution
+	if errorValue := json.NewDecoder(response.Body).Decode(&resolution); errorValue != nil {
+		return blueclawRecipientResolution{}, errorValue
+	}
+	return resolution, nil
+}
+
+func (service Service) fetchMattermostUserByEmail(ctx context.Context, email string) (platformDMMattermostUser, error) {
+	var user platformDMMattermostUser
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/email/"+url.PathEscape(strings.TrimSpace(email)), nil, &user); errorValue != nil {
+		return platformDMMattermostUser{}, errorValue
+	}
+	if strings.TrimSpace(user.ID) == "" || user.DeleteAt != 0 {
+		return platformDMMattermostUser{}, fmt.Errorf("mattermost user for %q is not active", email)
+	}
+	return user, nil
 }
 
 func (service Service) sendPlatformDirectMessage(ctx context.Context, toolContext capabilities.ToolInvokeContext, personHint string, message string) (map[string]string, platformDMFailure, bool) {
@@ -121,162 +198,6 @@ func (service Service) sendPlatformDirectMessage(ctx context.Context, toolContex
 		"mattermostUsername": recipient.MattermostUsername,
 	}
 	return result, platformDMFailure{}, false
-}
-
-func (service Service) fetchPlatformDMPolicy(ctx context.Context) (platformDMPolicyDocument, error) {
-	endpoint := strings.TrimRight(firstNonEmpty(service.Configuration.BlueclawBaseURL, DefaultConfiguration().BlueclawBaseURL), "/") + "/admin/api/policy"
-	request, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if errorValue != nil {
-		return platformDMPolicyDocument{}, errorValue
-	}
-	response, errorValue := service.httpClient().Do(request)
-	if errorValue != nil {
-		return platformDMPolicyDocument{}, errorValue
-	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return platformDMPolicyDocument{}, fmt.Errorf("policy lookup failed with status %d", response.StatusCode)
-	}
-	var policyDocument platformDMPolicyDocument
-	if errorValue := json.NewDecoder(response.Body).Decode(&policyDocument); errorValue != nil {
-		return platformDMPolicyDocument{}, errorValue
-	}
-	return policyDocument, nil
-}
-
-func (service Service) listPlatformDMMattermostUsers(ctx context.Context) ([]platformDMMattermostUser, error) {
-	var users []platformDMMattermostUser
-	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users?per_page=200", nil, &users); errorValue != nil {
-		return nil, errorValue
-	}
-	activeUsers := []platformDMMattermostUser{}
-	for _, user := range users {
-		if strings.TrimSpace(user.ID) == "" || user.DeleteAt != 0 {
-			continue
-		}
-		activeUsers = append(activeUsers, user)
-	}
-	return activeUsers, nil
-}
-
-func matchingPlatformDMRecipients(personHint string, people []platformDMPolicyPerson, users []platformDMMattermostUser) []platformDMRecipient {
-	candidates := platformDMRecipientsForApprovedPeople(people, users)
-	matches := []platformDMRecipient{}
-	bestScore := 0
-	for _, candidate := range candidates {
-		score := platformDMRecipientMatchScore(personHint, candidate)
-		if score == 0 {
-			continue
-		}
-		if bestScore == 0 || score < bestScore {
-			bestScore = score
-			matches = nil
-		}
-		if score == bestScore {
-			matches = append(matches, candidate)
-		}
-	}
-	sortPlatformDMRecipients(matches)
-	return matches
-}
-
-func platformDMRecipientsForApprovedPeople(people []platformDMPolicyPerson, users []platformDMMattermostUser) []platformDMRecipient {
-	userByEmail := map[string]platformDMMattermostUser{}
-	for _, user := range users {
-		normalizedEmail := normalizePlatformDMMatchValue(user.Email)
-		if normalizedEmail != "" {
-			userByEmail[normalizedEmail] = user
-		}
-	}
-	recipients := []platformDMRecipient{}
-	seenRecipient := map[string]bool{}
-	for _, person := range people {
-		for _, email := range person.Emails {
-			user, isFound := userByEmail[normalizePlatformDMMatchValue(email)]
-			if !isFound {
-				continue
-			}
-			key := strings.TrimSpace(person.PersonID) + ":" + strings.TrimSpace(user.ID)
-			if seenRecipient[key] {
-				continue
-			}
-			seenRecipient[key] = true
-			recipients = append(recipients, platformDMRecipient{
-				PersonID:           strings.TrimSpace(person.PersonID),
-				DisplayName:        strings.TrimSpace(person.DisplayName),
-				Emails:             normalizedPlatformDMEmails(person.Emails),
-				MattermostUserID:   strings.TrimSpace(user.ID),
-				MattermostUsername: strings.TrimSpace(user.Username),
-				MattermostAliases:  mattermostUserAliases(user),
-			})
-		}
-	}
-	return recipients
-}
-
-func platformDMRecipientMatchScore(personHint string, recipient platformDMRecipient) int {
-	hint := normalizePlatformDMMatchValue(personHint)
-	if hint == "" {
-		return 0
-	}
-	values := []string{recipient.PersonID, recipient.DisplayName, recipient.MattermostUsername}
-	values = append(values, recipient.Emails...)
-	values = append(values, recipient.MattermostAliases...)
-	for _, value := range values {
-		if normalizePlatformDMMatchValue(value) == hint {
-			return 1
-		}
-	}
-	for _, value := range values {
-		normalizedValue := normalizePlatformDMMatchValue(value)
-		if normalizedValue != "" && (strings.Contains(normalizedValue, hint) || strings.Contains(hint, normalizedValue)) {
-			return 2
-		}
-	}
-	return 0
-}
-
-func normalizedPlatformDMEmails(emails []string) []string {
-	normalizedEmails := []string{}
-	seenEmail := map[string]bool{}
-	for _, email := range emails {
-		normalizedEmail := normalizePlatformDMMatchValue(email)
-		if normalizedEmail == "" || seenEmail[normalizedEmail] {
-			continue
-		}
-		seenEmail[normalizedEmail] = true
-		normalizedEmails = append(normalizedEmails, normalizedEmail)
-	}
-	return normalizedEmails
-}
-
-func mattermostUserAliases(user platformDMMattermostUser) []string {
-	return trimPlatformDMMattermostAliases([]string{user.Email, user.Username, user.DisplayName, user.FirstName, user.LastName, user.Nickname})
-}
-
-func trimPlatformDMMattermostAliases(values []string) []string {
-	aliases := []string{}
-	seenAlias := map[string]bool{}
-	for _, value := range values {
-		normalizedValue := normalizePlatformDMMatchValue(value)
-		if normalizedValue == "" || seenAlias[normalizedValue] {
-			continue
-		}
-		seenAlias[normalizedValue] = true
-		aliases = append(aliases, normalizedValue)
-	}
-	return aliases
-}
-
-func sortPlatformDMRecipients(recipients []platformDMRecipient) {
-	sort.Slice(recipients, func(leftIndex int, rightIndex int) bool {
-		left := recipients[leftIndex]
-		right := recipients[rightIndex]
-		if left.PersonID != right.PersonID {
-			return left.PersonID < right.PersonID
-		}
-		return left.MattermostUserID < right.MattermostUserID
-	})
 }
 
 func platformDMRecipientList(recipients []platformDMRecipient) string {

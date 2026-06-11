@@ -56,6 +56,8 @@ func TestMattermostChannelUpdateAdminPatchesAndInvites(t *testing.T) {
 		switch request.URL.String() {
 		case "http://blueclaw.test/admin/api/policy":
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
+		case "http://blueclaw.test/admin/api/identity/resolve-recipient":
+			return testJSONResponse(http.StatusOK, mattermostToolTestResolvedAlice()), nil
 		case "http://mattermost.test/api/v4/users/me/channels?per_page=200":
 			return testJSONResponse(http.StatusOK, []mattermostToolChannel{{ID: "channel-1", Name: "random", DisplayName: "Random"}}), nil
 		case "http://mattermost.test/api/v4/users?per_page=200":
@@ -894,6 +896,8 @@ func TestMattermostPostSearchUsesDirectMessageScope(t *testing.T) {
 		switch request.URL.String() {
 		case "http://blueclaw.test/admin/api/policy":
 			return testJSONResponse(http.StatusOK, mattermostToolTestPolicy()), nil
+		case "http://blueclaw.test/admin/api/identity/resolve-recipient":
+			return testJSONResponse(http.StatusOK, mattermostToolTestResolvedAlice()), nil
 		case "http://mattermost.test/api/v4/users?per_page=200":
 			return testJSONResponse(http.StatusOK, []platformDMMattermostUser{{ID: "alice-1", Email: "alice@example.com", Username: "alice"}}), nil
 		case "http://mattermost.test/api/v4/users/me":
@@ -951,6 +955,18 @@ func mattermostToolTestService(t *testing.T, roundTrip func(*http.Request) (*htt
 			BlueclawBaseURL:     "http://blueclaw.test",
 		},
 		HTTPClient: &http.Client{Transport: roundTripFunc(roundTrip)},
+	}
+}
+
+func mattermostToolTestResolvedAlice() blueclawRecipientResolution {
+	return blueclawRecipientResolution{
+		Status: "resolved",
+		Recipient: &blueclawRecipientCandidate{
+			PersonID:       "alice-1",
+			DisplayName:    "Alice",
+			Emails:         []string{"alice@example.com"},
+			ExternalUserID: "alice-1",
+		},
 	}
 }
 
