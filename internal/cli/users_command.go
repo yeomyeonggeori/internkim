@@ -53,7 +53,7 @@ func runUsersArguments(arguments []string) error {
 	if errorValue := validateUsersArguments(command, commandArguments); errorValue != nil {
 		return errorValue
 	}
-	client, errorValue := resolveUsersAdminAPIClient(arguments)
+	client, errorValue := resolveAdminAPIClient(arguments)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -68,7 +68,7 @@ func runInviteArguments(arguments []string) error {
 	if _, errorValue := commandUserRecordFromArguments(arguments, "member"); errorValue != nil {
 		return errorValue
 	}
-	client, errorValue := resolveUsersAdminAPIClient(arguments)
+	client, errorValue := resolveAdminAPIClient(arguments)
 	if errorValue != nil {
 		return errorValue
 	}
