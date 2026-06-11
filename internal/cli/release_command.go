@@ -159,6 +159,7 @@ func createReleaseBlobs(repositoryRootPath string, temporaryDirectoryPath string
 		{name: "capabilityd", revision: gitRevision, restartGroup: "capabilityd", healthCheck: "capabilityd", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.CapabilitydName), builder: buildReleaseBinary("./cmd/" + blueclaw.CapabilitydName)},
 		{name: "web", revision: webRevision(repositoryRootPath), restartGroup: "admind", healthCheck: "web", sourcePath: filepath.Join(repositoryRootPath, "build", "board-ui")},
 		{name: "blueclawPayload", revision: blueclawPayloadRevision(repositoryRootPath), restartGroup: "blueclaw", healthCheck: "blueclaw", sourcePath: filepath.Join(repositoryRootPath, blueclaw.BlueclawPayloadArtifactPath)},
+		{name: "blueclawSupervisor", revision: gitRevision, restartGroup: "blueclaw", healthCheck: "blueclaw", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.BlueclawSupervisorName), builder: buildBlueclawSupervisorReleaseBinary},
 		{name: "skills", revision: gitRevision, restartGroup: "blueclaw", healthCheck: "skills", sourcePath: blueclawworkspace.SkillsPath(repositoryRootPath)},
 	}
 	blobs := []releaseBlob{}
@@ -212,6 +213,10 @@ func buildReleaseBinary(packagePath string) func(string, string) error {
 		}
 		return nil
 	}
+}
+
+func buildBlueclawSupervisorReleaseBinary(repositoryRootPath string, outputPath string) error {
+	return blueclaw.EnsureBlueclawSupervisorBinary(outputPath, repositoryRootPath)
 }
 
 func validateReleaseSource(name string, sourcePath string) error {
