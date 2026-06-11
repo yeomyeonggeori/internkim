@@ -140,6 +140,10 @@ func (service Service) VirtualMachineUp(ctx context.Context) error {
 		return fmt.Errorf("wait for container %q IP address: %w\n%s", service.configuration.VirtualMachine.Container.Name, errorValue, service.VirtualMachineDiagnostics(ctx))
 	}
 
+	if errorValue := service.waitForVirtualMachineSSH(ctx); errorValue != nil {
+		return fmt.Errorf("wait for container %q ssh: %w\n%s", service.configuration.VirtualMachine.Container.Name, errorValue, service.VirtualMachineDiagnostics(ctx))
+	}
+
 	return nil
 }
 
@@ -626,7 +630,7 @@ func (service Service) waitForVirtualMachineIPAddress(ctx context.Context) error
 
 func (service Service) waitForVirtualMachineSSH(ctx context.Context) error {
 	fmt.Println("waiting for SSH")
-	for range 60 {
+	for range 150 {
 		if service.virtualMachineSSHReady(ctx) {
 			return nil
 		}
