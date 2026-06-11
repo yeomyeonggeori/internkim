@@ -23,7 +23,7 @@ func (backend LlamaCppBackend) CompleteStructured(ctx context.Context, request S
 		return response, errorValue
 	}
 	chatRequest := openAIChatRequest(backend.ModelName, request.Messages, &request.StructuredOutputSchema, generationOptionsValue(request.GenerationOptions))
-	content, errorValue := backend.client().chatCompletions(ctx, chatRequest)
+	content, usage, errorValue := backend.client().chatCompletions(ctx, chatRequest)
 	if errorValue != nil {
 		return Response{}, errorValue
 	}
@@ -36,6 +36,7 @@ func (backend LlamaCppBackend) CompleteStructured(ctx context.Context, request S
 		Content:         content,
 		SelectedBackend: "llamacpp",
 		ConstraintMode:  ConstraintModeLlamaJSONSchema,
+		Usage:           usage,
 	}, nil
 }
 
@@ -45,7 +46,7 @@ func (backend LlamaCppBackend) completeNativeAction(ctx context.Context, request
 		return Response{}, isActionSchema, errorValue
 	}
 	chatRequest := openAIActionToolRequest(backend.ModelName, request.Messages, toolSet.Tools, generationOptionsValue(request.GenerationOptions))
-	content, errorValue := backend.client().chatCompletionAction(ctx, chatRequest, toolSet)
+	content, usage, errorValue := backend.client().chatCompletionAction(ctx, chatRequest, toolSet)
 	if errorValue != nil {
 		return Response{}, true, errorValue
 	}
@@ -55,12 +56,13 @@ func (backend LlamaCppBackend) completeNativeAction(ctx context.Context, request
 		Content:         content,
 		SelectedBackend: "llamacpp",
 		ConstraintMode:  ConstraintModeNativeToolCall,
+		Usage:           usage,
 	}, true, nil
 }
 
 func (backend LlamaCppBackend) CompleteText(ctx context.Context, request TextRequest) (Response, error) {
 	chatRequest := openAIChatRequest(backend.ModelName, request.Messages, nil, GenerationOptions{})
-	content, errorValue := backend.client().chatCompletions(ctx, chatRequest)
+	content, usage, errorValue := backend.client().chatCompletions(ctx, chatRequest)
 	if errorValue != nil {
 		return Response{}, errorValue
 	}
@@ -69,6 +71,7 @@ func (backend LlamaCppBackend) CompleteText(ctx context.Context, request TextReq
 		Model:           backend.ModelName,
 		Content:         content,
 		SelectedBackend: "llamacpp",
+		Usage:           usage,
 	}, nil
 }
 

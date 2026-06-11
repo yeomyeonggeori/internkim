@@ -79,16 +79,18 @@ export function eventLane(eventName: string): EventLane {
 export type TimelineSummary = {
 	llmCallCount: number;
 	llmLatencyMS: number;
+	llmTotalTokens: number;
 	toolCallCount: number;
 };
 
 export function summarizeTimeline(taskEvents: TaskEvent[]): TimelineSummary {
-	const summary: TimelineSummary = { llmCallCount: 0, llmLatencyMS: 0, toolCallCount: 0 };
+	const summary: TimelineSummary = { llmCallCount: 0, llmLatencyMS: 0, llmTotalTokens: 0, toolCallCount: 0 };
 	for (const taskEvent of taskEvents) {
 		if (taskEvent.name === 'llm.call') {
 			summary.llmCallCount += 1;
 			const body = readRecord(parseEventBody(taskEvent.body));
 			if (body && typeof body.latencyMs === 'number') summary.llmLatencyMS += body.latencyMs;
+			if (body && typeof body.totalTokens === 'number') summary.llmTotalTokens += body.totalTokens;
 		}
 		if (taskEvent.name.startsWith('tool.') && taskEvent.name.endsWith('.result')) {
 			summary.toolCallCount += 1;

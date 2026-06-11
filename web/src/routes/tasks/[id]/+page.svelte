@@ -101,6 +101,9 @@
 					<span>{text.eventCount} {detail.taskEvents.length}</span>
 					<span>{text.llmCalls} {summary.llmCallCount}</span>
 					<span>{text.llmLatency} {formatLatency(summary.llmLatencyMS)}</span>
+					{#if summary.llmTotalTokens > 0}
+						<span>{text.llmTokens} {summary.llmTotalTokens.toLocaleString()}</span>
+					{/if}
 					<span>{text.toolCalls} {summary.toolCallCount}</span>
 				</div>
 			{/if}
