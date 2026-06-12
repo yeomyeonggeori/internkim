@@ -22,6 +22,8 @@
 	const nodes = () => memoryGraph?.nodes ?? [];
 	const edges = () => memoryGraph?.edges ?? [];
 	const episodes = () => memoryGraph?.episodes ?? [];
+	const hasMemoryGraph = () => Boolean(memoryGraph);
+	const hasMemoryHealth = () => Boolean(memoryGraph?.health);
 
 	onMount(loadMemoryGraph);
 
@@ -41,16 +43,35 @@
 			isLoading = false;
 		}
 	}
+
+	function healthStatusText(): string | undefined {
+		const health = memoryGraph?.health;
+		if (!health) return undefined;
+		if (health.hasGraphFailure) return text.memoryUnavailable;
+		if (health.hasSearchFailure) return text.searchFailed;
+		if (health.hasIngestionFailure) return text.ingestionFailed;
+		if (health.reachable === true) return text.reachable;
+		if (health.reachable === false) return text.unreachable;
+		return undefined;
+	}
+
+	function healthStatusVariant(): 'secondary' | 'outline' | 'destructive' {
+		const health = memoryGraph?.health;
+		if (health?.hasGraphFailure || health?.hasSearchFailure || health?.hasIngestionFailure) return 'destructive';
+		return health?.reachable ? 'secondary' : 'outline';
+	}
 </script>
 
-<div class="flex flex-wrap gap-2">
-	<Badge variant={memoryGraph?.health?.configured ? 'secondary' : 'outline'}>
-		{memoryGraph?.health?.configured ? text.configured : text.unconfigured}
-	</Badge>
-	<Badge variant={memoryGraph?.health?.reachable ? 'secondary' : 'outline'}>
-		{memoryGraph?.health?.reachable ? text.reachable : text.unreachable}
-	</Badge>
-</div>
+{#if hasMemoryHealth()}
+	<div class="flex flex-wrap gap-2">
+		<Badge variant={memoryGraph?.health?.configured ? 'secondary' : 'outline'}>
+			{memoryGraph?.health?.configured ? text.configured : text.unconfigured}
+		</Badge>
+		{#if healthStatusText()}
+			<Badge variant={healthStatusVariant()}>{healthStatusText()}</Badge>
+		{/if}
+	</div>
+{/if}
 
 <form
 	class="grid gap-2 md:grid-cols-[1fr_auto_auto]"
@@ -93,23 +114,9 @@
 	<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{errorMessage}</p>
 {/if}
 
-{#if memoryGraph?.health?.error || memoryGraph?.health?.lastSearchError || memoryGraph?.health?.lastIngestionError}
-	<section class="grid gap-2 text-xs">
-		{#if memoryGraph.health.error}
-			<p class="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-950">{memoryGraph.health.error}</p>
-		{/if}
-		{#if memoryGraph.health.lastSearchError}
-			<p class="rounded-md border bg-muted/30 px-3 py-2">{text.searchError}: {memoryGraph.health.lastSearchError}</p>
-		{/if}
-		{#if memoryGraph.health.lastIngestionError}
-			<p class="rounded-md border bg-muted/30 px-3 py-2">{text.ingestionError}: {memoryGraph.health.lastIngestionError}</p>
-		{/if}
-	</section>
-{/if}
-
-{#if nodes().length === 0}
+{#if hasMemoryGraph() && nodes().length === 0}
 	<p class="rounded-md border bg-muted/30 px-3 py-12 text-center text-sm text-muted-foreground">{text.noVisibleMemory}</p>
-{:else}
+{:else if nodes().length > 0}
 	<section class="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
 		<MemoryNetwork nodes={nodes()} edges={edges()} />
 		<aside class="flex h-[min(58svh,520px)] min-h-[360px] min-w-0 flex-col overflow-hidden rounded-lg border bg-background">
