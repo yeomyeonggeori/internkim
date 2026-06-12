@@ -121,6 +121,7 @@ function scoreTask(id: string, size: string, endDate: string) {
 		goal: '',
 		size,
 		status: '완료',
+		statusRank: 0,
 		startDate: endDate,
 		endDate,
 		weekCode: '',
