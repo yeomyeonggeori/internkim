@@ -7,7 +7,7 @@ AGENT_BROWSER_VERSION ?= 0.26.0
 COMPANION_BETA_DIST ?= dist/companion
 COMPANION_BETA_MACOS_ARTIFACT ?= internkim-companion-beta-macos-aarch64.dmg
 
-.PHONY: build build-companion build-companion-shell package-companion-beta check test doctor deps-sim deps-browser deps-companion deps-companion-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload smoke-blueclaw-runtime-tart deps-graphiti setup-sim sim-gate deploy-after-sim verify-api verify-browser verify-graphiti-local
+.PHONY: build build-companion build-companion-shell package-companion-beta build-mattermost-ephemeral-plugin check test doctor deps-sim deps-browser deps-companion deps-companion-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload smoke-blueclaw-runtime-tart deps-graphiti setup-sim sim-gate deploy-after-sim verify-api verify-browser verify-graphiti-local
 
 build:
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim ./cmd/internkim
@@ -30,6 +30,16 @@ package-companion-beta: build-companion
 	hdiutil create -volname "internkim" -srcfolder companion/src-tauri/target/release/bundle/macos/internkim.app -ov -format UDZO "$(COMPANION_BETA_DIST)/$(COMPANION_BETA_MACOS_ARTIFACT)"
 	@if [ -n "$$APPLE_SIGNING_IDENTITY" ]; then codesign --force --sign "$$APPLE_SIGNING_IDENTITY" "$(COMPANION_BETA_DIST)/$(COMPANION_BETA_MACOS_ARTIFACT)"; else echo "unsigned beta artifact: $(COMPANION_BETA_DIST)/$(COMPANION_BETA_MACOS_ARTIFACT)"; fi
 	@if [ -n "$$APPLE_ID" ] && [ -n "$$APPLE_TEAM_ID" ] && [ -n "$$APPLE_APP_SPECIFIC_PASSWORD" ]; then xcrun notarytool submit "$(COMPANION_BETA_DIST)/$(COMPANION_BETA_MACOS_ARTIFACT)" --apple-id "$$APPLE_ID" --team-id "$$APPLE_TEAM_ID" --password "$$APPLE_APP_SPECIFIC_PASSWORD" --wait; fi
+
+build-mattermost-ephemeral-plugin:
+	cd mattermost-plugin/internkim-ephemeral && GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) GOOS=linux GOARCH=arm64 go build -o dist/plugin-linux-arm64 ./
+	rm -rf build/mattermost-plugins/.package-com.internkim.ephemeral
+	mkdir -p build/mattermost-plugins/.package-com.internkim.ephemeral/com.internkim.ephemeral/server/dist
+	cp mattermost-plugin/internkim-ephemeral/plugin.json build/mattermost-plugins/.package-com.internkim.ephemeral/com.internkim.ephemeral/plugin.json
+	cp mattermost-plugin/internkim-ephemeral/dist/plugin-linux-arm64 build/mattermost-plugins/.package-com.internkim.ephemeral/com.internkim.ephemeral/server/dist/plugin-linux-arm64
+	mkdir -p build/mattermost-plugins
+	tar -czf build/mattermost-plugins/com.internkim.ephemeral-0.1.0.tar.gz -C build/mattermost-plugins/.package-com.internkim.ephemeral com.internkim.ephemeral
+	rm -rf build/mattermost-plugins/.package-com.internkim.ephemeral
 
 check: build build-companion
 	cd companion && bun run check
