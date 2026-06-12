@@ -22,7 +22,7 @@ ssh_host=""
 ssh_user="${USER:-admin}"
 ssh_password=""
 remote_directory="/tmp/internkim-blueclaw-runtime-builder"
-stop_tart_after_build=0
+stop_container_after_build=0
 rsync_excludes=(
   --exclude '.git'
   --exclude '.dependency/agent-browser'
@@ -49,7 +49,7 @@ usage() {
   cat <<'USAGE'
 Usage:
   tools/prepare-blueclaw-runtime [--builder local]
-  tools/prepare-blueclaw-runtime --builder tart
+  tools/prepare-blueclaw-runtime --builder container
   tools/prepare-blueclaw-runtime --builder ssh --host <linux-arm64> [--user <user>] [--password <password>]
 
 Prepare .dependency/blueclaw-runtime from a Linux arm64 builder.
@@ -102,29 +102,29 @@ ensure_internkim_binary() {
   GOCACHE="$go_cache" go build -o "$repository_root/internkim" "$repository_root/cmd/internkim"
 }
 
-cleanup_tart_builder() {
-  if [ "$stop_tart_after_build" = "1" ]; then
-    echo "stopping Tart builder VM"
-    "$repository_root/internkim" lab vm-down >/dev/null 2>&1 || echo "warning: failed to stop Tart builder VM" >&2
+cleanup_container_builder() {
+  if [ "$stop_container_after_build" = "1" ]; then
+    echo "stopping container builder VM"
+    "$repository_root/internkim" lab vm-down >/dev/null 2>&1 || echo "warning: failed to stop container builder VM" >&2
   fi
 }
 
-run_tart_builder() {
+run_container_builder() {
   ensure_internkim_binary
-  local tart_status_before
-  tart_status_before="$("$repository_root/internkim" lab status 2>/dev/null || true)"
-  stop_tart_after_build=0
-  if [ "$tart_status_before" != "running" ] && [ "${INTERNKIM_KEEP_TART_VM:-0}" != "1" ]; then
-    stop_tart_after_build=1
+  local container_status_before
+  container_status_before="$("$repository_root/internkim" lab status 2>/dev/null || true)"
+  stop_container_after_build=0
+  if [ "$container_status_before" != "running" ] && [ "${INTERNKIM_KEEP_CONTAINER_VM:-0}" != "1" ]; then
+    stop_container_after_build=1
   fi
-  trap cleanup_tart_builder EXIT
+  trap cleanup_container_builder EXIT
   "$repository_root/internkim" lab runtime-builder-prepare
   ssh_host="$("$repository_root/internkim" lab vm-ip)"
   ssh_user="admin"
   ssh_password="admin"
   run_ssh_builder
   trap - EXIT
-  cleanup_tart_builder
+  cleanup_container_builder
 }
 
 ssh_base_command() {
@@ -256,9 +256,13 @@ run_root() {
 }
 
 case "$builder" in
-  tart)
-    run_tart_builder
+  container)
+    run_container_builder
     exit 0
+    ;;
+  tart)
+    echo "the tart builder was removed; use --builder container" >&2
+    exit 1
     ;;
   ssh)
     run_ssh_builder
@@ -275,7 +279,7 @@ esac
 
 if [ "$(uname -s)" != "Linux" ]; then
   echo "Blueclaw runtime artifact build requires a prepared Linux arm64 builder." >&2
-  echo "Run: make prepare-blueclaw-runtime-builder && tools/prepare-blueclaw-runtime --builder tart" >&2
+  echo "Run: make prepare-blueclaw-runtime-builder && tools/prepare-blueclaw-runtime --builder container" >&2
   echo "Or: tools/prepare-blueclaw-runtime --builder ssh --host <linux-arm64>" >&2
   exit 1
 fi

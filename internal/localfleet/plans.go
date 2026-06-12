@@ -64,7 +64,7 @@ func (service Service) upPlans() []CommandPlan {
 	return []CommandPlan{
 		service.labCommand("vm-up"),
 		service.shellPlan("start localhost tunnel", service.startTunnelCommand()),
-		service.shellPlan("mount shared workspace", service.mountSharedWorkspaceCommand()),
+		service.shellPlan("check shared workspace", service.checkSharedWorkspaceCommand()),
 		service.command("make", "build"),
 		service.shellPlan("setup local fleet", service.setupCommand()),
 	}
@@ -93,6 +93,10 @@ func (service Service) predeployGatePlans() []CommandPlan {
 
 func (service Service) mattermostScenarioPlans() []CommandPlan {
 	return append(service.upPlans(), service.labCommand("scenario-mattermost"))
+}
+
+func (service Service) mattermostDirectMessageScenarioPlans() []CommandPlan {
+	return append(service.upPlans(), service.shellPlan("verify direct message", service.verifyCommand("mattermost --direct-message-e2e")))
 }
 
 func (service Service) webBackedScenarioPlans(scenario string) []CommandPlan {
@@ -136,10 +140,8 @@ func (service Service) shellPlan(label string, command string) CommandPlan {
 	}
 }
 
-func (service Service) mountSharedWorkspaceCommand() string {
-	return strings.Join([]string{
-		quoteShell(service.options.ExecutablePath) + " lab vm-ssh --config " + quoteShell(service.configurationPath()) + " " + quoteShell("sudo mkdir -p /mnt/shared && (mountpoint -q /mnt/shared || sudo mount -t virtiofs com.apple.virtio-fs.automount /mnt/shared)"),
-	}, " && ")
+func (service Service) checkSharedWorkspaceCommand() string {
+	return quoteShell(service.options.ExecutablePath) + " lab vm-ssh --config " + quoteShell(service.configurationPath()) + " " + quoteShell("test -d /mnt/shared/workspace")
 }
 
 func (service Service) setupCommand() string {
@@ -147,7 +149,7 @@ func (service Service) setupCommand() string {
 	return strings.Join([]string{
 		"host=$(" + hostCommand + ")",
 		"test -n \"$host\"",
-		quoteShell(service.options.ExecutablePath) + " setup --board lab --ssh --host \"$host\" --user admin --password admin --skip wifi,local-llm,cloudflare-access,tunnel,google,slack",
+		quoteShell(service.options.ExecutablePath) + " setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --skip wifi,local-llm,cloudflare-access,tunnel,google,slack",
 	}, " && ")
 }
 
@@ -160,9 +162,7 @@ func (service Service) startTunnelCommand() string {
 		"host=$(" + hostCommand + ")",
 		"test -n \"$host\"",
 		"if [ -s " + pidPath + " ] && kill -0 \"$(cat " + pidPath + ")\" 2>/dev/null; then exit 0; fi",
-		sshpassPath + " -p admin ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ExitOnForwardFailure=yes -N -L 127.0.0.1:18080:127.0.0.1:18080 -L 127.0.0.1:8065:127.0.0.1:8065 admin@\"$host\" > " + logPath + " 2>&1 & echo $! > " + pidPath,
-		"sleep 1",
-		"kill -0 \"$(cat " + pidPath + ")\"",
+		"for attempt in 1 2 3; do rm -f " + pidPath + "; (nohup " + sshpassPath + " -p admin ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ExitOnForwardFailure=yes -N -L 127.0.0.1:18080:127.0.0.1:18080 -L 127.0.0.1:8065:127.0.0.1:8065 admin@\"$host\" > " + logPath + " 2>&1 < /dev/null & echo $! > " + pidPath + "); sleep 1; if [ -s " + pidPath + " ] && kill -0 \"$(cat " + pidPath + ")\" 2>/dev/null; then exit 0; fi; sleep 2; done; cat " + logPath + " 2>/dev/null || true; exit 1",
 	}, " && ")
 }
 

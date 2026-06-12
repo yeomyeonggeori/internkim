@@ -1,0 +1,106 @@
+#!/bin/sh
+set -eu
+
+printUsage() {
+  echo "usage: tools/sync-worktree-local-state [--copy] <main-worktree-path>" >&2
+}
+
+fail() {
+  echo "$1" >&2
+  exit 1
+}
+
+canonicalPath() {
+  cd "$1" && pwd
+}
+
+linkTargetMatches() {
+  path="$1"
+  expectedTarget="$2"
+  [ -L "$path" ] && [ "$(readlink "$path")" = "$expectedTarget" ]
+}
+
+ensureDestinationIsAvailable() {
+  destinationPath="$1"
+  sourcePath="$2"
+  if linkTargetMatches "$destinationPath" "$sourcePath"; then
+    echo "kept $destinationPath"
+    return 1
+  fi
+  if [ -e "$destinationPath" ] || [ -L "$destinationPath" ]; then
+    fail "destination already exists: $destinationPath"
+  fi
+  return 0
+}
+
+copyLocalState() {
+  sourcePath="$1"
+  destinationPath="$2"
+  mkdir -p "$(dirname "$destinationPath")"
+  cp -pR "$sourcePath" "$destinationPath"
+  echo "copied $destinationPath"
+}
+
+linkLocalState() {
+  sourcePath="$1"
+  destinationPath="$2"
+  mkdir -p "$(dirname "$destinationPath")"
+  ln -s "$sourcePath" "$destinationPath"
+  echo "linked $destinationPath"
+}
+
+syncLocalState() {
+  relativePath="$1"
+  sourcePath="$mainWorktreePath/$relativePath"
+  destinationPath="$repositoryRoot/$relativePath"
+  if [ ! -e "$sourcePath" ] && [ ! -L "$sourcePath" ]; then
+    echo "skipped $relativePath"
+    return
+  fi
+  if ! ensureDestinationIsAvailable "$destinationPath" "$sourcePath"; then
+    return
+  fi
+  if [ "$syncMode" = "copy" ]; then
+    copyLocalState "$sourcePath" "$destinationPath"
+    return
+  fi
+  linkLocalState "$sourcePath" "$destinationPath"
+}
+
+syncRootMatches() {
+  pattern="$1"
+  for sourcePath in "$mainWorktreePath"/$pattern; do
+    if [ ! -e "$sourcePath" ] && [ ! -L "$sourcePath" ]; then
+      continue
+    fi
+    syncLocalState "$(basename "$sourcePath")"
+  done
+}
+
+syncMode="link"
+if [ "${1:-}" = "--copy" ]; then
+  syncMode="copy"
+  shift
+fi
+
+if [ "$#" -ne 1 ]; then
+  printUsage
+  exit 2
+fi
+
+scriptDirectory="$(cd "$(dirname "$0")" && pwd)"
+repositoryRoot="$(canonicalPath "$scriptDirectory/..")"
+mainWorktreePath="$(canonicalPath "$1")"
+
+if [ "$repositoryRoot" = "$mainWorktreePath" ]; then
+  fail "main worktree path must be different from this worktree"
+fi
+
+syncLocalState ".env"
+syncLocalState "web/.dev.vars"
+syncLocalState ".local/secrets"
+syncLocalState ".agents"
+syncLocalState "secrets"
+syncRootMatches "*.token.enc"
+syncRootMatches "*.key"
+syncRootMatches "client_secret_*.apps.googleusercontent.com.json"
