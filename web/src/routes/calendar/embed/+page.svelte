@@ -45,7 +45,10 @@
 	import { syncRemoteCalendarAndRefreshConflicts } from './calendar-remote-sync';
 	import { searchCalendarEvents, type CalendarSearchResult } from './calendar-search';
 	import CalendarStage from './calendar-stage.svelte';
-	import { loadSavedCalendarDate, saveCalendarDate } from './calendar-storage';
+	import {
+		loadSavedCalendarDate,
+		loadSavedCalendarView
+	} from './calendar-storage';
 	import {
 		installCalendarTimelineRangeAction,
 		type TimelineRangeSelection
@@ -61,8 +64,16 @@
 		isCalendarVisibilityMessage,
 		loadSavedWorkCalendarVisibility
 	} from './calendar-work-visibility';
-	import { isCalendarNavigationMessage } from '../calendar-navigation-message';
-	import { calendarChannelName } from '../refresh-signal.svelte';
+	import {
+		isCalendarNavigationMessage,
+		type CalendarViewValue
+	} from '../calendar-navigation-message';
+	import {
+		broadcastCalendarEventsChanged,
+		broadcastCalendarView,
+		broadcastCalendarVisibleDate,
+		calendarChannelName
+	} from '../refresh-signal.svelte';
 
 	const text = createPageText(calendarText);
 	const localeCode = $derived(currentLocale.value === 'ko' ? 'ko-KR' : 'en-US');
@@ -80,6 +91,7 @@
 		if (!browser) return '';
 		return new URLSearchParams(window.location.search).get('event') ?? '';
 	};
+	const initialCalendarView = () => calendarViewType(loadSavedCalendarView(browser));
 	let isLoading = $state(false);
 	let isSaving = $state(false);
 	let errorMessage = $state('');
@@ -94,7 +106,7 @@
 	let selectedMonthDateKey = $state<string | null>(null);
 	let searchText = $state('');
 	let toolbarDate = $state(initialCalendarDate());
-	let toolbarView = $state(ViewType.MONTH);
+	let toolbarView = $state(initialCalendarView());
 	let selectedAuditEventID = $state<string | null>(null);
 	let pendingEventID = $state(initialCalendarEventID());
 	const draftEvents = new CalendarDraftEventState(draftEventPlaceholderTitle, () => text.newEvent);
@@ -177,6 +189,7 @@
 				errorMessage = message;
 			},
 			openEventDetails: (eventID) => openEventDetails(eventID),
+			notifyEventsChanged: broadcastCalendarEventsChanged,
 			refreshCalendar: async () => {
 				await refreshCalendar();
 			},
@@ -201,7 +214,7 @@
 
 	const calendar = useCalendarApp({
 		views: createCalendarViews(),
-		defaultView: ViewType.MONTH,
+		defaultView: initialCalendarView(),
 		initialDate: initialCalendarDate(),
 		locale: createCalendarLocale(currentLocale.value, text),
 		timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
@@ -236,8 +249,8 @@
 			onVisibleRangeChange: (startDate, endDate) => {
 				eventLoader.loadEvents(startDate, endDate);
 				const middle = new Date((startDate.getTime() + endDate.getTime()) / 2);
-				toolbarDate = middle;
-				saveCalendarDate(browser, middle);
+				const visibleDate = isDateInVisibleRange(toolbarDate, startDate, endDate) ? toolbarDate : middle;
+				setVisibleDate(visibleDate);
 			},
 			onEventClick: (event) => openEventDetails(event.id),
 			onEventCreate: (event) => eventActions.saveCreatedEvent(event),
@@ -258,8 +271,9 @@
 
 	onMount(() => {
 		calendarWorkVisible = loadSavedWorkCalendarVisibility(window.localStorage);
-		calendar.changeView(ViewType.MONTH);
-		toolbarView = ViewType.MONTH;
+		const savedView = initialCalendarView();
+		calendar.changeView(savedView);
+		toolbarView = savedView;
 		syncCalendarThemeToDocument();
 		if (!eventLoader.hasVisibleRange()) {
 			const initialDate = initialCalendarDate();
@@ -338,20 +352,22 @@
 	function changeCalendarView(viewType: ViewType) {
 		toolbarView = viewType;
 		calendar.changeView(viewType);
+		const view = calendarViewMessageValue(viewType);
+		broadcastCalendarView(view);
 	}
 
 	function goToToday() {
-		toolbarDate = new Date();
+		setVisibleDate(new Date());
 		calendar.goToToday();
 	}
 
 	function goToPrevious() {
-		toolbarDate = shiftedCalendarToolbarDate(toolbarDate, toolbarView, -1);
+		setVisibleDate(shiftedCalendarToolbarDate(toolbarDate, toolbarView, -1));
 		calendar.goToPrevious();
 	}
 
 	function goToNext() {
-		toolbarDate = shiftedCalendarToolbarDate(toolbarDate, toolbarView, 1);
+		setVisibleDate(shiftedCalendarToolbarDate(toolbarDate, toolbarView, 1));
 		calendar.goToNext();
 	}
 
@@ -383,17 +399,15 @@
 	function navigateToDateKey(dateKey: string) {
 		const date = dateFromDateKey(dateKey);
 		const navigationDate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0);
-		toolbarDate = navigationDate;
+		setVisibleDate(navigationDate);
 		calendar.app.setCurrentDate(navigationDate);
 		calendar.app.selectDate(navigationDate);
-		saveCalendarDate(browser, navigationDate);
 	}
 
 	function navigateToSearchResult(result: CalendarSearchResult) {
-		toolbarDate = result.startDate;
+		setVisibleDate(result.startDate);
 		calendar.app.setCurrentDate(result.startDate);
 		calendar.app.selectDate(result.startDate);
-		saveCalendarDate(browser, result.startDate);
 	}
 
 	$effect(() => {
@@ -420,6 +434,7 @@
 
 	async function syncRemoteCalendarAndRefresh() {
 		await syncRemoteCalendarAndRefreshConflicts(text.error, refreshCalendar, loadCalendarConflicts);
+		broadcastCalendarEventsChanged();
 	}
 
 	async function loadCalendarConflicts() {
@@ -462,6 +477,32 @@
 
 	function refreshSelectedMonthDateCell() {
 		refreshSelectedMonthDateCellElement(calendarStageElement, selectedMonthDateKey);
+	}
+
+	function setVisibleDate(date: Date) {
+		const visibleDate = normalizedVisibleDate(date);
+		toolbarDate = visibleDate;
+		broadcastCalendarVisibleDate(visibleDate);
+	}
+
+	function normalizedVisibleDate(date: Date): Date {
+		return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0);
+	}
+
+	function isDateInVisibleRange(date: Date, startDate: Date, endDate: Date): boolean {
+		return startDate.getTime() <= date.getTime() && date.getTime() <= endDate.getTime();
+	}
+
+	function calendarViewMessageValue(viewType: ViewType): CalendarViewValue {
+		if (viewType === ViewType.DAY) return 'day';
+		if (viewType === ViewType.WEEK) return 'week';
+		return 'month';
+	}
+
+	function calendarViewType(view: CalendarViewValue): ViewType {
+		if (view === 'day') return ViewType.DAY;
+		if (view === 'week') return ViewType.WEEK;
+		return ViewType.MONTH;
 	}
 </script>
 
