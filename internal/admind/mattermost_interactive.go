@@ -95,7 +95,7 @@ func (service *Service) handleAskInteractiveAction(responseWriter http.ResponseW
 	}
 	service.deleteMattermostAskControlPost(request.Context(), payload.PostID)
 	go service.forwardMattermostAskActionInBackground(payload)
-	service.writeMattermostInteractiveDeleted(responseWriter, payload)
+	service.writeMattermostAskResolved(responseWriter, payload)
 }
 
 func (service *Service) forwardMattermostAskActionInBackground(payload mattermostInteractivePayload) {
@@ -167,6 +167,20 @@ func mattermostAskActionPrompt(action string, choiceKey string) string {
 	}
 }
 
+func mattermostAskResolvedMessage(action string, choiceKey string, choiceLabel string) string {
+	switch strings.TrimSpace(action) {
+	case "ask.confirm":
+		return "✓ 확인했어요"
+	case "ask.cancel":
+		return "✗ 취소했어요"
+	case "ask.choice":
+		choiceText := firstNonEmpty(strings.TrimSpace(choiceLabel), strings.TrimSpace(choiceKey))
+		return "✓ " + choiceText + "을(를) 선택했어요"
+	default:
+		return strings.TrimSpace(action)
+	}
+}
+
 func (service *Service) isValidMattermostInteractivePayload(payload mattermostInteractivePayload) bool {
 	actualToken := strings.TrimSpace(payload.Context.Token)
 	if actualToken == "" {
@@ -196,13 +210,12 @@ func (service *Service) writeMattermostInteractiveSuccess(responseWriter http.Re
 	service.writeJSON(responseWriter, mattermostInteractiveResponse{})
 }
 
-func (service *Service) writeMattermostInteractiveDeleted(responseWriter http.ResponseWriter, payload mattermostInteractivePayload) {
+func (service *Service) writeMattermostAskResolved(responseWriter http.ResponseWriter, payload mattermostInteractivePayload) {
 	service.writeJSON(responseWriter, mattermostInteractiveResponse{
 		Update: map[string]any{
 			"id":         strings.TrimSpace(payload.PostID),
 			"channel_id": strings.TrimSpace(payload.ChannelID),
-			"message":    "",
-			"delete_at":  time.Now().UnixMilli(),
+			"message":    mattermostAskResolvedMessage(payload.Context.Action, firstNonEmpty(payload.Context.ChoiceKey, payload.SelectedOption), payload.Context.ChoiceLabel),
 			"props":      mattermostinteractive.ClearAttachmentsUpdate()["props"],
 		},
 	})

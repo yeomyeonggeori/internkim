@@ -18,6 +18,7 @@ type Context struct {
 	ConversationID   string `json:"conversationID,omitempty"`
 	ReplyTargetID    string `json:"replyTargetID,omitempty"`
 	ChoiceKey        string `json:"choiceKey,omitempty"`
+	ChoiceLabel      string `json:"choiceLabel,omitempty"`
 	ResponseLanguage string `json:"responseLanguage,omitempty"`
 	TargetUserID     string `json:"targetUserID,omitempty"`
 }
