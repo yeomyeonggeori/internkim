@@ -6,6 +6,8 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -115,6 +117,124 @@ func TestSiteGatewayLifecycle(t *testing.T) {
 	}
 	if !containsCommand(*commandLog, "systemctl disable --now "+siteServiceName(site.SiteID)) {
 		t.Fatalf("delete did not disable site service: %+v", *commandLog)
+	}
+}
+
+func TestSiteResponsesHidePublishedURLUntilPublished(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{
+		Slug:        "visibility-demo",
+		Title:       "Visibility Demo",
+		RequestedBy: "owner@example.com",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if site.PublishedURL == "" {
+		t.Fatal("stored site should keep computed published URL")
+	}
+	assertSiteResponseOmitsPublishedURL(t, writeSiteResponse(service, site.SiteID))
+	assertSiteResponseOmitsPublishedURL(t, writeSiteListResponse(service))
+
+	writeTestWorkspaceBuild(t, site, "visible after publish")
+	publishResponse := publishSiteResponse(t, service, site)
+	assertSiteResponseIncludesPublishedURL(t, publishResponse, "https://visibility-demo.device.example.test")
+
+	unpublishRequest := httptest.NewRequest(http.MethodPost, "/admin/api/sites/"+site.SiteID+"/unpublish", strings.NewReader(`{"requestedBy":"owner@example.com"}`))
+	unpublishResponse := httptest.NewRecorder()
+	service.unpublishSiteFromRequest(unpublishResponse, unpublishRequest, site.SiteID)
+	if unpublishResponse.Code != http.StatusOK {
+		t.Fatalf("unpublish status = %d body = %q", unpublishResponse.Code, unpublishResponse.Body.String())
+	}
+	assertSiteResponseOmitsPublishedURL(t, unpublishResponse)
+	assertSiteResponseOmitsPublishedURL(t, writeSiteResponse(service, site.SiteID))
+	assertSiteResponseOmitsPublishedURL(t, writeSiteListResponse(service))
+}
+
+func TestSitePublishFailsWhenReadinessProbeSeesEmptyIndex(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{
+		Slug:        "empty-index",
+		RequestedBy: "owner@example.com",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeTestWorkspaceBuild(t, site, "temporary")
+	writeFile(t, filepath.Join(site.HostSourcePath, "app", "dist", "index.html"), "")
+
+	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		RequestedBy:        "owner@example.com",
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue == nil {
+		t.Fatal("expected readiness probe failure")
+	}
+	if !strings.Contains(errorValue.Error(), "observed status 200") || !strings.Contains(errorValue.Error(), "index body length 0") {
+		t.Fatalf("readiness error = %v", errorValue)
+	}
+	failedSite := service.findSiteByID(site.SiteID)
+	if failedSite.Status != SiteStatusFailed || !strings.Contains(failedSite.LastError, "observed status 200") {
+		t.Fatalf("failed site state = %+v", failedSite)
+	}
+}
+
+func TestSitePublishSurfacesPocketBaseRestartError(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	service.RunCommand = siteRestartErrorCommand
+	site, errorValue := service.createSiteRecord(siteCreateRequest{
+		Slug:        "backend-restart",
+		RequestedBy: "owner@example.com",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeTestWorkspaceBuild(t, site, "backend")
+	if errorValue := os.MkdirAll(filepath.Join(site.HostSourcePath, "pocketbase", "pb_migrations"), 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeFile(t, filepath.Join(site.HostSourcePath, "pocketbase", "pb_migrations", "001_init.js"), "migrate(() => {})")
+
+	_, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		RequestedBy:        "owner@example.com",
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "systemctl restart") || !strings.Contains(errorValue.Error(), "restart unavailable") {
+		t.Fatalf("expected restart failure, got %v", errorValue)
+	}
+	failedSite := service.findSiteByID(site.SiteID)
+	if failedSite.Status != SiteStatusFailed || !strings.Contains(failedSite.LastError, "restart unavailable") {
+		t.Fatalf("failed site state = %+v", failedSite)
+	}
+}
+
+func TestSitePublishIgnoresRestartErrorWithoutPocketBaseBackend(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	service.RunCommand = siteRestartErrorCommand
+	site, errorValue := service.createSiteRecord(siteCreateRequest{
+		Slug:        "frontend-restart",
+		RequestedBy: "owner@example.com",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeTestWorkspaceBuild(t, site, "frontend")
+
+	site, errorValue = service.publishSite(context.Background(), sitePublishRequest{
+		SiteID:             site.SiteID,
+		RequestedBy:        "owner@example.com",
+		SourceBundleBase64: testSourceBundleBase64(t, site.HostSourcePath),
+		SourceBundleFormat: "tar.gz",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if site.Status != SiteStatusPublished {
+		t.Fatalf("published status = %q", site.Status)
 	}
 }
 
@@ -869,6 +989,83 @@ func newTestSiteService(t *testing.T) (*Service, *[]string) {
 		return []byte("ok"), nil
 	}
 	return service, &commandLog
+}
+
+func writeSiteResponse(service *Service, siteID string) *httptest.ResponseRecorder {
+	response := httptest.NewRecorder()
+	service.writeSite(response, siteID)
+	return response
+}
+
+func writeSiteListResponse(service *Service) *httptest.ResponseRecorder {
+	response := httptest.NewRecorder()
+	service.listSites(response)
+	return response
+}
+
+func publishSiteResponse(t *testing.T, service *Service, site *SiteRecord) *httptest.ResponseRecorder {
+	t.Helper()
+	requestBody := `{"requestedBy":"owner@example.com","sourceBundleBase64":"` + testSourceBundleBase64(t, site.HostSourcePath) + `","sourceBundleFormat":"tar.gz"}`
+	request := httptest.NewRequest(http.MethodPost, "/admin/api/sites/"+site.SiteID+"/publish", strings.NewReader(requestBody))
+	response := httptest.NewRecorder()
+	service.publishSiteFromRequest(response, request, site.SiteID)
+	if response.Code != http.StatusOK {
+		t.Fatalf("publish status = %d body = %q", response.Code, response.Body.String())
+	}
+	return response
+}
+
+func assertSiteResponseOmitsPublishedURL(t *testing.T, response *httptest.ResponseRecorder) {
+	t.Helper()
+	if response.Code != http.StatusOK {
+		t.Fatalf("response status = %d body = %q", response.Code, response.Body.String())
+	}
+	for _, site := range siteJSONObjects(t, response) {
+		if _, isPresent := site["publishedURL"]; isPresent {
+			t.Fatalf("publishedURL should be omitted from response: %s", response.Body.String())
+		}
+	}
+}
+
+func assertSiteResponseIncludesPublishedURL(t *testing.T, response *httptest.ResponseRecorder, expected string) {
+	t.Helper()
+	site := siteJSONObjects(t, response)[0]
+	if site["publishedURL"] != expected {
+		t.Fatalf("publishedURL = %v, expected %q in %s", site["publishedURL"], expected, response.Body.String())
+	}
+}
+
+func siteJSONObjects(t *testing.T, response *httptest.ResponseRecorder) []map[string]any {
+	t.Helper()
+	var object map[string]any
+	if errorValue := json.Unmarshal(response.Body.Bytes(), &object); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if sites, isList := object["sites"].([]any); isList {
+		return siteListJSONObjects(t, sites)
+	}
+	return []map[string]any{object}
+}
+
+func siteListJSONObjects(t *testing.T, sites []any) []map[string]any {
+	t.Helper()
+	result := []map[string]any{}
+	for _, site := range sites {
+		siteObject, isObject := site.(map[string]any)
+		if !isObject {
+			t.Fatalf("site response entry = %#v", site)
+		}
+		result = append(result, siteObject)
+	}
+	return result
+}
+
+func siteRestartErrorCommand(contextValue context.Context, name string, arguments ...string) ([]byte, error) {
+	_ = contextValue
+	if name == "systemctl" && strings.HasPrefix(strings.Join(arguments, " "), "restart") {
+		return nil, errors.New("restart unavailable")
+	}
+	return []byte("ok"), nil
 }
 
 func writeTestWorkspaceBuild(t *testing.T, site *SiteRecord, body string) {
