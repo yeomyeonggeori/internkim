@@ -65,14 +65,6 @@ type documentConversionAttempt struct {
 	Request fileReadHelperRequest
 }
 
-func isDocumentReadTool(toolName string) bool {
-	return strings.TrimSpace(toolName) == "document.read"
-}
-
-func isImageReadTool(toolName string) bool {
-	return strings.TrimSpace(toolName) == "image.read"
-}
-
 func (service Service) invokeDocumentReadTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	input, errorValue := decodeDocumentReadInput(request.Input)
 	if errorValue != nil {

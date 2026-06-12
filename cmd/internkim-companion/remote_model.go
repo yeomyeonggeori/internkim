@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -45,7 +43,8 @@ func runRuntimeModelGet(arguments []string, httpClient *http.Client, secureStore
 		return errorValue
 	}
 	var response remoteModelResponse
-	if errorValue := signedJSONRequest(httpClient, state, privateKey, http.MethodGet, runtimeRemoteModelEndpoint(state), nil, &response); errorValue != nil {
+	deviceClient := companionruntime.DeviceClient{HTTPClient: httpClient, State: state, PrivateKey: privateKey}
+	if errorValue := deviceClient.SignedJSONRequest(http.MethodGet, runtimeRemoteModelEndpoint(state), nil, &response); errorValue != nil {
 		return errorValue
 	}
 	fmt.Println(response.Model)
@@ -72,55 +71,26 @@ func runRuntimeModelSet(arguments []string, httpClient *http.Client, secureStore
 	}
 	var response remoteModelResponse
 	body := map[string]string{"model": trimmedModel}
-	if errorValue := signedJSONRequest(httpClient, state, privateKey, http.MethodPut, runtimeRemoteModelEndpoint(state), body, &response); errorValue != nil {
+	deviceClient := companionruntime.DeviceClient{HTTPClient: httpClient, State: state, PrivateKey: privateKey}
+	if errorValue := deviceClient.SignedJSONRequest(http.MethodPut, runtimeRemoteModelEndpoint(state), body, &response); errorValue != nil {
 		return errorValue
 	}
 	fmt.Println(response.Model)
 	return nil
 }
 
-func runtimeRemoteModelEndpoint(state companionState) string {
+func runtimeRemoteModelEndpoint(state companionruntime.State) string {
 	return state.DeviceURL + "/_internkim/runtime/remote-model"
 }
 
-func loadCompanionStateAndPrivateKey(statePath string, secureStore companionruntime.SecureStore) (companionState, string, error) {
+func loadCompanionStateAndPrivateKey(statePath string, secureStore companionruntime.SecureStore) (companionruntime.State, string, error) {
 	state, errorValue := loadStateAndMigrateSecrets(context.Background(), statePath, secureStore)
 	if errorValue != nil {
-		return companionState{}, "", errorValue
+		return companionruntime.State{}, "", errorValue
 	}
 	privateKey, errorValue := secureStore.Get(context.Background(), state.PrivateKeyID)
 	if errorValue != nil {
-		return companionState{}, "", fmt.Errorf("%s signing key missing: %w", companionPairingExpiredMessage, errorValue)
+		return companionruntime.State{}, "", fmt.Errorf("%s signing key missing: %w", companionruntime.CompanionPairingExpiredMessage, errorValue)
 	}
 	return state, privateKey, nil
-}
-
-func signedJSONRequest(httpClient *http.Client, state companionState, privateKey string, method string, endpoint string, requestBody any, responseBody any) error {
-	var document []byte
-	var errorValue error
-	if requestBody != nil {
-		document, errorValue = json.Marshal(requestBody)
-		if errorValue != nil {
-			return errorValue
-		}
-	}
-	request, errorValue := http.NewRequest(method, endpoint, bytes.NewReader(document))
-	if errorValue != nil {
-		return errorValue
-	}
-	if requestBody != nil {
-		request.Header.Set("Content-Type", "application/json")
-	}
-	for key, value := range companionHeaders(state) {
-		request.Header.Set(key, value)
-	}
-	if errorValue := companionruntime.SignRequest(request, document, privateKey); errorValue != nil {
-		return errorValue
-	}
-	response, errorValue := httpClient.Do(request)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer response.Body.Close()
-	return decodeJSONResponse(endpoint, response, responseBody)
 }

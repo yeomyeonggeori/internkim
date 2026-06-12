@@ -126,7 +126,9 @@ func (service *Service) loadBotProfile() (botProfile, bool) {
 		if parseError != nil {
 			continue
 		}
-		_ = service.saveBotProfile(legacyProfile)
+		if errorValue := service.saveBotProfile(legacyProfile); errorValue != nil {
+			log.Printf("legacy bot profile migration failed: %v", errorValue)
+		}
 		return normalizeBotProfile(legacyProfile), true
 	}
 	return botProfile{}, false

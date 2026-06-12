@@ -6,11 +6,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 	companionruntime "gitlab.com/eastriver/internkim/internal/companion"
 )
+
+var companionMountPersistenceMutex sync.Mutex
 
 type CompanionMountRecord struct {
 	MountID     string    `json:"mountID"`
@@ -34,9 +37,9 @@ type CompanionMountSnapshot struct {
 	LastSeenAt  time.Time `json:"lastSeenAt"`
 }
 
-func (service *Service) updateCompanionMounts(companionID string, mounts []CompanionMountSnapshot) {
+func (service *Service) updateCompanionMounts(companionID string, mounts []CompanionMountSnapshot) error {
 	if len(mounts) == 0 {
-		return
+		return nil
 	}
 	now := time.Now().UTC()
 	service.mutex.Lock()
@@ -47,28 +50,29 @@ func (service *Service) updateCompanionMounts(companionID string, mounts []Compa
 		service.companionMounts[mount.MountID] = companionMountRecord(companionID, mount, now)
 	}
 	service.mutex.Unlock()
-	_ = service.saveCompanionMounts()
+	return service.saveCompanionMounts()
 }
 
-func (service *Service) updateCompanionMountsFromJob(companionID string, jobID string, response *capabilities.ToolInvokeResponse) {
+func (service *Service) updateCompanionMountsFromJob(companionID string, jobID string, response *capabilities.ToolInvokeResponse) error {
 	if response == nil {
-		return
+		return nil
 	}
 	switch response.ToolName {
 	case "filesystem.mount.create", "filesystem.mount.pause", "filesystem.mount.resume", "filesystem.mount.revoke", "filesystem.mount.status":
 		var mount CompanionMountSnapshot
 		if errorValue := json.Unmarshal(response.Result, &mount); errorValue == nil && mount.MountID != "" {
-			service.updateCompanionMounts(companionID, []CompanionMountSnapshot{mount})
+			return service.updateCompanionMounts(companionID, []CompanionMountSnapshot{mount})
 		}
 	case "filesystem.mount.list":
 		var document struct {
 			Mounts []CompanionMountSnapshot `json:"mounts"`
 		}
 		if errorValue := json.Unmarshal(response.Result, &document); errorValue == nil {
-			service.updateCompanionMounts(companionID, document.Mounts)
+			return service.updateCompanionMounts(companionID, document.Mounts)
 		}
 	}
 	_ = jobID
+	return nil
 }
 
 func companionMountRecord(companionID string, mount CompanionMountSnapshot, now time.Time) *CompanionMountRecord {
@@ -138,15 +142,9 @@ func (service *Service) companionCanClaimMountJobLocked(companion *CompanionReco
 }
 
 func (service *Service) saveCompanionMounts() error {
-	service.mutex.Lock()
-	mounts := []*CompanionMountRecord{}
-	for _, mount := range service.companionMounts {
-		if mount != nil {
-			mounts = append(mounts, mount)
-		}
-	}
-	service.mutex.Unlock()
-	document, errorValue := json.MarshalIndent(map[string]any{"mounts": mounts}, "", "  ")
+	companionMountPersistenceMutex.Lock()
+	defer companionMountPersistenceMutex.Unlock()
+	document, errorValue := service.companionMountsDocument()
 	if errorValue != nil {
 		return errorValue
 	}
@@ -159,6 +157,18 @@ func (service *Service) saveCompanionMounts() error {
 		return errorValue
 	}
 	return os.Rename(temporaryPath, path)
+}
+
+func (service *Service) companionMountsDocument() ([]byte, error) {
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	mounts := []*CompanionMountRecord{}
+	for _, mount := range service.companionMounts {
+		if mount != nil {
+			mounts = append(mounts, mount)
+		}
+	}
+	return json.MarshalIndent(map[string]any{"mounts": mounts}, "", "  ")
 }
 
 func (service *Service) loadCompanionMounts() {
