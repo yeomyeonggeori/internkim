@@ -77,7 +77,7 @@ func TestSyncCloudflareTenantTunnelRoutesAppPathsToTenantAdmind(t *testing.T) {
 	assertCloudflareIngress(t, ingress[1], "pilot-01.example.test", "/(admin|flow|memory|calendar|mail|attendance)(/.*)?", "http://127.0.0.1:18180")
 	assertCloudflareIngress(t, ingress[2], "pilot-01.example.test", "/(auth|_app|_internkim)(/.*)?", "http://127.0.0.1:18180")
 	assertCloudflareIngress(t, ingress[3], "pilot-01.example.test", "/(logo\\.svg|\\.well-known/caldav)", "http://127.0.0.1:18180")
-	assertCloudflareIngress(t, ingress[4], "pilot-01.example.test", "", "http://127.0.0.1:18065")
+	assertCloudflareIngress(t, ingress[4], "pilot-01.example.test", "", "http://127.0.0.1:18180")
 	assertCloudflareIngress(t, ingress[5], "", "", "http_status:404")
 }
 
