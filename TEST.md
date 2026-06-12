@@ -175,7 +175,7 @@ macOS + apple/container 기반 소프트웨어 E2E.
 
 Raspberry Pi 하드웨어 검증.
 
-- Tart에서 통과한 같은 acceptance 체크리스트를 실제 보드에 적용합니다.
+- container lab에서 통과한 같은 acceptance 체크리스트를 실제 보드에 적용합니다.
 - 하드웨어 검증은 후속 단계이며, 현재 문서는 소프트웨어 E2E까지만 다룹니다.
 
 ## 정리
