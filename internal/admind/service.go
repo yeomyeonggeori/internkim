@@ -2285,7 +2285,7 @@ func (service *Service) blueclawJSONRequest(ctx context.Context, method string, 
 		return nil
 	}
 	responseDocument, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
-	return fmt.Errorf("Blueclaw policy update returned %d: %s", response.StatusCode, strings.TrimSpace(string(responseDocument)))
+	return fmt.Errorf("Blueclaw %s %s returned %d: %s", method, path, response.StatusCode, strings.TrimSpace(string(responseDocument)))
 }
 
 func (service *Service) triggerUsersSync(ctx context.Context) {
