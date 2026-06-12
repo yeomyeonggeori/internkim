@@ -20,6 +20,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -37,6 +38,8 @@ const (
 	sitePortStart = 19000
 	sitePortEnd   = 19999
 )
+
+var sitePersistenceMutex sync.Mutex
 
 type SiteRecord struct {
 	SiteID              string             `json:"siteID"`
@@ -2140,17 +2143,9 @@ func (service *Service) siteTLSStatus() string {
 }
 
 func (service *Service) saveSites() error {
-	sites := []*SiteRecord{}
-	service.mutex.Lock()
-	for _, site := range service.sites {
-		copiedSite := *site
-		sites = append(sites, &copiedSite)
-	}
-	service.mutex.Unlock()
-	sort.Slice(sites, func(leftIndex int, rightIndex int) bool {
-		return sites[leftIndex].CreatedAt.Before(sites[rightIndex].CreatedAt)
-	})
-	document, errorValue := json.MarshalIndent(siteStateDocument{Sites: sites}, "", "  ")
+	sitePersistenceMutex.Lock()
+	defer sitePersistenceMutex.Unlock()
+	document, errorValue := service.sitesDocument()
 	if errorValue != nil {
 		return errorValue
 	}
@@ -2159,6 +2154,20 @@ func (service *Service) saveSites() error {
 		return errorValue
 	}
 	return os.WriteFile(path, append(document, '\n'), 0o600)
+}
+
+func (service *Service) sitesDocument() ([]byte, error) {
+	sites := []*SiteRecord{}
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	for _, site := range service.sites {
+		copiedSite := *site
+		sites = append(sites, &copiedSite)
+	}
+	sort.Slice(sites, func(leftIndex int, rightIndex int) bool {
+		return sites[leftIndex].CreatedAt.Before(sites[rightIndex].CreatedAt)
+	})
+	return json.MarshalIndent(siteStateDocument{Sites: sites}, "", "  ")
 }
 
 func (service *Service) loadSites() {

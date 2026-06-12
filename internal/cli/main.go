@@ -1830,19 +1830,26 @@ func setupMattermost(m *msg, ssh *sshClient, stateDir string, force bool) {
 	}
 	channelID := ""
 	if teamResult.ID != "" {
-		for attempt := 0; attempt < 10; attempt++ {
+		channelLookupPendingError := errors.New("town-square channel lookup pending")
+		_ = retryOperation(retryOptions{
+			AttemptCount: 10,
+			DelayForAttempt: func(attemptIndex int) time.Duration {
+				return time.Second
+			},
+			SleepAfterFinalAttempt: true,
+		}, func(attemptIndex int) error {
 			chCode, chResp := mmAPI("GET", "/api/v4/teams/"+teamResult.ID+"/channels/name/town-square", nil, adminToken)
 			if chCode >= 200 && chCode < 300 {
 				var chResult struct {
 					ID string `json:"id"`
 				}
-				if err := json.Unmarshal(chResp, &chResult); err == nil && chResult.ID != "" {
+				if errorValue := json.Unmarshal(chResp, &chResult); errorValue == nil && chResult.ID != "" {
 					channelID = chResult.ID
-					break
+					return nil
 				}
 			}
-			time.Sleep(1 * time.Second)
-		}
+			return channelLookupPendingError
+		})
 		if channelID == "" {
 			fatal("town-square channel lookup failed after retries")
 		}
@@ -2714,27 +2721,43 @@ func registerFleetNodeWithCollisionRetry(configuration config, stateDir, fleetID
 	nodeID := loadNodeID(stateDir)
 	nodeKey := loadOrCreateNodeKey(stateDir)
 
-	for attempt := 0; attempt < 5; attempt++ {
+	var registrationResponse *registerResponse
+	retryError := retryOperation(retryOptions{
+		AttemptCount: 5,
+		ShouldRetry: func(errorValue error) bool {
+			return isFleetIDCollisionRegistrationError(errorValue)
+		},
+	}, func(attemptIndex int) error {
 		response, registerError := registerFleetNode(configuration, fleetID, nodeID, nodeKey, fleetSecret, adminEmail)
 		if registerError == nil {
 			saveRegistrationResponse(stateDir, response)
 			saveDefaultFleetNode(stateDir, response)
-			return response, nil
+			registrationResponse = response
+			return nil
 		}
-
-		var httpError *registrationHTTPError
-		if !errors.As(registerError, &httpError) || httpError.statusCode != http.StatusConflict {
-			return nil, registerError
+		if !isFleetIDCollisionRegistrationError(registerError) {
+			return registerError
 		}
 		if strings.TrimSpace(argString("--fleet", "")) != "" {
-			return nil, errors.New("fleet join rejected; check --fleet and --fleet-secret")
+			return errors.New("fleet join rejected; check --fleet and --fleet-secret")
 		}
 
 		fleetID, fleetSecret = resetFleetIdentity(stateDir)
 		fmt.Printf("  Fleet ID collision detected; retrying with %s\n", fleetID)
+		return registerError
+	})
+	if retryError == nil {
+		return registrationResponse, nil
 	}
+	if isFleetIDCollisionRegistrationError(retryError) {
+		return nil, errors.New("fleet_id collision retry limit reached")
+	}
+	return nil, retryError
+}
 
-	return nil, errors.New("fleet_id collision retry limit reached")
+func isFleetIDCollisionRegistrationError(errorValue error) bool {
+	var httpError *registrationHTTPError
+	return errors.As(errorValue, &httpError) && httpError.statusCode == http.StatusConflict
 }
 
 func saveRegistrationResponse(stateDir string, response *registerResponse) {
@@ -4070,7 +4093,16 @@ func (s *sshClient) runInteractiveSSH(remoteArguments []string) error {
 func runSSHCommandWithRetry(commandName string, arguments []string, timeout time.Duration) (string, error) {
 	var output []byte
 	var errorValue error
-	for attemptIndex := 0; attemptIndex < 3; attemptIndex++ {
+	errorValue = retryOperation(retryOptions{
+		AttemptCount: 3,
+		DelayForAttempt: func(attemptIndex int) time.Duration {
+			return time.Duration(attemptIndex+1) * time.Second
+		},
+		ShouldRetry: func(errorValue error) bool {
+			return errorValue != nil && isRetryableSSHFailure(string(output))
+		},
+		SleepAfterFinalAttempt: true,
+	}, func(attemptIndex int) error {
 		commandContext, cancel := context.WithTimeout(context.Background(), timeout)
 		command := exec.CommandContext(commandContext, commandName, arguments...)
 		output, errorValue = command.CombinedOutput()
@@ -4079,11 +4111,8 @@ func runSSHCommandWithRetry(commandName string, arguments []string, timeout time
 			output = append(output, []byte("\nssh command timed out")...)
 		}
 		cancel()
-		if errorValue == nil || !isRetryableSSHFailure(string(output)) {
-			return string(output), errorValue
-		}
-		time.Sleep(time.Duration(attemptIndex+1) * time.Second)
-	}
+		return errorValue
+	})
 	return string(output), errorValue
 }
 
@@ -4744,12 +4773,60 @@ func isBlueclawPayloadDirectOnlySetup(arguments []string) bool {
 	return len(onlyNames) == 1 && onlyNames[0] == "blueclaw-payload-direct"
 }
 
+type setupLiveOptions struct {
+	target                 commandTarget
+	scriptDir              string
+	sshpassBin             string
+	setupBuildID           string
+	requestedSSH           bool
+	requestedSD            bool
+	requestedCloudflareSSH bool
+	nonInteractive         bool
+	canRunWithoutSSH       bool
+	cloudflareSSHHostname  string
+}
+
+type setupLiveRequest struct {
+	requestedSSH           bool
+	requestedSD            bool
+	requestedCloudflareSSH bool
+}
+
+type setupBackendSelection struct {
+	backend       setup.Backend
+	target        commandTarget
+	sshConnection *sshClient
+	stagingRoot   string
+	boardIP       string
+}
+
 func runSetupLive(messenger *msg) {
 	configuration := loadConfig()
 	scriptDir, _ := os.Getwd()
-	sshpassBin := filepath.Join(scriptDir, "bin", "sshpass")
 	setupBuildID := currentExecutableFingerprint()
+	request := resolveSetupLiveRequest()
+	if containsArg("--sim") {
+		runSetupSimulation(setupControlArguments(os.Args[2:]))
+		return
+	}
+	options := resolveSetupLiveOptions(configuration, scriptDir, setupBuildID, request)
+	releaseSetupLock := acquireSetupLiveLock(options)
+	defer releaseSetupLock()
+	if runBlueclawPayloadDirectSetup(messenger, configuration, options) {
+		return
+	}
+	backendSelection := resolveSetupBackend(messenger, configuration, options)
+	printSetupBackendSelection(backendSelection)
+	flowState := prepareSetupFlowState(messenger, configuration, options, backendSelection.sshConnection)
+	pipelineContext := prepareSetupPipelineContext(messenger, options, backendSelection, flowState)
+	selector := prepareSetupSelector(options.target.boardType, pipelineContext.Force)
+	registry := setupRegistryForBoard(options.target.boardType)
+	if errorValue := registry.Run(pipelineContext, selector); errorValue != nil {
+		fatal(errorValue.Error())
+	}
+}
 
+func resolveSetupLiveRequest() setupLiveRequest {
 	requestedSSH := containsArg("--ssh")
 	requestedSD := containsArg("--sd")
 	requestedCloudflareSSH := containsArg("--cloudflare-ssh")
@@ -4759,259 +4836,328 @@ func runSetupLive(messenger *msg) {
 	if requestedSSH && requestedSD {
 		fatal("--ssh/--cloudflare-ssh and --sd are mutually exclusive")
 	}
-	if containsArg("--sim") {
-		runSetupSimulation(setupControlArguments(os.Args[2:]))
-		return
+	return setupLiveRequest{
+		requestedSSH:           requestedSSH,
+		requestedSD:            requestedSD,
+		requestedCloudflareSSH: requestedCloudflareSSH,
 	}
+}
+
+func resolveSetupLiveOptions(configuration config, scriptDir string, setupBuildID string, request setupLiveRequest) setupLiveOptions {
 	target := resolveCommandTarget(os.Args[2:])
 	target = resolveLabHostForCommandTarget(target, scriptDir)
-	hostOverride := target.host
-	cloudflareSSHHostname := resolveCloudflareSSHHostname(configuration, target)
-	boardType := target.boardType
-	stateDir := target.stateDir
-	sshUser := target.sshUser
-	sshPassword := target.sshPassword
-	nonInteractive := containsArg("--non-interactive")
-	canRunWithoutSSH := setupCanRunWithoutSSH(os.Args[2:])
-	if boardType == setup.BoardJetsonOrinNano {
-		requestedSSH = true
+	if target.boardType == setup.BoardJetsonOrinNano {
+		request.requestedSSH = true
 	}
-	if !containsArg("--plan") {
-		lockDocument := setupLockDocument{
-			Command:       commandLineForSetupLock(os.Args[2:]),
-			SelectedSteps: setupLockSelectedSteps(os.Args[2:]),
-			TargetHost:    firstNonEmptyString(hostOverride, cloudflareSSHHostname, loadState(stateDir, "ssh_hostname")),
-			TargetURL:     target.deviceURL,
-		}
-		lockHandle, errorValue := acquireSetupLock(stateDir, lockDocument, containsArg("--wait-lock"))
-		if errorValue != nil {
-			fatal(errorValue.Error())
-		}
-		defer lockHandle.release()
+	return setupLiveOptions{
+		target:                 target,
+		scriptDir:              scriptDir,
+		sshpassBin:             filepath.Join(scriptDir, "bin", "sshpass"),
+		setupBuildID:           setupBuildID,
+		requestedSSH:           request.requestedSSH,
+		requestedSD:            request.requestedSD,
+		requestedCloudflareSSH: request.requestedCloudflareSSH,
+		nonInteractive:         containsArg("--non-interactive"),
+		canRunWithoutSSH:       setupCanRunWithoutSSH(os.Args[2:]),
+		cloudflareSSHHostname:  resolveCloudflareSSHHostname(configuration, target),
 	}
+}
 
-	var (
-		selectedBackend    setup.Backend
-		sshConnection      *sshClient
-		stagingRoot        string
-		boardIP            string
-		cloudflareSSHError error
-	)
-
-	if isBlueclawPayloadDirectOnlySetup(os.Args[2:]) {
-		target.useRemoteSSH = false
-		printCommandTargetEvidence(target)
-		fmt.Printf("Backend: http maintenance\n")
-		if containsArg("--plan") {
-			fmt.Printf("  blueclaw-payload-direct run\n")
-			return
-		}
-		flowState := newSetupFlowState(
-			messenger,
-			configuration,
-			collectSetupParameterValues(),
-			stateDir,
-			scriptDir,
-			setupBuildID,
-			nil,
-			nonInteractive,
-		)
-		if errorValue := flowState.installBlueclawPayloadDirectHTTPS(); errorValue != nil {
-			fatal(errorValue.Error())
-		}
-		return
+func acquireSetupLiveLock(options setupLiveOptions) func() {
+	if containsArg("--plan") {
+		return func() {}
 	}
+	lockDocument := setupLockDocument{
+		Command:       commandLineForSetupLock(os.Args[2:]),
+		SelectedSteps: setupLockSelectedSteps(os.Args[2:]),
+		TargetHost:    firstNonEmptyString(options.target.host, options.cloudflareSSHHostname, loadState(options.target.stateDir, "ssh_hostname")),
+		TargetURL:     options.target.deviceURL,
+	}
+	lockHandle, errorValue := acquireSetupLock(options.target.stateDir, lockDocument, containsArg("--wait-lock"))
+	if errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	return lockHandle.release
+}
 
-	// Board detection over Wi-Fi has a short TCP dial timeout (3s per
-	// saved IP) and occasionally loses the first round — the ARP cache may
-	// be cold or the router can hold a half-open path after the board goes
-	// idle. Retry detection once after a short pause before falling back
-	// to the next backend.
-	attemptBackend := func(kind setup.Backend) bool {
-		for attempt := 0; attempt < 3; attempt++ {
-			switch kind {
-			case setup.BackendSSH:
-				if hostOverride != "" {
-					boardIP = hostOverride
-					candidateConnection := newSSH(sshpassBin, sshUser, sshPassword, boardIP)
-					if _, errorValue := candidateConnection.runResult("true"); errorValue != nil {
-						break
-					}
-					sshConnection = candidateConnection
-					return true
-				} else {
-					boardIP = findBoardIPForCredentials(sshpassBin, stateDir, sshUser, sshPassword)
-				}
-				if boardIP != "" {
-					sshConnection = newSSH(sshpassBin, sshUser, sshPassword, boardIP)
-					return true
-				}
-			case setup.BackendSD:
-				stagingRoot = findSDStagingRoot()
-				if stagingRoot != "" {
-					return true
-				}
-			}
-			if attempt < 2 {
-				time.Sleep(2 * time.Second)
-			}
-		}
+func runBlueclawPayloadDirectSetup(messenger *msg, configuration config, options setupLiveOptions) bool {
+	if !isBlueclawPayloadDirectOnlySetup(os.Args[2:]) {
 		return false
 	}
-
-	attemptCloudflareSSH := func() bool {
-		if hostname, errorValue := ensureCloudflareSSHRegistration(configuration, stateDir, containsArg("--force") || containsArg("--force-all")); errorValue == nil && hostname != "" {
-			cloudflareSSHHostname = hostname
-		} else if requestedCloudflareSSH && errorValue != nil {
-			cloudflareSSHError = errorValue
-			return false
-		}
-		if cloudflareSSHHostname == "" {
-			return false
-		}
-		if errorValue := ensureCloudflaredAccessSSHAvailable(); errorValue != nil {
-			cloudflareSSHError = errorValue
-			return false
-		}
-		boardIP = cloudflareSSHHostname
-		sshConnection = newCloudflareSSH(sshpassBin, sshUser, sshPassword, boardIP)
-		output, errorValue := sshConnection.runResult("true")
-		if errorValue != nil {
-			cloudflareSSHError = formatCloudflareSSHError(boardIP, output, errorValue)
-			return false
-		}
-		target.useRemoteSSH = true
+	target := options.target
+	target.useRemoteSSH = false
+	printCommandTargetEvidence(target)
+	fmt.Printf("Backend: http maintenance\n")
+	if containsArg("--plan") {
+		fmt.Printf("  blueclaw-payload-direct run\n")
 		return true
 	}
-
-	switch {
-	case containsArg("--plan"):
-		if requestedSD {
-			selectedBackend = setup.BackendSD
-			stagingRoot = findSDStagingRoot()
-		} else {
-			selectedBackend = setup.BackendSSH
-			boardIP = firstNonEmptyString(hostOverride, cloudflareSSHHostname, loadState(stateDir, "ssh_hostname"))
-		}
-	case canRunWithoutSSH:
-		selectedBackend = setup.BackendSSH
-		boardIP = firstNonEmptyString(hostOverride, cloudflareSSHHostname, loadState(stateDir, "ssh_hostname"))
-	case requestedSSH:
-		sshReady := false
-		if requestedCloudflareSSH {
-			sshReady = attemptCloudflareSSH()
-		} else {
-			sshReady = attemptBackend(setup.BackendSSH) || attemptCloudflareSSH()
-		}
-		if !sshReady {
-			if cloudflareSSHError != nil {
-				fatal(cloudflareSSHError.Error())
-			}
-			if boardType == setup.BoardJetsonOrinNano {
-				failureDetails := describeJetsonSSHFailure(sshpassBin, stateDir, sshUser, sshPassword)
-				fatal(messenger.t(
-					"Jetson을 SSH로 찾을 수 없습니다.\n"+failureDetails+"\nJetson 콘솔에서 `ip addr`, `nmcli device status`, `systemctl status ssh --no-pager`, `systemctl status internkim-wifi-recovery.timer --no-pager`, `journalctl -u internkim-wifi-recovery.service -n 80 --no-pager`, `tail /var/log/internkim-jetson-firstboot.log`를 확인하세요. IP를 알면 --host <ip>를 지정하면 됩니다.",
-					"Jetson was not found over SSH.\n"+failureDetails+"\nOn the Jetson console, check `ip addr`, `nmcli device status`, `systemctl status ssh --no-pager`, `systemctl status internkim-wifi-recovery.timer --no-pager`, `journalctl -u internkim-wifi-recovery.service -n 80 --no-pager`, and `tail /var/log/internkim-jetson-firstboot.log`. If you know the IP, pass --host <ip>.",
-				))
-			}
-			fatal(messenger.t("보드를 찾을 수 없습니다 (SSH).", "Board not reachable (SSH)."))
-		}
-		selectedBackend = setup.BackendSSH
-	case requestedSD:
-		if !attemptBackend(setup.BackendSD) {
-			fatal(messenger.t("SD 카드가 꽂혀있지 않거나 internkim 디렉토리가 없습니다.", "No SD card mounted with an internkim staging dir."))
-		}
-		selectedBackend = setup.BackendSD
-	default:
-		if attemptBackend(setup.BackendSSH) {
-			selectedBackend = setup.BackendSSH
-		} else if attemptCloudflareSSH() {
-			selectedBackend = setup.BackendSSH
-		} else if attemptBackend(setup.BackendSD) {
-			selectedBackend = setup.BackendSD
-		} else {
-			if cloudflareSSHError != nil {
-				fatal(cloudflareSSHError.Error())
-			}
-			fatal(messenger.t(
-				"타겟을 찾을 수 없습니다 — 보드에 SSH도 안 되고, SD 카드도 없습니다.\n  --ssh 또는 --sd 를 명시하거나, 대상을 준비해 주세요.",
-				"No target — board unreachable via SSH and no SD mounted.\n  Pass --ssh or --sd explicitly, or prepare a target.",
-			))
-		}
+	flowState := newSetupFlowState(
+		messenger,
+		configuration,
+		collectSetupParameterValues(),
+		options.target.stateDir,
+		options.scriptDir,
+		options.setupBuildID,
+		nil,
+		options.nonInteractive,
+	)
+	if errorValue := flowState.installBlueclawPayloadDirectHTTPS(); errorValue != nil {
+		fatal(errorValue.Error())
 	}
+	return true
+}
 
-	switch selectedBackend {
+func resolveSetupBackend(messenger *msg, configuration config, options setupLiveOptions) setupBackendSelection {
+	if containsArg("--plan") {
+		return resolveSetupPlanBackend(options)
+	}
+	if options.canRunWithoutSSH {
+		return resolveSetupWithoutSSHBackend(options)
+	}
+	if options.requestedSSH {
+		return resolveRequestedSetupSSHBackend(messenger, configuration, options)
+	}
+	if options.requestedSD {
+		return resolveRequestedSetupSDBackend(messenger, options)
+	}
+	return resolveAutomaticSetupBackend(messenger, configuration, options)
+}
+
+func resolveSetupPlanBackend(options setupLiveOptions) setupBackendSelection {
+	selection := setupBackendSelection{target: options.target}
+	if options.requestedSD {
+		selection.backend = setup.BackendSD
+		selection.stagingRoot = findSDStagingRoot()
+		return selection
+	}
+	selection.backend = setup.BackendSSH
+	selection.boardIP = firstNonEmptyString(options.target.host, options.cloudflareSSHHostname, loadState(options.target.stateDir, "ssh_hostname"))
+	return selection
+}
+
+func resolveSetupWithoutSSHBackend(options setupLiveOptions) setupBackendSelection {
+	return setupBackendSelection{
+		backend: setup.BackendSSH,
+		target:  options.target,
+		boardIP: firstNonEmptyString(options.target.host, options.cloudflareSSHHostname, loadState(options.target.stateDir, "ssh_hostname")),
+	}
+}
+
+func resolveRequestedSetupSSHBackend(messenger *msg, configuration config, options setupLiveOptions) setupBackendSelection {
+	var selection setupBackendSelection
+	var cloudflareSSHError error
+	var sshReady bool
+	if options.requestedCloudflareSSH {
+		selection, cloudflareSSHError, sshReady = attemptSetupCloudflareSSH(configuration, options)
+	} else if selection, sshReady = attemptSetupBackend(options, setup.BackendSSH); !sshReady {
+		selection, cloudflareSSHError, sshReady = attemptSetupCloudflareSSH(configuration, options)
+	}
+	if sshReady {
+		return selection
+	}
+	if cloudflareSSHError != nil {
+		fatal(cloudflareSSHError.Error())
+	}
+	if options.target.boardType == setup.BoardJetsonOrinNano {
+		fatalJetsonSSHFailure(messenger, options)
+	}
+	fatal(messenger.t("보드를 찾을 수 없습니다 (SSH).", "Board not reachable (SSH)."))
+	return selection
+}
+
+func fatalJetsonSSHFailure(messenger *msg, options setupLiveOptions) {
+	failureDetails := describeJetsonSSHFailure(options.sshpassBin, options.target.stateDir, options.target.sshUser, options.target.sshPassword)
+	fatal(messenger.t(
+		"Jetson을 SSH로 찾을 수 없습니다.\n"+failureDetails+"\nJetson 콘솔에서 `ip addr`, `nmcli device status`, `systemctl status ssh --no-pager`, `systemctl status internkim-wifi-recovery.timer --no-pager`, `journalctl -u internkim-wifi-recovery.service -n 80 --no-pager`, `tail /var/log/internkim-jetson-firstboot.log`를 확인하세요. IP를 알면 --host <ip>를 지정하면 됩니다.",
+		"Jetson was not found over SSH.\n"+failureDetails+"\nOn the Jetson console, check `ip addr`, `nmcli device status`, `systemctl status ssh --no-pager`, `systemctl status internkim-wifi-recovery.timer --no-pager`, `journalctl -u internkim-wifi-recovery.service -n 80 --no-pager`, and `tail /var/log/internkim-jetson-firstboot.log`. If you know the IP, pass --host <ip>.",
+	))
+}
+
+func resolveRequestedSetupSDBackend(messenger *msg, options setupLiveOptions) setupBackendSelection {
+	selection, ok := attemptSetupBackend(options, setup.BackendSD)
+	if ok {
+		return selection
+	}
+	fatal(messenger.t("SD 카드가 꽂혀있지 않거나 internkim 디렉토리가 없습니다.", "No SD card mounted with an internkim staging dir."))
+	return selection
+}
+
+func resolveAutomaticSetupBackend(messenger *msg, configuration config, options setupLiveOptions) setupBackendSelection {
+	if selection, ok := attemptSetupBackend(options, setup.BackendSSH); ok {
+		return selection
+	}
+	selection, cloudflareSSHError, cloudflareSSHReady := attemptSetupCloudflareSSH(configuration, options)
+	if cloudflareSSHReady {
+		return selection
+	}
+	if selection, ok := attemptSetupBackend(options, setup.BackendSD); ok {
+		return selection
+	}
+	if cloudflareSSHError != nil {
+		fatal(cloudflareSSHError.Error())
+	}
+	fatal(messenger.t(
+		"타겟을 찾을 수 없습니다 — 보드에 SSH도 안 되고, SD 카드도 없습니다.\n  --ssh 또는 --sd 를 명시하거나, 대상을 준비해 주세요.",
+		"No target — board unreachable via SSH and no SD mounted.\n  Pass --ssh or --sd explicitly, or prepare a target.",
+	))
+	return setupBackendSelection{target: options.target}
+}
+
+func attemptSetupBackend(options setupLiveOptions, backend setup.Backend) (setupBackendSelection, bool) {
+	selection := setupBackendSelection{backend: backend, target: options.target}
+	pendingError := errors.New("setup backend pending")
+	errorValue := retryOperation(retryOptions{
+		AttemptCount: 3,
+		DelayForAttempt: func(attemptIndex int) time.Duration {
+			return 2 * time.Second
+		},
+	}, func(attemptIndex int) error {
+		if setupBackendIsReady(options, &selection) {
+			return nil
+		}
+		return pendingError
+	})
+	return selection, errorValue == nil
+}
+
+func setupBackendIsReady(options setupLiveOptions, selection *setupBackendSelection) bool {
+	switch selection.backend {
 	case setup.BackendSSH:
-		target.host = boardIP
+		return setupSSHBackendIsReady(options, selection)
+	case setup.BackendSD:
+		selection.stagingRoot = findSDStagingRoot()
+		return selection.stagingRoot != ""
+	default:
+		return false
+	}
+}
+
+func setupSSHBackendIsReady(options setupLiveOptions, selection *setupBackendSelection) bool {
+	if options.target.host != "" {
+		selection.boardIP = options.target.host
+		candidateConnection := newSSH(options.sshpassBin, options.target.sshUser, options.target.sshPassword, selection.boardIP)
+		if _, errorValue := candidateConnection.runResult("true"); errorValue != nil {
+			return false
+		}
+		selection.sshConnection = candidateConnection
+		return true
+	}
+	selection.boardIP = findBoardIPForCredentials(options.sshpassBin, options.target.stateDir, options.target.sshUser, options.target.sshPassword)
+	if selection.boardIP == "" {
+		return false
+	}
+	selection.sshConnection = newSSH(options.sshpassBin, options.target.sshUser, options.target.sshPassword, selection.boardIP)
+	return true
+}
+
+func attemptSetupCloudflareSSH(configuration config, options setupLiveOptions) (setupBackendSelection, error, bool) {
+	selection := setupBackendSelection{backend: setup.BackendSSH, target: options.target}
+	cloudflareSSHHostname := options.cloudflareSSHHostname
+	if hostname, errorValue := ensureCloudflareSSHRegistration(configuration, options.target.stateDir, containsArg("--force") || containsArg("--force-all")); errorValue == nil && hostname != "" {
+		cloudflareSSHHostname = hostname
+	} else if options.requestedCloudflareSSH && errorValue != nil {
+		return selection, errorValue, false
+	}
+	if cloudflareSSHHostname == "" {
+		return selection, nil, false
+	}
+	if errorValue := ensureCloudflaredAccessSSHAvailable(); errorValue != nil {
+		return selection, errorValue, false
+	}
+	selection.boardIP = cloudflareSSHHostname
+	selection.sshConnection = newCloudflareSSH(options.sshpassBin, options.target.sshUser, options.target.sshPassword, selection.boardIP)
+	output, errorValue := selection.sshConnection.runResult("true")
+	if errorValue != nil {
+		return selection, formatCloudflareSSHError(selection.boardIP, output, errorValue), false
+	}
+	selection.target.useRemoteSSH = true
+	return selection, nil, true
+}
+
+func printSetupBackendSelection(selection setupBackendSelection) {
+	target := selection.target
+	switch selection.backend {
+	case setup.BackendSSH:
+		target.host = selection.boardIP
 		printCommandTargetEvidence(target)
 		fmt.Printf("Backend: ssh\n")
 	case setup.BackendSD:
 		printCommandTargetEvidence(target)
 		fmt.Printf("Backend: sd staging\n")
-		fmt.Printf("Staging: %s\n", stagingRoot)
+		fmt.Printf("Staging: %s\n", selection.stagingRoot)
 	}
+}
 
-	flowState := newSetupFlowState(
+func prepareSetupFlowState(messenger *msg, configuration config, options setupLiveOptions, sshConnection *sshClient) *setupFlowState {
+	return newSetupFlowState(
 		messenger,
 		configuration,
 		collectSetupParameterValues(),
-		stateDir,
-		scriptDir,
-		setupBuildID,
+		options.target.stateDir,
+		options.scriptDir,
+		options.setupBuildID,
 		sshConnection,
-		nonInteractive,
+		options.nonInteractive,
 	)
+}
 
-	shouldForce := containsArg("--force") || containsArg("--force-all")
-	if selectedBackend == setup.BackendSD && setupBuildID != "" {
-		stageBuildIDPath := filepath.Join(stagingRoot, "setup-build-id")
-		if stageBuildIDBytes, err := os.ReadFile(stageBuildIDPath); err == nil {
-			if strings.TrimSpace(string(stageBuildIDBytes)) != setupBuildID {
-				shouldForce = true
-			}
-		}
-	}
-
+func prepareSetupPipelineContext(messenger *msg, options setupLiveOptions, selection setupBackendSelection, flowState *setupFlowState) *setup.Context {
 	pipelineContext := &setup.Context{
-		Backend:      selectedBackend,
+		Backend:      selection.backend,
 		Language:     messenger.lang,
-		StateDir:     stateDir,
-		ScriptDir:    scriptDir,
-		BoardType:    boardType,
-		BoardIP:      boardIP,
-		PublicURL:    target.deviceURL,
+		StateDir:     options.target.stateDir,
+		ScriptDir:    options.scriptDir,
+		BoardType:    options.target.boardType,
+		BoardIP:      selection.boardIP,
+		PublicURL:    options.target.deviceURL,
 		SetupCommand: commandLineForSetupLock(os.Args[2:]),
 		SetupSteps:   setupLockSelectedSteps(os.Args[2:]),
 		SetupLockID:  randomHexString(12),
-		Force:        shouldForce,
+		Force:        resolveSetupForce(options, selection),
 		HTTP:         &http.Client{Timeout: 30 * time.Second},
 		Callbacks:    flowState.callbacks(),
 	}
-	if selectedBackend == setup.BackendSSH {
-		if sshConnection != nil {
-			pipelineContext.SSH = sshBoardConnection{client: sshConnection}
+	if selection.backend == setup.BackendSSH {
+		if selection.sshConnection != nil {
+			pipelineContext.SSH = sshBoardConnection{client: selection.sshConnection}
 		}
-	} else {
-		pipelineContext.SD = sdStagingTarget{stagingRoot: stagingRoot}
+		return pipelineContext
 	}
+	pipelineContext.SD = sdStagingTarget{stagingRoot: selection.stagingRoot}
+	return pipelineContext
+}
 
+func resolveSetupForce(options setupLiveOptions, selection setupBackendSelection) bool {
+	shouldForce := containsArg("--force") || containsArg("--force-all")
+	if selection.backend != setup.BackendSD || options.setupBuildID == "" {
+		return shouldForce
+	}
+	stageBuildIDPath := filepath.Join(selection.stagingRoot, "setup-build-id")
+	stageBuildIDBytes, errorValue := os.ReadFile(stageBuildIDPath)
+	if errorValue == nil && strings.TrimSpace(string(stageBuildIDBytes)) != options.setupBuildID {
+		return true
+	}
+	return shouldForce
+}
+
+func prepareSetupSelector(boardType string, shouldForce bool) setup.Selector {
 	selector := setup.Selector{
 		Only:     setup.ParseNames(argString("--only", "")),
 		From:     argString("--from", ""),
 		Skip:     setup.ParseNames(argString("--skip", "")),
-		Force:    pipelineContext.Force,
+		Force:    shouldForce,
 		ForceAll: containsArg("--force-all"),
 		DryRun:   containsArg("--plan"),
 	}
-	selector = applySetupBoardDefaults(boardType, containsArg("--with-google"), selector)
+	return applySetupBoardDefaults(boardType, containsArg("--with-google"), selector)
+}
 
-	registry := setup.DefaultRegistry()
+func setupRegistryForBoard(boardType string) setup.Registry {
 	if boardType == setup.BoardJetsonOrinNano {
-		registry = setup.JetsonRegistry()
+		return setup.JetsonRegistry()
 	}
-	if err := registry.Run(pipelineContext, selector); err != nil {
-		fatal(err.Error())
-	}
+	return setup.DefaultRegistry()
 }
 
 func setupCanRunWithoutSSH(arguments []string) bool {

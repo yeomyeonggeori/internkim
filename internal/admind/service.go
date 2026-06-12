@@ -641,6 +641,10 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeReleaseUpdateStatus(responseWriter, request)
 		return
 	}
+	if request.Method == http.MethodGet && path == "/updates/releases" {
+		service.writeReleaseHistory(responseWriter, request)
+		return
+	}
 	if request.Method == http.MethodGet && strings.HasPrefix(path, "/updates/jobs/") {
 		service.writeJob(responseWriter, strings.TrimPrefix(path, "/updates/jobs/"))
 		return
@@ -1408,12 +1412,7 @@ func (service *Service) createRestoreUpload(responseWriter http.ResponseWriter, 
 	}
 	uploadID := randomHex(16)
 	directoryPath := filepath.Join(service.Configuration.StateDirectory, "uploads", uploadID)
-	if errorValue := os.MkdirAll(filepath.Join(directoryPath, "chunks"), 0o700); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
-	service.mutex.Lock()
-	service.uploads[uploadID] = &RestoreUpload{
+	upload := &RestoreUpload{
 		UploadID:       uploadID,
 		Filename:       filepath.Base(payload.Filename),
 		Size:           payload.Size,
@@ -1421,6 +1420,13 @@ func (service *Service) createRestoreUpload(responseWriter http.ResponseWriter, 
 		DirectoryPath:  directoryPath,
 		ReceivedChunks: map[int]bool{},
 	}
+	service.mutex.Lock()
+	if errorValue := os.MkdirAll(filepath.Join(directoryPath, "chunks"), 0o700); errorValue != nil {
+		service.mutex.Unlock()
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	service.uploads[uploadID] = upload
 	service.mutex.Unlock()
 	service.writeJSON(responseWriter, restoreUploadResponse{UploadID: uploadID, ChunkSize: 4 << 20})
 }
@@ -2283,7 +2289,7 @@ func (service *Service) blueclawJSONRequest(ctx context.Context, method string, 
 		return nil
 	}
 	responseDocument, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
-	return fmt.Errorf("Blueclaw policy update returned %d: %s", response.StatusCode, strings.TrimSpace(string(responseDocument)))
+	return fmt.Errorf("Blueclaw %s %s returned %d: %s", method, path, response.StatusCode, strings.TrimSpace(string(responseDocument)))
 }
 
 func (service *Service) triggerUsersSync(ctx context.Context) {

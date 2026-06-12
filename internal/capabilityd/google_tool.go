@@ -15,20 +15,6 @@ import (
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
-func isGoogleWorkspaceTool(toolName string) bool {
-	switch strings.TrimSpace(toolName) {
-	case "google.docs.create",
-		"google.sheets.create",
-		"google.gmail.send",
-		"google.calendar.event",
-		"google.calendar.list",
-		"google.drive.import_pptx":
-		return true
-	default:
-		return false
-	}
-}
-
 func (service Service) invokeGoogleWorkspaceTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	webhookURL := readSecretValue(service.Configuration.GoogleWorkspaceWebhookPath)
 	if strings.TrimSpace(webhookURL) == "" {

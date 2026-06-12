@@ -328,8 +328,8 @@ func (errorValue simulatedError) Error() string { return string(errorValue) }
 var _ llmbackend.Backend = llmbackend.OllamaBackend{}
 
 func TestDefaultCapabilitiesAdvertiseLLMOnlyInDevelopmentMockMode(t *testing.T) {
-	withoutMockLLM := defaultCapabilities(true, false)
-	withMockLLM := defaultCapabilities(true, true)
+	withoutMockLLM := companionruntime.DefaultCapabilities(true, false)
+	withMockLLM := companionruntime.DefaultCapabilities(true, true)
 
 	if hasCapability(withoutMockLLM, "llm.structured") {
 		t.Fatal("expected LLM capability to be hidden without development mock mode")
@@ -603,14 +603,14 @@ func TestLegacyPrivateKeyStateMigratesToSecureStore(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	state := companionState{
+	state := companionruntime.State{
 		DeviceURL:    "https://device.intern.kim",
 		CompanionID:  "companion-1",
 		Token:        "token-1",
 		PublicKey:    keyPair.PublicKey,
 		PrivateKey:   keyPair.PrivateKey,
 		LocalOnly:    true,
-		Capabilities: defaultCapabilities(true, false),
+		Capabilities: companionruntime.DefaultCapabilities(true, false),
 	}
 	if errorValue := saveState(statePath, state); errorValue != nil {
 		t.Fatal(errorValue)
@@ -925,9 +925,9 @@ func TestDisconnectRevokesRemoteAndClearsLocalPairing(t *testing.T) {
 }
 
 func TestRemoteModelAuthErrorsUseReconnectMessage(t *testing.T) {
-	errorValue := decodeJSONResponse("https://device.intern.kim/_internkim/runtime/remote-model", textResponse(http.StatusForbidden, "companion auth required\n"), nil)
+	errorValue := companionruntime.DecodeJSONResponse("https://device.intern.kim/_internkim/runtime/remote-model", textResponse(http.StatusForbidden, "companion auth required\n"), nil)
 	if errorValue != nil {
-		if !strings.Contains(errorValue.Error(), companionPairingExpiredMessage) {
+		if !strings.Contains(errorValue.Error(), companionruntime.CompanionPairingExpiredMessage) {
 			t.Fatalf("expected pairing expired message, got %v", errorValue)
 		}
 		return
@@ -936,7 +936,7 @@ func TestRemoteModelAuthErrorsUseReconnectMessage(t *testing.T) {
 }
 
 func TestCompanionStatusFromState(t *testing.T) {
-	state := companionState{
+	state := companionruntime.State{
 		DeviceURL:   "https://device.intern.kim",
 		CompanionID: "companion-1",
 		Token:       "token-1",
@@ -956,11 +956,11 @@ func TestCompanionStatusFromState(t *testing.T) {
 }
 
 func TestCompanionStatusFiltersBrowserCapabilitiesWhenRuntimeUnavailable(t *testing.T) {
-	state := companionState{
+	state := companionruntime.State{
 		DeviceURL:    "https://device.intern.kim",
 		CompanionID:  "companion-1",
 		Token:        "token-1",
-		Capabilities: defaultCapabilities(false, false),
+		Capabilities: companionruntime.DefaultCapabilities(false, false),
 	}
 
 	document := companionStatusFromState(state, browserruntime.RuntimeReadiness{
@@ -999,7 +999,7 @@ func TestResolveAgentBrowserPathUsesEnvironmentWhenFlagEmpty(t *testing.T) {
 	}
 }
 
-func testCompanionState(t *testing.T, localOnly bool, devMockLLM bool) (companionState, *companionruntime.MemorySecureStore) {
+func testCompanionState(t *testing.T, localOnly bool, devMockLLM bool) (companionruntime.State, *companionruntime.MemorySecureStore) {
 	t.Helper()
 	keyPair, errorValue := companionruntime.GenerateKeyPair()
 	if errorValue != nil {
@@ -1010,14 +1010,14 @@ func testCompanionState(t *testing.T, localOnly bool, devMockLLM bool) (companio
 	if errorValue := secureStore.Put(nilContext(), privateKeyID, keyPair.PrivateKey); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	return companionState{
+	return companionruntime.State{
 		DeviceURL:    "https://device.intern.kim",
 		CompanionID:  "companion-1",
 		Token:        "token-1",
 		PublicKey:    keyPair.PublicKey,
 		PrivateKeyID: privateKeyID,
 		LocalOnly:    localOnly,
-		Capabilities: defaultCapabilities(localOnly, devMockLLM),
+		Capabilities: companionruntime.DefaultCapabilities(localOnly, devMockLLM),
 	}, secureStore
 }
 

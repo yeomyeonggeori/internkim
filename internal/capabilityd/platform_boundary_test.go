@@ -593,19 +593,19 @@ func TestMattermostWebSocketPayloadPreservesMentionMetadata(t *testing.T) {
 }
 
 func TestMattermostAddressingDetectsOtherAndMixedMentions(t *testing.T) {
-	otherAddressing := mattermostAddressing([]string{"user-2"}, "bot-1", "internkim")
+	otherAddressing := mattermostAddressingFromMessage("@lee 확인 부탁해요", "internkim")
 	if otherAddressing.BotMentioned || !otherAddressing.OtherPersonMentioned {
 		t.Fatalf("expected other person mention, got %+v", otherAddressing)
 	}
 
-	mixedAddressing := mattermostAddressing([]string{"bot-1", "user-2"}, "bot-1", "internkim")
+	mixedAddressing := mattermostAddressingFromMessage("@lee @channel @internkim 부탁", "internkim")
 	if !mixedAddressing.BotMentioned || !mixedAddressing.OtherPersonMentioned {
 		t.Fatalf("expected mixed mention metadata, got %+v", mixedAddressing)
 	}
 
-	fallbackAddressing := mattermostAddressingFromMessage("@lee @channel @internkim 부탁", "internkim")
-	if !fallbackAddressing.BotMentioned || !fallbackAddressing.OtherPersonMentioned {
-		t.Fatalf("expected fallback message mentions, got %+v", fallbackAddressing)
+	plainNameAddressing := mattermostAddressingFromMessage("오늘 오후 5시 정기회의 추가 참석자 이찬희, 이동하", "internkim")
+	if plainNameAddressing.BotMentioned || plainNameAddressing.OtherPersonMentioned {
+		t.Fatalf("expected plain names not to count as mentions, got %+v", plainNameAddressing)
 	}
 }
 

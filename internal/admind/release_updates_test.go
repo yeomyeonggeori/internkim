@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -243,6 +244,104 @@ func TestFetchReleaseStablePointerUsesDownloadToken(t *testing.T) {
 	}
 }
 
+func TestReleaseHistoryEndpointFallsBackToStablePointer(t *testing.T) {
+	service := NewService(Configuration{
+		ReleaseRegistryURL:     "https://updates.test",
+		StateDirectory:         t.TempDir(),
+		ReleaseSigningKeyPath:  writeTestFile(t, ""),
+		AdminEmailPath:         writeTestFile(t, "admin@example.com"),
+		BlueclawWorkspacePath:  t.TempDir(),
+		CompanionJobPath:       filepath.Join(t.TempDir(), "jobs.json"),
+		CompanionFileDirectory: t.TempDir(),
+	})
+	currentManifest := testReleaseManifest("release-1")
+	if errorValue := service.writeCurrentReleaseManifest(currentManifest); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Path == "/channels/stable-history.json" {
+			return testHTTPResponse(http.StatusNotFound, nil), nil
+		}
+		if request.URL.Path == "/channels/stable.json" {
+			return testJSONHTTPResponse(t, releaseset.StablePointer{
+				ReleaseID:   "release-1",
+				ManifestURL: "https://updates.test/releases/release-1/manifest.json",
+				UpdatedAt:   "2026-06-12T00:00:00Z",
+			}), nil
+		}
+		return testHTTPResponse(http.StatusNotFound, nil), nil
+	})}
+
+	request := httptest.NewRequest(http.MethodGet, "/admin/api/updates/releases", nil)
+	response := httptest.NewRecorder()
+	service.handleAdmin(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+	var payload releaseHistoryResponse
+	if errorValue := json.NewDecoder(response.Body).Decode(&payload); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(payload.Entries) != 1 || payload.Entries[0].ReleaseID != "release-1" || !payload.Entries[0].IsCurrent {
+		t.Fatalf("entries = %+v", payload.Entries)
+	}
+}
+
+func TestApplyReleaseUpdateWithReleaseIDUsesHistoryManifest(t *testing.T) {
+	blobDocument, blobSHA256, blobSize := testReleaseBlobDocument(t)
+	service := NewService(Configuration{
+		ReleaseRegistryURL:     "https://updates.test",
+		StateDirectory:         t.TempDir(),
+		ReleaseSigningKeyPath:  writeTestFile(t, ""),
+		AdminEmailPath:         writeTestFile(t, "admin@example.com"),
+		BlueclawWorkspacePath:  t.TempDir(),
+		CompanionJobPath:       filepath.Join(t.TempDir(), "jobs.json"),
+		CompanionFileDirectory: t.TempDir(),
+	})
+	releaseOne := testReleaseManifestWithBlob("release-1", blobSHA256, blobSize)
+	releaseTwo := testReleaseManifestWithBlob("release-2", blobSHA256, blobSize)
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/channels/stable-history.json":
+			return testJSONHTTPResponse(t, releaseset.ChannelHistory{
+				Channel: "stable",
+				Entries: []releaseset.ChannelHistoryEntry{
+					{ReleaseID: "release-2", ManifestURL: "https://updates.test/releases/release-2/manifest.json", CreatedAt: "2026-06-12T00:00:00Z"},
+					{ReleaseID: "release-1", ManifestURL: "https://updates.test/releases/release-1/manifest.json", CreatedAt: "2026-06-11T00:00:00Z"},
+				},
+				UpdatedAt: "2026-06-12T00:00:00Z",
+			}), nil
+		case "/releases/release-1/manifest.json":
+			return testJSONHTTPResponse(t, releaseOne), nil
+		case "/releases/release-2/manifest.json":
+			return testJSONHTTPResponse(t, releaseTwo), nil
+		case "/blobs/sha256/" + blobSHA256:
+			return testHTTPResponse(http.StatusOK, blobDocument), nil
+		default:
+			return testHTTPResponse(http.StatusNotFound, nil), nil
+		}
+	})}
+
+	document, errorValue := json.Marshal(map[string]string{"releaseID": "release-1"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/admin/api/updates/apply", bytes.NewReader(document))
+	request.RemoteAddr = "127.0.0.1:1234"
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	service.handleAdmin(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+	waitForReleaseJob(t, service)
+	current := service.readCurrentReleaseManifest()
+	if current == nil || current.ReleaseID != "release-1" {
+		t.Fatalf("current release = %+v", current)
+	}
+}
+
 func writeReleaseTenantRuntimeConfiguration(t *testing.T, tenantBasePath string, tenantID string) {
 	t.Helper()
 	runtimeConfigurationPath := filepath.Join(tenantBasePath, tenantID, "blueclaw", "config", "runtime.json")
@@ -265,6 +364,54 @@ func testReleaseManifest(releaseID string) *releaseset.Manifest {
 		},
 	})
 	return &manifest
+}
+
+func testReleaseManifestWithBlob(releaseID string, blobSHA256 string, blobSize int64) releaseset.Manifest {
+	return releaseset.NewManifest(releaseID, "stable", map[string]releaseset.Component{
+		"artifact": {
+			Name:         "artifact",
+			Revision:     releaseID,
+			SHA256:       blobSHA256,
+			Size:         blobSize,
+			BlobPath:     "blobs/sha256/" + blobSHA256,
+			RestartGroup: "admind",
+			HealthCheck:  "binary",
+		},
+	})
+}
+
+func testReleaseBlobDocument(t *testing.T) ([]byte, string, int64) {
+	t.Helper()
+	directoryPath := t.TempDir()
+	sourcePath := filepath.Join(directoryPath, "artifact")
+	if errorValue := os.MkdirAll(sourcePath, 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeFile(t, filepath.Join(sourcePath, "payload.txt"), "release payload\n")
+	archivePath := filepath.Join(directoryPath, "artifact.tar.gz")
+	writeTestTarGzipDirectory(t, archivePath, sourcePath)
+	document, errorValue := os.ReadFile(archivePath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return document, fileSHA256(archivePath), fileSize(t, archivePath)
+}
+
+func testJSONHTTPResponse(t *testing.T, payload any) *http.Response {
+	t.Helper()
+	document, errorValue := json.Marshal(payload)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return testHTTPResponse(http.StatusOK, document)
+}
+
+func testHTTPResponse(statusCode int, document []byte) *http.Response {
+	return &http.Response{
+		StatusCode: statusCode,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(bytes.NewReader(document)),
+	}
 }
 
 func newReleaseUpdateUploadTestService(t *testing.T) *Service {

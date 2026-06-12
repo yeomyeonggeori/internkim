@@ -58,15 +58,6 @@ type calendarEventForTool struct {
 	IsAllDay    bool   `json:"isAllDay"`
 }
 
-func isCalendarTool(toolName string) bool {
-	switch strings.TrimSpace(toolName) {
-	case "calendar.event.add", "calendar.event.list", "calendar.event.update", "calendar.event.delete", "calendar.connection.status", "calendar.connection.start":
-		return true
-	default:
-		return false
-	}
-}
-
 func (service Service) invokeCalendarTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	switch strings.TrimSpace(request.ToolName) {
 	case "calendar.event.add":
