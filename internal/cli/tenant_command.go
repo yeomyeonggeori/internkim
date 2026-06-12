@@ -59,7 +59,7 @@ func printTenantUsage() {
 	fmt.Println()
 	fmt.Println("Commands:")
 	fmt.Println("  create   Create a tenant manifest and runtime directories")
-	fmt.Println("  provision  Create, install, bootstrap, start, configure Mattermost members, and sync tunnel for one tenant")
+	fmt.Println("  provision  Create, install runtime, configure Mattermost members, and sync tunnel for one tenant")
 	fmt.Println("  create-fleet  Create many cloud-shared tenants and print Mattermost URLs")
 	fmt.Println("  status   Read tenant manifest and runtime directory status")
 	fmt.Println("  backup   Create an encrypted tenant backup")
@@ -109,7 +109,7 @@ func runTenantProvision(arguments []string) {
 		var stepError tenantProvisionStepError
 		if errors.As(errorValue, &stepError) {
 			fmt.Fprintf(os.Stderr, "tenant provision failed at step %s: %v\n", stepError.Step, stepError.Cause)
-			fmt.Fprintf(os.Stderr, "resume with: %s\n", tenantProvisionResumeCommand(stepError.Step, options.TenantID))
+			fmt.Fprintf(os.Stderr, "resume with: %s\n", tenantProvisionResumeCommandForRuntime(stepError.Step, options.TenantID, options.Runtime))
 			os.Exit(1)
 		}
 		fatal(errorValue.Error())
@@ -125,6 +125,7 @@ type tenantProvisionOptions struct {
 	TenantID                         string
 	DisplayName                      string
 	BasePath                         string
+	Runtime                          string
 	AssignedHost                     string
 	PublicURL                        string
 	MirrorHost                       string
@@ -132,6 +133,7 @@ type tenantProvisionOptions struct {
 	DeviceID                         string
 	TemplateRootFilesystemPath       string
 	NspawnDirectoryPath              string
+	SystemdDirectoryPath             string
 	BinaryDirectoryPath              string
 	GatewayURL                       string
 	DeviceToken                      string
@@ -151,6 +153,9 @@ type tenantProvisionOptions struct {
 	CloudflareAPITokenPath           string
 	CloudflareAPIBaseURL             string
 	CloudflarePublicHostnameTemplate string
+	HostRootFilesystemImagePath      string
+	HostWorkspaceImagePath           string
+	HostPortBase                     int
 	Members                          []tenantProvisionMember
 }
 
@@ -205,6 +210,7 @@ func parseTenantProvisionOptions(arguments []string) (tenantProvisionOptions, er
 	tenantID := flags.String("tenant", "", "tenant id")
 	displayName := flags.String("display-name", "", "tenant display name")
 	basePath := flags.String("base", "/srv/internkim/tenants", "tenant base path")
+	runtime := flags.String("runtime", "host", "tenant runtime: host or nspawn")
 	assignedHost := flags.String("assigned-host", "", "assigned host name")
 	publicURL := flags.String("public-url", "", "tenant public URL")
 	mirrorHost := flags.String("mirror-host", "", "backup mirror host")
@@ -212,6 +218,7 @@ func parseTenantProvisionOptions(arguments []string) (tenantProvisionOptions, er
 	deviceID := flags.String("device-id", "", "edge appliance device id")
 	templateRootFilesystemPath := flags.String("template-rootfs", "", "root filesystem template path")
 	nspawnDirectoryPath := flags.String("nspawn-dir", "/etc/systemd/nspawn", "systemd-nspawn configuration directory")
+	systemdDirectoryPath := flags.String("systemd-dir", "/etc/systemd/system", "systemd unit directory")
 	binaryDirectoryPath := flags.String("bin-dir", "/usr/local/bin", "directory containing tenant service binaries")
 	gatewayURL := flags.String("gateway-url", "", "LLM gateway OpenRouter-compatible chat completion URL")
 	deviceToken := flags.String("device-token", "", "tenant device-scoped LLM token")
@@ -231,6 +238,9 @@ func parseTenantProvisionOptions(arguments []string) (tenantProvisionOptions, er
 	cloudflareAPITokenPath := flags.String("api-token-path", "", "Cloudflare API token file path")
 	cloudflareAPIBaseURL := flags.String("api-base-url", tenantruntime.DefaultCloudflareAPIBaseURL, "Cloudflare API base URL")
 	cloudflarePublicHostnameTemplate := flags.String("hostname-template", "", "optional public hostname template containing {tenant}")
+	hostRootFilesystemImagePath := flags.String("rootfs-image", "/opt/internkim/blueclaw-runtime/rootfs.ext4", "Blueclaw rootfs image template path")
+	hostWorkspaceImagePath := flags.String("workspace-image", "/var/lib/blueclaw/workspace.ext4", "Blueclaw workspace image template path")
+	hostPortBase := flags.Int("port-base", 0, "optional first tenant runtime port")
 	memberValues := repeatedStringFlag{}
 	flags.Var(&memberValues, "member", "tenant member as email:name:password; password may be omitted")
 	if errorValue := flags.Parse(arguments); errorValue != nil {
@@ -244,6 +254,7 @@ func parseTenantProvisionOptions(arguments []string) (tenantProvisionOptions, er
 		TenantID:                         strings.TrimSpace(*tenantID),
 		DisplayName:                      strings.TrimSpace(*displayName),
 		BasePath:                         strings.TrimSpace(*basePath),
+		Runtime:                          strings.TrimSpace(*runtime),
 		AssignedHost:                     strings.TrimSpace(*assignedHost),
 		PublicURL:                        strings.TrimSpace(*publicURL),
 		MirrorHost:                       strings.TrimSpace(*mirrorHost),
@@ -251,6 +262,7 @@ func parseTenantProvisionOptions(arguments []string) (tenantProvisionOptions, er
 		DeviceID:                         strings.TrimSpace(*deviceID),
 		TemplateRootFilesystemPath:       strings.TrimSpace(*templateRootFilesystemPath),
 		NspawnDirectoryPath:              strings.TrimSpace(*nspawnDirectoryPath),
+		SystemdDirectoryPath:             strings.TrimSpace(*systemdDirectoryPath),
 		BinaryDirectoryPath:              strings.TrimSpace(*binaryDirectoryPath),
 		GatewayURL:                       strings.TrimSpace(*gatewayURL),
 		DeviceToken:                      strings.TrimSpace(*deviceToken),
@@ -270,6 +282,9 @@ func parseTenantProvisionOptions(arguments []string) (tenantProvisionOptions, er
 		CloudflareAPITokenPath:           strings.TrimSpace(*cloudflareAPITokenPath),
 		CloudflareAPIBaseURL:             strings.TrimSpace(*cloudflareAPIBaseURL),
 		CloudflarePublicHostnameTemplate: strings.TrimSpace(*cloudflarePublicHostnameTemplate),
+		HostRootFilesystemImagePath:      strings.TrimSpace(*hostRootFilesystemImagePath),
+		HostWorkspaceImagePath:           strings.TrimSpace(*hostWorkspaceImagePath),
+		HostPortBase:                     *hostPortBase,
 		Members:                          members,
 	}, nil
 }
@@ -321,6 +336,17 @@ func parseTenantProvisionMember(value string) (tenantProvisionMember, error) {
 }
 
 func executeTenantProvision(ctx context.Context, options tenantProvisionOptions) (tenantProvisionSummary, error) {
+	switch options.Runtime {
+	case "", "host":
+		return executeTenantHostProvision(ctx, options)
+	case "nspawn":
+		return executeTenantNspawnProvision(ctx, options)
+	default:
+		return tenantProvisionSummary{}, errors.New("--runtime must be host or nspawn")
+	}
+}
+
+func executeTenantNspawnProvision(ctx context.Context, options tenantProvisionOptions) (tenantProvisionSummary, error) {
 	manifest, errorValue := tenantProvisionManifest(options)
 	if errorValue != nil {
 		return tenantProvisionSummary{}, tenantProvisionStepError{Step: "create", Cause: errorValue}
@@ -349,6 +375,37 @@ func executeTenantProvision(ctx context.Context, options tenantProvisionOptions)
 	if errorValue := containerService.StartTenant(ctx, manifest.TenantID); errorValue != nil {
 		return tenantProvisionSummary{}, tenantProvisionStepError{Step: "start", Cause: errorValue}
 	}
+	return executeTenantSharedProvisionSteps(ctx, createService, manifest, options)
+}
+
+func executeTenantHostProvision(ctx context.Context, options tenantProvisionOptions) (tenantProvisionSummary, error) {
+	manifest, errorValue := tenantProvisionManifest(options)
+	if errorValue != nil {
+		return tenantProvisionSummary{}, tenantProvisionStepError{Step: "create", Cause: errorValue}
+	}
+	createService := tenantruntime.Service{BasePath: options.BasePath}
+	if _, errorValue := createService.CreateTenantFromTemplate(manifest, options.TemplateRootFilesystemPath); errorValue != nil {
+		return tenantProvisionSummary{}, tenantProvisionStepError{Step: "create", Cause: errorValue}
+	}
+	if _, _, errorValue := ensureTenantProvisionAdminPassword(options); errorValue != nil {
+		return tenantProvisionSummary{}, tenantProvisionStepError{Step: "install-host-runtime", Cause: errorValue}
+	}
+	hostService := tenantruntime.Service{BasePath: options.BasePath, SystemdSystemDirectoryPath: options.SystemdDirectoryPath}
+	if _, errorValue := hostService.InstallHostRuntime(ctx, manifest.TenantID, tenantruntime.HostRuntimeOptions{
+		GatewayURL:                 options.GatewayURL,
+		GatewaySharedSecret:        options.GatewaySharedSecret,
+		ReleaseDownloadToken:       resolveReleaseDownloadToken(options.ReleaseDownloadToken),
+		ModelName:                  options.ModelName,
+		RootFilesystemTemplatePath: options.HostRootFilesystemImagePath,
+		WorkspaceImageTemplatePath: options.HostWorkspaceImagePath,
+		PortBase:                   options.HostPortBase,
+	}); errorValue != nil {
+		return tenantProvisionSummary{}, tenantProvisionStepError{Step: "install-host-runtime", Cause: errorValue}
+	}
+	return executeTenantSharedProvisionSteps(ctx, createService, manifest, options)
+}
+
+func executeTenantSharedProvisionSteps(ctx context.Context, service tenantruntime.Service, manifest tenantruntime.Manifest, options tenantProvisionOptions) (tenantProvisionSummary, error) {
 	adminPassword, adminPasswordPath, errorValue := tenantProvisionAdminPassword(options)
 	if errorValue != nil {
 		return tenantProvisionSummary{}, tenantProvisionStepError{Step: "bootstrap-mattermost", Cause: errorValue}
@@ -366,7 +423,7 @@ func executeTenantProvision(ctx context.Context, options tenantProvisionOptions)
 	if errorValue != nil {
 		return tenantProvisionSummary{}, tenantProvisionStepError{Step: "bootstrap-mattermost", Cause: errorValue}
 	}
-	if _, errorValue := createService.SyncCloudflareTenantTunnel(ctx, tenantruntime.CloudflareTunnelSyncOptions{
+	if _, errorValue := service.SyncCloudflareTenantTunnel(ctx, tenantruntime.CloudflareTunnelSyncOptions{
 		AccountID:              options.CloudflareAccountID,
 		TunnelID:               options.CloudflareTunnelID,
 		APITokenPath:           options.CloudflareAPITokenPath,
@@ -387,6 +444,43 @@ func executeTenantProvision(ctx context.Context, options tenantProvisionOptions)
 		},
 		Members: tenantProvisionMemberResults(options.Members, mattermostStatus.Members),
 	}, nil
+}
+
+func ensureTenantProvisionAdminPassword(options tenantProvisionOptions) (string, string, error) {
+	paths, errorValue := tenantruntime.BuildRuntimePaths(options.BasePath, options.TenantID)
+	if errorValue != nil {
+		return "", "", errorValue
+	}
+	passwordPath := filepath.Join(paths.InternKimSecretsPath, "mm-admin-pass")
+	if strings.TrimSpace(options.AdminPassword) == "" {
+		if document, errorValue := os.ReadFile(passwordPath); errorValue == nil && strings.TrimSpace(string(document)) != "" {
+			return strings.TrimSpace(string(document)), passwordPath, nil
+		}
+		credentials, errorValue := tenantruntime.GenerateTenantCredentials()
+		if errorValue != nil {
+			return "", "", errorValue
+		}
+		return writeTenantProvisionAdminPassword(paths.InternKimPath, credentials.AdminPassword)
+	}
+	return writeTenantProvisionAdminPassword(paths.InternKimPath, options.AdminPassword)
+}
+
+func writeTenantProvisionAdminPassword(internKimPath string, password string) (string, string, error) {
+	if errorValue := os.MkdirAll(filepath.Join(internKimPath, "secrets"), 0o700); errorValue != nil {
+		return "", "", errorValue
+	}
+	if errorValue := os.MkdirAll(filepath.Join(internKimPath, "config"), 0o750); errorValue != nil {
+		return "", "", errorValue
+	}
+	passwordPath := filepath.Join(internKimPath, "secrets", "mm-admin-pass")
+	if errorValue := os.WriteFile(passwordPath, []byte(strings.TrimSpace(password)+"\n"), 0o600); errorValue != nil {
+		return "", "", errorValue
+	}
+	usernamePath := filepath.Join(internKimPath, "config", "admin-username")
+	if errorValue := os.WriteFile(usernamePath, []byte(tenantruntime.TenantInitialAdminUsername+"\n"), 0o640); errorValue != nil {
+		return "", "", errorValue
+	}
+	return strings.TrimSpace(password), passwordPath, nil
 }
 
 func tenantProvisionManifest(options tenantProvisionOptions) (tenantruntime.Manifest, error) {
@@ -517,7 +611,37 @@ func tenantProvisionMemberPasswords(members []tenantProvisionMember) map[string]
 }
 
 func tenantProvisionResumeCommand(step string, tenantID string) string {
-	commands := []string{
+	return tenantProvisionResumeCommandForRuntime(step, tenantID, "nspawn")
+}
+
+func tenantProvisionResumeCommandForRuntime(step string, tenantID string, runtime string) string {
+	steps := tenantProvisionStepNames(runtime)
+	commands := tenantProvisionStepCommands(runtime, tenantID)
+	for index, commandStep := range steps {
+		if commandStep == step {
+			return strings.Join(commands[index:], " && ")
+		}
+	}
+	return strings.Join(commands, " && ")
+}
+
+func tenantProvisionStepNames(runtime string) []string {
+	if runtime == "host" || runtime == "" {
+		return []string{"create", "install-host-runtime", "bootstrap-mattermost", "sync-cloudflare-tunnel"}
+	}
+	return []string{"create", "install-container", "bootstrap", "start", "bootstrap-mattermost", "sync-cloudflare-tunnel"}
+}
+
+func tenantProvisionStepCommands(runtime string, tenantID string) []string {
+	if runtime == "host" || runtime == "" {
+		return []string{
+			"internkim tenant create --tenant " + tenantID,
+			"internkim tenant install-host-runtime --tenant " + tenantID,
+			"internkim tenant bootstrap-mattermost --credentials <credentials.json> <member flags>",
+			"internkim tenant sync-cloudflare-tunnel --tenants " + tenantID,
+		}
+	}
+	return []string{
 		"internkim tenant create --tenant " + tenantID,
 		"internkim tenant install-container --tenant " + tenantID,
 		"internkim tenant bootstrap --tenant " + tenantID,
@@ -525,12 +649,6 @@ func tenantProvisionResumeCommand(step string, tenantID string) string {
 		"internkim tenant bootstrap-mattermost --credentials <credentials.json> <member flags>",
 		"internkim tenant sync-cloudflare-tunnel --tenants " + tenantID,
 	}
-	for index, commandStep := range []string{"create", "install-container", "bootstrap", "start", "bootstrap-mattermost", "sync-cloudflare-tunnel"} {
-		if commandStep == step {
-			return strings.Join(commands[index:], " && ")
-		}
-	}
-	return strings.Join(commands, " && ")
 }
 
 func runTenantCreateFleet(arguments []string) {
