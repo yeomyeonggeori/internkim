@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/mattermost/mattermost/server/public/model"
 	"github.com/mattermost/mattermost/server/public/plugin"
@@ -12,9 +13,26 @@ import (
 
 const pluginID = "com.internkim.ephemeral"
 
+type configuration struct {
+	Secret string
+}
+
 type Plugin struct {
 	plugin.MattermostPlugin
-	updater ephemeralPostUpdater
+	updater             ephemeralPostUpdater
+	configurationLock   sync.RWMutex
+	activeConfiguration *configuration
+}
+
+func (pluginValue *Plugin) OnConfigurationChange() error {
+	loadedConfiguration := new(configuration)
+	if errorValue := pluginValue.API.LoadPluginConfiguration(loadedConfiguration); errorValue != nil {
+		return errorValue
+	}
+	pluginValue.configurationLock.Lock()
+	defer pluginValue.configurationLock.Unlock()
+	pluginValue.activeConfiguration = loadedConfiguration
+	return nil
 }
 
 type ephemeralPostUpdater interface {
@@ -43,6 +61,7 @@ func (pluginValue *Plugin) ServeHTTP(_ *plugin.Context, responseWriter http.Resp
 		return
 	}
 	if !pluginValue.isValidToken(request.Header.Get("X-InternKim-Token")) {
+		pluginValue.API.LogWarn("update-ephemeral rejected: token mismatch", "hasConfiguredSecret", pluginValue.sharedSecret() != "")
 		http.Error(responseWriter, "invalid token", http.StatusUnauthorized)
 		return
 	}
@@ -64,19 +83,12 @@ func (pluginValue *Plugin) isValidToken(token string) bool {
 }
 
 func (pluginValue *Plugin) sharedSecret() string {
-	configuration := pluginValue.API.GetConfig()
-	if configuration == nil {
+	pluginValue.configurationLock.RLock()
+	defer pluginValue.configurationLock.RUnlock()
+	if pluginValue.activeConfiguration == nil {
 		return ""
 	}
-	settings := configuration.PluginSettings.Plugins[pluginID]
-	if settings == nil {
-		return ""
-	}
-	value, ok := settings["secret"].(string)
-	if !ok {
-		return ""
-	}
-	return value
+	return strings.TrimSpace(pluginValue.activeConfiguration.Secret)
 }
 
 func (pluginValue *Plugin) ephemeralPostUpdater() ephemeralPostUpdater {

@@ -17,7 +17,7 @@ type testEphemeralPostUpdater struct {
 
 func TestServeHTTPUpdatesEphemeralPost(t *testing.T) {
 	updater := &testEphemeralPostUpdater{}
-	pluginValue := &Plugin{updater: updater}
+	pluginValue := &Plugin{updater: updater, activeConfiguration: &configuration{Secret: "shared-secret"}}
 	pluginValue.API = testPluginAPI{secret: "shared-secret"}
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/update-ephemeral", strings.NewReader(`{"userID":"user-1","postID":"post-1","channelID":"channel-1","rootID":"root-1","message":"확인"}`))
 	request.Header.Set("X-InternKim-Token", "shared-secret")
@@ -40,7 +40,7 @@ func TestServeHTTPUpdatesEphemeralPost(t *testing.T) {
 }
 
 func TestServeHTTPRejectsInvalidSecret(t *testing.T) {
-	pluginValue := &Plugin{updater: &testEphemeralPostUpdater{}}
+	pluginValue := &Plugin{updater: &testEphemeralPostUpdater{}, activeConfiguration: &configuration{Secret: "shared-secret"}}
 	pluginValue.API = testPluginAPI{secret: "shared-secret"}
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/update-ephemeral", strings.NewReader(`{"userID":"user-1","postID":"post-1","channelID":"channel-1","message":"확인"}`))
 	request.Header.Set("X-InternKim-Token", "wrong")
@@ -54,7 +54,7 @@ func TestServeHTTPRejectsInvalidSecret(t *testing.T) {
 }
 
 func TestServeHTTPRejectsInvalidInput(t *testing.T) {
-	pluginValue := &Plugin{updater: &testEphemeralPostUpdater{}}
+	pluginValue := &Plugin{updater: &testEphemeralPostUpdater{}, activeConfiguration: &configuration{Secret: "shared-secret"}}
 	pluginValue.API = testPluginAPI{secret: "shared-secret"}
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/update-ephemeral", strings.NewReader(`{"userID":"user-1","channelID":"channel-1","message":"확인"}`))
 	request.Header.Set("X-InternKim-Token", "shared-secret")
@@ -84,4 +84,7 @@ func (api testPluginAPI) GetConfig() *model.Config {
 		pluginID: {"secret": api.secret},
 	}
 	return configuration
+}
+
+func (api testPluginAPI) LogWarn(message string, keyValuePairs ...interface{}) {
 }
