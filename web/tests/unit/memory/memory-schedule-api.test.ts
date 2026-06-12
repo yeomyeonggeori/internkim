@@ -46,10 +46,10 @@ describe('memory schedule api normalizer', () => {
 	test('sends pagination parameters when fetching schedules', async () => {
 		const originalFetch = globalThis.fetch;
 		let requestedURL = '';
-		const fetchStub: typeof fetch = async (input) => {
+		const fetchStub = createFetchStub(async (input) => {
 			requestedURL = String(input);
 			return new Response(JSON.stringify({ schedules: [], count: 0, totalCount: 0, page: 3, pageSize: 25 }));
-		};
+		});
 		globalThis.fetch = fetchStub;
 
 		try {
@@ -63,15 +63,30 @@ describe('memory schedule api normalizer', () => {
 		}
 	});
 
+	test('does not expose schedule list failure response text', async () => {
+		const originalFetch = globalThis.fetch;
+		const fetchStub = createFetchStub(async () => new Response('Traceback /workspace/.blueclaw/private.py', { status: 502 }));
+		globalThis.fetch = fetchStub;
+
+		try {
+			const errorMessage = await rejectedErrorMessage(fetchMemorySchedules());
+
+			expect(errorMessage).toBe('Memory schedules request returned 502');
+			expect(errorMessage.includes('Traceback')).toBe(false);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
 	test('posts schedule cancellation request', async () => {
 		const originalFetch = globalThis.fetch;
 		let requestedURL = '';
-		let requestedInitialization: RequestInit | undefined;
-		const fetchStub: typeof fetch = async (input, initialization) => {
+		let requestedInitialization: Parameters<typeof fetch>[1] | undefined;
+		const fetchStub = createFetchStub(async (input, initialization) => {
 			requestedURL = String(input);
 			requestedInitialization = initialization;
 			return new Response('{}');
-		};
+		});
 		globalThis.fetch = fetchStub;
 
 		try {
@@ -89,12 +104,12 @@ describe('memory schedule api normalizer', () => {
 	test('posts schedule update request fields', async () => {
 		const originalFetch = globalThis.fetch;
 		let requestedURL = '';
-		let requestedInitialization: RequestInit | undefined;
-		const fetchStub: typeof fetch = async (input, initialization) => {
+		let requestedInitialization: Parameters<typeof fetch>[1] | undefined;
+		const fetchStub = createFetchStub(async (input, initialization) => {
 			requestedURL = String(input);
 			requestedInitialization = initialization;
 			return new Response('{}');
-		};
+		});
 		globalThis.fetch = fetchStub;
 
 		try {
@@ -121,4 +136,37 @@ describe('memory schedule api normalizer', () => {
 			globalThis.fetch = originalFetch;
 		}
 	});
+
+	test('does not expose schedule mutation failure response text', async () => {
+		const originalFetch = globalThis.fetch;
+		const fetchStub = createFetchStub(async () => new Response('Graphiti stack trace', { status: 502 }));
+		globalThis.fetch = fetchStub;
+
+		try {
+			const cancelErrorMessage = await rejectedErrorMessage(cancelSchedule('schedule-1'));
+			const updateErrorMessage = await rejectedErrorMessage(updateSchedule('schedule-1', { kind: 'once', runAt: '2026-06-12T00:00:00Z' }));
+
+			expect(cancelErrorMessage).toBe('Memory schedules request returned 502');
+			expect(updateErrorMessage).toBe('Memory schedules request returned 502');
+			expect(cancelErrorMessage.includes('Graphiti')).toBe(false);
+			expect(updateErrorMessage.includes('Graphiti')).toBe(false);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
 });
+
+async function rejectedErrorMessage(promise: Promise<unknown>): Promise<string> {
+	try {
+		await promise;
+		return '';
+	} catch (error) {
+		return error instanceof Error ? error.message : '';
+	}
+}
+
+function createFetchStub(
+	handler: (input: Parameters<typeof fetch>[0], initialization?: Parameters<typeof fetch>[1]) => Promise<Response>
+) {
+	return Object.assign(handler, { preconnect: globalThis.fetch.preconnect });
+}
