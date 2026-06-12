@@ -151,7 +151,7 @@
 				</div>
 				{#if mattermostURL()}
 					<div class="flex flex-wrap items-center gap-2">
-						<Button href={mattermostURL()} class="gap-2">
+						<Button href={mattermostURL()} data-sveltekit-reload class="gap-2">
 							<ExternalLinkIcon class="size-4" />
 							{text.openMattermost}
 						</Button>
