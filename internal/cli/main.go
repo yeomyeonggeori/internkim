@@ -236,6 +236,8 @@ func Main() {
 			runOps()
 		case "tenant":
 			runTenant()
+		case "host":
+			runHost()
 		case "dev":
 			runDev()
 		case "lab":
@@ -275,6 +277,7 @@ func printUsage() {
 	fmt.Println("  llm      One-shot LLM ping (local by default, --remote for OpenRouter)")
 	fmt.Println("  ops      Serve the local personal fleet console")
 	fmt.Println("  tenant   Manage PoC tenant runtime manifests")
+	fmt.Println("  host     Manage Mac-hosted tenant VM plumbing")
 	fmt.Println("  lab      Run Tart-based Blueclaw-aligned lab workflows")
 	fmt.Println("  sim      Deprecated alias for lab")
 }
