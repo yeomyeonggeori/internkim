@@ -3,6 +3,22 @@ export type CalendarNavigationMessage = {
 	dateKey: string;
 };
 
+export type CalendarVisibleDateMessage = {
+	type: 'calendar-visible-date';
+	dateKey: string;
+};
+
+export type CalendarViewValue = 'day' | 'week' | 'month';
+
+export type CalendarViewMessage = {
+	type: 'calendar-view';
+	view: CalendarViewValue;
+};
+
+export type CalendarEventsChangedMessage = {
+	type: 'calendar-events-changed';
+};
+
 const calendarDateKeyPattern = /^\d{4}-\d{2}-\d{2}$/;
 
 export function isCalendarNavigationMessage(value: unknown): value is CalendarNavigationMessage {
@@ -10,6 +26,29 @@ export function isCalendarNavigationMessage(value: unknown): value is CalendarNa
 	if (!('type' in value) || value.type !== 'calendar-navigate') return false;
 	if (!('dateKey' in value) || typeof value.dateKey !== 'string') return false;
 	return isCalendarDateKey(value.dateKey);
+}
+
+export function isCalendarVisibleDateMessage(value: unknown): value is CalendarVisibleDateMessage {
+	if (!value || typeof value !== 'object') return false;
+	if (!('type' in value) || value.type !== 'calendar-visible-date') return false;
+	if (!('dateKey' in value) || typeof value.dateKey !== 'string') return false;
+	return isCalendarDateKey(value.dateKey);
+}
+
+export function isCalendarViewMessage(value: unknown): value is CalendarViewMessage {
+	if (!value || typeof value !== 'object') return false;
+	if (!('type' in value) || value.type !== 'calendar-view') return false;
+	if (!('view' in value) || typeof value.view !== 'string') return false;
+	return isCalendarViewValue(value.view);
+}
+
+export function isCalendarEventsChangedMessage(value: unknown): value is CalendarEventsChangedMessage {
+	if (!value || typeof value !== 'object') return false;
+	return 'type' in value && value.type === 'calendar-events-changed';
+}
+
+export function isCalendarViewValue(value: string): value is CalendarViewValue {
+	return value === 'day' || value === 'week' || value === 'month';
 }
 
 function isCalendarDateKey(value: string): boolean {
