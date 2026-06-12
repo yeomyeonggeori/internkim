@@ -57,6 +57,9 @@ func (service *Service) ensureMattermostEphemeralPlugin(ctx context.Context) (st
 	if errorValue != nil {
 		return "", errorValue
 	}
+	if errorValue := service.enableMattermostPluginUploads(ctx, adminToken); errorValue != nil {
+		return "", errorValue
+	}
 	if errorValue := service.uploadMattermostEphemeralPlugin(ctx, adminToken); errorValue != nil {
 		return "", errorValue
 	}
@@ -148,6 +151,17 @@ func mattermostPluginUploadBody(bundlePath string) (io.Reader, string, error) {
 		return nil, "", errorValue
 	}
 	return bytes.NewReader(body.Bytes()), writer.FormDataContentType(), nil
+}
+
+func (service *Service) enableMattermostPluginUploads(ctx context.Context, token string) error {
+	body := map[string]any{
+		"PluginSettings": map[string]any{
+			"Enable":                 true,
+			"EnableUploads":          true,
+			"RequirePluginSignature": false,
+		},
+	}
+	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/config/patch", token, body, nil)
 }
 
 func (service *Service) enableMattermostEphemeralPlugin(ctx context.Context, token string) error {
