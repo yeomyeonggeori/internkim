@@ -79,6 +79,7 @@ func printHostUsage() {
 	fmt.Println("  status    Show Mac container VM state and tenant runtime status")
 	fmt.Println("  sync-cli  Cross-compile and install internkim CLI into the tenant VM")
 	fmt.Println("  add-team  Provision a host-runtime tenant inside the tenant VM")
+	fmt.Println("  console   Serve the local host tenant console")
 }
 
 func executeHostCommand(commandName string, arguments []string, executor hostCommandExecutor) (int, error) {
@@ -89,6 +90,8 @@ func executeHostCommand(commandName string, arguments []string, executor hostCom
 		return 0, executeHostSyncCLI(arguments, executor, os.Stdout, os.Stderr)
 	case "add-team":
 		return executeHostAddTeam(arguments, executor, os.Stdout, os.Stderr)
+	case "console":
+		return 0, executeHostConsole(arguments, executor, os.Stdout)
 	default:
 		printHostUsage()
 		return 0, nil
@@ -124,20 +127,15 @@ func executeHostStatus(arguments []string, executor hostCommandExecutor, output 
 	if errorValue := ensureHostVirtualMachineIsRunning(executor, containerPath, options.VirtualMachineName); errorValue != nil {
 		return errorValue
 	}
-	tenantIDs, errorValue := hostTenantIDs(executor, containerPath, options.VirtualMachineName)
+	tenants, errorValue := hostTenantSummaries(executor, containerPath, options.VirtualMachineName)
 	if errorValue != nil {
 		return errorValue
 	}
 	fmt.Fprintln(output, strings.TrimSpace(string(listOutput)))
 	fmt.Fprintln(output)
 	fmt.Fprintln(output, "TENANT\tPUBLIC_URL\tRUNNING")
-	for _, tenantID := range tenantIDs {
-		status, errorValue := hostTenantStatus(executor, containerPath, options.VirtualMachineName, tenantID)
-		if errorValue != nil {
-			return errorValue
-		}
-		runningState := hostTenantRunningState(executor, containerPath, options.VirtualMachineName, tenantID)
-		fmt.Fprintf(output, "%s\t%s\t%s\n", status.Manifest.TenantID, hostTenantPublicURL(status), runningState)
+	for _, tenant := range tenants {
+		fmt.Fprintf(output, "%s\t%s\t%s\n", tenant.TenantID, tenant.PublicURL, tenant.RunningState)
 	}
 	return nil
 }
@@ -161,6 +159,10 @@ func executeHostAddTeam(arguments []string, executor hostCommandExecutor, output
 	if errorValue != nil {
 		return 1, errorValue
 	}
+	return runHostAddTeam(options, executor, output, errorOutput)
+}
+
+func runHostAddTeam(options hostAddTeamOptions, executor hostCommandExecutor, output io.Writer, errorOutput io.Writer) (int, error) {
 	if errorValue := syncHostCLI(executor, options.VirtualMachineName, output, errorOutput); errorValue != nil {
 		return 1, errorValue
 	}
@@ -321,6 +323,54 @@ type hostTenantStatusDocument struct {
 			PublicURL string `json:"publicURL"`
 		} `json:"mattermostInstance"`
 	} `json:"manifest"`
+}
+
+type hostTenantSummary struct {
+	TenantID     string `json:"tenantID"`
+	PublicURL    string `json:"publicURL"`
+	Running      bool   `json:"running"`
+	RunningState string `json:"-"`
+}
+
+func listHostTenantSummaries(executor hostCommandExecutor, virtualMachineName string) ([]hostTenantSummary, error) {
+	containerPath, errorValue := resolveHostContainerPath(executor)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	if errorValue := ensureHostVirtualMachineIsRunning(executor, containerPath, virtualMachineName); errorValue != nil {
+		return nil, errorValue
+	}
+	return hostTenantSummaries(executor, containerPath, virtualMachineName)
+}
+
+func hostTenantSummaries(executor hostCommandExecutor, containerPath string, virtualMachineName string) ([]hostTenantSummary, error) {
+	tenantIDs, errorValue := hostTenantIDs(executor, containerPath, virtualMachineName)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	tenants := make([]hostTenantSummary, 0, len(tenantIDs))
+	for _, tenantID := range tenantIDs {
+		tenant, errorValue := hostTenantSummaryForID(executor, containerPath, virtualMachineName, tenantID)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		tenants = append(tenants, tenant)
+	}
+	return tenants, nil
+}
+
+func hostTenantSummaryForID(executor hostCommandExecutor, containerPath string, virtualMachineName string, tenantID string) (hostTenantSummary, error) {
+	status, errorValue := hostTenantStatus(executor, containerPath, virtualMachineName, tenantID)
+	if errorValue != nil {
+		return hostTenantSummary{}, errorValue
+	}
+	runningState := hostTenantRunningState(executor, containerPath, virtualMachineName, tenantID)
+	return hostTenantSummary{
+		TenantID:     status.Manifest.TenantID,
+		PublicURL:    hostTenantPublicURL(status),
+		Running:      runningState == "active",
+		RunningState: runningState,
+	}, nil
 }
 
 func hostTenantStatus(executor hostCommandExecutor, containerPath string, virtualMachineName string, tenantID string) (hostTenantStatusDocument, error) {
