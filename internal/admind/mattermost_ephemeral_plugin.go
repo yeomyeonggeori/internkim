@@ -80,7 +80,12 @@ func (service *Service) writeMattermostPluginSyncDiagnostic(responseWriter http.
 		service.writeJSON(responseWriter, map[string]string{"status": "failed", "error": errorValue.Error()})
 		return
 	}
-	service.writeJSON(responseWriter, map[string]string{"status": "ok"})
+	probeStatus, probeError := service.postMattermostEphemeralPluginUpdate(request.Context(), service.mattermostEphemeralPluginSecret(), []byte(`{}`))
+	probe := map[string]any{"status": "ok", "authProbeStatus": probeStatus}
+	if probeError != nil {
+		probe["authProbeError"] = probeError.Error()
+	}
+	service.writeJSON(responseWriter, probe)
 }
 
 func (service *Service) logMattermostEphemeralPluginStatus(ctx context.Context, token string) {
