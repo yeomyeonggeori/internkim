@@ -36,6 +36,7 @@ func TestHTTPClientTimeoutTracksProviderAttemptTimeout(t *testing.T) {
 }
 
 func TestLocalStructuredCompletionUsesRequestedAccelerator(t *testing.T) {
+	setLiteRTConstrainedRunnerPath(t, createLiteRTConstrainedRunner(t))
 	service := Service{
 		Configuration: DefaultConfiguration(),
 		RunCommand: func(ctx context.Context, executablePath string, arguments []string, standardInput []byte) ([]byte, error) {
@@ -94,6 +95,7 @@ func TestCompanionInferenceModeStopsOnlyJetsonGenerationService(t *testing.T) {
 }
 
 func TestLocalStructuredCompletionRejectsInvalidStructuredOutput(t *testing.T) {
+	setLiteRTConstrainedRunnerPath(t, createLiteRTConstrainedRunner(t))
 	service := Service{
 		Configuration: DefaultConfiguration(),
 		RunCommand: func(context.Context, string, []string, []byte) ([]byte, error) {
@@ -134,6 +136,7 @@ func TestTextCompletionReturnsPlainContent(t *testing.T) {
 }
 
 func TestStructuredEndpointReturnsConstrainedContent(t *testing.T) {
+	setLiteRTConstrainedRunnerPath(t, createLiteRTConstrainedRunner(t))
 	service := Service{
 		Configuration: DefaultConfiguration(),
 		RunCommand: func(context.Context, string, []string, []byte) ([]byte, error) {
@@ -193,6 +196,34 @@ func TestTextEndpointReturnsPlainContent(t *testing.T) {
 	}
 	if response.Content != "plain endpoint reply" {
 		t.Fatalf("expected plain response content, got %q", response.Content)
+	}
+}
+
+func TestHealthIncludesLiteRTProviderAvailability(t *testing.T) {
+	setLiteRTConstrainedRunnerPath(t, filepath.Join(t.TempDir(), "missing-constrained-runner"))
+	service := Service{Configuration: DefaultConfiguration()}
+	request := httptest.NewRequest(http.MethodGet, "/health", nil)
+	responseRecorder := httptest.NewRecorder()
+
+	service.router().ServeHTTP(responseRecorder, request)
+
+	var response map[string]any
+	if errorValue := json.NewDecoder(responseRecorder.Body).Decode(&response); errorValue != nil {
+		t.Fatalf("expected health response to decode: %v", errorValue)
+	}
+	providers, hasProviders := response["providers"].(map[string]any)
+	if !hasProviders {
+		t.Fatalf("expected providers health section, got %+v", response)
+	}
+	liteRT, hasLiteRT := providers["litert"].(map[string]any)
+	if !hasLiteRT {
+		t.Fatalf("expected LiteRT health section, got %+v", providers)
+	}
+	if liteRT["available"] != false {
+		t.Fatalf("expected LiteRT to be unavailable, got %+v", liteRT)
+	}
+	if liteRT["reason"] != "constrained runner not installed" {
+		t.Fatalf("expected constrained runner reason, got %+v", liteRT)
 	}
 }
 

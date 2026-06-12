@@ -157,7 +157,7 @@ func completeWithProviderChain(providers []Provider, requestTrace string, comple
 		}
 		attempts = append(attempts, providerFailure(candidate, errorValue))
 		if index < len(providers)-1 {
-			logFallback(errorValue, requestTrace)
+			logFallback(candidate, errorValue, requestTrace)
 		}
 	}
 	if len(attempts) == 0 {
@@ -167,14 +167,21 @@ func completeWithProviderChain(providers []Provider, requestTrace string, comple
 }
 
 func providerFailure(provider Provider, errorValue error) string {
+	if failure, isUnavailable := providerUnavailableFailure(errorValue); isUnavailable {
+		return failure
+	}
 	if namedProvider, ok := provider.(interface{ Name() string }); ok {
 		return namedProvider.Name() + ": " + errorValue.Error()
 	}
 	return errorValue.Error()
 }
 
-func logFallback(errorValue error, requestTrace string) {
+func logFallback(provider Provider, errorValue error, requestTrace string) {
 	if errorValue != nil {
+		if failure, isUnavailable := providerUnavailableFailure(errorValue); isUnavailable {
+			log.Printf("llm provider failed; trying next provider: %s; %s", failure, requestTrace)
+			return
+		}
 		log.Printf("llm provider failed; trying next provider: %v; %s", errorValue, requestTrace)
 	}
 }
