@@ -724,7 +724,7 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 	case request.Method == http.MethodPost && strings.HasPrefix(path, "/maintenance/mattermost-posts/") && strings.HasSuffix(path, "/repair"):
 		service.repairMattermostPost(responseWriter, request, strings.TrimSuffix(strings.TrimPrefix(path, "/maintenance/mattermost-posts/"), "/repair"))
 	case request.Method == http.MethodGet && path == "/sites":
-		service.listSites(responseWriter)
+		service.listSites(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/sites":
 		service.createSite(responseWriter, request)
 	case strings.HasPrefix(path, "/sites/"):
