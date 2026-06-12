@@ -80,7 +80,8 @@ func (service *Service) writeUserMemorySchedules(responseWriter http.ResponseWri
 func (service *Service) cancelUserMemorySchedule(responseWriter http.ResponseWriter, request *http.Request) {
 	var cancelRequest memoryScheduleCancelRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&cancelRequest); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		log.Printf("memory schedule cancel request decode failed: %v", errorValue)
+		http.Error(responseWriter, "invalid memory schedule request", http.StatusBadRequest)
 		return
 	}
 	personID, ok := service.writeMemorySchedulePersonID(responseWriter, request)
@@ -102,7 +103,8 @@ func (service *Service) cancelUserMemorySchedule(responseWriter http.ResponseWri
 func (service *Service) updateUserMemorySchedule(responseWriter http.ResponseWriter, request *http.Request) {
 	var updateRequest memoryScheduleUpdateRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&updateRequest); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		log.Printf("memory schedule update request decode failed: %v", errorValue)
+		http.Error(responseWriter, "invalid memory schedule request", http.StatusBadRequest)
 		return
 	}
 	personID, ok := service.writeMemorySchedulePersonID(responseWriter, request)

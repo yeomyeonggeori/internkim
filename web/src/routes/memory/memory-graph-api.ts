@@ -1,9 +1,9 @@
 export type MemoryGraphHealth = {
 	configured?: boolean;
 	reachable?: boolean;
-	lastSearchError?: string;
-	lastIngestionError?: string;
-	error?: string;
+	hasSearchFailure?: boolean;
+	hasIngestionFailure?: boolean;
+	hasGraphFailure?: boolean;
 };
 
 export type MemoryGraphNamespace = {
@@ -86,11 +86,16 @@ function normalizeMemoryGraphHealth(document: unknown): MemoryGraphHealth | unde
 	const health = {
 		...(typeof record.configured === 'boolean' ? { configured: record.configured } : {}),
 		...(typeof record.reachable === 'boolean' ? { reachable: record.reachable } : {}),
-		...(readString(record.lastSearchError) ? { lastSearchError: readString(record.lastSearchError) } : {}),
-		...(readString(record.lastIngestionError) ? { lastIngestionError: readString(record.lastIngestionError) } : {}),
-		...(readString(record.error) ? { error: readString(record.error) } : {})
+		...(hasFailure(record.lastSearchError) ? { hasSearchFailure: true } : {}),
+		...(hasFailure(record.lastIngestionError) ? { hasIngestionFailure: true } : {}),
+		...(hasFailure(record.error) ? { hasGraphFailure: true } : {})
 	};
 	return Object.keys(health).length > 0 ? health : undefined;
+}
+
+function hasFailure(value: unknown): boolean {
+	if (typeof value === 'boolean') return value;
+	return typeof value === 'string' && value.trim().length > 0;
 }
 
 function normalizeMemoryGraphNamespace(document: unknown): MemoryGraphNamespace | undefined {

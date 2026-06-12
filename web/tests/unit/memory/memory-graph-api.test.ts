@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { normalizeMemoryGraphResponse } from '../../../src/routes/memory/memory-graph-api';
+import { fetchMemoryGraph, normalizeMemoryGraphResponse } from '../../../src/routes/memory/memory-graph-api';
 
 describe('memory graph api normalizer', () => {
 	test('drops malformed graph rows while keeping valid graph data', () => {
@@ -7,7 +7,8 @@ describe('memory graph api normalizer', () => {
 			health: {
 				configured: true,
 				reachable: false,
-				error: 'graph unavailable',
+				error: 'Traceback private graph detail',
+				lastIngestionError: '/workspace/.blueclaw/private.py failed',
 				lastSearchError: 123
 			},
 			namespaces: [
@@ -37,8 +38,12 @@ describe('memory graph api normalizer', () => {
 
 		expect(response.health?.configured).toBe(true);
 		expect(response.health?.reachable).toBe(false);
-		expect(response.health?.error).toBe('graph unavailable');
-		expect(response.health?.lastSearchError).toBe(undefined);
+		expect(response.health?.hasGraphFailure).toBe(true);
+		expect(response.health?.hasIngestionFailure).toBe(true);
+		expect(response.health?.hasSearchFailure).toBe(undefined);
+		expect(hasProperty(response.health, 'error')).toBe(false);
+		expect(hasProperty(response.health, 'lastIngestionError')).toBe(false);
+		expect(hasProperty(response.health, 'lastSearchError')).toBe(false);
 		expect(response.namespaces?.length).toBe(1);
 		expect(response.episodes?.length).toBe(2);
 		expect(response.facts?.length).toBe(1);
@@ -46,4 +51,56 @@ describe('memory graph api normalizer', () => {
 		expect(response.edges?.length).toBe(1);
 		expect(response.edges?.[0]?.weight).toBe(2);
 	});
+
+	test('normalizes boolean failure flags without preserving raw detail strings', () => {
+		const response = normalizeMemoryGraphResponse({
+			health: {
+				configured: true,
+				reachable: true,
+				error: false,
+				lastSearchError: true,
+				lastIngestionError: ''
+			}
+		});
+
+		expect(response.health?.hasGraphFailure).toBe(undefined);
+		expect(response.health?.hasSearchFailure).toBe(true);
+		expect(response.health?.hasIngestionFailure).toBe(undefined);
+		expect(hasProperty(response.health, 'lastSearchError')).toBe(false);
+	});
+
+	test('does not expose graph fetch failure response text', async () => {
+		const originalFetch = globalThis.fetch;
+		const fetchStub = createFetchStub(async () => new Response('Traceback /workspace/.blueclaw/private.py', { status: 502 }));
+		globalThis.fetch = fetchStub;
+
+		try {
+			const errorMessage = await rejectedErrorMessage(fetchMemoryGraph('team'));
+
+			expect(errorMessage).toBe('Memory graph request returned 502');
+			expect(errorMessage.includes('Traceback')).toBe(false);
+			expect(errorMessage.includes('/workspace')).toBe(false);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
 });
+
+function hasProperty(document: object | undefined, propertyName: string): boolean {
+	return document ? Object.hasOwn(document, propertyName) : false;
+}
+
+function createFetchStub(
+	handler: (input: Parameters<typeof fetch>[0], initialization?: Parameters<typeof fetch>[1]) => Promise<Response>
+) {
+	return Object.assign(handler, { preconnect: globalThis.fetch.preconnect });
+}
+
+async function rejectedErrorMessage(promise: Promise<unknown>): Promise<string> {
+	try {
+		await promise;
+		return '';
+	} catch (error) {
+		return error instanceof Error ? error.message : '';
+	}
+}
