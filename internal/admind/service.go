@@ -379,9 +379,7 @@ func (service *Service) startMattermostProvisionerSync(ctx context.Context) {
 		if errorValue := service.ensureMattermostProvisionerDefaults(syncContext); errorValue != nil {
 			log.Printf("Mattermost provisioner sync failed: %v", errorValue)
 		}
-		if _, errorValue := service.ensureMattermostEphemeralPlugin(syncContext); errorValue != nil {
-			log.Printf("Mattermost ephemeral plugin sync failed: %v", errorValue)
-		}
+		service.ensureMattermostEphemeralPluginWithRetry(ctx)
 	}()
 }
 
