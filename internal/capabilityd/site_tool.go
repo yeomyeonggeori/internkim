@@ -83,10 +83,6 @@ type siteAppCollaborator struct {
 	GrantedAt      time.Time `json:"grantedAt,omitempty"`
 }
 
-func isSiteAppTool(toolName string) bool {
-	return strings.HasPrefix(strings.TrimSpace(toolName), "site.app.")
-}
-
 func (service Service) invokeSiteAppTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	result, errorValue := service.invokeSiteApp(ctx, request)
 	if errorValue != nil {

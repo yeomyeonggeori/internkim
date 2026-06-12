@@ -47,15 +47,6 @@ type mailMessageMarkInput struct {
 	Flagged *bool  `json:"flagged"`
 }
 
-func isMailTool(toolName string) bool {
-	switch strings.TrimSpace(toolName) {
-	case "mail.message.list", "mail.message.search", "mail.message.read", "mail.message.send", "mail.message.move", "mail.message.mark", "mail.connection.status", "mail.connection.start":
-		return true
-	default:
-		return false
-	}
-}
-
 func (service Service) invokeMailTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	result, errorValue := service.invokeMail(ctx, request)
 	if errorValue != nil {
