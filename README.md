@@ -154,6 +154,8 @@ CLOUDFLARE_ACCOUNT_ID="$(awk 'BEGIN{FS="="} $1=="CF_ACCOUNT_ID"{sub(/^[^=]*=/,""
 ../../web/node_modules/.bin/wrangler deploy --keep-vars
 ```
 
+맥스튜디오 한 대에서 PoC 테넌트를 추가·제거·운영하는 전체 절차(`internkim host init/add-team/remove-team/console`)는 [docs/poc-host.md](docs/poc-host.md)에 정리되어 있습니다. 아래 명령들은 그 절차가 내부에서 사용하는 저수준 단계입니다.
+
 cloud-shared bootstrap은 runtime model을 명시해서 배포합니다. PoC Worker 경로에서는 `google/gemini-3.5-flash`가 provider region policy로 거절될 수 있으므로, 현재 smoke 통과 모델인 `x-ai/grok-4.3`을 `tenant bootstrap --model x-ai/grok-4.3` 또는 `tenant install-host-runtime --model x-ai/grok-4.3`으로 지정합니다. chat, web tool, embedding 요청은 모두 gateway를 통해야 합니다. cloud-shared에서 `embeddinggemma` 같은 로컬 embedding alias가 들어오면 capabilityd가 OpenRouter embedding model로 정규화합니다.
 
 cloud-shared Mattermost admin password의 운영 기준은 실제 인스턴스가 읽는 credentials 파일입니다. 이미 VM 안에서 Mattermost 인스턴스를 만든 뒤에는 로컬 `.local/tenants/*` bundle 값을 고객에게 안내하지 말고, VM의 `/srv/internkim-mattermost-instances/credentials.json` 또는 동일한 배포 source of truth에서 다시 읽어야 합니다.
