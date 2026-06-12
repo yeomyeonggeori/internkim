@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -26,10 +27,8 @@ func TestPlatformDMSendScheduledRunSendsMattermostDM(t *testing.T) {
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			requestPaths = append(requestPaths, request.URL.String())
 			switch request.URL.String() {
-			case "http://blueclaw.local/admin/api/policy":
-				return platformDMTestJSONResponse(`{"people":[{"personID":"person-dongha","displayName":"이샘플","emails":["dongha@example.com"]}]}`), nil
-			case "http://mattermost.local/api/v4/users?per_page=200":
-				return platformDMTestJSONResponse(`[{"id":"user-dongha","email":"dongha@example.com","username":"dongha","nickname":"샘플"}]`), nil
+			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
+				return platformDMTestJSONResponse(platformDMResolvedDonghaResponse()), nil
 			case "http://mattermost.local/api/v4/users/me":
 				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim"}`), nil
 			case "http://mattermost.local/api/v4/channels/direct":
@@ -68,14 +67,14 @@ func TestPlatformDMSendScheduledRunSendsMattermostDM(t *testing.T) {
 	if postBody["channel_id"] != "dm-channel-1" || postBody["message"] != "테스트" {
 		t.Fatalf("unexpected post body: %+v", postBody)
 	}
-	if len(requestPaths) != 5 {
-		t.Fatalf("expected five requests, got %+v", requestPaths)
+	if len(requestPaths) != 4 {
+		t.Fatalf("expected four requests, got %+v", requestPaths)
 	}
 }
 
 func TestPlatformDMSendImmediateRunRequiresApprovalContext(t *testing.T) {
 	tokenPath := writePlatformDMTestFile(t, "bot-token")
-	service := platformDMTestService(t, tokenPath, `[{"id":"user-dongha","email":"dongha@example.com","username":"dongha"}]`)
+	service := platformDMTestService(t, tokenPath, platformDMResolvedDonghaResponse())
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "platform.message.send",
@@ -96,7 +95,7 @@ func TestPlatformDMSendImmediateRunRequiresApprovalContext(t *testing.T) {
 
 func TestPlatformDMSendImmediateSelfDoesNotRequireApproval(t *testing.T) {
 	tokenPath := writePlatformDMTestFile(t, "bot-token")
-	service := platformDMTestService(t, tokenPath, `[{"id":"user-dongha","email":"dongha@example.com","username":"dongha","nickname":"샘플"}]`)
+	service := platformDMTestService(t, tokenPath, platformDMResolvedDonghaResponse())
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "platform.message.send",
@@ -116,7 +115,7 @@ func TestPlatformDMSendImmediateSelfDoesNotRequireApproval(t *testing.T) {
 
 func TestPlatformDMSendApprovedContinuationSendsMattermostDM(t *testing.T) {
 	tokenPath := writePlatformDMTestFile(t, "bot-token")
-	service := platformDMTestService(t, tokenPath, `[{"id":"user-dongha","email":"dongha@example.com","username":"dongha"}]`)
+	service := platformDMTestService(t, tokenPath, platformDMResolvedDonghaResponse())
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "platform.message.send",
@@ -135,7 +134,7 @@ func TestPlatformDMSendApprovedContinuationSendsMattermostDM(t *testing.T) {
 
 func TestPlatformDMSendMatchesMattermostNickname(t *testing.T) {
 	tokenPath := writePlatformDMTestFile(t, "bot-token")
-	service := platformDMTestService(t, tokenPath, `[{"id":"user-dongha","email":"dongha@example.com","username":"member-42","nickname":"샘플"}]`)
+	service := platformDMTestService(t, tokenPath, `{"status":"resolved","recipient":{"personID":"person-dongha","displayName":"이샘플","emails":["dongha@example.com"],"externalUserID":"user-dongha","username":"member-42"}}`)
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "platform.message.send",
@@ -152,120 +151,80 @@ func TestPlatformDMSendMatchesMattermostNickname(t *testing.T) {
 	}
 }
 
-func TestMatchingPlatformDMRecipientsMatchesPartialKoreanGivenName(t *testing.T) {
-	matches := matchingPlatformDMRecipients("테스트", []platformDMPolicyPerson{{
-		PersonID:    "person-wookyung",
-		DisplayName: "김테스트",
-		Emails:      []string{"wookyung@example.com"},
-	}}, []platformDMMattermostUser{{
-		ID:    "user-wookyung",
-		Email: "wookyung@example.com",
-	}})
-
-	if len(matches) != 1 || matches[0].PersonID != "person-wookyung" {
-		t.Fatalf("expected Wookyung match, got %+v", matches)
-	}
-}
-
-func TestMatchingPlatformDMRecipientsReturnsMultiplePartialKoreanMatches(t *testing.T) {
-	matches := matchingPlatformDMRecipients("테스트", []platformDMPolicyPerson{{
-		PersonID:    "person-wookyung-a",
-		DisplayName: "김테스트",
-		Emails:      []string{"wookyung-a@example.com"},
-	}, {
-		PersonID:    "person-wookyung-b",
-		DisplayName: "김테스트",
-		Emails:      []string{"wookyung-b@example.com"},
-	}}, []platformDMMattermostUser{{
-		ID:    "user-wookyung-a",
-		Email: "wookyung-a@example.com",
-	}, {
-		ID:    "user-wookyung-b",
-		Email: "wookyung-b@example.com",
-	}})
-
-	if len(matches) != 2 {
-		t.Fatalf("expected ambiguous Wookyung matches, got %+v", matches)
-	}
-}
-
-func TestMatchingPlatformDMRecipientsMatchesFullName(t *testing.T) {
-	matches := matchingPlatformDMRecipients("김테스트", []platformDMPolicyPerson{{
-		PersonID:    "person-wookyung",
-		DisplayName: "김테스트",
-		Emails:      []string{"wookyung@example.com"},
-	}}, []platformDMMattermostUser{{
-		ID:    "user-wookyung",
-		Email: "wookyung@example.com",
-	}})
-
-	if len(matches) != 1 || matches[0].MattermostUserID != "user-wookyung" {
-		t.Fatalf("expected full name match, got %+v", matches)
-	}
-}
-
-func TestMatchingPlatformDMRecipientsReturnsNoMatch(t *testing.T) {
-	matches := matchingPlatformDMRecipients("샘플", []platformDMPolicyPerson{{
-		PersonID:    "person-wookyung",
-		DisplayName: "김테스트",
-		Emails:      []string{"wookyung@example.com"},
-	}}, []platformDMMattermostUser{{
-		ID:    "user-wookyung",
-		Email: "wookyung@example.com",
-	}})
-
-	if len(matches) != 0 {
-		t.Fatalf("expected no match, got %+v", matches)
-	}
-}
-
-func TestMatchingPlatformDMRecipientsMatchesPartialEnglishName(t *testing.T) {
-	people := []platformDMPolicyPerson{{
-		PersonID:    "person-john",
-		DisplayName: "John Smith",
-		Emails:      []string{"john.smith@example.com"},
-	}}
-	users := []platformDMMattermostUser{{
-		ID:    "user-john",
-		Email: "john.smith@example.com",
-	}}
-
-	for _, hint := range []string{"john", "Smith", "JOHN SMITH", "john.smith"} {
-		matches := matchingPlatformDMRecipients(hint, people, users)
-		if len(matches) != 1 || matches[0].PersonID != "person-john" {
-			t.Fatalf("expected %q to match John Smith, got %+v", hint, matches)
+func TestResolvePlatformDMRecipientUsesBlueclawResolvedRecipient(t *testing.T) {
+	var requestBody map[string]string
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost || request.URL.Path != "/admin/api/identity/resolve-recipient" {
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
 		}
+		if errorValue := json.NewDecoder(request.Body).Decode(&requestBody); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		responseWriter.Header().Set("Content-Type", "application/json")
+		_, _ = responseWriter.Write([]byte(platformDMResolvedDonghaResponse()))
+	}))
+	defer server.Close()
+
+	service := Service{Configuration: Configuration{BlueclawBaseURL: server.URL}}
+	recipient, failure, hasFailure := service.resolvePlatformDMRecipient(context.Background(), "샘플")
+	if hasFailure {
+		t.Fatalf("expected resolved recipient, failure=%+v", failure)
+	}
+	if requestBody["platform"] != "mattermost" || requestBody["hint"] != "샘플" {
+		t.Fatalf("unexpected resolve request body: %+v", requestBody)
+	}
+	if recipient.PersonID != "person-dongha" || recipient.MattermostUserID != "user-dongha" || recipient.MattermostUsername != "dongha" {
+		t.Fatalf("unexpected resolved recipient: %+v", recipient)
+	}
+	if strings.Join(recipient.Emails, ",") != "dongha@example.com" {
+		t.Fatalf("unexpected recipient emails: %+v", recipient.Emails)
 	}
 }
 
-func TestMatchingPlatformDMRecipientsReturnsMultiplePartialEnglishMatches(t *testing.T) {
-	matches := matchingPlatformDMRecipients("smith", []platformDMPolicyPerson{{
-		PersonID:    "person-john",
-		DisplayName: "John Smith",
-		Emails:      []string{"john.smith@example.com"},
-	}, {
-		PersonID:    "person-jane",
-		DisplayName: "Jane Smith",
-		Emails:      []string{"jane.smith@example.com"},
-	}}, []platformDMMattermostUser{{
-		ID:    "user-john",
-		Email: "john.smith@example.com",
-	}, {
-		ID:    "user-jane",
-		Email: "jane.smith@example.com",
-	}})
+func TestResolvePlatformDMRecipientReturnsAmbiguousCandidates(t *testing.T) {
+	service := platformDMResolverTestService(t, `{"status":"ambiguous","candidates":[{"personID":"person-one","displayName":"Lee One","emails":["one@example.com"],"externalUserID":"user-one"},{"personID":"person-two","displayName":"Lee Two","emails":["two@example.com"],"externalUserID":"user-two"}]}`)
 
-	if len(matches) != 2 {
-		t.Fatalf("expected ambiguous Smith matches, got %+v", matches)
+	_, failure, hasFailure := service.resolvePlatformDMRecipient(context.Background(), "lee")
+	if !hasFailure {
+		t.Fatal("expected ambiguous failure")
+	}
+	if failure.ErrorCode != "recipient_ambiguous" || len(failure.Candidates) != 2 {
+		t.Fatalf("unexpected ambiguous failure: %+v", failure)
+	}
+	if failure.Candidates[0].MattermostUserID != "user-one" || failure.Candidates[1].MattermostUserID != "user-two" {
+		t.Fatalf("expected external user ids in candidates: %+v", failure.Candidates)
+	}
+}
+
+func TestResolvePlatformDMRecipientReturnsNotFound(t *testing.T) {
+	service := platformDMResolverTestService(t, `{"status":"not_found","approvedPeople":["이샘플"]}`)
+
+	_, failure, hasFailure := service.resolvePlatformDMRecipient(context.Background(), "없는사람")
+	if !hasFailure {
+		t.Fatal("expected not found failure")
+	}
+	if failure.ErrorCode != "recipient_not_found" || !strings.Contains(failure.Message, `recipient "없는사람" was not found`) {
+		t.Fatalf("unexpected not found failure: %+v", failure)
+	}
+}
+
+func TestResolvePlatformDMRecipientReturnsRetryableFailureWhenBlueclawUnreachable(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {}))
+	server.Close()
+	service := Service{Configuration: Configuration{BlueclawBaseURL: server.URL}}
+
+	_, failure, hasFailure := service.resolvePlatformDMRecipient(context.Background(), "샘플")
+	if !hasFailure {
+		t.Fatal("expected unavailable failure")
+	}
+	if failure.ErrorCode != "mattermost_unavailable" || failure.FailureStage != "mattermost_lookup" || !failure.Retryable || !failure.SafeRetry {
+		t.Fatalf("unexpected unavailable failure: %+v", failure)
 	}
 }
 
 func TestPlatformDMSendAmbiguousRecipientDoesNotSend(t *testing.T) {
 	tokenPath := writePlatformDMTestFile(t, "bot-token")
-	service := platformDMTestService(t, tokenPath, `[
-		{"id":"user-one","email":"one@example.com","username":"lee"},
-		{"id":"user-two","email":"two@example.com","username":"lee-two"}
-	]`)
+	service := platformDMTestService(t, tokenPath, `{"status":"ambiguous","candidates":[{"personID":"person-one","displayName":"Lee One","emails":["one@example.com"],"externalUserID":"user-one"},{"personID":"person-two","displayName":"Lee Two","emails":["two@example.com"],"externalUserID":"user-two"}]}`)
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "platform.message.send",
@@ -284,7 +243,7 @@ func TestPlatformDMSendAmbiguousRecipientDoesNotSend(t *testing.T) {
 }
 
 func TestPlatformDMSendMissingMattermostTokenDoesNotSend(t *testing.T) {
-	service := platformDMTestService(t, "/missing/token", `[{"id":"user-dongha","email":"dongha@example.com","username":"dongha"}]`)
+	service := platformDMTestService(t, "/missing/token", platformDMResolvedDonghaResponse())
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "platform.message.send",
@@ -312,10 +271,8 @@ func TestPlatformDMSendPostFailureIsNotSafeToRetry(t *testing.T) {
 		},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			switch request.URL.String() {
-			case "http://blueclaw.local/admin/api/policy":
-				return platformDMTestJSONResponse(`{"people":[{"personID":"person-dongha","displayName":"이샘플","emails":["dongha@example.com"]}]}`), nil
-			case "http://mattermost.local/api/v4/users?per_page=200":
-				return platformDMTestJSONResponse(`[{"id":"user-dongha","email":"dongha@example.com","username":"dongha"}]`), nil
+			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
+				return platformDMTestJSONResponse(platformDMResolvedDonghaResponse()), nil
 			case "http://mattermost.local/api/v4/users/me":
 				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim"}`), nil
 			case "http://mattermost.local/api/v4/channels/direct":
@@ -352,10 +309,8 @@ func TestPlatformDMSendDirectChannelFailureUsesSpecificStage(t *testing.T) {
 		},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			switch request.URL.String() {
-			case "http://blueclaw.local/admin/api/policy":
-				return platformDMTestJSONResponse(`{"people":[{"personID":"person-dongha","displayName":"이샘플","emails":["dongha@example.com"]}]}`), nil
-			case "http://mattermost.local/api/v4/users?per_page=200":
-				return platformDMTestJSONResponse(`[{"id":"user-dongha","email":"dongha@example.com","username":"dongha"}]`), nil
+			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
+				return platformDMTestJSONResponse(platformDMResolvedDonghaResponse()), nil
 			case "http://mattermost.local/api/v4/users/me":
 				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim"}`), nil
 			case "http://mattermost.local/api/v4/channels/direct":
@@ -392,10 +347,8 @@ func TestPlatformMessageSendAmbiguousRecipientReturnsCandidatesWithoutSending(t 
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			requestPaths = append(requestPaths, request.URL.String())
 			switch request.URL.String() {
-			case "http://blueclaw.local/admin/api/policy":
-				return platformDMTestJSONResponse(`{"people":[{"personID":"person-one","displayName":"Lee One","emails":["one@example.com"]},{"personID":"person-two","displayName":"Lee Two","emails":["two@example.com"]}]}`), nil
-			case "http://mattermost.local/api/v4/users?per_page=200":
-				return platformDMTestJSONResponse(`[{"id":"user-one","email":"one@example.com","username":"lee"},{"id":"user-two","email":"two@example.com","username":"lee-two"}]`), nil
+			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
+				return platformDMTestJSONResponse(`{"status":"ambiguous","candidates":[{"personID":"person-one","displayName":"Lee One","emails":["one@example.com"],"externalUserID":"user-one"},{"personID":"person-two","displayName":"Lee Two","emails":["two@example.com"],"externalUserID":"user-two"}]}`), nil
 			case "http://mattermost.local/api/v4/users/me":
 				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim"}`), nil
 			default:
@@ -422,8 +375,7 @@ func TestPlatformMessageSendAmbiguousRecipientReturnsCandidatesWithoutSending(t 
 	if strings.Contains(strings.Join(requestPaths, "\n"), "/api/v4/channels/direct") {
 		t.Fatalf("ambiguous send created a direct channel: %+v", requestPaths)
 	}
-	assertPlatformDMRequestCount(t, requestPaths, "http://blueclaw.local/admin/api/policy", 1)
-	assertPlatformDMRequestCount(t, requestPaths, "http://mattermost.local/api/v4/users?per_page=200", 1)
+	assertPlatformDMRequestCount(t, requestPaths, "http://blueclaw.local/admin/api/identity/resolve-recipient", 1)
 	var failure platformDMFailure
 	if errorValue := json.Unmarshal(response.Result, &failure); errorValue != nil {
 		t.Fatal(errorValue)
@@ -436,7 +388,7 @@ func TestPlatformMessageSendAmbiguousRecipientReturnsCandidatesWithoutSending(t 
 	}
 }
 
-func platformDMTestService(t *testing.T, tokenPath string, usersDocument string) Service {
+func platformDMTestService(t *testing.T, tokenPath string, resolutionDocument string) Service {
 	t.Helper()
 	return Service{
 		Configuration: Configuration{
@@ -446,10 +398,8 @@ func platformDMTestService(t *testing.T, tokenPath string, usersDocument string)
 		},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			switch request.URL.String() {
-			case "http://blueclaw.local/admin/api/policy":
-				return platformDMTestJSONResponse(`{"people":[{"personID":"person-one","displayName":"Lee One","emails":["one@example.com"]},{"personID":"person-two","displayName":"Lee Two","emails":["two@example.com"]},{"personID":"person-dongha","displayName":"이샘플","emails":["dongha@example.com"]}]}`), nil
-			case "http://mattermost.local/api/v4/users?per_page=200":
-				return platformDMTestJSONResponse(usersDocument), nil
+			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
+				return platformDMTestJSONResponse(resolutionDocument), nil
 			case "http://mattermost.local/api/v4/users/me":
 				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim"}`), nil
 			case "http://mattermost.local/api/v4/channels/direct":
@@ -462,6 +412,23 @@ func platformDMTestService(t *testing.T, tokenPath string, usersDocument string)
 			}
 		})},
 	}
+}
+
+func platformDMResolverTestService(t *testing.T, resolutionDocument string) Service {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost || request.URL.Path != "/admin/api/identity/resolve-recipient" {
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+		}
+		responseWriter.Header().Set("Content-Type", "application/json")
+		_, _ = responseWriter.Write([]byte(resolutionDocument))
+	}))
+	t.Cleanup(server.Close)
+	return Service{Configuration: Configuration{BlueclawBaseURL: server.URL}}
+}
+
+func platformDMResolvedDonghaResponse() string {
+	return `{"status":"resolved","recipient":{"personID":"person-dongha","displayName":"이샘플","emails":["dongha@example.com"],"externalUserID":"user-dongha","username":"dongha"}}`
 }
 
 func writePlatformDMTestFile(t *testing.T, value string) string {
