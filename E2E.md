@@ -34,6 +34,8 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 | `attachment_current_image_input` | — | 현재 이미지 첨부의 직접 이미지 파트 주입 |
 | `plain_question_acceptance` | — | 도구 없이 일반질문 직접 회신 |
 | `web_search_acceptance` | — | `web.search` 1회 후 결과 기반 답변 |
+| `schedule_lifecycle_acceptance` | — | 반복 예약 생성→재생성 수정→취소 |
+| `one_time_schedule_acceptance` | — | `kind:"once"`+`runAt` 일회성 예약 생성 |
 
 플릿 시나리오: `mattermost-bot-invited`, `web-backed-ui`, `regression-proof`.
 
@@ -48,8 +50,8 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 | 3 | DM 보내기 (confirm + 상대 수신 확인) | MISSING | confirm 핸드셰이크만 단독 커버; DM 송신+수신 검증 없음 |
 | 4 | 채널 포스트 작성 | MISSING | — |
 | 5 | 포스트 수정 | MISSING | — |
-| 6 | 반복 예약 생성/수정/삭제 | PARTIAL | 생성만 (`schedule_create_acceptance`); 수정·삭제 없음 |
-| 7 | 일회성 예약 생성/수정/삭제 | MISSING | interval만 커버, `runAt` 일회성 없음 |
+| 6 | 반복 예약 생성/수정/삭제 | COVERED | `schedule_lifecycle_acceptance` (수정은 cancel+create 재생성; `schedule.update` 툴 자체가 없음) |
+| 7 | 일회성 예약 생성/수정/삭제 | PARTIAL | 생성은 `one_time_schedule_acceptance` (`kind:"once"`+`runAt`); 수정·삭제 흐름은 6과 동일 패턴이라 미중복 |
 | 8 | 일정/업무 생성/수정/삭제 | MISSING | calendar 툴 시나리오 없음 |
 | 9 | 기억 추가 | PARTIAL | `memory_guided_followup` 1턴 (저장 경로 단언은 간접) |
 | 10 | 기억해내기 | PARTIAL | `memory_guided_followup` 2턴 (`memory.search` 호출 단언 없음) |
