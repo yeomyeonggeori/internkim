@@ -4639,10 +4639,17 @@ func TestCompanionLLMJobWithRequesterOnlyClaimsRequesterOwner(t *testing.T) {
 	service.companions[bob.CompanionID] = bob
 	service.companionJobs[job.JobID] = job
 
-	if claimedJob := service.claimNextCompanionJob(bob); claimedJob != nil {
-		t.Fatalf("expected Bob companion not to claim Alice job, got %+v", claimedJob)
+	claimedBobJob, errorValue := service.claimNextCompanionJob(bob)
+	if errorValue != nil {
+		t.Fatal(errorValue)
 	}
-	claimedJob := service.claimNextCompanionJob(alice)
+	if claimedBobJob != nil {
+		t.Fatalf("expected Bob companion not to claim Alice job, got %+v", claimedBobJob)
+	}
+	claimedJob, errorValue := service.claimNextCompanionJob(alice)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	if claimedJob == nil || claimedJob.CompanionID != alice.CompanionID {
 		t.Fatalf("expected Alice companion to claim job, got %+v", claimedJob)
 	}
@@ -4874,10 +4881,17 @@ func TestCompanionJobClaimRequiresMatchingOwner(t *testing.T) {
 		ExpiresAt:      now.Add(time.Minute),
 	}
 
-	if claimedJob := service.claimNextCompanionJob(bobCompanion); claimedJob != nil {
-		t.Fatalf("expected Bob companion not to claim Alice job, got %+v", claimedJob)
+	claimedBobJob, errorValue := service.claimNextCompanionJob(bobCompanion)
+	if errorValue != nil {
+		t.Fatal(errorValue)
 	}
-	claimedJob := service.claimNextCompanionJob(aliceCompanion)
+	if claimedBobJob != nil {
+		t.Fatalf("expected Bob companion not to claim Alice job, got %+v", claimedBobJob)
+	}
+	claimedJob, errorValue := service.claimNextCompanionJob(aliceCompanion)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	if claimedJob == nil || claimedJob.JobID != "job-1" || claimedJob.CompanionID != aliceCompanion.CompanionID {
 		t.Fatalf("expected Alice companion to claim Alice job, got %+v", claimedJob)
 	}
@@ -4912,7 +4926,10 @@ func TestCompanionJobClaimMatchesPlatformUserIDOwner(t *testing.T) {
 		ExpiresAt: now.Add(time.Minute),
 	}
 
-	claimedJob := service.claimNextCompanionJob(companion)
+	claimedJob, errorValue := service.claimNextCompanionJob(companion)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	if claimedJob == nil || claimedJob.JobID != "job-1" || claimedJob.CompanionID != companion.CompanionID {
 		t.Fatalf("expected platform-owned companion to claim job, got %+v", claimedJob)
 	}
@@ -5014,7 +5031,10 @@ func TestCompanionJobClaimRequeuesStaleRunningJob(t *testing.T) {
 		ExpiresAt:   now.Add(time.Minute),
 	}
 
-	claimedJob := service.claimNextCompanionJob(activeCompanion)
+	claimedJob, errorValue := service.claimNextCompanionJob(activeCompanion)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
 
 	if claimedJob == nil || claimedJob.JobID != "job-1" || claimedJob.CompanionID != activeCompanion.CompanionID {
 		t.Fatalf("expected stale running job to be claimed by active companion, got %+v", claimedJob)
@@ -5053,7 +5073,10 @@ func TestCompanionWatchCreatesOwnerLocalAttentionJob(t *testing.T) {
 		ExpiresAt: now.Add(time.Hour),
 	}
 
-	claimedJob := service.claimNextCompanionJob(companion)
+	claimedJob, errorValue := service.claimNextCompanionJob(companion)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
 
 	if claimedJob == nil || claimedJob.ToolName != capabilities.AttentionTriageToolName || claimedJob.ParentJobID != "job-1" {
 		t.Fatalf("expected attention triage job, got %+v", claimedJob)
@@ -5106,10 +5129,17 @@ func TestCompanionWatchRoutesOnlyToOwningCompanion(t *testing.T) {
 		ExpiresAt: now.Add(time.Hour),
 	}
 
-	if claimedJob := service.claimNextCompanionJob(bobCompanion); claimedJob != nil {
-		t.Fatalf("expected Bob not to claim Alice attention watch, got %+v", claimedJob)
+	claimedBobJob, errorValue := service.claimNextCompanionJob(bobCompanion)
+	if errorValue != nil {
+		t.Fatal(errorValue)
 	}
-	claimedJob := service.claimNextCompanionJob(aliceCompanion)
+	if claimedBobJob != nil {
+		t.Fatalf("expected Bob not to claim Alice attention watch, got %+v", claimedBobJob)
+	}
+	claimedJob, errorValue := service.claimNextCompanionJob(aliceCompanion)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	if claimedJob == nil || claimedJob.ToolName != capabilities.AttentionTriageToolName {
 		t.Fatalf("expected Alice attention triage claim, got %+v", claimedJob)
 	}
@@ -5143,7 +5173,11 @@ func TestCompanionWatchFallsBackWithoutLocalAttentionModel(t *testing.T) {
 		ExpiresAt: now.Add(time.Hour),
 	}
 
-	if claimedJob := service.claimNextCompanionJob(companion); claimedJob != nil {
+	claimedJob, errorValue := service.claimNextCompanionJob(companion)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if claimedJob != nil {
 		t.Fatalf("expected fallback to avoid local triage job, got %+v", claimedJob)
 	}
 	job := service.companionJobs["job-1"]

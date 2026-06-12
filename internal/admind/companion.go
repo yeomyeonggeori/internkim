@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
@@ -20,6 +21,9 @@ import (
 )
 
 const companionOnlineWindow = 45 * time.Second
+
+var companionPersistenceMutex sync.Mutex
+var companionJobPersistenceMutex sync.Mutex
 
 type CompanionPairingCode struct {
 	Code                string    `json:"code"`
@@ -226,7 +230,10 @@ func (service *Service) disconnectCompanion(responseWriter http.ResponseWriter, 
 	service.mutex.Lock()
 	companion.RevokedAt = time.Now().UTC()
 	service.mutex.Unlock()
-	_ = service.saveCompanions()
+	if errorValue := service.saveCompanions(); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
 	service.writeJSON(responseWriter, map[string]string{"status": "disconnected"})
 }
 
@@ -304,7 +311,10 @@ func (service *Service) revokeCompanion(responseWriter http.ResponseWriter, requ
 	}
 	companion.RevokedAt = time.Now().UTC()
 	service.mutex.Unlock()
-	_ = service.saveCompanions()
+	if errorValue := service.saveCompanions(); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
 	service.writeJSON(responseWriter, map[string]string{"status": "revoked"})
 }
 
@@ -371,8 +381,14 @@ func (service *Service) companionHeartbeat(responseWriter http.ResponseWriter, r
 	}
 	storedCompanion.LocalOnly = payload.LocalOnly
 	service.mutex.Unlock()
-	service.updateCompanionMounts(companion.CompanionID, payload.Mounts)
-	_ = service.saveCompanions()
+	if errorValue := service.updateCompanionMounts(companion.CompanionID, payload.Mounts); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	if errorValue := service.saveCompanions(); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
 	service.writeJSON(responseWriter, map[string]string{"status": "ok"})
 }
 
@@ -392,7 +408,11 @@ func (service *Service) nextCompanionJob(responseWriter http.ResponseWriter, req
 	}
 	deadline := time.Now().Add(25 * time.Second)
 	for {
-		job := service.claimNextCompanionJob(companion)
+		job, errorValue := service.claimNextCompanionJob(companion)
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+			return
+		}
 		if job != nil {
 			service.writeJSON(responseWriter, job)
 			return
@@ -458,13 +478,19 @@ func (service *Service) completeBrowserHandoff(responseWriter http.ResponseWrite
 		http.Error(responseWriter, errorValue.Error(), http.StatusForbidden)
 		return
 	}
-	_ = service.saveCompanionJobs()
+	if errorValue := service.saveCompanionJobs(); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
 	if shouldResume {
 		if errorValue := service.resumeBrowserHandoff(request.Context(), job, completion); errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 			return
 		}
-		service.markBrowserHandoffResumed(job.JobID)
+		if errorValue := service.markBrowserHandoffResumed(job.JobID); errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 	service.writeJSON(responseWriter, map[string]string{"status": "completed"})
 }
@@ -541,7 +567,9 @@ func (service *Service) invokeCompanionJob(ctx context.Context, request capabili
 	service.mutex.Lock()
 	service.companionJobs[job.JobID] = job
 	service.mutex.Unlock()
-	_ = service.saveCompanionJobs()
+	if errorValue := service.saveCompanionJobs(); errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
 
 	deadline := time.Now().Add(time.Duration(timeout) * time.Second)
 	for {
@@ -573,7 +601,9 @@ func (service *Service) invokeCompanionJob(ctx context.Context, request capabili
 			currentJob.UpdatedAt = time.Now().UTC()
 			closeCompanionJobWatchLocked(currentJob, currentJob.UpdatedAt)
 			service.mutex.Unlock()
-			_ = service.saveCompanionJobs()
+			if errorValue := service.saveCompanionJobs(); errorValue != nil {
+				return capabilities.ToolInvokeResponse{}, errorValue
+			}
 			return companionCapabilityUnavailableResponse(request, capabilities.CapabilityNotReady), nil
 		}
 		service.mutex.Unlock()
@@ -597,15 +627,17 @@ func companionJobTimeoutSecond(request capabilities.ToolInvokeRequest) int {
 	return 30
 }
 
-func (service *Service) claimNextCompanionJob(companion *CompanionRecord) *CompanionJob {
+func (service *Service) claimNextCompanionJob(companion *CompanionRecord) (*CompanionJob, error) {
 	service.mutex.Lock()
 	now := time.Now().UTC()
 	recoveredJobs := service.recoverExpiredAndStaleCompanionJobsLocked(now)
 	attentionJob, attentionChanged := service.claimDueCompanionAttentionJobLocked(companion, now)
 	if attentionJob != nil {
 		service.mutex.Unlock()
-		_ = service.saveCompanionJobs()
-		return attentionJob
+		if errorValue := service.saveCompanionJobs(); errorValue != nil {
+			return nil, errorValue
+		}
+		return attentionJob, nil
 	}
 	recoveredJobs = recoveredJobs || attentionChanged
 	for _, job := range service.companionJobs {
@@ -625,14 +657,18 @@ func (service *Service) claimNextCompanionJob(companion *CompanionRecord) *Compa
 		job.CompanionID = companion.CompanionID
 		job.UpdatedAt = now
 		service.mutex.Unlock()
-		_ = service.saveCompanionJobs()
-		return job
+		if errorValue := service.saveCompanionJobs(); errorValue != nil {
+			return nil, errorValue
+		}
+		return job, nil
 	}
 	service.mutex.Unlock()
 	if recoveredJobs {
-		_ = service.saveCompanionJobs()
+		if errorValue := service.saveCompanionJobs(); errorValue != nil {
+			return nil, errorValue
+		}
 	}
-	return nil
+	return nil, nil
 }
 
 func (service *Service) finishCompanionJob(companionID string, jobID string, response *capabilities.ToolInvokeResponse, errorMessage string) error {
@@ -663,9 +699,13 @@ func (service *Service) finishCompanionJob(companionID string, jobID string, res
 	}
 	service.mutex.Unlock()
 	if job.ToolName != capabilities.AttentionTriageToolName {
-		service.updateCompanionMountsFromJob(companionID, jobID, response)
+		if errorValue := service.updateCompanionMountsFromJob(companionID, jobID, response); errorValue != nil {
+			return errorValue
+		}
 	}
-	_ = service.saveCompanionJobs()
+	if errorValue := service.saveCompanionJobs(); errorValue != nil {
+		return errorValue
+	}
 	if remoteAttentionRequest != nil {
 		service.processRemoteAttention(context.Background(), *remoteAttentionRequest)
 	}
@@ -689,14 +729,14 @@ func (service *Service) storeBrowserHandoffCompletion(companionID string, comple
 	return copyCompanionJob(job), true, nil
 }
 
-func (service *Service) markBrowserHandoffResumed(jobID string) {
+func (service *Service) markBrowserHandoffResumed(jobID string) error {
 	service.mutex.Lock()
 	if job := service.companionJobs[jobID]; job != nil {
 		job.HandoffResumedAt = time.Now().UTC()
 		job.UpdatedAt = job.HandoffResumedAt
 	}
 	service.mutex.Unlock()
-	_ = service.saveCompanionJobs()
+	return service.saveCompanionJobs()
 }
 
 func (service *Service) findBrowserHandoffJobLocked(companionID string, handoffID string) *CompanionJob {
@@ -817,8 +857,7 @@ func (service *Service) denyCompanionJobResult(companionID string, jobID string,
 	job.UpdatedAt = time.Now().UTC()
 	closeCompanionJobWatchLocked(job, job.UpdatedAt)
 	service.mutex.Unlock()
-	_ = service.saveCompanionJobs()
-	return nil
+	return service.saveCompanionJobs()
 }
 
 func (service *Service) authorizedCompanion(request *http.Request) *CompanionRecord {
@@ -1159,13 +1198,9 @@ func sanitizeCompanionDenialText(value string) string {
 }
 
 func (service *Service) saveCompanions() error {
-	service.mutex.Lock()
-	companions := []*CompanionRecord{}
-	for _, companion := range service.companions {
-		companions = append(companions, companion)
-	}
-	service.mutex.Unlock()
-	document, errorValue := json.MarshalIndent(map[string]any{"companions": companions}, "", "  ")
+	companionPersistenceMutex.Lock()
+	defer companionPersistenceMutex.Unlock()
+	document, errorValue := service.companionsDocument()
 	if errorValue != nil {
 		return errorValue
 	}
@@ -1178,6 +1213,18 @@ func (service *Service) saveCompanions() error {
 		return errorValue
 	}
 	return os.Rename(tempPath, path)
+}
+
+func (service *Service) companionsDocument() ([]byte, error) {
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	companions := []*CompanionRecord{}
+	for _, companion := range service.companions {
+		if companion != nil {
+			companions = append(companions, companion)
+		}
+	}
+	return json.MarshalIndent(map[string]any{"companions": companions}, "", "  ")
 }
 
 func (service *Service) loadCompanions() {
@@ -1202,15 +1249,9 @@ func (service *Service) loadCompanions() {
 }
 
 func (service *Service) saveCompanionJobs() error {
-	service.mutex.Lock()
-	jobs := []*CompanionJob{}
-	for _, job := range service.companionJobs {
-		if job != nil {
-			jobs = append(jobs, job)
-		}
-	}
-	service.mutex.Unlock()
-	document, errorValue := json.MarshalIndent(map[string]any{"jobs": jobs}, "", "  ")
+	companionJobPersistenceMutex.Lock()
+	defer companionJobPersistenceMutex.Unlock()
+	document, errorValue := service.companionJobsDocument()
 	if errorValue != nil {
 		return errorValue
 	}
@@ -1223,6 +1264,18 @@ func (service *Service) saveCompanionJobs() error {
 		return errorValue
 	}
 	return os.Rename(temporaryPath, path)
+}
+
+func (service *Service) companionJobsDocument() ([]byte, error) {
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	jobs := []*CompanionJob{}
+	for _, job := range service.companionJobs {
+		if job != nil {
+			jobs = append(jobs, job)
+		}
+	}
+	return json.MarshalIndent(map[string]any{"jobs": jobs}, "", "  ")
 }
 
 func (service *Service) loadCompanionJobs() {

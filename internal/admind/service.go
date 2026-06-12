@@ -1408,12 +1408,7 @@ func (service *Service) createRestoreUpload(responseWriter http.ResponseWriter, 
 	}
 	uploadID := randomHex(16)
 	directoryPath := filepath.Join(service.Configuration.StateDirectory, "uploads", uploadID)
-	if errorValue := os.MkdirAll(filepath.Join(directoryPath, "chunks"), 0o700); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
-	service.mutex.Lock()
-	service.uploads[uploadID] = &RestoreUpload{
+	upload := &RestoreUpload{
 		UploadID:       uploadID,
 		Filename:       filepath.Base(payload.Filename),
 		Size:           payload.Size,
@@ -1421,6 +1416,13 @@ func (service *Service) createRestoreUpload(responseWriter http.ResponseWriter, 
 		DirectoryPath:  directoryPath,
 		ReceivedChunks: map[int]bool{},
 	}
+	service.mutex.Lock()
+	if errorValue := os.MkdirAll(filepath.Join(directoryPath, "chunks"), 0o700); errorValue != nil {
+		service.mutex.Unlock()
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	service.uploads[uploadID] = upload
 	service.mutex.Unlock()
 	service.writeJSON(responseWriter, restoreUploadResponse{UploadID: uploadID, ChunkSize: 4 << 20})
 }
