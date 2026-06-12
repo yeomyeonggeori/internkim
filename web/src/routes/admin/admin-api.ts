@@ -11,6 +11,7 @@ import type {
 	CompanionStatusResponse,
 	CredentialProviderStatus,
 	CredentialProvidersResponse,
+	ReleaseHistoryResponse,
 	RestoreUploadResponse,
 	UserRecord,
 	UserRole,
@@ -174,10 +175,18 @@ export async function fetchBlueclawUpdateStatus(adminBaseURL: string, fallbackMe
 	return readJSON<BlueclawUpdateStatus>(response, fallbackMessage);
 }
 
-export async function applyBlueclawUpdate(adminBaseURL: string, fallbackMessage: string): Promise<AdminJob> {
+export async function fetchReleaseHistory(adminBaseURL: string, fallbackMessage: string): Promise<ReleaseHistoryResponse> {
+	const response = await fetch(`${adminBaseURL}/updates/releases`, { credentials: 'include' });
+	return readJSON<ReleaseHistoryResponse>(response, fallbackMessage);
+}
+
+export async function applyBlueclawUpdate(adminBaseURL: string, fallbackMessage: string, releaseID = ''): Promise<AdminJob> {
+	const body = releaseID.trim() ? JSON.stringify({ releaseID: releaseID.trim() }) : undefined;
 	const response = await fetch(`${adminBaseURL}/updates/apply`, {
 		method: 'POST',
-		credentials: 'include'
+		credentials: 'include',
+		headers: body ? { 'Content-Type': 'application/json' } : undefined,
+		body
 	});
 	return readJSON<AdminJob>(response, fallbackMessage);
 }
