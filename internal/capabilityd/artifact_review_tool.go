@@ -46,10 +46,6 @@ type artifactReviewIssueInput struct {
 	SuggestedFix string `json:"suggestedFix"`
 }
 
-func isArtifactReviewTool(toolName string) bool {
-	return strings.TrimSpace(toolName) == "artifact.review"
-}
-
 func (service Service) invokeArtifactReviewTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	input, errorValue := decodeArtifactReviewInput(request.Input)
 	if errorValue != nil {

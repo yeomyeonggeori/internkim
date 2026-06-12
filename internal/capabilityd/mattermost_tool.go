@@ -138,15 +138,6 @@ const (
 	mattermostToolAdminCircle = "admin"
 )
 
-func isMattermostTool(toolName string) bool {
-	switch toolName {
-	case "mattermost.channel.update":
-		return true
-	default:
-		return false
-	}
-}
-
 func (service Service) invokeMattermostTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	if response, isDenied := service.authorizeMattermostTool(ctx, request); isDenied {
 		return response, nil

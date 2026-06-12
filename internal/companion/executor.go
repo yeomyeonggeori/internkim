@@ -112,6 +112,55 @@ type UploadedFile struct {
 
 var ErrFilePickCanceled = errors.New("file pick canceled")
 
+type executorToolHandler func(Executor, context.Context, JobEnvelope, capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error)
+
+var executorToolHandlers = map[string]executorToolHandler{
+	"llm.text":                           executorRequestHandler(Executor.executeTextLLM),
+	"llm.structured":                     executorRequestHandler(Executor.executeStructuredLLM),
+	"embedding.create":                   executorRequestHandler(Executor.executeEmbedding),
+	capabilities.AttentionTriageToolName: executorRequestHandler(Executor.executeAttentionTriage),
+	"browser.open":                       executorRequestHandler(Executor.executeBrowserNavigate),
+	"browser.snapshot":                   executorRequestHandler(Executor.executeBrowserObserve),
+	"browser.screenshot":                 Executor.executeBrowserScreenshot,
+	"browser.handoff":                    Executor.executeBrowserHandoff,
+	"browser.click":                      executorRequestHandler(Executor.executeBrowserClick),
+	"browser.fill":                       executorRequestHandler(Executor.executeBrowserFill),
+	"browser.select":                     executorRequestHandler(Executor.executeBrowserSelect),
+	"browser.press":                      executorRequestHandler(Executor.executeBrowserPress),
+	"browser.wait":                       executorRequestHandler(Executor.executeBrowserWait),
+	"user.confirm":                       executorRequestHandler(Executor.executeUserConfirm),
+	"user.input":                         executorRequestHandler(Executor.executeUserInput),
+	"file.pick":                          Executor.executeFilePick,
+	"filesystem.mount.create":            executorRequestHandler(Executor.executeMountCreate),
+	"filesystem.mount.list":              executorSimpleHandler(Executor.executeMountList),
+	"filesystem.mount.pause":             executorSimpleHandler(Executor.executeMountPause),
+	"filesystem.mount.resume":            executorSimpleHandler(Executor.executeMountResume),
+	"filesystem.mount.revoke":            executorSimpleHandler(Executor.executeMountRevoke),
+	"filesystem.mount.status":            executorSimpleHandler(Executor.executeMountStatus),
+	"filesystem.mount.stat":              executorSimpleHandler(Executor.executeMountStat),
+	"filesystem.mount.list_directory":    executorSimpleHandler(Executor.executeMountListDirectory),
+	"filesystem.mount.read":              executorSimpleHandler(Executor.executeMountRead),
+	"filesystem.mount.write":             executorSimpleHandler(Executor.executeMountWrite),
+	"filesystem.mount.mkdir":             executorSimpleHandler(Executor.executeMountMakeDirectory),
+	"filesystem.mount.rename":            executorSimpleHandler(Executor.executeMountRename),
+	"filesystem.mount.delete":            executorSimpleHandler(Executor.executeMountDelete),
+	"filesystem.mount.truncate":          executorSimpleHandler(Executor.executeMountTruncate),
+	"filesystem.mount.chmod":             executorSimpleHandler(Executor.executeMountChangeMode),
+	"filesystem.mount.watch":             executorSimpleHandler(Executor.executeMountWatch),
+}
+
+func executorRequestHandler(handler func(Executor, context.Context, capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error)) executorToolHandler {
+	return func(executor Executor, ctx context.Context, envelope JobEnvelope, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+		return handler(executor, ctx, request)
+	}
+}
+
+func executorSimpleHandler(handler func(Executor, capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error)) executorToolHandler {
+	return func(executor Executor, ctx context.Context, envelope JobEnvelope, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+		return handler(executor, request)
+	}
+}
+
 func (executor Executor) Execute(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	return executor.ExecuteJob(ctx, JobEnvelope{ToolName: request.ToolName, ResourceScope: request.ResourceScope}, request)
 }
@@ -122,74 +171,11 @@ func (executor Executor) ExecuteJob(ctx context.Context, envelope JobEnvelope, r
 			return capabilities.ToolInvokeResponse{}, errorValue
 		}
 	}
-	switch request.ToolName {
-	case "llm.text":
-		return executor.executeTextLLM(ctx, request)
-	case "llm.structured":
-		return executor.executeStructuredLLM(ctx, request)
-	case "embedding.create":
-		return executor.executeEmbedding(ctx, request)
-	case capabilities.AttentionTriageToolName:
-		return executor.executeAttentionTriage(ctx, request)
-	case "browser.open":
-		return executor.executeBrowserNavigate(ctx, request)
-	case "browser.snapshot":
-		return executor.executeBrowserObserve(ctx, request)
-	case "browser.screenshot":
-		return executor.executeBrowserScreenshot(ctx, envelope, request)
-	case "browser.handoff":
-		return executor.executeBrowserHandoff(ctx, envelope, request)
-	case "browser.click":
-		return executor.executeBrowserClick(ctx, request)
-	case "browser.fill":
-		return executor.executeBrowserFill(ctx, request)
-	case "browser.select":
-		return executor.executeBrowserSelect(ctx, request)
-	case "browser.press":
-		return executor.executeBrowserPress(ctx, request)
-	case "browser.wait":
-		return executor.executeBrowserWait(ctx, request)
-	case "user.confirm":
-		return executor.executeUserConfirm(ctx, request)
-	case "user.input":
-		return executor.executeUserInput(ctx, request)
-	case "file.pick":
-		return executor.executeFilePick(ctx, envelope, request)
-	case "filesystem.mount.create":
-		return executor.executeMountCreate(ctx, request)
-	case "filesystem.mount.list":
-		return executor.executeMountList(request)
-	case "filesystem.mount.pause":
-		return executor.executeMountPause(request)
-	case "filesystem.mount.resume":
-		return executor.executeMountResume(request)
-	case "filesystem.mount.revoke":
-		return executor.executeMountRevoke(request)
-	case "filesystem.mount.status":
-		return executor.executeMountStatus(request)
-	case "filesystem.mount.stat":
-		return executor.executeMountStat(request)
-	case "filesystem.mount.list_directory":
-		return executor.executeMountListDirectory(request)
-	case "filesystem.mount.read":
-		return executor.executeMountRead(request)
-	case "filesystem.mount.write":
-		return executor.executeMountWrite(request)
-	case "filesystem.mount.mkdir":
-		return executor.executeMountMakeDirectory(request)
-	case "filesystem.mount.rename":
-		return executor.executeMountRename(request)
-	case "filesystem.mount.delete":
-		return executor.executeMountDelete(request)
-	case "filesystem.mount.truncate":
-		return executor.executeMountTruncate(request)
-	case "filesystem.mount.chmod":
-		return executor.executeMountChangeMode(request)
-	case "filesystem.mount.watch":
-		return executor.executeMountWatch(request)
-	default:
+	handler, hasHandler := executorToolHandlers[request.ToolName]
+	if !hasHandler {
 		return capabilities.ToolInvokeResponse{}, fmt.Errorf("companion capability is not configured: %s", request.ToolName)
 	}
+	return handler(executor, ctx, envelope, request)
 }
 
 func (executor Executor) executeTextLLM(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
