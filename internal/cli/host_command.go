@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const defaultHostVirtualMachineName = "internkim-pilot-01"
@@ -76,20 +77,26 @@ func printHostUsage() {
 	fmt.Println("Usage: internkim host <command>")
 	fmt.Println()
 	fmt.Println("Commands:")
+	fmt.Println("  init      Create and bootstrap the tenant VM on this Mac")
 	fmt.Println("  status    Show Mac container VM state and tenant runtime status")
 	fmt.Println("  sync-cli  Cross-compile and install internkim CLI into the tenant VM")
 	fmt.Println("  add-team  Provision a host-runtime tenant inside the tenant VM")
+	fmt.Println("  remove-team  Remove a host-runtime tenant inside the tenant VM")
 	fmt.Println("  console   Serve the local host tenant console")
 }
 
 func executeHostCommand(commandName string, arguments []string, executor hostCommandExecutor) (int, error) {
 	switch commandName {
+	case "init":
+		return 0, executeHostInit(arguments, executor, os.Stdout, os.Stderr)
 	case "status":
 		return 0, executeHostStatus(arguments, executor, os.Stdout)
 	case "sync-cli":
 		return 0, executeHostSyncCLI(arguments, executor, os.Stdout, os.Stderr)
 	case "add-team":
 		return executeHostAddTeam(arguments, executor, os.Stdout, os.Stderr)
+	case "remove-team":
+		return executeHostRemoveTeam(arguments, executor, os.Stdout, os.Stderr)
 	case "console":
 		return 0, executeHostConsole(arguments, executor, os.Stdout)
 	default:
@@ -154,6 +161,12 @@ type hostAddTeamOptions struct {
 	RemoteArguments    []string
 }
 
+type hostRemoveTeamOptions struct {
+	TeamID             string
+	VirtualMachineName string
+	RemoteArguments    []string
+}
+
 func executeHostAddTeam(arguments []string, executor hostCommandExecutor, output io.Writer, errorOutput io.Writer) (int, error) {
 	options, errorValue := parseHostAddTeamOptions(arguments)
 	if errorValue != nil {
@@ -174,6 +187,41 @@ func runHostAddTeam(options hostAddTeamOptions, executor hostCommandExecutor, ou
 		return 1, errorValue
 	}
 	invocation := hostAddTeamInvocation(containerPath, options)
+	errorValue = executor.Run(hostCommandInvocation{
+		ExecutableName: invocation.ExecutableName,
+		Arguments:      invocation.Arguments,
+		Stdout:         output,
+		Stderr:         errorOutput,
+	})
+	if errorValue == nil {
+		return 0, nil
+	}
+	if exitCode := hostCommandExitCode(errorValue); exitCode >= 0 {
+		return exitCode, nil
+	}
+	return 1, errorValue
+}
+
+func executeHostRemoveTeam(arguments []string, executor hostCommandExecutor, output io.Writer, errorOutput io.Writer) (int, error) {
+	options, errorValue := parseHostRemoveTeamOptions(arguments)
+	if errorValue != nil {
+		return 1, errorValue
+	}
+	return runHostRemoveTeam(options, executor, output, errorOutput)
+}
+
+func runHostRemoveTeam(options hostRemoveTeamOptions, executor hostCommandExecutor, output io.Writer, errorOutput io.Writer) (int, error) {
+	if errorValue := syncHostCLI(executor, options.VirtualMachineName, output, errorOutput); errorValue != nil {
+		return 1, errorValue
+	}
+	containerPath, errorValue := resolveHostContainerPath(executor)
+	if errorValue != nil {
+		return 1, errorValue
+	}
+	if errorValue := ensureHostVirtualMachineIsRunning(executor, containerPath, options.VirtualMachineName); errorValue != nil {
+		return 1, errorValue
+	}
+	invocation := hostRemoveTeamInvocation(containerPath, options)
 	errorValue = executor.Run(hostCommandInvocation{
 		ExecutableName: invocation.ExecutableName,
 		Arguments:      invocation.Arguments,
@@ -236,6 +284,43 @@ func parseHostAddTeamOptions(arguments []string) (hostAddTeamOptions, error) {
 	}
 	if options.VirtualMachineName == "" {
 		return hostAddTeamOptions{}, errors.New("--vm is required")
+	}
+	return options, nil
+}
+
+func parseHostRemoveTeamOptions(arguments []string) (hostRemoveTeamOptions, error) {
+	options := hostRemoveTeamOptions{VirtualMachineName: defaultHostVirtualMachineName}
+	for index := 0; index < len(arguments); index++ {
+		argument := arguments[index]
+		if argument == "--" {
+			options.RemoteArguments = append(options.RemoteArguments, arguments[index+1:]...)
+			break
+		}
+		key, value, hasInlineValue := strings.Cut(argument, "=")
+		switch key {
+		case "--team":
+			parsedValue, nextIndex, errorValue := hostOptionValue(arguments, index, value, hasInlineValue)
+			if errorValue != nil {
+				return hostRemoveTeamOptions{}, errorValue
+			}
+			options.TeamID = strings.TrimSpace(parsedValue)
+			index = nextIndex
+		case "--vm":
+			parsedValue, nextIndex, errorValue := hostOptionValue(arguments, index, value, hasInlineValue)
+			if errorValue != nil {
+				return hostRemoveTeamOptions{}, errorValue
+			}
+			options.VirtualMachineName = strings.TrimSpace(parsedValue)
+			index = nextIndex
+		default:
+			options.RemoteArguments = append(options.RemoteArguments, argument)
+		}
+	}
+	if options.TeamID == "" {
+		return hostRemoveTeamOptions{}, errors.New("--team is required")
+	}
+	if options.VirtualMachineName == "" {
+		return hostRemoveTeamOptions{}, errors.New("--vm is required")
 	}
 	return options, nil
 }
@@ -447,6 +532,135 @@ func hostAddTeamInvocation(containerPath string, options hostAddTeamOptions) hos
 	}
 	remoteArguments = append(remoteArguments, options.RemoteArguments...)
 	return hostCommandInvocation{ExecutableName: containerPath, Arguments: remoteArguments}
+}
+
+func hostRemoveTeamInvocation(containerPath string, options hostRemoveTeamOptions) hostCommandInvocation {
+	remoteArguments := []string{
+		"exec",
+		options.VirtualMachineName,
+		"internkim",
+		"tenant",
+		"remove",
+		"--tenant",
+		options.TeamID,
+		"--confirm",
+		options.TeamID,
+	}
+	remoteArguments = append(remoteArguments, options.RemoteArguments...)
+	return hostCommandInvocation{ExecutableName: containerPath, Arguments: remoteArguments}
+}
+
+const hostVirtualMachineBootstrapScript = `set -eu
+export DEBIAN_FRONTEND=noninteractive
+if [ ! -x /lib/systemd/systemd ]; then
+  updated=0
+  for attempt in $(seq 1 60); do
+    if apt-get update > /tmp/internkim-apt-update.log 2>&1 && ! grep -q 'Err:' /tmp/internkim-apt-update.log; then updated=1; break; fi
+    sleep 5
+  done
+  cat /tmp/internkim-apt-update.log
+  if [ "$updated" != 1 ]; then echo 'apt-get update kept failing' >&2; exit 1; fi
+  apt-get install -y systemd systemd-sysv openssh-server sudo rsync curl jq make
+fi
+id admin >/dev/null 2>&1 || useradd -m -s /bin/bash admin
+echo 'admin:admin' | chpasswd
+printf 'admin ALL=(ALL) NOPASSWD:ALL\n' > /etc/sudoers.d/admin
+chmod 440 /etc/sudoers.d/admin
+systemctl enable ssh >/dev/null 2>&1 || true
+if [ -L /etc/resolv.conf ]; then cp /etc/resolv.conf /etc/resolv.conf.static && rm /etc/resolv.conf && mv /etc/resolv.conf.static /etc/resolv.conf; fi
+ln -sf /dev/null /etc/systemd/system/systemd-resolved.service
+exec /lib/systemd/systemd`
+
+type hostInitOptions struct {
+	VirtualMachineName string
+	CPUCount           string
+	Memory             string
+	Image              string
+}
+
+func parseHostInitOptions(arguments []string) (hostInitOptions, error) {
+	flags := flag.NewFlagSet("host init", flag.ContinueOnError)
+	virtualMachineName := flags.String("vm", defaultHostVirtualMachineName, "container VM name")
+	cpuCount := flags.String("cpus", "4", "VM CPU count")
+	memory := flags.String("memory", "6g", "VM memory size")
+	image := flags.String("image", "docker.io/library/ubuntu:24.04", "VM base image")
+	if errorValue := flags.Parse(arguments); errorValue != nil {
+		return hostInitOptions{}, errorValue
+	}
+	return hostInitOptions{
+		VirtualMachineName: strings.TrimSpace(*virtualMachineName),
+		CPUCount:           strings.TrimSpace(*cpuCount),
+		Memory:             strings.TrimSpace(*memory),
+		Image:              strings.TrimSpace(*image),
+	}, nil
+}
+
+func executeHostInit(arguments []string, executor hostCommandExecutor, output io.Writer, errorOutput io.Writer) error {
+	options, errorValue := parseHostInitOptions(arguments)
+	if errorValue != nil {
+		return errorValue
+	}
+	containerPath, errorValue := resolveHostContainerPath(executor)
+	if errorValue != nil {
+		return errorValue
+	}
+	if ensureHostVirtualMachineIsRunning(executor, containerPath, options.VirtualMachineName) == nil {
+		fmt.Fprintf(output, "VM %s is already running\n", options.VirtualMachineName)
+		return finishHostInit(executor, options.VirtualMachineName, output, errorOutput)
+	}
+	if errorValue := executor.Run(hostCreateVirtualMachineInvocation(containerPath, options, output, errorOutput)); errorValue != nil {
+		return fmt.Errorf("create VM %s failed: %w", options.VirtualMachineName, errorValue)
+	}
+	if errorValue := waitForHostVirtualMachine(executor, containerPath, options.VirtualMachineName); errorValue != nil {
+		return errorValue
+	}
+	fmt.Fprintf(output, "VM %s is running\n", options.VirtualMachineName)
+	return finishHostInit(executor, options.VirtualMachineName, output, errorOutput)
+}
+
+func finishHostInit(executor hostCommandExecutor, virtualMachineName string, output io.Writer, errorOutput io.Writer) error {
+	if errorValue := syncHostCLI(executor, virtualMachineName, output, errorOutput); errorValue != nil {
+		return errorValue
+	}
+	fmt.Fprintln(output, "internkim CLI installed into the VM")
+	fmt.Fprintln(output, "Remaining manual steps before the first add-team:")
+	fmt.Fprintln(output, "  1. Install tenant prerequisites in the VM: internkim binaries, /opt/internkim/blueclaw-runtime payload, /opt/mattermost, cloudflared")
+	fmt.Fprintln(output, "  2. Place Cloudflare account/tunnel credentials for sync-cloudflare-tunnel")
+	fmt.Fprintln(output, "  3. Run: internkim host add-team --team <id> --member <email:name[:password]>")
+	return nil
+}
+
+func waitForHostVirtualMachine(executor hostCommandExecutor, containerPath string, virtualMachineName string) error {
+	deadline := time.Now().Add(20 * time.Minute)
+	for {
+		output, errorValue := executor.CombinedOutput(hostContainerExecInvocation(containerPath, virtualMachineName, "systemctl", "is-system-running"))
+		state := strings.TrimSpace(string(output))
+		if errorValue == nil && (state == "running" || state == "degraded") {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("VM %s did not reach a running systemd state in time (last: %s); the bootstrap may still be running - check 'container logs %s' and re-run 'internkim host init' once the VM network is up", virtualMachineName, state, virtualMachineName)
+		}
+		time.Sleep(5 * time.Second)
+	}
+}
+
+func hostCreateVirtualMachineInvocation(containerPath string, options hostInitOptions, output io.Writer, errorOutput io.Writer) hostCommandInvocation {
+	return hostCommandInvocation{
+		ExecutableName: containerPath,
+		Arguments: []string{
+			"run",
+			"--detach",
+			"--name", options.VirtualMachineName,
+			"--cpus", options.CPUCount,
+			"--memory", options.Memory,
+			"--virtualization",
+			options.Image,
+			"sh", "-c", hostVirtualMachineBootstrapScript,
+		},
+		Stdout: output,
+		Stderr: errorOutput,
+	}
 }
 
 func hostCommandExitCode(errorValue error) int {
