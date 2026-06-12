@@ -93,7 +93,7 @@ function hasProperty(document: object | undefined, propertyName: string): boolea
 function createFetchStub(
 	handler: (input: Parameters<typeof fetch>[0], initialization?: Parameters<typeof fetch>[1]) => Promise<Response>
 ) {
-	return Object.assign(handler, { preconnect: globalThis.fetch.preconnect });
+	return Object.assign(handler, { preconnect: (url: string | URL): void => void url });
 }
 
 async function rejectedErrorMessage(promise: Promise<unknown>): Promise<string> {
