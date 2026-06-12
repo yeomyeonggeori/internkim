@@ -36,6 +36,8 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 | `web_search_acceptance` | — | `web.search` 1회 후 결과 기반 답변 |
 | `schedule_lifecycle_acceptance` | — | 반복 예약 생성→재생성 수정→취소 |
 | `one_time_schedule_acceptance` | — | `kind:"once"`+`runAt` 일회성 예약 생성 |
+| `dm_send_confirm_acceptance` | — | ask.confirm 승인 후 `platform.message.send` DM 송신 |
+| `channel_post_acceptance` | — | 채널 타깃 `platform.message.send` 포스트 작성 |
 
 플릿 시나리오: `mattermost-bot-invited`, `web-backed-ui`, `regression-proof`.
 
@@ -47,8 +49,8 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 |---|---|---|---|
 | 1 | 웹사이트 생성+배포 | COVERED | `site_prototype_acceptance` |
 | 2 | 배포된 웹사이트 수정 | MISSING | 기존 사이트 `file.edit`→재배포 시나리오 없음 |
-| 3 | DM 보내기 (confirm + 상대 수신 확인) | MISSING | confirm 핸드셰이크만 단독 커버; DM 송신+수신 검증 없음 |
-| 4 | 채널 포스트 작성 | MISSING | — |
+| 3 | DM 보내기 (confirm + 상대 수신 확인) | PARTIAL | `dm_send_confirm_acceptance` (confirm 게이트→송신→messageID 관측 단언); 실제 상대 수신 확인은 실플랫폼 스모크 영역 |
+| 4 | 채널 포스트 작성 | COVERED | `channel_post_acceptance` |
 | 5 | 포스트 수정 | MISSING | — |
 | 6 | 반복 예약 생성/수정/삭제 | COVERED | `schedule_lifecycle_acceptance` (수정은 cancel+create 재생성; `schedule.update` 툴 자체가 없음) |
 | 7 | 일회성 예약 생성/수정/삭제 | PARTIAL | 생성은 `one_time_schedule_acceptance` (`kind:"once"`+`runAt`); 수정·삭제 흐름은 6과 동일 패턴이라 미중복 |
