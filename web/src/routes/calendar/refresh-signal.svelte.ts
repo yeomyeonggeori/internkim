@@ -1,17 +1,24 @@
-import type { CalendarNavigationMessage } from './calendar-navigation-message';
+import type {
+	CalendarEventsChangedMessage,
+	CalendarNavigationMessage,
+	CalendarViewMessage,
+	CalendarViewValue,
+	CalendarVisibleDateMessage
+} from './calendar-navigation-message';
+import { calendarDateStorageKey, calendarViewStorageKey } from './calendar-storage-keys';
 
 export const calendarRefresh = $state({ ticks: 0 });
 export const calendarVisibility = $state({ work: true });
 export const calendarNavigation = $state({ dateKey: '' });
 
 export const calendarChannelName = 'internkim-calendar';
-export const calendarDateStorageKey = 'internkim.calendar.visibleDate';
 
 export function bumpCalendarRefresh() {
 	calendarRefresh.ticks += 1;
 }
 
 export function broadcastCalendarNavigation(date: Date) {
+	if (typeof window === 'undefined') return;
 	window.localStorage.setItem(calendarDateStorageKey, date.toISOString());
 	calendarNavigation.dateKey = dateKey(date);
 	const channel = new BroadcastChannel(calendarChannelName);
@@ -20,6 +27,40 @@ export function broadcastCalendarNavigation(date: Date) {
 		dateKey: dateKey(date)
 	} satisfies CalendarNavigationMessage);
 	channel.close();
+}
+
+export function broadcastCalendarVisibleDate(date: Date) {
+	if (typeof window === 'undefined') return;
+	window.localStorage.setItem(calendarDateStorageKey, date.toISOString());
+	window.parent.postMessage(
+		{
+			type: 'calendar-visible-date',
+			dateKey: dateKey(date)
+		} satisfies CalendarVisibleDateMessage,
+		window.location.origin
+	);
+}
+
+export function broadcastCalendarView(view: CalendarViewValue) {
+	if (typeof window === 'undefined') return;
+	window.localStorage.setItem(calendarViewStorageKey, view);
+	window.parent.postMessage(
+		{
+			type: 'calendar-view',
+			view
+		} satisfies CalendarViewMessage,
+		window.location.origin
+	);
+}
+
+export function broadcastCalendarEventsChanged() {
+	if (typeof window === 'undefined') return;
+	window.parent.postMessage(
+		{
+			type: 'calendar-events-changed'
+		} satisfies CalendarEventsChangedMessage,
+		window.location.origin
+	);
 }
 
 function dateKey(date: Date): string {
