@@ -43,6 +43,9 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 | `skill_lifecycle_acceptance` | — | `skill.add` 등록 후 `skill.remove` 삭제 |
 | `capability_question_acceptance` | — | 빈 쿼리 `skill.search`로 능력 질문 답변 |
 | `task_history_question_acceptance` | — | `task.history`로 선행 작업 질문 답변 |
+| `site_edit_redeploy_acceptance` | — | 배포된 사이트 수정→빌드→재배포 |
+| `memory_explicit_tool_acceptance` | — | `memory.remember` 저장과 `memory.search` 회상 명시 단언 |
+| `failure_explanation_acceptance` | — | 실패 태스크 사유를 `task.history`로 설명 |
 
 플릿 시나리오: `mattermost-bot-invited`, `web-backed-ui`, `regression-proof`.
 
@@ -53,21 +56,21 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 | # | 요구 행동 | 상태 | 근거 / 부족분 |
 |---|---|---|---|
 | 1 | 웹사이트 생성+배포 | COVERED | `site_prototype_acceptance` |
-| 2 | 배포된 웹사이트 수정 | MISSING | 기존 사이트 `file.edit`→재배포 시나리오 없음 |
+| 2 | 배포된 웹사이트 수정 | COVERED | `site_edit_redeploy_acceptance` (생성 후 수정→빌드→재배포 2턴) |
 | 3 | DM 보내기 (confirm + 상대 수신 확인) | PARTIAL | `dm_send_confirm_acceptance` (confirm 게이트→송신→messageID 관측 단언); 실제 상대 수신 확인은 실플랫폼 스모크 영역 |
 | 4 | 채널 포스트 작성 | COVERED | `channel_post_acceptance` |
 | 5 | 포스트 수정 | COVERED | `platform_message_edit_acceptance` (`platform.message.update`) |
 | 6 | 반복 예약 생성/수정/삭제 | COVERED | `schedule_lifecycle_acceptance` (수정은 cancel+create 재생성; `schedule.update` 툴 자체가 없음) |
 | 7 | 일회성 예약 생성/수정/삭제 | PARTIAL | 생성은 `one_time_schedule_acceptance` (`kind:"once"`+`runAt`); 수정·삭제 흐름은 6과 동일 패턴이라 미중복 |
 | 8 | 일정/업무 생성/수정/삭제 | COVERED | `calendar_event_lifecycle_acceptance` (`calendar.event.add/update/delete` 3턴) |
-| 9 | 기억 추가 | PARTIAL | `memory_guided_followup` 1턴 (저장 경로 단언은 간접) |
-| 10 | 기억해내기 | PARTIAL | `memory_guided_followup` 2턴 (`memory.search` 호출 단언 없음) |
+| 9 | 기억 추가 | COVERED | `memory_explicit_tool_acceptance` (`memory.remember` 호출·입력 단언) |
+| 10 | 기억해내기 | COVERED | `memory_explicit_tool_acceptance` (`memory.search` 호출·반영 단언) + `memory_guided_followup` |
 | 11 | 스킬 생성/삭제 | COVERED | `skill_lifecycle_acceptance` (`skill.add`/`skill.remove`) |
 | 12 | 검색 | COVERED | `web_search_acceptance` |
 | 13 | 일반질문 | COVERED | `plain_question_acceptance` |
 | 14 | introspection: 뭘 할 수 있어? | COVERED | `capability_question_acceptance` (빈 쿼리 `skill.search` 전체 로스터) |
 | 15 | introspection: 아까 뭐 했어? | COVERED | `task_history_question_acceptance` (`task.history` 2턴) |
-| 16 | introspection: 왜 실패했어? | MISSING | 실패 원인 회신 시나리오 없음 |
+| 16 | introspection: 왜 실패했어? | COVERED | `failure_explanation_acceptance` (실패 태스크 후 `task.history`로 사유 설명) |
 
 ## 운영 규칙
 
@@ -82,7 +85,8 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 
 ## 백로그
 
-- 매트릭스 MISSING/PARTIAL 행 채우기 (2→16).
+- PARTIAL 잔여분: DM 상대 실수신 확인(3)과 일회성 예약 수정·삭제(7)는 실플랫폼
+  스모크/기존 패턴 중복이라 가상 세션 추가 없이 유지.
 - `--cassette`/`--record-cassette`를 blueclaw-lab `virtual-session`에 실제
   배선하거나 CLI에서 플래그를 제거해 문서·현실 불일치 해소.
 - predeploy-gate에 가상 세션 시나리오 묶음 실행 추가 검토 (현재는 인프라
