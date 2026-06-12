@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -45,7 +46,7 @@ func TestMattermostAskActionAcknowledgesWithResolvedUpdateAndForwardsEvent(t *te
 	if errorValue := json.Unmarshal(responseRecorder.Body.Bytes(), &response); errorValue != nil {
 		t.Fatalf("expected response to decode: %v", errorValue)
 	}
-	assertMattermostAskResolvedUpdate(t, response.Update, "post-1", "channel-1", "✗ 취소했어요")
+	assertMattermostAskResolvedUpdate(t, response.Update, "post-1", "channel-1", "취소")
 	select {
 	case payload := <-forwardedRequests:
 		eventDocument, isMap := payload["event"].(map[string]any)
@@ -79,27 +80,34 @@ func TestMattermostAskActionResolvedUpdates(t *testing.T) {
 	testCases := []struct {
 		name            string
 		contextDocument string
+		selectedOption  string
 		expectedMessage string
 	}{
 		{
 			name:            "confirm",
 			contextDocument: `"action":"ask.confirm"`,
-			expectedMessage: "✓ 확인했어요",
+			expectedMessage: "확인",
 		},
 		{
 			name:            "cancel",
 			contextDocument: `"action":"ask.cancel"`,
-			expectedMessage: "✗ 취소했어요",
+			expectedMessage: "취소",
 		},
 		{
 			name:            "choice label",
 			contextDocument: `"action":"ask.choice","choiceKey":"A","choiceLabel":"첫 번째 선택지"`,
-			expectedMessage: "✓ 첫 번째 선택지을(를) 선택했어요",
+			expectedMessage: "첫 번째 선택지",
+		},
+		{
+			name:            "choice selected option label",
+			contextDocument: `"action":"ask.choice"`,
+			expectedMessage: "둘째",
+			selectedOption:  `{"key":"B","label":"둘째"}`,
 		},
 		{
 			name:            "choice key",
 			contextDocument: `"action":"ask.choice","choiceKey":"B"`,
-			expectedMessage: "✓ B을(를) 선택했어요",
+			expectedMessage: "B",
 		},
 	}
 	for _, testCase := range testCases {
@@ -111,7 +119,11 @@ func TestMattermostAskActionResolvedUpdates(t *testing.T) {
 				return jsonResponse(http.StatusOK, `{"handled":true}`, nil), nil
 			})}
 			token := service.ensureMattermostInteractiveActionToken()
-			requestBody := `{"user_id":"user-1","post_id":"post-1","channel_id":"channel-1","context":{` + testCase.contextDocument + `,"token":"` + token + `","interactionID":"interaction-1","taskRunID":"task-1","conversationID":"channel-1","replyTargetID":"target-1","targetUserID":"user-1"}}`
+			selectedOptionDocument := ""
+			if testCase.selectedOption != "" {
+				selectedOptionDocument = `,"selected_option":` + strconv.Quote(testCase.selectedOption)
+			}
+			requestBody := `{"user_id":"user-1","post_id":"post-1","channel_id":"channel-1"` + selectedOptionDocument + `,"context":{` + testCase.contextDocument + `,"token":"` + token + `","interactionID":"interaction-1","taskRunID":"task-1","conversationID":"channel-1","replyTargetID":"target-1","targetUserID":"user-1"}}`
 			request := httptest.NewRequest(http.MethodPost, "/_internkim/mattermost/actions", strings.NewReader(requestBody))
 			responseRecorder := httptest.NewRecorder()
 
@@ -195,7 +207,7 @@ func TestMattermostAskActionAcceptsConfiguredInteractiveTokenPath(t *testing.T) 
 	if response.Error != nil {
 		t.Fatalf("expected configured token to pass validation, got %+v", response.Error)
 	}
-	assertMattermostAskResolvedUpdate(t, response.Update, "post-1", "channel-1", "✓ 확인했어요")
+	assertMattermostAskResolvedUpdate(t, response.Update, "post-1", "channel-1", "확인")
 }
 
 func assertMattermostAskResolvedUpdate(t *testing.T, update any, postID string, channelID string, expectedMessage string) {
