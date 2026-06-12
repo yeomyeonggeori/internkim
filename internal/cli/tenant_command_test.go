@@ -89,6 +89,38 @@ func TestTenantProvisionRuntimeStepSelection(t *testing.T) {
 	}
 }
 
+func TestParseTenantRemoveOptionsRejectsConfirmMismatch(t *testing.T) {
+	_, errorValue := parseTenantRemoveOptions([]string{"--tenant", "pilot-01", "--confirm", "pilot-02"})
+	if errorValue == nil {
+		t.Fatal("expected confirm mismatch to fail")
+	}
+}
+
+func TestParseTenantRemoveOptionsAcceptsTunnelFlags(t *testing.T) {
+	options, errorValue := parseTenantRemoveOptions([]string{
+		"--tenant", "pilot-01",
+		"--confirm", "pilot-01",
+		"--base", "/tmp/tenants",
+		"--systemd-dir", "/tmp/systemd",
+		"--nspawn-dir", "/tmp/nspawn",
+		"--account-id", "account-id",
+		"--tunnel-id", "tunnel-id",
+		"--api-token-path", "/tmp/token",
+		"--api-base-url", "https://api.example.com",
+		"--hostname-template", "{tenant}.example.com",
+		"--force",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if options.TenantID != "pilot-01" || !options.Force {
+		t.Fatalf("unexpected remove options: %+v", options)
+	}
+	if options.CloudflareAccountID != "account-id" || options.CloudflarePublicHostnameTemplate != "{tenant}.example.com" {
+		t.Fatalf("unexpected Cloudflare options: %+v", options)
+	}
+}
+
 func TestParseTenantProvisionMemberRejectsInvalidFormat(t *testing.T) {
 	for _, value := range []string{
 		"missing-name@example.com",

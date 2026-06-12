@@ -89,6 +89,11 @@
       color: #ffffff;
     }
 
+    button.danger {
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
     button:disabled {
       opacity: 0.55;
       cursor: not-allowed;
@@ -246,6 +251,7 @@
             <th>팀 ID</th>
             <th>주소</th>
             <th>상태</th>
+            <th>작업</th>
           </tr>
         </thead>
         <tbody id="tenantRows"></tbody>
@@ -310,6 +316,7 @@
   </template>
 
   <script>
+    const hostConsoleRequiresAuth = false;
     const tenantRows = document.querySelector("#tenantRows");
     const tenantStatus = document.querySelector("#tenantStatus");
     const refreshTenantsButton = document.querySelector("#refreshTenants");
@@ -321,6 +328,7 @@
     const jobStatus = document.querySelector("#jobStatus");
     const jobLog = document.querySelector("#jobLog");
     const jobResult = document.querySelector("#jobResult");
+    const hostConsoleTokenKey = "internkimHostConsoleAuthToken";
 
     function createMemberRow() {
       const fragment = memberTemplate.content.cloneNode(true);
@@ -342,12 +350,30 @@
     }
 
     async function requestJSON(url, options = {}) {
-      const response = await fetch(url, options);
+      const headers = new Headers(options.headers || {});
+      const token = hostConsoleAuthToken();
+      if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+      }
+      const response = await fetch(url, { ...options, headers });
       const payload = await response.json();
       if (!response.ok) {
         throw new Error(payload.message || "요청에 실패했습니다");
       }
       return payload;
+    }
+
+    function hostConsoleAuthToken() {
+      if (!hostConsoleRequiresAuth) {
+        return "";
+      }
+      const existingToken = sessionStorage.getItem(hostConsoleTokenKey);
+      if (existingToken) {
+        return existingToken;
+      }
+      const token = window.prompt("인증 토큰을 입력하세요") || "";
+      sessionStorage.setItem(hostConsoleTokenKey, token);
+      return token;
     }
 
     async function loadTenants() {
@@ -368,11 +394,45 @@
         <td><code></code></td>
         <td></td>
         <td></td>
+        <td></td>
       `;
       row.children[0].querySelector("code").textContent = tenant.tenantID;
       row.children[1].textContent = tenant.publicURL || "-";
       row.children[2].textContent = tenant.running ? "실행 중" : "중지됨";
+      row.children[3].appendChild(createDeleteTeamButton(tenant.tenantID));
       return row;
+    }
+
+    function createDeleteTeamButton(teamID) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "danger";
+      button.textContent = "삭제";
+      button.addEventListener("click", () => deleteTeam(teamID, button));
+      return button;
+    }
+
+    async function deleteTeam(teamID, button) {
+      const confirmation = window.prompt(`삭제하려면 팀 ID를 입력하세요: ${teamID}`);
+      if (confirmation !== teamID) {
+        return;
+      }
+      formStatus.textContent = "";
+      formStatus.classList.remove("error");
+      jobResult.replaceChildren();
+      jobLog.textContent = "";
+      button.disabled = true;
+      try {
+        const job = await requestJSON(`/api/teams/${encodeURIComponent(teamID)}`, { method: "DELETE" });
+        formStatus.textContent = "삭제 작업을 시작했습니다";
+        await pollJob(job.jobID);
+        await loadTenants();
+      } catch (errorValue) {
+        formStatus.textContent = errorValue.message;
+        formStatus.classList.add("error");
+      } finally {
+        button.disabled = false;
+      }
     }
 
     async function submitTeam(event) {

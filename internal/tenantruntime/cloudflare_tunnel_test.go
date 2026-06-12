@@ -93,6 +93,25 @@ func TestSyncCloudflareTenantTunnelRequiresToken(t *testing.T) {
 	}
 }
 
+func TestRemovedCloudflareTenantIngressDeletesTenantHostnames(t *testing.T) {
+	manifest := newTestCloudSharedManifest(t)
+	manifest.TenantID = "pilot-01"
+	manifest.PublicURL = "https://pilot-01.mattermost.intern.kim"
+
+	ingress, removedCount := removedCloudflareTenantIngress([]cloudflareTunnelIngress{
+		{Hostname: "pilot-01.intern.kim", Path: "/flow", Service: "http://127.0.0.1:18180"},
+		{Hostname: "pilot-01.mattermost.intern.kim", Service: "http://127.0.0.1:18065"},
+		{Hostname: "pilot-02.intern.kim", Service: "http://127.0.0.1:18066"},
+		{Service: "http_status:404"},
+	}, []Manifest{manifest}, "{tenant}.intern.kim")
+
+	if removedCount != 2 || len(ingress) != 2 {
+		t.Fatalf("unexpected ingress removal: count=%d ingress=%+v", removedCount, ingress)
+	}
+	assertCloudflareIngress(t, ingress[0], "pilot-02.intern.kim", "", "http://127.0.0.1:18066")
+	assertCloudflareIngress(t, ingress[1], "", "", "http_status:404")
+}
+
 func assertCloudflareIngress(t *testing.T, ingress cloudflareTunnelIngress, hostname string, path string, service string) {
 	t.Helper()
 	if ingress.Hostname != hostname || ingress.Path != path || ingress.Service != service {

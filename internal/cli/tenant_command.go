@@ -45,6 +45,8 @@ func runTenant() {
 		runTenantExposeMattermost(os.Args[3:])
 	case "sync-cloudflare-tunnel":
 		runTenantSyncCloudflareTunnel(os.Args[3:])
+	case "remove":
+		runTenantRemove(os.Args[3:])
 	case "start":
 		runTenantStart(os.Args[3:])
 	case "stop":
@@ -70,6 +72,7 @@ func printTenantUsage() {
 	fmt.Println("  bootstrap-mattermost  Ensure tenant Mattermost team, bot, default channels, and optional members")
 	fmt.Println("  expose-mattermost  Start Cloudflare quick tunnels for tenant Mattermost instances")
 	fmt.Println("  sync-cloudflare-tunnel  Route tenant app paths and Mattermost through a Cloudflare named tunnel")
+	fmt.Println("  remove   Remove tenant services, tunnel ingress, and state")
 	fmt.Println("  start    Start the tenant systemd-nspawn container")
 	fmt.Println("  stop     Stop the tenant systemd-nspawn container")
 }
@@ -164,6 +167,21 @@ type tenantProvisionMember struct {
 	Name                string
 	Password            string
 	IsPasswordGenerated bool
+}
+
+type tenantRemoveOptions struct {
+	TenantID                         string
+	ConfirmTenantID                  string
+	BasePath                         string
+	SystemdDirectoryPath             string
+	NspawnDirectoryPath              string
+	CloudflareAccountID              string
+	CloudflareTunnelID               string
+	CloudflareAPIToken               string
+	CloudflareAPITokenPath           string
+	CloudflareAPIBaseURL             string
+	CloudflarePublicHostnameTemplate string
+	Force                            bool
 }
 
 type tenantProvisionSummary struct {
@@ -333,6 +351,62 @@ func parseTenantProvisionMember(value string) (tenantProvisionMember, error) {
 		Password:            password,
 		IsPasswordGenerated: isPasswordGenerated,
 	}, nil
+}
+
+func parseTenantRemoveOptions(arguments []string) (tenantRemoveOptions, error) {
+	flags := flag.NewFlagSet("tenant remove", flag.ContinueOnError)
+	tenantID := flags.String("tenant", "", "tenant id")
+	confirmTenantID := flags.String("confirm", "", "tenant id confirmation")
+	basePath := flags.String("base", "/srv/internkim/tenants", "tenant base path")
+	systemdDirectoryPath := flags.String("systemd-dir", "/etc/systemd/system", "systemd unit directory")
+	nspawnDirectoryPath := flags.String("nspawn-dir", "/etc/systemd/nspawn", "systemd-nspawn configuration directory")
+	cloudflareAccountID := flags.String("account-id", "", "Cloudflare account id")
+	cloudflareTunnelID := flags.String("tunnel-id", "", "Cloudflare tunnel id")
+	cloudflareAPIToken := flags.String("api-token", "", "Cloudflare API token")
+	cloudflareAPITokenPath := flags.String("api-token-path", "", "Cloudflare API token file path")
+	cloudflareAPIBaseURL := flags.String("api-base-url", tenantruntime.DefaultCloudflareAPIBaseURL, "Cloudflare API base URL")
+	cloudflarePublicHostnameTemplate := flags.String("hostname-template", "", "optional public hostname template containing {tenant}")
+	force := flags.Bool("force", false, "remove state even when the tenant manifest is missing")
+	if errorValue := flags.Parse(arguments); errorValue != nil {
+		return tenantRemoveOptions{}, errorValue
+	}
+	options := tenantRemoveOptions{
+		TenantID:                         strings.TrimSpace(*tenantID),
+		ConfirmTenantID:                  strings.TrimSpace(*confirmTenantID),
+		BasePath:                         strings.TrimSpace(*basePath),
+		SystemdDirectoryPath:             strings.TrimSpace(*systemdDirectoryPath),
+		NspawnDirectoryPath:              strings.TrimSpace(*nspawnDirectoryPath),
+		CloudflareAccountID:              strings.TrimSpace(*cloudflareAccountID),
+		CloudflareTunnelID:               strings.TrimSpace(*cloudflareTunnelID),
+		CloudflareAPIToken:               strings.TrimSpace(*cloudflareAPIToken),
+		CloudflareAPITokenPath:           strings.TrimSpace(*cloudflareAPITokenPath),
+		CloudflareAPIBaseURL:             strings.TrimSpace(*cloudflareAPIBaseURL),
+		CloudflarePublicHostnameTemplate: strings.TrimSpace(*cloudflarePublicHostnameTemplate),
+		Force:                            *force,
+	}
+	if options.TenantID == "" {
+		return tenantRemoveOptions{}, errors.New("--tenant is required")
+	}
+	if options.ConfirmTenantID != options.TenantID {
+		return tenantRemoveOptions{}, errors.New("--confirm must match --tenant")
+	}
+	return options, nil
+}
+
+func executeTenantRemove(ctx context.Context, options tenantRemoveOptions) (tenantruntime.TenantRemovalReport, error) {
+	return (tenantruntime.Service{
+		BasePath:                   options.BasePath,
+		SystemdSystemDirectoryPath: options.SystemdDirectoryPath,
+		SystemdNspawnDirectoryPath: options.NspawnDirectoryPath,
+	}).RemoveTenant(ctx, options.TenantID, tenantruntime.TenantRemoveOptions{
+		Force:                  options.Force,
+		CloudflareAccountID:    options.CloudflareAccountID,
+		CloudflareTunnelID:     options.CloudflareTunnelID,
+		CloudflareAPIToken:     options.CloudflareAPIToken,
+		CloudflareAPITokenPath: options.CloudflareAPITokenPath,
+		CloudflareAPIBaseURL:   options.CloudflareAPIBaseURL,
+		PublicHostnameTemplate: options.CloudflarePublicHostnameTemplate,
+	})
 }
 
 func executeTenantProvision(ctx context.Context, options tenantProvisionOptions) (tenantProvisionSummary, error) {
@@ -876,6 +950,22 @@ func runTenantSyncCloudflareTunnel(arguments []string) {
 		fatal(errorValue.Error())
 	}
 	document, errorValue := json.MarshalIndent(status, "", "  ")
+	if errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	fmt.Println(string(document))
+}
+
+func runTenantRemove(arguments []string) {
+	options, errorValue := parseTenantRemoveOptions(arguments)
+	if errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	report, errorValue := executeTenantRemove(context.Background(), options)
+	if errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	document, errorValue := json.MarshalIndent(report, "", "  ")
 	if errorValue != nil {
 		fatal(errorValue.Error())
 	}
