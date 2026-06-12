@@ -103,6 +103,10 @@ func runSSHRecoveryForTarget(m *msg, configuration config, sshpassBin string, ta
 	if action == "status" || action == "journal-tail" {
 		return nil
 	}
+	if action == "reboot" {
+		fmt.Println(m.t("재부팅이 예약되었습니다. 약 2분 후 `internkim status`로 확인하세요.", "Reboot scheduled. Check `internkim status` in about two minutes."))
+		return nil
+	}
 	if connection, _, retryError := resolveCloudflareSSHConnection(configuration, sshpassBin, target, false); retryError == nil && connection != nil {
 		fmt.Println(m.t("SSH 복구 확인 완료", "SSH recovery verified"))
 		return nil
@@ -129,7 +133,7 @@ func printSSHRecoveryLocalDiagnostics(configuration config, sshpassBin string, t
 
 func isAllowedCLIRecoveryAction(action string) bool {
 	switch action {
-	case "status", "restart-cloudflared-node-ssh", "restart-ssh", "journal-tail", "unlock-mattermost-admin":
+	case "status", "restart-cloudflared-node-ssh", "restart-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots":
 		return true
 	default:
 		return false

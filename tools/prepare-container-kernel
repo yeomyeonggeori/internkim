@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+artifact_directory="${INTERNKIM_CONTAINER_KERNEL_DIR:-$repository_root/.dependency/container-kernel}"
+kernel_version="${INTERNKIM_CONTAINER_KERNEL_VERSION:-6.1.68}"
+kernel_config_reference="${INTERNKIM_CONTAINER_KERNEL_CONFIG_REF:-main}"
+kernel_image_path="$artifact_directory/Image-$kernel_version-kvm"
+
+if [ -s "$kernel_image_path" ] && [ "${1:-}" != "--force" ]; then
+  echo "$kernel_image_path"
+  exit 0
+fi
+
+require_command() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "missing required command: $1" >&2
+    exit 1
+  fi
+}
+
+require_command container
+require_command curl
+
+stage_directory="$(mktemp -d "${TMPDIR:-/tmp}/internkim-container-kernel.XXXXXX")"
+cleanup() {
+  rm -rf "$stage_directory"
+}
+trap cleanup EXIT
+
+curl -fsSL -o "$stage_directory/config-arm64" \
+  "https://raw.githubusercontent.com/apple/containerization/$kernel_config_reference/kernel/config-arm64"
+grep -q '^CONFIG_VIRTUALIZATION=y' "$stage_directory/config-arm64"
+grep -q '^CONFIG_KVM=y' "$stage_directory/config-arm64"
+
+cat > "$stage_directory/build-kernel.sh" <<BUILD
+#!/bin/sh
+set -eu
+apk add --no-cache build-base bc bison flex openssl-dev perl python3 elfutils-dev linux-headers findutils xz curl rsync >/dev/null
+mkdir -p /build
+cd /build
+if [ ! -f /work/linux.tar.xz ]; then
+  curl -sL -o /work/linux.tar.xz "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-$kernel_version.tar.xz"
+fi
+tar xf /work/linux.tar.xz
+cd "linux-$kernel_version"
+cp /work/config-arm64 .config
+make olddefconfig >/dev/null
+make -j"\$(nproc)" Image
+cp arch/arm64/boot/Image /work/Image
+echo KERNEL-BUILD-DONE
+BUILD
+
+container run --rm --cpus 10 --memory 8g --volume "$stage_directory:/work" alpine:latest sh /work/build-kernel.sh >&2
+
+mkdir -p "$artifact_directory"
+install -m 0644 "$stage_directory/Image" "$kernel_image_path"
+echo "$kernel_image_path"

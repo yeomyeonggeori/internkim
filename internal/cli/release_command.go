@@ -387,6 +387,7 @@ func createReleaseBlobs(repositoryRootPath string, temporaryDirectoryPath string
 		{name: "capabilityd", revision: gitRevision, restartGroup: "capabilityd", healthCheck: "capabilityd", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.CapabilitydName), builder: buildReleaseBinary("./cmd/" + blueclaw.CapabilitydName)},
 		{name: "web", revision: webRevision(repositoryRootPath), restartGroup: "admind", healthCheck: "web", sourcePath: filepath.Join(repositoryRootPath, "build", "board-ui")},
 		{name: "blueclawPayload", revision: blueclawPayloadRevision(repositoryRootPath), restartGroup: "blueclaw", healthCheck: "blueclaw", sourcePath: filepath.Join(repositoryRootPath, blueclaw.BlueclawPayloadArtifactPath)},
+		{name: "blueclawSupervisor", revision: gitRevision, restartGroup: "blueclaw", healthCheck: "blueclaw", sourcePath: filepath.Join(temporaryDirectoryPath, "bin", blueclaw.BlueclawSupervisorName), builder: buildBlueclawSupervisorReleaseBinary},
 		{name: "skills", revision: gitRevision, restartGroup: "blueclaw", healthCheck: "skills", sourcePath: blueclawworkspace.SkillsPath(repositoryRootPath)},
 	}
 	blobs := []releaseBlob{}
@@ -442,6 +443,10 @@ func buildReleaseBinary(packagePath string) func(string, string) error {
 	}
 }
 
+func buildBlueclawSupervisorReleaseBinary(repositoryRootPath string, outputPath string) error {
+	return blueclaw.EnsureBlueclawSupervisorBinary(outputPath, repositoryRootPath)
+}
+
 func validateReleaseSource(name string, sourcePath string) error {
 	information, errorValue := os.Stat(sourcePath)
 	if errorValue != nil {
@@ -457,17 +462,21 @@ func validateReleaseSource(name string, sourcePath string) error {
 }
 
 func writeReleaseArchive(sourcePath string, archivePath string) error {
+	archiveSourcePath, errorValue := releaseArchiveSourcePath(sourcePath)
+	if errorValue != nil {
+		return errorValue
+	}
 	file, errorValue := os.Create(archivePath)
 	if errorValue != nil {
 		return errorValue
 	}
 	gzipWriter := gzip.NewWriter(file)
 	tarWriter := tar.NewWriter(gzipWriter)
-	walkError := filepath.WalkDir(sourcePath, func(path string, entry os.DirEntry, errorValue error) error {
+	walkError := filepath.WalkDir(archiveSourcePath, func(path string, entry os.DirEntry, errorValue error) error {
 		if errorValue != nil {
 			return errorValue
 		}
-		return writeReleaseArchiveEntry(tarWriter, sourcePath, path, entry)
+		return writeReleaseArchiveEntry(tarWriter, archiveSourcePath, path, entry)
 	})
 	closeTarError := tarWriter.Close()
 	closeGzipError := gzipWriter.Close()
@@ -478,6 +487,21 @@ func writeReleaseArchive(sourcePath string, archivePath string) error {
 		}
 	}
 	return nil
+}
+
+func releaseArchiveSourcePath(sourcePath string) (string, error) {
+	information, errorValue := os.Stat(sourcePath)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	if !information.IsDir() {
+		return sourcePath, nil
+	}
+	resolvedPath, errorValue := filepath.EvalSymlinks(sourcePath)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	return resolvedPath, nil
 }
 
 func writeReleaseArchiveEntry(writer *tar.Writer, sourcePath string, currentPath string, entry os.DirEntry) error {

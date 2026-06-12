@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -208,4 +210,54 @@ func containsDeletedObjectKey(values []string, expected string) bool {
 		}
 	}
 	return false
+}
+
+func TestWriteReleaseArchiveFollowsRootDirectorySymlink(t *testing.T) {
+	rootPath := t.TempDir()
+	sourcePath := filepath.Join(rootPath, "source")
+	if errorValue := os.MkdirAll(sourcePath, 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(filepath.Join(sourcePath, "manifest.json"), []byte("{}"), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	symlinkPath := filepath.Join(rootPath, "payload")
+	if errorValue := os.Symlink(sourcePath, symlinkPath); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	archivePath := filepath.Join(rootPath, "payload.tar.gz")
+
+	if errorValue := writeReleaseArchive(symlinkPath, archivePath); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !releaseArchiveContains(t, archivePath, "source/manifest.json") {
+		t.Fatal("expected archive to contain manifest from symlink target directory")
+	}
+}
+
+func releaseArchiveContains(t *testing.T, archivePath string, targetName string) bool {
+	t.Helper()
+	file, errorValue := os.Open(archivePath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer file.Close()
+	gzipReader, errorValue := gzip.NewReader(file)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer gzipReader.Close()
+	tarReader := tar.NewReader(gzipReader)
+	for {
+		header, errorValue := tarReader.Next()
+		if errorValue == io.EOF {
+			return false
+		}
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if header.Name == targetName {
+			return true
+		}
+	}
 }
