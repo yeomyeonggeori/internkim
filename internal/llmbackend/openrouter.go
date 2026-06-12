@@ -67,11 +67,11 @@ func (backend OpenRouterBackend) completeNativeAction(ctx context.Context, apiKe
 	if errorValue != nil || !isActionSchema {
 		return Response{}, isActionSchema, errorValue
 	}
-	requestDocument, errorValue := buildOpenRouterChatActionRequest(request, modelName, toolSet.Tools)
+	requestDocument, lintResult, errorValue := buildOpenRouterChatActionRequest(request, modelName, toolSet.Tools, toolSet.NativeSchemaLint)
 	if errorValue != nil {
 		return Response{}, true, errorValue
 	}
-	content, usage, errorValue := backend.sendChatAction(ctx, apiKey, requestDocument, toolSet)
+	content, usage, errorValue := backend.sendChatAction(ctx, apiKey, requestDocument, toolSet, lintResult)
 	if errorValue != nil {
 		return Response{}, true, errorValue
 	}
@@ -170,7 +170,7 @@ func (backend OpenRouterBackend) send(ctx context.Context, apiKey string, reques
 	return parsed.Choices[0].Message.Content, normalizeUsage(parsed.Usage), nil
 }
 
-func (backend OpenRouterBackend) sendChatAction(ctx context.Context, apiKey string, requestDocument []byte, toolSet nativeActionToolSet) (string, Usage, error) {
+func (backend OpenRouterBackend) sendChatAction(ctx context.Context, apiKey string, requestDocument []byte, toolSet nativeActionToolSet, lintResult NativeSchemaLintResult) (string, Usage, error) {
 	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, backend.BaseURL, bytes.NewReader(requestDocument))
 	if errorValue != nil {
 		return "", Usage{}, errorValue
@@ -190,7 +190,7 @@ func (backend OpenRouterBackend) sendChatAction(ctx context.Context, apiKey stri
 		return "", Usage{}, errors.New("read openrouter response: " + errorValue.Error())
 	}
 	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return "", Usage{}, errors.New(string(responseDocument))
+		return "", Usage{}, errors.New(openAIErrorWithNativeSchemaLint(string(responseDocument), lintResult))
 	}
 
 	var response openAIResponseWithUsage
@@ -245,9 +245,10 @@ func buildOpenRouterStructuredRequest(request StructuredRequest, modelName strin
 	return json.Marshal(document)
 }
 
-func buildOpenRouterChatActionRequest(request StructuredRequest, modelName string, tools []nativeActionTool) ([]byte, error) {
-	document := openAIActionToolRequest(modelName, request.Messages, tools, generationOptionsValue(request.GenerationOptions))
-	return json.Marshal(document)
+func buildOpenRouterChatActionRequest(request StructuredRequest, modelName string, tools []nativeActionTool, lintResults ...NativeSchemaLintResult) ([]byte, NativeSchemaLintResult, error) {
+	document := openAIActionToolRequest(modelName, request.Messages, tools, generationOptionsValue(request.GenerationOptions), lintResults...)
+	content, errorValue := json.Marshal(document)
+	return content, document.NativeToolSchemaLint, errorValue
 }
 
 func buildOpenRouterTextRequest(request TextRequest, modelName string) ([]byte, error) {
