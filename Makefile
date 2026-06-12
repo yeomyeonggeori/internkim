@@ -38,7 +38,7 @@ build-mattermost-ephemeral-plugin:
 	cp mattermost-plugin/internkim-ephemeral/plugin.json build/mattermost-plugins/.package-com.internkim.ephemeral/com.internkim.ephemeral/plugin.json
 	cp mattermost-plugin/internkim-ephemeral/dist/plugin-linux-arm64 build/mattermost-plugins/.package-com.internkim.ephemeral/com.internkim.ephemeral/server/dist/plugin-linux-arm64
 	mkdir -p build/mattermost-plugins
-	tar -czf build/mattermost-plugins/com.internkim.ephemeral-0.1.0.tar.gz -C build/mattermost-plugins/.package-com.internkim.ephemeral com.internkim.ephemeral
+	COPYFILE_DISABLE=1 tar --no-xattrs -czf build/mattermost-plugins/com.internkim.ephemeral-0.1.0.tar.gz -C build/mattermost-plugins/.package-com.internkim.ephemeral com.internkim.ephemeral
 	rm -rf build/mattermost-plugins/.package-com.internkim.ephemeral
 
 check: build build-companion
