@@ -8,7 +8,7 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 | 계층 | 실행 | 정의 위치 | 보증 범위 |
 |---|---|---|---|
 | 가상 세션 | `./internkim dev simulate --scenario <name>` | `.dependency/blueclaw/internal/e2e/scenarios.go` (등록: `virtual_session.go`) | 에이전트 루프·툴 선택·스킬 선택·이벤트 (스크립트된 LLM, 결정적) |
-| Linux 실행 게이트 | `./internkim dev replay --target tart --scenario <name>` | 동일 시나리오를 VM에서 재생 | 실행 파일·POSIX 권한·terminal.run 경로 |
+| Linux 실행 게이트 | `./internkim dev replay --target container --scenario <name>` | 동일 시나리오를 apple/container Linux VM에서 재생 | 실행 파일·POSIX 권한·terminal.run 경로 |
 | 로컬 플릿 | `./internkim dev fleet run --recipe predeploy-gate` | `internal/localfleet/plans.go` | admind API·Mattermost 연결·browser 스모크 (인프라 준비성만; 시나리오 단언 없음) |
 | 플릿 시나리오 | `./internkim dev fleet run --scenario <name>` | `internal/localfleet/service.go` + `.dependency/blueclaw/lab/scripts/scenario-*.sh` | 실제 커넥터 경유 메시징 |
 
@@ -66,7 +66,7 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
   행을 더한다.
 - 시나리오는 사용자-가시 결과(회신 내용·이벤트·산출물)를 단언한다. 내부 구현
   세부는 단위 테스트에 둔다.
-- 실제 플랫폼 스모크는 가상 세션·Tart 게이트 통과 후에만, 테스트 정리 규칙과
+- 실제 플랫폼 스모크는 가상 세션·컨테이너 게이트 통과 후에만, 테스트 정리 규칙과
   함께 수행한다.
 
 ## 백로그
