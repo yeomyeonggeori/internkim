@@ -684,6 +684,8 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeServiceLogs(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/diagnostics/mattermost-post":
 		service.writeMattermostPostDiagnostic(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/diagnostics/sync-mattermost-plugins":
+		service.writeMattermostPluginSyncDiagnostic(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/locale":
 		service.writeAdminLocale(responseWriter)
 	case request.Method == http.MethodPut && path == "/locale":
