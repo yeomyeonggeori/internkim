@@ -38,9 +38,23 @@ type releaseUpdateComponentBrief struct {
 
 type releaseUpdateApplyRequest struct {
 	fleetSignedRequest
+	ReleaseID string `json:"releaseID,omitempty"`
+}
+
+type releaseHistoryResponse struct {
+	Entries []releaseHistoryResponseEntry `json:"entries"`
+}
+
+type releaseHistoryResponseEntry struct {
+	ReleaseID   string `json:"releaseID"`
+	ManifestURL string `json:"manifestURL"`
+	CreatedAt   string `json:"createdAt"`
+	IsCurrent   bool   `json:"isCurrent"`
 }
 
 type releaseComponentProvider func(context.Context, *releaseset.Manifest, string) error
+
+var errorReleaseHistoryNotFound = errors.New("release history not found")
 
 func (service *Service) writeReleaseUpdateStatus(responseWriter http.ResponseWriter, request *http.Request) {
 	latest, _ := service.fetchLatestReleaseManifest(request.Context())
@@ -57,7 +71,12 @@ func (service *Service) writeReleaseUpdateStatus(responseWriter http.ResponseWri
 }
 
 func (service *Service) applyReleaseUpdate(responseWriter http.ResponseWriter, request *http.Request) {
-	service.startReleaseUpdate(responseWriter, request)
+	releaseID, errorValue := decodeReleaseUpdateApplyReleaseID(request)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	service.startReleaseUpdate(responseWriter, request, releaseID)
 }
 
 func (service *Service) applyReleaseUpdateSigned(responseWriter http.ResponseWriter, request *http.Request) {
@@ -70,19 +89,34 @@ func (service *Service) applyReleaseUpdateSigned(responseWriter http.ResponseWri
 		http.Error(responseWriter, errorValue.Error(), http.StatusForbidden)
 		return
 	}
-	service.startReleaseUpdate(responseWriter, request)
+	service.startReleaseUpdate(responseWriter, request, "")
 }
 
 func isAllowedReleaseUpdateSignedAction(action string) bool {
 	return action == "release-update-apply"
 }
 
-func (service *Service) startReleaseUpdate(responseWriter http.ResponseWriter, request *http.Request) {
+func decodeReleaseUpdateApplyReleaseID(request *http.Request) (string, error) {
+	document, errorValue := io.ReadAll(io.LimitReader(request.Body, 4096))
+	if errorValue != nil {
+		return "", errorValue
+	}
+	if strings.TrimSpace(string(document)) == "" {
+		return "", nil
+	}
+	var payload releaseUpdateApplyRequest
+	if errorValue := json.Unmarshal(document, &payload); errorValue != nil {
+		return "", errorValue
+	}
+	return strings.TrimSpace(payload.ReleaseID), nil
+}
+
+func (service *Service) startReleaseUpdate(responseWriter http.ResponseWriter, request *http.Request, releaseID string) {
 	if job := service.activeReleaseUpdateJob(); job != nil {
 		service.writeJSON(responseWriter, job)
 		return
 	}
-	manifest, errorValue := service.fetchLatestReleaseManifest(request.Context())
+	manifest, errorValue := service.resolveReleaseUpdateManifest(request.Context(), releaseID)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
@@ -97,6 +131,17 @@ func (service *Service) startReleaseUpdate(responseWriter http.ResponseWriter, r
 	job := service.newJob("release-update")
 	service.writeJSON(responseWriter, job)
 	go service.runReleaseUpdateJob(context.Background(), job.JobID, manifest)
+}
+
+func (service *Service) resolveReleaseUpdateManifest(ctx context.Context, releaseID string) (*releaseset.Manifest, error) {
+	if strings.TrimSpace(releaseID) == "" {
+		return service.fetchLatestReleaseManifest(ctx)
+	}
+	entry, errorValue := service.releaseHistoryEntry(ctx, releaseID)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return service.fetchReleaseManifest(ctx, entry.ManifestURL)
 }
 
 func (service *Service) rollbackReleaseUpdate(responseWriter http.ResponseWriter, _ *http.Request) {
@@ -392,12 +437,97 @@ func (service *Service) restartAdmindAfterReleaseUpdate(ctx context.Context, man
 	}()
 }
 
+func (service *Service) writeReleaseHistory(responseWriter http.ResponseWriter, request *http.Request) {
+	entries, errorValue := service.releaseHistoryEntries(request.Context())
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	current := service.readCurrentReleaseManifest()
+	service.writeJSON(responseWriter, releaseHistoryResponse{
+		Entries: releaseHistoryResponseEntries(entries, current),
+	})
+}
+
+func (service *Service) releaseHistoryEntries(ctx context.Context) ([]releaseset.ChannelHistoryEntry, error) {
+	history, errorValue := service.fetchReleaseChannelHistory(ctx)
+	if errorValue == nil {
+		return history.Entries, nil
+	}
+	if !errors.Is(errorValue, errorReleaseHistoryNotFound) {
+		return nil, errorValue
+	}
+	pointer, errorValue := service.fetchReleaseStablePointer(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return []releaseset.ChannelHistoryEntry{{
+		ReleaseID:   pointer.ReleaseID,
+		ManifestURL: pointer.ManifestURL,
+		CreatedAt:   pointer.UpdatedAt,
+	}}, nil
+}
+
+func (service *Service) releaseHistoryEntry(ctx context.Context, releaseID string) (releaseset.ChannelHistoryEntry, error) {
+	entries, errorValue := service.releaseHistoryEntries(ctx)
+	if errorValue != nil {
+		return releaseset.ChannelHistoryEntry{}, errorValue
+	}
+	for _, entry := range entries {
+		if entry.ReleaseID == releaseID {
+			return entry, nil
+		}
+	}
+	return releaseset.ChannelHistoryEntry{}, fmt.Errorf("unknown releaseID %q", releaseID)
+}
+
+func releaseHistoryResponseEntries(entries []releaseset.ChannelHistoryEntry, current *releaseset.Manifest) []releaseHistoryResponseEntry {
+	currentReleaseID := ""
+	if current != nil {
+		currentReleaseID = current.ReleaseID
+	}
+	responseEntries := make([]releaseHistoryResponseEntry, 0, len(entries))
+	for _, entry := range entries {
+		responseEntries = append(responseEntries, releaseHistoryResponseEntry{
+			ReleaseID:   entry.ReleaseID,
+			ManifestURL: entry.ManifestURL,
+			CreatedAt:   entry.CreatedAt,
+			IsCurrent:   currentReleaseID != "" && entry.ReleaseID == currentReleaseID,
+		})
+	}
+	return responseEntries
+}
+
 func (service *Service) fetchLatestReleaseManifest(ctx context.Context) (*releaseset.Manifest, error) {
 	pointer, errorValue := service.fetchReleaseStablePointer(ctx)
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	return service.fetchReleaseManifest(ctx, pointer.ManifestURL)
+}
+
+func (service *Service) fetchReleaseChannelHistory(ctx context.Context) (releaseset.ChannelHistory, error) {
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, service.releaseRegistryURL("channels/stable-history.json"), nil)
+	if errorValue != nil {
+		return releaseset.ChannelHistory{}, errorValue
+	}
+	service.addReleaseDownloadHeaders(request)
+	response, errorValue := service.httpClient().Do(request)
+	if errorValue != nil {
+		return releaseset.ChannelHistory{}, errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode == http.StatusNotFound {
+		return releaseset.ChannelHistory{}, errorReleaseHistoryNotFound
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return releaseset.ChannelHistory{}, fmt.Errorf("fetch release history: HTTP %d", response.StatusCode)
+	}
+	var history releaseset.ChannelHistory
+	if errorValue := json.NewDecoder(response.Body).Decode(&history); errorValue != nil {
+		return releaseset.ChannelHistory{}, errorValue
+	}
+	return history, nil
 }
 
 func (service *Service) fetchReleaseStablePointer(ctx context.Context) (releaseset.StablePointer, error) {

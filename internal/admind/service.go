@@ -641,6 +641,10 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeReleaseUpdateStatus(responseWriter, request)
 		return
 	}
+	if request.Method == http.MethodGet && path == "/updates/releases" {
+		service.writeReleaseHistory(responseWriter, request)
+		return
+	}
 	if request.Method == http.MethodGet && strings.HasPrefix(path, "/updates/jobs/") {
 		service.writeJob(responseWriter, strings.TrimPrefix(path, "/updates/jobs/"))
 		return

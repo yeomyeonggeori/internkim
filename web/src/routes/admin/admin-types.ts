@@ -77,6 +77,17 @@ export type BlueclawUpdateStatus = {
 	activeJob?: AdminJob;
 };
 
+export type ReleaseHistoryEntry = {
+	releaseID: string;
+	manifestURL: string;
+	createdAt: string;
+	isCurrent: boolean;
+};
+
+export type ReleaseHistoryResponse = {
+	entries?: ReleaseHistoryEntry[];
+};
+
 export type RestoreUploadResponse = {
 	uploadID: string;
 	chunkSize: number;

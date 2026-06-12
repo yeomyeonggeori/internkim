@@ -81,6 +81,28 @@ func (client R2Client) PutObject(objectKey string, document []byte, contentType 
 	return fmt.Errorf("R2 put object %s failed: HTTP %d %s", objectKey, response.StatusCode, strings.TrimSpace(string(body)))
 }
 
+func (client R2Client) DeleteObject(objectKey string) error {
+	objectURL := client.objectURL(objectKey)
+	request, errorValue := http.NewRequest(http.MethodDelete, objectURL, nil)
+	if errorValue != nil {
+		return errorValue
+	}
+	client.signRequest(request, nil)
+	response, errorValue := client.configuration.HTTPClient.Do(request)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode >= 200 && response.StatusCode < 300 {
+		return nil
+	}
+	if response.StatusCode == http.StatusNotFound {
+		return nil
+	}
+	body, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
+	return fmt.Errorf("R2 delete object %s failed: HTTP %d %s", objectKey, response.StatusCode, strings.TrimSpace(string(body)))
+}
+
 func (client R2Client) objectURL(objectKey string) string {
 	cleanObjectKey := strings.TrimLeft(path.Clean(objectKey), "/")
 	return fmt.Sprintf(

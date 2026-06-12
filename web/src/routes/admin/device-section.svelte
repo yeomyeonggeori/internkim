@@ -10,9 +10,10 @@
 		applyBlueclawUpdate,
 		fetchBlueclawUpdateJob,
 		fetchBlueclawUpdateStatus,
-		fetchDeviceHealth
+		fetchDeviceHealth,
+		fetchReleaseHistory
 	} from './admin-api';
-	import type { AdminJob, AdminPageText, AdminSession, BlueclawUpdateStatus, ReleaseUpdateSummary } from './admin-types';
+	import type { AdminJob, AdminPageText, AdminSession, BlueclawUpdateStatus, ReleaseHistoryEntry, ReleaseUpdateSummary } from './admin-types';
 
 	type DeviceSectionProps = {
 		adminBaseURL: string;
@@ -36,10 +37,12 @@
 	let isCheckingDevice = $state(false);
 	let adminErrorMessage = $state('');
 	let blueclawUpdateStatus = $state<BlueclawUpdateStatus | null>(null);
+	let releaseHistoryEntries = $state<ReleaseHistoryEntry[]>([]);
 	let blueclawUpdateJob = $state<AdminJob | null>(null);
 	let blueclawUpdateMessage = $state('');
 	let isLoadingBlueclawUpdate = $state(false);
 	let isApplyingBlueclawUpdate = $state(false);
+	let applyingReleaseID = $state('');
 
 	$effect(() => {
 		if (!adminBaseURL || loadedAdminBaseURL === adminBaseURL) return;
@@ -74,6 +77,31 @@
 	function releaseComponents(summary: ReleaseUpdateSummary | undefined) {
 		const components = summary?.components ?? {};
 		return Object.entries(components).sort(([leftName], [rightName]) => leftName.localeCompare(rightName));
+	}
+
+	function releaseDate(createdAt: string | undefined) {
+		const value = createdAt?.trim() ?? '';
+		if (!value) return text.deviceUpdate.notAvailable;
+		const date = new Date(value);
+		if (Number.isNaN(date.getTime())) return value;
+		return date.toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' });
+	}
+
+	function isReleaseUpdateJobActive() {
+		const status = blueclawUpdateJob?.status ?? blueclawUpdateStatus?.activeJob?.status ?? '';
+		return status === 'pending' || status === 'running';
+	}
+
+	function isCurrentRelease(entry: ReleaseHistoryEntry) {
+		const currentReleaseID = blueclawUpdateStatus?.current?.releaseID ?? '';
+		return entry.isCurrent || (currentReleaseID !== '' && entry.releaseID === currentReleaseID);
+	}
+
+	function canApplyRelease(entry: ReleaseHistoryEntry) {
+		if (!isDeviceReachable) return false;
+		if (isApplyingBlueclawUpdate) return false;
+		if (isReleaseUpdateJobActive()) return false;
+		return !isCurrentRelease(entry);
 	}
 
 	function blueclawUpdateStateLabel(state: string | undefined) {
@@ -116,6 +144,7 @@
 		}
 		if (!isDeviceReachable) {
 			blueclawUpdateStatus = null;
+			releaseHistoryEntries = [];
 			blueclawUpdateJob = null;
 			return;
 		}
@@ -128,7 +157,12 @@
 		isLoadingBlueclawUpdate = true;
 		blueclawUpdateMessage = '';
 		try {
-			blueclawUpdateStatus = await fetchBlueclawUpdateStatus(adminBaseURL, text.deviceUpdate.loadError);
+			const [updateStatus, releaseHistory] = await Promise.all([
+				fetchBlueclawUpdateStatus(adminBaseURL, text.deviceUpdate.loadError),
+				fetchReleaseHistory(adminBaseURL, text.deviceUpdate.loadError)
+			]);
+			blueclawUpdateStatus = updateStatus;
+			releaseHistoryEntries = releaseHistory.entries ?? [];
 			blueclawUpdateJob = blueclawUpdateStatus.activeJob ?? blueclawUpdateJob;
 		} catch (error) {
 			blueclawUpdateMessage = apiErrorMessage(error, text.deviceUpdate.loadError);
@@ -137,18 +171,20 @@
 		}
 	}
 
-	async function applyUpdate() {
+	async function applyUpdate(releaseID = '') {
 		if (!adminBaseURL) return;
 
 		isApplyingBlueclawUpdate = true;
+		applyingReleaseID = releaseID;
 		blueclawUpdateMessage = '';
 		try {
-			blueclawUpdateJob = await applyBlueclawUpdate(adminBaseURL, text.deviceUpdate.applyError);
+			blueclawUpdateJob = await applyBlueclawUpdate(adminBaseURL, text.deviceUpdate.applyError, releaseID);
 			await pollBlueclawUpdateJob(blueclawUpdateJob.jobID);
 		} catch (error) {
 			blueclawUpdateMessage = apiErrorMessage(error, text.deviceUpdate.applyError);
 		} finally {
 			isApplyingBlueclawUpdate = false;
+			applyingReleaseID = '';
 		}
 	}
 
@@ -256,9 +292,9 @@
 			</div>
 		</div>
 	{/if}
-	<div class="mt-4 flex flex-wrap items-center justify-between gap-3">
-		<p class="text-muted-foreground text-xs">{text.deviceUpdate.notice}</p>
-		<div class="flex gap-2">
+	<div class="mt-3 rounded-md bg-muted/20 p-3">
+		<div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+			<p class="text-muted-foreground text-xs">{text.deviceUpdate.recentReleases}</p>
 			<Button variant="outline" size="sm" class="gap-2" disabled={!isDeviceReachable || isLoadingBlueclawUpdate} onclick={loadBlueclawUpdateStatus}>
 				{#if isLoadingBlueclawUpdate}
 					<LoaderIcon class="size-4 animate-spin" />
@@ -267,20 +303,37 @@
 				{/if}
 				{text.deviceUpdate.refresh}
 			</Button>
-			<Button
-				size="sm"
-				class="gap-2"
-				disabled={!isDeviceReachable || isApplyingBlueclawUpdate || !blueclawUpdateStatus?.updateAllowed || blueclawUpdateStatus?.state === 'current'}
-				onclick={applyUpdate}
-			>
-				{#if isApplyingBlueclawUpdate}
-					<LoaderIcon class="size-4 animate-spin" />
-				{:else}
-					<UploadIcon class="size-4" />
-				{/if}
-				{text.deviceUpdate.apply}
-			</Button>
 		</div>
+		{#if releaseHistoryEntries.length > 0}
+			<div class="grid gap-2">
+				{#each releaseHistoryEntries as entry}
+					<div class="grid gap-2 rounded border bg-background px-3 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+						<div class="min-w-0">
+							<div class="flex min-w-0 flex-wrap items-center gap-2">
+								<span class="truncate font-mono text-sm">{releaseLabel(entry.releaseID)}</span>
+								{#if isCurrentRelease(entry)}
+									<Badge variant="secondary">{text.deviceUpdate.currentBadge}</Badge>
+								{/if}
+							</div>
+							<p class="text-muted-foreground mt-1 text-xs">{releaseDate(entry.createdAt)}</p>
+						</div>
+						<Button size="sm" class="gap-2" disabled={!canApplyRelease(entry)} onclick={() => applyUpdate(entry.releaseID)}>
+							{#if isApplyingBlueclawUpdate && applyingReleaseID === entry.releaseID}
+								<LoaderIcon class="size-4 animate-spin" />
+							{:else}
+								<UploadIcon class="size-4" />
+							{/if}
+							{text.deviceUpdate.apply}
+						</Button>
+					</div>
+				{/each}
+			</div>
+		{:else}
+			<p class="rounded border bg-background px-3 py-2 text-sm text-muted-foreground">{text.deviceUpdate.noReleases}</p>
+		{/if}
+	</div>
+	<div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+		<p class="text-muted-foreground text-xs">{text.deviceUpdate.notice}</p>
 	</div>
 	{#if blueclawUpdateMessage || blueclawUpdateJob?.error}
 		<p class="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
