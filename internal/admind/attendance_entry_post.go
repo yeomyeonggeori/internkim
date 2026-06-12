@@ -38,7 +38,7 @@ func (service *Service) ensureMattermostAttendanceEntryPost(ctx context.Context,
 		if errorValue := service.deleteRecentMattermostAttendanceEntryPostDuplicates(ctx, adminToken, channelID, postRecord.ID); errorValue != nil {
 			return errorValue
 		}
-		if !service.isMattermostAttendanceEntryPostCurrent(postRecord) {
+		if !isMattermostAttendanceEntryPostCurrent(postRecord, expectedProps) {
 			if errorValue := service.patchMattermostAttendanceEntryPost(ctx, botToken, postRecord.ID, expectedProps); errorValue != nil {
 				return errorValue
 			}

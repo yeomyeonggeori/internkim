@@ -1,6 +1,9 @@
 package admind
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
@@ -8,16 +11,30 @@ import (
 
 func (service *Service) mattermostAttendanceEntryPostProps() map[string]any {
 	text := service.adminText()
-	return map[string]any{
-		attendanceEntryPostProperty: true,
-		"attachments": []mattermostAttachment{
-			{
-				Fallback: text.AttendanceEntryMessage,
-				Text:     text.AttendanceEntryText,
-				Actions:  service.mattermostAttendanceEntryActions(),
-			},
+	attachments := []mattermostAttachment{
+		{
+			Fallback: text.AttendanceEntryMessage,
+			Text:     text.AttendanceEntryText,
+			Actions:  service.mattermostAttendanceEntryActions(),
 		},
 	}
+	return map[string]any{
+		attendanceEntryPostProperty:            true,
+		attendanceEntryPostFingerprintProperty: attendanceEntryPostFingerprint(text.AttendanceEntryMessage, attachments),
+		"attachments":                          attachments,
+	}
+}
+
+func attendanceEntryPostFingerprint(message string, attachments []mattermostAttachment) string {
+	document, errorValue := json.Marshal(struct {
+		Message     string                 `json:"message"`
+		Attachments []mattermostAttachment `json:"attachments"`
+	}{Message: message, Attachments: attachments})
+	if errorValue != nil {
+		return ""
+	}
+	digest := sha256.Sum256(document)
+	return hex.EncodeToString(digest[:])
 }
 
 func (service *Service) mattermostAttendanceEntryActions() []mattermostAction {
