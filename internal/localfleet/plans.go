@@ -149,7 +149,7 @@ func (service Service) setupCommand() string {
 	return strings.Join([]string{
 		"host=$(" + hostCommand + ")",
 		"test -n \"$host\"",
-		quoteShell(service.options.ExecutablePath) + " setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --skip wifi,local-llm,cloudflare-access,tunnel,google,slack",
+		"INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1 " + quoteShell(service.options.ExecutablePath) + " setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --skip wifi,local-llm,cloudflare-access,tunnel,google,slack",
 	}, " && ")
 }
 
