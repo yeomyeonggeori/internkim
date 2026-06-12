@@ -23,6 +23,24 @@ func (transport roundTripFunc) RoundTrip(request *http.Request) (*http.Response,
 	return transport(request)
 }
 
+func setLiteRTConstrainedRunnerPath(t *testing.T, path string) {
+	t.Helper()
+	previousPath := LiteRTConstrainedRunnerBinaryPath
+	LiteRTConstrainedRunnerBinaryPath = path
+	t.Cleanup(func() {
+		LiteRTConstrainedRunnerBinaryPath = previousPath
+	})
+}
+
+func createLiteRTConstrainedRunner(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "internkim-litert-constrained")
+	if errorValue := os.WriteFile(path, []byte("#!/bin/sh\n"), 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return path
+}
+
 func TestOpenRouterStructuredRequestPreservesSchema(t *testing.T) {
 	seed := int64(42)
 	temperature := 0.1
@@ -157,10 +175,13 @@ func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 		t.Fatalf("expected projected tool parameters to preserve siteID, got %+v", parameters)
 	}
 	required := parameters["required"].([]any)
-	for _, fieldName := range []string{"executionStateUpdate", "message", "nextStepPlan", "toolInput"} {
+	for _, fieldName := range []string{"executionStateUpdate", "nextStepPlan", "toolInput"} {
 		if !requiredContains(required, fieldName) {
 			t.Fatalf("expected required fields to include %s, got %+v", fieldName, parameters)
 		}
+	}
+	if requiredContains(required, "message") {
+		t.Fatalf("expected optional message field to be removed from required, got %+v", parameters)
 	}
 	if receivedDocument["seed"] != float64(seed) {
 		t.Fatalf("expected seed to be forwarded, got %+v", receivedDocument)
@@ -322,7 +343,7 @@ func TestOpenAICompatibleMessagePartsBecomeMultimodalContent(t *testing.T) {
 }
 
 func TestOpenRouterChatActionRequestUsesDocumentedImageInputShape(t *testing.T) {
-	requestDocument, errorValue := buildOpenRouterChatActionRequest(StructuredRequest{
+	requestDocument, _, errorValue := buildOpenRouterChatActionRequest(StructuredRequest{
 		Messages: []Message{{
 			Role:    "user",
 			Content: "inspect this",
@@ -398,7 +419,7 @@ func TestNativeActionToolsRejectFunctionNameCollisions(t *testing.T) {
 	}
 }
 
-func TestNativeActionToolsRequireEveryNestedToolInputPropertyForProviderCompatibility(t *testing.T) {
+func TestNativeActionToolsPreserveNestedToolInputOptionalityForProviderCompatibility(t *testing.T) {
 	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
 		Name:     "blueclaw_agent_turn_action",
 		Document: testActionSchemaForDescriptors(t, capabilities.CalendarDescriptors()),
@@ -423,8 +444,8 @@ func TestNativeActionToolsRequireEveryNestedToolInputPropertyForProviderCompatib
 	}
 	required := nativeToolInputRequired(parameters)
 	for _, fieldName := range []string{"title", "startISO", "endISO"} {
-		if !requiredContains(required, fieldName) {
-			t.Fatalf("expected nested toolInput required fields to include %s, got %+v", fieldName, parameters)
+		if requiredContains(required, fieldName) {
+			t.Fatalf("expected optional nested toolInput field %s to be removed from required, got %+v", fieldName, parameters)
 		}
 	}
 	assertNativeRequiredFieldsHaveProperties(t, "calendar.event.add", parameters)
@@ -553,8 +574,8 @@ func TestNativeActionToolUsesPortableInputSchemaWithoutProjection(t *testing.T) 
 	}
 	required := nativeToolInputRequired(parameters)
 	for _, fieldName := range []string{"path", "content"} {
-		if !requiredContains(required, fieldName) {
-			t.Fatalf("expected nested toolInput required fields to include %s, got %+v in %s", fieldName, required, tool.Parameters)
+		if requiredContains(required, fieldName) {
+			t.Fatalf("expected portable optional toolInput field %s to be removed from required, got %+v in %s", fieldName, required, tool.Parameters)
 		}
 	}
 	assertNativeSchemaIsProviderSafe(t, "file.write", tool.Parameters)
@@ -818,6 +839,81 @@ func TestAutoProviderReportsAggregateErrorWhenAllFail(t *testing.T) {
 	_, errorValue := auto.CompleteText(context.Background(), TextRequest{})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "one") || !strings.Contains(errorValue.Error(), "two") {
 		t.Fatalf("expected aggregate error from chain, got %v", errorValue)
+	}
+}
+
+func TestLiteRTProviderPingReturnsUnavailableWhenConstrainedRunnerMissing(t *testing.T) {
+	missingPath := filepath.Join(t.TempDir(), "missing-constrained-runner")
+	setLiteRTConstrainedRunnerPath(t, missingPath)
+	backend := LiteRTProvider{
+		ModelPath:  "/models/model.litertlm",
+		RunnerPath: "/usr/local/bin/internkim-local-llm-runner",
+		Variant:    "gpu",
+		RunCommand: func(context.Context, string, []string, []byte) ([]byte, error) {
+			return nil, nil
+		},
+	}
+
+	errorValue := backend.Ping(context.Background())
+	if !IsProviderUnavailable(errorValue) {
+		t.Fatalf("expected provider unavailable error, got %v", errorValue)
+	}
+	if ProviderUnavailableReason(errorValue) != "constrained runner not installed" {
+		t.Fatalf("expected constrained runner reason, got %q", ProviderUnavailableReason(errorValue))
+	}
+}
+
+func TestLiteRTProviderCompleteStructuredReturnsUnavailableWithoutRunningCommand(t *testing.T) {
+	missingPath := filepath.Join(t.TempDir(), "missing-constrained-runner")
+	setLiteRTConstrainedRunnerPath(t, missingPath)
+	wasRunCommandCalled := false
+	backend := LiteRTProvider{
+		ModelPath:  "/models/model.litertlm",
+		RunnerPath: "/usr/local/bin/internkim-local-llm-runner",
+		Variant:    "gpu",
+		RunCommand: func(context.Context, string, []string, []byte) ([]byte, error) {
+			wasRunCommandCalled = true
+			return nil, nil
+		},
+	}
+
+	_, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{})
+	if !IsProviderUnavailable(errorValue) {
+		t.Fatalf("expected provider unavailable error, got %v", errorValue)
+	}
+	if wasRunCommandCalled {
+		t.Fatal("expected missing constrained runner to skip subprocess")
+	}
+}
+
+func TestAutoProviderReportsCompactUnavailableFailure(t *testing.T) {
+	missingPath := filepath.Join(t.TempDir(), "missing-constrained-runner")
+	setLiteRTConstrainedRunnerPath(t, missingPath)
+	auto := AutoProvider{
+		AllowStructuredFallback: true,
+		Providers: []Provider{
+			LiteRTProvider{
+				ModelPath:  "/models/model.litertlm",
+				RunnerPath: "/usr/local/bin/internkim-local-llm-runner",
+				Variant:    "gpu",
+				RunCommand: func(context.Context, string, []string, []byte) ([]byte, error) {
+					return nil, nil
+				},
+			},
+			staticProvider{errorValue: errors.New("remote provider rejected request with status 400 and a long schema explanation")},
+		},
+	}
+
+	_, errorValue := auto.CompleteStructured(context.Background(), StructuredRequest{})
+	if errorValue == nil {
+		t.Fatal("expected provider chain failure")
+	}
+	errorMessage := errorValue.Error()
+	if !strings.Contains(errorMessage, "litert: constrained runner not installed") {
+		t.Fatalf("expected compact LiteRT failure, got %v", errorValue)
+	}
+	if strings.Contains(errorMessage, "stat ") || strings.Contains(errorMessage, missingPath) {
+		t.Fatalf("expected LiteRT failure to omit stat details, got %v", errorValue)
 	}
 }
 
@@ -1142,11 +1238,13 @@ func testControlActionVariant(action string) map[string]any {
 
 func assertNativeSchemaIsProviderSafe(t *testing.T, toolName string, schema json.RawMessage) {
 	t.Helper()
-	var document any
-	if errorValue := json.Unmarshal(schema, &document); errorValue != nil {
-		t.Fatalf("schema for %s is invalid: %v", toolName, errorValue)
+	_, lintResult := NormalizeNativeSchema(schema)
+	if len(lintResult.NormalizationsApplied) > 0 {
+		t.Fatalf("schema for %s required provider portability normalization: %+v", toolName, lintResult.NormalizationsApplied)
 	}
-	assertNativeSchemaValueIsProviderSafe(t, toolName, document)
+	if len(lintResult.RemainingViolations) > 0 {
+		t.Fatalf("schema for %s is not provider safe: %+v", toolName, lintResult.RemainingViolations)
+	}
 }
 
 func assertNativeSchemaDoesNotUseToolInputJSONString(t *testing.T, schema json.RawMessage) {
@@ -1161,62 +1259,6 @@ func assertNativeSchemaDoesNotUseToolInputJSONString(t *testing.T, schema json.R
 	}
 	if _, isFound := properties["toolInput"]; !isFound {
 		t.Fatalf("dispatcher schema must expose toolInput object: %+v", document)
-	}
-}
-
-func assertNativeSchemaValueIsProviderSafe(t *testing.T, toolName string, value any) {
-	t.Helper()
-	assertNativeSchemaMapIsProviderSafe(t, toolName, value, false)
-}
-
-var nativeToolSchemaKeywordByName = map[string]bool{
-	"description": true,
-	"enum":        true,
-	"items":       true,
-	"properties":  true,
-	"required":    true,
-	"type":        true,
-}
-
-func assertNativeSchemaMapIsProviderSafe(t *testing.T, toolName string, value any, isPropertiesMap bool) {
-	t.Helper()
-	document, isObject := value.(map[string]any)
-	if isObject {
-		for fieldName, fieldValue := range document {
-			if isPropertiesMap {
-				assertNativeSchemaMapIsProviderSafe(t, toolName, fieldValue, false)
-				continue
-			}
-			if !nativeToolSchemaKeywordByName[fieldName] {
-				t.Fatalf("schema for %s has unsupported key %s: %+v", toolName, fieldName, document)
-			}
-			if fieldName == "type" && fieldValue == "integer" {
-				t.Fatalf("schema for %s uses unsupported integer type: %+v", toolName, document)
-			}
-			if fieldName == "properties" {
-				assertNativeSchemaMapIsProviderSafe(t, toolName, fieldValue, true)
-				continue
-			}
-			assertNativeSchemaMapIsProviderSafe(t, toolName, fieldValue, false)
-		}
-		if document["type"] == "object" {
-			if _, isFound := document["properties"]; !isFound {
-				t.Fatalf("schema for %s has object without properties: %+v", toolName, document)
-			}
-			assertNativeRequiredFieldsHaveProperties(t, toolName, document)
-		}
-		if document["type"] == "array" {
-			if _, isFound := document["items"]; !isFound {
-				t.Fatalf("schema for %s has array without items: %+v", toolName, document)
-			}
-		}
-		return
-	}
-	values, isArray := value.([]any)
-	if isArray {
-		for _, item := range values {
-			assertNativeSchemaMapIsProviderSafe(t, toolName, item, false)
-		}
 	}
 }
 
@@ -1267,10 +1309,19 @@ func nativeToolInputRequired(parameters map[string]any) []any {
 	return required
 }
 
-func requiredContains(required []any, expected string) bool {
-	for _, fieldName := range required {
-		if fieldName == expected {
-			return true
+func requiredContains(required any, expected string) bool {
+	switch values := required.(type) {
+	case []any:
+		for _, fieldName := range values {
+			if fieldName == expected {
+				return true
+			}
+		}
+	case []string:
+		for _, fieldName := range values {
+			if fieldName == expected {
+				return true
+			}
 		}
 	}
 	return false
