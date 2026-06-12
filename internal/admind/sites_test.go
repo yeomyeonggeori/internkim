@@ -151,6 +151,29 @@ func TestSiteResponsesHidePublishedURLUntilPublished(t *testing.T) {
 	assertSiteResponseOmitsPublishedURL(t, writeSiteListResponse(service))
 }
 
+func TestSiteListCanIncludeLiveHTTPStatus(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{
+		Slug:        "live-status",
+		Title:       "Live Status",
+		RequestedBy: "owner@example.com",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeTestWorkspaceBuild(t, site, "live status ok")
+	publishSiteResponse(t, service, site)
+
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/admin/api/sites?checkLive=true", nil)
+	service.listSites(response, request)
+
+	siteObject := siteJSONObjects(t, response)[0]
+	if siteObject["liveHTTPStatus"] != float64(http.StatusOK) {
+		t.Fatalf("liveHTTPStatus = %v, response = %s", siteObject["liveHTTPStatus"], response.Body.String())
+	}
+}
+
 func TestSitePublishFailsWhenReadinessProbeSeesEmptyIndex(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	site, errorValue := service.createSiteRecord(siteCreateRequest{
@@ -999,7 +1022,8 @@ func writeSiteResponse(service *Service, siteID string) *httptest.ResponseRecord
 
 func writeSiteListResponse(service *Service) *httptest.ResponseRecorder {
 	response := httptest.NewRecorder()
-	service.listSites(response)
+	request := httptest.NewRequest(http.MethodGet, "/admin/api/sites", nil)
+	service.listSites(response, request)
 	return response
 }
 

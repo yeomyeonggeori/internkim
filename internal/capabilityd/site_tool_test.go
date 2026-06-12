@@ -225,6 +225,49 @@ func TestSiteAppStatusIgnoresConversationSitesRequesterCannotEdit(t *testing.T) 
 	}
 }
 
+func TestSiteAppStatusMineListsOnlyRequesterEditableSites(t *testing.T) {
+	var requestedURL string
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			requestedURL = request.URL.String()
+			if request.Method != http.MethodGet || request.URL.Path != "/admin/api/sites" {
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			}
+			return siteToolJSONResponse(`{"sites":[{"siteID":"site-a","slug":"alpha","title":"Alpha","status":"published","publishedURL":"https://alpha.example","ownerIdentity":{"personID":"person-a"},"conversationID":"thread-a","liveHTTPStatus":200},{"siteID":"site-b","slug":"beta","title":"Beta","status":"published","publishedURL":"https://beta.example","ownerIdentity":{"personID":"person-b"},"conversationID":"thread-b","liveHTTPStatus":503},{"siteID":"site-c","slug":"shared","title":"Shared","status":"failed","lastError":"build failed","ownerIdentity":{"personID":"person-b"},"collaborators":[{"personID":"person-a","role":"editor"}],"conversationID":"thread-c"}]}`), nil
+		})},
+	}
+
+	response, errorValue := service.invokeSiteAppTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "site.app.status",
+		Input:    json.RawMessage(`{"scope":"mine","checkLive":true}`),
+		Context: capabilities.ToolInvokeContext{
+			RequesterPersonID: "person-a",
+			Platform:          "mattermost",
+			ConversationID:    "thread-a",
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	result := string(response.Result)
+	if !strings.Contains(requestedURL, "checkLive=true") {
+		t.Fatalf("expected checkLive query, got %s", requestedURL)
+	}
+	if !strings.Contains(result, `"siteID":"site-a"`) || !strings.Contains(result, `"siteID":"site-c"`) {
+		t.Fatalf("expected editable sites in owner-wide response, got %s", result)
+	}
+	if strings.Contains(result, `"siteID":"site-b"`) || strings.Contains(result, "beta.example") {
+		t.Fatalf("expected owner B site to be filtered, got %s", result)
+	}
+	if strings.Contains(result, "thread-a") || strings.Contains(result, `"conversationID"`) {
+		t.Fatalf("expected compact site records, got %s", result)
+	}
+	if !strings.Contains(result, `"liveHTTPStatus":200`) || !strings.Contains(result, `"lastError":"build failed"`) {
+		t.Fatalf("expected live status and last error passthrough, got %s", result)
+	}
+}
+
 func TestSiteAppStatusBySlugHidesSourcePathsForNonEditor(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},

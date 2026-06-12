@@ -83,6 +83,7 @@ type SiteRecord struct {
 	UnpublishedAt       time.Time          `json:"unpublishedAt,omitempty"`
 	DeletedAt           time.Time          `json:"deletedAt,omitempty"`
 	LastError           string             `json:"lastError,omitempty"`
+	LiveHTTPStatus      int                `json:"liveHTTPStatus,omitempty"`
 }
 
 type siteCreateRequest struct {
@@ -391,8 +392,8 @@ func normalizeHTTPHost(host string) string {
 	return strings.Trim(trimmedHost, "[]")
 }
 
-func (service *Service) listSites(responseWriter http.ResponseWriter) {
-	service.writeJSON(responseWriter, map[string]any{"sites": service.siteListResponse()})
+func (service *Service) listSites(responseWriter http.ResponseWriter, request *http.Request) {
+	service.writeJSON(responseWriter, map[string]any{"sites": service.siteListResponse(request.Context(), siteListShouldCheckLive(request))})
 }
 
 func (service *Service) createSite(responseWriter http.ResponseWriter, request *http.Request) {
@@ -2167,12 +2168,38 @@ func (service *Service) siteList() []*SiteRecord {
 	return sites
 }
 
-func (service *Service) siteListResponse() []*SiteRecord {
+func (service *Service) siteListResponse(ctx context.Context, checkLive bool) []*SiteRecord {
 	sites := service.siteList()
+	probeCount := 0
 	for index, site := range sites {
-		sites[index] = siteAPIResponse(site)
+		responseSite := siteAPIResponse(site)
+		if checkLive && responseSite.Status == SiteStatusPublished && probeCount < 20 {
+			responseSite.LiveHTTPStatus = service.probePublishedSiteHTTPStatus(ctx, responseSite)
+			probeCount++
+		}
+		sites[index] = responseSite
 	}
 	return sites
+}
+
+func siteListShouldCheckLive(request *http.Request) bool {
+	if request == nil {
+		return false
+	}
+	value := strings.ToLower(strings.TrimSpace(request.URL.Query().Get("checkLive")))
+	return value == "true" || value == "1"
+}
+
+func (service *Service) probePublishedSiteHTTPStatus(ctx context.Context, site *SiteRecord) int {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	host := service.siteReadinessProbeHost(site)
+	request := httptest.NewRequest(http.MethodGet, "https://"+host+"/", nil)
+	request.Host = host
+	request = request.WithContext(ctx)
+	response := httptest.NewRecorder()
+	service.withSiteGateway(http.NotFoundHandler()).ServeHTTP(response, request)
+	return response.Code
 }
 
 func siteVisiblePublishedURL(site *SiteRecord) string {
