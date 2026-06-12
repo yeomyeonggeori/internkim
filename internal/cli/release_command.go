@@ -13,6 +13,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,6 +30,7 @@ type releaseBlob struct {
 
 type releaseObjectPublisher interface {
 	PutObject(objectKey string, document []byte, contentType string) error
+	DeleteObject(objectKey string) error
 	PublicURL(objectKey string) string
 }
 
@@ -77,6 +80,10 @@ func runReleasePublish(arguments []string) error {
 	}
 	releaseID := firstNonEmptyString(commandArgumentValue(arguments, "--release", ""), defaultReleaseID(repositoryRootPath))
 	channel := firstNonEmptyString(commandArgumentValue(arguments, "--channel", ""), "stable")
+	retainedReleaseCount, errorValue := releaseRetentionLimit(arguments)
+	if errorValue != nil {
+		return errorValue
+	}
 	temporaryDirectoryPath, errorValue := os.MkdirTemp("", "internkim-release-*")
 	if errorValue != nil {
 		return errorValue
@@ -128,6 +135,14 @@ func runReleasePublish(arguments []string) error {
 	if errorValue := publisher.PutObject("channels/"+channel+".json", append(pointerDocument, '\n'), "application/json"); errorValue != nil {
 		return errorValue
 	}
+	historyEntry := releaseset.ChannelHistoryEntry{
+		ReleaseID:   releaseID,
+		ManifestURL: pointer.ManifestURL,
+		CreatedAt:   manifest.CreatedAt,
+	}
+	if errorValue := updateReleaseChannelHistory(publisher, channel, historyEntry, retainedReleaseCount, &manifest); errorValue != nil {
+		return errorValue
+	}
 	fmt.Printf("published %s -> %s\n", channel, releaseID)
 	return nil
 }
@@ -142,6 +157,219 @@ func runReleaseStatus(arguments []string) error {
 	fmt.Printf("Release: %s\n", pointer.ReleaseID)
 	fmt.Printf("Manifest: %s\n", pointer.ManifestURL)
 	return nil
+}
+
+func releaseRetentionLimit(arguments []string) (int, error) {
+	value := strings.TrimSpace(commandArgumentValue(arguments, "--keep", ""))
+	if value == "" {
+		return 10, nil
+	}
+	limit, errorValue := strconv.Atoi(value)
+	if errorValue != nil || limit < 1 {
+		return 0, fmt.Errorf("--keep must be a positive integer, got %q", value)
+	}
+	return limit, nil
+}
+
+func updateReleaseChannelHistory(
+	publisher releaseObjectPublisher,
+	channel string,
+	entry releaseset.ChannelHistoryEntry,
+	retainedReleaseCount int,
+	currentManifest *releaseset.Manifest,
+) error {
+	existingHistory, errorValue := fetchReleaseChannelHistory(publisher, channel)
+	if errorValue != nil {
+		return errorValue
+	}
+	history, prunedEntries := buildReleaseChannelHistory(existingHistory, channel, entry, retainedReleaseCount, time.Now().UTC())
+	historyDocument, errorValue := json.MarshalIndent(history, "", "  ")
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := publisher.PutObject(releaseChannelHistoryKey(channel), append(historyDocument, '\n'), "application/json"); errorValue != nil {
+		return errorValue
+	}
+	for _, warning := range pruneReleaseChannelHistory(publisher, history.Entries, prunedEntries, currentManifest) {
+		fmt.Fprintf(os.Stderr, "warning: %v\n", warning)
+	}
+	return nil
+}
+
+func fetchReleaseChannelHistory(publisher releaseObjectPublisher, channel string) (releaseset.ChannelHistory, error) {
+	historyURL := publisher.PublicURL(releaseChannelHistoryKey(channel))
+	request, errorValue := http.NewRequest(http.MethodGet, historyURL, nil)
+	if errorValue != nil {
+		return releaseset.ChannelHistory{}, errorValue
+	}
+	addReleaseDownloadHeaders(request)
+	response, errorValue := statusHTTPClient.Do(request)
+	if errorValue != nil {
+		return releaseset.ChannelHistory{}, errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode == http.StatusNotFound {
+		return releaseset.ChannelHistory{Channel: channel}, nil
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return releaseset.ChannelHistory{}, fmt.Errorf("fetch release history: HTTP %d", response.StatusCode)
+	}
+	var history releaseset.ChannelHistory
+	if errorValue := json.NewDecoder(response.Body).Decode(&history); errorValue != nil {
+		return releaseset.ChannelHistory{}, errorValue
+	}
+	return history, nil
+}
+
+func buildReleaseChannelHistory(
+	existingHistory releaseset.ChannelHistory,
+	channel string,
+	entry releaseset.ChannelHistoryEntry,
+	retainedReleaseCount int,
+	updatedAt time.Time,
+) (releaseset.ChannelHistory, []releaseset.ChannelHistoryEntry) {
+	entries := []releaseset.ChannelHistoryEntry{entry}
+	for _, existingEntry := range existingHistory.Entries {
+		if strings.TrimSpace(existingEntry.ReleaseID) == "" || existingEntry.ReleaseID == entry.ReleaseID {
+			continue
+		}
+		entries = append(entries, existingEntry)
+	}
+	retainedEntries, prunedEntries := trimReleaseHistoryEntries(entries, retainedReleaseCount)
+	return releaseset.ChannelHistory{
+		Channel:   channel,
+		Entries:   retainedEntries,
+		UpdatedAt: updatedAt.UTC().Format(time.RFC3339),
+	}, prunedEntries
+}
+
+func trimReleaseHistoryEntries(entries []releaseset.ChannelHistoryEntry, retainedReleaseCount int) ([]releaseset.ChannelHistoryEntry, []releaseset.ChannelHistoryEntry) {
+	if retainedReleaseCount >= len(entries) {
+		return entries, nil
+	}
+	return entries[:retainedReleaseCount], entries[retainedReleaseCount:]
+}
+
+func pruneReleaseChannelHistory(
+	publisher releaseObjectPublisher,
+	retainedEntries []releaseset.ChannelHistoryEntry,
+	prunedEntries []releaseset.ChannelHistoryEntry,
+	currentManifest *releaseset.Manifest,
+) []error {
+	if len(prunedEntries) == 0 {
+		return nil
+	}
+	retainedManifests, errorValue := fetchRetainedReleaseManifests(retainedEntries, currentManifest)
+	if errorValue != nil {
+		return []error{errorValue}
+	}
+	retainedBlobKeys := releaseBlobKeys(retainedManifests)
+	warnings := []error{}
+	for _, entry := range prunedEntries {
+		manifest, errorValue := fetchReleaseManifestDocument(entry.ManifestURL)
+		if errorValue != nil {
+			warnings = append(warnings, fmt.Errorf("skip prune %s: %w", entry.ReleaseID, errorValue))
+			continue
+		}
+		warnings = append(warnings, deletePrunedReleaseObjects(publisher, entry.ReleaseID, manifest, retainedBlobKeys)...)
+	}
+	return warnings
+}
+
+func fetchRetainedReleaseManifests(
+	retainedEntries []releaseset.ChannelHistoryEntry,
+	currentManifest *releaseset.Manifest,
+) ([]releaseset.Manifest, error) {
+	manifests := []releaseset.Manifest{}
+	for _, entry := range retainedEntries {
+		if currentManifest != nil && currentManifest.ReleaseID == entry.ReleaseID {
+			manifests = append(manifests, *currentManifest)
+			continue
+		}
+		manifest, errorValue := fetchReleaseManifestDocument(entry.ManifestURL)
+		if errorValue != nil {
+			return nil, fmt.Errorf("skip pruning because retained release %s could not be read: %w", entry.ReleaseID, errorValue)
+		}
+		manifests = append(manifests, manifest)
+	}
+	return manifests, nil
+}
+
+func fetchReleaseManifestDocument(manifestURL string) (releaseset.Manifest, error) {
+	request, errorValue := http.NewRequest(http.MethodGet, manifestURL, nil)
+	if errorValue != nil {
+		return releaseset.Manifest{}, errorValue
+	}
+	addReleaseDownloadHeaders(request)
+	response, errorValue := statusHTTPClient.Do(request)
+	if errorValue != nil {
+		return releaseset.Manifest{}, errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return releaseset.Manifest{}, fmt.Errorf("fetch manifest: HTTP %d", response.StatusCode)
+	}
+	var manifest releaseset.Manifest
+	if errorValue := json.NewDecoder(response.Body).Decode(&manifest); errorValue != nil {
+		return releaseset.Manifest{}, errorValue
+	}
+	if errorValue := manifest.Validate(); errorValue != nil {
+		return releaseset.Manifest{}, errorValue
+	}
+	return manifest, nil
+}
+
+func releaseBlobKeys(manifests []releaseset.Manifest) map[string]bool {
+	blobKeys := map[string]bool{}
+	for _, manifest := range manifests {
+		for _, component := range manifest.Components {
+			blobKeys[component.BlobPath] = true
+		}
+	}
+	return blobKeys
+}
+
+func deletePrunedReleaseObjects(
+	publisher releaseObjectPublisher,
+	releaseID string,
+	manifest releaseset.Manifest,
+	retainedBlobKeys map[string]bool,
+) []error {
+	warnings := []error{}
+	manifestKey := releaseManifestKey(releaseID)
+	if errorValue := publisher.DeleteObject(manifestKey); errorValue != nil {
+		warnings = append(warnings, errorValue)
+	}
+	for _, blobKey := range sortedBlobKeys(manifest) {
+		if retainedBlobKeys[blobKey] {
+			continue
+		}
+		if errorValue := publisher.DeleteObject(blobKey); errorValue != nil {
+			warnings = append(warnings, errorValue)
+		}
+	}
+	return warnings
+}
+
+func sortedBlobKeys(manifest releaseset.Manifest) []string {
+	blobKeySet := map[string]bool{}
+	for _, component := range manifest.Components {
+		blobKeySet[component.BlobPath] = true
+	}
+	blobKeys := make([]string, 0, len(blobKeySet))
+	for blobKey := range blobKeySet {
+		blobKeys = append(blobKeys, blobKey)
+	}
+	sort.Strings(blobKeys)
+	return blobKeys
+}
+
+func releaseManifestKey(releaseID string) string {
+	return "releases/" + strings.Trim(strings.TrimSpace(releaseID), "/") + "/manifest.json"
+}
+
+func releaseChannelHistoryKey(channel string) string {
+	return "channels/" + strings.Trim(strings.TrimSpace(channel), "/") + "-history.json"
 }
 
 func createReleaseBlobs(repositoryRootPath string, temporaryDirectoryPath string, selectedComponentNames map[string]bool) ([]releaseBlob, error) {
@@ -356,6 +584,17 @@ func (publisher wranglerReleasePublisher) PutObject(objectKey string, document [
 	return nil
 }
 
+func (publisher wranglerReleasePublisher) DeleteObject(objectKey string) error {
+	arguments := wranglerObjectDeleteArguments(publisher.bucket, objectKey)
+	command := exec.Command(publisher.commandPath, arguments...)
+	command.Env = wranglerObjectPutEnvironment(os.Environ(), publisher.accountID)
+	output, errorValue := command.CombinedOutput()
+	if errorValue != nil {
+		return fmt.Errorf("wrangler R2 delete object %s failed: %s", objectKey, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
 func wranglerObjectPutArguments(bucket string, objectKey string, filePath string, contentType string) []string {
 	arguments := []string{
 		"r2", "object", "put", strings.TrimSpace(bucket) + "/" + strings.TrimLeft(filepath.ToSlash(objectKey), "/"),
@@ -367,6 +606,13 @@ func wranglerObjectPutArguments(bucket string, objectKey string, filePath string
 		arguments = append(arguments, "--content-type", strings.TrimSpace(contentType))
 	}
 	return arguments
+}
+
+func wranglerObjectDeleteArguments(bucket string, objectKey string) []string {
+	return []string{
+		"r2", "object", "delete", strings.TrimSpace(bucket) + "/" + strings.TrimLeft(filepath.ToSlash(objectKey), "/"),
+		"--remote",
+	}
 }
 
 func wranglerObjectPutEnvironment(environment []string, accountID string) []string {
