@@ -14,9 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
-	"time"
 
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
 	"gitlab.com/eastriver/internkim/internal/capabilities"
@@ -79,7 +77,7 @@ func runServer(arguments []string) error {
 		_ = request
 		writeJSON(responseWriter, capabilities.RegistryResponse{
 			LocalOnly:    *localOnly,
-			Capabilities: defaultCapabilities(*localOnly, *devMockLLM || settings.currentSettings().Enabled),
+			Capabilities: companionruntime.DefaultCapabilities(*localOnly, *devMockLLM || settings.currentSettings().Enabled),
 		})
 	})
 	multiplexer.HandleFunc("POST /v1/llm/structured", llmHandler(settings, *devMockLLM, true))
@@ -92,30 +90,6 @@ func runServer(arguments []string) error {
 	multiplexer.HandleFunc("POST /v1/tools/{toolName}/invoke", notImplemented)
 
 	return http.ListenAndServe(*listenAddress, multiplexer)
-}
-
-type companionState struct {
-	DeviceURL    string                    `json:"deviceURL"`
-	CompanionID  string                    `json:"companionID"`
-	Token        string                    `json:"token"`
-	PublicKey    string                    `json:"publicKey"`
-	PrivateKeyID string                    `json:"privateKeyID,omitempty"`
-	PrivateKey   string                    `json:"privateKey,omitempty"`
-	LocalOnly    bool                      `json:"localOnly"`
-	Capabilities []capabilities.Descriptor `json:"capabilities"`
-}
-
-type companionJob struct {
-	JobID         string                         `json:"jobID"`
-	ParentJobID   string                         `json:"parentJobID"`
-	GrantID       string                         `json:"grantID"`
-	Status        string                         `json:"status"`
-	ToolName      string                         `json:"toolName"`
-	PrivacyClass  string                         `json:"privacyClass"`
-	ResourceScope capabilities.ResourceScope     `json:"resourceScope"`
-	ExpiresAt     time.Time                      `json:"expiresAt"`
-	Depth         int                            `json:"depth"`
-	Request       capabilities.ToolInvokeRequest `json:"request"`
 }
 
 type companionStatusDocument struct {
@@ -138,12 +112,6 @@ const (
 	companionAuthStatusUnknown           = "unknown"
 )
 
-type companionFileUploader struct {
-	HTTPClient *http.Client
-	State      companionState
-	PrivateKey string
-}
-
 type browserAutoApprovalHandler struct{}
 
 func (handler browserAutoApprovalHandler) Approve(ctx context.Context, request companionruntime.ApprovalRequest) (companionruntime.ApprovalDecision, error) {
@@ -152,11 +120,6 @@ func (handler browserAutoApprovalHandler) Approve(ctx context.Context, request c
 		return companionruntime.ApprovalDecision{Allowed: true}, nil
 	}
 	return companionruntime.ApprovalDecision{Allowed: false, SuggestedConstraint: "automatic approval is limited to browser grants"}, nil
-}
-
-type companionFileUploadCreateResponse struct {
-	UploadID  string `json:"uploadID"`
-	ChunkSize int64  `json:"chunkSize"`
 }
 
 func runPair(arguments []string, httpClient *http.Client) error {
@@ -188,7 +151,7 @@ func runPairWithStore(arguments []string, httpClient *http.Client, secureStore c
 	if errorValue != nil {
 		return errorValue
 	}
-	capabilityList := defaultCapabilities(*localOnly, *devMockLLM)
+	capabilityList := companionruntime.DefaultCapabilities(*localOnly, *devMockLLM)
 	requestBody := map[string]any{
 		"code":         strings.TrimSpace(*code),
 		"displayName":  defaultDisplayName(),
@@ -207,7 +170,7 @@ func runPairWithStore(arguments []string, httpClient *http.Client, secureStore c
 	if errorValue := secureStore.Put(context.Background(), privateKeyID, keyPair.PrivateKey); errorValue != nil {
 		return errorValue
 	}
-	state := companionState{
+	state := companionruntime.State{
 		DeviceURL:    strings.TrimRight(*deviceURL, "/"),
 		CompanionID:  response.CompanionID,
 		Token:        response.Token,
@@ -233,7 +196,8 @@ func runDisconnect(arguments []string, httpClient *http.Client, secureStore comp
 	if errorValue == nil {
 		privateKey, keyError := secureStore.Get(context.Background(), state.PrivateKeyID)
 		if keyError == nil {
-			_ = postSignedJSON(httpClient, state, privateKey, state.DeviceURL+"/_internkim/companion/disconnect", map[string]any{}, nil)
+			deviceClient := companionruntime.DeviceClient{HTTPClient: httpClient, State: state, PrivateKey: privateKey}
+			_ = deviceClient.PostSignedJSON(state.DeviceURL+"/_internkim/companion/disconnect", map[string]any{}, nil)
 		}
 	}
 	if state.PrivateKeyID != "" {
@@ -291,7 +255,7 @@ func runStatus(arguments []string, httpClient *http.Client, secureStore companio
 	return nil
 }
 
-func companionAuthStatusFromState(state companionState, shouldVerify bool, statePath string, httpClient *http.Client, secureStore companionruntime.SecureStore) string {
+func companionAuthStatusFromState(state companionruntime.State, shouldVerify bool, statePath string, httpClient *http.Client, secureStore companionruntime.SecureStore) string {
 	if state.DeviceURL == "" || state.CompanionID == "" || state.Token == "" {
 		if state.LocalOnly {
 			return companionAuthStatusLocalOnly
@@ -307,11 +271,12 @@ func companionAuthStatusFromState(state companionState, shouldVerify bool, state
 	}
 	var response map[string]string
 	endpoint := verifiedState.DeviceURL + "/_internkim/companion/auth/check"
-	errorValue = signedJSONRequest(httpClient, verifiedState, privateKey, http.MethodGet, endpoint, nil, &response)
+	deviceClient := companionruntime.DeviceClient{HTTPClient: httpClient, State: verifiedState, PrivateKey: privateKey}
+	errorValue = deviceClient.SignedJSONRequest(http.MethodGet, endpoint, nil, &response)
 	if errorValue == nil {
 		return companionAuthStatusVerified
 	}
-	if isCompanionAuthRequiredError(errorValue) {
+	if companionruntime.IsCompanionAuthRequiredError(errorValue) {
 		return companionAuthStatusReconnectRequired
 	}
 	return companionAuthStatusUnknown
@@ -350,7 +315,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 		return errorValue
 	}
 	if *devMockLLM {
-		state.Capabilities = defaultCapabilities(state.LocalOnly, true)
+		state.Capabilities = companionruntime.DefaultCapabilities(state.LocalOnly, true)
 	}
 	resolvedAgentBrowserPath := resolveAgentBrowserPath(*agentBrowserPath)
 	browserRuntime := browserruntime.AgentBrowserRuntime{
@@ -376,7 +341,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	}
 	readiness := browserRuntime.EnsureInstalled(context.Background())
 	if readiness.Status != "ready" {
-		state.Capabilities = capabilitiesWithoutBrowser(state.Capabilities)
+		state.Capabilities = companionruntime.CapabilitiesWithoutBrowser(state.Capabilities)
 	}
 	grantStore := companionruntime.NewMemoryGrantStore()
 	mountStore := companionruntime.NewMountStore(defaultMountStatePath(*statePath))
@@ -400,20 +365,14 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	if readiness.Status != "ready" {
 		executor.BrowserRuntime = nil
 	}
-	handoffCompletionHandler := func(ctx context.Context, completion companionruntime.HandoffCompletion) error {
-		return completeHandoff(ctx, httpClient, state, privateKey, completion)
-	}
+	deviceClient := companionruntime.DeviceClient{HTTPClient: httpClient, State: state, PrivateKey: privateKey}
+	handoffCompletionHandler := companionruntime.JobRunner{DeviceClient: deviceClient}.CompleteHandoff
 	controlServer, errorValue := startControlServer(*controlListenAddress, grantStore, mountStore, handoffStore, nil, handoffCompletionHandler, runtimeStatus, localLLM, httpClient)
 	if errorValue != nil {
 		return errorValue
 	}
 	if controlServer != nil {
 		defer controlServer.Close()
-	}
-	heartbeatContext, stopHeartbeatLoop := context.WithCancel(context.Background())
-	defer stopHeartbeatLoop()
-	if !*runOnce {
-		go runHeartbeatLoop(heartbeatContext, httpClient, state, privateKey, runtimeStatus, mountStore, *preferCompanionBrowser)
 	}
 	if *allowStdinPrompts {
 		executor.PromptHandler = companionruntime.TerminalPromptHandler{Reader: os.Stdin, Writer: os.Stdout}
@@ -431,159 +390,22 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 		executor.ApprovalHandler = shellBridgeHandler
 		executor.FilePicker = shellBridgeHandler
 		executor.DirectoryPicker = shellBridgeHandler
-		executor.FileUploader = companionFileUploader{
-			HTTPClient: httpClient,
-			State:      state,
-			PrivateKey: privateKey,
-		}
+		executor.FileUploader = companionruntime.DeviceFileUploader{DeviceClient: deviceClient}
 	}
-	for {
-		if errorValue := sendHeartbeat(httpClient, state, privateKey, runtimeStatus, mountStore, *preferCompanionBrowser); errorValue != nil {
-			runtimeStatus.recordHeartbeat(errorValue)
-			return errorValue
-		}
-		runtimeStatus.recordHeartbeat(nil)
-		job, errorValue := nextJob(httpClient, state, privateKey)
-		if errorValue != nil {
-			return errorValue
-		}
-		if job == nil {
-			if *runOnce {
-				return nil
-			}
-			continue
-		}
-		jobContext, cancelJobContext := contextForCompanionJob(job)
-		response, executionError := executor.ExecuteJob(jobContext, companionruntime.JobEnvelope{
-			JobID:         job.JobID,
-			ParentJobID:   job.ParentJobID,
-			GrantID:       job.GrantID,
-			ToolName:      firstNonEmpty(job.ToolName, job.Request.ToolName),
-			PrivacyClass:  job.PrivacyClass,
-			ResourceScope: job.ResourceScope,
-			Depth:         job.Depth,
-		}, job.Request)
-		cancelJobContext()
-		if executionError != nil {
-			var denialError companionruntime.DenialError
-			if errors.As(executionError, &denialError) {
-				_ = denyJob(httpClient, state, privateKey, job.JobID, denialError.Denial)
-			} else {
-				_ = failJob(httpClient, state, privateKey, job.JobID, executionError.Error())
-			}
-		} else {
-			_ = completeJob(httpClient, state, privateKey, job.JobID, response)
-		}
-		if *runOnce {
-			return executionError
-		}
+	jobRunner := companionruntime.JobRunner{
+		DeviceClient:           deviceClient,
+		Executor:               executor,
+		Runtime:                runtimeStatus,
+		MountStore:             mountStore,
+		PreferCompanionBrowser: *preferCompanionBrowser,
+		RunOnce:                *runOnce,
 	}
-}
-
-func contextForCompanionJob(job *companionJob) (context.Context, context.CancelFunc) {
-	if job == nil || job.ExpiresAt.IsZero() {
-		return context.WithCancel(context.Background())
+	heartbeatContext, stopHeartbeatLoop := context.WithCancel(context.Background())
+	defer stopHeartbeatLoop()
+	if !*runOnce {
+		go jobRunner.RunHeartbeatLoop(heartbeatContext)
 	}
-	deadline := job.ExpiresAt.Add(-250 * time.Millisecond)
-	if time.Until(deadline) <= 0 {
-		deadline = time.Now().Add(250 * time.Millisecond)
-	}
-	return context.WithDeadline(context.Background(), deadline)
-}
-
-func runHeartbeatLoop(ctx context.Context, httpClient *http.Client, state companionState, privateKey string, runtimeStatus *runtimeState, mountStore *companionruntime.MountStore, preferCompanionBrowser bool) {
-	ticker := time.NewTicker(15 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			runtimeStatus.recordHeartbeat(sendHeartbeat(httpClient, state, privateKey, runtimeStatus, mountStore, preferCompanionBrowser))
-		}
-	}
-}
-
-func (uploader companionFileUploader) UploadFile(ctx context.Context, request companionruntime.FileUploadRequest) (companionruntime.UploadedFile, error) {
-	httpClient := uploader.HTTPClient
-	if httpClient == nil {
-		httpClient = http.DefaultClient
-	}
-	var createResponse companionFileUploadCreateResponse
-	if errorValue := postSignedJSON(httpClient, uploader.State, uploader.PrivateKey, uploader.State.DeviceURL+"/_internkim/companion/files/uploads", map[string]any{
-		"jobID":       request.JobID,
-		"filename":    request.Filename,
-		"sizeBytes":   request.SizeBytes,
-		"contentType": request.ContentType,
-		"ttlSeconds":  request.TTLSeconds,
-	}, &createResponse); errorValue != nil {
-		return companionruntime.UploadedFile{}, errorValue
-	}
-	chunkSize := createResponse.ChunkSize
-	if chunkSize <= 0 {
-		return companionruntime.UploadedFile{}, errors.New("device returned invalid upload chunk size")
-	}
-	chunks, errorValue := uploader.uploadFileChunks(ctx, httpClient, createResponse.UploadID, request.Path, chunkSize)
-	if errorValue != nil {
-		return companionruntime.UploadedFile{}, errorValue
-	}
-	var uploadedFile companionruntime.UploadedFile
-	if errorValue := postSignedJSON(httpClient, uploader.State, uploader.PrivateKey, uploader.State.DeviceURL+"/_internkim/companion/files/uploads/"+url.PathEscape(createResponse.UploadID)+"/complete", map[string]any{
-		"chunks": chunks,
-	}, &uploadedFile); errorValue != nil {
-		return companionruntime.UploadedFile{}, errorValue
-	}
-	return uploadedFile, nil
-}
-
-func (uploader companionFileUploader) uploadFileChunks(ctx context.Context, httpClient *http.Client, uploadID string, path string, chunkSize int64) (int, error) {
-	file, errorValue := os.Open(path)
-	if errorValue != nil {
-		return 0, errors.New("selected file cannot be opened")
-	}
-	defer file.Close()
-	buffer := make([]byte, chunkSize)
-	chunkIndex := 0
-	for {
-		count, readError := io.ReadFull(file, buffer)
-		if count > 0 {
-			endpoint := uploader.State.DeviceURL + "/_internkim/companion/files/uploads/" + url.PathEscape(uploadID) + "/chunks/" + strconv.Itoa(chunkIndex)
-			if errorValue := putSignedBytes(ctx, httpClient, uploader.State, uploader.PrivateKey, endpoint, buffer[:count]); errorValue != nil {
-				return chunkIndex, errorValue
-			}
-			chunkIndex++
-		}
-		if errors.Is(readError, io.EOF) || errors.Is(readError, io.ErrUnexpectedEOF) {
-			return chunkIndex, nil
-		}
-		if readError != nil {
-			return chunkIndex, errors.New("selected file cannot be read")
-		}
-	}
-}
-
-func defaultCapabilities(localOnly bool, devMockLLM bool) []capabilities.Descriptor {
-	descriptors := capabilities.CompanionToolDescriptors()
-	for index, descriptor := range descriptors {
-		if strings.HasPrefix(descriptor.Name, "browser.") {
-			descriptors[index].WorksOffline = localOnly
-		}
-	}
-	if devMockLLM {
-		descriptors = append(descriptors, capabilities.CompanionLLMDescriptors()...)
-	}
-	return descriptors
-}
-
-func capabilitiesWithoutBrowser(descriptors []capabilities.Descriptor) []capabilities.Descriptor {
-	filteredDescriptors := []capabilities.Descriptor{}
-	for _, descriptor := range descriptors {
-		if strings.HasPrefix(descriptor.Name, "browser.") {
-			continue
-		}
-		filteredDescriptors = append(filteredDescriptors, descriptor)
-	}
-	return filteredDescriptors
+	return jobRunner.Run(context.Background())
 }
 
 func llmHandler(settings *dynamicLocalLLM, devMock bool, isStructured bool) http.HandlerFunc {
@@ -791,64 +613,6 @@ func writeJSONDocument(writer io.Writer, response any) {
 	_ = json.NewEncoder(writer).Encode(response)
 }
 
-func sendHeartbeat(httpClient *http.Client, state companionState, privateKey string, runtime *runtimeState, mountStore *companionruntime.MountStore, preferCompanionBrowser bool) error {
-	payload := map[string]any{
-		"capabilities":           state.Capabilities,
-		"localOnly":              state.LocalOnly,
-		"preferCompanionBrowser": preferCompanionBrowser,
-	}
-	if runtime != nil {
-		payload["localLLMAvailable"] = runtime.localLLMAvailable()
-	}
-	if mountStore != nil {
-		payload["mounts"] = mountStore.List()
-	}
-	return postSignedJSON(httpClient, state, privateKey, state.DeviceURL+"/_internkim/companion/heartbeat", payload, &map[string]any{})
-}
-
-func nextJob(httpClient *http.Client, state companionState, privateKey string) (*companionJob, error) {
-	request, errorValue := http.NewRequest(http.MethodGet, state.DeviceURL+"/_internkim/companion/jobs/next", nil)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	for key, value := range companionHeaders(state) {
-		request.Header.Set(key, value)
-	}
-	if errorValue := companionruntime.SignRequest(request, nil, privateKey); errorValue != nil {
-		return nil, errorValue
-	}
-	response, errorValue := httpClient.Do(request)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	defer response.Body.Close()
-	var job companionJob
-	if errorValue := decodeJSONResponse(request.URL.String(), response, &job); errorValue != nil {
-		return nil, errorValue
-	}
-	if job.Status == "empty" || job.JobID == "" {
-		return nil, nil
-	}
-	return &job, nil
-}
-
-func completeJob(httpClient *http.Client, state companionState, privateKey string, jobID string, response capabilities.ToolInvokeResponse) error {
-	return postSignedJSON(httpClient, state, privateKey, state.DeviceURL+"/_internkim/companion/jobs/"+url.PathEscape(jobID)+"/complete", response, &map[string]any{})
-}
-
-func completeHandoff(ctx context.Context, httpClient *http.Client, state companionState, privateKey string, completion companionruntime.HandoffCompletion) error {
-	endpoint := state.DeviceURL + "/_internkim/companion/handoffs/" + url.PathEscape(completion.HandoffID) + "/complete"
-	return postSignedJSONWithContext(ctx, httpClient, state, privateKey, endpoint, completion, &map[string]any{})
-}
-
-func failJob(httpClient *http.Client, state companionState, privateKey string, jobID string, errorMessage string) error {
-	return postSignedJSON(httpClient, state, privateKey, state.DeviceURL+"/_internkim/companion/jobs/"+url.PathEscape(jobID)+"/fail", map[string]string{"error": errorMessage}, &map[string]any{})
-}
-
-func denyJob(httpClient *http.Client, state companionState, privateKey string, jobID string, denial capabilities.DenialResult) error {
-	return postSignedJSON(httpClient, state, privateKey, state.DeviceURL+"/_internkim/companion/jobs/"+url.PathEscape(jobID)+"/deny", denial, &map[string]any{})
-}
-
 func postJSON(httpClient *http.Client, endpoint string, headers map[string]string, requestBody any, responseBody any) error {
 	document, errorValue := json.Marshal(requestBody)
 	if errorValue != nil {
@@ -867,114 +631,10 @@ func postJSON(httpClient *http.Client, endpoint string, headers map[string]strin
 		return errorValue
 	}
 	defer response.Body.Close()
-	return decodeJSONResponse(endpoint, response, responseBody)
+	return companionruntime.DecodeJSONResponse(endpoint, response, responseBody)
 }
 
-func postSignedJSON(httpClient *http.Client, state companionState, privateKey string, endpoint string, requestBody any, responseBody any) error {
-	return postSignedJSONWithContext(context.Background(), httpClient, state, privateKey, endpoint, requestBody, responseBody)
-}
-
-func postSignedJSONWithContext(ctx context.Context, httpClient *http.Client, state companionState, privateKey string, endpoint string, requestBody any, responseBody any) error {
-	document, errorValue := json.Marshal(requestBody)
-	if errorValue != nil {
-		return errorValue
-	}
-	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(document))
-	if errorValue != nil {
-		return errorValue
-	}
-	request.Header.Set("Content-Type", "application/json")
-	for key, value := range companionHeaders(state) {
-		request.Header.Set(key, value)
-	}
-	if errorValue := companionruntime.SignRequest(request, document, privateKey); errorValue != nil {
-		return errorValue
-	}
-	response, errorValue := httpClient.Do(request)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer response.Body.Close()
-	return decodeJSONResponse(endpoint, response, responseBody)
-}
-
-func decodeJSONResponse(endpoint string, response *http.Response, responseBody any) error {
-	body, _ := io.ReadAll(io.LimitReader(response.Body, 1<<20))
-	if response.StatusCode >= http.StatusBadRequest {
-		if response.StatusCode == http.StatusForbidden && isCompanionAuthRequiredBody(body) {
-			return errors.New(companionPairingExpiredMessage)
-		}
-		return fmt.Errorf("%s returned %d: %s", endpoint, response.StatusCode, sanitizedHTTPBody(body))
-	}
-	if responseBody == nil || len(strings.TrimSpace(string(body))) == 0 {
-		return nil
-	}
-	trimmedBody := strings.TrimSpace(string(body))
-	if strings.HasPrefix(trimmedBody, "<") {
-		return fmt.Errorf("%s returned HTML instead of JSON; the companion route is probably still behind Cloudflare Access or serving the wrong path", endpoint)
-	}
-	if errorValue := json.Unmarshal(body, responseBody); errorValue != nil {
-		return fmt.Errorf("%s returned invalid JSON: %w", endpoint, errorValue)
-	}
-	return nil
-}
-
-const companionPairingExpiredMessage = "Pairing expired. Connect again from Admin."
-
-func isCompanionAuthRequiredError(errorValue error) bool {
-	return errorValue != nil && strings.Contains(errorValue.Error(), companionPairingExpiredMessage)
-}
-
-func isCompanionAuthRequiredBody(body []byte) bool {
-	return strings.Contains(strings.TrimSpace(string(body)), "companion auth required")
-}
-
-func sanitizedHTTPBody(body []byte) string {
-	trimmedBody := strings.TrimSpace(string(body))
-	if trimmedBody == "" {
-		return "empty response body"
-	}
-	if strings.HasPrefix(trimmedBody, "<") {
-		return "HTML response"
-	}
-	if len(trimmedBody) > 512 {
-		return trimmedBody[:512]
-	}
-	return trimmedBody
-}
-
-func putSignedBytes(ctx context.Context, httpClient *http.Client, state companionState, privateKey string, endpoint string, requestBody []byte) error {
-	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPut, endpoint, bytes.NewReader(requestBody))
-	if errorValue != nil {
-		return errorValue
-	}
-	request.Header.Set("Content-Type", "application/octet-stream")
-	for key, value := range companionHeaders(state) {
-		request.Header.Set(key, value)
-	}
-	if errorValue := companionruntime.SignRequest(request, requestBody, privateKey); errorValue != nil {
-		return errorValue
-	}
-	response, errorValue := httpClient.Do(request)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer response.Body.Close()
-	if response.StatusCode >= http.StatusBadRequest {
-		body, _ := io.ReadAll(response.Body)
-		return errors.New(string(body))
-	}
-	return nil
-}
-
-func companionHeaders(state companionState) map[string]string {
-	return map[string]string{
-		"X-InternKim-Companion-ID":    state.CompanionID,
-		"X-InternKim-Companion-Token": state.Token,
-	}
-}
-
-func saveState(path string, state companionState) error {
+func saveState(path string, state companionruntime.State) error {
 	document, errorValue := json.MarshalIndent(state, "", "  ")
 	if errorValue != nil {
 		return errorValue
@@ -985,42 +645,42 @@ func saveState(path string, state companionState) error {
 	return os.WriteFile(path, document, 0o600)
 }
 
-func loadState(path string) (companionState, error) {
+func loadState(path string) (companionruntime.State, error) {
 	document, errorValue := os.ReadFile(path)
 	if errorValue != nil {
-		return companionState{}, errorValue
+		return companionruntime.State{}, errorValue
 	}
-	var state companionState
+	var state companionruntime.State
 	if errorValue := json.Unmarshal(document, &state); errorValue != nil {
-		return companionState{}, errorValue
+		return companionruntime.State{}, errorValue
 	}
 	return state, nil
 }
 
-func loadStateAndMigrateSecrets(ctx context.Context, path string, secureStore companionruntime.SecureStore) (companionState, error) {
+func loadStateAndMigrateSecrets(ctx context.Context, path string, secureStore companionruntime.SecureStore) (companionruntime.State, error) {
 	state, errorValue := loadState(path)
 	if errorValue != nil {
-		return companionState{}, errorValue
+		return companionruntime.State{}, errorValue
 	}
 	if state.PrivateKey == "" {
 		return state, nil
 	}
 	privateKeyID := firstNonEmpty(state.PrivateKeyID, companionPrivateKeyID(state.CompanionID))
 	if errorValue := secureStore.Put(ctx, privateKeyID, state.PrivateKey); errorValue != nil {
-		return companionState{}, errorValue
+		return companionruntime.State{}, errorValue
 	}
 	state.PrivateKeyID = privateKeyID
 	state.PrivateKey = ""
 	if errorValue := saveState(path, state); errorValue != nil {
-		return companionState{}, errorValue
+		return companionruntime.State{}, errorValue
 	}
 	return state, nil
 }
 
-func companionStatusFromState(state companionState, readiness browserruntime.RuntimeReadiness, authStatus string) companionStatusDocument {
+func companionStatusFromState(state companionruntime.State, readiness browserruntime.RuntimeReadiness, authStatus string) companionStatusDocument {
 	capabilityList := state.Capabilities
 	if readiness.Status != "" && readiness.Status != "ready" {
-		capabilityList = capabilitiesWithoutBrowser(capabilityList)
+		capabilityList = companionruntime.CapabilitiesWithoutBrowser(capabilityList)
 	}
 	return companionStatusDocument{
 		Paired:               state.DeviceURL != "" && state.CompanionID != "" && state.Token != "",
