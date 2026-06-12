@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func TestMattermostAskActionAcknowledgesWithDeletedUpdateAndForwardsEvent(t *testing.T) {
+func TestMattermostAskActionAcknowledgesWithResolvedUpdateAndForwardsEvent(t *testing.T) {
 	forwardedRequests := make(chan map[string]any, 1)
 	deletedPosts := make(chan string, 1)
 	service := &Service{Configuration: DefaultConfiguration()}
@@ -45,7 +45,7 @@ func TestMattermostAskActionAcknowledgesWithDeletedUpdateAndForwardsEvent(t *tes
 	if errorValue := json.Unmarshal(responseRecorder.Body.Bytes(), &response); errorValue != nil {
 		t.Fatalf("expected response to decode: %v", errorValue)
 	}
-	assertMattermostAskDeletedUpdate(t, response.Update, "post-1", "channel-1")
+	assertMattermostAskResolvedUpdate(t, response.Update, "post-1", "channel-1", "✗ 취소했어요")
 	select {
 	case payload := <-forwardedRequests:
 		eventDocument, isMap := payload["event"].(map[string]any)
@@ -72,6 +72,60 @@ func TestMattermostAskActionAcknowledgesWithDeletedUpdateAndForwardsEvent(t *tes
 		}
 	default:
 		t.Fatal("expected ask control post to be deleted")
+	}
+}
+
+func TestMattermostAskActionResolvedUpdates(t *testing.T) {
+	testCases := []struct {
+		name            string
+		contextDocument string
+		expectedMessage string
+	}{
+		{
+			name:            "confirm",
+			contextDocument: `"action":"ask.confirm"`,
+			expectedMessage: "✓ 확인했어요",
+		},
+		{
+			name:            "cancel",
+			contextDocument: `"action":"ask.cancel"`,
+			expectedMessage: "✗ 취소했어요",
+		},
+		{
+			name:            "choice label",
+			contextDocument: `"action":"ask.choice","choiceKey":"A","choiceLabel":"첫 번째 선택지"`,
+			expectedMessage: "✓ 첫 번째 선택지을(를) 선택했어요",
+		},
+		{
+			name:            "choice key",
+			contextDocument: `"action":"ask.choice","choiceKey":"B"`,
+			expectedMessage: "✓ B을(를) 선택했어요",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			service := &Service{Configuration: DefaultConfiguration()}
+			service.Configuration.StateDirectory = t.TempDir()
+			service.Configuration.BlueclawBaseURL = "http://blueclaw.test"
+			service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				return jsonResponse(http.StatusOK, `{"handled":true}`, nil), nil
+			})}
+			token := service.ensureMattermostInteractiveActionToken()
+			requestBody := `{"user_id":"user-1","post_id":"post-1","channel_id":"channel-1","context":{` + testCase.contextDocument + `,"token":"` + token + `","interactionID":"interaction-1","taskRunID":"task-1","conversationID":"channel-1","replyTargetID":"target-1","targetUserID":"user-1"}}`
+			request := httptest.NewRequest(http.MethodPost, "/_internkim/mattermost/actions", strings.NewReader(requestBody))
+			responseRecorder := httptest.NewRecorder()
+
+			service.handleMattermostInteractiveAction(responseRecorder, request)
+
+			if responseRecorder.Code != http.StatusOK {
+				t.Fatalf("expected success response, got %d %s", responseRecorder.Code, responseRecorder.Body.String())
+			}
+			var response mattermostInteractiveResponse
+			if errorValue := json.Unmarshal(responseRecorder.Body.Bytes(), &response); errorValue != nil {
+				t.Fatalf("expected response to decode: %v", errorValue)
+			}
+			assertMattermostAskResolvedUpdate(t, response.Update, "post-1", "channel-1", testCase.expectedMessage)
+		})
 	}
 }
 
@@ -141,23 +195,23 @@ func TestMattermostAskActionAcceptsConfiguredInteractiveTokenPath(t *testing.T) 
 	if response.Error != nil {
 		t.Fatalf("expected configured token to pass validation, got %+v", response.Error)
 	}
-	assertMattermostAskDeletedUpdate(t, response.Update, "post-1", "channel-1")
+	assertMattermostAskResolvedUpdate(t, response.Update, "post-1", "channel-1", "✓ 확인했어요")
 }
 
-func assertMattermostAskDeletedUpdate(t *testing.T, update any, postID string, channelID string) {
+func assertMattermostAskResolvedUpdate(t *testing.T, update any, postID string, channelID string, expectedMessage string) {
 	t.Helper()
 	updateDocument, isMap := update.(map[string]any)
 	if !isMap {
-		t.Fatalf("expected deleted post update, got %+v", update)
+		t.Fatalf("expected resolved post update, got %+v", update)
 	}
 	if updateDocument["id"] != postID || updateDocument["channel_id"] != channelID {
-		t.Fatalf("expected post deletion target, got %+v", updateDocument)
+		t.Fatalf("expected post update target, got %+v", updateDocument)
 	}
-	if updateDocument["message"] != "" {
-		t.Fatalf("expected empty deleted update message, got %+v", updateDocument)
+	if updateDocument["message"] != expectedMessage {
+		t.Fatalf("expected resolved update message %q, got %+v", expectedMessage, updateDocument)
 	}
-	if updateDocument["delete_at"] == nil {
-		t.Fatalf("expected delete_at in update, got %+v", updateDocument)
+	if _, isFound := updateDocument["delete_at"]; isFound {
+		t.Fatalf("expected no delete_at in update, got %+v", updateDocument)
 	}
 	properties, isMap := updateDocument["props"].(map[string]any)
 	if !isMap {
