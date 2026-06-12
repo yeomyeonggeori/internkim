@@ -34,6 +34,7 @@ export type FlowTask = {
 	goal: string;
 	size: string;
 	status: string;
+	statusRank: number;
 	startDate?: string;
 	endDate?: string;
 	weekCode: string;
