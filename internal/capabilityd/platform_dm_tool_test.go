@@ -152,6 +152,73 @@ func TestPlatformDMSendMatchesMattermostNickname(t *testing.T) {
 	}
 }
 
+func TestMatchingPlatformDMRecipientsMatchesPartialKoreanGivenName(t *testing.T) {
+	matches := matchingPlatformDMRecipients("테스트", []platformDMPolicyPerson{{
+		PersonID:    "person-siheom",
+		DisplayName: "김테스트",
+		Emails:      []string{"siheom@example.com"},
+	}}, []platformDMMattermostUser{{
+		ID:    "user-siheom",
+		Email: "siheom@example.com",
+	}})
+
+	if len(matches) != 1 || matches[0].PersonID != "person-siheom" {
+		t.Fatalf("expected Siheom match, got %+v", matches)
+	}
+}
+
+func TestMatchingPlatformDMRecipientsReturnsMultiplePartialKoreanMatches(t *testing.T) {
+	matches := matchingPlatformDMRecipients("테스트", []platformDMPolicyPerson{{
+		PersonID:    "person-siheom-a",
+		DisplayName: "김테스트",
+		Emails:      []string{"siheom-a@example.com"},
+	}, {
+		PersonID:    "person-siheom-b",
+		DisplayName: "김테스트",
+		Emails:      []string{"siheom-b@example.com"},
+	}}, []platformDMMattermostUser{{
+		ID:    "user-siheom-a",
+		Email: "siheom-a@example.com",
+	}, {
+		ID:    "user-siheom-b",
+		Email: "siheom-b@example.com",
+	}})
+
+	if len(matches) != 2 {
+		t.Fatalf("expected ambiguous Siheom matches, got %+v", matches)
+	}
+}
+
+func TestMatchingPlatformDMRecipientsMatchesFullName(t *testing.T) {
+	matches := matchingPlatformDMRecipients("김테스트", []platformDMPolicyPerson{{
+		PersonID:    "person-siheom",
+		DisplayName: "김테스트",
+		Emails:      []string{"siheom@example.com"},
+	}}, []platformDMMattermostUser{{
+		ID:    "user-siheom",
+		Email: "siheom@example.com",
+	}})
+
+	if len(matches) != 1 || matches[0].MattermostUserID != "user-siheom" {
+		t.Fatalf("expected full name match, got %+v", matches)
+	}
+}
+
+func TestMatchingPlatformDMRecipientsReturnsNoMatch(t *testing.T) {
+	matches := matchingPlatformDMRecipients("샘플", []platformDMPolicyPerson{{
+		PersonID:    "person-siheom",
+		DisplayName: "김테스트",
+		Emails:      []string{"siheom@example.com"},
+	}}, []platformDMMattermostUser{{
+		ID:    "user-siheom",
+		Email: "siheom@example.com",
+	}})
+
+	if len(matches) != 0 {
+		t.Fatalf("expected no match, got %+v", matches)
+	}
+}
+
 func TestPlatformDMSendAmbiguousRecipientDoesNotSend(t *testing.T) {
 	tokenPath := writePlatformDMTestFile(t, "bot-token")
 	service := platformDMTestService(t, tokenPath, `[
