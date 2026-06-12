@@ -58,6 +58,7 @@ type Configuration struct {
 	ReleaseDownloadTokenPath       string
 	ReleaseSigningKeyPath          string
 	MattermostBotTokenPath         string
+	MattermostPluginBundlePath     string
 	AdminEmailPath                 string
 	ClaimedAdminEmailPath          string
 	FleetIDPath                    string
@@ -236,6 +237,7 @@ func DefaultConfiguration() Configuration {
 		ReleaseDownloadTokenPath:       "/root/.internkim/secrets/release-download-token",
 		ReleaseSigningKeyPath:          "/root/.internkim/secrets/release-signing-key",
 		MattermostBotTokenPath:         "/root/.internkim/secrets/mattermost-bot-token",
+		MattermostPluginBundlePath:     "/opt/internkim/mattermost-plugins/com.internkim.ephemeral-0.1.0.tar.gz",
 		AdminEmailPath:                 "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:          "/root/.internkim/state/admin/claimed-admin-email",
 		FleetIDPath:                    "/root/.internkim/env/fleet-id",
@@ -376,6 +378,9 @@ func (service *Service) startMattermostProvisionerSync(ctx context.Context) {
 		defer cancel()
 		if errorValue := service.ensureMattermostProvisionerDefaults(syncContext); errorValue != nil {
 			log.Printf("Mattermost provisioner sync failed: %v", errorValue)
+		}
+		if _, errorValue := service.ensureMattermostEphemeralPlugin(syncContext); errorValue != nil {
+			log.Printf("Mattermost ephemeral plugin sync failed: %v", errorValue)
 		}
 	}()
 }

@@ -99,8 +99,12 @@ func (service Service) RunScenario(contextValue context.Context, logger Logger, 
 		return errors.New("scenario is required")
 	}
 	switch normalizedScenario {
+	case "dm-recipient-resolve":
+		return service.runPlans(contextValue, logger, service.dmRecipientResolveScenarioPlans())
 	case "mattermost-bot-invited":
 		return service.runPlans(contextValue, logger, service.mattermostScenarioPlans())
+	case "restart-policy-survival":
+		return service.runPlans(contextValue, logger, service.restartPolicySurvivalScenarioPlans())
 	case "web-backed-ui", "regression-proof":
 		return service.runPlans(contextValue, logger, service.webBackedScenarioPlans(normalizedScenario))
 	default:
