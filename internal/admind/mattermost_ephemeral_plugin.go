@@ -73,6 +73,15 @@ func (service *Service) ensureMattermostEphemeralPlugin(ctx context.Context) (st
 	return secret, nil
 }
 
+func (service *Service) writeMattermostPluginSyncDiagnostic(responseWriter http.ResponseWriter, request *http.Request) {
+	_, errorValue := service.ensureMattermostEphemeralPlugin(request.Context())
+	if errorValue != nil {
+		service.writeJSON(responseWriter, map[string]string{"status": "failed", "error": errorValue.Error()})
+		return
+	}
+	service.writeJSON(responseWriter, map[string]string{"status": "ok"})
+}
+
 func (service *Service) logMattermostEphemeralPluginStatus(ctx context.Context, token string) {
 	var plugins struct {
 		Active   []struct{ ID, Version string } `json:"active"`
