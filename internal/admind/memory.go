@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -71,7 +72,8 @@ func (service *Service) writeUserMemoryGraph(responseWriter http.ResponseWriter,
 	}
 	personID, errorValue := service.resolveMemoryPersonID(request.Context(), actorEmail)
 	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		log.Printf("memory graph identity resolution failed: %v", errorValue)
+		http.Error(responseWriter, "memory identity unavailable", http.StatusBadGateway)
 		return
 	}
 	if personID == "" {
@@ -82,7 +84,8 @@ func (service *Service) writeUserMemoryGraph(responseWriter http.ResponseWriter,
 	var graph map[string]any
 	path := "/admin/api/memory/graph?" + memoryGraphQuery(request, personID)
 	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, path, nil, &graph); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		log.Printf("memory graph upstream failed: %v", errorValue)
+		http.Error(responseWriter, "memory graph unavailable", http.StatusBadGateway)
 		return
 	}
 	service.writeJSON(responseWriter, graph)
