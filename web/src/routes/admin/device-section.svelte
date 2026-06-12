@@ -62,6 +62,15 @@
 		return value ? value.slice(0, 8) : text.deviceUpdate.notAvailable;
 	}
 
+	function releaseLabel(releaseID: string | undefined) {
+		const value = releaseID?.trim() ?? '';
+		if (!value) return text.deviceUpdate.notAvailable;
+		const parsed = value.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})\d{2}Z-(.+)$/);
+		if (!parsed) return value;
+		const [, year, month, day, hour, minute, revision] = parsed;
+		return `${year}-${month}-${day} ${hour}:${minute} (${revision.slice(0, 8)})`;
+	}
+
 	function releaseComponents(summary: ReleaseUpdateSummary | undefined) {
 		const components = summary?.components ?? {};
 		return Object.entries(components).sort(([leftName], [rightName]) => leftName.localeCompare(rightName));
@@ -223,11 +232,11 @@
 	<div class="grid gap-3 md:grid-cols-3">
 		<div class="rounded-md bg-muted/30 p-3">
 			<p class="text-muted-foreground text-xs">{text.deviceUpdate.currentRevision}</p>
-			<p class="mt-1 font-mono text-sm">{shortRevision(blueclawUpdateStatus?.current?.releaseID)}</p>
+			<p class="mt-1 font-mono text-sm">{releaseLabel(blueclawUpdateStatus?.current?.releaseID)}</p>
 		</div>
 		<div class="rounded-md bg-muted/30 p-3">
 			<p class="text-muted-foreground text-xs">{text.deviceUpdate.latestRevision}</p>
-			<p class="mt-1 font-mono text-sm">{shortRevision(blueclawUpdateStatus?.latest?.releaseID)}</p>
+			<p class="mt-1 font-mono text-sm">{releaseLabel(blueclawUpdateStatus?.latest?.releaseID)}</p>
 		</div>
 		<div class="rounded-md bg-muted/30 p-3">
 			<p class="text-muted-foreground text-xs">{text.deviceUpdate.jobPhase}</p>
