@@ -116,6 +116,60 @@ func TestHostConsoleSuccessfulJobLifecycle(t *testing.T) {
 	}
 }
 
+func TestHostConsoleDeleteTeamJobLifecycle(t *testing.T) {
+	executor := newHostConsoleTenantsExecutor()
+	removeOutput := `{"tenantID":"pilot-01","manifestExisted":true,"units":[],"files":[],"directories":[]}`
+	executor.runOutputText = map[string]string{
+		hostCommandInvocationKey(hostRemoveTeamInvocation("container", hostRemoveTeamOptions{
+			TeamID:             "pilot-01",
+			VirtualMachineName: "vm-1",
+		})): removeOutput + "\n",
+	}
+	handler := newHostConsoleServer(executor, "vm-1").handler()
+
+	jobID := deleteHostConsoleTeam(t, handler, "pilot-01", "", http.StatusAccepted)
+	job := waitForHostConsoleJob(t, handler, jobID, "completed")
+
+	if !strings.Contains(job.Log, `"tenantID":"pilot-01"`) {
+		t.Fatalf("expected removal output in log, got %q", job.Log)
+	}
+	var summary struct {
+		TenantID string `json:"tenantID"`
+	}
+	if errorValue := json.Unmarshal(job.Summary, &summary); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if summary.TenantID != "pilot-01" {
+		t.Fatalf("unexpected removal summary: %+v", summary)
+	}
+}
+
+func TestHostConsoleDeleteRejectsInvalidTeamID(t *testing.T) {
+	handler := newHostConsoleServer(newHostConsoleTenantsExecutor(), "vm-1").handler()
+
+	deleteHostConsoleTeam(t, handler, "Pilot_01", "", http.StatusBadRequest)
+}
+
+func TestHostConsoleAuthMiddlewareAcceptsAndRejectsAPIRequests(t *testing.T) {
+	handler := newHostConsoleServer(newHostConsoleTenantsExecutor(), "vm-1", "secret-token").handler()
+
+	response := getHostConsoleResponse(handler, "/")
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("expected index without auth, got %d", response.StatusCode)
+	}
+	response = getHostConsoleResponse(handler, "/api/tenants")
+	if response.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected API without auth to reject, got %d", response.StatusCode)
+	}
+	request := httptest.NewRequest(http.MethodGet, "/api/tenants", nil)
+	request.Header.Set("Authorization", "Bearer secret-token")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected API with auth to pass, got %d", recorder.Code)
+	}
+}
+
 func TestHostConsoleFailedJobLifecycle(t *testing.T) {
 	executor := newHostConsoleTenantsExecutor()
 	executor.runErrors = []error{nil, nil, errors.New("remote provision failed")}
@@ -176,6 +230,33 @@ func postHostConsoleTeam(t *testing.T, handler http.Handler, body string, expect
 	t.Helper()
 	request := httptest.NewRequest(http.MethodPost, "/api/teams", bytes.NewBufferString(body))
 	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != expectedStatusCode {
+		responseBody, _ := io.ReadAll(response.Result().Body)
+		t.Fatalf("expected status %d, got %d: %s", expectedStatusCode, response.Code, string(responseBody))
+	}
+	if expectedStatusCode != http.StatusAccepted {
+		return ""
+	}
+	var payload struct {
+		JobID string `json:"jobID"`
+	}
+	if errorValue := json.NewDecoder(response.Body).Decode(&payload); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if payload.JobID == "" {
+		t.Fatal("expected job id")
+	}
+	return payload.JobID
+}
+
+func deleteHostConsoleTeam(t *testing.T, handler http.Handler, teamID string, authToken string, expectedStatusCode int) string {
+	t.Helper()
+	request := httptest.NewRequest(http.MethodDelete, "/api/teams/"+teamID, nil)
+	if authToken != "" {
+		request.Header.Set("Authorization", "Bearer "+authToken)
+	}
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	if response.Code != expectedStatusCode {
