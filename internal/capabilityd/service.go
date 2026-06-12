@@ -1639,10 +1639,7 @@ func (service Service) forwardMattermostPosts(ctx context.Context, botUserID str
 		if strings.TrimSpace(post.ID) == "" || post.CreateAt <= since {
 			continue
 		}
-		addressing := mattermostAddressing(post.Metadata.Mentions, botUserID, botUsername)
-		if len(post.Metadata.Mentions) == 0 {
-			addressing = mattermostAddressingFromMessage(post.Message, botUsername)
-		}
+		addressing := mattermostAddressingFromMessage(post.Message, botUsername)
 		event, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
 			ID:        post.ID,
 			UserID:    post.UserID,
