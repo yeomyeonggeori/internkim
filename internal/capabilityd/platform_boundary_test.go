@@ -1341,7 +1341,7 @@ func TestMattermostReplyRendersAskChoiceEphemeralControl(t *testing.T) {
 			"selectionMode":        "single",
 			"targetPlatformUserID": "user-1",
 			"options": []map[string]string{
-				{"key": "A", "label": "최대한 가독성 있게"},
+				{"key": "A", "label": "최대한 가독성 있게", "shortLabel": "가독성"},
 				{"key": "B", "label": "최대한 빠르게"},
 				{"key": "C", "label": "최대한 짧게"},
 			},
@@ -1390,15 +1390,15 @@ func TestMattermostReplyRendersAskChoiceEphemeralControl(t *testing.T) {
 		}
 		actions := attachment["actions"].([]any)
 		action := actions[0].(map[string]any)
-		if action["name"] != "1. 최대한 가독성 있게" {
-			t.Fatalf("expected numbered choice button, got %+v", action)
+		if action["name"] != "가독성" {
+			t.Fatalf("expected short choice button, got %+v", action)
 		}
 		integration := action["integration"].(map[string]any)
 		if integration["url"] != "http://admind.test/_internkim/mattermost/actions" {
 			t.Fatalf("expected admind action URL, got %+v", integration)
 		}
 		contextDocument := integration["context"].(map[string]any)
-		if contextDocument["token"] == "" || contextDocument["action"] != "ask.choice" || contextDocument["conversationID"] != "thread:channel-1:root-1" || contextDocument["targetUserID"] != "user-1" {
+		if contextDocument["token"] == "" || contextDocument["action"] != "ask.choice" || contextDocument["conversationID"] != "thread:channel-1:root-1" || contextDocument["targetUserID"] != "user-1" || contextDocument["choiceLabel"] != "가독성" {
 			t.Fatalf("expected ask action token context, got %+v", contextDocument)
 		}
 	default:

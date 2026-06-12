@@ -135,9 +135,10 @@ type platformAskInteraction struct {
 }
 
 type platformAskChoiceOption struct {
-	Key   string `json:"key"`
-	Label string `json:"label"`
-	Value string `json:"value,omitempty"`
+	Key        string `json:"key"`
+	Label      string `json:"label"`
+	ShortLabel string `json:"shortLabel,omitempty"`
+	Value      string `json:"value,omitempty"`
 }
 
 type platformHealthState struct {
@@ -786,8 +787,8 @@ func (service Service) mattermostChoiceAttachment(request replyRequest, handle p
 	options := trimNonEmptyPlatformAskOptions(request.Interaction.Options)
 	if len(options) <= 3 && request.Interaction.Kind == "ask_choice_single" {
 		actions := []mattermostinteractive.Action{}
-		for index, option := range options {
-			actions = append(actions, service.mattermostAskButton("askChoice"+option.Key, numberedChoiceLabel(index, option.Label), "", request, handle, "ask.choice", option.Key, option.Label))
+		for _, option := range options {
+			actions = append(actions, service.mattermostAskButton("askChoice"+option.Key, mattermostChoiceDisplayLabel(option), "", request, handle, "ask.choice", option.Key, mattermostChoiceResolvedLabel(option)))
 		}
 		return &mattermostinteractive.Attachment{Fallback: strings.TrimSpace(request.Message), Text: mattermostChoiceAttachmentText(request.Interaction), Actions: actions}
 	}
@@ -829,6 +830,42 @@ func numberedChoiceLabel(index int, label string) string {
 	return strconv.Itoa(index+1) + ". " + strings.TrimSpace(label)
 }
 
+func mattermostChoiceDisplayLabel(option platformAskChoiceOption) string {
+	shortLabel := strings.TrimSpace(option.ShortLabel)
+	if shortLabel != "" {
+		return shortLabel
+	}
+	return truncateMattermostChoiceLabel(strings.TrimSpace(option.Label), 8)
+}
+
+func mattermostChoiceResolvedLabel(option platformAskChoiceOption) string {
+	return firstNonEmpty(strings.TrimSpace(option.ShortLabel), strings.TrimSpace(option.Label))
+}
+
+func truncateMattermostChoiceLabel(label string, maximumLength int) string {
+	words := strings.Fields(label)
+	if len(words) == 0 {
+		return ""
+	}
+	selectedWords := []string{}
+	for _, word := range words {
+		candidateWords := append(append([]string{}, selectedWords...), word)
+		candidate := strings.Join(candidateWords, " ")
+		if len([]rune(candidate)) > maximumLength {
+			break
+		}
+		selectedWords = append(selectedWords, word)
+	}
+	if len(selectedWords) > 0 {
+		return strings.Join(selectedWords, " ")
+	}
+	runes := []rune(words[0])
+	if len(runes) <= maximumLength {
+		return words[0]
+	}
+	return string(runes[:maximumLength])
+}
+
 func (service Service) mattermostAskButton(id string, name string, style string, request replyRequest, handle platformHandle, action string, choiceKey string, choiceLabel string) mattermostinteractive.Action {
 	context := service.mattermostAskActionContext(request, handle, action, choiceKey, choiceLabel)
 	return mattermostinteractive.Button(id, name, "", style, service.mattermostAskActionURL(), context)
@@ -851,10 +888,21 @@ func (service Service) mattermostAskActionContext(request replyRequest, handle p
 
 func mattermostAskMenuOptions(options []platformAskChoiceOption) []mattermostinteractive.Option {
 	menuOptions := []mattermostinteractive.Option{}
-	for index, option := range options {
-		menuOptions = append(menuOptions, mattermostinteractive.Option{Text: numberedChoiceLabel(index, option.Label), Value: option.Key})
+	for _, option := range options {
+		menuOptions = append(menuOptions, mattermostinteractive.Option{Text: mattermostChoiceDisplayLabel(option), Value: mattermostChoiceMenuOptionValue(option)})
 	}
 	return menuOptions
+}
+
+func mattermostChoiceMenuOptionValue(option platformAskChoiceOption) string {
+	document, errorValue := json.Marshal(map[string]string{
+		"key":   strings.TrimSpace(option.Key),
+		"label": mattermostChoiceResolvedLabel(option),
+	})
+	if errorValue != nil {
+		return strings.TrimSpace(option.Key)
+	}
+	return string(document)
 }
 
 func trimNonEmptyPlatformAskOptions(options []platformAskChoiceOption) []platformAskChoiceOption {
@@ -862,6 +910,7 @@ func trimNonEmptyPlatformAskOptions(options []platformAskChoiceOption) []platfor
 	for _, option := range options {
 		option.Key = strings.TrimSpace(option.Key)
 		option.Label = strings.TrimSpace(option.Label)
+		option.ShortLabel = strings.TrimSpace(option.ShortLabel)
 		option.Value = strings.TrimSpace(option.Value)
 		if option.Key != "" && option.Label != "" {
 			trimmedOptions = append(trimmedOptions, option)
