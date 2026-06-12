@@ -27,6 +27,7 @@ var hostConsoleTeamIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,62}$`)
 type hostConsoleOptions struct {
 	ListenAddress      string
 	VirtualMachineName string
+	AuthToken          string
 }
 
 type hostConsoleTeamRequest struct {
@@ -57,6 +58,7 @@ type hostConsoleJobStore struct {
 type hostConsoleServer struct {
 	executor           hostCommandExecutor
 	virtualMachineName string
+	authToken          string
 	jobs               *hostConsoleJobStore
 }
 
@@ -70,7 +72,7 @@ func executeHostConsole(arguments []string, executor hostCommandExecutor, output
 	if errorValue != nil {
 		return errorValue
 	}
-	console := newHostConsoleServer(executor, options.VirtualMachineName)
+	console := newHostConsoleServer(executor, options.VirtualMachineName, options.AuthToken)
 	fmt.Fprintf(output, "host console listening at http://%s/ (vm: %s)\n", options.ListenAddress, options.VirtualMachineName)
 	server := &http.Server{
 		Addr:    options.ListenAddress,
@@ -83,12 +85,14 @@ func parseHostConsoleOptions(arguments []string) (hostConsoleOptions, error) {
 	flags := flag.NewFlagSet("host console", flag.ContinueOnError)
 	listenAddress := flags.String("listen", defaultHostConsoleListenAddress, "HTTP listen address")
 	virtualMachineName := flags.String("vm", defaultHostVirtualMachineName, "container VM name")
+	authToken := flags.String("auth-token", "", "optional bearer token required for API requests")
 	if errorValue := flags.Parse(arguments); errorValue != nil {
 		return hostConsoleOptions{}, errorValue
 	}
 	options := hostConsoleOptions{
 		ListenAddress:      strings.TrimSpace(*listenAddress),
 		VirtualMachineName: strings.TrimSpace(*virtualMachineName),
+		AuthToken:          strings.TrimSpace(*authToken),
 	}
 	if options.ListenAddress == "" {
 		return hostConsoleOptions{}, errors.New("--listen is required")
@@ -99,10 +103,11 @@ func parseHostConsoleOptions(arguments []string) (hostConsoleOptions, error) {
 	return options, nil
 }
 
-func newHostConsoleServer(executor hostCommandExecutor, virtualMachineName string) *hostConsoleServer {
+func newHostConsoleServer(executor hostCommandExecutor, virtualMachineName string, authToken ...string) *hostConsoleServer {
 	return &hostConsoleServer{
 		executor:           executor,
 		virtualMachineName: virtualMachineName,
+		authToken:          firstNonEmptyString(authToken...),
 		jobs:               &hostConsoleJobStore{jobs: map[string]hostConsoleJob{}},
 	}
 }
@@ -112,8 +117,9 @@ func (console *hostConsoleServer) handler() http.Handler {
 	mux.HandleFunc("/", console.serveIndex)
 	mux.HandleFunc("/api/tenants", console.serveTenants)
 	mux.HandleFunc("/api/teams", console.serveTeams)
+	mux.HandleFunc("/api/teams/", console.serveTeam)
 	mux.HandleFunc("/api/jobs/", console.serveJob)
-	return mux
+	return console.authorizeAPI(mux)
 }
 
 func (console *hostConsoleServer) serveIndex(responseWriter http.ResponseWriter, request *http.Request) {
@@ -129,6 +135,9 @@ func (console *hostConsoleServer) serveIndex(responseWriter http.ResponseWriter,
 	if errorValue != nil {
 		writeHostConsoleError(responseWriter, http.StatusInternalServerError, errorValue.Error())
 		return
+	}
+	if console.authToken != "" {
+		content = []byte(strings.Replace(string(content), "const hostConsoleRequiresAuth = false;", "const hostConsoleRequiresAuth = true;", 1))
 	}
 	responseWriter.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = responseWriter.Write(content)
@@ -163,6 +172,25 @@ func (console *hostConsoleServer) serveTeams(responseWriter http.ResponseWriter,
 		return
 	}
 	go console.runTeamJob(jobID, teamRequest)
+	writeHostConsoleJSON(responseWriter, http.StatusAccepted, map[string]string{"jobID": jobID})
+}
+
+func (console *hostConsoleServer) serveTeam(responseWriter http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodDelete {
+		writeHostConsoleError(responseWriter, http.StatusMethodNotAllowed, "DELETE만 지원합니다")
+		return
+	}
+	teamID := strings.TrimPrefix(request.URL.Path, "/api/teams/")
+	if !hostConsoleTeamIDPattern.MatchString(teamID) {
+		writeHostConsoleError(responseWriter, http.StatusBadRequest, "팀 ID는 2~63자의 소문자, 숫자, 하이픈으로 입력하고 숫자나 문자로 시작해야 합니다")
+		return
+	}
+	jobID, errorValue := console.jobs.createJob()
+	if errorValue != nil {
+		writeHostConsoleError(responseWriter, http.StatusConflict, errorValue.Error())
+		return
+	}
+	go console.runRemoveTeamJob(jobID, teamID)
 	writeHostConsoleJSON(responseWriter, http.StatusAccepted, map[string]string{"jobID": jobID})
 }
 
@@ -202,6 +230,42 @@ func (console *hostConsoleServer) runTeamJob(jobID string, teamRequest hostConso
 		return
 	}
 	console.jobs.finishJob(jobID, "completed", parseHostConsoleSummary(logText), "")
+}
+
+func (console *hostConsoleServer) runRemoveTeamJob(jobID string, teamID string) {
+	writer := hostConsoleJobLogWriter{jobs: console.jobs, jobID: jobID}
+	options := hostRemoveTeamOptions{
+		TeamID:             teamID,
+		VirtualMachineName: console.virtualMachineName,
+	}
+	exitCode, errorValue := runHostRemoveTeam(options, console.executor, writer, writer)
+	logText := console.jobs.log(jobID)
+	if errorValue != nil {
+		console.jobs.finishJob(jobID, "failed", nil, errorValue.Error())
+		return
+	}
+	if exitCode != 0 {
+		console.jobs.finishJob(jobID, "failed", nil, fmt.Sprintf("remove command exited with code %d", exitCode))
+		return
+	}
+	console.jobs.finishJob(jobID, "completed", parseHostConsoleSummary(logText), "")
+}
+
+func (console *hostConsoleServer) authorizeAPI(next http.Handler) http.Handler {
+	if console.authToken == "" {
+		return next
+	}
+	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if !strings.HasPrefix(request.URL.Path, "/api/") {
+			next.ServeHTTP(responseWriter, request)
+			return
+		}
+		if request.Header.Get("Authorization") != "Bearer "+console.authToken {
+			writeHostConsoleError(responseWriter, http.StatusUnauthorized, "인증 토큰이 필요합니다")
+			return
+		}
+		next.ServeHTTP(responseWriter, request)
+	})
 }
 
 func readHostConsoleTeamRequest(reader io.Reader) (hostConsoleTeamRequest, error) {
