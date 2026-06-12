@@ -17,11 +17,11 @@ func runLLM() {
 	model := flagSet.String("model", "", "Override model name")
 	provider := flagSet.String("provider", "", "Provider name: openrouter, litert, llamacpp, ollama, companion")
 	accelerator := flagSet.String("accelerator", "", "Device accelerator: gpu or cpu")
-	host := flagSet.String("host", "", "Board host")
-	user := flagSet.String("user", boardUser, "SSH user")
-	password := flagSet.String("password", "", "SSH password")
+	target := registerTargetFlags(flagSet)
 	flagArguments, positionalArguments := splitFlagsAndPositionals(os.Args[2:], map[string]bool{
-		"remote": true,
+		"remote":         true,
+		"cloudflare-ssh": true,
+		"sim":            true,
 	}, map[string]bool{
 		"mode":        true,
 		"model":       true,
@@ -30,6 +30,8 @@ func runLLM() {
 		"host":        true,
 		"user":        true,
 		"password":    true,
+		"node":        true,
+		"board":       true,
 	})
 	if errorValue := flagSet.Parse(flagArguments); errorValue != nil {
 		fatal(errorValue.Error())
@@ -47,17 +49,7 @@ func runLLM() {
 		}
 	}
 
-	verifyArguments := []string{}
-	if strings.TrimSpace(*host) != "" {
-		verifyArguments = append(verifyArguments, "--host", *host)
-	}
-	if strings.TrimSpace(*user) != "" {
-		verifyArguments = append(verifyArguments, "--user", *user)
-	}
-	if strings.TrimSpace(*password) != "" {
-		verifyArguments = append(verifyArguments, "--password", *password)
-	}
-	target, errorValue := resolveVerifyTarget(verifyArguments)
+	verifyTarget, errorValue := target.resolveVerifyTarget()
 	if errorValue != nil {
 		fatal(errorValue.Error())
 	}
@@ -67,7 +59,7 @@ func runLLM() {
 		modes = []string{"device", "remote"}
 	}
 	for _, requestedMode := range modes {
-		if errorValue := runLLMRequest(target, requestedMode, *model, *provider, *accelerator, prompt); errorValue != nil {
+		if errorValue := runLLMRequest(verifyTarget, requestedMode, *model, *provider, *accelerator, prompt); errorValue != nil {
 			fmt.Fprintf(os.Stderr, "[%s] failed: %v\n", requestedMode, errorValue)
 		}
 	}

@@ -84,41 +84,12 @@ func runVerifyMattermost(arguments []string) error {
 	timeoutSeconds := flagSet.Int("timeout", 240, "Seconds to wait for the bot reply")
 	companionPath := flagSet.String("companion-path", "/Applications/Intern Kim Companion.app/Contents/MacOS/internkim-companion", "Local internkim-companion executable for browser-open E2E")
 	agentBrowserPath := flagSet.String("agent-browser-path", "/Applications/Intern Kim Companion.app/Contents/MacOS/agent-browser", "Local agent-browser executable for browser-open E2E")
-	host := flagSet.String("host", "", "Board host")
-	user := flagSet.String("user", "", "SSH user")
-	password := flagSet.String("password", "", "SSH password")
-	node := flagSet.String("node", "", "Fleet node target")
-	cloudflareSSH := flagSet.Bool("cloudflare-ssh", false, "Use Cloudflare SSH")
-	board := flagSet.String("board", "", "Board target")
-	simulation := flagSet.Bool("sim", false, "Use simulation target")
+	target := registerTargetFlags(flagSet)
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
 
-	targetArguments := []string{}
-	if strings.TrimSpace(*host) != "" {
-		targetArguments = append(targetArguments, "--host", strings.TrimSpace(*host))
-	}
-	if strings.TrimSpace(*user) != "" {
-		targetArguments = append(targetArguments, "--user", strings.TrimSpace(*user))
-	}
-	if strings.TrimSpace(*password) != "" {
-		targetArguments = append(targetArguments, "--password", *password)
-	}
-	if strings.TrimSpace(*node) != "" {
-		targetArguments = append(targetArguments, "--node", strings.TrimSpace(*node))
-	}
-	if *cloudflareSSH {
-		targetArguments = append(targetArguments, "--cloudflare-ssh")
-	}
-	if strings.TrimSpace(*board) != "" {
-		targetArguments = append(targetArguments, "--board", strings.TrimSpace(*board))
-	}
-	if *simulation {
-		targetArguments = append(targetArguments, "--sim")
-	}
-
-	verifyTarget, errorValue := resolveVerifyTarget(targetArguments)
+	verifyTarget, errorValue := target.resolveVerifyTarget()
 	if errorValue != nil {
 		return errorValue
 	}
@@ -154,19 +125,12 @@ func runVerifySite(arguments []string) error {
 	prompt := flagSet.String("prompt", "개인 홈페이지 하나 만들어서 배포해줘.", "Post this site creation prompt through Mattermost")
 	keep := flagSet.Bool("keep", false, "Keep probe messages, users, and site for inspection")
 	timeoutSeconds := flagSet.Int("timeout", 420, "Seconds to wait for the site deployment task")
-	host := flagSet.String("host", "", "Board host")
-	user := flagSet.String("user", "", "SSH user")
-	password := flagSet.String("password", "", "SSH password")
-	node := flagSet.String("node", "", "Fleet node target")
-	cloudflareSSH := flagSet.Bool("cloudflare-ssh", false, "Use Cloudflare SSH")
-	board := flagSet.String("board", "", "Board target")
-	simulation := flagSet.Bool("sim", false, "Use simulation target")
+	target := registerTargetFlags(flagSet)
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
 
-	targetArguments := verifyTargetArguments(*host, *user, *password, *node, *cloudflareSSH, *board, *simulation)
-	verifyTarget, errorValue := resolveVerifyTarget(targetArguments)
+	verifyTarget, errorValue := target.resolveVerifyTarget()
 	if errorValue != nil {
 		return errorValue
 	}
@@ -440,13 +404,7 @@ func runVerifyBrowser(arguments []string) error {
 	flagSet := flag.NewFlagSet("verify browser", flag.ContinueOnError)
 	localMode := flagSet.Bool("local", false, "Run local Mattermost browser smoke test")
 	publicMode := flagSet.Bool("public", false, "Run public URL browser smoke test")
-	host := flagSet.String("host", "", "Board host")
-	user := flagSet.String("user", "", "SSH user")
-	password := flagSet.String("password", "", "SSH password")
-	node := flagSet.String("node", "", "Fleet node target")
-	cloudflareSSH := flagSet.Bool("cloudflare-ssh", false, "Use Cloudflare SSH")
-	board := flagSet.String("board", "", "Board target")
-	simulation := flagSet.Bool("sim", false, "Use simulation target")
+	target := registerTargetFlags(flagSet)
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
@@ -454,29 +412,7 @@ func runVerifyBrowser(arguments []string) error {
 		*localMode = true
 	}
 
-	targetArguments := []string{}
-	if strings.TrimSpace(*host) != "" {
-		targetArguments = append(targetArguments, "--host", *host)
-	}
-	if strings.TrimSpace(*user) != "" {
-		targetArguments = append(targetArguments, "--user", *user)
-	}
-	if strings.TrimSpace(*password) != "" {
-		targetArguments = append(targetArguments, "--password", *password)
-	}
-	if strings.TrimSpace(*node) != "" {
-		targetArguments = append(targetArguments, "--node", *node)
-	}
-	if *cloudflareSSH {
-		targetArguments = append(targetArguments, "--cloudflare-ssh")
-	}
-	if strings.TrimSpace(*board) != "" {
-		targetArguments = append(targetArguments, "--board", *board)
-	}
-	if *simulation {
-		targetArguments = append(targetArguments, "--sim")
-	}
-	verifyTarget, errorValue := resolveVerifyTarget(targetArguments)
+	verifyTarget, errorValue := target.resolveVerifyTarget()
 	if errorValue != nil {
 		return errorValue
 	}
