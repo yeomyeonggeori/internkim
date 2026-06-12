@@ -55,6 +55,73 @@ type directReleaseBundle struct {
 	manifest releaseset.Manifest
 }
 
+func deployUsageText() string {
+	return `Usage: internkim deploy [OPTIONS]
+
+Deploy a release to the target device over Admin HTTPS.
+
+Options:
+  --components <list>  Comma-separated component names to include.
+                       Available: admind, blueclawPayload, capabilityd, internkim, skills, web
+                       Example: --components admind,web
+  --release <id>       Override the release ID.
+  --channel <name>     Override the release channel (default: stable).
+  --node <id>          Target a specific node by ID.
+  --legacy-ssh         Use legacy SSH deploy path instead of OTA.
+  -h, --help           Print this usage and exit.`
+}
+
+func validateDeployArguments(arguments []string) error {
+	knownFlags := map[string]bool{
+		"--help":        true,
+		"-h":            true,
+		"--components":  true,
+		"--release":     true,
+		"--channel":     true,
+		"--node":        true,
+		"--node-id":     true,
+		"--host":        true,
+		"--legacy-ssh":  true,
+		"--all-active":  true,
+		"--board":       true,
+		"--board-type":  true,
+		"--sim":         true,
+		"--sim-name":    true,
+		"--":            true,
+	}
+	knownValueFlags := map[string]bool{
+		"--components": true,
+		"--release":    true,
+		"--channel":    true,
+		"--node":       true,
+		"--node-id":    true,
+		"--host":       true,
+		"--board":      true,
+		"--board-type": true,
+		"--sim-name":   true,
+	}
+	for index := 0; index < len(arguments); index++ {
+		argument := arguments[index]
+		if argument == "--" {
+			break
+		}
+		if !strings.HasPrefix(argument, "-") {
+			continue
+		}
+		name := argument
+		if equalIndex := strings.Index(argument, "="); equalIndex != -1 {
+			name = argument[:equalIndex]
+		}
+		if !knownFlags[name] {
+			return fmt.Errorf("unrecognized flag: %s", argument)
+		}
+		if knownValueFlags[name] && !strings.Contains(argument, "=") {
+			index++
+		}
+	}
+	return nil
+}
+
 func runDirectReleaseDeploy(arguments []string) error {
 	repositoryRootPath, errorValue := resolveRepositoryRootPath()
 	if errorValue != nil {

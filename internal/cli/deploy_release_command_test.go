@@ -1,6 +1,9 @@
 package cli
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestSelectedReleaseComponentNamesParsesCommaList(t *testing.T) {
 	components, errorValue := selectedReleaseComponentNames([]string{"--components", "capabilityd,admind"})
@@ -32,5 +35,57 @@ func TestSelectedReleaseComponentNamesAllowsAllByDefault(t *testing.T) {
 	}
 	if components != nil {
 		t.Fatalf("components = %+v, want nil for all components", components)
+	}
+}
+
+func TestDeployUsageTextContainsComponentNames(t *testing.T) {
+	usage := deployUsageText()
+	for _, componentName := range []string{"admind", "blueclawPayload", "capabilityd", "internkim", "skills", "web"} {
+		if !strings.Contains(usage, componentName) {
+			t.Errorf("deployUsageText() missing component name %q", componentName)
+		}
+	}
+	if !strings.Contains(usage, "--components") {
+		t.Error("deployUsageText() missing --components flag")
+	}
+}
+
+func TestValidateDeployArgumentsAcceptsHelpFlag(t *testing.T) {
+	if errorValue := validateDeployArguments([]string{"--help"}); errorValue != nil {
+		t.Fatalf("validateDeployArguments(--help) returned error: %v", errorValue)
+	}
+	if errorValue := validateDeployArguments([]string{"-h"}); errorValue != nil {
+		t.Fatalf("validateDeployArguments(-h) returned error: %v", errorValue)
+	}
+}
+
+func TestValidateDeployArgumentsAcceptsKnownFlags(t *testing.T) {
+	knownCases := [][]string{
+		{},
+		{"--components", "admind,web"},
+		{"--components=admind"},
+		{"--release", "r1"},
+		{"--channel", "stable"},
+		{"--legacy-ssh"},
+		{"--node", "abc"},
+	}
+	for _, arguments := range knownCases {
+		if errorValue := validateDeployArguments(arguments); errorValue != nil {
+			t.Fatalf("validateDeployArguments(%v) returned unexpected error: %v", arguments, errorValue)
+		}
+	}
+}
+
+func TestValidateDeployArgumentsRejectsUnknownFlags(t *testing.T) {
+	unknownCases := [][]string{
+		{"--foo"},
+		{"--dry-run"},
+		{"--unknown=value"},
+		{"--components", "admind", "--typo"},
+	}
+	for _, arguments := range unknownCases {
+		if errorValue := validateDeployArguments(arguments); errorValue == nil {
+			t.Fatalf("validateDeployArguments(%v) expected error, got nil", arguments)
+		}
 	}
 }
