@@ -25,6 +25,98 @@ type companionProvider struct {
 	HTTPClient *http.Client
 }
 
+type capabilityToolHandler func(Service, context.Context, capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error)
+
+type capabilityToolCategory string
+
+const (
+	deviceBrowserToolCategory capabilityToolCategory = "device_browser"
+	deviceToolCategory        capabilityToolCategory = "device"
+	remoteToolCategory        capabilityToolCategory = "remote"
+)
+
+type capabilityToolRoute struct {
+	ToolName                 string
+	ToolPrefix               string
+	Category                 capabilityToolCategory
+	IsTrimmedMatch           bool
+	RequiresCompanionBrowser bool
+	Handler                  capabilityToolHandler
+}
+
+var capabilityToolRoutes = []capabilityToolRoute{
+	{ToolName: "browser.screenshot", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, RequiresCompanionBrowser: true, Handler: Service.invokeDeviceBrowserTool},
+	{ToolName: "browser.handoff", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, RequiresCompanionBrowser: true, Handler: Service.invokeDeviceBrowserTool},
+	{ToolPrefix: "browser.", Category: deviceBrowserToolCategory, IsTrimmedMatch: true, Handler: Service.invokeDeviceBrowserTool},
+	{ToolName: "web.search", Category: remoteToolCategory, IsTrimmedMatch: true, Handler: Service.invokeWebTool},
+	{ToolName: "web.fetch", Category: remoteToolCategory, IsTrimmedMatch: true, Handler: Service.invokeWebTool},
+	{ToolName: "document.read", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeDocumentReadTool},
+	{ToolName: "image.read", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeImageReadTool},
+	{ToolName: "artifact.review", Category: remoteToolCategory, IsTrimmedMatch: true, Handler: Service.invokeArtifactReviewTool},
+	{ToolName: "flow.task.add", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeFlowTaskTool},
+	{ToolName: "flow.task.list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeFlowTaskTool},
+	{ToolName: "flow.task.update", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeFlowTaskTool},
+	{ToolName: "flow.task.delete", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeFlowTaskTool},
+	{ToolName: "platform.message.context", Category: deviceToolCategory, Handler: Service.invokePlatformMessageTool},
+	{ToolName: "platform.message.search", Category: deviceToolCategory, Handler: Service.invokePlatformMessageTool},
+	{ToolName: "platform.message.send", Category: deviceToolCategory, Handler: Service.invokePlatformMessageTool},
+	{ToolName: "platform.message.update", Category: deviceToolCategory, Handler: Service.invokePlatformMessageTool},
+	{ToolName: "platform.message.delete", Category: deviceToolCategory, Handler: Service.invokePlatformMessageTool},
+	{ToolName: "mattermost.channel.update", Category: deviceToolCategory, Handler: Service.invokeMattermostTool},
+	{ToolName: "calendar.event.add", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCalendarTool},
+	{ToolName: "calendar.event.list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCalendarTool},
+	{ToolName: "calendar.event.update", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCalendarTool},
+	{ToolName: "calendar.event.delete", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCalendarTool},
+	{ToolName: "calendar.connection.status", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCalendarTool},
+	{ToolName: "calendar.connection.start", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeCalendarTool},
+	{ToolName: "mail.message.list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
+	{ToolName: "mail.message.search", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
+	{ToolName: "mail.message.read", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
+	{ToolName: "mail.message.send", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
+	{ToolName: "mail.message.move", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
+	{ToolName: "mail.message.mark", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
+	{ToolName: "mail.connection.status", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
+	{ToolName: "mail.connection.start", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeMailTool},
+	{ToolPrefix: "site.app.", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeSiteAppTool},
+	{ToolName: "google.docs.create", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
+	{ToolName: "google.sheets.create", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
+	{ToolName: "google.gmail.send", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
+	{ToolName: "google.calendar.event", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
+	{ToolName: "google.calendar.list", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
+	{ToolName: "google.drive.import_pptx", Category: deviceToolCategory, IsTrimmedMatch: true, Handler: Service.invokeGoogleWorkspaceTool},
+}
+
+func capabilityToolRouteFor(toolName string) (capabilityToolRoute, bool) {
+	for _, route := range capabilityToolRoutes {
+		if route.matches(toolName) {
+			return route, true
+		}
+	}
+	return capabilityToolRoute{}, false
+}
+
+func (route capabilityToolRoute) matches(toolName string) bool {
+	matchedToolName := route.matchableToolName(toolName)
+	if route.ToolName != "" {
+		return route.ToolName == matchedToolName
+	}
+	if route.ToolPrefix != "" {
+		return strings.HasPrefix(matchedToolName, route.ToolPrefix)
+	}
+	return false
+}
+
+func (route capabilityToolRoute) matchableToolName(toolName string) string {
+	if route.IsTrimmedMatch {
+		return strings.TrimSpace(toolName)
+	}
+	return toolName
+}
+
+func (route capabilityToolRoute) isDeviceBrowser() bool {
+	return route.Category == deviceBrowserToolCategory
+}
+
 func (service Service) capabilityRegistry(ctx context.Context) (capabilities.RegistryResponse, error) {
 	response := capabilities.RegistryResponse{
 		LocalOnly:             service.Configuration.LocalOnly,
@@ -53,6 +145,7 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
+	toolRoute, hasToolRoute := capabilityToolRouteFor(request.ToolName)
 
 	router := CapabilityRouter{
 		CompanionAvailable:     strings.TrimSpace(service.Configuration.CompanionBaseURL) != "",
@@ -70,48 +163,15 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 		if isCompanionRequiredBrowserRequest(request) {
 			return capabilityUnavailableResponse(request.ToolName, companionRequiredBrowserErrorCode(errorValue)), nil
 		}
-		if request.RequiresUserPresence || isCompanionOnlyExecutionMode(request.ExecutionMode) || !isDeviceBrowserTool(request.ToolName) {
+		if request.RequiresUserPresence || isCompanionOnlyExecutionMode(request.ExecutionMode) || !toolRoute.isDeviceBrowser() {
 			return capabilities.ToolInvokeResponse{}, errorValue
 		}
 	}
 	if isCompanionRequiredBrowserRequest(request) {
 		return capabilityUnavailableResponse(request.ToolName, capabilities.CapabilityNotConnected), nil
 	}
-	if isDeviceBrowserTool(request.ToolName) {
-		return service.invokeDeviceBrowserTool(ctx, request)
-	}
-	if isWebTool(request.ToolName) {
-		return service.invokeWebTool(ctx, request)
-	}
-	if isDocumentReadTool(request.ToolName) {
-		return service.invokeDocumentReadTool(ctx, request)
-	}
-	if isImageReadTool(request.ToolName) {
-		return service.invokeImageReadTool(ctx, request)
-	}
-	if isArtifactReviewTool(request.ToolName) {
-		return service.invokeArtifactReviewTool(ctx, request)
-	}
-	if isFlowTaskTool(request.ToolName) {
-		return service.invokeFlowTaskTool(ctx, request)
-	}
-	if isPlatformMessageTool(request.ToolName) {
-		return service.invokePlatformMessageTool(ctx, request)
-	}
-	if isMattermostTool(request.ToolName) {
-		return service.invokeMattermostTool(ctx, request)
-	}
-	if isCalendarTool(request.ToolName) {
-		return service.invokeCalendarTool(ctx, request)
-	}
-	if isMailTool(request.ToolName) {
-		return service.invokeMailTool(ctx, request)
-	}
-	if isSiteAppTool(request.ToolName) {
-		return service.invokeSiteAppTool(ctx, request)
-	}
-	if isGoogleWorkspaceTool(request.ToolName) {
-		return service.invokeGoogleWorkspaceTool(ctx, request)
+	if hasToolRoute {
+		return toolRoute.Handler(service, ctx, request)
 	}
 	return capabilities.ToolInvokeResponse{}, errors.New("capability tool is not configured: " + request.ToolName)
 }
@@ -181,16 +241,13 @@ func isCompanionOnlyExecutionMode(executionMode string) bool {
 }
 
 func isDeviceBrowserTool(toolName string) bool {
-	return strings.HasPrefix(strings.TrimSpace(toolName), "browser.")
+	route, hasRoute := capabilityToolRouteFor(toolName)
+	return hasRoute && route.isDeviceBrowser()
 }
 
 func isCompanionRequiredBrowserTool(toolName string) bool {
-	switch strings.TrimSpace(toolName) {
-	case "browser.screenshot", "browser.handoff":
-		return true
-	default:
-		return false
-	}
+	route, hasRoute := capabilityToolRouteFor(toolName)
+	return hasRoute && route.RequiresCompanionBrowser
 }
 
 func isCompanionRequiredBrowserRequest(request capabilities.ToolInvokeRequest) bool {

@@ -95,15 +95,6 @@ type flowTaskForTool struct {
 
 const flowRequesterEmailHeader = "X-InternKim-Requester-Email"
 
-func isFlowTaskTool(toolName string) bool {
-	switch strings.TrimSpace(toolName) {
-	case "flow.task.add", "flow.task.list", "flow.task.update", "flow.task.delete":
-		return true
-	default:
-		return false
-	}
-}
-
 func (service Service) invokeFlowTaskTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	switch strings.TrimSpace(request.ToolName) {
 	case "flow.task.add":
