@@ -2,10 +2,8 @@ package admind
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/url"
-	"reflect"
 	"strings"
 )
 
@@ -90,35 +88,8 @@ func isMattermostAttendanceEntryPostRecord(postRecord mattermostPostRecord, chan
 	return postRecord.Props[attendanceEntryPostProperty] == true
 }
 
-func (service *Service) isMattermostAttendanceEntryPostCurrent(postRecord mattermostPostRecord) bool {
-	document, errorValue := json.Marshal(postRecord.Props)
-	if errorValue != nil {
-		return false
-	}
-	var props struct {
-		Attachments []mattermostAttachment `json:"attachments"`
-	}
-	if errorValue := json.Unmarshal(document, &props); errorValue != nil {
-		return false
-	}
-	if len(props.Attachments) != 1 {
-		return false
-	}
-	attachment := props.Attachments[0]
-	text := service.adminText()
-	if attachment.Fallback != text.AttendanceEntryMessage || attachment.Text != text.AttendanceEntryText {
-		return false
-	}
-	expectedActions := service.mattermostAttendanceEntryActions()
-	if len(attachment.Actions) != len(expectedActions) {
-		return false
-	}
-	actions := attachment.Actions
-	for index, action := range actions {
-		expectedAction := expectedActions[index]
-		if !reflect.DeepEqual(action, expectedAction) {
-			return false
-		}
-	}
-	return true
+func isMattermostAttendanceEntryPostCurrent(postRecord mattermostPostRecord, expectedProps map[string]any) bool {
+	expectedFingerprint, expectedOK := expectedProps[attendanceEntryPostFingerprintProperty].(string)
+	storedFingerprint, storedOK := postRecord.Props[attendanceEntryPostFingerprintProperty].(string)
+	return expectedOK && storedOK && expectedFingerprint != "" && expectedFingerprint == storedFingerprint
 }
