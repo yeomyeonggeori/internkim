@@ -115,7 +115,7 @@ ORDER BY occurred_at DESC`, attendanceKindClockIn, attendanceKindClockOut)
 			keptEvents[eventKey] = true
 			continue
 		}
-		if errorValue := service.deleteMattermostAttendanceResultPost(ctx, adminToken, resultPostID); errorValue != nil {
+		if errorValue := service.deleteMattermostPost(ctx, adminToken, resultPostID); errorValue != nil {
 			return errorValue
 		}
 	}
