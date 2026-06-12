@@ -100,7 +100,7 @@ func (service *Service) handleAskInteractiveAction(responseWriter http.ResponseW
 	}
 	service.deleteMattermostAskControlPost(request.Context(), payload.PostID)
 	go service.forwardMattermostAskActionInBackground(payload)
-	service.writeMattermostAskResolved(responseWriter, payload)
+	service.writeMattermostInteractiveSuccess(responseWriter)
 }
 
 func (service *Service) forwardMattermostAskActionInBackground(payload mattermostInteractivePayload) {
@@ -172,33 +172,12 @@ func mattermostAskActionPrompt(action string, choiceKey string) string {
 	}
 }
 
-func mattermostAskResolvedMessage(action string, choiceKey string, choiceLabel string) string {
-	switch strings.TrimSpace(action) {
-	case "ask.confirm":
-		return "확인"
-	case "ask.cancel":
-		return "취소"
-	case "ask.choice":
-		return firstNonEmpty(strings.TrimSpace(choiceLabel), strings.TrimSpace(choiceKey))
-	default:
-		return strings.TrimSpace(action)
-	}
-}
-
 func mattermostSelectedChoiceKey(selectedOption string) string {
 	selectedChoice, isFound := parseMattermostSelectedChoice(selectedOption)
 	if isFound {
 		return selectedChoice.Key
 	}
 	return strings.TrimSpace(selectedOption)
-}
-
-func mattermostSelectedChoiceLabel(selectedOption string) string {
-	selectedChoice, isFound := parseMattermostSelectedChoice(selectedOption)
-	if isFound {
-		return selectedChoice.Label
-	}
-	return ""
 }
 
 func parseMattermostSelectedChoice(selectedOption string) (mattermostSelectedChoice, bool) {
@@ -241,17 +220,6 @@ func (service *Service) mattermostInteractiveButtonWithContext(actionID string, 
 
 func (service *Service) writeMattermostInteractiveSuccess(responseWriter http.ResponseWriter) {
 	service.writeJSON(responseWriter, mattermostInteractiveResponse{})
-}
-
-func (service *Service) writeMattermostAskResolved(responseWriter http.ResponseWriter, payload mattermostInteractivePayload) {
-	service.writeJSON(responseWriter, mattermostInteractiveResponse{
-		Update: map[string]any{
-			"id":         strings.TrimSpace(payload.PostID),
-			"channel_id": strings.TrimSpace(payload.ChannelID),
-			"message":    mattermostAskResolvedMessage(payload.Context.Action, firstNonEmpty(payload.Context.ChoiceKey, mattermostSelectedChoiceKey(payload.SelectedOption)), firstNonEmpty(payload.Context.ChoiceLabel, mattermostSelectedChoiceLabel(payload.SelectedOption))),
-			"props":      mattermostinteractive.ClearAttachmentsUpdate()["props"],
-		},
-	})
 }
 
 func (service *Service) writeMattermostInteractiveError(responseWriter http.ResponseWriter, message string) {
