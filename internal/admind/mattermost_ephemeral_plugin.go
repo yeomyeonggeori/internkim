@@ -31,6 +31,23 @@ type ActionContext struct {
 	SelectedOption string
 }
 
+func (service *Service) ensureMattermostEphemeralPluginWithRetry(ctx context.Context) {
+	for attempt := 0; attempt < 10; attempt++ {
+		attemptContext, cancel := context.WithTimeout(ctx, 30*time.Second)
+		_, errorValue := service.ensureMattermostEphemeralPlugin(attemptContext)
+		cancel()
+		if errorValue == nil {
+			return
+		}
+		log.Printf("Mattermost ephemeral plugin sync failed (attempt %d): %v", attempt+1, errorValue)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(30 * time.Second):
+		}
+	}
+}
+
 func (service *Service) ensureMattermostEphemeralPlugin(ctx context.Context) (string, error) {
 	secret, errorValue := service.ensureMattermostEphemeralPluginSecret()
 	if errorValue != nil {
