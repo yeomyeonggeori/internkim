@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Tabs, TabsContent, TabsList, TabsTrigger } from '$lib/components/ui/tabs';
+	import { ConfirmDeleteDialog } from '$lib/components/ui/confirm-delete-dialog';
 	import NetworkIcon from '@lucide/svelte/icons/network';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import MemoryGraphPanel from './memory-graph-panel.svelte';
@@ -38,6 +39,8 @@
 		</TabsContent>
 	</Tabs>
 </main>
+
+<ConfirmDeleteDialog />
 
 <style>
 	:global(.memory-tabs-list) {
