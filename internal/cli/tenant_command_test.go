@@ -7,12 +7,14 @@ func TestParseTenantProvisionOptionsAcceptsProvisionFlagsAndMembers(t *testing.T
 		"--tenant", "pilot-01",
 		"--display-name", "Pilot",
 		"--base", "/tmp/tenants",
+		"--runtime", "host",
 		"--assigned-host", "host-1",
 		"--public-url", "https://pilot-01.example.com",
 		"--mirror-host", "mirror-1",
 		"--profile", "cloud-shared",
 		"--template-rootfs", "/tmp/rootfs",
 		"--nspawn-dir", "/tmp/nspawn",
+		"--systemd-dir", "/tmp/systemd",
 		"--bin-dir", "/tmp/bin",
 		"--gateway-url", "https://gateway.example.com/v1/chat/completions",
 		"--device-token", "device-token",
@@ -32,6 +34,9 @@ func TestParseTenantProvisionOptionsAcceptsProvisionFlagsAndMembers(t *testing.T
 		"--api-token-path", "/tmp/cloudflare-token",
 		"--api-base-url", "https://api.example.com",
 		"--hostname-template", "{tenant}.example.com",
+		"--rootfs-image", "/tmp/rootfs.ext4",
+		"--workspace-image", "/tmp/workspace.ext4",
+		"--port-base", "22000",
 		"--member", "owner@example.com:Owner:owner-password",
 		"--member", "generated@example.com:Generated",
 	})
@@ -41,6 +46,12 @@ func TestParseTenantProvisionOptionsAcceptsProvisionFlagsAndMembers(t *testing.T
 
 	if options.TenantID != "pilot-01" || options.DisplayName != "Pilot" || options.BasePath != "/tmp/tenants" {
 		t.Fatalf("unexpected tenant provision basics: %+v", options)
+	}
+	if options.Runtime != "host" || options.SystemdDirectoryPath != "/tmp/systemd" || options.HostPortBase != 22000 {
+		t.Fatalf("unexpected tenant provision runtime options: %+v", options)
+	}
+	if options.HostRootFilesystemImagePath != "/tmp/rootfs.ext4" || options.HostWorkspaceImagePath != "/tmp/workspace.ext4" {
+		t.Fatalf("unexpected tenant provision host images: %+v", options)
 	}
 	if options.MattermostPublicURLTemplate != "https://{tenant}.example.com" || options.CloudflarePublicHostnameTemplate != "{tenant}.example.com" {
 		t.Fatalf("unexpected tenant provision URL templates: %+v", options)
@@ -61,6 +72,20 @@ func TestParseTenantProvisionOptionsAcceptsProvisionFlagsAndMembers(t *testing.T
 	}
 	if manifest.MattermostInstance.PublicURL != "https://pilot-01.example.com" || manifest.MattermostInstance.InternalURL != "http://127.0.0.1:18065" {
 		t.Fatalf("unexpected provision Mattermost instance: %+v", manifest.MattermostInstance)
+	}
+}
+
+func TestTenantProvisionRuntimeStepSelection(t *testing.T) {
+	hostSteps := tenantProvisionStepNames("host")
+	expectedHostSteps := []string{"create", "install-host-runtime", "bootstrap-mattermost", "sync-cloudflare-tunnel"}
+	if !equalStrings(hostSteps, expectedHostSteps) {
+		t.Fatalf("unexpected host steps: %+v", hostSteps)
+	}
+
+	nspawnSteps := tenantProvisionStepNames("nspawn")
+	expectedNspawnSteps := []string{"create", "install-container", "bootstrap", "start", "bootstrap-mattermost", "sync-cloudflare-tunnel"}
+	if !equalStrings(nspawnSteps, expectedNspawnSteps) {
+		t.Fatalf("unexpected nspawn steps: %+v", nspawnSteps)
 	}
 }
 
