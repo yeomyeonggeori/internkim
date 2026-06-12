@@ -59,6 +59,7 @@ type Configuration struct {
 	ReleaseSigningKeyPath          string
 	MattermostBotTokenPath         string
 	MattermostPluginBundlePath     string
+	MattermostConfigFilePath       string
 	AdminEmailPath                 string
 	ClaimedAdminEmailPath          string
 	FleetIDPath                    string
@@ -238,6 +239,7 @@ func DefaultConfiguration() Configuration {
 		ReleaseSigningKeyPath:          "/root/.internkim/secrets/release-signing-key",
 		MattermostBotTokenPath:         "/root/.internkim/secrets/mattermost-bot-token",
 		MattermostPluginBundlePath:     "/opt/internkim/mattermost-plugins/com.internkim.ephemeral-0.1.0.tar.gz",
+		MattermostConfigFilePath:       "/opt/mattermost/config/config.json",
 		AdminEmailPath:                 "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:          "/root/.internkim/state/admin/claimed-admin-email",
 		FleetIDPath:                    "/root/.internkim/env/fleet-id",
