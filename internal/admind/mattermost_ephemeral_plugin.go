@@ -66,7 +66,20 @@ func (service *Service) ensureMattermostEphemeralPlugin(ctx context.Context) (st
 	if errorValue := service.patchMattermostEphemeralPluginSecret(ctx, adminToken, secret); errorValue != nil {
 		return "", errorValue
 	}
+	service.logMattermostEphemeralPluginStatus(ctx, adminToken)
 	return secret, nil
+}
+
+func (service *Service) logMattermostEphemeralPluginStatus(ctx context.Context, token string) {
+	var plugins struct {
+		Active   []struct{ ID, Version string } `json:"active"`
+		Inactive []struct{ ID, Version string } `json:"inactive"`
+	}
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/plugins", token, nil, &plugins); errorValue != nil {
+		log.Printf("Mattermost ephemeral plugin status lookup failed: %v", errorValue)
+		return
+	}
+	log.Printf("Mattermost plugins after ephemeral sync: active=%v inactive=%v", plugins.Active, plugins.Inactive)
 }
 
 func (service *Service) ensureMattermostEphemeralPluginSecret() (string, error) {
