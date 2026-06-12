@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -36,6 +37,36 @@ type commandTarget struct {
 	deviceURL      string
 	sshHostname    string
 	useRemoteSSH   bool
+}
+
+type targetFlags struct {
+	host          *string
+	user          *string
+	password      *string
+	node          *string
+	cloudflareSSH *bool
+	board         *string
+	simulation    *bool
+}
+
+func registerTargetFlags(flagSet *flag.FlagSet) targetFlags {
+	return targetFlags{
+		host:          flagSet.String("host", "", "Board host"),
+		user:          flagSet.String("user", "", "SSH user"),
+		password:      flagSet.String("password", "", "SSH password"),
+		node:          flagSet.String("node", "", "Fleet node target"),
+		cloudflareSSH: flagSet.Bool("cloudflare-ssh", false, "Use Cloudflare SSH"),
+		board:         flagSet.String("board", "", "Board target"),
+		simulation:    flagSet.Bool("sim", false, "Use simulation target"),
+	}
+}
+
+func (flags targetFlags) arguments() []string {
+	return verifyTargetArguments(*flags.host, *flags.user, *flags.password, *flags.node, *flags.cloudflareSSH, *flags.board, *flags.simulation)
+}
+
+func (flags targetFlags) resolveVerifyTarget() (verifyTarget, error) {
+	return resolveVerifyTarget(flags.arguments())
 }
 
 func resolveCommandTarget(arguments []string) commandTarget {
