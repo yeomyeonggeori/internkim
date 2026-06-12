@@ -5,19 +5,22 @@
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import { Popover } from 'bits-ui';
 	import CalendarMiniMonthDay from './calendar-mini-month-day.svelte';
+	import type { CalendarViewValue } from './calendar-navigation-message';
 	import { calendarText } from './text';
 
 	type MiniMonthCell = { date: Date; isOther: boolean; isToday: boolean };
+	type MiniMonthWeekRange = 'start' | 'middle' | 'end' | '';
 
 	type Props = {
 		month: Date;
+		calendarView: CalendarViewValue;
 		eventDates: Set<string>;
 		selectedDateKey: string;
 		onMonthChange: (month: Date) => void;
 		onSelectDate: (date: Date) => void;
 	};
 
-	let { month, eventDates, selectedDateKey, onMonthChange, onSelectDate }: Props = $props();
+	let { month, calendarView, eventDates, selectedDateKey, onMonthChange, onSelectDate }: Props = $props();
 
 	const text = createPageText(calendarText);
 	const today = new Date();
@@ -80,8 +83,26 @@
 		return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 	}
 
+	function dateFromDateKey(value: string): Date {
+		const [yearText, monthText, dayText] = value.split('-');
+		return new Date(Number(yearText), Number(monthText) - 1, Number(dayText));
+	}
+
 	function miniMonthDateLabel(date: Date): string {
 		return date.toLocaleDateString(localeCode, { year: 'numeric', month: 'long', day: 'numeric' });
+	}
+
+	function miniMonthWeekRange(date: Date): MiniMonthWeekRange {
+		if (calendarView !== 'week' || !selectedDateKey) return '';
+		const selectedDate = dateFromDateKey(selectedDateKey);
+		const startDate = new Date(selectedDate);
+		startDate.setDate(selectedDate.getDate() - selectedDate.getDay());
+		const endDate = new Date(startDate);
+		endDate.setDate(startDate.getDate() + 6);
+		if (date < startDate || date > endDate) return '';
+		if (isSameDay(date, startDate)) return 'start';
+		if (isSameDay(date, endDate)) return 'end';
+		return 'middle';
 	}
 
 	function miniMonthCells(): MiniMonthCell[] {
@@ -214,22 +235,23 @@
 				{weekdayLabel}
 			</span>
 		{/each}
-			{#each miniMonthCells() as cell, index (index)}
-				{@const isWeekend = cell.date.getDay() === 0 || cell.date.getDay() === 6}
-				{@const cellDateKey = dateKey(cell.date)}
-				{@const hasEvent = eventDates.has(cellDateKey)}
-				{@const isSelected = selectedDateKey === cellDateKey}
-				<CalendarMiniMonthDay
-					date={cell.date}
-					dateKey={cellDateKey}
-					dateLabel={miniMonthDateLabel(cell.date)}
-					{hasEvent}
-					isOtherMonth={cell.isOther}
-					{isSelected}
-					isToday={cell.isToday}
-					{isWeekend}
-					{onSelectDate}
-				/>
-			{/each}
-		</div>
-	</section>
+		{#each miniMonthCells() as cell, index (index)}
+			{@const isWeekend = cell.date.getDay() === 0 || cell.date.getDay() === 6}
+			{@const cellDateKey = dateKey(cell.date)}
+			{@const hasEvent = eventDates.has(cellDateKey)}
+			{@const isSelected = selectedDateKey === cellDateKey}
+			<CalendarMiniMonthDay
+				date={cell.date}
+				dateKey={cellDateKey}
+				dateLabel={miniMonthDateLabel(cell.date)}
+				{hasEvent}
+				isOtherMonth={cell.isOther}
+				{isSelected}
+				isToday={cell.isToday}
+				{isWeekend}
+				weekRange={miniMonthWeekRange(cell.date)}
+				{onSelectDate}
+			/>
+		{/each}
+	</div>
+</section>
