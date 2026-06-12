@@ -27,7 +27,6 @@ type mattermostWebSocketMessage struct {
 type mattermostPostMetadata struct {
 	ChannelType string
 	ChannelName string
-	Mentions    []string
 }
 
 func normalizeMattermostWebSocketPayload(payload []byte, botUserID string, botUsername string) (platformInboundEvent, bool, error) {
@@ -35,10 +34,7 @@ func normalizeMattermostWebSocketPayload(payload []byte, botUserID string, botUs
 	if errorValue != nil || !hasPost {
 		return platformInboundEvent{}, false, errorValue
 	}
-	addressing := mattermostAddressing(metadata.Mentions, botUserID, botUsername)
-	if len(metadata.Mentions) == 0 {
-		addressing = mattermostAddressingFromMessage(post.Message, botUsername)
-	}
+	addressing := mattermostAddressingFromMessage(post.Message, botUsername)
 	return normalizeMattermostPost(post, botUserID, metadata.ChannelType, metadata.ChannelName, addressing)
 }
 
@@ -64,21 +60,8 @@ func mattermostWebSocketPost(payload []byte) (mattermostPost, mattermostPostMeta
 	metadata := mattermostPostMetadata{
 		ChannelType: channelType,
 		ChannelName: channelName,
-		Mentions:    parseMattermostMentionsList(message.Data["mentions"]),
 	}
 	return post, metadata, true, nil
-}
-
-func parseMattermostMentionsList(raw any) []string {
-	document, isString := raw.(string)
-	if !isString || strings.TrimSpace(document) == "" {
-		return nil
-	}
-	var mentions []string
-	if errorValue := json.Unmarshal([]byte(document), &mentions); errorValue != nil {
-		return nil
-	}
-	return mentions
 }
 
 func normalizeMattermostPost(post mattermostPost, botUserID string, channelType string, channelName string, addressing platformAddressing) (platformInboundEvent, bool, error) {
@@ -159,29 +142,20 @@ func mattermostDirectReplyRootID(post mattermostPost) string {
 	return firstNonEmpty(post.RootID, post.ID)
 }
 
-func mattermostAddressing(mentions []string, botUserID string, botUsername string) platformAddressing {
-	botUserID = strings.TrimSpace(botUserID)
+func mattermostAddressingFromMessage(message string, botUsername string) platformAddressing {
 	botUsername = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(botUsername), "@"))
 	addressing := platformAddressing{}
-	for _, mention := range mentions {
-		trimmedMention := strings.TrimSpace(mention)
-		if trimmedMention == "" {
-			continue
-		}
-		if trimmedMention == botUserID || strings.EqualFold(strings.TrimPrefix(trimmedMention, "@"), botUsername) {
+	for _, mention := range mattermostMentionTokens(message) {
+		if strings.EqualFold(mention, botUsername) {
 			addressing.BotMentioned = true
 			continue
 		}
-		if isMattermostBroadcastMention(trimmedMention) {
+		if isMattermostBroadcastMention(mention) {
 			continue
 		}
 		addressing.OtherPersonMentioned = true
 	}
 	return addressing
-}
-
-func mattermostAddressingFromMessage(message string, botUsername string) platformAddressing {
-	return mattermostAddressing(mattermostMentionTokens(message), "", botUsername)
 }
 
 func mattermostMentionTokens(message string) []string {
