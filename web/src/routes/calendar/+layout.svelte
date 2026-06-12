@@ -14,10 +14,17 @@
 	import { onMount } from 'svelte';
 	import CalendarMiniMonth from './calendar-mini-month.svelte';
 	import {
+		isCalendarEventsChangedMessage,
+		isCalendarViewMessage,
+		isCalendarViewValue,
+		isCalendarVisibleDateMessage,
+		type CalendarViewValue
+	} from './calendar-navigation-message';
+	import { calendarDateStorageKey, calendarViewStorageKey } from './calendar-storage-keys';
+	import {
 		broadcastCalendarNavigation,
 		calendarChannelName,
 		bumpCalendarRefresh,
-		calendarDateStorageKey,
 		calendarVisibility
 	} from './refresh-signal.svelte';
 	import { calendarText } from './text';
@@ -73,6 +80,7 @@
 	let miniMonthEventDates = $state<Set<string>>(new Set());
 	let miniMonthEventCount = $state(0);
 	let selectedMiniDateKey = $state('');
+	let miniMonthCalendarView = $state<CalendarViewValue>('month');
 
 	const today = new Date();
 	let miniMonth = $state(new Date(today.getFullYear(), today.getMonth(), 1));
@@ -126,8 +134,18 @@
 				selectedMiniDateKey = dateKey(visibleDate);
 			}
 		}
+		const savedCalendarView = window.localStorage.getItem(calendarViewStorageKey);
+		if (savedCalendarView && isCalendarViewValue(savedCalendarView)) {
+			miniMonthCalendarView = savedCalendarView;
+		}
 		const savedVisibility = window.localStorage.getItem('internkim.calendar.workVisible');
 		if (savedVisibility) calendarVisibility.work = savedVisibility === 'true';
+		window.addEventListener('message', handleCalendarFrameMessage);
+		window.addEventListener('storage', handleCalendarStorageChange);
+		return () => {
+			window.removeEventListener('message', handleCalendarFrameMessage);
+			window.removeEventListener('storage', handleCalendarStorageChange);
+		};
 	});
 
 	function toggleCalendarSource(sourceID: string) {
@@ -243,6 +261,38 @@
 		miniMonth = new Date(month.getFullYear(), month.getMonth(), 1);
 	}
 
+	function handleCalendarFrameMessage(event: MessageEvent<unknown>) {
+		if (event.origin !== window.location.origin) return;
+		const message = event.data;
+		if (isCalendarVisibleDateMessage(message)) {
+			if (message.dateKey === selectedMiniDateKey) return;
+			applyVisibleDate(dateFromDateKey(message.dateKey));
+			return;
+		}
+		if (isCalendarViewMessage(message)) {
+			miniMonthCalendarView = message.view;
+			return;
+		}
+		if (isCalendarEventsChangedMessage(message)) {
+			loadMiniMonthEvents();
+		}
+	}
+
+	function handleCalendarStorageChange(event: StorageEvent) {
+		if (event.key === calendarDateStorageKey && event.newValue) {
+			const visibleDate = new Date(event.newValue);
+			if (!Number.isNaN(visibleDate.getTime())) applyVisibleDate(visibleDate);
+		}
+		if (event.key === calendarViewStorageKey && event.newValue && isCalendarViewValue(event.newValue)) {
+			miniMonthCalendarView = event.newValue;
+		}
+	}
+
+	function applyVisibleDate(date: Date) {
+		miniMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+		selectedMiniDateKey = dateKey(date);
+	}
+
 	function eventDateKeysForMonth(events: CalendarEvent[], monthDate: Date): Set<string> {
 		const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
 		const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
@@ -279,6 +329,11 @@
 
 	function dateKey(date: Date): string {
 		return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+	}
+
+	function dateFromDateKey(value: string): Date {
+		const [yearText, monthText, dayText] = value.split('-');
+		return new Date(Number(yearText), Number(monthText) - 1, Number(dayText), 12, 0, 0, 0);
 	}
 
 </script>
@@ -329,6 +384,7 @@
 
 		<CalendarMiniMonth
 			month={miniMonth}
+			calendarView={miniMonthCalendarView}
 			eventDates={miniMonthEventDates}
 			selectedDateKey={selectedMiniDateKey}
 			onMonthChange={setMiniMonth}

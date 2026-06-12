@@ -45,6 +45,30 @@ test.describe('calendar route sidebar', () => {
 		await expect(page.locator('[data-mini-date-key="2026-06-16"]')).toHaveClass(/rounded-none/);
 	});
 
+	test('syncs embedded toolbar date and view changes to the sidebar', async ({ page }) => {
+		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
+		await page.goto('/calendar/');
+
+		const calendarFrame = page.frameLocator('iframe');
+		await expect(calendarFrame.getByRole('button', { name: '오늘' })).toBeVisible();
+		await calendarFrame.getByRole('button', { name: '주', exact: true }).click();
+
+		await expect
+			.poll(async () => page.evaluate(() => window.localStorage.getItem('internkim.calendar.view')))
+			.toBe('week');
+		await expect(page.locator('[data-mini-date-key="2026-06-08"]')).toHaveAttribute('data-week-range', 'middle');
+
+		await calendarFrame.getByRole('button', { name: '다음' }).click();
+		await expect(page.locator('[data-mini-date-key="2026-06-15"]')).toHaveAttribute('aria-pressed', 'true');
+		await expect(page.locator('[data-mini-date-key="2026-06-15"]')).toHaveAttribute('data-week-range', 'middle');
+
+		await page.reload();
+		const reloadedCalendarFrame = page.frameLocator('iframe');
+		await expect(reloadedCalendarFrame.getByRole('button', { name: '주', exact: true })).toHaveClass(/active-view/);
+		await expect(page.locator('[data-mini-date-key="2026-06-15"]')).toHaveAttribute('aria-pressed', 'true');
+		await expect(page.locator('[data-mini-date-key="2026-06-15"]')).toHaveAttribute('data-week-range', 'middle');
+	});
+
 	test('keeps subscription copy actions disabled when values are empty', async ({ page }) => {
 		await page.goto('/calendar/');
 		await page.getByRole('button', { name: '구독 설정' }).click();

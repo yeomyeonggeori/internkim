@@ -33,6 +33,7 @@ type CalendarEventActionsContext = {
 	setStatusMessage: (message: string) => void;
 	setErrorMessage: (message: string) => void;
 	openEventDetails: (eventID: string) => void;
+	notifyEventsChanged: () => void;
 	refreshCalendar: () => Promise<void>;
 	text: {
 		deleteError: string;
@@ -163,6 +164,7 @@ export function createCalendarEventActions(
 		beginDeletePersistence();
 		try {
 			await persistedEvents.deleteEvent(eventID);
+			context.notifyEventsChanged();
 			refreshEventCountAfterRender();
 		} catch (error) {
 			showEventPersistenceError(error, context.text.deleteError);
@@ -204,6 +206,7 @@ export function createCalendarEventActions(
 	async function deleteEventCreatedDuringPendingCreate(eventID: string): Promise<void> {
 		try {
 			await persistedEvents.deleteEvent(eventID);
+			context.notifyEventsChanged();
 			refreshEventCountAfterRender();
 		} catch (error) {
 			showEventPersistenceError(error, context.text.deleteError);
@@ -255,6 +258,7 @@ export function createCalendarEventActions(
 	function markEventPersisted(): void {
 		context.setStatusMessage(context.text.shared);
 		refreshLocalEventSnapshot();
+		context.notifyEventsChanged();
 	}
 
 	function refreshEventCountAfterRender(): void {
