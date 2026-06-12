@@ -357,8 +357,11 @@ func TestCloudflareSSHUsesAccessProxyCommand(t *testing.T) {
 	rsyncCommand := client.rsyncSSHCommand("ssh")
 
 	for _, value := range []string{sshArguments, scpArguments, rsyncCommand} {
-		if !strings.Contains(value, "ProxyCommand=env GODEBUG=netdns=go TUNNEL_EDGE_IP_VERSION=4 cloudflared --edge-ip-version 4 --edge-bind-address 0.0.0.0 access ssh --hostname %h") {
+		if !strings.Contains(value, "ProxyCommand=env GODEBUG=netdns=go TUNNEL_EDGE_IP_VERSION=4 cloudflared --edge-ip-version 4 --edge-bind-address 0.0.0.0 access ssh") {
 			t.Fatalf("expected Cloudflare Access ProxyCommand, got %s", value)
+		}
+		if !strings.Contains(value, "--hostname %h") {
+			t.Fatalf("expected hostname placeholder in ProxyCommand, got %s", value)
 		}
 	}
 }
