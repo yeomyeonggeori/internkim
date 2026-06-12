@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import {
+	cancelSchedule,
 	fetchMemorySchedules,
-	normalizeMemoryScheduleListResponse
+	normalizeMemoryScheduleListResponse,
+	updateSchedule
 } from '../../../src/routes/memory/memory-schedule-api';
 
 describe('memory schedule api normalizer', () => {
@@ -44,10 +46,11 @@ describe('memory schedule api normalizer', () => {
 	test('sends pagination parameters when fetching schedules', async () => {
 		const originalFetch = globalThis.fetch;
 		let requestedURL = '';
-		globalThis.fetch = (async (input: RequestInfo | URL) => {
+		const fetchStub: typeof fetch = async (input) => {
 			requestedURL = String(input);
 			return new Response(JSON.stringify({ schedules: [], count: 0, totalCount: 0, page: 3, pageSize: 25 }));
-		}) as typeof fetch;
+		};
+		globalThis.fetch = fetchStub;
 
 		try {
 			const response = await fetchMemorySchedules({ page: 3, pageSize: 25 });
@@ -55,6 +58,65 @@ describe('memory schedule api normalizer', () => {
 			expect(requestedURL).toBe('/memory/api/schedules?page=3&pageSize=25');
 			expect(response.page).toBe(3);
 			expect(response.pageSize).toBe(25);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	test('posts schedule cancellation request', async () => {
+		const originalFetch = globalThis.fetch;
+		let requestedURL = '';
+		let requestedInitialization: RequestInit | undefined;
+		const fetchStub: typeof fetch = async (input, initialization) => {
+			requestedURL = String(input);
+			requestedInitialization = initialization;
+			return new Response('{}');
+		};
+		globalThis.fetch = fetchStub;
+
+		try {
+			await cancelSchedule('schedule-1');
+
+			expect(requestedURL).toBe('/memory/api/schedules/cancel');
+			expect(requestedInitialization?.method).toBe('POST');
+			expect(requestedInitialization?.credentials).toBe('include');
+			expect(requestedInitialization?.body).toBe(JSON.stringify({ taskScheduleID: 'schedule-1' }));
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	test('posts schedule update request fields', async () => {
+		const originalFetch = globalThis.fetch;
+		let requestedURL = '';
+		let requestedInitialization: RequestInit | undefined;
+		const fetchStub: typeof fetch = async (input, initialization) => {
+			requestedURL = String(input);
+			requestedInitialization = initialization;
+			return new Response('{}');
+		};
+		globalThis.fetch = fetchStub;
+
+		try {
+			await updateSchedule('schedule-1', {
+				name: 'Daily reminder',
+				kind: 'interval',
+				intervalSecond: 1800,
+				repeatPolicy: 'unbounded'
+			});
+
+			expect(requestedURL).toBe('/memory/api/schedules/update');
+			expect(requestedInitialization?.method).toBe('POST');
+			expect(requestedInitialization?.credentials).toBe('include');
+			expect(requestedInitialization?.body).toBe(
+				JSON.stringify({
+					taskScheduleID: 'schedule-1',
+					name: 'Daily reminder',
+					kind: 'interval',
+					intervalSecond: 1800,
+					repeatPolicy: 'unbounded'
+				})
+			);
 		} finally {
 			globalThis.fetch = originalFetch;
 		}
