@@ -99,6 +99,7 @@ func (service *Service) handleAskInteractiveAction(responseWriter http.ResponseW
 		return
 	}
 	service.deleteMattermostAskControlPost(request.Context(), payload.PostID)
+	go service.updateMattermostAskEphemeralPostInBackground(payload)
 	go service.forwardMattermostAskActionInBackground(payload)
 	service.writeMattermostInteractiveSuccess(responseWriter)
 }

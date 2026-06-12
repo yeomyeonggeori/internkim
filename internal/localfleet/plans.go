@@ -87,12 +87,21 @@ func (service Service) predeployGatePlans() []CommandPlan {
 	return append(service.upPlans(),
 		service.shellPlan("verify api", service.verifyCommand("api")),
 		service.shellPlan("verify mattermost", service.verifyCommand("mattermost")),
+		service.blueclawLabScenarioScriptPlan("dm-recipient-resolve"),
 		service.shellPlan("verify browser", service.verifyCommand("browser --local")),
 	)
 }
 
+func (service Service) dmRecipientResolveScenarioPlans() []CommandPlan {
+	return append(service.upPlans(), service.blueclawLabScenarioScriptPlan("dm-recipient-resolve"))
+}
+
 func (service Service) mattermostScenarioPlans() []CommandPlan {
 	return append(service.upPlans(), service.labCommand("scenario-mattermost"))
+}
+
+func (service Service) restartPolicySurvivalScenarioPlans() []CommandPlan {
+	return append(service.upPlans(), service.blueclawLabScenarioScriptPlan("restart-policy-survival"))
 }
 
 func (service Service) webBackedScenarioPlans(scenario string) []CommandPlan {
@@ -190,6 +199,11 @@ func (service Service) resetCommand() string {
 		"if [ -n \"$host\" ]; then " + quoteShell(service.options.ExecutablePath) + " reset blueclaw-history --board lab --host \"$host\" --user admin --password admin --confirm lab || true; fi",
 		"rm -rf " + quoteShell(service.leasesPath()),
 	}, " && ")
+}
+
+func (service Service) blueclawLabScenarioScriptPlan(scenario string) CommandPlan {
+	scriptPath := "/mnt/shared/.dependency/blueclaw/lab/scripts/scenario-" + scenario + ".sh"
+	return service.labCommand("vm-ssh", "bash "+quoteShell(scriptPath)+" admin 127.0.0.1:8065 /mnt/shared")
 }
 
 func (service Service) configurationPath() string {
