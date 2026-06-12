@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"sort"
 	"strings"
-	"unicode/utf8"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
@@ -189,7 +188,7 @@ func platformDMRecipientMatches(personHint string, recipient platformDMRecipient
 	if hint == "" {
 		return false
 	}
-	values := platformDMRecipientMatchValues(recipient)
+	values := []string{recipient.PersonID, recipient.DisplayName, recipient.MattermostUsername}
 	values = append(values, recipient.Emails...)
 	values = append(values, recipient.MattermostAliases...)
 	for _, value := range values {
@@ -206,48 +205,6 @@ func platformDMRecipientMatches(personHint string, recipient platformDMRecipient
 	return false
 }
 
-func platformDMRecipientMatchValues(recipient platformDMRecipient) []string {
-	values := []string{
-		recipient.PersonID,
-		recipient.DisplayName,
-		koreanPlatformDMGivenName(recipient.DisplayName),
-		recipient.MattermostUsername,
-	}
-	for _, email := range recipient.Emails {
-		values = append(values, platformDMEmailLocalPart(email))
-	}
-	return values
-}
-
-func koreanPlatformDMGivenName(name string) string {
-	trimmedName := strings.TrimSpace(name)
-	if !isKoreanPlatformDMNameLength(trimmedName) {
-		return ""
-	}
-	_, size := utf8.DecodeRuneInString(trimmedName)
-	return trimmedName[size:]
-}
-
-func isKoreanPlatformDMNameLength(name string) bool {
-	runeCount := utf8.RuneCountInString(name)
-	if runeCount < 2 || runeCount > 3 {
-		return false
-	}
-	for _, character := range name {
-		if character < '가' || character > '힣' {
-			return false
-		}
-	}
-	return true
-}
-
-func platformDMEmailLocalPart(email string) string {
-	localPart, _, isFound := strings.Cut(strings.TrimSpace(email), "@")
-	if !isFound {
-		return ""
-	}
-	return localPart
-}
 
 func normalizedPlatformDMEmails(emails []string) []string {
 	normalizedEmails := []string{}

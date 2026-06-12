@@ -219,6 +219,47 @@ func TestMatchingPlatformDMRecipientsReturnsNoMatch(t *testing.T) {
 	}
 }
 
+func TestMatchingPlatformDMRecipientsMatchesPartialEnglishName(t *testing.T) {
+	people := []platformDMPolicyPerson{{
+		PersonID:    "person-john",
+		DisplayName: "John Smith",
+		Emails:      []string{"john.smith@example.com"},
+	}}
+	users := []platformDMMattermostUser{{
+		ID:    "user-john",
+		Email: "john.smith@example.com",
+	}}
+
+	for _, hint := range []string{"john", "Smith", "JOHN SMITH", "john.smith"} {
+		matches := matchingPlatformDMRecipients(hint, people, users)
+		if len(matches) != 1 || matches[0].PersonID != "person-john" {
+			t.Fatalf("expected %q to match John Smith, got %+v", hint, matches)
+		}
+	}
+}
+
+func TestMatchingPlatformDMRecipientsReturnsMultiplePartialEnglishMatches(t *testing.T) {
+	matches := matchingPlatformDMRecipients("smith", []platformDMPolicyPerson{{
+		PersonID:    "person-john",
+		DisplayName: "John Smith",
+		Emails:      []string{"john.smith@example.com"},
+	}, {
+		PersonID:    "person-jane",
+		DisplayName: "Jane Smith",
+		Emails:      []string{"jane.smith@example.com"},
+	}}, []platformDMMattermostUser{{
+		ID:    "user-john",
+		Email: "john.smith@example.com",
+	}, {
+		ID:    "user-jane",
+		Email: "jane.smith@example.com",
+	}})
+
+	if len(matches) != 2 {
+		t.Fatalf("expected ambiguous Smith matches, got %+v", matches)
+	}
+}
+
 func TestPlatformDMSendAmbiguousRecipientDoesNotSend(t *testing.T) {
 	tokenPath := writePlatformDMTestFile(t, "bot-token")
 	service := platformDMTestService(t, tokenPath, `[
