@@ -116,6 +116,50 @@ func TestHostAddTeamBuildsExactRemoteContainerExec(t *testing.T) {
 	assertHostRun(t, executor.runs[2], "container", expectedArguments)
 }
 
+func TestHostRemoveTeamBuildsExactRemoteContainerExec(t *testing.T) {
+	executor := &recordingHostCommandExecutor{path: "container"}
+	exitCode, errorValue := executeHostRemoveTeam([]string{
+		"--team", "pilot-01",
+		"--vm", "vm-2",
+		"--",
+		"--account-id", "account-id",
+		"--tunnel-id", "tunnel-id",
+		"--api-token-path", "/tmp/token",
+		"--hostname-template", "{tenant}.example.com",
+		"--force",
+	}, executor, io.Discard, io.Discard)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+	if len(executor.runs) != 3 {
+		t.Fatalf("expected build, install, and remove-team runs, got %d", len(executor.runs))
+	}
+	expectedArguments := []string{
+		"exec",
+		"vm-2",
+		"internkim",
+		"tenant",
+		"remove",
+		"--tenant",
+		"pilot-01",
+		"--confirm",
+		"pilot-01",
+		"--account-id",
+		"account-id",
+		"--tunnel-id",
+		"tunnel-id",
+		"--api-token-path",
+		"/tmp/token",
+		"--hostname-template",
+		"{tenant}.example.com",
+		"--force",
+	}
+	assertHostRun(t, executor.runs[2], "container", expectedArguments)
+}
+
 func TestHostSyncCLIBuildsExactInstallContainerExec(t *testing.T) {
 	executor := &recordingHostCommandExecutor{path: "container"}
 	errorValue := executeHostSyncCLI([]string{"--vm", "vm-1"}, executor, io.Discard, io.Discard)
@@ -157,6 +201,50 @@ func TestExecuteHostCommandDispatchesSyncCLI(t *testing.T) {
 	}
 	if len(executor.runs) != 2 {
 		t.Fatalf("expected sync-cli dispatch to run build and install, got %d", len(executor.runs))
+	}
+}
+
+func TestHostInitSkipsCreationWhenVirtualMachineIsRunning(t *testing.T) {
+	executor := &recordingHostCommandExecutor{path: "container"}
+	errorValue := executeHostInit([]string{"--vm", "vm-1"}, executor, io.Discard, io.Discard)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, run := range executor.runs {
+		if len(run.Arguments) > 0 && run.Arguments[0] == "run" {
+			t.Fatalf("expected no VM creation for a running VM, got %+v", run.Arguments)
+		}
+	}
+	if len(executor.runs) != 2 {
+		t.Fatalf("expected sync-cli build and install only, got %d", len(executor.runs))
+	}
+}
+
+func TestHostCreateVirtualMachineInvocationArguments(t *testing.T) {
+	invocation := hostCreateVirtualMachineInvocation("container", hostInitOptions{
+		VirtualMachineName: "vm-9",
+		CPUCount:           "8",
+		Memory:             "12g",
+		Image:              "docker.io/library/ubuntu:24.04",
+	}, io.Discard, io.Discard)
+	expectedPrefix := []string{
+		"run",
+		"--detach",
+		"--name", "vm-9",
+		"--cpus", "8",
+		"--memory", "12g",
+		"--virtualization",
+		"docker.io/library/ubuntu:24.04",
+		"sh", "-c",
+	}
+	if !reflect.DeepEqual(invocation.Arguments[:len(expectedPrefix)], expectedPrefix) {
+		t.Fatalf("unexpected create arguments: %+v", invocation.Arguments)
+	}
+	bootstrapScript := invocation.Arguments[len(invocation.Arguments)-1]
+	for _, fragment := range []string{"exec /lib/systemd/systemd", "systemd-sysv", "sudoers.d/admin", "resolv.conf"} {
+		if !strings.Contains(bootstrapScript, fragment) {
+			t.Fatalf("bootstrap script is missing %q", fragment)
+		}
 	}
 }
 
