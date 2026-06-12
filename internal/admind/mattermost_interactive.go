@@ -49,6 +49,11 @@ type normalizedEventContext struct {
 	ConversationType string `json:"conversationType,omitempty"`
 }
 
+type mattermostSelectedChoice struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+}
+
 func (service *Service) handleMattermostInteractiveAction(responseWriter http.ResponseWriter, request *http.Request) {
 	if request.Method != http.MethodPost {
 		http.NotFound(responseWriter, request)
@@ -130,7 +135,7 @@ func (service *Service) forwardMattermostAskAction(ctx context.Context, payload 
 
 func normalizedMattermostAskEventEnvelope(payload mattermostInteractivePayload) normalizedConnectorEventEnvelope {
 	action := strings.TrimSpace(payload.Context.Action)
-	choiceKey := firstNonEmpty(strings.TrimSpace(payload.Context.ChoiceKey), strings.TrimSpace(payload.SelectedOption))
+	choiceKey := firstNonEmpty(strings.TrimSpace(payload.Context.ChoiceKey), mattermostSelectedChoiceKey(payload.SelectedOption))
 	messageIDParts := []string{"ask", strings.TrimSpace(payload.PostID), action, strings.TrimSpace(payload.Context.InteractionID), choiceKey}
 	return normalizedConnectorEventEnvelope{Event: normalizedConnectorEvent{
 		ConversationID:   strings.TrimSpace(payload.Context.ConversationID),
@@ -170,15 +175,43 @@ func mattermostAskActionPrompt(action string, choiceKey string) string {
 func mattermostAskResolvedMessage(action string, choiceKey string, choiceLabel string) string {
 	switch strings.TrimSpace(action) {
 	case "ask.confirm":
-		return "✓ 확인했어요"
+		return "확인"
 	case "ask.cancel":
-		return "✗ 취소했어요"
+		return "취소"
 	case "ask.choice":
-		choiceText := firstNonEmpty(strings.TrimSpace(choiceLabel), strings.TrimSpace(choiceKey))
-		return "✓ " + choiceText + "을(를) 선택했어요"
+		return firstNonEmpty(strings.TrimSpace(choiceLabel), strings.TrimSpace(choiceKey))
 	default:
 		return strings.TrimSpace(action)
 	}
+}
+
+func mattermostSelectedChoiceKey(selectedOption string) string {
+	selectedChoice, isFound := parseMattermostSelectedChoice(selectedOption)
+	if isFound {
+		return selectedChoice.Key
+	}
+	return strings.TrimSpace(selectedOption)
+}
+
+func mattermostSelectedChoiceLabel(selectedOption string) string {
+	selectedChoice, isFound := parseMattermostSelectedChoice(selectedOption)
+	if isFound {
+		return selectedChoice.Label
+	}
+	return ""
+}
+
+func parseMattermostSelectedChoice(selectedOption string) (mattermostSelectedChoice, bool) {
+	var selectedChoice mattermostSelectedChoice
+	if errorValue := json.Unmarshal([]byte(strings.TrimSpace(selectedOption)), &selectedChoice); errorValue != nil {
+		return mattermostSelectedChoice{}, false
+	}
+	selectedChoice.Key = strings.TrimSpace(selectedChoice.Key)
+	selectedChoice.Label = strings.TrimSpace(selectedChoice.Label)
+	if selectedChoice.Key == "" {
+		return mattermostSelectedChoice{}, false
+	}
+	return selectedChoice, true
 }
 
 func (service *Service) isValidMattermostInteractivePayload(payload mattermostInteractivePayload) bool {
@@ -215,7 +248,7 @@ func (service *Service) writeMattermostAskResolved(responseWriter http.ResponseW
 		Update: map[string]any{
 			"id":         strings.TrimSpace(payload.PostID),
 			"channel_id": strings.TrimSpace(payload.ChannelID),
-			"message":    mattermostAskResolvedMessage(payload.Context.Action, firstNonEmpty(payload.Context.ChoiceKey, payload.SelectedOption), payload.Context.ChoiceLabel),
+			"message":    mattermostAskResolvedMessage(payload.Context.Action, firstNonEmpty(payload.Context.ChoiceKey, mattermostSelectedChoiceKey(payload.SelectedOption)), firstNonEmpty(payload.Context.ChoiceLabel, mattermostSelectedChoiceLabel(payload.SelectedOption))),
 			"props":      mattermostinteractive.ClearAttachmentsUpdate()["props"],
 		},
 	})
