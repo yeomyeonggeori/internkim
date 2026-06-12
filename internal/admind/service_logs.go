@@ -17,7 +17,7 @@ type serviceLogsResponse struct {
 
 var allowedTaskRunIDPattern = regexp.MustCompile(`^[a-z0-9-]+$`)
 
-var allowedServiceNames = []string{"blueclaw", "admind", "capabilityd"}
+var allowedServiceNames = []string{"blueclaw", "admind", "capabilityd", "mattermost"}
 
 func isAllowedServiceName(serviceName string) bool {
 	for _, allowed := range allowedServiceNames {
@@ -54,7 +54,7 @@ func (service *Service) writeServiceLogs(responseWriter http.ResponseWriter, req
 	limit := parseLogsLimit(request.URL.Query().Get("limit"))
 
 	if !isAllowedServiceName(serviceName) {
-		http.Error(responseWriter, "service must be one of blueclaw, admind, capabilityd", http.StatusBadRequest)
+		http.Error(responseWriter, "service must be one of blueclaw, admind, capabilityd, mattermost", http.StatusBadRequest)
 		return
 	}
 	if taskRunID != "" && !allowedTaskRunIDPattern.MatchString(taskRunID) {
@@ -89,6 +89,8 @@ func (service *Service) fetchServiceLogOutput(request *http.Request, serviceName
 		return service.fetchJournalctlLogs(request, "internkim-admind", limit)
 	case "capabilityd":
 		return service.fetchJournalctlLogs(request, "internkim-capabilityd", limit)
+	case "mattermost":
+		return service.fetchJournalctlLogs(request, "mattermost", limit)
 	}
 	return "", fmt.Errorf("unhandled service: %s", serviceName)
 }
