@@ -85,7 +85,7 @@ func (service *Service) syncMattermostAttendancePostCommand(ctx context.Context,
 	if errorValue != nil {
 		return errorValue
 	}
-	return service.deleteMattermostAttendanceResultPost(ctx, adminToken, commandPostID)
+	return service.deleteMattermostPost(ctx, adminToken, commandPostID)
 }
 
 func mattermostCreatedPostID(responseBody []byte) string {

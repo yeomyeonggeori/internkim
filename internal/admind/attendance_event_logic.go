@@ -162,7 +162,7 @@ func (service *Service) deleteLatestAttendanceResultPostForUserAndKind(ctx conte
 	if errorValue != nil || !found {
 		return errorValue
 	}
-	return service.deleteMattermostAttendanceResultPost(ctx, adminToken, event.ResultPostID)
+	return service.deleteMattermostPost(ctx, adminToken, event.ResultPostID)
 }
 
 func (service *Service) cancelAttendanceEvent(ctx context.Context, database *sql.DB, userToken string, event attendanceEvent, canceledAt time.Time) error {
