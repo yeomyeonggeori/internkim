@@ -36,6 +36,13 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 | `web_search_acceptance` | — | `web.search` 1회 후 결과 기반 답변 |
 | `schedule_lifecycle_acceptance` | — | 반복 예약 생성→재생성 수정→취소 |
 | `one_time_schedule_acceptance` | — | `kind:"once"`+`runAt` 일회성 예약 생성 |
+| `dm_send_confirm_acceptance` | — | ask.confirm 승인 후 `platform.message.send` DM 송신 |
+| `channel_post_acceptance` | — | 채널 타깃 `platform.message.send` 포스트 작성 |
+| `calendar_event_lifecycle_acceptance` | — | 일정 생성→시간 변경→삭제 3턴 |
+| `platform_message_edit_acceptance` | — | `platform.message.update`로 기존 포스트 수정 |
+| `skill_lifecycle_acceptance` | — | `skill.add` 등록 후 `skill.remove` 삭제 |
+| `capability_question_acceptance` | — | 빈 쿼리 `skill.search`로 능력 질문 답변 |
+| `task_history_question_acceptance` | — | `task.history`로 선행 작업 질문 답변 |
 
 플릿 시나리오: `mattermost-bot-invited`, `web-backed-ui`, `regression-proof`.
 
@@ -47,19 +54,19 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 |---|---|---|---|
 | 1 | 웹사이트 생성+배포 | COVERED | `site_prototype_acceptance` |
 | 2 | 배포된 웹사이트 수정 | MISSING | 기존 사이트 `file.edit`→재배포 시나리오 없음 |
-| 3 | DM 보내기 (confirm + 상대 수신 확인) | MISSING | confirm 핸드셰이크만 단독 커버; DM 송신+수신 검증 없음 |
-| 4 | 채널 포스트 작성 | MISSING | — |
-| 5 | 포스트 수정 | MISSING | — |
+| 3 | DM 보내기 (confirm + 상대 수신 확인) | PARTIAL | `dm_send_confirm_acceptance` (confirm 게이트→송신→messageID 관측 단언); 실제 상대 수신 확인은 실플랫폼 스모크 영역 |
+| 4 | 채널 포스트 작성 | COVERED | `channel_post_acceptance` |
+| 5 | 포스트 수정 | COVERED | `platform_message_edit_acceptance` (`platform.message.update`) |
 | 6 | 반복 예약 생성/수정/삭제 | COVERED | `schedule_lifecycle_acceptance` (수정은 cancel+create 재생성; `schedule.update` 툴 자체가 없음) |
 | 7 | 일회성 예약 생성/수정/삭제 | PARTIAL | 생성은 `one_time_schedule_acceptance` (`kind:"once"`+`runAt`); 수정·삭제 흐름은 6과 동일 패턴이라 미중복 |
-| 8 | 일정/업무 생성/수정/삭제 | MISSING | calendar 툴 시나리오 없음 |
+| 8 | 일정/업무 생성/수정/삭제 | COVERED | `calendar_event_lifecycle_acceptance` (`calendar.event.add/update/delete` 3턴) |
 | 9 | 기억 추가 | PARTIAL | `memory_guided_followup` 1턴 (저장 경로 단언은 간접) |
 | 10 | 기억해내기 | PARTIAL | `memory_guided_followup` 2턴 (`memory.search` 호출 단언 없음) |
-| 11 | 스킬 생성/삭제 | MISSING | skill management 툴 시나리오 없음 |
+| 11 | 스킬 생성/삭제 | COVERED | `skill_lifecycle_acceptance` (`skill.add`/`skill.remove`) |
 | 12 | 검색 | COVERED | `web_search_acceptance` |
 | 13 | 일반질문 | COVERED | `plain_question_acceptance` |
-| 14 | introspection: 뭘 할 수 있어? | MISSING | 능력 질문 회신 시나리오 없음 |
-| 15 | introspection: 아까 뭐 했어? | MISSING | 과거 태스크 조회 시나리오 없음 |
+| 14 | introspection: 뭘 할 수 있어? | COVERED | `capability_question_acceptance` (빈 쿼리 `skill.search` 전체 로스터) |
+| 15 | introspection: 아까 뭐 했어? | COVERED | `task_history_question_acceptance` (`task.history` 2턴) |
 | 16 | introspection: 왜 실패했어? | MISSING | 실패 원인 회신 시나리오 없음 |
 
 ## 운영 규칙
