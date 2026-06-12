@@ -9,10 +9,11 @@
 		isSelected: boolean;
 		isToday: boolean;
 		isWeekend: boolean;
+		weekRange: 'start' | 'middle' | 'end' | '';
 		onSelectDate: (date: Date) => void;
 	};
 
-	let { date, dateKey, dateLabel, hasEvent, isOtherMonth, isSelected, isToday, isWeekend, onSelectDate }: Props = $props();
+	let { date, dateKey, dateLabel, hasEvent, isOtherMonth, isSelected, isToday, isWeekend, weekRange, onSelectDate }: Props = $props();
 </script>
 
 <button
@@ -22,6 +23,7 @@
 	data-mini-date-key={dateKey}
 	data-selected={isSelected ? 'true' : 'false'}
 	data-weekend={isWeekend ? 'true' : 'false'}
+	data-week-range={weekRange || undefined}
 	class="relative mx-auto flex size-7 items-start justify-center rounded-none bg-transparent pt-0.5 text-[12px] tabular-nums transition-colors {isToday
 		? 'font-bold text-primary ring-1 ring-primary/60'
 		: isOtherMonth
@@ -52,6 +54,31 @@
 
 	button[data-mini-date-key][data-selected='true'] {
 		box-shadow: inset 0 0 0 1px rgb(80 150 232 / 0.7);
+	}
+
+	button[data-mini-date-key][data-week-range]::before {
+		position: absolute;
+		z-index: 0;
+		top: 0.1875rem;
+		right: 0;
+		bottom: 0.1875rem;
+		left: 0;
+		background: rgb(59 130 246 / 0.12);
+		content: '';
+	}
+
+	button[data-mini-date-key][data-week-range='start']::before {
+		left: 0.25rem;
+		border-radius: 9999px 0 0 9999px;
+	}
+
+	button[data-mini-date-key][data-week-range='middle']::before {
+		border-radius: 0;
+	}
+
+	button[data-mini-date-key][data-week-range='end']::before {
+		right: 0.25rem;
+		border-radius: 0 9999px 9999px 0;
 	}
 
 	button[data-mini-date-key] .mini-month-date-number {

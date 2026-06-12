@@ -1,4 +1,8 @@
-const calendarDateStorageKey = 'internkim.calendar.visibleDate';
+import {
+	isCalendarViewValue,
+	type CalendarViewValue
+} from '../calendar-navigation-message';
+import { calendarDateStorageKey, calendarViewStorageKey } from '../calendar-storage-keys';
 
 export function loadSavedCalendarDate(isBrowser: boolean): Date {
 	if (!isBrowser) return new Date();
@@ -12,11 +16,17 @@ export function loadSavedCalendarDate(isBrowser: boolean): Date {
 	}
 }
 
-export function saveCalendarDate(isBrowser: boolean, date: Date): void {
-	if (!isBrowser) return;
+export function loadSavedCalendarView(isBrowser: boolean, storage: Storage | null = browserStorage(isBrowser)): CalendarViewValue {
+	if (!storage) return 'month';
 	try {
-		window.localStorage.setItem(calendarDateStorageKey, date.toISOString());
+		const saved = storage.getItem(calendarViewStorageKey);
+		return saved && isCalendarViewValue(saved) ? saved : 'month';
 	} catch {
-		return;
+		return 'month';
 	}
+}
+
+function browserStorage(isBrowser: boolean): Storage | null {
+	if (!isBrowser) return null;
+	return window.localStorage;
 }
