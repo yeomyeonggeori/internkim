@@ -32,6 +32,8 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 | `attachment_html_preview_recovery` | — | 현재 메시지 HTML 첨부 `file.preview` |
 | `attachment_html_previous_preview_recovery` | — | 이전 메시지 첨부 경로 복구 |
 | `attachment_current_image_input` | — | 현재 이미지 첨부의 직접 이미지 파트 주입 |
+| `plain_question_acceptance` | — | 도구 없이 일반질문 직접 회신 |
+| `web_search_acceptance` | — | `web.search` 1회 후 결과 기반 답변 |
 
 플릿 시나리오: `mattermost-bot-invited`, `web-backed-ui`, `regression-proof`.
 
@@ -52,8 +54,8 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 | 9 | 기억 추가 | PARTIAL | `memory_guided_followup` 1턴 (저장 경로 단언은 간접) |
 | 10 | 기억해내기 | PARTIAL | `memory_guided_followup` 2턴 (`memory.search` 호출 단언 없음) |
 | 11 | 스킬 생성/삭제 | MISSING | skill management 툴 시나리오 없음 |
-| 12 | 검색 | MISSING | web search 시나리오 없음 |
-| 13 | 일반질문 | MISSING | 툴 없이 직접 회신하는 시나리오 없음 |
+| 12 | 검색 | COVERED | `web_search_acceptance` |
+| 13 | 일반질문 | COVERED | `plain_question_acceptance` |
 | 14 | introspection: 뭘 할 수 있어? | MISSING | 능력 질문 회신 시나리오 없음 |
 | 15 | introspection: 아까 뭐 했어? | MISSING | 과거 태스크 조회 시나리오 없음 |
 | 16 | introspection: 왜 실패했어? | MISSING | 실패 원인 회신 시나리오 없음 |
