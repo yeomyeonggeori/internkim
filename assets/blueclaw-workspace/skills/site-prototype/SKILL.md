@@ -84,6 +84,12 @@ Do not publish the uncustomized starter for a website creation request. The star
 
 Never say the website is ready, created, prepared, available, or done unless the site status is `published` after `site.app.publish`. A preview URL is only a temporary draft review URL, not completion. If build or publish fails, report the actual failure and distinguish any preview from the final public URL.
 
+## Owner Site Audit
+
+When the user asks to check all requester-deployed sites, call `site.app.status` with `scope=mine` and `checkLive=true`.
+
+Treat each site as dead when `status` is `failed`, `workspaceHealth` is missing or not usable, or `liveHTTPStatus` is present and not `200`. For each dead site, run `site.app.repair`, then `site.app.build`, then `site.app.publish`. When a previous good published version exists, use `site.app.restore` instead. Report the outcome for each site.
+
 Do not ask for approval before `site.app.create`, `terminal.run` builds, `site.app.preview`, `site.app.publish`, `site.app.status`, `site.app.logs`, or `site.app.restore`. `site.app.publish` is a normal part of creating a website prototype and never needs `user.confirm`. Ask for approval before `site.app.rollback`, `site.app.unpublish`, or `site.app.delete`.
 
 Use `user.confirm` only for rollback, unpublish, or delete requests. Do not use `user.confirm` for create, build, publish, status, logs, or restore.
