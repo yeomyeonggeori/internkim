@@ -3995,8 +3995,40 @@ func newCloudflareSSH(sshpassBin, user, pass, host string) *sshClient {
 		return newSSHWithPort(sshpassBin, user, pass, "localhost", port)
 	}
 	client := newSSH(sshpassBin, user, pass, host)
-	client.proxyCommand = "env GODEBUG=netdns=go TUNNEL_EDGE_IP_VERSION=4 cloudflared --edge-ip-version 4 --edge-bind-address 0.0.0.0 access ssh --hostname %h"
+	client.proxyCommand = "env GODEBUG=netdns=go TUNNEL_EDGE_IP_VERSION=4 cloudflared --edge-ip-version 4 --edge-bind-address 0.0.0.0 access ssh" + cloudflareAccessServiceTokenArguments() + " --hostname %h"
 	return client
+}
+
+type cloudflareAccessServiceToken struct {
+	ClientID     string `json:"clientID"`
+	ClientSecret string `json:"clientSecret"`
+}
+
+func cloudflareAccessServiceTokenArguments() string {
+	token, isFound := loadCloudflareAccessServiceToken()
+	if !isFound {
+		return ""
+	}
+	return " --service-token-id " + token.ClientID + " --service-token-secret " + token.ClientSecret
+}
+
+func loadCloudflareAccessServiceToken() (cloudflareAccessServiceToken, bool) {
+	repositoryRootPath, errorValue := resolveRepositoryRootPath()
+	if errorValue != nil {
+		return cloudflareAccessServiceToken{}, false
+	}
+	document, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, ".local", "secrets", "cloudflare-access-service-token.json"))
+	if errorValue != nil {
+		return cloudflareAccessServiceToken{}, false
+	}
+	var token cloudflareAccessServiceToken
+	if json.Unmarshal(document, &token) != nil {
+		return cloudflareAccessServiceToken{}, false
+	}
+	if strings.TrimSpace(token.ClientID) == "" || strings.TrimSpace(token.ClientSecret) == "" {
+		return cloudflareAccessServiceToken{}, false
+	}
+	return token, true
 }
 
 func (s *sshClient) sshArgs(extra ...string) []string {
