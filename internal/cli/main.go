@@ -680,11 +680,20 @@ func detectBoardWifi(_ string) string {
 // --- Subcommands (stubs) ---
 
 func runDeploy() {
-	if hasCommandArgument(os.Args[2:], "--legacy-ssh") {
+	arguments := os.Args[2:]
+	if hasCommandArgument(arguments, "--help") || hasCommandArgument(arguments, "-h") {
+		fmt.Println(deployUsageText())
+		os.Exit(0)
+	}
+	if errorValue := validateDeployArguments(arguments); errorValue != nil {
+		fmt.Fprintf(os.Stderr, "deploy: %s\n\n%s\n", errorValue.Error(), deployUsageText())
+		os.Exit(1)
+	}
+	if hasCommandArgument(arguments, "--legacy-ssh") {
 		runDeployLegacySSH()
 		return
 	}
-	if errorValue := runDirectReleaseDeploy(os.Args[2:]); errorValue != nil {
+	if errorValue := runDirectReleaseDeploy(arguments); errorValue != nil {
 		fatal(errorValue.Error())
 	}
 }
