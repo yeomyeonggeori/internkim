@@ -30,15 +30,6 @@ type webFetchInput struct {
 	BlockedDomains   []string `json:"blockedDomains"`
 }
 
-func isWebTool(toolName string) bool {
-	switch strings.TrimSpace(toolName) {
-	case "web.search", "web.fetch":
-		return true
-	default:
-		return false
-	}
-}
-
 func (service Service) invokeWebTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	if service.Configuration.LocalOnly {
 		return webToolErrorResponse(request.ToolName, "remote web tools are disabled in local-only mode", "local_only", false), nil

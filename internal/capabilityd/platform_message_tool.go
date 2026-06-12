@@ -45,15 +45,6 @@ type platformMessageDeleteInput struct {
 	MessageIDs []string `json:"messageIDs"`
 }
 
-func isPlatformMessageTool(toolName string) bool {
-	switch toolName {
-	case "platform.message.context", "platform.message.search", "platform.message.send", "platform.message.update", "platform.message.delete":
-		return true
-	default:
-		return false
-	}
-}
-
 func (service Service) invokePlatformMessageTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	switch request.ToolName {
 	case "platform.message.context":

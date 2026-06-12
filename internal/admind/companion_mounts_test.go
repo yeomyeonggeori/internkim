@@ -21,7 +21,9 @@ func TestCompanionMountRegistryPersistsSanitizedRecords(t *testing.T) {
 		LastSeenAt:  time.Now().UTC(),
 	}
 
-	service.updateCompanionMounts("companion-1", []CompanionMountSnapshot{mount})
+	if errorValue := service.updateCompanionMounts("companion-1", []CompanionMountSnapshot{mount}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	reloadedService := NewService(service.Configuration)
 	record := reloadedService.companionMounts["mount-1"]
 
@@ -32,9 +34,11 @@ func TestCompanionMountRegistryPersistsSanitizedRecords(t *testing.T) {
 
 func TestCompanionMountJobClaimRequiresOwningCompanion(t *testing.T) {
 	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
-	service.updateCompanionMounts("owner-companion", []CompanionMountSnapshot{
+	if errorValue := service.updateCompanionMounts("owner-companion", []CompanionMountSnapshot{
 		{MountID: "mount-1", GuestPath: "/workspace/mounts/work-12345678", Mode: companionruntime.MountModeReadWrite, Status: companionruntime.MountStatusOnline},
-	})
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	job := &CompanionJob{
 		ToolName:      "filesystem.mount.read",
 		ResourceScope: capabilities.ResourceScope{Kind: companionruntime.MountResourceScopeKind, Value: "mount-1"},

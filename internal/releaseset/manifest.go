@@ -40,6 +40,18 @@ type StablePointer struct {
 	UpdatedAt   string `json:"updatedAt"`
 }
 
+type ChannelHistory struct {
+	Channel   string                `json:"channel"`
+	Entries   []ChannelHistoryEntry `json:"entries"`
+	UpdatedAt string                `json:"updatedAt"`
+}
+
+type ChannelHistoryEntry struct {
+	ReleaseID   string `json:"releaseID"`
+	ManifestURL string `json:"manifestURL"`
+	CreatedAt   string `json:"createdAt"`
+}
+
 func NewManifest(releaseID string, channel string, components map[string]Component) Manifest {
 	return Manifest{
 		ManifestVersion:         ManifestVersion,

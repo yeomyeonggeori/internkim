@@ -3,6 +3,7 @@ package admind
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -351,7 +352,9 @@ func (service *Service) updateRemoteAttentionResult(jobID string, status string,
 		job.UpdatedAt = job.Attention.UpdatedAt
 	}
 	service.mutex.Unlock()
-	_ = service.saveCompanionJobs()
+	if errorValue := service.saveCompanionJobs(); errorValue != nil {
+		log.Printf("companion attention result persistence failed: %v", errorValue)
+	}
 }
 
 func companionHeartbeatCapabilities(payload companionHeartbeatRequest) []capabilities.Descriptor {

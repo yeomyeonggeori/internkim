@@ -37,13 +37,7 @@ func runResetArguments(arguments []string) error {
 
 func runResetBlueclawHistory(arguments []string) error {
 	flagSet := flag.NewFlagSet("reset blueclaw-history", flag.ContinueOnError)
-	host := flagSet.String("host", "", "Board host")
-	user := flagSet.String("user", "", "SSH user")
-	password := flagSet.String("password", "", "SSH password")
-	node := flagSet.String("node", "", "Fleet node target")
-	cloudflareSSH := flagSet.Bool("cloudflare-ssh", false, "Use Cloudflare SSH")
-	board := flagSet.String("board", "", "Board target")
-	simulation := flagSet.Bool("sim", false, "Use simulation target")
+	target := registerTargetFlags(flagSet)
 	confirmFleetID := flagSet.String("confirm", "", "Fleet ID required to execute the reset")
 	confirmNodeID := flagSet.String("confirm-node", "", "Node ID required for --node-local reset")
 	isNodeLocal := flagSet.Bool("node-local", false, "Confirm that the reset is scoped to one node")
@@ -53,29 +47,7 @@ func runResetBlueclawHistory(arguments []string) error {
 		return errorValue
 	}
 
-	targetArguments := []string{}
-	if strings.TrimSpace(*host) != "" {
-		targetArguments = append(targetArguments, "--host", *host)
-	}
-	if strings.TrimSpace(*user) != "" {
-		targetArguments = append(targetArguments, "--user", *user)
-	}
-	if strings.TrimSpace(*password) != "" {
-		targetArguments = append(targetArguments, "--password", *password)
-	}
-	if strings.TrimSpace(*node) != "" {
-		targetArguments = append(targetArguments, "--node", *node)
-	}
-	if *cloudflareSSH {
-		targetArguments = append(targetArguments, "--cloudflare-ssh")
-	}
-	if strings.TrimSpace(*board) != "" {
-		targetArguments = append(targetArguments, "--board", *board)
-	}
-	if *simulation {
-		targetArguments = append(targetArguments, "--sim")
-	}
-	verifyTarget, errorValue := resolveVerifyTarget(targetArguments)
+	verifyTarget, errorValue := target.resolveVerifyTarget()
 	if errorValue != nil {
 		return errorValue
 	}
