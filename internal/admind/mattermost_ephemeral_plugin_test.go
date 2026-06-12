@@ -18,6 +18,7 @@ func TestEnsureMattermostEphemeralPluginUploadsEnablesAndPatchesSecret(t *testin
 	secretValues := make(chan string, 1)
 	uploadedPlugin := false
 	enabledPlugin := false
+	enabledUploads := false
 	patchedSecret := false
 	service := NewService(Configuration{
 		StateDirectory:              stateDirectory,
@@ -40,10 +41,16 @@ func TestEnsureMattermostEphemeralPluginUploadsEnablesAndPatchesSecret(t *testin
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
 			assertMattermostBearerToken(t, request, "admin-token")
+			if !enabledUploads {
+				enabledUploads = true
+				return jsonResponse(http.StatusOK, `{}`, nil), nil
+			}
 			secret := mattermostEphemeralPluginPatchSecret(t, request)
 			secretValues <- secret
 			patchedSecret = true
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/plugins" && request.Method == http.MethodGet:
+			return jsonResponse(http.StatusOK, `{"active":[{"id":"com.internkim.ephemeral","version":"0.1.0"}],"inactive":[]}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil

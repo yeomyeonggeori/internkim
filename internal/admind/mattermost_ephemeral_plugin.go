@@ -181,7 +181,7 @@ func (service *Service) patchMattermostEphemeralPluginSecret(ctx context.Context
 }
 
 func (service *Service) updateMattermostAskEphemeralPostInBackground(payload mattermostInteractivePayload) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	if errorValue := service.updateMattermostAskEphemeralPost(ctx, payload); errorValue != nil {
 		log.Printf("mattermost ask ephemeral update failed: %v", errorValue)
@@ -207,23 +207,36 @@ func (service *Service) updateMattermostAskEphemeralPost(ctx context.Context, pa
 	if errorValue != nil {
 		return errorValue
 	}
+	statusCode, errorValue := service.postMattermostEphemeralPluginUpdate(ctx, secret, document)
+	if statusCode != http.StatusNotFound {
+		return errorValue
+	}
+	installedSecret, ensureError := service.ensureMattermostEphemeralPlugin(ctx)
+	if ensureError != nil {
+		return ensureError
+	}
+	_, errorValue = service.postMattermostEphemeralPluginUpdate(ctx, installedSecret, document)
+	return errorValue
+}
+
+func (service *Service) postMattermostEphemeralPluginUpdate(ctx context.Context, secret string, document []byte) (int, error) {
 	endpoint := strings.TrimRight(service.Configuration.MattermostBaseURL, "/") + "/plugins/" + mattermostEphemeralPluginID + "/api/v1/update-ephemeral"
 	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(document))
 	if errorValue != nil {
-		return errorValue
+		return 0, errorValue
 	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-InternKim-Token", secret)
 	response, errorValue := service.httpClient().Do(request)
 	if errorValue != nil {
-		return errorValue
+		return 0, errorValue
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return mattermostStatusError(response)
+		return response.StatusCode, mattermostStatusError(response)
 	}
 	_, _ = io.Copy(io.Discard, response.Body)
-	return nil
+	return response.StatusCode, nil
 }
 
 func actionContextFromMattermostPayload(payload mattermostInteractivePayload) ActionContext {
