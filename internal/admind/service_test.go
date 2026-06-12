@@ -282,48 +282,56 @@ func TestCredentialProviderRejectsNonAdmin(t *testing.T) {
 	}
 }
 
-func TestGatewayBlocksFlowChannelPostCreation(t *testing.T) {
-	stateDirectory := t.TempDir()
-	service := NewService(Configuration{
-		MattermostBaseURL: "http://mattermost.local",
-		StateDirectory:    stateDirectory,
-		AdminEmailPath:    writeTestFile(t, "admin@example.com"),
-	})
-	service.saveMattermostFlowChannelID("flow-channel")
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		t.Fatalf("Flow post creation should not reach Mattermost")
-		return nil, nil
-	})}
-
-	request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"flow-channel","message":"blocked"}`))
-	response := httptest.NewRecorder()
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusForbidden {
-		t.Fatalf("Flow post creation status = %d", response.Code)
+func TestGatewayDeletesFlowChannelPostCreation(t *testing.T) {
+	deletedPostIDs := testManagedChannelPostCreation(t, "flow-channel", (*Service).saveMattermostFlowChannelID)
+	if len(deletedPostIDs) != 1 || deletedPostIDs[0] != "managed-post-1" {
+		t.Fatalf("deleted post IDs = %+v", deletedPostIDs)
 	}
 }
 
-func TestGatewayBlocksAttendanceChannelPostCreation(t *testing.T) {
+func TestGatewayDeletesAttendanceChannelPostCreation(t *testing.T) {
+	deletedPostIDs := testManagedChannelPostCreation(t, "attendance-channel", (*Service).saveMattermostAttendanceChannelID)
+	if len(deletedPostIDs) != 1 || deletedPostIDs[0] != "managed-post-1" {
+		t.Fatalf("deleted post IDs = %+v", deletedPostIDs)
+	}
+}
+
+func testManagedChannelPostCreation(t *testing.T, channelID string, saveChannelID func(*Service, string)) []string {
+	t.Helper()
 	stateDirectory := t.TempDir()
 	service := NewService(Configuration{
-		MattermostBaseURL: "http://mattermost.local",
-		StateDirectory:    stateDirectory,
-		AdminEmailPath:    writeTestFile(t, "admin@example.com"),
+		MattermostBaseURL:           "http://mattermost.local",
+		StateDirectory:              stateDirectory,
+		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
+		MattermostAdminPasswordPath: writeTestFile(t, "admin-pass"),
 	})
-	service.saveMattermostAttendanceChannelID("attendance-channel")
+	saveChannelID(service, channelID)
+	deletedPostIDs := []string{}
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		t.Fatalf("Attendance post creation should not reach Mattermost")
+		switch {
+		case request.URL.Path == "/api/v4/users/login" && request.Method == http.MethodPost:
+			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.URL.Path == "/api/v4/posts" && request.Method == http.MethodPost:
+			return jsonResponse(http.StatusCreated, `{"id":"managed-post-1","channel_id":"`+channelID+`"}`, nil), nil
+		case strings.HasPrefix(request.URL.Path, "/api/v4/posts/") && request.Method == http.MethodDelete:
+			if request.Header.Get("Authorization") != "Bearer admin-token" {
+				t.Fatalf("delete token = %q", request.Header.Get("Authorization"))
+			}
+			deletedPostIDs = append(deletedPostIDs, strings.TrimPrefix(request.URL.Path, "/api/v4/posts/"))
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		}
+		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}
 
-	request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"attendance-channel","message":"blocked"}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v4/posts", strings.NewReader(`{"channel_id":"`+channelID+`","message":"hello"}`))
 	response := httptest.NewRecorder()
 	service.router().ServeHTTP(response, request)
 
-	if response.Code != http.StatusForbidden {
-		t.Fatalf("Attendance post creation status = %d", response.Code)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("managed channel post status = %d body = %s", response.Code, response.Body.String())
 	}
+	return deletedPostIDs
 }
 
 func TestDefaultConfigurationUsesCanonicalHostPaths(t *testing.T) {
@@ -3659,7 +3667,7 @@ func assertMattermostFlowChannelModerationPatch(t *testing.T, request *http.Requ
 		t.Fatal(errorValue)
 	}
 	expectedRolesByName := map[string]map[string]bool{
-		"create_post":          {"members": false, "guests": false},
+		"create_post":          {"members": true, "guests": false},
 		"create_reactions":     {"members": false, "guests": false},
 		"manage_members":       {"members": false},
 		"use_channel_mentions": {"members": false, "guests": false},
