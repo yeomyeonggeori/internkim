@@ -1,5 +1,7 @@
 # Testing with Tart Lab
 
+Blueclaw e2e 게이트 시나리오 인벤토리와 커버리지 매트릭스는 [E2E.md](E2E.md)에서 관리합니다.
+
 `internkim`의 macOS 소프트웨어 테스트 환경은 이제 Tart 기반입니다. 목표는 Blueclaw lab과 비슷한 토폴로지로, macOS host 위에 Tart ARM Linux VM을 올리고 그 VM 안에서 `blueclaw`, `mattermost`, `cloudflared`, Google 연동을 실제처럼 검증하는 것입니다.
 
 ## 요구사항
