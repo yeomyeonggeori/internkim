@@ -52,6 +52,14 @@ func (service *Service) handleMemory(responseWriter http.ResponseWriter, request
 		service.writeUserMemorySchedules(responseWriter, request)
 		return
 	}
+	if request.Method == http.MethodPost && path == "/schedules/cancel" {
+		service.cancelUserMemorySchedule(responseWriter, request)
+		return
+	}
+	if request.Method == http.MethodPost && path == "/schedules/update" {
+		service.updateUserMemorySchedule(responseWriter, request)
+		return
+	}
 	http.NotFound(responseWriter, request)
 }
 

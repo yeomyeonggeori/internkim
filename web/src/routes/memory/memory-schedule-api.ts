@@ -1,6 +1,7 @@
 export type MemorySchedule = {
 	taskScheduleID: string;
 	creatorPersonID?: string;
+	name?: string;
 	executionMode: string;
 	kind: string;
 	intervalSecond?: number;
@@ -33,6 +34,18 @@ export type MemoryScheduleListRequest = {
 	pageSize?: number;
 };
 
+export type ScheduleUpdateFields = {
+	name?: string;
+	kind?: 'once' | 'interval' | 'cron';
+	runAt?: string;
+	intervalSecond?: number;
+	cronExpression?: string;
+	timeZone?: string;
+	expiresAt?: string;
+	maxRunCount?: number;
+	repeatPolicy?: 'finite' | 'unbounded';
+};
+
 export async function fetchMemorySchedules(request: MemoryScheduleListRequest = {}): Promise<MemoryScheduleListResponse> {
 	const response = await fetch(memorySchedulesURL(request), { credentials: 'include' });
 	if (!response.ok) {
@@ -40,6 +53,14 @@ export async function fetchMemorySchedules(request: MemoryScheduleListRequest = 
 	}
 	const document: unknown = await response.json();
 	return normalizeMemoryScheduleListResponse(document);
+}
+
+export async function cancelSchedule(taskScheduleID: string): Promise<void> {
+	await postMemoryScheduleRequest('/memory/api/schedules/cancel', { taskScheduleID });
+}
+
+export async function updateSchedule(taskScheduleID: string, fields: ScheduleUpdateFields): Promise<void> {
+	await postMemoryScheduleRequest('/memory/api/schedules/update', { taskScheduleID, ...fields });
 }
 
 export function normalizeMemoryScheduleListResponse(document: unknown): MemoryScheduleListResponse {
@@ -68,6 +89,18 @@ export function normalizeMemoryScheduleListResponse(document: unknown): MemorySc
 	};
 }
 
+async function postMemoryScheduleRequest(path: string, body: Record<string, unknown>): Promise<void> {
+	const response = await fetch(path, {
+		method: 'POST',
+		credentials: 'include',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(body)
+	});
+	if (!response.ok) {
+		throw new Error(`Memory schedules request returned ${response.status}`);
+	}
+}
+
 function memorySchedulesURL(request: MemoryScheduleListRequest): string {
 	const query = new URLSearchParams();
 	setPositiveIntegerQuery(query, 'page', request.page);
@@ -91,6 +124,7 @@ function normalizeMemorySchedule(document: unknown): MemorySchedule | undefined 
 	if (!taskScheduleID || !executionMode || !kind) return undefined;
 
 	const creatorPersonID = readString(record.creatorPersonID);
+	const name = readString(record.name);
 	const intervalSecond = readNumber(record.intervalSecond);
 	const cronExpression = readString(record.cronExpression);
 	const maxRunCount = readNumber(record.maxRunCount);
@@ -111,6 +145,7 @@ function normalizeMemorySchedule(document: unknown): MemorySchedule | undefined 
 		executionMode,
 		kind,
 		...(creatorPersonID ? { creatorPersonID } : {}),
+		...(name ? { name } : {}),
 		...(typeof intervalSecond === 'number' ? { intervalSecond } : {}),
 		...(cronExpression ? { cronExpression } : {}),
 		...(typeof maxRunCount === 'number' ? { maxRunCount } : {}),
