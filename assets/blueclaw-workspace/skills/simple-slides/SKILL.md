@@ -32,7 +32,7 @@ Use this order for normal requests:
 6. Inspect `build/review/slide-review.md` or `build/review/slide-review.json`, each contact sheet image, and its matching `fit-review-XX.md`.
 7. If the deck is visually important and budget remains, call `artifact.review` for contact sheets with expected visible text from `fit-review-XX.md`, the deck brief, and the deck archetype. Skip extra review calls when deterministic review is clean and delivery budget is tight.
 8. If rendered images, deterministic review, or LLM review show useful improvements and the improvement budget remains, revise `slides.html` and rebuild. Repeat at most three times. If the deck is usable after the budget, attach it and report the top remaining notes instead of failing solely on visual quality.
-9. Promote final files from `tmp/<deck-slug>/build/` to `artifacts/<deck-slug>/` with `file.promote` unless the user requested a circle or shared destination.
+9. Promote final files from `tmp/<deck-slug>/build/` to `artifacts/<deck-slug>/` with `file.promote` unless the user requested a circle or shared destination. Also promote `tmp/<deck-slug>/slides.html`, `tmp/<deck-slug>/DESIGN.md`, and `tmp/<deck-slug>/deck-brief.md` to `artifacts/<deck-slug>/source/` so later revisions can restore the editable source.
 10. Use one `file.attach` call with a `files` array for all requested promoted files.
 
 `file.write` creates parent directories, so do not spend a terminal call on `mkdir`. Do not use `file.pick`; it is for user-local file selection, not deck creation. Do not read reference assets during a normal request unless you truly need extra detail after drafting. The baseline below is enough for most decks.
@@ -223,6 +223,10 @@ Attach multiple requested files together:
 ```
 
 If the requested PPTX/PDF/HTML exists and is usable, promote and attach it after the improvement budget, then mention the top remaining review notes briefly. Visual review notes are not a delivery blocker. Do not spend delivery budget creating or attaching internal review-decision files unless the user explicitly asks for review metadata.
+
+## Revisions
+
+When the user asks to change a previously delivered deck, treat it as a revision of the same `<deck-slug>`, not a new deck. If `tmp/<deck-slug>/slides.html` no longer exists, restore the editable source from `artifacts/<deck-slug>/source/` into `tmp/<deck-slug>/` with `file.read` and `file.write`. Apply the requested changes to `slides.html`, rebuild with the same build command, re-promote with `overwrite: true`, and re-attach the requested formats. Do not create a new deck slug for a revision, and do not rebuild the deck from scratch when the source is available.
 
 ## Output
 

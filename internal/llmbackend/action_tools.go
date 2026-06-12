@@ -13,8 +13,9 @@ var nativeFunctionNamePattern = regexp.MustCompile(`[^A-Za-z0-9_-]+`)
 const openRouterNativeToolMaxFunctionCount = 12
 
 type nativeActionToolSet struct {
-	Tools      []nativeActionTool
-	ToolByName map[string]nativeActionTool
+	Tools            []nativeActionTool
+	ToolByName       map[string]nativeActionTool
+	NativeSchemaLint NativeSchemaLintResult
 }
 
 type nativeActionTool struct {
@@ -69,7 +70,24 @@ func nativeActionToolsForSchema(schema StructuredOutputSchema) (nativeActionTool
 		}
 		toolSet = compactToolSet
 	}
-	return toolSet, true, nil
+	return normalizeNativeActionToolSet(toolSet), true, nil
+}
+
+func normalizeNativeActionToolSet(toolSet nativeActionToolSet) nativeActionToolSet {
+	normalizedTools, lintResult := NormalizeNativeActionToolSchemas(toolSet.Tools)
+	return nativeActionToolSet{
+		Tools:            normalizedTools,
+		ToolByName:       nativeActionToolByName(normalizedTools),
+		NativeSchemaLint: lintResult,
+	}
+}
+
+func nativeActionToolByName(tools []nativeActionTool) map[string]nativeActionTool {
+	result := map[string]nativeActionTool{}
+	for _, tool := range tools {
+		result[tool.FunctionName] = tool
+	}
+	return result
 }
 
 func compactNativeActionToolSet(toolSet nativeActionToolSet) (nativeActionToolSet, error) {
