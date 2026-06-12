@@ -79,7 +79,7 @@ var StepBlueclawPayload = Step{
 			return errorValue
 		}
 		if context.Backend == BackendSSH && context.SSH != nil {
-			if serviceStatus := trimmedRun(context, "systemctl restart "+blueclaw.BlueclawServiceName+" && systemctl is-active "+blueclaw.BlueclawServiceName+" 2>/dev/null"); serviceStatus != "active" {
+			if serviceStatus := trimmedRun(context, "if systemctl cat "+blueclaw.BlueclawServiceName+" >/dev/null 2>&1; then systemctl restart "+blueclaw.BlueclawServiceName+" && systemctl is-active "+blueclaw.BlueclawServiceName+" 2>/dev/null; else echo not-installed; fi"); serviceStatus != "active" && serviceStatus != "not-installed" {
 				return fmt.Errorf("blueclaw restart after payload deploy failed: %s", serviceStatus)
 			}
 		}

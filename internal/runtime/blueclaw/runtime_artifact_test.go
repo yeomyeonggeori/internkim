@@ -112,7 +112,7 @@ func TestPrepareRuntimeScriptReusesExistingArtifactKernel(t *testing.T) {
 	}
 }
 
-func TestPrepareRuntimeScriptStopsOnlySelfStartedTartBuilder(t *testing.T) {
+func TestPrepareRuntimeScriptStopsOnlySelfStartedContainerBuilder(t *testing.T) {
 	repositoryRootPath := runtimeArtifactRepositoryRoot(t)
 	document, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "tools", "prepare-blueclaw-runtime"))
 	if errorValue != nil {
@@ -120,10 +120,10 @@ func TestPrepareRuntimeScriptStopsOnlySelfStartedTartBuilder(t *testing.T) {
 	}
 	script := string(document)
 	expectedFragments := []string{
-		`INTERNKIM_KEEP_TART_VM`,
-		`tart_status_before="$("$repository_root/internkim" lab status 2>/dev/null || true)"`,
-		`if [ "$tart_status_before" != "running" ]`,
-		`trap cleanup_tart_builder EXIT`,
+		`INTERNKIM_KEEP_CONTAINER_VM`,
+		`container_status_before="$("$repository_root/internkim" lab status 2>/dev/null || true)"`,
+		`if [ "$container_status_before" != "running" ]`,
+		`trap cleanup_container_builder EXIT`,
 		`"$repository_root/internkim" lab vm-down`,
 		`trap - EXIT`,
 	}

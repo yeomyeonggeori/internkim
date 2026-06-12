@@ -7,7 +7,7 @@ smoke_script_path="$script_directory_path/smoke-mattermost-ask-ephemeral.sh"
 remote_script_path="/tmp/internkim-smoke-mattermost-ask-ephemeral.sh"
 encoded_script="$(base64 -i "$smoke_script_path" | tr -d '\n')"
 
-tart exec "$virtual_machine_name" sudo bash -lc "base64 -d > '$remote_script_path' <<'EOF'
+container exec "$virtual_machine_name" sudo bash -lc "base64 -d > '$remote_script_path' <<'EOF'
 $encoded_script
 EOF
 chmod +x '$remote_script_path'

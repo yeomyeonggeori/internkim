@@ -95,7 +95,7 @@ func TestBootstrapMattermostTenantResourcesProvisionMembersIdempotently(t *testi
 	if !server.channelMembers["channel-flow:user-new-member"] || !server.channelMembers["channel-flow:user-existing"] {
 		t.Fatalf("expected member channel memberships, got %+v", server.channelMembers)
 	}
-	if server.blueclawInvites["new.member@example.com"] != "tenant:pilot-01:new.member" {
+	if server.blueclawInvites["new.member@example.com"] != "tenant-pilot-01-new.member" {
 		t.Fatalf("expected new member Blueclaw invite, got %+v", server.blueclawInvites)
 	}
 

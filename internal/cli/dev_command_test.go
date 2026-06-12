@@ -38,31 +38,45 @@ func TestDevSimulateBuildsLocalVirtualSessionCommand(t *testing.T) {
 	}
 }
 
-func TestDevReplayCanTargetTart(t *testing.T) {
+func TestDevReplayCanTargetContainer(t *testing.T) {
 	var invocation devVirtualSessionArguments
-	previousRunner := runDevTartVirtualSession
-	runDevTartVirtualSession = func(arguments devVirtualSessionArguments) error {
+	previousRunner := runDevContainerVirtualSession
+	runDevContainerVirtualSession = func(arguments devVirtualSessionArguments) error {
 		invocation = arguments
 		return nil
 	}
 	t.Cleanup(func() {
-		runDevTartVirtualSession = previousRunner
+		runDevContainerVirtualSession = previousRunner
 	})
 
 	errorValue := runDevArguments([]string{
 		"replay",
-		"--target", "tart",
+		"--target", "container",
 		"--scenario", "slides",
 		"--cassette", "cassette.json",
 	})
 	if errorValue != nil {
 		t.Fatalf("expected dev replay to pass: %v", errorValue)
 	}
-	if invocation.TargetName != "tart" {
-		t.Fatalf("expected tart target, got %q", invocation.TargetName)
+	if invocation.TargetName != "container" {
+		t.Fatalf("expected container target, got %q", invocation.TargetName)
 	}
 	if invocation.CassettePath != "cassette.json" {
 		t.Fatalf("expected replay cassette, got %q", invocation.CassettePath)
+	}
+}
+
+func TestDevReplayRejectsRemovedTartTarget(t *testing.T) {
+	errorValue := runDevArguments([]string{
+		"replay",
+		"--target", "tart",
+		"--scenario", "slides",
+	})
+	if errorValue == nil {
+		t.Fatal("expected tart target to be rejected")
+	}
+	if !strings.Contains(errorValue.Error(), "--target container") {
+		t.Fatalf("expected guidance toward container target, got %q", errorValue.Error())
 	}
 }
 
@@ -87,28 +101,24 @@ func TestDevVirtualSessionCommandArguments(t *testing.T) {
 	}
 }
 
-func TestTartDevVirtualSessionInvocationUsesNamedWorkspaceSharePath(t *testing.T) {
-	invocation, errorValue := tartDevVirtualSessionInvocation(devVirtualSessionArguments{
+func TestContainerDevVirtualSessionInvocationUsesBindMountedWorkspacePath(t *testing.T) {
+	invocation, errorValue := containerDevVirtualSessionInvocation(devVirtualSessionArguments{
 		ScenarioName: "attachment_material_read",
 	})
 	if errorValue != nil {
 		t.Fatalf("expected invocation: %v", errorValue)
 	}
-	if invocation.WorkingDirectoryPath != "/mnt/shared/workspace/workspace/.dependency/blueclaw" {
-		t.Fatalf("expected named workspace share path, got %q", invocation.WorkingDirectoryPath)
+	if invocation.WorkingDirectoryPath != "/mnt/shared/workspace/.dependency/blueclaw" {
+		t.Fatalf("expected bind-mounted workspace path, got %q", invocation.WorkingDirectoryPath)
 	}
 }
 
-func TestTartDevSharedWorkspaceCommandMountsAutomountTag(t *testing.T) {
-	command := tartDevSharedWorkspaceCommand("/mnt/shared/workspace/workspace/.dependency/blueclaw", "lab-password")
-	for _, expectedFragment := range []string{
-		"com.apple.virtio-fs.automount",
-		"/mnt/shared/workspace",
-		"/mnt/shared/workspace/workspace/.dependency/blueclaw",
-		"lab-password",
-	} {
-		if !strings.Contains(command, expectedFragment) {
-			t.Fatalf("expected shared workspace command to contain %q, got %s", expectedFragment, command)
-		}
+func TestContainerDevSharedWorkspaceCommandChecksBindMountedDirectory(t *testing.T) {
+	command := containerDevSharedWorkspaceCommand("/mnt/shared/workspace/.dependency/blueclaw")
+	if !strings.Contains(command, "/mnt/shared/workspace/.dependency/blueclaw") {
+		t.Fatalf("expected shared workspace command to reference the bind-mounted path, got %s", command)
+	}
+	if strings.Contains(command, "virtiofs") || strings.Contains(command, "mount") {
+		t.Fatalf("expected shared workspace command to avoid mount logic, got %s", command)
 	}
 }

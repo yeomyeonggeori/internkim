@@ -41,10 +41,11 @@ desired_path="$(mktemp)"
 previous_path="$(mktemp)"
 policy_all_path="$(mktemp)"
 policy_removable_path="$(mktemp)"
+current_policy_path="$(mktemp)"
 removal_source_path="$(mktemp)"
 next_state_path="$(mktemp)"
 cleanup() {
-  rm -f "$response_path" "$desired_records_path" "$desired_path" "$previous_path" "$policy_all_path" "$policy_removable_path" "$removal_source_path" "$next_state_path"
+  rm -f "$response_path" "$desired_records_path" "$desired_path" "$previous_path" "$policy_all_path" "$policy_removable_path" "$current_policy_path" "$removal_source_path" "$next_state_path"
 }
 trap cleanup EXIT
 
@@ -85,8 +86,9 @@ admin_email="$(cat /root/.internkim/config/admin-email 2>/dev/null || cat /root/
 jq -r 'if (.records | type) == "array" then .records[]? | [(.userID // ""), .email, (.name // ""), (.role // ""), ((.circles // []) | join(","))] | @tsv else .users[]? | ["", ., "", "", ""] | @tsv end' "$response_path" | awk 'NF' | sort -u > "$desired_records_path"
 cut -f2 "$desired_records_path" | awk 'NF {print tolower($0)}' | sort -u > "$desired_path"
 jq -r '.users[]?' "$STATE_PATH" 2>/dev/null | awk 'NF {print tolower($0)}' | sort -u > "$previous_path" || true
-jq -r '.people[]?.emails[]?' "$POLICY_PATH" 2>/dev/null | awk 'NF {print tolower($0)}' | sort -u > "$policy_all_path" || true
-jq -r '.people[]? | select(.isAdmin != true) | .emails[]?' "$POLICY_PATH" 2>/dev/null | awk 'NF {print tolower($0)}' | sort -u > "$policy_removable_path" || true
+curl -fsS "$BLUECLAW_URL/admin/api/policy" > "$current_policy_path" 2>/dev/null || true
+jq -r '.people[]?.emails[]?' "$current_policy_path" 2>/dev/null | awk 'NF {print tolower($0)}' | sort -u > "$policy_all_path" || true
+jq -r '.people[]? | select(.isAdmin != true) | .emails[]?' "$current_policy_path" 2>/dev/null | awk 'NF {print tolower($0)}' | sort -u > "$policy_removable_path" || true
 
 if [ -n "$revision" ] && [ "$revision" = "$last_revision" ]; then
   missing_policy_count="$(comm -23 "$desired_path" "$policy_all_path" | wc -l | tr -d ' ')"
