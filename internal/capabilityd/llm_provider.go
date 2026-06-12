@@ -31,6 +31,11 @@ type (
 	AutoProvider = llmbackend.AutoProvider
 )
 
+type providerAvailability struct {
+	Available bool   `json:"available"`
+	Reason    string `json:"reason,omitempty"`
+}
+
 func (service Service) completeStructured(ctx context.Context, request StructuredLLMRequest) (LLMResponse, error) {
 	provider, errorValue := service.providerForExecutionMode(ctx, "llm.structured", request.ExecutionMode, request.Provider, request.Accelerator)
 	if errorValue != nil {
@@ -177,4 +182,26 @@ func (service Service) localInferenceMode() string {
 		return "companion_preferred"
 	}
 	return ""
+}
+
+func (service Service) providerHealth(ctx context.Context) map[string]providerAvailability {
+	return map[string]providerAvailability{
+		"litert": service.liteRTProviderHealth(ctx),
+	}
+}
+
+func (service Service) liteRTProviderHealth(ctx context.Context) providerAvailability {
+	providerSet := service.localProviderSet("litert", "", false)
+	if len(providerSet.Backends) == 0 {
+		return providerAvailability{Available: false, Reason: "litert provider is not configured"}
+	}
+	errorValue := providerSet.Backends[0].Ping(ctx)
+	if errorValue == nil {
+		return providerAvailability{Available: true}
+	}
+	reason := llmbackend.ProviderUnavailableReason(errorValue)
+	if reason == "" {
+		reason = errorValue.Error()
+	}
+	return providerAvailability{Available: false, Reason: reason}
 }
