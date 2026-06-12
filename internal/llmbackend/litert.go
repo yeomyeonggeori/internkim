@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 )
 
 type LiteRTProvider struct {
@@ -33,6 +34,44 @@ type localLLMRunnerResponse struct {
 }
 
 const litertModelLabel = "gemma-4-E4B-it-litert-lm"
+const defaultLiteRTConstrainedRunnerBinaryPath = "/usr/local/bin/internkim-litert-constrained"
+
+var LiteRTConstrainedRunnerBinaryPath = defaultLiteRTConstrainedRunnerBinaryPath
+
+var errProviderUnavailable = errors.New("llm provider unavailable")
+
+type providerUnavailableError struct {
+	provider string
+	reason   string
+	cause    error
+}
+
+func (errorValue providerUnavailableError) Error() string {
+	if errorValue.cause == nil {
+		return errorValue.provider + " unavailable: " + errorValue.reason
+	}
+	return errorValue.provider + " unavailable: " + errorValue.reason + ": " + errorValue.cause.Error()
+}
+
+func (errorValue providerUnavailableError) Unwrap() error {
+	return errorValue.cause
+}
+
+func (errorValue providerUnavailableError) Is(target error) bool {
+	return target == errProviderUnavailable
+}
+
+func IsProviderUnavailable(errorValue error) bool {
+	return errors.Is(errorValue, errProviderUnavailable)
+}
+
+func ProviderUnavailableReason(errorValue error) string {
+	var unavailableError providerUnavailableError
+	if !errors.As(errorValue, &unavailableError) {
+		return ""
+	}
+	return unavailableError.reason
+}
 
 func (provider LiteRTProvider) Name() string { return "litert-" + provider.Variant }
 
@@ -43,10 +82,14 @@ func (provider LiteRTProvider) Ping(context.Context) error {
 	if provider.RunCommand == nil {
 		return errors.New("litert provider has no run command")
 	}
-	return nil
+	return liteRTConstrainedRunnerAvailabilityError()
 }
 
 func (provider LiteRTProvider) CompleteStructured(ctx context.Context, request StructuredRequest) (Response, error) {
+	if errorValue := provider.Ping(ctx); errorValue != nil {
+		return Response{}, errorValue
+	}
+
 	document, errorValue := json.Marshal(localLLMRunnerRequest{
 		Provider:    "litert",
 		ModelPath:   provider.ModelPath,
@@ -85,6 +128,33 @@ func (provider LiteRTProvider) CompleteStructured(ctx context.Context, request S
 		SelectedBackend: provider.Variant,
 		ConstraintMode:  constraintMode,
 	}, nil
+}
+
+func liteRTConstrainedRunnerAvailabilityError() error {
+	fileInfo, errorValue := os.Stat(LiteRTConstrainedRunnerBinaryPath)
+	if errorValue != nil {
+		return providerUnavailableError{
+			provider: "litert",
+			reason:   "constrained runner not installed",
+			cause:    errorValue,
+		}
+	}
+	if fileInfo.IsDir() {
+		return providerUnavailableError{
+			provider: "litert",
+			reason:   "constrained runner not installed",
+			cause:    errors.New("path is a directory"),
+		}
+	}
+	return nil
+}
+
+func providerUnavailableFailure(errorValue error) (string, bool) {
+	var unavailableError providerUnavailableError
+	if !errors.As(errorValue, &unavailableError) {
+		return "", false
+	}
+	return unavailableError.provider + ": " + unavailableError.reason, true
 }
 
 func (provider LiteRTProvider) CompleteText(ctx context.Context, request TextRequest) (Response, error) {

@@ -23,6 +23,24 @@ func newOpenRouterBackend(secretPath, baseURL, modelName string, transport http.
 	}
 }
 
+func setLiteRTConstrainedRunnerPath(t *testing.T, path string) {
+	t.Helper()
+	previousPath := llmbackend.LiteRTConstrainedRunnerBinaryPath
+	llmbackend.LiteRTConstrainedRunnerBinaryPath = path
+	t.Cleanup(func() {
+		llmbackend.LiteRTConstrainedRunnerBinaryPath = previousPath
+	})
+}
+
+func createLiteRTConstrainedRunner(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "internkim-litert-constrained")
+	if errorValue := os.WriteFile(path, []byte("#!/bin/sh\n"), 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return path
+}
+
 func TestOpenRouterBackendReturnsProviderConstraintMode(t *testing.T) {
 	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
 	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
@@ -170,6 +188,7 @@ func TestDefaultProviderAttemptTimeoutAllowsRemoteStructuredResponses(t *testing
 }
 
 func TestLiteRTProviderSendsJSONSchemaDocumentToWrapper(t *testing.T) {
+	setLiteRTConstrainedRunnerPath(t, createLiteRTConstrainedRunner(t))
 	var wrapperDocument map[string]any
 	backend := LiteRTProvider{
 		ModelPath:  DefaultConfiguration().LiteRTModelPath,

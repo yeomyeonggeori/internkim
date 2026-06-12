@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/eastriver/internkim/internal/llmbackend"
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
 const liteRTMainBinaryPath = "/usr/local/bin/litert_lm_main"
-const liteRTConstrainedBinaryPath = "/usr/local/bin/internkim-litert-constrained"
 const liteRTMainLibraryDirectory = "/usr/local/lib/litert_lm"
 
 type message struct {
@@ -112,14 +112,14 @@ func liteRTMainAvailable() bool {
 }
 
 func runConstrainedLiteRT(request requestDocument) (responseDocument, error) {
-	if _, errorValue := os.Stat(liteRTConstrainedBinaryPath); errorValue != nil {
-		return responseDocument{}, fmt.Errorf("LiteRT structured output requires constrained decoding runner at %s: %w", liteRTConstrainedBinaryPath, errorValue)
+	if _, errorValue := os.Stat(llmbackend.LiteRTConstrainedRunnerBinaryPath); errorValue != nil {
+		return responseDocument{}, fmt.Errorf("LiteRT structured output requires constrained decoding runner at %s: %w", llmbackend.LiteRTConstrainedRunnerBinaryPath, errorValue)
 	}
 	document, errorValue := json.Marshal(request)
 	if errorValue != nil {
 		return responseDocument{}, errorValue
 	}
-	command := exec.Command(liteRTConstrainedBinaryPath)
+	command := exec.Command(llmbackend.LiteRTConstrainedRunnerBinaryPath)
 	command.Env = append(os.Environ(), "LD_LIBRARY_PATH="+liteRTMainLibraryDirectory+pathSeparator()+os.Getenv("LD_LIBRARY_PATH"))
 	command.Stdin = bytes.NewReader(document)
 

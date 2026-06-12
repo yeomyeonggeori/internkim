@@ -458,6 +458,8 @@ func siteAppLookupInputSchema() json.RawMessage {
 	return jsonschema.Object(
 		jsonschema.Field("siteID", jsonschema.String()),
 		jsonschema.Field("slug", jsonschema.String()),
+		jsonschema.Field("scope", jsonschema.StringEnum("conversation", "mine")),
+		jsonschema.Field("checkLive", jsonschema.Boolean()),
 	).RawMessage()
 }
 

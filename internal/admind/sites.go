@@ -8,10 +8,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
 	"os"
@@ -84,6 +86,7 @@ type SiteRecord struct {
 	UnpublishedAt       time.Time          `json:"unpublishedAt,omitempty"`
 	DeletedAt           time.Time          `json:"deletedAt,omitempty"`
 	LastError           string             `json:"lastError,omitempty"`
+	LiveHTTPStatus      int                `json:"liveHTTPStatus,omitempty"`
 }
 
 type siteCreateRequest struct {
@@ -178,6 +181,18 @@ type siteWorkspaceMetadata struct {
 	DesignDefault  string             `json:"designDefault"`
 }
 
+type siteReadinessProbeContextKey struct{}
+
+type siteReadinessProbe struct {
+	SiteID    string
+	VersionID string
+}
+
+type siteReadinessProbeResult struct {
+	StatusCode int
+	Body       string
+}
+
 type siteIdentity struct {
 	PersonID       string `json:"personID,omitempty"`
 	Platform       string `json:"platform,omitempty"`
@@ -215,6 +230,13 @@ func (service *Service) serveSiteHost(responseWriter http.ResponseWriter, reques
 	switch site.Status {
 	case SiteStatusPublished:
 		service.servePublishedSite(responseWriter, request, site)
+	case SiteStatusPublishing:
+		if probe, isProbe := siteReadinessProbeFromRequest(request); isProbe && probe.SiteID == site.SiteID {
+			site.CurrentVersionID = probe.VersionID
+			service.servePublishedSite(responseWriter, request, site)
+			return
+		}
+		http.NotFound(responseWriter, request)
 	case SiteStatusDraft:
 		previewID, _ := sitePreviewRequestPath(request.URL.Path)
 		if sitePreviewActive(site, previewID) {
@@ -231,6 +253,14 @@ func (service *Service) serveSiteHost(responseWriter http.ResponseWriter, reques
 	default:
 		http.NotFound(responseWriter, request)
 	}
+}
+
+func siteReadinessProbeFromRequest(request *http.Request) (siteReadinessProbe, bool) {
+	probe, isProbe := request.Context().Value(siteReadinessProbeContextKey{}).(siteReadinessProbe)
+	if !isProbe || strings.TrimSpace(probe.SiteID) == "" || strings.TrimSpace(probe.VersionID) == "" {
+		return siteReadinessProbe{}, false
+	}
+	return probe, true
 }
 
 func (service *Service) servePublishedSite(responseWriter http.ResponseWriter, request *http.Request, site *SiteRecord) {
@@ -365,8 +395,8 @@ func normalizeHTTPHost(host string) string {
 	return strings.Trim(trimmedHost, "[]")
 }
 
-func (service *Service) listSites(responseWriter http.ResponseWriter) {
-	service.writeJSON(responseWriter, map[string]any{"sites": service.siteList()})
+func (service *Service) listSites(responseWriter http.ResponseWriter, request *http.Request) {
+	service.writeJSON(responseWriter, map[string]any{"sites": service.siteListResponse(request.Context(), siteListShouldCheckLive(request))})
 }
 
 func (service *Service) createSite(responseWriter http.ResponseWriter, request *http.Request) {
@@ -380,7 +410,7 @@ func (service *Service) createSite(responseWriter http.ResponseWriter, request *
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	service.writeJSON(responseWriter, site)
+	service.writeSiteRecord(responseWriter, site)
 }
 
 func (service *Service) handleSite(responseWriter http.ResponseWriter, request *http.Request, path string) {
@@ -432,7 +462,7 @@ func (service *Service) writeSite(responseWriter http.ResponseWriter, siteID str
 		http.NotFound(responseWriter, nil)
 		return
 	}
-	service.writeJSON(responseWriter, service.siteWithRevisionMetadata(site))
+	service.writeSiteRecord(responseWriter, service.siteWithRevisionMetadata(site))
 }
 
 func (service *Service) writeSiteHistory(responseWriter http.ResponseWriter, request *http.Request, siteID string) {
@@ -479,7 +509,7 @@ func (service *Service) publishSiteFromRequest(responseWriter http.ResponseWrite
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	service.writeJSON(responseWriter, site)
+	service.writeSiteRecord(responseWriter, site)
 }
 
 func (service *Service) previewSiteFromRequest(responseWriter http.ResponseWriter, request *http.Request, siteID string) {
@@ -494,7 +524,7 @@ func (service *Service) previewSiteFromRequest(responseWriter http.ResponseWrite
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	service.writeJSON(responseWriter, site)
+	service.writeSiteRecord(responseWriter, site)
 }
 
 func (service *Service) rollbackSiteFromRequest(responseWriter http.ResponseWriter, request *http.Request, siteID string) {
@@ -508,7 +538,7 @@ func (service *Service) rollbackSiteFromRequest(responseWriter http.ResponseWrit
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	service.writeJSON(responseWriter, site)
+	service.writeSiteRecord(responseWriter, site)
 }
 
 func (service *Service) unpublishSiteFromRequest(responseWriter http.ResponseWriter, request *http.Request, siteID string) {
@@ -522,7 +552,7 @@ func (service *Service) unpublishSiteFromRequest(responseWriter http.ResponseWri
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	service.writeJSON(responseWriter, site)
+	service.writeSiteRecord(responseWriter, site)
 }
 
 func (service *Service) restoreSiteFromRequest(responseWriter http.ResponseWriter, request *http.Request, siteID string) {
@@ -536,7 +566,7 @@ func (service *Service) restoreSiteFromRequest(responseWriter http.ResponseWrite
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	service.writeJSON(responseWriter, site)
+	service.writeSiteRecord(responseWriter, site)
 }
 
 func (service *Service) deleteSiteFromRequest(responseWriter http.ResponseWriter, request *http.Request, siteID string) {
@@ -550,7 +580,22 @@ func (service *Service) deleteSiteFromRequest(responseWriter http.ResponseWriter
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	service.writeJSON(responseWriter, site)
+	service.writeSiteRecord(responseWriter, site)
+}
+
+func (service *Service) writeSiteRecord(responseWriter http.ResponseWriter, site *SiteRecord) {
+	service.writeJSON(responseWriter, siteAPIResponse(site))
+}
+
+func siteAPIResponse(site *SiteRecord) *SiteRecord {
+	if site == nil {
+		return nil
+	}
+	copiedSite := *site
+	if copiedSite.Status != SiteStatusPublished {
+		copiedSite.PublishedURL = ""
+	}
+	return &copiedSite
 }
 
 func (service *Service) writeSiteLogs(responseWriter http.ResponseWriter, request *http.Request, siteID string) {
@@ -733,6 +778,10 @@ func (service *Service) publishSite(ctx context.Context, payload sitePublishRequ
 		return nil, errorValue
 	}
 	if errorValue := service.activateSiteVersion(ctx, site, versionID); errorValue != nil {
+		service.updateSiteStatus(site.SiteID, SiteStatusFailed, errorValue.Error())
+		return nil, errorValue
+	}
+	if errorValue := service.probeSiteReadiness(ctx, site, versionID); errorValue != nil {
 		service.updateSiteStatus(site.SiteID, SiteStatusFailed, errorValue.Error())
 		return nil, errorValue
 	}
@@ -1454,8 +1503,71 @@ func (service *Service) activateSiteVersion(ctx context.Context, site *SiteRecor
 	if _, errorValue := service.runCommand(ctx, "systemctl", "enable", "--now", siteServiceName(site.SiteID)); errorValue != nil {
 		return errorValue
 	}
-	_, _ = service.runCommand(ctx, "systemctl", "restart", siteServiceName(site.SiteID))
+	if _, errorValue := service.runCommand(ctx, "systemctl", "restart", siteServiceName(site.SiteID)); errorValue != nil && service.siteVersionHasPocketBaseBackend(site, versionID) {
+		return fmt.Errorf("systemctl restart %s failed: %w", siteServiceName(site.SiteID), errorValue)
+	}
 	return nil
+}
+
+func (service *Service) siteVersionHasPocketBaseBackend(site *SiteRecord, versionID string) bool {
+	versionPath := service.sitePublishedVersionPath(site, versionID)
+	return directoryHasOperationalFiles(filepath.Join(versionPath, "pb_migrations")) ||
+		directoryHasOperationalFiles(filepath.Join(versionPath, "pb_hooks"))
+}
+
+func (service *Service) probeSiteReadiness(ctx context.Context, site *SiteRecord, versionID string) error {
+	deadline := time.Now().Add(3 * time.Second)
+	lastResult := siteReadinessProbeResult{}
+	for {
+		lastResult = service.probeSiteIndex(ctx, site, versionID)
+		if lastResult.isReady() {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return siteReadinessProbeError(lastResult)
+		}
+		if errorValue := waitForSiteReadinessRetry(ctx, 100*time.Millisecond); errorValue != nil {
+			return errorValue
+		}
+	}
+}
+
+func (service *Service) probeSiteIndex(ctx context.Context, site *SiteRecord, versionID string) siteReadinessProbeResult {
+	host := service.siteReadinessProbeHost(site)
+	request := httptest.NewRequest(http.MethodGet, "https://"+host+"/", nil)
+	request.Host = host
+	probe := siteReadinessProbe{SiteID: site.SiteID, VersionID: versionID}
+	request = request.WithContext(context.WithValue(ctx, siteReadinessProbeContextKey{}, probe))
+	response := httptest.NewRecorder()
+	service.withSiteGateway(http.NotFoundHandler()).ServeHTTP(response, request)
+	return siteReadinessProbeResult{StatusCode: response.Code, Body: response.Body.String()}
+}
+
+func (service *Service) siteReadinessProbeHost(site *SiteRecord) string {
+	parsedURL, errorValue := url.Parse(site.PublishedURL)
+	if errorValue == nil && strings.TrimSpace(parsedURL.Host) != "" {
+		return parsedURL.Host
+	}
+	return site.Slug + "." + service.deviceHost()
+}
+
+func (result siteReadinessProbeResult) isReady() bool {
+	return result.StatusCode == http.StatusOK && strings.TrimSpace(result.Body) != ""
+}
+
+func siteReadinessProbeError(result siteReadinessProbeResult) error {
+	return fmt.Errorf("site readiness probe failed: observed status %d with index body length %d", result.StatusCode, len(strings.TrimSpace(result.Body)))
+}
+
+func waitForSiteReadinessRetry(ctx context.Context, duration time.Duration) error {
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func (service *Service) ensureSiteRuntimeFiles(site *SiteRecord, versionID string) error {
@@ -1845,7 +1957,7 @@ func (service *Service) commitSiteWorkspace(ctx context.Context, site *SiteRecor
 type siteHistoryResponse struct {
 	SiteID       string              `json:"siteID"`
 	Slug         string              `json:"slug"`
-	PublishedURL string              `json:"publishedURL"`
+	PublishedURL string              `json:"publishedURL,omitempty"`
 	Revisions    []siteRevisionEntry `json:"revisions"`
 }
 
@@ -1863,7 +1975,7 @@ type siteRevisionEntry struct {
 type siteDiffResponse struct {
 	SiteID       string `json:"siteID"`
 	Slug         string `json:"slug"`
-	PublishedURL string `json:"publishedURL"`
+	PublishedURL string `json:"publishedURL,omitempty"`
 	FromRevision string `json:"fromRevision"`
 	ToRevision   string `json:"toRevision"`
 	Summary      string `json:"summary"`
@@ -1883,7 +1995,7 @@ func (service *Service) siteGitHistory(ctx context.Context, site *SiteRecord) (s
 	return siteHistoryResponse{
 		SiteID:       site.SiteID,
 		Slug:         site.Slug,
-		PublishedURL: site.PublishedURL,
+		PublishedURL: siteVisiblePublishedURL(site),
 		Revisions:    service.siteRevisionEntries(site, string(output)),
 	}, nil
 }
@@ -1927,7 +2039,7 @@ func (service *Service) siteGitDiff(ctx context.Context, site *SiteRecord, reque
 	return siteDiffResponse{
 		SiteID:       site.SiteID,
 		Slug:         site.Slug,
-		PublishedURL: site.PublishedURL,
+		PublishedURL: siteVisiblePublishedURL(site),
 		FromRevision: fromRevision,
 		ToRevision:   toRevision,
 		Summary:      strings.TrimSpace(string(output)),
@@ -2057,6 +2169,47 @@ func (service *Service) siteList() []*SiteRecord {
 		return sites[leftIndex].CreatedAt.Before(sites[rightIndex].CreatedAt)
 	})
 	return sites
+}
+
+func (service *Service) siteListResponse(ctx context.Context, checkLive bool) []*SiteRecord {
+	sites := service.siteList()
+	probeCount := 0
+	for index, site := range sites {
+		responseSite := siteAPIResponse(site)
+		if checkLive && responseSite.Status == SiteStatusPublished && probeCount < 20 {
+			responseSite.LiveHTTPStatus = service.probePublishedSiteHTTPStatus(ctx, responseSite)
+			probeCount++
+		}
+		sites[index] = responseSite
+	}
+	return sites
+}
+
+func siteListShouldCheckLive(request *http.Request) bool {
+	if request == nil {
+		return false
+	}
+	value := strings.ToLower(strings.TrimSpace(request.URL.Query().Get("checkLive")))
+	return value == "true" || value == "1"
+}
+
+func (service *Service) probePublishedSiteHTTPStatus(ctx context.Context, site *SiteRecord) int {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	host := service.siteReadinessProbeHost(site)
+	request := httptest.NewRequest(http.MethodGet, "https://"+host+"/", nil)
+	request.Host = host
+	request = request.WithContext(ctx)
+	response := httptest.NewRecorder()
+	service.withSiteGateway(http.NotFoundHandler()).ServeHTTP(response, request)
+	return response.Code
+}
+
+func siteVisiblePublishedURL(site *SiteRecord) string {
+	if site == nil || site.Status != SiteStatusPublished {
+		return ""
+	}
+	return site.PublishedURL
 }
 
 func (service *Service) findSiteByID(siteID string) *SiteRecord {
