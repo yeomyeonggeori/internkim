@@ -313,6 +313,7 @@ func (service Service) platformHealth(ctx context.Context) map[string]any {
 	return map[string]any{
 		"status":     status,
 		"mattermost": mattermost,
+		"providers":  service.providerHealth(ctx),
 		"checkedAt":  time.Now().UTC(),
 	}
 }
