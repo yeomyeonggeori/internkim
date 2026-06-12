@@ -26,6 +26,7 @@ type CalendarEventActionsContext = {
 	setSelectedAuditEventID: (eventID: string | null) => void;
 	getCalendarEvents: () => DayFlowEvent[];
 	addCalendarEvent: (event: DayFlowEvent) => void;
+	removeCalendarEvent: (eventID: string) => void;
 	updateCalendarEvent: (eventID: string, changes: Partial<DayFlowEvent>, shouldRender: boolean) => Promise<void>;
 	setEventCount: (eventCount: number) => void;
 	setVisibleEvents: (events: DayFlowEvent[]) => void;
@@ -44,11 +45,11 @@ type CalendarEventActionsContext = {
 };
 
 export type CalendarEventActions = {
-	createQuickEvent: () => void;
-	createMonthRangeEvent: (selection: MonthRangeSelection) => void;
-	createMonthSingleDayEvent: (dateKey: string) => void;
-	createTimelineSingleEvent: (startDate: Date) => void;
-	createTimelineRangeEvent: (firstDate: Date, secondDate: Date) => void;
+	createQuickEvent: () => DayFlowEvent;
+	createMonthRangeEvent: (selection: MonthRangeSelection) => DayFlowEvent;
+	createMonthSingleDayEvent: (dateKey: string) => DayFlowEvent | null;
+	createTimelineSingleEvent: (startDate: Date) => DayFlowEvent | null;
+	createTimelineRangeEvent: (firstDate: Date, secondDate: Date) => DayFlowEvent | null;
 	saveCreatedEvent: (event: DayFlowEvent) => Promise<void>;
 	saveUpdatedEvent: (event: DayFlowEvent) => Promise<void>;
 	deleteEvent: (eventID: string) => Promise<void>;
@@ -85,42 +86,41 @@ export function createCalendarEventActions(
 
 	function addDraftEvent(params: DraftEventParams): DayFlowEvent {
 		const event = draftEvents.createDraftEvent(params);
+		draftEvents.addCreatedEvent(event);
 		context.addCalendarEvent(event);
 		refreshLocalEventSnapshot();
-		draftEventDOM.openEventDetailsAfterRender(event.id);
 		return event;
 	}
 
-	function createQuickEvent(): void {
+	function createQuickEvent(): DayFlowEvent {
 		const baseDate = context.getCurrentDate() ?? new Date();
-		addDraftEvent(quickDraftEventParams(baseDate));
+		return addDraftEvent(quickDraftEventParams(baseDate));
 	}
 
-	function createMonthRangeEvent(selection: MonthRangeSelection): void {
+	function createMonthRangeEvent(selection: MonthRangeSelection): DayFlowEvent {
 		const params = monthRangeDraftEventParams(selection);
 		if (!params) {
-			createMonthSingleDayEvent(selection.startDateKey);
-			return;
+			return addDraftEvent(monthSingleDayDraftEventParams(selection.startDateKey));
 		}
-		addDraftEvent(params);
+		return addDraftEvent(params);
 	}
 
-	function createMonthSingleDayEvent(dateKey: string): void {
-		if (Date.now() - lastMonthCellCreationTime < 250) return;
+	function createMonthSingleDayEvent(dateKey: string): DayFlowEvent | null {
+		if (Date.now() - lastMonthCellCreationTime < 250) return null;
 		lastMonthCellCreationTime = Date.now();
-		addDraftEvent(monthSingleDayDraftEventParams(dateKey));
+		return addDraftEvent(monthSingleDayDraftEventParams(dateKey));
 	}
 
-	function createTimelineSingleEvent(startDate: Date): void {
-		if (Date.now() - lastTimelineSlotCreationTime < 80) return;
+	function createTimelineSingleEvent(startDate: Date): DayFlowEvent | null {
+		if (Date.now() - lastTimelineSlotCreationTime < 80) return null;
 		lastTimelineSlotCreationTime = Date.now();
-		addDraftEvent(timelineSingleDraftEventParams(startDate));
+		return addDraftEvent(timelineSingleDraftEventParams(startDate));
 	}
 
-	function createTimelineRangeEvent(firstDate: Date, secondDate: Date): void {
-		if (Date.now() - lastTimelineSlotCreationTime < 80) return;
+	function createTimelineRangeEvent(firstDate: Date, secondDate: Date): DayFlowEvent | null {
+		if (Date.now() - lastTimelineSlotCreationTime < 80) return null;
 		lastTimelineSlotCreationTime = Date.now();
-		addDraftEvent(timelineRangeDraftEventParams(firstDate, secondDate));
+		return addDraftEvent(timelineRangeDraftEventParams(firstDate, secondDate));
 	}
 
 	async function saveCreatedEvent(event: DayFlowEvent): Promise<void> {
@@ -153,17 +153,20 @@ export function createCalendarEventActions(
 		}
 		if (draftEvents.isDraftEvent(eventID)) {
 			draftEvents.removeDraftEvent(eventID);
+			context.removeCalendarEvent(eventID);
 			refreshEventCountAfterRender();
 			return;
 		}
 		if (draftEvents.hasPendingCreate(eventID)) {
 			draftEvents.markDeletedDuringCreate(eventID);
+			context.removeCalendarEvent(eventID);
 			refreshEventCountAfterRender();
 			return;
 		}
 		beginDeletePersistence();
 		try {
 			await persistedEvents.deleteEvent(eventID);
+			context.removeCalendarEvent(eventID);
 			context.notifyEventsChanged();
 			refreshEventCountAfterRender();
 		} catch (error) {
