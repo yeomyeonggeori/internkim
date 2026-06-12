@@ -277,3 +277,106 @@ func TestMemoryAPISchedulesHidesUpstreamFailureDetails(t *testing.T) {
 		t.Fatalf("memory schedules body = %s", responseBody)
 	}
 }
+
+func TestMemoryAPIGraphHidesUpstreamFailureDetails(t *testing.T) {
+	service := NewService(Configuration{
+		APIBaseURL:        "https://api.intern.kim",
+		BlueclawBaseURL:   "http://blueclaw.local",
+		FleetIDPath:       writeTestFile(t, "device-1"),
+		FleetSecretPath:   writeTestFile(t, "secret-1"),
+		MattermostBaseURL: "http://mattermost.local",
+	})
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet {
+			return jsonResponse(http.StatusOK, `{"id":"mattermost-user-1","email":"member@example.com","username":"member"}`, nil), nil
+		}
+		if request.URL.String() == "https://api.intern.kim/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","userID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
+		}
+		if request.URL.Path == "/admin/api/memory/graph" && request.Method == http.MethodGet {
+			return jsonResponse(http.StatusInternalServerError, `Traceback /workspace/.blueclaw/private.py`, nil), nil
+		}
+		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+		return nil, nil
+	})}
+
+	request := httptest.NewRequest(http.MethodGet, "/memory/api/graph", nil)
+	request.RemoteAddr = "198.51.100.10:443"
+	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadGateway {
+		t.Fatalf("memory graph status = %d body = %s", response.Code, response.Body.String())
+	}
+	responseBody := response.Body.String()
+	if strings.Contains(responseBody, "Traceback") || strings.Contains(responseBody, "/workspace") {
+		t.Fatalf("memory graph leaked upstream detail: %s", responseBody)
+	}
+	if !strings.Contains(responseBody, "memory graph unavailable") {
+		t.Fatalf("memory graph body = %s", responseBody)
+	}
+}
+
+func TestMemoryAPIGraphHidesIdentityFailureDetails(t *testing.T) {
+	service := NewService(Configuration{
+		APIBaseURL:        "https://api.intern.kim",
+		BlueclawBaseURL:   "http://blueclaw.local",
+		FleetIDPath:       writeTestFile(t, "device-1"),
+		FleetSecretPath:   writeTestFile(t, "secret-1"),
+		MattermostBaseURL: "http://mattermost.local",
+	})
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.String() == "https://api.intern.kim/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
+			return jsonResponse(http.StatusInternalServerError, `internal identity path /root/internkim/private.go`, nil), nil
+		}
+		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+		return nil, nil
+	})}
+
+	request := httptest.NewRequest(http.MethodGet, "/memory/api/graph", nil)
+	request.RemoteAddr = "127.0.0.1:44999"
+	request.Header.Set(flowRequesterEmailHeader, "member@example.com")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadGateway {
+		t.Fatalf("memory graph identity status = %d body = %s", response.Code, response.Body.String())
+	}
+	responseBody := response.Body.String()
+	if strings.Contains(responseBody, "/root/internkim") || strings.Contains(responseBody, "private.go") {
+		t.Fatalf("memory graph leaked identity detail: %s", responseBody)
+	}
+	if !strings.Contains(responseBody, "memory identity unavailable") {
+		t.Fatalf("memory graph identity body = %s", responseBody)
+	}
+}
+
+func TestMemoryAPIScheduleMutationHidesDecodeFailureDetails(t *testing.T) {
+	service := NewService(Configuration{
+		APIBaseURL:        "https://api.intern.kim",
+		BlueclawBaseURL:   "http://blueclaw.local",
+		FleetIDPath:       writeTestFile(t, "device-1"),
+		FleetSecretPath:   writeTestFile(t, "secret-1"),
+		MattermostBaseURL: "http://mattermost.local",
+	})
+
+	request := httptest.NewRequest(http.MethodPost, "/memory/api/schedules/update", strings.NewReader(`{`))
+	request.RemoteAddr = "198.51.100.10:443"
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("memory schedule update status = %d body = %s", response.Code, response.Body.String())
+	}
+	responseBody := response.Body.String()
+	if strings.Contains(responseBody, "unexpected EOF") {
+		t.Fatalf("memory schedule update leaked decode detail: %s", responseBody)
+	}
+	if !strings.Contains(responseBody, "invalid memory schedule request") {
+		t.Fatalf("memory schedule update body = %s", responseBody)
+	}
+}
