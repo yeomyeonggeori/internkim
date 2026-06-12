@@ -7,7 +7,6 @@ export type MonthRangeSelection = {
 	startClientX: number;
 	startClientY: number;
 	hasMoved: boolean;
-	isLongPressReady: boolean;
 };
 
 export type MonthRangePreviewSegment = {
@@ -34,27 +33,8 @@ export type MonthRangeActionOptions = {
 	createRangeEvent: (selection: MonthRangeSelection) => void;
 };
 
-const longPressDelayMs = 400;
-
 export function installCalendarMonthRangeAction(options: MonthRangeActionOptions): () => void {
-	let longPressTimer: ReturnType<typeof setTimeout> | null = null;
 	let lastRangeCreationTime = 0;
-
-	const clearLongPressTimer = () => {
-		if (!longPressTimer) return;
-		clearTimeout(longPressTimer);
-		longPressTimer = null;
-	};
-
-	const startLongPressTimer = (pointerID: number) => {
-		clearLongPressTimer();
-		longPressTimer = setTimeout(() => {
-			const selection = options.getSelection();
-			if (!selection || selection.pointerID !== pointerID || selection.hasMoved) return;
-			longPressTimer = null;
-			options.setSelection({ ...selection, isLongPressReady: true });
-		}, longPressDelayMs);
-	};
 
 	const handlePointerDown = (event: PointerEvent) => {
 		if (event.button !== 0 || options.getSelection()) return;
@@ -66,10 +46,8 @@ export function installCalendarMonthRangeAction(options: MonthRangeActionOptions
 			endDateKey: dateCell.dateKey,
 			startClientX: event.clientX,
 			startClientY: event.clientY,
-			hasMoved: false,
-			isLongPressReady: false
+			hasMoved: false
 		});
-		startLongPressTimer(event.pointerId);
 	};
 
 	const handlePointerMove = (event: PointerEvent) => {
@@ -79,7 +57,6 @@ export function installCalendarMonthRangeAction(options: MonthRangeActionOptions
 		const dateCell = monthDateCellFromPoint(event.clientX, event.clientY);
 		if (!dateCell && selection.hasMoved === hasMoved) return;
 		if (hasMoved) {
-			clearLongPressTimer();
 			event.preventDefault();
 		}
 		options.setSelection({
@@ -92,15 +69,10 @@ export function installCalendarMonthRangeAction(options: MonthRangeActionOptions
 	const handlePointerUp = (event: PointerEvent) => {
 		const selection = options.getSelection();
 		if (!selection || selection.pointerID !== event.pointerId) return;
-		clearLongPressTimer();
 		options.setSelection(null);
 		options.clearPreview();
 		if (!selection.hasMoved) {
 			options.selectDate(selection.startDateKey);
-			if (!selection.isLongPressReady) return;
-			event.preventDefault();
-			event.stopPropagation();
-			options.createSingleDayEvent(selection.startDateKey);
 			return;
 		}
 		event.preventDefault();
@@ -133,7 +105,6 @@ export function installCalendarMonthRangeAction(options: MonthRangeActionOptions
 	options.stageElement.addEventListener('dblclick', handleDoubleClick, true);
 
 	return () => {
-		clearLongPressTimer();
 		options.stageElement.removeEventListener('pointerdown', handlePointerDown);
 		document.removeEventListener('pointermove', handlePointerMove);
 		document.removeEventListener('pointerup', handlePointerUp);
@@ -202,7 +173,7 @@ function isMonthRangeIgnoredTarget(target: Element): boolean {
 }
 
 function selectedMonthRange(selection: MonthRangeSelection | null): { startDateKey: string; endDateKey: string } | null {
-	if (!selection || (!selection.hasMoved && !selection.isLongPressReady)) return null;
+	if (!selection || !selection.hasMoved) return null;
 	const [startDateKey, endDateKey] = orderedDateKeys(selection.startDateKey, selection.endDateKey);
 	return { startDateKey, endDateKey };
 }
