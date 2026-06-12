@@ -12,6 +12,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode"
@@ -1194,14 +1196,31 @@ func (service *Service) applyCircleEmailsToBlueclawPolicy(ctx context.Context, c
 		return errorValue
 	}
 	people, _ := policyDocument["people"].([]any)
+	hasPolicyChange := false
 	for _, value := range people {
 		person, isPerson := value.(map[string]any)
 		if !isPerson {
 			continue
 		}
-		person["circles"] = mattermostSyncedPersonCircles(person, circleEmailsByID)
+		syncedCircles := mattermostSyncedPersonCircles(person, circleEmailsByID)
+		if mattermostCircleSetsEqual(policyStringList(person["circles"]), syncedCircles) {
+			continue
+		}
+		person["circles"] = syncedCircles
+		hasPolicyChange = true
+	}
+	if !hasPolicyChange {
+		return nil
 	}
 	return service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/policy/save", policyDocument, nil)
+}
+
+func mattermostCircleSetsEqual(current []string, synced []string) bool {
+	currentCopy := append([]string{}, current...)
+	syncedCopy := append([]string{}, synced...)
+	sort.Strings(currentCopy)
+	sort.Strings(syncedCopy)
+	return slices.Equal(currentCopy, syncedCopy)
 }
 
 func mattermostSyncedPersonCircles(person map[string]any, circleEmailsByID map[string]map[string]bool) []string {
