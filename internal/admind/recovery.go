@@ -53,7 +53,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot":
+	case "status", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots":
 		return true
 	default:
 		return false
@@ -83,10 +83,24 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "schedule reboot", "systemd-run", "--on-active=3sec", "--unit=internkim-recovery-reboot", "systemctl", "reboot"))
 		response.NextStep = "Wait about two minutes, then run `internkim status`."
 		return response
+	case "stop-tenant-pilots":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "stop tenant pilots", "sh", "-lc", stopTenantPilotsCommand()))
 	}
 	response.Services = service.sshRecoveryServiceStates(ctx)
 	response.JournalTail = service.sshRecoveryJournalTail(ctx)
 	return response
+}
+
+func stopTenantPilotsCommand() string {
+	return strings.TrimSpace(`
+set -eu
+units=$(systemctl list-units --all --no-legend --plain 'internkim-tenant-*' 'internkim-mattermost-pilot-*' | awk '{print $1}')
+for unit in $units; do
+  systemctl disable --now "$unit" >/dev/null 2>&1 || true
+  printf '%s stopped\n' "$unit"
+done
+free -m | head -2
+`)
 }
 
 func mattermostAdminUnlockCommand() string {
