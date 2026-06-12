@@ -142,10 +142,22 @@ func (service *Service) uploadMattermostEphemeralPlugin(ctx context.Context, tok
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return mattermostStatusError(response)
+		statusError := mattermostStatusError(response)
+		if strings.Contains(statusError.Error(), "install_id") {
+			return service.reinstallMattermostEphemeralPlugin(ctx, token)
+		}
+		return statusError
 	}
 	_, _ = io.Copy(io.Discard, response.Body)
 	return nil
+}
+
+func (service *Service) reinstallMattermostEphemeralPlugin(ctx context.Context, token string) error {
+	removePath := "/api/v4/plugins/" + url.PathEscape(mattermostEphemeralPluginID)
+	if errorValue := service.mattermostRequest(ctx, http.MethodDelete, removePath, token, nil, nil); errorValue != nil {
+		return errorValue
+	}
+	return service.uploadMattermostEphemeralPlugin(ctx, token)
 }
 
 func mattermostPluginUploadBody(bundlePath string) (io.Reader, string, error) {
