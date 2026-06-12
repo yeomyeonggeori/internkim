@@ -34,7 +34,7 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 | `attachment_current_image_input` | — | 현재 이미지 첨부의 직접 이미지 파트 주입 |
 | `plain_question_acceptance` | — | 도구 없이 일반질문 직접 회신 |
 | `web_search_acceptance` | — | `web.search` 1회 후 결과 기반 답변 |
-| `schedule_lifecycle_acceptance` | — | 반복 예약 생성→재생성 수정→취소 |
+| `schedule_lifecycle_acceptance` | — | 반복 예약 생성→`schedule.update` 수정→취소 |
 | `one_time_schedule_acceptance` | — | `kind:"once"`+`runAt` 일회성 예약 생성 |
 | `dm_send_confirm_acceptance` | — | ask.confirm 승인 후 `platform.message.send` DM 송신 |
 | `channel_post_acceptance` | — | 채널 타깃 `platform.message.send` 포스트 작성 |
@@ -60,7 +60,7 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 | 3 | DM 보내기 (confirm + 상대 수신 확인) | PARTIAL | `dm_send_confirm_acceptance` (confirm 게이트→송신→messageID 관측 단언); 실제 상대 수신 확인은 실플랫폼 스모크 영역 |
 | 4 | 채널 포스트 작성 | COVERED | `channel_post_acceptance` |
 | 5 | 포스트 수정 | COVERED | `platform_message_edit_acceptance` (`platform.message.update`) |
-| 6 | 반복 예약 생성/수정/삭제 | COVERED | `schedule_lifecycle_acceptance` (수정은 cancel+create 재생성; `schedule.update` 툴 자체가 없음) |
+| 6 | 반복 예약 생성/수정/삭제 | COVERED | `schedule_lifecycle_acceptance` (생성→`schedule.update` 수정→취소) |
 | 7 | 일회성 예약 생성/수정/삭제 | PARTIAL | 생성은 `one_time_schedule_acceptance` (`kind:"once"`+`runAt`); 수정·삭제 흐름은 6과 동일 패턴이라 미중복 |
 | 8 | 일정/업무 생성/수정/삭제 | COVERED | `calendar_event_lifecycle_acceptance` (`calendar.event.add/update/delete` 3턴) |
 | 9 | 기억 추가 | COVERED | `memory_explicit_tool_acceptance` (`memory.remember` 호출·입력 단언) |
