@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"mime/multipart"
@@ -33,7 +34,7 @@ type ActionContext struct {
 
 func (service *Service) ensureMattermostEphemeralPluginWithRetry(ctx context.Context) {
 	for attempt := 0; attempt < 10; attempt++ {
-		attemptContext, cancel := context.WithTimeout(ctx, 30*time.Second)
+		attemptContext, cancel := context.WithTimeout(ctx, 3*time.Minute)
 		_, errorValue := service.ensureMattermostEphemeralPlugin(attemptContext)
 		cancel()
 		if errorValue == nil {
@@ -163,14 +164,79 @@ func mattermostPluginUploadBody(bundlePath string) (io.Reader, string, error) {
 }
 
 func (service *Service) enableMattermostPluginUploads(ctx context.Context, token string) error {
-	body := map[string]any{
-		"PluginSettings": map[string]any{
-			"Enable":                 true,
-			"EnableUploads":          true,
-			"RequirePluginSignature": false,
-		},
+	enabled, errorValue := service.mattermostPluginUploadsEnabled(ctx, token)
+	if errorValue != nil || enabled {
+		return errorValue
 	}
-	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/config/patch", token, body, nil)
+	if errorValue := service.enableMattermostPluginUploadsInConfigFile(); errorValue != nil {
+		return errorValue
+	}
+	if output, errorValue := service.runCommand(ctx, "systemctl", "restart", "mattermost"); errorValue != nil {
+		return fmt.Errorf("mattermost restart failed: %v: %s", errorValue, strings.TrimSpace(string(output)))
+	}
+	return service.waitForMattermostReady(ctx)
+}
+
+func (service *Service) mattermostPluginUploadsEnabled(ctx context.Context, token string) (bool, error) {
+	var configuration struct {
+		PluginSettings struct {
+			Enable        *bool `json:"Enable"`
+			EnableUploads *bool `json:"EnableUploads"`
+		} `json:"PluginSettings"`
+	}
+	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/config", token, nil, &configuration); errorValue != nil {
+		return false, errorValue
+	}
+	settings := configuration.PluginSettings
+	return settings.Enable != nil && *settings.Enable && settings.EnableUploads != nil && *settings.EnableUploads, nil
+}
+
+func (service *Service) enableMattermostPluginUploadsInConfigFile() error {
+	path := service.Configuration.MattermostConfigFilePath
+	document, errorValue := os.ReadFile(path)
+	if errorValue != nil {
+		return errorValue
+	}
+	var configuration map[string]any
+	if errorValue := json.Unmarshal(document, &configuration); errorValue != nil {
+		return errorValue
+	}
+	settings, isMap := configuration["PluginSettings"].(map[string]any)
+	if !isMap {
+		settings = map[string]any{}
+	}
+	settings["Enable"] = true
+	settings["EnableUploads"] = true
+	settings["RequirePluginSignature"] = false
+	configuration["PluginSettings"] = settings
+	updated, errorValue := json.MarshalIndent(configuration, "", "    ")
+	if errorValue != nil {
+		return errorValue
+	}
+	return os.WriteFile(path, append(updated, '\n'), 0o600)
+}
+
+func (service *Service) waitForMattermostReady(ctx context.Context) error {
+	endpoint := strings.TrimRight(service.Configuration.MattermostBaseURL, "/") + "/api/v4/system/ping"
+	for {
+		request, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+		if errorValue != nil {
+			return errorValue
+		}
+		response, errorValue := service.httpClient().Do(request)
+		if errorValue == nil {
+			statusCode := response.StatusCode
+			response.Body.Close()
+			if statusCode == http.StatusOK {
+				return nil
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(3 * time.Second):
+		}
+	}
 }
 
 func (service *Service) enableMattermostEphemeralPlugin(ctx context.Context, token string) error {
