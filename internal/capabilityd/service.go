@@ -776,8 +776,8 @@ func (service Service) mattermostConfirmAttachment(request replyRequest, handle 
 	return &mattermostinteractive.Attachment{
 		Fallback: strings.TrimSpace(request.Message),
 		Actions: []mattermostinteractive.Action{
-			service.mattermostAskButton("askConfirm", "확인", "primary", request, handle, "ask.confirm", ""),
-			service.mattermostAskButton("askCancel", "취소", "danger", request, handle, "ask.cancel", ""),
+			service.mattermostAskButton("askConfirm", "확인", "primary", request, handle, "ask.confirm", "", ""),
+			service.mattermostAskButton("askCancel", "취소", "danger", request, handle, "ask.cancel", "", ""),
 		},
 	}
 }
@@ -787,7 +787,7 @@ func (service Service) mattermostChoiceAttachment(request replyRequest, handle p
 	if len(options) <= 3 && request.Interaction.Kind == "ask_choice_single" {
 		actions := []mattermostinteractive.Action{}
 		for index, option := range options {
-			actions = append(actions, service.mattermostAskButton("askChoice"+option.Key, numberedChoiceLabel(index, option.Label), "", request, handle, "ask.choice", option.Key))
+			actions = append(actions, service.mattermostAskButton("askChoice"+option.Key, numberedChoiceLabel(index, option.Label), "", request, handle, "ask.choice", option.Key, option.Label))
 		}
 		return &mattermostinteractive.Attachment{Fallback: strings.TrimSpace(request.Message), Text: mattermostChoiceAttachmentText(request.Interaction), Actions: actions}
 	}
@@ -799,7 +799,7 @@ func (service Service) mattermostChoiceAttachment(request replyRequest, handle p
 				"askChoiceMenu",
 				"선택",
 				service.mattermostAskActionURL(),
-				service.mattermostAskActionContext(request, handle, "ask.choice", ""),
+				service.mattermostAskActionContext(request, handle, "ask.choice", "", ""),
 				mattermostAskMenuOptions(options),
 			),
 		},
@@ -829,12 +829,12 @@ func numberedChoiceLabel(index int, label string) string {
 	return strconv.Itoa(index+1) + ". " + strings.TrimSpace(label)
 }
 
-func (service Service) mattermostAskButton(id string, name string, style string, request replyRequest, handle platformHandle, action string, choiceKey string) mattermostinteractive.Action {
-	context := service.mattermostAskActionContext(request, handle, action, choiceKey)
+func (service Service) mattermostAskButton(id string, name string, style string, request replyRequest, handle platformHandle, action string, choiceKey string, choiceLabel string) mattermostinteractive.Action {
+	context := service.mattermostAskActionContext(request, handle, action, choiceKey, choiceLabel)
 	return mattermostinteractive.Button(id, name, "", style, service.mattermostAskActionURL(), context)
 }
 
-func (service Service) mattermostAskActionContext(request replyRequest, handle platformHandle, action string, choiceKey string) mattermostinteractive.Context {
+func (service Service) mattermostAskActionContext(request replyRequest, handle platformHandle, action string, choiceKey string, choiceLabel string) mattermostinteractive.Context {
 	return mattermostinteractive.Context{
 		Action:           action,
 		InteractionID:    request.Interaction.InteractionID,
@@ -842,6 +842,7 @@ func (service Service) mattermostAskActionContext(request replyRequest, handle p
 		ConversationID:   handle.ConversationID,
 		ReplyTargetID:    request.ReplyTargetID,
 		ChoiceKey:        choiceKey,
+		ChoiceLabel:      choiceLabel,
 		ResponseLanguage: request.Interaction.ResponseLanguage,
 		TargetUserID:     request.mattermostAskEphemeralUserID(),
 		Token:            service.ensureMattermostInteractiveActionToken(),
