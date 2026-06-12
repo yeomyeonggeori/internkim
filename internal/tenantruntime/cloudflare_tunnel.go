@@ -309,12 +309,11 @@ func removedCloudflareTenantIngress(existingIngress []cloudflareTunnelIngress, m
 func cloudflareTenantIngress(manifest Manifest, publicHostnameTemplate string) []cloudflareTunnelIngress {
 	hostname := tenantCloudflareHostname(manifest, publicHostnameTemplate)
 	admindURL := hostLocalURL(hostRuntimeConfiguration(manifest, RuntimePaths{}, HostRuntimeOptions{}).AdmindPort)
-	mattermostURL := firstNonEmptyTenantString(manifest.MattermostInstance.InternalURL, hostLocalURL(manifest.MattermostInstance.Port))
 	return []cloudflareTunnelIngress{
 		{Hostname: hostname, Path: "/(admin|flow|memory|calendar|mail|attendance)(/.*)?", Service: admindURL},
 		{Hostname: hostname, Path: "/(auth|_app|_internkim)(/.*)?", Service: admindURL},
 		{Hostname: hostname, Path: "/(logo\\.svg|\\.well-known/caldav)", Service: admindURL},
-		{Hostname: hostname, Service: mattermostURL},
+		{Hostname: hostname, Service: admindURL},
 	}
 }
 
