@@ -80,6 +80,10 @@ func (state *runtimeState) recordHeartbeat(errorValue error) {
 	state.lastError = ""
 }
 
+func (state *runtimeState) RecordHeartbeat(errorValue error) {
+	state.recordHeartbeat(errorValue)
+}
+
 func (state *runtimeState) replaceLocalLLM(settings localLLMSettings) localLLMStatus {
 	state.mutex.Lock()
 	defer state.mutex.Unlock()
@@ -108,6 +112,10 @@ func (state *runtimeState) localLLMAvailable() bool {
 		}
 	}
 	return false
+}
+
+func (state *runtimeState) LocalLLMAvailable() bool {
+	return state.localLLMAvailable()
 }
 
 func (state *runtimeState) refreshLocalLLM(ctx context.Context) localLLMStatus {
