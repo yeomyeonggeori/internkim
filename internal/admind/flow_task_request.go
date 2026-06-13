@@ -40,8 +40,16 @@ func (service *Service) flowTaskFromRequest(request *http.Request, members []flo
 		return flowTask{}, flowValidationError("content is required")
 	}
 	status := firstNonEmpty(cleanFlowStatus(payload.Status), defaultFlowStatus())
+	statusRank := 0
+	statusRankProvided := payload.StatusRank != nil
+	if payload.StatusRank != nil {
+		if *payload.StatusRank < 0 {
+			return flowTask{}, flowValidationError("statusRank must be zero or greater")
+		}
+		statusRank = *payload.StatusRank
+	}
 	callerEmail := strings.ToLower(strings.TrimSpace(service.flowActorEmail(request)))
-	if callerEmail != "" && !service.isFlowAdminEmail(request.Context(), callerEmail) && !strings.EqualFold(owner.Email, callerEmail) {
+	if taskID == "" && callerEmail != "" && !service.isFlowAdminEmail(request.Context(), callerEmail) && !strings.EqualFold(owner.Email, callerEmail) {
 		status = flowStatusRequested
 		payload.RequestReason = firstNonEmpty(strings.TrimSpace(payload.RequestReason), "타인 업무 추가 요청")
 		if requesterID := memberIDForEmail(members, callerEmail); requesterID != "" && shouldIncludeRequesterAsFlowParticipant(payload) && !containsString(participantIDs, requesterID) {
@@ -70,23 +78,25 @@ func (service *Service) flowTaskFromRequest(request *http.Request, members []flo
 		id = stableFlowID(dates.WeekCode + owner.ID + content + time.Now().UTC().Format(time.RFC3339Nano))
 	}
 	return flowTask{
-		ID:               id,
-		OwnerID:          owner.ID,
-		OwnerName:        owner.Name,
-		ParticipantIDs:   memberIDs(participants),
-		ParticipantNames: memberNames(participants),
-		Business:         category,
-		Type:             taskType,
-		Content:          content,
-		Goal:             strings.TrimSpace(payload.Goal),
-		Size:             size,
-		Status:           status,
-		StartDate:        dates.StartDate,
-		EndDate:          dates.EndDate,
-		WeekCode:         dates.WeekCode,
-		Flag:             payload.Flag,
-		RequestReason:    strings.TrimSpace(payload.RequestReason),
-		DecisionReason:   strings.TrimSpace(payload.DecisionReason),
+		ID:                 id,
+		OwnerID:            owner.ID,
+		OwnerName:          owner.Name,
+		ParticipantIDs:     memberIDs(participants),
+		ParticipantNames:   memberNames(participants),
+		Business:           category,
+		Type:               taskType,
+		Content:            content,
+		Goal:               strings.TrimSpace(payload.Goal),
+		Size:               size,
+		Status:             status,
+		StatusRank:         statusRank,
+		StatusRankProvided: statusRankProvided,
+		StartDate:          dates.StartDate,
+		EndDate:            dates.EndDate,
+		WeekCode:           dates.WeekCode,
+		Flag:               payload.Flag,
+		RequestReason:      strings.TrimSpace(payload.RequestReason),
+		DecisionReason:     strings.TrimSpace(payload.DecisionReason),
 	}, nil
 }
 
