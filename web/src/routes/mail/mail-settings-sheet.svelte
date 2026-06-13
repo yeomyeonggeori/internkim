@@ -1,15 +1,20 @@
 <script lang="ts">
+	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
+	import ChevronUpIcon from '@lucide/svelte/icons/chevron-up';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { Separator } from '$lib/components/ui/separator';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import {
+		currentMailPresetFromDraft,
+		mailAddressSettingsUpdate,
+		mailProviderSettingsUpdate,
+		mailSettingsEmailStateFromEmail,
+		selectedMailSettingsDomain
+	} from './mail-settings-state';
+	import {
 		DEFAULT_MAIL_PROVIDER_ID,
-		MAIL_PROVIDER_PRESETS,
-		composeMailAddress,
-		mailAddressDraftFromEmail,
-		mailProviderPreset,
 		type MailProviderID
 	} from './mail-provider-presets';
 	import type { MailAccount, MailAccountDraft } from './mail-types';
@@ -43,84 +48,58 @@
 	let emailProviderID = $state<MailProviderID>(DEFAULT_MAIL_PROVIDER_ID);
 	let customEmailDomain = $state('');
 	let lastAccountDraftEmail = $state<string | null>(null);
+	let isAdvancedSettingsOpen = $state(false);
 
 	$effect(() => {
 		const currentEmail = accountDraft.email;
 		if (currentEmail === lastAccountDraftEmail) return;
-		const emailDraft = mailAddressDraftFromEmail(currentEmail);
-		emailLocalPart = emailDraft.localPart;
-		emailProviderID = emailDraft.providerID;
-		customEmailDomain = emailDraft.customDomain;
+		const emailState = mailSettingsEmailStateFromEmail(currentEmail);
+		emailLocalPart = emailState.emailLocalPart;
+		emailProviderID = emailState.emailProviderID;
+		customEmailDomain = emailState.customEmailDomain;
+		isAdvancedSettingsOpen = emailState.isAdvancedSettingsOpen;
 		lastAccountDraftEmail = currentEmail;
-		if (!currentEmail && !accountDraft.imapHost && !accountDraft.smtpHost) {
-			applyMailProviderPreset(DEFAULT_MAIL_PROVIDER_ID);
-		}
 	});
 
 	function handleEmailProviderChange(event: Event) {
+		const previousDomain = currentMailPresetFromDraft(accountDraft)?.domain || selectedMailSettingsDomain(emailProviderID, customEmailDomain);
 		emailProviderID = (event.currentTarget as HTMLSelectElement).value as MailProviderID;
+		if (emailProviderID === 'custom' && !customEmailDomain) {
+			customEmailDomain = previousDomain;
+		}
+		isAdvancedSettingsOpen = emailProviderID === 'custom';
 		applyMailProviderPreset(emailProviderID);
 	}
 
 	function applyMailProviderPreset(providerID: MailProviderID) {
-		const preset = mailProviderPreset(providerID);
-		if (preset) {
-			accountDraft.imapHost = preset.imapHost;
-			accountDraft.imapPort = preset.imapPort;
-			accountDraft.imapSecurity = preset.imapSecurity;
-			accountDraft.smtpHost = preset.smtpHost;
-			accountDraft.smtpPort = preset.smtpPort;
-			accountDraft.smtpSecurity = preset.smtpSecurity;
-			accountDraft.sentMailbox = preset.sentMailbox;
-		} else {
-			clearKnownMailProviderSettings();
-		}
+		Object.assign(accountDraft, mailProviderSettingsUpdate(accountDraft, providerID));
 		syncAccountEmailFromParts(true);
 	}
 
 	function syncAccountEmailFromParts(forceUsernameSync: boolean) {
-		const previousEmail = accountDraft.email.trim();
-		const nextEmail = composeMailAddress(emailLocalPart, selectedEmailDomain());
-		accountDraft.email = nextEmail;
-		accountDraft.fromAddress = nextEmail;
-		lastAccountDraftEmail = nextEmail;
-		if (forceUsernameSync || shouldSyncMailUsername(accountDraft.imapUsername, previousEmail)) {
-			accountDraft.imapUsername = nextEmail;
-		}
-		if (forceUsernameSync || shouldSyncMailUsername(accountDraft.smtpUsername, previousEmail)) {
-			accountDraft.smtpUsername = nextEmail;
-		}
+		Object.assign(accountDraft, mailAddressSettingsUpdate(accountDraft, emailLocalPart, emailProviderID, customEmailDomain, forceUsernameSync));
+		lastAccountDraftEmail = accountDraft.email;
 	}
 
-	function selectedEmailDomain() {
-		return emailProviderID === 'custom' ? customEmailDomain : mailProviderPreset(emailProviderID)?.domain || '';
+	function syncCommonAppPassword(event: Event) {
+		const appPassword = (event.currentTarget as HTMLInputElement).value;
+		accountDraft.imapPassword = appPassword;
+		accountDraft.smtpPassword = appPassword;
 	}
 
-	function shouldSyncMailUsername(username: string, previousEmail: string) {
-		const normalizedUsername = username.trim().toLowerCase();
-		const normalizedEmail = previousEmail.trim().toLowerCase();
-		return normalizedUsername === '' || (normalizedEmail !== '' && normalizedUsername === normalizedEmail);
-	}
-
-	function clearKnownMailProviderSettings() {
-		const currentIMAPHost = accountDraft.imapHost.trim().toLowerCase();
-		const currentSMTPHost = accountDraft.smtpHost.trim().toLowerCase();
-		const matchedPreset = Object.values(MAIL_PROVIDER_PRESETS).find((preset) => preset.imapHost === currentIMAPHost && preset.smtpHost === currentSMTPHost);
-		if (!matchedPreset) return;
-		accountDraft.imapHost = '';
-		accountDraft.smtpHost = '';
-		accountDraft.sentMailbox = 'Sent';
+	function toggleAdvancedSettings() {
+		isAdvancedSettingsOpen = !isAdvancedSettingsOpen;
 	}
 </script>
 
 <Sheet.Root bind:open>
-	<Sheet.Content class="w-full overflow-y-auto sm:max-w-2xl">
+	<Sheet.Content class="overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-2xl">
 		<Sheet.Header>
 			<Sheet.Title>{text.settingsSheet.title}</Sheet.Title>
 			<Sheet.Description>{text.settingsSheet.description}</Sheet.Description>
 		</Sheet.Header>
-		<form class="grid gap-5 px-4 pb-4" onsubmit={(event) => { event.preventDefault(); saveAccount(); }}>
-			<div class="grid gap-3 sm:grid-cols-2">
+		<form class="grid gap-4 px-4 pb-4" onsubmit={(event) => { event.preventDefault(); saveAccount(); }}>
+			<div class="grid gap-4">
 				<div class="space-y-2 sm:col-span-2">
 					<Label for="mail-email">{text.fields.emailAddress}</Label>
 					<div class="grid grid-cols-[minmax(0,1fr)_auto_minmax(120px,0.8fr)] items-center gap-2">
@@ -156,90 +135,121 @@
 					{/if}
 					<p class="text-xs leading-5 text-muted-foreground">{text.fieldDescriptions.emailAddress}</p>
 				</div>
-				<div class="space-y-2">
-					<Label for="mail-display-name">{text.fields.displayName}</Label>
-					<Input id="mail-display-name" bind:value={accountDraft.displayName} placeholder={text.settingsSheet.displayNamePlaceholder} />
-					<p class="text-xs leading-5 text-muted-foreground">{text.fieldDescriptions.displayName}</p>
-				</div>
-				<div class="space-y-2">
-					<Label for="mail-default-mailbox">{text.fields.defaultMailbox}</Label>
-					<Input id="mail-default-mailbox" bind:value={accountDraft.defaultMailbox} />
-					<p class="text-xs leading-5 text-muted-foreground">{text.fieldDescriptions.defaultMailbox}</p>
-				</div>
-			</div>
-
-			<Separator />
-
-			<div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_96px_120px]">
-				<div class="space-y-2">
-					<Label for="mail-imap-host">IMAP {text.fields.host}</Label>
-					<Input id="mail-imap-host" bind:value={accountDraft.imapHost} placeholder="imap.gmail.com" />
-				</div>
-				<div class="space-y-2">
-					<Label for="mail-imap-port">{text.fields.port}</Label>
-					<Input id="mail-imap-port" type="number" bind:value={accountDraft.imapPort} />
-				</div>
-				<div class="space-y-2">
-					<Label for="mail-imap-security">{text.fields.security}</Label>
-					<select id="mail-imap-security" class="border-input bg-background h-9 w-full rounded-md border px-2 text-sm" bind:value={accountDraft.imapSecurity}>
-						<option value="tls">SSL/TLS</option>
-						<option value="starttls">STARTTLS</option>
-						<option value="none">{text.settingsSheet.securityNone}</option>
-					</select>
-				</div>
-			</div>
-			<p class="text-xs leading-5 text-muted-foreground">{text.fieldDescriptions.providerPreset}</p>
-			<div class="grid gap-3 sm:grid-cols-2">
-				<div class="space-y-2">
-					<Label for="mail-imap-user">IMAP {text.fields.username}</Label>
-					<Input id="mail-imap-user" bind:value={accountDraft.imapUsername} />
-					<p class="text-xs leading-5 text-muted-foreground">{text.fieldDescriptions.imapUsername}</p>
-				</div>
-				<div class="space-y-2">
-					<Label for="mail-imap-password">IMAP {text.fields.password}</Label>
-					<Input id="mail-imap-password" type="password" bind:value={accountDraft.imapPassword} placeholder={account.hasIMAPPassword ? text.settingsSheet.savedPassword : text.settingsSheet.appPassword} />
-					<p class="text-xs leading-5 text-muted-foreground">{text.fieldDescriptions.imapPassword}</p>
+				<div class="grid w-full gap-3 sm:col-span-2">
+					<div class="w-full space-y-2">
+						<Label for="mail-app-password">{text.fields.appPassword}</Label>
+						<Input
+							id="mail-app-password"
+							type="password"
+							value={accountDraft.imapPassword}
+							placeholder={account.hasIMAPPassword || account.hasSMTPPassword ? text.settingsSheet.savedPassword : text.settingsSheet.appPassword}
+							oninput={syncCommonAppPassword}
+						/>
+						<p class="text-xs leading-5 text-muted-foreground">{text.fieldDescriptions.appPassword}</p>
+					</div>
+					<div class="w-full space-y-2">
+						<Label for="mail-display-name">{text.fields.displayName}</Label>
+						<Input id="mail-display-name" bind:value={accountDraft.displayName} placeholder={text.settingsSheet.displayNamePlaceholder} />
+						<p class="text-xs leading-5 text-muted-foreground">{text.fieldDescriptions.displayName}</p>
+					</div>
 				</div>
 			</div>
 
 			<Separator />
 
-			<div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_96px_120px]">
-				<div class="space-y-2">
-					<Label for="mail-smtp-host">SMTP {text.fields.host}</Label>
-					<Input id="mail-smtp-host" bind:value={accountDraft.smtpHost} placeholder="smtp.gmail.com" />
-				</div>
-				<div class="space-y-2">
-					<Label for="mail-smtp-port">{text.fields.port}</Label>
-					<Input id="mail-smtp-port" type="number" bind:value={accountDraft.smtpPort} />
-				</div>
-				<div class="space-y-2">
-					<Label for="mail-smtp-security">{text.fields.security}</Label>
-					<select id="mail-smtp-security" class="border-input bg-background h-9 w-full rounded-md border px-2 text-sm" bind:value={accountDraft.smtpSecurity}>
-						<option value="tls">SSL/TLS</option>
-						<option value="starttls">STARTTLS/TLS</option>
-						<option value="none">{text.settingsSheet.securityNone}</option>
-					</select>
-				</div>
+			<div class="rounded-lg border bg-muted/20">
+				<button
+					type="button"
+					class="flex w-full items-center justify-between gap-3 px-3 py-3 text-left"
+					aria-expanded={isAdvancedSettingsOpen}
+					aria-controls="mail-advanced-settings"
+					onclick={toggleAdvancedSettings}
+				>
+					<span>
+						<span class="block text-sm font-medium">{text.settingsSheet.advancedSettings}</span>
+						<span class="block text-xs leading-5 text-muted-foreground">{text.fieldDescriptions.providerPreset}</span>
+					</span>
+					{#if isAdvancedSettingsOpen}
+						<ChevronUpIcon class="h-4 w-4 shrink-0 text-muted-foreground" />
+					{:else}
+						<ChevronDownIcon class="h-4 w-4 shrink-0 text-muted-foreground" />
+					{/if}
+				</button>
+				{#if isAdvancedSettingsOpen}
+					<div id="mail-advanced-settings" class="grid gap-5 border-t bg-background px-3 py-4">
+						<div class="grid gap-3">
+							<div class="space-y-2">
+								<Label for="mail-imap-host">IMAP {text.fields.host}</Label>
+								<Input id="mail-imap-host" bind:value={accountDraft.imapHost} placeholder="imap.gmail.com" />
+							</div>
+							<div class="space-y-2">
+								<Label for="mail-imap-port">{text.fields.port}</Label>
+								<Input id="mail-imap-port" type="number" bind:value={accountDraft.imapPort} />
+							</div>
+							<div class="space-y-2">
+								<Label for="mail-imap-security">{text.fields.security}</Label>
+								<select id="mail-imap-security" class="border-input bg-background h-9 w-full rounded-md border px-2 text-sm" bind:value={accountDraft.imapSecurity}>
+									<option value="tls">SSL/TLS</option>
+									<option value="starttls">STARTTLS</option>
+									<option value="none">{text.settingsSheet.securityNone}</option>
+								</select>
+							</div>
+						</div>
+						<div class="grid gap-3">
+							<div class="space-y-2">
+								<Label for="mail-imap-user">IMAP {text.fields.loginAccount}</Label>
+								<Input id="mail-imap-user" bind:value={accountDraft.imapUsername} />
+								<p class="text-xs leading-5 text-muted-foreground">{text.fieldDescriptions.loginAccount}</p>
+							</div>
+							<div class="space-y-2">
+								<Label for="mail-default-mailbox">{text.fields.defaultMailbox}</Label>
+								<Input id="mail-default-mailbox" bind:value={accountDraft.defaultMailbox} />
+							</div>
+						</div>
+						<Separator />
+						<div class="grid gap-3">
+							<div class="space-y-2">
+								<Label for="mail-smtp-host">SMTP {text.fields.host}</Label>
+								<Input id="mail-smtp-host" bind:value={accountDraft.smtpHost} placeholder="smtp.gmail.com" />
+							</div>
+							<div class="space-y-2">
+								<Label for="mail-smtp-port">{text.fields.port}</Label>
+								<Input id="mail-smtp-port" type="number" bind:value={accountDraft.smtpPort} />
+							</div>
+							<div class="space-y-2">
+								<Label for="mail-smtp-security">{text.fields.security}</Label>
+								<select id="mail-smtp-security" class="border-input bg-background h-9 w-full rounded-md border px-2 text-sm" bind:value={accountDraft.smtpSecurity}>
+									<option value="tls">SSL/TLS</option>
+									<option value="starttls">STARTTLS/TLS</option>
+									<option value="none">{text.settingsSheet.securityNone}</option>
+								</select>
+							</div>
+						</div>
+						<div class="grid gap-3">
+							<div class="space-y-2">
+								<Label for="mail-smtp-user">SMTP {text.fields.loginAccount}</Label>
+								<Input id="mail-smtp-user" bind:value={accountDraft.smtpUsername} />
+								<p class="text-xs leading-5 text-muted-foreground">{text.fieldDescriptions.loginAccount}</p>
+							</div>
+							<div class="space-y-2">
+								<Label for="mail-smtp-password">SMTP {text.fields.appPassword}</Label>
+								<Input id="mail-smtp-password" type="password" bind:value={accountDraft.smtpPassword} placeholder={account.hasSMTPPassword ? text.settingsSheet.savedPassword : text.settingsSheet.appPassword} />
+							</div>
+							<div class="space-y-2">
+								<Label for="mail-sent-mailbox">{text.fields.sentMailbox}</Label>
+								<Input id="mail-sent-mailbox" bind:value={accountDraft.sentMailbox} />
+								<p class="text-xs leading-5 text-muted-foreground">{text.fieldDescriptions.sentMailbox}</p>
+							</div>
+						</div>
+					</div>
+				{/if}
 			</div>
-			<p class="text-xs leading-5 text-muted-foreground">{text.fieldDescriptions.providerPreset}</p>
-			<div class="grid gap-3 sm:grid-cols-2">
-				<div class="space-y-2">
-					<Label for="mail-smtp-user">SMTP {text.fields.username}</Label>
-					<Input id="mail-smtp-user" bind:value={accountDraft.smtpUsername} />
-					<p class="text-xs leading-5 text-muted-foreground">{text.fieldDescriptions.smtpUsername}</p>
+
+			{#if emailProviderID !== 'custom'}
+				<div class="rounded-md bg-muted/40 px-3 py-2 text-xs leading-5 text-muted-foreground">
+					{text.settingsSheet.autoConfigured}
 				</div>
-				<div class="space-y-2">
-					<Label for="mail-smtp-password">SMTP {text.fields.password}</Label>
-					<Input id="mail-smtp-password" type="password" bind:value={accountDraft.smtpPassword} placeholder={account.hasSMTPPassword ? text.settingsSheet.savedPassword : text.settingsSheet.appPassword} />
-					<p class="text-xs leading-5 text-muted-foreground">{text.fieldDescriptions.smtpPassword}</p>
-				</div>
-				<div class="space-y-2">
-					<Label for="mail-sent-mailbox">{text.fields.sentMailbox}</Label>
-					<Input id="mail-sent-mailbox" bind:value={accountDraft.sentMailbox} />
-					<p class="text-xs leading-5 text-muted-foreground">{text.fieldDescriptions.sentMailbox}</p>
-				</div>
-			</div>
+			{/if}
 
 			{#if settingsMessage}
 				<p class="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">{settingsMessage}</p>
