@@ -121,8 +121,13 @@ func (service Service) baseRegressionPlans(base string, scenario string) []Comma
 }
 
 func (service Service) labCommand(arguments ...string) CommandPlan {
-	commandArguments := append([]string{"lab"}, arguments...)
-	commandArguments = append(commandArguments, "--config", service.configurationPath())
+	commandArguments := []string{"lab"}
+	if len(arguments) > 0 {
+		commandArguments = append(commandArguments, arguments[0], "--config", service.configurationPath())
+		commandArguments = append(commandArguments, arguments[1:]...)
+	} else {
+		commandArguments = append(commandArguments, "--config", service.configurationPath())
+	}
 	return CommandPlan{
 		DirectoryPath: service.options.RepositoryRootPath,
 		Name:          service.options.ExecutablePath,
