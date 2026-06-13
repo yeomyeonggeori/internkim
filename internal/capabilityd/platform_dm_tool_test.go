@@ -494,3 +494,48 @@ func assertPlatformDMRequestCount(t *testing.T, requestPaths []string, expectedP
 		t.Fatalf("expected %s to be requested %d time(s), got %d in %+v", expectedPath, expectedCount, count, requestPaths)
 	}
 }
+
+func TestMattermostPendingPostIDComposition(t *testing.T) {
+	if pending := mattermostPendingPostID("bot-1", "key-abc"); pending != "bot-1:key-abc" {
+		t.Fatalf("pending post id = %q", pending)
+	}
+	if pending := mattermostPendingPostID("bot-1", ""); pending != "" {
+		t.Fatalf("expected empty pending post id without key, got %q", pending)
+	}
+	if pending := mattermostPendingPostID("", "key-abc"); pending != "" {
+		t.Fatalf("expected empty pending post id without bot, got %q", pending)
+	}
+}
+
+func TestSendMattermostDirectMessageSetsPendingPostID(t *testing.T) {
+	var sentPendingPostID string
+	service := Service{HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case strings.HasSuffix(request.URL.Path, "/api/v4/users/me"):
+			return jsonResponse(map[string]string{"id": "bot-1", "username": "internkim"}), nil
+		case strings.HasSuffix(request.URL.Path, "/api/v4/channels/direct"):
+			return jsonResponse(map[string]string{"id": "channel-1"}), nil
+		case strings.HasSuffix(request.URL.Path, "/api/v4/posts") && request.Method == http.MethodPost:
+			var body map[string]string
+			if errorValue := json.NewDecoder(request.Body).Decode(&body); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			sentPendingPostID = body["pending_post_id"]
+			return jsonResponse(map[string]string{"id": "post-1"}), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}, Configuration: Configuration{MattermostBaseURL: "http://mattermost.test", MattermostTokenPath: writePlatformTestFile(t, "bot-token")}}
+
+	dispatchID, _, hasFailure := service.sendMattermostDirectMessageWithDispatch(context.Background(), "user-9", "안녕", "key-xyz")
+	if hasFailure {
+		t.Fatal("unexpected send failure")
+	}
+	if dispatchID != "post-1" {
+		t.Fatalf("dispatch id = %q", dispatchID)
+	}
+	if sentPendingPostID != "bot-1:key-xyz" {
+		t.Fatalf("pending post id = %q", sentPendingPostID)
+	}
+}
