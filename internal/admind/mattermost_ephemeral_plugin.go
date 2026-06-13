@@ -18,18 +18,9 @@ import (
 
 const mattermostEphemeralPluginID = "com.internkim.ephemeral"
 
-type mattermostEphemeralPluginUpdateRequest struct {
-	UserID    string `json:"userID"`
-	PostID    string `json:"postID"`
-	ChannelID string `json:"channelID"`
-	RootID    string `json:"rootID,omitempty"`
-	Message   string `json:"message"`
-}
-
-type ActionContext struct {
-	ChoiceKey      string
-	ChoiceLabel    string
-	SelectedOption string
+type mattermostEphemeralPluginDeleteRequest struct {
+	UserID string `json:"userID"`
+	PostID string `json:"postID"`
 }
 
 func (service *Service) ensureMattermostEphemeralPluginWithRetry(ctx context.Context) {
@@ -80,7 +71,7 @@ func (service *Service) writeMattermostPluginSyncDiagnostic(responseWriter http.
 		service.writeJSON(responseWriter, map[string]string{"status": "failed", "error": errorValue.Error()})
 		return
 	}
-	probeStatus, probeError := service.postMattermostEphemeralPluginUpdate(request.Context(), service.mattermostEphemeralPluginSecret(), []byte(`{}`))
+	probeStatus, probeError := service.postMattermostEphemeralPluginDelete(request.Context(), service.mattermostEphemeralPluginSecret(), []byte(`{}`))
 	probe := map[string]any{"status": "ok", "authProbeStatus": probeStatus}
 	if probeError != nil {
 		probe["authProbeError"] = probeError.Error()
@@ -272,34 +263,31 @@ func (service *Service) patchMattermostEphemeralPluginSecret(ctx context.Context
 	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/config/patch", token, body, nil)
 }
 
-func (service *Service) updateMattermostAskEphemeralPostInBackground(payload mattermostInteractivePayload) {
+func (service *Service) deleteMattermostAskEphemeralPostInBackground(payload mattermostInteractivePayload) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	if errorValue := service.updateMattermostAskEphemeralPost(ctx, payload); errorValue != nil {
-		log.Printf("mattermost ask ephemeral update failed: %v", errorValue)
+	if errorValue := service.deleteMattermostAskEphemeralPost(ctx, payload); errorValue != nil {
+		log.Printf("mattermost ask ephemeral delete failed: %v", errorValue)
 	}
 }
 
-func (service *Service) updateMattermostAskEphemeralPost(ctx context.Context, payload mattermostInteractivePayload) error {
+func (service *Service) deleteMattermostAskEphemeralPost(ctx context.Context, payload mattermostInteractivePayload) error {
 	secret := service.mattermostEphemeralPluginSecret()
 	if secret == "" {
 		return nil
 	}
-	updateRequest := mattermostEphemeralPluginUpdateRequest{
-		UserID:    strings.TrimSpace(payload.UserID),
-		PostID:    strings.TrimSpace(payload.PostID),
-		ChannelID: strings.TrimSpace(payload.ChannelID),
-		RootID:    strings.TrimSpace(payload.RootID),
-		Message:   buildAskResolutionMessage(payload.Context.Action, actionContextFromMattermostPayload(payload)),
+	deleteRequest := mattermostEphemeralPluginDeleteRequest{
+		UserID: strings.TrimSpace(payload.UserID),
+		PostID: strings.TrimSpace(payload.PostID),
 	}
-	if updateRequest.UserID == "" || updateRequest.PostID == "" || updateRequest.ChannelID == "" || updateRequest.Message == "" {
+	if deleteRequest.UserID == "" || deleteRequest.PostID == "" {
 		return nil
 	}
-	document, errorValue := json.Marshal(updateRequest)
+	document, errorValue := json.Marshal(deleteRequest)
 	if errorValue != nil {
 		return errorValue
 	}
-	statusCode, errorValue := service.postMattermostEphemeralPluginUpdate(ctx, secret, document)
+	statusCode, errorValue := service.postMattermostEphemeralPluginDelete(ctx, secret, document)
 	if statusCode != http.StatusNotFound {
 		return errorValue
 	}
@@ -307,12 +295,12 @@ func (service *Service) updateMattermostAskEphemeralPost(ctx context.Context, pa
 	if ensureError != nil {
 		return ensureError
 	}
-	_, errorValue = service.postMattermostEphemeralPluginUpdate(ctx, installedSecret, document)
+	_, errorValue = service.postMattermostEphemeralPluginDelete(ctx, installedSecret, document)
 	return errorValue
 }
 
-func (service *Service) postMattermostEphemeralPluginUpdate(ctx context.Context, secret string, document []byte) (int, error) {
-	endpoint := strings.TrimRight(service.Configuration.MattermostBaseURL, "/") + "/plugins/" + mattermostEphemeralPluginID + "/api/v1/update-ephemeral"
+func (service *Service) postMattermostEphemeralPluginDelete(ctx context.Context, secret string, document []byte) (int, error) {
+	endpoint := strings.TrimRight(service.Configuration.MattermostBaseURL, "/") + "/plugins/" + mattermostEphemeralPluginID + "/api/v1/delete-ephemeral"
 	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(document))
 	if errorValue != nil {
 		return 0, errorValue
@@ -329,33 +317,4 @@ func (service *Service) postMattermostEphemeralPluginUpdate(ctx context.Context,
 	}
 	_, _ = io.Copy(io.Discard, response.Body)
 	return response.StatusCode, nil
-}
-
-func actionContextFromMattermostPayload(payload mattermostInteractivePayload) ActionContext {
-	return ActionContext{
-		ChoiceKey:      strings.TrimSpace(payload.Context.ChoiceKey),
-		ChoiceLabel:    strings.TrimSpace(payload.Context.ChoiceLabel),
-		SelectedOption: strings.TrimSpace(payload.SelectedOption),
-	}
-}
-
-func buildAskResolutionMessage(actionType string, context ActionContext) string {
-	switch strings.TrimSpace(actionType) {
-	case "ask.confirm":
-		return "확인"
-	case "ask.cancel":
-		return "취소"
-	case "ask.choice":
-		return firstNonEmpty(context.ChoiceLabel, mattermostSelectedChoiceLabel(context.SelectedOption), mattermostSelectedChoiceKey(context.SelectedOption), context.ChoiceKey)
-	default:
-		return strings.TrimSpace(actionType)
-	}
-}
-
-func mattermostSelectedChoiceLabel(selectedOption string) string {
-	selectedChoice, isFound := parseMattermostSelectedChoice(selectedOption)
-	if isFound {
-		return selectedChoice.Label
-	}
-	return ""
 }
