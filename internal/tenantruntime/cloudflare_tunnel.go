@@ -29,6 +29,23 @@ type CloudflareTunnelSyncStatus struct {
 	IngressCount int      `json:"ingressCount"`
 }
 
+type CloudflareTunnelRemoveOptions struct {
+	AccountID              string
+	TunnelID               string
+	APIToken               string
+	APITokenPath           string
+	APIBaseURL             string
+	PublicHostnameTemplate string
+	TenantIDs              []string
+	Manifests              []Manifest
+}
+
+type CloudflareTunnelRemovalStatus struct {
+	TenantIDs           []string `json:"tenantIDs"`
+	RemovedIngressCount int      `json:"removedIngressCount"`
+	IngressCount        int      `json:"ingressCount"`
+}
+
 type cloudflareTunnelConfigurationResponse struct {
 	Success bool                                  `json:"success"`
 	Result  cloudflareTunnelConfigurationResource `json:"result"`
@@ -77,6 +94,31 @@ func (service Service) SyncCloudflareTenantTunnel(ctx context.Context, options C
 	return CloudflareTunnelSyncStatus{TenantIDs: manifestTenantIDs(manifests), IngressCount: len(configuration.Ingress)}, nil
 }
 
+func (service Service) RemoveCloudflareTenantTunnelIngress(ctx context.Context, options CloudflareTunnelRemoveOptions) (CloudflareTunnelRemovalStatus, error) {
+	if errorValue := validateCloudflareTunnelRemoveOptions(options); errorValue != nil {
+		return CloudflareTunnelRemovalStatus{}, errorValue
+	}
+	token, errorValue := cloudflareAPIToken(CloudflareTunnelSyncOptions{APIToken: options.APIToken, APITokenPath: options.APITokenPath})
+	if errorValue != nil {
+		return CloudflareTunnelRemovalStatus{}, errorValue
+	}
+	manifests, errorValue := service.cloudflareTunnelRemoveManifests(options)
+	if errorValue != nil {
+		return CloudflareTunnelRemovalStatus{}, errorValue
+	}
+	client := cloudflareTunnelAPIClient{httpClient: http.DefaultClient, baseURL: firstNonEmptyTenantString(options.APIBaseURL, DefaultCloudflareAPIBaseURL), accountID: options.AccountID, tunnelID: options.TunnelID, apiToken: token}
+	configuration, errorValue := client.fetchConfiguration(ctx)
+	if errorValue != nil {
+		return CloudflareTunnelRemovalStatus{}, errorValue
+	}
+	updatedIngress, removedCount := removedCloudflareTenantIngress(configuration.Ingress, manifests, options.PublicHostnameTemplate)
+	configuration.Ingress = updatedIngress
+	if errorValue := client.updateConfiguration(ctx, configuration); errorValue != nil {
+		return CloudflareTunnelRemovalStatus{}, errorValue
+	}
+	return CloudflareTunnelRemovalStatus{TenantIDs: manifestTenantIDs(manifests), RemovedIngressCount: removedCount, IngressCount: len(configuration.Ingress)}, nil
+}
+
 func validateCloudflareTunnelSyncOptions(options CloudflareTunnelSyncOptions) error {
 	if strings.TrimSpace(options.AccountID) == "" {
 		return errors.New("Cloudflare account id is required")
@@ -85,6 +127,22 @@ func validateCloudflareTunnelSyncOptions(options CloudflareTunnelSyncOptions) er
 		return errors.New("Cloudflare tunnel id is required")
 	}
 	if len(options.TenantIDs) == 0 {
+		return errors.New("at least one tenant id is required")
+	}
+	if strings.TrimSpace(options.APIToken) == "" && strings.TrimSpace(options.APITokenPath) == "" {
+		return errors.New("Cloudflare API token or token path is required")
+	}
+	return nil
+}
+
+func validateCloudflareTunnelRemoveOptions(options CloudflareTunnelRemoveOptions) error {
+	if strings.TrimSpace(options.AccountID) == "" {
+		return errors.New("Cloudflare account id is required")
+	}
+	if strings.TrimSpace(options.TunnelID) == "" {
+		return errors.New("Cloudflare tunnel id is required")
+	}
+	if len(options.TenantIDs) == 0 && len(options.Manifests) == 0 {
 		return errors.New("at least one tenant id is required")
 	}
 	if strings.TrimSpace(options.APIToken) == "" && strings.TrimSpace(options.APITokenPath) == "" {
@@ -118,6 +176,13 @@ func (service Service) readCloudflareTunnelTenantManifests(tenantIDs []string) (
 		manifests = append(manifests, manifest)
 	}
 	return manifests, nil
+}
+
+func (service Service) cloudflareTunnelRemoveManifests(options CloudflareTunnelRemoveOptions) ([]Manifest, error) {
+	if len(options.Manifests) > 0 {
+		return append([]Manifest{}, options.Manifests...), nil
+	}
+	return service.readCloudflareTunnelTenantManifests(options.TenantIDs)
 }
 
 type cloudflareTunnelAPIClient struct {
@@ -224,15 +289,31 @@ func mergedCloudflareTenantIngress(existingIngress []cloudflareTunnelIngress, ma
 	return append(preservedIngress, fallbackIngress...)
 }
 
+func removedCloudflareTenantIngress(existingIngress []cloudflareTunnelIngress, manifests []Manifest, publicHostnameTemplate string) ([]cloudflareTunnelIngress, int) {
+	hostnames := targetCloudflareHostnames(manifests, publicHostnameTemplate)
+	if len(hostnames) == 0 {
+		return append([]cloudflareTunnelIngress{}, existingIngress...), 0
+	}
+	updatedIngress := []cloudflareTunnelIngress{}
+	removedCount := 0
+	for _, ingress := range existingIngress {
+		if _, isTargetHostname := hostnames[ingress.Hostname]; isTargetHostname {
+			removedCount++
+			continue
+		}
+		updatedIngress = append(updatedIngress, ingress)
+	}
+	return updatedIngress, removedCount
+}
+
 func cloudflareTenantIngress(manifest Manifest, publicHostnameTemplate string) []cloudflareTunnelIngress {
 	hostname := tenantCloudflareHostname(manifest, publicHostnameTemplate)
 	admindURL := hostLocalURL(hostRuntimeConfiguration(manifest, RuntimePaths{}, HostRuntimeOptions{}).AdmindPort)
-	mattermostURL := firstNonEmptyTenantString(manifest.MattermostInstance.InternalURL, hostLocalURL(manifest.MattermostInstance.Port))
 	return []cloudflareTunnelIngress{
 		{Hostname: hostname, Path: "/(admin|flow|memory|calendar|mail|attendance)(/.*)?", Service: admindURL},
 		{Hostname: hostname, Path: "/(auth|_app|_internkim)(/.*)?", Service: admindURL},
 		{Hostname: hostname, Path: "/(logo\\.svg|\\.well-known/caldav)", Service: admindURL},
-		{Hostname: hostname, Service: mattermostURL},
+		{Hostname: hostname, Service: admindURL},
 	}
 }
 

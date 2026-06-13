@@ -486,10 +486,9 @@ func (service *Service) managedChannelWriteGuard(next http.Handler) http.Handler
 			return
 		}
 		if isAttendanceCommand {
-			recorder := &bodyRecordingResponseWriter{ResponseWriter: responseWriter, statusCode: http.StatusOK}
-			next.ServeHTTP(recorder, request)
-			if recorder.statusCode >= http.StatusOK && recorder.statusCode < http.StatusMultipleChoices {
-				if errorValue := service.syncMattermostAttendancePostCommand(request.Context(), request, payload, command, recorder.body.Bytes()); errorValue != nil {
+			responseBody, isCreated := serveMattermostPostCreate(next, responseWriter, request)
+			if isCreated {
+				if errorValue := service.syncMattermostAttendancePostCommand(request.Context(), request, payload, command, responseBody); errorValue != nil {
 					log.Printf("Mattermost Attendance post command sync failed: channelID=%q rootID=%q kind=%q timeUpdate=%v: %v", strings.TrimSpace(payload.ChannelID), strings.TrimSpace(payload.RootID), strings.TrimSpace(command.Kind), command.IsTimeUpdate, errorValue)
 				}
 			}
@@ -499,8 +498,29 @@ func (service *Service) managedChannelWriteGuard(next http.Handler) http.Handler
 			next.ServeHTTP(responseWriter, request)
 			return
 		}
-		http.Error(responseWriter, "managed channel is read-only", http.StatusForbidden)
+		responseBody, isCreated := serveMattermostPostCreate(next, responseWriter, request)
+		if !isCreated {
+			return
+		}
+		if errorValue := service.deleteCreatedMattermostPost(request.Context(), responseBody); errorValue != nil {
+			log.Printf("Mattermost managed channel post cleanup failed: %v", errorValue)
+		}
 	})
+}
+
+func serveMattermostPostCreate(next http.Handler, responseWriter http.ResponseWriter, request *http.Request) ([]byte, bool) {
+	recorder := &bodyRecordingResponseWriter{ResponseWriter: responseWriter, statusCode: http.StatusOK}
+	next.ServeHTTP(recorder, request)
+	isCreated := recorder.statusCode >= http.StatusOK && recorder.statusCode < http.StatusMultipleChoices
+	return recorder.body.Bytes(), isCreated
+}
+
+func (service *Service) deleteCreatedMattermostPost(ctx context.Context, responseBody []byte) error {
+	adminToken, errorValue := service.mattermostAdminToken(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	return service.deleteMattermostPost(ctx, adminToken, mattermostCreatedPostID(responseBody))
 }
 
 func (service *Service) isMattermostManagedPostCreateRequest(request *http.Request) bool {

@@ -12,6 +12,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode"
@@ -537,7 +539,7 @@ func (service *Service) deleteMattermostDirectChannelPosts(ctx context.Context, 
 			if trimmedPostID == "" || deletedPostIDs[trimmedPostID] {
 				continue
 			}
-			if errorValue := service.deleteMattermostPost(ctx, token, trimmedPostID); errorValue != nil && !isMattermostNotFound(errorValue) {
+			if errorValue := service.deleteMattermostPost(ctx, token, trimmedPostID); errorValue != nil {
 				return 0, errorValue
 			}
 			deletedPostIDs[trimmedPostID] = true
@@ -554,7 +556,15 @@ func (service *Service) mattermostChannelPosts(ctx context.Context, token string
 }
 
 func (service *Service) deleteMattermostPost(ctx context.Context, token string, postID string) error {
-	return service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/posts/"+url.PathEscape(postID), token, nil, nil)
+	trimmedPostID := strings.TrimSpace(postID)
+	if trimmedPostID == "" {
+		return nil
+	}
+	errorValue := service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/posts/"+url.PathEscape(trimmedPostID), token, nil, nil)
+	if errorValue != nil && !isMattermostNotFound(errorValue) {
+		return errorValue
+	}
+	return nil
 }
 
 func (service *Service) deleteBlueclawDirectConversationHistory(ctx context.Context, channelID string) error {
@@ -843,7 +853,7 @@ func (service *Service) ensureMattermostFlowChannel(ctx context.Context, token s
 	if errorValue := service.updateMattermostManagedPublicChannelText(ctx, token, channelID, channel); errorValue != nil {
 		return "", errorValue
 	}
-	if errorValue := service.ensureMattermostFlowChannelReadOnly(ctx, token, channelID); errorValue != nil {
+	if errorValue := service.ensureMattermostManagedChannelModeration(ctx, token, channelID); errorValue != nil {
 		return "", errorValue
 	}
 	service.syncMattermostFlowEntryPost(ctx, token, channelID)
@@ -860,7 +870,7 @@ func (service *Service) ensureMattermostCalendarChannel(ctx context.Context, tok
 	if errorValue := service.updateMattermostManagedPublicChannelText(ctx, token, channelID, channel); errorValue != nil {
 		return "", errorValue
 	}
-	if errorValue := service.ensureMattermostFlowChannelReadOnly(ctx, token, channelID); errorValue != nil {
+	if errorValue := service.ensureMattermostManagedChannelModeration(ctx, token, channelID); errorValue != nil {
 		return "", errorValue
 	}
 	return channelID, nil
@@ -963,9 +973,9 @@ func (service *Service) mattermostManagedPublicChannelPurpose(channel mattermost
 	return channel.Purpose
 }
 
-func (service *Service) ensureMattermostFlowChannelReadOnly(ctx context.Context, token string, channelID string) error {
+func (service *Service) ensureMattermostManagedChannelModeration(ctx context.Context, token string, channelID string) error {
 	body := []map[string]any{
-		mattermostChannelModerationPatch("create_post", map[string]bool{"members": false, "guests": false}),
+		mattermostChannelModerationPatch("create_post", map[string]bool{"members": true, "guests": false}),
 		mattermostChannelModerationPatch("create_reactions", map[string]bool{"members": false, "guests": false}),
 		mattermostChannelModerationPatch("manage_members", map[string]bool{"members": false}),
 		mattermostChannelModerationPatch("use_channel_mentions", map[string]bool{"members": false, "guests": false}),
@@ -1194,14 +1204,31 @@ func (service *Service) applyCircleEmailsToBlueclawPolicy(ctx context.Context, c
 		return errorValue
 	}
 	people, _ := policyDocument["people"].([]any)
+	hasPolicyChange := false
 	for _, value := range people {
 		person, isPerson := value.(map[string]any)
 		if !isPerson {
 			continue
 		}
-		person["circles"] = mattermostSyncedPersonCircles(person, circleEmailsByID)
+		syncedCircles := mattermostSyncedPersonCircles(person, circleEmailsByID)
+		if mattermostCircleSetsEqual(policyStringList(person["circles"]), syncedCircles) {
+			continue
+		}
+		person["circles"] = syncedCircles
+		hasPolicyChange = true
+	}
+	if !hasPolicyChange {
+		return nil
 	}
 	return service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/policy/save", policyDocument, nil)
+}
+
+func mattermostCircleSetsEqual(current []string, synced []string) bool {
+	currentCopy := append([]string{}, current...)
+	syncedCopy := append([]string{}, synced...)
+	sort.Strings(currentCopy)
+	sort.Strings(syncedCopy)
+	return slices.Equal(currentCopy, syncedCopy)
 }
 
 func mattermostSyncedPersonCircles(person map[string]any, circleEmailsByID map[string]map[string]bool) []string {

@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>InternKim 호스트 콘솔</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --border: #d7dce2;
+      --background: #f7f8fa;
+      --panel: #ffffff;
+      --text: #17202a;
+      --muted: #667085;
+      --accent: #0f766e;
+      --danger: #b42318;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--background);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+
+    main {
+      width: min(1120px, calc(100vw - 32px));
+      margin: 32px auto;
+    }
+
+    header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    h1,
+    h2 {
+      margin: 0;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+    }
+
+    h2 {
+      font-size: 18px;
+      font-weight: 650;
+    }
+
+    section {
+      margin-bottom: 24px;
+      padding: 20px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      min-height: 36px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #ffffff;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    button:hover {
+      border-color: var(--accent);
+    }
+
+    button.primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #ffffff;
+    }
+
+    button.danger {
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 14px;
+    }
+
+    th,
+    td {
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    form {
+      display: grid;
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    input {
+      width: 100%;
+      min-height: 38px;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #ffffff;
+      color: var(--text);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .member-row {
+      display: grid;
+      grid-template-columns: minmax(180px, 1.1fr) minmax(140px, 0.9fr) minmax(170px, 1fr) 42px;
+      gap: 8px;
+      align-items: end;
+      margin-top: 8px;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .status {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .error {
+      color: var(--danger);
+    }
+
+    .result {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .result-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fbfcfd;
+    }
+
+    code,
+    pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+    }
+
+    pre {
+      min-height: 160px;
+      max-height: 360px;
+      overflow: auto;
+      margin: 14px 0 0;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #111827;
+      color: #e5e7eb;
+      white-space: pre-wrap;
+    }
+
+    @media (max-width: 760px) {
+      header,
+      .toolbar,
+      .result-row {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .grid,
+      .member-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>InternKim 호스트 콘솔</h1>
+        <div class="status">로컬 Mac에서 호스트 런타임 팀을 관리합니다.</div>
+      </div>
+      <button type="button" id="refreshTenants">새로고침</button>
+    </header>
+
+    <section>
+      <div class="toolbar">
+        <h2>팀 목록</h2>
+        <span class="status" id="tenantStatus">불러오는 중</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>팀 ID</th>
+            <th>주소</th>
+            <th>상태</th>
+            <th>작업</th>
+          </tr>
+        </thead>
+        <tbody id="tenantRows"></tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>팀 추가</h2>
+      <form id="teamForm">
+        <div class="grid">
+          <label>
+            팀 ID
+            <input id="teamID" name="teamID" required pattern="[a-z0-9][a-z0-9-]{1,62}" placeholder="pilot-01" autocomplete="off">
+          </label>
+          <label>
+            표시 이름
+            <input id="displayName" name="displayName" required placeholder="Pilot 01" autocomplete="off">
+          </label>
+        </div>
+
+        <div>
+          <div class="toolbar">
+            <h2>초기 멤버</h2>
+            <button type="button" id="addMember">행 추가</button>
+          </div>
+          <div id="memberRows"></div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" type="submit" id="submitTeam">팀 추가</button>
+          <span class="status" id="formStatus"></span>
+        </div>
+      </form>
+    </section>
+
+    <section>
+      <div class="toolbar">
+        <h2>진행 로그</h2>
+        <span class="status" id="jobStatus">대기 중</span>
+      </div>
+      <pre id="jobLog"></pre>
+      <div class="result" id="jobResult"></div>
+    </section>
+  </main>
+
+  <template id="memberTemplate">
+    <div class="member-row">
+      <label>
+        이메일
+        <input name="email" type="email" required placeholder="owner@example.com" autocomplete="off">
+      </label>
+      <label>
+        이름
+        <input name="name" required placeholder="홍길동" autocomplete="off">
+      </label>
+      <label>
+        초기 비밀번호
+        <input name="password" type="text" placeholder="비우면 자동 생성" autocomplete="new-password">
+      </label>
+      <button type="button" data-remove-member>삭제</button>
+    </div>
+  </template>
+
+  <script>
+    const hostConsoleRequiresAuth = false;
+    const tenantRows = document.querySelector("#tenantRows");
+    const tenantStatus = document.querySelector("#tenantStatus");
+    const refreshTenantsButton = document.querySelector("#refreshTenants");
+    const memberRows = document.querySelector("#memberRows");
+    const memberTemplate = document.querySelector("#memberTemplate");
+    const teamForm = document.querySelector("#teamForm");
+    const submitTeamButton = document.querySelector("#submitTeam");
+    const formStatus = document.querySelector("#formStatus");
+    const jobStatus = document.querySelector("#jobStatus");
+    const jobLog = document.querySelector("#jobLog");
+    const jobResult = document.querySelector("#jobResult");
+    const hostConsoleTokenKey = "internkimHostConsoleAuthToken";
+
+    function createMemberRow() {
+      const fragment = memberTemplate.content.cloneNode(true);
+      const row = fragment.querySelector(".member-row");
+      row.querySelector("[data-remove-member]").addEventListener("click", () => {
+        if (memberRows.children.length > 1) {
+          row.remove();
+        }
+      });
+      memberRows.appendChild(fragment);
+    }
+
+    function readMembers() {
+      return [...memberRows.querySelectorAll(".member-row")].map(row => ({
+        email: row.querySelector("[name='email']").value.trim(),
+        name: row.querySelector("[name='name']").value.trim(),
+        password: row.querySelector("[name='password']").value.trim()
+      }));
+    }
+
+    async function requestJSON(url, options = {}) {
+      const headers = new Headers(options.headers || {});
+      const token = hostConsoleAuthToken();
+      if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+      }
+      const response = await fetch(url, { ...options, headers });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.message || "요청에 실패했습니다");
+      }
+      return payload;
+    }
+
+    function hostConsoleAuthToken() {
+      if (!hostConsoleRequiresAuth) {
+        return "";
+      }
+      const existingToken = sessionStorage.getItem(hostConsoleTokenKey);
+      if (existingToken) {
+        return existingToken;
+      }
+      const token = window.prompt("인증 토큰을 입력하세요") || "";
+      sessionStorage.setItem(hostConsoleTokenKey, token);
+      return token;
+    }
+
+    async function loadTenants() {
+      tenantStatus.textContent = "불러오는 중";
+      try {
+        const tenants = await requestJSON("/api/tenants");
+        tenantRows.replaceChildren(...tenants.map(renderTenantRow));
+        tenantStatus.textContent = `${tenants.length}개 팀`;
+      } catch (errorValue) {
+        tenantStatus.textContent = errorValue.message;
+        tenantStatus.classList.add("error");
+      }
+    }
+
+    function renderTenantRow(tenant) {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td><code></code></td>
+        <td></td>
+        <td></td>
+        <td></td>
+      `;
+      row.children[0].querySelector("code").textContent = tenant.tenantID;
+      row.children[1].textContent = tenant.publicURL || "-";
+      row.children[2].textContent = tenant.running ? "실행 중" : "중지됨";
+      row.children[3].appendChild(createDeleteTeamButton(tenant.tenantID));
+      return row;
+    }
+
+    function createDeleteTeamButton(teamID) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "danger";
+      button.textContent = "삭제";
+      button.addEventListener("click", () => deleteTeam(teamID, button));
+      return button;
+    }
+
+    async function deleteTeam(teamID, button) {
+      const confirmation = window.prompt(`삭제하려면 팀 ID를 입력하세요: ${teamID}`);
+      if (confirmation !== teamID) {
+        return;
+      }
+      formStatus.textContent = "";
+      formStatus.classList.remove("error");
+      jobResult.replaceChildren();
+      jobLog.textContent = "";
+      button.disabled = true;
+      try {
+        const job = await requestJSON(`/api/teams/${encodeURIComponent(teamID)}`, { method: "DELETE" });
+        formStatus.textContent = "삭제 작업을 시작했습니다";
+        await pollJob(job.jobID);
+        await loadTenants();
+      } catch (errorValue) {
+        formStatus.textContent = errorValue.message;
+        formStatus.classList.add("error");
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    async function submitTeam(event) {
+      event.preventDefault();
+      formStatus.textContent = "";
+      formStatus.classList.remove("error");
+      jobResult.replaceChildren();
+      jobLog.textContent = "";
+      submitTeamButton.disabled = true;
+      try {
+        const payload = {
+          teamID: teamForm.teamID.value.trim(),
+          displayName: teamForm.displayName.value.trim(),
+          members: readMembers()
+        };
+        const job = await requestJSON("/api/teams", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        formStatus.textContent = "작업을 시작했습니다";
+        await pollJob(job.jobID);
+        await loadTenants();
+      } catch (errorValue) {
+        formStatus.textContent = errorValue.message;
+        formStatus.classList.add("error");
+      } finally {
+        submitTeamButton.disabled = false;
+      }
+    }
+
+    async function pollJob(jobID) {
+      for (;;) {
+        const job = await requestJSON(`/api/jobs/${jobID}`);
+        jobStatus.textContent = job.status;
+        jobLog.textContent = job.log || "";
+        if (job.status === "completed") {
+          renderResult(job.summary);
+          return;
+        }
+        if (job.status === "failed") {
+          jobStatus.classList.add("error");
+          return;
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+
+    function renderResult(summary) {
+      jobResult.replaceChildren();
+      if (!summary) {
+        return;
+      }
+      const issuedURL = summary.publicURL || summary.mattermostURL;
+      if (issuedURL) {
+        jobResult.appendChild(createCopyRow("발급 주소", issuedURL));
+      }
+      for (const member of summary.members || []) {
+        if (member.passwordGenerated && member.password) {
+          jobResult.appendChild(createCopyRow(`${member.email} 초기 비밀번호`, member.password));
+        }
+      }
+    }
+
+    function createCopyRow(label, value) {
+      const row = document.createElement("div");
+      row.className = "result-row";
+      const text = document.createElement("div");
+      text.innerHTML = `<strong></strong><br><code></code>`;
+      text.querySelector("strong").textContent = label;
+      text.querySelector("code").textContent = value;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = "복사";
+      button.addEventListener("click", async () => {
+        await navigator.clipboard.writeText(value);
+        button.textContent = "복사됨";
+        setTimeout(() => button.textContent = "복사", 1200);
+      });
+      row.append(text, button);
+      return row;
+    }
+
+    refreshTenantsButton.addEventListener("click", loadTenants);
+    document.querySelector("#addMember").addEventListener("click", createMemberRow);
+    teamForm.addEventListener("submit", submitTeam);
+    createMemberRow();
+    loadTenants();
+  </script>
+</body>
+</html>

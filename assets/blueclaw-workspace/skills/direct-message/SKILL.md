@@ -13,7 +13,7 @@ completion:
 
 # Direct Message
 
-Use `platform.message.send` with `deliveryTarget.type: "directMessage"` to send a direct message to a named approved InternKim person.
+Use `platform.message.send` with `recipientHint` to send a direct message to a named approved InternKim person.
 
 The task is complete after one successful `platform.message.send` observation. Do not send another direct message in the same task after `platform.message.send` succeeds; use that successful observation as completion evidence and reply.
 
@@ -50,10 +50,7 @@ After approval, use:
 
 ```json
 {
-  "deliveryTarget": {
-    "type": "directMessage",
-    "personHint": "동하"
-  },
+  "recipientHint": "동하",
   "message": "테스트"
 }
 ```

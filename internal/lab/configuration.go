@@ -23,7 +23,7 @@ type CompanionConfiguration struct {
 }
 
 type VirtualMachineConfiguration struct {
-	Tart                TartConfiguration       `json:"tart"`
+	Container           ContainerConfiguration  `json:"container"`
 	Mattermost          MattermostConfiguration `json:"mattermost"`
 	SharedWorkspacePath string                  `json:"sharedWorkspacePath"`
 	MountDirectoryPath  string                  `json:"mountDirectoryPath"`
@@ -31,14 +31,13 @@ type VirtualMachineConfiguration struct {
 	SSHPassword         string                  `json:"sshPassword"`
 }
 
-type TartConfiguration struct {
-	BinaryPath    string `json:"binaryPath"`
-	Name          string `json:"name"`
-	Image         string `json:"image"`
-	NestedEnabled bool   `json:"nestedEnabled"`
-	CPUCount      int    `json:"cpuCount"`
-	MemoryMiB     int    `json:"memoryMiB"`
-	DiskGiB       int    `json:"diskGiB"`
+type ContainerConfiguration struct {
+	BinaryPath      string `json:"binaryPath"`
+	Name            string `json:"name"`
+	Image           string `json:"image"`
+	KernelImagePath string `json:"kernelImagePath"`
+	CPUCount        int    `json:"cpuCount"`
+	MemoryMiB       int    `json:"memoryMiB"`
 }
 
 type MattermostConfiguration struct {
@@ -72,23 +71,20 @@ func applyDefaultConfiguration(configuration Configuration) Configuration {
 	if configuration.Host.Mode == "" {
 		configuration.Host.Mode = "single-mac"
 	}
-	if configuration.VirtualMachine.Tart.BinaryPath == "" {
-		configuration.VirtualMachine.Tart.BinaryPath = "tart"
+	if configuration.VirtualMachine.Container.BinaryPath == "" {
+		configuration.VirtualMachine.Container.BinaryPath = "container"
 	}
-	if configuration.VirtualMachine.Tart.Name == "" {
-		configuration.VirtualMachine.Tart.Name = "internkim-lab"
+	if configuration.VirtualMachine.Container.Name == "" {
+		configuration.VirtualMachine.Container.Name = "internkim-lab"
 	}
-	if configuration.VirtualMachine.Tart.Image == "" {
-		configuration.VirtualMachine.Tart.Image = "ghcr.io/cirruslabs/ubuntu:latest"
+	if configuration.VirtualMachine.Container.Image == "" {
+		configuration.VirtualMachine.Container.Image = "ubuntu:24.04"
 	}
-	if configuration.VirtualMachine.Tart.CPUCount == 0 {
-		configuration.VirtualMachine.Tart.CPUCount = 6
+	if configuration.VirtualMachine.Container.CPUCount == 0 {
+		configuration.VirtualMachine.Container.CPUCount = 6
 	}
-	if configuration.VirtualMachine.Tart.MemoryMiB == 0 {
-		configuration.VirtualMachine.Tart.MemoryMiB = 8192
-	}
-	if configuration.VirtualMachine.Tart.DiskGiB == 0 {
-		configuration.VirtualMachine.Tart.DiskGiB = 80
+	if configuration.VirtualMachine.Container.MemoryMiB == 0 {
+		configuration.VirtualMachine.Container.MemoryMiB = 8192
 	}
 	if configuration.VirtualMachine.Mattermost.ListenAddress == "" {
 		configuration.VirtualMachine.Mattermost.ListenAddress = "127.0.0.1:8065"

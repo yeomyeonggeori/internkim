@@ -82,14 +82,3 @@ func isMattermostAttendanceResultPostCurrent(postRecord mattermostPostRecord, ch
 	return strings.TrimSpace(postRecord.RootID) == strings.TrimSpace(rootID)
 }
 
-func (service *Service) deleteMattermostAttendanceResultPost(ctx context.Context, adminToken string, postID string) error {
-	trimmedPostID := strings.TrimSpace(postID)
-	if trimmedPostID == "" {
-		return nil
-	}
-	errorValue := service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/posts/"+url.PathEscape(trimmedPostID), adminToken, nil, nil)
-	if errorValue != nil && !isMattermostNotFound(errorValue) {
-		return errorValue
-	}
-	return nil
-}

@@ -11,6 +11,7 @@ const skillsManifestPath = "/root/.blueclaw/workspace/skills/.internkim-skills-m
 
 var StepSkills = Step{
 	Name: "skills",
+	Deps: []string{"blueclaw-runtime-base"},
 	Title: func(context *Context) string {
 		return context.T("Blueclaw 스킬 정리...", "Preparing Blueclaw skills...")
 	},
@@ -39,7 +40,8 @@ var StepSkills = Step{
 			return errorValue
 		}
 		if context.Backend == BackendSSH && context.SSH != nil {
-			if serviceStatus := trimmedRun(context, blueclawWorkspaceSkillsSyncCommand()); serviceStatus != "active" {
+			serviceStatus := trimmedRun(context, blueclawWorkspaceSkillsSyncCommand())
+			if serviceStatus != "active" && serviceStatus != "missing" {
 				return fmt.Errorf("blueclaw workspace skills sync failed: %s", serviceStatus)
 			}
 		}
@@ -57,6 +59,10 @@ var StepSkills = Step{
 func blueclawWorkspaceSkillsSyncCommand() string {
 	blueclawProcessPattern := `[/]usr/local/bin/blueclaw-supervisor|[/]firecracker .*--api-sock /firecracker-api.socket`
 	return `set -eu
+if ! systemctl cat ` + blueclaw.BlueclawServiceName + ` >/dev/null 2>&1; then
+  echo missing
+  exit 0
+fi
 systemctl stop ` + blueclaw.BlueclawServiceName + ` >/dev/null 2>&1 || true
 for _ in $(seq 1 20); do
   if ! systemctl is-active --quiet ` + blueclaw.BlueclawServiceName + ` && ! pgrep -f ` + shellQuote(blueclawProcessPattern) + ` >/dev/null; then

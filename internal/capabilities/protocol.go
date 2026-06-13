@@ -279,7 +279,8 @@ func platformMessageSearchInputSchema() json.RawMessage {
 
 func platformMessageSendInputSchema() json.RawMessage {
 	return jsonschema.Object(
-		jsonschema.Required("deliveryTarget", platformMessageDeliveryTargetSchema()),
+		jsonschema.Field("deliveryTarget", platformMessageDeliveryTargetSchema()),
+		jsonschema.Field("recipientHint", jsonschema.String()),
 		jsonschema.Required("message", jsonschema.String()),
 		jsonschema.Field("pin", jsonschema.Boolean()),
 		jsonschema.Field("reason", jsonschema.String()),
