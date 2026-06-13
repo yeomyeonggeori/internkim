@@ -117,7 +117,7 @@ func (backend OpenRouterEmbeddingBackend) send(ctx context.Context, apiKey strin
 		return EmbeddingResponse{}, errors.New("read openrouter embedding response: " + errorValue.Error())
 	}
 	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return EmbeddingResponse{}, errors.New(string(responseDocument))
+		return EmbeddingResponse{}, normalizeProviderError("openrouter", httpResponse.StatusCode, responseDocument)
 	}
 
 	var parsedResponse openRouterEmbeddingResponse

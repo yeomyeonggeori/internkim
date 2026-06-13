@@ -86,7 +86,7 @@ func (backend LlamaCppEmbeddingBackend) create(ctx context.Context, modelName st
 		return EmbeddingResponse{}, errors.New("read llama.cpp embedding response: " + errorValue.Error())
 	}
 	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return EmbeddingResponse{}, errors.New(string(responseDocument))
+		return EmbeddingResponse{}, normalizeProviderError("llamacpp", httpResponse.StatusCode, responseDocument)
 	}
 
 	var parsedResponse llamaCppEmbeddingResponse
