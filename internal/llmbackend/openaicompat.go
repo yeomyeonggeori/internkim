@@ -17,15 +17,16 @@ type openAICompatClient struct {
 }
 
 type openAIRequest struct {
-	Model          string            `json:"model"`
-	Messages       []openAIMessage   `json:"messages"`
-	Stream         bool              `json:"stream"`
-	ResponseFormat *openAIJSONSchema `json:"response_format,omitempty"`
-	Tools          []openAITool      `json:"tools,omitempty"`
-	ToolChoice     string            `json:"tool_choice,omitempty"`
-	ParallelTools  *bool             `json:"parallel_tool_calls,omitempty"`
-	Seed           *int64            `json:"seed,omitempty"`
-	Temperature    *float64          `json:"temperature,omitempty"`
+	Model                string                 `json:"model"`
+	Messages             []openAIMessage        `json:"messages"`
+	Stream               bool                   `json:"stream"`
+	ResponseFormat       *openAIJSONSchema      `json:"response_format,omitempty"`
+	Tools                []openAITool           `json:"tools,omitempty"`
+	ToolChoice           string                 `json:"tool_choice,omitempty"`
+	ParallelTools        *bool                  `json:"parallel_tool_calls,omitempty"`
+	Seed                 *int64                 `json:"seed,omitempty"`
+	Temperature          *float64               `json:"temperature,omitempty"`
+	NativeToolSchemaLint NativeSchemaLintResult `json:"-"`
 }
 
 type openAIMessage struct {
@@ -141,7 +142,7 @@ func (client openAICompatClient) chatCompletionResponse(ctx context.Context, req
 		return openAIResponseWithUsage{}, errors.New("read response: " + errorValue.Error())
 	}
 	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return openAIResponseWithUsage{}, errors.New(string(responseDocument))
+		return openAIResponseWithUsage{}, errors.New(openAIErrorWithNativeSchemaLint(string(responseDocument), request.NativeToolSchemaLint))
 	}
 
 	var response openAIResponseWithUsage
@@ -199,18 +200,37 @@ func openAIChatRequest(modelName string, messages []Message, schema *StructuredO
 	return request
 }
 
-func openAIActionToolRequest(modelName string, messages []Message, tools []nativeActionTool, options GenerationOptions) openAIRequest {
+func openAIActionToolRequest(modelName string, messages []Message, tools []nativeActionTool, options GenerationOptions, lintResults ...NativeSchemaLintResult) openAIRequest {
 	parallelTools := false
-	return openAIRequest{
-		Model:         modelName,
-		Messages:      openAIMessages(messages),
-		Stream:        false,
-		Tools:         openAIActionTools(tools),
-		ToolChoice:    "required",
-		ParallelTools: &parallelTools,
-		Seed:          options.Seed,
-		Temperature:   options.Temperature,
+	normalizedTools, lintResult := NormalizeNativeActionToolSchemas(tools)
+	if len(lintResults) > 0 {
+		lintResult = mergeOpenAIActionToolLintResults(lintResults[0], lintResult)
 	}
+	return openAIRequest{
+		Model:                modelName,
+		Messages:             openAIMessages(messages),
+		Stream:               false,
+		Tools:                openAIActionTools(normalizedTools),
+		ToolChoice:           "required",
+		ParallelTools:        &parallelTools,
+		Seed:                 options.Seed,
+		Temperature:          options.Temperature,
+		NativeToolSchemaLint: lintResult,
+	}
+}
+
+func mergeOpenAIActionToolLintResults(firstPass NativeSchemaLintResult, requestPass NativeSchemaLintResult) NativeSchemaLintResult {
+	result := requestPass
+	result.NormalizationsApplied = append(append([]string{}, firstPass.NormalizationsApplied...), requestPass.NormalizationsApplied...)
+	result.RemainingViolations = append(append([]string{}, firstPass.RemainingViolations...), requestPass.RemainingViolations...)
+	return result
+}
+
+func openAIErrorWithNativeSchemaLint(message string, lintResult NativeSchemaLintResult) string {
+	if lintResult.ToolCount == 0 {
+		return message
+	}
+	return strings.TrimSpace(message) + "; " + NativeSchemaLintDiagnostics(lintResult)
 }
 
 func openAIMessages(messages []Message) []openAIMessage {

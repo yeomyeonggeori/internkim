@@ -4,6 +4,7 @@ type Payload struct {
 	UserID         string  `json:"user_id"`
 	PostID         string  `json:"post_id"`
 	ChannelID      string  `json:"channel_id"`
+	RootID         string  `json:"root_id,omitempty"`
 	TeamID         string  `json:"team_id"`
 	SelectedOption string  `json:"selected_option,omitempty"`
 	Context        Context `json:"context"`

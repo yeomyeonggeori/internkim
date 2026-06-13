@@ -35,7 +35,9 @@ func mergeMailAccountWriteRequest(account mailAccount, payload mailAccountWriteR
 	account.SMTPSecurity = normalizeMailSecurity(firstNonEmpty(payload.SMTPSecurity, account.SMTPSecurity, mailSecurityStartTLS))
 	account.SMTPUsername = strings.TrimSpace(firstNonEmpty(payload.SMTPUsername, account.SMTPUsername, account.Email))
 	account.DefaultMailbox = strings.TrimSpace(firstNonEmpty(payload.DefaultMailbox, account.DefaultMailbox, "INBOX"))
-	account.SentMailbox = strings.TrimSpace(firstNonEmpty(payload.SentMailbox, account.SentMailbox, "Sent"))
+	if payload.SentMailbox != nil {
+		account.SentMailbox = strings.TrimSpace(*payload.SentMailbox)
+	}
 	if strings.TrimSpace(payload.IMAPPassword) != "" {
 		account.IMAPPassword = strings.TrimSpace(payload.IMAPPassword)
 	}
@@ -60,7 +62,7 @@ func normalizeMailAccount(account mailAccount) mailAccount {
 	account.SMTPSecurity = normalizeMailSecurity(account.SMTPSecurity)
 	account.SMTPUsername = strings.TrimSpace(account.SMTPUsername)
 	account.DefaultMailbox = strings.TrimSpace(firstNonEmpty(account.DefaultMailbox, "INBOX"))
-	account.SentMailbox = strings.TrimSpace(firstNonEmpty(account.SentMailbox, "Sent"))
+	account.SentMailbox = strings.TrimSpace(account.SentMailbox)
 	if account.IMAPPort == 0 {
 		account.IMAPPort = 993
 	}
