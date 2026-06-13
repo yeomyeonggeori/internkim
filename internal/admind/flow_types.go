@@ -53,24 +53,26 @@ type flowMember struct {
 }
 
 type flowTask struct {
-	ID               string   `json:"id"`
-	OwnerID          string   `json:"ownerID"`
-	OwnerName        string   `json:"ownerName"`
-	ParticipantIDs   []string `json:"participantIDs"`
-	ParticipantNames []string `json:"participantNames"`
-	Business         string   `json:"business"`
-	Type             string   `json:"type"`
-	Content          string   `json:"content"`
-	Goal             string   `json:"goal"`
-	Size             string   `json:"size"`
-	Status           string   `json:"status"`
-	StartDate        string   `json:"startDate,omitempty"`
-	EndDate          string   `json:"endDate,omitempty"`
-	WeekCode         string   `json:"weekCode"`
-	Flag             int      `json:"flag"`
-	RequestReason    string   `json:"requestReason,omitempty"`
-	DecisionReason   string   `json:"decisionReason,omitempty"`
-	MattermostPostID string   `json:"mattermostPostID,omitempty"`
+	ID                 string   `json:"id"`
+	OwnerID            string   `json:"ownerID"`
+	OwnerName          string   `json:"ownerName"`
+	ParticipantIDs     []string `json:"participantIDs"`
+	ParticipantNames   []string `json:"participantNames"`
+	Business           string   `json:"business"`
+	Type               string   `json:"type"`
+	Content            string   `json:"content"`
+	Goal               string   `json:"goal"`
+	Size               string   `json:"size"`
+	Status             string   `json:"status"`
+	StatusRank         int      `json:"statusRank"`
+	StatusRankProvided bool     `json:"-"`
+	StartDate          string   `json:"startDate,omitempty"`
+	EndDate            string   `json:"endDate,omitempty"`
+	WeekCode           string   `json:"weekCode"`
+	Flag               int      `json:"flag"`
+	RequestReason      string   `json:"requestReason,omitempty"`
+	DecisionReason     string   `json:"decisionReason,omitempty"`
+	MattermostPostID   string   `json:"mattermostPostID,omitempty"`
 }
 
 type flowMetrics struct {
@@ -138,6 +140,7 @@ type flowTaskWriteRequest struct {
 	Goal           string   `json:"goal"`
 	Size           string   `json:"size"`
 	Status         string   `json:"status"`
+	StatusRank     *int     `json:"statusRank"`
 	StartDate      string   `json:"startDate"`
 	EndDate        string   `json:"endDate"`
 	WeekCode       string   `json:"weekCode"`
