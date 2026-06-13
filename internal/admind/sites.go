@@ -772,6 +772,10 @@ func (service *Service) publishSite(ctx context.Context, payload sitePublishRequ
 		return nil, errorValue
 	}
 	versionID := siteVersionID(commitSHA)
+	if errorValue := service.ensureSitePortNotTakenByAnotherSite(site); errorValue != nil {
+		service.updateSiteStatus(site.SiteID, SiteStatusFailed, errorValue.Error())
+		return nil, errorValue
+	}
 	service.updateSiteStatus(site.SiteID, SiteStatusPublishing, "")
 	if errorValue := service.prepareSiteVersion(site, versionID, payload); errorValue != nil {
 		service.updateSiteStatus(site.SiteID, SiteStatusFailed, errorValue.Error())
@@ -2336,9 +2340,19 @@ func (service *Service) loadSites() {
 	defer service.mutex.Unlock()
 	for _, site := range state.Sites {
 		if site != nil && site.SiteID != "" {
+			reconcileInterruptedSiteStatus(site)
 			service.sites[site.SiteID] = site
 		}
 	}
+}
+
+func reconcileInterruptedSiteStatus(site *SiteRecord) {
+	if site.Status != SiteStatusPublishing {
+		return
+	}
+	site.Status = SiteStatusFailed
+	site.LastError = "publish interrupted before completion; republish to recover"
+	site.UpdatedAt = time.Now().UTC()
 }
 
 func (service *Service) allocateSitePort() (int, error) {
@@ -2357,11 +2371,47 @@ func (service *Service) usedSitePorts() map[int]bool {
 	defer service.mutex.Unlock()
 	usedPorts := map[int]bool{}
 	for _, site := range service.sites {
-		if site.Status != SiteStatusDeleted {
+		if siteHoldsSitePort(site) {
 			usedPorts[site.Port] = true
 		}
 	}
 	return usedPorts
+}
+
+func (service *Service) ensureSitePortNotTakenByAnotherSite(site *SiteRecord) error {
+	if site.Port != 0 && !service.sitePortHeldByAnotherSite(site) {
+		return nil
+	}
+	port, errorValue := service.allocateSitePort()
+	if errorValue != nil {
+		return errorValue
+	}
+	site.Port = port
+	return nil
+}
+
+func (service *Service) sitePortHeldByAnotherSite(site *SiteRecord) bool {
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	for _, otherSite := range service.sites {
+		if otherSite.SiteID == site.SiteID {
+			continue
+		}
+		if otherSite.Port == site.Port && siteHoldsSitePort(otherSite) {
+			return true
+		}
+	}
+	return false
+}
+
+func siteHoldsSitePort(site *SiteRecord) bool {
+	if site.Status == SiteStatusDeleted {
+		return false
+	}
+	if site.Status == SiteStatusFailed && strings.TrimSpace(site.CurrentVersionID) == "" {
+		return false
+	}
+	return true
 }
 
 func canListenOnSitePort(port int) bool {
