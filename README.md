@@ -154,6 +154,8 @@ CLOUDFLARE_ACCOUNT_ID="$(awk 'BEGIN{FS="="} $1=="CF_ACCOUNT_ID"{sub(/^[^=]*=/,""
 ../../web/node_modules/.bin/wrangler deploy --keep-vars
 ```
 
+맥스튜디오 한 대에서 PoC 테넌트를 추가·제거·운영하는 전체 절차(`internkim host init/add-team/remove-team/console`)는 [docs/poc-host.md](docs/poc-host.md)에 정리되어 있습니다. 아래 명령들은 그 절차가 내부에서 사용하는 저수준 단계입니다.
+
 cloud-shared bootstrap은 runtime model을 명시해서 배포합니다. PoC Worker 경로에서는 `google/gemini-3.5-flash`가 provider region policy로 거절될 수 있으므로, 현재 smoke 통과 모델인 `x-ai/grok-4.3`을 `tenant bootstrap --model x-ai/grok-4.3` 또는 `tenant install-host-runtime --model x-ai/grok-4.3`으로 지정합니다. chat, web tool, embedding 요청은 모두 gateway를 통해야 합니다. cloud-shared에서 `embeddinggemma` 같은 로컬 embedding alias가 들어오면 capabilityd가 OpenRouter embedding model로 정규화합니다.
 
 cloud-shared Mattermost admin password의 운영 기준은 실제 인스턴스가 읽는 credentials 파일입니다. 이미 VM 안에서 Mattermost 인스턴스를 만든 뒤에는 로컬 `.local/tenants/*` bundle 값을 고객에게 안내하지 말고, VM의 `/srv/internkim-mattermost-instances/credentials.json` 또는 동일한 배포 source of truth에서 다시 읽어야 합니다.
@@ -363,12 +365,12 @@ Mattermost self-hosted는 기본적으로 한 team의 총 멤버 수에 제한�
 
 ### Local Fleet Verification
 
-실제 보드에 올리기 전에 macOS + Tart ARM Linux VM에서 현재 checkout을 실제 서비스 경계로 검증합니다. canonical 흐름은 Local Fleet recipe/scenario이며, 기존 `sim gate`는 같은 predeploy recipe를 호출하는 legacy alias입니다.
+실제 보드에 올리기 전에 macOS + apple/container ARM Linux VM에서 현재 checkout을 실제 서비스 경계로 검증합니다. canonical 흐름은 Local Fleet recipe/scenario이며, 기존 `sim gate`는 같은 predeploy recipe를 호출하는 legacy alias입니다.
 
 ```bash
 make deps-sim
 
-# 최초 1회 Tart 이미지 준비
+# 최초 1회 컨테이너 이미지 준비
 ./internkim lab image-build
 
 # Local Fleet 시작과 상태 확인
@@ -582,7 +584,7 @@ internkim/
 │   ├── cli/                 셋업, 배포, lab, reset, verify 명령 구현
 │   ├── companion/           companion pairing, jobs, local executor
 │   ├── google/browser/      Google 브라우저 자동화
-│   ├── lab/                 Tart 기반 실험실 구성과 시나리오
+│   ├── lab/                 apple/container 기반 실험실 구성과 시나리오
 │   ├── provisioning/steps/  단계별 셋업 플로우
 │   └── runtime/blueclaw/    Blueclaw 런타임 계약과 설정 생성
 ├── assets/blueclaw-workspace/
@@ -601,7 +603,7 @@ internkim/
 │   ├── skill-orchestration-design.md
 │   ├── flows/              사용자 플로우 문서
 │   └── schema/             task/staff schema 문서
-├── lab/config.example.json   Tart lab 설정 예시
+├── lab/config.example.json   container lab 설정 예시
 ├── lab/scripts/             VM provisioning / 시나리오 스크립트
 ├── tools/                   개발/준비용 helper script
 ├── build/                   기기 바이너리와 정적 웹 출력 [gitignored]

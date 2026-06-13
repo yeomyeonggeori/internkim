@@ -133,7 +133,10 @@ func TestSimulationServicesDoNotInstallLlamaCppUnits(t *testing.T) {
 }
 
 func TestServicesInstallGraphitiMemoryd(t *testing.T) {
-	command := serviceUnitInstallCommand(&Context{BoardType: BoardJetsonOrinNano})
+	command := serviceUnitInstallCommand(&Context{
+		BoardType:    BoardJetsonOrinNano,
+		PlannedSteps: map[string]bool{"local-llm": true},
+	})
 
 	for _, expectedValue := range []string{
 		blueclaw.GraphitiMemorydServicePath,
@@ -150,9 +153,23 @@ func TestServicesInstallGraphitiMemoryd(t *testing.T) {
 	}
 }
 
+func TestServicesSkipGraphitiMemorydWithoutLocalLLM(t *testing.T) {
+	command := serviceUnitInstallCommand(&Context{BoardType: BoardJetsonOrinNano})
+	for _, unexpectedValue := range []string{
+		blueclaw.GraphitiMemorydServicePath,
+		blueclaw.GraphitiMemorydPath,
+		"systemctl enable " + blueclaw.GraphitiMemorydServiceName,
+		"systemctl restart " + blueclaw.GraphitiMemorydServiceName,
+	} {
+		if strings.Contains(command, unexpectedValue) {
+			t.Fatalf("expected service command to exclude %q without local LLM, got:\n%s", unexpectedValue, command)
+		}
+	}
+}
+
 func TestBlueclawHostNetworkDependencyInstallCommandInstallsTapNATTools(t *testing.T) {
 	command := blueclawHostNetworkDependencyInstallCommand()
-	for _, expectedValue := range []string{"command -v ip", "command -v iptables", "command -v sysctl", "apt-get install", "iproute2 iptables procps"} {
+	for _, expectedValue := range []string{"command -v ip", "command -v iptables", "command -v sysctl", "command -v jq", "apt-get install", "iproute2 iptables procps jq"} {
 		if !strings.Contains(command, expectedValue) {
 			t.Fatalf("expected host network dependency command to contain %q, got:\n%s", expectedValue, command)
 		}
@@ -210,7 +227,10 @@ func TestCloudSharedServicesUseRemoteInferenceMode(t *testing.T) {
 }
 
 func TestServiceHealthReportChecksAllServicesInOneCommand(t *testing.T) {
-	command := blueclawServiceHealthReportCommand(&Context{BoardType: BoardJetsonOrinNano})
+	command := blueclawServiceHealthReportCommand(&Context{
+		BoardType:    BoardJetsonOrinNano,
+		PlannedSteps: map[string]bool{"local-llm": true},
+	})
 
 	for _, expectedValue := range []string{
 		"printf '%s=' 'blueclaw'",
@@ -227,19 +247,19 @@ func TestServiceHealthReportChecksAllServicesInOneCommand(t *testing.T) {
 		"curl --max-time 5 -fsS --unix-socket /run/internkim/capability.sock",
 		"printf '%s=' 'graphitiHealth'",
 		"curl --max-time 5 -fsS http://127.0.0.1:7791/health | jq -e '.status == \"ok\"'",
+		"printf '%s=' 'embedding'",
+		locallm.LlamaCppEmbeddingServiceName,
 	} {
 		if !strings.Contains(command, expectedValue) {
 			t.Fatalf("expected health report command to include %q, got:\n%s", expectedValue, command)
 		}
 	}
-	if strings.Contains(command, locallm.LlamaCppEmbeddingServiceName) {
-		t.Fatalf("expected default health report to skip local LLM services, got:\n%s", command)
-	}
 }
 
 func TestBlueclawServicesHealthRequiresGraphiti(t *testing.T) {
 	context := &Context{
-		BoardType: BoardJetsonOrinNano,
+		BoardType:    BoardJetsonOrinNano,
+		PlannedSteps: map[string]bool{"local-llm": true},
 		SSH: serviceHealthReportBoardConnection{
 			report: strings.Join([]string{
 				"blueclaw=active",
@@ -255,6 +275,25 @@ func TestBlueclawServicesHealthRequiresGraphiti(t *testing.T) {
 
 	if blueclawServicesAreHealthy(context) {
 		t.Fatal("expected graphiti inactive report to fail health check")
+	}
+}
+
+func TestBlueclawServicesHealthSkipsGraphitiWithoutLocalLLM(t *testing.T) {
+	context := &Context{
+		BoardType: BoardJetsonOrinNano,
+		SSH: serviceHealthReportBoardConnection{
+			report: strings.Join([]string{
+				"blueclaw=active",
+				"capabilityd=active",
+				"admind=active",
+				"blueclawHealth=ok",
+				"capabilitydHealth=ok",
+			}, "\n"),
+		},
+	}
+
+	if !blueclawServicesAreHealthy(context) {
+		t.Fatal("expected graphiti to be skipped without local LLM")
 	}
 }
 

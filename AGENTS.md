@@ -8,6 +8,13 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - Prefer existing codebase patterns over new abstractions.
 - Use `rg` or `rg --files` for searches.
 - Use `apply_patch` for manual edits.
+- In new agent worktrees, run
+  `tools/sync-worktree-local-state <main-worktree-path>` from the new worktree
+  before tests or deployments that need local ignored state. The script links
+  `.env`, `web/.dev.vars`, `.local/secrets`, `.agents`, and root secret files
+  from the main worktree without copying generated artifacts. Missing paths are
+  reported as skipped. Use `--copy` before the path only when symlinks are not
+  appropriate.
 - Do not revert user or generated changes unless explicitly asked.
 - Keep generated test artifacts, platform users, memories, and remote messages
   cleaned up after real-platform tests.
@@ -32,15 +39,15 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   decisions with `--live-llm --record-cassette <path>`, then replay the same
   cassette instead of relying on seed stability alone.
 - After local simulation passes, verify executable and Linux permission behavior
-  with `./internkim dev replay --target tart --scenario <name> --cassette <path>`.
-- Treat Tart as the required pre-deploy Linux/runtime gate for agent execution
+  with `./internkim dev replay --target container --scenario <name> --cassette <path>`.
+- Treat the apple/container lab as the required pre-deploy Linux/runtime gate for agent execution
   that touches `terminal.run`, `bun`, `uv`, Python dependency wrappers,
   POSIX users/groups, or workspace permissions.
 - Do not redeploy agent, Blueclaw, runtime, skill, or terminal-execution changes
-  until the relevant Tart replay produces the intended result. If Tart replay
+  until the relevant container replay produces the intended result. If container replay
   fails, fix the behavior or explicitly report the unresolved failure instead of
   proceeding to deployment.
-- Do not replace this gate with Docker or another container path unless the task
+- Do not replace this gate with Docker or another executor unless the task
   explicitly asks for a different executor model.
 - For web, admind, capabilityd, Mattermost connector, or cross-service behavior
   changes, verify the current checkout through the local fleet with
@@ -49,7 +56,7 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - When claiming a user-visible fix, prefer
   `./internkim dev fleet verify-regression --base main --scenario <name>` so the
   same scenario fails on the base revision and passes on the current checkout.
-- Run real Mattermost smoke only after the virtual-session and Tart replay
+- Run real Mattermost smoke only after the virtual-session and container replay
   gates pass; keep platform cleanup requirements from Runtime Test Hygiene and
   use `./internkim dev fleet reset` after local fleet Mattermost tests.
 

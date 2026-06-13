@@ -35,7 +35,10 @@ exit 1`
 }
 
 func StartAfterPayloadSyncCommand() string {
-	return `systemctl start ` + BlueclawServiceName + `
+	return `if ! systemctl cat ` + BlueclawServiceName + ` >/dev/null 2>&1; then
+  exit 0
+fi
+systemctl start ` + BlueclawServiceName + `
 for _ in $(seq 1 20); do
   if systemctl is-active --quiet ` + BlueclawServiceName + `; then
     exit 0

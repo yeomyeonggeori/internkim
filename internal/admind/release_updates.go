@@ -237,6 +237,9 @@ func (service *Service) installReleaseComponents(ctx context.Context, jobID stri
 	if errorValue := service.installReleaseBinary(stagingPath, "capabilityd", blueclawruntime.CapabilitydBinaryPath); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := service.installReleaseBinary(stagingPath, "blueclawSupervisor", blueclawruntime.BlueclawSupervisorBinaryPath); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := service.installReleaseWeb(stagingPath); errorValue != nil {
 		return errorValue
 	}
@@ -252,12 +255,32 @@ func (service *Service) installReleaseComponents(ctx context.Context, jobID stri
 	if errorValue := service.installReleaseBinary(stagingPath, "admind", blueclawruntime.AdmindBinaryPath); errorValue != nil {
 		return errorValue
 	}
+	if _, hasSupervisor := manifest.Components["blueclawSupervisor"]; hasSupervisor {
+		if _, hasPayload := manifest.Components["blueclawPayload"]; !hasPayload {
+			if errorValue := service.restartReleaseBlueclawServices(ctx); errorValue != nil {
+				return errorValue
+			}
+		}
+	}
 	if _, hasCapabilityd := manifest.Components["capabilityd"]; hasCapabilityd {
 		if errorValue := service.restartReleaseCapabilitydServices(ctx); errorValue != nil {
 			return errorValue
 		}
 	}
 	return nil
+}
+
+func (service *Service) restartReleaseBlueclawServices(ctx context.Context) error {
+	for _, serviceName := range releaseBlueclawServiceNames(blueclawUpdateTenantBasePath) {
+		if output, errorValue := service.runCommand(ctx, "systemctl", "restart", serviceName); errorValue != nil {
+			return fmt.Errorf("restart blueclaw %s: %s: %w", serviceName, strings.TrimSpace(string(output)), errorValue)
+		}
+	}
+	return nil
+}
+
+func releaseBlueclawServiceNames(tenantBasePath string) []string {
+	return releaseTenantServiceNames(tenantBasePath, "internkim-tenant-blueclaw-", blueclawruntime.BlueclawServiceName)
 }
 
 func (service *Service) restartReleaseCapabilitydServices(ctx context.Context) error {

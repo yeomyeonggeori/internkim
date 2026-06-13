@@ -2,13 +2,17 @@ package tenantruntime
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
+	"net/mail"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -28,15 +32,34 @@ type MattermostFleetBootstrapOptions struct {
 	PortStart           int
 	Language            string
 	TokenOutputRoot     string
+	AdminEmail          string
+	Members             []MattermostBootstrapMember
 }
 
 type MattermostBootstrapStatus struct {
-	TenantID        string            `json:"tenantID"`
-	PublicURL       string            `json:"publicURL"`
-	AdminEmail      string            `json:"adminEmail"`
-	BotUserID       string            `json:"botUserID"`
-	BlueclawInvited bool              `json:"blueclawInvited,omitempty"`
-	Channels        map[string]string `json:"channels"`
+	TenantID        string                            `json:"tenantID"`
+	PublicURL       string                            `json:"publicURL"`
+	AdminEmail      string                            `json:"adminEmail"`
+	BotUserID       string                            `json:"botUserID"`
+	BlueclawInvited bool                              `json:"blueclawInvited,omitempty"`
+	Channels        map[string]string                 `json:"channels"`
+	Members         []MattermostBootstrapMemberResult `json:"members,omitempty"`
+}
+
+type MattermostBootstrapMember struct {
+	Email    string `json:"email"`
+	Name     string `json:"name"`
+	Password string `json:"password,omitempty"`
+}
+
+type MattermostBootstrapMemberResult struct {
+	Email           string `json:"email"`
+	Name            string `json:"name"`
+	Username        string `json:"username,omitempty"`
+	UserID          string `json:"userID,omitempty"`
+	Outcome         string `json:"outcome"`
+	Reason          string `json:"reason,omitempty"`
+	BlueclawInvited bool   `json:"blueclawInvited,omitempty"`
 }
 
 type mattermostBootstrapCredential struct {
@@ -50,15 +73,11 @@ type mattermostBootstrapClient struct {
 	httpClient *http.Client
 }
 
+var mattermostUsernameInvalidCharacterPattern = regexp.MustCompile(`[^a-z0-9._-]+`)
+
 func BootstrapMattermostFleetResources(options MattermostFleetBootstrapOptions) ([]MattermostBootstrapStatus, error) {
-	if strings.TrimSpace(options.CredentialsPath) == "" {
-		return nil, errors.New("credentials path is required")
-	}
-	if strings.TrimSpace(options.BaseURLTemplate) == "" {
-		return nil, errors.New("base URL template is required")
-	}
-	if strings.TrimSpace(options.PublicURLTemplate) == "" {
-		return nil, errors.New("public URL template is required")
+	if errorValue := validateMattermostFleetBootstrapOptions(options); errorValue != nil {
+		return nil, errorValue
 	}
 	credentials, errorValue := readMattermostBootstrapCredentials(options.CredentialsPath)
 	if errorValue != nil {
@@ -75,6 +94,38 @@ func BootstrapMattermostFleetResources(options MattermostFleetBootstrapOptions) 
 	return statuses, nil
 }
 
+func BootstrapMattermostTenantResources(tenantID string, adminUsername string, adminPassword string, options MattermostFleetBootstrapOptions) (MattermostBootstrapStatus, error) {
+	if errorValue := validateMattermostBootstrapTemplates(options); errorValue != nil {
+		return MattermostBootstrapStatus{}, errorValue
+	}
+	credential := mattermostBootstrapCredential{
+		TenantID:      strings.TrimSpace(tenantID),
+		AdminUsername: strings.TrimSpace(adminUsername),
+		AdminPassword: adminPassword,
+	}
+	if errorValue := validateMattermostBootstrapCredential(credential); errorValue != nil {
+		return MattermostBootstrapStatus{}, errorValue
+	}
+	return bootstrapMattermostTenantResources(credential, options)
+}
+
+func validateMattermostFleetBootstrapOptions(options MattermostFleetBootstrapOptions) error {
+	if strings.TrimSpace(options.CredentialsPath) == "" {
+		return errors.New("credentials path is required")
+	}
+	return validateMattermostBootstrapTemplates(options)
+}
+
+func validateMattermostBootstrapTemplates(options MattermostFleetBootstrapOptions) error {
+	if strings.TrimSpace(options.BaseURLTemplate) == "" {
+		return errors.New("base URL template is required")
+	}
+	if strings.TrimSpace(options.PublicURLTemplate) == "" {
+		return errors.New("public URL template is required")
+	}
+	return nil
+}
+
 func readMattermostBootstrapCredentials(path string) ([]mattermostBootstrapCredential, error) {
 	document, errorValue := os.ReadFile(path)
 	if errorValue != nil {
@@ -85,11 +136,24 @@ func readMattermostBootstrapCredentials(path string) ([]mattermostBootstrapCrede
 		return nil, errorValue
 	}
 	for _, credential := range credentials {
-		if strings.TrimSpace(credential.TenantID) == "" || strings.TrimSpace(credential.AdminUsername) == "" || strings.TrimSpace(credential.AdminPassword) == "" {
+		if errorValue := validateMattermostBootstrapCredential(credential); errorValue != nil {
 			return nil, errors.New("Mattermost credential file contains an incomplete tenant credential")
 		}
 	}
 	return credentials, nil
+}
+
+func validateMattermostBootstrapCredential(credential mattermostBootstrapCredential) error {
+	if strings.TrimSpace(credential.TenantID) == "" {
+		return errors.New("tenant id is required")
+	}
+	if strings.TrimSpace(credential.AdminUsername) == "" {
+		return errors.New("Mattermost admin username is required")
+	}
+	if strings.TrimSpace(credential.AdminPassword) == "" {
+		return errors.New("Mattermost admin password is required")
+	}
+	return nil
 }
 
 func bootstrapMattermostTenantResources(credential mattermostBootstrapCredential, options MattermostFleetBootstrapOptions) (MattermostBootstrapStatus, error) {
@@ -104,7 +168,7 @@ func bootstrapMattermostTenantResources(credential mattermostBootstrapCredential
 	if errorValue != nil {
 		return MattermostBootstrapStatus{}, errorValue
 	}
-	adminEmail := DefaultTenantAdminEmail(credential.TenantID)
+	adminEmail := firstNonEmptyMattermostBootstrapString(options.AdminEmail, DefaultTenantAdminEmail(credential.TenantID))
 	if errorValue := client.ensureAdminProfile(adminToken, adminUserID, adminEmail, credential.AdminPassword); errorValue != nil {
 		return MattermostBootstrapStatus{}, errorValue
 	}
@@ -122,7 +186,9 @@ func bootstrapMattermostTenantResources(credential mattermostBootstrapCredential
 	if errorValue != nil {
 		return MattermostBootstrapStatus{}, errorValue
 	}
-	channels, errorValue := client.ensureDefaultChannels(adminToken, teamID, []string{adminUserID, botUserID}, botUserID, options.Language)
+	memberResults := client.ensureMembers(adminToken, teamID, credential.TenantID, options)
+	channelUserIDs := append([]string{adminUserID, botUserID}, successfulMattermostMemberUserIDs(memberResults)...)
+	channels, errorValue := client.ensureDefaultChannels(adminToken, teamID, channelUserIDs, botUserID, options.Language)
 	if errorValue != nil {
 		return MattermostBootstrapStatus{}, errorValue
 	}
@@ -145,6 +211,7 @@ func bootstrapMattermostTenantResources(credential mattermostBootstrapCredential
 		BotUserID:       botUserID,
 		BlueclawInvited: blueclawInvited,
 		Channels:        channels,
+		Members:         memberResults,
 	}, nil
 }
 
@@ -174,6 +241,15 @@ func expandMattermostBootstrapBlueclawTemplate(template string, tenantID string)
 	expandedURL = strings.ReplaceAll(expandedURL, "{tenant}", tenantID)
 	expandedURL = strings.ReplaceAll(expandedURL, "{blueclawPort}", strconv.Itoa(blueclawPort))
 	return expandedURL
+}
+
+func firstNonEmptyMattermostBootstrapString(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func (client mattermostBootstrapClient) login(username string, password string) (string, string, error) {
@@ -284,6 +360,182 @@ func (client mattermostBootstrapClient) ensureTeamMember(adminToken string, team
 		return nil
 	}
 	return errors.New("Mattermost team member create failed")
+}
+
+func (client mattermostBootstrapClient) ensureMembers(adminToken string, teamID string, tenantID string, options MattermostFleetBootstrapOptions) []MattermostBootstrapMemberResult {
+	results := make([]MattermostBootstrapMemberResult, 0, len(options.Members))
+	for _, member := range options.Members {
+		results = append(results, client.ensureMember(adminToken, teamID, tenantID, options, member))
+	}
+	return results
+}
+
+func (client mattermostBootstrapClient) ensureMember(adminToken string, teamID string, tenantID string, options MattermostFleetBootstrapOptions, member MattermostBootstrapMember) MattermostBootstrapMemberResult {
+	result := MattermostBootstrapMemberResult{
+		Email: strings.TrimSpace(member.Email),
+		Name:  strings.TrimSpace(member.Name),
+	}
+	username := mattermostUsernameFromEmail(member.Email)
+	if errorValue := validateMattermostBootstrapMember(member); errorValue != nil {
+		result.Outcome = "failed"
+		result.Username = username
+		result.Reason = errorValue.Error()
+		return result
+	}
+	userID, username, alreadyExisted, errorValue := client.ensureUser(adminToken, member, username)
+	if errorValue != nil {
+		result.Outcome = "failed"
+		result.Username = username
+		result.Reason = errorValue.Error()
+		return result
+	}
+	if errorValue := client.ensureTeamMember(adminToken, teamID, userID); errorValue != nil {
+		result.Outcome = "failed"
+		result.Username = username
+		result.UserID = userID
+		result.Reason = errorValue.Error()
+		return result
+	}
+	blueclawInvited, errorValue := inviteMattermostBootstrapBlueclawMember(tenantID, member, username, options)
+	if errorValue != nil {
+		result.Outcome = "failed"
+		result.Username = username
+		result.UserID = userID
+		result.Reason = errorValue.Error()
+		return result
+	}
+	result.Username = username
+	result.UserID = userID
+	result.BlueclawInvited = blueclawInvited
+	if alreadyExisted {
+		result.Outcome = "already existed"
+		return result
+	}
+	result.Outcome = "created"
+	return result
+}
+
+func validateMattermostBootstrapMember(member MattermostBootstrapMember) error {
+	if strings.TrimSpace(member.Email) == "" {
+		return errors.New("member email is required")
+	}
+	address, errorValue := mail.ParseAddress(strings.TrimSpace(member.Email))
+	if errorValue != nil || address.Address != strings.TrimSpace(member.Email) {
+		return errors.New("member email is invalid")
+	}
+	if strings.TrimSpace(member.Name) == "" {
+		return errors.New("member name is required")
+	}
+	if strings.TrimSpace(member.Password) == "" {
+		return errors.New("member password is required")
+	}
+	return nil
+}
+
+func (client mattermostBootstrapClient) ensureUser(adminToken string, member MattermostBootstrapMember, username string) (string, string, bool, error) {
+	userID, errorValue := client.findUserIDByEmail(adminToken, member.Email)
+	if errorValue != nil {
+		return "", username, false, errorValue
+	}
+	if userID != "" {
+		return userID, username, true, nil
+	}
+	userID, errorValue = client.createUser(adminToken, member, username)
+	if errorValue == nil {
+		return userID, username, false, nil
+	}
+	userID, lookupError := client.findUserIDByEmail(adminToken, member.Email)
+	if lookupError != nil {
+		return "", username, false, lookupError
+	}
+	if userID != "" {
+		return userID, username, true, nil
+	}
+	fallbackUsername := mattermostUsernameWithEmailSuffix(username, member.Email)
+	if fallbackUsername == username {
+		return "", username, false, errorValue
+	}
+	userID, errorValue = client.createUser(adminToken, member, fallbackUsername)
+	if errorValue != nil {
+		return "", fallbackUsername, false, errorValue
+	}
+	return userID, fallbackUsername, false, nil
+}
+
+func (client mattermostBootstrapClient) findUserIDByEmail(adminToken string, email string) (string, error) {
+	response, errorValue := client.request(http.MethodGet, "/api/v4/users/email/"+url.PathEscape(strings.TrimSpace(email)), adminToken, nil)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	if response.StatusCode == http.StatusNotFound {
+		return "", nil
+	}
+	if !isSuccessStatus(response.StatusCode) {
+		return "", errors.New("Mattermost user lookup failed: " + response.errorMessage())
+	}
+	return response.stringField("id"), nil
+}
+
+func (client mattermostBootstrapClient) createUser(adminToken string, member MattermostBootstrapMember, username string) (string, error) {
+	response, errorValue := client.request(http.MethodPost, "/api/v4/users", adminToken, map[string]string{
+		"email":      strings.TrimSpace(member.Email),
+		"username":   username,
+		"password":   member.Password,
+		"first_name": strings.TrimSpace(member.Name),
+		"nickname":   strings.TrimSpace(member.Name),
+	})
+	if errorValue != nil {
+		return "", errorValue
+	}
+	userID := response.stringField("id")
+	if !isSuccessStatus(response.StatusCode) || userID == "" {
+		return "", errors.New("Mattermost user create failed: " + response.errorMessage())
+	}
+	return userID, nil
+}
+
+func mattermostUsernameFromEmail(email string) string {
+	localPart := strings.Split(strings.TrimSpace(strings.ToLower(email)), "@")[0]
+	username := mattermostUsernameInvalidCharacterPattern.ReplaceAllString(localPart, "-")
+	username = strings.Trim(username, "._-")
+	if len(username) > 22 {
+		username = username[:22]
+		username = strings.Trim(username, "._-")
+	}
+	if len(username) >= 3 {
+		return username
+	}
+	if username == "" {
+		return "user"
+	}
+	return username + strings.Repeat("0", 3-len(username))
+}
+
+func mattermostUsernameWithEmailSuffix(username string, email string) string {
+	digest := sha256.Sum256([]byte(strings.TrimSpace(strings.ToLower(email))))
+	suffix := hex.EncodeToString(digest[:])[:6]
+	prefixLength := 22 - len(suffix) - 1
+	if prefixLength <= 0 {
+		return username
+	}
+	prefix := username
+	if len(prefix) > prefixLength {
+		prefix = strings.Trim(prefix[:prefixLength], "._-")
+	}
+	if prefix == "" {
+		prefix = "user"
+	}
+	return prefix + "-" + suffix
+}
+
+func successfulMattermostMemberUserIDs(results []MattermostBootstrapMemberResult) []string {
+	userIDs := []string{}
+	for _, result := range results {
+		if strings.TrimSpace(result.UserID) != "" && result.Outcome != "failed" {
+			userIDs = append(userIDs, result.UserID)
+		}
+	}
+	return userIDs
 }
 
 func (client mattermostBootstrapClient) ensureBot(adminToken string, teamID string) (string, string, error) {
@@ -525,6 +777,14 @@ func (client mattermostBootstrapClient) request(method string, path string, toke
 }
 
 func inviteMattermostBootstrapBlueclawAdmin(tenantID string, adminEmail string, options MattermostFleetBootstrapOptions) (bool, error) {
+	return inviteMattermostBootstrapBlueclawPerson(tenantID, "admin", adminEmail, "Intern Kim Admin", options)
+}
+
+func inviteMattermostBootstrapBlueclawMember(tenantID string, member MattermostBootstrapMember, username string, options MattermostFleetBootstrapOptions) (bool, error) {
+	return inviteMattermostBootstrapBlueclawPerson(tenantID, username, member.Email, member.Name, options)
+}
+
+func inviteMattermostBootstrapBlueclawPerson(tenantID string, personIDPart string, email string, displayName string, options MattermostFleetBootstrapOptions) (bool, error) {
 	template := strings.TrimSpace(options.BlueclawURLTemplate)
 	if template == "" {
 		return false, nil
@@ -532,15 +792,15 @@ func inviteMattermostBootstrapBlueclawAdmin(tenantID string, adminEmail string, 
 	baseURL := expandMattermostBootstrapBlueclawTemplate(template, tenantID)
 	client := mattermostBootstrapClient{baseURL: strings.TrimRight(baseURL, "/"), httpClient: http.DefaultClient}
 	response, errorValue := client.request(http.MethodPost, "/admin/api/people/invite", "", map[string]string{
-		"personID":    "tenant:" + strings.TrimSpace(tenantID) + ":admin",
-		"email":       strings.TrimSpace(adminEmail),
-		"displayName": "Intern Kim Admin",
+		"personID":    "tenant-" + strings.TrimSpace(tenantID) + "-" + strings.TrimSpace(personIDPart),
+		"email":       strings.TrimSpace(email),
+		"displayName": strings.TrimSpace(displayName),
 	})
 	if errorValue != nil {
 		return false, errorValue
 	}
 	if !isSuccessStatus(response.StatusCode) {
-		return false, errors.New("Blueclaw admin invite failed")
+		return false, errors.New("Blueclaw invite failed")
 	}
 	return true, nil
 }
@@ -561,6 +821,16 @@ func (response mattermostBootstrapResponse) stringField(name string) string {
 		return ""
 	}
 	return strings.TrimSpace(value)
+}
+
+func (response mattermostBootstrapResponse) errorMessage() string {
+	for _, fieldName := range []string{"message", "error", "id"} {
+		value := response.stringField(fieldName)
+		if value != "" {
+			return value
+		}
+	}
+	return http.StatusText(response.StatusCode)
 }
 
 func isSuccessStatus(statusCode int) bool {

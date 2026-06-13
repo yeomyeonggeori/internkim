@@ -103,6 +103,8 @@ func (service Service) RunScenario(contextValue context.Context, logger Logger, 
 		return service.runPlans(contextValue, logger, service.dmRecipientResolveScenarioPlans())
 	case "mattermost-bot-invited":
 		return service.runPlans(contextValue, logger, service.mattermostScenarioPlans())
+	case "mattermost-direct-message-send":
+		return service.runPlans(contextValue, logger, service.mattermostDirectMessageScenarioPlans())
 	case "restart-policy-survival":
 		return service.runPlans(contextValue, logger, service.restartPolicySurvivalScenarioPlans())
 	case "web-backed-ui", "regression-proof":
@@ -165,14 +167,12 @@ func (service Service) configurationDocument() map[string]any {
 	return map[string]any{
 		"host": map[string]any{"mode": "single-mac"},
 		"vm": map[string]any{
-			"tart": map[string]any{
-				"binaryPath":    "tart",
-				"name":          service.options.VirtualMachineName,
-				"image":         "ghcr.io/cirruslabs/ubuntu:latest",
-				"nestedEnabled": true,
-				"cpuCount":      6,
-				"memoryMiB":     8192,
-				"diskGiB":       80,
+			"container": map[string]any{
+				"binaryPath": "container",
+				"name":       service.options.VirtualMachineName,
+				"image":      "ubuntu:24.04",
+				"cpuCount":   6,
+				"memoryMiB":  8192,
 			},
 			"mattermost":          map[string]any{"listenAddress": "127.0.0.1:8065"},
 			"sharedWorkspacePath": service.options.RepositoryRootPath,
