@@ -205,7 +205,65 @@ func decodeToolInvokeRequest(toolName string, reader io.Reader) (capabilities.To
 	if strings.TrimSpace(request.ToolName) == "" {
 		request.ToolName = toolName
 	}
+	toolContext, errorValue := validateToolInvokeContext(request.Context)
+	if errorValue != nil {
+		return capabilities.ToolInvokeRequest{}, errorValue
+	}
+	request.Context = toolContext
 	return request, nil
+}
+
+func validateToolInvokeContext(toolContext capabilities.ToolInvokeContext) (capabilities.ToolInvokeContext, error) {
+	requesterPersonID := strings.TrimSpace(toolContext.RequesterPersonID)
+	if requesterPersonID == "" {
+		if toolContext.IsScheduledRun || toolContext.IsApprovalContinuation {
+			return capabilities.ToolInvokeContext{}, errors.New("requesterPersonID is required for scheduled runs and approval continuations")
+		}
+		return toolContext, nil
+	}
+	if !isPlausibleRequesterPersonID(requesterPersonID) {
+		return capabilities.ToolInvokeContext{}, errors.New("requesterPersonID is invalid")
+	}
+	toolContext.RequesterPersonID = requesterPersonID
+	return toolContext, nil
+}
+
+func isPlausibleRequesterPersonID(requesterPersonID string) bool {
+	if len(requesterPersonID) > 128 {
+		return false
+	}
+	if !isRequesterPersonIDAlphanumeric(rune(requesterPersonID[0])) {
+		return false
+	}
+	normalizedRequesterPersonID := strings.ToLower(requesterPersonID)
+	switch normalizedRequesterPersonID {
+	case "root", "blueclaw", "system", "admin", "unknown":
+		return false
+	}
+	for _, character := range requesterPersonID {
+		if isRequesterPersonIDCharacter(character) {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func isRequesterPersonIDAlphanumeric(character rune) bool {
+	if character >= 'a' && character <= 'z' {
+		return true
+	}
+	if character >= 'A' && character <= 'Z' {
+		return true
+	}
+	return character >= '0' && character <= '9'
+}
+
+func isRequesterPersonIDCharacter(character rune) bool {
+	if isRequesterPersonIDAlphanumeric(character) {
+		return true
+	}
+	return character == '-' || character == '_' || character == '.'
 }
 
 func (router CapabilityRouter) ShouldRouteToCompanion(request capabilities.ToolInvokeRequest) bool {

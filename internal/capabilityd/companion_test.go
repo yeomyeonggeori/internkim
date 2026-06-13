@@ -106,6 +106,54 @@ func TestCompanionStructuredProviderRejectsEmptyContent(t *testing.T) {
 	}
 }
 
+func TestDecodeToolInvokeRequestRequiresRequesterPersonIDForTrustedFlags(t *testing.T) {
+	_, errorValue := decodeToolInvokeRequest("platform.message.send", strings.NewReader(`{
+		"context": {
+			"isScheduledRun": true
+		}
+	}`))
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "requesterPersonID is required") {
+		t.Fatalf("expected requesterPersonID requirement, got %v", errorValue)
+	}
+}
+
+func TestDecodeToolInvokeRequestRejectsReservedRequesterPersonID(t *testing.T) {
+	_, errorValue := decodeToolInvokeRequest("platform.message.send", strings.NewReader(`{
+		"context": {
+			"requesterPersonID": "blueclaw"
+		}
+	}`))
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "requesterPersonID is invalid") {
+		t.Fatalf("expected invalid requesterPersonID, got %v", errorValue)
+	}
+}
+
+func TestDecodeToolInvokeRequestRejectsMalformedRequesterPersonID(t *testing.T) {
+	_, errorValue := decodeToolInvokeRequest("platform.message.send", strings.NewReader(`{
+		"context": {
+			"requesterPersonID": "../person-1"
+		}
+	}`))
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "requesterPersonID is invalid") {
+		t.Fatalf("expected invalid requesterPersonID, got %v", errorValue)
+	}
+}
+
+func TestDecodeToolInvokeRequestAcceptsPlausibleRequesterPersonID(t *testing.T) {
+	request, errorValue := decodeToolInvokeRequest("platform.message.send", strings.NewReader(`{
+		"context": {
+			"requesterPersonID": " person-1 ",
+			"isApprovalContinuation": true
+		}
+	}`))
+	if errorValue != nil {
+		t.Fatalf("expected valid requesterPersonID: %v", errorValue)
+	}
+	if request.Context.RequesterPersonID != "person-1" {
+		t.Fatalf("expected trimmed requesterPersonID, got %q", request.Context.RequesterPersonID)
+	}
+}
+
 func TestCompanionStructuredProviderRejectsDeniedToolResponse(t *testing.T) {
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		result, _ := json.Marshal(capabilities.DenialResult{
