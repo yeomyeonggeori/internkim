@@ -62,7 +62,7 @@ Deploy a release to the target device over Admin HTTPS.
 
 Options:
   --components <list>  Comma-separated component names to include.
-                       Available: admind, blueclawPayload, capabilityd, internkim, skills, web
+                       Available: admind, blueclawPayload, capabilityd, internkim, mattermostPlugins, skills, web
                        Example: --components admind,web
   --release <id>       Override the release ID.
   --channel <name>     Override the release channel (default: stable).
@@ -73,21 +73,21 @@ Options:
 
 func validateDeployArguments(arguments []string) error {
 	knownFlags := map[string]bool{
-		"--help":        true,
-		"-h":            true,
-		"--components":  true,
-		"--release":     true,
-		"--channel":     true,
-		"--node":        true,
-		"--node-id":     true,
-		"--host":        true,
-		"--legacy-ssh":  true,
-		"--all-active":  true,
-		"--board":       true,
-		"--board-type":  true,
-		"--sim":         true,
-		"--sim-name":    true,
-		"--":            true,
+		"--help":       true,
+		"-h":           true,
+		"--components": true,
+		"--release":    true,
+		"--channel":    true,
+		"--node":       true,
+		"--node-id":    true,
+		"--host":       true,
+		"--legacy-ssh": true,
+		"--all-active": true,
+		"--board":      true,
+		"--board-type": true,
+		"--sim":        true,
+		"--sim-name":   true,
+		"--":           true,
 	}
 	knownValueFlags := map[string]bool{
 		"--components": true,

@@ -216,7 +216,7 @@ func TestSiteAppDescriptorsUseRuntimeInputNames(t *testing.T) {
 	assertSchemaOmitsProperties(t, createSchema, "name", "sourcePath")
 	assertSchemaHasProperties(t, previewSchema, "siteID", "slug", "message")
 	assertSchemaHasProperties(t, publishSchema, "siteID", "slug", "message")
-	assertSchemaHasProperties(t, statusSchema, "siteID", "slug")
+	assertSchemaHasProperties(t, statusSchema, "siteID", "slug", "scope", "checkLive")
 	assertSchemaHasProperties(t, historySchema, "siteID", "slug")
 	assertSchemaHasProperties(t, diffSchema, "siteID", "slug", "fromRevision", "toRevision")
 	assertSchemaHasProperties(t, deleteSchema, "siteID", "slug", "confirm", "userConfirmed")

@@ -19,7 +19,7 @@
 	<title>{text.title}</title>
 </svelte:head>
 
-<main class="grid h-[calc(100svh-48px)] min-h-0 grid-cols-[240px_minmax(320px,380px)_minmax(0,1fr)] overflow-hidden bg-background text-foreground max-lg:grid-cols-[260px_minmax(0,1fr)] max-md:grid-cols-1">
+<main class="grid h-[calc(100svh-48px)] min-h-0 w-full flex-1 grid-cols-[240px_minmax(320px,380px)_minmax(0,1fr)] overflow-hidden bg-background text-foreground max-lg:grid-cols-[260px_minmax(0,1fr)] max-md:grid-cols-1">
 	<MailSidebar
 		account={page.account}
 		mailboxes={page.pageMailboxes()}

@@ -5,16 +5,13 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
-
-const platformDMResolveEndpoint = "http://blueclaw.local/admin/api/identity/resolve-recipient"
-
-const platformDMResolvedGamyeong = `{"status":"resolved","recipient":{"personID":"person-gamyeong","displayName":"이샘플","emails":["gamyeong@example.com"],"externalUserID":"user-gamyeong"}}`
 
 func TestPlatformDMSendScheduledRunSendsMattermostDM(t *testing.T) {
 	tokenPath := writePlatformDMTestFile(t, "bot-token")
@@ -30,8 +27,8 @@ func TestPlatformDMSendScheduledRunSendsMattermostDM(t *testing.T) {
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			requestPaths = append(requestPaths, request.URL.String())
 			switch request.URL.String() {
-			case platformDMResolveEndpoint:
-				return platformDMTestJSONResponse(platformDMResolvedGamyeong), nil
+			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
+				return platformDMTestJSONResponse(platformDMResolvedGamyeongResponse()), nil
 			case "http://mattermost.local/api/v4/users/me":
 				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim"}`), nil
 			case "http://mattermost.local/api/v4/channels/direct":
@@ -75,45 +72,9 @@ func TestPlatformDMSendScheduledRunSendsMattermostDM(t *testing.T) {
 	}
 }
 
-func TestPlatformMessageSendRecipientHintSendsMattermostDM(t *testing.T) {
-	tokenPath := writePlatformDMTestFile(t, "bot-token")
-	service := platformDMTestService(t, tokenPath, platformDMResolvedGamyeong)
-
-	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.send",
-		Input:    []byte(`{"recipientHint":"샘플","message":"테스트"}`),
-		Context: capabilities.ToolInvokeContext{
-			IsScheduledRun: true,
-		},
-	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if response.Status != "sent" || response.IsError {
-		t.Fatalf("expected recipientHint DM to send, got %+v", response)
-	}
-}
-
-func TestPlatformMessageSendRejectsConflictingRecipientHint(t *testing.T) {
-	response, errorValue := Service{}.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.send",
-		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플"},"recipientHint":"다른 사람","message":"테스트"}`),
-		Context:  capabilities.ToolInvokeContext{IsScheduledRun: true},
-	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if response.Status != "error" || response.ErrorCode != "invalid_input" {
-		t.Fatalf("expected invalid input conflict, got %+v", response)
-	}
-	if !strings.Contains(response.Content, "recipientHint conflicts") {
-		t.Fatalf("expected conflict message, got %+v", response)
-	}
-}
-
 func TestPlatformDMSendImmediateRunRequiresApprovalContext(t *testing.T) {
 	tokenPath := writePlatformDMTestFile(t, "bot-token")
-	service := platformDMTestService(t, tokenPath, platformDMResolvedGamyeong)
+	service := platformDMTestService(t, tokenPath, platformDMResolvedGamyeongResponse())
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "platform.message.send",
@@ -134,7 +95,7 @@ func TestPlatformDMSendImmediateRunRequiresApprovalContext(t *testing.T) {
 
 func TestPlatformDMSendImmediateSelfDoesNotRequireApproval(t *testing.T) {
 	tokenPath := writePlatformDMTestFile(t, "bot-token")
-	service := platformDMTestService(t, tokenPath, platformDMResolvedGamyeong)
+	service := platformDMTestService(t, tokenPath, platformDMResolvedGamyeongResponse())
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "platform.message.send",
@@ -154,7 +115,7 @@ func TestPlatformDMSendImmediateSelfDoesNotRequireApproval(t *testing.T) {
 
 func TestPlatformDMSendApprovedContinuationSendsMattermostDM(t *testing.T) {
 	tokenPath := writePlatformDMTestFile(t, "bot-token")
-	service := platformDMTestService(t, tokenPath, platformDMResolvedGamyeong)
+	service := platformDMTestService(t, tokenPath, platformDMResolvedGamyeongResponse())
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "platform.message.send",
@@ -171,10 +132,9 @@ func TestPlatformDMSendApprovedContinuationSendsMattermostDM(t *testing.T) {
 	}
 }
 
-func TestPlatformDMSendUnlinkedRecipientFallsBackToEmailLookup(t *testing.T) {
+func TestPlatformDMSendMatchesMattermostNickname(t *testing.T) {
 	tokenPath := writePlatformDMTestFile(t, "bot-token")
-	unlinkedResolution := `{"status":"unlinked","recipient":{"personID":"person-gamyeong","displayName":"이샘플","emails":["gamyeong@example.com"]}}`
-	service := platformDMTestService(t, tokenPath, unlinkedResolution)
+	service := platformDMTestService(t, tokenPath, `{"status":"resolved","recipient":{"personID":"person-gamyeong","displayName":"이샘플","emails":["gamyeong@example.com"],"externalUserID":"user-gamyeong","username":"member-42"}}`)
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "platform.message.send",
@@ -187,101 +147,103 @@ func TestPlatformDMSendUnlinkedRecipientFallsBackToEmailLookup(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	if response.Status != "sent" || response.IsError {
-		t.Fatalf("expected unlinked fallback to send, got %+v", response)
+		t.Fatalf("expected Mattermost nickname match, got %+v", response)
 	}
 }
 
-func TestPlatformDMSendUnlinkedRecipientWithoutAccountFails(t *testing.T) {
+func TestResolvePlatformDMRecipientUsesBlueclawResolvedRecipient(t *testing.T) {
+	var requestBody map[string]string
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost || request.URL.Path != "/admin/api/identity/resolve-recipient" {
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+		}
+		if errorValue := json.NewDecoder(request.Body).Decode(&requestBody); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		responseWriter.Header().Set("Content-Type", "application/json")
+		_, _ = responseWriter.Write([]byte(platformDMResolvedGamyeongResponse()))
+	}))
+	defer server.Close()
+
+	service := Service{Configuration: Configuration{BlueclawBaseURL: server.URL}}
+	recipient, failure, hasFailure := service.resolvePlatformDMRecipient(context.Background(), "샘플")
+	if hasFailure {
+		t.Fatalf("expected resolved recipient, failure=%+v", failure)
+	}
+	if requestBody["platform"] != "mattermost" || requestBody["hint"] != "샘플" {
+		t.Fatalf("unexpected resolve request body: %+v", requestBody)
+	}
+	if recipient.PersonID != "person-gamyeong" || recipient.MattermostUserID != "user-gamyeong" || recipient.MattermostUsername != "gamyeong" {
+		t.Fatalf("unexpected resolved recipient: %+v", recipient)
+	}
+	if strings.Join(recipient.Emails, ",") != "gamyeong@example.com" {
+		t.Fatalf("unexpected recipient emails: %+v", recipient.Emails)
+	}
+}
+
+func TestResolvePlatformDMRecipientReturnsAmbiguousCandidates(t *testing.T) {
+	service := platformDMResolverTestService(t, `{"status":"ambiguous","candidates":[{"personID":"person-one","displayName":"Lee One","emails":["one@example.com"],"externalUserID":"user-one"},{"personID":"person-two","displayName":"Lee Two","emails":["two@example.com"],"externalUserID":"user-two"}]}`)
+
+	_, failure, hasFailure := service.resolvePlatformDMRecipient(context.Background(), "lee")
+	if !hasFailure {
+		t.Fatal("expected ambiguous failure")
+	}
+	if failure.ErrorCode != "recipient_ambiguous" || len(failure.Candidates) != 2 {
+		t.Fatalf("unexpected ambiguous failure: %+v", failure)
+	}
+	if failure.Candidates[0].MattermostUserID != "user-one" || failure.Candidates[1].MattermostUserID != "user-two" {
+		t.Fatalf("expected external user ids in candidates: %+v", failure.Candidates)
+	}
+}
+
+func TestResolvePlatformDMRecipientReturnsNotFound(t *testing.T) {
+	service := platformDMResolverTestService(t, `{"status":"not_found","approvedPeople":["이샘플"]}`)
+
+	_, failure, hasFailure := service.resolvePlatformDMRecipient(context.Background(), "없는사람")
+	if !hasFailure {
+		t.Fatal("expected not found failure")
+	}
+	if failure.ErrorCode != "recipient_not_found" || !strings.Contains(failure.Message, `recipient "없는사람" was not found`) {
+		t.Fatalf("unexpected not found failure: %+v", failure)
+	}
+}
+
+func TestResolvePlatformDMRecipientReturnsRetryableFailureWhenBlueclawUnreachable(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {}))
+	server.Close()
+	service := Service{Configuration: Configuration{BlueclawBaseURL: server.URL}}
+
+	_, failure, hasFailure := service.resolvePlatformDMRecipient(context.Background(), "샘플")
+	if !hasFailure {
+		t.Fatal("expected unavailable failure")
+	}
+	if failure.ErrorCode != "mattermost_unavailable" || failure.FailureStage != "mattermost_lookup" || !failure.Retryable || !failure.SafeRetry {
+		t.Fatalf("unexpected unavailable failure: %+v", failure)
+	}
+}
+
+func TestPlatformDMSendAmbiguousRecipientDoesNotSend(t *testing.T) {
 	tokenPath := writePlatformDMTestFile(t, "bot-token")
-	unlinkedResolution := `{"status":"unlinked","recipient":{"personID":"person-ghost","displayName":"유령","emails":["ghost@example.com"]}}`
-	service := Service{
-		Configuration: Configuration{
-			BlueclawBaseURL:     "http://blueclaw.local",
-			MattermostBaseURL:   "http://mattermost.local",
-			MattermostTokenPath: tokenPath,
+	service := platformDMTestService(t, tokenPath, `{"status":"ambiguous","candidates":[{"personID":"person-one","displayName":"Lee One","emails":["one@example.com"],"externalUserID":"user-one"},{"personID":"person-two","displayName":"Lee Two","emails":["two@example.com"],"externalUserID":"user-two"}]}`)
+
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "platform.message.send",
+		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"lee"},"message":"테스트"}`),
+		Context: capabilities.ToolInvokeContext{
+			IsScheduledRun: true,
 		},
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			switch request.URL.String() {
-			case platformDMResolveEndpoint:
-				return platformDMTestJSONResponse(unlinkedResolution), nil
-			case "http://mattermost.local/api/v4/users/email/ghost@example.com":
-				return platformDMTestStatusResponse(http.StatusNotFound, "not found"), nil
-			default:
-				t.Fatalf("unexpected request %s", request.URL.String())
-				return nil, nil
-			}
-		})},
-	}
-
-	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.send",
-		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"유령"},"message":"테스트"}`),
-		Context:  capabilities.ToolInvokeContext{IsScheduledRun: true},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	assertPlatformDMStructuredFailure(t, response, "error", "recipient_not_found", "recipient_resolve", false, false)
-}
-
-func TestPlatformDMSendNotFoundCarriesApprovedPeople(t *testing.T) {
-	tokenPath := writePlatformDMTestFile(t, "bot-token")
-	notFoundResolution := `{"status":"not_found","approvedPeople":["이샘플","김테스트"]}`
-	service := platformDMTestService(t, tokenPath, notFoundResolution)
-
-	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.send",
-		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"없는사람"},"message":"테스트"}`),
-		Context:  capabilities.ToolInvokeContext{IsScheduledRun: true},
-	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
+	if response.Status != "error" || !strings.Contains(response.Content, "ambiguous") {
+		t.Fatalf("expected ambiguous error, got %+v", response)
 	}
-	assertPlatformDMStructuredFailure(t, response, "error", "recipient_not_found", "recipient_resolve", false, false)
-	var failure platformDMFailure
-	if errorValue := json.Unmarshal(response.Result, &failure); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if len(failure.ApprovedPeople) != 2 {
-		t.Fatalf("expected approved people directory, got %+v", failure)
-	}
-	if !strings.Contains(response.Message, "김테스트") {
-		t.Fatalf("expected approved people in message, got %+v", response.Message)
-	}
-}
-
-func TestPlatformDMSendIdentityUnavailableIsRetryable(t *testing.T) {
-	tokenPath := writePlatformDMTestFile(t, "bot-token")
-	service := Service{
-		Configuration: Configuration{
-			BlueclawBaseURL:     "http://blueclaw.local",
-			MattermostBaseURL:   "http://mattermost.local",
-			MattermostTokenPath: tokenPath,
-		},
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			switch request.URL.String() {
-			case platformDMResolveEndpoint:
-				return platformDMTestStatusResponse(http.StatusServiceUnavailable, "blueclaw unavailable"), nil
-			default:
-				t.Fatalf("unexpected request %s", request.URL.String())
-				return nil, nil
-			}
-		})},
-	}
-
-	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "platform.message.send",
-		Input:    []byte(`{"deliveryTarget":{"type":"directMessage","personHint":"샘플"},"message":"테스트"}`),
-		Context:  capabilities.ToolInvokeContext{IsScheduledRun: true},
-	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	assertPlatformDMStructuredFailure(t, response, "error", "identity_unavailable", "recipient_resolve", true, true)
+	assertPlatformDMStructuredFailure(t, response, "error", "recipient_ambiguous", "recipient_resolve", false, false)
 }
 
 func TestPlatformDMSendMissingMattermostTokenDoesNotSend(t *testing.T) {
-	service := platformDMTestService(t, "/missing/token", platformDMResolvedGamyeong)
+	service := platformDMTestService(t, "/missing/token", platformDMResolvedGamyeongResponse())
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "platform.message.send",
@@ -309,8 +271,8 @@ func TestPlatformDMSendPostFailureIsNotSafeToRetry(t *testing.T) {
 		},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			switch request.URL.String() {
-			case platformDMResolveEndpoint:
-				return platformDMTestJSONResponse(platformDMResolvedGamyeong), nil
+			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
+				return platformDMTestJSONResponse(platformDMResolvedGamyeongResponse()), nil
 			case "http://mattermost.local/api/v4/users/me":
 				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim"}`), nil
 			case "http://mattermost.local/api/v4/channels/direct":
@@ -347,8 +309,8 @@ func TestPlatformDMSendDirectChannelFailureUsesSpecificStage(t *testing.T) {
 		},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			switch request.URL.String() {
-			case platformDMResolveEndpoint:
-				return platformDMTestJSONResponse(platformDMResolvedGamyeong), nil
+			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
+				return platformDMTestJSONResponse(platformDMResolvedGamyeongResponse()), nil
 			case "http://mattermost.local/api/v4/users/me":
 				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim"}`), nil
 			case "http://mattermost.local/api/v4/channels/direct":
@@ -376,7 +338,6 @@ func TestPlatformDMSendDirectChannelFailureUsesSpecificStage(t *testing.T) {
 func TestPlatformMessageSendAmbiguousRecipientReturnsCandidatesWithoutSending(t *testing.T) {
 	tokenPath := writePlatformDMTestFile(t, "bot-token")
 	requestPaths := []string{}
-	ambiguousResolution := `{"status":"ambiguous","candidates":[{"personID":"person-one","displayName":"Lee One","emails":["one@example.com"],"externalUserID":"user-one"},{"personID":"person-two","displayName":"Lee Two","emails":["two@example.com"],"externalUserID":"user-two"}]}`
 	service := Service{
 		Configuration: Configuration{
 			BlueclawBaseURL:     "http://blueclaw.local",
@@ -386,8 +347,10 @@ func TestPlatformMessageSendAmbiguousRecipientReturnsCandidatesWithoutSending(t 
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			requestPaths = append(requestPaths, request.URL.String())
 			switch request.URL.String() {
-			case platformDMResolveEndpoint:
-				return platformDMTestJSONResponse(ambiguousResolution), nil
+			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
+				return platformDMTestJSONResponse(`{"status":"ambiguous","candidates":[{"personID":"person-one","displayName":"Lee One","emails":["one@example.com"],"externalUserID":"user-one"},{"personID":"person-two","displayName":"Lee Two","emails":["two@example.com"],"externalUserID":"user-two"}]}`), nil
+			case "http://mattermost.local/api/v4/users/me":
+				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim"}`), nil
 			default:
 				t.Fatalf("unexpected request %s", request.URL.String())
 				return nil, nil
@@ -406,10 +369,13 @@ func TestPlatformMessageSendAmbiguousRecipientReturnsCandidatesWithoutSending(t 
 	if response.Status != "error" || response.ErrorCode != "recipient_ambiguous" {
 		t.Fatalf("expected ambiguous send failure, got %+v", response)
 	}
-	assertPlatformDMRequestCount(t, requestPaths, platformDMResolveEndpoint, 1)
-	if len(requestPaths) != 1 {
-		t.Fatalf("ambiguous resolution made extra requests: %+v", requestPaths)
+	if strings.Contains(strings.Join(requestPaths, "\n"), "/api/v4/posts") {
+		t.Fatalf("ambiguous send posted a message: %+v", requestPaths)
 	}
+	if strings.Contains(strings.Join(requestPaths, "\n"), "/api/v4/channels/direct") {
+		t.Fatalf("ambiguous send created a direct channel: %+v", requestPaths)
+	}
+	assertPlatformDMRequestCount(t, requestPaths, "http://blueclaw.local/admin/api/identity/resolve-recipient", 1)
 	var failure platformDMFailure
 	if errorValue := json.Unmarshal(response.Result, &failure); errorValue != nil {
 		t.Fatal(errorValue)
@@ -432,10 +398,8 @@ func platformDMTestService(t *testing.T, tokenPath string, resolutionDocument st
 		},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			switch request.URL.String() {
-			case platformDMResolveEndpoint:
+			case "http://blueclaw.local/admin/api/identity/resolve-recipient":
 				return platformDMTestJSONResponse(resolutionDocument), nil
-			case "http://mattermost.local/api/v4/users/email/gamyeong@example.com":
-				return platformDMTestJSONResponse(`{"id":"user-gamyeong","email":"gamyeong@example.com","username":"gamyeong"}`), nil
 			case "http://mattermost.local/api/v4/users/me":
 				return platformDMTestJSONResponse(`{"id":"bot-user","username":"internkim"}`), nil
 			case "http://mattermost.local/api/v4/channels/direct":
@@ -448,6 +412,23 @@ func platformDMTestService(t *testing.T, tokenPath string, resolutionDocument st
 			}
 		})},
 	}
+}
+
+func platformDMResolverTestService(t *testing.T, resolutionDocument string) Service {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost || request.URL.Path != "/admin/api/identity/resolve-recipient" {
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
+		}
+		responseWriter.Header().Set("Content-Type", "application/json")
+		_, _ = responseWriter.Write([]byte(resolutionDocument))
+	}))
+	t.Cleanup(server.Close)
+	return Service{Configuration: Configuration{BlueclawBaseURL: server.URL}}
+}
+
+func platformDMResolvedGamyeongResponse() string {
+	return `{"status":"resolved","recipient":{"personID":"person-gamyeong","displayName":"이샘플","emails":["gamyeong@example.com"],"externalUserID":"user-gamyeong","username":"gamyeong"}}`
 }
 
 func writePlatformDMTestFile(t *testing.T, value string) string {

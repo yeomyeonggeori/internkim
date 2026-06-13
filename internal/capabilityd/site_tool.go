@@ -41,6 +41,8 @@ type siteAppInput struct {
 	OwnerIdentity       siteAppIdentity `json:"ownerIdentity"`
 	Platform            string          `json:"platform"`
 	ConversationID      string          `json:"conversationID"`
+	Scope               string          `json:"scope"`
+	CheckLive           bool            `json:"checkLive"`
 }
 
 type siteAppRecord struct {
@@ -59,9 +61,12 @@ type siteAppRecord struct {
 	Platform         string                `json:"platform"`
 	ConversationID   string                `json:"conversationID"`
 	Status           string                `json:"status"`
+	LastError        string                `json:"lastError"`
+	WorkspaceHealth  string                `json:"workspaceHealth"`
 	DraftPath        string                `json:"draftPath"`
 	AppWorkspacePath string                `json:"appWorkspacePath"`
 	UpdatedAt        time.Time             `json:"updatedAt"`
+	LiveHTTPStatus   int                   `json:"liveHTTPStatus"`
 }
 
 type siteAppListResponse struct {
@@ -206,6 +211,13 @@ func (service Service) previewAdmindSite(ctx context.Context, inputDocument json
 }
 
 func (service Service) getAdmindSiteStatus(ctx context.Context, input siteAppInput) (json.RawMessage, error) {
+	if input.Scope == "mine" {
+		sites, errorValue := service.listMatchingSiteAppRecords(ctx, input)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		return json.Marshal(map[string]any{"status": "ok", "sites": siteAppCompactRecords(sites)})
+	}
 	if input.SiteID != "" || input.Slug != "" {
 		siteID, errorValue := service.resolveAdmindSiteID(ctx, input)
 		if errorValue != nil {
@@ -327,10 +339,14 @@ func decodeSiteAppInput(document json.RawMessage) (siteAppInput, error) {
 	input.Archetype = strings.TrimSpace(input.Archetype)
 	input.Platform = strings.TrimSpace(input.Platform)
 	input.ConversationID = strings.TrimSpace(input.ConversationID)
+	input.Scope = strings.TrimSpace(input.Scope)
 	input.FromRevision = strings.TrimSpace(input.FromRevision)
 	input.ToRevision = strings.TrimSpace(input.ToRevision)
 	input.Revision = strings.TrimSpace(input.Revision)
-	if input.SiteID == "" && input.Slug == "" && input.ConversationID == "" {
+	if input.Scope == "" {
+		input.Scope = "conversation"
+	}
+	if input.SiteID == "" && input.Slug == "" && input.ConversationID == "" && input.Scope != "mine" {
 		return siteAppInput{}, errors.New("siteID, slug, or conversationID is required")
 	}
 	return input, nil
@@ -355,7 +371,15 @@ func (service Service) resolveAdmindSiteID(ctx context.Context, input siteAppInp
 }
 
 func (service Service) listMatchingSiteAppRecords(ctx context.Context, input siteAppInput) ([]siteAppRecord, error) {
-	listDocument, errorValue := service.getAdmindSite(ctx, "/admin/api/sites")
+	path := "/admin/api/sites"
+	query := url.Values{}
+	if input.CheckLive {
+		query.Set("checkLive", "true")
+	}
+	if encodedQuery := query.Encode(); encodedQuery != "" {
+		path += "?" + encodedQuery
+	}
+	listDocument, errorValue := service.getAdmindSite(ctx, path)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -374,6 +398,12 @@ func matchSiteAppRecords(sites []siteAppRecord, input siteAppInput) []siteAppRec
 		}
 	}
 	for _, site := range sites {
+		if input.Scope == "mine" {
+			if siteAppRecordCanEdit(site, input) {
+				matches = append(matches, site)
+			}
+			continue
+		}
 		if input.ConversationID == "" || site.ConversationID != input.ConversationID {
 			continue
 		}
@@ -386,6 +416,29 @@ func matchSiteAppRecords(sites []siteAppRecord, input siteAppInput) []siteAppRec
 		matches = append(matches, site)
 	}
 	return matches
+}
+
+func siteAppCompactRecords(sites []siteAppRecord) []map[string]any {
+	records := []map[string]any{}
+	for _, site := range sites {
+		record := map[string]any{
+			"siteID":          site.SiteID,
+			"slug":            site.Slug,
+			"title":           site.Title,
+			"status":          site.Status,
+			"lastError":       site.LastError,
+			"workspaceHealth": site.WorkspaceHealth,
+			"updatedAt":       site.UpdatedAt,
+		}
+		if site.Status == "published" && strings.TrimSpace(site.PublishedURL) != "" {
+			record["publishedURL"] = site.PublishedURL
+		}
+		if site.LiveHTTPStatus != 0 {
+			record["liveHTTPStatus"] = site.LiveHTTPStatus
+		}
+		records = append(records, record)
+	}
+	return records
 }
 
 func siteAppCandidateSummaries(sites []siteAppRecord) []map[string]any {
