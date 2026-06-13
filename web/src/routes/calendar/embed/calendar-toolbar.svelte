@@ -19,7 +19,7 @@
 		goToPrevious: () => void;
 		goToNext: () => void;
 		navigateToSearchResult: (result: CalendarSearchResult) => void;
-		createQuickEvent: () => void;
+		createQuickEvent: (event: MouseEvent) => void;
 	};
 
 	let {
@@ -53,7 +53,7 @@
 	</div>
 	<CalendarSearchBox bind:searchText {searchResults} {navigateToSearchResult} />
 	<CalendarViewSwitcher {toolbarView} {changeCalendarView} />
-	<button type="button" class="new-event-button" onclick={createQuickEvent}>
+	<button type="button" class="new-event-button" onclick={(event) => createQuickEvent(event)}>
 		<PlusIcon class="size-4" />
 		<span>{text.new}</span>
 	</button>

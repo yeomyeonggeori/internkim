@@ -55,6 +55,16 @@ type CalendarLocaleText = {
 	month: string;
 	new: string;
 	newEvent: string;
+	draftPopover: {
+		calendar: string;
+		cancel: string;
+		complete: string;
+		delete: string;
+		startDate: string;
+		endDate: string;
+		startTime: string;
+		endTime: string;
+	};
 	eventAudit: string;
 	conflictBannerTitle: string;
 	conflictBannerDescription: string;
@@ -123,6 +133,16 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		month: '월',
 		new: '새로 만들기',
 		newEvent: '새 일정',
+		draftPopover: {
+			calendar: '캘린더',
+			cancel: '취소',
+			complete: '완료',
+			delete: '삭제',
+			startDate: '시작 날짜',
+			endDate: '종료 날짜',
+			startTime: '시작 시간',
+			endTime: '종료 시간'
+		},
 		eventAudit: '일정 변경 이력',
 		conflictBannerTitle: '외부에서 변경된 일정이 있습니다',
 		conflictBannerDescription:
@@ -200,6 +220,16 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		month: 'Month',
 		new: 'New',
 		newEvent: 'New Event',
+		draftPopover: {
+			calendar: 'Calendar',
+			cancel: 'Cancel',
+			complete: 'Done',
+			delete: 'Delete',
+			startDate: 'Start date',
+			endDate: 'End date',
+			startTime: 'Start time',
+			endTime: 'End time'
+		},
 		eventAudit: 'Event audit',
 		conflictBannerTitle: 'External changes detected',
 		conflictBannerDescription:
