@@ -58,6 +58,8 @@ type Configuration struct {
 	ReleaseDownloadTokenPath       string
 	ReleaseSigningKeyPath          string
 	MattermostBotTokenPath         string
+	MattermostPluginBundlePath     string
+	MattermostConfigFilePath       string
 	AdminEmailPath                 string
 	ClaimedAdminEmailPath          string
 	FleetIDPath                    string
@@ -236,6 +238,8 @@ func DefaultConfiguration() Configuration {
 		ReleaseDownloadTokenPath:       "/root/.internkim/secrets/release-download-token",
 		ReleaseSigningKeyPath:          "/root/.internkim/secrets/release-signing-key",
 		MattermostBotTokenPath:         "/root/.internkim/secrets/mattermost-bot-token",
+		MattermostPluginBundlePath:     "/opt/internkim/mattermost-plugins/com.internkim.ephemeral-0.1.0.tar.gz",
+		MattermostConfigFilePath:       "/opt/mattermost/config/config.json",
 		AdminEmailPath:                 "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:          "/root/.internkim/state/admin/claimed-admin-email",
 		FleetIDPath:                    "/root/.internkim/env/fleet-id",
@@ -377,6 +381,7 @@ func (service *Service) startMattermostProvisionerSync(ctx context.Context) {
 		if errorValue := service.ensureMattermostProvisionerDefaults(syncContext); errorValue != nil {
 			log.Printf("Mattermost provisioner sync failed: %v", errorValue)
 		}
+		service.ensureMattermostEphemeralPluginWithRetry(ctx)
 	}()
 }
 
@@ -681,6 +686,8 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeServiceLogs(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/diagnostics/mattermost-post":
 		service.writeMattermostPostDiagnostic(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/diagnostics/sync-mattermost-plugins":
+		service.writeMattermostPluginSyncDiagnostic(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/locale":
 		service.writeAdminLocale(responseWriter)
 	case request.Method == http.MethodPut && path == "/locale":
