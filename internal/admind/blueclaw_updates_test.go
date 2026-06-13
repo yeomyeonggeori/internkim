@@ -1,7 +1,12 @@
 package admind
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
+	"log"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -148,6 +153,70 @@ func TestBlueclawPayloadInstallTargetsIncludeCanonicalAndTenants(t *testing.T) {
 	}
 }
 
+func TestDrainBlueclawTasksBeforeStopCompletesWhenActiveTasksReachZero(t *testing.T) {
+	runningRequestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/admin/api/task" {
+			http.NotFound(responseWriter, request)
+			return
+		}
+		status := request.URL.Query().Get("status")
+		if status == "running" {
+			runningRequestCount++
+		}
+		if status == "running" && runningRequestCount == 1 {
+			writeBlueclawTaskDrainResponse(t, responseWriter, []blueclawTaskRunListItem{{TaskRunID: "task-1", Status: "running"}})
+			return
+		}
+		writeBlueclawTaskDrainResponse(t, responseWriter, []blueclawTaskRunListItem{})
+	}))
+	defer server.Close()
+	service := NewService(Configuration{BlueclawBaseURL: server.URL})
+	service.HTTPClient = server.Client()
+
+	service.drainBlueclawTasksBeforeStopWithPollInterval(context.Background(), blueclawPayloadInstallTarget{Name: "blueclaw"}, 200*time.Millisecond, time.Millisecond)
+
+	if runningRequestCount < 2 {
+		t.Fatalf("expected drain to poll until zero tasks, got %d running requests", runningRequestCount)
+	}
+}
+
+func TestDrainBlueclawTasksBeforeStopTimesOutWithActiveTasks(t *testing.T) {
+	logOutput := captureBlueclawTaskDrainLogs(t)
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		writeBlueclawTaskDrainResponse(t, responseWriter, []blueclawTaskRunListItem{{TaskRunID: "task-1", Status: request.URL.Query().Get("status")}})
+	}))
+	defer server.Close()
+	service := NewService(Configuration{BlueclawBaseURL: server.URL})
+	service.HTTPClient = server.Client()
+
+	service.drainBlueclawTasksBeforeStopWithPollInterval(context.Background(), blueclawPayloadInstallTarget{Name: "blueclaw"}, 15*time.Millisecond, time.Millisecond)
+
+	if !strings.Contains(logOutput.String(), "timed out") {
+		t.Fatalf("expected timeout warning, got %s", logOutput.String())
+	}
+}
+
+func TestDrainBlueclawTasksBeforeStopReturnsImmediatelyWhenTaskAPIUnavailable(t *testing.T) {
+	logOutput := captureBlueclawTaskDrainLogs(t)
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		http.Error(responseWriter, "unavailable", http.StatusBadGateway)
+	}))
+	server.Close()
+	service := NewService(Configuration{BlueclawBaseURL: server.URL})
+	service.HTTPClient = server.Client()
+	startedAt := time.Now()
+
+	service.drainBlueclawTasksBeforeStopWithPollInterval(context.Background(), blueclawPayloadInstallTarget{Name: "blueclaw"}, 200*time.Millisecond, 50*time.Millisecond)
+
+	if time.Since(startedAt) >= 50*time.Millisecond {
+		t.Fatalf("expected immediate return when API is unavailable")
+	}
+	if !strings.Contains(logOutput.String(), "task API unavailable") {
+		t.Fatalf("expected unavailable warning, got %s", logOutput.String())
+	}
+}
+
 func TestHostWorkspacePayloadSyncCommandUsesTenantTarget(t *testing.T) {
 	target := blueclawPayloadInstallTarget{
 		HostWorkspacePath: "/srv/internkim/tenants/pilot-01/blueclaw/workspace",
@@ -203,6 +272,25 @@ func TestSyncBlueclawRuntimeConfigurationForTargetUpdatesMigrationPath(t *testin
 			t.Fatalf("expected current migration path in %s: %s", path, string(document))
 		}
 	}
+}
+
+func writeBlueclawTaskDrainResponse(t *testing.T, responseWriter http.ResponseWriter, taskRuns []blueclawTaskRunListItem) {
+	t.Helper()
+	responseWriter.Header().Set("Content-Type", "application/json")
+	if errorValue := json.NewEncoder(responseWriter).Encode(taskRuns); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
+
+func captureBlueclawTaskDrainLogs(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var output bytes.Buffer
+	previousWriter := log.Writer()
+	log.SetOutput(&output)
+	t.Cleanup(func() {
+		log.SetOutput(previousWriter)
+	})
+	return &output
 }
 
 func writeBlueclawPayloadTenantRuntimeConfiguration(t *testing.T, tenantBasePath string, tenantID string) {

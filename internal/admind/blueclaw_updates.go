@@ -11,7 +11,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -24,6 +26,16 @@ import (
 const blueclawUpdateChunkSize = 4 << 20
 const blueclawUpdateTenantBasePath = "/srv/internkim/tenants"
 const legacyBlueclawGuestMigrationPath = "/workspace/.blueclaw/migrations"
+const drainTimeoutDefault = 75 * time.Second
+const blueclawTaskDrainPollInterval = 5 * time.Second
+
+var blueclawPreStopActiveTaskStatuses = []string{
+	"planned",
+	"running",
+	"waiting_approval",
+	"waiting_user_input",
+	"blocked",
+}
 
 type blueclawPayloadInstallTarget struct {
 	Name                              string
@@ -40,6 +52,11 @@ type blueclawPayloadRuntimeConfiguration struct {
 		HostWorkspacePath  string `json:"hostWorkspacePath"`
 		WorkspaceImagePath string `json:"workspaceImagePath"`
 	} `json:"firecracker"`
+}
+
+type blueclawTaskRunListItem struct {
+	TaskRunID string `json:"taskRunID"`
+	Status    string `json:"status"`
 }
 
 type BlueclawUpdateUpload struct {
@@ -305,6 +322,7 @@ func (service *Service) installBlueclawPayloadArtifactForTarget(ctx context.Cont
 		return fmt.Errorf("%s: sync blueclaw runtime configuration: %w", target.Name, errorValue)
 	}
 	service.updateJob(jobID, "running", "stopping", "")
+	service.drainBlueclawTasksBeforeStop(ctx, target, drainTimeoutDefault)
 	if output, errorValue := service.runCommand(ctx, "sh", "-lc", stopBlueclawPayloadTargetCommand(target)); errorValue != nil {
 		return fmt.Errorf("%s: stop blueclaw before payload sync: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
 	}
@@ -333,6 +351,80 @@ func (service *Service) installBlueclawPayloadArtifactForTarget(ctx context.Cont
 		return fmt.Errorf("%s: start blueclaw after payload sync: %s: %w", target.Name, strings.TrimSpace(string(output)), errorValue)
 	}
 	return nil
+}
+
+func (service *Service) drainBlueclawTasksBeforeStop(ctx context.Context, target blueclawPayloadInstallTarget, timeout time.Duration) {
+	service.drainBlueclawTasksBeforeStopWithPollInterval(ctx, target, timeout, blueclawTaskDrainPollInterval)
+}
+
+func (service *Service) drainBlueclawTasksBeforeStopWithPollInterval(ctx context.Context, target blueclawPayloadInstallTarget, timeout time.Duration, pollInterval time.Duration) {
+	if timeout <= 0 {
+		timeout = drainTimeoutDefault
+	}
+	if pollInterval <= 0 {
+		pollInterval = blueclawTaskDrainPollInterval
+	}
+	log.Printf("Blueclaw pre-stop drain for %s: no new-task pause/quiesce admin control is available; polling active tasks only", target.Name)
+	drainContext, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	for {
+		activeTaskCount, errorValue := service.fetchActiveBlueclawTaskCount(drainContext)
+		if errorValue != nil {
+			log.Printf("Blueclaw pre-stop drain for %s skipped: task API unavailable: %v", target.Name, errorValue)
+			return
+		}
+		if activeTaskCount == 0 {
+			log.Printf("Blueclaw pre-stop drain for %s completed: no active tasks", target.Name)
+			return
+		}
+		log.Printf("Blueclaw pre-stop drain for %s: waiting on %d active task(s)", target.Name, activeTaskCount)
+		select {
+		case <-time.After(pollInterval):
+		case <-drainContext.Done():
+			log.Printf("Blueclaw pre-stop drain for %s timed out after %s with %d active task(s); proceeding", target.Name, timeout, activeTaskCount)
+			return
+		}
+	}
+}
+
+func (service *Service) fetchActiveBlueclawTaskCount(ctx context.Context) (int, error) {
+	activeTaskCount := 0
+	for _, status := range blueclawPreStopActiveTaskStatuses {
+		taskRuns, errorValue := service.fetchBlueclawTaskRunsByStatus(ctx, status)
+		if errorValue != nil {
+			return 0, errorValue
+		}
+		activeTaskCount += countActiveBlueclawTaskRuns(taskRuns)
+	}
+	return activeTaskCount, nil
+}
+
+func (service *Service) fetchBlueclawTaskRunsByStatus(ctx context.Context, status string) ([]blueclawTaskRunListItem, error) {
+	path := "/admin/api/task?status=" + url.QueryEscape(status)
+	taskRuns := []blueclawTaskRunListItem{}
+	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, path, nil, &taskRuns); errorValue != nil {
+		return nil, errorValue
+	}
+	return taskRuns, nil
+}
+
+func countActiveBlueclawTaskRuns(taskRuns []blueclawTaskRunListItem) int {
+	activeTaskCount := 0
+	for _, taskRun := range taskRuns {
+		if isActiveBlueclawTaskStatus(taskRun.Status) {
+			activeTaskCount++
+		}
+	}
+	return activeTaskCount
+}
+
+func isActiveBlueclawTaskStatus(status string) bool {
+	for _, activeStatus := range blueclawPreStopActiveTaskStatuses {
+		if status == activeStatus {
+			return true
+		}
+	}
+	return false
 }
 
 func (service *Service) isBlueclawPayloadAlreadyCurrent(artifactPath string) bool {
