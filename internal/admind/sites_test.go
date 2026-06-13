@@ -841,6 +841,67 @@ func TestSiteRegistryPersistsAndAllocatesDistinctPorts(t *testing.T) {
 	}
 }
 
+func TestLoadSitesReconcilesInterruptedPublishingToFailed(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "interrupted"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	service.updateSiteStatus(site.SiteID, SiteStatusPublishing, "")
+
+	reloadedService := NewService(service.Configuration)
+	reloadedSite := reloadedService.findSiteByID(site.SiteID)
+	if reloadedSite == nil {
+		t.Fatal("reloaded site missing")
+	}
+	if reloadedSite.Status != SiteStatusFailed {
+		t.Fatalf("expected interrupted publishing site to load as failed, got %q", reloadedSite.Status)
+	}
+	if reloadedSite.LastError == "" {
+		t.Fatal("expected reconciled site to carry a lastError")
+	}
+}
+
+func TestFailedNeverPublishedSiteReleasesPort(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	failedSite, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "failed-never-published"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	service.updateSiteStatus(failedSite.SiteID, SiteStatusFailed, "build failed before publish")
+
+	if service.usedSitePorts()[failedSite.Port] {
+		t.Fatalf("expected failed never-published site to release port %d", failedSite.Port)
+	}
+
+	nextSite, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "reuses-port"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if nextSite.Port != failedSite.Port {
+		t.Fatalf("expected reclaimed port %d to be reused, got %d", failedSite.Port, nextSite.Port)
+	}
+}
+
+func TestPublishedFailedSiteKeepsPort(t *testing.T) {
+	service, _ := newTestSiteService(t)
+	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "published-then-failed"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	liveSite := service.findSiteByID(site.SiteID)
+	liveSite.CurrentVersionID = "v-live"
+	liveSite.Status = SiteStatusFailed
+	liveSite.LastError = "redeploy failed"
+	if errorValue := service.storeSite(liveSite); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if !service.usedSitePorts()[site.Port] {
+		t.Fatalf("expected failed site with a live version to keep port %d", site.Port)
+	}
+}
+
 func TestSiteWorkspaceIsWritableByRequesterTerminal(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	site, errorValue := service.createSiteRecord(siteCreateRequest{Slug: "terminal-writable"})
