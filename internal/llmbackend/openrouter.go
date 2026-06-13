@@ -147,7 +147,7 @@ func (backend OpenRouterBackend) send(ctx context.Context, apiKey string, reques
 		return "", Usage{}, errors.New("read openrouter response: " + errorValue.Error())
 	}
 	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return "", Usage{}, errors.New(string(responseDocument))
+		return "", Usage{}, normalizeProviderError("openrouter", httpResponse.StatusCode, responseDocument)
 	}
 	if len(bytes.TrimSpace(responseDocument)) == 0 {
 		return "", Usage{}, errors.New("openrouter response body was empty")
@@ -190,7 +190,7 @@ func (backend OpenRouterBackend) sendChatAction(ctx context.Context, apiKey stri
 		return "", Usage{}, errors.New("read openrouter response: " + errorValue.Error())
 	}
 	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return "", Usage{}, errors.New(openAIErrorWithNativeSchemaLint(string(responseDocument), lintResult))
+		return "", Usage{}, openAIErrorWithNativeSchemaLint("openrouter", httpResponse.StatusCode, responseDocument, lintResult)
 	}
 
 	var response openAIResponseWithUsage

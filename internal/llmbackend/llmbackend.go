@@ -171,7 +171,11 @@ func providerFailure(provider Provider, errorValue error) string {
 		return failure
 	}
 	if namedProvider, ok := provider.(interface{ Name() string }); ok {
-		return namedProvider.Name() + ": " + errorValue.Error()
+		providerName := namedProvider.Name()
+		if strings.HasPrefix(errorValue.Error(), providerName+": ") {
+			return errorValue.Error()
+		}
+		return providerName + ": " + errorValue.Error()
 	}
 	return errorValue.Error()
 }

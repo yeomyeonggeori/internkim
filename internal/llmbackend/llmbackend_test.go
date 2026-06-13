@@ -1365,6 +1365,117 @@ func (provider staticProvider) CompleteText(context.Context, TextRequest) (Respo
 	return provider.response, provider.errorValue
 }
 
+type namedStaticProvider struct {
+	name       string
+	errorValue error
+}
+
+func (provider namedStaticProvider) Name() string {
+	return provider.name
+}
+
+func (provider namedStaticProvider) CompleteStructured(context.Context, StructuredRequest) (Response, error) {
+	return Response{}, provider.errorValue
+}
+
+func (provider namedStaticProvider) CompleteText(context.Context, TextRequest) (Response, error) {
+	return Response{}, provider.errorValue
+}
+
+func TestOpenRouterBackendNormalizesHTTPErrorJSON(t *testing.T) {
+	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
+	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	rawBody := `{"error":{"message":"Schema rejected by provider","code":"bad_request","metadata":{"token":"sk-provider-secret","callbackURL":"https://internal.test/provider/debug"}}}`
+	backend := OpenRouterBackend{
+		KeyPath:   secretPath,
+		BaseURL:   "https://openrouter.test/api/v1/chat/completions",
+		ModelName: "test-model",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusBadRequest,
+				Body:       io.NopCloser(strings.NewReader(rawBody)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	_, errorValue := backend.CompleteText(context.Background(), TextRequest{
+		Messages: []Message{{Role: "user", Content: "hello"}},
+	})
+	if errorValue == nil {
+		t.Fatal("expected normalized provider error")
+	}
+	errorMessage := errorValue.Error()
+	if !strings.Contains(errorMessage, "openrouter: HTTP 400: Schema rejected by provider (bad_request)") {
+		t.Fatalf("expected compact provider status and message, got %v", errorValue)
+	}
+	if strings.Contains(errorMessage, rawBody) || strings.Contains(errorMessage, "metadata") || strings.Contains(errorMessage, "sk-provider-secret") || strings.Contains(errorMessage, "internal.test") {
+		t.Fatalf("expected raw provider body to be omitted, got %v", errorValue)
+	}
+}
+
+func TestOpenRouterBackendNormalizesHTTPErrorNonJSON(t *testing.T) {
+	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
+	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	rawBody := "upstream failed with token sk-provider-secret at https://internal.test/provider/debug"
+	backend := OpenRouterBackend{
+		KeyPath:   secretPath,
+		BaseURL:   "https://openrouter.test/api/v1/chat/completions",
+		ModelName: "test-model",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusBadGateway,
+				Body:       io.NopCloser(strings.NewReader(rawBody)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	_, errorValue := backend.CompleteText(context.Background(), TextRequest{
+		Messages: []Message{{Role: "user", Content: "hello"}},
+	})
+	if errorValue == nil {
+		t.Fatal("expected normalized provider error")
+	}
+	errorMessage := errorValue.Error()
+	if !strings.Contains(errorMessage, "openrouter: HTTP 502:") || !strings.Contains(errorMessage, "non-JSON response") {
+		t.Fatalf("expected status-coded non-JSON fallback, got %v", errorValue)
+	}
+	if strings.Contains(errorMessage, rawBody) || strings.Contains(errorMessage, "sk-provider-secret") || strings.Contains(errorMessage, "internal.test") {
+		t.Fatalf("expected non-JSON provider body to be omitted, got %v", errorValue)
+	}
+}
+
+func TestAutoProviderAggregatesNormalizedProviderErrors(t *testing.T) {
+	firstRawBody := []byte(`{"error":{"message":"First provider rejected schema","code":"invalid_schema","metadata":{"token":"sk-first-secret"}}}`)
+	secondRawBody := []byte(`{"error":{"message":"Second provider rejected schema","code":"bad_request","metadata":{"url":"https://internal.test/second"}}}`)
+	auto := AutoProvider{
+		Providers: []Provider{
+			namedStaticProvider{name: "openrouter", errorValue: normalizeProviderError("openrouter", http.StatusBadRequest, firstRawBody)},
+			namedStaticProvider{name: "llamacpp", errorValue: normalizeProviderError("llamacpp", http.StatusBadRequest, secondRawBody)},
+		},
+	}
+
+	_, errorValue := auto.CompleteText(context.Background(), TextRequest{})
+	if errorValue == nil {
+		t.Fatal("expected provider chain failure")
+	}
+	errorMessage := errorValue.Error()
+	if !strings.Contains(errorMessage, "openrouter: HTTP 400: First provider rejected schema (invalid_schema)") {
+		t.Fatalf("expected first compact provider error, got %v", errorValue)
+	}
+	if !strings.Contains(errorMessage, "llamacpp: HTTP 400: Second provider rejected schema (bad_request)") {
+		t.Fatalf("expected second compact provider error, got %v", errorValue)
+	}
+	if strings.Contains(errorMessage, string(firstRawBody)) || strings.Contains(errorMessage, string(secondRawBody)) || strings.Contains(errorMessage, "metadata") || strings.Contains(errorMessage, "sk-first-secret") || strings.Contains(errorMessage, "internal.test") {
+		t.Fatalf("expected aggregate error to omit raw provider bodies, got %v", errorValue)
+	}
+}
+
 func TestOpenRouterBackendPopulatesUsageFromStructuredResponse(t *testing.T) {
 	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
 	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {

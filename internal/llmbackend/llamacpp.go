@@ -77,8 +77,9 @@ func (backend LlamaCppBackend) CompleteText(ctx context.Context, request TextReq
 
 func (backend LlamaCppBackend) client() openAICompatClient {
 	return openAICompatClient{
-		BaseURL:    backend.BaseURL,
-		ModelName:  backend.ModelName,
-		HTTPClient: backend.HTTPClient,
+		ProviderName: "llamacpp",
+		BaseURL:      backend.BaseURL,
+		ModelName:    backend.ModelName,
+		HTTPClient:   backend.HTTPClient,
 	}
 }

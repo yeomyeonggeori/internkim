@@ -104,7 +104,7 @@ func (backend OllamaBackend) complete(ctx context.Context, messages []Message, f
 		return "", "", Usage{}, errors.New("read ollama response: " + errorValue.Error())
 	}
 	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return "", "", Usage{}, errors.New(string(responseDocument))
+		return "", "", Usage{}, normalizeProviderError("ollama", httpResponse.StatusCode, responseDocument)
 	}
 
 	var response ollamaResponse
@@ -147,7 +147,7 @@ func (backend OllamaBackend) StreamText(ctx context.Context, request TextRequest
 	defer httpResponse.Body.Close()
 	if httpResponse.StatusCode >= http.StatusBadRequest {
 		body, _ := io.ReadAll(httpResponse.Body)
-		return errors.New(string(body))
+		return normalizeProviderError("ollama", httpResponse.StatusCode, body)
 	}
 
 	decoder := json.NewDecoder(httpResponse.Body)

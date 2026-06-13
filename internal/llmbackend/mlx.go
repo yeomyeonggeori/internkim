@@ -41,8 +41,9 @@ func (backend MLXBackend) CompleteText(ctx context.Context, request TextRequest)
 
 func (backend MLXBackend) client() openAICompatClient {
 	return openAICompatClient{
-		BaseURL:    backend.BaseURL,
-		ModelName:  backend.ModelName,
-		HTTPClient: backend.HTTPClient,
+		ProviderName: "mlx",
+		BaseURL:      backend.BaseURL,
+		ModelName:    backend.ModelName,
+		HTTPClient:   backend.HTTPClient,
 	}
 }
