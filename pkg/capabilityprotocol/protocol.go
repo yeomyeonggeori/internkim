@@ -57,6 +57,7 @@ type RegistryResponse struct {
 type ToolInvokeRequest struct {
 	ToolName             string            `json:"toolName"`
 	Input                json.RawMessage   `json:"input"`
+	IdempotencyKey       string            `json:"idempotencyKey,omitempty"`
 	Context              ToolInvokeContext `json:"context,omitempty"`
 	Actor                ActorContext      `json:"actor,omitempty"`
 	ExecutionMode        string            `json:"executionMode"`

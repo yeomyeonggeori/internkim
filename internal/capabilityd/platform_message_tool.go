@@ -123,7 +123,7 @@ func (service Service) invokePlatformMessageSend(ctx context.Context, request ca
 	if hasFailure {
 		return mattermostToolErrorResponse(request.ToolName, failure), nil
 	}
-	result, failure, hasFailure := service.createPlatformMessagePost(ctx, channelID, rootID, input.Message, input.Pin)
+	result, failure, hasFailure := service.createPlatformMessagePost(ctx, channelID, rootID, input.Message, input.Pin, request.IdempotencyKey)
 	if hasFailure {
 		return mattermostToolErrorResponse(request.ToolName, failure), nil
 	}
@@ -138,7 +138,7 @@ func (service Service) invokePlatformMessageDirectSend(ctx context.Context, requ
 	if errorMessage := validatePlatformDMSendAuthorization(request.Context, recipient); errorMessage != "" {
 		return platformDMDeniedResponse(request.ToolName, platformDMStaticFailure("approval_required", "authorization", errorMessage)), nil
 	}
-	dispatchID, failure, hasFailure := service.sendMattermostDirectMessageWithDispatch(ctx, recipient.MattermostUserID, input.Message)
+	dispatchID, failure, hasFailure := service.sendMattermostDirectMessageWithDispatch(ctx, recipient.MattermostUserID, input.Message, request.IdempotencyKey)
 	if hasFailure {
 		return platformDMErrorResponse(request.ToolName, failure), nil
 	}
@@ -414,7 +414,7 @@ func (service Service) resolvePlatformMessageSendTarget(ctx context.Context, too
 	}
 }
 
-func (service Service) createPlatformMessagePost(ctx context.Context, channelID string, rootID string, message string, pin bool) (map[string]any, mattermostToolFailure, bool) {
+func (service Service) createPlatformMessagePost(ctx context.Context, channelID string, rootID string, message string, pin bool, idempotencyKey string) (map[string]any, mattermostToolFailure, bool) {
 	var postResponse struct {
 		ID string `json:"id"`
 	}
@@ -425,6 +425,13 @@ func (service Service) createPlatformMessagePost(ctx context.Context, channelID 
 	}
 	if strings.TrimSpace(rootID) != "" {
 		body["root_id"] = strings.TrimSpace(rootID)
+	}
+	if strings.TrimSpace(idempotencyKey) != "" {
+		if botUser, errorValue := service.resolveMattermostBotUser(ctx); errorValue == nil {
+			if pendingPostID := mattermostPendingPostID(botUser.ID, idempotencyKey); pendingPostID != "" {
+				body["pending_post_id"] = pendingPostID
+			}
+		}
 	}
 	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", body, &postResponse); errorValue != nil {
 		return nil, mattermostToolFailureForError("post_create", "mattermost_unavailable", errorValue), true

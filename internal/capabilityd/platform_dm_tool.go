@@ -192,7 +192,16 @@ func normalizePlatformDMMatchValue(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
-func (service Service) sendMattermostDirectMessageWithDispatch(ctx context.Context, userID string, message string) (string, platformDMFailure, bool) {
+func mattermostPendingPostID(botUserID string, idempotencyKey string) string {
+	trimmedKey := strings.TrimSpace(idempotencyKey)
+	trimmedBotUserID := strings.TrimSpace(botUserID)
+	if trimmedKey == "" || trimmedBotUserID == "" {
+		return ""
+	}
+	return trimmedBotUserID + ":" + trimmedKey
+}
+
+func (service Service) sendMattermostDirectMessageWithDispatch(ctx context.Context, userID string, message string, idempotencyKey string) (string, platformDMFailure, bool) {
 	botUser, errorValue := service.resolveMattermostBotUser(ctx)
 	if errorValue != nil {
 		return "", platformDMFailureForError("mattermost_lookup", "mattermost_unavailable", errorValue, true), true
@@ -212,6 +221,9 @@ func (service Service) sendMattermostDirectMessageWithDispatch(ctx context.Conte
 		ID string `json:"id"`
 	}
 	body := map[string]string{"channel_id": channelID, "message": message}
+	if pendingPostID := mattermostPendingPostID(botUser.ID, idempotencyKey); pendingPostID != "" {
+		body["pending_post_id"] = pendingPostID
+	}
 	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", body, &response); errorValue != nil {
 		return "", platformDMFailureForError("message_send", "send_failed", errorValue, false), true
 	}
