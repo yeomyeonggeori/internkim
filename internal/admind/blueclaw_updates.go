@@ -59,6 +59,15 @@ type blueclawTaskRunListItem struct {
 	Status    string `json:"status"`
 }
 
+type blueclawQuiesceRequest struct {
+	Enabled bool `json:"enabled"`
+}
+
+type blueclawQuiesceResponse struct {
+	Quiesced        bool `json:"quiesced"`
+	ActiveTaskCount int  `json:"activeTaskCount"`
+}
+
 type BlueclawUpdateUpload struct {
 	UploadID       string
 	Token          string
@@ -364,12 +373,16 @@ func (service *Service) drainBlueclawTasksBeforeStopWithPollInterval(ctx context
 	if pollInterval <= 0 {
 		pollInterval = blueclawTaskDrainPollInterval
 	}
-	log.Printf("Blueclaw pre-stop drain for %s: no new-task pause/quiesce admin control is available; polling active tasks only", target.Name)
+	service.engageBlueclawQuiesce(ctx, target)
 	drainContext, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	for {
 		activeTaskCount, errorValue := service.fetchActiveBlueclawTaskCount(drainContext)
 		if errorValue != nil {
+			if drainContext.Err() != nil {
+				log.Printf("Blueclaw pre-stop drain for %s timed out after %s; proceeding", target.Name, timeout)
+				return
+			}
 			log.Printf("Blueclaw pre-stop drain for %s skipped: task API unavailable: %v", target.Name, errorValue)
 			return
 		}
@@ -385,6 +398,16 @@ func (service *Service) drainBlueclawTasksBeforeStopWithPollInterval(ctx context
 			return
 		}
 	}
+}
+
+func (service *Service) engageBlueclawQuiesce(ctx context.Context, target blueclawPayloadInstallTarget) {
+	requestBody := blueclawQuiesceRequest{Enabled: true}
+	response := blueclawQuiesceResponse{}
+	if errorValue := service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/quiesce", requestBody, &response); errorValue != nil {
+		log.Printf("Blueclaw pre-stop drain for %s: quiesce control unavailable, polling active tasks only: %v", target.Name, errorValue)
+		return
+	}
+	log.Printf("Blueclaw pre-stop drain for %s: new-task intake quiesced (%d active task(s))", target.Name, response.ActiveTaskCount)
 }
 
 func (service *Service) fetchActiveBlueclawTaskCount(ctx context.Context) (int, error) {
