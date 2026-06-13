@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/mattermost/mattermost/server/public/model"
 	"github.com/mattermost/mattermost/server/public/plugin"
 )
 
@@ -19,7 +18,7 @@ type configuration struct {
 
 type Plugin struct {
 	plugin.MattermostPlugin
-	updater             ephemeralPostUpdater
+	deleter             ephemeralPostDeleter
 	configurationLock   sync.RWMutex
 	activeConfiguration *configuration
 }
@@ -35,20 +34,17 @@ func (pluginValue *Plugin) OnConfigurationChange() error {
 	return nil
 }
 
-type ephemeralPostUpdater interface {
-	updateEphemeralPost(userID string, post *model.Post) error
+type ephemeralPostDeleter interface {
+	deleteEphemeralPost(userID string, postID string)
 }
 
-type pluginAPIUpdater struct {
+type pluginAPIDeleter struct {
 	api plugin.API
 }
 
-type updateEphemeralRequest struct {
-	UserID    string `json:"userID"`
-	PostID    string `json:"postID"`
-	ChannelID string `json:"channelID"`
-	RootID    string `json:"rootID"`
-	Message   string `json:"message"`
+type deleteEphemeralRequest struct {
+	UserID string `json:"userID"`
+	PostID string `json:"postID"`
 }
 
 func main() {
@@ -56,24 +52,21 @@ func main() {
 }
 
 func (pluginValue *Plugin) ServeHTTP(_ *plugin.Context, responseWriter http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodPost || request.URL.Path != "/api/v1/update-ephemeral" {
+	if request.Method != http.MethodPost || request.URL.Path != "/api/v1/delete-ephemeral" {
 		http.NotFound(responseWriter, request)
 		return
 	}
 	if !pluginValue.isValidToken(request.Header.Get("X-InternKim-Token")) {
-		pluginValue.API.LogWarn("update-ephemeral rejected: token mismatch", "hasConfiguredSecret", pluginValue.sharedSecret() != "")
+		pluginValue.API.LogWarn("delete-ephemeral rejected: token mismatch", "hasConfiguredSecret", pluginValue.sharedSecret() != "")
 		http.Error(responseWriter, "invalid token", http.StatusUnauthorized)
 		return
 	}
-	payload, errorValue := decodeUpdateEphemeralRequest(request)
+	payload, errorValue := decodeDeleteEphemeralRequest(request)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	if errorValue := pluginValue.ephemeralPostUpdater().updateEphemeralPost(payload.UserID, payload.post()); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
+	pluginValue.ephemeralPostDeleter().deleteEphemeralPost(payload.UserID, payload.PostID)
 	responseWriter.WriteHeader(http.StatusOK)
 }
 
@@ -91,40 +84,26 @@ func (pluginValue *Plugin) sharedSecret() string {
 	return strings.TrimSpace(pluginValue.activeConfiguration.Secret)
 }
 
-func (pluginValue *Plugin) ephemeralPostUpdater() ephemeralPostUpdater {
-	if pluginValue.updater != nil {
-		return pluginValue.updater
+func (pluginValue *Plugin) ephemeralPostDeleter() ephemeralPostDeleter {
+	if pluginValue.deleter != nil {
+		return pluginValue.deleter
 	}
-	return pluginAPIUpdater{api: pluginValue.API}
+	return pluginAPIDeleter{api: pluginValue.API}
 }
 
-func decodeUpdateEphemeralRequest(request *http.Request) (updateEphemeralRequest, error) {
-	var payload updateEphemeralRequest
+func decodeDeleteEphemeralRequest(request *http.Request) (deleteEphemeralRequest, error) {
+	var payload deleteEphemeralRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-		return updateEphemeralRequest{}, errorValue
+		return deleteEphemeralRequest{}, errorValue
 	}
 	payload.UserID = strings.TrimSpace(payload.UserID)
 	payload.PostID = strings.TrimSpace(payload.PostID)
-	payload.ChannelID = strings.TrimSpace(payload.ChannelID)
-	payload.RootID = strings.TrimSpace(payload.RootID)
-	payload.Message = strings.TrimSpace(payload.Message)
-	if payload.UserID == "" || payload.PostID == "" || payload.ChannelID == "" || payload.Message == "" {
-		return updateEphemeralRequest{}, errors.New("userID, postID, channelID, and message are required")
+	if payload.UserID == "" || payload.PostID == "" {
+		return deleteEphemeralRequest{}, errors.New("userID and postID are required")
 	}
 	return payload, nil
 }
 
-func (payload updateEphemeralRequest) post() *model.Post {
-	return &model.Post{
-		Id:        payload.PostID,
-		ChannelId: payload.ChannelID,
-		RootId:    payload.RootID,
-		Message:   payload.Message,
-		Props:     model.StringInterface{"attachments": []interface{}{}},
-	}
-}
-
-func (updater pluginAPIUpdater) updateEphemeralPost(userID string, post *model.Post) error {
-	updater.api.UpdateEphemeralPost(userID, post)
-	return nil
+func (deleter pluginAPIDeleter) deleteEphemeralPost(userID string, postID string) {
+	deleter.api.DeleteEphemeralPost(userID, postID)
 }

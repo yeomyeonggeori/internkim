@@ -10,16 +10,16 @@ import (
 	"github.com/mattermost/mattermost/server/public/plugin"
 )
 
-type testEphemeralPostUpdater struct {
+type testEphemeralPostDeleter struct {
 	userID string
-	post   *model.Post
+	postID string
 }
 
-func TestServeHTTPUpdatesEphemeralPost(t *testing.T) {
-	updater := &testEphemeralPostUpdater{}
-	pluginValue := &Plugin{updater: updater, activeConfiguration: &configuration{Secret: "shared-secret"}}
+func TestServeHTTPDeletesEphemeralPost(t *testing.T) {
+	deleter := &testEphemeralPostDeleter{}
+	pluginValue := &Plugin{deleter: deleter, activeConfiguration: &configuration{Secret: "shared-secret"}}
 	pluginValue.API = testPluginAPI{secret: "shared-secret"}
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/update-ephemeral", strings.NewReader(`{"userID":"user-1","postID":"post-1","channelID":"channel-1","rootID":"root-1","message":"확인"}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/delete-ephemeral", strings.NewReader(`{"userID":"user-1","postID":"post-1"}`))
 	request.Header.Set("X-InternKim-Token", "shared-secret")
 	responseRecorder := httptest.NewRecorder()
 
@@ -28,21 +28,15 @@ func TestServeHTTPUpdatesEphemeralPost(t *testing.T) {
 	if responseRecorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body = %s", responseRecorder.Code, responseRecorder.Body.String())
 	}
-	if updater.userID != "user-1" {
-		t.Fatalf("userID = %q", updater.userID)
-	}
-	if updater.post.Id != "post-1" || updater.post.ChannelId != "channel-1" || updater.post.RootId != "root-1" || updater.post.Message != "확인" {
-		t.Fatalf("post = %+v", updater.post)
-	}
-	if attachments, ok := updater.post.Props["attachments"].([]interface{}); !ok || len(attachments) != 0 {
-		t.Fatalf("attachments = %#v", updater.post.Props["attachments"])
+	if deleter.userID != "user-1" || deleter.postID != "post-1" {
+		t.Fatalf("deleter = %+v", deleter)
 	}
 }
 
 func TestServeHTTPRejectsInvalidSecret(t *testing.T) {
-	pluginValue := &Plugin{updater: &testEphemeralPostUpdater{}, activeConfiguration: &configuration{Secret: "shared-secret"}}
+	pluginValue := &Plugin{deleter: &testEphemeralPostDeleter{}, activeConfiguration: &configuration{Secret: "shared-secret"}}
 	pluginValue.API = testPluginAPI{secret: "shared-secret"}
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/update-ephemeral", strings.NewReader(`{"userID":"user-1","postID":"post-1","channelID":"channel-1","message":"확인"}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/delete-ephemeral", strings.NewReader(`{"userID":"user-1","postID":"post-1"}`))
 	request.Header.Set("X-InternKim-Token", "wrong")
 	responseRecorder := httptest.NewRecorder()
 
@@ -54,9 +48,9 @@ func TestServeHTTPRejectsInvalidSecret(t *testing.T) {
 }
 
 func TestServeHTTPRejectsInvalidInput(t *testing.T) {
-	pluginValue := &Plugin{updater: &testEphemeralPostUpdater{}, activeConfiguration: &configuration{Secret: "shared-secret"}}
+	pluginValue := &Plugin{deleter: &testEphemeralPostDeleter{}, activeConfiguration: &configuration{Secret: "shared-secret"}}
 	pluginValue.API = testPluginAPI{secret: "shared-secret"}
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/update-ephemeral", strings.NewReader(`{"userID":"user-1","channelID":"channel-1","message":"확인"}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/delete-ephemeral", strings.NewReader(`{"userID":"user-1"}`))
 	request.Header.Set("X-InternKim-Token", "shared-secret")
 	responseRecorder := httptest.NewRecorder()
 
@@ -67,10 +61,9 @@ func TestServeHTTPRejectsInvalidInput(t *testing.T) {
 	}
 }
 
-func (updater *testEphemeralPostUpdater) updateEphemeralPost(userID string, post *model.Post) error {
-	updater.userID = userID
-	updater.post = post
-	return nil
+func (deleter *testEphemeralPostDeleter) deleteEphemeralPost(userID string, postID string) {
+	deleter.userID = userID
+	deleter.postID = postID
 }
 
 type testPluginAPI struct {
