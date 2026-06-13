@@ -18,6 +18,14 @@
 	import { createCalendarConflictActions } from './calendar-conflict-actions';
 	import CalendarConflictBanner from './calendar-conflict-banner.svelte';
 	import type { CalendarConflict } from './calendar-conflicts';
+	import CalendarDraftPopover from './calendar-draft-popover.svelte';
+	import {
+		createCalendarDraftPopoverActions,
+		type CalendarDraftPopoverActions
+	} from './calendar-draft-popover-actions';
+	import {
+		type DraftPopoverState
+	} from './calendar-draft-popover-state';
 	import { CalendarDraftEventState } from './calendar-draft-events';
 	import {
 		createCalendarEventActions,
@@ -27,10 +35,7 @@
 		createCalendarEventLoader,
 		type CalendarEventLoader
 	} from './calendar-event-loader';
-	import {
-		focusCalendarEventElement,
-		openCalendarEventDetailPanel
-	} from './calendar-event-elements';
+	import { focusCalendarEventElement } from './calendar-event-elements';
 	import {
 		installCalendarMonthRangeAction,
 		monthRangePreviewSegmentsFromSelection as buildMonthRangePreviewSegments,
@@ -109,8 +114,10 @@
 	let toolbarView = $state(initialCalendarView());
 	let selectedAuditEventID = $state<string | null>(null);
 	let pendingEventID = $state(initialCalendarEventID());
+	let draftPopover = $state<DraftPopoverState | null>(null);
 	const draftEvents = new CalendarDraftEventState(draftEventPlaceholderTitle, () => text.newEvent);
 	const programmaticUpdates = new CalendarProgrammaticUpdateState();
+	const calendarOptions = $derived([{ id: 'internkim', name: text.work }]);
 
 	let calendarConflicts = $state<CalendarConflict[]>([]);
 	const conflictActions = createCalendarConflictActions({
@@ -170,6 +177,9 @@
 			},
 			getCalendarEvents: () => calendar.app.getAllEvents(),
 			addCalendarEvent: (event) => calendar.addEvent(event),
+			removeCalendarEvent: (eventID) => {
+				calendar.app.applyEventsChanges({ delete: [eventID], add: [] });
+			},
 			updateCalendarEvent: async (eventID, changes, shouldRender) => {
 				await calendar.updateEvent(eventID, changes, shouldRender);
 			},
@@ -252,10 +262,27 @@
 				const visibleDate = isDateInVisibleRange(toolbarDate, startDate, endDate) ? toolbarDate : middle;
 				setVisibleDate(visibleDate);
 			},
-			onEventClick: (event) => openEventDetails(event.id),
+			onEventClick: (event) => draftPopoverActions.openEventDraftPopover(event, 'edit'),
 			onEventCreate: (event) => eventActions.saveCreatedEvent(event),
 			onEventUpdate: (event) => eventActions.saveUpdatedEvent(event),
 			onEventDelete: (eventID) => eventActions.deleteEvent(eventID)
+		}
+	});
+
+	const draftPopoverActions: CalendarDraftPopoverActions = createCalendarDraftPopoverActions({
+		eventActions,
+		getDraftPopover: () => draftPopover,
+		setDraftPopover: (popover) => {
+			draftPopover = popover;
+		},
+		getCalendarEvents: () => calendar.events,
+		getStageElement: () => calendarStageElement,
+		selectEvent: (eventID) => {
+			selectedAuditEventID = eventID;
+			calendar.app.selectEvent(eventID);
+		},
+		replaceLocalEvent: (event) => {
+			calendar.app.applyEventsChanges({ delete: [event.id], add: [event] });
 		}
 	});
 
@@ -304,8 +331,8 @@
 						monthRangePreviewSegments = [];
 					},
 					selectDate: selectMonthDate,
-					createSingleDayEvent: eventActions.createMonthSingleDayEvent,
-					createRangeEvent: eventActions.createMonthRangeEvent
+					createSingleDayEvent: draftPopoverActions.openMonthSingleDayDraftPopover,
+					createRangeEvent: draftPopoverActions.openMonthRangeDraftPopover
 				})
 			: undefined;
 		const stopTimelineRangeCreate = calendarStageElement
@@ -317,8 +344,8 @@
 					setSelection: (selection) => {
 						timelineRangeSelection = selection;
 					},
-					createSingleEvent: eventActions.createTimelineSingleEvent,
-					createRangeEvent: eventActions.createTimelineRangeEvent
+					createSingleEvent: draftPopoverActions.openTimelineSingleDraftPopover,
+					createRangeEvent: draftPopoverActions.openTimelineRangeDraftPopover
 				})
 			: undefined;
 		const stopWheelNavigation = calendarStageElement
@@ -450,9 +477,9 @@
 	}
 
 	function openEventDetails(eventID: string) {
-		selectedAuditEventID = eventID;
-		calendar.app.selectEvent(eventID);
-		openCalendarEventDetailPanel(calendarStageElement, eventID);
+		const event = calendar.events.find((calendarEvent) => calendarEvent.id === eventID);
+		if (!event) return;
+		draftPopoverActions.openEventDraftPopover(event, 'edit');
 	}
 
 	function openPendingCalendarEvent(events: DayFlowEvent[]) {
@@ -526,7 +553,7 @@
 		{goToPrevious}
 		{goToNext}
 		{navigateToSearchResult}
-		createQuickEvent={eventActions.createQuickEvent}
+		createQuickEvent={draftPopoverActions.createQuickDraftPopover}
 	/>
 	<CalendarStage
 		{calendar}
@@ -536,6 +563,31 @@
 		auditRows={selectedAuditRows}
 		auditLabel={text.eventAudit}
 	/>
+	{#if draftPopover}
+		<CalendarDraftPopover
+			popover={draftPopover}
+			{calendarOptions}
+			isSaving={isSaving}
+			text={{
+				title: text.conflictField.title,
+				allDay: text.allDay,
+				location: text.conflictField.location,
+				description: text.conflictField.description,
+				calendar: text.draftPopover.calendar,
+				cancel: text.draftPopover.cancel,
+				complete: text.draftPopover.complete,
+				delete: text.draftPopover.delete,
+				startDate: text.draftPopover.startDate,
+				endDate: text.draftPopover.endDate,
+				startTime: text.draftPopover.startTime,
+				endTime: text.draftPopover.endTime
+			}}
+			updatePopover={draftPopoverActions.updateDraftPopover}
+			savePopover={draftPopoverActions.saveDraftPopover}
+			cancelPopover={draftPopoverActions.cancelDraftPopover}
+			deletePopover={draftPopoverActions.deleteDraftPopover}
+		/>
+	{/if}
 </main>
 
 <style>

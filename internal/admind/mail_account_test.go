@@ -90,6 +90,39 @@ func TestMailAccountSavePersistsForSubsequentRequests(t *testing.T) {
 	}
 }
 
+func TestMailAccountSaveAllowsEmptySentMailbox(t *testing.T) {
+	service := newMailTestService(t)
+
+	saveResponse := performMailRequest(t, service, http.MethodPut, "/mail/api/account", `{
+		"email":"admin@example.com",
+		"fromAddress":"Admin <admin@example.com>",
+		"displayName":"Admin",
+		"imapHost":"imap.gmail.com",
+		"imapPort":993,
+		"imapSecurity":"tls",
+		"imapUsername":"admin@example.com",
+		"imapPassword":"imap-secret",
+		"smtpHost":"smtp.gmail.com",
+		"smtpPort":587,
+		"smtpSecurity":"starttls",
+		"smtpUsername":"admin@example.com",
+		"smtpPassword":"smtp-secret",
+		"defaultMailbox":"INBOX",
+		"sentMailbox":""
+	}`)
+	if saveResponse.Code != http.StatusOK {
+		t.Fatalf("save status = %d body = %s", saveResponse.Code, saveResponse.Body.String())
+	}
+
+	savedAccount, found, errorValue := service.readMailAccount(context.Background(), "admin@example.com")
+	if errorValue != nil || !found {
+		t.Fatalf("read account found=%v error=%v", found, errorValue)
+	}
+	if savedAccount.SentMailbox != "" {
+		t.Fatalf("sent mailbox = %q", savedAccount.SentMailbox)
+	}
+}
+
 func TestMailAccountRequiresAuthenticatedActor(t *testing.T) {
 	service := newMailTestService(t)
 	saveConfiguredMailTestAccount(t, service)
@@ -136,6 +169,30 @@ func TestMailAccountIgnoresRequesterHeaderForRemoteRequests(t *testing.T) {
 
 	if response.Code != http.StatusForbidden {
 		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestMailAccountUsesWebSessionForRemoteRequests(t *testing.T) {
+	service := newMailTestService(t)
+
+	request := httptest.NewRequest(http.MethodGet, "/mail/api/account", nil)
+	request.RemoteAddr = "203.0.113.10:12345"
+	request.AddCookie(&http.Cookie{
+		Name:  webSessionCookieName,
+		Value: webSessionCookieForTest(t, service, "staff@example.com"),
+	})
+	response := httptest.NewRecorder()
+	service.handleMail(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+	var account mailAccountResponse
+	if errorValue := json.Unmarshal(response.Body.Bytes(), &account); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if account.Email != "staff@example.com" {
+		t.Fatalf("account = %#v", account)
 	}
 }
 

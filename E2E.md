@@ -9,8 +9,8 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 |---|---|---|---|
 | 가상 세션 | `./internkim dev simulate --scenario <name>` | `.dependency/blueclaw/internal/e2e/scenarios.go` (등록: `virtual_session.go`) | 에이전트 루프·툴 선택·스킬 선택·이벤트 (스크립트된 LLM, 결정적) |
 | Linux 실행 게이트 | `./internkim dev replay --target container --scenario <name>` | 동일 시나리오를 apple/container Linux VM에서 재생 | 실행 파일·POSIX 권한·terminal.run 경로 |
-| 로컬 플릿 | `./internkim dev fleet run --recipe predeploy-gate` | `internal/localfleet/plans.go` | admind API·Mattermost 연결·browser 스모크 (인프라 준비성만; 시나리오 단언 없음) |
-| 플릿 시나리오 | `./internkim dev fleet run --scenario <name>` | `internal/localfleet/service.go` + `.dependency/blueclaw/lab/scripts/scenario-*.sh` | 실제 커넥터 경유 메시징 |
+| 로컬 플릿 | `./internkim dev fleet run --recipe predeploy-gate` | `internal/localfleet/plans.go` | admind API·Mattermost 연결·DM 수신자 해석·browser 스모크 |
+| 플릿 시나리오 | `./internkim dev fleet run --scenario <name>` | `internal/localfleet/service.go` + `.dependency/blueclaw/lab/scripts/scenario-*.sh` | 실제 커넥터 경유 메시징·재시작 후 정책 보존 |
 
 가상 세션 시나리오는 `internal/agenttest/scripted_language_model.go`의
 스크립트 응답으로 결정성을 확보한다. CLI의 `--cassette`/`--record-cassette`
@@ -47,7 +47,7 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 | `memory_explicit_tool_acceptance` | — | `memory.remember` 저장과 `memory.search` 회상 명시 단언 |
 | `failure_explanation_acceptance` | — | 실패 태스크 사유를 `task.history`로 설명 |
 
-플릿 시나리오: `mattermost-bot-invited`, `web-backed-ui`, `regression-proof`.
+플릿 시나리오: `dm-recipient-resolve`, `mattermost-bot-invited`, `restart-policy-survival`, `web-backed-ui`, `regression-proof`.
 
 ## 요구 커버리지 매트릭스
 
@@ -57,7 +57,7 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 |---|---|---|---|
 | 1 | 웹사이트 생성+배포 | COVERED | `site_prototype_acceptance` |
 | 2 | 배포된 웹사이트 수정 | COVERED | `site_edit_redeploy_acceptance` (생성 후 수정→빌드→재배포 2턴) |
-| 3 | DM 보내기 (confirm + 상대 수신 확인) | PARTIAL | `dm_send_confirm_acceptance` (confirm 게이트→송신→messageID 관측 단언); 실제 상대 수신 확인은 실플랫폼 스모크 영역 |
+| 3 | DM 보내기 (confirm + 상대 수신 확인) | PARTIAL | `dm_send_confirm_acceptance` (confirm 게이트→송신→messageID 관측 단언); `dm-recipient-resolve`가 실 Mattermost 계정 이메일과 Blueclaw 정책 사람 연결을 통해 수신자 해석을 단언. 실제 상대 수신 확인은 실플랫폼 스모크 영역 |
 | 4 | 채널 포스트 작성 | COVERED | `channel_post_acceptance` |
 | 5 | 포스트 수정 | COVERED | `platform_message_edit_acceptance` (`platform.message.update`) |
 | 6 | 반복 예약 생성/수정/삭제 | COVERED | `schedule_lifecycle_acceptance` (생성→`schedule.update` 수정→취소) |
@@ -71,6 +71,8 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
 | 14 | introspection: 뭘 할 수 있어? | COVERED | `capability_question_acceptance` (빈 쿼리 `skill.search` 전체 로스터) |
 | 15 | introspection: 아까 뭐 했어? | COVERED | `task_history_question_acceptance` (`task.history` 2턴) |
 | 16 | introspection: 왜 실패했어? | COVERED | `failure_explanation_acceptance` (실패 태스크 후 `task.history`로 사유 설명) |
+| 17 | Mattermost DM 수신자 해석 | COVERED | `dm-recipient-resolve` (실 Mattermost 사용자 생성→정책 초대→인바운드 계정 링크→부분 이름으로 `/admin/api/identity/resolve-recipient` resolved 단언) |
+| 18 | Blueclaw 재시작 후 정책 사람 보존 | COVERED | `restart-policy-survival` (재시작 직전/직후 `/admin/api/policy` 사람 수 동일 단언; 서비스 재시작이 있어 predeploy-gate 제외) |
 
 ## 운영 규칙
 
@@ -89,5 +91,4 @@ Blueclaw 에이전트의 사용자-가시 행동을 보증하는 e2e 시나리�
   스모크/기존 패턴 중복이라 가상 세션 추가 없이 유지.
 - `--cassette`/`--record-cassette`를 blueclaw-lab `virtual-session`에 실제
   배선하거나 CLI에서 플래그를 제거해 문서·현실 불일치 해소.
-- predeploy-gate에 가상 세션 시나리오 묶음 실행 추가 검토 (현재는 인프라
-  준비성만 검증).
+- predeploy-gate에 가상 세션 시나리오 묶음 실행 추가 검토.

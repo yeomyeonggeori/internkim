@@ -133,6 +133,9 @@ func (service *Service) mailActorEmail(request *http.Request) string {
 	if actorEmail := authenticatedCallerEmail(request); actorEmail != "" {
 		return actorEmail
 	}
+	if actorEmail := service.webStaffActorEmail(request); actorEmail != "" {
+		return actorEmail
+	}
 	if !isLocalRequest(request) {
 		return ""
 	}
