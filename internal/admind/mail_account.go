@@ -60,5 +60,5 @@ type mailAccountWriteRequest struct {
 	SMTPUsername   string `json:"smtpUsername"`
 	SMTPPassword   string `json:"smtpPassword"`
 	DefaultMailbox string `json:"defaultMailbox"`
-	SentMailbox    string `json:"sentMailbox"`
+	SentMailbox    *string `json:"sentMailbox"`
 }
