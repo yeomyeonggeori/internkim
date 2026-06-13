@@ -67,6 +67,30 @@ func TestMattermostDirectMessageScenarioUsesVerifyGate(t *testing.T) {
 	}
 }
 
+func TestScenarioPlanPassesConfigBeforeRemoteCommand(t *testing.T) {
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	plan := service.blueclawLabScenarioScriptPlan("dm-recipient-resolve")
+	configIndex := -1
+	commandIndex := -1
+	for index, argument := range plan.Arguments {
+		if argument == "--config" {
+			configIndex = index
+		}
+		if strings.HasPrefix(argument, "bash ") && commandIndex == -1 {
+			commandIndex = index
+		}
+	}
+	if configIndex == -1 || commandIndex == -1 {
+		t.Fatalf("expected --config and remote command in plan: %v", plan.Arguments)
+	}
+	if configIndex > commandIndex {
+		t.Fatalf("--config must precede the remote command so vm-ssh parses it: %v", plan.Arguments)
+	}
+}
+
 func TestStartTunnelCommandKeepsSSHAliveAfterShellExit(t *testing.T) {
 	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
 	if errorValue != nil {
