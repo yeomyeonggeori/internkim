@@ -13,6 +13,7 @@ export function createFlowTaskDraft(owner: FlowMember, definitions: FlowDefiniti
 		goal: '',
 		size: 'M',
 		status: '예정',
+		statusRank: 0,
 		weekCode,
 		flag: 0
 	};

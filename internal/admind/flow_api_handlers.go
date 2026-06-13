@@ -171,7 +171,8 @@ func (service *Service) createFlowTask(responseWriter http.ResponseWriter, reque
 		return
 	}
 	task.Business = firstNonEmpty(task.Business, defaultFlowTaskBusiness(definitions))
-	if errorValue := service.writeFlowTask(request.Context(), task); errorValue != nil {
+	task, errorValue = service.writeFlowTaskAtStatusEnd(request.Context(), task)
+	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -219,13 +220,36 @@ func (service *Service) updateFlowTask(responseWriter http.ResponseWriter, reque
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	if found && !flowTaskPayloadHasBusiness(document) {
+	if !found {
+		http.Error(responseWriter, "task not found", http.StatusNotFound)
+		return
+	}
+	if !service.canUpdateFlowTask(request, existingTask) {
+		http.Error(responseWriter, "task owner, participant, or admin access required", http.StatusForbidden)
+		return
+	}
+	if flowTaskAssignmentChanged(existingTask, task) && !service.canManageFlowTaskAssignment(request, existingTask) {
+		http.Error(responseWriter, "task owner or admin access required to change assignment", http.StatusForbidden)
+		return
+	}
+	if !flowTaskPayloadHasBusiness(document) {
 		task.Business = existingTask.Business
 	}
 	task.MattermostPostID = existingTask.MattermostPostID
-	if errorValue := service.writeFlowTask(request.Context(), task); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
+	if task.Status != existingTask.Status {
+		task, errorValue = service.writeFlowTaskAtStatusEnd(request.Context(), task)
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+			return
+		}
+	} else {
+		if !task.StatusRankProvided {
+			task.StatusRank = existingTask.StatusRank
+		}
+		if errorValue := service.writeFlowTask(request.Context(), task); errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 	task = service.applyFlowMattermostProjection(request.Context(), task)
 	service.writeJSON(responseWriter, task)
@@ -258,19 +282,6 @@ func (service *Service) deleteFlowTask(responseWriter http.ResponseWriter, reque
 		"status": "deleted",
 		"task":   task,
 	})
-}
-
-func (service *Service) canDeleteFlowTask(request *http.Request, task flowTask) bool {
-	actorEmail := service.flowActorEmail(request)
-	if service.isFlowAdminEmail(request.Context(), actorEmail) {
-		return true
-	}
-	for _, member := range service.flowMembers(request) {
-		if member.ID == task.OwnerID && strings.EqualFold(member.Email, actorEmail) {
-			return true
-		}
-	}
-	return false
 }
 
 func (service *Service) updateFlowDefinitions(responseWriter http.ResponseWriter, request *http.Request) {

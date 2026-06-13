@@ -264,6 +264,7 @@ function flowTask(id: string) {
 		goal: '',
 		size: 'S',
 		status: '완료',
+		statusRank: 0,
 		weekCode: '26W23',
 		flag: 0
 	};
