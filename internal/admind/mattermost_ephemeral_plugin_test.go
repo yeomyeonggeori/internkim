@@ -70,19 +70,19 @@ func TestEnsureMattermostEphemeralPluginUploadsEnablesAndPatchesSecret(t *testin
 	}
 }
 
-func TestUpdateMattermostAskEphemeralPostSendsResolutionMessage(t *testing.T) {
+func TestDeleteMattermostAskEphemeralPostSendsPostIdentity(t *testing.T) {
 	stateDirectory := t.TempDir()
 	service := NewService(Configuration{StateDirectory: stateDirectory, MattermostBaseURL: "http://mattermost.local"})
 	writeFile(t, service.mattermostEphemeralPluginSecretPath(), "shared-secret")
-	requests := make(chan mattermostEphemeralPluginUpdateRequest, 1)
+	requests := make(chan mattermostEphemeralPluginDeleteRequest, 1)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() != "http://mattermost.local/plugins/com.internkim.ephemeral/api/v1/update-ephemeral" || request.Method != http.MethodPost {
+		if request.URL.String() != "http://mattermost.local/plugins/com.internkim.ephemeral/api/v1/delete-ephemeral" || request.Method != http.MethodPost {
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		}
 		if request.Header.Get("X-InternKim-Token") != "shared-secret" {
 			t.Fatalf("secret header = %q", request.Header.Get("X-InternKim-Token"))
 		}
-		var payload mattermostEphemeralPluginUpdateRequest
+		var payload mattermostEphemeralPluginDeleteRequest
 		if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 			t.Fatal(errorValue)
 		}
@@ -90,19 +90,17 @@ func TestUpdateMattermostAskEphemeralPostSendsResolutionMessage(t *testing.T) {
 		return jsonResponse(http.StatusOK, `{}`, nil), nil
 	})}
 	payload := mattermostInteractivePayload{
-		UserID:         "user-1",
-		PostID:         "post-1",
-		ChannelID:      "channel-1",
-		RootID:         "root-1",
-		SelectedOption: `{"key":"choice-1","label":"선택지"}`,
-		Context:        mattermostInteractiveContext{Action: "ask.choice"},
+		UserID:    "user-1",
+		PostID:    "post-1",
+		ChannelID: "channel-1",
+		Context:   mattermostInteractiveContext{Action: "ask.confirm"},
 	}
 
-	if errorValue := service.updateMattermostAskEphemeralPost(context.Background(), payload); errorValue != nil {
+	if errorValue := service.deleteMattermostAskEphemeralPost(context.Background(), payload); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	requestPayload := <-requests
-	if requestPayload.UserID != "user-1" || requestPayload.PostID != "post-1" || requestPayload.ChannelID != "channel-1" || requestPayload.RootID != "root-1" || requestPayload.Message != "선택지" {
+	if requestPayload.UserID != "user-1" || requestPayload.PostID != "post-1" {
 		t.Fatalf("request payload = %+v", requestPayload)
 	}
 }
