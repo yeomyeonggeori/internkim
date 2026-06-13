@@ -101,6 +101,20 @@ func TestDevVirtualSessionCommandArguments(t *testing.T) {
 	}
 }
 
+func TestDevVirtualSessionScriptedRunOmitsLiveGenerationFlags(t *testing.T) {
+	arguments := devVirtualSessionCommandArguments(devVirtualSessionArguments{
+		ScenarioName:          "failure_explanation_acceptance",
+		ArtifactDirectoryPath: "artifacts",
+		Seed:                  "7",
+		Temperature:           "0.2",
+	})
+	for _, argument := range arguments {
+		if argument == "--seed" || argument == "--temperature" || argument == "--live-llm" {
+			t.Fatalf("scripted run must omit live generation flags, got %#v", arguments)
+		}
+	}
+}
+
 func TestContainerDevVirtualSessionInvocationUsesBindMountedWorkspacePath(t *testing.T) {
 	invocation, errorValue := containerDevVirtualSessionInvocation(devVirtualSessionArguments{
 		ScenarioName: "attachment_material_read",
