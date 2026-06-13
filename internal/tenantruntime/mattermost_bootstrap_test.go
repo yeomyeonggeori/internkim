@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -67,6 +68,65 @@ func TestBootstrapMattermostFleetResourcesEnsuresBotChannelsAndToken(t *testing.
 	}
 }
 
+func TestBootstrapMattermostTenantResourcesProvisionMembersIdempotently(t *testing.T) {
+	server := newMattermostBootstrapTestServer(t)
+	server.usersByEmail["existing@example.com"] = mattermostBootstrapTestUser{ID: "user-existing", Username: "existing"}
+
+	status, errorValue := BootstrapMattermostTenantResources("pilot-01", "admin", "password", MattermostFleetBootstrapOptions{
+		BaseURLTemplate:     server.URL,
+		BlueclawURLTemplate: server.URL + "/blueclaw/{tenant}/{blueclawPort}",
+		PublicURLTemplate:   "https://{tenant}.example.test",
+		PortStart:           18065,
+		Language:            "ko",
+		Members: []MattermostBootstrapMember{
+			{Email: "new.member@example.com", Name: "New Member", Password: "member-password"},
+			{Email: "existing@example.com", Name: "Existing Member", Password: "member-password"},
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	assertMattermostBootstrapMemberOutcome(t, status.Members, "new.member@example.com", "created")
+	assertMattermostBootstrapMemberOutcome(t, status.Members, "existing@example.com", "already existed")
+	if !server.teamMembers["user-new-member"] || !server.teamMembers["user-existing"] {
+		t.Fatalf("expected member team memberships, got %+v", server.teamMembers)
+	}
+	if !server.channelMembers["channel-flow:user-new-member"] || !server.channelMembers["channel-flow:user-existing"] {
+		t.Fatalf("expected member channel memberships, got %+v", server.channelMembers)
+	}
+	if server.blueclawInvites["new.member@example.com"] != "tenant-pilot-01-new.member" {
+		t.Fatalf("expected new member Blueclaw invite, got %+v", server.blueclawInvites)
+	}
+
+	secondStatus, errorValue := BootstrapMattermostTenantResources("pilot-01", "admin", "password", MattermostFleetBootstrapOptions{
+		BaseURLTemplate:     server.URL,
+		BlueclawURLTemplate: "",
+		PublicURLTemplate:   "https://{tenant}.example.test",
+		PortStart:           18065,
+		Language:            "ko",
+		Members: []MattermostBootstrapMember{
+			{Email: "new.member@example.com", Name: "New Member", Password: "member-password"},
+			{Email: "existing@example.com", Name: "Existing Member", Password: "member-password"},
+		},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	assertMattermostBootstrapMemberOutcome(t, secondStatus.Members, "new.member@example.com", "already existed")
+	assertMattermostBootstrapMemberOutcome(t, secondStatus.Members, "existing@example.com", "already existed")
+}
+
+func assertMattermostBootstrapMemberOutcome(t *testing.T, results []MattermostBootstrapMemberResult, email string, outcome string) {
+	t.Helper()
+	for _, result := range results {
+		if result.Email == email && result.Outcome == outcome && result.UserID != "" {
+			return
+		}
+	}
+	t.Fatalf("expected member %s outcome %s, got %+v", email, outcome, results)
+}
+
 func writeMattermostBootstrapTestCredentials(t *testing.T, path string) {
 	t.Helper()
 	document := `[{"tenantID":"pilot-01","adminUsername":"admin","adminPassword":"password"}]`
@@ -81,12 +141,19 @@ type mattermostBootstrapTestServer struct {
 	adminPassword        string
 	blueclawInvitedEmail string
 	blueclawInvitePath   string
+	blueclawInvites      map[string]string
 	configuration        map[string]any
 	channels             map[string]mattermostBootstrapTestChannel
 	channelMembers       map[string]bool
 	teamMembers          map[string]bool
 	schemeRoles          map[string]bool
 	deletedWelcomePost   bool
+	usersByEmail         map[string]mattermostBootstrapTestUser
+}
+
+type mattermostBootstrapTestUser struct {
+	ID       string
+	Username string
 }
 
 type mattermostBootstrapTestChannel struct {
@@ -98,11 +165,13 @@ type mattermostBootstrapTestChannel struct {
 func newMattermostBootstrapTestServer(t *testing.T) *mattermostBootstrapTestServer {
 	t.Helper()
 	server := &mattermostBootstrapTestServer{
-		configuration:  map[string]any{},
-		channels:       map[string]mattermostBootstrapTestChannel{},
-		channelMembers: map[string]bool{},
-		teamMembers:    map[string]bool{},
-		schemeRoles:    map[string]bool{},
+		configuration:   map[string]any{},
+		channels:        map[string]mattermostBootstrapTestChannel{},
+		channelMembers:  map[string]bool{},
+		teamMembers:     map[string]bool{},
+		schemeRoles:     map[string]bool{},
+		blueclawInvites: map[string]string{},
+		usersByEmail:    map[string]mattermostBootstrapTestUser{},
 	}
 	server.Server = httptest.NewServer(http.HandlerFunc(server.handle))
 	t.Cleanup(server.Close)
@@ -158,6 +227,29 @@ func (server *mattermostBootstrapTestServer) handle(responseWriter http.Response
 	}
 	if request.URL.Path == "/api/v4/users/bot-1/tokens" && request.Method == http.MethodPost {
 		writeMattermostBootstrapJSON(responseWriter, http.StatusCreated, map[string]string{"token": "bot-token-1"})
+		return
+	}
+	if strings.HasPrefix(request.URL.Path, "/api/v4/users/email/") && request.Method == http.MethodGet {
+		email, _ := url.PathUnescape(strings.TrimPrefix(request.URL.Path, "/api/v4/users/email/"))
+		user, isFound := server.usersByEmail[email]
+		if !isFound {
+			writeMattermostBootstrapJSON(responseWriter, http.StatusNotFound, map[string]string{"id": ""})
+			return
+		}
+		writeMattermostBootstrapJSON(responseWriter, http.StatusOK, map[string]string{"id": user.ID, "username": user.Username})
+		return
+	}
+	if request.URL.Path == "/api/v4/users" && request.Method == http.MethodPost {
+		body := readMattermostBootstrapTestBody(request)
+		email, _ := body["email"].(string)
+		username, _ := body["username"].(string)
+		if _, isFound := server.usersByEmail[email]; isFound {
+			writeMattermostBootstrapJSON(responseWriter, http.StatusBadRequest, map[string]string{"message": "email exists"})
+			return
+		}
+		userID := "user-" + strings.ReplaceAll(username, ".", "-")
+		server.usersByEmail[email] = mattermostBootstrapTestUser{ID: userID, Username: username}
+		writeMattermostBootstrapJSON(responseWriter, http.StatusCreated, map[string]string{"id": userID})
 		return
 	}
 	if strings.HasPrefix(request.URL.Path, "/api/v4/teams/team-1/channels/name/") && request.Method == http.MethodGet {
@@ -227,10 +319,12 @@ func (server *mattermostBootstrapTestServer) handle(responseWriter http.Response
 		writeMattermostBootstrapJSON(responseWriter, http.StatusOK, map[string]bool{"ok": true})
 		return
 	}
-	if request.URL.Path == "/blueclaw/pilot-01/18100/admin/api/people/invite" && request.Method == http.MethodPost {
+	if strings.HasSuffix(request.URL.Path, "/admin/api/people/invite") && request.Method == http.MethodPost {
 		body := readMattermostBootstrapTestBody(request)
 		server.blueclawInvitedEmail, _ = body["email"].(string)
 		server.blueclawInvitePath = request.URL.Path
+		personID, _ := body["personID"].(string)
+		server.blueclawInvites[server.blueclawInvitedEmail] = personID
 		writeMattermostBootstrapJSON(responseWriter, http.StatusOK, map[string]bool{"ok": true})
 		return
 	}

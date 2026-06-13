@@ -28,10 +28,16 @@ var StepHealth = Step{
 
 		var failedChecks []string
 		checkService(context, "mattermost", &failedChecks)
-		if trimmedRun(context, "cat /root/.internkim/env/fleet-role 2>/dev/null") != "pending" {
+		if isPlannedStep(context, "tunnel") && trimmedRun(context, "cat /root/.internkim/env/fleet-role 2>/dev/null") != "pending" {
 			checkService(context, "cloudflared", &failedChecks)
+		} else {
+			fmt.Println("  cloudflared: skipped")
 		}
-		checkService(context, "cloudflared-node-ssh", &failedChecks)
+		if isPlannedStep(context, "tunnel") {
+			checkService(context, "cloudflared-node-ssh", &failedChecks)
+		} else {
+			fmt.Println("  cloudflared-node-ssh: skipped")
+		}
 		checkService(context, blueclaw.CapabilitydServiceName, &failedChecks)
 		checkService(context, blueclaw.AdmindServiceName, &failedChecks)
 		checkBlueclawFirecrackerRuntime(context, &failedChecks)
@@ -42,7 +48,11 @@ var StepHealth = Step{
 		checkFirstAdminBootstrap(context, &failedChecks)
 		checkMattermostPing(context, &failedChecks)
 		checkMattermostURL(context, &failedChecks)
-		checkMattermostPublic(context, &failedChecks)
+		if isPlannedStep(context, "tunnel") {
+			checkMattermostPublic(context, &failedChecks)
+		} else {
+			fmt.Println("  mattermost public: skipped")
+		}
 		checkAgentBrowser(context, &failedChecks)
 		checkBlueclawBackupManifest(context, &failedChecks)
 		checkBlueclawUsersPolicy(context, &failedChecks)
@@ -331,6 +341,10 @@ func checkLiteRTCapability(context *Context, failedChecks *[]string) {
 		fmt.Println("  local ai capability: not applicable")
 		return
 	}
+	if !isPlannedStep(context, "local-llm") {
+		fmt.Println("  local ai capability: skipped")
+		return
+	}
 	check := strings.TrimSpace(context.SSH.Run(`body="$(python3 - <<'PY'
 import json
 print(json.dumps({
@@ -419,6 +433,13 @@ fi`))
 		check = "failed"
 	}
 	fmt.Printf("  slack file upload permission: %s\n", check)
+}
+
+func isPlannedStep(context *Context, stepName string) bool {
+	if context.PlannedSteps == nil {
+		return true
+	}
+	return context.PlannedSteps[stepName]
 }
 
 func checkService(context *Context, serviceName string, failedChecks *[]string) {

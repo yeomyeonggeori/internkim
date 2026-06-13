@@ -77,7 +77,7 @@ func TestSyncCloudflareTenantTunnelRoutesAppPathsToTenantAdmind(t *testing.T) {
 	assertCloudflareIngress(t, ingress[1], "pilot-01.example.test", "/(admin|flow|memory|calendar|mail|attendance)(/.*)?", "http://127.0.0.1:18180")
 	assertCloudflareIngress(t, ingress[2], "pilot-01.example.test", "/(auth|_app|_internkim)(/.*)?", "http://127.0.0.1:18180")
 	assertCloudflareIngress(t, ingress[3], "pilot-01.example.test", "/(logo\\.svg|\\.well-known/caldav)", "http://127.0.0.1:18180")
-	assertCloudflareIngress(t, ingress[4], "pilot-01.example.test", "", "http://127.0.0.1:18065")
+	assertCloudflareIngress(t, ingress[4], "pilot-01.example.test", "", "http://127.0.0.1:18180")
 	assertCloudflareIngress(t, ingress[5], "", "", "http_status:404")
 }
 
@@ -91,6 +91,25 @@ func TestSyncCloudflareTenantTunnelRequiresToken(t *testing.T) {
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "token") {
 		t.Fatalf("expected token validation error, got %v", errorValue)
 	}
+}
+
+func TestRemovedCloudflareTenantIngressDeletesTenantHostnames(t *testing.T) {
+	manifest := newTestCloudSharedManifest(t)
+	manifest.TenantID = "pilot-01"
+	manifest.PublicURL = "https://pilot-01.mattermost.example.test"
+
+	ingress, removedCount := removedCloudflareTenantIngress([]cloudflareTunnelIngress{
+		{Hostname: "pilot-01.example.test", Path: "/flow", Service: "http://127.0.0.1:18180"},
+		{Hostname: "pilot-01.mattermost.example.test", Service: "http://127.0.0.1:18065"},
+		{Hostname: "pilot-02.example.test", Service: "http://127.0.0.1:18066"},
+		{Service: "http_status:404"},
+	}, []Manifest{manifest}, "{tenant}.example.test")
+
+	if removedCount != 2 || len(ingress) != 2 {
+		t.Fatalf("unexpected ingress removal: count=%d ingress=%+v", removedCount, ingress)
+	}
+	assertCloudflareIngress(t, ingress[0], "pilot-02.example.test", "", "http://127.0.0.1:18066")
+	assertCloudflareIngress(t, ingress[1], "", "", "http_status:404")
 }
 
 func assertCloudflareIngress(t *testing.T, ingress cloudflareTunnelIngress, hostname string, path string, service string) {

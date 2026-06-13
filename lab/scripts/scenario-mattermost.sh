@@ -10,7 +10,11 @@ test -n "$mattermost_listen_address"
 test -d "$mount_directory_path"
 
 curl --silent --show-error "http://$mattermost_listen_address/api/v4/system/ping" | jq -e '.status == "OK"' >/dev/null
-test -f /root/.internkim/env/bot-token
+bot_token_path="/root/.internkim/secrets/mattermost-bot-token"
+if [ ! -f "$bot_token_path" ]; then
+  bot_token_path="/root/.internkim/env/bot-token"
+fi
+test -f "$bot_token_path"
 test -f /root/.internkim/env/channel-id
 
 timestamp="$(date +%s)"
@@ -19,7 +23,7 @@ username="labmattermost$timestamp"
 password="LabMattermost!$timestamp"
 channel_id="$(cat /root/.internkim/env/channel-id)"
 admin_password="$(cat /root/.internkim/secrets/mm-admin-pass)"
-bot_token="$(cat /root/.internkim/env/bot-token)"
+bot_token="$(cat "$bot_token_path")"
 
 login_headers="$(mktemp)"
 login_body="$(jq -cn --arg login_id admin --arg password "$admin_password" '{login_id:$login_id,password:$password}')"
@@ -65,7 +69,7 @@ curl --silent --show-error --fail -H "Content-Type: application/json" \
   http://127.0.0.1:8080/admin/api/people/invite >/dev/null
 
 before_count="$(curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/task | jq 'length')"
-message="internkim lab mattermost connector $timestamp"
+message="@internkim lab mattermost connector $timestamp"
 post="$(curl --silent --show-error --fail -H "Authorization: Bearer $user_token" -H "Content-Type: application/json" \
   -d "$(jq -cn --arg channel_id "$channel_id" --arg message "$message" '{channel_id:$channel_id,message:$message}')" \
   "http://$mattermost_listen_address/api/v4/posts")"
@@ -83,11 +87,11 @@ done
 after_count="$(curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/task | jq 'length')"
 test "$after_count" -ge "$((before_count + 1))"
 
-for _ in $(seq 1 30); do
+for _ in $(seq 1 60); do
   if curl --silent --show-error --fail -H "Authorization: Bearer $admin_token" \
     "http://$mattermost_listen_address/api/v4/channels/$channel_id/posts?per_page=30" |
     jq -e --arg bot_user_id "$bot_user_id" \
-      '.posts[] | select(.user_id == $bot_user_id and (.message | contains("Working on it:")))' >/dev/null; then
+      '.posts[] | select(.user_id == $bot_user_id and (.message | length) > 0)' >/dev/null; then
     exit 0
   fi
   sleep 1

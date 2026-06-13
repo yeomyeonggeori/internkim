@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+import json
+import os
+import pathlib
+import sys
+import urllib.request
+
+repositoryRoot = pathlib.Path(__file__).resolve().parent.parent
+secretsDirectory = repositoryRoot / ".local" / "secrets"
+apiTokenPath = secretsDirectory / "cloudflare-api-token"
+serviceTokenPath = secretsDirectory / "cloudflare-access-service-token.json"
+serviceTokenName = "internkim-cli-ssh"
+sshApplicationDomainSuffix = ".ssh." if len(sys.argv) < 2 else sys.argv[1]
+
+apiToken = apiTokenPath.read_text().strip()
+base = "https://api.cloudflare.com/client/v4"
+
+
+def call(method, path, body=None):
+    data = json.dumps(body).encode() if body is not None else None
+    request = urllib.request.Request(base + path, data=data, method=method,
+        headers={"Authorization": "Bearer " + apiToken, "Content-Type": "application/json"})
+    with urllib.request.urlopen(request) as response:
+        document = json.loads(response.read())
+    if not document.get("success"):
+        raise SystemExit(f"Cloudflare API {method} {path} failed: {document.get('errors')}")
+    return document["result"]
+
+
+def ensureServiceToken(account):
+    existing = [token for token in (call("GET", f"/accounts/{account}/access/service_tokens?per_page=50") or [])
+                if token.get("name") == serviceTokenName]
+    if existing and serviceTokenPath.exists():
+        print(f"service token {serviceTokenName} already provisioned")
+        return existing[0]["id"], None
+    if existing:
+        raise SystemExit(f"service token {serviceTokenName} exists but its secret file is missing; "
+                         f"rotate it via POST /access/service_tokens/{existing[0]['id']}/refresh or delete and rerun")
+    created = call("POST", f"/accounts/{account}/access/service_tokens",
+                   {"name": serviceTokenName, "duration": "8760h"})
+    serviceTokenPath.write_text(json.dumps({
+        "clientID": created["client_id"],
+        "clientSecret": created["client_secret"],
+    }))
+    serviceTokenPath.chmod(0o600)
+    print(f"service token created: {created['id'][:8]} | secret saved to {serviceTokenPath}")
+    return created["id"], created
+
+
+def ensurePolicy(account, application, tokenID):
+    policies = call("GET", f"/accounts/{account}/access/apps/{application['id']}/policies") or []
+    for policy in policies:
+        if policy.get("name") == "internkim-cli-service-token":
+            print(f"  policy already present on {application['domain']}")
+            return
+    nextPrecedence = max([policy.get("precedence", 0) for policy in policies] or [0]) + 1
+    call("POST", f"/accounts/{account}/access/apps/{application['id']}/policies", {
+        "name": "internkim-cli-service-token",
+        "decision": "non_identity",
+        "include": [{"service_token": {"token_id": tokenID}}],
+        "precedence": nextPrecedence,
+    })
+    print(f"  policy added to {application['domain']} (precedence {nextPrecedence})")
+
+
+account = call("GET", "/accounts")[0]["id"]
+tokenID, _ = ensureServiceToken(account)
+applications = [application for application in call("GET", f"/accounts/{account}/access/apps?per_page=50")
+                if sshApplicationDomainSuffix in (application.get("domain") or "")]
+if not applications:
+    raise SystemExit(f"no Access applications matched {sshApplicationDomainSuffix!r}")
+print(f"attaching service-token policy to {len(applications)} Access application(s):")
+for application in applications:
+    ensurePolicy(account, application, tokenID)

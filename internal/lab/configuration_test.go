@@ -16,8 +16,8 @@ func TestLoadConfigurationAppliesDefaults(t *testing.T) {
     }
   },
   "vm": {
-    "tart": {
-      "nestedEnabled": true
+    "container": {
+      "cpuCount": 4
     }
   },
   "firecracker": {
@@ -38,11 +38,20 @@ func TestLoadConfigurationAppliesDefaults(t *testing.T) {
 	if configuration.Host.Mode != "single-mac" {
 		t.Fatalf("expected default host mode, got %q", configuration.Host.Mode)
 	}
-	if configuration.VirtualMachine.Tart.BinaryPath != "tart" {
-		t.Fatalf("expected default tart binary, got %q", configuration.VirtualMachine.Tart.BinaryPath)
+	if configuration.VirtualMachine.Container.BinaryPath != "container" {
+		t.Fatalf("expected default container binary, got %q", configuration.VirtualMachine.Container.BinaryPath)
 	}
-	if configuration.VirtualMachine.Tart.Name != "internkim-lab" {
-		t.Fatalf("expected default tart name, got %q", configuration.VirtualMachine.Tart.Name)
+	if configuration.VirtualMachine.Container.Name != "internkim-lab" {
+		t.Fatalf("expected default container name, got %q", configuration.VirtualMachine.Container.Name)
+	}
+	if configuration.VirtualMachine.Container.Image != "ubuntu:24.04" {
+		t.Fatalf("expected default container image, got %q", configuration.VirtualMachine.Container.Image)
+	}
+	if configuration.VirtualMachine.Container.MemoryMiB != 8192 {
+		t.Fatalf("expected default container memory, got %d", configuration.VirtualMachine.Container.MemoryMiB)
+	}
+	if configuration.VirtualMachine.Container.CPUCount != 4 {
+		t.Fatalf("expected configured container cpu count, got %d", configuration.VirtualMachine.Container.CPUCount)
 	}
 	if configuration.VirtualMachine.MountDirectoryPath != "/mnt/shared" {
 		t.Fatalf("expected default mount directory, got %q", configuration.VirtualMachine.MountDirectoryPath)

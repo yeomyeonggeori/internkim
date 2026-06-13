@@ -119,13 +119,14 @@ fi`, deviceURL))
 
 func blueclawHostNetworkDependencyInstallCommand() string {
 	return `set -euo pipefail
-if ! command -v ip >/dev/null 2>&1 || ! command -v iptables >/dev/null 2>&1 || ! command -v sysctl >/dev/null 2>&1; then
+if ! command -v ip >/dev/null 2>&1 || ! command -v iptables >/dev/null 2>&1 || ! command -v sysctl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
   apt-get update -qq >/dev/null 2>&1 || true
-  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq iproute2 iptables procps >/dev/null
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq iproute2 iptables procps jq >/dev/null
 fi
 command -v ip >/dev/null
 command -v iptables >/dev/null
-command -v sysctl >/dev/null`
+command -v sysctl >/dev/null
+command -v jq >/dev/null`
 }
 
 func localLLMServiceUnitsAreSatisfied(context *Context) bool {
@@ -171,7 +172,6 @@ func serviceUnitDocuments(context *Context) []serviceUnitDocument {
 	services := []serviceUnitDocument{
 		{path: blueclaw.BlueclawServicePath, document: blueclaw.BlueclawServiceUnit()},
 		{path: blueclaw.CapabilitydServicePath, document: capabilitydServiceUnitForContext(context)},
-		{path: blueclaw.GraphitiMemorydServicePath, document: blueclaw.GraphitiMemorydServiceUnit()},
 		{path: blueclaw.AdmindServicePath, document: blueclaw.AdmindServiceUnit()},
 	}
 	if context.BoardType == BoardSimulation {
@@ -180,6 +180,7 @@ func serviceUnitDocuments(context *Context) []serviceUnitDocument {
 	if !shouldManageLocalLLMServices(context) {
 		return services
 	}
+	services = append(services, serviceUnitDocument{path: blueclaw.GraphitiMemorydServicePath, document: blueclaw.GraphitiMemorydServiceUnit()})
 	return append(services,
 		serviceUnitDocument{path: locallm.LlamaCppServicePath, document: blueclaw.LlamaCppServiceUnit()},
 		serviceUnitDocument{path: locallm.LlamaCppEmbeddingServicePath, document: blueclaw.LlamaCppEmbeddingServiceUnit()},
@@ -196,7 +197,6 @@ func capabilitydServiceUnitForContext(context *Context) string {
 func enabledServiceNames(context *Context) []string {
 	serviceNames := []string{
 		blueclaw.CapabilitydServiceName,
-		blueclaw.GraphitiMemorydServiceName,
 		blueclaw.AdmindServiceName,
 		blueclaw.BlueclawServiceName,
 	}
@@ -206,7 +206,7 @@ func enabledServiceNames(context *Context) []string {
 	if !shouldManageLocalLLMServices(context) {
 		return serviceNames
 	}
-	return append([]string{locallm.LlamaCppServiceName, locallm.LlamaCppEmbeddingServiceName}, serviceNames...)
+	return append([]string{locallm.LlamaCppServiceName, locallm.LlamaCppEmbeddingServiceName, blueclaw.GraphitiMemorydServiceName}, serviceNames...)
 }
 
 func disabledServiceNames(context *Context) []string {
@@ -228,16 +228,10 @@ func blueclawServicesAreHealthy(context *Context) bool {
 	if report["admind"] != "active" {
 		return false
 	}
-	if report["graphiti"] != "active" {
-		return false
-	}
 	if report["blueclawHealth"] != "ok" {
 		return false
 	}
 	if report["capabilitydHealth"] != "ok" {
-		return false
-	}
-	if report["graphitiHealth"] != "ok" {
 		return false
 	}
 	if context.BoardType == BoardSimulation {
@@ -245,6 +239,12 @@ func blueclawServicesAreHealthy(context *Context) bool {
 	}
 	if !shouldManageLocalLLMServices(context) {
 		return true
+	}
+	if report["graphiti"] != "active" {
+		return false
+	}
+	if report["graphitiHealth"] != "ok" {
+		return false
 	}
 	return report["embedding"] == "active"
 }
@@ -271,12 +271,14 @@ func blueclawServiceHealthReportCommand(context *Context) string {
 		{name: "blueclaw", command: "systemctl is-active " + blueclaw.BlueclawServiceName + " 2>/dev/null"},
 		{name: "capabilityd", command: "systemctl is-active " + blueclaw.CapabilitydServiceName + " 2>/dev/null"},
 		{name: "admind", command: "systemctl is-active " + blueclaw.AdmindServiceName + " 2>/dev/null"},
-		{name: "graphiti", command: "systemctl is-active " + blueclaw.GraphitiMemorydServiceName + " 2>/dev/null"},
 		{name: "blueclawHealth", command: blueclaw.BlueclawHealthCheckCommand()},
 		{name: "capabilitydHealth", command: blueclaw.CapabilitydHealthCheckCommand()},
-		{name: "graphitiHealth", command: blueclaw.GraphitiMemorydHealthCheckCommand()},
 	}
 	if shouldManageLocalLLMServices(context) {
+		checks = append(checks,
+			serviceHealthCheck{name: "graphiti", command: "systemctl is-active " + blueclaw.GraphitiMemorydServiceName + " 2>/dev/null"},
+			serviceHealthCheck{name: "graphitiHealth", command: blueclaw.GraphitiMemorydHealthCheckCommand()},
+		)
 		checks = append(checks, serviceHealthCheck{name: "embedding", command: "systemctl is-active " + locallm.LlamaCppEmbeddingServiceName + " 2>/dev/null"})
 	}
 

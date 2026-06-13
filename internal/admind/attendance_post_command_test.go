@@ -352,7 +352,7 @@ func findAttendanceEventByKind(events []attendanceEvent, kind string) (attendanc
 	return attendanceEvent{}, false
 }
 
-func TestAttendanceEntryCommentBlocksUnknownMessage(t *testing.T) {
+func TestAttendanceEntryCommentDeletesUnknownMessage(t *testing.T) {
 	service, posts := newAttendanceActionTestService(t)
 	service.saveMattermostAttendanceChannelID("attendance-channel")
 	service.saveMattermostAttendanceEntryPostID("entry-post")
@@ -362,10 +362,10 @@ func TestAttendanceEntryCommentBlocksUnknownMessage(t *testing.T) {
 
 	service.router().ServeHTTP(response, request)
 
-	if response.Code != http.StatusForbidden {
+	if response.Code != http.StatusCreated {
 		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
 	}
-	if len(*posts) != 0 {
+	if len(*posts) != 1 || !(*posts)[0].Deleted {
 		t.Fatalf("posts = %+v", *posts)
 	}
 }

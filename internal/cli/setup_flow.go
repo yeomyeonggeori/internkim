@@ -76,15 +76,13 @@ type localBinaryAsset struct {
 
 func installSkillPythonDependenciesCommand() string {
 	return `set -euo pipefail
-if [ ! -x /opt/blueclaw/builtin-skills-venv/bin/python ]; then
-  echo "built-in skills Python environment is missing; deploy blueclaw-runtime-base first" >&2
+contract_output="$(
+` + setup.BlueclawRootfsBaseContractCheckCommand() + `
+)"
+if [ "$contract_output" != "ok" ]; then
+  printf '%s\n' "$contract_output"
   exit 1
-fi
-if [ ! -s /opt/blueclaw/builtin-skills-requirements.txt ]; then
-  echo "built-in skills requirements manifest is missing; deploy blueclaw-runtime-base first" >&2
-  exit 1
-fi
-/opt/blueclaw/builtin-skills-venv/bin/python -c 'import docx, fpdf, markitdown, openpyxl, pptx, pypdf'`
+fi`
 }
 
 func deviceBrowserRuntimePackageListUbuntu24() string {
@@ -1000,6 +998,14 @@ func (state *setupFlowState) ensureManagedHostExecutablesSSH() error {
 func managedHostExecutablesScript() string {
 	return `set -eu
 install -d -o root -g root -m 755 /opt/internkim/managed-bin /usr/local/bin
+if ! command -v unzip >/dev/null 2>&1; then
+  if ! command -v apt-get >/dev/null 2>&1; then
+    echo "unzip is required to install bun"
+    exit 1
+  fi
+  apt-get update
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends unzip
+fi
 NOLOGIN_BIN=$(command -v nologin || echo /usr/sbin/nologin)
 getent group blueclaw >/dev/null 2>&1 || groupadd --system blueclaw
 id blueclaw >/dev/null 2>&1 || useradd -r -g blueclaw -m -d /home/blueclaw -s "$NOLOGIN_BIN" blueclaw
@@ -1069,7 +1075,7 @@ func (state *setupFlowState) verifyAdmindDeployment(context *setup.Context) erro
 	if !strings.Contains(localHealth, `"status":"ok"`) || !strings.Contains(localHealth, `"recoveryAvailable":true`) {
 		return fmt.Errorf("admind local health response missing recovery status: %s", strings.TrimSpace(localHealth))
 	}
-	if strings.TrimSpace(context.PublicURL) == "" {
+	if strings.TrimSpace(context.PublicURL) == "" || setupContextSkipsStep(context, "tunnel") {
 		fmt.Printf("  %s\n", state.messenger.t("admind local 검증 완료", "admind local verification complete"))
 		return nil
 	}
@@ -1088,6 +1094,20 @@ func (state *setupFlowState) verifyAdmindDeployment(context *setup.Context) erro
 	}
 	fmt.Printf("  %s\n", state.messenger.t("admind public/recovery 검증 완료", "admind public/recovery verification complete"))
 	return nil
+}
+
+func setupContextSkipsStep(context *setup.Context, stepName string) bool {
+	for _, part := range strings.Fields(context.SetupSteps) {
+		if !strings.HasPrefix(part, "--skip=") {
+			continue
+		}
+		for _, skippedStepName := range setup.ParseNames(strings.TrimPrefix(part, "--skip=")) {
+			if skippedStepName == stepName {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (state *setupFlowState) deployBotProfileImageSSH() error {
@@ -1167,21 +1187,10 @@ func (state *setupFlowState) installSkillsSSH(context *setup.Context) error {
 	if errorValue := state.sshClient.scp(agentsPath, filepath.Join(blueclaw.BlueclawWorkspacePath, "AGENTS.md")); errorValue != nil {
 		return errorValue
 	}
-	state.sshClient.run("mkdir -p " + quoteShellValue(filepath.Join(blueclaw.BlueclawWorkspacePath, "skills")))
-	entries, errorValue := os.ReadDir(skillsDirectoryPath)
-	if errorValue != nil {
+	remoteSkillsDirectoryPath := filepath.Join(blueclaw.BlueclawWorkspacePath, "skills")
+	state.sshClient.run("rm -rf " + quoteShellValue(remoteSkillsDirectoryPath) + " && mkdir -p " + quoteShellValue(remoteSkillsDirectoryPath))
+	if errorValue := state.sshClient.scpDir(skillsDirectoryPath, remoteSkillsDirectoryPath); errorValue != nil {
 		return errorValue
-	}
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		remoteSkillDirectoryPath := blueclaw.BlueclawWorkspaceSkillPath(entry.Name())
-		state.sshClient.run("rm -rf " + quoteShellValue(remoteSkillDirectoryPath))
-		state.sshClient.run("mkdir -p " + quoteShellValue(remoteSkillDirectoryPath))
-		if errorValue := state.sshClient.scpDir(filepath.Join(skillsDirectoryPath, entry.Name()), remoteSkillDirectoryPath); errorValue != nil {
-			return errorValue
-		}
 	}
 
 	manifest := state.skillsManifest()
