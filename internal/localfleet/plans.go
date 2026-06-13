@@ -207,8 +207,9 @@ func (service Service) resetCommand() string {
 }
 
 func (service Service) blueclawLabScenarioScriptPlan(scenario string) CommandPlan {
-	scriptPath := "/mnt/shared/.dependency/blueclaw/lab/scripts/scenario-" + scenario + ".sh"
-	return service.labCommand("vm-ssh", "bash "+quoteShell(scriptPath)+" admin 127.0.0.1:8065 /mnt/shared")
+	workspacePath := "/mnt/shared/workspace"
+	scriptPath := workspacePath + "/.dependency/blueclaw/lab/scripts/scenario-" + scenario + ".sh"
+	return service.labCommand("vm-ssh", "bash "+quoteShell(scriptPath)+" admin 127.0.0.1:8065 "+workspacePath)
 }
 
 func (service Service) configurationPath() string {
