@@ -1,0 +1,157 @@
+package admind
+
+import (
+	"context"
+	"encoding/json"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestEnsureMattermostEphemeralPluginUploadsEnablesAndPatchesSecret(t *testing.T) {
+	stateDirectory := t.TempDir()
+	bundlePath := filepath.Join(stateDirectory, "com.internkim.ephemeral-0.1.0.tar.gz")
+	writeFile(t, bundlePath, "plugin-bundle")
+	secretValues := make(chan string, 1)
+	uploadedPlugin := false
+	enabledPlugin := false
+	patchedSecret := false
+	service := NewService(Configuration{
+		StateDirectory:              stateDirectory,
+		MattermostBaseURL:           "http://mattermost.local",
+		MattermostAdminPasswordPath: writeTestFile(t, "admin-password"),
+		MattermostPluginBundlePath:  bundlePath,
+	})
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.String() == "http://mattermost.local/api/v4/users/login" && request.Method == http.MethodPost:
+			return jsonResponse(http.StatusOK, `{}`, http.Header{"Token": []string{"admin-token"}}), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/plugins?force=true" && request.Method == http.MethodPost:
+			assertMattermostBearerToken(t, request, "admin-token")
+			assertMattermostPluginUpload(t, request, "plugin-bundle")
+			uploadedPlugin = true
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/plugins/com.internkim.ephemeral/enable" && request.Method == http.MethodPost:
+			assertMattermostBearerToken(t, request, "admin-token")
+			enabledPlugin = true
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/config" && request.Method == http.MethodGet:
+			assertMattermostBearerToken(t, request, "admin-token")
+			return jsonResponse(http.StatusOK, `{"PluginSettings":{"Enable":true,"EnableUploads":true}}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
+			assertMattermostBearerToken(t, request, "admin-token")
+			secret := mattermostEphemeralPluginPatchSecret(t, request)
+			secretValues <- secret
+			patchedSecret = true
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/plugins" && request.Method == http.MethodGet:
+			return jsonResponse(http.StatusOK, `{"active":[{"id":"com.internkim.ephemeral","version":"0.1.0"}],"inactive":[]}`, nil), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	secret, errorValue := service.ensureMattermostEphemeralPlugin(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if secret == "" || strings.TrimSpace(readTrimmedFile(service.mattermostEphemeralPluginSecretPath())) != secret {
+		t.Fatalf("secret was not persisted")
+	}
+	if !uploadedPlugin || !enabledPlugin || !patchedSecret {
+		t.Fatalf("plugin ensure flags uploaded=%v enabled=%v patched=%v", uploadedPlugin, enabledPlugin, patchedSecret)
+	}
+	if patchedSecretValue := <-secretValues; patchedSecretValue != secret {
+		t.Fatalf("patched secret = %q, want %q", patchedSecretValue, secret)
+	}
+}
+
+func TestUpdateMattermostAskEphemeralPostSendsResolutionMessage(t *testing.T) {
+	stateDirectory := t.TempDir()
+	service := NewService(Configuration{StateDirectory: stateDirectory, MattermostBaseURL: "http://mattermost.local"})
+	writeFile(t, service.mattermostEphemeralPluginSecretPath(), "shared-secret")
+	requests := make(chan mattermostEphemeralPluginUpdateRequest, 1)
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.String() != "http://mattermost.local/plugins/com.internkim.ephemeral/api/v1/update-ephemeral" || request.Method != http.MethodPost {
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+		}
+		if request.Header.Get("X-InternKim-Token") != "shared-secret" {
+			t.Fatalf("secret header = %q", request.Header.Get("X-InternKim-Token"))
+		}
+		var payload mattermostEphemeralPluginUpdateRequest
+		if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		requests <- payload
+		return jsonResponse(http.StatusOK, `{}`, nil), nil
+	})}
+	payload := mattermostInteractivePayload{
+		UserID:         "user-1",
+		PostID:         "post-1",
+		ChannelID:      "channel-1",
+		RootID:         "root-1",
+		SelectedOption: `{"key":"choice-1","label":"선택지"}`,
+		Context:        mattermostInteractiveContext{Action: "ask.choice"},
+	}
+
+	if errorValue := service.updateMattermostAskEphemeralPost(context.Background(), payload); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	requestPayload := <-requests
+	if requestPayload.UserID != "user-1" || requestPayload.PostID != "post-1" || requestPayload.ChannelID != "channel-1" || requestPayload.RootID != "root-1" || requestPayload.Message != "선택지" {
+		t.Fatalf("request payload = %+v", requestPayload)
+	}
+}
+
+func assertMattermostPluginUpload(t *testing.T, request *http.Request, expectedDocument string) {
+	t.Helper()
+	reader, errorValue := request.MultipartReader()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for {
+		part, errorValue := reader.NextPart()
+		if errorValue != nil {
+			break
+		}
+		if part.FormName() != "plugin" {
+			continue
+		}
+		document := readMultipartPart(t, part)
+		if document != expectedDocument {
+			t.Fatalf("plugin upload document = %q", document)
+		}
+		return
+	}
+	t.Fatal("plugin upload part missing")
+}
+
+func readMultipartPart(t *testing.T, part *multipart.Part) string {
+	t.Helper()
+	document, errorValue := io.ReadAll(part)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return string(document)
+}
+
+func mattermostEphemeralPluginPatchSecret(t *testing.T, request *http.Request) string {
+	t.Helper()
+	var payload struct {
+		PluginSettings struct {
+			Plugins map[string]map[string]string `json:"Plugins"`
+		} `json:"PluginSettings"`
+	}
+	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	pluginSettings := payload.PluginSettings.Plugins[mattermostEphemeralPluginID]
+	if pluginSettings == nil {
+		t.Fatalf("missing plugin settings: %+v", payload)
+	}
+	return pluginSettings["secret"]
+}

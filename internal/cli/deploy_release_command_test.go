@@ -40,7 +40,7 @@ func TestSelectedReleaseComponentNamesAllowsAllByDefault(t *testing.T) {
 
 func TestDeployUsageTextContainsComponentNames(t *testing.T) {
 	usage := deployUsageText()
-	for _, componentName := range []string{"admind", "blueclawPayload", "capabilityd", "internkim", "skills", "web"} {
+	for _, componentName := range []string{"admind", "blueclawPayload", "capabilityd", "internkim", "mattermostPlugins", "skills", "web"} {
 		if !strings.Contains(usage, componentName) {
 			t.Errorf("deployUsageText() missing component name %q", componentName)
 		}
