@@ -318,9 +318,9 @@ func devVirtualSessionCommandArguments(sessionArguments devVirtualSessionArgumen
 	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-unix-socket", sessionArguments.LanguageModelSocket)
 	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-model", sessionArguments.LanguageModelName)
 	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-execution-mode", sessionArguments.ExecutionMode)
-	commandArguments = appendOptionalDevFlag(commandArguments, "--seed", sessionArguments.Seed)
-	commandArguments = appendOptionalDevFlag(commandArguments, "--temperature", sessionArguments.Temperature)
 	if sessionArguments.IsLiveLanguageModel {
+		commandArguments = appendOptionalDevFlag(commandArguments, "--seed", sessionArguments.Seed)
+		commandArguments = appendOptionalDevFlag(commandArguments, "--temperature", sessionArguments.Temperature)
 		commandArguments = append(commandArguments, "--live-llm")
 	}
 	return commandArguments
