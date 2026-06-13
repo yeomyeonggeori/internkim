@@ -42,7 +42,7 @@ export const mailText = {
 		fields: {
 			emailAddress: '이메일 주소',
 			emailLocalPart: '메일 아이디',
-			emailDomain: '메일 선택',
+			emailDomain: '메일 도메인',
 			customDomain: '도메인',
 			displayName: '표시 이름',
 			defaultMailbox: '기본 메일함',
@@ -50,7 +50,9 @@ export const mailText = {
 			port: '포트',
 			security: '보안',
 			username: '사용자 이름',
+			loginAccount: '로그인 계정',
 			password: '비밀번호',
+			appPassword: '앱 비밀번호',
 			sentMailbox: '보낸 메일함',
 			cc: '참조',
 			bcc: '숨은 참조',
@@ -58,27 +60,27 @@ export const mailText = {
 			body: '본문'
 		},
 		providers: {
-			gmail: 'Gmail',
-			naver: 'Naver',
+			gmail: 'gmail.com',
+			naver: 'naver.com',
 			custom: '직접 입력'
 		},
 		fieldDescriptions: {
-			emailAddress: '메일 아이디와 서비스를 선택하면 서버 주소가 자동으로 채워집니다.',
-			displayName: '상대방에게 보이는 발신자 이름입니다.',
+			emailAddress: '도메인을 선택하면 서버 설정은 자동으로 채워집니다.',
+			displayName: '메일을 받는 사람에게 보이는 이름입니다.',
 			defaultMailbox: '처음 열어볼 받은편지함입니다. 보통 INBOX를 사용합니다.',
-			imapUsername: '메일을 읽을 때 서버에 로그인하는 계정입니다. 보통 전체 이메일 주소입니다.',
-			imapPassword: '메일 읽기용 앱 비밀번호입니다.',
-			smtpUsername: '메일을 보낼 때 서버에 로그인하는 계정입니다. 보통 전체 이메일 주소입니다.',
-			smtpPassword: '메일 발송용 앱 비밀번호입니다. 대개 IMAP과 같은 앱 비밀번호를 사용합니다.',
+			loginAccount: '보통 전체 이메일 주소를 그대로 사용합니다.',
+			appPassword: '일반 로그인 비밀번호가 아니라 메일 서비스에서 만든 앱 비밀번호입니다.',
 			sentMailbox: '발송한 메일 사본을 저장할 메일함입니다. Gmail은 비워두면 중복 저장을 피할 수 있습니다.',
-			providerPreset: '추천값입니다. 포트와 보안 유형은 연결 테스트 결과에 따라 바꿀 수 있습니다.'
+			providerPreset: '필요할 때만 서버 주소와 포트를 직접 바꿉니다.'
 		},
 		settingsSheet: {
 			title: '메일 로그인 정보',
-			description: '메일 수신과 발신에 사용할 IMAP / SMTP 로그인 정보를 등록합니다.',
+			description: '메일 주소와 앱 비밀번호를 입력하면 서버 설정은 자동으로 채워집니다.',
 			displayNamePlaceholder: '이름',
 			savedPassword: '저장된 비밀번호',
 			appPassword: '앱 비밀번호',
+			advancedSettings: '고급 설정',
+			autoConfigured: '선택한 도메인에 맞춰 받는 메일과 보내는 메일 서버가 자동으로 설정됩니다.',
 			testing: '테스트 중...',
 			testConnection: '연결 테스트',
 			saving: '저장 중...',
@@ -158,7 +160,7 @@ export const mailText = {
 		fields: {
 			emailAddress: 'Email address',
 			emailLocalPart: 'Email ID',
-			emailDomain: 'Mail provider',
+			emailDomain: 'Mail domain',
 			customDomain: 'Domain',
 			displayName: 'Display name',
 			defaultMailbox: 'Default mailbox',
@@ -166,7 +168,9 @@ export const mailText = {
 			port: 'Port',
 			security: 'Security',
 			username: 'Username',
+			loginAccount: 'Login account',
 			password: 'Password',
+			appPassword: 'App password',
 			sentMailbox: 'Sent mailbox',
 			cc: 'CC',
 			bcc: 'BCC',
@@ -174,27 +178,27 @@ export const mailText = {
 			body: 'Body'
 		},
 		providers: {
-			gmail: 'Gmail',
-			naver: 'Naver',
+			gmail: 'gmail.com',
+			naver: 'naver.com',
 			custom: 'Custom'
 		},
 		fieldDescriptions: {
-			emailAddress: 'Choose an email ID and provider to fill server settings automatically.',
+			emailAddress: 'Choose a domain to fill server settings automatically.',
 			displayName: 'The sender name recipients will see.',
 			defaultMailbox: 'The inbox opened first. INBOX is typical.',
-			imapUsername: 'The account used to log in for reading mail. Usually the full email address.',
-			imapPassword: 'The app password for reading mail.',
-			smtpUsername: 'The account used to log in for sending mail. Usually the full email address.',
-			smtpPassword: 'The app password for sending mail. Usually the same app password as IMAP.',
+			loginAccount: 'Usually the full email address.',
+			appPassword: 'Use an app password from your mail service, not your normal login password.',
 			sentMailbox: 'The mailbox for saving sent-message copies. Leave blank for Gmail to avoid duplicates.',
-			providerPreset: 'These are recommended values. Ports and security can be changed after a failed connection test.'
+			providerPreset: 'Change server addresses and ports only when needed.'
 		},
 		settingsSheet: {
 			title: 'Mail sign-in settings',
-			description: 'Add IMAP / SMTP sign-in settings for receiving and sending mail.',
+			description: 'Enter your email address and app password. Server settings are filled automatically.',
 			displayNamePlaceholder: 'Your name',
 			savedPassword: 'Saved password',
 			appPassword: 'App password',
+			advancedSettings: 'Advanced settings',
+			autoConfigured: 'Incoming and outgoing mail servers are configured automatically for the selected domain.',
 			testing: 'Testing...',
 			testConnection: 'Test connection',
 			saving: 'Saving...',
