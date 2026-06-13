@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -254,7 +253,7 @@ func assertOpenRouterRawRequestAccepted(ctx context.Context, backend OpenRouterB
 		return errorValue
 	}
 	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return errors.New(string(responseDocument) + "\nrequest=" + string(requestDocument))
+		return normalizeProviderError("openrouter", httpResponse.StatusCode, responseDocument)
 	}
 	return nil
 }

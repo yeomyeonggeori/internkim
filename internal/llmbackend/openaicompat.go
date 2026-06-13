@@ -11,9 +11,10 @@ import (
 )
 
 type openAICompatClient struct {
-	BaseURL    string
-	ModelName  string
-	HTTPClient *http.Client
+	ProviderName string
+	BaseURL      string
+	ModelName    string
+	HTTPClient   *http.Client
 }
 
 type openAIRequest struct {
@@ -142,7 +143,7 @@ func (client openAICompatClient) chatCompletionResponse(ctx context.Context, req
 		return openAIResponseWithUsage{}, errors.New("read response: " + errorValue.Error())
 	}
 	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return openAIResponseWithUsage{}, errors.New(openAIErrorWithNativeSchemaLint(string(responseDocument), request.NativeToolSchemaLint))
+		return openAIResponseWithUsage{}, openAIErrorWithNativeSchemaLint(client.providerName(), httpResponse.StatusCode, responseDocument, request.NativeToolSchemaLint)
 	}
 
 	var response openAIResponseWithUsage
@@ -177,6 +178,13 @@ func (client openAICompatClient) client() *http.Client {
 		return http.DefaultClient
 	}
 	return client.HTTPClient
+}
+
+func (client openAICompatClient) providerName() string {
+	if strings.TrimSpace(client.ProviderName) == "" {
+		return "openai-compatible"
+	}
+	return strings.TrimSpace(client.ProviderName)
 }
 
 func openAIChatRequest(modelName string, messages []Message, schema *StructuredOutputSchema, options GenerationOptions) openAIRequest {
@@ -226,11 +234,12 @@ func mergeOpenAIActionToolLintResults(firstPass NativeSchemaLintResult, requestP
 	return result
 }
 
-func openAIErrorWithNativeSchemaLint(message string, lintResult NativeSchemaLintResult) string {
+func openAIErrorWithNativeSchemaLint(providerName string, httpStatus int, rawBody []byte, lintResult NativeSchemaLintResult) error {
+	message := normalizedProviderErrorMessage(providerName, httpStatus, rawBody)
 	if lintResult.ToolCount == 0 {
-		return message
+		return errors.New(message)
 	}
-	return strings.TrimSpace(message) + "; " + NativeSchemaLintDiagnostics(lintResult)
+	return errors.New(strings.TrimSpace(message) + "; " + NativeSchemaLintDiagnostics(lintResult))
 }
 
 func openAIMessages(messages []Message) []openAIMessage {
