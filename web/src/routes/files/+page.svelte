@@ -1,14 +1,17 @@
 <script lang="ts">
+	import * as Card from '$lib/components/ui/card';
+	import * as Table from '$lib/components/ui/table';
+	import * as Breadcrumb from '$lib/components/ui/breadcrumb';
 	import { Button } from '$lib/components/ui/button';
+	import { Spinner } from '$lib/components/ui/spinner';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import FileIcon from '@lucide/svelte/icons/file';
 	import FolderIcon from '@lucide/svelte/icons/folder';
 	import UploadIcon from '@lucide/svelte/icons/upload';
 	import { getFilesState } from './files-context.svelte';
 	import { workspaceDownloadURL } from './files-api';
-	import { formatFileSize } from './files-path';
+	import { formatFileSize, formatModifiedAt } from './files-path';
 	import { filesText } from './text';
 
 	const text = createPageText(filesText);
@@ -22,7 +25,8 @@
 		isDragging = true;
 	}
 
-	function onDragLeave() {
+	function onDragLeave(event: DragEvent) {
+		event.preventDefault();
 		isDragging = false;
 	}
 
@@ -42,81 +46,115 @@
 
 <div class="flex flex-col gap-4">
 	<div class="flex flex-wrap items-center justify-between gap-3">
-		<nav class="flex min-w-0 flex-wrap items-center gap-1 text-sm">
-			{#each files.breadcrumbs as crumb, index (crumb.path)}
-				{#if index > 0}
-					<ChevronRightIcon class="size-3.5 shrink-0 text-muted-foreground" />
-				{/if}
-				<button
-					type="button"
-					class="truncate rounded px-1.5 py-0.5 hover:bg-accent {index === files.breadcrumbs.length - 1
-						? 'font-medium'
-						: 'text-muted-foreground'}"
-					onclick={() => files.navigateTo(crumb.path)}
-				>
-					{crumb.label}
-				</button>
-			{/each}
-		</nav>
+		<Breadcrumb.Root>
+			<Breadcrumb.List>
+				{#each files.breadcrumbs as crumb, index (crumb.path)}
+					{#if index > 0}
+						<Breadcrumb.Separator />
+					{/if}
+					<Breadcrumb.Item>
+						{#if index === files.breadcrumbs.length - 1}
+							<Breadcrumb.Page>{crumb.label}</Breadcrumb.Page>
+						{:else}
+							<Breadcrumb.Link class="cursor-pointer" onclick={() => files.navigateTo(crumb.path)}>
+								{crumb.label}
+							</Breadcrumb.Link>
+						{/if}
+					</Breadcrumb.Item>
+				{/each}
+			</Breadcrumb.List>
+		</Breadcrumb.Root>
 
 		<Button variant="outline" size="sm" disabled={files.isUploading} onclick={() => fileInput?.click()}>
-			<UploadIcon class="size-4" />
+			{#if files.isUploading}
+				<Spinner />
+			{:else}
+				<UploadIcon />
+			{/if}
 			{files.isUploading ? text.uploading : text.upload}
 		</Button>
 		<input bind:this={fileInput} type="file" multiple class="hidden" onchange={onFilePick} />
 	</div>
 
 	{#if files.errorMessage}
-		<p class="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-			{files.errorMessage}
-		</p>
+		<Card.Root class="border-destructive/40 bg-destructive/5">
+			<Card.Content class="py-3 text-sm text-destructive">{files.errorMessage}</Card.Content>
+		</Card.Root>
 	{/if}
 
-	<section
+	<div
+		role="region"
 		aria-label={text.title}
-		class="rounded-lg border transition-colors {isDragging ? 'border-primary bg-primary/5' : ''}"
 		ondragover={onDragOver}
 		ondragleave={onDragLeave}
 		ondrop={onDrop}
 	>
-		{#if files.entries.length === 0}
-			<p class="px-4 py-10 text-center text-sm text-muted-foreground">
-				{files.isLoading ? '' : text.empty}
-			</p>
-		{:else}
-			<ul class="divide-y">
-				{#each files.entries as entry (entry.agentPath)}
-					<li class="flex items-center gap-3 px-4 py-2.5 hover:bg-accent/50">
-						{#if entry.isDirectory}
-							<button
-								type="button"
-								class="flex min-w-0 flex-1 items-center gap-3 text-left"
-								onclick={() => files.navigateTo(entry.agentPath)}
-							>
-								<FolderIcon class="size-4 shrink-0 text-muted-foreground" />
-								<span class="truncate text-sm font-medium">{entry.name}</span>
-							</button>
-							<span class="shrink-0 text-xs text-muted-foreground">{text.folder}</span>
-						{:else}
-							<div class="flex min-w-0 flex-1 items-center gap-3">
-								<FileIcon class="size-4 shrink-0 text-muted-foreground" />
-								<span class="truncate text-sm">{entry.name}</span>
-							</div>
-							<span class="shrink-0 text-xs text-muted-foreground">{formatFileSize(entry.size)}</span>
-							<a
-								class="shrink-0 text-muted-foreground hover:text-foreground"
-								href={workspaceDownloadURL(entry.agentPath)}
-								aria-label={text.download}
-								download
-							>
-								<DownloadIcon class="size-4" />
-							</a>
-						{/if}
-					</li>
-				{/each}
-			</ul>
-		{/if}
-
-		<p class="border-t px-4 py-2 text-center text-xs text-muted-foreground">{text.dropHint}</p>
-	</section>
+		<Card.Root class={isDragging ? 'border-primary ring-primary/30 ring-2' : ''}>
+			<Card.Content class="p-0">
+				{#if files.isLoading}
+					<div class="flex items-center justify-center py-12">
+						<Spinner class="text-muted-foreground" />
+					</div>
+				{:else if files.entries.length === 0}
+					<p class="py-12 text-center text-sm text-muted-foreground">{text.empty}</p>
+				{:else}
+					<Table.Root>
+						<Table.Header>
+							<Table.Row>
+								<Table.Head>{text.name}</Table.Head>
+								<Table.Head class="w-28 text-right">{text.size}</Table.Head>
+								<Table.Head class="w-44">{text.modified}</Table.Head>
+								<Table.Head class="w-12"></Table.Head>
+							</Table.Row>
+						</Table.Header>
+						<Table.Body>
+							{#each files.entries as entry (entry.agentPath)}
+								<Table.Row>
+									<Table.Cell class="font-medium">
+										{#if entry.isDirectory}
+											<button
+												type="button"
+												class="flex items-center gap-2 hover:underline"
+												onclick={() => files.navigateTo(entry.agentPath)}
+											>
+												<FolderIcon class="size-4 shrink-0 text-muted-foreground" />
+												<span class="truncate">{entry.name}</span>
+											</button>
+										{:else}
+											<div class="flex items-center gap-2">
+												<FileIcon class="size-4 shrink-0 text-muted-foreground" />
+												<span class="truncate font-normal">{entry.name}</span>
+											</div>
+										{/if}
+									</Table.Cell>
+									<Table.Cell class="text-right text-muted-foreground">
+										{entry.isDirectory ? '—' : formatFileSize(entry.size)}
+									</Table.Cell>
+									<Table.Cell class="text-xs text-muted-foreground">
+										{formatModifiedAt(entry.modifiedAt)}
+									</Table.Cell>
+									<Table.Cell class="text-right">
+										{#if !entry.isDirectory}
+											<Button
+												variant="ghost"
+												size="icon-sm"
+												href={workspaceDownloadURL(entry.agentPath)}
+												aria-label={text.download}
+												download
+											>
+												<DownloadIcon />
+											</Button>
+										{/if}
+									</Table.Cell>
+								</Table.Row>
+							{/each}
+						</Table.Body>
+					</Table.Root>
+				{/if}
+			</Card.Content>
+			<Card.Footer class="border-t py-2">
+				<p class="w-full text-center text-xs text-muted-foreground">{text.dropHint}</p>
+			</Card.Footer>
+		</Card.Root>
+	</div>
 </div>

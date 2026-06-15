@@ -19,6 +19,12 @@ export function workspaceBreadcrumbs(root: WorkspaceRoot, currentPath: string): 
 	return breadcrumbs;
 }
 
+export function formatModifiedAt(isoTimestamp: string): string {
+	const trimmed = isoTimestamp.trim();
+	if (trimmed.length < 16 || !trimmed.includes('T')) return trimmed;
+	return trimmed.slice(0, 16).replace('T', ' ');
+}
+
 export function formatFileSize(bytes: number): string {
 	if (bytes < 1024) return `${bytes} B`;
 	const units = ['KB', 'MB', 'GB', 'TB'];
