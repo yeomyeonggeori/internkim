@@ -24,6 +24,8 @@
 		account={page.account}
 		mailboxes={page.pageMailboxes()}
 		selectedMailbox={page.selectedMailbox}
+		hasLoadedAccount={page.hasLoadedAccount}
+		isLoadingMailboxes={page.isLoadingMailboxes}
 		{text}
 		openSettings={page.openSettings}
 		openCompose={page.openCompose}
@@ -35,6 +37,8 @@
 		selectedMailbox={page.selectedMailbox}
 		messageCountText={page.messageCountText()}
 		isLoading={page.isLoading}
+		hasLoadedAccount={page.hasLoadedAccount}
+		isLoadingMessages={page.isLoadingMessages}
 		bind:searchText={page.searchText}
 		bind:isUnreadOnly={page.isUnreadOnly}
 		errorMessage={page.errorMessage}
@@ -54,6 +58,7 @@
 		account={page.account}
 		selectedMailbox={page.selectedMailbox}
 		selectedMessage={page.selectedMessage}
+		hasLoadedAccount={page.hasLoadedAccount}
 		isLoadingMessage={page.isLoadingMessage}
 		messageBody={page.selectedMessageBody()}
 		messageBodyHTML={page.selectedMessageBodyHTML()}

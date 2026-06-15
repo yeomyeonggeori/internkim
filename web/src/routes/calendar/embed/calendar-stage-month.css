@@ -1,0 +1,178 @@
+/* 캘린더 month grid와 month scroll style을 정의합니다. */
+
+	.calendar-stage .df-month-title {
+		display: none !important;
+	}
+
+	.calendar-stage .df-month-week-event-layer-row {
+		height: 18px !important;
+		min-height: 18px !important;
+	}
+
+	.calendar-stage .df-month-event.df-event-all-day {
+		height: 16px !important;
+		min-height: 16px !important;
+		border-color: transparent !important;
+		border-radius: 4px !important;
+		background: #eff6ff !important;
+		padding-right: 8px !important;
+		padding-left: 12px !important;
+		color: #1e3a8a !important;
+		font-size: 11px;
+		font-weight: 700;
+		line-height: 16px !important;
+		box-shadow: none !important;
+	}
+
+	.calendar-stage .df-month-event.df-event-all-day::before {
+		position: absolute;
+		top: 3px;
+		bottom: 3px;
+		left: 2px;
+		width: 3px;
+		border-radius: 999px;
+		background: #3b82f6;
+		content: '';
+	}
+
+	.calendar-stage .df-month-day-cell-surface[data-today='true'] .df-month-date-number,
+	.calendar-stage .df-month-date-number[data-today='true'],
+
+	.calendar-stage .df-week-day-header[data-today='true'] .df-week-date-number,
+	.calendar-stage .df-week-header .df-date-number[data-today='true'],
+	.calendar-stage .df-week-header .df-week-date-number[data-today='true'] {
+		display: inline-flex;
+		min-width: 22px;
+		height: 22px;
+		align-items: center;
+		justify-content: center;
+		border-radius: 9999px;
+		background: oklch(0.55 0.19 255);
+		color: #ffffff !important;
+		font-weight: 700;
+	}
+
+	html.dark .calendar-stage {
+		--df-color-background: #09090b;
+		--df-color-foreground: #f4f4f5;
+		--df-color-hover: #18181b;
+		--df-color-border: #27272a;
+		--df-color-card: #09090b;
+		--df-color-card-foreground: #f4f4f5;
+		--df-color-muted: #18181b;
+		--df-color-muted-foreground: #a1a1aa;
+		background: #09090b;
+		color-scheme: dark;
+	}
+
+	html.dark .calendar-stage .df-calendar-container {
+		color-scheme: dark;
+		background: #09090b;
+	}
+
+	html.dark .df-dialog-container,
+	html.dark .df-event-detail-panel,
+	html.dark .df-portal,
+	html.dark .df-range-picker {
+		--df-color-background: #09090b;
+		--df-color-foreground: #f4f4f5;
+		--df-color-hover: #18181b;
+		--df-color-border: #27272a;
+		--df-color-card: #09090b;
+		--df-color-card-foreground: #f4f4f5;
+		--df-color-muted: #18181b;
+		--df-color-muted-foreground: #a1a1aa;
+		color-scheme: dark;
+	}
+
+	html.dark .calendar-stage .df-month-week-grid > .df-month-day-cell:nth-child(1),
+	html.dark .calendar-stage .df-month-week-grid > .df-month-day-cell:nth-child(7) {
+		background: #111113;
+		box-shadow:
+			inset -1px 0 0 #27272a,
+			inset 0 -1px 0 #27272a;
+	}
+
+	html.dark .calendar-stage .df-month-week-grid > .df-month-day-cell:nth-child(1) .df-month-date-number,
+	html.dark .calendar-stage .df-month-week-grid > .df-month-day-cell:nth-child(7) .df-month-date-number {
+		color: #f87171;
+	}
+
+	html.dark .calendar-stage .df-month-day-cell-surface[data-other-month='true'] {
+		background: transparent;
+	}
+
+	.calendar-stage .df-month-day-cell.month-selected-date {
+		background: color-mix(in oklab, oklch(0.68 0.16 255) 5%, transparent);
+		box-shadow:
+			inset -1px 0 0 #dedee3,
+			inset 0 -1px 0 #dedee3;
+	}
+
+	.calendar-stage.calendar-stage-week .calendar-selected-week-date {
+		position: relative;
+		background: transparent;
+	}
+
+	.calendar-stage.calendar-stage-week .calendar-selected-week-date::after {
+		position: absolute;
+		right: 18px;
+		bottom: 0;
+		left: 18px;
+		height: 2px;
+		border-radius: 999px;
+		background: var(--df-color-primary);
+		content: '';
+	}
+
+	.calendar-stage.calendar-stage-week .calendar-selected-week-date .df-date-number,
+	.calendar-stage.calendar-stage-week .calendar-selected-week-date .df-week-date-number {
+		display: inline-flex;
+		min-width: 22px;
+		height: 22px;
+		align-items: center;
+		justify-content: center;
+		border-radius: 9999px;
+		background: transparent !important;
+		color: inherit !important;
+		font-weight: 700;
+	}
+
+	.calendar-stage.calendar-stage-week .calendar-selected-week-date .df-date-number[data-today='true'],
+	.calendar-stage.calendar-stage-week .calendar-selected-week-date .df-week-date-number[data-today='true'] {
+		background: var(--df-color-primary) !important;
+		color: #ffffff !important;
+	}
+
+	.calendar-stage .internkim-calendar-event-focused {
+
+		box-shadow:
+			0 0 0 2px color-mix(in oklab, var(--primary) 70%, transparent),
+			0 10px 24px color-mix(in oklab, var(--primary) 18%, transparent);
+	}
+
+	.calendar-stage .df-event.calendar-timeline-overlap-adjusted {
+		left: var(--calendar-overlap-left, 0%) !important;
+		width: var(--calendar-overlap-width, auto) !important;
+	}
+
+	.calendar-stage .df-mini-calendar-day[data-mini-date-key] {
+		position: relative;
+		display: inline-flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 1px;
+	}
+
+	.calendar-stage .df-mini-calendar-day[data-selected='true'] {
+		border-radius: 9999px;
+		background: var(--calendar-mini-selected-background);
+		color: #111827;
+		font-weight: 800;
+	}
+
+	.calendar-stage .df-mini-calendar-day[data-today='true']:not([data-selected='true']) {
+		color: oklch(0.55 0.19 255);
+		font-weight: 800;
+	}

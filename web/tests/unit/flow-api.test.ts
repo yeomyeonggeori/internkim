@@ -1,6 +1,12 @@
 // Flow API 오류 문구 로컬라이제이션 경계를 검증합니다.
 import { describe, expect, test } from 'bun:test';
-import { createQuickFlowTask, fetchFlowState, fetchFlowWeeklySummary, mergeFlowSummary } from '../../src/routes/flow/flow-api';
+import {
+	createQuickFlowTask,
+	fetchFlowState,
+	fetchFlowWeeklySummary,
+	mergeFlowSummary,
+	saveFlowTask
+} from '../../src/routes/flow/flow-api';
 
 type FetchWithPreconnect = typeof fetch & { preconnect?: unknown };
 
@@ -95,6 +101,50 @@ describe('flow API', () => {
 					'Could not add the task with AI.'
 				)
 			).rejects.toThrow('Could not add the task with AI.');
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	test('omits local create-only fields when creating a task so the server can append it', async () => {
+		const originalFetch = globalThis.fetch;
+		let requestBody: Record<string, unknown> = {};
+
+		try {
+			globalThis.fetch = Object.assign(
+				async (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+					requestBody = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+					return new Response(null, { status: 204 });
+				},
+				{ preconnect: fetchPreconnect(originalFetch) }
+			);
+
+			await saveFlowTask(flowTask(''), 'Could not save the task.');
+
+			expect('id' in requestBody).toBe(false);
+			expect('statusRank' in requestBody).toBe(false);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	test('keeps explicit create status rank without sending a blank task id', async () => {
+		const originalFetch = globalThis.fetch;
+		let requestBody: Record<string, unknown> = {};
+
+		try {
+			globalThis.fetch = Object.assign(
+				async (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+					requestBody = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+					return new Response(null, { status: 204 });
+				},
+				{ preconnect: fetchPreconnect(originalFetch) }
+			);
+
+			await saveFlowTask({ ...flowTask(''), statusRank: 2048 }, 'Could not save the task.');
+
+			expect('id' in requestBody).toBe(false);
+			expect(requestBody.statusRank).toBe(2048);
 		} finally {
 			globalThis.fetch = originalFetch;
 		}

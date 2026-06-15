@@ -88,6 +88,53 @@ test.describe('calendar draft popover', () => {
 		await expect(page.locator('.calendar-draft-popover')).toBeHidden();
 	});
 
+	test('saves titled drafts and cancels untitled drafts when clicking outside the popover', async ({ page }) => {
+		const postedPayloads: unknown[] = [];
+		await page.route('**/calendar/api/events', async (route) => {
+			const payload = route.request().postDataJSON() as Record<string, unknown>;
+			postedPayloads.push(payload);
+			await route.fulfill({
+				json: {
+					id: String(payload.eventID),
+					title: String(payload.title),
+					description: String(payload.description ?? ''),
+					location: String(payload.location ?? ''),
+					startISO: String(payload.startISO),
+					endISO: String(payload.endISO),
+					isAllDay: Boolean(payload.isAllDay),
+					updatedAt: '2026-06-08T12:00:00.000Z'
+				}
+			});
+		});
+		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
+		await page.goto('/calendar/embed');
+		await waitForClientHydration(page);
+
+		for (const viewLabel of ['일', '주', '월']) {
+			await page.getByRole('button', { name: viewLabel, exact: true }).click();
+			await page.getByRole('button', { name: '새로 만들기' }).click();
+			await page.getByLabel('제목').fill(`${viewLabel} 바깥 저장`);
+			await clickOutsideDraftPopover(page);
+			await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+		}
+
+		await expect.poll(() => postedPayloads.length).toBe(3);
+		expect(postedPayloads.map((payload) => (payload as { title?: string }).title)).toEqual([
+			'일 바깥 저장',
+			'주 바깥 저장',
+			'월 바깥 저장'
+		]);
+
+		for (const viewLabel of ['일', '주', '월']) {
+			await page.getByRole('button', { name: viewLabel, exact: true }).click();
+			await page.getByRole('button', { name: '새로 만들기' }).click();
+			await clickOutsideDraftPopover(page);
+			await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+		}
+
+		await expect.poll(() => postedPayloads.length).toBe(3);
+	});
+
 	test('disables completion when a timed draft end is not after the start', async ({ page }) => {
 		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
 		await page.goto('/calendar/embed');
@@ -127,7 +174,7 @@ test.describe('calendar draft popover', () => {
 		await page.getByRole('button', { name: '새로 만들기' }).click();
 		await expect(page.locator('[data-event-id^="quick-"]')).toHaveCount(1);
 
-		await page.getByRole('button', { name: '취소' }).click();
+		await page.locator('.draft-popover-footer').getByRole('button', { name: '취소' }).click();
 
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
 		await expect(page.locator('[data-event-id^="quick-"]')).toHaveCount(0);
@@ -255,6 +302,34 @@ async function waitForClientHydration(page: Page): Promise<void> {
 				requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
 			})
 	);
+}
+
+async function clickOutsideDraftPopover(page: Page): Promise<void> {
+	const clickPoint = await page.evaluate(() => {
+		const popover = document.querySelector('.calendar-draft-popover');
+		const stage = document.querySelector('.calendar-stage');
+		if (!(popover instanceof HTMLElement) || !(stage instanceof HTMLElement)) {
+			throw new Error('Missing draft popover or calendar stage');
+		}
+		const stageRectangle = stage.getBoundingClientRect();
+		const popoverRectangle = popover.getBoundingClientRect();
+		const candidates = [
+			{ x: stageRectangle.left + 24, y: stageRectangle.top + 72 },
+			{ x: stageRectangle.right - 24, y: stageRectangle.top + 72 },
+			{ x: stageRectangle.left + 24, y: stageRectangle.bottom - 24 },
+			{ x: stageRectangle.left + stageRectangle.width / 2, y: stageRectangle.top + stageRectangle.height / 2 }
+		];
+		const point = candidates.find(
+			(candidate) =>
+				candidate.x < popoverRectangle.left ||
+				candidate.x > popoverRectangle.right ||
+				candidate.y < popoverRectangle.top ||
+				candidate.y > popoverRectangle.bottom
+		);
+		if (!point) throw new Error('Could not find a point outside the draft popover');
+		return point;
+	});
+	await page.mouse.click(clickPoint.x, clickPoint.y);
 }
 
 async function dragBetweenCells(page: Page, startDateKey: string, endDateKey: string): Promise<void> {
