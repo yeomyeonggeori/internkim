@@ -453,6 +453,9 @@ func executeTenantNspawnProvision(ctx context.Context, options tenantProvisionOp
 }
 
 func executeTenantHostProvision(ctx context.Context, options tenantProvisionOptions) (tenantProvisionSummary, error) {
+	if errorValue := hostRuntimeProvisionGuardError(localMachineIsJetsonBoard()); errorValue != nil {
+		return tenantProvisionSummary{}, errorValue
+	}
 	manifest, errorValue := tenantProvisionManifest(options)
 	if errorValue != nil {
 		return tenantProvisionSummary{}, tenantProvisionStepError{Step: "create", Cause: errorValue}
@@ -477,6 +480,18 @@ func executeTenantHostProvision(ctx context.Context, options tenantProvisionOpti
 		return tenantProvisionSummary{}, tenantProvisionStepError{Step: "install-host-runtime", Cause: errorValue}
 	}
 	return executeTenantSharedProvisionSteps(ctx, createService, manifest, options)
+}
+
+func localMachineIsJetsonBoard() bool {
+	_, errorValue := os.Stat("/var/lib/internkim/jetson-firstboot.done")
+	return errorValue == nil
+}
+
+func hostRuntimeProvisionGuardError(isJetsonBoard bool) error {
+	if !isJetsonBoard {
+		return nil
+	}
+	return errors.New("refusing to install host-runtime tenants on a Jetson production board; pilot/test tenants must run as systemd-nspawn containers on the Mac host (tenant provision --runtime nspawn), not on the device")
 }
 
 func executeTenantSharedProvisionSteps(ctx context.Context, service tenantruntime.Service, manifest tenantruntime.Manifest, options tenantProvisionOptions) (tenantProvisionSummary, error) {
@@ -864,6 +879,9 @@ func runTenantInstallHostRuntime(arguments []string) {
 	workspaceImageTemplatePath := flags.String("workspace-image", "/var/lib/blueclaw/workspace.ext4", "Blueclaw workspace image template path")
 	portBase := flags.Int("port-base", 0, "optional first tenant runtime port")
 	if errorValue := flags.Parse(arguments); errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	if errorValue := hostRuntimeProvisionGuardError(localMachineIsJetsonBoard()); errorValue != nil {
 		fatal(errorValue.Error())
 	}
 	status, errorValue := (tenantruntime.Service{
