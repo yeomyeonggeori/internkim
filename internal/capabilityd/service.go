@@ -1506,12 +1506,12 @@ func (service Service) startMattermostForwarder(ctx context.Context) {
 			}
 			return event, true, nil
 		},
-		AfterForward: func(_ context.Context, payload []byte) {
+		AfterForward: func(ctx context.Context, payload []byte) {
 			service.healthState().Update(func(state *platformHealthState) {
 				state.LastSuccessfulForwardAt = time.Now().UTC()
 				state.LastForwardError = ""
 			})
-			post, _, hasPost, errorValue := mattermostWebSocketPost(payload)
+			post, metadata, hasPost, errorValue := mattermostWebSocketPost(payload)
 			if errorValue != nil || !hasPost || strings.TrimSpace(post.ChannelID) == "" || post.CreateAt <= 0 {
 				return
 			}
@@ -1520,6 +1520,7 @@ func (service Service) startMattermostForwarder(ctx context.Context) {
 				pollState.LastSeenByChannel[post.ChannelID] = post.CreateAt
 			}
 			lastSeenMutex.Unlock()
+			go service.routeUploadedMattermostAttachments(context.Background(), post, metadata.ChannelType, metadata.ChannelName, botUser.ID)
 		},
 		AfterForwardError: func(errorValue error) {
 			service.healthState().Update(func(state *platformHealthState) {
@@ -1532,6 +1533,7 @@ func (service Service) startMattermostForwarder(ctx context.Context) {
 	}
 	service.pollMattermostFallback(ctx, &pollState, &lastSeenMutex)
 	go service.runMattermostPollingFallback(ctx, &pollState, &lastSeenMutex)
+	go service.runMattermostImportCleanup(ctx)
 	go listener.Start(ctx)
 }
 
