@@ -10,6 +10,8 @@ export const filesText = {
 		uploading: '업로드 중…',
 		dropHint: '여기로 파일을 끌어다 놓으면 이 폴더에 추가됩니다.',
 		folder: '폴더',
+		name: '이름',
+		size: '크기',
 		modified: '수정',
 		roots: '위치'
 	},
@@ -24,6 +26,8 @@ export const filesText = {
 		uploading: 'Uploading…',
 		dropHint: 'Drop files here to add them to this folder.',
 		folder: 'Folder',
+		name: 'Name',
+		size: 'Size',
 		modified: 'Modified',
 		roots: 'Locations'
 	}

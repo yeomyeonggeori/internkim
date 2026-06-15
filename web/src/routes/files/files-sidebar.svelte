@@ -35,17 +35,14 @@
 	<nav class="min-h-0 flex-1 space-y-1 overflow-auto p-3">
 		{#each files.roots as root (root.id)}
 			{@const RootIcon = rootIcon[root.kind]}
-			<button
-				type="button"
-				class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-accent {files
-					.currentRoot?.id === root.id
-					? 'bg-accent font-medium'
-					: 'text-muted-foreground'}"
+			<Button
+				variant={files.currentRoot?.id === root.id ? 'secondary' : 'ghost'}
+				class="w-full justify-start gap-2"
 				onclick={() => files.openRoot(root)}
 			>
 				<RootIcon class="size-4 shrink-0" />
 				<span class="truncate">{root.label}</span>
-			</button>
+			</Button>
 		{/each}
 	</nav>
 </aside>
