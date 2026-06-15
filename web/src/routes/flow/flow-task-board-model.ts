@@ -1,0 +1,66 @@
+// Flow 업무 보드의 컬럼 구성과 정렬을 담당합니다.
+import type { FlowTask } from './flow-types';
+
+export const BOARD_STATUS_VALUES = ['요청', '예정', '진행', '완료', '일시정지'] as const;
+
+export type FlowTaskBoardStatus = (typeof BOARD_STATUS_VALUES)[number];
+
+export type FlowTaskBoardColumn = {
+	status: FlowTaskBoardStatus;
+	theme: FlowTaskBoardColumnTheme;
+	tasks: FlowTask[];
+};
+
+export type FlowTaskBoardColumnTheme = {
+	dotClass: string;
+	titleClass: string;
+	headerClass: string;
+};
+
+const boardColumnThemes: Record<FlowTaskBoardStatus, FlowTaskBoardColumnTheme> = {
+	요청: {
+		dotClass: 'bg-[#7c3aed]',
+		titleClass: 'text-[#4c1d95]',
+		headerClass: 'bg-[#f3e8ff]/70'
+	},
+	예정: {
+		dotClass: 'bg-[#d97706]',
+		titleClass: 'text-[#78350f]',
+		headerClass: 'bg-[#fef3c7]/80'
+	},
+	진행: {
+		dotClass: 'bg-[#0284c7]',
+		titleClass: 'text-[#075985]',
+		headerClass: 'bg-[#e0f2fe]/80'
+	},
+	완료: {
+		dotClass: 'bg-[#16a34a]',
+		titleClass: 'text-[#166534]',
+		headerClass: 'bg-[#dcfce7]/80'
+	},
+	일시정지: {
+		dotClass: 'bg-[#e11d48]',
+		titleClass: 'text-[#9f1239]',
+		headerClass: 'bg-[#ffe4e6]/80'
+	}
+};
+
+export function buildFlowTaskBoard(tasks: FlowTask[]): FlowTaskBoardColumn[] {
+	return BOARD_STATUS_VALUES.map((status) => ({
+		status,
+		theme: boardColumnThemes[status],
+		tasks: tasks
+			.filter((task) => task.status === status)
+			.toSorted(compareFlowTaskBoardOrder)
+	}));
+}
+
+export function isFlowTaskBoardStatus(status: string): status is FlowTaskBoardStatus {
+	return BOARD_STATUS_VALUES.some((boardStatus) => boardStatus === status);
+}
+
+function compareFlowTaskBoardOrder(left: FlowTask, right: FlowTask): number {
+	const rankDifference = left.statusRank - right.statusRank;
+	if (rankDifference !== 0) return rankDifference;
+	return left.id.localeCompare(right.id);
+}
