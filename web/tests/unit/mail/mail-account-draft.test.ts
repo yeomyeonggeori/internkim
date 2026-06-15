@@ -54,6 +54,17 @@ describe('mail account draft', () => {
 		});
 	});
 
+	test('preserves password whitespace in account payload', () => {
+		const payload = mailAccountDraftPayload({
+			...createMailAccountDraft(emptyMailAccount),
+			imapPassword: 'abcd efgh ijkl mnop',
+			smtpPassword: 'qrst uvwx yzab cdef'
+		});
+
+		expect(payload.imapPassword).toBe('abcd efgh ijkl mnop');
+		expect(payload.smtpPassword).toBe('qrst uvwx yzab cdef');
+	});
+
 	test('trims compose address lists', () => {
 		expect(splitMailAddressList(' a@example.com, ,b@example.com ')).toEqual(['a@example.com', 'b@example.com']);
 		expect(
