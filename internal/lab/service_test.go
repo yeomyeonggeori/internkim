@@ -9,6 +9,7 @@ import (
 )
 
 const runningContainerListJSON = `[{"configuration":{"id":"internkim-lab"},"status":"running","networks":[{"network":"default","ipv4Address":"192.168.65.10/24"}]}]`
+const runningContainerListStatusObjectJSON = `[{"configuration":{"id":"internkim-lab"},"status":{"state":"running","networks":[{"network":"default","ipv4Address":"192.168.65.10/24"}]}}]`
 const stoppedContainerListJSON = `[{"configuration":{"id":"internkim-lab"},"status":"stopped","networks":[]}]`
 const missingContainerListJSON = `[]`
 
@@ -117,6 +118,21 @@ func TestImageBuildUsesContainerCreateCommand(t *testing.T) {
 func TestVirtualMachineUpSkipsImageBuildWhenVirtualMachineRunning(t *testing.T) {
 	commandRunner := &fakeCommandRunner{
 		outputValue: runningContainerListJSON,
+	}
+	service := NewService(buildTestConfiguration(), commandRunner, "/repo")
+
+	errorValue := service.VirtualMachineUp(context.Background())
+	if errorValue != nil {
+		t.Fatalf("expected vm up to succeed: %v", errorValue)
+	}
+	if len(commandRunner.runCommands) != 0 {
+		t.Fatalf("expected running container to skip create and start, got %d run commands", len(commandRunner.runCommands))
+	}
+}
+
+func TestVirtualMachineUpParsesStatusObject(t *testing.T) {
+	commandRunner := &fakeCommandRunner{
+		outputValue: runningContainerListStatusObjectJSON,
 	}
 	service := NewService(buildTestConfiguration(), commandRunner, "/repo")
 
