@@ -16,7 +16,7 @@ var errorUnsupportedHostMode = errors.New("unsupported host mode")
 
 type containerListEntry struct {
 	Configuration containerListEntryConfiguration `json:"configuration"`
-	Status        string                          `json:"status"`
+	Status        containerListEntryStatus        `json:"status"`
 	Networks      []containerListEntryNetwork     `json:"networks"`
 }
 
@@ -24,8 +24,46 @@ type containerListEntryConfiguration struct {
 	ID string `json:"id"`
 }
 
+type containerListEntryStatus struct {
+	State    string
+	Networks []containerListEntryNetwork
+}
+
 type containerListEntryNetwork struct {
 	IPv4Address string `json:"ipv4Address"`
+}
+
+func (status *containerListEntryStatus) UnmarshalJSON(data []byte) error {
+	var state string
+	if errorValue := json.Unmarshal(data, &state); errorValue == nil {
+		status.State = state
+		status.Networks = nil
+		return nil
+	}
+
+	var document struct {
+		State    string                      `json:"state"`
+		Networks []containerListEntryNetwork `json:"networks"`
+	}
+	if errorValue := json.Unmarshal(data, &document); errorValue != nil {
+		return errorValue
+	}
+
+	status.State = document.State
+	status.Networks = document.Networks
+	return nil
+}
+
+func (containerEntry containerListEntry) isRunning() bool {
+	return containerEntry.Status.State == "running"
+}
+
+func (containerEntry containerListEntry) resolvedNetworks() []containerListEntryNetwork {
+	if len(containerEntry.Status.Networks) > 0 {
+		return containerEntry.Status.Networks
+	}
+
+	return containerEntry.Networks
 }
 
 type Service struct {
@@ -70,7 +108,7 @@ func (service Service) VirtualMachineRunning(ctx context.Context) (bool, error) 
 		return false, nil
 	}
 
-	return containerEntry.Status == "running", nil
+	return containerEntry.isRunning(), nil
 }
 
 func (service Service) findContainerListEntry(ctx context.Context) (*containerListEntry, error) {
@@ -597,11 +635,16 @@ func (service Service) resolveVirtualMachineIPAddress(ctx context.Context) (stri
 	if errorValue != nil {
 		return "", errorValue
 	}
-	if containerEntry == nil || containerEntry.Status != "running" || len(containerEntry.Networks) == 0 {
+	if containerEntry == nil || !containerEntry.isRunning() {
 		return "", nil
 	}
 
-	return stripAddressSuffix(containerEntry.Networks[0].IPv4Address), nil
+	networks := containerEntry.resolvedNetworks()
+	if len(networks) == 0 {
+		return "", nil
+	}
+
+	return stripAddressSuffix(networks[0].IPv4Address), nil
 }
 
 func stripAddressSuffix(address string) string {
