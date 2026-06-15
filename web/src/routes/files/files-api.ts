@@ -1,4 +1,4 @@
-export type WorkspaceRootKind = 'personal' | 'circle' | 'shared';
+export type WorkspaceRootKind = 'personal' | 'circle' | 'public';
 
 export type WorkspaceRoot = {
 	id: string;
