@@ -78,15 +78,17 @@ class FlowTasksController {
 	typeFilterOptions = () => [{ value: 'all', label: this.text.filters.all }, ...this.typeOptions()];
 	statusSelectOptions = () => this.statusOptions().map((status) => ({ value: status, label: this.statusLabel(status) }));
 	memberSelectOptions = () => this.members().map((member) => ({ value: member.id, label: member.name }));
+	personalTasks = () => {
+		return this.tasks().filter((task) => !this.activeMemberID || task.participantIDs.includes(this.activeMemberID));
+	};
 
 	filteredTasks = () => {
 		const normalizedSearch = this.searchText.trim().toLowerCase();
-		return this.tasks().filter((task) => {
+		return this.personalTasks().filter((task) => {
 			if (this.statusFilter !== 'all' && task.status !== this.statusFilter) return false;
 			if (this.ownerFilter !== 'all' && !task.participantIDs.includes(this.ownerFilter)) return false;
 			if (this.businessFilter !== 'all' && task.business !== this.businessFilter) return false;
 			if (this.typeFilter !== 'all' && task.type !== this.typeFilter) return false;
-			if (this.activeMemberID && !task.participantIDs.includes(this.activeMemberID)) return false;
 			if (!normalizedSearch) return true;
 			return [task.content, task.goal, task.ownerName, task.business, task.type].join(' ').toLowerCase().includes(normalizedSearch);
 		});
@@ -108,10 +110,11 @@ class FlowTasksController {
 		this.taskErrorMessage = '';
 	};
 
-	createTask = (): void => {
+	createTask = (status?: string): void => {
 		const owner = this.defaultTaskOwner();
 		if (!owner || !this.summary) return;
 		this.taskDraft = createFlowTaskDraft(owner, this.definitions(), this.taskWeek());
+		if (typeof status === 'string' && status) this.taskDraft.status = status;
 		this.taskErrorMessage = '';
 	};
 

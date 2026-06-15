@@ -119,7 +119,15 @@ export const flowText = {
 			save: '업무 저장',
 			saving: '저장 중...',
 			saveError: '업무를 저장하지 못했습니다.',
-			empty: '조건에 맞는 업무가 없습니다.'
+			empty: '조건에 맞는 업무가 없습니다.',
+			viewTabs: {
+				board: '보드',
+				list: '목록'
+			},
+			board: {
+				emptyColumn: '업무 없음',
+				addTask: '{status} 업무 추가'
+			}
 		},
 		table: {
 			owner: '담당자',
@@ -294,7 +302,15 @@ export const flowText = {
 			save: 'Save task',
 			saving: 'Saving...',
 			saveError: 'Could not save the task.',
-			empty: 'No tasks match these filters.'
+			empty: 'No tasks match these filters.',
+			viewTabs: {
+				board: 'Board',
+				list: 'List'
+			},
+			board: {
+				emptyColumn: 'No tasks',
+				addTask: 'Add {status} task'
+			}
 		},
 		table: {
 			owner: 'Owner',
