@@ -3,6 +3,8 @@
 	import FlowTaskListView from './flow-task-list-view.svelte';
 	import FlowTaskEditor from './flow-task-editor.svelte';
 	import FlowTaskQuickAdd from './flow-task-quick-add.svelte';
+	import FlowTaskBoard from './flow-task-board.svelte';
+	import * as Tabs from '$lib/components/ui/tabs';
 	import { createFlowTasksController } from './flow-tasks-controller.svelte';
 	import type { FlowSummary } from './flow-types';
 	import { flowText } from './text';
@@ -21,6 +23,13 @@
 	let { summary, activeMemberID, focusedTaskID, text, loadFlow, setPageErrorMessage }: Props = $props();
 
 	const page = createFlowTasksController();
+	let taskViewTab = $state('list');
+	const taskViewTabTriggerClass = [
+		'h-8 min-w-16 flex-none rounded-full px-4 after:hidden',
+		'aria-selected:bg-primary aria-selected:font-semibold',
+		'aria-selected:text-primary-foreground',
+		'data-active:bg-primary data-active:font-semibold data-active:text-primary-foreground'
+	].join(' ');
 
 	$effect(() => {
 		page.sync({ summary, activeMemberID, text, loadFlow, setPageErrorMessage });
@@ -58,16 +67,37 @@
 		createTask={page.createTask}
 	/>
 
-	<FlowTaskListView
-		tasks={page.filteredTasks()}
-		{text}
-		statusOptions={page.statusSelectOptions()}
-		pendingStatusTaskID={page.pendingStatusTaskID}
-		statusLabel={page.statusLabel}
-		updateTaskStatus={page.updateTaskStatus}
-		openTask={page.openTask}
-		{focusedTaskID}
-	/>
+	<Tabs.Root bind:value={taskViewTab} class="space-y-4">
+		<Tabs.List class="h-10 rounded-full border bg-muted/50 p-1">
+			<Tabs.Trigger value="board" class={taskViewTabTriggerClass}>
+				{text.task.viewTabs.board}
+			</Tabs.Trigger>
+			<Tabs.Trigger value="list" class={taskViewTabTriggerClass}>
+				{text.task.viewTabs.list}
+			</Tabs.Trigger>
+		</Tabs.List>
+		<Tabs.Content value="board">
+			<FlowTaskBoard
+				tasks={page.filteredTasks()}
+				boardText={text.task.board}
+				statusLabel={page.statusLabel}
+				openTask={page.openTask}
+				createTask={page.createTask}
+			/>
+		</Tabs.Content>
+		<Tabs.Content value="list">
+			<FlowTaskListView
+				tasks={page.filteredTasks()}
+				{text}
+				statusOptions={page.statusSelectOptions()}
+				pendingStatusTaskID={page.pendingStatusTaskID}
+				statusLabel={page.statusLabel}
+				updateTaskStatus={page.updateTaskStatus}
+				openTask={page.openTask}
+				{focusedTaskID}
+			/>
+		</Tabs.Content>
+	</Tabs.Root>
 </div>
 
 <FlowTaskEditor

@@ -68,7 +68,7 @@
 		{@render SelectControl(text.type, typeOptions, typeFilter, (value: string) => (typeFilter = value))}
 	</div>
 	<Button variant="ghost" size="sm" onclick={resetFilters}>{text.reset}</Button>
-	<Button size="sm" onclick={createTask} disabled={!hasMembers}>
+	<Button size="sm" onclick={() => createTask()} disabled={!hasMembers}>
 		<PlusIcon />
 		{text.addTask}
 	</Button>
