@@ -28,6 +28,11 @@ export function selectedMailSettingsDomain(emailProviderID: MailProviderID, cust
 	return emailProviderID === 'custom' ? customEmailDomain : mailProviderPreset(emailProviderID)?.domain || '';
 }
 
+export function mailAppPasswordInputValue(value: string, emailProviderID: MailProviderID): string {
+	if (emailProviderID !== 'gmail') return value;
+	return value.replace(/\s/g, '');
+}
+
 export function currentMailPresetFromDraft(accountDraft: MailAccountDraft): MailProviderPreset | undefined {
 	const currentIMAPHost = accountDraft.imapHost.trim().toLowerCase();
 	const currentSMTPHost = accountDraft.smtpHost.trim().toLowerCase();

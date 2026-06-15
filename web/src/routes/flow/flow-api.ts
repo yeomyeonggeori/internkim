@@ -67,7 +67,7 @@ export async function saveFlowTask(task: FlowTask, fallbackMessage: string): Pro
 		method,
 		credentials: 'include',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(task)
+		body: JSON.stringify(flowTaskSavePayload(task))
 	});
 	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
 }
@@ -101,6 +101,13 @@ function quickTaskResultFromResponse(value: unknown): FlowQuickTaskResult {
 		};
 	}
 	return { status: 'created', reason: '' };
+}
+
+function flowTaskSavePayload(task: FlowTask): Partial<FlowTask> {
+	if (task.id) return task;
+	const { id: _id, statusRank, ...payload } = task;
+	if (statusRank !== 0) return { ...payload, statusRank };
+	return payload;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

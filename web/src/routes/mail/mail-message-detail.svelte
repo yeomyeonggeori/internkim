@@ -8,7 +8,7 @@
 	import SendIcon from '@lucide/svelte/icons/send';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
-	import { mailHTMLDocument } from './mail-message-utils';
+	import { MAIL_MESSAGE_IFRAME_SANDBOX, mailHTMLDocument } from './mail-message-utils';
 	import type { MailAccount, MailMessage } from './mail-types';
 	import type { mailText } from './text';
 
@@ -16,6 +16,7 @@
 		account: MailAccount;
 		selectedMailbox: string;
 		selectedMessage: MailMessage | null;
+		hasLoadedAccount: boolean;
 		isLoadingMessage: boolean;
 		messageBody: string;
 		messageBodyHTML: string;
@@ -31,6 +32,7 @@
 		account,
 		selectedMailbox,
 		selectedMessage,
+		hasLoadedAccount,
 		isLoadingMessage,
 		messageBody,
 		messageBodyHTML,
@@ -80,18 +82,23 @@
 					{/if}
 				</div>
 				<Separator />
-				{#if isLoadingMessage}
+				{#if isLoadingMessage && !messageBodyHTML && !messageBody}
 					<p class="text-sm text-muted-foreground">{text.loadingMessage}</p>
-				{:else if messageBodyHTML}
-					<iframe
-						title={text.messageBody}
-						class="min-h-[62vh] w-full rounded-md border bg-white"
-						sandbox=""
-						referrerpolicy="no-referrer"
-						srcdoc={mailHTMLDocument(messageBodyHTML)}
-					></iframe>
 				{:else}
-					<p class="whitespace-pre-wrap text-sm leading-6">{messageBody}</p>
+					{#if isLoadingMessage}
+						<p class="mb-3 text-xs text-muted-foreground">{text.loadingMessage}</p>
+					{/if}
+					{#if messageBodyHTML}
+						<iframe
+							title={text.messageBody}
+							class="min-h-[62vh] w-full rounded-md border bg-white"
+							sandbox={MAIL_MESSAGE_IFRAME_SANDBOX}
+							referrerpolicy="no-referrer"
+							srcdoc={mailHTMLDocument(messageBodyHTML)}
+						></iframe>
+					{:else}
+						<p class="whitespace-pre-wrap text-sm leading-6">{messageBody}</p>
+					{/if}
 				{/if}
 			</div>
 		{:else}
@@ -100,9 +107,9 @@
 					<div class="mx-auto flex size-12 items-center justify-center rounded-xl border bg-muted/50">
 						<MailIcon class="size-5 text-muted-foreground" />
 					</div>
-					<h2 class="mt-4 text-lg font-semibold">{account.isConfigured ? text.ready : text.notConnected}</h2>
-					<p class="mt-2 text-sm leading-6 text-muted-foreground">{account.isConfigured ? text.chooseMessage : text.connectDescription}</p>
-					<Button class="mt-4 gap-2" variant="secondary" onclick={() => (account.isConfigured ? openCompose() : openSettings())}>
+					<h2 class="mt-4 text-lg font-semibold">{hasLoadedAccount ? (account.isConfigured ? text.ready : text.notConnected) : text.checkingMail}</h2>
+					<p class="mt-2 text-sm leading-6 text-muted-foreground">{hasLoadedAccount ? (account.isConfigured ? text.chooseMessage : text.connectDescription) : text.checkingMailDescription}</p>
+					<Button class="mt-4 gap-2" variant="secondary" onclick={() => (account.isConfigured ? openCompose() : openSettings())} disabled={!hasLoadedAccount}>
 						{#if account.isConfigured}
 							<PencilIcon />
 							{text.compose}

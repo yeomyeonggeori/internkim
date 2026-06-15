@@ -1,5 +1,6 @@
 import type { CalendarViewType } from '@dayflow/core';
 import { ViewType } from '@dayflow/svelte';
+import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
 
 export type TimelineRangeSelection = {
 	pointerID: number;
@@ -7,6 +8,7 @@ export type TimelineRangeSelection = {
 	startClientY: number;
 	startDate: Date;
 	currentDate: Date;
+	currentAnchor: DraftPopoverAnchor;
 	hasMoved: boolean;
 };
 
@@ -16,8 +18,8 @@ export type TimelineRangeActionOptions = {
 	currentDate: () => Date;
 	getSelection: () => TimelineRangeSelection | null;
 	setSelection: (selection: TimelineRangeSelection | null) => void;
-	createSingleEvent: (startDate: Date) => void;
-	createRangeEvent: (firstDate: Date, secondDate: Date) => void;
+	createSingleEvent: (startDate: Date, anchor: DraftPopoverAnchor) => void;
+	createRangeEvent: (firstDate: Date, secondDate: Date, anchor: DraftPopoverAnchor) => void;
 };
 
 const timelineRangeMoveThresholdPx = 8;
@@ -36,6 +38,7 @@ export function installCalendarTimelineRangeAction(options: TimelineRangeActionO
 			startClientY: event.clientY,
 			startDate,
 			currentDate: startDate,
+			currentAnchor: timelineAnchorFromPointerEvent(event),
 			hasMoved: false
 		});
 	};
@@ -47,7 +50,7 @@ export function installCalendarTimelineRangeAction(options: TimelineRangeActionO
 		const currentDate = timelineDateFromPointerEvent(options, event, false);
 		if (!currentDate) return;
 		event.preventDefault();
-		options.setSelection({ ...selection, currentDate, hasMoved: true });
+		options.setSelection({ ...selection, currentDate, currentAnchor: timelineAnchorFromPointerEvent(event), hasMoved: true });
 	};
 
 	const handlePointerUp = (event: PointerEvent) => {
@@ -59,7 +62,7 @@ export function installCalendarTimelineRangeAction(options: TimelineRangeActionO
 		event.preventDefault();
 		event.stopPropagation();
 		event.stopImmediatePropagation();
-		options.createRangeEvent(selection.startDate, endDate);
+		options.createRangeEvent(selection.startDate, endDate, selection.currentAnchor);
 	};
 
 	const handlePointerCancel = (event: PointerEvent) => {
@@ -91,7 +94,7 @@ export function installCalendarTimelineRangeAction(options: TimelineRangeActionO
 		event.preventDefault();
 		event.stopPropagation();
 		event.stopImmediatePropagation();
-		options.createSingleEvent(startDate);
+		options.createSingleEvent(startDate, timelineAnchorFromPointerEvent(event));
 	};
 
 	options.stageElement.addEventListener('pointerdown', handlePointerDown, true);
@@ -121,10 +124,10 @@ function timelineDateFromPointerEvent(
 ): Date | null {
 	if (!isTimelineView(options.currentView())) return null;
 	if (requireGridTarget && !isTimelineGridTarget(event.target)) return null;
-	const calendarContent = timelineCalendarContent(options.stageElement);
+	const timelineTimeSource = timelineTimeSourceElement(options.stageElement, event.target);
 	const firstGridRow = timelineFirstGridRow(options.stageElement);
-	if (!calendarContent || !firstGridRow) return null;
-	const rawHour = timelinePointerHour(calendarContent, firstGridRow, event.clientY);
+	if (!timelineTimeSource || !firstGridRow) return null;
+	const rawHour = timelinePointerHour(timelineTimeSource, firstGridRow, event.clientY);
 	const columnIndex = timelineColumnIndex(firstGridRow, event.clientX, options.currentView());
 	const date = timelineDateForColumn(options.currentDate(), options.currentView(), columnIndex);
 	return timelineDateWithHour(date, rawHour, timelineRangeMinuteStep);
@@ -144,7 +147,7 @@ function isIgnoredTimelineTarget(target: EventTarget | null): boolean {
 	if (!(target instanceof Element)) return true;
 	return Boolean(
 		target.closest(
-			'.df-event, .df-all-day-row, .df-event-detail-panel, .df-dialog-container, [data-range-picker-popup], [data-calendar-picker-dropdown]'
+			'.df-event, .df-all-day-row, .df-week-all-day-shell, .df-day-content-all-day-row, .df-event-detail-panel, .df-dialog-container, [data-range-picker-popup], [data-calendar-picker-dropdown]'
 		)
 	);
 }
@@ -158,8 +161,12 @@ function isTimelineGridTarget(target: EventTarget | null): boolean {
 	);
 }
 
-function timelineCalendarContent(stageElement: HTMLElement): HTMLElement | null {
-	const element = stageElement.querySelector('.df-calendar-content');
+function timelineTimeSourceElement(stageElement: HTMLElement, target: EventTarget | null): HTMLElement | null {
+	if (target instanceof Element) {
+		const closestElement = target.closest<HTMLElement>('.df-week-time-grid-scroller, .df-day-content-grid-rows, .df-day-content-grid');
+		if (closestElement) return closestElement;
+	}
+	const element = stageElement.querySelector('.df-week-time-grid-scroller, .df-day-content-grid-rows, .df-day-content-grid, .df-calendar-content');
 	if (!(element instanceof HTMLElement)) return null;
 	return element;
 }
@@ -170,13 +177,24 @@ function timelineFirstGridRow(stageElement: HTMLElement): HTMLElement | null {
 	return element;
 }
 
-function timelinePointerHour(calendarContent: HTMLElement, firstGridRow: HTMLElement, clientY: number): number {
-	const contentRectangle = calendarContent.getBoundingClientRect();
+function timelinePointerHour(timelineTimeSource: HTMLElement, firstGridRow: HTMLElement, clientY: number): number {
+	if (timelineTimeSource.classList.contains('df-day-content-grid-rows')) {
+		return timelinePointerHourFromDayRows(timelineTimeSource, clientY);
+	}
+	const contentRectangle = timelineTimeSource.getBoundingClientRect();
 	const firstGridRectangle = firstGridRow.getBoundingClientRect();
-	const gridOffset = firstGridRectangle.top - contentRectangle.top + calendarContent.scrollTop;
+	const gridOffset = firstGridRectangle.top - contentRectangle.top + timelineTimeSource.scrollTop;
 	const rowHeight = firstGridRectangle.height > 0 ? firstGridRectangle.height : timelineHourHeightPx;
-	const relativeY = clientY - contentRectangle.top + calendarContent.scrollTop - gridOffset;
+	const relativeY = clientY - contentRectangle.top + timelineTimeSource.scrollTop - gridOffset;
 	return Math.max(0, Math.min(24, relativeY / rowHeight));
+}
+
+function timelinePointerHourFromDayRows(dayRowsElement: HTMLElement, clientY: number): number {
+	const contentRectangle = dayRowsElement.getBoundingClientRect();
+	const contentHeight = Math.max(dayRowsElement.scrollHeight, contentRectangle.height, timelineHourHeightPx * 24);
+	const hourHeight = contentHeight / 24;
+	const relativeY = clientY - contentRectangle.top + dayRowsElement.scrollTop;
+	return Math.max(0, Math.min(24, relativeY / hourHeight + 0.5));
 }
 
 function timelineColumnIndex(firstGridRow: HTMLElement, clientX: number, view: CalendarViewType): number {
@@ -199,6 +217,30 @@ function timelineDateWithHour(date: Date, rawHour: number, minuteStep: number): 
 	const nextDate = new Date(date);
 	nextDate.setHours(0, minutes, 0, 0);
 	return nextDate;
+}
+
+function timelineAnchorFromPointerEvent(event: MouseEvent | PointerEvent): DraftPopoverAnchor {
+	const cellElement =
+		event.target instanceof Element
+			? event.target.closest<HTMLElement>('.df-week-time-grid-cell, .df-day-content-grid-column')
+			: null;
+	if (cellElement) {
+		const rectangle = cellElement.getBoundingClientRect();
+		return {
+			clientX: rectangle.right,
+			clientY: event.clientY,
+			leftClientX: rectangle.left,
+			topClientY: event.clientY - 8,
+			bottomClientY: event.clientY + 8
+		};
+	}
+	return {
+		clientX: event.clientX,
+		clientY: event.clientY,
+		leftClientX: event.clientX - 8,
+		topClientY: event.clientY - 8,
+		bottomClientY: event.clientY + 8
+	};
 }
 
 function startOfWeek(date: Date): Date {

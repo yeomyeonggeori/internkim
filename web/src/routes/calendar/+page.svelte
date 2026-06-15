@@ -10,10 +10,11 @@
 	const text = createPageText(calendarText);
 	const iframeKey = $derived(`${calendarRefresh.ticks}-${currentLocale.value}`);
 	let calendarFrame = $state<HTMLIFrameElement | null>(null);
+	let loadedIframeKey = $state('');
 	let embedQuery = $state('');
 
 	$effect(() => {
-		if (!calendarFrame?.contentWindow || !calendarNavigation.dateKey) return;
+		if (!calendarFrame?.contentWindow || loadedIframeKey !== iframeKey || !calendarNavigation.dateKey) return;
 		calendarFrame.contentWindow.postMessage(
 			{
 				type: 'calendar-navigate',
@@ -26,6 +27,10 @@
 	onMount(() => {
 		embedQuery = window.location.search;
 	});
+
+	function handleCalendarFrameLoad() {
+		loadedIframeKey = iframeKey;
+	}
 </script>
 
 <svelte:head>
@@ -38,6 +43,7 @@
 			bind:this={calendarFrame}
 			title={text.title}
 			src={browser ? `/calendar/embed${embedQuery}` : '/calendar/embed'}
+			onload={handleCalendarFrameLoad}
 			class="min-h-0 flex-1 border-0 bg-background"
 		></iframe>
 	{/key}
