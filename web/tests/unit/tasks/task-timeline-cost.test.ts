@@ -27,6 +27,19 @@ describe('summarizeTimeline cost and cache accounting', () => {
 		expect(summary.llmCostUSD).toBe(0);
 		expect(summary.llmCachedPromptTokens).toBe(0);
 	});
+
+	test('falls back to BYOK upstream cost when top-level cost is absent', () => {
+		const summary = summarizeTimeline([
+			llmCallEvent({ totalTokens: 17024, upstreamInferenceCostUSD: 0.0044195 }),
+			llmCallEvent({ totalTokens: 350, upstreamInferenceCostUSD: 0.0002885 })
+		]);
+		expect(Number(summary.llmCostUSD.toFixed(7))).toBe(0.004708);
+	});
+
+	test('prefers top-level cost over upstream when both present', () => {
+		const summary = summarizeTimeline([llmCallEvent({ costUSD: 0.02, upstreamInferenceCostUSD: 0.05 })]);
+		expect(summary.llmCostUSD).toBe(0.02);
+	});
 });
 
 describe('formatCostUSD', () => {
