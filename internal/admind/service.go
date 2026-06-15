@@ -416,6 +416,9 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/attendance", service.serveAttendancePage)
 	multiplexer.HandleFunc("/attendance/api/", service.handleAttendance)
 	multiplexer.HandleFunc("/attendance/", service.serveAttendancePage)
+	multiplexer.HandleFunc("/files", service.serveFilesPage)
+	multiplexer.HandleFunc("/files/api/", service.handleFiles)
+	multiplexer.HandleFunc("/files/", service.serveFilesPage)
 	multiplexer.HandleFunc("/.well-known/caldav", service.serveCalendarDAV)
 	multiplexer.Handle("/_app/", http.FileServer(http.Dir(service.Configuration.AdminUIPath)))
 	multiplexer.HandleFunc("/logo.svg", service.serveAdminAsset)
@@ -451,6 +454,7 @@ func isInternKimCORSPath(path string) bool {
 		path == "/calendar" ||
 		path == "/mail" ||
 		path == "/attendance" ||
+		path == "/files" ||
 		path == "/logo.svg" ||
 		path == "/.well-known/caldav" ||
 		strings.HasPrefix(path, "/api/v1/") ||
@@ -460,6 +464,7 @@ func isInternKimCORSPath(path string) bool {
 		strings.HasPrefix(path, "/calendar/") ||
 		strings.HasPrefix(path, "/mail/") ||
 		strings.HasPrefix(path, "/attendance/") ||
+		strings.HasPrefix(path, "/files/") ||
 		strings.HasPrefix(path, "/_app/") ||
 		strings.HasPrefix(path, "/_internkim/")
 }
