@@ -1,4 +1,5 @@
 import { browser } from '$app/environment';
+import { adminApiFetch } from '$lib/admin-api';
 
 export type Locale = 'ko' | 'en';
 
@@ -42,7 +43,7 @@ function parseLocale(value: string | null): Locale | undefined {
 
 async function loadServerLocale() {
 	try {
-		const response = await fetch('/admin/api/locale', { credentials: 'include' });
+		const response = await adminApiFetch('/admin/api/locale');
 		if (!response.ok) return;
 		const payload = (await response.json()) as { locale?: string };
 		const locale = parseLocale(payload.locale ?? null);
@@ -56,9 +57,8 @@ async function loadServerLocale() {
 
 async function saveServerLocale(locale: Locale) {
 	try {
-		await fetch('/admin/api/locale', {
+		await adminApiFetch('/admin/api/locale', {
 			method: 'PUT',
-			credentials: 'include',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ locale })
 		});
