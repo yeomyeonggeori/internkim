@@ -5,10 +5,11 @@ import { temporalToDate } from '@dayflow/core';
 export type DraftPopoverMode = 'create' | 'edit';
 
 export type DraftPopoverAnchor = {
-	left: number;
-	top: number;
-	width: number;
-	height: number;
+	clientX: number;
+	clientY: number;
+	leftClientX?: number;
+	topClientY?: number;
+	bottomClientY?: number;
 };
 
 export type DraftPopoverState = {
@@ -29,6 +30,9 @@ export type DraftPopoverState = {
 export type DraftPopoverPosition = {
 	left: number;
 	top: number;
+	width: number;
+	arrowTop: number;
+	arrowSide: 'left' | 'right';
 };
 
 export type DraftPopoverEventChanges = {
@@ -61,8 +65,15 @@ export function draftPopoverStateFromEvent(
 		location: typeof event.meta?.location === 'string' ? event.meta.location : '',
 		description: event.description ?? '',
 		calendarID: event.calendarId ?? 'internkim',
-		position: draftPopoverPosition(anchor, stageElement)
+		position: draftPopoverPositionFromAnchor(anchor, stageElement)
 	};
+}
+
+export function draftPopoverPositionFromAnchor(
+	anchor: DraftPopoverAnchor | null,
+	stageElement: HTMLElement | null
+): DraftPopoverPosition {
+	return draftPopoverPosition(anchor, stageElement);
 }
 
 export function draftPopoverChanges(popover: DraftPopoverState): DraftPopoverEventChanges {
@@ -103,14 +114,34 @@ export function dateKey(date: Date): string {
 
 function draftPopoverPosition(anchor: DraftPopoverAnchor | null, stageElement: HTMLElement | null): DraftPopoverPosition {
 	const stageRectangle = stageElement?.getBoundingClientRect();
-	const fallbackLeft = stageRectangle ? stageRectangle.left + Math.min(420, stageRectangle.width / 2) : 320;
-	const fallbackTop = stageRectangle ? stageRectangle.top + 72 : 88;
-	if (!anchor) return { left: fallbackLeft, top: fallbackTop };
-	const desiredLeft = anchor.left + anchor.width + 12;
-	const maxLeft = window.innerWidth - 380;
-	const left = Math.max(16, Math.min(desiredLeft, maxLeft));
-	const top = Math.max(16, Math.min(anchor.top, window.innerHeight - 560));
-	return { left, top };
+	if (!stageRectangle) return { left: 16, top: 16, width: 320, arrowTop: 42, arrowSide: 'left' };
+	const stageMargin = 12;
+	const arrowOutset = 10;
+	const popoverGap = 16;
+	const width = Math.min(540, Math.max(320, stageRectangle.width - (stageMargin + arrowOutset) * 2));
+	const height = Math.min(520, Math.max(240, stageRectangle.height - stageMargin * 2));
+	const fallbackAnchor: DraftPopoverAnchor = {
+		clientX: stageRectangle.left + stageRectangle.width / 2,
+		clientY: stageRectangle.top + Math.min(220, stageRectangle.height / 3)
+	};
+	const targetAnchor = anchor ?? fallbackAnchor;
+	const titleTop = (targetAnchor.topClientY ?? targetAnchor.clientY) - stageRectangle.top;
+	const titleBottom = (targetAnchor.bottomClientY ?? targetAnchor.clientY) - stageRectangle.top;
+	const titleCenterY = (titleTop + titleBottom) / 2;
+	const preferredRight = targetAnchor.clientX - stageRectangle.left + popoverGap;
+	const preferredLeft = (targetAnchor.leftClientX ?? targetAnchor.clientX) - stageRectangle.left - width - popoverGap;
+	const rightOverflow = preferredRight + width + stageMargin > stageRectangle.width;
+	const leftOverflow = preferredLeft < stageMargin;
+	const shouldPlaceRight = !rightOverflow || (leftOverflow && preferredRight <= preferredLeft);
+	const arrowSide = shouldPlaceRight ? 'left' : 'right';
+	const unclampedLeft = shouldPlaceRight ? preferredRight : preferredLeft;
+	const minLeft = stageRectangle.left + stageMargin + (arrowSide === 'left' ? arrowOutset : 0);
+	const maxLeft = stageRectangle.right - width - stageMargin - (arrowSide === 'right' ? arrowOutset : 0);
+	const left = Math.max(minLeft, Math.min(stageRectangle.left + unclampedLeft, Math.max(minLeft, maxLeft)));
+	const sideAlignedTop = titleCenterY - 48;
+	const top = Math.max(stageRectangle.top + stageMargin, Math.min(stageRectangle.top + sideAlignedTop, stageRectangle.bottom - height - stageMargin));
+	const arrowTop = Math.max(18, Math.min(stageRectangle.top + titleCenterY - top - 8, height - 28));
+	return { left, top, width, arrowTop, arrowSide };
 }
 
 function dateFromEventValue(value: DayFlowEvent['start']): Date {
