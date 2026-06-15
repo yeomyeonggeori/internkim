@@ -10,6 +10,7 @@ export type MailPageControllerState = {
 	composeDraft: ComposeDraft;
 	mailboxes: Mailbox[];
 	messages: MailMessage[];
+	messageDetailCache: Map<string, MailMessage>;
 	selectedMailbox: string;
 	selectedMessage: MailMessage | null;
 	searchText: string;
@@ -17,7 +18,10 @@ export type MailPageControllerState = {
 	nextCursor: string;
 	hasMoreMessages: boolean;
 	isUnreadOnly: boolean;
+	hasLoadedAccount: boolean;
 	isLoading: boolean;
+	isLoadingMailboxes: boolean;
+	isLoadingMessages: boolean;
 	isLoadingMessage: boolean;
 	isLoadingMore: boolean;
 	isSavingAccount: boolean;
