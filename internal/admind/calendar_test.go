@@ -284,6 +284,44 @@ func TestCalendarPeopleLineParsing(t *testing.T) {
 	}
 }
 
+func TestCalendarNotificationTimeMovesMorningReminderToPreviousEvening(t *testing.T) {
+	location, errorValue := time.LoadLocation("Asia/Seoul")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	startTime := time.Date(2026, 6, 16, 9, 0, 0, 0, location)
+	event := calendarEvent{
+		StartISO:          startTime.UTC().Format(time.RFC3339),
+		TimeZone:          "Asia/Seoul",
+		ReminderLeadHours: 3,
+	}
+	now := time.Date(2026, 6, 15, 12, 0, 0, 0, location).UTC()
+	notifyAt, shouldNotify := calendarNotificationTime(event, now)
+	expectedNotifyAt := time.Date(2026, 6, 15, 21, 0, 0, 0, location).UTC()
+	if !shouldNotify || !notifyAt.Equal(expectedNotifyAt) {
+		t.Fatalf("notifyAt=%s shouldNotify=%v", notifyAt.Format(time.RFC3339), shouldNotify)
+	}
+}
+
+func TestCalendarNotificationTimeKeepsDaytimeReminder(t *testing.T) {
+	location, errorValue := time.LoadLocation("Asia/Seoul")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	startTime := time.Date(2026, 6, 16, 15, 0, 0, 0, location)
+	event := calendarEvent{
+		StartISO:          startTime.UTC().Format(time.RFC3339),
+		TimeZone:          "Asia/Seoul",
+		ReminderLeadHours: 3,
+	}
+	now := time.Date(2026, 6, 16, 8, 0, 0, 0, location).UTC()
+	notifyAt, shouldNotify := calendarNotificationTime(event, now)
+	expectedNotifyAt := time.Date(2026, 6, 16, 12, 0, 0, 0, location).UTC()
+	if !shouldNotify || !notifyAt.Equal(expectedNotifyAt) {
+		t.Fatalf("notifyAt=%s shouldNotify=%v", notifyAt.Format(time.RFC3339), shouldNotify)
+	}
+}
+
 func TestCalendarNotificationPostsAnnouncementsForAllHands(t *testing.T) {
 	var createdChannel map[string]any
 	var postedMessage string
@@ -432,6 +470,25 @@ func TestCalendarMattermostLogCreatesUpdatesAndDeletesPost(t *testing.T) {
 	}
 	if len(requests.deletedPostIDs) != 1 || requests.deletedPostIDs[0] != "calendar-post-1" {
 		t.Fatalf("deleted posts = %+v", requests.deletedPostIDs)
+	}
+}
+
+func TestCalendarMattermostLogMentionsAllWhenPeopleAreEmpty(t *testing.T) {
+	service := newCalendarTestService(t)
+	message := service.calendarMattermostLogMessage(calendarTestEvent("all-hands", "Company offsite", "Travel prep"))
+	if !strings.Contains(message, "멘션: @all") {
+		t.Fatalf("message = %q", message)
+	}
+}
+
+func TestCalendarMattermostLogMentionsCircleIDPeople(t *testing.T) {
+	service := newCalendarTestService(t)
+	message := service.calendarMattermostLogMessage(calendarTestEvent("staff-sync", "Staff sync", "staff, product-team\nBring agenda"))
+	if !strings.Contains(message, "멘션: @staff @product-team") {
+		t.Fatalf("message = %q", message)
+	}
+	if !strings.Contains(message, "대상: staff, product-team") {
+		t.Fatalf("message = %q", message)
 	}
 }
 
