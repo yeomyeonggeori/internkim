@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { mailHTMLDocument, mailMessageKey, mergeMailMessages } from '../../../src/routes/mail/mail-message-utils';
+import { MAIL_MESSAGE_IFRAME_SANDBOX, mailHTMLDocument, mailMessageKey, mergeMailMessages } from '../../../src/routes/mail/mail-message-utils';
 import type { MailMessage } from '../../../src/routes/mail/mail-types';
 
 const baseMessage: MailMessage = {
@@ -32,13 +32,27 @@ describe('mail message utils', () => {
 	});
 
 	test('wraps message html in a sandbox-friendly document', () => {
-		const document = mailHTMLDocument('<p>Hello</p>');
+		const document = mailHTMLDocument('<p>Hello</p><a href="https://example.com">Open</a>');
 
 		expect(document.includes('<meta http-equiv="Content-Security-Policy"')).toBe(true);
-		expect(document.includes('img-src data: cid:')).toBe(true);
-		expect(document.includes('img-src https:')).toBe(false);
-		expect(document.includes('img-src http:')).toBe(false);
+		expect(document.includes('img-src https: http: data: cid:')).toBe(true);
 		expect(document.includes("script-src 'none'")).toBe(true);
-		expect(document.includes('<body><p>Hello</p></body>')).toBe(true);
+		expect(document.includes('<body><p>Hello</p><a rel="noopener noreferrer" target="_blank" href="https://example.com">Open</a></body>')).toBe(true);
+	});
+
+	test('forces message links to open outside the app shell', () => {
+		const document = mailHTMLDocument('<a target="_self" rel="nofollow" href="https://example.com">Open</a>');
+
+		expect(document.includes('<body><a target="_blank" rel="nofollow noopener noreferrer" href="https://example.com">Open</a></body>')).toBe(true);
+	});
+
+	test('normalizes unquoted rel attributes when forcing safe link targets', () => {
+		const document = mailHTMLDocument('<a rel=opener href="https://example.com">Open</a>');
+
+		expect(document.includes('<body><a target="_blank" rel="opener noopener noreferrer" href="https://example.com">Open</a></body>')).toBe(true);
+	});
+
+	test('allows only link popups from the message iframe sandbox', () => {
+		expect(MAIL_MESSAGE_IFRAME_SANDBOX).toBe('allow-popups allow-popups-to-escape-sandbox');
 	});
 });
