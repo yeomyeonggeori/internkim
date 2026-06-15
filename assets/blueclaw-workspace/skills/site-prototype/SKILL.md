@@ -3,22 +3,23 @@ name: site-prototype
 description: Create, publish, update, take down, restore, or delete free dependency-light website prototypes through InternKim site.app tools.
 when_to_use: Use when the user asks InternKim to make, deploy, publish, update, fix, take down, restore, or delete a website, web app, prototype, demo, landing page, dashboard, or app idea.
 allowed-tools:
+  - file.write
+  - file.read
+  - file.edit
   - terminal.run
+  - site.app.create
+  - site.app.build
+  - site.app.publish
+  - site.app.status
+  - file.patch
+  - site.app.preview
+  - site.app.repair
+  - file.preview
   - terminal.session
   - browser.open
   - browser.snapshot
   - browser.screenshot
-  - file.preview
-  - file.read
-  - file.write
-  - file.edit
-  - file.patch
-  - site.app.create
-  - site.app.build
-  - site.app.repair
-  - site.app.preview
-  - site.app.publish
-  - site.app.status
+  - artifact.review
   - site.app.history
   - site.app.diff
   - site.app.logs
@@ -26,7 +27,6 @@ allowed-tools:
   - site.app.unpublish
   - site.app.restore
   - site.app.delete
-  - artifact.review
   - user.confirm
 completion:
   requiredEvidenceTools:
