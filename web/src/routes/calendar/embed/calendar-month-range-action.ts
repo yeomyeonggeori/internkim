@@ -1,4 +1,5 @@
 import { ViewType } from '@dayflow/svelte';
+import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
 
 export type MonthRangeSelection = {
 	pointerID: number;
@@ -29,8 +30,8 @@ export type MonthRangeActionOptions = {
 	setSelection: (selection: MonthRangeSelection | null) => void;
 	clearPreview: () => void;
 	selectDate: (dateKey: string) => void;
-	createSingleDayEvent: (dateKey: string) => void;
-	createRangeEvent: (selection: MonthRangeSelection) => void;
+	createSingleDayEvent: (dateKey: string, anchor: DraftPopoverAnchor) => void;
+	createRangeEvent: (selection: MonthRangeSelection, anchor: DraftPopoverAnchor) => void;
 };
 
 export function installCalendarMonthRangeAction(options: MonthRangeActionOptions): () => void {
@@ -78,7 +79,7 @@ export function installCalendarMonthRangeAction(options: MonthRangeActionOptions
 		event.preventDefault();
 		event.stopPropagation();
 		lastRangeCreationTime = Date.now();
-		options.createRangeEvent(selection);
+		options.createRangeEvent(selection, monthDateAnchorFromPoint(event.clientX, event.clientY));
 	};
 
 	const handleClick = (event: MouseEvent) => {
@@ -94,7 +95,7 @@ export function installCalendarMonthRangeAction(options: MonthRangeActionOptions
 		event.preventDefault();
 		event.stopPropagation();
 		event.stopImmediatePropagation();
-		options.createSingleDayEvent(dateCell.dateKey);
+		options.createSingleDayEvent(dateCell.dateKey, monthDateAnchorFromCell(dateCell.element));
 	};
 
 	options.stageElement.addEventListener('pointerdown', handlePointerDown);
@@ -162,6 +163,29 @@ function monthDateCellFromElement(element: Element): MonthDateCell | null {
 	const dateKey = dateCell.dataset.date;
 	if (!dateKey) return null;
 	return { element: dateCell, dateKey };
+}
+
+function monthDateAnchorFromPoint(clientX: number, clientY: number): DraftPopoverAnchor {
+	const dateCell = monthDateCellFromPoint(clientX, clientY);
+	if (dateCell) return monthDateAnchorFromCell(dateCell.element);
+	return {
+		clientX,
+		clientY,
+		leftClientX: clientX - 8,
+		topClientY: clientY - 8,
+		bottomClientY: clientY + 8
+	};
+}
+
+function monthDateAnchorFromCell(element: HTMLElement): DraftPopoverAnchor {
+	const rectangle = element.getBoundingClientRect();
+	return {
+		clientX: rectangle.right,
+		clientY: rectangle.top + Math.min(48, rectangle.height / 2),
+		leftClientX: rectangle.left,
+		topClientY: rectangle.top,
+		bottomClientY: rectangle.bottom
+	};
 }
 
 function isMonthRangeIgnoredTarget(target: Element): boolean {
