@@ -38,6 +38,7 @@ class MailPageController {
 	composeDraft = $state<ComposeDraft>(emptyComposeDraft);
 	mailboxes = $state<Mailbox[]>([]);
 	messages = $state<MailMessage[]>([]);
+	messageDetailCache = new Map<string, MailMessage>();
 	selectedMailbox = $state('INBOX');
 	selectedMessage = $state<MailMessage | null>(null);
 	searchText = $state('');
@@ -45,7 +46,10 @@ class MailPageController {
 	nextCursor = $state('');
 	hasMoreMessages = $state(false);
 	isUnreadOnly = $state(false);
+	hasLoadedAccount = $state(false);
 	isLoading = $state(false);
+	isLoadingMailboxes = $state(false);
+	isLoadingMessages = $state(false);
 	isLoadingMessage = $state(false);
 	isLoadingMore = $state(false);
 	isSavingAccount = $state(false);
@@ -72,6 +76,7 @@ class MailPageController {
 		this.errorMessage = '';
 		try {
 			await loadMailAccount(this, this.text);
+			this.hasLoadedAccount = true;
 			if (!this.account.isConfigured) {
 				this.mailboxes = [];
 				this.resetMessageList();
@@ -80,6 +85,7 @@ class MailPageController {
 			await loadPageMailboxes(this, this.text);
 			await this.loadMessages();
 		} catch (error) {
+			this.hasLoadedAccount = true;
 			this.errorMessage = error instanceof Error ? error.message : this.text.errors.loadMail;
 		} finally {
 			this.isLoading = false;
@@ -120,6 +126,7 @@ class MailPageController {
 
 	resetMessageList() {
 		this.messages = [];
+		this.messageDetailCache.clear();
 		this.selectedMessage = null;
 		this.nextCursor = '';
 		this.hasMoreMessages = false;
