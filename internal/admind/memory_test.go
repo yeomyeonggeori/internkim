@@ -137,6 +137,19 @@ func TestMemorySchedulesQuerySanitizesPagination(t *testing.T) {
 	}
 }
 
+func TestMemorySchedulesQueryPreservesExpiredVisibilityFilter(t *testing.T) {
+	query := memorySchedulesQuery(url.Values{
+		"includeExpired": []string{"false"},
+	}, "user:person-1")
+	values, errorValue := url.ParseQuery(query)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if values.Get("includeExpired") != "false" {
+		t.Fatalf("includeExpired = %q", values.Get("includeExpired"))
+	}
+}
+
 func TestMemoryAPICancelScheduleInjectsResolvedPersonID(t *testing.T) {
 	service := NewService(Configuration{
 		APIBaseURL:        "https://api.intern.kim",
@@ -181,6 +194,53 @@ func TestMemoryAPICancelScheduleInjectsResolvedPersonID(t *testing.T) {
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("memory schedule cancel status = %d body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestMemoryAPIDeleteScheduleInjectsResolvedPersonID(t *testing.T) {
+	service := NewService(Configuration{
+		APIBaseURL:        "https://api.intern.kim",
+		BlueclawBaseURL:   "http://blueclaw.local",
+		FleetIDPath:       writeTestFile(t, "device-1"),
+		FleetSecretPath:   writeTestFile(t, "secret-1"),
+		MattermostBaseURL: "http://mattermost.local",
+	})
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet {
+			return jsonResponse(http.StatusOK, `{"id":"mattermost-user-1","email":"member@example.com","username":"member"}`, nil), nil
+		}
+		if request.URL.String() == "https://api.intern.kim/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","userID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
+		}
+		if request.URL.Path == "/admin/api/task-schedules/delete" && request.Method == http.MethodPost {
+			var payload struct {
+				TaskScheduleID  string `json:"taskScheduleID"`
+				CreatorPersonID string `json:"creatorPersonID"`
+			}
+			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if payload.TaskScheduleID != "schedule-1" {
+				t.Fatalf("taskScheduleID = %q", payload.TaskScheduleID)
+			}
+			if payload.CreatorPersonID != "user:person-1" {
+				t.Fatalf("creatorPersonID = %q", payload.CreatorPersonID)
+			}
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		}
+		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+		return nil, nil
+	})}
+
+	request := httptest.NewRequest(http.MethodPost, "/memory/api/schedules/delete", strings.NewReader(`{"taskScheduleID":"schedule-1","creatorPersonID":"spoofed-person"}`))
+	request.RemoteAddr = "198.51.100.10:443"
+	request.Header.Set("Cookie", "MMAUTHTOKEN=session-token")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("memory schedule delete status = %d body = %s", response.Code, response.Body.String())
 	}
 }
 

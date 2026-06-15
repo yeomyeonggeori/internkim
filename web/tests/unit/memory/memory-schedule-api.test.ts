@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	cancelSchedule,
+	deleteSchedule,
 	fetchMemorySchedules,
 	normalizeMemoryScheduleListResponse,
 	updateSchedule
@@ -43,7 +44,7 @@ describe('memory schedule api normalizer', () => {
 		expect(response.pageSize).toBe(25);
 	});
 
-	test('sends pagination parameters when fetching schedules', async () => {
+	test('sends pagination and expired visibility parameters when fetching schedules', async () => {
 		const originalFetch = globalThis.fetch;
 		let requestedURL = '';
 		const fetchStub = createFetchStub(async (input) => {
@@ -53,9 +54,9 @@ describe('memory schedule api normalizer', () => {
 		globalThis.fetch = fetchStub;
 
 		try {
-			const response = await fetchMemorySchedules({ page: 3, pageSize: 25 });
+			const response = await fetchMemorySchedules({ page: 3, pageSize: 25, includeExpired: true });
 
-			expect(requestedURL).toBe('/memory/api/schedules?page=3&pageSize=25');
+			expect(requestedURL).toBe('/memory/api/schedules?page=3&pageSize=25&includeExpired=true');
 			expect(response.page).toBe(3);
 			expect(response.pageSize).toBe(25);
 		} finally {
@@ -93,6 +94,29 @@ describe('memory schedule api normalizer', () => {
 			await cancelSchedule('schedule-1');
 
 			expect(requestedURL).toBe('/memory/api/schedules/cancel');
+			expect(requestedInitialization?.method).toBe('POST');
+			expect(requestedInitialization?.credentials).toBe('include');
+			expect(requestedInitialization?.body).toBe(JSON.stringify({ taskScheduleID: 'schedule-1' }));
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	test('posts schedule deletion request', async () => {
+		const originalFetch = globalThis.fetch;
+		let requestedURL = '';
+		let requestedInitialization: Parameters<typeof fetch>[1] | undefined;
+		const fetchStub = createFetchStub(async (input, initialization) => {
+			requestedURL = String(input);
+			requestedInitialization = initialization;
+			return new Response('{}');
+		});
+		globalThis.fetch = fetchStub;
+
+		try {
+			await deleteSchedule('schedule-1');
+
+			expect(requestedURL).toBe('/memory/api/schedules/delete');
 			expect(requestedInitialization?.method).toBe('POST');
 			expect(requestedInitialization?.credentials).toBe('include');
 			expect(requestedInitialization?.body).toBe(JSON.stringify({ taskScheduleID: 'schedule-1' }));
@@ -144,11 +168,14 @@ describe('memory schedule api normalizer', () => {
 
 		try {
 			const cancelErrorMessage = await rejectedErrorMessage(cancelSchedule('schedule-1'));
+			const deleteErrorMessage = await rejectedErrorMessage(deleteSchedule('schedule-1'));
 			const updateErrorMessage = await rejectedErrorMessage(updateSchedule('schedule-1', { kind: 'once', runAt: '2026-06-12T00:00:00Z' }));
 
 			expect(cancelErrorMessage).toBe('Memory schedules request returned 502');
+			expect(deleteErrorMessage).toBe('Memory schedules request returned 502');
 			expect(updateErrorMessage).toBe('Memory schedules request returned 502');
 			expect(cancelErrorMessage.includes('Graphiti')).toBe(false);
+			expect(deleteErrorMessage.includes('Graphiti')).toBe(false);
 			expect(updateErrorMessage.includes('Graphiti')).toBe(false);
 		} finally {
 			globalThis.fetch = originalFetch;
