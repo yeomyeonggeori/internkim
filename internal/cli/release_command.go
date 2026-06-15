@@ -404,6 +404,11 @@ func createReleaseBlobs(repositoryRootPath string, temporaryDirectoryPath string
 		if errorValue := validateReleaseSource(input.name, input.sourcePath); errorValue != nil {
 			return nil, errorValue
 		}
+		if input.name == "blueclawPayload" {
+			if errorValue := validateBlueclawPayloadFreshness(repositoryRootPath, input.sourcePath); errorValue != nil {
+				return nil, errorValue
+			}
+		}
 		archivePath := filepath.Join(temporaryDirectoryPath, input.name+".tar.gz")
 		if errorValue := writeReleaseArchive(input.sourcePath, archivePath); errorValue != nil {
 			return nil, errorValue
@@ -446,6 +451,14 @@ func buildReleaseBinary(packagePath string) func(string, string) error {
 
 func buildBlueclawSupervisorReleaseBinary(repositoryRootPath string, outputPath string) error {
 	return blueclaw.EnsureBlueclawSupervisorBinary(outputPath, repositoryRootPath)
+}
+
+func validateBlueclawPayloadFreshness(repositoryRootPath string, artifactDirectoryPath string) error {
+	manifest, errorValue := blueclaw.ValidatePayloadArtifactDirectory(artifactDirectoryPath)
+	if errorValue != nil {
+		return errorValue
+	}
+	return blueclaw.ValidatePayloadArtifactSource(repositoryRootPath, manifest)
 }
 
 func validateReleaseSource(name string, sourcePath string) error {

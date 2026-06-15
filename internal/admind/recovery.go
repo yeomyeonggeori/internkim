@@ -53,7 +53,7 @@ func (service *Service) validateSSHRecoveryRequest(payload sshRecoveryRequest) e
 
 func isAllowedSSHRecoveryAction(action string) bool {
 	switch action {
-	case "status", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots":
+	case "status", "restart-ssh", "restart-cloudflared-node-ssh", "journal-tail", "unlock-mattermost-admin", "reboot", "stop-tenant-pilots", "remove-tenant-pilots":
 		return true
 	default:
 		return false
@@ -85,6 +85,8 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string) sshRe
 		return response
 	case "stop-tenant-pilots":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "stop tenant pilots", "sh", "-lc", stopTenantPilotsCommand()))
+	case "remove-tenant-pilots":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "remove tenant pilots", "sh", "-lc", removeTenantPilotsCommand()))
 	}
 	response.Services = service.sshRecoveryServiceStates(ctx)
 	response.JournalTail = service.sshRecoveryJournalTail(ctx)
@@ -98,6 +100,24 @@ units=$(systemctl list-units --all --no-legend --plain 'internkim-tenant-*' 'int
 for unit in $units; do
   systemctl disable --now "$unit" >/dev/null 2>&1 || true
   printf '%s stopped\n' "$unit"
+done
+free -m | head -2
+`)
+}
+
+func removeTenantPilotsCommand() string {
+	return strings.TrimSpace(`
+set -eu
+reloaded=0
+for unit in $(systemctl list-unit-files --no-legend 'internkim-tenant-*pilot*.service' 'internkim-mattermost-pilot-*.service' 2>/dev/null | awk '{print $1}'); do
+  systemctl disable --now "$unit" >/dev/null 2>&1 || true
+  rm -f "/etc/systemd/system/$unit" && printf 'unit %s removed\n' "$unit"
+  reloaded=1
+done
+[ "$reloaded" = "1" ] && systemctl daemon-reload || true
+for dir in /srv/internkim/tenants/pilot-*; do
+  [ -e "$dir" ] || continue
+  rm -rf "$dir" && printf 'dir %s removed\n' "$dir"
 done
 free -m | head -2
 `)
