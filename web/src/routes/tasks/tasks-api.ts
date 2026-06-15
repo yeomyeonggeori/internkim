@@ -101,13 +101,21 @@ export function summarizeTimeline(taskEvents: TaskEvent[]): TimelineSummary {
 			if (body && typeof body.latencyMs === 'number') summary.llmLatencyMS += body.latencyMs;
 			if (body && typeof body.totalTokens === 'number') summary.llmTotalTokens += body.totalTokens;
 			if (body && typeof body.cachedPromptTokens === 'number') summary.llmCachedPromptTokens += body.cachedPromptTokens;
-			if (body && typeof body.costUSD === 'number') summary.llmCostUSD += body.costUSD;
+			summary.llmCostUSD += effectiveCallCostUSD(body);
 		}
 		if (taskEvent.name.startsWith('tool.') && taskEvent.name.endsWith('.result')) {
 			summary.toolCallCount += 1;
 		}
 	}
 	return summary;
+}
+
+function effectiveCallCostUSD(body: Record<string, unknown> | undefined): number {
+	if (!body) return 0;
+	const cost = typeof body.costUSD === 'number' ? body.costUSD : 0;
+	if (cost > 0) return cost;
+	const upstreamCost = typeof body.upstreamInferenceCostUSD === 'number' ? body.upstreamInferenceCostUSD : 0;
+	return upstreamCost > 0 ? upstreamCost : 0;
 }
 
 export function formatCostUSD(costUSD: number): string {
