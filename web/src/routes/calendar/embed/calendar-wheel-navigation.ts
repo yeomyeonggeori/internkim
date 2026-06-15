@@ -1,46 +1,174 @@
+// 캘린더 월 뷰의 자유 스크롤과 주 단위 스냅을 담당합니다.
 import { ViewType } from '@dayflow/svelte';
 
 export type CalendarWheelNavigationOptions = {
 	stageElement: HTMLElement;
 	currentView: () => string;
-	goToPrevious: () => void;
-	goToNext: () => void;
+	showMonthLabels: (labels: CalendarMonthScrollLabel[]) => void;
+	hideMonthLabels: () => void;
+	selectVisibleDate: (date: Date) => void;
 };
 
-const trackpadGestureGapMs = 80;
-const wheelMinCooldownMs = 60;
+export type CalendarMonthScrollLabel = {
+	id: string;
+	date: Date;
+	top: number;
+	direction: 1 | -1;
+};
+
+const scrollIdleMs = 140;
+const monthLabelHideDelayMs = 320;
+const monthStartLabelTopOffsetPx = 18;
 
 export function installCalendarWheelNavigation(options: CalendarWheelNavigationOptions): () => void {
-	let lastWheelAt = 0;
-	let gestureLocked = false;
+	let scroller: HTMLElement | null = null;
+	let lastScrollTop = 0;
+	let snapTimer: number | null = null;
+	let hideLabelTimer: number | null = null;
+	let animationFrame: number | null = null;
+	let labelFrame: number | null = null;
 
-	const onWheel = (event: WheelEvent) => {
-		if (options.currentView() !== ViewType.MONTH) return;
-
-		event.preventDefault();
-
-		const now = Date.now();
-		const gap = now - lastWheelAt;
-		lastWheelAt = now;
-
-		const isDiscreteWheel = event.deltaMode !== 0;
-		if (isDiscreteWheel) {
-			if (gap < wheelMinCooldownMs) return;
-			if (Math.abs(event.deltaY) < 1) return;
-			if (event.deltaY > 0) options.goToNext();
-			else options.goToPrevious();
-			return;
-		}
-
-		if (gap > trackpadGestureGapMs) gestureLocked = false;
-		if (gestureLocked) return;
-		if (Math.abs(event.deltaY) < 1) return;
-
-		gestureLocked = true;
-		if (event.deltaY > 0) options.goToNext();
-		else options.goToPrevious();
+	const scheduleConnect = () => {
+		if (animationFrame) window.cancelAnimationFrame(animationFrame);
+		animationFrame = window.requestAnimationFrame(() => {
+			animationFrame = null;
+			connectScroller();
+		});
 	};
 
-	options.stageElement.addEventListener('wheel', onWheel, { passive: false });
-	return () => options.stageElement.removeEventListener('wheel', onWheel);
+	const connectScroller = () => {
+		const nextScroller = options.stageElement.querySelector<HTMLElement>('.df-month-view-virtual-scroller');
+		if (!nextScroller) {
+			scroller?.removeEventListener('scroll', onScroll);
+			scroller = null;
+			return;
+		}
+		if (nextScroller === scroller) return;
+		scroller?.removeEventListener('scroll', onScroll);
+		scroller = nextScroller;
+		lastScrollTop = scroller.scrollTop;
+		scroller.addEventListener('scroll', onScroll, { passive: true });
+	};
+
+	const observer = new MutationObserver(scheduleConnect);
+	observer.observe(options.stageElement, { childList: true, subtree: true });
+	scheduleConnect();
+
+	const onScroll = () => {
+		if (!scroller || options.currentView() !== ViewType.MONTH) return;
+		const direction: 1 | -1 = scroller.scrollTop >= lastScrollTop ? 1 : -1;
+		lastScrollTop = scroller.scrollTop;
+		scheduleVisibleMonthLabel(direction);
+		if (snapTimer) window.clearTimeout(snapTimer);
+		snapTimer = window.setTimeout(() => {
+			snapTimer = null;
+			snapToNearestWeek();
+		}, scrollIdleMs);
+	};
+
+	const scheduleVisibleMonthLabel = (direction: 1 | -1) => {
+		if (labelFrame) window.cancelAnimationFrame(labelFrame);
+		labelFrame = window.requestAnimationFrame(() => {
+			labelFrame = null;
+			showVisibleMonthLabels(direction);
+		});
+	};
+
+	const showVisibleMonthLabels = (direction: 1 | -1) => {
+		if (!scroller) return;
+		const stageRectangle = options.stageElement.getBoundingClientRect();
+		const labels = visibleMonthStartCells().flatMap((cell) => {
+			const cellDate = dateFromCell(cell);
+			if (!cellDate) return [];
+			const cellRectangle = cell.getBoundingClientRect();
+			return [
+				{
+					id: `${cellDate.getFullYear()}-${String(cellDate.getMonth() + 1).padStart(2, '0')}`,
+					date: cellDate,
+					top: Math.max(16, cellRectangle.top - stageRectangle.top + monthStartLabelTopOffsetPx),
+					direction
+				}
+			];
+		});
+		options.showMonthLabels(labels);
+	};
+
+	const closestVisibleMonthStartCell = () => {
+		const stageRectangle = options.stageElement.getBoundingClientRect();
+		return (
+			visibleMonthStartCells().sort((firstCell, secondCell) => {
+				const firstDistance = Math.abs(firstCell.getBoundingClientRect().top - stageRectangle.top);
+				const secondDistance = Math.abs(secondCell.getBoundingClientRect().top - stageRectangle.top);
+				return firstDistance - secondDistance;
+			})[0] ?? null
+		);
+	};
+
+	const visibleMonthStartCells = () => {
+		const stageRectangle = options.stageElement.getBoundingClientRect();
+		const monthStartCells = Array.from(options.stageElement.querySelectorAll<HTMLElement>('.df-month-day-cell[data-date$="-01"]'));
+		return monthStartCells.filter((cell) => {
+			const rectangle = cell.getBoundingClientRect();
+			return rectangle.bottom >= stageRectangle.top && rectangle.top <= stageRectangle.bottom;
+		});
+	};
+
+	const snapToNearestWeek = () => {
+		if (!scroller || options.currentView() !== ViewType.MONTH) return;
+		const targetWeek = nearestWeekToScrollerTop();
+		if (!targetWeek) {
+			hideMonthLabelAfterDelay();
+			return;
+		}
+		const scrollerRectangle = scroller.getBoundingClientRect();
+		const weekRectangle = targetWeek.getBoundingClientRect();
+		const scrollOffset = weekRectangle.top - scrollerRectangle.top;
+		scroller.scrollBy({ top: scrollOffset, behavior: 'smooth' });
+		const targetDateCell = closestVisibleMonthStartCell() ?? targetWeek.querySelector<HTMLElement>('.df-month-day-cell[data-date]');
+		const targetDate = targetDateCell ? dateFromCell(targetDateCell) : null;
+		if (targetDate) options.selectVisibleDate(targetDate);
+		hideMonthLabelAfterDelay();
+	};
+
+	const nearestWeekToScrollerTop = () => {
+		if (!scroller) return null;
+		const scrollerRectangle = scroller.getBoundingClientRect();
+		const weekElements = Array.from(options.stageElement.querySelectorAll<HTMLElement>('.df-month-week'));
+		return (
+			weekElements
+				.filter((weekElement) => {
+					const rectangle = weekElement.getBoundingClientRect();
+					return rectangle.bottom >= scrollerRectangle.top && rectangle.top <= scrollerRectangle.bottom;
+				})
+				.sort((firstWeek, secondWeek) => {
+					const firstDistance = Math.abs(firstWeek.getBoundingClientRect().top - scrollerRectangle.top);
+					const secondDistance = Math.abs(secondWeek.getBoundingClientRect().top - scrollerRectangle.top);
+					return firstDistance - secondDistance;
+				})[0] ?? null
+		);
+	};
+
+	const dateFromCell = (dateCell: HTMLElement) => {
+		const value = dateCell.dataset.date;
+		if (!value) return null;
+		const [year = '0', month = '1', day = '1'] = value.split('-');
+		return new Date(Number(year), Number(month) - 1, Number(day), 12, 0, 0, 0);
+	};
+
+	const hideMonthLabelAfterDelay = () => {
+		if (hideLabelTimer) window.clearTimeout(hideLabelTimer);
+		hideLabelTimer = window.setTimeout(() => {
+			hideLabelTimer = null;
+			options.hideMonthLabels();
+		}, monthLabelHideDelayMs);
+	};
+
+	return () => {
+		observer.disconnect();
+		if (animationFrame) window.cancelAnimationFrame(animationFrame);
+		if (labelFrame) window.cancelAnimationFrame(labelFrame);
+		if (snapTimer) window.clearTimeout(snapTimer);
+		if (hideLabelTimer) window.clearTimeout(hideLabelTimer);
+		scroller?.removeEventListener('scroll', onScroll);
+	};
 }

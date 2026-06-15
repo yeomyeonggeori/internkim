@@ -1,0 +1,131 @@
+// 캘린더 embed 화면의 mount 시점 동기화와 DOM action 설치를 담당합니다.
+import { ViewType } from '@dayflow/svelte';
+import { clearCalendarAllDayLayout } from './calendar-all-day-layout';
+import { installCalendarDraftPopoverDismiss } from './calendar-draft-popover-dismiss';
+import type { CalendarDraftPopoverDismissOptions } from './calendar-draft-popover-dismiss';
+import { installCalendarKeyboardDelete } from './calendar-keyboard-delete';
+import type { CalendarKeyboardDeleteContext } from './calendar-keyboard-delete';
+import { installCalendarMonthRangeAction } from './calendar-month-range-action';
+import type { MonthRangeActionOptions } from './calendar-month-range-action';
+import { installCalendarTimelineRangeAction } from './calendar-timeline-range-action';
+import type { TimelineRangeActionOptions } from './calendar-timeline-range-action';
+import { installCalendarTimelineScrollState } from './calendar-timeline-scroll-state';
+import { installCalendarWheelNavigation } from './calendar-wheel-navigation';
+import type { CalendarWheelNavigationOptions } from './calendar-wheel-navigation';
+import { installDayFlowMiniCalendarMonthPicker } from './calendar-dayflow-mini-calendar-picker';
+import type { DayFlowMiniCalendarPickerContext } from './calendar-dayflow-mini-calendar-picker';
+import { installDayFlowMiniCalendarDateSelection } from './calendar-dayflow-mini-calendar-enhancement';
+import { startOfMonthWindow, endOfMonthWindow } from './calendar-visible-range';
+import { calendarChannelName } from '../refresh-signal.svelte';
+import { loadSavedWorkCalendarVisibility } from './calendar-work-visibility';
+
+type CalendarEmbedLifecycleOptions = {
+	stageElement: HTMLElement | null;
+	setWorkCalendarVisible: (isVisible: boolean) => void;
+	handleCalendarChannelMessage: (event: MessageEvent<unknown>) => void;
+	handleCalendarWindowMessage: (event: MessageEvent<unknown>) => void;
+	handleCalendarStorageMessage: (event: StorageEvent) => void;
+	initialCalendarView: () => ViewType;
+	applyCalendarView: (view: ViewType) => void;
+	setToolbarView: (view: ViewType) => void;
+	syncCalendarThemeToDocument: () => void;
+	hasVisibleRange: () => boolean;
+	initialCalendarDate: () => Date;
+	loadEvents: (startDate: Date, endDate: Date) => void;
+	syncRemoteCalendarAndRefresh: () => Promise<void>;
+	scheduleDraftTitleInputPlaceholderUpdates: () => void;
+	scheduleDraftEventVisibilitySync: () => void;
+	refreshSelectedMonthDateCellAfterRender: () => void;
+	clearMonthScrollOverlays: () => void;
+	monthRangeAction: Omit<MonthRangeActionOptions, 'stageElement'>;
+	timelineRangeAction: Omit<TimelineRangeActionOptions, 'stageElement'>;
+	wheelNavigation: Omit<CalendarWheelNavigationOptions, 'stageElement'>;
+	draftPopoverDismiss: Omit<CalendarDraftPopoverDismissOptions, 'stageElement'>;
+	keyboardDelete: CalendarKeyboardDeleteContext;
+	miniCalendarMonthPicker: DayFlowMiniCalendarPickerContext;
+	navigateToDateKey: (dateKey: string) => void;
+};
+
+export function installCalendarEmbedLifecycle(options: CalendarEmbedLifecycleOptions): () => void {
+	options.setWorkCalendarVisible(loadSavedWorkCalendarVisibility(window.localStorage));
+	const visibilityChannel = new BroadcastChannel(calendarChannelName);
+	visibilityChannel.addEventListener('message', options.handleCalendarChannelMessage);
+	window.addEventListener('message', options.handleCalendarWindowMessage, { capture: true });
+	window.addEventListener('storage', options.handleCalendarStorageMessage, { capture: true });
+	const savedView = options.initialCalendarView();
+	options.applyCalendarView(savedView);
+	options.setToolbarView(savedView);
+	options.syncCalendarThemeToDocument();
+	loadInitialVisibleRange(options);
+	startInitialRemoteCalendarSync(options);
+	const themeObserver = observeThemeChanges(options);
+	const draftTitleObserver = observeDraftTitleChanges(options);
+	const selectedDateObserver = observeSelectedDateChanges(options);
+	const stopStageActions = installStageActions(options);
+	const stopKeyboardDelete = installCalendarKeyboardDelete(options.keyboardDelete);
+	const stopMiniCalendarDateSelection = installDayFlowMiniCalendarDateSelection(options.navigateToDateKey);
+	const stopMiniCalendarMonthPicker = installDayFlowMiniCalendarMonthPicker(options.miniCalendarMonthPicker);
+	return () => {
+		visibilityChannel.removeEventListener('message', options.handleCalendarChannelMessage);
+		window.removeEventListener('message', options.handleCalendarWindowMessage, { capture: true });
+		window.removeEventListener('storage', options.handleCalendarStorageMessage, { capture: true });
+		visibilityChannel.close();
+		themeObserver.disconnect();
+		draftTitleObserver.disconnect();
+		selectedDateObserver.disconnect();
+		stopStageActions();
+		stopKeyboardDelete();
+		stopMiniCalendarDateSelection();
+		stopMiniCalendarMonthPicker();
+		clearCalendarAllDayLayout(options.stageElement);
+		options.clearMonthScrollOverlays();
+	};
+}
+
+function loadInitialVisibleRange(options: CalendarEmbedLifecycleOptions): void {
+	if (options.hasVisibleRange()) return;
+	const initialDate = options.initialCalendarDate();
+	options.loadEvents(startOfMonthWindow(initialDate), endOfMonthWindow(initialDate));
+}
+
+function startInitialRemoteCalendarSync(options: CalendarEmbedLifecycleOptions): void {
+	void options.syncRemoteCalendarAndRefresh().catch(() => undefined);
+}
+
+function observeThemeChanges(options: CalendarEmbedLifecycleOptions): MutationObserver {
+	const observer = new MutationObserver(options.syncCalendarThemeToDocument);
+	observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+	return observer;
+}
+
+function observeDraftTitleChanges(options: CalendarEmbedLifecycleOptions): MutationObserver {
+	const observer = new MutationObserver(() => {
+		options.scheduleDraftTitleInputPlaceholderUpdates();
+		options.scheduleDraftEventVisibilitySync();
+	});
+	observer.observe(document.body, { childList: true, subtree: true });
+	return observer;
+}
+
+function observeSelectedDateChanges(options: CalendarEmbedLifecycleOptions): MutationObserver {
+	const observer = new MutationObserver(options.refreshSelectedMonthDateCellAfterRender);
+	if (options.stageElement) observer.observe(options.stageElement, { childList: true, subtree: true });
+	return observer;
+}
+
+function installStageActions(options: CalendarEmbedLifecycleOptions): () => void {
+	if (!options.stageElement) return () => {};
+	const stageElement = options.stageElement;
+	const stopMonthRangeCreate = installCalendarMonthRangeAction({ stageElement, ...options.monthRangeAction });
+	const stopTimelineRangeCreate = installCalendarTimelineRangeAction({ stageElement, ...options.timelineRangeAction });
+	const stopWheelNavigation = installCalendarWheelNavigation({ stageElement, ...options.wheelNavigation });
+	const stopTimelineScrollState = installCalendarTimelineScrollState(stageElement);
+	const stopDraftPopoverDismiss = installCalendarDraftPopoverDismiss({ stageElement, ...options.draftPopoverDismiss });
+	return () => {
+		stopMonthRangeCreate();
+		stopTimelineRangeCreate();
+		stopWheelNavigation();
+		stopTimelineScrollState();
+		stopDraftPopoverDismiss();
+	};
+}
