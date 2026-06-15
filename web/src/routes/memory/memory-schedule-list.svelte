@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
-	import * as Card from '$lib/components/ui/card';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Input } from '$lib/components/ui/input';
@@ -326,110 +325,118 @@
 	}
 </script>
 
-<section class="min-w-0">
-	<Card.Root size="sm" class="rounded-lg">
-		<Card.Header>
-			<Card.Title>{text.scheduleTab}</Card.Title>
-			<Card.Description>{text.scheduleDescription}</Card.Description>
-			<Card.Action class="flex flex-wrap items-center justify-end gap-2">
-				<div class="flex items-center gap-2 rounded-md border px-2.5 py-2">
-					<Switch
-						id="memory-include-expired"
-						size="sm"
-						checked={includeExpiredSchedules}
-						onCheckedChange={toggleIncludeExpiredSchedules}
-					/>
-					<Label for="memory-include-expired" class="whitespace-nowrap text-xs font-medium">
-						{text.scheduleIncludeExpired}
-					</Label>
-				</div>
-				<Button type="button" variant="outline" size="sm" disabled={isLoading} onclick={refreshSchedules} class="gap-2">
-					{#if isLoading}
-						<LoaderIcon class="size-4 animate-spin" />
-					{:else}
-						<RefreshCwIcon class="size-4" />
-					{/if}
-					{text.refresh}
-				</Button>
-			</Card.Action>
-		</Card.Header>
+<section class="grid min-w-0 gap-4">
+	<div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+		<div class="grid gap-1">
+			<h2 class="text-lg font-semibold tracking-tight">{text.scheduleTab}</h2>
+			<p class="text-sm text-muted-foreground">{text.scheduleDescription}</p>
+		</div>
+		<div class="flex flex-wrap items-center gap-2">
+			<div class="flex h-9 items-center gap-2 rounded-md border bg-background px-3 shadow-xs">
+				<Switch
+					id="memory-include-expired"
+					size="sm"
+					checked={includeExpiredSchedules}
+					onCheckedChange={toggleIncludeExpiredSchedules}
+				/>
+				<Label for="memory-include-expired" class="whitespace-nowrap text-sm font-medium">
+					{text.scheduleIncludeExpired}
+				</Label>
+			</div>
+			<Button type="button" variant="outline" size="icon-sm" disabled={isLoading} onclick={refreshSchedules} aria-label={text.refresh} title={text.refresh}>
+				{#if isLoading}
+					<LoaderIcon class="size-4 animate-spin" />
+				{:else}
+					<RefreshCwIcon class="size-4" />
+				{/if}
+			</Button>
+		</div>
+	</div>
 
-		<Card.Content class="grid gap-3">
-			{#if hasLoadError}
-				<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{text.scheduleLoadFailed}</p>
-			{/if}
-			{#if actionErrorMessage}
-				<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{actionErrorMessage}</p>
-			{/if}
+	{#if hasLoadError}
+		<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{text.scheduleLoadFailed}</p>
+	{/if}
+	{#if actionErrorMessage}
+		<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{actionErrorMessage}</p>
+	{/if}
 
-			{#if isLoading && schedules.length === 0}
-				<div class="grid gap-3 rounded-lg border p-4">
-					<Skeleton class="h-5 w-1/3" />
-					<Skeleton class="h-10 w-full" />
-					<Skeleton class="h-10 w-full" />
-					<Skeleton class="h-10 w-full" />
-				</div>
-			{:else if schedules.length === 0 && !hasLoadError}
-				<p class="rounded-md border bg-muted/30 px-3 py-12 text-center text-sm text-muted-foreground">{text.scheduleEmpty}</p>
-			{:else if schedules.length > 0}
-				<div class="overflow-x-auto rounded-lg border">
-					<Table.Root>
-						<Table.Header>
+	<div class="overflow-hidden rounded-md border bg-background">
+		{#if isLoading && schedules.length === 0}
+			<div class="grid gap-2 p-4">
+				<Skeleton class="h-9 w-full" />
+				<Skeleton class="h-9 w-full" />
+				<Skeleton class="h-9 w-full" />
+			</div>
+		{:else if schedules.length === 0 && !hasLoadError}
+			<div class="grid place-items-center px-4 py-16">
+				<p class="text-sm text-muted-foreground">{text.scheduleEmpty}</p>
+			</div>
+		{:else if schedules.length > 0}
+			<div class="overflow-x-auto">
+				<Table.Root>
+					<Table.Header>
+						<Table.Row class="hover:bg-transparent">
+							<Table.Head class="min-w-80 px-4 text-xs text-muted-foreground">{text.schedulePrompt}</Table.Head>
+							<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleStatus}</Table.Head>
+							<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleKind}</Table.Head>
+							<Table.Head class="min-w-44 px-3 text-xs text-muted-foreground">{text.scheduleTiming}</Table.Head>
+							<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleNextRun}</Table.Head>
+							<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleExpiresAt}</Table.Head>
+							<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleRunCount}</Table.Head>
+							<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleFailures}</Table.Head>
+							<Table.Head class="w-20 px-4 text-right text-xs text-muted-foreground">{text.scheduleActions}</Table.Head>
+						</Table.Row>
+					</Table.Header>
+					<Table.Body>
+						{#each schedules as schedule}
 							<Table.Row>
-								<Table.Head class="min-w-72">{text.schedulePrompt}</Table.Head>
-								<Table.Head>{text.scheduleStatus}</Table.Head>
-								<Table.Head>{text.scheduleKind}</Table.Head>
-								<Table.Head class="min-w-44">{text.scheduleTiming}</Table.Head>
-								<Table.Head>{text.scheduleNextRun}</Table.Head>
-								<Table.Head>{text.scheduleExpiresAt}</Table.Head>
-								<Table.Head>{text.scheduleRunCount}</Table.Head>
-								<Table.Head>{text.scheduleFailures}</Table.Head>
-								<Table.Head class="min-w-36 text-right">{text.scheduleActions}</Table.Head>
+								<Table.Cell class="max-w-96 px-4 py-3">
+									<p class="truncate text-sm font-medium">{scheduleTitle(schedule)}</p>
+									<p class="mt-0.5 truncate font-mono text-xs text-muted-foreground">{schedule.taskScheduleID}</p>
+								</Table.Cell>
+								<Table.Cell class="px-3 py-3">
+									<Badge variant={scheduleStatusVariant(schedule)}>{scheduleStatusLabel(schedule)}</Badge>
+								</Table.Cell>
+								<Table.Cell class="px-3 py-3">
+									<Badge variant="secondary">{scheduleKind(schedule)}</Badge>
+								</Table.Cell>
+								<Table.Cell class="max-w-72 px-3 py-3 text-sm text-muted-foreground">{scheduleTiming(schedule)}</Table.Cell>
+								<Table.Cell class="px-3 py-3 text-sm tabular-nums">{dateTimeText(schedule.nextRunAt, schedule.timeZone)}</Table.Cell>
+								<Table.Cell class="px-3 py-3 text-sm tabular-nums">{expirationText(schedule)}</Table.Cell>
+								<Table.Cell class="px-3 py-3 text-sm tabular-nums">{runCountText(schedule)}</Table.Cell>
+								<Table.Cell class="px-3 py-3">
+									<Badge variant={(schedule.failureCount ?? 0) > 0 ? 'destructive' : 'outline'}>{failureCountText(schedule)}</Badge>
+								</Table.Cell>
+								<Table.Cell class="px-4 py-3">
+									<div class="flex justify-end gap-1">
+										<Button type="button" variant="ghost" size="icon-sm" onclick={() => openEditDialog(schedule)} aria-label={text.scheduleEdit} title={text.scheduleEdit}>
+											<PencilIcon class="size-4" />
+											<span class="sr-only">{text.scheduleEdit}</span>
+										</Button>
+										<Button
+											type="button"
+											variant="ghost"
+											size="icon-sm"
+											onclick={() => confirmDeleteSchedule(schedule)}
+											aria-label={text.scheduleDelete}
+											title={text.scheduleDelete}
+											class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+										>
+											<Trash2Icon class="size-4" />
+											<span class="sr-only">{text.scheduleDelete}</span>
+										</Button>
+									</div>
+								</Table.Cell>
 							</Table.Row>
-						</Table.Header>
-						<Table.Body>
-							{#each schedules as schedule}
-								<Table.Row>
-									<Table.Cell class="max-w-96">
-										<p class="truncate font-medium">{scheduleTitle(schedule)}</p>
-										<p class="truncate text-xs text-muted-foreground">{schedule.taskScheduleID}</p>
-									</Table.Cell>
-									<Table.Cell>
-										<Badge variant={scheduleStatusVariant(schedule)}>{scheduleStatusLabel(schedule)}</Badge>
-									</Table.Cell>
-									<Table.Cell>
-										<Badge variant="secondary">{scheduleKind(schedule)}</Badge>
-									</Table.Cell>
-									<Table.Cell class="max-w-72 break-words text-muted-foreground">{scheduleTiming(schedule)}</Table.Cell>
-									<Table.Cell class="whitespace-nowrap tabular-nums">{dateTimeText(schedule.nextRunAt, schedule.timeZone)}</Table.Cell>
-									<Table.Cell class="whitespace-nowrap tabular-nums">{expirationText(schedule)}</Table.Cell>
-									<Table.Cell class="whitespace-nowrap tabular-nums">{runCountText(schedule)}</Table.Cell>
-									<Table.Cell>
-										<Badge variant={(schedule.failureCount ?? 0) > 0 ? 'destructive' : 'outline'}>{failureCountText(schedule)}</Badge>
-									</Table.Cell>
-									<Table.Cell>
-										<div class="flex justify-end gap-1">
-											<Button type="button" variant="ghost" size="sm" onclick={() => openEditDialog(schedule)} class="gap-1">
-												<PencilIcon class="size-3.5" />
-												{text.scheduleEdit}
-											</Button>
-											<Button type="button" variant="destructive" size="sm" onclick={() => confirmDeleteSchedule(schedule)} class="gap-1">
-												<Trash2Icon class="size-3.5" />
-												{text.scheduleDelete}
-											</Button>
-										</div>
-									</Table.Cell>
-								</Table.Row>
-							{/each}
-						</Table.Body>
-					</Table.Root>
-				</div>
-			{/if}
-		</Card.Content>
+						{/each}
+					</Table.Body>
+				</Table.Root>
+			</div>
+		{/if}
 
 		{#if !hasLoadError && !(isLoading && schedules.length === 0)}
-			<Card.Footer class="flex flex-col items-center justify-between gap-3 sm:flex-row">
-				<p class="text-sm text-muted-foreground">{pageSummary()}</p>
+			<div class="flex flex-col items-center justify-between gap-3 border-t bg-muted/20 px-4 py-3 sm:flex-row">
+				<p class="text-xs text-muted-foreground">{pageSummary()}</p>
 				<Pagination.Root
 					count={totalCount}
 					perPage={pageSize}
@@ -461,9 +468,9 @@
 						</Pagination.Content>
 					{/snippet}
 				</Pagination.Root>
-			</Card.Footer>
+			</div>
 		{/if}
-	</Card.Root>
+	</div>
 </section>
 
 <Dialog.Root bind:open={isEditDialogOpen}>
