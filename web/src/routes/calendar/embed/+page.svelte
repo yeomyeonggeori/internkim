@@ -10,6 +10,15 @@
 	import { calendarText } from '../text';
 	import { calendarAuditRows } from './calendar-audit';
 	import {
+		calendarViewMessageValue,
+		calendarViewType,
+		compareCalendarEventsForDisplay,
+		formatMonthScrollOverlayText,
+		isDateInVisibleRange,
+		miniCalendarWeekdayLabels,
+		normalizedVisibleDate
+	} from './calendar-embed-view-helpers';
+	import {
 		calendarColors,
 		createCalendarLocale,
 		createCalendarViews,
@@ -20,10 +29,15 @@
 	import type { CalendarConflict } from './calendar-conflicts';
 	import CalendarDraftPopover from './calendar-draft-popover.svelte';
 	import {
+		scheduleCalendarAllDayLayoutSync,
+		scheduleDayFlowMiniCalendarEnhancement
+	} from './calendar-embed-dom-sync';
+	import {
 		createCalendarDraftPopoverActions,
 		type CalendarDraftPopoverActions
 	} from './calendar-draft-popover-actions';
 	import {
+		dateKey,
 		type DraftPopoverState
 	} from './calendar-draft-popover-state';
 	import { CalendarDraftEventState } from './calendar-draft-events';
@@ -37,7 +51,6 @@
 	} from './calendar-event-loader';
 	import { focusCalendarEventElement } from './calendar-event-elements';
 	import {
-		installCalendarMonthRangeAction,
 		monthRangePreviewSegmentsFromSelection as buildMonthRangePreviewSegments,
 		type MonthRangePreviewSegment,
 		type MonthRangeSelection
@@ -50,35 +63,34 @@
 	import { syncRemoteCalendarAndRefreshConflicts } from './calendar-remote-sync';
 	import { searchCalendarEvents, type CalendarSearchResult } from './calendar-search';
 	import CalendarStage from './calendar-stage.svelte';
+	import { installCalendarEmbedLifecycle } from './calendar-embed-lifecycle';
 	import {
 		loadSavedCalendarDate,
 		loadSavedCalendarView
 	} from './calendar-storage';
+	import type { TimelineRangeSelection } from './calendar-timeline-range-action';
 	import {
-		installCalendarTimelineRangeAction,
-		type TimelineRangeSelection
-	} from './calendar-timeline-range-action';
+		clearTimelineOverlapLayout,
+		syncTimelinePreviewOverlapLayout,
+		timelineRangePreviewSegments as buildTimelineRangePreviewSegments,
+		type TimelineRangePreviewSegment
+	} from './calendar-timeline-preview';
 	import CalendarToolbar from './calendar-toolbar.svelte';
-	import {
-		endOfMonthWindow,
-		shiftedCalendarToolbarDate,
-		startOfMonthWindow
-	} from './calendar-visible-range';
-	import { installCalendarWheelNavigation } from './calendar-wheel-navigation';
-	import {
-		isCalendarVisibilityMessage,
-		loadSavedWorkCalendarVisibility
-	} from './calendar-work-visibility';
-	import {
-		isCalendarNavigationMessage,
-		type CalendarViewValue
-	} from '../calendar-navigation-message';
+	import { shiftedCalendarToolbarDate } from './calendar-visible-range';
+	import type { CalendarMonthScrollLabel } from './calendar-wheel-navigation';
+	import { isCalendarVisibilityMessage } from './calendar-work-visibility';
+	import { isCalendarNavigationMessage } from '../calendar-navigation-message';
 	import {
 		broadcastCalendarEventsChanged,
 		broadcastCalendarView,
-		broadcastCalendarVisibleDate,
-		calendarChannelName
+		broadcastCalendarVisibleDate
 	} from '../refresh-signal.svelte';
+	import { calendarDateStorageKey } from '../calendar-storage-keys';
+
+	type VisibleMonthScrollLabel = CalendarMonthScrollLabel & {
+		text: string;
+		isFading: boolean;
+	};
 
 	const text = createPageText(calendarText);
 	const localeCode = $derived(currentLocale.value === 'ko' ? 'ko-KR' : 'en-US');
@@ -97,17 +109,15 @@
 		return new URLSearchParams(window.location.search).get('event') ?? '';
 	};
 	const initialCalendarView = () => calendarViewType(loadSavedCalendarView(browser));
-	let isLoading = $state(false);
 	let isSaving = $state(false);
-	let errorMessage = $state('');
-	let statusMessage = $state('');
-	let eventCount = $state(0);
 	let visibleEvents = $state<DayFlowEvent[]>([]);
 	let calendarWorkVisible = $state(true);
 	let calendarStageElement = $state<HTMLElement | null>(null);
 	let monthRangeSelection = $state<MonthRangeSelection | null>(null);
 	let monthRangePreviewSegments = $state<MonthRangePreviewSegment[]>([]);
 	let timelineRangeSelection = $state<TimelineRangeSelection | null>(null);
+	let timelineRangePreviewSegments = $state<TimelineRangePreviewSegment[]>([]);
+	let monthScrollOverlayLabels = $state<VisibleMonthScrollLabel[]>([]);
 	let selectedMonthDateKey = $state<string | null>(null);
 	let searchText = $state('');
 	let toolbarDate = $state(initialCalendarDate());
@@ -115,6 +125,7 @@
 	let selectedAuditEventID = $state<string | null>(null);
 	let pendingEventID = $state(initialCalendarEventID());
 	let draftPopover = $state<DraftPopoverState | null>(null);
+	let monthScrollOverlayTimer: number | null = null;
 	const draftEvents = new CalendarDraftEventState(draftEventPlaceholderTitle, () => text.newEvent);
 	const programmaticUpdates = new CalendarProgrammaticUpdateState();
 	const calendarOptions = $derived([{ id: 'internkim', name: text.work }]);
@@ -127,9 +138,7 @@
 		setCalendarConflicts: (conflicts) => {
 			calendarConflicts = conflicts;
 		},
-		setErrorMessage: (message) => {
-			errorMessage = message;
-		},
+		setErrorMessage: () => {},
 		syncRemoteCalendarAndRefresh: async () => {
 			await syncRemoteCalendarAndRefresh();
 		}
@@ -149,15 +158,9 @@
 		setVisibleEvents: (events) => {
 			visibleEvents = events;
 		},
-		setEventCount: (nextEventCount) => {
-			eventCount = nextEventCount;
-		},
-		setIsLoading: (nextIsLoading) => {
-			isLoading = nextIsLoading;
-		},
-		setErrorMessage: (message) => {
-			errorMessage = message;
-		},
+		setEventCount: () => {},
+		setIsLoading: () => {},
+		setErrorMessage: () => {},
 		refreshSelectedMonthDateCell: () => {
 			refreshSelectedMonthDateCellAfterRender();
 		},
@@ -183,21 +186,15 @@
 			updateCalendarEvent: async (eventID, changes, shouldRender) => {
 				await calendar.updateEvent(eventID, changes, shouldRender);
 			},
-			setEventCount: (nextEventCount) => {
-				eventCount = nextEventCount;
-			},
+			setEventCount: () => {},
 			setVisibleEvents: (events) => {
 				visibleEvents = events;
 			},
 			setIsSaving: (nextIsSaving) => {
 				isSaving = nextIsSaving;
 			},
-			setStatusMessage: (message) => {
-				statusMessage = message;
-			},
-			setErrorMessage: (message) => {
-				errorMessage = message;
-			},
+			setStatusMessage: () => {},
+			setErrorMessage: () => {},
 			openEventDetails: (eventID) => openEventDetails(eventID),
 			notifyEventsChanged: broadcastCalendarEventsChanged,
 			refreshCalendar: async () => {
@@ -297,75 +294,88 @@
 	});
 
 	onMount(() => {
-		calendarWorkVisible = loadSavedWorkCalendarVisibility(window.localStorage);
-		const savedView = initialCalendarView();
-		calendar.changeView(savedView);
-		toolbarView = savedView;
-		syncCalendarThemeToDocument();
-		if (!eventLoader.hasVisibleRange()) {
-			const initialDate = initialCalendarDate();
-			eventLoader.loadEvents(startOfMonthWindow(initialDate), endOfMonthWindow(initialDate));
-		}
-		void syncRemoteCalendarAndRefresh().catch((error: unknown) => {
-			console.debug('calendar remote sync failed', { error });
+		return installCalendarEmbedLifecycle({
+			stageElement: calendarStageElement,
+			setWorkCalendarVisible: (isVisible) => {
+				calendarWorkVisible = isVisible;
+			},
+			handleCalendarChannelMessage,
+			handleCalendarWindowMessage,
+			handleCalendarStorageMessage,
+			initialCalendarView,
+			applyCalendarView: (view) => {
+				calendar.changeView(view);
+			},
+			setToolbarView: (view) => {
+				toolbarView = view;
+			},
+			syncCalendarThemeToDocument,
+			hasVisibleRange: () => eventLoader.hasVisibleRange(),
+			initialCalendarDate,
+			loadEvents: (startDate, endDate) => eventLoader.loadEvents(startDate, endDate),
+			syncRemoteCalendarAndRefresh,
+			scheduleDraftTitleInputPlaceholderUpdates: eventActions.scheduleDraftTitleInputPlaceholderUpdates,
+			scheduleDraftEventVisibilitySync: eventActions.scheduleDraftEventVisibilitySync,
+			refreshSelectedMonthDateCellAfterRender,
+			clearMonthScrollOverlays,
+			monthRangeAction: {
+				currentView: () => calendar.currentView,
+				getSelection: () => monthRangeSelection,
+				setSelection: (selection) => {
+					monthRangeSelection = selection;
+				},
+				clearPreview: () => {
+					monthRangePreviewSegments = [];
+				},
+				selectDate: selectMonthDate,
+				createSingleDayEvent: draftPopoverActions.openMonthSingleDayDraftPopover,
+				createRangeEvent: draftPopoverActions.openMonthRangeDraftPopover
+			},
+			timelineRangeAction: {
+				currentView: () => calendar.currentView,
+				currentDate: () => toolbarDate,
+				getSelection: () => timelineRangeSelection,
+				setSelection: setTimelineRangeSelection,
+				createSingleEvent: draftPopoverActions.openTimelineSingleDraftPopover,
+				createRangeEvent: draftPopoverActions.openTimelineRangeDraftPopover
+			},
+			wheelNavigation: {
+				currentView: () => calendar.currentView,
+				showMonthLabels: showMonthScrollOverlays,
+				hideMonthLabels: clearMonthScrollOverlays,
+				selectVisibleDate: setVisibleDate
+			},
+			draftPopoverDismiss: {
+				getDraftPopover: () => draftPopover,
+				saveDraftPopover: draftPopoverActions.saveDraftPopover,
+				cancelDraftPopover: draftPopoverActions.cancelDraftPopover
+			},
+			keyboardDelete: {
+				getSelectedEventID: () => selectedAuditEventID,
+				getDraftPopover: () => draftPopover,
+				deleteSelectedEvent: (eventID) => {
+					selectedAuditEventID = null;
+					draftPopover = null;
+					void eventActions.deleteEvent(eventID);
+				}
+			},
+			miniCalendarMonthPicker: {
+				getStageElement: () => calendarStageElement,
+				getCurrentDate: () => toolbarDate,
+				localeCode: () => (currentLocale.value === 'ko' ? 'ko-KR' : 'en-US'),
+				labels: () => ({
+					pickMonthAndYear: text.pickMonthAndYear,
+					previousYear: text.previousYear,
+					nextYear: text.nextYear,
+					previousTwelveYears: text.previousTwelveYears,
+					nextTwelveYears: text.nextTwelveYears
+				}),
+				selectDate: (date) => {
+					navigateToDateKey(dateKey(date));
+				}
+			},
+			navigateToDateKey
 		});
-		const themeObserver = new MutationObserver(syncCalendarThemeToDocument);
-		themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-		const draftTitleObserver = new MutationObserver(() => {
-			eventActions.scheduleDraftTitleInputPlaceholderUpdates();
-			eventActions.scheduleDraftEventVisibilitySync();
-		});
-		draftTitleObserver.observe(document.body, { childList: true, subtree: true });
-		const visibilityChannel = new BroadcastChannel(calendarChannelName);
-		visibilityChannel.addEventListener('message', handleCalendarVisibilityMessage);
-		window.addEventListener('message', handleCalendarWindowMessage);
-		const stopMonthRangeCreate = calendarStageElement
-			? installCalendarMonthRangeAction({
-					stageElement: calendarStageElement,
-					currentView: () => calendar.currentView,
-					getSelection: () => monthRangeSelection,
-					setSelection: (selection) => {
-						monthRangeSelection = selection;
-					},
-					clearPreview: () => {
-						monthRangePreviewSegments = [];
-					},
-					selectDate: selectMonthDate,
-					createSingleDayEvent: draftPopoverActions.openMonthSingleDayDraftPopover,
-					createRangeEvent: draftPopoverActions.openMonthRangeDraftPopover
-				})
-			: undefined;
-		const stopTimelineRangeCreate = calendarStageElement
-			? installCalendarTimelineRangeAction({
-					stageElement: calendarStageElement,
-					currentView: () => calendar.currentView,
-					currentDate: () => toolbarDate,
-					getSelection: () => timelineRangeSelection,
-					setSelection: (selection) => {
-						timelineRangeSelection = selection;
-					},
-					createSingleEvent: draftPopoverActions.openTimelineSingleDraftPopover,
-					createRangeEvent: draftPopoverActions.openTimelineRangeDraftPopover
-				})
-			: undefined;
-		const stopWheelNavigation = calendarStageElement
-			? installCalendarWheelNavigation({
-					stageElement: calendarStageElement,
-					currentView: () => calendar.currentView,
-					goToPrevious: () => calendar.app.goToPrevious(),
-					goToNext: () => calendar.app.goToNext()
-				})
-			: undefined;
-		return () => {
-			visibilityChannel.removeEventListener('message', handleCalendarVisibilityMessage);
-			window.removeEventListener('message', handleCalendarWindowMessage);
-			visibilityChannel.close();
-			themeObserver.disconnect();
-			draftTitleObserver.disconnect();
-			stopMonthRangeCreate?.();
-			stopTimelineRangeCreate?.();
-			stopWheelNavigation?.();
-		};
 	});
 
 	const currentMonthTitle = $derived(
@@ -398,20 +408,55 @@
 		calendar.goToNext();
 	}
 
+	function showMonthScrollOverlays(labels: CalendarMonthScrollLabel[]) {
+		monthScrollOverlayLabels = labels.map((label) => ({
+			...label,
+			text: formatMonthScrollOverlayText(label.date, localeCode),
+			isFading: false
+		}));
+		if (monthScrollOverlayTimer) window.clearTimeout(monthScrollOverlayTimer);
+		monthScrollOverlayTimer = null;
+	}
+
+	function clearMonthScrollOverlays() {
+		if (monthScrollOverlayTimer) window.clearTimeout(monthScrollOverlayTimer);
+		if (monthScrollOverlayLabels.length === 0) {
+			monthScrollOverlayTimer = null;
+			return;
+		}
+		monthScrollOverlayLabels = monthScrollOverlayLabels.map((label) => ({ ...label, isFading: true }));
+		monthScrollOverlayTimer = window.setTimeout(() => {
+			monthScrollOverlayLabels = [];
+			monthScrollOverlayTimer = null;
+		}, 180);
+	}
+
 	function syncCalendarThemeToDocument() {
 		const mode = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
 		calendar.app.updateConfig({ theme: { mode } });
 	}
 
-	function handleCalendarVisibilityMessage(event: MessageEvent<unknown>) {
-		if (!isCalendarVisibilityMessage(event.data)) return;
-		setWorkCalendarVisibility(event.data.work);
+	function handleCalendarChannelMessage(event: MessageEvent<unknown>) {
+		if (isCalendarVisibilityMessage(event.data)) {
+			setWorkCalendarVisibility(event.data.work);
+			return;
+		}
+		if (isCalendarNavigationMessage(event.data)) {
+			navigateToDateKey(event.data.dateKey);
+		}
 	}
 
 	function handleCalendarWindowMessage(event: MessageEvent<unknown>) {
 		if (event.origin !== window.location.origin) return;
 		if (!isCalendarNavigationMessage(event.data)) return;
 		navigateToDateKey(event.data.dateKey);
+	}
+
+	function handleCalendarStorageMessage(event: StorageEvent) {
+		if (event.key !== calendarDateStorageKey || !event.newValue) return;
+		const date = new Date(event.newValue);
+		if (Number.isNaN(date.getTime())) return;
+		navigateToDateKey(dateKey(date));
 	}
 
 	function setWorkCalendarVisibility(isVisible: boolean) {
@@ -426,14 +471,18 @@
 	function navigateToDateKey(dateKey: string) {
 		const date = dateFromDateKey(dateKey);
 		const navigationDate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0);
+		selectedMonthDateKey = dateKey;
 		setVisibleDate(navigationDate);
 		calendar.app.setCurrentDate(navigationDate);
+		calendar.app.setVisibleMonth(navigationDate);
 		calendar.app.selectDate(navigationDate);
+		refreshSelectedMonthDateCellAfterRender();
 	}
 
 	function navigateToSearchResult(result: CalendarSearchResult) {
 		setVisibleDate(result.startDate);
 		calendar.app.setCurrentDate(result.startDate);
+		calendar.app.setVisibleMonth(result.startDate);
 		calendar.app.selectDate(result.startDate);
 	}
 
@@ -443,17 +492,45 @@
 	});
 
 	$effect(() => {
+		calendarStageElement;
+		timelineRangeSelection;
+		toolbarDate;
+		toolbarView;
+		visibleEvents;
+		refreshTimelineRangePreview();
+	});
+
+	$effect(() => {
+		calendarStageElement;
+		toolbarDate;
+		toolbarView;
+		visibleEvents;
+		if (!browser) return;
+		scheduleDayFlowMiniCalendarEnhancement({
+			stageElement: calendarStageElement,
+			currentDate: toolbarDate,
+			events: visibleEvents,
+			localeCode,
+			weekdayLabels: miniCalendarWeekdayLabels(currentLocale.value),
+			previousLabel: text.previous,
+			nextLabel: text.next,
+			selectDateKey: navigateToDateKey
+		});
+	});
+
+	$effect(() => {
+		calendarStageElement;
+		toolbarView;
+		visibleEvents;
+		if (!browser) return;
+		scheduleCalendarAllDayLayoutSync(calendarStageElement, toolbarView);
+	});
+
+	$effect(() => {
 		selectedMonthDateKey;
 		calendarStageElement;
 		refreshSelectedMonthDateCellAfterRender();
 	});
-
-	function compareCalendarEventsForDisplay(leftEvent: DayFlowEvent, rightEvent: DayFlowEvent) {
-		const leftPriority = leftEvent.allDay ? 0 : 1;
-		const rightPriority = rightEvent.allDay ? 0 : 1;
-		if (leftPriority !== rightPriority) return leftPriority - rightPriority;
-		return leftEvent.title.localeCompare(rightEvent.title);
-	}
 
 	async function refreshCalendar() {
 		await eventLoader.refreshCurrentRange();
@@ -499,37 +576,51 @@
 
 	function refreshSelectedMonthDateCellAfterRender() {
 		if (!browser) return;
-		requestAnimationFrame(() => refreshSelectedMonthDateCell());
+		requestAnimationFrame(() => {
+			refreshSelectedMonthDateCell();
+			requestAnimationFrame(() => refreshSelectedMonthDateCell());
+		});
+		window.setTimeout(() => refreshSelectedMonthDateCell(), 0);
 	}
 
 	function refreshSelectedMonthDateCell() {
 		refreshSelectedMonthDateCellElement(calendarStageElement, selectedMonthDateKey);
 	}
 
+	function setTimelineRangeSelection(selection: TimelineRangeSelection | null) {
+		timelineRangeSelection = selection;
+		refreshTimelineRangePreview();
+	}
+
+	function refreshTimelineRangePreview() {
+		updateTimelineRangePreviewSegments();
+		scheduleTimelinePreviewOverlapLayoutSync();
+	}
+
+	function updateTimelineRangePreviewSegments() {
+		timelineRangePreviewSegments = buildTimelineRangePreviewSegments({
+			stageElement: calendarStageElement,
+			selection: timelineRangeSelection,
+			currentView: toolbarView,
+			currentDate: toolbarDate,
+			events: visibleEvents
+		});
+	}
+
+	function scheduleTimelinePreviewOverlapLayoutSync() {
+		if (!browser) return;
+		syncTimelinePreviewOverlapLayout(calendarStageElement, timelineRangeSelection, visibleEvents);
+		requestAnimationFrame(() => {
+			updateTimelineRangePreviewSegments();
+			syncTimelinePreviewOverlapLayout(calendarStageElement, timelineRangeSelection, visibleEvents);
+		});
+		if (!timelineRangeSelection) requestAnimationFrame(() => clearTimelineOverlapLayout(calendarStageElement));
+	}
+
 	function setVisibleDate(date: Date) {
 		const visibleDate = normalizedVisibleDate(date);
 		toolbarDate = visibleDate;
 		broadcastCalendarVisibleDate(visibleDate);
-	}
-
-	function normalizedVisibleDate(date: Date): Date {
-		return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0);
-	}
-
-	function isDateInVisibleRange(date: Date, startDate: Date, endDate: Date): boolean {
-		return startDate.getTime() <= date.getTime() && date.getTime() <= endDate.getTime();
-	}
-
-	function calendarViewMessageValue(viewType: ViewType): CalendarViewValue {
-		if (viewType === ViewType.DAY) return 'day';
-		if (viewType === ViewType.WEEK) return 'week';
-		return 'month';
-	}
-
-	function calendarViewType(view: CalendarViewValue): ViewType {
-		if (view === 'day') return ViewType.DAY;
-		if (view === 'week') return ViewType.WEEK;
-		return ViewType.MONTH;
 	}
 </script>
 
@@ -557,9 +648,13 @@
 	/>
 	<CalendarStage
 		{calendar}
+		{toolbarView}
 		bind:stageElement={calendarStageElement}
 		{monthRangePreviewSegments}
 		monthRangePreviewTitle={draftEventPlaceholderTitle()}
+		{timelineRangePreviewSegments}
+		timelineRangePreviewTitle={draftEventPlaceholderTitle()}
+		{monthScrollOverlayLabels}
 		auditRows={selectedAuditRows}
 		auditLabel={text.eventAudit}
 	/>

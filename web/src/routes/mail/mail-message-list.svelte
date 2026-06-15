@@ -17,6 +17,8 @@
 		selectedMailbox: string;
 		messageCountText: string;
 		isLoading: boolean;
+		hasLoadedAccount: boolean;
+		isLoadingMessages: boolean;
 		searchText: string;
 		isUnreadOnly: boolean;
 		errorMessage: string;
@@ -37,6 +39,8 @@
 		selectedMailbox,
 		messageCountText,
 		isLoading,
+		hasLoadedAccount,
+		isLoadingMessages,
 		searchText = $bindable(''),
 		isUnreadOnly = $bindable(false),
 		errorMessage,
@@ -63,17 +67,17 @@
 			<p class="truncate text-xs text-muted-foreground">{messageCountText}</p>
 		</div>
 		<Button variant="ghost" size="icon-sm" aria-label={text.refresh} onclick={loadMail} disabled={isLoading}>
-			<RefreshCwIcon class={isLoading ? 'animate-spin' : ''} />
+			<RefreshCwIcon class={isLoading || isLoadingMessages ? 'animate-spin' : ''} />
 		</Button>
 	</header>
 
 	<div class="border-b bg-background p-3">
 		<div class="relative">
 			<SearchIcon class="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-			<Input class="h-9 pl-8" bind:value={searchText} placeholder={text.search} disabled={!account.isConfigured} onkeydown={(event) => event.key === 'Enter' && loadMessages()} />
+			<Input class="h-9 pl-8" bind:value={searchText} placeholder={text.search} disabled={!hasLoadedAccount || !account.isConfigured} onkeydown={(event) => event.key === 'Enter' && loadMessages()} />
 		</div>
 		<div class="mt-3 flex items-center justify-between">
-			<p class="text-xs font-medium text-muted-foreground">{account.isConfigured ? selectedMailbox : text.connectAccount}</p>
+			<p class="text-xs font-medium text-muted-foreground">{hasLoadedAccount ? (account.isConfigured ? selectedMailbox : text.connectAccount) : text.checkingMail}</p>
 			<div class="flex items-center gap-2">
 				<Switch id="mail-unread-only" bind:checked={isUnreadOnly} />
 				<Label for="mail-unread-only" class="text-xs text-muted-foreground">{text.unread}</Label>
@@ -90,6 +94,9 @@
 		{/if}
 
 		<div class="space-y-2">
+			{#if messages.length && isLoadingMessages}
+				<p class="rounded-md border bg-background px-3 py-2 text-xs text-muted-foreground">{text.loadingMessages}</p>
+			{/if}
 			{#each messages as message (message.uid)}
 				<button
 					type="button"
@@ -115,9 +122,17 @@
 			{#if !messages.length}
 				<div class="rounded-lg border border-dashed bg-background p-8 text-center">
 					<MailOpenIcon class="mx-auto size-5 text-muted-foreground" />
-					<p class="mt-3 text-sm font-medium">{account.isConfigured ? text.noMessages : text.connectMail}</p>
-					<p class="mt-1 text-xs text-muted-foreground">{account.isConfigured ? text.emptyMailbox : text.emptyUnconfigured}</p>
-					{#if !account.isConfigured}
+					{#if !hasLoadedAccount}
+						<p class="mt-3 text-sm font-medium">{text.checkingMail}</p>
+						<p class="mt-1 text-xs text-muted-foreground">{text.checkingMailDescription}</p>
+					{:else if account.isConfigured && isLoadingMessages}
+						<p class="mt-3 text-sm font-medium">{text.loadingMessages}</p>
+						<p class="mt-1 text-xs text-muted-foreground">{text.checkingMailDescription}</p>
+					{:else}
+						<p class="mt-3 text-sm font-medium">{account.isConfigured ? text.noMessages : text.connectMail}</p>
+						<p class="mt-1 text-xs text-muted-foreground">{account.isConfigured ? text.emptyMailbox : text.emptyUnconfigured}</p>
+					{/if}
+					{#if hasLoadedAccount && !account.isConfigured}
 						<Button class="mt-4 gap-2" variant="secondary" onclick={() => openSettings()}>
 							<SettingsIcon />
 							{text.connectAccount}

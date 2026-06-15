@@ -11,6 +11,7 @@
 	import ClipboardCheckIcon from '@lucide/svelte/icons/clipboard-check';
 	import ActivityIcon from '@lucide/svelte/icons/activity';
 	import CogIcon from '@lucide/svelte/icons/cog';
+	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
 	import ListChecksIcon from '@lucide/svelte/icons/list-checks';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import MailIcon from '@lucide/svelte/icons/mail';
@@ -37,7 +38,8 @@
 		{ href: '/memory/', label: text.memory, icon: NetworkIcon },
 		{ href: '/calendar/', label: text.calendar, icon: CalendarDaysIcon },
 		{ href: '/mail/', label: text.mail, icon: MailIcon },
-		{ href: '/attendance/', label: text.attendance, icon: ClipboardCheckIcon }
+		{ href: '/attendance/', label: text.attendance, icon: ClipboardCheckIcon },
+		{ href: '/files/', label: text.files, icon: FolderOpenIcon }
 	]);
 
 	const workspace = $derived<RailItem[]>([

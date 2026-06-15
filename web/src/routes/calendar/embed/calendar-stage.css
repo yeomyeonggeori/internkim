@@ -1,0 +1,5 @@
+/* 캘린더 stage style 파일을 책임별 CSS로 합칩니다. */
+@import './calendar-stage-base.css';
+@import './calendar-stage-timeline.css';
+@import './calendar-stage-month.css';
+@import './calendar-stage-mini-calendar.css';

@@ -1,0 +1,36 @@
+export const filesText = {
+	ko: {
+		title: '파일',
+		subtitle: '접근 가능한 워크스페이스',
+		refresh: '새로고침',
+		empty: '이 폴더는 비어 있습니다.',
+		loadFailed: '파일을 불러오지 못했습니다.',
+		download: '다운로드',
+		retry: '다시 시도',
+		upload: '파일 추가',
+		uploading: '업로드 중…',
+		dropHint: '여기로 파일을 끌어다 놓으면 이 폴더에 추가됩니다.',
+		folder: '폴더',
+		name: '이름',
+		size: '크기',
+		modified: '수정',
+		roots: '위치'
+	},
+	en: {
+		title: 'Files',
+		subtitle: 'Workspaces you can access',
+		refresh: 'Refresh',
+		empty: 'This folder is empty.',
+		loadFailed: 'Could not load files.',
+		download: 'Download',
+		retry: 'Retry',
+		upload: 'Add files',
+		uploading: 'Uploading…',
+		dropHint: 'Drop files here to add them to this folder.',
+		folder: 'Folder',
+		name: 'Name',
+		size: 'Size',
+		modified: 'Modified',
+		roots: 'Locations'
+	}
+} as const;

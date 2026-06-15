@@ -62,11 +62,11 @@
 <style>
 	.calendar-toolbar {
 		display: flex;
-		height: 52px;
+		height: 56px;
 		flex-shrink: 0;
 		align-items: center;
 		gap: 8px;
-		border-bottom: 1px solid #e5e7eb;
+		border-bottom: 1px solid #e1e5eb;
 		background: #ffffff;
 		padding: 0 16px;
 	}
