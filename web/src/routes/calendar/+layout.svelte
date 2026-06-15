@@ -133,6 +133,8 @@
 				miniMonth = new Date(visibleDate.getFullYear(), visibleDate.getMonth(), 1);
 				selectedMiniDateKey = dateKey(visibleDate);
 			}
+		} else {
+			selectedMiniDateKey = dateKey(today);
 		}
 		const savedCalendarView = window.localStorage.getItem(calendarViewStorageKey);
 		if (savedCalendarView && isCalendarViewValue(savedCalendarView)) {

@@ -52,7 +52,11 @@ export function calendarEventPayloadFromDayFlowEvent(
 }
 
 export function eventStartDate(event: DayFlowEvent): Date {
-	return event.allDay ? dateFromCalendarDateParts(calendarDatePartsFromTemporal(event.start)) : temporalToDate(event.start);
+	return event.allDay ? localDateFromCalendarDateParts(calendarDatePartsFromTemporal(event.start)) : temporalToDate(event.start);
+}
+
+export function eventEndDate(event: DayFlowEvent): Date {
+	return event.allDay ? localDateFromCalendarDateParts(calendarDatePartsFromTemporal(event.end)) : temporalToDate(event.end);
 }
 
 function calendarDateFromDayFlowEventStart(event: DayFlowEvent): Date {
@@ -82,6 +86,10 @@ function isCalendarDateParts(value: unknown): value is CalendarDateParts {
 
 function dateFromCalendarDateParts(dateParts: CalendarDateParts): Date {
 	return new Date(Date.UTC(dateParts.year, dateParts.month - 1, dateParts.day));
+}
+
+function localDateFromCalendarDateParts(dateParts: CalendarDateParts): Date {
+	return new Date(dateParts.year, dateParts.month - 1, dateParts.day);
 }
 
 function localDateFromISODate(isoDate: string): Date {
