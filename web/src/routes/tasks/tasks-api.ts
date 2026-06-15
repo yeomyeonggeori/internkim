@@ -1,3 +1,5 @@
+import { adminApiFetch } from '$lib/admin-api';
+
 export type TaskRunSummary = {
 	taskRunID: string;
 	requesterPersonID?: string;
@@ -23,9 +25,7 @@ export type TaskDetail = {
 export async function fetchTaskRuns(status?: string): Promise<TaskRunSummary[]> {
 	const query = new URLSearchParams({ limit: '100' });
 	if (status) query.set('status', status);
-	const response = await fetch(`/admin/api/diagnostics/tasks?${query.toString()}`, {
-		credentials: 'include'
-	});
+	const response = await adminApiFetch(`/admin/api/diagnostics/tasks?${query.toString()}`);
 	if (!response.ok) {
 		throw new Error(`Task list request returned ${response.status}`);
 	}
@@ -39,9 +39,7 @@ export async function fetchTaskRuns(status?: string): Promise<TaskRunSummary[]> 
 
 export async function fetchTaskDetail(taskRunID: string): Promise<TaskDetail> {
 	const query = new URLSearchParams({ taskRunID });
-	const response = await fetch(`/admin/api/diagnostics/task-detail?${query.toString()}`, {
-		credentials: 'include'
-	});
+	const response = await adminApiFetch(`/admin/api/diagnostics/task-detail?${query.toString()}`);
 	if (!response.ok) {
 		throw new Error(`Task detail request returned ${response.status}`);
 	}
@@ -142,9 +140,7 @@ export type ServiceLogsResponse = { service: string; taskRunID?: string; count: 
 
 export async function fetchServiceLogs(service: string, taskRunID: string, limit = 200): Promise<ServiceLogsResponse> {
 	const query = new URLSearchParams({ service, taskRunID, limit: String(limit) });
-	const response = await fetch(`/admin/api/diagnostics/service-logs?${query.toString()}`, {
-		credentials: 'include'
-	});
+	const response = await adminApiFetch(`/admin/api/diagnostics/service-logs?${query.toString()}`);
 	if (!response.ok) {
 		throw new Error(`Service logs request returned ${response.status}`);
 	}
