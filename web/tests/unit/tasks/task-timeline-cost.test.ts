@@ -18,7 +18,7 @@ describe('summarizeTimeline cost and cache accounting', () => {
 		expect(summary.llmCallCount).toBe(2);
 		expect(summary.llmTotalTokens).toBe(12959);
 		expect(summary.llmCachedPromptTokens).toBe(728);
-		expect(summary.llmCostUSD).toBeCloseTo(0.0164, 6);
+		expect(Number(summary.llmCostUSD.toFixed(6))).toBe(0.0164);
 		expect(summary.toolCallCount).toBe(1);
 	});
 
