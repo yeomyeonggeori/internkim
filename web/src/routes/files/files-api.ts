@@ -15,16 +15,24 @@ export type WorkspaceEntry = {
 	modifiedAt: string;
 };
 
+async function failedResponseMessage(response: Response): Promise<string> {
+	const body = (await response.text()).trim();
+	if (!body || body.startsWith('<') || body.length > 200) {
+		return `${response.status} ${response.statusText}`.trim();
+	}
+	return body;
+}
+
 export async function fetchWorkspaceRoots(): Promise<WorkspaceRoot[]> {
 	const response = await fetch('/files/api/roots', { credentials: 'include' });
-	if (!response.ok) throw new Error(await response.text());
+	if (!response.ok) throw new Error(await failedResponseMessage(response));
 	const payload = (await response.json()) as { roots: WorkspaceRoot[] };
 	return payload.roots ?? [];
 }
 
 export async function listWorkspaceDirectory(path: string): Promise<WorkspaceEntry[]> {
 	const response = await fetch(`/files/api/list?path=${encodeURIComponent(path)}`, { credentials: 'include' });
-	if (!response.ok) throw new Error(await response.text());
+	if (!response.ok) throw new Error(await failedResponseMessage(response));
 	const payload = (await response.json()) as { entries: WorkspaceEntry[] };
 	return payload.entries ?? [];
 }
@@ -41,7 +49,7 @@ export async function uploadWorkspaceFiles(path: string, files: File[]): Promise
 		credentials: 'include',
 		body: form
 	});
-	if (!response.ok) throw new Error(await response.text());
+	if (!response.ok) throw new Error(await failedResponseMessage(response));
 	const payload = (await response.json()) as { uploaded: string[] };
 	return payload.uploaded ?? [];
 }
