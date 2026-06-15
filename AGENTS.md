@@ -87,6 +87,12 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   `./internkim deploy --components capabilityd`.
 - For Blueclaw-only agent-loop, prompt, skill, policy, or schedule/runtime
   logic, deploy only the Blueclaw payload or related component.
+- `deploy --components blueclawPayload` ships the **pre-built artifact** at
+  `.dependency/blueclaw-payload/`; it does not rebuild it. For any `cmd/blueclaw`
+  change (agent, connectors, llm, task, security) run `make prepare-blueclaw-payload`
+  first, or the deploy ships a stale binary. The deploy now fails loudly when the
+  artifact revision does not match the `.dependency/blueclaw` HEAD, telling you to
+  rebuild; do not bypass that guard.
 - For uncommitted `.dependency/blueclaw` changes, use
   `INTERNKIM_BLUECLAW_USE_LOCAL=1`. If those changes must enter the Firecracker
   payload, run `make prepare-blueclaw-payload` before deploy.
