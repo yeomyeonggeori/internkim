@@ -27,7 +27,7 @@
 			<p class="truncate text-sm font-medium">{text.title}</p>
 			<p class="truncate text-xs text-muted-foreground">{text.subtitle}</p>
 		</div>
-		<Button variant="ghost" size="icon-sm" aria-label={text.refresh} onclick={() => files.refresh()}>
+		<Button variant="ghost" size="icon-sm" aria-label={text.refresh} onclick={() => files.reload()}>
 			<RefreshCwIcon class={files.isLoading ? 'animate-spin' : ''} />
 		</Button>
 	</div>
