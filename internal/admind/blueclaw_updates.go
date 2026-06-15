@@ -319,6 +319,9 @@ func (service *Service) installBlueclawPayloadArtifact(ctx context.Context, jobI
 		targets = []blueclawPayloadInstallTarget{canonicalBlueclawPayloadInstallTarget()}
 	}
 	for _, target := range targets {
+		if service.tenantServiceIsDisabled(ctx, target.ServiceName) {
+			continue
+		}
 		if errorValue := service.installBlueclawPayloadArtifactForTarget(ctx, jobID, artifactPath, target); errorValue != nil {
 			return errorValue
 		}
