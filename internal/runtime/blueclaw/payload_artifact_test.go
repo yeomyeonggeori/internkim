@@ -2,10 +2,52 @@ package blueclaw
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestValidatePayloadArtifactSourceRejectsStaleRevision(t *testing.T) {
+	repositoryRootPath := t.TempDir()
+	submodulePath := filepath.Join(repositoryRootPath, BlueclawSubmodulePath)
+	writePayloadFile(t, filepath.Join(submodulePath, "migrations", "001.sql"), "select 1;")
+	initGitRepositoryWithCommit(t, submodulePath)
+
+	expectedManifest, errorValue := ExpectedPayloadArtifactSource(repositoryRootPath)
+	if errorValue != nil {
+		t.Fatalf("expected source manifest: %v", errorValue)
+	}
+
+	staleError := ValidatePayloadArtifactSource(repositoryRootPath, PayloadArtifactManifest{
+		BlueclawRevision: "stale-revision",
+		MigrationsSHA256: expectedManifest.MigrationsSHA256,
+	})
+	if staleError == nil || !strings.Contains(staleError.Error(), "prepare-blueclaw-payload") {
+		t.Fatalf("expected stale revision to be rejected with rebuild guidance, got %v", staleError)
+	}
+
+	if freshError := ValidatePayloadArtifactSource(repositoryRootPath, expectedManifest); freshError != nil {
+		t.Fatalf("expected matching revision to validate, got %v", freshError)
+	}
+}
+
+func initGitRepositoryWithCommit(t *testing.T, repositoryPath string) {
+	t.Helper()
+	for _, arguments := range [][]string{
+		{"init"},
+		{"config", "user.email", "test@example.com"},
+		{"config", "user.name", "test"},
+		{"add", "."},
+		{"commit", "-m", "initial"},
+	} {
+		command := exec.Command("git", arguments...)
+		command.Dir = repositoryPath
+		if output, errorValue := command.CombinedOutput(); errorValue != nil {
+			t.Fatalf("git %v: %v %s", arguments, errorValue, output)
+		}
+	}
+}
 
 func TestValidatePayloadArtifactDirectoryChecksBinaryAndMigrations(t *testing.T) {
 	artifactDirectoryPath := t.TempDir()

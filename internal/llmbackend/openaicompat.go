@@ -47,9 +47,20 @@ type openAIJSONSchemaPayload struct {
 }
 
 type openAIUsage struct {
-	PromptTokens     int64 `json:"prompt_tokens"`
-	CompletionTokens int64 `json:"completion_tokens"`
-	TotalTokens      int64 `json:"total_tokens"`
+	PromptTokens        int64 `json:"prompt_tokens"`
+	CompletionTokens    int64 `json:"completion_tokens"`
+	TotalTokens         int64 `json:"total_tokens"`
+	PromptTokensDetails struct {
+		CachedTokens     int64 `json:"cached_tokens"`
+		CacheWriteTokens int64 `json:"cache_write_tokens"`
+	} `json:"prompt_tokens_details"`
+	CompletionTokensDetails struct {
+		ReasoningTokens int64 `json:"reasoning_tokens"`
+	} `json:"completion_tokens_details"`
+	Cost        float64 `json:"cost"`
+	CostDetails struct {
+		UpstreamInferenceCost float64 `json:"upstream_inference_cost"`
+	} `json:"cost_details"`
 }
 
 type openAIResponse struct {
@@ -296,9 +307,14 @@ func normalizeUsage(raw openAIUsage) Usage {
 		totalTokens = raw.PromptTokens + raw.CompletionTokens
 	}
 	return Usage{
-		PromptTokens:     raw.PromptTokens,
-		CompletionTokens: raw.CompletionTokens,
-		TotalTokens:      totalTokens,
+		PromptTokens:          raw.PromptTokens,
+		CompletionTokens:      raw.CompletionTokens,
+		TotalTokens:           totalTokens,
+		CachedPromptTokens:    raw.PromptTokensDetails.CachedTokens,
+		CacheWriteTokens:      raw.PromptTokensDetails.CacheWriteTokens,
+		ReasoningTokens:       raw.CompletionTokensDetails.ReasoningTokens,
+		CostUSD:               raw.Cost,
+		UpstreamInferenceCost: raw.CostDetails.UpstreamInferenceCost,
 	}
 }
 
