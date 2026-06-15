@@ -16,7 +16,7 @@
 	const rootIcon: Record<WorkspaceRootKind, typeof UserIcon> = {
 		personal: UserIcon,
 		circle: UsersIcon,
-		shared: Share2Icon
+		public: Share2Icon
 	};
 </script>
 

@@ -32,7 +32,8 @@ func newWorkspaceFilesTestService(t *testing.T) (*Service, string) {
 	seedWorkspaceFile(t, workspaceDirectory, "private/people/person-other/private.txt", "not-yours")
 	seedWorkspaceFile(t, workspaceDirectory, "circles/engineering/spec.md", "engineering-spec")
 	seedWorkspaceFile(t, workspaceDirectory, "circles/design/confidential.txt", "design-only")
-	seedWorkspaceFile(t, workspaceDirectory, "shared/readme.txt", "everyone")
+	seedWorkspaceFile(t, workspaceDirectory, "shared/public/readme.txt", "everyone")
+	seedWorkspaceFile(t, workspaceDirectory, "shared/cache/dependencies/cached.txt", "package-cache")
 	service := NewService(Configuration{
 		BlueclawBaseURL:       "http://blueclaw.local",
 		BlueclawWorkspacePath: workspaceDirectory,
@@ -91,7 +92,7 @@ func TestWorkspaceFilesRootsListsOwnMemberCirclesAndShared(t *testing.T) {
 	for _, root := range response.Roots {
 		agentPaths[root.AgentPath] = true
 	}
-	for _, expected := range []string{"/workspace/private/people/person-me", "/workspace/circles/engineering", "/workspace/circles/staff", "/workspace/shared"} {
+	for _, expected := range []string{"/workspace/private/people/person-me", "/workspace/circles/engineering", "/workspace/circles/staff", "/workspace/shared/public"} {
 		if !agentPaths[expected] {
 			t.Fatalf("missing root %q in %+v", expected, response.Roots)
 		}
@@ -109,7 +110,7 @@ func TestWorkspaceFilesListAllowsOwnCircleAndShared(t *testing.T) {
 	}{
 		{"/workspace/private/people/person-me", "note.txt"},
 		{"/workspace/circles/engineering", "spec.md"},
-		{"/workspace/shared", "readme.txt"},
+		{"/workspace/shared/public", "readme.txt"},
 	}
 	for _, testCase := range cases {
 		recorder := workspaceFilesRequest(t, service, http.MethodGet, "/files/api/list?path="+testCase.path, "me@dawn.kim", nil, "")
@@ -136,6 +137,8 @@ func TestWorkspaceFilesDeniesForbiddenPaths(t *testing.T) {
 		"/workspace/circles/design",
 		"/workspace/private/people/person-other",
 		"/workspace/private/people/person-me/../person-other",
+		"/workspace/shared",
+		"/workspace/shared/cache/dependencies",
 	}
 	for _, path := range forbidden {
 		recorder := workspaceFilesRequest(t, service, http.MethodGet, "/files/api/list?path="+path, "me@dawn.kim", nil, "")

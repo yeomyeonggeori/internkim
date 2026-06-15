@@ -16,7 +16,7 @@ const (
 	workspaceAgentRoot         = "/workspace"
 	workspacePrivatePeoplePath = "/workspace/private/people/"
 	workspaceCirclesPath       = "/workspace/circles/"
-	workspaceSharedPath        = "/workspace/shared"
+	workspacePublicPath        = "/workspace/shared/public"
 )
 
 var errWorkspacePathForbidden = errors.New("workspace path is not accessible")
@@ -161,10 +161,10 @@ func (service *Service) writeWorkspaceRoots(responseWriter http.ResponseWriter, 
 		})
 	}
 	roots = append(roots, workspaceRoot{
-		ID:        "shared",
-		Label:     service.workspaceRootLabels().shared,
-		AgentPath: workspaceSharedPath,
-		Kind:      "shared",
+		ID:        "public",
+		Label:     service.workspaceRootLabels().public,
+		AgentPath: workspacePublicPath,
+		Kind:      "public",
 	})
 	service.writeJSON(responseWriter, map[string]any{"roots": roots})
 }
@@ -358,7 +358,7 @@ func workspacePathContains(root string, candidate string) bool {
 }
 
 func (access workspaceAccess) allowsAgentPath(agentPath string) bool {
-	if isWithinWorkspaceRoot(agentPath, workspaceSharedPath) {
+	if isWithinWorkspaceRoot(agentPath, workspacePublicPath) {
 		return true
 	}
 	if isWithinWorkspaceRoot(agentPath, workspacePrivatePeoplePath+access.personID) {
@@ -383,14 +383,14 @@ func sanitizeContentDispositionFilename(name string) string {
 
 type workspaceRootLabelSet struct {
 	personal string
-	shared   string
+	public   string
 }
 
 func (service *Service) workspaceRootLabels() workspaceRootLabelSet {
 	if strings.HasPrefix(strings.ToLower(service.workspaceLanguage()), "en") {
-		return workspaceRootLabelSet{personal: "My workspace", shared: "Shared"}
+		return workspaceRootLabelSet{personal: "My workspace", public: "Public"}
 	}
-	return workspaceRootLabelSet{personal: "내 워크스페이스", shared: "공용"}
+	return workspaceRootLabelSet{personal: "내 워크스페이스", public: "공개"}
 }
 
 func writeWorkspacePathError(responseWriter http.ResponseWriter, errorValue error) {
