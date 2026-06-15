@@ -1,14 +1,36 @@
 import type { Plugin } from 'vite';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createDevFlowState, createDevFlowWeeklySummary } from './src/routes/flow/dev-flow-fixture';
+import type { FlowState, FlowTask } from './src/routes/flow/flow-types';
 
 type DevFlowMockPluginOptions = {
 	isEnabled: boolean;
 	userEmail: string;
 };
 
+const statusRankStep = 1024;
+
+type DevFlowMockState = {
+	userEmail: string;
+	locale: 'ko' | 'en';
+	flowState: FlowState;
+	nextTaskID: number;
+};
+
+type DevFlowMockRequest = {
+	method: string;
+	pathname: string;
+	searchParams: URLSearchParams;
+	body?: string;
+};
+
+type DevFlowMockResponse = {
+	status: number;
+	body: unknown;
+};
+
 export function devFlowMockPlugin(options: DevFlowMockPluginOptions): Plugin {
-	let locale = 'ko';
+	const state = createDevFlowMockState(options.userEmail);
 
 	return {
 		name: 'internkim-dev-flow-mock',
@@ -17,64 +39,211 @@ export function devFlowMockPlugin(options: DevFlowMockPluginOptions): Plugin {
 
 			server.middlewares.use((request, response, next) => {
 				const requestURL = new URL(request.url ?? '/', 'http://localhost');
-				if (request.method === 'GET' && requestURL.pathname === '/flow/api/summary') {
-					const summary = createDevFlowWeeklySummary(requestURL.searchParams.get('week'));
-					writeJSON(response, summary);
+				const method = request.method ?? 'GET';
+				if (!shouldHandleDevFlowMockRequest(method, requestURL.pathname)) {
+					next();
 					return;
 				}
-				if (request.method === 'GET' && requestURL.pathname === '/flow/api/state') {
-					writeJSON(response, createDevFlowState(options.userEmail));
-					return;
-				}
-				if (request.method === 'GET' && requestURL.pathname === '/auth/session') {
-					writeJSON(response, { authenticated: true, email: options.userEmail, isAdmin: true });
-					return;
-				}
-				if (request.method === 'GET' && requestURL.pathname === '/admin/api/session') {
-					writeJSON(response, {
-						email: options.userEmail,
-						claimedAdminEmail: options.userEmail,
-						isAdmin: true,
-						isClaimed: true,
-						bootstrapStatus: 'claimed'
+				readRequestBody(request, async (body) => {
+					const mockResponse = await createDevFlowMockResponse(state, {
+						method,
+						pathname: requestURL.pathname,
+						searchParams: requestURL.searchParams,
+						body
 					});
-					return;
-				}
-				if (request.method === 'GET' && requestURL.pathname === '/admin/api/locale') {
-					writeJSON(response, { locale });
-					return;
-				}
-				if (request.method === 'PUT' && requestURL.pathname === '/admin/api/locale') {
-					readLocaleRequest(request, (nextLocale) => {
-						locale = nextLocale;
-						writeJSON(response, { locale });
-					});
-					return;
-				}
-				next();
+					if (!mockResponse) {
+						next();
+						return;
+					}
+					writeJSON(response, mockResponse.status, mockResponse.body);
+				});
 			});
 		}
 	};
 }
 
-function readLocaleRequest(request: IncomingMessage, callback: (locale: 'ko' | 'en') => void) {
+function shouldHandleDevFlowMockRequest(method: string, pathname: string): boolean {
+	if (method === 'GET' && pathname === '/flow/api/summary') return true;
+	if (method === 'GET' && pathname === '/flow/api/state') return true;
+	if (method === 'POST' && pathname === '/flow/api/tasks') return true;
+	if (method === 'PUT' && pathname.startsWith('/flow/api/tasks/')) return true;
+	if (method === 'GET' && pathname === '/auth/session') return true;
+	if (method === 'GET' && pathname === '/admin/api/session') return true;
+	if (method === 'GET' && pathname === '/admin/api/locale') return true;
+	return method === 'PUT' && pathname === '/admin/api/locale';
+}
+
+export function createDevFlowMockState(userEmail: string): DevFlowMockState {
+	return {
+		userEmail,
+		locale: 'ko',
+		flowState: createDevFlowState(userEmail),
+		nextTaskID: 1
+	};
+}
+
+export async function createDevFlowMockResponse(
+	state: DevFlowMockState,
+	request: DevFlowMockRequest
+): Promise<DevFlowMockResponse | undefined> {
+	if (request.method === 'GET' && request.pathname === '/flow/api/summary') {
+		return { status: 200, body: createDevFlowWeeklySummary(request.searchParams.get('week')) };
+	}
+	if (request.method === 'GET' && request.pathname === '/flow/api/state') {
+		return { status: 200, body: state.flowState };
+	}
+	if (request.method === 'POST' && request.pathname === '/flow/api/tasks') {
+		const parsed = parseJSONRecord(request.body);
+		const task = flowTaskFromRecord(parsed, createFlowTaskFallback(state));
+		const statusRank = typeof parsed.statusRank === 'number'
+			? task.statusRank
+			: nextBottomStatusRank(state.flowState.tasks, task.status);
+		state.flowState.tasks = [...state.flowState.tasks, { ...task, statusRank }];
+		return { status: 200, body: { ok: true } };
+	}
+	if (request.method === 'PUT' && request.pathname.startsWith('/flow/api/tasks/')) {
+		const taskID = decodeURIComponent(request.pathname.slice('/flow/api/tasks/'.length));
+		const existingTask = state.flowState.tasks.find((task) => task.id === taskID);
+		if (!existingTask) return { status: 404, body: { error: 'task not found' } };
+		const updatedTask = flowTaskFromRecord(parseJSONRecord(request.body), existingTask);
+		state.flowState.tasks = state.flowState.tasks.map((task) =>
+			task.id === taskID ? { ...updatedTask, id: taskID } : task
+		);
+		return { status: 200, body: { ok: true } };
+	}
+	if (request.method === 'GET' && request.pathname === '/auth/session') {
+		return { status: 200, body: { authenticated: true, email: state.userEmail, isAdmin: true } };
+	}
+	if (request.method === 'GET' && request.pathname === '/admin/api/session') {
+		return {
+			status: 200,
+			body: {
+				email: state.userEmail,
+				claimedAdminEmail: state.userEmail,
+				isAdmin: true,
+				isClaimed: true,
+				bootstrapStatus: 'claimed'
+			}
+		};
+	}
+	if (request.method === 'GET' && request.pathname === '/admin/api/locale') {
+		return { status: 200, body: { locale: state.locale } };
+	}
+	if (request.method === 'PUT' && request.pathname === '/admin/api/locale') {
+		state.locale = localeFromBody(request.body);
+		return { status: 200, body: { locale: state.locale } };
+	}
+	return undefined;
+}
+
+function createFlowTaskFallback(state: DevFlowMockState): FlowTask {
+	const firstMember = state.flowState.members[0];
+	const firstSize = state.flowState.definitions.sizes[0];
+	return {
+		id: `dev-flow-task-${state.nextTaskID++}`,
+		ownerID: firstMember?.id ?? '',
+		ownerName: firstMember?.name ?? '',
+		participantIDs: firstMember ? [firstMember.id] : [],
+		participantNames: firstMember ? [firstMember.name] : [],
+		business: state.flowState.definitions.categories[0] ?? '',
+		type: state.flowState.definitions.types[0] ?? '',
+		content: '',
+		goal: '',
+		size: firstSize?.name ?? '',
+		status: state.flowState.statusOptions[0] ?? '요청',
+		statusRank: statusRankStep,
+		weekCode: state.flowState.currentWeek?.code ?? '',
+		flag: 0
+	};
+}
+
+function flowTaskFromRecord(parsed: Record<string, unknown>, fallback: FlowTask): FlowTask {
+	return {
+		...fallback,
+		id: nonEmptyStringFromValue(parsed.id, fallback.id),
+		ownerID: stringFromValue(parsed.ownerID, fallback.ownerID),
+		ownerName: stringFromValue(parsed.ownerName, fallback.ownerName),
+		participantIDs: stringArrayFromValue(parsed.participantIDs, fallback.participantIDs),
+		participantNames: stringArrayFromValue(parsed.participantNames, fallback.participantNames),
+		business: stringFromValue(parsed.business, fallback.business),
+		type: stringFromValue(parsed.type, fallback.type),
+		content: stringFromValue(parsed.content, fallback.content),
+		goal: stringFromValue(parsed.goal, fallback.goal),
+		size: stringFromValue(parsed.size, fallback.size),
+		status: stringFromValue(parsed.status, fallback.status),
+		statusRank: numberFromValue(parsed.statusRank, fallback.statusRank),
+		startDate: optionalStringFromValue(parsed.startDate, fallback.startDate),
+		endDate: optionalStringFromValue(parsed.endDate, fallback.endDate),
+		weekCode: stringFromValue(parsed.weekCode, fallback.weekCode),
+		flag: numberFromValue(parsed.flag, fallback.flag),
+		requestReason: optionalStringFromValue(parsed.requestReason, fallback.requestReason),
+		decisionReason: optionalStringFromValue(parsed.decisionReason, fallback.decisionReason)
+	};
+}
+
+function nextBottomStatusRank(tasks: FlowTask[], status: string): number {
+	const ranks = tasks.filter((task) => task.status === status).map((task) => task.statusRank);
+	return ranks.length === 0 ? statusRankStep : Math.max(...ranks) + statusRankStep;
+}
+
+function localeFromBody(body: string | undefined): 'ko' | 'en' {
+	const parsed = parseJSONRecord(body);
+	return parsed.locale === 'en' ? 'en' : 'ko';
+}
+
+function parseJSONRecord(body: string | undefined): Record<string, unknown> {
+	if (!body) return {};
+	try {
+		const parsed: unknown = JSON.parse(body);
+		if (isUnknownRecord(parsed)) return parsed;
+	} catch {
+		return {};
+	}
+	return {};
+}
+
+function isUnknownRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function stringFromValue(value: unknown, fallback: string): string {
+	return typeof value === 'string' ? value : fallback;
+}
+
+function nonEmptyStringFromValue(value: unknown, fallback: string): string {
+	if (typeof value !== 'string') return fallback;
+	const trimmed = value.trim();
+	return trimmed ? trimmed : fallback;
+}
+
+function optionalStringFromValue(value: unknown, fallback: string | undefined): string | undefined {
+	return typeof value === 'string' ? value : fallback;
+}
+
+function stringArrayFromValue(value: unknown, fallback: string[]): string[] {
+	if (!Array.isArray(value)) return fallback;
+	return value.filter((item): item is string => typeof item === 'string');
+}
+
+function numberFromValue(value: unknown, fallback: number): number {
+	return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function readRequestBody(request: IncomingMessage, callback: (body: string) => void) {
+	if (request.method === 'GET') {
+		callback('');
+		return;
+	}
 	let body = '';
 	request.on('data', (chunk: Buffer) => {
 		body += chunk.toString('utf8');
 	});
-	request.on('end', () => {
-		try {
-			const payload = JSON.parse(body) as { locale?: string };
-			callback(payload.locale === 'en' ? 'en' : 'ko');
-		} catch {
-			callback('ko');
-		}
-	});
-	request.on('error', () => callback('ko'));
+	request.on('end', () => callback(body));
+	request.on('error', () => callback(''));
 }
 
-function writeJSON(response: ServerResponse, body: unknown) {
-	response.statusCode = 200;
+function writeJSON(response: ServerResponse, status: number, body: unknown) {
+	response.statusCode = status;
 	response.setHeader('Content-Type', 'application/json');
 	response.end(JSON.stringify(body));
 }
