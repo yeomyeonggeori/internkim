@@ -50,6 +50,14 @@ export class FilesState {
 		await this.refresh();
 	}
 
+	async reload() {
+		if (this.roots.length === 0) {
+			await this.loadRoots();
+			return;
+		}
+		await this.refresh();
+	}
+
 	async refresh() {
 		if (!this.currentPath) return;
 		this.isLoading = true;
