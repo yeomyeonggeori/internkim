@@ -7,6 +7,7 @@
 		eventLane,
 		fetchServiceLogs,
 		fetchTaskDetail,
+		formatCostUSD,
 		formatEventBody,
 		summarizeTimeline,
 		type TaskDetail
@@ -103,6 +104,12 @@
 					<span>{text.llmLatency} {formatLatency(summary.llmLatencyMS)}</span>
 					{#if summary.llmTotalTokens > 0}
 						<span>{text.llmTokens} {summary.llmTotalTokens.toLocaleString()}</span>
+					{/if}
+					{#if summary.llmCachedPromptTokens > 0}
+						<span>{text.llmCached} {summary.llmCachedPromptTokens.toLocaleString()}</span>
+					{/if}
+					{#if summary.llmCostUSD > 0}
+						<span class="font-medium text-foreground">{text.llmCost} {formatCostUSD(summary.llmCostUSD)}</span>
 					{/if}
 					<span>{text.toolCalls} {summary.toolCallCount}</span>
 				</div>
